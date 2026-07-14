@@ -4,6 +4,7 @@
     "version": "4.0.49",
     "changes": [
       "重构：炼丹系统代码质量全面优化——僵尸Room实体AlchemySlot/ForgeSlot清理(MIGRATION_17_18删2张僵尸表+移除DAO/Entity/Hilt绑定)。God Method processBuildingProduction拆5个单一职责方法。配方匹配逻辑提取公共函数findBestCraftableRecipe消除4处重复。PillDetailDialog 23+if样板替换为数据驱动渲染。clearAlchemySlot/clearForgeSlot统一返回DomainResult。死代码ForgeRepository/BuildingService.getAlchemySlots/4个BuildingService死方法全部删除。移除2个wildcard import",
+      "修复：重进游戏弟子列表多出幽灵弟子(属性全零/练气一层/16岁/单灵根)——根因:allocateNextId()两步模式(先加ids再写组件表)的异常窗口导致ID悬空,assembleAll()拼出默认值幽灵。DiscipleTables新增allocateAndInsert()原子方法(synchronized(ids)内分配+写入);recruitDisciple/recruitAllFromList/autoRecruit/recruitDiscipleFromList/RedeemCodeService 5个入口统一改用;增量存档deleteAll+子表同步消除Room残留行;读档SaveValidator自动清除已有幽灵;loadFromSnapshot补充版本号同步。举一反三:wallet.deduct()返回值检查(GiftService危急/DiplomacyService/AutoBuyService/VassalService)、SectPolicyToggleUseCase 5个政策改为单事务原子开关、RedeemCodeService 2处同模式手动ID分配修复、SpiritStoneWallet逐品阶pending校验。对抗性审查3Agent发现5项问题全修复。共21文件",
       "修复：startAlchemyAtomic/startForgingAtomic材料超额扣除——同草药有多个条目时每个都被完整扣减requiredAmount导致多扣。改为按herbId聚合消耗量逐条扣减",
       "新增：炼丹/锻造成功率接入FormulaService乘区法——长老加成/弟子境界/天赋/政策四乘区计算，替代原来的裸recipe.successRate",
       "修复：对话框Full模式标题/关闭按钮被32dp顶部内边距推下——UnifiedGameDialog Full模式的headerTopPadding错误复用水平间距headerH(32dp)，导致全部Full模式弹窗(弟子/仓库/设置/建造等)标题和关闭按钮被推下32dp。修复为4dp与Half模式一致。同步增强hideSystemBars()国产OEM ROM兼容性(HyperOS/MagicUI/ColorOS等)",

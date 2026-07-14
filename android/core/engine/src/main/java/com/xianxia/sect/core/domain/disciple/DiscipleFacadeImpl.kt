@@ -222,13 +222,12 @@ class DiscipleFacadeImpl @Inject constructor(
                     return@update
                 }
                 val currentMonthValue = gameData.gameYear * 12 + gameData.gameMonth
-                newId = discipleTables.allocateNextId().toString()
                 discipleAge = disciple.age
                 val recruitedDisciple = disciple.copy(
-                    id = newId,
                     usage = disciple.usage.copy(recruitedMonth = currentMonthValue)
                 )
-                discipleTables.insert(recruitedDisciple)
+                // 原子分配 ID + 写入组件表（消灭悬空窗口）
+                newId = discipleTables.allocateAndInsert(recruitedDisciple)
                 gameData = gameData.copy(recruitList = gameData.recruitList.filter { it.id != discipleId })
             }
             if (newId.isNotEmpty()) {

@@ -295,4 +295,79 @@ class DiscipleTablesTest {
 
         assertEquals(100.0, projected, 0.001)
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // allocateAndInsert / rollbackAllocation（幽灵弟子修复新增）
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `allocateAndInsert assigns new id and writes all fields`() {
+        val tables = DiscipleTables()
+        val disciple = createTestDisciple(id = "0", name = "新生弟子", realm = 8, cultivation = 300.0)
+
+        val assignedId = tables.allocateAndInsert(disciple)
+
+        assertTrue("ID 应 > 0", assignedId.toInt() > 0)
+        assertEquals(1, tables.count)
+        assertEquals("新生弟子", tables.names[assignedId.toInt()])
+        assertEquals(8, tables.realms[assignedId.toInt()])
+    }
+
+    @Test
+    fun `allocateAndInsert overwrites caller id`() {
+        val tables = DiscipleTables()
+        val disciple = createTestDisciple(id = "999", name = "覆盖测试")
+
+        val assignedId = tables.allocateAndInsert(disciple)
+
+        assertEquals(1, assignedId.toInt())
+        assertFalse(tables.ids.contains(999))
+    }
+
+    @Test
+    fun `allocateAndInsert multiple times increments ids`() {
+        val tables = DiscipleTables()
+        val id1 = tables.allocateAndInsert(createTestDisciple(name = "第一"))
+        val id2 = tables.allocateAndInsert(createTestDisciple(name = "第二"))
+        val id3 = tables.allocateAndInsert(createTestDisciple(name = "第三"))
+
+        assertEquals(3, tables.count)
+        assertEquals("1", id1)
+        assertEquals("2", id2)
+        assertEquals("3", id3)
+        assertEquals("第一", tables.names[1])
+        assertEquals("第二", tables.names[2])
+        assertEquals("第三", tables.names[3])
+    }
+
+    @Test
+    fun `rollbackAllocation removes id from ids and component tables`() {
+        val tables = DiscipleTables()
+        val id = tables.allocateNextId()
+        assertEquals(1, tables.count)
+
+        val result = tables.rollbackAllocation(id)
+
+        assertTrue(result)
+        assertEquals(0, tables.count)
+        assertFalse(tables.ids.contains(id))
+    }
+
+    @Test
+    fun `rollbackAllocation on non-existent id returns false`() {
+        val tables = DiscipleTables()
+        val result = tables.rollbackAllocation(999)
+
+        assertFalse(result)
+    }
+
+    @Test
+    fun `allocateAndInsert increments mutationVersion`() {
+        val tables = DiscipleTables()
+        val v0 = tables.mutationVersion
+
+        tables.allocateAndInsert(createTestDisciple(name = "版本次"))
+
+        assertTrue("mutationVersion 应递增", tables.mutationVersion > v0)
+    }
 }

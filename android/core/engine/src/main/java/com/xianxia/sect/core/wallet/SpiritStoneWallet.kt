@@ -41,8 +41,13 @@ class SpiritStoneWallet @Inject constructor(
     /**
      * 事件暂存列表 — add/deduct 中不直接 emit，而是将事件暂存至此。
      * 由 [flushPendingEvents] 在事务外统一发出，避免 UI 层读到部分状态窗口。
+     *
+     * [pendingDeltas] 按品阶跟踪待发事件的净变更量，用于 [flushPendingEvents]
+     * 中逐品阶校验余额一致性。若 update{} 事务回滚后仍有残留事件，此校验可防止
+     * 幽灵灵石变更通知被 UI 层消费（精确到单品阶，不混算）。
      */
     private val pendingEvents = mutableListOf<SpiritStonesChangedEvent>()
+    private val pendingDeltas = mutableMapOf<SpiritStoneGrade, Long>()
 
     // ── 增加 ──────────────────────────────────────────────────────────────
 
@@ -314,11 +319,33 @@ class SpiritStoneWallet @Inject constructor(
      *
      * 遍历 [pendingEvents] 逐一 emit 后 clear。
      * 通常在 [GameEngineCore.processMonthYearChange] 的月变处理之后调用。
+     *
+     * 逐品阶校验余额一致性。若 update{} 事务回滚后仍有残留事件（某个品阶的
+     * 当前余额不足以覆盖 pending 净变更），丢弃所有 pendingEvents，
+     * 防止展示错误的灵石变更通知（幽灵灵石）。
      */
     fun flushPendingEvents(eventBus: EventBusPort) {
         if (pendingEvents.isEmpty()) return
+
+        // 逐品阶校验：当前余额 + 待发净变更 >= 0
+        val gd = stateStore.gameData.value
+        for ((grade, netDelta) in pendingDeltas) {
+            // 始终校验：即使 netDelta=0 也要检查余额一致性，
+            // 防止事务回滚后增/扣配对净零但有残留事件的情况
+            val currentBalance = gd.spiritStoneCount(grade)
+            if (currentBalance + netDelta < 0) {
+                DomainLog.w(TAG, "flushPendingEvents: $grade 余额不一致(" +
+                    "current=$currentBalance, netDelta=$netDelta)，" +
+                    "丢弃 ${pendingEvents.size} 条残留事件")
+                pendingEvents.clear()
+                pendingDeltas.clear()
+                return
+            }
+        }
+
         val events = pendingEvents.toList()
         pendingEvents.clear()
+        pendingDeltas.clear()
         events.forEach { eventBus.emitTyped(it) }
     }
 
@@ -341,6 +368,7 @@ class SpiritStoneWallet @Inject constructor(
         pendingEvents.add(SpiritStonesChangedEvent(
             delta = delta, newTotal = balanceAfter, reason = reason
         ))
+        pendingDeltas[grade] = (pendingDeltas[grade] ?: 0L) + delta
         DomainLog.d(TAG, "灵石变更: ${if (delta >= 0) "+" else ""}$delta " +
                 "$grade ($source/$reason) [${balanceBefore}→${balanceAfter}]")
     }

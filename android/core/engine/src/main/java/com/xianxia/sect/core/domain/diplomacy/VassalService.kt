@@ -12,6 +12,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.domain.FavorDomain
+import com.xianxia.sect.core.wallet.DeductResult
 import com.xianxia.sect.core.wallet.SpiritStoneReason
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
@@ -68,7 +69,10 @@ class VassalService @Inject constructor(
         )
         if (tribute <= 0) return
         stateStore.update {
-            spiritStoneWallet.deduct(this, tribute, SpiritStoneGrade.LOW, SpiritStoneReason.VassalTribute, SpiritStoneSource.Internal)
+            val result = spiritStoneWallet.deduct(this, tribute, SpiritStoneGrade.LOW, SpiritStoneReason.VassalTribute, SpiritStoneSource.Internal)
+            if (result !is DeductResult.Success) {
+                DomainLog.w(TAG, "processYearlyTribute: 年贡扣除失败(tribute=$tribute, balance=${(result as? DeductResult.Insufficient)?.balance})")
+            }
         }
     }
 

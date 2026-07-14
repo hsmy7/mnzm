@@ -78,8 +78,14 @@ suspend fun GameEngine.loadData(
 ) {
     heavyDataLoaded = false
     val (migratedGameData, migratedDisciples) = migratePatrolSlotsIfNeeded(gameData, disciples)
+    // 防御性幽灵过滤：读档时清除 name 为空的幽灵弟子（补充 SaveValidator 的保护）
+    val cleanedDisciples = migratedDisciples.filter { it.name.isNotBlank() }
+    if (cleanedDisciples.size != migratedDisciples.size) {
+        val count = migratedDisciples.size - cleanedDisciples.size
+        DomainLog.w("GameEngine", "loadData: 过滤了 $count 个幽灵弟子（name为空）")
+    }
     stateStore.loadFromSnapshot(
-        gameData = migratedGameData, disciples = migratedDisciples,
+        gameData = migratedGameData, disciples = cleanedDisciples,
         equipmentStacks = equipmentStacks, equipmentInstances = equipmentInstances,
         manualStacks = manualStacks, manualInstances = manualInstances, pills = pills,
         materials = materials, herbs = herbs, seeds = seeds, storageBags = storageBags,
@@ -427,16 +433,14 @@ fun GameEngine.recruitAllFromList(): Int {
         return 0
     }
     val droppedCount = data.recruitList.size - validRecruits.size
-    val currentMonthValue = data.gameYear * 12 + data.gameMonth
     gameEngineCore.launchInScope {
         stateStore.update {
-            val recruitedDisciples = validRecruits.map {
-                it.copy(
-                    id = discipleTables.allocateNextId().toString(),
-                    usage = it.usage.copy(recruitedMonth = currentMonthValue)
+            val currentMonth = gameData.gameYear * 12 + gameData.gameMonth
+            validRecruits.forEach { disciple ->
+                discipleTables.allocateAndInsert(
+                    disciple.copy(usage = disciple.usage.copy(recruitedMonth = currentMonth))
                 )
             }
-            recruitedDisciples.forEach { discipleTables.insert(it) }
             gameData = gameData.copy(recruitList = emptyList())
         }
     }

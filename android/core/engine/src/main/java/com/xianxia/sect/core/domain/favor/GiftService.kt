@@ -10,6 +10,8 @@ import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.wallet.SpiritStoneReason
 import com.xianxia.sect.core.wallet.SpiritStoneSource
+import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.wallet.DeductResult
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import kotlin.random.Random
 import javax.inject.Inject
@@ -38,6 +40,10 @@ class GiftService @Inject constructor(
     private val stateStore: GameStateStore,
     private val spiritStoneWallet: SpiritStoneWallet
 ) {
+    companion object {
+        private const val TAG = "GiftService"
+    }
+
     /**
      * 向宗门赠送灵石
      *
@@ -140,6 +146,7 @@ class GiftService @Inject constructor(
         // 缓和关系绕过年度限制时不更新 lastGiftYear
         val shouldUpdateGiftYear = !bypassYearLimit
 
+        var deductSucceeded = false
         stateStore.update {
             val livePlayerSect = gameData.worldMapSects.find { it.isPlayerSect }
             if (livePlayerSect == null) return@update
@@ -155,10 +162,24 @@ class GiftService @Inject constructor(
                     .copy(lastGiftYear = gameData.gameYear)
             }
 
-            spiritStoneWallet.deduct(this, tierConfig.spiritStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.Gift, SpiritStoneSource.Internal)
+            val deductResult = spiritStoneWallet.deduct(this, tierConfig.spiritStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneReason.Gift, SpiritStoneSource.Internal)
+            if (deductResult !is DeductResult.Success) {
+                DomainLog.w(TAG, "送礼失败：灵石不足(tier=$tier, need=${tierConfig.spiritStones})")
+                return@update
+            }
+            deductSucceeded = true
             gameData = gameData.copy(
                 sectDetails = liveUpdatedDetails,
                 sectRelations = liveUpdatedRelations
+            )
+        }
+
+        if (!deductSucceeded) {
+            return GiftResult(
+                success = false,
+                rejected = false,
+                responseType = "failed",
+                message = "灵石不足，需要${tierConfig.spiritStones}灵石"
             )
         }
 

@@ -7,7 +7,7 @@
 
 ### 修复
 
-- **修复：startAlchemyAtomic/startForgingAtomic 材料超额扣除** — 同草药有多个条目时每个都被完整扣减 requiredAmount 导致多扣。改为按 herbId 聚合消耗量逐条扣减
+- **修复：重进游戏弟子列表多出幽灵弟子（属性全零/练气一层/16岁/单灵根）** — 根因：`allocateNextId()` 两步模式（先加 `ids` 再写组件表）的异常窗口导致 ID 悬空，`assembleAll()` 拼出默认值幽灵。修复：`DiscipleTables` 新增 `allocateAndInsert()` 原子方法（`synchronized(ids)` 内完成分配+写入）；`recruitDisciple`/`recruitAllFromList`/`autoRecruit`/`recruitDiscipleFromList`/`RedeemCodeService` 5 个入口统一改用；增量存档 `deleteAll`+子表同步消除Room残留行；读档 `SaveValidator` 自动清除已有幽灵；`loadFromSnapshot` 补充版本号同步。举一反三：`wallet.deduct()` 返回值检查（GiftService危急/DiplomacyService/AutoBuyService/VassalService）、`SectPolicyToggleUseCase` 5 个政策改为单事务原子开关、`RedeemCodeService` 2 处同模式手动ID分配修复、`SpiritStoneWallet` 逐品阶 pending 校验。对抗性审查 3 Agent 发现 5 项问题全修复。共 21 文件
 - **新增：炼丹/锻造成功率接入 FormulaService 乘区法** — 长老加成/弟子境界/天赋/政策四乘区计算，替代原来的裸 recipe.successRate
 - **修复：对话框 Full 模式标题/关闭按钮被 32dp 顶部内边距推下** — `UnifiedGameDialog` Full 模式的 `headerTopPadding` 错误复用水平间距 `headerH`(32dp)，导致全部 Full 模式弹窗（弟子/仓库/设置/建造等）标题和关闭按钮被推下 32dp。修复为 4dp 与 Half 模式一致。同步增强 `hideSystemBars()` 国产 OEM ROM 兼容性（HyperOS/MagicUI/ColorOS 等）
 - **修复：BuildingService 自动收获路径 kotlin.random.Random 破坏存档确定性** — 改为 GameRngManager.getRng(SYSTEM)。ProductionProcessor 对应路径同步修复共 4 处

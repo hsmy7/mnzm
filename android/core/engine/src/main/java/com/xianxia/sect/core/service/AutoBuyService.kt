@@ -7,6 +7,7 @@ import com.xianxia.sect.core.engine.system.MerchantItemConverter
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.wallet.DeductResult
 import com.xianxia.sect.core.wallet.SpiritStoneReason
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
@@ -91,8 +92,12 @@ class AutoBuyService @Inject constructor(
                 }
                 val cost = merchantItem.price * buyQty
 
-                // 通过钱包扣除灵石
-                spiritStoneWallet.deduct(this, cost, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
+                // 通过钱包扣除灵石（检查扣除结果，失败则跳过该物品）
+                val deductResult = spiritStoneWallet.deduct(this, cost, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
+                if (deductResult !is DeductResult.Success) {
+                    skippedNoFunds++
+                    continue
+                }
 
                 // 减少商人库存
                 val remaining = merchantItem.quantity - buyQty

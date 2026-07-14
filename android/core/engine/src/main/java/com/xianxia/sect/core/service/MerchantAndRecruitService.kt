@@ -373,10 +373,8 @@ class MerchantAndRecruitService @Inject constructor(
             if (autoRecruits.isNotEmpty()) {
                 val currentMonthIndex = year * 12 + 1
                 autoRecruits.forEach { disciple ->
-                    val id = discipleTables.allocateNextId().toString()
-                    disciple.id = id
                     disciple.recruitedMonth = currentMonthIndex
-                    discipleTables.insert(disciple)
+                    discipleTables.allocateAndInsert(disciple)
                 }
                 DomainLog.i(TAG, "autoRecruit: auto-recruited ${autoRecruits.size} disciples, " +
                     "${manualRecruits.size} left for manual review")

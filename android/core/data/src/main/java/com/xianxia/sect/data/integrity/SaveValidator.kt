@@ -144,6 +144,15 @@ object SaveValidator {
             repairs.addAll(buildingRepairDetails)
         }
 
+        // ── 第 7 项：幽灵弟子检测（name.isBlank() → 清理）──────
+        val ghostRemovals = disciples.filter { it.name.isBlank() }
+        if (ghostRemovals.isNotEmpty()) {
+            ghostRemovals.forEach { ghost ->
+                repairs.add("幽灵弟子 id=${ghost.id}（name=空, age=${ghost.age}, realm=${ghost.realm}）已从存档中清理")
+            }
+            disciples = disciples.filter { it.name.isNotBlank() }
+        }
+
         // ── 汇总判决 ───────────────────────────────────────────
         return when {
             repairs.isNotEmpty() && corruption.isEmpty() -> {

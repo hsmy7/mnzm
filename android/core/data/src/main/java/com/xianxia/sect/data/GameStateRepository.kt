@@ -144,7 +144,23 @@ class GameStateRepository @Inject constructor(
                     gameDataDao.insert(gameData.copy(id = "game_data_$slotId", slotId = slotId))
                 }
                 if (snapshot.disciples) {
-                    discipleDao.upsertAll(disciples.map { it.copy(slotId = slotId) })
+                    // 先清后写：防止已移除弟子的行残留在 DB 中
+                    discipleDao.deleteAll(slotId)
+                    discipleCoreDao.deleteAll(slotId)
+                    discipleCombatStatsDao.deleteAll(slotId)
+                    discipleEquipmentDao.deleteAll(slotId)
+                    discipleExtendedDao.deleteAll(slotId)
+                    discipleAttributesDao.deleteAll(slotId)
+                    database.discipleCompactDao().deleteAll(slotId)
+
+                    val batch = disciples.map { it.copy(slotId = slotId) }
+                    discipleDao.upsertAll(batch)
+                    discipleCoreDao.upsertAll(batch.map { DiscipleCore.fromDisciple(it).copy(slotId = slotId) })
+                    discipleCombatStatsDao.upsertAll(batch.map { DiscipleCombatStats.fromDisciple(it).copy(slotId = slotId) })
+                    discipleEquipmentDao.upsertAll(batch.map { DiscipleEquipment.fromDisciple(it).copy(slotId = slotId) })
+                    discipleExtendedDao.upsertAll(batch.map { DiscipleExtended.fromDisciple(it).copy(slotId = slotId) })
+                    discipleAttributesDao.upsertAll(batch.map { DiscipleAttributes.fromDisciple(it).copy(slotId = slotId) })
+                    database.discipleCompactDao().insertAll(batch.map { DiscipleCompact.fromDisciple(it) })
                 }
                 if (snapshot.equipmentStacks) {
                     equipmentStackDao.upsertAll(equipmentStacks.map { it.copy(slotId = slotId) })

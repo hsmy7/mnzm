@@ -950,6 +950,9 @@ class GameStateStoreImpl @Inject constructor(
                 throw e
             }
         }
+        // ★ 锁外同步版本号，防止首个 update() 触发不必要的 assembleAll
+        _disciplesFlow.value = _discipleTables.assembleAll()
+        lastAssembledMutationVersion = _discipleTables.mutationVersion
     }
 
     override suspend fun reset() {

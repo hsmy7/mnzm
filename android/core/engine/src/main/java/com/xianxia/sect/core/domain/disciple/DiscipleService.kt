@@ -509,9 +509,12 @@ private val scopeProvider: CoroutineScopeProvider,
     /**
      * Recruit new disciple
      * @param realm 境界，默认 9（炼气期），0 为仙人
+     *
+     * 安全操作（name生成、factory创建）优先执行，不涉及 DiscipleTables。
+     * ID 分配 + 组件表写入使用 [allocateAndInsert] 在最后一步原子完成，
+     * 消灭 allocateNextId → insert 之间的悬空窗口。
      */
     fun recruitDisciple(realm: Int = 9): Disciple {
-        val id = stateStore.discipleTables.allocateNextId().toString()
         val gender = if (Random.nextBoolean()) GENDER_MALE else GENDER_FEMALE
 
         val existingNames = (stateStore.discipleTables.assembleAll()
@@ -521,9 +524,9 @@ private val scopeProvider: CoroutineScopeProvider,
             gender, NameService.NameStyle.FULL, existingNames
         )
 
-        val disciple = discipleFactory.create(
+        val rawDisciple = discipleFactory.create(
             DiscipleFactory.DiscipleSeed(
-                id = id,
+                id = "PENDING",  // 占位 ID，allocateAndInsert 会覆盖
                 gender = gender,
                 nameResult = nameResult,
                 spiritRootType = SpiritRootGenerator.generate(),
@@ -538,14 +541,15 @@ private val scopeProvider: CoroutineScopeProvider,
         // Set recruitment time
         val data = stateStore.gameData.value
         val currentMonthValue = data.gameYear * 12 + data.gameMonth
-        disciple.usage.recruitedMonth = currentMonthValue
+        rawDisciple.usage.recruitedMonth = currentMonthValue
 
-        addDisciple(disciple)
+        // 最后一步：原子分配 ID + 写入组件表（消灭悬空窗口）
+        val realId = stateStore.discipleTables.allocateAndInsert(rawDisciple)
 
         // 记录加入宗门日志
-        addLifeEvent(disciple.id, "${disciple.age}岁：加入宗门")
+        addLifeEvent(realId, "${rawDisciple.age}岁：加入宗门")
 
-        return disciple
+        return rawDisciple.copy(id = realId)
     }
 
     /**

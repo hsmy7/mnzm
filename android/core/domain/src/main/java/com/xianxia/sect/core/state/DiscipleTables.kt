@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.state
 
+import android.util.Log
 import com.xianxia.sect.core.model.*
 
 /**
@@ -183,6 +184,13 @@ class DiscipleTables {
     // ================================================================
 
     /** 所有组件表的统一引用列表，用于 [remove]/[clear]/[bindAllOnWrite]/[deepCopy] 的迭代操作 */
+    companion object {
+        private const val TAG = "DiscipleTables"
+
+        /** 用于 [IntComponentTable] griefEndYears 列表示"无哀悼期"的哨兵值 */
+        const val GRIEF_YEAR_NULL_SENTINEL = -1
+    }
+
     private val _allCopyableRefs: List<CopyableTableRef> = buildCopyableRefs()
 
     @Suppress("LongMethod")
@@ -331,6 +339,45 @@ class DiscipleTables {
         val id = (ids.maxOrNull() ?: 0) + 1
         ids.add(id)
         id
+    }
+
+    /**
+     * 原子分配 ID 并写入全部组件表。
+     *
+     * 在单个 [synchronized(ids)] 锁内完成 ID 分配 + 组件数据写入，
+     * 消灭 [allocateNextId] 与 [insert] 之间的悬空窗口。
+     * 无论 [disciple.id] 是什么值，都会被新分配的 ID 覆盖。
+     *
+     * 对标 Unity DOTS [EntityManager.CreateEntity] / Flecs [world.entity]
+     * 的原子实体创建模式，杜绝"分配 ID 后未写入数据"的窗口期。
+     *
+     * @param disciple 待插入的弟子对象（其 ID 将被覆盖）
+     * @return 新分配的 ID（String 格式）
+     */
+    fun allocateAndInsert(disciple: Disciple): String = synchronized(ids) {
+        val id = (ids.maxOrNull() ?: 0) + 1
+        val idStr = id.toString()
+        ids.add(id)
+        // copy() 不复制 class body 属性（如 lifeEvents），手动保留
+        val d = disciple.copy(id = idStr)
+        d.lifeEvents = disciple.lifeEvents
+        writeAllFields(d)
+        markMutated()
+        idStr
+    }
+
+    /**
+     * 回滚指定 ID 的分配——从 [ids] 和所有组件表中移除该 ID。
+     * 在 [allocateNextId] 分配后、[insert] 前放弃时调用，防止悬空 ID。
+     *
+     * @param id 要回滚的 ID
+     * @return true 表示回滚成功，false 表示 ID 不存在
+     */
+    fun rollbackAllocation(id: Int): Boolean = synchronized(ids) {
+        if (id !in ids) return@synchronized false
+        ids.remove(id)
+        _allCopyableRefs.forEach { it.remove(id) }
+        true
     }
 
     /**
@@ -601,8 +648,17 @@ class DiscipleTables {
         lastTheftMonth = lastTheftMonths.getOrDefault(id, 0)
     )
 
-    /** 组装全部弟子的 List<Disciple>（用于序列化、旧 API 兼容）。 */
-    fun assembleAll(): List<Disciple> = ids.distinct().map { assemble(it) }
+    /** 组装全部弟子的 List<Disciple>（用于序列化、旧 API 兼容）。
+     *  含幽灵弟子防御性检测：ID 在 ids 中但 name 为空 → 组件表该 ID 无完整数据。 */
+    fun assembleAll(): List<Disciple> {
+        val result = ids.distinct().map { assemble(it) }
+        result.firstOrNull { it.name.isBlank() }?.let { ghost ->
+            Log.w(TAG, "GHOST DISCIPLE: id=${ghost.id}, " +
+                "age=${ghost.age}, realm=${ghost.realm}/${ghost.realmLayer}, " +
+                "cultivation=${ghost.cultivation}")
+        }
+        return result
+    }
 
     /**
      * 删除一个弟子。所有组件表同时删除对应行。
@@ -668,12 +724,15 @@ class DiscipleTables {
     }
 
     /**
-     * 深拷贝组件表（用于 Shadow 结算）。
+     * 深拷贝组件表（用于 Shadow 结算 / update{} 事务隔离）。
      * 使用 [CopyableTableRef] 迭代完成所有表的复制。
+     * 通过 [synchronized(ids)] 保护 ids 快照一致性。
      */
     fun deepCopy(): DiscipleTables {
+        val idsSnapshot: List<Int>
+        synchronized(ids) { idsSnapshot = this.ids.toList() }
         val copy = DiscipleTables()
-        copy.ids.addAll(this.ids)
+        copy.ids.addAll(idsSnapshot)
         _allCopyableRefs.forEach { it.copyTo(copy) }
         return copy
     }
@@ -750,11 +809,6 @@ class DiscipleTables {
             }
         }
         toRemove.forEach { remove(it) }
-    }
-
-    companion object {
-        /** 用于 [IntComponentTable] griefEndYears 列表示"无哀悼期"的哨兵值 */
-        const val GRIEF_YEAR_NULL_SENTINEL = -1
     }
 }
 

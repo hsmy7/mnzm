@@ -20,6 +20,7 @@ import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.wallet.SpiritStoneReason
 import com.xianxia.sect.core.wallet.SpiritStoneSource
+import com.xianxia.sect.core.wallet.DeductResult
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -424,7 +425,10 @@ class DiplomacyService @Inject constructor(
     suspend fun buyFromSectTrade(sectId: String, itemId: String, quantity: Int = 1) {
         stateStore.update {
             val v = validateSectTrade(gameData, sectId, itemId, quantity) ?: return@update
-            spiritStoneWallet.deduct(this, v.totalPrice, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
+            val deductResult = spiritStoneWallet.deduct(this, v.totalPrice, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
+            if (deductResult !is DeductResult.Success) {
+                return@update
+            }
             gameData = gameData.copy(
                 sectDetails = v.updatedSectDetails
             )
@@ -435,7 +439,10 @@ class DiplomacyService @Inject constructor(
     suspend fun buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int = 1) {
         stateStore.update {
             val v = validateSectTrade(gameData, sectId, itemId, quantity) ?: return@update
-            spiritStoneWallet.deduct(this, v.totalPrice, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
+            val deductResult = spiritStoneWallet.deduct(this, v.totalPrice, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
+            if (deductResult !is DeductResult.Success) {
+                return@update
+            }
             gameData = gameData.copy(
                 sectDetails = v.updatedSectDetails
             )
