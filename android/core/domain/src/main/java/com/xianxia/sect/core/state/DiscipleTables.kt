@@ -215,6 +215,12 @@ class DiscipleTables {
          * - 单元测试中设为 false（测试直接操作组件表绕过 stateStore.update{}）
          */
         @Volatile var writeGuardEnabled: Boolean = true
+
+        /**
+         * 跨表一致性校验开关。Release 构建建议关闭。
+         * 在 GameStateStoreImpl 的 Release 构造函数中设为 false。
+         */
+        @Volatile var consistencyCheckEnabled: Boolean = true
     }
 
     private val _allCopyableRefs: List<CopyableTableRef> = buildCopyableRefs()
@@ -366,6 +372,7 @@ class DiscipleTables {
         replaceWith = ReplaceWith("allocateAndInsert(disciple)")
     )
     fun allocateNextId(): Int = synchronized(ids) {
+        requireWriteAccess()
         val id = (ids.maxOrNull() ?: 0) + 1
         ids.add(id)
         id
@@ -409,6 +416,7 @@ class DiscipleTables {
         level = DeprecationLevel.WARNING
     )
     fun rollbackAllocation(id: Int): Boolean = synchronized(ids) {
+        requireWriteAccess()
         if (id !in ids) return@synchronized false
         ids.remove(id)
         _allCopyableRefs.forEach { it.remove(id) }
@@ -903,6 +911,7 @@ class DiscipleTables {
      * 违反时立即 `check()` 失败，杜绝幽灵弟子逃逸到生产环境。
      */
     private fun assertAllTablesConsistent() {
+        if (!consistencyCheckEnabled) return
         synchronized(ids) {
             for (id in ids) {
                 _allCopyableRefs.forEach { ref ->
