@@ -566,7 +566,7 @@ class GameStateStoreImpl @Inject constructor(
         shadowOriginAliveIds = _discipleTables.ids.filter { _discipleTables.isAlive[it] == 1 }.toSet()
         return MutableGameState(
             gameData = gd,
-            discipleTables = _discipleTables.deepCopy().deepCopy(),
+            discipleTables = _discipleTables.deepCopy(),
             equipmentStacks = EntityStore(es),
             equipmentInstances = EntityStore(ei),
             manualStacks = EntityStore(ms),
@@ -965,7 +965,8 @@ class GameStateStoreImpl @Inject constructor(
             aiDisciplePowerCache.clear()
             _gameDataFlow.value = GameData()
             _disciplesFlow.value = emptyList()
-            _discipleTables.writeAllowed = true; _discipleTables.clear(); _discipleTables.writeAllowed = false
+            _discipleTables.writeAllowed = true
+            try { _discipleTables.clear() } finally { _discipleTables.writeAllowed = false }
             _equipmentStacksFlow.value = emptyList()
             _equipmentInstancesFlow.value = emptyList()
             _manualStacksFlow.value = emptyList()

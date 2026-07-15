@@ -546,13 +546,16 @@ private val scopeProvider: CoroutineScopeProvider,
         val currentMonthValue = data.gameYear * 12 + data.gameMonth
         rawDisciple.usage.recruitedMonth = currentMonthValue
 
-        // 最后一步：原子分配 ID + 写入组件表（消灭悬空窗口）
+        // 最后一步：原子分配 ID + 写入组件表 + 加入宗门日志（消灭悬空窗口）
         val realId = stateStore.updateAndReturn {
-            discipleTables.allocateAndInsert(rawDisciple)
+            val id = discipleTables.allocateAndInsert(rawDisciple)
+            val intId = id.toIntOrNull()
+            if (intId != null) {
+                val events = discipleTables.lifeEvents.getOrDefault(intId, emptyList())
+                discipleTables.lifeEvents[intId] = events + "${rawDisciple.age}岁：加入宗门"
+            }
+            id
         }
-
-        // 记录加入宗门日志
-        addLifeEvent(realId, "${rawDisciple.age}岁：加入宗门")
 
         return rawDisciple.copy(id = realId)
     }

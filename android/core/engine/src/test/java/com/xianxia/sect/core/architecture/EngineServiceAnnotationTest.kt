@@ -18,11 +18,13 @@ class EngineServiceAnnotationTest {
     // - CultivationSharedState / PhaseTickAccumulator — 数据容器
     // - SomeDisabled — PolicyCostResult sealed interface 的子类
     // - SalaryPlan — 私有 data class
+    // - DefensePreparation — CaveExplorationProcessor 内的私有 data class
     private val knownMissingAnnotation = setOf(
         "CultivationSharedState",
         "PhaseTickAccumulator",
         "SomeDisabled",
-        "SalaryPlan"
+        "SalaryPlan",
+        "DefensePreparation"
     )
 
     @Test
