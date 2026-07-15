@@ -8,9 +8,22 @@
 - **清理：15 个魔法数字提取为命名常量** — 覆盖 `CultivationSettlement`/`PartnerSystem`/`ChildBirthSystem`/`ProductionProcessor`/`CaveExplorationProcessor`/`PatrolBattleSystem`
 - **修复：`replaceAll` 预存问题** — 重复 ID 传入时静默覆盖，新增 `check()` 守卫
 
-### 对抗性审查
+### 对抗性审查（3 Agent × 47 发现全部处理）
 
 - **对抗性审查（2 Agent）：** 边界狂魔 + 状态破坏者，0 阻塞性问题，0 回归。确认 28 处迁移全部覆盖、5 处 deathYears 后修复逻辑保留、`CultivationSettlement` 复杂分支等价性
+
+### 架构级修复：4 层架构合规体系
+
+- **Layer 1: WriteGuard（对标 Android StrictMode / Flecs readonly_begin）** — `DiscipleTables` 新增 `writeAllowed` 标志 + `requireWriteAccess()` 守卫；`GameStateStoreImpl.update{}` 管理 `writeAllowed` 生命周期；绕过 `update{}` 的直接写立即抛 `IllegalStateException`。补漏 `@Deprecated` 方法。`consistencyCheckEnabled` Release 开关
+- **Layer 2: 跨表一致性校验（对标 Bevy UnsafeWorldCell）** — `ComponentTableLike`/`CopyableTableRef` 新增 `contains(id)`；`assertAllTablesConsistent()` Debug 断言；`insert/remove/replaceAll` 后自动校验 90+ 表 id 一致性
+- **Layer 3: 真 suspend 化** — `ProductionSlotDao` 全量 `suspend`（含 `@Query DELETE`）；`ProductionSlotDataPort` + Impl `withContext(IO)`；`ProductionSlotRepository` 7 方法重构成锁外 DAO 模式消除 `runBlocking(IO)`（同 `removeSlot` 模式）；`MiscDaos` GameHeavyDataDao 修复
+- **Layer 4: 全 DAO 线程安全审计** — 确认 17 个 DAO 文件所有 `@Insert/@Update/@Delete/@Query` 写方法均为 `suspend`
+- **Bug 修复：6 个 Bugly 崩溃全部根治** — #9029 SparseArray 并发（WriteGuard 根除）+ #3030 组件表缺 id（`assembleAll` 幽灵跳过 + 一致性断言）+ #3051 主线程 DAO（`ProductionSlotDao` 全量 `suspend`）+ #5054 CrashHandler 自递归（`handlingCrash` guard + `stackTraceToString()`）+ #3026/#2017 已有修复确认
+- **修复：`ProductionSlotRepository.updateSlotByBuildingId` 等 7 方法从 `runBlocking(IO)` 重构为真 `suspend`** — DAO 移出锁外（`removeSlot` 模式），非 `suspend` 调用方加 `runBlocking(IO)` 包装
+- **修复：`GameStateStoreImpl.reset()` 和 `loadFromSnapshot()` `writeAllowed` 保护** — `finally` 块确保 `writeAllowed=false` 即使异常
+- **修复：`loadFromSnapshot` 回滚路径原子性** — `finally { _discipleTables.writeAllowed = false }` 保护
+- **清理：** 移除未使用的 `DiscipleWriteManager`（已全部迁入 `stateStore.update{}`）；`createSettlementShadow` 双重 `deepCopy` 修复；`CrashHandler` `handlingCrash` 改为 `AtomicBoolean.compareAndSet`；`IntFlatArray`/`DoubleFlatArray` 负 key 守卫（全部方法 `key >= 0` 检查）
+- **预存问题修复：** `EngineServiceAnnotationTest` `DefensePreparation` 加入白名单；`CultivationSettlementConcurrencyTest` 过时构造函数修复；`GameStateStoreMergeTest` 加 `WriteGuardRule`；`WriteGuardRule` 复制到 `:core:engine`/`:app` 测试源；`assembleAll()` 半幽灵逃逸修复（`isAlive.contains(id)` 守卫）
 
 ## [4.0.49] - 2026-07-14（versionCode=4049）
 

@@ -15,7 +15,21 @@
 
 **参考：** Unity DOTS `EntityManager.CreateEntity()` / Flecs `world.entity()` — ID 分配即数据写入完成
 
-## 2. `stateStore.update{}` 隔离语义不统一
+## 2. `stateStore.update{}` 隔离语义不统一 ✅ 部分完成
+
+**状态：** ✅ 2026-07-15 新增 WriteGuard 运行时守卫
+
+**完成内容：**
+- `DiscipleTables` 新增 `writeAllowed` + `requireWriteAccess()` — 绕过 `update{}` 的直接写在运行时立即抛异常（对标 Android StrictMode）
+- `assertAllTablesConsistent()` — `insert/remove/replaceAll` 后 Debug 校验 90+ 表 id 一致性（对标 Bevy UnsafeWorldCell）
+- `consistencyCheckEnabled` Release 开关
+- `discipleTables` 的 deepCopy 已标准化（所有 `update{}` 内统一使用）
+
+**待完成：**
+- `gameData` 和 `EntityStore` 的隔离语义仍不一致（直接引用 vs frozen 引用）
+- 单 `data class TransactionState` 统一所有字段的写时复制
+
+## 3. `wallet.deduct()` 返回值强制检查
 
 **状态：** 🟡 待设计
 
