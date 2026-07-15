@@ -1,6 +1,8 @@
 package com.xianxia.sect.core.engine.service
 
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import kotlin.math.roundToInt
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.ProductionSlot
@@ -143,17 +145,19 @@ class ProductionProcessor @Inject constructor(
 
     private fun resetSlotToIdle(slot: ProductionSlot, buildingId: String,
                                  buildingType: BuildingType) {
-        productionSlotRepository.updateSlotByBuildingId(buildingId, slot.slotIndex) { s ->
-            ProductionSlot.createIdle(
-                id = s.id,
-                slotIndex = slot.slotIndex,
-                buildingType = buildingType,
-                buildingId = buildingId,
-                autoRestartEnabled = slot.autoRestartEnabled,
-                assignedDiscipleId = slot.assignedDiscipleId,
-                assignedDiscipleName = slot.assignedDiscipleName,
-                recipeId = slot.recipeId
-            )
+        runBlocking(Dispatchers.IO) {
+            productionSlotRepository.updateSlotByBuildingId(buildingId, slot.slotIndex) { s ->
+                ProductionSlot.createIdle(
+                    id = s.id,
+                    slotIndex = slot.slotIndex,
+                    buildingType = buildingType,
+                    buildingId = buildingId,
+                    autoRestartEnabled = slot.autoRestartEnabled,
+                    assignedDiscipleId = slot.assignedDiscipleId,
+                    assignedDiscipleName = slot.assignedDiscipleName,
+                    recipeId = slot.recipeId
+                )
+            }
         }
     }
 
@@ -375,8 +379,10 @@ class ProductionProcessor @Inject constructor(
         }
         if (disciple == null || !disciple.isAlive || disciple.status != DiscipleStatus.IDLE) {
             // 弟子不可用 → 清除槽位关联，等待玩家手动处理
-            productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slotIndex) { s ->
-                s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+            runBlocking(Dispatchers.IO) {
+                productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slotIndex) { s ->
+                    s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                }
             }
             return
         }
@@ -413,12 +419,14 @@ class ProductionProcessor @Inject constructor(
             val actualDuration = formulaService.calculateWorkDurationWithAllDisciples(
                 recipeToStart.duration, BuildingNames.ALCHEMY)
             val absMonth = data.gameYear * 12 + data.gameMonth
-            productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slotIndex) { s ->
-                s.copy(
-                    duration = actualDuration,
-                    baseDuration = recipeToStart.duration,
-                    completionMonth = absMonth + actualDuration.coerceAtLeast(1)
-                )
+            runBlocking(Dispatchers.IO) {
+                productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slotIndex) { s ->
+                    s.copy(
+                        duration = actualDuration,
+                        baseDuration = recipeToStart.duration,
+                        completionMonth = absMonth + actualDuration.coerceAtLeast(1)
+                    )
+                }
             }
         }
     }
@@ -469,8 +477,10 @@ class ProductionProcessor @Inject constructor(
             allDisciples.find { it.id == id }
         }
         if (disciple == null || !disciple.isAlive || disciple.status != DiscipleStatus.IDLE) {
-            productionSlotRepository.updateSlotByBuildingId(BuildingNames.FORGE, slotIndex) { s ->
-                s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+            runBlocking(Dispatchers.IO) {
+                productionSlotRepository.updateSlotByBuildingId(BuildingNames.FORGE, slotIndex) { s ->
+                    s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                }
             }
             return true
         }
@@ -622,7 +632,9 @@ class ProductionProcessor @Inject constructor(
             })
         }
         if (updates.isNotEmpty()) {
-            productionSlotRepository.batchUpdate(updates)
+            runBlocking(Dispatchers.IO) {
+                productionSlotRepository.batchUpdate(updates)
+            }
         }
     }
 
@@ -983,14 +995,16 @@ class ProductionProcessor @Inject constructor(
 
             val remainingMonths = ((1.0 - progressRatio) * newDuration)
                 .roundToInt().coerceAtLeast(1)
-            productionSlotRepository.updateSlot(
-                slot.buildingType, slot.slotIndex
-            ) { s ->
-                s.copy(
-                    duration = newDuration,
-                    completionMonth = currentMonth + remainingMonths,
-                    successRate = newSuccessRate
-                )
+            runBlocking(Dispatchers.IO) {
+                productionSlotRepository.updateSlot(
+                    slot.buildingType, slot.slotIndex
+                ) { s ->
+                    s.copy(
+                        duration = newDuration,
+                        completionMonth = currentMonth + remainingMonths,
+                        successRate = newSuccessRate
+                    )
+                }
             }
         }
     }

@@ -902,7 +902,7 @@ class GameStateStoreImpl @Inject constructor(
             try {
                 _gameDataFlow.value = gameData
                 _disciplesFlow.value = disciples
-                _discipleTables.clear()
+                _discipleTables.apply { writeAllowed = true }.clear()
                 disciples.forEach { _discipleTables.insert(it) }
                 _equipmentStacksFlow.value = equipmentStacks
                 _equipmentInstancesFlow.value = equipmentInstances
@@ -930,7 +930,7 @@ class GameStateStoreImpl @Inject constructor(
                 DomainLog.e(TAG, "loadFromSnapshot 失败，执行回滚: ${e.message}", e)
                 _gameDataFlow.value = oldGameData
                 _disciplesFlow.value = oldDisciples
-                _discipleTables.clear()
+                _discipleTables.apply { writeAllowed = true }.clear()
                 oldTables.ids.forEach { id ->
                     val d = oldTables.assemble(id)
                     _discipleTables.insert(d)
@@ -950,6 +950,8 @@ class GameStateStoreImpl @Inject constructor(
                 _isLoading.value = oldIsLoading
                 _isSaving.value = oldIsSaving
                 throw e
+            } finally {
+                _discipleTables.writeAllowed = false
             }
         }
         // ★ 锁外同步版本号，防止首个 update() 触发不必要的 assembleAll
@@ -963,7 +965,7 @@ class GameStateStoreImpl @Inject constructor(
             aiDisciplePowerCache.clear()
             _gameDataFlow.value = GameData()
             _disciplesFlow.value = emptyList()
-            _discipleTables.clear()
+            _discipleTables.writeAllowed = true; _discipleTables.clear(); _discipleTables.writeAllowed = false
             _equipmentStacksFlow.value = emptyList()
             _equipmentInstancesFlow.value = emptyList()
             _manualStacksFlow.value = emptyList()

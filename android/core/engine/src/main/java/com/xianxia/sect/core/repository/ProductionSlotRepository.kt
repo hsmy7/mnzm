@@ -9,9 +9,7 @@ import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.model.production.SlotStateMachine
 import com.xianxia.sect.core.repository.ProductionSlotDataPort
 import com.xianxia.sect.core.util.CoroutineScopeProvider
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.runBlocking
 import kotlin.concurrent.withLock
 import java.util.concurrent.locks.ReentrantLock
 import kotlinx.coroutines.withContext
@@ -87,12 +85,12 @@ class ProductionSlotRepository @Inject constructor(
         }
     }
 
-    fun loadSlots(slots: List<ProductionSlot>) {
+    suspend fun loadSlots(slots: List<ProductionSlot>) {
         globalMutex.withLock {
             _slots.value = slots
             cache.updateCache(slots)
-            runBlocking(Dispatchers.IO) { dao.insertAll(slots) }
         }
+        dao.insertAll(slots)
     }
 
     fun getSlots(): List<ProductionSlot> = _slots.value
@@ -131,68 +129,72 @@ class ProductionSlotRepository @Inject constructor(
         return cache.getById(slotId)
     }
 
-    fun updateSlot(
+    suspend fun updateSlot(
         buildingType: BuildingType,
         slotIndex: Int,
         transform: (ProductionSlot) -> ProductionSlot
     ): Result<ProductionSlot> {
-        return shardedLock.withLock(buildingType, slotIndex) {
-            updateSlotInternal(buildingType, slotIndex, transform)
+        val (newSlot, result) = updateSlotInternal(buildingType, slotIndex, transform)
+        if (result.isSuccess && newSlot != null) {
+            dao.update(newSlot)
         }
+        return result
     }
 
+    /**
+     * 锁内执行校验和缓存更新，DAO 写入由调用方在锁外执行。
+     * 返回 (newSlotOrNull, result)，不从 DAO 写入。
+     */
     private fun updateSlotInternal(
         buildingType: BuildingType,
         slotIndex: Int,
         transform: (ProductionSlot) -> ProductionSlot
-    ): Result<ProductionSlot> {
-        val currentSlots = _slots.value
-        val targetIndex = currentSlots.indexOfFirst {
-            it.buildingType == buildingType && it.slotIndex == slotIndex
-        }
-
-        if (targetIndex < 0) {
-            return Result.failure(IllegalArgumentException("Slot not found: $buildingType[$slotIndex]"))
-        }
-
-        val currentSlot = currentSlots[targetIndex]
-        val newSlot = transform(currentSlot)
-
-        if (currentSlot.status != newSlot.status) {
-            val validation = SlotStateMachine.validateTransition(currentSlot.status, newSlot.status)
-            if (validation.isFailure) {
-                return Result.failure(validation.exceptionOrNull() ?: IllegalStateException("Slot state transition validation failed without exception"))
+    ): Pair<ProductionSlot?, Result<ProductionSlot>> {
+        return shardedLock.withLock(buildingType, slotIndex) {
+            val currentSlots = _slots.value
+            val targetIndex = currentSlots.indexOfFirst {
+                it.buildingType == buildingType && it.slotIndex == slotIndex
             }
+
+            if (targetIndex < 0) {
+                return@withLock Pair(null, Result.failure(IllegalArgumentException("Slot not found: $buildingType[$slotIndex]")))
+            }
+
+            val currentSlot = currentSlots[targetIndex]
+            val newSlot = transform(currentSlot)
+
+            if (currentSlot.status != newSlot.status) {
+                val validation = SlotStateMachine.validateTransition(currentSlot.status, newSlot.status)
+                if (validation.isFailure) {
+                    return@withLock Pair(null, Result.failure(validation.exceptionOrNull() ?: IllegalStateException("Slot state transition validation failed without exception")))
+                }
+            }
+
+            val newSlots = currentSlots.toMutableList()
+            newSlots[targetIndex] = newSlot
+            _slots.value = newSlots
+            cache.updateCache(newSlots)
+
+            DomainLog.d(TAG, "Updated slot: ${buildingType.name}[$slotIndex] ${currentSlot.status} -> ${newSlot.status}")
+            Pair(newSlot, Result.success(newSlot))
         }
-
-        val newSlots = currentSlots.toMutableList()
-        newSlots[targetIndex] = newSlot
-        runBlocking(Dispatchers.IO) { dao.update(newSlot) }
-        _slots.value = newSlots
-        cache.updateCache(newSlots)
-
-
-        DomainLog.d(TAG, "Updated slot: ${buildingType.name}[$slotIndex] ${currentSlot.status} -> ${newSlot.status}")
-        return Result.success(newSlot)
     }
 
-    fun updateSlotByBuildingId(
+    suspend fun updateSlotByBuildingId(
         buildingId: String,
         slotIndex: Int,
         transform: (ProductionSlot) -> ProductionSlot
     ): Result<ProductionSlot> {
         val slot = getSlotByBuildingId(buildingId, slotIndex)
             ?: return Result.failure(IllegalArgumentException("Slot not found: $buildingId[$slotIndex]"))
-        
-        return shardedLock.withLock(slot.buildingType, slotIndex) {
+
+        val result = shardedLock.withLock(slot.buildingType, slotIndex) {
             val currentSlots = _slots.value.toMutableList()
             val index = currentSlots.indexOfFirst {
                 it.buildingId == buildingId && it.slotIndex == slotIndex
             }
 
-            if (index < 0) {
-                return@withLock Result.failure(IllegalArgumentException("Slot not found: $buildingId[$slotIndex]"))
-            }
+            if (index < 0) return@withLock Result.failure(IllegalArgumentException("Slot not found: $buildingId[$slotIndex]"))
 
             val currentSlot = currentSlots[index]
             val newSlot = transform(currentSlot)
@@ -205,14 +207,17 @@ class ProductionSlotRepository @Inject constructor(
             }
 
             currentSlots[index] = newSlot
-            runBlocking(Dispatchers.IO) { dao.update(newSlot) }
             _slots.value = currentSlots
             cache.updateCache(currentSlots)
-
 
             DomainLog.d(TAG, "Updated slot: $buildingId[$slotIndex] ${currentSlot.status} -> ${newSlot.status}")
             Result.success(newSlot)
         }
+
+        if (result.isSuccess) {
+            dao.update(result.getOrThrow())
+        }
+        return result
     }
 
     suspend fun updateSlotAtomic(
@@ -220,19 +225,19 @@ class ProductionSlotRepository @Inject constructor(
         slotIndex: Int,
         transform: (ProductionSlot) -> ProductionSlot
     ): Result<ProductionSlot> {
-        return shardedLock.withLock(buildingType, slotIndex) {
-            updateSlotInternal(buildingType, slotIndex, transform)
+        val (newSlot, result) = updateSlotInternal(buildingType, slotIndex, transform)
+        if (result.isSuccess && newSlot != null) {
+            dao.update(newSlot)
         }
+        return result
     }
 
-    fun batchUpdate(updates: List<SlotUpdate>): Result<List<ProductionSlot>> {
+    suspend fun batchUpdate(updates: List<SlotUpdate>): Result<List<ProductionSlot>> {
         if (updates.isEmpty()) return Result.success(emptyList())
-        
-        val keys = updates.map { Pair(it.buildingType.name, it.slotIndex) }
-        
-        return shardedLock.withBatchLock(keys) {
+
+        val updatedSlots = shardedLock.withBatchLock(updates.map { Pair(it.buildingType.name, it.slotIndex) }) {
             val currentSlots = _slots.value.toMutableList()
-            val updatedSlots = mutableListOf<ProductionSlot>()
+            val result = mutableListOf<ProductionSlot>()
 
             for (update in updates) {
                 val index = currentSlots.indexOfFirst {
@@ -248,42 +253,45 @@ class ProductionSlotRepository @Inject constructor(
                     if (validation.isFailure) continue
                 }
 
-                runBlocking(Dispatchers.IO) { dao.update(newSlot) }
-                updatedSlots.add(newSlot)
+                result.add(newSlot)
             }
 
             _slots.value = currentSlots
             cache.updateCache(currentSlots)
-
-            if (updatedSlots.isNotEmpty()) {
-                runBlocking(Dispatchers.IO) { dao.updateAll(updatedSlots) }
-            }
-
-            DomainLog.d(TAG, "Batch updated ${updatedSlots.size} slots")
-            Result.success(updatedSlots)
+            result
         }
+
+        if (updatedSlots.isNotEmpty()) {
+            dao.updateAll(updatedSlots)
+        }
+
+        DomainLog.d(TAG, "Batch updated ${updatedSlots.size} slots")
+        return Result.success(updatedSlots)
     }
 
-    fun addSlot(slot: ProductionSlot): Result<ProductionSlot> {
-        return globalMutex.withLock {
+    suspend fun addSlot(slot: ProductionSlot): Result<ProductionSlot> {
+        val result = globalMutex.withLock {
             val currentSlots = _slots.value.toMutableList()
 
             val exists = currentSlots.any {
                 it.buildingType == slot.buildingType && it.slotIndex == slot.slotIndex
             }
             if (exists) {
-                return Result.failure(IllegalArgumentException("Slot already exists: ${slot.buildingType}[${slot.slotIndex}]"))
+                return@withLock Result.failure(IllegalArgumentException("Slot already exists: ${slot.buildingType}[${slot.slotIndex}]"))
             }
 
             currentSlots.add(slot)
             _slots.value = currentSlots
             cache.updateCache(currentSlots)
 
-            runBlocking(Dispatchers.IO) { dao.insert(slot) }
-
             DomainLog.d(TAG, "Added slot: ${slot.buildingType.name}[${slot.slotIndex}]")
             Result.success(slot)
         }
+
+        if (result.isSuccess) {
+            dao.insert(slot)
+        }
+        return result
     }
 
     suspend fun removeSlot(slotId: String): Result<Boolean> {
@@ -312,15 +320,14 @@ class ProductionSlotRepository @Inject constructor(
         return Result.success(true)
     }
 
-    fun initializeAllSlots(slotId: Int) {
-        globalMutex.withLock {
-            val allSlots = mutableListOf<ProductionSlot>()
+    suspend fun initializeAllSlots(slotId: Int) {
+        val allSlots = globalMutex.withLock {
+            val slots = mutableListOf<ProductionSlot>()
             BuildingType.entries.forEach { buildingType ->
-                // Alchemy and Forge slots are created dynamically when buildings are placed
                 if (buildingType == BuildingType.ALCHEMY || buildingType == BuildingType.FORGE) return@forEach
                 val slotCount = configService.getSlotCountByType(buildingType)
                 (0 until slotCount).forEach { idx ->
-                    allSlots.add(ProductionSlot.createIdle(
+                    slots.add(ProductionSlot.createIdle(
                         slotIndex = idx,
                         buildingType = buildingType,
                         buildingId = getBuildingIdForType(buildingType)
@@ -328,21 +335,20 @@ class ProductionSlotRepository @Inject constructor(
                 }
             }
 
-            _slots.value = allSlots
-            cache.updateCache(allSlots)
-            runBlocking(Dispatchers.IO) { dao.deleteBySlot(slotId) }
-            runBlocking(Dispatchers.IO) { dao.insertAll(allSlots) }
-
-            DomainLog.d(TAG, "Initialized ${allSlots.size} slots for all buildings")
+            _slots.value = slots
+            cache.updateCache(slots)
+            DomainLog.d(TAG, "Initialized ${slots.size} slots for all buildings")
+            slots
         }
+        dao.deleteBySlot(slotId)
+        dao.insertAll(allSlots)
     }
 
-    fun initializeSlotsForType(buildingType: BuildingType, slotId: Int) {
-        // Alchemy and Forge slots are created dynamically when buildings are placed
+    suspend fun initializeSlotsForType(buildingType: BuildingType, slotId: Int) {
         if (buildingType == BuildingType.ALCHEMY || buildingType == BuildingType.FORGE) return
-        globalMutex.withLock {
+        val newSlots = globalMutex.withLock {
             val slotCount = configService.getSlotCountByType(buildingType)
-            val newSlots = (0 until slotCount).map { idx ->
+            val slots = (0 until slotCount).map { idx ->
                 ProductionSlot.createIdle(
                     slotIndex = idx,
                     buildingType = buildingType,
@@ -351,16 +357,15 @@ class ProductionSlotRepository @Inject constructor(
             }
 
             val currentSlots = _slots.value.filter { it.buildingType != buildingType }
-            val allSlots = currentSlots + newSlots
+            val allSlots = currentSlots + slots
 
             _slots.value = allSlots
             cache.updateCache(allSlots)
-
-            runBlocking(Dispatchers.IO) { dao.deleteBySlotAndBuildingType(slotId, buildingType) }
-            runBlocking(Dispatchers.IO) { dao.insertAll(newSlots) }
-
             DomainLog.d(TAG, "Initialized $slotCount slots for ${buildingType.name} in slotId=$slotId")
+            slots
         }
+        dao.deleteBySlotAndBuildingType(slotId, buildingType)
+        dao.insertAll(newSlots)
     }
 
     suspend fun syncToDatabase() {

@@ -72,14 +72,6 @@ class CultivationSettlementConcurrencyTest {
         }
         cultivationSettlement = CultivationSettlement(
             stateStore,
-            mock(InventorySystem::class.java),
-            InventoryConfig(),
-            mock(BattleSystem::class.java),
-            mock(ProductionCoordinator::class.java),
-            mock(ProductionSlotRepository::class.java),
-            mock(DiscipleService::class.java),
-            mock(com.xianxia.sect.core.engine.service.CultivationCore::class.java),
-            mock(DiscipleBreakthroughHandler::class.java),
             scopeProvider,
             spiritStoneWallet
         )

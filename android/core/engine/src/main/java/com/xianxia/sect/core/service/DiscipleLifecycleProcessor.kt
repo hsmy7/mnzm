@@ -14,6 +14,8 @@ import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.event.DomainEvent
 import com.xianxia.sect.core.event.EventBusPort
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -315,8 +317,10 @@ class DiscipleLifecycleProcessor @Inject constructor(
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId(BUILDING_FORGE)
         for (slot in forgeSlots) {
             if (slot.assignedDiscipleId == discipleId) {
-                productionSlotRepository.updateSlotByBuildingId(BUILDING_FORGE, slot.slotIndex) { s ->
-                    s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                runBlocking(Dispatchers.IO) {
+                    productionSlotRepository.updateSlotByBuildingId(BUILDING_FORGE, slot.slotIndex) { s ->
+                        s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                    }
                 }
             }
         }

@@ -22,6 +22,8 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.random.Random
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 
 @GameService("DiscipleService")
 @Singleton
@@ -873,8 +875,10 @@ private val scopeProvider: CoroutineScopeProvider,
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId(BUILDING_FORGE)
         for (slot in forgeSlots) {
             if (slot.assignedDiscipleId == discipleId && !slot.isWorking) {
-                productionSlotRepository.updateSlotByBuildingId(BUILDING_FORGE, slot.slotIndex) { s ->
-                    s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                runBlocking(Dispatchers.IO) {
+                    productionSlotRepository.updateSlotByBuildingId(BUILDING_FORGE, slot.slotIndex) { s ->
+                        s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                    }
                 }
             }
         }

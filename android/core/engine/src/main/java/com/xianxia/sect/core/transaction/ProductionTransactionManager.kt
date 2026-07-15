@@ -11,6 +11,8 @@ import com.xianxia.sect.core.util.AppError
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.random.Random
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 
 data class ProductionTransactionResult(
     val success: Boolean,
@@ -159,7 +161,7 @@ class ProductionTransactionManager @Inject constructor(
                 buildingType = buildingType,
                 buildingId = buildingId
             )
-            val addResult = repository.addSlot(slot)
+            val addResult = runBlocking(Dispatchers.IO) { repository.addSlot(slot) }
             if (addResult.isFailure) {
                 slot = repository.getSlotByBuildingId(buildingId, slotIndex)
                 if (slot == null) {
@@ -200,8 +202,9 @@ class ProductionTransactionManager @Inject constructor(
 
         val previousState = slot
 
-        val result = repository.updateSlotByBuildingId(buildingId, slotIndex) { currentSlot ->
-            SlotStateMachine.startProduction(
+        val result = runBlocking(Dispatchers.IO) {
+            repository.updateSlotByBuildingId(buildingId, slotIndex) { currentSlot ->
+                SlotStateMachine.startProduction(
                 slot = currentSlot,
                 recipeId = recipeId,
                 recipeName = recipeName,
@@ -220,6 +223,7 @@ class ProductionTransactionManager @Inject constructor(
                 return@updateSlotByBuildingId currentSlot
             }
         }
+    }
 
         return if (result.isSuccess) {
             DomainLog.d(TAG, "Production started successfully: $buildingId[$slotIndex]")

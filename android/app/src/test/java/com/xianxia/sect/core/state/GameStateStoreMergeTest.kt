@@ -3,6 +3,7 @@ package com.xianxia.sect.core.state
 import android.app.Application
 import com.xianxia.sect.core.model.*
 import org.junit.Assert.*
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -16,6 +17,8 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], manifest = Config.NONE, application = Application::class)
 class GameStateStoreMergeTest {
+
+    @get:Rule val writeGuardRule = WriteGuardRule()
 
     // ── 辅助 ──────────────────────────────────────────────────────────
 
