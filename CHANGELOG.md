@@ -1,3 +1,17 @@
+## [4.0.50] - 2026-07-15（versionCode=4050）
+
+### 重构
+
+- **重构：幽灵弟子架构债务清理** — `allocateNextId()`/`rollbackAllocation()` 标记 `@Deprecated`（全部 6 个生产入口已使用 `allocateAndInsert`，零残留调用）。`DiscipleTables` 新增 `replaceAll(disciples)` 原子批量替换方法（单 `synchronized(ids)` 锁内完成清空→写入→重建 IDs→一次 `markMutated`）。28 处 `clear() + forEach { insert() }` 裸模式迁移到 `replaceAll()`，覆盖 12 个 Service/System 文件。新增 `check()` 重复 ID 守卫
+- **重构：God Method 拆分** — 13 个 >60 行函数拆分至 ≤60 行：`CaveExplorationProcessor` 3 个（含 272 行 `executeCaveExploration` 拆为 59 行编排 + 10 子函数）、`ExplorationService.resolveBeastFightInternal` 209→45 行（拆 10 子函数）、`ProductionProcessor` 3 个、`PatrolBattleSystem` 2 个、`BuildingService` 3 个、`CultivationEventProcessor.processLawEnforcementMonthly` 80→29 行
+- **清理：未使用导入 11 行 + 未使用构造参数 8 个** — `CultivationEventProcessor` 4 参数移除（`ThermalMonitor`/`GameTimeClock`/`ProductionSlotRepository`/`CultivationSharedState`）、`CultivationSettlement` 8 参数移除（含 `InventorySystem`/`BattleSystem`/`ProductionCoordinator` 等）
+- **清理：15 个魔法数字提取为命名常量** — 覆盖 `CultivationSettlement`/`PartnerSystem`/`ChildBirthSystem`/`ProductionProcessor`/`CaveExplorationProcessor`/`PatrolBattleSystem`
+- **修复：`replaceAll` 预存问题** — 重复 ID 传入时静默覆盖，新增 `check()` 守卫
+
+### 对抗性审查
+
+- **对抗性审查（2 Agent）：** 边界狂魔 + 状态破坏者，0 阻塞性问题，0 回归。确认 28 处迁移全部覆盖、5 处 deathYears 后修复逻辑保留、`CultivationSettlement` 复杂分支等价性
+
 ## [4.0.49] - 2026-07-14（versionCode=4049）
 
 ### 重构

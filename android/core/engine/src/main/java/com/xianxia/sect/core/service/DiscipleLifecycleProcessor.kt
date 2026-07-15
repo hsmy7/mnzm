@@ -48,8 +48,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
                     disciple
                 }
             }
-            discipleTables.clear()
-            updated.forEach { discipleTables.insert(it) }
+            discipleTables.replaceAll(updated)
         }
     }
 
@@ -79,8 +78,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
         }
 
         stateStore.update {
-            discipleTables.clear()
-            updatedDisciples.forEach { discipleTables.insert(it) }
+            discipleTables.replaceAll(updatedDisciples)
 
             // 安全网：deathYears 由各个死亡路径的 markDead/handleDiscipleDeath 设置，
             // 此处仅对极少数遗漏情况（如旧存档兼容）做补充
@@ -117,8 +115,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
 
         // 单事务写入：弟子表 + 血炼清理 + 装备/功法清除
         stateStore.update {
-            discipleTables.clear()
-            griefUpdated.forEach { discipleTables.insert(it) }
+            discipleTables.replaceAll(griefUpdated)
             val idInt = disciple.id.toInt()
             discipleTables.deathYears[idInt] = currentYear
             lifeEventsToWrite.forEach { (grievingId, event) ->

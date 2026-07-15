@@ -335,6 +335,10 @@ class DiscipleTables {
      *
      * @return 分配的新 ID（int），调用方须自行转换为 String
      */
+    @Deprecated(
+        message = "使用 allocateAndInsert() 替代，可消除 ID 分配与数据写入之间的悬空窗口。",
+        replaceWith = ReplaceWith("allocateAndInsert(disciple)")
+    )
     fun allocateNextId(): Int = synchronized(ids) {
         val id = (ids.maxOrNull() ?: 0) + 1
         ids.add(id)
@@ -373,6 +377,10 @@ class DiscipleTables {
      * @param id 要回滚的 ID
      * @return true 表示回滚成功，false 表示 ID 不存在
      */
+    @Deprecated(
+        message = "不再需要——allocateAndInsert() 内部原子完成分配+写入，无需回滚。",
+        level = DeprecationLevel.WARNING
+    )
     fun rollbackAllocation(id: Int): Boolean = synchronized(ids) {
         if (id !in ids) return@synchronized false
         ids.remove(id)
@@ -402,6 +410,36 @@ class DiscipleTables {
      */
     fun update(disciple: Disciple) {
         writeAllFields(disciple)
+    }
+
+    /**
+     * 原子全量替换所有弟子数据。
+     *
+     * 在单个 [synchronized(ids)] 锁内完成五步操作：
+     *   1) ids.clear()       — 清空 ID 索引列表
+     *   2) 全表 clear()      — 清空所有组件表（通过 _allCopyableRefs 迭代）
+     *   3) 全量写入           — 对每个弟子调用 writeAllFields()
+     *   4) ids.addAll(...)   — 重建 ID 索引列表
+     *   5) markMutated()     — 递增版本号（仅一次）
+     *
+     * 替代 [clear] + 多次 [insert] 的 N+1 锁裸模式，提供更清晰的批量替换语义。
+     * 调用方传入的列表必须已是完整替换集——[replaceAll] 不负责过滤/保留。
+     * [deathRecords] 不受此操作影响。
+     *
+     * @param disciples 替换后的弟子完整列表，所有元素的 ID 必须已分配且唯一
+     */
+    fun replaceAll(disciples: List<Disciple>) {
+        synchronized(ids) {
+            ids.clear()
+            _allCopyableRefs.forEach { it.clear() }
+            disciples.forEach { writeAllFields(it) }
+            val newIds = disciples.map { it.id.toInt() }
+            check(newIds.size == newIds.distinct().size) {
+                "replaceAll: 弟子列表包含重复 ID（编程错误），列表大小=${newIds.size}"
+            }
+            ids.addAll(newIds)
+            markMutated()
+        }
     }
 
     /** insert/update 共用：将 Disciple 所有字段写入组件表 */

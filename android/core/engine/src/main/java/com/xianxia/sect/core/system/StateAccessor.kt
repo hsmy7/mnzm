@@ -50,10 +50,7 @@ class StateAccessorFactory(
     fun disciples(): StateAccessor<List<Disciple>> = StateAccessor(
         stateStore, scope, dispatcher,
         stateGetter = { it?.discipleTables?.assembleAll() },
-        stateSetter = { s, v ->
-            s.discipleTables.clear()
-            v.forEach { s.discipleTables.insert(it) }
-        },
+        stateSetter = { s, v -> s.discipleTables.replaceAll(v) },
         fallbackGetter = { stateStore.disciples.value }
     )
 
@@ -61,8 +58,7 @@ class StateAccessorFactory(
         stateStore, scope, dispatcher,
         stateGetter = { it?.discipleTables?.assembleAll() },
         stateSetter = { s, v ->
-            s.discipleTables.clear()
-            v.forEach { s.discipleTables.insert(it) }
+            s.discipleTables.replaceAll(v)
         },
         fallbackGetter = { stateStore.unifiedState.value.disciples }
     )

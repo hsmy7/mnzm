@@ -1,6 +1,4 @@
 package com.xianxia.sect.core.engine.service
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.withContext
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.state.MutableGameState
@@ -9,21 +7,16 @@ import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleMemberData
-import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleEquipmentManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleManualManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleService
 import com.xianxia.sect.core.engine.domain.exploration.MissionSystem
-import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.config.InventoryConfig
-import com.xianxia.sect.core.config.DiplomaticEventConfig
 import com.xianxia.sect.core.engine.domain.battle.AISectGarrisonManager
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
-import com.xianxia.sect.core.perf.ThermalMonitor
-import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
@@ -40,13 +33,9 @@ class CultivationEventProcessor @Inject constructor(
     private val inventoryConfig: InventoryConfig,
     private val scopeProvider: CoroutineScopeProvider,
     private val discipleService: DiscipleService,
-    private val thermalMonitor: ThermalMonitor,
-    private val gameClock: GameTimeClock,
     private val cultivationCore: CultivationCore,
     private val breakthroughHandler: DiscipleBreakthroughHandler,
     private val cultivationSettlement: CultivationSettlement,
-    private val productionSlotRepository: ProductionSlotRepository,
-    private val sharedState: CultivationSharedState,
     private val battleSystem: BattleSystem,
     private val merchantAndRecruitService: MerchantAndRecruitService,
     private val caveExplorationProcessor: javax.inject.Provider<CaveExplorationProcessor>,
@@ -395,81 +384,139 @@ class CultivationEventProcessor @Inject constructor(
         val captureRate = calculateCaptureRate()
         val currentMonthValue = data.gameYear * 12 + data.gameMonth
         val tables = stateStore.discipleTables
-        val threshold = GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD
+        val threshold =
+            GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD
         val protectionMonths =
             GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS
+
         // 直接用 discipleTables 读实时数据，避免 StateFlow 快照滞后
-        val atRiskIds = tables.ids.filter { id ->
+        val atRiskIds = findAtRiskDiscipleIds(
+            currentMonthValue, threshold, protectionMonths, tables
+        )
+
+        for (id in atRiskIds) {
+            val loyal = tables.loyalties.getOrDefault(id, 0)
+            val desertionProb = calcDesertionProbability(
+                threshold, loyal
+            )
+            if (rngManager.getRng(RngPartition.SYSTEM).nextDouble()
+                >= desertionProb
+            ) continue
+
+            enforceDiscipleDesertion(
+                id, data.gameYear, captureRate, threshold, tables
+            )
+        }
+    }
+
+    /** 筛选本月忠诚度低于阈值且已过保护期的弟子 */
+    private fun findAtRiskDiscipleIds(
+        currentMonthValue: Int,
+        threshold: Int,
+        protectionMonths: Int,
+        tables: DiscipleTables
+    ): List<Int> {
+        return tables.ids.filter { id ->
             tables.isAlive.getOrDefault(id, 0) == 1 &&
-                tables.statuses.getOrDefault(id, DiscipleStatus.IDLE) ==
-                    DiscipleStatus.IDLE &&
+                tables.statuses.getOrDefault(
+                    id, DiscipleStatus.IDLE
+                ) == DiscipleStatus.IDLE &&
                 tables.loyalties.getOrDefault(id, 0) < threshold &&
                 (currentMonthValue -
                     tables.recruitedMonths.getOrDefault(id, 0)) >=
                     protectionMonths
         }
-        for (id in atRiskIds) {
-            val loyal = tables.loyalties.getOrDefault(id, 0)
-            val desertionProb =
-                ((threshold - loyal) *
-                    GameConfig.LawEnforcementConfig.PROB_PER_POINT)
-                    .coerceIn(
-                        0.0, GameConfig.LawEnforcementConfig.MAX_PROB
-                    )
-            if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() < desertionProb) {
-                if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() < captureRate) {
-                    val currentYear = data.gameYear
-                    val endYear = currentYear +
-                        GameConfig.LawEnforcementConfig.REFLECTION_YEARS
-                    stateStore.update {
-                        val d = discipleTables.assemble(id) ?: return@update
-                        discipleTables.remove(id)
-                        discipleTables.insert(d.copy(
-                            status = DiscipleStatus.REFLECTING,
-                            statusData = d.statusData + mapOf(
-                                "reflectionStartYear" to currentYear.toString(),
-                                "reflectionEndYear" to endYear.toString()
-                            )
-                        ))
-                    }
-                } else {
-                    // 防御性二次校验：确认忠诚度仍低于阈值
-                    val currentLoyal =
-                        tables.loyalties.getOrDefault(id, 0)
-                    if (currentLoyal >= threshold) continue
-                    val snapshot = tables.assemble(id) ?: continue
-                    val desertEquipIds = listOfNotNull(
-                        snapshot.equipment.weaponId,
-                        snapshot.equipment.armorId,
-                        snapshot.equipment.bootsId,
-                        snapshot.equipment.accessoryId
-                    )
-                    val desertManualIds = snapshot.manualIds.toSet()
-                    val desertProfId = id.toString()
-                    discipleLifecycleProcessor
-                        .clearDiscipleFromAllSlots(id.toString())
-                    stateStore.update {
-                        // 二次校验在事务内重做，防悬停点间被修改
-                        if (discipleTables.loyalties.getOrDefault(
-                                id, 0
-                            ) < threshold
-                        ) {
-                            // 直接删除叛逃弟子的装备/功法实例
-                            equipmentInstances = equipmentInstances.filter { it.id !in desertEquipIds }
-                            manualInstances = manualInstances.filter { it.id !in desertManualIds }
-                            val mutableProf = gameData.manualProficiencies.toMutableMap()
-                            mutableProf.remove(desertProfId)
-                            gameData = gameData.copy(manualProficiencies = mutableProf)
-                            discipleTables.remove(id)
-                        }
-                    }
-                    stateStore.setPendingNotification(
-                        GameNotification.DiscipleDesertion(snapshot)
-                    )
-                }
-            }
+    }
+
+    /** 计算单个弟子的叛逃概率 */
+    private fun calcDesertionProbability(
+        threshold: Int, loyal: Int
+    ): Double {
+        return ((threshold - loyal) *
+            GameConfig.LawEnforcementConfig.PROB_PER_POINT)
+            .coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
+    }
+
+    /** 执行叛逃结果：捕获→面壁 / 逃脱→清理装备+通知 */
+    private fun enforceDiscipleDesertion(
+        id: Int,
+        currentYear: Int,
+        captureRate: Double,
+        threshold: Int,
+        tables: DiscipleTables
+    ) {
+        if (rngManager.getRng(RngPartition.SYSTEM).nextDouble()
+            < captureRate
+        ) {
+            captureDiscipleForReflection(id, currentYear)
+        } else {
+            escapeDiscipleWithCleanup(id, threshold, tables)
         }
     }
+
+    /** 捕获叛逃弟子 → 面壁反省 */
+    private fun captureDiscipleForReflection(
+        id: Int, currentYear: Int
+    ) {
+        val endYear = currentYear +
+            GameConfig.LawEnforcementConfig.REFLECTION_YEARS
+        stateStore.update {
+            val d = discipleTables.assemble(id) ?: return@update
+            discipleTables.remove(id)
+            discipleTables.insert(d.copy(
+                status = DiscipleStatus.REFLECTING,
+                statusData = d.statusData + mapOf(
+                    "reflectionStartYear" to currentYear.toString(),
+                    "reflectionEndYear" to endYear.toString()
+                )
+            ))
+        }
+    }
+
+    /** 叛逃弟子逃脱：删除装备/功法实例 + 清理槽位 + 通知 */
+    private fun escapeDiscipleWithCleanup(
+        id: Int, threshold: Int, tables: DiscipleTables
+    ) {
+        // 防御性二次校验：确认忠诚度仍低于阈值
+        if (tables.loyalties.getOrDefault(id, 0) >= threshold) return
+        val snapshot = tables.assemble(id) ?: return
+        val desertEquipIds = listOfNotNull(
+            snapshot.equipment.weaponId,
+            snapshot.equipment.armorId,
+            snapshot.equipment.bootsId,
+            snapshot.equipment.accessoryId
+        )
+        val desertManualIds = snapshot.manualIds.toSet()
+        val desertProfId = id.toString()
+        discipleLifecycleProcessor.clearDiscipleFromAllSlots(
+            id.toString()
+        )
+        stateStore.update {
+            // 二次校验在事务内重做，防悬停点间被修改
+            if (discipleTables.loyalties.getOrDefault(id, 0)
+                < threshold
+            ) {
+                // 直接删除叛逃弟子的装备/功法实例
+                equipmentInstances = equipmentInstances.filter {
+                    it.id !in desertEquipIds
+                }
+                manualInstances = manualInstances.filter {
+                    it.id !in desertManualIds
+                }
+                val mutableProf =
+                    gameData.manualProficiencies.toMutableMap()
+                mutableProf.remove(desertProfId)
+                gameData = gameData.copy(
+                    manualProficiencies = mutableProf
+                )
+                discipleTables.remove(id)
+            }
+        }
+        stateStore.setPendingNotification(
+            GameNotification.DiscipleDesertion(snapshot)
+        )
+    }
+
     /**
      * 守卫对战判定 — 选择最近仓库的守卫与盗贼交战，返回是否被抓。
      *
@@ -646,9 +693,8 @@ class CultivationEventProcessor @Inject constructor(
         }
         if (changed) {
             stateStore.update {
-                discipleTables.clear()
-                disciples.forEach { discipleTables.insert(it) }
-                // 为阵亡弟子补充 deathYears（clear 已擦除，单独恢复）
+                discipleTables.replaceAll(disciples)
+                // 为阵亡弟子补充 deathYears（replaceAll 已清空，单独恢复）
                 val battleYear = stateStore.gameData.value.gameYear
                 disciples.filter { !it.isAlive }.forEach {
                     val idInt = it.id.toIntOrNull()
@@ -675,9 +721,8 @@ class CultivationEventProcessor @Inject constructor(
             }
         }
         stateStore.update {
-            discipleTables.clear()
-            currentDisciplesList.forEach { discipleTables.insert(it) }
-            // handleDiscipleDeath 已设置 deathYears 但被上面的 clear 清除，单独恢复
+            discipleTables.replaceAll(currentDisciplesList)
+            // handleDiscipleDeath 已设置 deathYears 但被 replaceAll 清空，单独恢复
             val explorationYear = stateStore.gameData.value.gameYear
             currentDisciplesList.filter { !it.isAlive }.forEach {
                 val idInt = it.id.toIntOrNull()
@@ -801,8 +846,7 @@ class CultivationEventProcessor @Inject constructor(
                             val mapped = discipleTables.assembleAll().map { d ->
                                 if (d.id in missionSurvivorIds && d.isAlive) d.copy(soulPower = d.soulPower + 1) else d
                             }
-                            discipleTables.clear()
-                            mapped.forEach { discipleTables.insert(it) }
+                            discipleTables.replaceAll(mapped)
                         }
                     }
                 }
@@ -811,8 +855,7 @@ class CultivationEventProcessor @Inject constructor(
                         val mapped = discipleTables.assembleAll().map {
                             if (it.id == did && it.isAlive) it.copy(status = DiscipleStatus.IDLE) else it
                         }
-                        discipleTables.clear()
-                        mapped.forEach { discipleTables.insert(it) }
+                        discipleTables.replaceAll(mapped)
                     }
                 }
             } else {

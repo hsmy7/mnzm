@@ -3,19 +3,15 @@
 > 本文档记录当前架构中已知的设计缺陷和待重构项。
 > 修复前请先阅读对应设计文档。
 
-## 1. `allocateNextId()` 两步模式与批量原子 API 缺失
+## ~~1. `allocateNextId()` 两步模式与批量原子 API 缺失~~ ✅ 已完成
 
-**状态：** 🔴 待重构 — 幽灵弟子修复后残余架构问题
+**状态：** ✅ 已完成（2026-07-15）
 
-**问题描述：**
-- `allocateNextId()` 先 `ids.add(id)` 再要求调用方自行 `insert()`，中间存在异常窗口导致 ID 悬空
-- 12+ 处代码使用 `clear() + forEach { insert() }` 裸模式，无原子批量替换方法
-- 虽然已新增 `allocateAndInsert()` 修复入口，但 `allocateNextId()` 仍可被调用
-
-**目标：**
-- `allocateNextId()` 标记 `@Deprecated` 并逐步移除
-- `DiscipleTables` 新增 `replaceAll(list: List<Disciple>)` 原子批量方法，替代 `clear() + forEach { insert() }` 模式
-- 所有批量更新路径统一使用 `replaceAll`
+**完成内容：**
+- `allocateNextId()` / `rollbackAllocation()` 标记 `@Deprecated`
+- `DiscipleTables` 新增 `replaceAll(list: List<Disciple>)` 原子批量方法（含 `check` 重复 ID 守卫）
+- 28 处 `clear() + forEach { insert() }` 全部迁移为 `replaceAll()`
+- 12+ 生产文件修改，覆盖所有批量更新路径
 
 **参考：** Unity DOTS `EntityManager.CreateEntity()` / Flecs `world.entity()` — ID 分配即数据写入完成
 

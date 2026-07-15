@@ -1,5 +1,15 @@
 [
   {
+    "date": "2026-07-15",
+    "version": "4.0.50",
+    "changes": [
+      "重构：幽灵弟子架构债务清理——allocateNextId/rollbackAllocation标记@Deprecated。DiscipleTables新增replaceAll()原子批量替换方法。28处clear+insert迁移到replaceAll()，覆盖12个Service/System文件。新增check()重复ID守卫",
+      "重构：God Method拆分——13个>60行函数拆分至≤60行。CaveExplorationProcessor.executeCaveExploration(272→59行)、ExplorationService.resolveBeastFightInternal(209→45行)、ProductionProcessor×3、PatrolBattleSystem×2、BuildingService×3、CultivationEventProcessor×1",
+      "清理：未使用导入11行+未使用构造参数8个+CultivationSettlement/CultivationEventProcessor构造参数精简。15个魔法数字提取为命名常量",
+      "对抗性审查：2Agent(边界狂魔+状态破坏者)，0阻塞性问题，28处迁移全覆盖，5处deathYears后修复逻辑保留"
+    ]
+  },
+  {
     "date": "2026-07-14",
     "version": "4.0.49",
     "changes": [

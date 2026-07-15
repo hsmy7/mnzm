@@ -10,6 +10,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.GameRandom
+import com.xianxia.sect.core.GameConfig
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -35,6 +36,11 @@ class PartnerSystem @Inject constructor(
 
     override val subscribedTypes: Set<String> = setOf("breakthrough")
 
+    companion object {
+        private const val PAIRING_PROBABILITY = 0.006
+        private const val BREAKTHROUGH_LOYALTY_GAIN = 3
+    }
+
     override fun onEvent(event: DomainEvent) {
         if (event !is BreakthroughEvent || !event.success) return
         scope.launch {
@@ -44,7 +50,7 @@ class PartnerSystem @Inject constructor(
                     ?: return@update
                 for (id in discipleTables.ids) {
                     if (id.toString() == partnerId && discipleTables.isAlive[id] == 1) {
-                        discipleTables.loyalties[id] = (discipleTables.loyalties[id] + 3).coerceAtMost(100)
+                        discipleTables.loyalties[id] = (discipleTables.loyalties[id] + BREAKTHROUGH_LOYALTY_GAIN).coerceAtMost(GameConfig.Disciple.MAX_LOYALTY)
                     }
                 }
             }
@@ -94,7 +100,7 @@ class PartnerSystem @Inject constructor(
                 if (female.id in pairedFemaleIds) continue
                 if (hasBloodRelation(male, female)) continue
 
-                if (GameRandom.nextDouble() < 0.006) {
+                if (GameRandom.nextDouble() < PAIRING_PROBABILITY) {
                     if (consentRequired) {
                         state.pendingNotification = GameNotification.MarriageRequest(male, female)
                         return
@@ -112,8 +118,7 @@ class PartnerSystem @Inject constructor(
         }
 
         if (pairedFemaleIds.isNotEmpty()) {
-            state.discipleTables.clear()
-            currentList.forEach { state.discipleTables.insert(it) }
+            state.discipleTables.replaceAll(currentList)
         }
     }
 

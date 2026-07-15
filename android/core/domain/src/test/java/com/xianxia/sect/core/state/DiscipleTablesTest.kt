@@ -340,6 +340,7 @@ class DiscipleTablesTest {
         assertEquals("第三", tables.names[3])
     }
 
+    @Suppress("DEPRECATION")
     @Test
     fun `rollbackAllocation removes id from ids and component tables`() {
         val tables = DiscipleTables()
@@ -353,6 +354,7 @@ class DiscipleTablesTest {
         assertFalse(tables.ids.contains(id))
     }
 
+    @Suppress("DEPRECATION")
     @Test
     fun `rollbackAllocation on non-existent id returns false`() {
         val tables = DiscipleTables()
@@ -369,5 +371,67 @@ class DiscipleTablesTest {
         tables.allocateAndInsert(createTestDisciple(name = "版本次"))
 
         assertTrue("mutationVersion 应递增", tables.mutationVersion > v0)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // replaceAll（批量原子替换）
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `replaceAll replaces all disciples atomically`() {
+        val tables = DiscipleTables()
+        tables.insert(createTestDisciple(id = "1", name = "张"))
+        tables.insert(createTestDisciple(id = "2", name = "李"))
+
+        val replacement = listOf(
+            createTestDisciple(id = "3", name = "王"),
+            createTestDisciple(id = "4", name = "赵")
+        )
+        tables.replaceAll(replacement)
+
+        assertEquals(2, tables.count)
+        assertFalse("旧的 ID 1 应不存在", tables.names.contains(1))
+        assertFalse("旧的 ID 2 应不存在", tables.ids.contains(2))
+        assertEquals("王", tables.names[3])
+        assertEquals("赵", tables.names[4])
+    }
+
+    @Test
+    fun `replaceAll with empty list clears all`() {
+        val tables = DiscipleTables()
+        tables.insert(createTestDisciple(id = "1"))
+        tables.insert(createTestDisciple(id = "2"))
+
+        tables.replaceAll(emptyList())
+
+        assertEquals(0, tables.count)
+        assertTrue("组件表应无 ID 1 的数据", !tables.names.contains(1))
+    }
+
+    @Test
+    fun `replaceAll preserves mutationVersion bump`() {
+        val tables = DiscipleTables()
+        tables.insert(createTestDisciple(id = "1"))
+        val v0 = tables.mutationVersion
+
+        val replacement = (2..10).map { createTestDisciple(id = it.toString()) }
+        tables.replaceAll(replacement)
+
+        assertTrue("mutationVersion 应递增", tables.mutationVersion > v0)
+    }
+
+    @Test
+    fun `replaceAll preserves deathRecords`() {
+        val tables = DiscipleTables()
+        tables.deathRecords.add(DeathRecord(
+            id = 1, name = "", surname = "", realm = 9, realmLayer = 1,
+            deathAge = 0, deathYear = 100, cause = "test"
+        ))
+        tables.insert(createTestDisciple(id = "2"))
+
+        tables.replaceAll(listOf(createTestDisciple(id = "3")))
+
+        assertEquals("deathRecords 不应被清空", 1, tables.deathRecords.size)
+        assertEquals(100, tables.deathRecords[0].deathYear)
     }
 }

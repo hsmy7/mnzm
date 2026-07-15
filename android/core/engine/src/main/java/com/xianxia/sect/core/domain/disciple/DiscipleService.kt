@@ -10,12 +10,10 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.DiscipleTables
-import com.xianxia.sect.core.state.mergeStackable
 import com.xianxia.sect.core.util.addEquipmentInstanceToDiscipleBag
 import com.xianxia.sect.core.util.equipmentBagStackIds
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.util.NameService
-import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.SpiritRootGenerator
 import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainResult

@@ -29,6 +29,7 @@ import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.GameRngManager
@@ -57,6 +58,11 @@ data class TowerBattleResult(
     val deadIds: Set<String>
 )
 
+data class BattleDisciplesUpdate(
+    val disciples: List<Disciple>,
+    val deadIds: Set<String>
+)
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 巡逻战斗系统 — 从 ExplorationService.processPatrolAttacks 提取，拆为 4 步
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -71,6 +77,8 @@ class PatrolBattleSystem @Inject constructor(
 ) {
     companion object {
         private const val TAG = "PatrolBattleSystem"
+        private const val WIN_BATTLE_ATTR_COUNT = 17
+        private const val MAX_RANDOM_MATERIAL_DROPS = 3
     }
 
     private val _pendingPatrolResults = mutableListOf<BattleResultUIData>()
@@ -114,7 +122,7 @@ class PatrolBattleSystem @Inject constructor(
         )
         if (results.isEmpty()) return
 
-        applyResults(results, state, gd, disciples, equipmentMap, manualMap, allProficiencies)
+        applyResults(results, state, gd, disciples)
     }
 
     // ── 步骤 1: 构建巡逻队伍 ──────────────────────────────────────────────
@@ -229,10 +237,7 @@ class PatrolBattleSystem @Inject constructor(
         results: List<TowerBattleResult>,
         state: MutableGameState,
         gd: GameData,
-        disciples: List<Disciple>,
-        equipmentMap: Map<String, EquipmentInstance>,
-        manualMap: Map<String, ManualInstance>,
-        allProficiencies: Map<String, Map<String, ManualProficiencyData>>
+        disciples: List<Disciple>
     ) {
         var updatedDisciples = disciples
         var updatedGd = gd
@@ -242,66 +247,102 @@ class PatrolBattleSystem @Inject constructor(
             val allRewards = mutableListOf<BattleRewardItem>()
 
             // 弟子 HP/MP 更新 + 死亡标记
-            val hpMap = result.result.battle.team.associate {
-                it.id to (it.hp to it.mp)
-            }
-            updatedDisciples = updatedDisciples.map { d ->
-                val (hp, mp) = hpMap[d.id] ?: return@map d
-                if (d.id !in result.survivors) {
-                    d.copy(isAlive = false, status = DiscipleStatus.DEAD)
-                } else {
-                    d.copy(combat = d.combat.copy(
-                        currentHp = hp.coerceIn(0, d.maxHp),
-                        currentMp = mp.coerceIn(0, d.maxMp)
-                    ))
-                }
-            }
-            allDeadIds.addAll(result.deadIds)
+            val resultState = updateDisciplesForBattleResult(
+                result, updatedDisciples
+            )
+            updatedDisciples = resultState.disciples
+            allDeadIds.addAll(resultState.deadIds)
 
             // 胜利奖励
             if (result.victory) {
                 updatedDisciples = applyVictoryRewards(
-                    state, result.target, result.survivors, updatedDisciples, allRewards, result.result
+                    state, result.target, result.survivors,
+                    updatedDisciples, allRewards, result.result
                 )
                 updatedGd = applyVictoryGdChanges(result, updatedGd)
             }
 
-            // BattleLog 追加
-            val log = buildBattleLog(result, updatedGd)
-            state.battleLogs = (state.battleLogs + log)
-                .takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
+            // BattleLog + 弹窗
+            recordBattleLogAndPopup(result, updatedGd, state, allRewards)
+        }
 
-            // 弹窗数据
-            if (updatedGd.patrolBattleResultPopup) {
-                _pendingPatrolResults += BattleResultUIData(
-                    battleLogId = log.id,
-                    victory = result.victory,
-                    teamMembers = log.teamMembers,
-                    rewards = allRewards
-                )
+        // 悲痛期 + 清理 + 写回
+        finalizeBattleOutcome(
+            allDeadIds, disciples, updatedDisciples, updatedGd, state
+        )
+    }
+
+    /** 更新单场战斗结果的弟子 HP/MP 和阵亡状态 */
+    private fun updateDisciplesForBattleResult(
+        result: TowerBattleResult,
+        disciples: List<Disciple>
+    ): BattleDisciplesUpdate {
+        val hpMap = result.result.battle.team.associate {
+            it.id to (it.hp to it.mp)
+        }
+        val updated = disciples.map { d ->
+            val (hp, mp) = hpMap[d.id] ?: return@map d
+            if (d.id !in result.survivors) {
+                d.copy(isAlive = false, status = DiscipleStatus.DEAD)
+            } else {
+                d.copy(combat = d.combat.copy(
+                    currentHp = hp.coerceIn(0, d.maxHp),
+                    currentMp = mp.coerceIn(0, d.maxMp)
+                ))
             }
         }
+        return BattleDisciplesUpdate(updated, result.deadIds)
+    }
 
-        // 悲痛期
-        val deadList = disciples.filter { it.id in allDeadIds }
-        if (deadList.isNotEmpty()) {
-            updatedDisciples = DiscipleStatCalculator.applyGriefToRelatives(
+    /** 记录战斗日志并加入弹窗队列 */
+    private fun recordBattleLogAndPopup(
+        result: TowerBattleResult,
+        gd: GameData,
+        state: MutableGameState,
+        allRewards: List<BattleRewardItem>
+    ) {
+        val log = buildBattleLog(result, gd)
+        state.battleLogs = (state.battleLogs + log)
+            .takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
+        if (gd.patrolBattleResultPopup) {
+            _pendingPatrolResults += BattleResultUIData(
+                battleLogId = log.id,
+                victory = result.victory,
+                teamMembers = log.teamMembers,
+                rewards = allRewards
+            )
+        }
+    }
+
+    /** 悲痛期处理 + 槽位清理 + 状态写回 */
+    private fun finalizeBattleOutcome(
+        allDeadIds: Set<String>,
+        originalDisciples: List<Disciple>,
+        updatedDisciples: List<Disciple>,
+        updatedGd: GameData,
+        state: MutableGameState
+    ) {
+        val deadList = originalDisciples.filter { it.id in allDeadIds }
+        val finalDisciples = if (deadList.isNotEmpty()) {
+            DiscipleStatCalculator.applyGriefToRelatives(
                 updatedDisciples, deadList, updatedGd.gameYear
             )
+        } else {
+            updatedDisciples
         }
-
-        // 清理阵亡弟子槽位 + 写回 state
-        if (allDeadIds.isNotEmpty()) {
-            updatedGd = updatedGd.copy(
+        val finalGd = if (allDeadIds.isNotEmpty()) {
+            updatedGd.copy(
                 patrolSlots = updatedGd.patrolSlots.map { slot ->
-                    if (slot.discipleId in allDeadIds) PatrolSlot(index = slot.index) else slot
+                    if (slot.discipleId in allDeadIds) {
+                        PatrolSlot(index = slot.index)
+                    } else slot
                 }
             )
+        } else {
+            updatedGd
         }
-        state.gameData = updatedGd
-        state.discipleTables.clear()
-        updatedDisciples.forEach { state.discipleTables.insert(it) }
-        // 通过 DiscipleDeathHandler 统一标记死亡（含装备断言守卫）
+        state.gameData = finalGd
+        state.discipleTables.replaceAll(finalDisciples)
         deathHandler.markAllDead(
             state.discipleTables, allDeadIds, updatedGd.gameYear
         )
@@ -331,15 +372,30 @@ class PatrolBattleSystem @Inject constructor(
     ): List<Disciple> {
         val rng = rngManager.getRng(RngPartition.EXPLORATION)
 
-        // 幸存弟子：神魂 +1，有天赋者随机属性 +1
-        val soulUpdated = disciples.map { d ->
+        val soulUpdated = applySurvivorSoulAndAttribute(
+            target, survivors, disciples, rng
+        )
+        generateBeastMaterialRewards(target, rng, allRewards)
+        applySpiritStoneReward(state, battleResult, allRewards)
+
+        return soulUpdated
+    }
+
+    /** 幸存弟子：神魂 +1，有天赋者随机属性 +1 */
+    private fun applySurvivorSoulAndAttribute(
+        target: WorldLevel,
+        survivors: Set<String>,
+        disciples: List<Disciple>,
+        rng: DeterministicRng
+    ): List<Disciple> {
+        return disciples.map { d ->
             if (d.id in survivors && d.isAlive) {
                 var m = d.copy(soulPower = d.soulPower + 1)
                 if (m.talentIds.any { id ->
                     TalentDatabase.getById(id)?.effects
                         ?.containsKey("winBattleRandomAttrPlus") == true
                 }) {
-                    val attr = rng.nextInt(17)
+                    val attr = rng.nextInt(WIN_BATTLE_ATTR_COUNT)
                     val s = m.skills; val c = m.combat
                     when (attr) {
                         0 -> s.intelligence++; 1 -> s.comprehension++
@@ -356,12 +412,18 @@ class PatrolBattleSystem @Inject constructor(
                 m
             } else d
         }
+    }
 
-        // 妖兽材料（每只妖兽随机 1~3 个材料）
+    /** 妖兽材料掉落（每只妖兽随机 1~3 个材料） */
+    private fun generateBeastMaterialRewards(
+        target: WorldLevel,
+        rng: DeterministicRng,
+        allRewards: MutableList<BattleRewardItem>
+    ) {
         val beastConfig = GameConfig.Beast.getType(target.beastType ?: 0)
         val tier = GameConfig.Realm.getMaxRarity(target.realm)
         for (i in 0 until target.count) {
-            val materialCount = rng.nextInt(3) + 1
+            val materialCount = rng.nextInt(MAX_RANDOM_MATERIAL_DROPS) + 1
             repeat(materialCount) {
                 val beastMat = BeastMaterialDatabase.getRandomMaterialByBeastType(
                     beastConfig.name, tier
@@ -386,8 +448,14 @@ class PatrolBattleSystem @Inject constructor(
                 }
             }
         }
+    }
 
-        // 灵石奖励
+    /** 灵石奖励 */
+    private fun applySpiritStoneReward(
+        state: MutableGameState,
+        battleResult: BattleSystemResult,
+        allRewards: MutableList<BattleRewardItem>
+    ) {
         val spiritStoneReward = battleResult.rewards["spiritStones"] ?: 0
         if (spiritStoneReward > 0) {
             state.gameData = state.gameData.copy(
@@ -398,8 +466,6 @@ class PatrolBattleSystem @Inject constructor(
                 rarity = 1, type = "spiritStones"
             )
         }
-
-        return soulUpdated
     }
 
     // ── 战斗日志构建 ───────────────────────────────────────────────────────
@@ -443,7 +509,9 @@ class PatrolBattleSystem @Inject constructor(
             result = if (result.victory) BattleResult.WIN else BattleResult.LOSE,
             teamMembers = teamMembers, enemies = enemies,
             rounds = rounds, turns = result.result.turnCount,
-            teamCasualties = teamMembers.count { !result.survivors.contains(it.id) },
+            teamCasualties = teamMembers.count {
+                !result.survivors.contains(it.id)
+            },
             beastsDefeated = if (result.victory) result.target.count
                 else result.result.battle.beasts.count { it.isDead },
             details = if (result.victory) "巡视楼击败了${result.target.beastName}"

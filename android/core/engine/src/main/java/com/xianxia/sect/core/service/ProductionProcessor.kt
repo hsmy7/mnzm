@@ -14,6 +14,7 @@ import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.domain.building.HerbGardenAuraService
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.repository.ProductionSlotRepository
+import com.xianxia.sect.core.repository.SlotUpdate
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.util.BuildingNames
 import com.xianxia.sect.core.util.CoroutineScopeProvider
@@ -24,6 +25,8 @@ import com.xianxia.sect.core.util.TimeProgressUtil
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
+import com.xianxia.sect.core.engine.LazyEvaluationDispatcher
+import com.xianxia.sect.core.model.production.BuildingType
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -40,6 +43,8 @@ class ProductionProcessor @Inject constructor(
 
     companion object {
         private const val TAG = "ProductionProcessor"
+        private const val PILL_GRADE_HIGH_THRESHOLD = 0.06
+        private const val PILL_GRADE_MEDIUM_THRESHOLD = 0.40
     }
 
     // ── 建筑生产 ──────────────────────────────────────────────────────
@@ -56,20 +61,20 @@ class ProductionProcessor @Inject constructor(
             if (slot.isWorking && isSlotCompleteDynamic(slot, year, month)) {
                 completeForgeSlot(slot)
                 resetSlotToIdle(slot, BuildingNames.FORGE,
-                    com.xianxia.sect.core.model.production.BuildingType.FORGE)
+                    BuildingType.FORGE)
             }
         }
     }
 
     private fun processAlchemyCompletion(year: Int, month: Int) {
         val alchemySlots = productionSlotRepository.getSlotsByType(
-            com.xianxia.sect.core.model.production.BuildingType.ALCHEMY)
+            BuildingType.ALCHEMY)
         alchemySlots.forEach { slot ->
             if (slot.isWorking && slot.assignedDiscipleId.isNullOrEmpty()) return@forEach
             if (slot.isWorking && isSlotCompleteDynamic(slot, year, month)) {
                 completeAlchemySlot(slot)
                 resetSlotToIdle(slot, BuildingNames.ALCHEMY,
-                    com.xianxia.sect.core.model.production.BuildingType.ALCHEMY)
+                    BuildingType.ALCHEMY)
             }
         }
     }
@@ -89,8 +94,7 @@ class ProductionProcessor @Inject constructor(
                 val updated = currentList.map {
                     if (it.id == discipleId) it.copy(status = DiscipleStatus.IDLE) else it
                 }
-                discipleTables.clear()
-                updated.forEach { discipleTables.insert(it) }
+                discipleTables.replaceAll(updated)
             }
         }
     }
@@ -101,8 +105,8 @@ class ProductionProcessor @Inject constructor(
         if (success) {
             val roll = alchemyRng.nextDouble()
             val grade = when {
-                roll < 0.06 -> PillGrade.HIGH
-                roll < 0.40 -> PillGrade.MEDIUM
+                roll < PILL_GRADE_HIGH_THRESHOLD -> PillGrade.HIGH
+                roll < PILL_GRADE_MEDIUM_THRESHOLD -> PillGrade.MEDIUM
                 else -> PillGrade.LOW
             }
             val template = slot.recipeId?.let { rid ->
@@ -128,16 +132,17 @@ class ProductionProcessor @Inject constructor(
             stateStore.update {
                 val currentList = discipleTables.assembleAll()
                 val updated = currentList.map {
-                    if (it.id == discipleId && it.isAlive) it.copy(status = DiscipleStatus.IDLE) else it
+                    if (it.id == discipleId && it.isAlive) {
+                        it.copy(status = DiscipleStatus.IDLE)
+                    } else it
                 }
-                discipleTables.clear()
-                updated.forEach { discipleTables.insert(it) }
+                discipleTables.replaceAll(updated)
             }
         }
     }
 
     private fun resetSlotToIdle(slot: ProductionSlot, buildingId: String,
-                                 buildingType: com.xianxia.sect.core.model.production.BuildingType) {
+                                 buildingType: BuildingType) {
         productionSlotRepository.updateSlotByBuildingId(buildingId, slot.slotIndex) { s ->
             ProductionSlot.createIdle(
                 id = s.id,
@@ -171,72 +176,25 @@ class ProductionProcessor @Inject constructor(
         plants.forEach { plant ->
             if (plant.seedId.isEmpty() || plant.growTime <= 0) return@forEach
 
-            val elapsedMonths = ((currentYear - plant.plantYear) * 12 + (currentMonth - plant.plantMonth)).coerceAtLeast(0)
+            val elapsedMonths = ((currentYear - plant.plantYear) * 12 +
+                (currentMonth - plant.plantMonth)).coerceAtLeast(0)
             val speedBonus = calculateSpiritFieldMaturityBonus(plant, data, allDisciples)
-            val effectiveGrowTime = HerbGardenAuraService.calculateEffectiveGrowTime(plant.growTime, speedBonus)
+            val effectiveGrowTime = HerbGardenAuraService.calculateEffectiveGrowTime(
+                plant.growTime, speedBonus)
 
             if (elapsedMonths >= effectiveGrowTime) {
                 val dbHerb = HerbDatabase.getHerbFromSeedName(plant.seedName)
                 if (dbHerb == null) {
-                    DomainLog.w(TAG, "processSpiritFieldHarvest: 未找到种子 ${plant.seedName} 对应的灵草定义，跳过收获")
+                    DomainLog.w(TAG, "processSpiritFieldHarvest: 未找到种子 " +
+                        "${plant.seedName} 对应的灵草定义，跳过收获")
                     return@forEach
                 }
-                    val finalYield = plant.expectedYield.coerceAtLeast(1)
-                    val herbName = dbHerb.name
-                    val herbRarity = dbHerb.rarity
-                    val herbCat = dbHerb.category
+                addHarvestedHerbsToState(plant, dbHerb, state)
 
-                    // 直接在影子 herbs 中合并
-                    val currentHerbsList = state.herbs.all()
-                    val existingIdx = currentHerbsList.indexOfFirst { h ->
-                        h.name == herbName && h.rarity == herbRarity && h.category == herbCat
-                    }
-                    if (existingIdx >= 0) {
-                        val existing = currentHerbsList[existingIdx]
-                        state.herbs.update(existing.id) {
-                            it.copy(quantity = it.quantity + finalYield)
-                        }
-                    } else {
-                        val newHerb = Herb(
-                            id = java.util.UUID.randomUUID().toString(),
-                            name = herbName, rarity = herbRarity,
-                            description = dbHerb.description,
-                            category = herbCat, quantity = finalYield
-                        )
-                        state.herbs.add(newHerb)
-                    }
-
-                val idx = updatedPlants.indexOfFirst { it.buildingInstanceId == plant.buildingInstanceId }
-                if (idx >= 0) {
-                    val matchingSeed = HerbDatabase.getSeedByName(plant.seedName)
-                    val existingSeed = state.seeds.all().find { s ->
-                        s.name == plant.seedName &&
-                            s.rarity == (matchingSeed?.rarity ?: 1) &&
-                            s.growTime == plant.growTime && s.quantity > 0
-                    }
-                    val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(currentYear, currentMonth)
-                    updatedPlants = updatedPlants.toMutableList().also {
-                        if (existingSeed != null) {
-                            // 消耗种子：直接操作影子 seeds
-                            val newQty = existingSeed.quantity - 1
-                            if (newQty <= 0) {
-                                state.seeds.remove(existingSeed.id)
-                            } else {
-                                state.seeds.update(existingSeed.id) { it.copy(quantity = newQty) }
-                            }
-                            it[idx] = it[idx].copy(
-                                plantYear = currentYear, plantMonth = currentMonth,
-                                completionMonth = currentAbsoluteMonth + plant.growTime.coerceAtLeast(1),
-                                completionPhase = 3
-                            )
-                        } else {
-                            it[idx] = it[idx].copy(
-                                seedId = "", seedName = "", growTime = 0, expectedYield = 0,
-                                plantYear = 0, plantMonth = 0,
-                                completionMonth = 0, completionPhase = 1
-                            )
-                        }
-                    }
+                val (newPlants, changed) = updateSlotAfterHarvest(
+                    plant, state, currentYear, currentMonth, updatedPlants)
+                if (changed) {
+                    updatedPlants = newPlants
                     hasChanges = true
                 }
             }
@@ -245,6 +203,90 @@ class ProductionProcessor @Inject constructor(
         if (hasChanges) {
             state.gameData = data.copy(spiritFieldPlants = updatedPlants)
         }
+    }
+
+    /**
+     * 将收获的灵草合并到影子状态中。
+     * 查找同名同品质的已有草药进行数量合并，否则新增条目。
+     */
+    private fun addHarvestedHerbsToState(
+        plant: SpiritFieldPlant,
+        dbHerb: HerbDatabase.Herb,
+        state: MutableGameState
+    ) {
+        val finalYield = plant.expectedYield.coerceAtLeast(1)
+        val herbName = dbHerb.name
+        val herbRarity = dbHerb.rarity
+        val herbCat = dbHerb.category
+
+        val currentHerbsList = state.herbs.all()
+        val existingIdx = currentHerbsList.indexOfFirst { h ->
+            h.name == herbName && h.rarity == herbRarity && h.category == herbCat
+        }
+        if (existingIdx >= 0) {
+            val existing = currentHerbsList[existingIdx]
+            state.herbs.update(existing.id) {
+                it.copy(quantity = it.quantity + finalYield)
+            }
+        } else {
+            val newHerb = Herb(
+                id = java.util.UUID.randomUUID().toString(),
+                name = herbName, rarity = herbRarity,
+                description = dbHerb.description,
+                category = herbCat, quantity = finalYield
+            )
+            state.herbs.add(newHerb)
+        }
+    }
+
+    /**
+     * 收获后处理灵田槽位：消耗种子重新种植或清空槽位。
+     *
+     * @return Pair(更新后的 plants 列表, 是否有变化)
+     */
+    private fun updateSlotAfterHarvest(
+        plant: SpiritFieldPlant,
+        state: MutableGameState,
+        currentYear: Int,
+        currentMonth: Int,
+        updatedPlants: List<SpiritFieldPlant>
+    ): Pair<List<SpiritFieldPlant>, Boolean> {
+        val idx = updatedPlants.indexOfFirst {
+            it.buildingInstanceId == plant.buildingInstanceId
+        }
+        if (idx < 0) return updatedPlants to false
+
+        val matchingSeed = HerbDatabase.getSeedByName(plant.seedName)
+        val existingSeed = state.seeds.all().find { s ->
+            s.name == plant.seedName &&
+                s.rarity == (matchingSeed?.rarity ?: 1) &&
+                s.growTime == plant.growTime && s.quantity > 0
+        }
+        val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(
+            currentYear, currentMonth)
+        val newPlants = updatedPlants.toMutableList().also {
+            if (existingSeed != null) {
+                val newQty = existingSeed.quantity - 1
+                if (newQty <= 0) {
+                    state.seeds.remove(existingSeed.id)
+                } else {
+                    state.seeds.update(existingSeed.id) { it.copy(quantity = newQty) }
+                }
+                it[idx] = it[idx].copy(
+                    plantYear = currentYear, plantMonth = currentMonth,
+                    completionMonth = currentAbsoluteMonth +
+                        plant.growTime.coerceAtLeast(1),
+                    completionPhase = 3
+                )
+            } else {
+                it[idx] = it[idx].copy(
+                    seedId = "", seedName = "", growTime = 0, expectedYield = 0,
+                    plantYear = 0, plantMonth = 0,
+                    completionMonth = 0, completionPhase = 1
+                )
+            }
+        }
+        return newPlants to true
     }
 
     /**
@@ -285,7 +327,8 @@ class ProductionProcessor @Inject constructor(
         val auraBonus = if (HerbGardenAuraService.isSpiritFieldInAura(
                 plant.buildingInstanceId, gameData.placedBuildings
             )) {
-            HerbGardenAuraService.calculateAuraMaturityBonus(gameData.elderSlots, allDisciples)
+            HerbGardenAuraService.calculateAuraMaturityBonus(
+                gameData.elderSlots, allDisciples)
         } else 0.0
 
         return HerbGardenMaturityZones(
@@ -298,71 +341,84 @@ class ProductionProcessor @Inject constructor(
     fun processAutoAlchemy() {
         val data = stateStore.gameData.value
 
-        val alchemySlots = productionSlotRepository.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.ALCHEMY)
+        val alchemySlots = productionSlotRepository.getSlotsByType(BuildingType.ALCHEMY)
         val idleSlotIndices = alchemySlots
             .filter { it.autoRestartEnabled
-                && it.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE
+                && it.status == ProductionSlotStatus.IDLE
                 && it.assignedDiscipleId.isNullOrEmpty().not() }
             .map { it.slotIndex }
         if (idleSlotIndices.isEmpty()) return
 
-        val alchemyPolicyBonus = if (data.sectPolicies.alchemyIncentive) GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT else 0.0
+        val alchemyPolicyBonus = if (data.sectPolicies.alchemyIncentive)
+            GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT else 0.0
 
         val allDisciples = stateStore.disciples.value
 
         for (slotIndex in idleSlotIndices) {
-            val currentHerbs = stateStore.getCurrentHerbs()
             val slot = alchemySlots.find { it.slotIndex == slotIndex } ?: continue
+            processAutoAlchemySlot(slot, data, allDisciples, alchemyPolicyBonus)
+        }
+    }
 
-            // 验证弟子仍存活且空闲（防止自动重启窗口期内弟子被调走）
-            val disciple = slot.assignedDiscipleId?.let { id -> allDisciples.find { it.id == id } }
-            if (disciple == null || !disciple.isAlive || disciple.status != DiscipleStatus.IDLE) {
-                // 弟子不可用 → 清除槽位关联，等待玩家手动处理
-                productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slotIndex) { s ->
-                    s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
-                }
-                continue
+    private fun processAutoAlchemySlot(
+        slot: ProductionSlot,
+        data: GameData,
+        allDisciples: List<Disciple>,
+        alchemyPolicyBonus: Double
+    ) {
+        val currentHerbs = stateStore.getCurrentHerbs()
+        val slotIndex = slot.slotIndex
+
+        // 验证弟子仍存活且空闲（防止自动重启窗口期内弟子被调走）
+        val disciple = slot.assignedDiscipleId?.let { id ->
+            allDisciples.find { it.id == id }
+        }
+        if (disciple == null || !disciple.isAlive || disciple.status != DiscipleStatus.IDLE) {
+            // 弟子不可用 → 清除槽位关联，等待玩家手动处理
+            productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slotIndex) { s ->
+                s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
             }
+            return
+        }
 
-            val recipeToStart = slot.recipeId
-                ?.let { prevRecipeId ->
-                    PillRecipeDatabase.getRecipeById(prevRecipeId)?.takeIf { recipe ->
-                        recipe.materials.all { (materialId, requiredQuantity) ->
-                            val herbData = HerbDatabase.getHerbById(materialId) ?: return@all false
-                            currentHerbs.filter { it.name == herbData.name && it.rarity == herbData.rarity }
-                                .sumOf { it.quantity } >= requiredQuantity
-                        }
+        val recipeToStart = slot.recipeId
+            ?.let { prevRecipeId ->
+                PillRecipeDatabase.getRecipeById(prevRecipeId)?.takeIf { recipe ->
+                    recipe.materials.all { (materialId, requiredQuantity) ->
+                        val herbData = HerbDatabase.getHerbById(materialId)
+                            ?: return@all false
+                        currentHerbs.filter {
+                            it.name == herbData.name && it.rarity == herbData.rarity
+                        }.sumOf { it.quantity } >= requiredQuantity
                     }
                 }
-                ?: PillRecipeDatabase.findBestCraftableRecipe(currentHerbs) ?: continue
+            }
+            ?: PillRecipeDatabase.findBestCraftableRecipe(currentHerbs) ?: return
 
-            val result = productionCoordinator.startAlchemyAtomic(
-                slotIndex = slotIndex,
-                recipeId = recipeToStart.id,
-                currentYear = data.gameYear,
-                currentMonth = data.gameMonth,
-                herbs = currentHerbs,
-                buildingId = BuildingNames.ALCHEMY,
-                alchemyPolicyBonus = alchemyPolicyBonus
-            )
+        val result = productionCoordinator.startAlchemyAtomic(
+            slotIndex = slotIndex,
+            recipeId = recipeToStart.id,
+            currentYear = data.gameYear,
+            currentMonth = data.gameMonth,
+            herbs = currentHerbs,
+            buildingId = BuildingNames.ALCHEMY,
+            alchemyPolicyBonus = alchemyPolicyBonus
+        )
 
-            if (result is DomainResult.Success) {
-                stateStore.update {
-                    this.herbs.replaceAll(result.data.materialUpdate.herbs)
-                }
-                // 用 FormulaService 重算 duration（startAlchemyAtomic 写入的是原始值）
-                val actualDuration = formulaService.calculateWorkDurationWithAllDisciples(
-                    recipeToStart.duration, BuildingNames.ALCHEMY)
-                val absMonth = data.gameYear * 12 + data.gameMonth
-                productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slotIndex) { s ->
-                    s.copy(
-                        duration = actualDuration,
-                        baseDuration = recipeToStart.duration,
-                        completionMonth = absMonth + actualDuration.coerceAtLeast(1)
-                    )
-                }
-            } else {
-                continue
+        if (result is DomainResult.Success) {
+            stateStore.update {
+                this.herbs.replaceAll(result.data.materialUpdate.herbs)
+            }
+            // 用 FormulaService 重算 duration（startAlchemyAtomic 写入的是原始值）
+            val actualDuration = formulaService.calculateWorkDurationWithAllDisciples(
+                recipeToStart.duration, BuildingNames.ALCHEMY)
+            val absMonth = data.gameYear * 12 + data.gameMonth
+            productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slotIndex) { s ->
+                s.copy(
+                    duration = actualDuration,
+                    baseDuration = recipeToStart.duration,
+                    completionMonth = absMonth + actualDuration.coerceAtLeast(1)
+                )
             }
         }
     }
@@ -373,44 +429,55 @@ class ProductionProcessor @Inject constructor(
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId(BuildingNames.FORGE)
         val idleSlotIndices = forgeSlots
             .filter { it.autoRestartEnabled
-                && it.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE
+                && it.status == ProductionSlotStatus.IDLE
                 && it.assignedDiscipleId.isNullOrEmpty().not() }
             .map { it.slotIndex }
         if (idleSlotIndices.isEmpty()) return
 
         val allRecipes = ForgeRecipeDatabase.getAllRecipes().sortedByDescending { it.rarity }
-        val forgePolicyBonus = if (data.sectPolicies.forgeIncentive) GameConfig.PolicyConfig.FORGE_INCENTIVE_BASE_EFFECT else 0.0
+        val forgePolicyBonus = if (data.sectPolicies.forgeIncentive)
+            GameConfig.PolicyConfig.FORGE_INCENTIVE_BASE_EFFECT else 0.0
 
         val allDisciples = stateStore.disciples.value
 
         for (slotIndex in idleSlotIndices) {
-            val currentMaterials = stateStore.getCurrentMaterials()
-            val materialIndex = currentMaterials.groupBy { it.name to it.rarity }
-                .mapValues { (_, list) -> list.sumOf { it.quantity } }
             val slot = forgeSlots.find { it.slotIndex == slotIndex } ?: continue
-
-            // 验证弟子仍存活且空闲
-            val disciple = slot.assignedDiscipleId?.let { id -> allDisciples.find { it.id == id } }
-            if (disciple == null || !disciple.isAlive || disciple.status != DiscipleStatus.IDLE) {
-                productionSlotRepository.updateSlotByBuildingId(BuildingNames.FORGE, slotIndex) { s ->
-                    s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
-                }
-                continue
+            if (!processAutoForgeSlot(
+                    slot, data, allDisciples, forgePolicyBonus, allRecipes)) {
+                break
             }
+        }
+    }
 
-            val recipeToStart = slot.recipeId
-                ?.let { prevRecipeId ->
-                    allRecipes.find { it.id == prevRecipeId }?.takeIf { recipe ->
-                        recipe.materials.all { (materialId, requiredQuantity) ->
-                            val materialData = BeastMaterialDatabase.getMaterialById(materialId)
-                            materialData != null && run {
-                                val available = materialIndex[materialData.name to materialData.rarity] ?: 0
-                                available >= requiredQuantity
-                            }
-                        }
-                    }
-                }
-                ?: allRecipes.firstOrNull { recipe ->
+    /**
+     * @return true 表示继续循环下一个槽位，false 表示中断循环
+     */
+    private fun processAutoForgeSlot(
+        slot: ProductionSlot,
+        data: GameData,
+        allDisciples: List<Disciple>,
+        forgePolicyBonus: Double,
+        allRecipes: List<ForgeRecipeDatabase.ForgeRecipe>
+    ): Boolean {
+        val currentMaterials = stateStore.getCurrentMaterials()
+        val materialIndex = currentMaterials.groupBy { it.name to it.rarity }
+            .mapValues { (_, list) -> list.sumOf { it.quantity } }
+        val slotIndex = slot.slotIndex
+
+        // 验证弟子仍存活且空闲
+        val disciple = slot.assignedDiscipleId?.let { id ->
+            allDisciples.find { it.id == id }
+        }
+        if (disciple == null || !disciple.isAlive || disciple.status != DiscipleStatus.IDLE) {
+            productionSlotRepository.updateSlotByBuildingId(BuildingNames.FORGE, slotIndex) { s ->
+                s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+            }
+            return true
+        }
+
+        val recipeToStart = slot.recipeId
+            ?.let { prevRecipeId ->
+                allRecipes.find { it.id == prevRecipeId }?.takeIf { recipe ->
                     recipe.materials.all { (materialId, requiredQuantity) ->
                         val materialData = BeastMaterialDatabase.getMaterialById(materialId)
                         materialData != null && run {
@@ -418,39 +485,54 @@ class ProductionProcessor @Inject constructor(
                             available >= requiredQuantity
                         }
                     }
-                } ?: continue
-
-            val result = productionCoordinator.startForgingAtomic(
-                slotIndex = slotIndex,
-                recipeId = recipeToStart.id,
-                currentYear = data.gameYear,
-                currentMonth = data.gameMonth,
-                materials = currentMaterials,
-                buildingId = BuildingNames.FORGE,
-                forgePolicyBonus = forgePolicyBonus
-            )
-
-            if (result is DomainResult.Success) {
-                stateStore.update {
-                    this.materials.replaceAll(result.data.materialUpdate.materials)
                 }
-            } else {
-                break
             }
+            ?: allRecipes.firstOrNull { recipe ->
+                recipe.materials.all { (materialId, requiredQuantity) ->
+                    val materialData = BeastMaterialDatabase.getMaterialById(materialId)
+                    materialData != null && run {
+                        val available = materialIndex[materialData.name to materialData.rarity] ?: 0
+                        available >= requiredQuantity
+                    }
+                }
+            } ?: return true
+
+        val result = productionCoordinator.startForgingAtomic(
+            slotIndex = slotIndex,
+            recipeId = recipeToStart.id,
+            currentYear = data.gameYear,
+            currentMonth = data.gameMonth,
+            materials = currentMaterials,
+            buildingId = BuildingNames.FORGE,
+            forgePolicyBonus = forgePolicyBonus
+        )
+
+        if (result is DomainResult.Success) {
+            stateStore.update {
+                this.materials.replaceAll(result.data.materialUpdate.materials)
+            }
+            return true
         }
+        return false
     }
 
     fun processAutoAssign() {
         val data = stateStore.gameData.value
         val policies = data.sectPolicies
-        val idleDisciples = mutableListOf<Disciple>().also { it.addAll(stateStore.disciples.value.filter { d -> d.status == DiscipleStatus.IDLE && d.isAlive }) }
+        val idleDisciples = stateStore.disciples.value
+            .filter { d -> d.status == DiscipleStatus.IDLE && d.isAlive }
+            .toMutableList()
 
-        fun takeCandidate(focused: Boolean, rootCounts: List<Int>, threshold: Int, attr: (Disciple) -> Int): Disciple? {
+        fun takeCandidate(
+            focused: Boolean, rootCounts: List<Int>,
+            threshold: Int, attr: (Disciple) -> Int
+        ): Disciple? {
             val enabled = focused || rootCounts.isNotEmpty()
             if (!enabled || idleDisciples.isEmpty()) return null
             val candidate = idleDisciples
                 .filter { d ->
-                    val matchesFilter = (focused && isDiscipleFollowed(d)) || d.spiritRoot.types.size in rootCounts
+                    val matchesFilter = (focused && isDiscipleFollowed(d)) ||
+                        d.spiritRoot.types.size in rootCounts
                     matchesFilter && attr(d) >= threshold
                 }
                 .maxByOrNull { attr(it) }
@@ -463,37 +545,50 @@ class ProductionProcessor @Inject constructor(
                 .mapIndexedNotNull { i, slot -> if (slot.discipleId.isEmpty()) i else null }
             if (emptyIndices.isNotEmpty()) {
                 val assignments = emptyIndices.mapNotNull {
-                    val c = takeCandidate(policies.autoMineFocused, policies.autoMineRootCounts, policies.autoMineThreshold) { it.mining }
+                    val c = takeCandidate(
+                        policies.autoMineFocused, policies.autoMineRootCounts,
+                        policies.autoMineThreshold
+                    ) { it.mining }
                     c?.let { it.id to it.name }
                 }
                 if (assignments.isNotEmpty()) {
                     val assignIter = assignments.iterator()
                     stateStore.update {
-                        gameData = gameData.copy(spiritMineSlots = gameData.spiritMineSlots.map { slot ->
-                            if (slot.discipleId.isEmpty() && assignIter.hasNext()) {
-                                val (id, name) = assignIter.next()
-                                slot.copy(discipleId = id, discipleName = name)
-                            } else slot
-                        })
+                        gameData = gameData.copy(
+                            spiritMineSlots = gameData.spiritMineSlots.map { slot ->
+                                if (slot.discipleId.isEmpty() && assignIter.hasNext()) {
+                                    val (id, name) = assignIter.next()
+                                    slot.copy(discipleId = id, discipleName = name)
+                                } else slot
+                            }
+                        )
                     }
-                    assignments.forEach { (id, _) -> markDiscipleAssigned(id, DiscipleStatus.MINING) }
+                    assignments.forEach { (id, _) ->
+                        markDiscipleAssigned(id, DiscipleStatus.MINING)
+                    }
                 }
             }
         }
 
         if (policies.autoAlchemyFocused || policies.autoAlchemyRootCounts.isNotEmpty()) {
             batchAssignToProductionSlots(
-                com.xianxia.sect.core.model.production.BuildingType.ALCHEMY, BuildingNames.ALCHEMY
+                BuildingType.ALCHEMY, BuildingNames.ALCHEMY
             ) {
-                takeCandidate(policies.autoAlchemyFocused, policies.autoAlchemyRootCounts, policies.autoAlchemyThreshold) { it.pillRefining }
+                takeCandidate(
+                    policies.autoAlchemyFocused, policies.autoAlchemyRootCounts,
+                    policies.autoAlchemyThreshold
+                ) { it.pillRefining }
             }
         }
 
         if (policies.autoForgeFocused || policies.autoForgeRootCounts.isNotEmpty()) {
             batchAssignToProductionSlots(
-                com.xianxia.sect.core.model.production.BuildingType.FORGE, BuildingNames.FORGE
+                BuildingType.FORGE, BuildingNames.FORGE
             ) {
-                takeCandidate(policies.autoForgeFocused, policies.autoForgeRootCounts, policies.autoForgeThreshold) { it.artifactRefining }
+                takeCandidate(
+                    policies.autoForgeFocused, policies.autoForgeRootCounts,
+                    policies.autoForgeThreshold
+                ) { it.artifactRefining }
             }
         }
     }
@@ -504,23 +599,26 @@ class ProductionProcessor @Inject constructor(
      * 依次取候选人填满所有空闲槽位，用 [ProductionSlotRepository.batchUpdate] 一次性写入。
      */
     private fun batchAssignToProductionSlots(
-        type: com.xianxia.sect.core.model.production.BuildingType,
+        type: BuildingType,
         buildingId: String,
         takeNext: () -> Disciple?
     ) {
         val slots = productionSlotRepository.getSlotsByType(type)
         val emptySlots = slots.filter { slot ->
             slot.assignedDiscipleId.isNullOrEmpty()
-                && slot.status == com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE
+                && slot.status == ProductionSlotStatus.IDLE
         }
         if (emptySlots.isEmpty()) return
 
-        val updates = mutableListOf<com.xianxia.sect.core.repository.SlotUpdate>()
+        val updates = mutableListOf<SlotUpdate>()
         for (emptySlot in emptySlots) {
             val candidate = takeNext() ?: break
             markDiscipleAssigned(candidate.id, DiscipleStatus.IDLE)
-            updates.add(com.xianxia.sect.core.repository.SlotUpdate(type, emptySlot.slotIndex) { s ->
-                s.copy(assignedDiscipleId = candidate.id, assignedDiscipleName = candidate.name)
+            updates.add(SlotUpdate(type, emptySlot.slotIndex) { s ->
+                s.copy(
+                    assignedDiscipleId = candidate.id,
+                    assignedDiscipleName = candidate.name
+                )
             })
         }
         if (updates.isNotEmpty()) {
@@ -579,7 +677,7 @@ class ProductionProcessor @Inject constructor(
             GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT else 0.0
 
         val idleSlotIndices = slots
-            .filter { it.buildingType == com.xianxia.sect.core.model.production.BuildingType.ALCHEMY }
+            .filter { it.buildingType == BuildingType.ALCHEMY }
             .filter { it.autoRestartEnabled && it.status == ProductionSlotStatus.IDLE
                 && !it.assignedDiscipleId.isNullOrEmpty() }
             .map { it.slotIndex }
@@ -587,7 +685,9 @@ class ProductionProcessor @Inject constructor(
         for (slotIndex in idleSlotIndices) {
             val currentHerbs = state.herbs.all()
             val recipeToStart = findRecipe(currentHerbs) ?: break
-            val slotIdx = slots.indexOfFirst { it.buildingType == com.xianxia.sect.core.model.production.BuildingType.ALCHEMY && it.slotIndex == slotIndex }
+            val slotIdx = slots.indexOfFirst {
+                it.buildingType == BuildingType.ALCHEMY && it.slotIndex == slotIndex
+            }
             if (slotIdx < 0) continue
 
             // 消耗材料
@@ -627,14 +727,16 @@ class ProductionProcessor @Inject constructor(
             .mapValues { (_, list) -> list.sumOf { it.quantity } }
 
         val idleSlotIndices = slots
-            .filter { it.buildingType == com.xianxia.sect.core.model.production.BuildingType.FORGE }
+            .filter { it.buildingType == BuildingType.FORGE }
             .filter { it.autoRestartEnabled && it.status == ProductionSlotStatus.IDLE
                 && !it.assignedDiscipleId.isNullOrEmpty() }
             .map { it.slotIndex }
 
         for (slotIndex in idleSlotIndices) {
             val recipeToStart = findForgeRecipe(allRecipes, materialIndex) ?: break
-            val slotIdx = slots.indexOfFirst { it.buildingType == com.xianxia.sect.core.model.production.BuildingType.FORGE && it.slotIndex == slotIndex }
+            val slotIdx = slots.indexOfFirst {
+                it.buildingType == BuildingType.FORGE && it.slotIndex == slotIndex
+            }
             if (slotIdx < 0) continue
 
             consumeMaterialsForRecipeLocal(recipeToStart.materials, state)
@@ -675,7 +777,7 @@ class ProductionProcessor @Inject constructor(
         val month = state.gameData.gameMonth
         for (i in slots.indices) {
             val slot = slots[i]
-            if (slot.buildingType != com.xianxia.sect.core.model.production.BuildingType.FORGE) continue
+            if (slot.buildingType != BuildingType.FORGE) continue
             if (slot.status != ProductionSlotStatus.WORKING) continue
             if (!isSlotCompleteDynamic(slot, year, month)) continue
 
@@ -691,7 +793,7 @@ class ProductionProcessor @Inject constructor(
             }
             slots[i] = ProductionSlot.createIdle(
                 id = slot.id, slotIndex = slot.slotIndex,
-                buildingType = com.xianxia.sect.core.model.production.BuildingType.FORGE,
+                buildingType = BuildingType.FORGE,
                 buildingId = slot.buildingId,
                 autoRestartEnabled = slot.autoRestartEnabled,
                 assignedDiscipleId = slot.assignedDiscipleId,
@@ -709,7 +811,7 @@ class ProductionProcessor @Inject constructor(
         val month = state.gameData.gameMonth
         for (i in slots.indices) {
             val slot = slots[i]
-            if (slot.buildingType != com.xianxia.sect.core.model.production.BuildingType.ALCHEMY) continue
+            if (slot.buildingType != BuildingType.ALCHEMY) continue
             if (slot.status != ProductionSlotStatus.WORKING) continue
             if (!isSlotCompleteDynamic(slot, year, month)) continue
 
@@ -718,14 +820,15 @@ class ProductionProcessor @Inject constructor(
             if (success) {
                 val roll = alchemyRng.nextDouble()
                 val grade = when {
-                    roll < 0.06 -> com.xianxia.sect.core.model.PillGrade.HIGH
-                    roll < 0.40 -> com.xianxia.sect.core.model.PillGrade.MEDIUM
-                    else -> com.xianxia.sect.core.model.PillGrade.LOW
+                    roll < 0.06 -> PillGrade.HIGH
+                    roll < 0.40 -> PillGrade.MEDIUM
+                    else -> PillGrade.LOW
                 }
                 val baseId = slot.recipeId?.substringBeforeLast("_")
-                val template = baseId?.let { ItemDatabase.getPillById("${baseId}_${grade.name.lowercase()}") }
+                val pillId = "${baseId}_${grade.name.lowercase()}"
+                val template = baseId?.let { ItemDatabase.getPillById(pillId) }
                 val pill = if (template != null) ItemDatabase.createPillFromTemplate(template)
-                else com.xianxia.sect.core.model.Pill(
+                else Pill(
                     name = slot.outputItemName, rarity = slot.outputItemRarity,
                     grade = grade, category = PillCategory.CULTIVATION,
                     description = "通过炼丹炉炼制而成",
@@ -739,7 +842,7 @@ class ProductionProcessor @Inject constructor(
             }
             slots[i] = ProductionSlot.createIdle(
                 id = slot.id, slotIndex = slot.slotIndex,
-                buildingType = com.xianxia.sect.core.model.production.BuildingType.ALCHEMY,
+                buildingType = BuildingType.ALCHEMY,
                 buildingId = slot.buildingId,
                 autoRestartEnabled = slot.autoRestartEnabled,
                 assignedDiscipleId = slot.assignedDiscipleId,
@@ -776,7 +879,7 @@ class ProductionProcessor @Inject constructor(
     ): ForgeRecipeDatabase.ForgeRecipe? {
         return recipes.firstOrNull { recipe ->
             recipe.materials.all { (materialId, requiredQty) ->
-                val matData = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialById(materialId)
+                val matData = BeastMaterialDatabase.getMaterialById(materialId)
                 matData != null && (materialIndex[matData.name to matData.rarity] ?: 0) >= requiredQty
             }
         }
@@ -808,7 +911,7 @@ class ProductionProcessor @Inject constructor(
         state: MutableGameState
     ) {
         for ((materialId, requiredQty) in materials) {
-            val matData = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialById(materialId) ?: continue
+            val matData = BeastMaterialDatabase.getMaterialById(materialId) ?: continue
             var remaining = requiredQty
             val iter = state.materials.all().iterator()
             while (iter.hasNext() && remaining > 0) {
@@ -836,12 +939,14 @@ class ProductionProcessor @Inject constructor(
         if (slot.duration <= 0) return true  // 保护：duration=0 → 立即完成
 
         val effectiveDuration = if (slot.baseDuration > 0) {
-            formulaService.calculateWorkDurationWithAllDisciples(slot.baseDuration, slot.buildingId)
+            formulaService.calculateWorkDurationWithAllDisciples(
+                slot.baseDuration, slot.buildingId)
         } else {
             slot.duration  // 旧数据回退
         }
 
-        return TimeProgressUtil.isTimeElapsed(slot.startYear, slot.startMonth, effectiveDuration, year, month)
+        return TimeProgressUtil.isTimeElapsed(
+            slot.startYear, slot.startMonth, effectiveDuration, year, month)
     }
 
     /**
@@ -863,7 +968,8 @@ class ProductionProcessor @Inject constructor(
             if (effectiveBase <= 0) continue
 
             val oldDuration = slot.duration.coerceAtLeast(1)
-            val elapsedMonths = ((data.gameYear - slot.startYear) * 12 + (data.gameMonth - slot.startMonth)).coerceAtLeast(0)
+            val elapsedMonths = ((data.gameYear - slot.startYear) * 12 +
+                (data.gameMonth - slot.startMonth)).coerceAtLeast(0)
             val progressRatio = elapsedMonths.toDouble() / oldDuration
             if (progressRatio >= 1.0) continue
 
@@ -875,7 +981,8 @@ class ProductionProcessor @Inject constructor(
             // 同步更新 successRate（政策/长老变化影响成功率）
             val newSuccessRate = recalculateSuccessRate(data, slot)
 
-            val remainingMonths = ((1.0 - progressRatio) * newDuration).roundToInt().coerceAtLeast(1)
+            val remainingMonths = ((1.0 - progressRatio) * newDuration)
+                .roundToInt().coerceAtLeast(1)
             productionSlotRepository.updateSlot(
                 slot.buildingType, slot.slotIndex
             ) { s ->
@@ -891,18 +998,20 @@ class ProductionProcessor @Inject constructor(
     /** 根据当前政策重算槽位的 successRate。从配方数据库读取基础值 + 当前政策加成。 */
     private fun recalculateSuccessRate(data: GameData, slot: ProductionSlot): Double {
         val baseRate = when (slot.buildingType) {
-            com.xianxia.sect.core.model.production.BuildingType.ALCHEMY ->
-                com.xianxia.sect.core.registry.PillRecipeDatabase.getRecipeById(slot.recipeId ?: "")?.successRate
-            com.xianxia.sect.core.model.production.BuildingType.FORGE ->
-                com.xianxia.sect.core.registry.ForgeRecipeDatabase.getRecipeById(slot.recipeId ?: "")?.successRate
+            BuildingType.ALCHEMY ->
+                PillRecipeDatabase.getRecipeById(slot.recipeId ?: "")?.successRate
+            BuildingType.FORGE ->
+                ForgeRecipeDatabase.getRecipeById(slot.recipeId ?: "")?.successRate
             else -> null
-        } ?: return slot.successRate  // 查不到配方则保持原值
+        } ?: return slot.successRate
 
         val policyBonus = when (slot.buildingType) {
-            com.xianxia.sect.core.model.production.BuildingType.ALCHEMY ->
-                if (data.sectPolicies.alchemyIncentive) GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT else 0.0
-            com.xianxia.sect.core.model.production.BuildingType.FORGE ->
-                if (data.sectPolicies.forgeIncentive) GameConfig.PolicyConfig.FORGE_INCENTIVE_BASE_EFFECT else 0.0
+            BuildingType.ALCHEMY ->
+                if (data.sectPolicies.alchemyIncentive)
+                    GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT else 0.0
+            BuildingType.FORGE ->
+                if (data.sectPolicies.forgeIncentive)
+                    GameConfig.PolicyConfig.FORGE_INCENTIVE_BASE_EFFECT else 0.0
             else -> 0.0
         }
         return (baseRate + policyBonus).coerceIn(0.0, 1.0)

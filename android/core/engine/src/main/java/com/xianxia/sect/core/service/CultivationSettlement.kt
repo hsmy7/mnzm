@@ -5,20 +5,14 @@ import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
-import com.xianxia.sect.core.engine.domain.disciple.DiscipleService
-import com.xianxia.sect.core.engine.domain.battle.BattleSystem
-import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.domain.exploration.CaveExplorationSystem
 import com.xianxia.sect.core.engine.domain.exploration.MissionSystem
 import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
 import com.xianxia.sect.core.engine.domain.battle.AISectGarrisonManager
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.engine.WorldMapGenerator
-import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.registry.*
-import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.model.production.ProductionSlot
-import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.config.DiplomaticEventConfig
 import com.xianxia.sect.core.util.BuildingNames
 import com.xianxia.sect.core.util.GameUtils
@@ -63,14 +57,6 @@ sealed interface PolicyCostResult {
 @GameService("CultivationSettlement")
 class CultivationSettlement @Inject constructor(
     private val stateStore: GameStateStore,
-    private val inventorySystem: InventorySystem,
-    private val inventoryConfig: InventoryConfig,
-    private val battleSystem: BattleSystem,
-    private val productionCoordinator: ProductionCoordinator,
-    private val productionSlotRepository: ProductionSlotRepository,
-    private val discipleService: DiscipleService,
-    private val cultivationCore: CultivationCore,
-    private val breakthroughHandler: DiscipleBreakthroughHandler,
     private val scopeProvider: CoroutineScopeProvider,
     private val spiritStoneWallet: SpiritStoneWallet
 ) {
@@ -95,13 +81,12 @@ class CultivationSettlement @Inject constructor(
             if (result !is DeductResult.Success) return@update
 
             val currentDisciples = discipleTables.assembleAll()
-            discipleTables.clear()
-            currentDisciples.forEach { disciple ->
+            val updatedDisciples = currentDisciples.map { disciple ->
                 val salary = plan.eligibleSalaries[disciple.id]
                 if (salary != null && salary > 0L) {
                     val newLoyalty = if (disciple.skills.loyalty < maxLoyalty)
                         disciple.skills.loyalty + 1 else disciple.skills.loyalty
-                    discipleTables.insert(disciple.copy(
+                    disciple.copy(
                         equipment = disciple.equipment.copy(
                             storageBagSpiritStones = disciple.equipment.storageBagSpiritStones + salary
                         ),
@@ -109,11 +94,12 @@ class CultivationSettlement @Inject constructor(
                             salaryPaidCount = disciple.skills.salaryPaidCount + 1,
                             loyalty = newLoyalty
                         )
-                    ))
+                    )
                 } else {
-                    discipleTables.insert(disciple)
+                    disciple
                 }
             }
+            discipleTables.replaceAll(updatedDisciples)
         }
     }
 
@@ -159,10 +145,9 @@ class CultivationSettlement @Inject constructor(
                 SpiritStoneReason.Salary, SpiritStoneSource.Salary, true)
             if (result !is DeductResult.Success) return@update
             val currentDisciples = discipleTables.assembleAll()
-            discipleTables.clear()
-            currentDisciples.forEach {
+            val updatedDisciples = currentDisciples.map {
                 if (it.id == discipleId) {
-                    discipleTables.insert(it.copy(
+                    it.copy(
                         equipment = it.equipment.copy(
                             storageBagSpiritStones = it.equipment.storageBagSpiritStones + salary
                         ),
@@ -170,11 +155,12 @@ class CultivationSettlement @Inject constructor(
                             salaryPaidCount = it.skills.salaryPaidCount + 1,
                             loyalty = (it.skills.loyalty + 1).coerceAtMost(maxLoyalty)
                         )
-                    ))
+                    )
                 } else {
-                    discipleTables.insert(it)
+                    it
                 }
             }
+            discipleTables.replaceAll(updatedDisciples)
         }
     }
 
@@ -188,8 +174,7 @@ class CultivationSettlement @Inject constructor(
                     d.copy(skills = d.skills.copy(loyalty = (d.skills.loyalty + 1).coerceAtMost(maxLoyalty)))
                 } else d
             }
-            discipleTables.clear()
-            updatedDisciples.forEach { discipleTables.insert(it) }
+            discipleTables.replaceAll(updatedDisciples)
         }
     }
 
@@ -276,7 +261,7 @@ class CultivationSettlement @Inject constructor(
         }
 
         val avgMiningBonus = if (minerCount > 0) miningBonus / minerCount else 0.0
-        val boostMultiplier = if (data.sectPolicies.spiritMineBoost) 1.2 else 1.0
+        val boostMultiplier = if (data.sectPolicies.spiritMineBoost) SPIRIT_MINE_BOOST_MULTIPLIER else 1.0
 
         val deaconBonus = data.elderSlots.spiritMineDeaconDisciples.mapNotNull { slot ->
             slot.discipleId?.let { discipleId ->
@@ -289,7 +274,7 @@ class CultivationSettlement @Inject constructor(
             val baseline = GameConfig.PolicyConfig.ELDER_SKILL_BASELINE
             val diff = (DiscipleStatCalculator.getBaseStats(disciple).morality - baseline)
                 .coerceAtLeast(0)
-            diff * 0.01
+            diff * DEACON_MORALITY_BONUS_RATE
         }
 
         return SpiritMineZones(
@@ -358,5 +343,7 @@ class CultivationSettlement @Inject constructor(
 
     companion object {
         private const val TAG = "CultivationSettlement"
+        private const val SPIRIT_MINE_BOOST_MULTIPLIER = 1.2
+        private const val DEACON_MORALITY_BONUS_RATE = 0.01
     }
 }

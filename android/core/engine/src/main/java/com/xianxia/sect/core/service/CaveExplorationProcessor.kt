@@ -16,9 +16,12 @@ import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager.PlayerAtta
 import com.xianxia.sect.core.engine.domain.battle.AISectGarrisonManager
 import com.xianxia.sect.core.engine.domain.battle.AttackWarningService
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
+import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
+import com.xianxia.sect.core.engine.domain.battle.Combatant
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.SectWarehouseManager
 import com.xianxia.sect.core.engine.domain.exploration.CaveExplorationSystem
+import com.xianxia.sect.core.engine.domain.exploration.CaveRewardItem
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.util.AnalyticsTracker
 import com.xianxia.sect.core.util.CoroutineScopeProvider
@@ -30,6 +33,30 @@ import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/**
+ * 洞府探索 completion loop 中 mutable 累加器的容器。
+ * 因 completion loop 和 error handler 均需修改 finalCaves/finalAITeams 的引用，
+ * 使用 data class + var 字段替代闭包捕获，使提取的 private fun 可修改调用方状态。
+ */
+private data class CaveCompletionState(
+    var finalCaves: List<CultivatorCave>,
+    var finalAITeams: List<AICaveTeam>,
+    val finalExplorationTeams: MutableList<CaveExplorationTeam>,
+    val teamsWithMissingCave: MutableList<CaveExplorationTeam>,
+    val teamsWithError: MutableList<CaveExplorationTeam>
+)
+
+/**
+ * 防守战准备阶段返回的数据容器，支持解构。
+ */
+private data class DefensePreparation(
+    val defenderIds: List<String>,
+    val equipmentMap: Map<String, EquipmentInstance>,
+    val manualMap: Map<String, ManualInstance>,
+    val profMap: Map<String, Map<String, ManualProficiencyData>>,
+    val data: GameData
+)
 
 @Singleton
 @GameService("CaveExplorationProcessor")
@@ -57,6 +84,11 @@ class CaveExplorationProcessor @Inject constructor(
         private const val THERMAL_EMERGENCY_BATCH = 12
         private const val THERMAL_REDUCE_BATCH = 6
         private const val THERMAL_NORMAL_BATCH = 1
+        private const val AI_TEAM_SPAWN_PROBABILITY = 0.7
+        private const val AI_TEAM_REMOVE_PROBABILITY = 0.3
+        private const val AI_TEAM_MIN_SIZE = 3
+        private const val AI_TEAM_MAX_SIZE = 5
+        private const val NEARBY_SECT_RANGE = 400f
 
         /**
          * 从实际参战弟子构建防守战日志的敌人快照列表（纯函数）。
@@ -92,25 +124,10 @@ class CaveExplorationProcessor @Inject constructor(
     // ── 洞府探索 ──────────────────────────────────────────────────────
 
     fun processCaveLifecycle(year: Int, month: Int) {
-        // Phase 1: 计算过期洞府 — 在 stateStore.update 外部读取初始快照，
-        // 然后逐个重置探索队伍状态（每个 reset 内含自身的 stateStore.update）。
-        val initialExpiredCaveIds = stateStore.gameData.value.cultivatorCaves.filter { cave ->
-            cave.isExpired(year, month) || cave.status == CaveStatus.EXPLORED
-        }.map { it.id }.toSet()
+        // Phase 1: 重置过期洞府的探索队伍（在 stateStore.update 外部进行）
+        val initialExpiredCaveIds = resetExpiredCaveTeams(year, month)
 
-        initialExpiredCaveIds.forEach { caveId ->
-            val affectedTeams = stateStore.gameData.value.caveExplorationTeams.filter {
-                it.caveId == caveId && it.status == CaveExplorationStatus.TRAVELING
-            }
-            affectedTeams.forEach { team ->
-                resetCaveExplorationTeamMembersStatus(team)
-            }
-        }
-
-        // Phase 2: 剩余逻辑在单个 stateStore.update 事务内完成，
-        // 使用 gameData（当前状态）替代外部快照 data，消除"锁外读状态→锁内决策"反模式。
-        // 内部 executeCaveExploration / resetCaveExplorationTeamMembersStatus 的
-        // 嵌套 stateStore.update 经 reentrant 路径写入同一 buffer，外层统一提交。
+        // Phase 2: 剩余逻辑在单个 stateStore.update 事务内完成
         stateStore.update {
             val caves = gameData.cultivatorCaves
             val aiTeams = gameData.aiCaveTeams
@@ -122,92 +139,34 @@ class CaveExplorationProcessor @Inject constructor(
                 !cave.isExpired(year, month) && cave.status != CaveStatus.EXPLORED
             }
 
-            // AI 队伍生成
-            val allAITeams = aiTeams.toMutableList()
-            activeCaves.forEach { cave ->
-                val currentTeams = allAITeams.count {
-                    it.caveId == cave.id && it.status == AITeamStatus.EXPLORING
-                }
-
-                if (currentTeams < 3 && Random.nextDouble() < 0.7) {
-                    val nearbySects = findNearbySects(cave, 400f)
-                    val existingTeamForCave = allAITeams.filter { it.caveId == cave.id }
-
-                    val aiTeam = generateAITeamInline(cave, nearbySects, existingTeamForCave)
-                    if (aiTeam != null) {
-                        allAITeams.add(aiTeam)
-                    }
-                }
-            }
+            val allAITeams = spawnAITeams(aiTeams, activeCaves)
 
             var updatedSectsForAI = sects.toMutableList()
             val updatedSectDetails = details.toMutableMap()
-            val aiTeamsToRemove = mutableListOf<String>()
 
-            allAITeams.filter { it.status == AITeamStatus.EXPLORING }.forEach { aiTeam ->
-                val cave = activeCaves.find { it.id == aiTeam.caveId } ?: return@forEach
-
-                if (Random.nextDouble() < 0.3) {
-                    aiTeamsToRemove.add(aiTeam.id)
-                }
-            }
-
-            val filteredAITeams = allAITeams.filter { it.id !in aiTeamsToRemove }
+            val filteredAITeams = removeStaleAITeams(allAITeams, activeCaves)
 
             val teamsToComplete = explorationTeams.filter {
                 it.status == CaveExplorationStatus.EXPLORING
             }
 
-            var finalCaves = activeCaves.toMutableList()
-            var finalAITeams = filteredAITeams.toList()
-            var finalExplorationTeams = explorationTeams.filter {
-                it.caveId !in initialExpiredCaveIds
-            }.toMutableList()
-            val teamsWithMissingCave = mutableListOf<CaveExplorationTeam>()
-            val teamsWithError = mutableListOf<CaveExplorationTeam>()
+            val completionState = CaveCompletionState(
+                finalCaves = activeCaves.toList(),
+                finalAITeams = filteredAITeams,
+                finalExplorationTeams = explorationTeams.filter {
+                    it.caveId !in initialExpiredCaveIds
+                }.toMutableList(),
+                teamsWithMissingCave = mutableListOf(),
+                teamsWithError = mutableListOf()
+            )
+            teamsToComplete.forEach { processSingleTeamCompletion(it, completionState) }
 
-            teamsToComplete.forEach { team ->
-                val cave = finalCaves.find { it.id == team.caveId }
-                if (cave == null) {
-                    teamsWithMissingCave.add(team)
-                    return@forEach
-                }
-                try {
-                    val result = executeCaveExploration(team, cave, finalAITeams)
-
-                    finalCaves = result.first.toMutableList()
-                    finalAITeams = result.second
-                    if (result.third) {
-                        finalExplorationTeams.removeAll { it.id == team.id }
-                    }
-                } catch (e: CancellationException) { throw e }
-                  catch (e: Exception) {
-                    DomainLog.e(TAG, "Error processing cave exploration for team ${team.id}", e)
-                    teamsWithError.add(team)
-                }
-            }
-
-            teamsWithMissingCave.forEach { team ->
-                resetCaveExplorationTeamMembersStatus(team)
-                finalExplorationTeams.removeAll { it.id == team.id }
-            }
-
-            teamsWithError.forEach { team ->
-                resetCaveExplorationTeamMembersStatus(team)
-                finalCaves = finalCaves.map { cave ->
-                    if (cave.id == team.caveId && cave.status == CaveStatus.EXPLORING) {
-                        cave.copy(status = CaveStatus.AVAILABLE)
-                    } else {
-                        cave
-                    }
-                }.toMutableList()
-                finalExplorationTeams.removeAll { it.id == team.id }
-            }
+            handleExplorationErrors(completionState)
 
             gameData = gameData.copy(
-                cultivatorCaves = finalCaves,
-                aiCaveTeams = finalAITeams,
-                caveExplorationTeams = finalExplorationTeams,
+                cultivatorCaves = completionState.finalCaves,
+                aiCaveTeams = completionState.finalAITeams,
+                caveExplorationTeams = completionState.finalExplorationTeams,
                 worldMapSects = updatedSectsForAI,
                 sectDetails = updatedSectDetails
             )
@@ -228,7 +187,7 @@ class CaveExplorationProcessor @Inject constructor(
             caveId = cave.id,
             sectId = sect.id,
             sectName = sect.name,
-            memberCount = (3..5).random(),
+            memberCount = (AI_TEAM_MIN_SIZE..AI_TEAM_MAX_SIZE).random(),
             avgRealm = cave.ownerRealm,
             avgRealmName = cave.ownerRealmName
         )
@@ -239,16 +198,9 @@ class CaveExplorationProcessor @Inject constructor(
         cave: CultivatorCave,
         currentAITeams: List<AICaveTeam>
     ): Triple<List<CultivatorCave>, List<AICaveTeam>, Boolean> {
-        val teamMembers = team.memberIds.mapNotNull { id ->
-            stateStore.disciples.value.find { it.id == id }
-        }.filter { it.isAlive }
-
+        val teamMembers = assembleTeamMembers(team)
         if (teamMembers.isEmpty()) {
-            return Triple(
-                stateStore.gameData.value.cultivatorCaves,
-                currentAITeams.filter { it.caveId != cave.id },
-                true
-            )
+            return handleEmptyTeam(cave, currentAITeams)
         }
 
         val data = stateStore.gameData.value
@@ -257,256 +209,46 @@ class CaveExplorationProcessor @Inject constructor(
         val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
             list.associateBy { it.manualId }
         }
-
-        val aiTeamInCave = currentAITeams.find { it.caveId == cave.id && it.status == AITeamStatus.EXPLORING }
+        val aiTeamInCave = currentAITeams.find {
+            it.caveId == cave.id && it.status == AITeamStatus.EXPLORING
+        }
         val battleResult = executeBattleForTeam(
             teamMembers, equipmentMap, manualMap, allProficiencies,
             aiTeamInCave, cave
         )
 
-        val survivorIds = battleResult.log.teamMembers.filter { it.isAlive }.map { it.id }.toSet()
-        val survivorHpMap = battleResult.log.teamMembers.filter { it.isAlive }.associate { it.id to it.hp }
-        val survivorMpMap = battleResult.log.teamMembers.filter { it.isAlive }.associate { it.id to it.mp }
-        val deadDisciples = mutableListOf<Disciple>()
-        stateStore.update {
-            val newList = discipleTables.assembleAll().map { disciple ->
-                if (disciple.id in team.memberIds) {
-                    if (disciple.id in survivorIds) {
-                        val hp = survivorHpMap[disciple.id] ?: disciple.combat.currentHp
-                        val mp = survivorMpMap[disciple.id] ?: disciple.combat.currentMp
-                        disciple.copy(status = DiscipleStatus.IDLE, combat = disciple.combat.copy(currentHp = hp, currentMp = mp))
-                    } else {
-                        deadDisciples.add(disciple)
-                        disciple.copy(isAlive = false, status = DiscipleStatus.DEAD)
-                    }
-                } else disciple
-            }
-            discipleTables.clear()
-            newList.forEach { discipleTables.insert(it) }
-            val caveYear = stateStore.gameData.value.gameYear
-            newList.filter { !it.isAlive }.forEach {
-                val idInt = it.id.toIntOrNull()
-                if (idInt != null && !discipleTables.deathYears.contains(idInt)) {
-                    discipleTables.deathYears[idInt] = caveYear
-                }
-            }
-        }
-        deadDisciples.forEach { eventProcessor.handleDiscipleDeath(it, isOutsideSect = true) }
+        val deadDisciples = processBattleCasualties(team, battleResult)
+        deadDisciples.forEach { eventProcessor.handleDiscipleDeath(
+            it, isOutsideSect = true
+        ) }
 
         if (!battleResult.victory) {
-            var updatedAITeams = currentAITeams.filter { it.caveId != cave.id }
-            if (aiTeamInCave != null) {
-                updatedAITeams = updatedAITeams.toMutableList()
+            val updatedAITeams = currentAITeams.filter { it.caveId != cave.id }
+            val resultAITeams = if (aiTeamInCave != null) {
+                updatedAITeams.toMutableList()
+            } else {
+                updatedAITeams
             }
-            return Triple(
-                stateStore.gameData.value.cultivatorCaves,
-                updatedAITeams,
-                true
-            )
+            return Triple(stateStore.gameData.value.cultivatorCaves, resultAITeams, true)
         }
 
-        stateStore.update {
-            val newList = discipleTables.assembleAll().map { disciple ->
-                if (disciple.id in survivorIds && disciple.isAlive) {
-                    disciple.copy(soulPower = disciple.soulPower + 1)
-                } else {
-                    disciple
-                }
-            }
-            discipleTables.clear()
-            newList.forEach { discipleTables.insert(it) }
-        }
+        val victorMembers = battleResult.log.teamMembers.filter { it.isAlive }
+        val survivorIds = victorMembers.map { it.id }.toSet()
+        awardVictorySoulPower(survivorIds)
 
-        val rewards = CaveExplorationSystem.generateVictoryRewards(cave)
-
-        val battleRewardItems = mutableListOf<BattleRewardItem>()
-        rewards.items.forEach { reward ->
-            when (reward.type) {
-                "spiritStones" -> {
-                    stateStore.update { spiritStoneWallet.add(this,
-                        amount = reward.quantity.toLong(),
-                        grade = SpiritStoneGrade.LOW,
-                        source = SpiritStoneSource.Cave
-                    ) }
-                    battleRewardItems.add(BattleRewardItem(
-                        itemId = reward.itemId,
-                        name = reward.name,
-                        quantity = reward.quantity,
-                        rarity = reward.rarity,
-                        type = reward.type
-                    ))
-                }
-                "equipment" -> {
-                    val template = EquipmentDatabase.getById(reward.itemId)
-                    if (template != null) {
-                        val equipment = EquipmentDatabase.createFromTemplate(template).copy(
-                            rarity = reward.rarity,
-                            quantity = reward.quantity
-                        )
-                        val result = inventorySystem.addEquipmentStack(equipment)
-                        if (result.isSuccess) {
-                            battleRewardItems.add(BattleRewardItem(
-                                itemId = reward.itemId,
-                                name = reward.name,
-                                quantity = reward.quantity,
-                                rarity = reward.rarity,
-                                type = reward.type
-                            ))
-                        }
-                    }
-                }
-                "manual" -> {
-                    val template = ManualDatabase.getById(reward.itemId)
-                    if (template != null) {
-                        val manual = ManualDatabase.createFromTemplate(template).copy(
-                            rarity = reward.rarity,
-                            quantity = reward.quantity
-                        )
-                        val result = inventorySystem.addManualStack(manual)
-                        if (result.isSuccess) {
-                            battleRewardItems.add(BattleRewardItem(
-                                itemId = reward.itemId,
-                                name = reward.name,
-                                quantity = reward.quantity,
-                                rarity = reward.rarity,
-                                type = reward.type
-                            ))
-                        }
-                    }
-                }
-                "pill" -> {
-                    val template = PillRecipeDatabase.getRecipeById(reward.itemId)
-                    if (template != null) {
-                        val pill = Pill(
-                            id = java.util.UUID.randomUUID().toString(),
-                            name = template.name,
-                            rarity = template.rarity,
-                            quantity = reward.quantity,
-                            description = template.description,
-                            category = template.category,
-                            effects = PillEffect(
-                                breakthroughChance = template.breakthroughChance,
-                                targetRealm = template.targetRealm,
-                                cultivationSpeedPercent = template.cultivationSpeedPercent,
-                                duration = template.duration,
-                                cultivationAdd = template.cultivationAdd,
-                                skillExpAdd = template.skillExpAdd,
-                                nurtureAdd = template.nurtureAdd,
-                                extendLife = template.extendLife,
-                                physicalAttackAdd = template.physicalAttackAdd,
-                                magicAttackAdd = template.magicAttackAdd,
-                                physicalDefenseAdd = template.physicalDefenseAdd,
-                                magicDefenseAdd = template.magicDefenseAdd,
-                                hpAdd = template.hpAdd,
-                                mpAdd = template.mpAdd,
-                                speedAdd = template.speedAdd,
-                                critRateAdd = template.critRateAdd,
-                                critEffectAdd = template.critEffectAdd,
-                                intelligenceAdd = template.intelligenceAdd,
-                                charmAdd = template.charmAdd,
-                                loyaltyAdd = template.loyaltyAdd,
-                                comprehensionAdd = template.comprehensionAdd,
-                                artifactRefiningAdd = template.artifactRefiningAdd,
-                                pillRefiningAdd = template.pillRefiningAdd,
-                                spiritPlantingAdd = template.spiritPlantingAdd,
-                                teachingAdd = template.teachingAdd,
-                                moralityAdd = template.moralityAdd
-                            ),
-                            minRealm = GameConfig.Realm.getMinRealmForRarity(template.rarity)
-                        )
-                        val result = inventorySystem.addPill(pill)
-                        if (result.isSuccess) {
-                            battleRewardItems.add(BattleRewardItem(
-                                itemId = reward.itemId,
-                                name = reward.name,
-                                quantity = reward.quantity,
-                                rarity = reward.rarity,
-                                type = reward.type
-                            ))
-                        }
-                    }
-                }
-            }
-        }
-
-        val battleLog = BattleLog(
-            timestamp = System.currentTimeMillis(),
-            year = data.gameYear,
-            month = data.gameMonth,
-            type = BattleType.CAVE_EXPLORATION,
-            attackerName = team.caveName,
-            defenderName = cave.name,
-            result = BattleResult.WIN,
-            details = "洞府探索",
-            dungeonName = cave.name,
-            teamId = team.id,
-            teamMembers = battleResult.log.teamMembers.map { member ->
-                BattleLogMember(
-                    id = member.id, name = member.name,
-                    realm = member.realm, realmName = member.realmName,
-                    hp = member.hp, maxHp = member.maxHp,
-                    mp = member.mp, maxMp = member.maxMp,
-                    isAlive = member.isAlive, portraitRes = member.portraitRes
-                )
-            },
-            enemies = battleResult.log.enemies.map { enemy ->
-                BattleLogEnemy(
-                    id = enemy.id, name = "守护兽",
-                    realm = enemy.realm, realmName = enemy.realmName,
-                    realmLayer = enemy.realmLayer,
-                    hp = enemy.hp, maxHp = enemy.maxHp,
-                    isAlive = enemy.isAlive, portraitRes = enemy.portraitRes
-                )
-            },
-            rounds = battleResult.log.rounds.map { round ->
-                BattleLogRound(
-                    roundNumber = round.roundNumber,
-                    actions = round.actions.map { action ->
-                        BattleLogAction(
-                            type = action.type, attacker = action.attacker,
-                            attackerType = action.attackerType, target = action.target,
-                            damage = action.damage, damageType = action.damageType,
-                            isCrit = action.isCrit, isKill = action.isKill,
-                            message = action.message, skillName = action.skillName
-                        )
-                    }
-                )
-            },
-            turns = battleResult.turnCount,
-            battleResult = BattleLogResult(
-                winner = if (battleResult.victory) "team" else "beasts",
-                isPlayerWin = battleResult.victory,
-                turns = battleResult.turnCount,
-                rounds = battleResult.log.rounds.size,
-                teamCasualties = battleResult.log.teamMembers.count { !it.isAlive },
-                beastsDefeated = battleResult.log.enemies.count { !it.isAlive }
-            )
+        val battleRewardItems = grantBattleRewards(cave)
+        val battleLog = buildAndStoreBattleLog(
+            data, team, cave, battleResult, battleRewardItems
         )
-        stateStore.update { battleLogs = listOf(battleLog) + battleLogs.take(49) }
-
         stateStore.setPendingBattleResult(BattleResultUIData(
             battleLogId = battleLog.id,
             victory = battleResult.victory,
             teamMembers = battleLog.teamMembers,
             rewards = battleRewardItems
         ))
+        trackBattleAnalytics(battleResult, cave)
 
-        analyticsTracker.trackEvent(
-            "battle_end",
-            mapOf(
-                "outcome" to if (battleResult.victory) "win" else "lose",
-                "enemy_type" to cave.name,
-                "turns" to battleResult.turnCount,
-                "team_size" to battleResult.log.teamMembers.size
-            )
-        )
-
-        val updatedCaves = stateStore.gameData.value.cultivatorCaves.map { c ->
-            if (c.id == cave.id) c.copy(status = CaveStatus.EXPLORED) else c
-        }
-        val updatedAITeams = currentAITeams.filter { it.caveId != cave.id }
-
-        return Triple(updatedCaves, updatedAITeams, true)
+        return cleanupAfterCaveExploration(cave, currentAITeams)
     }
 
     /** 执行洞府战斗：玩家团队 vs AI团队或守护妖兽 */
@@ -517,26 +259,28 @@ class CaveExplorationProcessor @Inject constructor(
         allProficiencies: Map<String, Map<String, ManualProficiencyData>>,
         aiTeamInCave: AICaveTeam?,
         cave: CultivatorCave
-    ): com.xianxia.sect.core.engine.domain.battle.BattleSystemResult = if (aiTeamInCave != null) {
-        battleSystem.executeBattle(
-            CaveExplorationSystem.createAIBattle(
-                playerDisciples = teamMembers,
-                playerEquipmentMap = equipmentMap,
-                playerManualMap = manualMap,
-                playerManualProficiencies = allProficiencies,
-                aiTeam = aiTeamInCave
+    ): BattleSystemResult {
+        return if (aiTeamInCave != null) {
+            battleSystem.executeBattle(
+                CaveExplorationSystem.createAIBattle(
+                    playerDisciples = teamMembers,
+                    playerEquipmentMap = equipmentMap,
+                    playerManualMap = manualMap,
+                    playerManualProficiencies = allProficiencies,
+                    aiTeam = aiTeamInCave
+                )
             )
-        )
-    } else {
-        battleSystem.executeBattle(
-            CaveExplorationSystem.createGuardianBattle(
-                playerDisciples = teamMembers,
-                playerEquipmentMap = equipmentMap,
-                playerManualMap = manualMap,
-                playerManualProficiencies = allProficiencies,
-                cave = cave
+        } else {
+            battleSystem.executeBattle(
+                CaveExplorationSystem.createGuardianBattle(
+                    playerDisciples = teamMembers,
+                    playerEquipmentMap = equipmentMap,
+                    playerManualMap = manualMap,
+                    playerManualProficiencies = allProficiencies,
+                    cave = cave
+                )
             )
-        )
+        }
     }
 
     fun findNearbySects(cave: CultivatorCave, range: Float): List<WorldSect> {
@@ -561,8 +305,7 @@ class CaveExplorationProcessor @Inject constructor(
                 val newList = discipleTables.assembleAll().map {
                     if (it.id in idsToReset) it.copy(status = DiscipleStatus.IDLE) else it
                 }
-                discipleTables.clear()
-                newList.forEach { discipleTables.insert(it) }
+                discipleTables.replaceAll(newList)
             }
         }
     }
@@ -709,199 +452,25 @@ class CaveExplorationProcessor @Inject constructor(
     }
 
     private fun executePlayerDefenseBattle(expired: AttackWarning) {
-        val data = stateStore.gameData.value
-        val allDisciples = stateStore.discipleTables.assembleAll()
-        val selectedDefenders = allDisciples
-            .filter {
-                it.isAlive &&
-                    it.status !in setOf(DiscipleStatus.ON_MISSION,
-                        DiscipleStatus.IN_TEAM, DiscipleStatus.REFLECTING,
-                        DiscipleStatus.GARRISONING, DiscipleStatus.REFINING)
-            }
-            .sortedBy { it.realm }
-            .take(AISectAttackManager.TEAM_SIZE)
+        // 1. 防守方选择和准备
+        val preparation = selectAndPrepareDefenders(expired)
+        if (preparation == null) return
+        val (defenderIds, equipmentMap, manualMap, profMap, data) = preparation
 
-        val defenderIds = selectedDefenders.map { it.id }
-        if (defenderIds.isEmpty()) return
-
-        // 战斗前全量结算 + 转换 Combatant
-        val equipmentMap = stateStore.equipmentInstancesSnapshot
-            .associateBy { it.id }
-        val manualMap = stateStore.manualInstancesSnapshot
-            .associateBy { it.id }
-        val profMap = data.manualProficiencies.mapValues { (_, list) ->
-            list.associateBy { it.manualId }
-        }
-
+        // 2. 战斗前结算 + 刷新防守方状态
         stateStore.update {
             cultivationService.forceSettleDisciplesBeforeBattle(this, defenderIds)
         }
-        val tables = stateStore.discipleTables
-        val refreshedDefenders = defenderIds.mapNotNull { id ->
-            val idInt = id.toIntOrNull() ?: return@mapNotNull null
-            if (tables.isAlive[idInt] == 1) tables.assemble(idInt) else null
-        }
+        val defenseTeam = buildDefenseTeam(defenderIds, equipmentMap, manualMap, profMap)
 
-        val defenseTeam = refreshedDefenders.map { d ->
-            battleSystem.convertDiscipleToCombatant(
-                d, equipmentMap, manualMap, profMap, CombatantSide.DEFENDER
-            )
-        }
-
+        // 3. 执行战斗
         val result = AISectAttackManager.executePlayerAttack(
             data, expired.attackerSectId, defenseTeam
         ) ?: return
 
-        // 删除到期预警 + 应用战斗结果
+        // 4. 应用战斗结果（stateStore.update 内原子完成）
         stateStore.update {
-            gameData = gameData.copy(
-                activeAttackWarnings = gameData.activeAttackWarnings.filter {
-                    it.warningId != expired.warningId
-                }
-            )
-
-            val currentDisciples = discipleTables.assembleAll()
-            val deadDefenders = currentDisciples.filter {
-                it.id in result.deadDefenderIds
-            }
-            var newDisciples = currentDisciples
-            if (deadDefenders.isNotEmpty()) {
-                newDisciples = DiscipleStatCalculator
-                    .applyGriefToRelatives(
-                        newDisciples, deadDefenders, gameData.gameYear
-                    )
-            }
-            newDisciples = newDisciples.map { d ->
-                if (d.id in result.deadDefenderIds) {
-                    d.copy(isAlive = false, status = DiscipleStatus.DEAD)
-                } else {
-                    val hp = result.defenderSurvivorHpMap[d.id]
-                    val mp = result.defenderSurvivorMpMap[d.id]
-                    if (hp != null && mp != null) d.copy(
-                        combat = d.combat.copy(
-                            currentHp = hp.coerceIn(0, d.maxHp),
-                            currentMp = mp.coerceIn(0, d.maxMp)
-                        )
-                    ) else d
-                }
-            }
-            discipleTables.clear()
-            newDisciples.forEach { discipleTables.insert(it) }
-            // 为阵亡弟子补充 deathYears
-            newDisciples.filter { !it.isAlive }.forEach {
-                val idInt = it.id.toIntOrNull()
-                if (idInt != null && !discipleTables.deathYears.contains(idInt)) {
-                    discipleTables.deathYears[idInt] = gameData.gameYear
-                }
-            }
-
-            val attackerDisc = gameData.aiSectDisciples[
-                result.attackerSectId] ?: emptyList()
-            val playerSectId = gameData.worldMapSects
-                .find { it.isPlayerSect }?.id ?: return@update
-            val playerSectName = gameData.worldMapSects
-                .find { it.isPlayerSect }?.name ?: "玩家宗门"
-
-            var updated = gameData.copy(
-                aiSectDisciples = gameData.aiSectDisciples.toMutableMap().apply {
-                    this[result.attackerSectId] = attackerDisc.filter {
-                        it.id !in result.deadAttackerIds
-                    }
-                },
-                worldMapSects = gameData.worldMapSects.map { sect ->
-                    if (sect.id == playerSectId) sect.copy(
-                        garrisonSlots = sect.garrisonSlots.map { slot ->
-                            if (slot.discipleId in result.deadDefenderIds)
-                                GarrisonSlot(index = slot.index) else slot
-                        }
-                    ) else sect
-                },
-                sectRelations = gameData.sectRelations.map { r ->
-                    val relevant = (r.sectId1 == result.attackerSectId &&
-                        r.sectId2 == playerSectId) ||
-                        (r.sectId1 == playerSectId &&
-                            r.sectId2 == result.attackerSectId)
-                    if (relevant) r.copy(
-                        favor = (r.favor - 15).coerceIn(
-                            GameConfig.Diplomacy.MIN_FAVOR,
-                            GameConfig.Diplomacy.MAX_FAVOR)
-                    ) else r
-                }
-            )
-
-            if (result.winner == AIBattleWinner.ATTACKER) {
-                val detail = updated.sectDetails[playerSectId]
-                    ?: SectDetail(sectId = playerSectId)
-                val loot = sectWarehouseManager
-                    .calculateWarehouseLootLoss(detail.warehouse)
-                val newWarehouse = sectWarehouseManager
-                    .applyLootLossToWarehouse(detail.warehouse, loot)
-                updated = updated.copy(
-                    sectDetails = updated.sectDetails.toMutableMap().apply {
-                        this[playerSectId] = detail.copy(warehouse = newWarehouse)
-                    }
-                )
-            }
-
-            // 战斗日志
-            val winResult = when (result.winner) {
-                AIBattleWinner.ATTACKER -> BattleResult.LOSE
-                AIBattleWinner.DEFENDER -> BattleResult.WIN
-                AIBattleWinner.DRAW -> BattleResult.DRAW
-            }
-            val participantIds = result.deadDefenderIds.toSet() +
-                result.defenderSurvivorHpMap.keys
-            val teamMembers = newDisciples
-                .filter { it.id in participantIds }
-                .map { d ->
-                    BattleLogMember(
-                        id = d.id, name = d.name,
-                        realm = d.realm, realmName = d.realmName,
-                        hp = result.defenderSurvivorHpMap[d.id] ?: 0,
-                        maxHp = d.maxHp,
-                        mp = result.defenderSurvivorMpMap[d.id] ?: 0,
-                        maxMp = d.maxMp,
-                        isAlive = d.id !in result.deadDefenderIds,
-                        portraitRes = d.portraitRes
-                    )
-                }
-            val survivorIds = result.survivingAttackers.map { it.id }.toSet()
-            val deadAttackerData = attackerDisc.filter {
-                it.id in result.deadAttackerIds
-            }
-            val enemies = (result.survivingAttackers + deadAttackerData).map { d ->
-                BattleLogEnemy(
-                    id = d.id,
-                    name = "${result.attackerSectName}弟子",
-                    realm = d.realm, realmName = d.realmName,
-                    hp = if (d.id in survivorIds) d.combat.currentHp else 0,
-                    maxHp = d.maxHp,
-                    isAlive = d.id in survivorIds,
-                    portraitRes = d.portraitRes
-                )
-            }
-            recordPlayerBattle(
-                year = gameData.gameYear,
-                month = gameData.gameMonth,
-                type = BattleType.SECT_WAR,
-                attackerName = result.attackerSectName,
-                defenderName = playerSectName,
-                result = winResult,
-                teamMembers = teamMembers,
-                enemies = enemies,
-                rounds = result.rounds,
-                turns = result.rounds.size,
-                details = "${result.attackerSectName} 进犯${playerSectName}，" +
-                    when (result.winner) {
-                        AIBattleWinner.ATTACKER -> "防守失利"
-                        AIBattleWinner.DEFENDER -> "防守成功"
-                        else -> "不分胜负"
-                    },
-                beastsDefeated = result.deadAttackerIds.size,
-                teamCasualties = result.deadDefenderIds.size
-            )
-
-            gameData = updated
+            applyDefenseBattleResult(this, expired, result)
         }
     }
 
@@ -1104,8 +673,7 @@ class CaveExplorationProcessor @Inject constructor(
                 }
             }
         }
-        tables.clear()
-        updated.forEach { tables.insert(it) }
+        tables.replaceAll(updated)
         // 为阵亡弟子补充 deathYears
         updated.filter { !it.isAlive }.forEach {
             val idInt = it.id.toIntOrNull()
@@ -1186,6 +754,626 @@ class CaveExplorationProcessor @Inject constructor(
                 }
             )
         }
+    }
+
+    // ── processCaveLifecycle 辅助方法 ──────────────────────────────────
+
+    private fun resetExpiredCaveTeams(year: Int, month: Int): Set<String> {
+        val initialExpiredCaveIds = stateStore.gameData.value.cultivatorCaves.filter { cave ->
+            cave.isExpired(year, month) || cave.status == CaveStatus.EXPLORED
+        }.map { it.id }.toSet()
+        initialExpiredCaveIds.forEach { caveId ->
+            val affectedTeams = stateStore.gameData.value.caveExplorationTeams.filter {
+                it.caveId == caveId && it.status == CaveExplorationStatus.TRAVELING
+            }
+            affectedTeams.forEach { team ->
+                resetCaveExplorationTeamMembersStatus(team)
+            }
+        }
+        return initialExpiredCaveIds
+    }
+
+    private fun spawnAITeams(
+        aiTeams: List<AICaveTeam>,
+        activeCaves: List<CultivatorCave>
+    ): MutableList<AICaveTeam> {
+        val allAITeams = aiTeams.toMutableList()
+        activeCaves.forEach { cave ->
+            val currentTeams = allAITeams.count {
+                it.caveId == cave.id && it.status == AITeamStatus.EXPLORING
+            }
+            if (currentTeams < 3 && Random.nextDouble() < AI_TEAM_SPAWN_PROBABILITY) {
+                val nearbySects = findNearbySects(cave, NEARBY_SECT_RANGE)
+                val existingTeamForCave = allAITeams.filter { it.caveId == cave.id }
+                val aiTeam = generateAITeamInline(cave, nearbySects, existingTeamForCave)
+                if (aiTeam != null) {
+                    allAITeams.add(aiTeam)
+                }
+            }
+        }
+        return allAITeams
+    }
+
+    private fun removeStaleAITeams(
+        allAITeams: List<AICaveTeam>,
+        activeCaves: List<CultivatorCave>
+    ): List<AICaveTeam> {
+        val aiTeamsToRemove = mutableListOf<String>()
+        allAITeams.filter { it.status == AITeamStatus.EXPLORING }.forEach { aiTeam ->
+            val cave = activeCaves.find { it.id == aiTeam.caveId } ?: return@forEach
+            if (Random.nextDouble() < AI_TEAM_REMOVE_PROBABILITY) {
+                aiTeamsToRemove.add(aiTeam.id)
+            }
+        }
+        return allAITeams.filter { it.id !in aiTeamsToRemove }
+    }
+
+    private fun processSingleTeamCompletion(
+        team: CaveExplorationTeam,
+        state: CaveCompletionState
+    ) {
+        val cave = state.finalCaves.find { it.id == team.caveId }
+        if (cave == null) {
+            state.teamsWithMissingCave.add(team)
+            return
+        }
+        try {
+            val result = executeCaveExploration(team, cave, state.finalAITeams)
+            state.finalCaves = result.first
+            state.finalAITeams = result.second
+            if (result.third) {
+                state.finalExplorationTeams.removeAll { it.id == team.id }
+            }
+        } catch (e: CancellationException) { throw e }
+          catch (e: Exception) {
+            DomainLog.e(TAG, "Error processing cave exploration for team ${team.id}", e)
+            state.teamsWithError.add(team)
+        }
+    }
+
+    private fun handleExplorationErrors(state: CaveCompletionState) {
+        state.teamsWithMissingCave.forEach { team ->
+            resetCaveExplorationTeamMembersStatus(team)
+            state.finalExplorationTeams.removeAll { it.id == team.id }
+        }
+        state.teamsWithError.forEach { team ->
+            resetCaveExplorationTeamMembersStatus(team)
+            state.finalCaves = state.finalCaves.map { cave ->
+                if (cave.id == team.caveId && cave.status == CaveStatus.EXPLORING) {
+                    cave.copy(status = CaveStatus.AVAILABLE)
+                } else {
+                    cave
+                }
+            }
+            state.finalExplorationTeams.removeAll { it.id == team.id }
+        }
+    }
+
+    // ── executeCaveExploration 辅助方法 ─────────────────────────────────
+
+    private fun assembleTeamMembers(team: CaveExplorationTeam): List<Disciple> {
+        return team.memberIds.mapNotNull { id ->
+            stateStore.disciples.value.find { it.id == id }
+        }.filter { it.isAlive }
+    }
+
+    private fun handleEmptyTeam(
+        cave: CultivatorCave,
+        currentAITeams: List<AICaveTeam>
+    ): Triple<List<CultivatorCave>, List<AICaveTeam>, Boolean> {
+        return Triple(
+            stateStore.gameData.value.cultivatorCaves,
+            currentAITeams.filter { it.caveId != cave.id },
+            true
+        )
+    }
+
+    private fun processBattleCasualties(
+        team: CaveExplorationTeam,
+        battleResult: com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
+    ): List<Disciple> {
+        val survivorIds = battleResult.log.teamMembers.filter { it.isAlive }.map { it.id }.toSet()
+        val survivorHpMap = battleResult.log.teamMembers.filter { it.isAlive }
+            .associate { it.id to it.hp }
+        val survivorMpMap = battleResult.log.teamMembers.filter { it.isAlive }
+            .associate { it.id to it.mp }
+        val deadDisciples = mutableListOf<Disciple>()
+        stateStore.update {
+            val newList = discipleTables.assembleAll().map { disciple ->
+                if (disciple.id in team.memberIds) {
+                    if (disciple.id in survivorIds) {
+                        val hp = survivorHpMap[disciple.id] ?: disciple.combat.currentHp
+                        val mp = survivorMpMap[disciple.id] ?: disciple.combat.currentMp
+                        disciple.copy(
+                            status = DiscipleStatus.IDLE,
+                            combat = disciple.combat.copy(currentHp = hp, currentMp = mp)
+                        )
+                    } else {
+                        deadDisciples.add(disciple)
+                        disciple.copy(isAlive = false, status = DiscipleStatus.DEAD)
+                    }
+                } else disciple
+            }
+            discipleTables.replaceAll(newList)
+            val caveYear = stateStore.gameData.value.gameYear
+            newList.filter { !it.isAlive }.forEach {
+                val idInt = it.id.toIntOrNull()
+                if (idInt != null && !discipleTables.deathYears.contains(idInt)) {
+                    discipleTables.deathYears[idInt] = caveYear
+                }
+            }
+        }
+        return deadDisciples
+    }
+
+    private fun awardVictorySoulPower(survivorIds: Set<String>) {
+        stateStore.update {
+            val newList = discipleTables.assembleAll().map { disciple ->
+                if (disciple.id in survivorIds && disciple.isAlive) {
+                    disciple.copy(soulPower = disciple.soulPower + 1)
+                } else {
+                    disciple
+                }
+            }
+            discipleTables.replaceAll(newList)
+        }
+    }
+
+    private fun grantBattleRewards(cave: CultivatorCave): List<BattleRewardItem> {
+        val rewards = CaveExplorationSystem.generateVictoryRewards(cave)
+        val battleRewardItems = mutableListOf<BattleRewardItem>()
+        rewards.items.forEach { reward ->
+            when (reward.type) {
+                "spiritStones" -> grantSpiritStoneReward(reward, battleRewardItems)
+                "equipment" -> grantEquipmentReward(reward, battleRewardItems)
+                "manual" -> grantManualReward(reward, battleRewardItems)
+                "pill" -> grantPillReward(reward, battleRewardItems)
+            }
+        }
+        return battleRewardItems
+    }
+
+    private fun grantSpiritStoneReward(
+        reward: CaveRewardItem,
+        battleRewardItems: MutableList<BattleRewardItem>
+    ) {
+        stateStore.update { spiritStoneWallet.add(this,
+            amount = reward.quantity.toLong(),
+            grade = SpiritStoneGrade.LOW,
+            source = SpiritStoneSource.Cave
+        ) }
+        battleRewardItems.add(BattleRewardItem(
+            itemId = reward.itemId,
+            name = reward.name,
+            quantity = reward.quantity,
+            rarity = reward.rarity,
+            type = reward.type
+        ))
+    }
+
+    private fun grantEquipmentReward(
+        reward: CaveRewardItem,
+        battleRewardItems: MutableList<BattleRewardItem>
+    ) {
+        val template = EquipmentDatabase.getById(reward.itemId)
+        if (template != null) {
+            val equipment = EquipmentDatabase.createFromTemplate(template).copy(
+                rarity = reward.rarity,
+                quantity = reward.quantity
+            )
+            val result = inventorySystem.addEquipmentStack(equipment)
+            if (result.isSuccess) {
+                battleRewardItems.add(BattleRewardItem(
+                    itemId = reward.itemId,
+                    name = reward.name,
+                    quantity = reward.quantity,
+                    rarity = reward.rarity,
+                    type = reward.type
+                ))
+            }
+        }
+    }
+
+    private fun grantManualReward(
+        reward: CaveRewardItem,
+        battleRewardItems: MutableList<BattleRewardItem>
+    ) {
+        val template = ManualDatabase.getById(reward.itemId)
+        if (template != null) {
+            val manual = ManualDatabase.createFromTemplate(template).copy(
+                rarity = reward.rarity,
+                quantity = reward.quantity
+            )
+            val result = inventorySystem.addManualStack(manual)
+            if (result.isSuccess) {
+                battleRewardItems.add(BattleRewardItem(
+                    itemId = reward.itemId,
+                    name = reward.name,
+                    quantity = reward.quantity,
+                    rarity = reward.rarity,
+                    type = reward.type
+                ))
+            }
+        }
+    }
+
+    private fun grantPillReward(
+        reward: CaveRewardItem,
+        battleRewardItems: MutableList<BattleRewardItem>
+    ) {
+        val template = PillRecipeDatabase.getRecipeById(reward.itemId)
+        if (template != null) {
+            val pill = Pill(
+                id = java.util.UUID.randomUUID().toString(),
+                name = template.name,
+                rarity = template.rarity,
+                quantity = reward.quantity,
+                description = template.description,
+                category = template.category,
+                effects = PillEffect(
+                    breakthroughChance = template.breakthroughChance,
+                    targetRealm = template.targetRealm,
+                    cultivationSpeedPercent = template.cultivationSpeedPercent,
+                    duration = template.duration,
+                    cultivationAdd = template.cultivationAdd,
+                    skillExpAdd = template.skillExpAdd,
+                    nurtureAdd = template.nurtureAdd,
+                    extendLife = template.extendLife,
+                    physicalAttackAdd = template.physicalAttackAdd,
+                    magicAttackAdd = template.magicAttackAdd,
+                    physicalDefenseAdd = template.physicalDefenseAdd,
+                    magicDefenseAdd = template.magicDefenseAdd,
+                    hpAdd = template.hpAdd,
+                    mpAdd = template.mpAdd,
+                    speedAdd = template.speedAdd,
+                    critRateAdd = template.critRateAdd,
+                    critEffectAdd = template.critEffectAdd,
+                    intelligenceAdd = template.intelligenceAdd,
+                    charmAdd = template.charmAdd,
+                    loyaltyAdd = template.loyaltyAdd,
+                    comprehensionAdd = template.comprehensionAdd,
+                    artifactRefiningAdd = template.artifactRefiningAdd,
+                    pillRefiningAdd = template.pillRefiningAdd,
+                    spiritPlantingAdd = template.spiritPlantingAdd,
+                    teachingAdd = template.teachingAdd,
+                    moralityAdd = template.moralityAdd
+                ),
+                minRealm = GameConfig.Realm.getMinRealmForRarity(template.rarity)
+            )
+            val result = inventorySystem.addPill(pill)
+            if (result.isSuccess) {
+                battleRewardItems.add(BattleRewardItem(
+                    itemId = reward.itemId,
+                    name = reward.name,
+                    quantity = reward.quantity,
+                    rarity = reward.rarity,
+                    type = reward.type
+                ))
+            }
+        }
+    }
+
+    private fun buildAndStoreBattleLog(
+        data: GameData,
+        team: CaveExplorationTeam,
+        cave: CultivatorCave,
+        battleResult: com.xianxia.sect.core.engine.domain.battle.BattleSystemResult,
+        battleRewardItems: List<BattleRewardItem>
+    ): BattleLog {
+        val battleLog = BattleLog(
+            timestamp = System.currentTimeMillis(),
+            year = data.gameYear,
+            month = data.gameMonth,
+            type = BattleType.CAVE_EXPLORATION,
+            attackerName = team.caveName,
+            defenderName = cave.name,
+            result = BattleResult.WIN,
+            details = "洞府探索",
+            dungeonName = cave.name,
+            teamId = team.id,
+            teamMembers = battleResult.log.teamMembers.map { member ->
+                BattleLogMember(
+                    id = member.id, name = member.name,
+                    realm = member.realm, realmName = member.realmName,
+                    hp = member.hp, maxHp = member.maxHp,
+                    mp = member.mp, maxMp = member.maxMp,
+                    isAlive = member.isAlive, portraitRes = member.portraitRes
+                )
+            },
+            enemies = battleResult.log.enemies.map { enemy ->
+                BattleLogEnemy(
+                    id = enemy.id, name = "守护兽",
+                    realm = enemy.realm, realmName = enemy.realmName,
+                    realmLayer = enemy.realmLayer,
+                    hp = enemy.hp, maxHp = enemy.maxHp,
+                    isAlive = enemy.isAlive, portraitRes = enemy.portraitRes
+                )
+            },
+            rounds = battleResult.log.rounds.map { round ->
+                BattleLogRound(
+                    roundNumber = round.roundNumber,
+                    actions = round.actions.map { action ->
+                        BattleLogAction(
+                            type = action.type, attacker = action.attacker,
+                            attackerType = action.attackerType, target = action.target,
+                            damage = action.damage, damageType = action.damageType,
+                            isCrit = action.isCrit, isKill = action.isKill,
+                            message = action.message, skillName = action.skillName
+                        )
+                    }
+                )
+            },
+            turns = battleResult.turnCount,
+            battleResult = BattleLogResult(
+                winner = if (battleResult.victory) "team" else "beasts",
+                isPlayerWin = battleResult.victory,
+                turns = battleResult.turnCount,
+                rounds = battleResult.log.rounds.size,
+                teamCasualties = battleResult.log.teamMembers.count { !it.isAlive },
+                beastsDefeated = battleResult.log.enemies.count { !it.isAlive }
+            )
+        )
+        stateStore.update { battleLogs = listOf(battleLog) + battleLogs.take(49) }
+        return battleLog
+    }
+
+    private fun trackBattleAnalytics(
+        battleResult: com.xianxia.sect.core.engine.domain.battle.BattleSystemResult,
+        cave: CultivatorCave
+    ) {
+        analyticsTracker.trackEvent(
+            "battle_end",
+            mapOf(
+                "outcome" to if (battleResult.victory) "win" else "lose",
+                "enemy_type" to cave.name,
+                "turns" to battleResult.turnCount,
+                "team_size" to battleResult.log.teamMembers.size
+            )
+        )
+    }
+
+    private fun cleanupAfterCaveExploration(
+        cave: CultivatorCave,
+        currentAITeams: List<AICaveTeam>
+    ): Triple<List<CultivatorCave>, List<AICaveTeam>, Boolean> {
+        val updatedCaves = stateStore.gameData.value.cultivatorCaves.map { c ->
+            if (c.id == cave.id) c.copy(status = CaveStatus.EXPLORED) else c
+        }
+        val updatedAITeams = currentAITeams.filter { it.caveId != cave.id }
+        return Triple(updatedCaves, updatedAITeams, true)
+    }
+
+    // ── executePlayerDefenseBattle 辅助方法 ─────────────────────────────
+
+    private fun selectAndPrepareDefenders(
+        expired: AttackWarning
+    ): DefensePreparation? {
+        val data = stateStore.gameData.value
+        val allDisciples = stateStore.discipleTables.assembleAll()
+        val selectedDefenders = allDisciples
+            .filter {
+                it.isAlive && it.status !in setOf(
+                    DiscipleStatus.ON_MISSION,
+                    DiscipleStatus.IN_TEAM,
+                    DiscipleStatus.REFLECTING,
+                    DiscipleStatus.GARRISONING,
+                    DiscipleStatus.REFINING
+                )
+            }
+            .sortedBy { it.realm }
+            .take(AISectAttackManager.TEAM_SIZE)
+
+        val defenderIds = selectedDefenders.map { it.id }
+        if (defenderIds.isEmpty()) return null
+
+        val equipmentMap = stateStore.equipmentInstancesSnapshot.associateBy { it.id }
+        val manualMap = stateStore.manualInstancesSnapshot.associateBy { it.id }
+        val profMap = data.manualProficiencies.mapValues { (_, list) ->
+            list.associateBy { it.manualId }
+        }
+        return DefensePreparation(defenderIds, equipmentMap, manualMap, profMap, data)
+    }
+
+    private fun buildDefenseTeam(
+        defenderIds: List<String>,
+        equipmentMap: Map<String, EquipmentInstance>,
+        manualMap: Map<String, ManualInstance>,
+        profMap: Map<String, Map<String, ManualProficiencyData>>
+    ): List<Combatant> {
+        val tables = stateStore.discipleTables
+        val refreshedDefenders = defenderIds.mapNotNull { id ->
+            val idInt = id.toIntOrNull() ?: return@mapNotNull null
+            if (tables.isAlive[idInt] == 1) tables.assemble(idInt) else null
+        }
+        return refreshedDefenders.map { d ->
+            battleSystem.convertDiscipleToCombatant(
+                d, equipmentMap, manualMap, profMap, CombatantSide.DEFENDER
+            )
+        }
+    }
+
+    private fun applyDefenseBattleResult(
+        state: MutableGameState,
+        expired: AttackWarning,
+        result: AISectAttackManager.AIAttackResult
+    ) {
+        // 1. 删除到期预警
+        state.gameData = state.gameData.copy(
+            activeAttackWarnings = state.gameData.activeAttackWarnings.filter {
+                it.warningId != expired.warningId
+            }
+        )
+
+        // 2. 伤亡结算
+        val newDisciples = applyDefenseCasualties(state, result)
+        state.discipleTables.replaceAll(newDisciples)
+
+        // 3. 查找玩家宗门信息
+        val playerSectId = state.gameData.worldMapSects
+            .find { it.isPlayerSect }?.id ?: return
+        val playerSectName = state.gameData.worldMapSects
+            .find { it.isPlayerSect }?.name ?: "玩家宗门"
+
+        // 4. 构建战后数据
+        val updated = buildPostBattleGameData(state, result, playerSectId)
+
+        // 5. 战斗日志
+        recordDefenseBattleLog(state, result, newDisciples, playerSectId, playerSectName)
+
+        state.gameData = updated
+    }
+
+    private fun applyDefenseCasualties(
+        state: MutableGameState,
+        result: AISectAttackManager.AIAttackResult
+    ): List<Disciple> {
+        val currentDisciples = state.discipleTables.assembleAll()
+        val deadDefenders = currentDisciples.filter { it.id in result.deadDefenderIds }
+        var newDisciples = currentDisciples
+        if (deadDefenders.isNotEmpty()) {
+            newDisciples = DiscipleStatCalculator.applyGriefToRelatives(
+                newDisciples, deadDefenders, state.gameData.gameYear
+            )
+        }
+        newDisciples = newDisciples.map { d ->
+            if (d.id in result.deadDefenderIds) {
+                d.copy(isAlive = false, status = DiscipleStatus.DEAD)
+            } else {
+                val hp = result.defenderSurvivorHpMap[d.id]
+                val mp = result.defenderSurvivorMpMap[d.id]
+                if (hp != null && mp != null) d.copy(
+                    combat = d.combat.copy(
+                        currentHp = hp.coerceIn(0, d.maxHp),
+                        currentMp = mp.coerceIn(0, d.maxMp)
+                    )
+                ) else d
+            }
+        }
+        // 为阵亡弟子补充 deathYears
+        newDisciples.filter { !it.isAlive }.forEach {
+            val idInt = it.id.toIntOrNull()
+            if (idInt != null && !state.discipleTables.deathYears.contains(idInt)) {
+                state.discipleTables.deathYears[idInt] = state.gameData.gameYear
+            }
+        }
+        return newDisciples
+    }
+
+    private fun buildPostBattleGameData(
+        state: MutableGameState,
+        result: AISectAttackManager.AIAttackResult,
+        playerSectId: String
+    ): GameData {
+        val attackerDisc = state.gameData.aiSectDisciples[
+            result.attackerSectId] ?: emptyList()
+
+        var updated = state.gameData.copy(
+            aiSectDisciples = state.gameData.aiSectDisciples.toMutableMap().apply {
+                this[result.attackerSectId] = attackerDisc.filter {
+                    it.id !in result.deadAttackerIds
+                }
+            },
+            worldMapSects = state.gameData.worldMapSects.map { sect ->
+                if (sect.id == playerSectId) sect.copy(
+                    garrisonSlots = sect.garrisonSlots.map { slot ->
+                        if (slot.discipleId in result.deadDefenderIds)
+                            GarrisonSlot(index = slot.index) else slot
+                    }
+                ) else sect
+            },
+            sectRelations = state.gameData.sectRelations.map { r ->
+                val relevant = (r.sectId1 == result.attackerSectId &&
+                    r.sectId2 == playerSectId) ||
+                    (r.sectId1 == playerSectId &&
+                        r.sectId2 == result.attackerSectId)
+                if (relevant) r.copy(
+                    favor = (r.favor - 15).coerceIn(
+                        GameConfig.Diplomacy.MIN_FAVOR,
+                        GameConfig.Diplomacy.MAX_FAVOR)
+                ) else r
+            }
+        )
+
+        if (result.winner == AIBattleWinner.ATTACKER) {
+            val detail = updated.sectDetails[playerSectId]
+                ?: SectDetail(sectId = playerSectId)
+            val loot = sectWarehouseManager.calculateWarehouseLootLoss(detail.warehouse)
+            val newWarehouse = sectWarehouseManager.applyLootLossToWarehouse(
+                detail.warehouse, loot
+            )
+            updated = updated.copy(
+                sectDetails = updated.sectDetails.toMutableMap().apply {
+                    this[playerSectId] = detail.copy(warehouse = newWarehouse)
+                }
+            )
+        }
+        return updated
+    }
+
+    private fun recordDefenseBattleLog(
+        state: MutableGameState,
+        result: AISectAttackManager.AIAttackResult,
+        newDisciples: List<Disciple>,
+        playerSectId: String,
+        playerSectName: String
+    ) {
+        val attackerDisc = state.gameData.aiSectDisciples[
+            result.attackerSectId] ?: emptyList()
+
+        val winResult = when (result.winner) {
+            AIBattleWinner.ATTACKER -> BattleResult.LOSE
+            AIBattleWinner.DEFENDER -> BattleResult.WIN
+            AIBattleWinner.DRAW -> BattleResult.DRAW
+        }
+        val participantIds = result.deadDefenderIds.toSet() +
+            result.defenderSurvivorHpMap.keys
+        val teamMembers = newDisciples
+            .filter { it.id in participantIds }
+            .map { d ->
+                BattleLogMember(
+                    id = d.id, name = d.name,
+                    realm = d.realm, realmName = d.realmName,
+                    hp = result.defenderSurvivorHpMap[d.id] ?: 0,
+                    maxHp = d.maxHp,
+                    mp = result.defenderSurvivorMpMap[d.id] ?: 0,
+                    maxMp = d.maxMp,
+                    isAlive = d.id !in result.deadDefenderIds,
+                    portraitRes = d.portraitRes
+                )
+            }
+        val survivorIds = result.survivingAttackers.map { it.id }.toSet()
+        val deadAttackerData = attackerDisc.filter { it.id in result.deadAttackerIds }
+        val enemies = (result.survivingAttackers + deadAttackerData).map { d ->
+            BattleLogEnemy(
+                id = d.id,
+                name = "${result.attackerSectName}弟子",
+                realm = d.realm, realmName = d.realmName,
+                hp = if (d.id in survivorIds) d.combat.currentHp else 0,
+                maxHp = d.maxHp,
+                isAlive = d.id in survivorIds,
+                portraitRes = d.portraitRes
+            )
+        }
+        state.recordPlayerBattle(
+            year = state.gameData.gameYear,
+            month = state.gameData.gameMonth,
+            type = BattleType.SECT_WAR,
+            attackerName = result.attackerSectName,
+            defenderName = playerSectName,
+            result = winResult,
+            teamMembers = teamMembers,
+            enemies = enemies,
+            rounds = result.rounds,
+            turns = result.rounds.size,
+            details = "${result.attackerSectName} 进犯${playerSectName}，" +
+                when (result.winner) {
+                    AIBattleWinner.ATTACKER -> "防守失利"
+                    AIBattleWinner.DEFENDER -> "防守成功"
+                    else -> "不分胜负"
+                },
+            beastsDefeated = result.deadAttackerIds.size,
+            teamCasualties = result.deadDefenderIds.size
+        )
     }
 
 }

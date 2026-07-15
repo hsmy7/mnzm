@@ -1146,7 +1146,7 @@ cd android && ./gradlew.bat testDebugUnitTest \
 > 详见 [docs/architecture-debt.md](docs/architecture-debt.md)
 
 当前已知 3 项架构级债务：
-1. **`allocateNextId()` 两步模式与批量原子 API 缺失** — 已修复入口，`allocateNextId()` 待标记 `@Deprecated`
+1. ~~**`allocateNextId()` 两步模式与批量原子 API 缺失**~~ — ✅ 已完成。`allocateNextId()`/`rollbackAllocation()` 已标记 `@Deprecated`；`DiscipleTables` 新增 `replaceAll()`；28 处 `clear()+insert()` 迁移完毕
 2. **`stateStore.update{}` 隔离语义不统一** — gameData/discipleTables/EntityStore 三种不同机制
 3. **`wallet.deduct()` 返回值未强制检查** — sealed class 但编译器不强制
 

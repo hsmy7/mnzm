@@ -78,8 +78,7 @@ class ExplorationTeamManager @Inject constructor(
             val updated = currentList.map {
                 if (it.id == discipleId) it.copy(status = DiscipleStatus.IDLE) else it
             }
-            discipleTables.clear()
-            updated.forEach { discipleTables.insert(it) }
+            discipleTables.replaceAll(updated)
 
             DomainLog.d(TAG, "recallDiscipleFromTeam: team=$teamId, disciple=$discipleId")
             true
@@ -154,8 +153,7 @@ class ExplorationTeamManager @Inject constructor(
                 }
             }
 
-            discipleTables.clear()
-            modifiedList.forEach { discipleTables.insert(it) }
+            discipleTables.replaceAll(modifiedList)
 
             DomainLog.d(TAG, "completeExploration: team=$teamId, " +
                 "success=$success, survivors=${survivorIds.size}/${team.memberIds.size}")

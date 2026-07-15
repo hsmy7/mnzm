@@ -11,11 +11,6 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleService
 import com.xianxia.sect.core.engine.service.HighFrequencyData
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.registry.BeastMaterialDatabase
-import com.xianxia.sect.core.registry.EquipmentDatabase
-import com.xianxia.sect.core.registry.HerbDatabase
-import com.xianxia.sect.core.registry.ItemDatabase
-import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.addEquipmentInstanceToDiscipleBag

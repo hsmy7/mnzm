@@ -23,6 +23,10 @@ class ChildBirthSystem @Inject constructor(
 
     override val systemName: String = "ChildBirthSystem"
 
+    companion object {
+        private const val CONCEPTION_PROBABILITY = 0.005
+    }
+
     override fun initialize() {}
     override fun release() {}
     override fun clearForSlot(slotId: Int) {}
@@ -58,7 +62,7 @@ class ChildBirthSystem @Inject constructor(
             val father = discipleMap[fatherId]
             if (father == null || !father.isAlive) continue
 
-            if (GameRandom.nextDouble() < 0.005) {
+            if (GameRandom.nextDouble() < CONCEPTION_PROBABILITY) {
                 val birthMonth = GameRandom.nextInt(1, 13)
                 currentList = currentList.map { disciple ->
                     if (disciple.id == mother.id) {
@@ -70,8 +74,7 @@ class ChildBirthSystem @Inject constructor(
         }
 
         if (updated) {
-            state.discipleTables.clear()
-            currentList.forEach { state.discipleTables.insert(it) }
+            state.discipleTables.replaceAll(currentList)
         }
     }
 
@@ -125,8 +128,7 @@ class ChildBirthSystem @Inject constructor(
             }
         }
 
-        state.discipleTables.clear()
-        currentList.forEach { state.discipleTables.insert(it) }
+        state.discipleTables.replaceAll(currentList)
     }
 
     private fun createChild(mother: Disciple, father: Disciple, currentYear: Int, state: MutableGameState): Disciple {
