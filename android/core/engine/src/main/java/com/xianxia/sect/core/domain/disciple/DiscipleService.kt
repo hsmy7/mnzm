@@ -547,7 +547,9 @@ private val scopeProvider: CoroutineScopeProvider,
         rawDisciple.usage.recruitedMonth = currentMonthValue
 
         // 最后一步：原子分配 ID + 写入组件表（消灭悬空窗口）
-        val realId = stateStore.discipleTables.allocateAndInsert(rawDisciple)
+        val realId = stateStore.updateAndReturn {
+            discipleTables.allocateAndInsert(rawDisciple)
+        }
 
         // 记录加入宗门日志
         addLifeEvent(realId, "${rawDisciple.age}岁：加入宗门")

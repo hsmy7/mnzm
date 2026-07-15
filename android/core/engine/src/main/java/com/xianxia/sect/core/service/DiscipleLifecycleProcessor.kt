@@ -263,7 +263,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
 
     fun processYearlyAging(currentYear: Int) {
         val cullThreshold = currentYear - CULL_DEAD_AFTER_YEARS
-        stateStore.discipleTables.cullDeadDisciples(cullThreshold)
+        stateStore.update { discipleTables.cullDeadDisciples(cullThreshold) }
     }
 
     fun processReflectionRelease(year: Int) {
