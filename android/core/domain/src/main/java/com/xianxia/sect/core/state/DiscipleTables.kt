@@ -209,6 +209,9 @@ class DiscipleTables {
         /** 用于 [IntComponentTable] griefEndYears 列表示"无哀悼期"的哨兵值 */
         const val GRIEF_YEAR_NULL_SENTINEL = -1
 
+        /** 合法的死亡原因集合 */
+        private val VALID_DEATH_CAUSES = setOf("age", "battle", "scout", "exploration", "cave", "unknown")
+
         /**
          * WriteGuard 开关。
          * - 生产环境始终为 true
@@ -428,9 +431,9 @@ class DiscipleTables {
      * 锁层次：synchronized(ids) → ComponentTable.synchronized(lock)
      */
     fun insert(disciple: Disciple) {
-        requireWriteAccess()
         val id = disciple.id.toInt()
         synchronized(ids) {
+            requireWriteAccess()
             if (id in ids) {
                 update(disciple)
                 return
@@ -446,8 +449,12 @@ class DiscipleTables {
      * 用于从组装后的 Disciple 对象写回修改。
      */
     fun update(disciple: Disciple) {
-        requireWriteAccess()
-        writeAllFields(disciple)
+        val id = disciple.id.toIntOrNull() ?: return
+        synchronized(ids) {
+            requireWriteAccess()
+            if (!ids.contains(id)) return@synchronized
+            writeAllFields(disciple)
+        }
     }
 
     /**
@@ -751,12 +758,12 @@ class DiscipleTables {
      * 锁层次：synchronized(ids) → ComponentTable.synchronized(lock)
      */
     fun remove(id: Int) {
-        requireWriteAccess()
         synchronized(ids) {
+            requireWriteAccess()
             ids.remove(id)
             _allCopyableRefs.forEach { it.remove(id) }
+            assertAllTablesConsistent()
         }
-        assertAllTablesConsistent()
     }
 
     /** 清空所有组件表 */
@@ -778,6 +785,7 @@ class DiscipleTables {
      * 锁层次：synchronized(ids) → ComponentTable.synchronized(lock)
      */
     fun markDead(id: Int, currentYear: Int, cause: String = "unknown") {
+        require(cause in VALID_DEATH_CAUSES) { "Invalid death cause: $cause. Valid: $VALID_DEATH_CAUSES" }
         requireWriteAccess()
         synchronized(ids) {
             if (!ids.contains(id)) return@synchronized
@@ -819,10 +827,9 @@ class DiscipleTables {
      * 通过 [synchronized(ids)] 保护 ids 快照一致性。
      */
     fun deepCopy(): DiscipleTables {
-        val idsSnapshot: List<Int>
-        synchronized(ids) { idsSnapshot = this.ids.toList() }
         val copy = DiscipleTables()
         synchronized(ids) {
+            val idsSnapshot = this.ids.toList()
             copy.ids.addAll(idsSnapshot)
             _allCopyableRefs.forEach { it.copyTo(copy) }
         }

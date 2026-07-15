@@ -709,44 +709,44 @@ class GameStateStoreImpl @Inject constructor(
         var disciplesNeedReassemble = false
 
         transactionLock.withLock {
-            reentrantCount.set(1)
-            reentrantBuffer.set(reusableMutableState)
-            val curGame = _gameDataFlow.value
-            val curES = _equipmentStacksFlow.value
-            val curEI = _equipmentInstancesFlow.value
-            val curMS = _manualStacksFlow.value
-            val curMI = _manualInstancesFlow.value
-            val curP = _pillsFlow.value
-            val curMat = _materialsFlow.value
-            val curH = _herbsFlow.value
-            val curS = _seedsFlow.value
-            val curSB = _storageBagsFlow.value
-            val curBL = _battleLogsFlow.value
-            val curT = _teamsFlow.value
-            val curPaused = _isPaused.value
-            val curLoading = _isLoading.value
-            val curSaving = _isSaving.value
-            val curNotif = _pendingNotificationFlow.value
-            reusableMutableState.apply {
-                gameData = curGame
-                discipleTables = _discipleTables.deepCopy().apply { writeAllowed = true }
-                equipmentStacks = EntityStore(curES)
-                equipmentInstances = EntityStore(curEI)
-                manualStacks = EntityStore(curMS)
-                manualInstances = EntityStore(curMI)
-                pills = EntityStore(curP)
-                materials = EntityStore(curMat)
-                herbs = EntityStore(curH)
-                seeds = EntityStore(curS)
-                storageBags = EntityStore(curSB)
-                battleLogs = curBL
-                teams = curT
-                isPaused = curPaused
-                isLoading = curLoading
-                isSaving = curSaving
-                pendingNotification = curNotif
-            }
             try {
+                reentrantCount.set(1)
+                reentrantBuffer.set(reusableMutableState)
+                val curGame = _gameDataFlow.value
+                val curES = _equipmentStacksFlow.value
+                val curEI = _equipmentInstancesFlow.value
+                val curMS = _manualStacksFlow.value
+                val curMI = _manualInstancesFlow.value
+                val curP = _pillsFlow.value
+                val curMat = _materialsFlow.value
+                val curH = _herbsFlow.value
+                val curS = _seedsFlow.value
+                val curSB = _storageBagsFlow.value
+                val curBL = _battleLogsFlow.value
+                val curT = _teamsFlow.value
+                val curPaused = _isPaused.value
+                val curLoading = _isLoading.value
+                val curSaving = _isSaving.value
+                val curNotif = _pendingNotificationFlow.value
+                reusableMutableState.apply {
+                    gameData = curGame
+                    discipleTables = _discipleTables.deepCopy().apply { writeAllowed = true }
+                    equipmentStacks = EntityStore(curES)
+                    equipmentInstances = EntityStore(curEI)
+                    manualStacks = EntityStore(curMS)
+                    manualInstances = EntityStore(curMI)
+                    pills = EntityStore(curP)
+                    materials = EntityStore(curMat)
+                    herbs = EntityStore(curH)
+                    seeds = EntityStore(curS)
+                    storageBags = EntityStore(curSB)
+                    battleLogs = curBL
+                    teams = curT
+                    isPaused = curPaused
+                    isLoading = curLoading
+                    isSaving = curSaving
+                    pendingNotification = curNotif
+                }
                 val notificationBeforeBlock = reusableMutableState.pendingNotification
                 reusableMutableState.block()
                 // ★ 冻结 EntityStore 快照，确保 items 引用正确反映变化

@@ -86,16 +86,13 @@ class CrashHandler @Inject constructor(
         Log.i(TAG, "CrashHandler unregistered")
     }
 
-    @Volatile
-    private var handlingCrash = false
+    private val handlingCrash = java.util.concurrent.atomic.AtomicBoolean(false)
 
     override fun uncaughtException(thread: Thread, throwable: Throwable) {
-        // ★ 自递归防护：如果崩溃处理器已进入，直接杀进程防 ANR
-        if (handlingCrash) {
+        if (!handlingCrash.compareAndSet(false, true)) {
             Process.killProcess(Process.myPid())
             return
         }
-        handlingCrash = true
 
         // ★ 使用 stackTraceToString() 避免 printStackTrace(Writer) 在
         //    StackOverflowError / 循环 cause 链场景下二次崩溃
