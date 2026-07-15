@@ -6,10 +6,12 @@ import com.xianxia.sect.core.model.GiftRelationshipType
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.WriteGuardRule
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.junit.Rule
 import org.robolectric.RobolectricTestRunner
 
 /**
@@ -24,6 +26,7 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class RelativeGiftHandlerTest {
 
+    @get:Rule val writeGuardRule = WriteGuardRule()
     private lateinit var handler: RelativeGiftHandler
     private lateinit var tables: DiscipleTables
     private lateinit var state: MutableGameState

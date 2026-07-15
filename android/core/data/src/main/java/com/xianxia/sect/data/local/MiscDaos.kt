@@ -61,10 +61,10 @@ interface GameHeavyDataDao {
     fun getLoadedKeys(slotId: Int): List<String>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun upsert(data: GameHeavyData)
+    suspend fun upsert(data: GameHeavyData)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun upsertAll(data: List<GameHeavyData>)
+    suspend fun upsertAll(data: List<GameHeavyData>)
 
     @Query("DELETE FROM game_heavy_data WHERE slot_id = :slotId")
     fun deleteAllForSlot(slotId: Int)

@@ -24,12 +24,14 @@ import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.junit.Rule
 import org.mockito.Mockito
 import org.robolectric.RobolectricTestRunner
 
@@ -54,6 +56,7 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class CultivationCoreTest {
 
+    @get:Rule val writeGuardRule = WriteGuardRule()
     private lateinit var core: CultivationCore
     private lateinit var mockStateStore: GameStateStore
 

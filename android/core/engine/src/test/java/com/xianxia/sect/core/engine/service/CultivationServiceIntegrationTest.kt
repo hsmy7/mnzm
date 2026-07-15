@@ -8,6 +8,7 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.junit.Rule
 import org.mockito.Mockito
 import org.mockito.Mockito.mock
 import org.mockito.kotlin.any
@@ -22,6 +23,7 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class CultivationServiceIntegrationTest {
 
+    @get:Rule val writeGuardRule = WriteGuardRule()
     private lateinit var stateStore: GameStateStore
     private lateinit var cultivationCore: CultivationCore
     private lateinit var service: CultivationService

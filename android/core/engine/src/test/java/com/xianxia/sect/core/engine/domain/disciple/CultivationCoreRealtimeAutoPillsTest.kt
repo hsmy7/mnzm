@@ -4,10 +4,12 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.WriteGuardRule
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.junit.Rule
 import org.robolectric.RobolectricTestRunner
 
 /**
@@ -21,6 +23,7 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class CultivationCoreRealtimeAutoPillsTest {
 
+    @get:Rule val writeGuardRule = WriteGuardRule()
     private lateinit var pillManager: DisciplePillManager
 
     @Before

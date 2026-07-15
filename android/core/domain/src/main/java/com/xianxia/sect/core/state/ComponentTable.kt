@@ -101,7 +101,13 @@ class DoubleComponentTable(initialCapacity: Int = 64) {
     fun clear() { store.clear(); onWrite?.invoke() }
 }
 
-sealed interface ComponentTableLike { fun remove(id: Int); fun clear(); val size: Int; val debugName: String }
+sealed interface ComponentTableLike {
+    fun remove(id: Int)
+    fun clear()
+    val size: Int
+    val debugName: String
+    fun contains(id: Int): Boolean
+}
 sealed interface CopyableTableRef : ComponentTableLike { fun copyTo(dest: DiscipleTables) }
 
 class IntTableRef(
@@ -112,6 +118,7 @@ class IntTableRef(
     override fun remove(id: Int) = table.remove(id)
     override fun clear() = table.clear()
     override val size: Int get() = table.size
+    override fun contains(id: Int): Boolean = table.contains(id)
     override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.store.put(table.store.keyAt(i), table.store.valueAt(i)) }
 }
 
@@ -123,6 +130,7 @@ class DoubleTableRef(
     override fun remove(id: Int) = table.remove(id)
     override fun clear() = table.clear()
     override val size: Int get() = table.size
+    override fun contains(id: Int): Boolean = table.contains(id)
     override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.store.put(table.store.keyAt(i), table.store.valueAt(i)) }
 }
 
@@ -134,6 +142,7 @@ class RefTableRef<T>(
     override fun remove(id: Int) = table.remove(id)
     override fun clear() = table.clear()
     override val size: Int get() = table.size
+    override fun contains(id: Int): Boolean = table.contains(id)
     override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.store.put(table.store.keyAt(i), table.store.valueAt(i)) }
 }
 
@@ -146,5 +155,6 @@ class MutableTableRef<T>(
     override fun remove(id: Int) = table.remove(id)
     override fun clear() = table.clear()
     override val size: Int get() = table.size
+    override fun contains(id: Int): Boolean = table.contains(id)
     override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.store.put(table.store.keyAt(i), deepCopyFn(table.store.valueAt(i))) }
 }

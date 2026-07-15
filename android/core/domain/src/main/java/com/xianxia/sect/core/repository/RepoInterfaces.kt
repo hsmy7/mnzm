@@ -67,13 +67,13 @@ interface GameDataRepository {
 /** Persistence port for ProductionSlotRepository — stays in engine, DAO access through this port. */
 interface ProductionSlotDataPort {
     fun getAllSync(): List<ProductionSlot>
-    fun insertAll(slots: List<ProductionSlot>)
-    fun update(slot: ProductionSlot)
-    fun updateAll(slots: List<ProductionSlot>)
-    fun insert(slot: ProductionSlot)
-    fun deleteById(id: String)
-    fun deleteBySlot(slotId: Int)
-    fun deleteBySlotAndBuildingType(slotId: Int, buildingType: BuildingType)
+    suspend fun insertAll(slots: List<ProductionSlot>)
+    suspend fun update(slot: ProductionSlot)
+    suspend fun updateAll(slots: List<ProductionSlot>)
+    suspend fun insert(slot: ProductionSlot)
+    suspend fun deleteById(id: String)
+    suspend fun deleteBySlot(slotId: Int)
+    suspend fun deleteBySlotAndBuildingType(slotId: Int, buildingType: BuildingType)
 }
 
 /** Persistence port for GameHeavyData. */

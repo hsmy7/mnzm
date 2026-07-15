@@ -62,60 +62,60 @@ interface ProductionSlotDao {
     fun getFinishedSlots(currentYear: Int, currentMonth: Int): List<ProductionSlot>
     
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insert(slot: ProductionSlot)
-    
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insertAll(slots: List<ProductionSlot>)
+    suspend fun insert(slot: ProductionSlot)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun upsertAll(slots: List<ProductionSlot>)
-    
+    suspend fun insertAll(slots: List<ProductionSlot>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(slots: List<ProductionSlot>)
+
     @Update
-    fun update(slot: ProductionSlot)
-    
+    suspend fun update(slot: ProductionSlot)
+
     @Update
-    fun updateAll(slots: List<ProductionSlot>)
+    suspend fun updateAll(slots: List<ProductionSlot>)
 
     /** 获取指定槽位下已有的实体 ID 集合（用于 UPSERT 差量写入） */
     @Query("SELECT id FROM production_slots WHERE slot_id = :slotId")
     fun getIdsBySlot(slotId: Int): List<String>
 
     @Delete
-    fun delete(slot: ProductionSlot)
-    
+    suspend fun delete(slot: ProductionSlot)
+
     @Query("DELETE FROM production_slots WHERE id = :id")
-    fun deleteById(id: String)
+    suspend fun deleteById(id: String)
 
     @Query("DELETE FROM production_slots WHERE slot_id = :slotId AND id = :id")
-    fun deleteById(slotId: Int, id: String)
+    suspend fun deleteById(slotId: Int, id: String)
 
     @Query("DELETE FROM production_slots WHERE buildingType = :buildingType")
-    fun deleteByBuildingType(buildingType: BuildingType)
-    
+    suspend fun deleteByBuildingType(buildingType: BuildingType)
+
     @Query("DELETE FROM production_slots WHERE slot_id = :slotId")
-    fun deleteBySlot(slotId: Int)
+    suspend fun deleteBySlot(slotId: Int)
 
     @Query("DELETE FROM production_slots WHERE slot_id = :slotId AND buildingType = :buildingType")
-    fun deleteBySlotAndBuildingType(slotId: Int, buildingType: BuildingType)
+    suspend fun deleteBySlotAndBuildingType(slotId: Int, buildingType: BuildingType)
 
     @Query("DELETE FROM production_slots")
-    fun deleteAll()
+    suspend fun deleteAll()
     
     @Transaction
-    fun updateBatch(slots: List<ProductionSlot>) {
+    suspend fun updateBatch(slots: List<ProductionSlot>) {
         slots.forEach { update(it) }
     }
-    
+
     @Transaction
-    fun replaceSlotsForBuilding(buildingType: BuildingType, slots: List<ProductionSlot>) {
+    suspend fun replaceSlotsForBuilding(buildingType: BuildingType, slots: List<ProductionSlot>) {
         deleteByBuildingType(buildingType)
         insertAll(slots)
     }
-    
+
     @Query("""
-        UPDATE production_slots 
-        SET status = :newStatus 
+        UPDATE production_slots
+        SET status = :newStatus
         WHERE id IN (:ids)
     """)
-    fun batchUpdateStatus(ids: List<String>, newStatus: ProductionSlotStatus)
+    suspend fun batchUpdateStatus(ids: List<String>, newStatus: ProductionSlotStatus)
 }

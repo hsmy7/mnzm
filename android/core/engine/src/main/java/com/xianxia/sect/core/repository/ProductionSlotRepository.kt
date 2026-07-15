@@ -11,6 +11,7 @@ import com.xianxia.sect.core.repository.ProductionSlotDataPort
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.runBlocking
 import kotlin.concurrent.withLock
 import java.util.concurrent.locks.ReentrantLock
 import kotlinx.coroutines.withContext
@@ -90,7 +91,7 @@ class ProductionSlotRepository @Inject constructor(
         globalMutex.withLock {
             _slots.value = slots
             cache.updateCache(slots)
-            dao.insertAll(slots)
+            runBlocking(Dispatchers.IO) { dao.insertAll(slots) }
         }
     }
 
@@ -166,7 +167,7 @@ class ProductionSlotRepository @Inject constructor(
 
         val newSlots = currentSlots.toMutableList()
         newSlots[targetIndex] = newSlot
-        dao.update(newSlot)
+        runBlocking(Dispatchers.IO) { dao.update(newSlot) }
         _slots.value = newSlots
         cache.updateCache(newSlots)
 
@@ -204,7 +205,7 @@ class ProductionSlotRepository @Inject constructor(
             }
 
             currentSlots[index] = newSlot
-            dao.update(newSlot)
+            runBlocking(Dispatchers.IO) { dao.update(newSlot) }
             _slots.value = currentSlots
             cache.updateCache(currentSlots)
 
@@ -247,7 +248,7 @@ class ProductionSlotRepository @Inject constructor(
                     if (validation.isFailure) continue
                 }
 
-                dao.update(newSlot)
+                runBlocking(Dispatchers.IO) { dao.update(newSlot) }
                 updatedSlots.add(newSlot)
             }
 
@@ -255,7 +256,7 @@ class ProductionSlotRepository @Inject constructor(
             cache.updateCache(currentSlots)
 
             if (updatedSlots.isNotEmpty()) {
-                dao.updateAll(updatedSlots)
+                runBlocking(Dispatchers.IO) { dao.updateAll(updatedSlots) }
             }
 
             DomainLog.d(TAG, "Batch updated ${updatedSlots.size} slots")
@@ -278,7 +279,7 @@ class ProductionSlotRepository @Inject constructor(
             _slots.value = currentSlots
             cache.updateCache(currentSlots)
 
-            dao.insert(slot)
+            runBlocking(Dispatchers.IO) { dao.insert(slot) }
 
             DomainLog.d(TAG, "Added slot: ${slot.buildingType.name}[${slot.slotIndex}]")
             Result.success(slot)
@@ -288,24 +289,27 @@ class ProductionSlotRepository @Inject constructor(
     suspend fun removeSlot(slotId: String): Result<Boolean> {
         val slot = getSlotById(slotId)
             ?: return Result.failure(IllegalArgumentException("Slot not found: $slotId"))
-        
-        return globalMutex.withLock {
+
+        val removed = globalMutex.withLock {
             val currentSlots = _slots.value.toMutableList()
             val index = currentSlots.indexOfFirst { it.id == slotId }
 
-            if (index < 0) {
-                return Result.failure(IllegalArgumentException("Slot not found: $slotId"))
-            }
+            if (index < 0) return@withLock null
 
-            val removed = currentSlots.removeAt(index)
+            val r = currentSlots.removeAt(index)
             _slots.value = currentSlots
             cache.updateCache(currentSlots)
-
-            dao.deleteById(slotId)
-
-            DomainLog.d(TAG, "Removed slot: ${removed.buildingType.name}[${removed.slotIndex}]")
-            Result.success(true)
+            r
         }
+
+        if (removed == null) {
+            return Result.failure(IllegalArgumentException("Slot not found: $slotId"))
+        }
+
+        dao.deleteById(slotId)
+
+        DomainLog.d(TAG, "Removed slot: ${removed.buildingType.name}[${removed.slotIndex}]")
+        return Result.success(true)
     }
 
     fun initializeAllSlots(slotId: Int) {
@@ -326,8 +330,8 @@ class ProductionSlotRepository @Inject constructor(
 
             _slots.value = allSlots
             cache.updateCache(allSlots)
-            dao.deleteBySlot(slotId)
-            dao.insertAll(allSlots)
+            runBlocking(Dispatchers.IO) { dao.deleteBySlot(slotId) }
+            runBlocking(Dispatchers.IO) { dao.insertAll(allSlots) }
 
             DomainLog.d(TAG, "Initialized ${allSlots.size} slots for all buildings")
         }
@@ -352,37 +356,37 @@ class ProductionSlotRepository @Inject constructor(
             _slots.value = allSlots
             cache.updateCache(allSlots)
 
-            dao.deleteBySlotAndBuildingType(slotId, buildingType)
-            dao.insertAll(newSlots)
+            runBlocking(Dispatchers.IO) { dao.deleteBySlotAndBuildingType(slotId, buildingType) }
+            runBlocking(Dispatchers.IO) { dao.insertAll(newSlots) }
 
             DomainLog.d(TAG, "Initialized $slotCount slots for ${buildingType.name} in slotId=$slotId")
         }
     }
 
     suspend fun syncToDatabase() {
-        globalMutex.withLock {
-            dao.updateAll(_slots.value)
-            DomainLog.d(TAG, "Synced ${_slots.value.size} slots to database")
+        val currentSlots = globalMutex.withLock {
+            _slots.value.also { DomainLog.d(TAG, "Syncing ${it.size} slots to database") }
         }
+        dao.updateAll(currentSlots)
     }
 
     suspend fun clear(slotId: Int) {
         globalMutex.withLock {
             _slots.value = emptyList()
             cache.invalidate()
-            dao.deleteBySlot(slotId)
-            DomainLog.d(TAG, "Cleared all slots for slotId=$slotId")
         }
+        dao.deleteBySlot(slotId)
+        DomainLog.d(TAG, "Cleared all slots for slotId=$slotId")
     }
 
     suspend fun restoreSlots(slots: List<ProductionSlot>, slotId: Int) {
         globalMutex.withLock {
             _slots.value = slots
             cache.updateCache(slots)
-            dao.deleteBySlot(slotId)
-            dao.insertAll(slots)
-            DomainLog.d(TAG, "Restored ${slots.size} slots from save data for slotId=$slotId")
         }
+        dao.deleteBySlot(slotId)
+        dao.insertAll(slots)
+        DomainLog.d(TAG, "Restored ${slots.size} slots from save data for slotId=$slotId")
     }
 
     fun getStatistics(): SlotCacheStatistics {

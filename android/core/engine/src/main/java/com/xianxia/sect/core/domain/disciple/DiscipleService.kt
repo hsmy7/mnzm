@@ -59,7 +59,7 @@ private val scopeProvider: CoroutineScopeProvider,
      * Add new disciple
      */
     fun addDisciple(disciple: Disciple) {
-        stateStore.discipleTables.insert(disciple)
+        stateStore.update { discipleTables.insert(disciple) }
     }
 
     /**
@@ -68,12 +68,13 @@ private val scopeProvider: CoroutineScopeProvider,
     fun removeDisciple(discipleId: String): DomainResult<Unit> {
         val id = discipleId.toIntOrNull()
             ?: return DomainResult.Failure(AppError.Domain.Disciple.NotFound(discipleId))
-        val tables = stateStore.discipleTables
-        return if (tables.ids.contains(id)) {
-            tables.remove(id)
-            DomainResult.Success(Unit)
-        } else {
-            DomainResult.Failure(AppError.Domain.Disciple.NotFound(discipleId))
+        return stateStore.updateAndReturn {
+            if (discipleTables.ids.contains(id)) {
+                discipleTables.remove(id)
+                DomainResult.Success(Unit)
+            } else {
+                DomainResult.Failure(AppError.Domain.Disciple.NotFound(discipleId))
+            }
         }
     }
 
@@ -91,10 +92,11 @@ private val scopeProvider: CoroutineScopeProvider,
      */
     fun updateDisciple(disciple: Disciple) {
         val id = disciple.id.toIntOrNull() ?: return
-        val tables = stateStore.discipleTables
-        if (tables.ids.contains(id)) {
-            tables.remove(id)
-            tables.insert(disciple)
+        stateStore.update {
+            if (discipleTables.ids.contains(id)) {
+                discipleTables.remove(id)
+                discipleTables.insert(disciple)
+            }
         }
     }
 
@@ -106,10 +108,11 @@ private val scopeProvider: CoroutineScopeProvider,
      */
     fun addLifeEvent(discipleId: String, event: String) {
         val id = discipleId.toIntOrNull() ?: return
-        val tables = currentDiscipleTables
-        if (!tables.ids.contains(id)) return
-        val currentEvents = tables.lifeEvents.getOrDefault(id, emptyList())
-        tables.lifeEvents[id] = currentEvents + event
+        stateStore.update {
+            if (!discipleTables.ids.contains(id)) return@update
+            val currentEvents = discipleTables.lifeEvents.getOrDefault(id, emptyList())
+            discipleTables.lifeEvents[id] = currentEvents + event
+        }
     }
 
     /**
@@ -126,41 +129,41 @@ private val scopeProvider: CoroutineScopeProvider,
      */
     fun initializeLifeEvents(discipleId: String) {
         val id = discipleId.toIntOrNull() ?: return
-        val tables = currentDiscipleTables
-        if (!tables.ids.contains(id)) return
-        if (tables.lifeEvents.getOrNull(id)?.isNotEmpty() == true) return
+        stateStore.update {
+            if (!discipleTables.ids.contains(id)) return@update
+            if (discipleTables.lifeEvents.getOrNull(id)?.isNotEmpty() == true) return@update
 
-        val events = mutableListOf<String>()
-        val age = tables.ages[id]
-        val data = stateStore.gameData.value
-        val currentAbsoluteMonth = data.gameYear * 12 + data.gameMonth
-        val recruitedMonth = tables.recruitedMonths.getOrDefault(id, 0)
+            val events = mutableListOf<String>()
+            val age = discipleTables.ages[id]
+            val currentAbsoluteMonth = gameData.gameYear * 12 + gameData.gameMonth
+            val recruitedMonth = discipleTables.recruitedMonths.getOrDefault(id, 0)
 
-        // 加入宗门
-        if (recruitedMonth > 0 && currentAbsoluteMonth > recruitedMonth) {
-            val monthsSince = currentAbsoluteMonth - recruitedMonth
-            val recruitedAge = (age - monthsSince / 12).coerceAtLeast(1)
-            events.add("${recruitedAge}岁：加入宗门")
-        }
+            // 加入宗门
+            if (recruitedMonth > 0 && currentAbsoluteMonth > recruitedMonth) {
+                val monthsSince = currentAbsoluteMonth - recruitedMonth
+                val recruitedAge = (age - monthsSince / 12).coerceAtLeast(1)
+                events.add("${recruitedAge}岁：加入宗门")
+            }
 
-        // 拜师
-        val masterId = tables.masterIds.getOrNull(id)
-        if (masterId != null) {
-            val masterIdInt = masterId.toIntOrNull()
-            val masterName = if (masterIdInt != null) tables.names.getOrNull(masterIdInt) ?: "未知" else "未知"
-            events.add("${age}岁：拜${masterName}为师")
-        }
+            // 拜师
+            val masterId = discipleTables.masterIds.getOrNull(id)
+            if (masterId != null) {
+                val masterIdInt = masterId.toIntOrNull()
+                val masterName = if (masterIdInt != null) discipleTables.names.getOrNull(masterIdInt) ?: "未知" else "未知"
+                events.add("${age}岁：拜${masterName}为师")
+            }
 
-        // 道侣
-        val partnerId = tables.partnerIds.getOrNull(id)
-        if (partnerId != null) {
-            val partnerIdInt = partnerId.toIntOrNull()
-            val partnerName = if (partnerIdInt != null) tables.names.getOrNull(partnerIdInt) ?: "未知" else "未知"
-            events.add("${age}岁：与${partnerName}结为道侣")
-        }
+            // 道侣
+            val partnerId = discipleTables.partnerIds.getOrNull(id)
+            if (partnerId != null) {
+                val partnerIdInt = partnerId.toIntOrNull()
+                val partnerName = if (partnerIdInt != null) discipleTables.names.getOrNull(partnerIdInt) ?: "未知" else "未知"
+                events.add("${age}岁：与${partnerName}结为道侣")
+            }
 
-        if (events.isNotEmpty()) {
-            tables.lifeEvents[id] = events
+            if (events.isNotEmpty()) {
+                discipleTables.lifeEvents[id] = events
+            }
         }
     }
 

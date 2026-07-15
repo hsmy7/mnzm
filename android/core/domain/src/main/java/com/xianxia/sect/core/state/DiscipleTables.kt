@@ -29,6 +29,25 @@ class DiscipleTables {
     /** 在每次写操作后调用，递增版本号 */
     fun markMutated() { mutationVersion++ }
 
+    /**
+     * 运行时写保护标志。仅在 stateStore.update{} 事务内为 true。
+     * 对标 Android StrictMode：所有写方法在入口检查此标志，
+     * 绕过 update{} 的直接写立即抛 IllegalStateException。
+     *
+     * 警告：不应在 update{} 事务外手动设为 true。所有写方法均检查此标志，
+     * 但刻意绕过仍会解除守卫。这不是安全机制，而是开发期契约强制手段。
+     */
+    @Volatile var writeAllowed: Boolean = false
+
+    /** 写方法入口守卫 */
+    private fun requireWriteAccess() {
+        if (!writeGuardEnabled) return
+        require(writeAllowed) {
+            "Direct write to DiscipleTables outside stateStore.update{} " +
+            "is forbidden. Use stateStore.update { ... } instead."
+        }
+    }
+
     // === 标识 ===
     // CopyOnWriteArrayList 保证并发安全：读操作（maxOrNull/for-in/filter）
     // 无需额外同步，迭代器为快照不会抛 ConcurrentModificationException。
@@ -189,6 +208,13 @@ class DiscipleTables {
 
         /** 用于 [IntComponentTable] griefEndYears 列表示"无哀悼期"的哨兵值 */
         const val GRIEF_YEAR_NULL_SENTINEL = -1
+
+        /**
+         * WriteGuard 开关。
+         * - 生产环境始终为 true
+         * - 单元测试中设为 false（测试直接操作组件表绕过 stateStore.update{}）
+         */
+        @Volatile var writeGuardEnabled: Boolean = true
     }
 
     private val _allCopyableRefs: List<CopyableTableRef> = buildCopyableRefs()
@@ -359,6 +385,7 @@ class DiscipleTables {
      * @return 新分配的 ID（String 格式）
      */
     fun allocateAndInsert(disciple: Disciple): String = synchronized(ids) {
+        requireWriteAccess()
         val id = (ids.maxOrNull() ?: 0) + 1
         val idStr = id.toString()
         ids.add(id)
@@ -393,6 +420,7 @@ class DiscipleTables {
      * 锁层次：synchronized(ids) → ComponentTable.synchronized(lock)
      */
     fun insert(disciple: Disciple) {
+        requireWriteAccess()
         val id = disciple.id.toInt()
         synchronized(ids) {
             if (id in ids) {
@@ -402,6 +430,7 @@ class DiscipleTables {
             ids.add(id)
             writeAllFields(disciple)
         }
+        assertAllTablesConsistent()
     }
 
     /**
@@ -409,6 +438,7 @@ class DiscipleTables {
      * 用于从组装后的 Disciple 对象写回修改。
      */
     fun update(disciple: Disciple) {
+        requireWriteAccess()
         writeAllFields(disciple)
     }
 
@@ -429,6 +459,7 @@ class DiscipleTables {
      * @param disciples 替换后的弟子完整列表，所有元素的 ID 必须已分配且唯一
      */
     fun replaceAll(disciples: List<Disciple>) {
+        requireWriteAccess()
         synchronized(ids) {
             ids.clear()
             _allCopyableRefs.forEach { it.clear() }
@@ -440,6 +471,7 @@ class DiscipleTables {
             ids.addAll(newIds)
             markMutated()
         }
+        assertAllTablesConsistent()
     }
 
     /** insert/update 共用：将 Disciple 所有字段写入组件表 */
@@ -527,7 +559,7 @@ class DiscipleTables {
         partnerIds[id] = s.partnerId; partnerSectIds[id] = s.partnerSectId
         parentId1s[id] = s.parentId1; parentId2s[id] = s.parentId2
         lastChildYears[id] = s.lastChildYear
-        s.childBirthMonth?.let { childBirthMonths[id] = it }
+        childBirthMonths[id] = s.childBirthMonth
         griefEndYears[id] = s.griefEndYear ?: GRIEF_YEAR_NULL_SENTINEL
         masterIds[id] = s.masterId
 
@@ -687,13 +719,21 @@ class DiscipleTables {
     )
 
     /** 组装全部弟子的 List<Disciple>（用于序列化、旧 API 兼容）。
-     *  含幽灵弟子防御性检测：ID 在 ids 中但 name 为空 → 组件表该 ID 无完整数据。 */
+     *  含幽灵弟子防御性跳过：ID 在 ids 中但组件表数据缺失 → 跳过并打 Log。 */
     fun assembleAll(): List<Disciple> {
-        val result = ids.distinct().map { assemble(it) }
-        result.firstOrNull { it.name.isBlank() }?.let { ghost ->
-            Log.w(TAG, "GHOST DISCIPLE: id=${ghost.id}, " +
-                "age=${ghost.age}, realm=${ghost.realm}/${ghost.realmLayer}, " +
-                "cultivation=${ghost.cultivation}")
+        val result = ids.distinct().mapNotNull { id ->
+            try {
+                val d = assemble(id)
+                if (d.name.isBlank()) {
+                    Log.w(TAG, "GHOST DISCIPLE (skipped): id=${d.id}, " +
+                        "age=${d.age}, realm=${d.realm}/${d.realmLayer}, " +
+                        "cultivation=${d.cultivation}")
+                    null
+                } else d
+            } catch (e: NoSuchElementException) {
+                Log.w(TAG, "GHOST DISCIPLE (skipped): id=$id, error=${e.message}")
+                null
+            }
         }
         return result
     }
@@ -703,14 +743,17 @@ class DiscipleTables {
      * 锁层次：synchronized(ids) → ComponentTable.synchronized(lock)
      */
     fun remove(id: Int) {
+        requireWriteAccess()
         synchronized(ids) {
             ids.remove(id)
             _allCopyableRefs.forEach { it.remove(id) }
         }
+        assertAllTablesConsistent()
     }
 
     /** 清空所有组件表 */
     fun clear() {
+        requireWriteAccess()
         synchronized(ids) {
             ids.clear()
             _allCopyableRefs.forEach { it.clear() }
@@ -727,6 +770,7 @@ class DiscipleTables {
      * 锁层次：synchronized(ids) → ComponentTable.synchronized(lock)
      */
     fun markDead(id: Int, currentYear: Int, cause: String = "unknown") {
+        requireWriteAccess()
         synchronized(ids) {
             if (!ids.contains(id)) return@synchronized
             deathRecords.add(DeathRecord(
@@ -770,8 +814,10 @@ class DiscipleTables {
         val idsSnapshot: List<Int>
         synchronized(ids) { idsSnapshot = this.ids.toList() }
         val copy = DiscipleTables()
-        copy.ids.addAll(idsSnapshot)
-        _allCopyableRefs.forEach { it.copyTo(copy) }
+        synchronized(ids) {
+            copy.ids.addAll(idsSnapshot)
+            _allCopyableRefs.forEach { it.copyTo(copy) }
+        }
         return copy
     }
 
@@ -785,6 +831,7 @@ class DiscipleTables {
      * @param currentMonth 当前绝对月份（gameYear * 12 + gameMonth）
      */
     fun checkpointDisciple(id: Int, currentMonth: Int) {
+        requireWriteAccess()
         if (isAlive[id] != 1) return
         cultivationCheckpoints[id] = cultivations.getOrDefault(id, 0.0)
         cultivationCheckpointGameMonths[id] = currentMonth
@@ -828,6 +875,7 @@ class DiscipleTables {
      * 锁层次：synchronized(ids) → ComponentTable.synchronized(lock)
      */
     fun cullDeadDisciples(thresholdYear: Int) {
+        requireWriteAccess()
         val toRemove = synchronized(ids) {
             ids.filter { id ->
                 deathYears.contains(id) && deathYears[id] <= thresholdYear
@@ -847,6 +895,27 @@ class DiscipleTables {
             }
         }
         toRemove.forEach { remove(it) }
+    }
+
+    /**
+     * Debug 模式: 断言 ids 中所有 id 在每张组件表中都存在。
+     * 对标 Bevy UnsafeWorldCell Debug 运行时检查模式。
+     * 违反时立即 `check()` 失败，杜绝幽灵弟子逃逸到生产环境。
+     */
+    private fun assertAllTablesConsistent() {
+        synchronized(ids) {
+            for (id in ids) {
+                _allCopyableRefs.forEach { ref ->
+                    // deathYears 是稀疏表——仅已故弟子有条目，存活弟子无写入。
+                    // 与 markDead() 的生命周期合约一致，不在此检查范围内。
+                    if (ref.debugName == "deathYears") return@forEach
+                    check(ref.contains(id)) {
+                        "GHOST DISCIPLE: id=$id missing in ${ref.debugName}. " +
+                        "Insert/remove/replaceAll did not write to all component tables."
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -12,10 +12,12 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import org.junit.Rule
 import org.mockito.Mockito.mock
 
 class ExplorationTeamManagerTest {
 
+    @get:Rule val writeGuardRule = WriteGuardRule()
     private lateinit var stateStore: FakeStore
     private lateinit var manager: ExplorationTeamManager
 

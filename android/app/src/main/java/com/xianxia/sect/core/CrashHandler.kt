@@ -86,19 +86,37 @@ class CrashHandler @Inject constructor(
         Log.i(TAG, "CrashHandler unregistered")
     }
 
+    @Volatile
+    private var handlingCrash = false
+
     override fun uncaughtException(thread: Thread, throwable: Throwable) {
-        Log.e(TAG, "Uncaught exception in thread ${thread.name}", throwable)
+        // ★ 自递归防护：如果崩溃处理器已进入，直接杀进程防 ANR
+        if (handlingCrash) {
+            Process.killProcess(Process.myPid())
+            return
+        }
+        handlingCrash = true
+
+        // ★ 使用 stackTraceToString() 避免 printStackTrace(Writer) 在
+        //    StackOverflowError / 循环 cause 链场景下二次崩溃
+        val stackTrace = try {
+            throwable.stackTraceToString()
+        } catch (e: Exception) {
+            "Stack trace unavailable: ${e.message}"
+        }
+
+        Log.e(TAG, "Uncaught exception in thread ${thread.name}\n$stackTrace")
 
         try {
             // 1. 通知崩溃自愈引擎（用于安全模式判定）
-            CrashRecoveryEngine.recordCrash(getStackTraceString(throwable))
+            CrashRecoveryEngine.recordCrash(stackTrace)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to notify CrashRecoveryEngine", e)
         }
 
         try {
-            // 2. 记录崩溃日志到文件
-            val crashLogFile = writeCrashLogToFile(thread, throwable)
+            // 2. 记录崩溃日志到文件（传入已计算的 stackTrace 避免二次 printStackTrace）
+            val crashLogFile = writeCrashLogToFile(thread, throwable, stackTrace)
 
             // 3. 上传崩溃日志到远程服务器
             tryUploadCrashLog(crashLogFile)
@@ -146,8 +164,10 @@ class CrashHandler @Inject constructor(
 
     /**
      * 将崩溃日志写入文件
+     *
+     * @param stackTrace 预计算的堆栈跟踪字符串（避免在崩溃处理中调用 printStackTrace）
      */
-    private fun writeCrashLogToFile(thread: Thread, throwable: Throwable): File? {
+    private fun writeCrashLogToFile(thread: Thread, throwable: Throwable, stackTrace: String): File? {
         return try {
             val crashLogDir = getCrashLogDir()
             cleanupOldCrashLogs(crashLogDir)
@@ -188,17 +208,7 @@ class CrashHandler @Inject constructor(
                     printWriter.println()
 
                     printWriter.println("=== Stack Trace ===")
-                    throwable.printStackTrace(printWriter)
-
-                    // 打印 cause 链
-                    var cause = throwable.cause
-                    while (cause != null) {
-                        printWriter.println()
-                        printWriter.println("=== Caused by: ${cause.javaClass.name} ===")
-                        printWriter.println("Message: ${cause.message}")
-                        cause.printStackTrace(printWriter)
-                        cause = cause.cause
-                    }
+                    printWriter.println(stackTrace)
                 }
             }
 
@@ -240,16 +250,6 @@ class CrashHandler @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "Failed to cleanup old crash logs", e)
         }
-    }
-
-    /**
-     * 获取堆栈跟踪字符串
-     */
-    private fun getStackTraceString(throwable: Throwable): String {
-        val sw = java.io.StringWriter()
-        val pw = PrintWriter(sw)
-        throwable.printStackTrace(pw)
-        return sw.toString()
     }
 
     // ==================== 公共 API ====================

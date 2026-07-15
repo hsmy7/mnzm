@@ -729,7 +729,7 @@ class GameStateStoreImpl @Inject constructor(
             val curNotif = _pendingNotificationFlow.value
             reusableMutableState.apply {
                 gameData = curGame
-                discipleTables = _discipleTables.deepCopy()
+                discipleTables = _discipleTables.deepCopy().apply { writeAllowed = true }
                 equipmentStacks = EntityStore(curES)
                 equipmentInstances = EntityStore(curEI)
                 manualStacks = EntityStore(curMS)
@@ -830,7 +830,9 @@ class GameStateStoreImpl @Inject constructor(
                     _stateDirty = true
                 }
                 _discipleTables = reusableMutableState.discipleTables
+                _discipleTables.writeAllowed = false  // ★ 出厂后锁定，防止绕过 update{} 直接写
             } finally {
+                reusableMutableState.discipleTables.writeAllowed = false
                 reentrantCount.set(0)
                 reentrantBuffer.set(null)
             }

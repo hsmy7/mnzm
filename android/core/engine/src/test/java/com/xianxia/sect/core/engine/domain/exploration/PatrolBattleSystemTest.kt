@@ -11,18 +11,21 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.GameRngManager
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import org.junit.Rule
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
 import org.mockito.kotlin.any
 
 class PatrolBattleSystemTest {
 
+    @get:Rule val writeGuardRule = WriteGuardRule()
     private lateinit var system: PatrolBattleSystem
 
     @Before

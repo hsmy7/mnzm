@@ -2,12 +2,15 @@ package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.model.*
 import org.junit.Assert.*
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class DiscipleTablesTest {
+
+    @get:Rule val writeGuardRule = WriteGuardRule()
 
     private fun createTestDisciple(
         id: String = "1",
