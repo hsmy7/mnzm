@@ -734,10 +734,17 @@ class DiscipleTables {
     )
 
     /** 组装全部弟子的 List<Disciple>（用于序列化、旧 API 兼容）。
-     *  含幽灵弟子防御性跳过：ID 在 ids 中但组件表数据缺失 → 跳过并打 Log。 */
+     *  含幽灵弟子防御性跳过：ID 在 ids 中但组件表数据缺失 → 跳过并打 Log。
+     *  isAlive.contains(id) 校验确保 ID 经过了 writeAllFields 全表写入，
+     * 防止仅 names 表有条目的半幽灵逃逸到 UI/存档。 */
     fun assembleAll(): List<Disciple> {
         val result = ids.distinct().mapNotNull { id ->
             try {
+                // 全幽灵防御：isAlive 表无条目说明该 ID 未经过 writeAllFields
+                if (!isAlive.contains(id)) {
+                    Log.w(TAG, "GHOST DISCIPLE (skipped): id=$id, isAlive table missing")
+                    return@mapNotNull null
+                }
                 val d = assemble(id)
                 if (d.name.isBlank()) {
                     Log.w(TAG, "GHOST DISCIPLE (skipped): id=${d.id}, " +
