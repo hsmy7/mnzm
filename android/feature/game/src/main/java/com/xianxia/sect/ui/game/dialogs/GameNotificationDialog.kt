@@ -81,15 +81,10 @@ fun DiscipleTheftCaughtDialog(
         confirmLabel = "知道了",
         onConfirm = onDismiss
     ) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            DiscipleSlot(
-                disciple = DiscipleAggregate.fromDisciple(disciple),
-                onSlotClick = { onDiscipleClick(disciple.id) }
-            )
-        }
+        DiscipleSlot(
+            disciple = DiscipleAggregate.fromDisciple(disciple),
+            onSlotClick = { onDiscipleClick(disciple.id) }
+        )
     }
 }
 
