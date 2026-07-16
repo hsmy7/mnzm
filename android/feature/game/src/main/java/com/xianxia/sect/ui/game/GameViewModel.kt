@@ -730,6 +730,9 @@ class GameViewModel @Inject constructor(
      */
     fun expelDisciple(discipleId: String) = disciple.expelDisciple(discipleId)
 
+    /** 监牢释放弟子（无确认框），委托给 [DiscipleDelegate] */
+    fun releaseReflectionDisciple(discipleId: String) = disciple.releaseReflectionDisciple(discipleId)
+
     /** 拜师：将 discipleId 设为 masterId 的徒弟，委托给 [DiscipleDelegate] */
     fun apprenticeToMaster(discipleId: String, masterId: String) = disciple.apprenticeToMaster(discipleId, masterId)
 

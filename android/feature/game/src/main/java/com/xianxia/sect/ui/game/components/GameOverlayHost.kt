@@ -460,7 +460,8 @@ fun GameOverlayHost(
                     disciples = aliveDisciples,
                     gameData = gameData,
                     onDismiss = onDismiss,
-                    onExpelDisciple = { discipleId -> viewModel.expelDisciple(discipleId) }
+                    onExpelDisciple = { discipleId -> viewModel.expelDisciple(discipleId) },
+                    onReleaseDisciple = { discipleId -> viewModel.releaseReflectionDisciple(discipleId) }
                 )
             }
         }

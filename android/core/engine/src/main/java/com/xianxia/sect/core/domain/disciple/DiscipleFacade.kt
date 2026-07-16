@@ -26,6 +26,7 @@ interface DiscipleFacade {
     suspend fun expelTheftDisciple(discipleId: String): DomainResult<Unit>
     suspend fun imprisonTheftDisciple(discipleId: String, currentYear: Int)
     suspend fun releaseTheftDisciple(discipleId: String): Int
+    suspend fun releaseReflectionDisciple(discipleId: String)
     suspend fun equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit>
     suspend fun unequipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit>
     fun isDiscipleAssignedToSpiritMine(discipleId: String): Boolean

@@ -34,7 +34,8 @@ fun ReflectionCliffDialog(
     disciples: List<DiscipleAggregate>,
     gameData: GameData?,
     onDismiss: () -> Unit,
-    onExpelDisciple: (String) -> Unit = {}
+    onExpelDisciple: (String) -> Unit = {},
+    onReleaseDisciple: (String) -> Unit = {}
 ) {
     val reflectingDisciples = disciples.filter { it.status == DiscipleStatus.REFLECTING }
     var showExpelConfirmDialog by remember { mutableStateOf<DiscipleAggregate?>(null) }
@@ -101,7 +102,15 @@ fun ReflectionCliffDialog(
                             extraAttributes = listOf("道德" to disciple.morality, "思过" to remainingYears),
                             actions = {
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text(text = "思过中", fontSize = 10.sp, color = Color.Black)
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(Color(0xFF27AE60))
+                                            .clickable { onReleaseDisciple(disciple.id) }
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(text = "释放", fontSize = 10.sp, color = Color.White)
+                                    }
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(4.dp))

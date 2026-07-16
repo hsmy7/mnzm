@@ -204,6 +204,10 @@ fun PortraitDiscipleCard(
                             fontSize = 12.sp,
                             color = Color.Black
                         )
+                        // 当有自定义 actions 时，状态文字移至年龄右侧（避免与按钮挤在同一侧）
+                        if (actions != null) {
+                            Text(text = statusText, fontSize = 12.sp, color = Color.Black, maxLines = 1)
+                        }
                         if (disciple.isFollowed) FollowedTag()
                         if (isCurrent) {
                             Text(text = "当前", fontSize = 10.sp, color = Color(0xFFE74C3C))

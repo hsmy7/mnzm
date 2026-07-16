@@ -306,6 +306,10 @@ class DiscipleDelegate(
         return gameEngine.releaseTheftDisciple(discipleId)
     }
 
+    fun releaseReflectionDisciple(discipleId: String) {
+        scope.launch { gameEngine.releaseReflectionDisciple(discipleId) }
+    }
+
     fun onLoyaltyDialogDismissed() {
         gameEngine.clearPendingNotification()
     }

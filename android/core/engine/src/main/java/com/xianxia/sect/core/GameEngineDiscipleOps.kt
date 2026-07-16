@@ -17,6 +17,7 @@ suspend fun GameEngine.apprenticeToMaster(discipleId: String, masterId: String):
 suspend fun GameEngine.expelTheftDisciple(discipleId: String): DomainResult<Unit> = discipleFacade.expelTheftDisciple(discipleId)
 suspend fun GameEngine.imprisonTheftDisciple(discipleId: String, currentYear: Int) = discipleFacade.imprisonTheftDisciple(discipleId, currentYear)
 suspend fun GameEngine.releaseTheftDisciple(discipleId: String): Int = discipleFacade.releaseTheftDisciple(discipleId)
+suspend fun GameEngine.releaseReflectionDisciple(discipleId: String) = discipleFacade.releaseReflectionDisciple(discipleId)
 fun GameEngine.clearPendingNotification() = discipleFacade.clearPendingNotification()
 suspend fun GameEngine.approveMarriage(maleId: String, femaleId: String) = discipleFacade.approveMarriage(maleId, femaleId)
 suspend fun GameEngine.equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> = discipleFacade.equipEquipment(discipleId, equipmentId)

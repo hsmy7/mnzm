@@ -120,6 +120,18 @@ class DiscipleFacadeImpl @Inject constructor(
         return loyaltyChange
     }
 
+    override suspend fun releaseReflectionDisciple(discipleId: String) {
+        stateStore.update {
+            val id = discipleId.toIntOrNull() ?: return@update
+            if (!discipleTables.ids.contains(id)) return@update
+            if (discipleTables.isAlive[id] != 1) return@update
+            discipleTables.statuses[id] = DiscipleStatus.IDLE
+            val existingData = discipleTables.statusData[id]
+            discipleTables.statusData[id] = existingData - setOf("reflectionStartYear", "reflectionEndYear")
+            // 不修改道德/忠诚/任何数值，纯状态变更
+        }
+    }
+
     override suspend fun equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> =
         discipleService.equipEquipment(discipleId, equipmentId)
 
