@@ -129,6 +129,7 @@ fun PortraitDiscipleCard(
     disciple: DiscipleAggregate,
     isSelected: Boolean = false,
     isCurrent: Boolean = false,
+    showStatus: Boolean = true,
     extraAttributes: List<Pair<String, Int>> = emptyList(),
     customAttributes: @Composable (() -> Unit)? = null,
     actions: @Composable (() -> Unit)? = null,
@@ -205,7 +206,7 @@ fun PortraitDiscipleCard(
                             color = Color.Black
                         )
                         // 当有自定义 actions 时，状态文字移至年龄右侧（避免与按钮挤在同一侧）
-                        if (actions != null) {
+                        if (actions != null && showStatus) {
                             Text(text = statusText, fontSize = 12.sp, color = Color.Black, maxLines = 1)
                         }
                         if (disciple.isFollowed) FollowedTag()
@@ -220,12 +221,14 @@ fun PortraitDiscipleCard(
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = statusText,
-                                fontSize = 12.sp,
-                                color = Color.Black,
-                                maxLines = 1
-                            )
+                            if (showStatus) {
+                                Text(
+                                    text = statusText,
+                                    fontSize = 12.sp,
+                                    color = Color.Black,
+                                    maxLines = 1
+                                )
+                            }
                             if (isSelected) {
                                 Text(
                                     text = "✓",

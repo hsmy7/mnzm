@@ -89,6 +89,7 @@ fun RecruitDialog(
                             PortraitDiscipleCard(
                                 disciple = disciple,
                                 isSelected = false,
+                                showStatus = false,
                                 actions = {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
