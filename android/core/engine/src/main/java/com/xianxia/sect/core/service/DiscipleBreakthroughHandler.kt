@@ -66,7 +66,7 @@ class DiscipleBreakthroughHandler @Inject constructor(
         val currentMonth = data.gameYear * 12 + data.gameMonth
         d.id.toIntOrNull()?.let { tables.checkpointDisciple(it, currentMonth) }
 
-        d = clearAdBonus(d)
+        if (breakthroughCount > 0) d = clearAdBonus(d)
         writeBreakthroughCounts(d.id, tables, breakthroughCount, failCount)
         d = updateCompletionEstimate(d, data)
 
