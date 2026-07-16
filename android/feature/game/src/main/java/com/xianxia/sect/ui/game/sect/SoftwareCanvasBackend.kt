@@ -151,10 +151,6 @@ class SoftwareCanvasBackend(
     private var chunkBuildingHash: Int = 0
     /** 上一次的 preview 状态 */
     private var lastShowPreview: Boolean = false
-    /** 上一次的预览位置 X（防御：预览位置变化时强制重绘，防止未来渲染变更引入残影） */
-    private var lastPreviewX: Float = 0f
-    /** 上一次的预览位置 Y */
-    private var lastPreviewY: Float = 0f
 
     // ── Chunk 缓存 ──
 
@@ -385,7 +381,6 @@ class SoftwareCanvasBackend(
         // Chunk 缓存完整渲染（Scroll Compositing 已废弃）
         // ═══════════════════════════════════════════════════════
         lastShowPreview = previewActive
-        val previewMoved = previewActive && (frame.previewX != lastPreviewX || frame.previewY != lastPreviewY)
 
         // Chunk 失效检查
         val chunkTileChanged = tileHash != chunkTileHash
@@ -453,7 +448,7 @@ class SoftwareCanvasBackend(
         }
 
         // 重建失效 chunk
-        if (chunkTileChanged || chunkBuildingChanged || chunkDecorChanged || previewMoved) {
+        if (chunkTileChanged || chunkBuildingChanged || chunkDecorChanged) {
             for (col in 0 until NUM_CHUNKS_COL) {
                 for (row in 0 until NUM_CHUNKS_ROW) {
                     if (!chunkCaches[col][row].isValid) {
@@ -473,12 +468,6 @@ class SoftwareCanvasBackend(
                     }
                 }
             }
-        }
-
-        // 预览位置追踪（防御：记录最新位置，供下一帧 previewMoved 检测）
-        if (previewActive) {
-            lastPreviewX = frame.previewX
-            lastPreviewY = frame.previewY
         }
 
         // 合成可见 chunk 到帧缓冲区

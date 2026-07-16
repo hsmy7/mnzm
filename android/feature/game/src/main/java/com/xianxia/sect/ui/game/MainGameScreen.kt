@@ -449,6 +449,8 @@ fun MainGameScreen(
         // ★ 优化：RenderFrame 推送帧率门控
         // SOFTWARE 路径下限制推送频率（RenderThread 自行读取 currentFrame 原子快照）
         var lastRenderDataSyncNs by remember { mutableLongStateOf(0L) }
+        // 上次推送的建筑数量——变化时强制跳帧门控（取消/确认后即时更新）
+        var lastPushedBuildingCount by remember { mutableIntStateOf(-1) }
 
         // 缓存 buildingData 哈希值，避免每帧重复分配 FloatArray
         AndroidView(
@@ -537,18 +539,23 @@ fun MainGameScreen(
                 val previewOffsetX = (pSize.width - previewSW) * tileSize * 0.5f
                 val previewOffsetY = (pSize.height - previewSH) * tileSize.toFloat() // 底部对齐
 
+                // ★ 建筑数据也必须在门控外读取（effectivePlacedBuildings 变化时
+                // 若门控关闭则 buildingDataArray 不推送，导致取消后建筑消失）
+                val buildingData = buildingDataArray
+                val effectiveCount = effectivePlacedBuildings.size
+
+                // ★ 建筑数量变化时强制门控打开，新数据即时推送
+                if (effectiveCount != lastPushedBuildingCount) {
+                    lastRenderDataSyncNs = 0L
+                }
+
                 // 帧率门控：低于间隔直接跳过 RenderFrame 推送
                 if (now - lastRenderDataSyncNs >= minIntervalNs) {
                     lastRenderDataSyncNs = now
+                    lastPushedBuildingCount = effectiveCount
 
                 // Camera + 预览 + 建筑数据通过 RenderFrame 推送
                 // 单通道：Vulkan 和 Canvas 两后端均消费同一份 RenderFrame
-                // 建筑数据：当有建筑时始终传递（软件路径每次清屏重绘需要数据，
-                // 不能依赖 hash 变化判断——hash 不变时 buildingData 为 null
-                // 会导致软件渲染器清屏后无法重绘建筑）
-                // ★ 优化：使用 remember 缓存的 buildingDataArray，拖拽时不重新分配
-                val buildingData = buildingDataArray
-
                 view.updateRenderState(
                     RenderFrame(
                         tileData = flatTileData,
@@ -559,7 +566,7 @@ fun MainGameScreen(
                         scale = snapScale,
                         buildingVisible = true,
                         buildingData = buildingData,
-                        buildingCount = effectivePlacedBuildings.size,
+                        buildingCount = effectiveCount,
                         showPreview = hasPreview,
                         previewX = px + previewOffsetX,
                         previewY = py + previewOffsetY,
