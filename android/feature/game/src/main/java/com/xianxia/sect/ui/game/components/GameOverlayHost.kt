@@ -76,7 +76,8 @@ fun GameOverlayHost(
     onLogout: () -> Unit,
     onRestartGame: () -> Unit,
     limitAdTracking: Boolean,
-    onLimitAdTrackingChanged: (Boolean) -> Unit
+    onLimitAdTrackingChanged: (Boolean) -> Unit,
+    onWatchAdBreakthroughBonus: ((String) -> Unit)? = null
 ) {
     var tipDialogMessage by remember { mutableStateOf<String?>(null) }
     var tipDialogIsError by remember { mutableStateOf(false) }
@@ -700,7 +701,8 @@ fun GameOverlayHost(
                         viewModel = viewModel,
                         onDismiss = { viewModel.dismissDiscipleDetail() },
                         onNavigateToDisciple = req.onNavigateToDisciple
-                            ?: { d -> viewModel.navigateDiscipleDetail(d) }
+                            ?: { d -> viewModel.navigateDiscipleDetail(d) },
+                        onWatchAdBreakthroughBonus = onWatchAdBreakthroughBonus
                     )
                 }
             }

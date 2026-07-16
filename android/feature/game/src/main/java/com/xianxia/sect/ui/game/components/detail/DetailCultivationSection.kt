@@ -16,7 +16,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.PlatformTextStyle
@@ -37,6 +36,7 @@ import com.xianxia.sect.core.util.GameUtils
 
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DiscipleAttrText
+import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.game.GameViewModel
 import java.util.Locale
 
@@ -126,7 +126,8 @@ fun BasicInfoSection(
     gameMonth: Int = 1,
     gameYear: Int = 1,
     gamePhase: Int = 0,
-    gameSpeed: Int = 1
+    gameSpeed: Int = 1,
+    onWatchAdBreakthroughBonus: ((String) -> Unit)? = null
 ) {
     val discipleMap = allDisciples.associateBy { it.id }
     val griefBreakthroughPenalty = if (
@@ -213,7 +214,8 @@ fun BasicInfoSection(
             )
             var showBreakthroughDetail by remember { mutableStateOf(false) }
             val adBonusValue = disciple.statusData["adBreakthroughBonus"]?.toDoubleOrNull() ?: 0.0
-            val context = LocalContext.current
+            var showAdConfirmDialog by remember { mutableStateOf(false) }
+            var showAdCooldownDialog by remember { mutableStateOf(false) }
             Row(
                 modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically
@@ -233,8 +235,115 @@ fun BasicInfoSection(
                         .clickable { showBreakthroughDetail = true },
                     contentScale = ContentScale.FillBounds
                 )
-                if (adBonusValue < 0.25) {
-                    // Ad feature removed - requires app-layer TapTap SDK dependency
+                if (adBonusValue < 0.20) {
+                    Image(
+                        painter = painterResource(
+                            id = com.xianxia.sect.ui.components.SpriteResRegistry.resolve("ui_play_button") ?: 0
+                        ),
+                        contentDescription = "播放广告获取突破加成",
+                        modifier = Modifier
+                            .size(18.dp)
+                            .clip(CircleShape)
+                            .clickable {
+                                if (viewModel?.isAdOnCooldown() == true) {
+                                    showAdCooldownDialog = true
+                                } else {
+                                    showAdConfirmDialog = true
+                                }
+                            },
+                        contentScale = ContentScale.FillBounds
+                    )
+                }
+            }
+            val watchAdCallback = onWatchAdBreakthroughBonus
+            if (showAdConfirmDialog && watchAdCallback != null) {
+                Dialog(
+                    onDismissRequest = { showAdConfirmDialog = false },
+                    properties = DialogProperties(usePlatformDefaultWidth = false)
+                ) {
+                    DialogSystemBarGuard()
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.White,
+                        shadowElevation = 8.dp,
+                        modifier = Modifier.widthIn(min = 280.dp, max = 340.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "广告",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "观看广告后弟子获得突破加成，最多观看2次。",
+                                fontSize = 13.sp,
+                                color = Color.Black,
+                                lineHeight = 20.sp
+                            )
+                            Spacer(modifier = Modifier.height(20.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                GameButton(
+                                    text = "取消",
+                                    onClick = { showAdConfirmDialog = false },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                GameButton(
+                                    text = "观看",
+                                    onClick = {
+                                        showAdConfirmDialog = false
+                                        watchAdCallback(disciple.id)
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            if (showAdCooldownDialog) {
+                Dialog(
+                    onDismissRequest = { showAdCooldownDialog = false },
+                    properties = DialogProperties(usePlatformDefaultWidth = false)
+                ) {
+                    DialogSystemBarGuard()
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color.White,
+                        shadowElevation = 8.dp,
+                        modifier = Modifier.widthIn(min = 280.dp, max = 340.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "不可播放广告",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "一分钟内只可观看一次广告",
+                                fontSize = 13.sp,
+                                color = Color.Black,
+                                lineHeight = 20.sp
+                            )
+                            Spacer(modifier = Modifier.height(20.dp))
+                            GameButton(
+                                text = "确认",
+                                onClick = { showAdCooldownDialog = false }
+                            )
+                        }
+                    }
                 }
             }
             if (showBreakthroughDetail) {

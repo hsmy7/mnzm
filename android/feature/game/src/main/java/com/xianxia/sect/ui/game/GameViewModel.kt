@@ -95,6 +95,20 @@ class GameViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "GameViewModel"
+
+        /** 广告冷却时间（毫秒） */
+        private const val AD_COOLDOWN_MS = 60_000L
+    }
+
+    /** 广告冷却截止时间戳（System.currentTimeMillis），在此时间之前不可播放广告 */
+    private var adCooldownUntilMs: Long = 0L
+
+    /** 广告是否在冷却中 */
+    fun isAdOnCooldown(): Boolean = System.currentTimeMillis() < adCooldownUntilMs
+
+    /** 标记广告已观看，进入冷却 */
+    fun markAdWatched() {
+        adCooldownUntilMs = System.currentTimeMillis() + AD_COOLDOWN_MS
     }
 
 

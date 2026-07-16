@@ -626,13 +626,14 @@ object DiscipleStatCalculator {
      * 遵循"乘区内加算、乘区间乘算"原则。
      * 基础概率作为 baseZone（本身就是概率值 0~1），其他乘区以 (1 + bonus) 形式乘算。
      *
-     * 公式：baseZone × (1 + elderGuidance + selfBonus) × (1 - penalty)
+     * 公式：baseZone × (1 + elderGuidance + selfBonus) × (1 - penalty) + adFlatBonus
      */
     data class BreakthroughZones(
         val baseZone: Double = 0.0,        // 基础概率（境界+灵根+层数）
         val elderGuidance: Double = 0.0,   // 长老指导乘区：内门+外门
-        val selfBonus: Double = 0.0,       // 自身加成乘区：天赋+魂力+丹药+广告+师徒
+        val selfBonus: Double = 0.0,       // 自身加成乘区：天赋+魂力+丹药+师徒
         val statusPenalty: Double = 0.0,   // 状态惩罚乘区：丧亲+寿命（正值 = 惩罚幅度）
+        val adFlatBonus: Double = 0.0,     // 广告扁平加成（不经过乘区缩放，直接加在最终值上）
     )
 
     private fun computeBreakthroughZones(
@@ -659,8 +660,9 @@ object DiscipleStatCalculator {
         return BreakthroughZones(
             baseZone = baseZone,
             elderGuidance = innerElderBonus + outerElderBonus,
-            selfBonus = pillBonus + talentBreakthroughBonus + soulPowerBonus + adBonus + masterDiscipleBonus,
-            statusPenalty = griefBreakthroughPenalty + lifespanPenalty
+            selfBonus = pillBonus + talentBreakthroughBonus + soulPowerBonus + masterDiscipleBonus,
+            statusPenalty = griefBreakthroughPenalty + lifespanPenalty,
+            adFlatBonus = adBonus
         )
     }
 
@@ -727,7 +729,9 @@ object DiscipleStatCalculator {
     fun calculateBreakthroughChance(zones: BreakthroughZones): Double {
         val positiveMult = 1.0 + zones.elderGuidance + zones.selfBonus
         val penaltyMult = (1.0 - zones.statusPenalty).coerceAtLeast(0.0)
-        return (zones.baseZone * positiveMult * penaltyMult).coerceIn(0.0, 1.0)
+        val base = zones.baseZone * positiveMult * penaltyMult
+        // adFlatBonus 为扁平加法，不过乘区，确保广告观看后固定增加
+        return (base + zones.adFlatBonus).coerceIn(0.0, 1.0)
     }
 
     /**

@@ -46,6 +46,7 @@ is DialogType.MyNewDialog -> {
 - [ ] 聊天/对话类使用了 `UnifiedGameDialog(mode = Full)`（chat-dialog-design.md）
 - [ ] 精灵图已在 SpriteResRegistry 注册
 - [ ] 聚焦域：若显示实时数据（进度条/倒计时），更新 FocusDomain
+- [ ] 点击屏幕外可关闭：`onDismissRequest` 已设置，非阻塞交互不得阻止点外关闭
 
 ## 原理
 

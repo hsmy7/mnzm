@@ -1,0 +1,62 @@
+# 广告冷却机制
+
+所有激励视频广告（包括未来新增的广告类型）必须遵循统一的冷却规则。
+
+## 冷却规则
+
+- **冷却时长：** 60 秒（1 分钟）
+- **触发时机：** 广告奖励验证通过（`onRewardVerify` 返回 `rewardVerify = true`）后才进入冷却，广告播放中或提前关闭不计入冷却
+- **生效范围：** 全局冷却，所有广告类型共享同一个冷却计时器
+
+## 实现位置
+
+### 冷却状态管理
+
+**文件：** `feature/game/.../GameViewModel.kt`
+
+```kotlin
+companion object {
+    private const val AD_COOLDOWN_MS = 60_000L
+}
+
+private var adCooldownUntilMs: Long = 0L
+
+fun isAdOnCooldown(): Boolean = System.currentTimeMillis() < adCooldownUntilMs
+
+fun markAdWatched() {
+    adCooldownUntilMs = System.currentTimeMillis() + AD_COOLDOWN_MS
+}
+```
+
+### 冷却中时 UI 表现
+
+**文件：** `feature/game/.../components/detail/DetailCultivationSection.kt`
+
+- 点击广告按钮时先调用 `viewModel?.isAdOnCooldown()` 检查
+- 冷却中 → 弹出提示框，标题"不可播放广告"，内容"一分钟内只可观看一次广告"，居中"确认"按钮
+- 未冷却 → 弹出正常确认弹框，点击"观看"后播放广告
+
+### 冷却触发
+
+**文件：** `app/.../GameActivity.kt`
+
+在 `RewardVideoAdManager` 的 `onRewardVerify` 回调中，`rewardVerify = true` 时调用：
+
+```kotlin
+if (rewardVerify && !activity.isFinishing) {
+    viewModel.applyAdBreakthroughBonus(discipleId, bonus)
+    viewModel.markAdWatched()  // ← 冷却从此开始
+}
+```
+
+## 新增广告类型时必须做的
+
+1. 在 `GameActivity` 的新广告回调中调用 `viewModel.markAdWatched()`
+2. 广告按钮点击前调用 `viewModel.isAdOnCooldown()` 判断是否显示冷却提示
+3. 冷却提示框统一使用标题"不可播放广告"、内容"一分钟内只可观看一次广告"、居中"确认"按钮
+
+## 设计意图
+
+- 奖励验证后才冷却：防止用户打开广告但不观看就触发冷却
+- 全局共享冷却：防止用户通过切换广告类型绕过限制
+- `GameViewModel` 持有状态：进程重启后冷却自动重置，无需持久化

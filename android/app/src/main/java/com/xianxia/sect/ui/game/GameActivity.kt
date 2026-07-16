@@ -69,6 +69,9 @@ class GameActivity : ComponentActivity() {
     companion object {
         private const val TAG = "GameActivity"
         private const val KEY_CURRENT_SLOT = "current_slot"
+
+        /** 每次观看广告的突破率加成（10%），最多观看 2 次 */
+        private const val AD_BONUS_PER_AD = 0.10
     }
 
     private val viewModel: GameViewModel by viewModels()
@@ -353,6 +356,39 @@ class GameActivity : ComponentActivity() {
                                         com.xianxia.sect.core.CrashRecoveryEngine.clearSurfaceInitStarted()
                                         com.xianxia.sect.core.CrashRecoveryEngine.recordVulkanInitFailure()
                                     }
+                                },
+                                onWatchAdBreakthroughBonus = { discipleId ->
+                                    val activity = this@GameActivity
+                                    com.xianxia.sect.taptap.RewardVideoAdManager.setCallback(
+                                        object : com.xianxia.sect.taptap.RewardVideoAdManager.RewardVideoCallback {
+                                            override fun onRewardVerify(
+                                                rewardVerify: Boolean,
+                                                rewardAmount: Int,
+                                                rewardName: String,
+                                                code: Int,
+                                                msg: String
+                                            ) {
+                                                if (rewardVerify && !activity.isFinishing) {
+                                                    viewModel.applyAdBreakthroughBonus(
+                                                        discipleId,
+                                                        AD_BONUS_PER_AD
+                                                    )
+                                                    viewModel.markAdWatched()
+                                                }
+                                            }
+
+                                            override fun onAdCached() {
+                                                if (!activity.isFinishing) {
+                                                    com.xianxia.sect.taptap.RewardVideoAdManager.showAd(activity)
+                                                }
+                                            }
+
+                                            override fun onAdClose() {
+                                                com.xianxia.sect.taptap.RewardVideoAdManager.removeCallback()
+                                            }
+                                        }
+                                    )
+                                    com.xianxia.sect.taptap.RewardVideoAdManager.loadAd(activity)
                                 }
                             )
                         } else {
