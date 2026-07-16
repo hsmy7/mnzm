@@ -502,12 +502,9 @@ fun MainGameScreen(
                 // ★ 独立推送相机（不经过帧率门控），确保拖拽时相机响应无延迟
                 view.setCamera(snapCamX, snapCamY, snapScale)
 
-                // 帧率门控：低于间隔直接跳过 RenderFrame 推送
-                if (now - lastRenderDataSyncNs >= minIntervalNs) {
-                    lastRenderDataSyncNs = now
-
-                // Camera + 预览 + 建筑数据通过 RenderFrame 推送
-                // 单通道：Vulkan 和 Canvas 两后端均消费同一份 RenderFrame
+                // ★ 在门控外读取预览相关状态，确保 Compose 订阅活跃。
+                // 门控内读取时，若门控未通过则 Compose 移除依赖跟踪，
+                // 导致拖拽中精灵图不跟随移动（与 camera 同理）。
                 val mb = movingBuilding
                 val isPreviewActive = isPlacingBuilding || mb != null
                 val previewBuildingName = when {
@@ -540,6 +537,12 @@ fun MainGameScreen(
                 val previewOffsetX = (pSize.width - previewSW) * tileSize * 0.5f
                 val previewOffsetY = (pSize.height - previewSH) * tileSize.toFloat() // 底部对齐
 
+                // 帧率门控：低于间隔直接跳过 RenderFrame 推送
+                if (now - lastRenderDataSyncNs >= minIntervalNs) {
+                    lastRenderDataSyncNs = now
+
+                // Camera + 预览 + 建筑数据通过 RenderFrame 推送
+                // 单通道：Vulkan 和 Canvas 两后端均消费同一份 RenderFrame
                 // 建筑数据：当有建筑时始终传递（软件路径每次清屏重绘需要数据，
                 // 不能依赖 hash 变化判断——hash 不变时 buildingData 为 null
                 // 会导致软件渲染器清屏后无法重绘建筑）
@@ -566,9 +569,9 @@ fun MainGameScreen(
                         previewV0 = previewUvs?.get(1) ?: 0f,
                         previewU1 = previewUvs?.get(2) ?: 0f,
                         previewV1 = previewUvs?.get(3) ?: 0f,
-                        previewTintRed = if (pValid == GridSnapHelper.PlacementValidity.Valid) 0.25f else 1.0f,
+                        previewTintRed = 1.0f,
                         previewTintGreen = 1.0f,
-                        previewTintBlue = if (pValid == GridSnapHelper.PlacementValidity.Valid) 0.25f else 0.25f,
+                        previewTintBlue = 1.0f,
                         previewAlpha = 0.5f
                     )
                 )   // view.updateRenderState()
@@ -1082,8 +1085,8 @@ fun MainGameScreen(
                     isPlacingBuilding = true
                     placingBuildingName = name
                     placingBuildingSize = size
-                    placingWorldX = cameraState.cameraX + screenWidthPx / 2f - size.width * tileSize / 2f
-                    placingWorldY = cameraState.cameraY + screenHeightPx / 2f - size.height * tileSize / 2f
+                    placingWorldX = cameraState.screenToWorldX(screenWidthPx / 2f) - size.width * tileSize / 2f
+                    placingWorldY = cameraState.screenToWorldY(screenHeightPx / 2f) - size.height * tileSize / 2f
                     placingSnappedGridX = GridSnapHelper.worldToGrid(placingWorldX, tileSize)
                     placingSnappedGridY = GridSnapHelper.worldToGrid(placingWorldY, tileSize)
                     placementValidity = gridSystem.validatePlacement(

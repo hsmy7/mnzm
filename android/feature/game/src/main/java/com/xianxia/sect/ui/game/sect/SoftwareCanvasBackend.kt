@@ -581,21 +581,12 @@ class SoftwareCanvasBackend(
 
         val alpha = frame.previewAlpha.coerceIn(0f, 1f)
         previewPaint.alpha = (alpha * 255).toInt()
-        previewPaint.colorFilter = ColorMatrixColorFilter(
-            ColorMatrix(floatArrayOf(
-                frame.previewTintRed, 0f, 0f, 0f, 0f,
-                0f, frame.previewTintGreen, 0f, 0f, 0f,
-                0f, 0f, frame.previewTintBlue, 0f, 0f,
-                0f, 0f, 0f, 1f, 0f
-            ))
-        )
 
         canvas.drawBitmap(atlas,
             Rect(srcLeft, srcTop, srcRight, srcBottom),
             Rect(dstLeft, dstTop, dstRight, dstBottom),
             previewPaint)
 
-        previewPaint.colorFilter = null
         previewPaint.alpha = 255
     }
 
