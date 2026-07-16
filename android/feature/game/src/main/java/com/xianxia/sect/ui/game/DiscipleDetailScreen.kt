@@ -36,6 +36,7 @@ import com.xianxia.sect.ui.components.TalentDetailDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.components.DialogSystemBarGuard
 import com.xianxia.sect.feature.game.R
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.xianxia.sect.ui.game.components.detail.*
 import com.xianxia.sect.ui.game.dialogs.DiscipleChatDialog
@@ -147,19 +148,34 @@ fun DiscipleDetailDialog(
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("信息", "属性", "装备", "功法")
 
-    key(disciple.id) {
-    BackHandler(onBack = onDismiss)
-
-    // 首次查看时初始化日志（仅当尚无日志时生成合成事件）
-    LaunchedEffect(disciple.id) {
-        viewModel?.initializeLifeEvents(disciple.id)
-    }
-
-    CompositionLocalProvider(LocalDismissDropdown provides { showDiscipleTypeDropdown = false }) {
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = GameColors.PageBackground
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false
+        )
     ) {
+        DialogSystemBarGuard()
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0x99000000))
+        ) {
+            key(disciple.id) {
+            BackHandler(onBack = onDismiss)
+
+            // 首次查看时初始化日志（仅当尚无日志时生成合成事件）
+            LaunchedEffect(disciple.id) {
+                viewModel?.initializeLifeEvents(disciple.id)
+            }
+
+            CompositionLocalProvider(LocalDismissDropdown provides { showDiscipleTypeDropdown = false }) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = GameColors.PageBackground
+            ) {
         Box(modifier = Modifier.fillMaxSize()) {
                 Image(
                     painter = painterResource(id = R.drawable.bg_horizontal),
@@ -537,6 +553,8 @@ fun DiscipleDetailDialog(
             onDismiss = { showChatDialog = false }
         )
     }
+    }
+        }
     }
 }
 
