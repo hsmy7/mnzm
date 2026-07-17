@@ -288,6 +288,11 @@ data class GameData(
     @SettlementStrategy(Strategy.CUSTOM)
     var sectRelations: List<SectRelation> = emptyList(),
 
+    // AI 宗门妖兽跳过冷却（宗门ID -> 剩余冷却旬数）
+    @Ignore
+    @SettlementStrategy(Strategy.USE_SHADOW)
+    var aiSectBeastSkipCooldowns: Map<String, Int> = emptyMap(),
+
     // 玩家最大结盟数量
     @SettlementStrategy(Strategy.USE_SHADOW)
     var playerAllianceSlots: Int = 3,

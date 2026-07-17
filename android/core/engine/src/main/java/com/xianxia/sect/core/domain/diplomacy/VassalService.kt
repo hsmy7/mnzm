@@ -209,6 +209,12 @@ class VassalService @Inject constructor(
         if (success) {
             stateStore.update {
                 gameData = gameData.copy(
+                    sectRelations = FavorDomain.setAcquainted(
+                        gameData.sectRelations,
+                        playerSect.id,
+                        sectId,
+                        gameData.gameYear
+                    ),
                     vassalContracts = gameData.vassalContracts
                         + VassalContract(
                         vassalSectId = sectId,

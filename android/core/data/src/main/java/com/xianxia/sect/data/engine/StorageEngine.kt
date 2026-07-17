@@ -782,37 +782,57 @@ class StorageEngine @Inject constructor(
     }
 
     /**
-     * 迁移旧版存档数据（saveVersion < 1）。
+     * 顺序迁移旧版存档数据至当前版本。
      *
-     * v4.0.13 将修炼基础值(REALM_SPEED_PER_PHASE / cultivationBase)
-     * 等比缩小为 1/10，旧存档中的 cultivation 值需同步缩放。
+     * v0→1 (v4.0.13): 修炼基础值等比缩小为 1/10。
+     * v1→2: 将所有 sectRelations 的 acquainted 设为 true。
      */
     private fun migrateSaveDataIfNeeded(saveData: SaveData): SaveData {
         val gd = saveData.gameData
-        if (gd.saveVersion >= 1) return saveData
+        if (gd.saveVersion >= 2) return saveData
 
-        val scaleFactor = 10.0
-        Log.i(TAG, "Migrating save data: scaling cultivation by 1/$scaleFactor (slot ${gd.slotId})")
+        var currentGd = gd
+        var currentDisciples = saveData.disciples
 
-        // 1. 宗门总修为
-        val migratedGd = gd.copy(
-            sectCultivation = gd.sectCultivation / scaleFactor,
-            saveVersion = 1,
-            // 2. 招募列表中的弟子
-            recruitList = gd.recruitList.map { d -> d.scaleCultivation(scaleFactor) },
-            // 3. AI宗门弟子
-            aiSectDisciples = gd.aiSectDisciples.mapValues { (_, list) ->
-                list.map { d -> d.scaleCultivation(scaleFactor) }
-            }
-        )
+        // ── Migration v0→1: cultivation scaling ──
+        if (currentGd.saveVersion < 1) {
+            val scaleFactor = 10.0
+            Log.i(
+                TAG,
+                "Migrating save data v0→1: scaling cultivation by 1/$scaleFactor (slot ${gd.slotId})"
+            )
 
-        // 4. 主弟子列表
-        val migratedDisciples = saveData.disciples.map { it.scaleCultivation(scaleFactor) }
+            currentGd = currentGd.copy(
+                sectCultivation = currentGd.sectCultivation / scaleFactor,
+                saveVersion = 1,
+                recruitList = currentGd.recruitList.map { d -> d.scaleCultivation(scaleFactor) },
+                aiSectDisciples = currentGd.aiSectDisciples.mapValues { (_, list) ->
+                    list.map { d -> d.scaleCultivation(scaleFactor) }
+                }
+            )
+            currentDisciples = currentDisciples.map { it.scaleCultivation(scaleFactor) }
 
-        Log.i(TAG, "Save migration complete: ${migratedDisciples.size} disciples scaled")
+            Log.i(TAG, "Migration v0→1 complete: ${currentDisciples.size} disciples scaled")
+        }
+
+        // ── Migration v1→2: set all sectRelations to acquainted ──
+        if (currentGd.saveVersion < 2) {
+            Log.i(
+                TAG,
+                "Migrating save data v1→2: setting all sectRelations acquainted (slot ${gd.slotId})"
+            )
+
+            currentGd = currentGd.copy(
+                saveVersion = 2,
+                sectRelations = currentGd.sectRelations.map { it.copy(acquainted = true) }
+            )
+
+            Log.i(TAG, "Migration v1→2 complete: ${currentGd.sectRelations.size} relations updated")
+        }
+
         return saveData.copy(
-            gameData = migratedGd,
-            disciples = migratedDisciples
+            gameData = currentGd,
+            disciples = currentDisciples
         )
     }
 

@@ -26,6 +26,7 @@ import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.domain.diplomacy.VassalService
+import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
 import javax.inject.Inject
 import javax.inject.Singleton
 @Singleton
@@ -50,6 +51,7 @@ class CultivationEventProcessor @Inject constructor(
     private val autoBuyService: AutoBuyService,
     private val vassalService: VassalService,
     private val disciplePurchaseService: DisciplePurchaseService,
+    private val aiSectBeastAttackProcessor: AISectBeastAttackProcessor,
     private val rngManager: GameRngManager
 ) {
     private val scope get() = scopeProvider.scope
@@ -252,11 +254,8 @@ class CultivationEventProcessor @Inject constructor(
         }
         safelyRun("gameOverCheck") { checkGameOverCondition() }
         safelyRun("scoutExpiry") { processScoutInfoExpiryLazy(year, month) }
-        safelyRun("monthlyFavorEvents") {
-            diplomacyEventProcessor.processDiplomacyMonthlyEventsCapped(year, month)
-        }
-        safelyRun("monthlyBreakaway") {
-            vassalService.processMonthlyBreakawayCheck(year, month)
+        safelyRun("aiBeastAttacks") {
+            stateStore.update { aiSectBeastAttackProcessor.processMonthly(this, year, month) }
         }
         safelyRun("theft") { processTheftIfNeeded() }
         safelyRun("lawEnforcement") { processLawEnforcementMonthly() }

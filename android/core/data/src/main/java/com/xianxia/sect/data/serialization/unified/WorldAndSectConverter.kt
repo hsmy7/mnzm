@@ -279,7 +279,8 @@ internal class WorldAndSectConverter {
             sectId2 = relation.sectId2 ?: "",
             favor = relation.favor ?: 0,
             lastInteractionYear = relation.lastInteractionYear ?: 0,
-            noGiftYears = relation.noGiftYears ?: 0
+            noGiftYears = relation.noGiftYears ?: 0,
+            acquainted = relation.acquainted
         )
     }
 
@@ -289,7 +290,8 @@ internal class WorldAndSectConverter {
             sectId2 = data.sectId2,
             favor = data.favor,
             lastInteractionYear = data.lastInteractionYear,
-            noGiftYears = data.noGiftYears
+            noGiftYears = data.noGiftYears,
+            acquainted = data.acquainted
         )
     }
 

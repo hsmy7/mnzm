@@ -29,78 +29,6 @@ class FavorEventProcessor @Inject constructor(
         private const val TAG = "FavorEventProcessor"
     }
 
-    // ═══════════ 外交月度事件 ═══════════
-
-    /**
-     * 月度外交事件处理（带每月上限的封装版本）。
-     */
-    fun processMonthlyFavorEventsCapped(year: Int, month: Int) {
-        val currentAbsoluteMonth =
-            com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(year, month)
-        if (currentAbsoluteMonth != sharedState.diplomacyEventsMonth) {
-            sharedState.diplomacyEventsMonth = currentAbsoluteMonth
-            sharedState.diplomacyEventsThisMonth = 0
-        }
-        if (sharedState.diplomacyEventsThisMonth >= 2) return
-        sharedState.diplomacyEventsThisMonth++
-        processMonthlyFavorEvents(year, month)
-    }
-
-    /**
-     * 月度外交事件处理：对所有关系以 1% 概率触发好感度变化事件。
-     */
-    fun processMonthlyFavorEvents(year: Int, month: Int) {
-        stateStore.update {
-            val playerSect = gameData.worldMapSects.find { it.isPlayerSect } ?: return@update
-            val playerSectId = playerSect.id
-            val updatedRelations = gameData.sectRelations.toMutableList()
-            var relationsChanged = false
-
-            val allEvents = DiplomaticEventConfig.Events.ALL_EVENTS
-
-            for (relation in gameData.sectRelations) {
-                if (kotlin.random.Random.nextDouble() >= DiplomaticEventConfig.MONTHLY_TRIGGER_CHANCE) continue
-
-                val involvesPlayer = relation.sectId1 == playerSectId || relation.sectId2 == playerSectId
-                val sect1 = gameData.worldMapSects.find { it.id == relation.sectId1 }
-                val sect2 = gameData.worldMapSects.find { it.id == relation.sectId2 }
-                if (sect1 == null || sect2 == null) continue
-
-                val isSameAlignment = sect1.isRighteous == sect2.isRighteous
-                val isAllied = sect1.allianceId.isNotEmpty() && sect1.allianceId == sect2.allianceId
-
-                val eligibleEvents = allEvents.filter { event ->
-                    when {
-                        event.requiresPlayer && !involvesPlayer -> false
-                        event.requiresSameAlignment && !isSameAlignment -> false
-                        event.requiresOpposingAlignment && isSameAlignment -> false
-                        event.requiresAlliance && !isAllied -> false
-                        else -> true
-                    }
-                }
-
-                if (eligibleEvents.isEmpty()) continue
-
-                val eventDef = eligibleEvents.random()
-                val favorChange = eventDef.favorChange
-                val newFavor = (relation.favor + favorChange)
-                    .coerceIn(GameConfig.Diplomacy.MIN_FAVOR, GameConfig.Diplomacy.MAX_FAVOR)
-
-                val index = updatedRelations.indexOfFirst {
-                    it.sectId1 == relation.sectId1 && it.sectId2 == relation.sectId2
-                }
-                if (index >= 0) {
-                    updatedRelations[index] = updatedRelations[index].copy(favor = newFavor)
-                    relationsChanged = true
-                }
-            }
-
-            if (relationsChanged) {
-                gameData = gameData.copy(sectRelations = updatedRelations.toList())
-            }
-        }
-    }
-
     // ═══════════ 好感度衰减 ═══════════
 
     /**
@@ -112,6 +40,9 @@ class FavorEventProcessor @Inject constructor(
             val playerSect = gameData.worldMapSects.find { it.isPlayerSect } ?: return@update
 
             val updatedRelations = gameData.sectRelations.map { relation ->
+                // 跳过未相识的关系
+                if (!relation.acquainted) return@map relation
+
                 val involvesPlayer =
                     relation.sectId1 == playerSect.id || relation.sectId2 == playerSect.id
                 if (!involvesPlayer) return@map relation

@@ -783,7 +783,8 @@ data class SerializableSectRelation(
     @ProtoNumber(2) val sectId2: String,
     @ProtoNumber(3) val favor: Int,
     @ProtoNumber(4) val lastInteractionYear: Int,
-    @ProtoNumber(5) val noGiftYears: Int
+    @ProtoNumber(5) val noGiftYears: Int,
+    @ProtoNumber(6) val acquainted: Boolean = false
 )
 
 @Serializable

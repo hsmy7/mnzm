@@ -26,12 +26,6 @@ class DiplomacyEventProcessor @Inject constructor(
         private const val TAG = "DiplomacyEventProc"
     }
 
-    // ── 好感度月度事件（委托 FavorEventProcessor）────
-
-    fun processDiplomacyMonthlyEventsCapped(year: Int, month: Int) {
-        favorEventProcessor.processMonthlyFavorEventsCapped(year, month)
-    }
-
     // ── 好感度衰减（委托 FavorEventProcessor）────
 
     fun processFavorDecay(currentYear: Int) {

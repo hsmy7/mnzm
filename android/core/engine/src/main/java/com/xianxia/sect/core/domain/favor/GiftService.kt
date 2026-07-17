@@ -151,8 +151,11 @@ class GiftService @Inject constructor(
             val livePlayerSect = gameData.worldMapSects.find { it.isPlayerSect }
             if (livePlayerSect == null) return@update
 
+            val acquaintedRelations = FavorDomain.setAcquainted(
+                gameData.sectRelations, livePlayerSect.id, sectId, gameData.gameYear
+            )
             val liveUpdatedRelations = FavorDomain.updateFavor(
-                gameData.sectRelations, livePlayerSect.id, sectId, newFavor, gameData.gameYear
+                acquaintedRelations, livePlayerSect.id, sectId, newFavor, gameData.gameYear
             )
 
             val liveUpdatedDetails = gameData.sectDetails.toMutableMap()

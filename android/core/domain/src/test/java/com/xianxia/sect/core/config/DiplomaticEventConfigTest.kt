@@ -6,16 +6,6 @@ import org.junit.Test
 class DiplomaticEventConfigTest {
 
     @Test
-    fun monthlyTriggerChance_is001() {
-        assertEquals(0.01, DiplomaticEventConfig.MONTHLY_TRIGGER_CHANCE, 0.0001)
-    }
-
-    @Test
-    fun allEvents_has16Events() {
-        assertEquals(16, DiplomaticEventConfig.Events.ALL_EVENTS.size)
-    }
-
-    @Test
     fun borderDispute_fields() {
         val e = DiplomaticEventConfig.Events.BORDER_DISPUTE
         assertEquals("border_dispute", e.id)
@@ -126,7 +116,25 @@ class DiplomaticEventConfigTest {
 
     @Test
     fun allEvents_haveNonBlankIdNameDescription() {
-        for (e in DiplomaticEventConfig.Events.ALL_EVENTS) {
+        val allEvents = listOf(
+            DiplomaticEventConfig.Events.BORDER_DISPUTE,
+            DiplomaticEventConfig.Events.RESOURCE_CONFLICT,
+            DiplomaticEventConfig.Events.DISCIPLE_CLASH,
+            DiplomaticEventConfig.Events.CULTURAL_EXCHANGE,
+            DiplomaticEventConfig.Events.JOINT_EXPEDITION,
+            DiplomaticEventConfig.Events.MUTUAL_AID,
+            DiplomaticEventConfig.Events.ALLIANCE_COOPERATION,
+            DiplomaticEventConfig.Events.TRADE_BOOM,
+            DiplomaticEventConfig.Events.TERRITORIAL_ENCROACHMENT,
+            DiplomaticEventConfig.Events.SPY_DISCOVERED,
+            DiplomaticEventConfig.Events.MARRIAGE_ALLIANCE,
+            DiplomaticEventConfig.Events.SAME_ALIGNMENT_BOND,
+            DiplomaticEventConfig.Events.OPPOSING_ALIGNMENT_CLASH,
+            DiplomaticEventConfig.Events.PLAYER_DISCIPLE_ENCOUNTER,
+            DiplomaticEventConfig.Events.PLAYER_ESCORT_MISSION,
+            DiplomaticEventConfig.Events.PLAYER_INSULT_INCIDENT
+        )
+        for (e in allEvents) {
             assertTrue("Event ${e.id} has blank id", e.id.isNotBlank())
             assertTrue("Event ${e.id} has blank name", e.name.isNotBlank())
             assertTrue("Event ${e.id} has blank description", e.description.isNotBlank())
@@ -135,7 +143,25 @@ class DiplomaticEventConfigTest {
 
     @Test
     fun negativeEvents_haveIsPositiveFalse_positiveEventsHaveIsPositiveTrue() {
-        for (e in DiplomaticEventConfig.Events.ALL_EVENTS) {
+        val allEvents = listOf(
+            DiplomaticEventConfig.Events.BORDER_DISPUTE,
+            DiplomaticEventConfig.Events.RESOURCE_CONFLICT,
+            DiplomaticEventConfig.Events.DISCIPLE_CLASH,
+            DiplomaticEventConfig.Events.CULTURAL_EXCHANGE,
+            DiplomaticEventConfig.Events.JOINT_EXPEDITION,
+            DiplomaticEventConfig.Events.MUTUAL_AID,
+            DiplomaticEventConfig.Events.ALLIANCE_COOPERATION,
+            DiplomaticEventConfig.Events.TRADE_BOOM,
+            DiplomaticEventConfig.Events.TERRITORIAL_ENCROACHMENT,
+            DiplomaticEventConfig.Events.SPY_DISCOVERED,
+            DiplomaticEventConfig.Events.MARRIAGE_ALLIANCE,
+            DiplomaticEventConfig.Events.SAME_ALIGNMENT_BOND,
+            DiplomaticEventConfig.Events.OPPOSING_ALIGNMENT_CLASH,
+            DiplomaticEventConfig.Events.PLAYER_DISCIPLE_ENCOUNTER,
+            DiplomaticEventConfig.Events.PLAYER_ESCORT_MISSION,
+            DiplomaticEventConfig.Events.PLAYER_INSULT_INCIDENT
+        )
+        for (e in allEvents) {
             if (e.favorChange < 0) {
                 assertFalse("Event ${e.id} has negative favorChange but isPositive=true", e.isPositive)
             } else {
@@ -146,7 +172,25 @@ class DiplomaticEventConfigTest {
 
     @Test
     fun allEventIds_areUnique() {
-        val ids = DiplomaticEventConfig.Events.ALL_EVENTS.map { it.id }
+        val allEvents = listOf(
+            DiplomaticEventConfig.Events.BORDER_DISPUTE,
+            DiplomaticEventConfig.Events.RESOURCE_CONFLICT,
+            DiplomaticEventConfig.Events.DISCIPLE_CLASH,
+            DiplomaticEventConfig.Events.CULTURAL_EXCHANGE,
+            DiplomaticEventConfig.Events.JOINT_EXPEDITION,
+            DiplomaticEventConfig.Events.MUTUAL_AID,
+            DiplomaticEventConfig.Events.ALLIANCE_COOPERATION,
+            DiplomaticEventConfig.Events.TRADE_BOOM,
+            DiplomaticEventConfig.Events.TERRITORIAL_ENCROACHMENT,
+            DiplomaticEventConfig.Events.SPY_DISCOVERED,
+            DiplomaticEventConfig.Events.MARRIAGE_ALLIANCE,
+            DiplomaticEventConfig.Events.SAME_ALIGNMENT_BOND,
+            DiplomaticEventConfig.Events.OPPOSING_ALIGNMENT_CLASH,
+            DiplomaticEventConfig.Events.PLAYER_DISCIPLE_ENCOUNTER,
+            DiplomaticEventConfig.Events.PLAYER_ESCORT_MISSION,
+            DiplomaticEventConfig.Events.PLAYER_INSULT_INCIDENT
+        )
+        val ids = allEvents.map { it.id }
         assertEquals(ids.size, ids.toSet().size)
     }
 }

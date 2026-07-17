@@ -16,5 +16,6 @@ data class SectRelation(
     val sectId2: String,
     var favor: Int = FavorConfig.INITIAL_FAVOR,
     var lastInteractionYear: Int = 0,
-    var noGiftYears: Int = 0
+    var noGiftYears: Int = 0,
+    var acquainted: Boolean = false
 )

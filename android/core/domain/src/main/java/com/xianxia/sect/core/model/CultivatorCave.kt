@@ -216,7 +216,8 @@ enum class BattleType {
     PVP,
     SECT_WAR,
     CAVE_EXPLORATION,
-    SCOUT;
+    SCOUT,
+    ENCOUNTER;
 
     val displayName: String get() = when (this) {
         PVE -> "PVE战斗"
@@ -224,6 +225,7 @@ enum class BattleType {
         SECT_WAR -> "宗门战"
         CAVE_EXPLORATION -> "洞府探索"
         SCOUT -> "探查"
+        ENCOUNTER -> "遭遇战"
     }
 }
 

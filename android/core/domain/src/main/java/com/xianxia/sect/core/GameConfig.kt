@@ -824,6 +824,8 @@ object GameConfig {
         const val BEAST_TRIBUTE_RATIO = 0.30     // 上交灵石比例 30%
         const val BEAST_TRIBUTE_MIN = 20_000L    // 最少上交 2 万灵石
         const val BEAST_LOOT_RATIO = 0.50        // 掠夺比例 50%
+        const val BEAST_AI_ATTACK_BASE_CHANCE = 0.6  // AI妖兽基础攻击概率
+        const val BEAST_AI_ATTACK_POWER_RATIO = 1.0  // AI妖兽攻击战力系数
         const val SPIRIT_STONES_PER_ITEM = 20_000L  // 2万灵石=1物品
     }
     

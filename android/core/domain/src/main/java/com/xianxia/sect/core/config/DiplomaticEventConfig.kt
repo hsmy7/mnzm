@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.config
 
+@Deprecated("外交事件配置已废弃，不再使用")
 object DiplomaticEventConfig {
 
     data class DiplomaticEventDef(
@@ -13,8 +14,6 @@ object DiplomaticEventConfig {
         val requiresOpposingAlignment: Boolean = false,
         val requiresAlliance: Boolean = false
     )
-
-    const val MONTHLY_TRIGGER_CHANCE = 0.01
 
     object Events {
         val BORDER_DISPUTE = DiplomaticEventDef(
@@ -149,25 +148,6 @@ object DiplomaticEventConfig {
             favorChange = -4,
             isPositive = false,
             requiresPlayer = true
-        )
-
-        val ALL_EVENTS: List<DiplomaticEventDef> = listOf(
-            BORDER_DISPUTE,
-            RESOURCE_CONFLICT,
-            DISCIPLE_CLASH,
-            CULTURAL_EXCHANGE,
-            JOINT_EXPEDITION,
-            MUTUAL_AID,
-            ALLIANCE_COOPERATION,
-            TRADE_BOOM,
-            TERRITORIAL_ENCROACHMENT,
-            SPY_DISCOVERED,
-            MARRIAGE_ALLIANCE,
-            SAME_ALIGNMENT_BOND,
-            OPPOSING_ALIGNMENT_CLASH,
-            PLAYER_DISCIPLE_ENCOUNTER,
-            PLAYER_ESCORT_MISSION,
-            PLAYER_INSULT_INCIDENT
         )
     }
 }

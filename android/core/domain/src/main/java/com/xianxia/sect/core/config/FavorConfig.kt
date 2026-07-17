@@ -48,4 +48,9 @@ object FavorConfig {
 
     /** 联盟持续时间（年） */
     const val ALLIANCE_DURATION_YEARS = 5
+
+    // ═══════════ 邂逅好感度 ═══════════
+
+    /** 邂逅事件中好感度变化量（负值表示减少） */
+    const val ENCOUNTER_FAVOR_DELTA = -3
 }

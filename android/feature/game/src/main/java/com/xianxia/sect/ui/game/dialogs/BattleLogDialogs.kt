@@ -82,6 +82,7 @@ private fun resolveBattleTypeName(log: BattleLog): String = when (log.type) {
     BattleType.PVE ->
         if (log.details.contains("任务")) "任务战" else "妖兽战"
     BattleType.PVP -> "PVP战斗"
+    BattleType.ENCOUNTER -> "遭遇战"
 }
 
 @Composable

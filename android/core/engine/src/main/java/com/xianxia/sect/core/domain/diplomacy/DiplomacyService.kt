@@ -79,6 +79,16 @@ class DiplomacyService @Inject constructor(
 
         if (success) {
             stateStore.update {
+                // 确保双方已相识
+                gameData = gameData.copy(
+                    sectRelations = FavorDomain.setAcquainted(
+                        relations = gameData.sectRelations,
+                        sectId1 = "player",
+                        sectId2 = sectId,
+                        year = gameData.gameYear
+                    )
+                )
+
                 val alliance = Alliance(
                     id = UUID.randomUUID().toString(),
                     sectIds = listOf("player", sectId),
@@ -439,11 +449,23 @@ class DiplomacyService @Inject constructor(
     suspend fun buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int = 1) {
         stateStore.update {
             val v = validateSectTrade(gameData, sectId, itemId, quantity) ?: return@update
+
+            // 确保双方已相识
+            gameData = gameData.copy(
+                sectRelations = FavorDomain.setAcquainted(
+                    relations = gameData.sectRelations,
+                    sectId1 = "player",
+                    sectId2 = sectId,
+                    year = gameData.gameYear
+                )
+            )
+
             val deductResult = spiritStoneWallet.deduct(this, v.totalPrice, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
             if (deductResult !is DeductResult.Success) {
                 return@update
             }
             gameData = gameData.copy(
+                sectRelations = gameData.sectRelations,
                 sectDetails = v.updatedSectDetails
             )
             addSectTradeItemToMutableState(v.item, v.actualQuantity)

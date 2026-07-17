@@ -57,6 +57,34 @@ object FavorDomain {
         }
     }
 
+    // ═══════════ 相识判定 ═══════════
+
+    /**
+     * 判断一条关系记录是否已相识。
+     *
+     * @param relation 关系记录，可为 null
+     * @return 当 relation 非 null 且 acquainted == true 时返回 true
+     */
+    fun isAcquainted(relation: SectRelation?): Boolean {
+        return relation != null && relation.acquainted
+    }
+
+    /**
+     * 判断两个宗门之间是否已相识。
+     *
+     * @param relations 全量关系列表
+     * @param sectIdA 宗门 A ID
+     * @param sectIdB 宗门 B ID
+     * @return 当两个宗门之间存在关系且 acquainted == true 时返回 true
+     */
+    fun isAcquainted(
+        relations: List<SectRelation>,
+        sectIdA: String,
+        sectIdB: String
+    ): Boolean {
+        return isAcquainted(findRelation(relations, sectIdA, sectIdB))
+    }
+
     /**
      * 根据好感度数值获取关系等级。
      *
@@ -229,6 +257,8 @@ object FavorDomain {
     ): List<SectRelation> {
         val id1 = minOf(sectId1, sectId2)
         val id2 = maxOf(sectId1, sectId2)
+        val existingRelation = findRelation(relations, sectId1, sectId2)
+        if (existingRelation != null && !existingRelation.acquainted) return relations
         val clampedFavor = newFavor.coerceIn(FavorConfig.MIN_FAVOR, FavorConfig.MAX_FAVOR)
         val index = relations.indexOfFirst { it.sectId1 == id1 && it.sectId2 == id2 }
 
@@ -274,6 +304,47 @@ object FavorDomain {
     ): List<SectRelation> {
         val current = findFavor(relations, sectId1, sectId2)
         return updateFavor(relations, sectId1, sectId2, current + delta, year)
+    }
+
+    // ═══════════ 设置相识 ═══════════
+
+    /**
+     * 设置两个宗门之间为已相识状态（幂等操作）。
+     *
+     * - 如果关系已存在且已相识：不做任何修改，直接返回原列表
+     * - 如果关系不存在：创建新的关系记录，设置 acquainted = true
+     * - 如果关系存在但未相识：更新为 acquainted = true
+     *
+     * @param relations 全量关系列表
+     * @param sectId1 宗门1 ID
+     * @param sectId2 宗门2 ID
+     * @param year 当前年份（用于设置 lastInteractionYear）
+     * @return 更新后的关系列表
+     */
+    fun setAcquainted(
+        relations: List<SectRelation>,
+        sectId1: String,
+        sectId2: String,
+        year: Int = 0
+    ): List<SectRelation> {
+        val existingRelation = findRelation(relations, sectId1, sectId2)
+        if (existingRelation != null) {
+            if (existingRelation.acquainted) return relations
+            val id1 = minOf(sectId1, sectId2)
+            val id2 = maxOf(sectId1, sectId2)
+            val index = relations.indexOfFirst { it.sectId1 == id1 && it.sectId2 == id2 }
+            return relations.mapIndexed { i, relation ->
+                if (i == index) relation.copy(acquainted = true, lastInteractionYear = year) else relation
+            }
+        }
+        val id1 = minOf(sectId1, sectId2)
+        val id2 = maxOf(sectId1, sectId2)
+        return relations + SectRelation(
+            sectId1 = id1,
+            sectId2 = id2,
+            acquainted = true,
+            lastInteractionYear = year
+        )
     }
 
     // ═══════════ 衰减判定 ═══════════

@@ -1,0 +1,469 @@
+package com.xianxia.sect.core.domain.battle
+
+import com.xianxia.sect.core.CombatantSide
+import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.domain.FavorDomain
+import com.xianxia.sect.core.engine.domain.battle.Battle
+import com.xianxia.sect.core.engine.domain.battle.BattleSystem
+import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
+import com.xianxia.sect.core.engine.domain.battle.Combatant
+import com.xianxia.sect.core.exploration.DiscipleDeathHandler
+import com.xianxia.sect.core.model.BattleLog
+import com.xianxia.sect.core.model.BattleLogAction
+import com.xianxia.sect.core.model.BattleLogEnemy
+import com.xianxia.sect.core.model.BattleLogMember
+import com.xianxia.sect.core.model.BattleLogRound
+import com.xianxia.sect.core.model.BattleResult
+import com.xianxia.sect.core.model.BattleType
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.WorldLevel
+import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.util.DomainLog
+import javax.inject.Inject
+import javax.inject.Singleton
+
+/**
+ * 遭遇战服务。
+ *
+ * 处理宗门弟子在探索过程中与敌对宗门发生遭遇并随后与妖兽战斗的两阶段流程。
+ *
+ * Phase 1 — 遭遇战（PvP）：两队弟子对战，胜者进入 Phase 2。
+ * Phase 2 — 胜者 vs 妖兽（PvE）：胜者的幸存弟子与指定妖兽战斗。
+ *
+ * 所有修改在调用方提供的 [stateStore.update] 事务内完成，函数本身非挂起。
+ */
+@Singleton
+class EncounterBattleService @Inject constructor(
+    private val stateStore: GameStateStore,
+    private val battleSystem: BattleSystem,
+    private val deathHandler: DiscipleDeathHandler
+) {
+
+    companion object {
+        private const val TAG = "EncounterBattleService"
+        private const val ENCOUNTER_FAVOR_DELTA = -3
+    }
+
+    /**
+     * 执行完整的遭遇战。
+     *
+     * @param state     当前可变游戏状态（调用方确保在 [stateStore.update] 事务内）
+     * @param attackerA 遭遇战攻击方 A
+     * @param attackerB 遭遇战攻击方 B
+     * @param beast     目标妖兽关卡
+     * @param year      当前游戏年份
+     * @param month     当前游戏月份
+     */
+    fun encounter(
+        state: MutableGameState,
+        attackerA: EncounterAttacker,
+        attackerB: EncounterAttacker,
+        beast: WorldLevel,
+        year: Int,
+        month: Int
+    ) {
+        val isPlayerVsAI = attackerA.isPlayer != attackerB.isPlayer
+        DomainLog.i(TAG, "遭遇战: ${attackerA.sectName} vs ${attackerB.sectName}, " +
+            "playerVsAI=$isPlayerVsAI, beast=${beast.beastName}")
+
+        // ── 构建装备/功法/熟练度映射 ──
+        val equipmentMap = state.equipmentInstances.associateBy { it.id }
+        val manualMap = state.manualInstances.associateBy { it.id }
+        val allProficiencies = state.gameData.manualProficiencies.mapValues { (_, list) ->
+            list.associateBy { it.manualId }
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // Phase 1 — 遭遇战（PvP）
+        // ═══════════════════════════════════════════════════════
+
+        val teamACombatants = attackerA.teamDisciples.map { disciple ->
+            battleSystem.convertDiscipleToCombatant(
+                disciple = disciple,
+                equipmentMap = equipmentMap,
+                manualMap = manualMap,
+                manualProficiencies = allProficiencies,
+                side = CombatantSide.DEFENDER,
+                fullHeal = true
+            )
+        }
+        val teamBCombatants = attackerB.teamDisciples.map { disciple ->
+            battleSystem.convertDiscipleToCombatant(
+                disciple = disciple,
+                equipmentMap = equipmentMap,
+                manualMap = manualMap,
+                manualProficiencies = allProficiencies,
+                side = CombatantSide.ATTACKER,
+                fullHeal = true
+            )
+        }
+
+        // 构建双方均有 Combatant 的战斗（team=DEFENDER 方，beasts=ATTACKER 方）
+        val pvpBattle = Battle(
+            team = teamACombatants,
+            beasts = teamBCombatants,
+            maxTurns = GameConfig.Battle.MAX_TURNS
+        )
+        val pvpResult = battleSystem.executeBattle(pvpBattle)
+
+        // 判定 Phase 1 胜方/败方
+        val winnerP1: EncounterAttacker
+        val loserP1: EncounterAttacker
+        val winnerCombatantsP1: List<Combatant>
+        val loserCombatantsP1: List<Combatant>
+
+        if (pvpResult.victory) {
+            // team (DEFENDER) = attackerA 获胜
+            winnerP1 = attackerA; loserP1 = attackerB
+            winnerCombatantsP1 = pvpResult.battle.team
+            loserCombatantsP1 = pvpResult.battle.beasts
+        } else {
+            // beasts (ATTACKER) = attackerB 获胜
+            winnerP1 = attackerB; loserP1 = attackerA
+            winnerCombatantsP1 = pvpResult.battle.beasts
+            loserCombatantsP1 = pvpResult.battle.team
+        }
+
+        val winnerAliveIdsP1 = winnerCombatantsP1
+            .filter { !it.isDead }.map { it.id }.toSet()
+        val loserDeadIdsP1 = loserCombatantsP1
+            .filter { it.isDead }.map { it.id }.toSet()
+        val winnerDeadIdsP1 = winnerCombatantsP1
+            .filter { it.isDead }.map { it.id }.toSet()
+
+        DomainLog.i(TAG, "Phase 1 结果: ${winnerP1.sectName} 胜, " +
+            "胜方存活=${winnerAliveIdsP1.size}, 败方阵亡=${loserDeadIdsP1.size}")
+
+        // ── Phase 1 死亡处理 ──
+        applyDeathsForSect(state, loserP1, loserDeadIdsP1, year)
+        applyDeathsForSect(state, winnerP1, winnerDeadIdsP1, year)
+
+        // ── 好感度变更（仅 playerVsAI） ──
+        if (isPlayerVsAI) {
+            val playerSectId = if (attackerA.isPlayer) attackerA.sectId else attackerB.sectId
+            val aiSectId = if (attackerA.isPlayer) attackerB.sectId else attackerA.sectId
+            var relations = FavorDomain.setAcquainted(
+                state.gameData.sectRelations, playerSectId, aiSectId, year
+            )
+            relations = FavorDomain.modifyFavor(
+                relations, playerSectId, aiSectId, ENCOUNTER_FAVOR_DELTA, year
+            )
+            state.gameData = state.gameData.copy(sectRelations = relations)
+        }
+
+        // ── 构建 Phase 1 战斗日志 ──
+        val p1Log = buildPhase1Log(
+            attackerA = attackerA,
+            attackerB = attackerB,
+            pvpResult = pvpResult,
+            winnerP1 = winnerP1,
+            year = year,
+            month = month,
+            loserDeadIds = loserDeadIdsP1
+        )
+        state.battleLogs = (state.battleLogs + p1Log)
+            .takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
+
+        // ═══════════════════════════════════════════════════════
+        // Phase 2 — 胜方 vs 妖兽
+        // ═══════════════════════════════════════════════════════
+
+        val winnerSurvivors = winnerP1.teamDisciples
+            .filter { it.id in winnerAliveIdsP1 }
+
+        if (winnerSurvivors.isEmpty()) {
+            DomainLog.w(TAG, "Phase 1 胜方 ${winnerP1.sectName} 无幸存弟子，跳过 Phase 2")
+            return
+        }
+
+        // 构建妖兽预计算属性
+        val beastPreGenStats = if (beast.beastMaxHp > 0) {
+            BattleSystem.BeastPreGenStats(
+                maxHp = beast.beastMaxHp,
+                maxMp = beast.beastMaxMp,
+                physicalAttack = beast.beastPhysicalAttack,
+                magicAttack = beast.beastMagicAttack,
+                physicalDefense = beast.beastPhysicalDefense,
+                magicDefense = beast.beastMagicDefense,
+                speed = beast.beastSpeed,
+                realmLayer = beast.realmLayer
+            )
+        } else null
+
+        val beastTypeIndex = beast.beastType
+        val beastTypeName = if (beastTypeIndex != null) {
+            GameConfig.Beast.getType(beastTypeIndex).name
+        } else null
+
+        val pveBattle = battleSystem.createBattle(
+            disciples = winnerSurvivors,
+            equipmentMap = equipmentMap,
+            manualMap = manualMap,
+            beastLevel = beast.realm,
+            beastCount = beast.count,
+            beastType = beastTypeName,
+            manualProficiencies = allProficiencies,
+            beastPreGenStats = beastPreGenStats
+        )
+        val pveResult = battleSystem.executeBattle(pveBattle)
+
+        DomainLog.i(TAG, "Phase 2 结果: ${winnerP1.sectName} " +
+            if (pveResult.victory) "击败了" else "被" + "妖兽击败")
+
+        // ── Phase 2 死亡处理 ──
+        val p2DeadIds = pveResult.battle.team
+            .filter { it.isDead }.map { it.id }.toSet()
+        applyDeathsForSect(state, winnerP1, p2DeadIds, year)
+
+        // ── 击败标记 ──
+        if (pveResult.victory) {
+            state.gameData = state.gameData.copy(
+                worldLevels = state.gameData.worldLevels.map { wl ->
+                    if (wl.id == beast.id) wl.copy(defeated = true) else wl
+                }
+            )
+        }
+
+        // ── 构建 Phase 2 战斗日志 ──
+        val p2Log = buildPhase2Log(
+            winner = winnerP1,
+            beast = beast,
+            pveResult = pveResult,
+            year = year,
+            month = month,
+            p2DeadIds = p2DeadIds
+        )
+        state.battleLogs = (state.battleLogs + p2Log)
+            .takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // 死亡处理
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * 根据宗门类型应用弟子阵亡。
+     *
+     * 玩家弟子：通过 [DiscipleDeathHandler] 标记死亡 + deathYears。
+     * AI 弟子：标记死亡但保留在列表中（与 [AISectBeastAttackProcessor.handleAIDeaths] 一致）。
+     */
+    private fun applyDeathsForSect(
+        state: MutableGameState,
+        attacker: EncounterAttacker,
+        deadIds: Set<String>,
+        year: Int
+    ) {
+        if (deadIds.isEmpty()) return
+
+        if (attacker.isPlayer) {
+            // 玩家弟子死亡 — 死战到底，装备不归还
+            deathHandler.markAllDead(state.discipleTables, deadIds, year)
+        } else {
+            // AI 弟子死亡 — 标记死亡但保留在列表中
+            state.gameData = state.gameData.copy(
+                aiSectDisciples = state.gameData.aiSectDisciples.mapValues { (sectId, disciples) ->
+                    if (sectId == attacker.sectId) {
+                        disciples.map { d ->
+                            if (d.id in deadIds) d.copy(
+                                isAlive = false,
+                                status = DiscipleStatus.DEAD
+                            ) else d
+                        }
+                    } else {
+                        disciples
+                    }
+                }
+            )
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // 战斗日志构建
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * 构建 Phase 1 (PvP) 的战斗日志。
+     */
+    private fun buildPhase1Log(
+        attackerA: EncounterAttacker,
+        attackerB: EncounterAttacker,
+        pvpResult: BattleSystemResult,
+        winnerP1: EncounterAttacker,
+        year: Int,
+        month: Int,
+        loserDeadIds: Set<String>
+    ): BattleLog {
+        val teamMembers = pvpResult.battle.team.map { m ->
+            BattleLogMember(
+                id = m.id,
+                name = m.name,
+                realm = m.realm,
+                realmName = m.realmName,
+                realmLayer = m.realmLayer,
+                hp = m.hp,
+                maxHp = m.maxHp,
+                mp = m.mp,
+                maxMp = m.maxMp,
+                isAlive = !m.isDead,
+                portraitRes = m.portraitRes
+            )
+        }
+        val enemies = pvpResult.battle.beasts.map { b ->
+            BattleLogEnemy(
+                id = b.id,
+                name = b.name,
+                realm = b.realm,
+                realmName = b.realmName,
+                realmLayer = b.realmLayer,
+                hp = b.hp,
+                maxHp = b.maxHp,
+                isAlive = !b.isDead,
+                portraitRes = b.portraitRes
+            )
+        }
+        val rounds = pvpResult.log.rounds.map { r ->
+            BattleLogRound(
+                roundNumber = r.roundNumber,
+                actions = r.actions.map { a ->
+                    BattleLogAction(
+                        type = a.type,
+                        attacker = a.attacker,
+                        attackerType = a.attackerType,
+                        target = a.target,
+                        damage = a.damage,
+                        damageType = a.damageType,
+                        isCrit = a.isCrit,
+                        isKill = a.isKill,
+                        message = a.message,
+                        skillName = a.skillName
+                    )
+                }
+            )
+        }
+
+        val isWinnerA = winnerP1.sectId == attackerA.sectId
+        val result = if (isWinnerA) BattleResult.WIN else BattleResult.LOSE
+        val details = "${winnerP1.sectName}在遭遇战中战胜了${
+            if (isWinnerA) attackerB.sectName else attackerA.sectName
+        }"
+
+        return BattleLog(
+            year = year,
+            month = month,
+            type = BattleType.ENCOUNTER,
+            attackerName = attackerA.sectName,
+            defenderName = attackerB.sectName,
+            result = result,
+            teamMembers = teamMembers,
+            enemies = enemies,
+            rounds = rounds,
+            turns = pvpResult.turnCount,
+            teamCasualties = attackerA.teamDisciples.size -
+                pvpResult.battle.team.count { !it.isDead },
+            beastsDefeated = loserDeadIds.size,
+            details = details
+        )
+    }
+
+    /**
+     * 构建 Phase 2 (PvE) 的战斗日志。
+     */
+    private fun buildPhase2Log(
+        winner: EncounterAttacker,
+        beast: WorldLevel,
+        pveResult: BattleSystemResult,
+        year: Int,
+        month: Int,
+        p2DeadIds: Set<String>
+    ): BattleLog {
+        val teamMembers = pveResult.battle.team.map { m ->
+            BattleLogMember(
+                id = m.id,
+                name = m.name,
+                realm = m.realm,
+                realmName = m.realmName,
+                realmLayer = m.realmLayer,
+                hp = m.hp,
+                maxHp = m.maxHp,
+                mp = m.mp,
+                maxMp = m.maxMp,
+                isAlive = !m.isDead,
+                portraitRes = m.portraitRes
+            )
+        }
+        val enemies = pveResult.battle.beasts.map { b ->
+            BattleLogEnemy(
+                id = b.id,
+                name = b.name,
+                realm = b.realm,
+                realmName = b.realmName,
+                realmLayer = b.realmLayer,
+                hp = b.hp,
+                maxHp = b.maxHp,
+                isAlive = !b.isDead,
+                portraitRes = b.portraitRes
+            )
+        }
+        val rounds = pveResult.log.rounds.map { r ->
+            BattleLogRound(
+                roundNumber = r.roundNumber,
+                actions = r.actions.map { a ->
+                    BattleLogAction(
+                        type = a.type,
+                        attacker = a.attacker,
+                        attackerType = a.attackerType,
+                        target = a.target,
+                        damage = a.damage,
+                        damageType = a.damageType,
+                        isCrit = a.isCrit,
+                        isKill = a.isKill,
+                        message = a.message,
+                        skillName = a.skillName
+                    )
+                }
+            )
+        }
+
+        val result = if (pveResult.victory) BattleResult.WIN else BattleResult.LOSE
+        val beastName = beast.beastName.ifEmpty { "妖兽" }
+        val details = if (pveResult.victory) {
+            "${winner.sectName}击败了${beastName}"
+        } else {
+            "${winner.sectName}被${beastName}击败"
+        }
+
+        return BattleLog(
+            year = year,
+            month = month,
+            type = BattleType.PVE,
+            attackerName = "${winner.sectName}队伍",
+            defenderName = beastName,
+            result = result,
+            teamMembers = teamMembers,
+            enemies = enemies,
+            rounds = rounds,
+            turns = pveResult.turnCount,
+            teamCasualties = p2DeadIds.size,
+            beastsDefeated = if (pveResult.victory) beast.count
+                else pveResult.battle.beasts.count { it.isDead },
+            details = details
+        )
+    }
+}
+
+/**
+ * 遭遇战攻击方数据类。
+ *
+ * @param sectId        宗门 ID
+ * @param sectName      宗门名称
+ * @param isPlayer      是否为玩家宗门
+ * @param teamDisciples 出战弟子列表（原班进攻妖兽的队伍）
+ */
+data class EncounterAttacker(
+    val sectId: String,
+    val sectName: String,
+    val isPlayer: Boolean,
+    val teamDisciples: List<Disciple>
+)

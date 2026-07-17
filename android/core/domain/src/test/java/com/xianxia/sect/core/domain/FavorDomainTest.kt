@@ -229,7 +229,7 @@ class FavorDomainTest {
 
     @Test
     fun `updateFavor - 已有关关系时更新`() {
-        val relations = listOf(SectRelation(sectId1 = "a", sectId2 = "b", favor = 30, lastInteractionYear = 1))
+        val relations = listOf(SectRelation(sectId1 = "a", sectId2 = "b", favor = 30, lastInteractionYear = 1, acquainted = true))
         val result = FavorDomain.updateFavor(relations, "a", "b", 80, 5)
         assertEquals(80, result[0].favor)
         assertEquals(5, result[0].lastInteractionYear)
@@ -249,14 +249,14 @@ class FavorDomainTest {
 
     @Test
     fun `modifyFavor - 增量增减`() {
-        val relations = listOf(SectRelation(sectId1 = "a", sectId2 = "b", favor = 50))
+        val relations = listOf(SectRelation(sectId1 = "a", sectId2 = "b", favor = 50, acquainted = true))
         val result = FavorDomain.modifyFavor(relations, "a", "b", 20, 2)
         assertEquals(70, result[0].favor)
     }
 
     @Test
     fun `modifyFavor - 负增量`() {
-        val relations = listOf(SectRelation(sectId1 = "a", sectId2 = "b", favor = 50))
+        val relations = listOf(SectRelation(sectId1 = "a", sectId2 = "b", favor = 50, acquainted = true))
         val result = FavorDomain.modifyFavor(relations, "a", "b", -30, 2)
         assertEquals(20, result[0].favor)
     }
