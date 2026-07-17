@@ -10,6 +10,7 @@ import com.xianxia.sect.core.state.WriteGuardRule
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import org.mockito.Mockito.mock
 import org.junit.runner.RunWith
 import org.junit.Rule
 import org.robolectric.RobolectricTestRunner
@@ -33,7 +34,7 @@ class RelativeGiftHandlerTest {
 
     @Before
     fun setUp() {
-        handler = RelativeGiftHandler()
+        handler = RelativeGiftHandler(mock())
         tables = DiscipleTables()
         state = MutableGameState(
             gameData = GameData(id = "test", gameYear = 1, gameMonth = 1),
