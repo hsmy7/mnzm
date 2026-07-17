@@ -23,6 +23,7 @@ fun DiscipleDesertionDialog(
     StandardPromptDialog(
         onDismissRequest = onDismiss,
         title = "${disciple.name}脱离了宗门",
+        dismissOnClickOutside = true,
         confirmLabel = "知道了",
         onConfirm = onDismiss
     ) {
@@ -49,6 +50,7 @@ fun DiscipleTheftDesertionDialog(
     StandardPromptDialog(
         onDismissRequest = onDismiss,
         title = "${disciple.name}偷盗后叛逃",
+        dismissOnClickOutside = true,
         confirmLabel = "知道了",
         onConfirm = onDismiss
     ) {
@@ -77,7 +79,7 @@ fun DiscipleTheftCaughtDialog(
         onDismissRequest = onDismiss,
         title = "${disciple.name}偷盗被捕",
         dismissOnBackPress = false,
-        dismissOnClickOutside = false,
+        dismissOnClickOutside = true,
         confirmLabel = "知道了",
         onConfirm = onDismiss
     ) {

@@ -153,12 +153,12 @@ fun StandardPromptDialog(
     val dialogHeight = (config.screenHeightDp * 0.55f).dp
 
     Dialog(
-        onDismissRequest = if (dismissOnClickOutside) onDismissRequest else {{}},
+        onDismissRequest = onDismissRequest,
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
             decorFitsSystemWindows = false,
             dismissOnBackPress = dismissOnBackPress,
-            dismissOnClickOutside = dismissOnClickOutside
+            dismissOnClickOutside = false
         )
     ) {
         // 在 Dialog 窗口内切换 softInputMode，切断 HyperOS 震荡回路
@@ -180,12 +180,32 @@ fun StandardPromptDialog(
 
         Box(
             modifier = Modifier
-                .width(dialogWidth)
-                .height(dialogHeight)
-                .clip(RoundedCornerShape(12.dp)),
+                .fillMaxSize()
+                .background(Color(0x99000000))
+                .then(
+                    if (dismissOnClickOutside) {
+                        Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onDismissRequest
+                        )
+                    } else Modifier
+                ),
             contentAlignment = Alignment.Center
         ) {
-            Image(
+            Box(
+                modifier = Modifier
+                    .width(dialogWidth)
+                    .height(dialogHeight)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {}
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
                 painter = painterResource(id = dialogBackgroundRes),
                 contentDescription = null,
                 modifier = Modifier.matchParentSize(),
@@ -283,6 +303,7 @@ fun StandardPromptDialog(
                         }
                     }
                 }
+            }
             }
         }
     }
