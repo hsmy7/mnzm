@@ -475,6 +475,15 @@ class DiscipleTables {
      */
     fun replaceAll(disciples: List<Disciple>) {
         requireWriteAccess()
+        // 在清除前保存 deathYears，writeAllFields 不写入此表
+        val savedDeathYears = mutableMapOf<Int, Int>()
+        synchronized(ids) {
+            for (id in ids) {
+                if (deathYears.contains(id)) {
+                    savedDeathYears[id] = deathYears[id]
+                }
+            }
+        }
         synchronized(ids) {
             ids.clear()
             _allCopyableRefs.forEach { it.clear() }
@@ -484,6 +493,10 @@ class DiscipleTables {
                 "replaceAll: 弟子列表包含重复 ID（编程错误），列表大小=${newIds.size}"
             }
             ids.addAll(newIds)
+            // 恢复死亡年份（仅对仍在列表中的弟子）
+            savedDeathYears.forEach { (id, year) ->
+                if (id in ids) deathYears[id] = year
+            }
             markMutated()
         }
         assertAllTablesConsistent()

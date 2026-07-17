@@ -55,10 +55,13 @@ class DiscipleLifecycleProcessor @Inject constructor(
     }
 
     fun processDiscipleAging(currentYear: Int) {
-        val data = stateStore.gameData.value
-        val currentList = stateStore.disciples.value
-        val updatedDisciples = currentList.mapNotNull { disciple ->
-            if (!disciple.isAlive) return@mapNotNull disciple
+        // 从组件表读取，不依赖 Flow（防止 Flow 缺失数据被 replaceAll 永久覆盖）
+        val currentList = stateStore.discipleTables.assembleAll()
+        val deadThisYear = mutableSetOf<Int>()
+
+        // 第一阶段：判断生死、标记回生
+        for (disciple in currentList) {
+            if (!disciple.isAlive) continue
 
             var agedDisciple = disciple.copy(age = disciple.age + 1)
 
@@ -72,24 +75,48 @@ class DiscipleLifecycleProcessor @Inject constructor(
             val talentLifespan = (realmMaxAge * (1.0 + lifespanBonus)).toInt().coerceAtLeast(1)
             val maxAge = maxOf(agedDisciple.lifespan, realmMaxAge, talentLifespan)
             if (agedDisciple.age >= maxAge) {
-                handleDiscipleDeath(agedDisciple)
-                null
-            } else {
-                agedDisciple
+                deadThisYear.add(disciple.id.toInt())
             }
         }
 
-        stateStore.update {
-            discipleTables.replaceAll(updatedDisciples)
+        // 第二阶段：处理死亡（handleDiscipleDeath 内部有自己的 stateStore.update，
+        // 处理哀悼期传播、装备/功法清理等）
+        for (disciple in currentList) {
+            val id = disciple.id.toIntOrNull() ?: continue
+            if (id in deadThisYear) {
+                handleDiscipleDeath(disciple.copy(age = disciple.age + 1))
+            }
+        }
 
-            // 安全网：deathYears 由各个死亡路径的 markDead/handleDiscipleDeath 设置，
-            // 此处仅对极少数遗漏情况（如旧存档兼容）做补充
-            for (d in updatedDisciples) {
-                if (!d.isAlive) {
-                    val id = d.id.toIntOrNull() ?: continue
-                    if (!discipleTables.deathYears.contains(id)) {
-                        discipleTables.deathYears[id] = currentYear
-                    }
+        // 从组件表移除死亡弟子，保留死亡记录和 deathYears（handleDiscipleDeath 写入死亡年份但不移除成员）
+        stateStore.update {
+            for (disciple in currentList) {
+                val id = disciple.id.toIntOrNull() ?: continue
+                if (id !in deadThisYear) continue
+                val deathYear = discipleTables.deathYears.getOrDefault(id, currentYear)
+                discipleTables.deathRecords.add(DeathRecord(
+                    id = id, name = disciple.name, surname = disciple.surname,
+                    realm = disciple.realm, realmLayer = disciple.realmLayer,
+                    deathAge = disciple.age + 1, deathYear = deathYear, cause = "age"
+                ))
+                discipleTables.remove(id)
+                // remove 会清空 deathYears，重新写入以保留记录
+                discipleTables.deathYears[id] = deathYear
+            }
+        }
+
+        // 第三阶段：活弟子字段级更新（不 replaceAll，避免覆盖死亡处理写入的 deathYears/哀悼期）
+        stateStore.update {
+            for (disciple in currentList) {
+                val id = disciple.id.toIntOrNull() ?: continue
+                if (id in deadThisYear) continue
+                if (!disciple.isAlive) continue
+
+                val agedAge = disciple.age + 1
+                discipleTables.ages[id] = agedAge
+                if (agedAge == 5 && disciple.realmLayer == 0) {
+                    discipleTables.realmLayers[id] = 1
+                    discipleTables.statuses[id] = DiscipleStatus.IDLE
                 }
             }
         }
