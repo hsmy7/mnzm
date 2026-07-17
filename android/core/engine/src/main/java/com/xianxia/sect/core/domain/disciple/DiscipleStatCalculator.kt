@@ -1252,4 +1252,40 @@ object DiscipleStatCalculator {
         }
         return updated
     }
+
+    /**
+     * 计算所有存活亲属的悲痛结束年份映射。
+     *
+     * 与 [applyGriefToRelatives] 逻辑相同，但返回 `Map<Int, Int>`
+     * 而非全量 `List<Disciple>`，便于直接列写入 griefEndYears。
+     *
+     * @param disciples 当前弟子列表
+     * @param deceasedList 阵亡/逝世的弟子列表
+     * @param currentYear 当前游戏年份
+     * @return Map<Int, Int> 弟子ID → griefEndYear（仅包含需更新的弟子）
+     */
+    fun computeGriefEndYearMap(
+        disciples: List<Disciple>,
+        deceasedList: List<Disciple>,
+        currentYear: Int
+    ): Map<Int, Int> {
+        val griefEndYear = currentYear + 1
+        val result = mutableMapOf<Int, Int>()
+        for (deceased in deceasedList) {
+            for (d in disciples) {
+                if (!d.isAlive || d.id == deceased.id) continue
+                if (areRelatives(d, deceased)) {
+                    val idInt = d.id.toIntOrNull() ?: continue
+                    val existingGriefEnd = d.social.griefEndYear
+                    val newGriefEnd = if (existingGriefEnd != null && existingGriefEnd > griefEndYear) existingGriefEnd else griefEndYear
+                    // 取最大值（多个逝者时取最长的悲痛期）
+                    val currentMax = result[idInt]
+                    if (currentMax == null || newGriefEnd > currentMax) {
+                        result[idInt] = newGriefEnd
+                    }
+                }
+            }
+        }
+        return result
+    }
 }

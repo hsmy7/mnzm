@@ -73,12 +73,13 @@ class ExplorationTeamManager @Inject constructor(
                 this.teams = mutableTeams
             }
 
-            // 更新弟子状态为 IDLE
-            val currentList = discipleTables.assembleAll()
-            val updated = currentList.map {
-                if (it.id == discipleId) it.copy(status = DiscipleStatus.IDLE) else it
+            // 更新弟子状态为 IDLE（列直写）
+            val idInt = discipleId.toIntOrNull()
+            if (idInt != null && discipleTables.isAlive.contains(idInt) &&
+                discipleTables.isAlive[idInt] == 1
+            ) {
+                discipleTables.statuses[idInt] = DiscipleStatus.IDLE
             }
-            discipleTables.replaceAll(updated)
 
             DomainLog.d(TAG, "recallDiscipleFromTeam: team=$teamId, disciple=$discipleId")
             true
@@ -117,43 +118,45 @@ class ExplorationTeamManager @Inject constructor(
             this.teams = mutableTeams
 
             val deadEvents = mutableListOf<DeathEvent>()
-            val currentList = discipleTables.assembleAll()
-            var modifiedList = currentList
 
+            // ★ 列直写替代 assembleAll → map → replaceAll
             team.memberIds.forEach { memberId ->
+                val idInt = memberId.toIntOrNull()
                 if (memberId in survivorIds) {
-                    modifiedList = modifiedList.map {
-                        if (it.id == memberId) it.copy(status = DiscipleStatus.IDLE) else it
+                    // 存活弟子：状态置 IDLE
+                    if (idInt != null && discipleTables.isAlive.contains(idInt) &&
+                        discipleTables.isAlive[idInt] == 1
+                    ) {
+                        discipleTables.statuses[idInt] = DiscipleStatus.IDLE
                     }
                 } else {
-                    val deadDisciple = currentList.find { it.id == memberId }
-                    modifiedList = modifiedList.map {
-                        if (it.id == memberId) it.copy(
-                            isAlive = false,
-                            status = DiscipleStatus.DEAD
-                        ) else it
-                    }
-                    if (deadDisciple != null) {
-                        deadEvents.add(
-                            DeathEvent(deadDisciple.id, deadDisciple.name, "探索阵亡")
-                        )
+                    // 阵亡弟子：收集死亡事件 + markDead
+                    val name = if (idInt != null) {
+                        discipleTables.names.getOrNull(idInt) ?: memberId
+                    } else memberId
+                    deadEvents.add(DeathEvent(memberId, name, "探索阵亡"))
+                    if (idInt != null) {
+                        discipleTables.markDead(idInt, team.startYear, "exploration")
                     }
                 }
             }
 
-            // 仅成功时对亲属施加悲痛状态
+            // 仅成功时对亲属施加悲痛状态（列直写）
             if (success) {
-                val deadDisciples = currentList.filter {
-                    it.id in team.memberIds && it.id !in survivorIds
-                }
-                if (deadDisciples.isNotEmpty()) {
-                    modifiedList = DiscipleStatCalculator.applyGriefToRelatives(
-                        modifiedList, deadDisciples, team.startYear
-                    )
+                val deadMemberIds = team.memberIds.filter { it !in survivorIds }
+                if (deadMemberIds.isNotEmpty()) {
+                    val allForGrief = discipleTables.assembleAll()
+                    val deadDisciples = allForGrief.filter { it.id in deadMemberIds }
+                    if (deadDisciples.isNotEmpty()) {
+                        val griefMap = DiscipleStatCalculator.computeGriefEndYearMap(
+                            allForGrief, deadDisciples, team.startYear
+                        )
+                        griefMap.forEach { (idInt, griefEndYear) ->
+                            discipleTables.griefEndYears[idInt] = griefEndYear
+                        }
+                    }
                 }
             }
-
-            discipleTables.replaceAll(modifiedList)
 
             DomainLog.d(TAG, "completeExploration: team=$teamId, " +
                 "success=$success, survivors=${survivorIds.size}/${team.memberIds.size}")

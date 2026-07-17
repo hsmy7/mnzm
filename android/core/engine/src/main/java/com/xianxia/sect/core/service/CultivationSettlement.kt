@@ -135,32 +135,24 @@ class CultivationSettlement @Inject constructor(
 
         stateStore.update {
             val tables = discipleTables
-            val disciple = tables.assembleAll().find { it.id == discipleId && it.isAlive } ?: return@update
+            val discipleIntId = discipleId.toIntOrNull() ?: return@update
+            if (!tables.isAlive.contains(discipleIntId) || tables.isAlive[discipleIntId] != 1) return@update
+            val realm = tables.realms.getOrDefault(discipleIntId, 9)
             val enabledConfig = gameData.yearlySalaryEnabled
-            if (enabledConfig[disciple.realm] != true) return@update
-            val salary = (gameData.yearlySalary[disciple.realm] ?: 0).toLong()
+            if (enabledConfig[realm] != true) return@update
+            val salary = (gameData.yearlySalary[realm] ?: 0).toLong()
             if (salary <= 0) return@update
 
             val result = spiritStoneWallet.deduct(this, salary, SpiritStoneGrade.LOW,
                 SpiritStoneReason.Salary, SpiritStoneSource.Salary, true)
             if (result !is DeductResult.Success) return@update
-            val currentDisciples = discipleTables.assembleAll()
-            val updatedDisciples = currentDisciples.map {
-                if (it.id == discipleId) {
-                    it.copy(
-                        equipment = it.equipment.copy(
-                            storageBagSpiritStones = it.equipment.storageBagSpiritStones + salary
-                        ),
-                        skills = it.skills.copy(
-                            salaryPaidCount = it.skills.salaryPaidCount + 1,
-                            loyalty = (it.skills.loyalty + 1).coerceAtMost(maxLoyalty)
-                        )
-                    )
-                } else {
-                    it
-                }
-            }
-            discipleTables.replaceAll(updatedDisciples)
+            // ★ 列直写替代 assembleAll → map → replaceAll
+            val currentStones = tables.storageBagSpiritStones.getOrDefault(discipleIntId, 0L)
+            tables.storageBagSpiritStones[discipleIntId] = currentStones + salary
+            tables.salaryPaidCounts[discipleIntId] =
+                tables.salaryPaidCounts.getOrDefault(discipleIntId, 0) + 1
+            tables.loyalties[discipleIntId] =
+                (tables.loyalties.getOrDefault(discipleIntId, 0) + 1).coerceAtMost(maxLoyalty)
         }
     }
 
@@ -169,12 +161,13 @@ class CultivationSettlement @Inject constructor(
         stateStore.update {
             val data = gameData
             val residentIds = data.residenceSlots.filter { it.isActive }.map { it.discipleId }.toSet()
-            val updatedDisciples = discipleTables.assembleAll().map { d ->
-                if (d.id in residentIds && d.skills.loyalty < maxLoyalty) {
-                    d.copy(skills = d.skills.copy(loyalty = (d.skills.loyalty + 1).coerceAtMost(maxLoyalty)))
-                } else d
+            // ★ 列直写替代 assembleAll → map → replaceAll
+            for (id in discipleTables.ids) {
+                if (id.toString() in residentIds && discipleTables.loyalties[id] < maxLoyalty) {
+                    discipleTables.loyalties[id] =
+                        (discipleTables.loyalties[id] + 1).coerceAtMost(maxLoyalty)
+                }
             }
-            discipleTables.replaceAll(updatedDisciples)
         }
     }
 

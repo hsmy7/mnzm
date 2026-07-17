@@ -4,6 +4,17 @@
 
 - **改动：移除招募弟子卡片状态显示** — 招募界面中弟子卡片不再显示状态文字（如"空闲"等），保持卡片简洁，聚焦于灵根/属性/操作按钮
 
+### 修复
+
+- **修复：伴侣配对 Direct write to DiscipleTables 崩溃 #3057** — PartnerSystem.processPartnerMatching 的 assembleAll→map→replaceAll 反模式改为 partnerIds 组件表直接列写入，消除 writeGuard 检查路径
+
+### 重构
+
+- **重构：PartnerSystem.onEvent 消除冗余 scope.launch** — EventBus.notifySubscribers 已在协程内调用 onEvent，且 stateStore.update 使用 ReentrantLock 非挂起，内部不需要再套 scope.launch
+- **重构：CultivationSettlement 2 处 replaceAll 改为列直写** — processResidenceLoyalty（loyalty 列）+ settleSalaryOnBreakthrough（storageBagSpiritStones/salaryPaidCount/loyalty 三列），消除 assembleAll→map→replaceAll 反模式
+- **重构：ExplorationTeamManager 2 处 replaceAll 改为列直写** — recallDiscipleFromTeam（status 列）+ completeExploration（status + markDead + griefEndYears 列直写），统一死亡标记入口 markDead
+- **新增：DiscipleStatCalculator.computeGriefEndYearMap 纯函数** — 返回 Map<Int,Int> 映射支持列直写，替代 applyGriefToRelatives 全量 List<Disciple> 返回
+
 ## [4.0.52] - 2026-07-16（versionCode=4052）
 
 ### 新增

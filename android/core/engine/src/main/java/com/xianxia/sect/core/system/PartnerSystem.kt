@@ -8,10 +8,8 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.GameRandom
 import com.xianxia.sect.core.GameConfig
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,19 +18,17 @@ import javax.inject.Singleton
 /**
  * 伴侣系统（道侣配对）。
  *
- * 收到突破事件后异步增加道侣忠诚度（通过 [scope] + [stateStore.update]）。
- * 注意：[onEvent] 的 [DomainEventSubscriber] 接口不支持 suspend，因此
- * stateStore.update 必须通过 scope.launch 异步执行。这是受接口约束的
- * 必要设计——非标准 fire-and-forget 反模式。
+ * 收到突破事件后增加道侣忠诚度（通过 [stateStore.update]）。
+ * EventBus.notifySubscribers 已在协程内调用 onEvent，
+ * 且 stateStore.update 使用 ReentrantLock 非挂起，
+ * 可直接在 onEvent 内调用，无需 scope.launch 包装。
  */
 class PartnerSystem @Inject constructor(
     private val stateStore: GameStateStore,
-    private val scopeProvider: CoroutineScopeProvider,
     private val eventBus: EventBusPort
 ) : GameSystem, DomainEventSubscriber {
 
     override val systemName: String = "PartnerSystem"
-    private val scope get() = scopeProvider.scope
 
     override val subscribedTypes: Set<String> = setOf("breakthrough")
 
@@ -43,15 +39,15 @@ class PartnerSystem @Inject constructor(
 
     override fun onEvent(event: DomainEvent) {
         if (event !is BreakthroughEvent || !event.success) return
-        scope.launch {
-            stateStore.update {
-                val partnerId = event.discipleId.toIntOrNull()
-                    ?.let { id -> discipleTables.partnerIds[id] }
-                    ?: return@update
-                for (id in discipleTables.ids) {
-                    if (id.toString() == partnerId && discipleTables.isAlive[id] == 1) {
-                        discipleTables.loyalties[id] = (discipleTables.loyalties[id] + BREAKTHROUGH_LOYALTY_GAIN).coerceAtMost(GameConfig.Disciple.MAX_LOYALTY)
-                    }
+        // EventBus.notifySubscribers 已在 scope.launch 内调用 onEvent，
+        // 此处无需再套 scope.launch（stateStore.update 使用 ReentrantLock 非挂起）
+        stateStore.update {
+            val partnerId = event.discipleId.toIntOrNull()
+                ?.let { id -> discipleTables.partnerIds[id] }
+                ?: return@update
+            for (id in discipleTables.ids) {
+                if (id.toString() == partnerId && discipleTables.isAlive[id] == 1) {
+                    discipleTables.loyalties[id] = (discipleTables.loyalties[id] + BREAKTHROUGH_LOYALTY_GAIN).coerceAtMost(GameConfig.Disciple.MAX_LOYALTY)
                 }
             }
         }
@@ -92,7 +88,6 @@ class PartnerSystem @Inject constructor(
 
         if (eligibleMales.isEmpty() || eligibleFemales.isEmpty()) return
 
-        var currentList = allDisciples
         val pairedFemaleIds = mutableSetOf<String>()
 
         for (male in eligibleMales) {
@@ -105,20 +100,15 @@ class PartnerSystem @Inject constructor(
                         state.pendingNotification = GameNotification.MarriageRequest(male, female)
                         return
                     }
-                    currentList = currentList.map { disciple ->
-                        when (disciple.id) {
-                            male.id -> disciple.copy(social = disciple.social.copy(partnerId = female.id))
-                            female.id -> disciple.copy(social = disciple.social.copy(partnerId = male.id))
-                            else -> disciple
-                        }
-                    }
+                    // ★ 直接列写入 partnerIds，避免 assembleAll → map → replaceAll
+                    // 全表替换走 writeGuard 可能触发竞态崩溃 #3057
+                    val maleId = male.id.toIntOrNull() ?: continue
+                    val femaleId = female.id.toIntOrNull() ?: continue
+                    state.discipleTables.partnerIds[maleId] = female.id
+                    state.discipleTables.partnerIds[femaleId] = male.id
                     pairedFemaleIds.add(female.id)
                 }
             }
-        }
-
-        if (pairedFemaleIds.isNotEmpty()) {
-            state.discipleTables.replaceAll(currentList)
         }
     }
 
