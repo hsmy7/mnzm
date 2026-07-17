@@ -205,7 +205,7 @@ class PatrolBattleSystem @Inject constructor(
             val target = targets[team.towerIndex] ?: return@mapNotNull null
             require(target.type == LevelType.BEAST) { "PatrolBattleSystem 只支持 BEAST 类型, got ${target.type}" }
 
-            val beastTypeName = GameConfig.Beast.getType(target.beastType ?: 0).name
+            val beastTypeName = GameConfig.Beast.getType((target.beastType ?: 0).coerceIn(0, GameConfig.Beast.TYPES.size - 1)).name
             val beastPreGenStats = if (target.beastMaxHp > 0) BattleSystem.BeastPreGenStats(
                 maxHp = target.beastMaxHp,
                 maxMp = target.beastMaxMp,
@@ -433,7 +433,7 @@ class PatrolBattleSystem @Inject constructor(
         rng: DeterministicRng,
         allRewards: MutableList<BattleRewardItem>
     ) {
-        val beastConfig = GameConfig.Beast.getType(target.beastType ?: 0)
+        val beastConfig = GameConfig.Beast.getType((target.beastType ?: 0).coerceIn(0, GameConfig.Beast.TYPES.size - 1))
         val tier = GameConfig.Realm.getMaxRarity(target.realm)
         for (i in 0 until target.count) {
             val materialCount = rng.nextInt(MAX_RANDOM_MATERIAL_DROPS) + 1

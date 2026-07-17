@@ -56,13 +56,26 @@ class EncounterBattleService @Inject constructor(
      * @param year      当前游戏年份
      * @param month     当前游戏月份
      */
+    /**
+     * 执行遭遇战。
+     *
+     * @param state        游戏可变状态
+     * @param attackerA    攻方A
+     * @param attackerB    攻方B
+     * @param beast        目标妖兽
+     * @param year         当前年份
+     * @param month        当前月份
+     * @param favorDedup   [可选] 好感度月度去重 key（"aiSectId_absMonth"），
+     *                     已存在时跳过好感度扣减，防止同 AI 每月多次 -3
+     */
     fun encounter(
         state: MutableGameState,
         attackerA: EncounterAttacker,
         attackerB: EncounterAttacker,
         beast: WorldLevel,
         year: Int,
-        month: Int
+        month: Int,
+        favorDedup: MutableSet<String>? = null
     ) {
         val isPlayerVsAI = attackerA.isPlayer != attackerB.isPlayer
         DomainLog.i(TAG, "遭遇战: ${attackerA.sectName} vs ${attackerB.sectName}, " +
@@ -140,17 +153,21 @@ class EncounterBattleService @Inject constructor(
         applyDeathsForSect(state, loserP1, loserDeadIdsP1, year)
         applyDeathsForSect(state, winnerP1, winnerDeadIdsP1, year)
 
-        // ── 好感度变更（仅 playerVsAI） ──
+        // ── 好感度变更（仅 playerVsAI，每月每个 AI 宗门最多扣 1 次） ──
         if (isPlayerVsAI) {
             val playerSectId = if (attackerA.isPlayer) attackerA.sectId else attackerB.sectId
             val aiSectId = if (attackerA.isPlayer) attackerB.sectId else attackerA.sectId
-            var relations = FavorDomain.setAcquainted(
-                state.gameData.sectRelations, playerSectId, aiSectId, year
-            )
-            relations = FavorDomain.modifyFavor(
-                relations, playerSectId, aiSectId, ENCOUNTER_FAVOR_DELTA, year
-            )
-            state.gameData = state.gameData.copy(sectRelations = relations)
+            val dedupKey = "${aiSectId}_${year * 12 + month}"
+            if (favorDedup == null || dedupKey !in favorDedup) {
+                favorDedup?.add(dedupKey)
+                var relations = FavorDomain.setAcquainted(
+                    state.gameData.sectRelations, playerSectId, aiSectId, year
+                )
+                relations = FavorDomain.modifyFavor(
+                    relations, playerSectId, aiSectId, ENCOUNTER_FAVOR_DELTA, year
+                )
+                state.gameData = state.gameData.copy(sectRelations = relations)
+            }
         }
 
         // ── 构建 Phase 1 战斗日志 ──
@@ -194,7 +211,7 @@ class EncounterBattleService @Inject constructor(
 
         val beastTypeIndex = beast.beastType
         val beastTypeName = if (beastTypeIndex != null) {
-            GameConfig.Beast.getType(beastTypeIndex).name
+            GameConfig.Beast.getType(beastTypeIndex.coerceIn(0, GameConfig.Beast.TYPES.size - 1)).name
         } else null
 
         val pveBattle = battleSystem.createBattle(

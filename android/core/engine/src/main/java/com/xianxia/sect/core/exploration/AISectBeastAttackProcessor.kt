@@ -1,12 +1,14 @@
 package com.xianxia.sect.core.exploration
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.domain.FavorDomain
 import com.xianxia.sect.core.engine.SectCombatPowerCalculator
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.Battle
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
+import com.xianxia.sect.core.domain.battle.EncounterBattleService
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
@@ -42,7 +44,8 @@ import kotlin.math.sqrt
 class AISectBeastAttackProcessor @Inject constructor(
     private val stateStore: GameStateStore,
     private val battleSystem: BattleSystem,
-    private val rngManager: GameRngManager
+    private val rngManager: GameRngManager,
+    private val encounterBattleService: EncounterBattleService
 ) {
     /**
      * 月度入口：遍历所有活跃妖兽，判断附近 AI 宗门是否会进攻。
@@ -59,6 +62,8 @@ class AISectBeastAttackProcessor @Inject constructor(
      * @param month 当前游戏月
      */
     fun processMonthly(state: MutableGameState, year: Int, month: Int) {
+        if (!ManualDatabase.isInitialized) return  // 启动时序异常时静默跳过
+
         val gd = state.gameData
         val activeBeasts = gd.worldLevels.filter { level ->
             level.type == LevelType.BEAST && !level.defeated && !level.checkExpired(year, month)
@@ -139,6 +144,14 @@ class AISectBeastAttackProcessor @Inject constructor(
             // Step d: 处理进攻者
             processAttackers(state, aiAttackers, beast, year)
         }
+
+        // 清理超过12个月的冷却记录
+        val cleanedCooldowns = state.gameData.aiSectBeastSkipCooldowns.filter { (_, value) ->
+            value >= absoluteMonth - 12
+        }
+        if (cleanedCooldowns.size < state.gameData.aiSectBeastSkipCooldowns.size) {
+            state.gameData = state.gameData.copy(aiSectBeastSkipCooldowns = cleanedCooldowns)
+        }
     }
 
     // ── 内部方法 ───────────────────────────────────────────────
@@ -196,7 +209,10 @@ class AISectBeastAttackProcessor @Inject constructor(
     }
 
     /**
-     * 多个 AI 宗门遭遇战：合并弟子队伍后对同一妖兽执行战斗。
+     * 多个 AI 宗门遭遇战：AI vs AI → 胜者 vs 妖兽。
+     *
+     * 取前 2 个 AI 宗门，各自组建队伍打 PVP，
+     * 胜者的幸存弟子再与妖兽战斗。
      */
     private fun executeAIEncounterBattle(
         state: MutableGameState,
@@ -204,46 +220,69 @@ class AISectBeastAttackProcessor @Inject constructor(
         beast: WorldLevel,
         year: Int
     ) {
-        // 合并所有 AI 宗门的弟子，最多取 TEAM_SIZE 个
-        val allDisciples = aiSects.flatMap { sect ->
-            state.gameData.aiSectDisciples[sect.id]
-                ?.filter { it.isAlive }
-                ?: emptyList()
+        val sects = aiSects.take(2)
+        if (sects.size < 2) {
+            // 不足 2 个时退化到单 AI 打妖兽
+            if (sects.size == 1) executeAIVersusBeast(state, sects[0], beast, year)
+            return
         }
-        val team = allDisciples.take(GameConfig.AI.TEAM_SIZE)
-        if (team.isEmpty()) return
 
-        val battle = createAIBattle(team, beast)
-        val result = battleSystem.executeBattle(battle)
+        val teamA = state.gameData.aiSectDisciples[sects[0].id]
+            ?.filter { it.isAlive }
+            ?.take(GameConfig.AI.TEAM_SIZE) ?: return
+        val teamB = state.gameData.aiSectDisciples[sects[1].id]
+            ?.filter { it.isAlive }
+            ?.take(GameConfig.AI.TEAM_SIZE) ?: return
 
-        if (result.victory) {
+        // Phase 1: AI vs AI 遭遇战
+        val encBattle = battleSystem.createBattle(
+            disciples = teamA,
+            equipmentMap = emptyMap(),
+            manualMap = emptyMap(),
+            beastLevel = beast.realm,
+            beastCount = 0,
+            beastPreGenStats = null
+        )
+        val encResult = battleSystem.executeBattle(encBattle)
+
+        // 处理双方死亡
+        val encDeadIds = encBattle.team.filter { it.isDead }.map { it.id }.toSet()
+        val encEnemyDeadIds = encBattle.beasts.filter { it.isDead }.map { it.id }.toSet()
+        handleAIDeaths(state, sects[0].id, encResult, year)
+        for (sect in mutableListOf(sects[1])) {
+            val roster = state.gameData.aiSectDisciples[sect.id]?.toMutableList() ?: continue
+            val updated = roster.map { d ->
+                if (d.id in encEnemyDeadIds) d.copy(isAlive = false, status = DiscipleStatus.DEAD)
+                else d
+            }
+            state.gameData = state.gameData.copy(
+                aiSectDisciples = state.gameData.aiSectDisciples + (sect.id to updated)
+            )
+        }
+
+        // Phase 2: 胜者 vs 妖兽
+        val winnerSect: WorldSect
+        val winnerSurvivors: List<Disciple>
+        if (encResult.victory) {
+            // attacker (teamA = sects[0]) 获胜
+            winnerSect = sects[0]
+            winnerSurvivors = teamA.filter { it.id !in encDeadIds }
+        } else {
+            // beast (代表 teamB = sects[1]) 获胜
+            winnerSect = sects[1]
+            winnerSurvivors = teamB
+        }
+        if (winnerSurvivors.isEmpty()) return
+
+        val beastBattle = createAIBattle(winnerSurvivors, beast)
+        val beastResult = battleSystem.executeBattle(beastBattle)
+
+        if (beastResult.victory) {
             markBeastDefeated(state, beast.id)
         }
 
-        // 按宗门分别处理死亡
-        val deadCombatantIds = result.battle.team
-            .filter { it.isDead }
-            .map { it.id }
-            .toSet()
-
-        for (sect in aiSects) {
-            val sectDisciples = state.gameData.aiSectDisciples[sect.id] ?: continue
-            val sectDeadIds = sectDisciples
-                .filter { it.isAlive && it.id in deadCombatantIds }
-                .map { it.id }
-                .toSet()
-            if (sectDeadIds.isEmpty()) continue
-
-            val updatedDisciples = sectDisciples.map { d ->
-                if (d.id in sectDeadIds) d.copy(
-                    isAlive = false,
-                    status = DiscipleStatus.DEAD
-                ) else d
-            }
-            state.gameData = state.gameData.copy(
-                aiSectDisciples = state.gameData.aiSectDisciples + (sect.id to updatedDisciples)
-            )
-        }
+        // 处理 Phase 2 的 AI 死亡
+        handleAIDeaths(state, winnerSect.id, beastResult, year)
     }
 
     /**
@@ -304,6 +343,7 @@ class AISectBeastAttackProcessor @Inject constructor(
      */
     private fun createAIBattle(disciples: List<Disciple>, beast: WorldLevel): Battle {
         if (!ManualDatabase.isInitialized) {
+            // 启动时序异常时不应继续，但 processMonthly 入口已有守卫
             throw IllegalStateException(
                 "ManualDatabase not initialized when creating AI vs beast battle"
             )

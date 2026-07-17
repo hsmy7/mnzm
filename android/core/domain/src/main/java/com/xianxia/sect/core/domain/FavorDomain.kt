@@ -259,6 +259,7 @@ object FavorDomain {
         val id2 = maxOf(sectId1, sectId2)
         val existingRelation = findRelation(relations, sectId1, sectId2)
         if (existingRelation != null && !existingRelation.acquainted) return relations
+        if (existingRelation == null) return relations  // 没有关系记录时也不创建未相识的关系
         val clampedFavor = newFavor.coerceIn(FavorConfig.MIN_FAVOR, FavorConfig.MAX_FAVOR)
         val index = relations.indexOfFirst { it.sectId1 == id1 && it.sectId2 == id2 }
 
