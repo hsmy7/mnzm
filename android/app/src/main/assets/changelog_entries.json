@@ -8,7 +8,11 @@
       "重构：PartnerSystem.onEvent消除冗余scope.launch——EventBus已在协程内调用onEvent，内部不再需要嵌套scope.launch",
       "重构：CultivationSettlement 2处replaceAll改为列直写——processResidenceLoyalty(loyalty列)+settleSalaryOnBreakthrough(三列)",
       "重构：ExplorationTeamManager 2处replaceAll改为列直写——recallDiscipleFromTeam(status列)+completeExploration(status+markDead+griefEndYears列直写)，统一死亡标记入口markDead",
-      "新增：DiscipleStatCalculator.computeGriefEndYearMap纯函数——返回Map支持列直写，替代applyGriefToRelatives全量List返回"
+      "新增：DiscipleStatCalculator.computeGriefEndYearMap纯函数——返回Map支持列直写，替代applyGriefToRelatives全量List返回",
+      "修复：种植界面右侧已种植种子精灵图不显示——种子种完后库存条目删除导致右侧灰色方块。通过HerbDatabase静态数据兜底渲染道具卡片",
+      "修复：铲除操作多次fire-and-forget竞态——for循环+N次scope.launch改为单次批量调用+单事务完成",
+      "修复：右侧兜底灰色方块无交互+空seedName显示未知种子",
+      "文档：架构债务第5项——种植系统预存问题(两阶段写入非原子/seeds引用不可靠/tier4-6精灵图回退限制)"
     ]
   },
   {

@@ -33,6 +33,7 @@ interface BuildingFacade {
     suspend fun plantOnSpiritField(buildingInstanceId: String, seedId: String, sectId: String)
     suspend fun plantOnSpiritFields(instanceIds: List<String>, seedId: String, sectId: String)
     suspend fun removePlantFromSpiritField(buildingInstanceId: String)
+    suspend fun removePlantsFromSpiritFields(instanceIds: List<String>)
     fun clearAlchemySlot(slotIndex: Int): DomainResult<Unit>
     fun clearForgeSlot(slotIndex: Int): DomainResult<Unit>
     suspend fun removeBuilding(instanceId: String, refund: Long)

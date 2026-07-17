@@ -38,4 +38,15 @@ class PlantingDelegate(
             }
         }
     }
+
+    fun removePlantsFromSpiritFields(instanceIds: List<String>) {
+        if (instanceIds.isEmpty()) return
+        scope.launch {
+            try {
+                gameEngine.removePlantsFromSpiritFields(instanceIds)
+            } catch (e: Exception) {
+                /* error handled by BaseViewModel */
+            }
+        }
+    }
 }

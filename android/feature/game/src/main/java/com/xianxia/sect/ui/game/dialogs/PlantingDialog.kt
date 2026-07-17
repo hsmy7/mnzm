@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogSoftInputGuard
 import com.xianxia.sect.ui.components.GameButton
@@ -144,7 +145,10 @@ fun PlantingDialog(
             // 已种植，按 seedId 分组
             for ((sid, fds) in plantedBySeedId) {
                 val entry = plantsByBuilding[fds.first().instanceId] ?: continue
-                val rarity = seedMap[sid]?.rarity ?: 1
+                val rarity = seedMap[sid]?.rarity
+                    ?: seeds.find { it.id == sid }?.rarity
+                    ?: HerbDatabase.getSeedById(sid)?.rarity
+                    ?: 1
                 add(
                     FieldGroup(
                         seedId = sid,
@@ -389,14 +393,59 @@ fun PlantingDialog(
                                                 }
                                             )
                                         } else {
-                                            Box(
-                                                modifier = Modifier.size(60.dp)
-                                                    .clip(RoundedCornerShape(4.dp))
-                                                    .background(Color(0xFFE0E0E0))
-                                                    .border(1.dp, Color(0xFFBDBDBD), RoundedCornerShape(4.dp)),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text(group.seedName, fontSize = 8.sp, color = Color.Black, textAlign = TextAlign.Center)
+                                            val fbSeed = HerbDatabase.getSeedByName(group.seedName)
+                                            if (fbSeed != null) {
+                                                UnifiedItemCard(
+                                                    data = ItemCardData(
+                                                        id = fbSeed.id,
+                                                        name = fbSeed.name,
+                                                        rarity = fbSeed.rarity,
+                                                        quantity = 0,
+                                                        isSeed = true
+                                                    ),
+                                                    isSelected = false,
+                                                    onClick = {},
+                                                    onLongPress = {
+                                                        detailSeed = Seed(
+                                                            id = fbSeed.id,
+                                                            name = fbSeed.name,
+                                                            rarity = fbSeed.rarity,
+                                                            description = fbSeed.description,
+                                                            growTime = fbSeed.growTime,
+                                                            yield = fbSeed.yield,
+                                                            quantity = 0
+                                                        )
+                                                        showSeedDetail = true
+                                                    }
+                                                )
+                                            } else {
+                                                val fallbackName = group.seedName.ifEmpty { "未知种子" }
+                                                Box(
+                                                    modifier = Modifier.size(60.dp)
+                                                        .clip(RoundedCornerShape(4.dp))
+                                                        .background(Color(0xFFE0E0E0))
+                                                        .border(1.dp, Color(0xFFBDBDBD), RoundedCornerShape(4.dp))
+                                                        .combinedClickable(
+                                                            onClick = {},
+                                                            onLongClick = {
+                                                                detailSeed = Seed(
+                                                                    id = group.seedId,
+                                                                    name = fallbackName,
+                                                                    rarity = group.seedRarity,
+                                                                    description = "",
+                                                                    growTime = 0,
+                                                                    yield = 0,
+                                                                    quantity = 0
+                                                                )
+                                                                showSeedDetail = true
+                                                            },
+                                                            indication = null,
+                                                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                                                        ),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text(fallbackName, fontSize = 8.sp, color = Color.Black, textAlign = TextAlign.Center)
+                                                }
                                             }
                                         }
                                         Text(
@@ -555,10 +604,9 @@ fun PlantingDialog(
             dismissLabel = "取消",
             onConfirm = {
                 val toRemove = removeQuantity.coerceAtMost(group.plantEntries.size)
-                for (i in 0 until toRemove) {
-                    viewModel.planting.removePlantFromSpiritField(
-                        group.plantEntries[i].buildingInstanceId
-                    )
+                val ids = group.plantEntries.take(toRemove).map { it.buildingInstanceId }
+                if (ids.isNotEmpty()) {
+                    viewModel.planting.removePlantsFromSpiritFields(ids)
                 }
                 removeDialogGroup = null
                 removeQuantity = 1

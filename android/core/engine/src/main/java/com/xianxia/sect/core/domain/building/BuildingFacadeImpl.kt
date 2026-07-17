@@ -314,6 +314,28 @@ class BuildingFacadeImpl @Inject constructor(
         }
     }
 
+    override suspend fun removePlantsFromSpiritFields(instanceIds: List<String>) {
+        if (instanceIds.isEmpty()) return
+        stateStore.update {
+            val idSet = instanceIds.toSet()
+            val updatedPlants = gameData.spiritFieldPlants.map { plant ->
+                if (plant.buildingInstanceId in idSet) {
+                    plant.copy(
+                        seedId = "",
+                        seedName = "",
+                        growTime = 0,
+                        expectedYield = 0,
+                        plantYear = 0,
+                        plantMonth = 0,
+                        completionMonth = 0,
+                        completionPhase = 1
+                    )
+                } else plant
+            }
+            gameData = gameData.copy(spiritFieldPlants = updatedPlants)
+        }
+    }
+
     override fun clearAlchemySlot(slotIndex: Int): DomainResult<Unit> {
         if (slotIndex < 0) return DomainResult.Failure(AppError.Domain.Production.InvalidSlot(slotIndex = slotIndex))
         gameEngineCore.launchInScope {

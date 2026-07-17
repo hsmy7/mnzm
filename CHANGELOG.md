@@ -8,6 +8,12 @@
 
 - **修复：伴侣配对 Direct write to DiscipleTables 崩溃 #3057** — PartnerSystem.processPartnerMatching 的 assembleAll→map→replaceAll 反模式改为 partnerIds 组件表直接列写入，消除 writeGuard 检查路径
 
+### 修复
+
+- **修复：种植界面右侧已种植种子精灵图不显示** — 根因：种子种完后 quantity=0 → `removeSeed` 完全删除库存条目 → 右侧 `plantedSeed` 查找失败 → 显示灰色方块。修复：通过 `HerbDatabase.getSeedByName` 从静态数据库兜底渲染 `UnifiedItemCard`，种子名称/稀有度/精灵图均正确显示
+- **修复：铲除操作多次 fire-and-forget 竞态** — 铲除确认弹窗原用 for 循环 + N 次 `scope.launch` 分别铲除，改为单次 `removePlantsFromSpiritFields` 批量调用，在单次 `stateStore.update` 事务内完成
+- **修复：右侧兜底灰色方块无交互** — 终极兜底 Box 添加 `combinedClickable` + 长按可打开详情对话框；空 seedName 时显示"未知种子"
+
 ### 重构
 
 - **重构：PartnerSystem.onEvent 消除冗余 scope.launch** — EventBus.notifySubscribers 已在协程内调用 onEvent，且 stateStore.update 使用 ReentrantLock 非挂起，内部不需要再套 scope.launch
