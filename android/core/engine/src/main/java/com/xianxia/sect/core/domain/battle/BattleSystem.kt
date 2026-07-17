@@ -58,7 +58,7 @@ class BattleSystem @Inject constructor() {
             )
         }
 
-        val actualBeastCount = beastCount ?: GameConfig.Battle.MIN_BEAST_COUNT
+        val actualBeastCount = (beastCount ?: GameConfig.Battle.MIN_BEAST_COUNT).coerceAtLeast(1)
 
         val beasts = (1..actualBeastCount).map { index ->
             createBeast(beastRealm, index, beastType, beastPreGenStats)
