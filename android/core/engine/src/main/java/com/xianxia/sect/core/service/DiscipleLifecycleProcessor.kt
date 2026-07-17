@@ -125,7 +125,8 @@ class DiscipleLifecycleProcessor @Inject constructor(
     fun handleDiscipleDeath(disciple: Disciple, isOutsideSect: Boolean = false) {
         clearDiscipleFromAllSlots(disciple.id)
 
-        val originalList = stateStore.disciples.value
+        // 从组件表读取，不依赖 Flow（同 processDiscipleAging 修复模式，防止 Flow 缺失数据被 replaceAll 永久覆盖）
+        val originalList = stateStore.discipleTables.assembleAll()
         val currentYear = stateStore.gameData.value.gameYear
 
         val griefUpdated = propagateGriefToRelatives(originalList, disciple, currentYear)

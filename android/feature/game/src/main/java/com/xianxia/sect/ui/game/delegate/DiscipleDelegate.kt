@@ -16,6 +16,9 @@ class DiscipleDelegate(
     private val gameEngine: GameEngine,
     private val scope: CoroutineScope
 ) {
+    companion object {
+        private const val TAG = "DiscipleDelegate"
+    }
 
     // 招募相关，防止重复点击
     private val recruitingDiscipleIds = mutableSetOf<String>()
@@ -216,17 +219,6 @@ class DiscipleDelegate(
         }
     }
 
-    fun recruitDisciple() {
-        scope.launch {
-            try {
-                gameEngine.recruitDisciple()
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                Log.w("DiscipleDelegate", "operation failed", e)
-            }
-        }
-    }
-
     fun renameDisciple(discipleId: String, newName: String) {
         scope.launch {
             try {
@@ -241,12 +233,31 @@ class DiscipleDelegate(
     }
 
     fun recruitDiscipleFromList(discipleId: String) {
-        if (isRecruitingAll) return
-        if (recruitingDiscipleIds.contains(discipleId)) return
+        if (discipleId.isBlank()) {
+            Log.w(TAG, "recruitDiscipleFromList: skipped (empty id)")
+            return
+        }
+        if (isRecruitingAll) {
+            Log.w(TAG, "recruitDiscipleFromList: skipped (isRecruitingAll=true) for $discipleId")
+            return
+        }
+        if (recruitingDiscipleIds.contains(discipleId)) {
+            Log.w(TAG, "recruitDiscipleFromList: skipped (duplicate) for $discipleId")
+            return
+        }
         recruitingDiscipleIds.add(discipleId)
         scope.launch {
             try {
-                gameEngine.recruitDiscipleFromList(discipleId)
+                Log.d(TAG, "recruitDiscipleFromList: launching for $discipleId")
+                val newId = gameEngine.recruitDiscipleFromList(discipleId)
+                if (newId.isEmpty()) {
+                    Log.w(TAG, "recruitDiscipleFromList: failed for $discipleId")
+                } else {
+                    Log.d(TAG, "recruitDiscipleFromList: success id=$newId for $discipleId")
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                Log.w(TAG, "recruitDiscipleFromList: exception for $discipleId", e)
             } finally {
                 recruitingDiscipleIds.remove(discipleId)
             }
@@ -261,10 +272,11 @@ class DiscipleDelegate(
         }
         scope.launch {
             try {
-                gameEngine.recruitAllFromList()
+                val count = gameEngine.recruitAllFromList()
+                Log.d(TAG, "recruitAllDisciples: recruited $count disciples")
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                Log.w("DiscipleDelegate", "operation failed", e)
+                Log.w(TAG, "recruitAllDisciples: failed", e)
             } finally {
                 isRecruitingAll = false
             }
@@ -278,16 +290,7 @@ class DiscipleDelegate(
     }
 
     fun recruitDisciple(disciple: DiscipleAggregate) {
-        if (isRecruitingAll) return
-        if (recruitingDiscipleIds.contains(disciple.id)) return
-        recruitingDiscipleIds.add(disciple.id)
-        scope.launch {
-            try {
-                gameEngine.recruitDiscipleFromList(disciple.id)
-            } finally {
-                recruitingDiscipleIds.remove(disciple.id)
-            }
-        }
+        recruitDiscipleFromList(disciple.id)
     }
 
     fun expelTheftDisciple(discipleId: String) {

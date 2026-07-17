@@ -18,6 +18,7 @@ import com.xianxia.sect.core.util.addManualInstanceToDiscipleBag
 import com.xianxia.sect.core.util.equipmentBagStackIds
 import com.xianxia.sect.core.util.manualBagStackIds
 import com.xianxia.sect.core.util.StorageBagUtils
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -38,6 +39,9 @@ class DiscipleFacadeImpl @Inject constructor(
 
     companion object {
         private const val TAG = "DiscipleFacadeImpl"
+        private const val MAX_REASONABLE_AGE = 10000
+        private const val MAX_NAME_DISPLAY_LEN = 30
+        private val VALID_REALM_RANGE = GameConfig.Realm.CONFIGS.keys.let { it.min()..it.max() }
     }
 
     override val disciples: StateFlow<List<Disciple>> get() = stateStore.disciples
@@ -217,31 +221,51 @@ class DiscipleFacadeImpl @Inject constructor(
         gameEngineCore.launchInScope { forgetManual(discipleId, instanceId) }
     }
 
-    override fun recruitDiscipleFromList(discipleId: String) {
-        gameEngineCore.launchInScope {
-            var newId: String = ""
-            var discipleAge: Int = 0
-            stateStore.update {
-                val disciple = gameData.recruitList.toList().find { it.id == discipleId } ?: return@update
-                // ── 完整性校验：跳过损坏的弟子数据 ──
-                if (disciple.name.isBlank() || disciple.age <= 0 || disciple.realm <= 0) {
-                    DomainLog.w(TAG, "recruitDiscipleFromList: skipping corrupted disciple $discipleId")
-                    return@update
-                }
-                val currentMonthValue = gameData.gameYear * 12 + gameData.gameMonth
-                discipleAge = disciple.age
-                val recruitedDisciple = disciple.copy(
-                    usage = disciple.usage.copy(recruitedMonth = currentMonthValue)
-                )
-                // 原子分配 ID + 写入组件表（消灭悬空窗口）
-                newId = discipleTables.allocateAndInsert(recruitedDisciple)
-                gameData = gameData.copy(recruitList = gameData.recruitList.filter { it.id != discipleId })
+    override suspend fun recruitDiscipleFromList(discipleId: String): String {
+        if (discipleId.isBlank()) {
+            DomainLog.w(TAG, "recruitDiscipleFromList: empty discipleId")
+            return ""
+        }
+        var newId: String = ""
+        var discipleAge: Int = 0
+        stateStore.update {
+            val disciple = gameData.recruitList.toList().find { it.id == discipleId }
+            if (disciple == null) {
+                DomainLog.w(TAG, "recruitDiscipleFromList: disciple $discipleId not in recruitList, size=${gameData.recruitList.size}")
+                pendingNotification = GameNotification.RecruitFailed("招募失败：该弟子已不在招募列表中")
+                return@update
             }
-            if (newId.isNotEmpty()) {
+            // ── 完整性校验：跳过损坏的弟子数据 ──
+            if (disciple.name.isBlank() || disciple.age <= 0 || disciple.age > MAX_REASONABLE_AGE
+                || disciple.realm !in VALID_REALM_RANGE) {
+                DomainLog.w(TAG, "recruitDiscipleFromList: skipping corrupted disciple $discipleId: name='${disciple.name}' age=${disciple.age} realm=${disciple.realm}")
+                pendingNotification = GameNotification.RecruitFailed(
+                    "招募失败：「${disciple.name.take(MAX_NAME_DISPLAY_LEN)}」数据异常"
+                )
+                return@update
+            }
+            val currentMonthValue = gameData.gameYear * 12 + gameData.gameMonth
+            discipleAge = disciple.age
+            val recruitedDisciple = disciple.copy(
+                usage = disciple.usage.copy(recruitedMonth = currentMonthValue)
+            )
+            // 原子分配 ID + 写入组件表（消灭悬空窗口）
+            newId = discipleTables.allocateAndInsert(recruitedDisciple)
+            DomainLog.i(TAG, "recruitDiscipleFromList: recruited $discipleId → id=$newId")
+            gameData = gameData.copy(recruitList = gameData.recruitList.filter { it.id != discipleId })
+        }
+        if (newId.isNotEmpty()) {
+            try {
                 // 记录加入宗门日志
                 discipleService.addLifeEvent(newId, "${discipleAge}岁：加入宗门")
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                DomainLog.w(TAG, "recruitDiscipleFromList: addLifeEvent failed for newId=$newId", e)
             }
+        } else {
+            DomainLog.w(TAG, "recruitDiscipleFromList: FAILED for $discipleId")
         }
+        return newId
     }
 
     override suspend fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>): DomainResult<Unit> {

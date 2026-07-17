@@ -1,116 +1,74 @@
-# 架构债务：待重构项
+# 架构债务记录
 
-> 本文档记录当前架构中已知的设计缺陷和待重构项。
-> 修复前请先阅读对应设计文档。
+> 本文件记录已知的架构债务和待完成的技术改进项。与 ADR 互补：ADR 记录已做的决策，此文件记录未做的改进。
 
-## ~~1. `allocateNextId()` 两步模式与批量原子 API 缺失~~ ✅ 已完成
+## 待完成项
 
-**状态：** ✅ 已完成（2026-07-15）
+### 1. 通知系统单值覆盖问题
 
-**完成内容：**
-- `allocateNextId()` / `rollbackAllocation()` 标记 `@Deprecated`
-- `DiscipleTables` 新增 `replaceAll(list: List<Disciple>)` 原子批量方法（含 `check` 重复 ID 守卫）
-- 28 处 `clear() + forEach { insert() }` 全部迁移为 `replaceAll()`
-- 12+ 生产文件修改，覆盖所有批量更新路径
+**问题描述：** `pendingNotification` 是 `GameStateStore` 上的单值字段（`MutableStateFlow<GameNotification?>`），不是队列。每次 `stateStore.update` 直接覆盖。如果同帧内多个系统设置通知（如招募失败 + 血炼完成），只有最后一个生效，前面的通知丢失。
 
-**参考：** Unity DOTS `EntityManager.CreateEntity()` / Flecs `world.entity()` — ID 分配即数据写入完成
+**影响范围：** `GameStateStore.setPendingNotification` 所有调用方
 
-## 2. `stateStore.update{}` 隔离语义不统一 ✅ 部分完成
+**修复方向：**
+- 改为通知队列 `MutableStateFlow<List<GameNotification>>`，UI 逐个消费
+- 或引入 EventBus 事件，对话框由 EventBus 驱动而非 StateFlow
 
-**状态：** ✅ 2026-07-15 新增 WriteGuard 运行时守卫
+**难度：** 中（涉及 UI 渲染层改动）
 
-**完成内容：**
-- `DiscipleTables` 新增 `writeAllowed` + `requireWriteAccess()` — 绕过 `update{}` 的直接写在运行时立即抛异常（对标 Android StrictMode）
-- `assertAllTablesConsistent()` — `insert/remove/replaceAll` 后 Debug 校验 90+ 表 id 一致性（对标 Bevy UnsafeWorldCell）
-- `consistencyCheckEnabled` Release 开关
-- `discipleTables` 的 deepCopy 已标准化（所有 `update{}` 内统一使用）
+---
 
-**待完成：**
-- `gameData` 和 `EntityStore` 的隔离语义仍不一致（直接引用 vs frozen 引用）
-- 单 `data class TransactionState` 统一所有字段的写时复制
+### 2. `clearForgeSlotsIfNeeded` 的 `runBlocking` 阻塞 gameDispatcher
 
-## 3. `wallet.deduct()` 返回值强制检查
+**问题描述：** `DiscipleLifecycleProcessor.clearForgeSlotsIfNeeded` 在 gameDispatcher 线程上执行 `runBlocking(Dispatchers.IO)`，阻塞游戏循环等待 Room DB 写入。多名弟子同时死亡时循环重复阻塞。
 
-**状态：** 🟡 待设计
+**影响范围：**
+- `DiscipleLifecycleProcessor.kt:348`
+- `ProductionSlotRepository.updateSlotByBuildingId`
 
-**问题描述：**
-- `DeductResult` 是 sealed class，但编译器不强制检查（非 `Result<T>` 类型）
-- 5 处忽略返回值的 bug 已在 2026-07-14 修复，但架构层面仍可绕开
+**修复方向：**
+- 将 `clearForgeSlotsIfNeeded` 改为异步：`scope.launch { ... }`
+- 或将 forge 槽位数据纳入 `GameData`，消除对 `productionSlotRepository` 的依赖
+- 或使全链路支持 suspend（需改变 `clearDiscipleFromAllSlots` → `handleDiscipleDeath` → `processDiscipleAging` 签名链）
 
-**目标：**
-- 评估将 `deduct()` 返回类型改为 `DeductResult` 并利用 Kotlin 编译器插件的 `@CheckResult` 或自定义 lint 规则
-- 或提供 `deductOrThrow()` 变体，失败时抛异常避免忽略
+**难度：** 高
 
-## 4. 游戏渲染状态依赖 Compose 状态系统
+---
 
-**状态：** 🟡 待设计
+### 3. `handleDiscipleDeath` 多事务非原子
 
-**问题描述：**
-宗门地图的游戏渲染数据（相机、预览位置、建筑列表）通过 Compose 的 `mutableFloatStateOf` / `mutableStateOf` 存储，
-再经 `AndroidView.update` lambda 桥接到 `NativeSurfaceView` 渲染线程。这条路径存在两个架构级缺陷：
+**问题描述：** `processDiscipleAging` 中每个 `handleDiscipleDeath` 包含多个独立 `stateStore.update` 事务（槽位清理 + replaceAll + 死亡记录）。中间异常由 `safelyRun` 隔离但可能导致部分更新（槽位已清空但死亡未记录）。
 
-1. **Compose 依赖追踪劫持** — 渲染状态是高频更新的游戏数据，却被 Compose 的 snapshot 系统管理。
-   帧率门控导致依赖追踪丢失，需要手动确保所有状态在门控前读取，脆弱且容易遗漏。
-2. **帧率门控污染** — 渲染提交受 Compose 重组调度影响，不得不引入帧率门控和 force-push 机制。
+**影响范围：** `DiscipleLifecycleProcessor.processDiscipleAging`
 
-**解决方案：** 游戏渲染状态独立于 Compose，使用原子快照模式：
+**修复方向：**
+- 将死亡处理合并为单事务
+- 或在事务外预计算全部变更后一次写入
 
-```
-新增 MapRenderState(原子状态持有者) + MapRenderSnapshot(不可变快照)
-                        ↓
-NativeSurfaceView 渲染线程: 无锁 readSnapshot()
-Compose Overlay: StateFlow 订阅只读
-```
+**难度：** 中
 
-**文件影响：**
-- 新增 `core/engine/map/MapRenderState.kt`（~40 行）
-- 新增 `core/engine/map/MapRenderSnapshot.kt`（~50 行）
-- `MainGameScreen.kt`：删除 ~70 行预览/建筑状态读取，touch callback 改为写 `MapRenderState`
-- `NativeSurfaceView.kt`：渲染线程改用 `readSnapshot()`，删除 `RenderFrame` data class
-- `SoftwareCanvasBackend.kt`：参数改为 `MapRenderSnapshot`
-- `PlacementConfirmButtons.kt`：改为订阅 `mapRenderState.snapshots`
-- `SectUIState.kt`：可删除 `PlacementModeState`/`MoveModeState`
+---
 
-**行业参考：**
-- Unity：`Update()` 读输入 → `CommandBuffer` 提交渲染 → `FixedUpdate()` 固定步长
-- Supercell (CoC)：主线程组装不可变快照 → 队列提交 → 渲染线程消费
-- 米哈游（原神）：Game Thread 持有完整状态 → Render Thread 只读快照
+### 4. `recruitingDiscipleIds` 守卫锁不一致
 
-**优先级评估：**
-- 修复 `c6348d43` 时已发现 Compose 依赖追踪问题，当时只修了 camera 没修预览
-- 2026-07-16 完整修复了依赖追踪问题，但架构层面仍未根治
-- 当前方案（门控外读状态 + force-push）已稳定，重构优先度中
+**问题描述：** `DiscipleDelegate.recruitDiscipleFromList` 中 `recruitingDiscipleIds` 的 `contains/add/remove` 不使用 `synchronized(recruitingLock)`，而 `recruitAllDisciples` 中的检查使用。当前单线程主线程访问安全，但若切换为多线程调度器立即失效。
 
-## 5. 种植系统预存问题
+**影响范围：** `DiscipleDelegate.kt`
 
-**状态：** 🟡 待修复
+**修复方向：**
+- 统一使用 `synchronized(recruitingLock)` 保护 `recruitingDiscipleIds` 的所有读写
+- 或改用 `ConcurrentHashMap.newKeySet()`
 
-**问题描述：**
-2026-07-17 对抗性审查发现的 3 个种植系统预存问题（均不在本次修复范围内）：
+**难度：** 低
 
-1. **`plantOnSpiritFields` 两阶段写入非原子** — `BuildingFacadeImpl.plantOnSpiritFields` 分两步写状态：先 `stateStore.update` 写入 `spiritFieldPlants`，再 `removeSeedSync` 扣除库存。两步不在同一事务内，存在状态窗口——`spiritFieldPlants` 已更新但库存未扣，游戏中若在此窗口触发操作可能导致不一致。
-   - 对标：Supercell Clash of Clans — 资源消耗和生产产出在同一事务中完成
-   - 修复建议：将两步合并为单次 `stateStore.update {}` 或使用 Saga 补偿模式
+---
 
-2. **`seeds` 列表引用不变性不可靠** — `PlantingDialog.fieldGroups` 使用 `remember(seeds)` 推导，当 `EntityStore.items` 返回同一 List 引用时（内容已变但引用不变），Compose 不触发重组。依赖父级 StateFlow 实现是否创建新 List 引用。
-   - 对标：React 不可变状态 + `useMemo` deps 数组
-   - 修复建议：`EntityStore.items` 每次修改返回新 List 引用，或 `fieldGroups` 改用 `derivedStateOf`+深度快照
+## 已关闭项
 
-3. **tier4-6 种子精灵图 `fallbackToTier1` 回退限制** — `EquipmentSprite.kt` 的 `fallbackToTier1` 对 herbId 末尾数字 > 9 返回 null，导致 tier4+ 种子无兜底精灵图。
-   - 影响：所有 tier4+ 种子在库存耗尽后右侧卡片显示"敬请期待"
-   - 修复建议：扩展 `fallbackToTier1` 支持 tier4-6，或注册 tier4-6 专属精灵图
-
-**优先级评估：**
-- 问题1 风险最高（数据一致性），优先修复
-- 问题2 偶发（依赖特定 StateFlow 实现），可随下一次 StateFlow 重构统一修复
-- 问题3 纯视觉，优先度最低
-
-**状态：** 🟡 待设计
-
-**问题描述：**
-- `DeductResult` 是 sealed class，但编译器不强制检查（非 `Result<T>` 类型）
-- 5 处忽略返回值的 bug 已在 2026-07-14 修复，但架构层面仍可绕开
-
-**目标：**
-- 评估将 `deduct()` 返回类型改为 `DeductResult` 并利用 Kotlin 编译器插件的 `@CheckResult` 或自定义 lint 规则
-- 或提供 `deductOrThrow()` 变体，失败时抛异常避免忽略
+| 项 | 关闭日期 | 说明 |
+|----|---------|------|
+| 招募双重协程间接 | 2026-07-17 | `recruitDiscipleFromList` 改为 suspend 直接 update |
+| `recruitAllFromList` 快照竞态 | 2026-07-17 | 改为 suspend，消除 `launchInScope` 窗口期 |
+| `handleDiscipleDeath` 读 Flow | 2026-07-17 | 改为 `discipleTables.assembleAll()` |
+| 自动招募无校验/无入门事件 | 2026-07-17 | 对齐手动招募的完整性检查和 addLifeEvent |
+| age/realm 越界校验缺失 | 2026-07-17 | 新增 `MAX_REASONABLE_AGE` + `VALID_REALM_RANGE` |

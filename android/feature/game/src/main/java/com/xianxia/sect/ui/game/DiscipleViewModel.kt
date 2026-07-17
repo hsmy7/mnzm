@@ -137,18 +137,6 @@ class DiscipleViewModel @Inject constructor(
         }
     }
     
-    fun recruitDisciple() {
-        viewModelScope.launch {
-            try {
-                gameEngine.recruitDisciple()
-                showSuccess("成功招募弟子")
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                showError(e.message ?: "招募失败")
-            }
-        }
-    }
-    
     fun dismissDisciple(discipleId: String) {
         viewModelScope.launch {
             try {

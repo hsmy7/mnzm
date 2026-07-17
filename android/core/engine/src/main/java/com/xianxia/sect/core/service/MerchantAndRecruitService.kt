@@ -46,6 +46,8 @@ class MerchantAndRecruitService @Inject constructor(
         private const val MERCHANT_PITY_THRESHOLD = 10
         private const val ACQUISITION_ITEM_COUNT_MIN = 1
         private const val ACQUISITION_ITEM_COUNT_MAX = 9
+        private const val MAX_REASONABLE_AGE = 10000
+        private val VALID_REALM_RANGE = GameConfig.Realm.CONFIGS.keys.let { it.min()..it.max() }
 
         private val RARITY_PROBABILITIES = mapOf(
             6 to 0.003,
@@ -368,20 +370,30 @@ class MerchantAndRecruitService @Inject constructor(
         }
 
         // 单事务：自动招募 + 写入招募列表，保证原子性
-        val generatedCount = manualRecruits.size
         stateStore.update {
             if (autoRecruits.isNotEmpty()) {
                 val currentMonthIndex = year * 12 + 1
                 autoRecruits.forEach { disciple ->
-                    disciple.recruitedMonth = currentMonthIndex
-                    discipleTables.allocateAndInsert(disciple)
+                    // 同手动招募一致，跳过损坏数据
+                    if (disciple.name.isBlank() || disciple.age <= 0 || disciple.age > MAX_REASONABLE_AGE
+                        || disciple.realm !in VALID_REALM_RANGE) {
+                        DomainLog.w(TAG, "autoRecruit: skipping corrupted disciple ${disciple.id}")
+                        return@forEach
+                    }
+                    val newId = discipleTables.allocateAndInsert(
+                        disciple.copy(usage = disciple.usage.copy(recruitedMonth = currentMonthIndex))
+                    )
+                    if (newId.isNotEmpty()) {
+                        val events = discipleTables.lifeEvents.getOrDefault(newId.toInt(), emptyList())
+                        discipleTables.lifeEvents[newId.toInt()] = events + "${disciple.age}岁：加入宗门"
+                    }
                 }
                 DomainLog.i(TAG, "autoRecruit: auto-recruited ${autoRecruits.size} disciples, " +
                     "${manualRecruits.size} left for manual review")
             }
             gameData = gameData.copy(recruitList = manualRecruits, lastRecruitYear = year)
         }
-        DomainLog.d(TAG, "refreshRecruitList: year=$year, generated $generatedCount new recruits " +
+        DomainLog.d(TAG, "refreshRecruitList: year=$year, generated ${manualRecruits.size} new recruits " +
             "(previous recruitList had $previousRecruitCount)")
     }
 }

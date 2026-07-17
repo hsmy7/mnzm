@@ -12,4 +12,7 @@ sealed interface GameNotification {
         val discipleName: String,
         val statName: String
     ) : GameNotification
+
+    /** 招募失败 */
+    data class RecruitFailed(val reason: String) : GameNotification
 }

@@ -704,9 +704,6 @@ class GameViewModel @Inject constructor(
         _selectedBuildingId.value = buildingId
     }
 
-    /** 招募弟子（无参重载），委托给 [DiscipleDelegate] */
-    fun recruitDisciple() = disciple.recruitDisciple()
-
     /**
      * 将弟子分配到指定建筑的槽位，委托给 [DiscipleDelegate]
      *

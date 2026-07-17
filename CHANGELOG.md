@@ -6,6 +6,7 @@
 - **新增：宗门好感度重构** — 宗门间初始为互不相识，玩家通过送礼/请求结盟/宗门交易/附属契约/遭遇战建立相识后，好感度才正常变化。移除月度随机事件机制
 - **新增：AI 宗门主动进攻妖兽** — 妖兽出现时，距离最近的两个宗门概率主动进攻。AI 战力高于妖兽才可能进攻，战力低于则不进攻。AI 胜利不获得任何奖励（AI 弟子死亡正确标记）
 - **新增：宗门遭遇战** — 玩家和 AI 宗门或两个 AI 宗门同时进攻同一妖兽时，先打遭遇战，胜者的幸存弟子再打妖兽。玩家+AI 遭遇战后好感度 -3，计入相识途径。战斗日志新增遭遇战类型
+- **新增：架构债务文档** — 创建 `docs/architecture-debt.md` 记录待完成的技术改进项
 
 ### 改动
 
@@ -18,6 +19,20 @@
 ### 修复
 
 - **修复：种植界面右侧已种植种子精灵图不显示** — 根因：种子种完后 quantity=0 → `removeSeed` 完全删除库存条目 → 右侧 `plantedSeed` 查找失败 → 显示灰色方块。修复：通过 `HerbDatabase.getSeedByName` 从静态数据库兜底渲染 `UnifiedItemCard`，种子名称/稀有度/精灵图均正确显示
+
+### 修复
+
+- **修复：招募弟子"同意"按钮无响应** — 根因：`DiscipleFacadeImpl.recruitDiscipleFromList` 通过 `launchInScope` 在 `engineScope` 上启动协程后立即返回，viewModelScope 协程在 engine 协程执行前就完成。若 engine 协程因 scope 取消/dispatcher 繁忙未被调度，招募无声消失。修复：改为 `suspend` 函数消除双重协程间接，直接执行 `stateStore.update`
+- **修复：`handleDiscipleDeath` 从 Flow 读取数据** — 同已知 Bug2 模式，`stateStore.disciples.value` 可能导致 Flow 缺失数据被 `replaceAll` 永久覆盖。修复：改为 `discipleTables.assembleAll()` 直读组件表
+- **修复：招募失败无用户反馈** — 新增 `GameNotification.RecruitFailed` 类型，通过 `StandardPromptDialog` 向玩家显示失败原因
+- **修复：age/realm 越界校验缺失** — 新增 `MAX_REASONABLE_AGE=10000` + `VALID_REALM_RANGE` 上界校验，防止异常值弟子通过招募
+- **修复：自动招募路径跳过完整性检查** — 对齐手动招募，新增 name/age/realm 校验，损坏数据跳过并记录日志
+- **修复：自动招募不写入入门生命事件** — 新增 `lifeEvents` 写入"X岁：加入宗门"，与手动招募行为一致
+- **修复：`addLifeEvent` 抛出时弟子处于孤儿状态** — 新增 `try-catch` 保护，异常时仅写日志不阻断流程
+- **修复：`recruitAllFromList` 快照竞态导致重复招募** — 改为 `suspend` 函数，在 `stateStore.update` 内直接操作，消除 `launchInScope` 窗口期
+- **修复：`DiscipleDelegate` 缺少 TAG 常量 + 重复守卫代码清理** — 新增 `companion object` + TAG，`recruitDisciple(DiscipleAggregate)` 简化为委托
+- **清理：无参数 `recruitDisciple()` 死代码** — 移除 `DiscipleDelegate` / `GameViewModel` / `DiscipleViewModel` 中未被调用的无参版本
+- **清理：`discipleName` 死变量** — 删除 `DiscipleFacadeImpl` 中赋值但未读的变量
 - **修复：铲除操作多次 fire-and-forget 竞态** — 铲除确认弹窗原用 for 循环 + N 次 `scope.launch` 分别铲除，改为单次 `removePlantsFromSpiritFields` 批量调用，在单次 `stateStore.update` 事务内完成
 - **修复：右侧兜底灰色方块无交互** — 终极兜底 Box 添加 `combinedClickable` + 长按可打开详情对话框；空 seedName 时显示"未知种子"
 

@@ -645,6 +645,14 @@ fun GameOverlayHost(
                     confirmLabel = "知道了"
                 )
             }
+            is GameNotification.RecruitFailed -> {
+                StandardPromptDialog(
+                    onDismissRequest = { viewModel.clearNotification() },
+                    title = "招募失败",
+                    text = notification.reason,
+                    confirmLabel = "知道了"
+                )
+            }
         }
     }
     }
