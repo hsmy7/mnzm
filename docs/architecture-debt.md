@@ -1,6 +1,6 @@
 # 架构债务记录
 
-> 本文件记录已知的架构债务和待完成的技术改进项。与 ADR 互补：ADR 记录已做的决策，此文件记录未做的改进。
+> 本文件记录已知的架构债务和待完成的技术改进项。
 
 ## 待完成项
 
@@ -63,12 +63,8 @@
 
 ---
 
-## 已关闭项
+## 不纳入债务（已完成评估）
 
-| 项 | 关闭日期 | 说明 |
-|----|---------|------|
-| 招募双重协程间接 | 2026-07-17 | `recruitDiscipleFromList` 改为 suspend 直接 update |
-| `recruitAllFromList` 快照竞态 | 2026-07-17 | 改为 suspend，消除 `launchInScope` 窗口期 |
-| `handleDiscipleDeath` 读 Flow | 2026-07-17 | 改为 `discipleTables.assembleAll()` |
-| 自动招募无校验/无入门事件 | 2026-07-17 | 对齐手动招募的完整性检查和 addLifeEvent |
-| age/realm 越界校验缺失 | 2026-07-17 | 新增 `MAX_REASONABLE_AGE` + `VALID_REALM_RANGE` |
+| 项 | 判定 | 说明 |
+|---|------|------|
+| 深层 DAO 链路 suspend（ProductionSlotRepository 12 方法/SavePipeline/MailService） | ✅ 不需要做 | IO/网络/存档路径保留 suspend 是合理设计，不在 `stateStore.update` 内调用，无死锁风险 |
