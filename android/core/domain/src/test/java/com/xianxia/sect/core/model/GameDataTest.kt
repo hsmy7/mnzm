@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.model
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.config.FavorConfig
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -18,7 +19,6 @@ class GameDataTest {
         assertEquals(1, data.gameYear)
         assertEquals(1, data.gameMonth)
         assertEquals(0, data.gamePhase)
-        assertEquals(1, data.gameSpeed)
         assertEquals(1000L, data.spiritStones)
         assertEquals(0, data.spiritHerbs)
         assertEquals(0.0, data.sectCultivation, 0.001)
@@ -546,7 +546,7 @@ class GameDataTest {
         val relation = SectRelation(sectId1 = "s1", sectId2 = "s2")
         assertEquals("s1", relation.sectId1)
         assertEquals("s2", relation.sectId2)
-        assertEquals(GameConfig.WorldMap.INITIAL_SECT_FAVOR, relation.favor)
+        assertEquals(FavorConfig.INITIAL_FAVOR, relation.favor)
         assertEquals(0, relation.lastInteractionYear)
         assertEquals(0, relation.noGiftYears)
     }

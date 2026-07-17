@@ -8,11 +8,11 @@ import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.model.CombatSkill
 import org.junit.Assert.*
 import org.junit.Test
-import kotlin.random.Random
+import com.xianxia.sect.core.util.DeterministicRng
 
 class BattleAITest {
 
-    private val fixedRandom = Random(42)
+    private val fixedRandom = DeterministicRng.fromSeed(42L)
 
     // ---- 辅助工厂方法 ----
 
@@ -266,7 +266,7 @@ class BattleAITest {
                 listOf(combatant(
                     id = "e1", side = CombatantSide.ATTACKER
                 )),
-                Random(seed)
+                DeterministicRng.fromSeed(seed.toLong())
             )
             if (action.actionType ==
                 BattleAI.AIActionType.SKILL_HEAL_ALLY ||
@@ -362,7 +362,7 @@ class BattleAITest {
                 side = CombatantSide.ATTACKER)
         )
         // 多次调用，统计结果
-        val lowHpRandom = Random(1) // 低血量优先的种子
+        val lowHpRandom = DeterministicRng.fromSeed(1L) // 低血量优先的种子
         val target = BattleAI.selectAttackTarget(
             combatant(id = "attacker"),
             enemies, null, lowHpRandom
@@ -387,13 +387,13 @@ class BattleAITest {
         )
 
         val r1 = BattleAI.decideAction(
-            unit, listOf(unit), enemies, Random(123)
+            unit, listOf(unit), enemies, DeterministicRng.fromSeed(123L)
         )
         val r2 = BattleAI.decideAction(
-            unit, listOf(unit), enemies, Random(123)
+            unit, listOf(unit), enemies, DeterministicRng.fromSeed(123L)
         )
         val r3 = BattleAI.decideAction(
-            unit, listOf(unit), enemies, Random(123)
+            unit, listOf(unit), enemies, DeterministicRng.fromSeed(123L)
         )
 
         assertEquals(r1.actionType, r2.actionType)
@@ -487,7 +487,7 @@ class BattleAITest {
         var foundControl = false
         for (seed in 1..100) {
             val action = BattleAI.decideAction(
-                unit, listOf(unit), listOf(enemy), Random(seed)
+                unit, listOf(unit), listOf(enemy), DeterministicRng.fromSeed(seed.toLong())
             )
             if (action.actionType ==
                 BattleAI.AIActionType.SKILL_ATTACK_SINGLE
@@ -516,7 +516,7 @@ class BattleAITest {
             val action = BattleAI.decideAction(
                 unit, listOf(unit),
                 listOf(combatant("e1", side = CombatantSide.ATTACKER)),
-                Random(seed)
+                DeterministicRng.fromSeed(seed.toLong())
             )
             if (action.actionType == BattleAI.AIActionType.NORMAL_ATTACK) {
                 foundNormalAttack = true
@@ -569,7 +569,7 @@ class BattleAITest {
             val action = BattleAI.decideAction(
                 unit, listOf(unit),
                 listOf(combatant("e1", side = CombatantSide.ATTACKER)),
-                Random(seed)
+                DeterministicRng.fromSeed(seed.toLong())
             )
             if (action.actionType == BattleAI.AIActionType.NORMAL_ATTACK) {
                 foundNormalAttack = true

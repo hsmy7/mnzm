@@ -7,6 +7,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.util.DomainResult
+import com.xianxia.sect.core.util.GameRngManager
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
@@ -64,7 +65,8 @@ class DiscipleServiceApprenticeTest {
             productionSlotRepository = mock(),
             scopeProvider = mock(),
             inventoryConfig = mock(),
-            discipleFactory = mock()
+            discipleFactory = mock(),
+            rngManager = mock()
         )
     }
 

@@ -8,9 +8,11 @@ import com.xianxia.sect.core.engine.domain.battle.CombatBuff
 import com.xianxia.sect.core.engine.domain.battle.Combatant
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.SkillStats
+import com.xianxia.sect.core.util.GameRngManager
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import org.mockito.Mockito.mock
 
 class BattleSystemTest {
 
@@ -18,7 +20,7 @@ class BattleSystemTest {
 
     @Before
     fun setUp() {
-        battleSystem = BattleSystem()
+        battleSystem = BattleSystem(mock())
     }
 
     private fun createDisciple(

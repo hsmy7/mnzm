@@ -5,6 +5,7 @@ import com.xianxia.sect.core.model.SpiritStoneExchange
 import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.core.util.GameRngManager
 import org.junit.Assert.*
 import org.junit.Test
 import org.mockito.Mockito.mock
@@ -56,7 +57,8 @@ class MerchantAndRecruitServiceTest {
         val service = MerchantAndRecruitService(
             mock(GameStateStore::class.java),
             mock(CoroutineScopeProvider::class.java),
-            mock(DiscipleFactory::class.java)
+            mock(DiscipleFactory::class.java),
+            mock(GameRngManager::class.java)
         )
         val pools = service.buildMerchantItemPools()
 

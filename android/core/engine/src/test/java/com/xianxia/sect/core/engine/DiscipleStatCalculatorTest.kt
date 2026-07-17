@@ -152,51 +152,51 @@ class DiscipleStatCalculatorTest {
     }
 
     @Test
-    fun `calculateCultivationSpeed - 基础修炼速度为正`() {
+    fun `calculateCultivationPerPhase - 基础修炼速度为正`() {
         val disciple = createDisciple()
-        val speed = DiscipleStatCalculator.calculateCultivationSpeed(disciple)
+        val speed = DiscipleStatCalculator.calculateCultivationPerPhase(disciple)
         assertTrue("修炼速度应为正数", speed > 0)
     }
 
     @Test
-    fun `calculateCultivationSpeed - 悟性不影响修炼速度`() {
+    fun `calculateCultivationPerPhase - 悟性不影响修炼速度`() {
         val lowComp = createDisciple(comprehension = 30)
         val highComp = createDisciple(comprehension = 90)
-        val lowSpeed = DiscipleStatCalculator.calculateCultivationSpeed(lowComp)
-        val highSpeed = DiscipleStatCalculator.calculateCultivationSpeed(highComp)
+        val lowSpeed = DiscipleStatCalculator.calculateCultivationPerPhase(lowComp)
+        val highSpeed = DiscipleStatCalculator.calculateCultivationPerPhase(highComp)
         assertEquals("悟性不应影响修炼速度", lowSpeed, highSpeed, 0.001)
     }
 
     @Test
-    fun `calculateCultivationSpeed - 单灵根炼气每旬基准速度`() {
+    fun `calculateCultivationPerPhase - 单灵根炼气每旬基准速度`() {
         val disciple = createDisciple(spiritRootType = "metal") // 单灵根, 炼气
-        val speed = DiscipleStatCalculator.calculateCultivationSpeed(disciple)
+        val speed = DiscipleStatCalculator.calculateCultivationPerPhase(disciple)
         assertEquals("单灵根炼气每旬应为28", 28.0, speed, 0.001)
     }
 
     @Test
-    fun `calculateCultivationSpeed - 境界越高修炼越快`() {
+    fun `calculateCultivationPerPhase - 境界越高修炼越快`() {
         val lianqi = createDisciple(realm = 9)
         val zhuji = createDisciple(realm = 8)
         val jindan = createDisciple(realm = 7)
 
-        val sL = DiscipleStatCalculator.calculateCultivationSpeed(lianqi)
-        val sZ = DiscipleStatCalculator.calculateCultivationSpeed(zhuji)
-        val sJ = DiscipleStatCalculator.calculateCultivationSpeed(jindan)
+        val sL = DiscipleStatCalculator.calculateCultivationPerPhase(lianqi)
+        val sZ = DiscipleStatCalculator.calculateCultivationPerPhase(zhuji)
+        val sJ = DiscipleStatCalculator.calculateCultivationPerPhase(jindan)
 
         assertTrue("筑基应快于炼气", sZ > sL)
         assertTrue("金丹应快于筑基", sJ > sZ)
     }
 
     @Test
-    fun `calculateCultivationSpeed - 灵根越少修炼越快`() {
+    fun `calculateCultivationPerPhase - 灵根越少修炼越快`() {
         val single = createDisciple(spiritRootType = "metal")
         val double = createDisciple(spiritRootType = "metal,wood")
         val triple = createDisciple(spiritRootType = "metal,wood,water")
 
-        val s1 = DiscipleStatCalculator.calculateCultivationSpeed(single)
-        val s2 = DiscipleStatCalculator.calculateCultivationSpeed(double)
-        val s3 = DiscipleStatCalculator.calculateCultivationSpeed(triple)
+        val s1 = DiscipleStatCalculator.calculateCultivationPerPhase(single)
+        val s2 = DiscipleStatCalculator.calculateCultivationPerPhase(double)
+        val s3 = DiscipleStatCalculator.calculateCultivationPerPhase(triple)
 
         assertTrue("单灵根应快于双灵根: $s1 vs $s2", s1 > s2)
         assertTrue("双灵根应快于三灵根: $s2 vs $s3", s2 > s3)
@@ -207,10 +207,10 @@ class DiscipleStatCalculatorTest {
     }
 
     @Test
-    fun `calculateCultivationSpeed - 建筑加成`() {
+    fun `calculateCultivationPerPhase - 建筑加成`() {
         val disciple = createDisciple()
-        val noBonus = DiscipleStatCalculator.calculateCultivationSpeed(disciple, buildingBonus = 1.0)
-        val withBonus = DiscipleStatCalculator.calculateCultivationSpeed(disciple, buildingBonus = 1.5)
+        val noBonus = DiscipleStatCalculator.calculateCultivationPerPhase(disciple, buildingBonus = 1.0)
+        val withBonus = DiscipleStatCalculator.calculateCultivationPerPhase(disciple, buildingBonus = 1.5)
         assertTrue("建筑加成应提高修炼速度", withBonus > noBonus)
     }
 
@@ -240,17 +240,17 @@ class DiscipleStatCalculatorTest {
     }
 
     @Test
-    fun `calculateCultivationSpeed - 传道长老加成`() {
+    fun `calculateCultivationPerPhase - 传道长老加成`() {
         val disciple = createDisciple()
-        val noBonus = DiscipleStatCalculator.calculateCultivationSpeed(disciple, preachingElderBonus = 0.0)
-        val withBonus = DiscipleStatCalculator.calculateCultivationSpeed(disciple, preachingElderBonus = 0.3)
+        val noBonus = DiscipleStatCalculator.calculateCultivationPerPhase(disciple, preachingElderBonus = 0.0)
+        val withBonus = DiscipleStatCalculator.calculateCultivationPerPhase(disciple, preachingElderBonus = 0.3)
         assertTrue("传道长老加成应提高修炼速度", withBonus > noBonus)
     }
 
     @Test
-    fun `calculateCultivationSpeed - 最低为1`() {
+    fun `calculateCultivationPerPhase - 最低为1`() {
         val disciple = createDisciple()
-        val speed = DiscipleStatCalculator.calculateCultivationSpeed(disciple)
+        val speed = DiscipleStatCalculator.calculateCultivationPerPhase(disciple)
         assertTrue("修炼速度最低为1", speed >= 1.0)
     }
 
@@ -786,27 +786,27 @@ class DiscipleStatCalculatorTest {
     }
 
     @Test
-    fun `calculateCultivationSpeed - 师徒加成生效`() {
+    fun `calculateCultivationPerPhase - 师徒加成生效`() {
         val disciple = createDisciple()
-        val noBonus = DiscipleStatCalculator.calculateCultivationSpeed(
+        val noBonus = DiscipleStatCalculator.calculateCultivationPerPhase(
             disciple, masterDiscipleBonus = 0.0
         )
-        val withBonus = DiscipleStatCalculator.calculateCultivationSpeed(
+        val withBonus = DiscipleStatCalculator.calculateCultivationPerPhase(
             disciple, masterDiscipleBonus = 0.05
         )
         assertTrue("师徒加成应提高修炼速度", withBonus > noBonus)
     }
 
     @Test
-    fun `calculateCultivationSpeed - 师徒加成为0不影响基础值`() {
+    fun `calculateCultivationPerPhase - 师徒加成为0不影响基础值`() {
         val disciple = createDisciple()
-        val speed = DiscipleStatCalculator.calculateCultivationSpeed(
+        val speed = DiscipleStatCalculator.calculateCultivationPerPhase(
             disciple, masterDiscipleBonus = 0.0
         )
         // 默认参数即0，验证与不传参一致
         assertEquals(
             speed,
-            DiscipleStatCalculator.calculateCultivationSpeed(disciple),
+            DiscipleStatCalculator.calculateCultivationPerPhase(disciple),
             0.001
         )
     }

@@ -8,6 +8,10 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.FormulaService
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.engine.domain.battle.aisRngManager
+import com.xianxia.sect.core.engine.domain.battle.enemyGenRngManager
+import com.xianxia.sect.core.engine.domain.battle.teamComposerRngManager
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.CombatService
@@ -86,12 +90,18 @@ class GameEngine @Inject constructor(
     internal val diplomacyFacade: DiplomacyFacade,
     internal val productionFacade: ProductionFacade,
     internal val saveFacade: SaveFacade,
-    internal val spiritStoneWallet: SpiritStoneWallet
+    internal val spiritStoneWallet: SpiritStoneWallet,
+    internal val gameRngManager: GameRngManager
 ) {
     init {
         // 注入任务完成检测回调到 GameEngineCore，
         // 确保空闲期间任务完成也能被每月结算及时检测
         gameEngineCore.missionCheck = { checkAndProcessCompletedMissions() }
+
+        // 初始化顶层 RNG 变量（给 object 单例使用）
+        aisRngManager = gameRngManager
+        enemyGenRngManager = gameRngManager
+        teamComposerRngManager = gameRngManager
     }
 
     companion object { private const val TAG = "GameEngine" }
