@@ -257,20 +257,22 @@ class ExplorationService @Inject constructor(
         val profMap = gameData.manualProficiencies.mapValues {
             (_, list) -> list.associateBy { it.manualId }
         }
+        val beastPreGenStats = if (level.beastMaxHp > 0) BattleSystem.BeastPreGenStats(
+            maxHp = level.beastMaxHp,
+            maxMp = level.beastMaxMp,
+            physicalAttack = level.beastPhysicalAttack,
+            magicAttack = level.beastMagicAttack,
+            physicalDefense = level.beastPhysicalDefense,
+            magicDefense = level.beastMagicDefense,
+            speed = level.beastSpeed,
+            realmLayer = level.realmLayer
+        ) else null
         val battle = battleSystem.createBattle(
             defenders, equipMap, manMap,
             level.realm, level.count,
             GameConfig.Beast.getType(level.beastType ?: 0).name,
             profMap,
-            beastPreGenStats = BattleSystem.BeastPreGenStats(
-                maxHp = level.beastMaxHp,
-                maxMp = level.beastMaxMp,
-                physicalAttack = level.beastPhysicalAttack,
-                magicAttack = level.beastMagicAttack,
-                physicalDefense = level.beastPhysicalDefense,
-                magicDefense = level.beastMagicDefense,
-                speed = level.beastSpeed
-            )
+            beastPreGenStats = beastPreGenStats
         )
         return battleSystem.executeBattle(battle)
     }

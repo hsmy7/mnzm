@@ -230,15 +230,17 @@ suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List<Strin
     val manualMap = stateStore.manualInstancesSnapshot.associateBy { it.id }
     val beastTypeName = if (level.isBeast) GameConfig.Beast.getType(level.beastType ?: 0).name else null
     val allProficiencies = data.manualProficiencies.mapValues { (_, list) -> list.associateBy { it.manualId } }
-    val battle = battleSystem.createBattle(disciples = combatDisciples, equipmentMap = equipmentMap, manualMap = manualMap, beastLevel = level.realm, beastCount = level.count, beastType = beastTypeName, manualProficiencies = allProficiencies, beastPreGenStats = BattleSystem.BeastPreGenStats(
+    val beastPreGenStats = if (level.isBeast && level.beastMaxHp > 0) BattleSystem.BeastPreGenStats(
         maxHp = level.beastMaxHp,
         maxMp = level.beastMaxMp,
         physicalAttack = level.beastPhysicalAttack,
         magicAttack = level.beastMagicAttack,
         physicalDefense = level.beastPhysicalDefense,
         magicDefense = level.beastMagicDefense,
-        speed = level.beastSpeed
-    ))
+        speed = level.beastSpeed,
+        realmLayer = level.realmLayer
+    ) else null
+    val battle = battleSystem.createBattle(disciples = combatDisciples, equipmentMap = equipmentMap, manualMap = manualMap, beastLevel = level.realm, beastCount = level.count, beastType = beastTypeName, manualProficiencies = allProficiencies, beastPreGenStats = beastPreGenStats)
     val result = battleSystem.executeBattle(battle)
     val hpMap = result.battle.team.associate { it.id to (it.hp to it.mp) }
     val survivorIds = result.battle.team.filter { !it.isDead }.map { it.id }.toSet()

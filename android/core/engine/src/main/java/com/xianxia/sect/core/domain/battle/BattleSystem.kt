@@ -30,7 +30,8 @@ class BattleSystem @Inject constructor() {
         val magicAttack: Int,
         val physicalDefense: Int,
         val magicDefense: Int,
-        val speed: Int
+        val speed: Int,
+        val realmLayer: Int = 1
     )
 
     fun createBattle(
@@ -167,7 +168,7 @@ class BattleSystem @Inject constructor() {
             physicalDefense = s.physicalDefense
             magicDefense = s.magicDefense
             speed = s.speed
-            realmLayer = 1 // 属性已含层数加成，Combatant.realmLayer 仅用于展示
+            realmLayer = s.realmLayer
         } else {
             // 向后兼容：旧存档妖兽无预计算属性时，用基础值（不含随机方差）确保战斗不崩溃
             val rl = 5 // 默认中层
