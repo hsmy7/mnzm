@@ -167,7 +167,68 @@ class LevelGeneratorTest {
         }
     }
 
-    // ---- selectBeastRealm ----
+    // ---- 预计算妖兽属性测试 ----
+
+    @Test
+    fun beastLevel_hasPrecomputedStats() {
+        val levels = generator.generateWorldLevels(
+            existingSects = emptyList(),
+            connectionEdges = emptyList(),
+            currentYear = 5,
+            currentMonth = 1,
+            existingLevels = emptyList(),
+            maxNewLevels = 20
+        )
+        val beastLevels = levels.filter { it.type == com.xianxia.sect.core.model.LevelType.BEAST }
+        if (beastLevels.isEmpty()) return
+
+        for (level in beastLevels) {
+            assertTrue("beastMaxHp > 0, got ${level.beastMaxHp}", level.beastMaxHp > 0)
+            assertTrue("beastPhysicalAttack > 0, got ${level.beastPhysicalAttack}", level.beastPhysicalAttack > 0)
+            assertTrue("beastMagicAttack > 0, got ${level.beastMagicAttack}", level.beastMagicAttack > 0)
+            assertTrue("beastPhysicalDefense > 0, got ${level.beastPhysicalDefense}", level.beastPhysicalDefense > 0)
+            assertTrue("beastMagicDefense > 0, got ${level.beastMagicDefense}", level.beastMagicDefense > 0)
+            assertTrue("beastSpeed > 0, got ${level.beastSpeed}", level.beastSpeed > 0)
+            assertEquals("物攻=法攻", level.beastPhysicalAttack.toLong(), level.beastMagicAttack.toLong())
+            assertEquals("物防=法防", level.beastPhysicalDefense.toLong(), level.beastMagicDefense.toLong())
+        }
+    }
+
+    @Test
+    fun caveLevel_hasNoPrecomputedStats() {
+        val levels = generator.generateWorldLevels(
+            existingSects = emptyList(),
+            connectionEdges = emptyList(),
+            currentYear = 5,
+            currentMonth = 1,
+            existingLevels = emptyList(),
+            maxNewLevels = 20
+        )
+        val caveLevels = levels.filter { it.type == com.xianxia.sect.core.model.LevelType.CAVE }
+        for (level in caveLevels) {
+            assertEquals("洞穴不应有预计算属性", 0, level.beastMaxHp)
+        }
+    }
+
+    @Test
+    fun beastPrecomputedStats_deterministicWithSameSeed() {
+        val rng1 = GameRngManager().also { it.initSystemSeed(42L) }
+        val g1 = LevelGenerator(rng1)
+        val rng2 = GameRngManager().also { it.initSystemSeed(42L) }
+        val g2 = LevelGenerator(rng2)
+
+        val levels1 = g1.generateWorldLevels(emptyList(), emptyList(), 10, 1, emptyList(), 10)
+        val levels2 = g2.generateWorldLevels(emptyList(), emptyList(), 10, 1, emptyList(), 10)
+
+        assertEquals("相同种子生成相同数量", levels1.size, levels2.size)
+        for (i in levels1.indices) {
+            val l1 = levels1[i]
+            val l2 = levels2[i]
+            assertEquals("beastMaxHp 相同", l1.beastMaxHp, l2.beastMaxHp)
+            assertEquals("beastPhysicalAttack 相同", l1.beastPhysicalAttack, l2.beastPhysicalAttack)
+            assertEquals("beastSpeed 相同", l1.beastSpeed, l2.beastSpeed)
+        }
+    }
 
     @Test
     fun selectBeastRealm_returnsValidRealmRange() {

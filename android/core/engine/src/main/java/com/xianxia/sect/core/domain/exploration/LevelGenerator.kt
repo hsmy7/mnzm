@@ -177,11 +177,6 @@ class LevelGenerator @Inject constructor(
         val realm = selectBeastRealm(currentYear)
         val realmLayer = rng.nextInt(9) + 1
         val count = rng.nextInt(13) + 1
-        val realmName = when (realm) {
-            0 -> "仙人"; 1 -> "渡劫"; 2 -> "大乘"; 3 -> "合体"; 4 -> "炼虚"
-            5 -> "化神"; 6 -> "元婴"; 7 -> "金丹"; 8 -> "筑基"; 9 -> "炼气"
-            else -> "炼气"
-        }
 
         // ========== 预计算妖兽最终属性（含随机方差） ==========
         // 与 BattleSystem.createBeast 使用相同公式，但用 EXPLORATION 分区 RNG 代替 kotlin.random.Random

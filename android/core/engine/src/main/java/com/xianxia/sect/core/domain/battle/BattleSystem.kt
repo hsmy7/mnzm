@@ -14,7 +14,6 @@ import com.xianxia.sect.core.util.DomainLog
 
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.random.Random
 
 @Singleton
 class BattleSystem @Inject constructor() {
@@ -58,7 +57,7 @@ class BattleSystem @Inject constructor() {
             )
         }
 
-        val actualBeastCount = beastCount ?: Random.nextInt(GameConfig.Battle.MIN_BEAST_COUNT, GameConfig.Battle.MAX_BEAST_COUNT + 1)
+        val actualBeastCount = beastCount ?: GameConfig.Battle.MIN_BEAST_COUNT
 
         val beasts = (1..actualBeastCount).map { index ->
             createBeast(beastRealm, index, beastType, beastPreGenStats)
@@ -146,7 +145,7 @@ class BattleSystem @Inject constructor() {
         val type = if (beastType != null) {
             GameConfig.Beast.TYPES.find { it.name == beastType } ?: GameConfig.Beast.getType(0)
         } else {
-            GameConfig.Beast.getType(Random.nextInt(GameConfig.Beast.TYPES.size))
+            GameConfig.Beast.getType(0)
         }
 
         val hp: Int
@@ -170,23 +169,18 @@ class BattleSystem @Inject constructor() {
             speed = s.speed
             realmLayer = 1 // 属性已含层数加成，Combatant.realmLayer 仅用于展示
         } else {
-            // 向后兼容：无预计算属性时使用旧随机逻辑
-            val rl = Random.nextInt(1, 10)
+            // 向后兼容：旧存档妖兽无预计算属性时，用基础值（不含随机方差）确保战斗不崩溃
+            val rl = 5 // 默认中层
             val layerMult = 1.0 + (rl - 1) * 0.1
             val stats = GameConfig.Beast.getRealmStats(realmIndex)
 
-            val hpV = -0.2 + Random.nextDouble() * 0.4
-            val atkV = -0.2 + Random.nextDouble() * 0.4
-            val defV = -0.2 + Random.nextDouble() * 0.4
-            val spdV = -0.2 + Random.nextDouble() * 0.4
-
-            hp = (stats.hp * layerMult * (type.hpMod + hpV)).toInt()
-            mp = (stats.mp * layerMult * (type.hpMod + hpV)).toInt()
-            physicalAttack = (stats.attack * layerMult * (type.atkMod + atkV)).toInt()
-            magicAttack = (stats.attack * layerMult * (type.atkMod + atkV)).toInt()
-            physicalDefense = (stats.defense * layerMult * (type.defMod + defV)).toInt()
-            magicDefense = (stats.defense * layerMult * (type.defMod + defV)).toInt()
-            speed = (stats.speed * layerMult * (type.speedMod + spdV)).toInt()
+            hp = (stats.hp * layerMult * type.hpMod).toInt()
+            mp = (stats.mp * layerMult * type.hpMod).toInt()
+            physicalAttack = (stats.attack * layerMult * type.atkMod).toInt()
+            magicAttack = (stats.attack * layerMult * type.atkMod).toInt()
+            physicalDefense = (stats.defense * layerMult * type.defMod).toInt()
+            magicDefense = (stats.defense * layerMult * type.defMod).toInt()
+            speed = (stats.speed * layerMult * type.speedMod).toInt()
             realmLayer = rl
         }
 
@@ -924,7 +918,7 @@ class BattleSystem @Inject constructor() {
 
     private fun generateRewards(beastCount: Int): Map<String, Int> {
         val rewards = mutableMapOf<String, Int>()
-        rewards["spiritStones"] = Random.nextInt(50, 150) * beastCount
+        rewards["spiritStones"] = 100 * beastCount
         return rewards
     }
 }
