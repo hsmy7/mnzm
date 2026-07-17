@@ -275,7 +275,12 @@ suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List<Strin
     val existingLogs = stateStore.battleLogsSnapshot
     val updatedLogs = (existingLogs + log).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
     if (result.victory) {
+        // TOCTOU 防护：合并魂魄/属性更新+defeated标记为单次原子事务，
+        // 入口重新检查 defeated，防止并发线程（巡视塔等）重复发放奖励
         stateStore.update {
+            val currentLevel = gameData.worldLevels.find { it.id == levelId }
+            if (currentLevel == null || currentLevel.defeated) return@update
+
             for (id in discipleTables.ids) {
                 val idStr = id.toString()
                 if (idStr in survivorIds && discipleTables.isAlive[id] == 1) {
@@ -305,6 +310,12 @@ suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List<Strin
                     }
                 }
             }
+            gameData = gameData.copy(
+                worldLevels = gameData.worldLevels.map { l ->
+                    if (l.id == levelId) l.copy(defeated = true) else l
+                }
+            )
+            battleLogs = updatedLogs
         }
         val allRewards = mutableListOf<BattleRewardItem>()
         if (level.isBeast) {
@@ -316,9 +327,6 @@ suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List<Strin
             }
         } else {
             allRewards.addAll(handleCaveLevelVictory(level))
-        }
-        stateStore.update {
-            gameData = gameData.copy(worldLevels = gameData.worldLevels.map { l -> if (l.id == levelId) l.copy(defeated = true) else l }); battleLogs = updatedLogs
         }
         stateStore.setPendingBattleResult(BattleResultUIData(battleLogId = log.id, victory = true, teamMembers = teamMembers, rewards = allRewards))
     } else {
