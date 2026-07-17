@@ -41,7 +41,13 @@ object MapItemMapper {
                     count = level.count,
                     caveImageIndex = level.caveImageIndex,
                     caveName = level.caveName,
-                    defeated = level.defeated
+                    defeated = level.defeated,
+                    beastMaxHp = level.beastMaxHp,
+                    beastPhysicalAttack = level.beastPhysicalAttack,
+                    beastMagicAttack = level.beastMagicAttack,
+                    beastPhysicalDefense = level.beastPhysicalDefense,
+                    beastMagicDefense = level.beastMagicDefense,
+                    beastSpeed = level.beastSpeed
                 )
             }
 }

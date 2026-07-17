@@ -204,14 +204,24 @@ class PatrolBattleSystem @Inject constructor(
         return teams.mapNotNull { team ->
             val target = targets[team.towerIndex] ?: return@mapNotNull null
 
+            val beastTypeName = GameConfig.Beast.getType(target.beastType ?: 0).name
             val battle = battleSystem.createBattle(
                 disciples = team.disciples,
                 equipmentMap = equipmentMap,
                 manualMap = manualMap,
                 beastLevel = target.realm,
                 beastCount = target.count,
-                beastType = target.beastName,
-                manualProficiencies = allProficiencies
+                beastType = beastTypeName,
+                manualProficiencies = allProficiencies,
+                beastPreGenStats = BattleSystem.BeastPreGenStats(
+                    maxHp = target.beastMaxHp,
+                    maxMp = target.beastMaxMp,
+                    physicalAttack = target.beastPhysicalAttack,
+                    magicAttack = target.beastMagicAttack,
+                    physicalDefense = target.beastPhysicalDefense,
+                    magicDefense = target.beastMagicDefense,
+                    speed = target.beastSpeed
+                )
             )
             val result = battleSystem.executeBattle(battle)
 

@@ -32,6 +32,36 @@ object SectCombatPowerCalculator {
     }
 
     /**
+     * 计算妖兽战力。
+     *
+     * 使用与弟子统一的公式：
+     *   战力 = (物攻 + 法攻) × 5 + 气血 × 4 + (物防 + 法防) × 3 + 速度 × 2
+     *
+     * 此方法接收妖兽生成时已含随机方差的最终属性，确保地图显示战力等于战斗实际战力。
+     *
+     * @param maxHp 妖兽最大气血
+     * @param physicalAttack 物理攻击
+     * @param magicAttack 法术攻击（妖兽物攻=法攻）
+     * @param physicalDefense 物理防御
+     * @param magicDefense 法术防御（妖兽物防=法防）
+     * @param speed 速度
+     * @return 妖兽战力值
+     */
+    fun calculateBeastCombatPower(
+        maxHp: Int,
+        physicalAttack: Int,
+        magicAttack: Int,
+        physicalDefense: Int,
+        magicDefense: Int,
+        speed: Int
+    ): Long {
+        return (physicalAttack.toLong() + magicAttack.toLong()) * 5L +
+               maxHp.toLong() * 4L +
+               (physicalDefense.toLong() + magicDefense.toLong()) * 3L +
+               speed.toLong() * 2L
+    }
+
+    /**
      * 使用永久基础属性计算单个弟子的战力。
      *
      * 统一了之前分离的玩家和 AI 处理路径。

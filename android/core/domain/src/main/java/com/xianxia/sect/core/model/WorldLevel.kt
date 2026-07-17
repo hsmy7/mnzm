@@ -25,7 +25,16 @@ data class WorldLevel(
     val expiryMonth: Int = 1,
     val count: Int = 5,
     val caveImageIndex: Int = 0,
-    val defeated: Boolean = false
+    val defeated: Boolean = false,
+
+    // ========== 预计算妖兽最终属性（生成时含随机方差，直接用于战斗和战力计算） ==========
+    val beastMaxHp: Int = 0,
+    val beastMaxMp: Int = 0,
+    val beastPhysicalAttack: Int = 0,
+    val beastMagicAttack: Int = 0,
+    val beastPhysicalDefense: Int = 0,
+    val beastMagicDefense: Int = 0,
+    val beastSpeed: Int = 0
 ) {
     val isBeast: Boolean get() = type == LevelType.BEAST
     val isCave: Boolean get() = type == LevelType.CAVE

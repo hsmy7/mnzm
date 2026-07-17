@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.xianxia.sect.core.engine.SectCombatPowerCalculator
 import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -140,12 +141,37 @@ fun LevelDetailDialog(
                             color = Color.Black
                         )
                     } else {
-                        Text(
-                            text = level.name,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = level.name,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                            if (level.levelType == LevelType.BEAST && level.beastMaxHp > 0) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "总战力",
+                                    fontSize = 13.sp,
+                                    color = Color.Black
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = GameUtils.formatNumber(
+                                        SectCombatPowerCalculator.calculateBeastCombatPower(
+                                            maxHp = level.beastMaxHp,
+                                            physicalAttack = level.beastPhysicalAttack,
+                                            magicAttack = level.beastMagicAttack,
+                                            physicalDefense = level.beastPhysicalDefense,
+                                            magicDefense = level.beastMagicDefense,
+                                            speed = level.beastSpeed
+                                        )
+                                    ),
+                                    fontSize = 13.sp,
+                                    color = Color.Black
+                                )
+                            }
+                        }
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(

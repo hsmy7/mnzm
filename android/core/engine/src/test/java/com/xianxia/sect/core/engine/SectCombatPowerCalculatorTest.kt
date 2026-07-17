@@ -116,4 +116,69 @@ class SectCombatPowerCalculatorTest {
         val fp2 = SectCombatPowerCalculator.computeFingerprint(d2.toAggregate())
         assertEquals("相同境界/层数的弟子指纹应相同（装备不影响）", fp1, fp2)
     }
+
+    // ========== 妖兽战力测试 ==========
+
+    @Test
+    fun `calculateBeastCombatPower - formula matches known values`() {
+        // 虎妖 (beastType=0): hpMod=1.3, atkMod=1.4, defMod=0.7, speedMod=1.0
+        // 属性已含随机方差（此处直接传入预计算值验证公式）
+        val result = SectCombatPowerCalculator.calculateBeastCombatPower(
+            maxHp = 5000, physicalAttack = 300, magicAttack = 300,
+            physicalDefense = 150, magicDefense = 150, speed = 100
+        )
+        // (300+300)*5 + 5000*4 + (150+150)*3 + 100*2
+        val expected = (300 + 300) * 5L + 5000 * 4L + (150 + 150) * 3L + 100 * 2L
+        assertEquals(expected, result)
+    }
+
+    @Test
+    fun `calculateBeastCombatPower - zero stats`() {
+        val result = SectCombatPowerCalculator.calculateBeastCombatPower(
+            maxHp = 0, physicalAttack = 0, magicAttack = 0,
+            physicalDefense = 0, magicDefense = 0, speed = 0
+        )
+        assertEquals(0L, result)
+    }
+
+    @Test
+    fun `calculateBeastCombatPower - deterministic output`() {
+        val first = SectCombatPowerCalculator.calculateBeastCombatPower(
+            maxHp = 15236, physicalAttack = 2283, magicAttack = 2283,
+            physicalDefense = 853, magicDefense = 853, speed = 866
+        )
+        val second = SectCombatPowerCalculator.calculateBeastCombatPower(
+            maxHp = 15236, physicalAttack = 2283, magicAttack = 2283,
+            physicalDefense = 853, magicDefense = 853, speed = 866
+        )
+        assertEquals("相同输入必须返回相同结果", first, second)
+    }
+
+    @Test
+    fun `calculateBeastCombatPower - higher stats yield higher power`() {
+        val low = SectCombatPowerCalculator.calculateBeastCombatPower(
+            maxHp = 1000, physicalAttack = 100, magicAttack = 100,
+            physicalDefense = 50, magicDefense = 50, speed = 50
+        )
+        val high = SectCombatPowerCalculator.calculateBeastCombatPower(
+            maxHp = 2000, physicalAttack = 200, magicAttack = 200,
+            physicalDefense = 100, magicDefense = 100, speed = 100
+        )
+        assertEquals(true, high > low)
+    }
+
+    @Test
+    fun `calculateBeastCombatPower - same formula as disciple`() {
+        // 同一组属性值，妖兽和弟子使用完全相同的公式
+        val beastPower = SectCombatPowerCalculator.calculateBeastCombatPower(
+            maxHp = 1000, physicalAttack = 200, magicAttack = 100,
+            physicalDefense = 50, magicDefense = 30, speed = 80
+        )
+        val stats = com.xianxia.sect.core.model.DiscipleStats(
+            maxHp = 1000, physicalAttack = 200, magicAttack = 100,
+            physicalDefense = 50, magicDefense = 30, speed = 80
+        )
+        val disciplePower = SectCombatPowerCalculator.calculateDiscipleCombatPower(stats)
+        assertEquals("妖兽与弟子使用同一战力公式", disciplePower, beastPower)
+    }
 }

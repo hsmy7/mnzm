@@ -34,6 +34,13 @@ sealed interface MapItem {
         val count: Int,
         val caveImageIndex: Int,
         val caveName: String,
-        val defeated: Boolean
+        val defeated: Boolean,
+        // 预计算妖兽属性（生成时含随机方差，用于战力显示）
+        val beastMaxHp: Int = 0,
+        val beastPhysicalAttack: Int = 0,
+        val beastMagicAttack: Int = 0,
+        val beastPhysicalDefense: Int = 0,
+        val beastMagicDefense: Int = 0,
+        val beastSpeed: Int = 0
     ) : MapItem
 }

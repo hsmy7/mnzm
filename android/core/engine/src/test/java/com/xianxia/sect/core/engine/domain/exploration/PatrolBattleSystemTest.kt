@@ -36,7 +36,7 @@ class PatrolBattleSystemTest {
         val buildingConfigService = mock(BuildingConfigService::class.java)
         `when`(buildingConfigService.getSlotCountByDisplayName("巡视楼")).thenReturn(2)
         runBlocking { `when`(inventorySystem.addMaterial(any())).thenReturn(DomainResult.Success(Material())) }
-        `when`(battleSystem.createBattle(any(), any(), any(), any(), any(), any(), any()))
+        `when`(battleSystem.createBattle(any(), any(), any(), any(), any(), any(), any(), any()))
             .thenReturn(Battle(team = emptyList(), beasts = emptyList()))
         `when`(battleSystem.executeBattle(any())).thenReturn(BattleSystemResult(
             battle = Battle(team = emptyList(), beasts = emptyList()),

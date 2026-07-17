@@ -19,6 +19,21 @@ import kotlin.random.Random
 @Singleton
 class BattleSystem @Inject constructor() {
 
+    /**
+     * 预计算妖兽属性。
+     * 在 LevelGenerator 生成妖兽时已完成含随机方差的属性计算，
+     * 战斗时直接使用此数据，不再重新随机。
+     */
+    data class BeastPreGenStats(
+        val maxHp: Int,
+        val maxMp: Int,
+        val physicalAttack: Int,
+        val magicAttack: Int,
+        val physicalDefense: Int,
+        val magicDefense: Int,
+        val speed: Int
+    )
+
     fun createBattle(
         disciples: List<Disciple>,
         equipmentMap: Map<String, EquipmentInstance>,
@@ -26,7 +41,8 @@ class BattleSystem @Inject constructor() {
         beastLevel: Int,
         beastCount: Int? = null,
         beastType: String? = null,
-        manualProficiencies: Map<String, Map<String, ManualProficiencyData>> = emptyMap()
+        manualProficiencies: Map<String, Map<String, ManualProficiencyData>> = emptyMap(),
+        beastPreGenStats: BeastPreGenStats? = null
     ): Battle {
         val combatants = disciples.map { disciple ->
             convertDiscipleToCombatant(disciple, equipmentMap, manualMap, manualProficiencies, CombatantSide.DEFENDER)
@@ -45,7 +61,7 @@ class BattleSystem @Inject constructor() {
         val actualBeastCount = beastCount ?: Random.nextInt(GameConfig.Battle.MIN_BEAST_COUNT, GameConfig.Battle.MAX_BEAST_COUNT + 1)
 
         val beasts = (1..actualBeastCount).map { index ->
-            createBeast(beastRealm, index, beastType)
+            createBeast(beastRealm, index, beastType, beastPreGenStats)
         }
 
         return Battle(
@@ -119,7 +135,12 @@ class BattleSystem @Inject constructor() {
         )
     }
 
-    private fun createBeast(beastRealm: Int, index: Int, beastType: String? = null): Combatant {
+    private fun createBeast(
+        beastRealm: Int,
+        index: Int,
+        beastType: String? = null,
+        preGenStats: BeastPreGenStats? = null
+    ): Combatant {
         val realmIndex = beastRealm.coerceIn(0, 9)
 
         val type = if (beastType != null) {
@@ -128,23 +149,46 @@ class BattleSystem @Inject constructor() {
             GameConfig.Beast.getType(Random.nextInt(GameConfig.Beast.TYPES.size))
         }
 
-        val realmLayer = Random.nextInt(1, 10)
-        val layerMult = 1.0 + (realmLayer - 1) * 0.1
+        val hp: Int
+        val mp: Int
+        val physicalAttack: Int
+        val magicAttack: Int
+        val physicalDefense: Int
+        val magicDefense: Int
+        val speed: Int
+        val realmLayer: Int
 
-        val stats = GameConfig.Beast.getRealmStats(realmIndex)
+        if (preGenStats != null) {
+            // 使用预计算属性（生成时已含随机方差，地图显示战力 = 战斗实际战力）
+            val s = preGenStats
+            hp = s.maxHp
+            mp = s.maxMp
+            physicalAttack = s.physicalAttack
+            magicAttack = s.magicAttack
+            physicalDefense = s.physicalDefense
+            magicDefense = s.magicDefense
+            speed = s.speed
+            realmLayer = 1 // 属性已含层数加成，Combatant.realmLayer 仅用于展示
+        } else {
+            // 向后兼容：无预计算属性时使用旧随机逻辑
+            val rl = Random.nextInt(1, 10)
+            val layerMult = 1.0 + (rl - 1) * 0.1
+            val stats = GameConfig.Beast.getRealmStats(realmIndex)
 
-        val hpVariance = -0.2 + Random.nextDouble() * 0.4
-        val atkVariance = -0.2 + Random.nextDouble() * 0.4
-        val defVariance = -0.2 + Random.nextDouble() * 0.4
-        val speedVariance = -0.2 + Random.nextDouble() * 0.4
+            val hpV = -0.2 + Random.nextDouble() * 0.4
+            val atkV = -0.2 + Random.nextDouble() * 0.4
+            val defV = -0.2 + Random.nextDouble() * 0.4
+            val spdV = -0.2 + Random.nextDouble() * 0.4
 
-        val hp = (stats.hp * layerMult * (type.hpMod + hpVariance)).toInt()
-        val mp = (stats.mp * layerMult * (type.hpMod + hpVariance)).toInt()
-        val physicalAttack = (stats.attack * layerMult * (type.atkMod + atkVariance)).toInt()
-        val magicAttack = (stats.attack * layerMult * (type.atkMod + atkVariance)).toInt()
-        val physicalDefense = (stats.defense * layerMult * (type.defMod + defVariance)).toInt()
-        val magicDefense = (stats.defense * layerMult * (type.defMod + defVariance)).toInt()
-        val speed = (stats.speed * layerMult * (type.speedMod + speedVariance)).toInt()
+            hp = (stats.hp * layerMult * (type.hpMod + hpV)).toInt()
+            mp = (stats.mp * layerMult * (type.hpMod + hpV)).toInt()
+            physicalAttack = (stats.attack * layerMult * (type.atkMod + atkV)).toInt()
+            magicAttack = (stats.attack * layerMult * (type.atkMod + atkV)).toInt()
+            physicalDefense = (stats.defense * layerMult * (type.defMod + defV)).toInt()
+            magicDefense = (stats.defense * layerMult * (type.defMod + defV)).toInt()
+            speed = (stats.speed * layerMult * (type.speedMod + spdV)).toInt()
+            realmLayer = rl
+        }
 
         val beastSkills = type.skills.map { skillConfig ->
             CombatSkill(

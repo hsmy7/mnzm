@@ -183,6 +183,23 @@ class LevelGenerator @Inject constructor(
             else -> "炼气"
         }
 
+        // ========== 预计算妖兽最终属性（含随机方差） ==========
+        // 与 BattleSystem.createBeast 使用相同公式，但用 EXPLORATION 分区 RNG 代替 kotlin.random.Random
+        // 生成的最终属性直接用于战斗和战力计算，不再重新随机
+        val layerMult = 1.0 + (realmLayer - 1) * 0.1
+        val stats = GameConfig.Beast.getRealmStats(realm)
+
+        val hpVariance = -0.2 + rng.nextDouble() * 0.4
+        val atkVariance = -0.2 + rng.nextDouble() * 0.4
+        val defVariance = -0.2 + rng.nextDouble() * 0.4
+        val speedVariance = -0.2 + rng.nextDouble() * 0.4
+
+        val maxHp = (stats.hp * layerMult * (beastConfig.hpMod + hpVariance)).toInt()
+        val maxMp = (stats.mp * layerMult * (beastConfig.hpMod + hpVariance)).toInt()
+        val atk = (stats.attack * layerMult * (beastConfig.atkMod + atkVariance)).toInt()
+        val def_ = (stats.defense * layerMult * (beastConfig.defMod + defVariance)).toInt()
+        val speed = (stats.speed * layerMult * (beastConfig.speedMod + speedVariance)).toInt()
+
         // 持续6个月
         val beastNewMonth = currentMonth + 6
         val beastExpiryYear = currentYear + (beastNewMonth - 1) / 12
@@ -200,7 +217,15 @@ class LevelGenerator @Inject constructor(
             spawnMonth = currentMonth,
             expiryYear = beastExpiryYear,
             expiryMonth = beastExpiryMonth,
-            count = count
+            count = count,
+            // 预计算妖兽最终属性
+            beastMaxHp = maxHp,
+            beastMaxMp = maxMp,
+            beastPhysicalAttack = atk,
+            beastMagicAttack = atk,
+            beastPhysicalDefense = def_,
+            beastMagicDefense = def_,
+            beastSpeed = speed
         )
     }
 
