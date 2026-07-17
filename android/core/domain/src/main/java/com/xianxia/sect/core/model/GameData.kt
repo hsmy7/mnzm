@@ -413,6 +413,13 @@ data class GameData(
     @ColumnInfo(defaultValue = "{}")
     var bloodRefinementBonusTotals: Map<String, BloodRefinementBonusTotal> = emptyMap(),
 
+    // 血炼系统：弟子血炼百分比累计（discipleId → BloodRefinementPctTotal）
+    // 替代旧的绝对值存储。血炼改为乘区百分比后，每次血炼累计材料百分比，
+    // 不再写入 DiscipleTables.base* 列。
+    @SettlementStrategy(Strategy.CUSTOM)
+    @ColumnInfo(defaultValue = "{}")
+    var bloodRefinementPctTotals: Map<String, BloodRefinementPctTotal> = emptyMap(),
+
     // 天道试炼状态
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     @ColumnInfo(name = "heavenly_trial_state", defaultValue = "{\"highestClearedLevel\":-1,\"levelClearCounts\":[0,0,0,0,0,0,0,0]}")
@@ -641,14 +648,14 @@ data class BloodRefinementProgress(
 )
 
 /**
- * 血炼加成累计记录（单利计算基准）。
+ * 血炼加成累计记录（单利计算基准，旧格式）。
  *
  * 用于修复血炼加成复利叠加 bug（#8）：
  * - 旧实现每次血炼 bonus = 当前 base × bonusPercent，导致 baseₙ = base₀ × (1+p)ⁿ 复利叠加
  * - 修复后 bonus = (当前 base - 已累计 bonus) × bonusPercent，实现单利
  *
- * 旧存档加载时此字段为空 Map，弟子当前 base 被视为原始 base（已存在的复利加成无法回溯，
- * 但后续血炼将基于单利计算，防止进一步复利）。
+ * 此字段已被 [BloodRefinementPctTotal] 替代。新系统将血炼改造为乘区百分比，
+ * 不再直接修改 DiscipleTables.base* 列。仅用于旧存档迁移。
  *
  * @see com.xianxia.sect.core.domain.disciple.DiscipleStatCalculator.calculateSimpleInterestBonus
  */
@@ -662,6 +669,30 @@ data class BloodRefinementBonusTotal(
     val physicalDefenseBonus: Int = 0,
     val magicDefenseBonus: Int = 0,
     val speedBonus: Int = 0
+)
+
+/**
+ * 血炼加成累计记录（百分比乘区格式）。
+ *
+ * 替代 [BloodRefinementBonusTotal] 的绝对值存储，采用百分比存储。
+ * 每次血炼完成时：累计百分比 += 材料百分比。
+ * 计算时：属性 = 境界基础 × 方差 × 层数 × (1 + 天赋% + 血炼%)。
+ *
+ * 优势：
+ * - 突破后血炼收益随境界自动缩放
+ * - 与乘区法系统统一（与天赋同乘区加算）
+ * - 不再直接修改 DiscipleTables.base* 列
+ */
+@Keep
+@Serializable
+data class BloodRefinementPctTotal(
+    val discipleId: String = "",
+    val hpBonusPct: Double = 0.0,
+    val physicalAttackBonusPct: Double = 0.0,
+    val magicAttackBonusPct: Double = 0.0,
+    val physicalDefenseBonusPct: Double = 0.0,
+    val magicDefenseBonusPct: Double = 0.0,
+    val speedBonusPct: Double = 0.0
 )
 
 // 长老槽位数据

@@ -160,7 +160,9 @@ class GameStateRepository @Inject constructor(
                     discipleEquipmentDao.upsertAll(batch.map { DiscipleEquipment.fromDisciple(it).copy(slotId = slotId) })
                     discipleExtendedDao.upsertAll(batch.map { DiscipleExtended.fromDisciple(it).copy(slotId = slotId) })
                     discipleAttributesDao.upsertAll(batch.map { DiscipleAttributes.fromDisciple(it).copy(slotId = slotId) })
-                    database.discipleCompactDao().insertAll(batch.map { DiscipleCompact.fromDisciple(it) })
+                    database.discipleCompactDao().insertAll(batch.map {
+                        DiscipleCompact.fromDisciple(it, gameData.bloodRefinementPctTotals)
+                    })
                 }
                 if (snapshot.equipmentStacks) {
                     equipmentStackDao.upsertAll(equipmentStacks.map { it.copy(slotId = slotId) })

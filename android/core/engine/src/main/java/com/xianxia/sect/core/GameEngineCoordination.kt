@@ -942,8 +942,11 @@ fun MutableGameState.processBloodRefinementCompletions() {
 }
 
 /**
- * 结算单条到期血炼：计算单利加成、更新属性、记录完成、
+ * 结算单条到期血炼：累加百分比乘区、记录完成、
  * 重置弟子状态、发送通知。
+ *
+ * 新系统使用乘区百分比，直接累加材料百分比到累计记录，
+ * 不再写入 DiscipleTables.base* 列。
  */
 private fun MutableGameState.settleSingleRefinement(
     buildingId: String,
@@ -954,25 +957,24 @@ private fun MutableGameState.settleSingleRefinement(
     val statKey = progress.selectedStat
     if (statKey.isEmpty()) return
 
-    val currentBase = discipleTables.getBaseStat(dId, statKey)
-    val existingTotal = gameData.bloodRefinementBonusTotals[progress.discipleId]
-    val accumulatedBonus = DiscipleStatCalculator.getAccumulatedBonus(
-        existingTotal, statKey
-    )
-    val bonus = DiscipleStatCalculator.calculateSimpleInterestBonus(
-        currentBase, accumulatedBonus, progress.bonusPercent
-    )
+    // 防御：血炼期间弟子可能因其他系统死亡
+    if (discipleTables.isAlive[dId] == 0) return
 
-    discipleTables.setBaseStat(dId, statKey, currentBase + bonus)
+    // 百分比累加：只传增量（addPctToTotal 内部做 total + pct）
+    val existingTotal = gameData.bloodRefinementPctTotals[progress.discipleId]
+    val safeBonusPct = progress.bonusPercent.coerceAtLeast(0.0)
 
     val updatedTotal = if (existingTotal != null) {
-        DiscipleStatCalculator.addBonusToTotal(existingTotal, statKey, bonus)
+        DiscipleStatCalculator.addPctToTotal(existingTotal, statKey, safeBonusPct)
     } else {
-        DiscipleStatCalculator.addBonusToTotal(
-            BloodRefinementBonusTotal(discipleId = progress.discipleId),
-            statKey, bonus
+        DiscipleStatCalculator.addPctToTotal(
+            BloodRefinementPctTotal(discipleId = progress.discipleId),
+            statKey, safeBonusPct
         )
     }
+
+    // ❌ 不再写入 DiscipleTables.base* 列（血炼改为乘法乘区，计算时动态应用）
+    // ❌ 不再需要 calculateSimpleInterestBonus
 
     val existingRefinements =
         gameData.bloodRefinements[progress.discipleId] ?: emptyList()
@@ -980,7 +982,7 @@ private fun MutableGameState.settleSingleRefinement(
     gameData = gameData.copy(
         bloodRefinements = gameData.bloodRefinements +
             (progress.discipleId to updatedRefinements),
-        bloodRefinementBonusTotals = gameData.bloodRefinementBonusTotals +
+        bloodRefinementPctTotals = gameData.bloodRefinementPctTotals +
             (progress.discipleId to updatedTotal)
     )
 
@@ -1011,27 +1013,4 @@ private fun MutableGameState.cancelBloodRefinement(
 private fun DiscipleTables.clearBloodRefinementStatusData(dId: Int) {
     val current = statusData.getOrDefault(dId, emptyMap())
     statusData[dId] = current - "buildingId"
-}
-
-/** 从 [DiscipleTables] 读取指定属性的当前 base 值 */
-private fun DiscipleTables.getBaseStat(dId: Int, statKey: String): Int = when (statKey) {
-    "speed" -> baseSpeeds[dId]
-    "hp" -> baseHps[dId]
-    "physicalAttack" -> basePhysicalAttacks[dId]
-    "magicAttack" -> baseMagicAttacks[dId]
-    "physicalDefense" -> basePhysicalDefenses[dId]
-    "magicDefense" -> baseMagicDefenses[dId]
-    else -> 0
-}
-
-/** 写入指定属性的 base 值到 [DiscipleTables] */
-private fun DiscipleTables.setBaseStat(dId: Int, statKey: String, value: Int) {
-    when (statKey) {
-        "speed" -> baseSpeeds[dId] = value
-        "hp" -> baseHps[dId] = value
-        "physicalAttack" -> basePhysicalAttacks[dId] = value
-        "magicAttack" -> baseMagicAttacks[dId] = value
-        "physicalDefense" -> basePhysicalDefenses[dId] = value
-        "magicDefense" -> baseMagicDefenses[dId] = value
-    }
 }

@@ -462,6 +462,10 @@ class GameStateStoreImpl @Inject constructor(
     private val disciplesFlow = _disciplesFlow
         .distinctUntilChanged { old, new -> old === new }
 
+    private val bloodRefinementPctFlow = _gameDataFlow
+        .map { it.bloodRefinementPctTotals }
+        .distinctUntilChanged { old, new -> old === new }
+
     private val equipmentInstancesFlow = _equipmentInstancesFlow
         .distinctUntilChanged { old, new -> old === new }
 
@@ -470,12 +474,9 @@ class GameStateStoreImpl @Inject constructor(
 
     override val sectCombatPower: StateFlow<Long> = combine(
         disciplesFlow,
-        equipmentInstancesFlow,
-        manualInstancesFlow
-    ) { disciples, equipInstances, manualInstances ->
+        bloodRefinementPctFlow
+    ) { disciples, bloodRefinementPctTotals ->
         val aliveDisciples = disciples.filter { it.isAlive }
-        val equipMap = equipInstances.associateBy { it.id }
-        val manualMap = manualInstances.associateBy { it.id }
         val aliveIds = aliveDisciples.map { it.id }.toSet()
 
         disciplePowerCache.keys.retainAll(aliveIds)
@@ -483,14 +484,13 @@ class GameStateStoreImpl @Inject constructor(
         var total = 0L
         for (disciple in aliveDisciples) {
             val aggregate = disciple.toAggregate()
-            val fp = SectCombatPowerCalculator.computePlayerFingerprint(aggregate)
+            val brPct = bloodRefinementPctTotals[disciple.id]
+            val fp = SectCombatPowerCalculator.computeFingerprint(aggregate, brPct)
             val cached = disciplePowerCache[disciple.id]
             if (cached != null && cached.fingerprint == fp) {
                 total += cached.power
             } else {
-                val power = SectCombatPowerCalculator.calculatePlayerDisciplePower(
-                    aggregate, equipMap, manualMap
-                )
+                val power = SectCombatPowerCalculator.calculateDisciplePower(aggregate, brPct)
                 disciplePowerCache[disciple.id] = CachedPower(fp, power)
                 total += power
             }
@@ -505,37 +505,39 @@ class GameStateStoreImpl @Inject constructor(
         .map { it.aiSectDisciples }
         .distinctUntilChanged { old, new -> old === new }
 
-    override val aiSectCombatPowers: StateFlow<Map<String, Long>> = aiSectDisciplesFlow
-        .map { aiDisciplesMap ->
-            val currentDiscipleIds = aiDisciplesMap.values.flatten().map { it.id }.toSet()
-            aiDisciplePowerCache.keys.retainAll(currentDiscipleIds)
+    override val aiSectCombatPowers: StateFlow<Map<String, Long>> = combine(
+        aiSectDisciplesFlow,
+        bloodRefinementPctFlow
+    ) { aiDisciplesMap, bloodRefinementPctTotals ->
+        val currentDiscipleIds = aiDisciplesMap.values.flatten().map { it.id }.toSet()
+        aiDisciplePowerCache.keys.retainAll(currentDiscipleIds)
 
-            val result = mutableMapOf<String, Long>()
-            for ((sectId, disciples) in aiDisciplesMap) {
-                val aliveDisciples = disciples.filter { it.isAlive }
-                if (aliveDisciples.isEmpty()) {
-                    result[sectId] = 0L
-                    continue
-                }
-
-                var total = 0L
-                for (disciple in aliveDisciples) {
-                    val aggregate = disciple.toAggregate()
-                    val fp = SectCombatPowerCalculator.computeAIFingerprint(aggregate)
-                    val cached = aiDisciplePowerCache[disciple.id]
-                    if (cached != null && cached.fingerprint == fp) {
-                        total += cached.power
-                    } else {
-                        val power = SectCombatPowerCalculator.calculateAIDisciplePower(aggregate)
-                        aiDisciplePowerCache[disciple.id] = CachedPower(fp, power)
-                        total += power
-                    }
-                }
-                result[sectId] = total
+        val result = mutableMapOf<String, Long>()
+        for ((sectId, disciples) in aiDisciplesMap) {
+            val aliveDisciples = disciples.filter { it.isAlive }
+            if (aliveDisciples.isEmpty()) {
+                result[sectId] = 0L
+                continue
             }
-            result.toMap()
+
+            var total = 0L
+            for (disciple in aliveDisciples) {
+                val aggregate = disciple.toAggregate()
+                val brPct = bloodRefinementPctTotals[disciple.id]
+                val fp = SectCombatPowerCalculator.computeFingerprint(aggregate, brPct)
+                val cached = aiDisciplePowerCache[disciple.id]
+                if (cached != null && cached.fingerprint == fp) {
+                    total += cached.power
+                } else {
+                    val power = SectCombatPowerCalculator.calculateDisciplePower(aggregate, brPct)
+                    aiDisciplePowerCache[disciple.id] = CachedPower(fp, power)
+                    total += power
+                }
+            }
+            result[sectId] = total
         }
-        .distinctUntilChanged { old, new -> old === new || old == new }
+        result.toMap()
+    }.distinctUntilChanged { old, new -> old === new || old == new }
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
     override fun modifyState(block: MutableGameState.() -> Unit) {
@@ -904,6 +906,10 @@ class GameStateStoreImpl @Inject constructor(
                 _disciplesFlow.value = disciples
                 _discipleTables.apply { writeAllowed = true }.clear()
                 disciples.forEach { _discipleTables.insert(it) }
+
+                // 血炼旧绝对值 → 新百分比乘区 一次性迁移
+                migrateBloodRefinementFromAbsoluteToPct()
+
                 _equipmentStacksFlow.value = equipmentStacks
                 _equipmentInstancesFlow.value = equipmentInstances
                 _manualStacksFlow.value = manualStacks
@@ -987,6 +993,59 @@ class GameStateStoreImpl @Inject constructor(
             _stateDirty = false
             _discipleDirty = false
         }
+    }
+
+    /**
+     * 血炼旧绝对值 → 新百分比乘区 一次性迁移。
+     *
+     * 将旧 [BloodRefinementBonusTotal] 的绝对值转换为 [BloodRefinementPctTotal] 的百分比。
+     * 同时从 [DiscipleTables] 的 base* 列回退历史血炼绝对值（防止计算时双算）。
+     *
+     * 迁移条件：oldTotals 非空且 newTotals 为空。
+     */
+    private fun migrateBloodRefinementFromAbsoluteToPct() {
+        val gd = _gameDataFlow.value
+        val oldTotals = gd.bloodRefinementBonusTotals
+        if (oldTotals.isEmpty()) return
+        if (gd.bloodRefinementPctTotals.isNotEmpty()) return // 已迁移
+
+        val migrated = mutableMapOf<String, BloodRefinementPctTotal>()
+        for ((discipleId, old) in oldTotals) {
+            val dId = discipleId.toIntOrNull() ?: continue
+            val hpOrig = _discipleTables.baseHps[dId] - old.hpBonus
+            val paOrig = _discipleTables.basePhysicalAttacks[dId] - old.physicalAttackBonus
+            val maOrig = _discipleTables.baseMagicAttacks[dId] - old.magicAttackBonus
+            val pdOrig = _discipleTables.basePhysicalDefenses[dId] - old.physicalDefenseBonus
+            val mdOrig = _discipleTables.baseMagicDefenses[dId] - old.magicDefenseBonus
+            val spdOrig = _discipleTables.baseSpeeds[dId] - old.speedBonus
+
+            // 跳过数据损坏的条目：原始 base <= 0 意味着数据不一致
+            if (hpOrig <= 0 || paOrig <= 0 || maOrig <= 0 ||
+                pdOrig <= 0 || mdOrig <= 0 || spdOrig <= 0) continue
+
+            migrated[discipleId] = BloodRefinementPctTotal(
+                discipleId = discipleId,
+                hpBonusPct = old.hpBonus.toDouble() / hpOrig,
+                physicalAttackBonusPct = old.physicalAttackBonus.toDouble() / paOrig,
+                magicAttackBonusPct = old.magicAttackBonus.toDouble() / maOrig,
+                physicalDefenseBonusPct = old.physicalDefenseBonus.toDouble() / pdOrig,
+                magicDefenseBonusPct = old.magicDefenseBonus.toDouble() / mdOrig,
+                speedBonusPct = old.speedBonus.toDouble() / spdOrig
+            )
+
+            // 从 base* 列回退历史血炼绝对值（防止计算时双算）
+            _discipleTables.baseHps[dId] = hpOrig
+            _discipleTables.basePhysicalAttacks[dId] = paOrig
+            _discipleTables.baseMagicAttacks[dId] = maOrig
+            _discipleTables.basePhysicalDefenses[dId] = pdOrig
+            _discipleTables.baseMagicDefenses[dId] = mdOrig
+            _discipleTables.baseSpeeds[dId] = spdOrig
+        }
+
+        _gameDataFlow.value = gd.copy(
+            bloodRefinementBonusTotals = emptyMap(),
+            bloodRefinementPctTotals = migrated
+        )
     }
 
     // ==================== GameData 策略表驱动合并 ====================

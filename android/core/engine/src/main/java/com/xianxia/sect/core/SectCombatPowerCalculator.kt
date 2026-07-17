@@ -1,85 +1,87 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStats
-import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.ManualInstance
-import com.xianxia.sect.core.model.ManualProficiencyData
 
+/**
+ * 宗门战力计算器。
+ *
+ * 统一玩家和 AI 宗门的战力计算：
+ * - 基于永久基础属性（境界基础 × 方差 × 层数 × (1 + 天赋% + 血炼%)）
+ * - 不包含装备、功法、临时丹药等临时加成
+ * - 玩家与 AI 使用完全相同的公式
+ *
+ * 公式：
+ *   战力 = (物攻 + 法攻) × 5 + (物防 + 法防) × 3 + 气血 × 4 + 速度 × 2
+ */
 object SectCombatPowerCalculator {
 
+    /**
+     * 根据 [DiscipleStats] 计算单个弟子的战力值。
+     *
+     * @param stats 弟子的永久基础属性（含天赋 + 血炼乘区）
+     * @return 战力值
+     */
     fun calculateDiscipleCombatPower(stats: DiscipleStats): Long {
-        return maxOf(stats.physicalAttack, stats.magicAttack) * 5L +
-               stats.maxHp * 2L +
-               (stats.physicalDefense + stats.magicDefense) * 3L +
-               stats.speed * 2L
+        return (stats.physicalAttack.toLong() + stats.magicAttack.toLong()) * 5L +
+               stats.maxHp.toLong() * 4L +
+               (stats.physicalDefense.toLong() + stats.magicDefense.toLong()) * 3L +
+               stats.speed.toLong() * 2L
     }
 
-    fun calculatePlayerDisciplePower(
+    /**
+     * 使用永久基础属性计算单个弟子的战力。
+     *
+     * 统一了之前分离的玩家和 AI 处理路径。
+     * 玩家和 AI 弟子都使用完全相同的公式和输入数据。
+     *
+     * @param aggregate 弟子聚合数据
+     * @param bloodRefinementPct 血炼百分比累计记录，若该弟子无血炼则为 null
+     * @return 战力值
+     */
+    fun calculateDisciplePower(
         aggregate: DiscipleAggregate,
-        equipments: Map<String, EquipmentInstance>,
-        manuals: Map<String, ManualInstance>,
-        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
+        bloodRefinementPct: BloodRefinementPctTotal? = null
     ): Long {
-        val finalStats = DiscipleStatCalculator.getFinalStats(aggregate, equipments, manuals, manualProficiencies)
-        return calculateDiscipleCombatPower(finalStats)
+        val stats = DiscipleStatCalculator.getPermanentBaseStats(aggregate, bloodRefinementPct)
+        return calculateDiscipleCombatPower(stats)
     }
 
-    fun calculateAIDisciplePower(aggregate: DiscipleAggregate): Long {
-        val baseStats = DiscipleStatCalculator.getBaseStats(aggregate)
-        return calculateDiscipleCombatPower(baseStats) * 3
-    }
-
-    fun computePlayerFingerprint(aggregate: DiscipleAggregate): Int {
+    /**
+     * 为弟子的战力值计算缓存指纹。
+     *
+     * 仅包含影响永久基础属性的字段：
+     * - 境界和层数
+     * - 方差
+     * - 天赋 ID
+     * - 血炼百分比
+     *
+     * 不包含：装备、功法、丹药（这些不影响战力计算）。
+     */
+    fun computeFingerprint(
+        aggregate: DiscipleAggregate,
+        bloodRefinementPct: BloodRefinementPctTotal? = null
+    ): Int {
         var result = 1
         result = 31 * result + aggregate.realm
         result = 31 * result + aggregate.realmLayer
-        result = 31 * result + aggregate.basePhysicalAttack
-        result = 31 * result + aggregate.baseMagicAttack
-        result = 31 * result + aggregate.basePhysicalDefense
-        result = 31 * result + aggregate.baseMagicDefense
-        result = 31 * result + aggregate.baseSpeed
-        result = 31 * result + aggregate.baseHp
-        result = 31 * result + aggregate.hpVariance
-        result = 31 * result + aggregate.mpVariance
-        result = 31 * result + aggregate.physicalAttackVariance
-        result = 31 * result + aggregate.magicAttackVariance
-        result = 31 * result + aggregate.physicalDefenseVariance
-        result = 31 * result + aggregate.magicDefenseVariance
-        result = 31 * result + aggregate.speedVariance
-        result = 31 * result + aggregate.pillPhysicalAttackBonus
-        result = 31 * result + aggregate.pillMagicAttackBonus
-        result = 31 * result + aggregate.pillPhysicalDefenseBonus
-        result = 31 * result + aggregate.pillMagicDefenseBonus
-        result = 31 * result + aggregate.pillHpBonus
-        result = 31 * result + aggregate.pillMpBonus
-        result = 31 * result + aggregate.pillSpeedBonus
-        result = 31 * result + aggregate.pillEffectDuration
-        result = 31 * result + aggregate.weaponId.hashCode()
-        result = 31 * result + aggregate.armorId.hashCode()
-        result = 31 * result + aggregate.bootsId.hashCode()
-        result = 31 * result + aggregate.accessoryId.hashCode()
-        result = 31 * result + aggregate.manualIds.hashCode()
-        result = 31 * result + aggregate.talentIds.hashCode()
-        result = 31 * result + aggregate.weaponNurture.nurtureLevel
-        result = 31 * result + aggregate.armorNurture.nurtureLevel
-        result = 31 * result + aggregate.bootsNurture.nurtureLevel
-        result = 31 * result + aggregate.accessoryNurture.nurtureLevel
-        return result
-    }
-
-    fun computeAIFingerprint(aggregate: DiscipleAggregate): Int {
-        var result = 1
-        result = 31 * result + aggregate.realm
-        result = 31 * result + aggregate.realmLayer
-        result = 31 * result + aggregate.talentIds.hashCode()
         result = 31 * result + aggregate.hpVariance
         result = 31 * result + aggregate.physicalAttackVariance
         result = 31 * result + aggregate.magicAttackVariance
         result = 31 * result + aggregate.physicalDefenseVariance
         result = 31 * result + aggregate.magicDefenseVariance
         result = 31 * result + aggregate.speedVariance
+        result = 31 * result + aggregate.talentIds.hashCode()
+        if (bloodRefinementPct != null) {
+            result = 31 * result + bloodRefinementPct.hpBonusPct.hashCode()
+            result = 31 * result + bloodRefinementPct.physicalAttackBonusPct.hashCode()
+            result = 31 * result + bloodRefinementPct.magicAttackBonusPct.hashCode()
+            result = 31 * result + bloodRefinementPct.physicalDefenseBonusPct.hashCode()
+            result = 31 * result + bloodRefinementPct.magicDefenseBonusPct.hashCode()
+            result = 31 * result + bloodRefinementPct.speedBonusPct.hashCode()
+        }
         return result
     }
 }

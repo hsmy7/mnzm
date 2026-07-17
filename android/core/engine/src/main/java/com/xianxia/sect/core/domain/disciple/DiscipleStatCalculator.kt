@@ -4,6 +4,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.TalentDatabase
+import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.BloodRefinementProgress
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -62,6 +63,7 @@ object DiscipleStatCalculator {
         magicDefenseVariance: Int,
         speedVariance: Int,
         talentEffects: Map<String, Double>,
+        bloodRefinementPct: BloodRefinementPctTotal? = null,
         intelligence: Int,
         charm: Int,
         loyalty: Int,
@@ -73,13 +75,17 @@ object DiscipleStatCalculator {
         val realmConfig = GameConfig.Realm.get(realm)
         val layerMult = 1.0 + (realmLayer - 1) * LAYER_MULTIPLIER
 
-        val hpBonus = talentEffects["maxHp"] ?: 0.0
+        // 血炼百分比乘区与天赋同乘区加算（防御存档篡改的 NaN/Infinity/负数）
+        fun safeBrPct(pct: Double): Double =
+            pct.coerceAtLeast(0.0).takeIf { it.isFinite() } ?: 0.0
+        val br = bloodRefinementPct
+        val hpBonus = (talentEffects["maxHp"] ?: 0.0) + safeBrPct(br?.hpBonusPct ?: 0.0)
         val mpBonus = talentEffects["maxMp"] ?: 0.0
-        val attackBonus = talentEffects["physicalAttack"] ?: 0.0
-        val magicAttackBonus = talentEffects["magicAttack"] ?: 0.0
-        val defenseBonus = talentEffects["physicalDefense"] ?: 0.0
-        val magicDefenseBonus = talentEffects["magicDefense"] ?: 0.0
-        val speedBonus = talentEffects["speed"] ?: 0.0
+        val attackBonus = (talentEffects["physicalAttack"] ?: 0.0) + safeBrPct(br?.physicalAttackBonusPct ?: 0.0)
+        val magicAttackBonus = (talentEffects["magicAttack"] ?: 0.0) + safeBrPct(br?.magicAttackBonusPct ?: 0.0)
+        val defenseBonus = (talentEffects["physicalDefense"] ?: 0.0) + safeBrPct(br?.physicalDefenseBonusPct ?: 0.0)
+        val magicDefenseBonus = (talentEffects["magicDefense"] ?: 0.0) + safeBrPct(br?.magicDefenseBonusPct ?: 0.0)
+        val speedBonus = (talentEffects["speed"] ?: 0.0) + safeBrPct(br?.speedBonusPct ?: 0.0)
         val critBonus = talentEffects["critRate"] ?: 0.0
         val intelligenceFlat = (talentEffects["intelligenceFlat"] ?: 0.0).toInt()
         val charmFlat = (talentEffects["charmFlat"] ?: 0.0).toInt()
@@ -155,6 +161,43 @@ object DiscipleStatCalculator {
             magicDefenseVariance = cs?.magicDefenseVariance ?: 0,
             speedVariance = cs?.speedVariance ?: 0,
             talentEffects = getTalentEffects(aggregate),
+            intelligence = attr?.intelligence ?: 50,
+            charm = attr?.charm ?: 50,
+            loyalty = attr?.loyalty ?: 50,
+            comprehension = attr?.comprehension ?: 50,
+            teaching = attr?.teaching ?: 50,
+            morality = attr?.morality ?: 50,
+            mining = attr?.mining ?: 50
+        )
+    }
+
+    /**
+     * 计算弟子的永久基础属性（含境界基础 + 天赋 + 血炼百分比乘区）。
+     *
+     * 用于战力计算：属性 = 境界基础 × 方差 × 层数 × (1 + 天赋% + 血炼%)。
+     * 不包含装备、功法、临时丹药等临时加成。
+     *
+     * @param aggregate 弟子聚合数据
+     * @param bloodRefinementPct 血炼百分比累计记录，若无则为 null
+     */
+    fun getPermanentBaseStats(
+        aggregate: DiscipleAggregate,
+        bloodRefinementPct: BloodRefinementPctTotal? = null
+    ): DiscipleStats {
+        val cs = aggregate.combatStats
+        val attr = aggregate.attributes
+        return computeBaseStats(
+            realm = aggregate.realm,
+            realmLayer = aggregate.realmLayer,
+            hpVariance = cs?.hpVariance ?: 0,
+            mpVariance = cs?.mpVariance ?: 0,
+            physicalAttackVariance = cs?.physicalAttackVariance ?: 0,
+            magicAttackVariance = cs?.magicAttackVariance ?: 0,
+            physicalDefenseVariance = cs?.physicalDefenseVariance ?: 0,
+            magicDefenseVariance = cs?.magicDefenseVariance ?: 0,
+            speedVariance = cs?.speedVariance ?: 0,
+            talentEffects = getTalentEffects(aggregate),
+            bloodRefinementPct = bloodRefinementPct,
             intelligence = attr?.intelligence ?: 50,
             charm = attr?.charm ?: 50,
             loyalty = attr?.loyalty ?: 50,
@@ -969,78 +1012,42 @@ object DiscipleStatCalculator {
         else -> 0
     }
 
-    /**
-     * 对 CombatAttributes 应用属性加成（直接修改 base* 字段）。
-     */
-    fun applyStatBonus(combat: com.xianxia.sect.core.model.CombatAttributes, statKey: String, bonus: Int): com.xianxia.sect.core.model.CombatAttributes {
-        return when (statKey) {
-            "speed" -> combat.copy(baseSpeed = combat.baseSpeed + bonus)
-            "hp" -> combat.copy(baseHp = combat.baseHp + bonus)
-            "physicalAttack" -> combat.copy(basePhysicalAttack = combat.basePhysicalAttack + bonus)
-            "magicAttack" -> combat.copy(baseMagicAttack = combat.baseMagicAttack + bonus)
-            "physicalDefense" -> combat.copy(basePhysicalDefense = combat.basePhysicalDefense + bonus)
-            "magicDefense" -> combat.copy(baseMagicDefense = combat.baseMagicDefense + bonus)
-            else -> combat
-        }
-    }
-
-    // ==================== 血炼单利计算（#8 修复） ====================
+    // ==================== 血炼百分比乘区（替代旧绝对值单利计算） ====================
 
     /**
-     * 计算单利血炼加成。
-     *
-     * 修复历史 bug：旧实现使用 `当前 base × bonusPercent` 计算加成，
-     * 导致 baseₙ = base₀ × (1+p)ⁿ 复利叠加。改为 `(当前 base - 已累计 bonus) × bonusPercent`，
-     * 确保每次加成基于原始 base 值，实现单利。
-     *
-     * @param currentBase 当前 base 值（含历史血炼加成）
-     * @param accumulatedBonus 已累计的血炼加成总量
-     * @param bonusPercent 加成比例（如 0.01 = 1%）
-     * @return 本次血炼的加成值（至少为 1）
+     * 从血炼百分比累计记录中读取指定属性的累计百分比。
      */
-    fun calculateSimpleInterestBonus(
-        currentBase: Int,
-        accumulatedBonus: Int,
-        bonusPercent: Double
-    ): Int {
-        val originalBase = (currentBase - accumulatedBonus).coerceAtLeast(1)
-        return (originalBase * bonusPercent).toInt().coerceAtLeast(1)
-    }
-
-    /**
-     * 从累计加成记录中读取指定属性的已累计 bonus。
-     */
-    fun getAccumulatedBonus(
-        total: com.xianxia.sect.core.model.BloodRefinementBonusTotal?,
+    fun getAccumulatedPct(
+        total: BloodRefinementPctTotal?,
         statKey: String
-    ): Int {
-        if (total == null) return 0
+    ): Double {
+        if (total == null) return 0.0
         return when (statKey) {
-            "speed" -> total.speedBonus
-            "hp" -> total.hpBonus
-            "physicalAttack" -> total.physicalAttackBonus
-            "magicAttack" -> total.magicAttackBonus
-            "physicalDefense" -> total.physicalDefenseBonus
-            "magicDefense" -> total.magicDefenseBonus
-            else -> 0
+            "speed" -> total.speedBonusPct
+            "hp" -> total.hpBonusPct
+            "physicalAttack" -> total.physicalAttackBonusPct
+            "magicAttack" -> total.magicAttackBonusPct
+            "physicalDefense" -> total.physicalDefenseBonusPct
+            "magicDefense" -> total.magicDefenseBonusPct
+            else -> 0.0
         }
     }
 
     /**
-     * 将本次血炼加成累加到累计记录中，返回更新后的记录。
+     * 将本次血炼百分比累加到累计记录中，返回更新后的记录。
      */
-    fun addBonusToTotal(
-        total: com.xianxia.sect.core.model.BloodRefinementBonusTotal,
+    fun addPctToTotal(
+        total: BloodRefinementPctTotal,
         statKey: String,
-        bonus: Int
-    ): com.xianxia.sect.core.model.BloodRefinementBonusTotal {
+        pct: Double
+    ): BloodRefinementPctTotal {
         return when (statKey) {
-            "speed" -> total.copy(speedBonus = total.speedBonus + bonus)
-            "hp" -> total.copy(hpBonus = total.hpBonus + bonus)
-            "physicalAttack" -> total.copy(physicalAttackBonus = total.physicalAttackBonus + bonus)
-            "magicAttack" -> total.copy(magicAttackBonus = total.magicAttackBonus + bonus)
-            "physicalDefense" -> total.copy(physicalDefenseBonus = total.physicalDefenseBonus + bonus)
-            "magicDefense" -> total.copy(magicDefenseBonus = total.magicDefenseBonus + bonus)
+            "speed" -> total.copy(speedBonusPct = total.speedBonusPct + pct)
+            "hp" -> total.copy(hpBonusPct = total.hpBonusPct + pct)
+            "physicalAttack" -> total.copy(physicalAttackBonusPct = total.physicalAttackBonusPct + pct)
+            "magicAttack" -> total.copy(magicAttackBonusPct = total.magicAttackBonusPct + pct)
+            "physicalDefense" -> total.copy(physicalDefenseBonusPct = total.physicalDefenseBonusPct + pct)
+            "magicDefense" -> total.copy(magicDefenseBonusPct = total.magicDefenseBonusPct + pct)
             else -> total
         }
     }
