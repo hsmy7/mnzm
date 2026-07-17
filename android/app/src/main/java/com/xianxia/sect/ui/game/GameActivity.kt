@@ -70,8 +70,8 @@ class GameActivity : ComponentActivity() {
         private const val TAG = "GameActivity"
         private const val KEY_CURRENT_SLOT = "current_slot"
 
-        /** 每次观看广告的突破率加成（10%），最多观看 2 次 */
-        private const val AD_BONUS_PER_AD = 0.10
+        /** 每次观看广告的突破率加成（15%），最多观看 2 次 */
+        private const val AD_BONUS_PER_AD = 0.15
     }
 
     private val viewModel: GameViewModel by viewModels()

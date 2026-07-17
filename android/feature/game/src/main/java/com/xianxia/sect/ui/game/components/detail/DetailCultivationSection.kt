@@ -218,13 +218,13 @@ fun BasicInfoSection(
             var showAdCooldownDialog by remember { mutableStateOf(false) }
             Row(
                 modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
                     text = "突破率 ${GameUtils.formatPercent(detail.total)}",
                     fontSize = 12.sp,
-                    color = Color.Black,
-                    modifier = Modifier.weight(1f)
+                    color = Color.Black
                 )
                 Image(
                     painter = painterResource(id = R.drawable.ui_detail_button),
@@ -235,7 +235,7 @@ fun BasicInfoSection(
                         .clickable { showBreakthroughDetail = true },
                     contentScale = ContentScale.FillBounds
                 )
-                if (adBonusValue < 0.20) {
+                if (adBonusValue < 0.30) {
                     Image(
                         painter = painterResource(
                             id = com.xianxia.sect.ui.components.SpriteResRegistry.resolve("ui_play_button") ?: 0
