@@ -3,6 +3,7 @@
     "date": "2026-07-17",
     "version": "4.0.53",
     "changes": [
+      "新增：妖兽详情界面显示战力——世界地图点击妖兽后，详情面板妖兽名称右侧显示\"总战力\"及数值。战力使用与弟子统一的公式计算，基于妖兽生成时含随机方差的最终属性，地图显示战力=战斗实际战力",
       "改动：移除招募弟子卡片状态显示——招募界面的弟子卡片不再显示状态文字，保持卡片简洁",
       "修复：伴侣配对Direct write to DiscipleTables崩溃#3057——PartnerSystem.processPartnerMatching assembleAll→map→replaceAll反模式改为partnerIds组件表直接列写入，消除writeGuard检查路径",
       "重构：PartnerSystem.onEvent消除冗余scope.launch——EventBus已在协程内调用onEvent，内部不再需要嵌套scope.launch",
