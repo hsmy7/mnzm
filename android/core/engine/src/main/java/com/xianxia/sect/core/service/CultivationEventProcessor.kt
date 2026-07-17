@@ -11,6 +11,10 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleEquipmentManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleManualManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleService
+import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_EQUIPMENT_INSTANCE
+import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_EQUIPMENT_STACK
+import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_MANUAL_INSTANCE
+import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_MANUAL_STACK
 import com.xianxia.sect.core.engine.domain.exploration.MissionSystem
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.domain.battle.AISectGarrisonManager
@@ -480,13 +484,19 @@ class CultivationEventProcessor @Inject constructor(
         // 防御性二次校验：确认忠诚度仍低于阈值
         if (tables.loyalties.getOrDefault(id, 0) >= threshold) return
         val snapshot = tables.assemble(id) ?: return
-        val desertEquipIds = listOfNotNull(
-            snapshot.equipment.weaponId,
-            snapshot.equipment.armorId,
-            snapshot.equipment.bootsId,
-            snapshot.equipment.accessoryId
-        )
-        val desertManualIds = snapshot.manualIds.toSet()
+        val desertEquipIds = mutableListOf<String>()
+        snapshot.equipment.weaponId?.let { desertEquipIds.add(it) }
+        snapshot.equipment.armorId?.let { desertEquipIds.add(it) }
+        snapshot.equipment.bootsId?.let { desertEquipIds.add(it) }
+        snapshot.equipment.accessoryId?.let { desertEquipIds.add(it) }
+        snapshot.equipment.storageBagItems
+            .filter { it.itemType == ITEM_TYPE_EQUIPMENT_STACK || it.itemType == ITEM_TYPE_EQUIPMENT_INSTANCE }
+            .map { it.itemId }
+            .forEach { desertEquipIds.add(it) }
+        val desertManualIds = snapshot.manualIds.toSet() +
+            snapshot.equipment.storageBagItems
+                .filter { it.itemType == ITEM_TYPE_MANUAL_STACK || it.itemType == ITEM_TYPE_MANUAL_INSTANCE }
+                .map { it.itemId }
         val desertProfId = id.toString()
         discipleLifecycleProcessor.clearDiscipleFromAllSlots(
             id.toString()
@@ -648,15 +658,22 @@ class CultivationEventProcessor @Inject constructor(
         for (thiefId in thiefIds) {
             val currentLoyal = tables.loyalties.getOrDefault(thiefId, 0)
             if (currentLoyal >= loyalThreshold) continue
-            val snapshot = tables.assemble(thiefId)
-            if (snapshot != null) {
-                val equipIds = listOfNotNull(
-                    snapshot.equipment.weaponId, snapshot.equipment.armorId,
-                    snapshot.equipment.bootsId, snapshot.equipment.accessoryId
-                )
-                theftDesertCleanup[thiefId] = equipIds to snapshot.manualIds.toSet()
-                stateStore.setPendingNotification(GameNotification.DiscipleTheftDesertion(snapshot))
-            }
+            val snapshot = tables.assemble(thiefId) ?: continue
+            val equipIds = mutableListOf<String>()
+            snapshot.equipment.weaponId?.let { equipIds.add(it) }
+            snapshot.equipment.armorId?.let { equipIds.add(it) }
+            snapshot.equipment.bootsId?.let { equipIds.add(it) }
+            snapshot.equipment.accessoryId?.let { equipIds.add(it) }
+            snapshot.equipment.storageBagItems
+                .filter { it.itemType == ITEM_TYPE_EQUIPMENT_STACK || it.itemType == ITEM_TYPE_EQUIPMENT_INSTANCE }
+                .map { it.itemId }
+                .forEach { equipIds.add(it) }
+            val manualIds = snapshot.manualIds.toSet() +
+                snapshot.equipment.storageBagItems
+                    .filter { it.itemType == ITEM_TYPE_MANUAL_STACK || it.itemType == ITEM_TYPE_MANUAL_INSTANCE }
+                    .map { it.itemId }
+            theftDesertCleanup[thiefId] = equipIds to manualIds
+            stateStore.setPendingNotification(GameNotification.DiscipleTheftDesertion(snapshot))
             discipleLifecycleProcessor.clearDiscipleFromAllSlots(thiefId.toString())
         }
         stateStore.update {
