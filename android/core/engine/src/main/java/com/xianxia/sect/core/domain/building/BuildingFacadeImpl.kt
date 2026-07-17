@@ -425,26 +425,6 @@ class BuildingFacadeImpl @Inject constructor(
     }
 
     internal companion object {
-        @Deprecated("Use BuildingFeatureRegistry + SlotGroup instead（迁移较复杂，见 collectDiscipleIdsForRemoval 私有方法）")
-        fun collectDiscipleIdsForBuildingRemoval(
-            displayName: String, instanceId: String, gameData: GameData
-        ): Set<String> {
-            val feature = BuildingFeatureRegistry.findByDisplayName(displayName) ?: return emptySet()
-            return feature.slotGroups.flatMap { it.collectDiscipleIds(gameData, instanceId, feature) }.toSet()
-        }
-
-        @Deprecated("Use BuildingFeatureRegistry.findByDisplayName + SlotGroup.filterFromGameData instead")
-        fun filterBuildingSlots(
-            displayName: String, instanceId: String, gameData: GameData
-        ): GameData {
-            val feature = BuildingFeatureRegistry.findByDisplayName(displayName) ?: return gameData
-            var gd = gameData
-            for (group in feature.slotGroups) {
-                gd = group.filterFromGameData(gd, instanceId, feature)
-            }
-            return gd
-        }
-
         /**
          * 纯函数：检查弟子是否已分配到其他生产槽位。
          *

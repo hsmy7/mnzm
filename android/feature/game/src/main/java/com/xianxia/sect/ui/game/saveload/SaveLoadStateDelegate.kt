@@ -63,12 +63,7 @@ class SaveLoadStateDelegate(
         .map { it.isSaving }
         .stateIn(CoroutineScope(Dispatchers.Default), SharingStarted.Eagerly, false)
 
-    private var _isGameLoaded = false
-    val isGameLoaded: Boolean get() = _isGameLoaded
-
-    fun markGameLoaded() { _isGameLoaded = true }
-
-    fun setLoadingProgress(progress: Float) { _loadingProgress.value = progress }
+fun setLoadingProgress(progress: Float) { _loadingProgress.value = progress }
 
     fun setPreloadPhase(phase: String) { _preloadPhase.value = phase }
 

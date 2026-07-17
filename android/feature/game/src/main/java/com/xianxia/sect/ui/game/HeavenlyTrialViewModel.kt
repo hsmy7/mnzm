@@ -13,6 +13,9 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.HeavenlyTrialSaveData
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.RewardCardItem
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
+import com.xianxia.sect.ui.game.dialogs.heavenlytrial.combatLogicRngManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -27,8 +30,15 @@ import javax.inject.Inject
 class HeavenlyTrialViewModel @Inject constructor(
     private val gameEngine: GameEngine,
     private val battleSystem: BattleSystem,
-    val trialService: HeavenlyTrialService
+    val trialService: HeavenlyTrialService,
+    private val rngManager: GameRngManager
 ) : BaseViewModel() {
+    /** 天道试炼战斗 RNG（BATTLE 分区） */
+    val battleRng get() = rngManager.getRng(RngPartition.BATTLE)
+
+    init {
+        combatLogicRngManager = rngManager
+    }
 
     private val _currentScreen = MutableStateFlow<Screen>(Screen.Panel)
     val currentScreen: StateFlow<Screen> = _currentScreen.asStateFlow()

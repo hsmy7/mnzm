@@ -110,8 +110,6 @@ object GameConfig {
     object Time {
         const val TICK_INTERVAL = 100L
         const val TICKS_PER_SECOND = 10
-        @Deprecated("使用 GameTimeClock.MS_PER_PHASE_1X 代替", ReplaceWith("GameTimeClock.MS_PER_PHASE_1X"))
-        const val SECONDS_PER_REAL_MONTH = 6
         const val DAYS_PER_MONTH = 30  // 保留兼容，旬制下不再使用天
         const val PHASES_PER_MONTH = 3  // 上/中/下旬
         const val MONTHS_PER_YEAR = 12
@@ -589,9 +587,6 @@ object GameConfig {
         const val MAX_TURNS = 25
         /** 基础暴伤倍率（暴击时额外增加的伤害比例，0.5 = +50% 伤害） */
         const val CRIT_BASE_MULTIPLIER: Double = 0.5
-        /** @deprecated 使用 CRIT_BASE_MULTIPLIER 代替 */
-        @Deprecated("使用 CRIT_BASE_MULTIPLIER 代替")
-        const val CRIT_MULTIPLIER: Double = 1.5
         const val MAX_DODGE_CHANCE: Double = 0.5
         const val MAX_SKILL_DODGE_CHANCE: Double = 0.3
         const val DODGE_PER_SPEED_DIFF: Double = 0.005
@@ -791,9 +786,6 @@ object GameConfig {
         const val BORDER_PADDING = 34
         const val TARGET_SECT_COUNT = 80
         const val MAX_ATTEMPTS = 50000
-        /** @deprecated 使用 FavorConfig.INITIAL_FAVOR 替代 */
-        @Deprecated("使用 FavorConfig.INITIAL_FAVOR 替代", ReplaceWith("FavorConfig.INITIAL_FAVOR"))
-        const val INITIAL_SECT_FAVOR = 50
         const val CONNECTION_DISTANCE_LIMIT = 280.0
         const val TARGET_CONNECTIONS_PER_SECT = 3
         const val MAX_CONNECTIONS_PER_SECT = 5
@@ -831,27 +823,6 @@ object GameConfig {
     
     /** @deprecated 好感度常量已移至 [FavorConfig]，请使用 FavorConfig 替代。 */
     @Deprecated("好感度常量已移至 FavorConfig", ReplaceWith("FavorConfig"))
-    object Diplomacy {
-        const val MIN_ALLIANCE_FAVOR = 80
-        const val ALLIANCE_DURATION_YEARS = 5
-        const val MAX_ALLIANCE_SLOTS_DEFAULT = 3
-        const val DIPLOMATIC_EVENT_CHANCE = 0.12
-        const val FAVOR_DECAY_NO_GIFT_YEARS = 1
-        const val FAVOR_DECAY_AMOUNT = 1
-        const val FAVOR_DECAY_THRESHOLD = 80
-        const val MIN_FAVOR = 0
-        const val MAX_FAVOR = 100
-
-        object AllianceScore {
-            const val THRESHOLD = 80
-            const val PROBABILITY_DIVISOR = 200.0
-            const val MAX_AI_ALLIANCES = 2
-        }
-
-        object BreakPenalty {
-            const val SPIRIT_STONE_PENALTY_RATIO = 0.1
-        }
-    }
 
     /** 附属宗门配置 */
     object Vassal {

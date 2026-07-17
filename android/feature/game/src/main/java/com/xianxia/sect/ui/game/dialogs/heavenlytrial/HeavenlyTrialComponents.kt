@@ -152,14 +152,14 @@ internal fun CombatantPortrait(combatant: Combatant, size: Int = 44) {
                 beastSpriteRes(index) ?: beastSpriteRes(0) ?: 0
             }
             combatant.portraitRes.isNotBlank() -> {
-                PortraitPool.getResourceId(context, combatant.portraitRes).takeIf { it != 0 }
+                PortraitPool.getResourceId(combatant.portraitRes).takeIf { it != 0 }
                     ?: SpriteResRegistry.resolve("disciple_portrait") ?: 0
             }
             else -> {
                 val randomPortrait = PortraitPool.getRandomPortrait(
                     if (Random.nextBoolean()) "male" else "female"
                 )
-                PortraitPool.getResourceId(context, randomPortrait).takeIf { it != 0 }
+                PortraitPool.getResourceId(randomPortrait).takeIf { it != 0 }
                     ?: SpriteResRegistry.resolve("disciple_portrait") ?: 0
             }
         }

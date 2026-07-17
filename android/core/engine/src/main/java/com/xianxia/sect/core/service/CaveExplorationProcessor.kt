@@ -2,7 +2,6 @@ package com.xianxia.sect.core.engine.service
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
-import kotlin.random.Random
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.CombatantSide
@@ -26,6 +25,8 @@ import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.util.AnalyticsTracker
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.engine.LazyEvaluationDispatcher
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.engine.annotation.GameService
@@ -71,9 +72,11 @@ class CaveExplorationProcessor @Inject constructor(
     private val attackWarningService: AttackWarningService,
     private val sectWarehouseManager: SectWarehouseManager,
     private val cultivationService: CultivationService,
-    private val spiritStoneWallet: SpiritStoneWallet
+    private val spiritStoneWallet: SpiritStoneWallet,
+    private val rngManager: GameRngManager
 ) {
     private val scope get() = scopeProvider.scope
+    private val rng get() = rngManager.getRng(RngPartition.EXPLORATION)
 
     // AI 非焦点域热控分批状态
     private var aiNonFocusedLastSettleMonth: Int = 0
@@ -182,12 +185,12 @@ class CaveExplorationProcessor @Inject constructor(
             existingTeams.none { it.sectId == sect.id }
         }
         if (availableSects.isEmpty()) return null
-        val sect = availableSects.random()
+        val sect = availableSects[rng.nextInt(availableSects.size)]
         return AICaveTeam(
             caveId = cave.id,
             sectId = sect.id,
             sectName = sect.name,
-            memberCount = (AI_TEAM_MIN_SIZE..AI_TEAM_MAX_SIZE).random(),
+            memberCount = AI_TEAM_MIN_SIZE + rng.nextInt(AI_TEAM_MAX_SIZE - AI_TEAM_MIN_SIZE + 1),
             avgRealm = cave.ownerRealm,
             avgRealmName = cave.ownerRealmName
         )
@@ -599,8 +602,8 @@ class CaveExplorationProcessor @Inject constructor(
                                     r.sectId2 == result.attackerSectId)
                         if (relevant) r.copy(
                             favor = (r.favor - 10).coerceIn(
-                                GameConfig.Diplomacy.MIN_FAVOR,
-                                GameConfig.Diplomacy.MAX_FAVOR
+                                com.xianxia.sect.core.config.FavorConfig.MIN_FAVOR,
+                                com.xianxia.sect.core.config.FavorConfig.MAX_FAVOR
                             )
                         ) else r
                     }
@@ -782,7 +785,7 @@ class CaveExplorationProcessor @Inject constructor(
             val currentTeams = allAITeams.count {
                 it.caveId == cave.id && it.status == AITeamStatus.EXPLORING
             }
-            if (currentTeams < 3 && Random.nextDouble() < AI_TEAM_SPAWN_PROBABILITY) {
+            if (currentTeams < 3 && rng.nextDouble() < AI_TEAM_SPAWN_PROBABILITY) {
                 val nearbySects = findNearbySects(cave, NEARBY_SECT_RANGE)
                 val existingTeamForCave = allAITeams.filter { it.caveId == cave.id }
                 val aiTeam = generateAITeamInline(cave, nearbySects, existingTeamForCave)
@@ -801,7 +804,7 @@ class CaveExplorationProcessor @Inject constructor(
         val aiTeamsToRemove = mutableListOf<String>()
         allAITeams.filter { it.status == AITeamStatus.EXPLORING }.forEach { aiTeam ->
             val cave = activeCaves.find { it.id == aiTeam.caveId } ?: return@forEach
-            if (Random.nextDouble() < AI_TEAM_REMOVE_PROBABILITY) {
+            if (rng.nextDouble() < AI_TEAM_REMOVE_PROBABILITY) {
                 aiTeamsToRemove.add(aiTeam.id)
             }
         }
@@ -1288,8 +1291,8 @@ class CaveExplorationProcessor @Inject constructor(
                         r.sectId2 == result.attackerSectId)
                 if (relevant) r.copy(
                     favor = (r.favor - 15).coerceIn(
-                        GameConfig.Diplomacy.MIN_FAVOR,
-                        GameConfig.Diplomacy.MAX_FAVOR)
+                        com.xianxia.sect.core.config.FavorConfig.MIN_FAVOR,
+                        com.xianxia.sect.core.config.FavorConfig.MAX_FAVOR)
                 ) else r
             }
         )

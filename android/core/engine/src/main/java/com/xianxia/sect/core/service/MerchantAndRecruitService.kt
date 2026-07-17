@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.engine.service
 
-import kotlin.random.Random
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import com.xianxia.sect.core.model.*
@@ -16,6 +15,8 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleFactory
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -36,8 +37,10 @@ data class MerchantItemPools(
 class MerchantAndRecruitService @Inject constructor(
     private val stateStore: GameStateStore,
     private val scopeProvider: CoroutineScopeProvider,
-    private val discipleFactory: com.xianxia.sect.core.engine.domain.disciple.DiscipleFactory
+    private val discipleFactory: com.xianxia.sect.core.engine.domain.disciple.DiscipleFactory,
+    private val rngManager: GameRngManager
 ) {
+    private val rng get() = rngManager.getRng(RngPartition.SYSTEM)
     private val scope get() = scopeProvider.scope
 
     companion object {
@@ -163,7 +166,7 @@ class MerchantAndRecruitService @Inject constructor(
     }
 
     fun selectRarity(): Int {
-        val rand = Random.nextDouble()
+        val rand = rng.nextDouble()
         var cumulative = 0.0
         for ((rarity, prob) in RARITY_PROBABILITIES.entries.sortedByDescending { it.key }) {
             cumulative += prob
@@ -173,38 +176,41 @@ class MerchantAndRecruitService @Inject constructor(
     }
 
     fun selectItemByRarity(itemPoolByRarity: Map<Int, List<PoolEntry>>, rarity: Int): PoolEntry? {
-        return itemPoolByRarity[rarity]?.takeIf { it.isNotEmpty() }?.random()
+        val pool = itemPoolByRarity[rarity] ?: return null
+        if (pool.isEmpty()) return null
+        return pool[rng.nextInt(pool.size)]
     }
 
     fun selectFirstAvailableItem(itemPoolByRarity: Map<Int, List<PoolEntry>>): PoolEntry? {
-        return (1..6).firstNotNullOfOrNull { r -> itemPoolByRarity[r]?.takeIf { it.isNotEmpty() }?.random() }
+        val pool = (1..6).firstNotNullOfOrNull { r -> itemPoolByRarity[r]?.takeIf { it.isNotEmpty() } } ?: return null
+        return pool[rng.nextInt(pool.size)]
     }
 
     fun calculateMerchantStock(type: String, rarity: Int): Int {
         val isConsumable = type in listOf("herb", "seed", "material")
         return if (isConsumable) {
             when (rarity) {
-                6 -> Random.nextInt(3, 8)
-                5 -> Random.nextInt(3, 8)
-                4 -> Random.nextInt(5, 11)
-                3 -> Random.nextInt(5, 13)
-                2 -> Random.nextInt(5, 16)
-                else -> Random.nextInt(7, 16)
+                6 -> 3 + rng.nextInt(5)
+                5 -> 3 + rng.nextInt(5)
+                4 -> 5 + rng.nextInt(6)
+                3 -> 5 + rng.nextInt(8)
+                2 -> 5 + rng.nextInt(11)
+                else -> 7 + rng.nextInt(9)
             }
         } else {
             when (rarity) {
-                6 -> Random.nextInt(1, 4)
-                5 -> Random.nextInt(1, 4)
-                4 -> Random.nextInt(1, 6)
-                3 -> Random.nextInt(1, 6)
-                2 -> Random.nextInt(1, 6)
-                else -> Random.nextInt(1, 6)
+                6 -> 1 + rng.nextInt(3)
+                5 -> 1 + rng.nextInt(3)
+                4 -> 1 + rng.nextInt(5)
+                3 -> 1 + rng.nextInt(5)
+                2 -> 1 + rng.nextInt(5)
+                else -> 1 + rng.nextInt(5)
             }
         }
     }
 
     fun selectMerchantPillGrade(): PillGrade {
-        val roll = Random.nextDouble()
+        val roll = rng.nextDouble()
         return when {
             roll < 0.03 -> PillGrade.HIGH
             roll < 0.40 -> PillGrade.MEDIUM
@@ -273,7 +279,7 @@ class MerchantAndRecruitService @Inject constructor(
             return
         }
 
-        val mythicItem = mythicPool.random()
+        val mythicItem = mythicPool[rng.nextInt(mythicPool.size)]
         val guaranteedMythicItem = createMerchantItem(mythicItem, pools, year, month, forcedRarity = 6)
 
         newItems.add(guaranteedMythicItem)
@@ -287,7 +293,7 @@ class MerchantAndRecruitService @Inject constructor(
         val pools = buildMerchantItemPools()
         if (pools.poolByRarity.values.all { it.isEmpty() }) return
 
-        val acquisitionCount = Random.nextInt(ACQUISITION_ITEM_COUNT_MIN, ACQUISITION_ITEM_COUNT_MAX + 1)
+        val acquisitionCount = ACQUISITION_ITEM_COUNT_MIN + rng.nextInt(ACQUISITION_ITEM_COUNT_MAX - ACQUISITION_ITEM_COUNT_MIN + 1)
         val newItems = mutableListOf<MerchantItem>()
 
         repeat(acquisitionCount) {
@@ -326,16 +332,16 @@ class MerchantAndRecruitService @Inject constructor(
             val range = SectLevel.recruitRange(playerSect.level)
             val bonusCap = calcRecruitBonusCap()
             val until = range.last + 1 + bonusCap
-            // F2: 防 Range 为空导致 Random.nextInt(from, until) 抛 IllegalArgumentException
+            // F2: 防 Range 为空导致 rng.nextInt(bound) 抛 IllegalArgumentException
             if (until <= range.first) range.first
-            else Random.nextInt(range.first, until)
+            else range.first + rng.nextInt(until - range.first)
         } else {
-            Random.nextInt(0, 7)  // 兜底：找不到玩家宗门时保持旧逻辑
+            rng.nextInt(7)  // 兜底：找不到玩家宗门时保持旧逻辑
         }
         val newRecruitDisciples = mutableListOf<Disciple>()
         val usedNames = (stateStore.disciples.value + stateStore.gameData.value.recruitList).map { it.name }.toMutableSet()
         repeat(recruitCount) {
-            val gender = if (Random.nextBoolean()) "male" else "female"
+            val gender = if (rng.nextInt(2) == 0) "male" else "female"
             val nameResult = NameService.generateName(
                 gender, NameService.NameStyle.FULL, usedNames
             )
@@ -344,11 +350,14 @@ class MerchantAndRecruitService @Inject constructor(
                     id = java.util.UUID.randomUUID().toString(),
                     gender = gender,
                     nameResult = nameResult,
-                    spiritRootType = SpiritRootGenerator.generate(Random),
-                    age = Random.nextInt(16, 30),
+                    spiritRootType = SpiritRootGenerator.generate(object : kotlin.random.Random() {
+                        override fun nextBits(bitCount: Int) = (rng.nextInt() ushr (32 - bitCount))
+                        override fun nextInt(bound: Int) = rng.nextInt(bound)
+                    }),
+                    age = 16 + rng.nextInt(14),
                     realmLayer = 1,
                     social = SocialData(),
-                    nextInt = { from, until -> Random.nextInt(from, until) }
+                    nextInt = { from, until -> from + rng.nextInt(until - from) }
                 )
             )
             newRecruitDisciples.add(disciple)

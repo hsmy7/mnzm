@@ -11,8 +11,6 @@ import com.xianxia.sect.core.engine.updateGameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.model.production.ProductionSlot
-import com.xianxia.sect.ui.game.building.BuildingDef
-import com.xianxia.sect.ui.game.building.BuildingRegistry
 import com.xianxia.sect.ui.game.sect.GoldFingerState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch

@@ -22,9 +22,12 @@ import com.xianxia.sect.core.wallet.SpiritStoneReason
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.DeductResult
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
+import com.xianxia.sect.core.util.DeterministicRng
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.asKotlinRandom
+import com.xianxia.sect.core.util.RngPartition
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.random.Random
 import java.util.UUID
 
 /**
@@ -40,8 +43,10 @@ class DiplomacyService @Inject constructor(
     private val inventoryConfig: InventoryConfig,
     private val eventBus: EventBusPort,
     private val favorService: FavorService,
-    private val spiritStoneWallet: SpiritStoneWallet
+    private val spiritStoneWallet: SpiritStoneWallet,
+    private val rngManager: GameRngManager
 ) {
+    private val rng get() = rngManager.getRng(RngPartition.SYSTEM)
     private val discipleTables: DiscipleTables
         get() = stateStore.discipleTables
 
@@ -75,7 +80,7 @@ class DiplomacyService @Inject constructor(
 
         // 按好感度计算成功概率
         val successChance = FavorDomain.calculateAllianceSuccessChance(favor)
-        val success = Random.nextDouble() < successChance
+        val success = rng.nextDouble() < successChance
 
         if (success) {
             stateStore.update {
@@ -155,10 +160,10 @@ class DiplomacyService @Inject constructor(
 
     fun generateSectTradeItems(year: Int, sectId: String? = null): List<MerchantItem> {
         val items = mutableListOf<MerchantItem>()
-        val random = if (sectId != null) {
-            Random(sectId.hashCode().toLong() + year)
+        val rngLocal = if (sectId != null) {
+            DeterministicRng.fromSeed(sectId.hashCode().toLong() + year)
         } else {
-            Random.Default
+            rng
         }
 
         val itemCount = 20
@@ -168,28 +173,29 @@ class DiplomacyService @Inject constructor(
 
         while (items.size < itemCount && attempts < maxAttempts) {
             attempts++
-            val type = listOf("equipment", "manual", "pill", "material", "herb", "seed", "spiritStone").random(random)
-            val rarity = selectRarityByMerchantProbabilities(random)
+            val types = listOf("equipment", "manual", "pill", "material", "herb", "seed", "spiritStone")
+            val type = types[rngLocal.nextInt(types.size)]
+            val rarity = selectRarityByMerchantProbabilities(rngLocal)
 
             fun calcStock(t: String, r: Int): Int {
                 val isConsumable = t in listOf("herb", "seed", "material")
                 return if (isConsumable) {
                     when (r) {
-                        6 -> random.nextInt(3, 8)
-                        5 -> random.nextInt(3, 8)
-                        4 -> random.nextInt(5, 11)
-                        3 -> random.nextInt(5, 13)
-                        2 -> random.nextInt(5, 16)
-                        else -> random.nextInt(7, 16)
+                        6 -> 3 + rngLocal.nextInt(5)
+                        5 -> 3 + rngLocal.nextInt(5)
+                        4 -> 5 + rngLocal.nextInt(6)
+                        3 -> 5 + rngLocal.nextInt(8)
+                        2 -> 5 + rngLocal.nextInt(11)
+                        else -> 7 + rngLocal.nextInt(9)
                     }
                 } else {
                     when (r) {
-                        6 -> random.nextInt(1, 4)
-                        5 -> random.nextInt(1, 4)
-                        4 -> random.nextInt(1, 6)
-                        3 -> random.nextInt(1, 6)
-                        2 -> random.nextInt(1, 6)
-                        else -> random.nextInt(1, 6)
+                        6 -> 1 + rngLocal.nextInt(3)
+                        5 -> 1 + rngLocal.nextInt(3)
+                        4 -> 1 + rngLocal.nextInt(5)
+                        3 -> 1 + rngLocal.nextInt(5)
+                        2 -> 1 + rngLocal.nextInt(5)
+                        else -> 1 + rngLocal.nextInt(5)
                     }
                 }
             }
@@ -205,7 +211,7 @@ class DiplomacyService @Inject constructor(
                         type = "equipment",
                         itemId = equipment.id,
                         rarity = equipment.rarity,
-                        price = GameUtils.applyPriceFluctuation(basePrice, random),
+                        price = GameUtils.applyPriceFluctuation(basePrice, rngLocal.asKotlinRandom()),
                         quantity = calcStock(type, rarity),
                         obtainedYear = year,
                         obtainedMonth = 1
@@ -221,7 +227,7 @@ class DiplomacyService @Inject constructor(
                         type = "manual",
                         itemId = manual.id,
                         rarity = manual.rarity,
-                        price = GameUtils.applyPriceFluctuation(basePrice, random),
+                        price = GameUtils.applyPriceFluctuation(basePrice, rngLocal.asKotlinRandom()),
                         quantity = calcStock(type, rarity),
                         obtainedYear = year,
                         obtainedMonth = 1
@@ -230,7 +236,7 @@ class DiplomacyService @Inject constructor(
                 "pill" -> {
                     val pillTemplates = ItemDatabase.getPillsByRarity(rarity)
                     if (pillTemplates.isEmpty()) continue
-                    val template = pillTemplates.random(random)
+                    val template = pillTemplates[rngLocal.nextInt(pillTemplates.size)]
                     val pill = ItemDatabase.createPillFromTemplate(template)
                     val basePrice = template.price.toLong()
                     MerchantItem(
@@ -239,7 +245,7 @@ class DiplomacyService @Inject constructor(
                         type = "pill",
                         itemId = pill.id,
                         rarity = pill.rarity,
-                        price = GameUtils.applyPriceFluctuation(basePrice, random),
+                        price = GameUtils.applyPriceFluctuation(basePrice, rngLocal.asKotlinRandom()),
                         quantity = calcStock(type, rarity),
                         obtainedYear = year,
                         obtainedMonth = 1,
@@ -249,7 +255,7 @@ class DiplomacyService @Inject constructor(
                 "material" -> {
                     val materials = BeastMaterialDatabase.getMaterialsByRarity(rarity)
                     if (materials.isEmpty()) continue
-                    val material = materials.random(random)
+                    val material = materials[rngLocal.nextInt(materials.size)]
                     val basePrice = material.price.toLong()
                     MerchantItem(
                         id = UUID.randomUUID().toString(),
@@ -257,7 +263,7 @@ class DiplomacyService @Inject constructor(
                         type = "material",
                         itemId = material.id,
                         rarity = material.rarity,
-                        price = GameUtils.applyPriceFluctuation(basePrice, random),
+                        price = GameUtils.applyPriceFluctuation(basePrice, rngLocal.asKotlinRandom()),
                         quantity = calcStock(type, rarity),
                         obtainedYear = year,
                         obtainedMonth = 1
@@ -266,7 +272,7 @@ class DiplomacyService @Inject constructor(
                 "herb" -> {
                     val herbs = HerbDatabase.getByRarity(rarity)
                     if (herbs.isEmpty()) continue
-                    val herb = herbs.random(random)
+                    val herb = herbs[rngLocal.nextInt(herbs.size)]
                     val basePrice = herb.price.toLong()
                     MerchantItem(
                         id = UUID.randomUUID().toString(),
@@ -274,7 +280,7 @@ class DiplomacyService @Inject constructor(
                         type = "herb",
                         itemId = herb.id,
                         rarity = herb.rarity,
-                        price = GameUtils.applyPriceFluctuation(basePrice, random),
+                        price = GameUtils.applyPriceFluctuation(basePrice, rngLocal.asKotlinRandom()),
                         quantity = calcStock(type, rarity),
                         obtainedYear = year,
                         obtainedMonth = 1
@@ -283,7 +289,7 @@ class DiplomacyService @Inject constructor(
                 "seed" -> {
                     val seeds = HerbDatabase.getSeedsByRarity(rarity)
                     if (seeds.isEmpty()) continue
-                    val seed = seeds.random(random)
+                    val seed = seeds[rngLocal.nextInt(seeds.size)]
                     val basePrice = seed.price.toLong()
                     MerchantItem(
                         id = UUID.randomUUID().toString(),
@@ -291,7 +297,7 @@ class DiplomacyService @Inject constructor(
                         type = "seed",
                         itemId = seed.id,
                         rarity = seed.rarity,
-                        price = GameUtils.applyPriceFluctuation(basePrice, random),
+                        price = GameUtils.applyPriceFluctuation(basePrice, rngLocal.asKotlinRandom()),
                         quantity = calcStock(type, rarity),
                         obtainedYear = year,
                         obtainedMonth = 1
@@ -312,7 +318,7 @@ class DiplomacyService @Inject constructor(
                         type = "spiritStone",
                         itemId = UUID.randomUUID().toString(),
                         rarity = itemRarity,
-                        price = GameUtils.applyPriceFluctuation(basePrice, random),
+                        price = GameUtils.applyPriceFluctuation(basePrice, rngLocal.asKotlinRandom()),
                         quantity = calcStock(type, rarity).coerceAtMost(3),
                         obtainedYear = year,
                         obtainedMonth = 1
@@ -428,25 +434,7 @@ class DiplomacyService @Inject constructor(
         return SectTradeValidation(sect, item, actualQuantity, totalPrice, updatedSectDetails)
     }
 
-    @Deprecated(
-        "Use buyFromSectTradeSync() — scope.launch 在 swapFromShadow 期间存在竞态风险",
-        ReplaceWith("buyFromSectTradeSync(sectId, itemId, quantity)")
-    )
-    suspend fun buyFromSectTrade(sectId: String, itemId: String, quantity: Int = 1) {
-        stateStore.update {
-            val v = validateSectTrade(gameData, sectId, itemId, quantity) ?: return@update
-            val deductResult = spiritStoneWallet.deduct(this, v.totalPrice, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
-            if (deductResult !is DeductResult.Success) {
-                return@update
-            }
-            gameData = gameData.copy(
-                sectDetails = v.updatedSectDetails
-            )
-            addSectTradeItemToMutableState(v.item, v.actualQuantity)
-        }
-    }
-
-    suspend fun buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int = 1) {
+suspend fun buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int = 1) {
         stateStore.update {
             val v = validateSectTrade(gameData, sectId, itemId, quantity) ?: return@update
 
@@ -541,8 +529,8 @@ class DiplomacyService @Inject constructor(
         }
     }
 
-    private fun selectRarityByMerchantProbabilities(random: Random): Int {
-        val rand = random.nextDouble()
+    private fun selectRarityByMerchantProbabilities(rngLocal: DeterministicRng): Int {
+        val rand = rngLocal.nextDouble()
         var cumulative = 0.0
         for ((rarity, prob) in SECT_TRADE_RARITY_PROBABILITIES.entries.sortedByDescending { it.key }) {
             cumulative += prob

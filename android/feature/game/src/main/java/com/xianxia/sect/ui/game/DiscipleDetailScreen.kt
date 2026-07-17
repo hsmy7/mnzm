@@ -143,9 +143,6 @@ fun DiscipleDetailDialog(
     val gameMonth = gameData?.gameMonth ?: 1
     val gameYear = gameData?.gameYear ?: 1
     val gamePhase = gameData?.gamePhase ?: 0
-    @Suppress("DEPRECATION")
-    val gameSpeed = gameData?.gameSpeed ?: 1
-
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("信息", "属性", "装备", "功法")
 
@@ -232,7 +229,7 @@ fun DiscipleDetailDialog(
                                         gameMonth = gameMonth,
                                         gameYear = gameYear,
                                         gamePhase = gamePhase,
-                                        gameSpeed = gameSpeed,
+                                        gameSpeed = 1,
                                         onWatchAdBreakthroughBonus = onWatchAdBreakthroughBonus
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))

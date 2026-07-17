@@ -11,12 +11,17 @@ import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.util.BattleCalculator
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
 
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class BattleSystem @Inject constructor() {
+class BattleSystem @Inject constructor(
+    private val rngManager: GameRngManager
+) {
+    private val rng get() = rngManager.getRng(RngPartition.BATTLE)
 
     /**
      * 预计算妖兽属性。
@@ -727,12 +732,12 @@ class BattleSystem @Inject constructor() {
                                 val advAliveEnemies = advEnemies.filter { !it.isDead }
                                 val advIdx = advAllies.indexOfFirst { it.id == advancedId }
                                 if (advIdx >= 0 && advAliveEnemies.isNotEmpty()) {
-                                    val advSkill = BattleCalculator.selectSkill(advancedAlly, advAliveEnemies, advAllies.filter { !it.isDead }, false)
+                                    val advSkill = BattleCalculator.selectSkill(advancedAlly, advAliveEnemies, advAllies.filter { !it.isDead }, false, rng)
                                     val advResult = if (advSkill != null) {
-                                        val advTarget = BattleCalculator.selectTarget(advancedAlly, advAliveEnemies)
+                                        val advTarget = BattleCalculator.selectTarget(advancedAlly, advAliveEnemies, rng)
                                         executeSkill(advancedAlly, advTarget, advSkill)
                                     } else {
-                                        val advTarget = BattleCalculator.selectTarget(advancedAlly, advAliveEnemies)
+                                        val advTarget = BattleCalculator.selectTarget(advancedAlly, advAliveEnemies, rng)
                                         executeAttack(advancedAlly, advTarget)
                                     }
                                     val advDmg = if (advResult.isSupport) 0 else advResult.damage
@@ -826,7 +831,7 @@ class BattleSystem @Inject constructor() {
                 isDodged = false, isInstantKill = true
             )
         }
-        val result = BattleCalculator.calculateCombatantDamage(attacker, defender, null)
+        val result = BattleCalculator.calculateCombatantDamage(attacker, defender, null, rng = rng)
         return AttackResult(
             attacker = attacker,
             target = defender,
@@ -845,7 +850,7 @@ class BattleSystem @Inject constructor() {
                 isDodged = false, isInstantKill = true, skillName = skill.name
             )
         }
-        val result = BattleCalculator.calculateCombatantDamage(attacker, defender, skill)
+        val result = BattleCalculator.calculateCombatantDamage(attacker, defender, skill, rng = rng)
         return AttackResult(
             attacker = attacker,
             target = defender,
@@ -902,7 +907,7 @@ class BattleSystem @Inject constructor() {
             pendingAiAction = null
             return null
         }
-        val action = BattleAI.decideAction(combatant, allies, enemies)
+        val action = BattleAI.decideAction(combatant, allies, enemies, rng)
         pendingAiAction = action
         return action.skill
     }
@@ -914,7 +919,7 @@ class BattleSystem @Inject constructor() {
             return action.target
         }
         pendingAiAction = null
-        return BattleAI.selectAttackTarget(attacker, targets, null)
+        return BattleAI.selectAttackTarget(attacker, targets, null, rng)
             ?: targets.first()
     }
 

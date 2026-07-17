@@ -7,6 +7,7 @@ import com.xianxia.sect.core.model.BloodRefinementProgress
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
+import com.xianxia.sect.core.util.GameRngManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,7 +29,8 @@ data class BloodRefiningUiState(
 
 @HiltViewModel
 class BloodRefiningViewModel @Inject constructor(
-    private val gameEngine: GameEngine
+    private val gameEngine: GameEngine,
+    private val rngManager: GameRngManager
 ) : BaseViewModel() {
 
     private val _uiState = MutableStateFlow(BloodRefiningUiState())
@@ -93,7 +95,7 @@ class BloodRefiningViewModel @Inject constructor(
         }
 
         val bloodType = BeastMaterialDatabase.getBloodTypeFromMaterialId(material.id) ?: return
-        val selectedStat = DiscipleStatCalculator.randomBloodRefineStat(bloodType)
+        val selectedStat = DiscipleStatCalculator.randomBloodRefineStat(bloodType, rngManager)
         val bonusPercent = BeastMaterialDatabase.getTierPercentage(material.tier)
         val durationMonths = BeastMaterialDatabase.getTierDuration(material.tier)
 

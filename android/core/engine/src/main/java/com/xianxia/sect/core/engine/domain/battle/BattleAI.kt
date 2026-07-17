@@ -5,7 +5,7 @@ import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.HealType
 import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.model.CombatSkill
-import kotlin.random.Random
+import com.xianxia.sect.core.util.DeterministicRng
 
 /**
  * 统一战斗 AI —— 所有单位（玩家弟子、AI 弟子、妖兽、任务敌人、洞府、
@@ -84,13 +84,13 @@ object BattleAI {
      * @param unit    当前行动单位
      * @param allies  所有存活盟友（含 unit 自身）
      * @param enemies 所有存活敌人
-     * @param random  随机数生成器（测试时可注入固定种子）
+     * @param rng  确定性 RNG（保证存档/读档后随机序列一致）
      */
     fun decideAction(
         unit: Combatant,
         allies: List<Combatant>,
         enemies: List<Combatant>,
-        random: Random = Random
+        rng: DeterministicRng
     ): AIAction {
         // 快速退出：已死亡
         if (unit.isDead) return AIAction.none()
@@ -121,14 +121,14 @@ object BattleAI {
 
         // ---- Tier 2: 保命 (HP < 25%) ----
         if (unit.hpPercent < SELF_PRESERVE_HP &&
-            random.nextDouble() < PROB_SELF_PRESERVE
+            rng.nextDouble() < PROB_SELF_PRESERVE
         ) {
             val selfAction = findSelfPreservation(unit, supportSkills)
             if (selfAction != null) return selfAction
         }
 
         // ---- Tier 3: 斩杀 (敌 HP < 30%) ----
-        if (random.nextDouble() < PROB_EXECUTE && attackSkills.isNotEmpty()) {
+        if (rng.nextDouble() < PROB_EXECUTE && attackSkills.isNotEmpty()) {
             val executeAction = findExecuteTarget(
                 unit, aliveEnemies, attackSkills
             )
@@ -136,7 +136,7 @@ object BattleAI {
         }
 
         // ---- Tier 4: 支援盟友 (盟友 HP < 40%) ----
-        if (random.nextDouble() < PROB_SUPPORT_ALLY &&
+        if (rng.nextDouble() < PROB_SUPPORT_ALLY &&
             supportSkills.isNotEmpty()
         ) {
             val supportAction = findAllySupport(
@@ -146,7 +146,7 @@ object BattleAI {
         }
 
         // ---- Tier 5: 团队 Buff (无紧急需求) ----
-        if (random.nextDouble() < PROB_TEAM_BUFF &&
+        if (rng.nextDouble() < PROB_TEAM_BUFF &&
             supportSkills.isNotEmpty()
         ) {
             val buffAction = findBuffOpportunity(
@@ -156,7 +156,7 @@ object BattleAI {
         }
 
         // ---- Tier 6: 控制 (高威胁未受控敌人) ----
-        if (random.nextDouble() < PROB_CONTROL) {
+        if (rng.nextDouble() < PROB_CONTROL) {
             val ccAction = findControlAction(
                 unit, aliveEnemies, usableSkills
             )
@@ -165,7 +165,7 @@ object BattleAI {
 
         // ---- Tier 7: AOE (3+ 敌人) ----
         if (aliveEnemies.size >= AOE_MIN_TARGETS &&
-            random.nextDouble() < PROB_AOE &&
+            rng.nextDouble() < PROB_AOE &&
             attackSkills.isNotEmpty()
         ) {
             val aoeSkills = attackSkills.filter { it.isAoe }
@@ -182,7 +182,7 @@ object BattleAI {
 
         // ---- Tier 8-10: 攻击决策 ----
         return decideAttackAction(
-            unit, aliveEnemies, attackSkills, random
+            unit, aliveEnemies, attackSkills, rng
         )
     }
 
@@ -193,19 +193,19 @@ object BattleAI {
         attacker: Combatant,
         enemies: List<Combatant>,
         skill: CombatSkill?,
-        random: Random = Random
+        rng: DeterministicRng
     ): Combatant? {
         val alive = enemies.filter { !it.isDead }
         if (alive.isEmpty()) return null
         if (alive.size == 1) return alive.first()
 
         // 低血量优先
-        if (random.nextDouble() < PROB_TARGET_LOW_HP) {
+        if (rng.nextDouble() < PROB_TARGET_LOW_HP) {
             return alive.minByOrNull { it.hp }
         }
 
         // 高威胁优先
-        if (random.nextDouble() < PROB_TARGET_HIGH_THREAT) {
+        if (rng.nextDouble() < PROB_TARGET_HIGH_THREAT) {
             return alive.maxByOrNull {
                 it.effectivePhysicalAttack +
                     it.effectiveMagicAttack
@@ -213,7 +213,7 @@ object BattleAI {
         }
 
         // 低防御优先（根据技能伤害类型）
-        if (random.nextDouble() < PROB_TARGET_LOW_DEF) {
+        if (rng.nextDouble() < PROB_TARGET_LOW_DEF) {
             return when (skill?.damageType) {
                 DamageType.PHYSICAL ->
                     alive.minByOrNull {
@@ -499,7 +499,7 @@ object BattleAI {
         unit: Combatant,
         enemies: List<Combatant>,
         attackSkills: List<CombatSkill>,
-        random: Random
+        rng: DeterministicRng
     ): AIAction {
         // 省蓝模式
         if (unit.mpPercent < MP_SAVE && attackSkills.isNotEmpty()) {
@@ -508,7 +508,7 @@ object BattleAI {
             }
             if (cheap != null && unit.mp >= cheap.mpCost) {
                 val target = selectAttackTarget(
-                    unit, enemies, cheap, random
+                    unit, enemies, cheap, rng
                 ) ?: return AIAction.none()
                 return AIAction(
                     cheap, target,
@@ -524,7 +524,7 @@ object BattleAI {
                     it.mpCost.coerceAtLeast(1).toDouble()
             } ?: return AIAction.none()
             val target = selectAttackTarget(
-                unit, enemies, best, random
+                unit, enemies, best, rng
             ) ?: return AIAction.none()
             return AIAction(
                 best, target,
@@ -534,7 +534,7 @@ object BattleAI {
 
         // 兜底普通攻击
         val target = selectAttackTarget(
-            unit, enemies, null, random
+            unit, enemies, null, rng
         )
         return if (target != null)
             AIAction(null, target, AIActionType.NORMAL_ATTACK)

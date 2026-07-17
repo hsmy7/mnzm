@@ -159,13 +159,7 @@ data class DiscipleAggregate(
     /** 速度 */
     val speed: Int get() = getBaseStats().speed
 
-    @Deprecated("Use maxHp instead", ReplaceWith("maxHp"))
-    val maxHpFinal: Int get() = getFinalStats(emptyMap(), emptyMap()).maxHp
-
-    @Deprecated("Use maxMp instead", ReplaceWith("maxMp"))
-    val maxMpFinal: Int get() = getFinalStats(emptyMap(), emptyMap()).maxMp
-
-    /** 当前生命百分比 */
+/** 当前生命百分比 */
     val hpPercent: Float get() = if (maxHp > 0) currentHp.toFloat() / maxHp else 0f
     val mpPercent: Float get() = if (maxMp > 0) currentMp.toFloat() / maxMp else 0f
     

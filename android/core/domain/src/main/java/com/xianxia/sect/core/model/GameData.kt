@@ -76,9 +76,6 @@ data class GameData(
 
     // 游戏状态
     // isGameStarted 已移除：v4.0.43+ 使用 GameLifecycle 枚举纯运行时管理
-    @SettlementStrategy(Strategy.PRESERVE_OLD)
-    @Deprecated("使用 GameTimeClock.speed 代替")
-    var gameSpeed: Int = 1,
 
     // 资源
     // spiritStones 固定表示下品灵石；中品、上品灵石使用新增字段
@@ -238,10 +235,6 @@ data class GameData(
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var librarySlots: List<LibrarySlot> = emptyList(),
 
-    @Deprecated(
-        message = "生产槽位数据已迁移到 ProductionSlotRepository，请使用 GameEngine.productionSlots 或 Repository API 读写",
-        replaceWith = ReplaceWith("使用 ProductionSlotRepository.updateSlot() / getSlots() 或 GameEngine.productionSlots")
-    )
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var productionSlots: List<ProductionSlot> = emptyList(),
 

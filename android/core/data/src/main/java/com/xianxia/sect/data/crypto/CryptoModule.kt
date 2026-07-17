@@ -415,7 +415,6 @@ data class SignedPayload(
     }
 }
 
-@Deprecated("Use AppError.Domain.Storage", ReplaceWith("AppError.Domain.Storage", "com.xianxia.sect.core.util.AppError"))
 sealed class VerificationResult {
     data object Valid : VerificationResult()
     data class Invalid(val reason: String) : VerificationResult()

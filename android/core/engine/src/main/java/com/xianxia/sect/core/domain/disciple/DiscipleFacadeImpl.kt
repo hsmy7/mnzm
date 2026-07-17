@@ -68,7 +68,7 @@ class DiscipleFacadeImpl @Inject constructor(
 
     override fun updateDisciple(disciple: Disciple) = discipleService.updateDisciple(disciple)
 
-    override suspend fun updateDisciple(discipleId: String, update: (Disciple) -> Disciple) {
+    override fun updateDisciple(discipleId: String, update: (Disciple) -> Disciple) {
         stateStore.update {
             val id = discipleId.toIntOrNull() ?: return@update
             if (!discipleTables.ids.contains(id)) return@update
@@ -88,13 +88,13 @@ class DiscipleFacadeImpl @Inject constructor(
 
     override fun recruitDisciple(): Disciple = discipleService.recruitDisciple()
 
-    override suspend fun expelDisciple(discipleId: String): DomainResult<Unit> = discipleService.expelDisciple(discipleId)
+    override fun expelDisciple(discipleId: String): DomainResult<Unit> = discipleService.expelDisciple(discipleId)
 
-    override suspend fun apprenticeToMaster(discipleId: String, masterId: String): DomainResult<Unit> = discipleService.apprenticeToMaster(discipleId, masterId)
+    override fun apprenticeToMaster(discipleId: String, masterId: String): DomainResult<Unit> = discipleService.apprenticeToMaster(discipleId, masterId)
 
-    override suspend fun expelTheftDisciple(discipleId: String): DomainResult<Unit> = discipleService.expelDisciple(discipleId)
+    override fun expelTheftDisciple(discipleId: String): DomainResult<Unit> = discipleService.expelDisciple(discipleId)
 
-    override suspend fun imprisonTheftDisciple(discipleId: String, currentYear: Int) {
+    override fun imprisonTheftDisciple(discipleId: String, currentYear: Int) {
         stateStore.update {
             val id = discipleId.toIntOrNull() ?: return@update
             if (!discipleTables.ids.contains(id)) return@update
@@ -108,7 +108,7 @@ class DiscipleFacadeImpl @Inject constructor(
         }
     }
 
-    override suspend fun releaseTheftDisciple(discipleId: String): Int {
+    override fun releaseTheftDisciple(discipleId: String): Int {
         val loyaltyChange = (1..10).random()
         stateStore.update {
             val id = discipleId.toIntOrNull() ?: return@update
@@ -124,7 +124,7 @@ class DiscipleFacadeImpl @Inject constructor(
         return loyaltyChange
     }
 
-    override suspend fun releaseReflectionDisciple(discipleId: String) {
+    override fun releaseReflectionDisciple(discipleId: String) {
         stateStore.update {
             val id = discipleId.toIntOrNull() ?: return@update
             if (!discipleTables.ids.contains(id)) return@update
@@ -136,16 +136,16 @@ class DiscipleFacadeImpl @Inject constructor(
         }
     }
 
-    override suspend fun equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> =
+    override fun equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> =
         discipleService.equipEquipment(discipleId, equipmentId)
 
-    override suspend fun unequipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> =
+    override fun unequipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> =
         discipleService.unequipEquipment(discipleId, equipmentId)
 
     override fun isDiscipleAssignedToSpiritMine(discipleId: String): Boolean =
         discipleService.isDiscipleAssignedToSpiritMine(discipleId)
 
-    override suspend fun updateYearlySalaryEnabled(realm: Int, enabled: Boolean) =
+    override fun updateYearlySalaryEnabled(realm: Int, enabled: Boolean) =
         discipleService.updateYearlySalaryEnabled(realm, enabled)
 
     override fun getAliveDisciplesCount(): Int = discipleService.getAliveDisciplesCount()
@@ -158,7 +158,7 @@ class DiscipleFacadeImpl @Inject constructor(
     override fun getAllDiscipleAggregates(): List<DiscipleAggregate> =
         discipleService.getAllDiscipleAggregates()
 
-    override suspend fun approveMarriage(maleId: String, femaleId: String) {
+    override fun approveMarriage(maleId: String, femaleId: String) {
         stateStore.update {
             val maleIntId = maleId.toIntOrNull()
             val femaleIntId = femaleId.toIntOrNull()
@@ -185,7 +185,7 @@ class DiscipleFacadeImpl @Inject constructor(
         }
     }
 
-    override suspend fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus) {
+    override fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus) {
         stateStore.update {
             val id = discipleId.toIntOrNull() ?: return@update
             if (!discipleTables.ids.contains(id)) return@update
@@ -194,7 +194,7 @@ class DiscipleFacadeImpl @Inject constructor(
     }
 
 
-    override suspend fun dismissDisciple(discipleId: String) {
+    override fun dismissDisciple(discipleId: String) {
         expelDisciple(discipleId)
     }
 
@@ -221,7 +221,7 @@ class DiscipleFacadeImpl @Inject constructor(
         gameEngineCore.launchInScope { forgetManual(discipleId, instanceId) }
     }
 
-    override suspend fun recruitDiscipleFromList(discipleId: String): String {
+    override fun recruitDiscipleFromList(discipleId: String): String {
         if (discipleId.isBlank()) {
             DomainLog.w(TAG, "recruitDiscipleFromList: empty discipleId")
             return ""
@@ -268,7 +268,7 @@ class DiscipleFacadeImpl @Inject constructor(
         return newId
     }
 
-    override suspend fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>): DomainResult<Unit> {
+    override fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>): DomainResult<Unit> {
         items.forEach { item ->
             when (item.type.lowercase(java.util.Locale.getDefault())) {
                 ITEM_TYPE_EQUIPMENT -> rewardEquipment(discipleId, item)
@@ -282,7 +282,7 @@ class DiscipleFacadeImpl @Inject constructor(
         return DomainResult.Success(Unit)
     }
 
-    private suspend fun rewardEquipment(discipleId: String, item: RewardSelectedItem) {
+    private fun rewardEquipment(discipleId: String, item: RewardSelectedItem) {
         stateStore.update {
             val stack = equipmentStacks.get(item.id)
             if (stack == null || stack.quantity < 1) return@update
@@ -372,7 +372,7 @@ class DiscipleFacadeImpl @Inject constructor(
         }
     }
 
-    private suspend fun rewardManual(discipleId: String, item: RewardSelectedItem) {
+    private fun rewardManual(discipleId: String, item: RewardSelectedItem) {
         stateStore.update {
             val stack = manualStacks.get(item.id)
             if (stack == null || stack.quantity < 1) return@update
@@ -537,7 +537,7 @@ class DiscipleFacadeImpl @Inject constructor(
         }
     }
 
-    private suspend fun rewardPill(discipleId: String, item: RewardSelectedItem, quantity: Int) {
+    private fun rewardPill(discipleId: String, item: RewardSelectedItem, quantity: Int) {
         stateStore.update {
             val pill = pills.get(item.id)
             if (pill == null || pill.quantity < quantity) return@update
@@ -561,7 +561,7 @@ class DiscipleFacadeImpl @Inject constructor(
         }
     }
 
-    private suspend fun rewardMaterial(discipleId: String, item: RewardSelectedItem, quantity: Int) {
+    private fun rewardMaterial(discipleId: String, item: RewardSelectedItem, quantity: Int) {
         stateStore.update {
             val material = materials.get(item.id)
             if (material == null || material.isLocked || quantity !in 1..material.quantity) return@update
@@ -579,7 +579,7 @@ class DiscipleFacadeImpl @Inject constructor(
         }
     }
 
-    private suspend fun rewardHerb(discipleId: String, item: RewardSelectedItem, quantity: Int) {
+    private fun rewardHerb(discipleId: String, item: RewardSelectedItem, quantity: Int) {
         stateStore.update {
             val herb = herbs.get(item.id)
             if (herb == null || herb.isLocked || quantity !in 1..herb.quantity) return@update
@@ -597,7 +597,7 @@ class DiscipleFacadeImpl @Inject constructor(
         }
     }
 
-    private suspend fun rewardSeed(discipleId: String, item: RewardSelectedItem, quantity: Int) {
+    private fun rewardSeed(discipleId: String, item: RewardSelectedItem, quantity: Int) {
         stateStore.update {
             val seed = seeds.get(item.id)
             if (seed == null || seed.isLocked || quantity !in 1..seed.quantity) return@update
@@ -813,7 +813,7 @@ class DiscipleFacadeImpl @Inject constructor(
         }
     }
 
-    private suspend fun learnManual(discipleId: String, stackId: String) {
+    private fun learnManual(discipleId: String, stackId: String) {
         stateStore.update {
             val stack = manualStacks.get(stackId) ?: return@update
             val id = discipleId.toIntOrNull() ?: return@update
@@ -869,7 +869,7 @@ class DiscipleFacadeImpl @Inject constructor(
         }
     }
 
-    private suspend fun forgetManual(discipleId: String, instanceId: String) {
+    private fun forgetManual(discipleId: String, instanceId: String) {
         stateStore.update {
             val instance = manualInstances.get(instanceId) ?: return@update
             val id = discipleId.toIntOrNull() ?: return@update

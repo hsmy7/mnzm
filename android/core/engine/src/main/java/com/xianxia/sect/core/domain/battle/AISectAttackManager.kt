@@ -25,9 +25,14 @@ import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.domain.FavorDomain
 import com.xianxia.sect.core.util.BattleCalculator
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
 import android.util.Log
-import kotlin.random.Random
 // top-level fun 提取到 aiattack/ 子目录（同包内可直接访问）
+
+/** AI 宗门攻击系统的 RNG 管理器（由 GameEngine 初始化时注入） */
+var aisRngManager: GameRngManager? = null
+private val aisRng get() = (aisRngManager ?: error("AISectAttackManager RNG not initialized")).getRng(RngPartition.BATTLE)
 
 object AISectAttackManager {
     private const val TAG = "AISectAttackManager"
@@ -475,7 +480,7 @@ object AISectAttackManager {
             ) continue
 
             // ---- 宣战概率（按个性） ----
-            if (Random.nextDouble() > personality.warProbability) continue
+            if (aisRng.nextDouble() > personality.warProbability) continue
 
             // 通过所有检查 → 生成谴责预警
             return PlayerAttackDecision.GenerateWarning(
@@ -852,7 +857,7 @@ object AISectAttackManager {
             return
         }
 
-        val result = BattleCalculator.calculateCombatantDamage(attacker, target, null)
+        val result = BattleCalculator.calculateCombatantDamage(attacker, target, null, rng = aisRng)
 
         if (result.isDodged) {
             val combatantIdx = alliesIndexMap[attacker.id]
@@ -914,7 +919,7 @@ object AISectAttackManager {
             return
         }
 
-        val result = BattleCalculator.calculateCombatantDamage(attacker, target, skill)
+        val result = BattleCalculator.calculateCombatantDamage(attacker, target, skill, rng = aisRng)
 
         if (result.isDodged) {
             val combatantIdx = alliesIndexMap[attacker.id]
@@ -983,7 +988,7 @@ object AISectAttackManager {
                 continue
             }
 
-            val result = BattleCalculator.calculateCombatantDamage(attacker, target, skill)
+            val result = BattleCalculator.calculateCombatantDamage(attacker, target, skill, rng = aisRng)
 
             if (result.isDodged) {
                 roundActions.add(BattleLogAction(
@@ -1092,7 +1097,7 @@ object AISectAttackManager {
             pendingAiAction = null
             return null
         }
-        val action = BattleAI.decideAction(combatant, allies, enemies)
+        val action = BattleAI.decideAction(combatant, allies, enemies, aisRng)
         pendingAiAction = action
         return action.skill
     }
@@ -1106,7 +1111,7 @@ object AISectAttackManager {
             return action.target
         }
         pendingAiAction = null
-        return BattleAI.selectAttackTarget(attacker, aliveTargets, null)
+        return BattleAI.selectAttackTarget(attacker, aliveTargets, null, aisRng)
             ?: aliveTargets.first()
     }
 

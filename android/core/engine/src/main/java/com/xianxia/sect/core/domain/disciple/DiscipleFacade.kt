@@ -16,36 +16,36 @@ interface DiscipleFacade {
     fun removeDisciple(discipleId: String): DomainResult<Unit>
     fun getDiscipleById(discipleId: String): Disciple?
     fun updateDisciple(disciple: Disciple)
-    suspend fun updateDisciple(discipleId: String, update: (Disciple) -> Disciple)
+    fun updateDisciple(discipleId: String, update: (Disciple) -> Disciple)
     fun getDiscipleStatus(discipleId: String): DiscipleStatus
     fun syncAllDiscipleStatuses()
     suspend fun resetAllDisciplesStatus()
     fun recruitDisciple(): Disciple
-    suspend fun expelDisciple(discipleId: String): DomainResult<Unit>
-    suspend fun apprenticeToMaster(discipleId: String, masterId: String): DomainResult<Unit>
-    suspend fun expelTheftDisciple(discipleId: String): DomainResult<Unit>
-    suspend fun imprisonTheftDisciple(discipleId: String, currentYear: Int)
-    suspend fun releaseTheftDisciple(discipleId: String): Int
-    suspend fun releaseReflectionDisciple(discipleId: String)
-    suspend fun equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit>
-    suspend fun unequipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit>
+    fun expelDisciple(discipleId: String): DomainResult<Unit>
+    fun apprenticeToMaster(discipleId: String, masterId: String): DomainResult<Unit>
+    fun expelTheftDisciple(discipleId: String): DomainResult<Unit>
+    fun imprisonTheftDisciple(discipleId: String, currentYear: Int)
+    fun releaseTheftDisciple(discipleId: String): Int
+    fun releaseReflectionDisciple(discipleId: String)
+    fun equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit>
+    fun unequipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit>
     fun isDiscipleAssignedToSpiritMine(discipleId: String): Boolean
-    suspend fun updateYearlySalaryEnabled(realm: Int, enabled: Boolean)
+    fun updateYearlySalaryEnabled(realm: Int, enabled: Boolean)
     fun getAliveDisciplesCount(): Int
     fun getIdleDisciples(): List<Disciple>
     fun getDiscipleAggregate(discipleId: String): DiscipleAggregate?
     fun getAllDiscipleAggregates(): List<DiscipleAggregate>
-    suspend fun approveMarriage(maleId: String, femaleId: String)
-    suspend fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus)
-    suspend fun dismissDisciple(discipleId: String)
+    fun approveMarriage(maleId: String, femaleId: String)
+    fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus)
+    fun dismissDisciple(discipleId: String)
     fun giveItemToDisciple(discipleId: String, itemId: String, itemType: String)
     fun assignManual(discipleId: String, stackId: String)
     fun removeManual(discipleId: String, instanceId: String)
-    suspend fun recruitDiscipleFromList(discipleId: String): String
+    fun recruitDiscipleFromList(discipleId: String): String
     fun addLifeEvent(discipleId: String, event: String)
     fun getLifeEvents(discipleId: String): List<String>
     fun initializeLifeEvents(discipleId: String)
-    suspend fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>): DomainResult<Unit>
+    fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>): DomainResult<Unit>
     fun updateElderSlots(newElderSlots: ElderSlots)
     fun assignDirectDisciple(
         elderSlotType: String,

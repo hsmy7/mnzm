@@ -11,8 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import com.xianxia.sect.ui.game.building.BuildingDef
-import com.xianxia.sect.ui.game.building.BuildingRegistry
+import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.config.BuildingConfigService
@@ -241,23 +240,6 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    /**
-     * 关闭当前对话框 — 现已统一通过 [dismissDialog] 关闭。
-     * @deprecated 直接调用 [dismissDialog] 替代
-     */
-    @Deprecated("Use dismissDialog() instead", ReplaceWith("dismissDialog()"), level = DeprecationLevel.ERROR)
-    fun closeCurrentDialog() {
-        dismissDialog()
-    }
-
-    /**
-     * 关闭所有对话框 — 当前行为等价于 [dismissDialog]（无栈）。
-     * @deprecated 直接调用 [dismissDialog] 替代
-     */
-    @Deprecated("Use dismissDialog() instead", ReplaceWith("dismissDialog()"), level = DeprecationLevel.ERROR)
-    fun closeAllDialogs() {
-        dismissDialog()
-    }
 
     /** 打开灵矿场对话框，委托给 [NavigationDelegate] */
     fun openSpiritMineDialog(mineIndex: Int = 0) = navigation.openSpiritMineDialog(mineIndex)

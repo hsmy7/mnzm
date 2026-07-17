@@ -2,10 +2,11 @@ package com.xianxia.sect.core.engine.domain.exploration
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.util.DeterministicRng
 import kotlin.math.sqrt
-import kotlin.random.Random
 
 object CaveGenerator {
+    private val rng by lazy { DeterministicRng.fromSeed(System.nanoTime()) }
     
     private val MAP_WIDTH get() = GameConfig.WorldMap.MAP_WIDTH
     private val MAP_HEIGHT get() = GameConfig.WorldMap.MAP_HEIGHT
@@ -60,14 +61,14 @@ object CaveGenerator {
             usedPositions.add(Pair(cave.x.toInt(), cave.y.toInt()))
         }
         
-        val newCaveCount = Random.nextInt(0, maxNewCaves + 1)
+        val newCaveCount = rng.nextInt(maxNewCaves + 1)
         
         var attempts = 0
         while (caves.size < newCaveCount && attempts < 5000) {
             attempts++
             
-            val x = Random.nextInt(BORDER_PADDING, MAP_WIDTH - BORDER_PADDING)
-            val y = Random.nextInt(BORDER_PADDING, MAP_HEIGHT - BORDER_PADDING)
+            val x = BORDER_PADDING + rng.nextInt(MAP_WIDTH - BORDER_PADDING * 2)
+            val y = BORDER_PADDING + rng.nextInt(MAP_HEIGHT - BORDER_PADDING * 2)
             
             if (!isValidPosition(x, y, usedPositions, existingSects, connectionEdges, existingCaves)) {
                 continue
@@ -97,7 +98,7 @@ object CaveGenerator {
     }
     
     private fun selectRandomRealm(): CaveRealmConfig {
-        val rand = Random.nextDouble()
+        val rand = rng.nextDouble()
         var cumulative = 0.0
         
         for ((realm, prob) in caveSpawnProbabilities.toList().sortedByDescending { it.first }) {
@@ -111,8 +112,8 @@ object CaveGenerator {
     }
     
     private fun generateCaveName(realmName: String): String {
-        val prefix = cavePrefixes.random()
-        val suffix = caveSuffixes.random()
+        val prefix = cavePrefixes[rng.nextInt(cavePrefixes.size)]
+        val suffix = caveSuffixes[rng.nextInt(caveSuffixes.size)]
         return "$prefix${realmName}$suffix"
     }
     

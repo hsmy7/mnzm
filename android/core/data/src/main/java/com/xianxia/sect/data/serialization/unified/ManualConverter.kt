@@ -300,8 +300,6 @@ class ManualConverter {
     fun convertBackResidenceSlot(data: SerializableResidenceSlot) = slotConverter.convertBackResidenceSlot(data)
     fun convertBuildingSlot(slot: BuildingSlot) = slotConverter.convertBuildingSlot(slot)
     fun convertBackBuildingSlot(data: SerializableBuildingSlot) = slotConverter.convertBackBuildingSlot(data)
-    fun convertAlchemySlot(slot: AlchemySlot) = slotConverter.convertAlchemySlot(slot)
-    fun convertBackAlchemySlot(data: SerializableAlchemySlot) = slotConverter.convertBackAlchemySlot(data)
     fun convertProductionSlot(slot: ProductionSlot) = slotConverter.convertProductionSlot(slot)
     fun convertBackProductionSlot(data: SerializableProductionSlot) = slotConverter.convertBackProductionSlot(data)
 }

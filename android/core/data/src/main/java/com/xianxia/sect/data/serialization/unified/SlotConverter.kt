@@ -278,36 +278,7 @@ internal class SlotConverter {
         )
     }
 
-    @Deprecated("AlchemySlot is no longer a Room entity; only used for legacy save data conversion")
-    fun convertAlchemySlot(slot: com.xianxia.sect.core.model.AlchemySlot): SerializableAlchemySlot {
-        return SerializableAlchemySlot(
-            id = slot.id,
-            discipleId = "",
-            discipleName = "",
-            recipeId = slot.recipeId ?: "",
-            recipeName = slot.recipeName,
-            progress = 0.0,
-            status = slot.status.name,
-            startYear = slot.startYear,
-            startMonth = slot.startMonth,
-            resultItemId = "",
-            resultQuantity = 0
-        )
-    }
-
-    @Deprecated("AlchemySlot is no longer a Room entity; only used for legacy save data conversion")
-    fun convertBackAlchemySlot(data: SerializableAlchemySlot): com.xianxia.sect.core.model.AlchemySlot {
-        return com.xianxia.sect.core.model.AlchemySlot(
-            id = data.id,
-            recipeId = data.recipeId,
-            recipeName = data.recipeName,
-            startYear = data.startYear,
-            startMonth = data.startMonth,
-            status = safeEnumValueOf(data.status, com.xianxia.sect.core.model.AlchemySlotStatus.IDLE, "status", "AlchemySlot")
-        )
-    }
-
-    fun convertProductionSlot(slot: com.xianxia.sect.core.model.production.ProductionSlot): SerializableProductionSlot {
+fun convertProductionSlot(slot: com.xianxia.sect.core.model.production.ProductionSlot): SerializableProductionSlot {
         return SerializableProductionSlot(
             id = slot.id,
             slotIndex = slot.slotIndex,

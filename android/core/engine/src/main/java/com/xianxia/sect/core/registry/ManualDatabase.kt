@@ -10,12 +10,13 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
+import com.xianxia.sect.core.util.DeterministicRng
 import java.io.BufferedReader
 import java.io.InputStreamReader
-import kotlin.random.Random
 
 object ManualDatabase {
-    
+    private val rng by lazy { DeterministicRng.fromSeed(System.nanoTime()) }
+
     private const val TAG = "ManualDatabase"
     
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
@@ -636,17 +637,17 @@ object ManualDatabase {
             throw NoSuchElementException("No manual templates found for rarity=$rarity, type=$type")
         }
         
-        val template = templates.random()
+        val template = templates[rng.nextInt(templates.size)]
         return createFromTemplate(template)
     }
     
     private fun generateRarity(minRarity: Int, maxRarity: Int): Int {
-        val random = Random.nextDouble()
+        val rand = rng.nextDouble()
         return when {
-            random < 0.5 -> minRarity.coerceAtMost(maxRarity)
-            random < 0.75 -> (minRarity + 1).coerceAtMost(maxRarity)
-            random < 0.9 -> (minRarity + 2).coerceAtMost(maxRarity)
-            random < 0.97 -> (minRarity + 3).coerceAtMost(maxRarity)
+            rand < 0.5 -> minRarity.coerceAtMost(maxRarity)
+            rand < 0.75 -> (minRarity + 1).coerceAtMost(maxRarity)
+            rand < 0.9 -> (minRarity + 2).coerceAtMost(maxRarity)
+            rand < 0.97 -> (minRarity + 3).coerceAtMost(maxRarity)
             else -> maxRarity
         }
     }

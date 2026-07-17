@@ -35,6 +35,24 @@ import org.junit.Test
 class BuildingRemovalSlotCleanupTest {
 
     companion object {
+        // 测试辅助函数 — 替代已删除的 BuildingFacadeImpl.companion 方法
+        private fun collectDiscipleIdsForTest(
+            displayName: String, instanceId: String, gameData: GameData
+        ): Set<String> {
+            val feature = BuildingFeatureRegistry.findByDisplayName(displayName) ?: return emptySet()
+            return feature.slotGroups.flatMap { it.collectDiscipleIds(gameData, instanceId, feature) }.toSet()
+        }
+
+        private fun filterBuildingSlotsForTest(
+            displayName: String, instanceId: String, gameData: GameData
+        ): GameData {
+            val feature = BuildingFeatureRegistry.findByDisplayName(displayName) ?: return gameData
+            var gd = gameData
+            for (group in feature.slotGroups) {
+                gd = group.filterFromGameData(gd, instanceId, feature)
+            }
+            return gd
+        }
         @BeforeClass @JvmStatic
         fun initRegistry() {
             // BuildingFeatureRegistry 初始化（不依赖 R.drawable）
@@ -73,7 +91,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val ids = BuildingFacadeImpl.collectDiscipleIdsForBuildingRemoval(
+        val ids = collectDiscipleIdsForTest(
             displayName = "灵矿场", instanceId = targetInstanceId, gameData = gameData
         )
 
@@ -89,7 +107,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val ids = BuildingFacadeImpl.collectDiscipleIdsForBuildingRemoval(
+        val ids = collectDiscipleIdsForTest(
             displayName = "灵矿场", instanceId = "mine-A", gameData = gameData
         )
 
@@ -110,7 +128,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val ids = BuildingFacadeImpl.collectDiscipleIdsForBuildingRemoval(
+        val ids = collectDiscipleIdsForTest(
             displayName = "巡视楼", instanceId = targetInstanceId, gameData = gameData
         )
 
@@ -149,7 +167,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val ids = BuildingFacadeImpl.collectDiscipleIdsForBuildingRemoval(
+        val ids = collectDiscipleIdsForTest(
             displayName = "炼丹炉", instanceId = targetInstanceId, gameData = gameData
         )
 
@@ -179,7 +197,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val ids = BuildingFacadeImpl.collectDiscipleIdsForBuildingRemoval(
+        val ids = collectDiscipleIdsForTest(
             displayName = "炼丹炉", instanceId = targetInstanceId, gameData = gameData
         )
 
@@ -211,7 +229,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val ids = BuildingFacadeImpl.collectDiscipleIdsForBuildingRemoval(
+        val ids = collectDiscipleIdsForTest(
             displayName = "锻造坊", instanceId = targetInstanceId, gameData = gameData
         )
 
@@ -232,7 +250,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val ids = BuildingFacadeImpl.collectDiscipleIdsForBuildingRemoval(
+        val ids = collectDiscipleIdsForTest(
             displayName = "单人住所", instanceId = targetInstanceId, gameData = gameData
         )
 
@@ -251,7 +269,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val ids = BuildingFacadeImpl.collectDiscipleIdsForBuildingRemoval(
+        val ids = collectDiscipleIdsForTest(
             displayName = "多人住所", instanceId = targetInstanceId, gameData = gameData
         )
 
@@ -270,7 +288,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val ids = BuildingFacadeImpl.collectDiscipleIdsForBuildingRemoval(
+        val ids = collectDiscipleIdsForTest(
             displayName = "仓库", instanceId = targetInstanceId, gameData = gameData
         )
 
@@ -289,7 +307,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val ids = BuildingFacadeImpl.collectDiscipleIdsForBuildingRemoval(
+        val ids = collectDiscipleIdsForTest(
             displayName = "血炼池", instanceId = targetInstanceId, gameData = gameData
         )
 
@@ -304,7 +322,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val ids = BuildingFacadeImpl.collectDiscipleIdsForBuildingRemoval(
+        val ids = collectDiscipleIdsForTest(
             displayName = "血炼池", instanceId = "blood-nonexistent", gameData = gameData
         )
 
@@ -321,7 +339,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val ids = BuildingFacadeImpl.collectDiscipleIdsForBuildingRemoval(
+        val ids = collectDiscipleIdsForTest(
             displayName = "未知建筑", instanceId = "x", gameData = gameData
         )
 
@@ -339,7 +357,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val ids = BuildingFacadeImpl.collectDiscipleIdsForBuildingRemoval(
+        val ids = collectDiscipleIdsForTest(
             displayName = "灵矿场", instanceId = "uuid-not-empty", gameData = gameData
         )
 
@@ -366,7 +384,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val result = BuildingFacadeImpl.filterBuildingSlots(
+        val result = filterBuildingSlotsForTest(
             displayName = "灵矿场", instanceId = targetInstanceId, gameData = gameData
         )
 
@@ -388,7 +406,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val result = BuildingFacadeImpl.filterBuildingSlots(
+        val result = filterBuildingSlotsForTest(
             displayName = "灵矿场", instanceId = targetInstanceId, gameData = gameData
         )
 
@@ -420,7 +438,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val result = BuildingFacadeImpl.filterBuildingSlots(
+        val result = filterBuildingSlotsForTest(
             displayName = "巡视楼", instanceId = targetInstanceId, gameData = gameData
         )
 
@@ -451,7 +469,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val result = BuildingFacadeImpl.filterBuildingSlots(
+        val result = filterBuildingSlotsForTest(
             displayName = "巡视楼", instanceId = targetInstanceId, gameData = gameData
         )
 
@@ -477,7 +495,7 @@ class BuildingRemovalSlotCleanupTest {
             patrolConfigs = listOf(PatrolConfig(maxBeastCount = 1))
         )
 
-        val result = BuildingFacadeImpl.filterBuildingSlots(
+        val result = filterBuildingSlotsForTest(
             displayName = "巡视楼", instanceId = targetInstanceId, gameData = gameData
         )
 
@@ -499,7 +517,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val result = BuildingFacadeImpl.filterBuildingSlots(
+        val result = filterBuildingSlotsForTest(
             displayName = "灵田", instanceId = targetInstanceId, gameData = gameData
         )
 
@@ -519,7 +537,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val result = BuildingFacadeImpl.filterBuildingSlots(
+        val result = filterBuildingSlotsForTest(
             displayName = "单人住所", instanceId = targetInstanceId, gameData = gameData
         )
 
@@ -540,7 +558,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val result = BuildingFacadeImpl.filterBuildingSlots(
+        val result = filterBuildingSlotsForTest(
             displayName = "多人住所", instanceId = targetInstanceId, gameData = gameData
         )
 
@@ -560,7 +578,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val result = BuildingFacadeImpl.filterBuildingSlots(
+        val result = filterBuildingSlotsForTest(
             displayName = "仓库", instanceId = targetInstanceId, gameData = gameData
         )
 
@@ -597,7 +615,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val result = BuildingFacadeImpl.filterBuildingSlots(
+        val result = filterBuildingSlotsForTest(
             displayName = "炼丹炉", instanceId = targetInstanceId, gameData = gameData
         )
 
@@ -627,7 +645,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val result = BuildingFacadeImpl.filterBuildingSlots(
+        val result = filterBuildingSlotsForTest(
             displayName = "锻造坊", instanceId = targetInstanceId, gameData = gameData
         )
 
@@ -656,7 +674,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val result = BuildingFacadeImpl.filterBuildingSlots(
+        val result = filterBuildingSlotsForTest(
             displayName = "炼丹炉", instanceId = targetInstanceId, gameData = gameData
         )
 
@@ -678,7 +696,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val result = BuildingFacadeImpl.filterBuildingSlots(
+        val result = filterBuildingSlotsForTest(
             displayName = "血炼池", instanceId = targetInstanceId, gameData = gameData
         )
 
@@ -695,7 +713,7 @@ class BuildingRemovalSlotCleanupTest {
             spiritMineSlots = listOf(SpiritMineSlot(index = 0, discipleId = "1", buildingInstanceId = "x"))
         )
 
-        val result = BuildingFacadeImpl.filterBuildingSlots(
+        val result = filterBuildingSlotsForTest(
             displayName = "未知建筑", instanceId = "x", gameData = gameData
         )
 
@@ -713,7 +731,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val result = BuildingFacadeImpl.filterBuildingSlots(
+        val result = filterBuildingSlotsForTest(
             displayName = "灵矿场", instanceId = "uuid-not-empty", gameData = gameData
         )
 
@@ -729,7 +747,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val result = BuildingFacadeImpl.filterBuildingSlots(
+        val result = filterBuildingSlotsForTest(
             displayName = "灵矿场", instanceId = "mine-nonexistent", gameData = gameData
         )
 
@@ -751,7 +769,7 @@ class BuildingRemovalSlotCleanupTest {
             )
         )
 
-        val result = BuildingFacadeImpl.filterBuildingSlots(
+        val result = filterBuildingSlotsForTest(
             displayName = "灵矿场", instanceId = targetInstanceId, gameData = gameData
         )
 

@@ -10,9 +10,10 @@ import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.engine.ManualProficiencySystem
-import kotlin.random.Random
+import com.xianxia.sect.core.util.DeterministicRng
 
 object CaveExplorationSystem {
+    private val rng by lazy { DeterministicRng.fromSeed(System.nanoTime()) }
 
     fun createAIBattle(
         playerDisciples: List<Disciple>,
@@ -155,11 +156,11 @@ object CaveExplorationSystem {
         
         val guardianRealm = (cave.ownerRealm - 1).coerceIn(0, 9)
         val guardianCount = when {
-            cave.ownerRealm <= 2 -> Random.nextInt(4, 7)
-            cave.ownerRealm <= 4 -> Random.nextInt(3, 6)
-            else -> Random.nextInt(2, 5)
+            cave.ownerRealm <= 2 -> 4 + rng.nextInt(3)
+            cave.ownerRealm <= 4 -> 3 + rng.nextInt(3)
+            else -> 2 + rng.nextInt(3)
         }
-        val hasBoss = cave.ownerRealm <= 3 && Random.nextDouble() < 0.3
+        val hasBoss = cave.ownerRealm <= 3 && rng.nextDouble() < 0.3
         val guardians = (1..guardianCount).mapIndexed { index, _ ->
             val isBoss = hasBoss && index == 0
             createGuardian(guardianRealm, index, isBoss)
@@ -178,14 +179,14 @@ object CaveExplorationSystem {
     private fun createGuardian(realm: Int, index: Int, isBoss: Boolean = false): Combatant {
         val realmIndex = realm.coerceIn(0, 9)
         val stats = GameConfig.Beast.getRealmStats(realmIndex)
-        val beastType = GameConfig.Beast.TYPES.random()
-        val realmLayer = Random.nextInt(1, 10)
+        val beastType = GameConfig.Beast.TYPES[rng.nextInt(GameConfig.Beast.TYPES.size)]
+        val realmLayer = 1 + rng.nextInt(9)
         val layerMult = 1.0 + (realmLayer - 1) * 0.1
 
-        val hpVariance = -0.2 + Random.nextDouble() * 0.4
-        val atkVariance = -0.2 + Random.nextDouble() * 0.4
-        val defVariance = -0.2 + Random.nextDouble() * 0.4
-        val speedVariance = -0.2 + Random.nextDouble() * 0.4
+        val hpVariance = -0.2 + rng.nextDouble() * 0.4
+        val atkVariance = -0.2 + rng.nextDouble() * 0.4
+        val defVariance = -0.2 + rng.nextDouble() * 0.4
+        val speedVariance = -0.2 + rng.nextDouble() * 0.4
 
         val bossMultiplier = if (isBoss) 2.5 else 1.0
 
@@ -251,7 +252,7 @@ object CaveExplorationSystem {
     fun generateVictoryRewards(cave: CultivatorCave): CaveRewards {
         val rewards = mutableListOf<CaveRewardItem>()
         
-        val spiritStones = Random.nextInt(800, 5001)
+        val spiritStones = 800 + rng.nextInt(4201)
         rewards.add(CaveRewardItem(
             type = "spiritStones",
             name = "灵石",
@@ -260,11 +261,11 @@ object CaveExplorationSystem {
         
         val rarityRange = CaveGenerator.getRarityRangeForCave(cave.ownerRealm)
         
-        val itemTypes = listOf("pill", "equipment", "manual").shuffled().take(2)
+        val itemTypes = listOf("pill", "equipment", "manual").sortedBy { rng.nextInt() }.take(2)
         
         itemTypes.forEach { type ->
-            val rarity = rarityRange.random()
-            val quantity = Random.nextInt(1, 4)
+            val rarity = rarityRange[rng.nextInt(rarityRange.size)]
+            val quantity = 1 + rng.nextInt(3)
             
             val item = when (type) {
                 "pill" -> generateRandomPill(rarity)
@@ -296,7 +297,7 @@ object CaveExplorationSystem {
         while (currentRarity >= 1) {
             val recipes = PillRecipeDatabase.getRecipesByTier(currentRarity)
             if (recipes.isNotEmpty()) {
-                val recipe = recipes.random()
+                val recipe = recipes[rng.nextInt(recipes.size)]
                 return CaveRewardItem(
                     type = "pill",
                     name = recipe.name,
@@ -319,7 +320,7 @@ object CaveExplorationSystem {
                                EquipmentDatabase.accessories.values.filter { it.rarity == currentRarity }
             
             if (allEquipment.isNotEmpty()) {
-                val template = allEquipment.random()
+                val template = allEquipment[rng.nextInt(allEquipment.size)]
                 return CaveRewardItem(
                     type = "equipment",
                     name = template.name,
@@ -339,7 +340,7 @@ object CaveExplorationSystem {
             val allManuals = ManualDatabase.getByRarity(currentRarity)
             
             if (allManuals.isNotEmpty()) {
-                val template = allManuals.random()
+                val template = allManuals[rng.nextInt(allManuals.size)]
                 return CaveRewardItem(
                     type = "manual",
                     name = template.name,

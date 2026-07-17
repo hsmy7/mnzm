@@ -1,7 +1,12 @@
 package com.xianxia.sect.core.domain.spiritstone
 
+import com.xianxia.sect.core.model.SpiritStoneExchange
 import com.xianxia.sect.core.model.SpiritStoneGrade
-import com.xianxia.sect.core.engine.system.InventorySystem
+import com.xianxia.sect.core.wallet.SpiritStoneOperation
+import com.xianxia.sect.core.wallet.SpiritStoneReason
+import com.xianxia.sect.core.wallet.SpiritStoneSource
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
+import com.xianxia.sect.core.state.GameStateStore
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -9,11 +14,12 @@ import javax.inject.Singleton
  * 灵石跨品阶兑换用例。
  *
  * 调用方只需指定 source（源品阶）、target（目标品阶）和 quantity（源品阶数量），
- * 实际兑换与余额修改由 [InventorySystem] 统一处理。
+ * 实际兑换与余额修改由 SpiritStoneWallet 统一处理。
  */
 @Singleton
 class ExchangeSpiritStonesUseCase @Inject constructor(
-    private val inventorySystem: InventorySystem
+    private val stateStore: GameStateStore,
+    private val spiritStoneWallet: SpiritStoneWallet
 ) {
     sealed class Result {
         /**
@@ -43,21 +49,31 @@ class ExchangeSpiritStonesUseCase @Inject constructor(
             return Result.Invalid
         }
 
-        val owned = inventorySystem.getSpiritStones(source)
+        val owned = spiritStoneWallet.balance(source)
         if (owned < quantity) {
             return Result.Insufficient(required = quantity, owned = owned)
         }
 
-        val beforeTarget = inventorySystem.getSpiritStones(target)
-        val success = inventorySystem.exchangeSpiritStones(quantity, source, target)
-        if (!success) {
-            return Result.Invalid
-        }
+        val (converted, remaining) = SpiritStoneExchange.exchange(quantity, source, target)
+        if (converted <= 0) return Result.Invalid
 
-        val afterTarget = inventorySystem.getSpiritStones(target)
+        val beforeTarget = spiritStoneWallet.balance(target)
+        stateStore.update {
+            val result = spiritStoneWallet.batch(this, listOf(
+                SpiritStoneOperation(
+                    delta = -(quantity - remaining), grade = source,
+                    reason = SpiritStoneReason.Exchange, source = SpiritStoneSource.Internal
+                ),
+                SpiritStoneOperation(
+                    delta = converted, grade = target,
+                    reason = SpiritStoneReason.Exchange, source = SpiritStoneSource.Internal
+                )
+            ), autoConvert = true)
+        }
+        val afterTarget = spiritStoneWallet.balance(target)
         return Result.Success(
             converted = afterTarget - beforeTarget,
-            remaining = inventorySystem.getSpiritStones(source)
+            remaining = spiritStoneWallet.balance(source)
         )
     }
 }

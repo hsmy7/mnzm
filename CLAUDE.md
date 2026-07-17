@@ -60,8 +60,8 @@ cd android && ./gradlew.bat koverHtmlReport
 # Static analysis
 cd android && ./gradlew.bat detekt
 
-# Full CI check (compile + test + detekt + coverage)
-cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest detekt koverHtmlReport
+# Full CI check (compile + test + detekt + coverage + RNG audit)
+cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest detekt koverHtmlReport && cd .. && grep -rn "import kotlin.random.Random" android/core/engine/src/main/java/ && (echo "ERROR: kotlin.random.Random found in engine module! Use GameRngManager.getRng() instead."; exit 1) || echo "✅ RNG check passed: no kotlin.random.Random in engine module"
 ```
 
 ## Tech Stack
@@ -174,7 +174,8 @@ Compose UI Thread(Main)            Android 主线程
 **关键设计决策：**
 
 - **无并行结算** — `ParallelExecutionContext`、`CultivationBatchResult`、`ParallelPhaseResult` 已全部移除。所有结算在 GameEngine-Thread 上串行执行
-- **`stateStore.update` ReentrantLock** — 唯一的写锁，所有状态变更在此事务内原子完成。挂起时不会释放锁（与 `Mutex` 不同），消除协程交错导致的并发崩溃。DAO/Repository/Service 全链路非挂起化，无 `runBlocking` 桥接
+- **`stateStore.update` ReentrantLock** — 唯一的写锁，所有状态变更在此事务内原子完成。挂起时不会释放锁（与 `Mutex` 不同），消除协程交错导致的并发崩溃
+- **引擎核心非挂起化** — `stateStore.update` 闭包内调用的核心路径（DiscipleService/DiscipleFacade 等）为非 `suspend`。IO/网络/存档路径（SavePipeline/MailService/Room DAO）保留 `suspend`——它们不在 `stateStore.update` 内调用，无死锁风险
 - **`_discipleTables` 进入 deepCopy** — 每次 `stateStore.update {}` 在副本上操作，退出时原子替换引用，保证协程挂起后其他 update 看到完整一致的状态
 - **生产系统 Checkpoint** — 政策/长老变化时通过 `fun checkpointAllProduction()` 在 GameEngine-Thread 上重算所有活跃槽位的 `duration` 和 `completionMonth`
 
@@ -252,11 +253,11 @@ RunState（运行时状态 — 可循环回退）
 - 恢复成功则走正常 success 路径（不再返回 failure 误导用户）
 - 恢复失败则 onError + return failure
 
-**剩余待优化项：**
-1. **双层写入原子性** — `_bootPhase` 和 `_runState` 是两个独立 MutableStateFlow，`setPlaying()` 等操作分两步写入。可改为单 `data class LifecycleState(bootPhase, runState)` 一次性发射，消除中间状态窗口
-2. **重入串行化硬屏障** — 当前 `bootInProgress AtomicBoolean` 是软屏障，依赖调用方捕获异常。可改为 `Mutex.withLock` 或 `Channel` 串行化请求
-3. **LOAING 状态达路径补充** — 初次加载时 `runState` 全程 IDLE 直到最后跳到 PLAYING。可补充 `setLoading()` 调用使状态机完整
-4. **取消时状态自动回滚** — 可在 `BootSequenceController` 入口记录 `initialBootPhase/initialRunState`，取消时自动回滚而非用 `cleanupAfterCancellation()` 手动清理
+**已知状态：**
+- ✅ 双层写入原子性 — 已修复（`LifecycleState` data class 单入口）
+- ⏸️ 重入串行化硬屏障 — 低优先级，当前 CAS 软屏障工作正常
+- ⏸️ LOADING 状态可达补充 — 低优先级，纯 UI 优化
+- ⏸️ 取消时状态自动回滚 — 低优先级，极少触发
 
 ### Key Source Directories
 

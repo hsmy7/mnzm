@@ -75,3 +75,15 @@ class DeterministicRng(
 
     override fun toString(): String = "DeterministicRng(state=$state, inc=$increment)"
 }
+
+/**
+ * 将 [DeterministicRng] 适配为 [kotlin.random.Random]。
+ * 用于调用 `:core:domain` 模块中仍以 `kotlin.random.Random` 为参数的 API
+ *（如 [SpiritRootGenerator.generate]、[GameUtils.applyPriceFluctuation]）。
+ */
+fun DeterministicRng.asKotlinRandom(): kotlin.random.Random = object : kotlin.random.Random() {
+    override fun nextBits(bitCount: Int): Int = (this@asKotlinRandom.nextInt() ushr (32 - bitCount))
+    override fun nextInt(bound: Int): Int = this@asKotlinRandom.nextInt(bound)
+    override fun nextInt(from: Int, until: Int): Int = from + this@asKotlinRandom.nextInt(until - from)
+    override fun nextDouble(): Double = this@asKotlinRandom.nextDouble()
+}

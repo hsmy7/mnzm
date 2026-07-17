@@ -253,6 +253,7 @@ class BootSequenceControllerTest {
 private class FakeGameStateStore : GameStateStore {
 
     // ── 启动/运行状态（测试关注点）──
+    override val lifecycleState = MutableStateFlow(GameStateStore.LifecycleState())
     override val bootPhase = MutableStateFlow(BootPhase.UNINITIALIZED)
     override val runState = MutableStateFlow(RunState.IDLE)
 

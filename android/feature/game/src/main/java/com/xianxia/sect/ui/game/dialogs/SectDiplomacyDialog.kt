@@ -470,7 +470,7 @@ private fun AIAvatar(
 ) {
     if (portraitRes.isNotEmpty()) {
         val context = androidx.compose.ui.platform.LocalContext.current
-        val portraitDrawableId = PortraitPool.getResourceId(context, portraitRes)
+        val portraitDrawableId = PortraitPool.getResourceId(portraitRes)
         if (portraitDrawableId != 0) {
             Box(
                 modifier = Modifier
@@ -499,7 +499,7 @@ private fun PlayerAvatar(
 ) {
     if (portraitRes.isNotEmpty()) {
         val context = androidx.compose.ui.platform.LocalContext.current
-        val portraitDrawableId = PortraitPool.getResourceId(context, portraitRes)
+        val portraitDrawableId = PortraitPool.getResourceId(portraitRes)
         if (portraitDrawableId != 0) {
             Box(
                 modifier = Modifier

@@ -364,8 +364,7 @@ class GameDataCacheManager @Inject constructor(
         }
     }
 
-    @Deprecated("Deprecated in ComponentCallbacks2")
-    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+    @Suppress("OVERRIDE_DEPRECATION")
     override fun onLowMemory() {
         scope.launch { emergencyPurge() }
     }

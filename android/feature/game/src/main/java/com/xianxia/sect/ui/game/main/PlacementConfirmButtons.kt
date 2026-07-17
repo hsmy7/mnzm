@@ -22,7 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.util.GridSnapHelper
 import com.xianxia.sect.ui.components.StandardPromptDialog
-import com.xianxia.sect.ui.game.building.BuildingRegistry
+import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.ui.game.map.sect.SectCameraState
 import com.xianxia.sect.core.model.GridBuildingData
 
@@ -89,7 +89,10 @@ internal fun PlacementConfirmButtons(
     )
 }
 
-internal fun getBuildingColor(displayName: String): Color = BuildingRegistry.color(displayName)
+internal fun getBuildingColor(displayName: String): Color {
+    val c = BuildingFeatureRegistry.findByDisplayName(displayName)?.color ?: 0xFFEEEEEE
+    return Color(c)
+}
 
 /**
  * 拆除按钮 — 在移动建筑模式下显示在建筑下方。

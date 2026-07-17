@@ -219,7 +219,7 @@ class NativeSurfaceView(
                 return id
             }
 
-            val buildingMap = com.xianxia.sect.ui.game.building.BuildingRegistry.allDrawableMap()
+            val buildingMap = com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry.all.associate { it.displayName to it.drawableRes }
 
             // 瓦片精灵：来自 SpriteAtlasDef.TileType
             val tileSlots = mutableListOf<SpriteSlot>()

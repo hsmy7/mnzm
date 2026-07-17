@@ -34,7 +34,8 @@ import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.max
-import kotlin.random.Random
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
 import java.util.Locale
 
 enum class ActionType { ATTACK, BUFF_ALLY, BUFF_SELF, NORMAL_ATTACK, NONE }
@@ -50,7 +51,8 @@ data class EnemyAction(
 class HeavenlyTrialService @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventoryConfig: InventoryConfig,
-    private val spiritStoneWallet: SpiritStoneWallet
+    private val spiritStoneWallet: SpiritStoneWallet,
+    private val rngManager: GameRngManager
 ) {
 
     fun buildBeastEnemy(levelIndex: Int, def: TrialEnemyDef, index: Int): Combatant {
@@ -226,7 +228,8 @@ class HeavenlyTrialService @Inject constructor(
         allyTeam: List<Combatant> = emptyList()
     ): EnemyAction {
         val aiAction = BattleAI.decideAction(
-            attacker, allyTeam, playerTeam
+            attacker, allyTeam, playerTeam,
+            rngManager.getRng(RngPartition.BATTLE)
         )
         return convertToEnemyAction(aiAction)
     }

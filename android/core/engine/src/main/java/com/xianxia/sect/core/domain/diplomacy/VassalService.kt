@@ -17,7 +17,8 @@ import com.xianxia.sect.core.wallet.SpiritStoneReason
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import kotlin.math.max
-import kotlin.random.Random
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -31,8 +32,10 @@ import javax.inject.Singleton
 @GameService("VassalService")
 class VassalService @Inject constructor(
     private val stateStore: GameStateStore,
-    private val spiritStoneWallet: SpiritStoneWallet
+    private val spiritStoneWallet: SpiritStoneWallet,
+    private val rngManager: GameRngManager
 ) {
+    private val rng get() = rngManager.getRng(RngPartition.SYSTEM)
 
     companion object {
         private const val TAG = "VassalService"
@@ -204,7 +207,7 @@ class VassalService @Inject constructor(
             conquestCount, lostSectCount,
             battleWinCount, battleLossCount, favor
         )
-        val success = Random.nextDouble() < chance
+        val success = rng.nextDouble() < chance
 
         if (success) {
             stateStore.update {
@@ -395,7 +398,7 @@ class VassalService @Inject constructor(
                 + skirmishScore + favorScore
             ).coerceIn(0.0, 0.40)
 
-        if (Random.nextDouble() < breakChance) {
+        if (rng.nextDouble() < breakChance) {
             DomainLog.i(TAG,
                 "AI附属脱离: sectId=${contract.vassalSectId}, " +
                 "powerRatio=${"%.2f".format(powerRatio)}, " +

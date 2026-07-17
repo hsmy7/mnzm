@@ -167,10 +167,12 @@ class GameStateStoreImpl @Inject constructor(
     private val _isSaving = MutableStateFlow(false)
 
     // ── 游戏生命周期（纯运行时，不随存档保存）──
-    // 新 API：BootPhase + RunState 双层状态机
+    // 新 API：LifecycleState 原子化 + BootPhase + RunState 派生
+    private val _lifecycleState = MutableStateFlow(GameStateStore.LifecycleState())
+    // 派生 StateFlow（保持旧引用者不中断）
     private val _bootPhase = MutableStateFlow(BootPhase.UNINITIALIZED)
     private val _runState = MutableStateFlow(RunState.IDLE)
-    // 旧 API 兼容：由 _bootPhase + _runState 同步更新
+    // 旧 API 兼容：由 _lifecycleState 同步更新
     private val _gameLifecycle = MutableStateFlow(GameLifecycle.UNINITIALIZED)
 
     /** 根据当前 BootPhase + RunState 计算对应的 GameLifecycle 兼容值 */
@@ -182,9 +184,12 @@ class GameStateStoreImpl @Inject constructor(
         else -> GameLifecycle.UNINITIALIZED
     }
 
-    /** 同步 _gameLifecycle 使其与 _bootPhase + _runState 保持一致 */
-    private fun syncGameLifecycle() {
-        _gameLifecycle.value = computeGameLifecycle(_bootPhase.value, _runState.value)
+    /** 原子化设置生命周期状态 — 同时更新 _lifecycleState、_bootPhase、_runState、_gameLifecycle */
+    private fun setLifecycleStateAtomic(bootPhase: BootPhase, runState: RunState) {
+        _lifecycleState.value = GameStateStore.LifecycleState(bootPhase = bootPhase, runState = runState)
+        _bootPhase.value = bootPhase
+        _runState.value = runState
+        _gameLifecycle.value = computeGameLifecycle(bootPhase, runState)
     }
 
     // 版本计数器：每次 update() 有字段变化时递增，用于 unifiedState 批处理触发
@@ -266,6 +271,7 @@ class GameStateStoreImpl @Inject constructor(
     override val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     override val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
 
+    override val lifecycleState: StateFlow<GameStateStore.LifecycleState> = _lifecycleState.asStateFlow()
     override val gameLifecycle: StateFlow<GameLifecycle> = _gameLifecycle.asStateFlow()
     override val bootPhase: StateFlow<BootPhase> = _bootPhase.asStateFlow()
     override val runState: StateFlow<RunState> = _runState.asStateFlow()
@@ -276,36 +282,30 @@ class GameStateStoreImpl @Inject constructor(
         check(nextOrdinal <= BootPhase.entries.lastIndex) {
             "Already at terminal boot phase: $current"
         }
-        _bootPhase.value = BootPhase.entries[nextOrdinal]
-        syncGameLifecycle()
+        setLifecycleStateAtomic(BootPhase.entries[nextOrdinal], _runState.value)
     }
 
     override fun resetBootPhase() {
-        _bootPhase.value = BootPhase.UNINITIALIZED
-        syncGameLifecycle()
+        setLifecycleStateAtomic(BootPhase.UNINITIALIZED, _runState.value)
     }
 
     override fun setPlaying() {
         check(_bootPhase.value >= BootPhase.BOOT_COMPLETE) {
             "Cannot setPlaying() when bootPhase=${_bootPhase.value} is not BOOT_COMPLETE"
         }
-        _runState.value = RunState.PLAYING
-        syncGameLifecycle()
+        setLifecycleStateAtomic(_bootPhase.value, RunState.PLAYING)
     }
 
     override fun setLoading() {
-        _runState.value = RunState.LOADING
-        syncGameLifecycle()
+        setLifecycleStateAtomic(_bootPhase.value, RunState.LOADING)
     }
 
     override fun setReloading() {
-        _runState.value = RunState.RELOADING
-        syncGameLifecycle()
+        setLifecycleStateAtomic(_bootPhase.value, RunState.RELOADING)
     }
 
     override fun setIdle() {
-        _runState.value = RunState.IDLE
-        syncGameLifecycle()
+        setLifecycleStateAtomic(_bootPhase.value, RunState.IDLE)
     }
 
     override fun transitionTo(state: GameLifecycle) {
@@ -321,11 +321,8 @@ class GameStateStoreImpl @Inject constructor(
         check(currentBoot.ordinal + 1 == targetBoot.ordinal) {
             "Illegal lifecyle transition: current=$currentBoot → target=$targetBoot (must be ordinal +1)"
         }
-        _bootPhase.value = targetBoot
-        if (state == GameLifecycle.PLAYING) {
-            _runState.value = RunState.PLAYING
-        }
-        syncGameLifecycle()
+        val targetRun = if (state == GameLifecycle.PLAYING) RunState.PLAYING else _runState.value
+        setLifecycleStateAtomic(targetBoot, targetRun)
     }
 
     override fun forceLifecycle(state: GameLifecycle) {
@@ -334,25 +331,12 @@ class GameStateStoreImpl @Inject constructor(
             DomainLog.w(TAG, "forceLifecycle (deprecated): $current → $state (bypass ordinal check)")
         }
         when (state) {
-            GameLifecycle.UNINITIALIZED -> {
-                _bootPhase.value = BootPhase.UNINITIALIZED
-                _runState.value = RunState.IDLE
-            }
-            GameLifecycle.DATA_READY -> {
-                _bootPhase.value = BootPhase.DATA_READY
-            }
-            GameLifecycle.SYSTEMS_READY -> {
-                _bootPhase.value = BootPhase.SYSTEMS_READY
-            }
-            GameLifecycle.MAP_READY -> {
-                _bootPhase.value = BootPhase.MAP_READY
-            }
-            GameLifecycle.PLAYING -> {
-                _bootPhase.value = BootPhase.BOOT_COMPLETE
-                _runState.value = RunState.PLAYING
-            }
+            GameLifecycle.UNINITIALIZED -> setLifecycleStateAtomic(BootPhase.UNINITIALIZED, RunState.IDLE)
+            GameLifecycle.DATA_READY -> setLifecycleStateAtomic(BootPhase.DATA_READY, _runState.value)
+            GameLifecycle.SYSTEMS_READY -> setLifecycleStateAtomic(BootPhase.SYSTEMS_READY, _runState.value)
+            GameLifecycle.MAP_READY -> setLifecycleStateAtomic(BootPhase.MAP_READY, _runState.value)
+            GameLifecycle.PLAYING -> setLifecycleStateAtomic(BootPhase.BOOT_COMPLETE, RunState.PLAYING)
         }
-        syncGameLifecycle()
     }
 
     override val pendingBattleResult: StateFlow<BattleResultUIData?> = _pendingBattleResultFlow.asStateFlow()
@@ -431,7 +415,6 @@ class GameStateStoreImpl @Inject constructor(
                 elderSlots = gd.elderSlots,
                 placedBuildings = gd.placedBuildings,
                 autoRecruitSpiritRootFilter = gd.autoRecruitSpiritRootFilter,
-                gameSpeed = gd.gameSpeed,
                 autoSaveIntervalMonths = gd.autoSaveIntervalMonths
             )
         }

@@ -12,6 +12,7 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.RunState
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.facade.StorageFacade
@@ -32,8 +33,6 @@ class SaveLoadLoadDelegate(
     private val buildingConfigService: BuildingConfigService
 ) {
     private val TAG = "SaveLoadLoadDelegate"
-    private var _isGameLoaded = false
-    val isGameLoaded: Boolean get() = _isGameLoaded
 
     var uiCallbacks: UiCallbacks? = null
 
@@ -56,10 +55,9 @@ class SaveLoadLoadDelegate(
         }
 
         return try {
-            if (_isGameLoaded) {
+            if (stateStore.runState.value == RunState.PLAYING) {
                 Log.i(TAG, "Game already loaded, will reload from slot ${saveSlot.slot}")
                 gameEngineCore.stopGameLoop()
-                _isGameLoaded = false
             }
 
             savePipeline.waitForCurrentSave(timeoutMs = 5_000L)
@@ -115,7 +113,6 @@ class SaveLoadLoadDelegate(
             migrateOverflowBuildings()
 
             uiCallbacks?.onPreloadResources()
-            _isGameLoaded = true
             uiCallbacks?.showSuccess("读档成功")
 
             Log.i(TAG, "loadGame SUCCESS: sectName=${saveData.gameData.sectName}")

@@ -8,9 +8,10 @@ import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.model.production.SlotStateMachine
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.util.AppError
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 
@@ -29,8 +30,10 @@ data class ProductionRollbackData(
 
 @Singleton
 class ProductionTransactionManager @Inject constructor(
-    private val repository: ProductionSlotRepository
+    private val repository: ProductionSlotRepository,
+    private val rngManager: GameRngManager
 ) {
+    private val rng get() = rngManager.getRng(RngPartition.SYSTEM)
     companion object {
         private const val TAG = "ProductionTxManager"
     }
@@ -528,7 +531,7 @@ class ProductionTransactionManager @Inject constructor(
     }
 
     private fun determineOutcome(slot: ProductionSlot): ProductionOutcome {
-        val success = Random.nextDouble() <= slot.successRate
+        val success = rng.nextDouble() <= slot.successRate
         return if (success) {
             ProductionOutcome.Success(
                 outputItemId = slot.outputItemId ?: "",

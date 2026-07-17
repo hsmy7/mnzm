@@ -13,7 +13,6 @@ import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.engine.WorldMapGenerator
 import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.model.production.ProductionSlot
-import com.xianxia.sect.core.config.DiplomaticEventConfig
 import com.xianxia.sect.core.util.BuildingNames
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.SpiritRootGenerator

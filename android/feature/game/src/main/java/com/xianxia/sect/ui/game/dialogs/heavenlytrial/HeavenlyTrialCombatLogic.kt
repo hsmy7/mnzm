@@ -8,15 +8,23 @@ import com.xianxia.sect.core.engine.domain.battle.BattleAI
 import com.xianxia.sect.core.engine.domain.battle.CombatBuff
 import com.xianxia.sect.core.engine.domain.battle.Combatant
 import com.xianxia.sect.core.util.BattleCalculator
+import com.xianxia.sect.core.util.DeterministicRng
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
+
+/** 天道试炼战斗逻辑的 RNG（由 HeavenlyTrialViewModel 初始化时注入） */
+var combatLogicRngManager: GameRngManager? = null
+private val combatRng get() = (combatLogicRngManager ?: error("CombatLogic RNG not initialized")).getRng(RngPartition.BATTLE)
 
 /**
  * 普攻伤害计算（带防御减伤）。
  * isDefending 在 BattleCalculator 结果上再叠加 25% 减伤（UI 特有机制）。
  */
 internal fun computeNormalAttackDamage(
-    attacker: Combatant, defender: Combatant, isDefending: Boolean
+    attacker: Combatant, defender: Combatant, isDefending: Boolean,
+    rng: DeterministicRng = combatRng
 ): BattleCalculator.DamageResult {
-    val result = BattleCalculator.calculateCombatantDamage(attacker, defender)
+    val result = BattleCalculator.calculateCombatantDamage(attacker, defender, rng = rng)
     return if (isDefending && result.damage > 0) {
         val reducedDmg = (result.damage * 0.75).toInt().coerceAtLeast(1)
         result.copy(damage = reducedDmg)
@@ -28,9 +36,10 @@ internal fun computeNormalAttackDamage(
  */
 internal fun computeSkillDamage(
     attacker: Combatant, defender: Combatant,
-    skill: CombatSkill, isDefending: Boolean
+    skill: CombatSkill, isDefending: Boolean,
+    rng: DeterministicRng = combatRng
 ): BattleCalculator.DamageResult {
-    val result = BattleCalculator.calculateCombatantDamage(attacker, defender, skill)
+    val result = BattleCalculator.calculateCombatantDamage(attacker, defender, skill, rng = rng)
     return if (isDefending && result.damage > 0) {
         val reducedDmg = (result.damage * 0.75).toInt().coerceAtLeast(1)
         result.copy(damage = reducedDmg)
@@ -192,7 +201,8 @@ internal fun advanceTurn(
  */
 internal fun simulateInstantResolve(
     playerTeam: List<Combatant>,
-    enemyTeam: List<Combatant>
+    enemyTeam: List<Combatant>,
+    rng: DeterministicRng = combatRng
 ): Pair<List<Combatant>, List<Combatant>> {
     var players = playerTeam.map { p ->
         p.copy(skills = p.skills.map { it.copy() })
@@ -221,8 +231,8 @@ internal fun simulateInstantResolve(
             val isPlayer = players.any { it.id == unit.id }
             val friends = if (isPlayer) players else enemies
             val foes = if (isPlayer) enemies else players
-            val aiAction = BattleAI.decideAction(unit, friends, foes)
-            val result = resolveAIAction(unit, aiAction, isPlayer, players, enemies)
+            val aiAction = BattleAI.decideAction(unit, friends, foes, rng)
+            val result = resolveAIAction(unit, aiAction, isPlayer, players, enemies, rng)
             players = result.first
             enemies = result.second
         }
@@ -239,7 +249,8 @@ internal fun resolveAIAction(
     ai: BattleAI.AIAction,
     actorIsPlayer: Boolean,
     players: List<Combatant>,
-    enemies: List<Combatant>
+    enemies: List<Combatant>,
+    rng: DeterministicRng = combatRng
 ): Pair<List<Combatant>, List<Combatant>> {
     var updatedPlayers = players
     var updatedEnemies = enemies
@@ -254,7 +265,7 @@ internal fun resolveAIAction(
             if (skill != null) {
                 val newEnemyTeam = enemyTeam.map { e ->
                     if (!e.isDead) {
-                        val dmg = BattleCalculator.calculateCombatantDamage(actor, e, skill).damage
+                        val dmg = BattleCalculator.calculateCombatantDamage(actor, e, skill, rng = rng).damage
                         e.copy(hp = (e.hp - dmg).coerceAtLeast(0))
                     } else e
                 }
@@ -263,7 +274,7 @@ internal fun resolveAIAction(
         }
         BattleAI.AIActionType.SKILL_ATTACK_SINGLE -> {
             if (skill != null && target != null) {
-                val dmg = BattleCalculator.calculateCombatantDamage(actor, target, skill).damage
+                val dmg = BattleCalculator.calculateCombatantDamage(actor, target, skill, rng = rng).damage
                 val applyDmg: (Combatant) -> Combatant = { it.copy(hp = if (it.id == target.id) (it.hp - dmg).coerceAtLeast(0) else it.hp) }
                 if (actorIsPlayer) updatedEnemies = updatedEnemies.map(applyDmg)
                 else updatedPlayers = updatedPlayers.map(applyDmg)
@@ -271,7 +282,7 @@ internal fun resolveAIAction(
         }
         BattleAI.AIActionType.NORMAL_ATTACK -> {
             if (target != null) {
-                val dmg = BattleCalculator.calculateCombatantDamage(actor, target, null).damage
+                val dmg = BattleCalculator.calculateCombatantDamage(actor, target, null, rng = rng).damage
                 val applyDmg: (Combatant) -> Combatant = { it.copy(hp = if (it.id == target.id) (it.hp - dmg).coerceAtLeast(0) else it.hp) }
                 if (actorIsPlayer) updatedEnemies = updatedEnemies.map(applyDmg)
                 else updatedPlayers = updatedPlayers.map(applyDmg)

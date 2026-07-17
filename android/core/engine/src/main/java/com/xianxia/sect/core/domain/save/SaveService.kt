@@ -60,7 +60,7 @@ class SaveService @Inject constructor(
             gamePhase = data.gamePhase,
             // isGameStarted 已迁移到 GameLifecycle 运行时状态，存档快照中始终为 true
             isGameStarted = true,
-            gameSpeed = data.gameSpeed,
+            gameSpeed = 1,
             sectName = data.sectName,
             spiritStones = data.spiritStones,
             sectCultivation = data.sectCultivation,

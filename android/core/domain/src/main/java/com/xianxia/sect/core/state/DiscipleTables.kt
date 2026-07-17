@@ -362,26 +362,6 @@ class DiscipleTables {
      * ================================================================ */
 
     /**
-     * 在 synchronized 保护下分配下一个可用弟子 ID。
-     * 与 [insert]/[remove] 的 synchronized 使用同一锁对象 [ids]，防止多协程 ID 竞态。
-     *
-     * 调用方获得 ID 后应立即构建 Disciple 并调用 [insert]，避免窗口期。
-     * [insert] 检测到 ID 已存在时会调用内部 [update] 写入全部字段，不会丢失数据。
-     *
-     * @return 分配的新 ID（int），调用方须自行转换为 String
-     */
-    @Deprecated(
-        message = "使用 allocateAndInsert() 替代，可消除 ID 分配与数据写入之间的悬空窗口。",
-        replaceWith = ReplaceWith("allocateAndInsert(disciple)")
-    )
-    fun allocateNextId(): Int = synchronized(ids) {
-        requireWriteAccess()
-        val id = (ids.maxOrNull() ?: 0) + 1
-        ids.add(id)
-        id
-    }
-
-    /**
      * 原子分配 ID 并写入全部组件表。
      *
      * 在单个 [synchronized(ids)] 锁内完成 ID 分配 + 组件数据写入，
@@ -405,25 +385,6 @@ class DiscipleTables {
         writeAllFields(d)
         markMutated()
         idStr
-    }
-
-    /**
-     * 回滚指定 ID 的分配——从 [ids] 和所有组件表中移除该 ID。
-     * 在 [allocateNextId] 分配后、[insert] 前放弃时调用，防止悬空 ID。
-     *
-     * @param id 要回滚的 ID
-     * @return true 表示回滚成功，false 表示 ID 不存在
-     */
-    @Deprecated(
-        message = "不再需要——allocateAndInsert() 内部原子完成分配+写入，无需回滚。",
-        level = DeprecationLevel.WARNING
-    )
-    fun rollbackAllocation(id: Int): Boolean = synchronized(ids) {
-        requireWriteAccess()
-        if (id !in ids) return@synchronized false
-        ids.remove(id)
-        _allCopyableRefs.forEach { it.remove(id) }
-        true
     }
 
     /**

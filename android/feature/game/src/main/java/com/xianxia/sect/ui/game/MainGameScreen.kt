@@ -61,8 +61,7 @@ import com.xianxia.sect.ui.game.components.GameActionButtons
 import com.xianxia.sect.ui.game.components.LeftSideButtons
 import com.xianxia.sect.ui.game.components.GameOverlayHost
 import com.xianxia.sect.ui.components.StandardPromptDialog
-import com.xianxia.sect.ui.game.building.BuildingRegistry
-import com.xianxia.sect.ui.game.building.BuildingDef
+import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.ui.game.building.BuildingConstructionBar
 import com.xianxia.sect.ui.game.sect.*
 import com.xianxia.sect.ui.game.main.*
@@ -208,7 +207,7 @@ fun MainGameScreen(
 
     // 建筑尺寸映射 — 从配置读取，在宗门地图中所占的格数 (宽 × 高)
     val buildingSizes = remember {
-        BuildingRegistry.ALL.associate { def ->
+        BuildingFeatureRegistry.all.associate { def ->
             val (w, h) = viewModel.getBuildingGridSize(def.displayName)
             def.displayName to GridSnapHelper.BuildingSize(w, h)
         }
@@ -216,7 +215,7 @@ fun MainGameScreen(
 
     // 建筑精灵比例尺寸映射 — 用于渲染视觉大小（可能大于占地尺寸）
     val buildingSpriteSizes = remember {
-        BuildingRegistry.ALL.associate { def ->
+        BuildingFeatureRegistry.all.associate { def ->
             val (sw, sh) = viewModel.getBuildingSpriteSize(def.displayName)
             def.displayName to GridSnapHelper.BuildingSize(sw, sh)
         }
@@ -285,7 +284,7 @@ fun MainGameScreen(
 
     // 建筑列表及点击回调
     val buildingList = remember {
-        BuildingRegistry.constructible.map { def ->
+        BuildingFeatureRegistry.constructible.map { def ->
             val handler: (GridBuildingData?) -> Unit = when (def.key) {
                 "spirit_mine" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.SpiritMine(it)) }; Unit }
                 "herb_garden" -> { _ -> viewModel.navigateToDialog(DialogType.HerbGarden) }
@@ -617,7 +616,7 @@ fun MainGameScreen(
                         val gy = (wy / tileSize).toInt()
                         val clicked = buildingIndex.findBuildingAt(gx, gy)
                         if (clicked != null && !isPlacingBuilding && movingBuilding == null) {
-                            val def = BuildingRegistry.findByDisplayName(clicked.displayName)
+                            val def = BuildingFeatureRegistry.findByDisplayName(clicked.displayName)
                             when (def?.key) {
                                 "spirit_mine" -> viewModel.navigateToDialog(DialogType.SpiritMine(clicked.instanceId))
                                 "alchemy" -> viewModel.navigateToDialog(DialogType.Alchemy(clicked.instanceId))
@@ -1104,7 +1103,7 @@ fun MainGameScreen(
                 modifier = Modifier.align(Alignment.BottomCenter),
                 getBuildingMaxCount = { name ->
                     when {
-                        BuildingRegistry.isResidence(name) || BuildingRegistry.hasNoLimit(name) -> Int.MAX_VALUE
+                        BuildingFeatureRegistry.isResidence(name) || BuildingFeatureRegistry.hasNoLimit(name) -> Int.MAX_VALUE
                         else -> 1
                     }
                 }

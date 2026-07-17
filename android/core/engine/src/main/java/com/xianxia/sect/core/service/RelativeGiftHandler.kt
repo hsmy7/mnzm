@@ -7,9 +7,10 @@ import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.StorageBagUtils
 import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.random.Random
 
 /**
  * 亲属智能赠送处理器。
@@ -23,7 +24,10 @@ import kotlin.random.Random
  */
 @Singleton
 @GameService("RelativeGiftHandler")
-class RelativeGiftHandler @Inject constructor() {
+class RelativeGiftHandler @Inject constructor(
+    private val rngManager: GameRngManager
+) {
+    private val rng get() = rngManager.getRng(RngPartition.SYSTEM)
 
     companion object {
         /** 赠送者储物袋最少保留物品数，防止被清空 */
@@ -69,7 +73,7 @@ class RelativeGiftHandler @Inject constructor() {
         for (giverId in relatives) {
             val relationship = classifyRelationship(giverId, discipleId, tables)
             val probability = getGiftProbability(relationship)
-            if (Random.nextDouble() >= probability) continue
+            if (rng.nextDouble() >= probability) continue
 
             val result = tryGiveGift(giverId, discipleId, receiverRealm, tables, state)
             // 记录赠礼日志

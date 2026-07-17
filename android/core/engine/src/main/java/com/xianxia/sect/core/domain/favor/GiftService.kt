@@ -13,7 +13,8 @@ import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.wallet.DeductResult
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
-import kotlin.random.Random
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -38,8 +39,10 @@ data class GiftResult(
 @Singleton
 class GiftService @Inject constructor(
     private val stateStore: GameStateStore,
-    private val spiritStoneWallet: SpiritStoneWallet
+    private val spiritStoneWallet: SpiritStoneWallet,
+    private val rngManager: GameRngManager
 ) {
+    private val rng get() = rngManager.getRng(RngPartition.SYSTEM)
     companion object {
         private const val TAG = "GiftService"
     }
@@ -116,7 +119,7 @@ class GiftService @Inject constructor(
         )
         val rejectProbability = (baseRejectProbability + preferenceRejectModifier).coerceIn(0, 100)
 
-        val isRejected = Random.nextInt(100) < rejectProbability
+        val isRejected = rng.nextInt(100) < rejectProbability
 
         if (isRejected) {
             val responseText = SectResponseTexts.getRejectResponse(
@@ -141,7 +144,7 @@ class GiftService @Inject constructor(
         val favorIncrease = FavorDomain.calculateGiftFavorIncrease(
             currentFavor, tier, sect.level, sectDetail.giftPreference
         )
-        val newFavor = (currentFavor + favorIncrease).coerceIn(0, GameConfig.Diplomacy.MAX_FAVOR)
+        val newFavor = (currentFavor + favorIncrease).coerceIn(0, com.xianxia.sect.core.config.FavorConfig.MAX_FAVOR)
 
         // 缓和关系绕过年度限制时不更新 lastGiftYear
         val shouldUpdateGiftYear = !bypassYearLimit

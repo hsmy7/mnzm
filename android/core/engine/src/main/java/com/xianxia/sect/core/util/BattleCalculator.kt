@@ -9,7 +9,6 @@ import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.engine.domain.battle.CombatBuff
 import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.engine.domain.battle.Combatant
-import kotlin.random.Random
 
 /**
  * 战斗伤害乘区（Damage Zone）。
@@ -31,6 +30,27 @@ data class DamageZones(
 )
 
 object BattleCalculator {
+    /**
+     * 带 RNG 的便捷入口 — 使用 BATTLE 分区 RNG。
+     * 业务逻辑入口（BattleSystem/AISectAttackManager）应通过此参数注入确定 RNG。
+     */
+    fun withRng(rng: DeterministicRng): BattleCalculatorWithRng = BattleCalculatorWithRng(rng)
+
+    /**
+     * 带确定性 RNG 的 BattleCalculator 封装。
+     * 所有随机操作使用传入的 [rng]，确保存档/读档后随机序列一致。
+     */
+    class BattleCalculatorWithRng(internal val rng: DeterministicRng) {
+        fun calculateDamageVariance(): Double = BattleCalculator.calculateDamageVariance(rng)
+        fun calculateDamage(attacker: CombatantStats, defender: CombatantStats, skillDamageMultiplier: Double = 1.0, isPhysicalAttack: Boolean? = null, skillName: String? = null, skillHits: Int = 1, dodgeChanceModifier: Double = 0.5, zones: DamageZones = DamageZones()): DamageResult =
+            BattleCalculator.calculateDamage(attacker, defender, skillDamageMultiplier, isPhysicalAttack, skillName, skillHits, dodgeChanceModifier, zones, rng)
+        fun calculateCombatantDamage(attacker: Combatant, defender: Combatant, skill: CombatSkill? = null, damageModifier: Double = 1.0, zones: DamageZones? = null): DamageResult =
+            BattleCalculator.calculateCombatantDamage(attacker, defender, skill, damageModifier, zones, rng)
+        fun selectSkill(combatant: Combatant, enemies: List<Combatant>, allies: List<Combatant>, isSilenced: Boolean): CombatSkill? =
+            BattleCalculator.selectSkill(combatant, enemies, allies, isSilenced, rng)
+        fun selectTarget(attacker: Combatant, targets: List<Combatant>): Combatant =
+            BattleCalculator.selectTarget(attacker, targets, rng)
+    }
 
     /**
      * 从 Combatant 的 Buff 列表构建战斗乘区。
@@ -93,8 +113,8 @@ object BattleCalculator {
         ).toInt().coerceAtLeast(GameConfig.Battle.MIN_DAMAGE)
     }
 
-    private fun calculateDamageVariance(): Double {
-        val variancePercent = Random.nextDouble(-GameConfig.Battle.DAMAGE_VARIANCE_PERCENT, GameConfig.Battle.DAMAGE_VARIANCE_PERCENT)
+    fun calculateDamageVariance(rng: DeterministicRng): Double {
+        val variancePercent = rng.nextDouble() * GameConfig.Battle.DAMAGE_VARIANCE_PERCENT * 2 - GameConfig.Battle.DAMAGE_VARIANCE_PERCENT
         val roundedVariancePercent = (variancePercent * 10).toInt() / 10.0
         return 1.0 + roundedVariancePercent / 100.0
     }
@@ -141,10 +161,11 @@ object BattleCalculator {
         skillName: String? = null,
         skillHits: Int = 1,
         dodgeChanceModifier: Double = 0.5,
-        zones: DamageZones = DamageZones()
+        zones: DamageZones = DamageZones(),
+        rng: DeterministicRng
     ): DamageResult {
         val dodgeChance = calculateDodgeChance(attacker, defender, dodgeChanceModifier)
-        if (Random.nextDouble() < dodgeChance) {
+        if (rng.nextDouble() < dodgeChance) {
             return DamageResult(
                 damage = 0,
                 isCrit = false,
@@ -159,9 +180,9 @@ object BattleCalculator {
         val attack = if (usePhysical) attacker.physicalAttack else attacker.magicAttack
         val defense = if (usePhysical) defender.physicalDefense else defender.magicDefense
 
-        val isCrit = Random.nextDouble() < attacker.critRate
+        val isCrit = rng.nextDouble() < attacker.critRate
         val realmGapMultiplier = calculateRealmGapMultiplier(attacker.realm, defender.realm)
-        val variance = calculateDamageVariance()
+        val variance = calculateDamageVariance(rng)
 
         val finalDamage = calculateFinalDamage(
             rawAttack = attack,
@@ -230,14 +251,15 @@ object BattleCalculator {
         defender: Combatant,
         skill: CombatSkill? = null,
         damageModifier: Double = 1.0,
-        zones: DamageZones? = null
+        zones: DamageZones? = null,
+        rng: DeterministicRng
     ): DamageResult {
         val isSkillAttack = skill != null
         val dodgeModifier = if (isSkillAttack) 0.3 else 0.5
         val maxDodgeChance = if (isSkillAttack) GameConfig.Battle.MAX_SKILL_DODGE_CHANCE else GameConfig.Battle.MAX_DODGE_CHANCE
         val dodgeChance = calculateCombatantDodgeChance(attacker, defender, dodgeModifier, maxDodgeChance)
 
-        if (Random.nextDouble() < dodgeChance) {
+        if (rng.nextDouble() < dodgeChance) {
             return DamageResult(
                 damage = 0,
                 isCrit = false,
@@ -252,10 +274,10 @@ object BattleCalculator {
         val attack = if (isPhysical) attacker.effectivePhysicalAttack else attacker.effectiveMagicAttack
         val defense = if (isPhysical) defender.effectivePhysicalDefense else defender.effectiveMagicDefense
 
-        val isCrit = Random.nextDouble() < attacker.effectiveCritRate
+        val isCrit = rng.nextDouble() < attacker.effectiveCritRate
         val skillMultiplier = skill?.damageMultiplier ?: 1.0
         val realmGapMultiplier = calculateRealmGapMultiplier(attacker.realm, defender.realm)
-        val variance = calculateDamageVariance()
+        val variance = calculateDamageVariance(rng)
 
         val damageZones = zones ?: buildDamageZones(attacker)
 
@@ -340,7 +362,8 @@ object BattleCalculator {
         combatant: Combatant,
         enemies: List<Combatant>,
         allies: List<Combatant>,
-        isSilenced: Boolean
+        isSilenced: Boolean,
+        rng: DeterministicRng
     ): CombatSkill? {
         if (isSilenced) return null
         if (combatant.skills.isEmpty()) return null
@@ -354,7 +377,7 @@ object BattleCalculator {
         val attackSkills = availableSkills.filter { it.skillType == SkillType.ATTACK }
 
         val lowHpAllies = allies.filter { it.hpPercent < 0.3 }
-        if (lowHpAllies.isNotEmpty() && supportSkills.isNotEmpty() && Random.nextDouble() < 0.8) {
+        if (lowHpAllies.isNotEmpty() && supportSkills.isNotEmpty() && rng.nextDouble() < 0.8) {
             return supportSkills.first()
         }
 
@@ -364,12 +387,12 @@ object BattleCalculator {
                 localBuffType in setOf(BuffType.STUN, BuffType.FREEZE, BuffType.SILENCE, BuffType.TAUNT)
         }
         val uncontrolledEnemies = enemies.filter { enemy -> !enemy.hasControlEffect }
-        if (uncontrolledEnemies.isNotEmpty() && controlSkills.isNotEmpty() && Random.nextDouble() < 0.6) {
+        if (uncontrolledEnemies.isNotEmpty() && controlSkills.isNotEmpty() && rng.nextDouble() < 0.6) {
             return controlSkills.first()
         }
 
         val aoeSkills = attackSkills.filter { it.isAoe }
-        if (enemies.size >= 3 && aoeSkills.isNotEmpty() && Random.nextDouble() < 0.7) {
+        if (enemies.size >= 3 && aoeSkills.isNotEmpty() && rng.nextDouble() < 0.7) {
             return aoeSkills.maxByOrNull { it.damageMultiplier }
         }
 
@@ -388,28 +411,28 @@ object BattleCalculator {
         return availableSkills.firstOrNull()
     }
 
-    fun selectTarget(attacker: Combatant, targets: List<Combatant>): Combatant {
+    fun selectTarget(attacker: Combatant, targets: List<Combatant>, rng: DeterministicRng): Combatant {
         val lowHpTargets = targets.filter { it.hpPercent < 0.3 }
-        if (lowHpTargets.isNotEmpty() && Random.nextDouble() < 0.7) {
-            return lowHpTargets.random()
+        if (lowHpTargets.isNotEmpty() && rng.nextDouble() < 0.7) {
+            return lowHpTargets[rng.nextInt(lowHpTargets.size)]
         }
 
         val highThreatTargets = targets.filter { target ->
             target.skills.isNotEmpty() && target.effectivePhysicalAttack > attacker.effectivePhysicalDefense
         }
-        if (highThreatTargets.isNotEmpty() && Random.nextDouble() < 0.5) {
-            return highThreatTargets.random()
+        if (highThreatTargets.isNotEmpty() && rng.nextDouble() < 0.5) {
+            return highThreatTargets[rng.nextInt(highThreatTargets.size)]
         }
 
         val lowDefenseTargets = targets.filter { target ->
             val avgDefense = (target.effectivePhysicalDefense + target.effectiveMagicDefense) / 2.0
             avgDefense < attacker.effectivePhysicalAttack * 0.5
         }
-        if (lowDefenseTargets.isNotEmpty() && Random.nextDouble() < 0.4) {
-            return lowDefenseTargets.random()
+        if (lowDefenseTargets.isNotEmpty() && rng.nextDouble() < 0.4) {
+            return lowDefenseTargets[rng.nextInt(lowDefenseTargets.size)]
         }
 
-        return targets.random()
+        return targets[rng.nextInt(targets.size)]
     }
 
     fun processDotEffects(combatants: List<Combatant>): List<DotResult> {

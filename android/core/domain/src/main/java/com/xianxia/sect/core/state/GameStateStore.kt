@@ -125,10 +125,25 @@ interface GameStateStore : GameStateSnapshotProvider {
     var activeSubDialogs: Set<String>
 
     // === 生命周期状态（新 API，优先使用） ===
+
+    /**
+     * 原子化生命周期状态 — 同时包含启动阶段和运行时状态。
+     * [bootPhase] 和 [runState] 由此派生，确保两字段的更新是原子性的。
+     */
+    @Immutable
+    data class LifecycleState(
+        val bootPhase: BootPhase = BootPhase.UNINITIALIZED,
+        val runState: RunState = RunState.IDLE
+    )
+
+    /** 原子化的生命周期状态（单一真相源） */
+    val lifecycleState: StateFlow<LifecycleState>
+
     /**
      * 启动序列阶段。
      *
      * 仅由 [BootSequenceController] 内部推进，外部只读。
+     * ★ 由 [lifecycleState] 派生，读取旧值可能有中间窗口。
      */
     val bootPhase: StateFlow<BootPhase>
 

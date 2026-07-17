@@ -9,6 +9,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.DomainResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
@@ -87,7 +88,8 @@ class DiscipleServiceCrudTest {
             productionSlotRepository = mock(),
             scopeProvider = mock(),
             inventoryConfig = mock(),
-            discipleFactory = mock()
+            discipleFactory = mock(),
+            rngManager = mock()
         )
     }
 

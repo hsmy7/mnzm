@@ -84,7 +84,7 @@ fun BuildingConstructionBar(
                                 .background(Color.White.copy(alpha = 0.7f))
                         )
                         Image(
-                            painter = painterResource(id = BuildingRegistry.drawableRes(name)),
+                            painter = painterResource(id = com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry.findByDisplayName(name)?.drawableRes ?: 0),
                             contentDescription = name,
                             modifier = Modifier
                                 .weight(1f)

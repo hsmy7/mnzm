@@ -3,8 +3,6 @@ package com.xianxia.sect.core.engine.domain.battle
 import com.xianxia.sect.core.BuffType
 import com.xianxia.sect.core.HealType
 import com.xianxia.sect.core.model.CombatSkill
-import kotlin.random.Random
-
 /**
  * 战斗描述生成器（从 BattleSystem.kt 提取）
  *

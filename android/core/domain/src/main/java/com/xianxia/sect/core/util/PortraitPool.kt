@@ -60,13 +60,4 @@ object PortraitPool {
         return resourceIdMap[portraitRes] ?: 0
     }
 
-    /**
-     * 旧版 API 兼容 — 使用 Context 运行时查找。
-     * 新代码请使用 [getResourceId(name)] 替代。
-     */
-    @Deprecated("使用 getResourceId(name) 替代，需先调用 initialize()")
-    fun getResourceId(context: android.content.Context, portraitRes: String): Int {
-        if (portraitRes.isBlank()) return 0
-        return context.resources.getIdentifier(portraitRes, "drawable", context.packageName)
-    }
 }

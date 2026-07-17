@@ -21,7 +21,9 @@ import com.xianxia.sect.core.util.DomainLog
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.random.Random
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
+import com.xianxia.sect.core.util.asKotlinRandom
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 
@@ -32,8 +34,10 @@ class DiscipleService @Inject constructor(
     private val productionSlotRepository: ProductionSlotRepository,
 private val scopeProvider: CoroutineScopeProvider,
     private val inventoryConfig: InventoryConfig,
-    private val discipleFactory: DiscipleFactory
+    private val discipleFactory: DiscipleFactory,
+    private val rngManager: GameRngManager
 ) {
+    private val rng get() = rngManager.getRng(RngPartition.SYSTEM)
     private val currentDiscipleTables: DiscipleTables
         get() = stateStore.discipleTables
 
@@ -518,7 +522,7 @@ private val scopeProvider: CoroutineScopeProvider,
      * 消灭 allocateNextId → insert 之间的悬空窗口。
      */
     fun recruitDisciple(realm: Int = 9): Disciple {
-        val gender = if (Random.nextBoolean()) GENDER_MALE else GENDER_FEMALE
+        val gender = if (rng.nextDouble() < 0.5) GENDER_MALE else GENDER_FEMALE
 
         val existingNames = (stateStore.discipleTables.assembleAll()
             + stateStore.gameData.value.recruitList)
@@ -533,11 +537,11 @@ private val scopeProvider: CoroutineScopeProvider,
                 gender = gender,
                 nameResult = nameResult,
                 spiritRootType = SpiritRootGenerator.generate(),
-                age = Random.nextInt(16, 30),
+                age = 16 + rng.nextInt(14),
                 realm = realm,
                 realmLayer = 1,
                 social = com.xianxia.sect.core.model.SocialData(),
-                nextInt = { from, until -> Random.nextInt(from, until) }
+                nextInt = { from, until -> from + rng.nextInt(until - from) }
             )
         )
 
@@ -563,7 +567,7 @@ private val scopeProvider: CoroutineScopeProvider,
     /**
      * Expel disciple from sect
      */
-    suspend fun expelDisciple(discipleId: String): DomainResult<Unit> {
+    fun expelDisciple(discipleId: String): DomainResult<Unit> {
         var error: AppError.Domain.Disciple? = AppError.Domain.Disciple.NotFound(discipleId)
         stateStore.update {
             val id = discipleId.toIntOrNull()
@@ -617,7 +621,7 @@ private val scopeProvider: CoroutineScopeProvider,
      * - 师父最多 5 名徒弟
      * - 弟子最多 1 名师父
      */
-    suspend fun apprenticeToMaster(discipleId: String, masterId: String): DomainResult<Unit> {
+    fun apprenticeToMaster(discipleId: String, masterId: String): DomainResult<Unit> {
         var error: AppError.Domain.Disciple? = null
         stateStore.update {
             val did = discipleId.toIntOrNull()
@@ -683,7 +687,7 @@ private val scopeProvider: CoroutineScopeProvider,
      * 设计意图：装备是独占物品，不可共用。一件装备只能给一名弟子穿戴。
      * 装备新装备时，旧装备自动卸下并放入弟子储物袋。
      */
-    suspend fun equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> {
+    fun equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> {
         var error: AppError.Domain.Disciple? = AppError.Domain.Disciple.NotFound(discipleId)
         stateStore.update {
             val id = discipleId.toIntOrNull()
@@ -801,7 +805,7 @@ private val scopeProvider: CoroutineScopeProvider,
      *
      * 验证和卸下操作全部在 stateStore.update 事务内原子执行，返回实际操作结果。
      */
-    suspend fun unequipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> {
+    fun unequipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> {
         var error: AppError.Domain.Disciple? = AppError.Domain.Disciple.NotFound(discipleId)
         stateStore.update {
             val id = discipleId.toIntOrNull()
@@ -979,7 +983,7 @@ private val scopeProvider: CoroutineScopeProvider,
     /**
      * Update yearly salary enabled/disabled for a realm
      */
-    suspend fun updateYearlySalaryEnabled(realm: Int, enabled: Boolean) {
+    fun updateYearlySalaryEnabled(realm: Int, enabled: Boolean) {
         stateStore.update {
             val newEnabled = gameData.yearlySalaryEnabled.toMutableMap()
             newEnabled[realm] = enabled

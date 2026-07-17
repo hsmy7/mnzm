@@ -343,29 +343,6 @@ class DiscipleTablesTest {
         assertEquals("第三", tables.names[3])
     }
 
-    @Suppress("DEPRECATION")
-    @Test
-    fun `rollbackAllocation removes id from ids and component tables`() {
-        val tables = DiscipleTables()
-        val id = tables.allocateNextId()
-        assertEquals(1, tables.count)
-
-        val result = tables.rollbackAllocation(id)
-
-        assertTrue(result)
-        assertEquals(0, tables.count)
-        assertFalse(tables.ids.contains(id))
-    }
-
-    @Suppress("DEPRECATION")
-    @Test
-    fun `rollbackAllocation on non-existent id returns false`() {
-        val tables = DiscipleTables()
-        val result = tables.rollbackAllocation(999)
-
-        assertFalse(result)
-    }
-
     @Test
     fun `allocateAndInsert increments mutationVersion`() {
         val tables = DiscipleTables()

@@ -42,11 +42,11 @@ class DiplomacyEventProcessor @Inject constructor(
 
     fun checkAllianceExpiry(year: Int) {
         val data = stateStore.gameData.value
-        val expiredAlliances = data.alliances.filter { year - it.startYear >= GameConfig.Diplomacy.ALLIANCE_DURATION_YEARS }
+        val expiredAlliances = data.alliances.filter { year - it.startYear >= com.xianxia.sect.core.config.FavorConfig.ALLIANCE_DURATION_YEARS }
 
         if (expiredAlliances.isEmpty()) return
 
-        val updatedAlliances = data.alliances.filter { year - it.startYear < GameConfig.Diplomacy.ALLIANCE_DURATION_YEARS }
+        val updatedAlliances = data.alliances.filter { year - it.startYear < com.xianxia.sect.core.config.FavorConfig.ALLIANCE_DURATION_YEARS }
         val updatedSects = data.worldMapSects.map { sect ->
             if (expiredAlliances.any { it.sectIds.contains(sect.id) }) {
                 sect.copy(allianceId = "", allianceStartYear = 0)

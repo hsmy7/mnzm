@@ -19,9 +19,10 @@ import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
 import com.xianxia.sect.core.engine.domain.battle.EnemyGenerator
 import com.xianxia.sect.core.model.Pill
-import kotlin.random.Random
+import com.xianxia.sect.core.util.DeterministicRng
 
 object MissionSystem {
+    private val rng by lazy { DeterministicRng.fromSeed(System.nanoTime()) }
     const val REFRESH_INTERVAL_MONTHS = 3
     const val MAX_REFRESH_COUNT = 6
 
@@ -54,7 +55,7 @@ object MissionSystem {
         val newMissions = mutableListOf<Mission>()
 
         if (currentMonth % REFRESH_INTERVAL_MONTHS == 0) {
-            val refreshCount = Random.nextInt(0, MAX_REFRESH_COUNT + 1)
+            val refreshCount = rng.nextInt(MAX_REFRESH_COUNT + 1)
             val weightedPool = buildWeightedPool()
             repeat(refreshCount) {
                 val template = weightedRandom(weightedPool)
@@ -427,7 +428,7 @@ object MissionSystem {
         manualProficiencies: Map<String, Map<String, com.xianxia.sect.core.model.ManualProficiencyData>>,
         battleSystem: BattleSystem?
     ): MissionResult {
-        val triggered = Random.nextDouble() < activeMission.triggerChance
+        val triggered = rng.nextDouble() < activeMission.triggerChance
 
         if (!triggered) {
             val rewards = activeMission.rewards
@@ -503,9 +504,8 @@ object MissionSystem {
                 battleSystem.executeBattle(battle)
             }
             EnemyType.HUMAN -> {
-                val humanCount = Random.nextInt(
-                    activeMission.template.humanCountRange.first,
-                    activeMission.template.humanCountRange.last + 1
+                val humanCount = activeMission.template.humanCountRange.first + rng.nextInt(
+                    activeMission.template.humanCountRange.last - activeMission.template.humanCountRange.first + 1
                 )
                 val enemies = EnemyGenerator.generateHumanEnemies(realmMin, realmMax, humanCount)
                 val team = disciples.map { disciple ->
@@ -528,7 +528,7 @@ object MissionSystem {
 
     private fun rollSpiritStones(rewards: MissionRewardConfig): Int {
         return if (rewards.spiritStonesMax > 0) {
-            Random.nextInt(rewards.spiritStones, rewards.spiritStonesMax + 1)
+            rewards.spiritStones + rng.nextInt(rewards.spiritStonesMax - rewards.spiritStones + 1)
         } else {
             rewards.spiritStones
         }
@@ -551,7 +551,7 @@ object MissionSystem {
     private fun generatePills(rewards: MissionRewardConfig): List<Pill> {
         if (rewards.pillCountMin <= 0) return emptyList()
 
-        val count = Random.nextInt(rewards.pillCountMin, rewards.pillCountMax + 1)
+        val count = rewards.pillCountMin + rng.nextInt(rewards.pillCountMax - rewards.pillCountMin + 1)
         val pills = mutableListOf<Pill>()
 
         repeat(count) {
@@ -563,14 +563,14 @@ object MissionSystem {
 
     private fun generateEquipment(rewards: MissionRewardConfig): List<com.xianxia.sect.core.model.EquipmentStack> {
         if (rewards.equipmentChance <= 0.0) return emptyList()
-        if (Random.nextDouble() >= rewards.equipmentChance) return emptyList()
+        if (rng.nextDouble() >= rewards.equipmentChance) return emptyList()
 
         return listOf(EquipmentDatabase.generateRandom(rewards.equipmentMinRarity, rewards.equipmentMaxRarity))
     }
 
     private fun generateManuals(rewards: MissionRewardConfig): List<com.xianxia.sect.core.model.ManualStack> {
         if (rewards.manualChance <= 0.0) return emptyList()
-        if (Random.nextDouble() >= rewards.manualChance) return emptyList()
+        if (rng.nextDouble() >= rewards.manualChance) return emptyList()
 
         return try {
             listOf(ManualDatabase.generateRandom(rewards.manualMinRarity, rewards.manualMaxRarity))
@@ -594,8 +594,8 @@ object MissionSystem {
 
     private fun weightedRandom(pool: List<WeightedEntry>): MissionTemplate {
         val totalWeight = pool.lastOrNull()?.cumulativeWeight ?: 0.0
-        if (totalWeight <= 0.0) return MissionTemplate.entries.random()
-        val roll = Random.nextDouble() * totalWeight
+        if (totalWeight <= 0.0) return MissionTemplate.entries[rng.nextInt(MissionTemplate.entries.size)]
+        val roll = rng.nextDouble() * totalWeight
         return pool.first { roll < it.cumulativeWeight }.template
     }
 
@@ -607,14 +607,14 @@ object MissionSystem {
     ): List<Material> {
         if (countMin <= 0) return emptyList()
 
-        val count = Random.nextInt(countMin, countMax + 1)
+        val count = countMin + rng.nextInt(countMax - countMin + 1)
         val materials = mutableListOf<Material>()
 
         repeat(count) {
             val eligibleMaterials = BeastMaterialDatabase.getAllMaterials()
                 .filter { it.rarity in minRarity..maxRarity }
             if (eligibleMaterials.isNotEmpty()) {
-                val template = eligibleMaterials.random()
+                val template = eligibleMaterials[rng.nextInt(eligibleMaterials.size)]
                 materials.add(ItemDatabase.createMaterialFromTemplate(
                     ItemDatabase.MaterialTemplate(
                         id = template.id,

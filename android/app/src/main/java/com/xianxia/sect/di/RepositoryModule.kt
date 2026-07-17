@@ -2,6 +2,7 @@ package com.xianxia.sect.di
 
 import com.xianxia.sect.core.transaction.ProductionTransactionManager
 import com.xianxia.sect.core.repository.ProductionSlotRepository
+import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.data.local.GameDatabase
 import com.xianxia.sect.data.local.ProductionSlotDao
 import dagger.Module
@@ -23,6 +24,7 @@ object RepositoryModule {
     @Provides
     @Singleton
     fun provideProductionTransactionManager(
-        repository: ProductionSlotRepository
-    ): ProductionTransactionManager = ProductionTransactionManager(repository)
+        repository: ProductionSlotRepository,
+        rngManager: GameRngManager
+    ): ProductionTransactionManager = ProductionTransactionManager(repository, rngManager)
 }

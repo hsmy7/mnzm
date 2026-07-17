@@ -13,7 +13,13 @@ import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.core.engine.EquipmentNurtureSystem
 import com.xianxia.sect.core.engine.ManualProficiencySystem
-import kotlin.random.Random
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
+import com.xianxia.sect.core.util.DeterministicRng
+
+/** EnemyGenerator 的 RNG 管理器（由 GameEngine 初始化时注入） */
+var enemyGenRngManager: GameRngManager? = null
+private val enemyRng get(): DeterministicRng = (enemyGenRngManager ?: error("EnemyGenerator RNG not initialized")).getRng(RngPartition.BATTLE)
 
 object EnemyGenerator {
 
@@ -38,8 +44,8 @@ object EnemyGenerator {
         realmMin: Int,
         realmMax: Int
     ): HumanEnemyData {
-        val realm = Random.nextInt(realmMin, realmMax + 1)
-        val realmLayer = Random.nextInt(1, 10)
+        val realm = realmMin + enemyRng.nextInt(realmMax + 1 - realmMin)
+        val realmLayer = 1 + enemyRng.nextInt(9)
 
         val minRarity = GameConfig.Realm.getMaxRarity(realm)
         val maxRarity = (minRarity + 1).coerceAtMost(6)
@@ -47,45 +53,45 @@ object EnemyGenerator {
         val equipmentSlots = listOf(
             EquipmentSlot.WEAPON, EquipmentSlot.ARMOR,
             EquipmentSlot.BOOTS, EquipmentSlot.ACCESSORY
-        ).shuffled()
+        ).sortedBy { enemyRng.nextInt() }
 
-        val equipmentCount = Random.nextInt(0, 5)
+        val equipmentCount = enemyRng.nextInt(5)
         val equipmentInstances = mutableListOf<EquipmentInstance>()
         val equipmentStatsAccumulator = EquipmentStatsAccumulator()
 
         for (i in 0 until equipmentCount) {
             val slot = equipmentSlots[i]
-            val rarity = Random.nextInt(minRarity, maxRarity + 1)
+            val rarity = minRarity + enemyRng.nextInt(maxRarity + 1 - minRarity)
             val stack = EquipmentDatabase.generateRandomBySlot(slot, rarity)
             val maxNurture = EquipmentNurtureSystem.getMaxNurtureLevel(rarity)
-            val nurtureLevel = Random.nextInt(0, maxNurture + 1)
+            val nurtureLevel = enemyRng.nextInt(maxNurture + 1)
             val instance = stackToInstance(stack, nurtureLevel)
             equipmentInstances.add(instance)
             equipmentStatsAccumulator.add(instance.getFinalStats())
             equipmentStatsAccumulator.addCrit(instance.critChance)
         }
 
-        val manualCount = Random.nextInt(0, 6)
+        val manualCount = enemyRng.nextInt(6)
         val manualInstances = mutableListOf<ManualInstance>()
         val manualSkills = mutableListOf<CombatSkill>()
         var hasMindManual = false
 
         for (i in 0 until manualCount) {
-            val type = if (!hasMindManual && Random.nextDouble() < 0.2) {
+            val type = if (!hasMindManual && enemyRng.nextDouble() < 0.2) {
                 ManualType.MIND
             } else {
-                listOf(ManualType.ATTACK, ManualType.DEFENSE, ManualType.SUPPORT).random()
+                listOf(ManualType.ATTACK, ManualType.DEFENSE, ManualType.SUPPORT)[enemyRng.nextInt(3)]
             }
 
             if (type == ManualType.MIND) hasMindManual = true
 
-            val rarity = Random.nextInt(minRarity, maxRarity + 1)
+            val rarity = minRarity + enemyRng.nextInt(maxRarity + 1 - minRarity)
             val stack = try {
                 ManualDatabase.generateRandom(minRarity, maxRarity, type)
             } catch (_: Exception) {
                 continue
             }
-            val masteryLevel = Random.nextInt(0, 4)
+            val masteryLevel = enemyRng.nextInt(4)
             val instance = stackToInstance(stack)
             manualInstances.add(instance)
 
@@ -135,13 +141,13 @@ object EnemyGenerator {
         val speed = (stats.speed * layerMult).toInt() + equipmentStats.speed
 
         val elements = listOf("metal", "wood", "water", "fire", "earth")
-        val element = elements.random()
+        val element = elements[enemyRng.nextInt(5)]
 
         val enemyNames = listOf("魔修", "邪修", "散修", "山匪", "暗杀者", "邪道修士")
 
         return Combatant(
             id = "human_enemy_$index",
-            name = "${enemyNames.random()}${index}",
+            name = "${enemyNames[enemyRng.nextInt(enemyNames.size)]}${index}",
             side = CombatantSide.ATTACKER,
             hp = hp,
             maxHp = hp,

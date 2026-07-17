@@ -88,7 +88,6 @@ data class PillEffects(
     @Ignore
     var activePillTypes: Set<String> = emptySet(),
     // 旧字段，仅用于旧存档反序列化
-    @Deprecated("使用 activePillTypes 替代")
     var activePillCategory: String = ""
 )
 

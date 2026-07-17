@@ -5,9 +5,10 @@ import com.xianxia.sect.core.config.FixedSectPositions
 import com.xianxia.sect.core.config.SectAlignment
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.model.*
-import kotlin.random.Random
+import com.xianxia.sect.core.util.DeterministicRng
 
 object WorldMapGenerator {
+    private val rng by lazy { DeterministicRng.fromSeed(System.nanoTime()) }
 
     private val righteousSectNames = listOf(
         "青云门", "紫霄宫", "太华宗", "昆仑派", "峨眉山", "武当山", "青城山", "龙虎山",
@@ -94,7 +95,7 @@ object WorldMapGenerator {
                     generateNameForAlignment(pos.alignment, usedNames)
                 }
                 val levelInfo = generateSectLevelAndDisciples(pos.level)
-                val initialRelation = Random.nextInt(20, 51)
+                val initialRelation = 20 + rng.nextInt(31)
 
                 val sect = WorldSect(
                     id = "sect_${sects.size}",
@@ -129,7 +130,7 @@ object WorldMapGenerator {
             SectAlignment.NEUTRAL -> neutralSectNames.filter { it !in usedNames }
         }
         val name = if (namePool.isNotEmpty()) {
-            namePool.random()
+            namePool[rng.nextInt(namePool.size)]
         } else {
             val prefix = when (alignment) {
                 SectAlignment.RIGHTEOUS -> "正道"
@@ -147,7 +148,7 @@ object WorldMapGenerator {
         val chars = listOf("天", "地", "玄", "黄", "金", "木", "水", "火", "土", "风", "雷", "云", "雾", "星", "月", "日")
         var name: String
         do {
-            name = chars.random() + chars.random() + suffixes.random()
+            name = chars[rng.nextInt(chars.size)] + chars[rng.nextInt(chars.size)] + suffixes[rng.nextInt(suffixes.size)]
         } while (name in usedNames)
         return name
     }
@@ -283,7 +284,7 @@ object WorldMapGenerator {
     }
 
     private fun calculateInitialFavor(): Int {
-        return Random.nextInt(40, 61)
+        return 40 + rng.nextInt(21)
     }
 
     data class SectLevelInfo(

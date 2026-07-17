@@ -1204,16 +1204,6 @@ class SaveLoadViewModel @Inject constructor(
         val clamped = speed.coerceIn(0, 2)
         _timeScale.value = clamped  // UI 即时反馈
         gameClock.setSpeed(clamped)
-        @Suppress("DEPRECATION")
-        viewModelScope.launch {
-            try {
-                gameEngine.updateGameData { it.copy(gameSpeed = clamped) }
-            } catch (e: IllegalStateException) {
-                delay(16)
-                @Suppress("DEPRECATION")
-                gameEngine.updateGameData { it.copy(gameSpeed = clamped) }
-            }
-        }
         if (gameEngineCore.state.value.isPaused) {
             viewModelScope.launch {
                 gameEngineCore.resume()

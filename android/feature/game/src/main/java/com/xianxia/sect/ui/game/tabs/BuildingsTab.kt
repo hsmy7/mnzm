@@ -76,8 +76,7 @@ import com.xianxia.sect.ui.game.HerbGardenViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel
 import com.xianxia.sect.ui.game.SpiritMineViewModel
 
-import com.xianxia.sect.ui.game.building.BuildingDef
-import com.xianxia.sect.ui.game.building.BuildingRegistry
+import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
 import com.xianxia.sect.ui.theme.Spacing
@@ -122,7 +121,7 @@ internal fun BuildingsTab(
     )
 
     val buildings: List<Triple<String, String, () -> Unit>> = remember(buildingDescriptions) {
-        BuildingRegistry.constructible.filter { def ->
+        BuildingFeatureRegistry.constructible.filter { def ->
             !def.isResidence && def.key != "spirit_field"
         }.map { def ->
             val desc = buildingDescriptions[def.key] ?: ""

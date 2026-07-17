@@ -4,6 +4,14 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
+import com.xianxia.sect.core.util.DeterministicRng
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
+
+/** AI 组队系统的 RNG 管理器（由 GameEngine 初始化时注入） */
+var teamComposerRngManager: GameRngManager? = null
+private val teamComposerRng: DeterministicRng
+    get() = (teamComposerRngManager ?: error("TeamComposer RNG not initialized")).getRng(RngPartition.BATTLE)
 
 /**
  * AI 宗门战力评分 — 基于境界、装备、功法、天赋综合计算。
@@ -136,7 +144,7 @@ internal fun generateWarRewards(sectLevel: Int, itemCount: Int): WarRewards {
     val seeds = mutableListOf<com.xianxia.sect.core.model.Seed>()
 
     repeat(itemCount) {
-        val itemType = kotlin.random.Random.nextInt(7)
+        val itemType = teamComposerRng.nextInt(7)
         when (itemType) {
             0 -> spiritStones += config.spiritStoneValue
             1 -> {

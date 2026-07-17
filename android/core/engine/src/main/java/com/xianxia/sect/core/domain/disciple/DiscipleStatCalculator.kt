@@ -595,27 +595,6 @@ object DiscipleStatCalculator {
         return calculateCultivationPerPhase(disciple.realm, disciple.spiritRoot.types.size, zones)
     }
 
-    /** @deprecated 使用 [calculateCultivationPerPhase] 替代 */
-    @Deprecated("使用 calculateCultivationPerPhase", ReplaceWith("calculateCultivationPerPhase(...)"))
-    fun calculateCultivationSpeed(
-        disciple: Disciple,
-        manuals: Map<String, ManualInstance> = emptyMap(),
-        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
-        buildingBonus: Double = 1.0,
-        additionalBonus: Double = 0.0,
-        preachingElderBonus: Double = 0.0,
-        preachingMastersBonus: Double = 0.0,
-        cultivationSubsidyBonus: Double = 0.0,
-        parentCultivationBonus: Double = 0.0,
-        griefCultivationSpeedPenalty: Double = 0.0,
-        masterDiscipleBonus: Double = 0.0
-    ): Double = calculateCultivationPerPhase(
-        disciple, manuals, manualProficiencies,
-        buildingBonus, preachingElderBonus, preachingMastersBonus,
-        cultivationSubsidyBonus, parentCultivationBonus,
-        griefCultivationSpeedPenalty, masterDiscipleBonus
-    )
-
     /**
      * 使用乘区制计算每旬修炼值（DiscipleAggregate 版本便捷入口）。
      */
@@ -639,27 +618,6 @@ object DiscipleStatCalculator {
         )
         return calculateCultivationPerPhase(aggregate.realm, aggregate.spiritRoot.types.size, zones)
     }
-
-    /** @deprecated 使用 [calculateCultivationPerPhase] 替代 */
-    @Deprecated("使用 calculateCultivationPerPhase", ReplaceWith("calculateCultivationPerPhase(...)"))
-    fun calculateCultivationSpeed(
-        aggregate: DiscipleAggregate,
-        manuals: Map<String, ManualInstance> = emptyMap(),
-        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
-        buildingBonus: Double = 1.0,
-        additionalBonus: Double = 0.0,
-        preachingElderBonus: Double = 0.0,
-        preachingMastersBonus: Double = 0.0,
-        cultivationSubsidyBonus: Double = 0.0,
-        parentCultivationBonus: Double = 0.0,
-        griefCultivationSpeedPenalty: Double = 0.0,
-        masterDiscipleBonus: Double = 0.0
-    ): Double = calculateCultivationPerPhase(
-        aggregate, manuals, manualProficiencies,
-        buildingBonus, preachingElderBonus, preachingMastersBonus,
-        cultivationSubsidyBonus, parentCultivationBonus,
-        griefCultivationSpeedPenalty, masterDiscipleBonus
-    )
 
     // ==================== 突破概率乘区 ====================
 
@@ -990,12 +948,12 @@ object DiscipleStatCalculator {
      * 根据血种随机选择属性（50/50），返回属性key。
      *
      * @param bloodType 血种类型
-     * @param rng 可选的确定性 PRNG，传入 [GameRngManager.getRng] 的结果可确保存档/读档一致性。
-     *            不传时使用 [kotlin.random.Random]（降低确定性保证）。
+     * @param rngManager 确定性 PRNG 管理器，确保存档/读档一致性。
      */
-    fun randomBloodRefineStat(bloodType: String, rng: com.xianxia.sect.core.util.DeterministicRng? = null): String {
+    fun randomBloodRefineStat(bloodType: String, rngManager: com.xianxia.sect.core.util.GameRngManager): String {
         val rule = BeastMaterialDatabase.BLOOD_RULES[bloodType] ?: return ""
-        val choice = if (rng != null) rng.nextInt(2) == 0 else kotlin.random.Random.nextBoolean()
+        val rng = rngManager.getRng(com.xianxia.sect.core.util.RngPartition.BREAKTHROUGH)
+        val choice = rng.nextInt(2) == 0
         return if (choice) rule.statA else rule.statB
     }
 

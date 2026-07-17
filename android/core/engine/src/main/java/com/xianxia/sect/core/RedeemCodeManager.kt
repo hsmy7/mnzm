@@ -11,13 +11,14 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.SpiritRootGenerator
+import com.xianxia.sect.core.util.DeterministicRng
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.random.Random
 
 object RedeemCodeManager {
+    private val rng by lazy { DeterministicRng.fromSeed(System.nanoTime()) }
 
     private const val TAG = "RedeemCodeManager"
     private const val MIN_CODE_LENGTH = 3
@@ -613,7 +614,7 @@ object RedeemCodeManager {
                 rarities.forEach { targetRarity ->
                     val templates = ManualDatabase.getByRarity(targetRarity)
                     repeat(30) {
-                        val template = templates.random()
+                        val template = templates[rng.nextInt(templates.size)]
                         val manual = ManualDatabase.createFromTemplate(template)
                         rewards.add(
                             RewardSelectedItem(
@@ -655,7 +656,7 @@ object RedeemCodeManager {
         val gender = when (cfg.gender) {
             "male" -> "male"
             "female" -> "female"
-            else -> if (Random.nextBoolean()) "male" else "female"
+            else -> if (rng.nextInt(2) == 0) "male" else "female"
         }
 
         val nameResult = NameService.generateName(gender, NameService.NameStyle.XIANXIA, existingNames)
@@ -668,12 +669,12 @@ object RedeemCodeManager {
             if (cfgSpiritRootCount == 1) {
                 baseType
             } else {
-                val additionalTypes = types.filter { it != baseType }.shuffled().take(cfgSpiritRootCount - 1)
+                val additionalTypes = types.filter { it != baseType }.sortedBy { rng.nextInt() }.take(cfgSpiritRootCount - 1)
                 (listOf(baseType) + additionalTypes).joinToString(",")
             }
         } else if (cfgSpiritRootCount != null) {
             val types = listOf("metal", "wood", "water", "fire", "earth")
-            types.shuffled().take(cfgSpiritRootCount).joinToString(",")
+            types.sortedBy { rng.nextInt() }.take(cfgSpiritRootCount).joinToString(",")
         } else {
             SpiritRootGenerator.generate()
         }
@@ -681,12 +682,12 @@ object RedeemCodeManager {
         val age = if (cfg.minAge == cfg.maxAge) {
             cfg.minAge
         } else {
-            Random.nextInt(cfg.minAge, cfg.maxAge + 1)
+            cfg.minAge + rng.nextInt(cfg.maxAge - cfg.minAge + 1)
         }
 
         val realmConfig = GameConfig.Realm.get(cfg.realm)
         val baseLifespan = realmConfig.maxAge
-        val lifespan = (baseLifespan * (1.0 + Random.nextDouble(-0.1, 0.1))).toInt()
+        val lifespan = (baseLifespan * (1.0 + (-0.1 + rng.nextDouble() * 0.2))).toInt()
 
         val talentIds = if (cfg.talentIds.isNotEmpty()) {
             cfg.talentIds
@@ -696,13 +697,13 @@ object RedeemCodeManager {
 
         val talents = TalentDatabase.getTalentsByIds(talentIds)
         val lifespanBonus = talents.sumOf { it.effects["lifespan"] ?: 0.0 }
-        val hpVariance = Random.nextInt(-50, 51)
-        val mpVariance = Random.nextInt(-50, 51)
-        val physicalAttackVariance = Random.nextInt(-50, 51)
-        val magicAttackVariance = Random.nextInt(-50, 51)
-        val physicalDefenseVariance = Random.nextInt(-50, 51)
-        val magicDefenseVariance = Random.nextInt(-50, 51)
-        val speedVariance = Random.nextInt(-50, 51)
+        val hpVariance = -50 + rng.nextInt(101)
+        val mpVariance = -50 + rng.nextInt(101)
+        val physicalAttackVariance = -50 + rng.nextInt(101)
+        val magicAttackVariance = -50 + rng.nextInt(101)
+        val physicalDefenseVariance = -50 + rng.nextInt(101)
+        val magicDefenseVariance = -50 + rng.nextInt(101)
+        val speedVariance = -50 + rng.nextInt(101)
 
         return Disciple(
             name = nameResult.fullName,
@@ -726,22 +727,22 @@ object RedeemCodeManager {
                 speedVariance = speedVariance
             ),
             skills = SkillStats(
-                intelligence = cfg.intelligence ?: Random.nextInt(1, 101),
+                intelligence = cfg.intelligence ?: 1 + rng.nextInt(100),
                 comprehension = cfg.comprehension ?: when (spiritRootType.split(",").size) {
-                    1 -> Random.nextInt(80, 101)
-                    2 -> Random.nextInt(60, 101)
-                    3 -> Random.nextInt(40, 101)
-                    4 -> Random.nextInt(20, 101)
-                    else -> Random.nextInt(1, 101)
+                    1 -> 80 + rng.nextInt(21)
+                    2 -> 60 + rng.nextInt(41)
+                    3 -> 40 + rng.nextInt(61)
+                    4 -> 20 + rng.nextInt(81)
+                    else -> 1 + rng.nextInt(100)
                 },
-                charm = cfg.charm ?: Random.nextInt(1, 101),
-                loyalty = cfg.loyalty ?: Random.nextInt(1, 101),
-                artifactRefining = cfg.artifactRefining ?: Random.nextInt(1, 101),
-                pillRefining = cfg.pillRefining ?: Random.nextInt(1, 101),
-                spiritPlanting = cfg.spiritPlanting ?: Random.nextInt(1, 101),
-                mining = cfg.mining ?: Random.nextInt(1, 101),
-                teaching = cfg.teaching ?: Random.nextInt(1, 101),
-                morality = cfg.morality ?: Random.nextInt(1, 101)
+                charm = cfg.charm ?: 1 + rng.nextInt(100),
+                loyalty = cfg.loyalty ?: 1 + rng.nextInt(100),
+                artifactRefining = cfg.artifactRefining ?: 1 + rng.nextInt(100),
+                pillRefining = cfg.pillRefining ?: 1 + rng.nextInt(100),
+                spiritPlanting = cfg.spiritPlanting ?: 1 + rng.nextInt(100),
+                mining = cfg.mining ?: 1 + rng.nextInt(100),
+                teaching = cfg.teaching ?: 1 + rng.nextInt(100),
+                morality = cfg.morality ?: 1 + rng.nextInt(100)
             )
         ).apply {
             val baseStats = Disciple.calculateBaseStatsWithVariance(
@@ -764,20 +765,20 @@ object RedeemCodeManager {
         val negativeTalents = TalentDatabase.getNegativeTalents()
 
         val positiveCount = when {
-            Random.nextDouble() < 0.3 -> 2
-            Random.nextDouble() < 0.6 -> 1
+            rng.nextDouble() < 0.3 -> 2
+            rng.nextDouble() < 0.6 -> 1
             else -> 0
         }
 
         repeat(positiveCount) {
-            val talent = positiveTalents.random()
+            val talent = positiveTalents[rng.nextInt(positiveTalents.size)]
             if (!talents.contains(talent.id)) {
                 talents.add(talent.id)
             }
         }
 
-        if (Random.nextDouble() < 0.14 && negativeTalents.isNotEmpty()) {
-            val talent = negativeTalents.random()
+        if (rng.nextDouble() < 0.14 && negativeTalents.isNotEmpty()) {
+            val talent = negativeTalents[rng.nextInt(negativeTalents.size)]
             if (!talents.contains(talent.id)) {
                 talents.add(talent.id)
             }
