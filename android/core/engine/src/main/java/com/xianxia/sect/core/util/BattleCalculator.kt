@@ -30,6 +30,17 @@ data class DamageZones(
 )
 
 object BattleCalculator {
+    // ── 技能选择概率常量 ──
+    private const val PROB_SUPPORT_LOW_HP = 0.80
+    private const val PROB_CONTROL_UNCONTROLLED = 0.60
+    private const val PROB_AOE_MANY_ENEMIES = 0.70
+    private const val PROB_TARGET_LOW_HP = 0.70
+    private const val PROB_TARGET_HIGH_THREAT = 0.50
+    private const val PROB_TARGET_LOW_DEFENSE = 0.40
+    private const val LOW_HP_THRESHOLD = 0.30
+    private const val LOW_MP_THRESHOLD = 0.30
+    private const val AOE_MIN_ENEMIES = 3
+
     /**
      * 带 RNG 的便捷入口 — 使用 BATTLE 分区 RNG。
      * 业务逻辑入口（BattleSystem/AISectAttackManager）应通过此参数注入确定 RNG。
@@ -376,8 +387,8 @@ object BattleCalculator {
         val supportSkills = availableSkills.filter { it.skillType == SkillType.SUPPORT }
         val attackSkills = availableSkills.filter { it.skillType == SkillType.ATTACK }
 
-        val lowHpAllies = allies.filter { it.hpPercent < 0.3 }
-        if (lowHpAllies.isNotEmpty() && supportSkills.isNotEmpty() && rng.nextDouble() < 0.8) {
+        val lowHpAllies = allies.filter { it.hpPercent < LOW_HP_THRESHOLD }
+        if (lowHpAllies.isNotEmpty() && supportSkills.isNotEmpty() && rng.nextDouble() < PROB_SUPPORT_LOW_HP) {
             return supportSkills.first()
         }
 
@@ -387,16 +398,16 @@ object BattleCalculator {
                 localBuffType in setOf(BuffType.STUN, BuffType.FREEZE, BuffType.SILENCE, BuffType.TAUNT)
         }
         val uncontrolledEnemies = enemies.filter { enemy -> !enemy.hasControlEffect }
-        if (uncontrolledEnemies.isNotEmpty() && controlSkills.isNotEmpty() && rng.nextDouble() < 0.6) {
+        if (uncontrolledEnemies.isNotEmpty() && controlSkills.isNotEmpty() && rng.nextDouble() < PROB_CONTROL_UNCONTROLLED) {
             return controlSkills.first()
         }
 
         val aoeSkills = attackSkills.filter { it.isAoe }
-        if (enemies.size >= 3 && aoeSkills.isNotEmpty() && rng.nextDouble() < 0.7) {
+        if (enemies.size >= AOE_MIN_ENEMIES && aoeSkills.isNotEmpty() && rng.nextDouble() < PROB_AOE_MANY_ENEMIES) {
             return aoeSkills.maxByOrNull { it.damageMultiplier }
         }
 
-        if (combatant.mpPercent < 0.3 && attackSkills.isNotEmpty()) {
+        if (combatant.mpPercent < LOW_MP_THRESHOLD && attackSkills.isNotEmpty()) {
             val cheapSkill = attackSkills.minByOrNull { it.mpCost }
             if (cheapSkill != null && combatant.mp >= cheapSkill.mpCost * 2) {
                 return cheapSkill
@@ -412,15 +423,15 @@ object BattleCalculator {
     }
 
     fun selectTarget(attacker: Combatant, targets: List<Combatant>, rng: DeterministicRng): Combatant {
-        val lowHpTargets = targets.filter { it.hpPercent < 0.3 }
-        if (lowHpTargets.isNotEmpty() && rng.nextDouble() < 0.7) {
+        val lowHpTargets = targets.filter { it.hpPercent < LOW_HP_THRESHOLD }
+        if (lowHpTargets.isNotEmpty() && rng.nextDouble() < PROB_TARGET_LOW_HP) {
             return lowHpTargets[rng.nextInt(lowHpTargets.size)]
         }
 
         val highThreatTargets = targets.filter { target ->
             target.skills.isNotEmpty() && target.effectivePhysicalAttack > attacker.effectivePhysicalDefense
         }
-        if (highThreatTargets.isNotEmpty() && rng.nextDouble() < 0.5) {
+        if (highThreatTargets.isNotEmpty() && rng.nextDouble() < PROB_TARGET_HIGH_THREAT) {
             return highThreatTargets[rng.nextInt(highThreatTargets.size)]
         }
 
@@ -428,7 +439,7 @@ object BattleCalculator {
             val avgDefense = (target.effectivePhysicalDefense + target.effectiveMagicDefense) / 2.0
             avgDefense < attacker.effectivePhysicalAttack * 0.5
         }
-        if (lowDefenseTargets.isNotEmpty() && rng.nextDouble() < 0.4) {
+        if (lowDefenseTargets.isNotEmpty() && rng.nextDouble() < PROB_TARGET_LOW_DEFENSE) {
             return lowDefenseTargets[rng.nextInt(lowDefenseTargets.size)]
         }
 
