@@ -10,7 +10,9 @@ import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.domain.disciple.*
+import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.StackableItem
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -165,7 +167,7 @@ class DisciplePurchaseService @Inject constructor(
         )
         if (decisions.isEmpty()) return
 
-        applyPurchaseDecisions(currentData, decisions, year, month)
+        applyPurchaseDecisions(decisions, year, month)
     }
 
     /**
@@ -216,28 +218,23 @@ class DisciplePurchaseService @Inject constructor(
      * 在 [stateStore.update] 事务中原子写入所有购买决策。
      */
     private fun applyPurchaseDecisions(
-        currentData: GameData,
         decisions: List<PurchaseEntry>,
         year: Int,
         month: Int
     ) {
         stateStore.update {
-            val updatedListedItems =
-                currentData.playerListedItems.toMutableList()
-
             for (decision in decisions) {
                 val item = decision.item
                 val dId = decision.discipleId
 
-                val idx = updatedListedItems.indexOfFirst {
-                    it.id == item.id
-                }
-                if (idx < 0) continue
-                val listedItem = updatedListedItems[idx]
-                if (listedItem.quantity <= 0) continue
+                // 仓库无库存 → 跳过（listing 保留，等补货后再购）
+                if (!hasWarehouseStock(item)) continue
 
+                // 设计要求：先扣仓库再扣灵石，仓库失败则跳过购买
+                if (!addToWarehouseAndBag(item, dId, year, month)) continue
                 deductSpiritStones(dId, item.price)
-                addToWarehouseAndBag(item, dId, year, month)
+                // 弟子支付的灵石计入宗门仓库
+                gameData = gameData.copy(spiritStones = gameData.spiritStones + item.price)
 
                 // 记录购买日志
                 val purchaseAge = discipleTables.ages[dId]
@@ -247,18 +244,9 @@ class DisciplePurchaseService @Inject constructor(
                 discipleTables.lifeEvents[dId] = currentEvents +
                     "${purchaseAge}岁：购买了${item.name}"
 
-                val newQty = listedItem.quantity - 1
-                if (newQty <= 0) {
-                    updatedListedItems.removeAt(idx)
-                } else {
-                    updatedListedItems[idx] =
-                        listedItem.copy(quantity = newQty)
-                }
+                // 不修改 listing 数量，不自动删除 listing
+                // 仓库库存是唯一的购买门控，补货后自动可购
             }
-
-            gameData = gameData.copy(
-                playerListedItems = updatedListedItems
-            )
         }
 
         if (decisions.isNotEmpty()) {
@@ -299,7 +287,6 @@ class DisciplePurchaseService @Inject constructor(
         decisions: MutableList<PurchaseEntry>
     ) {
         for (item in listedItems.filter { it.type == ITEM_TYPE_MANUAL }) {
-            if (item.quantity <= 0) continue
 
             val interested = allDisciples.filter { ctx ->
                 if (!canUseItem(ctx.realm, item.rarity)) return@filter false
@@ -345,7 +332,6 @@ class DisciplePurchaseService @Inject constructor(
         decisions: MutableList<PurchaseEntry>
     ) {
         for (item in listedItems.filter { it.type == ITEM_TYPE_EQUIPMENT }) {
-            if (item.quantity <= 0) continue
 
             val eq = MerchantItemConverter.toEquipment(item)
 
@@ -391,7 +377,7 @@ class DisciplePurchaseService @Inject constructor(
         decisions: MutableList<PurchaseEntry>
     ) {
         val pillItems = listedItems
-            .filter { it.type == ITEM_TYPE_PILL && it.quantity > 0 }
+            .filter { it.type == ITEM_TYPE_PILL }
             .sortedByDescending { it.rarity }
 
         for (item in pillItems) {
@@ -482,24 +468,11 @@ class DisciplePurchaseService @Inject constructor(
         discipleId: Int,
         year: Int,
         month: Int
-    ) {
-        when (item.type.lowercase(Locale.ROOT)) {
+    ): Boolean {
+        return when (item.type.lowercase(Locale.ROOT)) {
             ITEM_TYPE_EQUIPMENT -> {
-                val stack = MerchantItemConverter.toEquipment(item)
-                    .copy(quantity = 1)
-                val existing = equipmentStacks.all().find {
-                    it.name == stack.name && it.rarity == stack.rarity &&
-                        it.slot == stack.slot
-                }
-                val stackId = if (existing != null) {
-                    equipmentStacks.update(existing.id) {
-                        it.copy(quantity = it.quantity + 1)
-                    }
-                    existing.id
-                } else {
-                    equipmentStacks.add(stack)
-                    stack.id
-                }
+                val stackId = deductWarehouseStack(equipmentStacks, item.itemId, item.name, item.rarity)
+                    ?: return@addToWarehouseAndBag false
                 val bagItems = discipleTables.storageBagItems[discipleId]
                 discipleTables.storageBagItems[discipleId] = bagItems +
                     StorageBagItem(
@@ -511,23 +484,11 @@ class DisciplePurchaseService @Inject constructor(
                         obtainedYear = year,
                         obtainedMonth = month
                     )
+                true
             }
             ITEM_TYPE_MANUAL -> {
-                val stack = MerchantItemConverter.toManual(item)
-                    .copy(quantity = 1)
-                val existing = manualStacks.all().find {
-                    it.name == stack.name && it.rarity == stack.rarity &&
-                        it.type == stack.type
-                }
-                val stackId = if (existing != null) {
-                    manualStacks.update(existing.id) {
-                        it.copy(quantity = it.quantity + 1)
-                    }
-                    existing.id
-                } else {
-                    manualStacks.add(stack)
-                    stack.id
-                }
+                val stackId = deductWarehouseStack(manualStacks, item.itemId, item.name, item.rarity)
+                    ?: return@addToWarehouseAndBag false
                 val bagItems = discipleTables.storageBagItems[discipleId]
                 discipleTables.storageBagItems[discipleId] = bagItems +
                     StorageBagItem(
@@ -539,25 +500,11 @@ class DisciplePurchaseService @Inject constructor(
                         obtainedYear = year,
                         obtainedMonth = month
                     )
+                true
             }
             ITEM_TYPE_PILL -> {
-                val pill = MerchantItemConverter.toPill(item)
-                    .copy(quantity = 1)
-                val existing = pills.all().find {
-                    it.name == pill.name && it.rarity == pill.rarity &&
-                        it.category == pill.category && it.grade == pill.grade
-                }
-                val pillId = if (existing != null) {
-                    val newQty = (existing.quantity + 1)
-                        .coerceAtMost(inventoryConfig.getMaxStackSize(ITEM_TYPE_PILL))
-                    pills.update(existing.id) {
-                        it.copy(quantity = newQty)
-                    }
-                    existing.id
-                } else {
-                    pills.add(pill)
-                    pill.id
-                }
+                val pillId = deductWarehouseStack(pills, item.itemId, item.name, item.rarity)
+                    ?: return@addToWarehouseAndBag false
                 val bagItems = discipleTables.storageBagItems[discipleId]
                 discipleTables.storageBagItems[discipleId] = bagItems +
                     StorageBagItem(
@@ -566,12 +513,75 @@ class DisciplePurchaseService @Inject constructor(
                         name = item.name,
                         rarity = item.rarity,
                         quantity = 1,
-                        effect = pillToItemEffect(pill),
+                        effect = pillToItemEffect(
+                            MerchantItemConverter.toPill(item).copy(quantity = 1)
+                        ),
                         grade = item.grade ?: "中品",
                         obtainedYear = year,
                         obtainedMonth = month
                     )
+                true
             }
+            else -> false
+        }
+    }
+
+    /**
+     * 从仓库堆叠中扣减 1 个数量。
+     * 1) 精确匹配 [itemId]（上架时记录的仓库堆叠 ID）
+     * 2) 回退匹配：第一个未锁定的 name+rarity 匹配堆叠
+     * 返回被扣减的仓库堆叠 ID，若均找不到返回 null。
+     */
+    private fun <T> MutableGameState.deductWarehouseStack(
+        store: EntityStore<T>,
+        itemId: String,
+        name: String,
+        rarity: Int
+    ): String? where T : HasId, T : StackableItem {
+        val exact = store.get(itemId)
+        if (exact != null && !exact.isLocked && exact.quantity >= 1) {
+            val newQty = exact.quantity - 1
+            if (newQty <= 0) {
+                store.remove(itemId)
+            } else {
+                @Suppress("UNCHECKED_CAST")
+                store.update(itemId) { (it as StackableItem).withQuantity(newQty) as T }
+            }
+            return itemId
+        }
+        val fallback = store.all().firstOrNull { !it.isLocked && it.name == name && it.rarity == rarity && it.quantity >= 1 }
+        if (fallback != null) {
+            val newQty = fallback.quantity - 1
+            if (newQty <= 0) {
+                store.remove(fallback.id)
+            } else {
+                @Suppress("UNCHECKED_CAST")
+                store.update(fallback.id) { (it as StackableItem).withQuantity(newQty) as T }
+            }
+            return fallback.id
+        }
+        DomainLog.w(TAG, "deductWarehouseStack failed: itemId=$itemId name=$name")
+        return null
+    }
+
+    /**
+     * 检查仓库是否有指定物品的库存（未锁定且数量 ≥1）。
+     * 用于 [applyPurchaseDecisions] 在购买前判断 listing 是否可购。
+     */
+    private fun MutableGameState.hasWarehouseStock(item: MerchantItem): Boolean {
+        return when (item.type.lowercase(Locale.ROOT)) {
+            ITEM_TYPE_EQUIPMENT -> equipmentStacks.any {
+                !it.isLocked && it.name == item.name && it.rarity == item.rarity && it.quantity >= 1
+            }
+            ITEM_TYPE_MANUAL -> manualStacks.any {
+                !it.isLocked && it.name == item.name && it.rarity == item.rarity && it.quantity >= 1
+            }
+            // 设计要求：丹药按 grade 匹配合适品质
+            ITEM_TYPE_PILL -> pills.any {
+                !it.isLocked && it.name == item.name && it.rarity == item.rarity &&
+                    it.grade.displayName == (item.grade ?: "中品") && it.quantity >= 1
+            }
+            else -> false
         }
     }
 }

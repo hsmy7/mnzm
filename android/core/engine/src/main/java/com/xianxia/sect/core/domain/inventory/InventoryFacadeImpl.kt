@@ -631,12 +631,11 @@ stateStore.update {
             items.forEach { (itemId, quantity) ->
                 val eqStack = equipmentStacks.get(itemId)
                 if (eqStack != null && !eqStack.isLocked && quantity in 1..eqStack.quantity) {
-                    val n = eqStack.quantity - quantity
-                    if (n <= 0) {
-                        equipmentStacks.remove(itemId)
-                    } else {
-                        equipmentStacks.update(itemId) { it.copy(quantity = n) }
-                    }
+                    // 设计要求：上架时不扣减仓库数量，物品仍在仓库显示
+                    val alreadyListed = gameData.playerListedItems
+                        .filter { it.itemId == itemId && it.type == "equipment" }
+                        .sumOf { it.quantity }
+                    if (alreadyListed + quantity > eqStack.quantity) return@forEach
                     val eqTemplate = EquipmentDatabase.getTemplateByName(eqStack.name)
                     val eqOriginal = eqTemplate?.price ?: GameConfig.Rarity.get(eqStack.rarity).basePrice
                     val eqPrice = (eqOriginal.toDouble() * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).roundToInt().toLong()
@@ -645,12 +644,10 @@ stateStore.update {
                 }
                 val manualStack = manualStacks.get(itemId)
                 if (manualStack != null && !manualStack.isLocked && quantity in 1..manualStack.quantity) {
-                    val n = manualStack.quantity - quantity
-                    if (n <= 0) {
-                        manualStacks.remove(itemId)
-                    } else {
-                        manualStacks.update(itemId) { it.copy(quantity = n) }
-                    }
+                    val alreadyListed = gameData.playerListedItems
+                        .filter { it.itemId == itemId && it.type == "manual" }
+                        .sumOf { it.quantity }
+                    if (alreadyListed + quantity > manualStack.quantity) return@forEach
                     val mTemplate = ManualDatabase.getByName(manualStack.name)
                     val mOriginal = mTemplate?.price ?: GameConfig.Rarity.get(manualStack.rarity).basePrice
                     val mPrice = (mOriginal.toDouble() * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).roundToInt().toLong()
@@ -659,12 +656,10 @@ stateStore.update {
                 }
                 val pill = pills.get(itemId)
                 if (pill != null && !pill.isLocked && quantity in 1..pill.quantity) {
-                    val n = pill.quantity - quantity
-                    if (n <= 0) {
-                        pills.remove(itemId)
-                    } else {
-                        pills.update(itemId) { it.copy(quantity = n) }
-                    }
+                    val alreadyListed = gameData.playerListedItems
+                        .filter { it.itemId == itemId && it.type == "pill" }
+                        .sumOf { it.quantity }
+                    if (alreadyListed + quantity > pill.quantity) return@forEach
                     val pOriginal = GameConfig.Rarity.get(pill.rarity).pillBasePrice * pill.grade.priceMultiplier
                     val pPrice = (pOriginal * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).roundToInt().toLong()
                     newItems.add(MerchantItem(id = java.util.UUID.randomUUID().toString(), name = pill.name, type = "pill", itemId = itemId, rarity = pill.rarity, price = pPrice, quantity = quantity, grade = pill.grade.displayName))
@@ -679,51 +674,9 @@ stateStore.update {
 
     override suspend fun removePlayerListedItem(itemId: String) {
         stateStore.update {
-            val item = gameData.playerListedItems.find { it.id == itemId } ?: return@update
-            // 从玩家上架列表中移除，将物品退回仓库
-            when (item.type.lowercase(java.util.Locale.getDefault())) {
-                "equipment" -> {
-                    val existing = equipmentStacks.get(item.itemId)
-                    if (existing != null) {
-                        equipmentStacks.update(item.itemId) { it.copy(quantity = it.quantity + item.quantity) }
-                    } else {
-                        // 原始装备堆叠已被消耗或删除，跳过回退
-                    }
-                }
-                "manual" -> {
-                    val existing = manualStacks.get(item.itemId)
-                    if (existing != null) {
-                        manualStacks.update(item.itemId) { it.copy(quantity = it.quantity + item.quantity) }
-                    } else {
-                        // 原始功法堆叠已被消耗或删除，跳过回退
-                    }
-                }
-                "pill" -> {
-                    val existing = pills.get(item.itemId)
-                    if (existing != null) {
-                        pills.update(item.itemId) { it.copy(quantity = (it.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("pill"))) }
-                    }
-                }
-                "material" -> {
-                    val existing = materials.get(item.itemId)
-                    if (existing != null) {
-                        materials.update(item.itemId) { it.copy(quantity = (it.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("material"))) }
-                    }
-                }
-                "herb" -> {
-                    val existing = herbs.get(item.itemId)
-                    if (existing != null) {
-                        herbs.update(item.itemId) { it.copy(quantity = (it.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("herb"))) }
-                    }
-                }
-                "seed" -> {
-                    val existing = seeds.get(item.itemId)
-                    if (existing != null) {
-                        seeds.update(item.itemId) { it.copy(quantity = (it.quantity + item.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("seed"))) }
-                    }
-                }
-            }
-            gameData = gameData.copy(playerListedItems = gameData.playerListedItems.filter { it.id != itemId })
+            gameData = gameData.copy(
+                playerListedItems = gameData.playerListedItems.filter { it.id != itemId }
+            )
         }
     }
 

@@ -270,11 +270,16 @@ fun StandardPromptDialog(
                             }
                         } else {
                             Spacer(modifier = Modifier.weight(1f))
-                            GameButton(
-                                text = confirmLabel,
-                                onClick = onConfirm,
-                                buttonBackgroundRes = buttonBackgroundRes
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                GameButton(
+                                    text = confirmLabel,
+                                    onClick = onConfirm,
+                                    buttonBackgroundRes = buttonBackgroundRes
+                                )
+                            }
                         }
                     }
                 }
@@ -447,11 +452,16 @@ fun InlineStandardPromptDialog(
                             }
                         } else {
                             Spacer(modifier = Modifier.weight(1f))
-                            GameButton(
-                                text = confirmLabel,
-                                onClick = onConfirm,
-                                buttonBackgroundRes = buttonBackgroundRes
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                GameButton(
+                                    text = confirmLabel,
+                                    onClick = onConfirm,
+                                    buttonBackgroundRes = buttonBackgroundRes
+                                )
+                            }
                         }
                     }
                 }

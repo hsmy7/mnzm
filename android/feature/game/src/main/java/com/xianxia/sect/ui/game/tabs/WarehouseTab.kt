@@ -51,16 +51,6 @@ internal fun getWarehouseItemIsLocked(item: Any): Boolean = when (item) {
     is Seed -> item.isLocked
     else -> false
 }
-
-internal fun getWarehouseItemBasePrice(item: Any): Int = when (item) {
-    is EquipmentStack -> item.basePrice
-    is ManualStack -> item.basePrice
-    is Pill -> item.basePrice
-    is Material -> item.basePrice
-    is Herb -> item.basePrice
-    is Seed -> item.basePrice
-    else -> 0
-}
 internal enum class WarehouseFilter(val displayName: String) {
     ALL("全部"),
     EQUIPMENT("装备"),
@@ -400,7 +390,6 @@ internal fun WarehouseTab(
                 is Seed -> item.name
                 else -> ""
             }
-            val basePrice = getWarehouseItemBasePrice(item)
             var showDiscipleSelectDialog by remember { mutableStateOf(false) }
             var showSellDialog by remember { mutableStateOf(false) }
 
@@ -456,7 +445,6 @@ internal fun WarehouseTab(
                 SellConfirmDialog(
                     itemName = itemName,
                     maxQuantity = itemQuantity,
-                    basePrice = basePrice,
                     onConfirm = { quantity ->
                         viewModel.sellItem(itemId, itemType, quantity)
                         showSellDialog = false
