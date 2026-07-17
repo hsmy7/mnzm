@@ -293,6 +293,13 @@ data class GameData(
     @SettlementStrategy(Strategy.USE_SHADOW)
     var aiSectBeastSkipCooldowns: Map<String, Int> = emptyMap(),
 
+    /** AI 宗门妖兽遭遇战目标（beastId → aiSectId）。
+     *  当 AI 和玩家同时距离妖兽最近时，AI 暂不进攻，
+     *  等玩家行动时触发遭遇战。 */
+    @Ignore
+    @SettlementStrategy(Strategy.USE_SHADOW)
+    var aiBeastEncounterTargets: Map<String, String> = emptyMap(),
+
     // 玩家最大结盟数量
     @SettlementStrategy(Strategy.USE_SHADOW)
     var playerAllianceSlots: Int = 3,

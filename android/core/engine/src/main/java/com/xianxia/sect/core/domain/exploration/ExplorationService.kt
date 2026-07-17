@@ -1,6 +1,8 @@
 package com.xianxia.sect.core.engine.domain.exploration
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.domain.battle.EncounterAttacker
+import com.xianxia.sect.core.domain.battle.EncounterBattleService
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
@@ -50,7 +52,8 @@ class ExplorationService @Inject constructor(
     private val patrolBattleSystem: PatrolBattleSystem,
     private val lootCalculator: LootCalculator,
     private val explorationTeamManager: ExplorationTeamManager,
-    private val rngManager: GameRngManager
+    private val rngManager: GameRngManager,
+    private val encounterBattleService: EncounterBattleService
 ) {
     /** 妖兽防守战斗结果弹窗缓存（resolveBeastFightInternal 写，UI 层读） */
     companion object {
@@ -135,11 +138,58 @@ class ExplorationService @Inject constructor(
 
     suspend fun resolveBeastAttackFight(beastLevelId: String) {
         val snapshot = stateStore.gameData.value
-        val level = snapshot.worldLevels.find {
-            it.id == beastLevelId
-        } ?: return
+        val level = snapshot.worldLevels.find { it.id == beastLevelId } ?: return
         if (level.defeated) return
         stateStore.update {
+            // 遭遇战检查：妖兽附近有 AI 宗门拦截
+            val aiSectId = gameData.aiBeastEncounterTargets[beastLevelId]
+            if (aiSectId != null) {
+                val aiSect = gameData.worldMapSects.find { it.id == aiSectId }
+                val targetSect = gameData.worldMapSects.find {
+                    it.isPlayerSect || it.isPlayerOccupied
+                }
+                if (aiSect != null && targetSect != null) {
+                    val garrisonIds = targetSect.garrisonSlots
+                        .filter { it.discipleId.isNotEmpty() }
+                        .map { it.discipleId }.toSet()
+                    prepareBeastDefenders(garrisonIds)
+                    val disciples = discipleTables.assembleAll()
+                    val defenders = disciples.filter {
+                        it.id in garrisonIds && it.isAlive
+                    }
+                    if (defenders.isNotEmpty()) {
+                        val aiTeam = gameData.aiSectDisciples[aiSectId]
+                            ?.filter { it.isAlive }
+                            ?.take(GameConfig.AI.TEAM_SIZE) ?: emptyList()
+                        if (aiTeam.isNotEmpty()) {
+                            encounterBattleService.encounter(
+                                state = this,
+                                attackerA = EncounterAttacker(
+                                    sectId = targetSect.id,
+                                    sectName = targetSect.name,
+                                    isPlayer = true,
+                                    teamDisciples = defenders
+                                ),
+                                attackerB = EncounterAttacker(
+                                    sectId = aiSect.id,
+                                    sectName = aiSect.name,
+                                    isPlayer = false,
+                                    teamDisciples = aiTeam
+                                ),
+                                beast = level,
+                                year = gameData.gameYear,
+                                month = gameData.gameMonth
+                            )
+                            gameData = gameData.copy(
+                                aiBeastEncounterTargets =
+                                    gameData.aiBeastEncounterTargets - beastLevelId
+                            )
+                            return@update
+                        }
+                    }
+                }
+            }
+            // 无遭遇战，走正常妖兽战斗路径
             resolveBeastFightInternal(beastLevelId, level)
         }
     }

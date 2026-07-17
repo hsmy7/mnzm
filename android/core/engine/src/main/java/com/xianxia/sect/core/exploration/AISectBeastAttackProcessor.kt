@@ -142,7 +142,21 @@ class AISectBeastAttackProcessor @Inject constructor(
             }
 
             // Step d: 处理进攻者
-            processAttackers(state, aiAttackers, beast, year)
+            // 检查玩家是否在候选池前2名且有AI要进攻 → 记录遭遇战目标，跳过AI直接进攻
+            val playerInTop2 = candidates.take(2).any { (sect, _) ->
+                sect.isPlayerSect || sect.isPlayerOccupied
+            }
+            if (playerInTop2 && aiAttackers.isNotEmpty()) {
+                // 玩家+AI同时靠近 → 记录遭遇战目标，AI暂不进攻（等待玩家触发遭遇战）
+                val existing = state.gameData.aiBeastEncounterTargets.toMutableMap()
+                for (aiSect in aiAttackers) {
+                    existing[beast.id] = aiSect.id
+                }
+                state.gameData = state.gameData.copy(aiBeastEncounterTargets = existing)
+            } else {
+                // 只有AI或只有玩家 → 正常处理
+                processAttackers(state, aiAttackers, beast, year)
+            }
         }
 
         // 清理超过12个月的冷却记录
