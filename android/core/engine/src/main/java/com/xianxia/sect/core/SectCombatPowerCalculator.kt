@@ -55,10 +55,16 @@ object SectCombatPowerCalculator {
         magicDefense: Int,
         speed: Int
     ): Long {
-        return (physicalAttack.toLong() + magicAttack.toLong()) * 5L +
-               maxHp.toLong() * 4L +
-               (physicalDefense.toLong() + magicDefense.toLong()) * 3L +
-               speed.toLong() * 2L
+        val hp = maxHp.coerceAtLeast(0)
+        val patk = physicalAttack.coerceAtLeast(0)
+        val matk = magicAttack.coerceAtLeast(0)
+        val pdef = physicalDefense.coerceAtLeast(0)
+        val mdef = magicDefense.coerceAtLeast(0)
+        val spd = speed.coerceAtLeast(0)
+        return (patk.toLong() + matk.toLong()) * 5L +
+               hp.toLong() * 4L +
+               (pdef.toLong() + mdef.toLong()) * 3L +
+               spd.toLong() * 2L
     }
 
     /**

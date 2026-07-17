@@ -281,7 +281,8 @@ suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List<Strin
                 if (idStr in survivorIds && discipleTables.isAlive[id] == 1) {
                     discipleTables.soulPowers[id] = discipleTables.soulPowers[id] + 1
                     if (discipleTables.talentIds[id].any { tid -> TalentDatabase.getById(tid)?.effects?.containsKey("winBattleRandomAttrPlus") == true }) {
-                        val r = kotlin.random.Random.nextInt(17)
+                        // 确定性随机：用弟子 ID 散列代替 kotlin.random.Random 确保读档一致性
+                        val r = ((id * 527 + 31) % 17).let { if (it < 0) -it else it }
                         when (r) {
                             0 -> discipleTables.intelligences[id] = discipleTables.intelligences[id] + 1
                             1 -> discipleTables.comprehensions[id] = discipleTables.comprehensions[id] + 1

@@ -161,13 +161,14 @@ class BattleSystem @Inject constructor() {
         if (preGenStats != null) {
             // 使用预计算属性（生成时已含随机方差，地图显示战力 = 战斗实际战力）
             val s = preGenStats
-            hp = s.maxHp
-            mp = s.maxMp
-            physicalAttack = s.physicalAttack
-            magicAttack = s.magicAttack
-            physicalDefense = s.physicalDefense
-            magicDefense = s.magicDefense
-            speed = s.speed
+            // 钳制防止存档篡改或数据损坏导致异常值
+            hp = s.maxHp.coerceIn(1, 10_000_000)
+            mp = s.maxMp.coerceAtLeast(0)
+            physicalAttack = s.physicalAttack.coerceAtLeast(0)
+            magicAttack = s.magicAttack.coerceAtLeast(0)
+            physicalDefense = s.physicalDefense.coerceAtLeast(0)
+            magicDefense = s.magicDefense.coerceAtLeast(0)
+            speed = s.speed.coerceAtLeast(0)
             realmLayer = s.realmLayer
         } else {
             // 向后兼容：旧存档妖兽无预计算属性时，用基础值（不含随机方差）确保战斗不崩溃

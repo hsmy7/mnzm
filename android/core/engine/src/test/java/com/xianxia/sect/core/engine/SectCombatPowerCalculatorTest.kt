@@ -181,4 +181,25 @@ class SectCombatPowerCalculatorTest {
         val disciplePower = SectCombatPowerCalculator.calculateDiscipleCombatPower(stats)
         assertEquals("妖兽与弟子使用同一战力公式", disciplePower, beastPower)
     }
+
+    @Test
+    fun `calculateBeastCombatPower - negative inputs coerced to zero`() {
+        // 负数应被钳制为 0 计算，不产生负战力
+        val result = SectCombatPowerCalculator.calculateBeastCombatPower(
+            maxHp = -100, physicalAttack = -50, magicAttack = -30,
+            physicalDefense = -20, magicDefense = -10, speed = -5
+        )
+        assertEquals("负数入参应返回 0", 0L, result)
+    }
+
+    @Test
+    fun `calculateBeastCombatPower - mixed negative positive`() {
+        val result = SectCombatPowerCalculator.calculateBeastCombatPower(
+            maxHp = 1000, physicalAttack = -50, magicAttack = 100,
+            physicalDefense = 50, magicDefense = 30, speed = 80
+        )
+        // hp=1000, patk=0(钳制), matk=100, pdef=50, mdef=30, speed=80
+        // (0+100)*5 + 1000*4 + (50+30)*3 + 80*2 = 500+4000+240+160 = 4900
+        assertEquals(4900L, result)
+    }
 }

@@ -203,6 +203,7 @@ class PatrolBattleSystem @Inject constructor(
     ): List<TowerBattleResult> {
         return teams.mapNotNull { team ->
             val target = targets[team.towerIndex] ?: return@mapNotNull null
+            require(target.type == LevelType.BEAST) { "PatrolBattleSystem 只支持 BEAST 类型, got ${target.type}" }
 
             val beastTypeName = GameConfig.Beast.getType(target.beastType ?: 0).name
             val beastPreGenStats = if (target.beastMaxHp > 0) BattleSystem.BeastPreGenStats(
