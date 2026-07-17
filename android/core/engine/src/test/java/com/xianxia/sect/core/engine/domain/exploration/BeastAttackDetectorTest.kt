@@ -2,12 +2,13 @@ package com.xianxia.sect.core.engine.domain.exploration
 
 import com.xianxia.sect.core.exploration.BeastAttackDetector
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.util.GameRngManager
 import org.junit.Assert.*
 import org.junit.Test
 
 class BeastAttackDetectorTest {
 
-    private val detector = BeastAttackDetector()
+    private val detector = BeastAttackDetector(GameRngManager().also { it.initSystemSeed(42L) })
 
     @Test
     fun `detectAttacks returns empty when no beasts`() {

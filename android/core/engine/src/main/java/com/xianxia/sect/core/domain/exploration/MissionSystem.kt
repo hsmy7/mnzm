@@ -489,11 +489,9 @@ object MissionSystem {
 
         return when (activeMission.enemyType) {
             EnemyType.BEAST -> {
-                val beastCount = Random.nextInt(
-                    activeMission.template.beastCountRange.first,
-                    activeMission.template.beastCountRange.last + 1
-                )
-                val beastRealm = Random.nextInt(realmMin, realmMax + 1)
+                val beastCount = (activeMission.template.beastCountRange.first +
+                    activeMission.template.beastCountRange.last) / 2
+                val beastRealm = (realmMin + realmMax) / 2
                 val battle = battleSystem.createBattle(
                     disciples = disciples,
                     equipmentMap = equipmentMap,

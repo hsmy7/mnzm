@@ -343,7 +343,7 @@ suspend fun GameEngine.scoutSect(sectId: String, memberIds: List<String>) {
     val allDisciples = stateStore.discipleTables.assembleAll()
     val combatDisciples = memberIds.mapNotNull { id -> allDisciples.find { it.id == id && it.isAlive } }
     if (combatDisciples.isEmpty()) return
-    val aiDefenders = (data.aiSectDisciples[sectId] ?: emptyList()).filter { it.isAlive && it.realm in 7..9 }.shuffled().take(kotlin.random.Random.nextInt(5, 11))
+    val aiDefenders = (data.aiSectDisciples[sectId] ?: emptyList()).filter { it.isAlive && it.realm in 7..9 }.take(8)
     val equipmentMap = stateStore.equipmentInstancesSnapshot.associateBy { it.id }
     val manualMap = stateStore.manualInstancesSnapshot.associateBy { it.id }
     val allProficiencies = data.manualProficiencies.mapValues { (_, list) -> list.associateBy { it.manualId } }
@@ -433,7 +433,7 @@ private suspend fun GameEngine.handleBeastLevelVictory(level: WorldLevel): List<
     val beastConfig = GameConfig.Beast.getType(level.beastType ?: 0)
     val tier = GameConfig.Realm.getMaxRarity(level.realm)
     for (i in 0 until level.count) {
-        repeat(kotlin.random.Random.nextInt(1, 4)) {
+        repeat(2) { // 每只妖兽固定 2 个材料（原 Random.nextInt(1,4) 期望值≈2）
             val beastMaterial = com.xianxia.sect.core.registry.BeastMaterialDatabase.getRandomMaterialByBeastType(beastConfig.name, tier)
             if (beastMaterial != null) {
                 val material = Material(id = java.util.UUID.randomUUID().toString(), name = beastMaterial.name, rarity = beastMaterial.rarity, description = beastMaterial.description, category = beastMaterial.materialCategory, quantity = 1)
@@ -448,20 +448,23 @@ private suspend fun GameEngine.handleBeastLevelVictory(level: WorldLevel): List<
 private suspend fun GameEngine.handleCaveLevelVictory(level: WorldLevel): List<BattleRewardItem> {
     val rewards = mutableListOf<BattleRewardItem>()
     val config = LevelGenerator.getCaveReward(level.realm)
-    val spiritStones = (config.baseSpiritStones * (0.8 + kotlin.random.Random.nextDouble() * 0.4)).toLong()
+    // 基于关卡 ID 散列的确定性奖励（替代 kotlin.random.Random）
+    val seed = (level.id.hashCode() * 31 + level.realm).let { if (it < 0) -it else it }
+    val spiritMultiplier = 0.8 + (seed % 5) * 0.1 // 0.8/0.9/1.0/1.1/1.2
+    val spiritStones = (config.baseSpiritStones * spiritMultiplier).toLong()
     addSpiritStones(spiritStones)
     if (spiritStones > 0) rewards.add(BattleRewardItem(name = "灵石", quantity = spiritStones.toInt(), rarity = 1, type = "spiritStones"))
-    val itemCount = kotlin.random.Random.nextInt(1, 7)
     val (minRarity, maxRarity) = config.rarityRange
+    val itemCount = 1 + (seed / 7) % 6 // 1~6
     repeat(itemCount) {
-        val rarity = kotlin.random.Random.nextInt(minRarity, maxRarity + 1)
-        val typeRoll = kotlin.random.Random.nextDouble()
-        when {
-            typeRoll < 0.33 -> {
+        val rarity = minRarity + (seed / (11 * (it + 1))) % (maxRarity - minRarity + 1)
+        val typeIndex = (seed / (13 * (it + 1))) % 3 // 0=功法, 1=装备, 2=丹药
+        when (typeIndex) {
+            0 -> {
                 val manual = com.xianxia.sect.core.registry.ManualDatabase.generateRandom(rarity)
                 if (manual != null) { val result = inventorySystem.addManualStack(manual); if (result.isSuccess) rewards.add(BattleRewardItem(itemId = manual.id, name = manual.name, quantity = 1, rarity = manual.rarity, type = "manual")) }
             }
-            typeRoll < 0.66 -> {
+            1 -> {
                 val equip = com.xianxia.sect.core.registry.EquipmentDatabase.generateRandom(rarity)
                 if (equip != null) { val result = inventorySystem.addEquipmentStack(equip); if (result.isSuccess) rewards.add(BattleRewardItem(itemId = equip.id, name = equip.name, quantity = 1, rarity = equip.rarity, type = "equipment")) }
             }

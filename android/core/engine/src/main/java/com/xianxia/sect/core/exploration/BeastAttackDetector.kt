@@ -5,7 +5,8 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.LevelType
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.state.PendingBeastAttack
-import com.xianxia.sect.core.util.GameRandom
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
 import javax.inject.Inject
 import kotlin.math.sqrt
 
@@ -18,7 +19,9 @@ import kotlin.math.sqrt
  * 纯函数设计：不持有可变状态，不直接写入 [GameStateStore]，
  * 调用方负责将返回的预警列表通过 [GameStateStore.setPendingBeastAttacks] 写入。
  */
-class BeastAttackDetector @Inject constructor() {
+class BeastAttackDetector @Inject constructor(
+    private val rngManager: GameRngManager
+) {
 
     /**
      * 检测所有妖兽关卡对玩家宗门的攻击意图。
@@ -33,6 +36,7 @@ class BeastAttackDetector @Inject constructor() {
     fun detectAttacks(gd: GameData): List<PendingBeastAttack> {
         val year = gd.gameYear
         val month = gd.gameMonth
+        val rng = rngManager.getRng(RngPartition.EXPLORATION)
 
         val targets = gd.worldMapSects.filter { it.isPlayerSect || it.isPlayerOccupied }
         if (targets.isEmpty()) return emptyList()
@@ -63,7 +67,7 @@ class BeastAttackDetector @Inject constructor() {
 
             // 距离越近攻击概率越高：prob = baseProb * (1 - dist/radius)
             val prob = GameConfig.WorldMap.BEAST_ATTACK_BASE_PROB * (1.0 - nearestDist / radius)
-            if (GameRandom.nextDouble() < prob) {
+            if (rng.nextDouble() < prob) {
                 pending.add(
                     PendingBeastAttack(
                         beastLevel = level,
