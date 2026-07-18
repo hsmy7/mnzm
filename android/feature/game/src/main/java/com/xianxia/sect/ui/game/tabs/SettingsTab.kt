@@ -596,39 +596,6 @@ internal fun SettingsTab(
                         }
                     }
 
-                    @Composable
-                    fun Item5() {
-                        Column(modifier = itemModifier) {
-                            Text(
-                                text = "弟子脱离设置",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Start
-                            ) {
-                                Text(
-                                    text = "弟子脱离宗门弹出提示框",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.Black
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                CircularCheckbox(
-                                    checked = gameData.discipleDesertionPopup,
-                                    onToggle = {
-                                        viewModel.setDiscipleDesertionPopup(
-                                            !gameData.discipleDesertionPopup
-                                        )
-                                    }
-                                )
-                            }
-                        }
-                    }
-
                     if (columns <= 1) {
                         Column(
                             verticalArrangement = Arrangement.spacedBy(spacing)
@@ -637,7 +604,7 @@ internal fun SettingsTab(
                             Item2()
                             Item3()
                             Item4()
-                            Item5()
+
                         }
                     } else {
                         val rowSpacing = Arrangement.spacedBy(spacing)
@@ -650,7 +617,7 @@ internal fun SettingsTab(
                             Item2()
                             Item3()
                             Item4()
-                            Item5()
+
                         }
                     }
                 }

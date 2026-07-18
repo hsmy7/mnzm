@@ -24,12 +24,12 @@ class PartnerMatchResult(
     suspend fun apply(state: MutableGameState) {
         val tables = state.discipleTables
 
+        // 消息栏系统：移除了 consentRequest 弹窗，统一直接配对
         if (consentRequest != null) {
-            // 需玩家确认 → 不直接配对，只发通知
-            val male = tables.assemble(consentRequest.first)
-            val female = tables.assemble(consentRequest.second)
-            state.pendingNotification = GameNotification.MarriageRequest(male, female)
-            return
+            val maleId = consentRequest.first
+            val femaleId = consentRequest.second
+            tables.partnerIds[maleId] = femaleId.toString()
+            tables.partnerIds[femaleId] = maleId.toString()
         }
 
         // 普通模式：直接写入配对和忠诚度

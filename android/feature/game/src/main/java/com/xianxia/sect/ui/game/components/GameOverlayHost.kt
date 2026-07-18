@@ -581,80 +581,18 @@ fun GameOverlayHost(
     }
 
     if (pendingNotification != null) {
-        val gameData by viewModel.gameDataUi.collectAsStateWithLifecycle()
-    pendingNotification?.let { notification ->
-        val currentYear = gameData.gameYear
-
-        when (notification) {
-            is GameNotification.DiscipleDesertion -> {
-                if (gameData.discipleDesertionPopup) {
-                    DiscipleDesertionDialog(
-                        disciple = notification.disciple,
-                        onDismiss = { viewModel.clearNotification() }
+        pendingNotification?.let { notification ->
+            when (notification) {
+                is GameNotification.RecruitFailed -> {
+                    StandardPromptDialog(
+                        onDismissRequest = { viewModel.clearNotification() },
+                        title = "招募失败",
+                        text = notification.reason,
+                        confirmLabel = "知道了"
                     )
-                } else {
-                    viewModel.clearNotification()
                 }
-            }
-            is GameNotification.DiscipleTheftDesertion -> {
-                if (gameData.discipleDesertionPopup) {
-                    DiscipleTheftDesertionDialog(
-                        disciple = notification.disciple,
-                        onDismiss = { viewModel.clearNotification() }
-                    )
-                } else {
-                    viewModel.clearNotification()
-                }
-            }
-            is GameNotification.DiscipleTheftCaught -> {
-                DiscipleTheftCaughtDialog(
-                    disciple = notification.disciple,
-                    onDiscipleClick = { },
-                    onDismiss = {
-                        viewModel.imprisonTheftDisciple(notification.disciple.id, currentYear)
-                        viewModel.clearNotification()
-                    }
-                )
-            }
-            is GameNotification.WarehouseTheft -> {
-                StandardPromptDialog(
-                    onDismissRequest = { viewModel.clearNotification() },
-                    title = "仓库被偷盗",
-                    text = "宗门仓库被盗，损失了 ${notification.stolenAmount} 灵石",
-                    confirmLabel = "知道了"
-                )
-            }
-            is GameNotification.MarriageRequest -> {
-                MarriageApprovalDialog(
-                    maleDisciple = notification.maleDisciple,
-                    femaleDisciple = notification.femaleDisciple,
-                    onApprove = {
-                        viewModel.approveMarriage(
-                            notification.maleDisciple.id,
-                            notification.femaleDisciple.id
-                        )
-                    },
-                    onReject = { viewModel.rejectMarriage() }
-                )
-            }
-            is GameNotification.BloodRefinementComplete -> {
-                StandardPromptDialog(
-                    onDismissRequest = { viewModel.clearNotification() },
-                    title = "血练完成",
-                    text = "${notification.discipleName} 的血练已完成！属性「${notification.statName}」获得提升。",
-                    confirmLabel = "知道了"
-                )
-            }
-            is GameNotification.RecruitFailed -> {
-                StandardPromptDialog(
-                    onDismissRequest = { viewModel.clearNotification() },
-                    title = "招募失败",
-                    text = notification.reason,
-                    confirmLabel = "知道了"
-                )
             }
         }
-    }
     }
 
     viewModel.overlayOrder.forEach { overlay ->

@@ -7,9 +7,13 @@ import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.SectBattleType
 import com.xianxia.sect.core.model.SpiritStoneGrade
+import com.xianxia.sect.core.model.GameEventCategory
+import com.xianxia.sect.core.model.GameEventType
 import com.xianxia.sect.core.model.VassalContract
+import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.recordGameEvent
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.domain.FavorDomain
 import com.xianxia.sect.core.wallet.DeductResult
@@ -339,6 +343,15 @@ class VassalService @Inject constructor(
                         it.vassalSectId !in removedIds
                     }
                 )
+                removedIds.forEach { sectId ->
+                    val sect = data.worldMapSects.find { it.id == sectId }
+                    if (sect != null) {
+                        recordGameEvent(
+                            GameEventCategory.WORLD, GameEventType.VASSAL_BREAKAWAY,
+                            "${sect.name}脱离了附属关系"
+                        )
+                    }
+                }
             }
         }
     }

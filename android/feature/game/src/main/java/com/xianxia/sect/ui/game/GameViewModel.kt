@@ -671,11 +671,11 @@ class GameViewModel @Inject constructor(
         .map { it.isPaused }
         .stateIn(viewModelScope, SharingStarted.Lazily, true)
 
-    private val _gameLog = MutableStateFlow<List<String>>(emptyList())
-    val gameLog: StateFlow<List<String>> = _gameLog.asStateFlow()
-
-    private val _notifications = MutableStateFlow<List<String>>(emptyList())
-    val notifications: StateFlow<List<String>> = _notifications.asStateFlow()
+    /** 游戏事件记录——消息栏数据源 */
+    val gameEventRecords: StateFlow<List<GameEventRecord>> = gameEngine.gameData
+        .map { it.gameEventRecords }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /**
      * 打开建筑详情对话框（带参数）。
@@ -750,30 +750,12 @@ class GameViewModel @Inject constructor(
     }
 
     /**
-     * 驱逐行窃弟子，委托给 [DiscipleDelegate]
-     *
-     * @param discipleId 弟子 ID
-     */
-    fun expelTheftDisciple(discipleId: String) = disciple.expelTheftDisciple(discipleId)
-
-    /**
-     * 关押行窃弟子，委托给 [DiscipleDelegate]
-     *
-     * @param discipleId 弟子 ID
-     * @param currentYear 当前游戏年份
-     */
-    fun imprisonTheftDisciple(discipleId: String, currentYear: Int) = viewModelScope.launch { disciple.imprisonTheftDisciple(discipleId, currentYear) }
-
-    /**
      * 释放关押的行窃弟子，委托给 [DiscipleDelegate]
      *
      * @param discipleId 弟子 ID
      * @return 释放结果状态码
      */
     suspend fun releaseTheftDisciple(discipleId: String): Int = disciple.releaseTheftDisciple(discipleId)
-
-    /** 忠诚度对话框关闭时的回调，委托给 [DiscipleDelegate] */
-    fun onLoyaltyDialogDismissed() = disciple.onLoyaltyDialogDismissed()
 
     /**
      * 切换弟子跟随状态，委托给 [DiscipleDelegate]
@@ -946,19 +928,6 @@ class GameViewModel @Inject constructor(
     }
 
     /**
-     * 设置弟子脱离宗门弹窗开关。
-     *
-     * @param enabled 是否弹窗
-     */
-    fun setDiscipleDesertionPopup(enabled: Boolean) {
-        viewModelScope.launch {
-            gameEngine.updateGameData {
-                it.copy(discipleDesertionPopup = enabled)
-            }
-        }
-    }
-
-    /**
      * 设置弟子选择界面"显示所有可用弟子"的开关。
      * 勾选后选择界面将同时显示非空闲弟子（但始终排除思过/任务/战斗中弟子），
      * 选中非空闲弟子时将自动释放其原槽位。
@@ -1009,24 +978,6 @@ class GameViewModel @Inject constructor(
      */
     fun setActiveTab(tab: String) {
         gameEngine.setActiveTab(tab)
-    }
-
-    /**
-     * 同意两名弟子结为道侣，并清空待处理通知。
-     *
-     * @param maleId 男方弟子 ID
-     * @param femaleId 女方弟子 ID
-     */
-    fun approveMarriage(maleId: String, femaleId: String) {
-        viewModelScope.launch {
-            discipleFacade.approveMarriage(maleId, femaleId)
-            discipleFacade.clearPendingNotification()
-        }
-    }
-
-    /** 拒绝当前道侣申请，仅清空待处理通知 */
-    fun rejectMarriage() {
-        discipleFacade.clearPendingNotification()
     }
 
     /**

@@ -72,39 +72,7 @@ class ParallelSettlementResultTest {
     }
 
     @Test
-    fun `PartnerMatchResult apply - consent mode sets notification`() = runBlocking {
-        val tables = DiscipleTables()
-        tables.ids.add(1)
-        tables.names[1] = "male1"
-        tables.genders[1] = "male"
-        tables.realms[1] = 5
-        tables.realmLayers[1] = 1
-        tables.ages[1] = 20
-        tables.isAlive[1] = 1
-        tables.spiritRootTypes[1] = "fire"
-        tables.ids.add(2)
-        tables.names[2] = "female1"
-        tables.genders[2] = "female"
-        tables.realms[2] = 5
-        tables.realmLayers[2] = 1
-        tables.ages[2] = 20
-        tables.isAlive[2] = 1
-        tables.spiritRootTypes[2] = "water"
-
-        val state = createState(tables)
-
-        val result = PartnerMatchResult(
-            partnerUpdates = emptyMap(),
-            loyaltyUpdates = emptyMap(),
-            consentRequest = 1 to 2
-        )
-        result.apply(state)
-
-        assertTrue(state.pendingNotification is GameNotification.MarriageRequest)
-    }
-
-    @Test
-    fun `PartnerMatchResult apply - consent mode skips direct pairing`() = runBlocking {
+    fun `PartnerMatchResult apply - consent mode now pairs directly`() = runBlocking {
         val tables = DiscipleTables()
         tables.ids.add(1)
         tables.genders[1] = "male"
@@ -125,8 +93,9 @@ class ParallelSettlementResultTest {
         )
         result.apply(state)
 
-        assertEquals("old_partner", tables.partnerIds.getOrNull(1))
-        assertNotEquals(99, tables.loyalties.getOrDefault(1, 0))
+        // 消息栏系统：移除 consent 弹窗，改为直接配对 + 写入 loyaltyUpdates
+        assertEquals("2", tables.partnerIds.getOrNull(1))
+        assertEquals(99, tables.loyalties.getOrDefault(1, 0))
     }
 
     // ═══════════════════════════════════════════════════════════════

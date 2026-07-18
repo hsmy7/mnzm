@@ -116,7 +116,8 @@ class SaveDataConverter @Inject constructor() {
             } ?: emptyList(),
             spiritMineExpansions = gameData.spiritMineExpansions,
             merchantAcquisitionItems = gameData.merchantAcquisitionItems?.map { manualConverter.convertMerchantItem(it) } ?: emptyList(),
-            merchantAcquisitionLastRefreshYear = gameData.merchantAcquisitionLastRefreshYear ?: 0
+            merchantAcquisitionLastRefreshYear = gameData.merchantAcquisitionLastRefreshYear ?: 0,
+            gameEventRecords = gameData.gameEventRecords?.map { it.toSerializable() } ?: emptyList()
         )
     }
 
@@ -175,7 +176,34 @@ class SaveDataConverter @Inject constructor() {
             },
             spiritMineExpansions = data.spiritMineExpansions,
             merchantAcquisitionItems = data.merchantAcquisitionItems.map { manualConverter.convertBackMerchantItem(it) },
-            merchantAcquisitionLastRefreshYear = data.merchantAcquisitionLastRefreshYear
+            merchantAcquisitionLastRefreshYear = data.merchantAcquisitionLastRefreshYear,
+            gameEventRecords = data.gameEventRecords.mapNotNull { it.toGameEventRecord() }
+                .takeLast(GameConfig.Logs.MAX_EVENT_LOGS)
+        )
+    }
+
+    // ==================== 游戏事件记录转换 ====================
+
+    private fun GameEventRecord.toSerializable(): SerializableGameEventRecord =
+        SerializableGameEventRecord(
+            timestamp = timestamp, year = year, month = month, phase = phase,
+            category = category, eventType = eventType, summary = summary,
+            relatedEntityId = relatedEntityId,
+            relatedEntityName = relatedEntityName
+        )
+
+    private fun SerializableGameEventRecord.toGameEventRecord(): GameEventRecord? {
+        // 反序列化校验——与 recordGameEvent 入口保持一致的校验逻辑
+        if (summary.isBlank() || eventType.isBlank()) return null
+        if (summary.length > 200) return null
+        if (eventType.length > 50) return null
+        if (relatedEntityId.length > 50) return null
+        if (relatedEntityName.length > 50) return null
+        return GameEventRecord(
+            timestamp = timestamp, year = year, month = month, phase = phase,
+            category = category, eventType = eventType, summary = summary,
+            relatedEntityId = relatedEntityId,
+            relatedEntityName = relatedEntityName
         )
     }
 }

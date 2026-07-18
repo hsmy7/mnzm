@@ -463,6 +463,10 @@ data class GameData(
     @SettlementStrategy(Strategy.USE_SHADOW)
     var sectBattleRecords: List<SectBattleRecord> = emptyList(),
 
+    // 游戏事件记录——消息栏数据，保留近十年事件，上限 MAX_EVENT_LOGS
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var gameEventRecords: List<GameEventRecord> = emptyList(),
+
     // 宗门地图随机种子：新开游戏时随机初始化，不同存档产生不同的地面/装饰物分布
     @ColumnInfo(name = "map_seed", defaultValue = "0")
     @SettlementStrategy(Strategy.PRESERVE_OLD)

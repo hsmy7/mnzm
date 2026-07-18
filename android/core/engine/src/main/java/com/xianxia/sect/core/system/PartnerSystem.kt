@@ -8,7 +8,11 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.util.GameRandom
+import com.xianxia.sect.core.state.recordGameEvent
+import com.xianxia.sect.core.model.GameEventCategory
+import com.xianxia.sect.core.model.GameEventType
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.GameConfig
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -25,7 +29,8 @@ import javax.inject.Singleton
  */
 class PartnerSystem @Inject constructor(
     private val stateStore: GameStateStore,
-    private val eventBus: EventBusPort
+    private val eventBus: EventBusPort,
+    private val rngManager: GameRngManager
 ) : GameSystem, DomainEventSubscriber {
 
     override val systemName: String = "PartnerSystem"
@@ -95,11 +100,8 @@ class PartnerSystem @Inject constructor(
                 if (female.id in pairedFemaleIds) continue
                 if (hasBloodRelation(male, female)) continue
 
-                if (GameRandom.nextDouble() < PAIRING_PROBABILITY) {
-                    if (consentRequired) {
-                        state.pendingNotification = GameNotification.MarriageRequest(male, female)
-                        return
-                    }
+                if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() < PAIRING_PROBABILITY) {
+                    // 消息栏系统：移除了 consentRequired 弹窗，改为自动配对 + 事件记录
                     // ★ 直接列写入 partnerIds，避免 assembleAll → map → replaceAll
                     // 全表替换走 writeGuard 可能触发竞态崩溃 #3057
                     val maleId = male.id.toIntOrNull() ?: continue
@@ -107,6 +109,11 @@ class PartnerSystem @Inject constructor(
                     state.discipleTables.partnerIds[maleId] = female.id
                     state.discipleTables.partnerIds[femaleId] = male.id
                     pairedFemaleIds.add(female.id)
+                    state.recordGameEvent(
+                        GameEventCategory.SECT, GameEventType.MARRIAGE,
+                        "弟子${male.name}与弟子${female.name}结为道侣",
+                        male.id, male.name
+                    )
                 }
             }
         }

@@ -4,6 +4,7 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.recordGameEvent
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.disciple.*
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
@@ -223,6 +224,12 @@ class DiscipleBreakthroughHandler @Inject constructor(
                 val event = "${discipleAge}岁：突破至${newRealmName}"
                 val currentEvents = tables.lifeEvents.getOrDefault(id, emptyList())
                 tables.lifeEvents[id] = currentEvents + event
+                // 消息栏事件
+                state.recordGameEvent(
+                    GameEventCategory.SECT, GameEventType.BREAKTHROUGH,
+                    "弟子${tables.names[id]}突破至${newRealmName}！",
+                    id.toString(), tables.names.getOrDefault(id, "")
+                )
             }
         }
     }

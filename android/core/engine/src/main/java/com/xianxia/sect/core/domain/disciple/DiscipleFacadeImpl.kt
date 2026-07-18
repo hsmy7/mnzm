@@ -92,22 +92,6 @@ class DiscipleFacadeImpl @Inject constructor(
 
     override fun apprenticeToMaster(discipleId: String, masterId: String): DomainResult<Unit> = discipleService.apprenticeToMaster(discipleId, masterId)
 
-    override fun expelTheftDisciple(discipleId: String): DomainResult<Unit> = discipleService.expelDisciple(discipleId)
-
-    override fun imprisonTheftDisciple(discipleId: String, currentYear: Int) {
-        stateStore.update {
-            val id = discipleId.toIntOrNull() ?: return@update
-            if (!discipleTables.ids.contains(id)) return@update
-            if (discipleTables.isAlive[id] != 1) return@update
-            discipleTables.statuses[id] = DiscipleStatus.REFLECTING
-            val existingData = discipleTables.statusData[id]
-            discipleTables.statusData[id] = existingData + mapOf(
-                "reflectionStartYear" to currentYear.toString(),
-                "reflectionEndYear" to (currentYear + GameConfig.LawEnforcementConfig.REFLECTION_YEARS).toString()
-            )
-        }
-    }
-
     override fun releaseTheftDisciple(discipleId: String): Int {
         val loyaltyChange = (1..10).random()
         stateStore.update {
@@ -157,33 +141,6 @@ class DiscipleFacadeImpl @Inject constructor(
 
     override fun getAllDiscipleAggregates(): List<DiscipleAggregate> =
         discipleService.getAllDiscipleAggregates()
-
-    override fun approveMarriage(maleId: String, femaleId: String) {
-        stateStore.update {
-            val maleIntId = maleId.toIntOrNull()
-            val femaleIntId = femaleId.toIntOrNull()
-            if (maleIntId != null && discipleTables.ids.contains(maleIntId)) {
-                discipleTables.partnerIds[maleIntId] = femaleId
-            }
-            if (femaleIntId != null && discipleTables.ids.contains(femaleIntId)) {
-                discipleTables.partnerIds[femaleIntId] = maleId
-            }
-
-            // 记录道侣日志
-            val maleName = if (maleIntId != null) discipleTables.names.getOrNull(maleIntId) ?: "" else ""
-            val femaleName = if (femaleIntId != null) discipleTables.names.getOrNull(femaleIntId) ?: "" else ""
-            val maleAge = if (maleIntId != null) discipleTables.ages[maleIntId] else 0
-            val femaleAge = if (femaleIntId != null) discipleTables.ages[femaleIntId] else 0
-            if (maleIntId != null && maleName.isNotEmpty() && femaleName.isNotEmpty()) {
-                val maleEvents = discipleTables.lifeEvents.getOrDefault(maleIntId, emptyList())
-                discipleTables.lifeEvents[maleIntId] = maleEvents + "${maleAge}岁：与${femaleName}结为道侣"
-            }
-            if (femaleIntId != null && maleName.isNotEmpty() && femaleName.isNotEmpty()) {
-                val femaleEvents = discipleTables.lifeEvents.getOrDefault(femaleIntId, emptyList())
-                discipleTables.lifeEvents[femaleIntId] = femaleEvents + "${femaleAge}岁：与${maleName}结为道侣"
-            }
-        }
-    }
 
     override fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus) {
         stateStore.update {

@@ -349,7 +349,6 @@ class CaveExplorationProcessor @Inject constructor(
         val data = stateStore.gameData.value
         val aiDisciples = data.aiSectDisciples
 
-        // 热控分批
         val currentAbsMonth = LazyEvaluationDispatcher.toAbsoluteMonth(year, month)
         computeAIBatch(currentAbsMonth)
 

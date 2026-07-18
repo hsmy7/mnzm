@@ -293,28 +293,12 @@ class DiscipleDelegate(
         recruitDiscipleFromList(disciple.id)
     }
 
-    fun expelTheftDisciple(discipleId: String) {
-        scope.launch {
-            gameEngine.expelTheftDisciple(discipleId)
-            gameEngine.clearPendingNotification()
-        }
-    }
-
-    suspend fun imprisonTheftDisciple(discipleId: String, currentYear: Int) {
-        gameEngine.imprisonTheftDisciple(discipleId, currentYear)
-        gameEngine.clearPendingNotification()
-    }
-
     suspend fun releaseTheftDisciple(discipleId: String): Int {
         return gameEngine.releaseTheftDisciple(discipleId)
     }
 
     fun releaseReflectionDisciple(discipleId: String) {
         scope.launch { gameEngine.releaseReflectionDisciple(discipleId) }
-    }
-
-    fun onLoyaltyDialogDismissed() {
-        gameEngine.clearPendingNotification()
     }
 
     fun getDiscipleById(id: String): DiscipleAggregate? {

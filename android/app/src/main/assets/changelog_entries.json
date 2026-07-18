@@ -1,6 +1,14 @@
 [
   {
     "date": "2026-07-18",
+    "version": "4.0.57",
+    "changes": [
+      "新增：消息栏系统——主界面左下角半透明消息栏，收起态显示最近3条消息，展开态面板占左侧50%，分「世界」/「宗门」双标签显示AI宗门事件和玩家宗门事件。事件持久化200条上限，智能滚动不打断阅读位置，从左滑入动画",
+      "新增：登录界面背景图替换——替换为横屏高清修真风格背景图"
+    ]
+  },
+  {
+    "date": "2026-07-18",
     "version": "4.0.56",
     "changes": [
       "修复：5个Bugly崩溃——#3059 OnThermalStatusChangedListener TapTap类加载崩溃/#5062幽灵弟子id=64 consistencyCheck关闭+insert原子回滚/#9034/#5060 ANR assembleAll后台协程/#3061 Direct write重入竞态修复/#5058 NPE assembleAll三表校验增强"

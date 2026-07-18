@@ -12,6 +12,9 @@ import com.xianxia.sect.core.domain.battle.EncounterBattleService
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.GameEventCategory
+import com.xianxia.sect.core.model.GameEventType
+import com.xianxia.sect.core.state.recordGameEvent
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.LevelType
@@ -67,7 +70,7 @@ class AISectBeastAttackProcessor @Inject constructor(
         val gd = state.gameData
         val activeBeasts = gd.worldLevels.filter { level ->
             level.type == LevelType.BEAST && !level.defeated && !level.checkExpired(year, month)
-        }
+        }.sortedBy { it.id }
         if (activeBeasts.isEmpty()) return
 
         val rng = rngManager.getRng(RngPartition.EXPLORATION)
@@ -217,6 +220,15 @@ class AISectBeastAttackProcessor @Inject constructor(
 
         if (result.victory) {
             markBeastDefeated(state, beast.id)
+            state.recordGameEvent(
+                GameEventCategory.WORLD, GameEventType.BEAST_HUNT,
+                "${aiSect.name}击败了妖兽「${beast.beastName}」"
+            )
+        } else {
+            state.recordGameEvent(
+                GameEventCategory.WORLD, GameEventType.BEAST_FAIL,
+                "${aiSect.name}讨伐妖兽「${beast.beastName}」失败"
+            )
         }
 
         handleAIDeaths(state, aiSect.id, result, year)
@@ -293,6 +305,15 @@ class AISectBeastAttackProcessor @Inject constructor(
 
         if (beastResult.victory) {
             markBeastDefeated(state, beast.id)
+            state.recordGameEvent(
+                GameEventCategory.WORLD, GameEventType.ENCOUNTER_HUNT,
+                "${winnerSect.name}击败了妖兽「${beast.beastName}」"
+            )
+        } else {
+            state.recordGameEvent(
+                GameEventCategory.WORLD, GameEventType.ENCOUNTER_FAIL,
+                "${winnerSect.name}讨伐妖兽「${beast.beastName}」失败"
+            )
         }
 
         // 处理 Phase 2 的 AI 死亡

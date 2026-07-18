@@ -522,10 +522,12 @@ class CultivationEventProcessor @Inject constructor(
                 )
                 discipleTables.remove(id)
             }
+            // 事件记录与删除在同一事务内原子完成
+            recordGameEvent(
+                GameEventCategory.SECT, GameEventType.DESERTION,
+                "${snapshot.name}叛逃脱离了宗门", snapshot.id, snapshot.name
+            )
         }
-        stateStore.setPendingNotification(
-            GameNotification.DiscipleDesertion(snapshot)
-        )
     }
 
     /**
@@ -621,9 +623,18 @@ class CultivationEventProcessor @Inject constructor(
             if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() < theftProb) {
                 val caught = tryGuardCatch(disciple, warehouses, garrisons, captureRate)
                 if (caught) {
-                    stateStore.setPendingNotification(
-                        GameNotification.DiscipleTheftCaught(disciple)
-                    )
+                    stateStore.update {
+                        val id = disciple.id.toIntOrNull() ?: return@update
+                        if (discipleTables.ids.contains(id) && discipleTables.isAlive[id] == 1) {
+                            discipleTables.statuses[id] = DiscipleStatus.REFLECTING
+                            val existingData = discipleTables.statusData[id]
+                            discipleTables.statusData[id] = existingData + mapOf(
+                                "reflectionStartYear" to currentData.gameYear.toString(),
+                                "reflectionEndYear" to (currentData.gameYear + GameConfig.LawEnforcementConfig.REFLECTION_YEARS).toString()
+                            )
+                        }
+                        recordGameEvent(GameEventCategory.SECT, GameEventType.THEFT_CAUGHT, "${disciple.name}偷盗被捕", disciple.id, disciple.name)
+                    }
                 } else {
                     val stolenAmount = executeTheftStolen(
                         disciple, currentMonthValue, tables
@@ -637,9 +648,9 @@ class CultivationEventProcessor @Inject constructor(
                     if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() < desertionProb) {
                         thiefIds.add(id)
                     }
-                    stateStore.setPendingNotification(
-                        GameNotification.WarehouseTheft(stolenAmount)
-                    )
+                    stateStore.update {
+                        recordGameEvent(GameEventCategory.SECT, GameEventType.WAREHOUSE_THEFT, "宗门仓库被盗，损失了 $stolenAmount 灵石")
+                    }
                 }
             }
         }
@@ -655,7 +666,7 @@ class CultivationEventProcessor @Inject constructor(
         loyalThreshold: Int
     ) {
         if (thiefIds.isEmpty()) return
-        val theftDesertCleanup = mutableMapOf<Int, Pair<List<String>, Set<String>>>()
+        val theftDesertCleanup = mutableMapOf<Int, Triple<List<String>, Set<String>, String>>()
         for (thiefId in thiefIds) {
             val currentLoyal = tables.loyalties.getOrDefault(thiefId, 0)
             if (currentLoyal >= loyalThreshold) continue
@@ -673,20 +684,20 @@ class CultivationEventProcessor @Inject constructor(
                 snapshot.equipment.storageBagItems
                     .filter { it.itemType == ITEM_TYPE_MANUAL_STACK || it.itemType == ITEM_TYPE_MANUAL_INSTANCE }
                     .map { it.itemId }
-            theftDesertCleanup[thiefId] = equipIds to manualIds
-            stateStore.setPendingNotification(GameNotification.DiscipleTheftDesertion(snapshot))
+            theftDesertCleanup[thiefId] = Triple(equipIds, manualIds, snapshot.name)
             discipleLifecycleProcessor.clearDiscipleFromAllSlots(thiefId.toString())
         }
         stateStore.update {
             for (thiefId in thiefIds) {
                 if (discipleTables.loyalties.getOrDefault(thiefId, 0) >= loyalThreshold) continue
-                val (equipIds, manualIds) = theftDesertCleanup[thiefId] ?: (emptyList<String>() to emptySet())
+                val (equipIds, manualIds, thiefName) = theftDesertCleanup[thiefId] ?: continue
                 equipmentInstances = equipmentInstances.filter { it.id !in equipIds }
                 manualInstances = manualInstances.filter { it.id !in manualIds }
                 val mutableProf = gameData.manualProficiencies.toMutableMap()
                 mutableProf.remove(thiefId.toString())
                 gameData = gameData.copy(manualProficiencies = mutableProf)
                 discipleTables.remove(thiefId)
+                recordGameEvent(GameEventCategory.SECT, GameEventType.THEFT_DESERTION, "${thiefName}偷盗后叛逃", thiefId.toString(), thiefName)
             }
         }
     }

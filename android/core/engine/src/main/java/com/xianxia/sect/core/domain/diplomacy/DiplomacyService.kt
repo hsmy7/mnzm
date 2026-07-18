@@ -12,6 +12,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.DiscipleTables
+import com.xianxia.sect.core.state.recordGameEvent
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.system.MerchantItemConverter
 import com.xianxia.sect.core.config.InventoryConfig
@@ -110,6 +111,10 @@ class DiplomacyService @Inject constructor(
                         }
                     }
                 )
+                recordGameEvent(
+                    GameEventCategory.WORLD, GameEventType.ALLIANCE,
+                    "与${sect.name}结为同盟"
+                )
             }
         }
 
@@ -133,6 +138,10 @@ class DiplomacyService @Inject constructor(
                     else s
                 },
                 alliances = gameData.alliances.filter { it.id != alliance.id }
+            )
+            recordGameEvent(
+                GameEventCategory.WORLD, GameEventType.ALLIANCE_BREAK,
+                "与${sect.name}解除同盟"
             )
             success = true
         }

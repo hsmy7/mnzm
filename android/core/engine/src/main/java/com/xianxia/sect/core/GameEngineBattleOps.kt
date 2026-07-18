@@ -143,6 +143,10 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
                 rewards.equipmentStacks.forEach { inventorySystem.addEquipmentStack(it) }; rewards.manualStacks.forEach { inventorySystem.addManualStack(it) }
                 rewards.pills.forEach { inventorySystem.addPill(it) }; rewards.materials.forEach { inventorySystem.addMaterial(it) }
                 rewards.herbs.forEach { inventorySystem.addHerb(it) }; rewards.seeds.forEach { inventorySystem.addSeed(it) }
+                recordGameEvent(
+                    GameEventCategory.WORLD, GameEventType.SECT_OCCUPY,
+                    "玩家宗门占领了${targetSect.name}"
+                )
             }
         } else {
             stateStore.update {

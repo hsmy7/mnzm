@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.core.util.BuildingSpatialIndex
+import com.xianxia.sect.ui.game.components.messagebar.MessageBarHost
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -1053,6 +1054,16 @@ fun MainGameScreen(
                 LeftSideButtons(
                     viewModel = viewModel,
                     modifier = Modifier.align(Alignment.CenterStart)
+                )
+
+                // 消息栏系统 — 左下角（建造栏展开时自然遮挡消息栏）
+                val gameEventRecords by viewModel.gameEventRecords.collectAsStateWithLifecycle()
+                MessageBarHost(
+                    events = gameEventRecords,
+                    isUiVisible = isUiVisible,
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 32.dp, bottom = 16.dp)
                 )
 
                 GameActionButtons(

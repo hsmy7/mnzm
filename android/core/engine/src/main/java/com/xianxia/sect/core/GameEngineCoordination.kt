@@ -989,9 +989,10 @@ private fun MutableGameState.settleSingleRefinement(
     discipleTables.clearBloodRefinementStatusData(dId)
 
     val statName = STAT_DISPLAY_NAMES[statKey] ?: statKey
-    pendingNotification = GameNotification.BloodRefinementComplete(
-        discipleName = progress.discipleName,
-        statName = statName
+    recordGameEvent(
+        GameEventCategory.SECT, GameEventType.BLOOD_REFINEMENT,
+        "${progress.discipleName}的血练已完成！属性「$statName」获得提升。",
+        relatedEntityName = progress.discipleName
     )
 }
 private fun MutableGameState.cancelBloodRefinement(

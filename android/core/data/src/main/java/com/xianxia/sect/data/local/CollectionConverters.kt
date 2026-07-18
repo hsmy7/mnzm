@@ -538,6 +538,18 @@ object CollectionConverters {
     fun toSectBattleRecordList(value: String): List<SectBattleRecord> =
         ProtobufConverters.decodeFromBase64(ListSerializer(SectBattleRecord.serializer()), value) { emptyList() }
 
+    // ==================== 游戏事件记录转换器 ====================
+
+    @TypeConverter
+    @JvmStatic
+    fun fromGameEventRecordList(value: List<GameEventRecord>): String =
+        ProtobufConverters.encodeToBase64(ListSerializer(GameEventRecord.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toGameEventRecordList(value: String): List<GameEventRecord> =
+        ProtobufConverters.decodeFromBase64(ListSerializer(GameEventRecord.serializer()), value) { emptyList() }
+
     // ==================== 探索系统转换器 ====================
 
     @TypeConverter

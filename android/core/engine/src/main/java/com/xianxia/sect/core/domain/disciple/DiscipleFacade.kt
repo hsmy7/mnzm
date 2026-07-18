@@ -23,8 +23,6 @@ interface DiscipleFacade {
     fun recruitDisciple(): Disciple
     fun expelDisciple(discipleId: String): DomainResult<Unit>
     fun apprenticeToMaster(discipleId: String, masterId: String): DomainResult<Unit>
-    fun expelTheftDisciple(discipleId: String): DomainResult<Unit>
-    fun imprisonTheftDisciple(discipleId: String, currentYear: Int)
     fun releaseTheftDisciple(discipleId: String): Int
     fun releaseReflectionDisciple(discipleId: String)
     fun equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit>
@@ -35,7 +33,6 @@ interface DiscipleFacade {
     fun getIdleDisciples(): List<Disciple>
     fun getDiscipleAggregate(discipleId: String): DiscipleAggregate?
     fun getAllDiscipleAggregates(): List<DiscipleAggregate>
-    fun approveMarriage(maleId: String, femaleId: String)
     fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus)
     fun dismissDisciple(discipleId: String)
     fun giveItemToDisciple(discipleId: String, itemId: String, itemType: String)

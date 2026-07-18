@@ -72,7 +72,21 @@ data class SerializableGameData(
     // @ProtoNumber(55) val smartBattleEnabled — removed
     @ProtoNumber(87) val spiritMineExpansions: Int = 0,
     @ProtoNumber(88) val merchantAcquisitionItems: List<SerializableMerchantItem> = emptyList(),
-    @ProtoNumber(89) val merchantAcquisitionLastRefreshYear: Int = 0
+    @ProtoNumber(89) val merchantAcquisitionLastRefreshYear: Int = 0,
+    @ProtoNumber(91) val gameEventRecords: List<SerializableGameEventRecord> = emptyList()
+)
+
+@Serializable
+data class SerializableGameEventRecord(
+    @ProtoNumber(1) val timestamp: Long = 0L,
+    @ProtoNumber(2) val year: Int = 1,
+    @ProtoNumber(3) val month: Int = 1,
+    @ProtoNumber(4) val phase: Int = 0,
+    @ProtoNumber(5) val category: String = "SECT",
+    @ProtoNumber(6) val eventType: String = "",
+    @ProtoNumber(7) val summary: String = "",
+    @ProtoNumber(8) val relatedEntityId: String = "",
+    @ProtoNumber(9) val relatedEntityName: String = ""
 )
 
 @Serializable

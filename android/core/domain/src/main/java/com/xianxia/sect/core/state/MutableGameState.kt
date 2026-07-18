@@ -78,3 +78,41 @@ fun MutableGameState.recordPlayerBattle(
         teamCasualties = teamCasualties
     )).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
 }
+
+/**
+ * 游戏事件记录写入辅助。
+ * 所有游戏事件（弟子死亡、突破、叛逃、偷盗、AI宗门事件等）
+ * 都应通过此函数写入 gameEventRecords，统一管理持久化和裁剪。
+ *
+ * @param category 事件分类（SECT=玩家宗门, WORLD=世界/AI宗门）
+ * @param eventType 事件类型标识
+ * @param summary 显示文本
+ * @param relatedEntityId 关联实体 ID
+ * @param relatedEntityName 关联实体名称
+ */
+fun MutableGameState.recordGameEvent(
+    category: GameEventCategory,
+    eventType: String,
+    summary: String,
+    relatedEntityId: String = "",
+    relatedEntityName: String = ""
+) {
+    if (summary.isBlank() || eventType.isBlank()) return
+    if (summary.length > 200) return
+    if (eventType.length > 50) return
+    if (relatedEntityId.length > 50) return
+    if (relatedEntityName.length > 50) return
+    val d = gameData
+    gameData = gameData.copy(
+        gameEventRecords = (gameData.gameEventRecords + GameEventRecord(
+            year = d.gameYear,
+            month = d.gameMonth,
+            phase = d.gamePhase,
+            category = category.name,
+            eventType = eventType,
+            summary = summary,
+            relatedEntityId = relatedEntityId,
+            relatedEntityName = relatedEntityName
+        )).takeLast(GameConfig.Logs.MAX_EVENT_LOGS)
+    )
+}

@@ -158,6 +158,11 @@ class DiscipleLifecycleProcessor @Inject constructor(
             )
             equipmentInstances = equipmentInstances.filter { it.id !in deleteEquipIds }
             manualInstances = manualInstances.filter { it.id !in deleteManualIds }
+            recordGameEvent(
+                GameEventCategory.SECT, GameEventType.DEATH,
+                "${disciple.name}陨落（${if (isOutsideSect) "战斗" else "寿元耗尽"}）",
+                disciple.id, disciple.name
+            )
         }
 
         if (isOutsideSect) removeProficiencies(disciple.id)
