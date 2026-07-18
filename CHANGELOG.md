@@ -1,3 +1,10 @@
+## [4.0.54] - 2026-07-18（versionCode=4054）
+
+### 修复
+
+- **修复：招募弟子50人后消失 + 忠诚度清零** — 根因：`IntFlatArray.ensureCapacity()` 在 commit `65f17c67` 代码压缩时引入 Bug，扩容循环使用 `values.size`（copyOf 后 == newSize）替代原 `oldSize`，导致 `idToSlot[64..N]` 初始化为 0 而非 -1。ID ≥ 64 的组件表条目无法注册到迭代数组，`stateStore.update` deepCopy 丢失新弟子数据。修复 6 处（IntFlatArray + DoubleFlatArray 各 3 处）：ensureCapacity oldSize 保存、update bounds 守卫、delete size_ 守卫；deepCopy 幽灵 ID 过滤；22 个新增测试覆盖扩容路径。修复 3 个预存 FavorDomainTest 失败（移除 `updateFavor` 激进守卫）
+- **修复：对抗性审查全面修复** — `ensureCapacity` 整数溢出保护、`keyAt`/`valueAt` 越界守卫、`indexOfKey` 返回真实 slot 索引、FavorDomain `noGiftYears` 仅在好感递增时重置、`sectId1 == sectId2` 自我引用守卫
+
 ## [4.0.53] - 2026-07-17（versionCode=4053）
 
 ### 重构

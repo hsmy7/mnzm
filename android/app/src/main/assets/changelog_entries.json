@@ -1,5 +1,14 @@
 [
   {
+    "date": "2026-07-18",
+    "version": "4.0.54",
+    "changes": [
+      "修复：招募弟子50人后消失+忠诚度清零——根因IntFlatArray.ensureCapacity代码压缩Bug导致ID≥64的组件表条目丢失，6处修复+deepCopy幽灵过滤+22个测试覆盖扩容路径",
+      "修复：对抗性审查全面修复——ensureCapacity整数溢出保护/keyAt/valueAt越界守卫/indexOfKey返回真实slot索引/noGiftYears仅在好感递增时重置/自我引用守卫",
+      "修复：FavorDomainTest 3个预存失败——移除updateFavor激进守卫(无关系时不创建)，恢复新关系创建和clamping测试"
+    ]
+  },
+  {
     "date": "2026-07-17",
     "version": "4.0.53",
     "changes": [

@@ -31,19 +31,46 @@ class IntFlatArray @JvmOverloads constructor(initialCapacity: Int = 64) {
     @PublishedApi internal var idToSlot = IntArray(initialCapacity) { -1 }
     @PublishedApi internal var keys = IntArray(initialCapacity)
     @PublishedApi internal var size_ = 0
-    private fun ensureCapacity(key: Int) { if (key >= values.size) { val newSize = maxOf(values.size * 2, key + 1 + 64); values = values.copyOf(newSize); idToSlot = idToSlot.copyOf(newSize); for (i in values.size until newSize) idToSlot[i] = -1 } }
+    private fun ensureCapacity(key: Int) {
+        if (key >= values.size && key >= 0) {
+            val oldSize = values.size
+            val rawSize = key + 1 + 64
+            val safeSize = if (rawSize < 0) Int.MAX_VALUE else rawSize
+            val newSize = maxOf(values.size * 2, safeSize)
+            values = values.copyOf(newSize)
+            idToSlot = idToSlot.copyOf(newSize)
+            for (i in oldSize until newSize) idToSlot[i] = -1
+        }
+    }
     private fun growKeys() { keys = keys.copyOf(maxOf(keys.size * 2, 8)) }
     operator fun get(key: Int): Int = if (key >= 0 && key < values.size && idToSlot[key] >= 0) values[key] else 0
     fun get(key: Int, default: Int): Int = if (key >= 0 && key < values.size && idToSlot[key] >= 0) values[key] else default
     fun contains(key: Int): Boolean = key >= 0 && key < values.size && idToSlot[key] >= 0
     fun put(key: Int, value: Int) { if (key < 0) return; ensureCapacity(key); if (size_ >= keys.size) growKeys(); values[key] = value; if (idToSlot[key] < 0) { idToSlot[key] = size_; keys[size_] = key; size_++ } }
-    fun update(key: Int, block: (Int) -> Int) { if (key < 0) return; val c = if (key >= 0 && key < values.size && idToSlot[key] >= 0) values[key] else 0; val r = block(c); if (idToSlot[key] < 0) { ensureCapacity(key); if (size_ >= keys.size) growKeys(); idToSlot[key] = size_; keys[size_] = key; size_++ }; values[key] = r }
-    fun delete(key: Int) { if (key < 0 || key >= values.size || idToSlot[key] < 0) return; val s = idToSlot[key]; val l = size_ - 1; if (s != l) { keys[s] = keys[l]; idToSlot[keys[s]] = s }; idToSlot[key] = -1; values[key] = 0; size_-- }
+    fun update(key: Int, block: (Int) -> Int) {
+        if (key < 0) return
+        if (key >= values.size || idToSlot[key] < 0) {
+            ensureCapacity(key)
+            if (size_ >= keys.size) growKeys()
+            idToSlot[key] = size_
+            keys[size_] = key
+            size_++
+        }
+        values[key] = block(values[key])
+    }
+    fun delete(key: Int) {
+        if (key < 0 || key >= values.size || idToSlot[key] < 0) return
+        val s = idToSlot[key]
+        val l = size_ - 1
+        if (l < 0) return
+        if (s != l) { keys[s] = keys[l]; idToSlot[keys[s]] = s }
+        idToSlot[key] = -1; values[key] = 0; size_--
+    }
     fun clear() { for (i in 0 until values.size) values[i] = 0; for (i in 0 until idToSlot.size) idToSlot[i] = -1; for (i in 0 until size_) keys[i] = 0; size_ = 0 }
     fun size(): Int = size_
-    fun keyAt(index: Int): Int = keys[index]
-    fun valueAt(index: Int): Int = values[keys[index]]
-    fun indexOfKey(key: Int): Int = if (contains(key)) 1 else -1
+    fun keyAt(index: Int): Int = if (index >= 0 && index < size_) keys[index] else throw IndexOutOfBoundsException("keyAt($index) out of bounds, size=$size_")
+    fun valueAt(index: Int): Int = if (index >= 0 && index < size_) values[keys[index]] else throw IndexOutOfBoundsException("valueAt($index) out of bounds, size=$size_")
+    fun indexOfKey(key: Int): Int = if (contains(key)) idToSlot[key] else -1
 }
 
 class DoubleFlatArray @JvmOverloads constructor(initialCapacity: Int = 64) {
@@ -51,19 +78,46 @@ class DoubleFlatArray @JvmOverloads constructor(initialCapacity: Int = 64) {
     @PublishedApi internal var idToSlot = IntArray(initialCapacity) { -1 }
     @PublishedApi internal var keys = IntArray(initialCapacity)
     @PublishedApi internal var size_ = 0
-    private fun ensureCapacity(key: Int) { if (key >= values.size) { val newSize = maxOf(values.size * 2, key + 1 + 64); values = values.copyOf(newSize); idToSlot = idToSlot.copyOf(newSize); for (i in values.size until newSize) idToSlot[i] = -1 } }
+    private fun ensureCapacity(key: Int) {
+        if (key >= values.size && key >= 0) {
+            val oldSize = values.size
+            val rawSize = key + 1 + 64
+            val safeSize = if (rawSize < 0) Int.MAX_VALUE else rawSize
+            val newSize = maxOf(values.size * 2, safeSize)
+            values = values.copyOf(newSize)
+            idToSlot = idToSlot.copyOf(newSize)
+            for (i in oldSize until newSize) idToSlot[i] = -1
+        }
+    }
     private fun growKeys() { keys = keys.copyOf(maxOf(keys.size * 2, 8)) }
     operator fun get(key: Int): Double = if (key >= 0 && key < values.size && idToSlot[key] >= 0) values[key] else 0.0
     fun get(key: Int, default: Double): Double = if (key >= 0 && key < values.size && idToSlot[key] >= 0) values[key] else default
     fun contains(key: Int): Boolean = key >= 0 && key < values.size && idToSlot[key] >= 0
     fun put(key: Int, value: Double) { if (key < 0) return; ensureCapacity(key); if (size_ >= keys.size) growKeys(); values[key] = value; if (idToSlot[key] < 0) { idToSlot[key] = size_; keys[size_] = key; size_++ } }
-    fun update(key: Int, block: (Double) -> Double) { if (key < 0) return; val c = if (key >= 0 && key < values.size && idToSlot[key] >= 0) values[key] else 0.0; val r = block(c); if (idToSlot[key] < 0) { ensureCapacity(key); if (size_ >= keys.size) growKeys(); idToSlot[key] = size_; keys[size_] = key; size_++ }; values[key] = r }
-    fun delete(key: Int) { if (key < 0 || key >= values.size || idToSlot[key] < 0) return; val s = idToSlot[key]; val l = size_ - 1; if (s != l) { keys[s] = keys[l]; idToSlot[keys[s]] = s }; idToSlot[key] = -1; values[key] = 0.0; size_-- }
+    fun update(key: Int, block: (Double) -> Double) {
+        if (key < 0) return
+        if (key >= values.size || idToSlot[key] < 0) {
+            ensureCapacity(key)
+            if (size_ >= keys.size) growKeys()
+            idToSlot[key] = size_
+            keys[size_] = key
+            size_++
+        }
+        values[key] = block(values[key])
+    }
+    fun delete(key: Int) {
+        if (key < 0 || key >= values.size || idToSlot[key] < 0) return
+        val s = idToSlot[key]
+        val l = size_ - 1
+        if (l < 0) return
+        if (s != l) { keys[s] = keys[l]; idToSlot[keys[s]] = s }
+        idToSlot[key] = -1; values[key] = 0.0; size_--
+    }
     fun clear() { for (i in 0 until values.size) values[i] = 0.0; for (i in 0 until idToSlot.size) idToSlot[i] = -1; for (i in 0 until size_) keys[i] = 0; size_ = 0 }
     fun size(): Int = size_
-    fun keyAt(index: Int): Int = keys[index]
-    fun valueAt(index: Int): Double = values[keys[index]]
-    fun indexOfKey(key: Int): Int = if (contains(key)) 1 else -1
+    fun keyAt(index: Int): Int = if (index >= 0 && index < size_) keys[index] else throw IndexOutOfBoundsException("keyAt($index) out of bounds, size=$size_")
+    fun valueAt(index: Int): Double = if (index >= 0 && index < size_) values[keys[index]] else throw IndexOutOfBoundsException("valueAt($index) out of bounds, size=$size_")
+    fun indexOfKey(key: Int): Int = if (contains(key)) idToSlot[key] else -1
 }
 
 class IntComponentTable(initialCapacity: Int = 64) {

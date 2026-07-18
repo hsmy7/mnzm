@@ -255,21 +255,22 @@ object FavorDomain {
         newFavor: Int,
         year: Int = 0
     ): List<SectRelation> {
+        if (sectId1 == sectId2) return relations
         val id1 = minOf(sectId1, sectId2)
         val id2 = maxOf(sectId1, sectId2)
         val existingRelation = findRelation(relations, sectId1, sectId2)
         if (existingRelation != null && !existingRelation.acquainted) return relations
-        if (existingRelation == null) return relations  // 没有关系记录时也不创建未相识的关系
         val clampedFavor = newFavor.coerceIn(FavorConfig.MIN_FAVOR, FavorConfig.MAX_FAVOR)
         val index = relations.indexOfFirst { it.sectId1 == id1 && it.sectId2 == id2 }
 
         return if (index >= 0) {
+            val old = relations[index]
             relations.mapIndexed { i, relation ->
                 if (i == index) {
                     relation.copy(
                         favor = clampedFavor,
                         lastInteractionYear = year,
-                        noGiftYears = 0
+                        noGiftYears = if (newFavor > old.favor) 0 else old.noGiftYears
                     )
                 } else {
                     relation

@@ -811,8 +811,9 @@ class DiscipleTables {
         val copy = DiscipleTables()
         synchronized(ids) {
             val idsSnapshot = this.ids.toList()
-            copy.ids.addAll(idsSnapshot)
             _allCopyableRefs.forEach { it.copyTo(copy) }
+            // 只保留组件表中有完整数据的 ID，过滤掉幽灵 ID（Bug 产生的残留）
+            copy.ids.addAll(idsSnapshot.filter { copy.isAlive.contains(it) })
         }
         return copy
     }
