@@ -4,6 +4,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.VassalContract
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.GameStateStoreImpl
+import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.wallet.SpiritStoneLedger
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.event.EventBus
@@ -29,7 +30,9 @@ class VassalServiceTest {
         scopeProvider = ApplicationScopeProvider()
         stateStore = GameStateStoreImpl(scopeProvider, mock(GameStateRepository::class.java))
         spiritStoneWallet = SpiritStoneWallet(stateStore, SpiritStoneLedger(), mock(EventBus::class.java))
-        service = VassalService(stateStore, spiritStoneWallet)
+        val rngManager = GameRngManager()
+        rngManager.initSystemSeed(42L)
+        service = VassalService(stateStore, spiritStoneWallet, rngManager)
         runBlocking { stateStore.reset() }
     }
 
@@ -135,6 +138,18 @@ assertEquals(9L, stateStore.gameData.value.spiritStones)
     // --- 计算接受概率：战力差 ---
 
     @Test
+    fun `calculateVassalChance powerRatio below 1_0 returns 0`() {
+        // powerRatio=0.5(<1.0) → 硬门槛拦截 → 0
+        val chance = service.calculateVassalChance(
+            playerPower = 5.0, aiPower = 10.0,
+            conquestCount = 10, lostSectCount = 0,
+            battleWinCount = 10, battleLossCount = 0,
+            favor = 100
+        )
+        assertEquals(0.0, chance, 0.001)
+    }
+
+    @Test
     fun `calculateVassalChance powerRatio below 1_5 returns 0`() {
         // powerRatio=1.0(<1.5) → powerScore=0
         // totalOccupy=1, occupyRatio=0/1=0 → occupyScore=0
@@ -215,6 +230,83 @@ assertEquals(9L, stateStore.gameData.value.spiritStones)
             favor = 20
         )
         assertTrue(highFavor > lowFavor)
+    }
+
+    @Test
+    fun `calculateVassalChance new account all zeros returns 0`() {
+        // 新建号：无战力优势、无战斗记录、无好感 → 0%
+        val chance = service.calculateVassalChance(
+            playerPower = 1.0, aiPower = 100.0,
+            conquestCount = 0, lostSectCount = 0,
+            battleWinCount = 0, battleLossCount = 0,
+            favor = 0
+        )
+        assertEquals(0.0, chance, 0.001)
+    }
+
+    @Test
+    fun `calculateVassalChance zero battle data gives zero occupy and skirmish score`() {
+        // powerRatio=2.0（玩家比 AI 强），但无战斗记录 → occupyScore=0, skirmishScore=0
+        val chance = service.calculateVassalChance(
+            playerPower = 20.0, aiPower = 10.0,
+            conquestCount = 0, lostSectCount = 0,
+            battleWinCount = 0, battleLossCount = 0,
+            favor = 0
+        )
+        // powerScore=0.20, occupyScore=0, skirmishScore=0, favorScore=0
+        assertEquals(0.20, chance, 0.001)
+    }
+
+    @Test
+    fun `calculateVassalChance high favor cannot override weak power`() {
+        // powerRatio=0.9(<1.0) 但 favor=100 → 硬门槛拦截 → 0
+        val chance = service.calculateVassalChance(
+            playerPower = 9.0, aiPower = 10.0,
+            conquestCount = 5, lostSectCount = 0,
+            battleWinCount = 10, battleLossCount = 0,
+            favor = 100
+        )
+        assertEquals(0.0, chance, 0.001)
+    }
+
+    @Test
+    fun `calculateVassalChance NaN powerRatio returns 0`() {
+        val chance = service.calculateVassalChance(
+            playerPower = Double.NaN, aiPower = 1.0,
+            conquestCount = 0, lostSectCount = 0,
+            battleWinCount = 0, battleLossCount = 0,
+            favor = 0
+        )
+        assertEquals(0.0, chance, 0.001)
+    }
+
+    @Test
+    fun `calculateVassalChance negative counts treated as zero`() {
+        val chance = service.calculateVassalChance(
+            playerPower = 20.0, aiPower = 10.0,
+            conquestCount = -5, lostSectCount = -3,
+            battleWinCount = -10, battleLossCount = -2,
+            favor = 0
+        )
+        // powerScore=0.20, occupyScore=0(totalOccupy=-8→0→0), skirmishScore=0(totalSkirmish=-12→0→0), favorScore=0
+        assertEquals(0.20, chance, 0.001)
+    }
+
+    @Test
+    fun `calculateVassalChance favor beyond 100 clamped`() {
+        val clamped = service.calculateVassalChance(
+            playerPower = 20.0, aiPower = 10.0,
+            conquestCount = 1, lostSectCount = 0,
+            battleWinCount = 1, battleLossCount = 0,
+            favor = 999
+        )
+        val normal = service.calculateVassalChance(
+            playerPower = 20.0, aiPower = 10.0,
+            conquestCount = 1, lostSectCount = 0,
+            battleWinCount = 1, battleLossCount = 0,
+            favor = 100
+        )
+        assertEquals(normal, clamped, 0.001)
     }
 
     // --- 附属请求：目标不存在 ---
@@ -348,5 +440,89 @@ assertEquals(1000L, stateStore.gameData.value.spiritStones)
     fun `vassal tribute config defined for all levels`() {
         assertEquals(4, GameConfig.Vassal.TRIBUTE_BY_SECT_LEVEL.size)
         assertTrue(GameConfig.Vassal.TRIBUTE_BY_SECT_LEVEL.values.all { it > 0 })
+    }
+
+    // ═══════════════════════════════════════════
+    // 附属脱离检查
+    // ═══════════════════════════════════════════
+
+    @Test
+    fun `processMonthlyBreakawayCheck empty contracts no crash`() {
+        // 空契约列表，不应崩溃
+        service.processMonthlyBreakawayCheck()
+        assertTrue(true)
+    }
+
+    @Test
+    fun `processMonthlyBreakawayCheck missing aiSect removes contract`() {
+        runBlocking {
+            stateStore.update {
+                gameData = gameData.copy(
+                    gameYear = 10,
+                    vassalContracts = listOf(
+                        VassalContract(vassalSectId = "vanished_sect", establishedYear = 5)
+                    ),
+                    worldMapSects = listOf(
+                        com.xianxia.sect.core.model.WorldSect(id = "player", isPlayerSect = true)
+                    )
+                )
+            }
+            // "vanished_sect" 不在 worldMapSects 中 → 契约应被移除
+            service.processMonthlyBreakawayCheck()
+            assertFalse(service.isPlayerVassal("vanished_sect"))
+        }
+    }
+
+    @Test
+    fun `processMonthlyBreakawayCheck very strong player prevents breakaway`() {
+        runBlocking {
+            stateStore.update {
+                gameData = gameData.copy(
+                    gameYear = 10,
+                    vassalContracts = listOf(
+                        VassalContract(vassalSectId = "sect_weak", establishedYear = 5)
+                    ),
+                    worldMapSects = listOf(
+                        com.xianxia.sect.core.model.WorldSect(id = "player", isPlayerSect = true),
+                        com.xianxia.sect.core.model.WorldSect(id = "sect_weak", level = 0)
+                    ),
+                    aiSectDisciples = mapOf(
+                        "sect_weak" to emptyList()
+                    )
+                )
+            }
+            // 玩家有弟子（power > 0），AI 无弟子（power = 0）→ aiPower <= 0 → 不应脱离
+            service.processMonthlyBreakawayCheck()
+            assertTrue(service.isPlayerVassal("sect_weak"))
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    // 配置常量验证
+    // ═══════════════════════════════════════════
+
+    @Test
+    fun `vassal config weights sum to 1`() {
+        val sum = GameConfig.Vassal.POWER_WEIGHT + GameConfig.Vassal.OCCUPY_WEIGHT +
+            GameConfig.Vassal.SKIRMISH_WEIGHT + GameConfig.Vassal.FAVOR_WEIGHT
+        assertEquals(1.0, sum, 0.001)
+    }
+
+    @Test
+    fun `vassal power score tiers are descending`() {
+        assertTrue(GameConfig.Vassal.POWER_TIER_5X > GameConfig.Vassal.POWER_TIER_3X)
+        assertTrue(GameConfig.Vassal.POWER_TIER_3X > GameConfig.Vassal.POWER_TIER_2X)
+        assertTrue(GameConfig.Vassal.POWER_TIER_2X > GameConfig.Vassal.POWER_RATIO_MIN)
+    }
+
+    @Test
+    fun `vassal config values are within valid range`() {
+        assertTrue(GameConfig.Vassal.MAX_VASSAL_CHANCE in 0.0..1.0)
+        assertTrue(GameConfig.Vassal.MAX_BREAKAWAY_CHANCE in 0.0..1.0)
+        assertTrue(GameConfig.Vassal.POWER_WEIGHT in 0.0..1.0)
+        assertTrue(GameConfig.Vassal.OCCUPY_WEIGHT in 0.0..1.0)
+        assertTrue(GameConfig.Vassal.SKIRMISH_WEIGHT in 0.0..1.0)
+        assertTrue(GameConfig.Vassal.FAVOR_WEIGHT in 0.0..1.0)
+        assertTrue(GameConfig.Vassal.VASSALIZE_HARD_THRESHOLD >= 1.0)
     }
 }

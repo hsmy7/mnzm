@@ -276,6 +276,8 @@ class CultivationEventProcessor @Inject constructor(
         }
         // 月度修炼结算 + HP/MP恢复 + 自动装备/丹药
         safelyRun("monthlyCultivation") { processMonthlyCultivationAndAuto() }
+        // 附属宗门月度脱离检查
+        safelyRun("vassalBreakaway") { vassalService.processMonthlyBreakawayCheck() }
     }
     /**
      * 月度 HP/MP 恢复兜底。

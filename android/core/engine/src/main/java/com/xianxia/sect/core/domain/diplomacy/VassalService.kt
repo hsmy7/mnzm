@@ -120,35 +120,41 @@ class VassalService @Inject constructor(
     ): Double {
         if (aiPower <= 0) return 0.0
         val powerRatio = playerPower / aiPower
+        // NaN/Infinity 防御
+        if (powerRatio.isNaN() || powerRatio.isInfinite()) return 0.0
 
-        // 战力差 40%
+        // 战力硬门槛：玩家必须比 AI 强才有资格要求附庸
+        if (powerRatio < GameConfig.Vassal.VASSALIZE_HARD_THRESHOLD) return 0.0
+
+        // 战力差
         val powerScore = when {
-            powerRatio >= 5.0 -> 0.40
-            powerRatio >= 3.0 -> 0.30
-            powerRatio >= 2.0 -> 0.20
-            powerRatio >= GameConfig.Vassal.POWER_RATIO_MIN -> 0.10
+            powerRatio >= GameConfig.Vassal.POWER_TIER_5X -> GameConfig.Vassal.POWER_SCORE_5X
+            powerRatio >= GameConfig.Vassal.POWER_TIER_3X -> GameConfig.Vassal.POWER_SCORE_3X
+            powerRatio >= GameConfig.Vassal.POWER_TIER_2X -> GameConfig.Vassal.POWER_SCORE_2X
+            powerRatio >= GameConfig.Vassal.POWER_RATIO_MIN -> GameConfig.Vassal.POWER_SCORE_MIN
             else -> 0.0
         }
 
-        // 占领丢失 30%
+        // 占领丢失（无数据时 0——无 battle 记录 = 无 leverage）
         val totalOccupy = conquestCount + lostSectCount
         val occupyRatio = if (totalOccupy > 0) {
             conquestCount.toDouble() / totalOccupy
-        } else 0.5
-        val occupyScore = occupyRatio * 0.30
+        } else 0.0
+        val occupyScore = occupyRatio * GameConfig.Vassal.OCCUPY_WEIGHT
 
-        // 胜负 15%
+        // 胜负（无数据时 0）
         val totalSkirmish = battleWinCount + battleLossCount
         val skirmishRatio = if (totalSkirmish > 0) {
             battleWinCount.toDouble() / totalSkirmish
-        } else 0.5
-        val skirmishScore = skirmishRatio * 0.15
+        } else 0.0
+        val skirmishScore = skirmishRatio * GameConfig.Vassal.SKIRMISH_WEIGHT
 
-        // 好感度 15%
-        val favorScore = (favor.toDouble() / 100.0) * 0.15
+        // 好感度
+        val clampedFavor = favor.coerceIn(0, 100)
+        val favorScore = (clampedFavor.toDouble() / 100.0) * GameConfig.Vassal.FAVOR_WEIGHT
 
         val total = powerScore + occupyScore + skirmishScore + favorScore
-        return total.coerceIn(0.0, 0.95)
+        return total.coerceIn(0.0, GameConfig.Vassal.MAX_VASSAL_CHANCE)
     }
 
     /**
@@ -296,7 +302,7 @@ class VassalService @Inject constructor(
      * 每月判定AI附属是否脱离。
      * 四因素权重同接受逻辑。
      */
-    fun processMonthlyBreakawayCheck(year: Int, month: Int) {
+    fun processMonthlyBreakawayCheck() {
         val data = stateStore.gameData.value
         val contracts = data.vassalContracts
         if (contracts.isEmpty()) return
@@ -308,18 +314,10 @@ class VassalService @Inject constructor(
         val recentRecords = data.sectBattleRecords.filter {
             it.year >= data.gameYear - 3
         }
-        val conquests = recentRecords.count {
-            it.type == SectBattleType.CONQUEST
-        }
-        val losses = recentRecords.count {
-            it.type == SectBattleType.LOST_SECT
-        }
-        val battleWins = recentRecords.count {
-            it.type == SectBattleType.BATTLE_WIN
-        }
-        val battleLosses = recentRecords.count {
-            it.type == SectBattleType.BATTLE_LOSS
-        }
+        val conquests = recentRecords.count { it.type == SectBattleType.CONQUEST }
+        val losses = recentRecords.count { it.type == SectBattleType.LOST_SECT }
+        val battleWins = recentRecords.count { it.type == SectBattleType.BATTLE_WIN }
+        val battleLosses = recentRecords.count { it.type == SectBattleType.BATTLE_LOSS }
 
         var changed = false
         val removedIds = mutableListOf<String>()
@@ -358,54 +356,57 @@ class VassalService @Inject constructor(
             it.id == contract.vassalSectId
         } ?: return true // 宗门已不存在 → 移除
 
-        val aiPower = computeAITotalPower(contract.vassalSectId)
+        // 使用传入的 data 快照计算 AI 战力，保持与快照一致
+        val aiDisciples = data.aiSectDisciples[contract.vassalSectId] ?: emptyList()
+        val aiPower = AISectAttackManager.calculatePowerScore(aiDisciples)
         if (aiPower <= 0) return false
         val powerRatio = playerPower / aiPower
 
-        // 战力差 40%
+        // 战力差
         val baseBreak = when {
-            powerRatio >= 5.0 -> 0.0
-            powerRatio >= 3.0 -> 0.05
-            powerRatio >= 2.0 -> 0.12
-            powerRatio >= 1.5 -> 0.20
-            else -> 0.35
+            powerRatio >= GameConfig.Vassal.POWER_TIER_5X -> GameConfig.Vassal.BREAKAWAY_BASE_5X
+            powerRatio >= GameConfig.Vassal.POWER_TIER_3X -> GameConfig.Vassal.BREAKAWAY_BASE_3X
+            powerRatio >= GameConfig.Vassal.POWER_TIER_2X -> GameConfig.Vassal.BREAKAWAY_BASE_2X
+            powerRatio >= GameConfig.Vassal.POWER_RATIO_MIN -> GameConfig.Vassal.BREAKAWAY_BASE_1_5X
+            else -> GameConfig.Vassal.BREAKAWAY_BASE_WEAK
         }
-        val powerScore = baseBreak * 0.40 / 0.35
+        val powerScore = baseBreak * GameConfig.Vassal.POWER_WEIGHT / GameConfig.Vassal.BREAKAWAY_BASE_WEAK
 
-        // 占领丢失 30%
+        // 占领丢失
         val totalOcc = conquests + losses
-        val occLoss = if (totalOcc > 0) {
-            losses.toDouble() / totalOcc
-        } else 0.0
-        val occupyScore = occLoss * 0.30
+        val occLoss = if (totalOcc > 0) losses.toDouble() / totalOcc else 0.0
+        val occupyScore = occLoss * GameConfig.Vassal.OCCUPY_WEIGHT
 
-        // 胜负 15%
+        // 胜负
         val totalSk = battleWins + battleLosses
-        val skLoss = if (totalSk > 0) {
-            battleLosses.toDouble() / totalSk
-        } else 0.0
-        val skirmishScore = skLoss * 0.15
+        val skLoss = if (totalSk > 0) battleLosses.toDouble() / totalSk else 0.0
+        val skirmishScore = skLoss * GameConfig.Vassal.SKIRMISH_WEIGHT
 
-        // 好感度 15%
-        val favor = FavorDomain.findRelation(
-            data.sectRelations, playerSect.id, contract.vassalSectId
-        )?.favor ?: 50
-        val favorScore =
-            max(0.0, (50 - favor).toDouble() / 100.0) * 0.15
+        // 好感度（低于 50 时好感度越低越好感分越高）
+        val favorScore = computeBreakawayFavorScore(data.sectRelations, playerSect.id, contract.vassalSectId)
 
-        val breakChance = (
-            powerScore + occupyScore
-                + skirmishScore + favorScore
-            ).coerceIn(0.0, 0.40)
+        val breakChance = (powerScore + occupyScore + skirmishScore + favorScore)
+            .coerceIn(0.0, GameConfig.Vassal.MAX_BREAKAWAY_CHANCE)
 
         if (rng.nextDouble() < breakChance) {
-            DomainLog.i(TAG,
-                "AI附属脱离: sectId=${contract.vassalSectId}, " +
+            DomainLog.i(TAG, "AI附属脱离: sectId=${contract.vassalSectId}, " +
                 "powerRatio=${"%.2f".format(powerRatio)}, " +
                 "breakChance=${"%.2f".format(breakChance)}")
             return true
         }
         return false
+    }
+
+    /** 计算脱离好感度分数：好感度越低分数越高（最大 0.15） */
+    private fun computeBreakawayFavorScore(
+        sectRelations: List<com.xianxia.sect.core.model.SectRelation>,
+        playerSectId: String,
+        vassalSectId: String
+    ): Double {
+        val favor = FavorDomain.findRelation(sectRelations, playerSectId, vassalSectId)?.favor
+            ?: GameConfig.Vassal.BREAKAWAY_FAVOR_BASELINE
+        return max(0.0, (GameConfig.Vassal.BREAKAWAY_FAVOR_BASELINE - favor).toDouble() / 100.0) *
+            GameConfig.Vassal.FAVOR_WEIGHT
     }
 
     // ═══════════════════════════
