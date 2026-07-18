@@ -400,7 +400,13 @@ class DiscipleTables {
                 return
             }
             ids.add(id)
-            writeAllFields(disciple)
+            try {
+                writeAllFields(disciple)
+            } catch (e: Exception) {
+                // writeAllFields 中途异常 → 回滚 ids，防止幽灵 ID 残留
+                ids.remove(id)
+                throw e
+            }
         }
         assertAllTablesConsistent()
     }
@@ -714,9 +720,14 @@ class DiscipleTables {
     fun assembleAll(): List<Disciple> {
         val result = ids.distinct().mapNotNull { id ->
             try {
-                // 全幽灵防御：isAlive 表无条目说明该 ID 未经过 writeAllFields
-                if (!isAlive.contains(id)) {
-                    Log.w(TAG, "GHOST DISCIPLE (skipped): id=$id, isAlive table missing")
+                // 全幽灵防御：isAlive + names + realms 任一缺失说明 ID 未完整写入
+                if (!isAlive.contains(id) || !names.contains(id) || !realms.contains(id)) {
+                    val reason = when {
+                        !isAlive.contains(id) -> "isAlive table missing"
+                        !names.contains(id) -> "names table missing"
+                        else -> "realms table missing"
+                    }
+                    Log.w(TAG, "GHOST DISCIPLE (skipped): id=$id, $reason")
                     return@mapNotNull null
                 }
                 val d = assemble(id)

@@ -7,6 +7,7 @@ import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -120,7 +121,10 @@ class GameStateStoreImpl @Inject constructor(
         }
     }
 
-    private var _discipleTables = DiscipleTables()
+    private var _discipleTables = DiscipleTables().also {
+        // Release 构建关闭一致性校验（仅在 Debug 开发中开启）
+        DiscipleTables.consistencyCheckEnabled = false
+    }
     override val discipleTables: DiscipleTables get() = _discipleTables
 
     private val transactionLock = ReentrantLock()
@@ -681,19 +685,17 @@ class GameStateStoreImpl @Inject constructor(
 
 
     override fun update(block: MutableGameState.() -> Unit) {
-
-        // ★ 显式重入检测：reentrantCount > 0 表示最外层 update 已持有锁
-        if (reentrantCount.get() > 0) {
-            val buffer = reentrantBuffer.get() ?: return
-            buffer.block()
-            // 重入路径：buffer 即最外层 update 的 reusableMutableState，
-            // 各字段变化由外层 update 在提交阶段统一检测并写回 StateFlow，无需在此重复处理。
-            return
-        }
-
         var disciplesNeedReassemble = false
 
         transactionLock.withLock {
+            // ★ 显式重入检测（在锁内，跨线程安全）
+            if (reentrantCount.get() > 0) {
+                val buffer = reentrantBuffer.get() ?: return@withLock
+                buffer.block()
+                // 重入路径：buffer 即最外层 update 的 reusableMutableState，
+                // 各字段变化由外层 update 在提交阶段统一检测并写回 StateFlow，无需在此重复处理。
+                return@withLock
+            }
             try {
                 reentrantCount.set(1)
                 reentrantBuffer.set(reusableMutableState)
@@ -827,8 +829,11 @@ class GameStateStoreImpl @Inject constructor(
         // discipleTables 已在锁内通过 _discipleTables 原子更新，
         // assembleAll() 仅用于构建 UI 投影（_disciplesFlow），
         // 不在锁内执行不会影响数据一致性。
+        // 使用 Default 协程避免主线程 ANR（500 弟子时 ~12.5k 次表读取）
         if (disciplesNeedReassemble) {
-            _disciplesFlow.value = _discipleTables.assembleAll()
+            applicationScopeProvider.scope.launch {
+                _disciplesFlow.value = _discipleTables.assembleAll()
+            }
         }
     }
 

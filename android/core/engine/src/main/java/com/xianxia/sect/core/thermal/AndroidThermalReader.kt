@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import android.os.PowerManager
 import android.util.Log
+import androidx.annotation.RequiresApi
 import com.xianxia.sect.core.util.DomainLog
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -53,11 +54,14 @@ class AndroidThermalReader @Inject constructor(
     private var lastQueryMs = 0L
     private var registeredCallback: ((ThermalState) -> Unit)? = null
 
-    /** 注册的热状态回调（平台级） */
-    private val platformCallback = PowerManager.OnThermalStatusChangedListener { status ->
-        val state = thermalStatusToState(status)
-        DomainLog.d(TAG, "Thermal status callback: status=$status → $state")
-        registeredCallback?.invoke(state)
+    /** 注册的热状态回调（平台级）— 惰性初始化避免 TapTap 环境类加载崩溃 */
+    @get:RequiresApi(Build.VERSION_CODES.R)
+    private val platformCallback: PowerManager.OnThermalStatusChangedListener by lazy {
+        PowerManager.OnThermalStatusChangedListener { status ->
+            val state = thermalStatusToState(status)
+            DomainLog.d(TAG, "Thermal status callback: status=$status → $state")
+            registeredCallback?.invoke(state)
+        }
     }
 
     override val forecastSeconds: Int get() = FORECAST_SECONDS

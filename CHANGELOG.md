@@ -1,3 +1,9 @@
+## [4.0.56] - 2026-07-18（versionCode=4056）
+
+### 修复
+
+- **修复：5 个 Bugly 崩溃** — #3059 `OnThermalStatusChangedListener` TapTap 环境类加载崩溃（platformCallback 惰性化）、#5062 幽灵弟子 id=64（consistencyCheckEnabled 关闭 + insert 原子回滚）、#9034/#5060 ANR 主线程阻塞（assembleAll 后台 Default 协程）、#3061 Direct write 重入竞态（reentrantCount 检查移入锁内）、#5058 NPE 空参数（assembleAll 三表校验增强）
+
 ## [4.0.55] - 2026-07-18（versionCode=4055）
 
 ### 修复

@@ -1,6 +1,13 @@
 [
   {
     "date": "2026-07-18",
+    "version": "4.0.56",
+    "changes": [
+      "修复：5个Bugly崩溃——#3059 OnThermalStatusChangedListener TapTap类加载崩溃/#5062幽灵弟子id=64 consistencyCheck关闭+insert原子回滚/#9034/#5060 ANR assembleAll后台协程/#3061 Direct write重入竞态修复/#5058 NPE assembleAll三表校验增强"
+    ]
+  },
+  {
+    "date": "2026-07-18",
     "version": "4.0.55",
     "changes": [
       "修复：附庸请求战力检查缺失——新建号白送22.5%基线概率(occupyRatio/skirmishRatio默认0.5)、战力差无硬门槛、月脱离检查未接入循环，三项修复+对抗性审查13项全部处理：魔法数字抽取命名常量/提取辅助函数/快照一致性/9个新增测试"
