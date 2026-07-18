@@ -71,7 +71,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 21  // v21: MIGRATION_20_21 game_data 新增 gameEventRecords 列
+    version = 22  // v22: MIGRATION_21_22 game_data 新增 merchantRefreshChances/merchantLastRefreshChanceGrantYear 列
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)
@@ -1000,6 +1000,19 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
+        /** v21->v22: game_data 新增 merchantRefreshChances / merchantLastRefreshChanceGrantYear 列 */
+        val MIGRATION_21_22 = object : Migration(21, 22) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                if (!columnExists(db, "game_data", "merchantRefreshChances")) {
+                    db.execSQL("ALTER TABLE game_data ADD COLUMN merchantRefreshChances INTEGER NOT NULL DEFAULT 1")
+                }
+                if (!columnExists(db, "game_data", "merchantLastRefreshChanceGrantYear")) {
+                    db.execSQL("ALTER TABLE game_data ADD COLUMN merchantLastRefreshChanceGrantYear INTEGER NOT NULL DEFAULT 0")
+                }
+                Log.i(TAG, "Migration 21->22: added merchantRefreshChances, merchantLastRefreshChanceGrantYear to game_data")
+            }
+        }
+
         /**
          * 检查表中是否存在指定列。
          * 用于处理错误的 Migration 回填（已存在列重复 ALTER 会崩溃）。
@@ -1039,7 +1052,7 @@ abstract class GameDatabase : RoomDatabase() {
                         Thread(r, "GameDB-Txn")
                     }
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database created")

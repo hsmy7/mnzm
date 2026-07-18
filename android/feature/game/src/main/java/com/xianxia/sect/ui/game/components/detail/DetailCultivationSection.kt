@@ -37,6 +37,7 @@ import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.game.GameViewModel
 import java.util.Locale
 
@@ -257,94 +258,26 @@ fun BasicInfoSection(
             }
             val watchAdCallback = onWatchAdBreakthroughBonus
             if (showAdConfirmDialog && watchAdCallback != null) {
-                Dialog(
+                StandardPromptDialog(
                     onDismissRequest = { showAdConfirmDialog = false },
-                    properties = DialogProperties(usePlatformDefaultWidth = false)
-                ) {
-                    DialogSystemBarGuard()
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color.White,
-                        shadowElevation = 8.dp,
-                        modifier = Modifier.widthIn(min = 280.dp, max = 340.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(20.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "广告",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = "观看广告后弟子获得突破加成，最多观看2次。",
-                                fontSize = 13.sp,
-                                color = Color.Black,
-                                lineHeight = 20.sp
-                            )
-                            Spacer(modifier = Modifier.height(20.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                GameButton(
-                                    text = "取消",
-                                    onClick = { showAdConfirmDialog = false },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                GameButton(
-                                    text = "观看",
-                                    onClick = {
-                                        showAdConfirmDialog = false
-                                        watchAdCallback(disciple.id)
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
+                    title = "广告",
+                    text = "观看广告后弟子获得突破加成，最多观看2次。",
+                    dismissLabel = "取消",
+                    confirmLabel = "观看",
+                    onConfirm = {
+                        showAdConfirmDialog = false
+                        watchAdCallback(disciple.id)
                     }
-                }
+                )
             }
             if (showAdCooldownDialog) {
-                Dialog(
+                StandardPromptDialog(
                     onDismissRequest = { showAdCooldownDialog = false },
-                    properties = DialogProperties(usePlatformDefaultWidth = false)
-                ) {
-                    DialogSystemBarGuard()
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color.White,
-                        shadowElevation = 8.dp,
-                        modifier = Modifier.widthIn(min = 280.dp, max = 340.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(20.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "不可播放广告",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = "一分钟内只可观看一次广告",
-                                fontSize = 13.sp,
-                                color = Color.Black,
-                                lineHeight = 20.sp
-                            )
-                            Spacer(modifier = Modifier.height(20.dp))
-                            GameButton(
-                                text = "确认",
-                                onClick = { showAdCooldownDialog = false }
-                            )
-                        }
-                    }
-                }
+                    title = "不可播放广告",
+                    text = "一分钟内只可观看一次广告",
+                    confirmLabel = "确认",
+                    onConfirm = { showAdCooldownDialog = false }
+                )
             }
             if (showBreakthroughDetail) {
                 BreakthroughDetailDialog(
