@@ -100,7 +100,7 @@ class GameViewModel @Inject constructor(
     }
 
     /** 广告冷却截止时间戳（System.currentTimeMillis），在此时间之前不可播放广告 */
-    private var adCooldownUntilMs: Long = 0L
+    @Volatile private var adCooldownUntilMs: Long = 0L
 
     /** 广告是否在冷却中 */
     fun isAdOnCooldown(): Boolean = System.currentTimeMillis() < adCooldownUntilMs
@@ -1036,6 +1036,21 @@ class GameViewModel @Inject constructor(
      * @param quantity 购买数量
      */
     fun buyFromMerchant(itemId: String, quantity: Int = 1) = inventory.buyFromMerchant(itemId, quantity)
+
+    /**
+     * 手动刷新云游商人商品。
+     * 消耗1次手动刷新次数，重新生成商品列表。
+     */
+    fun refreshTravelingMerchantManual() {
+        viewModelScope.launch { gameEngine.refreshTravelingMerchantManual() }
+    }
+
+    /**
+     * 观看广告获得3次云游商人手动刷新次数。
+     */
+    fun grantMerchantRefreshChanceFromAd() {
+        viewModelScope.launch { gameEngine.grantMerchantRefreshChanceFromAd() }
+    }
 
     /**
      * 将物品挂到坊市出售，委托给 [InventoryDelegate]

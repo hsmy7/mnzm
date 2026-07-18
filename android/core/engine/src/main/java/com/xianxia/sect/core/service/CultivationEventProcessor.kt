@@ -314,14 +314,14 @@ class CultivationEventProcessor @Inject constructor(
         safelyRun("refreshRecruitList") {
             merchantAndRecruitService.refreshRecruitList(year)
         }
+        safelyRun("merchantRefreshChance") {
+            merchantAndRecruitService.giveMerchantRefreshChanceIfDue(year)
+        }
         safelyRun("yearlyAging") {
             discipleLifecycleProcessor.processYearlyAging(year)
         }
         safelyRun("sectYearlyRecruitment") {
             caveExplorationProcessor.get().processSectDisciplesYearlyRecruitment(year)
-        }
-        safelyRun("refreshTravelingMerchant") {
-            merchantAndRecruitService.refreshTravelingMerchant(year, 1)
         }
         safelyRun("autoBuy") {
             autoBuyService.executeAutoBuy(year, 1)

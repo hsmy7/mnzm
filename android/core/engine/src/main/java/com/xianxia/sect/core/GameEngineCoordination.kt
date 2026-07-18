@@ -112,6 +112,17 @@ suspend fun GameEngine.loadData(
             cultivationService.refreshRecruitList(currentData.gameYear)
         }
     }
+    // 旧存档兼容：merchantRefreshChances=0（该字段加入前的存档）初始化为1
+    // 同时设置 lastGrantYear 防止下一年度事件双倍发放
+    if (currentData.merchantRefreshChances == 0 && currentData.merchantLastRefreshChanceGrantYear == 0) {
+        stateStore.update {
+            this.gameData = this.gameData.copy(
+                merchantRefreshChances = 1,
+                merchantLastRefreshChanceGrantYear = currentData.gameYear
+            )
+        }
+        DomainLog.w("GameEngine", "loadData: merchantRefreshChances was 0, initialized to 1, lastGrantYear=${currentData.gameYear}")
+    }
     discipleService.syncAllDiscipleStatuses()
 
     // 旧存档兼容：spiritMineLastSettledMonth=0（该字段加入前的存档）会导致首月灵矿产出暴增

@@ -1,3 +1,13 @@
+## [4.0.58] - 2026-07-18（versionCode=4058）
+
+### 新增
+
+- **新增：云游商人手动刷新** — 商人不再每年自动刷新，改为每30年获得1次刷新次数（初始1次），商人界面新增刷新按钮消耗次数刷新商品。刷新次数右侧新增播放广告按钮，观看激励视频获得3次刷新次数（1分钟冷却，AtomicBoolean幂等守卫，Activity生命周期保护）
+
+### 修复
+
+- **修复：对抗性审查10项全修复** — TOCTOU竞态（updateAndReturn原子化检查+扣减）、旧存档兼容未设lastGrantYear导致双倍发放、onRewardVerify回调不幂等（AtomicBoolean compareAndSet）、次数无上限溢出（coerceAtMost 999）、setCallback覆盖（destroyAd保护）、adCooldownUntilMs跨线程不可见（@Volatile）、Activity销毁后回调崩溃（isDestroyed检查）、gameYear=0无限发放（year<=0防御）
+
 ## [4.0.57] - 2026-07-18（versionCode=4057）
 
 ### 新增

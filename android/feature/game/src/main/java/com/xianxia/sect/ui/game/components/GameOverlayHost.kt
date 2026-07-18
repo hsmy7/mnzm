@@ -77,7 +77,8 @@ fun GameOverlayHost(
     onRestartGame: () -> Unit,
     limitAdTracking: Boolean,
     onLimitAdTrackingChanged: (Boolean) -> Unit,
-    onWatchAdBreakthroughBonus: ((String) -> Unit)? = null
+    onWatchAdBreakthroughBonus: ((String) -> Unit)? = null,
+    onWatchAdMerchantRefresh: (() -> Unit)? = null
 ) {
     var tipDialogMessage by remember { mutableStateOf<String?>(null) }
     var tipDialogIsError by remember { mutableStateOf(false) }
@@ -275,7 +276,8 @@ fun GameOverlayHost(
             MerchantDialog(
                 gameData = gameData,
                 viewModel = viewModel,
-                onDismiss = onDismiss
+                onDismiss = onDismiss,
+                onWatchAdMerchantRefresh = onWatchAdMerchantRefresh
             )
         }
         is DialogType.SalaryConfig -> { }

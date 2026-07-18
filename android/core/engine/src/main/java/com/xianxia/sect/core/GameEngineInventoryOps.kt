@@ -31,6 +31,16 @@ suspend fun GameEngine.sellToMerchant(acquisitionItemId: String, quantity: Int) 
     inventoryFacade.sellToMerchant(acquisitionItemId, quantity)
 
 suspend fun GameEngine.buyMerchantItem(itemId: String, quantity: Int) = inventoryFacade.buyMerchantItem(itemId, quantity)
+fun GameEngine.refreshTravelingMerchantManual(): Boolean = cultivationService.refreshTravelingMerchantManual()
+
+/** 观看广告后获得3次手动刷新次数（上限999） */
+fun GameEngine.grantMerchantRefreshChanceFromAd() {
+    stateStore.update {
+        val newChances = (gameData.merchantRefreshChances + 3).coerceAtMost(999)
+        gameData = gameData.copy(merchantRefreshChances = newChances)
+    }
+}
+
 suspend fun GameEngine.listItemsToMerchant(items: List<Pair<String, Int>>) = inventoryFacade.listItemsToMerchant(items)
 suspend fun GameEngine.removePlayerListedItem(itemId: String) = inventoryFacade.removePlayerListedItem(itemId)
 suspend fun GameEngine.openStorageBag(bagId: String): Pair<List<BattleRewardItem>, List<RewardCardItem>> = inventoryFacade.openStorageBag(bagId)

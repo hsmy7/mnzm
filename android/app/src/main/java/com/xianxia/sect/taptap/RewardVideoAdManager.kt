@@ -52,6 +52,10 @@ object RewardVideoAdManager {
     }
 
     fun setCallback(callback: RewardVideoCallback) {
+        if (isAdLoading) {
+            Log.w(TAG, "有广告正在加载中，先销毁旧广告，再设置新回调")
+            destroyAd()
+        }
         this.callback = callback
     }
 
@@ -73,7 +77,8 @@ object RewardVideoAdManager {
         userId: String = "",
         rewardName: String = "奖励",
         rewardAmount: Int = 1,
-        extraInfo: String = ""
+        extraInfo: String = "",
+        spaceId: Long = SPACE_ID
     ) {
         if (isAdLoading) {
             Log.d(TAG, "广告正在加载中，请勿重复请求")
@@ -90,7 +95,7 @@ object RewardVideoAdManager {
 
         // 构建广告请求
         val adRequestBuilder = AdRequest.Builder()
-            .withSpaceId(SPACE_ID)
+            .withSpaceId(spaceId)
             .withRewardName(rewardName)
             .withRewardAmount(rewardAmount)
 

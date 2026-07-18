@@ -51,6 +51,11 @@ import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.components.SpriteResRegistry
+import com.xianxia.sect.ui.components.DialogSystemBarGuard
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.shape.CircleShape
 
 // 提取的子文件：MerchantListingDialog.kt, MerchantInventoryDialog.kt
 
@@ -58,7 +63,8 @@ import com.xianxia.sect.ui.theme.GameColors
 fun MerchantDialog(
     gameData: GameData?,
     viewModel: GameViewModel,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onWatchAdMerchantRefresh: (() -> Unit)? = null
 ) {
     val merchantItems = gameData?.travelingMerchantItems ?: emptyList()
     var selectedItem by remember { mutableStateOf<MerchantItem?>(null) }
@@ -70,6 +76,9 @@ fun MerchantDialog(
     var merchantMode by remember { mutableStateOf(MerchantMode.BUY) }
     var showSellConfirmDialog by remember { mutableStateOf(false) }
     var selectedAcquisitionItem by remember { mutableStateOf<MerchantItem?>(null) }
+    var showAdConfirmDialog by remember { mutableStateOf(false) }
+    var showNoChancesDialog by remember { mutableStateOf(false) }
+    var showAdCooldownDialog by remember { mutableStateOf(false) }
 
     val equipment by viewModel.equipmentStacks.collectAsStateWithLifecycle()
     val manuals by viewModel.manualStacks.collectAsStateWithLifecycle()
@@ -111,6 +120,37 @@ fun MerchantDialog(
                 color = Color.Black, modifier = Modifier.padding(end = 8.dp))
             GameButton(text = "上架", onClick = { showListingDialog = true })
             GameButton(text = "自动购买", onClick = { showAutoBuyDialog = true })
+            Spacer(Modifier.width(4.dp))
+            val refreshChances = data?.merchantRefreshChances ?: 0
+            GameButton(
+                text = "刷新",
+                onClick = {
+                    if (refreshChances > 0) {
+                        viewModel.refreshTravelingMerchantManual()
+                    } else {
+                        showNoChancesDialog = true
+                    }
+                }
+            )
+            Text("${refreshChances}次", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                color = Color.Black, modifier = Modifier.padding(start = 4.dp))
+            if (onWatchAdMerchantRefresh != null) {
+                Image(
+                    painter = painterResource(id = SpriteResRegistry.resolve("ui_play_button") ?: 0),
+                    contentDescription = "播放广告获得刷新次数",
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clip(CircleShape)
+                        .clickable {
+                            if (viewModel.isAdOnCooldown()) {
+                                showAdCooldownDialog = true
+                            } else {
+                                showAdConfirmDialog = true
+                            }
+                        },
+                    contentScale = ContentScale.FillBounds
+                )
+            }
         }
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -240,6 +280,100 @@ fun MerchantDialog(
     }
     if (showAutoBuyDialog) {
         AutoBuyDialog(gameData = gameData, viewModel = viewModel, onDismiss = { showAutoBuyDialog = false })
+    }
+
+    // ── 广告相关对话框 ────────────────────────────────────────────────
+
+    if (showAdConfirmDialog) {
+        Dialog(
+            onDismissRequest = { showAdConfirmDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            DialogSystemBarGuard()
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color.White,
+                shadowElevation = 8.dp,
+                modifier = Modifier.widthIn(min = 280.dp, max = 340.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("获得刷新次数", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    Spacer(Modifier.height(12.dp))
+                    Text("观看广告获得刷新次数", fontSize = 13.sp, color = Color.Black)
+                    Spacer(Modifier.height(20.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        GameButton(text = "取消", onClick = { showAdConfirmDialog = false }, modifier = Modifier.weight(1f))
+                        GameButton(text = "观看", onClick = {
+                            showAdConfirmDialog = false
+                            onWatchAdMerchantRefresh?.invoke()
+                        }, modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+    }
+
+    if (showNoChancesDialog) {
+        Dialog(
+            onDismissRequest = { showNoChancesDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            DialogSystemBarGuard()
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color.White,
+                shadowElevation = 8.dp,
+                modifier = Modifier.widthIn(min = 280.dp, max = 340.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("无刷新次数", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    Spacer(Modifier.height(12.dp))
+                    Text("已无刷新次数可通过观看广告获得", fontSize = 13.sp, color = Color.Black)
+                    Spacer(Modifier.height(20.dp))
+                    GameButton(
+                        text = "知道了",
+                        onClick = { showNoChancesDialog = false },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+                }
+            }
+        }
+    }
+
+    if (showAdCooldownDialog) {
+        Dialog(
+            onDismissRequest = { showAdCooldownDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            DialogSystemBarGuard()
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Color.White,
+                shadowElevation = 8.dp,
+                modifier = Modifier.widthIn(min = 280.dp, max = 340.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("不可播放广告", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    Spacer(Modifier.height(12.dp))
+                    Text("一分钟内只可观看一次广告", fontSize = 13.sp, color = Color.Black)
+                    Spacer(Modifier.height(20.dp))
+                    GameButton(
+                        text = "确认",
+                        onClick = { showAdCooldownDialog = false },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+                }
+            }
+        }
     }
 }
 

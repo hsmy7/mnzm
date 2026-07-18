@@ -158,6 +158,12 @@ data class GameData(
     var merchantLastRefreshYear: Int = 0,
     @SettlementStrategy(Strategy.USE_SHADOW)
     var merchantRefreshCount: Int = 0,
+    /** 手动刷新次数（每30年给1次），初始1次 */
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var merchantRefreshChances: Int = 1,
+    /** 上次获得手动刷新次数的游戏年份 */
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var merchantLastRefreshChanceGrantYear: Int = 0,
 
     // 玩家上架商品
     @SettlementStrategy(Strategy.PRESERVE_OLD)
@@ -522,6 +528,8 @@ data class GameData(
         travelingMerchantItems = travelingMerchantItems,
         merchantLastRefreshYear = merchantLastRefreshYear,
         merchantRefreshCount = merchantRefreshCount,
+        merchantRefreshChances = merchantRefreshChances,
+        merchantLastRefreshChanceGrantYear = merchantLastRefreshChanceGrantYear,
         playerListedItems = playerListedItems,
         merchantAcquisitionItems = merchantAcquisitionItems,
         merchantAcquisitionLastRefreshYear = merchantAcquisitionLastRefreshYear,
@@ -577,6 +585,8 @@ data class GameData(
         travelingMerchantItems = state.travelingMerchantItems,
         merchantLastRefreshYear = state.merchantLastRefreshYear,
         merchantRefreshCount = state.merchantRefreshCount,
+        merchantRefreshChances = state.merchantRefreshChances,
+        merchantLastRefreshChanceGrantYear = state.merchantLastRefreshChanceGrantYear,
         playerListedItems = state.playerListedItems,
         merchantAcquisitionItems = state.merchantAcquisitionItems,
         merchantAcquisitionLastRefreshYear = state.merchantAcquisitionLastRefreshYear,

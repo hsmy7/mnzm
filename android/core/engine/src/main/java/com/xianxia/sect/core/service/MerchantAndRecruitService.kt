@@ -50,6 +50,9 @@ class MerchantAndRecruitService @Inject constructor(
         private const val ACQUISITION_ITEM_COUNT_MIN = 1
         private const val ACQUISITION_ITEM_COUNT_MAX = 9
         private const val MAX_REASONABLE_AGE = 10000
+        private const val MERCHANT_REFRESH_CHANCE_INTERVAL_YEARS = 30
+        /** 手动刷新次数上限 */
+        private const val MAX_MERCHANT_REFRESH_CHANCES = 999
         private val VALID_REALM_RANGE = GameConfig.Realm.CONFIGS.keys.let { it.min()..it.max() }
 
         private val RARITY_PROBABILITIES = mapOf(
@@ -285,6 +288,49 @@ class MerchantAndRecruitService @Inject constructor(
         newItems.add(guaranteedMythicItem)
 
         DomainLog.i(TAG, "商人第${refreshCount}次刷新触发保底，优先添加天品物品：${mythicItem.name}")
+    }
+
+    // ── 手动刷新 ──────────────────────────────────────────────────────
+
+    /**
+     * 手动刷新旅行商人物品。
+     * 消耗1次刷新机会，重新生成商品。
+     * @return true=刷新成功, false=无可用刷新次数
+     */
+    fun refreshTravelingMerchantManual(): Boolean {
+        // 原子化检查并扣减：在锁内读取最新 chances，消除 TOCTOU 窗口
+        val decremented = stateStore.updateAndReturn {
+            if (gameData.merchantRefreshChances <= 0) return@updateAndReturn false
+            gameData = gameData.copy(
+                merchantRefreshChances = gameData.merchantRefreshChances - 1
+            )
+            true
+        }
+        if (!decremented) return false
+        val current = stateStore.gameDataSnapshot
+        refreshTravelingMerchant(current.gameYear, current.gameMonth)
+        DomainLog.i(TAG, "手动刷新商人成功，剩余次数=${stateStore.gameDataSnapshot.merchantRefreshChances}")
+        return true
+    }
+
+    /**
+     * 年度检查：每30年给1次手动刷新次数。
+     * 由 [CultivationEventProcessor] 在 yearly events 中调用。
+     */
+    fun giveMerchantRefreshChanceIfDue(year: Int) {
+        if (year <= 0) return  // 防御：无效年份跳过
+        stateStore.update {
+            val lastGrant = gameData.merchantLastRefreshChanceGrantYear
+            if (gameData.merchantRefreshChances >= MAX_MERCHANT_REFRESH_CHANCES) return@update
+            // lastGrant==0：首次（旧存档兼容代码已设 lastGrant=currentYear，不会误判）
+            if (lastGrant == 0 || year - lastGrant >= MERCHANT_REFRESH_CHANCE_INTERVAL_YEARS) {
+                gameData = gameData.copy(
+                    merchantRefreshChances = (gameData.merchantRefreshChances + 1)
+                        .coerceAtMost(MAX_MERCHANT_REFRESH_CHANCES),
+                    merchantLastRefreshChanceGrantYear = year
+                )
+            }
+        }
     }
 
     // ── 招募 ──────────────────────────────────────────────────────────

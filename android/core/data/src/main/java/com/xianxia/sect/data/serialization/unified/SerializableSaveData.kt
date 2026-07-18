@@ -73,6 +73,8 @@ data class SerializableGameData(
     @ProtoNumber(87) val spiritMineExpansions: Int = 0,
     @ProtoNumber(88) val merchantAcquisitionItems: List<SerializableMerchantItem> = emptyList(),
     @ProtoNumber(89) val merchantAcquisitionLastRefreshYear: Int = 0,
+    @ProtoNumber(90) val merchantRefreshChances: Int = 1,
+    @ProtoNumber(92) val merchantLastRefreshChanceGrantYear: Int = 0,
     @ProtoNumber(91) val gameEventRecords: List<SerializableGameEventRecord> = emptyList()
 )
 

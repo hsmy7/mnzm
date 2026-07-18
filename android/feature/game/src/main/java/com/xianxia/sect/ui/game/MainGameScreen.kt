@@ -139,7 +139,8 @@ fun MainGameScreen(
     forceSoftwareRendering: Boolean = false,
     /** Vulkan 初始化生命周期监听器（由 GameActivity 注入，驱动 CrashRecoveryEngine） */
     vulkanInitListener: NativeSurfaceView.VulkanInitListener? = null,
-    onWatchAdBreakthroughBonus: ((String) -> Unit)? = null
+    onWatchAdBreakthroughBonus: ((String) -> Unit)? = null,
+    onWatchAdMerchantRefresh: (() -> Unit)? = null
 ) {
     // [M7-OPT-1] 高频核心数据收集 - 使用 derivedStateOf 限制重组范围
     // gameData 包含资源、日期等，每 tick (100ms) 都可能变化
@@ -1139,7 +1140,8 @@ fun MainGameScreen(
             onRestartGame = onRestartGame,
             limitAdTracking = limitAdTracking,
             onLimitAdTrackingChanged = onLimitAdTrackingChanged,
-            onWatchAdBreakthroughBonus = onWatchAdBreakthroughBonus
+            onWatchAdBreakthroughBonus = onWatchAdBreakthroughBonus,
+            onWatchAdMerchantRefresh = onWatchAdMerchantRefresh
         )
 
         // 奖励卡片动效 — 最顶层，覆盖所有界面元素

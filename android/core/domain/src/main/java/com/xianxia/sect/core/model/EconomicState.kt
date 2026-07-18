@@ -15,6 +15,8 @@ data class EconomicState(
     val travelingMerchantItems: List<MerchantItem> = emptyList(),
     val merchantLastRefreshYear: Int = 0,
     val merchantRefreshCount: Int = 0,
+    val merchantRefreshChances: Int = 1,
+    val merchantLastRefreshChanceGrantYear: Int = 0,
     val playerListedItems: List<MerchantItem> = emptyList(),
     val merchantAcquisitionItems: List<MerchantItem> = emptyList(),
     val merchantAcquisitionLastRefreshYear: Int = 0,

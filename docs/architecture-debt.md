@@ -109,7 +109,39 @@
 - 在下一次 Schema 版本变更时删除该字段
 - 需新 Migration 做列删除（`ALTER TABLE ... DROP COLUMN`，SQLite ≥ 3.35.0）
 
-**难度：** 低## 不纳入债务（已完成评估）
+**难度：** 低
+
+### 8. 广告回调透传链膨胀（`onWatchAdBreakthroughBonus` / `onWatchAdMerchantRefresh`）
+
+**问题描述：** 激励视频广告的回调参数 `onWatchAdBreakthroughBonus` 穿过 5 层（GameActivity → MainGameScreen → GameOverlayHost → DiscipleDetailScreen → DetailCultivationSection）。新增的 `onWatchAdMerchantRefresh` 同样透传 4 层（GameActivity → MainGameScreen → GameOverlayHost → MerchantDialog）。每新增一种广告类型就需要在所有中间层新增一个参数。
+
+**影响范围：**
+- `GameActivity.kt`
+- `MainGameScreen.kt`
+- `GameOverlayHost.kt`
+- `DiscipleDetailScreen.kt`
+- `DetailCultivationSection.kt`
+- `MerchantDialog.kt`
+
+**修复方向：**
+- 事件总线/单 `AdCallback` 接口统一管理所有广告回调
+- 或注入 `RewardVideoAdManager` 到 ViewModel 层，由 ViewModel 直接处理回调，消除 UI 透传
+
+**难度：** 低
+
+---
+
+### 9. `GameOverlayHost` 参数数量膨胀
+
+**问题描述：** `GameOverlayHost` 参数列表包含 14 个 ViewModel + 约 10 个状态/回调参数。虽未突破 7 参数上限（非构造函数），但可读性和可维护性持续下降。
+
+**影响范围：** `GameOverlayHost.kt`
+
+**修复方向：**
+- 将 ViewModel 组和回调组分别聚合为 data class 或接口
+- 或拆分为多个专用 Overlay slot（如 `AdOverlayHost`、`DialogOverlayHost`）
+
+**难度：** 低
 
 | 项 | 判定 | 说明 |
 |---|------|------|
