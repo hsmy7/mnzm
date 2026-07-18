@@ -43,14 +43,38 @@ fun GameEngine.removeDiscipleFromLibrarySlot(slotIndex: Int) = discipleFacade.re
  * 在同一 [stateStore.update] 事务中完成，保证清除 + 重置的一致性。
  * 用于"显示所有可用弟子"功能中选中非空闲弟子时的自动释放。
  *
- * 注意：血炼中(REFINING)弟子被释放时，血炼已消耗的灵石和材料不返还。
+ * 状态特殊处理：
+ * - REFLECTING（思过中）：清除 reflection 字段，不加道德/忠诚（视为手动释放）
+ * - REFINING（血炼中）：clearAllSlots 已移除 activeBloodRefinements，
+ *   额外清理 statusData 中的 buildingId（视为血炼失败，不返还材料）
  */
 suspend fun GameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId: String) {
     stateStore.update {
-        gameData = DiscipleSlotCleanup.clearAllSlots(gameData, discipleId)
         val id = discipleId.toIntOrNull()
-        if (id != null && id in discipleTables.ids) {
-            discipleTables.statuses[id] = DiscipleStatus.IDLE
+        if (id == null || id !in discipleTables.ids) return@update
+
+        when (discipleTables.statuses[id]) {
+            DiscipleStatus.REFLECTING -> {
+                // 思过 → 手动释放：清除 reflection 字段，设为 IDLE，不给道德/忠诚
+                discipleTables.statuses[id] = DiscipleStatus.IDLE
+                val existingData = discipleTables.statusData[id]
+                discipleTables.statusData[id] = existingData - setOf(
+                    "reflectionStartYear", "reflectionEndYear"
+                )
+            }
+            DiscipleStatus.REFINING -> {
+                // 血炼 → 视为失败：clearAllSlots 已移除 activeBloodRefinements，
+                // 额外清理 statusData 中的 buildingId
+                gameData = DiscipleSlotCleanup.clearAllSlots(gameData, discipleId)
+                discipleTables.statuses[id] = DiscipleStatus.IDLE
+                val current = discipleTables.statusData.getOrDefault(id, emptyMap())
+                discipleTables.statusData[id] = current - "buildingId"
+            }
+            else -> {
+                // 其他非空闲状态：清除所有槽位引用
+                gameData = DiscipleSlotCleanup.clearAllSlots(gameData, discipleId)
+                discipleTables.statuses[id] = DiscipleStatus.IDLE
+            }
         }
     }
 }

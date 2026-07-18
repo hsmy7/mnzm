@@ -1,9 +1,24 @@
 package com.xianxia.sect.core.engine.domain.battle
 
+import com.xianxia.sect.core.util.GameRngManager
+import org.junit.After
+import org.junit.Before
 import org.junit.Assert.*
 import org.junit.Test
 
 class EnemyGeneratorTest {
+
+    @Before
+    fun setUp() {
+        val rngManager = GameRngManager()
+        rngManager.initSystemSeed(12345L)
+        enemyGenRngManager = rngManager
+    }
+
+    @After
+    fun tearDown() {
+        enemyGenRngManager = null
+    }
 
     // ---- HumanEnemyData ----
 

@@ -26,13 +26,15 @@ import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
+import com.xianxia.sect.ui.components.getQualityColor
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.ButtonSizes
 
 @Immutable
 data class PlayerListItem(
     val id: String, val name: String, val type: String,
-    val rarity: Int, val quantity: Int, val price: Long, val itemId: String
+    val rarity: Int, val quantity: Int, val price: Long,
+    val itemId: String, val grade: String? = null
 )
 
 @Composable
@@ -46,7 +48,8 @@ fun ListingManagementDialog(
     val listItems = remember(playerListedItems) {
         playerListedItems.map { item ->
             PlayerListItem(id = item.id, name = item.name, type = item.type,
-                rarity = item.rarity, quantity = item.quantity, price = item.price, itemId = item.itemId)
+                rarity = item.rarity, quantity = item.quantity, price = item.price,
+                itemId = item.itemId, grade = item.grade)
         }
     }
 
@@ -89,7 +92,12 @@ fun ListingManagementDialog(
 @Composable
 private fun ListedItemCard(item: PlayerListItem, onDelist: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(item.name, fontSize = 11.sp, color = Color.Black, modifier = Modifier.weight(1f))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(item.name, fontSize = 11.sp, color = Color.Black)
+            if (item.grade != null) {
+                Text(item.grade, fontSize = 9.sp, color = getQualityColor(item.grade))
+            }
+        }
         Text("×${item.quantity}", fontSize = 11.sp, color = Color.Black, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)
         Text("${item.price}灵石", fontSize = 11.sp, color = GameColors.GoldDark, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)
         GameButton(text = "下架", onClick = onDelist, modifier = Modifier.width(60.dp))
