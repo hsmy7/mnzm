@@ -10,6 +10,8 @@
 - **修复：上架管理丹药品质显示** — 已上架丹药列表新增彩色品质标签（下品/中品/上品），与选择卡片一致使用 `getQualityColor` 着色；选择上架时三种品质丹药均显示为独立卡片
 - **改动：显示所有弟子筛选逻辑** — 思过中弟子勾选后可见并可被选择，选中视为手动释放（不给道德/忠诚加成）；血炼中弟子选中视为血炼失败（不返还材料）；仅战斗中/任务中排除
 - **修复：EnemyGeneratorTest 预存10个测试失败** — 根因 `enemyGenRngManager` 未初始化，添加 `@Before`/`@After` 初始化和清理
+- **修复：仓库驻守对话框"显示所有弟子"无效** — 预过滤硬编码 `d.status == IDLE` 导致勾选框失效，已移除并改为委托 `filterByDiscipleStatus` 控制；同时补传 `showAllEnabled`/`battleAndExplorationIds` 参数；选择非空闲弟子时自动释放原槽位
+- **修复：filterByDiscipleStatus 未勾选时未排除战斗中弟子** — `showAllEnabled=false` 分支补充 `d.id !in battleAndExplorationIds` 检查，确保战斗/探索中弟子在任何模式下均不显示
 
 ## [4.0.57] - 2026-07-18（versionCode=4057）
 

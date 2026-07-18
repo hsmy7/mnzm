@@ -102,7 +102,7 @@ internal fun List<DiscipleAggregate>.applyFilters(
  * 根据"显示所有可用弟子"开关过滤弟子列表：
  * - 勾选时：排除 [ON_MISSION] 及 [battleAndExplorationIds]
  *   中的弟子（战斗中），其余状态均显示（含思过中、血炼中等）
- * - 不勾选时：仅显示 [IDLE]
+ * - 不勾选时：仅显示 [IDLE]，同时排除 [battleAndExplorationIds] 中的弟子
  * [additionalCheck] 用于叠加其他过滤条件（如 realmLayer、年龄、弟子类型等）
  */
 internal fun List<DiscipleAggregate>.filterByDiscipleStatus(
@@ -116,6 +116,7 @@ internal fun List<DiscipleAggregate>.filterByDiscipleStatus(
             && d.id !in battleAndExplorationIds
         } else {
             d.status == DiscipleStatus.IDLE
+            && d.id !in battleAndExplorationIds
         }
         statusOk && d.isAlive && additionalCheck(d)
     }

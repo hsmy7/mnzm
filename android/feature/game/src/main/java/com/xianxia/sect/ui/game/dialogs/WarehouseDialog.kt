@@ -102,21 +102,41 @@ fun WarehouseDialog(
     }
 
     if (showGarrisonSelect) {
+        val showAllEnabled = gameData?.showAllAvailableDisciples ?: false
+        val battleAndExplorationIds = remember(gameData) {
+            val gd = gameData
+            if (gd == null) return@remember emptySet()
+            val battleIds = gd.battleTeams.flatMap { t ->
+                t.slots.map { it.discipleId }
+            }.filter { it.isNotEmpty() }.toSet()
+            val explorationIds = gd.caveExplorationTeams.flatMap { t ->
+                t.memberIds
+            }.filter { it.isNotEmpty() }.toSet()
+            battleIds + explorationIds
+        }
         val availableDisciples = disciples.filter { d ->
-            d.isAlive && d.status == DiscipleStatus.IDLE &&
-                gameData?.warehouseGarrisons?.none { it.discipleId == d.id } == true
+            d.isAlive
+                && (gameData?.warehouseGarrisons?.none { it.discipleId == d.id } ?: true)
         }
 
         DiscipleSelectorDialog(
             config = DiscipleSelectorConfig(title = "选择驻守弟子"),
             disciples = availableDisciples,
+            showAllEnabled = showAllEnabled,
+            battleAndExplorationIds = battleAndExplorationIds,
             onDismiss = { showGarrisonSelect = false },
             onConfirm = { selected ->
                 if (selected.isNotEmpty()) {
                     scope.launch {
+                        val disciple = selected.first()
+                        if (showAllEnabled
+                            && disciple.status != com.xianxia.sect.core.model.DiscipleStatus.IDLE
+                        ) {
+                            viewModel.releaseDiscipleFromAllSlotsAtomic(disciple.id)
+                        }
                         productionViewModel.assignWarehouseGarrison(
-                            buildingInstanceId, selected.first().id,
-                            selected.first().name, activeSectId
+                            buildingInstanceId, disciple.id,
+                            disciple.name, activeSectId
                         )
                         showGarrisonSelect = false
                     }
