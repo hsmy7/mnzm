@@ -602,11 +602,13 @@ fun MainScreen(
         )
 
         Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Bottom
         ) {
-            Spacer(modifier = Modifier.weight(1f))
-
             if (isLoading) {
                 CircularProgressIndicator()
                 Spacer(modifier = Modifier.height(16.dp))
@@ -747,14 +749,15 @@ fun MainScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(80.dp))
         }
 
         Text(
             text = "v${com.xianxia.sect.core.GameConfig.Game.VERSION}",
             color = Color.Black,
             fontSize = 12.sp,
-            modifier = Modifier.align(Alignment.BottomEnd)
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 12.dp)
         )
     }
 }

@@ -114,7 +114,7 @@ private fun LoadingScreenContent(
             painter = painterResource(id = R.drawable.loading_background),
             contentDescription = "加载界面背景",
             modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.FillBounds
+            contentScale = ContentScale.Crop
         )
 
         // 底部进度条和百分比
