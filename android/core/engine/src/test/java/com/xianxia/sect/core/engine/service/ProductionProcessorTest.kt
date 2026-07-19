@@ -13,9 +13,9 @@ import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
+import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.engine.service.*
 import com.xianxia.sect.core.repository.ProductionSlotRepository
-import com.xianxia.sect.core.util.CoroutineScopeProvider
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Test
@@ -485,7 +485,8 @@ class ProductionProcessorTest {
             productionCoordinator = mock(),
             productionSlotRepository = mock(),
             formulaService = mock(),
-            rngManager = mock()
+            rngManager = mock(),
+            scopeProvider = mock()
         )
     }
 

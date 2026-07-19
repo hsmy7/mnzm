@@ -17,6 +17,8 @@ import javax.inject.Singleton
  *   gameEventBus.events.filterIsInstance<BattleCompletedEvent>()
  *       .collect { event -> handleBattleResult(event) }
  */
+/** @deprecated 使用 [com.xianxia.sect.core.event.EventBus]（GameEvents.kt）替代。 */
+@Deprecated("迁移到 EventBus（GameEvents.kt）")
 @Singleton
 class GameEventBus @Inject constructor() {
     private val _events = MutableSharedFlow<GameEvent>(extraBufferCapacity = 64)

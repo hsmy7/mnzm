@@ -9,10 +9,10 @@ interface BattleLogDao {
     @Query("SELECT * FROM battle_logs WHERE slot_id = :slotId ORDER BY timestamp DESC LIMIT :limit")
     fun getRecent(slotId: Int, limit: Int = 50): Flow<List<BattleLog>>
 
-    @Query("SELECT * FROM battle_logs WHERE slot_id = :slotId ORDER BY timestamp DESC")
+    @Query("SELECT * FROM battle_logs WHERE slot_id = :slotId ORDER BY timestamp DESC LIMIT 200")
     fun getAll(slotId: Int): Flow<List<BattleLog>>
 
-    @Query("SELECT * FROM battle_logs WHERE slot_id = :slotId ORDER BY timestamp DESC")
+    @Query("SELECT * FROM battle_logs WHERE slot_id = :slotId ORDER BY timestamp DESC LIMIT 200")
     suspend fun getAllSync(slotId: Int): List<BattleLog>
 
     @Query("SELECT * FROM battle_logs WHERE slot_id = :slotId AND id = :id")

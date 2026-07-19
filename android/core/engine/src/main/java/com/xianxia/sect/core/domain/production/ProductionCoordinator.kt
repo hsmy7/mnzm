@@ -132,7 +132,7 @@ class ProductionCoordinator @Inject constructor(
         return repository.getSlotByBuildingId(buildingId, slotIndex)
     }
     
-    fun startAlchemyAtomic(
+    suspend fun startAlchemyAtomic(
         slotIndex: Int,
         recipeId: String,
         currentYear: Int,
@@ -235,7 +235,7 @@ class ProductionCoordinator @Inject constructor(
         )
     }
     
-    fun startForgingAtomic(
+    suspend fun startForgingAtomic(
         slotIndex: Int,
         recipeId: String,
         currentYear: Int,

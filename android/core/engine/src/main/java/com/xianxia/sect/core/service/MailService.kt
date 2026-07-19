@@ -20,6 +20,7 @@ import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.util.HttpClientProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -61,6 +62,7 @@ class MailService @Inject constructor(
     private val inventoryConfig: InventoryConfig,
     private val httpClient: HttpClientProvider,
     private val spiritStoneWallet: SpiritStoneWallet,
+    private val scopeProvider: com.xianxia.sect.core.util.CoroutineScopeProvider,
     @ApplicationContext private val appContext: android.content.Context
 ) {
     companion object {
@@ -100,7 +102,7 @@ class MailService @Inject constructor(
     }
 
     fun clearForSlot(slotId: Int) {
-        kotlinx.coroutines.runBlocking {
+        scopeProvider.scope.launch {
             getMutex(slotId).withLock {
                 mailRepo.deleteAllForSlot(slotId)
             }
@@ -110,7 +112,8 @@ class MailService @Inject constructor(
     fun processMonthlyMails(state: MutableGameState) {
         val slotId = state.gameData.currentSlot.coerceAtLeast(1)
         try {
-            kotlinx.coroutines.runBlocking {
+            // 非关键邮件操作，异步执行不阻塞游戏线程
+            scopeProvider.scope.launch {
                 fetchOnlineMails(slotId)
                 cleanExpired(slotId)
             }

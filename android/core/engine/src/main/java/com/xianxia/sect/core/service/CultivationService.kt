@@ -351,11 +351,11 @@ class CultivationService @Inject constructor(
             productionProcessor.processSpiritFieldHarvest(state)
     }
 
-    internal fun processAutoAlchemy() {
+    internal suspend fun processAutoAlchemy() {
             productionProcessor.processAutoAlchemy()
     }
 
-    internal fun processAutoForge() {
+    internal suspend fun processAutoForge() {
             productionProcessor.processAutoForge()
     }
 

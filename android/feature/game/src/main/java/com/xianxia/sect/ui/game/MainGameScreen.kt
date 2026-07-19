@@ -61,6 +61,8 @@ import com.xianxia.sect.ui.game.sect.RenderFrame
 import com.xianxia.sect.ui.game.components.GameActionButtons
 import com.xianxia.sect.ui.game.components.LeftSideButtons
 import com.xianxia.sect.ui.game.components.GameOverlayHost
+import com.xianxia.sect.ui.game.components.OverlayViewModels
+import com.xianxia.sect.ui.game.components.OverlayCallbacks
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.ui.game.building.BuildingConstructionBar
@@ -1124,24 +1126,28 @@ fun MainGameScreen(
 
         // Dialog overlay — extracted to GameOverlayHost
         GameOverlayHost(
-            viewModel = viewModel,
-            saveLoadViewModel = saveLoadViewModel,
-            productionViewModel = productionViewModel,
-            alchemyViewModel = alchemyViewModel,
-            forgeViewModel = forgeViewModel,
-            herbGardenViewModel = herbGardenViewModel,
-            spiritMineViewModel = spiritMineViewModel,
-            patrolTowerViewModel = patrolTowerViewModel,
-            bloodRefiningViewModel = bloodRefiningViewModel,
-            worldMapInteractionViewModel = worldMapInteractionViewModel,
-            worldMapGarrisonViewModel = worldMapGarrisonViewModel,
-            battleViewModel = battleViewModel,
-            onLogout = onLogout,
-            onRestartGame = onRestartGame,
-            limitAdTracking = limitAdTracking,
-            onLimitAdTrackingChanged = onLimitAdTrackingChanged,
-            onWatchAdBreakthroughBonus = onWatchAdBreakthroughBonus,
-            onWatchAdMerchantRefresh = onWatchAdMerchantRefresh
+            vms = OverlayViewModels(
+                game = viewModel,
+                saveLoad = saveLoadViewModel,
+                production = productionViewModel,
+                alchemy = alchemyViewModel,
+                forge = forgeViewModel,
+                herbGarden = herbGardenViewModel,
+                spiritMine = spiritMineViewModel,
+                patrolTower = patrolTowerViewModel,
+                bloodRefining = bloodRefiningViewModel,
+                worldMapInteraction = worldMapInteractionViewModel,
+                worldMapGarrison = worldMapGarrisonViewModel,
+                battle = battleViewModel
+            ),
+            callbacks = OverlayCallbacks(
+                onLogout = onLogout,
+                onRestartGame = onRestartGame,
+                limitAdTracking = limitAdTracking,
+                onLimitAdTrackingChanged = onLimitAdTrackingChanged,
+                onWatchAdBreakthroughBonus = onWatchAdBreakthroughBonus,
+                onWatchAdMerchantRefresh = onWatchAdMerchantRefresh
+            )
         )
 
         // 奖励卡片动效 — 最顶层，覆盖所有界面元素

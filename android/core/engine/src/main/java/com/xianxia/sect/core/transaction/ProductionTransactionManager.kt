@@ -13,7 +13,7 @@ import com.xianxia.sect.core.util.RngPartition
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 
 data class ProductionTransactionResult(
     val success: Boolean,
@@ -137,7 +137,7 @@ class ProductionTransactionManager @Inject constructor(
         }
     }
 
-    fun executeStartProductionByBuildingId(
+    suspend fun executeStartProductionByBuildingId(
         buildingId: String,
         slotIndex: Int,
         recipeId: String,
@@ -164,7 +164,7 @@ class ProductionTransactionManager @Inject constructor(
                 buildingType = buildingType,
                 buildingId = buildingId
             )
-            val addResult = runBlocking(Dispatchers.IO) { repository.addSlot(slot) }
+            val addResult = withContext(Dispatchers.IO) { repository.addSlot(slot) }
             if (addResult.isFailure) {
                 slot = repository.getSlotByBuildingId(buildingId, slotIndex)
                 if (slot == null) {
@@ -205,7 +205,7 @@ class ProductionTransactionManager @Inject constructor(
 
         val previousState = slot
 
-        val result = runBlocking(Dispatchers.IO) {
+        val result = withContext(Dispatchers.IO) {
             repository.updateSlotByBuildingId(buildingId, slotIndex) { currentSlot ->
                 SlotStateMachine.startProduction(
                 slot = currentSlot,

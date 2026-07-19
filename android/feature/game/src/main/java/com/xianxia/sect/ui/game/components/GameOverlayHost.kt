@@ -59,27 +59,57 @@ import com.xianxia.sect.core.domain.dialog.DialogType
 
 private val CachedColorScheme = XianxiaColorScheme()
 
+/** GameOverlayHost 所需的所有 ViewModel（聚合减少参数数量） */
+data class OverlayViewModels(
+    val game: GameViewModel,
+    val saveLoad: SaveLoadViewModel,
+    val production: ProductionViewModel,
+    val alchemy: AlchemyViewModel,
+    val forge: ForgeViewModel,
+    val herbGarden: HerbGardenViewModel,
+    val spiritMine: SpiritMineViewModel,
+    val patrolTower: PatrolTowerViewModel,
+    val bloodRefining: BloodRefiningViewModel,
+    val worldMapInteraction: WorldMapInteractionViewModel,
+    val worldMapGarrison: WorldMapGarrisonViewModel,
+    val battle: BattleViewModel
+)
+
+/** GameOverlayHost 所需的回调参数 */
+data class OverlayCallbacks(
+    val onLogout: () -> Unit,
+    val onRestartGame: () -> Unit,
+    val limitAdTracking: Boolean,
+    val onLimitAdTrackingChanged: (Boolean) -> Unit,
+    val onWatchAdBreakthroughBonus: ((String) -> Unit)? = null,
+    val onWatchAdMerchantRefresh: (() -> Unit)? = null
+)
+
 @Composable
 fun GameOverlayHost(
-    viewModel: GameViewModel,
-    saveLoadViewModel: SaveLoadViewModel,
-    productionViewModel: ProductionViewModel,
-    alchemyViewModel: AlchemyViewModel,
-    forgeViewModel: ForgeViewModel,
-    herbGardenViewModel: HerbGardenViewModel,
-    spiritMineViewModel: SpiritMineViewModel,
-    patrolTowerViewModel: PatrolTowerViewModel,
-    bloodRefiningViewModel: BloodRefiningViewModel,
-    worldMapInteractionViewModel: WorldMapInteractionViewModel,
-    worldMapGarrisonViewModel: WorldMapGarrisonViewModel,
-    battleViewModel: BattleViewModel,
-    onLogout: () -> Unit,
-    onRestartGame: () -> Unit,
-    limitAdTracking: Boolean,
-    onLimitAdTrackingChanged: (Boolean) -> Unit,
-    onWatchAdBreakthroughBonus: ((String) -> Unit)? = null,
-    onWatchAdMerchantRefresh: (() -> Unit)? = null
+    vms: OverlayViewModels,
+    callbacks: OverlayCallbacks
 ) {
+    // 解构聚合参数为局部变量（保持 1000+ 行现有代码不变）
+    val viewModel = vms.game
+    val saveLoadViewModel = vms.saveLoad
+    val productionViewModel = vms.production
+    val alchemyViewModel = vms.alchemy
+    val forgeViewModel = vms.forge
+    val herbGardenViewModel = vms.herbGarden
+    val spiritMineViewModel = vms.spiritMine
+    val patrolTowerViewModel = vms.patrolTower
+    val bloodRefiningViewModel = vms.bloodRefining
+    val worldMapInteractionViewModel = vms.worldMapInteraction
+    val worldMapGarrisonViewModel = vms.worldMapGarrison
+    val battleViewModel = vms.battle
+    val onLogout = callbacks.onLogout
+    val onRestartGame = callbacks.onRestartGame
+    val limitAdTracking = callbacks.limitAdTracking
+    val onLimitAdTrackingChanged = callbacks.onLimitAdTrackingChanged
+    val onWatchAdBreakthroughBonus = callbacks.onWatchAdBreakthroughBonus
+    val onWatchAdMerchantRefresh = callbacks.onWatchAdMerchantRefresh
+
     var tipDialogMessage by remember { mutableStateOf<String?>(null) }
     var tipDialogIsError by remember { mutableStateOf(false) }
 

@@ -825,20 +825,21 @@ class GameEngineCore @Inject constructor(
             }
         }
         if (monthChanged) {
+            // 第一步：计算策略成本 + 触发系统月变 + 血炼完成检测（单事务）
+            // 策略成本结果需要在事务外检查以决定是否重算生产 checkpoints
             var policyResult: PolicyCostResult = PolicyCostResult.AllPaid
             stateStore.update {
                 policyResult = cultivationService.processPolicyCosts(this)
+                systemManager.onMonthlyEvent(this)
+                processBloodRefinementCompletions()
             }
             if (policyResult is PolicyCostResult.SomeDisabled) {
                 cultivationService.checkpointAllProduction()
                 DomainLog.w(TAG, "tickInternal: policies auto-disabled due to insufficient " +
                     "spirit stones, checkpointAllProduction triggered")
             }
+            // 月度事件（内部有多事务操作，后续需重构为单事务）
             cultivationService.processMonthlyEvents()
-            stateStore.update {
-                systemManager.onMonthlyEvent(this)
-                processBloodRefinementCompletions()
-            }
             missionCheck?.invoke()
             // ★ 事务外 flush 灵石变更事件，避免 UI 层读到部分状态窗口
             spiritStoneWallet.flushPendingEvents(eventBus)
@@ -859,9 +860,11 @@ class GameEngineCore @Inject constructor(
         cultivationService.recoverHpMpForAllDisciples(state, phasesToSettle = 1)
         cultivationService.processAutoFromWarehouseRealtime(state)
 
-        // 修炼累积：按当前速率累加1旬（不更新检查点）
+        // 修炼累积：只处理未达修炼上限的弟子（列直读跳过，避免 assemble 开销）
         for (id in state.discipleTables.ids) {
             if (state.discipleTables.isAlive[id] != 1) continue
+            // 列级快速跳过：cultivation >= 1e8 表示已满（凡界最大值约 2e7）
+            if (state.discipleTables.cultivations.getOrDefault(id, 0.0) >= 1e8) continue
             cultivationService.accumulateCultivationPerPhase(id, state)
         }
 

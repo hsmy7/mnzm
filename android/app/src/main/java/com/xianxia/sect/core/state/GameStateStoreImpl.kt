@@ -164,6 +164,9 @@ class GameStateStoreImpl @Inject constructor(
     internal val _teamsFlow = MutableStateFlow<List<ExplorationTeam>>(emptyList())
     internal val _pendingBattleResultFlow = MutableStateFlow<BattleResultUIData?>(null)
     internal val _pendingNotificationFlow = MutableStateFlow<GameNotification?>(null)
+    /** 通知队列（替代单值 _pendingNotificationFlow） */
+    internal val _notificationsFlow = MutableStateFlow<List<GameNotification>>(emptyList())
+    private val notificationQueue = java.util.concurrent.ConcurrentLinkedQueue<GameNotification>()
     internal val _pendingBattleRewardCardsFlow = MutableStateFlow<List<RewardCardItem>>(emptyList())
     internal val _rewardCardQueueFlow = MutableStateFlow<List<RewardCardItem>>(emptyList())
     internal val _pendingBeastAttacksFlow = MutableStateFlow<List<PendingBeastAttack>>(emptyList())
@@ -347,6 +350,7 @@ class GameStateStoreImpl @Inject constructor(
 
     override val pendingBattleResult: StateFlow<BattleResultUIData?> = _pendingBattleResultFlow.asStateFlow()
     override val pendingNotification: StateFlow<GameNotification?> = _pendingNotificationFlow.asStateFlow()
+    override val notifications: StateFlow<List<GameNotification>> = _notificationsFlow.asStateFlow()
     override val pendingBattleRewardCards: StateFlow<List<RewardCardItem>> = _pendingBattleRewardCardsFlow.asStateFlow()
     override val rewardCardQueue: StateFlow<List<RewardCardItem>> = _rewardCardQueueFlow.asStateFlow()
     override val pendingBeastAttacks: StateFlow<List<PendingBeastAttack>> = _pendingBeastAttacksFlow.asStateFlow()
@@ -649,6 +653,19 @@ class GameStateStoreImpl @Inject constructor(
         _stateDirty = true
     }
 
+    /** 通知队列（v3+）— 替代单值 [setPendingNotification] */
+    override fun enqueueNotification(notification: GameNotification) {
+        notificationQueue.offer(notification)
+        if (notificationQueue.size > 200) notificationQueue.poll() // 上限 200，丢弃最旧
+        _notificationsFlow.value = notificationQueue.toList()
+    }
+
+    override fun consumeNotification(): GameNotification? {
+        val item = notificationQueue.poll()
+        if (item != null) _notificationsFlow.value = notificationQueue.toList()
+        return item
+    }
+
     override fun setPendingBattleResult(result: BattleResultUIData) {
         _pendingBattleResultFlow.value = result
         _updateVersion.value++
@@ -691,6 +708,8 @@ class GameStateStoreImpl @Inject constructor(
 
     override fun update(block: MutableGameState.() -> Unit) {
         var disciplesNeedReassemble = false
+        // 每次 update 开始重置批量发射模式，由本次更新自行决定是否启用
+        batchEmissionMode = false
 
         transactionLock.withLock {
             val lockStartNs = System.nanoTime()
@@ -723,7 +742,9 @@ class GameStateStoreImpl @Inject constructor(
                 val curNotif = _pendingNotificationFlow.value
                 reusableMutableState.apply {
                     gameData = curGame
-                    discipleTables = _discipleTables.deepCopy().apply { writeAllowed = true }
+                    // 增量 deepCopy：只复制自上次 update 以来被写过的列
+                    val dirtyCols = _discipleTables.dirtyTracker.consumeDirtyColumns()
+                    discipleTables = _discipleTables.deepCopy(dirtyCols).apply { writeAllowed = true }
                     equipmentStacks = EntityStore(curES)
                     equipmentInstances = EntityStore(curEI)
                     manualStacks = EntityStore(curMS)
@@ -759,6 +780,27 @@ class GameStateStoreImpl @Inject constructor(
                 _isPaused.value = finalPaused
                 _isLoading.value = finalLoading
                 _isSaving.value = finalSaving
+                // ★ 自动批量发射模式：当 3+ 字段变化时抑制个体 StateFlow 发射，
+                // 仅递增 _updateVersion 触发 unifiedState 批处理重建。
+                if (!batchEmissionMode) {
+                    val fieldChanges = mutableListOf<Boolean>().apply {
+                        add(reusableMutableState.gameData !== curGame)
+                        add(reusableMutableState.equipmentStacks.items !== curES)
+                        add(reusableMutableState.equipmentInstances.items !== curEI)
+                        add(reusableMutableState.manualStacks.items !== curMS)
+                        add(reusableMutableState.manualInstances.items !== curMI)
+                        add(reusableMutableState.pills.items !== curP)
+                        add(reusableMutableState.materials.items !== curMat)
+                        add(reusableMutableState.herbs.items !== curH)
+                        add(reusableMutableState.seeds.items !== curS)
+                        add(reusableMutableState.storageBags.items !== curSB)
+                        add(reusableMutableState.teams !== curT)
+                        add(reusableMutableState.battleLogs !== curBL)
+                    }
+                    if (fieldChanges.count { it } >= 3) {
+                        batchEmissionMode = true
+                    }
+                }
                 if (!batchEmissionMode) {
                     if (reusableMutableState.gameData !== curGame) _gameDataFlow.value = reusableMutableState.gameData
                     if (reusableMutableState.equipmentStacks.items !== curES) _equipmentStacksFlow.value = reusableMutableState.equipmentStacks.items
@@ -839,14 +881,22 @@ class GameStateStoreImpl @Inject constructor(
             }
         }
 
-        // 在锁外执行 assembleAll()，减少 transactionMutex 持有时间。
-        // discipleTables 已在锁内通过 _discipleTables 原子更新，
-        // assembleAll() 仅用于构建 UI 投影（_disciplesFlow），
-        // 不在锁内执行不会影响数据一致性。
-        // 使用 Default 协程避免主线程 ANR（500 弟子时 ~12.5k 次表读取）
+        // 在锁外执行增量 assemble，减少 transactionMutex 持有时间。
+        // 使用 changedIdTracker 追踪本次事务中修改过的弟子 ID，
+        // 只重新组装有变化的弟子，与全量缓存合并。
+        // 对标 Bevy ECS change tick 跳过未修改组件的表迭代。
         if (disciplesNeedReassemble) {
-            applicationScopeProvider.scope.launch {
-                _disciplesFlow.value = _discipleTables.assembleAll()
+            val changedIds = _discipleTables.changedIdTracker.consumeChangedIds()
+            if (changedIds.isNotEmpty()) {
+                applicationScopeProvider.scope.launch {
+                    val prevSnapshot = _disciplesFlow.value
+                    _disciplesFlow.value = _discipleTables.assembleAllIncremental(prevSnapshot, changedIds)
+                }
+            } else {
+                // 回退：changedIdTracker 可能未捕获列级写入，全量 assemble 兜底
+                applicationScopeProvider.scope.launch {
+                    _disciplesFlow.value = _discipleTables.assembleAll()
+                }
             }
         }
 
@@ -855,10 +905,8 @@ class GameStateStoreImpl @Inject constructor(
     override fun <R> updateAndReturn(block: MutableGameState.() -> R): R {
         @Suppress("UNCHECKED_CAST")
         var result: R? = null
-        kotlinx.coroutines.runBlocking {
-            update {
-                result = block()
-            }
+        update {
+            result = block()
         }
         return result as R
     }

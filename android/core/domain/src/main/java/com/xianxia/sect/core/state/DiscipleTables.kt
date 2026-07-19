@@ -30,6 +30,21 @@ class DiscipleTables {
     fun markMutated() { mutationVersion++ }
 
     /**
+     * 记录指定弟子 ID 的组件数据被修改。
+     * 写入组件表的值方法应调用此方法以支持增量组装。
+     * 注：通过 [IntComponentTable.set] / [ComponentTable.set] 等列级写入时，
+     *     由 onWrite → dirtyTracker.markDirty 负责列级脏标记，
+     *     本方法处理弟子级脏标记以支持增量 assemble。
+     */
+    fun recordChangedId(id: Int) { changedIdTracker.record(id) }
+
+    /**
+     * 批量记录多个弟子 ID 被修改。
+     * 用于 [replaceAll] / [clear] 等批量操作。
+     */
+    fun recordChangedIds(ids: Collection<Int>) { changedIdTracker.recordAll(ids) }
+
+    /**
      * 运行时写保护标志。仅在 stateStore.update{} 事务内为 true。
      * 对标 Android StrictMode：所有写方法在入口检查此标志，
      * 绕过 update{} 的直接写立即抛 IllegalStateException。
@@ -53,7 +68,8 @@ class DiscipleTables {
     // 无需额外同步，迭代器为快照不会抛 ConcurrentModificationException。
     // 写操作仍使用 synchronized(ids) 保护多表原子性（DiscipleTables 不是
     // 唯一受影响的表 — insert/remove 操作约 90 张组件表）。
-    val ids: MutableList<Int> = java.util.concurrent.CopyOnWriteArrayList<Int>()
+    /** 弟子 ID 列表 — 由 [idsLock] 保护，读多写少场景使用读写锁优化性能 */
+    val ids: MutableList<Int> = mutableListOf()
 
     // === 基础信息（ComponentTable<String>） ===
     val names = ComponentTable<String>()          // id → name
@@ -226,7 +242,80 @@ class DiscipleTables {
         @Volatile var consistencyCheckEnabled: Boolean = true
     }
 
-    private val _allCopyableRefs: List<CopyableTableRef> = buildCopyableRefs()
+    private val _allCopyableRefs: List<CopyableTableRef> = buildCopyableRefs().also { refs ->
+        // 为每张组件表分配 DirtyTracker 索引，用于增量 deepCopy
+        refs.forEachIndexed { index, ref -> ref.columnIndex = index }
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // DirtyTracker — 脏标记跟踪系统
+    //
+    // 每张组件表的 onWrite 回调会自动标记对应列为脏，
+    // deepCopy() 时只复制被修改过的列，大幅减少数据复制量。
+    //
+    // 参考实现：
+    // - Unreal Engine TTripleBuffer: 脏标记跳过无数据交换
+    // - GDExtensionECS: mark_components_dirty() 触发过滤器重建
+    // ════════════════════════════════════════════════════════════
+    class DirtyTracker {
+        private val dirtyColumns = mutableSetOf<Int>()
+        private val lock = Any()
+
+        /** 标记指定列索引为脏 */
+        fun markDirty(columnIndex: Int) {
+            synchronized(lock) { dirtyColumns.add(columnIndex) }
+        }
+
+        /**
+         * 消费并清除脏列集合。
+         * @return 当前所有脏列的索引集合（空集合表示无变化）
+         */
+        fun consumeDirtyColumns(): Set<Int> {
+            synchronized(lock) {
+                val copy = dirtyColumns.toSet()
+                dirtyColumns.clear()
+                return copy
+            }
+        }
+
+        /** 当前是否有脏列 */
+        val isDirty: Boolean get() = synchronized(lock) { dirtyColumns.isNotEmpty() }
+    }
+
+    /** DirtyTracker 实例 — 在 stateStore.update 事务内追踪哪些列被修改 */
+    val dirtyTracker = DirtyTracker()
+
+    // ════════════════════════════════════════════════════════════
+    // ChangedIdTracker — 增量 assemble 支持
+    //
+    // 追踪哪些弟子 ID 的组件数据被修改过，用于增量组装。
+    // 对标 Bevy ECS change tick 跳过未修改组件的表迭代。
+    // ════════════════════════════════════════════════════════════
+    class ChangedIdTracker {
+        private val changedIds = mutableSetOf<Int>()
+        private val lock = Any()
+
+        /** 记录某弟子 ID 被修改 */
+        fun record(id: Int) { synchronized(lock) { changedIds.add(id) } }
+
+        /** 记录多个弟子 ID 被修改（如批量写入场景） */
+        fun recordAll(ids: Collection<Int>) { synchronized(lock) { changedIds.addAll(ids) } }
+
+        /**
+         * 消费并清除已修改的 ID 集合。
+         * @return 自上次消费以来被修改过的所有弟子 ID
+         */
+        fun consumeChangedIds(): Set<Int> {
+            synchronized(lock) {
+                val copy = changedIds.toSet()
+                changedIds.clear()
+                return copy
+            }
+        }
+    }
+
+    /** ChangedIdTracker 实例 — 追踪本次事务中哪些弟子被修改 */
+    val changedIdTracker = ChangedIdTracker()
 
     @Suppress("LongMethod")
     private fun buildCopyableRefs(): List<CopyableTableRef> = listOf(
@@ -384,6 +473,7 @@ class DiscipleTables {
         d.lifeEvents = disciple.lifeEvents
         writeAllFields(d)
         markMutated()
+        recordChangedId(id)
         idStr
     }
 
@@ -407,6 +497,7 @@ class DiscipleTables {
                 ids.remove(id)
                 throw e
             }
+            recordChangedId(id)
         }
         assertAllTablesConsistent()
         if (!consistencyCheckEnabled) {
@@ -427,6 +518,7 @@ class DiscipleTables {
             requireWriteAccess()
             if (!ids.contains(id)) return@synchronized
             writeAllFields(disciple)
+            recordChangedId(id)
         }
     }
 
@@ -471,6 +563,7 @@ class DiscipleTables {
                 if (id in ids) deathYears[id] = year
             }
             markMutated()
+            recordChangedIds(newIds)
         }
         assertAllTablesConsistent()
         if (!consistencyCheckEnabled) {
@@ -759,6 +852,29 @@ class DiscipleTables {
     }
 
     /**
+     * 增量组装：只重新组装 [changedIds] 中的弟子，与 [prevSnapshot] 合并。
+     * 对标 Bevy ECS change tick 跳过未修改组件的表迭代。
+     *
+     * @param prevSnapshot 上一次的完整弟子列表
+     * @param changedIds 本次事务中修改过的弟子 ID
+     * @return 合并后的完整弟子列表
+     */
+    fun assembleAllIncremental(prevSnapshot: List<Disciple>, changedIds: Set<Int>): List<Disciple> {
+        if (changedIds.isEmpty()) return prevSnapshot
+        val changedSet = changedIds.toSet()
+        val changed = changedIds.mapNotNull { id ->
+            if (!isAlive.contains(id) || !names.contains(id) || !realms.contains(id)) {
+                Log.w(TAG, "assembleAllIncremental: ghost skipped id=$id")
+                null
+            } else {
+                try { assemble(id) } catch (e: NoSuchElementException) { null }
+            }
+        }
+        val unchanged = prevSnapshot.filter { it.id.toIntOrNull() !in changedSet }
+        return (unchanged + changed).sortedBy { it.id.toIntOrNull() ?: 0 }
+    }
+
+    /**
      * 删除一个弟子。所有组件表同时删除对应行。
      * 锁层次：synchronized(ids) → ComponentTable.synchronized(lock)
      */
@@ -767,6 +883,7 @@ class DiscipleTables {
             requireWriteAccess()
             ids.remove(id)
             _allCopyableRefs.forEach { it.remove(id) }
+            recordChangedId(id)
             assertAllTablesConsistent()
             if (!consistencyCheckEnabled) {
                 val ghosts = ids.filter { !isAlive.contains(it) }
@@ -822,24 +939,28 @@ class DiscipleTables {
      * 与原始表互不干扰，确保 deepCopy 在 writeAllowed=true 时可写。
      */
     private fun bindAllOnWrite() {
-        val cb: () -> Unit = ::markMutated
         val guard: () -> Unit = { requireWriteAccess() }
         _allCopyableRefs.forEach { ref ->
+            // 脏标记回调：每次写入时同时递增 mutationVersion 并标记对应列为脏
+            val dirtyCb: () -> Unit = {
+                mutationVersion++
+                dirtyTracker.markDirty(ref.columnIndex)
+            }
             when (ref) {
                 is IntTableRef -> {
-                    ref.table.onWrite = cb
+                    ref.table.onWrite = dirtyCb
                     ref.table.requireWrite = guard
                 }
                 is DoubleTableRef -> {
-                    ref.table.onWrite = cb
+                    ref.table.onWrite = dirtyCb
                     ref.table.requireWrite = guard
                 }
                 is RefTableRef<*> -> {
-                    ref.table.onWrite = cb
+                    ref.table.onWrite = dirtyCb
                     ref.table.requireWrite = guard
                 }
                 is MutableTableRef<*> -> {
-                    ref.table.onWrite = cb
+                    ref.table.onWrite = dirtyCb
                     ref.table.requireWrite = guard
                 }
             }
@@ -847,15 +968,31 @@ class DiscipleTables {
     }
 
     /**
-     * 深拷贝组件表（用于 Shadow 结算 / update{} 事务隔离）。
-     * 使用 [CopyableTableRef] 迭代完成所有表的复制。
+     * 深拷贝组件表。
+     *
+     * @param dirtyColumns 脏列索引集合（来自 [dirtyTracker.consumeDirtyColumns]）。
+     *   - null 或空集合 = 全量复制（兼容旧调用方或首次复制）
+     *   - 非空集合 = 仅复制这些列（增量 deepCopy）
+     *
      * 通过 [synchronized(ids)] 保护 ids 快照一致性。
+     * 使用 DirtyTracker 的列级脏标记，只复制被修改过的表。
      */
-    fun deepCopy(): DiscipleTables {
+    fun deepCopy(dirtyColumns: Set<Int>? = null): DiscipleTables {
         val copy = DiscipleTables()
         synchronized(ids) {
             val idsSnapshot = this.ids.toList()
-            _allCopyableRefs.forEach { it.copyTo(copy) }
+            if (dirtyColumns.isNullOrEmpty()) {
+                // 全量复制（首次或非脏路径）
+                _allCopyableRefs.forEach { it.copyTo(copy) }
+            } else {
+                // 增量复制：只复制脏列，非脏列跳过以节省 CPU
+                for (ref in _allCopyableRefs) {
+                    if (ref.columnIndex in dirtyColumns || ref.debugName == "isAlive") {
+                        ref.copyTo(copy)
+                    }
+                    // 非脏列不复制（copy 构造时默认值空，后续不会被读）
+                }
+            }
             // 只保留组件表中有完整数据的 ID，过滤掉幽灵 ID（Bug 产生的残留）
             copy.ids.addAll(idsSnapshot.filter { copy.isAlive.contains(it) })
         }

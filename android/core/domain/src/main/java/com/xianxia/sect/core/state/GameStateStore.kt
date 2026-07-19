@@ -97,7 +97,16 @@ interface GameStateStore : GameStateSnapshotProvider {
     fun getCurrentMaterials(): List<Material>
 
     // === 通知 API ===
+    /** 通知队列（v3+，替代单值 [pendingNotification]） */
+    val notifications: StateFlow<List<GameNotification>>
+    fun enqueueNotification(notification: GameNotification)
+    fun consumeNotification(): GameNotification?
+
+    /** @deprecated 使用 [enqueueNotification] 替代 */
+    @Deprecated("Use enqueueNotification() instead", ReplaceWith("enqueueNotification(notification)"))
     fun setPendingNotification(notification: GameNotification)
+    /** @deprecated 通知系统已改为队列，UI 侧通过 [consumeNotification] 消费 */
+    @Deprecated("Notifications are now queued. Use consumeNotification() instead.")
     fun clearPendingNotification()
     fun setPendingBattleResult(result: BattleResultUIData)
     fun clearPendingBattleResult()
@@ -198,10 +207,12 @@ interface GameStateStore : GameStateSnapshotProvider {
      */
     fun <R> updateAndReturn(block: MutableGameState.() -> R): R
 
-    // === Shadow/Transaction API ===
+    // === Shadow/Transaction API（死代码，惰性结算引擎已替代） ===
+    @Deprecated("惰性结算引擎已替代。将在下个版本移除。", ReplaceWith("直接操作 stateStore.update {}"))
     fun createSettlementShadow(
         productionSlots: List<com.xianxia.sect.core.model.production.ProductionSlot> = emptyList()
     ): MutableGameState
+    @Deprecated("惰性结算引擎已替代。将在下个版本移除。")
     suspend fun swapFromShadow(shadow: MutableGameState)
 
     /**

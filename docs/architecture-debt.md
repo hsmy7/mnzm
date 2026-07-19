@@ -146,3 +146,131 @@
 | 项 | 判定 | 说明 |
 |---|------|------|
 | 深层 DAO 链路 suspend（ProductionSlotRepository 12 方法/SavePipeline/MailService） | ✅ 不需要做 | IO/网络/存档路径保留 suspend 是合理设计，不在 `stateStore.update` 内调用，无死锁风险 |
+
+---
+
+### 10. RunBlocking 消除后 `ProductionTransactionManager` 仍有 2 处残留
+
+**问题描述：** `ProductionTransactionManager.executeStartProductionByBuildingId` 方法使用了 `runBlocking(Dispatchers.IO)` 等待 DB 结果（`repository.addSlot` 和 `repository.updateSlotByBuildingId`）。与其他 11 处 runBlocking 不同，这两处需要同步获取 DB 操作的返回值，无法简单替换为 `scope.launch`。已在 v4.0.59 中评估过将其改为 `suspend` + `withContext(Dispatchers.IO)`，但会使调用链（ProductionCoordinator → ProductionProcessor → CultivationService → GameEngineCore）全链路 suspend 化，影响较大。
+
+**影响范围：**
+- `ProductionTransactionManager.kt` — `executeStartProductionByBuildingId` 方法
+- `ProductionCoordinator.kt` — 调用方
+- `ProductionProcessor.kt` — 上游调用方
+
+**修复方向：**
+- 将 `executeStartProductionByBuildingId` 改为 `suspend` + `withContext(Dispatchers.IO)`
+- 全链路 suspend 化上游调用方
+- 替换 2 处 `runBlocking` 为 `withContext`
+
+**难度：** 中
+
+---
+
+### 11. `LawEnforcementProcessor` 与 `CultivationEventProcessor` 代码重复
+
+**问题描述：** v4.0.59 重构时从 `CultivationEventProcessor`（946 行）拆出了 `LawEnforcementProcessor`（270 行），但因行数过多、深度耦合，未将旧代码从 CEP 中移除。目前两处各有一套完整的执法/偷窃逻辑，代码功能相同但实现有细微差异。
+
+**影响范围：**
+- `CultivationEventProcessor.kt` — 保留 ~270 行旧执法/偷窃代码
+- `LawEnforcementProcessor.kt` — 新拆分文件，相同的逻辑
+
+**修复方向：**
+- 将 CEP 的执法方法改为委托到 `LawEnforcementProcessor`（只需加构造参数 + 改 5 个方法为一行委托）
+- 验证两套实现在边界条件下行为一致（属性值计算、RNG 序列）
+- 通过后移除 CEP 中的旧代码
+
+**难度：** 低（文本操作风险高，需 IDE 级重构工具）
+
+---
+
+### 11. `CultivationCore`（1139 行）未拆分
+
+**问题描述：** `CultivationCore.kt`（1139 行）混合 HP/MP 恢复、自动丹药、装备孕养、功法熟练度、修炼速率计算、战斗结算等 6 项职责。设计拆分方案为 6 个子文件但未实施。
+
+**影响范围：** `CultivationCore.kt`
+
+**修复方向：**
+- `HpMpRecoveryService` — HP/MP 恢复逻辑
+- `AutoPillService` — 自动丹药检测 + 服用
+- `EquipmentNurtureService` — 装备孕养
+- `ManualProficiencyService` — 功法熟练度
+- `CultivationRateCalculator` — 修炼速率乘区计算
+- `BattleSettlementService` — 战斗前全量追赶
+
+**难度：** 高（21 个构造参数深度耦合，需 IDE 级 Extract Class）
+
+---
+
+### 12. `DiscipleService`（995 行）未拆分
+
+**问题描述：** `DiscipleService.kt`（995 行）包含 5+ 职责：弟子 CRUD、生命事件管理、状态管理、装备穿卸、招募/逐出、师徒系统。设计拆分方案为 4 个子文件但未实施。
+
+**影响范围：** `DiscipleService.kt`
+
+**修复方向：**
+- `DiscipleLifecycleManager` — CRUD + 生命事件 + 状态管理
+- `DiscipleSlotManager` — 槽位类型构建器 + 状态同步
+- `DiscipleEquipmentService` — 装备穿卸
+- `DiscipleMasterApprenticeService` — 师徒系统
+
+**难度：** 高（深度耦合，需 IDE 级 Extract Class）
+
+---
+
+### 13. 广告回调透传链未重构（原债务 #8 未处理）
+
+**问题描述：** 广告回调参数 `onWatchAdBreakthroughBonus` / `onWatchAdMerchantRefresh` 仍以参数形式穿过 5 层（GameActivity → MainGameScreen → GameOverlayHost → DiscipleDetailScreen → DetailCultivationSection）。原计划注入 `RewardVideoAdManager` 到 ViewModel 层消除透传，未实施。
+
+**影响范围：**
+- `GameActivity.kt`
+- `MainGameScreen.kt`
+- `GameOverlayHost.kt`
+- `DiscipleDetailScreen.kt`
+- `DetailCultivationSection.kt`
+- `MerchantDialog.kt`
+
+**修复方向：**
+- 创建 `RewardVideoAdManager` 单例注入 GameViewModel
+- ViewModel 直接处理广告回调，UI 层移除透传参数
+
+**难度：** 低
+
+---
+
+### 14. `GameEventBus` 未完成事件迁移
+
+**问题描述：** `GameEventBus` 已标记 `@Deprecated`，但事件未迁移到 `EventBus`（GameEvents.kt），两套总线仍并存运行。
+
+**影响范围：**
+- `GameEventBus.kt`
+- `EventBus`（GameEvents.kt）
+
+**修复方向：**
+- 为 GameEventBus 的 5 事件类型在 EventBus 中创建对应事件子类
+- 逐个迁移发射点
+- 移除 GameEventBus
+
+**难度：** 低
+
+---
+
+### 15. 死代码未真删除
+
+**问题描述：** 以下死代码仅标记了 `@Deprecated` 或注释说明，未实际删除：
+1. `GameStateStore.createSettlementShadow` / `swapFromShadow`
+2. `GameStateStoreImpl` 中对应的实现
+3. `GameData.discipleDesertionPopup` 字段（需 Migration）
+
+**影响范围：**
+- `GameStateStore.kt`
+- `GameStateStoreImpl.kt`
+- `GameData.kt`
+- `GameDatabase.kt`（Migration 22→23）
+
+**修复方向：**
+- 移除接口和实现方法
+- 移除字段 + 新增 Migration DROP COLUMN
+- 清理测试中 Mock 桩方法
+
+**难度：** 低

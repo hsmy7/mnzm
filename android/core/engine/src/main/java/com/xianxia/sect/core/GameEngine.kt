@@ -132,6 +132,8 @@ class GameEngine @Inject constructor(
     val pendingBattleRewardCards: StateFlow<List<RewardCardItem>> get() = stateStore.pendingBattleRewardCards
     fun clearPendingBattleRewardCards() { stateStore.clearPendingBattleRewardCards() }
     val pendingNotification: StateFlow<GameNotification?> get() = stateStore.pendingNotification
+    val notifications: StateFlow<List<GameNotification>> get() = stateStore.notifications
+    fun consumeNotification(): GameNotification? = stateStore.consumeNotification()
     val rewardCardQueue: StateFlow<List<RewardCardItem>> get() = stateStore.rewardCardQueue
     fun clearRewardCardQueue(count: Int = Int.MAX_VALUE) { stateStore.clearRewardCardQueue(count) }
     val pendingBeastAttacks: StateFlow<List<PendingBeastAttack>> get() = stateStore.pendingBeastAttacks

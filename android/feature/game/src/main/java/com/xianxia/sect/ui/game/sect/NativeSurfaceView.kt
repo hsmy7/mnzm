@@ -335,9 +335,12 @@ class NativeSurfaceView(
 
     /** 从 Compose 层原子更新渲染帧数据 */
     fun updateRenderState(frame: RenderFrame) {
-        // ★ 防御：拷贝 IntArray/FloatArray，防止 Compose 线程后续修改导致数据竞争
-        val safeTileData = frame.tileData.copyOf()
-        val safeBuildingData = frame.buildingData?.copyOf()
+        // 仅当 tileData/buildingData 引用变化时拷贝（防止 Compose 线程后续修改）。
+        // flatTileData 使用 remember() 缓存同一引用直至数据变化，稳态帧无需重复复制。
+        val prevTileData = currentFrame?.tileData
+        val safeTileData = if (frame.tileData === prevTileData) prevTileData else frame.tileData.copyOf()
+        val prevBuildingData = currentFrame?.buildingData
+        val safeBuildingData = if (frame.buildingData != null && frame.buildingData === prevBuildingData) prevBuildingData else frame.buildingData?.copyOf()
         currentFrame = frame.copy(
             tileData = safeTileData,
             buildingData = safeBuildingData

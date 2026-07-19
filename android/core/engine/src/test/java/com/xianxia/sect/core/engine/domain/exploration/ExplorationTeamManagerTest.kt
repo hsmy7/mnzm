@@ -135,6 +135,13 @@ private class FakeStore : GameStateStore {
     override fun getCurrentMaterials(): List<Material> = materials.value
     override fun setPendingNotification(notification: GameNotification) { pendingNotification.value = notification }
     override fun clearPendingNotification() { pendingNotification.value = null }
+    override val notifications = MutableStateFlow<List<GameNotification>>(emptyList())
+    override fun enqueueNotification(n: GameNotification) { notifications.value = notifications.value + n }
+    override fun consumeNotification(): GameNotification? {
+        val item = notifications.value.firstOrNull()
+        if (item != null) notifications.value = notifications.value.drop(1)
+        return item
+    }
     override fun setPendingBattleResult(result: BattleResultUIData) { pendingBattleResult.value = result }
     override fun clearPendingBattleResult() { pendingBattleResult.value = null }
     override fun setPendingBeastAttacks(attacks: List<PendingBeastAttack>) { pendingBeastAttacks.value = attacks }

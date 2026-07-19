@@ -147,8 +147,12 @@ class SoftwareCanvasBackend(
 
     /** 上一次渲染的 tile hash（用于 chunk 失效检测） */
     private var chunkTileHash: Int = 0
+    /** 上一次渲染的 tileData 引用（用于跳过 contentHashCode O(n) 遍历） */
+    private var cachedTileData: IntArray? = null
     /** 上一次渲染的 building hash */
     private var chunkBuildingHash: Int = 0
+    /** 上一次渲染的 buildingData 引用（用于跳过 contentHashCode O(n) 遍历） */
+    private var cachedBuildingData: FloatArray? = null
     /** 上一次的 preview 状态 */
     private var lastShowPreview: Boolean = false
 
@@ -373,8 +377,9 @@ class SoftwareCanvasBackend(
             return fb
         } else frame.scale.coerceIn(MIN_SCALE, MAX_SCALE)
 
-        val tileHash = td.contentHashCode()
-        val buildingHash = buildingArray?.contentHashCode() ?: 0
+        // 引用缓存优化：跳过 contentHashCode O(n) 遍历当 tileData 引用未变化
+        val tileHash = if (td === cachedTileData) chunkTileHash else td.contentHashCode().also { cachedTileData = td }
+        val buildingHash = if (buildingArray === cachedBuildingData) chunkBuildingHash else (buildingArray?.contentHashCode() ?: 0).also { cachedBuildingData = buildingArray }
         val previewActive = frame.showPreview
 
         // ═══════════════════════════════════════════════════════

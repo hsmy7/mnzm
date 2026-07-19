@@ -40,7 +40,8 @@ class ProductionProcessor @Inject constructor(
     private val productionCoordinator: ProductionCoordinator,
     private val productionSlotRepository: ProductionSlotRepository,
     private val formulaService: FormulaService,
-    private val rngManager: GameRngManager
+    private val rngManager: GameRngManager,
+    private val scopeProvider: CoroutineScopeProvider
 ) {
 
     companion object {
@@ -145,7 +146,7 @@ class ProductionProcessor @Inject constructor(
 
     private fun resetSlotToIdle(slot: ProductionSlot, buildingId: String,
                                  buildingType: BuildingType) {
-        runBlocking(Dispatchers.IO) {
+        scopeProvider.scope.launch(Dispatchers.IO) {
             productionSlotRepository.updateSlotByBuildingId(buildingId, slot.slotIndex) { s ->
                 ProductionSlot.createIdle(
                     id = s.id,
@@ -342,7 +343,7 @@ class ProductionProcessor @Inject constructor(
         )
     }
 
-    fun processAutoAlchemy() {
+    suspend fun processAutoAlchemy() {
         val data = stateStore.gameData.value
 
         val alchemySlots = productionSlotRepository.getSlotsByType(BuildingType.ALCHEMY)
@@ -364,7 +365,7 @@ class ProductionProcessor @Inject constructor(
         }
     }
 
-    private fun processAutoAlchemySlot(
+    private suspend fun processAutoAlchemySlot(
         slot: ProductionSlot,
         data: GameData,
         allDisciples: List<Disciple>,
@@ -379,7 +380,7 @@ class ProductionProcessor @Inject constructor(
         }
         if (disciple == null || !disciple.isAlive || disciple.status != DiscipleStatus.IDLE) {
             // 弟子不可用 → 清除槽位关联，等待玩家手动处理
-            runBlocking(Dispatchers.IO) {
+            scopeProvider.scope.launch(Dispatchers.IO) {
                 productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slotIndex) { s ->
                     s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
                 }
@@ -419,7 +420,7 @@ class ProductionProcessor @Inject constructor(
             val actualDuration = formulaService.calculateWorkDurationWithAllDisciples(
                 recipeToStart.duration, BuildingNames.ALCHEMY)
             val absMonth = data.gameYear * 12 + data.gameMonth
-            runBlocking(Dispatchers.IO) {
+            scopeProvider.scope.launch(Dispatchers.IO) {
                 productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slotIndex) { s ->
                     s.copy(
                         duration = actualDuration,
@@ -431,7 +432,7 @@ class ProductionProcessor @Inject constructor(
         }
     }
 
-    fun processAutoForge() {
+    suspend fun processAutoForge() {
         val data = stateStore.gameData.value
 
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId(BuildingNames.FORGE)
@@ -460,7 +461,7 @@ class ProductionProcessor @Inject constructor(
     /**
      * @return true 表示继续循环下一个槽位，false 表示中断循环
      */
-    private fun processAutoForgeSlot(
+    private suspend fun processAutoForgeSlot(
         slot: ProductionSlot,
         data: GameData,
         allDisciples: List<Disciple>,
@@ -477,7 +478,7 @@ class ProductionProcessor @Inject constructor(
             allDisciples.find { it.id == id }
         }
         if (disciple == null || !disciple.isAlive || disciple.status != DiscipleStatus.IDLE) {
-            runBlocking(Dispatchers.IO) {
+            scopeProvider.scope.launch(Dispatchers.IO) {
                 productionSlotRepository.updateSlotByBuildingId(BuildingNames.FORGE, slotIndex) { s ->
                     s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
                 }
@@ -632,7 +633,7 @@ class ProductionProcessor @Inject constructor(
             })
         }
         if (updates.isNotEmpty()) {
-            runBlocking(Dispatchers.IO) {
+            scopeProvider.scope.launch(Dispatchers.IO) {
                 productionSlotRepository.batchUpdate(updates)
             }
         }
@@ -995,7 +996,7 @@ class ProductionProcessor @Inject constructor(
 
             val remainingMonths = ((1.0 - progressRatio) * newDuration)
                 .roundToInt().coerceAtLeast(1)
-            runBlocking(Dispatchers.IO) {
+            scopeProvider.scope.launch(Dispatchers.IO) {
                 productionSlotRepository.updateSlot(
                     slot.buildingType, slot.slotIndex
                 ) { s ->

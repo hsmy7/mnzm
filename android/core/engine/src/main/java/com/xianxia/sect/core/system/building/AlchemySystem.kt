@@ -4,6 +4,8 @@ import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.system.GameSystem
 import com.xianxia.sect.core.engine.system.SystemPriority
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.util.CoroutineScopeProvider
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -14,12 +16,15 @@ import javax.inject.Singleton
 @Singleton
 @SystemPriority(order = 210)
 class AlchemySystem @Inject constructor(
-    private val cultivationService: CultivationService
+    private val cultivationService: CultivationService,
+    private val scopeProvider: CoroutineScopeProvider
 ) : GameSystem {
     override val systemName = "AlchemySystem"
 
     override fun onMonthlyEvent(state: MutableGameState) {
-        cultivationService.processAutoAlchemy()
+        scopeProvider.scope.launch {
+            cultivationService.processAutoAlchemy()
+        }
         cultivationService.processBuildingProduction(
             state.gameData.gameYear, state.gameData.gameMonth
         )

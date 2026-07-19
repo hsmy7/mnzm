@@ -25,6 +25,7 @@ import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.asKotlinRandom
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
 @GameService("DiscipleService")
@@ -885,7 +886,7 @@ private val scopeProvider: CoroutineScopeProvider,
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId(BUILDING_FORGE)
         for (slot in forgeSlots) {
             if (slot.assignedDiscipleId == discipleId && !slot.isWorking) {
-                runBlocking(Dispatchers.IO) {
+                scopeProvider.scope.launch(Dispatchers.IO) {
                     productionSlotRepository.updateSlotByBuildingId(BUILDING_FORGE, slot.slotIndex) { s ->
                         s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
                     }

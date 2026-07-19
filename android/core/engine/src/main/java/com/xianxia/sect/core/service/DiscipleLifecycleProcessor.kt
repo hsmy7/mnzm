@@ -351,7 +351,8 @@ class DiscipleLifecycleProcessor @Inject constructor(
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId(BUILDING_FORGE)
         for (slot in forgeSlots) {
             if (slot.assignedDiscipleId == discipleId) {
-                runBlocking(Dispatchers.IO) {
+                // 非关键持久化操作，异步执行不阻塞游戏线程
+                scopeProvider.scope.launch(Dispatchers.IO) {
                     productionSlotRepository.updateSlotByBuildingId(BUILDING_FORGE, slot.slotIndex) { s ->
                         s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
                     }

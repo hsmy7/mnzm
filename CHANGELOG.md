@@ -1,5 +1,29 @@
 ## [4.0.58] - 2026-07-18（versionCode=4058）
 
+### 性能优化
+
+- **性能：DirtyTracker 增量 deepCopy** — `DiscipleTables` 新增 `DirtyTracker` 列级脏标记系统。`deepCopy()` 现在只复制被修改过的组件表列（典型场景 1-5 列替代 110 列），大幅减少 `stateStore.update` 锁内耗时。对标 Unreal Engine TTripleBuffer 脏标记模式
+- **性能：增量 assemble** — `assembleAllIncremental()` 只重新组装本次事务中修改过的弟子，与全量缓存合并。对标 Bevy ECS change tick 跳过未修改组件
+- **性能：contentHashCode 引用缓存** — `SoftwareCanvasBackend` 缓存 `tileData`/`buildingData` 引用，稳态帧跳过 16384 元素 O(n) IntArray 哈希遍历
+- **性能：条件 copyOf** — `NativeSurfaceView.updateRenderState` 仅在 tileData/buildingData 引用变化时执行防御性复制，稳态帧零数组分配
+- **性能：批量发射模式自动启用** — `GameStateStoreImpl.update()` 在检测到 3+ 字段变化时自动启用批量抑制模式，减少个体 StateFlow 发射次数
+- **性能：tick 跳过满修为弟子** — `checkBreakthroughsAndPills` 修炼累积循环使用列直读跳过 cultivation ≥ 1e8 的弟子（凡界已满），避免 assemble 开销
+- **性能：CopyOnWriteArrayList→mutableListOf** — `DiscipleTables.ids` 改用 `mutableListOf` + `synchronized(ids)` 保护，消除每次 insert/remove 的全数组复制
+- **性能：CircularBuffer O(1) 环缓冲区** — 重写为基于 Array + head/tail 索引的环形缓冲区，替代原 ArrayList.removeAt(0) O(n) 实现
+- **性能：ViewModel 状态聚合** — `GameViewModel` 新增 `GameScreenAggState` 聚合 data class，组合 gameData + highFreqState + configState + isPaused，减少主界面 collect 数量
+
+### 重构
+
+- **重构：13 处 runBlocking 全部消除** — 生产代码零 `runBlocking` 调用。`GameStateStoreImpl.updateAndReturn` 直接调用；`DiscipleLifecycleProcessor.clearForgeSlotsIfNeeded`、`DiscipleService.clearDiscipleFromAllSlots`、`MailService`（2 处）、`ProductionProcessor`（6 处）改为 `scope.launch(Dispatchers.IO)`；`CultivationService`、`ProductionCoordinator`、`ProductionTransactionManager`（2 处）全链路 suspend 化
+- **重构：通知队列系统** — 新增 `notifications: StateFlow<List<GameNotification>>` + `enqueueNotification`/`consumeNotification` API。`ConcurrentLinkedQueue` 实现，上限 200 条自动丢弃最旧。旧 `pendingNotification` 标记 @Deprecated
+- **重构：GameOverlayHost 参数聚合** — 新增 `OverlayViewModels` 和 `OverlayCallbacks` data class，18 个参数降为 2 个。解构后保持 1000+ 行内部代码不变
+- **重构：月变事件单事务化** — `processMonthYearChange` 中原 2 次独立 `stateStore.update`（policyCosts + systemEvents）合并为 1 次
+- **重构：LawEnforcementProcessor 拆分** — 从 `CultivationEventProcessor`（946 行）中提取执法/偷窃逻辑到独立 `LawEnforcementProcessor`（270 行），降低 CEP 复杂度。旧代码因行数过多暂保留在 CEP 中（见架构债务 #11）
+- **重构：GameEventBus 标记弃用** — 标记 `@Deprecated`，引导新事件注册到 `EventBus`（GameEvents.kt）
+- **重构：影子结算 API 标记弃用** — `createSettlementShadow`/`swapFromShadow` 标记 @Deprecated（惰性结算引擎已替代）
+- **重构：DAO 查限制** — `BattleLogDao.getAll`/`getAllSync` 加 `LIMIT 200`
+- **重构：全链路 suspend 化** — `AlchemySystem`、`ForgeSystem`、`CultivationService.processAutoAlchemy/processAutoForge`、`ProductionProcessor.processAutoAlchemy/processAutoForge` 改为 suspend 函数，消除内部 runBlocking
+
 ### 新增
 
 - **新增：云游商人手动刷新** — 商人不再每年自动刷新，改为每30年获得1次刷新次数（初始1次），商人界面新增刷新按钮消耗次数刷新商品。刷新次数右侧新增播放广告按钮，观看激励视频获得3次刷新次数（1分钟冷却，AtomicBoolean幂等守卫，Activity生命周期保护）

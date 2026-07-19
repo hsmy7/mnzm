@@ -168,18 +168,25 @@ sealed interface ComponentTableLike {
     val debugName: String
     fun contains(id: Int): Boolean
 }
-sealed interface CopyableTableRef : ComponentTableLike { fun copyTo(dest: DiscipleTables) }
+sealed interface CopyableTableRef : ComponentTableLike {
+    /** 组件表在 _allCopyableRefs 中的索引，用于 DirtyTracker 位掩码。在 DiscipleTables 构造时自动分配。 */
+    var columnIndex: Int
+    fun copyTo(dest: DiscipleTables)
+}
 
 class IntTableRef(
     @JvmField val table: IntComponentTable,
     @JvmField val destProp: kotlin.reflect.KProperty1<DiscipleTables, IntComponentTable>,
     override val debugName: String
 ) : CopyableTableRef {
+    override var columnIndex: Int = -1
     override fun remove(id: Int) = table.remove(id)
     override fun clear() = table.clear()
     override val size: Int get() = table.size
     override fun contains(id: Int): Boolean = table.contains(id)
     override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.store.put(table.store.keyAt(i), table.store.valueAt(i)) }
+    /** 仅复制本表数据到 dest（用于 DirtyTracker 增量 deepCopy） */
+    fun copySelfTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.store.put(table.store.keyAt(i), table.store.valueAt(i)) }
 }
 
 class DoubleTableRef(
@@ -187,11 +194,13 @@ class DoubleTableRef(
     @JvmField val destProp: kotlin.reflect.KProperty1<DiscipleTables, DoubleComponentTable>,
     override val debugName: String
 ) : CopyableTableRef {
+    override var columnIndex: Int = -1
     override fun remove(id: Int) = table.remove(id)
     override fun clear() = table.clear()
     override val size: Int get() = table.size
     override fun contains(id: Int): Boolean = table.contains(id)
     override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.store.put(table.store.keyAt(i), table.store.valueAt(i)) }
+    fun copySelfTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.store.put(table.store.keyAt(i), table.store.valueAt(i)) }
 }
 
 class RefTableRef<T>(
@@ -199,11 +208,13 @@ class RefTableRef<T>(
     @JvmField val destProp: kotlin.reflect.KProperty1<DiscipleTables, ComponentTable<T>>,
     override val debugName: String
 ) : CopyableTableRef {
+    override var columnIndex: Int = -1
     override fun remove(id: Int) = table.remove(id)
     override fun clear() = table.clear()
     override val size: Int get() = table.size
     override fun contains(id: Int): Boolean = table.contains(id)
     override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.store.put(table.store.keyAt(i), table.store.valueAt(i)) }
+    fun copySelfTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.store.put(table.store.keyAt(i), table.store.valueAt(i)) }
 }
 
 class MutableTableRef<T>(
@@ -212,9 +223,11 @@ class MutableTableRef<T>(
     override val debugName: String,
     private val deepCopyFn: (T) -> T
 ) : CopyableTableRef {
+    override var columnIndex: Int = -1
     override fun remove(id: Int) = table.remove(id)
     override fun clear() = table.clear()
     override val size: Int get() = table.size
     override fun contains(id: Int): Boolean = table.contains(id)
     override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.store.put(table.store.keyAt(i), deepCopyFn(table.store.valueAt(i))) }
+    fun copySelfTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.store.put(table.store.keyAt(i), deepCopyFn(table.store.valueAt(i))) }
 }

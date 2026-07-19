@@ -418,8 +418,20 @@ class GameViewModel @Inject constructor(
     val highFreqState: StateFlow<GameStateStore.HighFreqState> get() = gameEngine.highFreqState
     val entityState: StateFlow<GameStateStore.EntityState> get() = gameEngine.entityState
     val configState: StateFlow<GameStateStore.ConfigState> get() = gameEngine.configState
+    /** 主界面常用状态的聚合快照（减少 collect 数量） */
+    data class GameScreenAggState(
+        val gameData: GameData,
+        val highFreq: GameStateStore.HighFreqState,
+        val config: GameStateStore.ConfigState,
+        val isPaused: Boolean
+    )
+    val gameScreenState: StateFlow<GameScreenAggState> = combine(
+        gameEngine.gameData, highFreqState, configState, gameEngineCore.state.map { it.isPaused }
+    ) { gd, hf, cfg, paused -> GameScreenAggState(gd, hf, cfg, paused) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), GameScreenAggState(GameData(), GameStateStore.HighFreqState(), GameStateStore.ConfigState(), true))
 
     val pendingNotification: StateFlow<GameNotification?> get() = gameEngine.pendingNotification
+    val notifications: StateFlow<List<GameNotification>> get() = gameEngine.notifications
     val rewardCardQueue: StateFlow<List<RewardCardItem>> get() = gameEngine.rewardCardQueue
 
     val warehouseFullEvent get() = gameEngine.warehouseFullEvent
@@ -726,8 +738,9 @@ class GameViewModel @Inject constructor(
     fun initializeLifeEvents(discipleId: String) =
         discipleFacade.initializeLifeEvents(discipleId)
 
-    /** 清空弟子侧待处理通知 */
+    /** 清空待处理通知（消费队列 + 清空单值旧通知） */
     fun clearNotification() {
+        gameEngine.consumeNotification()
         discipleFacade.clearPendingNotification()
     }
 
