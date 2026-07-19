@@ -83,7 +83,7 @@ class GameStateStoreImpl @Inject constructor(
             current: DiscipleTables,
             originAliveIds: Set<Int>? = null
         ): DiscipleTables {
-            val result = shadow.deepCopy()
+            val result = shadow.deepCopy().apply { writeAllowed = true }
             val currentIds = current.ids.toSet()
 
             // 1. 处理 current 中的 ID（shared + current-only）
@@ -118,6 +118,7 @@ class GameStateStoreImpl @Inject constructor(
                 }
             }
 
+            result.writeAllowed = false
             return result
         }
     }
@@ -539,6 +540,10 @@ class GameStateStoreImpl @Inject constructor(
     /** 影子创建时的存活弟子 ID 集合，用于合并时区分"死亡"与"新生儿" */
     private var shadowOriginAliveIds: Set<Int>? = null
 
+    /**
+     * 注意：影子结算路径（createSettlementShadow + swapFromShadow）当前为死代码，
+     * 惰性结算引擎已替代。deepCopy 的 writeAllowed = true 设置保留以兼容未来重启用。
+     */
     override fun createSettlementShadow(
         productionSlots: List<com.xianxia.sect.core.model.production.ProductionSlot>
     ): MutableGameState {
@@ -556,7 +561,7 @@ class GameStateStoreImpl @Inject constructor(
         shadowOriginAliveIds = _discipleTables.ids.filter { _discipleTables.isAlive[it] == 1 }.toSet()
         return MutableGameState(
             gameData = gd,
-            discipleTables = _discipleTables.deepCopy(),
+            discipleTables = _discipleTables.deepCopy().apply { writeAllowed = true },
             equipmentStacks = EntityStore(es),
             equipmentInstances = EntityStore(ei),
             manualStacks = EntityStore(ms),
