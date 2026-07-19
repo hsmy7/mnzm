@@ -241,11 +241,13 @@ class DiscipleDelegate(
             Log.w(TAG, "recruitDiscipleFromList: skipped (isRecruitingAll=true) for $discipleId")
             return
         }
-        if (recruitingDiscipleIds.contains(discipleId)) {
-            Log.w(TAG, "recruitDiscipleFromList: skipped (duplicate) for $discipleId")
-            return
+        synchronized(recruitingLock) {
+            if (recruitingDiscipleIds.contains(discipleId)) {
+                Log.w(TAG, "recruitDiscipleFromList: skipped (duplicate) for $discipleId")
+                return
+            }
+            recruitingDiscipleIds.add(discipleId)
         }
-        recruitingDiscipleIds.add(discipleId)
         scope.launch {
             try {
                 Log.d(TAG, "recruitDiscipleFromList: launching for $discipleId")
@@ -259,7 +261,9 @@ class DiscipleDelegate(
                 if (e is CancellationException) throw e
                 Log.w(TAG, "recruitDiscipleFromList: exception for $discipleId", e)
             } finally {
-                recruitingDiscipleIds.remove(discipleId)
+                synchronized(recruitingLock) {
+                    recruitingDiscipleIds.remove(discipleId)
+                }
             }
         }
     }

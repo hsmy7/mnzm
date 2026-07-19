@@ -595,15 +595,13 @@ stateStore.update {
 
 **6.3 🟡 Flow 派生规则** — 高频率 StateFlow 派生必须使用 `distinctUntilChanged()` + `sample(50)` + `stateIn(scope, WhileSubscribed(5000), initial)`。
 
-**6.4 🔴 新增可变化数据需同步更新指纹** — 批量轨指纹检测依赖 `CultivationRateFingerprint` 检测修炼速率变化。新增以下内容时，必须同步更新对应指纹的 `compute` 方法：
-- `DiscipleTables` 新增列（影响修炼速率计算）→ `SettlementCoordinator.computeFingerprint` 的 `perDiscipleHash`
-- `ElderSlots` 新增槽位类型 → 若在 data class 内部自动覆盖；若单独建表需手动加入
-- `SectPolicies` 新增政策 → 若在 data class 内部自动覆盖；否则需手动加入 `productionPolicyHash`
-- 新增生产系统（如灵兽养殖等）→ `ProductionRateFingerprint` 新增字段 + `compute` 方法
-- 新增影响修炼速率的数据维度 → `CultivationRateFingerprint` 新增字段
-- 新增丹药类型（pillType）或 PillEffects 字段 → `CultivationCore.processRealtimeAutoPills` 的字段写回列表 + `DisciplePillManager.classify` 的分类规则需同步更新。丹药指纹检测在该方法内通过 `storageBagItems.any { it.itemType == "pill" }` 实现，无需单独指纹数据类
+**6.4 🔴 新增影响生产系统的字段需同步更新 checkpoint** — 惰性结算引擎已移除批量轨指纹检测（`CultivationRateFingerprint`、`ProductionRateFingerprint`、`SettlementCoordinator` 均移除）。生产系统使用 `fun checkpointAllProduction()` 在政策/长老变化时重算所有活跃槽位的 duration 和 completionMonth，无需维护指纹数据类。
 
-指纹的 `compute` 方法统一在 `SettlementCoordinator.kt`（修炼指纹）中。指纹检测每 30s 用临时影子计算指纹并比对，变化时重建 SettlementCache。详见 [ADR: 统一批量结算模式](docs/adr/unified-batch-settlement.md)。
+新增以下内容时，同步更新入口见 13.3 🔴 审查清单：
+- 新增生产类政策 → `SectPolicyToggleUseCase` 触发 `checkpointAllProduction()`
+- 新增长老类型 → `ElderManagementUseCase.productionElderTypes` 注册
+- 新增生产速率因子 → `calculateWorkDurationWithAllDisciples` / `calculateSpiritFieldMaturityBonus`
+- 新增丹药类型 → `CultivationCore.processRealtimeAutoPills` + `DisciplePillManager.classify`
 
 **6.5 🔴 新增/改动界面必须重新评估焦点域映射** — 焦点域采用纯视角驱动 + 域声明系统：**每个 UI 界面对应一个 FocusDomain 枚举值，域通过 `systemClasses` 反向声明激活时需实时 tick 的系统**。
 

@@ -113,7 +113,10 @@ class LawEnforcementProcessor @Inject constructor(
                 val caught = tryGuardCatch(disciple, warehouses, garrisons, captureRate)
                 if (caught) {
                     stateStore.update {
-                        val cid = disciple.id.toIntOrNull() ?: return@update
+                        val cid = disciple.id.toIntOrNull() ?: run {
+                            DomainLog.w(TAG, "processTheftMonthly: caught but disciple.id not int, skipping")
+                            return@update
+                        }
                         if (discipleTables.ids.contains(cid) && discipleTables.isAlive[cid] == 1) {
                             discipleTables.statuses[cid] = DiscipleStatus.REFLECTING
                             val existingData = discipleTables.statusData[cid]
@@ -175,7 +178,10 @@ class LawEnforcementProcessor @Inject constructor(
     private fun captureDiscipleForReflection(id: Int, currentYear: Int) {
         val endYear = currentYear + GameConfig.LawEnforcementConfig.REFLECTION_YEARS
         stateStore.update {
-            val d = discipleTables.assemble(id) ?: return@update
+            val d = discipleTables.assemble(id) ?: run {
+                DomainLog.w(TAG, "captureDiscipleForReflection: disciple $id already removed, skipping")
+                return@update
+            }
             discipleTables.remove(id)
             discipleTables.insert(d.copy(status = DiscipleStatus.REFLECTING,
                 statusData = d.statusData + mapOf("reflectionStartYear" to currentYear.toString(), "reflectionEndYear" to endYear.toString())))

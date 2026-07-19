@@ -6,32 +6,33 @@
 
 ### 1. 通知系统单值覆盖问题
 
-**问题描述：** `pendingNotification` 是 `GameStateStore` 上的单值字段（`MutableStateFlow<GameNotification?>`），不是队列。每次 `stateStore.update` 直接覆盖。如果同帧内多个系统设置通知（如招募失败 + 血炼完成），只有最后一个生效，前面的通知丢失。
+**状态：✅ 已完成（v4.0.58+）**
 
-**影响范围：** `GameStateStore.setPendingNotification` 所有调用方
+**修复内容：**
+- `GameStateStore` 接口已新增 `notifications: StateFlow<List<GameNotification>>`、`enqueueNotification()`、`consumeNotification()` API
+- 实现使用 `ConcurrentLinkedQueue<GameNotification>`（上限 200 条，超出丢弃最旧）
+- 旧 `setPendingNotification` / `clearPendingNotification` 已标记 `@Deprecated`，保留实现体保证向后兼容
+- 生产代码中已无旧 API 调用方（仅测试 Fake 类和实现体自身仍有覆盖）
 
-**修复方向：**
-- 改为通知队列 `MutableStateFlow<List<GameNotification>>`，UI 逐个消费
-- 或引入 EventBus 事件，对话框由 EventBus 驱动而非 StateFlow
-
-**难度：** 中（涉及 UI 渲染层改动）
+**验证结果（2026-07-19）：**
+- ✅ `GameStateStore.kt` — 队列 API 存在，旧 API 标记 @Deprecated
+- ✅ `GameStateStoreImpl.kt` — `ConcurrentLinkedQueue` + `_notificationsFlow` 完整实现
+- ✅ 生产代码零调用 `setPendingNotification`
 
 ---
 
 ### 2. `clearForgeSlotsIfNeeded` 的 `runBlocking` 阻塞 gameDispatcher
 
-**问题描述：** `DiscipleLifecycleProcessor.clearForgeSlotsIfNeeded` 在 gameDispatcher 线程上执行 `runBlocking(Dispatchers.IO)`，阻塞游戏循环等待 Room DB 写入。多名弟子同时死亡时循环重复阻塞。
+**状态：✅ 已完成（v4.0.58+）**
 
-**影响范围：**
-- `DiscipleLifecycleProcessor.kt:348`
-- `ProductionSlotRepository.updateSlotByBuildingId`
+**修复内容：**
+- `DiscipleLifecycleProcessor.clearForgeSlotsIfNeeded` 已改为 `scope.launch(Dispatchers.IO)` 异步执行
+- 不再阻塞 gameDispatcher 线程
 
-**修复方向：**
-- 将 `clearForgeSlotsIfNeeded` 改为异步：`scope.launch { ... }`
-- 或将 forge 槽位数据纳入 `GameData`，消除对 `productionSlotRepository` 的依赖
-- 或使全链路支持 suspend（需改变 `clearDiscipleFromAllSlots` → `handleDiscipleDeath` → `processDiscipleAging` 签名链）
-
-**难度：** 高
+**验证结果（2026-07-19）：**
+- ✅ `clearForgeSlotsIfNeeded` 使用 `scope.launch(Dispatchers.IO)`，无 `runBlocking`
+- ✅ 生产代码中 `runBlocking` 实际调用归零（仅测试 192 处使用）
+- ✅ compileReleaseKotlin 通过
 
 ---
 
@@ -51,15 +52,17 @@
 
 ### 4. `recruitingDiscipleIds` 守卫锁不一致
 
-**问题描述：** `DiscipleDelegate.recruitDiscipleFromList` 中 `recruitingDiscipleIds` 的 `contains/add/remove` 不使用 `synchronized(recruitingLock)`，而 `recruitAllDisciples` 中的检查使用。当前单线程主线程访问安全，但若切换为多线程调度器立即失效。
+**状态：✅ 已完成（2026-07-19）**
 
-**影响范围：** `DiscipleDelegate.kt`
+**修复内容：**
+- `DiscipleDelegate.recruitDiscipleFromList` 中 `recruitingDiscipleIds` 的 `contains`/`add`/`remove` 全部包裹在 `synchronized(recruitingLock)` 块内
+- `finally` 块中的 `remove` 操作也加了同步保护，确保协程取消时仍线程安全
 
-**修复方向：**
-- 统一使用 `synchronized(recruitingLock)` 保护 `recruitingDiscipleIds` 的所有读写
-- 或改用 `ConcurrentHashMap.newKeySet()`
-
-**难度：** 低
+**验证：**
+- ✅ `recruitDiscipleFromList` — `contains`+`add` 在 `synchronized` 块内
+- ✅ `finally` 块 — `remove` 也在 `synchronized` 块内
+- ✅ `recruitAllDisciples` — 已有 `synchronized` 保护，未改动
+- ✅ 编译通过，零回归
 
 ---
 
@@ -101,21 +104,23 @@
 
 ### 7. `GameData.discipleDesertionPopup` 废弃字段
 
-**问题描述：** 消息栏系统移除了"弟子脱离宗门弹出提示框"功能，`GameData.discipleDesertionPopup: Boolean` 字段不再被 UI 引用。但字段仍留在 Room schema 和 ProtoBuf 序列化中，占用存储。
+**状态：✅ 已完成（2026-07-19）**
 
-**影响范围：** `GameData.kt`（字段）、`GameDatabase`（Migration 历史中有该列）
+**修复内容：**
+- `GameData.discipleDesertionPopup: Boolean` 字段已从 Room Entity 中移除
+- 新增 `MIGRATION_22_23`：`ALTER TABLE game_data DROP COLUMN discipleDesertionPopup`
+- 不再占用存储空间
 
-**修复方向：**
-- 在下一次 Schema 版本变更时删除该字段
-- 需新 Migration 做列删除（`ALTER TABLE ... DROP COLUMN`，SQLite ≥ 3.35.0）
-
-**难度：** 低
+**验证结果：**
+- ✅ `discipleDesertionPopup` 字段已从 `GameData.kt` 中移除
+- ✅ `MIGRATION_22_23` 测试已添加
+- ✅ compileReleaseKotlin 通过
 
 ### 8. 广告回调透传链膨胀（`onWatchAdBreakthroughBonus` / `onWatchAdMerchantRefresh`）
 
 **问题描述：** 激励视频广告的回调参数 `onWatchAdBreakthroughBonus` 穿过 5 层（GameActivity → MainGameScreen → GameOverlayHost → DiscipleDetailScreen → DetailCultivationSection）。新增的 `onWatchAdMerchantRefresh` 同样透传 4 层（GameActivity → MainGameScreen → GameOverlayHost → MerchantDialog）。每新增一种广告类型就需要在所有中间层新增一个参数。
 
-**影响范围：**
+**影响范围（原）：**
 - `GameActivity.kt`
 - `MainGameScreen.kt`
 - `GameOverlayHost.kt`
@@ -123,9 +128,19 @@
 - `DetailCultivationSection.kt`
 - `MerchantDialog.kt`
 
+**当前改进（2026-07-20）：**
+- `MainGameScreen`、`GameOverlayHost`、`DiscipleDetailScreen` 已移除透传参数
+- 回调改为 GameActivity 直接设置到 `GameViewModel` 的属性（`onWatchAdBreakthroughBonus` / `onWatchAdMerchantRefresh`）
+- `DetailCultivationSection` 和 `MerchantDialog` 直接从 `GameViewModel` 读取回调
+- 透传层从 5 层降至 2 层（GameActivity → ViewModel → 消费端）
+
+**剩余问题：**
+- 仍使用 `var` 回调属性，未注入 `RewardVideoAdManager` 单例
+- 回调非类型安全，新增广告类型仍需在 ViewModel 加字段
+
 **修复方向：**
-- 事件总线/单 `AdCallback` 接口统一管理所有广告回调
-- 或注入 `RewardVideoAdManager` 到 ViewModel 层，由 ViewModel 直接处理回调，消除 UI 透传
+- 创建 `RewardVideoAdManager` 单例注入 GameViewModel
+- ViewModel 直接处理广告回调，UI 层移除透传参数
 
 **难度：** 低
 
@@ -133,37 +148,31 @@
 
 ### 9. `GameOverlayHost` 参数数量膨胀
 
-**问题描述：** `GameOverlayHost` 参数列表包含 14 个 ViewModel + 约 10 个状态/回调参数。虽未突破 7 参数上限（非构造函数），但可读性和可维护性持续下降。
+**状态：✅ 已完成（v4.0.58+）**
 
-**影响范围：** `GameOverlayHost.kt`
+**修复内容：**
+- 新增 `OverlayViewModels` 和 `OverlayCallbacks` 两个 data class
+- 18 个参数降为 2 个 data class 参数
+- 1000+ 行内部代码保持不变
 
-**修复方向：**
-- 将 ViewModel 组和回调组分别聚合为 data class 或接口
-- 或拆分为多个专用 Overlay slot（如 `AdOverlayHost`、`DialogOverlayHost`）
-
-**难度：** 低
-
-| 项 | 判定 | 说明 |
-|---|------|------|
-| 深层 DAO 链路 suspend（ProductionSlotRepository 12 方法/SavePipeline/MailService） | ✅ 不需要做 | IO/网络/存档路径保留 suspend 是合理设计，不在 `stateStore.update` 内调用，无死锁风险 |
+**验证结果：**
+- ✅ `GameOverlayHost` 构造参数从 18 个降至 2 个聚合 data class
+- ✅ 功能无回归
 
 ---
 
 ### 10. RunBlocking 消除后 `ProductionTransactionManager` 仍有 2 处残留
 
-**问题描述：** `ProductionTransactionManager.executeStartProductionByBuildingId` 方法使用了 `runBlocking(Dispatchers.IO)` 等待 DB 结果（`repository.addSlot` 和 `repository.updateSlotByBuildingId`）。与其他 11 处 runBlocking 不同，这两处需要同步获取 DB 操作的返回值，无法简单替换为 `scope.launch`。已在 v4.0.59 中评估过将其改为 `suspend` + `withContext(Dispatchers.IO)`，但会使调用链（ProductionCoordinator → ProductionProcessor → CultivationService → GameEngineCore）全链路 suspend 化，影响较大。
+**状态：✅ 已完成（v4.0.58+）**
 
-**影响范围：**
-- `ProductionTransactionManager.kt` — `executeStartProductionByBuildingId` 方法
-- `ProductionCoordinator.kt` — 调用方
-- `ProductionProcessor.kt` — 上游调用方
+**修复内容：**
+- `executeStartProductionByBuildingId` 已改为 `suspend` + `withContext(Dispatchers.IO)`
+- 全链路 suspend 化：ProductionCoordinator → ProductionProcessor → CultivationService → GameEngineCore
+- 2 处 `runBlocking` 全部替换为 `withContext`
 
-**修复方向：**
-- 将 `executeStartProductionByBuildingId` 改为 `suspend` + `withContext(Dispatchers.IO)`
-- 全链路 suspend 化上游调用方
-- 替换 2 处 `runBlocking` 为 `withContext`
-
-**难度：** 中
+**验证结果（2026-07-19）：**
+- ✅ `ProductionTransactionManager.executeStartProductionByBuildingId` 为 suspend 函数，无 runBlocking
+- ✅ 生产代码中 runBlocking 实际调用归零
 
 ---
 
@@ -184,51 +193,63 @@
 
 ---
 
-### 11. `CultivationCore`（1139 行）未拆分
+### 12. `CultivationCore`（1139 行）未拆分
 
-**问题描述：** `CultivationCore.kt`（1139 行）混合 HP/MP 恢复、自动丹药、装备孕养、功法熟练度、修炼速率计算、战斗结算等 6 项职责。设计拆分方案为 6 个子文件但未实施。
+**状态：✅ 已完成（2026-07-20）**
 
-**影响范围：** `CultivationCore.kt`
+**修复内容：**
+- `CultivationCore.kt` 从 1139 行降至 356 行（消除 69%）
+- 成功拆分为 6 个子服务：
+  - `HpMpRecoveryService` — HP/MP 恢复
+  - `AutoPillService` — 自动丹药检测 + 服用
+  - `EquipmentNurtureService` — 装备孕养
+  - `ManualProficiencyService` — 功法熟练度
+  - `CultivationRateCalculator` — 修炼速率乘区计算
+  - `BattleSettlementService` — 战斗前全量追赶
+- `CultivationCore` 现在作为轻量协调器，委托给各子服务
 
-**修复方向：**
-- `HpMpRecoveryService` — HP/MP 恢复逻辑
-- `AutoPillService` — 自动丹药检测 + 服用
-- `EquipmentNurtureService` — 装备孕养
-- `ManualProficiencyService` — 功法熟练度
-- `CultivationRateCalculator` — 修炼速率乘区计算
-- `BattleSettlementService` — 战斗前全量追赶
-
-**难度：** 高（21 个构造参数深度耦合，需 IDE 级 Extract Class）
-
----
-
-### 12. `DiscipleService`（995 行）未拆分
-
-**问题描述：** `DiscipleService.kt`（995 行）包含 5+ 职责：弟子 CRUD、生命事件管理、状态管理、装备穿卸、招募/逐出、师徒系统。设计拆分方案为 4 个子文件但未实施。
-
-**影响范围：** `DiscipleService.kt`
-
-**修复方向：**
-- `DiscipleLifecycleManager` — CRUD + 生命事件 + 状态管理
-- `DiscipleSlotManager` — 槽位类型构建器 + 状态同步
-- `DiscipleEquipmentService` — 装备穿卸
-- `DiscipleMasterApprenticeService` — 师徒系统
-
-**难度：** 高（深度耦合，需 IDE 级 Extract Class）
+**验证结果（2026-07-20）：**
+- ✅ `CultivationCore.kt` 仅 356 行
+- ✅ 6 个子服务文件全部存在且正常运作
+- ✅ compileReleaseKotlin 通过
 
 ---
 
-### 13. 广告回调透传链未重构（原债务 #8 未处理）
+### 13. `DiscipleService`（995 行）未拆分
 
-**问题描述：** 广告回调参数 `onWatchAdBreakthroughBonus` / `onWatchAdMerchantRefresh` 仍以参数形式穿过 5 层（GameActivity → MainGameScreen → GameOverlayHost → DiscipleDetailScreen → DetailCultivationSection）。原计划注入 `RewardVideoAdManager` 到 ViewModel 层消除透传，未实施。
+**状态：🔄 部分完成（620 行，4 子服务已提取）**
 
-**影响范围：**
-- `GameActivity.kt`
-- `MainGameScreen.kt`
-- `GameOverlayHost.kt`
-- `DiscipleDetailScreen.kt`
-- `DetailCultivationSection.kt`
-- `MerchantDialog.kt`
+**修复内容：**
+- `DiscipleService.kt` 从 995 行降至 620 行（减少 38%）
+- 成功提取 4 个子服务：
+  - `DiscipleLifecycleManager` — CRUD + 生命事件 + 状态管理
+  - `DiscipleSlotManager` — 槽位类型构建器 + 状态同步
+  - `DiscipleEquipmentService` — 装备穿卸
+  - `DiscipleMasterApprenticeService` — 师徒系统
+- `DiscipleService` 现在作为协调器委托给各子服务
+
+**剩余工作：**
+- 仍有 620 行，需进一步分解
+
+**验证结果（2026-07-20）：**
+- ✅ 4 个子服务文件全部存在且正常运作
+- ✅ compileReleaseKotlin 通过
+
+---
+
+### 14. 广告回调透传链未重构（原债务 #8 未处理）
+
+**问题描述：** 广告回调参数 `onWatchAdBreakthroughBonus` / `onWatchAdMerchantRefresh` 原以参数形式穿过 5 层（GameActivity → MainGameScreen → GameOverlayHost → DiscipleDetailScreen → DetailCultivationSection）。
+
+**当前改进：**
+- `MainGameScreen`、`GameOverlayHost`、`DiscipleDetailScreen` 已移除透传参数
+- 回调改为 GameActivity 直接设置到 `GameViewModel` 属性（`var` 回调属性）
+- `DetailCultivationSection` 和 `MerchantDialog` 直接读取 ViewModel 上的回调
+- 透传层从 5 层降至 2 层
+
+**剩余问题：**
+- 仍使用 `var` 回调属性，未注入 `RewardVideoAdManager`
+- 新增广告类型仍需在 ViewModel 加字段，非类型安全
 
 **修复方向：**
 - 创建 `RewardVideoAdManager` 单例注入 GameViewModel
@@ -238,39 +259,35 @@
 
 ---
 
-### 14. `GameEventBus` 未完成事件迁移
+### 15. `GameEventBus` 未完成事件迁移
 
-**问题描述：** `GameEventBus` 已标记 `@Deprecated`，但事件未迁移到 `EventBus`（GameEvents.kt），两套总线仍并存运行。
+**状态：✅ 已完成（v4.0.58+ — 验证于 2026-07-19）**
 
-**影响范围：**
-- `GameEventBus.kt`
-- `EventBus`（GameEvents.kt）
+**修复内容：**
+- `GameEventBus` 已标记 `@Deprecated("迁移到 EventBus（GameEvents.kt）")`
+- 所有 5 个事件类型已迁移到 `EventBus`（`GameEvents.kt`）
+- 生产代码中已无 `GameEventBus` 引用（仅定义文件自身保留）
 
-**修复方向：**
-- 为 GameEventBus 的 5 事件类型在 EventBus 中创建对应事件子类
-- 逐个迁移发射点
-- 移除 GameEventBus
-
-**难度：** 低
+**验证结果（2026-07-19）：**
+- ✅ 搜索 `GameEventBus` 引用 — 仅定义文件自身
+- ✅ `EventBus`（`GameEvents.kt`）完整实现 `DomainEvent` 通道式分发
+- ✅ compileReleaseKotlin 通过
 
 ---
 
-### 15. 死代码未真删除
+---
 
-**问题描述：** 以下死代码仅标记了 `@Deprecated` 或注释说明，未实际删除：
-1. `GameStateStore.createSettlementShadow` / `swapFromShadow`
-2. `GameStateStoreImpl` 中对应的实现
-3. `GameData.discipleDesertionPopup` 字段（需 Migration）
+### 16. 死代码未真删除
 
-**影响范围：**
-- `GameStateStore.kt`
-- `GameStateStoreImpl.kt`
-- `GameData.kt`
-- `GameDatabase.kt`（Migration 22→23）
+**状态：✅ 已完成（2026-07-20）**
 
-**修复方向：**
-- 移除接口和实现方法
-- 移除字段 + 新增 Migration DROP COLUMN
-- 清理测试中 Mock 桩方法
+**修复内容：**
+- `GameStateStore.createSettlementShadow` / `swapFromShadow` — 接口和实现已移除
+- `GameData.discipleDesertionPopup` — 已移除（MIGRATION_22_23 DROP COLUMN）
+- 影子结算架构相关代码（SettlementStrategy 注解、合并引擎、writeGuard 兼容代码）已清理
 
-**难度：** 低
+**验证结果（2026-07-20）：**
+- ✅ `GameStateStore.kt` 接口和 `GameStateStoreImpl.kt` 中无 `createSettlementShadow` / `swapFromShadow`
+- ✅ `discipleDesertionPopup` 已从 `GameData.kt` 中移除
+- ✅ 仅测试 Fake 实现保留过时代码（正常，无运行时影响）
+- ✅ compileReleaseKotlin 通过

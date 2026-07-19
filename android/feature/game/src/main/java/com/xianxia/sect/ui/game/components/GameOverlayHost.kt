@@ -80,9 +80,7 @@ data class OverlayCallbacks(
     val onLogout: () -> Unit,
     val onRestartGame: () -> Unit,
     val limitAdTracking: Boolean,
-    val onLimitAdTrackingChanged: (Boolean) -> Unit,
-    val onWatchAdBreakthroughBonus: ((String) -> Unit)? = null,
-    val onWatchAdMerchantRefresh: (() -> Unit)? = null
+    val onLimitAdTrackingChanged: (Boolean) -> Unit
 )
 
 @Composable
@@ -107,8 +105,6 @@ fun GameOverlayHost(
     val onRestartGame = callbacks.onRestartGame
     val limitAdTracking = callbacks.limitAdTracking
     val onLimitAdTrackingChanged = callbacks.onLimitAdTrackingChanged
-    val onWatchAdBreakthroughBonus = callbacks.onWatchAdBreakthroughBonus
-    val onWatchAdMerchantRefresh = callbacks.onWatchAdMerchantRefresh
 
     var tipDialogMessage by remember { mutableStateOf<String?>(null) }
     var tipDialogIsError by remember { mutableStateOf(false) }
@@ -306,8 +302,7 @@ fun GameOverlayHost(
             MerchantDialog(
                 gameData = gameData,
                 viewModel = viewModel,
-                onDismiss = onDismiss,
-                onWatchAdMerchantRefresh = onWatchAdMerchantRefresh
+                onDismiss = onDismiss
             )
         }
         is DialogType.SalaryConfig -> { }
@@ -680,8 +675,7 @@ fun GameOverlayHost(
                         viewModel = viewModel,
                         onDismiss = { viewModel.dismissDiscipleDetail() },
                         onNavigateToDisciple = req.onNavigateToDisciple
-                            ?: { d -> viewModel.navigateDiscipleDetail(d) },
-                        onWatchAdBreakthroughBonus = onWatchAdBreakthroughBonus
+                            ?: { d -> viewModel.navigateDiscipleDetail(d) }
                     )
                 }
             }

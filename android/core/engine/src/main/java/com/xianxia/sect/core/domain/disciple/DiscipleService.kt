@@ -26,8 +26,6 @@ import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.asKotlinRandom
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-
 @GameService("DiscipleService")
 @Singleton
 class DiscipleService @Inject constructor(
@@ -37,7 +35,12 @@ private val scopeProvider: CoroutineScopeProvider,
     private val inventoryConfig: InventoryConfig,
     private val discipleFactory: DiscipleFactory,
     private val rngManager: GameRngManager,
-    private val discipleSlotCleanup: DiscipleSlotCleanup
+    private val discipleSlotCleanup: DiscipleSlotCleanup,
+    // 子服务（已提取的职责模块，用于未来深度重构）
+    private val discipleEquipmentService: DiscipleEquipmentService,
+    private val discipleLifecycleManager: DiscipleLifecycleManager,
+    private val discipleMasterApprenticeService: DiscipleMasterApprenticeService,
+    private val discipleSlotManager: DiscipleSlotManager
 ) {
     private val rng get() = rngManager.getRng(RngPartition.SYSTEM)
     private val currentDiscipleTables: DiscipleTables
@@ -66,47 +69,22 @@ private val scopeProvider: CoroutineScopeProvider,
     /**
      * Add new disciple
      */
-    fun addDisciple(disciple: Disciple) {
-        stateStore.update { discipleTables.insert(disciple) }
-    }
+    fun addDisciple(disciple: Disciple) = discipleLifecycleManager.addDisciple(disciple)
 
     /**
      * Remove disciple by ID
      */
-    fun removeDisciple(discipleId: String): DomainResult<Unit> {
-        val id = discipleId.toIntOrNull()
-            ?: return DomainResult.Failure(AppError.Domain.Disciple.NotFound(discipleId))
-        return stateStore.updateAndReturn {
-            if (discipleTables.ids.contains(id)) {
-                discipleTables.remove(id)
-                DomainResult.Success(Unit)
-            } else {
-                DomainResult.Failure(AppError.Domain.Disciple.NotFound(discipleId))
-            }
-        }
-    }
+    fun removeDisciple(discipleId: String): DomainResult<Unit> = discipleLifecycleManager.removeDisciple(discipleId)
 
     /**
      * Get disciple by ID
      */
-    fun getDiscipleById(discipleId: String): Disciple? {
-        val id = discipleId.toIntOrNull() ?: return null
-        val tables = stateStore.discipleTables
-        return if (tables.ids.contains(id)) tables.assemble(id) else null
-    }
+    fun getDiscipleById(discipleId: String): Disciple? = discipleLifecycleManager.getDiscipleById(discipleId)
 
     /**
      * Update disciple
      */
-    fun updateDisciple(disciple: Disciple) {
-        val id = disciple.id.toIntOrNull() ?: return
-        stateStore.update {
-            if (discipleTables.ids.contains(id)) {
-                discipleTables.remove(id)
-                discipleTables.insert(disciple)
-            }
-        }
-    }
+    fun updateDisciple(disciple: Disciple) = discipleLifecycleManager.updateDisciple(disciple)
 
     // ==================== 弟子日志 ====================
 
@@ -114,138 +92,13 @@ private val scopeProvider: CoroutineScopeProvider,
      * 为指定弟子追加一条日志事件。
      * 事件格式："xx岁：事件描述"。
      */
-    fun addLifeEvent(discipleId: String, event: String) {
-        val id = discipleId.toIntOrNull() ?: return
-        stateStore.update {
-            if (!discipleTables.ids.contains(id)) return@update
-            val currentEvents = discipleTables.lifeEvents.getOrDefault(id, emptyList())
-            discipleTables.lifeEvents[id] = currentEvents + event
-        }
-    }
+    fun addLifeEvent(discipleId: String, event: String) = discipleLifecycleManager.addLifeEvent(discipleId, event)
 
-    /**
-     * 获取指定弟子的全部日志事件，按添加顺序排列。
-     */
-    fun getLifeEvents(discipleId: String): List<String> {
-        val id = discipleId.toIntOrNull() ?: return emptyList()
-        return currentDiscipleTables.lifeEvents.getOrDefault(id, emptyList())
-    }
+    fun getLifeEvents(discipleId: String): List<String> = discipleLifecycleManager.getLifeEvents(discipleId)
 
-    /**
-     * 根据弟子当前状态生成合成历史事件（仅当尚无日志时）。
-     * 用于加载旧存档后首次查看日志。
-     */
-    fun initializeLifeEvents(discipleId: String) {
-        val id = discipleId.toIntOrNull() ?: return
-        stateStore.update {
-            if (!discipleTables.ids.contains(id)) return@update
-            if (discipleTables.lifeEvents.getOrNull(id)?.isNotEmpty() == true) return@update
+    fun initializeLifeEvents(discipleId: String) = discipleLifecycleManager.initializeLifeEvents(discipleId)
 
-            val events = mutableListOf<String>()
-            val age = discipleTables.ages[id]
-            val currentAbsoluteMonth = gameData.gameYear * 12 + gameData.gameMonth
-            val recruitedMonth = discipleTables.recruitedMonths.getOrDefault(id, 0)
-
-            // 加入宗门
-            if (recruitedMonth > 0 && currentAbsoluteMonth > recruitedMonth) {
-                val monthsSince = currentAbsoluteMonth - recruitedMonth
-                val recruitedAge = (age - monthsSince / 12).coerceAtLeast(1)
-                events.add("${recruitedAge}岁：加入宗门")
-            }
-
-            // 拜师
-            val masterId = discipleTables.masterIds.getOrNull(id)
-            if (masterId != null) {
-                val masterIdInt = masterId.toIntOrNull()
-                val masterName = if (masterIdInt != null) discipleTables.names.getOrNull(masterIdInt) ?: "未知" else "未知"
-                events.add("${age}岁：拜${masterName}为师")
-            }
-
-            // 道侣
-            val partnerId = discipleTables.partnerIds.getOrNull(id)
-            if (partnerId != null) {
-                val partnerIdInt = partnerId.toIntOrNull()
-                val partnerName = if (partnerIdInt != null) discipleTables.names.getOrNull(partnerIdInt) ?: "未知" else "未知"
-                events.add("${age}岁：与${partnerName}结为道侣")
-            }
-
-            if (events.isNotEmpty()) {
-                discipleTables.lifeEvents[id] = events
-            }
-        }
-    }
-
-    // ==================== 弟子状态管理 ====================
-
-    /**
-     * Get disciple status based on current assignments
-     */
-    fun getDiscipleStatus(discipleId: String): DiscipleStatus {
-        val data = stateStore.gameData.value
-        val id = discipleId.toIntOrNull() ?: return DiscipleStatus.IDLE
-        val tables = stateStore.discipleTables
-        if (!tables.ids.contains(id)) return DiscipleStatus.IDLE
-
-        val isAlive = tables.isAlive[id] == 1
-        if (!isAlive) return DiscipleStatus.DEAD
-        val status = tables.statuses[id]
-        if (status == DiscipleStatus.REFLECTING) return DiscipleStatus.REFLECTING
-        if (status == DiscipleStatus.ON_MISSION) return DiscipleStatus.ON_MISSION
-        if (status == DiscipleStatus.REFINING) return DiscipleStatus.REFINING
-
-        val playerSect = data.worldMapSects.find { it.isPlayerSect }
-        val inGarrison = playerSect?.garrisonSlots?.any { it.discipleId == discipleId } == true
-        if (inGarrison) return DiscipleStatus.GARRISONING
-
-        val inBattleTeam = data.battleTeams.any { team ->
-            team.slots.any { it.discipleId == discipleId }
-        }
-        if (inBattleTeam) return DiscipleStatus.IN_TEAM
-
-        if (_isInExploration(discipleId)) return DiscipleStatus.IN_TEAM
-
-        if (_isInCaveExploration(discipleId)) return DiscipleStatus.IN_TEAM
-
-        val elderSlots = data.elderSlots
-        if (elderSlots.lawEnforcementElder == discipleId ||
-            elderSlots.lawEnforcementDisciples.any { it.discipleId == discipleId }) {
-            return DiscipleStatus.LAW_ENFORCING
-        }
-        if (elderSlots.preachingElder == discipleId ||
-            elderSlots.preachingMasters.any { it.discipleId == discipleId }) {
-            return DiscipleStatus.PREACHING
-        }
-        if (elderSlots.qingyunPreachingElder == discipleId ||
-            elderSlots.qingyunPreachingMasters.any { it.discipleId == discipleId }) {
-            return DiscipleStatus.PREACHING
-        }
-
-        if (elderSlots.spiritMineDeaconDisciples.any { it.discipleId == discipleId }) {
-            return DiscipleStatus.DEACONING
-        }
-
-        if (elderSlots.viceSectMaster == discipleId ||
-            elderSlots.outerElder == discipleId ||
-            elderSlots.innerElder == discipleId ||
-            elderSlots.forgeElder == discipleId ||
-            elderSlots.alchemyElder == discipleId ||
-            elderSlots.herbGardenElder == discipleId ||
-            elderSlots.herbGardenDisciples.any { it.discipleId == discipleId } ||
-            elderSlots.alchemyDisciples.any { it.discipleId == discipleId } ||
-            elderSlots.forgeDisciples.any { it.discipleId == discipleId }) {
-            return DiscipleStatus.MANAGING
-        }
-
-        if (data.librarySlots.any { it.discipleId == discipleId }) {
-            return DiscipleStatus.STUDYING
-        }
-
-        if (data.spiritMineSlots.any { it.discipleId == discipleId }) {
-            return DiscipleStatus.MINING
-        }
-
-        return DiscipleStatus.IDLE
-    }
+    fun getDiscipleStatus(discipleId: String): DiscipleStatus = discipleLifecycleManager.getDiscipleStatus(discipleId)
 
     /**
      * Sync all disciples' status based on their assignments
@@ -623,64 +476,7 @@ private val scopeProvider: CoroutineScopeProvider,
      * - 师父最多 5 名徒弟
      * - 弟子最多 1 名师父
      */
-    fun apprenticeToMaster(discipleId: String, masterId: String): DomainResult<Unit> {
-        var error: AppError.Domain.Disciple? = null
-        stateStore.update {
-            val did = discipleId.toIntOrNull()
-            val mid = masterId.toIntOrNull()
-            if (did == null || !discipleTables.ids.contains(did)) {
-                error = AppError.Domain.Disciple.NotFound(discipleId)
-                return@update
-            }
-            if (mid == null || !discipleTables.ids.contains(mid)) {
-                error = AppError.Domain.Disciple.NotFound(masterId)
-                return@update
-            }
-            if (did == mid) {
-                error = AppError.Domain.Disciple.SlotInvalid("不能拜自己为师")
-                return@update
-            }
-            if (discipleTables.isAlive[did] != 1) {
-                error = AppError.Domain.Disciple.NotAlive(discipleId)
-                return@update
-            }
-            if (discipleTables.isAlive[mid] != 1) {
-                error = AppError.Domain.Disciple.NotAlive(masterId)
-                return@update
-            }
-            // 该弟子已有师父
-            if (discipleTables.masterIds.getOrNull(did) != null) {
-                error = AppError.Domain.Disciple.SlotInvalid("弟子已有师父，师徒关系不可更改")
-                return@update
-            }
-            // 师父徒弟数 < 5（仅统计存活徒弟）
-            val apprenticeCount = discipleTables.ids.count { otherId ->
-                otherId != did &&
-                discipleTables.isAlive[otherId] == 1 &&
-                discipleTables.masterIds.getOrNull(otherId) == masterId
-            }
-            if (apprenticeCount >= DiscipleStatCalculator.MAX_APPRENTICES_PER_MASTER) {
-                error = AppError.Domain.Disciple.SlotInvalid(
-                    "师父徒弟已满（最多${DiscipleStatCalculator.MAX_APPRENTICES_PER_MASTER}名）")
-                return@update
-            }
-            // 通过校验，建立师徒关系
-            discipleTables.masterIds[did] = masterId
-
-            // 记录拜师日志（徒弟视角）
-            val masterName = discipleTables.names[mid] ?: "未知"
-            val discipleName = discipleTables.names[did] ?: "未知"
-            val discipleAge = discipleTables.ages[did]
-            val masterAge = discipleTables.ages[mid]
-            val currentEvents = discipleTables.lifeEvents.getOrDefault(did, emptyList())
-            discipleTables.lifeEvents[did] = currentEvents + "${discipleAge}岁：拜${masterName}为师"
-            // 记录收徒日志（师父视角）
-            val masterEvents = discipleTables.lifeEvents.getOrDefault(mid, emptyList())
-            discipleTables.lifeEvents[mid] = masterEvents + "${masterAge}岁：收${discipleName}为徒"
-        }
-        val finalError = error
-        return if (finalError == null) DomainResult.Success(Unit) else DomainResult.Failure(finalError)
-    }
+    fun apprenticeToMaster(discipleId: String, masterId: String): DomainResult<Unit> = discipleMasterApprenticeService.apprenticeToMaster(discipleId, masterId)
 
     // ==================== 装备管理 ====================
 
@@ -689,117 +485,7 @@ private val scopeProvider: CoroutineScopeProvider,
      * 设计意图：装备是独占物品，不可共用。一件装备只能给一名弟子穿戴。
      * 装备新装备时，旧装备自动卸下并放入弟子储物袋。
      */
-    fun equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> {
-        var error: AppError.Domain.Disciple? = AppError.Domain.Disciple.NotFound(discipleId)
-        stateStore.update {
-            val id = discipleId.toIntOrNull()
-            if (id == null || !discipleTables.ids.contains(id)) {
-                error = AppError.Domain.Disciple.NotFound(discipleId); return@update
-            }
-
-            val equipmentStack = equipmentStacks.get(equipmentId)
-            val equipmentInstance = equipmentInstances.get(equipmentId)
-
-            if (equipmentStack == null && equipmentInstance == null) {
-                error = AppError.Domain.Disciple.NotFound(discipleId); return@update
-            }
-
-            val discipleRealm = discipleTables.realms[id]
-
-            if (equipmentInstance != null) {
-                if (equipmentInstance.isEquipped) {
-                    if (equipmentInstance.ownerId == discipleId) {
-                        error = AppError.Domain.Disciple.AlreadyEquipped(
-                            slot = equipmentInstance.slot.name
-                        ); return@update
-                    }
-                    error = AppError.Domain.Disciple.AlreadyEquipped(
-                        slot = equipmentInstance.slot.name
-                    ); return@update
-                }
-                if (!GameConfig.Realm.meetsRealmRequirement(discipleRealm, equipmentInstance.minRealm)) {
-                    error = AppError.Domain.Disciple.RealmTooLow(
-                        discipleId = discipleId,
-                        need = "境界${equipmentInstance.minRealm}"
-                    ); return@update
-                }
-            } else if (equipmentStack != null) {
-                if (!GameConfig.Realm.meetsRealmRequirement(discipleRealm, equipmentStack.minRealm)) {
-                    error = AppError.Domain.Disciple.RealmTooLow(
-                        discipleId = discipleId,
-                        need = "境界${equipmentStack.minRealm}"
-                    ); return@update
-                }
-            }
-
-            val slot = equipmentInstance?.slot ?: equipmentStack?.slot ?: run {
-                error = AppError.Domain.Disciple.SlotInvalid("无法确定装备槽位"); return@update
-            }
-            val equipName = equipmentStack?.name ?: equipmentInstance?.name ?: ""
-
-            val oldEquipId = when (slot) {
-                EquipmentSlot.WEAPON -> discipleTables.weaponIds[id]
-                EquipmentSlot.ARMOR -> discipleTables.armorIds[id]
-                EquipmentSlot.BOOTS -> discipleTables.bootsIds[id]
-                EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id]
-                else -> ""
-            }
-            if (oldEquipId.isNotEmpty()) {
-                val unequipped = unequipEquipmentLogic(discipleId, oldEquipId)
-                if (!unequipped) {
-                    DomainLog.w(TAG, "equipEquipment: failed to unequip $oldEquipId, aborting equip")
-                    error = AppError.Domain.Disciple.SlotInvalid("卸下旧装备失败 $oldEquipId")
-                    return@update
-                }
-            }
-
-            val stack = equipmentStacks.get(equipmentId)
-            val instance = equipmentInstances.get(equipmentId)
-
-            if (stack != null) {
-                val equippedId = UUID.randomUUID().toString()
-                val equippedItem = stack.toInstance(id = equippedId, ownerId = discipleId, isEquipped = true)
-                if (stack.quantity > 1) {
-                    equipmentStacks.update(equipmentId) { it.copy(quantity = it.quantity - 1) }
-                } else {
-                    equipmentStacks.remove(equipmentId)
-                }
-                equipmentInstances = equipmentInstances + equippedItem
-                when (slot) {
-                    EquipmentSlot.WEAPON -> discipleTables.weaponIds[id] = equippedId
-                    EquipmentSlot.ARMOR -> discipleTables.armorIds[id] = equippedId
-                    EquipmentSlot.BOOTS -> discipleTables.bootsIds[id] = equippedId
-                    EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id] = equippedId
-                    else -> {}
-                }
-            } else if (instance != null) {
-                when (slot) {
-                    EquipmentSlot.WEAPON -> discipleTables.weaponIds[id] = equipmentId
-                    EquipmentSlot.ARMOR -> discipleTables.armorIds[id] = equipmentId
-                    EquipmentSlot.BOOTS -> discipleTables.bootsIds[id] = equipmentId
-                    EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[id] = equipmentId
-                    else -> {}
-                }
-                equipmentInstances.update(equipmentId) { it.copy(isEquipped = true, ownerId = discipleId) }
-            }
-
-            // 记录装备日志
-            val equipAge = discipleTables.ages[id]
-            val equipEvents = discipleTables.lifeEvents.getOrDefault(id, emptyList())
-            if (oldEquipId.isNotEmpty()) {
-                val oldName = equipmentInstances.get(oldEquipId)?.name ?: "旧装备"
-                discipleTables.lifeEvents[id] = equipEvents +
-                    "${equipAge}岁：将${oldName}替换为${equipName}"
-            } else {
-                discipleTables.lifeEvents[id] = equipEvents +
-                    "${equipAge}岁：装备了${equipName}"
-            }
-
-            error = null
-        }
-        val finalError = error
-        return if (finalError == null) DomainResult.Success(Unit) else DomainResult.Failure(finalError)
-    }
+    fun equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> = discipleEquipmentService.equipEquipment(discipleId, equipmentId)
 
     /**
      * Unequip equipment from disciple
@@ -807,28 +493,7 @@ private val scopeProvider: CoroutineScopeProvider,
      *
      * 验证和卸下操作全部在 stateStore.update 事务内原子执行，返回实际操作结果。
      */
-    fun unequipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> {
-        var error: AppError.Domain.Disciple? = AppError.Domain.Disciple.NotFound(discipleId)
-        stateStore.update {
-            val id = discipleId.toIntOrNull()
-            if (id == null || !discipleTables.ids.contains(id)) {
-                error = AppError.Domain.Disciple.NotFound(discipleId); return@update
-            }
-            val isEquipped = discipleTables.weaponIds[id] == equipmentId ||
-                discipleTables.armorIds[id] == equipmentId ||
-                discipleTables.bootsIds[id] == equipmentId ||
-                discipleTables.accessoryIds[id] == equipmentId
-            if (!isEquipped) {
-                error = AppError.Domain.Disciple.SlotInvalid("装备未穿戴在弟子身上")
-                return@update
-            }
-
-            val unequipped = unequipEquipmentLogic(discipleId, equipmentId)
-            if (unequipped) error = null
-        }
-        val finalError = error
-        return if (finalError == null) DomainResult.Success(Unit) else DomainResult.Failure(finalError)
-    }
+    fun unequipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> = discipleEquipmentService.unequipEquipment(discipleId, equipmentId)
 
     private fun MutableGameState.unequipEquipmentLogic(discipleId: String, equipmentId: String): Boolean {
         val id = discipleId.toIntOrNull() ?: return false
@@ -880,20 +545,7 @@ private val scopeProvider: CoroutineScopeProvider,
     /**
      * Clear disciple from all slots and assignments
      */
-    fun clearDiscipleFromAllSlots(discipleId: String) {
-        stateStore.update { gameData = discipleSlotCleanup.clearAllSlots(gameData, discipleId) }
-
-        val forgeSlots = productionSlotRepository.getSlotsByBuildingId(BUILDING_FORGE)
-        for (slot in forgeSlots) {
-            if (slot.assignedDiscipleId == discipleId && !slot.isWorking) {
-                scopeProvider.scope.launch(Dispatchers.IO) {
-                    productionSlotRepository.updateSlotByBuildingId(BUILDING_FORGE, slot.slotIndex) { s ->
-                        s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
-                    }
-                }
-            }
-        }
-    }
+    fun clearDiscipleFromAllSlots(discipleId: String) = discipleSlotManager.clearDiscipleFromAllSlots(discipleId)
 
     /**
      * Check if disciple is in exploration team
@@ -919,40 +571,22 @@ private val scopeProvider: CoroutineScopeProvider,
     /**
      * Check if disciple is assigned to spirit mine
      */
-    fun isDiscipleAssignedToSpiritMine(discipleId: String): Boolean {
-        val data = stateStore.gameData.value
-        val inMinerSlots = data.spiritMineSlots.any { it.discipleId == discipleId }
-        val inDeaconSlots = data.elderSlots.spiritMineDeaconDisciples.any { it.discipleId == discipleId }
-        return inMinerSlots || inDeaconSlots
-    }
+    fun isDiscipleAssignedToSpiritMine(discipleId: String): Boolean = discipleSlotManager.isDiscipleAssignedToSpiritMine(discipleId)
 
     /**
      * Get alive disciples count
      */
-    fun getAliveDisciplesCount(): Int {
-        val tables = stateStore.discipleTables
-        var count = 0
-        for (id in tables.ids) {
-            if (tables.isAlive[id] == 1) count++
-        }
-        return count
-    }
+    fun getAliveDisciplesCount(): Int = discipleLifecycleManager.getAliveDisciplesCount()
 
     /**
      * Get disciples by status
      */
-    fun getDisciplesByStatus(status: DiscipleStatus): List<Disciple> {
-        val tables = stateStore.discipleTables
-        return tables.ids.filter { tables.isAlive[it] == 1 && tables.statuses[it] == status }
-            .map { tables.assemble(it) }
-    }
+    fun getDisciplesByStatus(status: DiscipleStatus): List<Disciple> = discipleLifecycleManager.getDisciplesByStatus(status)
 
     /**
      * Get idle disciples
      */
-    fun getIdleDisciples(): List<Disciple> {
-        return getDisciplesByStatus(DiscipleStatus.IDLE)
-    }
+    fun getIdleDisciples(): List<Disciple> = discipleLifecycleManager.getIdleDisciples()
 
     // ==================== DiscipleAggregate 查询接口（渐进式迁移支持）====================
 
@@ -965,10 +599,7 @@ private val scopeProvider: CoroutineScopeProvider,
      * @param discipleId 弟子 ID
      * @return 完整的 DiscipleAggregate 实例，如果弟子不存在则返回 null
      */
-    fun getDiscipleAggregate(discipleId: String): DiscipleAggregate? {
-        val disciple = getDiscipleById(discipleId) ?: return null
-        return disciple.toAggregate()
-    }
+    fun getDiscipleAggregate(discipleId: String): DiscipleAggregate? = discipleLifecycleManager.getDiscipleAggregate(discipleId)
 
     /**
      * 获取所有弟子的聚合数据列表
@@ -978,18 +609,10 @@ private val scopeProvider: CoroutineScopeProvider,
      *
      * @return 所有弟子的 DiscipleAggregate 列表
      */
-    fun getAllDiscipleAggregates(): List<DiscipleAggregate> {
-        return stateStore.discipleTables.assembleAll().map { it.toAggregate() }
-    }
+    fun getAllDiscipleAggregates(): List<DiscipleAggregate> = discipleLifecycleManager.getAllDiscipleAggregates()
 
     /**
      * Update yearly salary enabled/disabled for a realm
      */
-    fun updateYearlySalaryEnabled(realm: Int, enabled: Boolean) {
-        stateStore.update {
-            val newEnabled = gameData.yearlySalaryEnabled.toMutableMap()
-            newEnabled[realm] = enabled
-            gameData = gameData.copy(yearlySalaryEnabled = newEnabled)
-        }
-    }
+    fun updateYearlySalaryEnabled(realm: Int, enabled: Boolean) = discipleLifecycleManager.updateYearlySalaryEnabled(realm, enabled)
 }

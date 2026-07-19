@@ -840,55 +840,63 @@ class CultivationEventProcessor @Inject constructor(
                 remainingActive.add(activeMission)
                 continue
             }
-            if (activeMission.isComplete(year, month)) {
-                completedIds.add(activeMission.id)
+            if (!activeMission.isComplete(year, month)) {
+                remainingActive.add(activeMission)
+                continue
+            }
+            var missionRewarded = false
+            var missionError: Throwable? = null
+            runCatching {
                 val aliveDisciples = activeMission.discipleIds.mapNotNull { did ->
                     stateStore.disciples.value.find { it.id == did && it.isAlive }
                 }
-                val allDead = aliveDisciples.isEmpty()
-                if (!allDead) {
-                    val equipMap = stateStore.equipmentInstances.value.associateBy { it.id }
-                    val manualMap = stateStore.manualInstances.value.associateBy { it.id }
-                    val proficiencies = stateStore.gameData.value.manualProficiencies.mapValues { (_, list) ->
-                        list.associateBy { it.manualId }
-                    }
-                    val result = MissionSystem.processMissionCompletion(
-                        activeMission, aliveDisciples, equipMap, manualMap, proficiencies, battleSystem
-                    )
+                if (aliveDisciples.isEmpty()) return@runCatching
+                val equipMap = stateStore.equipmentInstances.value.associateBy { it.id }
+                val manualMap = stateStore.manualInstances.value.associateBy { it.id }
+                val proficiencies = stateStore.gameData.value.manualProficiencies.mapValues { (_, list) ->
+                    list.associateBy { it.manualId }
+                }
+                val result = MissionSystem.processMissionCompletion(
+                    activeMission, aliveDisciples, equipMap, manualMap, proficiencies, battleSystem
+                )
+                // 单事务：灵石 + 灵魂点 + 弟子状态重置，原子提交
+                stateStore.update {
                     if (result.spiritStones > 0) {
-                        stateStore.update { spiritStoneWallet.add(this,
+                        spiritStoneWallet.add(this,
                             result.spiritStones.toLong(),
                             SpiritStoneGrade.LOW,
                             SpiritStoneSource.Quest
-                        ) }
+                        )
                     }
-                    result.materials.forEach { material ->
-                        inventorySystem.addMaterial(material)
-                    }
-                    result.pills.forEach { pill -> inventorySystem.addPill(pill) }
-                    result.equipmentStacks.forEach { equip -> inventorySystem.addEquipmentStack(equip) }
-                    result.manualStacks.forEach { manual -> inventorySystem.addManualStack(manual) }
-                    if (result.combatTriggered && result.victory && result.battleResult != null) {
-                        val missionSurvivorIds = result.battleResult.log.teamMembers
-                            .filter { it.isAlive }.map { it.id }.toSet()
-                        stateStore.update {
-                            val mapped = discipleTables.assembleAll().map { d ->
-                                if (d.id in missionSurvivorIds && d.isAlive) d.copy(soulPower = d.soulPower + 1) else d
-                            }
-                            discipleTables.replaceAll(mapped)
+                    val survivors = if (result.combatTriggered && result.victory && result.battleResult != null) {
+                        result.battleResult.log.teamMembers.filter { it.isAlive }.map { it.id }.toSet()
+                    } else emptySet()
+                    for (did in activeMission.discipleIds) {
+                        val tid = did.toIntOrNull() ?: continue
+                        if (!discipleTables.ids.contains(tid) || discipleTables.isAlive[tid] != 1) continue
+                        if (tid.toString() in survivors) {
+                            discipleTables.soulPowers[tid] = discipleTables.soulPowers.getOrDefault(tid, 0) + 1
                         }
+                        discipleTables.statuses[tid] = DiscipleStatus.IDLE
                     }
                 }
-                for (did in activeMission.discipleIds) {
-                    stateStore.update {
-                        val mapped = discipleTables.assembleAll().map {
-                            if (it.id == did && it.isAlive) it.copy(status = DiscipleStatus.IDLE) else it
-                        }
-                        discipleTables.replaceAll(mapped)
-                    }
-                }
+                result.materials.forEach { material -> inventorySystem.addMaterial(material) }
+                result.pills.forEach { pill -> inventorySystem.addPill(pill) }
+                result.equipmentStacks.forEach { equip -> inventorySystem.addEquipmentStack(equip) }
+                result.manualStacks.forEach { manual -> inventorySystem.addManualStack(manual) }
+                missionRewarded = true
+            }.onFailure { e ->
+                if (e is kotlinx.coroutines.CancellationException) { missionError = e; return@onFailure }
+                DomainLog.w(TAG, "processCompletedMissionsLazy: mission ${activeMission.id} failed", e)
+            }
+            if (missionError != null) {
+                remainingActive.add(activeMission)  // 保留任务到下次循环，而非丢失
+                throw missionError!!
+            }
+            if (missionRewarded) {
+                completedIds.add(activeMission.id)
             } else {
-                remainingActive.add(activeMission)
+                remainingActive.add(activeMission)  // 奖励失败，保留下次重试
             }
         }
         if (completedIds.isNotEmpty()) {

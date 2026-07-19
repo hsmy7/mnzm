@@ -61,8 +61,7 @@ import androidx.compose.foundation.shape.CircleShape
 fun MerchantDialog(
     gameData: GameData?,
     viewModel: GameViewModel,
-    onDismiss: () -> Unit,
-    onWatchAdMerchantRefresh: (() -> Unit)? = null
+    onDismiss: () -> Unit
 ) {
     val merchantItems = gameData?.travelingMerchantItems ?: emptyList()
     var selectedItem by remember { mutableStateOf<MerchantItem?>(null) }
@@ -132,7 +131,7 @@ fun MerchantDialog(
             )
             Text("${refreshChances}次", fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 color = Color.White, modifier = Modifier.padding(start = 4.dp))
-            if (onWatchAdMerchantRefresh != null) {
+            if (viewModel.onWatchAdMerchantRefresh != null) {
                 Image(
                     painter = painterResource(id = SpriteResRegistry.resolve("ui_play_button") ?: 0),
                     contentDescription = "播放广告获得刷新次数",
@@ -291,7 +290,7 @@ fun MerchantDialog(
             confirmLabel = "观看",
             onConfirm = {
                 showAdConfirmDialog = false
-                onWatchAdMerchantRefresh?.invoke()
+                viewModel.onWatchAdMerchantRefresh?.invoke()
             }
         )
     }

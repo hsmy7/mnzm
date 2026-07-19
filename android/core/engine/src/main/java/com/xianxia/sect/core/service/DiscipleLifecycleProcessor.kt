@@ -15,7 +15,6 @@ import com.xianxia.sect.core.event.DomainEvent
 import com.xianxia.sect.core.event.EventBusPort
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -89,35 +88,28 @@ class DiscipleLifecycleProcessor @Inject constructor(
             }
         }
 
-        // 从组件表移除死亡弟子，保留死亡记录和 deathYears（handleDiscipleDeath 写入死亡年份但不移除成员）
+        // 第三阶段：单事务内完成死亡移除+记录+活弟子字段更新
+        // 合并原死亡移除+活弟子更新两个独立 update，消除跨边界部分更新风险
         stateStore.update {
             for (disciple in currentList) {
                 val id = disciple.id.toIntOrNull() ?: continue
-                if (id !in deadThisYear) continue
-                val deathYear = discipleTables.deathYears.getOrDefault(id, currentYear)
-                discipleTables.deathRecords.add(DeathRecord(
-                    id = id, name = disciple.name, surname = disciple.surname,
-                    realm = disciple.realm, realmLayer = disciple.realmLayer,
-                    deathAge = disciple.age + 1, deathYear = deathYear, cause = "age"
-                ))
-                discipleTables.remove(id)
-                // remove 会清空 deathYears，重新写入以保留记录
-                discipleTables.deathYears[id] = deathYear
-            }
-        }
-
-        // 第三阶段：活弟子字段级更新（不 replaceAll，避免覆盖死亡处理写入的 deathYears/哀悼期）
-        stateStore.update {
-            for (disciple in currentList) {
-                val id = disciple.id.toIntOrNull() ?: continue
-                if (id in deadThisYear) continue
-                if (!disciple.isAlive) continue
-
-                val agedAge = disciple.age + 1
-                discipleTables.ages[id] = agedAge
-                if (agedAge == 5 && disciple.realmLayer == 0) {
-                    discipleTables.realmLayers[id] = 1
-                    discipleTables.statuses[id] = DiscipleStatus.IDLE
+                if (id in deadThisYear) {
+                    val deathYear = discipleTables.deathYears.getOrDefault(id, currentYear)
+                    discipleTables.deathRecords.add(DeathRecord(
+                        id = id, name = disciple.name, surname = disciple.surname,
+                        realm = disciple.realm, realmLayer = disciple.realmLayer,
+                        deathAge = disciple.age + 1, deathYear = deathYear, cause = "age"
+                    ))
+                    discipleTables.remove(id)
+                    // remove 会清空 deathYears，重新写入以保留记录
+                    discipleTables.deathYears[id] = deathYear
+                } else if (disciple.isAlive) {
+                    val agedAge = disciple.age + 1
+                    discipleTables.ages[id] = agedAge
+                    if (agedAge == 5 && disciple.realmLayer == 0) {
+                        discipleTables.realmLayers[id] = 1
+                        discipleTables.statuses[id] = DiscipleStatus.IDLE
+                    }
                 }
             }
         }

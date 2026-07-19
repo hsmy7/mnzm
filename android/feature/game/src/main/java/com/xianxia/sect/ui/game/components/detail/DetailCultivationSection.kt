@@ -127,8 +127,7 @@ fun BasicInfoSection(
     gameMonth: Int = 1,
     gameYear: Int = 1,
     gamePhase: Int = 0,
-    gameSpeed: Int = 1,
-    onWatchAdBreakthroughBonus: ((String) -> Unit)? = null
+    gameSpeed: Int = 1
 ) {
     val discipleMap = allDisciples.associateBy { it.id }
     val griefBreakthroughPenalty = if (
@@ -256,7 +255,7 @@ fun BasicInfoSection(
                     )
                 }
             }
-            val watchAdCallback = onWatchAdBreakthroughBonus
+            val watchAdCallback = viewModel?.onWatchAdBreakthroughBonus
             if (showAdConfirmDialog && watchAdCallback != null) {
                 StandardPromptDialog(
                     onDismissRequest = { showAdConfirmDialog = false },

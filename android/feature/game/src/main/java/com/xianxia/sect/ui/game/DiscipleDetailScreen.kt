@@ -56,8 +56,7 @@ fun DiscipleDetailDialog(
     manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
     viewModel: GameViewModel? = null,
     onDismiss: () -> Unit,
-    onNavigateToDisciple: ((DiscipleAggregate) -> Unit)? = null,
-    onWatchAdBreakthroughBonus: ((String) -> Unit)? = null
+    onNavigateToDisciple: ((DiscipleAggregate) -> Unit)? = null
 ) {
     val talents = remember(disciple.talentIds) {
         TalentDatabase.getTalentsByIds(disciple.talentIds)
@@ -229,8 +228,7 @@ fun DiscipleDetailDialog(
                                         gameMonth = gameMonth,
                                         gameYear = gameYear,
                                         gamePhase = gamePhase,
-                                        gameSpeed = 1,
-                                        onWatchAdBreakthroughBonus = onWatchAdBreakthroughBonus
+                                        gameSpeed = 1
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
                                     TalentsSection(talents, disciple.statusData, onTalentClick = { selectedTalent = it })
@@ -654,8 +652,7 @@ fun DiscipleDetailDialog(
     manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
     viewModel: GameViewModel,
     onDismiss: () -> Unit,
-    onNavigateToDisciple: ((DiscipleAggregate) -> Unit)? = null,
-    onWatchAdBreakthroughBonus: ((String) -> Unit)? = null
+    onNavigateToDisciple: ((DiscipleAggregate) -> Unit)? = null
 ) {
     val equipment by viewModel.equipmentInstances.collectAsStateWithLifecycle()
     val manuals by viewModel.manualInstances.collectAsStateWithLifecycle()
@@ -672,7 +669,6 @@ fun DiscipleDetailDialog(
         manualProficiencies = manualProficiencies,
         viewModel = viewModel,
         onDismiss = onDismiss,
-        onNavigateToDisciple = onNavigateToDisciple,
-        onWatchAdBreakthroughBonus = onWatchAdBreakthroughBonus
+        onNavigateToDisciple = onNavigateToDisciple
     )
 }

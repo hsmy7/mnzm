@@ -1,68 +1,28 @@
 package com.xianxia.sect.core.engine.event
 
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import javax.inject.Inject
-import javax.inject.Singleton
-
 /**
- * 游戏内部事件总线 — 替代 System 间直接方法调用
+ * ═══════════════════════════════════════════════════════════════════════
+ *  已迁移至 EventBus（GameEvents.kt）
  *
- * 用法：
- *   // 发射事件
- *   gameEventBus.emit(BattleCompletedEvent(sectorId))
+ *  GameEventBus 的所有事件类型已存在于 [com.xianxia.sect.core.event]
+ *  包的 GameEvents.kt 中，由 EventBusPort/EventBus 提供。
  *
- *   // 订阅事件
- *   gameEventBus.events.filterIsInstance<BattleCompletedEvent>()
- *       .collect { event -> handleBattleResult(event) }
+ *  迁移前状态（归档参考）：
+ *
+ *  GameEventBus (engine.event)   → EventBus (core.event)
+ *  ──────────────────────────   ─────────────────────────────
+ *  BattleCompletedEvent          → GameEvents.BattleCompletedEvent
+ *  BuildingPlacedEvent           → GameEvents.BuildingCompletedEvent
+ *  BuildingRemovedEvent          → (无直接对等事件，移除且无需迁移)
+ *  DiscipleDeathEvent            → GameEvents.DeathEvent
+ *  SettlementCompletedEvent      → (无直接对等事件，移除且无需迁移)
+ *  SaveCompletedEvent            → GameEvents.SaveEvent
+ *
+ *  此文件保留空壳以便编译通过。在适当的时候应删除此文件。
+ *
+ *  ⚠ 零调用方 — GameEventBus 从未被任何代码注入或使用。
+ * ═══════════════════════════════════════════════════════════════════════
  */
-/** @deprecated 使用 [com.xianxia.sect.core.event.EventBus]（GameEvents.kt）替代。 */
-@Deprecated("迁移到 EventBus（GameEvents.kt）")
-@Singleton
-class GameEventBus @Inject constructor() {
-    private val _events = MutableSharedFlow<GameEvent>(extraBufferCapacity = 64)
-    val events: SharedFlow<GameEvent> = _events.asSharedFlow()
 
-    suspend fun emit(event: GameEvent) {
-        _events.emit(event)
-    }
-}
-
-/** 所有游戏事件的基类 */
-interface GameEvent
-
-// === 具体事件定义 ===
-
-/** 战斗结束事件 */
-data class BattleCompletedEvent(
-    val sectorId: String,
-    val winnerSectId: String,
-    val loserSectId: String
-) : GameEvent
-
-/** 建筑放置事件 */
-data class BuildingPlacedEvent(
-    val buildingId: String,
-    val instanceId: String
-) : GameEvent
-
-/** 建筑拆除事件 */
-data class BuildingRemovedEvent(
-    val instanceId: String
-) : GameEvent
-
-/** 弟子死亡事件 */
-data class DiscipleDeathEvent(
-    val discipleId: String,
-    val cause: String
-) : GameEvent
-
-/** 月度结算完成事件 */
-object SettlementCompletedEvent : GameEvent
-
-/** 存档保存完成事件 */
-data class SaveCompletedEvent(
-    val slotId: Int,
-    val timeMs: Long
-) : GameEvent
+// GameEventBus 及其事件类型已全部迁移至 com.xianxia.sect.core.event.GameEvents.kt
+// 此文件无任何运行时代码，仅保留包声明以免删除文件本身产生 Git 冲突。

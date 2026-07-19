@@ -52,10 +52,6 @@ object RewardVideoAdManager {
     }
 
     fun setCallback(callback: RewardVideoCallback) {
-        if (isAdLoading) {
-            Log.w(TAG, "有广告正在加载中，先销毁旧广告，再设置新回调")
-            destroyAd()
-        }
         this.callback = callback
     }
 
@@ -70,6 +66,7 @@ object RewardVideoAdManager {
      * @param userId 用户 ID（用于 S2S 验证，如不需要可传空）
      * @param rewardName 奖品名称
      * @param rewardAmount 奖品数量
+     * @param spaceId 广告位 ID，默认使用 [SPACE_ID]
      * @param extraInfo 附加信息（用于 S2S 验证，如不需要可传空）
      */
     fun loadAd(
@@ -77,8 +74,8 @@ object RewardVideoAdManager {
         userId: String = "",
         rewardName: String = "奖励",
         rewardAmount: Int = 1,
-        extraInfo: String = "",
-        spaceId: Long = SPACE_ID
+        spaceId: Long = SPACE_ID,
+        extraInfo: String = ""
     ) {
         if (isAdLoading) {
             Log.d(TAG, "广告正在加载中，请勿重复请求")

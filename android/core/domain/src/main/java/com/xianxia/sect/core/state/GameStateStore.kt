@@ -190,12 +190,6 @@ interface GameStateStore : GameStateSnapshotProvider {
     @Deprecated("Use bootPhase/runState instead. Will be removed in next major version.")
     val gameLifecycle: StateFlow<GameLifecycle>
 
-    @Deprecated("Use advanceBootPhase() / resetBootPhase() instead. Will be removed in next major version.")
-    fun transitionTo(state: GameLifecycle)
-
-    @Deprecated("Use resetBootPhase() / setPlaying() / setReloading() instead. Will be removed in next major version.")
-    fun forceLifecycle(state: GameLifecycle)
-
     // === 核心写入 API ===
     fun update(block: MutableGameState.() -> Unit)
 
@@ -206,14 +200,6 @@ interface GameStateStore : GameStateSnapshotProvider {
      * @return block 的返回值
      */
     fun <R> updateAndReturn(block: MutableGameState.() -> R): R
-
-    // === Shadow/Transaction API（死代码，惰性结算引擎已替代） ===
-    @Deprecated("惰性结算引擎已替代。将在下个版本移除。", ReplaceWith("直接操作 stateStore.update {}"))
-    fun createSettlementShadow(
-        productionSlots: List<com.xianxia.sect.core.model.production.ProductionSlot> = emptyList()
-    ): MutableGameState
-    @Deprecated("惰性结算引擎已替代。将在下个版本移除。")
-    suspend fun swapFromShadow(shadow: MutableGameState)
 
     /**
      * 在事务内原地修改状态，避免 [update] 重入。

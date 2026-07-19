@@ -60,16 +60,32 @@ class DiscipleServiceApprenticeTest {
             }
         }
 
-        service = DiscipleService(
+        val slotManager = DiscipleSlotManager(
             stateStore = mockStore,
             productionSlotRepository = mock(),
             scopeProvider = mock(),
-            inventoryConfig = mock(),
-            discipleFactory = mock(),
-            rngManager = mock(),
             discipleSlotCleanup = DiscipleSlotCleanup(
                 DiscipleAssignmentGate(DiscipleAssignmentRegistry())
             )
+        )
+        val equipmentService = DiscipleEquipmentService(
+            stateStore = mockStore,
+            inventoryConfig = mock()
+        )
+        val masterService = DiscipleMasterApprenticeService(
+            stateStore = mockStore
+        )
+        val lifecycleManager = DiscipleLifecycleManager(
+            stateStore = mockStore,
+            discipleFactory = mock(),
+            rngManager = mock(),
+            slotManager = slotManager
+        )
+        service = DiscipleService(
+            lifecycleManager = lifecycleManager,
+            slotManager = slotManager,
+            equipmentService = equipmentService,
+            masterApprenticeService = masterService
         )
     }
 

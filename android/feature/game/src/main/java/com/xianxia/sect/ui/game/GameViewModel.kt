@@ -68,6 +68,10 @@ class GameViewModel @Inject constructor(
     private val dialogManager: DialogManager          // ← NEW
 ) : BaseViewModel() {
 
+    // 广告回调（由 GameActivity 在 onCreate 中设置）
+    var onWatchAdBreakthroughBonus: ((String) -> Unit)? = null
+    var onWatchAdMerchantRefresh: (() -> Unit)? = null
+
     val planting = com.xianxia.sect.ui.game.delegate.PlantingDelegate(gameEngine, viewModelScope)
     val disciple = com.xianxia.sect.ui.game.delegate.DiscipleDelegate(gameEngine, viewModelScope)
     val navigation = com.xianxia.sect.ui.game.delegate.NavigationDelegate(

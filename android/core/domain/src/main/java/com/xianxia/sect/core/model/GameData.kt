@@ -381,10 +381,6 @@ data class GameData(
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var autoSellHighGradeForPurchase: Boolean = false,
 
-    // 弟子脱离宗门时弹出提示框（叛逃/偷盗后叛逃）
-    @SettlementStrategy(Strategy.PRESERVE_OLD)
-    var discipleDesertionPopup: Boolean = true,
-
     // 弟子选择界面：显示所有可用弟子（非空闲中，但始终排除思过/任务/战斗中）
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var showAllAvailableDisciples: Boolean = false,

@@ -67,60 +67,6 @@ class GameStateStoreImpl @Inject constructor(
     companion object {
         private const val TAG = "GameStateStore"
         private const val UPDATE_WARN_THRESHOLD_MS = 500L
-
-        /**
-         * 合并 discipleTables — 影子保留结算结果，current 覆盖生命周期字段。
-         *
-         * 规则：
-         * - 以 shadow 为基础（保留修炼/生产结算结果 + 子嗣出生）
-         * - shared ID：生命周期字段无条件取 current（影子不修改这些字段）
-         * - current-only ID：新招募/新加入 → 复制到结果
-         * - shadow 有但 origin 有 → 死亡 → 移除
-         * - shadow 有但 origin 无 → 新生儿 → 保留
-         */
-        internal fun mergeDiscipleTables(
-            shadow: DiscipleTables,
-            current: DiscipleTables,
-            originAliveIds: Set<Int>? = null
-        ): DiscipleTables {
-            val result = shadow.deepCopy().apply { writeAllowed = true }
-            val currentIds = current.ids.toSet()
-
-            // 1. 处理 current 中的 ID（shared + current-only）
-            for (id in currentIds) {
-                if (id in result.ids) {
-                    // shared ID：生命周期字段取 current
-                    result.ages[id] = current.ages.getOrDefault(id, 0)
-                    result.currentHps[id] = current.currentHps.getOrDefault(id, 0)
-                    result.currentMps[id] = current.currentMps.getOrDefault(id, 0)
-                    result.realms[id] = current.realms.getOrDefault(id, 0)
-                    result.realmLayers[id] = current.realmLayers.getOrDefault(id, 0)
-                    result.isAlive[id] = current.isAlive.getOrDefault(id, 0)
-                    result.lifespans[id] = current.lifespans.getOrDefault(id, 0)
-                    result.statuses[id] = current.statuses.getOrDefault(id, DiscipleStatus.IDLE)
-                    result.statusData[id] = current.statusData.getOrDefault(id, emptyMap())
-                    result.moralities[id] = current.moralities.getOrDefault(id, 0)
-                    result.loyalties[id] = current.loyalties.getOrDefault(id, 0)
-                    result.griefEndYears[id] = current.griefEndYears.getOrDefault(id, DiscipleTables.GRIEF_YEAR_NULL_SENTINEL)
-                    result.partnerIds[id] = current.partnerIds.getOrNull(id)
-                    result.masterIds[id] = current.masterIds.getOrNull(id)
-                } else {
-                    // current-only ID（新招募）：复制到结果
-                    result.copyRowFrom(current, id)
-                }
-            }
-
-            // 2. 移除死亡弟子（在 origin 中有、但不在 current 中）
-            val originIds = originAliveIds ?: currentIds // fallback: current-only
-            for (id in result.ids.toList()) {
-                if (id !in currentIds && id in originIds) {
-                    result.remove(id)
-                }
-            }
-
-            result.writeAllowed = false
-            return result
-        }
     }
 
     private var _discipleTables = DiscipleTables().also {
@@ -317,37 +263,6 @@ class GameStateStoreImpl @Inject constructor(
         setLifecycleStateAtomic(_bootPhase.value, RunState.IDLE)
     }
 
-    override fun transitionTo(state: GameLifecycle) {
-        DomainLog.w(TAG, "transitionTo (deprecated): → $state")
-        val currentBoot = _bootPhase.value
-        val targetBoot = when (state) {
-            GameLifecycle.UNINITIALIZED -> BootPhase.UNINITIALIZED
-            GameLifecycle.DATA_READY -> BootPhase.DATA_READY
-            GameLifecycle.SYSTEMS_READY -> BootPhase.SYSTEMS_READY
-            GameLifecycle.MAP_READY -> BootPhase.MAP_READY
-            GameLifecycle.PLAYING -> BootPhase.BOOT_COMPLETE
-        }
-        check(currentBoot.ordinal + 1 == targetBoot.ordinal) {
-            "Illegal lifecyle transition: current=$currentBoot → target=$targetBoot (must be ordinal +1)"
-        }
-        val targetRun = if (state == GameLifecycle.PLAYING) RunState.PLAYING else _runState.value
-        setLifecycleStateAtomic(targetBoot, targetRun)
-    }
-
-    override fun forceLifecycle(state: GameLifecycle) {
-        val current = _gameLifecycle.value
-        if (current != state) {
-            DomainLog.w(TAG, "forceLifecycle (deprecated): $current → $state (bypass ordinal check)")
-        }
-        when (state) {
-            GameLifecycle.UNINITIALIZED -> setLifecycleStateAtomic(BootPhase.UNINITIALIZED, RunState.IDLE)
-            GameLifecycle.DATA_READY -> setLifecycleStateAtomic(BootPhase.DATA_READY, _runState.value)
-            GameLifecycle.SYSTEMS_READY -> setLifecycleStateAtomic(BootPhase.SYSTEMS_READY, _runState.value)
-            GameLifecycle.MAP_READY -> setLifecycleStateAtomic(BootPhase.MAP_READY, _runState.value)
-            GameLifecycle.PLAYING -> setLifecycleStateAtomic(BootPhase.BOOT_COMPLETE, RunState.PLAYING)
-        }
-    }
-
     override val pendingBattleResult: StateFlow<BattleResultUIData?> = _pendingBattleResultFlow.asStateFlow()
     override val pendingNotification: StateFlow<GameNotification?> = _pendingNotificationFlow.asStateFlow()
     override val notifications: StateFlow<List<GameNotification>> = _notificationsFlow.asStateFlow()
@@ -539,62 +454,6 @@ class GameStateStoreImpl @Inject constructor(
         } else {
             update { block() }
         }
-    }
-
-    /** 影子创建时的存活弟子 ID 集合，用于合并时区分"死亡"与"新生儿" */
-    private var shadowOriginAliveIds: Set<Int>? = null
-
-    /**
-     * 注意：影子结算路径（createSettlementShadow + swapFromShadow）当前为死代码，
-     * 惰性结算引擎已替代。deepCopy 的 writeAllowed = true 设置保留以兼容未来重启用。
-     */
-    override fun createSettlementShadow(
-        productionSlots: List<com.xianxia.sect.core.model.production.ProductionSlot>
-    ): MutableGameState {
-        val gd = _gameDataFlow.value
-        val ei = _equipmentInstancesFlow.value
-        val mi = _manualInstancesFlow.value
-        val p = _pillsFlow.value
-        // 生产方法会读写这些字段——必须拷贝
-        val es = _equipmentStacksFlow.value
-        val ms = _manualStacksFlow.value
-        val mat = _materialsFlow.value
-        val h = _herbsFlow.value
-        val s = _seedsFlow.value
-        // 记录影子创建时的存活弟子 ID（用于区分"死亡"与"新生儿"）
-        shadowOriginAliveIds = _discipleTables.ids.filter { _discipleTables.isAlive[it] == 1 }.toSet()
-        return MutableGameState(
-            gameData = gd,
-            discipleTables = _discipleTables.deepCopy().apply { writeAllowed = true },
-            equipmentStacks = EntityStore(es),
-            equipmentInstances = EntityStore(ei),
-            manualStacks = EntityStore(ms),
-            manualInstances = EntityStore(mi),
-            pills = EntityStore(p),
-            materials = EntityStore(mat),
-            herbs = EntityStore(h),
-            seeds = EntityStore(s),
-            storageBags = EntityStore(),
-            teams = emptyList(),
-            battleLogs = emptyList(),
-            isPaused = _isPaused.value,
-            isLoading = _isLoading.value,
-            isSaving = _isSaving.value,
-            pendingNotification = _pendingNotificationFlow.value,
-            productionSlots = productionSlots
-        )
-    }
-
-    override suspend fun swapFromShadow(shadow: MutableGameState) {
-        val originIds = shadowOriginAliveIds
-        update {
-            this.discipleTables = mergeDiscipleTables(
-                shadow.discipleTables, this.discipleTables, originIds
-            )
-            // 影子可能携带了批量生产结算后的槽位状态
-            this.productionSlots = shadow.productionSlots
-        }
-        shadowOriginAliveIds = null
     }
 
     private val reusableMutableState = MutableGameState(

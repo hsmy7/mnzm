@@ -150,8 +150,6 @@ private class FakeStore : GameStateStore {
     override fun clearPendingBattleRewardCards() { pendingBattleRewardCards.value = emptyList() }
     override fun enqueueRewardCards(items: List<RewardCardItem>) {}
     override fun clearRewardCardQueue(count: Int) {}
-    override fun transitionTo(state: GameLifecycle) {}
-    override fun forceLifecycle(state: GameLifecycle) {}
     override fun advanceBootPhase() {}
     override fun resetBootPhase() {}
     override fun setPlaying() {}

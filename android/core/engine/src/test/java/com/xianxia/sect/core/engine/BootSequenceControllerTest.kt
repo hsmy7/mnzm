@@ -374,8 +374,6 @@ private class FakeGameStateStore : GameStateStore {
 
     // ── 兼容层 API ──
     override val gameLifecycle = MutableStateFlow(GameLifecycle.UNINITIALIZED)
-    override fun transitionTo(state: GameLifecycle) { gameLifecycle.value = state }
-    override fun forceLifecycle(state: GameLifecycle) { gameLifecycle.value = state }
 
     // ── 事件 ──
     override val warehouseFullEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)

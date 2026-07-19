@@ -308,6 +308,77 @@ class GameActivity : ComponentActivity() {
                     ) { showGame ->
                         val preloadData = mapPreloadData
                         if (showGame && preloadData != null) {
+                            // 设置广告回调到 ViewModel（移除透传链）
+                            viewModel.onWatchAdBreakthroughBonus = { discipleId ->
+                                val activity = this@GameActivity
+                                val rewardClaimed = AtomicBoolean(false)
+                                com.xianxia.sect.taptap.RewardVideoAdManager.setCallback(
+                                    object : com.xianxia.sect.taptap.RewardVideoAdManager.RewardVideoCallback {
+                                        override fun onRewardVerify(
+                                            rewardVerify: Boolean,
+                                            rewardAmount: Int,
+                                            rewardName: String,
+                                            code: Int,
+                                            msg: String
+                                        ) {
+                                            if (!rewardVerify || activity.isFinishing || activity.isDestroyed) return
+                                            if (!rewardClaimed.compareAndSet(false, true)) return
+                                            viewModel.applyAdBreakthroughBonus(
+                                                discipleId,
+                                                AD_BONUS_PER_AD
+                                            )
+                                            viewModel.markAdWatched()
+                                        }
+
+                                        override fun onAdCached() {
+                                            if (!activity.isFinishing && !activity.isDestroyed) {
+                                                com.xianxia.sect.taptap.RewardVideoAdManager.showAd(activity)
+                                            }
+                                        }
+
+                                        override fun onAdClose() {
+                                            com.xianxia.sect.taptap.RewardVideoAdManager.removeCallback()
+                                        }
+                                    }
+                                )
+                                com.xianxia.sect.taptap.RewardVideoAdManager.loadAd(activity)
+                            }
+                            viewModel.onWatchAdMerchantRefresh = {
+                                val activity = this@GameActivity
+                                val rewardClaimed = java.util.concurrent.atomic.AtomicBoolean(false)
+                                com.xianxia.sect.taptap.RewardVideoAdManager.setCallback(
+                                    object : com.xianxia.sect.taptap.RewardVideoAdManager.RewardVideoCallback {
+                                        override fun onRewardVerify(
+                                            rewardVerify: Boolean,
+                                            rewardAmount: Int,
+                                            rewardName: String,
+                                            code: Int,
+                                            msg: String
+                                        ) {
+                                            if (!rewardVerify || activity.isFinishing || activity.isDestroyed) return
+                                            if (!rewardClaimed.compareAndSet(false, true)) return  // 幂等守卫
+                                            viewModel.grantMerchantRefreshChanceFromAd()
+                                            viewModel.markAdWatched()
+                                        }
+
+                                        override fun onAdCached() {
+                                            if (!activity.isFinishing && !activity.isDestroyed) {
+                                                com.xianxia.sect.taptap.RewardVideoAdManager.showAd(activity)
+                                            }
+                                        }
+
+                                        override fun onAdClose() {
+                                            com.xianxia.sect.taptap.RewardVideoAdManager.removeCallback()
+                                        }
+                                    }
+                                )
+                                com.xianxia.sect.taptap.RewardVideoAdManager.loadAd(
+                                    activity = activity,
+                                    rewardName = "商人刷新次数",
+                                    rewardAmount = 3,
+                                    spaceId = 1059500L
+                                )
+                            }
                             MainGameScreen(
                                 mapPreloadData = preloadData,
                                 viewModel = viewModel,
@@ -357,76 +428,6 @@ class GameActivity : ComponentActivity() {
                                         com.xianxia.sect.core.CrashRecoveryEngine.clearSurfaceInitStarted()
                                         com.xianxia.sect.core.CrashRecoveryEngine.recordVulkanInitFailure()
                                     }
-                                },
-                                onWatchAdBreakthroughBonus = { discipleId ->
-                                    val activity = this@GameActivity
-                                    val rewardClaimed = AtomicBoolean(false)
-                                    com.xianxia.sect.taptap.RewardVideoAdManager.setCallback(
-                                        object : com.xianxia.sect.taptap.RewardVideoAdManager.RewardVideoCallback {
-                                            override fun onRewardVerify(
-                                                rewardVerify: Boolean,
-                                                rewardAmount: Int,
-                                                rewardName: String,
-                                                code: Int,
-                                                msg: String
-                                            ) {
-                                                if (!rewardVerify || activity.isFinishing || activity.isDestroyed) return
-                                                if (!rewardClaimed.compareAndSet(false, true)) return
-                                                viewModel.applyAdBreakthroughBonus(
-                                                    discipleId,
-                                                    AD_BONUS_PER_AD
-                                                )
-                                                viewModel.markAdWatched()
-                                            }
-
-                                            override fun onAdCached() {
-                                                if (!activity.isFinishing && !activity.isDestroyed) {
-                                                    com.xianxia.sect.taptap.RewardVideoAdManager.showAd(activity)
-                                                }
-                                            }
-
-                                            override fun onAdClose() {
-                                                com.xianxia.sect.taptap.RewardVideoAdManager.removeCallback()
-                                            }
-                                        }
-                                    )
-                                    com.xianxia.sect.taptap.RewardVideoAdManager.loadAd(activity)
-                                },
-                                onWatchAdMerchantRefresh = {
-                                    val activity = this@GameActivity
-                                    val rewardClaimed = java.util.concurrent.atomic.AtomicBoolean(false)
-                                    com.xianxia.sect.taptap.RewardVideoAdManager.setCallback(
-                                        object : com.xianxia.sect.taptap.RewardVideoAdManager.RewardVideoCallback {
-                                            override fun onRewardVerify(
-                                                rewardVerify: Boolean,
-                                                rewardAmount: Int,
-                                                rewardName: String,
-                                                code: Int,
-                                                msg: String
-                                            ) {
-                                                if (!rewardVerify || activity.isFinishing || activity.isDestroyed) return
-                                                if (!rewardClaimed.compareAndSet(false, true)) return  // 幂等守卫
-                                                viewModel.grantMerchantRefreshChanceFromAd()
-                                                viewModel.markAdWatched()
-                                            }
-
-                                            override fun onAdCached() {
-                                                if (!activity.isFinishing && !activity.isDestroyed) {
-                                                    com.xianxia.sect.taptap.RewardVideoAdManager.showAd(activity)
-                                                }
-                                            }
-
-                                            override fun onAdClose() {
-                                                com.xianxia.sect.taptap.RewardVideoAdManager.removeCallback()
-                                            }
-                                        }
-                                    )
-                                    com.xianxia.sect.taptap.RewardVideoAdManager.loadAd(
-                                        activity = activity,
-                                        rewardName = "商人刷新次数",
-                                        rewardAmount = 3,
-                                        spaceId = 1059500L
-                                    )
                                 }
                             )
                         } else {

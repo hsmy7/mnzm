@@ -43,6 +43,7 @@ class RoomMigrationTest {
         private val M13_14 = GameDatabase.MIGRATION_13_14
         private val M14_15 = GameDatabase.MIGRATION_14_15
         private val M15_16 = GameDatabase.MIGRATION_15_16
+        private val M22_23 = GameDatabase.MIGRATION_22_23
     }
 
     // ==================== 单个迁移步骤测试 ====================
@@ -192,6 +193,28 @@ class RoomMigrationTest {
         testSingleMigration(
             "m_15_16", 15, 16, listOf(M15_16), "game_data", "showAllAvailableDisciples"
         )
+    }
+
+    @Test
+    fun `MIGRATION_22_TO_23 removes discipleDesertionPopup from game_data`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dbName = "m_22_23_remove"
+        context.deleteDatabase(dbName)
+        try {
+            val db = createDatabaseFromSchema(context, dbName, 22)
+
+            assertTrue("discipleDesertionPopup should exist before v23 migration",
+                columnExists(db, "game_data", "discipleDesertionPopup"))
+
+            applyMigrationsSequentially(db, listOf(M22_23))
+
+            assertFalse("discipleDesertionPopup should be removed after v23 migration",
+                columnExists(db, "game_data", "discipleDesertionPopup"))
+
+            db.close()
+        } finally {
+            context.deleteDatabase(dbName)
+        }
     }
 
     // ==================== 全量迁移测试 ====================
