@@ -649,6 +649,31 @@ fun `addEquipmentStack - empty name returns INVALID_NAME`() { ... }
 
 **9.4 🟢 优先 Fake 而非 Mock** — 手写 Fake 实现优于 Mockito mock，可复用、可读、可调试。
 
+**9.5 🔴 跨域变更必须写测试守卫** — 当新增枚举/接口/配置项时如果涉及多处分头实现（如新增槽位系统需要同步更新注册表 + 清理 + 分配入口），必须写一个**测试守卫（Guard Test）**，在枚举值变更时自动失败并提示需要同步更新哪些地方。
+
+```kotlin
+// 示例：SlotCategoryCoverageTest.kt
+@Test
+fun `all SlotCategory values are covered by scanAndRegister`() {
+    val all = SlotCategory.values().toSet()
+    val covered = setOf(...)  // 当前已覆盖的
+    val missing = all - covered - intentionallyExcluded
+    assertTrue("新增 $missing 未在 scanAndRegister 中覆盖", missing.isEmpty())
+}
+```
+
+**守卫测试的三要素：**
+1. **枚举/配置驱动** — 以新增入口（如 `SlotCategory` 枚举）为锚点，遍历所有值
+2. **明确标注故意排除项** — `intentionallyExcluded` 集合显式声明为什么不覆盖
+3. **错误消息带操作指引** — `assertTrue` 的 message 直接告诉开发者缺什么、去哪改
+
+**适用场景：**
+- 新增槽位系统 → `SlotCategoryCoverageTest`
+- 新增事件类型 → 检查所有 EventHandler 已注册
+- 新增对话框类型 → 检查 DialogType 和渲染分支已配对
+- 新增建筑类型 → 检查 BuildingFeature 注册表已更新
+- 任何"加一个枚举值需要同步改 N 处"的跨域变更
+
 ---
 
 ### 10. 性能规范
@@ -744,6 +769,7 @@ fun `addEquipmentStack - empty name returns INVALID_NAME`() { ... }
 | 🟡 | State 数据类有 `@Immutable` |
 | 🟡 | 公开 API 有 KDoc |
 | 🟡 | Flow 派生用了 `distinctUntilChanged`/`sample`/`stateIn` |
+| 🔴 | 新增 `SlotCategory` 枚举值后需更新 4 处（`SlotCategoryCoverageTest` 会失败并列出具体指引）：`scanAndRegister` + `DiscipleSlotCleanup.clearAllSlots` + 分配入口 `releaseDiscipleFromAllSlotsAtomic` + `confirmAssign` |
 
 **13.4 🔴 detekt 配置** (`android/config/detekt/detekt.yml`)：
 ```yaml

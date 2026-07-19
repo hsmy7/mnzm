@@ -8,6 +8,12 @@
 
 - **修复：对抗性审查10项全修复** — TOCTOU竞态（updateAndReturn原子化检查+扣减）、旧存档兼容未设lastGrantYear导致双倍发放、onRewardVerify回调不幂等（AtomicBoolean compareAndSet）、次数无上限溢出（coerceAtMost 999）、setCallback覆盖（destroyAd保护）、adCooldownUntilMs跨线程不可见（@Volatile）、Activity销毁后回调崩溃（isDestroyed检查）、gameYear=0无限发放（year<=0防御）
 - **修复：上架管理丹药品质显示** — 已上架丹药列表新增彩色品质标签（下品/中品/上品），与选择卡片一致使用 `getQualityColor` 着色；选择上架时三种品质丹药均显示为独立卡片
+
+### 重构
+
+- **重构：弟子多槽位互斥统一门卫** — 新增 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 全局分配注册表，覆盖 11 个槽位系统（长老/亲传/生产/灵矿/藏经阁/住所/仓库/巡逻/驻军/血炼/战斗队伍），运行时自动释放旧槽位 + 读档重建注册表；新增 `SlotCategoryCoverageTest` 测试守卫，新增 `SlotCategory` 枚举值未同步更新 4 处时测试失败并给出修复指引
+- **重构：`DiscipleSlotCleanup` 消除 companion 桥接** — 改为标准 `@Singleton` 注入，`clearAllSlots` 内部自动调用 `gate.release()`，死亡/驱逐/释放路径无需手动清理注册表
+- **重构：灵矿执事分配统一入口** — `SpiritMineViewModel.assignSpiritMineDeacon` 改为走 `ElderManagementUseCase.assignDirectDisciple`，消除直接写 `gameData.elderSlots.spiritMineDeaconDisciples` 的绕过模式
 - **改动：显示所有弟子筛选逻辑** — 思过中弟子勾选后可见并可被选择，选中视为手动释放（不给道德/忠诚加成）；血炼中弟子选中视为血炼失败（不返还材料）；仅战斗中/任务中排除
 - **修复：EnemyGeneratorTest 预存10个测试失败** — 根因 `enemyGenRngManager` 未初始化，添加 `@Before`/`@After` 初始化和清理
 - **修复：仓库驻守对话框"显示所有弟子"无效** — 预过滤硬编码 `d.status == IDLE` 导致勾选框失效，已移除并改为委托 `filterByDiscipleStatus` 控制；同时补传 `showAllEnabled`/`battleAndExplorationIds` 参数；选择非空闲弟子时自动释放原槽位

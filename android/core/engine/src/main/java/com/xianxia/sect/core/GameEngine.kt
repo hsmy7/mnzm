@@ -91,7 +91,8 @@ class GameEngine @Inject constructor(
     internal val productionFacade: ProductionFacade,
     internal val saveFacade: SaveFacade,
     internal val spiritStoneWallet: SpiritStoneWallet,
-    internal val gameRngManager: GameRngManager
+    internal val gameRngManager: GameRngManager,
+    internal val assignmentGate: com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate,
 ) {
     init {
         // 注入任务完成检测回调到 GameEngineCore，

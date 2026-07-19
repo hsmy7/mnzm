@@ -58,6 +58,14 @@ fun HerbGardenDialog(
     val herbGardenDisciples = elderSlots.herbGardenDisciples.filter { it.sectId == activeSectId }
     val discipleMap = disciples.associateBy { it.id }
 
+    val battleAndExplorationIds = remember(gameData) {
+        if (gameData != null) {
+            val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
+            val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+            battleIds + explorationIds
+        } else emptySet()
+    }
+
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
         title = "灵植阁",
@@ -95,7 +103,8 @@ fun HerbGardenDialog(
             onSelect = { discipleId ->
                 productionViewModel.assignDirectDisciple("herbGarden", slotIndex, discipleId)
                 showDirectDiscipleSelection = null
-            }
+            },
+            battleAndExplorationIds = battleAndExplorationIds,
         )
     }
 

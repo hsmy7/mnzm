@@ -5,6 +5,9 @@ import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.ElderSlotType
 import com.xianxia.sect.core.model.ElderSlots
+import com.xianxia.sect.core.model.SlotRef
+import com.xianxia.sect.core.model.SlotCategory
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -16,7 +19,8 @@ import javax.inject.Singleton
  */
 @Singleton
 class ElderManagementUseCase @Inject constructor(
-    private val gameEngine: GameEngine
+    private val gameEngine: GameEngine,
+    private val assignmentGate: DiscipleAssignmentGate,
 ) {
     companion object {
         const val REALM_VICE_SECT_MASTER = GameConfig.Elder.REALM_VICE_SECT_MASTER
@@ -82,6 +86,14 @@ class ElderManagementUseCase @Inject constructor(
             return ElderResult.Error("弟子已死亡")
         }
 
+        // 释放旧槽位（自动移除前职务，允许弟子担任新职务）
+        gameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId)
+
+        val targetSlot = SlotRef(
+            category = SlotCategory.ELDER_POSITION,
+            slotType = slotType.name,
+            slotId = "elder_${slotType.name}"
+        )
         val currentGameData = gameEngine.gameDataSnapshot
         val elderSlots = currentGameData.elderSlots
 
@@ -124,6 +136,8 @@ class ElderManagementUseCase @Inject constructor(
             )
         }
         gameEngine.updateElderSlots(newElderSlots)
+        // 登记分配
+        assignmentGate.confirmAssign(discipleId, targetSlot)
         // Checkpoint：长老变化后重算生产 duration
         if (slotType in productionElderTypes) {
             gameEngine.checkpointAllProduction()
@@ -140,6 +154,8 @@ class ElderManagementUseCase @Inject constructor(
     suspend fun removeElder(slotType: ElderSlotType): ElderResult {
         val currentGameData = gameEngine.gameDataSnapshot
         val elderSlots = currentGameData.elderSlots
+        // 取出当前长老的弟子 ID（卸任后清理注册表）
+        val previousDiscipleId = getElderIdBySlotType(elderSlots, slotType)
         val newElderSlots = when (slotType) {
             ElderSlotType.HERB_GARDEN -> elderSlots.copy(
                 herbGardenElder = "",
@@ -179,6 +195,10 @@ class ElderManagementUseCase @Inject constructor(
             )
         }
         gameEngine.updateElderSlots(newElderSlots)
+        // 清理注册表
+        if (previousDiscipleId.isNotEmpty()) {
+            assignmentGate.release(previousDiscipleId)
+        }
         if (slotType in productionElderTypes) {
             gameEngine.checkpointAllProduction()
         }
@@ -222,5 +242,25 @@ class ElderManagementUseCase @Inject constructor(
     suspend fun removeDirectDisciple(elderSlotType: String, slotIndex: Int): ElderResult {
         gameEngine.removeDirectDisciple(elderSlotType, slotIndex)
         return ElderResult.Success("亲传弟子已移除")
+    }
+
+    // ==================== 内部辅助 ====================
+
+    /**
+     * 根据长老类型获取当前任命的弟子 ID。
+     */
+    private fun getElderIdBySlotType(slots: ElderSlots, slotType: ElderSlotType): String {
+        return when (slotType) {
+            ElderSlotType.VICE_SECT_MASTER -> slots.viceSectMaster
+            ElderSlotType.HERB_GARDEN -> slots.herbGardenElder
+            ElderSlotType.ALCHEMY -> slots.alchemyElder
+            ElderSlotType.FORGE -> slots.forgeElder
+            ElderSlotType.OUTER_ELDER -> slots.outerElder
+            ElderSlotType.PREACHING -> slots.preachingElder
+            ElderSlotType.LAW_ENFORCEMENT -> slots.lawEnforcementElder
+            ElderSlotType.INNER_ELDER -> slots.innerElder
+            ElderSlotType.RECRUITING -> slots.recruitingElder
+            ElderSlotType.CLOUD_PREACHING -> slots.qingyunPreachingElder
+        }
     }
 }

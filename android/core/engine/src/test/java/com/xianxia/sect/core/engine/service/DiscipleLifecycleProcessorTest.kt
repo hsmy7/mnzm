@@ -1,6 +1,9 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.config.InventoryConfig
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentRegistry
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.repository.ProductionSlotRepository
@@ -93,7 +96,10 @@ class DiscipleLifecycleProcessorTest {
             inventoryConfig = mock(InventoryConfig::class.java),
             scopeProvider = mock(CoroutineScopeProvider::class.java),
             productionSlotRepository = mock(ProductionSlotRepository::class.java),
-            eventBus = mock(EventBusPort::class.java)
+            eventBus = mock(EventBusPort::class.java),
+            discipleSlotCleanup = DiscipleSlotCleanup(
+                DiscipleAssignmentGate(DiscipleAssignmentRegistry())
+            )
         )
     }
 

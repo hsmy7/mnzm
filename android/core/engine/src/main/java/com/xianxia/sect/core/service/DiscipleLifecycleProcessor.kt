@@ -27,7 +27,8 @@ class DiscipleLifecycleProcessor @Inject constructor(
     private val inventoryConfig: InventoryConfig,
     private val scopeProvider: CoroutineScopeProvider,
     private val productionSlotRepository: ProductionSlotRepository,
-    private val eventBus: EventBusPort
+    private val eventBus: EventBusPort,
+    private val discipleSlotCleanup: DiscipleSlotCleanup
 ) {
     private val scope get() = scopeProvider.scope
 
@@ -338,7 +339,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
 
     fun clearDiscipleFromAllSlots(discipleId: String) {
         val data = stateStore.gameData.value
-        val cleaned = DiscipleSlotCleanup.clearAllSlots(data, discipleId)
+        val cleaned = discipleSlotCleanup.clearAllSlots(data, discipleId)
         stateStore.update {
             gameData = cleaned
         }

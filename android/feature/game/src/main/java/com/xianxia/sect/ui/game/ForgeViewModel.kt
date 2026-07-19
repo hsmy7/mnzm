@@ -169,10 +169,7 @@ class ForgeViewModel @Inject constructor(
 
     fun getAvailableWorkers(): List<DiscipleAggregate> {
         val all = gameEngine.discipleAggregatesSnapshot
-        val assignedIds = gameEngine.productionSlots.value
-            .filter { it.buildingType == BuildingType.FORGE && it.assignedDiscipleId.isNullOrEmpty().not() }
-            .mapNotNull { it.assignedDiscipleId }.toSet()
-        return all.filter { it.isAlive && it.id !in assignedIds }
+        return all.filter { it.isAlive && !gameEngine.isDiscipleAssigned(it.id) }
             .sortedByDescending { it.artifactRefining }
     }
 }

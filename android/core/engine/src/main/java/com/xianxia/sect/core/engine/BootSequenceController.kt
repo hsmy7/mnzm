@@ -122,7 +122,18 @@ class BootSequenceController @Inject constructor(
             discipleSnapshotCache.prewarm(gameEngine.discipleTables)
             gameEngine.ensureHeavyDataLoaded()
 
-            // ── Step 6: 启动游戏循环 ──
+            // ── Step 6: 重建分配注册表（读档后同步 Gate 状态）──
+            onProgress(0.50f)
+            gameEngine.assignmentGate.rebuildFromGameData(
+                gameData = gameEngine.gameDataSnapshot,
+                productionSlots = try {
+                    gameEngine.productionCoordinator.repository.getSlots()
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            )
+
+            // ── Step 7: 启动游戏循环 ──
             onProgress(0.60f)
             startGameLoop()
             stateStore.advanceBootPhase() // → SYSTEMS_READY

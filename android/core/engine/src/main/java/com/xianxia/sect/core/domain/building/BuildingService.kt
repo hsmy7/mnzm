@@ -11,6 +11,9 @@ import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.repository.ProductionSlotRepository
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
+import com.xianxia.sect.core.model.SlotCategory
+import com.xianxia.sect.core.model.SlotRef
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.util.AppError
@@ -29,7 +32,8 @@ class BuildingService @Inject constructor(
     private val productionSlotRepository: ProductionSlotRepository,
     private val inventorySystem: InventorySystem,
     private val formulaService: FormulaService,
-    private val rngManager: com.xianxia.sect.core.util.GameRngManager
+    private val rngManager: com.xianxia.sect.core.util.GameRngManager,
+    private val assignmentGate: DiscipleAssignmentGate,
 ) {
     companion object {
         private const val TAG = "BuildingService"
@@ -53,18 +57,12 @@ class BuildingService @Inject constructor(
         // （如 "alchemy"/"forge"），非实例标识。
         // 多个同类型建筑实例共享同一 buildingId，
         // 导致排他检查失效。
-        // 修复：改用 BuildingFacadeImpl.isDiscipleAssignedToOtherSlot
-        // 纯函数，按 buildingType + slotIndex 排除当前槽位后
-        // 检查弟子是否已分配到其他任意槽位。
-        val allSlots = productionSlotRepository.getSlots()
-        val currentBuildingType = ProductionSlot.resolveBuildingType(buildingId)
-        val alreadyAssigned = BuildingFacadeImpl.isDiscipleAssignedToOtherSlot(
-            discipleId = discipleId,
-            slots = allSlots,
-            currentBuildingType = currentBuildingType,
-            currentSlotIndex = slotIndex
+        // 已迁移到 DiscipleAssignmentGate
+        val targetSlot = SlotRef(
+            category = SlotCategory.PRODUCTION_SLOT,
+            slotType = "$buildingId:$slotIndex",
+            slotId = "production_${buildingId}_${slotIndex}"
         )
-        if (alreadyAssigned) return
 
         val existingSlot =
             productionSlotRepository.getSlotByBuildingId(buildingId, slotIndex)
@@ -81,6 +79,7 @@ class BuildingService @Inject constructor(
             buildingId, slotIndex, discipleId,
             discipleName, existingSlot
         )
+        assignmentGate.confirmAssign(discipleId, targetSlot)
     }
 
     suspend fun removeDiscipleFromBuilding(buildingId: String, slotIndex: Int) {
@@ -99,12 +98,18 @@ class BuildingService @Inject constructor(
             return
         }
 
+        val oldDiscipleId = existingSlot.assignedDiscipleId
+
         withContext(Dispatchers.IO) {
             productionSlotRepository.updateSlotByBuildingId(
                 buildingId, slotIndex
             ) { slot ->
                 slot.copy(assignedDiscipleId = null, assignedDiscipleName = "")
             }
+        }
+
+        if (!oldDiscipleId.isNullOrEmpty()) {
+            assignmentGate.release(oldDiscipleId)
         }
     }
 

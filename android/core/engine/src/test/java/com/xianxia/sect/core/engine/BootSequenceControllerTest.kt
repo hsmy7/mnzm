@@ -59,6 +59,12 @@ class BootSequenceControllerTest {
         // DiscipleSnapshotCache
         doNothing().whenever(discipleSnapshotCache).prewarm(any())
 
+        // assignmentGate: 创建真实 Gate 用于注册表重建
+        val realGate = com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate(
+            com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentRegistry()
+        )
+        whenever(gameEngine.assignmentGate).thenReturn(realGate)
+
         controller = BootSequenceController(
             stateStore = stateStore,
             gameEngineCore = gameEngineCore,

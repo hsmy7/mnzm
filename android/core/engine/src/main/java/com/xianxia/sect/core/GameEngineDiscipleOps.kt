@@ -55,7 +55,6 @@ suspend fun GameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId: String) {
 
         when (discipleTables.statuses[id]) {
             DiscipleStatus.REFLECTING -> {
-                // 思过 → 手动释放：清除 reflection 字段，设为 IDLE，不给道德/忠诚
                 discipleTables.statuses[id] = DiscipleStatus.IDLE
                 val existingData = discipleTables.statusData[id]
                 discipleTables.statusData[id] = existingData - setOf(
@@ -63,18 +62,17 @@ suspend fun GameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId: String) {
                 )
             }
             DiscipleStatus.REFINING -> {
-                // 血炼 → 视为失败：clearAllSlots 已移除 activeBloodRefinements，
-                // 额外清理 statusData 中的 buildingId
-                gameData = DiscipleSlotCleanup.clearAllSlots(gameData, discipleId)
+                gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlots(gameData, discipleId)
                 discipleTables.statuses[id] = DiscipleStatus.IDLE
                 val current = discipleTables.statusData.getOrDefault(id, emptyMap())
                 discipleTables.statusData[id] = current - "buildingId"
             }
             else -> {
-                // 其他非空闲状态：清除所有槽位引用
-                gameData = DiscipleSlotCleanup.clearAllSlots(gameData, discipleId)
+                gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlots(gameData, discipleId)
                 discipleTables.statuses[id] = DiscipleStatus.IDLE
             }
         }
     }
+    // 已在 clearAllSlots 内部调用 gate.release()，但死代码保留确保正确
+    assignmentGate.release(discipleId)
 }

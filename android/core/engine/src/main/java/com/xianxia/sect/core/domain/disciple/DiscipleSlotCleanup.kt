@@ -8,15 +8,23 @@ import javax.inject.Singleton
  * 弟子死亡/脱离时从所有槽位清理。
  * 由 DiscipleService 和 CultivationService 共用，
  * 确保新增槽位类型时不会漏掉。
+ *
+ * 清理槽位的同时自动调用 [DiscipleAssignmentGate.release] 同步注册表。
  */
 @Singleton
-class DiscipleSlotCleanup @Inject constructor() {
+class DiscipleSlotCleanup @Inject constructor(
+    private val assignmentGate: DiscipleAssignmentGate,
+) {
 
     /**
      * 从 GameData 中清理指定弟子的所有槽位引用。
+     * 同时清理 Gate 注册表。
      * 返回更新后的 GameData。
      */
     fun clearAllSlots(data: GameData, discipleId: String): GameData {
+        // 同步清理 Gate 注册表
+        assignmentGate.release(discipleId)
+
         val updatedSpiritMineSlots = data.spiritMineSlots.map {
             if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
         }
@@ -109,22 +117,5 @@ class DiscipleSlotCleanup @Inject constructor() {
         )
 
         return updated
-    }
-
-    // -- 向后兼容：companion 桥接，现有调用点无需改动 --
-
-    companion object {
-        @Volatile
-        private var _instance: DiscipleSlotCleanup? = null
-
-        internal fun initialize(instance: DiscipleSlotCleanup) {
-            _instance = instance
-        }
-
-        private val instance: DiscipleSlotCleanup
-            get() = _instance ?: DiscipleSlotCleanup().also { _instance = it }
-
-        fun clearAllSlots(data: GameData, discipleId: String): GameData =
-            instance.clearAllSlots(data, discipleId)
     }
 }

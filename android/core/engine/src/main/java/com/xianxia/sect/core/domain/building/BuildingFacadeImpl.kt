@@ -27,7 +27,8 @@ class BuildingFacadeImpl @Inject constructor(
     private val gameEngineCore: GameEngineCore,
     private val productionCoordinator: ProductionCoordinator,
     private val inventorySystem: InventorySystem,
-    private val spiritStoneWallet: SpiritStoneWallet
+    private val spiritStoneWallet: SpiritStoneWallet,
+    private val assignmentGate: com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate,
 ) : BuildingFacade {
 
     override suspend fun placeBuilding(building: GridBuildingData) {
@@ -151,23 +152,18 @@ class BuildingFacadeImpl @Inject constructor(
         discipleName: String
     ) {
         gameEngineCore.launchInScope {
-            // 排他性校验：防止同一弟子被重复分配到多个生产槽位。
-            //
-            // 历史 bug：此方法（UI 实际调用路径）完全没有排他性检查，
-            // 弟子可被同时分配到多个炼丹炉/锻造坊。修复 #4 时补齐。
-            val allSlots = productionCoordinator.repository.getSlots()
-            val alreadyAssigned = isDiscipleAssignedToOtherSlot(
-                discipleId = discipleId,
-                slots = allSlots,
-                currentBuildingType = buildingType,
-                currentSlotIndex = slotIndex
+            // 登记新分配（覆盖任何旧分配记录）
+            val targetSlot = com.xianxia.sect.core.model.SlotRef(
+                category = com.xianxia.sect.core.model.SlotCategory.PRODUCTION_SLOT,
+                slotType = "${buildingType}:${slotIndex}",
+                slotId = "production_${buildingType}_${slotIndex}"
             )
-            if (alreadyAssigned) return@launchInScope
 
-            // 若目标槽位已有弟子，先将其恢复为空闲状态
+            // 若目标槽位已有弟子，先释放并恢复为空闲状态
             val existingSlot = productionCoordinator.repository.getSlotByIndex(buildingType, slotIndex)
             existingSlot?.assignedDiscipleId?.let { oldDiscipleId ->
                 if (oldDiscipleId.isNotEmpty() && oldDiscipleId != discipleId) {
+                    assignmentGate.release(oldDiscipleId)
                     updateDiscipleStatus(oldDiscipleId, DiscipleStatus.IDLE)
                 }
             }
@@ -180,6 +176,8 @@ class BuildingFacadeImpl @Inject constructor(
                     )
                 }
             }
+
+            assignmentGate.confirmAssign(discipleId, targetSlot)
         }
     }
 
@@ -214,6 +212,7 @@ class BuildingFacadeImpl @Inject constructor(
                         discipleTables.statuses[id] = DiscipleStatus.IDLE
                     }
                 }
+                assignmentGate.release(discipleId)
             }
         }
     }
@@ -424,35 +423,4 @@ class BuildingFacadeImpl @Inject constructor(
         }
     }
 
-    internal companion object {
-        /**
-         * 纯函数：检查弟子是否已分配到其他生产槽位。
-         *
-         * 用于 [assignDiscipleToBuilding] 和 [assignDiscipleToProductionSlot] 的排他性校验，
-         * 防止同一弟子被重复分配到多个建筑槽位。
-         *
-         * 历史 bug：旧实现使用 `it.buildingId != buildingId` 做排他判断，
-         * 但 `buildingId` 是类型标识（如 "alchemy"/"forge"），非实例标识。
-         * 多个同类型建筑实例共享同一 `buildingId`，导致排他检查失效，
-         * 弟子可被重复分配到多个同类型建筑实例。
-         *
-         * @param discipleId 待分配的弟子 ID
-         * @param slots 当前所有生产槽位快照
-         * @param currentBuildingType 当前目标建筑类型
-         * @param currentSlotIndex 当前目标槽位索引
-         * @return true 表示弟子已分配到其他槽位（应阻止分配）
-         */
-        fun isDiscipleAssignedToOtherSlot(
-            discipleId: String,
-            slots: List<ProductionSlot>,
-            currentBuildingType: BuildingType,
-            currentSlotIndex: Int
-        ): Boolean {
-            if (discipleId.isEmpty()) return false
-            return slots.any {
-                it.assignedDiscipleId == discipleId &&
-                    !(it.buildingType == currentBuildingType && it.slotIndex == currentSlotIndex)
-            }
-        }
-    }
 }

@@ -2,11 +2,19 @@ package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.model.*
 import org.junit.Assert.*
+import org.junit.Before
 import org.junit.Test
 
 class DiscipleSlotCleanupTest {
 
     private val testDiscipleId = "disciple_to_remove"
+    private lateinit var cleanup: DiscipleSlotCleanup
+
+    @Before
+    fun setUp() {
+        val gate = DiscipleAssignmentGate(DiscipleAssignmentRegistry())
+        cleanup = DiscipleSlotCleanup(gate)
+    }
 
     private fun createGameDataWithDiscipleInSlots(discipleId: String): GameData {
         val discipleSlot = DirectDiscipleSlot(index = 0, discipleId = discipleId, discipleName = "Test")
@@ -71,7 +79,7 @@ class DiscipleSlotCleanupTest {
     @Test
     fun clearAllSlots_clearsSpiritMineSlots() {
         val data = createGameDataWithDiscipleInSlots(testDiscipleId)
-        val result = DiscipleSlotCleanup.clearAllSlots(data, testDiscipleId)
+        val result = cleanup.clearAllSlots(data, testDiscipleId)
         for (slot in result.spiritMineSlots) {
             assertNotEquals(testDiscipleId, slot.discipleId)
         }
@@ -80,7 +88,7 @@ class DiscipleSlotCleanupTest {
     @Test
     fun clearAllSlots_clearsLibrarySlots() {
         val data = createGameDataWithDiscipleInSlots(testDiscipleId)
-        val result = DiscipleSlotCleanup.clearAllSlots(data, testDiscipleId)
+        val result = cleanup.clearAllSlots(data, testDiscipleId)
         for (slot in result.librarySlots) {
             assertNotEquals(testDiscipleId, slot.discipleId)
         }
@@ -89,7 +97,7 @@ class DiscipleSlotCleanupTest {
     @Test
     fun clearAllSlots_clearsResidenceSlots() {
         val data = createGameDataWithDiscipleInSlots(testDiscipleId)
-        val result = DiscipleSlotCleanup.clearAllSlots(data, testDiscipleId)
+        val result = cleanup.clearAllSlots(data, testDiscipleId)
         for (slot in result.residenceSlots) {
             assertNotEquals(testDiscipleId, slot.discipleId)
         }
@@ -98,7 +106,7 @@ class DiscipleSlotCleanupTest {
     @Test
     fun clearAllSlots_clearsPatrolSlots() {
         val data = createGameDataWithDiscipleInSlots(testDiscipleId)
-        val result = DiscipleSlotCleanup.clearAllSlots(data, testDiscipleId)
+        val result = cleanup.clearAllSlots(data, testDiscipleId)
         for (slot in result.patrolSlots) {
             assertNotEquals(testDiscipleId, slot.discipleId)
         }
@@ -107,7 +115,7 @@ class DiscipleSlotCleanupTest {
     @Test
     fun clearAllSlots_clearsWarehouseGarrisons() {
         val data = createGameDataWithDiscipleInSlots(testDiscipleId)
-        val result = DiscipleSlotCleanup.clearAllSlots(data, testDiscipleId)
+        val result = cleanup.clearAllSlots(data, testDiscipleId)
         for (slot in result.warehouseGarrisons) {
             assertNotEquals(testDiscipleId, slot.discipleId)
         }
@@ -116,7 +124,7 @@ class DiscipleSlotCleanupTest {
     @Test
     fun clearAllSlots_clearsElderSlots() {
         val data = createGameDataWithDiscipleInSlots(testDiscipleId)
-        val result = DiscipleSlotCleanup.clearAllSlots(data, testDiscipleId)
+        val result = cleanup.clearAllSlots(data, testDiscipleId)
         assertEquals("", result.elderSlots.viceSectMaster)
         assertEquals("", result.elderSlots.herbGardenElder)
         assertEquals("", result.elderSlots.alchemyElder)
@@ -131,7 +139,7 @@ class DiscipleSlotCleanupTest {
     @Test
     fun clearAllSlots_clearsElderDiscipleSlots() {
         val data = createGameDataWithDiscipleInSlots(testDiscipleId)
-        val result = DiscipleSlotCleanup.clearAllSlots(data, testDiscipleId)
+        val result = cleanup.clearAllSlots(data, testDiscipleId)
         for (slot in result.elderSlots.preachingMasters) {
             assertNotEquals(testDiscipleId, slot.discipleId)
         }
@@ -149,7 +157,7 @@ class DiscipleSlotCleanupTest {
     @Test
     fun clearAllSlots_clearsBloodRefinements() {
         val data = createGameDataWithDiscipleInSlots(testDiscipleId)
-        val result = DiscipleSlotCleanup.clearAllSlots(data, testDiscipleId)
+        val result = cleanup.clearAllSlots(data, testDiscipleId)
         for ((_, progress) in result.activeBloodRefinements) {
             assertNotEquals(testDiscipleId, progress.discipleId)
         }
@@ -158,7 +166,7 @@ class DiscipleSlotCleanupTest {
     @Test
     fun clearAllSlots_clearsBattleTeamSlots() {
         val data = createGameDataWithDiscipleInSlots(testDiscipleId)
-        val result = DiscipleSlotCleanup.clearAllSlots(data, testDiscipleId)
+        val result = cleanup.clearAllSlots(data, testDiscipleId)
         for (team in result.battleTeams) {
             for (slot in team.slots) {
                 assertNotEquals(testDiscipleId, slot.discipleId)
@@ -169,7 +177,7 @@ class DiscipleSlotCleanupTest {
     @Test
     fun clearAllSlots_clearsGarrisonSlots() {
         val data = createGameDataWithDiscipleInSlots(testDiscipleId)
-        val result = DiscipleSlotCleanup.clearAllSlots(data, testDiscipleId)
+        val result = cleanup.clearAllSlots(data, testDiscipleId)
         val playerSect = result.worldMapSects.find { it.isPlayerSect }
         assertNotNull(playerSect)
         for (slot in playerSect!!.garrisonSlots) {
@@ -186,7 +194,7 @@ class DiscipleSlotCleanupTest {
                 SpiritMineSlot(index = 1, discipleId = otherId, discipleName = "Other")
             )
         )
-        val result = DiscipleSlotCleanup.clearAllSlots(data, testDiscipleId)
+        val result = cleanup.clearAllSlots(data, testDiscipleId)
         val otherSlot = result.spiritMineSlots.find { it.index == 1 }
         assertNotNull(otherSlot)
         assertEquals(otherId, otherSlot!!.discipleId)
@@ -195,14 +203,14 @@ class DiscipleSlotCleanupTest {
     @Test
     fun clearAllSlots_nonExistentDisciple_noChange() {
         val data = createGameDataWithDiscipleInSlots(testDiscipleId)
-        val result = DiscipleSlotCleanup.clearAllSlots(data, "nonexistent_id")
+        val result = cleanup.clearAllSlots(data, "nonexistent_id")
         assertEquals(testDiscipleId, result.spiritMineSlots[0].discipleId)
     }
 
     @Test
     fun clearAllSlots_emptyGameData_noException() {
         val data = GameData()
-        val result = DiscipleSlotCleanup.clearAllSlots(data, testDiscipleId)
+        val result = cleanup.clearAllSlots(data, testDiscipleId)
         assertNotNull(result)
         assertEquals(0, result.spiritMineSlots.size)
     }
@@ -215,7 +223,7 @@ class DiscipleSlotCleanupTest {
             garrisonSlots = listOf(GarrisonSlot(index = 0, discipleId = testDiscipleId, discipleName = "Test"))
         )
         val data = GameData(worldMapSects = listOf(aiSect))
-        val result = DiscipleSlotCleanup.clearAllSlots(data, testDiscipleId)
+        val result = cleanup.clearAllSlots(data, testDiscipleId)
         val resultAiSect = result.worldMapSects.find { it.id == "ai_sect" }
         assertNotNull(resultAiSect)
         // Non-player sects should not be modified

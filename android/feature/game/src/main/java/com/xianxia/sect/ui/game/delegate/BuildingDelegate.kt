@@ -5,9 +5,9 @@ import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.currentActiveSectId
 import com.xianxia.sect.core.engine.domain.building.BuildingFacade
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
-import com.xianxia.sect.core.engine.getDiscipleAggregate
-import com.xianxia.sect.core.engine.removeBuilding
-import com.xianxia.sect.core.engine.updateGameData
+import com.xianxia.sect.core.engine.*
+import com.xianxia.sect.core.model.SlotCategory
+import com.xianxia.sect.core.model.SlotRef
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.model.production.ProductionSlot
@@ -152,6 +152,9 @@ class BuildingDelegate(
     /** 分配弟子到住宅 */
     fun assignToResidence(buildingInstanceId: String, slotIndex: Int, discipleId: String) {
         scope.launch {
+            // 释放旧槽位（自动移除前职务）
+            gameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId)
+
             val discipleName = gameEngine.getDiscipleAggregate(discipleId)?.name ?: ""
             gameEngine.updateGameData { data ->
                 val cleared = data.residenceSlots.map { slot ->
@@ -168,18 +171,34 @@ class BuildingDelegate(
                 if (existingIndex >= 0) cleared[existingIndex] = newSlot else cleared.add(newSlot)
                 data.copy(residenceSlots = cleared)
             }
+
+            val slotRef = SlotRef(
+                category = SlotCategory.RESIDENCE_SLOT,
+                slotType = "${buildingInstanceId}:${slotIndex}",
+                slotId = "residence_${buildingInstanceId}_${slotIndex}"
+            )
+            gameEngine.confirmAssignDisciple(discipleId, slotRef)
         }
     }
 
     /** 从住宅移除弟子 */
     fun removeFromResidence(buildingInstanceId: String, slotIndex: Int) {
         scope.launch {
+            // 取出当前住户 ID 用于释放注册表
+            val currentDiscipleId = gameEngine.gameDataSnapshot.residenceSlots
+                .find { it.buildingInstanceId == buildingInstanceId && it.slotIndex == slotIndex }
+                ?.discipleId.orEmpty()
+
             gameEngine.updateGameData { data ->
                 data.copy(residenceSlots = data.residenceSlots.map { slot ->
                     if (slot.buildingInstanceId == buildingInstanceId && slot.slotIndex == slotIndex)
                         slot.copy(discipleId = "", discipleName = "")
                     else slot
                 })
+            }
+
+            if (currentDiscipleId.isNotEmpty()) {
+                gameEngine.releaseDiscipleAssignment(currentDiscipleId)
             }
         }
     }

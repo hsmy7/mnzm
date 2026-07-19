@@ -397,7 +397,8 @@ fun ProductionElderSelectionDialog(
     elderSlots: ElderSlots,
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit,
-    viewModel: GameViewModel? = null
+    viewModel: GameViewModel? = null,
+    battleAndExplorationIds: Set<String> = emptySet(),
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
@@ -408,8 +409,8 @@ fun ProductionElderSelectionDialog(
 
     val showAllEnabled = viewModel?.gameData?.value?.showAllAvailableDisciples ?: false
 
-    val filteredDisciplesBase = remember(disciples, elderSlots, showAllEnabled) {
-        disciples.filterByDiscipleStatus(showAllEnabled, emptySet(), additionalCheck = { it.realmLayer > 0 && it.age >= GameConfig.Disciple.MIN_AGE })
+    val filteredDisciplesBase = remember(disciples, elderSlots, showAllEnabled, battleAndExplorationIds) {
+        disciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds, additionalCheck = { it.realmLayer > 0 && it.age >= GameConfig.Disciple.MIN_AGE })
     }
 
     val realmCounts = remember(filteredDisciplesBase) {
@@ -507,7 +508,8 @@ fun ProductionDirectDiscipleSelectionDialog(
     elderSlots: ElderSlots,
     onDismiss: () -> Unit,
     onSelect: (String) -> Unit,
-    viewModel: GameViewModel? = null
+    viewModel: GameViewModel? = null,
+    battleAndExplorationIds: Set<String> = emptySet(),
 ) {
     var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
@@ -518,8 +520,8 @@ fun ProductionDirectDiscipleSelectionDialog(
 
     val showAllEnabled = viewModel?.gameData?.value?.showAllAvailableDisciples ?: false
 
-    val filteredDisciplesBase = remember(disciples, elderSlots, showAllEnabled) {
-        disciples.filterByDiscipleStatus(showAllEnabled, emptySet(), additionalCheck = { it.realmLayer > 0 && it.age >= GameConfig.Disciple.MIN_AGE })
+    val filteredDisciplesBase = remember(disciples, elderSlots, showAllEnabled, battleAndExplorationIds) {
+        disciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds, additionalCheck = { it.realmLayer > 0 && it.age >= GameConfig.Disciple.MIN_AGE })
     }
 
     val realmCounts = remember(filteredDisciplesBase) {

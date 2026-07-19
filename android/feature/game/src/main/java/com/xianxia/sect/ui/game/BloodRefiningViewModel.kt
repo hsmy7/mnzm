@@ -3,9 +3,7 @@
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.model.BloodRefinementProgress
-import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.util.GameRngManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -145,6 +143,14 @@ class BloodRefiningViewModel @Inject constructor(
                     errorMessage = null
                 ) }
             }
+
+            // 登记血炼分配
+            val slotRef = SlotRef(
+                category = SlotCategory.BLOOD_REFINEMENT,
+                slotType = buildingInstanceId,
+                slotId = "blood_$buildingInstanceId"
+            )
+            gameEngine.confirmAssignDisciple(disciple.id, slotRef)
         }
     }
 
@@ -156,6 +162,7 @@ class BloodRefiningViewModel @Inject constructor(
                 buildingInstanceId = buildingInstanceId,
                 discipleId = progress.discipleId
             )
+            gameEngine.releaseDiscipleAssignment(progress.discipleId)
             _uiState.update { it.copy(
                 isRefining = false,
                 currentProgress = null,

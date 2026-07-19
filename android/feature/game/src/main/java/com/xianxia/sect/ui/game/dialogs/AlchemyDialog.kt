@@ -90,6 +90,14 @@ fun AlchemyDialog(
     val coroutineScope = rememberCoroutineScope()
     val showAllEnabled = viewModel.gameData.value.showAllAvailableDisciples
 
+    val battleAndExplorationIds = remember(gameData) {
+        if (gameData != null) {
+            val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
+            val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+            battleIds + explorationIds
+        } else emptySet()
+    }
+
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
         title = "炼丹炉",
@@ -242,7 +250,8 @@ fun AlchemyDialog(
                     alchemyViewModel.assignWorker(buildingIndex, discipleId, d?.name ?: "")
                 }
                 showWorkerSelection = false
-            }
+            },
+            battleAndExplorationIds = battleAndExplorationIds,
         )
     }
 

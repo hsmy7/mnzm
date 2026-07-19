@@ -57,6 +57,14 @@ fun TianshuHallDialog(
     val discipleMap = disciples.associateBy { it.id }
     val viceSectMaster = discipleMap[viceSectMasterId]
 
+    val battleAndExplorationIds = remember(gameData) {
+        if (gameData != null) {
+            val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
+            val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+            battleIds + explorationIds
+        } else emptySet()
+    }
+
     var showViceSectMasterSelectDialog by remember { mutableStateOf(false) }
     var showAlchemyElderSelectDialog by remember { mutableStateOf(false) }
     var showForgeElderSelectDialog by remember { mutableStateOf(false) }
@@ -233,6 +241,8 @@ fun TianshuHallDialog(
                 productionViewModel.setViceSectMaster(discipleId)
                 showViceSectMasterSelectDialog = false
             },
+            battleAndExplorationIds = battleAndExplorationIds,
+            viewModel = viewModel,
         )
     }
 
@@ -246,7 +256,9 @@ fun TianshuHallDialog(
             onSelect = { discipleId ->
                 productionViewModel.assignElder(ElderSlotType.ALCHEMY, discipleId)
                 showAlchemyElderSelectDialog = false
-            }
+            },
+            battleAndExplorationIds = battleAndExplorationIds,
+            viewModel = viewModel,
         )
     }
 
@@ -260,7 +272,9 @@ fun TianshuHallDialog(
             onSelect = { discipleId ->
                 productionViewModel.assignElder(ElderSlotType.FORGE, discipleId)
                 showForgeElderSelectDialog = false
-            }
+            },
+            battleAndExplorationIds = battleAndExplorationIds,
+            viewModel = viewModel,
         )
     }
 
@@ -274,7 +288,9 @@ fun TianshuHallDialog(
             onSelect = { discipleId ->
                 productionViewModel.assignElder(ElderSlotType.HERB_GARDEN, discipleId)
                 showHerbGardenElderSelectDialog = false
-            }
+            },
+            battleAndExplorationIds = battleAndExplorationIds,
+            viewModel = viewModel,
         )
     }
 
@@ -315,7 +331,9 @@ fun TianshuHallDialog(
             onSelect = { discipleId ->
                 productionViewModel.assignElder(ElderSlotType.RECRUITING, discipleId)
                 showRecruitingElderSelectDialog = false
-            }
+            },
+            battleAndExplorationIds = battleAndExplorationIds,
+            viewModel = viewModel,
         )
     }
 

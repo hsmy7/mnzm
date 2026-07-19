@@ -25,6 +25,7 @@ class SpiritMineViewModel @Inject constructor(
         val showAll = gameEngine.gameDataSnapshot.showAllAvailableDisciples
 
         return gameEngine.discipleAggregatesSnapshot
+            .filter { !gameEngine.isDiscipleAssigned(it.id) }
             .filterByDiscipleStatus(showAll, emptySet(), additionalCheck = {
                 it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0
             })
@@ -34,36 +35,19 @@ class SpiritMineViewModel @Inject constructor(
     fun assignSpiritMineDeacon(slotIndex: Int, discipleId: String) {
         viewModelScope.launch {
             try {
-                val disciple = gameEngine.getDiscipleAggregate(discipleId)
-                if (disciple == null) {
-                    showError("弟子不存在")
-                    return@launch
+                // 释放旧槽位（自动移除前职务）
+                gameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId)
+
+                // 通过 ElderManagementUseCase 统一路径分配亲传弟子
+                when (elderManagement.assignDirectDisciple(
+                    com.xianxia.sect.core.engine.domain.disciple.SLOT_TYPE_SPIRIT_MINE_DEACON,
+                    slotIndex,
+                    discipleId
+                )) {
+                    is ElderManagementUseCase.ElderResult.Error ->
+                        showError("任命失败")
+                    is ElderManagementUseCase.ElderResult.Success -> { /* 继续 */ }
                 }
-
-                val currentGameData = gameEngine.gameDataSnapshot
-                val elderSlots = currentGameData.elderSlots
-
-                val currentDeacons = elderSlots.spiritMineDeaconDisciples.toMutableList()
-                val existingSlot = currentDeacons.find { it.index == slotIndex }
-
-                val newSlot = DirectDiscipleSlot(
-                    index = slotIndex,
-                    discipleId = discipleId,
-                    discipleName = disciple.name,
-                    discipleRealm = disciple.realmName,
-                    discipleSpiritRootColor = disciple.spiritRoot.countColor
-                )
-
-                if (existingSlot != null) {
-                    currentDeacons[currentDeacons.indexOf(existingSlot)] = newSlot
-                } else {
-                    currentDeacons.add(newSlot)
-                }
-
-                val updatedElderSlots = elderSlots.copy(spiritMineDeaconDisciples = currentDeacons)
-                gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
-
-                gameEngine.updateDiscipleStatus(discipleId, DiscipleStatus.DEACONING)
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) {
                 showError(e.message ?: "任命失败")
@@ -83,7 +67,10 @@ class SpiritMineViewModel @Inject constructor(
                 val updatedElderSlots = elderSlots.copy(spiritMineDeaconDisciples = currentDeacons)
                 gameEngine.updateGameData { it.copy(elderSlots = updatedElderSlots) }
 
-                removedDeaconId?.let { gameEngine.updateDiscipleStatus(it, DiscipleStatus.IDLE) }
+                removedDeaconId?.let {
+                    gameEngine.releaseDiscipleAssignment(it)
+                    gameEngine.updateDiscipleStatus(it, DiscipleStatus.IDLE)
+                }
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) {
                 showError(e.message ?: "卸任失败")
@@ -96,11 +83,10 @@ class SpiritMineViewModel @Inject constructor(
     }
 
     fun getAvailableDisciplesForSpiritMining(): List<DiscipleAggregate> {
-        val assignedMiningIds = gameEngine.gameDataSnapshot.spiritMineSlots.mapNotNull { it.discipleId }.toSet()
         val showAll = gameEngine.gameDataSnapshot.showAllAvailableDisciples
 
         return gameEngine.discipleAggregatesSnapshot
-            .filter { it.id !in assignedMiningIds }
+            .filter { !gameEngine.isDiscipleAssigned(it.id) }
             .filterByDiscipleStatus(showAll, emptySet(), additionalCheck = {
                 it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0
             })
@@ -133,9 +119,9 @@ class SpiritMineViewModel @Inject constructor(
                         discipleName = "",
                         sectId = currentSlots[slotIndex].sectId
                     )
-                    // 先保存槽位(suspend，确保写入)，再清除弟子状态
                     gameEngine.updateGameData { it.copy(spiritMineSlots = currentSlots) }
                     discipleId?.let {
+                        gameEngine.releaseDiscipleAssignment(it)
                         gameEngine.updateDiscipleStatus(it, DiscipleStatus.IDLE)
                     }
                 }
@@ -150,15 +136,27 @@ class SpiritMineViewModel @Inject constructor(
     fun swapSpiritMineDisciple(slotIndex: Int, newDiscipleId: String, mineIndex: Int = 0) {
         viewModelScope.launch {
             try {
+                val targetSlot = SlotRef(
+                    category = SlotCategory.SPIRIT_MINE,
+                    slotType = "miner:$slotIndex",
+                    slotId = "spiritMine_miner_$slotIndex"
+                )
+
+                // 释放旧槽位（自动移除前职务）
+                gameEngine.releaseDiscipleFromAllSlotsAtomic(newDiscipleId)
+
                 val currentGameData = gameEngine.gameDataSnapshot
                 val allSlots = currentGameData.spiritMineSlots.toMutableList()
                 if (slotIndex < allSlots.size) {
                     val oldDiscipleId = allSlots[slotIndex].discipleId
                     val newName = gameEngine.getDiscipleAggregate(newDiscipleId)?.name ?: ""
                     allSlots[slotIndex] = allSlots[slotIndex].copy(discipleId = newDiscipleId, discipleName = newName, sectId = allSlots[slotIndex].sectId)
-                    // 先保存槽位(suspend，确保写入)，再更新弟子状态
                     gameEngine.updateGameData { it.copy(spiritMineSlots = allSlots) }
-                    oldDiscipleId?.let { gameEngine.updateDiscipleStatus(it, DiscipleStatus.IDLE) }
+
+                    if (oldDiscipleId.isNotEmpty()) {
+                        gameEngine.updateDiscipleStatus(oldDiscipleId, DiscipleStatus.IDLE)
+                    }
+                    gameEngine.confirmAssignDisciple(newDiscipleId, targetSlot)
                     gameEngine.updateDiscipleStatus(newDiscipleId, DiscipleStatus.MINING)
                 }
             } catch (e: CancellationException) { throw e }
@@ -208,6 +206,8 @@ class SpiritMineViewModel @Inject constructor(
                     discipleName = disciple.name,
                     sectId = mineSectId
                 )
+                // 释放旧槽位
+                gameEngine.releaseDiscipleFromAllSlotsAtomic(disciple.id)
                 assigned++
             }
         }
@@ -216,6 +216,12 @@ class SpiritMineViewModel @Inject constructor(
         gameEngine.updateGameData { it.copy(spiritMineSlots = allSlots) }
         for (offset in 0 until assigned) {
             val disciple = disciplesToAssign[offset]
+            val slotRef = SlotRef(
+                category = SlotCategory.SPIRIT_MINE,
+                slotType = "miner:${mineStartIndex + offset}",
+                slotId = "spiritMine_miner_${mineStartIndex + offset}"
+            )
+            gameEngine.confirmAssignDisciple(disciple.id, slotRef)
             gameEngine.updateDiscipleStatus(disciple.id, DiscipleStatus.MINING)
         }
     }

@@ -77,6 +77,14 @@ fun ForgeDialog(
 
     val globalForges = gameData?.placedBuildings?.filter { it.displayName == "锻造坊" } ?: emptyList()
     val buildingIndex = globalForges.indexOfFirst { it.instanceId == buildingInstanceId }.coerceAtLeast(0)
+
+    val battleAndExplorationIds = remember(gameData) {
+        if (gameData != null) {
+            val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
+            val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+            battleIds + explorationIds
+        } else emptySet()
+    }
     val forgeSlotsState by viewModel.forgeSlots.collectAsStateWithLifecycle()
     val mySlot = forgeSlotsState.find { it.slotIndex == buildingIndex }
     val slotIndex = mySlot?.slotIndex ?: buildingIndex
@@ -238,7 +246,8 @@ fun ForgeDialog(
                     forgeViewModel.assignWorker(buildingIndex, discipleId, d?.name ?: "")
                 }
                 showWorkerSelection = false
-            }
+            },
+            battleAndExplorationIds = battleAndExplorationIds,
         )
     }
 

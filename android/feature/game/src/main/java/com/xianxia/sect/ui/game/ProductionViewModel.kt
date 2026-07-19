@@ -61,13 +61,24 @@ class ProductionViewModel @Inject constructor(
             ))
             data.copy(warehouseGarrisons = existing)
         }
+        val slotRef = SlotRef(
+            category = SlotCategory.WAREHOUSE_GARRISON,
+            slotType = buildingInstanceId,
+            slotId = "warehouse_$buildingInstanceId"
+        )
+        gameEngine.confirmAssignDisciple(discipleId, slotRef)
     }
 
     suspend fun removeWarehouseGarrison(buildingInstanceId: String) {
+        val currentDiscipleId = gameEngine.gameDataSnapshot.warehouseGarrisons
+            .find { it.buildingInstanceId == buildingInstanceId }?.discipleId.orEmpty()
         gameEngine.updateGameDataAndSync { data ->
             data.copy(warehouseGarrisons = data.warehouseGarrisons.filter {
                 it.buildingInstanceId != buildingInstanceId
             })
+        }
+        if (currentDiscipleId.isNotEmpty()) {
+            gameEngine.releaseDiscipleAssignment(currentDiscipleId)
         }
     }
 

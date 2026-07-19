@@ -66,7 +66,10 @@ class DiscipleServiceApprenticeTest {
             scopeProvider = mock(),
             inventoryConfig = mock(),
             discipleFactory = mock(),
-            rngManager = mock()
+            rngManager = mock(),
+            discipleSlotCleanup = DiscipleSlotCleanup(
+                DiscipleAssignmentGate(DiscipleAssignmentRegistry())
+            )
         )
     }
 

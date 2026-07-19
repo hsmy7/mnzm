@@ -2,12 +2,7 @@
 
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.registry.PillRecipeDatabase
-import com.xianxia.sect.core.engine.GameEngine
-import com.xianxia.sect.core.engine.startAlchemy
-import com.xianxia.sect.core.engine.toggleAutoRestart
-import com.xianxia.sect.core.engine.assignDiscipleToProductionSlot
-import com.xianxia.sect.core.engine.removeDiscipleFromProductionSlot
-import com.xianxia.sect.core.engine.clearAlchemySlot
+import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
@@ -163,10 +158,7 @@ class AlchemyViewModel @Inject constructor(
 
     fun getAvailableWorkers(): List<DiscipleAggregate> {
         val all = gameEngine.discipleAggregatesSnapshot
-        val assignedIds = gameEngine.productionSlots.value
-            .filter { it.buildingType == BuildingType.ALCHEMY && it.assignedDiscipleId.isNullOrEmpty().not() }
-            .mapNotNull { it.assignedDiscipleId }.toSet()
-        return all.filter { it.isAlive && it.id !in assignedIds }
+        return all.filter { it.isAlive && !gameEngine.isDiscipleAssigned(it.id) }
             .sortedByDescending { it.pillRefining }
     }
 }

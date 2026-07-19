@@ -20,7 +20,11 @@ import com.xianxia.sect.core.util.DomainLog
 
 // ── Battle facade delegates ─────────────────────────────────────────
 
-suspend fun GameEngine.processBattleCasualties(deadMemberIds: Set<String>, survivorHpMap: Map<String, Int>, survivorMpMap: Map<String, Int> = emptyMap()) = battleFacade.processBattleCasualties(deadMemberIds, survivorHpMap, survivorMpMap)
+suspend fun GameEngine.processBattleCasualties(deadMemberIds: Set<String>, survivorHpMap: Map<String, Int>, survivorMpMap: Map<String, Int> = emptyMap()) {
+    battleFacade.processBattleCasualties(deadMemberIds, survivorHpMap, survivorMpMap)
+    // 战斗死亡后清理 Gate 注册表
+    deadMemberIds.forEach { assignmentGate.release(it) }
+}
 fun GameEngine.getTotalBattlesCount(): Int = battleFacade.getTotalBattlesCount()
 fun GameEngine.getRecentBattles(count: Int = 10): List<BattleLog> = battleFacade.getRecentBattles(count)
 fun GameEngine.getWinRate(lastNBattles: Int = 50): Double = battleFacade.getWinRate(lastNBattles)
@@ -204,13 +208,25 @@ suspend fun GameEngine.assignGarrisonDisciple(sectId: String, slotIndex: Int, di
             }) else sect
         })
     }
+    val slotRef = SlotRef(
+        category = SlotCategory.GARRISON_SLOT,
+        slotType = "${sectId}:${slotIndex}",
+        slotId = "garrison_${sectId}_${slotIndex}"
+    )
+    assignmentGate.confirmAssign(discipleId, slotRef)
 }
 
 suspend fun GameEngine.removeGarrisonDisciple(sectId: String, slotIndex: Int) {
+    val currentDiscipleId = stateStore.gameDataSnapshot.worldMapSects
+        .find { it.id == sectId }
+        ?.garrisonSlots?.find { it.index == slotIndex }?.discipleId.orEmpty()
     stateStore.update {
         gameData = gameData.copy(worldMapSects = gameData.worldMapSects.map { sect ->
             if (sect.id == sectId) sect.copy(garrisonSlots = sect.garrisonSlots.map { slot -> if (slot.index == slotIndex) GarrisonSlot(index = slotIndex) else slot }) else sect
         })
+    }
+    if (currentDiscipleId.isNotEmpty()) {
+        assignmentGate.release(currentDiscipleId)
     }
 }
 

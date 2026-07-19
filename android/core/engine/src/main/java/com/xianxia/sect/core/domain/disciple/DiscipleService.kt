@@ -35,7 +35,8 @@ class DiscipleService @Inject constructor(
 private val scopeProvider: CoroutineScopeProvider,
     private val inventoryConfig: InventoryConfig,
     private val discipleFactory: DiscipleFactory,
-    private val rngManager: GameRngManager
+    private val rngManager: GameRngManager,
+    private val discipleSlotCleanup: DiscipleSlotCleanup
 ) {
     private val rng get() = rngManager.getRng(RngPartition.SYSTEM)
     private val currentDiscipleTables: DiscipleTables
@@ -879,7 +880,7 @@ private val scopeProvider: CoroutineScopeProvider,
      * Clear disciple from all slots and assignments
      */
     fun clearDiscipleFromAllSlots(discipleId: String) {
-        stateStore.update { gameData = DiscipleSlotCleanup.clearAllSlots(gameData, discipleId) }
+        stateStore.update { gameData = discipleSlotCleanup.clearAllSlots(gameData, discipleId) }
 
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId(BUILDING_FORGE)
         for (slot in forgeSlots) {

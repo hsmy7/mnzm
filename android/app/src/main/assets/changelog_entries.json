@@ -19,7 +19,10 @@
       "修复：mergeDiscipleTables/createSettlementShadow 影子合表路径守卫兼容——deepCopy 设 writeAllowed=true",
       "修复：deepCopy 未复制 deathRecords 导致跨 update 边界死亡记录丢失",
       "修复：3 个预存测试编译错误——BattleCalculatorTest/ExchangeSpiritStonesUseCaseTest/InventorySystemSpiritStoneTest",
-      "清理：移除旧并行结算死代码——ProductionBatchResult/PartnerMatchResult/ParallelSettlementResultTest/isSettlementShadow"
+      "清理：移除旧并行结算死代码——ProductionBatchResult/PartnerMatchResult/ParallelSettlementResultTest/isSettlementShadow",
+      "重构：弟子多槽位互斥统一门卫——新增DiscipleAssignmentGate全局分配注册表，覆盖11个槽位系统(长老/亲传/生产/灵矿/藏经阁/住所/仓库/巡逻/驻军/血炼/战斗队伍)，运行时自动释放旧槽位+读档重建注册表；新增SlotCategoryCoverageTest测试守卫",
+      "重构：DiscipleSlotCleanup消除companion桥接——改为标准@Singleton注入，clearAllSlots内部自动调用gate.release()，死亡/驱逐/释放路径无需手动清理注册表",
+      "重构：灵矿执事分配统一入口——SpiritMineViewModel.assignSpiritMineDeacon改为走ElderManagementUseCase.assignDirectDisciple统一路径"
     ]
   },
   {

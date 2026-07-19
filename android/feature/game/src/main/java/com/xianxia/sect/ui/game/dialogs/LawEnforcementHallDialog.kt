@@ -57,6 +57,14 @@ fun LawEnforcementHallDialog(
     val lawDisciples = productionViewModel.getLawEnforcementDisciples()
     val discipleMap = disciples.associateBy { it.id }
 
+    val battleAndExplorationIds = remember(gameData) {
+        if (gameData != null) {
+            val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
+            val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
+            battleIds + explorationIds
+        } else emptySet()
+    }
+
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
         title = "执法堂",
@@ -136,6 +144,7 @@ fun LawEnforcementHallDialog(
                 productionViewModel.assignElder(ElderSlotType.LAW_ENFORCEMENT, discipleId)
                 showElderSelection = false
             },
+            battleAndExplorationIds = battleAndExplorationIds,
         )
     }
 
@@ -148,7 +157,8 @@ fun LawEnforcementHallDialog(
             onSelect = { discipleId ->
                 productionViewModel.assignDirectDisciple("lawEnforcement", slotIndex, discipleId)
                 showDiscipleSelection = null
-            }
+            },
+            battleAndExplorationIds = battleAndExplorationIds,
         )
     }
 
