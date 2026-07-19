@@ -859,6 +859,8 @@ class DiscipleTables {
             // 只保留组件表中有完整数据的 ID，过滤掉幽灵 ID（Bug 产生的残留）
             copy.ids.addAll(idsSnapshot.filter { copy.isAlive.contains(it) })
         }
+        // 显式复制死亡记录，防止跨 update 边界丢失
+        copy.deathRecords.addAll(this.deathRecords)
         return copy
     }
 
