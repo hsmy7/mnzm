@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.SpiritStoneGrade
+import com.xianxia.sect.core.model.PillGrade
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.theme.GameColors
 
@@ -265,9 +266,26 @@ fun getRarityName(rarity: Int): String = when (rarity) {
     else -> "凡品"
 }
 
-fun getQualityColor(quality: String?): Color = when (quality) {
-    "上品" -> Color(0xFFE74C3C)
-    "中品" -> Color(0xFF3498DB)
-    "下品" -> Color(0xFF95A5A6)
-    else -> Color(0xFF95A5A6) // 默认灰色，防止异常值导致不可见文字
+/**
+ * 根据丹药品质名称返回颜色。
+ * 内部委托 [getQualityColor] 的 [PillGrade] 重载保持一致性。
+ */
+fun getQualityColor(quality: String?): Color {
+    val grade = when (quality) {
+        "下品" -> PillGrade.LOW
+        "中品" -> PillGrade.MEDIUM
+        "上品" -> PillGrade.HIGH
+        else -> return Color(0xFF95A5A6) // 默认灰色，防止异常值导致不可见文字
+    }
+    return grade.getQualityColor()
+}
+
+/**
+ * 根据丹药品质枚举返回颜色。
+ * 新增 [PillGrade] 枚举值时编译器强制同步更新此映射。
+ */
+fun PillGrade.getQualityColor(): Color = when (this) {
+    PillGrade.LOW -> Color(0xFF95A5A6)
+    PillGrade.MEDIUM -> Color(0xFF3498DB)
+    PillGrade.HIGH -> Color(0xFFE74C3C)
 }

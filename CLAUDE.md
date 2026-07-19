@@ -271,6 +271,7 @@ RunState（运行时状态 — 可循环回退）
 
 - [宗门地图渲染架构](docs/map-rendering-architecture.md) — 三层按格实时绘制（地面/装饰/建筑分离），v4.0.42+
 - [加载阶段后台任务架构](docs/loading-architecture.md) — 7模块并行加载（UI预组合/弟子快照/存档校验/图集约/地图并行/字体/音频）
+- [弟子分配门卫架构](docs/disciple-assignment-architecture.md) — DiscipleAssignmentGate + 11槽位统一注册表，v4.0.58
 
 ### Key Classes
 
@@ -282,6 +283,22 @@ RunState（运行时状态 — 可循环回退）
 - **`MainGameScreen`** — Tab 布局 (OVERVIEW/DISCIPLES/BUILDINGS/WAREHOUSE/SETTINGS)，无 NavHost
 - **`GameData`** — Room @Entity，主键 (id, slot_id)
 - **`CultivationService`** — 修炼 Checkpoint 快照法入口：`checkpointDisciple()` / `accumulateCultivationPerPhase()` / `checkpointAllProduction()`
+- **`DiscipleAssignmentGate`** — 弟子分配门卫（v4.0.58），统一管理 11 个槽位系统的分配/释放/查询/读档重建
+
+#### 弟子分配门卫系统（v4.0.58+）
+
+v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管理所有槽位分配：
+
+| 组件 | 文件 | 职责 |
+|------|------|------|
+| `DiscipleAssignmentGate` | `domain/disciple/DiscipleAssignmentGate.kt` | 门卫 Facade：`confirmAssign` / `release` / `rebuildFromGameData` / `filterAvailableDisciples` |
+| `DiscipleAssignmentRegistry` | `domain/disciple/DiscipleAssignmentRegistry.kt` | Identity Map：`discipleId → SlotAssignment` |
+| `DiscipleSlotCleanup` | `domain/disciple/DiscipleSlotCleanup.kt` | 死亡/释放时清理所有槽位，自动调用 `gate.release()` |
+| `SlotCategory` | `model/SlotAssignment.kt` | 11 种槽位类别枚举 |
+| `SlotAssignment` | `model/SlotAssignment.kt` | 分配记录数据模型 |
+| `SlotCategoryCoverageTest` | `.../disciple/SlotCategoryCoverageTest.kt` | **守卫测试**：新增 `SlotCategory` 值时自动失败 |
+
+**分配流程：** `releaseDiscipleFromAllSlotsAtomic(discipleId)` → `stateStore.update{}` → `gate.confirmAssign(discipleId, slotRef)`
 
 #### 探索系统（v4.1+ 子系统架构）
 

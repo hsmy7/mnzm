@@ -1,8 +1,6 @@
 package com.xianxia.sect.core.domain.building
 
-import com.xianxia.sect.core.engine.domain.building.BuildingFeature
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
-import com.xianxia.sect.core.engine.domain.building.SlotGroup
 import com.xianxia.sect.core.model.production.BuildingType
 import org.junit.Assert.*
 import org.junit.Before
@@ -15,13 +13,18 @@ class BuildingFeatureRegistryTest {
 
     @Before
     fun setup() {
-        // 注册所有建筑（不依赖 R.drawable，使用占位值 0）
-        BuildingFeatureRegistry.registerForTest()
+        BuildingFeatureRegistry.registerTestFeatures()
     }
 
     @Test
-    fun `所有 18 种建筑已注册`() {
-        assertEquals(18, BuildingFeatureRegistry.all.size)
+    fun `所有建筑类型已在注册表中覆盖`() {
+        val registeredTypes = BuildingFeatureRegistry.all.map { it.buildingType }.toSet()
+        val allTypes = BuildingType.values().toSet()
+        val missing = allTypes - registeredTypes
+        assertTrue(
+            "以下 BuildingType 未在 BuildingFeatureRegistry 中注册：$missing",
+            missing.isEmpty()
+        )
     }
 
     @Test
@@ -116,66 +119,4 @@ class BuildingFeatureRegistryTest {
         assertFalse(BuildingFeatureRegistry.hasNoLimit("藏经阁"))
         assertFalse(BuildingFeatureRegistry.hasNoLimit(""))
     }
-}
-
-/**
- * 测试用注册：不依赖 R.drawable，使用占位值 0。
- */
-private fun BuildingFeatureRegistry.registerForTest() {
-    listOf(
-        BuildingFeature("spirit_mine", "灵矿场", BuildingType.MINING,
-            listOf(SlotGroup.SpiritMine()), unlimitedBuild = true,
-            cost = 1500, gridWidth = 4, gridHeight = 4),
-        BuildingFeature("spirit_field", "灵田", BuildingType.SPIRIT_FIELD,
-            listOf(SlotGroup.SpiritField()), unlimitedBuild = true,
-            cost = 200, gridWidth = 1, gridHeight = 1),
-        BuildingFeature("herb_garden", "灵植阁", BuildingType.HERB_GARDEN,
-            listOf(SlotGroup.ProductionSlotGroup()), unlimitedBuild = true,
-            cost = 3000, gridWidth = 4, gridHeight = 3),
-        BuildingFeature("alchemy", "炼丹炉", BuildingType.ALCHEMY,
-            listOf(SlotGroup.ProductionSlotGroup()), unlimitedBuild = true,
-            cost = 4000, gridWidth = 4, gridHeight = 3,
-            baseSuccessRate = 0.7, autoRestartEnabled = true),
-        BuildingFeature("forge", "锻造坊", BuildingType.FORGE,
-            listOf(SlotGroup.ProductionSlotGroup()), unlimitedBuild = true,
-            cost = 4000, gridWidth = 5, gridHeight = 3,
-            baseSuccessRate = 0.7, autoRestartEnabled = true),
-        BuildingFeature("warehouse", "仓库", BuildingType.WAREHOUSE,
-            listOf(SlotGroup.Warehouse()), unlimitedBuild = true,
-            cost = 1500, gridWidth = 6, gridHeight = 5),
-        BuildingFeature("library", "藏经阁", BuildingType.LIBRARY,
-            listOf(SlotGroup.Library(slotsPerInstance = 3)),
-            cost = 8000, gridWidth = 6, gridHeight = 3),
-        BuildingFeature("wen_dao_peak", "问道塔", BuildingType.WEN_DAO_PEAK,
-            emptyList(), cost = 8000, gridWidth = 4, gridHeight = 3),
-        BuildingFeature("qingyun_peak", "青云塔", BuildingType.QINGYUN_PEAK,
-            emptyList(), cost = 8000, gridWidth = 4, gridHeight = 3),
-        BuildingFeature("tianshu_hall", "天枢殿", BuildingType.ADMINISTRATION,
-            emptyList(), cost = 15000, gridWidth = 6, gridHeight = 3),
-        BuildingFeature("law_enforcement_hall", "执法堂", BuildingType.LAW_ENFORCEMENT_HALL,
-            emptyList(), cost = 6000, gridWidth = 6, gridHeight = 3),
-        BuildingFeature("mission_hall", "任务阁", BuildingType.MISSION_HALL,
-            emptyList(), cost = 6000, gridWidth = 4, gridHeight = 3),
-        BuildingFeature("patrol_tower", "巡视楼", BuildingType.PATROL,
-            listOf(SlotGroup.PatrolTower()), unlimitedBuild = true,
-            cost = 35000, gridWidth = 4, gridHeight = 4),
-        BuildingFeature("reflection_cliff", "监牢", BuildingType.REFLECTION_CLIFF,
-            emptyList(), cost = 5000, gridWidth = 4, gridHeight = 4),
-        BuildingFeature("single_residence", "单人住所", BuildingType.SINGLE_RESIDENCE,
-            listOf(SlotGroup.Residence(1)), isResidence = true, unlimitedBuild = true,
-            upgradeTo = "single_residence_upgraded", upgradeCost = 50000,
-            cost = 12000, gridWidth = 4, gridHeight = 4,
-            residenceSpeedBonus = "修炼速度+20%"),
-        BuildingFeature("single_residence_upgraded", "中级单人住所", BuildingType.SINGLE_RESIDENCE,
-            listOf(SlotGroup.Residence(1)), isResidence = true, isConstructible = false, unlimitedBuild = true,
-            cost = 30000, gridWidth = 6, gridHeight = 6,
-            residenceSpeedBonus = "修炼速度+40%"),
-        BuildingFeature("multi_residence", "多人住所", BuildingType.MULTI_RESIDENCE,
-            listOf(SlotGroup.Residence(4)), isResidence = true, unlimitedBuild = true,
-            cost = 24000, gridWidth = 6, gridHeight = 4,
-            residenceSpeedBonus = "修炼速度+10%"),
-        BuildingFeature("blood_refining_pool", "血炼池", BuildingType.BLOOD_REFINING_POOL,
-            listOf(SlotGroup.BloodRefining()), unlimitedBuild = true,
-            cost = 40000, gridWidth = 2, gridHeight = 2),
-    ).forEach { register(it) }
 }

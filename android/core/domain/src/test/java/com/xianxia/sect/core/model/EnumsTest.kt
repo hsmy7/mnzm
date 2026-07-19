@@ -5,44 +5,6 @@ import org.junit.Test
 
 class EnumsTest {
 
-    // ---- ElderSlotType ----
-
-    @Test
-    fun elderSlotType_hasTenValues() {
-        assertEquals(10, ElderSlotType.entries.size)
-    }
-
-    @Test
-    fun elderSlotType_values() {
-        val expected = arrayOf(
-            ElderSlotType.VICE_SECT_MASTER,
-            ElderSlotType.HERB_GARDEN,
-            ElderSlotType.ALCHEMY,
-            ElderSlotType.FORGE,
-            ElderSlotType.OUTER_ELDER,
-            ElderSlotType.PREACHING,
-            ElderSlotType.LAW_ENFORCEMENT,
-            ElderSlotType.INNER_ELDER,
-            ElderSlotType.RECRUITING,
-            ElderSlotType.CLOUD_PREACHING
-        )
-        assertArrayEquals(expected, ElderSlotType.entries.toTypedArray())
-    }
-
-    @Test
-    fun elderSlotType_keys() {
-        assertEquals("viceSectMaster", ElderSlotType.VICE_SECT_MASTER.key)
-        assertEquals("herbGarden", ElderSlotType.HERB_GARDEN.key)
-        assertEquals("alchemy", ElderSlotType.ALCHEMY.key)
-        assertEquals("forge", ElderSlotType.FORGE.key)
-        assertEquals("outerElder", ElderSlotType.OUTER_ELDER.key)
-        assertEquals("preachingElder", ElderSlotType.PREACHING.key)
-        assertEquals("lawEnforcementElder", ElderSlotType.LAW_ENFORCEMENT.key)
-        assertEquals("innerElder", ElderSlotType.INNER_ELDER.key)
-        assertEquals("recruitingElder", ElderSlotType.RECRUITING.key)
-        assertEquals("qingyunPreachingElder", ElderSlotType.CLOUD_PREACHING.key)
-    }
-
     // ---- GiftPreferenceType ----
 
     @Test

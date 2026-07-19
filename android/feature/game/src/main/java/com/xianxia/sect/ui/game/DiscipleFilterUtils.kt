@@ -104,6 +104,9 @@ internal fun List<DiscipleAggregate>.applyFilters(
  *   中的弟子（战斗中），其余状态均显示（含思过中、血炼中等）
  * - 不勾选时：仅显示 [IDLE]，同时排除 [battleAndExplorationIds] 中的弟子
  * [additionalCheck] 用于叠加其他过滤条件（如 realmLayer、年龄、弟子类型等）
+ *
+ * ⚠️ 白名单模式：新增 [DiscipleStatus] 时，showAllEnabled=true 默认可见。
+ * 如果新状态应被排除（如"闭关中"），请在此函数添加对应的 d.status != xxx 检查。
  */
 internal fun List<DiscipleAggregate>.filterByDiscipleStatus(
     showAllEnabled: Boolean,
