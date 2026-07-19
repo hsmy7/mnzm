@@ -22,8 +22,7 @@ data class MutableGameState(
     var isLoading: Boolean,
     var isSaving: Boolean,
     var pendingNotification: GameNotification? = null,
-    var productionSlots: List<ProductionSlot> = emptyList(),
-    var isSettlementShadow: Boolean = false
+    var productionSlots: List<ProductionSlot> = emptyList()
 )
 
 /**

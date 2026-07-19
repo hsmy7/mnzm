@@ -577,8 +577,7 @@ class GameStateStoreImpl @Inject constructor(
             isLoading = _isLoading.value,
             isSaving = _isSaving.value,
             pendingNotification = _pendingNotificationFlow.value,
-            productionSlots = productionSlots,
-            isSettlementShadow = true
+            productionSlots = productionSlots
         )
     }
 

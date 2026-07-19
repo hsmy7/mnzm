@@ -2,17 +2,13 @@ package com.xianxia.sect.core.engine.system
 
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.model.SpiritStoneGrade
-import com.xianxia.sect.core.model.SpiritStoneExchange
-import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.GameStateStoreImpl
 import com.xianxia.sect.core.wallet.SpiritStoneLedger
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -20,22 +16,25 @@ import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.mock
 
+/**
+ * SpiritStoneWallet 灵石操作测试（替代旧的 InventorySystem 直调测试，
+ * 灵石操作已全部迁移至 SpiritStoneWallet）。
+ */
 class InventorySystemSpiritStoneTest {
 
-    private lateinit var system: InventorySystem
-    private lateinit var stateStore: GameStateStore
-    private lateinit var scopeProvider: ApplicationScopeProvider
-    private lateinit var inventoryConfig: InventoryConfig
-    private lateinit var spiritStoneWallet: SpiritStoneWallet
+    private lateinit var stateStore: GameStateStoreImpl
+    private lateinit var wallet: SpiritStoneWallet
 
     @Before
     fun setUp() {
-        scopeProvider = ApplicationScopeProvider()
-        stateStore = GameStateStoreImpl(scopeProvider, mock(GameStateRepository::class.java))
-        inventoryConfig = InventoryConfig()
-        spiritStoneWallet = SpiritStoneWallet(stateStore, SpiritStoneLedger(), mock(EventBus::class.java))
-        system = InventorySystem(stateStore, inventoryConfig, spiritStoneWallet)
-        system.initialize()
+        stateStore = GameStateStoreImpl(
+            ApplicationScopeProvider(),
+            mock(GameStateRepository::class.java)
+        )
+        InventoryConfig()
+        wallet = SpiritStoneWallet(
+            stateStore, SpiritStoneLedger(), mock(EventBus::class.java)
+        )
         runBlocking {
             stateStore.reset()
             stateStore.update {
@@ -48,170 +47,130 @@ class InventorySystemSpiritStoneTest {
         }
     }
 
-    @After
-    fun tearDown() {
-        runBlocking {
-            delay(100)
-            stateStore.reset()
-        }
-    }
-
-    // ═══ addSpiritStones ═══
+    // ═══ Wallet add ═══
 
     @Test
     fun `addSpiritStones - increases low grade stones`() = runBlocking {
-        system.addSpiritStones(1_000L, SpiritStoneGrade.LOW)
-        assertEquals(1_000L, system.getSpiritStones(SpiritStoneGrade.LOW))
+        stateStore.update { wallet.add(this, 1_000L, SpiritStoneGrade.LOW) }
+        assertEquals(1_000L, wallet.balance(SpiritStoneGrade.LOW))
     }
 
     @Test
     fun `addSpiritStones - increases mid and high grade stones`() = runBlocking {
-        system.addSpiritStones(5L, SpiritStoneGrade.MID)
-        system.addSpiritStones(2L, SpiritStoneGrade.HIGH)
-        assertEquals(5L, system.getSpiritStones(SpiritStoneGrade.MID))
-        assertEquals(2L, system.getSpiritStones(SpiritStoneGrade.HIGH))
-        assertEquals(0L, system.getSpiritStones(SpiritStoneGrade.LOW))
+        stateStore.update {
+            wallet.add(this, 5L, SpiritStoneGrade.MID)
+            wallet.add(this, 2L, SpiritStoneGrade.HIGH)
+        }
+        assertEquals(5L, wallet.balance(SpiritStoneGrade.MID))
+        assertEquals(2L, wallet.balance(SpiritStoneGrade.HIGH))
+        assertEquals(0L, wallet.balance(SpiritStoneGrade.LOW))
     }
 
     @Test
-    fun `addSpiritStones - non positive amount returns current value`() = runBlocking {
-        assertEquals(0L, system.addSpiritStones(0L, SpiritStoneGrade.LOW))
-        assertEquals(0L, system.addSpiritStones(-1L, SpiritStoneGrade.MID))
+    fun `addSpiritStones - non positive amount no-ops`() = runBlocking {
+        stateStore.update {
+            assertEquals(0L, wallet.add(this, 0L, SpiritStoneGrade.LOW))
+            assertEquals(0L, wallet.add(this, -1L, SpiritStoneGrade.MID))
+        }
     }
 
-    // ═══ deductSpiritStones ═══
+    // ═══ Wallet deduct ═══
 
     @Test
     fun `deductSpiritStones - decreases stones`() = runBlocking {
-        system.addSpiritStones(1_000L, SpiritStoneGrade.LOW)
-        system.deductSpiritStones(300L, SpiritStoneGrade.LOW)
-        assertEquals(700L, system.getSpiritStones(SpiritStoneGrade.LOW))
+        stateStore.update {
+            wallet.add(this, 1_000L, SpiritStoneGrade.LOW)
+            wallet.deduct(this, 300L, SpiritStoneGrade.LOW)
+        }
+        assertEquals(700L, wallet.balance(SpiritStoneGrade.LOW))
     }
 
     @Test
-    fun `deductSpiritStones - insufficient returns current balance`() = runBlocking {
-        system.addSpiritStones(100L, SpiritStoneGrade.LOW)
-        val balance = system.deductSpiritStones(500L, SpiritStoneGrade.LOW)
-        assertEquals(100L, balance) // Wallet 不修改余额
-        assertEquals(100L, system.getSpiritStones(SpiritStoneGrade.LOW))
+    fun `deductSpiritStones - insufficient leaves balance unchanged`() = runBlocking {
+        stateStore.update { wallet.add(this, 100L, SpiritStoneGrade.LOW) }
+        val result = stateStore.updateAndReturn {
+            wallet.deduct(this, 500L, SpiritStoneGrade.LOW)
+        }
+        assertTrue("Should be Insufficient, got $result", result is com.xianxia.sect.core.wallet.DeductResult.Insufficient)
+        assertEquals(100L, wallet.balance(SpiritStoneGrade.LOW))
     }
 
     @Test
-    fun `deductSpiritStones - non positive amount returns current value`() = runBlocking {
-        system.addSpiritStones(100L, SpiritStoneGrade.LOW)
-        assertEquals(100L, system.deductSpiritStones(0L, SpiritStoneGrade.LOW))
+    fun `deductSpiritStones - non positive amount returns Invalid`() = runBlocking {
+        stateStore.update { wallet.add(this, 100L, SpiritStoneGrade.LOW) }
+        val result0 = stateStore.updateAndReturn {
+            wallet.deduct(this, 0L, SpiritStoneGrade.LOW)
+        }
+        assertTrue("Should be Invalid, got $result0", result0 is com.xianxia.sect.core.wallet.DeductResult.Invalid)
     }
 
     // ═══ canAfford ═══
 
     @Test
     fun `canAfford - reflects current balance`() = runBlocking {
-        system.addSpiritStones(1_000L, SpiritStoneGrade.LOW)
-        assertTrue(system.canAfford(1_000L, SpiritStoneGrade.LOW))
-        assertFalse(system.canAfford(1_001L, SpiritStoneGrade.LOW))
-    }
-
-    // ═══ exchangeSpiritStones ═══
-
-    @Test
-    fun `exchangeSpiritStones - low to mid success`() = runBlocking {
-        system.addSpiritStones(25_000L, SpiritStoneGrade.LOW)
-        assertTrue(system.exchangeSpiritStones(25_000L, SpiritStoneGrade.LOW, SpiritStoneGrade.MID))
-        assertEquals(1_000L, system.getSpiritStones(SpiritStoneGrade.LOW))
-        assertEquals(3L, system.getSpiritStones(SpiritStoneGrade.MID))
-    }
-
-    @Test
-    fun `exchangeSpiritStones - mid to low success`() = runBlocking {
-        system.addSpiritStones(3L, SpiritStoneGrade.MID)
-        assertTrue(system.exchangeSpiritStones(3L, SpiritStoneGrade.MID, SpiritStoneGrade.LOW))
-        assertEquals(0L, system.getSpiritStones(SpiritStoneGrade.MID))
-        assertEquals(24_000L, system.getSpiritStones(SpiritStoneGrade.LOW))
-    }
-
-    @Test
-    fun `exchangeSpiritStones - fails when insufficient`() = runBlocking {
-        system.addSpiritStones(100L, SpiritStoneGrade.LOW)
-        assertFalse(system.exchangeSpiritStones(10_000L, SpiritStoneGrade.LOW, SpiritStoneGrade.MID))
-        assertEquals(100L, system.getSpiritStones(SpiritStoneGrade.LOW))
-        assertEquals(0L, system.getSpiritStones(SpiritStoneGrade.MID))
-    }
-
-    @Test
-    fun `exchangeSpiritStones - same grade returns false`() = runBlocking {
-        system.addSpiritStones(100L, SpiritStoneGrade.LOW)
-        assertFalse(system.exchangeSpiritStones(100L, SpiritStoneGrade.LOW, SpiritStoneGrade.LOW))
-    }
-
-    @Test
-    fun `exchangeSpiritStones - zero or negative returns false`() = runBlocking {
-        system.addSpiritStones(100L, SpiritStoneGrade.LOW)
-        assertFalse(system.exchangeSpiritStones(0L, SpiritStoneGrade.LOW, SpiritStoneGrade.MID))
-        assertFalse(system.exchangeSpiritStones(-1L, SpiritStoneGrade.LOW, SpiritStoneGrade.MID))
-    }
-
-    @Test
-    fun `exchangeSpiritStones - high to mid and low preserves unrelated balances`() = runBlocking {
-        system.addSpiritStones(2L, SpiritStoneGrade.HIGH)
-        system.addSpiritStones(100L, SpiritStoneGrade.LOW)
-        assertTrue(system.exchangeSpiritStones(1L, SpiritStoneGrade.HIGH, SpiritStoneGrade.MID))
-        assertEquals(1L, system.getSpiritStones(SpiritStoneGrade.HIGH))
-        assertEquals(8_000L, system.getSpiritStones(SpiritStoneGrade.MID))
-        assertEquals(100L, system.getSpiritStones(SpiritStoneGrade.LOW))
+        stateStore.update { wallet.add(this, 1_000L, SpiritStoneGrade.LOW) }
+        assertTrue(wallet.canAfford(1_000L, SpiritStoneGrade.LOW))
+        assertFalse(wallet.canAfford(1_001L, SpiritStoneGrade.LOW))
     }
 
     // ═══ auto-sell on deduct ═══
 
     @Test
     fun `deductSpiritStones - auto sell mid covers shortfall`() = runBlocking {
-        system.addSpiritStones(5L, SpiritStoneGrade.MID)
-        stateStore.update { gameData = gameData.copy(autoSellMidGradeForPurchase = true) }
-        system.deductSpiritStones(30_000L, SpiritStoneGrade.LOW)
-        assertEquals(1L, system.getSpiritStones(SpiritStoneGrade.MID))
-        assertEquals(2_000L, system.getSpiritStones(SpiritStoneGrade.LOW))
+        stateStore.update {
+            wallet.add(this, 5L, SpiritStoneGrade.MID)
+            gameData = gameData.copy(autoSellMidGradeForPurchase = true)
+        }
+        stateStore.update { wallet.deduct(this, 30_000L, SpiritStoneGrade.LOW) }
+        assertEquals(1L, wallet.balance(SpiritStoneGrade.MID))
+        assertEquals(2_000L, wallet.balance(SpiritStoneGrade.LOW))
     }
 
     @Test
     fun `deductSpiritStones - auto sell mid not triggered when disabled`() = runBlocking {
-        system.addSpiritStones(5L, SpiritStoneGrade.MID)
-        system.deductSpiritStones(30_000L, SpiritStoneGrade.LOW)
-        assertEquals(5L, system.getSpiritStones(SpiritStoneGrade.MID))
-        assertEquals(0L, system.getSpiritStones(SpiritStoneGrade.LOW))
+        stateStore.update { wallet.add(this, 5L, SpiritStoneGrade.MID) }
+        stateStore.update { wallet.deduct(this, 30_000L, SpiritStoneGrade.LOW) }
+        assertEquals(5L, wallet.balance(SpiritStoneGrade.MID))
+        assertEquals(0L, wallet.balance(SpiritStoneGrade.LOW))
     }
 
     @Test
     fun `deductSpiritStones - auto sell high covers shortfall`() = runBlocking {
-        system.addSpiritStones(2L, SpiritStoneGrade.HIGH)
-        stateStore.update { gameData = gameData.copy(autoSellHighGradeForPurchase = true) }
-        system.deductSpiritStones(100_000L, SpiritStoneGrade.LOW)
-        assertEquals(1L, system.getSpiritStones(SpiritStoneGrade.HIGH))
-        assertEquals(63_900_000L, system.getSpiritStones(SpiritStoneGrade.LOW))
+        stateStore.update {
+            wallet.add(this, 2L, SpiritStoneGrade.HIGH)
+            gameData = gameData.copy(autoSellHighGradeForPurchase = true)
+        }
+        stateStore.update { wallet.deduct(this, 100_000L, SpiritStoneGrade.LOW) }
+        assertEquals(1L, wallet.balance(SpiritStoneGrade.HIGH))
+        assertEquals(63_900_000L, wallet.balance(SpiritStoneGrade.LOW))
     }
 
     @Test
     fun `deductSpiritStones - auto sell mid then high for large shortfall`() = runBlocking {
-        system.addSpiritStones(1L, SpiritStoneGrade.MID)
-        system.addSpiritStones(1L, SpiritStoneGrade.HIGH)
         stateStore.update {
+            wallet.add(this, 1L, SpiritStoneGrade.MID)
+            wallet.add(this, 1L, SpiritStoneGrade.HIGH)
             gameData = gameData.copy(
                 autoSellMidGradeForPurchase = true,
                 autoSellHighGradeForPurchase = true
             )
         }
-        system.deductSpiritStones(10_000L, SpiritStoneGrade.LOW)
-        assertEquals(0L, system.getSpiritStones(SpiritStoneGrade.MID))
-        assertEquals(0L, system.getSpiritStones(SpiritStoneGrade.HIGH))
-        assertEquals(63_998_000L, system.getSpiritStones(SpiritStoneGrade.LOW))
+        stateStore.update { wallet.deduct(this, 10_000L, SpiritStoneGrade.LOW) }
+        assertEquals(0L, wallet.balance(SpiritStoneGrade.MID))
+        assertEquals(0L, wallet.balance(SpiritStoneGrade.HIGH))
+        assertEquals(63_998_000L, wallet.balance(SpiritStoneGrade.LOW))
     }
 
     @Test
     fun `deductSpiritStones - sufficient low grade skips auto sell`() = runBlocking {
-        system.addSpiritStones(50_000L, SpiritStoneGrade.LOW)
-        system.addSpiritStones(5L, SpiritStoneGrade.MID)
-        stateStore.update { gameData = gameData.copy(autoSellMidGradeForPurchase = true) }
-        system.deductSpiritStones(30_000L, SpiritStoneGrade.LOW)
-        assertEquals(20_000L, system.getSpiritStones(SpiritStoneGrade.LOW))
-        assertEquals(5L, system.getSpiritStones(SpiritStoneGrade.MID))
-        assertEquals(0L, system.getSpiritStones(SpiritStoneGrade.HIGH))
+        stateStore.update {
+            wallet.add(this, 50_000L, SpiritStoneGrade.LOW)
+            wallet.add(this, 5L, SpiritStoneGrade.MID)
+            gameData = gameData.copy(autoSellMidGradeForPurchase = true)
+        }
+        stateStore.update { wallet.deduct(this, 30_000L, SpiritStoneGrade.LOW) }
+        assertEquals(20_000L, wallet.balance(SpiritStoneGrade.LOW))
+        assertEquals(5L, wallet.balance(SpiritStoneGrade.MID))
+        assertEquals(0L, wallet.balance(SpiritStoneGrade.HIGH))
     }
 }

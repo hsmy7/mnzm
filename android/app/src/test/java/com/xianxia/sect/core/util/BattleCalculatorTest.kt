@@ -7,6 +7,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class BattleCalculatorTest {
+    private val rng = DeterministicRng(42L)
 
     private fun createCombatant(
         physicalAttack: Int = 100,
@@ -42,7 +43,7 @@ class BattleCalculatorTest {
         var totalDamage = 0
         var count = 0
         for (i in 1..1000) {
-            val result = BattleCalculator.calculateDamage(
+            val result = BattleCalculator.withRng(rng).calculateDamage(
                 attacker, defender,
                 isPhysicalAttack = true,
                 dodgeChanceModifier = 0.0
@@ -65,7 +66,7 @@ class BattleCalculatorTest {
         var totalDamage = 0
         var count = 0
         for (i in 1..1000) {
-            val result = BattleCalculator.calculateDamage(
+            val result = BattleCalculator.withRng(rng).calculateDamage(
                 attacker, defender,
                 isPhysicalAttack = false,
                 dodgeChanceModifier = 0.0
@@ -85,7 +86,7 @@ class BattleCalculatorTest {
     fun `calculateDamage - auto select higher attack type`() {
         val attacker = createCombatant(physicalAttack = 200, magicAttack = 50)
         val defender = createCombatant()
-        val result = BattleCalculator.calculateDamage(
+        val result = BattleCalculator.withRng(rng).calculateDamage(
             attacker, defender,
             isPhysicalAttack = null,
             dodgeChanceModifier = 0.0
@@ -97,7 +98,7 @@ class BattleCalculatorTest {
     fun `calculateDamage - auto select magic attack`() {
         val attacker = createCombatant(physicalAttack = 50, magicAttack = 200)
         val defender = createCombatant()
-        val result = BattleCalculator.calculateDamage(
+        val result = BattleCalculator.withRng(rng).calculateDamage(
             attacker, defender,
             isPhysicalAttack = null,
             dodgeChanceModifier = 0.0
@@ -114,8 +115,8 @@ class BattleCalculatorTest {
         var normalCount = 0
         var boostedCount = 0
         for (i in 1..500) {
-            val normal = BattleCalculator.calculateDamage(attacker, defender, skillDamageMultiplier = 1.0, dodgeChanceModifier = 0.0)
-            val boosted = BattleCalculator.calculateDamage(attacker, defender, skillDamageMultiplier = 2.0, dodgeChanceModifier = 0.0)
+            val normal = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, skillDamageMultiplier = 1.0, dodgeChanceModifier = 0.0)
+            val boosted = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, skillDamageMultiplier = 2.0, dodgeChanceModifier = 0.0)
             if (!normal.isDodged) { normalTotal += normal.damage; normalCount++ }
             if (!boosted.isDodged) { boostedTotal += boosted.damage; boostedCount++ }
         }
@@ -128,9 +129,9 @@ class BattleCalculatorTest {
     fun `calculateDamage - crit increases damage`() {
         val attacker = createCombatant(physicalAttack = 200, critRate = 1.0)
         val defender = createCombatant(physicalDefense = 50)
-        val result = BattleCalculator.calculateDamage(attacker, defender, dodgeChanceModifier = 0.0)
+        val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, dodgeChanceModifier = 0.0)
         assertTrue(result.isCrit)
-        val expected = expectedDamage(200, 50, critMultiplier = GameConfig.Battle.CRIT_MULTIPLIER)
+        val expected = expectedDamage(200, 50, critMultiplier = 1.0 + GameConfig.Battle.CRIT_BASE_MULTIPLIER)
         assertTrue(result.damage >= (expected * 0.7).toInt())
     }
 
@@ -138,7 +139,7 @@ class BattleCalculatorTest {
     fun `calculateDamage - no crit when critRate is 0`() {
         val attacker = createCombatant(physicalAttack = 200, critRate = 0.0)
         val defender = createCombatant(physicalDefense = 50)
-        val result = BattleCalculator.calculateDamage(attacker, defender, dodgeChanceModifier = 0.0)
+        val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, dodgeChanceModifier = 0.0)
         assertFalse(result.isCrit)
     }
 
@@ -146,7 +147,7 @@ class BattleCalculatorTest {
     fun `calculateDamage - minimum damage is 1`() {
         val attacker = createCombatant(physicalAttack = 1)
         val defender = createCombatant(physicalDefense = 9999)
-        val result = BattleCalculator.calculateDamage(attacker, defender, dodgeChanceModifier = 0.0)
+        val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, dodgeChanceModifier = 0.0)
         assertTrue(result.damage >= 1)
     }
 
@@ -156,7 +157,7 @@ class BattleCalculatorTest {
         val slowDefender = createCombatant(speed = 1)
         var dodged = false
         for (i in 1..100) {
-            val result = BattleCalculator.calculateDamage(fastAttacker, slowDefender, dodgeChanceModifier = 0.5)
+            val result = BattleCalculator.withRng(rng).calculateDamage(fastAttacker, slowDefender, dodgeChanceModifier = 0.5)
             if (result.isDodged) {
                 dodged = true
                 assertEquals(0, result.damage)
@@ -171,7 +172,7 @@ class BattleCalculatorTest {
     fun `calculateDamage - skill name passed through`() {
         val attacker = createCombatant()
         val defender = createCombatant()
-        val result = BattleCalculator.calculateDamage(
+        val result = BattleCalculator.withRng(rng).calculateDamage(
             attacker, defender,
             skillName = "天剑诀",
             dodgeChanceModifier = 0.0
@@ -183,7 +184,7 @@ class BattleCalculatorTest {
     fun `calculateDamage - hits passed through`() {
         val attacker = createCombatant()
         val defender = createCombatant()
-        val result = BattleCalculator.calculateDamage(
+        val result = BattleCalculator.withRng(rng).calculateDamage(
             attacker, defender,
             skillHits = 3,
             dodgeChanceModifier = 0.0
@@ -239,7 +240,7 @@ class BattleCalculatorTest {
         var totalDamage = 0
         var count = 0
         for (i in 1..1000) {
-            val result = BattleCalculator.calculateDamage(attacker, defender, isPhysicalAttack = true, dodgeChanceModifier = 0.0)
+            val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, isPhysicalAttack = true, dodgeChanceModifier = 0.0)
             totalDamage += result.damage
             count++
         }
@@ -252,7 +253,7 @@ class BattleCalculatorTest {
     fun `calculateDamage isPhysicalAttack true - low attack vs high defense still deals damage`() {
         val attacker = createCombatant(physicalAttack = 1, critRate = 0.0)
         val defender = createCombatant(physicalDefense = 9999)
-        val result = BattleCalculator.calculateDamage(attacker, defender, isPhysicalAttack = true, dodgeChanceModifier = 0.0)
+        val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, isPhysicalAttack = true, dodgeChanceModifier = 0.0)
         assertTrue(result.damage >= 0)
     }
 
@@ -263,7 +264,7 @@ class BattleCalculatorTest {
         var totalDamage = 0
         var count = 0
         for (i in 1..1000) {
-            val result = BattleCalculator.calculateDamage(attacker, defender, isPhysicalAttack = false, dodgeChanceModifier = 0.0)
+            val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, isPhysicalAttack = false, dodgeChanceModifier = 0.0)
             totalDamage += result.damage
             count++
         }
@@ -358,7 +359,7 @@ class BattleCalculatorTest {
         val defender = createCombatant(physicalDefense = 0)
         val damages = mutableListOf<Int>()
         for (i in 1..1000) {
-            val result = BattleCalculator.calculateDamage(attacker, defender, isPhysicalAttack = true, dodgeChanceModifier = 0.0)
+            val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, isPhysicalAttack = true, dodgeChanceModifier = 0.0)
             if (!result.isDodged) damages.add(result.damage)
         }
         assertTrue(damages.isNotEmpty())
@@ -377,8 +378,8 @@ class BattleCalculatorTest {
         var lowTotal = 0
         var highTotal = 0
         for (i in 1..500) {
-            lowTotal += BattleCalculator.calculateDamage(attacker, lowDefender, isPhysicalAttack = true, dodgeChanceModifier = 0.0).damage
-            highTotal += BattleCalculator.calculateDamage(attacker, highDefender, isPhysicalAttack = true, dodgeChanceModifier = 0.0).damage
+            lowTotal += BattleCalculator.withRng(rng).calculateDamage(attacker, lowDefender, isPhysicalAttack = true, dodgeChanceModifier = 0.0).damage
+            highTotal += BattleCalculator.withRng(rng).calculateDamage(attacker, highDefender, isPhysicalAttack = true, dodgeChanceModifier = 0.0).damage
         }
         assertTrue("high defense should take less damage", highTotal < lowTotal)
         val lowReduction = 100.0 / (100.0 + GameConfig.Battle.DEFENSE_CONSTANT)

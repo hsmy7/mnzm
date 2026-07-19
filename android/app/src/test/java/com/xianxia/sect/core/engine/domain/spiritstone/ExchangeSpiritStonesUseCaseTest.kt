@@ -1,78 +1,89 @@
 package com.xianxia.sect.core.engine.domain.spiritstone
 
+import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.domain.spiritstone.ExchangeSpiritStonesUseCase
-import com.xianxia.sect.core.engine.system.InventorySystem
+import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.model.SpiritStoneGrade
+import com.xianxia.sect.core.state.GameStateStoreImpl
+import com.xianxia.sect.core.wallet.SpiritStoneLedger
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
+import com.xianxia.sect.data.GameStateRepository
+import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import org.mockito.Mock
-import org.mockito.MockitoAnnotations
-import org.mockito.kotlin.whenever
+import org.mockito.Mockito.mock
 
 class ExchangeSpiritStonesUseCaseTest {
 
-    @Mock
-    private lateinit var inventorySystem: InventorySystem
-
     private lateinit var useCase: ExchangeSpiritStonesUseCase
+    private lateinit var stateStore: GameStateStoreImpl
+    private lateinit var wallet: SpiritStoneWallet
 
     @Before
     fun setUp() {
-        MockitoAnnotations.openMocks(this)
-        useCase = ExchangeSpiritStonesUseCase(inventorySystem)
+        stateStore = GameStateStoreImpl(
+            ApplicationScopeProvider(),
+            mock(GameStateRepository::class.java)
+        )
+        wallet = SpiritStoneWallet(
+            stateStore, SpiritStoneLedger(), mock(EventBus::class.java)
+        )
+        InventoryConfig()
+        useCase = ExchangeSpiritStonesUseCase(stateStore, wallet)
+        runBlocking {
+            stateStore.reset()
+            stateStore.update {
+                gameData = gameData.copy(
+                    spiritStones = 0L,
+                    midGradeSpiritStones = 0L,
+                    highGradeSpiritStones = 0L
+                )
+            }
+        }
     }
 
     @Test
     fun `invoke - successful low to mid exchange`() = runBlocking {
-        whenever(inventorySystem.getSpiritStones(SpiritStoneGrade.LOW)).thenReturn(25_000L)
-        // 25_000 / 8_000 = 3 MID
-        whenever(inventorySystem.getSpiritStones(SpiritStoneGrade.MID)).thenReturn(0L, 3L)
-        whenever(inventorySystem.exchangeSpiritStones(25_000L, SpiritStoneGrade.LOW, SpiritStoneGrade.MID))
-            .thenReturn(true)
+        stateStore.update { wallet.add(this, 25_000L, SpiritStoneGrade.LOW) }
+        // 25_000 / 8_000 = 3 MID (余 1_000 LOW)
 
         val result = useCase(25_000L, SpiritStoneGrade.LOW, SpiritStoneGrade.MID)
 
-        assertTrue(result is ExchangeSpiritStonesUseCase.Result.Success)
+        assertTrue("Result should be Success, got $result", result is ExchangeSpiritStonesUseCase.Result.Success)
         val success = result as ExchangeSpiritStonesUseCase.Result.Success
         assertEquals(3L, success.converted)
     }
 
     @Test
     fun `invoke - successful mid to high exchange`() = runBlocking {
-        whenever(inventorySystem.getSpiritStones(SpiritStoneGrade.MID)).thenReturn(16_000L)
+        stateStore.update { wallet.add(this, 16_000L, SpiritStoneGrade.MID) }
         // 16_000 / 8_000 = 2 HIGH
-        whenever(inventorySystem.getSpiritStones(SpiritStoneGrade.HIGH)).thenReturn(0L, 2L)
-        whenever(inventorySystem.exchangeSpiritStones(16_000L, SpiritStoneGrade.MID, SpiritStoneGrade.HIGH))
-            .thenReturn(true)
 
         val result = useCase(16_000L, SpiritStoneGrade.MID, SpiritStoneGrade.HIGH)
 
-        assertTrue(result is ExchangeSpiritStonesUseCase.Result.Success)
+        assertTrue("Result should be Success, got $result", result is ExchangeSpiritStonesUseCase.Result.Success)
         val success = result as ExchangeSpiritStonesUseCase.Result.Success
         assertEquals(2L, success.converted)
     }
 
     @Test
     fun `invoke - successful high to mid exchange`() = runBlocking {
-        whenever(inventorySystem.getSpiritStones(SpiritStoneGrade.HIGH)).thenReturn(2L)
+        stateStore.update { wallet.add(this, 2L, SpiritStoneGrade.HIGH) }
         // 2 HIGH → 2 * 8_000 = 16_000 MID
-        whenever(inventorySystem.getSpiritStones(SpiritStoneGrade.MID)).thenReturn(0L, 16_000L)
-        whenever(inventorySystem.exchangeSpiritStones(2L, SpiritStoneGrade.HIGH, SpiritStoneGrade.MID))
-            .thenReturn(true)
 
         val result = useCase(2L, SpiritStoneGrade.HIGH, SpiritStoneGrade.MID)
 
-        assertTrue(result is ExchangeSpiritStonesUseCase.Result.Success)
+        assertTrue("Result should be Success, got $result", result is ExchangeSpiritStonesUseCase.Result.Success)
         val success = result as ExchangeSpiritStonesUseCase.Result.Success
         assertEquals(16_000L, success.converted)
     }
 
     @Test
     fun `invoke - insufficient balance returns Insufficient`() = runBlocking {
-        whenever(inventorySystem.getSpiritStones(SpiritStoneGrade.LOW)).thenReturn(100L)
+        stateStore.update { wallet.add(this, 100L, SpiritStoneGrade.LOW) }
 
         val result = useCase(10_000L, SpiritStoneGrade.LOW, SpiritStoneGrade.MID)
 
@@ -97,16 +108,6 @@ class ExchangeSpiritStonesUseCaseTest {
     @Test
     fun `invoke - same grade returns Invalid`() = runBlocking {
         val result = useCase(100L, SpiritStoneGrade.LOW, SpiritStoneGrade.LOW)
-        assertTrue(result is ExchangeSpiritStonesUseCase.Result.Invalid)
-    }
-
-    @Test
-    fun `invoke - exchange failure returns Invalid`() = runBlocking {
-        whenever(inventorySystem.getSpiritStones(SpiritStoneGrade.MID)).thenReturn(1L)
-        whenever(inventorySystem.exchangeSpiritStones(1L, SpiritStoneGrade.MID, SpiritStoneGrade.HIGH))
-            .thenReturn(false)
-
-        val result = useCase(1L, SpiritStoneGrade.MID, SpiritStoneGrade.HIGH)
         assertTrue(result is ExchangeSpiritStonesUseCase.Result.Invalid)
     }
 }
