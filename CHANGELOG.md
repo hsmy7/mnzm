@@ -12,6 +12,11 @@
 - **修复：EnemyGeneratorTest 预存10个测试失败** — 根因 `enemyGenRngManager` 未初始化，添加 `@Before`/`@After` 初始化和清理
 - **修复：仓库驻守对话框"显示所有弟子"无效** — 预过滤硬编码 `d.status == IDLE` 导致勾选框失效，已移除并改为委托 `filterByDiscipleStatus` 控制；同时补传 `showAllEnabled`/`battleAndExplorationIds` 参数；选择非空闲弟子时自动释放原槽位
 - **修复：filterByDiscipleStatus 未勾选时未排除战斗中弟子** — `showAllEnabled=false` 分支补充 `d.id !in battleAndExplorationIds` 检查，确保战斗/探索中弟子在任何模式下均不显示
+- **修复：ComponentTable 字段级写入守卫** — 给三种 ComponentTable 添加 `requireWrite` 回调，所有字段级写入在 `stateStore.update` 事务外立即抛 `IllegalStateException`，杜绝静默数据损伤和幽灵弟子（#10019/#9036/#3063/#3057/#5062）
+- **修复：读档丹药追踪字段迁移写入事务外** — `migratePillTrackingFields` 包裹进 `stateStore.update{}`，确保字段级守卫通过
+- **修复：LazyColumn 消息栏重复键崩溃** — 突破事件同毫秒时间戳导致 key 碰撞，改用 `itemsIndexed` + index 保证唯一性（#10021）
+- **新增：stateStore.update 锁内耗时日志** — 超 500ms 自动 Warning，辅助 ANR 诊断（#10023）
+- **新增：release 构建幽灵弟子轻量日志** — `replaceAll`/`insert`/`remove` 后检测 ghost 并打 `Log.w`（不抛异常）
 
 ## [4.0.57] - 2026-07-18（versionCode=4057）
 

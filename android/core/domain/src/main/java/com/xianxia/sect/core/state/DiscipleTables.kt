@@ -409,6 +409,12 @@ class DiscipleTables {
             }
         }
         assertAllTablesConsistent()
+        if (!consistencyCheckEnabled) {
+            val ghostCount = ids.count { !isAlive.contains(it) }
+            if (ghostCount > 0) {
+                Log.w(TAG, "insert 后检测到 $ghostCount 个幽灵弟子（isAlive 表无记录）")
+            }
+        }
     }
 
     /**
@@ -467,6 +473,13 @@ class DiscipleTables {
             markMutated()
         }
         assertAllTablesConsistent()
+        if (!consistencyCheckEnabled) {
+            // Release 构建：轻量校验，仅日志不抛异常
+            val ghostCount = ids.count { !isAlive.contains(it) }
+            if (ghostCount > 0) {
+                Log.w(TAG, "replaceAll 后检测到 $ghostCount 个幽灵弟子（isAlive 表无记录）")
+            }
+        }
     }
 
     /** insert/update 共用：将 Disciple 所有字段写入组件表 */
@@ -755,6 +768,12 @@ class DiscipleTables {
             ids.remove(id)
             _allCopyableRefs.forEach { it.remove(id) }
             assertAllTablesConsistent()
+            if (!consistencyCheckEnabled) {
+                val ghosts = ids.filter { !isAlive.contains(it) }
+                if (ghosts.isNotEmpty()) {
+                    Log.w(TAG, "remove 后存在幽灵弟子: ids=$ghosts")
+                }
+            }
         }
     }
 
@@ -798,17 +817,31 @@ class DiscipleTables {
     }
 
     /**
-     * 绑定所有子表的 onWrite → markMutated，确保字段级写自动 bump 版本号。
-     * deepCopy() 创建的副本不调用此方法——副本写不应影响原表版本号。
+     * 绑定所有子表的 onWrite → markMutated，以及 requireWrite → requireWriteAccess。
+     * deepCopy 构造函数同样调用此方法——副本的 requireWrite 指向副本的 requireWriteAccess，
+     * 与原始表互不干扰，确保 deepCopy 在 writeAllowed=true 时可写。
      */
     private fun bindAllOnWrite() {
         val cb: () -> Unit = ::markMutated
+        val guard: () -> Unit = { requireWriteAccess() }
         _allCopyableRefs.forEach { ref ->
             when (ref) {
-                is IntTableRef -> ref.table.onWrite = cb
-                is DoubleTableRef -> ref.table.onWrite = cb
-                is RefTableRef<*> -> ref.table.onWrite = cb
-                is MutableTableRef<*> -> ref.table.onWrite = cb
+                is IntTableRef -> {
+                    ref.table.onWrite = cb
+                    ref.table.requireWrite = guard
+                }
+                is DoubleTableRef -> {
+                    ref.table.onWrite = cb
+                    ref.table.requireWrite = guard
+                }
+                is RefTableRef<*> -> {
+                    ref.table.onWrite = cb
+                    ref.table.requireWrite = guard
+                }
+                is MutableTableRef<*> -> {
+                    ref.table.onWrite = cb
+                    ref.table.requireWrite = guard
+                }
             }
         }
     }

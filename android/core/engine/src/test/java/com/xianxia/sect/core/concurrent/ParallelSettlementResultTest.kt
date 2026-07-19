@@ -8,12 +8,14 @@ import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.BattleLog
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -26,6 +28,7 @@ import org.robolectric.RobolectricTestRunner
  */
 @RunWith(RobolectricTestRunner::class)
 class ParallelSettlementResultTest {
+    @get:Rule val writeGuardRule = WriteGuardRule()
 
     // ═══════════════════════════════════════════════════════════════
     // PartnerMatchResult

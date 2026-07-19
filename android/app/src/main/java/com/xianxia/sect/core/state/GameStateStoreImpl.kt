@@ -66,6 +66,7 @@ class GameStateStoreImpl @Inject constructor(
 
     companion object {
         private const val TAG = "GameStateStore"
+        private const val UPDATE_WARN_THRESHOLD_MS = 500L
 
         /**
          * 合并 discipleTables — 影子保留结算结果，current 覆盖生命周期字段。
@@ -688,6 +689,7 @@ class GameStateStoreImpl @Inject constructor(
         var disciplesNeedReassemble = false
 
         transactionLock.withLock {
+            val lockStartNs = System.nanoTime()
             // ★ 显式重入检测（在锁内，跨线程安全）
             if (reentrantCount.get() > 0) {
                 val buffer = reentrantBuffer.get() ?: return@withLock
@@ -818,6 +820,14 @@ class GameStateStoreImpl @Inject constructor(
                 }
                 _discipleTables = reusableMutableState.discipleTables
                 _discipleTables.writeAllowed = false  // ★ 出厂后锁定，防止绕过 update{} 直接写
+
+                // ANR 诊断：记录锁内耗时超过阈值的 update 调用
+                val lockElapsedMs = (System.nanoTime() - lockStartNs) / 1_000_000
+                if (lockElapsedMs > UPDATE_WARN_THRESHOLD_MS) {
+                    com.xianxia.sect.core.util.DomainLog.w(
+                        TAG, "update() 锁内耗时 ${lockElapsedMs}ms（阈值=${UPDATE_WARN_THRESHOLD_MS}ms）"
+                    )
+                }
             } finally {
                 reusableMutableState.discipleTables.writeAllowed = false
                 reentrantCount.set(0)
@@ -835,6 +845,7 @@ class GameStateStoreImpl @Inject constructor(
                 _disciplesFlow.value = _discipleTables.assembleAll()
             }
         }
+
     }
 
     override fun <R> updateAndReturn(block: MutableGameState.() -> R): R {

@@ -8,7 +8,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Text
@@ -83,10 +83,13 @@ fun MessageListContent(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
         ) {
-            items(
+            itemsIndexed(
                 items = events,
-                key = { "${it.timestamp}_${it.eventType}_${it.summary}_${it.relatedEntityId}" }
-            ) { event ->
+                key = { index, event ->
+                    // index 保证在同一 events 列表内唯一，消除系统的突破事件同毫秒 key 碰撞
+                    "${index}_${event.timestamp}_${event.eventType}"
+                }
+            ) { _, event ->
                 MessageRow(event = event)
             }
         }

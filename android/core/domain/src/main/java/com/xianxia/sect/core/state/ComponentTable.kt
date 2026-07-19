@@ -9,11 +9,13 @@ import android.util.SparseArray
 class ComponentTable<T> @JvmOverloads constructor(initialCapacity: Int = 64) {
     @PublishedApi internal val store = SparseArray<T>(initialCapacity)
     @JvmField var onWrite: (() -> Unit)? = null
+    /** 写入前守卫检查，由 [DiscipleTables.bindAllOnWrite] 绑定为 [DiscipleTables.requireWriteAccess] */
+    @JvmField var requireWrite: (() -> Unit)? = null
     operator fun get(id: Int): T = store[id] ?: throw NoSuchElementException("ComponentTable: no entry for id=$id")
     fun getOrNull(id: Int): T? = store[id]
     fun getOrDefault(id: Int, default: T): T = store[id] ?: default
-    operator fun set(id: Int, value: T) { store.put(id, value); onWrite?.invoke() }
-    inline fun update(id: Int, block: (T) -> T) { store[id] = block(store[id]); onWrite?.invoke() }
+    operator fun set(id: Int, value: T) { requireWrite?.invoke(); store.put(id, value); onWrite?.invoke() }
+    inline fun update(id: Int, block: (T) -> T) { requireWrite?.invoke(); store[id] = block(store[id]); onWrite?.invoke() }
     fun ids(): IntArray { val r = IntArray(store.size()); for (i in 0 until store.size()) r[i] = store.keyAt(i); return r }
     val size: Int get() = store.size()
     fun isEmpty(): Boolean = store.size() == 0
@@ -21,9 +23,9 @@ class ComponentTable<T> @JvmOverloads constructor(initialCapacity: Int = 64) {
     inline fun forEach(action: (Int, T) -> Unit) { for (i in 0 until store.size()) action(store.keyAt(i), store.valueAt(i)) }
     inline fun forEachValue(action: (T) -> Unit) { for (i in 0 until store.size()) action(store.valueAt(i)) }
     fun values(): List<T> = (0 until store.size()).map { store.valueAt(it) }
-    fun put(id: Int, value: T) { store.put(id, value); onWrite?.invoke() }
-    fun remove(id: Int) { store.remove(id); onWrite?.invoke() }
-    fun clear() { store.clear(); onWrite?.invoke() }
+    fun put(id: Int, value: T) { requireWrite?.invoke(); store.put(id, value); onWrite?.invoke() }
+    fun remove(id: Int) { requireWrite?.invoke(); store.remove(id); onWrite?.invoke() }
+    fun clear() { requireWrite?.invoke(); store.clear(); onWrite?.invoke() }
 }
 
 class IntFlatArray @JvmOverloads constructor(initialCapacity: Int = 64) {
@@ -123,36 +125,40 @@ class DoubleFlatArray @JvmOverloads constructor(initialCapacity: Int = 64) {
 class IntComponentTable(initialCapacity: Int = 64) {
     @PublishedApi internal val store = IntFlatArray(initialCapacity)
     @JvmField var onWrite: (() -> Unit)? = null
+    /** 写入前守卫检查，由 [DiscipleTables.bindAllOnWrite] 绑定为 [DiscipleTables.requireWriteAccess] */
+    @JvmField var requireWrite: (() -> Unit)? = null
     operator fun get(id: Int): Int = store[id]
     fun getOrDefault(id: Int, default: Int): Int = store.get(id, default)
     fun getOrNull(id: Int): Int? = if (store.contains(id)) store[id] else null
-    operator fun set(id: Int, value: Int) { store.put(id, value); onWrite?.invoke() }
-    fun update(id: Int, block: (Int) -> Int) { store.update(id, block); onWrite?.invoke() }
+    operator fun set(id: Int, value: Int) { requireWrite?.invoke(); store.put(id, value); onWrite?.invoke() }
+    fun update(id: Int, block: (Int) -> Int) { requireWrite?.invoke(); store.update(id, block); onWrite?.invoke() }
     fun ids(): IntArray { val r = IntArray(store.size()); for (i in 0 until store.size()) r[i] = store.keyAt(i); return r }
     val size: Int get() = store.size()
     fun contains(id: Int): Boolean = store.indexOfKey(id) >= 0
     fun forEach(action: (Int, Int) -> Unit) { for (i in 0 until store.size()) action(store.keyAt(i), store.valueAt(i)) }
     fun values(): List<Int> = (0 until store.size()).map { store.valueAt(it) }
-    fun put(id: Int, value: Int) { store.put(id, value); onWrite?.invoke() }
-    fun remove(id: Int) { store.delete(id); onWrite?.invoke() }
-    fun clear() { store.clear(); onWrite?.invoke() }
+    fun put(id: Int, value: Int) { requireWrite?.invoke(); store.put(id, value); onWrite?.invoke() }
+    fun remove(id: Int) { requireWrite?.invoke(); store.delete(id); onWrite?.invoke() }
+    fun clear() { requireWrite?.invoke(); store.clear(); onWrite?.invoke() }
 }
 
 class DoubleComponentTable(initialCapacity: Int = 64) {
     @PublishedApi internal val store = DoubleFlatArray(initialCapacity)
     @JvmField var onWrite: (() -> Unit)? = null
+    /** 写入前守卫检查，由 [DiscipleTables.bindAllOnWrite] 绑定为 [DiscipleTables.requireWriteAccess] */
+    @JvmField var requireWrite: (() -> Unit)? = null
     operator fun get(id: Int): Double = store[id]
     fun getOrDefault(id: Int, default: Double): Double = store.get(id, default)
-    operator fun set(id: Int, value: Double) { store.put(id, value); onWrite?.invoke() }
-    fun update(id: Int, block: (Double) -> Double) { store.update(id, block); onWrite?.invoke() }
+    operator fun set(id: Int, value: Double) { requireWrite?.invoke(); store.put(id, value); onWrite?.invoke() }
+    fun update(id: Int, block: (Double) -> Double) { requireWrite?.invoke(); store.update(id, block); onWrite?.invoke() }
     fun ids(): IntArray { val r = IntArray(store.size()); for (i in 0 until store.size()) r[i] = store.keyAt(i); return r }
     val size: Int get() = store.size()
     fun contains(id: Int): Boolean = store.indexOfKey(id) >= 0
     fun forEach(action: (Int, Double) -> Unit) { for (i in 0 until store.size()) action(store.keyAt(i), store.valueAt(i)) }
     fun values(): List<Double> = (0 until store.size()).map { store.valueAt(it) }
-    fun put(id: Int, value: Double) { store.put(id, value); onWrite?.invoke() }
-    fun remove(id: Int) { store.delete(id); onWrite?.invoke() }
-    fun clear() { store.clear(); onWrite?.invoke() }
+    fun put(id: Int, value: Double) { requireWrite?.invoke(); store.put(id, value); onWrite?.invoke() }
+    fun remove(id: Int) { requireWrite?.invoke(); store.delete(id); onWrite?.invoke() }
+    fun clear() { requireWrite?.invoke(); store.clear(); onWrite?.invoke() }
 }
 
 sealed interface ComponentTableLike {
