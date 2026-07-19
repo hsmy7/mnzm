@@ -17,6 +17,10 @@
 - **修复：LazyColumn 消息栏重复键崩溃** — 突破事件同毫秒时间戳导致 key 碰撞，改用 `itemsIndexed` + index 保证唯一性（#10021）
 - **新增：stateStore.update 锁内耗时日志** — 超 500ms 自动 Warning，辅助 ANR 诊断（#10023）
 - **新增：release 构建幽灵弟子轻量日志** — `replaceAll`/`insert`/`remove` 后检测 ghost 并打 `Log.w`（不抛异常）
+- **修复：mergeDiscipleTables/createSettlementShadow 守卫兼容** — 影子合表路径 deepCopy 设 `writeAllowed=true`
+- **修复：deepCopy 未复制 deathRecords** — 跨 update 边界死亡记录丢失
+- **修复：3 个预存测试编译错误** — 适配 SpiritStoneWallet/RNG 新 API
+- **清理：移除旧并行结算死代码** — `ProductionBatchResult`/`PartnerMatchResult`/`isSettlementShadow`
 
 ## [4.0.57] - 2026-07-18（versionCode=4057）
 
