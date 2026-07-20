@@ -8,8 +8,8 @@ class RedeemCodeTest {
     // ---- RedeemRewardType ----
 
     @Test
-    fun redeemRewardType_hasNineValues() {
-        assertEquals(10, RedeemRewardType.entries.size)
+    fun redeemRewardType_hasElevenValues() {
+        assertEquals(11, RedeemRewardType.entries.size)
     }
 
     @Test
@@ -24,7 +24,8 @@ class RedeemCodeTest {
             RedeemRewardType.SEED,
             RedeemRewardType.DISCIPLE,
             RedeemRewardType.STARTER_PACK,
-            RedeemRewardType.MANUAL_PACK
+            RedeemRewardType.MANUAL_PACK,
+            RedeemRewardType.GIFT_PACK_MAJIAQI
         )
         assertArrayEquals(expected, RedeemRewardType.entries.toTypedArray())
     }

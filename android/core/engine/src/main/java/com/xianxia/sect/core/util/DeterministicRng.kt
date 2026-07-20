@@ -12,7 +12,7 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 class DeterministicRng(
-    private var state: Long,
+    @Volatile private var state: Long,
     private val increment: Long = 1L
 ) {
     companion object {
@@ -29,6 +29,7 @@ class DeterministicRng(
     }
 
     /** 产生下一个 32 位随机整数 */
+    @Synchronized
     fun nextInt(): Int {
         val oldState = state
         state = oldState * MULTIPLIER + increment
@@ -38,6 +39,7 @@ class DeterministicRng(
     }
 
     /** [0, bound) 范围随机整数 */
+    @Synchronized
     fun nextInt(bound: Int): Int {
         require(bound > 0) { "bound must be positive, was $bound" }
         // Lemire 无偏回绝采样
@@ -54,6 +56,7 @@ class DeterministicRng(
     }
 
     /** [0, bound) 范围随机 Long */
+    @Synchronized
     fun nextLong(bound: Long = Long.MAX_VALUE): Long {
         if (bound <= 0) return 0L
         if (bound == Long.MAX_VALUE) return nextInt().toLong() and Long.MAX_VALUE
@@ -61,14 +64,17 @@ class DeterministicRng(
     }
 
     /** [0.0, 1.0) 范围随机 Double */
+    @Synchronized
     fun nextDouble(): Double {
         return (nextInt().toLong() and 0x7FFFFFFFL) / 2147483648.0
     }
 
     /** 当前状态快照（用于序列化到存档） */
+    @Synchronized
     fun snapshot(): Long = state
 
     /** 从快照恢复状态 */
+    @Synchronized
     fun restore(savedState: Long) {
         state = savedState
     }

@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.util
 
+import com.xianxia.sect.core.GameConfig
 import org.junit.Assert.*
 import org.junit.Test
 import kotlin.random.Random
@@ -35,7 +36,6 @@ class SpiritRootGeneratorTest {
 
     @Test
     fun generate_produces1To5RootTypes() {
-        // Test with multiple seeds to cover different root counts
         for (seed in 0..50) {
             val result = SpiritRootGenerator.generate(Random(seed.toLong()))
             val count = result.split(",").size
@@ -59,7 +59,6 @@ class SpiritRootGeneratorTest {
     fun generate_differentSeeds_produceDifferentResults() {
         val results = (1..50).map { SpiritRootGenerator.generate(Random(it.toLong())) }
         val uniqueResults = results.toSet()
-        // With 50 different seeds, we should get more than 1 unique result
         assertTrue("Expected multiple different results, got ${uniqueResults.size}", uniqueResults.size > 1)
     }
 
@@ -94,5 +93,52 @@ class SpiritRootGeneratorTest {
         val result2 = SpiritRootGenerator.generateWithGameRandom()
 
         assertEquals(result1, result2)
+    }
+
+    // ============================================================
+    // 概率分布守卫测试（对抗性审查补充）
+    // ============================================================
+
+    @Test
+    fun `generateRandomSpiritRootCount 分布接近配置权重`() {
+        GameRandom.setSeed(123)
+        val counts = mutableMapOf(1 to 0, 2 to 0, 3 to 0, 4 to 0, 5 to 0)
+        val N = 100000
+        repeat(N) {
+            val count = GameConfig.SpiritRoot.generateRandomSpiritRootCount()
+            counts[count] = counts.getOrDefault(count, 0) + 1
+        }
+
+        val expected = GameConfig.SpiritRoot.COUNT_WEIGHTS
+        val tolerance = 0.05
+        for ((rootCount, weight) in expected) {
+            val ratio = counts[rootCount]!!.toDouble() / N
+            assertTrue(
+                "灵根$rootCount 比例 $ratio 偏离配置权重 $weight 超过 $tolerance",
+                kotlin.math.abs(ratio - weight) <= tolerance + 0.001
+            )
+        }
+    }
+
+    @Test
+    fun `generate 路径分布接近配置权重`() {
+        val rng = DeterministicRng.fromSeed(42)
+        val kotlinRng = rng.asKotlinRandom()
+        val counts = mutableMapOf(1 to 0, 2 to 0, 3 to 0, 4 to 0, 5 to 0)
+        val N = 100000
+        repeat(N) {
+            val count = SpiritRootGenerator.generate(kotlinRng).split(",").size
+            counts[count] = counts.getOrDefault(count, 0) + 1
+        }
+
+        val expected = GameConfig.SpiritRoot.COUNT_WEIGHTS
+        val tolerance = 0.05
+        for ((rootCount, weight) in expected) {
+            val ratio = counts[rootCount]!!.toDouble() / N
+            assertTrue(
+                "灵根$rootCount generate() 比例 $ratio 偏离配置权重 $weight 超过 $tolerance",
+                kotlin.math.abs(ratio - weight) <= tolerance + 0.001
+            )
+        }
     }
 }

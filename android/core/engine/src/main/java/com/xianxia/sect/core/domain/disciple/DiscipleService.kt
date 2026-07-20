@@ -371,7 +371,7 @@ class DiscipleService @Inject constructor(
                 id = "PENDING",  // 占位 ID，allocateAndInsert 会覆盖
                 gender = gender,
                 nameResult = nameResult,
-                spiritRootType = SpiritRootGenerator.generate(),
+                spiritRootType = SpiritRootGenerator.generate(rng.asKotlinRandom()),
                 age = 16 + rng.nextInt(14),
                 realm = realm,
                 realmLayer = 1,

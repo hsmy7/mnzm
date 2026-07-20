@@ -15,7 +15,8 @@ enum class RedeemRewardType {
     SEED,
     DISCIPLE,
     STARTER_PACK,
-    MANUAL_PACK
+    MANUAL_PACK,
+    GIFT_PACK_MAJIAQI
 }
 
 @Keep

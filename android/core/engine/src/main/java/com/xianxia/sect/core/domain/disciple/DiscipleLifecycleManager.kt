@@ -14,6 +14,7 @@ import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.SpiritRootGenerator
+import com.xianxia.sect.core.util.asKotlinRandom
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -296,7 +297,7 @@ class DiscipleLifecycleManager @Inject constructor(
                 id = "PENDING",  // 占位 ID，allocateAndInsert 会覆盖
                 gender = gender,
                 nameResult = nameResult,
-                spiritRootType = SpiritRootGenerator.generate(),
+                spiritRootType = SpiritRootGenerator.generate(rng.asKotlinRandom()),
                 age = 16 + rng.nextInt(14),
                 realm = realm,
                 realmLayer = 1,

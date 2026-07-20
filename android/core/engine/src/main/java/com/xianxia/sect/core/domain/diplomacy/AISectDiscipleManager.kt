@@ -13,6 +13,7 @@ import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.SpiritRootGenerator
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.DeterministicRng
+import com.xianxia.sect.core.util.asKotlinRandom
 
 object AISectDiscipleManager {
     private val rng by lazy { DeterministicRng.fromSeed(System.nanoTime()) }
@@ -109,7 +110,7 @@ object AISectDiscipleManager {
         }
     }
 
-    private fun generateSpiritRoot(): String = SpiritRootGenerator.generate()
+    private fun generateSpiritRoot(): String = SpiritRootGenerator.generate(rng.asKotlinRandom())
 
     fun getMaxRarityByRealm(realm: Int): Int = GameConfig.Realm.getMaxRarity(realm)
 

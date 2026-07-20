@@ -2,6 +2,7 @@ package com.xianxia.sect.core
 
 import com.xianxia.sect.core.config.FavorConfig
 import com.xianxia.sect.core.domain.BuildConfig
+import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.GameRandom
 
 enum class SkillType {
@@ -306,11 +307,11 @@ object GameConfig {
         
         // 灵根数量权重配置（增量值，非累积值）
         val COUNT_WEIGHTS = mapOf(
-            1 to 0.05,
-            2 to 0.20,
-            3 to 0.30,
-            4 to 0.30,
-            5 to 0.15
+            1 to 0.005,  // 0.5% 单灵根
+            2 to 0.015,  // 1.5% 双灵根
+            3 to 0.20,   // 20%  三灵根
+            4 to 0.38,   // 38%  四灵根
+            5 to 0.40    // 40%  五灵根
         )
         
         fun get(type: String): SpiritRootConfig = TYPES[type] ?: TYPES.getValue("metal")
@@ -324,8 +325,9 @@ object GameConfig {
             var cumulative = 0.0
             for ((count, weight) in COUNT_WEIGHTS.toSortedMap()) {
                 cumulative += weight
-                if (rand <= cumulative) return count
+                if (rand < cumulative) return count
             }
+            DomainLog.w("SpiritRoot", "灵根权重和<1.0（累积=$cumulative），回退到5灵根，请检查COUNT_WEIGHTS配置")
             return 5
         }
         

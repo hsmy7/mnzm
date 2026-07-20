@@ -73,4 +73,19 @@ class MerchantAndRecruitServiceTest {
         assertEquals(3, pools.rarityMap["中品灵石"])
         assertEquals(4, pools.rarityMap["上品灵石"])
     }
+
+    // ==================== RARITY_PROBABILITIES 守卫 ====================
+
+    @Test
+    fun `RARITY_PROBABILITIES 概率和应接近1点0`() {
+        val total = MerchantAndRecruitService.RARITY_PROBABILITIES.values.sum()
+        assertEquals("商人稀有度概率和必须为 1.0", 1.0, total, 0.001)
+    }
+
+    @Test
+    fun `RARITY_PROBABILITIES 应包含全部6个稀有度`() {
+        for (rarity in 1..6) {
+            assertTrue("缺少稀有度 $rarity 的概率定义", MerchantAndRecruitService.RARITY_PROBABILITIES.containsKey(rarity))
+        }
+    }
 }

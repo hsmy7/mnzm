@@ -13,7 +13,7 @@ object InputValidator {
     private val INVALID_CHARS = Regex("[<>\"'&\\\\/]")
     private val VALID_SECT_NAME_PATTERN = Regex("^[\\u4e00-\\u9fa5a-zA-Z0-9]+$")
     private val VALID_DISCIPLE_NAME_PATTERN = Regex("^[\\u4e00-\\u9fa5a-zA-Z]+$")
-    private val VALID_REDEEM_CODE_PATTERN = Regex("^[A-Za-z0-9\\-_]+$")
+    private val VALID_REDEEM_CODE_PATTERN = Regex("^[\\u4e00-\\u9fa5A-Za-z0-9\\-_]+$")
     private val VALID_SAVE_NAME_PATTERN = Regex("^[\\u4e00-\\u9fa5a-zA-Z0-9\\s\\-_]+$")
     
     fun validateSectName(name: String): String? {

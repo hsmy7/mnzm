@@ -55,7 +55,7 @@ class MerchantAndRecruitService @Inject constructor(
         private const val MAX_MERCHANT_REFRESH_CHANCES = 999
         private val VALID_REALM_RANGE = GameConfig.Realm.CONFIGS.keys.let { it.min()..it.max() }
 
-        private val RARITY_PROBABILITIES = mapOf(
+        internal val RARITY_PROBABILITIES = mapOf(
             6 to 0.003,
             5 to 0.027,
             4 to 0.05,
@@ -79,7 +79,12 @@ class MerchantAndRecruitService @Inject constructor(
         val newItems = mutableListOf<MerchantItem>()
 
         stateStore.update {
-            val newRefreshCount = gameData.merchantRefreshCount + 1
+            // 防止 Int 溢出：超过 20 亿时折叠刷新计数，保留保底相位
+            val newRefreshCount = if (gameData.merchantRefreshCount >= 2_000_000_000) {
+                (gameData.merchantRefreshCount % MERCHANT_PITY_THRESHOLD) + 1
+            } else {
+                gameData.merchantRefreshCount + 1
+            }
             val isPityRefresh = newRefreshCount % MERCHANT_PITY_THRESHOLD == 0
 
             if (isPityRefresh) {
