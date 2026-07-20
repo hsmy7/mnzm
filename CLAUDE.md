@@ -64,336 +64,35 @@ cd android && ./gradlew.bat detekt
 cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest detekt koverHtmlReport && cd .. && grep -rn "import kotlin.random.Random" android/core/engine/src/main/java/ && (echo "ERROR: kotlin.random.Random found in engine module! Use GameRngManager.getRng() instead."; exit 1) || echo "✅ RNG check passed: no kotlin.random.Random in engine module"
 ```
 
-## Tech Stack
-
-- **Language**: Kotlin 2.0.21, JVM target 17
-- **UI**: Jetpack Compose with Material3 (BOM 2025.02.00), no XML layouts
-- **DI**: Hilt 2.56 (`@HiltAndroidApp`, `@HiltViewModel`, `@AndroidEntryPoint`)
-- **Database**: Room 2.6.1 with KSP annotation processing; single shared DB file (`xianxia_sect.db`) for all save slots
-- **Serialization**: Kotlinx Serialization (JSON + Protobuf + CBOR)
-- **Storage**: MMKV (fast K-V), DataStore (preferences), LZ4/Zstd (compression)
-- **Network**: Retrofit + OkHttp with Gson
-- **Auth**: TapTap SDK (login, compliance, analytics)
-- **Build**: AGP 8.8.0, Gradle with Aliyun mirrors for China
-
-## Architecture: Two-Layer State Model + Frame-Driven Game Loop
-
-```
-Layer 2: UI (ViewModel + Compose) — 订阅 GameStateStore，DialogStateManager 管理对话框
-Layer 1: GameEngineCore + GameEngine — 游戏循环 + 业务逻辑，写入 GameStateStore._state
-```
-
-### Data Flow
-
-```
-User Action → ViewModel calls GameEngine → Service reads/writes GameStateStore._state → StateFlow emits → ViewModel.collectAsState() → UI recomposition
-```
-
-- **GameEngine** is the single entry point for all state mutations from the UI layer. ViewModels never write to `GameStateStore` directly.
-- **GameEngineCore** drives a frame-driven accumulator game loop (R1), advancing game logic at 100ms fixed steps via deltaTime accumulation.
-- **GameStateStore** is the single source of truth — one `MutableStateFlow<UnifiedGameState>` containing all game state. Individual `StateFlow` projections are derived via `.map {}`.
-
-### Game Loop Architecture: Frame-Driven Accumulator Pattern
-
-游戏循环从 v4.0.38 起从 **timer-driven**（`delay(100ms)` 固定频率循环）重构为 **frame-driven accumulator 模式**。
-
-```
-while (isActive) {
-    deltaNs = nanoTime() - lastFrameTime                 // 实际流逝时间
-    accumulatorNs += deltaNs.coerceAtMost(MAX_ACCUM)     // 累加（防爆炸）
-
-    while (accumulatorNs >= LOGIC_DT_NS) {               // 固定步长消费
-        tickInternal()                                    // 100ms 逻辑步
-        accumulatorNs -= LOGIC_DT_NS
-    }
-
-    currentAlpha = accumulatorNs / LOGIC_DT_NS            // 插值因子 (0~1)
-    delay(waitMs)                                         // 空闲时让出 CPU
-}
-```
-
-| 维度 | 旧 (timer-driven) | 新 (frame-driven + GameTimeClock) |
-|------|-------------------|------------------------------------|
-| 循环频率 | 固定 10Hz (delay 100ms) | 可变，最快每帧 |
-| 旬推进 | 每循环 1 旬 | GameTimeClock 累积器按游戏时间推进：1x=2000ms/旬，2x=1000ms/旬 |
-| 追赶卡顿 | 自适应降速×1.5（恶性降频） | accumulator clamp（自动限制） |
-| 插值因子 | 无 | `currentAlpha` 供 UI 平滑渲染 |
-| 空闲功耗 | 高（2ms微延迟+忙等） | 低（无事 delay 让出 CPU） |
-| delay抖动 | 直接影响 tick 间隔 | deltaTime 补偿，不影响精度 |
-
-### Settlement Architecture: Lazy Settlement Engine + RimWorld 分类 Tick
-
-结算系统从 v4.0.43 起从 **四轨制（实时轨/批量轨/月事件/年事件）** 重构为 **惰性结算引擎（Lazy Settlement Engine）**，对标 Supercell Clash of Clans 的时间戳差分模式 + VoidForge Checkpoint 快照法。
-
-```
-tickInternal():
-  Level 0 — 时间推进 (每旬)         ← GameTimeClock 驱动
-    └─ TimeSystem.onPhaseTick → 更新 gamePhase
-
-  Level 1 — 每旬最小检查 (每旬)      ← RimWorld Rare Tick 模式
-    ├─ HP/MP 恢复
-    ├─ 自动装备/学习
-    ├─ 修炼累积（速率×1旬）
-    ├─ 自动丹药到期补服
-    └─ 突破检测
-
-  Level 2 — 惰性生产结算 (UI打开时)  ← Supercell 时间戳模式
-    ├─ 灵矿场: rate × (currentMonth - lastSettledMonth)
-    ├─ 炼丹/锻造: 动态重算 duration → 完成检查
-    └─ 灵田/灵植: 动态重算 growTime → 成熟检查
-
-  Level 3 — 月变事件 (月变时)       ← 定时事件模式
-    ├─ 外交/盗窃/执法/任务/叛逃
-    ├─ 月度系统事件 (Alchemy/Forge/HerbGarden/Planting)
-    └─ 伴侣配对 + 忠诚度衰减
-
-  Level 4 — 年变事件 (年变时)
-    └─ 老化/招募/盟约
-```
-
-**核心原则：**
-- **时间戳懒惰计算** — 不跑后台循环，仅存 `lastSettledTime`，按需计算：`产出 = rate × (currentTime - lastSettledTime)`
-- **Checkpoint 快照法** — 修炼/炼丹/锻造在速率变化因子（政策/长老/装备/丹药）改变时，通过 `checkpointAllProduction()` 重算有效 duration 和 completionMonth，保留已完成的进度比例
-- **修炼 VoidForge 模式** — `cultivationCheckpoints` + `cultivationCheckpointGameMonths` 双字段存储检查点，`getEffectiveCultivation(checkpoint + rate × delta)` 实时投影
-- **生产系统动态 duration** — 每月完成检查时用当前政策/长老状态重算有效 duration（`baseDuration` 存储配方基础值，加成每月算），政策切换立即生效
-- **无焦点域** — FocusDomain + InterfaceDomainMap 已移除，UI 不再驱动系统 tick
-- **无 SettlementCoordinator** — 指纹检测、批量轨调度、年结编排全部移除
-- **每旬 5 项最小检查** — 对标 RimWorld Rare Tick：HP/MP 恢复、自动装备/学习、修炼累积、丹药、突破
-
-### Threading Architecture: Two Game Threads（双游戏线程 + Watchdog）
-
-惰性结算引擎移除了并行计算基础设施，不再需要 ParallelDispatcher。简化后的线程模型：
-
-```
-GameEngine-Thread(单线程,MAX)       游戏循环 + stateStore 写入口
-BackgroundDispatcher(2线程,MIN+1)   后台 Job / 存档 IO
-Watchdog(单线程,NORM)              监控 GameThread 卡死
-Compose UI Thread(Main)            Android 主线程
-```
-
-**关键设计决策：**
-
-- **无并行结算** — `ParallelExecutionContext`、`CultivationBatchResult`、`ParallelPhaseResult` 已全部移除。所有结算在 GameEngine-Thread 上串行执行
-- **`stateStore.update` ReentrantLock** — 唯一的写锁，所有状态变更在此事务内原子完成。挂起时不会释放锁（与 `Mutex` 不同），消除协程交错导致的并发崩溃
-- **引擎核心非挂起化** — `stateStore.update` 闭包内调用的核心路径（DiscipleService/DiscipleFacade 等）为非 `suspend`。IO/网络/存档路径（SavePipeline/MailService/Room DAO）保留 `suspend`——它们不在 `stateStore.update` 内调用，无死锁风险
-- **`_discipleTables` 进入 deepCopy** — 每次 `stateStore.update {}` 在副本上操作，退出时原子替换引用，保证协程挂起后其他 update 看到完整一致的状态
-- **生产系统 Checkpoint** — 政策/长老变化时通过 `fun checkpointAllProduction()` 在 GameEngine-Thread 上重算所有活跃槽位的 `duration` 和 `completionMonth`
-
-### GameSystem 生命周期
-
-惰性结算引擎使用简化后的 GameSystem 接口：
-
-```kotlin
-interface GameSystem {
-    fun onMonthlyEvent(state: MutableGameState)  // 月变事件（非挂起）
-    fun onYearlyEvent(state: MutableGameState)   // 年变事件（非挂起）
-}
-```
-
-`onMonthlyEvent`/`onYearlyEvent` 均非挂起（全链路同步化），在 `stateStore.update {}` 事务内调用。异步操作（网络/DB I/O）使用 `runBlocking` 在事务外执行。不再有 `onPhaseTick`（逐旬回调）、`computePhaseTick`（并行计算）、`supportsParallelTick`。
-
-### Formula Architecture: Zone Multiplier System（乘区法）
-
-所有数值计算遵循**"乘区内加算、乘区间乘算"**的乘区法设计：
-
-```
-最终值 = 基础值 × Π(1 + Σ(各乘区内部加成))
-```
-
-已统一为乘区法的系统：
-
-| 系统 | 乘区结构 | 所在文件 |
-|------|---------|---------|
-| 修炼速度 | `CultivationSpeedZones`（5乘区：资质/资源/社交/状态/临时） | `DiscipleStatCalculator.kt` |
-| 战斗伤害 | `DamageZones`（攻击Buff/防御穿透/暴伤/增伤/减伤） | `BattleCalculator.kt` |
-| 突破概率 | `BreakthroughZones`（长老指导/自身加成/状态惩罚） | `DiscipleStatCalculator.kt` |
-| 灵矿产出 | `SpiritMineZones`（采矿技能/执事道德/政策） | `CultivationSettlement.kt` |
-| 生产成功率 | `SuccessRateZones`（境界/天赋/政策/长老） | `FormulaService.kt` |
-| 生产速度 | `DurationZones`（技能/政策/长老） | `FormulaService.kt` |
-| 灵植成熟 | `HerbGardenMaturityZones`（长老/光环/政策） | `ProductionProcessor.kt` |
-| HP/MP恢复 | `RecoveryZones`（建筑/丹药/境界 预留） | `CultivationCore.kt` |
-
-**核心工具：** `ZoneCalculator`（`core/engine/.../util/ZoneCalculator.kt`）提供 `calculate()` / `calculateProbability()` / `calculateAcceleratedTime()` 等公共方法。
-
-**新增计算规则：**
-1. 每个乘区用一个 data class 表示，字段为各因子加算和
-2. 使用 `ZoneCalculator.calculate(base, zone1, zone2, ...)` 计算结果
-3. 概率型（突破率）使用 `calculateProbability(baseProb, positiveSum, penaltySum)` 自动 clamp [0,1]
-4. 时间型使用 `calculateAcceleratedTime(base, speedBonus1, speedBonus2, ...)`
-5. 新增影响数值的 buff/效果时，先确定它属于哪个乘区，在该乘区内加算
-6. 新增乘区时，参照 `CultivationSpeedZones` 模式：创建 data class → `buildZones()` → 公式引用 → 测试验证
-
-### Lifecycle Architecture: BootPhase / RunState 双层状态机（v4.0.48）
-
-游戏启动和运行时生命周期从 v4.0.48 起从**单向 GameLifecycle** 重构为 **BootPhase + RunState 双层设计**。
-
-```
-BootPhase（启动序列 — 单向，只推进一次）
-  UNINITIALIZED ──→ DATA_READY ──→ SYSTEMS_READY ──→ MAP_READY ──→ BOOT_COMPLETE
-
-RunState（运行时状态 — 可循环回退）
-  IDLE ──→ PLAYING ⇄ RELOADING ──→ PLAYING
-```
-
-**核心原则：**
-- **BootPhase** 只向前、一次性，由 `BootSequenceController.boot()` 内部驱动。外部只读。
-- **RunState** 在 PLAYING 和 RELOADING 之间循环（读档/重启时）。
-- `gameLifecycle`（`@Deprecated`）由 `computeGameLifecycle(bootPhase, runState)` 组合派生，保持旧代码兼容。
-
-**关键变化：**
-| 旧 API | 新 API | 说明 |
-|--------|--------|------|
-| `GameLifecycle` enum (5值) | `BootPhase`(5值) + `RunState`(4值) | 职责分离 |
-| `transitionTo(ordinal+1)` | `advanceBootPhase()` | 同样严格校验 |
-| `forceLifecycle(任意)` | `setReloading() → resetBootPhase() → boot()` | 统一入口 |
-| `_isGameLoaded` 独立标志 | `runState == PLAYING` | 单一真相源 |
-
-**错误恢复：**
-- `BootSequenceController.recoverWithPartialData()` 在 `boot()` 失败但 engine 有部分数据时尝试恢复
-- 恢复成功则走正常 success 路径（不再返回 failure 误导用户）
-- 恢复失败则 onError + return failure
-
-**已知状态：**
-- ✅ 双层写入原子性 — 已修复（`LifecycleState` data class 单入口）
-- ⏸️ 重入串行化硬屏障 — 低优先级，当前 CAS 软屏障工作正常
-- ⏸️ LOADING 状态可达补充 — 低优先级，纯 UI 优化
-- ⏸️ 取消时状态自动回滚 — 低优先级，极少触发
-
-### Key Source Directories
-
-**Core:** `core/engine/`(game loop/services/systems), `core/engine/domain/`(per-domain services), `core/engine/system/`(ECS systems), `core/domain/`(data classes), `core/state/`(GameStateStore), `core/registry/`(static game data), `core/config/`(JSON config)
-**Data:** `data/`(Room DB/serialization/compression), `data/facade/`(StorageFacade API), `data/engine/`(StorageEngine), `data/local/`(Room DB + 18 个领域 DAO 文件)
-**UI:** `ui/game/`(screens/ViewModels/dialogs), `ui/game/tabs/`(tab content), `ui/game/map/`(world map/Canvas), `ui/components/`(shared components), `ui/theme/`
-**UseCase:** `app/.../core/usecase/`(14 UseCase classes), `.../core/state/`(GameStateStoreImpl), `.../core/util/`(ObjectPool/CircularBuffer), `.../core/CrashHandler.kt`
-**Infrastructure:** `app/.../di/`(Hilt modules), `.../network/`(Retrofit/OkHttp), `taptap/`(TapTap SDK wrappers)
-
-### Architecture Docs
-
-- [宗门地图渲染架构](docs/map-rendering-architecture.md) — 三层按格实时绘制（地面/装饰/建筑分离），v4.0.42+
-- [加载阶段后台任务架构](docs/loading-architecture.md) — 7模块并行加载（UI预组合/弟子快照/存档校验/图集约/地图并行/字体/音频）
-- [弟子分配门卫架构](docs/disciple-assignment-architecture.md) — DiscipleAssignmentGate + 11槽位统一注册表，v4.0.58
-
-### Key Classes
-
-- **`GameEngineCore`** — 游戏循环控制器（惰性结算引擎），仅推进时间 + 每旬 5 项最小检查 + 月变/年变事件
-- **`GameEngine`** — 业务逻辑 Facade，注入到 ViewModel，写入 GameStateStore
-- **`GameStateStore`** — 单一 MutableStateFlow<UnifiedGameState>，各字段通过 .map{} 派生。写操作由 `ReentrantLock` 串行化（非 `Mutex`，挂起时不释放锁），`_discipleTables` 进入 `deepCopy()` 提供快照隔离。生命周期状态采用 **BootPhase/RunState 双层设计**（见下文）。新增 `resetForSlot(slotId)` 方法，在创建新游戏/重启时同步 `GameStateRepository` 的 `currentSlotId` 和 `dirty` 集
-- **`BootSequenceController`** — 启动序列控制器：统一编排新游戏/读档/重启的 BootPhase 推进、RunState 切换、资源预加载(回调)、游戏循环启停、地图生成、错误恢复。`boot()` 为统一入口
-- **`GameViewModel`** — 主 ViewModel (Hilt)，通过 9 个 Delegate 拆分领域逻辑
-- **`MainGameScreen`** — Tab 布局 (OVERVIEW/DISCIPLES/BUILDINGS/WAREHOUSE/SETTINGS)，无 NavHost
-- **`GameData`** — Room @Entity，主键 (id, slot_id)
-- **`CultivationService`** — 修炼 Checkpoint 快照法入口：`checkpointDisciple()` / `accumulateCultivationPerPhase()` / `checkpointAllProduction()`
-- **`DiscipleAssignmentGate`** — 弟子分配门卫（v4.0.58），统一管理 11 个槽位系统的分配/释放/查询/读档重建
-
-#### 弟子分配门卫系统（v4.0.58+）
-
-v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管理所有槽位分配：
-
-| 组件 | 文件 | 职责 |
-|------|------|------|
-| `DiscipleAssignmentGate` | `domain/disciple/DiscipleAssignmentGate.kt` | 门卫 Facade：`confirmAssign` / `release` / `rebuildFromGameData` / `filterAvailableDisciples` |
-| `DiscipleAssignmentRegistry` | `domain/disciple/DiscipleAssignmentRegistry.kt` | Identity Map：`discipleId → SlotAssignment` |
-| `DiscipleSlotCleanup` | `domain/disciple/DiscipleSlotCleanup.kt` | 死亡/释放时清理所有槽位，自动调用 `gate.release()` |
-| `SlotCategory` | `model/SlotAssignment.kt` | 11 种槽位类别枚举 |
-| `SlotAssignment` | `model/SlotAssignment.kt` | 分配记录数据模型 |
-| `SlotCategoryCoverageTest` | `.../disciple/SlotCategoryCoverageTest.kt` | **守卫测试**：新增 `SlotCategory` 值时自动失败 |
-
-**分配流程：** `releaseDiscipleFromAllSlotsAtomic(discipleId)` → `stateStore.update{}` → `gate.confirmAssign(discipleId, slotRef)`
-
-#### 存档槽位隔离（v4.0.60+）
-
-所有存档共享单 SQLite DB，通过 `slot_id` 列 + 复合主键 `(id, slot_id)` 隔离：
-
-- **所有实体必须使用 `primaryKeys = ["id", "slot_id"]`** — 例外会导致跨槽位 REPLACE 覆盖（StorageBag 在 v4.0.60 修复前就是唯一例外）
-- **`GameStateRepository`** — 维护 `currentSlotId`（@Volatile），跟踪当前操作的槽位。`flushDirtyState()` 写入时用此值
-- **`stateStore.resetForSlot(slotId)`** — 清空内存状态 + 清除仓库脏标记 + 设置当前槽位。`createNewGame` 和 `restartGameInternal` 中调用
-- **`writeAllDataToDatabase` 统一强制 slotId** — 所有实体写入 DB 前必须 `.copy(slotId = slot)`，确保内存中的默认值 0 不会写入错误的槽位
-
-#### 探索系统（v4.1+ 子系统架构）
-
-探索系统从 `ExplorationService`（Facade）拆分为 6 个独立职责的子系统：
-
-| 子系统 | 文件 | 职责 |
-|--------|------|------|
-| `WorldLevelManager` | `exploration/WorldLevelManager.kt` | 关卡惰性管理：刷新/过期清理/妖兽移动（纯函数，分区 RNG） |
-| `BeastAttackDetector` | `exploration/BeastAttackDetector.kt` | 妖兽攻击检测（纯函数，返回预警列表） |
-| `PatrolBattleSystem` | `exploration/PatrolBattleSystem.kt` | 巡视塔战斗（拆 4 步：组队→索敌→战斗→结算） |
-| `LootCalculator` | `exploration/LootCalculator.kt` | 掠夺计算（纯函数 + 副作用分离，修复双重扣除） |
-| `DiscipleDeathHandler` | `exploration/DiscipleDeathHandler.kt` | 死亡标记 + deathYears + 装备断言守卫 |
-| `ExplorationTeamManager` | `exploration/ExplorationTeamManager.kt` | 探索队伍管理（单事务内完成，竞态安全） |
-| `ExplorationService` | `domain/exploration/ExplorationService.kt` | Facade：月度事件编排 + 保留玩家主动操作接口 |
-
-#### 确定性 RNG 系统（v4.1+）
-
-所有随机操作使用分区 PRNG 确保存档/读档后随机序列一致：
-
-| 组件 | 文件 | 说明 |
-|------|------|------|
-| `DeterministicRng` | `util/DeterministicRng.kt` | PCG-XSH-RR 算法，16 字节状态，可序列化 |
-| `GameRngManager` | `util/GameRngManager.kt` | 4 分区管理器（BATTLE / BREAKTHROUGH / EXPLORATION / SYSTEM） |
-| `RngPartition` | `util/RngPartition.kt` | 分区枚举 |
-
-**规则：** 新增任何使用随机数的逻辑，必须通过 `GameRngManager.getRng(RngPartition.xxx)` 调用，禁止直接使用 `kotlin.random.Random`。保存时 `exportStates()` 写入 `GameData.rngStates`，加载时 `restoreStates()` 恢复。
-
-### Component Table Architecture (v4.0.41) / IntPackedArray + Cultivation Checkpoint
-
-Disciple entities are stored in `DiscipleTables` — ~90 narrow `ComponentTable`/`IntComponentTable`/`DoubleComponentTable` columns. 底层使用 `IntPackedArray`（dense IntArray + idToIndex）和 `DoublePackedArray`（零装箱），查询 O(1)，删除 O(1) swap-on-remove。所有 CRUD 通过 `buildCopyableRefs()` 声明式列表驱动，新增列只需在列表加一行。
-
-**修炼 Checkpoint（v4.0.43）：** `cultivationCheckpoints: DoubleComponentTable` + `cultivationCheckpointGameMonths: IntComponentTable`。修炼值 = checkpoint + rate × (currentMonth - cpMonth) × 3。Checkpoint 在每旬累积时更新，在速率变化时通过 `checkpointDisciple()` 同步。
-
-**EntityStore 增量更新：** 其他实体类型用 `EntityStore<T : HasId>`，MutableList 原地修改 + `freeze()` 快照 + `isDirty` 标记检测。GC 分配降低 80%+。
-
-**EntityStore 注意事项：** `plus(item)` 必须通过 `EntityStore(newItems)` 构造新实例，不可 `EntityStore()` + `items_.addAll()`，否则 `frozenSnapshot` 未正确初始化。
-
-**生产系统 Checkpoint（v4.0.43）：** `ProductionSlot.baseDuration` 存储配方基础持续时间。政策/长老变化时 `checkpointAllProduction()` 遍历所有活跃槽位，重算 duration 和 completionMonth，保留已完成进度比例。灵田/灵植使用 `calculateSpiritFieldMaturityBonus` 动态重算 effectiveGrowTime。
-
-**热控与温度读取（v4.0.41）：** `ThermalReader` 接口定义三通道温度获取策略，`AndroidThermalReader` 实现：1) `PowerManager.getThermalHeadroom(10)` (API 30+) 主动预测；2) `PowerManager.currentThermalStatus` (API 29+) 被动状态；3) sysfs + BatteryManager 降级回退。`ThermalController` 消费 `ThermalReader` 温度数据驱动四档降级阶梯（GREEN/YELLOW/ORANGE/RED），联动渲染质量、目标帧率。
-
-**两线程调度模型：**
-| 调度器 | 线程数 | 优先级 | 用途 |
-|--------|--------|--------|------|
-| `GameDispatcher` (GameEngine-Thread) | 1 | MAX (-19) | 游戏循环 + stateStore 写入口 |
-| `backgroundDispatcher` | 2 | MIN+1 | 后台 Job/存档 IO |
-| `Watchdog` | 1 | NORM | 监控卡死 |
-
-**Key rules:**
-- **Disciple updates**: Write directly to `tables.loyalty[id] = 90` — O(1) via IntPackedArray (was O(log n) SparseArray)
-- **Disciple reads**: `tables.names[id]`, `tables.realms[id]` — O(1) via IntPackedArray (was O(log n))
-- **Disciple assembly**: `tables.assemble(id)` creates a full `Disciple` data class (~200 fields, 5 nested layers) — ONLY for UI/Serialization, NEVER in hot path
-- **Hot path column reads**: `cultivation` 热路径用列直读替代 `assemble()`。父母加成仅读 `isAlive` + `spiritRootTypes` 两列，讲道加成仅读 `isAlive` + `realms` + `teachings` 三列。300 弟子时 `assemble` 调用从 1500+ 次/100ms 降至 300 次/100ms（降低 80%）
-- **Non-Disciple lookup**: `entityStore.get(id)` — O(1) via HashMap index
-- **Non-Disciple update**: `entityStore.update(id) { transform }` — O(n) indexOfFirst + O(1) HashMap, 零分配
-- **EntityStore snapshot**: `entityStore.freeze()` before StateFlow emission — 仅在 dirty 时分配新 List
-- **MutableGameState fields**: `discipleTables: DiscipleTables`, `equipmentStacks: EntityStore<EquipmentStack>`, `productionSlots: List<ProductionSlot>`, `spiritMineSlots: List<SpiritMineSlot>`
-- **Cultivation Checkpoint**: `tables.cultivationCheckpoints[id]` + `tables.cultivationCheckpointGameMonths[id]` — 每旬 `accumulateCultivationPerPhase()` 更新，`getEffectiveCultivation()` 实时投影
-- **灵矿场结算**: `spiritMineLastSettledMonth` 时间戳差分，`产出 = rate × (currentMonth - lastSettled)`
-- **炼丹/锻造 Checkpoint**: `ProductionSlot.baseDuration` 存储配方基础值，`recalculateAllCompletionMonths()` 按当前政策/长老重算 duration + successRate
-- **政策/长老变更触发**: `SectPolicyToggleUseCase` 和 `ElderManagementUseCase` 在变更后调用 `checkpointAllProduction()`
-
-### 抗冻结架构：自适应忙等 (R3, v4.0.38)
-忙等自适应化：正常时纯 `delay()`，检测到异常时自动启用忙等，恢复后禁用。OEM 参数简化为 3 档。
-
-### 帧预算监控 (R17, v4.0.38)
-`FrameQuality` 枚举 (SMOOTH/ACCEPTABLE/JANKY/FREEZE)，连续 3 帧 jank 触发 `loadReductionRequested`。
-
-### Mail & Reward System
-
-Mail reward claims use Saga compensation: `stateStore.update {}` 原子写入物品+claim记录，
-若 `distributeAttachmentsInline` 抛出则 `mailRecords` 不写入，邮件保持未领取。
-
-- **Stable IDs**: 内置邮件用 BuiltinMailConfig 确定性 ID，在线邮件用 `"online_${remoteMailId}"`
-- **GameData 存储**: `mailRecords: List<MailClaimRecord>`（含 mailId/claimedAt/source），非邮件内容
-- **初始化**: `mailService.resetAndInitSlot()` 在世界初始化后调用
-- **清理**: `StorageEngine.delete()` 清理已删档位的 mails 表
-
-### Navigation Pattern
-
-No `NavHost` is used for the main game. `MainGameScreen` switches content via `MainTab` enum. Feature screens (Alchemy, Forge, HerbGarden, etc.) are dialogs opened via `DialogStateManager.openDialog(DialogType, params)`. The two actual Activity transitions are:
-
-1. `MainActivity` → `GameActivity` (in-game)
-2. `MainActivity` → `SaveSelectScreen` (save select)
-
-### ViewModel Conventions
+## 架构文档
+
+项目架构设计详见 [docs/architecture.md](docs/architecture.md)，涵盖以下内容：
+
+- **双层状态模型 + Frame-Driven 游戏循环** — UI 层 / 引擎层分离，`GameStateStore` 单一真相源
+- **Frame-Driven Accumulator 游戏循环** — 可变帧率、deltaTime 累积消费、空闲低功耗
+- **惰性结算引擎** — 四层结算（时间推进/每旬检查/月变/年变），对标 Supercell + RimWorld
+- **双线程模型 + Watchdog** — `ReentrantLock` 串行化、全链路非挂起化、deepCopy 快照隔离
+- **乘区法公式架构** — 8 个系统统一乘区法（修炼/战斗/突破/生产等）
+- **BootPhase/RunState 双层生命周期** — 启动单向推进、运行时可循环回退
+- **关键源码目录** — Core/Data/UI/UseCase 模块路径
+
+## 知识库
+
+项目知识库详见 [docs/knowledge-base.md](docs/knowledge-base.md)，涵盖以下内容：
+
+- **技术栈** — Kotlin 2.0.21, Compose, Hilt, Room, MMKV 等
+- **关键类说明** — GameEngineCore, GameStateStore, BootSequenceController, GameViewModel 等
+- **弟子分配门卫系统** — DiscipleAssignmentGate + 11 槽位统一注册表
+- **存档槽位隔离** — `slot_id` 复合主键、`resetForSlot`、强制 slotId 赋值
+- **探索系统** — 6 个子系统拆分（关卡管理/攻击检测/战斗/掠夺/死亡/队伍）
+- **确定性 RNG 系统** — 4 分区 PRNG（BATTLE/BREAKTHROUGH/EXPLORATION/SYSTEM）
+- **Component Table 架构** — IntPackedArray 列式存储、修炼 Checkpoint、EntityStore 模式
+- **生产系统 Checkpoint** — 动态 duration 重算、政策/长老变更触发
+- **邮件与奖励系统** — Saga 补偿模式、Stable IDs
+- **导航模式** — MainTab + Dialog 无 NavHost
+- **Android SDK / Encoding** — compileSdk 35, minSdk 24, UTF-8 强制编码
+
+## ViewModel Conventions
 
 - ViewModels extend `BaseViewModel` which provides `showError()`, `showSuccess()`, `showInfo()`, and `withLoading()`.
 - Each feature gets its own ViewModel (e.g., `AlchemyViewModel`, `ForgeViewModel`, `ProductionViewModel`, `DiscipleViewModel`).
@@ -548,7 +247,6 @@ class GameViewModel @Inject constructor(
 ### 4. ViewModel 规范
 
 **4.1 🔴 必须继承 `BaseViewModel`** — 所有 ViewModel 继承 `com.xianxia.sect.ui.game.BaseViewModel`，确保统一的 `showError()`/`showSuccess()` 事件通道。
-
 
 **4.3 🔴 只读 StateFlow 暴露状态** — 禁止公开 `MutableStateFlow`，所有状态通过 `StateFlow`（只读）暴露给 Compose。
 
@@ -894,9 +592,3 @@ When releasing, update in `android/app/build.gradle`:
 - `versionName` — three-segment format `x.x.xx` (two-digit last segment, zero-padded). E.g., `2.6.09` → `2.6.10`, `2.6.99` → `2.7.00`. Never `2.6.1` (missing zero-pad).
 
 See `rules/version-release.md` for the full release checklist.
-
-## Android SDK / Encoding
-
-- `compileSdk = 35`, `minSdk = 24`, `targetSdk = 35`
-- All Java/Kotlin compilation is forced to UTF-8 to prevent Chinese character corruption
-- Uses Aliyun Maven mirrors for Gradle plugin and dependency resolution
