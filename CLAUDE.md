@@ -277,7 +277,7 @@ RunState（运行时状态 — 可循环回退）
 
 - **`GameEngineCore`** — 游戏循环控制器（惰性结算引擎），仅推进时间 + 每旬 5 项最小检查 + 月变/年变事件
 - **`GameEngine`** — 业务逻辑 Facade，注入到 ViewModel，写入 GameStateStore
-- **`GameStateStore`** — 单一 MutableStateFlow<UnifiedGameState>，各字段通过 .map{} 派生。写操作由 `ReentrantLock` 串行化（非 `Mutex`，挂起时不释放锁），`_discipleTables` 进入 `deepCopy()` 提供快照隔离。生命周期状态采用 **BootPhase/RunState 双层设计**（见下文）
+- **`GameStateStore`** — 单一 MutableStateFlow<UnifiedGameState>，各字段通过 .map{} 派生。写操作由 `ReentrantLock` 串行化（非 `Mutex`，挂起时不释放锁），`_discipleTables` 进入 `deepCopy()` 提供快照隔离。生命周期状态采用 **BootPhase/RunState 双层设计**（见下文）。新增 `resetForSlot(slotId)` 方法，在创建新游戏/重启时同步 `GameStateRepository` 的 `currentSlotId` 和 `dirty` 集
 - **`BootSequenceController`** — 启动序列控制器：统一编排新游戏/读档/重启的 BootPhase 推进、RunState 切换、资源预加载(回调)、游戏循环启停、地图生成、错误恢复。`boot()` 为统一入口
 - **`GameViewModel`** — 主 ViewModel (Hilt)，通过 9 个 Delegate 拆分领域逻辑
 - **`MainGameScreen`** — Tab 布局 (OVERVIEW/DISCIPLES/BUILDINGS/WAREHOUSE/SETTINGS)，无 NavHost
@@ -299,6 +299,15 @@ v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管
 | `SlotCategoryCoverageTest` | `.../disciple/SlotCategoryCoverageTest.kt` | **守卫测试**：新增 `SlotCategory` 值时自动失败 |
 
 **分配流程：** `releaseDiscipleFromAllSlotsAtomic(discipleId)` → `stateStore.update{}` → `gate.confirmAssign(discipleId, slotRef)`
+
+#### 存档槽位隔离（v4.0.60+）
+
+所有存档共享单 SQLite DB，通过 `slot_id` 列 + 复合主键 `(id, slot_id)` 隔离：
+
+- **所有实体必须使用 `primaryKeys = ["id", "slot_id"]`** — 例外会导致跨槽位 REPLACE 覆盖（StorageBag 在 v4.0.60 修复前就是唯一例外）
+- **`GameStateRepository`** — 维护 `currentSlotId`（@Volatile），跟踪当前操作的槽位。`flushDirtyState()` 写入时用此值
+- **`stateStore.resetForSlot(slotId)`** — 清空内存状态 + 清除仓库脏标记 + 设置当前槽位。`createNewGame` 和 `restartGameInternal` 中调用
+- **`writeAllDataToDatabase` 统一强制 slotId** — 所有实体写入 DB 前必须 `.copy(slotId = slot)`，确保内存中的默认值 0 不会写入错误的槽位
 
 #### 探索系统（v4.1+ 子系统架构）
 

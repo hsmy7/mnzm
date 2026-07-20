@@ -10,6 +10,13 @@
 ### 修复
 
 - **跨槽位存档损坏** — StorageBag复合主键修复(primaryKeys=[id,slot_id])+createNewGame同步repository槽位上下文+存储引擎强制storageBags slotId赋值(MIGRATION_23_24)
+
+### 清理
+
+- **GameStateRepository._pendingWrites死代码** — MutableSharedFlow定义+tryEmit从未被消费,已全部移除
+
+### 修复
+
 - **功法熟练度每旬不增长** — 只在战斗前追赶1旬，非战斗弟子永不增长。改为每旬对所有存活弟子自动结算熟练度，列级直读（manualIds/comprehensions）替代assemble()避免热路径违规
 - **装备孕养每旬不增长** — 同上，改为每旬对所有存活弟子自动结算装备孕养经验，列级直读装备ID无需assemble()
 - **功法替换熟练度残留** — 自动学习替换功法后旧熟练度条目永不清除，存档不断膨胀。每旬自动清理+替换路径同步清理
