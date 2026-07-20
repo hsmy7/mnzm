@@ -11,7 +11,14 @@
       "修复：DiscipleTables.deepCopy增量复制Bug——只复制脏列致非脏列空数组,assembleAll()返回0弟子",
       "修复：RoomMigration DROP COLUMN兼容——MIGRATION_22_23改用PRAGMA+create-copy-drop-rename",
       "修复：App测试编译错误——CultivationSettlementConcurrencyTest/MailServiceTest缺构造参数",
-      "移除：AI洞府弟子队伍系统——移除CaveExplorationSystem.createAIBattle()/generateAITeamInline/spawnAITeams/removeStaleAITeams;玩家探洞仅对战守护兽"
+      "移除：AI洞府弟子队伍系统——移除CaveExplorationSystem.createAIBattle()/generateAITeamInline/spawnAITeams/removeStaleAITeams;玩家探洞仅对战守护兽",
+      "修复：功法熟练度每旬不增长——只在战斗前追赶1旬,非战斗弟子永不增长。改为每旬对所有存活弟子自动结算熟练度,列级直读(manualIds/comprehensions)替代assemble()避免热路径违规",
+      "修复：装备孕养每旬不增长——同上,改为每旬对所有存活弟子自动结算装备孕养经验,列级直读装备ID无需assemble()",
+      "修复：功法替换熟练度残留——自动学习替换功法后旧熟练度条目永不清除,存档不断膨胀。每旬自动清理+替换路径同步清理",
+      "修复：战斗前双重结算——forceSettleDisciplesBeforeBattle原含熟练度/孕养追赶,与每旬增长重叠。移除追赶路段仅保留HP/MP恢复,消除双倍增长",
+      "重构：移除死代码——processDiscipleTick/applyAccumulator/PhaseTickAccumulator+5个TickContext data class+DicipleTickParams(无调用方)",
+      "优化：自动装备/学习全量assemble改为列级预过滤——storageBagItems列直读过滤后仅assemble有储物袋物品的弟子,减少每旬热路径开销",
+      "清理：重复NURTURE_GAIN_PER_PHASE常量——CultivationCore私有常量改为引用EquipmentNurtureSystem公开常量"
     ]
   },
   {

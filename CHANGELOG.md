@@ -7,6 +7,19 @@
 - **妖兽生成感知玩家进度** — LevelGenerator 根据弟子平均境界 clamp `[avg-1, avg+2]`；巡逻塔目标动态匹配队伍境界
 - **RNG分区隔离** — 新增 `ENEMY_GEN(4)` 分区，敌人属性 RNG 与战斗 RNG 隔离
 
+### 修复
+
+- **功法熟练度每旬不增长** — 只在战斗前追赶1旬，非战斗弟子永不增长。改为每旬对所有存活弟子自动结算熟练度，列级直读（manualIds/comprehensions）替代assemble()避免热路径违规
+- **装备孕养每旬不增长** — 同上，改为每旬对所有存活弟子自动结算装备孕养经验，列级直读装备ID无需assemble()
+- **功法替换熟练度残留** — 自动学习替换功法后旧熟练度条目永不清除，存档不断膨胀。每旬自动清理+替换路径同步清理
+- **战斗前双重结算** — forceSettleDisciplesBeforeBattle原含熟练度/孕养追赶，与每旬增长重叠。移除追赶路段仅保留HP/MP恢复，消除双倍增长
+
+### 重构/优化
+
+- **移除死代码** — processDiscipleTick/applyAccumulator/PhaseTickAccumulator + 5个TickContext data class + DiscipleTickParams（均无调用方）
+- **自动装备/学习全量assemble改为列级预过滤** — storageBagItems列直读过滤后仅assemble有储物袋物品的弟子，减少每旬热路径开销
+- **清理重复常量** — CultivationCore私有NURTURE_GAIN_PER_PHASE改为引用EquipmentNurtureSystem公开常量
+
 ### 预存Bug修复
 
 - **天道试炼装备属性未应用** — 选取的装备只显示名称，攻防HP从未计入Combatant
