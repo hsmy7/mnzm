@@ -1,3 +1,37 @@
+## [4.0.59] - 2026-07-20（versionCode=4059）
+
+### 重构
+
+- **架构债务Phase4全部清空** — CEP执法/偷窃委托到LawEnforcementProcessor（955→616行）；`handleDiscipleDeath` 原子化（`preDeathCleanup` + `applyDeathState` 拆分）；`processCompletedMissionsLazy` 单事务化；执法/偷窃读写窗口修复（收集+单事务写入）
+- **DiscipleService深度拆分** — 995→164行协调器，提取7子服务（DiscipleStatusSyncService/ResetService/ExpelService/DiscipleStatusManager）
+- **GameViewModel拆分** — 1833→626行（-1207行），提取8个Delegate（Ads/Bag/GameLoop/Mail/Overlay/RedeemCode/Settings/SignIn）
+- **LawEnforcementProcessor重复代码清理** — 删除CEP中~270行旧执法逻辑
+- **DiscipleService构造参数11→7** — 移除scopeProvider/inventoryConfig/discipleSlotCleanup/productionSlotRepository
+
+### 性能
+
+- **ADPF Performance Hint集成** — 新建AdpfManager，系统自动调度游戏线程到大核（API 31+），帧预算随场景动态变化
+- **Canvas地图渲染分层LOD** — 根据缩放倍数分层：Layer 0完整精度→Layer 1跳过装饰→Layer 2纯色地面+建筑主体，远距离渲染量减40-60%
+- **地面/建筑离屏缓存分离** — GroundChunk只缓存地面+装饰，建筑逐帧绘制，建筑变化不刷新缓存
+- **Paint/Path/RectF对象池** — 新建CanvasObjectPool，每帧GC分配从4+归零
+- **帧预算感知结算调度SettlementScheduler** — 热控时月度≤5ms/帧分2-3帧，年度≤3ms/帧分5-8帧
+- **年结分帧FrameStagedExecutor** — 21阶段跨tick执行，消除年变卡顿
+- **纹理分级压缩** — TextureCompressionConfig配置框架，低端设备RGB_565+降采样（内存-50%）
+- **设备分级纹理降级** — LOW端Vulkan图集2048→1024（显存16MB→4MB），精灵分辨率降50%
+- **内存分级预算MemoryBudgetManager** — 高端≤1.5GB/中端≤800MB/低端≤400MB三档限额
+- **AndroidMemoryBudgetManager** — ActivityManager.getMemoryInfo()获取系统实时内存压力
+- **6服务懒加载Provider化** — 探索/外交/兑换码/签到/自动购买/外交Facade延迟初始化
+- **场景自适应帧率** — IDLE 10fps/地图滚动30fps/游戏战斗60fps动态切换
+- **@Immutable注解** — 60+游戏状态data class加注解，减少Compose重组
+
+### 修复
+
+- **所有预存测试** — CultivationCoreTest/CultivationServiceIntegrationTest/DiscipleService测试等6文件全部修复，子服务Mock替换为真实实现
+- **CancellationException保护** — 引擎+UI模块30处catch补全`rethrow`
+- **clearForgeSlotsIfNeeded跨线程竞态** — scope.launch→runBlocking同步化
+- **DiscipleService死代码** — cleanupEquipmentAndManuals/clearExternalEquipmentAndManuals/clearInternalEquipmentAndManuals删除
+- **BootSequenceControllerTest/ExplorationTeamManagerTest** — 移除已删除的createSettlementShadow/swapFromShadow重写
+
 ## [4.0.58] - 2026-07-18（versionCode=4058）
 
 ### 性能优化

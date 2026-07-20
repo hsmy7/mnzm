@@ -137,15 +137,24 @@ class CultivationCoreTest {
         Mockito.`when`(mockStateStore.manualInstances)
             .thenReturn(MutableStateFlow(emptyList()))
 
+        val mockPillManager = Mockito.mock(DisciplePillManager::class.java)
+        val realHpMpRecoveryService = HpMpRecoveryService()
+
         core = CultivationCore(
             stateStore = mockStateStore,
             inventoryConfig = Mockito.mock(InventoryConfig::class.java),
             thermalMonitor = Mockito.mock(ThermalMonitor::class.java),
             gameClock = Mockito.mock(GameTimeClock::class.java),
             scopeProvider = Mockito.mock(CoroutineScopeProvider::class.java),
-            pillManager = Mockito.mock(DisciplePillManager::class.java),
+            pillManager = mockPillManager,
             equipmentManager = Mockito.mock(DiscipleEquipmentManager::class.java),
-            manualManager = Mockito.mock(DiscipleManualManager::class.java)
+            manualManager = Mockito.mock(DiscipleManualManager::class.java),
+            hpMpRecoveryService = realHpMpRecoveryService,
+            autoPillService = AutoPillService(mockPillManager),
+            equipmentNurtureService = EquipmentNurtureService(),
+            manualProficiencyService = ManualProficiencyService(),
+            cultivationRateCalculator = CultivationRateCalculator(mockStateStore),
+            battleSettlementService = BattleSettlementService(realHpMpRecoveryService)
         )
     }
 
@@ -465,7 +474,7 @@ class CultivationCoreTest {
         val expectedMpRecovery = (maxMp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * 10)
             .toInt().coerceAtLeast(1)
 
-        core.recoverHpMpForAllDisciples(state)
+        core.recoverHpMpForAllDisciples(state, phasesToSettle = 1)
 
         assertEquals(expectedHpRecovery, state.discipleTables.currentHps[1])
         assertEquals(expectedMpRecovery, state.discipleTables.currentMps[1])

@@ -157,16 +157,6 @@ private class FakeStore : GameStateStore {
     override fun setPausedDirect(paused: Boolean) { isPaused.value = paused }
     override fun setLoadingDirect(loading: Boolean) { isLoading.value = loading }
     override fun setSavingDirect(saving: Boolean) { isSaving.value = saving }
-    override fun createSettlementShadow(productionSlots: List<com.xianxia.sect.core.model.production.ProductionSlot>): MutableGameState {
-        return MutableGameState(gameData = GameData(), discipleTables = DiscipleTables(),
-            equipmentStacks = EntityStore(), equipmentInstances = EntityStore(),
-            manualStacks = EntityStore(), manualInstances = EntityStore(),
-            pills = EntityStore(), materials = EntityStore(),
-            herbs = EntityStore(), seeds = EntityStore(), storageBags = EntityStore(),
-            teams = emptyList(), battleLogs = emptyList(),
-            isPaused = false, isLoading = false, isSaving = false)
-    }
-    override suspend fun swapFromShadow(shadow: MutableGameState) {}
     override suspend fun loadFromSnapshot(gameData: GameData, disciples: List<Disciple>,
         equipmentStacks: List<EquipmentStack>, equipmentInstances: List<EquipmentInstance>,
         manualStacks: List<ManualStack>, manualInstances: List<ManualInstance>,

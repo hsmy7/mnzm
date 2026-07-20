@@ -5,37 +5,24 @@ import kotlinx.coroutines.flow.StateFlow
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.TalentDatabase
-import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.util.CoroutineScopeProvider
-import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.DiscipleTables
-import com.xianxia.sect.core.util.addEquipmentInstanceToDiscipleBag
-import com.xianxia.sect.core.util.equipmentBagStackIds
-import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.SpiritRootGenerator
 import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainResult
-import com.xianxia.sect.core.util.DomainLog
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.asKotlinRandom
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 @GameService("DiscipleService")
 @Singleton
 class DiscipleService @Inject constructor(
     private val stateStore: GameStateStore,
-    private val productionSlotRepository: ProductionSlotRepository,
-private val scopeProvider: CoroutineScopeProvider,
-    private val inventoryConfig: InventoryConfig,
     private val discipleFactory: DiscipleFactory,
     private val rngManager: GameRngManager,
-    private val discipleSlotCleanup: DiscipleSlotCleanup,
     // 子服务（已提取的职责模块，用于未来深度重构）
     private val discipleEquipmentService: DiscipleEquipmentService,
     private val discipleLifecycleManager: DiscipleLifecycleManager,
@@ -321,14 +308,7 @@ private val scopeProvider: CoroutineScopeProvider,
             ids
         }
 
-        val allSlots = productionSlotRepository.getSlots()
-        for (slot in allSlots) {
-            if (slot.assignedDiscipleId != null && slot.assignedDiscipleId !in protectedIds && !slot.isWorking) {
-                productionSlotRepository.updateSlotByBuildingId(slot.buildingId, slot.slotIndex) { s ->
-                    s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
-                }
-            }
-        }
+        discipleLifecycleManager.clearProductionSlots(protectedIds)
     }
 
     private fun clearAllDisciplesFromElderSlots(slots: ElderSlots, protectedIds: Set<String>): ElderSlots {
@@ -494,51 +474,6 @@ private val scopeProvider: CoroutineScopeProvider,
      * 验证和卸下操作全部在 stateStore.update 事务内原子执行，返回实际操作结果。
      */
     fun unequipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> = discipleEquipmentService.unequipEquipment(discipleId, equipmentId)
-
-    private fun MutableGameState.unequipEquipmentLogic(discipleId: String, equipmentId: String): Boolean {
-        val id = discipleId.toIntOrNull() ?: return false
-        if (!discipleTables.ids.contains(id)) return false
-
-        val weaponId = discipleTables.weaponIds[id]
-        val armorId = discipleTables.armorIds[id]
-        val bootsId = discipleTables.bootsIds[id]
-        val accessoryId = discipleTables.accessoryIds[id]
-
-        val changed = when {
-            weaponId == equipmentId -> { discipleTables.weaponIds[id] = ""; true }
-            armorId == equipmentId -> { discipleTables.armorIds[id] = ""; true }
-            bootsId == equipmentId -> { discipleTables.bootsIds[id] = ""; true }
-            accessoryId == equipmentId -> { discipleTables.accessoryIds[id] = ""; true }
-            else -> false
-        }
-
-        if (changed) {
-            val eq = equipmentInstances.get(equipmentId)
-
-            if (eq != null) {
-                val updatedDisciple = discipleTables.assemble(id)
-                val bagStackIds = updatedDisciple.equipmentBagStackIds()
-                val result = addEquipmentInstanceToDiscipleBag(
-                    disciple = updatedDisciple,
-                    instance = eq,
-                    bagStackIds = bagStackIds,
-                    gameYear = gameData.gameYear,
-                    gameMonth = gameData.gameMonth,
-                    gamePhase = gameData.gamePhase,
-                    maxStackSize = inventoryConfig.getMaxStackSize(ITEM_TYPE_EQUIPMENT_STACK)
-                )
-                // Write back the updated fields from result.updatedDisciple
-                discipleTables.storageBagItems[id] = result.updatedDisciple.equipment.storageBagItems
-                discipleTables.storageBagSpiritStones[id] = result.updatedDisciple.equipment.storageBagSpiritStones
-                discipleTables.discipleSpiritStones[id] = result.updatedDisciple.equipment.spiritStones
-            } else {
-                DomainLog.w(TAG, "unequipEquipmentLogic: equipment instance $equipmentId not found for disciple $discipleId, clearing slot only")
-            }
-
-            return true
-        }
-        return false
-    }
 
     // ==================== 辅助方法 ====================
 

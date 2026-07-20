@@ -227,55 +227,6 @@ class DiscipleLifecycleProcessor @Inject constructor(
         else -> "亲属"
     }
 
-    private fun cleanupEquipmentAndManuals(disciple: Disciple, isOutsideSect: Boolean) {
-        if (isOutsideSect) {
-            clearExternalEquipmentAndManuals(disciple)
-        } else {
-            clearInternalEquipmentAndManuals(disciple)
-        }
-    }
-
-    private fun clearExternalEquipmentAndManuals(disciple: Disciple) {
-        val externalEquipIds = mutableSetOf<String>()
-        disciple.equipment.weaponId?.let { externalEquipIds.add(it) }
-        disciple.equipment.armorId?.let { externalEquipIds.add(it) }
-        disciple.equipment.bootsId?.let { externalEquipIds.add(it) }
-        disciple.equipment.accessoryId?.let { externalEquipIds.add(it) }
-
-        val externalManualIds = disciple.manualIds.toSet()
-
-        stateStore.update {
-            equipmentInstances = equipmentInstances.filter { it.id !in externalEquipIds }
-            manualInstances = manualInstances.filter { it.id !in externalManualIds }
-        }
-
-        removeProficiencies(disciple.id)
-    }
-
-    private fun clearInternalEquipmentAndManuals(disciple: Disciple) {
-        // 直接删除装备/功法实例，不返还仓库
-        val deleteEquipIds = mutableSetOf<String>()
-        disciple.equipment.weaponId?.let { deleteEquipIds.add(it) }
-        disciple.equipment.armorId?.let { deleteEquipIds.add(it) }
-        disciple.equipment.bootsId?.let { deleteEquipIds.add(it) }
-        disciple.equipment.accessoryId?.let { deleteEquipIds.add(it) }
-        disciple.equipment.storageBagItems
-            .filter { it.itemType == ITEM_TYPE_EQUIPMENT_STACK || it.itemType == ITEM_TYPE_EQUIPMENT_INSTANCE }
-            .map { it.itemId }.forEach { deleteEquipIds.add(it) }
-
-        val bagManualIds = disciple.equipment.storageBagItems
-            .filter { it.itemType == ITEM_TYPE_MANUAL_STACK || it.itemType == ITEM_TYPE_MANUAL_INSTANCE }
-            .map { it.itemId }.toSet()
-        val deleteManualIds = bagManualIds + disciple.manualIds.toSet()
-
-        stateStore.update {
-            equipmentInstances = equipmentInstances.filter { it.id !in deleteEquipIds }
-            manualInstances = manualInstances.filter { it.id !in deleteManualIds }
-        }
-
-        removeProficiencies(disciple.id)
-    }
-
     private fun removeProficiencies(discipleId: String) {
         val data = stateStore.gameData.value
         val updated = data.manualProficiencies.toMutableMap()
@@ -343,8 +294,8 @@ class DiscipleLifecycleProcessor @Inject constructor(
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId(BUILDING_FORGE)
         for (slot in forgeSlots) {
             if (slot.assignedDiscipleId == discipleId) {
-                // 非关键持久化操作，异步执行不阻塞游戏线程
-                scopeProvider.scope.launch(Dispatchers.IO) {
+                // 同步阻塞执行 DAO 写，消除 scope.launch 跨线程竞态
+                kotlinx.coroutines.runBlocking(Dispatchers.IO) {
                     productionSlotRepository.updateSlotByBuildingId(BUILDING_FORGE, slot.slotIndex) { s ->
                         s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
                     }

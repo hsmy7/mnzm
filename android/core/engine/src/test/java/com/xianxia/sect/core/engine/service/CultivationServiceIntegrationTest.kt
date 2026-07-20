@@ -65,7 +65,13 @@ class CultivationServiceIntegrationTest {
             scopeProvider = mock(),
             pillManager = mock(),
             equipmentManager = mock(),
-            manualManager = mock()
+            manualManager = mock(),
+            hpMpRecoveryService = HpMpRecoveryService(),
+            autoPillService = AutoPillService(mock()),
+            equipmentNurtureService = EquipmentNurtureService(),
+            manualProficiencyService = ManualProficiencyService(),
+            cultivationRateCalculator = CultivationRateCalculator(stateStore),
+            battleSettlementService = BattleSettlementService(HpMpRecoveryService())
         )
 
         service = CultivationService(

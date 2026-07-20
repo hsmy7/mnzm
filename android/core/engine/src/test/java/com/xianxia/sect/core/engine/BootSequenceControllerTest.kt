@@ -410,18 +410,7 @@ private class FakeGameStateStore : GameStateStore {
     override fun setLoadingDirect(loading: Boolean) { isLoading.value = loading }
     override fun setSavingDirect(saving: Boolean) { isSaving.value = saving }
 
-    // ── Shadow / 事务 API ──
-    override fun createSettlementShadow(productionSlots: List<ProductionSlot>): MutableGameState = newMutable()
-
-    override suspend fun swapFromShadow(shadow: MutableGameState) {
-        _gameData.value = shadow.gameData
-        teams.value = shadow.teams
-        battleLogs.value = shadow.battleLogs
-        isPaused.value = shadow.isPaused
-        isLoading.value = shadow.isLoading
-        isSaving.value = shadow.isSaving
-    }
-
+    // ── 事务 API ──
     override suspend fun loadFromSnapshot(
         gameData: GameData, disciples: List<Disciple>,
         equipmentStacks: List<EquipmentStack>, equipmentInstances: List<EquipmentInstance>,

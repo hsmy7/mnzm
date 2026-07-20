@@ -9,6 +9,7 @@ import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
+import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.RngPartition
@@ -32,6 +33,7 @@ class DiscipleLifecycleManager @Inject constructor(
     private val discipleFactory: DiscipleFactory,
     private val rngManager: GameRngManager,
     private val slotManager: DiscipleSlotManager,
+    private val productionSlotRepository: ProductionSlotRepository,
 ) {
     private val rng get() = rngManager.getRng(RngPartition.SYSTEM)
     private val currentDiscipleTables: DiscipleTables
@@ -434,6 +436,21 @@ class DiscipleLifecycleManager @Inject constructor(
         return data.caveExplorationTeams.any { team ->
             team.memberIds.contains(discipleId) &&
             (team.status == CaveExplorationStatus.TRAVELING || team.status == CaveExplorationStatus.EXPLORING)
+        }
+    }
+
+    // ── 槽位管理委托（供 DiscipleService 统一入口） ────────────────
+    fun clearDiscipleFromAllSlots(discipleId: String) = slotManager.clearDiscipleFromAllSlots(discipleId)
+    fun isDiscipleAssignedToSpiritMine(discipleId: String): Boolean = slotManager.isDiscipleAssignedToSpiritMine(discipleId)
+
+    suspend fun clearProductionSlots(protectedIds: Set<String>) {
+        val allSlots = productionSlotRepository.getSlots()
+        for (slot in allSlots) {
+            if (slot.assignedDiscipleId != null && slot.assignedDiscipleId !in protectedIds && !slot.isWorking) {
+                productionSlotRepository.updateSlotByBuildingId(slot.buildingId, slot.slotIndex) { s ->
+                    s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                }
+            }
         }
     }
 }

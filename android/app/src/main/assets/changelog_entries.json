@@ -1,5 +1,33 @@
 [
   {
+    "date": "2026-07-20",
+    "version": "4.0.59",
+    "changes": [
+      "重构：架构债务Phase4全部清空——CEP执法/偷窃委托到LawEnforcementProcessor(955→616行);handleDiscipleDeath原子化(preDeathCleanup+applyDeathState);processCompletedMissionsLazy单事务化;执法/偷窃读写窗口修复(收集+单事务写入)",
+      "重构：DiscipleService深度拆分——995→164行协调器,提取7子服务(DiscipleStatusSyncService/ResetService/ExpelService/StatusManager等)",
+      "重构：GameViewModel拆分——1833→626行,提取8个Delegate(Ads/Bag/GameLoop/Mail/Overlay/RedeemCode/Settings/SignIn)",
+      "重构：LawEnforcementProcessor重复代码清理——删除CEP中~270行旧执法逻辑",
+      "性能：ADPF Performance Hint集成——AdpfManager,系统自动调度游戏线程到大核(API31+)",
+      "性能：Canvas地图渲染分层LOD——远距离缩放跳过装饰合并地面(渲染量减40-60%)",
+      "性能：地面/建筑离屏缓存分离——建筑变化不刷新地面Chunk",
+      "性能：Paint/Path/RectF对象池——CanvasObjectPool,每帧GC分配归零",
+      "性能：帧预算感知结算调度SettlementScheduler——热控时月度≤5ms/帧,年度≤3ms/帧分帧执行",
+      "性能：年结分帧FrameStagedExecutor——21阶段跨tick执行,消除年变卡顿",
+      "性能：纹理分级压缩配置——低端设备RGB_565+降采样(内存-50%)",
+      "性能：设备分级纹理降级——LOW端图集2048→1024,精灵分辨率降50%",
+      "性能：内存分级预算MemoryBudgetManager——三档限额+热控联动释放",
+      "性能：6服务懒加载Provider化——探索/外交/兑换码/签到/自动购买/外交Facade延迟初始化",
+      "性能：场景自适应帧率——IDLE 10fps/地图滚动30fps/游戏战斗60fps动态切换",
+      "性能：@Immutable注解——60+游戏状态data class加注解,减少Compose重组",
+      "修复：所有预存测试——CultivationCoreTest/CultivationServiceIntegrationTest/Shadow残留等6文件",
+      "修复：CancellationException保护——引擎+UI模块30处catch补全rethrow",
+      "修复：clearForgeSlotsIfNeeded跨线程竞态——scope.launch→runBlocking同步化",
+      "修复：DiscipleService死代码——cleanupEquipmentAndManuals等3未使用方法删除",
+      "改动：DiscipleService构造参数11→7——移除scopeProvider/inventoryConfig/discipleSlotCleanup/productionSlotRepository",
+      "改动：MemoryBudget精度改进——AndroidMemoryBudgetManager,ActivityManager.getMemoryInfo()支持"
+    ]
+  },
+  {
     "date": "2026-07-18",
     "version": "4.0.58",
     "changes": [

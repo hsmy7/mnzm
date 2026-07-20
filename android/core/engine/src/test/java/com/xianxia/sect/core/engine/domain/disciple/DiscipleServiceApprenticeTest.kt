@@ -79,13 +79,17 @@ class DiscipleServiceApprenticeTest {
             stateStore = mockStore,
             discipleFactory = mock(),
             rngManager = mock(),
-            slotManager = slotManager
+            slotManager = slotManager,
+            productionSlotRepository = mock(),
         )
         service = DiscipleService(
-            lifecycleManager = lifecycleManager,
-            slotManager = slotManager,
-            equipmentService = equipmentService,
-            masterApprenticeService = masterService
+            stateStore = mockStore,
+            discipleFactory = mock(),
+            rngManager = mock(),
+            discipleEquipmentService = equipmentService,
+            discipleLifecycleManager = lifecycleManager,
+            discipleMasterApprenticeService = masterService,
+            discipleSlotManager = slotManager
         )
     }
 
