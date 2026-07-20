@@ -44,6 +44,7 @@ class RoomMigrationTest {
         private val M14_15 = GameDatabase.MIGRATION_14_15
         private val M15_16 = GameDatabase.MIGRATION_15_16
         private val M22_23 = GameDatabase.MIGRATION_22_23
+        private val M23_24 = GameDatabase.MIGRATION_23_24
     }
 
     // ==================== 单个迁移步骤测试 ====================
@@ -210,6 +211,56 @@ class RoomMigrationTest {
 
             assertFalse("discipleDesertionPopup should be removed after v23 migration",
                 columnExists(db, "game_data", "discipleDesertionPopup"))
+
+            db.close()
+        } finally {
+            context.deleteDatabase(dbName)
+        }
+    }
+
+    @Test
+    fun `MIGRATION_23_TO_24 rebuilds storage_bags with composite primary key`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dbName = "m_23_24_pk"
+        context.deleteDatabase(dbName)
+        try {
+            // 从 v23 schema 创建
+            val db = createDatabaseFromSchema(context, dbName, 23)
+
+            // 验证迁移前 storage_bags 表存在
+            assertTrue("storage_bags should exist before v24 migration",
+                tableExists(db, "storage_bags"))
+
+            // 写入一条测试数据（旧 PK 模式下 slot_id 为 0）
+            db.execSQL("INSERT INTO storage_bags (id, slot_id, name, rarity, description, quantity, isLocked) VALUES ('test_id_1', 0, '测试储物袋', 1, '', 1, 0)")
+
+            // 应用 v23→v24 迁移
+            applyMigrationsSequentially(db, listOf(M23_24))
+
+            // 验证迁移后表存在
+            assertTrue("storage_bags should exist after v24 migration",
+                tableExists(db, "storage_bags"))
+
+            // 验证 slot_id 从 0 被修复为 1
+            val cursor = db.query("SELECT slot_id FROM storage_bags WHERE id = 'test_id_1'", emptyArray())
+            cursor.use {
+                assertTrue("Row should exist", it.moveToFirst())
+                val slotId = it.getInt(it.getColumnIndexOrThrow("slot_id"))
+                assertEquals("slot_id should be migrated from 0 to 1", 1, slotId)
+            }
+
+            // 验证复合主键：相同 id 不同 slot_id 可以同时存在
+            db.execSQL("INSERT INTO storage_bags (id, slot_id, name, rarity, description, quantity, isLocked) VALUES ('test_id_1', 2, '跨槽位测试', 1, '', 1, 0)")
+            val cursor2 = db.query("SELECT count(*) FROM storage_bags WHERE id = 'test_id_1'", emptyArray())
+            cursor2.use {
+                assertTrue("Row should exist", it.moveToFirst())
+                val count = it.getInt(0)
+                assertEquals("Two rows with same id but different slot_id should coexist", 2, count)
+            }
+
+            // 验证索引存在
+            assertTrue("index_storage_bags_slot_id should exist after v24 migration",
+                indexExists(db, "storage_bags", "index_storage_bags_slot_id"))
 
             db.close()
         } finally {
@@ -448,6 +499,15 @@ class RoomMigrationTest {
     }
 
     /** 插入 v12 完整 game_data 行（包含所有列，排除 isGameStarted） */
+    /** 查询指定表是否存在 */
+    private fun tableExists(
+        db: SupportSQLiteDatabase,
+        table: String
+    ): Boolean {
+        val cursor = db.query("PRAGMA table_info($table)", emptyArray())
+        return cursor.use { it.moveToFirst() }
+    }
+
     /** 查询 PRAGMA table_info 检查列是否存在 */
     private fun columnExists(
         db: SupportSQLiteDatabase,

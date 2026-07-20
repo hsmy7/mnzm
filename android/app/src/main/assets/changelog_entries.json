@@ -18,6 +18,7 @@
       "修复：战斗前双重结算——forceSettleDisciplesBeforeBattle原含熟练度/孕养追赶,与每旬增长重叠。移除追赶路段仅保留HP/MP恢复,消除双倍增长",
       "重构：移除死代码——processDiscipleTick/applyAccumulator/PhaseTickAccumulator+5个TickContext data class+DicipleTickParams(无调用方)",
       "优化：自动装备/学习全量assemble改为列级预过滤——storageBagItems列直读过滤后仅assemble有储物袋物品的弟子,减少每旬热路径开销",
+      "修复：跨槽位存档损坏——StorageBag复合主键修复+createNewGame同步repository槽位上下文+存储引擎强制slotId赋值(MIGRATION_23_24)",
       "清理：重复NURTURE_GAIN_PER_PHASE常量——CultivationCore私有常量改为引用EquipmentNurtureSystem公开常量"
     ]
   },
