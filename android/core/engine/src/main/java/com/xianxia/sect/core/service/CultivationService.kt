@@ -98,6 +98,16 @@ class CultivationService @Inject constructor(
         tables.checkpointDisciple(id, currentMonth)
     }
 
+    /** 每旬功法熟练度增长（委托 CultivationCore） */
+    fun processManualProficiencyPerPhase(state: MutableGameState) {
+        cultivationCore.processManualProficiencyPerPhase(state)
+    }
+
+    /** 每旬装备孕养经验增长（委托 CultivationCore） */
+    fun processEquipmentNurturePerPhase(state: MutableGameState) {
+        cultivationCore.processEquipmentNurturePerPhase(state)
+    }
+
     /**
      * 修炼速率检查点 — 在任意影响速率的操作后调用。
      * 同步 checkpoint 到当前游戏月份，使下次计算用新速率。

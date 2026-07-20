@@ -163,6 +163,109 @@ class CultivationCore @Inject constructor(
     fun forceSettleDisciplesBeforeBattle(state: MutableGameState, discipleIds: List<String>) =
         battleSettlementService.forceSettleDisciplesBeforeBattle(state, discipleIds)
 
+    // ── 每旬熟练度 + 孕养增长 ────────────────────────────────
+
+    /**
+     * 每旬功法熟练度增长。
+     *
+     * 对所有存活且有功法装备的弟子，结算1旬的熟练度增长。
+     * 全部使用列级直读（`manualIds`、`comprehensions`），不调用 `assemble()`。
+     * 同时清理已替换/遗忘功法的残留熟练度条目（防僵尸条目累积）。
+     *
+     * @param state 可变游戏状态
+     */
+    fun processManualProficiencyPerPhase(state: MutableGameState) {
+        val tables = state.discipleTables
+        val manualMap = state.manualInstances.associateBy { it.id }
+        val data = state.gameData
+        val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
+        var updatedProficiencies = data.manualProficiencies.toMutableMap()
+
+        for (id in tables.ids) {
+            if (tables.isAlive[id] != 1) continue
+            val manualIds = tables.manualIds.getOrDefault(id, emptyList())
+            if (manualIds.isEmpty()) continue
+
+            val discipleId = id.toString()
+            val comprehension = tables.comprehensions.getOrDefault(id, 0)
+            val inLibrary = data.librarySlots.any { it.discipleId == discipleId }
+            val libraryBonus = if (inLibrary)
+                ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
+            val profGain = ManualProficiencySystem.calculateProficiencyGainPerPhase(
+                comprehension, libraryBonus
+            )
+            if (profGain <= 0.0) continue
+
+            val profList = updatedProficiencies
+                .getOrDefault(discipleId, emptyList())
+                .toMutableList()
+
+            for (manualId in manualIds) {
+                manualMap[manualId]?.let { manual ->
+                    val idx = profList.indexOfFirst { it.manualId == manualId }
+                    if (idx >= 0) {
+                        val cp = profList[idx]
+                        val newProf = (cp.proficiency + profGain)
+                            .coerceAtMost(maxProf.toDouble())
+                        if (newProf != cp.proficiency) {
+                            profList[idx] = cp.copy(
+                                proficiency = newProf,
+                                masteryLevel = ManualProficiencySystem.MasteryLevel
+                                    .fromProficiency(newProf).level
+                            )
+                        }
+                    } else {
+                        profList.add(ManualProficiencyData(
+                            manualId = manualId, manualName = manual.name,
+                            proficiency = profGain.coerceAtMost(maxProf.toDouble()),
+                            maxProficiency = maxProf,
+                            masteryLevel = ManualProficiencySystem.MasteryLevel
+                                .fromProficiency(profGain).level
+                        ))
+                    }
+                }
+            }
+
+            // ★ 清理已替换/遗忘功法的残留熟练度，防止僵尸条目累积
+            val currentSet = manualIds.toSet()
+            profList.removeAll { it.manualId !in currentSet }
+            updatedProficiencies[discipleId] = profList
+        }
+
+        if (updatedProficiencies != data.manualProficiencies) {
+            state.gameData = data.copy(manualProficiencies = updatedProficiencies)
+        }
+    }
+
+    /**
+     * 每旬装备孕养经验增长。
+     *
+     * 对所有存活且有装备的弟子，结算1旬的装备孕养经验增长。
+     * 无需 `assemble`，通过 `tables.weaponIds/armorIds/bootsIds/accessoryIds` 列级直读装备 ID。
+     *
+     * @param state 可变游戏状态
+     */
+    fun processEquipmentNurturePerPhase(state: MutableGameState) {
+        val tables = state.discipleTables
+        val equipmentMap = state.equipmentInstances.associateBy { it.id }
+        val equipmentUpdates = mutableMapOf<String, EquipmentInstance>()
+
+        for (id in tables.ids) {
+            if (tables.isAlive[id] != 1) continue
+            equipmentNurtureService.settleNurtureInPlace(
+                id = id, tables = tables, equipmentMap = equipmentMap,
+                nurtureGainPerPhase = EquipmentNurtureSystem.NURTURE_GAIN_PER_PHASE,
+                phasesToSettle = 1, equipmentUpdates = equipmentUpdates
+            )
+        }
+
+        if (equipmentUpdates.isNotEmpty()) {
+            state.equipmentInstances = state.equipmentInstances.map { eq ->
+                equipmentUpdates[eq.id] ?: eq
+            }
+        }
+    }
+
     // ── 核心 tick + 累积器（保留原生实现） ─────────────────────
     fun processDiscipleTick(params: DiscipleTickParams): Disciple {
         var d = params.disciple
@@ -352,5 +455,6 @@ class CultivationCore @Inject constructor(
             }
         }
     }
+
 }
 

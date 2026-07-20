@@ -768,7 +768,7 @@ class CultivationCoreTest {
     }
 
     @Test
-    fun `forceSettleDisciplesBeforeBattle - 装备孕养经验增加`() {
+    fun `forceSettleDisciplesBeforeBattle - 装备孕养由每旬方法处理`() {
         val disciple = createDisciple(id = "1")
         val state = createMutableGameState(listOf(disciple))
         // 给弟子装备一把武器
@@ -780,16 +780,20 @@ class CultivationCoreTest {
         state.equipmentInstances =
             EntityStore(listOf(equipment))
 
+        // forceSettleDisciplesBeforeBattle 不再处理孕养，改为每旬方法处理
         core.forceSettleDisciplesBeforeBattle(state, listOf("1"))
+        // 战斗前结算不再增加孕养经验（已由每旬方法处理）
+        val afterBattle = checkNotNull(state.equipmentInstances
+            .firstOrNull { it.id == "weapon_1" }) { "装备应存在" }
+        assertEquals("孕养经验不应增加",
+            0.0, afterBattle.nurtureProgress, 0.01)
 
-        // 装备孕养经验应有增加
-        val updatedEquip = state.equipmentInstances
-            .firstOrNull { it.id == "weapon_1" }
-        assertNotNull("装备应仍存在", updatedEquip)
-        assertTrue(
-            "孕养经验应有增加",
-            updatedEquip!!.nurtureProgress > 0.0
-        )
+        // 验证每旬方法正常工作
+        core.processEquipmentNurturePerPhase(state)
+        val afterTick = checkNotNull(state.equipmentInstances
+            .firstOrNull { it.id == "weapon_1" }) { "装备应存在" }
+        assertTrue("孕养经验应通过每旬方法增长",
+            afterTick.nurtureProgress > 0.0)
     }
 
     @Test
@@ -805,7 +809,7 @@ class CultivationCoreTest {
     }
 
     @Test
-    fun `forceSettleDisciplesBeforeBattle - 功法熟练度增加`() {
+    fun `forceSettleDisciplesBeforeBattle - 功法熟练度由每旬方法处理`() {
         val disciple = createDisciple(id = "1", comprehension = 100)
         val state = createMutableGameState(
             listOf(disciple),
@@ -818,12 +822,17 @@ class CultivationCoreTest {
         )
         state.manualInstances = EntityStore(listOf(manual))
 
+        // forceSettleDisciplesBeforeBattle 不再处理熟练度
         core.forceSettleDisciplesBeforeBattle(state, listOf("1"))
+        assertTrue("熟练度不应由 battle 前置结算",
+            state.gameData.manualProficiencies.isEmpty())
 
-        // 功法熟练度应有新增条目或增长
-        val proficiencies = state.gameData.manualProficiencies["1"]
-        assertNotNull("应创建熟练度条目", proficiencies)
-        assertTrue("熟练度列表非空", proficiencies!!.isNotEmpty())
+        // 验证每旬方法正常工作
+        core.processManualProficiencyPerPhase(state)
+        val proficiencies = checkNotNull(
+            state.gameData.manualProficiencies["1"]
+        ) { "应创建熟练度条目" }
+        assertTrue("熟练度列表非空", proficiencies.isNotEmpty())
     }
 
     // ==================== DiscipleTables 突破条件测试 ====================

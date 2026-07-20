@@ -869,6 +869,11 @@ class GameEngineCore @Inject constructor(
         }
 
         cultivationService.processAutoPillsRealtime(state)
+
+        // ★ 每旬功法熟练度 + 装备孕养增长
+        cultivationService.processManualProficiencyPerPhase(state)
+        cultivationService.processEquipmentNurturePerPhase(state)
+
         cultivationService.processBreakthroughs(state)
     }
 

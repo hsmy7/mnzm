@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
 
@@ -8,6 +9,10 @@ object EquipmentNurtureSystem {
     const val BASE_EXP_GAIN = 10.0
 
     const val AUTO_EXP_PER_SECOND = 1.0
+
+    /** 每旬装备孕养经验增长值。与 [BattleSettlementService] 保持一致。 */
+    const val NURTURE_GAIN_PER_PHASE: Double =
+        5.0 * GameTimeClock.MS_PER_PHASE_1X / 1000.0
 
     const val NURTURE_BONUS_PER_LEVEL = 0.05
 
