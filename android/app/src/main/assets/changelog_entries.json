@@ -1,30 +1,6 @@
 [
   {
     "date": "2026-07-20",
-    "version": "4.0.60",
-    "changes": [
-      "平衡：AI敌人属性公式统一——EnemyGenerator/HeavenlyTrialService改用GameConfig.Realm.get(baseXxx)+±30%方差,删除Enemy.REALM_STATS(原为玩家2.2x)",
-      "平衡：境界差乘区平滑化——DAMAGE_BONUS/PENALTY 0.50→0.35,gap=2时低境界方30%伤害(原0%);INSTANT_KILL_GAP 3→5",
-      "平衡：妖兽生成感知玩家进度——LevelGenerator按弟子平均境界clamp[avg-1,avg+2];巡逻塔目标动态匹配队伍境界",
-      "平衡：RNG分区隔离——新增ENEMY_GEN(4)分区,敌人属性RNG与战斗RNG隔离",
-      "修复：天道试炼装备属性未应用——选取的装备只显示名称,攻防HP从未计入Combatant",
-      "修复：DiscipleTables.deepCopy增量复制Bug——只复制脏列致非脏列空数组,assembleAll()返回0弟子",
-      "修复：RoomMigration DROP COLUMN兼容——MIGRATION_22_23改用PRAGMA+create-copy-drop-rename",
-      "修复：App测试编译错误——CultivationSettlementConcurrencyTest/MailServiceTest缺构造参数",
-      "移除：AI洞府弟子队伍系统——移除CaveExplorationSystem.createAIBattle()/generateAITeamInline/spawnAITeams/removeStaleAITeams;玩家探洞仅对战守护兽",
-      "修复：功法熟练度每旬不增长——只在战斗前追赶1旬,非战斗弟子永不增长。改为每旬对所有存活弟子自动结算熟练度,列级直读(manualIds/comprehensions)替代assemble()避免热路径违规",
-      "修复：装备孕养每旬不增长——同上,改为每旬对所有存活弟子自动结算装备孕养经验,列级直读装备ID无需assemble()",
-      "修复：功法替换熟练度残留——自动学习替换功法后旧熟练度条目永不清除,存档不断膨胀。每旬自动清理+替换路径同步清理",
-      "修复：战斗前双重结算——forceSettleDisciplesBeforeBattle原含熟练度/孕养追赶,与每旬增长重叠。移除追赶路段仅保留HP/MP恢复,消除双倍增长",
-      "重构：移除死代码——processDiscipleTick/applyAccumulator/PhaseTickAccumulator+5个TickContext data class+DicipleTickParams(无调用方)",
-      "优化：自动装备/学习全量assemble改为列级预过滤——storageBagItems列直读过滤后仅assemble有储物袋物品的弟子,减少每旬热路径开销",
-      "修复：跨槽位存档损坏——StorageBag复合主键修复+createNewGame同步repository槽位上下文+存储引擎强制slotId赋值(MIGRATION_23_24)",
-      "清理：重复NURTURE_GAIN_PER_PHASE常量——CultivationCore私有常量改为引用EquipmentNurtureSystem公开常量",
-      "清理：GameStateRepository._pendingWrites死代码——MutableSharedFlow定义+tryEmit从未被消费,已全部移除"
-    ]
-  },
-  {
-    "date": "2026-07-20",
     "version": "4.0.59",
     "changes": [
       "重构：架构债务Phase4全部清空——CEP执法/偷窃委托到LawEnforcementProcessor(955→616行);handleDiscipleDeath原子化(preDeathCleanup+applyDeathState);processCompletedMissionsLazy单事务化;执法/偷窃读写窗口修复(收集+单事务写入)",
@@ -48,7 +24,29 @@
       "修复：clearForgeSlotsIfNeeded跨线程竞态——scope.launch→runBlocking同步化",
       "修复：DiscipleService死代码——cleanupEquipmentAndManuals等3未使用方法删除",
       "改动：DiscipleService构造参数11→7——移除scopeProvider/inventoryConfig/discipleSlotCleanup/productionSlotRepository",
-      "改动：MemoryBudget精度改进——AndroidMemoryBudgetManager,ActivityManager.getMemoryInfo()支持"
+      "改动：MemoryBudget精度改进——AndroidMemoryBudgetManager,ActivityManager.getMemoryInfo()支持",
+      "平衡：AI敌人属性公式统一——EnemyGenerator/HeavenlyTrialService改用GameConfig.Realm.get(baseXxx)+±30%方差,删除Enemy.REALM_STATS(原为玩家2.2x)",
+      "平衡：境界差乘区平滑化——DAMAGE_BONUS/PENALTY 0.50→0.35,gap=2时低境界方30%伤害(原0%);INSTANT_KILL_GAP 3→5",
+      "平衡：妖兽生成感知玩家进度——LevelGenerator按弟子平均境界clamp[avg-1,avg+2];巡逻塔目标动态匹配队伍境界",
+      "平衡：RNG分区隔离——新增ENEMY_GEN(4)分区,敌人属性RNG与战斗RNG隔离",
+      "修复：天道试炼装备属性未应用——选取的装备只显示名称,攻防HP从未计入Combatant",
+      "修复：DiscipleTables.deepCopy增量复制Bug——只复制脏列致非脏列空数组,assembleAll()返回0弟子",
+      "修复：RoomMigration DROP COLUMN兼容——MIGRATION_22_23改用PRAGMA+create-copy-drop-rename",
+      "修复：App测试编译错误——CultivationSettlementConcurrencyTest/MailServiceTest缺构造参数",
+      "移除：AI洞府弟子队伍系统——移除CaveExplorationSystem.createAIBattle()/generateAITeamInline/spawnAITeams/removeStaleAITeams;玩家探洞仅对战守护兽",
+      "修复：功法熟练度每旬不增长——只在战斗前追赶1旬,非战斗弟子永不增长。改为每旬对所有存活弟子自动结算熟练度,列级直读(manualIds/comprehensions)替代assemble()避免热路径违规",
+      "修复：装备孕养每旬不增长——同上,改为每旬对所有存活弟子自动结算装备孕养经验,列级直读装备ID无需assemble()",
+      "修复：功法替换熟练度残留——自动学习替换功法后旧熟练度条目永不清除,存档不断膨胀。每旬自动清理+替换路径同步清理",
+      "修复：战斗前双重结算——forceSettleDisciplesBeforeBattle原含熟练度/孕养追赶,与每旬增长重叠。移除追赶路段仅保留HP/MP恢复,消除双倍增长",
+      "重构：移除死代码——processDiscipleTick/applyAccumulator/PhaseTickAccumulator+5个TickContext data class+DicipleTickParams(无调用方)",
+      "优化：自动装备/学习全量assemble改为列级预过滤——storageBagItems列直读过滤后仅assemble有储物袋物品的弟子,减少每旬热路径开销",
+      "修复：跨槽位存档损坏——StorageBag复合主键修复+createNewGame同步repository槽位上下文+存储引擎强制slotId赋值(MIGRATION_23_24)",
+      "清理：重复NURTURE_GAIN_PER_PHASE常量——CultivationCore私有常量改为引用EquipmentNurtureSystem公开常量",
+      "清理：GameStateRepository._pendingWrites死代码——MutableSharedFlow定义+tryEmit从未被消费,已全部移除",
+      "修复：占领AI宗门后建筑不持久——建筑溢出迁移按sectId分组检测,不同宗门的建筑坐标独立,不误拆",
+      "修复：占领AI宗门后附庸关系未清理——vassalContracts.filter+suzerainSectId清除,被占领宗门的所有附属关系一并移除",
+      "修复：灵石奖励异步火抛事务不一致——stateStore.update内addSpiritStones改为spiritStoneWallet.add同步调用",
+      "修复：建筑迁移灵石直写绕过钱包审计——applyBuildingMigration改用spiritStoneWallet.add,完整账本流水"
     ]
   },
   {

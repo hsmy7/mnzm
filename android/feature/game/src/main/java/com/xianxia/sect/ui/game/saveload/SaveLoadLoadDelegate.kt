@@ -14,6 +14,9 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.RunState
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.model.SpiritStoneGrade
+import com.xianxia.sect.core.wallet.SpiritStoneSource
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.model.SaveSlot
@@ -30,7 +33,8 @@ class SaveLoadLoadDelegate(
     private val storageFacade: StorageFacade,
     private val stateStore: GameStateStore,
     private val savePipeline: SavePipeline,
-    private val buildingConfigService: BuildingConfigService
+    private val buildingConfigService: BuildingConfigService,
+    private val spiritStoneWallet: SpiritStoneWallet
 ) {
     private val TAG = "SaveLoadLoadDelegate"
 
@@ -138,23 +142,44 @@ class SaveLoadLoadDelegate(
 
     /**
      * 将新占地尺寸（×2）下放不下的建筑拆除，全额返还灵石，弟子恢复空闲。
+     *
+     * **注意：** 须按 `sectId` 分组检测，不同宗门的建筑使用独立网格，坐标互不干扰。
+     * 若混合检测，占领宗门内坐标与主营地重合的建筑会被误拆（# 架构债务修复）。
      */
     internal suspend fun migrateOverflowBuildings() {
         stateStore.update {
-            val buildings = gameData.placedBuildings
-            if (buildings.isEmpty()) return@update
+            val allBuildings = gameData.placedBuildings
+            if (allBuildings.isEmpty()) return@update
 
-            val result = computeBuildingOverflowMigration(
-                buildings = buildings,
-                gameData = gameData,
-                buildingConfigService = buildingConfigService
-            )
-            if (result.demolished.isEmpty()) return@update
+            val buildingsBySect = allBuildings.groupBy { it.sectId }
+            val allKept = mutableListOf<GridBuildingData>()
+            val allDemolished = mutableListOf<GridBuildingData>()
+            var totalRefund = 0L
+            val allFreedDiscipleIds = mutableSetOf<String>()
 
-            Log.i(TAG, "旧存档建筑占地迁移：${result.demolished.size} 座建筑因空间不足被拆除，" +
-                "返还灵石×${result.totalRefund}，解放弟子 ${result.freedDiscipleIds.size} 人")
+            for ((_, sectBuildings) in buildingsBySect) {
+                val result = computeBuildingOverflowMigration(
+                    buildings = sectBuildings,
+                    gameData = gameData,
+                    buildingConfigService = buildingConfigService
+                )
+                allKept.addAll(result.kept)
+                allDemolished.addAll(result.demolished)
+                totalRefund += result.totalRefund
+                allFreedDiscipleIds.addAll(result.freedDiscipleIds)
+            }
 
-            applyBuildingMigration(result)
+            if (allDemolished.isEmpty()) return@update
+
+            Log.i(TAG, "旧存档建筑占地迁移：${allDemolished.size} 座建筑因空间不足被拆除，" +
+                "返还灵石×${totalRefund}，解放弟子 ${allFreedDiscipleIds.size} 人")
+
+            applyBuildingMigration(MigrationResult(
+                kept = allKept,
+                demolished = allDemolished,
+                totalRefund = totalRefund,
+                freedDiscipleIds = allFreedDiscipleIds
+            ))
         }
     }
 
@@ -189,12 +214,16 @@ class SaveLoadLoadDelegate(
         val freedDiscipleIds = mutableSetOf<String>()
 
         for (b in sorted) {
-            val cost = buildingConfigService.getBuildingConfigByDisplayName(
-                b.displayName)?.cost ?: 1000L
+            // 空名称建筑无配置可查，退路造价为 0（防经济不一致）
+            val cost = if (b.displayName.isBlank()) 0L
+                else buildingConfigService.getBuildingConfigByDisplayName(
+                    b.displayName)?.cost ?: 1000L
 
             if (!canPlaceAt(b, gridW, gridH, occupied)) {
                 demolished.add(b)
-                totalRefund += cost
+                // 饱和加法防止溢出导致灵石变为负数
+                if (totalRefund > Long.MAX_VALUE - cost) totalRefund = Long.MAX_VALUE
+                else totalRefund += cost
                 collectFreedDiscipleIds(b, freedDiscipleIds, gameData)
                 continue
             }
@@ -217,6 +246,8 @@ class SaveLoadLoadDelegate(
         gridH: Int,
         occupied: Set<Long>
     ): Boolean {
+        // 零/负尺寸建筑无法占格，视为不可放置
+        if (b.width <= 0 || b.height <= 0) return false
         if (b.gridX < 0 || b.gridY < 0 ||
             b.gridX + b.width > gridW ||
             b.gridY + b.height > gridH
@@ -257,17 +288,20 @@ class SaveLoadLoadDelegate(
     private fun MutableGameState.applyBuildingMigration(
         result: MigrationResult
     ) {
-        var gd = gameData.copy(
-            placedBuildings = result.kept,
-            spiritStones = gameData.spiritStones + result.totalRefund
-        )
+        // 通过 Wallet 记录灵石退款（审计账本 + 事件通知）
+        if (result.totalRefund > 0) {
+            spiritStoneWallet.add(this, result.totalRefund,
+                SpiritStoneGrade.LOW, SpiritStoneSource.Refund)
+        }
+        // wallet.add 已修改 gameData.spiritStones，此处只更新建筑列表
+        var gd = gameData.copy(placedBuildings = result.kept)
         val removedIds = result.demolished.map { it.instanceId }.toSet()
         gd = cleanupOrphanedSlots(gd, removedIds)
         gameData = gd
 
         for (didStr in result.freedDiscipleIds) {
             val id = didStr.toIntOrNull() ?: continue
-            if (discipleTables.ids.contains(id)) {
+            if (discipleTables.ids.contains(id) && discipleTables.isAlive[id] == 1) {
                 discipleTables.statuses[id] = DiscipleStatus.IDLE
             }
         }

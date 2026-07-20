@@ -1,4 +1,13 @@
-## [4.0.60] - 2026-07-20
+## [4.0.59] - 2026-07-20（versionCode=4059）
+
+
+### 修复
+
+- **占领AI宗门后建筑不持久** -- 建筑溢出迁移按 `sectId` 分组检测，不同宗门的建筑使用独立网格坐标，避免坐标重合被误拆
+- **占领AI宗门后附庸关系未清理** -- 占领分支增加 `vassalContracts.filter` + `suzerainSectId` 清除，被占领宗门的所有附属关系一并移除
+- **灵石奖励异步火抛导致事务不一致** -- `stateStore.update` 内的 `addSpiritStones` 替换为 `spiritStoneWallet.add` 同步调用，消除奖励丢失风险
+- **建筑迁移灵石直写绕过钱包审计** -- `applyBuildingMigration` 改用 `spiritStoneWallet.add`，完整记录账本流水
+
 
 ### 战斗平衡
 
@@ -39,7 +48,13 @@
 
 - **AI洞府弟子队伍系统** — 移除 CaveExplorationSystem.createAIBattle()、generateAITeamInline / spawnAITeams / removeStaleAITeams；玩家探洞仅对战守护兽
 
-## [4.0.59] - 2026-07-20（versionCode=4059）
+### 修复
+
+- **占领AI宗门后建筑不持久** — 建筑溢出迁移按  分组检测，不同宗门的建筑使用独立网格坐标，避免坐标重合被误拆
+- **占领AI宗门后附庸关系未清理** — 占领分支增加  +  清除，被占领宗门的所有附属关系一并移除
+- **灵石奖励异步火抛导致事务不一致** —  内的  替换为  同步调用，消除奖励丢失风险
+- **建筑迁移灵石直写绕过钱包审计** —  改用 ，完整记录账本流水
+
 
 ### 重构
 
@@ -71,9 +86,7 @@
 - **CancellationException保护** — 引擎+UI模块30处catch补全`rethrow`
 - **clearForgeSlotsIfNeeded跨线程竞态** — scope.launch→runBlocking同步化
 - **DiscipleService死代码** — cleanupEquipmentAndManuals/clearExternalEquipmentAndManuals/clearInternalEquipmentAndManuals删除
-- **BootSequenceControllerTest/ExplorationTeamManagerTest** — 移除已删除的createSettlementShadow/swapFromShadow重写
-
-## [4.0.58] - 2026-07-18（versionCode=4058）
+- **BootSequenceControllerTest/ExplorationTeamManagerTest** — 移除已删除的createSettlementShadow/swapFromShadow重写## [4.0.58] - 2026-07-18（versionCode=4058）
 
 ### 性能优化
 

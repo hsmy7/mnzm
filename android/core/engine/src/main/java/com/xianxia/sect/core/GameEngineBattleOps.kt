@@ -17,6 +17,7 @@ import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.wallet.SpiritStoneSource
 
 // ── Battle facade delegates ─────────────────────────────────────────
 
@@ -36,6 +37,9 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
     ensureHeavyDataLoaded()
     val data = stateStore.gameDataSnapshot
     val targetSect = data.worldMapSects.find { it.id == sectId } ?: return
+
+    // 不能攻击空 ID 或自己的宗门
+    if (sectId.isBlank() || targetSect.isPlayerSect) return
 
     // 不能攻击自己的附属宗门
     if (data.vassalContracts.any { it.vassalSectId == sectId }) return
@@ -141,9 +145,14 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
                 gameData = gameData.copy(
                     worldMapSects = gameData.worldMapSects.toList().map { sect -> if (sect.id == sectId) sect.copy(isPlayerOccupied = true, occupierSectId = playerSect?.id ?: "", garrisonSlots = garrisonSlots) else sect },
                     recruitList = gameData.recruitList.toList() + capturedDisciples,
-                    aiSectDisciples = gameData.aiSectDisciples.toMutableMap().apply { this[sectId] = emptyList() }
+                    aiSectDisciples = gameData.aiSectDisciples.toMutableMap().apply { this[sectId] = emptyList() },
+                    // 宗门被占领后与其相关的所有附属关系一并清除
+                    vassalContracts = gameData.vassalContracts.filter { it.vassalSectId != sectId },
+                    suzerainSectId = if (gameData.suzerainSectId == sectId)
+                        "" else gameData.suzerainSectId
                 )
-                addSpiritStones(rewards.spiritStones)
+                spiritStoneWallet.add(this, rewards.spiritStones,
+                    SpiritStoneGrade.LOW, SpiritStoneSource.Battle)
                 rewards.equipmentStacks.forEach { inventorySystem.addEquipmentStack(it) }; rewards.manualStacks.forEach { inventorySystem.addManualStack(it) }
                 rewards.pills.forEach { inventorySystem.addPill(it) }; rewards.materials.forEach { inventorySystem.addMaterial(it) }
                 rewards.herbs.forEach { inventorySystem.addHerb(it) }; rewards.seeds.forEach { inventorySystem.addSeed(it) }
@@ -154,7 +163,8 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
             }
         } else {
             stateStore.update {
-                addSpiritStones(rewards.spiritStones)
+                spiritStoneWallet.add(this, rewards.spiritStones,
+                    SpiritStoneGrade.LOW, SpiritStoneSource.Battle)
                 rewards.equipmentStacks.forEach { inventorySystem.addEquipmentStack(it) }; rewards.manualStacks.forEach { inventorySystem.addManualStack(it) }
                 rewards.pills.forEach { inventorySystem.addPill(it) }; rewards.materials.forEach { inventorySystem.addMaterial(it) }
                 rewards.herbs.forEach { inventorySystem.addHerb(it) }; rewards.seeds.forEach { inventorySystem.addSeed(it) }

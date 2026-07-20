@@ -12,6 +12,7 @@ import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.engine.domain.save.SavePipeline
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.util.SectMapTileGenerator
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
@@ -50,13 +51,14 @@ class SaveLoadViewModel @Inject constructor(
     private val resourcePreloader: ResourcePreloader,
     private val discipleSnapshotCache: DiscipleSnapshotCache,
     private val gameRngManager: GameRngManager,
-    private val bootSequenceController: BootSequenceController
+    private val bootSequenceController: BootSequenceController,
+    private val spiritStoneWallet: SpiritStoneWallet
 ) : BaseViewModel() {
 
     // 领域委托实例 — 按职责拆分 save/load/restart 等逻辑
     private val saveDelegate by lazy { SaveLoadSaveDelegate(gameEngine, storageFacade, stateStore, savePipeline) }
     private val loadDelegate by lazy {
-        SaveLoadLoadDelegate(gameEngine, gameEngineCore, storageFacade, stateStore, savePipeline, buildingConfigService)
+        SaveLoadLoadDelegate(gameEngine, gameEngineCore, storageFacade, stateStore, savePipeline, buildingConfigService, spiritStoneWallet)
     }
     private val restartDelegate by lazy { SaveLoadRestartDelegate(gameEngine, gameEngineCore, storageFacade, stateStore) }
     private val pauseDelegate by lazy { SaveLoadPauseDelegate(gameEngineCore, gameClock) }
