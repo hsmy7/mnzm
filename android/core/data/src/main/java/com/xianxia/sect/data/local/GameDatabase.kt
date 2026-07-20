@@ -71,7 +71,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 24  // v24: MIGRATION_23_24 storage_bags 复合主键 (id, slot_id)
+    version = 25  // v25: MIGRATION_24_25 修复 MIGRATION_22_23 CTAS 丢失 game_data 列约束
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)
@@ -1017,7 +1017,7 @@ abstract class GameDatabase : RoomDatabase() {
         val MIGRATION_22_23 = object : Migration(22, 23) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 if (columnExists(db, "game_data", "discipleDesertionPopup")) {
-                    // SQLite < 3.35.0 不支持 ALTER TABLE DROP COLUMN，使用 create-copy-drop-rename
+                    // 获取当前列列表（排除 discipleDesertionPopup）
                     val columns = mutableListOf<String>()
                     val cursor = db.query("PRAGMA table_info(game_data)")
                     cursor.use {
@@ -1028,11 +1028,10 @@ abstract class GameDatabase : RoomDatabase() {
                             }
                         }
                     }
-                    val columnList = columns.joinToString(", ")
-                    db.execSQL("ALTER TABLE game_data RENAME TO game_data_old")
-                    db.execSQL("CREATE TABLE game_data AS SELECT $columnList FROM game_data_old")
-                    db.execSQL("DROP TABLE game_data_old")
-                    Log.i(TAG, "Migration 22->23: dropped discipleDesertionPopup from game_data")
+                    // ⚠️ 之前使用 CREATE TABLE ... AS SELECT ...（CTAS）丢失了所有列约束
+                    // (NOT NULL, DEFAULT, PRIMARY KEY, 索引)。改用显式 CREATE TABLE + IFNULL 兜底。
+                    rebuildGameData(db, "_old", columns)
+                    Log.i(TAG, "Migration 22->23: dropped discipleDesertionPopup from game_data (fixed CTAS constraint loss)")
                 }
             }
         }
@@ -1047,16 +1046,17 @@ abstract class GameDatabase : RoomDatabase() {
                         SELECT MIN(rowid) FROM storage_bags GROUP BY id
                     )
                 """)
-                // Step 2: 建新表
+                // Step 2: 建新表 — ⚠️ 必须与 StorageBag 实体完全一致（无 DEFAULT 子句）
+                // Room 自动检验会对比 DEFAULT 值，实体无 @ColumnInfo(defaultValue=...) 则不能有 DEFAULT
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS `storage_bags_new` (
                         `id` TEXT NOT NULL,
-                        `slot_id` INTEGER NOT NULL DEFAULT 0,
-                        `name` TEXT NOT NULL DEFAULT '',
-                        `rarity` INTEGER NOT NULL DEFAULT 1,
-                        `description` TEXT NOT NULL DEFAULT '可随机获得5-20件同品阶物品',
-                        `quantity` INTEGER NOT NULL DEFAULT 1,
-                        `isLocked` INTEGER NOT NULL DEFAULT 0,
+                        `slot_id` INTEGER NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `rarity` INTEGER NOT NULL,
+                        `description` TEXT NOT NULL,
+                        `quantity` INTEGER NOT NULL,
+                        `isLocked` INTEGER NOT NULL,
                         PRIMARY KEY(`id`, `slot_id`)
                     )
                 """)
@@ -1070,7 +1070,36 @@ abstract class GameDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE `storage_bags_new` RENAME TO `storage_bags`")
                 // Step 5: 索引
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_storage_bags_slot_id ON storage_bags(`slot_id`)")
-                Log.i(TAG, "Migration 23->24: rebuilt storage_bags with composite PK (id, slot_id)")
+                Log.i(TAG, "Migration 23->24: rebuilt storage_bags with composite PK (id, slot_id) — no DEFAULT clauses")
+            }
+        }
+
+        /**
+         * v24->v25: 修复两个 migration bug：
+         * 1. MIGRATION_22_23 CTAS 丢失 game_data 约束（NOT NULL、DEFAULT、PRIMARY KEY、索引）
+         * 2. MIGRATION_23_24 给 storage_bags 加 DEFAULT 值但实体无 @ColumnInfo(defaultValue)
+         *
+         * 修复方式：重建 game_data 和 storage_bags 表，使用正确的 Room 生成 schema
+         */
+        val MIGRATION_24_25 = object : Migration(24, 25) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // === 修复 game_data ===
+                val columns = mutableListOf<String>()
+                val cursor = db.query("PRAGMA table_info(game_data)")
+                cursor.use {
+                    while (it.moveToNext()) {
+                        columns.add("\"${it.getString(it.getColumnIndexOrThrow("name"))}\"")
+                    }
+                }
+                // 重建 game_data 表，用 IFNULL 兜底旧数据中的 NULL
+                rebuildGameData(db, "_old", columns)
+
+                // === 修复 storage_bags ===
+                // 旧版 MIGRATION_23_24 使用了 DEFAULT 子句，实体未定义 DEFAULT。
+                // 重建 storage_bags，使用 Room 生成的正确 schema（无 DEFAULT）
+                rebuildStorageBags(db)
+
+                Log.i(TAG, "Migration 24->25: rebuilt game_data + storage_bags (restored correct schema)")
             }
         }
 
@@ -1095,6 +1124,188 @@ abstract class GameDatabase : RoomDatabase() {
         }
         private val threadCounter = AtomicInteger(0)
 
+        /**
+         * Room v24/v25 生成的 game_data 表 CREATE TABLE SQL。
+         * 用于 MIGRATION_22_23 和 MIGRATION_24_25 重建 game_data 表。
+         *
+         * 必须与 GameData 实体完全一致（NOT NULL、DEFAULT、PRIMARY KEY）。
+         * 同步自 Room schema JSON: 24.json game_data createSql
+         */
+        private val GAME_DATA_CREATE_SQL = """
+            CREATE TABLE IF NOT EXISTS `game_data` (
+                `id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `sectName` TEXT NOT NULL,
+                `currentSlot` INTEGER NOT NULL, `gameYear` INTEGER NOT NULL, `gameMonth` INTEGER NOT NULL,
+                `gamePhase` INTEGER NOT NULL, `spiritStones` INTEGER NOT NULL,
+                `midGradeSpiritStones` INTEGER NOT NULL, `highGradeSpiritStones` INTEGER NOT NULL,
+                `spiritHerbs` INTEGER NOT NULL, `sectCultivation` REAL NOT NULL,
+                `autoSaveIntervalMonths` INTEGER NOT NULL, `monthlySalary` TEXT NOT NULL,
+                `monthlySalaryEnabled` TEXT NOT NULL, `worldMapSects` TEXT NOT NULL,
+                `sectDetails` TEXT NOT NULL, `aiSectDisciples` TEXT NOT NULL,
+                `exploredSects` TEXT NOT NULL, `scoutInfo` TEXT NOT NULL,
+                `manualProficiencies` TEXT NOT NULL, `travelingMerchantItems` TEXT NOT NULL,
+                `merchantLastRefreshYear` INTEGER NOT NULL, `merchantRefreshCount` INTEGER NOT NULL,
+                `merchantRefreshChances` INTEGER NOT NULL, `merchantLastRefreshChanceGrantYear` INTEGER NOT NULL,
+                `playerListedItems` TEXT NOT NULL, `merchantAcquisitionItems` TEXT NOT NULL,
+                `merchantAcquisitionLastRefreshYear` INTEGER NOT NULL, `autoBuyList` TEXT NOT NULL,
+                `recruitList` TEXT NOT NULL, `lastRecruitYear` INTEGER NOT NULL,
+                `worldLevels` TEXT NOT NULL, `worldLevelLastRefreshMonth` INTEGER NOT NULL,
+                `rngStates` TEXT NOT NULL, `cultivatorCaves` TEXT NOT NULL,
+                `caveExplorationTeams` TEXT NOT NULL, `aiCaveTeams` TEXT NOT NULL,
+                `unlockedRecipes` TEXT NOT NULL, `unlockedManuals` TEXT NOT NULL,
+                `lastSaveTime` INTEGER NOT NULL, `elderSlots` TEXT NOT NULL,
+                `spiritMineSlots` TEXT NOT NULL, `spiritMineExpansions` INTEGER NOT NULL,
+                `spiritMineLastSettledMonth` INTEGER NOT NULL, `librarySlots` TEXT NOT NULL,
+                `productionSlots` TEXT NOT NULL, `placedBuildings` TEXT NOT NULL,
+                `spiritFieldPlants` TEXT NOT NULL, `activeSectId` TEXT NOT NULL,
+                `residenceSlots` TEXT NOT NULL, `warehouseGarrisons` TEXT NOT NULL,
+                `patrolSlots` TEXT NOT NULL, `patrolConfig` TEXT NOT NULL,
+                `patrolConfigs` TEXT NOT NULL, `pendingPatrolBattleResults` TEXT NOT NULL,
+                `alliances` TEXT NOT NULL, `vassalContracts` TEXT NOT NULL,
+                `sectRelations` TEXT NOT NULL, `playerAllianceSlots` INTEGER NOT NULL,
+                `sectPolicies` TEXT NOT NULL, `battleTeam` TEXT,
+                `aiBattleTeams` TEXT NOT NULL, `usedRedeemCodes` TEXT NOT NULL,
+                `mailRecords` TEXT NOT NULL, `sectLevelClaimRecords` TEXT NOT NULL,
+                `save_version` INTEGER NOT NULL DEFAULT 0,
+                `playerProtectionEnabled` INTEGER NOT NULL, `playerProtectionStartYear` INTEGER NOT NULL,
+                `playerHasAttackedAI` INTEGER NOT NULL, `activeMissions` TEXT NOT NULL,
+                `availableMissions` TEXT NOT NULL, `autoRecruitSpiritRootFilter` TEXT NOT NULL,
+                `daoCompanionBannedRootCounts` TEXT NOT NULL,
+                `daoCompanionConsentRequired` INTEGER NOT NULL, `patrolBattleResultPopup` INTEGER NOT NULL,
+                `autoSellMidGradeForPurchase` INTEGER NOT NULL,
+                `autoSellHighGradeForPurchase` INTEGER NOT NULL,
+                `showAllAvailableDisciples` INTEGER NOT NULL,
+                `breakthroughAutoPillFocused` INTEGER NOT NULL,
+                `breakthroughAutoPillRootCounts` TEXT NOT NULL,
+                `autoEquipFromWarehouseFocused` INTEGER NOT NULL,
+                `autoEquipFromWarehouseRootCounts` TEXT NOT NULL,
+                `autoLearnFromWarehouseFocused` INTEGER NOT NULL,
+                `autoLearnFromWarehouseRootCounts` TEXT NOT NULL,
+                `isGameOver` INTEGER NOT NULL,
+                `bloodRefinements` TEXT NOT NULL DEFAULT '{}',
+                `activeBloodRefinements` TEXT NOT NULL DEFAULT '{}',
+                `bloodRefinementBonusTotals` TEXT NOT NULL DEFAULT '{}',
+                `bloodRefinementPctTotals` TEXT NOT NULL DEFAULT '{}',
+                `heavenly_trial_state` TEXT NOT NULL DEFAULT '{"highestClearedLevel":-1,"levelClearCounts":[0,0,0,0,0,0,0,0]}',
+                `sign_in_state_json` TEXT NOT NULL DEFAULT '{"claimedDays":[],"currentMonth":0,"currentYear":0}',
+                `aiSectPersonalities` TEXT NOT NULL, `suzerainSectId` TEXT NOT NULL,
+                `lastYearSpiritStoneIncome` INTEGER NOT NULL, `activeAttackWarnings` TEXT NOT NULL,
+                `shownWarningStageIds` TEXT NOT NULL, `sectAttackCooldowns` TEXT NOT NULL,
+                `sectBattleRecords` TEXT NOT NULL, `gameEventRecords` TEXT NOT NULL,
+                `map_seed` INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(`id`, `slot_id`)
+            )
+        """.trimIndent()
+
+        /**
+         * 重建 game_data 表（create-copy-drop-rename 模式）。
+         *
+         * 使用显式 CREATE TABLE 保留完整约束（NOT NULL、DEFAULT、PRIMARY KEY），
+         * 并对 NOT NULL 列使用 IFNULL 兜底，防止旧版 CTAS 引入的 NULL 值导致
+         * NOT NULL constraint failed。
+         *
+         * @param oldSuffix 旧表重命名后缀（如 "_old"）
+         * @param sourceColumns 旧表的列名列表（带引号），仅复制这些列
+         */
+        private fun rebuildGameData(
+            db: SupportSQLiteDatabase,
+            oldSuffix: String,
+            sourceColumns: List<String>
+        ) {
+            val oldTable = "game_data$oldSuffix"
+
+            db.execSQL("ALTER TABLE game_data RENAME TO $oldTable")
+            db.execSQL(GAME_DATA_CREATE_SQL)
+
+            // 从新表读取列定义（含 NOT NULL 和 DEFAULT 信息），
+            // 对 NOT NULL 列使用 IFNULL(旧值, 默认值) 兜底旧数据中的 NULL
+            val newCursor = db.query("PRAGMA table_info(game_data)")
+            val selectParts = mutableListOf<String>()
+            val newColumnNames = mutableListOf<String>()
+            newCursor.use {
+                while (it.moveToNext()) {
+                    val name = it.getString(it.getColumnIndexOrThrow("name"))
+                    val notNull = it.getInt(it.getColumnIndexOrThrow("notnull")) == 1
+                    val defaultVal = it.getString(it.getColumnIndexOrThrow("dflt_value"))
+                    val type = it.getString(it.getColumnIndexOrThrow("type"))
+                    val quotedName = "\"$name\""
+                    newColumnNames.add(quotedName)
+
+                    if (notNull) {
+                        // NOT NULL 列：用 IFNULL 兜底 NULL 值
+                        val fallback = if (defaultVal != null) {
+                            defaultVal
+                        } else {
+                            // 无 SQLite 默认值，按类型提供安全兜底
+                            when (type.uppercase()) {
+                                "INTEGER" -> "0"
+                                "REAL" -> "0.0"
+                                "TEXT" -> "''"
+                                else -> "0"
+                            }
+                        }
+                        selectParts.add("IFNULL($oldTable.$quotedName, $fallback) AS $quotedName")
+                    } else {
+                        selectParts.add("$oldTable.$quotedName AS $quotedName")
+                    }
+                }
+            }
+
+            val selectSql = selectParts.joinToString(", ")
+            db.execSQL("INSERT INTO `game_data` SELECT $selectSql FROM `$oldTable`")
+            db.execSQL("DROP TABLE IF EXISTS `$oldTable`")
+
+            // 重建 5 个索引
+            rebuildGameDataIndices(db)
+        }
+
+        /** 重建 game_data 表的 5 个索引（create-copy-drop-rename 后必须重建） */
+        private fun rebuildGameDataIndices(db: SupportSQLiteDatabase) {
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_game_data_slot_id` ON `game_data` (`slot_id`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_game_data_lastSaveTime` ON `game_data` (`lastSaveTime`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_game_data_gameYear_gameMonth` ON `game_data` (`gameYear`, `gameMonth`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_game_data_sectName` ON `game_data` (`sectName`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_game_data_spiritStones` ON `game_data` (`spiritStones`)")
+        }
+
+        /**
+         * Room v25 生成的 storage_bags 表 CREATE TABLE SQL（单行，来自 25.json createSql）。
+         * 必须与 StorageBag 实体完全一致：无 DEFAULT 子句。
+         */
+        private val STORAGE_BAGS_CREATE_SQL =
+            "CREATE TABLE IF NOT EXISTS `storage_bags` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `rarity` INTEGER NOT NULL, `description` TEXT NOT NULL, `quantity` INTEGER NOT NULL, `isLocked` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))"
+
+        /** 重建 storage_bags 表，使用 Room 生成的正确 schema（无 DEFAULT）。
+         *  注意：避免与 rebuildGameData 共用 _old 后缀以防事务内冲突。 */
+        private fun rebuildStorageBags(db: SupportSQLiteDatabase) {
+            // 一次性读取列名（单个 use 块内，防 StaleDataException）
+            val oldColumns = mutableListOf<String>()
+            val infoCursor = db.query("PRAGMA table_info(storage_bags)")
+            var tableExists = false
+            infoCursor.use {
+                while (it.moveToNext()) {
+                    tableExists = true
+                    oldColumns.add("\"${it.getString(it.getColumnIndexOrThrow("name"))}\"")
+                }
+            }
+            if (!tableExists) {
+                Log.w(TAG, "storage_bags table does not exist, skipping rebuild")
+                return
+            }
+            val colList = oldColumns.joinToString(", ")
+
+            // 创建新表（临时名称 _v2），复制数据，替换旧表
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `storage_bags_v2` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, " +
+                "`name` TEXT NOT NULL, `rarity` INTEGER NOT NULL, `description` TEXT NOT NULL, " +
+                "`quantity` INTEGER NOT NULL, `isLocked` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))"
+            )
+            db.execSQL("INSERT INTO `storage_bags_v2` SELECT $colList FROM `storage_bags`")
+            db.execSQL("DROP TABLE IF EXISTS `storage_bags`")
+            db.execSQL("ALTER TABLE `storage_bags_v2` RENAME TO `storage_bags`")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_storage_bags_slot_id ON storage_bags(`slot_id`)")
+            Log.i(TAG, "rebuilt storage_bags (removed DEFAULT clauses to match entity schema)")
+        }
+
         fun create(context: Context): GameDatabase {
             Log.i(TAG, "Creating unified single-instance database: $UNIFIED_DB_NAME")
 
@@ -1114,7 +1325,7 @@ abstract class GameDatabase : RoomDatabase() {
                         Thread(r, "GameDB-Txn")
                     }
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database created")

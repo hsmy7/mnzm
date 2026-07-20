@@ -45,6 +45,7 @@ class RoomMigrationTest {
         private val M15_16 = GameDatabase.MIGRATION_15_16
         private val M22_23 = GameDatabase.MIGRATION_22_23
         private val M23_24 = GameDatabase.MIGRATION_23_24
+        private val M24_25 = GameDatabase.MIGRATION_24_25
     }
 
     // ==================== 单个迁移步骤测试 ====================
@@ -206,11 +207,24 @@ class RoomMigrationTest {
 
             assertTrue("discipleDesertionPopup should exist before v23 migration",
                 columnExists(db, "game_data", "discipleDesertionPopup"))
+            // 验证 v22 schema 有 PRIMARY KEY
+            assertTrue("PK should exist before v23 migration",
+                primaryKeyExists(db, "game_data"))
 
             applyMigrationsSequentially(db, listOf(M22_23))
 
             assertFalse("discipleDesertionPopup should be removed after v23 migration",
                 columnExists(db, "game_data", "discipleDesertionPopup"))
+            // 验证修复后的 M22_23 仍保留约束
+            assertTrue("PRIMARY KEY should be preserved after v23 migration",
+                primaryKeyExists(db, "game_data"))
+            assertTrue("NOT NULL should be preserved on sectName",
+                columnIsNotNull(db, "game_data", "sectName"))
+            assertEquals("DEFAULT should be preserved on save_version",
+                "0", columnDefault(db, "game_data", "save_version"))
+            // 验证索引重建
+            assertTrue("index_game_data_slot_id should exist after v23 migration",
+                indexExists(db, "game_data", "index_game_data_slot_id"))
 
             db.close()
         } finally {
@@ -261,6 +275,80 @@ class RoomMigrationTest {
             // 验证索引存在
             assertTrue("index_storage_bags_slot_id should exist after v24 migration",
                 indexExists(db, "storage_bags", "index_storage_bags_slot_id"))
+
+            db.close()
+        } finally {
+            context.deleteDatabase(dbName)
+        }
+    }
+
+    @Test
+    fun `MIGRATION_24_TO_25 fixes broken constraints from CTAS on game_data`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dbName = "m_24_25_fix"
+        context.deleteDatabase(dbName)
+        try {
+            // Step 1: 从 v22 schema 创建数据库（包含 discipleDesertionPopup 列）
+            val db = createDatabaseFromSchema(context, dbName, 22)
+
+            // Step 2: 模拟旧版 MIGRATION_22_23 的 CTAS 行为（故意破坏约束）
+            val columnsBefore = mutableListOf<String>()
+            var c1 = db.query("PRAGMA table_info(game_data)")
+            c1.use {
+                while (it.moveToNext()) {
+                    val name = it.getString(it.getColumnIndexOrThrow("name"))
+                    if (name != "discipleDesertionPopup") {
+                        columnsBefore.add("\"$name\"")
+                    }
+                }
+            }
+            val colList = columnsBefore.joinToString(", ")
+            db.execSQL("ALTER TABLE game_data RENAME TO game_data_old")
+            db.execSQL("CREATE TABLE game_data AS SELECT $colList FROM game_data_old")
+            db.execSQL("DROP TABLE game_data_old")
+            db.execSQL("PRAGMA user_version = 23")
+
+            // Step 3: 确认 CTAS 后约束被破坏
+            // 验证 PRIMARY KEY 不存在
+            assertFalse("PK should be lost after CTAS",
+                primaryKeyExists(db, "game_data"))
+            // 验证一些列的 NOT NULL 被丢失
+            assertTrue("game_data should still have sectName column",
+                columnExists(db, "game_data", "sectName"))
+
+            // Step 4: 应用 MIGRATION_23_24 和 MIGRATION_24_25
+            applyMigrationsSequentially(db, listOf(M23_24, M24_25))
+
+            // Step 5: 验证修复后约束已恢复
+            // 验证 PRIMARY KEY 已重建
+            assertTrue("PRIMARY KEY should be restored after v25 migration",
+                primaryKeyExists(db, "game_data"))
+            // 验证 NOT NULL 约束已恢复
+            assertTrue("sectName should have NOT NULL after v25 migration",
+                columnIsNotNull(db, "game_data", "sectName"))
+            assertTrue("spiritStones should have NOT NULL after v25 migration",
+                columnIsNotNull(db, "game_data", "spiritStones"))
+            // 验证 DEFAULT 值已恢复
+            assertEquals("save_version should have DEFAULT 0",
+                "0", columnDefault(db, "game_data", "save_version"))
+            assertEquals("bloodRefinements should have DEFAULT '{}'",
+                "'{}'", columnDefault(db, "game_data", "bloodRefinements"))
+            assertEquals("map_seed should have DEFAULT 0",
+                "0", columnDefault(db, "game_data", "map_seed"))
+            // 验证 discipleDesertionPopup 列仍被排除
+            assertFalse("discipleDesertionPopup should not exist after v25 migration",
+                columnExists(db, "game_data", "discipleDesertionPopup"))
+            // 验证所有 5 个索引已重建
+            assertTrue("index_game_data_slot_id should exist",
+                indexExists(db, "game_data", "index_game_data_slot_id"))
+            assertTrue("index_game_data_lastSaveTime should exist",
+                indexExists(db, "game_data", "index_game_data_lastSaveTime"))
+            assertTrue("index_game_data_gameYear_gameMonth should exist",
+                indexExists(db, "game_data", "index_game_data_gameYear_gameMonth"))
+            assertTrue("index_game_data_sectName should exist",
+                indexExists(db, "game_data", "index_game_data_sectName"))
+            assertTrue("index_game_data_spiritStones should exist",
+                indexExists(db, "game_data", "index_game_data_spiritStones"))
 
             db.close()
         } finally {
@@ -584,5 +672,57 @@ class RoomMigrationTest {
     private fun verifyDiscipleCompactColumnsExist(db: SupportSQLiteDatabase) {
         assertTrue("disciple_compact should be accessible after full migration",
             columnExists(db, "disciple_compact", "cultivation"))
+    }
+
+    /** 查询指定表是否存在 PRIMARY KEY */
+    private fun primaryKeyExists(
+        db: SupportSQLiteDatabase,
+        table: String
+    ): Boolean {
+        val cursor = db.query("PRAGMA table_info($table)", emptyArray())
+        return cursor.use {
+            while (it.moveToNext()) {
+                val pk = it.getInt(it.getColumnIndexOrThrow("pk"))
+                if (pk > 0) return@use true
+            }
+            false
+        }
+    }
+
+    /** 查询指定列是否有 NOT NULL 约束 */
+    private fun columnIsNotNull(
+        db: SupportSQLiteDatabase,
+        table: String,
+        column: String
+    ): Boolean {
+        val cursor = db.query("PRAGMA table_info($table)", emptyArray())
+        return cursor.use {
+            while (it.moveToNext()) {
+                val name = it.getString(it.getColumnIndexOrThrow("name"))
+                if (name == column) {
+                    val notNull = it.getInt(it.getColumnIndexOrThrow("notnull"))
+                    return@use notNull == 1
+                }
+            }
+            false
+        }
+    }
+
+    /** 查询指定列的 DEFAULT 值 */
+    private fun columnDefault(
+        db: SupportSQLiteDatabase,
+        table: String,
+        column: String
+    ): String? {
+        val cursor = db.query("PRAGMA table_info($table)", emptyArray())
+        return cursor.use {
+            while (it.moveToNext()) {
+                val name = it.getString(it.getColumnIndexOrThrow("name"))
+                if (name == column) {
+                    return@use it.getString(it.getColumnIndexOrThrow("dflt_value"))
+                }
+            }
+            null
+        }
     }
 }

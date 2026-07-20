@@ -909,7 +909,8 @@ data class Seed(
 
 @Entity(
     tableName = "storage_bags",
-    primaryKeys = ["id", "slot_id"]
+    primaryKeys = ["id", "slot_id"],
+    indices = [androidx.room.Index(value = ["slot_id"])]
 )
 @Keep
 @Serializable
