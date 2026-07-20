@@ -210,7 +210,7 @@ class BattleSystemTest {
     @Test
     fun `calculateRealmGapMultiplier - 全十境界差距加成不再被钳制`() {
         val multiplier = battleSystem.calculateRealmGapMultiplier(0, 9)
-        assertEquals(5.5, multiplier, 0.001)
+        assertEquals(4.15, multiplier, 0.001)
     }
 
     @Test

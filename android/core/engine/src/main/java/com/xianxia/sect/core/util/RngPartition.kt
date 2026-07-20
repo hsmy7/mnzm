@@ -13,5 +13,7 @@ enum class RngPartition(val id: Int) {
     /** 探索系统：妖兽移动/关卡生成/掠夺物品 */
     EXPLORATION(2),
     /** 系统级：UI 随机/非关键随机化 */
-    SYSTEM(3)
+    SYSTEM(3),
+    /** 敌人属性生成：AI 敌人属性方差（与战斗 RNG 隔离，避免跨线程污染） */
+    ENEMY_GEN(4)
 }

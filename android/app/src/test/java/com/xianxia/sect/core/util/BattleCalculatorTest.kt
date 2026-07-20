@@ -281,7 +281,7 @@ class BattleCalculatorTest {
     @Test
     fun `calculateRealmGapMultiplier - 高境界攻击低境界获得加成`() {
         val multiplier = BattleCalculator.calculateRealmGapMultiplier(0, 3)
-        assertEquals(2.5, multiplier, 0.001)
+        assertEquals(2.05, multiplier, 0.001)
     }
 
     @Test
@@ -293,7 +293,7 @@ class BattleCalculatorTest {
     @Test
     fun `calculateRealmGapMultiplier - 全十境界差距加成不再被钳制`() {
         val multiplier = BattleCalculator.calculateRealmGapMultiplier(0, 9)
-        assertEquals(5.5, multiplier, 0.001)
+        assertEquals(4.15, multiplier, 0.001)
     }
 
     @Test

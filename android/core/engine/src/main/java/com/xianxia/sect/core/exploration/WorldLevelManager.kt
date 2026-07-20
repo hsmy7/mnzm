@@ -36,9 +36,10 @@ class WorldLevelManager @Inject constructor(
      * 3. 移动所有活跃妖兽的位置
      *
      * @param gd 当前 [GameData]
+     * @param playerAvgRealm 玩家存活弟子的平均境界，不为 null 时传给 LevelGenerator 做安全兜底
      * @return 更新后的 [GameData]（内含新的 worldLevels 和 worldLevelLastRefreshMonth）
      */
-    fun processMonthly(gd: GameData): GameData {
+    fun processMonthly(gd: GameData, playerAvgRealm: Int? = null): GameData {
         val year = gd.gameYear
         val month = gd.gameMonth
 
@@ -62,7 +63,8 @@ class WorldLevelManager @Inject constructor(
                 connectionEdges = edges,
                 currentYear = year,
                 currentMonth = month,
-                existingLevels = remainingLevels
+                existingLevels = remainingLevels,
+                playerAvgRealm = playerAvgRealm
             )
             remainingLevels + newLevels
         } else {

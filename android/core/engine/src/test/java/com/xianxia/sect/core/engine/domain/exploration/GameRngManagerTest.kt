@@ -51,8 +51,8 @@ class GameRngManagerTest {
     }
 
     @Test
-    fun `exportStates returns all 4 partitions`() {
+    fun `exportStates returns all 5 partitions`() {
         val mgr = GameRngManager(); mgr.initSystemSeed(42)
-        assertEquals(4, mgr.exportStates().size)
+        assertEquals(5, mgr.exportStates().size)
     }
 }

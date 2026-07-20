@@ -1,6 +1,21 @@
 [
   {
     "date": "2026-07-20",
+    "version": "4.0.60",
+    "changes": [
+      "平衡：AI敌人属性公式统一——EnemyGenerator/HeavenlyTrialService改用GameConfig.Realm.get(baseXxx)+±30%方差,删除Enemy.REALM_STATS(原为玩家2.2x)",
+      "平衡：境界差乘区平滑化——DAMAGE_BONUS/PENALTY 0.50→0.35,gap=2时低境界方30%伤害(原0%);INSTANT_KILL_GAP 3→5",
+      "平衡：妖兽生成感知玩家进度——LevelGenerator按弟子平均境界clamp[avg-1,avg+2];巡逻塔目标动态匹配队伍境界",
+      "平衡：RNG分区隔离——新增ENEMY_GEN(4)分区,敌人属性RNG与战斗RNG隔离",
+      "修复：天道试炼装备属性未应用——选取的装备只显示名称,攻防HP从未计入Combatant",
+      "修复：DiscipleTables.deepCopy增量复制Bug——只复制脏列致非脏列空数组,assembleAll()返回0弟子",
+      "修复：RoomMigration DROP COLUMN兼容——MIGRATION_22_23改用PRAGMA+create-copy-drop-rename",
+      "修复：App测试编译错误——CultivationSettlementConcurrencyTest/MailServiceTest缺构造参数",
+      "移除：AI洞府弟子队伍系统——移除CaveExplorationSystem.createAIBattle()/generateAITeamInline/spawnAITeams/removeStaleAITeams;玩家探洞仅对战守护兽"
+    ]
+  },
+  {
+    "date": "2026-07-20",
     "version": "4.0.59",
     "changes": [
       "重构：架构债务Phase4全部清空——CEP执法/偷窃委托到LawEnforcementProcessor(955→616行);handleDiscipleDeath原子化(preDeathCleanup+applyDeathState);processCompletedMissionsLazy单事务化;执法/偷窃读写窗口修复(收集+单事务写入)",

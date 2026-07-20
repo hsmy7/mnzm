@@ -1016,8 +1016,24 @@ abstract class GameDatabase : RoomDatabase() {
         /** v22->v23: game_data 移除废弃字段 discipleDesertionPopup */
         val MIGRATION_22_23 = object : Migration(22, 23) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE game_data DROP COLUMN discipleDesertionPopup")
-                Log.i(TAG, "Migration 22->23: dropped discipleDesertionPopup from game_data")
+                if (columnExists(db, "game_data", "discipleDesertionPopup")) {
+                    // SQLite < 3.35.0 不支持 ALTER TABLE DROP COLUMN，使用 create-copy-drop-rename
+                    val columns = mutableListOf<String>()
+                    val cursor = db.query("PRAGMA table_info(game_data)")
+                    cursor.use {
+                        while (it.moveToNext()) {
+                            val name = it.getString(it.getColumnIndexOrThrow("name"))
+                            if (name != "discipleDesertionPopup") {
+                                columns.add("\"$name\"")
+                            }
+                        }
+                    }
+                    val columnList = columns.joinToString(", ")
+                    db.execSQL("ALTER TABLE game_data RENAME TO game_data_old")
+                    db.execSQL("CREATE TABLE game_data AS SELECT $columnList FROM game_data_old")
+                    db.execSQL("DROP TABLE game_data_old")
+                    Log.i(TAG, "Migration 22->23: dropped discipleDesertionPopup from game_data")
+                }
             }
         }
 

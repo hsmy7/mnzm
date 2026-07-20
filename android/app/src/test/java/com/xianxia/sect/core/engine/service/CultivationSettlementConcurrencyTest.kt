@@ -80,7 +80,8 @@ class CultivationSettlementConcurrencyTest {
             InventoryConfig(),
             scopeProvider,
             mock(ProductionSlotRepository::class.java),
-            mock(com.xianxia.sect.core.event.EventBusPort::class.java)
+            mock(com.xianxia.sect.core.event.EventBusPort::class.java),
+            mock(com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup::class.java)
         )
     }
 

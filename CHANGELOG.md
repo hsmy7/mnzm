@@ -1,3 +1,23 @@
+## [4.0.60] - 2026-07-20
+
+### 战斗平衡
+
+- **AI敌人属性公式统一** — EnemyGenerator/HeavenlyTrialService 改用 `GameConfig.Realm.get(baseXxx)` + ±30%方差，删除 `Enemy.REALM_STATS`（原为玩家2.2x）
+- **境界差乘区平滑化** — DAMAGE_BONUS/PENALTY 0.50→0.35，gap=2 时低境界方从0%→30%伤害；INSTANT_KILL_GAP 3→5
+- **妖兽生成感知玩家进度** — LevelGenerator 根据弟子平均境界 clamp `[avg-1, avg+2]`；巡逻塔目标动态匹配队伍境界
+- **RNG分区隔离** — 新增 `ENEMY_GEN(4)` 分区，敌人属性 RNG 与战斗 RNG 隔离
+
+### 预存Bug修复
+
+- **天道试炼装备属性未应用** — 选取的装备只显示名称，攻防HP从未计入Combatant
+- **DiscipleTables.deepCopy增量复制Bug** — 只复制脏列导致非脏列空数组，assembleAll()返回0弟子
+- **RoomMigration DROP COLUMN兼容** — MIGRATION_22_23 改用 PRAGMA + create-copy-drop-rename
+- **App测试编译错误** — CultivationSettlementConcurrencyTest/MailServiceTest 缺构造参数
+
+### 移除
+
+- **AI洞府弟子队伍系统** — 移除 CaveExplorationSystem.createAIBattle()、generateAITeamInline / spawnAITeams / removeStaleAITeams；玩家探洞仅对战守护兽
+
 ## [4.0.59] - 2026-07-20（versionCode=4059）
 
 ### 重构

@@ -177,13 +177,26 @@ class PatrolBattleSystem @Inject constructor(
 
         for (team in teams) {
             val config = gd.patrolConfigs.getOrElse(team.towerIndex) { PatrolConfig() }
+            val teamAvgRealm = if (team.disciples.isNotEmpty()) {
+                team.disciples.map { it.realm }.average()
+            } else continue
+
+            // 当 targetRealms 仍为默认 {9}（炼气）时，动态扩展为 [队伍平均境界, 9]（不限制上限）
+            val effectiveTargetRealms = if (config.targetRealms == setOf(9)) {
+                (teamAvgRealm.toInt().coerceAtMost(9)..9).toSet()
+            } else {
+                config.targetRealms
+            }
+
             val target = gd.worldLevels.firstOrNull {
                 it.type == LevelType.BEAST &&
                     !it.defeated &&
                     !it.checkExpired(year, month) &&
-                    it.realm in config.targetRealms &&
+                    it.realm in effectiveTargetRealms &&
                     it.count <= config.maxBeastCount &&
-                    it.id !in claimedBeasts
+                    it.id !in claimedBeasts &&
+                    // 安全兜底：妖兽境界不超过队伍平均 +1 级
+                    it.realm <= (teamAvgRealm.toInt() + 1).coerceAtMost(9)
             } ?: continue
 
             claimedBeasts.add(target.id)

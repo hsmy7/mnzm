@@ -70,8 +70,15 @@ class ExplorationService @Inject constructor(
      * 3. PatrolBattleSystem — 巡视楼自动攻击
      */
     fun processMonthlyWorldLevels(state: MutableGameState) {
+        // 计算玩家存活弟子的平均境界，传给 LevelGenerator 做安全兜底
+        val disciples = state.discipleTables.assembleAll()
+        val aliveDisciples = disciples.filter { it.isAlive }
+        val playerAvgRealm = if (aliveDisciples.isNotEmpty()) {
+            aliveDisciples.map { it.realm }.average().toInt()
+        } else null
+
         // Step 1: 世界关卡惰性管理（纯函数）
-        state.gameData = worldLevelManager.processMonthly(state.gameData)
+        state.gameData = worldLevelManager.processMonthly(state.gameData, playerAvgRealm)
 
         // Step 2: 妖兽攻击检测
         val attacks = beastAttackDetector.detectAttacks(state.gameData)

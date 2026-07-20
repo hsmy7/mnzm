@@ -170,23 +170,52 @@ class HeavenlyTrialService @Inject constructor(
             accessory = eligibleEquip.find { it.type == EquipmentSlot.ACCESSORY }
         }
 
-        val stats = GameConfig.Enemy.getRealmStats(def.realm)
+        // 使用与玩家弟子相同的属性公式：境界基础值 × (1 + 方差) × 层数倍率
+        // 方差 ±30%，与 DiscipleStatCalculator.computeBaseStats 的 variance 一致
+        val realmConfig = GameConfig.Realm.get(def.realm)
         val layerMult = 1.0 + (def.realmLayer - 1) * 0.1
+        val rng = rngManager.getRng(RngPartition.ENEMY_GEN)
+        fun rngVar(): Double = 1.0 + (rng.nextInt(61) - 30) / 100.0
+
+        var baseHp = (realmConfig.baseHp * rngVar() * layerMult).toInt()
+        val baseMp = (realmConfig.baseMp * rngVar() * layerMult).toInt()
+        var basePhysAtk = (realmConfig.basePhysicalAttack * rngVar() * layerMult).toInt()
+        var baseMagAtk = (realmConfig.baseMagicAttack * rngVar() * layerMult).toInt()
+        var basePhysDef = (realmConfig.basePhysicalDefense * rngVar() * layerMult).toInt()
+        var baseMagDef = (realmConfig.baseMagicDefense * rngVar() * layerMult).toInt()
+        var baseSpeed = (realmConfig.baseSpeed * rngVar() * layerMult).toInt()
+
+        // 应用装备属性加成（修复：之前只选取装备名称用于显示，未将属性计入 Combatant）
+        fun applyEquipStats(name: String) {
+            EquipmentDatabase.getTemplateByName(name)?.let { t ->
+                basePhysAtk += t.physicalAttack
+                baseMagAtk += t.magicAttack
+                basePhysDef += t.physicalDefense
+                baseMagDef += t.magicDefense
+                baseSpeed += t.speed
+                baseHp += t.hp
+            }
+        }
+        weapon?.name?.let { applyEquipStats(it) }
+        armor?.name?.let { applyEquipStats(it) }
+        boots?.name?.let { applyEquipStats(it) }
+        accessory?.name?.let { applyEquipStats(it) }
+
         val skills = selected.map { it.toCombatSkill() }
 
         return Combatant(
             id = "trial_disciple_${levelIndex}_${index}",
             name = def.name,
             side = CombatantSide.ATTACKER,
-            hp = (stats.hp * layerMult).toInt(),
-            maxHp = (stats.hp * layerMult).toInt(),
-            mp = (stats.mp * layerMult).toInt(),
-            maxMp = (stats.mp * layerMult).toInt(),
-            physicalAttack = (stats.physicalAttack * layerMult).toInt(),
-            magicAttack = (stats.magicAttack * layerMult).toInt(),
-            physicalDefense = (stats.physicalDefense * layerMult).toInt(),
-            magicDefense = (stats.magicDefense * layerMult).toInt(),
-            speed = (stats.speed * layerMult).toInt(),
+            hp = baseHp,
+            maxHp = baseHp,
+            mp = baseMp,
+            maxMp = baseMp,
+            physicalAttack = basePhysAtk,
+            magicAttack = baseMagAtk,
+            physicalDefense = basePhysDef,
+            magicDefense = baseMagDef,
+            speed = baseSpeed,
             critRate = 0.05 + def.realm * 0.02,
             skills = skills,
             realm = def.realm,

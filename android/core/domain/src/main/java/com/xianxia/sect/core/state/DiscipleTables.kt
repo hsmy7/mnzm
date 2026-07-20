@@ -985,13 +985,10 @@ class DiscipleTables {
                 // 全量复制（首次或非脏路径）
                 _allCopyableRefs.forEach { it.copyTo(copy) }
             } else {
-                // 增量复制：只复制脏列，非脏列跳过以节省 CPU
-                for (ref in _allCopyableRefs) {
-                    if (ref.columnIndex in dirtyColumns || ref.debugName == "isAlive") {
-                        ref.copyTo(copy)
-                    }
-                    // 非脏列不复制（copy 构造时默认值空，后续不会被读）
-                }
+                // 增量复制因只复制脏列导致非脏列（names/realms 等）为空，
+                // assembleAll() 读到空数据返回 0 弟子。因此始终全量复制。
+                // dirtyColumns 用于 DirtyTracker 而非 deepCopy。
+                _allCopyableRefs.forEach { it.copyTo(copy) }
             }
             // 只保留组件表中有完整数据的 ID，过滤掉幽灵 ID（Bug 产生的残留）
             copy.ids.addAll(idsSnapshot.filter { copy.isAlive.contains(it) })

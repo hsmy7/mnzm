@@ -87,11 +87,6 @@ class CaveExplorationProcessor @Inject constructor(
         private const val THERMAL_EMERGENCY_BATCH = 12
         private const val THERMAL_REDUCE_BATCH = 6
         private const val THERMAL_NORMAL_BATCH = 1
-        private const val AI_TEAM_SPAWN_PROBABILITY = 0.7
-        private const val AI_TEAM_REMOVE_PROBABILITY = 0.3
-        private const val AI_TEAM_MIN_SIZE = 3
-        private const val AI_TEAM_MAX_SIZE = 5
-        private const val NEARBY_SECT_RANGE = 400f
 
         /**
          * 从实际参战弟子构建防守战日志的敌人快照列表（纯函数）。
@@ -133,7 +128,6 @@ class CaveExplorationProcessor @Inject constructor(
         // Phase 2: 剩余逻辑在单个 stateStore.update 事务内完成
         stateStore.update {
             val caves = gameData.cultivatorCaves
-            val aiTeams = gameData.aiCaveTeams
             val explorationTeams = gameData.caveExplorationTeams
             val sects = gameData.worldMapSects
             val details = gameData.sectDetails
@@ -142,12 +136,8 @@ class CaveExplorationProcessor @Inject constructor(
                 !cave.isExpired(year, month) && cave.status != CaveStatus.EXPLORED
             }
 
-            val allAITeams = spawnAITeams(aiTeams, activeCaves)
-
             var updatedSectsForAI = sects.toMutableList()
             val updatedSectDetails = details.toMutableMap()
-
-            val filteredAITeams = removeStaleAITeams(allAITeams, activeCaves)
 
             val teamsToComplete = explorationTeams.filter {
                 it.status == CaveExplorationStatus.EXPLORING
@@ -155,7 +145,7 @@ class CaveExplorationProcessor @Inject constructor(
 
             val completionState = CaveCompletionState(
                 finalCaves = activeCaves.toList(),
-                finalAITeams = filteredAITeams,
+                finalAITeams = gameData.aiCaveTeams,
                 finalExplorationTeams = explorationTeams.filter {
                     it.caveId !in initialExpiredCaveIds
                 }.toMutableList(),
@@ -168,32 +158,11 @@ class CaveExplorationProcessor @Inject constructor(
 
             gameData = gameData.copy(
                 cultivatorCaves = completionState.finalCaves,
-                aiCaveTeams = completionState.finalAITeams,
                 caveExplorationTeams = completionState.finalExplorationTeams,
                 worldMapSects = updatedSectsForAI,
                 sectDetails = updatedSectDetails
             )
         }
-    }
-
-    fun generateAITeamInline(
-        cave: CultivatorCave,
-        nearbySects: List<WorldSect>,
-        existingTeams: List<AICaveTeam>
-    ): AICaveTeam? {
-        val availableSects = nearbySects.filter { sect ->
-            existingTeams.none { it.sectId == sect.id }
-        }
-        if (availableSects.isEmpty()) return null
-        val sect = availableSects[rng.nextInt(availableSects.size)]
-        return AICaveTeam(
-            caveId = cave.id,
-            sectId = sect.id,
-            sectName = sect.name,
-            memberCount = AI_TEAM_MIN_SIZE + rng.nextInt(AI_TEAM_MAX_SIZE - AI_TEAM_MIN_SIZE + 1),
-            avgRealm = cave.ownerRealm,
-            avgRealmName = cave.ownerRealmName
-        )
     }
 
     private fun executeCaveExploration(
@@ -212,12 +181,10 @@ class CaveExplorationProcessor @Inject constructor(
         val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
             list.associateBy { it.manualId }
         }
-        val aiTeamInCave = currentAITeams.find {
-            it.caveId == cave.id && it.status == AITeamStatus.EXPLORING
-        }
+        // 移除 AI 队伍战斗 — 玩家团队直接对战守护兽
         val battleResult = executeBattleForTeam(
             teamMembers, equipmentMap, manualMap, allProficiencies,
-            aiTeamInCave, cave
+            cave
         )
 
         val deadDisciples = processBattleCasualties(team, battleResult)
@@ -227,12 +194,7 @@ class CaveExplorationProcessor @Inject constructor(
 
         if (!battleResult.victory) {
             val updatedAITeams = currentAITeams.filter { it.caveId != cave.id }
-            val resultAITeams = if (aiTeamInCave != null) {
-                updatedAITeams.toMutableList()
-            } else {
-                updatedAITeams
-            }
-            return Triple(stateStore.gameData.value.cultivatorCaves, resultAITeams, true)
+            return Triple(stateStore.gameData.value.cultivatorCaves, updatedAITeams, true)
         }
 
         val victorMembers = battleResult.log.teamMembers.filter { it.isAlive }
@@ -254,36 +216,23 @@ class CaveExplorationProcessor @Inject constructor(
         return cleanupAfterCaveExploration(cave, currentAITeams)
     }
 
-    /** 执行洞府战斗：玩家团队 vs AI团队或守护妖兽 */
+    /** 执行洞府战斗：玩家团队 vs 守护妖兽 */
     private fun executeBattleForTeam(
         teamMembers: List<Disciple>,
         equipmentMap: Map<String, EquipmentInstance>,
         manualMap: Map<String, ManualInstance>,
         allProficiencies: Map<String, Map<String, ManualProficiencyData>>,
-        aiTeamInCave: AICaveTeam?,
         cave: CultivatorCave
     ): BattleSystemResult {
-        return if (aiTeamInCave != null) {
-            battleSystem.executeBattle(
-                CaveExplorationSystem.createAIBattle(
-                    playerDisciples = teamMembers,
-                    playerEquipmentMap = equipmentMap,
-                    playerManualMap = manualMap,
-                    playerManualProficiencies = allProficiencies,
-                    aiTeam = aiTeamInCave
-                )
+        return battleSystem.executeBattle(
+            CaveExplorationSystem.createGuardianBattle(
+                playerDisciples = teamMembers,
+                playerEquipmentMap = equipmentMap,
+                playerManualMap = manualMap,
+                playerManualProficiencies = allProficiencies,
+                cave = cave
             )
-        } else {
-            battleSystem.executeBattle(
-                CaveExplorationSystem.createGuardianBattle(
-                    playerDisciples = teamMembers,
-                    playerEquipmentMap = equipmentMap,
-                    playerManualMap = manualMap,
-                    playerManualProficiencies = allProficiencies,
-                    cave = cave
-                )
-            )
-        }
+        )
     }
 
     fun findNearbySects(cave: CultivatorCave, range: Float): List<WorldSect> {
@@ -773,41 +722,6 @@ class CaveExplorationProcessor @Inject constructor(
             }
         }
         return initialExpiredCaveIds
-    }
-
-    private fun spawnAITeams(
-        aiTeams: List<AICaveTeam>,
-        activeCaves: List<CultivatorCave>
-    ): MutableList<AICaveTeam> {
-        val allAITeams = aiTeams.toMutableList()
-        activeCaves.forEach { cave ->
-            val currentTeams = allAITeams.count {
-                it.caveId == cave.id && it.status == AITeamStatus.EXPLORING
-            }
-            if (currentTeams < 3 && rng.nextDouble() < AI_TEAM_SPAWN_PROBABILITY) {
-                val nearbySects = findNearbySects(cave, NEARBY_SECT_RANGE)
-                val existingTeamForCave = allAITeams.filter { it.caveId == cave.id }
-                val aiTeam = generateAITeamInline(cave, nearbySects, existingTeamForCave)
-                if (aiTeam != null) {
-                    allAITeams.add(aiTeam)
-                }
-            }
-        }
-        return allAITeams
-    }
-
-    private fun removeStaleAITeams(
-        allAITeams: List<AICaveTeam>,
-        activeCaves: List<CultivatorCave>
-    ): List<AICaveTeam> {
-        val aiTeamsToRemove = mutableListOf<String>()
-        allAITeams.filter { it.status == AITeamStatus.EXPLORING }.forEach { aiTeam ->
-            val cave = activeCaves.find { it.id == aiTeam.caveId } ?: return@forEach
-            if (rng.nextDouble() < AI_TEAM_REMOVE_PROBABILITY) {
-                aiTeamsToRemove.add(aiTeam.id)
-            }
-        }
-        return allAITeams.filter { it.id !in aiTeamsToRemove }
     }
 
     private fun processSingleTeamCompletion(

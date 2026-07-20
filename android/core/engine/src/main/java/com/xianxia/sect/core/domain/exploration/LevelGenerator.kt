@@ -91,9 +91,10 @@ class LevelGenerator @Inject constructor(
      * 在两个锚点之间线性插值权重，归一化后加权随机。
      *
      * @param year 当前游戏年份（≥1，小于1钳制为1）
+     * @param playerAvgRealm 玩家存活弟子的平均境界，不为 null 时将结果 clamp 到 [avg-1, avg+2] 范围
      * @return 境界值 0~9（0=仙人…9=炼气）
      */
-    internal fun selectBeastRealm(year: Int): Int {
+    internal fun selectBeastRealm(year: Int, playerAvgRealm: Int? = null): Int {
         val clampedYear = year.coerceAtLeast(1)
         val anchors = BEAST_REALM_ANCHORS
 
@@ -113,11 +114,21 @@ class LevelGenerator @Inject constructor(
         // 加权随机选取
         val total = weights.sum()
         var roll = rng.nextDouble() * total
-        for (i in weights.indices) {
-            roll -= weights[i]
-            if (roll <= 0.0) return i
+        val selected = run {
+            for (i in weights.indices) {
+                roll -= weights[i]
+                if (roll <= 0.0) return@run i
+            }
+            9 // fallback
         }
-        return 9 // fallback
+
+        // 根据玩家平均境界 clamp，确保妖兽不会远低于或远高于玩家实力
+        if (playerAvgRealm != null) {
+            val minRealm = (playerAvgRealm - 1).coerceIn(0, 9)
+            val maxRealm = (playerAvgRealm + 2).coerceIn(0, 9)
+            return selected.coerceIn(minRealm, maxRealm)
+        }
+        return selected
     }
 
     fun generateWorldLevels(
@@ -126,7 +137,8 @@ class LevelGenerator @Inject constructor(
         currentYear: Int,
         currentMonth: Int,
         existingLevels: List<WorldLevel>,
-        maxNewLevels: Int = 6
+        maxNewLevels: Int = 6,
+        playerAvgRealm: Int? = null
     ): List<WorldLevel> {
         val newLevels = mutableListOf<WorldLevel>()
 
@@ -159,7 +171,7 @@ class LevelGenerator @Inject constructor(
             val level = if (isCave) {
                 generateCaveLevel(currentYear, currentMonth, x, y)
             } else {
-                generateBeastLevel(currentYear, currentMonth, x, y)
+                generateBeastLevel(currentYear, currentMonth, x, y, playerAvgRealm)
             }
 
             newLevels.add(level)
@@ -170,11 +182,12 @@ class LevelGenerator @Inject constructor(
     }
 
     private fun generateBeastLevel(
-        currentYear: Int, currentMonth: Int, x: Int, y: Int
+        currentYear: Int, currentMonth: Int, x: Int, y: Int,
+        playerAvgRealm: Int? = null
     ): WorldLevel {
         val beastTypeIndex = rng.nextInt(8)
         val beastConfig = GameConfig.Beast.getType(beastTypeIndex)
-        val realm = selectBeastRealm(currentYear)
+        val realm = selectBeastRealm(currentYear, playerAvgRealm)
         val realmLayer = rng.nextInt(9) + 1
         val count = rng.nextInt(13) + 1
 

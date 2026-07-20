@@ -19,7 +19,7 @@ import com.xianxia.sect.core.util.DeterministicRng
 
 /** EnemyGenerator 的 RNG 管理器（由 GameEngine 初始化时注入） */
 var enemyGenRngManager: GameRngManager? = null
-private val enemyRng get(): DeterministicRng = (enemyGenRngManager ?: error("EnemyGenerator RNG not initialized")).getRng(RngPartition.BATTLE)
+private val enemyRng get(): DeterministicRng = (enemyGenRngManager ?: error("EnemyGenerator RNG not initialized")).getRng(RngPartition.ENEMY_GEN)
 
 object EnemyGenerator {
 
@@ -129,16 +129,20 @@ object EnemyGenerator {
         equipmentStats: EquipmentStatsAccumulator,
         skills: List<CombatSkill>
     ): Combatant {
-        val stats = GameConfig.Enemy.getRealmStats(realm)
+        // 使用与玩家弟子相同的属性公式：境界基础值 × (1 + 方差) × 层数倍率 + 装备加成
+        // 方差 ±30%，与 DiscipleStatCalculator.computeBaseStats 的 hpVariance 等一致
+        val realmConfig = GameConfig.Realm.get(realm)
         val layerMult = 1.0 + (realmLayer - 1) * 0.1
 
-        val hp = (stats.hp * layerMult).toInt() + equipmentStats.hp
-        val mp = (stats.mp * layerMult).toInt() + equipmentStats.mp
-        val physicalAttack = (stats.physicalAttack * layerMult).toInt() + equipmentStats.physicalAttack
-        val magicAttack = (stats.magicAttack * layerMult).toInt() + equipmentStats.magicAttack
-        val physicalDefense = (stats.physicalDefense * layerMult).toInt() + equipmentStats.physicalDefense
-        val magicDefense = (stats.magicDefense * layerMult).toInt() + equipmentStats.magicDefense
-        val speed = (stats.speed * layerMult).toInt() + equipmentStats.speed
+        fun rngVar(): Double = 1.0 + (enemyRng.nextInt(61) - 30) / 100.0
+
+        val hp = (realmConfig.baseHp * rngVar() * layerMult).toInt() + equipmentStats.hp
+        val mp = (realmConfig.baseMp * rngVar() * layerMult).toInt() + equipmentStats.mp
+        val physicalAttack = (realmConfig.basePhysicalAttack * rngVar() * layerMult).toInt() + equipmentStats.physicalAttack
+        val magicAttack = (realmConfig.baseMagicAttack * rngVar() * layerMult).toInt() + equipmentStats.magicAttack
+        val physicalDefense = (realmConfig.basePhysicalDefense * rngVar() * layerMult).toInt() + equipmentStats.physicalDefense
+        val magicDefense = (realmConfig.baseMagicDefense * rngVar() * layerMult).toInt() + equipmentStats.magicDefense
+        val speed = (realmConfig.baseSpeed * rngVar() * layerMult).toInt() + equipmentStats.speed
 
         val elements = listOf("metal", "wood", "water", "fire", "earth")
         val element = elements[enemyRng.nextInt(5)]

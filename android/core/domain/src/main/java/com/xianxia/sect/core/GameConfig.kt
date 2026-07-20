@@ -512,32 +512,7 @@ object GameConfig {
         fun getType(index: Int): BeastTypeConfig = TYPES.getOrElse(index) { TYPES[0] }
     }
 
-    object Enemy {
-        data class RealmStats(
-            val hp: Int,
-            val mp: Int,
-            val physicalAttack: Int,
-            val magicAttack: Int,
-            val physicalDefense: Int,
-            val magicDefense: Int,
-            val speed: Int
-        )
-
-        val REALM_STATS = mapOf(
-            9  to RealmStats(hp=426,  mp=156,  physicalAttack=40,  magicAttack=40,  physicalDefense=29,  magicDefense=22,  speed=20),
-            8  to RealmStats(hp=1065, mp=390,  physicalAttack=98,  magicAttack=98,  physicalDefense=73,  magicDefense=57,  speed=51),
-            7  to RealmStats(hp=2768, mp=1014, physicalAttack=253, magicAttack=253, physicalDefense=187, magicDefense=149, speed=130),
-            6  to RealmStats(hp=7241, mp=2652, physicalAttack=663, magicAttack=663, physicalDefense=486, magicDefense=389, speed=339),
-            5  to RealmStats(hp=19165,mp=7020, physicalAttack=1755,magicAttack=1755,physicalDefense=1287,magicDefense=1030,speed=898),
-            4  to RealmStats(hp=46847,mp=17160,physicalAttack=4290,magicAttack=4290,physicalDefense=3146,magicDefense=2517,speed=2195),
-            3  to RealmStats(hp=110729,mp=40560,physicalAttack=10140,magicAttack=10140,physicalDefense=7436,magicDefense=5949,speed=5187),
-            2  to RealmStats(hp=247011,mp=90480,physicalAttack=22620,magicAttack=22620,physicalDefense=16588,magicDefense=13270,speed=11571),
-            1  to RealmStats(hp=511056,mp=187200,physicalAttack=46800,magicAttack=46800,physicalDefense=34320,magicDefense=27456,speed=23940),
-            0  to RealmStats(hp=1064700,mp=390000,physicalAttack=97500,magicAttack=97500,physicalDefense=71500,magicDefense=57200,speed=49875)
-        )
-
-        fun getRealmStats(realm: Int): RealmStats = REALM_STATS[realm] ?: REALM_STATS.getValue(9)
-    }
+    // Enemy.REALM_STATS 已删除 — 敌对弟子统一使用 GameConfig.Realm 基础属性 + DiscipleStatCalculator 公式
     object Starting {
         val RESOURCES = StartingResources(
             spiritStones = 2000,
@@ -600,9 +575,9 @@ object GameConfig {
         const val MIN_FORMATION_SIZE = ELDER_SLOTS + DISCIPLE_SLOTS
 
         object RealmGap {
-            const val DAMAGE_BONUS_PER_REALM: Double = 0.50
-            const val DAMAGE_PENALTY_PER_REALM: Double = 0.50
-            const val INSTANT_KILL_GAP = 3
+            const val DAMAGE_BONUS_PER_REALM: Double = 0.35
+            const val DAMAGE_PENALTY_PER_REALM: Double = 0.35
+            const val INSTANT_KILL_GAP = 5
         }
     }
     
