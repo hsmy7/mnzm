@@ -5,7 +5,6 @@ import androidx.room.withTransaction
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.data.local.*
 import com.xianxia.sect.data.incremental.ChangeLogDao
-import com.xianxia.sect.core.util.CoroutineScopeProvider
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import javax.inject.Inject
@@ -35,17 +34,12 @@ class GameStateRepository @Inject constructor(
     private val recipeDao: RecipeDao,
     private val battleLogDao: BattleLogDao,
     private val productionSlotDao: ProductionSlotDao,
-    private val changeLogDao: ChangeLogDao,
-    private val scopeProvider: CoroutineScopeProvider
+    private val changeLogDao: ChangeLogDao
 ) {
     companion object {
         private const val TAG = "GameStateRepository"
         private const val WRITE_BATCH_DEBOUNCE_MS = 500L
     }
-
-    private val scope = scopeProvider.scope
-
-    private val _pendingWrites = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
     private data class DirtySet(
         val gameData: Boolean = false,
@@ -103,7 +97,6 @@ class GameStateRepository @Inject constructor(
             teams = dirty.teams || teams,
             battleLogs = dirty.battleLogs || battleLogs
         )
-        _pendingWrites.tryEmit(Unit)
     }
 
     fun markAllDirty() {
@@ -113,7 +106,6 @@ class GameStateRepository @Inject constructor(
             pills = true, materials = true, herbs = true, seeds = true,
             storageBags = true, teams = true, battleLogs = true
         )
-        _pendingWrites.tryEmit(Unit)
     }
 
     fun clearDirty() {
