@@ -121,18 +121,31 @@ class CultivationEventProcessor @Inject constructor(
         val hasAutoLearn = learnFocused || learnRootCounts.isNotEmpty()
         if (!hasAutoEquip && !hasAutoLearn) return
         val tables = state.discipleTables
-        val updatedDisciples = tables.ids.filter { tables.isAlive[it] == 1 }
-            .map { tables.assemble(it) }.toMutableList()
+
+        // Phase 1: 列级直读收集所有储物袋中的物品ID（无需 assemble）
         val bagEqIds = mutableSetOf<String>()
         val bagMnIds = mutableSetOf<String>()
-        for (disciple in updatedDisciples) {
-            for (item in disciple.equipment.storageBagItems) {
+        for (id in tables.ids) {
+            if (tables.isAlive[id] != 1) continue
+            for (item in tables.storageBagItems.getOrDefault(id, emptyList())) {
                 when (item.itemType) {
                     "equipment_stack" -> bagEqIds.add(item.itemId)
                     "manual_stack" -> bagMnIds.add(item.itemId)
                 }
             }
         }
+
+        // Phase 2: 列级预过滤后只 assemble 储物袋有匹配物品的弟子
+        val updatedDisciples = tables.ids.filter { tables.isAlive[it] == 1 }
+            .filter { id ->
+                val bags = tables.storageBagItems.getOrDefault(id, emptyList())
+                bags.any { item ->
+                    (item.itemType == "equipment_stack" && hasAutoEquip) ||
+                    (item.itemType == "manual_stack" && hasAutoLearn)
+                }
+            }
+            .mapNotNull { tables.assemble(it)?.takeIf { d -> d.isAlive } }
+            .toMutableList()
         var eqStacks = state.equipmentStacks.all().filter { it.id !in bagEqIds }
         var mnStacks = state.manualStacks.all().filter { it.id !in bagMnIds }
         val eqInstancesById = state.equipmentInstances.associateById()
@@ -140,7 +153,6 @@ class CultivationEventProcessor @Inject constructor(
         val newEqInstances = mutableListOf<EquipmentInstance>()
         val newMnInstances = mutableListOf<ManualInstance>()
         val sortedIndices = updatedDisciples.indices
-            .filter { updatedDisciples[it].isAlive }
             .sortedWith(compareByDescending<Int> { updatedDisciples[it].statusData["followed"] == "true" }
                 .thenBy { updatedDisciples[it].realm }
                 .thenByDescending { updatedDisciples[it].realmLayer })
@@ -236,7 +248,20 @@ class CultivationEventProcessor @Inject constructor(
             tables.armorIds[id] = disciple.equipment.armorId
             tables.bootsIds[id] = disciple.equipment.bootsId
             tables.accessoryIds[id] = disciple.equipment.accessoryId
+
+            // 清理被替换功法的残留熟练度
+            val oldManualIds = tables.manualIds.getOrDefault(id, emptyList())
             tables.manualIds[id] = disciple.manualIds
+            val removedIds = oldManualIds - disciple.manualIds.toSet()
+            if (removedIds.isNotEmpty()) {
+                val profMap = state.gameData.manualProficiencies.toMutableMap()
+                profMap[disciple.id]?.let { list ->
+                    val filtered = list.filter { it.manualId !in removedIds }
+                    if (filtered.isEmpty()) profMap.remove(disciple.id)
+                    else profMap[disciple.id] = filtered
+                }
+                state.gameData = state.gameData.copy(manualProficiencies = profMap)
+            }
         }
         state.equipmentStacks.setItems(
             state.equipmentStacks.all().filter { it.id in bagEqIds } + eqStacks
