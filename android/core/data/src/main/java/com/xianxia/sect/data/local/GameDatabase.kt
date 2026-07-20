@@ -71,7 +71,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 23  // v23: MIGRATION_22_23 game_data 移除废弃字段 discipleDesertionPopup
+    version = 24  // v24: MIGRATION_23_24 storage_bags 复合主键 (id, slot_id)
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)
@@ -1037,7 +1037,45 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_23_24 = object : Migration(23, 24) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // storage_bags 从 PRIMARY KEY (id) 重建为 PRIMARY KEY (id, slot_id)
+                // 使用 create-copy-drop-rename 模式兼容 SQLite < 3.35.0
+                // Step 1: 去重（极低概率的跨槽位相同 id 情况，防守性保留一条）
+                db.execSQL("""
+                    DELETE FROM storage_bags WHERE rowid NOT IN (
+                        SELECT MIN(rowid) FROM storage_bags GROUP BY id
+                    )
+                """)
+                // Step 2: 建新表
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `storage_bags_new` (
+                        `id` TEXT NOT NULL,
+                        `slot_id` INTEGER NOT NULL DEFAULT 0,
+                        `name` TEXT NOT NULL DEFAULT '',
+                        `rarity` INTEGER NOT NULL DEFAULT 1,
+                        `description` TEXT NOT NULL DEFAULT '可随机获得5-20件同品阶物品',
+                        `quantity` INTEGER NOT NULL DEFAULT 1,
+                        `isLocked` INTEGER NOT NULL DEFAULT 0,
+                        PRIMARY KEY(`id`, `slot_id`)
+                    )
+                """)
+                // Step 3: 迁移数据
+                db.execSQL("INSERT INTO `storage_bags_new` SELECT * FROM `storage_bags`")
+                // Step 3a: 修复旧数据 slot_id=0 → 1（旧 bug 导致部分 storageBags slot_id 为默认值 0）
+                // 设为 slot 1 作为安全默认值，用户可在游戏内自行整理
+                db.execSQL("UPDATE `storage_bags_new` SET `slot_id` = 1 WHERE `slot_id` = 0")
+                // Step 4: 替换
+                db.execSQL("DROP TABLE IF EXISTS `storage_bags`")
+                db.execSQL("ALTER TABLE `storage_bags_new` RENAME TO `storage_bags`")
+                // Step 5: 索引
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_storage_bags_slot_id ON storage_bags(`slot_id`)")
+                Log.i(TAG, "Migration 23->24: rebuilt storage_bags with composite PK (id, slot_id)")
+            }
+        }
+
         /**
+         * 检查表中是否存在指定列。
          * 检查表中是否存在指定列。
          * 用于处理错误的 Migration 回填（已存在列重复 ALTER 会崩溃）。
          */
@@ -1076,7 +1114,7 @@ abstract class GameDatabase : RoomDatabase() {
                         Thread(r, "GameDB-Txn")
                     }
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database created")

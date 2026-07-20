@@ -116,6 +116,10 @@ class GameStateRepository @Inject constructor(
         _pendingWrites.tryEmit(Unit)
     }
 
+    fun clearDirty() {
+        dirty = DirtySet()
+    }
+
     suspend fun flushDirtyState(
         gameData: GameData,
         disciples: List<Disciple>,

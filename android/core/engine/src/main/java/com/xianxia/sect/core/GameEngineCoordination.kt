@@ -194,7 +194,7 @@ suspend fun GameEngine.loadData(
 }
 
 suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
-    stateStore.reset(); cultivationService.resetHighFrequencyData()
+    stateStore.resetForSlot(currentSlot); cultivationService.resetHighFrequencyData()
     // 1. 先初始化世界和游戏状态（邮件依赖 gameData 就绪）
     initializeWorldAndServices(sectName, currentSlot)
     val gridCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
@@ -231,7 +231,7 @@ suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
 suspend fun GameEngine.restartGameSuspend(sectName: String = "", currentSlot: Int = 1) = restartGameInternal(sectName, currentSlot)
 
 private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot: Int) {
-    stateStore.reset(); cultivationService.resetHighFrequencyData()
+    stateStore.resetForSlot(currentSlot); cultivationService.resetHighFrequencyData()
     if (sectName.isNotBlank()) {
         // 1. 先初始化世界和游戏状态
         initializeWorldAndServices(sectName, currentSlot)

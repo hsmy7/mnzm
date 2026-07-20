@@ -896,13 +896,24 @@ class GameStateStoreImpl @Inject constructor(
             _battleLogsFlow.value = emptyList()
             _pendingBattleResultFlow.value = null
             _pendingNotificationFlow.value = null
+            _notificationsFlow.value = emptyList()
+            while (notificationQueue.poll() != null) { /* drain queue */ }
+            _pendingBattleRewardCardsFlow.value = emptyList()
+            _rewardCardQueueFlow.value = emptyList()
+            _pendingBeastAttacksFlow.value = emptyList()
             _isPaused.value = true
             _isLoading.value = false
             _isSaving.value = false
             _updateVersion.value++
             _stateDirty = false
             _discipleDirty = false
+            repository.clearDirty()
         }
+    }
+
+    override suspend fun resetForSlot(slotId: Int) {
+        reset()
+        repository.setActiveSlot(slotId)
     }
 
     /**

@@ -907,12 +907,15 @@ data class Seed(
     val basePrice: Int get() = GameConfig.Rarity.get(rarity).seedPrice
 }
 
-@Entity(tableName = "storage_bags")
+@Entity(
+    tableName = "storage_bags",
+    primaryKeys = ["id", "slot_id"]
+)
 @Keep
 @Serializable
 @Immutable
 data class StorageBag(
-    @PrimaryKey
+    @ColumnInfo(name = "id")
     override val id: String = java.util.UUID.randomUUID().toString(),
 
     @ColumnInfo(name = "slot_id")
