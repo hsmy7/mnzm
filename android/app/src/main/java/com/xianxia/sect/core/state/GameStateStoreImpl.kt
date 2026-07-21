@@ -151,12 +151,13 @@ class GameStateStoreImpl @Inject constructor(
     internal val _updateVersion = MutableStateFlow(0L)
 
     // ── 发射节流（R19）：批量结算时抑制个体字段发射，仅依赖 _updateVersion ──
-    @Volatile
-    private var batchEmissionMode = false
-    /** 批量模式下抑制个体字段 StateFlow 发射，仅 _updateVersion 递增 */
-    override fun enterBatchEmissionMode() { batchEmissionMode = true }
-    /** 退出批量模式，立即触发一次完整状态发射 */
-    override fun exitBatchEmissionMode() { batchEmissionMode = false; _updateVersion.value++; _stateDirty = true }
+    // ⚠ 已移除自动批量发射模式（auto-batch emission mode）——该优化在 ≥3 字段变化时
+    // 抑制个体 StateFlow 发射，导致时间/仓库显示冻结而修炼（异步组装）持续更新。
+    // 个体 StateFlow 已有 !!! 引用比较做变化检测，无性能问题。
+    /** 预留接口，已弃用（不再自动触发） */
+    override fun enterBatchEmissionMode() { /* no-op */ }
+    /** 预留接口，已弃用（不再自动触发） */
+    override fun exitBatchEmissionMode() { /* no-op */ }
 
     override val warehouseFullEvent: MutableSharedFlow<Unit> = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
@@ -567,8 +568,6 @@ class GameStateStoreImpl @Inject constructor(
 
     override fun update(block: MutableGameState.() -> Unit) {
         var disciplesNeedReassemble = false
-        // 每次 update 开始重置批量发射模式，由本次更新自行决定是否启用
-        batchEmissionMode = false
 
         transactionLock.withLock {
             val lockStartNs = System.nanoTime()
@@ -639,44 +638,24 @@ class GameStateStoreImpl @Inject constructor(
                 _isPaused.value = finalPaused
                 _isLoading.value = finalLoading
                 _isSaving.value = finalSaving
-                // ★ 自动批量发射模式：当 3+ 字段变化时抑制个体 StateFlow 发射，
-                // 仅递增 _updateVersion 触发 unifiedState 批处理重建。
-                if (!batchEmissionMode) {
-                    val fieldChanges = mutableListOf<Boolean>().apply {
-                        add(reusableMutableState.gameData !== curGame)
-                        add(reusableMutableState.equipmentStacks.items !== curES)
-                        add(reusableMutableState.equipmentInstances.items !== curEI)
-                        add(reusableMutableState.manualStacks.items !== curMS)
-                        add(reusableMutableState.manualInstances.items !== curMI)
-                        add(reusableMutableState.pills.items !== curP)
-                        add(reusableMutableState.materials.items !== curMat)
-                        add(reusableMutableState.herbs.items !== curH)
-                        add(reusableMutableState.seeds.items !== curS)
-                        add(reusableMutableState.storageBags.items !== curSB)
-                        add(reusableMutableState.teams !== curT)
-                        add(reusableMutableState.battleLogs !== curBL)
-                    }
-                    if (fieldChanges.count { it } >= 3) {
-                        batchEmissionMode = true
-                    }
-                }
-                if (!batchEmissionMode) {
-                    if (reusableMutableState.gameData !== curGame) _gameDataFlow.value = reusableMutableState.gameData
-                    if (reusableMutableState.equipmentStacks.items !== curES) _equipmentStacksFlow.value = reusableMutableState.equipmentStacks.items
-                    if (reusableMutableState.equipmentInstances.items !== curEI) _equipmentInstancesFlow.value = reusableMutableState.equipmentInstances.items
-                    if (reusableMutableState.manualStacks.items !== curMS) _manualStacksFlow.value = reusableMutableState.manualStacks.items
-                    if (reusableMutableState.manualInstances.items !== curMI) _manualInstancesFlow.value = reusableMutableState.manualInstances.items
-                    if (reusableMutableState.pills.items !== curP) _pillsFlow.value = reusableMutableState.pills.items
-                    if (reusableMutableState.materials.items !== curMat) _materialsFlow.value = reusableMutableState.materials.items
-                    if (reusableMutableState.herbs.items !== curH) _herbsFlow.value = reusableMutableState.herbs.items
-                    if (reusableMutableState.seeds.items !== curS) _seedsFlow.value = reusableMutableState.seeds.items
-                    if (reusableMutableState.storageBags.items !== curSB) _storageBagsFlow.value = reusableMutableState.storageBags.items
-                    if (reusableMutableState.teams !== curT) _teamsFlow.value = reusableMutableState.teams
-                    if (reusableMutableState.battleLogs !== curBL)
-                        _battleLogsFlow.value = reusableMutableState.battleLogs
-                    if (blockChangedNotification)
-                        _pendingNotificationFlow.value = reusableMutableState.pendingNotification
-                }
+                // 个体 StateFlow 发射（始终执行，但有 !!! 引用比较防止无意义发射）
+                // ★ 已移除自动批量发射模式：该模式在 ≥3 字段变化时抑制个体发射，
+                // 导致时间和仓库显示冻结，而修炼流（锁外异步组装）继续更新。
+                if (reusableMutableState.gameData !== curGame) _gameDataFlow.value = reusableMutableState.gameData
+                if (reusableMutableState.equipmentStacks.items !== curES) _equipmentStacksFlow.value = reusableMutableState.equipmentStacks.items
+                if (reusableMutableState.equipmentInstances.items !== curEI) _equipmentInstancesFlow.value = reusableMutableState.equipmentInstances.items
+                if (reusableMutableState.manualStacks.items !== curMS) _manualStacksFlow.value = reusableMutableState.manualStacks.items
+                if (reusableMutableState.manualInstances.items !== curMI) _manualInstancesFlow.value = reusableMutableState.manualInstances.items
+                if (reusableMutableState.pills.items !== curP) _pillsFlow.value = reusableMutableState.pills.items
+                if (reusableMutableState.materials.items !== curMat) _materialsFlow.value = reusableMutableState.materials.items
+                if (reusableMutableState.herbs.items !== curH) _herbsFlow.value = reusableMutableState.herbs.items
+                if (reusableMutableState.seeds.items !== curS) _seedsFlow.value = reusableMutableState.seeds.items
+                if (reusableMutableState.storageBags.items !== curSB) _storageBagsFlow.value = reusableMutableState.storageBags.items
+                if (reusableMutableState.teams !== curT) _teamsFlow.value = reusableMutableState.teams
+                if (reusableMutableState.battleLogs !== curBL)
+                    _battleLogsFlow.value = reusableMutableState.battleLogs
+                if (blockChangedNotification)
+                    _pendingNotificationFlow.value = reusableMutableState.pendingNotification
                 val disciplesChanged = reusableMutableState.discipleTables !== _discipleTables
                 val mutated = reusableMutableState.discipleTables.mutationVersion
                 disciplesNeedReassemble = disciplesChanged || mutated != lastAssembledMutationVersion

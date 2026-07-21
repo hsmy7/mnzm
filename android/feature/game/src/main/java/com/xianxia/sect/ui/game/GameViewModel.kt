@@ -198,11 +198,11 @@ class GameViewModel @Inject constructor(
 
     val gameData: StateFlow<GameData> get() = gameEngine.gameData
 
-    @OptIn(kotlinx.coroutines.FlowPreview::class)
     val gameDataUi: StateFlow<GameData> = merge(
-        gameEngine.gameData.sample(100),
+        gameEngine.gameData,
         _dialogOpenTrigger.map { gameEngine.gameData.value }
-    ).flowOn(Dispatchers.Default)
+    ).distinctUntilChanged()
+        .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, sharingStarted, gameEngine.gameData.value)
 
     val placedBuildings: StateFlow<List<GridBuildingData>> = gameData

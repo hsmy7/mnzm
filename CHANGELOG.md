@@ -1,3 +1,15 @@
+## [4.0.60] - 2026-07-21（versionCode=4060）
+
+### 修复
+
+- **时间显示冻结** -- `GameStateStoreImpl` 自动批量发射模式在 ≥3 字段变化时抑制 `_gameDataFlow` 发射，而 `_disciplesFlow`（锁外异步组装）不受影响，导致时间显示冻结但修炼进度条持续变化。移除自动批量发射检测逻辑，个体 StateFlow 始终正常发射
+- **仓库售卖物品不刷新** -- 同上根因，批量售卖 (`bulkSellItems`) 在单事务内修改 4+ 个 EntityStore 触发批量模式，所有仓库 StateFlow 被抑制。移除批量模式后售卖正常发射
+- **`gameDataUi` 采样丢帧** -- `.sample(100)` 与 100ms 游戏循环互为采样周期产生相位漂移，改用 `.distinctUntilChanged()` 结构相等检测剔除无效发射
+
+### 重构/优化
+
+- 移除 `GameStateStoreImpl.batchEmissionMode` 自动批量发射模式及相关死代码
+
 ## [4.0.59] - 2026-07-20（versionCode=4059）
 
 
