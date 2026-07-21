@@ -82,7 +82,12 @@ class GameViewModel @Inject constructor(
         onNavigate = { _navigationEvents.trySend(it) }
     )
     val inventory = InventoryDelegate(gameEngine, viewModelScope)
-    val beastAttack = BeastAttackDelegate(gameEngine, viewModelScope)
+    val beastAttack = BeastAttackDelegate(
+        gameEngine, viewModelScope,
+        onMessage = { message, isError ->
+            if (isError) showError(message) else showSuccess(message)
+        }
+    )
     val warnings = WarningDelegate(gameEngine, viewModelScope)
     val buildingDelegate = BuildingDelegate(
         gameEngine, buildingFacade, buildingConfigService, viewModelScope,

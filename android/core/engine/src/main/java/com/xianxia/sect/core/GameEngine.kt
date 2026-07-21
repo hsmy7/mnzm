@@ -138,14 +138,14 @@ class GameEngine @Inject constructor(
     fun clearRewardCardQueue(count: Int = Int.MAX_VALUE) { stateStore.clearRewardCardQueue(count) }
     val pendingBeastAttacks: StateFlow<List<PendingBeastAttack>> get() = stateStore.pendingBeastAttacks
     fun clearPendingBeastAttacks() { stateStore.clearPendingBeastAttacks() }
-    suspend fun resolveBeastAttackPayTribute(beastLevelId: String) {
-        explorationService.resolveBeastAttackPayTribute(beastLevelId)
+    suspend fun resolveBeastAttackPayTribute(beastLevelId: String): Boolean {
+        return explorationService.resolveBeastAttackPayTribute(beastLevelId)
     }
     suspend fun resolveBeastAttackFight(
         beastLevelId: String,
         manualDefenders: List<Disciple>? = null
-    ) {
-        explorationService.resolveBeastAttackFight(beastLevelId, manualDefenders)
+    ): Boolean {
+        return explorationService.resolveBeastAttackFight(beastLevelId, manualDefenders)
     }
     val warehouseFullEvent get() = stateStore.warehouseFullEvent
     val teams: StateFlow<List<ExplorationTeam>> get() = stateStore.teams

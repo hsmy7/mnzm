@@ -109,10 +109,10 @@ class ExplorationService @Inject constructor(
 
     // ── 妖兽袭击处理（玩家主动操作） ──────────────────────────────────────
 
-    suspend fun resolveBeastAttackPayTribute(beastLevelId: String) {
+    suspend fun resolveBeastAttackPayTribute(beastLevelId: String): Boolean {
         val gd = stateStore.gameData.value
-        val level = gd.worldLevels.find { it.id == beastLevelId } ?: return
-        if (level.defeated) return
+        val level = gd.worldLevels.find { it.id == beastLevelId } ?: return false
+        if (level.defeated) return false
         val targetSect = gd.worldMapSects.find {
             it.isPlayerSect || it.isPlayerOccupied
         }
@@ -141,15 +141,16 @@ class ExplorationService @Inject constructor(
                 details = "上交${tribute}灵石，妖兽退去"
             )).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
         }
+        return true
     }
 
     suspend fun resolveBeastAttackFight(
         beastLevelId: String,
         manualDefenders: List<Disciple>? = null
-    ) {
+    ): Boolean {
         val snapshot = stateStore.gameData.value
-        val level = snapshot.worldLevels.find { it.id == beastLevelId } ?: return
-        if (level.defeated) return
+        val level = snapshot.worldLevels.find { it.id == beastLevelId } ?: return false
+        if (level.defeated) return false
         stateStore.update {
             // 遭遇战检查：妖兽附近有 AI 宗门拦截
             val aiSectId = gameData.aiBeastEncounterTargets[beastLevelId]
@@ -215,6 +216,7 @@ class ExplorationService @Inject constructor(
             // 无遭遇战，走正常妖兽战斗路径
             resolveBeastFightInternal(beastLevelId, level)
         }
+        return true
     }
 
     // ── 内部战斗编排（≤60 行，委派各子阶段） ─────────────────────────────

@@ -11,17 +11,25 @@ import kotlinx.coroutines.launch
  */
 class BeastAttackDelegate(
     private val gameEngine: GameEngine,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val onMessage: ((message: String, isError: Boolean) -> Unit)? = null
 ) {
     /** 处理兽袭事件 — 选择进贡物资以平息该兽袭。 */
-    suspend fun resolveBeastAttackPayTribute(beastLevelId: String) {
-        gameEngine.resolveBeastAttackPayTribute(beastLevelId)
+    suspend fun resolveBeastAttackPayTribute(beastLevelId: String): Boolean {
+        val success = gameEngine.resolveBeastAttackPayTribute(beastLevelId)
+        if (!success) {
+            onMessage?.invoke("该妖兽已被击败，无需进贡", false)
+        }
+        return success
     }
 
     /** 处理兽袭事件 — 选择战斗抵抗。 */
     fun resolveBeastAttackFight(beastLevelId: String) {
         scope.launch {
-            gameEngine.resolveBeastAttackFight(beastLevelId)
+            val success = gameEngine.resolveBeastAttackFight(beastLevelId)
+            if (!success) {
+                onMessage?.invoke("该妖兽已被击败", true)
+            }
         }
     }
 
