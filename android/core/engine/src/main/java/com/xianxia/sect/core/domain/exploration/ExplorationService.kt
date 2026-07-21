@@ -66,8 +66,8 @@ class ExplorationService @Inject constructor(
      * 月度世界事件处理 — 委派给子领域系统。
      *
      * 1. WorldLevelManager — 关卡刷新/过期清理/妖兽移动
-     * 2. BeastAttackDetector — 检测妖兽攻击
-     * 3. PatrolBattleSystem — 巡视楼自动攻击
+     * 2. PatrolBattleSystem — 巡视楼自动攻击（先于检测，避免已击败妖兽产生预警）
+     * 3. BeastAttackDetector — 检测妖兽攻击（仅检测巡视楼未击败的剩余妖兽）
      */
     fun processMonthlyWorldLevels(state: MutableGameState) {
         // 计算玩家存活弟子的平均境界，传给 LevelGenerator 做安全兜底
@@ -155,6 +155,10 @@ class ExplorationService @Inject constructor(
         if (level.defeated) return false
         var handled = false
         stateStore.update {
+            // 锁内二次检查 defeated（防 TOCTOU：锁外快照可能已过时）
+            val currentLevel = gameData.worldLevels.find { it.id == beastLevelId }
+            if (currentLevel == null || currentLevel.defeated) return@update
+
             // 遭遇战检查：妖兽附近有 AI 宗门拦截
             val aiSectId = gameData.aiBeastEncounterTargets[beastLevelId]
             if (aiSectId != null) {
@@ -164,8 +168,10 @@ class ExplorationService @Inject constructor(
                 }
                 if (aiSect != null && targetSect != null) {
                     // 使用手动选择的弟子（世界地图进攻）或自动选择（弹窗迎战）
+                    // 手动选择路径在锁内重新查询弟子状态，避免锁外快照的 isAlive 过期
                     val defenders = if (manualDefenders != null) {
-                        manualDefenders.filter { it.isAlive }
+                        val manualIds = manualDefenders.map { it.id }.toSet()
+                        discipleTables.assembleAll().filter { it.id in manualIds && it.isAlive }
                     } else {
                         val allAlive = discipleTables.assembleAll().filter { it.isAlive }
                         val pids = gameData.patrolSlots
