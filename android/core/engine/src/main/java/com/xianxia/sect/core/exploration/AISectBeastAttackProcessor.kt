@@ -1,11 +1,11 @@
 package com.xianxia.sect.core.exploration
 
+import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.SectCombatPowerCalculator
-import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
-import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.Battle
+import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
 import com.xianxia.sect.core.domain.battle.EncounterBattleService
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
@@ -13,19 +13,13 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameEventCategory
 import com.xianxia.sect.core.model.GameEventType
-import com.xianxia.sect.core.state.recordGameEvent
-import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.LevelType
-import com.xianxia.sect.core.model.ManualInstance
-import com.xianxia.sect.core.model.EquipmentNurtureData
-import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.WorldLevel
 import com.xianxia.sect.core.model.WorldSect
-import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.recordGameEvent
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import javax.inject.Inject
@@ -207,9 +201,32 @@ class AISectBeastAttackProcessor @Inject constructor(
         if (teamA.isEmpty() || teamB.isEmpty()) return
 
         // Phase 1: AI vs AI PvP
-        val pvpBattle = battleSystem.createBattle(
-            disciples = teamA, equipmentMap = emptyMap(), manualMap = emptyMap(),
-            beastLevel = beast.realm, beastCount = 0, beastPreGenStats = null
+        val preparedA = AISectDiscipleManager.prepareDisciplesForBattle(teamA)
+        val preparedB = AISectDiscipleManager.prepareDisciplesForBattle(teamB)
+        val teamACombatants = preparedA.disciples.map { disciple ->
+            battleSystem.convertDiscipleToCombatant(
+                disciple = disciple,
+                equipmentMap = preparedA.equipmentMap,
+                manualMap = preparedA.manualMap,
+                manualProficiencies = preparedA.proficiencies,
+                side = CombatantSide.DEFENDER,
+                fullHeal = true
+            )
+        }
+        val teamBCombatants = preparedB.disciples.map { disciple ->
+            battleSystem.convertDiscipleToCombatant(
+                disciple = disciple,
+                equipmentMap = preparedB.equipmentMap,
+                manualMap = preparedB.manualMap,
+                manualProficiencies = preparedB.proficiencies,
+                side = CombatantSide.ATTACKER,
+                fullHeal = true
+            )
+        }
+        val pvpBattle = Battle(
+            team = teamACombatants,
+            beasts = teamBCombatants,
+            maxTurns = GameConfig.Battle.MAX_TURNS
         )
         val pvpResult = battleSystem.executeBattle(pvpBattle)
 
@@ -336,124 +353,30 @@ class AISectBeastAttackProcessor @Inject constructor(
     /**
      * 为 AI 弟子创建战斗。
      *
-     * AI 弟子不含真实装备/功法数据，使用 [AISectDiscipleManager.generateBattleItems]
+     * AI 弟子不含真实装备/功法数据，使用 [AISectDiscipleManager.prepareDisciplesForBattle]
      * 按境界生成模拟装备和功法，确保战斗有合理的数值表现。
      */
     private fun createAIBattle(disciples: List<Disciple>, beast: WorldLevel): Battle {
         if (!ManualDatabase.isInitialized) {
-            // 启动时序异常时不应继续，但 processMonthly 入口已有守卫
             throw IllegalStateException(
                 "ManualDatabase not initialized when creating AI vs beast battle"
             )
         }
 
-        val equipmentMap = mutableMapOf<String, EquipmentInstance>()
-        val manualMap = mutableMapOf<String, ManualInstance>()
-        val proficiencies = mutableMapOf<String, Map<String, ManualProficiencyData>>()
-        val modifiedDisciples = mutableListOf<Disciple>()
-
-        for (disciple in disciples) {
-            val items = AISectDiscipleManager.generateBattleItems(disciple)
-
-            // 提取装备 ID
-            val weaponId = items.equipments
-                .firstOrNull { it.second == EquipmentSlot.WEAPON }?.first ?: ""
-            val armorId = items.equipments
-                .firstOrNull { it.second == EquipmentSlot.ARMOR }?.first ?: ""
-            val bootsId = items.equipments
-                .firstOrNull { it.second == EquipmentSlot.BOOTS }?.first ?: ""
-            val accessoryId = items.equipments
-                .firstOrNull { it.second == EquipmentSlot.ACCESSORY }?.first ?: ""
-
-            // 构建装备映射
-            buildEquipmentEntry(equipmentMap, weaponId, items.weaponNurture)
-            buildEquipmentEntry(equipmentMap, armorId, items.armorNurture)
-            buildEquipmentEntry(equipmentMap, bootsId, items.bootsNurture)
-            buildEquipmentEntry(equipmentMap, accessoryId, items.accessoryNurture)
-
-            // 构建功法映射和熟练度
-            val manualIds = items.manuals.map { it.first }
-            val manualMasteries = items.manuals.toMap()
-
-            for (mId in manualIds) {
-                if (mId !in manualMap) {
-                    val template = ManualDatabase.getById(mId) ?: continue
-                    manualMap[mId] = ManualDatabase.createFromTemplate(template)
-                        .toInstance(id = mId)
-                }
-            }
-
-            val discipleProfs = manualIds.associateWith { mId ->
-                val mastery = manualMasteries[mId] ?: 0
-                val manual = ManualDatabase.getById(mId)
-                val masteryLevel = if (manual != null) {
-                    ManualProficiencySystem.MasteryLevel.fromProficiency(mastery.toDouble()).level
-                } else 0
-                val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
-                ManualProficiencyData(
-                    manualId = mId,
-                    proficiency = mastery.toDouble().coerceAtMost(maxProf.toDouble()),
-                    maxProficiency = maxProf,
-                    masteryLevel = masteryLevel
-                )
-            }
-            proficiencies[disciple.id] = discipleProfs
-
-            // 创建携带生成装备/功法的副本弟子
-            modifiedDisciples.add(
-                disciple.copy(
-                    manualIds = manualIds,
-                    manualMasteries = manualMasteries,
-                    equipment = disciple.equipment.copy(
-                        weaponId = weaponId,
-                        armorId = armorId,
-                        bootsId = bootsId,
-                        accessoryId = accessoryId,
-                        weaponNurture = items.weaponNurture,
-                        armorNurture = items.armorNurture,
-                        bootsNurture = items.bootsNurture,
-                        accessoryNurture = items.accessoryNurture
-                    )
-                )
-            )
-        }
-
+        val prepared = AISectDiscipleManager.prepareDisciplesForBattle(disciples)
         return battleSystem.createBattle(
-            disciples = modifiedDisciples,
-            equipmentMap = equipmentMap,
-            manualMap = manualMap,
+            disciples = prepared.disciples,
+            equipmentMap = prepared.equipmentMap,
+            manualMap = prepared.manualMap,
             beastLevel = beast.realm,
             beastCount = beast.count,
             beastPreGenStats = BattleSystem.BeastPreGenStats(
-                maxHp = beast.beastMaxHp,
-                maxMp = beast.beastMaxMp,
-                physicalAttack = beast.beastPhysicalAttack,
-                magicAttack = beast.beastMagicAttack,
-                physicalDefense = beast.beastPhysicalDefense,
-                magicDefense = beast.beastMagicDefense,
-                speed = beast.beastSpeed
+                maxHp = beast.beastMaxHp, maxMp = beast.beastMaxMp,
+                physicalAttack = beast.beastPhysicalAttack, magicAttack = beast.beastMagicAttack,
+                physicalDefense = beast.beastPhysicalDefense, magicDefense = beast.beastMagicDefense,
+                speed = beast.beastSpeed, realmLayer = beast.realmLayer
             ),
-            manualProficiencies = proficiencies
+            manualProficiencies = prepared.proficiencies
         )
-    }
-
-    /**
-     * 向装备映射中添加单件装备条目（如已存在则跳过）。
-     */
-    private fun buildEquipmentEntry(
-        equipmentMap: MutableMap<String, EquipmentInstance>,
-        eqId: String,
-        nurture: EquipmentNurtureData
-    ) {
-        if (eqId.isEmpty() || eqId in equipmentMap) return
-        val template = EquipmentDatabase.getById(eqId) ?: return
-        var instance = EquipmentDatabase.createFromTemplate(template).toInstance(id = eqId)
-        if (nurture.equipmentId == eqId) {
-            instance = instance.copy(
-                nurtureLevel = nurture.nurtureLevel,
-                nurtureProgress = nurture.nurtureProgress
-            )
-        }
-        equipmentMap[eqId] = instance
     }
 }

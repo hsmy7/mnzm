@@ -1,17 +1,12 @@
 package com.xianxia.sect.core.exploration
 
+import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.BuildingConfigService
-import com.xianxia.sect.core.engine.ManualProficiencySystem
-import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
 import com.xianxia.sect.core.engine.domain.battle.Battle
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
-import com.xianxia.sect.core.model.EquipmentNurtureData
-import com.xianxia.sect.core.model.EquipmentSlot
-import com.xianxia.sect.core.registry.EquipmentDatabase
-import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.model.BattleLog
@@ -269,15 +264,32 @@ class PatrolBattleSystem @Inject constructor(
             if (aiDisciples.isEmpty()) return@mapNotNull null
 
             // Phase 1: 巡逻队 vs AI（PvP）
-            // 用 createBattle 构建两方战斗：team=巡逻队, beasts=AI队伍
-            val pvpBattle = battleSystem.createBattle(
-                disciples = team.disciples,
-                equipmentMap = equipmentMap,
-                manualMap = manualMap,
-                beastLevel = target.realm,
-                beastCount = 0,
-                beastPreGenStats = null,
-                manualProficiencies = allProficiencies
+            // 双方分别构建 Combatant → Battle(team=巡逻队, beasts=AI队伍)
+            val aiPrepared = AISectDiscipleManager.prepareDisciplesForBattle(aiDisciples)
+            val patrolCombatants = team.disciples.map { disciple ->
+                battleSystem.convertDiscipleToCombatant(
+                    disciple = disciple,
+                    equipmentMap = equipmentMap,
+                    manualMap = manualMap,
+                    manualProficiencies = allProficiencies,
+                    side = CombatantSide.DEFENDER,
+                    fullHeal = true
+                )
+            }
+            val aiCombatants = aiPrepared.disciples.map { disciple ->
+                battleSystem.convertDiscipleToCombatant(
+                    disciple = disciple,
+                    equipmentMap = aiPrepared.equipmentMap,
+                    manualMap = aiPrepared.manualMap,
+                    manualProficiencies = aiPrepared.proficiencies,
+                    side = CombatantSide.ATTACKER,
+                    fullHeal = true
+                )
+            }
+            val pvpBattle = Battle(
+                team = patrolCombatants,
+                beasts = aiCombatants,
+                maxTurns = GameConfig.Battle.MAX_TURNS
             )
             val pvpResult = battleSystem.executeBattle(pvpBattle)
 
@@ -366,87 +378,32 @@ class PatrolBattleSystem @Inject constructor(
 
     /**
      * 为 AI 弟子创建战斗（生成模拟装备/功法）。
-     * 逻辑与 AISectBeastAttackProcessor.createAIBattle 一致。
+     * 使用共享函数 [AISectDiscipleManager.prepareDisciplesForBattle] 生成装备/功法。
      */
     private fun createAIBattle(
         disciples: List<com.xianxia.sect.core.model.Disciple>,
         target: WorldLevel
     ): Battle {
-        val eqMap = mutableMapOf<String, EquipmentInstance>()
-        val manMap = mutableMapOf<String, ManualInstance>()
-        val profs = mutableMapOf<String, Map<String, ManualProficiencyData>>()
-        val modified = disciples.map { d ->
-            val items = AISectDiscipleManager.generateBattleItems(d)
-            val weaponId = items.equipments.firstOrNull { it.second == EquipmentSlot.WEAPON }?.first ?: ""
-            val armorId = items.equipments.firstOrNull { it.second == EquipmentSlot.ARMOR }?.first ?: ""
-            val bootsId = items.equipments.firstOrNull { it.second == EquipmentSlot.BOOTS }?.first ?: ""
-            val accessoryId = items.equipments.firstOrNull { it.second == EquipmentSlot.ACCESSORY }?.first ?: ""
-
-            buildEquipmentEntry(eqMap, weaponId, items.weaponNurture)
-            buildEquipmentEntry(eqMap, armorId, items.armorNurture)
-            buildEquipmentEntry(eqMap, bootsId, items.bootsNurture)
-            buildEquipmentEntry(eqMap, accessoryId, items.accessoryNurture)
-
-            val manualIds = items.manuals.map { it.first }
-            val manualMasteries = items.manuals.toMap()
-            for (mId in manualIds) {
-                if (mId !in manMap) {
-                    val template = ManualDatabase.getById(mId)
-                    if (template != null) {
-                        manMap[mId] = ManualDatabase.createFromTemplate(template).toInstance(id = mId)
-                    }
-                }
-            }
-            val discipleProfs = manualIds.associateWith { mId ->
-                val mastery = manualMasteries[mId] ?: 0
-                val manual = ManualDatabase.getById(mId)
-                val masteryLevel = if (manual != null) {
-                    ManualProficiencySystem.MasteryLevel.fromProficiency(mastery.toDouble()).level
-                } else 0
-                val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
-                ManualProficiencyData(
-                    manualId = mId,
-                    proficiency = mastery.toDouble().coerceAtMost(maxProf.toDouble()),
-                    maxProficiency = maxProf,
-                    masteryLevel = masteryLevel
-                )
-            }
-            profs[d.id] = discipleProfs
-            d.copy(manualIds = manualIds, manualMasteries = manualMasteries,
-                equipment = d.equipment.copy(
-                    weaponId = weaponId, armorId = armorId,
-                    bootsId = bootsId, accessoryId = accessoryId,
-                    weaponNurture = items.weaponNurture, armorNurture = items.armorNurture,
-                    bootsNurture = items.bootsNurture, accessoryNurture = items.accessoryNurture
-                )
-            )
-        }
+        val prepared = AISectDiscipleManager.prepareDisciplesForBattle(disciples)
+        val beastPreGenStats = if (target.beastMaxHp > 0) BattleSystem.BeastPreGenStats(
+            maxHp = target.beastMaxHp, maxMp = target.beastMaxMp,
+            physicalAttack = target.beastPhysicalAttack, magicAttack = target.beastMagicAttack,
+            physicalDefense = target.beastPhysicalDefense, magicDefense = target.beastMagicDefense,
+            speed = target.beastSpeed, realmLayer = target.realmLayer
+        ) else null
+        val beastTypeName = GameConfig.Beast.getType(
+            (target.beastType ?: 0).coerceIn(0, GameConfig.Beast.TYPES.size - 1)
+        ).name
         return battleSystem.createBattle(
-            disciples = modified, equipmentMap = eqMap, manualMap = manMap,
-            beastLevel = target.realm, beastCount = target.count,
-            beastPreGenStats = if (target.beastMaxHp > 0) BattleSystem.BeastPreGenStats(
-                maxHp = target.beastMaxHp, maxMp = target.beastMaxMp,
-                physicalAttack = target.beastPhysicalAttack, magicAttack = target.beastMagicAttack,
-                physicalDefense = target.beastPhysicalDefense, magicDefense = target.beastMagicDefense,
-                speed = target.beastSpeed, realmLayer = target.realmLayer
-            ) else null,
-            manualProficiencies = profs
+            disciples = prepared.disciples,
+            equipmentMap = prepared.equipmentMap,
+            manualMap = prepared.manualMap,
+            beastLevel = target.realm,
+            beastCount = target.count,
+            beastType = beastTypeName,
+            manualProficiencies = prepared.proficiencies,
+            beastPreGenStats = beastPreGenStats
         )
-    }
-
-    /** 向装备映射中添加单件装备条目（如已存在则跳过）。 */
-    private fun buildEquipmentEntry(
-        equipmentMap: MutableMap<String, EquipmentInstance>,
-        eqId: String,
-        nurture: EquipmentNurtureData
-    ) {
-        if (eqId.isEmpty() || eqId in equipmentMap) return
-        val template = EquipmentDatabase.getById(eqId) ?: return
-        var instance = EquipmentDatabase.createFromTemplate(template).toInstance(id = eqId)
-        if (nurture.equipmentId == eqId) {
-            instance = instance.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress)
-        }
-        equipmentMap[eqId] = instance
     }
 
     private fun executeBattles(

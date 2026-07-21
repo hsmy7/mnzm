@@ -7,6 +7,7 @@ import com.xianxia.sect.core.engine.domain.battle.Battle
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
 import com.xianxia.sect.core.engine.domain.battle.Combatant
+import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.BattleLogAction
@@ -17,6 +18,9 @@ import com.xianxia.sect.core.model.BattleResult
 import com.xianxia.sect.core.model.BattleType
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.WorldLevel
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
@@ -77,37 +81,42 @@ class EncounterBattleService @Inject constructor(
         month: Int,
         favorDedup: MutableSet<String>? = null
     ) {
+        require(attackerA.sectId != attackerB.sectId) {
+            "遭遇战双方 sectId 相同: ${attackerA.sectId}"
+        }
         val isPlayerVsAI = attackerA.isPlayer != attackerB.isPlayer
         DomainLog.i(TAG, "遭遇战: ${attackerA.sectName} vs ${attackerB.sectName}, " +
             "playerVsAI=$isPlayerVsAI, beast=${beast.beastName}")
 
-        // ── 构建装备/功法/熟练度映射 ──
-        val equipmentMap = state.equipmentInstances.associateBy { it.id }
-        val manualMap = state.manualInstances.associateBy { it.id }
-        val allProficiencies = state.gameData.manualProficiencies.mapValues { (_, list) ->
-            list.associateBy { it.manualId }
-        }
+        // ── 按宗门类型构建装备/功法/熟练度映射 ──
+        // 玩家方使用真实装备/功法；AI 方每次参战前按境界随机生成模拟装备/功法
+        val preparedSides = mapOf(
+            attackerA.sectId to prepareSide(attackerA, state),
+            attackerB.sectId to prepareSide(attackerB, state)
+        )
 
         // ═══════════════════════════════════════════════════════
         // Phase 1 — 遭遇战（PvP）
         // ═══════════════════════════════════════════════════════
 
-        val teamACombatants = attackerA.teamDisciples.map { disciple ->
+        val sideA = preparedSides.getValue(attackerA.sectId)
+        val sideB = preparedSides.getValue(attackerB.sectId)
+        val teamACombatants = sideA.disciples.map { disciple ->
             battleSystem.convertDiscipleToCombatant(
                 disciple = disciple,
-                equipmentMap = equipmentMap,
-                manualMap = manualMap,
-                manualProficiencies = allProficiencies,
+                equipmentMap = sideA.equipmentMap,
+                manualMap = sideA.manualMap,
+                manualProficiencies = sideA.proficiencies,
                 side = CombatantSide.DEFENDER,
                 fullHeal = true
             )
         }
-        val teamBCombatants = attackerB.teamDisciples.map { disciple ->
+        val teamBCombatants = sideB.disciples.map { disciple ->
             battleSystem.convertDiscipleToCombatant(
                 disciple = disciple,
-                equipmentMap = equipmentMap,
-                manualMap = manualMap,
-                manualProficiencies = allProficiencies,
+                equipmentMap = sideB.equipmentMap,
+                manualMap = sideB.manualMap,
+                manualProficiencies = sideB.proficiencies,
                 side = CombatantSide.ATTACKER,
                 fullHeal = true
             )
@@ -187,7 +196,8 @@ class EncounterBattleService @Inject constructor(
         // Phase 2 — 胜方 vs 妖兽
         // ═══════════════════════════════════════════════════════
 
-        val winnerSurvivors = winnerP1.teamDisciples
+        val winnerSide = preparedSides.getValue(winnerP1.sectId)
+        val winnerSurvivors = winnerSide.disciples
             .filter { it.id in winnerAliveIdsP1 }
 
         if (winnerSurvivors.isEmpty()) {
@@ -216,12 +226,12 @@ class EncounterBattleService @Inject constructor(
 
         val pveBattle = battleSystem.createBattle(
             disciples = winnerSurvivors,
-            equipmentMap = equipmentMap,
-            manualMap = manualMap,
+            equipmentMap = winnerSide.equipmentMap,
+            manualMap = winnerSide.manualMap,
             beastLevel = beast.realm,
             beastCount = beast.count,
             beastType = beastTypeName,
-            manualProficiencies = allProficiencies,
+            manualProficiencies = winnerSide.proficiencies,
             beastPreGenStats = beastPreGenStats
         )
         val pveResult = battleSystem.executeBattle(pveBattle)
@@ -292,6 +302,44 @@ class EncounterBattleService @Inject constructor(
                         disciples
                     }
                 }
+            )
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // 战前准备（宗门方装备/功法映射构建）
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * 根据宗门类型准备战斗数据。
+     *
+     * 玩家方使用真实装备/功法实例；AI 方调用 [AISectDiscipleManager.prepareDisciplesForBattle]
+     * 按境界范围随机生成模拟装备/功法（不含丹药/血炼）。
+     *
+     * @param attacker 攻击方宗门
+     * @param state    当前可变游戏状态
+     * @return [PreparedSide] 包含弟子副本和对应的装备/功法/熟练度映射
+     */
+    private fun prepareSide(
+        attacker: EncounterAttacker,
+        state: MutableGameState
+    ): PreparedSide {
+        return if (attacker.isPlayer) {
+            PreparedSide(
+                disciples = attacker.teamDisciples,
+                equipmentMap = state.equipmentInstances.associateBy { it.id },
+                manualMap = state.manualInstances.associateBy { it.id },
+                proficiencies = state.gameData.manualProficiencies.mapValues { (_, list) ->
+                    list.associateBy { it.manualId }
+                }
+            )
+        } else {
+            val prepared = AISectDiscipleManager.prepareDisciplesForBattle(attacker.teamDisciples)
+            PreparedSide(
+                disciples = prepared.disciples,
+                equipmentMap = prepared.equipmentMap,
+                manualMap = prepared.manualMap,
+                proficiencies = prepared.proficiencies
             )
         }
     }
@@ -483,4 +531,17 @@ data class EncounterAttacker(
     val sectName: String,
     val isPlayer: Boolean,
     val teamDisciples: List<Disciple>
+)
+
+/**
+ * 战前准备结果：某方宗门（玩家或 AI）的战斗数据。
+ *
+ * 玩家方使用真实装备/功法实例；AI 方为随机生成的模拟装备/功法。
+ * [disciples] 对 AI 方是修改后的副本（带 equipmentId/manualIds），对玩家方是原始弟子。
+ */
+data class PreparedSide(
+    val disciples: List<Disciple>,
+    val equipmentMap: Map<String, EquipmentInstance>,
+    val manualMap: Map<String, ManualInstance>,
+    val proficiencies: Map<String, Map<String, ManualProficiencyData>>
 )

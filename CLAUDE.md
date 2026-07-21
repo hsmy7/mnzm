@@ -487,6 +487,7 @@ fun `all SlotCategory values are covered by scanAndRegister`() {
 | 🔴 | 新增渲染特性有对应的 `SoftwareCanvasBackend` 单元测试（`SoftwareCanvasBackendTest.kt`） |
 | 🔴 | HW 加速决策已检查所有 Activity 入口（`MainActivity` 和 `GameActivity` 均需在 `super.onCreate()` 前检查 `isAccelerationDisabled()`） |
 | 🔴 | 使用 `Build.SOC_MANUFACTURER`（API 31+）、`Build.SOC_MODEL`（API 31+）等新增 API 字段已添加 `Build.VERSION.SDK_INT` 守卫 |
+| 🔴 | 新增/修改涉及 AI 弟子参战的战斗路径必须调用 `AISectDiscipleManager.prepareDisciplesForBattle()` 生成模拟装备/功法，禁止传 `emptyMap()` 或自行构建装备映射；AI 弟子不吃丹药、无血炼 |
 | 🟡 | 新 Service 有 `@GameService` 注解 |
 | 🟡 | State 数据类有 `@Immutable` |
 | 🟡 | 公开 API 有 KDoc |

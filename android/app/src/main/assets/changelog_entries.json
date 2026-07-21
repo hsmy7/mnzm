@@ -16,7 +16,8 @@
       "修改：初始赠送改为2个凡品储物袋——移除初始凡品功法，改为2个凡品储物袋",
       "安全：招募防御刷新改用lastRecruitYear守卫——修复非刷新年读档后招募列表为空且无法刷新的状态死锁",
       "安全：一键出售确认按钮添加防重入守卫——防止快速双击导致物品重复出售",
-      "安全：GridRow添加maxColumnWidth=0.dp除零保护——防止API误用导致无限Spacer OOM"
+      "安全：GridRow添加maxColumnWidth=0.dp除零保护——防止API误用导致无限Spacer OOM",
+      "修复：AI弟子战斗缺失装备/功法加成——三路径(探索遭遇战AI方/巡逻冲突战PvP/AI vs AI PvP)修复，提取公共函数prepareDisciplesForBattle统一按境界生成模拟装备/功法"
     ]
   },
   {

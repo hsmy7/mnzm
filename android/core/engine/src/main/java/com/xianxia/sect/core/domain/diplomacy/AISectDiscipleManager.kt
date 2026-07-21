@@ -30,6 +30,17 @@ object AISectDiscipleManager {
         val accessoryNurture: EquipmentNurtureData
     )
 
+    /**
+     * AI 弟子战前准备结果。
+     * 包含修改后的弟子副本（带装备/功法 ID）和对应的实例映射。
+     */
+    data class AIPreparedBattle(
+        val disciples: List<Disciple>,
+        val equipmentMap: Map<String, EquipmentInstance>,
+        val manualMap: Map<String, ManualInstance>,
+        val proficiencies: Map<String, Map<String, ManualProficiencyData>>
+    )
+
     fun generateRandomDisciple(sectName: String, maxRealm: Int = 9, existingNames: Set<String> = emptySet()): Disciple {
         val gender = if (rng.nextInt(2) == 0) "male" else "female"
         val nameResult = NameService.generateName(gender, NameService.NameStyle.XIANXIA, existingNames)
@@ -165,6 +176,106 @@ object AISectDiscipleManager {
             bootsNurture = bootsNurture,
             accessoryNurture = accessoryNurture
         )
+    }
+
+    /**
+     * 为 AI 弟子列表生成模拟装备/功法并准备战斗数据。
+     *
+     * AI 弟子本身不持久化装备/功法，每次参战前根据境界范围随机生成。
+     * 丹药/血炼不计入。
+     *
+     * @param disciples AI 弟子列表
+     * @return 包含修改后弟子副本和装备/功法实例映射的 [AIPreparedBattle]
+     */
+    fun prepareDisciplesForBattle(disciples: List<Disciple>): AIPreparedBattle {
+        if (!ManualDatabase.isInitialized) {
+            return AIPreparedBattle(disciples, emptyMap(), emptyMap(), emptyMap())
+        }
+
+        val equipmentMap = mutableMapOf<String, EquipmentInstance>()
+        val manualMap = mutableMapOf<String, ManualInstance>()
+        val proficiencies = mutableMapOf<String, Map<String, ManualProficiencyData>>()
+        val modifiedDisciples = mutableListOf<Disciple>()
+
+        for (disciple in disciples) {
+            val items = generateBattleItems(disciple)
+            val weaponId = items.equipments
+                .firstOrNull { it.second == EquipmentSlot.WEAPON }?.first ?: ""
+            val armorId = items.equipments
+                .firstOrNull { it.second == EquipmentSlot.ARMOR }?.first ?: ""
+            val bootsId = items.equipments
+                .firstOrNull { it.second == EquipmentSlot.BOOTS }?.first ?: ""
+            val accessoryId = items.equipments
+                .firstOrNull { it.second == EquipmentSlot.ACCESSORY }?.first ?: ""
+
+            buildEquipmentEntry(equipmentMap, weaponId, items.weaponNurture)
+            buildEquipmentEntry(equipmentMap, armorId, items.armorNurture)
+            buildEquipmentEntry(equipmentMap, bootsId, items.bootsNurture)
+            buildEquipmentEntry(equipmentMap, accessoryId, items.accessoryNurture)
+
+            val manualIds = items.manuals.map { it.first }
+            val manualMasteries = items.manuals.toMap()
+            for (mId in manualIds) {
+                if (mId !in manualMap) {
+                    val template = ManualDatabase.getById(mId) ?: continue
+                    manualMap[mId] = ManualDatabase.createFromTemplate(template)
+                        .toInstance(id = mId)
+                }
+            }
+
+            val discipleProfs = manualIds.associateWith { mId ->
+                val mastery = manualMasteries[mId] ?: 0
+                val manual = ManualDatabase.getById(mId)
+                val masteryLevel = if (manual != null) {
+                    ManualProficiencySystem.MasteryLevel.fromProficiency(mastery.toDouble()).level
+                } else 0
+                val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
+                ManualProficiencyData(
+                    manualId = mId,
+                    proficiency = mastery.toDouble().coerceAtMost(maxProf.toDouble()),
+                    maxProficiency = maxProf,
+                    masteryLevel = masteryLevel
+                )
+            }
+            proficiencies[disciple.id] = discipleProfs
+
+            modifiedDisciples.add(
+                disciple.copy(
+                    manualIds = manualIds,
+                    manualMasteries = manualMasteries,
+                    equipment = disciple.equipment.copy(
+                        weaponId = weaponId,
+                        armorId = armorId,
+                        bootsId = bootsId,
+                        accessoryId = accessoryId,
+                        weaponNurture = items.weaponNurture,
+                        armorNurture = items.armorNurture,
+                        bootsNurture = items.bootsNurture,
+                        accessoryNurture = items.accessoryNurture
+                    )
+                )
+            )
+        }
+
+        return AIPreparedBattle(modifiedDisciples, equipmentMap, manualMap, proficiencies)
+    }
+
+    /** 向装备映射中添加单件装备条目（如已存在则跳过）。 */
+    internal fun buildEquipmentEntry(
+        equipmentMap: MutableMap<String, EquipmentInstance>,
+        eqId: String,
+        nurture: EquipmentNurtureData
+    ) {
+        if (eqId.isEmpty() || eqId in equipmentMap) return
+        val template = EquipmentDatabase.getById(eqId) ?: return
+        var instance = EquipmentDatabase.createFromTemplate(template).toInstance(id = eqId)
+        if (nurture.equipmentId == eqId) {
+            instance = instance.copy(
+                nurtureLevel = nurture.nurtureLevel,
+                nurtureProgress = nurture.nurtureProgress
+            )
+        }
+        equipmentMap[eqId] = instance
     }
 
     private fun generateBattleManuals(minRarity: Int, maxRarity: Int, count: Int): List<Pair<String, Int>> {
