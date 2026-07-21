@@ -212,6 +212,29 @@ interface GameStateStore : GameStateSnapshotProvider {
      */
     fun modifyState(block: MutableGameState.() -> Unit)
 
+    // === 原子快照（事务级一致读取） ===
+
+    /** 事务级原子快照，在 [transactionLock] 内一次性读取全部持久化字段。 */
+    @Immutable
+    data class GameSnapshot(
+        val gameData: GameData = GameData(),
+        val disciples: List<Disciple> = emptyList(),
+        val equipmentStacks: List<EquipmentStack> = emptyList(),
+        val equipmentInstances: List<EquipmentInstance> = emptyList(),
+        val manualStacks: List<ManualStack> = emptyList(),
+        val manualInstances: List<ManualInstance> = emptyList(),
+        val pills: List<Pill> = emptyList(),
+        val materials: List<Material> = emptyList(),
+        val herbs: List<Herb> = emptyList(),
+        val seeds: List<Seed> = emptyList(),
+        val storageBags: List<StorageBag> = emptyList(),
+        val teams: List<ExplorationTeam> = emptyList(),
+        val battleLogs: List<BattleLog> = emptyList()
+    )
+
+    /** 持锁原子读取全部字段快照。替代逐个读取 [GameStateSnapshotProvider] 属性的非原子方式。 */
+    fun takeAtomicSnapshot(): GameSnapshot
+
     // === 批量发射模式（结算时抑制个体 StateFlow 发射，减少重组雪崩） ===
     /** 进入批量发射模式：个体 Field StateFlow 暂不发射，仅累积 _updateVersion */
     fun enterBatchEmissionMode() {}

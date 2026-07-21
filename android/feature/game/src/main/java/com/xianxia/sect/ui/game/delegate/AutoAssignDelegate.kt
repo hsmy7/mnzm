@@ -28,11 +28,14 @@ class AutoAssignDelegate(
         }
     }
 
-    /** 批量设置各生产建筑的自动分配策略。 */
+    /** 批量设置所有自动分配策略（一次写入，原子更新）。 */
     fun setAutoAssignSettings(
         mineFocused: Boolean, mineRootCounts: List<Int>, mineThreshold: Int,
         alchemyFocused: Boolean, alchemyRootCounts: List<Int>, alchemyThreshold: Int,
-        forgeFocused: Boolean, forgeRootCounts: List<Int>, forgeThreshold: Int
+        forgeFocused: Boolean, forgeRootCounts: List<Int>, forgeThreshold: Int,
+        singleResidenceFocused: Boolean = false, singleResidenceRootCounts: List<Int> = emptyList(), singleResidenceThreshold: Int = 1,
+        multiResidenceFocused: Boolean = false, multiResidenceRootCounts: List<Int> = emptyList(), multiResidenceThreshold: Int = 1,
+        plantFocused: Boolean = false, plantRootCounts: List<Int> = emptyList(), plantThreshold: Int = 1
     ) {
         scope.launch {
             gameEngine.updateGameData { it.copy(sectPolicies = it.sectPolicies.copy(
@@ -44,7 +47,16 @@ class AutoAssignDelegate(
                 autoAlchemyThreshold = alchemyThreshold,
                 autoForgeFocused = forgeFocused,
                 autoForgeRootCounts = forgeRootCounts,
-                autoForgeThreshold = forgeThreshold
+                autoForgeThreshold = forgeThreshold,
+                autoSingleResidenceFocused = singleResidenceFocused,
+                autoSingleResidenceRootCounts = singleResidenceRootCounts,
+                autoSingleResidenceThreshold = singleResidenceThreshold,
+                autoMultiResidenceFocused = multiResidenceFocused,
+                autoMultiResidenceRootCounts = multiResidenceRootCounts,
+                autoMultiResidenceThreshold = multiResidenceThreshold,
+                autoPlantFocused = plantFocused,
+                autoPlantRootCounts = plantRootCounts,
+                autoPlantThreshold = plantThreshold
             )) }
         }
     }

@@ -241,6 +241,16 @@ class DiscipleLifecycleManager @Inject constructor(
             return DiscipleStatus.MINING
         }
 
+        if (data.productionSlots.any { it.assignedDiscipleId == discipleId && it.buildingId == "alchemy" }) {
+            return DiscipleStatus.ALCHEMY
+        }
+        if (data.productionSlots.any { it.assignedDiscipleId == discipleId && it.buildingId == "forge" }) {
+            return DiscipleStatus.FORGE
+        }
+        if (data.productionSlots.any { it.assignedDiscipleId == discipleId && it.buildingId == "herbGarden" }) {
+            return DiscipleStatus.SPIRIT_PLANTING
+        }
+
         return DiscipleStatus.IDLE
     }
 

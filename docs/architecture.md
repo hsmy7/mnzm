@@ -263,3 +263,27 @@ RunState（运行时状态 — 可循环回退）
 - [弟子分配门卫架构](disciple-assignment-architecture.md) — DiscipleAssignmentGate + 11槽位统一注册表，v4.0.58
 - [架构债务清单](architecture-debt.md)
 - [架构债务写守卫](architecture-debt-write-guard.md)
+
+---
+
+## 待完成架构优化（行业对标建议）
+
+以下优化项基于 [行业对标分析](knowledge-base.md#行业对标分析报告)（来源包括 UE/Supercell/RimWorld/MineColonies 等）。
+
+### 1️⃣ 存档系统：双缓冲回退机制
+
+**对标：** 移动端增量存档行业标准（双缓冲/主+备份模式）
+**现状：** 依赖 Room WAL 模式的事务原子性，无独立 .bak 回退
+**建议：** 在 `StorageEngine.save()` 中增加 `write-tmp → rename → keep .bak` 流程，确保崩溃恢复
+
+### 2️⃣ 角色状态系统：纯推导式迁移（长期）
+
+**对标：** RimWorld（状态从当前执行任务推导，不手动设置）、MineColonies（三层状态机推导）
+**现状：** 显式式 + 推导修正混合模式（`markDiscipleAssigned` 直接写 + `syncAllDiscipleStatuses` 修正）
+**建议：** 逐步废除 `markDiscipleAssigned` 直接写入，使 `syncAllDiscipleStatuses` 成为唯一状态真相源。新增状态时只需更新推导函数，无需同时修改两处代码。
+
+### 3️⃣ 自动分配管线：全量单事务写入
+
+**对标：** Supercell（action 原子提交）、UE（Game Thread 快照一次性完成）
+**现状：** `processAutoAssign` 中炼丹/锻造仍通过 `productionSlotRepository.batchUpdate`（Room IO）写入，与 `stateStore.update` 不在同一事务
+**建议：** 将生产槽位数据迁入 `GameStateStore` 的 `MutableGameState` 体系，使所有自动分配在同一事务内完成

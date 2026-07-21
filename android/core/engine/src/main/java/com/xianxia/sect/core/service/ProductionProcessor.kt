@@ -14,6 +14,8 @@ import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.domain.building.HerbGardenAuraService
+import com.xianxia.sect.core.engine.domain.building.buildingFeatureDisplayNames
+import com.xianxia.sect.core.engine.domain.building.SlotGroup
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.repository.SlotUpdate
@@ -48,6 +50,8 @@ class ProductionProcessor @Inject constructor(
         private const val TAG = "ProductionProcessor"
         private const val PILL_GRADE_HIGH_THRESHOLD = 0.06
         private const val PILL_GRADE_MEDIUM_THRESHOLD = 0.40
+        private const val SINGLE_RESIDENCE_SLOTS = 1
+        private const val MULTI_RESIDENCE_SLOTS = 4
     }
 
     // ── 建筑生产 ──────────────────────────────────────────────────────
@@ -378,7 +382,7 @@ class ProductionProcessor @Inject constructor(
         val disciple = slot.assignedDiscipleId?.let { id ->
             allDisciples.find { it.id == id }
         }
-        if (disciple == null || !disciple.isAlive || disciple.status != DiscipleStatus.IDLE) {
+        if (disciple == null || !disciple.isAlive || (disciple.status != DiscipleStatus.IDLE && disciple.status != DiscipleStatus.ALCHEMY)) {
             // 弟子不可用 → 清除槽位关联，等待玩家手动处理
             scopeProvider.scope.launch(Dispatchers.IO) {
                 productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slotIndex) { s ->
@@ -477,7 +481,7 @@ class ProductionProcessor @Inject constructor(
         val disciple = slot.assignedDiscipleId?.let { id ->
             allDisciples.find { it.id == id }
         }
-        if (disciple == null || !disciple.isAlive || disciple.status != DiscipleStatus.IDLE) {
+        if (disciple == null || !disciple.isAlive || (disciple.status != DiscipleStatus.IDLE && disciple.status != DiscipleStatus.FORGE)) {
             scopeProvider.scope.launch(Dispatchers.IO) {
                 productionSlotRepository.updateSlotByBuildingId(BuildingNames.FORGE, slotIndex) { s ->
                     s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
@@ -551,6 +555,68 @@ class ProductionProcessor @Inject constructor(
             return candidate
         }
 
+        // ── 自动入住住所（单人+多人合并为一次写入）────────────────────
+        val singleResEnabled = policies.autoSingleResidenceFocused || policies.autoSingleResidenceRootCounts.isNotEmpty()
+        val multiResEnabled = policies.autoMultiResidenceFocused || policies.autoMultiResidenceRootCounts.isNotEmpty()
+        if (singleResEnabled || multiResEnabled) {
+            val singleResBuildingIds = if (singleResEnabled) {
+                data.placedBuildings
+                    .filter { it.displayName in buildingFeatureDisplayNames {
+                        it is SlotGroup.Residence && it.slotsPerInstance == SINGLE_RESIDENCE_SLOTS
+                    } }.map { it.instanceId }.toSet()
+            } else emptySet()
+            val multiResBuildingIds = if (multiResEnabled) {
+                data.placedBuildings
+                    .filter { it.displayName in buildingFeatureDisplayNames {
+                        it is SlotGroup.Residence && it.slotsPerInstance == MULTI_RESIDENCE_SLOTS
+                    } }.map { it.instanceId }.toSet()
+            } else emptySet()
+            val allResBuildingIds = singleResBuildingIds + multiResBuildingIds
+            if (allResBuildingIds.isNotEmpty()) {
+                val emptySlots = data.residenceSlots.filter { s ->
+                    s.buildingInstanceId in allResBuildingIds && s.discipleId.isEmpty()
+                }
+                if (emptySlots.isNotEmpty()) {
+                    val assignmentMap = mutableMapOf<String, Pair<String, String>>()
+                    for (slot in emptySlots) {
+                        val isSingle = slot.buildingInstanceId in singleResBuildingIds
+                        val (focused, rootCounts, threshold) = if (isSingle) {
+                            Triple(policies.autoSingleResidenceFocused, policies.autoSingleResidenceRootCounts, policies.autoSingleResidenceThreshold)
+                        } else {
+                            Triple(policies.autoMultiResidenceFocused, policies.autoMultiResidenceRootCounts, policies.autoMultiResidenceThreshold)
+                        }
+                        val c = takeCandidate(focused, rootCounts, threshold) { it.comprehension } ?: break
+                        assignmentMap["${slot.buildingInstanceId}:${slot.slotIndex}"] = c.id to c.name
+                    }
+                    if (assignmentMap.isNotEmpty()) {
+                        stateStore.update {
+                            gameData = gameData.copy(
+                                residenceSlots = gameData.residenceSlots.map { slot ->
+                                    val key = "${slot.buildingInstanceId}:${slot.slotIndex}"
+                                    val assignment = assignmentMap[key]
+                                    if (assignment != null && slot.discipleId.isEmpty()) {
+                                        slot.copy(discipleId = assignment.first, discipleName = assignment.second)
+                                    } else slot
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── 自动种植（灵植阁）─────────────────────────────────────
+        if (policies.autoPlantFocused || policies.autoPlantRootCounts.isNotEmpty()) {
+            batchAssignToProductionSlots(
+                BuildingType.HERB_GARDEN, BuildingNames.HERB_GARDEN
+            ) {
+                takeCandidate(
+                    policies.autoPlantFocused, policies.autoPlantRootCounts,
+                    policies.autoPlantThreshold
+                ) { it.spiritPlanting }
+            }
+        }
+
         if (policies.autoMineFocused || policies.autoMineRootCounts.isNotEmpty()) {
             val emptyIndices = data.spiritMineSlots
                 .mapIndexedNotNull { i, slot -> if (slot.discipleId.isEmpty()) i else null }
@@ -573,9 +639,10 @@ class ProductionProcessor @Inject constructor(
                                 } else slot
                             }
                         )
-                    }
-                    assignments.forEach { (id, _) ->
-                        markDiscipleAssigned(id, DiscipleStatus.MINING)
+                        // 同一事务内同步弟子状态，避免存档捕获部分写入
+                        assignments.forEach { (id, _) ->
+                            discipleTables.statuses[id.toInt()] = DiscipleStatus.MINING
+                        }
                     }
                 }
             }
@@ -621,10 +688,17 @@ class ProductionProcessor @Inject constructor(
         }
         if (emptySlots.isEmpty()) return
 
+        val assignedStatus = when (type) {
+            BuildingType.ALCHEMY -> DiscipleStatus.ALCHEMY
+            BuildingType.FORGE -> DiscipleStatus.FORGE
+            BuildingType.HERB_GARDEN -> DiscipleStatus.SPIRIT_PLANTING
+            else -> DiscipleStatus.IDLE
+        }
+
         val updates = mutableListOf<SlotUpdate>()
         for (emptySlot in emptySlots) {
             val candidate = takeNext() ?: break
-            markDiscipleAssigned(candidate.id, DiscipleStatus.IDLE)
+            markDiscipleAssigned(candidate.id, assignedStatus)
             updates.add(SlotUpdate(type, emptySlot.slotIndex) { s ->
                 s.copy(
                     assignedDiscipleId = candidate.id,

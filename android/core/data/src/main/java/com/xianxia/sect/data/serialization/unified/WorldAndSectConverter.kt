@@ -319,7 +319,13 @@ internal class WorldAndSectConverter {
             autoAlchemyThreshold = policies.autoAlchemyThreshold,
             autoForgeFocused = policies.autoForgeFocused,
             autoForgeRootCounts = policies.autoForgeRootCounts,
-            autoForgeThreshold = policies.autoForgeThreshold
+            autoForgeThreshold = policies.autoForgeThreshold,
+            autoSingleResidenceFocused = policies.autoSingleResidenceFocused,
+            autoSingleResidenceRootCounts = policies.autoSingleResidenceRootCounts,
+            autoSingleResidenceThreshold = policies.autoSingleResidenceThreshold,
+            autoMultiResidenceFocused = policies.autoMultiResidenceFocused,
+            autoMultiResidenceRootCounts = policies.autoMultiResidenceRootCounts,
+            autoMultiResidenceThreshold = policies.autoMultiResidenceThreshold
         )
     }
 
@@ -346,7 +352,13 @@ internal class WorldAndSectConverter {
             autoAlchemyThreshold = data.autoAlchemyThreshold,
             autoForgeFocused = data.autoForgeFocused,
             autoForgeRootCounts = data.autoForgeRootCounts,
-            autoForgeThreshold = data.autoForgeThreshold
+            autoForgeThreshold = data.autoForgeThreshold,
+            autoSingleResidenceFocused = data.autoSingleResidenceFocused,
+            autoSingleResidenceRootCounts = data.autoSingleResidenceRootCounts,
+            autoSingleResidenceThreshold = data.autoSingleResidenceThreshold,
+            autoMultiResidenceFocused = data.autoMultiResidenceFocused,
+            autoMultiResidenceRootCounts = data.autoMultiResidenceRootCounts,
+            autoMultiResidenceThreshold = data.autoMultiResidenceThreshold
         )
     }
 

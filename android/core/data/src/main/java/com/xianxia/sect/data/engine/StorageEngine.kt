@@ -1,7 +1,7 @@
 package com.xianxia.sect.data.engine
 
 import android.util.Log
-import com.xianxia.sect.core.state.GameStateSnapshotProvider
+import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.fixStorageBagReferences
 import com.xianxia.sect.data.GameStateRepository
@@ -70,7 +70,7 @@ class StorageEngine @Inject constructor(
     private val dataArchiver: DataArchiver,
     private val infra: StorageInfraFacade,
     private val maintenanceFacade: StorageMaintenanceFacade,
-    private val stateStore: GameStateSnapshotProvider,
+    private val stateStore: GameStateStore,
     private val repository: GameStateRepository
 ) {
     companion object {
@@ -375,20 +375,21 @@ class StorageEngine @Inject constructor(
                 val startTime = System.currentTimeMillis()
                 _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.1f, "Incremental save")
 
-                // 读取独立快照属性，避免触发 17-way combine
-                val gameData = stateStore.gameDataSnapshot
-                val disciples = stateStore.disciplesSnapshot
-                val equipmentStacks = stateStore.equipmentStacksSnapshot
-                val equipmentInstances = stateStore.equipmentInstancesSnapshot
-                val manualStacks = stateStore.manualStacksSnapshot
-                val manualInstances = stateStore.manualInstancesSnapshot
-                val pills = stateStore.pillsSnapshot
-                val materials = stateStore.materialsSnapshot
-                val herbs = stateStore.herbsSnapshot
-                val seeds = stateStore.seedsSnapshot
-                val storageBags = stateStore.storageBagsSnapshot
-                val teams = stateStore.teamsSnapshot
-                val battleLogs = stateStore.battleLogsSnapshot
+                // 原子快照读取（持 transactionLock 一次性读取所有字段）
+                val snap = stateStore.takeAtomicSnapshot()
+                val gameData = snap.gameData
+                val disciples = snap.disciples
+                val equipmentStacks = snap.equipmentStacks
+                val equipmentInstances = snap.equipmentInstances
+                val manualStacks = snap.manualStacks
+                val manualInstances = snap.manualInstances
+                val pills = snap.pills
+                val materials = snap.materials
+                val herbs = snap.herbs
+                val seeds = snap.seeds
+                val storageBags = snap.storageBags
+                val teams = snap.teams
+                val battleLogs = snap.battleLogs
 
                 repository.setActiveSlot(slot)
 

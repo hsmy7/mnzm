@@ -830,7 +830,15 @@ data class SerializableSectPolicies(
     @ProtoNumber(20) val autoForgeFocused: Boolean = false,
     @ProtoPacked
     @ProtoNumber(21) val autoForgeRootCounts: List<Int> = emptyList(),
-    @ProtoNumber(22) val autoForgeThreshold: Int = 1
+    @ProtoNumber(22) val autoForgeThreshold: Int = 1,
+    @ProtoNumber(23) val autoSingleResidenceFocused: Boolean = false,
+    @ProtoPacked
+    @ProtoNumber(24) val autoSingleResidenceRootCounts: List<Int> = emptyList(),
+    @ProtoNumber(25) val autoSingleResidenceThreshold: Int = 1,
+    @ProtoNumber(26) val autoMultiResidenceFocused: Boolean = false,
+    @ProtoPacked
+    @ProtoNumber(27) val autoMultiResidenceRootCounts: List<Int> = emptyList(),
+    @ProtoNumber(28) val autoMultiResidenceThreshold: Int = 1
 )
 
 @Serializable

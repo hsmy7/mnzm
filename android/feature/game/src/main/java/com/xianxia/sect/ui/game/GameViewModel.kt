@@ -419,9 +419,18 @@ class GameViewModel @Inject constructor(
     fun setAutoAssignSettings(
         mineFocused: Boolean, mineRootCounts: List<Int>, mineThreshold: Int,
         alchemyFocused: Boolean, alchemyRootCounts: List<Int>, alchemyThreshold: Int,
-        forgeFocused: Boolean, forgeRootCounts: List<Int>, forgeThreshold: Int
-    ) = autoAssign.setAutoAssignSettings(mineFocused, mineRootCounts, mineThreshold,
-        alchemyFocused, alchemyRootCounts, alchemyThreshold, forgeFocused, forgeRootCounts, forgeThreshold)
+        forgeFocused: Boolean, forgeRootCounts: List<Int>, forgeThreshold: Int,
+        singleResidenceFocused: Boolean = false, singleResidenceRootCounts: List<Int> = emptyList(), singleResidenceThreshold: Int = 1,
+        multiResidenceFocused: Boolean = false, multiResidenceRootCounts: List<Int> = emptyList(), multiResidenceThreshold: Int = 1,
+        plantFocused: Boolean = false, plantRootCounts: List<Int> = emptyList(), plantThreshold: Int = 1
+    ) = autoAssign.setAutoAssignSettings(
+        mineFocused, mineRootCounts, mineThreshold,
+        alchemyFocused, alchemyRootCounts, alchemyThreshold,
+        forgeFocused, forgeRootCounts, forgeThreshold,
+        singleResidenceFocused, singleResidenceRootCounts, singleResidenceThreshold,
+        multiResidenceFocused, multiResidenceRootCounts, multiResidenceThreshold,
+        plantFocused, plantRootCounts, plantThreshold
+    )
     fun setBreakthroughAutoPillSettings(focused: Boolean, rootCounts: Set<Int>) =
         autoAssign.setBreakthroughAutoPillSettings(focused, rootCounts)
     fun setAutoEquipSettings(focused: Boolean, rootCounts: Set<Int>) =

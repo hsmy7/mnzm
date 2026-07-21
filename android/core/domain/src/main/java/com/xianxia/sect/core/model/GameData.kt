@@ -660,7 +660,13 @@ data class SectPolicies(
     val autoAlchemyThreshold: Int = 1,
     val autoForgeFocused: Boolean = false,
     val autoForgeRootCounts: List<Int> = emptyList(),
-    val autoForgeThreshold: Int = 1
+    val autoForgeThreshold: Int = 1,
+    val autoSingleResidenceFocused: Boolean = false,
+    val autoSingleResidenceRootCounts: List<Int> = emptyList(),
+    val autoSingleResidenceThreshold: Int = 1,
+    val autoMultiResidenceFocused: Boolean = false,
+    val autoMultiResidenceRootCounts: List<Int> = emptyList(),
+    val autoMultiResidenceThreshold: Int = 1
 )
 
 // 血炼进度数据

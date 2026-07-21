@@ -188,6 +188,7 @@ private class FakeStore : GameStateStore {
     override fun modifyState(block: MutableGameState.() -> Unit) { update(block) }
     override fun enterBatchEmissionMode() {}
     override fun exitBatchEmissionMode() {}
+    override fun takeAtomicSnapshot(): GameStateStore.GameSnapshot = GameStateStore.GameSnapshot()
 
     private fun newMutable() = MutableGameState(
         gameData = gd, discipleTables = DiscipleTables(),

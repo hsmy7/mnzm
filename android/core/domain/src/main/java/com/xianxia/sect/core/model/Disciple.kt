@@ -296,7 +296,7 @@ data class Disciple(
 @Keep
 @Serializable
 enum class DiscipleStatus {
-    IDLE, DEACONING, MINING, STUDYING, PREACHING, MANAGING, LAW_ENFORCING, ON_MISSION, REFLECTING, GARRISONING, IN_TEAM, PATROLLING, REFINING, DEAD;
+    IDLE, DEACONING, MINING, STUDYING, PREACHING, MANAGING, LAW_ENFORCING, ON_MISSION, REFLECTING, GARRISONING, IN_TEAM, PATROLLING, REFINING, ALCHEMY, FORGE, SPIRIT_PLANTING, DEAD;
 
     val displayName: String get() = when (this) {
         IDLE -> "空闲中"
@@ -312,6 +312,9 @@ enum class DiscipleStatus {
         IN_TEAM -> "队伍中"
         PATROLLING -> "巡视中"
         REFINING -> "血炼中"
+        ALCHEMY -> "炼丹中"
+        FORGE -> "锻造中"
+        SPIRIT_PLANTING -> "灵植中"
         DEAD -> "已死亡"
     }
 }

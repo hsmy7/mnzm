@@ -104,6 +104,17 @@ class DiscipleService @Inject constructor(
         val inTeamIds = buildInTeamIds(data)
         val patrollingIds = buildPatrollingIds(data)
 
+        // 生产槽位 ID 集合（用于推导 ALCHEMY / FORGE / SPIRIT_PLANTING 状态）
+        val alchemyIds = data.productionSlots
+            .filter { !it.assignedDiscipleId.isNullOrEmpty() && it.buildingId == "alchemy" }
+            .map { it.assignedDiscipleId!! }.toSet()
+        val forgeIds = data.productionSlots
+            .filter { !it.assignedDiscipleId.isNullOrEmpty() && it.buildingId == "forge" }
+            .map { it.assignedDiscipleId!! }.toSet()
+        val plantIds = data.productionSlots
+            .filter { !it.assignedDiscipleId.isNullOrEmpty() && it.buildingId == "herbGarden" }
+            .map { it.assignedDiscipleId!! }.toSet()
+
         fixInvalidMiningSlots(data, tables)
 
         stateStore.update {
@@ -126,6 +137,9 @@ class DiscipleService @Inject constructor(
                     studyingIds.contains(discipleId) -> DiscipleStatus.STUDYING
                     miningIds.contains(discipleId) -> DiscipleStatus.MINING
                     patrollingIds.contains(discipleId) -> DiscipleStatus.PATROLLING
+                    alchemyIds.contains(discipleId) -> DiscipleStatus.ALCHEMY
+                    forgeIds.contains(discipleId) -> DiscipleStatus.FORGE
+                    plantIds.contains(discipleId) -> DiscipleStatus.SPIRIT_PLANTING
                     else -> DiscipleStatus.IDLE
                 }
 

@@ -225,6 +225,24 @@ class GameStateStoreImpl @Inject constructor(
     override val teamsSnapshot: List<ExplorationTeam> get() = _teamsFlow.value
     override val battleLogsSnapshot: List<BattleLog> get() = _battleLogsFlow.value
 
+    override fun takeAtomicSnapshot(): GameStateStore.GameSnapshot = transactionLock.withLock {
+        GameStateStore.GameSnapshot(
+            gameData = _gameDataFlow.value,
+            disciples = _disciplesFlow.value,
+            equipmentStacks = _equipmentStacksFlow.value,
+            equipmentInstances = _equipmentInstancesFlow.value,
+            manualStacks = _manualStacksFlow.value,
+            manualInstances = _manualInstancesFlow.value,
+            pills = _pillsFlow.value,
+            materials = _materialsFlow.value,
+            herbs = _herbsFlow.value,
+            seeds = _seedsFlow.value,
+            storageBags = _storageBagsFlow.value,
+            teams = _teamsFlow.value,
+            battleLogs = _battleLogsFlow.value
+        )
+    }
+
     override val isPaused: StateFlow<Boolean> = _isPaused.asStateFlow()
     override val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     override val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
