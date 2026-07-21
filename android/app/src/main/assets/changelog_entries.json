@@ -19,7 +19,12 @@
       "安全：GridRow添加maxColumnWidth=0.dp除零保护——防止API误用导致无限Spacer OOM",
       "修复：AI弟子战斗缺失装备/功法加成——三路径(探索遭遇战AI方/巡逻冲突战PvP/AI vs AI PvP)修复，提取公共函数prepareDisciplesForBattle统一按境界生成模拟装备/功法",
       "优化：自动炼丹/自动锻造增加同配方优先逻辑——点击自动按钮后，空闲槽位立即开始炼制；有历史配方的槽位优先炼制相同物品，材料不足时自动选用高品阶可合成配方",
-      "安全：ForgeViewModel补全CancellationException重新抛出——toggleAuto/startForge两处catch(Exception)前补全CancellationException守卫"
+      "安全：ForgeViewModel补全CancellationException重新抛出——toggleAuto/startForge两处catch(Exception)前补全CancellationException守卫",
+      "战斗：境界压制斩杀重做——改为总小层数差>9触发斩杀(大境界差×9-层数差)，防御方层数越高差距越小",
+      "战斗：统一斩杀入口——calculateCombatantDamage新增enableInstantKill参数，自动斩杀+乘区全带上",
+      "修复：AI弟子Combatant缺realmLayer——AISectAttackManager.convertToCombatant补传realmLayer，AI弟子层数首次生效",
+      "修复：洞穴探索玩家Combatant缺realmLayer——CaveExplorationSystem补传realmLayer",
+      "修复：天道试炼战斗逻辑缺失斩杀判定——普攻/技能/即时结算各路径全部补上"
     ]
   },
   {

@@ -24,11 +24,13 @@ internal fun computeNormalAttackDamage(
     attacker: Combatant, defender: Combatant, isDefending: Boolean,
     rng: DeterministicRng = combatRng
 ): BattleCalculator.DamageResult {
-    val result = BattleCalculator.calculateCombatantDamage(attacker, defender, rng = rng)
-    return if (isDefending && result.damage > 0) {
-        val reducedDmg = (result.damage * 0.75).toInt().coerceAtLeast(1)
-        result.copy(damage = reducedDmg)
-    } else result
+    val result = BattleCalculator.calculateCombatantDamage(
+        attacker, defender, rng = rng, enableInstantKill = true
+    )
+    // 斩杀无视防御减伤
+    if (result.isInstantKill || !isDefending || result.damage <= 0) return result
+    val reducedDmg = (result.damage * 0.75).toInt().coerceAtLeast(1)
+    return result.copy(damage = reducedDmg)
 }
 
 /**
@@ -39,11 +41,13 @@ internal fun computeSkillDamage(
     skill: CombatSkill, isDefending: Boolean,
     rng: DeterministicRng = combatRng
 ): BattleCalculator.DamageResult {
-    val result = BattleCalculator.calculateCombatantDamage(attacker, defender, skill, rng = rng)
-    return if (isDefending && result.damage > 0) {
-        val reducedDmg = (result.damage * 0.75).toInt().coerceAtLeast(1)
-        result.copy(damage = reducedDmg)
-    } else result
+    val result = BattleCalculator.calculateCombatantDamage(
+        attacker, defender, skill, rng = rng, enableInstantKill = true
+    )
+    // 斩杀无视防御减伤
+    if (result.isInstantKill || !isDefending || result.damage <= 0) return result
+    val reducedDmg = (result.damage * 0.75).toInt().coerceAtLeast(1)
+    return result.copy(damage = reducedDmg)
 }
 
 /**
@@ -52,8 +56,9 @@ internal fun computeSkillDamage(
 internal fun applyNormalAttack(
     attacker: Combatant, defender: Combatant, isDefending: Boolean
 ): Combatant {
-    val finalDmg = computeNormalAttackDamage(attacker, defender, isDefending).damage
-    return defender.copy(hp = (defender.hp - finalDmg).coerceAtLeast(0))
+    val result = computeNormalAttackDamage(attacker, defender, isDefending)
+    if (result.isInstantKill) return defender.copy(hp = 0)
+    return defender.copy(hp = (defender.hp - result.damage).coerceAtLeast(0))
 }
 
 /**
@@ -63,8 +68,9 @@ internal fun applySkillDamage(
     attacker: Combatant, defender: Combatant,
     skill: CombatSkill, isDefending: Boolean
 ): Combatant {
-    val finalDmg = computeSkillDamage(attacker, defender, skill, isDefending).damage
-    return defender.copy(hp = (defender.hp - finalDmg).coerceAtLeast(0))
+    val result = computeSkillDamage(attacker, defender, skill, isDefending)
+    if (result.isInstantKill) return defender.copy(hp = 0)
+    return defender.copy(hp = (defender.hp - result.damage).coerceAtLeast(0))
 }
 
 /**
@@ -265,8 +271,11 @@ internal fun resolveAIAction(
             if (skill != null) {
                 val newEnemyTeam = enemyTeam.map { e ->
                     if (!e.isDead) {
-                        val dmg = BattleCalculator.calculateCombatantDamage(actor, e, skill, rng = rng).damage
-                        e.copy(hp = (e.hp - dmg).coerceAtLeast(0))
+                        val r = BattleCalculator.calculateCombatantDamage(
+                            actor, e, skill, rng = rng, enableInstantKill = true
+                        )
+                        if (r.isInstantKill) e.copy(hp = 0)
+                        else e.copy(hp = (e.hp - r.damage).coerceAtLeast(0))
                     } else e
                 }
                 if (actorIsPlayer) updatedEnemies = newEnemyTeam else updatedPlayers = newEnemyTeam
@@ -274,16 +283,30 @@ internal fun resolveAIAction(
         }
         BattleAI.AIActionType.SKILL_ATTACK_SINGLE -> {
             if (skill != null && target != null) {
-                val dmg = BattleCalculator.calculateCombatantDamage(actor, target, skill, rng = rng).damage
-                val applyDmg: (Combatant) -> Combatant = { it.copy(hp = if (it.id == target.id) (it.hp - dmg).coerceAtLeast(0) else it.hp) }
+                val r = BattleCalculator.calculateCombatantDamage(
+                    actor, target, skill, rng = rng, enableInstantKill = true
+                )
+                val applyDmg: (Combatant) -> Combatant = {
+                    if (it.id == target.id) {
+                        if (r.isInstantKill) it.copy(hp = 0)
+                        else it.copy(hp = (it.hp - r.damage).coerceAtLeast(0))
+                    } else it
+                }
                 if (actorIsPlayer) updatedEnemies = updatedEnemies.map(applyDmg)
                 else updatedPlayers = updatedPlayers.map(applyDmg)
             }
         }
         BattleAI.AIActionType.NORMAL_ATTACK -> {
             if (target != null) {
-                val dmg = BattleCalculator.calculateCombatantDamage(actor, target, null, rng = rng).damage
-                val applyDmg: (Combatant) -> Combatant = { it.copy(hp = if (it.id == target.id) (it.hp - dmg).coerceAtLeast(0) else it.hp) }
+                val r = BattleCalculator.calculateCombatantDamage(
+                    actor, target, null, rng = rng, enableInstantKill = true
+                )
+                val applyDmg: (Combatant) -> Combatant = {
+                    if (it.id == target.id) {
+                        if (r.isInstantKill) it.copy(hp = 0)
+                        else it.copy(hp = (it.hp - r.damage).coerceAtLeast(0))
+                    } else it
+                }
                 if (actorIsPlayer) updatedEnemies = updatedEnemies.map(applyDmg)
                 else updatedPlayers = updatedPlayers.map(applyDmg)
             }

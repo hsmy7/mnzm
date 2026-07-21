@@ -688,6 +688,7 @@ object AISectAttackManager {
             critRate = stats.critRate,
             realm = disciple.realm,
             realmName = disciple.realmName,
+            realmLayer = disciple.realmLayer,
             skills = skills,
             buffs = emptyList(),
             element = primaryElement,
@@ -839,7 +840,10 @@ object AISectAttackManager {
         enemiesIndexMap: Map<String, Int>,
         roundActions: MutableList<BattleLogAction>
     ) {
-        if (BattleCalculator.checkInstantKill(attacker.realm, target.realm)) {
+        val result = BattleCalculator.calculateCombatantDamage(
+            attacker, target, null, rng = aisRng, enableInstantKill = true
+        )
+        if (result.isInstantKill) {
             val targetIdx = enemiesIndexMap[target.id]
             if (targetIdx != null && targetIdx < enemies.size) {
                 enemies[targetIdx] = enemies[targetIdx].copy(hp = 0)
@@ -856,8 +860,6 @@ object AISectAttackManager {
             ))
             return
         }
-
-        val result = BattleCalculator.calculateCombatantDamage(attacker, target, null, rng = aisRng)
 
         if (result.isDodged) {
             val combatantIdx = alliesIndexMap[attacker.id]
@@ -901,7 +903,10 @@ object AISectAttackManager {
         enemiesIndexMap: Map<String, Int>,
         roundActions: MutableList<BattleLogAction>
     ) {
-        if (BattleCalculator.checkInstantKill(attacker.realm, target.realm)) {
+        val result = BattleCalculator.calculateCombatantDamage(
+            attacker, target, skill, rng = aisRng, enableInstantKill = true
+        )
+        if (result.isInstantKill) {
             val targetIdx = enemiesIndexMap[target.id]
             if (targetIdx != null && targetIdx < enemies.size) {
                 enemies[targetIdx] = enemies[targetIdx].copy(hp = 0)
@@ -918,8 +923,6 @@ object AISectAttackManager {
             ))
             return
         }
-
-        val result = BattleCalculator.calculateCombatantDamage(attacker, target, skill, rng = aisRng)
 
         if (result.isDodged) {
             val combatantIdx = alliesIndexMap[attacker.id]
@@ -975,7 +978,10 @@ object AISectAttackManager {
         for (target in targets) {
             if (target.isDead) continue
 
-            if (BattleCalculator.checkInstantKill(attacker.realm, target.realm)) {
+            val result = BattleCalculator.calculateCombatantDamage(
+                attacker, target, skill, rng = aisRng, enableInstantKill = true
+            )
+            if (result.isInstantKill) {
                 val targetIdx = enemiesIndexMap[target.id]
                 if (targetIdx != null && targetIdx < enemies.size) {
                     enemies[targetIdx] = enemies[targetIdx].copy(hp = 0)
@@ -987,8 +993,6 @@ object AISectAttackManager {
                 ))
                 continue
             }
-
-            val result = BattleCalculator.calculateCombatantDamage(attacker, target, skill, rng = aisRng)
 
             if (result.isDodged) {
                 roundActions.add(BattleLogAction(

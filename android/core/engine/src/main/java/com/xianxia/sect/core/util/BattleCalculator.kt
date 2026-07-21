@@ -55,8 +55,8 @@ object BattleCalculator {
         fun calculateDamageVariance(): Double = BattleCalculator.calculateDamageVariance(rng)
         fun calculateDamage(attacker: CombatantStats, defender: CombatantStats, skillDamageMultiplier: Double = 1.0, isPhysicalAttack: Boolean? = null, skillName: String? = null, skillHits: Int = 1, dodgeChanceModifier: Double = 0.5, zones: DamageZones = DamageZones()): DamageResult =
             BattleCalculator.calculateDamage(attacker, defender, skillDamageMultiplier, isPhysicalAttack, skillName, skillHits, dodgeChanceModifier, zones, rng)
-        fun calculateCombatantDamage(attacker: Combatant, defender: Combatant, skill: CombatSkill? = null, damageModifier: Double = 1.0, zones: DamageZones? = null): DamageResult =
-            BattleCalculator.calculateCombatantDamage(attacker, defender, skill, damageModifier, zones, rng)
+        fun calculateCombatantDamage(attacker: Combatant, defender: Combatant, skill: CombatSkill? = null, damageModifier: Double = 1.0, zones: DamageZones? = null, enableInstantKill: Boolean = false): DamageResult =
+            BattleCalculator.calculateCombatantDamage(attacker, defender, skill, damageModifier, zones, enableInstantKill, rng)
         fun selectSkill(combatant: Combatant, enemies: List<Combatant>, allies: List<Combatant>, isSilenced: Boolean): CombatSkill? =
             BattleCalculator.selectSkill(combatant, enemies, allies, isSilenced, rng)
         fun selectTarget(attacker: Combatant, targets: List<Combatant>): Combatant =
@@ -136,7 +136,8 @@ object BattleCalculator {
         val isPhysical: Boolean,
         val isDodged: Boolean = false,
         val skillName: String? = null,
-        val hits: Int = 1
+        val hits: Int = 1,
+        val isInstantKill: Boolean = false
     )
 
     data class DotResult(
@@ -263,8 +264,24 @@ object BattleCalculator {
         skill: CombatSkill? = null,
         damageModifier: Double = 1.0,
         zones: DamageZones? = null,
+        enableInstantKill: Boolean = false,
         rng: DeterministicRng
     ): DamageResult {
+        // 斩杀前置检查：触发斩杀则跳过所有伤害计算，直接返回满血伤害
+        if (enableInstantKill && checkInstantKill(attacker.realm, defender.realm, attacker.realmLayer, defender.realmLayer)) {
+            val isPhysical = if (skill != null) skill.damageType == DamageType.PHYSICAL
+                else attacker.physicalAttack >= attacker.magicAttack
+            return DamageResult(
+                damage = defender.maxHp,
+                isCrit = false,
+                isPhysical = isPhysical,
+                isDodged = false,
+                skillName = skill?.name,
+                hits = skill?.hits ?: 1,
+                isInstantKill = true
+            )
+        }
+
         val isSkillAttack = skill != null
         val dodgeModifier = if (isSkillAttack) 0.3 else 0.5
         val maxDodgeChance = if (isSkillAttack) GameConfig.Battle.MAX_SKILL_DODGE_CHANCE else GameConfig.Battle.MAX_DODGE_CHANCE
@@ -590,8 +607,12 @@ object BattleCalculator {
         return combatant.copy(buffs = newBuffs)
     }
 
-    fun checkInstantKill(attackerRealm: Int, defenderRealm: Int): Boolean {
-        return defenderRealm - attackerRealm >= GameConfig.Battle.RealmGap.INSTANT_KILL_GAP
+    fun checkInstantKill(attackerRealm: Int, defenderRealm: Int, attackerLayer: Int, defenderLayer: Int): Boolean {
+        val MAX_MINOR_LAYERS = 9
+        // 总小层差距 = 大境界差×9 - 层数差（防御方层数越高越强，差距缩小）
+        val gap = (defenderRealm - attackerRealm) * MAX_MINOR_LAYERS
+            - (defenderLayer - attackerLayer)
+        return gap > MAX_MINOR_LAYERS
     }
 
     /**

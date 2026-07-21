@@ -64,6 +64,7 @@ object CaveExplorationSystem {
                 skills = skills,
                 realm = disciple.realm,
                 realmName = disciple.realmName,
+                realmLayer = disciple.realmLayer,
                 element = disciple.spiritRoot.types.firstOrNull()?.trim() ?: "metal"
             )
         }

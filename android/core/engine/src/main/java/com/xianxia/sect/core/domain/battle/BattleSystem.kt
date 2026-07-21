@@ -824,33 +824,24 @@ class BattleSystem @Inject constructor(
     }
 
     private fun executeAttack(attacker: Combatant, defender: Combatant): AttackResult {
-        if (BattleCalculator.checkInstantKill(attacker.realm, defender.realm)) {
-            return AttackResult(
-                attacker = attacker, target = defender,
-                damage = defender.maxHp, isCrit = false, isPhysical = true,
-                isDodged = false, isInstantKill = true
-            )
-        }
-        val result = BattleCalculator.calculateCombatantDamage(attacker, defender, null, rng = rng)
+        val result = BattleCalculator.calculateCombatantDamage(
+            attacker, defender, null, rng = rng, enableInstantKill = true
+        )
         return AttackResult(
             attacker = attacker,
             target = defender,
             damage = result.damage,
             isCrit = result.isCrit,
             isPhysical = result.isPhysical,
-            isDodged = result.isDodged
+            isDodged = result.isDodged,
+            isInstantKill = result.isInstantKill
         )
     }
 
     private fun executeSkill(attacker: Combatant, defender: Combatant, skill: CombatSkill): AttackResult {
-        if (BattleCalculator.checkInstantKill(attacker.realm, defender.realm)) {
-            return AttackResult(
-                attacker = attacker, target = defender,
-                damage = defender.maxHp, isCrit = false, isPhysical = true,
-                isDodged = false, isInstantKill = true, skillName = skill.name
-            )
-        }
-        val result = BattleCalculator.calculateCombatantDamage(attacker, defender, skill, rng = rng)
+        val result = BattleCalculator.calculateCombatantDamage(
+            attacker, defender, skill, rng = rng, enableInstantKill = true
+        )
         return AttackResult(
             attacker = attacker,
             target = defender,

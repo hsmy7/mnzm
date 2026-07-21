@@ -8,6 +8,14 @@
 - **重构：候选池纯 AI** — 进攻候选池不再包含玩家宗门，直接取最近 2 个 AI 宗门判定，远的清理
 - **安全：对抗性审查修复 4 项** — Team B 死亡弟子过滤、全员阵亡巡逻记录丢失、目标列表去重、冲突战斗空结果防护
 
+### 战斗
+
+- **境界压制斩杀重做** — 改为总小层数差距 > 9 触发斩杀（大境界差×9 - 层数差），防御方层数越高差距越小，更符合直觉
+- **统一斩杀入口** — `BattleCalculator.calculateCombatantDamage` 新增 `enableInstantKill` 参数，设 `true` 后自动斩杀+境界差乘区全带上，新战斗系统不再遗漏
+- **修复：AI 弟子 Combatant 缺 realmLayer** — `AISectAttackManager.convertToCombatant` 补传 `realmLayer`，AI 弟子小境界层数首次生效
+- **修复：洞穴探索玩家 Combatant 缺 realmLayer** — `CaveExplorationSystem` 玩家 Combatant 补传 `realmLayer`
+- **修复：天道试炼战斗逻辑缺失斩杀判定** — 普攻/技能/即时结算各路径全部补上斩杀前置检查
+
 ### 修改
 
 ### 修改
