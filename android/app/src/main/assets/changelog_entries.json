@@ -32,7 +32,9 @@
       "战斗：统一斩杀入口——calculateCombatantDamage新增enableInstantKill参数，自动斩杀+乘区全带上",
       "修复：AI弟子Combatant缺realmLayer——AISectAttackManager.convertToCombatant补传realmLayer，AI弟子层数首次生效",
       "修复：洞穴探索玩家Combatant缺realmLayer——CaveExplorationSystem补传realmLayer",
-      "修复：天道试炼战斗逻辑缺失斩杀判定——普攻/技能/即时结算各路径全部补上"
+      "修复：天道试炼战斗逻辑缺失斩杀判定——普攻/技能/即时结算各路径全部补上",
+      "招募灵根概率调整——单灵根0.5%→1%，双灵根1.5%→3%，三灵根20%→26%，四灵根38%→30%，五灵根40%→40%(维持不变)",
+      "宗门地图建筑图层覆盖优化——Painter's Algorithm Y-sorting，下方(高Y)建筑覆盖上方(低Y)建筑，行业对标Godot YSort/Unity/Bevy/RimWorld"
     ]
   },
   {

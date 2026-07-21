@@ -52,6 +52,11 @@
 - **自动炼丹/自动锻造增加同配方优先逻辑** — 点击自动按钮后，空闲槽位立即开始炼制；有历史配方的槽位优先炼制相同物品，材料不足时自动选用高品阶可合成配方
 - **安全：ForgeViewModel 补全 CancellationException 重新抛出** — toggleAuto/startForge 两处 catch(Exception) 前补全 CancellationException 守卫
 
+### 更新
+
+- **招募灵根概率调整** — 单灵根 0.5%→1%，双灵根 1.5%→3%，三灵根 20%→26%，四灵根 38%→30%，五灵根 40%→40%（维持不变，三灵根以上弟子更容易招募到）
+- **宗门地图建筑图层覆盖优化** — 建筑按网格 Y 坐标排序渲染（Painter's Algorithm），屏幕下方（高 Y）建筑自然覆盖上方（低 Y）建筑，消除层级错乱。行业对标：Godot YSort / Unity Custom Sort Axis / Bevy extol_sprite_layer / RimWorld
+
 ### 妖兽进攻重做
 
 - **修复：妖兽预警弹窗"迎战"按钮** — 从"知道了"改为"迎战"，明确战斗意图

@@ -1168,16 +1168,24 @@ fun MainGameScreen(
 /**
  * 构建建筑数据数组，供 NativeBridge.drawAllTiles 使用。
  * 格式：[gridX, gridY, spriteWidth, spriteHeight, nameIndex] × buildingCount
+ *
+ * ## 排序策略：Y-sorting（Painter's Algorithm）
+ * 按 gridY 升序排列，使下方（高Y）的建筑最后绘制、覆盖上方（低Y）的建筑。
+ * 这是 2D 俯视/斜视角地图渲染的行业标准做法，Godot YSort、Unity Custom Sort Axis、
+ * Bevy extol_sprite_layer、RimWorld 等均采用此策略。
+ *
  * 注意：数组中传递的是精灵视觉比例尺寸（可能大于占地尺寸），
  * 渲染器如需占地尺寸（如地砖选择），通过 SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX 查找。
  * 调用方须传入已排除移动中建筑的建筑列表，避免原位残留精灵图。
  */
-private fun buildBuildingDataArray(
+internal fun buildBuildingDataArray(
     buildings: List<GridBuildingData>,
     spriteSizeMap: Map<String, GridSnapHelper.BuildingSize>
 ): FloatArray {
-    val result = FloatArray(buildings.size * 5)
-    for ((i, b) in buildings.withIndex()) {
+    // 按 gridY 升序排列：下方（高Y）建筑最后绘制 → 覆盖上方（低Y）建筑
+    val sorted = buildings.sortedBy { it.gridY }
+    val result = FloatArray(sorted.size * 5)
+    for ((i, b) in sorted.withIndex()) {
         val idx = i * 5
         val sprite = spriteSizeMap[b.displayName]
         val sw = sprite?.width ?: b.width

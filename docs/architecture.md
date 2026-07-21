@@ -287,3 +287,38 @@ RunState（运行时状态 — 可循环回退）
 **对标：** Supercell（action 原子提交）、UE（Game Thread 快照一次性完成）
 **现状：** `processAutoAssign` 中炼丹/锻造仍通过 `productionSlotRepository.batchUpdate`（Room IO）写入，与 `stateStore.update` 不在同一事务
 **建议：** 将生产槽位数据迁入 `GameStateStore` 的 `MutableGameState` 体系，使所有自动分配在同一事务内完成
+
+### 4️⃣ 渲染管线：游戏状态变更即时同步到渲染线程
+
+**对标：** Unreal Engine（`ENQUEUE_RENDER_COMMAND` 显式推送 + Scene Proxy 并行数据结构）、Unity（命令队列保证送达）、脏标记模式（Dirty Flag，确定性状态变更通知）
+
+**现状：** 建筑放置/移动/拆除的数据从 `placedBuildings StateFlow` 到渲染线程 `currentFrame` 的传播路径完全依赖 Compose 反应式管线：
+
+```
+placedBuildings → collectAsStateWithLifecycle → derivedStateOf → remember(key.equals)
+→ AndroidView.update → 帧率门控 → updateRenderState → currentFrame
+```
+
+**三个不可靠环节串联：**
+1. `remember` key 的 `equals()` 比较在某些 Compose 快照时机下不可靠
+2. 帧率门控（16ms/33ms 间隔限制）可能阻止 RenderFrame 推送
+3. 渲染数据流依赖 Compose 重组时机，无独立送达保证
+
+**症状：** 建造建筑后"建筑1"有概率消失，拖动视角后恢复。原因：数据未送达 `currentFrame`，渲染线程读到的块缓存不包含新建筑。
+
+**建议：** 增加一条不依赖 Compose 反应式管线的直达推送路径（`pushBuildingData` + `LaunchedEffect`，类似 UE 的 `ENQUEUE_RENDER_COMMAND`），确保建筑放置后数据直达 `currentFrame`，消除 Compose 时机竞争导致的渲染不一致。
+
+**优先级：** 🟡 中（影响视觉体验但数据不丢失，拖动可恢复）
+
+---
+
+> 行业对标参考来源：
+> - [Unreal Engine Threaded Rendering](https://dev.epicgames.com/documentation/unreal-engine/threaded-rendering)
+> - [UE Low-Latency Frame Syncing](https://dev.epicgames.com/documentation/unreal-engine/low-latency-frame-syncing-in-unreal-engine)
+> - [Game Programming Patterns - Dirty Flag](https://github.com/claudiouzelac/game-programming-patterns/blob/34da9e749d44695a12f1d423fa40391c1173ef65/book/dirty-flag.markdown)
+> - [Activision COD Controller-to-Display Latency Research](https://www.activision.com/cdn/research/Hogge_Akimitsu_Controller_to_display.pdf)
+> - [GDNet Threading Architecture Discussion](https://gamedev.net/forums/topic/688552-new-api-rendering-architecture/)
+
+**对标：** Supercell（action 原子提交）、UE（Game Thread 快照一次性完成）
+**现状：** `processAutoAssign` 中炼丹/锻造仍通过 `productionSlotRepository.batchUpdate`（Room IO）写入，与 `stateStore.update` 不在同一事务
+**建议：** 将生产槽位数据迁入 `GameStateStore` 的 `MutableGameState` 体系，使所有自动分配在同一事务内完成

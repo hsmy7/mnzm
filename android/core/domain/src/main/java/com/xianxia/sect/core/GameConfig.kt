@@ -307,11 +307,11 @@ object GameConfig {
         
         // 灵根数量权重配置（增量值，非累积值）
         val COUNT_WEIGHTS = mapOf(
-            1 to 0.005,  // 0.5% 单灵根
-            2 to 0.015,  // 1.5% 双灵根
-            3 to 0.20,   // 20%  三灵根
-            4 to 0.38,   // 38%  四灵根
-            5 to 0.40    // 40%  五灵根
+            1 to 0.01,  // 1%  单灵根
+            2 to 0.03,  // 3%  双灵根
+            3 to 0.26,  // 26% 三灵根
+            4 to 0.30,  // 30% 四灵根
+            5 to 0.40   // 40% 五灵根
         )
         
         fun get(type: String): SpiritRootConfig = TYPES[type] ?: TYPES.getValue("metal")
