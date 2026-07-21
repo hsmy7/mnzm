@@ -384,51 +384,63 @@ class GameEngineCore @Inject constructor(
             var lastFrameTimeNs = System.nanoTime()
             try {
                 while (isActive) {
-                    // Step 1: 计算 deltaTime
-                    val nowNs = System.nanoTime()
-                    var deltaNs = nowNs - lastFrameTimeNs
-                    lastFrameTimeNs = nowNs
-                    deltaNs = deltaNs.coerceAtMost(MAX_ACCUMULATOR_NS)
+                    try {
+                        // Step 1: 计算 deltaTime
+                        val nowNs = System.nanoTime()
+                        var deltaNs = nowNs - lastFrameTimeNs
+                        lastFrameTimeNs = nowNs
+                        deltaNs = deltaNs.coerceAtMost(MAX_ACCUMULATOR_NS)
 
-                    // Step 2: 暂停/加载时不积累
-                    if (stateStore.isPaused.value || stateStore.isLoading.value) {
-                        gameClock.consumeDeadTime()
-                        delay(50)
-                        accumulatorNs = 0L
-                        continue
-                    }
-
-                    // Step 3: Accumulate + FixedUpdate
-                    accumulatorNs += deltaNs
-                    var stepsExecuted = 0
-                    while (accumulatorNs >= LOGIC_DT_NS && stepsExecuted < 5) {
-                        tickInternal()
-                        accumulatorNs -= LOGIC_DT_NS
-                        stepsExecuted++
-                    }
-
-                    // Step 4: 插值因子
-                    currentAlpha = (accumulatorNs.toFloat() / LOGIC_DT_NS.toFloat()).coerceIn(0f, 1f)
-
-                    // Step 5: 闲置超时检测
-                    checkIdleTimeout(nowNs)
-
-                    // Step 6: 场景感知自适应等待（P1.3）
-                    if (stepsExecuted == 0 && deltaNs < LOGIC_DT_NS) {
-                        // 无 tick 执行 → 按场景帧预算等待
-                        val budgetMs = currentScene.targetFrameTimeMs
-                        val consumedMs = (System.nanoTime() - nowNs) / 1_000_000
-                        val waitMs = (budgetMs - consumedMs).coerceIn(1L, budgetMs)
-                        delay(waitMs)
-                    } else {
-                        // 有 tick 执行 → 确保不超过场景帧预算
-                        val frameElapsedMs = (System.nanoTime() - nowNs) / 1_000_000
-                        val budgetMs = currentScene.targetFrameTimeMs
-                        if (frameElapsedMs < budgetMs) {
-                            antiFreezeDelay(budgetMs - frameElapsedMs, deltaNs / 1_000_000)
+                        // Step 2: 暂停/加载时不积累
+                        if (stateStore.isPaused.value || stateStore.isLoading.value) {
+                            gameClock.consumeDeadTime()
+                            delay(50)
+                            accumulatorNs = 0L
+                            continue
                         }
+
+                        // Step 3: Accumulate + FixedUpdate
+                        accumulatorNs += deltaNs
+                        var stepsExecuted = 0
+                        while (accumulatorNs >= LOGIC_DT_NS && stepsExecuted < 5) {
+                            tickInternal()
+                            accumulatorNs -= LOGIC_DT_NS
+                            stepsExecuted++
+                        }
+
+                        // Step 4: 插值因子
+                        currentAlpha = (accumulatorNs.toFloat() / LOGIC_DT_NS.toFloat()).coerceIn(0f, 1f)
+
+                        // Step 5: 闲置超时检测
+                        checkIdleTimeout(nowNs)
+
+                        // Step 6: 场景感知自适应等待（P1.3）
+                        if (stepsExecuted == 0 && deltaNs < LOGIC_DT_NS) {
+                            // 无 tick 执行 → 按场景帧预算等待
+                            val budgetMs = currentScene.targetFrameTimeMs
+                            val consumedMs = (System.nanoTime() - nowNs) / 1_000_000
+                            val waitMs = (budgetMs - consumedMs).coerceIn(1L, budgetMs)
+                            delay(waitMs)
+                        } else {
+                            // 有 tick 执行 → 确保不超过场景帧预算
+                            val frameElapsedMs = (System.nanoTime() - nowNs) / 1_000_000
+                            val budgetMs = currentScene.targetFrameTimeMs
+                            if (frameElapsedMs < budgetMs) {
+                                antiFreezeDelay(budgetMs - frameElapsedMs, deltaNs / 1_000_000)
+                            }
+                        }
+                        updateRenderFrameRate()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        val crashYear = stateStore.gameDataSnapshot.gameYear
+                        val crashMonth = stateStore.gameDataSnapshot.gameMonth
+                        DomainLog.e(TAG,
+                            "Game loop tick crashed: year=$crashYear month=$crashMonth " +
+                            "tickCount=${_tickCount.value} scene=${currentScene}", e)
+                        gameClock.consumeDeadTime()
+                        accumulatorNs = 0L
                     }
-                    updateRenderFrameRate()
                 }
             } finally {
                 gameLoopStoppedSignal.complete(Unit)
@@ -517,8 +529,12 @@ class GameEngineCore @Inject constructor(
                 delay(currentBackoffMs)
                 val currentTickCount = _tickCount.value
                 val loopActive = gameLoopJob?.isActive == true
-                if (currentTickCount == lastTickCount && loopActive && !stateStore.isPaused.value) {
+                if (currentTickCount == lastTickCount && !stateStore.isPaused.value) {
                     watchdogRecoveryAttempts++
+                    if (!loopActive && watchdogRecoveryAttempts <= 3) {
+                        DomainLog.w(TAG,
+                            "Watchdog: game loop is dead (isActive=false), recovering")
+                    }
                     val atMaxBackoff = currentBackoffMs >= WATCHDOG_MAX_BACKOFF_MS
                     val shouldLog = !atMaxBackoff ||
                         watchdogRecoveryAttempts % 10 == 0

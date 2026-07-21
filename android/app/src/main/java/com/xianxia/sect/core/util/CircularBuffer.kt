@@ -7,7 +7,9 @@ import java.util.concurrent.atomic.AtomicInteger
  * 基于 [Array] + [head]/[tail] 索引，替代原 ArrayList.removeAt(0) O(n) 实现。
  */
 class CircularBuffer<T : Number>(private val capacity: Int) {
-    private val buffer = arrayOfNulls<Any?>(capacity) as Array<T?>
+    // 使用 Array<Any?> 内部存储，避免泛型数组 ClassCastException
+    // 详见: https://kotlinlang.org/docs/generics.html#type-erasure
+    private val buffer = arrayOfNulls<Any?>(capacity)
     @Volatile private var head = 0
     @Volatile private var tail = 0
     private val lock = Any()
@@ -40,7 +42,7 @@ class CircularBuffer<T : Number>(private val capacity: Int) {
             var sum = 0.0
             var idx = head
             for (i in 0 until s) {
-                buffer[idx]?.let { sum += it.toDouble() }
+                (buffer[idx] as? Number)?.let { sum += it.toDouble() }
                 idx = (idx + 1) % capacity
             }
             return sum / s
@@ -51,13 +53,14 @@ class CircularBuffer<T : Number>(private val capacity: Int) {
     fun isEmpty(): Boolean = _size.get() == 0
     fun isNotEmpty(): Boolean = _size.get() > 0
 
+    @Suppress("UNCHECKED_CAST")
     fun toList(): List<T> {
         synchronized(lock) {
             val s = _size.get()
             val result = mutableListOf<T>()
             var idx = head
             for (i in 0 until s) {
-                buffer[idx]?.let { result.add(it) }
+                buffer[idx]?.let { result.add(it as T) }
                 idx = (idx + 1) % capacity
             }
             return result
@@ -71,7 +74,7 @@ class CircularBuffer<T : Number>(private val capacity: Int) {
             var sum = 0.0
             var idx = head
             for (i in 0 until s) {
-                buffer[idx]?.let { sum += it.toDouble() }
+                (buffer[idx] as? Number)?.let { sum += it.toDouble() }
                 idx = (idx + 1) % capacity
             }
             return sum
@@ -85,7 +88,7 @@ class CircularBuffer<T : Number>(private val capacity: Int) {
             var maxVal = Double.MIN_VALUE
             var idx = head
             for (i in 0 until s) {
-                buffer[idx]?.let { maxVal = maxOf(maxVal, it.toDouble()) }
+                (buffer[idx] as? Number)?.let { maxVal = maxOf(maxVal, it.toDouble()) }
                 idx = (idx + 1) % capacity
             }
             return maxVal
@@ -99,7 +102,7 @@ class CircularBuffer<T : Number>(private val capacity: Int) {
             var minVal = Double.MAX_VALUE
             var idx = head
             for (i in 0 until s) {
-                buffer[idx]?.let { minVal = minOf(minVal, it.toDouble()) }
+                (buffer[idx] as? Number)?.let { minVal = minOf(minVal, it.toDouble()) }
                 idx = (idx + 1) % capacity
             }
             return minVal

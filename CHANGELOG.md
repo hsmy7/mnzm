@@ -5,6 +5,7 @@
 - **时间显示冻结** -- `GameStateStoreImpl` 自动批量发射模式在 ≥3 字段变化时抑制 `_gameDataFlow` 发射，而 `_disciplesFlow`（锁外异步组装）不受影响，导致时间显示冻结但修炼进度条持续变化。移除自动批量发射检测逻辑，个体 StateFlow 始终正常发射
 - **仓库售卖物品不刷新** -- 同上根因，批量售卖 (`bulkSellItems`) 在单事务内修改 4+ 个 EntityStore 触发批量模式，所有仓库 StateFlow 被抑制。移除批量模式后售卖正常发射
 - **`gameDataUi` 采样丢帧** -- `.sample(100)` 与 100ms 游戏循环互为采样周期产生相位漂移，改用 `.distinctUntilChanged()` 结构相等检测剔除无效发射
+- **时间推进一会后永久冻结** -- 游戏循环体无异常保护，某次 tick 中任意系统抛异常杀死协程后，看门狗和主线程健康检查均因检查 `isGameLoopRunning`（协程状态）而跳过恢复。修复：游戏循环内加 try-catch 保护；看门狗移除 `loopActive` 检查，循环崩溃后仍可恢复；主线程健康检查同理修复
 
 ### 重构/优化
 

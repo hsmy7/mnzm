@@ -53,7 +53,7 @@ class GameLoopDelegate(
                 try {
                     val currentTick = gameEngineCore.tickCount.value
                     if (gameEngineCore.isPausedDirect) { stallCount = 0; lastTick = currentTick; continue }
-                    if (currentTick == lastTick && gameEngineCore.isGameLoopRunning) {
+                    if (currentTick == lastTick) {
                         stallCount++
                         if (stallCount >= 3) {
                             Log.w(TAG, "HealthCheck: game loop stalled, emergency restarting")
