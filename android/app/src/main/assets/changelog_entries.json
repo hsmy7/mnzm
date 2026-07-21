@@ -516,5 +516,16 @@
       "技术：公式系统统一为乘区法——全部数值计算统一为乘区内加算、乘区间乘算结构，新增7个乘区data class及ZoneCalculator核心工具",
       "技术：修复8个预存测试失败——VassalServiceTest/EquipmentSpriteTest/ChangelogParseTest/MainGameScreenTest/ViewModelArchitectureTest"
     ]
+  },
+  {
+    "date": "2026-07-21",
+    "version": "4.0.64",
+    "changes": [
+      "妖兽进攻重做：巡逻塔先于攻击检测，自动派遣弟子出战（优先巡视塔→宗门），玩家vsAI遭遇战，防守结果弹窗必现",
+      "修复：妖兽预警弹窗按钮从'知道了'改为'迎战'",
+      "修复：自动清理已击败妖兽的预警",
+      "修复：多妖兽逐个弹窗处理",
+      "修复：双击防抖+TOCTOU防护+异常保护"
+    ]
   }
 ]
