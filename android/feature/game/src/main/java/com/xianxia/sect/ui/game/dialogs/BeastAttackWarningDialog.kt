@@ -81,7 +81,7 @@ internal fun BeastAttackWarningDialog(
                 Spacer(modifier = Modifier.width(24.dp))
 
                 GameButton(
-                    text = "知道了",
+                    text = "迎战",
                     onClick = onFight
                 )
             }

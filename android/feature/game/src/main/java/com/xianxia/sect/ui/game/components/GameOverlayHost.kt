@@ -165,9 +165,20 @@ fun GameOverlayHost(
         .collectAsStateWithLifecycle()
     val currentAttack = pendingBeastAttacks.firstOrNull()
     val coroutineScope = rememberCoroutineScope()
+    val gdSnapshot by viewModel.gameDataUi.collectAsStateWithLifecycle()
 
-    if (currentAttack != null) {
-        val gdSnapshot by viewModel.gameDataUi.collectAsStateWithLifecycle()
+    // 跳过已击败妖兽的预警弹窗（可能被 AI 宗门等异步处理击败）
+    val beastStillAlive = currentAttack?.let { attack ->
+        gdSnapshot.worldLevels.find { it.id == attack.beastLevel.id }?.defeated != true
+    } ?: false
+
+    if (currentAttack != null && !beastStillAlive) {
+        LaunchedEffect(currentAttack) {
+            viewModel.clearPendingBeastAttacks()
+        }
+    }
+
+    if (currentAttack != null && beastStillAlive) {
         BeastAttackWarningDialog(
             attack = currentAttack,
             currentSpiritStones = gdSnapshot.spiritStones,

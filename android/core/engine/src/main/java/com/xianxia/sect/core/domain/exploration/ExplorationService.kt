@@ -80,14 +80,14 @@ class ExplorationService @Inject constructor(
         // Step 1: 世界关卡惰性管理（纯函数）
         state.gameData = worldLevelManager.processMonthly(state.gameData, playerAvgRealm)
 
-        // Step 2: 妖兽攻击检测
+        // Step 2: 巡视楼自动攻击（先于攻击检测，避免已击败妖兽产生无效预警）
+        patrolBattleSystem.executePatrolRound(state)
+
+        // Step 3: 妖兽攻击检测（仅检测巡视楼未击败的剩余妖兽）
         val attacks = beastAttackDetector.detectAttacks(state.gameData)
         if (attacks.isNotEmpty()) {
             stateStore.setPendingBeastAttacks(attacks)
         }
-
-        // Step 3: 巡视楼自动攻击
-        patrolBattleSystem.executePatrolRound(state)
     }
 
     // ── 巡视塔战斗结果 ─────────────────────────────────────────────────────
@@ -156,14 +156,23 @@ class ExplorationService @Inject constructor(
                     it.isPlayerSect || it.isPlayerOccupied
                 }
                 if (aiSect != null && targetSect != null) {
-                    val garrisonIds = targetSect.garrisonSlots
+                    // 自动选择防守弟子（同 resolveBeastFightInternal 逻辑）
+                    val allAlive = discipleTables.assembleAll().filter { it.isAlive }
+                    val pids = gameData.patrolSlots
                         .filter { it.discipleId.isNotEmpty() }
                         .map { it.discipleId }.toSet()
-                    prepareBeastDefenders(garrisonIds)
-                    val disciples = discipleTables.assembleAll()
-                    val defenders = disciples.filter {
-                        it.id in garrisonIds && it.isAlive
-                    }
+                    val patrol = allAlive.filter { it.id in pids }
+                    val excludeStatuses = setOf(
+                        DiscipleStatus.ON_MISSION,
+                        DiscipleStatus.REFLECTING,
+                        DiscipleStatus.REFINING
+                    )
+                    val remaining = allAlive.filter {
+                        it.id !in pids && it.status !in excludeStatuses
+                    }.sortedByDescending { it.realmLayer }
+                    val defenders = (patrol + remaining).take(8)
+                    val defenderIds = defenders.map { it.id }.toSet()
+                    prepareBeastDefenders(defenderIds)
                     if (defenders.isNotEmpty()) {
                         val aiTeam = gameData.aiSectDisciples[aiSectId]
                             ?.filter { it.isAlive }
@@ -211,16 +220,27 @@ class ExplorationService @Inject constructor(
             it.isPlayerSect || it.isPlayerOccupied
         } ?: return
 
-        val garrisonIds = targetSect.garrisonSlots
-            .filter { it.discipleId.isNotEmpty() }
-            .map { it.discipleId }.toSet()
-
-        prepareBeastDefenders(garrisonIds)
-
+        // 自动选择防守弟子：优先巡视塔已分配弟子，其次宗门内其他弟子
+        // 排除任务中/思过中/血炼中的弟子，其余均可参战
         var disciples = discipleTables.assembleAll()
-        val defenders = disciples.filter {
-            it.id in garrisonIds && it.isAlive
-        }
+        val allAlive = disciples.filter { it.isAlive }
+        val patrolDiscipleIds = gd.patrolSlots
+            .filter { it.discipleId.isNotEmpty() }
+            .map { it.discipleId }
+            .toSet()
+        val patrolDefenders = allAlive.filter { it.id in patrolDiscipleIds }
+        val excludeStatuses = setOf(
+            DiscipleStatus.ON_MISSION,
+            DiscipleStatus.REFLECTING,
+            DiscipleStatus.REFINING
+        )
+        val remainingAlive = allAlive.filter {
+            it.id !in patrolDiscipleIds && it.status !in excludeStatuses
+        }.sortedByDescending { it.realmLayer }
+        val defenders = (patrolDefenders + remainingAlive).take(8)
+        val defenderIds = defenders.map { it.id }.toSet()
+
+        prepareBeastDefenders(defenderIds)
 
         markBeastDefeated(beastLevelId)
 
@@ -288,19 +308,18 @@ class ExplorationService @Inject constructor(
             result = BattleResult.LOSE,
             details = loot.toDetailString(level.beastName)
         )).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
-        if (gameData.patrolBattleResultPopup) {
-            gameData = gameData.copy(
-                pendingPatrolBattleResults =
-                    gameData.pendingPatrolBattleResults +
-                    BattleResultUIData(
-                        battleLogId = "", victory = false,
-                        teamMembers = emptyList(),
-                        rewards = emptyList(),
-                        lootedItems = loot.toRewardItems(),
-                        isBeastDefense = true
-                    )
-            )
-        }
+        // 妖兽防守结果始终显示，不受 patrolBattleResultPopup 设置影响
+        gameData = gameData.copy(
+            pendingPatrolBattleResults =
+                gameData.pendingPatrolBattleResults +
+                BattleResultUIData(
+                    battleLogId = "", victory = false,
+                    teamMembers = emptyList(),
+                    rewards = emptyList(),
+                    lootedItems = loot.toRewardItems(),
+                    isBeastDefense = true
+                )
+        )
         discipleTables.replaceAll(disciples)
     }
 
@@ -549,7 +568,7 @@ class ExplorationService @Inject constructor(
         victory: Boolean, teamMems: List<BattleLogMember>,
         allRewards: List<BattleRewardItem>
     ) {
-        if (!gameData.patrolBattleResultPopup) return
+        // 妖兽防守结果始终显示，不受 patrolBattleResultPopup 设置影响
         val looted = if (victory) emptyList()
             else lootCalculator.computeLootPlan(gameData, this)
                 .toRewardItems()
