@@ -1,6 +1,15 @@
 [
   {
     "date": "2026-07-21",
+    "version": "4.0.62",
+    "changes": [
+      "修复：CircularBuffer泛型数组ClassCastException——arrayOfNulls<Any?>() as Array<T?>因类型擦除运行时崩溃，环形缓冲区(含FPS采样/修炼速率平滑)从未正确运行",
+      "代码质量：GameConfig.Vassal迁移至独立VassalConfig——消除vassal弃用警告数十处",
+      "代码质量：GameLifecycle兼容层/StackableItemStore泛型转型加@Suppress——消除全部警告"
+    ]
+  },
+  {
+    "date": "2026-07-21",
     "version": "4.0.60",
     "changes": [
       "修复：时间显示冻结——GameStateStoreImpl自动批量发射模式在≥3字段变化时抑制_gameDataFlow发射，而_disciplesFlow(锁外异步组装)不受影响，导致时间冻结但修炼进度条持续变化。移除自动批量发射检测，个体StateFlow始终正常发射",

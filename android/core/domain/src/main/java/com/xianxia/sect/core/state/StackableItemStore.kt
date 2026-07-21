@@ -78,6 +78,7 @@ class StackableItemStore<T>(
      * 则叠加数量（受 [maxStack] 限制，溢出部分计入 [DomainResult.Partial]）。
      * 若不存在同 key 且槽位已满，返回 [DomainResult.Failure]。
      */
+    @Suppress("UNCHECKED_CAST")
     fun add(item: T, merge: Boolean = true): DomainResult<T> {
         val key = stackKeyOf(item)
         val existingId = if (merge) keyIndex[key] else null
@@ -120,6 +121,7 @@ class StackableItemStore<T>(
      * - 移除后数量归零 → 删除该条目，返回 [DomainResult.Success]
      * - 移除部分数量 → 更新数量，返回 [DomainResult.Success]
      */
+    @Suppress("UNCHECKED_CAST")
     fun remove(id: String, count: Int = 1): DomainResult<Unit> {
         val existing = store.get(id)
             ?: return DomainResult.Failure(notFound(id))

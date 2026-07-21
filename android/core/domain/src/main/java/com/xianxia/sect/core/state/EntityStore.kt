@@ -212,6 +212,7 @@ class EntityStore<T : HasId>(initialItems: List<T> = emptyList()) : Iterable<T> 
  * @param maxStack 单格最大堆叠数
  * @return 合并后的 EntityStore（可能为原引用或新引用）
  */
+@Suppress("UNCHECKED_CAST")
 inline fun <T> EntityStore<T>.mergeStackable(
     item: T,
     crossinline matchPredicate: (T) -> Boolean,

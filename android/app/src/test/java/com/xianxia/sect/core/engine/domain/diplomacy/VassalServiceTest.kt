@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.domain.diplomacy
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.config.VassalConfig
 import com.xianxia.sect.core.model.VassalContract
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.GameStateStoreImpl
@@ -404,7 +405,7 @@ assertEquals(9L, stateStore.gameData.value.spiritStones)
             )
         }
         service.processYearlyVassalTribute(6)
-val expected = 1000L + GameConfig.Vassal.TRIBUTE_BY_SECT_LEVEL[1]!!
+val expected = 1000L + VassalConfig.TRIBUTE_BY_SECT_LEVEL[1]!!
         assertEquals(expected, stateStore.gameData.value.spiritStones)
     }
 
@@ -438,8 +439,8 @@ assertEquals(1000L, stateStore.gameData.value.spiritStones)
 
     @Test
     fun `vassal tribute config defined for all levels`() {
-        assertEquals(4, GameConfig.Vassal.TRIBUTE_BY_SECT_LEVEL.size)
-        assertTrue(GameConfig.Vassal.TRIBUTE_BY_SECT_LEVEL.values.all { it > 0 })
+        assertEquals(4, VassalConfig.TRIBUTE_BY_SECT_LEVEL.size)
+        assertTrue(VassalConfig.TRIBUTE_BY_SECT_LEVEL.values.all { it > 0 })
     }
 
     // ═══════════════════════════════════════════
@@ -503,26 +504,26 @@ assertEquals(1000L, stateStore.gameData.value.spiritStones)
 
     @Test
     fun `vassal config weights sum to 1`() {
-        val sum = GameConfig.Vassal.POWER_WEIGHT + GameConfig.Vassal.OCCUPY_WEIGHT +
-            GameConfig.Vassal.SKIRMISH_WEIGHT + GameConfig.Vassal.FAVOR_WEIGHT
+        val sum = VassalConfig.POWER_WEIGHT + VassalConfig.OCCUPY_WEIGHT +
+            VassalConfig.SKIRMISH_WEIGHT + VassalConfig.FAVOR_WEIGHT
         assertEquals(1.0, sum, 0.001)
     }
 
     @Test
     fun `vassal power score tiers are descending`() {
-        assertTrue(GameConfig.Vassal.POWER_TIER_5X > GameConfig.Vassal.POWER_TIER_3X)
-        assertTrue(GameConfig.Vassal.POWER_TIER_3X > GameConfig.Vassal.POWER_TIER_2X)
-        assertTrue(GameConfig.Vassal.POWER_TIER_2X > GameConfig.Vassal.POWER_RATIO_MIN)
+        assertTrue(VassalConfig.POWER_TIER_5X > VassalConfig.POWER_TIER_3X)
+        assertTrue(VassalConfig.POWER_TIER_3X > VassalConfig.POWER_TIER_2X)
+        assertTrue(VassalConfig.POWER_TIER_2X > VassalConfig.POWER_RATIO_MIN)
     }
 
     @Test
     fun `vassal config values are within valid range`() {
-        assertTrue(GameConfig.Vassal.MAX_VASSAL_CHANCE in 0.0..1.0)
-        assertTrue(GameConfig.Vassal.MAX_BREAKAWAY_CHANCE in 0.0..1.0)
-        assertTrue(GameConfig.Vassal.POWER_WEIGHT in 0.0..1.0)
-        assertTrue(GameConfig.Vassal.OCCUPY_WEIGHT in 0.0..1.0)
-        assertTrue(GameConfig.Vassal.SKIRMISH_WEIGHT in 0.0..1.0)
-        assertTrue(GameConfig.Vassal.FAVOR_WEIGHT in 0.0..1.0)
-        assertTrue(GameConfig.Vassal.VASSALIZE_HARD_THRESHOLD >= 1.0)
+        assertTrue(VassalConfig.MAX_VASSAL_CHANCE in 0.0..1.0)
+        assertTrue(VassalConfig.MAX_BREAKAWAY_CHANCE in 0.0..1.0)
+        assertTrue(VassalConfig.POWER_WEIGHT in 0.0..1.0)
+        assertTrue(VassalConfig.OCCUPY_WEIGHT in 0.0..1.0)
+        assertTrue(VassalConfig.SKIRMISH_WEIGHT in 0.0..1.0)
+        assertTrue(VassalConfig.FAVOR_WEIGHT in 0.0..1.0)
+        assertTrue(VassalConfig.VASSALIZE_HARD_THRESHOLD >= 1.0)
     }
 }

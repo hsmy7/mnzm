@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION") // 旧 API 兼容层测试，有意使用 GameLifecycle
+
 package com.xianxia.sect.core.state
 
 import kotlinx.coroutines.CoroutineScope

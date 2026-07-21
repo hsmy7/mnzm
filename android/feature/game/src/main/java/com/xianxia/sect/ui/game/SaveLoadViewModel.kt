@@ -144,9 +144,6 @@ class SaveLoadViewModel @Inject constructor(
     private val _mapPreloadData = MutableStateFlow<MapPreloadData?>(null)
     val mapPreloadData: StateFlow<MapPreloadData?> = _mapPreloadData.asStateFlow()
 
-    /** 游戏生命周期（纯运行时，不随存档保存） */
-    val gameLifecycle: StateFlow<GameLifecycle> get() = stateStore.gameLifecycle
-
     /** 运行时状态：IDLE / LOADING / PLAYING / RELOADING */
     val runState: StateFlow<RunState> get() = stateStore.runState
 

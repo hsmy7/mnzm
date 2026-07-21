@@ -188,6 +188,7 @@ interface GameStateStore : GameStateSnapshotProvider {
 
     // === 生命周期状态（旧 API，兼容层） ===
     @Deprecated("Use bootPhase/runState instead. Will be removed in next major version.")
+    @Suppress("DEPRECATION")
     val gameLifecycle: StateFlow<GameLifecycle>
 
     // === 核心写入 API ===

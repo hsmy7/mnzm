@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION") // 实现 GameStateStore 旧 API 兼容层
+
 package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.engine.SectCombatPowerCalculator

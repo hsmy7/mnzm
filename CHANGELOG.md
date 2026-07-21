@@ -1,3 +1,15 @@
+## [4.0.62] - 2026-07-21（versionCode=4062）
+
+### 修复
+
+- **CircularBuffer 泛型数组 ClassCastException** — `arrayOfNulls<Any?>(capacity) as Array<T?>` 因 Kotlin 泛型类型擦除在构造时触发 `ClassCastException`，导致所有 12 个 `CircularBufferTest` 测试挂掉，FPS/修炼速率采样环形缓冲区从未正确运行。改用 `arrayOfNulls<Any?>(capacity)` 内部存储 + 访问点转型
+
+### 代码质量
+
+- **GameConfig.Vassal 迁移至独立的 VassalConfig** — 消除 `object Vassal : Any` 弃用警告数十处
+- **GameLifecycle 弃用兼容层加 @Suppress** — `GameStateStore` 接口/实现/测试加 `@Suppress("DEPRECATION")`，SaveLoadViewModel 移除无外部调用的 `gameLifecycle` 属性
+- **StackableItemStore/EntityStore 泛型 unchecked cast 加 @Suppress** — 消除 6 处 unchecked cast 警告
+
 ## [4.0.60] - 2026-07-21（versionCode=4060）
 
 ### 修复
