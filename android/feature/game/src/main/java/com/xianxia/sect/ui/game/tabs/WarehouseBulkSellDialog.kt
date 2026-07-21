@@ -1,16 +1,12 @@
 package com.xianxia.sect.ui.game.tabs
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -25,14 +21,12 @@ import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogMode
+import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.GridRow
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
-import com.xianxia.sect.ui.theme.GameColors
-
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun BulkSellDialog(
     viewModel: GameViewModel,
@@ -50,6 +44,7 @@ internal fun BulkSellDialog(
     var showConfirmDialog by remember { mutableStateOf(false) }
     var showDetailDialog by remember { mutableStateOf(false) }
     var detailItem by remember { mutableStateOf<Any?>(null) }
+    var isSelling by remember { mutableStateOf(false) }
 
     val rarityOptions = listOf(
         1 to "凡品",
@@ -131,166 +126,126 @@ internal fun BulkSellDialog(
         showCloseButton = true,
         scrollableContent = false
     ) {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            item {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "选择品阶（可多选）：",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                    GridRow(items = rarityOptions) { (rarity, name) ->
-                        val isSelected = selectedRarities.contains(rarity)
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(if (isSelected) Color.Black else Color(0xFFF0F0F0))
-                                .clickable {
+        Column(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "选择品阶（可多选）：",
+                            fontSize = 12.sp,
+                            color = Color.Black
+                        )
+                        GridRow(items = rarityOptions, maxColumnWidth = 80.dp) { (rarity, name) ->
+                            val isSelected = selectedRarities.contains(rarity)
+                            GameButton(
+                                text = if (isSelected) "✓ $name" else name,
+                                onClick = {
                                     selectedRarities = if (isSelected) {
                                         selectedRarities - rarity
                                     } else {
                                         selectedRarities + rarity
                                     }
-                                }
-                                .padding(vertical = 8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = name,
-                                fontSize = 11.sp,
-                                color = if (isSelected) Color.White else Color.Black
+                                },
+                                enabled = true,
+                                modifier = Modifier.weight(1f),
+                                height = 34.dp,
+                                fontSize = 11.sp
                             )
                         }
                     }
                 }
-            }
 
-            item {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "选择物品类型（可多选）：",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                    GridRow(items = typeOptions) { (type, name) ->
-                        val isSelected = selectedTypes.contains(type)
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(if (isSelected) Color.Black else Color(0xFFF0F0F0))
-                                .clickable {
+                item {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "选择物品类型（可多选）：",
+                            fontSize = 12.sp,
+                            color = Color.Black
+                        )
+                        GridRow(items = typeOptions, maxColumnWidth = 80.dp) { (type, name) ->
+                            val isSelected = selectedTypes.contains(type)
+                            GameButton(
+                                text = if (isSelected) "✓ $name" else name,
+                                onClick = {
                                     selectedTypes = if (isSelected) {
                                         selectedTypes - type
                                     } else {
                                         selectedTypes + type
                                     }
-                                }
-                                .padding(vertical = 8.dp),
+                                },
+                                enabled = true,
+                                modifier = Modifier.weight(1f),
+                                height = 34.dp,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                }
+
+                item {
+                    if (totalItems > 0) {
+                        Text(
+                            text = "可出售物品（共${totalItems}件）：",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            SellableEquipmentSection(sellableEquipment, onItemLongPress = { detailItem = it; showDetailDialog = true })
+                            SellableManualSection(sellableManuals, onItemLongPress = { detailItem = it; showDetailDialog = true })
+                            SellablePillSection(sellablePills, onItemLongPress = { detailItem = it; showDetailDialog = true })
+                            SellableMaterialSection(sellableMaterials, onItemLongPress = { detailItem = it; showDetailDialog = true })
+                            SellableHerbSection(sellableHerbs, onItemLongPress = { detailItem = it; showDetailDialog = true })
+                            SellableSeedSection(sellableSeeds, onItemLongPress = { detailItem = it; showDetailDialog = true })
+                        }
+                    } else if (selectedRarities.isNotEmpty() && selectedTypes.isNotEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = name,
-                                fontSize = 11.sp,
-                                color = if (isSelected) Color.White else Color.Black
+                                text = "没有符合条件的物品",
+                                fontSize = 12.sp,
+                                color = Color.Black
                             )
                         }
                     }
                 }
             }
 
-            item {
-                if (totalItems > 0) {
-                    Text(
-                        text = "可出售物品（共${totalItems}件）：",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        SellableEquipmentSection(sellableEquipment, onItemLongPress = { detailItem = it; showDetailDialog = true })
-                        SellableManualSection(sellableManuals, onItemLongPress = { detailItem = it; showDetailDialog = true })
-                        SellablePillSection(sellablePills, onItemLongPress = { detailItem = it; showDetailDialog = true })
-                        SellableMaterialSection(sellableMaterials, onItemLongPress = { detailItem = it; showDetailDialog = true })
-                        SellableHerbSection(sellableHerbs, onItemLongPress = { detailItem = it; showDetailDialog = true })
-                        SellableSeedSection(sellableSeeds, onItemLongPress = { detailItem = it; showDetailDialog = true })
-                    }
-                } else if (selectedRarities.isNotEmpty() && selectedTypes.isNotEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "没有符合条件的物品",
-                            fontSize = 12.sp,
-                            color = Color.Black
-                        )
-                    }
-                }
-            }
-
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(GameColors.Border)
-                            .clickable { onDismiss() }
-                            .padding(vertical = 12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "取消",
-                            fontSize = 12.sp,
-                            color = Color.Black
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(
-                                if (totalItems > 0) Color(0xFFE74C3C) else Color(0xFFCCCCCC)
-                            )
-                            .then(
-                                if (totalItems > 0) {
-                                    Modifier.clickable {
-                                        showConfirmDialog = true
-                                    }
-                                } else {
-                                    Modifier
-                                }
-                            )
-                            .padding(vertical = 12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "确认出售",
-                            fontSize = 12.sp,
-                            color = Color.White
-                        )
-                    }
-                }
+            // 底部按钮 — 固定显示，无需滚动
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                GameButton(
+                    text = "取消",
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f)
+                )
+                GameButton(
+                    text = "确认出售",
+                    onClick = { showConfirmDialog = true },
+                    enabled = totalItems > 0,
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }
@@ -301,6 +256,8 @@ internal fun BulkSellDialog(
             title = "确认出售",
             confirmLabel = "确认出售",
             onConfirm = {
+                if (isSelling) return@StandardPromptDialog
+                isSelling = true
                 viewModel.bulkSellItems(selectedRarities, finalTypes)
                 showConfirmDialog = false
                 onDismiss()

@@ -337,7 +337,7 @@ class CultivationEventProcessor @Inject constructor(
             caveExplorationProcessor.get().processSectDisciplesAging(year)
         }
         safelyRun("refreshRecruitList") {
-            merchantAndRecruitService.refreshRecruitList(year)
+            if (year % 3 == 1) merchantAndRecruitService.refreshRecruitList(year)
         }
         safelyRun("merchantRefreshChance") {
             merchantAndRecruitService.giveMerchantRefreshChanceIfDue(year)

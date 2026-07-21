@@ -117,7 +117,7 @@ internal fun DemolishButton(
 
     var showConfirm by remember { mutableStateOf(false) }
     val btnW = (tileSize / density).dp * 4
-    val btnH = (tileSize / density).dp
+    val btnH = (tileSize / density).dp * 2
 
     Box(
         modifier = Modifier

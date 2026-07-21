@@ -97,10 +97,6 @@ object RedeemCodeManager {
                 spiritRootCount = 1
             )
         ),
-        "36887" to RedeemCode(
-            code = "36887",
-            rewardType = RedeemRewardType.GIFT_PACK_MAJIAQI
-        )
     )
 
     // ══════════════════════════════════
@@ -633,81 +629,6 @@ object RedeemCodeManager {
                     }
                 }
                 DomainLog.d(TAG, "Generated manual pack: 30 manuals for each rarity 1-4")
-            }
-            RedeemRewardType.GIFT_PACK_MAJIAQI -> {
-                // 1. 20亿下品灵石
-                rewards.add(
-                    RewardSelectedItem(
-                        id = "spiritStones",
-                        type = "spiritStones",
-                        name = "灵石",
-                        rarity = 1,
-                        quantity = 2_000_000_000
-                    )
-                )
-                DomainLog.d(TAG, "马嘉祺nb666: Generated 2000000000 spirit stones")
-
-                // 2. 20名100岁大乘一层弟子
-                val packUsedNames = existingNames.toMutableSet()
-                repeat(20) {
-                    val d = generateDisciple(
-                        DiscipleRewardConfig(
-                            realm = 2,
-                            realmLayer = 1,
-                            minAge = 100,
-                            maxAge = 100
-                        ),
-                        packUsedNames
-                    )
-                    disciples.add(d)
-                    packUsedNames.add(d.name)
-                    rewards.add(
-                        RewardSelectedItem(
-                            id = d.id,
-                            type = "disciple",
-                            name = d.name,
-                            rarity = 1,
-                            quantity = 1
-                        )
-                    )
-                }
-                DomainLog.d(TAG, "马嘉祺nb666: Generated 20 disciples (大乘一层, age 100)")
-
-                // 3. 100个随机6阶物品（随机类型，允许重复）
-                val itemTypes = listOf("equipment", "manual", "pill", "material", "herb", "seed")
-                repeat(100) {
-                    val typeIndex = rng.nextInt(itemTypes.size)
-                    val itemType = itemTypes[typeIndex]
-                    val item = when (itemType) {
-                        "equipment" -> {
-                            val eq = EquipmentDatabase.generateRandom(minRarity = 6, maxRarity = 6)
-                            RewardSelectedItem(id = eq.id, type = "equipment", name = eq.name, rarity = 6, quantity = 1)
-                        }
-                        "manual" -> {
-                            val m = ManualDatabase.generateRandom(minRarity = 6, maxRarity = 6)
-                            RewardSelectedItem(id = m.id, type = "manual", name = m.name, rarity = 6, quantity = 1)
-                        }
-                        "pill" -> {
-                            val p = ItemDatabase.generateRandomPill(minRarity = 6, maxRarity = 6)
-                            RewardSelectedItem(id = p.id, type = "pill", name = p.name, rarity = 6, quantity = 1)
-                        }
-                        "material" -> {
-                            val m = ItemDatabase.generateRandomMaterial(minRarity = 6, maxRarity = 6)
-                            RewardSelectedItem(id = m.id, type = "material", name = m.name, rarity = 6, quantity = 1)
-                        }
-                        "herb" -> {
-                            val h = HerbDatabase.generateRandomHerb(minRarity = 6, maxRarity = 6)
-                            RewardSelectedItem(id = h.id, type = "herb", name = h.name, rarity = 6, quantity = 1)
-                        }
-                        "seed" -> {
-                            val s = HerbDatabase.generateRandomSeed(minRarity = 6, maxRarity = 6)
-                            RewardSelectedItem(id = s.id, type = "seed", name = s.name, rarity = 6, quantity = 1)
-                        }
-                        else -> null
-                    }
-                    if (item != null) rewards.add(item)
-                }
-                DomainLog.d(TAG, "马嘉祺nb666: Generated 100 random rarity-6 items")
             }
         }
 

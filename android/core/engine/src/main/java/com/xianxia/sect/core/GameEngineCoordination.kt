@@ -130,7 +130,7 @@ suspend fun GameEngine.loadData(
         if (currentData.travelingMerchantItems.isEmpty()) {
             cultivationService.refreshTravelingMerchant(currentData.gameYear, currentData.gameMonth)
         }
-        if (currentData.recruitList.isEmpty()) {
+        if (currentData.recruitList.isEmpty() && currentData.gameYear - currentData.lastRecruitYear >= 3) {
             cultivationService.refreshRecruitList(currentData.gameYear)
         }
     }
@@ -221,7 +221,7 @@ suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
         )
         repeat(3) { discipleService.recruitDisciple(realm = 9) }
     }
-    addInitialManual()
+    addInitialStorageBags()
     // 2. 世界初始化完成后才加载邮件（此时 mailRecords/slotId 等状态已就绪）
     // Note: isGameStarted is set to true later in SaveLoadViewModel.startNewGame()
     // after startGameLoop() succeeds, ensuring UI doesn't appear without a running game loop
@@ -257,7 +257,7 @@ private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot
             )
             repeat(3) { discipleService.recruitDisciple(realm = 9) }
         }
-        addInitialManual()
+        addInitialStorageBags()
         // 2. 世界初始化完成后才加载邮件
         // Note: isGameStarted is set to true later in SaveLoadViewModel.restartGame()
         // after startGameLoop() succeeds
@@ -295,8 +295,13 @@ private suspend fun GameEngine.initializeWorldAndServices(sectName: String, curr
     }
 }
 
-private suspend fun GameEngine.addInitialManual() {
-    inventorySystem.addManualStack(ManualStack(id = java.util.UUID.randomUUID().toString(), name = "基础心法", rarity = 1, description = "一门基础的心法功法", type = ManualType.MIND, stats = mapOf("hp" to 10, "mp" to 10), minRealm = 9))
+private suspend fun GameEngine.addInitialStorageBags() {
+    stateStore.update {
+        storageBags = storageBags + listOf(
+            StorageBag(name = "凡品储物袋", rarity = 1, quantity = 1),
+            StorageBag(name = "凡品储物袋", rarity = 1, quantity = 1)
+        )
+    }
 }
 
 // ── Data update helpers ─────────────────────────────────────────────

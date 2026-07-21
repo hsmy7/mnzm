@@ -67,7 +67,7 @@ fun RecruitDialog(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "暂无可招募弟子\n请等待每年一月刷新",
+                            text = "暂无可招募弟子\n招募每3年刷新一次，请耐心等待",
                             fontSize = 12.sp,
                             color = GameColors.TextSecondary
                         )
