@@ -2,8 +2,16 @@ package com.xianxia.sect.core.exploration
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.BuildingConfigService
+import com.xianxia.sect.core.engine.ManualProficiencySystem
+import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
+import com.xianxia.sect.core.engine.domain.battle.Battle
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
+import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
+import com.xianxia.sect.core.model.EquipmentNurtureData
+import com.xianxia.sect.core.model.EquipmentSlot
+import com.xianxia.sect.core.registry.EquipmentDatabase
+import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.model.BattleLog
@@ -73,7 +81,8 @@ class PatrolBattleSystem @Inject constructor(
     private val rngManager: GameRngManager,
     private val inventorySystem: InventorySystem,
     private val buildingConfigService: BuildingConfigService,
-    private val deathHandler: DiscipleDeathHandler
+    private val deathHandler: DiscipleDeathHandler,
+    private val encounterBattleService: com.xianxia.sect.core.domain.battle.EncounterBattleService
 ) {
     companion object {
         private const val TAG = "PatrolBattleSystem"
@@ -117,12 +126,38 @@ class PatrolBattleSystem @Inject constructor(
             list.associateBy { it.manualId }
         }
 
-        val results = executeBattles(
-            teams, targets, equipmentMap, manualMap, allProficiencies
-        )
-        if (results.isEmpty()) return
+        // 分离被 AI 同时瞄准的妖兽（冲突目标）和纯巡逻目标
+        val aiDirectTargets = gd.aiSectBeastDirectTargets
+        val conflictTargets = targets.filterValues { it.id in aiDirectTargets }
+        val normalTargets = targets.filterValues { it.id !in aiDirectTargets }
 
-        applyResults(results, state, gd, disciples)
+        val allResults = mutableListOf<TowerBattleResult>()
+
+        // 处理无冲突的巡逻目标（正常 PvE）
+        if (normalTargets.isNotEmpty()) {
+            val normalTeams = teams.filter { it.towerIndex in normalTargets.keys }
+            allResults += executeBattles(
+                normalTeams, normalTargets, equipmentMap, manualMap, allProficiencies
+            )
+        }
+
+        // 处理冲突目标：巡逻队 vs AI → 胜者 vs 妖兽
+        if (conflictTargets.isNotEmpty()) {
+            val conflictTeams = teams.filter { it.towerIndex in conflictTargets.keys }
+            allResults += executeConflictBattles(
+                conflictTeams, conflictTargets, aiDirectTargets,
+                equipmentMap, manualMap, allProficiencies, state
+            )
+            // 从 AI 目标中移除已处理的冲突妖兽
+            val handledIds = conflictTargets.values.map { it.id }.toSet()
+            val remaining = gd.aiSectBeastDirectTargets - handledIds
+            if (remaining.size != gd.aiSectBeastDirectTargets.size) {
+                state.gameData = state.gameData.copy(aiSectBeastDirectTargets = remaining)
+            }
+        }
+
+        if (allResults.isEmpty()) return
+        applyResults(allResults, state, gd, disciples)
     }
 
     // ── 步骤 1: 构建巡逻队伍 ──────────────────────────────────────────────
@@ -205,7 +240,214 @@ class PatrolBattleSystem @Inject constructor(
         return result
     }
 
-    // ── 步骤 3: 执行战斗 ──────────────────────────────────────────────────
+    // ── 步骤 3b: 执行冲突战斗（巡逻队 vs AI → 胜者 vs 妖兽） ──────────
+
+    /**
+     * 处理巡逻队和 AI 同时瞄准同一妖兽的冲突。
+     * 巡逻队 vs AI PvP → 胜者的幸存弟子 vs 妖兽 PvE。
+     * AI 弟子使用 [com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager.generateBattleItems] 生成模拟装备/功法。
+     */
+    private fun executeConflictBattles(
+        teams: List<TowerTeam>,
+        targets: Map<Int, WorldLevel>,
+        aiDirectTargets: Map<String, List<String>>,
+        equipmentMap: Map<String, EquipmentInstance>,
+        manualMap: Map<String, ManualInstance>,
+        allProficiencies: Map<String, Map<String, ManualProficiencyData>>,
+        state: MutableGameState
+    ): List<TowerBattleResult> {
+        return teams.mapNotNull { team ->
+            val target = targets[team.towerIndex] ?: return@mapNotNull null
+            // 冲突时只取最近的 1 个 AI（第 2 个直接清理）
+            val aiSectIds = aiDirectTargets[target.id] ?: return@mapNotNull null
+            if (aiSectIds.isEmpty()) return@mapNotNull null
+            val aiSectId = aiSectIds[0]
+            val aiSect = state.gameData.worldMapSects.find { it.id == aiSectId } ?: return@mapNotNull null
+            val aiDisciples = state.gameData.aiSectDisciples[aiSectId]
+                ?.filter { it.isAlive }
+                ?.take(GameConfig.AI.TEAM_SIZE) ?: return@mapNotNull null
+            if (aiDisciples.isEmpty()) return@mapNotNull null
+
+            // Phase 1: 巡逻队 vs AI（PvP）
+            // 用 createBattle 构建两方战斗：team=巡逻队, beasts=AI队伍
+            val pvpBattle = battleSystem.createBattle(
+                disciples = team.disciples,
+                equipmentMap = equipmentMap,
+                manualMap = manualMap,
+                beastLevel = target.realm,
+                beastCount = 0,
+                beastPreGenStats = null,
+                manualProficiencies = allProficiencies
+            )
+            val pvpResult = battleSystem.executeBattle(pvpBattle)
+
+            // 收集 Phase 1 幸存者
+            val patrolSurvivors = pvpResult.battle.team.filter { !it.isDead }
+            val aiSurvivors = pvpResult.battle.beasts.filter { !it.isDead }
+            val patrolDead = pvpResult.battle.team.filter { it.isDead }.map { it.id }.toSet()
+            val aiDead = pvpResult.battle.beasts.filter { it.isDead }.map { it.id }.toSet()
+
+            // 标记 AI 阵亡
+            if (aiDead.isNotEmpty()) {
+                val updatedAi = state.gameData.aiSectDisciples[aiSectId]?.map { d ->
+                    if (d.id in aiDead) d.copy(isAlive = false, status = DiscipleStatus.DEAD) else d
+                } ?: state.gameData.aiSectDisciples[aiSectId] ?: emptyList()
+                state.gameData = state.gameData.copy(
+                    aiSectDisciples = state.gameData.aiSectDisciples + (aiSectId to updatedAi)
+                )
+            }
+
+            // Phase 2: 胜者 vs 妖兽
+            val winnerDisciples: List<com.xianxia.sect.core.model.Disciple>
+            val victory = if (pvpResult.victory) {
+                // 巡逻队胜 → 巡逻队幸存者打妖兽
+                winnerDisciples = team.disciples.filter { it.id !in patrolDead }
+                true
+            } else {
+                // AI 胜 → AI 幸存者打妖兽
+                winnerDisciples = aiDisciples.filter { it.id !in aiDead }
+                false
+            }
+
+            if (winnerDisciples.isEmpty()) {
+                // 双方全灭：记录巡逻弟子死亡 + AI 死亡（AI 已在上面记录），
+                // 妖兽未击败，返回带死亡信息的空结果让 applyResults 处理。
+                return@mapNotNull TowerBattleResult(
+                    towerIndex = team.towerIndex, target = target,
+                    victory = false, result = pvpResult,
+                    survivors = emptySet(), deadIds = patrolDead
+                )
+            }
+
+            // 构建妖兽预计算属性
+            val beastPreGenStats = if (target.beastMaxHp > 0) BattleSystem.BeastPreGenStats(
+                maxHp = target.beastMaxHp, maxMp = target.beastMaxMp,
+                physicalAttack = target.beastPhysicalAttack, magicAttack = target.beastMagicAttack,
+                physicalDefense = target.beastPhysicalDefense, magicDefense = target.beastMagicDefense,
+                speed = target.beastSpeed, realmLayer = target.realmLayer
+            ) else null
+            val beastTypeName = GameConfig.Beast.getType(
+                (target.beastType ?: 0).coerceIn(0, GameConfig.Beast.TYPES.size - 1)
+            ).name
+
+            // 构建 Phase 2 (PvE): 胜者 vs 妖兽
+            // 巡逻队胜 → 已有 equipmentMap/manualMap；AI 胜 → 需要生成模拟装备
+            val pveBattle = if (pvpResult.victory) {
+                battleSystem.createBattle(
+                    disciples = winnerDisciples,
+                    equipmentMap = equipmentMap,
+                    manualMap = manualMap,
+                    beastLevel = target.realm,
+                    beastCount = target.count,
+                    beastType = beastTypeName,
+                    manualProficiencies = allProficiencies,
+                    beastPreGenStats = beastPreGenStats
+                )
+            } else {
+                // AI 胜 → 生成 AI 弟子的模拟装备/功法
+                createAIBattle(winnerDisciples, target)
+            }
+            val pveResult = battleSystem.executeBattle(pveBattle)
+
+            val pveSurvivorIds = pveResult.battle.team.filter { !it.isDead }.map { it.id }.toSet()
+            val pveDeadIds = winnerDisciples.filter { it.id !in pveSurvivorIds }.map { it.id }.toSet()
+            val allDeadIds = patrolDead + pveDeadIds
+
+            TowerBattleResult(
+                towerIndex = team.towerIndex,
+                target = target,
+                victory = pveResult.victory,
+                result = pveResult,
+                survivors = pveSurvivorIds,
+                deadIds = allDeadIds
+            )
+        }
+    }
+
+    /**
+     * 为 AI 弟子创建战斗（生成模拟装备/功法）。
+     * 逻辑与 AISectBeastAttackProcessor.createAIBattle 一致。
+     */
+    private fun createAIBattle(
+        disciples: List<com.xianxia.sect.core.model.Disciple>,
+        target: WorldLevel
+    ): Battle {
+        val eqMap = mutableMapOf<String, EquipmentInstance>()
+        val manMap = mutableMapOf<String, ManualInstance>()
+        val profs = mutableMapOf<String, Map<String, ManualProficiencyData>>()
+        val modified = disciples.map { d ->
+            val items = AISectDiscipleManager.generateBattleItems(d)
+            val weaponId = items.equipments.firstOrNull { it.second == EquipmentSlot.WEAPON }?.first ?: ""
+            val armorId = items.equipments.firstOrNull { it.second == EquipmentSlot.ARMOR }?.first ?: ""
+            val bootsId = items.equipments.firstOrNull { it.second == EquipmentSlot.BOOTS }?.first ?: ""
+            val accessoryId = items.equipments.firstOrNull { it.second == EquipmentSlot.ACCESSORY }?.first ?: ""
+
+            buildEquipmentEntry(eqMap, weaponId, items.weaponNurture)
+            buildEquipmentEntry(eqMap, armorId, items.armorNurture)
+            buildEquipmentEntry(eqMap, bootsId, items.bootsNurture)
+            buildEquipmentEntry(eqMap, accessoryId, items.accessoryNurture)
+
+            val manualIds = items.manuals.map { it.first }
+            val manualMasteries = items.manuals.toMap()
+            for (mId in manualIds) {
+                if (mId !in manMap) {
+                    val template = ManualDatabase.getById(mId)
+                    if (template != null) {
+                        manMap[mId] = ManualDatabase.createFromTemplate(template).toInstance(id = mId)
+                    }
+                }
+            }
+            val discipleProfs = manualIds.associateWith { mId ->
+                val mastery = manualMasteries[mId] ?: 0
+                val manual = ManualDatabase.getById(mId)
+                val masteryLevel = if (manual != null) {
+                    ManualProficiencySystem.MasteryLevel.fromProficiency(mastery.toDouble()).level
+                } else 0
+                val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
+                ManualProficiencyData(
+                    manualId = mId,
+                    proficiency = mastery.toDouble().coerceAtMost(maxProf.toDouble()),
+                    maxProficiency = maxProf,
+                    masteryLevel = masteryLevel
+                )
+            }
+            profs[d.id] = discipleProfs
+            d.copy(manualIds = manualIds, manualMasteries = manualMasteries,
+                equipment = d.equipment.copy(
+                    weaponId = weaponId, armorId = armorId,
+                    bootsId = bootsId, accessoryId = accessoryId,
+                    weaponNurture = items.weaponNurture, armorNurture = items.armorNurture,
+                    bootsNurture = items.bootsNurture, accessoryNurture = items.accessoryNurture
+                )
+            )
+        }
+        return battleSystem.createBattle(
+            disciples = modified, equipmentMap = eqMap, manualMap = manMap,
+            beastLevel = target.realm, beastCount = target.count,
+            beastPreGenStats = if (target.beastMaxHp > 0) BattleSystem.BeastPreGenStats(
+                maxHp = target.beastMaxHp, maxMp = target.beastMaxMp,
+                physicalAttack = target.beastPhysicalAttack, magicAttack = target.beastMagicAttack,
+                physicalDefense = target.beastPhysicalDefense, magicDefense = target.beastMagicDefense,
+                speed = target.beastSpeed, realmLayer = target.realmLayer
+            ) else null,
+            manualProficiencies = profs
+        )
+    }
+
+    /** 向装备映射中添加单件装备条目（如已存在则跳过）。 */
+    private fun buildEquipmentEntry(
+        equipmentMap: MutableMap<String, EquipmentInstance>,
+        eqId: String,
+        nurture: EquipmentNurtureData
+    ) {
+        if (eqId.isEmpty() || eqId in equipmentMap) return
+        val template = EquipmentDatabase.getById(eqId) ?: return
+        var instance = EquipmentDatabase.createFromTemplate(template).toInstance(id = eqId)
+        if (nurture.equipmentId == eqId) {
+            instance = instance.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress)
+        }
+        equipmentMap[eqId] = instance
+    }
 
     private fun executeBattles(
         teams: List<TowerTeam>,

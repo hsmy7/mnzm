@@ -171,6 +171,14 @@ class GameViewModel @Inject constructor(
     suspend fun resolveBeastAttackFight(beastLevelId: String) = beastAttack.resolveBeastAttackFight(beastLevelId)
     fun clearPendingBeastAttacks() = beastAttack.clearPendingBeastAttacks()
     fun removePendingBeastAttack(beastLevelId: String) = beastAttack.removePendingBeastAttack(beastLevelId)
+
+    // ── Beast View Lock（妖兽弹窗锁定） ───────────────────────
+
+    /** 锁定妖兽：打开详情弹窗时调用，月度结算跳过 AI 攻击 */
+    fun lockBeast(beastId: String) = gameEngine.lockBeastView(beastId)
+    /** 解锁妖兽：关闭详情弹窗时调用，AI 可正常进攻 */
+    fun unlockBeast(beastId: String) = gameEngine.unlockBeastView(beastId)
+
     val attackWarnings: StateFlow<List<AttackWarning>> get() = warnings.attackWarnings
     val shownWarningStageIds: StateFlow<List<String>> get() = warnings.shownWarningStageIds
     fun resolveAttackWarningAppease(sectId: String) = warnings.resolveAttackWarningAppease(sectId)

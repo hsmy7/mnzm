@@ -17,6 +17,7 @@ import com.xianxia.sect.ui.game.WorldMapGarrisonViewModel
 import com.xianxia.sect.ui.game.map.MapItem
 import com.xianxia.sect.ui.game.map.MapItemMapper
 import com.xianxia.sect.core.model.MapCoordinateSystem
+import com.xianxia.sect.core.model.LevelType
 import com.xianxia.sect.ui.game.map.WorldMapScreen
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -98,6 +99,14 @@ internal fun WorldMapDialog(
     }
 
     if (showLevelDetail) {
+        // 打开 BEAST 类型关卡详情时锁定该妖兽（防止月度结算被 AI 攻击）
+        LaunchedEffect(showLevelDetail, selectedLevel) {
+            val lvl = selectedLevel
+            if (lvl != null && lvl.levelType == LevelType.BEAST) {
+                viewModel.lockBeast(lvl.id)
+            }
+        }
+
         selectedLevel?.let { level ->
             LevelDetailDialog(
                 level = level,
@@ -105,10 +114,12 @@ internal fun WorldMapDialog(
                 viewModel = viewModel,
                 onAttack = { slotIds ->
                     viewModel.attackWorldLevel(level.id, slotIds)
+                    viewModel.unlockBeast(level.id)
                     showLevelDetail = false
                     selectedLevel = null
                 },
                 onDismiss = {
+                    viewModel.unlockBeast(selectedLevel?.id ?: "")
                     showLevelDetail = false
                     selectedLevel = null
                 }

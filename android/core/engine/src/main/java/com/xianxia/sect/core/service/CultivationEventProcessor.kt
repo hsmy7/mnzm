@@ -279,8 +279,8 @@ class CultivationEventProcessor @Inject constructor(
         }
         safelyRun("gameOverCheck") { checkGameOverCondition() }
         safelyRun("scoutExpiry") { processScoutInfoExpiryLazy(year, month) }
-        safelyRun("aiBeastAttacks") {
-            stateStore.update { aiSectBeastAttackProcessor.processMonthly(this, year, month) }
+        safelyRun("aiBeastAttacksRemaining") {
+            stateStore.update { aiSectBeastAttackProcessor.processRemainingTargets(this) }
         }
         safelyRun("theft") { processTheftIfNeeded() }
         safelyRun("lawEnforcement") { processLawEnforcementMonthly() }

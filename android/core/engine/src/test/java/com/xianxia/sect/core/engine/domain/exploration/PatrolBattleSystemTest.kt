@@ -41,7 +41,8 @@ class PatrolBattleSystemTest {
         `when`(battleSystem.executeBattle(any())).thenReturn(BattleSystemResult(
             battle = Battle(team = emptyList(), beasts = emptyList()),
             victory = true, rewards = mapOf("spiritStones" to 100), turnCount = 1))
-        system = PatrolBattleSystem(battleSystem, rngManager, inventorySystem, buildingConfigService, DiscipleDeathHandler())
+        val encounterBattleService = mock(com.xianxia.sect.core.domain.battle.EncounterBattleService::class.java)
+        system = PatrolBattleSystem(battleSystem, rngManager, inventorySystem, buildingConfigService, DiscipleDeathHandler(), encounterBattleService)
     }
 
     private fun emptyState() = MutableGameState(

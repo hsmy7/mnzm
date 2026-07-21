@@ -149,6 +149,19 @@ class GameEngine @Inject constructor(
         return explorationService.resolveBeastAttackFight(beastLevelId, manualDefenders)
     }
     val warehouseFullEvent get() = stateStore.warehouseFullEvent
+
+    // ── 妖兽界面锁定 ──────────────────────────────────────────
+
+    /** 锁定妖兽：玩家打开详情弹窗时，月度结算跳过该妖兽的 AI 攻击判定 */
+    fun lockBeastView(beastId: String) {
+        stateStore.update { gameData = gameData.copy(lockedBeastIds = gameData.lockedBeastIds + beastId) }
+    }
+
+    /** 解锁妖兽：玩家关闭详情弹窗后，AI 可正常进攻该妖兽 */
+    fun unlockBeastView(beastId: String) {
+        if (beastId.isEmpty()) return
+        stateStore.update { gameData = gameData.copy(lockedBeastIds = gameData.lockedBeastIds - beastId) }
+    }
     val teams: StateFlow<List<ExplorationTeam>> get() = stateStore.teams
     val discipleAggregates: StateFlow<List<DiscipleAggregate>> get() = stateStore.discipleAggregates
     val sectCombatPower: StateFlow<Long> get() = stateStore.sectCombatPower

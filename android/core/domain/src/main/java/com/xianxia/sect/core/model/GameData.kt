@@ -299,6 +299,22 @@ data class GameData(
     @SettlementStrategy(Strategy.USE_SHADOW)
     var aiBeastEncounterTargets: Map<String, String> = emptyMap(),
 
+    /** 被玩家锁定的妖兽 ID 集合。
+     *  当玩家在世界地图打开妖兽详情弹窗时，该妖兽 ID 被加入此集合，
+     *  月度结算中 AI 宗门将跳过对这些妖兽的攻击。
+     *  @Ignore 不持久化，读档后自动清空。 */
+    @Ignore
+    @SettlementStrategy(Strategy.USE_SHADOW)
+    var lockedBeastIds: Set<String> = emptySet(),
+
+    /** AI 宗门妖兽月度直攻目标（beastId → [nearestAiSectId, fartherAiSectId]）。
+     *  月度结算第一阶段由 [precomputeTargets] 写入最近的 AI 宗门（最多 2 个），
+     *  巡视楼处理后第二阶段的 [processRemainingTargets] 处理剩余未击败妖兽。
+     *  空列表表示该妖兽已被 AI 或巡视楼处理。 */
+    @Ignore
+    @SettlementStrategy(Strategy.USE_SHADOW)
+    var aiSectBeastDirectTargets: Map<String, List<String>> = emptyMap(),
+
     // 玩家最大结盟数量
     @SettlementStrategy(Strategy.USE_SHADOW)
     var playerAllianceSlots: Int = 3,

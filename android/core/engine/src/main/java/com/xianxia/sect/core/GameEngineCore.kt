@@ -61,6 +61,7 @@ class GameEngineCore @Inject constructor(
     private val scopeProvider: CoroutineScopeProvider,
     private val cultivationService: CultivationService,
     private val explorationService: ExplorationService,
+    private val aiSectBeastAttackProcessor: com.xianxia.sect.core.exploration.AISectBeastAttackProcessor,
     private val gameClock: GameTimeClock,
     private val thermalController: ThermalController,
     private val spiritStoneWallet: SpiritStoneWallet
@@ -846,6 +847,8 @@ class GameEngineCore @Inject constructor(
             var policyResult: PolicyCostResult = PolicyCostResult.AllPaid
             stateStore.update {
                 policyResult = cultivationService.processPolicyCosts(this)
+                // AI 预计算进攻目标（写入 aiSectBeastDirectTargets），巡视楼处理时会查看
+                aiSectBeastAttackProcessor.precomputeTargets(this, gameData.gameYear, gameData.gameMonth)
                 systemManager.onMonthlyEvent(this)
                 processBloodRefinementCompletions()
             }
