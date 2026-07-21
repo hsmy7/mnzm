@@ -30,7 +30,8 @@ object SectMapTileGenerator {
         worldWidthCells: Int,
         worldHeightCells: Int,
         decorationDensity: Float = 0.18f,
-        worldSeed: Int = 0
+        worldSeed: Int = 0,
+        borderTreeRing: Int = 0
     ): Array<IntArray> {
         val data = Array(worldHeightCells) {
             IntArray(worldWidthCells) { TILE_GROUND }
@@ -38,7 +39,27 @@ object SectMapTileGenerator {
         placeGrassPatches(data, worldWidthCells, worldHeightCells, decorationDensity, worldSeed)
         placeTreeClusters(data, worldWidthCells, worldHeightCells, decorationDensity, worldSeed)
         mixGroundVariants(data, worldWidthCells, worldHeightCells, worldSeed)
+        if (borderTreeRing > 0) {
+            placeBorderTrees(data, worldWidthCells, worldHeightCells, borderTreeRing)
+        }
         return data
+    }
+
+    /**
+     * 将地图四周 [ring] 格强制覆盖为树木，形成不可建造的边界。
+     * 在全部过程化装饰之后运行，确保覆盖草地/树木/地面变体。
+     * 使用棋盘格交替 TILE_TREE1 / TILE_TREE2。
+     */
+    private fun placeBorderTrees(
+        data: Array<IntArray>, w: Int, h: Int, ring: Int
+    ) {
+        for (y in 0 until h) {
+            for (x in 0 until w) {
+                if (x < ring || x >= w - ring || y < ring || y >= h - ring) {
+                    data[y][x] = if ((x + y) % 2 == 0) TILE_TREE1 else TILE_TREE2
+                }
+            }
+        }
     }
 
     /**

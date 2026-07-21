@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game.delegate
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.currentActiveSectId
@@ -38,6 +39,13 @@ class BuildingDelegate(
             val config = buildingConfigService.getBuildingConfigByDisplayName(name)
             val cost = config?.cost ?: feature.cost
             val (gridW, gridH) = buildingConfigService.getBuildingGridSize(name)
+
+            // 第二层防御：验证网格位置不在边界树木区域内
+            val border = GameConfig.SectMap.BORDER_TREE_RING
+            if (gridX < border || gridY < border ||
+                gridX + gridW > GameConfig.SectMap.WORLD_WIDTH_CELLS - border ||
+                gridY + gridH > GameConfig.SectMap.WORLD_HEIGHT_CELLS - border
+            ) return@launch
             val newBuildingInstanceId = java.util.UUID.randomUUID().toString()
             val activeId = gameEngine.currentActiveSectId()
             val newProductionSlots = mutableListOf<ProductionSlot>()

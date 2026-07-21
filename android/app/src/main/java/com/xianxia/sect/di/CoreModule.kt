@@ -2,6 +2,9 @@ package com.xianxia.sect.di
 
 import android.content.Context
 import com.xianxia.sect.core.engine.system.*
+import com.xianxia.sect.core.engine.system.building.AlchemySystem
+import com.xianxia.sect.core.engine.system.building.ForgeSystem
+import com.xianxia.sect.core.engine.system.building.PlantingSystem
 import com.xianxia.sect.core.engine.service.*
 import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.event.EventBusPort
@@ -62,7 +65,11 @@ object CoreModule {
         explorationTickSystem: ExplorationTickSystem,
         mailSystem: MailSystem,
         partnerSystem: PartnerSystem,
-        childBirthSystem: ChildBirthSystem
+        childBirthSystem: ChildBirthSystem,
+        // 建筑生产系统（之前遗漏，导致月变时不触发收获/完成检测）
+        plantingSystem: PlantingSystem,
+        alchemySystem: AlchemySystem,
+        forgeSystem: ForgeSystem
     ): SystemManager = SystemManager(
         setOf(
             timeSystem,
@@ -70,7 +77,10 @@ object CoreModule {
             explorationTickSystem,
             mailSystem,
             partnerSystem,
-            childBirthSystem
+            childBirthSystem,
+            plantingSystem,
+            alchemySystem,
+            forgeSystem
         )
     )
 

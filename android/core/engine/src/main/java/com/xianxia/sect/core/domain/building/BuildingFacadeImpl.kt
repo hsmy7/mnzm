@@ -77,6 +77,15 @@ class BuildingFacadeImpl @Inject constructor(
 
     override suspend fun moveBuildingDirect(instanceId: String, newGridX: Int, newGridY: Int) {
         val sectId = stateStore.gameDataSnapshot.activeSectId
+        // 第二层防御：验证新位置不在边界树木区域内
+        val border = GameConfig.SectMap.BORDER_TREE_RING
+        val building = stateStore.gameDataSnapshot.placedBuildings
+            .find { it.instanceId == instanceId && it.sectId == sectId } ?: return
+        if (newGridX < border || newGridY < border ||
+            newGridX + building.width > GameConfig.SectMap.WORLD_WIDTH_CELLS - border ||
+            newGridY + building.height > GameConfig.SectMap.WORLD_HEIGHT_CELLS - border
+        ) return
+
         stateStore.update {
             gameData = gameData.copy(
                 placedBuildings = gameData.placedBuildings.map {

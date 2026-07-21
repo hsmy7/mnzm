@@ -1,6 +1,16 @@
 [
   {
     "date": "2026-07-21",
+    "version": "4.0.63",
+    "changes": [
+      "新增：地图边界树木区域——宗门地图四边各3格强制覆盖为树木装饰，作为不可建造/移动的宗门边界",
+      "新增：边界建造限制——新建和移动建筑均无法放置在边界3格树木区域内",
+      "安全：二层防御验证——BuildingDelegate.placeBuilding和BuildingFacadeImpl.moveBuildingDirect底层增加边界检查",
+      "代码质量：对抗性审查修复5项——GameConfig常量守卫/空范围防御/remember key加固"
+    ]
+  },
+  {
+    "date": "2026-07-21",
     "version": "4.0.62",
     "changes": [
       "修复：CircularBuffer泛型数组ClassCastException——arrayOfNulls<Any?>() as Array<T?>因类型擦除运行时崩溃，环形缓冲区(含FPS采样/修炼速率平滑)从未正确运行",

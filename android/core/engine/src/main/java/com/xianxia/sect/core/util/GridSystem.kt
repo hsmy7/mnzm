@@ -5,7 +5,9 @@ import com.xianxia.sect.core.model.GridBuildingData
 class GridSystem(
     val tileSize: Int,
     val gridWidthCells: Int,
-    val gridHeightCells: Int
+    val gridHeightCells: Int,
+    /** 距离地图边界不可建造的格数（0 = 无限制）。 */
+    val buildableBorder: Int = 0
 ) {
     private var _buildings: List<GridBuildingData> = emptyList()
     val buildings: List<GridBuildingData> get() = _buildings
@@ -24,9 +26,9 @@ class GridSystem(
         width: Int,
         height: Int
     ): GridSnapHelper.PlacementValidity {
-        if (gridX < 0 || gridY < 0 ||
-            gridX + width > gridWidthCells ||
-            gridY + height > gridHeightCells
+        if (gridX < buildableBorder || gridY < buildableBorder ||
+            gridX + width > gridWidthCells - buildableBorder ||
+            gridY + height > gridHeightCells - buildableBorder
         ) {
             return GridSnapHelper.PlacementValidity.OutOfBounds
         }

@@ -49,9 +49,13 @@ object GridSnapHelper {
         height: Int,
         maxGridX: Int,
         maxGridY: Int,
+        borderPadding: Int = 0,
         occupiedRects: List<GridRect> = emptyList()
     ): PlacementValidity {
-        if (gridX < 0 || gridY < 0 || gridX + width > maxGridX || gridY + height > maxGridY) {
+        if (gridX < borderPadding || gridY < borderPadding ||
+            gridX + width > maxGridX - borderPadding ||
+            gridY + height > maxGridY - borderPadding
+        ) {
             return PlacementValidity.OutOfBounds
         }
         val overlapped = occupiedRects.filter { rect ->

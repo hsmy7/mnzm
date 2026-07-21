@@ -214,7 +214,8 @@ class BootSequenceController @Inject constructor(
         val rawTileData = withContext(Dispatchers.Default) {
             com.xianxia.sect.core.util.SectMapTileGenerator.generateTileData(
                 worldWidthCells, worldHeightCells,
-                worldSeed = gameEngine.gameData.value?.mapSeed ?: 0
+                worldSeed = gameEngine.gameData.value?.mapSeed ?: 0,
+                borderTreeRing = com.xianxia.sect.core.GameConfig.SectMap.BORDER_TREE_RING
             )
         }
         val flatTileData = rawTileData.flatMap { it.toList() }.toIntArray()

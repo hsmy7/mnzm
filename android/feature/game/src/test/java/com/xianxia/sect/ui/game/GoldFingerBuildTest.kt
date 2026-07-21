@@ -104,6 +104,42 @@ class GoldFingerBuildTest {
     }
 
     @Test
+    fun `computeGoldFingerCellValidities - buildableBorder clamps selection inward`() {
+        // 10x10 网格，buildableBorder=3，有效区为 (3..6)
+        val result = computeGoldFingerCellValidities(
+            startGridX = 0, startGridY = 0,
+            endGridX = 9, endGridY = 9,
+            buildingW = 2, buildingH = 2,
+            existingBuildings = emptyList(),
+            worldWidthCells = 10, worldHeightCells = 10,
+            buildableBorder = 3
+        )
+        // 被 clamp 到 (3..6)，步长 2 → 3,5 两行/列 = 2x2 = 4 个
+        assertEquals(4, result.size)
+        // 3,3 和 5,5 在范围内，应有效
+        assertTrue(result[GridSystem.packCell(3, 3)] ?: false)
+        assertTrue(result[GridSystem.packCell(5, 5)] ?: false)
+        // 0,0 不在结果中（已被 clamp）
+        assertNull(result[GridSystem.packCell(0, 0)])
+        // 7,7 不在结果中（6+2=8 > 10-3=7，越界步进被跳过）
+        assertNull(result[GridSystem.packCell(7, 7)])
+    }
+
+    @Test
+    fun `computeGoldFingerCellValidities - buildableBorder 0 same as original`() {
+        val result = computeGoldFingerCellValidities(
+            startGridX = 0, startGridY = 0,
+            endGridX = 5, endGridY = 5,
+            buildingW = 2, buildingH = 2,
+            existingBuildings = emptyList(),
+            worldWidthCells = 28, worldHeightCells = 28,
+            buildableBorder = 0
+        )
+        assertEquals(9, result.size)
+        assertTrue(result[GridSystem.packCell(0, 0)] ?: false)
+    }
+
+    @Test
     fun `computeGoldFingerCellValidities - multiple existing buildings`() {
         val existing = listOf(
             GridBuildingData(buildingId = "a", displayName = "A", gridX = 0, gridY = 0, width = 2, height = 2),

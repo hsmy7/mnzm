@@ -115,6 +115,64 @@ class GridSystemTest {
         assertEquals(10, unpackedY)
     }
 
+    // --- BuildableBorder tests ---
+
+    @Test
+    fun `validatePlacement with buildableBorder blocks border zone`() {
+        val bordered = GridSystem(64, 10, 10, buildableBorder = 3)
+        // 有效区为 (3..6) 因为 10-3=7，条件是 gridX+width ≤ 7
+
+        // 边界内应有效
+        assertEquals(GridSnapHelper.PlacementValidity.Valid,
+            bordered.validatePlacement(3, 3, 2, 2))
+        assertEquals(GridSnapHelper.PlacementValidity.Valid,
+            bordered.validatePlacement(5, 5, 2, 2))
+
+        // 边界区应被阻止
+        assertEquals(GridSnapHelper.PlacementValidity.OutOfBounds,
+            bordered.validatePlacement(0, 0, 2, 2))
+        assertEquals(GridSnapHelper.PlacementValidity.OutOfBounds,
+            bordered.validatePlacement(2, 2, 2, 2))
+        assertEquals(GridSnapHelper.PlacementValidity.OutOfBounds,
+            bordered.validatePlacement(6, 6, 2, 2))
+        assertEquals(GridSnapHelper.PlacementValidity.OutOfBounds,
+            bordered.validatePlacement(8, 8, 2, 2))
+    }
+
+    @Test
+    fun `validatePlacement with buildableBorder 0 behaves like original`() {
+        // 有 border=0 的 GridSystem 行为应与无 border 时一致
+        val bordered = GridSystem(64, 10, 10, buildableBorder = 0)
+        assertEquals(GridSnapHelper.PlacementValidity.Valid,
+            bordered.validatePlacement(0, 0, 2, 2))
+        assertEquals(GridSnapHelper.PlacementValidity.OutOfBounds,
+            bordered.validatePlacement(9, 9, 2, 2))
+    }
+
+    @Test
+    fun `placeBuilding with buildableBorder respects border`() {
+        val bordered = GridSystem(64, 10, 10, buildableBorder = 3)
+        val borderBuilding = GridBuildingData(
+            buildingId = "b1", displayName = "Edge",
+            gridX = 0, gridY = 0, width = 2, height = 2
+        )
+        assertFalse(bordered.placeBuilding(borderBuilding))
+        assertTrue(bordered.buildings.isEmpty())
+    }
+
+    // --- GridSnapHelper validatePlacement with borderPadding ---
+
+    @Test
+    fun `gridSnapHelper validatePlacement with borderPadding blocks border`() {
+        val result = GridSnapHelper.validatePlacement(0, 0, 2, 2, 10, 10,
+            borderPadding = 3)
+        assertEquals(GridSnapHelper.PlacementValidity.OutOfBounds, result)
+
+        val inner = GridSnapHelper.validatePlacement(3, 3, 2, 2, 10, 10,
+            borderPadding = 3)
+        assertEquals(GridSnapHelper.PlacementValidity.Valid, inner)
+    }
+
     // --- GridSnapHelper tests ---
 
     @Test
@@ -165,7 +223,7 @@ class GridSystemTest {
         val rects = listOf(
             GridSnapHelper.GridRect(2, 2, 2, 2, "Tower")
         )
-        val result = GridSnapHelper.validatePlacement(3, 3, 2, 2, 10, 10, rects)
+        val result = GridSnapHelper.validatePlacement(3, 3, 2, 2, 10, 10, occupiedRects = rects)
         assertTrue(result is GridSnapHelper.PlacementValidity.Overlap)
         val overlap = result as GridSnapHelper.PlacementValidity.Overlap
         assertTrue(overlap.names.contains("Tower"))

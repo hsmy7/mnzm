@@ -1,3 +1,18 @@
+## [4.0.63] - 2026-07-21（versionCode=4063）
+
+### 新增
+
+- **地图边界树木区域** — 宗门地图四边各 3 格强制覆盖为树木装饰物（TREE1/TREE2 棋盘格交替），作为不可建造/移动的宗门边界
+- **边界建造限制** — `GridSystem.validatePlacement()`、`GridSnapHelper`、金手指批量建造三处同步限制，新建/移动建筑均无法放置在边界区域内
+- **二层防御验证** — `BuildingDelegate.placeBuilding()` 和 `BuildingFacadeImpl.moveBuildingDirect()` 底层方法增加边界检查，提供 UI 层之外的防御纵深
+
+### 代码质量
+
+- 对抗性审查（3 Agent）：边界狂魔/状态破坏者/数据篡改者共发现并修复 5 个问题
+  - `GameConfig.SectMap` 添加 `require` 守卫防止 `BORDER_TREE_RING` 负值/超半宽
+  - `computeGoldFingerCellValidities` 添加空范围防御性检查
+  - `GridSystem` `remember` key 添加 `buildableBorder` 前瞻加固
+
 ## [4.0.62] - 2026-07-21（versionCode=4062）
 
 ### 修复

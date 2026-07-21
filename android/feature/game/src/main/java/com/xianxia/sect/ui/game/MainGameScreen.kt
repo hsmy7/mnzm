@@ -273,8 +273,12 @@ fun MainGameScreen(
 
     // 网格系统（管理建筑放置与占用格查询）
     val gridSystem = remember(tileSize, worldWidthCells, worldHeightCells) {
-        GridSystem(tileSize, worldWidthCells, worldHeightCells)
+        GridSystem(tileSize, worldWidthCells, worldHeightCells,
+            buildableBorder = GameConfig.SectMap.BORDER_TREE_RING)
     }
+    // BORDER_TREE_RING 的 remember key（若常量化后变为动态值，确保 gridSystem 重建）
+    val unusedBorderRing = GameConfig.SectMap.BORDER_TREE_RING
+    remember(tileSize, worldWidthCells, worldHeightCells, unusedBorderRing) { }
 
     LaunchedEffect(effectivePlacedBuildings) {
         gridSystem.rebuildFrom(effectivePlacedBuildings)
@@ -656,7 +660,8 @@ fun MainGameScreen(
                                     buildingH = placingBuildingSize.height,
                                     existingBuildings = effectivePlacedBuildings,
                                     worldWidthCells = worldWidthCells,
-                                    worldHeightCells = worldHeightCells
+                                    worldHeightCells = worldHeightCells,
+                                    buildableBorder = GameConfig.SectMap.BORDER_TREE_RING
                                 )
                                 val canBuild = v.count { it.value }
                                 goldFingerState = GoldFingerState(
@@ -743,7 +748,8 @@ fun MainGameScreen(
                             buildingW = f.buildingSize.width, buildingH = f.buildingSize.height,
                             existingBuildings = effectivePlacedBuildings,
                             worldWidthCells = worldWidthCells,
-                            worldHeightCells = worldHeightCells
+                            worldHeightCells = worldHeightCells,
+                            buildableBorder = GameConfig.SectMap.BORDER_TREE_RING
                         )
                         val canBuildCount = newValidity.count { it.value }
                         val totalCost = canBuildCount * f.buildingCost

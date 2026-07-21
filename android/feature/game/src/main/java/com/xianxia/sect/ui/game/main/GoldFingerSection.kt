@@ -12,12 +12,18 @@ internal fun computeGoldFingerCellValidities(
     endGridX: Int, endGridY: Int,
     buildingW: Int, buildingH: Int,
     existingBuildings: List<GridBuildingData>,
-    worldWidthCells: Int, worldHeightCells: Int
+    worldWidthCells: Int, worldHeightCells: Int,
+    buildableBorder: Int = 0
 ): Map<Long, Boolean> {
-    val minX = minOf(startGridX, endGridX).coerceIn(0, worldWidthCells - 1)
-    val maxX = maxOf(startGridX, endGridX).coerceIn(0, worldWidthCells - 1)
-    val minY = minOf(startGridY, endGridY).coerceIn(0, worldHeightCells - 1)
-    val maxY = maxOf(startGridY, endGridY).coerceIn(0, worldHeightCells - 1)
+    // 防御性检查：若 buildableBorder 过大导致有效范围为负，返回空 map（防 IllegalArgumentException）
+    if (buildableBorder > worldWidthCells - 1 - buildableBorder ||
+        buildableBorder > worldHeightCells - 1 - buildableBorder
+    ) return emptyMap()
+
+    val minX = minOf(startGridX, endGridX).coerceIn(buildableBorder, worldWidthCells - 1 - buildableBorder)
+    val maxX = maxOf(startGridX, endGridX).coerceIn(buildableBorder, worldWidthCells - 1 - buildableBorder)
+    val minY = minOf(startGridY, endGridY).coerceIn(buildableBorder, worldHeightCells - 1 - buildableBorder)
+    val maxY = maxOf(startGridY, endGridY).coerceIn(buildableBorder, worldHeightCells - 1 - buildableBorder)
 
     // 预计算已有建筑占用格
     val occupiedCells = mutableSetOf<Long>()

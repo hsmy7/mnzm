@@ -752,6 +752,14 @@ object GameConfig {
         const val WORLD_HEIGHT_CELLS = 128
         val WORLD_PIXEL_WIDTH = WORLD_WIDTH_CELLS * TILE_SIZE
         val WORLD_PIXEL_HEIGHT = WORLD_HEIGHT_CELLS * TILE_SIZE
+        /** 地图边界不可建造区域厚度（格数）。必须 < 地图半宽。 */
+        const val BORDER_TREE_RING = 3
+
+        init {
+            require(BORDER_TREE_RING >= 0 && BORDER_TREE_RING < WORLD_WIDTH_CELLS / 2) {
+                "BORDER_TREE_RING($BORDER_TREE_RING) 必须在 [0, ${WORLD_WIDTH_CELLS / 2}) 范围内"
+            }
+        }
     }
 
     object WorldMap {
