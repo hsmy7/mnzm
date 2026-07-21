@@ -12,6 +12,7 @@ import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.usecase.ElderManagementUseCase
 import com.xianxia.sect.core.util.AppError
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -75,6 +76,8 @@ class ForgeViewModel @Inject constructor(
                 if (result is DomainResult.Failure) {
                     showError(result.error.message)
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 showError(e.message ?: "开始锻造失败")
             } finally {
@@ -121,15 +124,32 @@ class ForgeViewModel @Inject constructor(
             .mapValues { (_, list) -> list.sumOf { it.quantity } }
         val allRecipes = ForgeRecipeDatabase.getAllRecipes().sortedByDescending { it.rarity }
 
-        val recipeToStart = allRecipes.firstOrNull { recipe ->
-            recipe.materials.all { (materialId, requiredQuantity) ->
-                val materialData = BeastMaterialDatabase.getMaterialById(materialId)
-                materialData != null && run {
-                    val available = materialIndex[materialData.name to materialData.rarity] ?: 0
-                    available >= requiredQuantity
+        val slot = gameEngine.productionSlots.value.find {
+            it.buildingType == BuildingType.FORGE && it.slotIndex == slotIndex
+        }
+
+        val recipeToStart = slot?.recipeId
+            ?.let { prevRecipeId ->
+                allRecipes.find { it.id == prevRecipeId }?.takeIf { recipe ->
+                    recipe.materials.all { (materialId, requiredQuantity) ->
+                        val materialData = BeastMaterialDatabase.getMaterialById(materialId)
+                        materialData != null && run {
+                            val available = materialIndex[materialData.name to materialData.rarity] ?: 0
+                            available >= requiredQuantity
+                        }
+                    }
                 }
             }
-        } ?: return DomainResult.Failure(AppError.Domain.Production.InsufficientMaterials())
+            ?: allRecipes.firstOrNull { recipe ->
+                recipe.materials.all { (materialId, requiredQuantity) ->
+                    val materialData = BeastMaterialDatabase.getMaterialById(materialId)
+                    materialData != null && run {
+                        val available = materialIndex[materialData.name to materialData.rarity] ?: 0
+                        available >= requiredQuantity
+                    }
+                }
+            }
+            ?: return DomainResult.Failure(AppError.Domain.Production.InsufficientMaterials())
 
         return gameEngine.startForging(slotIndex, recipeToStart.id)
     }
@@ -148,6 +168,8 @@ class ForgeViewModel @Inject constructor(
                     if (slot.status == ProductionSlotStatus.IDLE && !slot.assignedDiscipleId.isNullOrEmpty()) {
                         startBestForgeRecipe(slot.slotIndex)
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (_: Exception) {
                     // Best-effort immediate start; monthly tick will retry
                 }

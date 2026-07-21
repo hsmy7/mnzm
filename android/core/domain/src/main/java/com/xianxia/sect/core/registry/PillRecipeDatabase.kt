@@ -337,7 +337,7 @@ object PillRecipeDatabase {
      */
     fun findBestCraftableRecipe(herbs: List<Herb>): PillRecipe? {
         return getAllRecipes()
-            .sortedByDescending { it.tier }
+            .sortedWith(compareByDescending<PillRecipe> { it.tier }.thenByDescending { it.rarity })
             .firstOrNull { recipe ->
                 recipe.materials.all { (herbId, requiredQty) ->
                     val herbData = HerbDatabase.getHerbById(herbId) ?: return@all false

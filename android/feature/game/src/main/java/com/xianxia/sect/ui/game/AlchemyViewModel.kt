@@ -1,6 +1,7 @@
 ﻿package com.xianxia.sect.ui.game
 
 import androidx.lifecycle.viewModelScope
+import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.model.*
@@ -113,7 +114,21 @@ class AlchemyViewModel @Inject constructor(
 
     private suspend fun startBestAlchemyRecipe(slotIndex: Int): DomainResult<ProductionSlot> {
         val currentHerbs = gameEngine.getCurrentHerbs()
-        val recipe = PillRecipeDatabase.findBestCraftableRecipe(currentHerbs)
+        val slot = gameEngine.productionSlots.value.find {
+            it.buildingType == BuildingType.ALCHEMY && it.slotIndex == slotIndex
+        }
+        val recipe = slot?.recipeId
+            ?.let { prevRecipeId ->
+                PillRecipeDatabase.getRecipeById(prevRecipeId)?.takeIf { recipe ->
+                    recipe.materials.all { (materialId, requiredQuantity) ->
+                        val herbData = HerbDatabase.getHerbById(materialId) ?: return@all false
+                        currentHerbs.filter {
+                            it.name == herbData.name && it.rarity == herbData.rarity
+                        }.sumOf { it.quantity } >= requiredQuantity
+                    }
+                }
+            }
+            ?: PillRecipeDatabase.findBestCraftableRecipe(currentHerbs)
             ?: return DomainResult.Failure(AppError.Domain.Production.InsufficientMaterials())
         return gameEngine.startAlchemy(slotIndex, recipe.id)
     }

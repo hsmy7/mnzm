@@ -28,6 +28,11 @@
 - **一键出售确认按钮添加防重入守卫** — 防止快速双击导致物品重复出售
 - **GridRow 添加 maxColumnWidth=0 除零保护** — 防止 API 误用导致无限 Spacer OOM
 
+### 优化
+
+- **自动炼丹/自动锻造增加同配方优先逻辑** — 点击自动按钮后，空闲槽位立即开始炼制；有历史配方的槽位优先炼制相同物品，材料不足时自动选用高品阶可合成配方
+- **安全：ForgeViewModel 补全 CancellationException 重新抛出** — toggleAuto/startForge 两处 catch(Exception) 前补全 CancellationException 守卫
+
 ### 妖兽进攻重做
 
 - **修复：妖兽预警弹窗"迎战"按钮** — 从"知道了"改为"迎战"，明确战斗意图
