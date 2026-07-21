@@ -133,7 +133,7 @@ fun AutoManagementDialog(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     AutoAssignSection(
-                        title = "空闲弟子自动入住单人住所",
+                        title = "无视状态自动入住单人住所",
                         attrLabel = "悟性 ≥",
                         focused = singleResidenceFocused,
                         rootCounts = singleResidenceRootCounts,
@@ -147,7 +147,7 @@ fun AutoManagementDialog(
                     )
 
                     AutoAssignSection(
-                        title = "空闲弟子自动入住多人住所",
+                        title = "无视状态自动入住多人住所",
                         attrLabel = "悟性 ≥",
                         focused = multiResidenceFocused,
                         rootCounts = multiResidenceRootCounts,
@@ -250,7 +250,8 @@ fun AutoManagementDialog(
                     onDismiss = {
                         showUnsavedDialog = false
                         onDismiss()
-                    }
+                    },
+                    scrimEnabled = false
                 )
             }
         }

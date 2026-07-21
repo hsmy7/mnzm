@@ -50,6 +50,7 @@ fun UnifiedGameDialog(
     mode: DialogMode = DialogMode.Half,
     dismissOnBackPress: Boolean = true,
     dismissOnClickOutside: Boolean = true,
+    scrimEnabled: Boolean = true,
     headerActions: @Composable (() -> Unit)? = null,
     headerContent: @Composable (() -> Unit)? = null,
     scrollableContent: Boolean = true,
@@ -100,7 +101,10 @@ fun UnifiedGameDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0x99000000))
+                .then(
+                    if (scrimEnabled) Modifier.background(Color(0x99000000))
+                    else Modifier
+                )
                 .then(
                     if (dismissOnClickOutside) {
                         Modifier.clickable(

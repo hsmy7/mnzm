@@ -142,6 +142,7 @@ fun StandardPromptDialog(
     dismissOnBackPress: Boolean = true,
     dismissOnClickOutside: Boolean = true,
     showCloseButton: Boolean = false,
+    scrimEnabled: Boolean = true,
     titleColor: Color = Color.Black,
     @DrawableRes dialogBackgroundRes: Int = R.drawable.dialog_box,
     @DrawableRes buttonBackgroundRes: Int = R.drawable.ui_button,
@@ -181,7 +182,10 @@ fun StandardPromptDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0x99000000))
+                .then(
+                    if (scrimEnabled) Modifier.background(Color(0x99000000))
+                    else Modifier
+                )
                 .then(
                     if (dismissOnClickOutside) {
                         Modifier.clickable(
@@ -332,6 +336,7 @@ fun InlineStandardPromptDialog(
     dismissOnBackPress: Boolean = true,
     dismissOnClickOutside: Boolean = true,
     showCloseButton: Boolean = false,
+    scrimEnabled: Boolean = true,
     titleColor: Color = Color.Black,
     @DrawableRes dialogBackgroundRes: Int = R.drawable.dialog_box,
     @DrawableRes buttonBackgroundRes: Int = R.drawable.ui_button,
@@ -364,7 +369,10 @@ fun InlineStandardPromptDialog(
             modifier = Modifier
                 .fillMaxSize()
                 .imePadding()
-                .background(Color(0x99000000)) // 半透明遮罩
+                .then(
+                    if (scrimEnabled) Modifier.background(Color(0x99000000))
+                    else Modifier
+                )
                 .then(
                     if (dismissOnClickOutside) {
                         Modifier.clickable(

@@ -539,23 +539,29 @@ class ProductionProcessor @Inject constructor(
             .toMutableList()
 
         fun takeCandidate(
+            pool: MutableList<Disciple>,
             focused: Boolean, rootCounts: List<Int>,
             threshold: Int, attr: (Disciple) -> Int
         ): Disciple? {
             val enabled = focused || rootCounts.isNotEmpty()
-            if (!enabled || idleDisciples.isEmpty()) return null
-            val candidate = idleDisciples
+            if (!enabled || pool.isEmpty()) return null
+            val candidate = pool
                 .filter { d ->
                     val matchesFilter = (focused && isDiscipleFollowed(d)) ||
                         d.spiritRoot.types.size in rootCounts
                     matchesFilter && attr(d) >= threshold
                 }
                 .maxByOrNull { attr(it) }
-            if (candidate != null) idleDisciples.remove(candidate)
+            if (candidate != null) pool.remove(candidate)
             return candidate
         }
 
         // ── 自动入住住所（单人+多人合并为一次写入）────────────────────
+        // 无视状态限制：仅排除已死亡和已入住的弟子，无视工作状态/focused/灵根/属性门槛
+        val occupiedResidentIds = data.residenceSlots
+            .filter { it.discipleId.isNotEmpty() }
+            .map { it.discipleId }
+            .toSet()
         val singleResEnabled = policies.autoSingleResidenceFocused || policies.autoSingleResidenceRootCounts.isNotEmpty()
         val multiResEnabled = policies.autoMultiResidenceFocused || policies.autoMultiResidenceRootCounts.isNotEmpty()
         if (singleResEnabled || multiResEnabled) {
@@ -573,20 +579,21 @@ class ProductionProcessor @Inject constructor(
             } else emptySet()
             val allResBuildingIds = singleResBuildingIds + multiResBuildingIds
             if (allResBuildingIds.isNotEmpty()) {
+                // 无视状态限制：所有存活且未入住的弟子直接填入空槽，按悟性排序择优分配
+                val candidates = stateStore.disciples.value
+                    .filter { d -> d.isAlive && d.id !in occupiedResidentIds }
+                    .sortedByDescending { it.comprehension }
                 val emptySlots = data.residenceSlots.filter { s ->
                     s.buildingInstanceId in allResBuildingIds && s.discipleId.isEmpty()
                 }
-                if (emptySlots.isNotEmpty()) {
+                if (emptySlots.isNotEmpty() && candidates.isNotEmpty()) {
                     val assignmentMap = mutableMapOf<String, Pair<String, String>>()
+                    var candidateIndex = 0
                     for (slot in emptySlots) {
-                        val isSingle = slot.buildingInstanceId in singleResBuildingIds
-                        val (focused, rootCounts, threshold) = if (isSingle) {
-                            Triple(policies.autoSingleResidenceFocused, policies.autoSingleResidenceRootCounts, policies.autoSingleResidenceThreshold)
-                        } else {
-                            Triple(policies.autoMultiResidenceFocused, policies.autoMultiResidenceRootCounts, policies.autoMultiResidenceThreshold)
-                        }
-                        val c = takeCandidate(focused, rootCounts, threshold) { it.comprehension } ?: break
+                        if (candidateIndex >= candidates.size) break
+                        val c = candidates[candidateIndex]
                         assignmentMap["${slot.buildingInstanceId}:${slot.slotIndex}"] = c.id to c.name
+                        candidateIndex++
                     }
                     if (assignmentMap.isNotEmpty()) {
                         stateStore.update {
@@ -611,6 +618,7 @@ class ProductionProcessor @Inject constructor(
                 BuildingType.HERB_GARDEN, BuildingNames.HERB_GARDEN
             ) {
                 takeCandidate(
+                    idleDisciples,
                     policies.autoPlantFocused, policies.autoPlantRootCounts,
                     policies.autoPlantThreshold
                 ) { it.spiritPlanting }
@@ -623,6 +631,7 @@ class ProductionProcessor @Inject constructor(
             if (emptyIndices.isNotEmpty()) {
                 val assignments = emptyIndices.mapNotNull {
                     val c = takeCandidate(
+                        idleDisciples,
                         policies.autoMineFocused, policies.autoMineRootCounts,
                         policies.autoMineThreshold
                     ) { it.mining }
@@ -653,6 +662,7 @@ class ProductionProcessor @Inject constructor(
                 BuildingType.ALCHEMY, BuildingNames.ALCHEMY
             ) {
                 takeCandidate(
+                    idleDisciples,
                     policies.autoAlchemyFocused, policies.autoAlchemyRootCounts,
                     policies.autoAlchemyThreshold
                 ) { it.pillRefining }
@@ -664,6 +674,7 @@ class ProductionProcessor @Inject constructor(
                 BuildingType.FORGE, BuildingNames.FORGE
             ) {
                 takeCandidate(
+                    idleDisciples,
                     policies.autoForgeFocused, policies.autoForgeRootCounts,
                     policies.autoForgeThreshold
                 ) { it.artifactRefining }

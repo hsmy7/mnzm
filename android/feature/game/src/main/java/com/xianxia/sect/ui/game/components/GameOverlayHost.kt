@@ -604,12 +604,17 @@ fun GameOverlayHost(
         )
     }
 
+    // 子对话框的遮罩控制：有主对话框显示时，子对话框不再叠加自己的遮罩
+    val hasMainDialog = currentDialogType != DialogType.None
+    val subDialogScrim = !hasMainDialog
+
     tipDialogMessage?.let { message ->
         StandardPromptDialog(
             onDismissRequest = { tipDialogMessage = null },
             title = if (tipDialogIsError) "错误" else "提示",
             text = message,
-            confirmLabel = "确定"
+            confirmLabel = "确定",
+            scrimEnabled = subDialogScrim
         )
     }
 
@@ -618,7 +623,8 @@ fun GameOverlayHost(
             onDismissRequest = { showWarehouseFullDialog = false },
             title = "仓库已满",
             text = "仓库已满物品无法进入仓库直接遗失",
-            confirmLabel = "知道了"
+            confirmLabel = "知道了",
+            scrimEnabled = subDialogScrim
         )
     }
 
@@ -630,7 +636,8 @@ fun GameOverlayHost(
                         onDismissRequest = { viewModel.clearNotification() },
                         title = "招募失败",
                         text = notification.reason,
-                        confirmLabel = "知道了"
+                        confirmLabel = "知道了",
+                        scrimEnabled = subDialogScrim
                     )
                 }
             }

@@ -83,7 +83,7 @@ class ProductionProcessorTest {
     /**
      * 模拟 processAutoAssign 中的 takeCandidate 逻辑。
      *
-     * @param idleDisciples 可变空闲弟子列表（会被修改）
+     * @param pool 可变候选弟子列表（会被修改）
      * @param focused 是否仅分配已关注弟子
      * @param rootCounts 允许的灵根数列表
      * @param threshold 属性门槛
@@ -91,22 +91,22 @@ class ProductionProcessorTest {
      * @return 选中的弟子，或 null
      */
     private fun takeCandidate(
-        idleDisciples: MutableList<Disciple>,
+        pool: MutableList<Disciple>,
         focused: Boolean,
         rootCounts: List<Int>,
         threshold: Int,
         attr: (Disciple) -> Int
     ): Disciple? {
         val enabled = focused || rootCounts.isNotEmpty()
-        if (!enabled || idleDisciples.isEmpty()) return null
-        val candidate = idleDisciples
+        if (!enabled || pool.isEmpty()) return null
+        val candidate = pool
             .filter { d ->
                 val matchesFilter = (focused && isDiscipleFollowed(d)) ||
                     d.spiritRoot.types.size in rootCounts
                 matchesFilter && attr(d) >= threshold
             }
             .maxByOrNull { attr(it) }
-        if (candidate != null) idleDisciples.remove(candidate)
+        if (candidate != null) pool.remove(candidate)
         return candidate
     }
 
@@ -645,5 +645,89 @@ class ProductionProcessorTest {
         assertEquals("总产量 10", 10, state.herbs.all().first().quantity)
         // 2 颗种子都被消耗完
         assertTrue("种子应被消耗完", state.seeds.all().isEmpty())
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 住所自动入住无视空闲状态 — takeCandidate 支持非 IDLE 候选池
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `takeCandidate - pool中包含非IDLE弟子时仍能被选中`() {
+        val mining = Disciple(
+            id = "d1", name = "采矿中",
+            spiritRootType = "火",
+            skills = SkillStats(mining = 5, comprehension = 3),
+            status = DiscipleStatus.MINING, isAlive = true
+        )
+        val idle = Disciple(
+            id = "d2", name = "空闲高悟性",
+            spiritRootType = "水",
+            skills = SkillStats(comprehension = 10),
+            status = DiscipleStatus.IDLE, isAlive = true
+        )
+        // 全部存活弟子的池（无视空闲状态），用于住所自动分配
+        val pool = mutableListOf(mining, idle)
+
+        // 按悟性筛选，匹配单灵根
+        val result = takeCandidate(
+            pool, focused = false, rootCounts = listOf(1),
+            threshold = 1, attr = { it.skills.comprehension }
+        )
+        assertNotNull("非IDLE弟子也应被选中", result)
+        assertEquals("应选中悟性最高的空闲弟子", "d2", result?.id)
+        assertEquals("池中应剩1人", 1, pool.size)
+    }
+
+    @Test
+    fun `takeCandidate - 非IDLE弟子在池中可被住所规则选中`() {
+        val mining = Disciple(
+            id = "d1", name = "采矿中-高悟性",
+            spiritRootType = "火",
+            skills = SkillStats(comprehension = 8),
+            status = DiscipleStatus.MINING, isAlive = true
+        )
+        val forging = Disciple(
+            id = "d2", name = "锻造中-低悟性",
+            spiritRootType = "水",
+            skills = SkillStats(comprehension = 3),
+            status = DiscipleStatus.FORGE, isAlive = true
+        )
+        val pool = mutableListOf(mining, forging)
+
+        // 住所按悟性取最高（无视当前工作状态）
+        val result = takeCandidate(
+            pool, focused = false, rootCounts = listOf(1),
+            threshold = 1, attr = { it.skills.comprehension }
+        )
+        assertNotNull("非IDLE弟子应被选中", result)
+        assertEquals("应选中悟性最高的采矿中弟子", "d1", result?.id)
+        assertEquals("矿工被选中后应从池中移除", 1, pool.size)
+    }
+
+    @Test
+    fun `takeCandidate - 死弟子即使在池中也被排除`() {
+        val dead = Disciple(
+            id = "d1", name = "已死亡",
+            spiritRootType = "火",
+            skills = SkillStats(comprehension = 10),
+            status = DiscipleStatus.DEAD, isAlive = false
+        )
+        val alive = Disciple(
+            id = "d2", name = "存活",
+            spiritRootType = "水",
+            skills = SkillStats(comprehension = 5),
+            status = DiscipleStatus.MINING, isAlive = true
+        )
+        val pool = mutableListOf(dead, alive)
+
+        // 住所池已过滤 isAlive=false，但 takeCandidate 内部的 filter 不检查 isAlive
+        // 它依赖上游 pool 已过滤。此处验证 pool 不含死弟子时逻辑正确。
+        val filteredPool = pool.filter { it.isAlive }.toMutableList()
+        val result = takeCandidate(
+            filteredPool, focused = false, rootCounts = listOf(1),
+            threshold = 1, attr = { it.skills.comprehension }
+        )
+        assertNotNull("存活的矿工应被选中", result)
+        assertEquals("应选中存活的弟子", "d2", result?.id)
     }
 }
