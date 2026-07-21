@@ -150,11 +150,10 @@ class AISectBeastAttackProcessor @Inject constructor(
                 sect.isPlayerSect || sect.isPlayerOccupied
             }
             if (playerInTop2 && aiAttackers.isNotEmpty()) {
-                // 玩家+AI同时靠近 → 记录遭遇战目标，AI暂不进攻（等待玩家触发遭遇战）
+                // 玩家+AI同时靠近 → 记录最近的AI宗门为遭遇战目标，其余取消进攻
+                //（遭遇战中玩家与最近的AI宗门打PvP，胜者进攻妖兽）
                 val existing = state.gameData.aiBeastEncounterTargets.toMutableMap()
-                for (aiSect in aiAttackers) {
-                    existing[beast.id] = aiSect.id
-                }
+                existing[beast.id] = aiAttackers.first().id
                 state.gameData = state.gameData.copy(aiBeastEncounterTargets = existing)
             } else {
                 // 只有AI或只有玩家 → 正常处理

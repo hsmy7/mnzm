@@ -246,13 +246,16 @@ suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List<Strin
     val data = stateStore.gameDataSnapshot
     val level = data.worldLevels.find { it.id == levelId } ?: return
     if (level.defeated) return
-    // 遭遇战检查：该妖兽已被 AI 宗门盯上，请通过妖兽来袭弹窗处理
-    if (data.aiBeastEncounterTargets.containsKey(levelId)) {
-        DomainLog.i("GameEngine", "attackWorldLevel skipped: level=$levelId has active AI encounter target")
-        return
-    }
     val validIds = discipleIds.filterNotNull()
     if (validIds.isEmpty()) return
+    // 遭遇战检查：该妖兽已被 AI 宗门盯上，与 AI 打遭遇战，胜者进攻妖兽
+    if (data.aiBeastEncounterTargets.containsKey(levelId)) {
+        val allDisciples = stateStore.discipleTables.assembleAll()
+        val combatDisciples = validIds.mapNotNull { id -> allDisciples.find { it.id == id && it.isAlive } }
+        if (combatDisciples.isEmpty()) return
+        resolveBeastAttackFight(levelId, manualDefenders = combatDisciples)
+        return
+    }
     stateStore.update {
         cultivationService.forceSettleDisciplesBeforeBattle(
             this, validIds

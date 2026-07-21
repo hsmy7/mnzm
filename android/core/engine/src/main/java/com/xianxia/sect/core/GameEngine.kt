@@ -141,8 +141,11 @@ class GameEngine @Inject constructor(
     suspend fun resolveBeastAttackPayTribute(beastLevelId: String) {
         explorationService.resolveBeastAttackPayTribute(beastLevelId)
     }
-    suspend fun resolveBeastAttackFight(beastLevelId: String) {
-        explorationService.resolveBeastAttackFight(beastLevelId)
+    suspend fun resolveBeastAttackFight(
+        beastLevelId: String,
+        manualDefenders: List<Disciple>? = null
+    ) {
+        explorationService.resolveBeastAttackFight(beastLevelId, manualDefenders)
     }
     val warehouseFullEvent get() = stateStore.warehouseFullEvent
     val teams: StateFlow<List<ExplorationTeam>> get() = stateStore.teams

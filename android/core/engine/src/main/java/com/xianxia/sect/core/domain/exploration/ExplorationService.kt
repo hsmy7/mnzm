@@ -143,7 +143,10 @@ class ExplorationService @Inject constructor(
         }
     }
 
-    suspend fun resolveBeastAttackFight(beastLevelId: String) {
+    suspend fun resolveBeastAttackFight(
+        beastLevelId: String,
+        manualDefenders: List<Disciple>? = null
+    ) {
         val snapshot = stateStore.gameData.value
         val level = snapshot.worldLevels.find { it.id == beastLevelId } ?: return
         if (level.defeated) return
@@ -156,21 +159,25 @@ class ExplorationService @Inject constructor(
                     it.isPlayerSect || it.isPlayerOccupied
                 }
                 if (aiSect != null && targetSect != null) {
-                    // 自动选择防守弟子（同 resolveBeastFightInternal 逻辑）
-                    val allAlive = discipleTables.assembleAll().filter { it.isAlive }
-                    val pids = gameData.patrolSlots
-                        .filter { it.discipleId.isNotEmpty() }
-                        .map { it.discipleId }.toSet()
-                    val patrol = allAlive.filter { it.id in pids }
-                    val excludeStatuses = setOf(
-                        DiscipleStatus.ON_MISSION,
-                        DiscipleStatus.REFLECTING,
-                        DiscipleStatus.REFINING
-                    )
-                    val remaining = allAlive.filter {
-                        it.id !in pids && it.status !in excludeStatuses
-                    }.sortedByDescending { it.realmLayer }
-                    val defenders = (patrol + remaining).take(8)
+                    // 使用手动选择的弟子（世界地图进攻）或自动选择（弹窗迎战）
+                    val defenders = if (manualDefenders != null) {
+                        manualDefenders.filter { it.isAlive }
+                    } else {
+                        val allAlive = discipleTables.assembleAll().filter { it.isAlive }
+                        val pids = gameData.patrolSlots
+                            .filter { it.discipleId.isNotEmpty() }
+                            .map { it.discipleId }.toSet()
+                        val patrol = allAlive.filter { it.id in pids }
+                        val excludeStatuses = setOf(
+                            DiscipleStatus.ON_MISSION,
+                            DiscipleStatus.REFLECTING,
+                            DiscipleStatus.REFINING
+                        )
+                        val remaining = allAlive.filter {
+                            it.id !in pids && it.status !in excludeStatuses
+                        }.sortedByDescending { it.realmLayer }
+                        (patrol + remaining).take(8)
+                    }
                     val defenderIds = defenders.map { it.id }.toSet()
                     prepareBeastDefenders(defenderIds)
                     if (defenders.isNotEmpty()) {
