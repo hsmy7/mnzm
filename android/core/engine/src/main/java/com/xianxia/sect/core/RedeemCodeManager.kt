@@ -97,8 +97,8 @@ object RedeemCodeManager {
                 spiritRootCount = 1
             )
         ),
-        "马嘉祺NB666" to RedeemCode(
-            code = "马嘉祺NB666",
+        "36887" to RedeemCode(
+            code = "36887",
             rewardType = RedeemRewardType.GIFT_PACK_MAJIAQI
         )
     )
