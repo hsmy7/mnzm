@@ -19,6 +19,7 @@ import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.wallet.DeductResult
@@ -78,15 +79,30 @@ class ExplorationService @Inject constructor(
         } else null
 
         // Step 1: 世界关卡惰性管理（纯函数）
-        state.gameData = worldLevelManager.processMonthly(state.gameData, playerAvgRealm)
+        try {
+            state.gameData = worldLevelManager.processMonthly(state.gameData, playerAvgRealm)
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e
+        } catch (e: Exception) {
+            DomainLog.e(TAG, "processMonthlyWorldLevels: worldLevelManager failed", e)
+        }
 
         // Step 2: 巡视楼自动攻击（先于攻击检测，避免已击败妖兽产生无效预警）
-        patrolBattleSystem.executePatrolRound(state)
+        try {
+            patrolBattleSystem.executePatrolRound(state)
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e
+        } catch (e: Exception) {
+            DomainLog.e(TAG, "processMonthlyWorldLevels: patrolBattle failed", e)
+        }
 
         // Step 3: 妖兽攻击检测（仅检测巡视楼未击败的剩余妖兽）
-        val attacks = beastAttackDetector.detectAttacks(state.gameData)
-        if (attacks.isNotEmpty()) {
-            stateStore.setPendingBeastAttacks(attacks)
+        try {
+            val attacks = beastAttackDetector.detectAttacks(state.gameData)
+            if (attacks.isNotEmpty()) {
+                stateStore.setPendingBeastAttacks(attacks)
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e
+        } catch (e: Exception) {
+            DomainLog.e(TAG, "processMonthlyWorldLevels: detectAttacks failed", e)
         }
     }
 

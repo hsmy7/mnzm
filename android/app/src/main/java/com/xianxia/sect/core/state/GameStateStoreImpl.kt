@@ -551,6 +551,14 @@ class GameStateStoreImpl @Inject constructor(
         _stateDirty = true
     }
 
+    override fun removePendingBeastAttack(beastLevelId: String) {
+        _pendingBeastAttacksFlow.value = _pendingBeastAttacksFlow.value.filter {
+            it.beastLevel.id != beastLevelId
+        }
+        _updateVersion.value++
+        _stateDirty = true
+    }
+
     override fun setPendingBattleRewardCards(cards: List<RewardCardItem>) {
         _pendingBattleRewardCardsFlow.value = cards
     }

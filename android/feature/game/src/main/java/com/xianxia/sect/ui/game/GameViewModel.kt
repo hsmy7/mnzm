@@ -168,8 +168,9 @@ class GameViewModel @Inject constructor(
     // ── BeastAttack / Warning ──
 
     suspend fun resolveBeastAttackPayTribute(beastLevelId: String) = beastAttack.resolveBeastAttackPayTribute(beastLevelId)
-    fun resolveBeastAttackFight(beastLevelId: String) = beastAttack.resolveBeastAttackFight(beastLevelId)
+    suspend fun resolveBeastAttackFight(beastLevelId: String) = beastAttack.resolveBeastAttackFight(beastLevelId)
     fun clearPendingBeastAttacks() = beastAttack.clearPendingBeastAttacks()
+    fun removePendingBeastAttack(beastLevelId: String) = beastAttack.removePendingBeastAttack(beastLevelId)
     val attackWarnings: StateFlow<List<AttackWarning>> get() = warnings.attackWarnings
     val shownWarningStageIds: StateFlow<List<String>> get() = warnings.shownWarningStageIds
     fun resolveAttackWarningAppease(sectId: String) = warnings.resolveAttackWarningAppease(sectId)

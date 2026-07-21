@@ -187,7 +187,9 @@ fun GameOverlayHost(
                     viewModel.resolveBeastAttackPayTribute(
                         currentAttack.beastLevel.id
                     )
-                    viewModel.clearPendingBeastAttacks()
+                    viewModel.removePendingBeastAttack(
+                        currentAttack.beastLevel.id
+                    )
                 }
             },
             onFight = {
@@ -195,7 +197,9 @@ fun GameOverlayHost(
                     viewModel.resolveBeastAttackFight(
                         currentAttack.beastLevel.id
                     )
-                    viewModel.clearPendingBeastAttacks()
+                    viewModel.removePendingBeastAttack(
+                        currentAttack.beastLevel.id
+                    )
                 }
             }
         )

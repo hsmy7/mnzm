@@ -115,6 +115,8 @@ interface GameStateStore : GameStateSnapshotProvider {
     val pendingBattleRewardCards: StateFlow<List<RewardCardItem>>
     fun setPendingBeastAttacks(attacks: List<PendingBeastAttack>)
     fun clearPendingBeastAttacks()
+    /** 移除单个待处理妖兽攻击（按 beastLevel.id），其余保留 */
+    fun removePendingBeastAttack(beastLevelId: String)
     fun setPendingBattleRewardCards(cards: List<RewardCardItem>)
     fun clearPendingBattleRewardCards()
 

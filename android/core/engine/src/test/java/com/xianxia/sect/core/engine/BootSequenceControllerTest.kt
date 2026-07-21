@@ -400,6 +400,7 @@ private class FakeGameStateStore : GameStateStore {
     override fun clearPendingBattleResult() { pendingBattleResult.value = null }
     override fun setPendingBeastAttacks(a: List<PendingBeastAttack>) { pendingBeastAttacks.value = a }
     override fun clearPendingBeastAttacks() { pendingBeastAttacks.value = emptyList() }
+    override fun removePendingBeastAttack(beastLevelId: String) { pendingBeastAttacks.value = pendingBeastAttacks.value.filter { it.beastLevel.id != beastLevelId } }
     override fun setPendingBattleRewardCards(c: List<RewardCardItem>) { pendingBattleRewardCards.value = c }
     override fun clearPendingBattleRewardCards() { pendingBattleRewardCards.value = emptyList() }
     override fun enqueueRewardCards(items: List<RewardCardItem>) {}
