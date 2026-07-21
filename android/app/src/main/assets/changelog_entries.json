@@ -6,7 +6,9 @@
       "新增：地图边界树木区域——宗门地图四边各3格强制覆盖为树木装饰，作为不可建造/移动的宗门边界",
       "新增：边界建造限制——新建和移动建筑均无法放置在边界3格树木区域内",
       "安全：二层防御验证——BuildingDelegate.placeBuilding和BuildingFacadeImpl.moveBuildingDirect底层增加边界检查",
-      "代码质量：对抗性审查修复5项——GameConfig常量守卫/空范围防御/remember key加固"
+      "代码质量：对抗性审查修复5项——GameConfig常量守卫/空范围防御/remember key加固",
+      "修复：建筑生产系统月变时不触发收获/完成检测——PlantingSystem/AlchemySystem/ForgeSystem三个GameSystem未注册到SystemManager，导致灵田成熟不自动收获、炼丹/锻造完成不自动检测",
+      "修复：边界树木区域旧存档建筑兼容——读档时自动拆除3格边界内的旧存档建筑，返还50%造价并释放关联弟子"
     ]
   },
   {

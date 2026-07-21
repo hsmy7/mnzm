@@ -13,6 +13,14 @@
   - `computeGoldFingerCellValidities` 添加空范围防御性检查
   - `GridSystem` `remember` key 添加 `buildableBorder` 前瞻加固
 
+### 修复
+
+- **建筑生产系统月变时不触发收获/完成检测** — `PlantingSystem`、`AlchemySystem`、`ForgeSystem` 三个 `GameSystem` 未注册到 `CoreModule.provideSystemManager()` 的集合中，导致 `SystemManager.onMonthlyEvent()` 从不调用它们的 `onMonthlyEvent()`
+  - 灵田：`processSpiritFieldHarvest` 永不执行 → 种子成熟后不被自动收获
+  - 炼丹：`processBuildingProduction` 永不执行 → 炼丹完成后不被自动收获
+  - 锻造：`processBuildingProduction` 永不执行 → 锻造完成后不被自动收获
+- **边界树木区域旧存档建筑兼容** — 在 `BootSequenceController.boot()` Step 3.5 增加迁移逻辑：读档时检测 `placedBuildings` 中位于 3 格边界内的建筑，自动拆除 + 返还 50% 造价 + 通过 `SlotGroup.filterFromGameData` 清理所有关联槽位数据 + 释放关联弟子
+
 ## [4.0.62] - 2026-07-21（versionCode=4062）
 
 ### 修复

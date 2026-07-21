@@ -1,7 +1,10 @@
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.BuildingConfigService
+import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSnapshotCache
+import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.state.BootPhase
@@ -108,6 +111,9 @@ class BootSequenceController @Inject constructor(
                 val withIds = GridBuildingData.ensureAllHaveInstanceId(fixed)
                 if (withIds != data.placedBuildings) data.copy(placedBuildings = withIds) else data
             }
+
+            // ── Step 3.5: 迁移 — 移除3格边界树木区域内的旧存档建筑（返还一半造价）──
+            migrateBorderZoneBuildings()
 
             stateStore.advanceBootPhase() // → DATA_READY
             onProgress(0.20f)
@@ -229,6 +235,78 @@ class BootSequenceController @Inject constructor(
             worldPixelHeight = worldHeightCells * tileSize,
             flatTileData = flatTileData
         )
+    }
+
+    /**
+     * 迁移：移除3格边界树木区域内的旧存档建筑，返还一半造价。
+     *
+     * BORDER_TREE_RING 特性上线后，旧存档中可能已有建筑位于边界3格内。
+     * 这些建筑显示在树木层之上但无法交互（无法移动/新建到边界内），
+     * 因此视同拆除处理：移除建筑 + 清理关联槽位 + 返还 50% 造价 + 释放弟子。
+     *
+     * 在 Step 3 建筑修复后、游戏循环启动前执行，保证迁移是原子且安全的。
+     */
+    private suspend fun migrateBorderZoneBuildings() {
+        val border = GameConfig.SectMap.BORDER_TREE_RING
+        val w = GameConfig.SectMap.WORLD_WIDTH_CELLS
+        val h = GameConfig.SectMap.WORLD_HEIGHT_CELLS
+
+        val buildings = gameEngine.gameDataSnapshot.placedBuildings
+        val inBorder = buildings.filter { b ->
+            b.gridX < border || b.gridY < border ||
+                b.gridX + b.width > w - border || b.gridY + b.height > h - border
+        }
+        if (inBorder.isEmpty()) return
+
+        val removedIds = inBorder.map { it.instanceId }.toSet()
+        val removedNames = inBorder.map { it.displayName }
+
+        var totalRefund = 0L
+        val discipleIdsToFree = mutableSetOf<String>()
+
+        // 第一遍：计算退款 + 收集待释放弟子
+        for (building in inBorder) {
+            val config = buildingConfigService.getBuildingConfigByDisplayName(building.displayName)
+            val cost = config?.cost ?: 1000L
+            totalRefund += cost / 2
+
+            val feature = BuildingFeatureRegistry.findByDisplayName(building.displayName)
+            if (feature != null) {
+                for (group in feature.slotGroups) {
+                    discipleIdsToFree.addAll(
+                        group.collectDiscipleIds(gameEngine.gameDataSnapshot, building.instanceId, feature)
+                    )
+                }
+            }
+        }
+
+        // 第二遍：原子化更新游戏数据
+        stateStore.update {
+            var gd = gameData.copy(
+                placedBuildings = gameData.placedBuildings.filter { it.instanceId !in removedIds },
+                spiritStones = gameData.spiritStones + totalRefund
+            )
+            for (building in inBorder) {
+                val feature = BuildingFeatureRegistry.findByDisplayName(building.displayName)
+                if (feature != null) {
+                    for (group in feature.slotGroups) {
+                        gd = group.filterFromGameData(gd, building.instanceId, feature)
+                    }
+                }
+            }
+            gameData = gd
+
+            // 释放所有关联弟子
+            for (did in discipleIdsToFree) {
+                val id = did.toIntOrNull() ?: continue
+                if (discipleTables.ids.contains(id) && discipleTables.isAlive[id] == 1) {
+                    discipleTables.statuses[id] = DiscipleStatus.IDLE
+                }
+            }
+        }
+
+        DomainLog.w(TAG, "迁移边界建筑: 拆除了 ${inBorder.size} 座 (${removedNames.joinToString(", ")}), " +
+            "返还灵石×$totalRefund, 释放弟子 ${discipleIdsToFree.size} 人")
     }
 
     /**
