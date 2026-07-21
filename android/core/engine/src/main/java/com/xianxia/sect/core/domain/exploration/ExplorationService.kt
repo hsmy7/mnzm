@@ -120,6 +120,7 @@ class ExplorationService @Inject constructor(
             GameConfig.WorldMap.BEAST_TRIBUTE_RATIO).toLong()
             .coerceAtLeast(GameConfig.WorldMap.BEAST_TRIBUTE_MIN)
 
+        var paid = false
         stateStore.update {
             val deductResult = spiritStoneWallet.deduct(
                 this, tribute, SpiritStoneGrade.LOW,
@@ -127,6 +128,7 @@ class ExplorationService @Inject constructor(
                 SpiritStoneSource.Internal
             )
             if (deductResult !is DeductResult.Success) return@update
+            paid = true
             gameData = gameData.copy(
                 worldLevels = gameData.worldLevels.map {
                     if (it.id == beastLevelId) it.copy(defeated = true) else it
@@ -141,7 +143,7 @@ class ExplorationService @Inject constructor(
                 details = "上交${tribute}灵石，妖兽退去"
             )).takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
         }
-        return true
+        return paid
     }
 
     suspend fun resolveBeastAttackFight(
@@ -151,6 +153,7 @@ class ExplorationService @Inject constructor(
         val snapshot = stateStore.gameData.value
         val level = snapshot.worldLevels.find { it.id == beastLevelId } ?: return false
         if (level.defeated) return false
+        var handled = false
         stateStore.update {
             // 遭遇战检查：妖兽附近有 AI 宗门拦截
             val aiSectId = gameData.aiBeastEncounterTargets[beastLevelId]
@@ -208,15 +211,17 @@ class ExplorationService @Inject constructor(
                                 aiBeastEncounterTargets =
                                     gameData.aiBeastEncounterTargets - beastLevelId
                             )
+                            handled = true
                             return@update
                         }
                     }
                 }
             }
             // 无遭遇战，走正常妖兽战斗路径
+            handled = true
             resolveBeastFightInternal(beastLevelId, level)
         }
-        return true
+        return handled
     }
 
     // ── 内部战斗编排（≤60 行，委派各子阶段） ─────────────────────────────

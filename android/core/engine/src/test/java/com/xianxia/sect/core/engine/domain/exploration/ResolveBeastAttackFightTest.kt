@@ -131,6 +131,19 @@ class ResolveBeastAttackFightTest {
         assertFalse(result)
     }
 
+    @Test
+    fun `resolveBeastAttackPayTribute returns false when spirit stones insufficient`() = runBlocking {
+        // 灵石不足时 deduct 失败，DeductResult 非 Success → return@update → paid=false
+        val beast = WorldLevel(id = "b1", type = LevelType.BEAST, defeated = false, x = 500f, y = 500f)
+        gameDataFlow.value = GameData(
+            worldLevels = listOf(beast),
+            worldMapSects = listOf(WorldSect(isPlayerSect = true, x = 500f, y = 500f, name = "玩家宗门")),
+            spiritStones = 0  // 无灵石
+        )
+        val result = service.resolveBeastAttackPayTribute("b1")
+        assertFalse("灵石不足时应返回 false", result)
+    }
+
     // ── runWithoutStoreUpdate tests for resolveBeastFightInternal ───────
 
     @Test
