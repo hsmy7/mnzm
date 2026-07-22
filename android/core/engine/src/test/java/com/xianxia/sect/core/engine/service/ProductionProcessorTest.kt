@@ -105,7 +105,12 @@ class ProductionProcessorTest {
                     d.spiritRoot.types.size in rootCounts
                 matchesFilter && attr(d) >= threshold
             }
-            .maxByOrNull { attr(it) }
+            .sortedWith(
+                compareByDescending<Disciple> { if (focused) isDiscipleFollowed(it) else false }
+                    .thenBy { it.spiritRoot.types.size }
+                    .thenByDescending { attr(it) }
+            )
+            .firstOrNull()
         if (candidate != null) pool.remove(candidate)
         return candidate
     }
@@ -319,7 +324,7 @@ class ProductionProcessorTest {
     // ── focus + rootCounts 组合 ────────────────────────────────────
 
     @Test
-    fun `takeCandidate - focused且followed会与rootCounts匹配结果一起进入maxBy排序`() {
+    fun `takeCandidate - focused与rootCounts多选按优先级排序`() {
         val followed3Root = Disciple(
             id = "d1", name = "已关注三灵根",
             spiritRootType = "火,水,木",
@@ -334,18 +339,55 @@ class ProductionProcessorTest {
             statusData = mapOf("followed" to "false"),
             status = DiscipleStatus.IDLE, isAlive = true
         )
-        val idleDisciples = mutableListOf(followed3Root, singleRoot)
+        val idleDisciples = mutableListOf(singleRoot, followed3Root)
 
         val result = takeCandidate(
             idleDisciples,
             focused = true, rootCounts = listOf(1),
             threshold = 1, attr = { it.skills.mining }
         )
-        // focused+followed → d1 匹配（三灵根但已关注）
-        // rootCounts=[1] → d2 匹配（单灵根）
-        // filter 后: [d1, d2]，maxBy mining → d2(10)
+        // OR 语义：d1(已关注三灵根 OR 根数未匹配) + d2(未关注但单灵根) → 都通过
+        // 优先级排序：已关注优先(1) > 未关注(2) → d1 优先于 d2
         assertNotNull("应有弟子被选中", result)
-        assertEquals("应选属性最高者 d2", "d2", result?.id)
+        assertEquals("已关注弟子优先于高属性未关注", "d1", result?.id)
+    }
+
+    @Test
+    fun `takeCandidate - 同一优先级下按灵根数升序再按属性降序`() {
+        val singleRootHigh = Disciple(
+            id = "d1", name = "单灵根高属性",
+            spiritRootType = "火",
+            skills = SkillStats(mining = 8),
+            status = DiscipleStatus.IDLE, isAlive = true
+        )
+        val singleRootLow = Disciple(
+            id = "d2", name = "单灵根低属性",
+            spiritRootType = "水",
+            skills = SkillStats(mining = 3),
+            status = DiscipleStatus.IDLE, isAlive = true
+        )
+        val dualRoot = Disciple(
+            id = "d3", name = "双灵根",
+            spiritRootType = "火,水",
+            skills = SkillStats(mining = 10),
+            status = DiscipleStatus.IDLE, isAlive = true
+        )
+        val idleDisciples = mutableListOf(dualRoot, singleRootLow, singleRootHigh)
+
+        // 两次取候选人验证优先级顺序
+        val first = takeCandidate(
+            idleDisciples, focused = false, rootCounts = listOf(1, 2),
+            threshold = 1, attr = { it.skills.mining }
+        )
+        // 同优先级(均未关注): 灵根数升序 → 单灵根优先; 同单灵根内属性降序 → d1(8)
+        assertEquals("单灵根高属性优先", "d1", first?.id)
+
+        val second = takeCandidate(
+            idleDisciples, focused = false, rootCounts = listOf(1, 2),
+            threshold = 1, attr = { it.skills.mining }
+        )
+        // 剩余: d2(单灵根3) vs d3(双灵根10) → 单灵根优先于双灵根 → d2
+        assertEquals("单灵根低属性优先于双灵根高属性", "d2", second?.id)
     }
 
     // ═══════════════════════════════════════════════════════════════

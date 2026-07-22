@@ -604,7 +604,7 @@ private fun ManualStatsContent(
         }
         skill.buffs.forEach { (buffType, value, duration) ->
             Text(
-                text = "${formatBuffLine(buffType.name.lowercase(), value, duration)}",
+                text = "${formatBuffLine(buffType, value, duration)}",
                 fontSize = 10.sp,
                 color = Color.Black
             )
@@ -613,7 +613,7 @@ private fun ManualStatsContent(
             val skillBuffType = skill.buffType
             if (skillBuffType != null) {
                 Text(
-                    text = "${formatBuffLine(skillBuffType.name.lowercase(), skill.buffValue, skill.buffDuration)}",
+                    text = "${formatBuffLine(skillBuffType, skill.buffValue, skill.buffDuration)}",
                     fontSize = 10.sp,
                     color = Color.Black
                 )

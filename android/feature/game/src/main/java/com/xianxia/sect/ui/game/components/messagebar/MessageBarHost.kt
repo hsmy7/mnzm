@@ -48,7 +48,7 @@ fun MessageBarHost(
         }
     }
 
-    LaunchedEffect(isExpanded) {
+    LaunchedEffect(isExpanded, selectedTab) {
         if (isExpanded) scrollToBottomTrigger++
     }
 

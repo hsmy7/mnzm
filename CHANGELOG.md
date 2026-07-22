@@ -1,3 +1,12 @@
+## [4.0.65] - 2026-07-22（versionCode=4065）
+
+### Bug 修复
+
+- **修复：物品详情界面 Buff 描述显示英文代码** — 功法/丹药详情中 10 种 Buff（生命加成/物攻加成/暴伤加成等）因 `buffType.name.lowercase()` 与字符串映射表不匹配，显示为 "hp_boost" 等英文代码。新增 `formatBuffLine(BuffType)` 重载，直接使用枚举 displayName 跳过字符串映射
+- **修复：自动入住住所忽略灵根/已关注/属性门槛过滤** — 单人/多人住所自动入住代码无视用户的过滤设置，所有存活弟子均按悟性排序填入。现已补全 focused/rootCounts/threshold 双条件过滤
+- **修复：自动管理多选时排序无优先级** — `takeCandidate` 排序从单维度 `maxByOrNull` 改为 3 层优先级（已关注优先 → 灵根数升序 → 属性降序），与用户选择的优先级一致
+- **修复：消息界面切换标签时不滚动到底部** — 展开消息面板后切换到"世界"标签时列表不自动滚动到底部。根因：`scrollToBottomTrigger` 仅响应 `isExpanded` 变化，切换 `selectedTab` 时不触发
+
 ## [4.0.64] - 2026-07-21（versionCode=4064）
 
 ### 自动管理增强

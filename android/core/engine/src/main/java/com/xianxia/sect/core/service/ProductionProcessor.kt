@@ -551,7 +551,12 @@ class ProductionProcessor @Inject constructor(
                         d.spiritRoot.types.size in rootCounts
                     matchesFilter && attr(d) >= threshold
                 }
-                .maxByOrNull { attr(it) }
+                .sortedWith(
+                    compareByDescending<Disciple> { if (focused) isDiscipleFollowed(it) else false }
+                        .thenBy { it.spiritRoot.types.size }
+                        .thenByDescending { attr(it) }
+                )
+                .firstOrNull()
             if (candidate != null) pool.remove(candidate)
             return candidate
         }
@@ -579,19 +584,36 @@ class ProductionProcessor @Inject constructor(
             } else emptySet()
             val allResBuildingIds = singleResBuildingIds + multiResBuildingIds
             if (allResBuildingIds.isNotEmpty()) {
-                // 无视状态限制：所有存活且未入住的弟子直接填入空槽，按悟性排序择优分配
-                val candidates = stateStore.disciples.value
+                // 无视状态限制：所有存活且未入住的弟子，按过滤条件筛选后按优先级排序分配
+                val filteredCandidates = stateStore.disciples.value
                     .filter { d -> d.isAlive && d.id !in occupiedResidentIds }
-                    .sortedByDescending { it.comprehension }
+                    .filter { d ->
+                        val passesSingle = !singleResEnabled || (
+                            (!policies.autoSingleResidenceFocused || isDiscipleFollowed(d)) &&
+                            (policies.autoSingleResidenceRootCounts.isEmpty() || d.spiritRoot.types.size in policies.autoSingleResidenceRootCounts) &&
+                            d.comprehension >= policies.autoSingleResidenceThreshold
+                        )
+                        val passesMulti = !multiResEnabled || (
+                            (!policies.autoMultiResidenceFocused || isDiscipleFollowed(d)) &&
+                            (policies.autoMultiResidenceRootCounts.isEmpty() || d.spiritRoot.types.size in policies.autoMultiResidenceRootCounts) &&
+                            d.comprehension >= policies.autoMultiResidenceThreshold
+                        )
+                        passesSingle || passesMulti
+                    }
+                    .sortedWith(
+                        compareByDescending<Disciple> { isDiscipleFollowed(it) }
+                            .thenBy { it.spiritRoot.types.size }
+                            .thenByDescending { it.comprehension }
+                    )
                 val emptySlots = data.residenceSlots.filter { s ->
                     s.buildingInstanceId in allResBuildingIds && s.discipleId.isEmpty()
                 }
-                if (emptySlots.isNotEmpty() && candidates.isNotEmpty()) {
+                if (emptySlots.isNotEmpty() && filteredCandidates.isNotEmpty()) {
                     val assignmentMap = mutableMapOf<String, Pair<String, String>>()
                     var candidateIndex = 0
                     for (slot in emptySlots) {
-                        if (candidateIndex >= candidates.size) break
-                        val c = candidates[candidateIndex]
+                        if (candidateIndex >= filteredCandidates.size) break
+                        val c = filteredCandidates[candidateIndex]
                         assignmentMap["${slot.buildingInstanceId}:${slot.slotIndex}"] = c.id to c.name
                         candidateIndex++
                     }

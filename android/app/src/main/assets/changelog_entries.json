@@ -1,5 +1,15 @@
 [
   {
+    "date": "2026-07-22",
+    "version": "4.0.65",
+    "changes": [
+      "修复：物品详情Buff描述显示英文代码——功法/丹药详情10种Buff显示\"hp_boost\"等英文代码，改为直接使用BuffType枚举displayName显示中文",
+      "修复：自动入住住所忽略灵根/已关注/属性门槛——单人/多人住所自动入住无视过滤设置，补全focused/rootCounts/threshold双条件过滤",
+      "修复：自动管理多选排序无优先级——takeCandidate排序从单维度maxByOrNull改为3层优先级(已关注→灵根数升序→属性降序)",
+      "修复：消息切换标签时不滚动到底部——scrollToBottomTrigger仅响应isExpanded不响应selectedTab变化"
+    ]
+  },
+  {
     "date": "2026-07-21",
     "version": "4.0.64",
     "changes": [

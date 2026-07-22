@@ -111,6 +111,21 @@ internal fun formatBuffLine(buffType: String, value: Double, duration: Int): Str
     return "$buffName ${sign}${(value * 100).toInt()}%$durationText"
 }
 
+internal fun formatBuffLine(buffType: com.xianxia.sect.core.BuffType, value: Double, duration: Int): String {
+    val buffName = buffType.displayName
+    val durationText = if (duration > 0) " (${duration}回合)" else ""
+    val specialTypes = setOf(
+        com.xianxia.sect.core.BuffType.POISON, com.xianxia.sect.core.BuffType.BURN,
+        com.xianxia.sect.core.BuffType.STUN, com.xianxia.sect.core.BuffType.FREEZE,
+        com.xianxia.sect.core.BuffType.SILENCE, com.xianxia.sect.core.BuffType.TAUNT
+    )
+    if (buffType in specialTypes) {
+        return "$buffName$durationText"
+    }
+    val sign = if (buffType.isDebuff) "-" else "+"
+    return "$buffName ${sign}${(value * 100).toInt()}%$durationText"
+}
+
 internal fun getStatDisplayName(key: String): String = when (key) {
     "cultivationSpeedPercent" -> "修炼速度"
     "skillExpSpeedPercent" -> "功法熟练度速度"
@@ -377,7 +392,7 @@ internal fun getManualStackEffects(item: ManualStack): List<String> = buildList 
         }
         val buffs = parseManualStackBuffs(item.skillBuffsJson)
         buffs.forEach { (buffType, value, duration) ->
-            add("  ${formatBuffLine(buffType.name.lowercase(), value, duration)}")
+            add("  ${formatBuffLine(buffType, value, duration)}")
         }
         if (buffs.isEmpty() && item.skillBuffType != null && item.skillBuffValue > 0) {
             val itemBuffType = item.skillBuffType
@@ -469,12 +484,12 @@ internal fun getManualEffects(item: ManualInstance): List<String> = buildList {
             add("  灵力消耗: ${skill.mpCost}")
         }
         skill.buffs.forEach { (buffType, value, duration) ->
-            add("  ${formatBuffLine(buffType.name.lowercase(), value, duration)}")
+            add("  ${formatBuffLine(buffType, value, duration)}")
         }
         if (skill.buffs.isEmpty() && skill.buffType != null && skill.buffValue > 0) {
             val skillBuffType = skill.buffType
             if (skillBuffType != null) {
-                add("  ${formatBuffLine(skillBuffType.name.lowercase(), skill.buffValue, skill.buffDuration)}")
+                add("  ${formatBuffLine(skillBuffType, skill.buffValue, skill.buffDuration)}")
             }
         }
     }
