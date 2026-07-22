@@ -4,6 +4,7 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.engine.domain.battle.AIBattleWinner
 import com.xianxia.sect.core.engine.domain.battle.generateWarRewards
+import com.xianxia.sect.core.engine.service.MerchantAndRecruitService
 import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
 import com.xianxia.sect.core.engine.domain.battle.Battle
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
@@ -163,6 +164,8 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
                 }
                 rewards.materials.forEach { inventorySystem.addMaterial(it) }
                 rewards.seeds.forEach { inventorySystem.addSeed(it) }
+                // 被俘弟子加入 recruitList 后立即执行自动招募检查
+                MerchantAndRecruitService.processAutoRecruit(this)
                 recordGameEvent(
                     GameEventCategory.WORLD, GameEventType.SECT_OCCUPY,
                     "玩家宗门占领了${targetSect.name}"

@@ -18,6 +18,21 @@
     ]
   },
   {
+    "date": "2026-07-23",
+    "version": "4.0.65",
+    "changes": [
+      "重构：自动招募触发时机——改为任一来源产生待招募弟子后立即执行(弟子生育/AI宗门招募/占领俘获/年度刷新)，匹配灵根过滤器自动加入宗门",
+      "修复：自动招募计数虚增——recruited++移入allocateAndInsert成功守卫内，失败时不计入",
+      "修复：自动招募spiritRootType空字符串误判单灵根——改用count{it.isNotBlank()}过滤空段",
+      "修复：autoRecruitSpiritRootFilter无值域守卫——只接受1-5有效灵根数量，剔除入库不合理值",
+      "修复：recruitList重复ID无去重——添加distinctBy{it.id}防止同一弟子被多次招募",
+      "修复：lifeEvents两次冗余写入——allocateAndInsert传参前设好lifeEvents，消除二次写入",
+      "安全：ChildBirthSystem.replaceAll覆盖自动招募新生儿——改为增量update()，修复processAutoRecruit新增弟子被replaceAll静默清除的严重Bug",
+      "安全：对抗性审查3Agent全覆盖——边界狂魔/状态破坏者/数据篡改者共发现12项问题，6项已修复",
+      "测试：processAutoRecruit新增11个单元测试——正常匹配/空过滤器/不匹配灵根/混合列表/空列表/损坏数据(空白名/年龄0/境界越界)/新生儿"
+    ]
+  },
+  {
     "date": "2026-07-21",
     "version": "4.0.64",
     "changes": [

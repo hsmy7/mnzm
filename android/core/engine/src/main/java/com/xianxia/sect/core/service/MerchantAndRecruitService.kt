@@ -4,6 +4,7 @@ import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.registry.*
@@ -67,6 +68,51 @@ class MerchantAndRecruitService @Inject constructor(
         /** 计算纳徒长老魅力带来的招募上限加成。
          *  魅力以80为基准，每高4点+1上限，不足0返回0 */
         fun calcRecruitBonusCap(charm: Int): Int = maxOf(0, (charm - 80) / 4)
+
+        /**
+         * 扫描 [state] 的 recruitList，将符合 autoRecruitSpiritRootFilter 的弟子自动加入宗门。
+         * 必须在 [GameStateStore.update] 事务内调用（接收 [MutableGameState]）。
+         * 任何新增待招募弟子的操作完成后均应调用此方法，确保自动招募及时生效。
+         *
+         * @param state 事务内的可变游戏状态
+         * @return 实际自动招募的弟子数量
+         */
+        fun processAutoRecruit(state: MutableGameState): Int {
+            val rawFilter = state.gameData.autoRecruitSpiritRootFilter
+            if (rawFilter.isNullOrEmpty()) return 0
+            // 守卫：只接受 1-5（有效灵根数量），剔除入库不合理值
+            val filter = rawFilter.filter { it in 1..5 }.toSet()
+            if (filter.isEmpty()) return 0
+
+            val (autoRecruits, keepManual) = state.gameData.recruitList
+                .distinctBy { it.id }
+                .partition { disciple ->
+                disciple.spiritRootType.split(",").count { it.isNotBlank() } in filter
+            }
+            if (autoRecruits.isEmpty()) return 0
+
+            val currentMonthIndex = state.gameData.gameYear * 12 + state.gameData.gameMonth
+            var recruited = 0
+            for (disciple in autoRecruits) {
+                if (disciple.name.isBlank() || disciple.age <= 0 || disciple.age > MAX_REASONABLE_AGE
+                    || disciple.realm !in VALID_REALM_RANGE) {
+                    DomainLog.w(TAG, "processAutoRecruit: skipping corrupted disciple ${disciple.id}")
+                    continue
+                }
+                val newId = state.discipleTables.allocateAndInsert(
+                    disciple.copy(usage = disciple.usage.copy(recruitedMonth = currentMonthIndex))
+                        .also { it.lifeEvents = listOf("${disciple.age}岁：加入宗门") }
+                )
+                if (newId.isNotEmpty()) {
+                    recruited++
+                }
+            }
+
+            state.gameData = state.gameData.copy(recruitList = keepManual)
+            DomainLog.i(TAG, "processAutoRecruit: auto-recruited $recruited disciples, " +
+                "${keepManual.size} left for manual review")
+            return recruited
+        }
     }
 
     // ── 商人 ──────────────────────────────────────────────────────────
@@ -415,45 +461,14 @@ class MerchantAndRecruitService @Inject constructor(
             usedNames.add(disciple.name)
         }
 
-        // F6: 空安全 — autoRecruitSpiritRootFilter 可能为 null（旧版本迁移遗漏）
-        val filter = stateStore.gameData.value.autoRecruitSpiritRootFilter ?: emptySet()
-        val (autoRecruits, manualRecruits) = newRecruitDisciples.partition { disciple ->
-            val rootCount = disciple.spiritRootType.split(",").size
-            rootCount in filter
-        }
-
-        // F4: 覆写前检查旧列表是否非空，打 WARN 日志
-        val previousRecruitCount = stateStore.gameData.value.recruitList.size
-        if (previousRecruitCount > 0) {
-            DomainLog.w(TAG, "refreshRecruitList: year=$year, overwriting $previousRecruitCount unprocessed recruits" +
-                " — 年度刷新覆盖了尚未处理的候选人")
-        }
-
-        // 单事务：自动招募 + 写入招募列表，保证原子性
+        // 单事务：追加到 recruitList + 自动招募，保证原子性
         stateStore.update {
-            if (autoRecruits.isNotEmpty()) {
-                val currentMonthIndex = year * 12 + 1
-                autoRecruits.forEach { disciple ->
-                    // 同手动招募一致，跳过损坏数据
-                    if (disciple.name.isBlank() || disciple.age <= 0 || disciple.age > MAX_REASONABLE_AGE
-                        || disciple.realm !in VALID_REALM_RANGE) {
-                        DomainLog.w(TAG, "autoRecruit: skipping corrupted disciple ${disciple.id}")
-                        return@forEach
-                    }
-                    val newId = discipleTables.allocateAndInsert(
-                        disciple.copy(usage = disciple.usage.copy(recruitedMonth = currentMonthIndex))
-                    )
-                    if (newId.isNotEmpty()) {
-                        val events = discipleTables.lifeEvents.getOrDefault(newId.toInt(), emptyList())
-                        discipleTables.lifeEvents[newId.toInt()] = events + "${disciple.age}岁：加入宗门"
-                    }
-                }
-                DomainLog.i(TAG, "autoRecruit: auto-recruited ${autoRecruits.size} disciples, " +
-                    "${manualRecruits.size} left for manual review")
-            }
-            gameData = gameData.copy(recruitList = manualRecruits, lastRecruitYear = year)
+            gameData = gameData.copy(
+                recruitList = gameData.recruitList + newRecruitDisciples,
+                lastRecruitYear = year
+            )
+            processAutoRecruit(this)
         }
-        DomainLog.d(TAG, "refreshRecruitList: year=$year, generated ${manualRecruits.size} new recruits " +
-            "(previous recruitList had $previousRecruitCount)")
+        DomainLog.d(TAG, "refreshRecruitList: year=$year, generated ${newRecruitDisciples.size} new recruits")
     }
 }

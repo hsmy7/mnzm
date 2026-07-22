@@ -5,6 +5,7 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.engine.service.MerchantAndRecruitService
 import com.xianxia.sect.core.util.GameRandom
 import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.PortraitPool
@@ -90,23 +91,18 @@ class ChildBirthSystem @Inject constructor(
 
         if (mothersDueThisMonth.isEmpty()) return
 
-        var currentList = allDisciples
-
         for (mother in mothersDueThisMonth) {
             val fatherId = mother.social.partnerId ?: continue
             val father = discipleMap[fatherId]
             if (father == null || !father.isAlive) {
-                currentList = currentList.map { disciple ->
-                    if (disciple.id == mother.id) {
-                        // 清除 childBirthMonth 和 partnerId，
-                        // 修复历史 bug：父亲死亡时仅清除 childBirthMonth，
-                        // partnerId 仍指向死者，导致母亲永久无法重新配对
-                        disciple.copy(social = disciple.social.copy(
-                            childBirthMonth = null,
-                            partnerId = null
-                        ))
-                    } else disciple
-                }
+                // 父亲死亡：清除 childBirthMonth 和 partnerId，
+                // 使用增量 update 避免 replaceAll 清除自动招募的新生儿
+                state.discipleTables.update(mother.copy(
+                    social = mother.social.copy(
+                        childBirthMonth = null,
+                        partnerId = null
+                    )
+                ))
                 continue
             }
 
@@ -114,21 +110,17 @@ class ChildBirthSystem @Inject constructor(
             state.gameData = state.gameData.copy(
                 recruitList = state.gameData.recruitList.toList() + child
             )
+            // 新生儿产生后立即执行自动招募检查
+            MerchantAndRecruitService.processAutoRecruit(state)
 
-            currentList = currentList.map { disciple ->
-                when (disciple.id) {
-                    mother.id -> disciple.copy(
-                        social = disciple.social.copy(
-                            lastChildYear = currentYear,
-                            childBirthMonth = null
-                        )
-                    )
-                    else -> disciple
-                }
-            }
+            // 增量更新母亲状态，避免 replaceAll 覆盖 processAutoRecruit 已插入的弟子
+            state.discipleTables.update(mother.copy(
+                social = mother.social.copy(
+                    lastChildYear = currentYear,
+                    childBirthMonth = null
+                )
+            ))
         }
-
-        state.discipleTables.replaceAll(currentList)
     }
 
     private fun createChild(mother: Disciple, father: Disciple, currentYear: Int, state: MutableGameState): Disciple {
