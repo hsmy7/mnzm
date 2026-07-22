@@ -49,4 +49,8 @@ object BuildingFeatureRegistry {
 
     fun hasNoLimit(name: String): Boolean =
         findByDisplayName(name)?.unlimitedBuild ?: false
+
+    /** 全局唯一（跨宗门不可重复建造） */
+    fun isGloballyUnique(name: String): Boolean =
+        findByDisplayName(name)?.isGloballyUnique ?: false
 }

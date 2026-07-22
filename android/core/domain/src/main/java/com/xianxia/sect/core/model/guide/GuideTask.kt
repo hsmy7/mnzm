@@ -396,7 +396,7 @@ object GuideTaskRegistry {
         ),
         GuideTask(
             id = 23, name = "仓库管理",
-            description = "仓库：每座+50格容量。派遣弟子驻守可防范偷盗。",
+            description = "仓库：每座+75格容量。派遣弟子驻守可防范偷盗。",
             conditions = listOf(
                 GuideCondition.BuildingCount("仓库", 3),
                 GuideCondition.SlotFilledCount("warehouseGarrisons", 1, "驻守仓库")

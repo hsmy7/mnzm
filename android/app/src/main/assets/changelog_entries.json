@@ -3,6 +3,15 @@
     "date": "2026-07-23",
     "version": "4.0.66",
     "changes": [
+      "调整：建筑费用全面调整——仓库20000/任务阁50000/监牢20000/锻造坊6000/炼丹炉6000/单人住所20000/多人住所30000(下品灵石)",
+      "调整：仓库扩容格数50→75——每座仓库提供75格容量，同步更新引导/WarehouseTab描述",
+      "调整：天枢殿改为全局唯一——全地图(含占领宗门)仅可建造1座，旧存档多座兼容保留"
+    ]
+  },
+  {
+    "date": "2026-07-23",
+    "version": "4.0.66",
+    "changes": [
       "修复：Compose LazyColumn 在 verticalScroll 内嵌套导致的无限高度崩溃(Bugly #9043)——UnifiedGameDialog 默认 scrollableContent=true 改 false，防止新增对话框无意嵌套触发崩溃",
       "修复：文本选择工具栏 BadTokenException(Bugly #3026)——InlineStandardPromptDialog/MainActivity/SettingsTab 三处补齐 clearFocus 和 ActionModeSafeCallback，消除对话框关闭后 FloatingActionMode 弹出 PopupWindow 崩溃",
       "修复：Adreno Vulkan 驱动 SIGSEGV(Bugly #9045)——surfaceDestroyed 改用截止时间等待+renderThread.interrupt()，submitFrame 阻塞调用后添加 m_ready 守卫，消除 Surface 销毁后 VkHandle use-after-free",

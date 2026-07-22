@@ -1,5 +1,11 @@
 ## [4.0.66] - 2026-07-23（versionCode=4066）
 
+### 数值调整
+
+- **调整：建筑费用全面调整** — 仓库 1500→**20000**、任务阁 6000→**50000**、监牢 5000→**20000**、锻造坊/炼丹炉 4000→**6000**、单人住所 12000→**20000**、多人住所 24000→**30000**（单位：下品灵石）
+- **调整：仓库扩容格数 50→75** — 每座仓库提供 75 格容量（基础 50 + N×75），同步更新引导/WarehouseTab描述文本
+- **调整：天枢殿改为全局唯一** — 全地图（含占领宗门）仅可建造 1 座，新增 `isGloballyUnique` 字段 + 守卫断言 + 旧存档多座兼容日志
+
 ### Bug 修复
 
 - **修复：Compose LazyColumn 嵌套 verticalScroll 崩溃（Bugly #9043）** — UnifiedGameDialog 默认 `scrollableContent=true` 改 `false`，防止新增对话框无意嵌套 `LazyColumn` 触发 `IllegalStateException`。审计 77 处调用点，2 处需滚动者显式声明 `scrollableContent=true`

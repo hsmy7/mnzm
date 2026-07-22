@@ -162,7 +162,7 @@ object GameConfig {
 
     object Warehouse {
         const val BASE_CAPACITY = 50
-        const val CAPACITY_PER_BUILDING = 50
+        const val CAPACITY_PER_BUILDING = 75
     }
 
     object Rarity {

@@ -1124,6 +1124,13 @@ fun MainGameScreen(
                         BuildingFeatureRegistry.isResidence(name) || BuildingFeatureRegistry.hasNoLimit(name) -> Int.MAX_VALUE
                         else -> 1
                     }
+                },
+                getBuildingCount = { name ->
+                    if (BuildingFeatureRegistry.isGloballyUnique(name)) {
+                        gameData.placedBuildings.count { it.displayName == name }
+                    } else {
+                        activeSectBuildings.count { it.displayName == name }
+                    }
                 }
             )
         }

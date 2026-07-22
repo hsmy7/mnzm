@@ -41,7 +41,7 @@ fun BuildingFeatureRegistry.registerTestFeatures() {
         BuildingFeature("qingyun_peak", "青云塔", BuildingType.QINGYUN_PEAK,
             emptyList(), cost = 8000, gridWidth = 4, gridHeight = 3),
         BuildingFeature("tianshu_hall", "天枢殿", BuildingType.ADMINISTRATION,
-            emptyList(), cost = 15000, gridWidth = 6, gridHeight = 3),
+            emptyList(), cost = 15000, gridWidth = 6, gridHeight = 3, isGloballyUnique = true),
         BuildingFeature("law_enforcement_hall", "执法堂", BuildingType.LAW_ENFORCEMENT_HALL,
             emptyList(), cost = 6000, gridWidth = 6, gridHeight = 3),
         BuildingFeature("mission_hall", "任务阁", BuildingType.MISSION_HALL,

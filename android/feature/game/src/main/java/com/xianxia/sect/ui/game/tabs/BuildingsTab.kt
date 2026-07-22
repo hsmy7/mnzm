@@ -117,7 +117,7 @@ internal fun BuildingsTab(
         "reflection_cliff" to "悔过自新之地",
         "patrol_tower" to "驻守弟子自动巡视攻击妖兽",
         "blood_refining_pool" to "消耗兽血材料淬炼弟子肉身",
-        "warehouse" to "储存宗门物资，每座+50格容量",
+        "warehouse" to "储存宗门物资，每座+75格容量",
     )
 
     val buildings: List<Triple<String, String, () -> Unit>> = remember(buildingDescriptions) {

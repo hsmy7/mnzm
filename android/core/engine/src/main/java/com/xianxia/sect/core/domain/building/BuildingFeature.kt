@@ -19,6 +19,8 @@ data class BuildingFeature(
     /** 是否可直接建造（false 表示只能通过升级获得，如中级单人住所） */
     val isConstructible: Boolean = true,
     val unlimitedBuild: Boolean = false,
+    /** 全局唯一（跨宗门）：若为 true，则全地图仅允许建造 1 座 */
+    val isGloballyUnique: Boolean = false,
     val upgradeTo: String? = null,
     val upgradeCost: Long = 0,
     val drawableRes: Int = 0,
@@ -34,6 +36,11 @@ data class BuildingFeature(
     val autoRestartEnabled: Boolean = false,
     val residenceSpeedBonus: String = ""   // 住所修炼速度加成描述
 ) {
+    init {
+        require(!(unlimitedBuild && isGloballyUnique)) {
+            "Building '$key': isGloballyUnique=true 与 unlimitedBuild=true 语义冲突，全局唯一建筑不能无限建造"
+        }
+    }
     val slotCount: Int get() = slotGroups.sumOf { it.slotsPerInstance }
     fun effectiveSpriteWidth(): Int = if (spriteWidth > 0) spriteWidth else gridWidth
     fun effectiveSpriteHeight(): Int = if (spriteHeight > 0) spriteHeight else gridHeight

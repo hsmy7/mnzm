@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game.delegate
 
+import android.util.Log
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.GameEngine
@@ -27,6 +28,10 @@ class BuildingDelegate(
     private val buildingConfigService: BuildingConfigService,
     private val onDemolishSuccess: (String) -> Unit = {}
 ) {
+    private companion object {
+        private const val TAG = "BuildingDelegate"
+    }
+
     private var _currentBuildingDelegate: Any? = null
 
     /**
@@ -58,7 +63,16 @@ class BuildingDelegate(
         gameEngine.updateGameData { data ->
                 // 限建检查
                 if (!feature.unlimitedBuild) {
-                    if (data.placedBuildings.any { it.displayName == name && it.sectId == activeId }) return@updateGameData data
+                    val exists = if (feature.isGloballyUnique) {
+                        val globalCount = data.placedBuildings.count { it.displayName == name }
+                        if (globalCount > 1) {
+                            Log.w(TAG, "全局唯一建筑 '$name' 在旧存档中存在 $globalCount 座，升级后限制为 1 座")
+                        }
+                        globalCount > 0
+                    } else {
+                        data.placedBuildings.any { it.displayName == name && it.sectId == activeId }
+                    }
+                    if (exists) return@updateGameData data
                 }
                 // 灵石检查
                 if (data.spiritStones < cost) return@updateGameData data
