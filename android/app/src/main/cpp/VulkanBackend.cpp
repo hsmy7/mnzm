@@ -1611,15 +1611,21 @@ void VulkanBackend::submitFrame() {
     // 等待前帧完成
     vkWaitForFences(m_device, 1, &m_inFlightFences[m_currentFrame],
                     VK_TRUE, UINT64_MAX);
+    // ★ 守卫：等待 fence 期间 shutdown() 可能已将 m_ready 置 false 并开始销毁资源
+    if (!m_ready) return;
 
     // 获取下一张 swapchain 图像
     uint32_t imageIndex;
     VkResult result = vkAcquireNextImageKHR(
         m_device, m_swapchain, UINT64_MAX,
         m_imageAvailable[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
+    // ★ 守卫：获取图像期间 surfaceDestroyed 可能已经触发，swapchain 可能已失效
+    if (!m_ready) return;
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
         LOGI("Swapchain out of date, need resize");
+        // ★ 守卫：out-of-date 发生在 shutdown 竞态中时，fence 可能已被销毁
+        if (!m_ready) return;
         // 不重置 fence — fence 保持 signaled 状态，下一帧可正常等待。
         return;
     }

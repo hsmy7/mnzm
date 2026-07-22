@@ -69,7 +69,8 @@ fun BloodRefiningPoolDialog(
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
         title = "血炼池",
-        mode = DialogMode.Half
+        mode = DialogMode.Half,
+        scrollableContent = true
     ) {
         Column(
             modifier = Modifier

@@ -3,7 +3,9 @@ package com.xianxia.sect.ui
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.view.ActionMode
 import android.view.View
+import android.view.Window
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -153,6 +155,8 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         hideSystemBars()
+        // 安装 ActionMode 安全回调，防御文本选择工具栏 BadTokenException
+        installActionModeSafeCallback()
         
         if (!::sessionManager.isInitialized) {
             Log.e(TAG, "SessionManager未初始化")
@@ -516,8 +520,61 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        actionModeTracker?.finishActiveActionMode()
+        actionModeTracker = null
         loadHandler.removeCallbacksAndMessages(null)
         super.onDestroy()
+    }
+
+    // ── ActionMode 安全回调（与 GameActivity.ActionModeSafeCallback 一致） ──
+    // 拦截 ActionMode（FloatingActionMode/文本选择工具栏）生命周期，
+    // 确保在 Activity 销毁前结束活跃的 ActionMode，防止 BadTokenException。
+
+    @Volatile
+    private var actionModeTracker: ActionModeSafeCallback? = null
+
+    private fun installActionModeSafeCallback() {
+        val original = window.callback ?: return
+        if (original is ActionModeSafeCallback) return
+        ActionModeSafeCallback(original).also {
+            window.callback = it
+            actionModeTracker = it
+        }
+    }
+
+    private class ActionModeSafeCallback(
+        private val delegate: Window.Callback
+    ) : Window.Callback by delegate {
+
+        @Volatile
+        var activeActionMode: ActionMode? = null
+            private set
+
+        @Volatile
+        var isTearingDown: Boolean = false
+            private set
+
+        override fun onActionModeStarted(mode: ActionMode) {
+            if (isTearingDown) {
+                try { mode.finish() } catch (_: Exception) { }
+                return
+            }
+            activeActionMode = mode
+            delegate.onActionModeStarted(mode)
+        }
+
+        override fun onActionModeFinished(mode: ActionMode) {
+            if (activeActionMode === mode) activeActionMode = null
+            delegate.onActionModeFinished(mode)
+        }
+
+        fun finishActiveActionMode() {
+            activeActionMode?.let { mode ->
+                isTearingDown = true
+                try { mode.finish() } catch (_: Exception) { }
+                activeActionMode = null
+            }
+        }
     }
 }
 

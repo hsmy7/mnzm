@@ -566,17 +566,25 @@ class NativeSurfaceView(
         // Layer 4: 中断正在执行的 VulkanInit 线程
         vulkanInitThread?.interrupt()
         vulkanInitThread = null
+        // 中断渲染线程，加速从 Thread.sleep() 中退出
+        renderThread?.interrupt()
         // 等待渲染线程安全停止后再释放资源
-        // 使用循环等待（每次 500ms，最多 3 次 = 1.5s）而非单次 join(500)，
-        // 防止 lockCanvas 阻塞导致 Bitmap 在 RenderThread 运行时被回收
+        // 使用绝对截止时间（2s）的轮询等待，而非固定 3x500ms 循环，
+        // 防止 vkWaitForFences/vkAcquireNextImageKHR 阻塞超过预期时间时
+        // Vulkan 资源在 RenderThread 仍在执行时被销毁 → use-after-free
         renderThread?.let { thread ->
             thread.running = false
-            for (i in 0 until 3) {
-                try { thread.join(500); break } catch (_: InterruptedException) { break }
+            val deadlineNs = System.nanoTime() + 2_000_000_000L // 2s 截止时间
+            var joined = false
+            while (System.nanoTime() < deadlineNs) {
+                try {
+                    thread.join(200)
+                    if (!thread.isAlive) { joined = true; break }
+                } catch (_: InterruptedException) { break }
             }
-            if (thread.isAlive) {
+            if (!joined) {
                 android.util.Log.w("NativeSurfaceView",
-                    "RenderThread did not stop after 1.5s — proceeding with release")
+                    "RenderThread did not stop after 2s deadline — proceeding with release")
             }
         }
         renderThread = null

@@ -53,7 +53,7 @@ fun UnifiedGameDialog(
     scrimEnabled: Boolean = true,
     headerActions: @Composable (() -> Unit)? = null,
     headerContent: @Composable (() -> Unit)? = null,
-    scrollableContent: Boolean = true,
+    scrollableContent: Boolean = false,
     titleColor: Color = Color.Black,
     titleFontSize: TextUnit = AppTypography.Title,
     titleAlignment: Alignment = Alignment.Center,

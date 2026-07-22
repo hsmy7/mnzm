@@ -51,6 +51,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.xianxia.sect.feature.game.R
@@ -333,6 +334,18 @@ internal fun SettingsTab(
                         ) {
                         // 隐藏 Dialog Window 的系统状态栏/导航栏
                         DialogSystemBarGuard()
+
+                        // 清除焦点 + 隐藏输入法，防止 FloatingActionMode BadTokenException
+                        val editDialogView = LocalView.current
+                        DisposableEffect(Unit) {
+                            onDispose {
+                                editDialogView.clearFocus()
+                                val imm = editDialogView.context.getSystemService(
+                                    android.content.Context.INPUT_METHOD_SERVICE
+                                ) as? android.view.inputmethod.InputMethodManager
+                                imm?.hideSoftInputFromWindow(editDialogView.windowToken, 0)
+                            }
+                        }
 
                         Box(
                             modifier = Modifier

@@ -115,7 +115,8 @@ fun ResidenceDialog(
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
         title = "弟子住所",
-        mode = DialogMode.Half
+        mode = DialogMode.Half,
+        scrollableContent = true
     ) {
         Column(
             modifier = Modifier.fillMaxSize().padding(16.dp),
