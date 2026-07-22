@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.MailService
@@ -580,6 +581,8 @@ private suspend fun GameEngine.applyMissionResult(
     month: Int,
     aliveDisciples: List<Disciple>
 ) {
+    // 引导系统：累计完成任务
+    incrementGuideCounter(GuideCounterKeys.MISSIONS_COMPLETED)
     if (result.spiritStones > 0) addSpiritStones(result.spiritStones.toLong())
     result.materials.forEach { inventorySystem.addMaterial(it) }
     result.pills.forEach { inventorySystem.addPill(it) }

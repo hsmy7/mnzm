@@ -28,6 +28,7 @@ import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.PatrolConfig
 import com.xianxia.sect.core.model.PatrolSlot
 import com.xianxia.sect.core.model.WorldLevel
+import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.state.BattleResultUIData
@@ -579,10 +580,12 @@ class PatrolBattleSystem @Inject constructor(
     private fun applyVictoryGdChanges(
         result: TowerBattleResult, gd: GameData
     ): GameData {
+        val prevCount = gd.guideCounters[GuideCounterKeys.PATROL_BEAST_DEFEATED] ?: 0L
         return gd.copy(
             worldLevels = gd.worldLevels.map {
                 if (it.id == result.target.id) it.copy(defeated = true) else it
-            }
+            },
+            guideCounters = gd.guideCounters + (GuideCounterKeys.PATROL_BEAST_DEFEATED to prevCount + 1)
         )
     }
 

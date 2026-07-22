@@ -485,6 +485,12 @@ data class GameData(
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var gameEventRecords: List<GameEventRecord> = emptyList(),
 
+    // 引导任务进度（新手引导系统）
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var guideClaimedRewardIds: Set<Int> = emptySet(),
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var guideCounters: Map<String, Long> = emptyMap(),
+
     // 宗门地图随机种子：新开游戏时随机初始化，不同存档产生不同的地面/装饰物分布
     @ColumnInfo(name = "map_seed", defaultValue = "0")
     @SettlementStrategy(Strategy.PRESERVE_OLD)

@@ -38,8 +38,12 @@ fun GameActionButtons(
         horizontalAlignment = Alignment.End,
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // 第一行：外交、商人、建造、仓库、活动（从右往左排列）
+        // 第一行：引导、外交、商人、建造、仓库、活动（从右往左排列）
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            FloatingActionButton(
+                text = "引导",
+                spriteName = "ui_guide_button"
+            ) { viewModel.navigateToDialog(DialogType.Guide) }
             FloatingActionButton(
                 text = "外交",
                 spriteName = "ui_diplomacy_button"

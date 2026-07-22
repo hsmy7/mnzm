@@ -571,4 +571,16 @@ object CollectionConverters {
     @JvmStatic
     fun toBattleResultUIDataList(value: String): List<BattleResultUIData> =
         ProtobufConverters.decodeFromBase64(ListSerializer(BattleResultUIData.serializer()), value) { emptyList() }
+
+    // ==================== 引导系统转换器 ====================
+
+    @TypeConverter
+    @JvmStatic
+    fun fromStringLongMap(value: Map<String, Long>): String =
+        ProtobufConverters.encodeToBase64(MapSerializer(String.serializer(), Long.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toStringLongMap(value: String): Map<String, Long> =
+        ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), Long.serializer()), value) { emptyMap() }
 }

@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine.domain.disciple
 import com.xianxia.sect.core.engine.annotation.GameService
 import kotlinx.coroutines.flow.StateFlow
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.state.GameStateStore
@@ -407,6 +408,11 @@ class DiscipleService @Inject constructor(
                 val events = discipleTables.lifeEvents.getOrDefault(intId, emptyList())
                 discipleTables.lifeEvents[intId] = events + "${rawDisciple.age}岁：加入宗门"
             }
+            // 引导系统：累计招募弟子
+            val prevCount = gameData.guideCounters[GuideCounterKeys.DISCIPLES_RECRUITED] ?: 0L
+            gameData = gameData.copy(
+                guideCounters = gameData.guideCounters + (GuideCounterKeys.DISCIPLES_RECRUITED to prevCount + 1)
+            )
             id
         }
 

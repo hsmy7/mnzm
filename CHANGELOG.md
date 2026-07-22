@@ -1,5 +1,18 @@
 ## [4.0.65] - 2026-07-22（versionCode=4065）
 
+### 新增功能
+
+- **新增：新手引导系统** — 在外交按钮左侧新增引导按钮，点击弹出全屏引导界面。25 个分步任务覆盖所有建筑类型和职位，每项任务描述包含具体加成效果和玩法说明。任务完成奖励凡品储物袋×2，条件进度实时检测
+- **新增：引导任务 25 项** — 涵盖灵矿场、灵田、灵植阁、炼丹炉、锻造坊、天枢殿、藏经阁、问道塔、青云塔、执法堂、任务阁、巡视楼、住所、仓库、血炼池、监牢等所有建筑，以及副宗主、外门长老、内门长老、执法长老、讲道传道师、青云传道师、执法亲传、灵矿执事等全部职位
+- **新增：GuideCounterKeys 常量类** — 引导系统所有计数器 Key 统一为编译期安全常量，消除拼写错误风险
+
+### 架构优化
+
+- **重构：`SectPolicyToggleUseCase` 7 个政策切换函数合并为单事务** — 消除 toggle 过程中的中间状态窗口，政策切换和计数器递增在单次 `stateStore.update` 内原子完成
+- **重构：`AutoAssignDelegate.setAutoAssignSettings` 合并为单事务** — 自动分配策略写入和引导计数器递增原子提交，消除崩溃后状态不一致
+- **修复：`claimGuideReward` TOCTOU 竞态** — 条件检查和奖励发放全部移入 `stateStore.update` 原子执行，消除条件变化与奖励发放之间的窗口
+- **修复：`UUID.randomUUID()` 改用 GameRngManager** — 储物袋 ID 生成从 `UUID.randomUUID()` 改为 `GameRngManager.getRng(RngPartition.SYSTEM)`，符合确定性 RNG 规范
+
 ### Bug 修复
 
 - **修复：操作弟子详情等界面时 ANR 闪退（Bugly #9041/#5068）** — 根因：UI 层 Delegate 通过 `scope.launch`（默认 `Dispatchers.Main`）调用 `GameStateStore.update{}`（内部使用阻塞式 `ReentrantLock`），当引擎线程持有锁时主线程阻塞 10 秒触发 ANR。新增 `GameEngine.launchOnEngine{}` 方法将所有 UI 触发的引擎操作派发到引擎单线程执行，配合 Detekt 自定义规则 + Gradle 编译时检查 + 运行时主线程监护，从架构层面根除同类 ANR

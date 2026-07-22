@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
@@ -185,6 +186,11 @@ class LawEnforcementProcessor @Inject constructor(
             discipleTables.remove(id)
             discipleTables.insert(d.copy(status = DiscipleStatus.REFLECTING,
                 statusData = d.statusData + mapOf("reflectionStartYear" to currentYear.toString(), "reflectionEndYear" to endYear.toString())))
+            // 引导系统：累计弟子入狱
+            val prev = gameData.guideCounters[GuideCounterKeys.DISCIPLE_IMPRISONED] ?: 0L
+            gameData = gameData.copy(
+                guideCounters = gameData.guideCounters + (GuideCounterKeys.DISCIPLE_IMPRISONED to prev + 1)
+            )
         }
     }
 

@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
@@ -56,6 +57,11 @@ class DiscipleBreakthroughHandler @Inject constructor(
             if (success) {
                 breakthroughCount++
                 d = applyBreakthroughSuccess(d)
+                // 引导系统：累计突破次数
+                val prevB = state.gameData.guideCounters[GuideCounterKeys.BREAKTHROUGHS] ?: 0L
+                state.gameData = state.gameData.copy(
+                    guideCounters = state.gameData.guideCounters + (GuideCounterKeys.BREAKTHROUGHS to prevB + 1)
+                )
             } else {
                 failCount++
                 d = applyBreakthroughFailure(d)

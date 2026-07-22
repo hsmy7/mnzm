@@ -5,6 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlin.math.roundToInt
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.engine.system.InventoryFactories
@@ -97,6 +98,10 @@ class ProductionProcessor @Inject constructor(
         }
         slot.assignedDiscipleId?.let { discipleId ->
             stateStore.update {
+                val currentCount = gameData.guideCounters[GuideCounterKeys.FORGE_COMPLETED] ?: 0L
+                gameData = gameData.copy(
+                    guideCounters = gameData.guideCounters + (GuideCounterKeys.FORGE_COMPLETED to currentCount + 1)
+                )
                 val currentList = discipleTables.assembleAll()
                 val updated = currentList.map {
                     if (it.id == discipleId) it.copy(status = DiscipleStatus.IDLE) else it
@@ -137,6 +142,10 @@ class ProductionProcessor @Inject constructor(
         }
         slot.assignedDiscipleId?.let { discipleId ->
             stateStore.update {
+                val currentCount = gameData.guideCounters[GuideCounterKeys.ALCHEMY_COMPLETED] ?: 0L
+                gameData = gameData.copy(
+                    guideCounters = gameData.guideCounters + (GuideCounterKeys.ALCHEMY_COMPLETED to currentCount + 1)
+                )
                 val currentList = discipleTables.assembleAll()
                 val updated = currentList.map {
                     if (it.id == discipleId && it.isAlive) {
@@ -199,6 +208,11 @@ class ProductionProcessor @Inject constructor(
                     return@forEach
                 }
                 addHarvestedHerbsToState(plant, dbHerb, state)
+                // 引导系统：累计收获灵植
+                val prevHerbCount = state.gameData.guideCounters[GuideCounterKeys.HERBS_HARVESTED] ?: 0L
+                state.gameData = state.gameData.copy(
+                    guideCounters = state.gameData.guideCounters + (GuideCounterKeys.HERBS_HARVESTED to prevHerbCount + 1)
+                )
 
                 val (newPlants, changed) = updateSlotAfterHarvest(
                     plant, state, currentYear, currentMonth, updatedPlants)

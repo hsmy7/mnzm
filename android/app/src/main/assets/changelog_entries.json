@@ -7,7 +7,10 @@
       "修复：物品详情Buff描述显示英文代码——功法/丹药详情10种Buff显示\"hp_boost\"等英文代码，改为直接使用BuffType枚举displayName显示中文",
       "修复：自动入住住所忽略灵根/已关注/属性门槛——单人/多人住所自动入住无视过滤设置，补全focused/rootCounts/threshold双条件过滤",
       "修复：自动管理多选排序无优先级——takeCandidate排序从单维度maxByOrNull改为3层优先级(已关注→灵根数升序→属性降序)",
-      "修复：消息切换标签时不滚动到底部——scrollToBottomTrigger仅响应isExpanded不响应selectedTab变化"
+      "修复：消息切换标签时不滚动到底部——scrollToBottomTrigger仅响应isExpanded不响应selectedTab变化",
+      "新增：新手引导系统——外交按钮左侧新增引导按钮，25个分步任务覆盖全部建筑和职位，任务奖励凡品储物袋×2",
+      "新增：GuideCounterKeys常量类——引导计数器Key统一为编译期安全常量",
+      "重构：政策切换/自动分配合并为单事务——消除中间状态窗口，计数器递增与策略写入原子完成"
     ]
   },
   {

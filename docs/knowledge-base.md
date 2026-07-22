@@ -205,6 +205,34 @@ No `NavHost` is used for the main game. `MainGameScreen` switches content via `M
 
 ---
 
+## 引导系统（Guide System）
+
+### 入口
+- **按钮位置**：`GameActionButtons.kt` 右上角第一行，外交按钮左侧
+- **DialogType**：`Guide`（全屏模式 `DialogMode.Full`）
+- **路由**：`GameOverlayHost` → `GuideDialog`
+
+### 数据模型
+- **GuideTask**（`core/domain/model/guide/GuideTask.kt`）：任务定义，含名称、描述、条件列表、奖励
+- **GuideCondition**（sealed interface）：12 种条件类型（BuildingCount、ElderAppointed、CumulativeCounter、PlantCropOnce 等）
+- **GuideCounterKeys**（常量类）：所有计数器 Key 编译期安全，消除拼写错误
+- **GameData 字段**：`guideClaimedRewardIds: Set<Int>` + `guideCounters: Map<String, Long>`
+
+### 计数器接入点
+计数器在对应子系统的事件完成处递增：`CultivationSettlement`（灵矿）、`ProductionProcessor`（炼药/锻造）、`DiscipleBreakthroughHandler`（突破）、`PatrolBattleSystem`（巡逻击败妖兽）、`LawEnforcementProcessor`（监禁）等 12 处。
+
+### 奖励发放
+- **入口**：`GameEngineGuideOps.claimGuideReward(taskId)`
+- **读取任务定义的 `rewardItemQuantity`**，非硬编码
+- **使用 GameRngManager**（SYSTEM 分区）替代 UUID.randomUUID()
+- **条件检查和发放位于同一次 `stateStore.update`**，消除 TOCTOU 竞态
+
+### 已知限制
+- `DiscipleReachRealm` 条件类型标记 `@Deprecated(ERROR)`，需 DiscipleTables 参数才能正确实现
+- 月度事件管线（`CultivationEventProcessor.processMonthlyEvents`）存在多事务提交问题，已记入架构文档待完成项
+
+---
+
 ## Android SDK / Encoding
 
 - `compileSdk = 35`, `minSdk = 24`, `targetSdk = 35`

@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
@@ -297,7 +298,13 @@ class CultivationSettlement @Inject constructor(
             val lastSettled = data.spiritMineLastSettledMonth
             if (currentMonth > lastSettled && monthlyRate > 0L) {
                 val delta = currentMonth - lastSettled
-                spiritStoneWallet.add(this, monthlyRate * delta, SpiritStoneGrade.LOW, SpiritStoneSource.Mine)
+                val totalOutput = monthlyRate * delta
+                spiritStoneWallet.add(this, totalOutput, SpiritStoneGrade.LOW, SpiritStoneSource.Mine)
+                // 更新引导系统累计灵矿产出计数器
+                val currentCount = gameData.guideCounters[GuideCounterKeys.MINING_OUTPUT] ?: 0L
+                gameData = gameData.copy(
+                    guideCounters = gameData.guideCounters + (GuideCounterKeys.MINING_OUTPUT to currentCount + totalOutput)
+                )
             }
             gameData = gameData.copy(spiritMineLastSettledMonth = currentMonth)
             applyMinerLoyaltyDecay(this)

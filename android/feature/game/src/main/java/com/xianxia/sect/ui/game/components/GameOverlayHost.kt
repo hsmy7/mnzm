@@ -56,6 +56,8 @@ import com.xianxia.sect.ui.components.RewardDisplayDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.core.domain.dialog.DialogType
+import com.xianxia.sect.core.model.guide.GuideTaskRegistry
+import com.xianxia.sect.ui.game.dialogs.GuideDialog
 
 private val CachedColorScheme = XianxiaColorScheme()
 
@@ -292,6 +294,15 @@ fun GameOverlayHost(
                 recruitList = recruitList,
                 gameData = gameData,
                 viewModel = viewModel,
+                onDismiss = onDismiss
+            )
+        }
+        is DialogType.Guide -> {
+            GuideDialog(
+                gameData = gameData,
+                claimedRewardIds = viewModel.guideClaimedRewardIds.value,
+                allTasks = GuideTaskRegistry.ALL_TASKS,
+                onClaimReward = { taskId -> viewModel.claimGuideReward(taskId) },
                 onDismiss = onDismiss
             )
         }

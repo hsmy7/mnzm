@@ -1,0 +1,84 @@
+package com.xianxia.sect.core.engine
+
+import com.xianxia.sect.core.model.SectPolicies
+import com.xianxia.sect.core.model.StorageBag
+import com.xianxia.sect.core.model.guide.GuideCounterKeys
+import com.xianxia.sect.core.util.RngPartition
+
+/**
+ * 引导系统引擎操作 — 发放奖励、更新计数器。
+ */
+fun GameEngine.claimGuideReward(taskId: Int): Boolean {
+    val task = com.xianxia.sect.core.model.guide.GuideTaskRegistry.getTask(taskId) ?: return false
+    val rng = gameRngManager.getRng(RngPartition.SYSTEM)
+    stateStore.update {
+        val gd = gameData
+        if (taskId in gd.guideClaimedRewardIds) return@update
+        if (!task.conditions.all { it.isMet(gd) }) return@update
+
+        val bagName = StorageBag.TIER_NAMES[0]
+        val quantity = task.rewardItemQuantity
+        val existing = storageBags.find { it.rarity == 1 }
+        if (existing != null) {
+            val newQty = existing.quantity + quantity
+            storageBags = storageBags.map {
+                if (it.id == existing.id) it.copy(quantity = newQty) else it
+            }
+        } else {
+            storageBags = storageBags + StorageBag(
+                id = java.util.UUID(rng.nextLong(), rng.nextLong()).toString(),
+                name = bagName,
+                rarity = 1,
+                quantity = quantity
+            )
+        }
+        gameData = gd.copy(
+            guideClaimedRewardIds = gd.guideClaimedRewardIds + taskId
+        )
+    }
+    return true
+}
+
+/**
+ * 批量更新自动分配策略与引导计数器（合并为单次事务）。
+ */
+fun GameEngine.batchUpdateAutoAssignAndGuide(
+    oldPolicies: SectPolicies,
+    newPolicies: SectPolicies,
+    mineActivated: Boolean,
+    plantActivated: Boolean,
+    productionActivated: Boolean
+) {
+    stateStore.update {
+        val gd = gameData
+        var counters = gd.guideCounters
+        if (mineActivated) {
+            val cur = counters[GuideCounterKeys.AUTO_MINE_ACTIVATED] ?: 0L
+            counters = counters + (GuideCounterKeys.AUTO_MINE_ACTIVATED to cur + 1)
+        }
+        if (plantActivated) {
+            val cur = counters[GuideCounterKeys.AUTO_PLANT_ACTIVATED] ?: 0L
+            counters = counters + (GuideCounterKeys.AUTO_PLANT_ACTIVATED to cur + 1)
+        }
+        if (productionActivated) {
+            val cur = counters[GuideCounterKeys.AUTO_PRODUCTION_ACTIVATED] ?: 0L
+            counters = counters + (GuideCounterKeys.AUTO_PRODUCTION_ACTIVATED to cur + 1)
+        }
+        gameData = gd.copy(
+            sectPolicies = newPolicies,
+            guideCounters = counters
+        )
+    }
+}
+
+/**
+ * 递增引导计数器。
+ */
+fun GameEngine.incrementGuideCounter(key: String, amount: Long = 1) {
+    stateStore.update {
+        val currentCount = gameData.guideCounters[key] ?: 0L
+        gameData = gameData.copy(
+            guideCounters = gameData.guideCounters + (key to currentCount + amount)
+        )
+    }
+}

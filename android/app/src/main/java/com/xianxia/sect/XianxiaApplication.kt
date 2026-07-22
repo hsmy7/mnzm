@@ -466,6 +466,7 @@ class XianxiaApplication : Application() {
             "ui_close_button" to R.drawable.ui_close_button,
             "ui_detail_button" to R.drawable.ui_detail_button,
             "ui_diplomacy_button" to R.drawable.ui_diplomacy_button,
+            "ui_guide_button" to R.drawable.ui_guide_button,
             "ui_merchant_button" to R.drawable.ui_merchant_button,
             "ui_build_button" to R.drawable.ui_build_button,
             "ui_warehouse_button" to R.drawable.ui_warehouse_button,

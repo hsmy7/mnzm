@@ -101,6 +101,19 @@ class GameViewModel @Inject constructor(
         onDismissDialog = { dismissDialog() }
     )
     val autoAssign = AutoAssignDelegate(gameEngine)
+    val guide = GuideDelegate()
+
+    // 引导任务已领取奖励的ID集合
+    val guideClaimedRewardIds: StateFlow<Set<Int>> = gameData
+        .map { it.guideClaimedRewardIds }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, sharingStarted, gameData.value.guideClaimedRewardIds)
+
+    fun claimGuideReward(taskId: Int) {
+        gameEngine.launchOnEngine {
+            gameEngine.claimGuideReward(taskId)
+        }
+    }
 
     companion object {
         private const val TAG = "GameViewModel"

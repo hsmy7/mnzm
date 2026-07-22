@@ -310,6 +310,48 @@ placedBuildings → collectAsStateWithLifecycle → derivedStateOf → remember(
 
 **优先级：** 🟡 中（影响视觉体验但数据不丢失，拖动可恢复）
 
+### 5️⃣ 月度事件管线：全量单事务提交
+
+**对标：** Supercell（单个 game tick 内的所有状态变更原子提交）、RimWorld（Long Tick 在单个锁内完成全量结算）
+
+**现状：** `GameEngineCore.processMonthYearChange()` → `CultivationEventProcessor.processMonthlyEvents()` 内部调用约 13 个子服务（AI操作、巡查过期、执法、偷窃、任务刷新、灵矿结算、修炼结算等），每个子服务独立调用 `stateStore.update {}`，产生 10+ 次独立事务。中间状态通过 `StateFlow` 暴露给 UI 层，可能导致 UI 读到部分已更新/部分未更新的不一致状态。
+
+```kotlin
+// 当前：13+ 次独立事务
+stateStore.update { /* 政策成本 */ }         // 事务 1
+processAISectOperations()                      // 事务 2 (内部可能多次)
+checkGameOverCondition()                       // 事务 3
+processScoutInfoExpiryLazy()                   // 事务 4
+stateStore.update { processRemainingTargets() } // 事务 5
+processTheftIfNeeded()                         // 事务 6+
+processLawEnforcementMonthly()                 // 事务 7+
+processMissionRefreshIfDue()                   // 事务 8+
+processCompletedMissionsLazy()                 // 事务 9+
+processSpiritMineProductionMonthly()           // 事务 10
+processMonthlyCultivationAndAuto()             // 事务 11
+// ...
+```
+
+**重构方案：** 将 `processMonthlyEvents` 内部所有子服务逐步重构为接受 `MutableGameState` 参数、不自建 `stateStore.update` 的纯函数模式（pure transformation on MutableGameState）。最终让月度事件管线在单次 `stateStore.update {}` 内完成全量结算。
+
+```kotlin
+// 目标：1 次事务
+stateStore.update {
+    processPolicyCosts(this)              // 已在此事务内
+    processAISectOperations(this, year, month)
+    checkGameOverCondition(this)
+    processTheft(this)
+    processLawEnforcement(this)
+    processSpiritMineProduction(this)
+    processMonthlyCultivation(this)
+    // ... 所有月度事件
+}
+```
+
+**影响范围：** 约 10-15 个服务类需要增加 `MutableGameState` 重载方法，原 `stateStore.update` 调用迁移到调用方。完成后需全量回归月度事件。
+
+**优先级：** 🟡 中（当前单线程引擎架构降低了实际风险，但限制未来多线程扩展）
+
 ---
 
 > 行业对标参考来源：

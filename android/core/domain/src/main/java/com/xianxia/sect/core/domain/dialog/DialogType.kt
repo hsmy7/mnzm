@@ -86,6 +86,11 @@ sealed interface DialogType {
 
     data object ReflectionCliff : DialogType
 
+    // ==================== 引导系统 ====================
+
+    /** 新手引导任务界面 */
+    data object Guide : DialogType
+
     // ==================== 系统对话框 ====================
 
     data object SectLevelDetail : DialogType
