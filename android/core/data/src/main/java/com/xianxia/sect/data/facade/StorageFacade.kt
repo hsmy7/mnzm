@@ -208,14 +208,14 @@ class StorageFacade @Inject constructor(
 
     // ==================== 异步存取方法 ====================
 
-    suspend fun save(slot: Int, data: SaveData): SaveResult<Unit> {
+    suspend fun save(slot: Int, data: SaveData, isAutoSave: Boolean = false): SaveResult<Unit> {
         ensureInitialized()
         val startTime = System.currentTimeMillis()
 
         return try {
             _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.SAVING, 0.1f, "Saving slot $slot")
 
-            val result = engine.save(slot, data)
+            val result = engine.save(slot, data, isAutoSave = isAutoSave)
             val elapsed = System.currentTimeMillis() - startTime
 
             if (result.isSuccess) {
@@ -360,7 +360,10 @@ class StorageFacade @Inject constructor(
     }
 
     fun restoreFromBackupIfCorrupted(slot: Int) {
-        Log.w(TAG, "Backup/restore not available for slot $slot")
+        Log.w(TAG, "Backup/restore delegated to StorageEngine.load() for slot $slot")
+        // StorageEngine.load() 已内置从 .sav/.bak 自动恢复的逻辑，
+        // 由 SaveFileManager.readWithFallback() 处理 CRC32C 校验和回退。
+        // 上层调用方应通过 StorageEngine.load(slot) 触发自动恢复。
     }
 
     // ==================== 统计与健康检查方法 ====================

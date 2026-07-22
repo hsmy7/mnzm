@@ -289,26 +289,28 @@ class CultivationSettlement @Inject constructor(
      * 由 [CultivationEventProcessor.processMonthlyEvents] 调用。
      */
     fun processSpiritMineProductionMonthly() {
-        stateStore.update {
-            val data = gameData
-            val currentMonth = data.gameYear * 12 + data.gameMonth
-            val zones = buildSpiritMineZones(data, discipleTables)
-            val baseOutput = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER
-            val monthlyRate: Long = zones.calculateMonthly(baseOutput.toDouble())
-            val lastSettled = data.spiritMineLastSettledMonth
-            if (currentMonth > lastSettled && monthlyRate > 0L) {
-                val delta = currentMonth - lastSettled
-                val totalOutput = monthlyRate * delta
-                spiritStoneWallet.add(this, totalOutput, SpiritStoneGrade.LOW, SpiritStoneSource.Mine)
-                // 更新引导系统累计灵矿产出计数器
-                val currentCount = gameData.guideCounters[GuideCounterKeys.MINING_OUTPUT] ?: 0L
-                gameData = gameData.copy(
-                    guideCounters = gameData.guideCounters + (GuideCounterKeys.MINING_OUTPUT to currentCount + totalOutput)
-                )
-            }
-            gameData = gameData.copy(spiritMineLastSettledMonth = currentMonth)
-            applyMinerLoyaltyDecay(this)
+        stateStore.update { processSpiritMineProductionMonthly(this) }
+    }
+
+    fun processSpiritMineProductionMonthly(state: MutableGameState) {
+        val data = state.gameData
+        val currentMonth = data.gameYear * 12 + data.gameMonth
+        val zones = buildSpiritMineZones(data, state.discipleTables)
+        val baseOutput = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER
+        val monthlyRate: Long = zones.calculateMonthly(baseOutput.toDouble())
+        val lastSettled = data.spiritMineLastSettledMonth
+        if (currentMonth > lastSettled && monthlyRate > 0L) {
+            val delta = currentMonth - lastSettled
+            val totalOutput = monthlyRate * delta
+            spiritStoneWallet.add(state, totalOutput, SpiritStoneGrade.LOW, SpiritStoneSource.Mine)
+            // 更新引导系统累计灵矿产出计数器
+            val currentCount = state.gameData.guideCounters[GuideCounterKeys.MINING_OUTPUT] ?: 0L
+            state.gameData = state.gameData.copy(
+                guideCounters = state.gameData.guideCounters + (GuideCounterKeys.MINING_OUTPUT to currentCount + totalOutput)
+            )
         }
+        state.gameData = state.gameData.copy(spiritMineLastSettledMonth = currentMonth)
+        applyMinerLoyaltyDecay(state)
     }
 
     /**

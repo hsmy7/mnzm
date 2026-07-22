@@ -37,10 +37,16 @@ class StorageConfig @Inject constructor(
     
     val autoSaveIntervalMonths: Int
         get() = prefs.getInt("auto_save_interval_months", DEFAULT_AUTO_SAVE_INTERVAL_MONTHS)
-    
+
+    val autoBackupOnSave: Boolean
+        get() = prefs.getBoolean("auto_backup_on_save", DEFAULT_AUTO_BACKUP_ON_SAVE)
+
+    val enablePreSaveValidation: Boolean
+        get() = prefs.getBoolean("enable_pre_save_validation", DEFAULT_ENABLE_PRE_SAVE_VALIDATION)
+
     val maxRetryCount: Int
         get() = prefs.getInt("max_retry_count", DEFAULT_MAX_RETRY_COUNT)
-    
+
     val retryDelayMs: Long
         get() = prefs.getLong("retry_delay_ms", DEFAULT_RETRY_DELAY_MS)
     
@@ -124,6 +130,8 @@ class StorageConfig @Inject constructor(
         const val DEFAULT_GZIP_BUFFER_SIZE = 64 * 1024
         const val DEFAULT_MAX_BACKUP_VERSIONS = 5
         const val DEFAULT_AUTO_SAVE_INTERVAL_MONTHS = 3
+        const val DEFAULT_AUTO_BACKUP_ON_SAVE = true
+        const val DEFAULT_ENABLE_PRE_SAVE_VALIDATION = true
         const val DEFAULT_MAX_RETRY_COUNT = 2
         const val DEFAULT_RETRY_DELAY_MS = 100L
         const val DEFAULT_COMPACTION_THRESHOLD = 10

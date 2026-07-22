@@ -57,66 +57,68 @@ class AutoBuyService @Inject constructor(
      * 灵石不足或仓库满时跳过该物品。在 stateStore.update {} 中原子执行。
      */
     fun executeAutoBuy(year: Int, month: Int) {
-        val data = stateStore.gameData.value
+        stateStore.update { executeAutoBuy(year, month, this) }
+    }
+
+    fun executeAutoBuy(year: Int, month: Int, state: MutableGameState) {
+        val data = state.gameData
         if (data.autoBuyList.isEmpty()) return
         if (data.travelingMerchantItems.isEmpty()) return
 
         var purchasedCount = 0
         var skippedNoFunds = 0
 
-        stateStore.update {
-            val newMerchantItems = gameData.travelingMerchantItems.toMutableList()
+        val newMerchantItems = data.travelingMerchantItems.toMutableList()
 
-            for (entry in gameData.autoBuyList) {
-                val matchIdx = newMerchantItems.indexOfFirst { item ->
-                    matches(entry, item)
-                }
-                if (matchIdx < 0) continue
+        for (entry in data.autoBuyList) {
+            val matchIdx = newMerchantItems.indexOfFirst { item ->
+                matches(entry, item)
+            }
+            if (matchIdx < 0) continue
 
-                val merchantItem = newMerchantItems[matchIdx]
-                if (merchantItem.quantity <= 0) continue
+            val merchantItem = newMerchantItems[matchIdx]
+            if (merchantItem.quantity <= 0) continue
 
-                // 检查仓库容量
-                if (!canAddToWarehouse(merchantItem)) {
-                    DomainLog.i(TAG,
-                        "自动购买跳过（仓库满）: ${merchantItem.name}")
-                    continue
-                }
-
-                // 计算可买数量
-                val buyQty = calculateBuyQuantity(
-                    gameData.spiritStones, merchantItem.price, merchantItem.quantity)
-                if (buyQty <= 0) {
-                    skippedNoFunds++
-                    continue
-                }
-                val cost = merchantItem.price * buyQty
-
-                // 通过钱包扣除灵石（检查扣除结果，失败则跳过该物品）
-                val deductResult = spiritStoneWallet.deduct(this, cost, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
-                if (deductResult !is DeductResult.Success) {
-                    skippedNoFunds++
-                    continue
-                }
-
-                // 减少商人库存
-                val remaining = merchantItem.quantity - buyQty
-                if (remaining <= 0) {
-                    newMerchantItems.removeAt(matchIdx)
-                } else {
-                    newMerchantItems[matchIdx] =
-                        merchantItem.copy(quantity = remaining)
-                }
-
-                // 加入仓库（在 MutableGameState 上下文中）
-                addToWarehouse(merchantItem, buyQty)
-                purchasedCount++
+            // 检查仓库容量
+            if (!canAddToWarehouse(merchantItem)) {
+                DomainLog.i(TAG,
+                    "自动购买跳过（仓库满）: ${merchantItem.name}")
+                continue
             }
 
-            gameData = gameData.copy(
-                travelingMerchantItems = newMerchantItems
-            )
+            // 计算可买数量
+            val buyQty = calculateBuyQuantity(
+                state.gameData.spiritStones, merchantItem.price, merchantItem.quantity)
+            if (buyQty <= 0) {
+                skippedNoFunds++
+                continue
+            }
+            val cost = merchantItem.price * buyQty
+
+            // 通过钱包扣除灵石（检查扣除结果，失败则跳过该物品）
+            val deductResult = spiritStoneWallet.deduct(state, cost, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
+            if (deductResult !is DeductResult.Success) {
+                skippedNoFunds++
+                continue
+            }
+
+            // 减少商人库存
+            val remaining = merchantItem.quantity - buyQty
+            if (remaining <= 0) {
+                newMerchantItems.removeAt(matchIdx)
+            } else {
+                newMerchantItems[matchIdx] =
+                    merchantItem.copy(quantity = remaining)
+            }
+
+            // 加入仓库（在 MutableGameState 上下文中）
+            state.addToWarehouse(merchantItem, buyQty)
+            purchasedCount++
         }
+
+        state.gameData = state.gameData.copy(
+            travelingMerchantItems = newMerchantItems
+        )
 
         if (purchasedCount > 0) {
             DomainLog.i(TAG,

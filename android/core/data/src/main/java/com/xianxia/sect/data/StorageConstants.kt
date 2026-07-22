@@ -15,9 +15,12 @@ package com.xianxia.sect.data
 object StorageConstants {
     
     // ==================== 槽位与存档 ====================
-    
+
     /** 默认最大存档槽位数 */
     const val DEFAULT_MAX_SLOTS = 6
+
+    /** 备份文件目录名 */
+    const val BACKUP_DIR_NAME = "saves"
     
     /** 自动存档槽位 ID */
     const val AUTO_SAVE_SLOT = 0

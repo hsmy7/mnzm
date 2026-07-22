@@ -8,8 +8,10 @@ import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.data.integrity.IntegrityResult
 import com.xianxia.sect.data.integrity.SaveValidator
 import com.xianxia.sect.data.archive.DataArchiver
+import com.xianxia.sect.data.backup.SaveFileManager
 import com.xianxia.sect.data.cache.CacheKey
 import com.xianxia.sect.data.config.SaveLimitsConfig
+import com.xianxia.sect.data.config.StorageConfig
 import com.xianxia.sect.data.incremental.ChangeLogOperation
 import com.xianxia.sect.data.local.ProtobufConverters
 import com.xianxia.sect.data.local.SaveSlotMetadata
@@ -17,6 +19,7 @@ import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.data.result.StorageError
 import com.xianxia.sect.data.result.StorageResult
+import com.xianxia.sect.data.serialization.unified.SerializationModule
 import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.unified.SlotMetadata
 import kotlinx.coroutines.Dispatchers
@@ -71,7 +74,10 @@ class StorageEngine @Inject constructor(
     private val infra: StorageInfraFacade,
     private val maintenanceFacade: StorageMaintenanceFacade,
     private val stateStore: GameStateStore,
-    private val repository: GameStateRepository
+    private val repository: GameStateRepository,
+    private val saveFileManager: SaveFileManager,
+    private val serializationModule: SerializationModule,
+    private val storageConfig: StorageConfig
 ) {
     companion object {
         private const val TAG = "StorageEngine"
@@ -110,7 +116,7 @@ class StorageEngine @Inject constructor(
     private val _currentSlot = MutableStateFlow(1)
     val currentSlot: StateFlow<Int> = _currentSlot.asStateFlow()
 
-    suspend fun save(slot: Int, data: SaveData, priority: SavePriority = SavePriority.NORMAL): StorageResult<SaveOperationStats> {
+    suspend fun save(slot: Int, data: SaveData, priority: SavePriority = SavePriority.NORMAL, isAutoSave: Boolean = false): StorageResult<SaveOperationStats> {
         if (!core.lockManager.isValidSlot(slot)) {
             return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
         }
@@ -119,22 +125,66 @@ class StorageEngine @Inject constructor(
             try {
                 val startTime = System.currentTimeMillis()
 
+                // ── 保存前完整性校验 ──
+                if (storageConfig.enablePreSaveValidation) {
+                    _progress.value = EngineProgress(EngineProgress.Stage.VALIDATING, 0.05f, "Validating data")
+                    val integrityResult = SaveValidator.validate(data)
+                    if (integrityResult is IntegrityResult.Corrupted) {
+                        Log.e(TAG, "拒绝保存损坏数据 slot=$slot")
+                        infra.storageMetrics.recordBackupFailure()
+                        return@withWriteLockLight StorageResult.failure(
+                            StorageError.SAVE_FAILED, "保存前校验拒绝：存档数据损坏"
+                        )
+                    }
+                }
+
                 _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.1f, "Saving core data")
 
                 val cleanedData = cleanSaveDataWithArchive(data)
                 val dataWithTimestamp = cleanedData.copy(timestamp = System.currentTimeMillis())
 
-                val result = performFullTransactionSave(slot, dataWithTimestamp)
+                // ── 备份 ──
+                if (storageConfig.autoBackupOnSave && !isAutoSave) {
+                    _progress.value = EngineProgress(EngineProgress.Stage.VALIDATING, 0.15f, "Writing backup")
+                    try {
+                        val br = saveFileManager.atomicWrite(slot, dataWithTimestamp)
+                        if (br.isSuccess) infra.storageMetrics.recordBackupSuccess()
+                        else infra.storageMetrics.recordBackupFailure()
+                    } catch (e: Exception) {
+                        Log.w(TAG, "备份异常 slot=$slot (非阻断)", e)
+                        infra.storageMetrics.recordBackupFailure()
+                    }
+                }
+
+                // ── 重试 ──
+                var result = performFullTransactionSave(slot, dataWithTimestamp)
+                var retryCount = 0
+                val maxRetries = storageConfig.maxRetryCount
+                while (result.isFailure && retryCount < maxRetries) {
+                    retryCount++
+                    Log.w(TAG, "保存重试 ($retryCount/$maxRetries) slot=$slot")
+                    kotlinx.coroutines.delay(storageConfig.retryDelayMs * retryCount)
+                    result = performFullTransactionSave(slot, dataWithTimestamp)
+                }
 
                 if (result.isSuccess) {
                     _progress.value = EngineProgress(EngineProgress.Stage.UPDATING_CACHE, 0.8f, "Updating cache")
                     updateCacheAfterSave(slot, dataWithTimestamp)
-
                     _progress.value = EngineProgress(EngineProgress.Stage.SAVING_HISTORY, 0.85f, "Logging changes")
                     logSaveChanges(slot, dataWithTimestamp)
-
                     infra.storageMetrics.recordSave()
                     _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Save completed")
+                } else {
+                    Log.e(TAG, "保存失败（${maxRetries}次重试），尝试恢复 slot=$slot")
+                    try {
+                        val rr = saveFileManager.readWithFallback(slot)
+                        if (rr.status == com.xianxia.sect.data.backup.BackupStatus.SUCCESS ||
+                            rr.status == com.xianxia.sect.data.backup.BackupStatus.RECOVERED) {
+                            Log.w(TAG, "从备份恢复数据成功 slot=$slot")
+                        }
+                    } catch (e2: Exception) {
+                        Log.e(TAG, "备份恢复也失败 slot=$slot", e2)
+                    }
                 }
 
                 result.map { stats ->
@@ -195,12 +245,34 @@ class StorageEngine @Inject constructor(
                         is IntegrityResult.Corrupted -> {
                             Log.e(TAG, "存档数据损坏 (slot=$slot): ${integrityResult.details.size} 项")
                             integrityResult.details.forEach { Log.e(TAG, "  → $it") }
-                            // 尝试恢复备份（由上层 StorageFacade 处理）
+
+                            // ── 尝试从备份文件恢复 ──
+                            _progress.value = EngineProgress(EngineProgress.Stage.VALIDATING, 0.5f, "尝试从备份恢复...")
+                            val readResult = saveFileManager.readWithFallback(slot)
+                            if (readResult.status == com.xianxia.sect.data.backup.BackupStatus.SUCCESS ||
+                                readResult.status == com.xianxia.sect.data.backup.BackupStatus.RECOVERED) {
+                                try {
+                                    val restoredData = serializationModule.deserializeSaveData(readResult.payload ?: return@withReadLockLight StorageResult.failure(
+    StorageError.SLOT_CORRUPTED, "备份恢复失败：payload 为空 (slot=$slot)"))
+                                    Log.w(TAG, "备份恢复成功 (slot=$slot) 来源=${readResult.source}")
+                                    infra.storageMetrics.recordBackupRestore()
+                                    performFullTransactionSave(slot, restoredData)
+                                    clearCacheForSlot(slot)
+                                    updateCacheAfterSave(slot, restoredData)
+                                    _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (backup)")
+                                    return@withReadLockLight StorageResult.success(restoredData)
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "备份反序列化失败 slot=$slot", e)
+                                }
+                            } else {
+                                Log.e(TAG, "备份文件也损坏或不存在 slot=$slot")
+                            }
+
                             _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f,
-                                "存档数据损坏: ${integrityResult.details.size} 项问题")
+                                "存档损坏且备份恢复失败: ${integrityResult.details.size} 项问题")
                             return@withReadLockLight StorageResult.failure(
                                 StorageError.SLOT_CORRUPTED,
-                                "存档数据完整性校验失败 (slot=$slot): ${integrityResult.details.joinToString("; ")}"
+                                "存档校验失败且备份不可用 (slot=$slot): ${integrityResult.details.joinToString("; ")}"
                             )
                         }
                     }
@@ -268,6 +340,7 @@ class StorageEngine @Inject constructor(
                 }
 
                 clearCacheForSlot(slot)
+                saveFileManager.deleteSlot(slot)
 
                 Log.i(TAG, "Deleted all data for slot $slot (isAutoSave=$isAutoSave)")
                 StorageResult.success(Unit)
@@ -469,25 +542,47 @@ class StorageEngine @Inject constructor(
     }
 
     private suspend fun performFullTransactionSave(slot: Int, data: SaveData): StorageResult<SaveOperationStats> {
-        core.database.withTransaction {
-            writeAllDataToDatabase(slot, data)
+        // ── WAL 事务开始 ──
+        var txnId: Long? = null
+        try {
+            val result = core.wal.beginTransaction(slot, com.xianxia.sect.data.wal.WALEntryType.DATA, null)
+            if (result.isSuccess) txnId = result.getOrNull()
+        } catch (e: Exception) {
+            Log.w(TAG, "WAL beginTransaction 失败（非阻断）", e)
         }
 
         try {
-            core.database.performPostSaveCheckpoint()
+            core.database.withTransaction {
+                writeAllDataToDatabase(slot, data)
+            }
+
+            try {
+                core.database.performPostSaveCheckpoint()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "Post-save checkpoint failed for slot $slot (non-fatal)", e)
+            }
+
+            // ── WAL 提交 ──
+            if (txnId != null) {
+                try {
+                    core.wal.commit(txnId, currentGameYear = data.gameData.gameYear)
+                } catch (e: Exception) {
+                    Log.w(TAG, "WAL commit 失败（非阻断）", e)
+                }
+            }
+
+            val bytesWritten = estimateSaveSize(data)
+            return StorageResult.success(SaveOperationStats(bytesWritten = bytesWritten, timeMs = 0, wasIncremental = false))
         } catch (e: CancellationException) {
+            // WAL 回滚后传递取消信号
+            if (txnId != null) try { core.wal.abortSync(txnId) } catch (e2: Exception) { Log.w(TAG, "WAL abortSync 失败", e2) }
             throw e
         } catch (e: Exception) {
-            Log.w(TAG, "Post-save checkpoint failed for slot $slot (non-fatal)", e)
+            if (txnId != null) try { core.wal.abort(txnId) } catch (e2: Exception) { Log.w(TAG, "WAL abort 失败", e2) }
+            throw e
         }
-
-        val bytesWritten = estimateSaveSize(data)
-
-        return StorageResult.success(SaveOperationStats(
-            bytesWritten = bytesWritten,
-            timeMs = 0,
-            wasIncremental = false
-        ))
     }
 
     private suspend fun writeAllDataToDatabase(slot: Int, data: SaveData) {

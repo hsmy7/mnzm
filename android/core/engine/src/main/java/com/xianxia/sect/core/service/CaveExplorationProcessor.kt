@@ -295,7 +295,13 @@ class CaveExplorationProcessor @Inject constructor(
     }
 
     fun processAISectOperations(year: Int, month: Int) {
-        val data = stateStore.gameData.value
+        stateStore.update { processAISectOperations(year, month, this) }
+        processAIVsAIBattles()
+        processPlayerDefenseBattles()
+    }
+
+    fun processAISectOperations(year: Int, month: Int, state: MutableGameState) {
+        val data = state.gameData
         val aiDisciples = data.aiSectDisciples
 
         val currentAbsMonth = LazyEvaluationDispatcher.toAbsoluteMonth(year, month)
@@ -346,20 +352,15 @@ class CaveExplorationProcessor @Inject constructor(
             }
         }
 
-        stateStore.update {
-            gameData = gameData.copy(
-                sectDetails = cleanedSectDetails,
-                aiSectDisciples = gameData.aiSectDisciples.mapValues { (sId, current) ->
-                    val calculated = updatedAiDisciples[sId] ?: return@mapValues current
-                    val currentIds = current.map { it.id }.toSet()
-                    calculated.filter { it.id in currentIds }
-                },
-                worldMapSects = syncedWorldSects
-            )
-        }
-
-        processAIVsAIBattles()
-        processPlayerDefenseBattles()
+        state.gameData = state.gameData.copy(
+            sectDetails = cleanedSectDetails,
+            aiSectDisciples = state.gameData.aiSectDisciples.mapValues { (sId, current) ->
+                val calculated = updatedAiDisciples[sId] ?: return@mapValues current
+                val currentIds = current.map { it.id }.toSet()
+                calculated.filter { it.id in currentIds }
+            },
+            worldMapSects = syncedWorldSects
+        )
     }
 
     /**

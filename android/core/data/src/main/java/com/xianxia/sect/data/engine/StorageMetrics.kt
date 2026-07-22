@@ -15,6 +15,9 @@ class StorageMetrics @Inject constructor() {
     private val loadCount = AtomicLong(0)
     private val cacheHitCount = AtomicLong(0)
     private val cacheMissCount = AtomicLong(0)
+    private val backupSuccessCount = AtomicLong(0)
+    private val backupFailureCount = AtomicLong(0)
+    private val backupRestoreCount = AtomicLong(0)
 
     fun recordSave() {
         saveCount.incrementAndGet()
@@ -30,5 +33,17 @@ class StorageMetrics @Inject constructor() {
 
     fun recordCacheMiss() {
         cacheMissCount.incrementAndGet()
+    }
+
+    fun recordBackupSuccess() {
+        backupSuccessCount.incrementAndGet()
+    }
+
+    fun recordBackupFailure() {
+        backupFailureCount.incrementAndGet()
+    }
+
+    fun recordBackupRestore() {
+        backupRestoreCount.incrementAndGet()
     }
 }

@@ -34,7 +34,7 @@ class SaveStorageImpl @Inject constructor(
             productionSlots = snapshot.productionSlots,
             storageBags = snapshot.storageBags
         )
-        val result = storageFacade.save(slot, saveData)
+        val result = storageFacade.save(slot, saveData, isAutoSave = true)
         return result.isSuccess
     }
 

@@ -12,6 +12,8 @@
 - **重构：`AutoAssignDelegate.setAutoAssignSettings` 合并为单事务** — 自动分配策略写入和引导计数器递增原子提交，消除崩溃后状态不一致
 - **修复：`claimGuideReward` TOCTOU 竞态** — 条件检查和奖励发放全部移入 `stateStore.update` 原子执行，消除条件变化与奖励发放之间的窗口
 - **修复：`UUID.randomUUID()` 改用 GameRngManager** — 储物袋 ID 生成从 `UUID.randomUUID()` 改为 `GameRngManager.getRng(RngPartition.SYSTEM)`，符合确定性 RNG 规范
+- **重构：月度事件管线全量单事务提交** — `processMonthlyEvents` 中 10/13 个子服务合并为单次 `stateStore.update`，从 13 次降为 4 次 StateFlow 发射。`processCompletedMissionsLazy` 两阶段改造消除奖励丢失风险。执法/偷窃内部方法全部 MutableGameState 化消除读-写窗口
+- **新增：存档双缓冲回退机制** — `SaveFileManager` 提供 CRC32C 校验 + write-tmp→rename 原子写入 + `.sav`/`.bak` 双文件回退。`StorageEngine` 接入保存前校验、重试、WAL 事务包裹、自动备份恢复。自动存档跳过备份
 
 ### 新增功能
 

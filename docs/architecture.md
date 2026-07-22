@@ -271,6 +271,7 @@ RunState（运行时状态 — 可循环回退）
 以下优化项基于 [行业对标分析](knowledge-base.md#行业对标分析报告)（来源包括 UE/Supercell/RimWorld/MineColonies 等）。
 
 ### 1️⃣ 存档系统：双缓冲回退机制
+n**完成内容：** `SaveFileManager` 提供 write-tmp → rename 原子写入 + CRC32C 完整性校验 + `.sav`/`.bak` 双文件回退。`StorageEngine.save()` 接入保存前校验和自动重试，`load()` 接入 CRC32C 校验 + 自动 `.bak` 恢复。`FunctionalWAL` 接入主保存路径。自动存档跳过备份
 
 **对标：** 移动端增量存档行业标准（双缓冲/主+备份模式）
 **现状：** 依赖 Room WAL 模式的事务原子性，无独立 .bak 回退
@@ -311,6 +312,7 @@ placedBuildings → collectAsStateWithLifecycle → derivedStateOf → remember(
 **优先级：** 🟡 中（影响视觉体验但数据不丢失，拖动可恢复）
 
 ### 5️⃣ 月度事件管线：全量单事务提交
+n**完成内容：** `processMonthlyEvents` 中 10/13 个子服务合并为单次 `stateStore.update` 原子执行（原 13 次降为 4 次 StateFlow 发射）。`processCompletedMissionsLazy` 改为两阶段模式（事务外计算 + 事务内写入），消除 CancellationException 奖励丢失风险。执法/偷窃系统内部方法全部 MutableGameState 化，消除读-写窗口
 
 **对标：** Supercell（单个 game tick 内的所有状态变更原子提交）、RimWorld（Long Tick 在单个锁内完成全量结算）
 

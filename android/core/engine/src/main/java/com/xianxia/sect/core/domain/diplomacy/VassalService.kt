@@ -13,6 +13,7 @@ import com.xianxia.sect.core.model.GameEventType
 import com.xianxia.sect.core.model.VassalContract
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.recordGameEvent
 import com.xianxia.sect.core.util.DomainLog
@@ -308,11 +309,15 @@ class VassalService @Inject constructor(
      * 四因素权重同接受逻辑。
      */
     fun processMonthlyBreakawayCheck() {
-        val data = stateStore.gameData.value
+        stateStore.update { processMonthlyBreakawayCheck(this) }
+    }
+
+    fun processMonthlyBreakawayCheck(state: MutableGameState) {
+        val data = state.gameData
         val contracts = data.vassalContracts
         if (contracts.isEmpty()) return
 
-        val playerPower = computePlayerTotalPower()
+        val playerPower = computePlayerTotalPower(state.discipleTables)
         val playerSect = data.worldMapSects.find {
             it.isPlayerSect
         } ?: return
@@ -338,20 +343,18 @@ class VassalService @Inject constructor(
         }
 
         if (changed) {
-            stateStore.update {
-                gameData = gameData.copy(
-                    vassalContracts = gameData.vassalContracts.filter {
-                        it.vassalSectId !in removedIds
-                    }
-                )
-                removedIds.forEach { sectId ->
-                    val sect = data.worldMapSects.find { it.id == sectId }
-                    if (sect != null) {
-                        recordGameEvent(
-                            GameEventCategory.WORLD, GameEventType.VASSAL_BREAKAWAY,
-                            "${sect.name}脱离了附属关系"
-                        )
-                    }
+            state.gameData = state.gameData.copy(
+                vassalContracts = state.gameData.vassalContracts.filter {
+                    it.vassalSectId !in removedIds
+                }
+            )
+            removedIds.forEach { sectId ->
+                val sect = data.worldMapSects.find { it.id == sectId }
+                if (sect != null) {
+                    state.recordGameEvent(
+                        GameEventCategory.WORLD, GameEventType.VASSAL_BREAKAWAY,
+                        "${sect.name}脱离了附属关系"
+                    )
                 }
             }
         }
@@ -430,6 +433,12 @@ class VassalService @Inject constructor(
     /** 计算玩家宗门总战力 */
     private fun computePlayerTotalPower(): Double {
         val disciples = stateStore.discipleTables.assembleAll()
+        return AISectAttackManager.calculatePowerScore(disciples)
+    }
+
+    /** 计算玩家宗门总战力（MutableGameState 重载，使用事务内数据） */
+    private fun computePlayerTotalPower(tables: DiscipleTables): Double {
+        val disciples = tables.assembleAll()
         return AISectAttackManager.calculatePowerScore(disciples)
     }
 

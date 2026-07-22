@@ -273,36 +273,42 @@ class CultivationEventProcessor @Inject constructor(
         newMnInstances.forEach { state.manualInstances.add(it) }
     }
     // ── 月度/年度事件 ──────────────────────────────────────────────────
+
+    /**
+     * 在 [stateStore.update] 事务内安全执行子服务。
+     * 单个子服务的异常不会阻断整个事务。
+     */
+    private fun MutableGameState.safelyRunInState(name: String, block: MutableGameState.() -> Unit) {
+        try {
+            block()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DomainLog.e(TAG, "月度事件[$name] 异常", e)
+        }
+    }
+
     fun processMonthlyEvents(year: Int, month: Int) {
-        safelyRun("aiSectOperations") {
-            caveExplorationProcessor.get().processAISectOperations(year, month)
-        }
-        safelyRun("gameOverCheck") { checkGameOverCondition() }
-        safelyRun("scoutExpiry") { processScoutInfoExpiryLazy(year, month) }
-        safelyRun("aiBeastAttacksRemaining") {
-            stateStore.update { aiSectBeastAttackProcessor.processRemainingTargets(this) }
-        }
+        // ── 复杂子服务（内部仍有独立 stateStore.update，待优化） ──
         safelyRun("theft") { processTheftIfNeeded() }
         safelyRun("lawEnforcement") { processLawEnforcementMonthly() }
-        safelyRun("missionRefresh") { processMissionRefreshIfDue(month) }
-        safelyRun("completedMissions") {
-            processCompletedMissionsLazy(year, month)
+        safelyRun("completedMissions") { processCompletedMissionsLazy(year, month) }
+
+        // ── 已迁移 MutableGameState 的子服务：单事务内执行 ──
+        stateStore.update {
+            safelyRunInState("aiSectOperations") { caveExplorationProcessor.get().processAISectOperations(year, month, this) }
+            safelyRunInState("gameOverCheck") { checkGameOverCondition(this) }
+            safelyRunInState("scoutExpiry") { processScoutInfoExpiryLazy(year, month, this) }
+            safelyRunInState("aiBeastAttacksRemaining") { aiSectBeastAttackProcessor.processRemainingTargets(this) }
+            if (month == 12) {
+                safelyRunInState("autoBuy") { autoBuyService.executeAutoBuy(year, month, this) }
+            }
+            safelyRunInState("spiritMineProduction") { cultivationSettlement.processSpiritMineProductionMonthly(this) }
+            safelyRunInState("disciplePurchase") { disciplePurchaseService.executePurchase(year, month, this) }
+            safelyRunInState("monthlyCultivation") { processMonthlyCultivationAndAuto(this) }
+            safelyRunInState("vassalBreakaway") { vassalService.processMonthlyBreakawayCheck(this) }
+            safelyRunInState("missionRefresh") { processMissionRefreshIfDue(month, this) }
         }
-        if (month == 12) {
-            safelyRun("autoBuy") { autoBuyService.executeAutoBuy(year, month) }
-        }
-        // 灵矿月度产出结算（含政策月度灵石扣除，保证事务原子性）
-        safelyRun("spiritMineProduction") {
-            cultivationSettlement.processSpiritMineProductionMonthly()
-        }
-        // 弟子智能购买上架物品
-        safelyRun("disciplePurchase") {
-            disciplePurchaseService.executePurchase(year, month)
-        }
-        // 月度修炼结算 + HP/MP恢复 + 自动装备/丹药
-        safelyRun("monthlyCultivation") { processMonthlyCultivationAndAuto() }
-        // 附属宗门月度脱离检查
-        safelyRun("vassalBreakaway") { vassalService.processMonthlyBreakawayCheck() }
     }
     /**
      * 月度 HP/MP 恢复兜底。
@@ -314,14 +320,15 @@ class CultivationEventProcessor @Inject constructor(
      * 对标 RimWorld Long Tick — 每月一次性 HP/MP 恢复。
      */
     private fun processMonthlyCultivationAndAuto() {
-        stateStore.update {
-            val data = gameData
-            val tables = discipleTables
-            val aliveIds = tables.ids.filter { tables.isAlive[it] == 1 }
-            if (aliveIds.isEmpty()) return@update
-            // HP/MP 恢复（兜底，已由每旬检查补充）
-            cultivationCore.recoverHpMpForAllDisciples(this, phasesToSettle = 3)
-        }
+        stateStore.update { processMonthlyCultivationAndAuto(this) }
+    }
+    private fun processMonthlyCultivationAndAuto(state: MutableGameState) {
+        val data = state.gameData
+        val tables = state.discipleTables
+        val aliveIds = tables.ids.filter { tables.isAlive[it] == 1 }
+        if (aliveIds.isEmpty()) return
+        // HP/MP 恢复（兜底，已由每旬检查补充）
+        cultivationCore.recoverHpMpForAllDisciples(state, phasesToSettle = 3)
     }
     fun processYearlyEvents(year: Int) {
         safelyRun("yearlyTribute") {
@@ -452,15 +459,10 @@ class CultivationEventProcessor @Inject constructor(
         val captureRate = calculateCaptureRate()
         val currentMonthValue = data.gameYear * 12 + data.gameMonth
         val tables = stateStore.discipleTables
-        val threshold =
-            GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD
-        val protectionMonths =
-            GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS
+        val threshold = GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD
+        val protectionMonths = GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS
 
-        // 直接用 discipleTables 读实时数据，避免 StateFlow 快照滞后
-        val atRiskIds = findAtRiskDiscipleIds(
-            currentMonthValue, threshold, protectionMonths, tables
-        )
+        val atRiskIds = findAtRiskDiscipleIds(currentMonthValue, threshold, protectionMonths, tables)
 
         for (id in atRiskIds) {
             val loyal = tables.loyalties.getOrDefault(id, 0)
@@ -507,18 +509,21 @@ class CultivationEventProcessor @Inject constructor(
 
     /** 执行叛逃结果：捕获→面壁 / 逃脱→清理装备+通知 */
     private fun enforceDiscipleDesertion(
-        id: Int,
-        currentYear: Int,
-        captureRate: Double,
-        threshold: Int,
-        tables: DiscipleTables
+        id: Int, currentYear: Int, captureRate: Double, threshold: Int, tables: DiscipleTables
     ) {
-        if (rngManager.getRng(RngPartition.SYSTEM).nextDouble()
-            < captureRate
-        ) {
+        if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() < captureRate) {
             captureDiscipleForReflection(id, currentYear)
         } else {
             escapeDiscipleWithCleanup(id, threshold, tables)
+        }
+    }
+    private fun enforceDiscipleDesertion(
+        id: Int, currentYear: Int, captureRate: Double, threshold: Int, tables: DiscipleTables, state: MutableGameState
+    ) {
+        if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() < captureRate) {
+            captureDiscipleForReflection(id, currentYear, state)
+        } else {
+            escapeDiscipleWithCleanup(id, threshold, tables, state)
         }
     }
 
@@ -526,28 +531,49 @@ class CultivationEventProcessor @Inject constructor(
     private fun captureDiscipleForReflection(
         id: Int, currentYear: Int
     ) {
-        val endYear = currentYear +
-            GameConfig.LawEnforcementConfig.REFLECTION_YEARS
-        stateStore.update {
-            val d = discipleTables.assemble(id) ?: return@update
-            discipleTables.remove(id)
-            discipleTables.insert(d.copy(
-                status = DiscipleStatus.REFLECTING,
-                statusData = d.statusData + mapOf(
-                    "reflectionStartYear" to currentYear.toString(),
-                    "reflectionEndYear" to endYear.toString()
-                )
-            ))
-        }
+        stateStore.update { captureDiscipleForReflection(id, currentYear, this) }
+    }
+    private fun captureDiscipleForReflection(
+        id: Int, currentYear: Int, state: MutableGameState
+    ) {
+        val endYear = currentYear + GameConfig.LawEnforcementConfig.REFLECTION_YEARS
+        val tables = state.discipleTables
+        val d = tables.assemble(id) ?: return
+        tables.remove(id)
+        tables.insert(d.copy(
+            status = DiscipleStatus.REFLECTING,
+            statusData = d.statusData + mapOf(
+                "reflectionStartYear" to currentYear.toString(),
+                "reflectionEndYear" to endYear.toString()
+            )
+        ))
     }
 
     /** 叛逃弟子逃脱：删除装备/功法实例 + 清理槽位 + 通知 */
     private fun escapeDiscipleWithCleanup(
         id: Int, threshold: Int, tables: DiscipleTables
     ) {
-        // 防御性二次校验：确认忠诚度仍低于阈值
-        if (tables.loyalties.getOrDefault(id, 0) >= threshold) return
-        val snapshot = tables.assemble(id) ?: return
+        val preData = collectDesertionCleanupData(id, threshold, tables) ?: return
+        discipleLifecycleProcessor.clearDiscipleFromAllSlots(id.toString())
+        stateStore.update { applyDesertionCleanup(id, threshold, preData) }
+    }
+    private fun escapeDiscipleWithCleanup(
+        id: Int, threshold: Int, tables: DiscipleTables, state: MutableGameState
+    ) {
+        val preData = collectDesertionCleanupData(id, threshold, tables) ?: return
+        discipleLifecycleProcessor.clearDiscipleFromAllSlots(id.toString())
+        state.applyDesertionCleanup(id, threshold, preData)
+    }
+    private data class DesertionPreData(
+        val desertEquipIds: List<String>,
+        val desertManualIds: Set<String>,
+        val desertProfId: String,
+        val snapshotName: String,
+        val snapshotId: String
+    )
+    private fun collectDesertionCleanupData(id: Int, threshold: Int, tables: DiscipleTables): DesertionPreData? {
+        if (tables.loyalties.getOrDefault(id, 0) >= threshold) return null
+        val snapshot = tables.assemble(id) ?: return null
         val desertEquipIds = mutableListOf<String>()
         snapshot.equipment.weaponId?.let { desertEquipIds.add(it) }
         snapshot.equipment.armorId?.let { desertEquipIds.add(it) }
@@ -555,42 +581,24 @@ class CultivationEventProcessor @Inject constructor(
         snapshot.equipment.accessoryId?.let { desertEquipIds.add(it) }
         snapshot.equipment.storageBagItems
             .filter { it.itemType == ITEM_TYPE_EQUIPMENT_STACK || it.itemType == ITEM_TYPE_EQUIPMENT_INSTANCE }
-            .map { it.itemId }
-            .forEach { desertEquipIds.add(it) }
+            .map { it.itemId }.forEach { desertEquipIds.add(it) }
         val desertManualIds = snapshot.manualIds.toSet() +
             snapshot.equipment.storageBagItems
                 .filter { it.itemType == ITEM_TYPE_MANUAL_STACK || it.itemType == ITEM_TYPE_MANUAL_INSTANCE }
                 .map { it.itemId }
-        val desertProfId = id.toString()
-        discipleLifecycleProcessor.clearDiscipleFromAllSlots(
-            id.toString()
-        )
-        stateStore.update {
-            // 二次校验在事务内重做，防悬停点间被修改
-            if (discipleTables.loyalties.getOrDefault(id, 0)
-                < threshold
-            ) {
-                // 直接删除叛逃弟子的装备/功法实例
-                equipmentInstances = equipmentInstances.filter {
-                    it.id !in desertEquipIds
-                }
-                manualInstances = manualInstances.filter {
-                    it.id !in desertManualIds
-                }
-                val mutableProf =
-                    gameData.manualProficiencies.toMutableMap()
-                mutableProf.remove(desertProfId)
-                gameData = gameData.copy(
-                    manualProficiencies = mutableProf
-                )
-                discipleTables.remove(id)
-            }
-            // 事件记录与删除在同一事务内原子完成
-            recordGameEvent(
-                GameEventCategory.SECT, GameEventType.DESERTION,
-                "${snapshot.name}叛逃脱离了宗门", snapshot.id, snapshot.name
-            )
+        return DesertionPreData(desertEquipIds, desertManualIds, id.toString(), snapshot.name, snapshot.id)
+    }
+    private fun MutableGameState.applyDesertionCleanup(id: Int, threshold: Int, preData: DesertionPreData) {
+        if (discipleTables.loyalties.getOrDefault(id, 0) < threshold) {
+            equipmentInstances = equipmentInstances.filter { it.id !in preData.desertEquipIds }
+            manualInstances = manualInstances.filter { it.id !in preData.desertManualIds }
+            val mutableProf = gameData.manualProficiencies.toMutableMap()
+            mutableProf.remove(preData.desertProfId)
+            gameData = gameData.copy(manualProficiencies = mutableProf)
+            discipleTables.remove(id)
         }
+        recordGameEvent(GameEventCategory.SECT, GameEventType.DESERTION,
+            "${preData.snapshotName}叛逃脱离了宗门", preData.snapshotId, preData.snapshotName)
     }
 
     /**
@@ -624,27 +632,44 @@ class CultivationEventProcessor @Inject constructor(
      * @return 实际盗取的灵石数量（≤0 表示无可偷灵石）
      */
     private fun executeTheftStolen(
-        disciple: Disciple,
-        currentMonthValue: Int,
-        tables: DiscipleTables
+        disciple: Disciple, currentMonthValue: Int, tables: DiscipleTables
     ): Long {
         val currentData = stateStore.gameData.value
-        if (currentData.spiritStones <= 0) return 0L
-        val stolenAmount = (currentData.spiritStones * (
-            GameConfig.LawEnforcementConfig.THEFT_MIN_RATIO +
-            (GameConfig.LawEnforcementConfig.THEFT_MAX_RATIO - GameConfig.LawEnforcementConfig.THEFT_MIN_RATIO) *
-            rngManager.getRng(RngPartition.SYSTEM).nextDouble()
-        )).toLong().coerceAtLeast(1)
+        val stolenAmount = calcTheftAmount(currentData)
+        if (stolenAmount <= 0L) return 0L
         stateStore.update {
             gameData = gameData.copy(spiritStones = (gameData.spiritStones - stolenAmount).coerceAtLeast(0))
-            discipleTables.assembleAll().firstOrNull { it.id == disciple.id }?.let { d ->
-                discipleTables.update(d.copy(
+            tables.assembleAll().firstOrNull { it.id == disciple.id }?.let { d ->
+                tables.update(d.copy(
                     equipment = d.equipment.copy(storageBagSpiritStones = d.equipment.storageBagSpiritStones + stolenAmount),
                     usage = d.usage.copy(lastTheftMonth = currentMonthValue)
                 ))
             }
         }
         return stolenAmount
+    }
+    private fun executeTheftStolen(
+        disciple: Disciple, currentMonthValue: Int, tables: DiscipleTables, state: MutableGameState
+    ): Long {
+        if (state.gameData.spiritStones <= 0) return 0L
+        val stolenAmount = calcTheftAmount(state.gameData)
+        if (stolenAmount <= 0L) return 0L
+        state.gameData = state.gameData.copy(spiritStones = (state.gameData.spiritStones - stolenAmount).coerceAtLeast(0))
+        tables.assembleAll().firstOrNull { it.id == disciple.id }?.let { d ->
+            tables.update(d.copy(
+                equipment = d.equipment.copy(storageBagSpiritStones = d.equipment.storageBagSpiritStones + stolenAmount),
+                usage = d.usage.copy(lastTheftMonth = currentMonthValue)
+            ))
+        }
+        return stolenAmount
+    }
+    private fun calcTheftAmount(data: GameData): Long {
+        if (data.spiritStones <= 0) return 0L
+        return (data.spiritStones * (
+            GameConfig.LawEnforcementConfig.THEFT_MIN_RATIO +
+            (GameConfig.LawEnforcementConfig.THEFT_MAX_RATIO - GameConfig.LawEnforcementConfig.THEFT_MIN_RATIO) *
+            rngManager.getRng(RngPartition.SYSTEM).nextDouble()
+        )).toLong().coerceAtLeast(1)
     }
 
     fun processTheftMonthly() {
@@ -655,116 +680,164 @@ class CultivationEventProcessor @Inject constructor(
         val tables = stateStore.discipleTables
         val moralThreshold = GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD
         val loyalThreshold = GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD
-        val protectionMonths =
-            GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS
-        // 直接从 discipleTables 读取实时数据
+        val protectionMonths = GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS
         val atRiskIds = tables.ids.filter { id ->
-            tables.isAlive.getOrDefault(id, 0) == 1 &&
-                tables.statuses.getOrDefault(id, DiscipleStatus.IDLE) ==
-                    DiscipleStatus.IDLE &&
-                tables.moralities.getOrDefault(id, 0) < moralThreshold &&
-                tables.loyalties.getOrDefault(id, 0) < loyalThreshold &&
-                (currentMonthValue -
-                    tables.recruitedMonths.getOrDefault(id, 0)) >=
-                    protectionMonths &&
-                (currentMonthValue -
-                    tables.lastTheftMonths.getOrDefault(id, 0)) >= 12
+            tables.isAlive.getOrDefault(id, 0) == 1 && tables.statuses.getOrDefault(id, DiscipleStatus.IDLE) == DiscipleStatus.IDLE &&
+                tables.moralities.getOrDefault(id, 0) < moralThreshold && tables.loyalties.getOrDefault(id, 0) < loyalThreshold &&
+                (currentMonthValue - tables.recruitedMonths.getOrDefault(id, 0)) >= protectionMonths &&
+                (currentMonthValue - tables.lastTheftMonths.getOrDefault(id, 0)) >= 12
         }
-        val thiefIds = mutableSetOf<Int>()
-        val warehouses = currentData.placedBuildings.filter {
-            it.displayName == "仓库"
-        }
+        val warehouses = currentData.placedBuildings.filter { it.displayName == "仓库" }
         val garrisons = currentData.warehouseGarrisons
+        val thiefIds = executeTheftLoop(atRiskIds, tables, captureRate, currentMonthValue, moralThreshold, loyalThreshold, warehouses, garrisons)
+        processTheftDesertionCleanup(thiefIds, tables, loyalThreshold)
+    }
+    fun processTheftMonthly(state: MutableGameState) {
+        val currentData = state.gameData
+        if (currentData.spiritStones <= 0) return
+        val captureRate = calculateCaptureRate()
+        val currentMonthValue = currentData.gameYear * 12 + currentData.gameMonth
+        val tables = state.discipleTables
+        val moralThreshold = GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD
+        val loyalThreshold = GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD
+        val protectionMonths = GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS
+        val atRiskIds = tables.ids.filter { id ->
+            tables.isAlive.getOrDefault(id, 0) == 1 && tables.statuses.getOrDefault(id, DiscipleStatus.IDLE) == DiscipleStatus.IDLE &&
+                tables.moralities.getOrDefault(id, 0) < moralThreshold && tables.loyalties.getOrDefault(id, 0) < loyalThreshold &&
+                (currentMonthValue - tables.recruitedMonths.getOrDefault(id, 0)) >= protectionMonths &&
+                (currentMonthValue - tables.lastTheftMonths.getOrDefault(id, 0)) >= 12
+        }
+        val warehouses = currentData.placedBuildings.filter { it.displayName == "仓库" }
+        val garrisons = currentData.warehouseGarrisons
+        val thiefIds = executeTheftLoopState(atRiskIds, tables, captureRate, currentMonthValue, moralThreshold, loyalThreshold, warehouses, garrisons, state)
+        processTheftDesertionCleanup(thiefIds, tables, loyalThreshold, state)
+    }
+
+    /** 从 atRiskIds 列表执行偷窃判定循环，返回偷窃后应叛逃的弟子 ID 集合 */
+    private fun executeTheftLoop(
+        atRiskIds: List<Int>, tables: DiscipleTables, captureRate: Double, currentMonthValue: Int,
+        moralThreshold: Int, loyalThreshold: Int, warehouses: List<GridBuildingData>, garrisons: List<WarehouseGarrisonSlot>
+    ): Set<Int> {
+        return executeTheftLoopInternal(atRiskIds, tables, captureRate, currentMonthValue, moralThreshold, loyalThreshold, warehouses, garrisons,
+            onCaught = { disciple, _, _ ->
+                stateStore.update {
+                    val tid = disciple.id.toIntOrNull() ?: return@update
+                    if (discipleTables.ids.contains(tid) && discipleTables.isAlive[tid] == 1) {
+                        discipleTables.statuses[tid] = DiscipleStatus.REFLECTING
+                    }
+                    recordGameEvent(GameEventCategory.SECT, GameEventType.THEFT_CAUGHT, "${disciple.name}偷盗被捕", disciple.id, disciple.name)
+                }
+            },
+            onStolen = { disciple, amount ->
+                stateStore.update { recordGameEvent(GameEventCategory.SECT, GameEventType.WAREHOUSE_THEFT, "宗门仓库被盗，损失了 $amount 灵石") }
+            }
+        )
+    }
+    private fun executeTheftLoopState(
+        atRiskIds: List<Int>, tables: DiscipleTables, captureRate: Double, currentMonthValue: Int,
+        moralThreshold: Int, loyalThreshold: Int, warehouses: List<GridBuildingData>, garrisons: List<WarehouseGarrisonSlot>,
+        state: MutableGameState
+    ): Set<Int> {
+        return executeTheftLoopInternal(atRiskIds, tables, captureRate, currentMonthValue, moralThreshold, loyalThreshold, warehouses, garrisons,
+            onCaught = { disciple, _, _ ->
+                val tid = disciple.id.toIntOrNull() ?: return@executeTheftLoopInternal
+                if (state.discipleTables.ids.contains(tid) && state.discipleTables.isAlive[tid] == 1) {
+                    state.discipleTables.statuses[tid] = DiscipleStatus.REFLECTING
+                }
+                state.recordGameEvent(GameEventCategory.SECT, GameEventType.THEFT_CAUGHT, "${disciple.name}偷盗被捕", disciple.id, disciple.name)
+            },
+            onStolen = { _, amount ->
+                state.recordGameEvent(GameEventCategory.SECT, GameEventType.WAREHOUSE_THEFT, "宗门仓库被盗，损失了 $amount 灵石")
+            }
+        )
+    }
+    private fun executeTheftLoopInternal(
+        atRiskIds: List<Int>, tables: DiscipleTables, captureRate: Double, currentMonthValue: Int,
+        moralThreshold: Int, loyalThreshold: Int, warehouses: List<GridBuildingData>, garrisons: List<WarehouseGarrisonSlot>,
+        onCaught: (Disciple, Int, Int) -> Unit, onStolen: (Disciple, Long) -> Unit
+    ): Set<Int> {
+        val thiefIds = mutableSetOf<Int>()
         for (id in atRiskIds) {
             val disciple = tables.assemble(id) ?: continue
             val stats = DiscipleStatCalculator.getBaseStats(disciple)
-            val effectiveMorality = stats.morality
-            val theftProb =
-                ((moralThreshold - effectiveMorality) *
-                    GameConfig.LawEnforcementConfig.PROB_PER_POINT)
-                    .coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
-            if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() < theftProb) {
-                val caught = tryGuardCatch(disciple, warehouses, garrisons, captureRate)
-                if (caught) {
-                    stateStore.update {
-                        val id = disciple.id.toIntOrNull() ?: return@update
-                        if (discipleTables.ids.contains(id) && discipleTables.isAlive[id] == 1) {
-                            discipleTables.statuses[id] = DiscipleStatus.REFLECTING
-                            val existingData = discipleTables.statusData[id]
-                            discipleTables.statusData[id] = existingData + mapOf(
-                                "reflectionStartYear" to currentData.gameYear.toString(),
-                                "reflectionEndYear" to (currentData.gameYear + GameConfig.LawEnforcementConfig.REFLECTION_YEARS).toString()
-                            )
-                        }
-                        recordGameEvent(GameEventCategory.SECT, GameEventType.THEFT_CAUGHT, "${disciple.name}偷盗被捕", disciple.id, disciple.name)
-                    }
-                } else {
-                    val stolenAmount = executeTheftStolen(
-                        disciple, currentMonthValue, tables
-                    )
-                    if (stolenAmount <= 0L) break
-                    val loyalty = stats.loyalty
-                    val desertionProb =
-                        ((loyalThreshold - loyalty) *
-                            GameConfig.LawEnforcementConfig.PROB_PER_POINT)
-                            .coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
-                    if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() < desertionProb) {
-                        thiefIds.add(id)
-                    }
-                    stateStore.update {
-                        recordGameEvent(GameEventCategory.SECT, GameEventType.WAREHOUSE_THEFT, "宗门仓库被盗，损失了 $stolenAmount 灵石")
-                    }
+            val theftProb = ((moralThreshold - stats.morality) * GameConfig.LawEnforcementConfig.PROB_PER_POINT).coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
+            if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() >= theftProb) continue
+            if (tryGuardCatch(disciple, warehouses, garrisons, captureRate)) {
+                onCaught(disciple, currentMonthValue, captureRate.toInt())
+            } else {
+                val stolenAmount = executeTheftStolen(disciple, currentMonthValue, tables)
+                if (stolenAmount <= 0L) break
+                if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() < ((loyalThreshold - stats.loyalty) * GameConfig.LawEnforcementConfig.PROB_PER_POINT).coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)) {
+                    thiefIds.add(id)
                 }
+                onStolen(disciple, stolenAmount)
             }
         }
-        processTheftDesertionCleanup(thiefIds, tables, loyalThreshold)
+        return thiefIds
     }
-
     /**
      * 偷盗后叛逃清理：通知 → 清除槽位 → 事务内移除弟子+清理装备/功法。
      */
-    private fun processTheftDesertionCleanup(
-        thiefIds: Set<Int>,
-        tables: DiscipleTables,
-        loyalThreshold: Int
-    ) {
-        if (thiefIds.isEmpty()) return
-        val theftDesertCleanup = mutableMapOf<Int, Triple<List<String>, Set<String>, String>>()
+    private fun processTheftDesertionCleanup(thiefIds: Set<Int>, tables: DiscipleTables, loyalThreshold: Int) {
+        clearThiefSlots(thiefIds)
+        val cleanupData = collectTheftDesertionData(thiefIds, tables, loyalThreshold) ?: return
+        stateStore.update { applyTheftDesertionUpdate(thiefIds, loyalThreshold, cleanupData) }
+    }
+    private fun processTheftDesertionCleanup(thiefIds: Set<Int>, tables: DiscipleTables, loyalThreshold: Int, state: MutableGameState) {
+        clearThiefSlots(thiefIds)
+        val cleanupData = collectTheftDesertionData(thiefIds, tables, loyalThreshold) ?: return
+        state.applyTheftDesertionUpdate(thiefIds, loyalThreshold, cleanupData)
+    }
+    private fun clearThiefSlots(thiefIds: Set<Int>) {
         for (thiefId in thiefIds) {
-            val currentLoyal = tables.loyalties.getOrDefault(thiefId, 0)
-            if (currentLoyal >= loyalThreshold) continue
+            discipleLifecycleProcessor.clearDiscipleFromAllSlots(thiefId.toString())
+        }
+    }
+        private fun collectTheftDesertionData(thiefIds: Set<Int>, tables: DiscipleTables, loyalThreshold: Int): Map<Int, Triple<List<String>, Set<String>, String>>? {
+        if (thiefIds.isEmpty()) return null
+        val result = mutableMapOf<Int, Triple<List<String>, Set<String>, String>>()
+        for (thiefId in thiefIds) {
+            if (tables.loyalties.getOrDefault(thiefId, 0) >= loyalThreshold) continue
             val snapshot = tables.assemble(thiefId) ?: continue
             val equipIds = mutableListOf<String>()
             snapshot.equipment.weaponId?.let { equipIds.add(it) }
             snapshot.equipment.armorId?.let { equipIds.add(it) }
             snapshot.equipment.bootsId?.let { equipIds.add(it) }
             snapshot.equipment.accessoryId?.let { equipIds.add(it) }
-            snapshot.equipment.storageBagItems
-                .filter { it.itemType == ITEM_TYPE_EQUIPMENT_STACK || it.itemType == ITEM_TYPE_EQUIPMENT_INSTANCE }
-                .map { it.itemId }
-                .forEach { equipIds.add(it) }
-            val manualIds = snapshot.manualIds.toSet() +
-                snapshot.equipment.storageBagItems
-                    .filter { it.itemType == ITEM_TYPE_MANUAL_STACK || it.itemType == ITEM_TYPE_MANUAL_INSTANCE }
-                    .map { it.itemId }
-            theftDesertCleanup[thiefId] = Triple(equipIds, manualIds, snapshot.name)
-            discipleLifecycleProcessor.clearDiscipleFromAllSlots(thiefId.toString())
+            snapshot.equipment.storageBagItems.filter { it.itemType == ITEM_TYPE_EQUIPMENT_STACK || it.itemType == ITEM_TYPE_EQUIPMENT_INSTANCE }.map { it.itemId }.forEach { equipIds.add(it) }
+            val manualIds = snapshot.manualIds.toSet() + snapshot.equipment.storageBagItems.filter { it.itemType == ITEM_TYPE_MANUAL_STACK || it.itemType == ITEM_TYPE_MANUAL_INSTANCE }.map { it.itemId }
+            result[thiefId] = Triple(equipIds, manualIds, snapshot.name)
         }
-        stateStore.update {
-            for (thiefId in thiefIds) {
-                if (discipleTables.loyalties.getOrDefault(thiefId, 0) >= loyalThreshold) continue
-                val (equipIds, manualIds, thiefName) = theftDesertCleanup[thiefId] ?: continue
-                equipmentInstances = equipmentInstances.filter { it.id !in equipIds }
-                manualInstances = manualInstances.filter { it.id !in manualIds }
-                val mutableProf = gameData.manualProficiencies.toMutableMap()
-                mutableProf.remove(thiefId.toString())
-                gameData = gameData.copy(manualProficiencies = mutableProf)
-                discipleTables.remove(thiefId)
-                recordGameEvent(GameEventCategory.SECT, GameEventType.THEFT_DESERTION, "${thiefName}偷盗后叛逃", thiefId.toString(), thiefName)
-                gameData = gameData.copy(
-                    annualDesertedDisciples = gameData.annualDesertedDisciples + 1
-                )
-            }
+        return result
+    }
+    private fun MutableGameState.applyTheftDesertionUpdate(thiefIds: Set<Int>, loyalThreshold: Int, cleanupData: Map<Int, Triple<List<String>, Set<String>, String>>) {
+        for (thiefId in thiefIds) {
+            if (discipleTables.loyalties.getOrDefault(thiefId, 0) >= loyalThreshold) continue
+            val (equipIds, manualIds, thiefName) = cleanupData[thiefId] ?: continue
+            equipmentInstances = equipmentInstances.filter { it.id !in equipIds }
+            manualInstances = manualInstances.filter { it.id !in manualIds }
+            val mutableProf = gameData.manualProficiencies.toMutableMap()
+            mutableProf.remove(thiefId.toString())
+            gameData = gameData.copy(manualProficiencies = mutableProf)
+            discipleTables.remove(thiefId)
+            recordGameEvent(GameEventCategory.SECT, GameEventType.THEFT_DESERTION, "${thiefName}偷盗后叛逃", thiefId.toString(), thiefName)
+            gameData = gameData.copy(annualDesertedDisciples = gameData.annualDesertedDisciples + 1)
+        }
+    }
+    fun processLawEnforcementMonthly(state: MutableGameState) {
+        val data = state.gameData
+        val captureRate = calculateCaptureRate()
+        val currentMonthValue = data.gameYear * 12 + data.gameMonth
+        val tables = state.discipleTables
+        val threshold = GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD
+        val protectionMonths = GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS
+
+        val atRiskIds = findAtRiskDiscipleIds(currentMonthValue, threshold, protectionMonths, tables)
+        for (id in atRiskIds) {
+            val loyal = tables.loyalties.getOrDefault(id, 0)
+            val desertionProb = calcDesertionProbability(threshold, loyal)
+            if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() >= desertionProb) continue
+            enforceDiscipleDesertion(id, data.gameYear, captureRate, threshold, tables, state)
         }
     }
     // ── 战斗/探索辅助 ──────────────────────────────────────────────────
@@ -836,87 +909,112 @@ class CultivationEventProcessor @Inject constructor(
         if (!hasExpired) return
         processScoutInfoExpiry(year, month)
     }
+    fun processScoutInfoExpiryLazy(year: Int, month: Int, state: MutableGameState) {
+        val data = state.gameData
+        val hasExpired = data.scoutInfo.any { (_, info) ->
+            year > info.expiryYear || (year == info.expiryYear && month > info.expiryMonth)
+        }
+        if (!hasExpired) return
+        processScoutInfoExpiry(year, month, state)
+    }
     fun processScoutInfoExpiry(year: Int, month: Int) {
         val data = stateStore.gameData.value
         var hasExpired = false
         val updatedScoutInfo = data.scoutInfo.filter { (_, info) ->
             val isExpired = year > info.expiryYear ||
                 (year == info.expiryYear && month > info.expiryMonth)
-            if (isExpired) {
-                hasExpired = true
-            }
+            if (isExpired) hasExpired = true
             !isExpired
         }
         if (hasExpired) {
-            val updatedWorldMapSects = data.worldMapSects.map { sect ->
-                val sectScoutInfo = updatedScoutInfo[sect.id]
-                if (sectScoutInfo == null && data.sectDetails[sect.id]?.scoutInfo?.sectId?.isNotEmpty() == true) {
-                    sect.copy(isKnown = false)
-                } else {
-                    sect
-                }
-            }
-            val updatedDetails = data.sectDetails.toMutableMap()
-            updatedScoutInfo.forEach { (sectId, _) ->
-                val detail = updatedDetails[sectId] ?: SectDetail(sectId = sectId)
-                updatedDetails[sectId] = detail.copy(scoutInfo = updatedScoutInfo[sectId] ?: SectScoutInfo())
-            }
-            data.sectDetails.forEach { (sectId, detail) ->
-                if (updatedScoutInfo[sectId] == null && detail.scoutInfo.sectId.isNotEmpty()) {
-                    updatedDetails[sectId] = detail.copy(scoutInfo = SectScoutInfo())
-                }
-            }
-            stateStore.update {
-                gameData = gameData.copy(
-                    scoutInfo = updatedScoutInfo,
-                    worldMapSects = updatedWorldMapSects,
-                    sectDetails = updatedDetails
-                )
+            stateStore.update { applyScoutInfoExpiry(this, year, month) }
+        }
+    }
+    fun processScoutInfoExpiry(year: Int, month: Int, state: MutableGameState) {
+        applyScoutInfoExpiry(state, year, month)
+    }
+    private fun applyScoutInfoExpiry(state: MutableGameState, year: Int, month: Int) {
+        val data = state.gameData
+        val updatedScoutInfo = data.scoutInfo.filter { (_, info) ->
+            !(year > info.expiryYear || (year == info.expiryYear && month > info.expiryMonth))
+        }
+        val hasExpired = updatedScoutInfo.size < data.scoutInfo.size
+        if (!hasExpired) return
+        val updatedWorldMapSects = data.worldMapSects.map { sect ->
+            val sectScoutInfo = updatedScoutInfo[sect.id]
+            if (sectScoutInfo == null && data.sectDetails[sect.id]?.scoutInfo?.sectId?.isNotEmpty() == true) {
+                sect.copy(isKnown = false)
+            } else sect
+        }
+        val updatedDetails = data.sectDetails.toMutableMap()
+        updatedScoutInfo.forEach { (sectId, _) ->
+            updatedDetails[sectId] = (updatedDetails[sectId] ?: SectDetail(sectId = sectId)).copy(scoutInfo = updatedScoutInfo[sectId] ?: SectScoutInfo())
+        }
+        data.sectDetails.forEach { (sectId, detail) ->
+            if (updatedScoutInfo[sectId] == null && detail.scoutInfo.sectId.isNotEmpty()) {
+                updatedDetails[sectId] = detail.copy(scoutInfo = SectScoutInfo())
             }
         }
+        state.gameData = state.gameData.copy(scoutInfo = updatedScoutInfo, worldMapSects = updatedWorldMapSects, sectDetails = updatedDetails)
     }
     fun processTheftIfNeeded() {
         if (stateStore.gameData.value.spiritStones <= 0) return
         val tables = stateStore.discipleTables
-        val moralThreshold =
-            GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD
-        val loyalThreshold =
-            GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD
+        val moralThreshold = GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD
+        val loyalThreshold = GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD
         val hasLowMoralityDisciple = tables.ids.any { id ->
             tables.isAlive.getOrDefault(id, 0) == 1 &&
-            tables.statuses.getOrDefault(id, DiscipleStatus.IDLE) ==
-                DiscipleStatus.IDLE &&
+            tables.statuses.getOrDefault(id, DiscipleStatus.IDLE) == DiscipleStatus.IDLE &&
             tables.moralities.getOrDefault(id, 0) < moralThreshold &&
             tables.loyalties.getOrDefault(id, 0) < loyalThreshold
         }
         if (!hasLowMoralityDisciple) return
         processTheftMonthly()
     }
+    fun processTheftIfNeeded(state: MutableGameState) {
+        if (state.gameData.spiritStones <= 0) return
+        val tables = state.discipleTables
+        val moralThreshold = GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD
+        val loyalThreshold = GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD
+        val hasLowMoralityDisciple = tables.ids.any { id ->
+            tables.isAlive.getOrDefault(id, 0) == 1 &&
+            tables.statuses.getOrDefault(id, DiscipleStatus.IDLE) == DiscipleStatus.IDLE &&
+            tables.moralities.getOrDefault(id, 0) < moralThreshold &&
+            tables.loyalties.getOrDefault(id, 0) < loyalThreshold
+        }
+        if (!hasLowMoralityDisciple) return
+        processTheftMonthly(state)
+    }
     // ── 任务 ──────────────────────────────────────────────────────────
     fun processCompletedMissionsLazy(year: Int, month: Int) {
         val data = stateStore.gameData.value
         val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(year, month)
-        val completedIds = mutableListOf<String>()
         val remainingActive = mutableListOf<ActiveMission>()
+
+        // ── Phase 1: 事务外计算 + IO 操作（状态变更收集，不执行 stateStore.update） ──
+        data class MissionReward(
+            val missionId: String,
+            val spiritStones: Int,
+            val survivors: Set<String>,
+            val discipleIds: List<String>
+        )
+        val rewards = mutableListOf<MissionReward>()
+
         for (activeMission in data.activeMissions) {
             val missionCompletionMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(
                 activeMission.startYear, activeMission.startMonth
             ) + activeMission.duration
             if (currentAbsoluteMonth < missionCompletionMonth) {
-                remainingActive.add(activeMission)
-                continue
+                remainingActive.add(activeMission); continue
             }
             if (!activeMission.isComplete(year, month)) {
-                remainingActive.add(activeMission)
-                continue
+                remainingActive.add(activeMission); continue
             }
-            var missionRewarded = false
-            var missionError: Throwable? = null
-            runCatching {
+            val reward = runCatching {
                 val aliveDisciples = activeMission.discipleIds.mapNotNull { did ->
                     stateStore.disciples.value.find { it.id == did && it.isAlive }
                 }
-                if (aliveDisciples.isEmpty()) return@runCatching
+                if (aliveDisciples.isEmpty()) return@runCatching null
                 val equipMap = stateStore.equipmentInstances.value.associateBy { it.id }
                 val manualMap = stateStore.manualInstances.value.associateBy { it.id }
                 val proficiencies = stateStore.gameData.value.manualProficiencies.mapValues { (_, list) ->
@@ -925,68 +1023,77 @@ class CultivationEventProcessor @Inject constructor(
                 val result = MissionSystem.processMissionCompletion(
                     activeMission, aliveDisciples, equipMap, manualMap, proficiencies, battleSystem
                 )
-                // 单事务：灵石 + 灵魂点 + 弟子状态重置，原子提交
-                stateStore.update {
-                    if (result.spiritStones > 0) {
-                        spiritStoneWallet.add(this,
-                            result.spiritStones.toLong(),
-                            SpiritStoneGrade.LOW,
-                            SpiritStoneSource.Quest
-                        )
-                    }
-                    val survivors = if (result.combatTriggered && result.victory && result.battleResult != null) {
-                        result.battleResult.log.teamMembers.filter { it.isAlive }.map { it.id }.toSet()
-                    } else emptySet()
-                    for (did in activeMission.discipleIds) {
-                        val tid = did.toIntOrNull() ?: continue
-                        if (!discipleTables.ids.contains(tid) || discipleTables.isAlive[tid] != 1) continue
-                        if (tid.toString() in survivors) {
-                            discipleTables.soulPowers[tid] = discipleTables.soulPowers.getOrDefault(tid, 0) + 1
-                        }
-                        discipleTables.statuses[tid] = DiscipleStatus.IDLE
-                    }
-                }
+                // IO 操作留在 Phase 1（事务外允许）
                 result.materials.forEach { material -> inventorySystem.addMaterial(material) }
                 inventorySystem.withTrackingSource("trial") {
                     result.pills.forEach { pill -> inventorySystem.addPill(pill) }
                     result.equipmentStacks.forEach { equip -> inventorySystem.addEquipmentStack(equip) }
                 }
                 result.manualStacks.forEach { manual -> inventorySystem.addManualStack(manual) }
-                missionRewarded = true
-            }.onFailure { e ->
-                if (e is kotlinx.coroutines.CancellationException) { missionError = e; return@onFailure }
-                DomainLog.w(TAG, "processCompletedMissionsLazy: mission ${activeMission.id} failed", e)
+                val survivors = if (result.combatTriggered && result.victory && result.battleResult != null) {
+                    result.battleResult.log.teamMembers.filter { it.isAlive }.map { it.id }.toSet()
+                } else emptySet()
+                MissionReward(activeMission.id, result.spiritStones, survivors, activeMission.discipleIds)
             }
-            if (missionError != null) {
-                remainingActive.add(activeMission)  // 保留任务到下次循环，而非丢失
-                throw missionError!!
-            }
-            if (missionRewarded) {
-                completedIds.add(activeMission.id)
+            if (reward.isSuccess && reward.getOrNull() != null) {
+                reward.getOrNull()?.let { rewards.add(it) }
             } else {
-                remainingActive.add(activeMission)  // 奖励失败，保留下次重试
+                remainingActive.add(activeMission) // 失败的任务保留到下次
             }
         }
-        if (completedIds.isNotEmpty()) {
-            stateStore.update { gameData = gameData.copy(activeMissions = remainingActive) }
+
+        if (rewards.isEmpty()) {
+            if (remainingActive.size < data.activeMissions.size) {
+                stateStore.update { gameData = gameData.copy(activeMissions = remainingActive) }
+            }
+            return
+        }
+
+        // ── Phase 2: 单事务写入状态 ──
+        stateStore.update {
+            for (reward in rewards) {
+                if (reward.spiritStones > 0) {
+                    spiritStoneWallet.add(this, reward.spiritStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.Quest)
+                }
+                for (did in reward.discipleIds) {
+                    val tid = did.toIntOrNull() ?: continue
+                    val tableIds = discipleTables.ids
+                    if (tid < 0 || tid >= tableIds.size || discipleTables.isAlive[tid] != 1) continue
+                    if (did in reward.survivors) {
+                        discipleTables.soulPowers[tid] = discipleTables.soulPowers.getOrDefault(tid, 0) + 1
+                    }
+                    discipleTables.statuses[tid] = DiscipleStatus.IDLE
+                }
+            }
+            gameData = gameData.copy(activeMissions = remainingActive)
         }
     }
     fun processMissionRefreshIfDue(month: Int) {
         if (month % MissionSystem.REFRESH_INTERVAL_MONTHS != 0) return
         processMissionRefresh()
     }
+    fun processMissionRefreshIfDue(month: Int, state: MutableGameState) {
+        if (month % MissionSystem.REFRESH_INTERVAL_MONTHS != 0) return
+        processMissionRefresh(state)
+    }
     fun processMissionRefresh() {
-        val data = stateStore.gameData.value
+        stateStore.update { processMissionRefresh(this) }
+    }
+    fun processMissionRefresh(state: MutableGameState) {
+        val data = state.gameData
         val result = MissionSystem.processMonthlyRefresh(
             data.availableMissions,
             data.gameYear,
             data.gameMonth
         )
-        stateStore.update { gameData = gameData.copy(availableMissions = result.cleanedMissions) }
+        state.gameData = state.gameData.copy(availableMissions = result.cleanedMissions)
     }
     // ── 游戏结束 ──────────────────────────────────────────────────────
     fun checkGameOverCondition() {
-        val currentData = stateStore.gameData.value
+        stateStore.update { checkGameOverCondition(this) }
+    }
+    fun checkGameOverCondition(state: MutableGameState) {
+        val currentData = state.gameData
         if (currentData.isGameOver) return
         val playerSect = currentData.worldMapSects.find { it.isPlayerSect } ?: return
         val playerSectId = playerSect.id
@@ -995,7 +1102,7 @@ class CultivationEventProcessor @Inject constructor(
             (sect.occupierSectId == playerSectId && !sect.isPlayerSect)
         }
         if (!playerControlsAnySect) {
-            stateStore.update { this.gameData = this.gameData.copy(isGameOver = true) }
+            state.gameData = state.gameData.copy(isGameOver = true)
         }
     }
     // ── 辅助方法 ──────────────────────────────────────────────────────

@@ -2,6 +2,7 @@ package com.xianxia.sect.di
 
 import android.content.Context
 import com.xianxia.sect.data.archive.DataArchiver
+import com.xianxia.sect.data.backup.SaveSerializer
 import com.xianxia.sect.data.compression.DataCompressor
 import com.xianxia.sect.data.concurrent.SlotLockManager
 import com.xianxia.sect.data.config.SaveLimitsConfig
@@ -102,7 +103,10 @@ object StorageModule {
         infra: StorageInfraFacade,
         maintenanceFacade: StorageMaintenanceFacade,
         stateStore: com.xianxia.sect.core.state.GameStateStore,
-        repository: com.xianxia.sect.data.GameStateRepository
+        repository: com.xianxia.sect.data.GameStateRepository,
+        saveFileManager: com.xianxia.sect.data.backup.SaveFileManager,
+        serializationModule: com.xianxia.sect.data.serialization.unified.SerializationModule,
+        storageConfig: com.xianxia.sect.data.config.StorageConfig
     ): StorageEngine {
         return StorageEngine(
             core = core,
@@ -111,8 +115,21 @@ object StorageModule {
             infra = infra,
             maintenanceFacade = maintenanceFacade,
             stateStore = stateStore,
-            repository = repository
+            repository = repository,
+            saveFileManager = saveFileManager,
+            serializationModule = serializationModule,
+            storageConfig = storageConfig
         )
+    }
+
+    @Provides
+    @Singleton
+    fun provideSaveSerializer(
+        serializationModule: SerializationModule
+    ): SaveSerializer {
+        return SaveSerializer { saveData ->
+            serializationModule.serializeAndCompressSaveData(saveData)
+        }
     }
 
     @Provides

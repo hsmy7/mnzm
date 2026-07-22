@@ -153,21 +153,25 @@ class DisciplePurchaseService @Inject constructor(
      * 执行弟子智能购买。在 [CultivationEventProcessor.processMonthlyEvents] 中调用。
      */
     fun executePurchase(year: Int, month: Int) {
-        val currentData = stateStore.gameData.value
+        stateStore.update { executePurchase(year, month, this) }
+    }
+
+    fun executePurchase(year: Int, month: Int, state: MutableGameState) {
+        val currentData = state.gameData
         val listedItems = currentData.playerListedItems
         if (listedItems.isEmpty()) return
 
-        val allDisciples = collectDisciples(stateStore.discipleTables)
+        val allDisciples = collectDisciples(state.discipleTables)
         if (allDisciples.isEmpty()) return
 
         val decisions = buildPurchaseDecisions(
             listedItems, allDisciples,
-            stateStore.equipmentInstances.value,
-            stateStore.manualInstances.value
+            state.equipmentInstances.all(),
+            state.manualInstances.all()
         )
         if (decisions.isEmpty()) return
 
-        applyPurchaseDecisions(decisions, year, month)
+        applyPurchaseDecisions(state, decisions, year, month)
     }
 
     /**
@@ -218,35 +222,34 @@ class DisciplePurchaseService @Inject constructor(
      * 在 [stateStore.update] 事务中原子写入所有购买决策。
      */
     private fun applyPurchaseDecisions(
+        state: MutableGameState,
         decisions: List<PurchaseEntry>,
         year: Int,
         month: Int
     ) {
-        stateStore.update {
-            for (decision in decisions) {
-                val item = decision.item
-                val dId = decision.discipleId
+        for (decision in decisions) {
+            val item = decision.item
+            val dId = decision.discipleId
 
-                // 仓库无库存 → 跳过（listing 保留，等补货后再购）
-                if (!hasWarehouseStock(item)) continue
+            // 仓库无库存 → 跳过（listing 保留，等补货后再购）
+            if (!state.hasWarehouseStock(item)) continue
 
-                // 设计要求：先扣仓库再扣灵石，仓库失败则跳过购买
-                if (!addToWarehouseAndBag(item, dId, year, month)) continue
-                deductSpiritStones(dId, item.price)
-                // 弟子支付的灵石计入宗门仓库
-                gameData = gameData.copy(spiritStones = gameData.spiritStones + item.price)
+            // 设计要求：先扣仓库再扣灵石，仓库失败则跳过购买
+            if (!state.addToWarehouseAndBag(item, dId, year, month)) continue
+            state.deductSpiritStones(dId, item.price)
+            // 弟子支付的灵石计入宗门仓库
+            state.gameData = state.gameData.copy(spiritStones = state.gameData.spiritStones + item.price)
 
-                // 记录购买日志
-                val purchaseAge = discipleTables.ages[dId]
-                val currentEvents = discipleTables.lifeEvents.getOrDefault(
-                    dId, emptyList()
-                )
-                discipleTables.lifeEvents[dId] = currentEvents +
-                    "${purchaseAge}岁：购买了${item.name}"
+            // 记录购买日志
+            val purchaseAge = state.discipleTables.ages[dId]
+            val currentEvents = state.discipleTables.lifeEvents.getOrDefault(
+                dId, emptyList()
+            )
+            state.discipleTables.lifeEvents[dId] = currentEvents +
+                "${purchaseAge}岁：购买了${item.name}"
 
-                // 不修改 listing 数量，不自动删除 listing
-                // 仓库库存是唯一的购买门控，补货后自动可购
-            }
+            // 不修改 listing 数量，不自动删除 listing
+            // 仓库库存是唯一的购买门控，补货后自动可购
         }
 
         if (decisions.isNotEmpty()) {
