@@ -8,7 +8,7 @@ package com.xianxia.sect.core.touch
  * @property touchSlopPx 触摸滑动阈值（像素），超过此值才视为拖拽
  *   — 来源: Android ViewConfiguration.scaledTouchSlop (典型值 8~24px)
  * @property longPressTimeoutMs 长按超时（毫秒）
- *   — 来源: iOS HIG 标准 400~500ms
+ *   — 来源: 适配长按移动建筑场景，延长至 800ms 减少误触；iOS HIG 标准 400~500ms
  * @property minFlingVelocity 最小惯性滑行触发速度 (px/s)
  *   — 来源: Android Scroller minFlingVelocity (200~600)
  * @property flingDeceleration 惯性滑行减速度 (px/s²)
@@ -20,7 +20,7 @@ package com.xianxia.sect.core.touch
  */
 data class TouchEngineConfig(
     val touchSlopPx: Float = 16f,
-    val longPressTimeoutMs: Long = 400L,
+    val longPressTimeoutMs: Long = 800L,
     val minFlingVelocity: Float = 200f,
     val flingDeceleration: Float = 1500f,
     val flingStopThreshold: Float = 25f,
