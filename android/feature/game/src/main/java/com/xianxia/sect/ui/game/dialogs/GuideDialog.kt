@@ -35,6 +35,9 @@ import com.xianxia.sect.core.model.guide.GuideCondition
 import com.xianxia.sect.core.model.guide.GuideTask
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.ItemCardData
+import com.xianxia.sect.ui.components.UnifiedItemCard
+import com.xianxia.sect.ui.theme.GameColors
 
 /**
  * 全屏修仙引导教程对话框。
@@ -62,14 +65,13 @@ fun GuideDialog(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xCC1A1A2E))
-    ) {
+            .background(Color(0xFFF5F5DC))    ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // ======== 顶部栏 ========
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF1A1A2E))
+                    .background(Color(0xFFF5F5DC))
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -77,7 +79,7 @@ fun GuideDialog(
                     text = "修仙引导",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = Color.Black
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 CloseButton(onClick = onDismiss)
@@ -102,7 +104,7 @@ fun GuideDialog(
 
                 // 分隔线
                 VerticalDivider(
-                    color = Color.Gray,
+                    color = GameColors.Border,
                     modifier = Modifier.fillMaxHeight(),
                     thickness = 1.dp
                 )
@@ -118,7 +120,7 @@ fun GuideDialog(
 
                 // 分隔线
                 VerticalDivider(
-                    color = Color.Gray,
+                    color = GameColors.Border,
                     modifier = Modifier.fillMaxHeight(),
                     thickness = 1.dp
                 )
@@ -153,26 +155,33 @@ private fun TaskListColumn(
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
-        modifier = modifier.padding(vertical = 8.dp)
+        modifier = modifier.padding(start = 24.dp, top = 8.dp, bottom = 8.dp)
     ) {
         items(allTasks, key = { it.id }) { task ->
             val isSelected = task.id == selectedTaskId
             val isCompleted = task.id in claimedRewardTaskIds
+            val prefix = if (isCompleted) "✓ " else "○ "
+            val prefixColor = if (isCompleted) GameColors.Success else Color(0xFF999999)
 
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(
-                        if (isSelected) Color(0x334B6E8E) else Color.Transparent
+                        if (isSelected) Color(0xFFE9E4DF) else Color.Transparent
                     )
                     .clickable { onTaskSelected(task.id) }
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
+                    text = prefix,
+                    fontSize = 13.sp,
+                    color = prefixColor
+                )
+                Text(
                     text = task.name,
                     fontSize = 13.sp,
-                    color = if (isCompleted) Color(0xFF4CAF50) else Color(0xFFE53935),
+                    color = Color.Black,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                 )
             }
@@ -196,7 +205,7 @@ private fun TaskDetailColumn(
             Text(
                 text = "请选择一个任务",
                 fontSize = 14.sp,
-                color = Color(0xFFAAAAAA)
+                color = Color(0xFF999999)
             )
         }
         return
@@ -213,7 +222,7 @@ private fun TaskDetailColumn(
             Text(
                 text = selectedTask.description,
                 fontSize = 14.sp,
-                color = Color.White,
+                color = Color(0xFF333333),
                 lineHeight = 22.sp,
                 modifier = Modifier.verticalScroll(rememberScrollState())
             )
@@ -221,7 +230,7 @@ private fun TaskDetailColumn(
 
         // 描述与条件之间的分隔线
         HorizontalDivider(
-            color = Color(0xFF555555),
+            color = GameColors.Border,
             modifier = Modifier.fillMaxWidth(),
             thickness = 1.dp
         )
@@ -237,7 +246,7 @@ private fun TaskDetailColumn(
                 Text(
                     text = "无条件限制",
                     fontSize = 13.sp,
-                    color = Color(0xFFAAAAAA)
+                    color = Color(0xFF999999)
                 )
             } else {
                 LazyColumn {
@@ -267,7 +276,8 @@ private fun ConditionItem(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
     ) {
         val icon = if (isMet) "✓ " else "□ "
         val textColor = if (isMet) Color(0xFF4CAF50) else Color(0xFFE53935)
@@ -298,7 +308,7 @@ private fun RewardColumn(
             Text(
                 text = "请选择一个任务",
                 fontSize = 13.sp,
-                color = Color(0xFFAAAAAA)
+                color = Color(0xFF999999)
             )
             return@Box
         }
@@ -307,21 +317,18 @@ private fun RewardColumn(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // 奖励物品名称
-            Text(
-                text = selectedTask.rewardItemName,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // 奖励数量
-            Text(
-                text = "×${selectedTask.rewardItemQuantity}",
-                fontSize = 14.sp,
-                color = Color.White
+            // 奖励物品卡片（含物品图标、名称、数量角标）
+            UnifiedItemCard(
+                data = ItemCardData(
+                    id = "guide_reward_${selectedTask.id}",
+                    name = selectedTask.rewardItemName,
+                    rarity = 1,
+                    quantity = selectedTask.rewardItemQuantity,
+                    isBag = true
+                ),
+                size = 80.dp,
+                showQuantity = true,
+                onClick = {}
             )
 
             Spacer(modifier = Modifier.height(24.dp))
