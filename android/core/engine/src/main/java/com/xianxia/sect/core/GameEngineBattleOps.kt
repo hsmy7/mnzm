@@ -153,9 +153,16 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
                 )
                 spiritStoneWallet.add(this, rewards.spiritStones,
                     SpiritStoneGrade.LOW, SpiritStoneSource.Battle)
-                rewards.equipmentStacks.forEach { inventorySystem.addEquipmentStack(it) }; rewards.manualStacks.forEach { inventorySystem.addManualStack(it) }
-                rewards.pills.forEach { inventorySystem.addPill(it) }; rewards.materials.forEach { inventorySystem.addMaterial(it) }
-                rewards.herbs.forEach { inventorySystem.addHerb(it) }; rewards.seeds.forEach { inventorySystem.addSeed(it) }
+                inventorySystem.withTrackingSource("battle") {
+                    rewards.equipmentStacks.forEach { inventorySystem.addEquipmentStack(it) }
+                }
+                rewards.manualStacks.forEach { inventorySystem.addManualStack(it) }
+                inventorySystem.withTrackingSource("battle") {
+                    rewards.pills.forEach { inventorySystem.addPill(it) }
+                    rewards.herbs.forEach { inventorySystem.addHerb(it) }
+                }
+                rewards.materials.forEach { inventorySystem.addMaterial(it) }
+                rewards.seeds.forEach { inventorySystem.addSeed(it) }
                 recordGameEvent(
                     GameEventCategory.WORLD, GameEventType.SECT_OCCUPY,
                     "玩家宗门占领了${targetSect.name}"
@@ -165,9 +172,16 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
             stateStore.update {
                 spiritStoneWallet.add(this, rewards.spiritStones,
                     SpiritStoneGrade.LOW, SpiritStoneSource.Battle)
-                rewards.equipmentStacks.forEach { inventorySystem.addEquipmentStack(it) }; rewards.manualStacks.forEach { inventorySystem.addManualStack(it) }
-                rewards.pills.forEach { inventorySystem.addPill(it) }; rewards.materials.forEach { inventorySystem.addMaterial(it) }
-                rewards.herbs.forEach { inventorySystem.addHerb(it) }; rewards.seeds.forEach { inventorySystem.addSeed(it) }
+                inventorySystem.withTrackingSource("battle") {
+                    rewards.equipmentStacks.forEach { inventorySystem.addEquipmentStack(it) }
+                }
+                rewards.manualStacks.forEach { inventorySystem.addManualStack(it) }
+                inventorySystem.withTrackingSource("battle") {
+                    rewards.pills.forEach { inventorySystem.addPill(it) }
+                    rewards.herbs.forEach { inventorySystem.addHerb(it) }
+                }
+                rewards.materials.forEach { inventorySystem.addMaterial(it) }
+                rewards.seeds.forEach { inventorySystem.addSeed(it) }
             }
         }
         stateStore.setPendingBattleResult(BattleResultUIData(battleLogId = log.id, victory = true, teamMembers = teamMembers, rewards = warRewardsToBattleRewardItems(rewards)))
@@ -512,11 +526,11 @@ private suspend fun GameEngine.handleCaveLevelVictory(level: WorldLevel): List<B
             }
             1 -> {
                 val equip = com.xianxia.sect.core.registry.EquipmentDatabase.generateRandom(rarity)
-                if (equip != null) { val result = inventorySystem.addEquipmentStack(equip); if (result.isSuccess) rewards.add(BattleRewardItem(itemId = equip.id, name = equip.name, quantity = 1, rarity = equip.rarity, type = "equipment")) }
+                if (equip != null) { val result = inventorySystem.withTrackingSource("battle") { inventorySystem.addEquipmentStack(equip) }; if (result.isSuccess) rewards.add(BattleRewardItem(itemId = equip.id, name = equip.name, quantity = 1, rarity = equip.rarity, type = "equipment")) }
             }
             else -> {
                 val pill = com.xianxia.sect.core.registry.ItemDatabase.generateRandomPill(rarity)
-                if (pill != null) { val result = inventorySystem.addPill(pill); if (result.isSuccess) rewards.add(BattleRewardItem(itemId = pill.id, name = pill.name, quantity = 1, rarity = pill.rarity, type = "pill")) }
+                if (pill != null) { val result = inventorySystem.withTrackingSource("battle") { inventorySystem.addPill(pill) }; if (result.isSuccess) rewards.add(BattleRewardItem(itemId = pill.id, name = pill.name, quantity = 1, rarity = pill.rarity, type = "pill")) }
             }
         }
     }

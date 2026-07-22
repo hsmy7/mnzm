@@ -572,6 +572,18 @@ object CollectionConverters {
     fun toBattleResultUIDataList(value: String): List<BattleResultUIData> =
         ProtobufConverters.decodeFromBase64(ListSerializer(BattleResultUIData.serializer()), value) { emptyList() }
 
+    // ==================== 年度报告转换器 ====================
+
+    @TypeConverter
+    @JvmStatic
+    fun fromYearlyReportList(value: List<YearlyReport>): String =
+        ProtobufConverters.encodeToBase64(ListSerializer(YearlyReport.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toYearlyReportList(value: String): List<YearlyReport> =
+        ProtobufConverters.decodeFromBase64(ListSerializer(YearlyReport.serializer()), value) { emptyList() }
+
     // ==================== 引导系统转换器 ====================
 
     @TypeConverter
@@ -583,4 +595,5 @@ object CollectionConverters {
     @JvmStatic
     fun toStringLongMap(value: String): Map<String, Long> =
         ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), Long.serializer()), value) { emptyMap() }
+
 }

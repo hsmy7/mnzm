@@ -13,6 +13,10 @@
 - **修复：`claimGuideReward` TOCTOU 竞态** — 条件检查和奖励发放全部移入 `stateStore.update` 原子执行，消除条件变化与奖励发放之间的窗口
 - **修复：`UUID.randomUUID()` 改用 GameRngManager** — 储物袋 ID 生成从 `UUID.randomUUID()` 改为 `GameRngManager.getRng(RngPartition.SYSTEM)`，符合确定性 RNG 规范
 
+### 新增功能
+
+- **新增：战斗日志新增\"年报日志\"标签页** — 战斗日志对话框内新增\"年报日志\"标签，每年结束自动生成年度报告，包含灵石收支（按来源/原因分类）、生产产出（锻造/炼丹/灵植）、弟子变动（新增/死亡/脱离）。标签页内分两级：历年列表（年数+收入+支出）→ 点击查看 7 行详情对话框（汇总 FlowRow + 收入来源 + 支出来源 + 锻造装备 + 炼制丹药 + 收获草药 + 弟子变动）。数据保留最近 100 年，超出自动删除
+
 ### Bug 修复
 
 - **修复：操作弟子详情等界面时 ANR 闪退（Bugly #9041/#5068）** — 根因：UI 层 Delegate 通过 `scope.launch`（默认 `Dispatchers.Main`）调用 `GameStateStore.update{}`（内部使用阻塞式 `ReentrantLock`），当引擎线程持有锁时主线程阻塞 10 秒触发 ANR。新增 `GameEngine.launchOnEngine{}` 方法将所有 UI 触发的引擎操作派发到引擎单线程执行，配合 Detekt 自定义规则 + Gradle 编译时检查 + 运行时主线程监护，从架构层面根除同类 ANR

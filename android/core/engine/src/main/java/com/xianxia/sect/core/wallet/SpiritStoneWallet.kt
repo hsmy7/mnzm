@@ -369,6 +369,21 @@ class SpiritStoneWallet @Inject constructor(
             delta = delta, newTotal = balanceAfter, reason = reason
         ))
         pendingDeltas[grade] = (pendingDeltas[grade] ?: 0L) + delta
+        // 年度报告：按来源/原因累计年内灵石变更
+        if (delta > 0) {
+            val curIncome = state.gameData.annualIncomeBySource[source] ?: 0L
+            state.gameData = state.gameData.copy(
+                annualIncomeBySource = state.gameData.annualIncomeBySource + (source to curIncome + delta),
+                annualTotalIncome = state.gameData.annualTotalIncome + delta
+            )
+        } else if (delta < 0) {
+            val absD = -delta
+            val curExpend = state.gameData.annualExpenditureByReason[reason] ?: 0L
+            state.gameData = state.gameData.copy(
+                annualExpenditureByReason = state.gameData.annualExpenditureByReason + (reason to curExpend + absD),
+                annualTotalExpenditure = state.gameData.annualTotalExpenditure + absD
+            )
+        }
         DomainLog.d(TAG, "灵石变更: ${if (delta >= 0) "+" else ""}$delta " +
                 "$grade ($source/$reason) [${balanceBefore}→${balanceAfter}]")
     }

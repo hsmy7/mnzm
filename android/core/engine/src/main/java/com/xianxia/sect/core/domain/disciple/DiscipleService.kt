@@ -411,7 +411,8 @@ class DiscipleService @Inject constructor(
             // 引导系统：累计招募弟子
             val prevCount = gameData.guideCounters[GuideCounterKeys.DISCIPLES_RECRUITED] ?: 0L
             gameData = gameData.copy(
-                guideCounters = gameData.guideCounters + (GuideCounterKeys.DISCIPLES_RECRUITED to prevCount + 1)
+                guideCounters = gameData.guideCounters + (GuideCounterKeys.DISCIPLES_RECRUITED to prevCount + 1),
+                annualNewDisciples = gameData.annualNewDisciples + 1
             )
             id
         }

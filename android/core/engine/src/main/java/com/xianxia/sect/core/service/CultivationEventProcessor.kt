@@ -381,6 +381,44 @@ class CultivationEventProcessor @Inject constructor(
         safelyRun("griefExpiry") {
             discipleLifecycleProcessor.processGriefExpiry(year)
         }
+        // 年度报告：年变快照
+        safelyRun("annualReportSnapshot") {
+            stateStore.update {
+                val report = YearlyReport(
+                    year = year - 1,
+                    totalIncome = gameData.annualTotalIncome,
+                    totalExpenditure = gameData.annualTotalExpenditure,
+                    incomeBySource = gameData.annualIncomeBySource,
+                    expenditureByReason = gameData.annualExpenditureByReason,
+                    equipmentBySource = gameData.annualEquipmentBySource,
+                    pillBySource = gameData.annualPillBySource,
+                    herbBySource = gameData.annualHerbBySource,
+                    alchemyCompleted = gameData.annualAlchemyCount,
+                    forgeCompleted = gameData.annualForgeCount,
+                    herbsHarvested = gameData.annualHerbCount,
+                    newDisciples = gameData.annualNewDisciples,
+                    deceasedDisciples = gameData.annualDeceasedDisciples,
+                    desertedDisciples = gameData.annualDesertedDisciples
+                )
+                gameData = gameData.copy(
+                    yearlyReports = (gameData.yearlyReports + report)
+                        .takeLast(GameConfig.Logs.MAX_YEARLY_REPORTS),
+                    annualIncomeBySource = emptyMap(),
+                    annualExpenditureByReason = emptyMap(),
+                    annualTotalIncome = 0L,
+                    annualTotalExpenditure = 0L,
+                    annualEquipmentBySource = emptyMap(),
+                    annualPillBySource = emptyMap(),
+                    annualHerbBySource = emptyMap(),
+                    annualAlchemyCount = 0,
+                    annualForgeCount = 0,
+                    annualHerbCount = 0,
+                    annualNewDisciples = 0,
+                    annualDeceasedDisciples = 0,
+                    annualDesertedDisciples = 0
+                )
+            }
+        }
     }
     // ── 执法/盗窃 ──────────────────────────────────────────────────────
     fun calculateCaptureRate(): Double {
@@ -723,6 +761,9 @@ class CultivationEventProcessor @Inject constructor(
                 gameData = gameData.copy(manualProficiencies = mutableProf)
                 discipleTables.remove(thiefId)
                 recordGameEvent(GameEventCategory.SECT, GameEventType.THEFT_DESERTION, "${thiefName}偷盗后叛逃", thiefId.toString(), thiefName)
+                gameData = gameData.copy(
+                    annualDesertedDisciples = gameData.annualDesertedDisciples + 1
+                )
             }
         }
     }
@@ -906,8 +947,10 @@ class CultivationEventProcessor @Inject constructor(
                     }
                 }
                 result.materials.forEach { material -> inventorySystem.addMaterial(material) }
-                result.pills.forEach { pill -> inventorySystem.addPill(pill) }
-                result.equipmentStacks.forEach { equip -> inventorySystem.addEquipmentStack(equip) }
+                inventorySystem.withTrackingSource("trial") {
+                    result.pills.forEach { pill -> inventorySystem.addPill(pill) }
+                    result.equipmentStacks.forEach { equip -> inventorySystem.addEquipmentStack(equip) }
+                }
                 result.manualStacks.forEach { manual -> inventorySystem.addManualStack(manual) }
                 missionRewarded = true
             }.onFailure { e ->

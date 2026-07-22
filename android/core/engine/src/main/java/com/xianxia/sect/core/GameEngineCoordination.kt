@@ -585,8 +585,10 @@ private suspend fun GameEngine.applyMissionResult(
     incrementGuideCounter(GuideCounterKeys.MISSIONS_COMPLETED)
     if (result.spiritStones > 0) addSpiritStones(result.spiritStones.toLong())
     result.materials.forEach { inventorySystem.addMaterial(it) }
-    result.pills.forEach { inventorySystem.addPill(it) }
-    result.equipmentStacks.forEach { inventorySystem.addEquipmentStack(it) }
+    inventorySystem.withTrackingSource("sect_level") {
+        result.pills.forEach { inventorySystem.addPill(it) }
+        result.equipmentStacks.forEach { inventorySystem.addEquipmentStack(it) }
+    }
     result.manualStacks.forEach { inventorySystem.addManualStack(it) }
 
     // 有战斗则写入战斗日志

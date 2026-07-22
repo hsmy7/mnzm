@@ -156,6 +156,9 @@ class DiscipleLifecycleProcessor @Inject constructor(
                 "${disciple.name}陨落（${if (isOutsideSect) "战斗" else "寿元耗尽"}）",
                 disciple.id, disciple.name
             )
+            gameData = gameData.copy(
+                annualDeceasedDisciples = gameData.annualDeceasedDisciples + 1
+            )
         }
 
         if (isOutsideSect) removeProficiencies(disciple.id)

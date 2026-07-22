@@ -226,6 +226,9 @@ class LawEnforcementProcessor @Inject constructor(
                 gameData = gameData.copy(manualProficiencies = mutableProf)
                 discipleTables.remove(thiefId)
                 recordGameEventSect("SECT", "theft_desertion", "${thiefName}偷盗后叛逃", thiefId.toString(), thiefName)
+                gameData = gameData.copy(
+                    annualDesertedDisciples = gameData.annualDesertedDisciples + 1
+                )
             }
         }
     }
@@ -248,6 +251,9 @@ class LawEnforcementProcessor @Inject constructor(
                 mutableProf.remove(desertProfId)
                 gameData = gameData.copy(manualProficiencies = mutableProf)
                 discipleTables.remove(id)
+                gameData = gameData.copy(
+                    annualDesertedDisciples = gameData.annualDesertedDisciples + 1
+                )
             }
         }
     }

@@ -39,6 +39,35 @@ data class SectLevelClaimRecord(
     val claimedAtEpochMs: Long = 0L  // System.currentTimeMillis()
 )
 
+/**
+ * 年度报告——每年结束时由年变快照生成，展示灵石/生产/弟子等年度统计数据。
+ * 保留最近 [GameConfig.Logs.MAX_YEARLY_REPORTS] 条。
+ */
+@Keep
+@Serializable
+data class YearlyReport(
+    val year: Int,
+    // 灵石汇总
+    val totalIncome: Long = 0L,
+    val totalExpenditure: Long = 0L,
+    val incomeBySource: Map<String, Long> = emptyMap(),
+    val expenditureByReason: Map<String, Long> = emptyMap(),
+    // 生产产出汇总（用于汇总卡片展示）
+    val forgeCompleted: Int = 0,
+    val alchemyCompleted: Int = 0,
+    val herbsHarvested: Int = 0,
+    // 装备获取（key: "forge:3"=锻造3品, "battle:4"=战斗4品等）
+    val equipmentBySource: Map<String, Int> = emptyMap(),
+    // 丹药获取（key: "alchemy:HIGH"=炼丹极品等）
+    val pillBySource: Map<String, Int> = emptyMap(),
+    // 草药获取（key: "spirit_field"=灵田, "exploration"=探索等）
+    val herbBySource: Map<String, Int> = emptyMap(),
+    // 弟子变动
+    val newDisciples: Int = 0,
+    val deceasedDisciples: Int = 0,
+    val desertedDisciples: Int = 0
+)
+
 @Keep
 @Serializable
 @Entity(
@@ -494,7 +523,68 @@ data class GameData(
     // 宗门地图随机种子：新开游戏时随机初始化，不同存档产生不同的地面/装饰物分布
     @ColumnInfo(name = "map_seed", defaultValue = "0")
     @SettlementStrategy(Strategy.PRESERVE_OLD)
-    var mapSeed: Int = 0
+    var mapSeed: Int = 0,
+
+    // ── 年度报告系统字段（v27 新增） ──────────────────────────────
+
+    @ColumnInfo(name = "annual_income_by_source")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var annualIncomeBySource: Map<String, Long> = emptyMap(),
+
+    @ColumnInfo(name = "annual_expenditure_by_reason")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var annualExpenditureByReason: Map<String, Long> = emptyMap(),
+
+    @ColumnInfo(name = "annual_total_income")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var annualTotalIncome: Long = 0L,
+
+    @ColumnInfo(name = "annual_total_expenditure")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var annualTotalExpenditure: Long = 0L,
+
+    @ColumnInfo(name = "annual_alchemy_count")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var annualAlchemyCount: Int = 0,
+
+    @ColumnInfo(name = "annual_forge_count")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var annualForgeCount: Int = 0,
+
+    @ColumnInfo(name = "annual_herb_count")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var annualHerbCount: Int = 0,
+
+    @ColumnInfo(name = "annual_new_disciples")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var annualNewDisciples: Int = 0,
+
+    @ColumnInfo(name = "annual_deceased_disciples")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var annualDeceasedDisciples: Int = 0,
+
+    @ColumnInfo(name = "annual_deserted_disciples")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var annualDesertedDisciples: Int = 0,
+
+    // 年内装备获取按来源+品阶（key: "forge:3"等）
+    @ColumnInfo(name = "annual_equipment_by_source")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var annualEquipmentBySource: Map<String, Int> = emptyMap(),
+
+    // 年内丹药获取按来源+品阶（key: "alchemy:HIGH"等）
+    @ColumnInfo(name = "annual_pill_by_source")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var annualPillBySource: Map<String, Int> = emptyMap(),
+
+    // 年内草药获取按来源（key: "spirit_field"等）
+    @ColumnInfo(name = "annual_herb_by_source")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var annualHerbBySource: Map<String, Int> = emptyMap(),
+
+    @ColumnInfo(name = "yearly_reports")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var yearlyReports: List<YearlyReport> = emptyList()
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月${GamePhase.fromValue(gamePhase).displayName}"
 

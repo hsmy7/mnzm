@@ -398,6 +398,10 @@ class GameViewModel @Inject constructor(
         .map { it.gameEventRecords }.distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    val yearlyReports: StateFlow<List<YearlyReport>> = gameEngine.gameData
+        .map { it.yearlyReports }.distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     // ── 建筑/弟子详情 ──
 
     fun openBuildingDetailDialog(buildingId: String) { _selectedBuildingId.value = buildingId }

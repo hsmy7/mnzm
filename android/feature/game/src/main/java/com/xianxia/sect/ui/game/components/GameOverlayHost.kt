@@ -353,8 +353,10 @@ fun GameOverlayHost(
         }
         is DialogType.BattleLog -> {
             val battleLogs by viewModel.battleLogs.collectAsStateWithLifecycle()
+            val yearlyReports by viewModel.yearlyReports.collectAsStateWithLifecycle()
             BattleLogListDialog(
                 battleLogs = battleLogs,
+                yearlyReports = yearlyReports,
                 onDismiss = onDismiss
             )
         }

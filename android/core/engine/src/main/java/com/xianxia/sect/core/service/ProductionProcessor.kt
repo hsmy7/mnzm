@@ -93,14 +93,17 @@ class ProductionProcessor @Inject constructor(
             val recipe = ForgeRecipeDatabase.getRecipeById(recipeId)
             if (recipe != null) {
                 val equipment = inventorySystem.createEquipmentFromRecipe(recipe)
-                inventorySystem.addEquipmentStack(equipment)
+                inventorySystem.withTrackingSource("forge") {
+                    inventorySystem.addEquipmentStack(equipment)
+                }
             }
         }
         slot.assignedDiscipleId?.let { discipleId ->
             stateStore.update {
                 val currentCount = gameData.guideCounters[GuideCounterKeys.FORGE_COMPLETED] ?: 0L
                 gameData = gameData.copy(
-                    guideCounters = gameData.guideCounters + (GuideCounterKeys.FORGE_COMPLETED to currentCount + 1)
+                    guideCounters = gameData.guideCounters + (GuideCounterKeys.FORGE_COMPLETED to currentCount + 1),
+                    annualForgeCount = gameData.annualForgeCount + 1
                 )
                 val currentList = discipleTables.assembleAll()
                 val updated = currentList.map {
@@ -138,13 +141,16 @@ class ProductionProcessor @Inject constructor(
                     quantity = 1
                 )
             }
-            inventorySystem.addPill(pill)
+            inventorySystem.withTrackingSource("alchemy") {
+                inventorySystem.addPill(pill)
+            }
         }
         slot.assignedDiscipleId?.let { discipleId ->
             stateStore.update {
                 val currentCount = gameData.guideCounters[GuideCounterKeys.ALCHEMY_COMPLETED] ?: 0L
                 gameData = gameData.copy(
-                    guideCounters = gameData.guideCounters + (GuideCounterKeys.ALCHEMY_COMPLETED to currentCount + 1)
+                    guideCounters = gameData.guideCounters + (GuideCounterKeys.ALCHEMY_COMPLETED to currentCount + 1),
+                    annualAlchemyCount = gameData.annualAlchemyCount + 1
                 )
                 val currentList = discipleTables.assembleAll()
                 val updated = currentList.map {
@@ -210,8 +216,11 @@ class ProductionProcessor @Inject constructor(
                 addHarvestedHerbsToState(plant, dbHerb, state)
                 // 引导系统：累计收获灵植
                 val prevHerbCount = state.gameData.guideCounters[GuideCounterKeys.HERBS_HARVESTED] ?: 0L
+                val prevHerbSource = state.gameData.annualHerbBySource["spirit_field"] ?: 0
                 state.gameData = state.gameData.copy(
-                    guideCounters = state.gameData.guideCounters + (GuideCounterKeys.HERBS_HARVESTED to prevHerbCount + 1)
+                    guideCounters = state.gameData.guideCounters + (GuideCounterKeys.HERBS_HARVESTED to prevHerbCount + 1),
+                    annualHerbCount = state.gameData.annualHerbCount + 1,
+                    annualHerbBySource = state.gameData.annualHerbBySource + ("spirit_field" to prevHerbSource + 1)
                 )
 
                 val (newPlants, changed) = updateSlotAfterHarvest(

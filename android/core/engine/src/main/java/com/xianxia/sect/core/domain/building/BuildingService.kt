@@ -464,7 +464,7 @@ class BuildingService @Inject constructor(
                     quantity = 1
                 )
             }
-            inventorySystem.addPill(pill)
+            inventorySystem.withTrackingSource("building") { inventorySystem.addPill(pill) }
         }
 
         withContext(Dispatchers.IO) {
@@ -621,7 +621,7 @@ class BuildingService @Inject constructor(
                 if (recipe != null) {
                     val equipment =
                         inventorySystem.createEquipmentFromRecipe(recipe)
-                    inventorySystem.addEquipmentStack(equipment)
+                    inventorySystem.withTrackingSource("building") { inventorySystem.addEquipmentStack(equipment) }
                 }
             }
             BuildingNames.ALCHEMY -> {
@@ -654,7 +654,7 @@ class BuildingService @Inject constructor(
                             quantity = 1
                         )
                     }
-                    inventorySystem.addPill(pill)
+                    inventorySystem.withTrackingSource("building") { inventorySystem.addPill(pill) }
                 }
             }
             else -> {

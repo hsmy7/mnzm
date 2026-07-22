@@ -56,6 +56,16 @@ class InventorySystem @Inject constructor(
         private val VALID_RARITY_RANGE = 1..6
     }
 
+    /** 年度报告物品来源上下文——引擎单线程安全。在调用 add* 前设置来源 */
+    private var trackingSource: String = "unknown"
+
+    /** 在指定 source 上下文中执行 block，用于年度报告物品来源追踪 */
+    fun <T> withTrackingSource(source: String, block: () -> T): T {
+        val prev = trackingSource
+        trackingSource = source
+        try { return block() } finally { trackingSource = prev }
+    }
+
 
     private fun getMaxSlots(): Int {
         val buildings = stateStore.gameData.value.placedBuildings
@@ -305,6 +315,11 @@ class InventorySystem @Inject constructor(
                 equipmentStacks = equipmentStacks.map {
                     if (it.id == existing.id) merged else it
                 }
+                // 年度报告：追踪装备来源
+                val srcKey = "$trackingSource:${item.rarity}"
+                gameData = gameData.copy(
+                    annualEquipmentBySource = gameData.annualEquipmentBySource + (srcKey to (gameData.annualEquipmentBySource[srcKey] ?: 0) + item.quantity)
+                )
                 return@updateAndReturn if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack)
                     else DomainResult.Success(merged)
             }
@@ -315,6 +330,11 @@ class InventorySystem @Inject constructor(
             }
 
             equipmentStacks = equipmentStacks + item
+            // 年度报告：追踪装备来源
+            val srcKey = "$trackingSource:${item.rarity}"
+            gameData = gameData.copy(
+                annualEquipmentBySource = gameData.annualEquipmentBySource + (srcKey to (gameData.annualEquipmentBySource[srcKey] ?: 0) + item.quantity)
+            )
             DomainResult.Success(item)
         }
     }
@@ -576,6 +596,12 @@ class InventorySystem @Inject constructor(
                     pills = pills.map {
                         if (it.id == existing.id) merged else it
                     }
+                    // 年度报告：追踪丹药来源
+                    val pillGrade = item.grade?.name ?: "LOW"
+                    val srcKey = "$trackingSource:$pillGrade"
+                    gameData = gameData.copy(
+                        annualPillBySource = gameData.annualPillBySource + (srcKey to (gameData.annualPillBySource[srcKey] ?: 0) + item.quantity)
+                    )
                     return@updateAndReturn if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack)
                         else DomainResult.Success(merged)
                 }
@@ -586,6 +612,12 @@ class InventorySystem @Inject constructor(
             }
 
             pills = pills + item
+            // 年度报告：追踪丹药来源
+            val pillGrade = item.grade?.name ?: "LOW"
+            val srcKey = "$trackingSource:$pillGrade"
+            gameData = gameData.copy(
+                annualPillBySource = gameData.annualPillBySource + (srcKey to (gameData.annualPillBySource[srcKey] ?: 0) + item.quantity)
+            )
             DomainResult.Success(item)
         }
     }
@@ -812,6 +844,11 @@ class InventorySystem @Inject constructor(
                     herbs = herbs.map {
                         if (it.id == existing.id) merged else it
                     }
+                    // 年度报告：追踪草药来源
+                    val srcKey = trackingSource
+                    gameData = gameData.copy(
+                        annualHerbBySource = gameData.annualHerbBySource + (srcKey to (gameData.annualHerbBySource[srcKey] ?: 0) + item.quantity)
+                    )
                     return@updateAndReturn if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack)
                         else DomainResult.Success(merged)
                 }
@@ -822,6 +859,11 @@ class InventorySystem @Inject constructor(
             }
 
             herbs = herbs + item
+            // 年度报告：追踪草药来源
+            val srcKey = trackingSource
+            gameData = gameData.copy(
+                annualHerbBySource = gameData.annualHerbBySource + (srcKey to (gameData.annualHerbBySource[srcKey] ?: 0) + item.quantity)
+            )
             DomainResult.Success(item)
         }
     }

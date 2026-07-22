@@ -555,6 +555,7 @@ object GameConfig {
         const val MAX_EVENT_LOGS = 200
         const val MAX_MONTHLY_EVENT_LOGS = 50
         const val MAX_EXPLORATION_LOGS = 100
+        const val MAX_YEARLY_REPORTS = 100
     }
     
     object Battle {

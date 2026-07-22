@@ -506,6 +506,22 @@ stateStore.update {
                     }
                 }
             }
+            // 年度报告：追踪商人购买来源
+            val merchSrc = "merchant"
+            when (merchantItem.type.lowercase(java.util.Locale.getDefault())) {
+                "equipment" -> {
+                    val k = "$merchSrc:${merchantItem.rarity}"
+                    gameData = gameData.copy(annualEquipmentBySource = gameData.annualEquipmentBySource + (k to (gameData.annualEquipmentBySource[k] ?: 0) + quantity))
+                }
+                "pill" -> {
+                    val g = merchantItem.grade ?: "LOW"
+                    val k = "$merchSrc:$g"
+                    gameData = gameData.copy(annualPillBySource = gameData.annualPillBySource + (k to (gameData.annualPillBySource[k] ?: 0) + quantity))
+                }
+                "herb" -> {
+                    gameData = gameData.copy(annualHerbBySource = gameData.annualHerbBySource + (merchSrc to (gameData.annualHerbBySource[merchSrc] ?: 0) + quantity))
+                }
+            }
             itemName = merchantItem.name
             itemType = merchantItem.type
             itemRarity = merchantItem.rarity
@@ -704,7 +720,11 @@ stateStore.update {
             when (type) {
                 0 -> {
                     val stack = com.xianxia.sect.core.registry.EquipmentDatabase.generateRandom(rarity, rarity)
-                    stateStore.update { equipmentStacks.add(stack) }
+                    stateStore.update {
+                        equipmentStacks.add(stack)
+                        val k = "storage_bag:${stack.rarity}"
+                        gameData = gameData.copy(annualEquipmentBySource = gameData.annualEquipmentBySource + (k to (gameData.annualEquipmentBySource[k] ?: 0) + 1))
+                    }
                     rewards.add(BattleRewardItem(itemId = stack.id, name = stack.name, quantity = 1, rarity = stack.rarity, type = "equipment"))
                 }
                 1 -> {
@@ -726,6 +746,9 @@ stateStore.update {
                         } else {
                             pills.add(pill)
                         }
+                        val g = pill.grade?.name ?: "LOW"
+                        val k = "storage_bag:$g"
+                        gameData = gameData.copy(annualPillBySource = gameData.annualPillBySource + (k to (gameData.annualPillBySource[k] ?: 0) + 1))
                     }
                     rewards.add(BattleRewardItem(itemId = pill.id, name = pill.name, quantity = 1, rarity = pill.rarity, type = "pill"))
                 }
@@ -744,6 +767,7 @@ stateStore.update {
                                 herbId = newHerb.id; herbName = newHerb.name; herbRarity = newHerb.rarity
                                 herbs.add(newHerb)
                             }
+                            gameData = gameData.copy(annualHerbBySource = gameData.annualHerbBySource + ("storage_bag" to (gameData.annualHerbBySource["storage_bag"] ?: 0) + 1))
                         }
                         rewards.add(BattleRewardItem(itemId = herbId, name = herbName, quantity = 1, rarity = herbRarity, type = "herb"))
                     }

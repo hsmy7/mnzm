@@ -466,6 +466,10 @@ class MailService @Inject constructor(
                     } else {
                         state.equipmentStacks = state.equipmentStacks + newEquipment
                     }
+                    val eqKey = "mail:${attachment.rarity}"
+                    state.gameData = state.gameData.copy(
+                        annualEquipmentBySource = state.gameData.annualEquipmentBySource + (eqKey to (state.gameData.annualEquipmentBySource[eqKey] ?: 0) + qty)
+                    )
                 }
                 "pill" -> {
                     val qty = attachment.quantity.coerceAtLeast(1)
@@ -483,6 +487,10 @@ class MailService @Inject constructor(
                     } else {
                         state.pills = state.pills + pill
                     }
+                    val pillKey = "mail:${pill.grade?.name ?: "LOW"}"
+                    state.gameData = state.gameData.copy(
+                        annualPillBySource = state.gameData.annualPillBySource + (pillKey to (state.gameData.annualPillBySource[pillKey] ?: 0) + qty)
+                    )
                 }
                 "material" -> {
                     val qty = attachment.quantity.coerceAtLeast(1)
@@ -552,6 +560,9 @@ class MailService @Inject constructor(
                     } else {
                         state.herbs = state.herbs + herb
                     }
+                    state.gameData = state.gameData.copy(
+                        annualHerbBySource = state.gameData.annualHerbBySource + ("mail" to (state.gameData.annualHerbBySource["mail"] ?: 0) + qty)
+                    )
                 }
                 "seed" -> {
                     val qty = attachment.quantity.coerceAtLeast(1)

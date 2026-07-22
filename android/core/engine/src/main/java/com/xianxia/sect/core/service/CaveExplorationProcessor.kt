@@ -877,7 +877,7 @@ class CaveExplorationProcessor @Inject constructor(
                 rarity = reward.rarity,
                 quantity = reward.quantity
             )
-            val result = inventorySystem.addEquipmentStack(equipment)
+            val result = inventorySystem.withTrackingSource("cave") { inventorySystem.addEquipmentStack(equipment) }
             if (result.isSuccess) {
                 battleRewardItems.add(BattleRewardItem(
                     itemId = reward.itemId,
@@ -956,7 +956,7 @@ class CaveExplorationProcessor @Inject constructor(
                 ),
                 minRealm = GameConfig.Realm.getMinRealmForRarity(template.rarity)
             )
-            val result = inventorySystem.addPill(pill)
+            val result = inventorySystem.withTrackingSource("cave") { inventorySystem.addPill(pill) }
             if (result.isSuccess) {
                 battleRewardItems.add(BattleRewardItem(
                     itemId = reward.itemId,
