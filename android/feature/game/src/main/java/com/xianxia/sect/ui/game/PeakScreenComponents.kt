@@ -10,10 +10,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import androidx.compose.material3.*
@@ -84,7 +82,6 @@ fun PeakDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = DialogDefaults.CommonMaxHeight)
-                    .verticalScroll(rememberScrollState())
             ) {
                 content()
             }
