@@ -41,11 +41,11 @@ class BeastAttackDelegate(
 
     /** 清空所有待处理的兽袭事件。 */
     fun clearPendingBeastAttacks() {
-        gameEngine.clearPendingBeastAttacks()
+        gameEngine.launchOnEngine { gameEngine.clearPendingBeastAttacks() }
     }
 
     /** 移除单个已处理的妖兽攻击（按 ID），其余保留。用于多妖兽逐个处理场景。 */
     fun removePendingBeastAttack(beastLevelId: String) {
-        gameEngine.removePendingBeastAttack(beastLevelId)
+        gameEngine.launchOnEngine { gameEngine.removePendingBeastAttack(beastLevelId) }
     }
 }

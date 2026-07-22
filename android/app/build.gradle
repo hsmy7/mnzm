@@ -255,6 +255,9 @@ dependencies {
 
     baselineProfile project(':baselineprofile')
     implementation libs.profileinstaller
+
+    // 自定义 Detekt 规则（game-engine 规则集，防 ANR #9041/#5068）
+    detektPlugins(project(':detekt-rules'))
 }
 
 ksp {
@@ -322,3 +325,39 @@ tasks.register('archiveAndUploadMapping') {
         logger.lifecycle("Bugly response: ${cmd.execute().text.trim()}")
     }
 }
+
+// 🔴 编译时防护：检查 delegate 文件中是否还有 scope.launch 直接调用
+tasks.register('checkDelegateLaunchPattern') {
+    group = 'verification'
+    description = '检查 delegate 文件未通过 launchOnEngine 的 scope.launch 调用'
+    doLast {
+        def delegateDir = file("$rootDir/feature/game/src/main/java/com/xianxia/sect/ui/game/delegate")
+        if (!delegateDir.exists()) {
+            logger.warn("delegate 目录不存在，跳过检查: $delegateDir")
+            return
+        }
+        // 排除白名单文件：GameLoopDelegate 使用 scope.launch 做 UI 动画（不调 engine）
+        def excludedFiles = ['GameLoopDelegate.kt']
+        def violations = []
+        delegateDir.eachFileRecurse { file ->
+            if (file.name.endsWith('.kt') && !excludedFiles.contains(file.name)) {
+                file.eachLine { line, lineNo ->
+                    if ((line =~ /\bscope\.launch\s*\{/ ||
+                         line =~ /\bviewModelScope\.launch\s*\{/) &&
+                        !line.contains("Dispatchers.") &&
+                        !line.contains("//")) {
+                        violations.add("${file.name}:${lineNo}: ${line.trim()}")
+                    }
+                }
+            }
+        }
+        if (!violations.isEmpty()) {
+            throw new GradleException(
+                "发现 ${violations.size} 处 delegate 中 scope.launch 直接调用（应使用 gameEngine.launchOnEngine）：\n" +
+                violations.join("\n")
+            )
+        }
+        logger.lifecycle("checkDelegateLaunchPattern 通过")
+    }
+}
+tasks.named('detekt').configure { finalizedBy('checkDelegateLaunchPattern') }

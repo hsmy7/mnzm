@@ -19,3 +19,17 @@ complexity:
 empty-blocks:
   EmptyCatchBlock:
     active: true             # 禁止空 catch 块
+
+# ════════════════════════════════════════════
+# 自定义规则：game-engine（防 ANR #9041/#5068）
+# ════════════════════════════════════════════
+game-engine:
+  LaunchOnEngineRequired:
+    active: true
+    description: "Delegate 中的引擎调用必须通过 GameEngine.launchOnEngine 派发到引擎线程"
+  BlockingCallInCoroutine:
+    active: true
+    description: "协程上下文中的阻塞调用检测"
+  RunBlockingInSuspend:
+    active: true
+    description: "挂起函数中的 runBlocking 检测"

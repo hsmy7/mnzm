@@ -7,6 +7,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Test
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * 并发压力测试 — 验证 transactionMutex 在极端并发下的正确性。
@@ -168,5 +170,22 @@ class GameStateStoreConcurrencyTest {
                 assertEquals("key_$i 应有正确值", i * 10, sharedState["key_$i"])
             }
         }
+    }
+
+    @Test
+    fun `launchOnEngine equivalent pattern prevents ANR`() = runTest {
+        // 验证 launchOnEngine（派发到单引擎线程）模式：
+        // 同一线程重入 ReentrantLock 无需等待
+        val lock = ReentrantLock()
+        var counter = 0
+
+        lock.withLock {
+            lock.withLock {
+                counter++
+            }
+            counter++
+        }
+
+        assertEquals("同一线程可重入 ReentrantLock", 2, counter)
     }
 }

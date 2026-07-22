@@ -9,12 +9,9 @@ import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.RewardSelectedItem
 import com.xianxia.sect.core.model.StorageBagItem
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 
 class DiscipleDelegate(
     private val gameEngine: GameEngine,
-    private val scope: CoroutineScope
 ) {
     companion object {
         private const val TAG = "DiscipleDelegate"
@@ -26,16 +23,16 @@ class DiscipleDelegate(
     @Volatile private var isRecruitingAll = false
 
     fun expelDisciple(discipleId: String) {
-        scope.launch { gameEngine.expelDisciple(discipleId) }
+        gameEngine.launchOnEngine { gameEngine.expelDisciple(discipleId) }
     }
 
     /** 拜师：将 discipleId 设为 masterId 的徒弟 */
     fun apprenticeToMaster(discipleId: String, masterId: String) {
-        scope.launch { gameEngine.apprenticeToMaster(discipleId, masterId) }
+        gameEngine.launchOnEngine { gameEngine.apprenticeToMaster(discipleId, masterId) }
     }
 
     fun toggleFollowDisciple(discipleId: String) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             gameEngine.updateDisciple(discipleId) { disciple ->
                 val currentFollowed = disciple.statusData["followed"] == "true"
                 val newStatusData = disciple.statusData.toMutableMap().apply {
@@ -48,7 +45,7 @@ class DiscipleDelegate(
 
     /** 观看广告后为弟子添加一次性突破率加成 */
     fun applyAdBreakthroughBonus(discipleId: String, bonus: Double) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             gameEngine.updateDisciple(discipleId) { disciple ->
                 val currentBonus = disciple.statusData["adBreakthroughBonus"]?.toDoubleOrNull() ?: 0.0
                 val newStatusData = disciple.statusData.toMutableMap().apply {
@@ -60,13 +57,13 @@ class DiscipleDelegate(
     }
 
     fun changeDiscipleType(discipleId: String, newType: String) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             gameEngine.changeDiscipleTypeAtomic(discipleId, newType)
         }
     }
 
     fun toggleAutoEquipFromWarehouse(discipleId: String, enabled: Boolean) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             gameEngine.updateDisciple(discipleId) { disciple ->
                 disciple.copy(equipment = disciple.equipment.copy(autoEquipFromWarehouse = enabled))
             }
@@ -74,7 +71,7 @@ class DiscipleDelegate(
     }
 
     fun toggleAutoLearnFromWarehouse(discipleId: String, enabled: Boolean) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             gameEngine.updateDisciple(discipleId) { disciple ->
                 disciple.copy(autoLearnFromWarehouse = enabled)
             }
@@ -86,7 +83,7 @@ class DiscipleDelegate(
     }
 
     fun confiscateStorageBagItem(discipleId: String, item: StorageBagItem) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             try {
                 gameEngine.confiscateStorageBagItem(discipleId, item)
             } catch (e: Exception) {
@@ -97,7 +94,7 @@ class DiscipleDelegate(
     }
 
     fun equipItem(discipleId: String, equipmentId: String) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             try {
                 val result = gameEngine.equipItem(discipleId, equipmentId)
                 if (result is DomainResult.Failure) {
@@ -116,10 +113,10 @@ class DiscipleDelegate(
     }
 
     fun unequipItem(discipleId: String, slot: EquipmentSlot) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             try {
                 val result = gameEngine.unequipItem(discipleId, slot)
-                if (result == null) return@launch // disciple not found or slot empty
+                if (result == null) return@launchOnEngine // disciple not found or slot empty
                 if (result is DomainResult.Failure) {
                     android.util.Log.w(
                         "DiscipleDelegate",
@@ -135,7 +132,7 @@ class DiscipleDelegate(
     }
 
     fun unequipItem(discipleId: String, equipmentId: String) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             try {
                 val result = gameEngine.unequipItemById(discipleId, equipmentId)
                 if (result is DomainResult.Failure) {
@@ -154,7 +151,7 @@ class DiscipleDelegate(
     }
 
     fun forgetManual(discipleId: String, instanceId: String) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             try {
                 gameEngine.forgetManual(discipleId, instanceId)
             } catch (e: Exception) {
@@ -165,7 +162,7 @@ class DiscipleDelegate(
     }
 
     fun replaceManual(discipleId: String, oldInstanceId: String, newStackId: String) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             try {
                 gameEngine.replaceManual(discipleId, oldInstanceId, newStackId)
             } catch (e: Exception) {
@@ -176,7 +173,7 @@ class DiscipleDelegate(
     }
 
     fun learnManual(discipleId: String, stackId: String) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             try {
                 gameEngine.learnManual(discipleId, stackId)
             } catch (e: Exception) {
@@ -187,7 +184,7 @@ class DiscipleDelegate(
     }
 
     fun usePill(discipleId: String, pillId: String) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             try {
                 gameEngine.usePill(discipleId, pillId)
             } catch (e: Exception) {
@@ -198,7 +195,7 @@ class DiscipleDelegate(
     }
 
     fun usePill(discipleId: String, pill: Pill) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             try {
                 gameEngine.usePill(discipleId, pill.id)
             } catch (e: Exception) {
@@ -209,7 +206,7 @@ class DiscipleDelegate(
     }
 
     fun assignDiscipleToBuilding(buildingId: String, slotIndex: Int, discipleId: String) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             try {
                 gameEngine.assignDiscipleToBuilding(buildingId, slotIndex, discipleId)
             } catch (e: Exception) {
@@ -220,7 +217,7 @@ class DiscipleDelegate(
     }
 
     fun renameDisciple(discipleId: String, newName: String) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             try {
                 gameEngine.updateDisciple(discipleId) { disciple ->
                     disciple.copy(name = newName)
@@ -248,7 +245,7 @@ class DiscipleDelegate(
             }
             recruitingDiscipleIds.add(discipleId)
         }
-        scope.launch {
+        gameEngine.launchOnEngine {
             try {
                 Log.d(TAG, "recruitDiscipleFromList: launching for $discipleId")
                 val newId = gameEngine.recruitDiscipleFromList(discipleId)
@@ -274,7 +271,7 @@ class DiscipleDelegate(
             if (recruitingDiscipleIds.isNotEmpty()) return
             isRecruitingAll = true
         }
-        scope.launch {
+        gameEngine.launchOnEngine {
             try {
                 val count = gameEngine.recruitAllFromList()
                 Log.d(TAG, "recruitAllDisciples: recruited $count disciples")
@@ -288,7 +285,7 @@ class DiscipleDelegate(
     }
 
     fun rejectDiscipleFromList(discipleId: String) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             gameEngine.removeFromRecruitList(discipleId)
         }
     }
@@ -302,7 +299,7 @@ class DiscipleDelegate(
     }
 
     fun releaseReflectionDisciple(discipleId: String) {
-        scope.launch { gameEngine.releaseReflectionDisciple(discipleId) }
+        gameEngine.launchOnEngine { gameEngine.releaseReflectionDisciple(discipleId) }
     }
 
     fun getDiscipleById(id: String): DiscipleAggregate? {
@@ -328,7 +325,7 @@ class DiscipleDelegate(
         cultivationDelta: Double,
         intelligenceDelta: Int
     ) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             try {
                 gameEngine.updateDisciple(discipleId) { disciple ->
                     val newStatus = disciple.statusData.toMutableMap().apply {
@@ -352,7 +349,7 @@ class DiscipleDelegate(
     }
 
     fun setAutoRecruitFilter(filter: Set<Int>) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             gameEngine.updateGameData { gd ->
                 gd.copy(autoRecruitSpiritRootFilter = filter)
             }

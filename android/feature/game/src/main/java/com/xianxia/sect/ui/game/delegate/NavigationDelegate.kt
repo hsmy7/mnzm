@@ -3,13 +3,12 @@ package com.xianxia.sect.ui.game.delegate
 import android.util.Log
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.ui.navigation.GameRoute
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class NavigationDelegate(
     private val gameEngine: GameEngine,
     private val gameEngineCore: GameEngineCore,
-    private val scope: CoroutineScope,
     private val onNavigate: (GameRoute) -> Unit
 ) {
     companion object {
@@ -85,7 +84,7 @@ class NavigationDelegate(
     }
 
     fun attackWorldLevel(levelId: String, discipleIds: List<String?>) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             try {
                 gameEngine.attackWorldLevel(levelId, discipleIds)
             } catch (e: Exception) {
@@ -99,17 +98,19 @@ class NavigationDelegate(
     }
 
     fun dismissBattleResult() {
-        gameEngine.clearPendingBattleResult()
+        gameEngine.launchOnEngine { gameEngine.clearPendingBattleResult() }
     }
 
     fun openGameOverDialog() {
-        scope.launch {
+        gameEngine.launchOnEngine {
             try {
                 gameEngineCore.pause()
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to pause game engine on game over", e)
             }
-            onNavigate(GameRoute.GameOver)
+            withContext(Dispatchers.Main) {
+                onNavigate(GameRoute.GameOver)
+            }
         }
     }
 }

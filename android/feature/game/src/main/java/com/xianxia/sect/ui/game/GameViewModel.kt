@@ -67,21 +67,21 @@ class GameViewModel @Inject constructor(
     val ads = AdsDelegate()
     val overlays = OverlayDelegate(gameEngine, viewModelScope)
     val bag = BagDelegate(gameEngine, dailySignInService, viewModelScope)
-    val redeem = RedeemCodeDelegate(gameEngine, viewModelScope, ::showSuccess, ::showError)
-    val mail = MailDelegate(gameEngine, mailService, dailySignInService, viewModelScope, ::showError)
+    val redeem = RedeemCodeDelegate(gameEngine, ::showSuccess, ::showError)
+    val mail = MailDelegate(gameEngine, mailService, dailySignInService, ::showError)
     val signIn = SignInDelegate(gameEngine, dailySignInService, viewModelScope, sharingStarted)
     val gameLoop = GameLoopDelegate(gameEngine, gameEngineCore, systemManager, viewModelScope, ::showError)
-    val settings = SettingsDelegate(gameEngine, discipleFacade, viewModelScope)
+    val settings = SettingsDelegate(gameEngine, discipleFacade)
 
     // ── 既有领域委托 ──
 
-    val planting = PlantingDelegate(gameEngine, viewModelScope)
-    val disciple = DiscipleDelegate(gameEngine, viewModelScope)
+    val planting = PlantingDelegate(gameEngine)
+    val disciple = DiscipleDelegate(gameEngine)
     val navigation = NavigationDelegate(
-        gameEngine, gameEngineCore, viewModelScope,
+        gameEngine, gameEngineCore,
         onNavigate = { _navigationEvents.trySend(it) }
     )
-    val inventory = InventoryDelegate(gameEngine, viewModelScope)
+    val inventory = InventoryDelegate(gameEngine)
     val beastAttack = BeastAttackDelegate(
         gameEngine, viewModelScope,
         onMessage = { message, isError ->
@@ -90,17 +90,17 @@ class GameViewModel @Inject constructor(
     )
     val warnings = WarningDelegate(gameEngine, viewModelScope)
     val buildingDelegate = BuildingDelegate(
-        gameEngine, buildingFacade, buildingConfigService, viewModelScope,
+        gameEngine, buildingFacade, buildingConfigService,
         onDemolishSuccess = { msg -> showSuccess(msg) }
     )
     val sectDelegate = SectDelegate(
-        gameEngine, viewModelScope,
+        gameEngine,
         onShowSuccess = { msg -> showSuccess(msg) },
         onShowError = { msg -> showError(msg) },
         onNavigateToDialog = { route -> navigateToDialog(route) },
         onDismissDialog = { dismissDialog() }
     )
-    val autoAssign = AutoAssignDelegate(gameEngine, viewModelScope)
+    val autoAssign = AutoAssignDelegate(gameEngine)
 
     companion object {
         private const val TAG = "GameViewModel"
@@ -175,9 +175,14 @@ class GameViewModel @Inject constructor(
     // ── Beast View Lock（妖兽弹窗锁定） ───────────────────────
 
     /** 锁定妖兽：打开详情弹窗时调用，月度结算跳过 AI 攻击 */
-    fun lockBeast(beastId: String) = gameEngine.lockBeastView(beastId)
+    fun lockBeast(beastId: String) {
+        gameEngine.launchOnEngine { gameEngine.lockBeastView(beastId) }
+    }
     /** 解锁妖兽：关闭详情弹窗时调用，AI 可正常进攻 */
-    fun unlockBeast(beastId: String) = gameEngine.unlockBeastView(beastId)
+    fun unlockBeast(beastId: String) {
+        if (beastId.isEmpty()) return
+        gameEngine.launchOnEngine { gameEngine.unlockBeastView(beastId) }
+    }
 
     val attackWarnings: StateFlow<List<AttackWarning>> get() = warnings.attackWarnings
     val shownWarningStageIds: StateFlow<List<String>> get() = warnings.shownWarningStageIds
@@ -186,10 +191,12 @@ class GameViewModel @Inject constructor(
     fun markWarningStageShown(stageKey: String) = warnings.markWarningStageShown(stageKey)
 
     fun enqueueBattleRewardCards() {
-        val cards = gameEngine.pendingBattleRewardCards.value
-        if (cards.isNotEmpty()) {
-            dailySignInService.enqueueSignInCards(cards)
-            gameEngine.clearPendingBattleRewardCards()
+        gameEngine.launchOnEngine {
+            val cards = gameEngine.pendingBattleRewardCards.value
+            if (cards.isNotEmpty()) {
+                dailySignInService.enqueueSignInCards(cards)
+                gameEngine.clearPendingBattleRewardCards()
+            }
         }
     }
 
@@ -402,7 +409,7 @@ class GameViewModel @Inject constructor(
 
     fun clearRewardCardQueue(count: Int = Int.MAX_VALUE) { gameEngine.clearRewardCardQueue(count) }
 
-    fun enterSect(sectId: String) { viewModelScope.launch { gameEngine.enterSect(sectId) } }
+    fun enterSect(sectId: String) { gameEngine.launchOnEngine { gameEngine.enterSect(sectId) } }
 
     suspend fun releaseTheftDisciple(discipleId: String): Int = disciple.releaseTheftDisciple(discipleId)
     fun toggleFollowDisciple(discipleId: String) = disciple.toggleFollowDisciple(discipleId)
@@ -447,8 +454,8 @@ class GameViewModel @Inject constructor(
     // ── Inventory / Merchant ──
 
     fun buyFromMerchant(itemId: String, quantity: Int = 1) = inventory.buyFromMerchant(itemId, quantity)
-    fun refreshTravelingMerchantManual() { viewModelScope.launch { gameEngine.refreshTravelingMerchantManual() } }
-    fun grantMerchantRefreshChanceFromAd() { viewModelScope.launch { gameEngine.grantMerchantRefreshChanceFromAd() } }
+    fun refreshTravelingMerchantManual() { gameEngine.launchOnEngine { gameEngine.refreshTravelingMerchantManual() } }
+    fun grantMerchantRefreshChanceFromAd() { gameEngine.launchOnEngine { gameEngine.grantMerchantRefreshChanceFromAd() } }
     fun listItemsToMerchant(items: List<Pair<String, Int>>) = inventory.listItemsToMerchant(items)
     fun removePlayerListedItem(itemId: String) = inventory.removePlayerListedItem(itemId)
 
@@ -484,7 +491,7 @@ class GameViewModel @Inject constructor(
     fun getMaterialById(id: String): Material? = inventory.getMaterialById(id)
 
     fun bulkSellItems(selectedRarities: Set<Int>, selectedTypes: Set<String>) {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             try {
                 val operations = mutableListOf<GameEngine.BulkSellOperation>()
                 val typeConfigs = listOf(
@@ -518,24 +525,26 @@ class GameViewModel @Inject constructor(
                     }
                 }
                 if (operations.isEmpty()) {
-                    showError("没有符合条件的物品可出售（已排除锁定物品）")
-                    return@launch
+                    withContext(Dispatchers.Main) { showError("没有符合条件的物品可出售（已排除锁定物品）") }
+                    return@launchOnEngine
                 }
                 val result = gameEngine.bulkSellItems(operations)
-                if (result.soldCount > 0) {
-                    showSuccess("成功出售 ${result.soldCount} 件物品，获得 ${result.totalEarned} 灵石" +
-                        result.failedItemNames.takeIf { it.isNotEmpty() }?.let { "\n以下物品出售失败：${it.joinToString("、")}" } ?: "")
-                } else showError("出售失败，物品可能已被锁定或不存在")
+                withContext(Dispatchers.Main) {
+                    if (result.soldCount > 0) {
+                        showSuccess("成功出售 ${result.soldCount} 件物品，获得 ${result.totalEarned} 灵石" +
+                            result.failedItemNames.takeIf { it.isNotEmpty() }?.let { "\n以下物品出售失败：${it.joinToString("、")}" } ?: "")
+                    } else showError("出售失败，物品可能已被锁定或不存在")
+                }
             } catch (e: CancellationException) { throw e }
-              catch (e: Exception) { showError(e.message ?: "一键出售失败") }
+              catch (e: Exception) { withContext(Dispatchers.Main) { showError(e.message ?: "一键出售失败") } }
         }
     }
 
     fun startMission(mission: Mission, selectedDisciples: List<DiscipleAggregate>) {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             try { gameEngine.startMission(mission, selectedDisciples.map { it.toDisciple() }) }
             catch (e: CancellationException) { throw e }
-            catch (e: Exception) { showError(e.message ?: "开始任务失败") }
+            catch (e: Exception) { withContext(Dispatchers.Main) { showError(e.message ?: "开始任务失败") } }
         }
     }
 
@@ -631,7 +640,9 @@ class GameViewModel @Inject constructor(
     fun setAutoSellMidGradeForPurchase(enabled: Boolean) = settings.setAutoSellMidGradeForPurchase(enabled)
     fun setAutoSellHighGradeForPurchase(enabled: Boolean) = settings.setAutoSellHighGradeForPurchase(enabled)
     fun setShowAllAvailableDisciples(enabled: Boolean) = settings.setShowAllAvailableDisciples(enabled)
-    suspend fun releaseDiscipleFromAllSlotsAtomic(discipleId: String) = settings.releaseDiscipleFromAllSlotsAtomic(discipleId)
+    fun releaseDiscipleFromAllSlotsAtomic(discipleId: String) {
+        gameEngine.launchOnEngine { gameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId) }
+    }
     val showAllAvailableDisciplesSnapshot: Boolean get() = settings.showAllAvailableDisciplesSnapshot
     val battleAndExplorationIdsSnapshot: Set<String> get() = settings.battleAndExplorationIdsSnapshot
     fun setActiveTab(tab: String) = settings.setActiveTab(tab)

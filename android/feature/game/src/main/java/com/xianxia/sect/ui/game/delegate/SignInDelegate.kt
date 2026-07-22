@@ -5,7 +5,9 @@ import com.xianxia.sect.core.engine.service.ClaimDailyResult
 import com.xianxia.sect.core.engine.service.DailySignInService
 import com.xianxia.sect.core.model.*
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,7 +15,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 
 class SignInDelegate(
     private val gameEngine: GameEngine,
@@ -62,13 +63,13 @@ class SignInDelegate(
     fun dismissCapacityWarning() { _signInCapacityWarning.value = null }
 
     fun claimDailySignIn() {
-        scope.launch {
+        gameEngine.launchOnEngine {
             val result = dailySignInService.claimDailySignIn()
             when (result) {
                 is ClaimDailyResult.Success -> dailySignInService.enqueueSignInCards(result.cards)
                 is ClaimDailyResult.SuccessWithMilestones -> dailySignInService.enqueueSignInCards(result.cards)
                 is ClaimDailyResult.AlreadyClaimed -> { }
-                is ClaimDailyResult.CapacityInsufficient -> _signInCapacityWarning.value = result.message
+                is ClaimDailyResult.CapacityInsufficient -> withContext(Dispatchers.Main) { _signInCapacityWarning.value = result.message }
             }
         }
     }

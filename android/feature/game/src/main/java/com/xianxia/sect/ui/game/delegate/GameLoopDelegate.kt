@@ -10,6 +10,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -57,7 +58,7 @@ class GameLoopDelegate(
                         stallCount++
                         if (stallCount >= 3) {
                             Log.w(TAG, "HealthCheck: game loop stalled, emergency restarting")
-                            gameEngineCore.emergencyRestartGameLoop()
+                            withContext(Dispatchers.Default) { gameEngineCore.emergencyRestartGameLoop() }
                             stallCount = 0
                         }
                     } else { stallCount = 0 }

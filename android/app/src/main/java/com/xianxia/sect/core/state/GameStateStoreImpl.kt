@@ -4,6 +4,8 @@ package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.engine.SectCombatPowerCalculator
 import com.xianxia.sect.core.model.*
+import android.os.Looper
+import com.xianxia.sect.BuildConfig
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
@@ -595,6 +597,17 @@ class GameStateStoreImpl @Inject constructor(
 
 
     override fun update(block: MutableGameState.() -> Unit) {
+        // ★ 运行时监护：主线程调用 update 是架构违规，
+        // 第一层防护（launchOnEngine）已确保所有调用通过引擎线程，
+        // 若此处触发说明有代码绕过防护直接调用了 update。
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            DomainLog.e(TAG, "update() 被主线程调用! 将导致 ANR! " +
+                "必须通过 GameEngine.launchOnEngine 派发到引擎线程。", IllegalStateException("主线程调用堆栈"))
+            if (BuildConfig.DEBUG) {
+                error("stateStore.update() 被主线程调用，架构违规必须修复")
+            }
+        }
+
         var disciplesNeedReassemble = false
 
         transactionLock.withLock {

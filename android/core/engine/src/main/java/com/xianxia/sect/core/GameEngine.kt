@@ -1,5 +1,7 @@
 package com.xianxia.sect.core.engine
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -108,6 +110,19 @@ class GameEngine @Inject constructor(
     companion object { private const val TAG = "GameEngine" }
 
     @Volatile internal var heavyDataLoaded = false
+
+    /**
+     * 将协程派发到引擎线程执行。
+     *
+     * 所有 UI 层触发的引擎状态变更必须通过此方法派发到引擎线程，
+     * 而非直接调用 stateStore.update{}——后者会在 Main 线程阻塞导致 ANR。
+     *
+     * 引擎线程已持有 stateStore 的 ReentrantLock，同一线程重入无竞争开销，
+     * 对标 Unreal Engine AsyncTask(GameThread) / GLSurfaceView queueEvent 模式。
+     */
+    fun launchOnEngine(block: suspend CoroutineScope.() -> Unit): Job {
+        return gameEngineCore.launchInScope(block)
+    }
 
     // ── StateFlow delegates ─────────────────────────────────────────────
     val gameData: StateFlow<GameData> get() = stateStore.gameData

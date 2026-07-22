@@ -2,13 +2,17 @@
 <SmellBaseline>
   <ManuallySuppressedIssues></ManuallySuppressedIssues>
   <CurrentIssues>
+    <ID>ComplexCondition:GameStateStoreImpl.kt$GameStateStoreImpl$hpOrig &lt;= 0 || paOrig &lt;= 0 || maOrig &lt;= 0 || pdOrig &lt;= 0 || mdOrig &lt;= 0 || spdOrig &lt;= 0</ID>
+    <ID>ComplexCondition:VulkanPolicy.kt$VulkanPolicy$CrashRecoveryEngine.isVulkanCrashDetected() || CrashRecoveryEngine.hasVulkanInitFailure() || CrashRecoveryEngine.wasPrewarmKilled() || CrashRecoveryEngine.wasSurfaceInitKilled()</ID>
     <ID>CyclomaticComplexMethod:AppErrorExt.kt$fun SaveError.toAppError(message: String = "", cause: Throwable? = null): AppError.Domain.Storage</ID>
     <ID>CyclomaticComplexMethod:AppErrorExt.kt$fun StorageError.toAppError(message: String = "", cause: Throwable? = null): AppError.Domain.Storage</ID>
     <ID>CyclomaticComplexMethod:GameActivity.kt$GameActivity$override fun onCreate(savedInstanceState: Bundle?)</ID>
-    <ID>CyclomaticComplexMethod:GameStateStoreImpl.kt$GameStateStoreImpl$override suspend fun &lt;R&gt; updateAndReturn(block: suspend MutableGameState.() -&gt; R): R</ID>
-    <ID>CyclomaticComplexMethod:GameStateStoreImpl.kt$GameStateStoreImpl$override suspend fun update(block: suspend MutableGameState.() -&gt; Unit)</ID>
-    <ID>CyclomaticComplexMethod:GameStateStoreImpl.kt$GameStateStoreImpl.Companion$internal fun mergeDiscipleTables( originDisciples: List&lt;Disciple&gt;, shadow: DiscipleTables, current: DiscipleTables ): DiscipleTables</ID>
+    <ID>CyclomaticComplexMethod:GameStateStoreImpl.kt$GameStateStoreImpl$override fun update(block: MutableGameState.() -&gt; Unit)</ID>
     <ID>CyclomaticComplexMethod:UiError.kt$UiError.Companion$fun fromAppError(error: AppError): UiError</ID>
+    <ID>CyclomaticComplexMethod:VulkanPolicy.kt$VulkanPolicy$@Suppress("ReturnCount") fun getRenderStrategy(context: Context): RenderStrategy</ID>
+    <ID>CyclomaticComplexMethod:VulkanPolicy.kt$VulkanPolicy$@Suppress("ReturnCount") private fun isTapTapCloudGaming(context: Context): Boolean</ID>
+    <ID>EmptyKtFile:GameStateStoreMergeTest.kt$.GameStateStoreMergeTest.kt</ID>
+    <ID>EmptyKtFile:StateRevertRegressionTest.kt$.StateRevertRegressionTest.kt</ID>
     <ID>ExplicitGarbageCollectionCall:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$gc()</ID>
     <ID>ImplicitDefaultLocale:MemoryMonitor.kt$MemoryMonitor$String.format("%.1f", info.usedPercent * 100)</ID>
     <ID>ImplicitDefaultLocale:MemoryMonitor.kt$MemoryMonitor$String.format("%.1f", snapshot.usedPercent * 100)</ID>
@@ -18,10 +22,8 @@
     <ID>LongMethod:DiscipleObjectPool.kt$MutableDisciple$fun toDisciple(): Disciple</ID>
     <ID>LongMethod:GameActivity.kt$GameActivity$override fun onCreate(savedInstanceState: Bundle?)</ID>
     <ID>LongMethod:GameMonitorManager.kt$GameMonitorManager$private fun registerDefaultMetrics()</ID>
-    <ID>LongMethod:GameStateStoreImpl.kt$GameStateStoreImpl$override suspend fun &lt;R&gt; updateAndReturn(block: suspend MutableGameState.() -&gt; R): R</ID>
+    <ID>LongMethod:GameStateStoreImpl.kt$GameStateStoreImpl$override fun update(block: MutableGameState.() -&gt; Unit)</ID>
     <ID>LongMethod:GameStateStoreImpl.kt$GameStateStoreImpl$override suspend fun loadFromSnapshot( gameData: GameData, disciples: List&lt;Disciple&gt;, equipmentStacks: List&lt;EquipmentStack&gt;, equipmentInstances: List&lt;EquipmentInstance&gt;, manualStacks: List&lt;ManualStack&gt;, manualInstances: List&lt;ManualInstance&gt;, pills: List&lt;Pill&gt;, materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, seeds: List&lt;Seed&gt;, storageBags: List&lt;StorageBag&gt;, teams: List&lt;ExplorationTeam&gt;, battleLogs: List&lt;BattleLog&gt;, isPaused: Boolean, isLoading: Boolean, isSaving: Boolean )</ID>
-    <ID>LongMethod:GameStateStoreImpl.kt$GameStateStoreImpl$override suspend fun update(block: suspend MutableGameState.() -&gt; Unit)</ID>
-    <ID>LongMethod:GameStateStoreImpl.kt$GameStateStoreImpl.Companion$internal fun mergeDiscipleTables( originDisciples: List&lt;Disciple&gt;, shadow: DiscipleTables, current: DiscipleTables ): DiscipleTables</ID>
     <ID>LongMethod:MainActivity.kt$@Composable fun MainScreen( sessionManager: SessionManager, complianceDialogState: MutableState&lt;MainActivity.ComplianceDialogState?&gt;, tapTapReady: Boolean = false, onLoginSuccess: () -&gt; Unit, onPrivacyAgreed: () -&gt; Unit = {} )</ID>
     <ID>LongMethod:MainActivity.kt$MainActivity$internal fun showSaveSelectScreen()</ID>
     <ID>LongMethod:PrivacyConsentScreen.kt$@Composable fun FullPrivacyPolicyScreen( onBack: () -&gt; Unit )</ID>
@@ -30,42 +32,34 @@
     <ID>LongMethod:SaveSelectScreen.kt$@Composable fun SaveSelectScreen( saveSlots: List&lt;SaveSlot&gt;, onLoadSlot: (Int) -&gt; Unit, onNewGame: (Int, String) -&gt; Unit, onDeleteSlot: (Int) -&gt; Unit, onLogout: () -&gt; Unit )</ID>
     <ID>LongMethod:SaveSelectScreen.kt$@Composable fun SaveSlotCard( slot: SaveSlot, dateFormat: SimpleDateFormat, onLoad: () -&gt; Unit, onNewGame: () -&gt; Unit, onDelete: () -&gt; Unit )</ID>
     <ID>LongMethod:UiError.kt$UiError.Companion$fun fromAppError(error: AppError): UiError</ID>
+    <ID>LongMethod:VulkanPolicy.kt$VulkanPolicy$@Suppress("ReturnCount") fun getRenderStrategy(context: Context): RenderStrategy</ID>
     <ID>LongMethod:XianxiaApplication.kt$XianxiaApplication$override fun onCreate()</ID>
     <ID>LongParameterList:BattleCalculatorTest.kt$BattleCalculatorTest$( physicalAttack: Int = 100, magicAttack: Int = 80, physicalDefense: Int = 50, magicDefense: Int = 40, speed: Int = 50, critRate: Double = 0.1, realm: Int = 5, element: String = "metal" )</ID>
-    <ID>LongParameterList:CoreModule.kt$CoreModule$( timeSystem: TimeSystem, cultivationTickSystem: CultivationTickSystem, inventorySystem: InventorySystem, explorationTickSystem: ExplorationTickSystem, mailSystem: MailSystem, partnerSystem: PartnerSystem, childBirthSystem: ChildBirthSystem, productionSubsystem: ProductionSubsystem, economySubsystem: EconomySubsystem )</ID>
     <ID>LongParameterList:DiscipleUtilsTest.kt$DiscipleUtilsTest$( id: String = "d1", realm: Int = 9, realmLayer: Int = 1, isFollowed: Boolean = false, comprehension: Int = 50, intelligence: Int = 50, charm: Int = 50, loyalty: Int = 50, artifactRefining: Int = 50, pillRefining: Int = 50, spiritPlanting: Int = 50, mining: Int = 50, teaching: Int = 50, morality: Int = 50 )</ID>
-    <ID>LongParameterList:GameStateStoreMergeTest.kt$GameStateStoreMergeTest$( id: Int, age: Int = 20, cultivation: Double = 100.0, realm: Int = 9, realmLayer: Int = 1, isAlive: Boolean = true, status: DiscipleStatus = DiscipleStatus.IDLE, statusData: Map&lt;String, String&gt; = emptyMap(), morality: Int = 50, loyalty: Int = 50, partnerId: String? = null, griefEndYear: Int? = null, masterId: String? = null, lifespan: Int = 80 )</ID>
     <ID>LongParameterList:StateFlowListUtils.kt$StackableItemUtils$( flow: MutableStateFlow&lt;List&lt;T&gt;&gt;, item: T, merge: Boolean = true, matchPredicate: ((T, T) -&gt; Boolean)? = null, maxStack: Int = Int.MAX_VALUE, getName: (T) -&gt; String, getRarity: (T) -&gt; Int, getQuantity: (T) -&gt; Int, withQuantity: (T, Int) -&gt; T )</ID>
     <ID>LongParameterList:StateFlowListUtils.kt$StackableItemUtils$( flow: MutableStateFlow&lt;List&lt;T&gt;&gt;, item: T, merge: Boolean = true, noinline matchPredicate: ((T, T) -&gt; Boolean)? = null, maxStack: Int = Int.MAX_VALUE, crossinline getName: (T) -&gt; String, crossinline getRarity: (T) -&gt; Int, crossinline getQuantity: (T) -&gt; Int, crossinline withQuantity: (T, Int) -&gt; T )</ID>
     <ID>LongParameterList:StateFlowListUtils.kt$StackableItemUtils$( flow: MutableStateFlow&lt;List&lt;T&gt;&gt;, items: List&lt;T&gt;, merge: Boolean = true, noinline matchPredicate: ((T, T) -&gt; Boolean)? = null, maxStack: Int = Int.MAX_VALUE, crossinline getName: (T) -&gt; String, crossinline getRarity: (T) -&gt; Int, crossinline getQuantity: (T) -&gt; Int, crossinline withQuantity: (T, Int) -&gt; T )</ID>
     <ID>LongParameterList:StateFlowListUtils.kt$StackableItemUtils$( flow: MutableStateFlow&lt;List&lt;T&gt;&gt;, name: String, rarity: Int, quantity: Int, getName: (T) -&gt; String, getRarity: (T) -&gt; Int, getId: (T) -&gt; String, getQuantity: (T) -&gt; Int, withQuantity: (T, Int) -&gt; T, logWarning: ((String) -&gt; Unit)? = null )</ID>
     <ID>LongParameterList:StorageBagUtilsTest.kt$StorageBagUtilsTest$( itemId: String = "item1", itemType: String = "pill", name: String = "Test Item", rarity: Int = 1, quantity: Int = 1, forgetYear: Int? = null, forgetMonth: Int? = null, forgetPhase: Int? = null )</ID>
+    <ID>LoopWithTooManyJumpStatements:GameStateStoreImpl.kt$GameStateStoreImpl$for</ID>
     <ID>MaxLineLength:AppErrorExt.kt$StorageError.BATCH_OPERATION_FAILED -&gt; AppError.Domain.Storage.TransactionFailed(message.ifEmpty { "批量操作失败" }, cause)</ID>
     <ID>MaxLineLength:AppErrorExt.kt$StorageError.CONCURRENT_MODIFICATION -&gt; AppError.Domain.Storage.TransactionFailed(message.ifEmpty { "并发修改冲突" }, cause)</ID>
     <ID>MaxLineLength:AppModule.kt$AppModule$fun</ID>
     <ID>MaxLineLength:BattleCalculatorTest.kt$BattleCalculatorTest$assertTrue("2x multiplier damage should be higher", boostedTotal.toDouble() / boostedCount &gt; normalTotal.toDouble() / normalCount * 1.5)</ID>
     <ID>MaxLineLength:BattleCalculatorTest.kt$BattleCalculatorTest$assertTrue("avgDamage $avgDamage should be near $expected", avgDamage &gt; expected * 0.7 &amp;&amp; avgDamage &lt; expected * 1.5)</ID>
-    <ID>MaxLineLength:BattleCalculatorTest.kt$BattleCalculatorTest$highTotal += BattleCalculator.calculateDamage(attacker, highDefender, isPhysicalAttack = true, dodgeChanceModifier = 0.0).damage</ID>
-    <ID>MaxLineLength:BattleCalculatorTest.kt$BattleCalculatorTest$lowTotal += BattleCalculator.calculateDamage(attacker, lowDefender, isPhysicalAttack = true, dodgeChanceModifier = 0.0).damage</ID>
+    <ID>MaxLineLength:BattleCalculatorTest.kt$BattleCalculatorTest$highTotal += BattleCalculator.withRng(rng).calculateDamage(attacker, highDefender, isPhysicalAttack = true, dodgeChanceModifier = 0.0).damage</ID>
+    <ID>MaxLineLength:BattleCalculatorTest.kt$BattleCalculatorTest$lowTotal += BattleCalculator.withRng(rng).calculateDamage(attacker, lowDefender, isPhysicalAttack = true, dodgeChanceModifier = 0.0).damage</ID>
     <ID>MaxLineLength:BattleCalculatorTest.kt$BattleCalculatorTest$private</ID>
-    <ID>MaxLineLength:BattleCalculatorTest.kt$BattleCalculatorTest$val boosted = BattleCalculator.calculateDamage(attacker, defender, skillDamageMultiplier = 2.0, dodgeChanceModifier = 0.0)</ID>
-    <ID>MaxLineLength:BattleCalculatorTest.kt$BattleCalculatorTest$val normal = BattleCalculator.calculateDamage(attacker, defender, skillDamageMultiplier = 1.0, dodgeChanceModifier = 0.0)</ID>
-    <ID>MaxLineLength:BattleCalculatorTest.kt$BattleCalculatorTest$val result = BattleCalculator.calculateDamage(attacker, defender, isPhysicalAttack = false, dodgeChanceModifier = 0.0)</ID>
-    <ID>MaxLineLength:BattleCalculatorTest.kt$BattleCalculatorTest$val result = BattleCalculator.calculateDamage(attacker, defender, isPhysicalAttack = true, dodgeChanceModifier = 0.0)</ID>
+    <ID>MaxLineLength:BattleCalculatorTest.kt$BattleCalculatorTest$val boosted = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, skillDamageMultiplier = 2.0, dodgeChanceModifier = 0.0)</ID>
+    <ID>MaxLineLength:BattleCalculatorTest.kt$BattleCalculatorTest$val normal = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, skillDamageMultiplier = 1.0, dodgeChanceModifier = 0.0)</ID>
+    <ID>MaxLineLength:BattleCalculatorTest.kt$BattleCalculatorTest$val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, isPhysicalAttack = false, dodgeChanceModifier = 0.0)</ID>
+    <ID>MaxLineLength:BattleCalculatorTest.kt$BattleCalculatorTest$val result = BattleCalculator.withRng(rng).calculateDamage(attacker, defender, isPhysicalAttack = true, dodgeChanceModifier = 0.0)</ID>
+    <ID>MaxLineLength:BattleCalculatorTest.kt$BattleCalculatorTest$val result = BattleCalculator.withRng(rng).calculateDamage(fastAttacker, slowDefender, dodgeChanceModifier = 0.5)</ID>
     <ID>MaxLineLength:CoreModule.kt$CoreModule$fun</ID>
     <ID>MaxLineLength:DiscipleIndexTest.kt$DiscipleIndexTest$val d1 = createDisciple(id = "d1", realm = 9, status = DiscipleStatus.IDLE, discipleType = "outer", isAlive = true)</ID>
     <ID>MaxLineLength:DiscipleIndexTest.kt$DiscipleIndexTest$val d2 = createDisciple(id = "d2", realm = 5, status = DiscipleStatus.MINING, discipleType = "inner", isAlive = false)</ID>
     <ID>MaxLineLength:GCOptimizer.kt$GCOptimizer$Log.i(TAG, "GC triggered by memory threshold: ${String.format(Locale.getDefault(), "%.1f", usedPercent * 100)}% (${gcType.name})")</ID>
     <ID>MaxLineLength:GameActivity.kt$GameActivity$Log.d(TAG, "Slot info: savedSlot=$savedSlot, intentSlot=$intentSlot, finalSlot=$slot, isNewGame=$isNewGame, sectName=$sectName")</ID>
-    <ID>MaxLineLength:GameActivity.kt$GameActivity$Log.e(TAG, "fullBmp too large: ${renderWidth}x$renderHeight est=$estFullBytes bytes &gt; max=$MAX_BITMAP_ALLOCATION_BYTES")</ID>
-    <ID>MaxLineLength:GameActivity.kt$GameActivity$Log.e(TAG, "groundBmp too large: ${renderWidth}x$renderHeight est=${estBytes}bytes &gt; max=$MAX_BITMAP_ALLOCATION_BYTES")</ID>
-    <ID>MaxLineLength:GameActivity.kt$GameActivity$android.graphics.Bitmap.createScaledBitmap(src, renderWidth, renderHeight, false)</ID>
-    <ID>MaxLineLength:GameActivity.kt$GameActivity$android.graphics.Rect(dstX, dstY, dstX + dstW, dstY + dstW)</ID>
-    <ID>MaxLineLength:GameActivity.kt$GameActivity$val bytesPerPixel = if (bmpConfig == android.graphics.Bitmap.Config.ARGB_8888) 4 else 2</ID>
-    <ID>MaxLineLength:GameActivity.kt$GameActivity$val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = decorationSampleSize }</ID>
-    <ID>MaxLineLength:GameActivity.kt$GameActivity$val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = groundSampleSize }</ID>
-    <ID>MaxLineLength:GameActivity.kt$GameActivity$val rawTileData = generateRawTileData(worldWidthCells, worldHeightCells, grassProbability, treeProbability)</ID>
-    <ID>MaxLineLength:GameActivity.kt$GameActivity$val renderScale = renderConfig.mapResolution.toFloat() / GameConfig.SectMap.WORLD_WIDTH_CELLS.toFloat()</ID>
     <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (reusableMutableState.equipmentInstances.items !== curEI) _equipmentInstancesFlow.value = reusableMutableState.equipmentInstances.items</ID>
     <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (reusableMutableState.equipmentStacks.items !== curES) _equipmentStacksFlow.value = reusableMutableState.equipmentStacks.items</ID>
     <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (reusableMutableState.manualInstances.items !== curMI) _manualInstancesFlow.value = reusableMutableState.manualInstances.items</ID>
@@ -73,6 +67,7 @@
     <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (reusableMutableState.materials.items !== curMat) _materialsFlow.value = reusableMutableState.materials.items</ID>
     <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$if (reusableMutableState.storageBags.items !== curSB) _storageBagsFlow.value = reusableMutableState.storageBags.items</ID>
     <ID>MaxLineLength:GameStateStoreImpl.kt$GameStateStoreImpl$val finalLoading = if (_isLoading.value != curLoading) _isLoading.value else reusableMutableState.isLoading</ID>
+    <ID>MaxLineLength:InventorySystemSpiritStoneTest.kt$InventorySystemSpiritStoneTest$assertTrue("Should be Insufficient, got $result", result is com.xianxia.sect.core.wallet.DeductResult.Insufficient)</ID>
     <ID>MaxLineLength:InventorySystemTest.kt$InventorySystemTest$result = system.addPill(Pill(id = "p2", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = 10))</ID>
     <ID>MaxLineLength:InventorySystemTest.kt$InventorySystemTest$result = system.addPill(Pill(id = "p2", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = 5))</ID>
     <ID>MaxLineLength:InventorySystemTest.kt$InventorySystemTest$system.addEquipmentStack(EquipmentStack(id = "e1", name = "铁剑", rarity = 1, slot = EquipmentSlot.WEAPON, quantity = 5))</ID>
@@ -144,6 +139,9 @@
     <ID>MaxLineLength:PrivacyConsentScreen.kt$withStyle(bodyStyle) { append("读取Android ID、设备硬件信息（品牌、型号等）、应用签名证书哈希。本应用仅用于本地加密密钥派生，以哈希形式参与加密运算，原始值不会传输到服务器。") }</ID>
     <ID>MaxLineLength:SaveSelectScreen.kt$Row</ID>
     <ID>MaxLineLength:SaveSelectScreen.kt$onNewGame = if (slot.isAutoSave) {{}} else {{ showSectNameDialog = slot.slot; sectNameInput = ""; sectNameError = null }}</ID>
+    <ID>MaxLineLength:SpiritStoneWalletTest.kt$SpiritStoneWalletTest$SpiritStoneOperation(delta = -2000, grade = SpiritStoneGrade.LOW, reason = SpiritStoneReason.Internal, source = SpiritStoneSource.Internal)</ID>
+    <ID>MaxLineLength:SpiritStoneWalletTest.kt$SpiritStoneWalletTest$SpiritStoneOperation(delta = -800, grade = SpiritStoneGrade.LOW, reason = SpiritStoneReason.Internal, source = SpiritStoneSource.Internal)</ID>
+    <ID>MaxLineLength:SpiritStoneWalletTest.kt$SpiritStoneWalletTest$SpiritStoneOperation(delta = 500, grade = SpiritStoneGrade.LOW, reason = SpiritStoneReason.Internal, source = SpiritStoneSource.Internal)</ID>
     <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Building.BuildingNotFound -&gt; Triple("建筑不存在：${error.buildingId}", UiErrorSeverity.INFO, false)</ID>
     <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Building.DiscipleBusy -&gt; Triple("弟子正在忙：${error.discipleId}", UiErrorSeverity.INFO, false)</ID>
     <ID>MaxLineLength:UiError.kt$UiError.Companion$is AppError.Domain.Inventory.DuplicateId -&gt; Triple("物品ID重复：${error.itemId}", UiErrorSeverity.INFO, false)</ID>
@@ -164,9 +162,9 @@
     <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication.&lt;no name provided&gt;$override fun getTalentEffects(aggregate: DiscipleAggregate)</ID>
     <ID>MaxLineLength:XianxiaApplication.kt$XianxiaApplication.&lt;no name provided&gt;$override fun getTalentEffects(disciple: com.xianxia.sect.core.model.Disciple)</ID>
     <ID>NestedBlockDepth:CrashHandler.kt$CrashHandler$private fun cleanupOldCrashLogs(crashLogDir: File)</ID>
-    <ID>NestedBlockDepth:CrashHandler.kt$CrashHandler$private fun writeCrashLogToFile(thread: Thread, throwable: Throwable): File?</ID>
-    <ID>NestedBlockDepth:GameActivity.kt$GameActivity.Companion$private fun generateRawTileData( worldWidthCells: Int, worldHeightCells: Int, grassProbability: Float = 0.06f, treeProbability: Float = 0.10f ): Array&lt;IntArray&gt;</ID>
+    <ID>NestedBlockDepth:CrashHandler.kt$CrashHandler$private fun writeCrashLogToFile(thread: Thread, throwable: Throwable, stackTrace: String): File?</ID>
     <ID>NestedBlockDepth:ObjectPool.kt$ObjectPool.Pool$fun release(instance: T)</ID>
+    <ID>NestedBlockDepth:VulkanPolicy.kt$VulkanPolicy$@Suppress("ReturnCount") private fun isTapTapCloudGaming(context: Context): Boolean</ID>
     <ID>ReturnCount:BatteryOptimizationHelper.kt$BatteryOptimizationHelper$fun isExempted(context: Context): Boolean</ID>
     <ID>ReturnCount:GCOptimizer.kt$GCOptimizer$fun optimizeForLowMemory(): GCOptimizationResult?</ID>
     <ID>ReturnCount:GCOptimizer.kt$GCOptimizer$fun suggestGC(): Boolean</ID>
@@ -179,16 +177,17 @@
     <ID>ReturnCount:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$fun pauseJitDuringCriticalPath(tag: String = TAG): Boolean</ID>
     <ID>ReturnCount:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$fun resumeJitAfterCriticalPath(tag: String = TAG): Boolean</ID>
     <ID>ReturnCount:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$private fun tryPauseJit(tag: String): Boolean</ID>
+    <ID>ReturnCount:VulkanPolicy.kt$VulkanPolicy$private fun isKnownGoodOldDevice(): Boolean</ID>
     <ID>SpreadOperator:CertificatePinnerProvider.kt$CertificatePinnerProvider$(host, *pins.toTypedArray())</ID>
     <ID>SpreadOperator:SecureHttpClient.kt$SecureHttpClient$(*NetworkSecurityConfig.allowedCipherSuites)</ID>
     <ID>SpreadOperator:SecureHttpClient.kt$SecureHttpClient$(*NetworkSecurityConfig.enabledTlsVersions)</ID>
     <ID>SwallowedException:AppErrorTest.kt$AppErrorTest$e: kotlinx.coroutines.CancellationException</ID>
     <ID>SwallowedException:CoreModule.kt$CoreModule$e: Exception</ID>
     <ID>SwallowedException:CrashHandler.kt$CrashHandler$e: Exception</ID>
-    <ID>SwallowedException:GameActivity.kt$GameActivity$e: Exception</ID>
     <ID>SwallowedException:PrivacyConsentScreen.kt$e: Exception</ID>
     <ID>SwallowedException:SecureHttpClient.kt$SecureHttpClient$e: Exception</ID>
     <ID>SwallowedException:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$e: Exception</ID>
+    <ID>SwallowedException:VulkanPolicy.kt$VulkanPolicy$e: Exception</ID>
     <ID>TooGenericExceptionCaught:AlarmWatchdogReceiver.kt$AlarmWatchdogReceiver$e: Exception</ID>
     <ID>TooGenericExceptionCaught:BatteryOptimizationHelper.kt$BatteryOptimizationHelper$e: Exception</ID>
     <ID>TooGenericExceptionCaught:CertificatePinnerProvider.kt$CertificatePinnerProvider$e: Exception</ID>
@@ -212,11 +211,10 @@
     <ID>TooGenericExceptionCaught:TapDBManager.kt$TapDBManager$e: Throwable</ID>
     <ID>TooGenericExceptionCaught:UnifiedGameStateManager.kt$UnifiedGameStateManager$e: Exception</ID>
     <ID>TooGenericExceptionCaught:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:VulkanPolicy.kt$VulkanPolicy$e: Exception</ID>
     <ID>TooGenericExceptionCaught:XianxiaApplication.kt$XianxiaApplication$e2: Throwable</ID>
     <ID>TooGenericExceptionCaught:XianxiaApplication.kt$XianxiaApplication$e: Exception</ID>
     <ID>TooGenericExceptionCaught:XianxiaApplication.kt$XianxiaApplication$e: Throwable</ID>
-    <ID>TooGenericExceptionThrown:GameActivity.kt$GameActivity$throw Exception("fullBmp allocation refused: $estFullBytes bytes exceeds limit")</ID>
-    <ID>TooGenericExceptionThrown:GameActivity.kt$GameActivity$throw Exception("ground decode failed")</ID>
     <ID>TooGenericExceptionThrown:ListenerManagerTest.kt$ListenerManagerTest$throw RuntimeException("test error")</ID>
     <ID>TooGenericExceptionThrown:ListenerManagerTest.kt$ListenerManagerTest$throw RuntimeException("test")</ID>
     <ID>TooManyFunctions:AppModule.kt$AppModule</ID>
@@ -241,7 +239,6 @@
     <ID>UnusedParameter:MainActivity.kt$onPrivacyAgreed: () -&gt; Unit = {}</ID>
     <ID>UnusedParameter:MemoryMonitor.kt$MemoryMonitor$intervalMs: Long = DEFAULT_MONITOR_INTERVAL_MS</ID>
     <ID>UnusedParameter:PrivacyConsentScreen.kt$onPrivacyLinkClick: () -&gt; Unit = {}</ID>
-    <ID>UnusedPrivateMember:CrashHandler.kt$CrashHandler$private fun getStackTraceString(throwable: Throwable): String</ID>
     <ID>UnusedPrivateMember:GameNotificationHelper.kt$GameNotificationHelper$private fun createPauseIntent(context: Context): PendingIntent</ID>
     <ID>UnusedPrivateMember:GameNotificationHelper.kt$GameNotificationHelper$private fun createStopIntent(context: Context): PendingIntent</ID>
     <ID>UnusedPrivateMember:MemoryMonitor.kt$MemoryMonitor$private fun processMemorySnapshot(snapshot: MemorySnapshot)</ID>
@@ -253,12 +250,15 @@
     <ID>UnusedPrivateProperty:GameMonitorManager.kt$GameMonitorManager$private val applicationScopeProvider: ApplicationScopeProvider</ID>
     <ID>UnusedPrivateProperty:GameNotificationHelper.kt$GameNotificationHelper$@ApplicationContext private val appContext: Context</ID>
     <ID>UnusedPrivateProperty:GameNotificationHelper.kt$GameNotificationHelper.Companion$private const val TAG = "GameNotificationHelper"</ID>
+    <ID>UnusedPrivateProperty:GameStateStoreImpl.kt$GameStateStoreImpl$private val equipmentInstancesFlow = _equipmentInstancesFlow .distinctUntilChanged { old, new -&gt; old === new }</ID>
+    <ID>UnusedPrivateProperty:GameStateStoreImpl.kt$GameStateStoreImpl$private val manualInstancesFlow = _manualInstancesFlow .distinctUntilChanged { old, new -&gt; old === new }</ID>
     <ID>UnusedPrivateProperty:MemoryMonitor.kt$MemoryMonitor$private var monitorJob: Job? = null</ID>
     <ID>UnusedPrivateProperty:ObjectPool.kt$ObjectPool.Companion$private const val MAX_BORROW_RETRIES = 3</ID>
     <ID>UnusedPrivateProperty:RequestSigner.kt$RequestSigner$i</ID>
     <ID>UseCheckOrError:CrashHandler.kt$CrashHandler.Companion$throw IllegalStateException("CrashHandler not initialized")</ID>
     <ID>UseCheckOrError:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$throw IllegalStateException("VMRuntime.getRuntime() returned null")</ID>
     <ID>UseRequire:SecureHttpClient.kt$SecureHttpClient.ResponseDecryptionInterceptor$throw IllegalArgumentException( "响应 IV 长度异常: 期望 ${NetworkSecurityConfig.RESPONSE_IV_LENGTH} 字节, 实际 ${iv.size}" )</ID>
+    <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$/** 通知队列（替代单值 _pendingNotificationFlow） */ internal val _notificationsFlow = MutableStateFlow&lt;List&lt;GameNotification&gt;&gt;(emptyList())</ID>
     <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$// 增量发射：每个字段独立的 MutableStateFlow，只在引用变化时发射 internal val _gameDataFlow = MutableStateFlow(GameData())</ID>
     <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$// 版本计数器：每次 update() 有字段变化时递增，用于 unifiedState 批处理触发 internal val _updateVersion = MutableStateFlow(0L)</ID>
     <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _battleLogsFlow = MutableStateFlow&lt;List&lt;BattleLog&gt;&gt;(emptyList())</ID>
@@ -278,6 +278,7 @@
     <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _seedsFlow = MutableStateFlow&lt;List&lt;Seed&gt;&gt;(emptyList())</ID>
     <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _storageBagsFlow = MutableStateFlow&lt;List&lt;StorageBag&gt;&gt;(emptyList())</ID>
     <ID>VariableNaming:GameStateStoreImpl.kt$GameStateStoreImpl$internal val _teamsFlow = MutableStateFlow&lt;List&lt;ExplorationTeam&gt;&gt;(emptyList())</ID>
+    <ID>VariableNaming:SpiritRootGeneratorTest.kt$SpiritRootGeneratorTest$val N = 100000</ID>
     <ID>WildcardImport:AISectPersonalityTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:AlarmWatchdogReceiverTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:AppErrorTest.kt$import org.junit.Assert.*</ID>
@@ -296,8 +297,6 @@
     <ID>WildcardImport:CoreModule.kt$import com.xianxia.sect.core.engine.system.*</ID>
     <ID>WildcardImport:CultivationSettlementConcurrencyTest.kt$import com.xianxia.sect.core.model.*</ID>
     <ID>WildcardImport:DiscipleIndexTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DisciplePositionHelperTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DisciplePositionHelperTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:DiscipleTablesIntegrationTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:DiscipleUtilsTest.kt$import com.xianxia.sect.core.model.*</ID>
     <ID>WildcardImport:DiscipleUtilsTest.kt$import org.junit.Assert.*</ID>
@@ -311,8 +310,6 @@
     <ID>WildcardImport:GameStateStoreConcurrencyTest.kt$import kotlinx.coroutines.*</ID>
     <ID>WildcardImport:GameStateStoreConcurrencyTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:GameStateStoreImpl.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:GameStateStoreMergeTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:GameStateStoreMergeTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:GameSystemInterfaceTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:GameUtilsTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:InventorySystemTest.kt$import org.junit.Assert.*</ID>
@@ -338,7 +335,6 @@
     <ID>WildcardImport:SerializationHelperTest.kt$import org.mockito.kotlin.*</ID>
     <ID>WildcardImport:SpiritRootGeneratorTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:StateFlowListUtilsTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:StateRevertRegressionTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:StorageBagUtilsTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:TimeProgressUtilTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:UiErrorTest.kt$import org.junit.Assert.*</ID>
@@ -347,5 +343,6 @@
     <ID>WildcardImport:UseCaseInvocationTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:UseCaseModelsTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:VassalServiceTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:VulkanPolicyTest.kt$import org.junit.Assert.*</ID>
   </CurrentIssues>
 </SmellBaseline>

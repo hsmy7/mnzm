@@ -9,8 +9,8 @@ import com.xianxia.sect.core.engine.upgradeSectLevel
 import com.xianxia.sect.core.engine.updateGameData
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.WorldSect
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * 宗门等级/改名/奖励委托。
@@ -19,7 +19,6 @@ import kotlinx.coroutines.launch
  */
 class SectDelegate(
     private val gameEngine: GameEngine,
-    private val scope: CoroutineScope,
     private val onShowSuccess: (String) -> Unit = {},
     private val onShowError: (String) -> Unit = {},
     private val onNavigateToDialog: (com.xianxia.sect.core.domain.dialog.DialogType) -> Unit = {},
@@ -32,7 +31,7 @@ class SectDelegate(
 
     /** 修改宗门名称 */
     fun renameSect(newName: String) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             gameEngine.updateGameData { data: GameData ->
                 data.copy(
                     sectName = newName,
@@ -41,38 +40,44 @@ class SectDelegate(
                     }
                 )
             }
-            onDismissDialog()
-            onShowSuccess("宗门已更名为「${newName}」")
+            withContext(Dispatchers.Main) {
+                onDismissDialog()
+                onShowSuccess("宗门已更名为「${newName}」")
+            }
         }
     }
 
     /** 领取宗门等级每周奖励 */
     fun claimSectLevelReward(level: Int) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             val result = gameEngine.claimSectLevelReward(level)
-            when (result) {
-                is SectLevelClaimResult.Success -> { /* 奖励已入队，由 RewardCardHost 播放 */ }
-                is SectLevelClaimResult.AlreadyClaimed ->
-                    onShowError("本周已领取过该等级奖励")
-                is SectLevelClaimResult.Error ->
-                    onShowError(result.message)
+            withContext(Dispatchers.Main) {
+                when (result) {
+                    is SectLevelClaimResult.Success -> { /* 奖励已入队，由 RewardCardHost 播放 */ }
+                    is SectLevelClaimResult.AlreadyClaimed ->
+                        onShowError("本周已领取过该等级奖励")
+                    is SectLevelClaimResult.Error ->
+                        onShowError(result.message)
+                }
             }
         }
     }
 
     /** 手动升级宗门等级 */
     fun upgradeSectLevel() {
-        scope.launch {
+        gameEngine.launchOnEngine {
             val result = gameEngine.upgradeSectLevel()
-            when (result) {
-                is SectLevelUpgradeResult.Success ->
-                    onShowSuccess("宗门晋升至${SectLevel.levelName(result.newLevel)}!")
-                is SectLevelUpgradeResult.AlreadyMaxLevel ->
-                    onShowSuccess("已达最高等级")
-                is SectLevelUpgradeResult.ConditionsNotMet ->
-                    onShowError("条件未满足: ${result.unmetConditions.joinToString("、")}")
-                is SectLevelUpgradeResult.Error ->
-                    onShowError(result.message)
+            withContext(Dispatchers.Main) {
+                when (result) {
+                    is SectLevelUpgradeResult.Success ->
+                        onShowSuccess("宗门晋升至${SectLevel.levelName(result.newLevel)}!")
+                    is SectLevelUpgradeResult.AlreadyMaxLevel ->
+                        onShowSuccess("已达最高等级")
+                    is SectLevelUpgradeResult.ConditionsNotMet ->
+                        onShowError("条件未满足: ${result.unmetConditions.joinToString("、")}")
+                    is SectLevelUpgradeResult.Error ->
+                        onShowError(result.message)
+                }
             }
         }
     }

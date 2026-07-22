@@ -13,8 +13,8 @@ import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.ui.game.sect.GoldFingerState
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * 建筑建造/拆除/搬迁/住宅管理委托。
@@ -25,7 +25,6 @@ class BuildingDelegate(
     private val gameEngine: GameEngine,
     private val buildingFacade: BuildingFacade,
     private val buildingConfigService: BuildingConfigService,
-    private val scope: CoroutineScope,
     private val onDemolishSuccess: (String) -> Unit = {}
 ) {
     private var _currentBuildingDelegate: Any? = null
@@ -34,23 +33,29 @@ class BuildingDelegate(
      * 放置建筑。通过 BuildingFeatureRegistry + SlotGroup 自动创建所有槽位。
      */
     fun placeBuilding(name: String, gridX: Int, gridY: Int, width: Int = 2, height: Int = 3) {
-        scope.launch {
-            val feature = BuildingFeatureRegistry.findByDisplayName(name) ?: return@launch
-            val config = buildingConfigService.getBuildingConfigByDisplayName(name)
-            val cost = config?.cost ?: feature.cost
-            val (gridW, gridH) = buildingConfigService.getBuildingGridSize(name)
+        gameEngine.launchOnEngine {
+            doPlaceBuilding(name, gridX, gridY, width, height)
+        }
+    }
 
-            // 第二层防御：验证网格位置不在边界树木区域内
-            val border = GameConfig.SectMap.BORDER_TREE_RING
-            if (gridX < border || gridY < border ||
-                gridX + gridW > GameConfig.SectMap.WORLD_WIDTH_CELLS - border ||
-                gridY + gridH > GameConfig.SectMap.WORLD_HEIGHT_CELLS - border
-            ) return@launch
-            val newBuildingInstanceId = java.util.UUID.randomUUID().toString()
-            val activeId = gameEngine.currentActiveSectId()
-            val newProductionSlots = mutableListOf<ProductionSlot>()
+    /** placeBuilding 的引擎线程执行体，供 batchPlaceBuilding 直接复用（避免递归 launchOnEngine）。 */
+    private suspend fun doPlaceBuilding(name: String, gridX: Int, gridY: Int, width: Int, height: Int) {
+        val feature = BuildingFeatureRegistry.findByDisplayName(name) ?: return
+        val config = buildingConfigService.getBuildingConfigByDisplayName(name)
+        val cost = config?.cost ?: feature.cost
+        val (gridW, gridH) = buildingConfigService.getBuildingGridSize(name)
 
-            gameEngine.updateGameData { data ->
+        // 第二层防御：验证网格位置不在边界树木区域内
+        val border = GameConfig.SectMap.BORDER_TREE_RING
+        if (gridX < border || gridY < border ||
+            gridX + gridW > GameConfig.SectMap.WORLD_WIDTH_CELLS - border ||
+            gridY + gridH > GameConfig.SectMap.WORLD_HEIGHT_CELLS - border
+        ) return
+        val newBuildingInstanceId = java.util.UUID.randomUUID().toString()
+        val activeId = gameEngine.currentActiveSectId()
+        val newProductionSlots = mutableListOf<ProductionSlot>()
+
+        gameEngine.updateGameData { data ->
                 // 限建检查
                 if (!feature.unlimitedBuild) {
                     if (data.placedBuildings.any { it.displayName == name && it.sectId == activeId }) return@updateGameData data
@@ -88,7 +93,6 @@ class BuildingDelegate(
             // 生产槽位同步写入 Repository
             newProductionSlots.forEach { buildingFacade.addProductionSlot(it) }
         }
-    }
 
     /** 查询建筑放置所需灵石。 */
     fun getBuildingCost(displayName: String): Long {
@@ -113,7 +117,7 @@ class BuildingDelegate(
     /** 金手指一键批量建造 */
     fun batchPlaceBuilding(goldFingerState: GoldFingerState) {
         if (!goldFingerState.isActive || goldFingerState.canBuildCount <= 0) return
-        scope.launch {
+        gameEngine.launchOnEngine {
             val name = goldFingerState.buildingName
             val (gw, gh) = buildingConfigService.getBuildingGridSize(name)
             val cost = goldFingerState.buildingCost
@@ -122,7 +126,7 @@ class BuildingDelegate(
                 if (!valid) continue
                 val gx = (cellKey shr 32).toInt()
                 val gy = (cellKey and 0xFFFF_FFFF).toInt()
-                placeBuilding(name = name, gridX = gx, gridY = gy, width = gw, height = gh)
+                doPlaceBuilding(name = name, gridX = gx, gridY = gy, width = gw, height = gh)
             }
         }
     }
@@ -134,21 +138,23 @@ class BuildingDelegate(
 
     /** 拆除建筑，返还一半造价并提示。 */
     fun demolishBuilding(instanceId: String) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             val snapshot = gameEngine.gameDataSnapshot
-            val building = snapshot.placedBuildings.find { it.instanceId == instanceId } ?: return@launch
+            val building = snapshot.placedBuildings.find { it.instanceId == instanceId } ?: return@launchOnEngine
             val config = buildingConfigService.getBuildingConfigByDisplayName(building.displayName)
             val cost = config?.cost ?: 1000L
             val refund = cost / 2
 
             gameEngine.removeBuilding(instanceId, refund)
-            onDemolishSuccess("已拆除${building.displayName}，返还灵石×$refund")
+            withContext(Dispatchers.Main) {
+                onDemolishSuccess("已拆除${building.displayName}，返还灵石×$refund")
+            }
         }
     }
 
     /** 修正已有存档中的建筑尺寸（存档加载后调用）。 */
     fun fixupBuildingSizesIfNeeded() {
-        scope.launch {
+        gameEngine.launchOnEngine {
             gameEngine.updateGameData { data ->
                 val fixed = buildingConfigService.fixupBuildingSizes(data.placedBuildings)
                 val withIds = GridBuildingData.ensureAllHaveInstanceId(fixed)
@@ -159,7 +165,7 @@ class BuildingDelegate(
 
     /** 分配弟子到住宅 */
     fun assignToResidence(buildingInstanceId: String, slotIndex: Int, discipleId: String) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             // 释放旧槽位（自动移除前职务）
             gameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId)
 
@@ -191,7 +197,7 @@ class BuildingDelegate(
 
     /** 从住宅移除弟子 */
     fun removeFromResidence(buildingInstanceId: String, slotIndex: Int) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             // 取出当前住户 ID 用于释放注册表
             val currentDiscipleId = gameEngine.gameDataSnapshot.residenceSlots
                 .find { it.buildingInstanceId == buildingInstanceId && it.slotIndex == slotIndex }
@@ -221,12 +227,12 @@ class BuildingDelegate(
 
     /** 升级单人住所（根据 BuildingFeature.upgradeTo 自动确定升级目标和费用） */
     fun upgradeSingleResidence(buildingInstanceId: String) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             val snapshot = gameEngine.gameDataSnapshot
-            val building = snapshot.placedBuildings.find { it.instanceId == buildingInstanceId } ?: return@launch
-            val feature = BuildingFeatureRegistry.findByDisplayName(building.displayName) ?: return@launch
-            val upgradeKey = feature.upgradeTo ?: return@launch
-            val upgradeFeature = BuildingFeatureRegistry.findByKey(upgradeKey) ?: return@launch
+            val building = snapshot.placedBuildings.find { it.instanceId == buildingInstanceId } ?: return@launchOnEngine
+            val feature = BuildingFeatureRegistry.findByDisplayName(building.displayName) ?: return@launchOnEngine
+            val upgradeKey = feature.upgradeTo ?: return@launchOnEngine
+            val upgradeFeature = BuildingFeatureRegistry.findByKey(upgradeKey) ?: return@launchOnEngine
             val upgradeCost = upgradeFeature.upgradeCost
             gameEngine.updateGameData { data ->
                 if (data.spiritStones < upgradeCost) return@updateGameData data

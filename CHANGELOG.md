@@ -2,6 +2,7 @@
 
 ### Bug 修复
 
+- **修复：操作弟子详情等界面时 ANR 闪退（Bugly #9041/#5068）** — 根因：UI 层 Delegate 通过 `scope.launch`（默认 `Dispatchers.Main`）调用 `GameStateStore.update{}`（内部使用阻塞式 `ReentrantLock`），当引擎线程持有锁时主线程阻塞 10 秒触发 ANR。新增 `GameEngine.launchOnEngine{}` 方法将所有 UI 触发的引擎操作派发到引擎单线程执行，配合 Detekt 自定义规则 + Gradle 编译时检查 + 运行时主线程监护，从架构层面根除同类 ANR
 - **修复：物品详情界面 Buff 描述显示英文代码** — 功法/丹药详情中 10 种 Buff（生命加成/物攻加成/暴伤加成等）因 `buffType.name.lowercase()` 与字符串映射表不匹配，显示为 "hp_boost" 等英文代码。新增 `formatBuffLine(BuffType)` 重载，直接使用枚举 displayName 跳过字符串映射
 - **修复：自动入住住所忽略灵根/已关注/属性门槛过滤** — 单人/多人住所自动入住代码无视用户的过滤设置，所有存活弟子均按悟性排序填入。现已补全 focused/rootCounts/threshold 双条件过滤
 - **修复：自动管理多选时排序无优先级** — `takeCandidate` 排序从单维度 `maxByOrNull` 改为 3 层优先级（已关注优先 → 灵根数升序 → 属性降序），与用户选择的优先级一致

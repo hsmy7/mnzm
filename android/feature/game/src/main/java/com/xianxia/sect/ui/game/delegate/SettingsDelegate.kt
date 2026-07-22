@@ -2,29 +2,26 @@ package com.xianxia.sect.ui.game.delegate
 
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 
 class SettingsDelegate(
     private val gameEngine: GameEngine,
-    private val discipleFacade: DiscipleFacade,
-    private val scope: CoroutineScope
+    private val discipleFacade: DiscipleFacade
 ) {
 
     fun setPatrolBattleResultPopup(enabled: Boolean) {
-        scope.launch { gameEngine.updateGameData { it.copy(patrolBattleResultPopup = enabled) } }
+        gameEngine.launchOnEngine { gameEngine.updateGameData { it.copy(patrolBattleResultPopup = enabled) } }
     }
 
     fun setAutoSellMidGradeForPurchase(enabled: Boolean) {
-        scope.launch { gameEngine.updateGameData { it.copy(autoSellMidGradeForPurchase = enabled) } }
+        gameEngine.launchOnEngine { gameEngine.updateGameData { it.copy(autoSellMidGradeForPurchase = enabled) } }
     }
 
     fun setAutoSellHighGradeForPurchase(enabled: Boolean) {
-        scope.launch { gameEngine.updateGameData { it.copy(autoSellHighGradeForPurchase = enabled) } }
+        gameEngine.launchOnEngine { gameEngine.updateGameData { it.copy(autoSellHighGradeForPurchase = enabled) } }
     }
 
     fun setShowAllAvailableDisciples(enabled: Boolean) {
-        scope.launch { gameEngine.updateGameData { it.copy(showAllAvailableDisciples = enabled) } }
+        gameEngine.launchOnEngine { gameEngine.updateGameData { it.copy(showAllAvailableDisciples = enabled) } }
     }
 
     suspend fun releaseDiscipleFromAllSlotsAtomic(discipleId: String) {
@@ -47,11 +44,11 @@ class SettingsDelegate(
     fun setActiveTab(tab: String) { gameEngine.setActiveTab(tab) }
 
     fun consumeBloodRefiningMaterial(name: String, rarity: Int, quantity: Int) {
-        scope.launch { gameEngine.consumeMaterialByName(name, rarity, quantity) }
+        gameEngine.launchOnEngine { gameEngine.consumeMaterialByName(name, rarity, quantity) }
     }
 
     fun setYearlySalary(realm: Int, amount: Int) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             val data = gameEngine.gameData.value
             val newSalary = data.yearlySalary.toMutableMap()
             newSalary[realm] = amount
@@ -60,6 +57,6 @@ class SettingsDelegate(
     }
 
     fun setYearlySalaryEnabled(realm: Int, enabled: Boolean) {
-        scope.launch { discipleFacade.updateYearlySalaryEnabled(realm, enabled) }
+        gameEngine.launchOnEngine { discipleFacade.updateYearlySalaryEnabled(realm, enabled) }
     }
 }

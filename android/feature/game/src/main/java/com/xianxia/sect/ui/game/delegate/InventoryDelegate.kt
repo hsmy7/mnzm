@@ -9,26 +9,24 @@ import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.Seed
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 class InventoryDelegate(
-    private val gameEngine: GameEngine,
-    private val scope: CoroutineScope
+    private val gameEngine: GameEngine
 ) {
 
     fun toggleItemLock(itemId: String, itemType: String) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             gameEngine.toggleItemLock(itemId, itemType)
         }
     }
 
     fun sellToMerchant(itemId: String, quantity: Int) {
-        scope.launch { gameEngine.sellToMerchant(itemId, quantity) }
+        gameEngine.launchOnEngine { gameEngine.sellToMerchant(itemId, quantity) }
     }
 
     fun sellItem(itemId: String, itemType: String, quantity: Int) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             try {
                 when (itemType) {
                     "equipment" -> gameEngine.sellEquipment(itemId, quantity)
@@ -39,36 +37,40 @@ class InventoryDelegate(
                     "seed" -> gameEngine.sellSeed(itemId, quantity)
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 /* error handled by BaseViewModel */
             }
         }
     }
 
     fun buyFromMerchant(itemId: String, quantity: Int = 1) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             try {
                 gameEngine.buyMerchantItem(itemId, quantity)
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 /* error handled by BaseViewModel */
             }
         }
     }
 
     fun listItemsToMerchant(items: List<Pair<String, Int>>) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             try {
                 gameEngine.listItemsToMerchant(items)
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 /* error handled by BaseViewModel */
             }
         }
     }
 
     fun removePlayerListedItem(itemId: String) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             try {
                 gameEngine.removePlayerListedItem(itemId)
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 /* error handled by BaseViewModel */
             }
         }
@@ -110,7 +112,7 @@ class InventoryDelegate(
     // ── 自动购买 ────────────────────────────────────────────────────
 
     fun addAutoBuyEntries(entries: List<AutoBuyEntry>) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             try {
                 gameEngine.updateGameData { gd ->
                     gd.copy(autoBuyList = (gd.autoBuyList + entries).distinctBy {
@@ -118,13 +120,14 @@ class InventoryDelegate(
                     })
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 /* error handled by BaseViewModel */
             }
         }
     }
 
     fun removeAutoBuyEntries(entries: List<AutoBuyEntry>) {
-        scope.launch {
+        gameEngine.launchOnEngine {
             try {
                 val keysToRemove = entries.map {
                     "${it.itemName}:${it.itemType}:${it.rarity}"
@@ -135,6 +138,7 @@ class InventoryDelegate(
                     })
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 /* error handled by BaseViewModel */
             }
         }
