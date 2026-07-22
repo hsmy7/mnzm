@@ -1,3 +1,12 @@
+## [4.0.66] - 2026-07-23（versionCode=4066）
+
+### Bug 修复
+
+- **修复：Compose LazyColumn 嵌套 verticalScroll 崩溃（Bugly #9043）** — UnifiedGameDialog 默认 `scrollableContent=true` 改 `false`，防止新增对话框无意嵌套 `LazyColumn` 触发 `IllegalStateException`。审计 77 处调用点，2 处需滚动者显式声明 `scrollableContent=true`
+- **修复：文本选择工具栏 BadTokenException（Bugly #3026）** — InlineStandardPromptDialog 新增 `clearFocus` onDispose（与 StandardPromptDialog 对齐）；SettingsTab 自动保存间隔 Dialog 补全；MainActivity 新增 ActionModeSafeCallback（与 GameActivity 对齐）
+- **修复：Adreno Vulkan 驱动 SIGSEGV（Bugly #9045）** — surfaceDestroyed 改用 2s 截止时间轮询 + `renderThread.interrupt()`；VulkanBackend::submitFrame 阻塞调用后添加 `m_ready` 守卫，消除 Surface 销毁后 VkHandle use-after-free
+- **安全：PeakDialog 移除嵌套 verticalScroll 潜伏风险** — 内部 Column 移除 `Modifier.verticalScroll()`，该函数当前未调用但仍然修复结构
+
 ## [4.0.65] - 2026-07-22（versionCode=4065）
 
 ### 新增功能
