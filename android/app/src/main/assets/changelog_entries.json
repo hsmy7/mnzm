@@ -92,6 +92,14 @@
     ]
   },
   {
+    "date": "2026-07-24",
+    "version": "4.0.66",
+    "changes": [
+      "修复：创建宗门/改名对话框键盘弹出时界面频闪(OPPO Find X8/Vivo 15等OEM)——DialogSoftInputGuard被错误放在Dialog块外导致Dialog窗口未应用ADJUST_NOTHING，3个可复用对话框组件+SettingsTab共4处修复",
+      "优化：宗门命名/改名输入框自动弹出键盘——添加FocusRequester+LaunchedEffect自动聚焦+delay(100)延迟兼容ColorOS/FuntouchOS入场动画"
+    ]
+  },
+  {
     "date": "2026-07-22",
     "version": "4.0.65",
     "changes": [

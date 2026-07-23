@@ -2,16 +2,22 @@ package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,6 +41,7 @@ fun RenameSectDialog(
 ) {
     var input by remember { mutableStateOf(currentName) }
     var error by remember { mutableStateOf<String?>(null) }
+    val focusRequester = remember { FocusRequester() }
 
     InlineStandardPromptDialog(
         onDismissRequest = onDismiss,
@@ -49,6 +56,10 @@ fun RenameSectDialog(
         },
         onDismiss = onDismiss,
         content = {
+            LaunchedEffect(Unit) {
+                kotlinx.coroutines.delay(100) // 等待 Dialog 入场动画完成，兼容 ColorOS/FuntouchOS
+                focusRequester.requestFocus()
+            }
             OutlinedTextField(
                 value = input,
                 onValueChange = { newValue ->
@@ -63,7 +74,13 @@ fun RenameSectDialog(
                 singleLine = true,
                 isError = error != null,
                 textStyle = TextStyle(color = Color.Black, fontSize = 14.sp),
-                modifier = Modifier.fillMaxWidth()
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Text,
+                    imeAction = ImeAction.Done
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester)
             )
             Text(
                 text = error ?: "${input.length}/${InputValidator.MAX_SECT_NAME_LENGTH}",

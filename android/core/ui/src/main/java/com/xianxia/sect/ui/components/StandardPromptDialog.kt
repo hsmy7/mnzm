@@ -73,7 +73,13 @@ fun DialogSoftInputGuard(
     val originalMode = remember { targetWindow.attributes.softInputMode }
     DisposableEffect(targetWindow) {
         targetWindow.setSoftInputMode(mode)
-        onDispose { targetWindow.setSoftInputMode(originalMode) }
+        onDispose {
+            try {
+                targetWindow.setSoftInputMode(originalMode)
+            } catch (_: Exception) {
+                // OEM 定制 Window 实现可能在窗口销毁后抛出异常，安全忽略
+            }
+        }
     }
 }
 
@@ -344,7 +350,6 @@ fun InlineStandardPromptDialog(
     content: @Composable (ColumnScope.() -> Unit) = {}
 ) {
     // 在 composition 入口处读取屏幕尺寸并用 remember 缓存，之后不再变化
-    DialogSoftInputGuard()
     val screenConfig = LocalConfiguration.current
     val dialogWidth = remember { (screenConfig.screenWidthDp * 0.5f).dp }
     val dialogHeight = remember { (screenConfig.screenHeightDp * 0.55f).dp }
@@ -362,6 +367,8 @@ fun InlineStandardPromptDialog(
             dismissOnClickOutside = false
         )
     ) {
+        // 切换 softInputMode，切断 OEM 键盘频闪震荡回路（必须放在 Dialog {} 块内，才能获取 Dialog Window 引用）
+        DialogSoftInputGuard()
         // 隐藏 Dialog Window 的系统状态栏/导航栏
         DialogSystemBarGuard()
 

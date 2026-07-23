@@ -63,6 +63,8 @@ fun SmallScreenDialog(
             dismissOnClickOutside = dismissOnClickOutside
         )
     ) {
+        // 切换 softInputMode，切断 OEM 键盘频闪震荡回路
+        DialogSoftInputGuard()
         // 隐藏 Dialog Window 的系统状态栏/导航栏
         DialogSystemBarGuard()
 

@@ -12,12 +12,17 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalLocale
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.KeyboardOptions
 import com.xianxia.sect.core.util.InputValidator
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.ui.components.GameBackground
@@ -188,6 +193,7 @@ fun SaveSelectScreen(
 
     // ── 宗门名输入对话框 ──
     if (showSectNameDialog != null) {
+        val focusRequester = remember { FocusRequester() }
         InlineStandardPromptDialog(
             onDismissRequest = { showSectNameDialog = null },
             title = "创建宗门",
@@ -203,6 +209,10 @@ fun SaveSelectScreen(
                 }
             },
             content = {
+                LaunchedEffect(Unit) {
+                    kotlinx.coroutines.delay(100) // 等待 Dialog 入场动画完成，兼容 ColorOS/FuntouchOS
+                    focusRequester.requestFocus()
+                }
                 Spacer(Modifier.weight(1f))
                 OutlinedTextField(
                     value = sectNameInput,
@@ -216,7 +226,13 @@ fun SaveSelectScreen(
                     placeholder = { Text("青云宗", color = Color(0xFF999999)) },
                     singleLine = true,
                     isError = sectNameError != null,
-                    modifier = Modifier.fillMaxWidth()
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Text,
+                        imeAction = ImeAction.Done
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester)
                 )
                 Text(
                     text = sectNameError ?: "${sectNameInput.length}/6",

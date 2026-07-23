@@ -64,9 +64,6 @@ fun UnifiedGameDialog(
         ?: R.drawable.ui_close_button,
     content: @Composable () -> Unit
 ) {
-    // 切换 softInputMode，防止 Xiaomi HyperOS 键盘频闪
-    DialogSoftInputGuard()
-
     if (dismissOnBackPress) {
         BackHandler(onBack = onDismissRequest)
     }
@@ -95,6 +92,8 @@ fun UnifiedGameDialog(
             dismissOnClickOutside = false
         )
     ) {
+        // 切换 softInputMode，切断 OEM 键盘频闪震荡回路（必须放在 Dialog {} 块内，才能获取 Dialog Window 引用）
+        DialogSoftInputGuard()
         // 隐藏 Dialog Window 的系统状态栏/导航栏（必须放在 Dialog {} 块内，才能获取 Dialog Window 引用）
         DialogSystemBarGuard()
 

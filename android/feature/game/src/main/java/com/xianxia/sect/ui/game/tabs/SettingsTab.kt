@@ -327,11 +327,12 @@ internal fun SettingsTab(
                     }
                     
                     if (showEditIntervalDialog) {
-                        DialogSoftInputGuard()
                         Dialog(
                             onDismissRequest = { showEditIntervalDialog = false },
                             properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
                         ) {
+                        // 切换 softInputMode，切断 OEM 键盘频闪震荡回路
+                        DialogSoftInputGuard()
                         // 隐藏 Dialog Window 的系统状态栏/导航栏
                         DialogSystemBarGuard()
 

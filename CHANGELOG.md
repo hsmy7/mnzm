@@ -21,6 +21,8 @@
 - **修复：突破率详情弹窗子项金额不等于总值** — 详情以加法格式展示各乘区系数，但实际公式为乘法，底部新增公式计算过程说明
 - **安全：doPlaceBuilding 添加宗门等级检查（防御层）** — 金手指/API 直调不再可绕过 UI 限制建造中级建筑
 - **安全：requiredSectLevel 添加 require 范围守卫(0-3)** — 防止无效值绕过限制
+- **修复：OPPO/Vivo 宗门名称输入框键盘频闪** — 3 个可复用对话框组件（`InlineStandardPromptDialog`、`UnifiedGameDialog`、`SmallScreenDialog`）+ `SettingsTab` 内联 Dialog 的 `DialogSoftInputGuard()` 从 `Dialog {}` 外部移到内部，保证 Dialog 自己的窗口正确应用 `SOFT_INPUT_ADJUST_NOTHING`，切断 OEM 键盘频闪震荡回路
+- **优化：宗门命名/改名输入框自动聚焦** — `FocusRequester` + `LaunchedEffect` 自动弹出键盘，`delay(100)` 兼容 ColorOS/FuntouchOS Dialog 入场动画；添加 `KeyboardOptions(Text, Done)` 明确 IME 行为
 
 ### UI 优化
 
