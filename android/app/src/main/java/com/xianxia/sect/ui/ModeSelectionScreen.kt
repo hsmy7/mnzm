@@ -2,15 +2,11 @@ package com.xianxia.sect.ui
 
 import android.graphics.Bitmap
 import android.util.Log
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bumptech.glide.Glide
 import com.xianxia.sect.R
+import com.xianxia.sect.ui.components.SmallScreenDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -59,27 +56,60 @@ fun ModeSelectionScreen(
             contentScale = ContentScale.FillBounds
         )
 
-        // 右上角：用户名 + 头像
-        UserAvatarHeader(
-            userName = userName,
-            avatarBitmap = avatarBitmap,
-            onClick = { showUserInfo = true }
-        )
+        // 主内容区 — 仅避让左右安全区域（曲面屏/挖孔屏边缘）
+        Box(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Left + WindowInsetsSides.Right))) {
+            // 右上角：用户名 + 头像
+            UserAvatarHeader(
+                userName = userName,
+                avatarBitmap = avatarBitmap,
+                onClick = { showUserInfo = true }
+            )
 
-        // 左下角：三个按钮一行排列
-        ActionButtons(
-            onNewGame = onNewGame,
-            onLoadSave = onLoadSave,
-            onLogout = onLogout
-        )
+            // 左侧：三个按钮纵向排列
+            ActionButtons(
+                onNewGame = onNewGame,
+                onLoadSave = onLoadSave,
+                onLogout = onLogout
+            )
+        }
 
-        // 半屏用户信息面板
-        UserInfoPanel(
-            visible = showUserInfo,
-            userName = userName,
-            unionId = unionId,
-            onDismiss = { showUserInfo = false }
-        )
+        // 用户信息小屏对话框
+        if (showUserInfo) {
+            SmallScreenDialog(
+                onDismissRequest = { showUserInfo = false },
+                title = "用户信息",
+                titleColor = Color.Black
+            ) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "用户名称",
+                    fontSize = 12.sp,
+                    color = Color(0xFF888888)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = userName,
+                    fontSize = 16.sp,
+                    color = Color.Black,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "TapTap UnionId",
+                    fontSize = 12.sp,
+                    color = Color(0xFF888888)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = unionId,
+                    fontSize = 14.sp,
+                    color = Color.Black,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
     }
 }
 
@@ -140,12 +170,11 @@ private fun ActionButtons(
     onLoadSave: () -> Unit,
     onLogout: () -> Unit
 ) {
-    Row(
+    Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 24.dp, bottom = 48.dp),
-        horizontalArrangement = Arrangement.Start,
-        verticalAlignment = Alignment.CenterVertically
+            .padding(start = 24.dp, top = 80.dp),
+        verticalArrangement = Arrangement.Top,
+        horizontalAlignment = Alignment.Start
     ) {
         Image(
             painter = painterResource(id = R.drawable.btn_new_game),
@@ -155,7 +184,7 @@ private fun ActionButtons(
                 .clickable { onNewGame() },
             contentScale = ContentScale.Fit
         )
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.height(16.dp))
         Image(
             painter = painterResource(id = R.drawable.btn_load_save),
             contentDescription = "读取存档",
@@ -164,7 +193,7 @@ private fun ActionButtons(
                 .clickable { onLoadSave() },
             contentScale = ContentScale.Fit
         )
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.height(16.dp))
         Image(
             painter = painterResource(id = R.drawable.btn_logout),
             contentDescription = "退出登录",
@@ -173,77 +202,6 @@ private fun ActionButtons(
                 .clickable { onLogout() },
             contentScale = ContentScale.Fit
         )
-    }
-}
-
-@Composable
-private fun UserInfoPanel(
-    visible: Boolean,
-    userName: String,
-    unionId: String,
-    onDismiss: () -> Unit
-) {
-    AnimatedVisibility(
-        visible = visible,
-        enter = slideInVertically { it },
-        exit = slideOutVertically { it },
-        modifier = Modifier.fillMaxSize()
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0x99000000))
-                .clickable { onDismiss() },
-            contentAlignment = Alignment.BottomCenter
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight(0.5f)
-                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-                    .background(Color.White)
-                    .clickable(enabled = false) { }
-                    .padding(24.dp),
-                contentAlignment = Alignment.TopStart
-            ) {
-                Column {
-                    Text(
-                        text = "用户信息",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Text(
-                        text = "用户名称",
-                        fontSize = 12.sp,
-                        color = Color(0xFF888888)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = userName,
-                        fontSize = 16.sp,
-                        color = Color.Black,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(modifier = Modifier.height(20.dp))
-                    Text(
-                        text = "TapTap UnionId",
-                        fontSize = 12.sp,
-                        color = Color(0xFF888888)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = unionId,
-                        fontSize = 14.sp,
-                        color = Color.Black,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-        }
     }
 }
 

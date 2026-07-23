@@ -104,7 +104,8 @@ fun SaveSelectScreen(
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .verticalScroll(rememberScrollState()),
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 if (saveSlots.isEmpty()) {
