@@ -13,6 +13,7 @@ complexity:
   TooManyFunctions:
     active: true
     thresholdInFiles: 15     # 从 30 收紧
+    thresholdInObjects: 12   # Dagger @Module 的 @Provides 函数属于 DI 样板代码
   LongParameterList:
     functionThreshold: 8
     constructorThreshold: 10
