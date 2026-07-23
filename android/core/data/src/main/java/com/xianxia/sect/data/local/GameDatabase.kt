@@ -1224,11 +1224,11 @@ abstract class GameDatabase : RoomDatabase() {
         private val threadCounter = AtomicInteger(0)
 
         /**
-         * Room v24/v25 生成的 game_data 表 CREATE TABLE SQL。
+         * Room v29 全量 game_data 表 CREATE TABLE SQL。
          * 用于 MIGRATION_22_23 和 MIGRATION_24_25 重建 game_data 表。
          *
          * 必须与 GameData 实体完全一致（NOT NULL、DEFAULT、PRIMARY KEY）。
-         * 同步自 Room schema JSON: 24.json game_data createSql
+         * 包含 v26（引导）、v27/v28（年报）、v29（广纳门徒冷却）等全部字段。
          */
         private val GAME_DATA_CREATE_SQL = """
             CREATE TABLE IF NOT EXISTS `game_data` (
@@ -1261,7 +1261,8 @@ abstract class GameDatabase : RoomDatabase() {
                 `patrolConfigs` TEXT NOT NULL, `pendingPatrolBattleResults` TEXT NOT NULL,
                 `alliances` TEXT NOT NULL, `vassalContracts` TEXT NOT NULL,
                 `sectRelations` TEXT NOT NULL, `playerAllianceSlots` INTEGER NOT NULL,
-                `sectPolicies` TEXT NOT NULL, `battleTeam` TEXT,
+                `sectPolicies` TEXT NOT NULL, `open_recruitment_last_paid_month` INTEGER NOT NULL,
+                `battleTeam` TEXT,
                 `aiBattleTeams` TEXT NOT NULL, `usedRedeemCodes` TEXT NOT NULL,
                 `mailRecords` TEXT NOT NULL, `sectLevelClaimRecords` TEXT NOT NULL,
                 `save_version` INTEGER NOT NULL DEFAULT 0,
@@ -1290,7 +1291,15 @@ abstract class GameDatabase : RoomDatabase() {
                 `lastYearSpiritStoneIncome` INTEGER NOT NULL, `activeAttackWarnings` TEXT NOT NULL,
                 `shownWarningStageIds` TEXT NOT NULL, `sectAttackCooldowns` TEXT NOT NULL,
                 `sectBattleRecords` TEXT NOT NULL, `gameEventRecords` TEXT NOT NULL,
+                `guideClaimedRewardIds` TEXT NOT NULL, `guideCounters` TEXT NOT NULL,
                 `map_seed` INTEGER NOT NULL DEFAULT 0,
+                `annual_income_by_source` TEXT NOT NULL, `annual_expenditure_by_reason` TEXT NOT NULL,
+                `annual_total_income` INTEGER NOT NULL, `annual_total_expenditure` INTEGER NOT NULL,
+                `annual_alchemy_count` INTEGER NOT NULL, `annual_forge_count` INTEGER NOT NULL,
+                `annual_herb_count` INTEGER NOT NULL, `annual_new_disciples` INTEGER NOT NULL,
+                `annual_deceased_disciples` INTEGER NOT NULL, `annual_deserted_disciples` INTEGER NOT NULL,
+                `annual_equipment_by_source` TEXT NOT NULL, `annual_pill_by_source` TEXT NOT NULL,
+                `annual_herb_by_source` TEXT NOT NULL, `yearly_reports` TEXT NOT NULL,
                 PRIMARY KEY(`id`, `slot_id`)
             )
         """.trimIndent()

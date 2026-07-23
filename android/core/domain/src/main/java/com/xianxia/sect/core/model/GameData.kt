@@ -353,6 +353,7 @@ data class GameData(
     var sectPolicies: SectPolicies = SectPolicies(),
 
     // 广纳门徒上次付费月份（绝对月数 = year*12 + month，用于3年冷却判断）
+    @ColumnInfo(name = "open_recruitment_last_paid_month")
     var openRecruitmentLastPaidMonth: Int = 0,
 
     // 战斗队伍（支持多队伍）
