@@ -95,6 +95,7 @@ class GameEngine @Inject constructor(
     internal val spiritStoneWallet: SpiritStoneWallet,
     internal val gameRngManager: GameRngManager,
     internal val assignmentGate: com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate,
+    internal val lawEnforcementProcessor: com.xianxia.sect.core.engine.service.LawEnforcementProcessor,
 ) {
     init {
         // 注入任务完成检测回调到 GameEngineCore，

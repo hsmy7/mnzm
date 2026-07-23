@@ -7,6 +7,7 @@ import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.service.CultivationService
+import com.xianxia.sect.core.engine.service.LawEnforcementProcessor
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleService
 import com.xianxia.sect.core.engine.service.HighFrequencyData
 import com.xianxia.sect.core.engine.system.InventorySystem
@@ -37,6 +38,7 @@ class DiscipleFacadeImpl @Inject constructor(
     private val pillManager: DisciplePillManager,
     private val assignmentGate: DiscipleAssignmentGate,
     private val discipleSlotCleanup: DiscipleSlotCleanup,
+    private val lawEnforcementProcessor: LawEnforcementProcessor,
 ) : DiscipleFacade {
 
     companion object {
@@ -426,6 +428,11 @@ class DiscipleFacadeImpl @Inject constructor(
             discipleTables.spiritPlantings[id] = discipleTables.spiritPlantings[id] + effect.spiritPlantingAdd
             discipleTables.teachings[id] = discipleTables.teachings[id] + effect.teachingAdd
             discipleTables.moralities[id] = discipleTables.moralities[id] + effect.moralityAdd
+            // 道德降低后即时触发偷盗判定（事务内版本，避免重入写覆盖）
+            val newMoral = discipleTables.moralities[id]
+            if (newMoral < GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD) {
+                lawEnforcementProcessor.processSingleDiscipleTheft(id, this)
+            }
             discipleTables.minings[id] = discipleTables.minings[id] + effect.miningAdd
 
             // 记录永久属性丹使用

@@ -366,3 +366,15 @@ stateStore.update {
 **对标：** Supercell（action 原子提交）、UE（Game Thread 快照一次性完成）
 **现状：** `processAutoAssign` 中炼丹/锻造仍通过 `productionSlotRepository.batchUpdate`（Room IO）写入，与 `stateStore.update` 不在同一事务
 **建议：** 将生产槽位数据迁入 `GameStateStore` 的 `MutableGameState` 体系，使所有自动分配在同一事务内完成
+
+### 7️⃣ 偷盗系统：事务内守卫查询走 StateFlow 而非事务内状态
+
+**场景：** `LawEnforcementProcessor.tryStealthDetection()` 从事务内路径（6 处道德变更钩子）调用时，守卫数据通过 `stateStore.disciples.value` 读取，而非当前事务 `MutableGameState` 的 `discipleTables`。
+
+**当前影响：** 无。所有 6 处钩子只修改盗贼的道德值，不涉及守卫数据，读到的 StateFlow 快照与事务内状态一致。
+
+**触发条件：** 仅在同一事务内同时修改守卫属性 + 触发盗贼偷盗时才会读到旧守卫数据。当前代码路径不存在此场景。
+
+**建议修复方案：** 给 `tryStealthDetection` 增加 `state: MutableGameState?` 可选参数，事务内路径传入 `state` 并从 `state.discipleTables` 读取守卫。
+
+**优先级：** 🔴 低（当前无触发路径，纯防御性记录）

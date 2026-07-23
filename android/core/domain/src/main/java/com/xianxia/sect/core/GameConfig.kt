@@ -694,15 +694,43 @@ object GameConfig {
         const val MORALITY_THRESHOLD = 30
         const val PROB_PER_POINT = 0.01
         const val MAX_PROB = 0.90
-        const val THEFT_MIN_RATIO = 0.01
-        const val THEFT_MAX_RATIO = 0.05
         const val BASE_CAPTURE_RATE = 0.0
         const val INTELLIGENCE_BASE = 50
         const val ELDER_BONUS_PER_POINT = 0.01
         const val DISCIPLE_INTELLIGENCE_STEP = 5
         const val DISCIPLE_BONUS_PER_STEP = 0.01
         const val REFLECTION_YEARS = 5
-        const val NEW_DISCIPLE_PROTECTION_MONTHS = 12  // 新弟子入门一年内不会偷盗和叛逃
+        const val NEW_DISCIPLE_PROTECTION_MONTHS = 12
+
+        // ── 境界基准偷盗量（等比数列 ×4，1=炼气 … 9=渡劫） ──
+        val THEFT_REALM_BASE_AMOUNTS: Map<Int, Long> = mapOf(
+            1 to 500L,
+            2 to 2_000L,
+            3 to 8_000L,
+            4 to 32_000L,
+            5 to 128_000L,
+            6 to 512_000L,
+            7 to 2_000_000L,
+            8 to 8_000_000L,
+            9 to 32_000_000L
+        )
+        const val THEFT_SPEED_BONUS_PER_POINT = 0.005   // 每点身法（超基准）加成
+        const val THEFT_SPEED_BASE = 50                  // 身法基准值
+        const val THEFT_INTELLIGENCE_BONUS_PER_POINT = 0.003
+        const val THEFT_INTELLIGENCE_BASE = 50
+        const val THEFT_MAX_RATIO_OF_TOTAL = 0.10       // 单次偷盗不超过宗门灵石 10%
+        const val THEFT_MIN_AMOUNT = 100L               // 最少偷 100 灵石
+        const val THEFT_REALM_PERCEPTION_BONUS = 10     // 每层境界感知加成基数
+        const val THEFT_STEALTH_SPEED_FACTOR = 0.3      // 身法→隐匿系数
+        const val THEFT_STEALTH_INTEL_FACTOR = 0.2      // 智力→隐匿系数
+        const val THEFT_PERCEPTION_INTEL_FACTOR = 0.5   // 智力→感知系数
+        const val THEFT_ITEM_BASE_DIVISOR = 20_000L     // 境界基准/此值=可偷物品单位数
+        const val THEFT_ITEM_GUARD_REDUCTION = 2        // 每个守卫减少物品单位
+        const val THEFT_ITEM_UNIT_SPEED_FACTOR = 3      // 身法→可偷物品单位的转换系数
+        const val THEFT_ITEM_UNIT_INTEL_FACTOR = 3      // 智力→可偷物品单位的转换系数
+        const val THEFT_STEALTH_REALM_FACTOR = 1.2       // 隐匿中境界加成的额外倍数
+        const val THEFT_COOLDOWN_MONTHS = 12             // 偷盗冷却月数
+        const val THEFT_MORAL_EDUCATION_THRESHOLD = 30  // 教化之道下道德仍低于此值需检查偷盗
     }
 
     data class RarityConfig(

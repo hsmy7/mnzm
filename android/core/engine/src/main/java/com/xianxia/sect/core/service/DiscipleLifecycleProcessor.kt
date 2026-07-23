@@ -27,7 +27,8 @@ class DiscipleLifecycleProcessor @Inject constructor(
     private val scopeProvider: CoroutineScopeProvider,
     private val productionSlotRepository: ProductionSlotRepository,
     private val eventBus: EventBusPort,
-    private val discipleSlotCleanup: DiscipleSlotCleanup
+    private val discipleSlotCleanup: DiscipleSlotCleanup,
+    private val lawEnforcementProcessor: javax.inject.Provider<LawEnforcementProcessor>
 ) {
     private val scope get() = scopeProvider.scope
 
@@ -277,6 +278,10 @@ class DiscipleLifecycleProcessor @Inject constructor(
                 discipleTables.statusData[id] = d.statusData
                 discipleTables.moralities[id] = d.skills.morality
                 discipleTables.loyalties[id] = d.skills.loyalty
+                // 道德降低后即时触发偷盗判定（事务内版本）
+                if (d.skills.morality < GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD) {
+                    lawEnforcementProcessor.get().processSingleDiscipleTheft(id, this)
+                }
             }
         }
     }

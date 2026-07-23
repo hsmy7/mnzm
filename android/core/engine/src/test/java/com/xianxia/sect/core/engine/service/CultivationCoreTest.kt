@@ -150,7 +150,7 @@ class CultivationCoreTest {
             equipmentManager = Mockito.mock(DiscipleEquipmentManager::class.java),
             manualManager = Mockito.mock(DiscipleManualManager::class.java),
             hpMpRecoveryService = realHpMpRecoveryService,
-            autoPillService = AutoPillService(mockPillManager),
+            autoPillService = AutoPillService(mockPillManager, Mockito.mock()),
             equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
             cultivationRateCalculator = CultivationRateCalculator(mockStateStore),

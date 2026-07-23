@@ -99,7 +99,10 @@ class DiscipleLifecycleProcessorTest {
             eventBus = mock(EventBusPort::class.java),
             discipleSlotCleanup = DiscipleSlotCleanup(
                 DiscipleAssignmentGate(DiscipleAssignmentRegistry())
-            )
+            ),
+            lawEnforcementProcessor = object : javax.inject.Provider<LawEnforcementProcessor> {
+                override fun get(): LawEnforcementProcessor = mock(LawEnforcementProcessor::class.java)
+            }
         )
     }
 

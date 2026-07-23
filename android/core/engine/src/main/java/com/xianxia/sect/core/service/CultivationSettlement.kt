@@ -58,7 +58,8 @@ sealed interface PolicyCostResult {
 class CultivationSettlement @Inject constructor(
     private val stateStore: GameStateStore,
     private val scopeProvider: CoroutineScopeProvider,
-    private val spiritStoneWallet: SpiritStoneWallet
+    private val spiritStoneWallet: SpiritStoneWallet,
+    private val lawEnforcementProcessor: LawEnforcementProcessor
 ) {
     private val scope get() = scopeProvider.scope
 
@@ -308,7 +309,12 @@ class CultivationSettlement @Inject constructor(
             if (data.sectPolicies.moralEducation) {
                 val current = tables.moralities.getOrDefault(id, 50)
                 if (current < maxMoral) {
-                    tables.moralities[id] = (current + GameConfig.PolicyConfig.MORAL_EDUCATION_PER_MONTH).coerceIn(0, maxMoral)
+                    val newMoral = (current + GameConfig.PolicyConfig.MORAL_EDUCATION_PER_MONTH).coerceIn(0, maxMoral)
+                    tables.moralities[id] = newMoral
+                    // 教化之道提升道德，但若仍低于阈值则触发偷盗判定（事务内版本）
+                    if (newMoral < GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD) {
+                        lawEnforcementProcessor.processSingleDiscipleTheft(id, state)
+                    }
                     moralCount++
                 }
             }

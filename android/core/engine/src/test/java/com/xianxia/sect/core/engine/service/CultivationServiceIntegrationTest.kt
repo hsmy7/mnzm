@@ -67,7 +67,7 @@ class CultivationServiceIntegrationTest {
             equipmentManager = mock(),
             manualManager = mock(),
             hpMpRecoveryService = HpMpRecoveryService(),
-            autoPillService = AutoPillService(mock()),
+            autoPillService = AutoPillService(mock(), mock()),
             equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
             cultivationRateCalculator = CultivationRateCalculator(stateStore),

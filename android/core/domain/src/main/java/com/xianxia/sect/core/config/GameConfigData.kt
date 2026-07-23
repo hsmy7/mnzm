@@ -206,7 +206,9 @@ data class GameConfigData(
         val moralityThreshold: Int = 30,
         val probPerPoint: Double = 0.03,
         val maxProb: Double = 0.9,
+        @Deprecated("已废弃，改用 realm-based 公式")
         val theftMinRatio: Double = 0.01,
+        @Deprecated("已废弃，改用 realm-based 公式")
         val theftMaxRatio: Double = 0.05,
         val baseCaptureRate: Double = 0.0,
         val intelligenceBase: Int = 50,
@@ -214,7 +216,17 @@ data class GameConfigData(
         val discipleIntelligenceStep: Int = 5,
         val discipleBonusPerStep: Double = 0.01,
         val reflectionYears: Int = 5,
-        val newDiscipleProtectionMonths: Int = 12
+        val newDiscipleProtectionMonths: Int = 12,
+        // 境界基准偷盗量相关
+        val theftRealmBaseMin: Long = 500L,
+        val theftRealmBaseMax: Long = 32_000_000L,
+        val theftSpeedBonusPerPoint: Double = 0.005,
+        val theftSpeedBase: Int = 50,
+        val theftIntelligenceBonusPerPoint: Double = 0.003,
+        val theftIntelligenceBase: Int = 50,
+        val theftMaxRatioOfTotal: Double = 0.10,
+        val theftMinAmount: Long = 100L,
+        val theftRealmPerceptionBonus: Int = 10
     )
 
     @Serializable

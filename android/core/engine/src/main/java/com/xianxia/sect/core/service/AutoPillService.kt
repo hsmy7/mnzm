@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
 import com.xianxia.sect.core.engine.domain.disciple.PillRule
@@ -22,7 +23,8 @@ import javax.inject.Singleton
 @Singleton
 @GameService("AutoPillService")
 class AutoPillService @Inject constructor(
-    private val pillManager: DisciplePillManager
+    private val pillManager: DisciplePillManager,
+    private val lawEnforcementProcessor: LawEnforcementProcessor
 ) {
 
     /**
@@ -57,7 +59,7 @@ class AutoPillService @Inject constructor(
                 disciple, year, month, phase
             )
             if (result.disciple == disciple) continue
-            writePillResultToTables(id, result.disciple, tables)
+            writePillResultToTables(id, result.disciple, tables, state)
             // Checkpoint：丹药可能改变修炼速率（持续加速/瞬间增长），同步检查点
             tables.checkpointDisciple(id, currentMonth)
         }
@@ -112,7 +114,8 @@ class AutoPillService @Inject constructor(
     private fun writePillResultToTables(
         id: Int,
         d: com.xianxia.sect.core.model.Disciple,
-        tables: DiscipleTables
+        tables: DiscipleTables,
+        state: MutableGameState
     ) {
         tables.storageBagItems[id] = d.equipment.storageBagItems
         tables.cultivations[id] = d.cultivation
@@ -130,6 +133,10 @@ class AutoPillService @Inject constructor(
         tables.spiritPlantings[id] = d.skills.spiritPlanting
         tables.teachings[id] = d.skills.teaching
         tables.moralities[id] = d.skills.morality
+        // 道德变化后即时触发偷盗判定（事务内版本）
+        if (d.skills.morality < GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD) {
+            lawEnforcementProcessor.processSingleDiscipleTheft(id, state)
+        }
         tables.minings[id] = d.skills.mining
         // PillEffects 字段
         tables.pillPhysicalAttackBonuses[id] =

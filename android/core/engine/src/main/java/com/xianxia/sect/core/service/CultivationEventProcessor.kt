@@ -644,7 +644,7 @@ class CultivationEventProcessor @Inject constructor(
         disciple: Disciple, currentMonthValue: Int, tables: DiscipleTables
     ): Long {
         val currentData = stateStore.gameData.value
-        val stolenAmount = calcTheftAmount(currentData)
+        val stolenAmount = calcTheftAmount(disciple, currentData.spiritStones)
         if (stolenAmount <= 0L) return 0L
         stateStore.update {
             gameData = gameData.copy(spiritStones = (gameData.spiritStones - stolenAmount).coerceAtLeast(0))
@@ -661,7 +661,7 @@ class CultivationEventProcessor @Inject constructor(
         disciple: Disciple, currentMonthValue: Int, tables: DiscipleTables, state: MutableGameState
     ): Long {
         if (state.gameData.spiritStones <= 0) return 0L
-        val stolenAmount = calcTheftAmount(state.gameData)
+        val stolenAmount = calcTheftAmount(disciple, state.gameData.spiritStones)
         if (stolenAmount <= 0L) return 0L
         state.gameData = state.gameData.copy(spiritStones = (state.gameData.spiritStones - stolenAmount).coerceAtLeast(0))
         tables.assembleAll().firstOrNull { it.id == disciple.id }?.let { d ->
@@ -672,13 +672,25 @@ class CultivationEventProcessor @Inject constructor(
         }
         return stolenAmount
     }
-    private fun calcTheftAmount(data: GameData): Long {
-        if (data.spiritStones <= 0) return 0L
-        return (data.spiritStones * (
-            GameConfig.LawEnforcementConfig.THEFT_MIN_RATIO +
-            (GameConfig.LawEnforcementConfig.THEFT_MAX_RATIO - GameConfig.LawEnforcementConfig.THEFT_MIN_RATIO) *
-            rngManager.getRng(RngPartition.SYSTEM).nextDouble()
-        )).toLong().coerceAtLeast(1)
+    /**
+     * 计算偷盗灵石金额（新公式）。
+     *
+     * 基于弟子境界基准 + 身法/智力加成 + 随机波动 ±20%，
+     * 上限为总灵石的 10%，下限 100 灵石。
+     */
+    private fun calcTheftAmount(disciple: Disciple, totalSpiritStones: Long): Long {
+        if (totalSpiritStones <= 0) return 0L
+        val cfg = GameConfig.LawEnforcementConfig
+        val realmLevel = disciple.realm.coerceIn(1, 9)
+        val baseAmount = cfg.THEFT_REALM_BASE_AMOUNTS[realmLevel] ?: 500L
+        val stats = DiscipleStatCalculator.getBaseStats(disciple)
+        val speedBonus = (stats.speed - cfg.THEFT_SPEED_BASE).coerceAtLeast(0) * cfg.THEFT_SPEED_BONUS_PER_POINT
+        val intelBonus = (stats.intelligence - cfg.THEFT_INTELLIGENCE_BASE).coerceAtLeast(0) * cfg.THEFT_INTELLIGENCE_BONUS_PER_POINT
+        val rawAmount = baseAmount * (1.0 + speedBonus + intelBonus)
+        val randomFactor = 0.8 + rngManager.getRng(RngPartition.SYSTEM).nextDouble() * 0.4
+        val maxAmount = (totalSpiritStones * cfg.THEFT_MAX_RATIO_OF_TOTAL).toLong()
+        return (rawAmount * randomFactor).toLong()
+            .coerceIn(cfg.THEFT_MIN_AMOUNT, maxAmount)
     }
 
     fun processTheftMonthly() {

@@ -441,7 +441,14 @@ suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List<Strin
                             6 -> discipleTables.spiritPlantings[id] = discipleTables.spiritPlantings[id] + 1
                             7 -> discipleTables.minings[id] = discipleTables.minings[id] + 1
                             8 -> discipleTables.teachings[id] = discipleTables.teachings[id] + 1
-                            9 -> discipleTables.moralities[id] = discipleTables.moralities[id] + 1
+                            9 -> {
+                                val newMoral = discipleTables.moralities[id] + 1
+                                discipleTables.moralities[id] = newMoral
+                                // 道德变化后即时触发偷盗判定（事务内版本）
+                                if (newMoral < GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD) {
+                                    lawEnforcementProcessor.processSingleDiscipleTheft(id, this)
+                                }
+                            }
                             10 -> discipleTables.baseHps[id] = discipleTables.baseHps[id] + 1
                             11 -> discipleTables.baseMps[id] = discipleTables.baseMps[id] + 1
                             12 -> discipleTables.basePhysicalAttacks[id] = discipleTables.basePhysicalAttacks[id] + 1

@@ -73,7 +73,8 @@ class CultivationSettlementConcurrencyTest {
         cultivationSettlement = CultivationSettlement(
             stateStore,
             scopeProvider,
-            spiritStoneWallet
+            spiritStoneWallet,
+            mock()
         )
         lifecycleProcessor = DiscipleLifecycleProcessor(
             stateStore,
@@ -81,7 +82,11 @@ class CultivationSettlementConcurrencyTest {
             scopeProvider,
             mock(ProductionSlotRepository::class.java),
             mock(com.xianxia.sect.core.event.EventBusPort::class.java),
-            mock(com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup::class.java)
+            mock(com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup::class.java),
+            object : javax.inject.Provider<com.xianxia.sect.core.engine.service.LawEnforcementProcessor> {
+                override fun get(): com.xianxia.sect.core.engine.service.LawEnforcementProcessor =
+                    mock(com.xianxia.sect.core.engine.service.LawEnforcementProcessor::class.java)
+            }
         )
     }
 
