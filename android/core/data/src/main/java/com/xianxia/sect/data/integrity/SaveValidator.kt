@@ -39,13 +39,15 @@ sealed interface IntegrityResult {
  * 关注游戏业务语义层面的数据一致性（不同于 [com.xianxia.sect.data.validation.StorageValidator]
  * 的加密/文件/存储层验证）。
  *
- * 六项检查：
+ * 八项检查：
  * 1. sectName 非空 → 设为默认值
  * 2. gameYear / gameMonth 合法范围 → 截断修正
  * 3. 弟子修为不超过境界上限 → 截断
  * 4. 弟子装备引用指向存在的物品 → 清除孤立引用
  * 5. residenceSlots 引用的建筑实例存在于 placedBuildings → 清除孤立槽位
  * 6. 存活弟子年龄不超过寿命上限 → 截断
+ * 7. 幽灵弟子（name.isBlank()）→ 从存档中清理
+ * 8. residenceSlots.discipleId 引用已清理的幽灵弟子 → 清除引用
  */
 object SaveValidator {
 
@@ -53,7 +55,7 @@ object SaveValidator {
     private const val DEFAULT_SECT_NAME = "青云宗"
 
     /**
-     * 执行全部六项完整性检查并自动修复。
+     * 执行全部八项完整性检查并自动修复。
      *
      * @param saveData 待校验的存档数据
      * @return [Passed] / [Repaired]（含修复后数据）/ [Corrupted]（含问题清单）
@@ -141,11 +143,36 @@ object SaveValidator {
 
         // ── 第 7 项：幽灵弟子检测（name.isBlank() → 清理）──────
         val ghostRemovals = disciples.filter { it.name.isBlank() }
+        var hadGhostRemovals = false
         if (ghostRemovals.isNotEmpty()) {
+            hadGhostRemovals = true
             ghostRemovals.forEach { ghost ->
                 repairs.add("幽灵弟子 id=${ghost.id}（name=空, age=${ghost.age}, realm=${ghost.realm}）已从存档中清理")
             }
             disciples = disciples.filter { it.name.isNotBlank() }
+        }
+
+        // ── 第 8 项：residenceSlots.discipleId 引用已清理的幽灵弟子 ──
+        if (hadGhostRemovals && residenceSlots.isNotEmpty()) {
+            val validDiscipleIds = disciples.map { it.id }.toHashSet()
+            val slotDiscipleRepairDetails = mutableListOf<String>()
+            var changed = false
+            val fixedSlots = residenceSlots.map { slot ->
+                if (slot.discipleId.isNotEmpty() && slot.discipleId !in validDiscipleIds) {
+                    changed = true
+                    slotDiscipleRepairDetails.add(
+                        "槽位(buildingInstanceId=${slot.buildingInstanceId}，" +
+                            "slotIndex=${slot.slotIndex}) 引用的弟子(id=${slot.discipleId})不存在，已清除"
+                    )
+                    slot.copy(discipleId = "", discipleName = "")
+                } else {
+                    slot
+                }
+            }
+            if (changed) {
+                residenceSlots = fixedSlots
+                repairs.addAll(slotDiscipleRepairDetails)
+            }
         }
 
         // ── 汇总判决 ───────────────────────────────────────────

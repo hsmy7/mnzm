@@ -289,12 +289,13 @@ class DiscipleLifecycleProcessor @Inject constructor(
     // ── 辅助方法 ──────────────────────────────────────────────────────
 
     fun clearDiscipleFromAllSlots(discipleId: String) {
-        val data = stateStore.gameData.value
-        val cleaned = discipleSlotCleanup.clearAllSlots(data, discipleId)
+        // 在 update 锁内完成清理，避免 TOCTOU（锁外读取 gameData 再用整块覆写会丢其他并发写入）
         stateStore.update {
-            gameData = cleaned
+            gameData = discipleSlotCleanup.clearAllSlots(gameData, discipleId, includeResidence = true)
         }
 
+        // 清理生产槽位（DAO 操作不能放入 stateStore.update，异常时无法回滚内存已写入的清理）
+        // 此处异常不会导致数据不一致：内存中 residence/slots 已清理，DB 残留引用由下次 validate 修复
         clearForgeSlotsIfNeeded(discipleId)
     }
 

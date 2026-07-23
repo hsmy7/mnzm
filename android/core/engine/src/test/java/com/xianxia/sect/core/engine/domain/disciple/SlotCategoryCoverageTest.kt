@@ -1,7 +1,10 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.model.SlotCategory
 import org.junit.Assert.*
+import org.junit.Before
 import org.junit.Test
 
 /**
@@ -14,6 +17,8 @@ import org.junit.Test
  *
  * 1. [DiscipleAssignmentGate.scanAndRegister] — 读档重建时扫描新系统
  * 2. [DiscipleSlotCleanup.clearAllSlots] — 死亡/释放时清理新系统
+ *    - 注意：住所 (RESIDENCE_SLOT) 是条件清理，仅 `includeResidence=true` 时清理，
+ *      工作分配路径不会清理住所。如果新增的槽位也类似"被动不互斥"，请同步处理。
  * 3. 分配入口 — 调用 `releaseDiscipleFromAllSlotsAtomic` + `confirmAssign`
  * 4. 本测试文件 — 将新 [SlotCategory] 加入下方对应的检查集合
  */
@@ -29,7 +34,6 @@ class SlotCategoryCoverageTest {
             SlotCategory.PRODUCTION_SLOT,     // scanProductionSlots()
             SlotCategory.SPIRIT_MINE,         // scanListSlots()
             SlotCategory.LIBRARY_SLOT,        // scanListSlots()
-            SlotCategory.RESIDENCE_SLOT,      // scanListSlots()
             SlotCategory.WAREHOUSE_GARRISON,  // scanListSlots()
             SlotCategory.PATROL_SLOT,         // scanListSlots()
             SlotCategory.BLOOD_REFINEMENT,    // scanListSlots()
@@ -38,8 +42,10 @@ class SlotCategoryCoverageTest {
         )
 
         // EXPLORATION_TEAM 不持久化，UI 已主动过滤，无需扫描
+        // RESIDENCE_SLOT 有意不在门卫中——住所与工作槽位共存，不互斥
         val intentionallyExcluded = setOf(
             SlotCategory.EXPLORATION_TEAM,
+            SlotCategory.RESIDENCE_SLOT,
         )
 
         val missing = allCategories - coveredByScan - intentionallyExcluded
@@ -68,7 +74,7 @@ class SlotCategoryCoverageTest {
             SlotCategory.ELDER_POSITION,      // clearElderSlots()
             SlotCategory.SPIRIT_MINE,         // spiritMineSlots.map
             SlotCategory.LIBRARY_SLOT,        // librarySlots.map
-            SlotCategory.RESIDENCE_SLOT,      // residenceSlots.map
+            SlotCategory.RESIDENCE_SLOT,      // residenceSlots.map（条件性：仅 includeResidence=true 时清理）
             SlotCategory.PATROL_SLOT,         // patrolSlots.map
             SlotCategory.WAREHOUSE_GARRISON,  // warehouseGarrisons.map
             SlotCategory.BATTLE_TEAM,         // battleTeams.map
@@ -96,5 +102,25 @@ class SlotCategoryCoverageTest {
             """.trimMargin(),
             missing.isEmpty()
         )
+    }
+
+    @Test
+    fun `clearAllSlots respects includeResidence parameter`() {
+        val gate = DiscipleAssignmentGate(DiscipleAssignmentRegistry())
+        val cleanup = DiscipleSlotCleanup(gate)
+        val discipleId = "1"
+        val data = GameData(
+            residenceSlots = listOf(
+                ResidenceSlot(discipleId = discipleId, discipleName = "Test")
+            )
+        )
+
+        // includeResidence=false（默认）：住所不清理
+        val resultDefault = cleanup.clearAllSlots(data, discipleId)
+        assertEquals("默认不清住所", discipleId, resultDefault.residenceSlots[0].discipleId)
+
+        // includeResidence=true：住所清理
+        val resultWithRes = cleanup.clearAllSlots(data, discipleId, includeResidence = true)
+        assertEquals("includeResidence=true 应清住所", "", resultWithRes.residenceSlots[0].discipleId)
     }
 }

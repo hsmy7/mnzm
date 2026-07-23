@@ -177,6 +177,21 @@ class BuildingFacadeImpl @Inject constructor(
                 }
             }
 
+            // 若该弟子已被分配到其他槽位（门卫注册表中有记录），先释放旧分配
+            if (assignmentGate.isAssigned(discipleId)) {
+                withContext(Dispatchers.IO) {
+                    productionCoordinator.repository.getSlots()
+                        .filter { it.assignedDiscipleId == discipleId }
+                        .forEach { slot ->
+                            productionCoordinator.repository.updateSlot(slot.buildingType, slot.slotIndex) { s ->
+                                s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                            }
+                        }
+                }
+                assignmentGate.release(discipleId)
+                updateDiscipleStatus(discipleId, DiscipleStatus.IDLE)
+            }
+
             withContext(Dispatchers.IO) {
                 productionCoordinator.repository.updateSlot(buildingType, slotIndex) { slot ->
                     slot.copy(

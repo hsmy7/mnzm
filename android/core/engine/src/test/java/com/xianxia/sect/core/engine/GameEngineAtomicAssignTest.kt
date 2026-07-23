@@ -66,6 +66,9 @@ class GameEngineAtomicAssignTest {
         // 创建测试槽位
         store.update {
             gameData = gameData.copy(
+                placedBuildings = listOf(
+                    GridBuildingData(instanceId = BUILDING_ID, displayName = "单人住所")
+                ),
                 residenceSlots = listOf(
                     ResidenceSlot(buildingInstanceId = BUILDING_ID, slotIndex = SLOT_0)
                 ),
@@ -122,27 +125,37 @@ class GameEngineAtomicAssignTest {
         val slot = store.latestGameData.residenceSlots[SLOT_0]
         assertEquals("槽位应写入弟子 A", DISCIPLE_A, slot.discipleId)
         assertEquals("槽位名应正确", "弟子A", slot.discipleName)
-        assertTrue("gate 应注册", gate.isAssigned(DISCIPLE_A))
+        assertFalse("住所不注册 gate", gate.isAssigned(DISCIPLE_A))
     }
 
     @Test
     fun `assignToResidenceAtomic 覆盖原住户时释放旧弟子`() = runTest {
         engine.assignToResidenceAtomic(BUILDING_ID, SLOT_0, DISCIPLE_A)
-        assertTrue(gate.isAssigned(DISCIPLE_A))
 
         val result = engine.assignToResidenceAtomic(BUILDING_ID, SLOT_0, DISCIPLE_B)
 
         assertTrue("覆盖应成功", result.isSuccess)
         val slot = store.latestGameData.residenceSlots[SLOT_0]
         assertEquals("槽位应写入弟子 B", DISCIPLE_B, slot.discipleId)
-        assertFalse("弟子 A 的 gate 应释放", gate.isAssigned(DISCIPLE_A))
-        assertTrue("弟子 B 的 gate 应注册", gate.isAssigned(DISCIPLE_B))
+        assertFalse("住所不在 gate 中", gate.isAssigned(DISCIPLE_A))
+        assertFalse("住所不在 gate 中", gate.isAssigned(DISCIPLE_B))
     }
 
     @Test
     fun `assignToResidenceAtomic 不存在的弟子返回 Failure`() = runTest {
         val result = engine.assignToResidenceAtomic(BUILDING_ID, SLOT_0, "999")
         assertTrue("应为 Failure", result.isFailure)
+    }
+
+    @Test
+    fun `assignToResidenceAtomic 入住不改变弟子状态`() = runTest {
+        val prevStatus = store.latestGameData.let {
+            engine.assignToResidenceAtomic(BUILDING_ID, SLOT_0, DISCIPLE_A)
+            // 分配后检查状态不变（初始为 IDLE）
+            val tables = store.discipleTables
+            tables.statuses[DISCIPLE_A.toInt()]
+        }
+        assertEquals("状态应保持 IDLE", DiscipleStatus.IDLE, prevStatus)
     }
 
     // ── 住所移除 ──
@@ -155,7 +168,7 @@ class GameEngineAtomicAssignTest {
 
         assertTrue("移除应成功", result.isSuccess)
         assertEquals("槽位应清空", "", store.latestGameData.residenceSlots[SLOT_0].discipleId)
-        assertFalse("gate 应释放", gate.isAssigned(DISCIPLE_A))
+        assertFalse("gate 不受影响", gate.isAssigned(DISCIPLE_A))
     }
 
     @Test
@@ -165,16 +178,15 @@ class GameEngineAtomicAssignTest {
     }
 
     @Test
-    fun `removeFromResidenceAtomic 不清除其他系统槽位`() = runTest {
-        engine.assignToResidenceAtomic(BUILDING_ID, SLOT_0, DISCIPLE_A)
-        // 模拟 A 也在巡视楼中
+    fun `assignToResidenceAtomic 入住不清除巡视楼槽位`() = runTest {
+        // 模拟 A 在巡视楼中
         store.update {
             val slots = gameData.patrolSlots.toMutableList()
             slots[0] = PatrolSlot(index = 0, discipleId = DISCIPLE_A, discipleName = "弟子A")
             gameData = gameData.copy(patrolSlots = slots)
         }
 
-        engine.removeFromResidenceAtomic(BUILDING_ID, SLOT_0)
+        engine.assignToResidenceAtomic(BUILDING_ID, SLOT_0, DISCIPLE_A)
 
         assertEquals("巡视楼槽位不应被清除", DISCIPLE_A, store.latestGameData.patrolSlots[0].discipleId)
     }
@@ -262,16 +274,17 @@ class GameEngineAtomicAssignTest {
         }
     }
 
-    // ── gate 与槽位一致性 ──
+    // ── gate 与 residenceSlots 一致性 ──
 
     @Test
-    fun `已入住弟子的 gate 注册与 residenceSlots 一致`() = runTest {
+    fun `已入住弟子不在 gate 注册中`() = runTest {
         engine.assignToResidenceAtomic(BUILDING_ID, SLOT_0, DISCIPLE_A)
 
-        for (slot in store.latestGameData.residenceSlots) {
-            if (slot.discipleId.isNotEmpty()) {
-                assertTrue("已入住的弟子 ${slot.discipleId} 应在 gate 中注册", gate.isAssigned(slot.discipleId))
-            }
+        // 住所不注册 gate（住所与工作槽位共存）
+        val residentSlotsWithDisciple = store.latestGameData.residenceSlots.filter { it.discipleId.isNotEmpty() }
+        assertTrue("应有已入住的住所槽位", residentSlotsWithDisciple.isNotEmpty())
+        for (slot in residentSlotsWithDisciple) {
+            assertFalse("住所不注册 gate", gate.isAssigned(slot.discipleId))
         }
     }
 }

@@ -141,9 +141,6 @@ class DiscipleAssignmentGate @Inject constructor(
         (gameData.librarySlots).forEach { slot ->
             registerIfNotEmpty(slot.discipleId, SlotCategory.LIBRARY_SLOT, "library")
         }
-        (gameData.residenceSlots).forEach { slot ->
-            registerIfNotEmpty(slot.discipleId, SlotCategory.RESIDENCE_SLOT, "residence")
-        }
         (gameData.warehouseGarrisons).forEach { slot ->
             registerIfNotEmpty(slot.discipleId, SlotCategory.WAREHOUSE_GARRISON, "warehouse")
         }

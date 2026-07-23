@@ -182,17 +182,25 @@ class BuildingDelegate(
         }
     }
 
-    /** 分配弟子到住宅（原子操作） */
+    /** 分配弟子到住宅（原子操作）。
+     *
+     * 使用 [withContext(Dispatchers.IO)] 确保阻塞的 [stateStore.update] 不在 Main 线程执行，
+     * 避免 DEBUG error() 崩溃和 RELEASE ANR。
+     */
     suspend fun assignToResidence(
         buildingInstanceId: String, slotIndex: Int, discipleId: String
-    ): DomainResult<Unit> {
-        return gameEngine.assignToResidenceAtomic(buildingInstanceId, slotIndex, discipleId)
+    ): DomainResult<Unit> = withContext(Dispatchers.IO) {
+        gameEngine.assignToResidenceAtomic(buildingInstanceId, slotIndex, discipleId)
     }
 
-    /** 从住宅移除弟子（原子操作） */
+    /** 从住宅移除弟子（原子操作）。
+     *
+     * 使用 [withContext(Dispatchers.IO)] 确保阻塞的 [stateStore.update] 不在 Main 线程执行，
+     * 避免 DEBUG error() 崩溃和 RELEASE ANR。
+     */
     suspend fun removeFromResidence(
         buildingInstanceId: String, slotIndex: Int
-    ): DomainResult<Unit> {
-        return gameEngine.removeFromResidenceAtomic(buildingInstanceId, slotIndex)
+    ): DomainResult<Unit> = withContext(Dispatchers.IO) {
+        gameEngine.removeFromResidenceAtomic(buildingInstanceId, slotIndex)
     }
 }

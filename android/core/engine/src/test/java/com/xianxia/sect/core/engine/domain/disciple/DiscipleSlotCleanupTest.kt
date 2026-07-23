@@ -95,11 +95,20 @@ class DiscipleSlotCleanupTest {
     }
 
     @Test
-    fun clearAllSlots_clearsResidenceSlots() {
+    fun clearAllSlots_clearsResidenceSlots_whenIncludeResidenceTrue() {
         val data = createGameDataWithDiscipleInSlots(testDiscipleId)
-        val result = cleanup.clearAllSlots(data, testDiscipleId)
+        val result = cleanup.clearAllSlots(data, testDiscipleId, includeResidence = true)
         for (slot in result.residenceSlots) {
             assertNotEquals(testDiscipleId, slot.discipleId)
+        }
+    }
+
+    @Test
+    fun clearAllSlots_preservesResidenceByDefault() {
+        val data = createGameDataWithDiscipleInSlots(testDiscipleId)
+        val result = cleanup.clearAllSlots(data, testDiscipleId) // includeResidence=false
+        for (slot in result.residenceSlots) {
+            assertEquals("默认 includeResidence=false 不清住所", testDiscipleId, slot.discipleId)
         }
     }
 

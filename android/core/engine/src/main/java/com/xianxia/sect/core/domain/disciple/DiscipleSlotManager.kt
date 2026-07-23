@@ -57,7 +57,7 @@ class DiscipleSlotManager @Inject constructor(
      * Clear disciple from all slots and assignments
      */
     fun clearDiscipleFromAllSlots(discipleId: String) {
-        stateStore.update { gameData = discipleSlotCleanup.clearAllSlots(gameData, discipleId) }
+        stateStore.update { gameData = discipleSlotCleanup.clearAllSlots(gameData, discipleId, includeResidence = true) }
 
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId(BUILDING_FORGE)
         for (slot in forgeSlots) {
@@ -77,33 +77,35 @@ class DiscipleSlotManager @Inject constructor(
      * Sync all disciples' status based on their assignments
      */
     fun syncAllDiscipleStatuses() {
-        val data = stateStore.gameData.value
         val tables = stateStore.discipleTables
 
-        val lawEnforcerIds = buildLawEnforcerIds(data.elderSlots)
-        val preachingIds = buildPreachingIds(data.elderSlots)
-        val deaconingIds = buildDeaconingIds(data.elderSlots)
-        val managingIds = buildManagingIds(data.elderSlots)
-        val studyingIds = buildStudyingIds(data)
-        val miningIds = buildMiningIds(data, tables)
-        val garrisonIds = buildGarrisonIds(data)
-        val inTeamIds = buildInTeamIds(data)
-        val patrollingIds = buildPatrollingIds(data)
-
-        // 生产槽位 ID 集合（用于推导 ALCHEMY / FORGE / SPIRIT_PLANTING 状态）
-        val alchemyIds = data.productionSlots
-            .filter { !it.assignedDiscipleId.isNullOrEmpty() && it.buildingId == "alchemy" }
-            .map { it.assignedDiscipleId!! }.toSet()
-        val forgeIds = data.productionSlots
-            .filter { !it.assignedDiscipleId.isNullOrEmpty() && it.buildingId == "forge" }
-            .map { it.assignedDiscipleId!! }.toSet()
-        val plantIds = data.productionSlots
-            .filter { !it.assignedDiscipleId.isNullOrEmpty() && it.buildingId == "herbGarden" }
-            .map { it.assignedDiscipleId!! }.toSet()
-
-        fixInvalidMiningSlots(data, tables)
+        // 前置修复：清除无效的灵脉采矿槽位（包含自己的 update 事务，在锁外执行）
+        fixInvalidMiningSlots(tables)
 
         stateStore.update {
+            // 在锁内使用最新 gameData 构建 ID 集合，避免 TOCTOU
+            val data = gameData
+            val lawEnforcerIds = buildLawEnforcerIds(data.elderSlots)
+            val preachingIds = buildPreachingIds(data.elderSlots)
+            val deaconingIds = buildDeaconingIds(data.elderSlots)
+            val managingIds = buildManagingIds(data.elderSlots)
+            val studyingIds = buildStudyingIds(data)
+            val miningIds = buildMiningIds(data, tables)
+            val garrisonIds = buildGarrisonIds(data)
+            val inTeamIds = buildInTeamIds(data, teams)
+            val patrollingIds = buildPatrollingIds(data)
+
+            // 生产槽位 ID 集合（用于推导 ALCHEMY / FORGE / SPIRIT_PLANTING 状态）
+            val alchemyIds = data.productionSlots
+                .filter { !it.assignedDiscipleId.isNullOrEmpty() && it.buildingId == "alchemy" }
+                .map { it.assignedDiscipleId!! }.toSet()
+            val forgeIds = data.productionSlots
+                .filter { !it.assignedDiscipleId.isNullOrEmpty() && it.buildingId == "forge" }
+                .map { it.assignedDiscipleId!! }.toSet()
+            val plantIds = data.productionSlots
+                .filter { !it.assignedDiscipleId.isNullOrEmpty() && it.buildingId == "herbGarden" }
+                .map { it.assignedDiscipleId!! }.toSet()
+
             for (id in discipleTables.ids) {
                 val isAlive = discipleTables.isAlive[id] == 1
                 val status = discipleTables.statuses[id]
@@ -276,7 +278,8 @@ class DiscipleSlotManager @Inject constructor(
             .filter { id -> tables.ids.contains(id.toInt()) }
             .toSet()
 
-    private fun fixInvalidMiningSlots(data: GameData, tables: DiscipleTables) {
+    private fun fixInvalidMiningSlots(tables: DiscipleTables) {
+        val data = stateStore.gameData.value
         val hasInvalid = data.spiritMineSlots.any { slot ->
             slot.discipleId.isNotEmpty() &&
                 !tables.ids.contains(slot.discipleId.toInt())
@@ -300,13 +303,13 @@ class DiscipleSlotManager @Inject constructor(
         return ids
     }
 
-    private fun buildInTeamIds(data: GameData): MutableSet<String> {
+    private fun buildInTeamIds(data: GameData, teams: List<ExplorationTeam>): Set<String> {
         val ids = mutableSetOf<String>()
         data.battleTeams.flatMap { it.slots }
             .filter { it.discipleId.isNotEmpty() }
             .forEach { ids.add(it.discipleId) }
         // 探索/洞窟队伍成员
-        ids.addAll(stateStore.teams.value
+        ids.addAll(teams
             .filter { it.status in explorationStatuses }
             .flatMap { it.memberIds })
         ids.addAll(data.caveExplorationTeams

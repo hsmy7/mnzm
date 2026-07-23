@@ -656,17 +656,25 @@ class ProductionProcessor @Inject constructor(
                     }
                     if (assignmentMap.isNotEmpty()) {
                         stateStore.update {
+                            val writtenIds = mutableSetOf<String>()
                             gameData = gameData.copy(
                                 residenceSlots = gameData.residenceSlots.map { slot ->
                                     val key = "${slot.buildingInstanceId}:${slot.slotIndex}"
                                     val assignment = assignmentMap[key]
-                                    if (assignment != null && slot.discipleId.isEmpty()) {
+                                    if (assignment != null && slot.discipleId.isEmpty()
+                                        && assignment.first !in writtenIds
+                                    ) {
+                                        writtenIds.add(assignment.first)
                                         slot.copy(discipleId = assignment.first, discipleName = assignment.second)
                                     } else slot
                                 }
                             )
                         }
                     }
+
+                    // 从闲暇池移除刚入住的弟子，避免同一 tick 内被分配到生产槽位
+                    val newlyResidentIds = assignmentMap.values.map { it.first }.toSet()
+                    idleDisciples.removeAll { it.id in newlyResidentIds }
                 }
             }
         }

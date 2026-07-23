@@ -19,10 +19,18 @@ class DiscipleSlotCleanup @Inject constructor(
     /**
      * 从 GameData 中清理指定弟子的所有槽位引用。
      * 同时清理 Gate 注册表。
-     * 返回更新后的 GameData。
+     *
+     * ⚠️ `assignmentGate.release()` 始终被调用，即使弟子未注册门卫（如纯住所弟子）。
+     * 对未注册 ID，release 是空操作，安全。
+     * 但如果未来 [DiscipleAssignmentGate.scanAndRegister] 开始扫描住所，
+     * 需在此处同步评估 includeResidence 与 release 的关系。
+     *
+     * @param includeResidence 是否清理住所槽位。工作分配应传 false（保留住所），
+     *                         死亡/逐出应传 true。默认为 false。
+     * @return 更新后的 GameData。
      */
-    fun clearAllSlots(data: GameData, discipleId: String): GameData {
-        // 同步清理 Gate 注册表
+    fun clearAllSlots(data: GameData, discipleId: String, includeResidence: Boolean = false): GameData {
+        // 同步清理 Gate 注册表（对纯住所弟子是空操作）
         assignmentGate.release(discipleId)
 
         val updatedSpiritMineSlots = data.spiritMineSlots.map {
@@ -35,8 +43,12 @@ class DiscipleSlotCleanup @Inject constructor(
 
         val updatedElderSlots = clearElderSlots(data.elderSlots, discipleId)
 
-        val updatedResidenceSlots = data.residenceSlots.map {
-            if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
+        val updatedResidenceSlots = if (includeResidence) {
+            data.residenceSlots.map {
+                if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
+            }
+        } else {
+            data.residenceSlots
         }
 
         val updatedActiveBloodRefinements = data.activeBloodRefinements.toMutableMap()

@@ -35,20 +35,28 @@ suspend fun GameEngine.assignToResidenceAtomic(
         val id = discipleId.toIntOrNull()
         require(id != null && id in discipleTables.ids) { "弟子不存在: $discipleId" }
         require(discipleTables.isAlive[id] != 0) { "弟子已死亡: $discipleId" }
+        val canonicalId = id.toString() // 标准化 ID："0123" → "123"，防止字符串比较不一致
 
+        // 校验建筑物存在且是住所
+        val building = gameData.placedBuildings.find { it.instanceId == buildingInstanceId }
+        require(building != null) { "建筑物不存在: $buildingInstanceId" }
         val slotList = gameData.residenceSlots
+        require(slotIndex >= 0) { "slotIndex 不能为负数: $slotIndex" }
         val slotIdx = slotList.indexOfFirst {
             it.buildingInstanceId == buildingInstanceId && it.slotIndex == slotIndex
         }
         require(slotIdx >= 0) { "住所槽位不存在: building=$buildingInstanceId slot=$slotIndex" }
 
         val current = slotList[slotIdx]
-        val isSameDisciple = current.discipleId == discipleId
+        val isSameDisciple = current.discipleId == canonicalId
 
-        // 释放目标槽位原 occupant（仅清空住所槽位 + 释放 gate，不清除其他系统槽位）
+        if (isSameDisciple) {
+            DomainLog.d("GameEngine", "assignToResidence: 重复分配，跳过 canonicalId=$canonicalId slot=$buildingInstanceId/$slotIndex")
+        }
+
+        // 释放目标槽位原 occupant（仅清空住所槽位，不改变原 occupant 状态或工作分配）
         if (!isSameDisciple && current.discipleId.isNotEmpty()) {
             val occupantId = current.discipleId
-            // 清空住所槽位
             gameData = gameData.copy(
                 residenceSlots = gameData.residenceSlots.map { slot ->
                     if (slot.buildingInstanceId == buildingInstanceId && slot.slotIndex == slotIndex) {
@@ -56,47 +64,41 @@ suspend fun GameEngine.assignToResidenceAtomic(
                     } else slot
                 }
             )
-            // 释放 gate
-            assignmentGate.release(occupantId)
-            // 重置状态
-            occupantId.toIntOrNull()?.let { oldId ->
-                if (oldId in discipleTables.ids) {
-                    discipleTables.statuses[oldId] = DiscipleStatus.IDLE
-                }
+            DomainLog.d("GameEngine", "assignToResidence: 释放原 occupant=$occupantId（被 $canonicalId 覆盖），槽位 $buildingInstanceId/$slotIndex")
+        }
+
+        // 跨住所搬迁：如果新弟子已入住其他住所槽位，只清理那个旧槽位
+        if (!isSameDisciple) {
+            val existingSlot = gameData.residenceSlots.find {
+                it.discipleId == canonicalId && !(it.buildingInstanceId == buildingInstanceId && it.slotIndex == slotIndex)
             }
-            DomainLog.d("GameEngine", "assignToResidence: 释放原 occupant=$occupantId（仅住所槽位）")
+            if (existingSlot != null) {
+                gameData = gameData.copy(
+                    residenceSlots = gameData.residenceSlots.map { slot ->
+                        if (slot.discipleId == canonicalId) {
+                            slot.copy(discipleId = "", discipleName = "")
+                        } else slot
+                    }
+                )
+                DomainLog.d("GameEngine", "assignToResidence: 清理旧住所槽位 building=${existingSlot.buildingInstanceId} slot=${existingSlot.slotIndex}")
+            }
         }
 
-        // 清理新弟子的旧槽位（全量清除准备入住）
+        // 写入新槽位（住所不改变弟子状态、不注册门卫、不影响其他槽位）
         if (!isSameDisciple) {
-            gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlots(gameData, discipleId)
-        }
-
-        // 写入新槽位
-        if (!isSameDisciple) {
-            val aggregate = discipleTables.assemble(id)
-            val name = aggregate?.name ?: ""
+            val aggregate = requireNotNull(discipleTables.assemble(id)) {
+                "弟子 $canonicalId 数据损坏: assemble 返回 null"
+            }
+            val name = aggregate.name
 
             gameData = gameData.copy(
                 residenceSlots = gameData.residenceSlots.map { slot ->
                     if (slot.buildingInstanceId == buildingInstanceId && slot.slotIndex == slotIndex) {
-                        slot.copy(discipleId = discipleId, discipleName = name)
+                        slot.copy(discipleId = canonicalId, discipleName = name)
                     } else slot
                 }
             )
-
-            assignmentGate.confirmAssign(
-                discipleId,
-                SlotRef(
-                    category = SlotCategory.RESIDENCE_SLOT,
-                    slotType = "residence",
-                    slotId = "residence_${buildingInstanceId}_${slotIndex}"
-                )
-            )
         }
-
-        // 住所入住不改变当前状态（弟子在住所中仍然是 IDLE）
-        discipleTables.statuses[id] = DiscipleStatus.IDLE
     }
 }
 
@@ -113,6 +115,7 @@ suspend fun GameEngine.removeFromResidenceAtomic(
 ) {
     stateStore.update {
         val slotList = gameData.residenceSlots
+        require(slotIndex >= 0) { "slotIndex 不能为负数: $slotIndex" }
         val slotIdx = slotList.indexOfFirst {
             it.buildingInstanceId == buildingInstanceId && it.slotIndex == slotIndex
         }
@@ -121,9 +124,7 @@ suspend fun GameEngine.removeFromResidenceAtomic(
         val slot = slotList[slotIdx]
         if (slot.discipleId.isEmpty()) return@update // 已为空槽位
 
-        val removedDiscipleId = slot.discipleId
-
-        // 清空住所槽位（仅影响该槽位，不清除其他系统槽位）
+        // 清空住所槽位（搬离不改变弟子状态、不影响其他系统槽位）
         gameData = gameData.copy(
             residenceSlots = gameData.residenceSlots.map { s ->
                 if (s.buildingInstanceId == buildingInstanceId && s.slotIndex == slotIndex) {
@@ -132,15 +133,7 @@ suspend fun GameEngine.removeFromResidenceAtomic(
             }
         )
 
-        // 释放 gate 注册（仅影响门卫，不清除其他槽位）
-        assignmentGate.release(removedDiscipleId)
-
-        val id = removedDiscipleId.toIntOrNull()
-        if (id != null && id in discipleTables.ids) {
-            discipleTables.statuses[id] = DiscipleStatus.IDLE
-        }
-
-        DomainLog.d("GameEngine", "removeFromResidence: 移除 $removedDiscipleId")
+        DomainLog.d("GameEngine", "removeFromResidence: 移除 ${slot.discipleId}")
     }
 }
 
@@ -447,24 +440,21 @@ suspend fun GameEngine.autoAssignPatrolAtomic(
         (discipleIds.groupBy { it }.filter { it.value.size > 1 }.keys)
     }
 
-    // 前置校验：所有槽位索引边界（避免 require 在 stateStore.update 内抛出导致 gate 操作残留）
-    val ss = gameDataSnapshot
-    for ((globalIndex, _) in assignments) {
-        require(globalIndex in ss.patrolSlots.indices) {
-            "巡视槽位越界: index=$globalIndex size=${ss.patrolSlots.size}"
-        }
-    }
-
-    // 前置校验：所有弟子 ID 有效（同上原因）
-    for ((_, did) in assignments) {
-        if (did.isNotEmpty()) {
-            val id = did.toIntOrNull()
-            require(id != null && id in discipleTables.ids) { "弟子不存在: $did" }
-            require(discipleTables.isAlive[id] != 0) { "弟子已死亡: $did" }
-        }
-    }
-
     stateStore.update {
+        // 锁内前置校验：所有槽位索引边界 + 弟子存在性（使用 update 内的最新 gameData/discipleTables，
+        // 避免锁外 gameDataSnapshot 的 TOCTOU 竞态。校验在 processing 循环前执行，
+        // 若 require 抛出不导致 gate 操作残留）
+        for ((globalIndex, did) in assignments) {
+            require(globalIndex in gameData.patrolSlots.indices) {
+                "巡视槽位越界: index=$globalIndex size=${gameData.patrolSlots.size}"
+            }
+            if (did.isNotEmpty()) {
+                val id = did.toIntOrNull()
+                require(id != null && id in discipleTables.ids) { "弟子不存在: $did" }
+                require(discipleTables.isAlive[id] != 0) { "弟子已死亡: $did" }
+            }
+        }
+
         for ((globalIndex, discipleId) in assignments) {
             if (discipleId.isEmpty()) {
                 // 清空槽位

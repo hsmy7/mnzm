@@ -8,7 +8,7 @@ import org.junit.Test
 /**
  * 存档完整性校验器的单元测试。
  *
- * 覆盖六项检查的通过、修复、边界条件三类场景。
+ * 覆盖八项检查的通过、修复、边界条件三类场景。
  */
 class SaveValidatorTest {
 
@@ -446,5 +446,114 @@ class SaveValidatorTest {
         val slots = (result as IntegrityResult.Repaired).data.gameData.residenceSlots
         assertEquals(1, slots.size)
         assertEquals("bld-keep", slots.first().buildingInstanceId)
+    }
+
+    // ── 10. Residence slot discipleId orphan after ghost cleanup ─────
+
+    @Test
+    fun `validate - ghost disciple referenced by residence slot - clears slot`() {
+        val ghost = makeDisciple(id = "ghost-1", name = "")
+        val building = GridBuildingData(
+            buildingId = "residence", instanceId = "bld-001", gridX = 0, gridY = 0
+        )
+        val slot = ResidenceSlot(
+            buildingInstanceId = "bld-001", slotIndex = 0,
+            discipleId = "ghost-1", discipleName = "幽灵"
+        )
+        val gd = GameData(
+            sectName = "宗", gameYear = 1, gameMonth = 1,
+            placedBuildings = listOf(building),
+            residenceSlots = listOf(slot)
+        )
+        val data = minimalValidSaveData().copy(
+            disciples = listOf(ghost), gameData = gd
+        )
+        val result = SaveValidator.validate(data)
+        assertTrue("预期 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
+        val repaired = result as IntegrityResult.Repaired
+        // 幽灵弟子被移除
+        assertTrue(repaired.data.disciples.isEmpty())
+        // 槽位中的 discipleId 被清除
+        val cleanedSlot = repaired.data.gameData.residenceSlots.first()
+        assertEquals("", cleanedSlot.discipleId)
+        assertEquals("", cleanedSlot.discipleName)
+        assertTrue(repaired.details.any { it.contains("幽灵弟子") })
+        assertTrue(repaired.details.any { it.contains("引用的弟子") })
+    }
+
+    @Test
+    fun `validate - ghost disciple removed but other slots reference valid disciples - preserved`() {
+        val ghost = makeDisciple(id = "ghost-1", name = "")
+        val validDisciple = makeDisciple(id = "d-valid", name = "幸存弟子")
+        val building = GridBuildingData(
+            buildingId = "residence", instanceId = "bld-001", gridX = 0, gridY = 0
+        )
+        val orphanSlot = ResidenceSlot(
+            buildingInstanceId = "bld-001", slotIndex = 0,
+            discipleId = "ghost-1", discipleName = "幽灵"
+        )
+        val validSlot = ResidenceSlot(
+            buildingInstanceId = "bld-001", slotIndex = 1,
+            discipleId = "d-valid", discipleName = "幸存弟子"
+        )
+        val gd = GameData(
+            sectName = "宗", gameYear = 1, gameMonth = 1,
+            placedBuildings = listOf(building),
+            residenceSlots = listOf(orphanSlot, validSlot)
+        )
+        val data = minimalValidSaveData().copy(
+            disciples = listOf(ghost, validDisciple), gameData = gd
+        )
+        val result = SaveValidator.validate(data)
+        assertTrue("预期 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
+        val repaired = result as IntegrityResult.Repaired
+        // 幽灵弟子被移除
+        assertEquals(1, repaired.data.disciples.size)
+        assertEquals("d-valid", repaired.data.disciples.first().id)
+        // orphan 槽位被清除，valid 槽位保留
+        val slots = repaired.data.gameData.residenceSlots
+        assertEquals(2, slots.size)
+        val orphanCleaned = slots.find { it.slotIndex == 0 }
+        assertEquals("", orphanCleaned!!.discipleId)
+        assertEquals("", orphanCleaned!!.discipleName)
+        val validSlotPreserved = slots.find { it.slotIndex == 1 }
+        assertEquals("d-valid", validSlotPreserved!!.discipleId)
+        assertEquals("幸存弟子", validSlotPreserved!!.discipleName)
+        assertTrue(repaired.details.any { it.contains("引用的弟子(id=ghost-1)") })
+    }
+
+    @Test
+    fun `validate - no ghost disciples - residence slot refs preserved`() {
+        val disciple = makeDisciple(id = "d-1", name = "正常弟子")
+        val building = GridBuildingData(
+            buildingId = "residence", instanceId = "bld-001", gridX = 0, gridY = 0
+        )
+        val slot = ResidenceSlot(
+            buildingInstanceId = "bld-001", slotIndex = 0,
+            discipleId = "d-1", discipleName = "正常弟子"
+        )
+        val gd = GameData(
+            sectName = "宗", gameYear = 1, gameMonth = 1,
+            placedBuildings = listOf(building),
+            residenceSlots = listOf(slot)
+        )
+        val data = minimalValidSaveData().copy(
+            disciples = listOf(disciple), gameData = gd
+        )
+        val result = SaveValidator.validate(data)
+        assertTrue("预期 Passed（无幽灵弟子，引用合法），实际得到 $result", result is IntegrityResult.Passed)
+    }
+
+    @Test
+    fun `validate - ghost disciples with empty residenceSlots - no additional repair`() {
+        val ghost = makeDisciple(id = "ghost-1", name = "")
+        val data = minimalValidSaveData().copy(disciples = listOf(ghost))
+        val result = SaveValidator.validate(data)
+        assertTrue("预期 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
+        val repaired = result as IntegrityResult.Repaired
+        assertTrue(repaired.data.disciples.isEmpty())
+        // 只有幽灵弟子清理这一条修复，不应有 residence slot 相关修复
+        assertEquals(1, repaired.details.size)
+        assertTrue(repaired.details.first().contains("幽灵弟子"))
     }
 }
