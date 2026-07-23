@@ -18,7 +18,7 @@ import kotlinx.coroutines.withContext
 /**
  * 建筑建造/拆除/搬迁/住宅管理委托。
  *
- * 职责：放置/批量放置/移动/拆除建筑，修正建筑尺寸，住宅分配与升级。
+ * 职责：放置/批量放置/移动/拆除建筑，修正建筑尺寸，住宅分配。
  */
 class BuildingDelegate(
     private val gameEngine: GameEngine,
@@ -187,36 +187,5 @@ class BuildingDelegate(
         buildingInstanceId: String, slotIndex: Int
     ): DomainResult<Unit> {
         return gameEngine.removeFromResidenceAtomic(buildingInstanceId, slotIndex)
-    }
-
-    /** 判断住所是否可升级 */
-    fun canUpgradeResidence(buildingInstanceId: String): Boolean {
-        val data = gameEngine.gameDataSnapshot
-        val building = data.placedBuildings.find { it.instanceId == buildingInstanceId } ?: return false
-        val feature = BuildingFeatureRegistry.findByDisplayName(building.displayName)
-        return feature?.upgradeTo != null
-    }
-
-    /** 升级单人住所（根据 BuildingFeature.upgradeTo 自动确定升级目标和费用） */
-    fun upgradeSingleResidence(buildingInstanceId: String) {
-        gameEngine.launchOnEngine {
-            val snapshot = gameEngine.gameDataSnapshot
-            val building = snapshot.placedBuildings.find { it.instanceId == buildingInstanceId } ?: return@launchOnEngine
-            val feature = BuildingFeatureRegistry.findByDisplayName(building.displayName) ?: return@launchOnEngine
-            val upgradeKey = feature.upgradeTo ?: return@launchOnEngine
-            val upgradeFeature = BuildingFeatureRegistry.findByKey(upgradeKey) ?: return@launchOnEngine
-            val upgradeCost = upgradeFeature.upgradeCost
-            gameEngine.updateGameData { data ->
-                if (data.spiritStones < upgradeCost) return@updateGameData data
-                data.copy(
-                    spiritStones = data.spiritStones - upgradeCost,
-                    placedBuildings = data.placedBuildings.map { b ->
-                        if (b.instanceId == buildingInstanceId && b.displayName == feature.displayName)
-                            b.copy(displayName = upgradeFeature.displayName)
-                        else b
-                    }
-                )
-            }
-        }
     }
 }

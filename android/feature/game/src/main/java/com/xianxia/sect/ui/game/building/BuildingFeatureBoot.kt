@@ -5,6 +5,7 @@ import com.xianxia.sect.core.engine.domain.building.BuildingFeature
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.engine.domain.building.SlotGroup
 import com.xianxia.sect.core.model.production.BuildingType
+import com.xianxia.sect.core.SectLevel
 
 /**
  * BuildingFeature 默认注册表初始化。
@@ -83,14 +84,14 @@ fun BuildingFeatureRegistry.registerDefaults() {
             cost = 20000, gridWidth = 4, gridHeight = 4, description = "悔过自新之地，关押违规弟子"),
         BuildingFeature("single_residence", "单人住所", BuildingType.SINGLE_RESIDENCE,
             listOf(SlotGroup.Residence(1)), isResidence = true, unlimitedBuild = true,
-            upgradeTo = "single_residence_upgraded", upgradeCost = 50000,
             drawableRes = R.drawable.building_single_residence, color = 0xFFEEEEEE,
-            cost = 20000, gridWidth = 4, gridHeight = 4, description = "为弟子提供清修之所，修炼速度+20%，可升级",
+            cost = 20000, gridWidth = 4, gridHeight = 4, description = "为弟子提供清修之所，修炼速度+20%",
             residenceSpeedBonus = "修炼速度+20%"),
         BuildingFeature("single_residence_upgraded", "中级单人住所", BuildingType.SINGLE_RESIDENCE,
-            listOf(SlotGroup.Residence(1)), isResidence = true, isConstructible = false, unlimitedBuild = true,
+            listOf(SlotGroup.Residence(1)), isResidence = true, isConstructible = true, unlimitedBuild = true,
+            requiredSectLevel = SectLevel.MEDIUM,
             drawableRes = R.drawable.building_single_residence_upgraded, color = 0xFFEEEEEE,
-            cost = 30000, gridWidth = 6, gridHeight = 6, description = "单人修炼之所，修炼速度+40%",
+            cost = 50000, gridWidth = 6, gridHeight = 6, description = "单人修炼之所，修炼速度+40%",
             residenceSpeedBonus = "修炼速度+40%"),
         BuildingFeature("multi_residence", "多人住所", BuildingType.MULTI_RESIDENCE,
             listOf(SlotGroup.Residence(4)), isResidence = true, unlimitedBuild = true,
@@ -98,6 +99,13 @@ fun BuildingFeatureRegistry.registerDefaults() {
             cost = 30000, gridWidth = 6, gridHeight = 4, spriteWidth = 6, spriteHeight = 4,
             description = "供多名弟子共同修炼，修炼速度+10%",
             residenceSpeedBonus = "修炼速度+10%"),
+        BuildingFeature("multi_residence_upgraded", "中级多人住所", BuildingType.MULTI_RESIDENCE,
+            listOf(SlotGroup.Residence(4)), isResidence = true, isConstructible = true, unlimitedBuild = true,
+            requiredSectLevel = SectLevel.MEDIUM,
+            drawableRes = R.drawable.building_multi_residence_upgraded, color = 0xFFEEEEEE,
+            cost = 80000, gridWidth = 6, gridHeight = 4, spriteWidth = 6, spriteHeight = 4,
+            description = "供多名弟子共同修炼，修炼速度+15%",
+            residenceSpeedBonus = "修炼速度+15%"),
         BuildingFeature("blood_refining_pool", "血炼池", BuildingType.BLOOD_REFINING_POOL,
             listOf(SlotGroup.BloodRefining()), unlimitedBuild = true,
             drawableRes = R.drawable.blood_refining_pool, color = 0xFFB71C1C,

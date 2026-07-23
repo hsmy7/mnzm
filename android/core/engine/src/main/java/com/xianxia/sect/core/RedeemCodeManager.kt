@@ -762,8 +762,13 @@ object RedeemCodeManager {
 
     private fun generateRandomTalents(): List<String> {
         val talents = mutableListOf<String>()
-        val positiveTalents = TalentDatabase.getPositiveTalents()
-        val negativeTalents = TalentDatabase.getNegativeTalents()
+        val selectedTemplates = mutableSetOf<String>()
+
+        // 使用 TalentData（有 template 字段）做模板级去重，
+        // 防止不同稀有度但同模板的天赋被同时选中（如 r1_cult_speed + r2_cult_speed）
+        val allPositiveData = TalentDatabase.getPositiveTalents()
+            .mapNotNull { TalentDatabase.getTalentDataById(it.id) }
+            .toMutableList()
 
         val positiveCount = when {
             rng.nextDouble() < 0.3 -> 2
@@ -772,16 +777,23 @@ object RedeemCodeManager {
         }
 
         repeat(positiveCount) {
-            val talent = positiveTalents[rng.nextInt(positiveTalents.size)]
-            if (!talents.contains(talent.id)) {
-                talents.add(talent.id)
-            }
+            val filtered = allPositiveData.filter { it.template !in selectedTemplates }
+            if (filtered.isEmpty()) return@repeat
+            val selected = filtered[rng.nextInt(filtered.size)]
+            talents.add(selected.id)
+            selectedTemplates.add(selected.template)
+            allPositiveData.removeAll { it.template == selected.template }
         }
 
-        if (rng.nextDouble() < 0.14 && negativeTalents.isNotEmpty()) {
-            val talent = negativeTalents[rng.nextInt(negativeTalents.size)]
-            if (!talents.contains(talent.id)) {
-                talents.add(talent.id)
+        // 负面天赋检查（14%概率）
+        if (rng.nextDouble() < 0.14) {
+            val allNegativeData = TalentDatabase.getNegativeTalents()
+                .mapNotNull { TalentDatabase.getTalentDataById(it.id) }
+            if (allNegativeData.isNotEmpty()) {
+                val talent = allNegativeData[rng.nextInt(allNegativeData.size)]
+                if (talent.id !in talents) {
+                    talents.add(talent.id)
+                }
             }
         }
 

@@ -107,11 +107,12 @@ object SpriteAtlasDef {
         "灵矿场", "灵植阁", "灵田", "炼丹炉", "锻造坊",
         "仓库", "藏经阁", "问道塔", "青云塔", "天枢殿",
         "执法堂", "任务阁", "巡视楼", "监牢",
-        "单人住所", "中级单人住所", "多人住所", "血炼池"
+        "单人住所", "中级单人住所", "多人住所", "血炼池",
+        "中级多人住所"
     )
 
     /** 每行建筑数（图集行分布） */
-    private val BUILDING_COLS_PER_ROW = intArrayOf(5, 5, 5, 3)
+    private val BUILDING_COLS_PER_ROW = intArrayOf(5, 5, 5, 4)
 
     /** 建筑名称 → 索引 */
     val BUILDING_NAME_INDEX: Map<String, Int> by lazy {
@@ -141,7 +142,8 @@ object SpriteAtlasDef {
         4 to 4,   // 14: 单人住所 (grid 4×4, sprite 4×4)
         6 to 6,   // 15: 中级单人住所 (grid 6×6, sprite 6×6)
         6 to 4,   // 16: 多人住所 (grid 6×4, sprite 6×4)
-        2 to 2    // 17: 血炼池 (grid 2×2, sprite 4×4)
+        2 to 2,   // 17: 血炼池 (grid 2×2, sprite 4×4)
+        6 to 4    // 18: 中级多人住所 (grid 6×4, sprite 6×4)
     )
 
     /**
@@ -152,7 +154,7 @@ object SpriteAtlasDef {
      *   Row 1 (y=128): 5 sprites (indices 0-4)
      *   Row 2 (y=256): 5 sprites (indices 5-9)
      *   Row 3 (y=384): 5 sprites (indices 10-14)
-     *   Row 4 (y=512): 3 sprites (indices 15-17)
+     *   Row 4 (y=512): 4 sprites (indices 15-18)
      */
     val BUILDING_UV_MAP: FloatArray by lazy {
         val uvs = FloatArray(BUILDING_NAMES.size * 4)
@@ -174,7 +176,7 @@ object SpriteAtlasDef {
 
     /**
      * 获取建筑在图集中的像素矩形（供 Canvas 渲染器使用）。
-     * @param nameIndex 建筑索引 (0-17)
+     * @param nameIndex 建筑索引 (0-18)
      */
     fun buildingRect(nameIndex: Int): SpriteRect {
         var idx = 0

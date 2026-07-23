@@ -1,6 +1,5 @@
 package com.xianxia.sect.ui.game.dialogs
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,17 +10,10 @@ import androidx.compose.runtime.*
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
@@ -31,7 +23,6 @@ import com.xianxia.sect.ui.components.*
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
-import com.xianxia.sect.ui.theme.ButtonSizes
 
 @Composable
 fun ResidenceDialog(
@@ -45,7 +36,6 @@ fun ResidenceDialog(
     val building = gameData.placedBuildings.find { it.instanceId == buildingInstanceId } ?: return
     val feature = com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry.findByDisplayName(building.displayName)
     val isSingleResidence = feature?.isResidence == true && feature.slotGroups.any { it is com.xianxia.sect.core.engine.domain.building.SlotGroup.Residence && it.slotsPerInstance == 1 }
-    val isUpgraded = feature?.upgradeTo == null && building.displayName == "中级单人住所"
     val slotCount = if (isSingleResidence) 1 else 4
 
     val residenceSlots = gameData.residenceSlots.filter { it.buildingInstanceId == buildingInstanceId }
@@ -60,58 +50,6 @@ fun ResidenceDialog(
     var showDiscipleSelector by remember { mutableStateOf(false) }
     var selectedSlotIndex by remember { mutableStateOf(0) }
     var isSwapping by remember { mutableStateOf(false) }
-
-    // Upgrade dialog state
-    var showUpgradeConfirm by remember { mutableStateOf(false) }
-
-    // Upgrade confirmation dialog
-    if (showUpgradeConfirm) {
-        val canAfford = gameData.spiritStones >= 50000L
-        val config = LocalConfiguration.current
-        val dialogWidth = (config.screenWidthDp * 0.4f).dp
-        val dialogHeight = (config.screenHeightDp * 0.3f).dp
-        Dialog(
-            onDismissRequest = { showUpgradeConfirm = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
-        ) {
-            // 隐藏 Dialog Window 的系统状态栏/导航栏
-            DialogSystemBarGuard()
-
-            Box(
-                modifier = Modifier
-                    .width(dialogWidth)
-                    .height(dialogHeight)
-                    .clip(RoundedCornerShape(12.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.dialog_box),
-                    contentDescription = null,
-                    modifier = Modifier.matchParentSize(),
-                    contentScale = ContentScale.FillBounds
-                )
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "升级需要消耗 50000 灵石",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    GameButton(
-                        text = "确认升级",
-                        onClick = {
-                            showUpgradeConfirm = false
-                            viewModel.upgradeSingleResidence(buildingInstanceId)
-                        },
-                        enabled = canAfford
-                    )
-                }
-            }
-        }
-    }
 
     // Main dialog
     UnifiedGameDialog(
@@ -198,15 +136,7 @@ fun ResidenceDialog(
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Upgrade button (only for non-upgraded single residence)
-            if (isSingleResidence && !isUpgraded) {
-                GameButton(
-                    text = "升级住所",
-                    onClick = { showUpgradeConfirm = true },
-                    width = ButtonSizes.StandardWidth,
-                    height = ButtonSizes.StandardHeight
-                )
-            }
+            // Upgrade button removed (upgrade system eliminated)
         }
     }
 

@@ -306,7 +306,8 @@ fun MainGameScreen(
                 "reflection_cliff" -> { _ -> viewModel.navigateToDialog(DialogType.ReflectionCliff) }
                 "patrol_tower" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.PatrolTower(it)) }; Unit }
                 "blood_refining_pool" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.BloodRefiningPool(it)) }; Unit }
-                "single_residence", "multi_residence" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.Residence(it)) }; Unit }
+                "single_residence", "multi_residence",
+                "single_residence_upgraded", "multi_residence_upgraded" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.Residence(it)) }; Unit }
                 "warehouse" -> { b -> b?.instanceId?.let { viewModel.navigateToDialog(DialogType.WarehouseBuilding(it)) }; Unit }
                 else -> { _ -> Unit }
             }
@@ -624,7 +625,7 @@ fun MainGameScreen(
                                 "spirit_mine" -> viewModel.navigateToDialog(DialogType.SpiritMine(clicked.instanceId))
                                 "alchemy" -> viewModel.navigateToDialog(DialogType.Alchemy(clicked.instanceId))
                                 "forge" -> viewModel.navigateToDialog(DialogType.Forge(clicked.instanceId))
-                                "single_residence", "single_residence_upgraded", "multi_residence" -> {
+                                "single_residence", "single_residence_upgraded", "multi_residence", "multi_residence_upgraded" -> {
                                     viewModel.navigateToDialog(DialogType.Residence(clicked.instanceId))
                                 }
                                 else -> {
@@ -1090,8 +1091,9 @@ fun MainGameScreen(
 
         // 建造栏 — 开关式，展开时显示
         if (buildingBarExpanded && isUiVisible) {
+            val currentSectLevel by viewModel.playerSectLevel.collectAsStateWithLifecycle()
             val constructionBarList = remember {
-                buildingList // BuildingRegistry.constructible already excludes 中级单人住所
+                buildingList // BuildingRegistry.constructible now includes intermediate buildings
             }
             val buildingCosts = remember {
                 constructionBarList.associate { (name, _) -> name to viewModel.getBuildingCost(name) }
@@ -1101,6 +1103,10 @@ fun MainGameScreen(
                 placedBuildings = activeSectBuildings,
                 buildingCosts = buildingCosts,
                 spiritStones = gameData.spiritStones,
+                currentSectLevel = currentSectLevel,
+                onSelectBuildingLevelRequirement = { name ->
+                    viewModel.navigateToDialog(DialogType.BuildingSectLevelRequirement(name))
+                },
                 onSelectBuilding = { name ->
                     val size = buildingSizes[name] ?: GridSnapHelper.BuildingSize(2, 3)
                     isPlacingBuilding = true

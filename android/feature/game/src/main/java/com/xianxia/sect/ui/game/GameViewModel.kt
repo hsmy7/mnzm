@@ -610,10 +610,6 @@ class GameViewModel @Inject constructor(
         buildingDelegate.assignToResidence(buildingInstanceId, slotIndex, discipleId)
     suspend fun removeFromResidence(buildingInstanceId: String, slotIndex: Int) =
         buildingDelegate.removeFromResidence(buildingInstanceId, slotIndex)
-    fun canUpgradeResidence(buildingInstanceId: String): Boolean =
-        buildingDelegate.canUpgradeResidence(buildingInstanceId)
-    fun upgradeSingleResidence(buildingInstanceId: String) =
-        buildingDelegate.upgradeSingleResidence(buildingInstanceId)
 
     // ── 旧 API 兼容包装方法（委托给新 delegate） ──
 

@@ -16,13 +16,13 @@ data class BuildingFeature(
     val buildingType: BuildingType,
     val slotGroups: List<SlotGroup>,
     val isResidence: Boolean = false,
-    /** 是否可直接建造（false 表示只能通过升级获得，如中级单人住所） */
+    /** 是否可直接建造（false 表示不可直接建造） */
     val isConstructible: Boolean = true,
     val unlimitedBuild: Boolean = false,
     /** 全局唯一（跨宗门）：若为 true，则全地图仅允许建造 1 座 */
     val isGloballyUnique: Boolean = false,
-    val upgradeTo: String? = null,
-    val upgradeCost: Long = 0,
+    /** 最低宗门等级要求（SectLevel 常量，0=小型/1=中型/2=大型/3=顶级），默认 0=无限制 */
+    val requiredSectLevel: Int = 0,
     val drawableRes: Int = 0,
     val color: Long = 0xFFEEEEEE,
     val cost: Long = 1000,

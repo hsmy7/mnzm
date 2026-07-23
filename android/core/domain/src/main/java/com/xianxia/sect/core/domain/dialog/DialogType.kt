@@ -102,6 +102,9 @@ sealed interface DialogType {
     /** 薪资配置（尚未实现独立界面） */
     data object SalaryConfig : DialogType
 
+    /** 建筑宗门等级要求提示（建造栏点击等级不足时的提示） */
+    data class BuildingSectLevelRequirement(val buildingName: String) : DialogType
+
     /** 空状态 — 无对话框 */
     data object None : DialogType
 }

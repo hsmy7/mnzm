@@ -30,6 +30,7 @@ import androidx.compose.foundation.Image
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 
 @Composable
 fun BuildingConstructionBar(
@@ -40,7 +41,11 @@ fun BuildingConstructionBar(
     onSelectBuilding: (String) -> Unit,
     modifier: Modifier = Modifier,
     getBuildingCount: (String) -> Int = { name -> placedBuildings.count { it.displayName == name } },
-    getBuildingMaxCount: (String) -> Int = { 1 }
+    getBuildingMaxCount: (String) -> Int = { 1 },
+    /** 当前宗门等级（SectLevel 常量），用于检测中级建筑等级限制 */
+    currentSectLevel: Int = 0,
+    /** 等级不足时的回调，在中级建筑被点击时触发 */
+    onSelectBuildingLevelRequirement: ((String) -> Unit)? = null
 ) {
     Box(modifier = modifier.fillMaxWidth()) {
         Image(
@@ -60,6 +65,7 @@ fun BuildingConstructionBar(
                 val built = placedBuildings.count { it.displayName == name } >= getBuildingMaxCount(name)
                 val cost = buildingCosts[name] ?: 1000L
                 val canAfford = spiritStones >= cost
+                val meetsLevel = currentSectLevel >= (BuildingFeatureRegistry.findByDisplayName(name)?.requiredSectLevel ?: 0)
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
@@ -69,7 +75,12 @@ fun BuildingConstructionBar(
                             .height(60.dp)
                             .clip(RoundedCornerShape(6.dp))
                             .border(1.dp, GameColors.ButtonBorder, RoundedCornerShape(6.dp))
-                            .clickable(enabled = !built && canAfford) { onSelectBuilding(name) }
+                            .clickable(enabled = !built && canAfford && meetsLevel) {
+                                when {
+                                    !meetsLevel -> onSelectBuildingLevelRequirement?.invoke(name)
+                                    else -> onSelectBuilding(name)
+                                }
+                            }
                     ) {
                         Text(
                             text = name,
@@ -90,7 +101,7 @@ fun BuildingConstructionBar(
                                 .weight(1f)
                                 .fillMaxWidth(),
                             contentScale = ContentScale.Fit,
-                            alpha = if (built || !canAfford) 0.4f else 1f
+                            alpha = if (built || !canAfford || !meetsLevel) 0.4f else 1f
                         )
                         Text(
                             text = "${cost}灵石",

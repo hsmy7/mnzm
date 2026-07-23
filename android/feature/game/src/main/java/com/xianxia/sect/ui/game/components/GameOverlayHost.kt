@@ -602,6 +602,16 @@ fun GameOverlayHost(
                 }
             )
         }
+        is DialogType.BuildingSectLevelRequirement -> {
+            StandardPromptDialog(
+                onDismissRequest = onDismiss,
+                title = "建造限制",
+                text = "需升级至中型宗门方可建造",
+                confirmLabel = "知道了",
+                scrimEnabled = true,
+                dismissOnClickOutside = true
+            )
+        }
         }
     }
     }

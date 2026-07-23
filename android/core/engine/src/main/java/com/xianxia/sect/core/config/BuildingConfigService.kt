@@ -381,7 +381,7 @@ class BuildingConfigService @Inject constructor(
                     gridHeight = 4,
                     spriteWidth = 4,
                     spriteHeight = 4,
-                    description = "为弟子提供清修之所，修炼速度+20%，可升级"
+                    description = "为弟子提供清修之所，修炼速度+20%"
                 ),
                 "tianshu_hall" to BuildingConfigModel(
                     id = "tianshu_hall",
@@ -417,12 +417,24 @@ class BuildingConfigService @Inject constructor(
                     buildingType = "SINGLE_RESIDENCE",
                     slotCount = 1,
                     baseSuccessRate = 1.0,
-                    cost = 30000,
+                    cost = 50000,
                     gridWidth = 6,
                     gridHeight = 6,
                     spriteWidth = 6,
                     spriteHeight = 6,
                     description = "单人修炼之所，修炼速度+40%"
+                ),
+                "multi_residence_upgraded" to BuildingConfigModel(
+                    id = "multi_residence_upgraded",
+                    displayName = "中级多人住所",
+                    buildingType = "MULTI_RESIDENCE",
+                    slotCount = 4,
+                    cost = 80000,
+                    gridWidth = 6,
+                    gridHeight = 4,
+                    spriteWidth = 6,
+                    spriteHeight = 4,
+                    description = "供多名弟子共同修炼，修炼速度+15%"
                 ),
                 "patrol_tower" to BuildingConfigModel(
                     id = "patrol_tower",
@@ -516,6 +528,8 @@ class BuildingConfigService @Inject constructor(
                 "multi_residence" to "multi_residence",
                 "singleresidenceupgraded" to "single_residence_upgraded",
                 "single_residence_upgraded" to "single_residence_upgraded",
+                "multiresidenceupgraded" to "multi_residence_upgraded",
+                "multi_residence_upgraded" to "multi_residence_upgraded",
                 "warehouse" to "warehouse",
                 "patrol_tower" to "patrol_tower",
                 "patroltower" to "patrol_tower",
