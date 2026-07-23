@@ -283,7 +283,7 @@ class LawEnforcementProcessorTest {
 
     @Test
     fun `e2e - 保护期内不偷盗`() {
-        val id = 1; val tables = makeTables(id).also { it.recruitedMonths[id] = 6 }
+        val id = 1; val tables = makeTables(id).also { it.recruitedMonths[id] = 120 } // 126-120=6 < 12 保护期
         val state = makeState(GameData(spiritStones = 1_000_000L, gameYear = 10, gameMonth = 6), tables)
         val (mockStore, _) = makeMocks(GameData(spiritStones = 1_000_000L))
         val proc = LawEnforcementProcessor(mockStore, GameRngManager(),

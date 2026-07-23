@@ -29,7 +29,7 @@ import kotlin.math.exp
  * - 叛逃检测：月度检查忠诚度低于阈值的弟子，依概率触发捕获/逃脱
  * - **偷窃检测：道德变化即触发（反应式），月度兜底** — 不再纯百分比
  * - 偷窃金额基于弟子境界/身法/智力，非纯百分比
- * - 偷窃扩展到仓库物品（材料/丹药/装备/功法），稀有度加权
+ * - 偷窃扩展到仓库物品（材料/丹药/装备/功法），等概率抽取
  * - 隐匿 vs 感知判定层（Sigmoid），战力对抗保留
  * - 捕获处理：面壁反省
  * - 逃脱处理：清理装备/功法 + 移除
@@ -499,8 +499,8 @@ class LawEnforcementProcessor @Inject constructor(
      *
      * 1. 计算偷盗能力 = 境界基准 + 身法加成 + 智力加成
      * 2. 守卫减益：每个活跃守卫减 2 物品单位
-     * 3. 所有仓库物品按稀有度加权（稀有度=权重，越高越容易被偷）
-     * 4. 轮盘赌加权抽取
+     * 3. 所有仓库物品等概率抽取（无稀有度偏好）
+     * 4. 均匀随机抽取
      */
     private fun performWeightedItemSelection(
         disciple: Disciple, gd: GameData,
@@ -548,11 +548,7 @@ class LawEnforcementProcessor @Inject constructor(
         val picked = mutableListOf<Entry>()
         repeat(finalCount.coerceAtMost(pool.size)) {
             if (pool.isEmpty()) return@repeat
-            val totalWeight = pool.sumOf { it.rarity.coerceAtLeast(1) }
-            if (totalWeight <= 0) return@repeat
-            var roll = rng.nextDouble() * totalWeight
-            var idx = 0
-            while (roll > 0 && idx < pool.size) { roll -= pool[idx].rarity.coerceAtLeast(1); if (roll <= 0) { picked.add(pool.removeAt(idx)); break }; idx++ }
+            picked.add(pool.removeAt(rng.nextInt(pool.size)))
         }
         return picked.groupBy { it.id to it.type }.map { (_, list) -> val f = list.first(); LootedItemEntry(f.id, f.name, f.type, f.rarity, list.size) }
     }
