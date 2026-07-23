@@ -197,7 +197,7 @@ private fun RewardItemsDialog(
         onDismissRequest = onDismiss,
         title = "赏赐道具",
         mode = DialogMode.Full,
-        scrollableContent = true
+        scrollableContent = false
     ) {
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
             Row(

@@ -181,9 +181,6 @@ fun PatrolTowerDialog(
                     val slotIndex = selectingSlotIndex
                     val swapMode = isSwapMode
                     scope.launch {
-                        if (showAllEnabled && selected.first().status != DiscipleStatus.IDLE) {
-                            viewModel.releaseDiscipleFromAllSlotsAtomic(id)
-                        }
                         if (swapMode) patrolTowerViewModel.swapDisciple(towerIndex, slotIndex, id)
                         else patrolTowerViewModel.assignDisciple(towerIndex, slotIndex, id)
                     }

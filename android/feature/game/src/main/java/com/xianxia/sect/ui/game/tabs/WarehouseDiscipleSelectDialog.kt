@@ -101,7 +101,7 @@ internal fun DiscipleSelectForRewardDialog(
         title = "赏赐弟子",
         mode = DialogMode.Full,
         showCloseButton = true,
-        scrollableContent = true,
+        scrollableContent = false,
         headerContent = {
             Text(
                 text = "物品: $itemName (剩余: $currentQuantity)",

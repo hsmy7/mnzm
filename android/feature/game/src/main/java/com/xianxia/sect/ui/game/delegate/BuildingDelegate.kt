@@ -231,6 +231,8 @@ class BuildingDelegate(
 
             if (currentDiscipleId.isNotEmpty()) {
                 gameEngine.releaseDiscipleAssignment(currentDiscipleId)
+                // 状态对称同步：移除住所后设回 IDLE
+                gameEngine.updateDiscipleStatus(currentDiscipleId, DiscipleStatus.IDLE)
             }
         }
     }
