@@ -760,7 +760,8 @@ object RedeemCodeManager {
         }
     }
 
-    private fun generateRandomTalents(): List<String> {
+    /** 生成随机天赋（internal 供测试验证模板级去重） */
+    internal fun generateRandomTalents(): List<String> {
         val talents = mutableListOf<String>()
         val selectedTemplates = mutableSetOf<String>()
 
