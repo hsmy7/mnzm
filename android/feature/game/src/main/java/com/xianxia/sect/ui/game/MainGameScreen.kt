@@ -454,8 +454,6 @@ fun MainGameScreen(
         // ★ 优化：RenderFrame 推送帧率门控
         // SOFTWARE 路径下限制推送频率（RenderThread 自行读取 currentFrame 原子快照）
         var lastRenderDataSyncNs by remember { mutableLongStateOf(0L) }
-        // 上次推送的建筑数量——变化时强制跳帧门控（取消/确认后即时更新）
-        var lastPushedBuildingCount by remember { mutableIntStateOf(-1) }
 
         // 缓存 buildingData 哈希值，避免每帧重复分配 FloatArray
         AndroidView(
@@ -509,6 +507,10 @@ fun MainGameScreen(
                 // ★ 独立推送相机（不经过帧率门控），确保拖拽时相机响应无延迟
                 view.setCamera(snapCamX, snapCamY, snapScale)
 
+                // ★ 注入渲染命令总线（直达推送通道，在帧率门控外注入引用）
+                // 使 RenderThread 可通过 commandBus.buildingData 读取最新建筑数据
+                view.commandBus = viewModel.getRenderCommandBus()
+
                 // ★ 在门控外读取预览相关状态，确保 Compose 订阅活跃。
                 // 门控内读取时，若门控未通过则 Compose 移除依赖跟踪，
                 // 导致拖拽中精灵图不跟随移动（与 camera 同理）。
@@ -549,15 +551,10 @@ fun MainGameScreen(
                 val buildingData = buildingDataArray
                 val effectiveCount = effectivePlacedBuildings.size
 
-                // ★ 建筑数量变化时强制门控打开，新数据即时推送
-                if (effectiveCount != lastPushedBuildingCount) {
-                    lastRenderDataSyncNs = 0L
-                }
-
-                // 帧率门控：低于间隔直接跳过 RenderFrame 推送
+                // 帧率门控：低于间隔直接跳过 RenderFrame 推送（不影响 RenderCommandBus 直达通道）
+                // buildingData 已通过命令总线独立推送，此处仅用于 tileData + preview
                 if (now - lastRenderDataSyncNs >= minIntervalNs) {
                     lastRenderDataSyncNs = now
-                    lastPushedBuildingCount = effectiveCount
 
                 // Camera + 预览 + 建筑数据通过 RenderFrame 推送
                 // 单通道：Vulkan 和 Canvas 两后端均消费同一份 RenderFrame

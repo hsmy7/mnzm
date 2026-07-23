@@ -296,6 +296,18 @@
 
 ### 17. `assignToResidence` 覆盖已占用槽位时未释放原住户
 
+**状态：✅ 已完成（2026-07-23）**
+
+**修复内容：**
+- 新增 `GameEngineAtomicAssign.kt` 中的 `assignToResidenceAtomic` 方法
+- 写入新槽位前检查目标槽位原住户 ID，非空时通过 `DiscipleSlotCleanup.clearAllSlots` 释放
+- `removeFromResidenceAtomic` 只清空指定槽位 + 释放 gate，不清除其他系统槽位
+
+**验证结果：**
+- ✅ 覆盖分配时原住户 gate 正确释放
+- ✅ compileReleaseKotlin 通过
+- ✅ ResidenceDialog + PatrolTowerDialog 调用适配
+
 **问题描述：** `BuildingDelegate.assignToResidence` 覆盖目标 residence slot 时，只清理了"新弟子"的旧槽位，没有检查目标槽位是否已被其他弟子占用。原住户的 `DiscipleAssignmentGate` 注册残留，变成"幽灵注册"——无住所但 gate 认为有锁。
 
 **影响范围：** `BuildingDelegate.assignToResidence`
@@ -314,6 +326,13 @@
 ---
 
 ### 18. `assignToResidence` 非原子状态更新（4 次独立事务）
+
+**状态：✅ 已完成（2026-07-23）**
+
+**修复内容：**
+- 6 个原子方法（`assignToResidenceAtomic`、`removeFromResidenceAtomic`、`assignPatrolAtomic`、`removePatrolAtomic`、`swapPatrolAtomic`、`autoAssignPatrolAtomic`）均在单次 `stateStore.update` 内完成
+- 释放旧槽位 + 检查原住户 + 写入新槽位 + 登记 gate + 更新状态一体化
+- BuildingDelegate 和 PatrolTowerViewModel 全部委托到新原子 API
 
 **问题描述：** `assignToResidence` 将一个逻辑操作拆为 4 次独立的 `stateStore.update`：① `releaseDiscipleFromAllSlotsAtomic` ② `updateGameData(residenceSlots)` ③ `confirmAssignDisciple` ④ `updateDiscipleStatus`。违反架构规范 6.2 🔴。
 
@@ -335,28 +354,22 @@
 
 ### 19. `PatrolTowerViewModel.assignDisciple` 未重新抛出 `CancellationException`
 
-**问题描述：** `assignDisciple` 和 `swapDisciple` 的 try-catch 块捕获所有 `Exception`，未重新抛出 `CancellationException`。违反编码规范 8.1 🔴。协程取消时部分更新的状态不会回滚。
+**状态：✅ 已完成（2026-07-23）**
 
-**影响范围：** `PatrolTowerViewModel.kt:66-69`, `:92-128`
-
-**修复方向：**
-- catch 内添加 `if (e is CancellationException) throw e`
-
-**难度：** 低
+**修复内容：**
+- `assignDisciple`、`swapDisciple`、`removeDisciple`、`autoAssign` 全部添加 `catch (e: CancellationException) { throw e }`
+- 新增 `assignDiscipleAsync`/`removeDiscipleAsync` fire-and-forget 包装器（同样有 CancellationException 重抛）
+- 原子方法内部通过 `DomainResult.catching` 自动处理 CancellationException
 
 ---
 
 ### 20. 住所/巡视楼分配 fire-and-forget 无返回值
 
-**问题描述：** `assignToResidence`、`assignDisciple`、`swapDisciple` 都是 fire-and-forget 异步（非 `suspend`，无返回值）。调用方（UI 层）无法知道操作是否成功完成。失败时仅内部 `showError`，对话框已关闭，用户无法确认。
+**状态：✅ 已完成（2026-07-23）**
 
-**影响范围：**
-- `BuildingDelegate.assignToResidence`
-- `PatrolTowerViewModel.assignDisciple` / `swapDisciple`
-
-**修复方向：**
-- 改为 `suspend fun` 返回 `Result<Unit>` 或 `DomainResult`
-- 调用方 await 完成后关闭对话框
-- 或保持 fire-and-forget 但增加回调/EventBus 通知
-
-**难度：** 中
+**修复内容：**
+- `BuildingDelegate.assignToResidence` 改为 `suspend` 返回 `DomainResult<Unit>`
+- `BuildingDelegate.removeFromResidence` 改为 `suspend` 返回 `DomainResult<Unit>`
+- `PatrolTowerViewModel.assignDisciple` 改为 `suspend` 返回 `DomainResult<Unit>`
+- `PatrolTowerViewModel.removeDisciple` 改为 `suspend` 返回 `DomainResult<Unit>`
+- 保留 `assignDiscipleAsync`/`removeDiscipleAsync` fire-and-forget 包装器供现有对话框使用

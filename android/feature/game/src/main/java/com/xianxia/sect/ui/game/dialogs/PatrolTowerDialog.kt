@@ -152,7 +152,7 @@ fun PatrolTowerDialog(
                                 isSwapMode = false
                                 selectingSlotIndex = index
                             },
-                            onDismiss = { patrolTowerViewModel.removeDisciple(towerIndex, index) },
+                            onDismiss = { patrolTowerViewModel.removeDiscipleAsync(towerIndex, index) },
                             onSwap = {
                                 isSwapMode = true
                                 selectingSlotIndex = index
@@ -182,7 +182,7 @@ fun PatrolTowerDialog(
                     val swapMode = isSwapMode
                     scope.launch {
                         if (swapMode) patrolTowerViewModel.swapDisciple(towerIndex, slotIndex, id)
-                        else patrolTowerViewModel.assignDisciple(towerIndex, slotIndex, id)
+                        else patrolTowerViewModel.assignDiscipleAsync(towerIndex, slotIndex, id)
                     }
                 }
                 selectingSlotIndex = -1

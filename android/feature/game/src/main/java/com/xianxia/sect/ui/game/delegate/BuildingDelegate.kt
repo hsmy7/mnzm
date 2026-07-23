@@ -8,12 +8,9 @@ import com.xianxia.sect.core.engine.currentActiveSectId
 import com.xianxia.sect.core.engine.domain.building.BuildingFacade
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.engine.*
-import com.xianxia.sect.core.model.SlotCategory
-import com.xianxia.sect.core.model.SlotRef
 import com.xianxia.sect.core.model.GridBuildingData
-import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.model.production.ProductionSlot
+import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.ui.game.sect.GoldFingerState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -178,63 +175,18 @@ class BuildingDelegate(
         }
     }
 
-    /** 分配弟子到住宅 */
-    fun assignToResidence(buildingInstanceId: String, slotIndex: Int, discipleId: String) {
-        gameEngine.launchOnEngine {
-            // 释放旧槽位（自动移除前职务）
-            gameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId)
-
-            val discipleName = gameEngine.getDiscipleAggregate(discipleId)?.name ?: ""
-            gameEngine.updateGameData { data ->
-                val cleared = data.residenceSlots.map { slot ->
-                    if (slot.discipleId == discipleId) slot.copy(discipleId = "", discipleName = "") else slot
-                }.toMutableList()
-
-                val existingIndex = cleared.indexOfFirst {
-                    it.buildingInstanceId == buildingInstanceId && it.slotIndex == slotIndex
-                }
-                val newSlot = ResidenceSlot(
-                    buildingInstanceId = buildingInstanceId, slotIndex = slotIndex,
-                    discipleId = discipleId, discipleName = discipleName
-                )
-                if (existingIndex >= 0) cleared[existingIndex] = newSlot else cleared.add(newSlot)
-                data.copy(residenceSlots = cleared)
-            }
-
-            val slotRef = SlotRef(
-                category = SlotCategory.RESIDENCE_SLOT,
-                slotType = "${buildingInstanceId}:${slotIndex}",
-                slotId = "residence_${buildingInstanceId}_${slotIndex}"
-            )
-            gameEngine.confirmAssignDisciple(discipleId, slotRef)
-
-            // 确保状态同步回 _disciplesFlow，使选择界面能立即识别空闲状态
-            gameEngine.updateDiscipleStatus(discipleId, DiscipleStatus.IDLE)
-        }
+    /** 分配弟子到住宅（原子操作） */
+    suspend fun assignToResidence(
+        buildingInstanceId: String, slotIndex: Int, discipleId: String
+    ): DomainResult<Unit> {
+        return gameEngine.assignToResidenceAtomic(buildingInstanceId, slotIndex, discipleId)
     }
 
-    /** 从住宅移除弟子 */
-    fun removeFromResidence(buildingInstanceId: String, slotIndex: Int) {
-        gameEngine.launchOnEngine {
-            // 取出当前住户 ID 用于释放注册表
-            val currentDiscipleId = gameEngine.gameDataSnapshot.residenceSlots
-                .find { it.buildingInstanceId == buildingInstanceId && it.slotIndex == slotIndex }
-                ?.discipleId.orEmpty()
-
-            gameEngine.updateGameData { data ->
-                data.copy(residenceSlots = data.residenceSlots.map { slot ->
-                    if (slot.buildingInstanceId == buildingInstanceId && slot.slotIndex == slotIndex)
-                        slot.copy(discipleId = "", discipleName = "")
-                    else slot
-                })
-            }
-
-            if (currentDiscipleId.isNotEmpty()) {
-                gameEngine.releaseDiscipleAssignment(currentDiscipleId)
-                // 状态对称同步：移除住所后设回 IDLE
-                gameEngine.updateDiscipleStatus(currentDiscipleId, DiscipleStatus.IDLE)
-            }
-        }
+    /** 从住宅移除弟子（原子操作） */
+    suspend fun removeFromResidence(
+        buildingInstanceId: String, slotIndex: Int
+    ): DomainResult<Unit> {
+        return gameEngine.removeFromResidenceAtomic(buildingInstanceId, slotIndex)
     }
 
     /** 判断住所是否可升级 */

@@ -270,104 +270,19 @@ RunState（运行时状态 — 可循环回退）
 
 以下优化项基于 [行业对标分析](knowledge-base.md#行业对标分析报告)（来源包括 UE/Supercell/RimWorld/MineColonies 等）。
 
-### 1️⃣ 存档系统：双缓冲回退机制
-n**完成内容：** `SaveFileManager` 提供 write-tmp → rename 原子写入 + CRC32C 完整性校验 + `.sav`/`.bak` 双文件回退。`StorageEngine.save()` 接入保存前校验和自动重试，`load()` 接入 CRC32C 校验 + 自动 `.bak` 恢复。`FunctionalWAL` 接入主保存路径。自动存档跳过备份
-
-**对标：** 移动端增量存档行业标准（双缓冲/主+备份模式）
-**现状：** 依赖 Room WAL 模式的事务原子性，无独立 .bak 回退
-**建议：** 在 `StorageEngine.save()` 中增加 `write-tmp → rename → keep .bak` 流程，确保崩溃恢复
-
-### 2️⃣ 角色状态系统：纯推导式迁移（长期）
+### 1️⃣ 角色状态系统：纯推导式迁移（长期）
 
 **对标：** RimWorld（状态从当前执行任务推导，不手动设置）、MineColonies（三层状态机推导）
 **现状：** 显式式 + 推导修正混合模式（`markDiscipleAssigned` 直接写 + `syncAllDiscipleStatuses` 修正）
 **建议：** 逐步废除 `markDiscipleAssigned` 直接写入，使 `syncAllDiscipleStatuses` 成为唯一状态真相源。新增状态时只需更新推导函数，无需同时修改两处代码。
 
-### 3️⃣ 自动分配管线：全量单事务写入
+### 2️⃣ 自动分配管线：全量单事务写入
 
 **对标：** Supercell（action 原子提交）、UE（Game Thread 快照一次性完成）
 **现状：** `processAutoAssign` 中炼丹/锻造仍通过 `productionSlotRepository.batchUpdate`（Room IO）写入，与 `stateStore.update` 不在同一事务
 **建议：** 将生产槽位数据迁入 `GameStateStore` 的 `MutableGameState` 体系，使所有自动分配在同一事务内完成
 
-### 4️⃣ 渲染管线：游戏状态变更即时同步到渲染线程
-
-**对标：** Unreal Engine（`ENQUEUE_RENDER_COMMAND` 显式推送 + Scene Proxy 并行数据结构）、Unity（命令队列保证送达）、脏标记模式（Dirty Flag，确定性状态变更通知）
-
-**现状：** 建筑放置/移动/拆除的数据从 `placedBuildings StateFlow` 到渲染线程 `currentFrame` 的传播路径完全依赖 Compose 反应式管线：
-
-```
-placedBuildings → collectAsStateWithLifecycle → derivedStateOf → remember(key.equals)
-→ AndroidView.update → 帧率门控 → updateRenderState → currentFrame
-```
-
-**三个不可靠环节串联：**
-1. `remember` key 的 `equals()` 比较在某些 Compose 快照时机下不可靠
-2. 帧率门控（16ms/33ms 间隔限制）可能阻止 RenderFrame 推送
-3. 渲染数据流依赖 Compose 重组时机，无独立送达保证
-
-**症状：** 建造建筑后"建筑1"有概率消失，拖动视角后恢复。原因：数据未送达 `currentFrame`，渲染线程读到的块缓存不包含新建筑。
-
-**建议：** 增加一条不依赖 Compose 反应式管线的直达推送路径（`pushBuildingData` + `LaunchedEffect`，类似 UE 的 `ENQUEUE_RENDER_COMMAND`），确保建筑放置后数据直达 `currentFrame`，消除 Compose 时机竞争导致的渲染不一致。
-
-**优先级：** 🟡 中（影响视觉体验但数据不丢失，拖动可恢复）
-
-### 5️⃣ 月度事件管线：全量单事务提交
-n**完成内容：** `processMonthlyEvents` 中 10/13 个子服务合并为单次 `stateStore.update` 原子执行（原 13 次降为 4 次 StateFlow 发射）。`processCompletedMissionsLazy` 改为两阶段模式（事务外计算 + 事务内写入），消除 CancellationException 奖励丢失风险。执法/偷窃系统内部方法全部 MutableGameState 化，消除读-写窗口
-
-**对标：** Supercell（单个 game tick 内的所有状态变更原子提交）、RimWorld（Long Tick 在单个锁内完成全量结算）
-
-**现状：** `GameEngineCore.processMonthYearChange()` → `CultivationEventProcessor.processMonthlyEvents()` 内部调用约 13 个子服务（AI操作、巡查过期、执法、偷窃、任务刷新、灵矿结算、修炼结算等），每个子服务独立调用 `stateStore.update {}`，产生 10+ 次独立事务。中间状态通过 `StateFlow` 暴露给 UI 层，可能导致 UI 读到部分已更新/部分未更新的不一致状态。
-
-```kotlin
-// 当前：13+ 次独立事务
-stateStore.update { /* 政策成本 */ }         // 事务 1
-processAISectOperations()                      // 事务 2 (内部可能多次)
-checkGameOverCondition()                       // 事务 3
-processScoutInfoExpiryLazy()                   // 事务 4
-stateStore.update { processRemainingTargets() } // 事务 5
-processTheftIfNeeded()                         // 事务 6+
-processLawEnforcementMonthly()                 // 事务 7+
-processMissionRefreshIfDue()                   // 事务 8+
-processCompletedMissionsLazy()                 // 事务 9+
-processSpiritMineProductionMonthly()           // 事务 10
-processMonthlyCultivationAndAuto()             // 事务 11
-// ...
-```
-
-**重构方案：** 将 `processMonthlyEvents` 内部所有子服务逐步重构为接受 `MutableGameState` 参数、不自建 `stateStore.update` 的纯函数模式（pure transformation on MutableGameState）。最终让月度事件管线在单次 `stateStore.update {}` 内完成全量结算。
-
-```kotlin
-// 目标：1 次事务
-stateStore.update {
-    processPolicyCosts(this)              // 已在此事务内
-    processAISectOperations(this, year, month)
-    checkGameOverCondition(this)
-    processTheft(this)
-    processLawEnforcement(this)
-    processSpiritMineProduction(this)
-    processMonthlyCultivation(this)
-    // ... 所有月度事件
-}
-```
-
-**影响范围：** 约 10-15 个服务类需要增加 `MutableGameState` 重载方法，原 `stateStore.update` 调用迁移到调用方。完成后需全量回归月度事件。
-
-**优先级：** 🟡 中（当前单线程引擎架构降低了实际风险，但限制未来多线程扩展）
-
----
-
-> 行业对标参考来源：
-> - [Unreal Engine Threaded Rendering](https://dev.epicgames.com/documentation/unreal-engine/threaded-rendering)
-> - [UE Low-Latency Frame Syncing](https://dev.epicgames.com/documentation/unreal-engine/low-latency-frame-syncing-in-unreal-engine)
-> - [Game Programming Patterns - Dirty Flag](https://github.com/claudiouzelac/game-programming-patterns/blob/34da9e749d44695a12f1d423fa40391c1173ef65/book/dirty-flag.markdown)
-> - [Activision COD Controller-to-Display Latency Research](https://www.activision.com/cdn/research/Hogge_Akimitsu_Controller_to_display.pdf)
-> - [GDNet Threading Architecture Discussion](https://gamedev.net/forums/topic/688552-new-api-rendering-architecture/)
-
-**对标：** Supercell（action 原子提交）、UE（Game Thread 快照一次性完成）
-**现状：** `processAutoAssign` 中炼丹/锻造仍通过 `productionSlotRepository.batchUpdate`（Room IO）写入，与 `stateStore.update` 不在同一事务
-**建议：** 将生产槽位数据迁入 `GameStateStore` 的 `MutableGameState` 体系，使所有自动分配在同一事务内完成
-
-### 7️⃣ 偷盗系统：事务内守卫查询走 StateFlow 而非事务内状态
+### 3️⃣ 偷盗系统：事务内守卫查询走 StateFlow 而非事务内状态
 
 **场景：** `LawEnforcementProcessor.tryStealthDetection()` 从事务内路径（6 处道德变更钩子）调用时，守卫数据通过 `stateStore.disciples.value` 读取，而非当前事务 `MutableGameState` 的 `discipleTables`。
 

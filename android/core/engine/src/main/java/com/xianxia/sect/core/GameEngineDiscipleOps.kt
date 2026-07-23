@@ -73,6 +73,5 @@ suspend fun GameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId: String) {
             }
         }
     }
-    // 已在 clearAllSlots 内部调用 gate.release()，但死代码保留确保正确
-    assignmentGate.release(discipleId)
+    // clearAllSlots 内部已调用 gate.release()，无需重复调用
 }

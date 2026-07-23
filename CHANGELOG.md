@@ -28,6 +28,12 @@
 - **修复：弟子入住住所后所有选择界面不显示该弟子** — 根因 `assignToResidence` 中 `releaseDiscipleFromAllSlotsAtomic` 更新 `discipleTables` 后未同步触发 `_disciplesFlow` reassembly，UI 层读取过时状态。在分配流程末尾显式调用 `updateDiscipleStatus(IDLE)` 确保状态同步
 - **调整：赏赐弟子/赏赐道具对话框改为全屏** — 移除米色背景和"给予弟子"文本，筛选按钮改用标准按钮组件+选中态黑白区分
 - **修复：巡视楼应用弟子时双重释放+赏赐全屏滚动嵌套** — 移除 `onConfirm` 中多余的 `releaseDiscipleFromAllSlotsAtomic`；赏赐全屏对话框 `scrollableContent` 改为 `false` 消除 `LazyVerticalGrid` 嵌套
+
+### 架构债务清理
+
+- **重构：住所/巡视楼分配原子性统一修复** — 6 个原子方法（`GameEngineAtomicAssign.kt`）将住所/巡视楼分配从多次独立 `stateStore.update` 重构为单事务原子操作；修复 4 个架构债务：#17 原住户覆盖时 gate 注册残留（幽灵注册）、#18 多事务非原子更新（违反规范6.2）、#19 `CancellationException` 被 `catch` 吞没（违反规范8.1）、#20 fire-and-forget 无返回值
+- **新增：渲染管线直达推送通道（`RenderCommandBus`）** — 建筑放置/移动/拆除后通过独立于 Compose 反应式管线的直达通道推送 buildingData 到渲染线程，消除帧率门控导致的建筑消失 Bug；对标 UE `ENQUEUE_RENDER_COMMAND` 模式
+- **对抗性审查修复** — 3 角色审查发现 20+ 独立问题：修复 `assignToResidenceAtomic` 对旧 occupant 全量 `clearAllSlots` 过度清除（改为精确槽位释放）；修复 `renderVulkanFrame` TOCTOU 竞态（`consumeBuildingData()` 单快照 + `coerceAtMost` 保护）；修复 `autoAssignPatrolAtomic` 重复校验；修复 `releaseDiscipleFromAllSlotsAtomic` 双 `gate.release()` 冗余调用
 - **修复：`removeFromResidence` 缺少 `updateDiscipleStatus`** — 与 `assignToResidence` 状态对称，移除住所后设回 IDLE
 - **测试：`GameConfigTest` 预存断言值过时** — `CULTIVATION_SUBSIDY_PER_DISCIPLE` 4000L→300L，测试名同步更新
 

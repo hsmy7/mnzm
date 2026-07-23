@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +41,7 @@ fun ResidenceDialog(
     gameData: GameData,
     onDismiss: () -> Unit
 ) {
+    val scope = rememberCoroutineScope()
     val building = gameData.placedBuildings.find { it.instanceId == buildingInstanceId } ?: return
     val feature = com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry.findByDisplayName(building.displayName)
     val isSingleResidence = feature?.isResidence == true && feature.slotGroups.any { it is com.xianxia.sect.core.engine.domain.building.SlotGroup.Residence && it.slotsPerInstance == 1 }
@@ -173,7 +175,9 @@ fun ResidenceDialog(
                                     fontSize = 9.sp,
                                     color = Color(0xFFE53935),
                                     modifier = Modifier.clickable {
-                                        viewModel.removeFromResidence(buildingInstanceId, slot.slotIndex)
+                                        scope.launch {
+                                            viewModel.removeFromResidence(buildingInstanceId, slot.slotIndex)
+                                        }
                                     }
                                 )
                                 Text(
@@ -225,7 +229,9 @@ fun ResidenceDialog(
             onDismiss = { showDiscipleSelector = false; isSwapping = false },
             onConfirm = { selected ->
                 if (selected.isNotEmpty()) {
-                    viewModel.assignToResidence(buildingInstanceId, selectedSlotIndex, selected.first().id)
+                    scope.launch {
+                        viewModel.assignToResidence(buildingInstanceId, selectedSlotIndex, selected.first().id)
+                    }
                 }
                 showDiscipleSelector = false
                 isSwapping = false

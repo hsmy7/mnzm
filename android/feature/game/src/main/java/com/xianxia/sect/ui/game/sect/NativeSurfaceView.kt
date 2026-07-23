@@ -14,6 +14,7 @@ import com.xianxia.sect.core.touch.SectMapTouchEngine
 import com.xianxia.sect.core.touch.TouchAction
 import com.xianxia.sect.core.touch.TouchData
 import java.util.concurrent.atomic.AtomicBoolean
+import com.xianxia.sect.ui.game.sect.RenderCommandBus
 
 /**
  * NativeSurfaceView — 承载地图渲染的表面，支持 Vulkan 原生渲染和 Canvas 软件渲染双模式。
@@ -300,6 +301,14 @@ class NativeSurfaceView(
      */
     @Volatile
     var currentFrame: RenderFrame? = null
+
+    /**
+     * 渲染命令总线 — 游戏逻辑线程→渲染线程的直达建筑数据通道。
+     * 由 MainGameScreen 在 `AndroidView.update` 门控外注入。
+     * 如果为 null（未设置），回退到 [currentFrame] 中的 buildingData。
+     */
+    @Volatile
+    var commandBus: RenderCommandBus? = null
 
     /**
      * 相机脏标记 — [currentFrame] 更新时置 true，渲染线程读取后复位。
@@ -685,14 +694,24 @@ class NativeSurfaceView(
 
             NativeBridge.beginFrame()
 
+            // ★ 从命令总线读取建筑数据快照（一次性读取，消除 TOCTOU 竞态）
+            // 对标 UE ENQUEUE_RENDER_COMMAND：建筑变更即时送达，不依赖 Compose 重组时序
+            val busSnapshot = commandBus?.consumeBuildingData()
+            val effectiveBuildingData = busSnapshot?.data ?: frame.buildingData
+            val effectiveBuildingCount = if (busSnapshot != null) {
+                busSnapshot.count.coerceAtMost((busSnapshot.data?.size ?: 0) / 5)
+            } else {
+                frame.buildingCount
+            }
+
             // 从 RenderFrame 读取瓦片数据 + SpriteAtlasDef 编译时常量
             if (atlasTextureId != 0) {
                 NativeBridge.drawAllTiles(
                     tileData = frame.tileData,
                     cols = config.worldWidthCells,
                     rows = config.worldHeightCells,
-                    buildingData = frame.buildingData,
-                    buildingCount = frame.buildingCount,
+                    buildingData = effectiveBuildingData,
+                    buildingCount = effectiveBuildingCount,
                     buildingVisible = frame.buildingVisible,
                     tileSize = config.tileSize,
                     atlasTexId = atlasTextureId,
@@ -728,12 +747,25 @@ class NativeSurfaceView(
 
             val startNs = System.nanoTime()
 
-            // ★ 使用独立相机通道覆盖 frame 中的相机值
-            val cameraFrame = frame.copy(camX = renderCamX, camY = renderCamY, scale = renderScale)
+            // ★ 从命令总线读取建筑数据快照（与 Vulkan 路径一致，消除 TOCTOU 竞态）
+            val busSnapshot = commandBus?.consumeBuildingData()
+            val effectiveBuildingData = busSnapshot?.data ?: frame.buildingData
+            val effectiveBuildingCount = if (busSnapshot != null) {
+                busSnapshot.count.coerceAtMost((busSnapshot.data?.size ?: 0) / 5)
+            } else {
+                frame.buildingCount
+            }
+
+            // ★ 使用独立相机通道 + 建筑数据总线，合并覆盖 frame 中的值
+            val mergedFrame = frame.copy(
+                camX = renderCamX, camY = renderCamY, scale = renderScale,
+                buildingData = effectiveBuildingData,
+                buildingCount = effectiveBuildingCount
+            )
 
             val rendered = try {
                 sb.renderFrame(
-                    frame = cameraFrame,
+                    frame = mergedFrame,
                     atlas = atlas,
                     vpW = this@NativeSurfaceView.width.coerceAtLeast(1),
                     vpH = this@NativeSurfaceView.height.coerceAtLeast(1)

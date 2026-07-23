@@ -4,7 +4,9 @@ import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.util.DomainResult
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -36,137 +38,104 @@ class PatrolTowerViewModel @Inject constructor(
                 .thenByDescending { it.realmLayer })
     }
 
-    fun assignDisciple(towerIndex: Int, slotOffset: Int, discipleId: String) {
+    /** 分配弟子到巡视槽位（原子操作，返回 DomainResult） */
+    suspend fun assignDisciple(towerIndex: Int, slotOffset: Int, discipleId: String): DomainResult<Unit> {
+        return gameEngine.assignPatrolAtomic(
+            discipleId = discipleId,
+            towerIndex = towerIndex,
+            slotOffset = slotOffset,
+            slotsPerTower = slotsPerTower
+        )
+    }
+
+    /** 巡视楼分配 fire-and-forget 版本（用于对话框现有调用，内部处理异常） */
+    fun assignDiscipleAsync(towerIndex: Int, slotOffset: Int, discipleId: String) {
         viewModelScope.launch {
             try {
-                // 释放旧槽位
-                gameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId)
-
-                val data = gameEngine.gameDataSnapshot
-                val slots = data.patrolSlots.toMutableList()
-                val globalIndex = towerIndex * slotsPerTower + slotOffset
-                while (slots.size <= globalIndex) slots.add(PatrolSlot(index = slots.size))
-                val disciple = gameEngine.getDiscipleAggregate(discipleId) ?: return@launch
-                slots[globalIndex] = PatrolSlot(
-                    index = globalIndex,
-                    discipleId = discipleId,
-                    discipleName = disciple.name,
-                    discipleRealm = disciple.realmName,
-                    portraitRes = disciple.portraitRes
-                )
-                gameEngine.updateGameData { it.copy(patrolSlots = slots) }
-                gameEngine.updateDiscipleStatus(discipleId, DiscipleStatus.PATROLLING)
-
-                val slotRef = SlotRef(
-                    category = SlotCategory.PATROL_SLOT,
-                    slotType = "patrol:$globalIndex",
-                    slotId = "patrol_$globalIndex"
-                )
-                gameEngine.confirmAssignDisciple(discipleId, slotRef)
+                assignDisciple(towerIndex, slotOffset, discipleId)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 showError(e.message ?: "任命失败")
             }
         }
     }
 
-    fun removeDisciple(towerIndex: Int, slotOffset: Int) {
+    /** 移除巡视弟子（原子操作） */
+    suspend fun removeDisciple(towerIndex: Int, slotOffset: Int): DomainResult<Unit> {
+        return gameEngine.removePatrolAtomic(
+            towerIndex = towerIndex,
+            slotOffset = slotOffset,
+            slotsPerTower = slotsPerTower
+        )
+    }
+
+    /** 巡视楼移除 fire-and-forget 版本 */
+    fun removeDiscipleAsync(towerIndex: Int, slotOffset: Int) {
         viewModelScope.launch {
             try {
-                val data = gameEngine.gameDataSnapshot
-                val slots = data.patrolSlots.toMutableList()
-                val globalIndex = towerIndex * slotsPerTower + slotOffset
-                if (globalIndex >= slots.size) return@launch
-                val removedId = slots[globalIndex].discipleId
-                slots[globalIndex] = PatrolSlot(index = globalIndex)
-                gameEngine.updateGameData { it.copy(patrolSlots = slots) }
-                if (removedId.isNotEmpty()) {
-                    gameEngine.releaseDiscipleAssignment(removedId)
-                    gameEngine.updateDiscipleStatus(removedId, DiscipleStatus.IDLE)
-                }
+                removeDisciple(towerIndex, slotOffset)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 showError(e.message ?: "卸任失败")
             }
         }
     }
 
+    /** 交换巡视弟子（原子操作） */
     fun swapDisciple(towerIndex: Int, slotOffset: Int, newDiscipleId: String) {
         viewModelScope.launch {
             try {
-                // 释放新弟子旧槽位
-                gameEngine.releaseDiscipleFromAllSlotsAtomic(newDiscipleId)
-
-                val data = gameEngine.gameDataSnapshot
-                val slots = data.patrolSlots.toMutableList()
-                val globalIndex = towerIndex * slotsPerTower + slotOffset
-                if (globalIndex >= slots.size) return@launch
-                val oldId = slots[globalIndex].discipleId
-                val disciple = gameEngine.getDiscipleAggregate(newDiscipleId) ?: return@launch
-                slots[globalIndex] = PatrolSlot(
-                    index = globalIndex,
+                // 获取当前槽位旧弟子的全局索引
+                val fromGlobalIndex = towerIndex * slotsPerTower + slotOffset
+                // 先分配新弟子到目标槽位（原子方法内部已处理原住户释放）
+                val result = gameEngine.assignPatrolAtomic(
                     discipleId = newDiscipleId,
-                    discipleName = disciple.name,
-                    discipleRealm = disciple.realmName,
-                    portraitRes = disciple.portraitRes
+                    globalIndex = fromGlobalIndex
                 )
-                gameEngine.updateGameData { it.copy(patrolSlots = slots) }
-                if (oldId.isNotEmpty()) {
-                    gameEngine.releaseDiscipleAssignment(oldId)
-                    gameEngine.updateDiscipleStatus(oldId, DiscipleStatus.IDLE)
+                if (result is DomainResult.Failure) {
+                    showError(result.error.message ?: "更换失败")
                 }
-                gameEngine.updateDiscipleStatus(newDiscipleId, DiscipleStatus.PATROLLING)
-
-                val slotRef = SlotRef(
-                    category = SlotCategory.PATROL_SLOT,
-                    slotType = "patrol:$globalIndex",
-                    slotId = "patrol_$globalIndex"
-                )
-                gameEngine.confirmAssignDisciple(newDiscipleId, slotRef)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 showError(e.message ?: "更换失败")
             }
         }
     }
 
+    /** 一键任命（原子操作，单事务完成所有分配） */
     fun autoAssign(towerIndex: Int) {
         viewModelScope.launch {
             try {
                 val available = getAvailableDisciples(towerIndex)
                 if (available.isEmpty()) return@launch
-                val data = gameEngine.gameDataSnapshot
-                val slots = data.patrolSlots.toMutableList()
+
                 val start = towerIndex * slotsPerTower
                 val end = start + slotsPerTower
-                while (slots.size < end) slots.add(PatrolSlot(index = slots.size))
+
+                // 构建批量分配列表（只填空槽）
+                val assignments = mutableListOf<Pair<Int, String>>()
+                val data = gameEngine.gameDataSnapshot
                 var idx = 0
                 for (i in start until end) {
-                    if (slots[i].discipleId.isEmpty() && idx < available.size) {
-                        val d = available[idx]
-                        slots[i] = PatrolSlot(
-                            index = i,
-                            discipleId = d.id,
-                            discipleName = d.name,
-                            discipleRealm = d.realmName,
-                            portraitRes = d.portraitRes
-                        )
+                    if (idx >= available.size) break
+                    val slot = data.patrolSlots.getOrNull(i)
+                    if (slot == null || slot.discipleId.isEmpty()) {
+                        assignments.add(i to available[idx].id)
                         idx++
                     }
                 }
-                // 先释放所有新弟子旧槽位，再写入新槽位
-                for (i in 0 until idx) {
-                    gameEngine.releaseDiscipleFromAllSlotsAtomic(available[i].id)
+
+                if (assignments.isEmpty()) return@launch
+
+                val result = gameEngine.autoAssignPatrolAtomic(assignments)
+                if (result is DomainResult.Failure) {
+                    showError(result.error.message ?: "一键任命失败")
                 }
-                gameEngine.updateGameData { it.copy(patrolSlots = slots) }
-                for (i in 0 until idx) {
-                    val d = available[i]
-                    val globalIdx = start + i
-                    val slotRef = SlotRef(
-                        category = SlotCategory.PATROL_SLOT,
-                        slotType = "patrol:$globalIdx",
-                        slotId = "patrol_$globalIdx"
-                    )
-                    gameEngine.confirmAssignDisciple(d.id, slotRef)
-                    gameEngine.updateDiscipleStatus(d.id, DiscipleStatus.PATROLLING)
-                }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 showError(e.message ?: "一键任命失败")
             }

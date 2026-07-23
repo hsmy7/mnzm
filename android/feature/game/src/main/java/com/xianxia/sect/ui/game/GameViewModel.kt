@@ -10,6 +10,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.launch
 import com.xianxia.sect.core.domain.dialog.DialogManager
 import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.core.SectLevel
@@ -23,6 +24,9 @@ import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
 import com.xianxia.sect.core.engine.domain.production.ProductionFacade
 import com.xianxia.sect.core.engine.domain.save.SaveFacade
 import com.xianxia.sect.core.engine.service.*
+import com.xianxia.sect.ui.game.buildBuildingDataArray
+import com.xianxia.sect.ui.game.sect.RenderCommandBus
+import com.xianxia.sect.core.util.GridSnapHelper
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.BuildingType
@@ -141,7 +145,36 @@ class GameViewModel @Inject constructor(
 
     val renderFrameRate: StateFlow<Int> = gameEngineCore.renderFrameRate
 
+    // ── 渲染命令总线（建筑数据直达推送，绕过 Compose 帧率门控） ──
+
+    private val _renderCommandBus = RenderCommandBus()
+
+    /** 获取渲染命令总线实例（由 MainGameScreen 注入到 NativeSurfaceView） */
+    fun getRenderCommandBus(): RenderCommandBus = _renderCommandBus
+
+    /** 建筑精灵尺寸缓存（运行时不变，供直达推送协程使用） */
+    private val _buildingSpriteSizesCache: Map<String, GridSnapHelper.BuildingSize> by lazy {
+        buildingDelegate.getAllBuildingSpriteSizes().mapValues {
+            GridSnapHelper.BuildingSize(it.value.first, it.value.second)
+        }
+    }
+
     fun setGameScene(scene: GameEngineCore.GameScene) { gameEngineCore.onSceneChanged(scene) }
+
+    init {
+        // 建筑数据直达推送（绕过 Compose 反应式管线 + 帧率门控）
+        viewModelScope.launch {
+            gameEngine.gameData
+                .map { it.placedBuildings }
+                .distinctUntilChanged()
+                .collect { buildings ->
+                    val dataArray = if (buildings.isNotEmpty()) {
+                        buildBuildingDataArray(buildings, _buildingSpriteSizesCache)
+                    } else null
+                    _renderCommandBus.postBuildingData(dataArray, buildings.size)
+                }
+        }
+    }
 
     fun dismissDialog() {
         gameEngine.setActiveDialog(null)
@@ -573,9 +606,9 @@ class GameViewModel @Inject constructor(
 
     // ── Residence ──
 
-    fun assignToResidence(buildingInstanceId: String, slotIndex: Int, discipleId: String) =
+    suspend fun assignToResidence(buildingInstanceId: String, slotIndex: Int, discipleId: String) =
         buildingDelegate.assignToResidence(buildingInstanceId, slotIndex, discipleId)
-    fun removeFromResidence(buildingInstanceId: String, slotIndex: Int) =
+    suspend fun removeFromResidence(buildingInstanceId: String, slotIndex: Int) =
         buildingDelegate.removeFromResidence(buildingInstanceId, slotIndex)
     fun canUpgradeResidence(buildingInstanceId: String): Boolean =
         buildingDelegate.canUpgradeResidence(buildingInstanceId)
