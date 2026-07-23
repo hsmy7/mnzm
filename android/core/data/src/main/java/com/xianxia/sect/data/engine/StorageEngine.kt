@@ -691,10 +691,13 @@ class StorageEngine @Inject constructor(
             core.database.battleLogDao().deleteAll(slot)
             core.database.recipeDao().deleteAll(slot)
             core.database.productionSlotDao().deleteBySlot(slot)
+            core.database.discipleCompactDao().deleteAll(slot)
 
             // ── 轻型 GameData ──
             core.database.gameDataDao().insert(lightGameData)
 
+            // bloodRefinementPctTotals 拍快照防止并发修改
+            val bptSnapshot = data.gameData.bloodRefinementPctTotals
             data.disciples.chunked(MAX_BATCH_SIZE).forEach { batch ->
                 val withSlot = batch.map { d -> d.copy(slotId = slot) }
                 core.database.discipleDao().upsertAll(withSlot)
@@ -703,6 +706,9 @@ class StorageEngine @Inject constructor(
                 core.database.discipleEquipmentDao().upsertAll(batch.map { d -> DiscipleEquipment.fromDisciple(d).copy(slotId = slot) })
                 core.database.discipleExtendedDao().upsertAll(batch.map { d -> DiscipleExtended.fromDisciple(d).copy(slotId = slot) })
                 core.database.discipleAttributesDao().upsertAll(batch.map { d -> DiscipleAttributes.fromDisciple(d).copy(slotId = slot) })
+                    core.database.discipleCompactDao().insertAll(batch.map { d ->
+                        DiscipleCompact.fromDisciple(d, bptSnapshot).copy(slotId = slot)
+                    })
             }
 
             data.equipmentStacks.chunked(MAX_BATCH_SIZE).forEach { core.database.equipmentStackDao().upsertAll(it.map { e -> e.copy(slotId = slot) }) }
@@ -854,7 +860,11 @@ class StorageEngine @Inject constructor(
         val gameData = core.database.gameDataDao().getGameDataSync(slot) ?: return null
 
         if (loadHeavyData) {
-            val merged = mergeHeavyData(gameData, slot)
+            // mergeHeavyData 在事务中读取 heavy_data + domain state tables，
+            // 确保这些表看到一致的数据库快照。
+            // 注意：buildSaveDataFromDatabase 内部用 async {} 并行读表，不能放入 withTransaction
+            //（Room withTransaction 要求内部 DAO 调用在同一线程，与 async 不兼容）。
+            val merged = core.database.withTransaction { mergeHeavyData(gameData, slot) }
             val saveData = buildSaveDataFromDatabase(slot, merged)
             if (saveData != null) {
                 val migrated = migrateSaveDataIfNeeded(saveData)
@@ -959,7 +969,54 @@ class StorageEngine @Inject constructor(
 
     private suspend fun mergeHeavyData(gameData: GameData, slot: Int): GameData {
         val allRows = loadHeavyDataSafe(slot)
-        if (allRows.isEmpty()) return gameData
+
+        // heavy_data 表无数据时，依次从 domain state 表 fallback 恢复所有重型字段。
+        // 这 5 个 domain state 表与 heavy_data 在同一事务中写入（writeAllDataToDatabase
+        // Phase B 第 740-791 行），若 heavy_data 因写入中断丢失，domain state 表仍有完整数据。
+        // 防止写入中断后重型字段永久为空（世界地图空白/招募列表为空等）。
+        if (allRows.isEmpty()) {
+            val worldMapEntity = try {
+                core.database.worldMapStateDao().getBySlot(slot)
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
+                  Log.w(TAG, "mergeHeavyData: worldMapStateDao fallback failed", e)
+                  null
+              }
+            val diplomacyEntity = try {
+                core.database.diplomacyStateDao().getBySlot(slot)
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
+                  Log.w(TAG, "mergeHeavyData: diplomacyStateDao fallback failed", e)
+                  null
+              }
+            val productionEntity = try {
+                core.database.productionStateDao().getBySlot(slot)
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
+                  Log.w(TAG, "mergeHeavyData: productionStateDao fallback failed", e)
+                  null
+              }
+
+            val hasFallbackData = worldMapEntity?.worldMapSects?.isNotEmpty() == true
+            if (hasFallbackData) {
+                Log.w(TAG, "mergeHeavyData: heavy_data empty for slot $slot, " +
+                    "falling back to domain state tables " +
+                    "(worldSects=${worldMapEntity?.worldMapSects?.size}, " +
+                    "sectDetails=${diplomacyEntity?.sectDetails?.size}, " +
+                    "manualProficiencies=${productionEntity?.manualProficiencies?.size})")
+                return gameData.copy(
+                    worldMapSects = worldMapEntity?.worldMapSects ?: gameData.worldMapSects,
+                    aiSectDisciples = worldMapEntity?.aiSectDisciples ?: gameData.aiSectDisciples,
+                    sectDetails = diplomacyEntity?.sectDetails ?: gameData.sectDetails,
+                    exploredSects = diplomacyEntity?.exploredSects ?: gameData.exploredSects,
+                    scoutInfo = diplomacyEntity?.scoutInfo ?: gameData.scoutInfo,
+                    manualProficiencies = productionEntity?.manualProficiencies ?: gameData.manualProficiencies
+                    // recruitList 无 domain state 表可恢复，保持 gameData 原有值
+                )
+            }
+            Log.w(TAG, "mergeHeavyData: all domain state tables empty for slot $slot")
+            return gameData
+        }
 
         return gameData.copy(
             aiSectDisciples = if (gameData.aiSectDisciples.isEmpty())

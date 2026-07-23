@@ -22,11 +22,11 @@ class MailRepositoryImpl @Inject constructor(
     override fun getUnreadCount(slotId: Int, nowMs: Long): Flow<Int> =
         mailDao.getUnreadCount(slotId, nowMs)
 
-    override suspend fun getById(mailId: String): MailEntity? =
-        mailDao.getById(mailId)
+    override suspend fun getById(slotId: Int, mailId: String): MailEntity? =
+        mailDao.getById(slotId, mailId)
 
-    override suspend fun existsByRemoteId(remoteId: String): Boolean =
-        mailDao.existsByRemoteId(remoteId)
+    override suspend fun existsByRemoteId(slotId: Int, remoteId: String): Boolean =
+        mailDao.existsByRemoteId(slotId, remoteId)
 
     override suspend fun insertWithEnforceLimit(entity: MailEntity, maxPerSlot: Int) =
         mailDao.insertWithEnforceLimit(entity, maxPerSlot)
@@ -34,8 +34,11 @@ class MailRepositoryImpl @Inject constructor(
     override suspend fun update(entity: MailEntity) =
         mailDao.update(entity)
 
-    override suspend fun deleteById(mailId: String) =
-        mailDao.deleteById(mailId)
+    override suspend fun deleteById(slotId: Int, mailId: String) =
+        mailDao.deleteById(slotId, mailId)
+
+    override suspend fun deleteIfClaimed(slotId: Int, mailId: String) =
+        mailDao.deleteIfClaimed(slotId, mailId)
 
     override suspend fun deleteAllForSlot(slotId: Int) =
         mailDao.deleteAllForSlot(slotId)

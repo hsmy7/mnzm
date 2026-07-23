@@ -133,7 +133,7 @@ class MailService @Inject constructor(
             apiResponse.mails.forEach { mailData ->
                 // 使用 remoteId 构造稳定 ID，跨会话一致，claimed 状态可恢复
                 val stableId = "online_${mailData.remoteId}"
-                if (mailRepo.getById(stableId) == null) {
+                if (mailRepo.getById(slotId, stableId) == null) {
                     val now = System.currentTimeMillis()
                     // 若 mailRecords 已有领取记录（如"删除已读"后月度重拉），
                     // 新实体直接标记为已领，避免 Room 与 mailRecords 不一致
@@ -198,7 +198,7 @@ class MailService @Inject constructor(
 
     suspend fun claimAttachment(mailId: String, slotId: Int): ClaimResult {
         return getMutex(slotId).withLock {
-            val mail = mailRepo.getById(mailId) ?: return ClaimResult.MailNotFound
+            val mail = mailRepo.getById(slotId, mailId) ?: return ClaimResult.MailNotFound
             val now = System.currentTimeMillis()
             if (mail.expireTime <= now) return ClaimResult.Expired
             if (mail.attachmentClaimed) return ClaimResult.AlreadyClaimed
@@ -648,17 +648,16 @@ class MailService @Inject constructor(
         }
     }
 
-    suspend fun markAsRead(mailId: String) {
-        val mail = mailRepo.getById(mailId) ?: return
+    suspend fun markAsRead(mailId: String, slotId: Int) {
+        val mail = mailRepo.getById(slotId, mailId) ?: return
         if (!mail.isRead) {
             mailRepo.update(mail.copy(isRead = true))
         }
     }
 
     suspend fun deleteMail(mailId: String, slotId: Int) {
-        val mail = mailRepo.getById(mailId) ?: return
-        if (mail.hasAttachment && !mail.attachmentClaimed) return
-        mailRepo.deleteById(mailId)
+        // 使用原子条件删除替代读-改-写模式，消除 TOCTOU 竞态
+        mailRepo.deleteIfClaimed(slotId, mailId)
     }
 
     suspend fun deleteAllReadAndClaimed(slotId: Int) {

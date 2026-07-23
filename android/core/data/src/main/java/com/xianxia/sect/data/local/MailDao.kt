@@ -15,8 +15,8 @@ interface MailDao {
     @Query("SELECT COUNT(*) FROM mails WHERE slotId = :slotId")
     suspend fun getMailCount(slotId: Int): Int
 
-    @Query("SELECT EXISTS(SELECT 1 FROM mails WHERE remoteMailId = :remoteId LIMIT 1)")
-    suspend fun existsByRemoteId(remoteId: String): Boolean
+    @Query("SELECT EXISTS(SELECT 1 FROM mails WHERE slotId = :slotId AND remoteMailId = :remoteId LIMIT 1)")
+    suspend fun existsByRemoteId(slotId: Int, remoteId: String): Boolean
 
     @Transaction
     suspend fun insertWithEnforceLimit(mail: MailEntity, maxLimit: Int = 1000) {
@@ -39,8 +39,12 @@ interface MailDao {
     @Query("UPDATE mails SET isRead = 1 WHERE slotId = :slotId AND isRead = 0 AND expireTime > :now")
     suspend fun markAllAsRead(slotId: Int, now: Long)
 
-    @Query("DELETE FROM mails WHERE id = :id")
-    suspend fun deleteById(id: String)
+    @Query("DELETE FROM mails WHERE slotId = :slotId AND id = :id")
+    suspend fun deleteById(slotId: Int, id: String)
+
+    /** 仅当邮件无附件或附件已领取时删除，原子化替代 deleteMail 的 TOCTOU 读-改-写模式 */
+    @Query("DELETE FROM mails WHERE slotId = :slotId AND id = :id AND (hasAttachment = 0 OR attachmentClaimed = 1)")
+    suspend fun deleteIfClaimed(slotId: Int, id: String)
 
     @Query("DELETE FROM mails WHERE slotId = :slotId AND id IN (:ids)")
     suspend fun deleteByIds(slotId: Int, ids: List<String>)
@@ -48,8 +52,8 @@ interface MailDao {
     @Query("DELETE FROM mails WHERE slotId = :slotId AND expireTime <= :now")
     suspend fun deleteExpired(slotId: Int, now: Long)
 
-    @Query("SELECT * FROM mails WHERE id = :id LIMIT 1")
-    suspend fun getById(id: String): MailEntity?
+    @Query("SELECT * FROM mails WHERE slotId = :slotId AND id = :id LIMIT 1")
+    suspend fun getById(slotId: Int, id: String): MailEntity?
 
     @Query("DELETE FROM mails WHERE slotId = :slotId AND isRead = 1 AND attachmentClaimed = 1")
     suspend fun deleteAllReadAndClaimed(slotId: Int)
@@ -60,6 +64,6 @@ interface MailDao {
     @Query("DELETE FROM mails WHERE slotId = :slotId")
     suspend fun deleteAllForSlot(slotId: Int)
 
-    @Query("DELETE FROM mails WHERE id = :builtinId AND source = 'builtin'")
-    suspend fun deleteByBuiltinId(builtinId: String)
+    @Query("DELETE FROM mails WHERE slotId = :slotId AND id = :builtinId AND source = 'builtin'")
+    suspend fun deleteByBuiltinId(slotId: Int, builtinId: String)
 }

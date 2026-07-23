@@ -7,6 +7,7 @@ import com.xianxia.sect.data.local.*
 import com.xianxia.sect.data.incremental.ChangeLogDao
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -57,8 +58,7 @@ class GameStateRepository @Inject constructor(
         val battleLogs: Boolean = false
     )
 
-    @Volatile
-    private var dirty = DirtySet()
+    private val dirty = AtomicReference(DirtySet())
 
     @Volatile
     private var currentSlotId: Int = 0
@@ -82,34 +82,41 @@ class GameStateRepository @Inject constructor(
         teams: Boolean = false,
         battleLogs: Boolean = false
     ) {
-        dirty = dirty.copy(
-            gameData = dirty.gameData || gameData,
-            disciples = dirty.disciples || disciples,
-            equipmentStacks = dirty.equipmentStacks || equipmentStacks,
-            equipmentInstances = dirty.equipmentInstances || equipmentInstances,
-            manualStacks = dirty.manualStacks || manualStacks,
-            manualInstances = dirty.manualInstances || manualInstances,
-            pills = dirty.pills || pills,
-            materials = dirty.materials || materials,
-            herbs = dirty.herbs || herbs,
-            seeds = dirty.seeds || seeds,
-            storageBags = dirty.storageBags || storageBags,
-            teams = dirty.teams || teams,
-            battleLogs = dirty.battleLogs || battleLogs
-        )
+        dirty.updateAndGet { current ->
+            current.copy(
+                gameData = current.gameData || gameData,
+                disciples = current.disciples || disciples,
+                equipmentStacks = current.equipmentStacks || equipmentStacks,
+                equipmentInstances = current.equipmentInstances || equipmentInstances,
+                manualStacks = current.manualStacks || manualStacks,
+                manualInstances = current.manualInstances || manualInstances,
+                pills = current.pills || pills,
+                materials = current.materials || materials,
+                herbs = current.herbs || herbs,
+                seeds = current.seeds || seeds,
+                storageBags = current.storageBags || storageBags,
+                teams = current.teams || teams,
+                battleLogs = current.battleLogs || battleLogs
+            )
+        }
     }
 
     fun markAllDirty() {
-        dirty = DirtySet(
-            gameData = true, disciples = true, equipmentStacks = true,
-            equipmentInstances = true, manualStacks = true, manualInstances = true,
-            pills = true, materials = true, herbs = true, seeds = true,
-            storageBags = true, teams = true, battleLogs = true
-        )
+        dirty.updateAndGet {
+            DirtySet(
+                gameData = it.gameData || true, disciples = it.disciples || true,
+                equipmentStacks = it.equipmentStacks || true, equipmentInstances = it.equipmentInstances || true,
+                manualStacks = it.manualStacks || true, manualInstances = it.manualInstances || true,
+                pills = it.pills || true, materials = it.materials || true,
+                herbs = it.herbs || true, seeds = it.seeds || true,
+                storageBags = it.storageBags || true, teams = it.teams || true,
+                battleLogs = it.battleLogs || true
+            )
+        }
     }
 
     fun clearDirty() {
-        dirty = DirtySet()
+        dirty.set(DirtySet())
     }
 
     suspend fun flushDirtyState(
@@ -127,7 +134,7 @@ class GameStateRepository @Inject constructor(
         teams: List<ExplorationTeam>,
         battleLogs: List<BattleLog>
     ) {
-        val snapshot = dirty
+        val snapshot = dirty.getAndSet(DirtySet())
         if (snapshot == DirtySet()) return
 
         val slotId = currentSlotId
@@ -194,11 +201,29 @@ class GameStateRepository @Inject constructor(
                     battleLogDao.upsertAll(battleLogs.map { it.copy(slotId = slotId) })
                 }
             }
-            dirty = DirtySet()
+            // dirty 已在 getAndSet 中原子清空，事务成功则无需再清理
             Log.d(TAG, "Flushed dirty state for slot $slotId (single transaction)")
         } catch (e: CancellationException) { throw e }
           catch (e: Exception) {
-            Log.e(TAG, "Failed to flush dirty state", e)
+            // 事务失败：恢复被 getAndSet 清空的脏标记，防止数据永久丢失
+            dirty.updateAndGet { current ->
+                DirtySet(
+                    gameData = current.gameData || snapshot.gameData,
+                    disciples = current.disciples || snapshot.disciples,
+                    equipmentStacks = current.equipmentStacks || snapshot.equipmentStacks,
+                    equipmentInstances = current.equipmentInstances || snapshot.equipmentInstances,
+                    manualStacks = current.manualStacks || snapshot.manualStacks,
+                    manualInstances = current.manualInstances || snapshot.manualInstances,
+                    pills = current.pills || snapshot.pills,
+                    materials = current.materials || snapshot.materials,
+                    herbs = current.herbs || snapshot.herbs,
+                    seeds = current.seeds || snapshot.seeds,
+                    storageBags = current.storageBags || snapshot.storageBags,
+                    teams = current.teams || snapshot.teams,
+                    battleLogs = current.battleLogs || snapshot.battleLogs
+                )
+            }
+            Log.e(TAG, "Failed to flush dirty state, restored marks", e)
         }
     }
 
@@ -218,7 +243,7 @@ class GameStateRepository @Inject constructor(
             val teams = explorationTeamDao.getAllSync(slotId)
             val battleLogs = battleLogDao.getAllSync(slotId)
             currentSlotId = slotId
-            dirty = DirtySet()
+            dirty.set(DirtySet())
             FullGameState(
                 gameData = gameData,
                 disciples = disciples,

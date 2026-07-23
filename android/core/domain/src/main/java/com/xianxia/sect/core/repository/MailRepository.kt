@@ -13,15 +13,18 @@ interface MailRepository {
 
     fun getUnreadCount(slotId: Int, nowMs: Long): Flow<Int>
 
-    suspend fun getById(mailId: String): MailEntity?
+    suspend fun getById(slotId: Int, mailId: String): MailEntity?
 
-    suspend fun existsByRemoteId(remoteId: String): Boolean
+    suspend fun existsByRemoteId(slotId: Int, remoteId: String): Boolean
 
     suspend fun insertWithEnforceLimit(entity: MailEntity, maxPerSlot: Int)
 
     suspend fun update(entity: MailEntity)
 
-    suspend fun deleteById(mailId: String)
+    suspend fun deleteById(slotId: Int, mailId: String)
+
+    /** 原子化删除：仅当邮件无附件或附件已领取时执行删除 */
+    suspend fun deleteIfClaimed(slotId: Int, mailId: String)
 
     suspend fun deleteAllForSlot(slotId: Int)
 

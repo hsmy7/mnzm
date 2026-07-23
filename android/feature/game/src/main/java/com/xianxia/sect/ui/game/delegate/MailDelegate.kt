@@ -26,7 +26,7 @@ class MailDelegate(
     val mails: StateFlow<List<MailEntity>> get() = mailService.activeMails
     val mailUnreadCount: StateFlow<Int> get() = mailService.unreadCount
 
-    fun markMailAsRead(mailId: String) { gameEngine.launchOnEngine { mailService.markAsRead(mailId) } }
+    fun markMailAsRead(mailId: String) { gameEngine.launchOnEngine { mailService.markAsRead(mailId, currentSlotId) } }
 
     private val _mailRewardCards = MutableStateFlow<List<RewardCardItem>>(emptyList())
     val mailRewardCards: StateFlow<List<RewardCardItem>> = _mailRewardCards.asStateFlow()

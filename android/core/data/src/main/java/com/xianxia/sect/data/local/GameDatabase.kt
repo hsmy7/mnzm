@@ -18,6 +18,7 @@ import com.xianxia.sect.data.archive.ArchivedDisciple
 import com.xianxia.sect.data.archive.ArchivedBattleLogDao
 import com.xianxia.sect.data.archive.ArchivedDiscipleDao
 import java.io.File
+import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
@@ -1319,16 +1320,31 @@ abstract class GameDatabase : RoomDatabase() {
             oldSuffix: String,
             sourceColumns: List<String>
         ) {
+            // 校验后缀：仅允许字母数字下划线，防止 SQL 注入
+            require(oldSuffix.matches(Regex("^[a-zA-Z0-9_]+$"))) {
+                "rebuildGameData: invalid suffix '$oldSuffix' — only alphanumeric and underscore allowed"
+            }
             val oldTable = "game_data$oldSuffix"
 
             db.execSQL("ALTER TABLE game_data RENAME TO $oldTable")
             db.execSQL(GAME_DATA_CREATE_SQL)
 
-            // 从新表读取列定义（含 NOT NULL 和 DEFAULT 信息），
-            // 对 NOT NULL 列使用 IFNULL(旧值, 默认值) 兜底旧数据中的 NULL
+            // 先读取旧表实际存在的列名集合
+            val oldCursor = db.query("PRAGMA table_info($oldTable)")
+            val oldColumnNames = mutableSetOf<String>()
+            oldCursor.use {
+                while (it.moveToNext()) {
+                    oldColumnNames.add(it.getString(it.getColumnIndexOrThrow("name")))
+                }
+            }
+
+            // 从新表读取所有列定义，逐列决定 SELECT 源：
+            // - 旧表已有的列 → IFNULL(旧表列, 默认值)（兜底旧数据中的 NULL）
+            // - 仅新表有的列 → 直接使用 DEFAULT 值或按类型兜底
+            // 避免 GAME_DATA_CREATE_SQL 包含后续新增列时，
+            // SELECT 引用旧表不存在的列导致 SQLITE_ERROR。
             val newCursor = db.query("PRAGMA table_info(game_data)")
             val selectParts = mutableListOf<String>()
-            val newColumnNames = mutableListOf<String>()
             newCursor.use {
                 while (it.moveToNext()) {
                     val name = it.getString(it.getColumnIndexOrThrow("name"))
@@ -1336,29 +1352,50 @@ abstract class GameDatabase : RoomDatabase() {
                     val defaultVal = it.getString(it.getColumnIndexOrThrow("dflt_value"))
                     val type = it.getString(it.getColumnIndexOrThrow("type"))
                     val quotedName = "\"$name\""
-                    newColumnNames.add(quotedName)
 
-                    if (notNull) {
-                        // NOT NULL 列：用 IFNULL 兜底 NULL 值
-                        val fallback = if (defaultVal != null) {
+                    // 列存在于旧表中 → 从旧表 SELECT（含 IFNULL 兜底）
+                    // 列不存在于旧表中 → 使用 SQLite DEFAULT 值
+                    if (name in oldColumnNames) {
+                        if (notNull) {
+                            val fallback = if (defaultVal != null) {
+                                defaultVal
+                            } else {
+                                // 无 SQLite 默认值，按类型提供安全兜底
+                                when (type.uppercase(Locale.ROOT)) {
+                                    "INTEGER" -> "0"
+                                    "REAL" -> "0.0"
+                                    "TEXT" -> "''"
+                                    else -> "0"
+                                }
+                            }
+                            selectParts.add("IFNULL($oldTable.$quotedName, $fallback) AS $quotedName")
+                        } else {
+                            selectParts.add("$oldTable.$quotedName AS $quotedName")
+                        }
+                    } else {
+                        // 仅新表有的列：用 DEFAULT 值
+                        val literal = if (defaultVal != null) {
                             defaultVal
                         } else {
-                            // 无 SQLite 默认值，按类型提供安全兜底
-                            when (type.uppercase()) {
+                            when (type.uppercase(Locale.ROOT)) {
                                 "INTEGER" -> "0"
                                 "REAL" -> "0.0"
                                 "TEXT" -> "''"
                                 else -> "0"
                             }
                         }
-                        selectParts.add("IFNULL($oldTable.$quotedName, $fallback) AS $quotedName")
-                    } else {
-                        selectParts.add("$oldTable.$quotedName AS $quotedName")
+                        selectParts.add("$literal AS $quotedName")
                     }
                 }
             }
 
             val selectSql = selectParts.joinToString(", ")
+            // selectParts 为空意味着新表列全部在旧表中不存在——这不可能发生
+            // （至少有 id/slot_id 等基础列是始终存在的）。
+            // 若触发此断言，说明 GAME_DATA_CREATE_SQL 或迁移逻辑有严重问题。
+            check(selectParts.isNotEmpty()) {
+                "rebuildGameData: no columns matched between new and old table for suffix '$oldSuffix'"
+            }
             db.execSQL("INSERT INTO `game_data` SELECT $selectSql FROM `$oldTable`")
             db.execSQL("DROP TABLE IF EXISTS `$oldTable`")
 
