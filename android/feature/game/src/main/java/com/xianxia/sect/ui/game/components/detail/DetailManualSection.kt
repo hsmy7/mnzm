@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalConfiguration
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.model.*
@@ -60,7 +61,8 @@ fun ManualsSection(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            manualSlots.chunked(4).forEachIndexed { rowIndex, rowSlots ->
+            val manualColumnCount = maxOf(1, (LocalConfiguration.current.screenWidthDp / 100))
+            manualSlots.chunked(manualColumnCount).forEachIndexed { rowIndex, rowSlots ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -77,7 +79,7 @@ fun ManualsSection(
                             )
                         }
                     }
-                    repeat(4 - rowSlots.size) {
+                    repeat(manualColumnCount - rowSlots.size) {
                         Spacer(modifier = Modifier.weight(1f))
                     }
                 }

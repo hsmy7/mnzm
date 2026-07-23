@@ -772,4 +772,120 @@ class ProductionProcessorTest {
         assertNotNull("存活的矿工应被选中", result)
         assertEquals("应选中存活的弟子", "d2", result?.id)
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 住所自动入住过滤条件（passesSingle / passesMulti 逻辑校验）
+    //
+    // 验证修复：当某一类住所未启用时，其过滤不干扰另一类住所的判断。
+    // ═══════════════════════════════════════════════════════════════
+
+    /** 模拟住所过滤逻辑：与 ProductionProcessor.processAutoAssign 一致 */
+    private fun simulateResidenceFilter(
+        disciples: List<Disciple>,
+        singleResEnabled: Boolean, singleFocused: Boolean, singleRootCounts: List<Int>, singleThreshold: Int,
+        multiResEnabled: Boolean, multiFocused: Boolean, multiRootCounts: List<Int>, multiThreshold: Int
+    ): List<Disciple> {
+        return disciples.filter { d ->
+            val passesSingle = singleResEnabled && (
+                (!singleFocused || isDiscipleFollowed(d)) &&
+                (singleRootCounts.isEmpty() || d.spiritRoot.types.size in singleRootCounts) &&
+                d.skills.comprehension >= singleThreshold
+            )
+            val passesMulti = multiResEnabled && (
+                (!multiFocused || isDiscipleFollowed(d)) &&
+                (multiRootCounts.isEmpty() || d.spiritRoot.types.size in multiRootCounts) &&
+                d.skills.comprehension >= multiThreshold
+            )
+            passesSingle || passesMulti
+        }
+    }
+
+    @Test
+    fun `住所过滤 - 仅启用单人时未关注弟子不通过`() {
+        val disciples = listOf(
+            Disciple(id = "d1", statusData = mapOf("followed" to "false"), skills = SkillStats(comprehension = 10)),
+            Disciple(id = "d2", statusData = mapOf("followed" to "true"), skills = SkillStats(comprehension = 10))
+        )
+        val result = simulateResidenceFilter(
+            disciples,
+            singleResEnabled = true, singleFocused = true, singleRootCounts = emptyList(), singleThreshold = 1,
+            multiResEnabled = false, multiFocused = false, multiRootCounts = emptyList(), multiThreshold = 1
+        )
+        assertEquals("仅单人启用+已关注过滤时，未关注弟子不应通过", listOf("d2"), result.map { it.id })
+    }
+
+    @Test
+    fun `住所过滤 - 仅启用多人时未关注弟子不通过`() {
+        val disciples = listOf(
+            Disciple(id = "d1", statusData = mapOf("followed" to "false"), skills = SkillStats(comprehension = 10)),
+            Disciple(id = "d2", statusData = mapOf("followed" to "true"), skills = SkillStats(comprehension = 10))
+        )
+        val result = simulateResidenceFilter(
+            disciples,
+            singleResEnabled = false, singleFocused = false, singleRootCounts = emptyList(), singleThreshold = 1,
+            multiResEnabled = true, multiFocused = true, multiRootCounts = emptyList(), multiThreshold = 1
+        )
+        assertEquals("仅多人启用+已关注过滤时，未关注弟子不应通过", listOf("d2"), result.map { it.id })
+    }
+
+    @Test
+    fun `住所过滤 - 未启用的类型不干扰已启用的类型`() {
+        val disciples = listOf(
+            Disciple(id = "d1", statusData = mapOf("followed" to "false"), skills = SkillStats(comprehension = 10)),
+            Disciple(id = "d2", statusData = mapOf("followed" to "true"), skills = SkillStats(comprehension = 10))
+        )
+        // 仅单人启用 focused=true，多人未启用
+        val result = simulateResidenceFilter(
+            disciples,
+            singleResEnabled = true, singleFocused = true, singleRootCounts = emptyList(), singleThreshold = 1,
+            multiResEnabled = false, multiFocused = true, multiRootCounts = emptyList(), multiThreshold = 1
+        )
+        // 多人未启用时不应导致所有弟子通过
+        assertEquals("未关注弟子不应因多人未启用而通过过滤", listOf("d2"), result.map { it.id })
+    }
+
+    @Test
+    fun `住所过滤 - 灵根门槛不会被绕过`() {
+        val disciples = listOf(
+            Disciple(id = "d1", spiritRootType = "metal", skills = SkillStats(comprehension = 10)),
+            Disciple(id = "d2", spiritRootType = "metal,wood", skills = SkillStats(comprehension = 10))
+        )
+        // 仅多人启用，要求灵根数=2
+        val result = simulateResidenceFilter(
+            disciples,
+            singleResEnabled = false, singleFocused = false, singleRootCounts = emptyList(), singleThreshold = 1,
+            multiResEnabled = true, multiFocused = false, multiRootCounts = listOf(2), multiThreshold = 1
+        )
+        assertEquals("双灵根才通过灵根过滤", listOf("d2"), result.map { it.id })
+    }
+
+    @Test
+    fun `住所过滤 - 悟性门槛不会被绕过`() {
+        val disciples = listOf(
+            Disciple(id = "d1", statusData = mapOf("followed" to "true"), skills = SkillStats(comprehension = 3)),
+            Disciple(id = "d2", statusData = mapOf("followed" to "true"), skills = SkillStats(comprehension = 10))
+        )
+        // 仅多人启用，悟性门槛=5
+        val result = simulateResidenceFilter(
+            disciples,
+            singleResEnabled = false, singleFocused = false, singleRootCounts = emptyList(), singleThreshold = 1,
+            multiResEnabled = true, multiFocused = true, multiRootCounts = emptyList(), multiThreshold = 5
+        )
+        assertEquals("悟性达标才通过", listOf("d2"), result.map { it.id })
+    }
+
+    @Test
+    fun `住所过滤 - 两者都启用时满足任一即可`() {
+        val disciples = listOf(
+            Disciple(id = "d1", statusData = mapOf("followed" to "true"), skills = SkillStats(comprehension = 10)),
+            Disciple(id = "d2", spiritRootType = "metal", skills = SkillStats(comprehension = 10))
+        )
+        // 单人启用关注过滤，多人启用灵根数=1过滤
+        val result = simulateResidenceFilter(
+            disciples,
+            singleResEnabled = true, singleFocused = true, singleRootCounts = emptyList(), singleThreshold = 1,
+            multiResEnabled = true, multiFocused = false, multiRootCounts = listOf(1), multiThreshold = 1
+        )
+        assertEquals("两者都启用时满足任一即可", setOf("d1", "d2"), result.map { it.id }.toSet())
+    }
 }

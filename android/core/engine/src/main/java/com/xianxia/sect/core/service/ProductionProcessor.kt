@@ -625,12 +625,12 @@ class ProductionProcessor @Inject constructor(
                 val filteredCandidates = stateStore.disciples.value
                     .filter { d -> d.isAlive && d.id !in occupiedResidentIds }
                     .filter { d ->
-                        val passesSingle = !singleResEnabled || (
+                        val passesSingle = singleResEnabled && (
                             (!policies.autoSingleResidenceFocused || isDiscipleFollowed(d)) &&
                             (policies.autoSingleResidenceRootCounts.isEmpty() || d.spiritRoot.types.size in policies.autoSingleResidenceRootCounts) &&
                             d.comprehension >= policies.autoSingleResidenceThreshold
                         )
-                        val passesMulti = !multiResEnabled || (
+                        val passesMulti = multiResEnabled && (
                             (!policies.autoMultiResidenceFocused || isDiscipleFollowed(d)) &&
                             (policies.autoMultiResidenceRootCounts.isEmpty() || d.spiritRoot.types.size in policies.autoMultiResidenceRootCounts) &&
                             d.comprehension >= policies.autoMultiResidenceThreshold

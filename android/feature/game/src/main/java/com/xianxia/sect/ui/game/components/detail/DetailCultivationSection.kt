@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.layout.BoxWithConstraints
 import com.xianxia.sect.ui.components.DialogSystemBarGuard
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.GameConfig
@@ -541,7 +542,7 @@ fun BreakthroughDetailDialog(
         // 隐藏 Dialog Window 的系统状态栏/导航栏
         DialogSystemBarGuard()
 
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
@@ -552,6 +553,7 @@ fun BreakthroughDetailDialog(
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.Crop
             )
+            val btWidth = maxWidth
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -577,8 +579,9 @@ fun BreakthroughDetailDialog(
                 if (items.isEmpty()) {
                     Text("无额外加成", fontSize = 13.sp, color = Color.Black)
                 } else {
-                    val columns = items.chunked(3)
-                    columns.forEach { row ->
+                    val columnCount = maxOf(1, (btWidth / 140.dp).toInt())
+                    val rows = items.chunked(columnCount)
+                    rows.forEach { row ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -601,7 +604,7 @@ fun BreakthroughDetailDialog(
                                     )
                                 }
                             }
-                            repeat(3 - row.size) {
+                            repeat(columnCount - row.size) {
                                 Spacer(modifier = Modifier.weight(1f))
                             }
                         }
@@ -615,6 +618,34 @@ fun BreakthroughDetailDialog(
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
+                    )
+                    // 公式行：说明乘区乘法计算结果
+                    val positiveSum = detail.innerElderBonus + detail.outerElderBonus +
+                        detail.talentBonus + detail.soulPowerBonus +
+                        detail.pillBonus + detail.masterDiscipleBonus
+                    val penaltySum = detail.griefPenalty + detail.lifespanPenalty
+                    val basePct = GameUtils.formatPercent(detail.baseChance)
+                    val posPct = GameUtils.formatPercent(positiveSum)
+                    val penPct = GameUtils.formatPercent(penaltySum)
+                    val adPct = GameUtils.formatPercent(detail.adBonus)
+                    val totalPct = GameUtils.formatPercent(detail.total)
+                    val formulaParts = buildString {
+                        append(basePct)
+                        if (positiveSum > 0.0 || penaltySum > 0.0) {
+                            append(" × (1 + ${posPct})")
+                        }
+                        if (penaltySum > 0.0) {
+                            append(" × (1 - ${penPct})")
+                        }
+                        if (detail.adBonus > 0.0) {
+                            append(" + ${adPct}")
+                        }
+                        append(" = ${totalPct}")
+                    }
+                    Text(
+                        text = formulaParts,
+                        fontSize = 10.sp,
+                        color = Color(0xFF888888)
                     )
                 }
             }

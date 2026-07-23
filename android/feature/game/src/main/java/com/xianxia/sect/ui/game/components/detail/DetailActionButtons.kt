@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalConfiguration
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.Talent
 import com.xianxia.sect.ui.components.DialogDefaults
@@ -47,7 +48,8 @@ fun TalentsSection(
                 color = Color.Black
             )
         } else {
-            talents.chunked(5).forEach { rowTalents ->
+            val talentColumnCount = maxOf(1, (LocalConfiguration.current.screenWidthDp / 80))
+            talents.chunked(talentColumnCount).forEach { rowTalents ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -73,7 +75,7 @@ fun TalentsSection(
                             )
                         }
                     }
-                    repeat(5 - rowTalents.size) {
+                    repeat(talentColumnCount - rowTalents.size) {
                         Spacer(modifier = Modifier.weight(1f))
                     }
                 }
