@@ -621,7 +621,9 @@ class GameViewModel @Inject constructor(
         get() = ads.onWatchAdMerchantRefresh
         set(v) { ads.onWatchAdMerchantRefresh = v }
     fun isAdOnCooldown(): Boolean = ads.isAdOnCooldown()
+    fun isDailyAdLimitReached(): Boolean = ads.isDailyAdLimitReached()
     fun markAdWatched() = ads.markAdWatched()
+    fun tryMarkAdWatched(): Boolean = ads.tryMarkAdWatched()
 
     // OverlayDelegate
     val overlayOrder: List<TopOverlay> get() = overlays.overlayOrder

@@ -10,7 +10,12 @@
       "修复：多个对话框叠加背景变黑——移除住所升级裸Dialog消除双层遮罩叠加",
       "修复：建造栏等级不足时点击无响应——clickable.enabled阻断内部分支，改为始终启用由逻辑判断",
       "安全：doPlaceBuilding添加宗门等级检查(防御层)——金手指/API直调不再可绕过UI限制建造中级建筑",
-      "安全：BuildingFeature.requiredSectLevel添加require范围守卫(0-3)，防止无效值绕过限制"
+      "安全：BuildingFeature.requiredSectLevel添加require范围守卫(0-3)，防止无效值绕过限制",
+      "新增：免广告特权白名单——AdFreeWhitelist(Kotlin)替换已丢失源码的原生AdFreePrivilege，白名单用户跳过广告播放/冷却/每日限制",
+      "新增：选择模式界面——登录后选新游戏/读取存档/退出，右上角TapTap头像+用户名，点开头像查看unionId",
+      "新增：每日广告限制20次——非白名单用户每日最多观看20次，超限弹提示框。tryMarkAdWatched原子操作消除TOCTOU竞争",
+      "重构：存档选择界面mode驱动——卡片按新建/读档模式差异化交互，移除删除/读取按钮，全卡片可点击+系统栏避让",
+      "修复：AdsDelegate线程安全——AtomicInteger+双重检查锁定替代无锁MutableList，消除ConcurrentModificationException"
     ]
   },
   {

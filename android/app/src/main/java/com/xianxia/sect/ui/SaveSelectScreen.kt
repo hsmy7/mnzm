@@ -21,12 +21,17 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.util.InputValidator
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.ui.components.GameBackground
-import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.InlineStandardPromptDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.theme.GameColors
 import java.text.SimpleDateFormat
 import java.util.*
+
+/** 存档选择模式 */
+enum class SaveSelectMode {
+    NEW_GAME,
+    LOAD_SAVE
+}
 
 private data class SlotStyle(
     val border: Color,
@@ -48,13 +53,14 @@ private fun SaveSlot.resolveStyle(): SlotStyle {
 
 @Composable
 fun SaveSelectScreen(
+    mode: SaveSelectMode,
     saveSlots: List<SaveSlot>,
-    onLoadSlot: (Int) -> Unit,
     onNewGame: (Int, String) -> Unit,
-    onDeleteSlot: (Int) -> Unit,
-    onLogout: () -> Unit
+    onLoadSlot: (Int) -> Unit,
+    onBack: () -> Unit
 ) {
-    var showDeleteConfirm by remember { mutableStateOf<Int?>(null) }
+    var showOverwriteConfirm by remember { mutableStateOf<Int?>(null) }
+    var showAutoSlotError by remember { mutableStateOf(false) }
     var showSectNameDialog by remember { mutableStateOf<Int?>(null) }
     var sectNameInput by remember { mutableStateOf("") }
     var sectNameError by remember { mutableStateOf<String?>(null) }
@@ -65,67 +71,121 @@ fun SaveSelectScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.systemBars)
                 .padding(16.dp)
         ) {
-            Text(
-                text = "选择存档",
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black,
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            saveSlots.forEach { slot ->
-                SaveSlotCard(
-                    slot = slot,
-                    dateFormat = dateFormat,
-                    onLoad = { onLoadSlot(slot.slot) },
-                    onNewGame = if (slot.isAutoSave) {{}} else {{ showSectNameDialog = slot.slot; sectNameInput = ""; sectNameError = null }},
-                    onDelete = { showDeleteConfirm = slot.slot }
+            // 返回 + 标题行
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "< 返回",
+                    fontSize = 14.sp,
+                    color = GameColors.SpiritBlue,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.clickable { onBack() }
                 )
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = if (mode == SaveSelectMode.NEW_GAME) "选择新游戏存档" else "选择读取存档",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                // 占位，保持标题居中
+                Spacer(modifier = Modifier.width(1.dp))
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (saveSlots.isEmpty()) {
+                    Text(
+                        text = "暂无存档数据",
+                        fontSize = 16.sp,
+                        color = Color.Black,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        textAlign = TextAlign.Center
+                    )
+                } else {
+                    saveSlots.forEach { slot ->
+                        SaveSlotCard(
+                            slot = slot,
+                            mode = mode,
+                            dateFormat = dateFormat,
+                            onClick = {
+                                when (mode) {
+                                    SaveSelectMode.NEW_GAME -> {
+                                        if (slot.isEmpty) {
+                                            showSectNameDialog = slot.slot
+                                            sectNameInput = ""
+                                            sectNameError = null
+                                        } else if (slot.isAutoSave) {
+                                            showAutoSlotError = true
+                                        } else {
+                                            showOverwriteConfirm = slot.slot
+                                        }
+                                    }
+                                    SaveSelectMode.LOAD_SAVE -> {
+                                        if (slot.isEmpty) {
+                                            showSectNameDialog = slot.slot
+                                            sectNameInput = ""
+                                            sectNameError = null
+                                        } else {
+                                            onLoadSlot(slot.slot)
+                                        }
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
             }
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        GameButton(
-            text = "退出",
-            onClick = onLogout,
-            modifier = Modifier.align(Alignment.CenterHorizontally)
-        )
-    }
     }
 
-    if (showDeleteConfirm != null) {
-        val confirmSlot = saveSlots.find { it.slot == showDeleteConfirm }
-        val confirmText = if (confirmSlot?.isAutoSave == true) {
-            "确定要删除自动存档吗？此操作不可恢复。"
-        } else {
-            "确定要删除存档 ${showDeleteConfirm} 吗？此操作不可恢复。"
-        }
+    // ── 提示框：自动存档不可创建新游戏 ──
+    if (showAutoSlotError) {
         StandardPromptDialog(
-            onDismissRequest = { showDeleteConfirm = null },
-            title = "确认删除",
-            text = confirmText,
-            confirmLabel = "删除",
-            onConfirm = {
-                showDeleteConfirm?.let { onDeleteSlot(it) }
-                showDeleteConfirm = null
-            },
-            dismissLabel = "取消",
-            onDismiss = { showDeleteConfirm = null }
+            onDismissRequest = { showAutoSlotError = false },
+            title = "提示",
+            text = "自动存档不可创建新游戏",
+            confirmLabel = "知道了",
+            onConfirm = { showAutoSlotError = false }
         )
     }
-    
+
+    // ── 提示框：确认覆盖旧存档 ──
+    if (showOverwriteConfirm != null) {
+        StandardPromptDialog(
+            onDismissRequest = { showOverwriteConfirm = null },
+            title = "确认覆盖",
+            text = "是否覆盖旧存档创建新游戏？",
+            dismissLabel = "取消",
+            onDismiss = { showOverwriteConfirm = null },
+            confirmLabel = "创建",
+            onConfirm = {
+                val slot = showOverwriteConfirm ?: return@StandardPromptDialog
+                showOverwriteConfirm = null
+                // 确认覆盖后弹出宗门名输入
+                showSectNameDialog = slot
+                sectNameInput = ""
+                sectNameError = null
+            }
+        )
+    }
+
+    // ── 宗门名输入对话框 ──
     if (showSectNameDialog != null) {
         InlineStandardPromptDialog(
             onDismissRequest = { showSectNameDialog = null },
@@ -175,12 +235,12 @@ fun SaveSelectScreen(
 @Composable
 fun SaveSlotCard(
     slot: SaveSlot,
+    mode: SaveSelectMode,
     dateFormat: SimpleDateFormat,
-    onLoad: () -> Unit,
-    onNewGame: () -> Unit,
-    onDelete: () -> Unit
+    onClick: () -> Unit
 ) {
     val style = slot.resolveStyle()
+    // 空自动存档不可点击（N/A），其他均可点击
     val canClick = !(slot.isAutoSave && slot.isEmpty)
 
     Box(
@@ -190,7 +250,7 @@ fun SaveSlotCard(
             .background(style.background)
             .border(2.dp, style.border, RoundedCornerShape(8.dp))
             .then(
-                if (canClick) Modifier.clickable { if (!slot.isEmpty) onLoad() else if (!slot.isAutoSave) onNewGame() }
+                if (canClick) Modifier.clickable { onClick() }
                 else Modifier
             )
             .padding(16.dp)
@@ -269,45 +329,6 @@ fun SaveSlotCard(
                         text = if (slot.isAutoSave) "自动存档 - 暂无数据" else "空槽位 - 点击创建新游戏",
                         fontSize = 16.sp,
                         color = Color.Black
-                    )
-                }
-            }
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (!slot.isEmpty) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xFFFFEBEE))
-                            .border(1.dp, Color(0xFFEF5350), RoundedCornerShape(4.dp))
-                            .clickable { onDelete() }
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = "删除",
-                            fontSize = 12.sp,
-                            color = Color(0xFFEF5350),
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-
-                if (!slot.isEmpty) {
-                    Text(
-                        text = "读取",
-                        fontSize = 12.sp,
-                        color = Color(0xFF27AE60),
-                        fontWeight = FontWeight.Medium
-                    )
-                } else if (!slot.isAutoSave) {
-                    Text(
-                        text = "创建",
-                        fontSize = 12.sp,
-                        color = Color(0xFF27AE60),
-                        fontWeight = FontWeight.Medium
                     )
                 }
             }

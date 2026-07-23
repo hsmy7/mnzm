@@ -216,6 +216,7 @@ fun BasicInfoSection(
             val adBonusValue = disciple.statusData["adBreakthroughBonus"]?.toDoubleOrNull() ?: 0.0
             var showAdConfirmDialog by remember { mutableStateOf(false) }
             var showAdCooldownDialog by remember { mutableStateOf(false) }
+            var showAdLimitDialog by remember { mutableStateOf(false) }
             Row(
                 modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically,
@@ -245,7 +246,9 @@ fun BasicInfoSection(
                             .size(18.dp)
                             .clip(CircleShape)
                             .clickable {
-                                if (viewModel?.isAdOnCooldown() == true) {
+                                if (viewModel?.isDailyAdLimitReached() == true) {
+                                    showAdLimitDialog = true
+                                } else if (viewModel?.isAdOnCooldown() == true) {
                                     showAdCooldownDialog = true
                                 } else {
                                     showAdConfirmDialog = true
@@ -260,7 +263,7 @@ fun BasicInfoSection(
                 StandardPromptDialog(
                     onDismissRequest = { showAdConfirmDialog = false },
                     title = "广告",
-                    text = "观看广告后弟子获得突破加成，最多观看2次。",
+                    text = "观看广告后弟子获得突破加成，最多观看20次广告。",
                     dismissLabel = "取消",
                     confirmLabel = "观看",
                     onConfirm = {
@@ -276,6 +279,15 @@ fun BasicInfoSection(
                     text = "一分钟内只可观看一次广告",
                     confirmLabel = "确认",
                     onConfirm = { showAdCooldownDialog = false }
+                )
+            }
+            if (showAdLimitDialog) {
+                StandardPromptDialog(
+                    onDismissRequest = { showAdLimitDialog = false },
+                    title = "提示",
+                    text = "观看次数已达上限",
+                    confirmLabel = "知道了",
+                    onConfirm = { showAdLimitDialog = false }
                 )
             }
             if (showBreakthroughDetail) {

@@ -59,7 +59,7 @@ private class MainComplianceCallback(private val activity: MainActivity) : Compl
     override fun onLoginSuccess() {
         activity.runOnUiThread {
             activity.sessionManager.markComplianceVerified()
-            activity.showSaveSelectScreen()
+            activity.showModeSelectionScreen()
         }
     }
     override fun onExited() = activity.handleUserExit()
@@ -257,7 +257,7 @@ class MainActivity : ComponentActivity() {
 
             if (sessionManager.isLoggedIn) {
                 if (sessionManager.complianceVerified) {
-                    showSaveSelectScreen()
+                    showModeSelectionScreen()
                 } else {
                     val savedUnionId = sessionManager.unionId
                     if (!savedUnionId.isNullOrEmpty()) {
@@ -298,7 +298,7 @@ class MainActivity : ComponentActivity() {
                         complianceDialogState = complianceDialogState,
                         tapTapReady = tapTapReady.value,
                         onLoginSuccess = {
-                            showSaveSelectScreen()
+                            showModeSelectionScreen()
                         },
                         onPrivacyAgreed = {
                             onPrivacyAgreed()
@@ -309,7 +309,30 @@ class MainActivity : ComponentActivity() {
         }
     }
     
-    internal fun showSaveSelectScreen() {
+    internal fun showModeSelectionScreen() {
+        setContent {
+            XianxiaTheme {
+                ModeSelectionScreen(
+                    userName = sessionManager.userName ?: "TapTap用户",
+                    unionId = sessionManager.unionId ?: "",
+                    avatarUrl = sessionManager.avatar,
+                    onNewGame = {
+                        showSaveSelectScreen(mode = SaveSelectMode.NEW_GAME)
+                    },
+                    onLoadSave = {
+                        showSaveSelectScreen(mode = SaveSelectMode.LOAD_SAVE)
+                    },
+                    onLogout = {
+                        sessionManager.clearSession()
+                        ComplianceManager.unregisterCallback()
+                        recreate()
+                    }
+                )
+            }
+        }
+    }
+
+    internal fun showSaveSelectScreen(mode: SaveSelectMode = SaveSelectMode.LOAD_SAVE) {
         lifecycleScope.launch {
             val saveSlots = withContext(Dispatchers.IO) {
                 try {
@@ -328,20 +351,12 @@ class MainActivity : ComponentActivity() {
                         color = Color.White
                     ) {
                         SaveSelectScreen(
+                            mode = mode,
                             saveSlots = saveSlots,
                             onLoadSlot = { slot ->
-                                val saveSlot = saveSlots.find { it.slot == slot }
-                                if (saveSlot?.isAutoSave == true && saveSlot.isEmpty) {
-                                    return@SaveSelectScreen
-                                }
                                 val intent = Intent(this@MainActivity, GameActivity::class.java).apply {
                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                                    if (saveSlot?.isEmpty == true) {
-                                        putExtra(EXTRA_SLOT, slot)
-                                        putExtra(EXTRA_NEW_GAME, true)
-                                    } else {
-                                        putExtra(EXTRA_SLOT, slot)
-                                    }
+                                    putExtra(EXTRA_SLOT, slot)
                                 }
                                 startActivity(intent)
                                 finish()
@@ -356,19 +371,8 @@ class MainActivity : ComponentActivity() {
                                 startActivity(intent)
                                 finish()
                             },
-                            onDeleteSlot = { slot ->
-                                lifecycleScope.launch {
-                                    val result = storageFacade.delete(slot)
-                                    if (result.isFailure) {
-                                        android.widget.Toast.makeText(this@MainActivity, "删除存档失败", android.widget.Toast.LENGTH_SHORT).show()
-                                    }
-                                    showSaveSelectScreen()
-                                }
-                            },
-                            onLogout = {
-                                sessionManager.clearSession()
-                                ComplianceManager.unregisterCallback()
-                                recreate()
+                            onBack = {
+                                showModeSelectionScreen()
                             }
                         )
                     }
@@ -709,7 +713,8 @@ fun MainScreen(
                                     userId = data.openid ?: "taptap_${System.currentTimeMillis()}",
                                     userName = data.name ?: "TapTap用户",
                                     loginType = "taptap",
-                                    unionId = unionId
+                                    unionId = unionId,
+                                    avatar = data.avatar
                                 )
 
                                 com.xianxia.sect.taptap.TapDBManager.setUser(

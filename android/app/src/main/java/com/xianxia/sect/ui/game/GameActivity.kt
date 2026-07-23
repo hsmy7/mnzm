@@ -55,6 +55,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.TimeoutCancellationException
+import com.xianxia.sect.core.AdFreeWhitelist
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.nativebridge.NativeBridge
 import com.xianxia.sect.di.IoDispatcher
@@ -308,8 +309,21 @@ class GameActivity : ComponentActivity() {
                     ) { showGame ->
                         val preloadData = mapPreloadData
                         if (showGame && preloadData != null) {
+                            // 初始化免广告特权白名单
+                            AdFreeWhitelist.initialize(sessionManager.unionId)
+
                             // 设置广告回调到 ViewModel（移除透传链）
-                            viewModel.onWatchAdBreakthroughBonus = { discipleId ->
+                            viewModel.onWatchAdBreakthroughBonus = lambda@{ discipleId ->
+                                // 免广告特权用户直接发放奖励，不播放广告
+                                if (AdFreeWhitelist.isCurrentUserPrivileged()) {
+                                    viewModel.applyAdBreakthroughBonus(discipleId, AD_BONUS_PER_AD)
+                                    viewModel.tryMarkAdWatched()
+                                    return@lambda
+                                }
+                                // 每日次数已达上限
+                                if (viewModel.isDailyAdLimitReached()) {
+                                    return@lambda
+                                }
                                 val activity = this@GameActivity
                                 val rewardClaimed = AtomicBoolean(false)
                                 com.xianxia.sect.taptap.RewardVideoAdManager.setCallback(
@@ -327,7 +341,7 @@ class GameActivity : ComponentActivity() {
                                                 discipleId,
                                                 AD_BONUS_PER_AD
                                             )
-                                            viewModel.markAdWatched()
+                                            viewModel.tryMarkAdWatched()
                                         }
 
                                         override fun onAdCached() {
@@ -343,7 +357,17 @@ class GameActivity : ComponentActivity() {
                                 )
                                 com.xianxia.sect.taptap.RewardVideoAdManager.loadAd(activity)
                             }
-                            viewModel.onWatchAdMerchantRefresh = {
+                            viewModel.onWatchAdMerchantRefresh = lambda@{
+                                // 免广告特权用户直接发放奖励，不播放广告
+                                if (AdFreeWhitelist.isCurrentUserPrivileged()) {
+                                    viewModel.grantMerchantRefreshChanceFromAd()
+                                    viewModel.tryMarkAdWatched()
+                                    return@lambda
+                                }
+                                // 每日次数已达上限
+                                if (viewModel.isDailyAdLimitReached()) {
+                                    return@lambda
+                                }
                                 val activity = this@GameActivity
                                 val rewardClaimed = java.util.concurrent.atomic.AtomicBoolean(false)
                                 com.xianxia.sect.taptap.RewardVideoAdManager.setCallback(
@@ -358,7 +382,7 @@ class GameActivity : ComponentActivity() {
                                             if (!rewardVerify || activity.isFinishing || activity.isDestroyed) return
                                             if (!rewardClaimed.compareAndSet(false, true)) return  // 幂等守卫
                                             viewModel.grantMerchantRefreshChanceFromAd()
-                                            viewModel.markAdWatched()
+                                            viewModel.tryMarkAdWatched()
                                         }
 
                                         override fun onAdCached() {

@@ -76,6 +76,7 @@ fun MerchantDialog(
     var showAdConfirmDialog by remember { mutableStateOf(false) }
     var showNoChancesDialog by remember { mutableStateOf(false) }
     var showAdCooldownDialog by remember { mutableStateOf(false) }
+    var showAdLimitDialog by remember { mutableStateOf(false) }
 
     val equipment by viewModel.equipmentStacks.collectAsStateWithLifecycle()
     val manuals by viewModel.manualStacks.collectAsStateWithLifecycle()
@@ -139,7 +140,9 @@ fun MerchantDialog(
                         .size(18.dp)
                         .clip(CircleShape)
                         .clickable {
-                            if (viewModel.isAdOnCooldown()) {
+                            if (viewModel.isDailyAdLimitReached()) {
+                                showAdLimitDialog = true
+                            } else if (viewModel.isAdOnCooldown()) {
                                 showAdCooldownDialog = true
                             } else {
                                 showAdConfirmDialog = true
@@ -285,7 +288,7 @@ fun MerchantDialog(
         StandardPromptDialog(
             onDismissRequest = { showAdConfirmDialog = false },
             title = "获得刷新次数",
-            text = "观看广告获得刷新次数",
+            text = "观看广告获得刷新次数，最多观看20次广告。",
             dismissLabel = "取消",
             confirmLabel = "观看",
             onConfirm = {
@@ -312,6 +315,16 @@ fun MerchantDialog(
             text = "一分钟内只可观看一次广告",
             confirmLabel = "确认",
             onConfirm = { showAdCooldownDialog = false }
+        )
+    }
+
+    if (showAdLimitDialog) {
+        StandardPromptDialog(
+            onDismissRequest = { showAdLimitDialog = false },
+            title = "提示",
+            text = "观看次数已达上限",
+            confirmLabel = "知道了",
+            onConfirm = { showAdLimitDialog = false }
         )
     }
 }

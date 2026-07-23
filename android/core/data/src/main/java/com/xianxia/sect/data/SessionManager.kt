@@ -61,14 +61,25 @@ class SessionManager @Inject constructor(
     var limitAdTracking: Boolean
         get() = prefs.getBoolean(KEY_LIMIT_AD_TRACKING, true)
         set(value) = edit { putBoolean(KEY_LIMIT_AD_TRACKING, value) }
-    
-    fun saveLoginSession(userId: String, userName: String, loginType: String, unionId: String? = null) {
+
+    var avatar: String?
+        get() = prefs.getString(KEY_AVATAR, null)
+        set(value) = edit { putString(KEY_AVATAR, value) }
+
+    fun saveLoginSession(
+        userId: String,
+        userName: String,
+        loginType: String,
+        unionId: String? = null,
+        avatar: String? = null
+    ) {
         edit {
             putBoolean(KEY_LOGGED_IN, true)
             putString(KEY_USER_ID, userId)
             putString(KEY_USER_NAME, userName)
             putString(KEY_LOGIN_TYPE, loginType)
             putString(KEY_UNION_ID, unionId)
+            putString(KEY_AVATAR, avatar)
             putBoolean(KEY_COMPLIANCE_VERIFIED, false)
         }
     }
@@ -94,6 +105,7 @@ class SessionManager @Inject constructor(
             remove(KEY_LOGIN_TYPE)
             putBoolean(KEY_COMPLIANCE_VERIFIED, false)
             remove(KEY_UNION_ID)
+            remove(KEY_AVATAR)
         }
     }
 
@@ -113,5 +125,6 @@ class SessionManager @Inject constructor(
         private const val KEY_COMPLIANCE_VERIFIED = "compliance_verified"
         private const val KEY_UNION_ID = "union_id"
         private const val KEY_LIMIT_AD_TRACKING = "limit_ad_tracking"
+        private const val KEY_AVATAR = "avatar"
     }
 }

@@ -885,5 +885,19 @@ object GameConfig {
         const val BEAST_AI_ATTACK_POWER_RATIO = 1.0  // AI妖兽攻击战力系数
         const val SPIRIT_STONES_PER_ITEM = 20_000L  // 2万灵石=1物品
     }
-    
+
+    /**
+     * 免广告特权白名单。
+     *
+     * 在此列表中的 TapTap unionId 对应玩家跳过广告播放、
+     * 无视冷却和每日次数限制。
+     *
+     * 由管理员手动维护，无需运行时修改。
+     * 添加方式：`"目标用户的 unionId",`
+     */
+    object Whitelist {
+        val AD_FREE_UNION_IDS: Set<String> = setOf(
+            // TODO: 在此添加白名单用户的 unionId
+        )
+    }
 }
