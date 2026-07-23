@@ -4,6 +4,7 @@ import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import java.util.UUID
 
@@ -142,7 +143,11 @@ suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult {
                         category = template.materialCategory,
                         quantity = pair.second
                     )
-                    inventorySystem.addMaterial(material)
+                    when (val r = inventorySystem.addMaterial(material)) {
+                        is DomainResult.Success -> {}
+                        is DomainResult.Partial -> DomainLog.w(TAG, "材料 ${material.name} 溢出 ${r.overflow} 个")
+                        is DomainResult.Failure -> DomainLog.w(TAG, "添加材料失败: ${r.error}")
+                    }
                 }
             }
 

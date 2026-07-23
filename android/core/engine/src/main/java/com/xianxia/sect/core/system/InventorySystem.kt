@@ -166,61 +166,6 @@ class InventorySystem @Inject constructor(
     private fun seedKey(item: Seed) =
         StackKey.of(item.name, item.rarity, item.growTime)
 
-    // ── 泛型添加辅助：委托 StackableItemStore 做合并/新增，消除 ~48 同构方法 ──
-
-    private inline fun <reified T> addWithStore(
-        item: T,
-        currentItems: List<T>,
-        noinline stackKeyOf: (T) -> StackKey,
-        maxStack: Int,
-        noinline writeItems: (List<T>) -> Unit
-    ): DomainResult<T> where T : HasId, T : StackableItem {
-        // 禁用槽位检查（canAddItem 在外层单独做），仅用 Store 的合并逻辑
-        val store = StackableItemStore(
-            initialItems = currentItems,
-            stackKeyOf = stackKeyOf,
-            maxStack = maxStack,
-            maxSlots = { Int.MAX_VALUE },
-            notFound = { AppError.Domain.Inventory.NotFound(it) }
-        )
-        val result = store.add(item)
-        if (result.isSuccess) {
-            writeItems(store.all())
-        }
-        return result
-    }
-
-    // ── 泛型删除 / 查询辅助：消除 ~30 同构方法 ──
-
-    /** 通用删除：委托 StackableItemStore，保留现有行为语义 */
-    private fun <T> removeStackable(
-        id: String, count: Int, bypassLock: Boolean,
-        currentItems: List<T>,
-        stackKeyOf: (T) -> StackKey,
-        maxStack: Int,
-        logType: String,
-        writeItems: (List<T>) -> Unit
-    ): Boolean where T : HasId, T : StackableItem {
-        if (count <= 0) return false
-        val existing = currentItems.find { it.id == id } ?: return false
-        if (!bypassLock && existing.isLocked) {
-            DomainLog.w(TAG, "Cannot remove locked $logType: ${existing.hashCode()}")
-            return false
-        }
-        if (existing.quantity < count) {
-            DomainLog.w(TAG, "Cannot remove $count $logType, only ${existing.quantity} available")
-            return false
-        }
-        val store = StackableItemStore(
-            initialItems = currentItems, stackKeyOf = stackKeyOf, maxStack = maxStack,
-            maxSlots = { Int.MAX_VALUE },
-            notFound = { AppError.Domain.Inventory.NotFound(it) }
-        )
-        val result = store.remove(id, count)
-        if (result.isSuccess) { writeItems(store.all()); return true }
-        return false
-    }
-
     /** 通用 getById */
     private fun <T : HasId> getById(items: List<T>, id: String): T? = items.find { it.id == id }
 
@@ -253,43 +198,49 @@ class InventorySystem @Inject constructor(
     fun canAddEquipment(name: String, rarity: Int, slot: EquipmentSlot): Boolean {
         val current = stateStore.equipmentStacks.value
         val maxStack = getMaxStackForType("equipment_stack")
-        val canMerge = current.any { it.name == name && it.rarity == rarity && it.slot == slot && it.quantity < maxStack }
-        return canMerge || canAddItem()
+        val totalFree = current.filter { it.name == name && it.rarity == rarity && it.slot == slot }
+            .sumOf { maxStack - it.quantity }
+        return totalFree > 0 || canAddItem()
     }
 
     fun canAddPill(name: String, rarity: Int, category: PillCategory, grade: PillGrade = PillGrade.MEDIUM): Boolean {
         val current = stateStore.pills.value
         val maxStack = getMaxStackForType("pill")
-        val canMerge = current.any { it.name == name && it.rarity == rarity && it.category == category && it.grade == grade && it.quantity < maxStack }
-        return canMerge || canAddItem()
+        val totalFree = current.filter { it.name == name && it.rarity == rarity && it.category == category && it.grade == grade }
+            .sumOf { maxStack - it.quantity }
+        return totalFree > 0 || canAddItem()
     }
 
     fun canAddManual(name: String, rarity: Int, type: ManualType): Boolean {
         val current = stateStore.manualStacks.value
         val maxStack = getMaxStackForType("manual_stack")
-        val canMerge = current.any { it.name == name && it.rarity == rarity && it.type == type && it.quantity < maxStack }
-        return canMerge || canAddItem()
+        val totalFree = current.filter { it.name == name && it.rarity == rarity && it.type == type }
+            .sumOf { maxStack - it.quantity }
+        return totalFree > 0 || canAddItem()
     }
 
     fun canAddMaterial(name: String, rarity: Int, category: MaterialCategory): Boolean {
         val current = stateStore.materials.value
         val maxStack = getMaxStackForType("material")
-        val canMerge = current.any { it.name == name && it.rarity == rarity && it.category == category && it.quantity < maxStack }
-        return canMerge || canAddItem()
+        val totalFree = current.filter { it.name == name && it.rarity == rarity && it.category == category }
+            .sumOf { maxStack - it.quantity }
+        return totalFree > 0 || canAddItem()
     }
 
     fun canAddHerb(name: String, rarity: Int, category: String): Boolean {
         val current = stateStore.herbs.value
         val maxStack = getMaxStackForType("herb")
-        val canMerge = current.any { it.name == name && it.rarity == rarity && it.category == category && it.quantity < maxStack }
-        return canMerge || canAddItem()
+        val totalFree = current.filter { it.name == name && it.rarity == rarity && it.category == category }
+            .sumOf { maxStack - it.quantity }
+        return totalFree > 0 || canAddItem()
     }
 
     fun canAddSeed(name: String, rarity: Int, growTime: Int): Boolean {
         val current = stateStore.seeds.value
         val maxStack = getMaxStackForType("seed")
-        val canMerge = current.any { it.name == name && it.rarity == rarity && it.growTime == growTime && it.quantity < maxStack }
-        return canMerge || canAddItem()
+        val totalFree = current.filter { it.name == name && it.rarity == rarity && it.growTime == growTime }
+            .sumOf { maxStack - it.quantity }
+        return totalFree > 0 || canAddItem()
     }
 
     private fun validateStackableItem(name: String, rarity: Int, quantity: Int): DomainResult<Unit> {
@@ -304,38 +255,33 @@ class InventorySystem @Inject constructor(
         if (validation is DomainResult.Failure) return validation
 
         return stateStore.updateAndReturn {
-            val maxStack = getMaxStackForType("equipment_stack")
-
-            // Try merge with existing stack
-            val existing = equipmentStacks.find { equipmentStackKey(it) == equipmentStackKey(item) }
-            if (existing != null) {
-                val totalQty = existing.quantity + item.quantity
-                val newQty = totalQty.coerceAtMost(maxStack)
-                val merged = existing.copy(quantity = newQty)
-                equipmentStacks = equipmentStacks.map {
-                    if (it.id == existing.id) merged else it
-                }
-                // 年度报告：追踪装备来源
-                val srcKey = "$trackingSource:${item.rarity}"
-                gameData = gameData.copy(
-                    annualEquipmentBySource = gameData.annualEquipmentBySource + (srcKey to (gameData.annualEquipmentBySource[srcKey] ?: 0) + item.quantity)
-                )
-                return@updateAndReturn if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack)
-                    else DomainResult.Success(merged)
-            }
-
-            // No merge possible — check capacity
-            if (computeSlotCount() >= computeMaxSlots()) {
-                return@updateAndReturn DomainResult.Failure(AppError.Domain.Inventory.Full())
-            }
-
-            equipmentStacks = equipmentStacks + item
-            // 年度报告：追踪装备来源
-            val srcKey = "$trackingSource:${item.rarity}"
-            gameData = gameData.copy(
-                annualEquipmentBySource = gameData.annualEquipmentBySource + (srcKey to (gameData.annualEquipmentBySource[srcKey] ?: 0) + item.quantity)
+            val otherTypes = manualStacks.size + pills.size + materials.size + herbs.size + seeds.size
+            val store = StackableItemStore(
+                initialItems = equipmentStacks.all(),
+                stackKeyOf = ::equipmentStackKey,
+                maxStack = getMaxStackForType("equipment_stack"),
+                maxSlots = { computeMaxSlots() - otherTypes },
+                notFound = { AppError.Domain.Inventory.NotFound(it) }
             )
-            DomainResult.Success(item)
+            val result = store.add(item)
+            equipmentStacks.replaceAll(store.all())
+            when (result) {
+                is DomainResult.Success -> {
+                    val srcKey = "$trackingSource:${item.rarity}"
+                    gameData = gameData.copy(
+                        annualEquipmentBySource = gameData.annualEquipmentBySource + (srcKey to (gameData.annualEquipmentBySource[srcKey] ?: 0) + item.quantity)
+                    )
+                }
+                is DomainResult.Partial -> {
+                    val actualAdded = item.quantity - result.overflow
+                    val srcKey = "$trackingSource:${item.rarity}"
+                    gameData = gameData.copy(
+                        annualEquipmentBySource = gameData.annualEquipmentBySource + (srcKey to (gameData.annualEquipmentBySource[srcKey] ?: 0) + actualAdded)
+                    )
+                }
+                is DomainResult.Failure -> { }
+            }
+            result
         }
     }
 
@@ -358,29 +304,17 @@ class InventorySystem @Inject constructor(
         if (validation is DomainResult.Failure) return validation
 
         return stateStore.updateAndReturn {
-            val maxStack = getMaxStackForType("manual_stack")
-
-            if (merge) {
-                val existing = manualStacks.find { manualStackKey(it) == manualStackKey(item) }
-                if (existing != null) {
-                    val totalQty = existing.quantity + item.quantity
-                    val newQty = totalQty.coerceAtMost(maxStack)
-                    val merged = existing.copy(quantity = newQty)
-                    manualStacks = manualStacks.map {
-                        if (it.id == existing.id) merged else it
-                    }
-                    return@updateAndReturn if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack)
-                        else DomainResult.Success(merged)
-                }
-            }
-
-            // No merge possible — check capacity
-            if (computeSlotCount() >= computeMaxSlots()) {
-                return@updateAndReturn DomainResult.Failure(AppError.Domain.Inventory.Full())
-            }
-
-            manualStacks = manualStacks + item
-            DomainResult.Success(item)
+            val otherTypes = equipmentStacks.size + pills.size + materials.size + herbs.size + seeds.size
+            val store = StackableItemStore(
+                initialItems = manualStacks.all(),
+                stackKeyOf = ::manualStackKey,
+                maxStack = getMaxStackForType("manual_stack"),
+                maxSlots = { computeMaxSlots() - otherTypes },
+                notFound = { AppError.Domain.Inventory.NotFound(it) }
+            )
+            val result = store.add(item, merge = merge)
+            manualStacks.replaceAll(store.all())
+            result
         }
     }
 
@@ -400,55 +334,35 @@ class InventorySystem @Inject constructor(
 
     fun returnEquipmentToStack(instance: EquipmentInstance): DomainResult<EquipmentStack> {
         return stateStore.updateAndReturn {
-            val maxStack = getMaxStackForType("equipment_stack")
-
-            val existing = equipmentStacks.find {
-                it.name == instance.name && it.rarity == instance.rarity && it.slot == instance.slot
-            }
-            if (existing != null) {
-                val totalQty = existing.quantity + 1
-                val newQty = totalQty.coerceAtMost(maxStack)
-                val merged = existing.copy(quantity = newQty)
-                equipmentStacks = equipmentStacks.map {
-                    if (it.id == existing.id) merged else it
-                }
-                return@updateAndReturn if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack)
-                    else DomainResult.Success(merged)
-            }
-
-            if (computeSlotCount() >= computeMaxSlots()) {
-                return@updateAndReturn DomainResult.Failure(AppError.Domain.Inventory.Full())
-            }
-            val newStack = instance.toStack(quantity = 1)
-            equipmentStacks = equipmentStacks + newStack
-            DomainResult.Success(newStack)
+            val otherTypes = manualStacks.size + pills.size + materials.size + herbs.size + seeds.size
+            val store = StackableItemStore(
+                initialItems = equipmentStacks.all(),
+                stackKeyOf = ::equipmentStackKey,
+                maxStack = getMaxStackForType("equipment_stack"),
+                maxSlots = { computeMaxSlots() - otherTypes },
+                notFound = { AppError.Domain.Inventory.NotFound(it) }
+            )
+            val item = instance.toStack(quantity = 1)
+            val result = store.add(item)
+            equipmentStacks.replaceAll(store.all())
+            result
         }
     }
 
     fun returnManualToStack(instance: ManualInstance): DomainResult<ManualStack> {
         return stateStore.updateAndReturn {
-            val maxStack = getMaxStackForType("manual_stack")
-
-            val existing = manualStacks.find {
-                it.name == instance.name && it.rarity == instance.rarity && it.type == instance.type
-            }
-            if (existing != null) {
-                val totalQty = existing.quantity + 1
-                val newQty = totalQty.coerceAtMost(maxStack)
-                val merged = existing.copy(quantity = newQty)
-                manualStacks = manualStacks.map {
-                    if (it.id == existing.id) merged else it
-                }
-                return@updateAndReturn if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack)
-                    else DomainResult.Success(merged)
-            }
-
-            if (computeSlotCount() >= computeMaxSlots()) {
-                return@updateAndReturn DomainResult.Failure(AppError.Domain.Inventory.Full())
-            }
-            val newStack = instance.toStack(quantity = 1)
-            manualStacks = manualStacks + newStack
-            DomainResult.Success(newStack)
+            val otherTypes = equipmentStacks.size + pills.size + materials.size + herbs.size + seeds.size
+            val store = StackableItemStore(
+                initialItems = manualStacks.all(),
+                stackKeyOf = ::manualStackKey,
+                maxStack = getMaxStackForType("manual_stack"),
+                maxSlots = { computeMaxSlots() - otherTypes },
+                notFound = { AppError.Domain.Inventory.NotFound(it) }
+            )
+            val item = instance.toStack(quantity = 1)
+            val result = store.add(item)
+            manualStacks.replaceAll(store.all())
+            result
         }
     }
 
@@ -585,40 +499,35 @@ class InventorySystem @Inject constructor(
         if (validation is DomainResult.Failure) return validation
 
         return stateStore.updateAndReturn {
-            val maxStack = getMaxStackForType("pill")
-
-            if (merge) {
-                val existing = pills.find { pillKey(it) == pillKey(item) }
-                if (existing != null) {
-                    val totalQty = existing.quantity + item.quantity
-                    val newQty = totalQty.coerceAtMost(maxStack)
-                    val merged = existing.copy(quantity = newQty)
-                    pills = pills.map {
-                        if (it.id == existing.id) merged else it
-                    }
-                    // 年度报告：追踪丹药来源
+            val otherTypes = equipmentStacks.size + manualStacks.size + materials.size + herbs.size + seeds.size
+            val store = StackableItemStore(
+                initialItems = pills.all(),
+                stackKeyOf = ::pillKey,
+                maxStack = getMaxStackForType("pill"),
+                maxSlots = { computeMaxSlots() - otherTypes },
+                notFound = { AppError.Domain.Inventory.NotFound(it) }
+            )
+            val result = store.add(item, merge = merge)
+            pills.replaceAll(store.all())
+            when (result) {
+                is DomainResult.Success -> {
                     val pillGrade = item.grade?.name ?: "LOW"
                     val srcKey = "$trackingSource:$pillGrade"
                     gameData = gameData.copy(
                         annualPillBySource = gameData.annualPillBySource + (srcKey to (gameData.annualPillBySource[srcKey] ?: 0) + item.quantity)
                     )
-                    return@updateAndReturn if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack)
-                        else DomainResult.Success(merged)
                 }
+                is DomainResult.Partial -> {
+                    val actualAdded = item.quantity - result.overflow
+                    val pillGrade = item.grade?.name ?: "LOW"
+                    val srcKey = "$trackingSource:$pillGrade"
+                    gameData = gameData.copy(
+                        annualPillBySource = gameData.annualPillBySource + (srcKey to (gameData.annualPillBySource[srcKey] ?: 0) + actualAdded)
+                    )
+                }
+                is DomainResult.Failure -> { }
             }
-
-            if (computeSlotCount() >= computeMaxSlots()) {
-                return@updateAndReturn DomainResult.Failure(AppError.Domain.Inventory.Full())
-            }
-
-            pills = pills + item
-            // 年度报告：追踪丹药来源
-            val pillGrade = item.grade?.name ?: "LOW"
-            val srcKey = "$trackingSource:$pillGrade"
-            gameData = gameData.copy(
-                annualPillBySource = gameData.annualPillBySource + (srcKey to (gameData.annualPillBySource[srcKey] ?: 0) + item.quantity)
-            )
-            DomainResult.Success(item)
+            result
         }
     }
 
@@ -717,28 +626,17 @@ class InventorySystem @Inject constructor(
         if (validation is DomainResult.Failure) return validation
 
         return stateStore.updateAndReturn {
-            val maxStack = getMaxStackForType("material")
-
-            if (merge) {
-                val existing = materials.find { materialKey(it) == materialKey(item) }
-                if (existing != null) {
-                    val totalQty = existing.quantity + item.quantity
-                    val newQty = totalQty.coerceAtMost(maxStack)
-                    val merged = existing.copy(quantity = newQty)
-                    materials = materials.map {
-                        if (it.id == existing.id) merged else it
-                    }
-                    return@updateAndReturn if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack)
-                        else DomainResult.Success(merged)
-                }
-            }
-
-            if (computeSlotCount() >= computeMaxSlots()) {
-                return@updateAndReturn DomainResult.Failure(AppError.Domain.Inventory.Full())
-            }
-
-            materials = materials + item
-            DomainResult.Success(item)
+            val otherTypes = equipmentStacks.size + manualStacks.size + pills.size + herbs.size + seeds.size
+            val store = StackableItemStore(
+                initialItems = materials.all(),
+                stackKeyOf = ::materialKey,
+                maxStack = getMaxStackForType("material"),
+                maxSlots = { computeMaxSlots() - otherTypes },
+                notFound = { AppError.Domain.Inventory.NotFound(it) }
+            )
+            val result = store.add(item, merge = merge)
+            materials.replaceAll(store.all())
+            result
         }
     }
 
@@ -833,38 +731,33 @@ class InventorySystem @Inject constructor(
         if (validation is DomainResult.Failure) return validation
 
         return stateStore.updateAndReturn {
-            val maxStack = getMaxStackForType("herb")
-
-            if (merge) {
-                val existing = herbs.find { herbKey(it) == herbKey(item) }
-                if (existing != null) {
-                    val totalQty = existing.quantity + item.quantity
-                    val newQty = totalQty.coerceAtMost(maxStack)
-                    val merged = existing.copy(quantity = newQty)
-                    herbs = herbs.map {
-                        if (it.id == existing.id) merged else it
-                    }
-                    // 年度报告：追踪草药来源
+            val otherTypes = equipmentStacks.size + manualStacks.size + pills.size + materials.size + seeds.size
+            val store = StackableItemStore(
+                initialItems = herbs.all(),
+                stackKeyOf = ::herbKey,
+                maxStack = getMaxStackForType("herb"),
+                maxSlots = { computeMaxSlots() - otherTypes },
+                notFound = { AppError.Domain.Inventory.NotFound(it) }
+            )
+            val result = store.add(item, merge = merge)
+            herbs.replaceAll(store.all())
+            when (result) {
+                is DomainResult.Success -> {
                     val srcKey = trackingSource
                     gameData = gameData.copy(
                         annualHerbBySource = gameData.annualHerbBySource + (srcKey to (gameData.annualHerbBySource[srcKey] ?: 0) + item.quantity)
                     )
-                    return@updateAndReturn if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack)
-                        else DomainResult.Success(merged)
                 }
+                is DomainResult.Partial -> {
+                    val actualAdded = item.quantity - result.overflow
+                    val srcKey = trackingSource
+                    gameData = gameData.copy(
+                        annualHerbBySource = gameData.annualHerbBySource + (srcKey to (gameData.annualHerbBySource[srcKey] ?: 0) + actualAdded)
+                    )
+                }
+                is DomainResult.Failure -> { }
             }
-
-            if (computeSlotCount() >= computeMaxSlots()) {
-                return@updateAndReturn DomainResult.Failure(AppError.Domain.Inventory.Full())
-            }
-
-            herbs = herbs + item
-            // 年度报告：追踪草药来源
-            val srcKey = trackingSource
-            gameData = gameData.copy(
-                annualHerbBySource = gameData.annualHerbBySource + (srcKey to (gameData.annualHerbBySource[srcKey] ?: 0) + item.quantity)
-            )
-            DomainResult.Success(item)
+            result
         }
     }
 
@@ -959,28 +852,17 @@ class InventorySystem @Inject constructor(
         if (validation is DomainResult.Failure) return validation
 
         return stateStore.updateAndReturn {
-            val maxStack = getMaxStackForType("seed")
-
-            if (merge) {
-                val existing = seeds.find {
-                    it.name == item.name && it.rarity == item.rarity && it.growTime == item.growTime
-                }
-                if (existing != null) {
-                    val totalQty = existing.quantity + item.quantity
-                    val newQty = totalQty.coerceAtMost(maxStack)
-                    val merged = existing.copy(quantity = newQty)
-                    seeds = seeds.map {
-                        if (it.id == existing.id) it.copy(quantity = newQty) else it
-                    }
-                    return@updateAndReturn if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack) else DomainResult.Success(merged)
-                }
-            }
-
-            if (computeSlotCount() >= computeMaxSlots()) {
-                return@updateAndReturn DomainResult.Failure(AppError.Domain.Inventory.Full())
-            }
-            seeds = seeds + item
-            DomainResult.Success(item)
+            val otherTypes = equipmentStacks.size + manualStacks.size + pills.size + materials.size + herbs.size
+            val store = StackableItemStore(
+                initialItems = seeds.all(),
+                stackKeyOf = ::seedKey,
+                maxStack = getMaxStackForType("seed"),
+                maxSlots = { computeMaxSlots() - otherTypes },
+                notFound = { AppError.Domain.Inventory.NotFound(it) }
+            )
+            val result = store.add(item, merge = merge)
+            seeds.replaceAll(store.all())
+            result
         }
     }
 
@@ -1016,26 +898,17 @@ class InventorySystem @Inject constructor(
         if (validation is DomainResult.Failure) return validation
 
         return stateStore.updateAndReturn {
-            if (merge) {
-                val existing = seeds.find {
-                    it.name == item.name && it.rarity == item.rarity && it.growTime == item.growTime
-                }
-                if (existing != null) {
-                    val maxStack = getMaxStackForType("seed")
-                    val totalQty = existing.quantity + item.quantity
-                    val newQty = totalQty.coerceAtMost(maxStack)
-                    seeds = seeds.map {
-                        if (it.id == existing.id) it.copy(quantity = newQty) else it
-                    }
-                    val merged = existing.copy(quantity = newQty)
-                    return@updateAndReturn if (totalQty > maxStack) DomainResult.Partial(merged, totalQty - maxStack) else DomainResult.Success(merged)
-                }
-            }
-            if (computeSlotCount() >= computeMaxSlots()) {
-                return@updateAndReturn DomainResult.Failure(AppError.Domain.Inventory.Full())
-            }
-            seeds = seeds + item
-            DomainResult.Success(item)
+            val otherTypes = equipmentStacks.size + manualStacks.size + pills.size + materials.size + herbs.size
+            val store = StackableItemStore(
+                initialItems = seeds.all(),
+                stackKeyOf = ::seedKey,
+                maxStack = getMaxStackForType("seed"),
+                maxSlots = { computeMaxSlots() - otherTypes },
+                notFound = { AppError.Domain.Inventory.NotFound(it) }
+            )
+            val result = store.add(item, merge = merge)
+            seeds.replaceAll(store.all())
+            result
         }
     }
 
@@ -1141,7 +1014,61 @@ class InventorySystem @Inject constructor(
         }
     }
 
+    /**
+     * 合并分散堆叠。遍历所有物品，对同 key 的堆叠尝试合并到第一个非满堆叠。
+     * 与 sortWarehouse 配合使用——先合并后排序。
+     */
+    fun consolidateStacks() {
+        stateStore.update {
+            fun <T> consolidate(items: EntityStore<T>, keyOf: (T) -> StackKey, maxStack: Int)
+                    where T : HasId, T : StackableItem {
+                var changed = true
+                while (changed) {
+                    changed = false
+                    val groups = items.all().groupBy { keyOf(it) }
+                    for ((_, list) in groups) {
+                        if (list.size <= 1) continue
+                        var primaryId = list.firstOrNull { !it.isLocked }?.id ?: continue
+                        for (i in 1 until list.size) {
+                            val secondary = list[i]
+                            if (secondary.id == primaryId || secondary.isLocked) continue
+                            val primary = items.get(primaryId) ?: break
+                            val space = maxStack - primary.quantity
+                            if (space <= 0) { primaryId = secondary.id; continue }
+                            val transfer = minOf(space, secondary.quantity)
+                            @Suppress("UNCHECKED_CAST")
+                            items.update(primaryId) {
+                                (it as StackableItem).withQuantity(it.quantity + transfer) as T
+                            }
+                            if (transfer >= secondary.quantity) items.remove(secondary.id)
+                            else {
+                                @Suppress("UNCHECKED_CAST")
+                                items.update(secondary.id) {
+                                    (it as StackableItem).withQuantity(it.quantity - transfer) as T
+                                }
+                            }
+                            changed = true
+                        }
+                    }
+                }
+            }
+            val maxEq = getMaxStackForType("equipment_stack")
+            val maxMn = getMaxStackForType("manual_stack")
+            val maxPill = getMaxStackForType("pill")
+            val maxMat = getMaxStackForType("material")
+            val maxHerb = getMaxStackForType("herb")
+            val maxSeed = getMaxStackForType("seed")
+            consolidate(equipmentStacks, { StackKey.of(it.name, it.rarity, it.slot.name) }, maxEq)
+            consolidate(manualStacks, { StackKey.of(it.name, it.rarity, it.type.name) }, maxMn)
+            consolidate(pills, { StackKey.of(it.name, it.rarity, it.category.name, it.grade.name) }, maxPill)
+            consolidate(materials, { StackKey.of(it.name, it.rarity, it.category.name) }, maxMat)
+            consolidate(herbs, { StackKey.of(it.name, it.rarity, it.category) }, maxHerb)
+            consolidate(seeds, { StackKey.of(it.name, it.rarity, it.growTime) }, maxSeed)
+        }
+    }
+
     fun sortWarehouse() {
+        consolidateStacks() // 先合并后排序
         stateStore.update {
             equipmentStacks.replaceAll(equipmentStacks.items.sortedWith(compareByDescending<EquipmentStack> { it.rarity }.thenBy { it.name }))
             equipmentInstances.replaceAll(equipmentInstances.items.sortedWith(compareByDescending<EquipmentInstance> { it.rarity }.thenBy { it.name }))

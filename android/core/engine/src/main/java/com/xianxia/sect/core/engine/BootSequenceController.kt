@@ -139,6 +139,9 @@ class BootSequenceController @Inject constructor(
                 }
             )
 
+            // ── Step 6.5: 仓库堆叠整理（修复旧档散落问题）──
+            gameEngine.consolidateStacks()
+
             // ── Step 7: 启动游戏循环 ──
             onProgress(0.60f)
             startGameLoop()

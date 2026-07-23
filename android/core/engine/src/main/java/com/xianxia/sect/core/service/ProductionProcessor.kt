@@ -93,8 +93,13 @@ class ProductionProcessor @Inject constructor(
             val recipe = ForgeRecipeDatabase.getRecipeById(recipeId)
             if (recipe != null) {
                 val equipment = inventorySystem.createEquipmentFromRecipe(recipe)
-                inventorySystem.withTrackingSource("forge") {
+                val r = inventorySystem.withTrackingSource("forge") {
                     inventorySystem.addEquipmentStack(equipment)
+                }
+                when (r) {
+                    is DomainResult.Success -> { /* 添加成功 */ }
+                    is DomainResult.Partial -> DomainLog.w(TAG, "装备 ${equipment.name} 溢出 ${r.overflow} 个")
+                    is DomainResult.Failure -> DomainLog.w(TAG, "装备 ${equipment.name} 添加失败: ${r.error}")
                 }
             }
         }
@@ -141,8 +146,13 @@ class ProductionProcessor @Inject constructor(
                     quantity = 1
                 )
             }
-            inventorySystem.withTrackingSource("alchemy") {
+            val r = inventorySystem.withTrackingSource("alchemy") {
                 inventorySystem.addPill(pill)
+            }
+            when (r) {
+                is DomainResult.Success -> { /* 添加成功 */ }
+                is DomainResult.Partial -> DomainLog.w(TAG, "丹药 ${pill.name} 溢出 ${r.overflow} 个")
+                is DomainResult.Failure -> DomainLog.w(TAG, "丹药 ${pill.name} 添加失败: ${r.error}")
             }
         }
         slot.assignedDiscipleId?.let { discipleId ->

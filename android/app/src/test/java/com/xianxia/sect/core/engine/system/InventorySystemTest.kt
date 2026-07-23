@@ -356,15 +356,18 @@ class InventorySystemTest {
     }
 
     @Test
-    fun `addPill - maxStack truncation returns PARTIAL_SUCCESS`() = runBlocking {
+    fun `addPill - overflow creates new stack`() = runBlocking {
         val maxStack = inventoryConfig.getMaxStackSize("pill")
         var result: Any? = null
         stateStore.update {
             system.addPill(Pill(id = "p1", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = maxStack - 5))
             result = system.addPill(Pill(id = "p2", name = "筑基丹", rarity = 2, category = PillCategory.FUNCTIONAL, quantity = 10))
         }
-        assertTrue(result is DomainResult.Partial<*>)
+        assertTrue("应为 Success，溢出创建新堆叠: $result", result is DomainResult.Success<*>)
         assertEquals(maxStack, system.getPillQuantity("p1"))
+        val newStack = system.getPillById("p2")
+        assertNotNull("溢出应创建新堆叠", newStack)
+        assertEquals("溢出数量 5", 5, newStack!!.quantity)
     }
 
     @Test
@@ -380,15 +383,18 @@ class InventorySystemTest {
     }
 
     @Test
-    fun `addEquipmentStack - maxStack truncation returns PARTIAL_SUCCESS`() = runBlocking {
+    fun `addEquipmentStack - overflow creates new stack`() = runBlocking {
         val maxStack = inventoryConfig.getMaxStackSize("equipment_stack")
         var result: Any? = null
         stateStore.update {
             system.addEquipmentStack(EquipmentStack(id = "e1", name = "铁剑", rarity = 1, quantity = maxStack - 5))
             result = system.addEquipmentStack(EquipmentStack(id = "e2", name = "铁剑", rarity = 1, quantity = 10))
         }
-        assertTrue(result is DomainResult.Partial<*>)
+        assertTrue("应为 Success，溢出创建新堆叠: $result", result is DomainResult.Success<*>)
         assertEquals(maxStack, system.getEquipmentStackById("e1")!!.quantity)
+        val newStack = system.getEquipmentStackById("e2")
+        assertNotNull("溢出应创建新堆叠", newStack)
+        assertEquals("溢出数量 5", 5, newStack!!.quantity)
     }
 
     @Test
@@ -402,15 +408,18 @@ class InventorySystemTest {
     }
 
     @Test
-    fun `addHerb - maxStack truncation returns PARTIAL_SUCCESS`() = runBlocking {
+    fun `addHerb - overflow creates new stack`() = runBlocking {
         val maxStack = inventoryConfig.getMaxStackSize("herb")
         var result: Any? = null
         stateStore.update {
             system.addHerb(Herb(id = "h1", name = "灵草", rarity = 1, category = "common", quantity = maxStack - 5))
             result = system.addHerb(Herb(id = "h2", name = "灵草", rarity = 1, category = "common", quantity = 10))
         }
-        assertTrue(result is DomainResult.Partial<*>)
+        assertTrue("应为 Success，溢出创建新堆叠: $result", result is DomainResult.Success<*>)
         assertEquals(maxStack, system.getHerbById("h1")!!.quantity)
+        val newStack = system.getHerbById("h2")
+        assertNotNull("溢出应创建新堆叠", newStack)
+        assertEquals("溢出数量 5", 5, newStack!!.quantity)
     }
 
     @Test
@@ -424,15 +433,18 @@ class InventorySystemTest {
     }
 
     @Test
-    fun `addSeed - maxStack truncation returns PARTIAL_SUCCESS`() = runBlocking {
+    fun `addSeed - overflow creates new stack`() = runBlocking {
         val maxStack = inventoryConfig.getMaxStackSize("seed")
         var result: Any? = null
         stateStore.update {
             system.addSeed(Seed(id = "s1", name = "灵草种子", rarity = 1, growTime = 3, quantity = maxStack - 5))
             result = system.addSeed(Seed(id = "s2", name = "灵草种子", rarity = 1, growTime = 3, quantity = 10))
         }
-        assertTrue(result is DomainResult.Partial<*>)
+        assertTrue("应为 Success，溢出创建新堆叠: $result", result is DomainResult.Success<*>)
         assertEquals(maxStack, system.getSeedById("s1")!!.quantity)
+        val newStack = system.getSeedById("s2")
+        assertNotNull("溢出应创建新堆叠", newStack)
+        assertEquals("溢出数量 5", 5, newStack!!.quantity)
     }
 
     @Test

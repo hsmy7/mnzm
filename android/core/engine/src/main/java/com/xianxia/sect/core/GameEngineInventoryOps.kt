@@ -11,6 +11,11 @@ suspend fun GameEngine.addMaterialToWarehouse(material: Material) = inventoryFac
 suspend fun GameEngine.addHerbToWarehouse(herb: Herb) = inventoryFacade.addHerbToWarehouse(herb)
 suspend fun GameEngine.addSeedToWarehouse(seed: Seed) = inventoryFacade.addSeedToWarehouse(seed)
 suspend fun GameEngine.sortWarehouse() = inventoryFacade.sortWarehouse()
+suspend fun GameEngine.consolidateStacks() {
+    // 测试场景中 inventoryFacade 可能为 null
+    @Suppress("UNNECESSARY_SAFE_CALL")
+    inventoryFacade?.consolidateStacks()
+}
 suspend fun GameEngine.confiscateStorageBagItem(discipleId: String, item: StorageBagItem) = inventoryFacade.confiscateStorageBagItem(discipleId, item)
 fun GameEngine.createEquipmentStackFromRecipe(recipe: com.xianxia.sect.core.registry.ForgeRecipeDatabase.ForgeRecipe): EquipmentStack = inventoryFacade.createEquipmentStackFromRecipe(recipe)
 fun GameEngine.createEquipmentStackFromMerchantItem(item: MerchantItem): EquipmentStack = inventoryFacade.createEquipmentStackFromMerchantItem(item)

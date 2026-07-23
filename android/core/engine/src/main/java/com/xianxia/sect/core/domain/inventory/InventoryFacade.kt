@@ -22,6 +22,7 @@ interface InventoryFacade {
     suspend fun addHerbToWarehouse(herb: Herb)
     suspend fun addSeedToWarehouse(seed: Seed)
     suspend fun sortWarehouse()
+    suspend fun consolidateStacks()
     suspend fun confiscateStorageBagItem(discipleId: String, item: StorageBagItem)
     fun createEquipmentStackFromRecipe(recipe: com.xianxia.sect.core.registry.ForgeRecipeDatabase.ForgeRecipe): EquipmentStack
     fun createEquipmentStackFromMerchantItem(item: MerchantItem): EquipmentStack

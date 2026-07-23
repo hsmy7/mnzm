@@ -18,6 +18,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.BuildingNames
+import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -464,7 +465,12 @@ class BuildingService @Inject constructor(
                     quantity = 1
                 )
             }
-            inventorySystem.withTrackingSource("building") { inventorySystem.addPill(pill) }
+            val r = inventorySystem.withTrackingSource("building") { inventorySystem.addPill(pill) }
+            when (r) {
+                is DomainResult.Success -> { /* 添加成功 */ }
+                is DomainResult.Partial -> DomainLog.w(TAG, "丹药 ${pill.name} 溢出 ${r.overflow} 个")
+                is DomainResult.Failure -> DomainLog.w(TAG, "丹药 ${pill.name} 添加失败: ${r.error}")
+            }
         }
 
         withContext(Dispatchers.IO) {
@@ -621,7 +627,12 @@ class BuildingService @Inject constructor(
                 if (recipe != null) {
                     val equipment =
                         inventorySystem.createEquipmentFromRecipe(recipe)
-                    inventorySystem.withTrackingSource("building") { inventorySystem.addEquipmentStack(equipment) }
+                    val r = inventorySystem.withTrackingSource("building") { inventorySystem.addEquipmentStack(equipment) }
+                    when (r) {
+                        is DomainResult.Success -> { /* 添加成功 */ }
+                        is DomainResult.Partial -> DomainLog.w(TAG, "装备 ${equipment.name} 溢出 ${r.overflow} 个")
+                        is DomainResult.Failure -> DomainLog.w(TAG, "装备 ${equipment.name} 添加失败: ${r.error}")
+                    }
                 }
             }
             BuildingNames.ALCHEMY -> {
@@ -654,7 +665,12 @@ class BuildingService @Inject constructor(
                             quantity = 1
                         )
                     }
-                    inventorySystem.withTrackingSource("building") { inventorySystem.addPill(pill) }
+                    val r = inventorySystem.withTrackingSource("building") { inventorySystem.addPill(pill) }
+                    when (r) {
+                        is DomainResult.Success -> { /* 添加成功 */ }
+                        is DomainResult.Partial -> DomainLog.w(TAG, "丹药 ${pill.name} 溢出 ${r.overflow} 个")
+                        is DomainResult.Failure -> DomainLog.w(TAG, "丹药 ${pill.name} 添加失败: ${r.error}")
+                    }
                 }
             }
             else -> {

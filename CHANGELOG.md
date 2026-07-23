@@ -11,7 +11,19 @@
 - **修复：Compose LazyColumn 嵌套 verticalScroll 崩溃（Bugly #9043）** — UnifiedGameDialog 默认 `scrollableContent=true` 改 `false`，防止新增对话框无意嵌套 `LazyColumn` 触发 `IllegalStateException`。审计 77 处调用点，2 处需滚动者显式声明 `scrollableContent=true`
 - **修复：文本选择工具栏 BadTokenException（Bugly #3026）** — InlineStandardPromptDialog 新增 `clearFocus` onDispose（与 StandardPromptDialog 对齐）；SettingsTab 自动保存间隔 Dialog 补全；MainActivity 新增 ActionModeSafeCallback（与 GameActivity 对齐）
 - **修复：Adreno Vulkan 驱动 SIGSEGV（Bugly #9045）** — surfaceDestroyed 改用 2s 截止时间轮询 + `renderThread.interrupt()`；VulkanBackend::submitFrame 阻塞调用后添加 `m_ready` 守卫，消除 Surface 销毁后 VkHandle use-after-free
+- **修复：仓库物品不会全部堆叠** — 根因 6 层叠加：`DomainResult.Partial` 被 20+ 调用方忽略溢出静默丢失（P0-1） + 合并只 `find` 第一个堆叠不尝试后续（P0-2） + `confiscateStorageBagItem` 绕过 maxStack（P1-1） + `buyMerchantItem` equipment 分支直接 +1（P1-2） + 6 套不一致合并实现（P1-3） + 无整理功能（P2-1）
 - **安全：PeakDialog 移除嵌套 verticalScroll 潜伏风险** — 内部 Column 移除 `Modifier.verticalScroll()`，该函数当前未调用但仍然修复结构
+
+### 架构重构
+
+- **重构：仓库物品堆叠系统** — `StackableItemStore.keyIndex` 升级为多 ID 列表，支持同种物品多个堆叠；溢出时自动创建新堆叠（不再静默丢失）；`InventorySystem` 6 组添加方法统一委托 `StackableItemStore`；新增 `consolidateStacks()` 整理功能；读档时自动执行 `BootSequenceController.consolidateStacks()`
+- **修复：没收弟子物品事务回滚** — 先尝试添加入库成功后再从弟子储物袋移除，防止仓库满时物品从双方丢失
+- **安全：`StackableItemStore.add/remove` 增加负数/过量守卫** — `quantity <= 0` 返回 `InvalidQuantity`、`count > existing.quantity` 返回 `Insufficient`，防止公开 API 被错误调用导致数据损坏
+- **安全：`consolidateStacks` 跳过锁定物品** — `isLocked` 堆叠不再被整理合并或删除
+- **修复：年度报告在 Partial 场景超额计数** — `addEquipmentStack`/`addPill`/`addHerb` 三处改为按实际入库量计数，消除 20-40% 数据膨胀
+- **修复：`confiscateStorageBagItem` 缺少年度报告追踪** — 没收装备/丹药/草药补充 `confiscate` 来源统计
+- **修复：`EntityStore.mergeStackable` 只合并第一个堆叠** — 改为遍历所有匹配堆叠，与全系统行为一致
+- **死代码清理** — 删除 `InventorySystem.addWithStore`/`removeStackable`（从未调用）
 
 ## [4.0.65] - 2026-07-22（versionCode=4065）
 

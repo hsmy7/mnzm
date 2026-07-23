@@ -25,6 +25,7 @@ import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.util.AnalyticsTracker
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.engine.LazyEvaluationDispatcher
@@ -881,14 +882,25 @@ class CaveExplorationProcessor @Inject constructor(
                 quantity = reward.quantity
             )
             val result = inventorySystem.withTrackingSource("cave") { inventorySystem.addEquipmentStack(equipment) }
-            if (result.isSuccess) {
-                battleRewardItems.add(BattleRewardItem(
+            when (val r = result) {
+                is DomainResult.Success -> battleRewardItems.add(BattleRewardItem(
                     itemId = reward.itemId,
                     name = reward.name,
                     quantity = reward.quantity,
                     rarity = reward.rarity,
                     type = reward.type
                 ))
+                is DomainResult.Partial -> {
+                    battleRewardItems.add(BattleRewardItem(
+                        itemId = reward.itemId,
+                        name = reward.name,
+                        quantity = reward.quantity,
+                        rarity = reward.rarity,
+                        type = reward.type
+                    ))
+                    DomainLog.w(TAG, "${reward.name} 溢出 ${r.overflow} 个")
+                }
+                is DomainResult.Failure -> DomainLog.w(TAG, "装备添加失败: ${r.error}")
             }
         }
     }
@@ -960,14 +972,25 @@ class CaveExplorationProcessor @Inject constructor(
                 minRealm = GameConfig.Realm.getMinRealmForRarity(template.rarity)
             )
             val result = inventorySystem.withTrackingSource("cave") { inventorySystem.addPill(pill) }
-            if (result.isSuccess) {
-                battleRewardItems.add(BattleRewardItem(
+            when (val r = result) {
+                is DomainResult.Success -> battleRewardItems.add(BattleRewardItem(
                     itemId = reward.itemId,
                     name = reward.name,
                     quantity = reward.quantity,
                     rarity = reward.rarity,
                     type = reward.type
                 ))
+                is DomainResult.Partial -> {
+                    battleRewardItems.add(BattleRewardItem(
+                        itemId = reward.itemId,
+                        name = reward.name,
+                        quantity = reward.quantity,
+                        rarity = reward.rarity,
+                        type = reward.type
+                    ))
+                    DomainLog.w(TAG, "${reward.name} 溢出 ${r.overflow} 个")
+                }
+                is DomainResult.Failure -> DomainLog.w(TAG, "丹药添加失败: ${r.error}")
             }
         }
     }

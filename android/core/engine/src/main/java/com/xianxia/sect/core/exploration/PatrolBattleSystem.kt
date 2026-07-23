@@ -665,13 +665,25 @@ class PatrolBattleSystem @Inject constructor(
                         category = beastMat.materialCategory,
                         quantity = 1
                     )
-                    val addResult = inventorySystem.addMaterial(material)
-                    if (addResult.isSuccess) {
-                        allRewards += BattleRewardItem(
-                            itemId = material.id, name = material.name,
-                            quantity = 1, rarity = material.rarity,
-                            type = "material"
-                        )
+                    when (val addResult = inventorySystem.addMaterial(material)) {
+                        is DomainResult.Success -> {
+                            allRewards += BattleRewardItem(
+                                itemId = material.id, name = material.name,
+                                quantity = 1, rarity = material.rarity,
+                                type = "material"
+                            )
+                        }
+                        is DomainResult.Partial -> {
+                            allRewards += BattleRewardItem(
+                                itemId = material.id, name = material.name,
+                                quantity = 1, rarity = material.rarity,
+                                type = "material"
+                            )
+                            DomainLog.w(TAG, "材料 ${material.name} 溢出 ${addResult.overflow} 个")
+                        }
+                        is DomainResult.Failure -> {
+                            DomainLog.w(TAG, "添加材料失败: ${addResult.error}")
+                        }
                     }
                 }
             }

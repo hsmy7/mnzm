@@ -78,3 +78,32 @@ sealed interface DomainResult<out T> {
         }
     }
 }
+
+// ── 便捷处理扩展（主要用于仓库堆叠的 Partial 处理） ──
+
+/**
+ * 当结果为 [Success] 时执行 [action]。
+ * [Partial] 和 [Failure] 忽略。
+ */
+inline fun <T> DomainResult<T>.onSuccess(action: (T) -> Unit): DomainResult<T> {
+    if (this is DomainResult.Success) action(data)
+    return this
+}
+
+/**
+ * 当结果为 [Partial] 时执行 [action]，携带溢出量。
+ * [Success] 和 [Failure] 忽略。
+ */
+inline fun <T> DomainResult<T>.onPartial(action: (data: T, overflow: Int) -> Unit): DomainResult<T> {
+    if (this is DomainResult.Partial) action(data, overflow)
+    return this
+}
+
+/**
+ * 当结果为 [Failure] 时执行 [action]，携带错误。
+ * [Success] 和 [Partial] 忽略。
+ */
+inline fun <T> DomainResult<T>.onFailure(action: (AppError.Domain) -> Unit): DomainResult<T> {
+    if (this is DomainResult.Failure) action(error)
+    return this
+}

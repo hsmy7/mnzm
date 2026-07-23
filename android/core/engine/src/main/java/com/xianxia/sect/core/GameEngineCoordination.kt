@@ -584,12 +584,36 @@ private suspend fun GameEngine.applyMissionResult(
     // 引导系统：累计完成任务
     incrementGuideCounter(GuideCounterKeys.MISSIONS_COMPLETED)
     if (result.spiritStones > 0) addSpiritStones(result.spiritStones.toLong())
-    result.materials.forEach { inventorySystem.addMaterial(it) }
-    inventorySystem.withTrackingSource("sect_level") {
-        result.pills.forEach { inventorySystem.addPill(it) }
-        result.equipmentStacks.forEach { inventorySystem.addEquipmentStack(it) }
+    result.materials.forEach { material ->
+        when (val r = inventorySystem.addMaterial(material)) {
+            is DomainResult.Success -> {}
+            is DomainResult.Partial -> DomainLog.w("GameEngine", "材料 ${material.name} 溢出 ${r.overflow} 个")
+            is DomainResult.Failure -> DomainLog.w("GameEngine", "添加材料失败: ${r.error}")
+        }
     }
-    result.manualStacks.forEach { inventorySystem.addManualStack(it) }
+    inventorySystem.withTrackingSource("sect_level") {
+        result.pills.forEach { pill ->
+            when (val r = inventorySystem.addPill(pill)) {
+                is DomainResult.Success -> {}
+                is DomainResult.Partial -> DomainLog.w("GameEngine", "丹药 ${pill.name} 溢出 ${r.overflow} 个")
+                is DomainResult.Failure -> DomainLog.w("GameEngine", "添加丹药失败: ${r.error}")
+            }
+        }
+        result.equipmentStacks.forEach { equipment ->
+            when (val r = inventorySystem.addEquipmentStack(equipment)) {
+                is DomainResult.Success -> {}
+                is DomainResult.Partial -> DomainLog.w("GameEngine", "装备 ${equipment.name} 溢出 ${r.overflow} 个")
+                is DomainResult.Failure -> DomainLog.w("GameEngine", "添加装备失败: ${r.error}")
+            }
+        }
+    }
+    result.manualStacks.forEach { manual ->
+        when (val r = inventorySystem.addManualStack(manual)) {
+            is DomainResult.Success -> {}
+            is DomainResult.Partial -> DomainLog.w("GameEngine", "功法 ${manual.name} 溢出 ${r.overflow} 个")
+            is DomainResult.Failure -> DomainLog.w("GameEngine", "添加功法失败: ${r.error}")
+        }
+    }
 
     // 有战斗则写入战斗日志
     if (result.combatTriggered && result.battleResult != null) {

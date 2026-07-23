@@ -56,6 +56,7 @@ class BootSequenceControllerTest {
         doNothing().whenever(gameEngineCore).startGameLoop()
         doNothing().whenever(gameEngineCore).stopGameLoop()
 
+
         // DiscipleSnapshotCache
         doNothing().whenever(discipleSnapshotCache).prewarm(any())
 

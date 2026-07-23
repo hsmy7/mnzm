@@ -200,12 +200,8 @@ class EntityStore<T : HasId>(initialItems: List<T> = emptyList()) : Iterable<T> 
 /**
  * 将可堆叠物品合并到 [EntityStore]，溢出时新建堆叠。
  *
- * 替代旧的 `coerceAtMost(maxStack)` 截断模式，避免物品数量静默丢失。
- *
- * 语义：
- * - 存在同 [matchPredicate] 的堆叠且合并后不超过 [maxStack] → 合并到现有堆叠
- * - 存在同类堆叠但合并后超过 [maxStack] → 现有堆叠填满至 [maxStack]，溢出部分新建堆叠
- * - 不存在同类堆叠 → 直接添加为新堆叠
+ * 2026-07-23 增强：遍历所有匹配堆叠（不仅是第一个），逐个填充至 [maxStack]，
+ * 之后仍有剩余则新建堆叠。消除原实现只合并第一个堆叠导致的溢出丢失。
  *
  * @param item 待添加的物品
  * @param matchPredicate 判断两个物品是否属于同一合并组（名称/品质/类型等）
@@ -218,18 +214,25 @@ inline fun <T> EntityStore<T>.mergeStackable(
     crossinline matchPredicate: (T) -> Boolean,
     maxStack: Int
 ): EntityStore<T> where T : HasId, T : StackableItem {
-    val existing = firstOrNull(matchPredicate)
-    return if (existing != null) {
-        val total = existing.quantity + item.quantity
-        if (total <= maxStack) {
-            update(existing.id) { (it as StackableItem).withQuantity(total) as T }
-            this
-        } else {
-            update(existing.id) { (it as StackableItem).withQuantity(maxStack) as T }
-            val overflow = (item as StackableItem).withQuantity(total - maxStack) as T
-            this + overflow
-        }
+    var remaining = item.quantity
+
+    // 遍历所有匹配堆叠（不仅是第一个），逐个填充
+    val matchingIds = items.filter(matchPredicate).map { it.id }
+    for (id in matchingIds) {
+        if (remaining <= 0) break
+        val existing = get(id) ?: continue
+        val space = maxStack - existing.quantity
+        if (space <= 0) continue
+        val addQty = minOf(remaining, space)
+        update(id) { (it as StackableItem).withQuantity(existing.quantity + addQty) as T }
+        remaining -= addQty
+    }
+
+    // 仍有剩余 → 新建堆叠
+    return if (remaining > 0) {
+        val overflow = (item as StackableItem).withQuantity(remaining) as T
+        this + overflow
     } else {
-        this + item
+        this
     }
 }

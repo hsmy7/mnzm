@@ -20,6 +20,7 @@ import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.wallet.DeductResult
@@ -503,14 +504,27 @@ class ExplorationService @Inject constructor(
                         description = mat.description,
                         category = mat.materialCategory, quantity = 1
                     )
-                    val addR = inventorySystem.addMaterial(material)
-                    if (addR.isSuccess) {
-                        allRewards.add(BattleRewardItem(
-                            itemId = material.id,
-                            name = material.name, quantity = 1,
-                            rarity = material.rarity,
-                            type = "material"
-                        ))
+                    when (val addR = inventorySystem.addMaterial(material)) {
+                        is DomainResult.Success -> {
+                            allRewards.add(BattleRewardItem(
+                                itemId = material.id,
+                                name = material.name, quantity = 1,
+                                rarity = material.rarity,
+                                type = "material"
+                            ))
+                        }
+                        is DomainResult.Partial -> {
+                            allRewards.add(BattleRewardItem(
+                                itemId = material.id,
+                                name = material.name, quantity = 1,
+                                rarity = material.rarity,
+                                type = "material"
+                            ))
+                            DomainLog.w(TAG, "材料 ${material.name} 溢出 ${addR.overflow} 个")
+                        }
+                        is DomainResult.Failure -> {
+                            DomainLog.w(TAG, "添加材料失败: ${addR.error}")
+                        }
                     }
                 }
             }

@@ -22,6 +22,7 @@ import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.engine.annotation.GameService
@@ -1024,12 +1025,40 @@ class CultivationEventProcessor @Inject constructor(
                     activeMission, aliveDisciples, equipMap, manualMap, proficiencies, battleSystem
                 )
                 // IO 操作留在 Phase 1（事务外允许）
-                result.materials.forEach { material -> inventorySystem.addMaterial(material) }
-                inventorySystem.withTrackingSource("trial") {
-                    result.pills.forEach { pill -> inventorySystem.addPill(pill) }
-                    result.equipmentStacks.forEach { equip -> inventorySystem.addEquipmentStack(equip) }
+                result.materials.forEach { material ->
+                    val r = inventorySystem.addMaterial(material)
+                    when (r) {
+                        is DomainResult.Success -> {}
+                        is DomainResult.Partial -> DomainLog.w(TAG, "${material.name} 溢出 ${r.overflow} 个")
+                        is DomainResult.Failure -> DomainLog.w(TAG, "添加 ${material.name} 失败: ${r.error}")
+                    }
                 }
-                result.manualStacks.forEach { manual -> inventorySystem.addManualStack(manual) }
+                inventorySystem.withTrackingSource("trial") {
+                    result.pills.forEach { pill ->
+                        val r = inventorySystem.addPill(pill)
+                        when (r) {
+                            is DomainResult.Success -> {}
+                            is DomainResult.Partial -> DomainLog.w(TAG, "${pill.name} 溢出 ${r.overflow} 个")
+                            is DomainResult.Failure -> DomainLog.w(TAG, "添加 ${pill.name} 失败: ${r.error}")
+                        }
+                    }
+                    result.equipmentStacks.forEach { equip ->
+                        val r = inventorySystem.addEquipmentStack(equip)
+                        when (r) {
+                            is DomainResult.Success -> {}
+                            is DomainResult.Partial -> DomainLog.w(TAG, "${equip.name} 溢出 ${r.overflow} 个")
+                            is DomainResult.Failure -> DomainLog.w(TAG, "添加 ${equip.name} 失败: ${r.error}")
+                        }
+                    }
+                }
+                result.manualStacks.forEach { manual ->
+                    val r = inventorySystem.addManualStack(manual)
+                    when (r) {
+                        is DomainResult.Success -> {}
+                        is DomainResult.Partial -> DomainLog.w(TAG, "${manual.name} 溢出 ${r.overflow} 个")
+                        is DomainResult.Failure -> DomainLog.w(TAG, "添加 ${manual.name} 失败: ${r.error}")
+                    }
+                }
                 val survivors = if (result.combatTriggered && result.victory && result.battleResult != null) {
                     result.battleResult.log.teamMembers.filter { it.isAlive }.map { it.id }.toSet()
                 } else emptySet()
