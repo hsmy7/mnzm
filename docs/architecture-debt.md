@@ -291,3 +291,72 @@
 - ✅ `discipleDesertionPopup` 已从 `GameData.kt` 中移除
 - ✅ 仅测试 Fake 实现保留过时代码（正常，无运行时影响）
 - ✅ compileReleaseKotlin 通过
+
+---
+
+### 17. `assignToResidence` 覆盖已占用槽位时未释放原住户
+
+**问题描述：** `BuildingDelegate.assignToResidence` 覆盖目标 residence slot 时，只清理了"新弟子"的旧槽位，没有检查目标槽位是否已被其他弟子占用。原住户的 `DiscipleAssignmentGate` 注册残留，变成"幽灵注册"——无住所但 gate 认为有锁。
+
+**影响范围：** `BuildingDelegate.assignToResidence`
+
+**复现：** 住所 slotIndex=0 已有弟子 B → 选择弟子 A 分配到同一槽位 → B 的 gate 注册未释放
+
+**触发场景：** 住所对话框"更换"按钮（先释放旧选择 → 调 `assignToResidence` 覆盖）
+
+**修复方向：**
+- 写入 `residenceSlots` 前检查目标槽位的旧住户口 ID
+- 若旧住户存在，先对其调用 `releaseDiscipleFromAllSlotsAtomic` + `releaseDiscipleAssignment`
+- 或改为不覆盖，先清除旧住户再写入新住户（原子事务内）
+
+**难度：** 低
+
+---
+
+### 18. `assignToResidence` 非原子状态更新（4 次独立事务）
+
+**问题描述：** `assignToResidence` 将一个逻辑操作拆为 4 次独立的 `stateStore.update`：① `releaseDiscipleFromAllSlotsAtomic` ② `updateGameData(residenceSlots)` ③ `confirmAssignDisciple` ④ `updateDiscipleStatus`。违反架构规范 6.2 🔴。
+
+**影响范围：** `BuildingDelegate.assignToResidence`
+
+**风险场景：**
+- T1→T2 窗口：弟子已从所有槽位释放（IDLE），但住所槽位未写入，结算系统可能将其分配给其他系统
+- T2→T3 窗口：`residenceSlots` 已写入但 gate 未注册，其他对话框可能将其分配到别处（跨系统双占位）
+
+**同模式问题：** `PatrolTowerViewModel.assignDisciple` / `swapDisciple` 也有相同结构。
+
+**修复方向：**
+- 将全部变更整合为单次 `stateStore.update`
+- 或在事务外预计算全部变更后一次写入
+
+**难度：** 中
+
+---
+
+### 19. `PatrolTowerViewModel.assignDisciple` 未重新抛出 `CancellationException`
+
+**问题描述：** `assignDisciple` 和 `swapDisciple` 的 try-catch 块捕获所有 `Exception`，未重新抛出 `CancellationException`。违反编码规范 8.1 🔴。协程取消时部分更新的状态不会回滚。
+
+**影响范围：** `PatrolTowerViewModel.kt:66-69`, `:92-128`
+
+**修复方向：**
+- catch 内添加 `if (e is CancellationException) throw e`
+
+**难度：** 低
+
+---
+
+### 20. 住所/巡视楼分配 fire-and-forget 无返回值
+
+**问题描述：** `assignToResidence`、`assignDisciple`、`swapDisciple` 都是 fire-and-forget 异步（非 `suspend`，无返回值）。调用方（UI 层）无法知道操作是否成功完成。失败时仅内部 `showError`，对话框已关闭，用户无法确认。
+
+**影响范围：**
+- `BuildingDelegate.assignToResidence`
+- `PatrolTowerViewModel.assignDisciple` / `swapDisciple`
+
+**修复方向：**
+- 改为 `suspend fun` 返回 `Result<Unit>` 或 `DomainResult`
+- 调用方 await 完成后关闭对话框
+- 或保持 fire-and-forget 但增加回调/EventBus 通知
+
+**难度：** 中
