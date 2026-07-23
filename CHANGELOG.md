@@ -24,6 +24,12 @@
 - **修复：Adreno Vulkan 驱动 SIGSEGV（Bugly #9045）** — surfaceDestroyed 改用 2s 截止时间轮询 + `renderThread.interrupt()`；VulkanBackend::submitFrame 阻塞调用后添加 `m_ready` 守卫，消除 Surface 销毁后 VkHandle use-after-free
 - **修复：仓库物品不会全部堆叠** — 根因 6 层叠加：`DomainResult.Partial` 被 20+ 调用方忽略溢出静默丢失（P0-1） + 合并只 `find` 第一个堆叠不尝试后续（P0-2） + `confiscateStorageBagItem` 绕过 maxStack（P1-1） + `buyMerchantItem` equipment 分支直接 +1（P1-2） + 6 套不一致合并实现（P1-3） + 无整理功能（P2-1）
 - **安全：PeakDialog 移除嵌套 verticalScroll 潜伏风险** — 内部 Column 移除 `Modifier.verticalScroll()`，该函数当前未调用但仍然修复结构
+- **修复：巡视楼任命弟子时点击弟子卡片无响应** — 根因 `selectingSlotIndex` 被 coroutine 闭包捕获后立即重置为 -1，导致任命传入错误索引抛越界异常被吞掉（PatrolTowerDialog.kt）
+- **修复：弟子入住住所后所有选择界面不显示该弟子** — 根因 `assignToResidence` 中 `releaseDiscipleFromAllSlotsAtomic` 更新 `discipleTables` 后未同步触发 `_disciplesFlow` reassembly，UI 层读取过时状态。在分配流程末尾显式调用 `updateDiscipleStatus(IDLE)` 确保状态同步
+- **调整：赏赐弟子/赏赐道具对话框改为全屏** — 移除米色背景和"给予弟子"文本，筛选按钮改用标准按钮组件+选中态黑白区分
+- **修复：巡视楼应用弟子时双重释放+赏赐全屏滚动嵌套** — 移除 `onConfirm` 中多余的 `releaseDiscipleFromAllSlotsAtomic`；赏赐全屏对话框 `scrollableContent` 改为 `false` 消除 `LazyVerticalGrid` 嵌套
+- **修复：`removeFromResidence` 缺少 `updateDiscipleStatus`** — 与 `assignToResidence` 状态对称，移除住所后设回 IDLE
+- **测试：`GameConfigTest` 预存断言值过时** — `CULTIVATION_SUBSIDY_PER_DISCIPLE` 4000L→300L，测试名同步更新
 
 ### 架构重构
 

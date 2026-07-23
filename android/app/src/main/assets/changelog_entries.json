@@ -20,6 +20,18 @@
     "date": "2026-07-23",
     "version": "4.0.66",
     "changes": [
+      "修复：巡视楼任命弟子时点击弟子卡片无响应——根因selectingSlotIndex被协程闭包捕获后立即重置为-1，导致索引越界异常被吞掉",
+      "修复：弟子入住住所后所有选择界面不显示该弟子——assignToResidence末尾显式updateDiscipleStatus(IDLE)确保状态同步回_disciplesFlow",
+      "调整：赏赐弟子/赏赐道具对话框改为全屏——移除米色背景和给予弟子文本，筛选按钮改用标准组件+选中态黑白区分",
+      "修复：巡视楼应用弟子时双重释放+赏赐全屏滚动嵌套——移除onConfirm多余的releaseDiscipleFromAllSlotsAtomic；全屏对话框scrollableContent=false",
+      "修复：removeFromResidence缺少updateDiscipleStatus——移除住所后设回IDLE，与assignToResidence状态对称",
+      "测试：GameConfigTest预存断言值过时——CULTIVATION_SUBSIDY_PER_DISCIPLE 4000L→300L，测试名同步更新"
+    ]
+  },
+  {
+    "date": "2026-07-23",
+    "version": "4.0.66",
+    "changes": [
       "修复：Compose LazyColumn 在 verticalScroll 内嵌套导致的无限高度崩溃(Bugly #9043)——UnifiedGameDialog 默认 scrollableContent=true 改 false，防止新增对话框无意嵌套触发崩溃",
       "修复：文本选择工具栏 BadTokenException(Bugly #3026)——InlineStandardPromptDialog/MainActivity/SettingsTab 三处补齐 clearFocus 和 ActionModeSafeCallback，消除对话框关闭后 FloatingActionMode 弹出 PopupWindow 崩溃",
       "修复：Adreno Vulkan 驱动 SIGSEGV(Bugly #9045)——surfaceDestroyed 改用截止时间等待+renderThread.interrupt()，submitFrame 阻塞调用后添加 m_ready 守卫，消除 Surface 销毁后 VkHandle use-after-free",
