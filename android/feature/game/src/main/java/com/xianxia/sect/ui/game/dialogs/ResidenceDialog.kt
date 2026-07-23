@@ -135,8 +135,6 @@ fun ResidenceDialog(
             }
 
             Spacer(modifier = Modifier.weight(1f))
-
-            // Upgrade button removed (upgrade system eliminated)
         }
     }
 

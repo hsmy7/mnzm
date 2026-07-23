@@ -75,10 +75,10 @@ fun BuildingConstructionBar(
                             .height(60.dp)
                             .clip(RoundedCornerShape(6.dp))
                             .border(1.dp, GameColors.ButtonBorder, RoundedCornerShape(6.dp))
-                            .clickable(enabled = !built && canAfford && meetsLevel) {
+                            .clickable {
                                 when {
                                     !meetsLevel -> onSelectBuildingLevelRequirement?.invoke(name)
-                                    else -> onSelectBuilding(name)
+                                    !built && canAfford -> onSelectBuilding(name)
                                 }
                             }
                     ) {
