@@ -447,12 +447,25 @@ suspend fun GameEngine.autoAssignPatrolAtomic(
         (discipleIds.groupBy { it }.filter { it.value.size > 1 }.keys)
     }
 
+    // 前置校验：所有槽位索引边界（避免 require 在 stateStore.update 内抛出导致 gate 操作残留）
+    val ss = gameDataSnapshot
+    for ((globalIndex, _) in assignments) {
+        require(globalIndex in ss.patrolSlots.indices) {
+            "巡视槽位越界: index=$globalIndex size=${ss.patrolSlots.size}"
+        }
+    }
+
+    // 前置校验：所有弟子 ID 有效（同上原因）
+    for ((_, did) in assignments) {
+        if (did.isNotEmpty()) {
+            val id = did.toIntOrNull()
+            require(id != null && id in discipleTables.ids) { "弟子不存在: $did" }
+            require(discipleTables.isAlive[id] != 0) { "弟子已死亡: $did" }
+        }
+    }
+
     stateStore.update {
         for ((globalIndex, discipleId) in assignments) {
-            require(globalIndex in gameData.patrolSlots.indices) {
-                "巡视槽位越界: index=$globalIndex size=${gameData.patrolSlots.size}"
-            }
-
             if (discipleId.isEmpty()) {
                 // 清空槽位
                 val slot = gameData.patrolSlots[globalIndex]
@@ -474,10 +487,7 @@ suspend fun GameEngine.autoAssignPatrolAtomic(
                 }
             } else {
                 // 分配弟子到槽位
-                val id = discipleId.toIntOrNull()
-                require(id != null && id in discipleTables.ids) { "弟子不存在: $discipleId" }
-                require(discipleTables.isAlive[id] != 0) { "弟子已死亡: $discipleId" }
-
+                val id = discipleId.toIntOrNull()!!
                 val current = gameData.patrolSlots[globalIndex]
                 val isSame = current.discipleId == discipleId
 
