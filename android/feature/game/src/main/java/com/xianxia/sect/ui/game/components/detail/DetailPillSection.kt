@@ -196,81 +196,65 @@ private fun RewardItemsDialog(
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
         title = "赏赐道具",
-        mode = DialogMode.Half,
-        scrollableContent = false
+        mode = DialogMode.Full,
+        scrollableContent = true
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Text(
-                text = "给予弟子: ${disciple.name}",
-                fontSize = 11.sp,
-                color = GameColors.TextSecondary,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(GameColors.PageBackground)
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-            )
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(GameColors.PageBackground)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    RewardFilterButton(
-                        text = RewardFilter.ALL.displayName,
-                        selected = selectedFilter == RewardFilter.ALL,
-                        onClick = { selectedFilter = RewardFilter.ALL },
-                        modifier = Modifier.weight(1f)
-                    )
-                    RewardFilterButton(
-                        text = RewardFilter.EQUIPMENT.displayName,
-                        selected = selectedFilter == RewardFilter.EQUIPMENT,
-                        onClick = { selectedFilter = RewardFilter.EQUIPMENT },
-                        modifier = Modifier.weight(1f)
-                    )
-                    RewardFilterButton(
-                        text = RewardFilter.PILL.displayName,
-                        selected = selectedFilter == RewardFilter.PILL,
-                        onClick = { selectedFilter = RewardFilter.PILL },
-                        modifier = Modifier.weight(1f)
-                    )
-                    RewardFilterButton(
-                        text = RewardFilter.MANUAL.displayName,
-                        selected = selectedFilter == RewardFilter.MANUAL,
-                        onClick = { selectedFilter = RewardFilter.MANUAL },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    RewardFilterButton(
-                        text = RewardFilter.HERB.displayName,
-                        selected = selectedFilter == RewardFilter.HERB,
-                        onClick = { selectedFilter = RewardFilter.HERB },
-                        modifier = Modifier.weight(1f)
-                    )
-                    RewardFilterButton(
-                        text = RewardFilter.SEED.displayName,
-                        selected = selectedFilter == RewardFilter.SEED,
-                        onClick = { selectedFilter = RewardFilter.SEED },
-                        modifier = Modifier.weight(1f)
-                    )
-                    RewardFilterButton(
-                        text = RewardFilter.MATERIAL.displayName,
-                        selected = selectedFilter == RewardFilter.MATERIAL,
-                        onClick = { selectedFilter = RewardFilter.MATERIAL },
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(modifier = Modifier.weight(1f))
-                }
+                FilterButton(
+                    text = RewardFilter.ALL.displayName,
+                    selected = selectedFilter == RewardFilter.ALL,
+                    onClick = { selectedFilter = RewardFilter.ALL },
+                    modifier = Modifier.weight(1f)
+                )
+                FilterButton(
+                    text = RewardFilter.EQUIPMENT.displayName,
+                    selected = selectedFilter == RewardFilter.EQUIPMENT,
+                    onClick = { selectedFilter = RewardFilter.EQUIPMENT },
+                    modifier = Modifier.weight(1f)
+                )
+                FilterButton(
+                    text = RewardFilter.PILL.displayName,
+                    selected = selectedFilter == RewardFilter.PILL,
+                    onClick = { selectedFilter = RewardFilter.PILL },
+                    modifier = Modifier.weight(1f)
+                )
+                FilterButton(
+                    text = RewardFilter.MANUAL.displayName,
+                    selected = selectedFilter == RewardFilter.MANUAL,
+                    onClick = { selectedFilter = RewardFilter.MANUAL },
+                    modifier = Modifier.weight(1f)
+                )
             }
+            Spacer(Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                FilterButton(
+                    text = RewardFilter.HERB.displayName,
+                    selected = selectedFilter == RewardFilter.HERB,
+                    onClick = { selectedFilter = RewardFilter.HERB },
+                    modifier = Modifier.weight(1f)
+                )
+                FilterButton(
+                    text = RewardFilter.SEED.displayName,
+                    selected = selectedFilter == RewardFilter.SEED,
+                    onClick = { selectedFilter = RewardFilter.SEED },
+                    modifier = Modifier.weight(1f)
+                )
+                FilterButton(
+                    text = RewardFilter.MATERIAL.displayName,
+                    selected = selectedFilter == RewardFilter.MATERIAL,
+                    onClick = { selectedFilter = RewardFilter.MATERIAL },
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(4.dp))
 
             Box(
                 modifier = Modifier
@@ -403,37 +387,6 @@ private fun RewardItemsDialog(
                 onDismiss = { showDetailDialog = false }
             )
         }
-    }
-}
-
-@Composable
-private fun RewardHeader(
-    discipleName: String,
-    onDismiss: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(GameColors.PageBackground)
-            .padding(12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column {
-            Text(
-                text = "赏赐道具",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
-            Text(
-                text = "给予弟子: $discipleName",
-                fontSize = 11.sp,
-                color = GameColors.TextSecondary
-            )
-        }
-
-        CloseButton(onClick = onDismiss)
     }
 }
 
@@ -579,31 +532,6 @@ private fun RewardAllItemsGrid(
 }
 
 @Composable
-private fun RewardFilterButton(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(if (selected) Color.Black else GameColors.ButtonBackground)
-            .border(1.dp, if (selected) Color.Black else GameColors.ButtonBorder, RoundedCornerShape(6.dp))
-            .clickable { onClick() }
-            .padding(vertical = 10.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = if (selected) Color.White else Color.Black
-        )
-    }
-}
-
-@Composable
 private fun RewardBottomPanel(
     selectedItem: RewardSelectedItem?,
     rewardQuantity: Int,
@@ -687,5 +615,29 @@ private fun RewardBottomPanel(
                 enabled = selectedItem != null && rewardQuantity > 0 && !isRewarding
             )
         }
+    }
+}
+
+@Composable
+private fun FilterButton(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(if (selected) Color.Black else Color(0xFFEEEEEE))
+            .clickable { onClick() }
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (selected) Color.White else Color.Black
+        )
     }
 }

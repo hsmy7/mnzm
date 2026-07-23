@@ -99,9 +99,9 @@ internal fun DiscipleSelectForRewardDialog(
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
         title = "赏赐弟子",
-        mode = DialogMode.Half,
+        mode = DialogMode.Full,
         showCloseButton = true,
-        scrollableContent = false,
+        scrollableContent = true,
         headerContent = {
             Text(
                 text = "物品: $itemName (剩余: $currentQuantity)",

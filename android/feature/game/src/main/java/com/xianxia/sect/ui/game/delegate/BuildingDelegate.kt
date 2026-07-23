@@ -11,6 +11,7 @@ import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.model.SlotCategory
 import com.xianxia.sect.core.model.SlotRef
 import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.ui.game.sect.GoldFingerState
@@ -206,6 +207,9 @@ class BuildingDelegate(
                 slotId = "residence_${buildingInstanceId}_${slotIndex}"
             )
             gameEngine.confirmAssignDisciple(discipleId, slotRef)
+
+            // 确保状态同步回 _disciplesFlow，使选择界面能立即识别空闲状态
+            gameEngine.updateDiscipleStatus(discipleId, DiscipleStatus.IDLE)
         }
     }
 

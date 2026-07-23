@@ -178,12 +178,14 @@ fun PatrolTowerDialog(
             onConfirm = { selected ->
                 if (selected.isNotEmpty()) {
                     val id = selected.first().id
+                    val slotIndex = selectingSlotIndex
+                    val swapMode = isSwapMode
                     scope.launch {
                         if (showAllEnabled && selected.first().status != DiscipleStatus.IDLE) {
                             viewModel.releaseDiscipleFromAllSlotsAtomic(id)
                         }
-                        if (isSwapMode) patrolTowerViewModel.swapDisciple(towerIndex, selectingSlotIndex, id)
-                        else patrolTowerViewModel.assignDisciple(towerIndex, selectingSlotIndex, id)
+                        if (swapMode) patrolTowerViewModel.swapDisciple(towerIndex, slotIndex, id)
+                        else patrolTowerViewModel.assignDisciple(towerIndex, slotIndex, id)
                     }
                 }
                 selectingSlotIndex = -1

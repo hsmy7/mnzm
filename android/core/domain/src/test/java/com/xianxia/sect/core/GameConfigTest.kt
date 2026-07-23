@@ -949,8 +949,8 @@ class GameConfigTest {
     }
 
     @Test
-    fun `修行津贴消耗应为4000`() {
-        assertEquals(4000L, GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_PER_DISCIPLE)
+    fun `修行津贴消耗应为300`() {
+        assertEquals(300L, GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_PER_DISCIPLE)
     }
 
     @Test
