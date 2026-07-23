@@ -50,16 +50,17 @@ class BuildingFeatureRegistryTest {
     }
 
     @Test
-    fun `single_residence_upgraded 不可直接建造`() {
+    fun `single_residence_upgraded 可直接建造`() {
         val feature = BuildingFeatureRegistry.findByKey("single_residence_upgraded")
         assertNotNull(feature)
-        assertFalse(feature!!.isConstructible)
+        assertTrue("中级单人住所现在可直接建造", feature!!.isConstructible)
     }
 
     @Test
-    fun `constructible 列表中不含升级版建筑`() {
+    fun `constructible 包含中级建筑`() {
         val keys = BuildingFeatureRegistry.constructible.map { it.key }
-        assertFalse("升级版建筑不应在 constructible 中", "single_residence_upgraded" in keys)
+        assertTrue("中级单人住所可建造", "single_residence_upgraded" in keys)
+        assertTrue("中级多人住所可建造", "multi_residence_upgraded" in keys)
     }
 
     @Test
@@ -68,7 +69,9 @@ class BuildingFeatureRegistryTest {
         assertTrue("灵矿场可建造", "spirit_mine" in keys)
         assertTrue("炼丹炉可建造", "alchemy" in keys)
         assertTrue("锻造坊可建造", "forge" in keys)
-        assertTrue("单人住所可建造（可升级）", "single_residence" in keys)
+        assertTrue("单人住所可建造", "single_residence" in keys)
+        assertTrue("中级单人住所可建造", "single_residence_upgraded" in keys)
+        assertTrue("中级多人住所可建造", "multi_residence_upgraded" in keys)
     }
 
     @Test

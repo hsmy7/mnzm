@@ -47,6 +47,8 @@ import com.xianxia.sect.ui.game.tabs.DisciplesTab
 import com.xianxia.sect.ui.game.tabs.SettingsTab
 import com.xianxia.sect.ui.game.tabs.WarehouseTab
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.SectLevel
+import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
 import com.xianxia.sect.ui.components.CloseButton
@@ -603,10 +605,12 @@ fun GameOverlayHost(
             )
         }
         is DialogType.BuildingSectLevelRequirement -> {
+            val requiredLevel = BuildingFeatureRegistry.findByDisplayName(type.buildingName)?.requiredSectLevel ?: 0
+            val levelName = SectLevel.levelName(requiredLevel)
             StandardPromptDialog(
                 onDismissRequest = onDismiss,
                 title = "建造限制",
-                text = "需升级至中型宗门方可建造",
+                text = "需升级至${levelName}方可建造",
                 confirmLabel = "知道了",
                 scrimEnabled = true,
                 dismissOnClickOutside = true

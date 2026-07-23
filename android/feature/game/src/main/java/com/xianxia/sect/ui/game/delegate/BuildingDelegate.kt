@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game.delegate
 
 import android.util.Log
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.currentActiveSectId
@@ -44,6 +45,12 @@ class BuildingDelegate(
     /** placeBuilding 的引擎线程执行体，供 batchPlaceBuilding 直接复用（避免递归 launchOnEngine）。 */
     private suspend fun doPlaceBuilding(name: String, gridX: Int, gridY: Int, width: Int, height: Int) {
         val feature = BuildingFeatureRegistry.findByDisplayName(name) ?: return
+        // 宗门等级检查（防御层：即使 UI 层已拦截，引擎层也做硬检查）
+        if (feature.requiredSectLevel > 0) {
+            val currentLevel = gameEngine.gameDataSnapshot
+                .worldMapSects.find { it.isPlayerSect }?.level ?: SectLevel.SMALL
+            if (currentLevel < feature.requiredSectLevel) return
+        }
         val config = buildingConfigService.getBuildingConfigByDisplayName(name)
         val cost = config?.cost ?: feature.cost
         val (gridW, gridH) = buildingConfigService.getBuildingGridSize(name)

@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.domain.building
 
+import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
@@ -21,7 +22,7 @@ data class BuildingFeature(
     val unlimitedBuild: Boolean = false,
     /** 全局唯一（跨宗门）：若为 true，则全地图仅允许建造 1 座 */
     val isGloballyUnique: Boolean = false,
-    /** 最低宗门等级要求（SectLevel 常量，0=小型/1=中型/2=大型/3=顶级），默认 0=无限制 */
+    /** 最低宗门等级要求（SectLevel 常量，0=小型/1=中型/2=大型/3=顶级），默认 0=无限制。必须 0..3 范围内 */
     val requiredSectLevel: Int = 0,
     val drawableRes: Int = 0,
     val color: Long = 0xFFEEEEEE,
@@ -39,6 +40,9 @@ data class BuildingFeature(
     init {
         require(!(unlimitedBuild && isGloballyUnique)) {
             "Building '$key': isGloballyUnique=true 与 unlimitedBuild=true 语义冲突，全局唯一建筑不能无限建造"
+        }
+        require(requiredSectLevel in 0..SectLevel.TOP) {
+            "Building '$key': requiredSectLevel=$requiredSectLevel 超出有效范围 0..${SectLevel.TOP}"
         }
     }
     val slotCount: Int get() = slotGroups.sumOf { it.slotsPerInstance }

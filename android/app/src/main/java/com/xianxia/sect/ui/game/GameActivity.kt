@@ -55,7 +55,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.TimeoutCancellationException
-import com.xianxia.sect.core.AdFreePrivilege
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.nativebridge.NativeBridge
 import com.xianxia.sect.di.IoDispatcher
@@ -309,16 +308,8 @@ class GameActivity : ComponentActivity() {
                     ) { showGame ->
                         val preloadData = mapPreloadData
                         if (showGame && preloadData != null) {
-                            // 初始化免广告特权状态（依赖 sessionManager 注入完成）
-                            AdFreePrivilege.initialize(sessionManager.unionId)
-
                             // 设置广告回调到 ViewModel（移除透传链）
                             viewModel.onWatchAdBreakthroughBonus = { discipleId ->
-                                // 免广告特权用户不播放广告，直接发放奖励
-                                if (AdFreePrivilege.isCurrentUserPrivileged()) {
-                                    viewModel.applyAdBreakthroughBonus(discipleId, AD_BONUS_PER_AD)
-                                    return@onWatchAdBreakthroughBonus
-                                }
                                 val activity = this@GameActivity
                                 val rewardClaimed = AtomicBoolean(false)
                                 com.xianxia.sect.taptap.RewardVideoAdManager.setCallback(
@@ -353,11 +344,6 @@ class GameActivity : ComponentActivity() {
                                 com.xianxia.sect.taptap.RewardVideoAdManager.loadAd(activity)
                             }
                             viewModel.onWatchAdMerchantRefresh = {
-                                // 免广告特权用户不播放广告，直接发放奖励
-                                if (AdFreePrivilege.isCurrentUserPrivileged()) {
-                                    viewModel.grantMerchantRefreshChanceFromAd()
-                                    return@onWatchAdMerchantRefresh
-                                }
                                 val activity = this@GameActivity
                                 val rewardClaimed = java.util.concurrent.atomic.AtomicBoolean(false)
                                 com.xianxia.sect.taptap.RewardVideoAdManager.setCallback(

@@ -77,7 +77,7 @@ fun BuildingConstructionBar(
                             .border(1.dp, GameColors.ButtonBorder, RoundedCornerShape(6.dp))
                             .clickable {
                                 when {
-                                    !meetsLevel -> onSelectBuildingLevelRequirement?.invoke(name)
+                                    !meetsLevel && !built -> onSelectBuildingLevelRequirement?.invoke(name)
                                     !built && canAfford -> onSelectBuilding(name)
                                 }
                             }
@@ -95,7 +95,7 @@ fun BuildingConstructionBar(
                                 .background(Color.White.copy(alpha = 0.7f))
                         )
                         Image(
-                            painter = painterResource(id = com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry.findByDisplayName(name)?.drawableRes ?: 0),
+                            painter = painterResource(id = com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry.findByDisplayName(name)?.drawableRes ?: R.drawable.bg_horizontal),
                             contentDescription = name,
                             modifier = Modifier
                                 .weight(1f)
