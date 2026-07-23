@@ -10,6 +10,7 @@ import com.xianxia.sect.core.model.*
  */
 data class SectPolicyDomainState(
     val sectPolicies: SectPolicies = SectPolicies(),
+    val openRecruitmentLastPaidMonth: Int = 0,
     val autoRecruitSpiritRootFilter: Set<Int> = emptySet(),
     val daoCompanionBannedRootCounts: Set<Int> = emptySet(),
     val daoCompanionConsentRequired: Boolean = false,
@@ -33,6 +34,7 @@ data class SectPolicyDomainState(
 /** 从 GameData 提取宗门政策领域状态 */
 fun GameData.extractSectPolicyState(): SectPolicyDomainState = SectPolicyDomainState(
     sectPolicies = sectPolicies,
+    openRecruitmentLastPaidMonth = openRecruitmentLastPaidMonth,
     autoRecruitSpiritRootFilter = autoRecruitSpiritRootFilter,
     daoCompanionBannedRootCounts = daoCompanionBannedRootCounts,
     daoCompanionConsentRequired = daoCompanionConsentRequired,
@@ -50,6 +52,7 @@ fun GameData.extractSectPolicyState(): SectPolicyDomainState = SectPolicyDomainS
 /** 将宗门政策领域状态合并回 GameData */
 fun GameData.mergeSectPolicyState(state: SectPolicyDomainState): GameData = copy(
     sectPolicies = state.sectPolicies,
+    openRecruitmentLastPaidMonth = state.openRecruitmentLastPaidMonth,
     autoRecruitSpiritRootFilter = state.autoRecruitSpiritRootFilter,
     daoCompanionBannedRootCounts = state.daoCompanionBannedRootCounts,
     daoCompanionConsentRequired = state.daoCompanionConsentRequired,

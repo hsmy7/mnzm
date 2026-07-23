@@ -70,42 +70,42 @@ class SectPolicyPureLogicTest {
 
     @Test
     fun policyConfig_spiritMineBoostBaseEffect_isPositive() {
-        assertTrue(GameConfig.PolicyConfig.SPIRIT_MINE_BOOST_BASE_EFFECT > 0)
+        assertTrue(GameConfig.PolicyConfig.SPIRIT_MINE_BOOST_EFFECT > 0)
     }
 
     @Test
     fun policyConfig_enhancedSecurityBaseEffect_isPositive() {
-        assertTrue(GameConfig.PolicyConfig.ENHANCED_SECURITY_BASE_EFFECT > 0)
+        assertTrue(GameConfig.PolicyConfig.ENHANCED_SECURITY_EFFECT > 0)
     }
 
     @Test
     fun policyConfig_enhancedSecurityCost_isPositive() {
-        assertTrue(GameConfig.PolicyConfig.ENHANCED_SECURITY_COST > 0)
+        assertTrue(GameConfig.PolicyConfig.ENHANCED_SECURITY_MONTHLY > 0)
     }
 
     @Test
     fun policyConfig_alchemyIncentiveCost_isPositive() {
-        assertTrue(GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_COST > 0)
+        assertTrue(GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_MONTHLY > 0)
     }
 
     @Test
     fun policyConfig_forgeIncentiveCost_isPositive() {
-        assertTrue(GameConfig.PolicyConfig.FORGE_INCENTIVE_COST > 0)
+        assertTrue(GameConfig.PolicyConfig.FORGE_INCENTIVE_MONTHLY > 0)
     }
 
     @Test
     fun policyConfig_herbCultivationCost_isPositive() {
-        assertTrue(GameConfig.PolicyConfig.HERB_CULTIVATION_COST > 0)
+        assertTrue(GameConfig.PolicyConfig.HERB_CULTIVATION_MONTHLY > 0)
     }
 
     @Test
     fun policyConfig_cultivationSubsidyCost_isPositive() {
-        assertTrue(GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_COST > 0)
+        assertTrue(GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_PER_DISCIPLE > 0)
     }
 
     @Test
     fun policyConfig_manualResearchCost_isPositive() {
-        assertTrue(GameConfig.PolicyConfig.MANUAL_RESEARCH_COST > 0)
+        assertTrue(GameConfig.PolicyConfig.MANUAL_RESEARCH_MONTHLY > 0)
     }
 
     // ==================== 自动用丹资格判定 纯逻辑测试 ====================

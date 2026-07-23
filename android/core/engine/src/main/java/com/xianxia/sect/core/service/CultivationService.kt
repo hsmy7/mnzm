@@ -231,6 +231,10 @@ class CultivationService @Inject constructor(
         return cultivationSettlement.processPolicyCosts(state)
     }
 
+    internal fun processPolicyMonthlyEffects(state: MutableGameState) {
+        cultivationSettlement.processPolicyMonthlyEffects(state)
+    }
+
     // ── 委托方法：CultivationEventProcessor ────────────────────────────
 
     suspend fun advanceMonth(state: MutableGameState? = null) {

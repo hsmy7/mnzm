@@ -352,6 +352,9 @@ data class GameData(
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var sectPolicies: SectPolicies = SectPolicies(),
 
+    // 广纳门徒上次付费月份（绝对月数 = year*12 + month，用于3年冷却判断）
+    var openRecruitmentLastPaidMonth: Int = 0,
+
     // 战斗队伍（支持多队伍）
     // battleTeam 保留用于 Room schema 兼容旧存档，逻辑层使用 battleTeams
     @SettlementStrategy(Strategy.USE_SHADOW)
@@ -734,6 +737,7 @@ data class GameData(
 @Keep
 @Serializable
 data class SectPolicies(
+    // 旧有7项政策
     val spiritMineBoost: Boolean = false,
     val enhancedSecurity: Boolean = false,
     val alchemyIncentive: Boolean = false,
@@ -741,6 +745,19 @@ data class SectPolicies(
     val herbCultivation: Boolean = false,
     val cultivationSubsidy: Boolean = false,
     val manualResearch: Boolean = false,
+
+    // 新增10项政策
+    val openRecruitment: Boolean = false,           // 广纳门徒
+    val asceticTraining: Boolean = false,            // 苦修令
+    val curfew: Boolean = false,                     // 宵禁
+    val rewardPunish: Boolean = false,               // 赏善罚恶
+    val strictTraining: Boolean = false,             // 严苛训练
+    val relaxedMgmt: Boolean = false,                // 松弛管理
+    val spiritSpring: Boolean = false,               // 灵泉灌溉
+    val frugality: Boolean = false,                  // 开源节流
+    val moralEducation: Boolean = false,             // 教化之道
+    val benevolentGovernance: Boolean = false,       // 仁政爱徒
+
     val autoPlant: Boolean = false,
     val autoAlchemy: Boolean = false,
     val autoForge: Boolean = false,

@@ -589,16 +589,34 @@ object GameConfig {
      * 包含所有政策的消耗金额、基础效果和名称
      */
     object PolicyConfig {
-        // 政策消耗金额（灵石/月）
-        const val SPIRIT_MINE_BOOST_COST = 0L           // 灵矿增产无灵石消耗
-        const val ENHANCED_SECURITY_COST = 3000L
-        const val ALCHEMY_INCENTIVE_COST = 3000L
-        const val FORGE_INCENTIVE_COST = 3000L
-        const val HERB_CULTIVATION_COST = 3000L
-        const val CULTIVATION_SUBSIDY_COST = 4000L
-        const val MANUAL_RESEARCH_COST = 4000L
-        
+        // ═══════════════════════════════════════════════════
+        // 政策月消耗金额（灵石/月）
+        // ═══════════════════════════════════════════════════
+        // 固定月消耗
+        const val SPIRIT_MINE_BOOST_MONTHLY = 0L           // 灵矿增产无灵石消耗
+        const val ENHANCED_SECURITY_MONTHLY = 3000L
+        const val ALCHEMY_INCENTIVE_MONTHLY = 3000L
+        const val FORGE_INCENTIVE_MONTHLY = 3000L
+        const val HERB_CULTIVATION_MONTHLY = 3000L
+        const val MANUAL_RESEARCH_MONTHLY = 4000L
+        const val CURFEW_MONTHLY = 1000L
+        const val REWARD_PUNISH_MONTHLY = 3000L
+        const val STRICT_TRAINING_MONTHLY = 20000L
+        const val RELAXED_MGMT_MONTHLY = 3000L
+        const val SPIRIT_SPRING_MONTHLY = 2000L
+        const val FRUGALITY_MONTHLY = 0L
+        // 按弟子数计费（单价/弟子/月）
+        const val CULTIVATION_SUBSIDY_PER_DISCIPLE = 300L   // 化神下弟子
+        const val ASCETIC_TRAINING_PER_DISCIPLE = 800L      // 全弟子
+        const val MORAL_EDUCATION_PER_DISCIPLE = 100L       // 全弟子
+        const val BENEVOLENT_GOVERNANCE_PER_DISCIPLE = 100L // 全弟子
+        // 周期性消耗
+        const val OPEN_RECRUITMENT_COST = 50000L            // 每3年
+        const val OPEN_RECRUITMENT_COOLDOWN_MONTHS = 36
+
+        // ═══════════════════════════════════════════════════
         // 政策名称
+        // ═══════════════════════════════════════════════════
         const val SPIRIT_MINE_BOOST_NAME = "灵矿增产"
         const val ENHANCED_SECURITY_NAME = "增强治安"
         const val ALCHEMY_INCENTIVE_NAME = "丹道激励"
@@ -606,15 +624,48 @@ object GameConfig {
         const val HERB_CULTIVATION_NAME = "灵药培育"
         const val CULTIVATION_SUBSIDY_NAME = "修行津贴"
         const val MANUAL_RESEARCH_NAME = "功法研习"
-        
+        const val OPEN_RECRUITMENT_NAME = "广纳门徒"
+        const val ASCETIC_TRAINING_NAME = "苦修令"
+        const val CURFEW_NAME = "宵禁"
+        const val REWARD_PUNISH_NAME = "赏善罚恶"
+        const val STRICT_TRAINING_NAME = "严苛训练"
+        const val RELAXED_MGMT_NAME = "松弛管理"
+        const val SPIRIT_SPRING_NAME = "灵泉灌溉"
+        const val FRUGALITY_NAME = "开源节流"
+        const val MORAL_EDUCATION_NAME = "教化之道"
+        const val BENEVOLENT_GOVERNANCE_NAME = "仁政爱徒"
+
+        // ═══════════════════════════════════════════════════
         // 政策基础效果
-        const val SPIRIT_MINE_BOOST_BASE_EFFECT = 0.20  // 灵石产出+20%
-        const val ENHANCED_SECURITY_BASE_EFFECT = 0.20  // 抓捕率+20%
-        const val ALCHEMY_INCENTIVE_BASE_EFFECT = 0.10  // 炼丹成功率+10%
-        const val FORGE_INCENTIVE_BASE_EFFECT = 0.10    // 锻造成功率+10%
-        const val HERB_CULTIVATION_BASE_EFFECT = 0.20   // 灵药生长速度+20%
-        const val CULTIVATION_SUBSIDY_BASE_EFFECT = 0.15 // 修炼速度+15%
-        const val MANUAL_RESEARCH_BASE_EFFECT = 0.20    // 功法修炼速度+20%
+        // ═══════════════════════════════════════════════════
+        const val SPIRIT_MINE_BOOST_EFFECT = 0.20            // 灵石产出+20%
+        const val ENHANCED_SECURITY_EFFECT = 0.20            // 抓捕率+20%
+        const val ALCHEMY_INCENTIVE_EFFECT = 0.10            // 炼丹成功率+10%
+        const val ALCHEMY_TIME_PENALTY = 0.10                // 炼丹时间+10%
+        const val FORGE_INCENTIVE_EFFECT = 0.10              // 锻造成功率+10%
+        const val FORGE_TIME_PENALTY = 0.10                  // 锻造时间+10%
+        const val HERB_CULTIVATION_EFFECT = 0.20             // 灵药生长速度+20%
+        const val CULTIVATION_SUBSIDY_EFFECT = 0.15          // 化神下修炼+15%
+        const val MANUAL_RESEARCH_EFFECT = 0.20              // 功法速度+20%
+        const val ASCETIC_TRAINING_EFFECT = 0.25             // 修炼速度+25%
+        const val CURFEW_EVENT_REDUCTION = 0.30              // 治安事件-30%
+        const val CURFEW_DESERTION_REDUCTION = 0.20          // 叛逃-20%
+        const val REWARD_PUNISH_EFFECT = 0.30                // 执法效率+30%
+        const val OPEN_RECRUITMENT_POOL_BONUS = 0.50         // 招募上限+50%
+        const val STRICT_TRAINING_DAMAGE = 0.05              // 战斗伤害+5%
+        const val RELAXED_MGMT_CULTIVATION_PENALTY = 0.10    // 修炼速度-10%
+        const val SPIRIT_SPRING_YIELD = 0.15                 // 灵田产量+15%
+        const val FRUGALITY_SALARY_REDUCTION = 0.30          // 年俸-30%
+        // 政策月度忠诚/道德变化值
+        const val MORAL_EDUCATION_PER_MONTH = 1              // 每月道德+1
+        const val BENEVOLENT_LOYALTY_PER_MONTH = 1            // 仁政爱徒 每月忠诚+1
+        const val RELAXED_MGMT_LOYALTY_PER_MONTH = 2          // 松弛管理 每月忠诚+2
+        const val STRICT_TRAINING_LOYALTY_PER_MONTH = -1      // 严苛训练 每月忠诚-1
+        const val ENHANCED_SECURITY_LOYALTY_PER_MONTH = -1    // 增强治安 每月忠诚-1
+        const val CURFEW_LOYALTY_PER_MONTH = -1               // 宵禁 每月忠诚-1
+        const val MORAL_EDUCATION_MAX = 70                   // 道德上限70
+        const val BENEVOLENT_GOVERNANCE_PER_MONTH = 1        // 每月忠诚+1
+        const val BENEVOLENT_GOVERNANCE_MAX = 100            // 忠诚上限100
         
         // 副宗主智力加成基准值
         const val VICE_SECT_MASTER_INTELLIGENCE_BASE = 50

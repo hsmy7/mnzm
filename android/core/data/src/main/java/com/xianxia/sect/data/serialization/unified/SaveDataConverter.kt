@@ -108,6 +108,7 @@ class SaveDataConverter @Inject constructor() {
             playerProtectionEnabled = gameData.playerProtectionEnabled ?: true,
             playerProtectionStartYear = gameData.playerProtectionStartYear ?: 1,
             playerHasAttackedAI = gameData.playerHasAttackedAI ?: false,
+            openRecruitmentLastPaidMonth = gameData.openRecruitmentLastPaidMonth ?: 0,
             activeMissions = gameData.activeMissions?.map { manualConverter.convertActiveMission(it) } ?: emptyList(),
             availableMissions = gameData.availableMissions?.map { manualConverter.convertMission(it) } ?: emptyList(),
             aiSectDisciples = gameData.aiSectDisciples?.map { (sectId, disciples) ->
@@ -173,6 +174,7 @@ class SaveDataConverter @Inject constructor() {
             playerProtectionEnabled = data.playerProtectionEnabled,
             playerProtectionStartYear = data.playerProtectionStartYear,
             playerHasAttackedAI = data.playerHasAttackedAI,
+            openRecruitmentLastPaidMonth = data.openRecruitmentLastPaidMonth,
             activeMissions = data.activeMissions.map { manualConverter.convertBackActiveMission(it) },
             availableMissions = data.availableMissions.map { manualConverter.convertBackMission(it) },
             aiSectDisciples = data.aiSectDisciples.associate { entry ->

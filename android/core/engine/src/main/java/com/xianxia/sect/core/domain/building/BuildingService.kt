@@ -145,7 +145,7 @@ class BuildingService @Inject constructor(
             )
 
         val alchemyPolicyBonus = if (data.sectPolicies.alchemyIncentive)
-            GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT else 0.0
+            GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_EFFECT else 0.0
         val effectiveSuccessRate = buildAlchemySuccessRate(
             alchemySlot, recipe, alchemyPolicyBonus
         )
@@ -208,7 +208,7 @@ class BuildingService @Inject constructor(
             )
 
         val forgePolicyBonus = if (data.sectPolicies.forgeIncentive)
-            GameConfig.PolicyConfig.FORGE_INCENTIVE_BASE_EFFECT else 0.0
+            GameConfig.PolicyConfig.FORGE_INCENTIVE_EFFECT else 0.0
         val effectiveSuccessRate = buildForgingSuccessRate(
             forgeSlot, recipe, forgePolicyBonus
         )

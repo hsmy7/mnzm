@@ -10,6 +10,7 @@ import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.BuildingNames
 import com.xianxia.sect.core.util.ZoneCalculator
+import kotlin.math.roundToInt
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -190,16 +191,25 @@ class FormulaService @Inject constructor(
      */
     fun calculateWorkDurationWithAllDisciples(baseDuration: Int, buildingId: String): Int {
         var skillSpeedBonus = 0.0
+        var policyTimePenalty = 0.0
         val data = stateStore.gameData.value
 
         when (buildingId) {
             BuildingNames.ALCHEMY -> {
                 val elderBonus = calculateElderAndDisciplesBonus(BuildingNames.ALCHEMY)
                 skillSpeedBonus += elderBonus.speedBonus
+                // 丹道激励政策：时间+10%
+                if (data.sectPolicies.alchemyIncentive) {
+                    policyTimePenalty += GameConfig.PolicyConfig.ALCHEMY_TIME_PENALTY
+                }
             }
             BuildingNames.FORGE -> {
                 val elderBonus = calculateElderAndDisciplesBonus(BuildingNames.FORGE)
                 skillSpeedBonus += elderBonus.speedBonus
+                // 锻造激励政策：时间+10%
+                if (data.sectPolicies.forgeIncentive) {
+                    policyTimePenalty += GameConfig.PolicyConfig.FORGE_TIME_PENALTY
+                }
             }
             else -> {
                 val allBuildingSlots = productionSlotRepository.getSlotsByBuildingId(buildingId)
@@ -215,7 +225,11 @@ class FormulaService @Inject constructor(
             skillZone = skillSpeedBonus,
             elderZone = getElderPositionBonus(buildingId)
         )
-        return zones.calculateReduced()
+        val baseResult = zones.calculateReduced()
+        // 政策时间惩罚：在速度加成计算完之后额外增加
+        return if (policyTimePenalty > 0.0) {
+            (baseResult * (1.0 + policyTimePenalty)).roundToInt().coerceAtLeast(baseResult)
+        } else baseResult
     }
 
     /**

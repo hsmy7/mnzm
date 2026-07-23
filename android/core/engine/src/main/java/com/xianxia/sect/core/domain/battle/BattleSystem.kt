@@ -23,6 +23,10 @@ class BattleSystem @Inject constructor(
 ) {
     private val rng get() = rngManager.getRng(RngPartition.BATTLE)
 
+    /** 临时伤害倍率（由外部在 executeBattle 前设置，如严苛训练+5%等政策加成） */
+    @Volatile
+    var playerDamageModifier: Double = 1.0
+
     /**
      * 预计算妖兽属性。
      * 在 LevelGenerator 生成妖兽时已完成含随机方差的属性计算，
@@ -435,14 +439,17 @@ class BattleSystem @Inject constructor(
                         listOf(executeSupportSkill(currentCombatant, allies.filter { !it.isDead }, availableSkill))
                     }
                 } else if (isAoeSkill) {
-                    aliveEnemies.map { target -> executeSkill(currentCombatant, target, availableSkill) }
+                    val dmgMod = if (isTeamMember) playerDamageModifier else 1.0
+                    aliveEnemies.map { target -> executeSkill(currentCombatant, target, availableSkill, dmgMod) }
                 } else {
                     val target = selectTarget(currentCombatant, aliveEnemies)
-                    listOf(executeSkill(currentCombatant, target, availableSkill))
+                    val dmgMod = if (isTeamMember) playerDamageModifier else 1.0
+                    listOf(executeSkill(currentCombatant, target, availableSkill, dmgMod))
                 }
             } else {
                 val target = selectTarget(currentCombatant, aliveEnemies)
-                listOf(executeAttack(currentCombatant, target))
+                val dmgMod = if (isTeamMember) playerDamageModifier else 1.0
+                listOf(executeAttack(currentCombatant, target, dmgMod))
             }
 
             val result = results.first()
@@ -735,10 +742,12 @@ class BattleSystem @Inject constructor(
                                     val advSkill = BattleCalculator.selectSkill(advancedAlly, advAliveEnemies, advAllies.filter { !it.isDead }, false, rng)
                                     val advResult = if (advSkill != null) {
                                         val advTarget = BattleCalculator.selectTarget(advancedAlly, advAliveEnemies, rng)
-                                        executeSkill(advancedAlly, advTarget, advSkill)
+                                        val advDmgMod = if (advancedAlly.side == CombatantSide.DEFENDER) playerDamageModifier else 1.0
+                                        executeSkill(advancedAlly, advTarget, advSkill, advDmgMod)
                                     } else {
                                         val advTarget = BattleCalculator.selectTarget(advancedAlly, advAliveEnemies, rng)
-                                        executeAttack(advancedAlly, advTarget)
+                                        val advDmgMod = if (advancedAlly.side == CombatantSide.DEFENDER) playerDamageModifier else 1.0
+                                        executeAttack(advancedAlly, advTarget, advDmgMod)
                                     }
                                     val advDmg = if (advResult.isSupport) 0 else advResult.damage
                                     actions.add(BattleActionData(
@@ -823,9 +832,9 @@ class BattleSystem @Inject constructor(
         }
     }
 
-    private fun executeAttack(attacker: Combatant, defender: Combatant): AttackResult {
+    private fun executeAttack(attacker: Combatant, defender: Combatant, damageModifier: Double = 1.0): AttackResult {
         val result = BattleCalculator.calculateCombatantDamage(
-            attacker, defender, null, rng = rng, enableInstantKill = true
+            attacker, defender, null, damageModifier = damageModifier, rng = rng, enableInstantKill = true
         )
         return AttackResult(
             attacker = attacker,
@@ -838,9 +847,9 @@ class BattleSystem @Inject constructor(
         )
     }
 
-    private fun executeSkill(attacker: Combatant, defender: Combatant, skill: CombatSkill): AttackResult {
+    private fun executeSkill(attacker: Combatant, defender: Combatant, skill: CombatSkill, damageModifier: Double = 1.0): AttackResult {
         val result = BattleCalculator.calculateCombatantDamage(
-            attacker, defender, skill, rng = rng, enableInstantKill = true
+            attacker, defender, skill, damageModifier = damageModifier, rng = rng, enableInstantKill = true
         )
         return AttackResult(
             attacker = attacker,

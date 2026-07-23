@@ -451,7 +451,11 @@ class CultivationEventProcessor @Inject constructor(
             }
         }
         if (data.sectPolicies.enhancedSecurity) {
-            captureRate += GameConfig.PolicyConfig.ENHANCED_SECURITY_BASE_EFFECT
+            captureRate += GameConfig.PolicyConfig.ENHANCED_SECURITY_EFFECT
+        }
+        // 赏善罚恶：执法效率+30%
+        if (data.sectPolicies.rewardPunish) {
+            captureRate += GameConfig.PolicyConfig.REWARD_PUNISH_EFFECT
         }
         return captureRate.coerceIn(0.0, 1.0)
     }
@@ -467,9 +471,13 @@ class CultivationEventProcessor @Inject constructor(
 
         for (id in atRiskIds) {
             val loyal = tables.loyalties.getOrDefault(id, 0)
-            val desertionProb = calcDesertionProbability(
+            var desertionProb = calcDesertionProbability(
                 threshold, loyal
             )
+            // 宵禁：叛逃概率-20%
+            if (data.sectPolicies.curfew) {
+                desertionProb *= (1.0 - GameConfig.PolicyConfig.CURFEW_DESERTION_REDUCTION)
+            }
             if (rngManager.getRng(RngPartition.SYSTEM).nextDouble()
                 >= desertionProb
             ) continue
@@ -690,7 +698,7 @@ class CultivationEventProcessor @Inject constructor(
         }
         val warehouses = currentData.placedBuildings.filter { it.displayName == "仓库" }
         val garrisons = currentData.warehouseGarrisons
-        val thiefIds = executeTheftLoop(atRiskIds, tables, captureRate, currentMonthValue, moralThreshold, loyalThreshold, warehouses, garrisons)
+        val thiefIds = executeTheftLoop(atRiskIds, tables, captureRate, currentMonthValue, moralThreshold, loyalThreshold, warehouses, garrisons, currentData)
         processTheftDesertionCleanup(thiefIds, tables, loyalThreshold)
     }
     fun processTheftMonthly(state: MutableGameState) {
@@ -717,9 +725,11 @@ class CultivationEventProcessor @Inject constructor(
     /** 从 atRiskIds 列表执行偷窃判定循环，返回偷窃后应叛逃的弟子 ID 集合 */
     private fun executeTheftLoop(
         atRiskIds: List<Int>, tables: DiscipleTables, captureRate: Double, currentMonthValue: Int,
-        moralThreshold: Int, loyalThreshold: Int, warehouses: List<GridBuildingData>, garrisons: List<WarehouseGarrisonSlot>
+        moralThreshold: Int, loyalThreshold: Int, warehouses: List<GridBuildingData>, garrisons: List<WarehouseGarrisonSlot>,
+        gameData: GameData? = null
     ): Set<Int> {
         return executeTheftLoopInternal(atRiskIds, tables, captureRate, currentMonthValue, moralThreshold, loyalThreshold, warehouses, garrisons,
+            gameData = gameData,
             onCaught = { disciple, _, _ ->
                 stateStore.update {
                     val tid = disciple.id.toIntOrNull() ?: return@update
@@ -740,6 +750,7 @@ class CultivationEventProcessor @Inject constructor(
         state: MutableGameState
     ): Set<Int> {
         return executeTheftLoopInternal(atRiskIds, tables, captureRate, currentMonthValue, moralThreshold, loyalThreshold, warehouses, garrisons,
+            gameData = state.gameData,
             onCaught = { disciple, _, _ ->
                 val tid = disciple.id.toIntOrNull() ?: return@executeTheftLoopInternal
                 if (state.discipleTables.ids.contains(tid) && state.discipleTables.isAlive[tid] == 1) {
@@ -755,14 +766,17 @@ class CultivationEventProcessor @Inject constructor(
     private fun executeTheftLoopInternal(
         atRiskIds: List<Int>, tables: DiscipleTables, captureRate: Double, currentMonthValue: Int,
         moralThreshold: Int, loyalThreshold: Int, warehouses: List<GridBuildingData>, garrisons: List<WarehouseGarrisonSlot>,
-        onCaught: (Disciple, Int, Int) -> Unit, onStolen: (Disciple, Long) -> Unit
+        onCaught: (Disciple, Int, Int) -> Unit, onStolen: (Disciple, Long) -> Unit,
+        gameData: GameData? = null  // 用于读取政策状态
     ): Set<Int> {
         val thiefIds = mutableSetOf<Int>()
         for (id in atRiskIds) {
             val disciple = tables.assemble(id) ?: continue
             val stats = DiscipleStatCalculator.getBaseStats(disciple)
             val theftProb = ((moralThreshold - stats.morality) * GameConfig.LawEnforcementConfig.PROB_PER_POINT).coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
-            if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() >= theftProb) continue
+            // 宵禁：治安事件概率-30%
+            val effectiveTheftProb = if (gameData?.sectPolicies?.curfew == true) theftProb * (1.0 - GameConfig.PolicyConfig.CURFEW_EVENT_REDUCTION) else theftProb
+            if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() >= effectiveTheftProb) continue
             if (tryGuardCatch(disciple, warehouses, garrisons, captureRate)) {
                 onCaught(disciple, currentMonthValue, captureRate.toInt())
             } else {
@@ -836,7 +850,11 @@ class CultivationEventProcessor @Inject constructor(
         val atRiskIds = findAtRiskDiscipleIds(currentMonthValue, threshold, protectionMonths, tables)
         for (id in atRiskIds) {
             val loyal = tables.loyalties.getOrDefault(id, 0)
-            val desertionProb = calcDesertionProbability(threshold, loyal)
+            var desertionProb = calcDesertionProbability(threshold, loyal)
+            // 宵禁：叛逃概率-20%
+            if (data.sectPolicies.curfew) {
+                desertionProb *= (1.0 - GameConfig.PolicyConfig.CURFEW_DESERTION_REDUCTION)
+            }
             if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() >= desertionProb) continue
             enforceDiscipleDesertion(id, data.gameYear, captureRate, threshold, tables, state)
         }

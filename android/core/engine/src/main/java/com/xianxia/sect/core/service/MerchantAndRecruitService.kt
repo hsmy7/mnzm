@@ -425,7 +425,7 @@ class MerchantAndRecruitService @Inject constructor(
     fun refreshRecruitList(year: Int) {
         val playerSect = stateStore.gameData.value.worldMapSects
             .find { it.isPlayerSect }
-        val recruitCount = if (playerSect != null) {
+        var recruitCount = if (playerSect != null) {
             val range = SectLevel.recruitRange(playerSect.level)
             val bonusCap = calcRecruitBonusCap()
             val until = range.last + 1 + bonusCap
@@ -434,6 +434,10 @@ class MerchantAndRecruitService @Inject constructor(
             else range.first + rng.nextInt(until - range.first)
         } else {
             rng.nextInt(7)  // 兜底：找不到玩家宗门时保持旧逻辑
+        }
+        // 广纳门徒政策：招募弟子数+50%
+        if (recruitCount > 0 && stateStore.gameData.value.sectPolicies.openRecruitment) {
+            recruitCount = (recruitCount * (1.0 + GameConfig.PolicyConfig.OPEN_RECRUITMENT_POOL_BONUS)).roundToInt()
         }
         val newRecruitDisciples = mutableListOf<Disciple>()
         val usedNames = (stateStore.disciples.value + stateStore.gameData.value.recruitList).map { it.name }.toMutableSet()

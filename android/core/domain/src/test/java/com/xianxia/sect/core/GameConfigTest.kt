@@ -925,37 +925,37 @@ class GameConfigTest {
 
     @Test
     fun `灵矿增产消耗应为0`() {
-        assertEquals(0L, GameConfig.PolicyConfig.SPIRIT_MINE_BOOST_COST)
+        assertEquals(0L, GameConfig.PolicyConfig.SPIRIT_MINE_BOOST_MONTHLY)
     }
 
     @Test
     fun `增强治安消耗应为3000`() {
-        assertEquals(3000L, GameConfig.PolicyConfig.ENHANCED_SECURITY_COST)
+        assertEquals(3000L, GameConfig.PolicyConfig.ENHANCED_SECURITY_MONTHLY)
     }
 
     @Test
     fun `丹道激励消耗应为3000`() {
-        assertEquals(3000L, GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_COST)
+        assertEquals(3000L, GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_MONTHLY)
     }
 
     @Test
     fun `锻造激励消耗应为3000`() {
-        assertEquals(3000L, GameConfig.PolicyConfig.FORGE_INCENTIVE_COST)
+        assertEquals(3000L, GameConfig.PolicyConfig.FORGE_INCENTIVE_MONTHLY)
     }
 
     @Test
     fun `灵药培育消耗应为3000`() {
-        assertEquals(3000L, GameConfig.PolicyConfig.HERB_CULTIVATION_COST)
+        assertEquals(3000L, GameConfig.PolicyConfig.HERB_CULTIVATION_MONTHLY)
     }
 
     @Test
     fun `修行津贴消耗应为4000`() {
-        assertEquals(4000L, GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_COST)
+        assertEquals(4000L, GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_PER_DISCIPLE)
     }
 
     @Test
     fun `功法研习消耗应为4000`() {
-        assertEquals(4000L, GameConfig.PolicyConfig.MANUAL_RESEARCH_COST)
+        assertEquals(4000L, GameConfig.PolicyConfig.MANUAL_RESEARCH_MONTHLY)
     }
 
     @Test
@@ -995,37 +995,37 @@ class GameConfigTest {
 
     @Test
     fun `灵矿增产效果应为20百分比`() {
-        assertEquals(0.20, GameConfig.PolicyConfig.SPIRIT_MINE_BOOST_BASE_EFFECT, 0.001)
+        assertEquals(0.20, GameConfig.PolicyConfig.SPIRIT_MINE_BOOST_EFFECT, 0.001)
     }
 
     @Test
     fun `增强治安效果应为20百分比`() {
-        assertEquals(0.20, GameConfig.PolicyConfig.ENHANCED_SECURITY_BASE_EFFECT, 0.001)
+        assertEquals(0.20, GameConfig.PolicyConfig.ENHANCED_SECURITY_EFFECT, 0.001)
     }
 
     @Test
     fun `丹道激励效果应为10百分比`() {
-        assertEquals(0.10, GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT, 0.001)
+        assertEquals(0.10, GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_EFFECT, 0.001)
     }
 
     @Test
     fun `锻造激励效果应为10百分比`() {
-        assertEquals(0.10, GameConfig.PolicyConfig.FORGE_INCENTIVE_BASE_EFFECT, 0.001)
+        assertEquals(0.10, GameConfig.PolicyConfig.FORGE_INCENTIVE_EFFECT, 0.001)
     }
 
     @Test
     fun `灵药培育效果应为20百分比`() {
-        assertEquals(0.20, GameConfig.PolicyConfig.HERB_CULTIVATION_BASE_EFFECT, 0.001)
+        assertEquals(0.20, GameConfig.PolicyConfig.HERB_CULTIVATION_EFFECT, 0.001)
     }
 
     @Test
     fun `修行津贴效果应为15百分比`() {
-        assertEquals(0.15, GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_BASE_EFFECT, 0.001)
+        assertEquals(0.15, GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_EFFECT, 0.001)
     }
 
     @Test
     fun `功法研习效果应为20百分比`() {
-        assertEquals(0.20, GameConfig.PolicyConfig.MANUAL_RESEARCH_BASE_EFFECT, 0.001)
+        assertEquals(0.20, GameConfig.PolicyConfig.MANUAL_RESEARCH_EFFECT, 0.001)
     }
 
     @Test

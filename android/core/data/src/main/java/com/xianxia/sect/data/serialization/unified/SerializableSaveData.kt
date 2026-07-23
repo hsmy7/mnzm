@@ -75,7 +75,8 @@ data class SerializableGameData(
     @ProtoNumber(89) val merchantAcquisitionLastRefreshYear: Int = 0,
     @ProtoNumber(90) val merchantRefreshChances: Int = 1,
     @ProtoNumber(92) val merchantLastRefreshChanceGrantYear: Int = 0,
-    @ProtoNumber(91) val gameEventRecords: List<SerializableGameEventRecord> = emptyList()
+    @ProtoNumber(91) val gameEventRecords: List<SerializableGameEventRecord> = emptyList(),
+    @ProtoNumber(93) val openRecruitmentLastPaidMonth: Int = 0
 )
 
 @Serializable
@@ -838,7 +839,18 @@ data class SerializableSectPolicies(
     @ProtoNumber(26) val autoMultiResidenceFocused: Boolean = false,
     @ProtoPacked
     @ProtoNumber(27) val autoMultiResidenceRootCounts: List<Int> = emptyList(),
-    @ProtoNumber(28) val autoMultiResidenceThreshold: Int = 1
+    @ProtoNumber(28) val autoMultiResidenceThreshold: Int = 1,
+    // 新增10项政策（v4.0.66+）
+    @ProtoNumber(29) val openRecruitment: Boolean = false,
+    @ProtoNumber(30) val asceticTraining: Boolean = false,
+    @ProtoNumber(31) val curfew: Boolean = false,
+    @ProtoNumber(32) val rewardPunish: Boolean = false,
+    @ProtoNumber(33) val strictTraining: Boolean = false,
+    @ProtoNumber(34) val relaxedMgmt: Boolean = false,
+    @ProtoNumber(35) val spiritSpring: Boolean = false,
+    @ProtoNumber(36) val frugality: Boolean = false,
+    @ProtoNumber(37) val moralEducation: Boolean = false,
+    @ProtoNumber(38) val benevolentGovernance: Boolean = false
 )
 
 @Serializable

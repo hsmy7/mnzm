@@ -413,6 +413,7 @@ private fun SectPoliciesDialog(
                     val viceBonus = productionViewModel.getViceSectMasterIntelligenceBonus()
                     val viceBonusText = if (viceBonus > 0) " (副宗主加成+${(viceBonus * 100).toInt()}%)" else ""
 
+                    // ═══ 生产类 ═══
                     PolicyItem(
                         title = "灵矿增产",
                         effect = "灵石产出+20%$viceBonusText",
@@ -424,7 +425,7 @@ private fun SectPoliciesDialog(
                     PolicyItem(
                         title = "丹道激励",
                         effect = "炼丹成功率+10%$viceBonusText",
-                        cost = "每月消耗3000灵石",
+                        cost = "炼丹时间+10%，月耗3000灵石",
                         checked = sectPolicies?.alchemyIncentive ?: false,
                         onCheckedChange = { productionViewModel.toggleAlchemyIncentive() }
                     )
@@ -432,7 +433,7 @@ private fun SectPoliciesDialog(
                     PolicyItem(
                         title = "锻造激励",
                         effect = "锻造成功率+10%$viceBonusText",
-                        cost = "每月消耗3000灵石",
+                        cost = "锻造时间+10%，月耗3000灵石",
                         checked = sectPolicies?.forgeIncentive ?: false,
                         onCheckedChange = { productionViewModel.toggleForgeIncentive() }
                     )
@@ -440,15 +441,32 @@ private fun SectPoliciesDialog(
                     PolicyItem(
                         title = "灵药培育",
                         effect = "灵药生长速度+20%$viceBonusText",
-                        cost = "每月消耗3000灵石",
+                        cost = "月耗3000灵石",
                         checked = sectPolicies?.herbCultivation ?: false,
                         onCheckedChange = { productionViewModel.toggleHerbCultivation() }
                     )
 
                     PolicyItem(
+                        title = "灵泉灌溉",
+                        effect = "灵田产量+15%",
+                        cost = "月耗2000灵石",
+                        checked = sectPolicies?.spiritSpring ?: false,
+                        onCheckedChange = { productionViewModel.toggleSpiritSpring() }
+                    )
+
+                    PolicyItem(
+                        title = "开源节流",
+                        effect = "所有弟子年俸-30%",
+                        cost = "年俸发放不加忠诚",
+                        checked = sectPolicies?.frugality ?: false,
+                        onCheckedChange = { productionViewModel.toggleFrugality() }
+                    )
+
+                    // ═══ 修行类 ═══
+                    PolicyItem(
                         title = "修行津贴",
                         effect = "化神境以下弟子修炼速度+15%$viceBonusText",
-                        cost = "每月消耗4000灵石",
+                        cost = "300灵石/化神下弟子/月",
                         checked = sectPolicies?.cultivationSubsidy ?: false,
                         onCheckedChange = { productionViewModel.toggleCultivationSubsidy() }
                     )
@@ -456,17 +474,83 @@ private fun SectPoliciesDialog(
                     PolicyItem(
                         title = "功法研习",
                         effect = "功法修炼速度+20%$viceBonusText",
-                        cost = "每月消耗4000灵石",
+                        cost = "月耗4000灵石",
                         checked = sectPolicies?.manualResearch ?: false,
                         onCheckedChange = { productionViewModel.toggleManualResearch() }
                     )
 
                     PolicyItem(
+                        title = "苦修令",
+                        effect = "修炼速度+25%$viceBonusText",
+                        cost = "800灵石/弟子/月",
+                        checked = sectPolicies?.asceticTraining ?: false,
+                        onCheckedChange = { productionViewModel.toggleAsceticTraining() }
+                    )
+
+                    // ═══ 治安类 ═══
+                    PolicyItem(
                         title = "增强治安",
                         effect = "执法堂抓捕率+20%$viceBonusText",
-                        cost = "每月消耗3000灵石",
+                        cost = "弟子忠诚-1/月，月耗3000灵石",
                         checked = sectPolicies?.enhancedSecurity ?: false,
                         onCheckedChange = { productionViewModel.toggleEnhancedSecurity() }
+                    )
+
+                    PolicyItem(
+                        title = "宵禁",
+                        effect = "治安事件-30%，叛逃-20%",
+                        cost = "弟子忠诚-1/月，月耗1000灵石",
+                        checked = sectPolicies?.curfew ?: false,
+                        onCheckedChange = { productionViewModel.toggleCurfew() }
+                    )
+
+                    PolicyItem(
+                        title = "赏善罚恶",
+                        effect = "执法效率+30%",
+                        cost = "月耗3000灵石",
+                        checked = sectPolicies?.rewardPunish ?: false,
+                        onCheckedChange = { productionViewModel.toggleRewardPunish() }
+                    )
+
+                    // ═══ 管理类 ═══
+                    PolicyItem(
+                        title = "广纳门徒",
+                        effect = "招募弟子数上限+50%",
+                        cost = "5万灵石/3年",
+                        checked = sectPolicies?.openRecruitment ?: false,
+                        onCheckedChange = { productionViewModel.toggleOpenRecruitment() }
+                    )
+
+                    PolicyItem(
+                        title = "严苛训练",
+                        effect = "战斗伤害+5%",
+                        cost = "弟子忠诚-1/月，月耗2万灵石",
+                        checked = sectPolicies?.strictTraining ?: false,
+                        onCheckedChange = { productionViewModel.toggleStrictTraining() }
+                    )
+
+                    PolicyItem(
+                        title = "松弛管理",
+                        effect = "弟子忠诚+2/月",
+                        cost = "弟子修炼速度-10%，月耗3000灵石",
+                        checked = sectPolicies?.relaxedMgmt ?: false,
+                        onCheckedChange = { productionViewModel.toggleRelaxedMgmt() }
+                    )
+
+                    PolicyItem(
+                        title = "教化之道",
+                        effect = "每月所有弟子道德+1（上限70）",
+                        cost = "100灵石/弟子/月",
+                        checked = sectPolicies?.moralEducation ?: false,
+                        onCheckedChange = { productionViewModel.toggleMoralEducation() }
+                    )
+
+                    PolicyItem(
+                        title = "仁政爱徒",
+                        effect = "每月所有弟子忠诚+1（上限100）",
+                        cost = "100灵石/弟子/月",
+                        checked = sectPolicies?.benevolentGovernance ?: false,
+                        onCheckedChange = { productionViewModel.toggleBenevolentGovernance() }
                     )
                 }
                 Spacer(modifier = Modifier.height(16.dp))

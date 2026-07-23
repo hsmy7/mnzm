@@ -847,15 +847,18 @@ class GameEngineCore @Inject constructor(
             var policyResult: PolicyCostResult = PolicyCostResult.AllPaid
             stateStore.update {
                 policyResult = cultivationService.processPolicyCosts(this)
+                // 政策月度非消耗效果（道德/忠诚增减等，与扣费同事务）
+                cultivationService.processPolicyMonthlyEffects(this)
                 // AI 预计算进攻目标（写入 aiSectBeastDirectTargets），巡视楼处理时会查看
                 aiSectBeastAttackProcessor.precomputeTargets(this, gameData.gameYear, gameData.gameMonth)
                 systemManager.onMonthlyEvent(this)
                 processBloodRefinementCompletions()
             }
             if (policyResult is PolicyCostResult.SomeDisabled) {
+                val disabledList = (policyResult as PolicyCostResult.SomeDisabled).disabledPolicies
                 cultivationService.checkpointAllProduction()
-                DomainLog.w(TAG, "tickInternal: policies auto-disabled due to insufficient " +
-                    "spirit stones, checkpointAllProduction triggered")
+                DomainLog.w(TAG, "tickInternal: policies auto-disabled due to insufficient spirit stones: " +
+                    "${disabledList.joinToString(", ")}")
             }
             // 月度事件（内部有多事务操作，后续需重构为单事务）
             cultivationService.processMonthlyEvents()

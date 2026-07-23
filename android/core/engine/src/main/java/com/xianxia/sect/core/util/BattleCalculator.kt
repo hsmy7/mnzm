@@ -66,7 +66,10 @@ object BattleCalculator {
     /**
      * 从 Combatant 的 Buff 列表构建战斗乘区。
      */
-    fun buildDamageZones(attacker: Combatant): DamageZones {
+    /**
+     * @param extraAmplification 外部额外增伤（如政策加成），直接加到 damageAmplification 乘区
+     */
+    fun buildDamageZones(attacker: Combatant, extraAmplification: Double = 0.0): DamageZones {
         val atkBoost = attacker.buffs
             .filter { it.type == BuffType.PHYSICAL_ATTACK_BOOST || it.type == BuffType.MAGIC_ATTACK_BOOST }
             .sumOf { it.value }
@@ -85,7 +88,7 @@ object BattleCalculator {
 
         return DamageZones(
             attackBuffs = atkBoost - atkReduce,
-            damageAmplification = dmgBoost,
+            damageAmplification = dmgBoost + extraAmplification,
             damageReduction = dmgReduce,
             critDamageBonus = critDmg,
         )

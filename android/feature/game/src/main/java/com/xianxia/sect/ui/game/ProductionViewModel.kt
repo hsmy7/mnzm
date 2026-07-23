@@ -93,8 +93,6 @@ class ProductionViewModel @Inject constructor(
 
     fun isSpiritMineBoostEnabled(): Boolean = sectPolicyToggle.isSpiritMineBoostEnabled()
 
-    fun getSpiritMineBoostEffect(): Double = sectPolicyToggle.getSpiritMineBoostEffect()
-
     fun toggleEnhancedSecurity(): Boolean {
         val currentGameData = gameEngine.gameDataSnapshot ?: return false
         viewModelScope.launch {
@@ -105,8 +103,6 @@ class ProductionViewModel @Inject constructor(
     }
 
     fun isEnhancedSecurityEnabled(): Boolean = sectPolicyToggle.isEnhancedSecurityEnabled()
-
-    fun getEnhancedSecurityBaseBonus(): Double = sectPolicyToggle.getEnhancedSecurityBaseBonus()
 
     fun toggleAlchemyIncentive(): Boolean {
         val currentGameData = gameEngine.gameDataSnapshot ?: return false
@@ -162,6 +158,100 @@ class ProductionViewModel @Inject constructor(
     }
 
     fun isManualResearchEnabled(): Boolean = sectPolicyToggle.isManualResearchEnabled()
+
+    // ══════════════════════════════════════════════
+    // 新增政策开关方法
+    // ══════════════════════════════════════════════
+
+    fun toggleOpenRecruitment(): Boolean {
+        viewModelScope.launch {
+            val result = sectPolicyToggle.toggleOpenRecruitment()
+            if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
+        }
+        return true
+    }
+    fun isOpenRecruitmentEnabled(): Boolean = sectPolicyToggle.isOpenRecruitmentEnabled()
+
+    fun toggleAsceticTraining(): Boolean {
+        viewModelScope.launch {
+            val result = sectPolicyToggle.toggleAsceticTraining()
+            if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
+        }
+        return true
+    }
+    fun isAsceticTrainingEnabled(): Boolean = sectPolicyToggle.isAsceticTrainingEnabled()
+
+    fun toggleCurfew(): Boolean {
+        viewModelScope.launch {
+            val result = sectPolicyToggle.toggleCurfew()
+            if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
+        }
+        return true
+    }
+    fun isCurfewEnabled(): Boolean = sectPolicyToggle.isCurfewEnabled()
+
+    fun toggleRewardPunish(): Boolean {
+        viewModelScope.launch {
+            val result = sectPolicyToggle.toggleRewardPunish()
+            if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
+        }
+        return true
+    }
+    fun isRewardPunishEnabled(): Boolean = sectPolicyToggle.isRewardPunishEnabled()
+
+    fun toggleStrictTraining(): Boolean {
+        viewModelScope.launch {
+            val result = sectPolicyToggle.toggleStrictTraining()
+            if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
+        }
+        return true
+    }
+    fun isStrictTrainingEnabled(): Boolean = sectPolicyToggle.isStrictTrainingEnabled()
+
+    fun toggleRelaxedMgmt(): Boolean {
+        viewModelScope.launch {
+            val result = sectPolicyToggle.toggleRelaxedMgmt()
+            if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
+        }
+        return true
+    }
+    fun isRelaxedMgmtEnabled(): Boolean = sectPolicyToggle.isRelaxedMgmtEnabled()
+
+    fun toggleSpiritSpring(): Boolean {
+        viewModelScope.launch {
+            val result = sectPolicyToggle.toggleSpiritSpring()
+            if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
+        }
+        return true
+    }
+    fun isSpiritSpringEnabled(): Boolean = sectPolicyToggle.isSpiritSpringEnabled()
+
+    fun toggleFrugality(): Boolean {
+        viewModelScope.launch {
+            val result = sectPolicyToggle.toggleFrugality()
+            if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
+        }
+        return true
+    }
+    fun isFrugalityEnabled(): Boolean = sectPolicyToggle.isFrugalityEnabled()
+
+    fun toggleMoralEducation(): Boolean {
+        viewModelScope.launch {
+            val result = sectPolicyToggle.toggleMoralEducation()
+            if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
+        }
+        return true
+    }
+    fun isMoralEducationEnabled(): Boolean = sectPolicyToggle.isMoralEducationEnabled()
+
+    fun toggleBenevolentGovernance(): Boolean {
+        viewModelScope.launch {
+            val result = sectPolicyToggle.toggleBenevolentGovernance()
+            if (result is SectPolicyToggleUseCase.ToggleResult.Error) showError(result.message)
+        }
+        return true
+    }
+    fun isBenevolentGovernanceEnabled(): Boolean = sectPolicyToggle.isBenevolentGovernanceEnabled()
 
     fun assignDiscipleToLibrarySlot(slotIndex: Int, discipleId: String, discipleName: String) {
         viewModelScope.launch {

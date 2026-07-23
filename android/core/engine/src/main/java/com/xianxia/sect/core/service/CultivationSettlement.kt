@@ -69,13 +69,19 @@ class CultivationSettlement @Inject constructor(
     /**
      * 年度年俸发放 — 每年 1 月在年度结算路径执行。
      *
-     * 自动售卖逻辑统一通过 [SpiritStoneWallet] 处理，消除重复。
+     * 受开源节流政策影响：
+     * - 年俸金额-30%
+     * - 不发忠诚度
      */
     fun processAnnualSalary(year: Int) {
         val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
         val plan = calculateSalaryPlan(maxLoyalty) ?: return
 
         stateStore.update {
+            val data = gameData
+            val isFrugality = data.sectPolicies.frugality
+            val salaryMultiplier = if (isFrugality) (1.0 - GameConfig.PolicyConfig.FRUGALITY_SALARY_REDUCTION) else 1.0
+
             val result = spiritStoneWallet.deduct(this, plan.totalRequired, SpiritStoneGrade.LOW,
                 SpiritStoneReason.Salary, SpiritStoneSource.Salary, true)
             if (result !is DeductResult.Success) return@update
@@ -84,11 +90,13 @@ class CultivationSettlement @Inject constructor(
             val updatedDisciples = currentDisciples.map { disciple ->
                 val salary = plan.eligibleSalaries[disciple.id]
                 if (salary != null && salary > 0L) {
-                    val newLoyalty = if (disciple.skills.loyalty < maxLoyalty)
+                    val actualSalary = (salary * salaryMultiplier).roundToLong()
+                    // 开源节流政策下不发忠诚
+                    val newLoyalty = if (!isFrugality && disciple.skills.loyalty < maxLoyalty)
                         disciple.skills.loyalty + 1 else disciple.skills.loyalty
                     disciple.copy(
                         equipment = disciple.equipment.copy(
-                            storageBagSpiritStones = disciple.equipment.storageBagSpiritStones + salary
+                            storageBagSpiritStones = disciple.equipment.storageBagSpiritStones + actualSalary
                         ),
                         skills = disciple.skills.copy(
                             salaryPaidCount = disciple.skills.salaryPaidCount + 1,
@@ -129,30 +137,39 @@ class CultivationSettlement @Inject constructor(
     /**
      * 突破时补发当年年俸 — 仅发当年 1 年份，不累年。
      * 灵石不足则不发（自动售卖由 [SpiritStoneWallet] 统一处理）。
+     * 受开源节流政策影响：金额-30% 且不发忠诚。
      */
     fun settleSalaryOnBreakthrough(discipleId: String, currentYear: Int) {
         val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
 
         stateStore.update {
             val tables = discipleTables
+            val data = gameData
+            val isFrugality = data.sectPolicies.frugality
+            val salaryMultiplier = if (isFrugality) (1.0 - GameConfig.PolicyConfig.FRUGALITY_SALARY_REDUCTION) else 1.0
+
             val discipleIntId = discipleId.toIntOrNull() ?: return@update
             if (!tables.isAlive.contains(discipleIntId) || tables.isAlive[discipleIntId] != 1) return@update
             val realm = tables.realms.getOrDefault(discipleIntId, 9)
-            val enabledConfig = gameData.yearlySalaryEnabled
+            val enabledConfig = data.yearlySalaryEnabled
             if (enabledConfig[realm] != true) return@update
-            val salary = (gameData.yearlySalary[realm] ?: 0).toLong()
+            val salary = (data.yearlySalary[realm] ?: 0).toLong()
             if (salary <= 0) return@update
 
-            val result = spiritStoneWallet.deduct(this, salary, SpiritStoneGrade.LOW,
+            val actualSalary = (salary * salaryMultiplier).roundToLong()
+            val result = spiritStoneWallet.deduct(this, actualSalary, SpiritStoneGrade.LOW,
                 SpiritStoneReason.Salary, SpiritStoneSource.Salary, true)
             if (result !is DeductResult.Success) return@update
             // ★ 列直写替代 assembleAll → map → replaceAll
             val currentStones = tables.storageBagSpiritStones.getOrDefault(discipleIntId, 0L)
-            tables.storageBagSpiritStones[discipleIntId] = currentStones + salary
+            tables.storageBagSpiritStones[discipleIntId] = currentStones + actualSalary
             tables.salaryPaidCounts[discipleIntId] =
                 tables.salaryPaidCounts.getOrDefault(discipleIntId, 0) + 1
-            tables.loyalties[discipleIntId] =
-                (tables.loyalties.getOrDefault(discipleIntId, 0) + 1).coerceAtMost(maxLoyalty)
+            // 开源节流政策下不发忠诚
+            if (!isFrugality) {
+                tables.loyalties[discipleIntId] =
+                    (tables.loyalties.getOrDefault(discipleIntId, 0) + 1).coerceAtMost(maxLoyalty)
+            }
         }
     }
 
@@ -174,6 +191,7 @@ class CultivationSettlement @Inject constructor(
     /**
      * 政策月度灵石扣除。
      * 通过 [SpiritStoneWallet] 逐项扣除，账本可追溯。
+     * 支持固定月消耗、按弟子数计费、周期性消耗三种模式。
      * @return [PolicyCostResult] — AllPaid 或 SomeDisabled
      */
     fun processPolicyCosts(state: MutableGameState): PolicyCostResult {
@@ -182,7 +200,7 @@ class CultivationSettlement @Inject constructor(
         val deductedPolicies = mutableListOf<Pair<String, Long>>()
 
         fun tryDeduct(cost: Long, name: String, isEnabled: Boolean, disable: (SectPolicies) -> SectPolicies) {
-            if (!isEnabled) return@tryDeduct
+            if (!isEnabled || cost <= 0L) return@tryDeduct
             when (spiritStoneWallet.deduct(state, cost, SpiritStoneGrade.LOW,
                 SpiritStoneReason.PolicyCost, SpiritStoneSource.Internal, true)) {
                 is DeductResult.Success -> deductedPolicies.add(name to cost)
@@ -193,17 +211,111 @@ class CultivationSettlement @Inject constructor(
             }
         }
 
-        tryDeduct(GameConfig.PolicyConfig.ENHANCED_SECURITY_COST.toLong(), "增强治安", data.sectPolicies.enhancedSecurity) { it.copy(enhancedSecurity = false) }
-        tryDeduct(GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_COST.toLong(), "丹道激励", data.sectPolicies.alchemyIncentive) { it.copy(alchemyIncentive = false) }
-        tryDeduct(GameConfig.PolicyConfig.FORGE_INCENTIVE_COST.toLong(), "锻造激励", data.sectPolicies.forgeIncentive) { it.copy(forgeIncentive = false) }
-        tryDeduct(GameConfig.PolicyConfig.HERB_CULTIVATION_COST.toLong(), "灵药培育", data.sectPolicies.herbCultivation) { it.copy(herbCultivation = false) }
-        tryDeduct(GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_COST.toLong(), "修行津贴", data.sectPolicies.cultivationSubsidy) { it.copy(cultivationSubsidy = false) }
-        tryDeduct(GameConfig.PolicyConfig.MANUAL_RESEARCH_COST.toLong(), "功法研习", data.sectPolicies.manualResearch) { it.copy(manualResearch = false) }
+        // ── 固定月消耗政策 ──
+        tryDeduct(GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_MONTHLY, "丹道激励", data.sectPolicies.alchemyIncentive) { it.copy(alchemyIncentive = false) }
+        tryDeduct(GameConfig.PolicyConfig.FORGE_INCENTIVE_MONTHLY, "锻造激励", data.sectPolicies.forgeIncentive) { it.copy(forgeIncentive = false) }
+        tryDeduct(GameConfig.PolicyConfig.HERB_CULTIVATION_MONTHLY, "灵药培育", data.sectPolicies.herbCultivation) { it.copy(herbCultivation = false) }
+        tryDeduct(GameConfig.PolicyConfig.MANUAL_RESEARCH_MONTHLY, "功法研习", data.sectPolicies.manualResearch) { it.copy(manualResearch = false) }
+        tryDeduct(GameConfig.PolicyConfig.ENHANCED_SECURITY_MONTHLY, "增强治安", data.sectPolicies.enhancedSecurity) { it.copy(enhancedSecurity = false) }
+        tryDeduct(GameConfig.PolicyConfig.CURFEW_MONTHLY, "宵禁", data.sectPolicies.curfew) { it.copy(curfew = false) }
+        tryDeduct(GameConfig.PolicyConfig.REWARD_PUNISH_MONTHLY, "赏善罚恶", data.sectPolicies.rewardPunish) { it.copy(rewardPunish = false) }
+        tryDeduct(GameConfig.PolicyConfig.STRICT_TRAINING_MONTHLY, "严苛训练", data.sectPolicies.strictTraining) { it.copy(strictTraining = false) }
+        tryDeduct(GameConfig.PolicyConfig.RELAXED_MGMT_MONTHLY, "松弛管理", data.sectPolicies.relaxedMgmt) { it.copy(relaxedMgmt = false) }
+        tryDeduct(GameConfig.PolicyConfig.SPIRIT_SPRING_MONTHLY, "灵泉灌溉", data.sectPolicies.spiritSpring) { it.copy(spiritSpring = false) }
+
+        // ── 按弟子数计费政策 ──
+        val totalDisciples = state.discipleTables.ids.count { id ->
+            state.discipleTables.isAlive.getOrDefault(id, 0) == 1
+        }
+        val huashenBelowCount = state.discipleTables.ids.count { id ->
+            state.discipleTables.isAlive.getOrDefault(id, 0) == 1 &&
+                state.discipleTables.realms.getOrDefault(id, 9) > 5 // realm 5=化神, >5=化神下
+        }
+
+        if (data.sectPolicies.cultivationSubsidy) {
+            val cost = GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_PER_DISCIPLE * huashenBelowCount
+            tryDeduct(cost, "修行津贴", true) { it.copy(cultivationSubsidy = false) }
+        }
+        if (data.sectPolicies.asceticTraining) {
+            val cost = GameConfig.PolicyConfig.ASCETIC_TRAINING_PER_DISCIPLE * totalDisciples
+            tryDeduct(cost, "苦修令", true) { it.copy(asceticTraining = false) }
+        }
+        if (data.sectPolicies.moralEducation) {
+            val cost = GameConfig.PolicyConfig.MORAL_EDUCATION_PER_DISCIPLE * totalDisciples
+            tryDeduct(cost, "教化之道", true) { it.copy(moralEducation = false) }
+        }
+        if (data.sectPolicies.benevolentGovernance) {
+            val cost = GameConfig.PolicyConfig.BENEVOLENT_GOVERNANCE_PER_DISCIPLE * totalDisciples
+            tryDeduct(cost, "仁政爱徒", true) { it.copy(benevolentGovernance = false) }
+        }
+
+        // ── 周期性消耗 ──
+        // 广纳门徒：每3年扣一次（冷却期内不扣）
+        if (data.sectPolicies.openRecruitment) {
+            val currentMonth = data.gameYear * 12 + data.gameMonth
+            if (currentMonth - data.openRecruitmentLastPaidMonth >= GameConfig.PolicyConfig.OPEN_RECRUITMENT_COOLDOWN_MONTHS) {
+                tryDeduct(GameConfig.PolicyConfig.OPEN_RECRUITMENT_COST, "广纳门徒", true) { it.copy(openRecruitment = false) }
+                // 记录本次付费月份
+                if (deductedPolicies.any { it.first == "广纳门徒" }) {
+                    state.gameData = state.gameData.copy(openRecruitmentLastPaidMonth = currentMonth)
+                }
+            }
+        }
 
         return if (disabledPolicies.isNotEmpty()) {
             PolicyCostResult.SomeDisabled(disabledPolicies, deductedPolicies)
         } else {
             PolicyCostResult.AllPaid
+        }
+    }
+
+    /**
+     * 政策月度非消耗类效果。
+     * 在月度 tick 中 processPolicyCosts 之后调用。
+     * - 教化之道：所有弟子道德+1（上限70）
+     * - 仁政爱徒：所有弟子忠诚+1（上限100）
+     * - 严苛训练：所有弟子忠诚-1（下限0）
+     * - 增强治安：所有弟子忠诚-1（下限0）
+     * - 宵禁：所有弟子忠诚-1（下限0）
+     * - 松弛管理：所有弟子忠诚+2（上限100）
+     */
+    fun processPolicyMonthlyEffects(state: MutableGameState) {
+        val data = state.gameData
+        val tables = state.discipleTables
+        val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
+        val maxMoral = GameConfig.PolicyConfig.MORAL_EDUCATION_MAX
+
+        var moralCount = 0
+        var loyaltyDeltaSum = 0
+        // 单次遍历所有活弟子，合并所有政策的忠诚/道德效果
+        for (id in tables.ids) {
+            if (tables.isAlive.getOrDefault(id, 0) != 1) continue
+
+            // 忠诚净变化（各政策月度忠诚增减汇总）
+            var loyaltyDelta = 0
+            if (data.sectPolicies.benevolentGovernance) loyaltyDelta += GameConfig.PolicyConfig.BENEVOLENT_LOYALTY_PER_MONTH
+            if (data.sectPolicies.relaxedMgmt) loyaltyDelta += GameConfig.PolicyConfig.RELAXED_MGMT_LOYALTY_PER_MONTH
+            if (data.sectPolicies.strictTraining) loyaltyDelta += GameConfig.PolicyConfig.STRICT_TRAINING_LOYALTY_PER_MONTH
+            if (data.sectPolicies.enhancedSecurity) loyaltyDelta += GameConfig.PolicyConfig.ENHANCED_SECURITY_LOYALTY_PER_MONTH
+            if (data.sectPolicies.curfew) loyaltyDelta += GameConfig.PolicyConfig.CURFEW_LOYALTY_PER_MONTH
+            if (loyaltyDelta != 0) {
+                val current = tables.loyalties.getOrDefault(id, 50)
+                tables.loyalties[id] = (current + loyaltyDelta).coerceIn(0, maxLoyalty)
+                loyaltyDeltaSum += loyaltyDelta
+            }
+
+            // 道德变化（教化之道）
+            if (data.sectPolicies.moralEducation) {
+                val current = tables.moralities.getOrDefault(id, 50)
+                if (current < maxMoral) {
+                    tables.moralities[id] = (current + GameConfig.PolicyConfig.MORAL_EDUCATION_PER_MONTH).coerceIn(0, maxMoral)
+                    moralCount++
+                }
+            }
+        }
+        if (data.sectPolicies.moralEducation || loyaltyDeltaSum != 0) {
+            DomainLog.d(TAG, "processPolicyMonthlyEffects: moralEducation↑${moralCount}人, " +
+                "loyalty净变化=${if (loyaltyDeltaSum > 0) "+" else ""}$loyaltyDeltaSum")
         }
     }
 

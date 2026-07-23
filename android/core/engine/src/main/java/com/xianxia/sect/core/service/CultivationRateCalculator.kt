@@ -35,9 +35,22 @@ class CultivationRateCalculator @Inject constructor(
         val (wenDaoElderBonus, wenDaoMastersBonus) = calculatePreachingBonuses(disciple, data, tables, "outer")
         val (qingyunElderBonus, qingyunMastersBonus) = calculatePreachingBonuses(disciple, data, tables, "inner")
 
+        // 修行津贴：化神下(realm>5)弟子+15%
         var cultivationSubsidyBonus = 0.0
         if (data.sectPolicies.cultivationSubsidy && disciple.realm > 5) {
-            cultivationSubsidyBonus = GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_BASE_EFFECT
+            cultivationSubsidyBonus = GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_EFFECT
+        }
+
+        // 苦修令：全体+25%
+        var asceticTrainingBonus = 0.0
+        if (data.sectPolicies.asceticTraining) {
+            asceticTrainingBonus = GameConfig.PolicyConfig.ASCETIC_TRAINING_EFFECT
+        }
+
+        // 松弛管理：修炼速度-10%
+        var relaxedMgmtPenalty = 0.0
+        if (data.sectPolicies.relaxedMgmt) {
+            relaxedMgmtPenalty = -GameConfig.PolicyConfig.RELAXED_MGMT_CULTIVATION_PENALTY
         }
 
         val manualInstanceMap = stateStore.manualInstances.value.associateBy { it.id }
@@ -59,6 +72,9 @@ class CultivationRateCalculator @Inject constructor(
             } else 0.0
         } ?: 0.0
 
+        // 合并所有政策修炼加成/减益（送入同一个乘区）
+        val totalPolicyBonus = cultivationSubsidyBonus + asceticTrainingBonus + relaxedMgmtPenalty
+
         val griefPenalty = if (DiscipleStatCalculator.isGrieving(disciple.social.griefEndYear, data.gameYear)) {
             DiscipleStatCalculator.GRIEF_CULTIVATION_SPEED_PENALTY
         } else {
@@ -72,7 +88,7 @@ class CultivationRateCalculator @Inject constructor(
             buildingBonus = buildingBonus,
             preachingElderBonus = wenDaoElderBonus + qingyunElderBonus,
             preachingMastersBonus = wenDaoMastersBonus + qingyunMastersBonus,
-            cultivationSubsidyBonus = cultivationSubsidyBonus,
+            cultivationSubsidyBonus = totalPolicyBonus,
             parentCultivationBonus = parentCultivationBonus,
             griefCultivationSpeedPenalty = griefPenalty,
             masterDiscipleBonus = masterDiscipleBonus

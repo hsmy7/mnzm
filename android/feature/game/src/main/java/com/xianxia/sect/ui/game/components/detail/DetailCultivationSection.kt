@@ -106,7 +106,7 @@ internal fun calculatePreachingBonusesForDisplay(
 
     var cultivationSubsidyBonus = 0.0
     if (sectPolicies != null && sectPolicies.cultivationSubsidy && dRealm > 5) {
-        cultivationSubsidyBonus = GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_BASE_EFFECT
+        cultivationSubsidyBonus = GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_EFFECT
     }
 
     return Triple(elderBonus, mastersBonus, cultivationSubsidyBonus)

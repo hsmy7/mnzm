@@ -325,7 +325,18 @@ internal class WorldAndSectConverter {
             autoSingleResidenceThreshold = policies.autoSingleResidenceThreshold,
             autoMultiResidenceFocused = policies.autoMultiResidenceFocused,
             autoMultiResidenceRootCounts = policies.autoMultiResidenceRootCounts,
-            autoMultiResidenceThreshold = policies.autoMultiResidenceThreshold
+            autoMultiResidenceThreshold = policies.autoMultiResidenceThreshold,
+            // 新增10项政策
+            openRecruitment = policies.openRecruitment,
+            asceticTraining = policies.asceticTraining,
+            curfew = policies.curfew,
+            rewardPunish = policies.rewardPunish,
+            strictTraining = policies.strictTraining,
+            relaxedMgmt = policies.relaxedMgmt,
+            spiritSpring = policies.spiritSpring,
+            frugality = policies.frugality,
+            moralEducation = policies.moralEducation,
+            benevolentGovernance = policies.benevolentGovernance
         )
     }
 
@@ -358,7 +369,18 @@ internal class WorldAndSectConverter {
             autoSingleResidenceThreshold = data.autoSingleResidenceThreshold,
             autoMultiResidenceFocused = data.autoMultiResidenceFocused,
             autoMultiResidenceRootCounts = data.autoMultiResidenceRootCounts,
-            autoMultiResidenceThreshold = data.autoMultiResidenceThreshold
+            autoMultiResidenceThreshold = data.autoMultiResidenceThreshold,
+            // 新增10项政策
+            openRecruitment = data.openRecruitment,
+            asceticTraining = data.asceticTraining,
+            curfew = data.curfew,
+            rewardPunish = data.rewardPunish,
+            strictTraining = data.strictTraining,
+            relaxedMgmt = data.relaxedMgmt,
+            spiritSpring = data.spiritSpring,
+            frugality = data.frugality,
+            moralEducation = data.moralEducation,
+            benevolentGovernance = data.benevolentGovernance
         )
     }
 

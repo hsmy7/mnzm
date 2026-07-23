@@ -363,9 +363,13 @@ class ProductionProcessor @Inject constructor(
         val elderBonus = HerbGardenAuraService.calculateElderMaturityBonus(
             gameData.elderSlots, allDisciples
         )
-        val policyBonus = if (gameData.sectPolicies.herbCultivation) {
-            GameConfig.PolicyConfig.HERB_CULTIVATION_BASE_EFFECT
+        val herbPolicyBonus = if (gameData.sectPolicies.herbCultivation) {
+            GameConfig.PolicyConfig.HERB_CULTIVATION_EFFECT
         } else 0.0
+        val springBonus = if (gameData.sectPolicies.spiritSpring) {
+            GameConfig.PolicyConfig.SPIRIT_SPRING_YIELD
+        } else 0.0
+        val policyBonus = herbPolicyBonus + springBonus
         val auraBonus = if (HerbGardenAuraService.isSpiritFieldInAura(
                 plant.buildingInstanceId, gameData.placedBuildings
             )) {
@@ -392,7 +396,7 @@ class ProductionProcessor @Inject constructor(
         if (idleSlotIndices.isEmpty()) return
 
         val alchemyPolicyBonus = if (data.sectPolicies.alchemyIncentive)
-            GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT else 0.0
+            GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_EFFECT else 0.0
 
         val allDisciples = stateStore.disciples.value
 
@@ -482,7 +486,7 @@ class ProductionProcessor @Inject constructor(
 
         val allRecipes = ForgeRecipeDatabase.getAllRecipes().sortedByDescending { it.rarity }
         val forgePolicyBonus = if (data.sectPolicies.forgeIncentive)
-            GameConfig.PolicyConfig.FORGE_INCENTIVE_BASE_EFFECT else 0.0
+            GameConfig.PolicyConfig.FORGE_INCENTIVE_EFFECT else 0.0
 
         val allDisciples = stateStore.disciples.value
 
@@ -827,7 +831,7 @@ class ProductionProcessor @Inject constructor(
     ) {
         val gd = state.gameData
         val policyBonus = if (gd.sectPolicies.alchemyIncentive)
-            GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT else 0.0
+            GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_EFFECT else 0.0
 
         val idleSlotIndices = slots
             .filter { it.buildingType == BuildingType.ALCHEMY }
@@ -874,7 +878,7 @@ class ProductionProcessor @Inject constructor(
     ) {
         val gd = state.gameData
         val policyBonus = if (gd.sectPolicies.forgeIncentive)
-            GameConfig.PolicyConfig.FORGE_INCENTIVE_BASE_EFFECT else 0.0
+            GameConfig.PolicyConfig.FORGE_INCENTIVE_EFFECT else 0.0
         val allRecipes = ForgeRecipeDatabase.getAllRecipes().sortedByDescending { it.rarity }
         val materialIndex = state.materials.all().groupBy { it.name to it.rarity }
             .mapValues { (_, list) -> list.sumOf { it.quantity } }
@@ -1163,10 +1167,10 @@ class ProductionProcessor @Inject constructor(
         val policyBonus = when (slot.buildingType) {
             BuildingType.ALCHEMY ->
                 if (data.sectPolicies.alchemyIncentive)
-                    GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_BASE_EFFECT else 0.0
+                    GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_EFFECT else 0.0
             BuildingType.FORGE ->
                 if (data.sectPolicies.forgeIncentive)
-                    GameConfig.PolicyConfig.FORGE_INCENTIVE_BASE_EFFECT else 0.0
+                    GameConfig.PolicyConfig.FORGE_INCENTIVE_EFFECT else 0.0
             else -> 0.0
         }
         return (baseRate + policyBonus).coerceIn(0.0, 1.0)

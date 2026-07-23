@@ -66,7 +66,11 @@ class LawEnforcementProcessor @Inject constructor(
             }
         }
         if (data.sectPolicies.enhancedSecurity) {
-            captureRate += GameConfig.PolicyConfig.ENHANCED_SECURITY_BASE_EFFECT
+            captureRate += GameConfig.PolicyConfig.ENHANCED_SECURITY_EFFECT
+        }
+        // 赏善罚恶：执法效率+30%
+        if (data.sectPolicies.rewardPunish) {
+            captureRate += GameConfig.PolicyConfig.REWARD_PUNISH_EFFECT
         }
         return captureRate.coerceIn(0.0, 1.0)
     }
@@ -110,7 +114,9 @@ class LawEnforcementProcessor @Inject constructor(
             val stats = DiscipleStatCalculator.getBaseStats(disciple)
             val effectiveMorality = stats.morality
             val theftProb = ((moralThreshold - effectiveMorality) * GameConfig.LawEnforcementConfig.PROB_PER_POINT).coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
-            if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() < theftProb) {
+            // 宵禁：治安事件概率-30%
+            val effectiveTheftProb = if (currentData.sectPolicies.curfew) theftProb * (1.0 - GameConfig.PolicyConfig.CURFEW_EVENT_REDUCTION) else theftProb
+            if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() < effectiveTheftProb) {
                 val caught = tryGuardCatch(disciple, warehouses, garrisons, captureRate)
                 if (caught) {
                     stateStore.update {
