@@ -1321,6 +1321,14 @@ abstract class GameDatabase : RoomDatabase() {
                     db.execSQL("INSERT INTO `disciples_v31` ($cols) SELECT $cols FROM `disciples`")
                     db.execSQL("DROP TABLE IF EXISTS `disciples`")
                     db.execSQL("ALTER TABLE `disciples_v31` RENAME TO `disciples`")
+                    // Room 2.7+ 在迁移后校验 schema，create-copy-drop-rename 会丢失索引，必须重建
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_name` ON `disciples` (`name`)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_realm_realmLayer` ON `disciples` (`realm`, `realmLayer`)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_isAlive_realm` ON `disciples` (`isAlive`, `realm`)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_isAlive_status` ON `disciples` (`isAlive`, `status`)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_discipleType` ON `disciples` (`discipleType`)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_loyalty` ON `disciples` (`loyalty`)")
+                    db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_age` ON `disciples` (`age`)")
                     Log.i(TAG, "Migration 30→31: dropped usage_lastTheftMonth from disciples")
                 } else {
                     Log.i(TAG, "Migration 30→31: usage_lastTheftMonth already absent, skipped")

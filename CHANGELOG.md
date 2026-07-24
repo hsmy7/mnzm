@@ -156,6 +156,10 @@
 - **重构：CaveExplorationProcessor TOCTOU 根除** — `executePlayerDefenseBattle` 全流程（防守方选择→战前结算→组队→战斗→结果应用）移入单次 `stateStore.update`，`selectAndPrepareDefenders`/`buildDefenseTeam` 改为从 `MutableGameState` 参数读取锁内最新状态
 - **文档：架构债务记录精简** — 清除已完成 4 项，仅保留 2 项真正待完成（广告回调透传 / `lastTheftMonths` 写而不读）
 
+#### 迁移崩溃修复
+
+- **修复：MIGRATION_30_31 丢失 disciple 索引致 Room 2.7.0 闪退** — create-copy-drop-rename 循环后未重建 `disciples` 表的 7 个索引。Room 2.7.0 在迁移后校验 schema identity，发现索引缺失抛出 `IllegalStateException`。RENAME 后添加 `CREATE INDEX IF NOT EXISTS` 重建全部索引。迁移测试追加 7 条索引存在性断言防止回归
+
 ## [4.0.66] - 2026-07-23（versionCode=4066）
 
 ### 新功能

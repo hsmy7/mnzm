@@ -47,6 +47,7 @@
       "清理：`THEFT_COOLDOWN_MONTHS`死常量——从`GameConfig.LawEnforcementConfig`移除",
       "清理：月度扫荡路径`lastTheftMonths>=12`冷却判定——`processTheftMonthly`/`processTheftIfNeeded`中移除，替换为年上限检查",
       "测试：`nextGaussian`4测试——种子确定性/99%在±3σ内/均值接近0/参数化验证",
+      "修复：MIGRATION_30_31 create-copy-drop-rename丢失7个弟子索引——Room 2.7.0迁移后校验schema导致闪退。RENAME后重建所有索引",
       "测试：`DiscipleFactoryTest`方差断言更新+技能确定性+批量采样验证",
       "测试：`LawEnforcementProcessorTest`年上限3测试——已达上限/未达上限/道德高跳过+`MAX_THEFT_PER_YEAR`常量测试",
       "修复：月度偷盗扫荡绕过年上限——`processTheftMonthly` for循环未重新检查`annualTheftCount`，导致一次月结算可触发超过`MAX_THEFT_PER_YEAR=3`次的偷盗",

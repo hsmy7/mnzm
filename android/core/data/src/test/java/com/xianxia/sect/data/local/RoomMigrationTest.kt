@@ -434,6 +434,22 @@ class RoomMigrationTest {
             assertTrue("usage_usedFunctionalPillTypes should still exist after migration",
                 columnExists(db, "disciples", "usage_usedFunctionalPillTypes"))
 
+            // 验证所有 7 个索引已重建（Room 2.7+ 迁移后校验 schema 需要索引完整）
+            assertTrue("index_disciples_name should exist",
+                indexExists(db, "disciples", "index_disciples_name"))
+            assertTrue("index_disciples_realm_realmLayer should exist",
+                indexExists(db, "disciples", "index_disciples_realm_realmLayer"))
+            assertTrue("index_disciples_isAlive_realm should exist",
+                indexExists(db, "disciples", "index_disciples_isAlive_realm"))
+            assertTrue("index_disciples_isAlive_status should exist",
+                indexExists(db, "disciples", "index_disciples_isAlive_status"))
+            assertTrue("index_disciples_discipleType should exist",
+                indexExists(db, "disciples", "index_disciples_discipleType"))
+            assertTrue("index_disciples_loyalty should exist",
+                indexExists(db, "disciples", "index_disciples_loyalty"))
+            assertTrue("index_disciples_age should exist",
+                indexExists(db, "disciples", "index_disciples_age"))
+
             db.close()
         } finally {
             context.deleteDatabase(dbName)
