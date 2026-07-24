@@ -371,6 +371,14 @@ class MainActivity : ComponentActivity() {
                                 startActivity(intent)
                                 finish()
                             },
+                            onDeleteSlot = { slot ->
+                                lifecycleScope.launch {
+                                    withContext(Dispatchers.IO) {
+                                        storageFacade.delete(slot)
+                                    }
+                                    showSaveSelectScreen(mode)
+                                }
+                            },
                             onBack = {
                                 showModeSelectionScreen()
                             }

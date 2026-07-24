@@ -300,9 +300,10 @@ fun GameOverlayHost(
             )
         }
         is DialogType.Guide -> {
+            val guideClaimedRewardIds by viewModel.guideClaimedRewardIds.collectAsStateWithLifecycle()
             GuideDialog(
                 gameData = gameData,
-                claimedRewardIds = viewModel.guideClaimedRewardIds.value,
+                claimedRewardIds = guideClaimedRewardIds,
                 allTasks = GuideTaskRegistry.ALL_TASKS,
                 onClaimReward = { taskId -> viewModel.claimGuideReward(taskId) },
                 onDismiss = onDismiss

@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.model.SectPolicies
 import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
@@ -11,6 +12,7 @@ import com.xianxia.sect.core.util.RngPartition
 fun GameEngine.claimGuideReward(taskId: Int): Boolean {
     val task = com.xianxia.sect.core.model.guide.GuideTaskRegistry.getTask(taskId) ?: return false
     val rng = gameRngManager.getRng(RngPartition.SYSTEM)
+    var claimed = false
     stateStore.update {
         val gd = gameData
         if (taskId in gd.guideClaimedRewardIds) return@update
@@ -35,8 +37,20 @@ fun GameEngine.claimGuideReward(taskId: Int): Boolean {
         gameData = gd.copy(
             guideClaimedRewardIds = gd.guideClaimedRewardIds + taskId
         )
+        claimed = true
     }
-    return true
+    if (claimed) {
+        // 入队奖励卡片，触发 RewardCardHost 飞出动画
+        stateStore.enqueueRewardCards(listOf(
+            RewardCardItem(
+                itemName = StorageBag.TIER_NAMES[0],
+                itemType = "storageBag",
+                rarity = 1,
+                quantity = task.rewardItemQuantity
+            )
+        ))
+    }
+    return claimed
 }
 
 /**

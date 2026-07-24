@@ -1,3 +1,11 @@
+## [4.0.69] - 2026-07-24（versionCode=4069）
+
+### 存档选择界面增强
+
+- **新增：存档卡片删除按钮** — 每个非空存档（含自动存档）卡片右侧新增红色 ✕ 删除按钮，点击弹出 StandardPromptDialog 二次确认，确认后删除对应存档并刷新列表
+- **新增：引导奖励飞出动画** — `claimGuideReward` 成功后调用 `stateStore.enqueueRewardCards()` 入队 StorageBag 奖励卡片，通过 RewardCardHost 播放飞出动画，用户可见
+- **修复：引导领取按钮状态不更新** — `GameOverlayHost` 中 `claimedRewardIds` 由 `.value` 快照读取改为 `collectAsStateWithLifecycle()` 状态收集，领取后按钮自动变为"已领取"并禁用
+
 ## [4.0.67] - 2026-07-24（versionCode=4067）
 
 ### 架构债务清理 Phase F（2026-07-24）

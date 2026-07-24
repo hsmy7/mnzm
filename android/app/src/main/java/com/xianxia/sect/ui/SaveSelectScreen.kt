@@ -62,6 +62,7 @@ fun SaveSelectScreen(
     saveSlots: List<SaveSlot>,
     onNewGame: (Int, String) -> Unit,
     onLoadSlot: (Int) -> Unit,
+    onDeleteSlot: (Int) -> Unit,
     onBack: () -> Unit
 ) {
     var showOverwriteConfirm by remember { mutableStateOf<Int?>(null) }
@@ -69,6 +70,7 @@ fun SaveSelectScreen(
     var showSectNameDialog by remember { mutableStateOf<Int?>(null) }
     var sectNameInput by remember { mutableStateOf("") }
     var sectNameError by remember { mutableStateOf<String?>(null) }
+    var showDeleteConfirm by remember { mutableStateOf<Int?>(null) }
     val locale = LocalLocale.current.platformLocale
     val dateFormat = remember(locale) { SimpleDateFormat("yyyy-MM-dd HH:mm", locale) }
 
@@ -152,7 +154,8 @@ fun SaveSelectScreen(
                                         }
                                     }
                                 }
-                            }
+                            },
+                            onDeleteClick = { showDeleteConfirm = slot.slot }
                         )
                     }
                 }
@@ -187,6 +190,23 @@ fun SaveSelectScreen(
                 showSectNameDialog = slot
                 sectNameInput = ""
                 sectNameError = null
+            }
+        )
+    }
+
+    // ── 提示框：确认删除存档 ──
+    if (showDeleteConfirm != null) {
+        StandardPromptDialog(
+            onDismissRequest = { showDeleteConfirm = null },
+            title = "确认删除",
+            text = "确定要删除存档吗？此操作不可撤销。",
+            dismissLabel = "取消",
+            onDismiss = { showDeleteConfirm = null },
+            confirmLabel = "删除",
+            onConfirm = {
+                val slot = showDeleteConfirm ?: return@StandardPromptDialog
+                showDeleteConfirm = null
+                onDeleteSlot(slot)
             }
         )
     }
@@ -254,7 +274,8 @@ fun SaveSlotCard(
     slot: SaveSlot,
     mode: SaveSelectMode,
     dateFormat: SimpleDateFormat,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDeleteClick: (() -> Unit)? = null
 ) {
     val style = slot.resolveStyle()
     // 空自动存档不可点击（N/A），其他均可点击
@@ -348,6 +369,19 @@ fun SaveSlotCard(
                         color = Color.Black
                     )
                 }
+            }
+
+            // 删除按钮：仅非空存档显示
+            if (!slot.isEmpty && onDeleteClick != null) {
+                Text(
+                    text = "✕",
+                    fontSize = 16.sp,
+                    color = Color(0xFFE53935),
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .clickable { onDeleteClick() }
+                        .padding(start = 8.dp, top = 4.dp, bottom = 4.dp)
+                )
             }
         }
     }
