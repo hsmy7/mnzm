@@ -18,6 +18,7 @@
 - [帧预算监控](#帧预算监控)
 - [关键源码目录](#key-source-directories)
 - [架构文档索引](#architecture-docs)
+- [存档验证规则引擎](#存档验证规则引擎-savevalidator-rule-engine)
 
 ---
 
@@ -246,7 +247,7 @@ RunState（运行时状态 — 可循环回退）
 
 **Core:** `core/engine/`(game loop/services/systems), `core/engine/domain/`(per-domain services), `core/engine/system/`(ECS systems), `core/domain/`(data classes), `core/state/`(GameStateStore), `core/registry/`(static game data), `core/config/`(JSON config)
 
-**Data:** `data/`(Room DB/serialization/compression), `data/facade/`(StorageFacade API), `data/engine/`(StorageEngine), `data/local/`(Room DB + 18 个领域 DAO 文件)
+**Data:** `data/`(Room DB/serialization/compression), `data/facade/`(StorageFacade API), `data/engine/`(StorageEngine), `data/local/`(Room DB + 18 个领域 DAO 文件), `data/integrity/`(SaveValidator + 规则引擎), `data/integrity/rules/`(验证规则)
 
 **UI:** `ui/game/`(screens/ViewModels/dialogs), `ui/game/tabs/`(tab content), `ui/game/map/`(world map/Canvas), `ui/components/`(shared components), `ui/theme/`
 
@@ -266,7 +267,73 @@ RunState（运行时状态 — 可循环回退）
 
 ---
 
-## 待完成架构优化（行业对标建议）
+## 存档验证规则引擎（SaveValidator Rule Engine）
+
+`SaveValidator`（`data/integrity/SaveValidator.kt`）从单体 8 项硬编码检查重构为可扩展规则引擎（v4.0.67）。
+
+### 架构
+
+```
+SaveValidator.validate(SaveData)
+  │
+  ├─ ensureRegistered() → SaveValidationRuleRegistry.registerDefaults()
+  │
+  ├─ RuleContext 预计算 (equipmentIds, buildingIds, removedDiscipleIds)
+  │
+  ├─ 遍历 SaveValidationRuleRegistry.all (按 order 排序)
+  │   ├─ [order=1]  SectNameRule           sectName 非空
+  │   ├─ [order=2]  GameDateRule           year/month 范围
+  │   ├─ [order=3]  DiscipleAgePositiveRule age >= 0
+  │   ├─ [order=4]  GamePhaseRangeRule     phase 范围 [0,2]
+  │   ├─ [order=5]  CultivationCapRule     修为上限
+  │   ├─ [order=6]  EquipmentRefRule       装备引用存在性
+  │   ├─ [order=7]  AgeLifespanRule        年龄 vs 寿命
+  │   ├─ [order=8]  BuildingRefRule        建筑引用存在性
+  │   ├─ [order=9]  DuplicateDiscipleIdRule 重复弟子 ID
+  │   ├─ [order=10] GhostDiscipleCleanupRule 幽灵弟子清理
+  │   ├─ [order=11] GhostRefCleanupRule     幽灵引用清理
+  │   ├─ [order=12] SpiritStoneNonNegativeRule 灵石非负
+  │   ├─ [order=13] DiscipleRealmConsistencyRule realm/layer 合法性
+  │   └─ [order=14] DiscipleDeadStatusRule   死亡装备清理
+  │
+  └─ 聚合所有 RuleOutcome → IntegrityResult
+```
+
+### 核心接口
+
+| 组件 | 文件 | 说明 |
+|------|------|------|
+| `SaveValidationRule` | `rules/SaveValidationRule.kt` | 规则接口：`fun execute(data, context): RuleOutcome` |
+| `RuleContext` | `rules/RuleContext.kt` | 预计算上下文（equipmentIds, buildingIds, removedDiscipleIds） |
+| `RuleOutcome` | `rules/RuleOutcome.kt` | 结果 sealed interface：Passed / Skipped / Repaired / Corrupted |
+| `SaveValidationRuleRegistry` | `rules/SaveValidationRuleRegistry.kt` | 规则注册表 object（CopyOnWriteArrayList + order 排序） |
+| `SaveValidator` | `SaveValidator.kt` | Facade 入口，保留 `validate(SaveData): IntegrityResult` 签名不变 |
+
+### 规则顺序依赖
+
+- `order` 字段控制执行顺序，小→大执行
+- 关键依赖链：GhostDiscipleCleanupRule(order=10) → 写入 `context.removedDiscipleIds` → GhostRefCleanupRule(order=11) 消费
+- `computeMaxCultivation` 从 `SaveValidator` 移至 `CultivationCapRule.kt` 顶层函数，`SaveValidator` 保留委托桥接
+
+### 注册机制
+
+- `SaveValidationRuleRegistry.registerDefaults()` 注册全部内置规则（惰性初始化，首次 `validate()` 时调用）
+- 测试中 `SaveValidationRuleRegistry.clear()` 后只注册目标规则，实现细粒度单规则测试
+- 新规则只需：新建 Rule 文件 + 在 `registerDefaults()` 加一行
+
+### 调用方兼容
+
+`SaveValidator.validate()` 签名不变，`IntegrityResult` 密封接口不变。两个调用点（`StorageEngine.load()` 和 `save()`）无感知。修复结果现在正确写回数据库（`save()` 路径先前忽略 `Repaired` 结果）。
+
+### 测试
+
+20 个测试类覆盖全部规则，位于 `data/src/test/.../integrity/rules/`。每规则独立覆盖通过/修复/损坏三类路径。
+
+### 待完成
+
+见 [架构债务清单](architecture-debt.md) #21（对抗性审查 4 项未覆盖）、#22（补充修复文件）、#23（EntityCountBoundsRule）。
+
+---
 
 以下优化项基于 [行业对标分析](knowledge-base.md#行业对标分析报告)（来源包括 UE/Supercell/RimWorld/MineColonies 等）。
 

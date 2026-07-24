@@ -17,6 +17,7 @@
 - [修炼 Checkpoint 模式](#修炼-checkpoint)
 - [EntityStore 增量更新](#entitystore-增量更新)
 - [生产系统 Checkpoint](#生产系统-checkpoint)
+- [SaveValidator 规则引擎](#savevalidator-规则引擎)
 - [热控与温度读取](#热控与温度读取)
 - [Hot Path 规则](#hot-path-rules)
 - [Mail & Reward System](#mail--reward-system)
@@ -161,6 +162,58 @@ Disciple entities are stored in `DiscipleTables` — ~90 narrow `ComponentTable`
 `SectPolicyToggleUseCase` 和 `ElderManagementUseCase` 在变更后调用 `checkpointAllProduction()`。
 
 ---
+
+## SaveValidator 规则引擎
+
+存档完整性校验器（`data/integrity/SaveValidator.kt`）从 8 项硬编码检查重构为可扩展规则引擎（v4.0.67）。
+
+### 规则接口
+
+```kotlin
+interface SaveValidationRule {
+    val id: String                          // 唯一标识
+    val order: Int                          // 执行顺序（小→大）
+    fun execute(data: SaveData, context: RuleContext): RuleOutcome
+}
+```
+
+### 注册表
+
+`SaveValidationRuleRegistry` object（`CopyOnWriteArrayList` 存储，`order` 排序）。新规则只需在 `registerDefaults()` 加一行注册。
+
+### 规则上下文
+
+`RuleContext` 在遍历规则前一次性预计算：`allEquipmentIds`（equipmentStacks + instances 的 ID 并集）、`buildingInstanceIds`（placedBuildings 非空 instanceId）。中间状态 `removedDiscipleIds` 由 GhostDiscipleCleanupRule 写入、GhostRefCleanupRule 消费。
+
+### 当前已注册规则（14 条）
+
+| 规则 | 现有/新增 | 功能 |
+|------|-----------|------|
+| SectNameRule | 现有 | sectName 空→默认名 |
+| GameDateRule | 现有 | year/month 范围 |
+| DiscipleAgePositiveRule | **新增** | age >= 0 |
+| GamePhaseRangeRule | **新增** | phase 范围 [0,2] |
+| CultivationCapRule | 现有 | 修为上限截断 |
+| EquipmentRefRule | 现有 | 装备引用存在性 |
+| AgeLifespanRule | 现有 | 年龄 vs 寿命 |
+| BuildingRefRule | 现有 | 建筑引用存在性 |
+| DuplicateDiscipleIdRule | **新增** | 重复弟子 ID 去重 |
+| GhostDiscipleCleanupRule | 现有 | 幽灵弟子清理 |
+| GhostRefCleanupRule | 现有 | 幽灵引用清理 |
+| SpiritStoneNonNegativeRule | **新增** | 灵石负值截断 |
+| DiscipleRealmConsistencyRule | **新增** | realm/layer 合法性 |
+| DiscipleDeadStatusRule | **新增** | 死亡弟子装备清理 |
+
+### 规则文件位置
+
+- 规则实现：`data/src/main/java/.../integrity/rules/*.kt`
+- 规则测试：`data/src/test/java/.../integrity/rules/*Test.kt`
+- 入口 facade：`data/src/main/java/.../integrity/SaveValidator.kt`
+- IntegrityResult 密封接口保持兼容不变
+
+### 已知待完成
+
+见 [架构债务文档](architecture-debt.md) #21（对抗性审查 4 项未覆盖）、#22（补充修复文件）、#23（EntityCountBoundsRule）。
 
 ## 热控与温度读取
 
