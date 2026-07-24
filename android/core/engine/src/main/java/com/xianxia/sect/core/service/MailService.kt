@@ -375,7 +375,6 @@ class MailService @Inject constructor(
      */
     private suspend fun ensureCapacity(attachments: List<MailAttachment>, slotId: Int): String? {
         val data = stateStore.gameData.value
-        val disciples = stateStore.disciples.value
 
         for (attachment in attachments) {
             when (attachment.type) {
@@ -416,10 +415,7 @@ class MailService @Inject constructor(
                     }
                 }
                 "disciple" -> {
-                    val aliveCount = disciples.count { it.isAlive }
-                    if (aliveCount >= GameConfig.Disciple.MAX_DISCIPLES) {
-                        return "宗门弟子已满，无法领取弟子"
-                    }
+                    // 弟子数量无上限，不检查容量
                 }
             }
         }

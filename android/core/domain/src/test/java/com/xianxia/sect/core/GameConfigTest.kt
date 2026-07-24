@@ -37,11 +37,6 @@ class GameConfigTest {
     // ============================================================
 
     @Test
-    fun `弟子上限应为1000`() {
-        assertEquals(1000, GameConfig.Disciple.MAX_DISCIPLES)
-    }
-
-    @Test
     fun `忠诚度最小值应为0`() {
         assertEquals(0, GameConfig.Disciple.MIN_LOYALTY)
     }

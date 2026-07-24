@@ -93,7 +93,6 @@ object GameConfig {
     }
     
     object Disciple {
-        const val MAX_DISCIPLES = 1000
         const val MIN_LOYALTY = 0
         const val MAX_LOYALTY = 100
         const val MIN_AGE = 5
