@@ -49,6 +49,7 @@
 - **新增：宗门偷盗年上限** — `MAX_THEFT_PER_YEAR=3`，成功偷盗 `annualTheftCount+1`，年变归零
 - **移除：单弟子偷盗冷却** — `THEFT_COOLDOWN_MONTHS=12` 由年上限替代
 - **清理：** `THEFT_COOLDOWN_MONTHS` 死常量移除；月度扫荡 `lastTheftMonths>=12` 判定移除；`executeSuccessfulTheft` 死参数 `currentMonth` 清理
+- **修复：** 月度扫荡 `processTheftMonthly` for 循环内未重新检查 `annualTheftCount`，单月可触超 `MAX_THEFT_PER_YEAR=3` 次偷盗。每次迭代前重新读取实时年上限，达到则 `break`
 
 #### 测试
 

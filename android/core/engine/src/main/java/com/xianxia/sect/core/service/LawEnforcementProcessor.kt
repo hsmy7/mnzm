@@ -161,6 +161,8 @@ class LawEnforcementProcessor @Inject constructor(
                 (currentMonth - tables.recruitedMonths.getOrDefault(id, 0)) >= protectionMonths
         }
         for (id in unmatchedIds) {
+            // 每次迭代重新检查年上限：前一次迭代可能已成功偷盗并递增了 annualTheftCount
+            if (stateStore.gameData.value.annualTheftCount >= GameConfig.LawEnforcementConfig.MAX_THEFT_PER_YEAR) break
             executeFullTheftCheck(id, tables, currentMonth, currentData)
         }
     }
