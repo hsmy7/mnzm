@@ -424,7 +424,8 @@ class CultivationEventProcessor @Inject constructor(
                     annualHerbCount = 0,
                     annualNewDisciples = 0,
                     annualDeceasedDisciples = 0,
-                    annualDesertedDisciples = 0
+                    annualDesertedDisciples = 0,
+                    annualTheftCount = 0
                 )
             }
         }

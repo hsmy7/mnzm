@@ -1,5 +1,9 @@
 package com.xianxia.sect.core.util
 
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.ln
+import kotlin.math.sqrt
 import kotlinx.serialization.Serializable
 
 /**
@@ -67,6 +71,26 @@ class DeterministicRng(
     @Synchronized
     fun nextDouble(): Double {
         return (nextInt().toLong() and 0x7FFFFFFFL) / 2147483648.0
+    }
+
+    /**
+     * 从正态（高斯）分布生成随机值。
+     * 使用 Box-Muller 变换：消耗 2 次 [nextDouble] 调用，产生 1 个标准正态偏差。
+     * 不缓存配对中的第二个值，保持无状态以不影响 [snapshot]/[restore] 确定性。
+     *
+     * @param mean  分布均值（默认 0.0）
+     * @param stddev 分布标准差（默认 1.0）
+     * @return 服从 N(mean, stddev^2) 的 Double 值
+     */
+    @Synchronized
+    fun nextGaussian(mean: Double = 0.0, stddev: Double = 1.0): Double {
+        while (true) {
+            val u1 = nextDouble()
+            if (u1 == 0.0) continue // 避免 ln(0) = -inf
+            val u2 = nextDouble()
+            val z = sqrt(-2.0 * ln(u1)) * cos(2.0 * PI * u2)
+            return z * stddev + mean
+        }
     }
 
     /** 当前状态快照（用于序列化到存档） */

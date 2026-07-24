@@ -88,8 +88,7 @@ class LawEnforcementProcessor @Inject constructor(
         val currentMonth = data.gameYear * 12 + data.gameMonth
         if ((currentMonth - tables.recruitedMonths.getOrDefault(discipleId, 0)) <
             GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS) return false
-        if ((currentMonth - tables.lastTheftMonths.getOrDefault(discipleId, 0)) <
-            GameConfig.LawEnforcementConfig.THEFT_COOLDOWN_MONTHS) return false
+        if (data.annualTheftCount >= GameConfig.LawEnforcementConfig.MAX_THEFT_PER_YEAR) return false
         return true
     }
 
@@ -154,12 +153,12 @@ class LawEnforcementProcessor @Inject constructor(
         val loyalThreshold = GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD
         val currentMonth = currentData.gameYear * 12 + currentData.gameMonth
         val protectionMonths = GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS
+        if (currentData.annualTheftCount >= GameConfig.LawEnforcementConfig.MAX_THEFT_PER_YEAR) return
         val unmatchedIds = tables.ids.filter { id ->
             tables.isAlive.getOrDefault(id, 0) == 1 &&
                 tables.statuses.getOrDefault(id, DiscipleStatus.IDLE) == DiscipleStatus.IDLE &&
                 tables.moralities.getOrDefault(id, 0) < moralThreshold &&
-                (currentMonth - tables.recruitedMonths.getOrDefault(id, 0)) >= protectionMonths &&
-                (currentMonth - tables.lastTheftMonths.getOrDefault(id, 0)) >= 12
+                (currentMonth - tables.recruitedMonths.getOrDefault(id, 0)) >= protectionMonths
         }
         for (id in unmatchedIds) {
             executeFullTheftCheck(id, tables, currentMonth, currentData)
@@ -168,18 +167,19 @@ class LawEnforcementProcessor @Inject constructor(
 
     /**
      * 检查是否需要月度偷盗处理（弱化版兜底）。
-     * 仅在存在道德<30且空闲且已过冷却期的弟子时执行。
+     * 仅在年上限未满且存在道德<30且空闲的弟子时执行。
      */
     fun processTheftIfNeeded() {
-        if (stateStore.gameData.value.spiritStones <= 0) return
+        val gd = stateStore.gameData.value
+        if (gd.spiritStones <= 0) return
+        if (gd.annualTheftCount >= GameConfig.LawEnforcementConfig.MAX_THEFT_PER_YEAR) return
         val tables = stateStore.discipleTables
         val moralThreshold = GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD
-        val currentMonth = stateStore.gameData.value.gameYear * 12 + stateStore.gameData.value.gameMonth
+        val currentMonth = gd.gameYear * 12 + gd.gameMonth
         val hasCandidate = tables.ids.any { id ->
             tables.isAlive.getOrDefault(id, 0) == 1 &&
                 tables.statuses.getOrDefault(id, DiscipleStatus.IDLE) == DiscipleStatus.IDLE &&
-                tables.moralities.getOrDefault(id, 0) < moralThreshold &&
-                (currentMonth - tables.lastTheftMonths.getOrDefault(id, 0)) >= 12
+                tables.moralities.getOrDefault(id, 0) < moralThreshold
         }
         if (!hasCandidate) return
         processTheftMonthly()
@@ -236,7 +236,7 @@ class LawEnforcementProcessor @Inject constructor(
         }
 
         // Step 3: 偷窃成功 → 执行（灵石 + 物品）
-        executeSuccessfulTheft(disciple, id, tables, currentMonth, currentData, warehouses, garrisons)
+        executeSuccessfulTheft(disciple, id, tables, currentData, warehouses, garrisons)
 
         // Step 4: 偷盗后叛逃判定（仅看忠诚）
         val desertionProb = ((loyalThreshold - stats.loyalty) * GameConfig.LawEnforcementConfig.PROB_PER_POINT)
@@ -290,7 +290,7 @@ class LawEnforcementProcessor @Inject constructor(
         }
 
         // Step 3: 偷窃成功
-        executeSuccessfulTheftInTransaction(disciple, id, tables, currentMonth, currentData, warehouses, garrisons, state)
+        executeSuccessfulTheftInTransaction(disciple, id, tables, currentData, warehouses, garrisons, state)
 
         // Step 4: 偷盗后叛逃判定
         val desertionProb = ((loyalThreshold - stats.loyalty) * GameConfig.LawEnforcementConfig.PROB_PER_POINT)
@@ -305,7 +305,7 @@ class LawEnforcementProcessor @Inject constructor(
      */
     private fun executeSuccessfulTheftInTransaction(
         disciple: Disciple, id: Int, tables: DiscipleTables,
-        currentMonth: Int, currentData: GameData,
+        currentData: GameData,
         warehouses: List<GridBuildingData>, garrisons: List<WarehouseGarrisonSlot>,
         state: MutableGameState
     ) {
@@ -343,14 +343,15 @@ class LawEnforcementProcessor @Inject constructor(
             equipment = existing.equipment.copy(
                 storageBagSpiritStones = existing.equipment.storageBagSpiritStones + stolenAmount,
                 storageBagItems = existing.equipment.storageBagItems + itemEntries
-            ),
-            usage = existing.usage.copy(lastTheftMonth = currentMonth)
+            )
         ))
 
         // 事件记录
         val itemSummary = if (stolenItems.isNotEmpty()) "（含${stolenItems.size}种物品）" else ""
         state.recordGameEvent(GameEventCategory.SECT, GameEventType.WAREHOUSE_THEFT,
             "宗门仓库被盗，损失${stolenAmount}灵石${itemSummary}")
+        // 年度偷盗计数递增
+        state.gameData = state.gameData.copy(annualTheftCount = state.gameData.annualTheftCount + 1)
     }
 
     /**
@@ -380,7 +381,7 @@ class LawEnforcementProcessor @Inject constructor(
     }
     private fun executeSuccessfulTheft(
         disciple: Disciple, id: Int, tables: DiscipleTables,
-        currentMonth: Int, currentData: GameData,
+        currentData: GameData,
         warehouses: List<GridBuildingData>, garrisons: List<WarehouseGarrisonSlot>
     ) {
         // 灵石偷窃（新公式）
@@ -421,8 +422,7 @@ class LawEnforcementProcessor @Inject constructor(
                 equipment = existing.equipment.copy(
                     storageBagSpiritStones = existing.equipment.storageBagSpiritStones + stolenAmount,
                     storageBagItems = existing.equipment.storageBagItems + itemEntries
-                ),
-                usage = existing.usage.copy(lastTheftMonth = currentMonth)
+                )
             ))
 
             // 事件记录（含物品详情）
@@ -431,6 +431,8 @@ class LawEnforcementProcessor @Inject constructor(
             } else ""
             addEventRecord(this, "SECT", "warehouse_theft",
                 "宗门仓库被盗，损失${stolenAmount}灵石${itemSummary}", "", "")
+            // 年度偷盗计数递增
+            gameData = gameData.copy(annualTheftCount = gameData.annualTheftCount + 1)
         }
     }
 

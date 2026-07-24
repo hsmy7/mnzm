@@ -12,6 +12,11 @@ import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.PortraitPool
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.ln
+import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 // ---- 魔法数字命名常量 ----
 private const val VARIANCE_MIN = -50
@@ -26,6 +31,29 @@ private const val COMPREHENSION_4_ROOT_MIN = 20
 private const val COMPREHENSION_4_ROOT_MAX = 101
 private const val COMPREHENSION_5_ROOT_MIN = 1
 private const val COMPREHENSION_5_ROOT_MAX = 101
+
+/** 正态分布参数 */
+private const val SKILL_MEAN = 50.5       // 技能属性均值
+private const val SKILL_SIGMA = 16.5       // 技能属性标准差（99/6，3-sigma覆盖[1,100]）
+private const val VARIANCE_MEAN = 0.0      // 方差均值
+private const val VARIANCE_SIGMA = 16.667   // 方差标准差（50/3，3-sigma覆盖[-50,50]）
+
+/**
+ * 通过 Box-Muller 变换从 [nextInt] 均匀随机源生成正态分布整数值。
+ * 每次调用恰好消耗 2 次 nextInt(from, until) 调用。
+ */
+private fun gaussianInt(
+    nextInt: (Int, Int) -> Int,
+    mean: Double,
+    sigma: Double,
+    min: Int,
+    max: Int
+): Int {
+    val u1 = nextInt(1, 10001).toDouble() / 10000.0  // (0, 1]
+    val u2 = nextInt(0, 10001).toDouble() / 10000.0  // [0, 1]
+    val z = sqrt(-2.0 * ln(u1)) * cos(2.0 * PI * u2)
+    return (z * sigma + mean).roundToInt().coerceIn(min, max)
+}
 
 /**
  * 统一弟子构造工厂。
@@ -65,14 +93,14 @@ class DiscipleFactory @Inject constructor() {
     fun create(seed: DiscipleSeed): Disciple {
         val r = seed.nextInt
 
-        // 1. 六维方差（三站点字符级一致）
-        val hpVariance = r(VARIANCE_MIN, VARIANCE_MAX)
-        val mpVariance = r(VARIANCE_MIN, VARIANCE_MAX)
-        val physicalAttackVariance = r(VARIANCE_MIN, VARIANCE_MAX)
-        val magicAttackVariance = r(VARIANCE_MIN, VARIANCE_MAX)
-        val physicalDefenseVariance = r(VARIANCE_MIN, VARIANCE_MAX)
-        val magicDefenseVariance = r(VARIANCE_MIN, VARIANCE_MAX)
-        val speedVariance = r(VARIANCE_MIN, VARIANCE_MAX)
+        // 1. 六维方差（正态分布，越接近0概率越高）
+        val hpVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50)
+        val mpVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50)
+        val physicalAttackVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50)
+        val magicAttackVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50)
+        val physicalDefenseVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50)
+        val magicDefenseVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50)
+        val speedVariance = gaussianInt(r, VARIANCE_MEAN, VARIANCE_SIGMA, -50, 50)
 
         // 2. 灵根数量 → 悟性
         val spiritRootCount = seed.spiritRootType.split(",").size
@@ -112,16 +140,16 @@ class DiscipleFactory @Inject constructor() {
             ),
             social = seed.social,
             skills = SkillStats(
-                intelligence = r(1, 101),
-                charm = r(1, 101),
-                loyalty = r(1, 101),
+                intelligence = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, 100),
+                charm = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, 100),
+                loyalty = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, 100),
                 comprehension = comprehension,
-                morality = r(1, 101),
-                artifactRefining = r(1, 101),
-                pillRefining = r(1, 101),
-                spiritPlanting = r(1, 101),
-                mining = r(1, 101),
-                teaching = r(1, 101)
+                morality = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, 100),
+                artifactRefining = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, 100),
+                pillRefining = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, 100),
+                spiritPlanting = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, 100),
+                mining = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, 100),
+                teaching = gaussianInt(r, SKILL_MEAN, SKILL_SIGMA, 1, 100)
             )
         ).apply {
             // 4. 基础属性

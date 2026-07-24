@@ -729,7 +729,7 @@ object GameConfig {
         const val THEFT_ITEM_UNIT_SPEED_FACTOR = 3      // 身法→可偷物品单位的转换系数
         const val THEFT_ITEM_UNIT_INTEL_FACTOR = 3      // 智力→可偷物品单位的转换系数
         const val THEFT_STEALTH_REALM_FACTOR = 1.2       // 隐匿中境界加成的额外倍数
-        const val THEFT_COOLDOWN_MONTHS = 12             // 偷盗冷却月数
+        const val MAX_THEFT_PER_YEAR = 3                  // 宗门每年最多被偷盗次数
         const val THEFT_MORAL_EDUCATION_THRESHOLD = 30  // 教化之道下道德仍低于此值需检查偷盗
     }
 

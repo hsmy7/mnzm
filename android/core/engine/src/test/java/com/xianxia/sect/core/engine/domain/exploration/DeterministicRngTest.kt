@@ -87,6 +87,42 @@ class DeterministicRngTest {
     }
 
     @Test
+    fun `nextGaussian - same seed produces same sequence`() {
+        val rng1 = DeterministicRng.fromSeed(42)
+        val rng2 = DeterministicRng.fromSeed(42)
+        val seq1 = (1..20).map { rng1.nextGaussian() }
+        val seq2 = (1..20).map { rng2.nextGaussian() }
+        assertEquals(seq1, seq2)
+    }
+
+    @Test
+    fun `nextGaussian - values are within reasonable range`() {
+        val rng = DeterministicRng.fromSeed(42)
+        val values = (1..10000).map { rng.nextGaussian() }
+        assertTrue("All values should be finite", values.all { it.isFinite() })
+        // 99.7% 应落在 [-3, 3] 范围内（3-sigma）
+        val within3Sigma = values.count { it in -3.0..3.0 }
+        assertTrue("At least 99% within 3 sigma: $within3Sigma/${values.size}",
+            within3Sigma >= values.size * 0.99)
+    }
+
+    @Test
+    fun `nextGaussian - mean approximates 0`() {
+        val rng = DeterministicRng.fromSeed(42)
+        val values = (1..100000).map { rng.nextGaussian() }
+        val mean = values.average()
+        assertTrue("Mean should be near 0: $mean", kotlin.math.abs(mean) < 0.03)
+    }
+
+    @Test
+    fun `nextGaussian - mean and stddev parameters work`() {
+        val rng = DeterministicRng.fromSeed(42)
+        val values = (1..1000).map { rng.nextGaussian(50.0, 10.0) }
+        val mean = values.average()
+        assertTrue("Mean should be near 50: $mean", mean in 45.0..55.0)
+    }
+
+    @Test
     fun `serialization round trip`() {
         val rng = DeterministicRng.fromSeed(42)
         repeat(5) { rng.nextInt(100) }

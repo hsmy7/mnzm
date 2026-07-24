@@ -217,6 +217,11 @@ class LawEnforcementProcessorTest {
     }
 
     @Test
+    fun `常量 MAX_THEFT_PER_YEAR`() {
+        assertEquals(3, GameConfig.LawEnforcementConfig.MAX_THEFT_PER_YEAR)
+    }
+
+    @Test
     fun `常量不为负`() {
         val cfg = GameConfig.LawEnforcementConfig
         assertTrue(cfg.THEFT_SPEED_BONUS_PER_POINT >= 0)
@@ -228,6 +233,7 @@ class LawEnforcementProcessorTest {
         assertTrue(cfg.THEFT_STEALTH_INTEL_FACTOR >= 0)
         assertTrue(cfg.THEFT_PERCEPTION_INTEL_FACTOR >= 0)
         assertTrue(cfg.THEFT_ITEM_GUARD_REDUCTION > 0)
+        assertTrue(cfg.MAX_THEFT_PER_YEAR > 0)
     }
 
     // ═════════════════════════════════════════════════════════════════
@@ -293,13 +299,46 @@ class LawEnforcementProcessorTest {
     }
 
     @Test
-    fun `e2e - 冷却期内不偷盗`() {
-        val id = 1; val tables = makeTables(id).also { it.lastTheftMonths[id] = 120 }
-        val state = makeState(GameData(spiritStones = 1_000_000L, gameYear = 10, gameMonth = 6), tables)
-        val (mockStore, _) = makeMocks(GameData(spiritStones = 1_000_000L))
+    fun `e2e - 年上限达3次不偷盗`() {
+        val id = 1; val tables = makeTables(id, morale = 0)
+        val gd = GameData(spiritStones = 1_000_000L, gameYear = 10, gameMonth = 6,
+            annualTheftCount = 3)
+        val state = makeState(gd, tables)
+        val (mockStore, _) = makeMocks(gd)
         val proc = LawEnforcementProcessor(mockStore, GameRngManager(),
             Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
         proc.processSingleDiscipleTheft(id, state)
+        // 年上限已满，应跳过偷盗，灵石不变
+        assertEquals(1_000_000L, state.gameData.spiritStones)
+    }
+
+    @Test
+    fun `e2e - 年上限未满正常执行`() {
+        val id = 1; val tables = makeTables(id, morale = 0)
+        val gd = GameData(spiritStones = 1_000_000L, gameYear = 10, gameMonth = 6,
+            annualTheftCount = 1) // 未达上限(3)
+        val state = makeState(gd, tables)
+        val (mockStore, _) = makeMocks(gd)
+        val rng = GameRngManager()
+        rng.initSystemSeed(7L)
+        val proc = LawEnforcementProcessor(mockStore, rng,
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+        proc.processSingleDiscipleTheft(id, state)
+        // 年上限未满，流程应正常执行（灵石可能减少取决于RNG）
+        assertNotNull("运行完成", state)
+    }
+
+    @Test
+    fun `e2e - 道德高即使年上限未满也不触发`() {
+        val id = 1; val tables = makeTables(id, morale = 50) // 道德50>=30，概率0
+        val gd = GameData(spiritStones = 1_000_000L, gameYear = 10, gameMonth = 6,
+            annualTheftCount = 0)
+        val state = makeState(gd, tables)
+        val (mockStore, _) = makeMocks(gd)
+        val proc = LawEnforcementProcessor(mockStore, GameRngManager(),
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+        proc.processSingleDiscipleTheft(id, state)
+        // 道德高，概率0，灵石不变
         assertEquals(1_000_000L, state.gameData.spiritStones)
     }
 

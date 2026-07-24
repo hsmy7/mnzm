@@ -71,6 +71,22 @@
 
 ---
 
+### 6. `lastTheftMonths` / `lastTheftMonth` 写而不再读
+
+**问题描述：** 移除单弟子偷盗冷却后，`UsageTracking.lastTheftMonth` 和 `DiscipleTables.lastTheftMonths` 在成功偷盗后仍在写入，但不再用于冷却判定。冷却逻辑已由 `annualTheftCount` 年上限完全替代。
+
+**影响范围：** `DiscipleComponents.kt:188`、`DiscipleTables.kt:202`、`LawEnforcementProcessor.kt`
+
+**修复方向：**
+- 从 `UsageTracking` 和 `DiscipleTables` 中移除 `lastTheftMonth` / `lastTheftMonths` 字段
+- 删除 `executeSuccessfulTheft` 两版本中的 `.copy(lastTheftMonth = currentMonth)` 写入
+
+**难度：** 低
+
+**注意：** `DiscipleComponents.kt` 中 `lastTheftMonth` 字段删除会改变 Room schema，如需彻底清除需：
+1. 新 Migration 从 game_data 表 DROP COLUMN
+2. DiscipleTables 组件表对应列一并移除
+
 ## 写入守卫架构债务（⏸️ 暂不修复）
 
 详见 [architecture-debt-write-guard.md](architecture-debt-write-guard.md)，6 项低风险守卫设计限制记录在案：

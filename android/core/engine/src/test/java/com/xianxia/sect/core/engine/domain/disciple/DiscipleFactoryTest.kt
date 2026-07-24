@@ -42,14 +42,30 @@ class DiscipleFactoryTest {
     @Test
     fun `create - variance is deterministic given nextInt`() {
         val d = factory.create(newSeed())
-        // nextInt 固定返回 from，故 variance = -50
-        assertEquals(-50, d.combat.hpVariance)
-        assertEquals(-50, d.combat.mpVariance)
-        assertEquals(-50, d.combat.physicalAttackVariance)
-        assertEquals(-50, d.combat.magicAttackVariance)
-        assertEquals(-50, d.combat.physicalDefenseVariance)
-        assertEquals(-50, d.combat.magicDefenseVariance)
-        assertEquals(-50, d.combat.speedVariance)
+        // nextInt 固定返回 from → Box-Muller z≈4.291 → 截断至 50
+        assertEquals(50, d.combat.hpVariance)
+        assertEquals(50, d.combat.mpVariance)
+        assertEquals(50, d.combat.physicalAttackVariance)
+        assertEquals(50, d.combat.magicAttackVariance)
+        assertEquals(50, d.combat.physicalDefenseVariance)
+        assertEquals(50, d.combat.magicDefenseVariance)
+        assertEquals(50, d.combat.speedVariance)
+    }
+
+    @Test
+    fun `create - skills are deterministic given nextInt`() {
+        val d = factory.create(newSeed())
+        // 同 gaussianInt 逻辑：u1=0.0001, u2=0.0, z≈4.291
+        // skill = round(4.291*16.5 + 50.5) = round(121.3) = 121 -> 截断至 100
+        assertEquals(100, d.skills.intelligence)
+        assertEquals(100, d.skills.charm)
+        assertEquals(100, d.skills.loyalty)
+        assertEquals(100, d.skills.morality)
+        assertEquals(100, d.skills.artifactRefining)
+        assertEquals(100, d.skills.pillRefining)
+        assertEquals(100, d.skills.spiritPlanting)
+        assertEquals(100, d.skills.mining)
+        assertEquals(100, d.skills.teaching)
     }
 
     @Test
@@ -158,5 +174,32 @@ class DiscipleFactoryTest {
     fun `create - realmLayer is preserved`() {
         val d = factory.create(newSeed(realmLayer = 3))
         assertEquals(3, d.realmLayer)
+    }
+
+    // ---- 分布验证 ----
+
+    @Test
+    fun `create - variance center near zero with real random`() {
+        val values = mutableListOf<Int>()
+        val kotlinRng = kotlin.random.Random
+        repeat(1000) {
+            val seed = DiscipleFactory.DiscipleSeed(
+                id = "dist-test-$it",
+                gender = "男",
+                nameResult = NameService.NameResult("测试", "弟子"),
+                spiritRootType = "火",
+                age = 18,
+                realmLayer = 1,
+                social = SocialData(),
+                nextInt = { from, until -> from + kotlinRng.nextInt(until - from) }
+            )
+            values.add(factory.create(seed).combat.hpVariance)
+        }
+        val mean = values.average()
+        // 均值应接近0（方差[-50,50]的正态分布）
+        assertTrue("Variance mean should be near 0: $mean", mean in -10.0..10.0)
+        // 至少70%的值落在[-30,30]范围内（约2-sigma）
+        val withinMid = values.count { it in -30..30 }
+        assertTrue("Less than 70% in [-30,30]: ${withinMid}/1000", withinMid >= 700)
     }
 }

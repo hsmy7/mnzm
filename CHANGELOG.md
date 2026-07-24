@@ -38,6 +38,26 @@
 #### 文档
 
 - **文档：架构债务记录更新** — 清除已完成项，新增 4 项待完成（`DiscipleSlotManager.syncAllDiscipleStatuses` 重复实现 / `openStorageBag` 双事务 / `processAutoAssign` 5 步非原子 / 住所分配不更新状态表）
+
+#### 弟子属性正态分布
+
+- **优化：弟子属性正态分布** — 除悟性外 9 技能 + 7 方差从均匀分布改为正态分布（Box-Muller），中间值概率更高，极端值稀有
+- **新增：`DeterministicRng.nextGaussian()`** — Box-Muller 变换，消耗 2 次 `nextDouble()` 生成 1 个 N(0,1)
+
+#### 偷盗系统年上限
+
+- **新增：宗门偷盗年上限** — `MAX_THEFT_PER_YEAR=3`，成功偷盗 `annualTheftCount+1`，年变归零
+- **移除：单弟子偷盗冷却** — `THEFT_COOLDOWN_MONTHS=12` 由年上限替代
+- **清理：** `THEFT_COOLDOWN_MONTHS` 死常量移除；月度扫荡 `lastTheftMonths>=12` 判定移除；`executeSuccessfulTheft` 死参数 `currentMonth` 清理
+
+#### 测试
+
+- **测试：** `nextGaussian` 4 测试、`DiscipleFactoryTest` 更新、`LawEnforcementProcessorTest` 年上限 3 测试
+
+#### 文档
+
+- **文档：知识库更新** — 新增弟子属性生成 / 偷盗系统年上限章节
+- **文档：架构债务追加** — 第 6 项 `lastTheftMonths` 写而不读待清理
 - **文档：知识库更新** — 库存堆叠待完成项标记本轮修复项，已完成列表 12 项
 
 ### 重构

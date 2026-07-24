@@ -14,6 +14,7 @@ import com.xianxia.sect.core.util.SpiritRootGenerator
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.asKotlinRandom
+import kotlin.math.roundToInt
 
 object AISectDiscipleManager {
     private val rng by lazy { DeterministicRng.fromSeed(System.nanoTime()) }
@@ -53,13 +54,13 @@ object AISectDiscipleManager {
             4 -> 20 + rng.nextInt(81)
             else -> 1 + rng.nextInt(100)
         }
-        val hpVariance = -50 + rng.nextInt(101)
-        val mpVariance = -50 + rng.nextInt(101)
-        val physicalAttackVariance = -50 + rng.nextInt(101)
-        val magicAttackVariance = -50 + rng.nextInt(101)
-        val physicalDefenseVariance = -50 + rng.nextInt(101)
-        val magicDefenseVariance = -50 + rng.nextInt(101)
-        val speedVariance = -50 + rng.nextInt(101)
+        val hpVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
+        val mpVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
+        val physicalAttackVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
+        val magicAttackVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
+        val physicalDefenseVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
+        val magicDefenseVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
+        val speedVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
         val talents = TalentDatabase.generateTalentsForDisciple().map { it.id }
 
         val talentEffects = TalentDatabase.calculateTalentEffects(talents)
@@ -95,16 +96,16 @@ object AISectDiscipleManager {
             ),
             equipment = EquipmentSet(),
             skills = SkillStats(
-                intelligence = 1 + rng.nextInt(100),
-                charm = 1 + rng.nextInt(100),
-                loyalty = 1 + rng.nextInt(100),
+                intelligence = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, 100),
+                charm = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, 100),
+                loyalty = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, 100),
                 comprehension = comprehension,
-                morality = 1 + rng.nextInt(100),
-                artifactRefining = 1 + rng.nextInt(100),
-                pillRefining = 1 + rng.nextInt(100),
-                spiritPlanting = 1 + rng.nextInt(100),
-                mining = 1 + rng.nextInt(100),
-                teaching = 1 + rng.nextInt(100)
+                morality = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, 100),
+                artifactRefining = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, 100),
+                pillRefining = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, 100),
+                spiritPlanting = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, 100),
+                mining = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, 100),
+                teaching = rng.nextGaussian(50.5, 16.5).roundToInt().coerceIn(1, 100)
             )
         ).apply {
             val baseStats = Disciple.calculateBaseStatsWithVariance(

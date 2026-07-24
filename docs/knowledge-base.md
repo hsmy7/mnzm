@@ -13,6 +13,8 @@
 - [存档槽位隔离](#存档槽位隔离)
 - [探索系统](#探索系统)
 - [确定性 RNG 系统](#确定性-rng-系统)
+- [弟子属性生成](#弟子属性生成)
+- [偷盗系统年上限](#偷盗系统年上限-2026-07-24)
 - [Component Table 架构](#component-table-architecture)
 - [修炼 Checkpoint 模式](#修炼-checkpoint)
 - [EntityStore 增量更新](#entitystore-增量更新)
@@ -111,6 +113,48 @@ v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管
 | `RngPartition` | `util/RngPartition.kt` | 分区枚举 |
 
 **规则：** 新增任何使用随机数的逻辑，必须通过 `GameRngManager.getRng(RngPartition.xxx)` 调用，禁止直接使用 `kotlin.random.Random`。保存时 `exportStates()` 写入 `GameData.rngStates`，加载时 `restoreStates()` 恢复。
+
+**扩展：`nextGaussian()`** — `DeterministicRng` 新增 Box-Muller 变换实现的 `nextGaussian(mean, stddev)`，消耗 2 次 `nextDouble()` 调用生成 1 个标准正态偏差。不缓存配对值以保持 `snapshot`/`restore` 确定性。用于弟子属性生成（见下文）。
+
+---
+
+## 弟子属性生成
+
+弟子创建时属性通过两个入口生成：
+
+### 入口 1：`DiscipleFactory.create()`
+- 路径：`domain/disciple/DiscipleFactory.kt`
+- 使用 `DiscipleSeed.nextInt` Lambda（兼容 `GameRngManager` / `GameRandom` / `kotlin.random.Random`）
+- 用于玩家招募、招募列表刷新、子嗣出生（3 站点统一）
+
+### 入口 2：`AISectDiscipleManager.generateRandomDisciple()`
+- 路径：`domain/diplomacy/AISectDiscipleManager.kt`
+- 使用 `DeterministicRng` 实例（PCG-XSH-RR，`System.nanoTime()` 种子）
+- 用于 AI 宗门弟子生成
+
+### 属性分布规则（2026-07-24 优化）
+
+| 属性类别 | 属性 | 分布 | 参数 |
+|---------|------|------|------|
+| 悟性 | `comprehension` | 灵根驱动均匀 | 1根[80,100] / 2根[60,100] / 3根[40,100] / 4根[20,100] / 5根[1,100] |
+| 技能(9) | intelligence, charm, loyalty, morality, artifactRefining, pillRefining, spiritPlanting, mining, teaching | **正态分布** | N(50.5, 16.5²)，截断[1,100] |
+| 方差(7) | hpVariance ~ speedVariance | **正态分布** | N(0, 16.667²)，截断[-50,50] |
+
+悟性保持不变（灵根数量决定范围），其余所有技能和方差属性使用 `gaussianInt()`（Box-Muller 变换生成的 int 值，越接近中间概率越高）。
+
+---
+
+## 偷盗系统年上限（2026-07-24）
+
+宗门级偷盗控制：
+
+- **配置**：`GameConfig.LawEnforcementConfig.MAX_THEFT_PER_YEAR = 3`
+- **计数器**：`GameData.annualTheftCount`（Room 持久化，MIGRATION_29_30）
+- **检查点**：`LawEnforcementProcessor.canDiscipleAttemptTheft()` + 月度扫荡 `processTheftMonthly()` / `processTheftIfNeeded()`
+- **递增**：`executeSuccessfulTheft` 两版本（事务/非事务）偷盗成功后 +1
+- **归零**：`CultivationEventProcessor` 年变重置块
+- **移除**：原单弟子 12 月冷却检查（`THEFT_COOLDOWN_MONTHS` + `lastTheftMonths` 冷却判定）
+- `UsageTracking.lastTheftMonth` 字段仍写入但不再用于冷却判断（仅保留兼容）
 
 ---
 

@@ -38,7 +38,19 @@
       "修复：ProductionProcessor.candidate.id.toInt()缺少NumberFormatException保护——改为toIntOrNull()(数据篡改者审查发现)",
       "修复：buyMerchantItem Partial时全额扣款不出全货——addOk=false取消整笔交易(边界狂魔审查发现)",
       "文档：架构债务记录更新——清除已完成项，新增4项待完成(DiscipleSlotManager重复实现/openStorageBag双事务/processAutoAssign 5步非原子/住所不更新状态表)",
-      "文档：知识库更新——库存堆叠待完成项标记本轮修复项"
+      "文档：知识库更新——库存堆叠待完成项标记本轮修复项",
+      "优化：弟子属性正态分布——除悟性外的9技能+7方差从均匀分布改为正态分布(Box-Muller)，中间值概率更高，极端值稀有",
+      "新增：`DeterministicRng.nextGaussian()`——Box-Muller变换实现的正态分布函数，消耗2次nextDouble()生成1个N(0,1)",
+      "新增：宗门偷盗年上限——`MAX_THEFT_PER_YEAR=3`，成功偷盗`annualTheftCount+1`，年变归零",
+      "移除：单弟子偷盗冷却(`THEFT_COOLDOWN_MONTHS=12`)——由宗门年上限替代，道德达标即可尝试",
+      "重构：`executeSuccessfulTheft`清理死参数——移除`currentMonth`入参(不再写入`lastTheftMonth`)，两版本及调用处同步清理",
+      "清理：`THEFT_COOLDOWN_MONTHS`死常量——从`GameConfig.LawEnforcementConfig`移除",
+      "清理：月度扫荡路径`lastTheftMonths>=12`冷却判定——`processTheftMonthly`/`processTheftIfNeeded`中移除，替换为年上限检查",
+      "测试：`nextGaussian`4测试——种子确定性/99%在±3σ内/均值接近0/参数化验证",
+      "测试：`DiscipleFactoryTest`方差断言更新+技能确定性+批量采样验证",
+      "测试：`LawEnforcementProcessorTest`年上限3测试——已达上限/未达上限/道德高跳过+`MAX_THEFT_PER_YEAR`常量测试",
+      "文档：知识库新增弟子属性生成/偷盗系统年上限章节",
+      "文档：架构债务追加第6项——`lastTheftMonths`写而不读待清理"
     ]
   },
   {
