@@ -839,15 +839,10 @@ stateStore.update {
 
     override suspend fun openStorageBag(bagId: String): Pair<List<BattleRewardItem>, List<RewardCardItem>> {
         val rng = gameRngManager.getRng(RngPartition.EXPLORATION)
-        var rarity = 0
-        // Phase 1: 移除/减少储物袋
-        stateStore.update {
-            val bag = storageBags.get(bagId) ?: return@update
-            rarity = bag.rarity
-            if (bag.quantity <= 1) storageBags.remove(bagId)
-            else storageBags.update(bagId) { it.copy(quantity = it.quantity - 1) }
-        }
-        if (rarity == 0) return Pair(emptyList(), emptyList())
+
+        // 先读 rarity（锁外快照），用于决定奖励生成参数
+        val rarity = stateStore.storageBags.value.find { it.id == bagId }?.rarity
+            ?: return Pair(emptyList(), emptyList())
 
         val count = 5 + rng.nextInt(16)
         val rewards = mutableListOf<BattleRewardItem>()
@@ -920,8 +915,13 @@ stateStore.update {
             }
         }
 
-        // Phase 2: 单事务写入所有奖励
+        // 单事务原子写入：消耗储物袋 + 发放所有奖励
         stateStore.update {
+            // 消耗袋子
+            val bag = storageBags.get(bagId) ?: return@update
+            if (bag.quantity <= 1) storageBags.remove(bagId)
+            else storageBags.update(bagId) { it.copy(quantity = it.quantity - 1) }
+
             // 装备
             for (stack in pendingEquipment) {
                 val otherTypes = otherSlotsCount("equipment")

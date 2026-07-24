@@ -2,11 +2,8 @@ package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.repository.ProductionSlotRepository
-import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.CoroutineScopeProvider
-import com.xianxia.sect.core.util.DomainLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -16,10 +13,9 @@ import javax.inject.Singleton
  * 弟子槽位管理服务。
  *
  * ## 职责
- * 1. **状态同步** — 根据所有槽位的分配情况同步弟子状态（[syncAllDiscipleStatuses]）
- * 2. **状态重置** — 重置所有弟子的状态为 IDLE（[resetAllDisciplesStatus]）
- * 3. **槽位清理** — 从所有槽位中移除指定弟子（[clearDiscipleFromAllSlots]）
- * 4. **槽位查询** — 查询弟子是否分配了特定槽位（[isDiscipleAssignedToSpiritMine]）
+ * 1. **状态重置** — 重置所有弟子的状态为 IDLE（[resetAllDisciplesStatus]）
+ * 2. **槽位清理** — 从所有槽位中移除指定弟子（[clearDiscipleFromAllSlots]）
+ * 3. **槽位查询** — 查询弟子是否分配了特定槽位（[isDiscipleAssignedToSpiritMine]）
  */
 @Singleton
 class DiscipleSlotManager @Inject constructor(
@@ -71,74 +67,7 @@ class DiscipleSlotManager @Inject constructor(
         }
     }
 
-    // ==================== 状态同步 ====================
-
-    /**
-     * 已迁移到 [DiscipleStatusService]（所有调用方已走 DiscipleService → DiscipleStatusService）。
-     * 此实现为旧副本，仅保留以兼容编译。
-     */
-    @Deprecated("Use DiscipleStatusService instead", ReplaceWith("discipleStatusService.syncAllDiscipleStatuses()"))
-    fun syncAllDiscipleStatuses() {
-        val tables = stateStore.discipleTables
-
-        // 前置修复：清除无效的灵脉采矿槽位（包含自己的 update 事务，在锁外执行）
-        fixInvalidMiningSlots(tables)
-
-        stateStore.update {
-            // 在锁内使用最新 gameData 构建 ID 集合，避免 TOCTOU
-            val data = gameData
-            val lawEnforcerIds = buildLawEnforcerIds(data.elderSlots)
-            val preachingIds = buildPreachingIds(data.elderSlots)
-            val deaconingIds = buildDeaconingIds(data.elderSlots)
-            val managingIds = buildManagingIds(data.elderSlots)
-            val studyingIds = buildStudyingIds(data)
-            val miningIds = buildMiningIds(data, tables)
-            val garrisonIds = buildGarrisonIds(data)
-            val inTeamIds = buildInTeamIds(data, teams)
-            val patrollingIds = buildPatrollingIds(data)
-
-            // 生产槽位 ID 集合（用于推导 ALCHEMY / FORGE / SPIRIT_PLANTING 状态）
-            val alchemyIds = data.productionSlots
-                .filter { !it.assignedDiscipleId.isNullOrEmpty() && it.buildingId == "alchemy" }
-                .map { it.assignedDiscipleId!! }.toSet()
-            val forgeIds = data.productionSlots
-                .filter { !it.assignedDiscipleId.isNullOrEmpty() && it.buildingId == "forge" }
-                .map { it.assignedDiscipleId!! }.toSet()
-            val plantIds = data.productionSlots
-                .filter { !it.assignedDiscipleId.isNullOrEmpty() && it.buildingId == "herbGarden" }
-                .map { it.assignedDiscipleId!! }.toSet()
-
-            for (id in discipleTables.ids) {
-                val isAlive = discipleTables.isAlive[id] == 1
-                val status = discipleTables.statuses[id]
-                if (!isAlive) continue
-                if (status == DiscipleStatus.REFLECTING) continue
-                if (status == DiscipleStatus.ON_MISSION) continue
-                if (status == DiscipleStatus.REFINING) continue
-
-                val discipleId = id.toString()
-                val newStatus = when {
-                    garrisonIds.contains(discipleId) -> DiscipleStatus.GARRISONING
-                    inTeamIds.contains(discipleId) -> DiscipleStatus.IN_TEAM
-                    lawEnforcerIds.contains(discipleId) -> DiscipleStatus.LAW_ENFORCING
-                    preachingIds.contains(discipleId) -> DiscipleStatus.PREACHING
-                    deaconingIds.contains(discipleId) -> DiscipleStatus.DEACONING
-                    managingIds.contains(discipleId) -> DiscipleStatus.MANAGING
-                    studyingIds.contains(discipleId) -> DiscipleStatus.STUDYING
-                    miningIds.contains(discipleId) -> DiscipleStatus.MINING
-                    patrollingIds.contains(discipleId) -> DiscipleStatus.PATROLLING
-                    alchemyIds.contains(discipleId) -> DiscipleStatus.ALCHEMY
-                    forgeIds.contains(discipleId) -> DiscipleStatus.FORGE
-                    plantIds.contains(discipleId) -> DiscipleStatus.SPIRIT_PLANTING
-                    else -> DiscipleStatus.IDLE
-                }
-
-                if (status != newStatus) {
-                    discipleTables.statuses[id] = newStatus
-                }
-            }
-        }
-    }
+    // ==================== 状态重置 ====================
 
     /**
      * Reset all disciples to IDLE status.
@@ -235,93 +164,6 @@ class DiscipleSlotManager @Inject constructor(
             }
         }
     }
-
-    // ── syncAllDiscipleStatuses 拆出的槽位收集函数 ──────────────────────
-
-    private fun buildLawEnforcerIds(elderSlots: ElderSlots): Set<String> {
-        val ids = mutableSetOf<String>()
-        elderSlots.lawEnforcementElder?.let { ids.add(it) }
-        elderSlots.lawEnforcementDisciples.mapNotNull { it.discipleId }.forEach { ids.add(it) }
-        return ids
-    }
-
-    private fun buildPreachingIds(elderSlots: ElderSlots): Set<String> {
-        val ids = mutableSetOf<String>()
-        elderSlots.preachingElder?.let { ids.add(it) }
-        elderSlots.qingyunPreachingElder?.let { ids.add(it) }
-        elderSlots.preachingMasters.mapNotNull { it.discipleId }.forEach { ids.add(it) }
-        elderSlots.qingyunPreachingMasters.mapNotNull { it.discipleId }.forEach { ids.add(it) }
-        return ids
-    }
-
-    private fun buildDeaconingIds(elderSlots: ElderSlots): Set<String> =
-        elderSlots.spiritMineDeaconDisciples.mapNotNull { it.discipleId }.toSet()
-
-    private fun buildManagingIds(elderSlots: ElderSlots): Set<String> {
-        val ids = mutableSetOf<String>()
-        elderSlots.viceSectMaster?.let { ids.add(it) }
-        elderSlots.outerElder?.let { ids.add(it) }
-        elderSlots.innerElder?.let { ids.add(it) }
-        elderSlots.forgeElder?.let { ids.add(it) }
-        elderSlots.alchemyElder?.let { ids.add(it) }
-        elderSlots.herbGardenElder?.let { ids.add(it) }
-        elderSlots.herbGardenDisciples.forEach { if (it.discipleId.isNotEmpty()) ids.add(it.discipleId) }
-        elderSlots.alchemyDisciples.forEach { if (it.discipleId.isNotEmpty()) ids.add(it.discipleId) }
-        elderSlots.forgeDisciples.forEach { if (it.discipleId.isNotEmpty()) ids.add(it.discipleId) }
-        return ids
-    }
-
-    private fun buildStudyingIds(data: GameData): Set<String> =
-        data.librarySlots.mapNotNull { it.discipleId.takeIf { id -> id.isNotEmpty() } }.toSet()
-
-    private fun buildMiningIds(data: GameData, tables: DiscipleTables): Set<String> =
-        data.spiritMineSlots
-            .mapNotNull { it.discipleId.takeIf { id -> id.isNotEmpty() } }
-            .filter { id -> tables.ids.contains(id.toInt()) }
-            .toSet()
-
-    private fun fixInvalidMiningSlots(tables: DiscipleTables) {
-        val data = stateStore.gameData.value
-        val hasInvalid = data.spiritMineSlots.any { slot ->
-            slot.discipleId.isNotEmpty() &&
-                !tables.ids.contains(slot.discipleId.toInt())
-        }
-        if (hasInvalid) {
-            val fixed = data.spiritMineSlots.map { slot ->
-                if (slot.discipleId.isNotEmpty() &&
-                    !tables.ids.contains(slot.discipleId.toInt())
-                ) slot.copy(discipleId = "", discipleName = "") else slot
-            }
-            stateStore.update { gameData = gameData.copy(spiritMineSlots = fixed) }
-        }
-    }
-
-    private fun buildGarrisonIds(data: GameData): Set<String> {
-        val ids = mutableSetOf<String>()
-        data.worldMapSects.find { it.isPlayerSect }?.garrisonSlots
-            ?.filter { it.discipleId.isNotEmpty() }
-            ?.forEach { ids.add(it.discipleId) }
-        data.warehouseGarrisons.filter { it.discipleId.isNotEmpty() }.forEach { ids.add(it.discipleId) }
-        return ids
-    }
-
-    private fun buildInTeamIds(data: GameData, teams: List<ExplorationTeam>): Set<String> {
-        val ids = mutableSetOf<String>()
-        data.battleTeams.flatMap { it.slots }
-            .filter { it.discipleId.isNotEmpty() }
-            .forEach { ids.add(it.discipleId) }
-        // 探索/洞窟队伍成员
-        ids.addAll(teams
-            .filter { it.status in explorationStatuses }
-            .flatMap { it.memberIds })
-        ids.addAll(data.caveExplorationTeams
-            .filter { it.status in caveExplorationStatuses }
-            .flatMap { it.memberIds })
-        return ids
-    }
-
-    private fun buildPatrollingIds(data: GameData): Set<String> =
-        data.patrolSlots.filter { it.discipleId.isNotEmpty() }.map { it.discipleId }.toSet()
 
     // ── resetAllDisciplesStatus 拆出的辅助函数 ────────────────────────
 

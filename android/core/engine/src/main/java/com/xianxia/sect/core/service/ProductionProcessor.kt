@@ -598,16 +598,39 @@ class ProductionProcessor @Inject constructor(
             return candidate
         }
 
-        // ── 自动入住住所（两轮分配：单人优先 → 多人剩余）────────────────
-        // 无视状态限制：仅排除已死亡和已入住的弟子
-        // 筛选规则与 takeCandidate 一致：(focused && followed) || rootCount in list → AND attr >= threshold
-        // 优先级：已关注 > 灵根数 > 属性
+        /** 预排序候选弟子并按序标记已占用（不移除 pool 元素，仅返回排序结果）。 */
+        fun precomputeCandidates(
+            pool: List<Disciple>,
+            focused: Boolean, rootCounts: List<Int>,
+            threshold: Int, attr: (Disciple) -> Int
+        ): List<Disciple> {
+            val enabled = focused || rootCounts.isNotEmpty()
+            if (!enabled || pool.isEmpty()) return emptyList()
+            return pool
+                .filter { d ->
+                    val matchesFilter = (focused && isDiscipleFollowed(d)) ||
+                        d.spiritRoot.types.size in rootCounts
+                    matchesFilter && attr(d) >= threshold
+                }
+                .sortedWith(
+                    compareByDescending<Disciple> { if (focused) isDiscipleFollowed(it) else false }
+                        .thenBy { it.spiritRoot.types.size }
+                        .thenByDescending { attr(it) }
+                )
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        // 预计算阶段（不修改 state，只在本地列表操作）
+        // ══════════════════════════════════════════════════════════════════
+
+        // ── 住所预计算 ──
         val occupiedResidentIds = data.residenceSlots
             .filter { it.discipleId.isNotEmpty() }
             .map { it.discipleId }
             .toSet()
         val singleResEnabled = policies.autoSingleResidenceFocused || policies.autoSingleResidenceRootCounts.isNotEmpty()
         val multiResEnabled = policies.autoMultiResidenceFocused || policies.autoMultiResidenceRootCounts.isNotEmpty()
+        val allAssignments: Map<String, Pair<String, String>>
         if (singleResEnabled || multiResEnabled) {
             val singleResBuildingIds = if (singleResEnabled) {
                 data.placedBuildings
@@ -622,11 +645,9 @@ class ProductionProcessor @Inject constructor(
                     } }.map { it.instanceId }.toSet()
             } else emptySet()
 
-            // 所有存活且未入住的弟子作为候选池
             val allCandidates = stateStore.disciples.value
                 .filter { d -> d.isAlive && d.id !in occupiedResidentIds }
 
-            // ── 第一轮：单人住所（优先） ──
             val singleAssignments = mutableMapOf<String, Pair<String, String>>()
             if (singleResEnabled && singleResBuildingIds.isNotEmpty()) {
                 val singleCandidates = allCandidates.filter { d ->
@@ -648,7 +669,6 @@ class ProductionProcessor @Inject constructor(
                 }
             }
 
-            // ── 第二轮：多人住所（排除已分配到单人的弟子） ──
             val multiAssignments = mutableMapOf<String, Pair<String, String>>()
             val singleAssignedIds = singleAssignments.values.map { it.first }.toSet()
             if (multiResEnabled && multiResBuildingIds.isNotEmpty()) {
@@ -673,103 +693,120 @@ class ProductionProcessor @Inject constructor(
                     multiAssignments["${slot.buildingInstanceId}:${slot.slotIndex}"] = c.id to c.name
                 }
             }
+            allAssignments = singleAssignments + multiAssignments
+            val newlyResidentIds = allAssignments.values.map { it.first }.toSet()
+            idleDisciples.removeAll { it.id in newlyResidentIds }
+        } else {
+            allAssignments = emptyMap()
+        }
 
-            // ── 统一写入 ──
-            val allAssignments = singleAssignments + multiAssignments
+        // ── 生产槽位候选预计算（按优先级逐级筛选，候选从 idleDisciples 移除） ──
+        val herbCandidates = if (policies.autoPlantFocused || policies.autoPlantRootCounts.isNotEmpty()) {
+            val sorted = precomputeCandidates(
+                idleDisciples,
+                policies.autoPlantFocused, policies.autoPlantRootCounts,
+                policies.autoPlantThreshold
+            ) { it.spiritPlanting }
+            // 从池中移除已选中弟子
+            sorted.forEach { idleDisciples.remove(it) }
+            sorted
+        } else emptyList()
+
+        val mineCandidates = if (policies.autoMineFocused || policies.autoMineRootCounts.isNotEmpty()) {
+            val sorted = precomputeCandidates(
+                idleDisciples,
+                policies.autoMineFocused, policies.autoMineRootCounts,
+                policies.autoMineThreshold
+            ) { it.mining }
+            sorted.forEach { idleDisciples.remove(it) }
+            sorted
+        } else emptyList()
+
+        val alchemyCandidates = if (policies.autoAlchemyFocused || policies.autoAlchemyRootCounts.isNotEmpty()) {
+            val sorted = precomputeCandidates(
+                idleDisciples,
+                policies.autoAlchemyFocused, policies.autoAlchemyRootCounts,
+                policies.autoAlchemyThreshold
+            ) { it.pillRefining }
+            sorted.forEach { idleDisciples.remove(it) }
+            sorted
+        } else emptyList()
+
+        val forgeCandidates = if (policies.autoForgeFocused || policies.autoForgeRootCounts.isNotEmpty()) {
+            precomputeCandidates(
+                idleDisciples,
+                policies.autoForgeFocused, policies.autoForgeRootCounts,
+                policies.autoForgeThreshold
+            ) { it.artifactRefining }
+        } else emptyList()
+
+        // ══════════════════════════════════════════════════════════════════
+        // 单次原子写入（所有 5 步骤在同一事务内完成）
+        // ══════════════════════════════════════════════════════════════════
+        if (allAssignments.isEmpty() && herbCandidates.isEmpty() && mineCandidates.isEmpty()
+            && alchemyCandidates.isEmpty() && forgeCandidates.isEmpty()) return
+
+        val herbIter = herbCandidates.iterator()
+        val mineIter = mineCandidates.iterator()
+        val alchemyIter = alchemyCandidates.iterator()
+        val forgeIter = forgeCandidates.iterator()
+
+        stateStore.update {
+            // 1. 住所写入 + 状态同步
             if (allAssignments.isNotEmpty()) {
                 val writtenIds = mutableSetOf<String>()
-                stateStore.update {
-                    gameData = gameData.copy(
-                        residenceSlots = gameData.residenceSlots.map { slot ->
-                            val key = "${slot.buildingInstanceId}:${slot.slotIndex}"
-                            val assignment = allAssignments[key]
-                            if (assignment != null && slot.discipleId.isEmpty()
-                                && assignment.first !in writtenIds
-                            ) {
-                                writtenIds.add(assignment.first)
-                                slot.copy(discipleId = assignment.first, discipleName = assignment.second)
-                            } else slot
-                        }
-                    )
-                }
-
-                // 从闲暇池移除刚入住的弟子，避免同一 tick 内被分配到生产槽位
-                val newlyResidentIds = allAssignments.values.map { it.first }.toSet()
-                idleDisciples.removeAll { it.id in newlyResidentIds }
-            }
-        }
-
-        // ── 自动种植（灵植阁）─────────────────────────────────────
-        if (policies.autoPlantFocused || policies.autoPlantRootCounts.isNotEmpty()) {
-            stateStore.update {
-                batchAssignToProductionSlots(
-                    BuildingType.HERB_GARDEN, BuildingNames.HERB_GARDEN, {
-                        takeCandidate(
-                            idleDisciples,
-                            policies.autoPlantFocused, policies.autoPlantRootCounts,
-                            policies.autoPlantThreshold
-                        ) { it.spiritPlanting }
-                    }, this
-                )
-            }
-        }
-
-        if (policies.autoMineFocused || policies.autoMineRootCounts.isNotEmpty()) {
-            val emptyIndices = data.spiritMineSlots
-                .mapIndexedNotNull { i, slot -> if (slot.discipleId.isEmpty()) i else null }
-            if (emptyIndices.isNotEmpty()) {
-                val assignments = emptyIndices.mapNotNull {
-                    val c = takeCandidate(
-                        idleDisciples,
-                        policies.autoMineFocused, policies.autoMineRootCounts,
-                        policies.autoMineThreshold
-                    ) { it.mining }
-                    c?.let { it.id to it.name }
-                }
-                if (assignments.isNotEmpty()) {
-                    val assignIter = assignments.iterator()
-                    stateStore.update {
-                        gameData = gameData.copy(
-                            spiritMineSlots = gameData.spiritMineSlots.map { slot ->
-                                if (slot.discipleId.isEmpty() && assignIter.hasNext()) {
-                                    val (id, name) = assignIter.next()
-                                    slot.copy(discipleId = id, discipleName = name)
-                                } else slot
-                            }
-                        )
-                        // 同一事务内同步弟子状态，避免存档捕获部分写入
-                        assignments.forEach { (id, _) ->
-                            discipleTables.statuses[id.toInt()] = DiscipleStatus.MINING
-                        }
+                gameData = gameData.copy(
+                    residenceSlots = gameData.residenceSlots.map { slot ->
+                        val key = "${slot.buildingInstanceId}:${slot.slotIndex}"
+                        val assignment = allAssignments[key]
+                        if (assignment != null && slot.discipleId.isEmpty()
+                            && assignment.first !in writtenIds
+                        ) {
+                            writtenIds.add(assignment.first)
+                            slot.copy(discipleId = assignment.first, discipleName = assignment.second)
+                        } else slot
                     }
-                }
-            }
-        }
-
-        if (policies.autoAlchemyFocused || policies.autoAlchemyRootCounts.isNotEmpty()) {
-            stateStore.update {
-                batchAssignToProductionSlots(
-                    BuildingType.ALCHEMY, BuildingNames.ALCHEMY, {
-                        takeCandidate(
-                            idleDisciples,
-                            policies.autoAlchemyFocused, policies.autoAlchemyRootCounts,
-                            policies.autoAlchemyThreshold
-                        ) { it.pillRefining }
-                    }, this
                 )
             }
-        }
 
-        if (policies.autoForgeFocused || policies.autoForgeRootCounts.isNotEmpty()) {
-            stateStore.update {
+            // 2. 灵植（使用预计算候选迭代器）
+            if (herbCandidates.isNotEmpty()) {
                 batchAssignToProductionSlots(
-                    BuildingType.FORGE, BuildingNames.FORGE, {
-                        takeCandidate(
-                            idleDisciples,
-                            policies.autoForgeFocused, policies.autoForgeRootCounts,
-                            policies.autoForgeThreshold
-                        ) { it.artifactRefining }
-                    }, this
+                    BuildingType.HERB_GARDEN, BuildingNames.HERB_GARDEN,
+                    { if (herbIter.hasNext()) herbIter.next() else null }, this
+                )
+            }
+
+            // 3. 灵矿（inline 写入 + 状态同步）
+            if (mineCandidates.isNotEmpty()) {
+                val mineAssignments = mineCandidates.map { it.id to it.name }
+                val mineAssignIter = mineAssignments.iterator()
+                gameData = gameData.copy(
+                    spiritMineSlots = gameData.spiritMineSlots.map { slot ->
+                        if (slot.discipleId.isEmpty() && mineAssignIter.hasNext()) {
+                            val (id, name) = mineAssignIter.next()
+                            slot.copy(discipleId = id, discipleName = name)
+                        } else slot
+                    }
+                )
+                mineCandidates.forEach { disciple ->
+                    discipleTables.statuses[disciple.id.toInt()] = DiscipleStatus.MINING
+                }
+            }
+
+            // 4. 炼丹（使用预计算候选迭代器）
+            if (alchemyCandidates.isNotEmpty()) {
+                batchAssignToProductionSlots(
+                    BuildingType.ALCHEMY, BuildingNames.ALCHEMY,
+                    { if (alchemyIter.hasNext()) alchemyIter.next() else null }, this
+                )
+            }
+
+            // 5. 锻造（使用预计算候选迭代器）
+            if (forgeCandidates.isNotEmpty()) {
+                batchAssignToProductionSlots(
+                    BuildingType.FORGE, BuildingNames.FORGE,
+                    { if (forgeIter.hasNext()) forgeIter.next() else null }, this
                 )
             }
         }

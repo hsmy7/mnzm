@@ -116,6 +116,14 @@
 - **测试：同步更新 5 种排除状态** — `ResolveBeastAttackFightTest` 增加 IN_TEAM / GARRISONING 测试用例
 - **文档：架构债务新增第 7 项** — `CaveExplorationProcessor` 锁外快照 TOCTOU（防守方选择跨事务边界）
 
+#### 架构债务阶段 E — 事务完整性 + 死代码清理（2026-07-24）
+
+- **重构：DiscipleSlotManager 死代码清理** — 删除已标记 `@Deprecated` 的 `syncAllDiscipleStatuses` 重复实现及 10 个私有辅助方法
+- **重构：openStorageBag 单事务（彻底）** — 先生成奖励列表，再在单次 `stateStore.update` 内原子消耗袋子+发放奖励，消除 Phase 1→2 崩溃窗口；消除 `rarity` 闭包副作用模式
+- **重构：processAutoAssign 5 步原子化** — 5 次独立 `stateStore.update` 合并为 1 次，预计算候选后单事务写入；住所不改变弟子状态确认为设计不修改
+- **重构：CaveExplorationProcessor TOCTOU 根除** — `executePlayerDefenseBattle` 全流程（防守方选择→战前结算→组队→战斗→结果应用）移入单次 `stateStore.update`，`selectAndPrepareDefenders`/`buildDefenseTeam` 改为从 `MutableGameState` 参数读取锁内最新状态
+- **文档：架构债务记录精简** — 清除已完成 4 项，仅保留 2 项真正待完成（广告回调透传 / `lastTheftMonths` 写而不读）
+
 ## [4.0.66] - 2026-07-23（versionCode=4066）
 
 ### 新功能

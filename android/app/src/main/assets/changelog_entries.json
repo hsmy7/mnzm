@@ -57,7 +57,12 @@
       "调整：妖兽遇敌战仅巡逻弟子出战——不再补充非巡逻弟子（属于巡视塔主动出击）",
       "调整：AI宗门进攻防守改为巡逻优先——从按境界取最弱改为巡逻优先再按境界倒序补齐",
       "测试：ResolveBeastAttackFightTest更新排除状态——增加IN_TEAM/GARRISONING测试用例",
-      "文档：架构债务新增第7项——CaveExplorationProcessor锁外TOCTOU"
+      "文档：架构债务新增第7项——CaveExplorationProcessor锁外TOCTOU",
+      "重构：DiscipleSlotManager清理死代码——删除syncAllDiscipleStatuses重复实现+10个私有辅助方法",
+      "重构：openStorageBag单事务(彻底)——先生成奖励列表再单次update内原子消耗袋子+发放奖励，消除Phase 1→Phase 2崩溃窗口",
+      "重构：processAutoAssign 5步原子化——5次独立stateStore.update合并为1次，预计算候选+单次写入，住所分配不改变弟子状态确认为设计不修",
+      "重构：CaveExplorationProcessor TOCTOU根除——executePlayerDefenseBattle全流程移入单次stateStore.update，selectAndPrepareDefenders/buildDefenseTeam从MutableGameState读取",
+      "文档：架构债务记录精简——清除已完成4项，只保留2项真正待完成(广告回调/lastTheftMonths写而不读)"
     ]
   },
   {

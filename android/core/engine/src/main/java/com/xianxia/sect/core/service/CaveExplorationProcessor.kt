@@ -405,24 +405,27 @@ class CaveExplorationProcessor @Inject constructor(
     }
 
     private fun executePlayerDefenseBattle(expired: AttackWarning) {
-        // 1. 防守方选择和准备
-        val preparation = selectAndPrepareDefenders(expired)
-        if (preparation == null) return
-        val (defenderIds, equipmentMap, manualMap, profMap, data) = preparation
+        val attackerSectId = expired.attackerSectId
 
-        // 2. 战斗前结算 + 刷新防守方状态
+        // 单事务原子执行：防守方选择、战前结算、组队、战斗、结果应用全部在锁内完成
         stateStore.update {
+            // 1. 防守方选择和准备（从锁内最新数据读取）
+            val preparation = selectAndPrepareDefenders(this, expired)
+            if (preparation == null) return@update
+            val defenderIds = preparation.defenderIds
+
+            // 2. 战斗前结算 + 刷新防守方状态
             cultivationService.forceSettleDisciplesBeforeBattle(this, defenderIds)
-        }
-        val defenseTeam = buildDefenseTeam(defenderIds, equipmentMap, manualMap, profMap)
 
-        // 3. 执行战斗
-        val result = AISectAttackManager.executePlayerAttack(
-            data, expired.attackerSectId, defenseTeam
-        ) ?: return
+            // 3. 组防守队（从锁内最新 Tables 构建）
+            val defenseTeam = buildDefenseTeam(this, preparation)
 
-        // 4. 应用战斗结果（stateStore.update 内原子完成）
-        stateStore.update {
+            // 4. 执行战斗
+            val result = AISectAttackManager.executePlayerAttack(
+                gameData, attackerSectId, defenseTeam
+            ) ?: return@update
+
+            // 5. 应用战斗结果
             applyDefenseBattleResult(this, expired, result)
         }
     }
@@ -1088,10 +1091,11 @@ class CaveExplorationProcessor @Inject constructor(
     // ── executePlayerDefenseBattle 辅助方法 ─────────────────────────────
 
     private fun selectAndPrepareDefenders(
+        state: MutableGameState,
         expired: AttackWarning
     ): DefensePreparation? {
-        val data = stateStore.gameData.value
-        val allDisciples = stateStore.discipleTables.assembleAll()
+        val data = state.gameData
+        val allDisciples = state.discipleTables.assembleAll()
         val allAlive = allDisciples.filter {
             it.isAlive && it.status !in setOf(
                 DiscipleStatus.ON_MISSION,
@@ -1114,8 +1118,8 @@ class CaveExplorationProcessor @Inject constructor(
         val defenderIds = selectedDefenders.map { it.id }
         if (defenderIds.isEmpty()) return null
 
-        val equipmentMap = stateStore.equipmentInstancesSnapshot.associateBy { it.id }
-        val manualMap = stateStore.manualInstancesSnapshot.associateBy { it.id }
+        val equipmentMap = state.equipmentInstances.all().associateBy { it.id }
+        val manualMap = state.manualInstances.all().associateBy { it.id }
         val profMap = data.manualProficiencies.mapValues { (_, list) ->
             list.associateBy { it.manualId }
         }
@@ -1123,19 +1127,18 @@ class CaveExplorationProcessor @Inject constructor(
     }
 
     private fun buildDefenseTeam(
-        defenderIds: List<String>,
-        equipmentMap: Map<String, EquipmentInstance>,
-        manualMap: Map<String, ManualInstance>,
-        profMap: Map<String, Map<String, ManualProficiencyData>>
+        state: MutableGameState,
+        preparation: DefensePreparation
     ): List<Combatant> {
-        val tables = stateStore.discipleTables
-        val refreshedDefenders = defenderIds.mapNotNull { id ->
+        val tables = state.discipleTables
+        val refreshedDefenders = preparation.defenderIds.mapNotNull { id ->
             val idInt = id.toIntOrNull() ?: return@mapNotNull null
             if (tables.isAlive[idInt] == 1) tables.assemble(idInt) else null
         }
         return refreshedDefenders.map { d ->
             battleSystem.convertDiscipleToCombatant(
-                d, equipmentMap, manualMap, profMap, CombatantSide.DEFENDER
+                d, preparation.equipmentMap, preparation.manualMap,
+                preparation.profMap, CombatantSide.DEFENDER
             )
         }
     }
