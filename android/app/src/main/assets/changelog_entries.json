@@ -21,7 +21,24 @@
       "重构：CEP执法/偷盗迁至LawEnforcementProcessor——消除530行重复代码，CEP从1189行降至718行",
       "重构：handleDiscipleDeath单事务——processDiscipleAging合并Phase2/3消除TOCTOU窗口",
       "修复：备份恢复后跳过二次验证——CorruptedResultHandler在备份恢复后调用SaveValidator.validate()再确认",
-      "技术债务：架构债务完成26项——更新架构债务文档仅保留3项待完成项"
+      "技术债务：架构债务完成26项——更新架构债务文档仅保留3项待完成项",
+      "重构：processCompletedMissionsLazy单事务——Phase1仅计算Phase2统一写入，消除任务奖励发放的事务分裂风险",
+      "重构：buyMerchantItem扣灵石后移——先加物品后扣灵石，Partial时取消交易，消除灵石损失风险",
+      "重构：sortWarehouse单事务——consolidate+sort合并为同一事务，消除中间状态暴露",
+      "重构：AutoBuyService→StackableItemStore——addToWarehouse6路手写合并替换为统一堆叠入口",
+      "重构：openStorageBag单事务+StackableItemStore——~20次独立update合并为1次，消除多次提交风险",
+      "重构：bulkSellItems简化——提取deductStack辅助函数，消除6路重复代码",
+      "重构：DiscipleEquipmentService→StackableItemStore——unequipEquipmentLogic改用统一堆叠入口，Failure时保留装备实例防止数据丢失",
+      "重构：processAutoAssign迁入stateStore——batchAssignToProductionSlots从Room DAO fire-and-forget改为state.gameData.productionSlots直写",
+      "重构：DiscipleStatusService提取——DiscipleService从574行降至358行，状态同步逻辑集中管理",
+      "加固：tryStealthDetection+可选state参数——事务内路径从state.discipleTables读取守卫，消除过期StateFlow读",
+      "加固：canAddItemInTransaction——事务内容量检查方法",
+      "加固：otherSlotsCount辅助提取——confiscateStorageBagItem中6处手动计算统一为辅助函数",
+      "修复：DiscipleEquipmentService仓库满时卸装备导致装备永久丢失——Failure路径保留实例(数据篡改者审查发现)",
+      "修复：ProductionProcessor.candidate.id.toInt()缺少NumberFormatException保护——改为toIntOrNull()(数据篡改者审查发现)",
+      "修复：buyMerchantItem Partial时全额扣款不出全货——addOk=false取消整笔交易(边界狂魔审查发现)",
+      "文档：架构债务记录更新——清除已完成项，新增4项待完成(DiscipleSlotManager重复实现/openStorageBag双事务/processAutoAssign 5步非原子/住所不更新状态表)",
+      "文档：知识库更新——库存堆叠待完成项标记本轮修复项"
     ]
   },
   {

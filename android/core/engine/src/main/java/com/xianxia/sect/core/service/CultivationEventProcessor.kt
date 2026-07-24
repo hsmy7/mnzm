@@ -552,12 +552,16 @@ class CultivationEventProcessor @Inject constructor(
         val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(year, month)
         val remainingActive = mutableListOf<ActiveMission>()
 
-        // ── Phase 1: 事务外计算 + IO 操作（状态变更收集，不执行 stateStore.update） ──
+        // ── Phase 1: 事务外计算（仅收集奖励数据，不变更任何状态） ──
         data class MissionReward(
             val missionId: String,
             val spiritStones: Int,
             val survivors: Set<String>,
-            val discipleIds: List<String>
+            val discipleIds: List<String>,
+            val materials: List<Material>,
+            val pills: List<Pill>,
+            val equipmentStacks: List<EquipmentStack>,
+            val manualStacks: List<ManualStack>
         )
         val rewards = mutableListOf<MissionReward>()
 
@@ -571,7 +575,7 @@ class CultivationEventProcessor @Inject constructor(
             if (!activeMission.isComplete(year, month)) {
                 remainingActive.add(activeMission); continue
             }
-            val reward = runCatching {
+            val missionReward = runCatching {
                 val aliveDisciples = activeMission.discipleIds.mapNotNull { did ->
                     stateStore.disciples.value.find { it.id == did && it.isAlive }
                 }
@@ -584,8 +588,33 @@ class CultivationEventProcessor @Inject constructor(
                 val result = MissionSystem.processMissionCompletion(
                     activeMission, aliveDisciples, equipMap, manualMap, proficiencies, battleSystem
                 )
-                // IO 操作留在 Phase 1（事务外允许）
-                result.materials.forEach { material ->
+                // 仅收集奖励，不再调用 inventorySystem.addXxx（统一到 Phase 2 单事务处理）
+                val survivors = if (result.combatTriggered && result.victory && result.battleResult != null) {
+                    result.battleResult.log.teamMembers.filter { it.isAlive }.map { it.id }.toSet()
+                } else emptySet()
+                MissionReward(
+                    missionId = activeMission.id,
+                    spiritStones = result.spiritStones,
+                    survivors = survivors,
+                    discipleIds = activeMission.discipleIds,
+                    materials = result.materials,
+                    pills = result.pills,
+                    equipmentStacks = result.equipmentStacks,
+                    manualStacks = result.manualStacks
+                )
+            }
+            if (missionReward.isSuccess && missionReward.getOrNull() != null) {
+                missionReward.getOrNull()?.let { rewards.add(it) }
+            } else {
+                remainingActive.add(activeMission) // 失败的任务保留到下次
+            }
+        }
+
+        // ── Phase 2: 单事务写入所有状态（物品 + 灵石 + 弟子状态 + 任务清理） ──
+        stateStore.update {
+            for (reward in rewards) {
+                // 发放物品（通过重入缓冲在同一事务内生效）
+                reward.materials.forEach { material ->
                     val r = inventorySystem.addMaterial(material)
                     when (r) {
                         is DomainResult.Success -> {}
@@ -594,7 +623,7 @@ class CultivationEventProcessor @Inject constructor(
                     }
                 }
                 inventorySystem.withTrackingSource("trial") {
-                    result.pills.forEach { pill ->
+                    reward.pills.forEach { pill ->
                         val r = inventorySystem.addPill(pill)
                         when (r) {
                             is DomainResult.Success -> {}
@@ -602,7 +631,7 @@ class CultivationEventProcessor @Inject constructor(
                             is DomainResult.Failure -> DomainLog.w(TAG, "添加 ${pill.name} 失败: ${r.error}")
                         }
                     }
-                    result.equipmentStacks.forEach { equip ->
+                    reward.equipmentStacks.forEach { equip ->
                         val r = inventorySystem.addEquipmentStack(equip)
                         when (r) {
                             is DomainResult.Success -> {}
@@ -611,7 +640,7 @@ class CultivationEventProcessor @Inject constructor(
                         }
                     }
                 }
-                result.manualStacks.forEach { manual ->
+                reward.manualStacks.forEach { manual ->
                     val r = inventorySystem.addManualStack(manual)
                     when (r) {
                         is DomainResult.Success -> {}
@@ -619,31 +648,11 @@ class CultivationEventProcessor @Inject constructor(
                         is DomainResult.Failure -> DomainLog.w(TAG, "添加 ${manual.name} 失败: ${r.error}")
                     }
                 }
-                val survivors = if (result.combatTriggered && result.victory && result.battleResult != null) {
-                    result.battleResult.log.teamMembers.filter { it.isAlive }.map { it.id }.toSet()
-                } else emptySet()
-                MissionReward(activeMission.id, result.spiritStones, survivors, activeMission.discipleIds)
-            }
-            if (reward.isSuccess && reward.getOrNull() != null) {
-                reward.getOrNull()?.let { rewards.add(it) }
-            } else {
-                remainingActive.add(activeMission) // 失败的任务保留到下次
-            }
-        }
-
-        if (rewards.isEmpty()) {
-            if (remainingActive.size < data.activeMissions.size) {
-                stateStore.update { gameData = gameData.copy(activeMissions = remainingActive) }
-            }
-            return
-        }
-
-        // ── Phase 2: 单事务写入状态 ──
-        stateStore.update {
-            for (reward in rewards) {
+                // 灵石
                 if (reward.spiritStones > 0) {
                     spiritStoneWallet.add(this, reward.spiritStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.Quest)
                 }
+                // 弟子状态
                 for (did in reward.discipleIds) {
                     val tid = did.toIntOrNull() ?: continue
                     val tableIds = discipleTables.ids

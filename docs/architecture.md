@@ -329,34 +329,21 @@ SaveValidator.validate(SaveData)
 
 20 个测试类覆盖全部规则，位于 `data/src/test/.../integrity/rules/`。每规则独立覆盖通过/修复/损坏三类路径。
 
-### 待完成
-
-见 [架构债务清单](architecture-debt.md) #21（对抗性审查 4 项未覆盖）、#22（补充修复文件）、#23（EntityCountBoundsRule）。
-
----
-
 以下优化项基于 [行业对标分析](knowledge-base.md#行业对标分析报告)（来源包括 UE/Supercell/RimWorld/MineColonies 等）。
 
-### 1️⃣ 角色状态系统：纯推导式迁移（长期）
+### 1️⃣ 角色状态系统：纯推导式迁移（长期，未完成）
 
 **对标：** RimWorld（状态从当前执行任务推导，不手动设置）、MineColonies（三层状态机推导）
 **现状：** 显式式 + 推导修正混合模式（`markDiscipleAssigned` 直接写 + `syncAllDiscipleStatuses` 修正）
 **建议：** 逐步废除 `markDiscipleAssigned` 直接写入，使 `syncAllDiscipleStatuses` 成为唯一状态真相源。新增状态时只需更新推导函数，无需同时修改两处代码。
 
-### 2️⃣ 自动分配管线：全量单事务写入
+### 2️⃣ 自动分配管线：全量单事务写入 ✅ 已完成（2026-07-24）
 
 **对标：** Supercell（action 原子提交）、UE（Game Thread 快照一次性完成）
-**现状：** `processAutoAssign` 中炼丹/锻造仍通过 `productionSlotRepository.batchUpdate`（Room IO）写入，与 `stateStore.update` 不在同一事务
-**建议：** 将生产槽位数据迁入 `GameStateStore` 的 `MutableGameState` 体系，使所有自动分配在同一事务内完成
+**修复内容：** `batchAssignToProductionSlots` 从 `productionSlotRepository.batchUpdate`（Room IO fire-and-forget）改为直接写 `state.gameData.productionSlots`，移除 `scope.launch(IO)` 异步写入模式。见 [架构债务清单](architecture-debt.md) 已完成清单 #31。
 
-### 3️⃣ 偷盗系统：事务内守卫查询走 StateFlow 而非事务内状态
+### 3️⃣ 偷盗系统：事务内守卫查询走 StateFlow → 可选 state 参数 ✅ 已完成（2026-07-24）
 
-**场景：** `LawEnforcementProcessor.tryStealthDetection()` 从事务内路径（6 处道德变更钩子）调用时，守卫数据通过 `stateStore.disciples.value` 读取，而非当前事务 `MutableGameState` 的 `discipleTables`。
-
-**当前影响：** 无。所有 6 处钩子只修改盗贼的道德值，不涉及守卫数据，读到的 StateFlow 快照与事务内状态一致。
-
-**触发条件：** 仅在同一事务内同时修改守卫属性 + 触发盗贼偷盗时才会读到旧守卫数据。当前代码路径不存在此场景。
-
-**建议修复方案：** 给 `tryStealthDetection` 增加 `state: MutableGameState?` 可选参数，事务内路径传入 `state` 并从 `state.discipleTables` 读取守卫。
-
-**优先级：** 🔴 低（当前无触发路径，纯防御性记录）
+**场景：** `LawEnforcementProcessor.tryStealthDetection()` 从事务内路径调用时，守卫数据通过 `stateStore.disciples.value` 读取。
+**修复内容：** 给 `tryStealthDetection` 增加 `state: MutableGameState?` 可选参数，事务内路径传入 `state` 并从 `state.discipleTables` 读取守卫。
+**见：** [架构债务清单](architecture-debt.md) 待完成项（状态维持，已修复的不再重复列出）。

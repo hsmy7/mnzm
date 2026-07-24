@@ -74,8 +74,10 @@ class DiscipleSlotManager @Inject constructor(
     // ==================== 状态同步 ====================
 
     /**
-     * Sync all disciples' status based on their assignments
+     * 已迁移到 [DiscipleStatusService]（所有调用方已走 DiscipleService → DiscipleStatusService）。
+     * 此实现为旧副本，仅保留以兼容编译。
      */
+    @Deprecated("Use DiscipleStatusService instead", ReplaceWith("discipleStatusService.syncAllDiscipleStatuses()"))
     fun syncAllDiscipleStatuses() {
         val tables = stateStore.discipleTables
 

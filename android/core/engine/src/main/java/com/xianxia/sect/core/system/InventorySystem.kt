@@ -193,6 +193,10 @@ class InventorySystem @Inject constructor(
 
     fun canAddItem(): Boolean = inventoryCanAddItem(stateStore)
 
+    /** 在 MutableGameState 事务内检查是否有空余槽位（读到事务内最新状态）。 */
+    fun canAddItemInTransaction(state: MutableGameState): Boolean =
+        state.computeSlotCount() < state.computeMaxSlots()
+
     fun canAddItems(count: Int): Boolean = inventoryCanAddItems(stateStore, count)
 
     fun canAddEquipment(name: String, rarity: Int, slot: EquipmentSlot): Boolean {
@@ -1018,58 +1022,64 @@ class InventorySystem @Inject constructor(
      * 合并分散堆叠。遍历所有物品，对同 key 的堆叠尝试合并到第一个非满堆叠。
      * 与 sortWarehouse 配合使用——先合并后排序。
      */
-    fun consolidateStacks() {
-        stateStore.update {
-            fun <T> consolidate(items: EntityStore<T>, keyOf: (T) -> StackKey, maxStack: Int)
-                    where T : HasId, T : StackableItem {
-                var changed = true
-                while (changed) {
-                    changed = false
-                    val groups = items.all().groupBy { keyOf(it) }
-                    for ((_, list) in groups) {
-                        if (list.size <= 1) continue
-                        var primaryId = list.firstOrNull { !it.isLocked }?.id ?: continue
-                        for (i in 1 until list.size) {
-                            val secondary = list[i]
-                            if (secondary.id == primaryId || secondary.isLocked) continue
-                            val primary = items.get(primaryId) ?: break
-                            val space = maxStack - primary.quantity
-                            if (space <= 0) { primaryId = secondary.id; continue }
-                            val transfer = minOf(space, secondary.quantity)
-                            @Suppress("UNCHECKED_CAST")
-                            items.update(primaryId) {
-                                (it as StackableItem).withQuantity(it.quantity + transfer) as T
-                            }
-                            if (transfer >= secondary.quantity) items.remove(secondary.id)
-                            else {
-                                @Suppress("UNCHECKED_CAST")
-                                items.update(secondary.id) {
-                                    (it as StackableItem).withQuantity(it.quantity - transfer) as T
-                                }
-                            }
-                            changed = true
+    /**
+     * 在 MutableGameState 事务内合并分散堆叠。
+     * 由 [consolidateStacks] 和 [sortWarehouse] 共用。
+     */
+    private fun MutableGameState.consolidateAllStacks() {
+        fun <T> consolidate(items: EntityStore<T>, keyOf: (T) -> StackKey, maxStack: Int)
+                where T : HasId, T : StackableItem {
+            var changed = true
+            while (changed) {
+                changed = false
+                val groups = items.all().groupBy { keyOf(it) }
+                for ((_, list) in groups) {
+                    if (list.size <= 1) continue
+                    var primaryId = list.firstOrNull { !it.isLocked }?.id ?: continue
+                    for (i in 1 until list.size) {
+                        val secondary = list[i]
+                        if (secondary.id == primaryId || secondary.isLocked) continue
+                        val primary = items.get(primaryId) ?: break
+                        val space = maxStack - primary.quantity
+                        if (space <= 0) { primaryId = secondary.id; continue }
+                        val transfer = minOf(space, secondary.quantity)
+                        @Suppress("UNCHECKED_CAST")
+                        items.update(primaryId) {
+                            (it as StackableItem).withQuantity(it.quantity + transfer) as T
                         }
+                        if (transfer >= secondary.quantity) items.remove(secondary.id)
+                        else {
+                            @Suppress("UNCHECKED_CAST")
+                            items.update(secondary.id) {
+                                (it as StackableItem).withQuantity(it.quantity - transfer) as T
+                            }
+                        }
+                        changed = true
                     }
                 }
             }
-            val maxEq = getMaxStackForType("equipment_stack")
-            val maxMn = getMaxStackForType("manual_stack")
-            val maxPill = getMaxStackForType("pill")
-            val maxMat = getMaxStackForType("material")
-            val maxHerb = getMaxStackForType("herb")
-            val maxSeed = getMaxStackForType("seed")
-            consolidate(equipmentStacks, { StackKey.of(it.name, it.rarity, it.slot.name) }, maxEq)
-            consolidate(manualStacks, { StackKey.of(it.name, it.rarity, it.type.name) }, maxMn)
-            consolidate(pills, { StackKey.of(it.name, it.rarity, it.category.name, it.grade.name) }, maxPill)
-            consolidate(materials, { StackKey.of(it.name, it.rarity, it.category.name) }, maxMat)
-            consolidate(herbs, { StackKey.of(it.name, it.rarity, it.category) }, maxHerb)
-            consolidate(seeds, { StackKey.of(it.name, it.rarity, it.growTime) }, maxSeed)
         }
+        val maxEq = getMaxStackForType("equipment_stack")
+        val maxMn = getMaxStackForType("manual_stack")
+        val maxPill = getMaxStackForType("pill")
+        val maxMat = getMaxStackForType("material")
+        val maxHerb = getMaxStackForType("herb")
+        val maxSeed = getMaxStackForType("seed")
+        consolidate(equipmentStacks, { StackKey.of(it.name, it.rarity, it.slot.name) }, maxEq)
+        consolidate(manualStacks, { StackKey.of(it.name, it.rarity, it.type.name) }, maxMn)
+        consolidate(pills, { StackKey.of(it.name, it.rarity, it.category.name, it.grade.name) }, maxPill)
+        consolidate(materials, { StackKey.of(it.name, it.rarity, it.category.name) }, maxMat)
+        consolidate(herbs, { StackKey.of(it.name, it.rarity, it.category) }, maxHerb)
+        consolidate(seeds, { StackKey.of(it.name, it.rarity, it.growTime) }, maxSeed)
+    }
+
+    fun consolidateStacks() {
+        stateStore.update { consolidateAllStacks() }
     }
 
     fun sortWarehouse() {
-        consolidateStacks() // 先合并后排序
         stateStore.update {
+            consolidateAllStacks() // 先合并后排序，同一事务内
             equipmentStacks.replaceAll(equipmentStacks.items.sortedWith(compareByDescending<EquipmentStack> { it.rarity }.thenBy { it.name }))
             equipmentInstances.replaceAll(equipmentInstances.items.sortedWith(compareByDescending<EquipmentInstance> { it.rarity }.thenBy { it.name }))
             manualStacks.replaceAll(manualStacks.items.sortedWith(compareByDescending<ManualStack> { it.rarity }.thenBy { it.name }))

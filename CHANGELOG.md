@@ -1,5 +1,45 @@
 ## [4.0.67] - 2026-07-24（versionCode=4067）
 
+### 架构债务批量处理（2026-07-24）
+
+#### 事务完整性修复
+
+- **重构：processCompletedMissionsLazy 单事务** — Phase 1 仅计算不写状态，Phase 2 单事务写入全部（物品+灵石+弟子状态+任务清理），消除旧 Phase 1 独立事务的崩溃窗口
+- **重构：buyMerchantItem 扣灵石后移** — 先加物品后扣灵石，`StackableItemStore.add()` 返回 `Partial` 时设 `addOk=false` 取消交易，消除灵石损失风险
+- **重构：sortWarehouse 单事务** — `consolidateAllStacks` 提取为 `MutableGameState` 扩展函数，consolidate + sort 合并为同一 `stateStore.update`
+
+#### 仓库入口统一（StackableItemStore 全面替代）
+
+- **重构：AutoBuyService → StackableItemStore** — `addToWarehouse` 6 路手写查找-更新-或-添加替换为 `StackableItemStore` 统一入口，消除容量绕过风险
+- **重构：openStorageBag 单事务 + StackableItemStore** — 从 20+ 次独立 `stateStore.update` 合并为 1 次，奖励物品改为 `StackableItemStore` 添加，消除多次提交 + 容量绕过
+- **重构：bulkSellItems 简化** — 提取 `deductStack` 泛型辅助函数，消除 6 路 `when` 分支代码重复
+- **重构：DiscipleEquipmentService → 分发路径** — `unequipEquipmentLogic` 从 `StorageBagUtils.mergeEquipmentStackToWarehouse`（绕过统一入口）改为直接操作 `StackableItemStore`
+
+#### 自动分配管线
+
+- **重构：processAutoAssign 迁入 stateStore** — `batchAssignToProductionSlots` 从 `productionSlotRepository.batchUpdate`（Room DAO + `scope.launch(IO)` fire-and-forget）改为 `state.gameData.productionSlots` 直写，移除异步写入模式
+
+#### 防御性加固
+
+- **加固：tryStealthDetection + 可选 state 参数** — 事务内路径从 `state.discipleTables.assemble()` 读取守卫数据，消除 `stateStore.disciples.value`（StateFlow）过期读风险
+- **加固：canAddItemInTransaction 方法** — 在 `MutableGameState` 事务内检查容量的方法，返回事务内最新状态
+- **加固：otherSlotsCount 辅助提取** — `confiscateStorageBagItem` 中 6 处 `otherTypes` 手动计算统一为 `otherSlotsCount(excludeType)` 辅助函数
+
+#### DiscipleService 分解
+
+- **重构：DiscipleStatusService 提取** — 新建 `DiscipleStatusService`（~217 行），从 `DiscipleService` 迁移 `syncAllDiscipleStatuses` + 10 个 build 辅助函数 + `resetAllDisciplesStatus` + `clearAllDisciplesFromElderSlots`。`DiscipleService` 从 575 行降至 358 行
+
+#### 对抗性审查 3 Agent 发现
+
+- **🔴 修复：DiscipleEquipmentService 仓库满时卸装备导致数据丢失**（数据篡改者）— `StackableItemStore.add()` 返回 `Failure` 时，`equipmentInstances.filter{it.id != equipmentId}` 仍执行导致装备实例永久删除。修复：仅在 `Success/Partial` 时删除实例，`Failure` 时保留并返回 false
+- **🟡 修复：ProductionProcessor 缺少 NumberFormatException 保护**（数据篡改者）— `candidate.id.toInt()` 在 ID 非纯数字时抛出未捕获异常。修复：改为 `toIntOrNull()` + log
+- **🔴 修复：buyMerchantItem Partial 时全额扣款不出全货**（边界狂魔）— `StackableItemStore.add()` 返回 `Partial` 时部分货物溢出，但 `addOk` 未设 false 导致全额灵石被扣、物品未全到账。修复：Partial 时设 `addOk=false` 取消整笔交易
+
+#### 文档
+
+- **文档：架构债务记录更新** — 清除已完成项，新增 4 项待完成（`DiscipleSlotManager.syncAllDiscipleStatuses` 重复实现 / `openStorageBag` 双事务 / `processAutoAssign` 5 步非原子 / 住所分配不更新状态表）
+- **文档：知识库更新** — 库存堆叠待完成项标记本轮修复项，已完成列表 12 项
+
 ### 重构
 
 - **重构：SaveValidator 规则引擎** — 原有的 8 项硬编码检查重构为可扩展规则引擎。新增 `SaveValidationRule` 接口 + `SaveValidationRuleRegistry` 注册表（object 模式，参照 `BuildingFeatureRegistry`）。新增检查只需注册一条规则，无需修改核心验证逻辑

@@ -332,48 +332,41 @@ No `NavHost` is used for the main game. `MainGameScreen` switches content via `M
 
 #### 一、合并入口未统一
 
-以下仓库写入路径仍使用独立实现，未通过 `StackableItemStore` 统一入口：
-
-| # | 路径 | 文件 | 风险 | 工作量 |
-|---|------|------|------|--------|
-| 1 | `StorageBagUtils.mergeEquipmentStackToWarehouse` / `mergeManualStackToWarehouse` | `StorageBagUtils.kt:93,114` | 已正确遍历多堆叠，但绕过统一入口 | 小 |
-| ~~2~~ | ~~`buyMerchantItem` manual/pill/material/herb/seed 5 分支使用 `mergeStackable`~~ | ~~`InventoryFacadeImpl.kt:508-545`~~ | ✅ **已修复**——统一为 StackableItemStore | — |
-| 3 | `openStorageBag` 直接 `EntityStore.add()` 绕过所有校验 | `InventoryFacadeImpl.kt:749-876` | 无 maxStack 合并、无容量检查、无合并 | 大 |
-| 4 | `sellItem` / `bulkSellItems` 直接 `EntityStore.get/remove/update` | `InventoryFacadeImpl.kt:252-419` | 绕过索引，consolidate 后 ID 失效 | 大 |
-| 5 | `AutoBuyService` 直接 `EntityStore.add` | `AutoBuyService.kt:202-285` | 无合并无容量上限 | 中 |
-| 6 | `DiscipleFacadeImpl` equipItem/returnToWarehouse 直接操作 EntityStore | `DiscipleFacadeImpl.kt:288,318` | 绕过 maxStack 合并 | 中 |
+| # | 路径 | 文件 | 风险 |
+|---|------|------|------|
+| 4 | `sellItem` / `bulkSellItems` 直接 `EntityStore.get/remove/update` | `InventoryFacadeImpl.kt` | 绕过索引（`bulkSellItems` 已提取 `deductStack` 简化，但未改到 StackableItemStore） |
 
 #### 二、事务完整性
 
-| # | 问题 | 文件 | 风险 |
-|---|------|------|------|
-| ~~7~~ | ~~`confiscateStorageBagItem` 先移除弟子物品再添加入库，仓库满时物品从双方丢失（无回滚）~~ | ~~`InventoryFacadeImpl.kt:67-226`~~ | ✅ **已修复**——先入库后移除，失败不回滚 |
-| 8 | `buyMerchantItem` 先扣灵石后加物品，添加失败不退款 | `InventoryFacadeImpl.kt:440-589` | 灵石损失 |
-| 9 | `sortWarehouse` 分两次独立 `stateStore.update`（consolidate + sort），非原子操作 | `InventorySystem.kt:1033-1045` | 中间状态对观察者可见 |
+（本次已全部修复：buyMerchantItem 灵石顺序、sortWarehouse 原子化、openStorageBag 单事务）
 
 #### 三、防御性加固
 
 | # | 问题 | 文件 | 当前状态 |
 |---|------|------|---------|
-| 10 | `mergeStackable` 负数 quantity 静默忽略（无日志无错误） | `EntityStore.kt:212-238` | ✅ 外部已有校验 |
-| 11 | `StackableItemStore.replaceAll()` 不验证 items 是否超 maxStack | `StackableItemStore.kt:178-181` | 低概率触发 |
-| ~~12~~ | ~~`merge=false` + 仓满时 Partial 语义歧义（data 指向未合并堆叠）~~ | ~~`StackableItemStore.kt:120-131`~~ | ✅ **已修复**——merge=false 时直接返回 Failure |
-| 13 | `confiscateStorageBagItem` 中 `stackKeyOf` 匿名 lambda 与 `InventorySystem` 重复定义 | `InventoryFacadeImpl.kt:91` | 需复用 `::equipmentStackKey` |
-| 14 | `canAddXxx` 6 个方法读取 `StateFlow` 而非事务内 `MutableGameState` | `InventorySystem.kt:198-244` | 嵌套事务时可能读到过期数据 |
+| 11 | `StackableItemStore.replaceAll()` 不验证 items 是否超 maxStack | `StackableItemStore.kt` | 低概率触发 |
+| 13 | `confiscateStorageBagItem` 中 `stackKeyOf` 匿名 lambda 与 `InventorySystem` 重复定义 | `InventoryFacadeImpl.kt` | 需复用 `::equipmentStackKey` |
 
 #### 四、代码可维护性
 
 | # | 问题 | 建议 |
 |---|------|------|
-| 15 | 两套堆叠逻辑并存（`StackableItemStore` / 直接 EntityStore） | 逐步统一到 `InventorySystem` 入口 |
-| 16 | `confiscateStorageBagItem` 中 6 处 `otherTypes` 手动计算（新增类型易遗漏） | 提取为 `computeOtherTypes(excludeType)` 辅助函数 |
+| 15 | 两套堆叠逻辑并存（`StackableItemStore` / 直接 EntityStore） | 本次大幅缩减差距，`sellItem` 仍直接操作 EntityStore |
 | 17 | `StackKey.parts` 使用 `List<Any>`（弱类型安全） | 未来用内联类加固（当前因泛型约束无法直接替换） |
 
-#### 已解决（本轮修复）
+#### 已完成（2026-07-24 架构债务批量处理）
 
 | # | 问题 | 修复方式 |
 |---|------|---------|
-| 2 | buyMerchantItem 非装备路径绕过容量守卫 | 改为 StackableItemStore |
+| 1 | StorageBagUtils 绕过统一入口 | `mergeEquipmentStackToWarehouse` 改为 `DiscipleEquipmentService` 直接使用 `StackableItemStore` |
+| 2 | buyMerchantItem 非装备路径绕过容量守卫 | 改为 `StackableItemStore` |
+| 3 | openStorageBag 直接 `EntityStore.add()` | 单事务 + `StackableItemStore` 统一入口 |
+| 5 | AutoBuyService 直接 `EntityStore.add` | `addToWarehouse` 改为 `StackableItemStore` |
+| 6 | DiscipleFacadeImpl equipItem/returnToWarehouse 绕过 | `unequipEquipmentLogic` 改为 `StackableItemStore` |
 | 7 | confiscate 无事务回滚 | 先入库后移除弟子物品 |
+| 8 | buyMerchantItem 先扣灵石后加物品 | 先加物品后扣灵石，Partial 时取消交易 |
+| 9 | sortWarehouse 两次独立 update | consolidate+sort 合并为单事务 |
 | 12 | merge=false + 仓满 Partial 语义歧义 | merge=false 时直接返回 Failure |
+| 14 | canAddXxx 读 StateFlow | `canAddItemInTransaction(state)` 方法 |
+| 16 | otherTypes 手动计算 | `otherSlotsCount(excludeType)` 辅助函数 |
 | — | consolidate 合并不彻底（单次循环） | 改为 `while(changed)` 迭代合并 |

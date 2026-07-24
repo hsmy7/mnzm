@@ -9,8 +9,9 @@ import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
-import com.xianxia.sect.core.util.addEquipmentInstanceToDiscipleBag
-import com.xianxia.sect.core.util.equipmentBagStackIds
+import com.xianxia.sect.core.state.StackableItemStore
+import com.xianxia.sect.core.state.StackKey
+import com.xianxia.sect.core.engine.system.computeMaxSlots
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -202,21 +203,27 @@ class DiscipleEquipmentService @Inject constructor(
             val eq = equipmentInstances.get(equipmentId)
 
             if (eq != null) {
-                val updatedDisciple = discipleTables.assemble(id)
-                val bagStackIds = updatedDisciple.equipmentBagStackIds()
-                val result = addEquipmentInstanceToDiscipleBag(
-                    disciple = updatedDisciple,
-                    instance = eq,
-                    bagStackIds = bagStackIds,
-                    gameYear = gameData.gameYear,
-                    gameMonth = gameData.gameMonth,
-                    gamePhase = gameData.gamePhase,
-                    maxStackSize = inventoryConfig.getMaxStackSize(ITEM_TYPE_EQUIPMENT_STACK)
-                )
-                // Write back the updated fields from result.updatedDisciple
-                discipleTables.storageBagItems[id] = result.updatedDisciple.equipment.storageBagItems
-                discipleTables.storageBagSpiritStones[id] = result.updatedDisciple.equipment.storageBagSpiritStones
-                discipleTables.discipleSpiritStones[id] = result.updatedDisciple.equipment.spiritStones
+                // ★ 使用 StackableItemStore 统一入口将装备放回仓库，替代存储袋直写
+                val otherTypes = manualStacks.size + pills.size + materials.size + herbs.size + seeds.size
+                val store = StackableItemStore(
+                    initialItems = equipmentStacks.all(),
+                    stackKeyOf = { StackKey.of(it.name, it.rarity, it.slot.name) },
+                    maxStack = inventoryConfig.getMaxStackSize(ITEM_TYPE_EQUIPMENT_STACK),
+                    maxSlots = { computeMaxSlots() - otherTypes },
+                    notFound = { AppError.Domain.Inventory.NotFound(it) })
+                val item = eq.toStack(quantity = 1)
+                val result = store.add(item)
+                equipmentStacks.replaceAll(store.all())
+                if (result is DomainResult.Success || result is DomainResult.Partial) {
+                    equipmentInstances = equipmentInstances.filter { it.id != equipmentId }
+                }
+                if (result is DomainResult.Partial) {
+                    DomainLog.w(TAG, "卸下装备溢出：${eq.name} 溢出 ${result.overflow} 个")
+                }
+                if (result is DomainResult.Failure) {
+                    DomainLog.w(TAG, "卸下装备失败：${eq.name} 仓库已满，装备未移除")
+                    return false
+                }
             } else {
                 DomainLog.w(TAG, "unequipEquipmentLogic: equipment instance $equipmentId not found for disciple $discipleId, clearing slot only")
             }

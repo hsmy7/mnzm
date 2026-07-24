@@ -701,14 +701,16 @@ class ProductionProcessor @Inject constructor(
 
         // ── 自动种植（灵植阁）─────────────────────────────────────
         if (policies.autoPlantFocused || policies.autoPlantRootCounts.isNotEmpty()) {
-            batchAssignToProductionSlots(
-                BuildingType.HERB_GARDEN, BuildingNames.HERB_GARDEN
-            ) {
-                takeCandidate(
-                    idleDisciples,
-                    policies.autoPlantFocused, policies.autoPlantRootCounts,
-                    policies.autoPlantThreshold
-                ) { it.spiritPlanting }
+            stateStore.update {
+                batchAssignToProductionSlots(
+                    BuildingType.HERB_GARDEN, BuildingNames.HERB_GARDEN, {
+                        takeCandidate(
+                            idleDisciples,
+                            policies.autoPlantFocused, policies.autoPlantRootCounts,
+                            policies.autoPlantThreshold
+                        ) { it.spiritPlanting }
+                    }, this
+                )
             }
         }
 
@@ -745,26 +747,30 @@ class ProductionProcessor @Inject constructor(
         }
 
         if (policies.autoAlchemyFocused || policies.autoAlchemyRootCounts.isNotEmpty()) {
-            batchAssignToProductionSlots(
-                BuildingType.ALCHEMY, BuildingNames.ALCHEMY
-            ) {
-                takeCandidate(
-                    idleDisciples,
-                    policies.autoAlchemyFocused, policies.autoAlchemyRootCounts,
-                    policies.autoAlchemyThreshold
-                ) { it.pillRefining }
+            stateStore.update {
+                batchAssignToProductionSlots(
+                    BuildingType.ALCHEMY, BuildingNames.ALCHEMY, {
+                        takeCandidate(
+                            idleDisciples,
+                            policies.autoAlchemyFocused, policies.autoAlchemyRootCounts,
+                            policies.autoAlchemyThreshold
+                        ) { it.pillRefining }
+                    }, this
+                )
             }
         }
 
         if (policies.autoForgeFocused || policies.autoForgeRootCounts.isNotEmpty()) {
-            batchAssignToProductionSlots(
-                BuildingType.FORGE, BuildingNames.FORGE
-            ) {
-                takeCandidate(
-                    idleDisciples,
-                    policies.autoForgeFocused, policies.autoForgeRootCounts,
-                    policies.autoForgeThreshold
-                ) { it.artifactRefining }
+            stateStore.update {
+                batchAssignToProductionSlots(
+                    BuildingType.FORGE, BuildingNames.FORGE, {
+                        takeCandidate(
+                            idleDisciples,
+                            policies.autoForgeFocused, policies.autoForgeRootCounts,
+                            policies.autoForgeThreshold
+                        ) { it.artifactRefining }
+                    }, this
+                )
             }
         }
     }
@@ -772,14 +778,15 @@ class ProductionProcessor @Inject constructor(
     /**
      * 批量安排弟子到指定生产建筑的所有空闲槽位。
      *
-     * 依次取候选人填满所有空闲槽位，用 [ProductionSlotRepository.batchUpdate] 一次性写入。
+     * 从 [MutableGameState.productionSlots] 读取/写入，确保与 stateStore 在同一事务内。
      */
     private fun batchAssignToProductionSlots(
         type: BuildingType,
         buildingId: String,
-        takeNext: () -> Disciple?
+        takeNext: () -> Disciple?,
+        state: MutableGameState
     ) {
-        val slots = productionSlotRepository.getSlotsByType(type)
+        val slots = state.gameData.productionSlots.filter { it.buildingType == type }
         val emptySlots = slots.filter { slot ->
             slot.assignedDiscipleId.isNullOrEmpty()
                 && slot.status == ProductionSlotStatus.IDLE
@@ -793,21 +800,27 @@ class ProductionProcessor @Inject constructor(
             else -> DiscipleStatus.IDLE
         }
 
-        val updates = mutableListOf<SlotUpdate>()
+        val updates = mutableMapOf<Int, Pair<String, String>>() // slotIndex → (discipleId, discipleName)
         for (emptySlot in emptySlots) {
             val candidate = takeNext() ?: break
-            markDiscipleAssigned(candidate.id, assignedStatus)
-            updates.add(SlotUpdate(type, emptySlot.slotIndex) { s ->
-                s.copy(
-                    assignedDiscipleId = candidate.id,
-                    assignedDiscipleName = candidate.name
-                )
-            })
+            updates[emptySlot.slotIndex] = candidate.id to candidate.name
+            val cid = candidate.id.toIntOrNull()
+            if (cid != null) {
+                state.discipleTables.statuses[cid] = assignedStatus
+            } else {
+                DomainLog.w(TAG, "batchAssignToProductionSlots: invalid disciple id ${candidate.id}")
+            }
         }
         if (updates.isNotEmpty()) {
-            scopeProvider.scope.launch(Dispatchers.IO) {
-                productionSlotRepository.batchUpdate(updates)
-            }
+            state.gameData = state.gameData.copy(
+                productionSlots = state.gameData.productionSlots.map { slot ->
+                    val update = updates[slot.slotIndex]
+                    if (update != null) slot.copy(
+                        assignedDiscipleId = update.first,
+                        assignedDiscipleName = update.second
+                    ) else slot
+                }
+            )
         }
     }
 

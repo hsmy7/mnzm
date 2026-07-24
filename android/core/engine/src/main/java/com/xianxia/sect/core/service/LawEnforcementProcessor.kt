@@ -268,8 +268,8 @@ class LawEnforcementProcessor @Inject constructor(
         } else theftProb
         if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() >= effectiveTheftProb) return
 
-        // Step 2: 隐匿判定 + 守卫对抗
-        val detected = tryStealthDetection(disciple, warehouses, garrisons)
+        // Step 2: 隐匿判定 + 守卫对抗（传入 state 从事务内读取守卫数据）
+        val detected = tryStealthDetection(disciple, warehouses, garrisons, state)
         val caught = if (detected) {
             tryGuardCatch(disciple, warehouses, garrisons, captureRate)
         } else false
@@ -574,12 +574,19 @@ class LawEnforcementProcessor @Inject constructor(
     private fun tryStealthDetection(
         disciple: Disciple,
         warehouses: List<GridBuildingData>,
-        garrisons: List<WarehouseGarrisonSlot>
+        garrisons: List<WarehouseGarrisonSlot>,
+        state: MutableGameState? = null
     ): Boolean {
         if (warehouses.isEmpty()) return false
         val warehouse = warehouses[rngManager.getRng(RngPartition.SYSTEM).nextInt(warehouses.size)]
         val garrison = garrisons.find { it.buildingInstanceId == warehouse.instanceId && it.isActive } ?: return false
-        val guardDisciple = stateStore.disciples.value.find { it.id == garrison.discipleId } ?: return false
+        // 事务内路径走 state.discipleTables 而非 stateStore，确保读到事务内最新数据
+        val guardDisciple = if (state != null) {
+            val gid = garrison.discipleId.toIntOrNull() ?: return false
+            state.discipleTables.assemble(gid) ?: return false
+        } else {
+            stateStore.disciples.value.find { it.id == garrison.discipleId } ?: return false
+        }
 
         val thiefStealth = computeStealth(disciple)
         val guardPerception = computePerception(guardDisciple)

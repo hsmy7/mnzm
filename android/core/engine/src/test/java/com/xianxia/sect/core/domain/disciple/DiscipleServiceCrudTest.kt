@@ -112,7 +112,8 @@ class DiscipleServiceCrudTest {
             discipleEquipmentService = equipmentService,
             discipleLifecycleManager = lifecycleManager,
             discipleMasterApprenticeService = masterService,
-            discipleSlotManager = slotManager
+            discipleSlotManager = slotManager,
+            discipleStatusService = mock()
         )
     }
 

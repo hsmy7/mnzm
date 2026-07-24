@@ -6,7 +6,10 @@ import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.system.MerchantItemConverter
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.DomainResult
+import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.engine.system.computeMaxSlots
 import com.xianxia.sect.core.wallet.DeductResult
 import com.xianxia.sect.core.wallet.SpiritStoneReason
 import com.xianxia.sect.core.wallet.SpiritStoneSource
@@ -188,102 +191,82 @@ class AutoBuyService @Inject constructor(
     ) {
         when (item.type.lowercase(Locale.ROOT)) {
             "equipment" -> {
-                val stack = MerchantItemConverter.toEquipment(item)
-                    .copy(quantity = quantity)
-                val existing = equipmentStacks.all().find {
-                    it.name == stack.name && it.rarity == stack.rarity &&
-                    it.slot == stack.slot
-                }
-                if (existing != null) {
-                    equipmentStacks.update(existing.id) {
-                        it.copy(quantity = it.quantity + stack.quantity)
-                    }
-                } else {
-                    equipmentStacks.add(stack)
-                }
+                val stack = MerchantItemConverter.toEquipment(item).copy(quantity = quantity)
+                val otherTypes = manualStacks.size + pills.size + materials.size + herbs.size + seeds.size
+                val store = StackableItemStore(
+                    initialItems = equipmentStacks.all(),
+                    stackKeyOf = { StackKey.of(it.name, it.rarity, it.slot.name) },
+                    maxStack = inventoryConfig.getMaxStackSize("equipment_stack"),
+                    maxSlots = { computeMaxSlots() - otherTypes },
+                    notFound = { AppError.Domain.Inventory.NotFound(it) }
+                )
+                store.add(stack)
+                equipmentStacks.replaceAll(store.all())
             }
             "manual" -> {
-                val stack = MerchantItemConverter.toManual(item)
-                    .copy(quantity = quantity)
-                val existing = manualStacks.all().find {
-                    it.name == stack.name && it.rarity == stack.rarity &&
-                    it.type == stack.type
-                }
-                if (existing != null) {
-                    manualStacks.update(existing.id) {
-                        it.copy(quantity = it.quantity + stack.quantity)
-                    }
-                } else {
-                    manualStacks.add(stack)
-                }
+                val stack = MerchantItemConverter.toManual(item).copy(quantity = quantity)
+                val otherTypes = equipmentStacks.size + pills.size + materials.size + herbs.size + seeds.size
+                val store = StackableItemStore(
+                    initialItems = manualStacks.all(),
+                    stackKeyOf = { StackKey.of(it.name, it.rarity, it.type.name) },
+                    maxStack = inventoryConfig.getMaxStackSize("manual_stack"),
+                    maxSlots = { computeMaxSlots() - otherTypes },
+                    notFound = { AppError.Domain.Inventory.NotFound(it) }
+                )
+                store.add(stack)
+                manualStacks.replaceAll(store.all())
             }
             "pill" -> {
-                val p = MerchantItemConverter.toPill(item)
-                    .copy(quantity = quantity)
-                val existing = pills.all().find {
-                    it.name == p.name && it.rarity == p.rarity &&
-                    it.category == p.category && it.grade == p.grade
-                }
-                if (existing != null) {
-                    val newQty = (existing.quantity + p.quantity)
-                        .coerceAtMost(inventoryConfig.getMaxStackSize("pill"))
-                    pills.update(existing.id) {
-                        it.copy(quantity = newQty)
-                    }
-                } else {
-                    pills.add(p)
-                }
+                val p = MerchantItemConverter.toPill(item).copy(quantity = quantity)
+                val otherTypes = equipmentStacks.size + manualStacks.size + materials.size + herbs.size + seeds.size
+                val store = StackableItemStore(
+                    initialItems = pills.all(),
+                    stackKeyOf = { StackKey.of(it.name, it.rarity, it.category.name, it.grade.name) },
+                    maxStack = inventoryConfig.getMaxStackSize("pill"),
+                    maxSlots = { computeMaxSlots() - otherTypes },
+                    notFound = { AppError.Domain.Inventory.NotFound(it) }
+                )
+                store.add(p)
+                pills.replaceAll(store.all())
             }
             "material" -> {
-                val m = MerchantItemConverter.toMaterial(item)
-                    .copy(quantity = quantity)
-                val existing = materials.all().find {
-                    it.name == m.name && it.rarity == m.rarity &&
-                    it.category == m.category
-                }
-                if (existing != null) {
-                    val newQty = (existing.quantity + m.quantity)
-                        .coerceAtMost(inventoryConfig.getMaxStackSize("material"))
-                    materials.update(existing.id) {
-                        it.copy(quantity = newQty)
-                    }
-                } else {
-                    materials.add(m)
-                }
+                val m = MerchantItemConverter.toMaterial(item).copy(quantity = quantity)
+                val otherTypes = equipmentStacks.size + manualStacks.size + pills.size + herbs.size + seeds.size
+                val store = StackableItemStore(
+                    initialItems = materials.all(),
+                    stackKeyOf = { StackKey.of(it.name, it.rarity, it.category.name) },
+                    maxStack = inventoryConfig.getMaxStackSize("material"),
+                    maxSlots = { computeMaxSlots() - otherTypes },
+                    notFound = { AppError.Domain.Inventory.NotFound(it) }
+                )
+                store.add(m)
+                materials.replaceAll(store.all())
             }
             "herb" -> {
-                val h = MerchantItemConverter.toHerb(item)
-                    .copy(quantity = quantity)
-                val existing = herbs.all().find {
-                    it.name == h.name && it.rarity == h.rarity &&
-                    it.category == h.category
-                }
-                if (existing != null) {
-                    val newQty = (existing.quantity + h.quantity)
-                        .coerceAtMost(inventoryConfig.getMaxStackSize("herb"))
-                    herbs.update(existing.id) {
-                        it.copy(quantity = newQty)
-                    }
-                } else {
-                    herbs.add(h)
-                }
+                val h = MerchantItemConverter.toHerb(item).copy(quantity = quantity)
+                val otherTypes = equipmentStacks.size + manualStacks.size + pills.size + materials.size + seeds.size
+                val store = StackableItemStore(
+                    initialItems = herbs.all(),
+                    stackKeyOf = { StackKey.of(it.name, it.rarity, it.category) },
+                    maxStack = inventoryConfig.getMaxStackSize("herb"),
+                    maxSlots = { computeMaxSlots() - otherTypes },
+                    notFound = { AppError.Domain.Inventory.NotFound(it) }
+                )
+                store.add(h)
+                herbs.replaceAll(store.all())
             }
             "seed" -> {
-                val s = MerchantItemConverter.toSeed(item)
-                    .copy(quantity = quantity)
-                val existing = seeds.all().find {
-                    it.name == s.name && it.rarity == s.rarity &&
-                    it.growTime == s.growTime
-                }
-                if (existing != null) {
-                    val newQty = (existing.quantity + s.quantity)
-                        .coerceAtMost(inventoryConfig.getMaxStackSize("seed"))
-                    seeds.update(existing.id) {
-                        it.copy(quantity = newQty)
-                    }
-                } else {
-                    seeds.add(s)
-                }
+                val s = MerchantItemConverter.toSeed(item).copy(quantity = quantity)
+                val otherTypes = equipmentStacks.size + manualStacks.size + pills.size + materials.size + herbs.size
+                val store = StackableItemStore(
+                    initialItems = seeds.all(),
+                    stackKeyOf = { StackKey.of(it.name, it.rarity, it.growTime) },
+                    maxStack = inventoryConfig.getMaxStackSize("seed"),
+                    maxSlots = { computeMaxSlots() - otherTypes },
+                    notFound = { AppError.Domain.Inventory.NotFound(it) }
+                )
+                store.add(s)
+                seeds.replaceAll(store.all())
             }
             "spiritstone" -> {
                 when (item.name) {
