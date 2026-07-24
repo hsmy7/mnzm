@@ -373,3 +373,84 @@
 - `PatrolTowerViewModel.assignDisciple` 改为 `suspend` 返回 `DomainResult<Unit>`
 - `PatrolTowerViewModel.removeDisciple` 改为 `suspend` 返回 `DomainResult<Unit>`
 - 保留 `assignDiscipleAsync`/`removeDiscipleAsync` fire-and-forget 包装器供现有对话框使用
+
+---
+
+### 21. SaveValidator 规则引擎 — 对抗性审查剩余 4 项未覆盖
+
+**状态：🔄 部分完成（2026-07-24 — 14 条规则已实现，4 项待补）**
+
+**修复内容（已完成）：**
+- 规则引擎基础设施（`SaveValidationRule` 接口、`RuleContext`、`RuleOutcome`、`SaveValidationRuleRegistry`）
+- 8 项旧检查迁移为独立规则 + 6 项新规则
+- `SaveValidator.kt` 重构为 facade 委托规则引擎
+- `StorageEngine.save()` 中 `Repaired` 结果现在写入数据库
+- 20 个测试类覆盖全部规则
+
+**剩余未覆盖项：**
+
+| # | 问题 | 规则 | 原因 |
+|---|------|------|------|
+| A | 装备被多弟子引用 | `EquipmentDedupeRule` | 需要跨弟子遍历验证同一 equipment ID 出现次数 |
+| B | 生产/巡逻/灵矿/藏经阁槽位引用不存在弟子 | `SlotRefRule` | 需要跨实体（productionSlots/patrolSlots/spiritMineSlots/librarySlots）检查 discipleId 存在性 |
+| C | 血炼引用不存在的弟子 | `BloodRefinementRefRule` | 需要验证 `bloodRefinementPctTotals`/`bloodRefinementBonusTotals` 的 key 在 disciples ID 集合中 |
+| D | 孤儿功法/天赋引用 | `ItemRefConsistencyRule` | 需要跨模块（ManualRegistry、TalentRegistry）检查 manualIds/talentIds 存在性 |
+
+**影响范围：**
+- `SaveValidator.kt` — 规则引擎入口
+- 潜在：`ProductionSlotRepository`、`ManualRegistry`、`TalentRegistry`（跨模块依赖）
+
+**修复方向：**
+- A: 遍历所有弟子，对每个 equipment ID 计数，出现 >1 次时清除后续重复
+- B: 遍历 productionSlots/patrolSlots/spiritMineSlots，`assignedDiscipleId` 不在 disciples ID 集合中则清除
+- C: 遍历 `bloodRefinementPctTotals.entries`，key 不在 disciples ID 集合中则删除 entry
+- D: 需要跨模块依赖注入，验证 manualId/talentId 在对应 Registry 中存在
+
+**前置依赖：** D 项需要 `ManualRegistry` 和 `TalentRegistry` 的接口或数据接入
+
+**难度：** 中（A、B、C 为纯数据操作，D 需要跨模块依赖）
+
+---
+
+### 22. SaveValidator 规则引擎 — 补充修复文件未创建
+
+**状态：⏳ 待完成**
+
+**问题描述：** 计划中应创建 2 个补充修复文件，确保验证结果在极端路径下不丢失。
+
+**待创建文件：**
+
+| 文件 | 内容 |
+|------|------|
+| `rules/SaveValidatorFixes.kt` | — 在 `StorageEngine.save()` 中使用 `Repaired` 数据时，确保修复后的数据确实被写回数据库（当前只有 `StorageEngine.save()` 路径做了，`StorageEngine.load()` 路径的 `Repaired` 数据仅在缓存中生效） |
+| `rules/corrupted/CorruptedResultHandler.kt` | — 备份恢复后的数据应再次经过 `SaveValidator.validate()` 验证，当前从备份文件恢复后直接使用，跳过了业务语义校验 |
+
+**影响范围：**
+- `StorageEngine.kt` — load() 路径中 Corrupted → 备份恢复后的数据缺少二次验证
+- `SaveValidator.kt` — 验证修复二阶段确认
+
+**修复方向：**
+- `CorruptedResultHandler`: 在 `StorageEngine.load()` 的 `readWithFallback()` 成功后，对 `restoredData` 调用 `SaveValidator.validate()` 再确认
+- `SaveValidatorFixes`: 确保 `save()` 路径的修复数据通过 `effectiveData` 参数完整写入 WAL 和缓存
+
+**难度：** 低
+
+---
+
+### 23. SaveValidator 规则引擎 — EntityCountBoundsRule 未实现
+
+**状态：⏳ 待完成**
+
+**问题描述：** 应检查各实体列表数量是否在合理范围内（弟子 > 10000、装备堆叠 > 5000、战斗日志 > 2000 等发出警告），目前无上限检查。
+
+**影响范围：**
+- 新增 `rules/EntityCountBoundsRule.kt`
+- 不影响现有逻辑
+
+**修复方向：**
+- 对 disciples > 10000 发 WARNING
+- equipmentStacks > 5000 发 WARNING
+- battleLogs > 2000 发 WARNING
+- 均标记为可修复（不自动修改数据，因数据量的概念是业务层阈值而非数据损坏）
+
+**难度：** 低
