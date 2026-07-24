@@ -197,6 +197,7 @@ class DiscipleTables {
     val usedPermanentPillKeys = ComponentTable<Set<String>>()
     val usedExtendLifePillTypes = ComponentTable<Set<String>>()
     val recruitedMonths = IntComponentTable()
+    val lastTheftJudgementYears = IntComponentTable()  // id → 上次偷盗判定年份（0=从未判定）
     val hasReviveEffects = IntComponentTable()    // 0/1
     val hasClearAllEffects = IntComponentTable()  // 0/1
 
@@ -377,6 +378,7 @@ class DiscipleTables {
         IntTableRef(salaryPaidCounts, DiscipleTables::salaryPaidCounts, "salaryPaidCounts"),
         IntTableRef(salaryMissedCounts, DiscipleTables::salaryMissedCounts, "salaryMissedCounts"),
         IntTableRef(recruitedMonths, DiscipleTables::recruitedMonths, "recruitedMonths"),
+        IntTableRef(lastTheftJudgementYears, DiscipleTables::lastTheftJudgementYears, "lastTheftJudgementYears"),
         IntTableRef(hasReviveEffects, DiscipleTables::hasReviveEffects, "hasReviveEffects"),
         IntTableRef(hasClearAllEffects, DiscipleTables::hasClearAllEffects, "hasClearAllEffects"),
 
@@ -1082,7 +1084,7 @@ class DiscipleTables {
                 _allCopyableRefs.forEach { ref ->
                     // deathYears 是稀疏表——仅已故弟子有条目，存活弟子无写入。
                     // 与 markDead() 的生命周期合约一致，不在此检查范围内。
-                    if (ref.debugName == "deathYears") return@forEach
+                    if (ref.debugName == "deathYears" || ref.debugName == "lastTheftJudgementYears") return@forEach
                     check(ref.contains(id)) {
                         "GHOST DISCIPLE: id=$id missing in ${ref.debugName}. " +
                         "Insert/remove/replaceAll did not write to all component tables."

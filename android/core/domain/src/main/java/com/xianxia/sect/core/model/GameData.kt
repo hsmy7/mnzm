@@ -575,6 +575,10 @@ data class GameData(
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var annualTheftCount: Int = 0,
 
+    @ColumnInfo(name = "theft_judgements_this_month", defaultValue = "0")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var theftJudgementsThisMonth: Int = 0,
+
     // 年内装备获取按来源+品阶（key: "forge:3"等）
     @ColumnInfo(name = "annual_equipment_by_source")
     @SettlementStrategy(Strategy.PRESERVE_OLD)

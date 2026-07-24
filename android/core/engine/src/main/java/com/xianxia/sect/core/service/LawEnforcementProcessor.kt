@@ -58,8 +58,8 @@ class LawEnforcementProcessor @Inject constructor(
     /**
      * 单弟子偷盗判定入口 —— 由道德变更点（5处）调用。
      *
-     * 即时运行完整偷盗流程：条件检查 → 概率 → 隐匿 → 守卫对抗 → 执行。
-     * 使用 annualTheftCount 年上限（MAX_THEFT_PER_YEAR）控制频率。
+     * 即时运行完整偷盗流程：条件检查 → 标记判定 → 概率 → 隐匿 → 守卫对抗 → 执行。
+     * 三层限制：弟子年上限（每弟子每年1次）、月度上限（每月3名）、年度成功上限（年3次）。
      */
     fun processSingleDiscipleTheft(discipleId: Int) {
         val currentData = stateStore.gameData.value
@@ -67,6 +67,11 @@ class LawEnforcementProcessor @Inject constructor(
         val tables = stateStore.discipleTables
         if (!canDiscipleAttemptTheft(discipleId, tables, currentData)) return
         val currentMonth = currentData.gameYear * 12 + currentData.gameMonth
+        // 标记判定：递增本月判定计数 + 标记弟子年判定（在事务内完成，避免写保护冲突）
+        stateStore.update {
+            gameData = gameData.copy(theftJudgementsThisMonth = gameData.theftJudgementsThisMonth + 1)
+            discipleTables.lastTheftJudgementYears[discipleId] = gameData.gameYear
+        }
         executeFullTheftCheck(discipleId, tables, currentMonth, currentData)
     }
 
@@ -78,16 +83,24 @@ class LawEnforcementProcessor @Inject constructor(
         if (state.gameData.spiritStones <= 0) return
         if (!canDiscipleAttemptTheft(discipleId, state.discipleTables, state.gameData)) return
         val currentMonth = state.gameData.gameYear * 12 + state.gameData.gameMonth
+        // 标记判定：弟子年上限 + 月度上限（直接修改 transactions 内 state）
+        state.discipleTables.lastTheftJudgementYears[discipleId] = state.gameData.gameYear
+        state.gameData = state.gameData.copy(theftJudgementsThisMonth = state.gameData.theftJudgementsThisMonth + 1)
         executeFullTheftCheckInTransaction(discipleId, state, currentMonth)
     }
 
-    /** 前置条件检查。 */
+    /** 前置条件检查。三条规则：弟子年上限 → 月度上限 → 年度成功上限 */
     private fun canDiscipleAttemptTheft(discipleId: Int, tables: DiscipleTables, data: GameData): Boolean {
         if (tables.isAlive.getOrDefault(discipleId, 0) != 1) return false
         if (tables.statuses.getOrDefault(discipleId, DiscipleStatus.IDLE) != DiscipleStatus.IDLE) return false
         val currentMonth = data.gameYear * 12 + data.gameMonth
         if ((currentMonth - tables.recruitedMonths.getOrDefault(discipleId, 0)) <
             GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS) return false
+        // 规则1：每个弟子每年最多判定一次
+        if (tables.lastTheftJudgementYears.getOrDefault(discipleId, 0) == data.gameYear) return false
+        // 规则2：每月最多判定3名弟子
+        if (data.theftJudgementsThisMonth >= GameConfig.LawEnforcementConfig.MAX_THEFT_JUDGEMENTS_PER_MONTH) return false
+        // 规则3：年度成功偷盗已达上限 → 全年停止判定
         if (data.annualTheftCount >= GameConfig.LawEnforcementConfig.MAX_THEFT_PER_YEAR) return false
         return true
     }
@@ -139,40 +152,38 @@ class LawEnforcementProcessor @Inject constructor(
     }
 
     /**
-     * 月度偷盗兜底（弱化版）。
+     * 月度偷盗兜底。
      *
-     * 仅在以下情况触发：
-     * - 道德 < 阈值（未被反应式钩子捕获的漏网之鱼）
-     * - 概率减半（正常偷盗概率 / 2），避免与反应式触发重复
-     * - 受 annualTheftCount 年上限约束
+     * 从道德 < 阈值且本年未判定的弟子中，选至多 [MAX_THEFT_JUDGEMENTS_PER_MONTH] 名
+     * 进行完整偷盗判定。三层限制在 [canDiscipleAttemptTheft] 中统一检查。
      */
     fun processTheftMonthly() {
         val currentData = stateStore.gameData.value
         if (currentData.spiritStones <= 0) return
         val tables = stateStore.discipleTables
         val moralThreshold = GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD
-        val loyalThreshold = GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD
         val currentMonth = currentData.gameYear * 12 + currentData.gameMonth
         val protectionMonths = GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS
-        if (currentData.annualTheftCount >= GameConfig.LawEnforcementConfig.MAX_THEFT_PER_YEAR) return
-        val unmatchedIds = tables.ids.filter { id ->
+        val candidates = tables.ids.filter { id ->
             tables.isAlive.getOrDefault(id, 0) == 1 &&
                 tables.statuses.getOrDefault(id, DiscipleStatus.IDLE) == DiscipleStatus.IDLE &&
                 tables.moralities.getOrDefault(id, 0) < moralThreshold &&
-                (currentMonth - tables.recruitedMonths.getOrDefault(id, 0)) >= protectionMonths
+                (currentMonth - tables.recruitedMonths.getOrDefault(id, 0)) >= protectionMonths &&
+                tables.lastTheftJudgementYears.getOrDefault(id, 0) != currentData.gameYear
         }
-        for (id in unmatchedIds) {
-            // 每次迭代重新检查年上限：前一次迭代可能已成功偷盗并递增了 annualTheftCount
-            if (stateStore.gameData.value.annualTheftCount >= GameConfig.LawEnforcementConfig.MAX_THEFT_PER_YEAR) break
-            executeFullTheftCheck(id, tables, currentMonth, currentData)
+        // 每月最多判定3名弟子（实际判定入口另有 caps 二次保证）
+        for (id in candidates.take(GameConfig.LawEnforcementConfig.MAX_THEFT_JUDGEMENTS_PER_MONTH)) {
+            processSingleDiscipleTheft(id)
         }
     }
 
     /**
-     * 检查是否需要月度偷盗处理（弱化版兜底）。
-     * 仅在年上限未满且存在道德<30且空闲的弟子时执行。
+     * 检查是否需要月度偷盗处理。
+     * 每月初重置 [theftJudgementsThisMonth] 计数器。
      */
     fun processTheftIfNeeded() {
+        // 月度判定计数器归零
+        stateStore.update { gameData = gameData.copy(theftJudgementsThisMonth = 0) }
         val gd = stateStore.gameData.value
         if (gd.spiritStones <= 0) return
         if (gd.annualTheftCount >= GameConfig.LawEnforcementConfig.MAX_THEFT_PER_YEAR) return
@@ -182,7 +193,8 @@ class LawEnforcementProcessor @Inject constructor(
         val hasCandidate = tables.ids.any { id ->
             tables.isAlive.getOrDefault(id, 0) == 1 &&
                 tables.statuses.getOrDefault(id, DiscipleStatus.IDLE) == DiscipleStatus.IDLE &&
-                tables.moralities.getOrDefault(id, 0) < moralThreshold
+                tables.moralities.getOrDefault(id, 0) < moralThreshold &&
+                tables.lastTheftJudgementYears.getOrDefault(id, 0) != gd.gameYear
         }
         if (!hasCandidate) return
         processTheftMonthly()
@@ -195,6 +207,7 @@ class LawEnforcementProcessor @Inject constructor(
     /**
      * 对单个弟子执行完整偷盗检查。
      * 流程：偷盗概率 → 隐匿判定 → 守卫对抗 → 执行偷窃（灵石+物品）。
+     * 判定标记（lastTheftJudgementYears / theftJudgementsThisMonth）已在调用方完成。
      */
     private fun executeFullTheftCheck(id: Int, tables: DiscipleTables, currentMonth: Int, currentData: GameData) {
         val disciple = tables.assemble(id) ?: return
@@ -251,10 +264,12 @@ class LawEnforcementProcessor @Inject constructor(
 
     /**
      * 事务内完整偷盗检查 —— 直接修改 [state]，不调用 stateStore.update。
+     * 标记判定已在 [processSingleDiscipleTheft(id, state)] 中完成。
      */
     private fun executeFullTheftCheckInTransaction(id: Int, state: MutableGameState, currentMonth: Int) {
         val tables = state.discipleTables
         val disciple = tables.assemble(id) ?: return
+        // 标记判定已在 processSingleDiscipleTheft 事务入口完成，此处不重复
         val stats = DiscipleStatCalculator.getBaseStats(disciple)
         val currentData = state.gameData
         val moralThreshold = GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD

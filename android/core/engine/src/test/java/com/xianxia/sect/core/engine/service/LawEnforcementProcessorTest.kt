@@ -222,6 +222,11 @@ class LawEnforcementProcessorTest {
     }
 
     @Test
+    fun `常量 MAX_THEFT_JUDGEMENTS_PER_MONTH`() {
+        assertEquals(3, GameConfig.LawEnforcementConfig.MAX_THEFT_JUDGEMENTS_PER_MONTH)
+    }
+
+    @Test
     fun `常量不为负`() {
         val cfg = GameConfig.LawEnforcementConfig
         assertTrue(cfg.THEFT_SPEED_BONUS_PER_POINT >= 0)
@@ -234,6 +239,7 @@ class LawEnforcementProcessorTest {
         assertTrue(cfg.THEFT_PERCEPTION_INTEL_FACTOR >= 0)
         assertTrue(cfg.THEFT_ITEM_GUARD_REDUCTION > 0)
         assertTrue(cfg.MAX_THEFT_PER_YEAR > 0)
+        assertTrue(cfg.MAX_THEFT_JUDGEMENTS_PER_MONTH > 0)
     }
 
     // ═════════════════════════════════════════════════════════════════
@@ -351,6 +357,84 @@ class LawEnforcementProcessorTest {
             Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
         proc.processSingleDiscipleTheft(id, state)
         assertEquals(1_000_000L, state.gameData.spiritStones)
+    }
+
+    // ═════════════════════════════════════════════════════════════════
+    // 判定规则测试（弟子年上限 + 月度上限）
+    // ═════════════════════════════════════════════════════════════════
+
+    @Test
+    fun `判定 - 当月已达3名跳过`() {
+        val id = 1; val tables = makeTables(id, morale = 0)
+        val gd = GameData(spiritStones = 1_000_000L, gameYear = 10, gameMonth = 6,
+            theftJudgementsThisMonth = 3)
+        val state = makeState(gd, tables)
+        val (mockStore, _) = makeMocks(gd)
+        val proc = LawEnforcementProcessor(mockStore, GameRngManager(),
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+        proc.processSingleDiscipleTheft(id, state)
+        // 月上限已满，跳过判定，灵石不变
+        assertEquals(1_000_000L, state.gameData.spiritStones)
+        // 月计数不应递增且lastTheftJudgementYears未被标记
+        assertEquals(3, state.gameData.theftJudgementsThisMonth)
+        assertEquals(0, state.discipleTables.lastTheftJudgementYears.getOrDefault(id, 0))
+    }
+
+    @Test
+    fun `判定 - 当月未达上限正常执行`() {
+        val id = 1; val tables = makeTables(id, morale = 0)
+        val gd = GameData(spiritStones = 1_000_000L, gameYear = 10, gameMonth = 6,
+            theftJudgementsThisMonth = 1)
+        val state = makeState(gd, tables)
+        val (mockStore, _) = makeMocks(gd)
+        val rng = GameRngManager()
+        rng.initSystemSeed(7L)
+        val proc = LawEnforcementProcessor(mockStore, rng,
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+        proc.processSingleDiscipleTheft(id, state)
+        // 月上限未满，应进入判定流程：月计数+1，lastTheftJudgementYears被标记
+        assertEquals(2, state.gameData.theftJudgementsThisMonth)
+        assertEquals(10, state.discipleTables.lastTheftJudgementYears.getOrDefault(id, 0))
+    }
+
+    @Test
+    fun `判定 - 同弟子一年只判定一次`() {
+        val id = 1; val tables = makeTables(id, morale = 0)
+        val gd = GameData(spiritStones = 1_000_000L, gameYear = 10, gameMonth = 6)
+        val state = makeState(gd, tables)
+        val (mockStore, _) = makeMocks(gd)
+        val rng = GameRngManager()
+        rng.initSystemSeed(7L)
+        val proc = LawEnforcementProcessor(mockStore, rng,
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+        // 第一次判定：正常执行
+        proc.processSingleDiscipleTheft(id, state)
+        assertEquals(10, state.discipleTables.lastTheftJudgementYears.getOrDefault(id, 0))
+        val monthCountAfterFirst = state.gameData.theftJudgementsThisMonth
+        assertTrue("月计数应已递增", monthCountAfterFirst > 0)
+        // 第二次判定：应跳过（同年已判定）
+        proc.processSingleDiscipleTheft(id, state)
+        // 月计数不变化，lastTheftJudgementYears不变化
+        assertEquals(monthCountAfterFirst, state.gameData.theftJudgementsThisMonth)
+        assertEquals(10, state.discipleTables.lastTheftJudgementYears.getOrDefault(id, 0))
+    }
+
+    @Test
+    fun `判定 - 不同年重新判定`() {
+        val id = 1; val tables = makeTables(id, morale = 0)
+        // 将 lastTheftJudgementYears 设为去年（9），gameYear=10 表示不同年
+        tables.lastTheftJudgementYears[id] = 9
+        val gd = GameData(spiritStones = 1_000_000L, gameYear = 10, gameMonth = 6)
+        val state = makeState(gd, tables)
+        val (mockStore, _) = makeMocks(gd)
+        val rng = GameRngManager()
+        rng.initSystemSeed(7L)
+        val proc = LawEnforcementProcessor(mockStore, rng,
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+        proc.processSingleDiscipleTheft(id, state)
+        // 不同年应能重新判定：lastTheftJudgementYears更新为今年
+        assertEquals(10, state.discipleTables.lastTheftJudgementYears.getOrDefault(id, 0))
+        assertTrue("月计数应递增", state.gameData.theftJudgementsThisMonth > 0)
     }
 
     // ── 辅助 ─────────────────────────────────────────────────────────────

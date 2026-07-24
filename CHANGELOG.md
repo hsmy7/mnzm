@@ -6,6 +6,10 @@
 - **新增：引导奖励飞出动画** — `claimGuideReward` 成功后调用 `stateStore.enqueueRewardCards()` 入队 StorageBag 奖励卡片，通过 RewardCardHost 播放飞出动画，用户可见
 - **修复：引导领取按钮状态不更新** — `GameOverlayHost` 中 `claimedRewardIds` 由 `.value` 快照读取改为 `collectAsStateWithLifecycle()` 状态收集，领取后按钮自动变为"已领取"并禁用
 
+### 偷盗系统
+
+- **改动：偷盗判定新增双层限制** — 每弟子每年最多判定1次（`lastTheftJudgementYears` 组件列）+ 每月最多判定3名弟子（`theftJudgementsThisMonth`）+ 保留年度成功偷盗3次封顶三层控制。月度扫荡改为 `take(3)` 直接调用 `processSingleDiscipleTheft`。新增 5 个单元测试 + 知识库文档更新
+
 ## [4.0.67] - 2026-07-24（versionCode=4067）
 
 ### 架构债务清理 Phase F（2026-07-24）

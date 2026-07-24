@@ -146,14 +146,23 @@ v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管
 
 ## 偷盗系统年上限（2026-07-24）
 
-宗门级偷盗控制：
+宗门级偷盗三层控制：
 
-- **配置**：`GameConfig.LawEnforcementConfig.MAX_THEFT_PER_YEAR = 3`
-- **计数器**：`GameData.annualTheftCount`（Room 持久化，MIGRATION_29_30）
-- **检查点**：`LawEnforcementProcessor.canDiscipleAttemptTheft()` + 月度扫荡 `processTheftMonthly()` / `processTheftIfNeeded()`
-- **递增**：`executeSuccessfulTheft` 两版本（事务/非事务）偷盗成功后 +1
-- **归零**：`CultivationEventProcessor` 年变重置块
-- **已移除**：原单弟子 12 月冷却检查（`THEFT_COOLDOWN_MONTHS`）、`UsageTracking.lastTheftMonth` 字段、`DiscipleTables.lastTheftMonths` 组件表
+| 维度 | 控制方式 | 配置 | 跟踪字段 |
+|------|----------|------|----------|
+| **弟子年判定上限** | 每弟子每年最多判定1次 | — | `DiscipleTables.lastTheftJudgementYears`（IntComponentTable） |
+| **月度判定上限** | 每月最多判定3名弟子 | `MAX_THEFT_JUDGEMENTS_PER_MONTH = 3` | `GameData.theftJudgementsThisMonth` |
+| **年度成功上限** | 年成功偷盗3次后全年停止 | `MAX_THEFT_PER_YEAR = 3` | `GameData.annualTheftCount`（Room 持久化，MIGRATION_29_30） |
+
+**判定计数**：`processSingleDiscipleTheft` 入口处（通过 `canDiscipleAttemptTheft` 前置检查后）立即递增弟子年判定标记 + 月度判定计数。即使概率判定未通过也计入（"判定"指系统执行检查，不要求实际偷盗成功）。
+
+**月度重置**：`processTheftIfNeeded()` 每月初将 `theftJudgementsThisMonth` 归零。
+
+**年成功偷盗递增**：`executeSuccessfulTheft` 两版本（事务/非事务）偷盗成功后 +1。
+
+**年上限归零**：`CultivationEventProcessor` 年变重置块。
+
+**已移除**：原单弟子 12 月冷却检查（`THEFT_COOLDOWN_MONTHS`）、`UsageTracking.lastTheftMonth` 字段、`DiscipleTables.lastTheftMonths` 组件表
 
 ---
 
