@@ -132,7 +132,7 @@ fun MerchantDialog(
             )
             Text("${refreshChances}次", fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 color = Color.White, modifier = Modifier.padding(start = 4.dp))
-            if (viewModel.onWatchAdMerchantRefresh != null) {
+            if (viewModel != null) {
                 Image(
                     painter = painterResource(id = SpriteResRegistry.resolve("ui_play_button") ?: 0),
                     contentDescription = "播放广告获得刷新次数",
@@ -293,7 +293,7 @@ fun MerchantDialog(
             confirmLabel = "观看",
             onConfirm = {
                 showAdConfirmDialog = false
-                viewModel.onWatchAdMerchantRefresh?.invoke()
+                viewModel.watchAdForMerchantRefresh()
             }
         )
     }

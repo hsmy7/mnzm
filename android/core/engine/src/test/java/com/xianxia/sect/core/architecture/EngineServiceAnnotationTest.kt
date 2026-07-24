@@ -18,11 +18,15 @@ class EngineServiceAnnotationTest {
     // - SomeDisabled — PolicyCostResult sealed interface 的子类
     // - SalaryPlan — 私有 data class
     // - DefensePreparation — CaveExplorationProcessor 内的私有 data class
+    // - AdService — 接口（interface），非具体服务实现，@GameService(AnnotationTarget.CLASS) 不适用
+    // - AdPurpose — 枚举（enum），非具体服务实现
     private val knownMissingAnnotation = setOf(
         "CultivationSharedState",
         "SomeDisabled",
         "SalaryPlan",
-        "DefensePreparation"
+        "DefensePreparation",
+        "AdService",
+        "AdPurpose"
     )
 
     @Test

@@ -6,6 +6,7 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
+import com.xianxia.sect.core.state.DiscipleTables
 
 // ==================== 条件类型 ====================
 
@@ -13,14 +14,28 @@ sealed interface GuideCondition {
     /** 条件标签文本，如"建造10座灵矿场" */
     val label: String
 
-    /** 是否满足 */
+    /** 是否满足（仅 GameData） */
     fun isMet(gameData: GameData): Boolean
+
+    /**
+     * 是否满足（带 DiscipleTables 参数）。
+     * 默认委托到 [isMet]，需要访问弟子组件表的条件覆盖此方法。
+     */
+    fun isMet(gameData: GameData, discipleTables: DiscipleTables?): Boolean =
+        isMet(gameData)
 
     /** 进度文本，如"(3/10)" */
     fun progressText(gameData: GameData): String
 
     /** 当前值 */
     fun currentValue(gameData: GameData): Long
+
+    /**
+     * 当前值（带 DiscipleTables 参数）。
+     * 默认委托到 [currentValue]，需要访问弟子组件表的条件覆盖此方法。
+     */
+    fun currentValue(gameData: GameData, discipleTables: DiscipleTables?): Long =
+        currentValue(gameData)
 
     /** 目标值 */
     val targetValue: Long
@@ -182,17 +197,34 @@ sealed interface GuideCondition {
             gameData.guideCounters[GuideCounterKeys.MISSIONS_COMPLETED] ?: 0
     }
 
-    /** 弟子达到指定境界（realm ≤ maxRealmLayer）— 未实现，需 DiscipleTables 支持 */
-    @Deprecated("未实现，需要 DiscipleTables 参数才能正确检查", level = DeprecationLevel.ERROR)
+    /** 弟子达到指定境界（realm ≤ maxRealmLayer） */
     data class DiscipleReachRealm(
         val maxRealmLayer: Int,
         override val targetValue: Long,
         val targetLabel: String
     ) : GuideCondition {
         override val label: String get() = "${targetValue}位弟子${targetLabel}"
-        override fun currentValue(gameData: GameData): Long = 0
         override fun isMet(gameData: GameData): Boolean = false
-        override fun progressText(gameData: GameData): String = "(?)"
+        override fun currentValue(gameData: GameData): Long = 0
+        override fun progressText(gameData: GameData): String =
+            "(${currentValue(gameData)}/${targetValue})"
+
+        override fun isMet(gameData: GameData, discipleTables: DiscipleTables?): Boolean {
+            if (discipleTables == null) return false
+            val count = discipleTables.ids.count { id ->
+                discipleTables.isAlive.getOrNull(id) ?: 0 == 1 &&
+                    (discipleTables.realms.getOrNull(id) ?: Int.MAX_VALUE) <= maxRealmLayer
+            }
+            return count >= targetValue
+        }
+
+        override fun currentValue(gameData: GameData, discipleTables: DiscipleTables?): Long {
+            if (discipleTables == null) return 0
+            return discipleTables.ids.count { id ->
+                discipleTables.isAlive.getOrNull(id) ?: 0 == 1 &&
+                    (discipleTables.realms.getOrNull(id) ?: Int.MAX_VALUE) <= maxRealmLayer
+            }.toLong()
+        }
     }
 }
 

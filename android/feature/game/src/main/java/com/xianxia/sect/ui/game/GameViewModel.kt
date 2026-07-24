@@ -23,7 +23,13 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
 import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
 import com.xianxia.sect.core.engine.domain.production.ProductionFacade
 import com.xianxia.sect.core.engine.domain.save.SaveFacade
-import com.xianxia.sect.core.engine.service.*
+import com.xianxia.sect.core.engine.service.AdService
+import com.xianxia.sect.core.engine.service.AdPurpose
+import com.xianxia.sect.core.engine.service.MailService
+import com.xianxia.sect.core.engine.service.DailySignInService
+import com.xianxia.sect.core.engine.service.ClaimResult
+import com.xianxia.sect.core.engine.service.HighFrequencyData
+import com.xianxia.sect.core.AdFreeWhitelist
 import com.xianxia.sect.ui.game.buildBuildingDataArray
 import com.xianxia.sect.ui.game.sect.RenderCommandBus
 import com.xianxia.sect.core.util.GridSnapHelper
@@ -63,7 +69,8 @@ class GameViewModel @Inject constructor(
     private val diplomacyFacade: DiplomacyFacade,
     private val saveFacade: SaveFacade,
     private val thermalMonitor: ThermalMonitor,
-    private val dialogManager: DialogManager
+    private val dialogManager: DialogManager,
+    private val adService: AdService
 ) : BaseViewModel() {
 
     // ── 新提取的领域委托 ──
@@ -121,6 +128,8 @@ class GameViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "GameViewModel"
+        /** 观看单次广告获得的突破修炼倍率加成 */
+        private const val AD_BONUS_PER_AD = 0.05
     }
 
     // ── Dialog 状态管理 ──
@@ -613,17 +622,54 @@ class GameViewModel @Inject constructor(
 
     // ── 旧 API 兼容包装方法（委托给新 delegate） ──
 
-    // AdsDelegate
-    var onWatchAdBreakthroughBonus: ((String) -> Unit)?
-        get() = ads.onWatchAdBreakthroughBonus
-        set(v) { ads.onWatchAdBreakthroughBonus = v }
-    var onWatchAdMerchantRefresh: (() -> Unit)?
-        get() = ads.onWatchAdMerchantRefresh
-        set(v) { ads.onWatchAdMerchantRefresh = v }
+    // AdsDelegate — 广告播放控制
     fun isAdOnCooldown(): Boolean = ads.isAdOnCooldown()
     fun isDailyAdLimitReached(): Boolean = ads.isDailyAdLimitReached()
+    /** @deprecated 请使用 [tryMarkAdWatched] 替代 */
+    @Deprecated("Use tryMarkAdWatched() instead")
     fun markAdWatched() = ads.markAdWatched()
     fun tryMarkAdWatched(): Boolean = ads.tryMarkAdWatched()
+
+    /**
+     * 播放突破修炼奖励广告。
+     * - 免广告特权用户直接发放奖励
+     * - 普通用户通过 [AdService] 播放广告，验证通过后发放
+     */
+    fun watchAdForBreakthroughBonus(discipleId: String) {
+        if (AdFreeWhitelist.isCurrentUserPrivileged()) {
+            if (tryMarkAdWatched()) {
+                applyAdBreakthroughBonus(discipleId, AD_BONUS_PER_AD)
+            }
+            return
+        }
+        if (isDailyAdLimitReached()) return
+        adService.watchAd(AdPurpose.BREAKTHROUGH_BONUS) {
+            // 先标记观看（含限次检查），通过后才发奖励
+            if (tryMarkAdWatched()) {
+                applyAdBreakthroughBonus(discipleId, AD_BONUS_PER_AD)
+            }
+        }
+    }
+
+    /**
+     * 播放商人刷新次数广告。
+     * - 免广告特权用户直接发放奖励
+     * - 普通用户通过 [AdService] 播放广告，验证通过后发放
+     */
+    fun watchAdForMerchantRefresh() {
+        if (AdFreeWhitelist.isCurrentUserPrivileged()) {
+            if (tryMarkAdWatched()) {
+                grantMerchantRefreshChanceFromAd()
+            }
+            return
+        }
+        if (isDailyAdLimitReached()) return
+        adService.watchAd(AdPurpose.MERCHANT_REFRESH) {
+            if (tryMarkAdWatched()) {
+                grantMerchantRefreshChanceFromAd()
+            }
+        }
+    }
 
     // OverlayDelegate
     val overlayOrder: List<TopOverlay> get() = overlays.overlayOrder

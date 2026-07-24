@@ -51,12 +51,12 @@ import com.xianxia.sect.ui.theme.XianxiaTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.TimeoutCancellationException
 import com.xianxia.sect.core.AdFreeWhitelist
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.taptap.AdServiceImpl
 import com.xianxia.sect.core.nativebridge.NativeBridge
 import com.xianxia.sect.di.IoDispatcher
 import kotlinx.coroutines.CoroutineDispatcher
@@ -71,9 +71,6 @@ class GameActivity : ComponentActivity() {
     companion object {
         private const val TAG = "GameActivity"
         private const val KEY_CURRENT_SLOT = "current_slot"
-
-        /** 每次观看广告的突破率加成（15%），最多观看 2 次 */
-        private const val AD_BONUS_PER_AD = 0.15
     }
 
     private val viewModel: GameViewModel by viewModels()
@@ -109,6 +106,9 @@ class GameActivity : ComponentActivity() {
 
     @Inject
     lateinit var ioDispatcher: IoDispatcher
+
+    @Inject
+    lateinit var adServiceImpl: AdServiceImpl
 
     // ── GameForegroundService 绑定 ──
     // 游戏循环控制权已迁移到 GameForegroundService，Activity 通过 Binder 获取 GameEngineCore 实例
@@ -312,97 +312,9 @@ class GameActivity : ComponentActivity() {
                             // 初始化免广告特权白名单
                             AdFreeWhitelist.initialize(sessionManager.unionId)
 
-                            // 设置广告回调到 ViewModel（移除透传链）
-                            viewModel.onWatchAdBreakthroughBonus = lambda@{ discipleId ->
-                                // 免广告特权用户直接发放奖励，不播放广告
-                                if (AdFreeWhitelist.isCurrentUserPrivileged()) {
-                                    viewModel.applyAdBreakthroughBonus(discipleId, AD_BONUS_PER_AD)
-                                    viewModel.tryMarkAdWatched()
-                                    return@lambda
-                                }
-                                // 每日次数已达上限
-                                if (viewModel.isDailyAdLimitReached()) {
-                                    return@lambda
-                                }
-                                val activity = this@GameActivity
-                                val rewardClaimed = AtomicBoolean(false)
-                                com.xianxia.sect.taptap.RewardVideoAdManager.setCallback(
-                                    object : com.xianxia.sect.taptap.RewardVideoAdManager.RewardVideoCallback {
-                                        override fun onRewardVerify(
-                                            rewardVerify: Boolean,
-                                            rewardAmount: Int,
-                                            rewardName: String,
-                                            code: Int,
-                                            msg: String
-                                        ) {
-                                            if (!rewardVerify || activity.isFinishing || activity.isDestroyed) return
-                                            if (!rewardClaimed.compareAndSet(false, true)) return
-                                            viewModel.applyAdBreakthroughBonus(
-                                                discipleId,
-                                                AD_BONUS_PER_AD
-                                            )
-                                            viewModel.tryMarkAdWatched()
-                                        }
+                            // 注入 Activity 引用到广告服务实现
+                            adServiceImpl.attachActivity(this@GameActivity)
 
-                                        override fun onAdCached() {
-                                            if (!activity.isFinishing && !activity.isDestroyed) {
-                                                com.xianxia.sect.taptap.RewardVideoAdManager.showAd(activity)
-                                            }
-                                        }
-
-                                        override fun onAdClose() {
-                                            com.xianxia.sect.taptap.RewardVideoAdManager.removeCallback()
-                                        }
-                                    }
-                                )
-                                com.xianxia.sect.taptap.RewardVideoAdManager.loadAd(activity)
-                            }
-                            viewModel.onWatchAdMerchantRefresh = lambda@{
-                                // 免广告特权用户直接发放奖励，不播放广告
-                                if (AdFreeWhitelist.isCurrentUserPrivileged()) {
-                                    viewModel.grantMerchantRefreshChanceFromAd()
-                                    viewModel.tryMarkAdWatched()
-                                    return@lambda
-                                }
-                                // 每日次数已达上限
-                                if (viewModel.isDailyAdLimitReached()) {
-                                    return@lambda
-                                }
-                                val activity = this@GameActivity
-                                val rewardClaimed = java.util.concurrent.atomic.AtomicBoolean(false)
-                                com.xianxia.sect.taptap.RewardVideoAdManager.setCallback(
-                                    object : com.xianxia.sect.taptap.RewardVideoAdManager.RewardVideoCallback {
-                                        override fun onRewardVerify(
-                                            rewardVerify: Boolean,
-                                            rewardAmount: Int,
-                                            rewardName: String,
-                                            code: Int,
-                                            msg: String
-                                        ) {
-                                            if (!rewardVerify || activity.isFinishing || activity.isDestroyed) return
-                                            if (!rewardClaimed.compareAndSet(false, true)) return  // 幂等守卫
-                                            viewModel.grantMerchantRefreshChanceFromAd()
-                                            viewModel.tryMarkAdWatched()
-                                        }
-
-                                        override fun onAdCached() {
-                                            if (!activity.isFinishing && !activity.isDestroyed) {
-                                                com.xianxia.sect.taptap.RewardVideoAdManager.showAd(activity)
-                                            }
-                                        }
-
-                                        override fun onAdClose() {
-                                            com.xianxia.sect.taptap.RewardVideoAdManager.removeCallback()
-                                        }
-                                    }
-                                )
-                                com.xianxia.sect.taptap.RewardVideoAdManager.loadAd(
-                                    activity = activity,
-                                    rewardName = "商人刷新次数",
-                                    rewardAmount = 3,
-                                    spaceId = 1059500L
-                                )
-                            }
                             MainGameScreen(
                                 mapPreloadData = preloadData,
                                 viewModel = viewModel,
@@ -695,6 +607,8 @@ class GameActivity : ComponentActivity() {
         actionModeTracker = null
         super.onDestroy()
         Log.d(TAG, "onDestroy called")
+        if (::adServiceImpl.isInitialized) adServiceImpl.detachActivity()
+        com.xianxia.sect.taptap.RewardVideoAdManager.destroyAd()
         frameMetricsMonitor.stopMonitoring(window)
         SecureKeyManager.recoveryCallback = null
         // 解除与 GameForegroundService 的绑定

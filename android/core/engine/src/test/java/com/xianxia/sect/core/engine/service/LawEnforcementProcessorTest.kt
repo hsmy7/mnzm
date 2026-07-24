@@ -359,7 +359,7 @@ class LawEnforcementProcessorTest {
         val t = DiscipleTables()
         t.ids.add(id); t.isAlive[id] = 1; t.statuses[id] = DiscipleStatus.IDLE
         t.moralities[id] = morale; t.loyalties[id] = 50
-        t.recruitedMonths[id] = 24; t.lastTheftMonths[id] = 0; t.ages[id] = 30
+        t.recruitedMonths[id] = 24; t.ages[id] = 30
         t.intelligences[id] = 100; t.baseSpeeds[id] = 100
         t.realms[id] = 5; t.realmLayers[id] = 1
         return t

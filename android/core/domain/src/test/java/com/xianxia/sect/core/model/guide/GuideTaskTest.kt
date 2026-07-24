@@ -1,7 +1,10 @@
 package com.xianxia.sect.core.model.guide
 
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.state.DiscipleTables
+import com.xianxia.sect.core.state.WriteGuardRule
 import org.junit.Assert.*
+import org.junit.Rule
 import org.junit.Test
 
 /**
@@ -13,6 +16,8 @@ import org.junit.Test
  * - GuideCounterKeys：条件中使用的 Key 与常量一致
  */
 class GuideTaskTest {
+
+    @get:Rule val writeGuardRule = WriteGuardRule()
 
     // ==================== Helper: 构建带指定建筑的 GameData ====================
 
@@ -322,5 +327,87 @@ class GuideTaskTest {
         assertEquals("autoProductionActivated", GuideCounterKeys.AUTO_PRODUCTION_ACTIVATED)
         assertEquals("breakthroughs", GuideCounterKeys.BREAKTHROUGHS)
         assertEquals("discipleImprisoned", GuideCounterKeys.DISCIPLE_IMPRISONED)
+    }
+
+    // ==================== GuideCondition.DiscipleReachRealm ====================
+
+    @Test
+    fun `DiscipleReachRealm - 旧签名永远 false`() {
+        val cond = GuideCondition.DiscipleReachRealm(maxRealmLayer = 5, targetValue = 2, targetLabel = "达到筑基")
+        val gd = GameData()
+        assertFalse("isMet(gameData) 应返回 false", cond.isMet(gd))
+        assertEquals("currentValue(gameData) 应返回 0", 0L, cond.currentValue(gd))
+    }
+
+    @Test
+    fun `DiscipleReachRealm - 无 tables 时返回 false0`() {
+        val cond = GuideCondition.DiscipleReachRealm(maxRealmLayer = 5, targetValue = 1, targetLabel = "达到筑基")
+        val gd = GameData()
+        assertFalse("isMet(gameData, null) 应 false", cond.isMet(gd, null))
+        assertEquals("currentValue(gameData, null) 应 0", 0L, cond.currentValue(gd, null))
+    }
+
+    @Test
+    fun `DiscipleReachRealm - 计数达到目标`() {
+        val tables = DiscipleTables()
+        // 弟子 1: realm=3（满足 ≤5）
+        tables.ids.add(1); tables.realms[1] = 3; tables.isAlive[1] = 1
+        // 弟子 2: realm=5（满足 ≤5）
+        tables.ids.add(2); tables.realms[2] = 5; tables.isAlive[2] = 1
+        // 弟子 3: realm=8（不满足 ≤5）
+        tables.ids.add(3); tables.realms[3] = 8; tables.isAlive[3] = 1
+
+        val cond = GuideCondition.DiscipleReachRealm(maxRealmLayer = 5, targetValue = 2, targetLabel = "达到筑基")
+        val gd = GameData()
+
+        assertEquals("currentValue 应返回 2", 2L, cond.currentValue(gd, tables))
+        assertTrue("2 位弟子 ≤5 应达标", cond.isMet(gd, tables))
+    }
+
+    @Test
+    fun `DiscipleReachRealm - 计数未达到目标`() {
+        val tables = DiscipleTables()
+        tables.ids.add(1); tables.realms[1] = 3; tables.isAlive[1] = 1
+        tables.ids.add(2); tables.realms[2] = 7; tables.isAlive[2] = 1
+
+        val cond = GuideCondition.DiscipleReachRealm(maxRealmLayer = 5, targetValue = 2, targetLabel = "达到筑基")
+        val gd = GameData()
+
+        assertEquals("currentValue 应返回 1", 1L, cond.currentValue(gd, tables))
+        assertFalse("仅 1 位 ≤5 不应达标", cond.isMet(gd, tables))
+    }
+
+    @Test
+    fun `DiscipleReachRealm - 无弟子时返回 0`() {
+        val tables = DiscipleTables()
+        val cond = GuideCondition.DiscipleReachRealm(maxRealmLayer = 5, targetValue = 1, targetLabel = "达到筑基")
+        val gd = GameData()
+        assertEquals("空表 currentValue 应 0", 0L, cond.currentValue(gd, tables))
+        assertFalse("空表 isMet 应 false", cond.isMet(gd, tables))
+    }
+
+    @Test
+    fun `DiscipleReachRealm - progressText 保留旧签名`() {
+        val cond = GuideCondition.DiscipleReachRealm(maxRealmLayer = 5, targetValue = 2, targetLabel = "达到筑基")
+        val gd = GameData()
+        // progressText 仅使用 gameData，旧签名应有内容但不一定准确
+        assertNotNull("progressText 不应 null", cond.progressText(gd))
+    }
+
+    @Test
+    fun `DiscipleReachRealm - 排除死亡弟子`() {
+        val tables = DiscipleTables()
+        // 弟子 1: alive, realm=3（满足）
+        tables.ids.add(1); tables.realms[1] = 3; tables.isAlive[1] = 1
+        // 弟子 2: dead, realm=4（满足但已死亡，不计入）
+        tables.ids.add(2); tables.realms[2] = 4; tables.isAlive[2] = 0
+        // 弟子 3: alive, realm=8（不满足）
+        tables.ids.add(3); tables.realms[3] = 8; tables.isAlive[3] = 1
+
+        val cond = GuideCondition.DiscipleReachRealm(maxRealmLayer = 5, targetValue = 2, targetLabel = "达到筑基")
+        val gd = GameData()
+
+        assertEquals("排除死亡后仅 1 人", 1L, cond.currentValue(gd, tables))
+        assertFalse("仅 1 人不应达标", cond.isMet(gd, tables))
     }
 }

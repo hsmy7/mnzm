@@ -259,8 +259,7 @@ fun BasicInfoSection(
                     )
                 }
             }
-            val watchAdCallback = viewModel?.onWatchAdBreakthroughBonus
-            if (showAdConfirmDialog && watchAdCallback != null) {
+            if (showAdConfirmDialog) {
                 StandardPromptDialog(
                     onDismissRequest = { showAdConfirmDialog = false },
                     title = "广告",
@@ -269,7 +268,7 @@ fun BasicInfoSection(
                     confirmLabel = "观看",
                     onConfirm = {
                         showAdConfirmDialog = false
-                        watchAdCallback(disciple.id)
+                        viewModel?.watchAdForBreakthroughBonus(disciple.id)
                     }
                 )
             }

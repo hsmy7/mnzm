@@ -28,9 +28,6 @@ class AdsDelegate {
         @Volatile private var lastResetDay: Long = 0L
     }
 
-    var onWatchAdBreakthroughBonus: ((String) -> Unit)? = null
-    var onWatchAdMerchantRefresh: (() -> Unit)? = null
-
     @Volatile private var adCooldownUntilMs: Long = 0L
 
     // ── 冷却检查 ──
@@ -68,10 +65,10 @@ class AdsDelegate {
      * @return true 表示标记成功（可发放奖励），false 表示已达上限
      */
     fun tryMarkAdWatched(): Boolean {
+        if (AdFreeWhitelist.isCurrentUserPrivileged()) return true
+
         val now = System.currentTimeMillis()
         adCooldownUntilMs = now + AD_COOLDOWN_MS
-
-        if (AdFreeWhitelist.isCurrentUserPrivileged()) return true
 
         ensureDayReset()
         val afterIncrement = dailyCount.incrementAndGet()

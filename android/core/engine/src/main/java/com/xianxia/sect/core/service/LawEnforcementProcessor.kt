@@ -59,7 +59,7 @@ class LawEnforcementProcessor @Inject constructor(
      * 单弟子偷盗判定入口 —— 由道德变更点（5处）调用。
      *
      * 即时运行完整偷盗流程：条件检查 → 概率 → 隐匿 → 守卫对抗 → 执行。
-     * 保留 lastTheftMonth 冷却（≥12月），防止同一弟子频繁触发。
+     * 使用 annualTheftCount 年上限（MAX_THEFT_PER_YEAR）控制频率。
      */
     fun processSingleDiscipleTheft(discipleId: Int) {
         val currentData = stateStore.gameData.value
@@ -142,8 +142,9 @@ class LawEnforcementProcessor @Inject constructor(
      * 月度偷盗兜底（弱化版）。
      *
      * 仅在以下情况触发：
-     * - 道德 < 阈值且 lastTheftMonth >= 12月前（未被反应式钩子捕获的漏网之鱼）
+     * - 道德 < 阈值（未被反应式钩子捕获的漏网之鱼）
      * - 概率减半（正常偷盗概率 / 2），避免与反应式触发重复
+     * - 受 annualTheftCount 年上限约束
      */
     fun processTheftMonthly() {
         val currentData = stateStore.gameData.value

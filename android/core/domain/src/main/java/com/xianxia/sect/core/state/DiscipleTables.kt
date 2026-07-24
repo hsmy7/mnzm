@@ -199,7 +199,6 @@ class DiscipleTables {
     val recruitedMonths = IntComponentTable()
     val hasReviveEffects = IntComponentTable()    // 0/1
     val hasClearAllEffects = IntComponentTable()  // 0/1
-    val lastTheftMonths = IntComponentTable()
 
     // === 弟子总数 ===
     val count: Int get() = ids.size
@@ -380,7 +379,6 @@ class DiscipleTables {
         IntTableRef(recruitedMonths, DiscipleTables::recruitedMonths, "recruitedMonths"),
         IntTableRef(hasReviveEffects, DiscipleTables::hasReviveEffects, "hasReviveEffects"),
         IntTableRef(hasClearAllEffects, DiscipleTables::hasClearAllEffects, "hasClearAllEffects"),
-        IntTableRef(lastTheftMonths, DiscipleTables::lastTheftMonths, "lastTheftMonths"),
 
         // ── Double 表（值拷贝） ──
         DoubleTableRef(cultivations, DiscipleTables::cultivations, "cultivations"),
@@ -682,7 +680,6 @@ class DiscipleTables {
         recruitedMonths[id] = u.recruitedMonth
         hasReviveEffects[id] = if (u.hasReviveEffect) 1 else 0
         hasClearAllEffects[id] = if (u.hasClearAllEffect) 1 else 0
-        lastTheftMonths[id] = u.lastTheftMonth
     }
 
     /**
@@ -816,7 +813,6 @@ class DiscipleTables {
         recruitedMonth = recruitedMonths.getOrDefault(id, 0),
         hasReviveEffect = hasReviveEffects.getOrDefault(id, 0) == 1,
         hasClearAllEffect = hasClearAllEffects.getOrDefault(id, 0) == 1,
-        lastTheftMonth = lastTheftMonths.getOrDefault(id, 0)
     )
 
     /** 组装全部弟子的 List<Disciple>（用于序列化、旧 API 兼容）。

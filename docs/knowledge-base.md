@@ -153,8 +153,7 @@ v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管
 - **检查点**：`LawEnforcementProcessor.canDiscipleAttemptTheft()` + 月度扫荡 `processTheftMonthly()` / `processTheftIfNeeded()`
 - **递增**：`executeSuccessfulTheft` 两版本（事务/非事务）偷盗成功后 +1
 - **归零**：`CultivationEventProcessor` 年变重置块
-- **移除**：原单弟子 12 月冷却检查（`THEFT_COOLDOWN_MONTHS` + `lastTheftMonths` 冷却判定）
-- `UsageTracking.lastTheftMonth` 字段仍写入但不再用于冷却判断（仅保留兼容）
+- **已移除**：原单弟子 12 月冷却检查（`THEFT_COOLDOWN_MONTHS`）、`UsageTracking.lastTheftMonth` 字段、`DiscipleTables.lastTheftMonths` 组件表
 
 ---
 
@@ -325,7 +324,7 @@ No `NavHost` is used for the main game. `MainGameScreen` switches content via `M
 - **条件检查和发放位于同一次 `stateStore.update`**，消除 TOCTOU 竞态
 
 ### 已知限制
-- `DiscipleReachRealm` 条件类型标记 `@Deprecated(ERROR)`，需 DiscipleTables 参数才能正确实现
+- `DiscipleReachRealm` 条件类型 **已实现**（2026-07-24），`GuideCondition` 接口新增 `isMet(gameData, discipleTables)` 重载，`DiscipleTables` 通过 `GuideDelegate` / `GuideDialog` 透传
 - 月度事件管线（`CultivationEventProcessor.processMonthlyEvents`）存在多事务提交问题，已记入架构文档待完成项
 
 ---

@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.guide.GuideCondition
 import com.xianxia.sect.core.model.guide.GuideTask
+import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
@@ -55,7 +56,8 @@ fun GuideDialog(
     claimedRewardIds: Set<Int>,
     allTasks: List<GuideTask>,
     onClaimReward: (taskId: Int) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    discipleTables: DiscipleTables? = null
 ) {
     var selectedTaskId by remember { mutableIntStateOf(1) }
     val selectedTask = remember(selectedTaskId, allTasks) {
@@ -113,6 +115,7 @@ fun GuideDialog(
                 TaskDetailColumn(
                     selectedTask = selectedTask,
                     gameData = gameData,
+                    discipleTables = discipleTables,
                     modifier = Modifier
                         .weight(0.6f)
                         .fillMaxHeight()
@@ -130,7 +133,7 @@ fun GuideDialog(
                     selectedTask = selectedTask,
                     isClaimed = selectedTask?.let { it.id in claimedRewardIds } ?: false,
                     isCompleted = selectedTask?.let { task ->
-                        task.conditions.all { condition -> condition.isMet(gameData) }
+                        task.conditions.all { condition -> condition.isMet(gameData, discipleTables) }
                     } ?: false,
                     onClaimReward = { taskId ->
                         onClaimReward(taskId)
@@ -195,6 +198,7 @@ private fun TaskListColumn(
 private fun TaskDetailColumn(
     selectedTask: GuideTask?,
     gameData: GameData,
+    discipleTables: DiscipleTables?,
     modifier: Modifier = Modifier
 ) {
     if (selectedTask == null) {
@@ -253,7 +257,8 @@ private fun TaskDetailColumn(
                     items(selectedTask.conditions) { condition ->
                         ConditionItem(
                             condition = condition,
-                            gameData = gameData
+                            gameData = gameData,
+                            discipleTables = discipleTables
                         )
                     }
                 }
@@ -267,9 +272,10 @@ private fun TaskDetailColumn(
 @Composable
 private fun ConditionItem(
     condition: GuideCondition,
-    gameData: GameData
+    gameData: GameData,
+    discipleTables: DiscipleTables?
 ) {
-    val isMet = condition.isMet(gameData)
+    val isMet = condition.isMet(gameData, discipleTables)
     val progressText = condition.progressText(gameData)
 
     Row(

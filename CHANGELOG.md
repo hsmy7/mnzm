@@ -1,5 +1,36 @@
 ## [4.0.67] - 2026-07-24（versionCode=4067）
 
+### 架构债务清理 Phase F（2026-07-24）
+
+#### 死字段清理
+
+- **清理：`lastTheftMonths` 写而不再读** — `UsageTracking.lastTheftMonth` + `DiscipleTables.lastTheftMonths` 组件表 + save/load 路径全移除。单弟子偷盗冷却已由年上限完全替代，无需 Migration（Room 静默忽略旧列）
+
+#### 引导系统增强
+
+- **实现：`DiscipleReachRealm` 引导条件** — 修复 `@Deprecated(ERROR)` 的占位实现。扩展 `GuideCondition` 接口（新增 `isMet(gameData, discipleTables)` 带默认委托的重载），`DiscipleReachRealm` 实时查询 `discipleTables.realms` 统计弟子境界分布，排除死亡弟子
+- **扩展：`GuideDelegate` / `GuideDialog` 透传 `DiscipleTables`** — 接口扩展不影响现有条件实现，新增境界类任务无需改基础设施
+
+#### 广告回调重构
+
+- **重构：`AdService` 接口 + `AdServiceImpl` 实现** — ViewModel `var` 回调属性替换为类型安全的 `watchAdForBreakthroughBonus`/`watchAdForMerchantRefresh` 方法，新增广告类型只需在 `AdPurpose` 追加枚举值
+- **移除：GameActivity 中 90 行回调 lambda** — 广告播放逻辑统一在 `AdServiceImpl` 中，GameActivity 仅注入 Activity 引用
+- **移除：`AdsDelegate` 中 `var onWatchAdBreakthroughBonus`/`var onWatchAdMerchantRefresh`** — 消除 3 层透传链
+
+#### 对抗性审查修复
+
+- **加固：`AdServiceImpl` 串行化广告请求** — `@Volatile isLoadingAd` 防止并发 `watchAd` 导致全局回调覆盖（对抗审查 #1/#4）
+- **加固：奖励发放顺序** — `tryMarkAdWatched()` 先于奖励发放，返回值 false 时不发奖励（对抗审查 #2）
+- **加固：`loadAd` 异常保护** — try-catch 包裹，崩溃时释放 loading 锁 + 清回调（对抗审查 #4）
+- **加固：`DiscipleReachRealm` 排除死亡弟子** — 遍历时加 `isAlive` 检查（对抗审查 #6）
+- **加固：广告加载/播放失败回调** — 实现 `onAdLoadError` / `onVideoError`，错误时释放锁并打 Log（对抗审查 #8）
+- **修复：白名单用户冷却状态污染** — 白名单路径跳过 `adCooldownUntilMs` 赋值（对抗审查 #12）
+- **修复：Activity onDestroy 释放广告资源** — 加 `RewardVideoAdManager.destroyAd()`（对抗审查 #13）
+
+#### 测试覆盖
+
+- **测试：`GuideTaskTest` 新增 7 个测试** — `DiscipleReachRealm` 旧签名永远 false、null tables、计数达标/未达标、空表、排除死亡弟子、progressText
+
 ### 架构债务批量处理（2026-07-24）
 
 #### 事务完整性修复

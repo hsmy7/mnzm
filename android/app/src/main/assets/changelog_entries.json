@@ -185,6 +185,21 @@
     ]
   },
   {
+    "date": "2026-07-24",
+    "version": "4.0.67",
+    "changes": [
+      "清理：lastTheftMonths写而不再读——UsageTracking.lastTheftMonth+DiscipleTables.lastTheftMonths组件表+save/load路径全移除",
+      "实现：DiscipleReachRealm引导条件——修复@Deprecated(ERROR)占位实现，扩展GuideCondition接口新增DiscipleTables重载",
+      "重构：广告回调透传链——AdService接口+AdServiceImpl实现，ViewModel var回调替换为类型安全方法，GameActivity 90行lambda移除",
+      "加固：AdServiceImpl串行化广告请求——@Volatile isLoadingAd防止并发watchAd导致全局回调覆盖",
+      "加固：奖励发放顺序——tryMarkAdWatched()先于奖励发放，返回值false时不发奖励",
+      "加固：loadAd异常保护——try-catch包裹，崩溃时释放loading锁+清回调",
+      "加固：DiscipleReachRealm排除死亡弟子——遍历时加isAlive检查",
+      "测试：GuideTaskTest新增7个DiscipleReachRealm测试用例",
+      "测试：对抗性审查3 Agent全覆盖——边界狂魔/状态破坏者/数据篡改者共发现13项问题，10项已修复(6严重+4中等)，3项低风险已确认无需操作"
+    ]
+  },
+  {
     "date": "2026-07-23",
     "version": "4.0.65",
     "changes": [

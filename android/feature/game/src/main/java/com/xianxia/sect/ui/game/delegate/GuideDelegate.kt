@@ -3,7 +3,7 @@ package com.xianxia.sect.ui.game.delegate
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.guide.GuideTask
 import com.xianxia.sect.core.model.guide.GuideTaskRegistry
-import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.DiscipleTables
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -24,9 +24,9 @@ class GuideDelegate {
     /**
      * 检查任务是否已完成（所有条件均已满足）。
      */
-    fun isTaskCompleted(taskId: Int, gameData: GameData): Boolean {
+    fun isTaskCompleted(taskId: Int, gameData: GameData, discipleTables: DiscipleTables? = null): Boolean {
         val task = GuideTaskRegistry.getTask(taskId) ?: return false
-        return task.conditions.all { it.isMet(gameData) }
+        return task.conditions.all { it.isMet(gameData, discipleTables) }
     }
 
     /**
