@@ -7,6 +7,8 @@ import com.xianxia.sect.core.util.fixStorageBagReferences
 import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.data.integrity.IntegrityResult
 import com.xianxia.sect.data.integrity.SaveValidator
+import com.xianxia.sect.data.integrity.SaveValidatorFixes
+import com.xianxia.sect.data.integrity.corrupted.CorruptedResultHandler
 import com.xianxia.sect.data.archive.DataArchiver
 import com.xianxia.sect.data.backup.SaveFileManager
 import com.xianxia.sect.data.cache.CacheKey
@@ -249,7 +251,10 @@ class StorageEngine @Inject constructor(
                             Log.w(TAG, "存档完整性修复 (slot=$slot): ${integrityResult.details.size} 项")
                             integrityResult.details.forEach { Log.i(TAG, "  → $it") }
                             // 修复后数据替换缓存
-                            integrityResult.data
+                            // 注意：读锁内无法升级写锁持久化，修复数据仅缓存，下次保存时自动持久化
+                            val repairedData = integrityResult.data
+                            SaveValidatorFixes.logRepairStatus(slot, integrityResult.details.size, persisted = false)
+                            repairedData
                         }
                         is IntegrityResult.Corrupted -> {
                             Log.e(TAG, "存档数据损坏 (slot=$slot): ${integrityResult.details.size} 项")
@@ -261,9 +266,19 @@ class StorageEngine @Inject constructor(
                             if (readResult.status == com.xianxia.sect.data.backup.BackupStatus.SUCCESS ||
                                 readResult.status == com.xianxia.sect.data.backup.BackupStatus.RECOVERED) {
                                 try {
-                                    val restoredData = serializationModule.deserializeSaveData(readResult.payload ?: return@withReadLockLight StorageResult.failure(
+                                    var restoredData = serializationModule.deserializeSaveData(readResult.payload ?: return@withReadLockLight StorageResult.failure(
     StorageError.SLOT_CORRUPTED, "备份恢复失败：payload 为空 (slot=$slot)"))
                                     Log.w(TAG, "备份恢复成功 (slot=$slot) 来源=${readResult.source}")
+
+                                    // ★ 备份恢复后二次验证：防止备份本身存在数据问题
+                                    val reValidation = CorruptedResultHandler.validateRestoredData(slot, restoredData)
+                                    if (reValidation is IntegrityResult.Repaired) {
+                                        Log.w(TAG, "备份恢复数据二次修复 ${reValidation.details.size} 项 (slot=$slot)")
+                                        restoredData = reValidation.data
+                                    } else if (reValidation is IntegrityResult.Corrupted) {
+                                        Log.e(TAG, "备份恢复数据二次验证无法修复 (slot=$slot)")
+                                    }
+
                                     infra.storageMetrics.recordBackupRestore()
                                     performFullTransactionSave(slot, restoredData)
                                     clearCacheForSlot(slot)

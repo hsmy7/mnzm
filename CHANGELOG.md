@@ -25,6 +25,27 @@
 
 - **文档：架构债务记录追加 3 项待完成** — 对抗性审查剩余 4 项（装备去重/生产槽位引用/血炼引用/孤儿功法）、2 个补充修复文件、EntityCountBoundsRule
 
+### 新增验证规则 (v2)
+
+- **新增：装备去重检测 EquipmentDedupeRule** — 同一 equipment ID 被多弟子引用时自动清除后续重复
+- **新增：槽位引用检测 SlotRefRule** — 6 种槽位（生产/灵矿/巡逻/藏经阁/住所/仓库）引用不存在弟子时自动清除
+- **新增：血炼引用检测 BloodRefinementRefRule** — 血炼 BonusTotals/PctTotals 引用不存在弟子时自动移除 Entry
+- **新增：功法/天赋空引用检测 ItemRefConsistencyRule** — 弟子 manualIds/talentIds 中的空字符串自动移除
+- **新增：实体数量边界警告 EntityCountBoundsRule** — 弟子 >10000/装备 >5000/战斗日志 >2000 发出警告
+
+### 重构
+
+- **重构：CEP 执法/偷盗迁至 LawEnforcementProcessor** — 消除 530 行重复代码，`CultivationEventProcessor` 从 1189 行降至 718 行
+- **重构：handleDiscipleDeath 单事务** — `processDiscipleAging` 合并 Phase 2+3 消除 TOCTOU 窗口
+
+### Bug 修复
+
+- **修复：备份恢复后跳过二次验证** — `CorruptedResultHandler` 在备份恢复后调用 `SaveValidator.validate()` 再确认
+
+### 技术债务
+
+- **更新：架构债务完成 26 项** — 文档仅保留 3 项待完成（processCompletedMissionsLazy 事务化/DiscipleService 再拆分/广告回调净化）
+
 ## [4.0.66] - 2026-07-23（versionCode=4066）
 
 ### 新功能

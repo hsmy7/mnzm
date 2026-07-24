@@ -12,7 +12,16 @@
       "新增：gamePhase范围检查——超出[0,2]范围自动修正",
       "修复：保存前校验的Repaired结果未写入数据库——修复后数据现在正确持久化",
       "测试：20个规则测试类——每规则独立覆盖通过/修复/损坏三类路径+集成测试",
-      "技术债务：架构债务追加3项待完成——对抗性审查剩余4项/2个补充修复文件/EntityCountBoundsRule"
+      "技术债务：架构债务追加3项待完成——对抗性审查剩余4项/2个补充修复文件/EntityCountBoundsRule",
+      "新增：装备去重检测EquipmentDedupeRule——同一equipment ID被多弟子引用时自动清除后续重复",
+      "新增：槽位引用检测SlotRefRule——6种槽位(生产/灵矿/巡逻/藏经阁/住所/仓库)引用不存在弟子时自动清除",
+      "新增：血炼引用检测BloodRefinementRefRule——血炼BonusTotals/PctTotals引用不存在弟子时自动移除Entry",
+      "新增：功法/天赋空引用检测ItemRefConsistencyRule——弟子manualIds/talentIds中的空字符串自动移除",
+      "新增：实体数量边界警告EntityCountBoundsRule——弟子>10000/装备>5000/战斗日志>2000发出警告",
+      "重构：CEP执法/偷盗迁至LawEnforcementProcessor——消除530行重复代码，CEP从1189行降至718行",
+      "重构：handleDiscipleDeath单事务——processDiscipleAging合并Phase2/3消除TOCTOU窗口",
+      "修复：备份恢复后跳过二次验证——CorruptedResultHandler在备份恢复后调用SaveValidator.validate()再确认",
+      "技术债务：架构债务完成26项——更新架构债务文档仅保留3项待完成项"
     ]
   },
   {

@@ -20,6 +20,11 @@ fun SaveValidationRuleRegistry.registerDefaults() {
             SpiritStoneNonNegativeRule,// order=12
             DiscipleRealmConsistencyRule, // order=13
             DiscipleDeadStatusRule,    // order=14
+            EquipmentDedupeRule,       // order=15
+            SlotRefRule,               // order=16
+            BloodRefinementRefRule,    // order=17
+            ItemRefConsistencyRule,    // order=18
+            EntityCountBoundsRule,     // order=19
         )
     )
 }
