@@ -161,7 +161,7 @@ class ResolveBeastAttackFightTest {
         // Same logic as resolveBeastFightInternal
         val allAlive = allDiscipleList.filter { it.isAlive }
         val patrolDefenders = allAlive.filter { it.id in patrolDiscipleIds }
-        val excludeStatuses = setOf(DiscipleStatus.ON_MISSION, DiscipleStatus.REFLECTING, DiscipleStatus.REFINING)
+        val excludeStatuses = setOf(DiscipleStatus.ON_MISSION, DiscipleStatus.IN_TEAM, DiscipleStatus.REFLECTING, DiscipleStatus.GARRISONING, DiscipleStatus.REFINING)
         val remainingAlive = allAlive.filter {
             it.id !in patrolDiscipleIds && it.status !in excludeStatuses
         }.sortedByDescending { it.realmLayer }
@@ -178,24 +178,32 @@ class ResolveBeastAttackFightTest {
     }
 
     @Test
-    fun `defender selection excludes ON_MISSION REFLECTING REFINING`() {
+    fun `defender selection excludes ON_MISSION IN_TEAM REFLECTING GARRISONING REFINING`() {
         val allDiscipleList = listOf(
             Disciple(id = "1", name = "正常", realm = 5, realmLayer = 50,
                 status = DiscipleStatus.IDLE, isAlive = true),
             Disciple(id = "2", name = "任务中", realm = 5, realmLayer = 50,
                 status = DiscipleStatus.ON_MISSION, isAlive = true),
-            Disciple(id = "3", name = "思过中", realm = 5, realmLayer = 50,
+            Disciple(id = "3", name = "探索中", realm = 5, realmLayer = 50,
+                status = DiscipleStatus.IN_TEAM, isAlive = true),
+            Disciple(id = "4", name = "思过中", realm = 5, realmLayer = 50,
                 status = DiscipleStatus.REFLECTING, isAlive = true),
-            Disciple(id = "4", name = "血炼中", realm = 5, realmLayer = 50,
+            Disciple(id = "5", name = "驻军中", realm = 5, realmLayer = 50,
+                status = DiscipleStatus.GARRISONING, isAlive = true),
+            Disciple(id = "6", name = "血炼中", realm = 5, realmLayer = 50,
                 status = DiscipleStatus.REFINING, isAlive = true),
-            Disciple(id = "5", name = "生产中", realm = 5, realmLayer = 50,
+            Disciple(id = "7", name = "生产中", realm = 5, realmLayer = 50,
                 status = DiscipleStatus.MINING, isAlive = true)
         )
-        val excludeStatuses = setOf(DiscipleStatus.ON_MISSION, DiscipleStatus.REFLECTING, DiscipleStatus.REFINING)
+        val excludeStatuses = setOf(
+            DiscipleStatus.ON_MISSION, DiscipleStatus.IN_TEAM,
+            DiscipleStatus.REFLECTING, DiscipleStatus.GARRISONING,
+            DiscipleStatus.REFINING
+        )
         val defenders = allDiscipleList.filter { it.isAlive && it.status !in excludeStatuses }
 
-        assertEquals(2, defenders.size) // 1(IDLE) + 5(MINING)
+        assertEquals(2, defenders.size) // 1(IDLE) + 7(MINING)
         assertTrue(defenders.any { it.id == "1" })
-        assertTrue(defenders.any { it.id == "5" })
+        assertTrue(defenders.any { it.id == "7" })
     }
 }

@@ -188,22 +188,29 @@ class ExplorationService @Inject constructor(
                     // 手动选择路径在锁内重新查询弟子状态，避免锁外快照的 isAlive 过期
                     val defenders = if (manualDefenders != null) {
                         val manualIds = manualDefenders.map { it.id }.toSet()
-                        discipleTables.assembleAll().filter { it.id in manualIds && it.isAlive }
+                        val excludeStatuses = setOf(
+                            DiscipleStatus.ON_MISSION,
+                            DiscipleStatus.IN_TEAM,
+                            DiscipleStatus.REFLECTING,
+                            DiscipleStatus.GARRISONING,
+                            DiscipleStatus.REFINING
+                        )
+                        discipleTables.assembleAll()
+                            .filter { it.id in manualIds && it.isAlive && it.status !in excludeStatuses }
                     } else {
-                        val allAlive = discipleTables.assembleAll().filter { it.isAlive }
                         val pids = gameData.patrolSlots
                             .filter { it.discipleId.isNotEmpty() }
                             .map { it.discipleId }.toSet()
-                        val patrol = allAlive.filter { it.id in pids }
                         val excludeStatuses = setOf(
                             DiscipleStatus.ON_MISSION,
+                            DiscipleStatus.IN_TEAM,
                             DiscipleStatus.REFLECTING,
+                            DiscipleStatus.GARRISONING,
                             DiscipleStatus.REFINING
                         )
-                        val remaining = allAlive.filter {
-                            it.id !in pids && it.status !in excludeStatuses
-                        }.sortedByDescending { it.realmLayer }
-                        (patrol + remaining).take(8)
+                        discipleTables.assembleAll()
+                            .filter { it.id in pids && it.isAlive && it.status !in excludeStatuses }
+                            .take(8)
                     }
                     val defenderIds = defenders.map { it.id }.toSet()
                     prepareBeastDefenders(defenderIds)
@@ -260,19 +267,23 @@ class ExplorationService @Inject constructor(
         // 自动选择防守弟子：优先巡视塔已分配弟子，其次宗门内其他弟子
         // 排除任务中/思过中/血炼中的弟子，其余均可参战
         var disciples = discipleTables.assembleAll()
-        val allAlive = disciples.filter { it.isAlive }
+        val excludeStatuses = setOf(
+            DiscipleStatus.ON_MISSION,
+            DiscipleStatus.IN_TEAM,
+            DiscipleStatus.REFLECTING,
+            DiscipleStatus.GARRISONING,
+            DiscipleStatus.REFINING
+        )
+        val allAvailable = disciples.filter {
+            it.isAlive && it.status !in excludeStatuses
+        }
         val patrolDiscipleIds = gd.patrolSlots
             .filter { it.discipleId.isNotEmpty() }
             .map { it.discipleId }
             .toSet()
-        val patrolDefenders = allAlive.filter { it.id in patrolDiscipleIds }
-        val excludeStatuses = setOf(
-            DiscipleStatus.ON_MISSION,
-            DiscipleStatus.REFLECTING,
-            DiscipleStatus.REFINING
-        )
-        val remainingAlive = allAlive.filter {
-            it.id !in patrolDiscipleIds && it.status !in excludeStatuses
+        val patrolDefenders = allAvailable.filter { it.id in patrolDiscipleIds }
+        val remainingAlive = allAvailable.filter {
+            it.id !in patrolDiscipleIds
         }.sortedByDescending { it.realmLayer }
         val defenders = (patrolDefenders + remainingAlive).take(8)
         val defenderIds = defenders.map { it.id }.toSet()

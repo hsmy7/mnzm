@@ -87,6 +87,26 @@
 1. 新 Migration 从 game_data 表 DROP COLUMN
 2. DiscipleTables 组件表对应列一并移除
 
+---
+
+### 7. `CaveExplorationProcessor` 锁外快照 TOCTOU（防守方选择跨事务边界）
+
+**问题描述：** `CaveExplorationProcessor.executePlayerDefenseBattle` 的防守方选择方法 `selectAndPrepareDefenders` 在 `stateStore.update` 事务**外部**读取 `patrolSlots` 和弟子状态快照（锁外 `stateStore.gameData.value`），选出的 `defenderIds` 随后经历两次 `stateStore.update{}` 调用（forceSettle → 解锁 → applyResults），期间 patrolSlots / 弟子状态可能被其他操作修改：
+
+1. `selectAndPrepareDefenders` 锁外读 snapshot → 选出 defenderIds
+2. `stateStore.update { forceSettle }` — 锁内结算，退出后释放锁
+3. 另一操作（如妖兽弹窗迎战）修改了同一批弟子的状态/存活
+4. `buildDefenseTeam` 锁外读 `tables.isAlive` → 少人
+5. `AISectAttackManager.executePlayerAttack` 以实际偏少人数参战
+
+**影响范围：** `CaveExplorationProcessor.kt` ~407-427 行，`executePlayerDefenseBattle` 整体流程
+
+**修复方向：**
+将 `selectAndPrepareDefenders` → `forceSettle` → `buildDefenseTeam` → `executePlayerAttack` → `applyDefenseBattleResult` 全部移入单次 `stateStore.update` 事务内，确保防守方选择、战前结算、战斗执行、结果应用在同一次原子冻结中完成。
+
+**难度：** 中（需为 `AISectAttackManager.executePlayerAttack` 提供 MutableGameState 上下文路径）
+
+
 ## 写入守卫架构债务（⏸️ 暂不修复）
 
 详见 [architecture-debt-write-guard.md](architecture-debt-write-guard.md)，6 项低风险守卫设计限制记录在案：

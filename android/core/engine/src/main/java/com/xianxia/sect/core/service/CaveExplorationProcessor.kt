@@ -1092,17 +1092,23 @@ class CaveExplorationProcessor @Inject constructor(
     ): DefensePreparation? {
         val data = stateStore.gameData.value
         val allDisciples = stateStore.discipleTables.assembleAll()
-        val selectedDefenders = allDisciples
-            .filter {
-                it.isAlive && it.status !in setOf(
-                    DiscipleStatus.ON_MISSION,
-                    DiscipleStatus.IN_TEAM,
-                    DiscipleStatus.REFLECTING,
-                    DiscipleStatus.GARRISONING,
-                    DiscipleStatus.REFINING
-                )
-            }
-            .sortedBy { it.realm }
+        val allAlive = allDisciples.filter {
+            it.isAlive && it.status !in setOf(
+                DiscipleStatus.ON_MISSION,
+                DiscipleStatus.IN_TEAM,
+                DiscipleStatus.REFLECTING,
+                DiscipleStatus.GARRISONING,
+                DiscipleStatus.REFINING
+            )
+        }
+        val pids = data.patrolSlots
+            .filter { it.discipleId.isNotEmpty() }
+            .map { it.discipleId }.toSet()
+        val patrol = allAlive.filter { it.id in pids }
+            .sortedByDescending { it.realmLayer }
+        val remaining = allAlive.filter { it.id !in pids }
+            .sortedByDescending { it.realmLayer }
+        val selectedDefenders = (patrol + remaining)
             .take(AISectAttackManager.TEAM_SIZE)
 
         val defenderIds = selectedDefenders.map { it.id }
