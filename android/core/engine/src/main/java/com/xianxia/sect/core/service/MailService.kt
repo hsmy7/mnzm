@@ -12,6 +12,7 @@ import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
+import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.repository.MailRepository
@@ -379,7 +380,7 @@ class MailService @Inject constructor(
         for (attachment in attachments) {
             when (attachment.type) {
                 "spiritStones", "spiritHerbs", "storageBag" -> {}
-                "equipment", "pill", "material", "beastMaterial", "herb", "seed" -> {
+                "equipment", "manual", "pill", "material", "beastMaterial", "herb", "seed" -> {
                     var totalItems = stateStore.equipmentStacks.value.size +
                             stateStore.manualStacks.value.size +
                             stateStore.pills.value.size +
@@ -450,33 +451,70 @@ class MailService @Inject constructor(
                 }
                 "equipment" -> {
                     val qty = attachment.quantity.coerceAtLeast(1)
-                    val newEquipment = EquipmentDatabase.generateRandom(
-                        minRarity = attachment.rarity,
-                        maxRarity = attachment.rarity
-                    ).copy(quantity = qty)
-                    val existing = state.equipmentStacks.find {
-                        it.name == newEquipment.name && it.rarity == newEquipment.rarity && it.slot == newEquipment.slot
-                    }
-                    if (existing != null) {
-                        val newQty = (existing.quantity + newEquipment.quantity)
-                            .coerceAtMost(inventoryConfig.getMaxStackSize("equipment_stack"))
-                        state.equipmentStacks = state.equipmentStacks.map {
-                            if (it.id == existing.id) it.copy(quantity = newQty) else it
+                    repeat(qty) {
+                        val newEquipment = EquipmentDatabase.generateRandom(
+                            minRarity = attachment.rarity,
+                            maxRarity = attachment.rarity
+                        ).copy(quantity = 1)
+                        val existing = state.equipmentStacks.find {
+                            it.name == newEquipment.name && it.rarity == newEquipment.rarity && it.slot == newEquipment.slot
                         }
-                    } else {
-                        state.equipmentStacks = state.equipmentStacks + newEquipment
+                        if (existing != null) {
+                            val newQty = (existing.quantity + 1)
+                                .coerceAtMost(inventoryConfig.getMaxStackSize("equipment_stack"))
+                            state.equipmentStacks = state.equipmentStacks.map {
+                                if (it.id == existing.id) it.copy(quantity = newQty) else it
+                            }
+                        } else {
+                            state.equipmentStacks = state.equipmentStacks + newEquipment
+                        }
                     }
                     val eqKey = "mail:${attachment.rarity}"
                     state.gameData = state.gameData.copy(
                         annualEquipmentBySource = state.gameData.annualEquipmentBySource + (eqKey to (state.gameData.annualEquipmentBySource[eqKey] ?: 0) + qty)
                     )
                 }
+                "manual" -> {
+                    val qty = attachment.quantity.coerceAtLeast(1)
+                    repeat(qty) {
+                        val newManual = ManualDatabase.generateRandom(
+                            minRarity = attachment.rarity,
+                            maxRarity = attachment.rarity
+                        ).copy(quantity = 1)
+                        val existing = state.manualStacks.find {
+                            it.name == newManual.name && it.rarity == newManual.rarity && it.type == newManual.type
+                        }
+                        if (existing != null) {
+                            val newQty = (existing.quantity + 1)
+                                .coerceAtMost(inventoryConfig.getMaxStackSize("manual_stack"))
+                            state.manualStacks = state.manualStacks.map {
+                                if (it.id == existing.id) it.copy(quantity = newQty) else it
+                            }
+                        } else {
+                            state.manualStacks = state.manualStacks + newManual
+                        }
+                    }
+                }
                 "pill" -> {
                     val qty = attachment.quantity.coerceAtLeast(1)
-                    val pill = ItemDatabase.generateRandomPill(
-                        minRarity = attachment.rarity,
-                        maxRarity = attachment.rarity
-                    ).copy(quantity = qty)
+                    val pillItemId = attachment.itemId // local val for cross-module smart cast
+                    val pill = if (pillItemId != null) {
+                        // 指定具体丹药模板（如下品大乘丹 breakthrough_2_low）
+                        val template = ItemDatabase.getPillById(pillItemId)
+                        if (template != null) {
+                            ItemDatabase.createPillFromTemplate(template, qty)
+                        } else {
+                            ItemDatabase.generateRandomPill(
+                                minRarity = attachment.rarity,
+                                maxRarity = attachment.rarity
+                            ).copy(quantity = qty)
+                        }
+                    } else {
+                        ItemDatabase.generateRandomPill(
+                            minRarity = attachment.rarity,
+                            maxRarity = attachment.rarity
+                        ).copy(quantity = qty)
+                    }
                     val existing = state.pills.find {
                         it.name == pill.name && it.rarity == pill.rarity && it.category == pill.category
                     }
@@ -593,8 +631,14 @@ class MailService @Inject constructor(
                 "disciple" -> {
                     val currentMonthValue = state.gameData.gameYear * 12 + state.gameData.gameMonth
                     val usedNames = state.discipleTables.assembleAll().map { it.name }.toMutableSet()
+                    // 支持通过 extra 传递境界参数（realm / realmLayer）
+                    val realm = attachment.extra["realm"]?.toIntOrNull() ?: 9
+                    val realmLayer = attachment.extra["realmLayer"]?.toIntOrNull() ?: 1
+                    val config = if (realm != 9 || realmLayer != 1) {
+                        DiscipleRewardConfig(realm = realm, realmLayer = realmLayer)
+                    } else null
                     repeat(attachment.quantity.coerceAtLeast(1)) {
-                        val disciple = RedeemCodeManager.generateDisciple(null, usedNames)
+                        val disciple = RedeemCodeManager.generateDisciple(config, usedNames)
                         disciple.id = ((state.discipleTables.ids.maxOrNull() ?: 0) + 1).toString()
                         disciple.usage.recruitedMonth = currentMonthValue
                         state.discipleTables.insert(disciple)
@@ -667,6 +711,14 @@ class MailService @Inject constructor(
     suspend fun cleanExpired(slotId: Int) {
         val now = System.currentTimeMillis()
         mailRepo.deleteExpired(slotId, now)
+    }
+
+    /**
+     * 插入外部邮件（如运营补偿）并刷新活跃邮件缓存，确保 [activeMails] 立即反映最新数据。
+     */
+    suspend fun insertMail(mail: MailEntity) {
+        mailRepo.insertWithEnforceLimit(mail, MAX_MAILS_PER_SLOT)
+        refreshActiveMails(mail.slotId)
     }
 
     fun getActiveMails(slotId: Int): Flow<List<MailEntity>> {
