@@ -719,15 +719,10 @@ object GameConfig {
         const val THEFT_INTELLIGENCE_BASE = 50
         const val THEFT_MAX_RATIO_OF_TOTAL = 0.10       // 单次偷盗不超过宗门灵石 10%
         const val THEFT_MIN_AMOUNT = 100L               // 最少偷 100 灵石
-        const val THEFT_REALM_PERCEPTION_BONUS = 10     // 每层境界感知加成基数
-        const val THEFT_STEALTH_SPEED_FACTOR = 0.3      // 身法→隐匿系数
-        const val THEFT_STEALTH_INTEL_FACTOR = 0.2      // 智力→隐匿系数
-        const val THEFT_PERCEPTION_INTEL_FACTOR = 0.5   // 智力→感知系数
         const val THEFT_ITEM_BASE_DIVISOR = 20_000L     // 境界基准/此值=可偷物品单位数
         const val THEFT_ITEM_GUARD_REDUCTION = 2        // 每个守卫减少物品单位
         const val THEFT_ITEM_UNIT_SPEED_FACTOR = 3      // 身法→可偷物品单位的转换系数
         const val THEFT_ITEM_UNIT_INTEL_FACTOR = 3      // 智力→可偷物品单位的转换系数
-        const val THEFT_STEALTH_REALM_FACTOR = 1.2       // 隐匿中境界加成的额外倍数
         const val MAX_THEFT_PER_YEAR = 3                  // 宗门每年最多被偷盗次数
         const val MAX_THEFT_JUDGEMENTS_PER_MONTH = 3      // 每月最多判定3名弟子
         const val THEFT_MORAL_EDUCATION_THRESHOLD = 30  // 教化之道下道德仍低于此值需检查偷盗

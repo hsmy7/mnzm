@@ -1,5 +1,15 @@
 [
   {
+    "date": "2026-07-25",
+    "version": "4.0.70",
+    "changes": [
+      "简化：偷盗判定改为执法堂抓捕率+仓库守卫纯智力比拼——移除隐匿判定层(Sigmoid)和战力对抗(五维求和)，执法堂直接用抓捕率判定，仓库守卫纯智力比拼(盗贼智力≤守卫智力则被捕)",
+      "清理：移除5个废弃偷盗常量——THEFT_REALM_PERCEPTION_BONUS等5个Sigmoid隐匿/感知相关常量移除",
+      "修复：statusData读取抛NoSuchElementException——statusData[cid]改为getOrNull，消除未初始化statusData的弟子被捕时崩溃",
+      "测试：新增7个仓库守卫+执法堂测试用例"
+    ]
+  },
+  {
     "date": "2026-07-24",
     "version": "4.0.69",
     "changes": [

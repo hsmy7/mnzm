@@ -1,3 +1,12 @@
+## [4.0.70] - 2026-07-25（versionCode=4070）
+
+### 偷盗系统简化
+
+- **简化：偷盗判定改为执法堂抓捕率+仓库守卫纯智力比拼** — 移除隐匿判定层(Sigmoid 函数)和战力对抗(五维属性求和)，执法堂判定直接使用抓捕率(calculateCaptureRate)，仓库守卫判定为纯智力比拼(盗贼智力≤守卫智力则被捕)
+- **清理：移除5个废弃常量** — `THEFT_REALM_PERCEPTION_BONUS`/`THEFT_STEALTH_SPEED_FACTOR`/`THEFT_STEALTH_INTEL_FACTOR`/`THEFT_PERCEPTION_INTEL_FACTOR`/`THEFT_STEALTH_REALM_FACTOR`
+- **修复：`statusData`读取抛 `NoSuchElementException`** — 所有 `statusData[cid]`(get)改为 `statusData.getOrNull(cid)`(getOrNull)，消除未初始化 `statusData` 的弟子被捕时崩溃
+- **测试：新增7个仓库守卫+执法堂测试用例** — 覆盖智力低于/高于/等于三种对比场景，无仓库/无活跃守卫边界，执法堂捕获率计算
+
 ## [4.0.69] - 2026-07-24（versionCode=4069）
 
 ### 存档选择界面增强

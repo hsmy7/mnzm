@@ -20,7 +20,6 @@ import com.xianxia.sect.core.model.GameEventRecord
 import com.xianxia.sect.core.exploration.LootCalculator
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.math.exp
 
 /**
  * 执法/偷窃处理器 — 处理叛逃/偷窃检测及处罚。
@@ -30,7 +29,7 @@ import kotlin.math.exp
  * - **偷窃检测：道德变化即触发（反应式），月度兜底** — 不再纯百分比
  * - 偷窃金额基于弟子境界/身法/智力，非纯百分比
  * - 偷窃扩展到仓库物品（材料/丹药/装备/功法），等概率抽取
- * - 隐匿 vs 感知判定层（Sigmoid），战力对抗保留
+ * - 执法堂捕获率 + 仓库守卫纯智力判定
  * - 捕获处理：面壁反省
  * - 逃脱处理：清理装备/功法 + 移除
  *
@@ -58,7 +57,7 @@ class LawEnforcementProcessor @Inject constructor(
     /**
      * 单弟子偷盗判定入口 —— 由道德变更点（5处）调用。
      *
-     * 即时运行完整偷盗流程：条件检查 → 标记判定 → 概率 → 隐匿 → 守卫对抗 → 执行。
+     * 即时运行完整偷盗流程：条件检查 → 标记判定 → 偷盗概率 → 执法堂判定 → 仓库守卫判定 → 执行。
      * 三层限制：弟子年上限（每弟子每年1次）、月度上限（每月3名）、年度成功上限（年3次）。
      */
     fun processSingleDiscipleTheft(discipleId: Int) {
@@ -206,7 +205,7 @@ class LawEnforcementProcessor @Inject constructor(
 
     /**
      * 对单个弟子执行完整偷盗检查。
-     * 流程：偷盗概率 → 隐匿判定 → 守卫对抗 → 执行偷窃（灵石+物品）。
+     * 流程：偷盗概率 → 执法堂判定 → 仓库守卫判定 → 执行偷窃（灵石+物品）。
      * 判定标记（lastTheftJudgementYears / theftJudgementsThisMonth）已在调用方完成。
      */
     private fun executeFullTheftCheck(id: Int, tables: DiscipleTables, currentMonth: Int, currentData: GameData) {
@@ -226,22 +225,13 @@ class LawEnforcementProcessor @Inject constructor(
         } else theftProb
         if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() >= effectiveTheftProb) return
 
-        // Step 2: 隐匿判定 + 守卫对抗
-        val detected = tryStealthDetection(disciple, warehouses, garrisons)
-        val caught = if (detected) {
-            tryGuardCatch(disciple, warehouses, garrisons, captureRate)
-        } else {
-            false // 未被发现 → 偷窃直接成功
-        }
-
-        if (caught) {
-            // 被捕 → 面壁
+        // Step 2: 执法堂判定 — 直接以抓捕率判定
+        if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() < captureRate) {
             stateStore.update {
                 val cid = disciple.id.toIntOrNull() ?: return@update
                 if (discipleTables.ids.contains(cid) && discipleTables.isAlive[cid] == 1) {
                     discipleTables.statuses[cid] = DiscipleStatus.REFLECTING
-                    val existingData = discipleTables.statusData[cid]
-                    discipleTables.statusData[cid] = existingData + mapOf(
+                    discipleTables.statusData[cid] = (discipleTables.statusData.getOrNull(cid) ?: emptyMap()) + mapOf(
                         "reflectionStartYear" to currentData.gameYear.toString(),
                         "reflectionEndYear" to (currentData.gameYear + GameConfig.LawEnforcementConfig.REFLECTION_YEARS).toString()
                     )
@@ -249,6 +239,33 @@ class LawEnforcementProcessor @Inject constructor(
                 addEventRecord(this, "SECT", "theft_caught", "${disciple.name}偷盗被捕", disciple.id, disciple.name)
             }
             return
+        }
+
+        // Step 3: 仓库驻守判定 — 纯智力比拼
+        if (warehouses.isNotEmpty()) {
+            val wh = warehouses[rngManager.getRng(RngPartition.SYSTEM).nextInt(warehouses.size)]
+            val garrison = garrisons.find { it.buildingInstanceId == wh.instanceId && it.isActive }
+            if (garrison != null) {
+                val guardDisciple = stateStore.disciples.value.find { it.id == garrison.discipleId }
+                if (guardDisciple != null) {
+                    val guardIntel = DiscipleStatCalculator.getBaseStats(guardDisciple).intelligence
+                    if (stats.intelligence <= guardIntel) {
+                        stateStore.update {
+                            val cid = disciple.id.toIntOrNull() ?: return@update
+                            if (discipleTables.ids.contains(cid) && discipleTables.isAlive[cid] == 1) {
+                                discipleTables.statuses[cid] = DiscipleStatus.REFLECTING
+                                discipleTables.statusData[cid] = (discipleTables.statusData.getOrNull(cid) ?: emptyMap()) + mapOf(
+                                    "reflectionStartYear" to currentData.gameYear.toString(),
+                                    "reflectionEndYear" to (currentData.gameYear + GameConfig.LawEnforcementConfig.REFLECTION_YEARS).toString()
+                                )
+                            }
+                            addEventRecord(this, "SECT", "theft_caught",
+                                "${disciple.name}偷盗被捕", disciple.id, disciple.name)
+                        }
+                        return
+                    }
+                }
+            }
         }
 
         // Step 3: 偷窃成功 → 执行（灵石 + 物品）
@@ -286,18 +303,12 @@ class LawEnforcementProcessor @Inject constructor(
         } else theftProb
         if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() >= effectiveTheftProb) return
 
-        // Step 2: 隐匿判定 + 守卫对抗（传入 state 从事务内读取守卫数据）
-        val detected = tryStealthDetection(disciple, warehouses, garrisons, state)
-        val caught = if (detected) {
-            tryGuardCatch(disciple, warehouses, garrisons, captureRate)
-        } else false
-
-        if (caught) {
+        // Step 2: 执法堂判定 — 直接以抓捕率判定
+        if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() < captureRate) {
             val cid = disciple.id.toIntOrNull() ?: return
             if (tables.ids.contains(cid) && tables.isAlive[cid] == 1) {
                 tables.statuses[cid] = DiscipleStatus.REFLECTING
-                val existingData = tables.statusData[cid]
-                tables.statusData[cid] = existingData + mapOf(
+                tables.statusData[cid] = (tables.statusData.getOrNull(cid) ?: emptyMap()) + mapOf(
                     "reflectionStartYear" to currentData.gameYear.toString(),
                     "reflectionEndYear" to (currentData.gameYear + GameConfig.LawEnforcementConfig.REFLECTION_YEARS).toString()
                 )
@@ -305,6 +316,31 @@ class LawEnforcementProcessor @Inject constructor(
             state.recordGameEvent(GameEventCategory.SECT, GameEventType.THEFT_CAUGHT,
                 "${disciple.name}偷盗被捕", disciple.id, disciple.name)
             return
+        }
+
+        // Step 3: 仓库驻守判定 — 纯智力比拼（从事务内 state 读取守卫）
+        if (warehouses.isNotEmpty()) {
+            val wh = warehouses[rngManager.getRng(RngPartition.SYSTEM).nextInt(warehouses.size)]
+            val garrison = garrisons.find { it.buildingInstanceId == wh.instanceId && it.isActive }
+            if (garrison != null) {
+                val gid = garrison.discipleId.toIntOrNull()
+                if (gid != null) {
+                    if (stats.intelligence <= state.discipleTables.intelligences.getOrDefault(gid, 0)) {
+                        val cid = disciple.id.toIntOrNull() ?: return
+                        if (tables.ids.contains(cid) && tables.isAlive[cid] == 1) {
+                            tables.statuses[cid] = DiscipleStatus.REFLECTING
+                            tables.statusData[cid] = (tables.statusData.getOrNull(cid)
+                                ?: emptyMap()) + mapOf(
+                                "reflectionStartYear" to currentData.gameYear.toString(),
+                                "reflectionEndYear" to (currentData.gameYear + GameConfig.LawEnforcementConfig.REFLECTION_YEARS).toString()
+                            )
+                        }
+                        state.recordGameEvent(GameEventCategory.SECT, GameEventType.THEFT_CAUGHT,
+                            "${disciple.name}偷盗被捕", disciple.id, disciple.name)
+                        return
+                    }
+                }
+            }
         }
 
         // Step 3: 偷窃成功
@@ -579,82 +615,6 @@ class LawEnforcementProcessor @Inject constructor(
         val type: String, val rarity: Int, val count: Int
     )
 
-    // ══════════════════════════════════════════════════════════════════
-    // 隐匿 vs 感知判定（新增层）
-    // ══════════════════════════════════════════════════════════════════
-
-    /**
-     * 隐匿判定：盗贼隐匿 vs 守卫感知。
-     *
-     * 使用 Sigmoid 函数：
-     *   P(被发现) = 1 / (1 + e^(盗贼隐匿 - 守卫感知))
-     *
-     * @return true = 被发现（进入战力对抗），false = 未被发现（偷窃成功）
-     */
-    private fun tryStealthDetection(
-        disciple: Disciple,
-        warehouses: List<GridBuildingData>,
-        garrisons: List<WarehouseGarrisonSlot>,
-        state: MutableGameState? = null
-    ): Boolean {
-        if (warehouses.isEmpty()) return false
-        val warehouse = warehouses[rngManager.getRng(RngPartition.SYSTEM).nextInt(warehouses.size)]
-        val garrison = garrisons.find { it.buildingInstanceId == warehouse.instanceId && it.isActive } ?: return false
-        // 事务内路径走 state.discipleTables 而非 stateStore，确保读到事务内最新数据
-        val guardDisciple = if (state != null) {
-            val gid = garrison.discipleId.toIntOrNull() ?: return false
-            state.discipleTables.assemble(gid) ?: return false
-        } else {
-            stateStore.disciples.value.find { it.id == garrison.discipleId } ?: return false
-        }
-
-        val thiefStealth = computeStealth(disciple)
-        val guardPerception = computePerception(guardDisciple)
-        val diff = thiefStealth - guardPerception
-        val clampedDiff = diff.coerceIn(-20.0, 20.0)
-        val detectionProb = 1.0 / (1.0 + exp(clampedDiff))
-        return rngManager.getRng(RngPartition.SYSTEM).nextDouble() < detectionProb
-    }
-
-    /** 计算盗贼隐匿值。 */
-    private fun computeStealth(disciple: Disciple): Double {
-        val realmLevel = disciple.realm.coerceIn(1, 9)
-        val cfg = GameConfig.LawEnforcementConfig
-        val stats = DiscipleStatCalculator.getBaseStats(disciple)
-        val realmBonus = realmLevel * cfg.THEFT_REALM_PERCEPTION_BONUS * cfg.THEFT_STEALTH_REALM_FACTOR
-        val speedBonus = (stats.speed - cfg.THEFT_SPEED_BASE).coerceAtLeast(0) * cfg.THEFT_STEALTH_SPEED_FACTOR
-        val intelBonus = (stats.intelligence - cfg.THEFT_INTELLIGENCE_BASE).coerceAtLeast(0) * cfg.THEFT_STEALTH_INTEL_FACTOR
-        return realmBonus + speedBonus + intelBonus
-    }
-
-    /** 计算守卫感知值。 */
-    private fun computePerception(guard: Disciple): Double {
-        val realmLevel = guard.realm.coerceIn(1, 9)
-        val cfg = GameConfig.LawEnforcementConfig
-        val stats = DiscipleStatCalculator.getBaseStats(guard)
-        val realmBonus = realmLevel * cfg.THEFT_REALM_PERCEPTION_BONUS
-        val intelBonus = (stats.intelligence - cfg.THEFT_INTELLIGENCE_BASE).coerceAtLeast(0) * cfg.THEFT_PERCEPTION_INTEL_FACTOR
-        return realmBonus + intelBonus
-    }
-
-    /**
-     * 守卫对战判定（保留旧逻辑，去掉隐匿层）。
-     *
-     * 只有被隐匿判定发现的盗贼才会进入此方法。
-     * 无守卫时直接返回 false（抓不到）。
-     */
-    private fun tryGuardCatch(disciple: Disciple, warehouses: List<GridBuildingData>, garrisons: List<WarehouseGarrisonSlot>, captureRate: Double): Boolean {
-        if (warehouses.isEmpty()) return rngManager.getRng(RngPartition.SYSTEM).nextDouble() < captureRate
-        val warehouse = warehouses[rngManager.getRng(RngPartition.SYSTEM).nextInt(warehouses.size)]
-        val garrison = garrisons.find { it.buildingInstanceId == warehouse.instanceId && it.isActive } ?: return false
-        val guardDisciple = stateStore.disciples.value.find { it.id == garrison.discipleId } ?: return false
-        val thiefStats = DiscipleStatCalculator.getBaseStats(disciple)
-        val guardStats = DiscipleStatCalculator.getBaseStats(guardDisciple)
-        val thiefPower = thiefStats.physicalAttack + thiefStats.magicAttack + thiefStats.physicalDefense + thiefStats.magicDefense + thiefStats.speed
-        val guardPower = guardStats.physicalAttack + guardStats.magicAttack + guardStats.physicalDefense + guardStats.magicDefense + guardStats.speed
-        val thiefWinProb = (thiefPower.toDouble() / (thiefPower + guardPower).coerceAtLeast(1)).coerceIn(0.1, 0.9)
-        return rngManager.getRng(RngPartition.SYSTEM).nextDouble() >= thiefWinProb
-    }
 
     // ══════════════════════════════════════════════════════════════════
     // 叛逃 / 面壁 （原逻辑保持不动）
