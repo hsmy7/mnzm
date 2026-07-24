@@ -192,6 +192,14 @@ suspend fun GameEngine.loadData(
         }
     }
     try { mailService.resetAndInitSlot(gameData.slotId) } catch (e: Exception) { DomainLog.e("GameEngine", "Failed to initialize mail for slot ${gameData.slotId}", e) }
+    // 运营补偿：读档时自动注入补偿邮件
+    try {
+        injectCompensationOnLoad()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        DomainLog.e("GameEngine", "注入补偿邮件失败", e)
+    }
 }
 
 suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {

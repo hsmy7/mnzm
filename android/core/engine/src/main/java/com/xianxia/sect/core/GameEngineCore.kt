@@ -297,6 +297,14 @@ class GameEngineCore @Inject constructor(
         onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
     )
     val autoSaveTrigger: SharedFlow<Unit> get() = _autoSaveTrigger.asSharedFlow()
+
+    /**
+     * 通知引擎有挂起的变更需要存档。发送自动存档信号，
+     * SaveLoadViewModel 收到后会触发实际存档流程。
+     */
+    fun notifyPendingSave() {
+        _autoSaveTrigger.tryEmit(Unit)
+    }
     
     private var isInitialized = false
 

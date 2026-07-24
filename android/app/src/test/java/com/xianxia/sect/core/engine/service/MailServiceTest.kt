@@ -117,7 +117,7 @@ class MailServiceTest {
         runBlocking {
             // Arrange: Room 中邮件未标记已领，但 mailRecords 已有记录
             val mail = createUnclaimedMail()
-            `when`(mailRepo.getById(testMailId)).thenReturn(mail)
+            `when`(mailRepo.getById(eq(testSlotId), eq(testMailId))).thenReturn(mail)
 
             // 预置 mailRecord（模拟 Room 更新失败后重进场景）
             stateStore.update {
@@ -154,7 +154,7 @@ class MailServiceTest {
         runBlocking {
             // Arrange: Room update 会失败（模拟磁盘满）
             val mail = createUnclaimedMail()
-            `when`(mailRepo.getById(testMailId)).thenReturn(mail)
+            `when`(mailRepo.getById(eq(testSlotId), eq(testMailId))).thenReturn(mail)
             `when`(mailRepo.update(any())).thenThrow(RuntimeException("Disk full"))
 
             stateStore.update {
@@ -179,7 +179,7 @@ class MailServiceTest {
     fun `claimAttachment - fresh mail without mailRecord, claims normally`() = runBlocking {
         // Arrange: 正常未领取邮件，mailRecords 中无记录
         val mail = createUnclaimedMail()
-        `when`(mailRepo.getById(testMailId)).thenReturn(mail)
+        `when`(mailRepo.getById(eq(testSlotId), eq(testMailId))).thenReturn(mail)
 
         // Act
         val result = service.claimAttachment(testMailId, testSlotId)
@@ -204,7 +204,7 @@ class MailServiceTest {
 
     @Test
     fun `claimAttachment - mail not found returns MailNotFound`() = runBlocking {
-        `when`(mailRepo.getById(testMailId)).thenReturn(null)
+        `when`(mailRepo.getById(eq(testSlotId), eq(testMailId))).thenReturn(null)
         val result = service.claimAttachment(testMailId, testSlotId)
         assertTrue(result is ClaimResult.MailNotFound)
     }
@@ -214,7 +214,7 @@ class MailServiceTest {
         val expiredMail = createUnclaimedMail().copy(
             expireTime = now - 1000 // 已过期
         )
-        `when`(mailRepo.getById(testMailId)).thenReturn(expiredMail)
+        `when`(mailRepo.getById(eq(testSlotId), eq(testMailId))).thenReturn(expiredMail)
         val result = service.claimAttachment(testMailId, testSlotId)
         assertTrue(result is ClaimResult.Expired)
     }
@@ -222,7 +222,7 @@ class MailServiceTest {
     @Test
     fun `claimAttachment - already claimed in Room returns AlreadyClaimed`() = runBlocking {
         val claimedMail = createUnclaimedMail().copy(attachmentClaimed = true)
-        `when`(mailRepo.getById(testMailId)).thenReturn(claimedMail)
+        `when`(mailRepo.getById(eq(testSlotId), eq(testMailId))).thenReturn(claimedMail)
         val result = service.claimAttachment(testMailId, testSlotId)
         assertTrue(result is ClaimResult.AlreadyClaimed)
     }

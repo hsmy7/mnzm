@@ -631,11 +631,16 @@ class MailService @Inject constructor(
                 "disciple" -> {
                     val currentMonthValue = state.gameData.gameYear * 12 + state.gameData.gameMonth
                     val usedNames = state.discipleTables.assembleAll().map { it.name }.toMutableSet()
-                    // 支持通过 extra 传递境界参数（realm / realmLayer）
+                    // 支持通过 extra 传递境界参数（realm / realmLayer）和灵根数（spiritRootCount）
                     val realm = attachment.extra["realm"]?.toIntOrNull() ?: 9
                     val realmLayer = attachment.extra["realmLayer"]?.toIntOrNull() ?: 1
-                    val config = if (realm != 9 || realmLayer != 1) {
-                        DiscipleRewardConfig(realm = realm, realmLayer = realmLayer)
+                    val spiritRootCount = attachment.extra["spiritRootCount"]?.toIntOrNull()
+                    val config = if (realm != 9 || realmLayer != 1 || spiritRootCount != null) {
+                        DiscipleRewardConfig(
+                            realm = realm,
+                            realmLayer = realmLayer,
+                            spiritRootCount = spiritRootCount
+                        )
                     } else null
                     repeat(attachment.quantity.coerceAtLeast(1)) {
                         val disciple = RedeemCodeManager.generateDisciple(config, usedNames)
