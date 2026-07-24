@@ -72,7 +72,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 30  // v30: MIGRATION_29_30 新增 annual_theft_count 列
+    version = 31  // v31: MIGRATION_30_31 删除 usage_lastTheftMonth 列
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)
@@ -1218,6 +1218,116 @@ abstract class GameDatabase : RoomDatabase() {
             }
         }
 
+        /** v30→v31: 删除 disciples 表中的 usage_lastTheftMonth 列 */
+        val MIGRATION_30_31 = object : Migration(30, 31) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                if (columnExists(db, "disciples", "usage_lastTheftMonth")) {
+                    // SQLite < 3.35.0 不支持 DROP COLUMN，使用 create-copy-drop-rename
+                    // 新表不含 usage_lastTheftMonth 列，与当前 Disciple 实体一致
+                    db.execSQL("""
+                        CREATE TABLE IF NOT EXISTS `disciples_v31` (
+                            `id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL,
+                            `surname` TEXT NOT NULL, `realm` INTEGER NOT NULL, `realmLayer` INTEGER NOT NULL,
+                            `cultivation` REAL NOT NULL, `cultivationCheckpoint` REAL NOT NULL,
+                            `cultivationCheckpointGameMonth` INTEGER NOT NULL, `spiritRootType` TEXT NOT NULL,
+                            `age` INTEGER NOT NULL, `lifespan` INTEGER NOT NULL, `isAlive` INTEGER NOT NULL,
+                            `gender` TEXT NOT NULL, `portraitRes` TEXT NOT NULL, `manualIds` TEXT NOT NULL,
+                            `talentIds` TEXT NOT NULL, `manualMasteries` TEXT NOT NULL, `status` TEXT NOT NULL,
+                            `statusData` TEXT NOT NULL, `cultivationSpeedBonus` REAL NOT NULL,
+                            `cultivationSpeedDuration` INTEGER NOT NULL, `discipleType` TEXT NOT NULL,
+                            `autoLearnFromWarehouse` INTEGER NOT NULL, `soulPower` INTEGER NOT NULL,
+                            `cultivationCompletionMonth` INTEGER NOT NULL DEFAULT 0,
+                            `cultivationCompletionPhase` INTEGER NOT NULL DEFAULT 1,
+                            `manualCompletionMonth` INTEGER NOT NULL DEFAULT 0,
+                            `manualCompletionPhase` INTEGER NOT NULL DEFAULT 1,
+                            `equipmentNurturingCompletionMonth` INTEGER NOT NULL DEFAULT 0,
+                            `equipmentNurturingCompletionPhase` INTEGER NOT NULL DEFAULT 1,
+                            `baseHp` INTEGER NOT NULL, `baseMp` INTEGER NOT NULL,
+                            `basePhysicalAttack` INTEGER NOT NULL, `baseMagicAttack` INTEGER NOT NULL,
+                            `basePhysicalDefense` INTEGER NOT NULL, `baseMagicDefense` INTEGER NOT NULL,
+                            `baseSpeed` INTEGER NOT NULL, `hpVariance` INTEGER NOT NULL,
+                            `mpVariance` INTEGER NOT NULL, `physicalAttackVariance` INTEGER NOT NULL,
+                            `magicAttackVariance` INTEGER NOT NULL, `physicalDefenseVariance` INTEGER NOT NULL,
+                            `magicDefenseVariance` INTEGER NOT NULL, `speedVariance` INTEGER NOT NULL,
+                            `totalCultivation` INTEGER NOT NULL, `breakthroughCount` INTEGER NOT NULL,
+                            `breakthroughFailCount` INTEGER NOT NULL, `currentHp` INTEGER NOT NULL,
+                            `currentMp` INTEGER NOT NULL, `pillPhysicalAttackBonus` INTEGER NOT NULL,
+                            `pillMagicAttackBonus` INTEGER NOT NULL, `pillPhysicalDefenseBonus` INTEGER NOT NULL,
+                            `pillMagicDefenseBonus` INTEGER NOT NULL, `pillHpBonus` INTEGER NOT NULL,
+                            `pillMpBonus` INTEGER NOT NULL, `pillSpeedBonus` INTEGER NOT NULL,
+                            `pillCritRateBonus` REAL NOT NULL, `pillCritEffectBonus` REAL NOT NULL,
+                            `pillCultivationSpeedBonus` REAL NOT NULL, `pillSkillExpSpeedBonus` REAL NOT NULL,
+                            `pillNurtureSpeedBonus` REAL NOT NULL, `pillEffectDuration` INTEGER NOT NULL,
+                            `activePillCategory` TEXT NOT NULL, `weaponId` TEXT NOT NULL,
+                            `armorId` TEXT NOT NULL, `bootsId` TEXT NOT NULL, `accessoryId` TEXT NOT NULL,
+                            `weaponNurture` TEXT NOT NULL, `armorNurture` TEXT NOT NULL,
+                            `bootsNurture` TEXT NOT NULL, `accessoryNurture` TEXT NOT NULL,
+                            `autoEquipFromWarehouse` INTEGER NOT NULL, `storageBagItems` TEXT NOT NULL,
+                            `storageBagSpiritStones` INTEGER NOT NULL, `spiritStones` INTEGER NOT NULL,
+                            `social_partnerId` TEXT, `social_partnerSectId` TEXT,
+                            `social_parentId1` TEXT, `social_parentId2` TEXT,
+                            `social_lastChildYear` INTEGER NOT NULL, `social_childBirthMonth` INTEGER,
+                            `social_griefEndYear` INTEGER, `social_masterId` TEXT,
+                            `intelligence` INTEGER NOT NULL, `charm` INTEGER NOT NULL,
+                            `loyalty` INTEGER NOT NULL, `comprehension` INTEGER NOT NULL,
+                            `artifactRefining` INTEGER NOT NULL, `pillRefining` INTEGER NOT NULL,
+                            `spiritPlanting` INTEGER NOT NULL, `mining` INTEGER NOT NULL,
+                            `teaching` INTEGER NOT NULL, `morality` INTEGER NOT NULL,
+                            `salaryPaidCount` INTEGER NOT NULL, `salaryMissedCount` INTEGER NOT NULL,
+                            `usage_usedFunctionalPillTypes` TEXT NOT NULL,
+                            `usage_usedExtendLifePillIds` TEXT NOT NULL,
+                            `usage_recruitedMonth` INTEGER NOT NULL, `usage_hasReviveEffect` INTEGER NOT NULL,
+                            `usage_hasClearAllEffect` INTEGER NOT NULL,
+                            PRIMARY KEY(`id`, `slot_id`)
+                        )
+                    """)
+                    // 复制所有列（排除 usage_lastTheftMonth）
+                    val insertCols = listOf(
+                        "id", "slot_id", "name", "surname", "realm", "realmLayer",
+                        "cultivation", "cultivationCheckpoint", "cultivationCheckpointGameMonth",
+                        "spiritRootType", "age", "lifespan", "isAlive", "gender",
+                        "portraitRes", "manualIds", "talentIds", "manualMasteries",
+                        "status", "statusData", "cultivationSpeedBonus", "cultivationSpeedDuration",
+                        "discipleType", "autoLearnFromWarehouse", "soulPower",
+                        "cultivationCompletionMonth", "cultivationCompletionPhase",
+                        "manualCompletionMonth", "manualCompletionPhase",
+                        "equipmentNurturingCompletionMonth", "equipmentNurturingCompletionPhase",
+                        "baseHp", "baseMp", "basePhysicalAttack", "baseMagicAttack",
+                        "basePhysicalDefense", "baseMagicDefense", "baseSpeed",
+                        "hpVariance", "mpVariance", "physicalAttackVariance", "magicAttackVariance",
+                        "physicalDefenseVariance", "magicDefenseVariance", "speedVariance",
+                        "totalCultivation", "breakthroughCount", "breakthroughFailCount",
+                        "currentHp", "currentMp",
+                        "pillPhysicalAttackBonus", "pillMagicAttackBonus",
+                        "pillPhysicalDefenseBonus", "pillMagicDefenseBonus",
+                        "pillHpBonus", "pillMpBonus", "pillSpeedBonus",
+                        "pillCritRateBonus", "pillCritEffectBonus",
+                        "pillCultivationSpeedBonus", "pillSkillExpSpeedBonus", "pillNurtureSpeedBonus",
+                        "pillEffectDuration", "activePillCategory",
+                        "weaponId", "armorId", "bootsId", "accessoryId",
+                        "weaponNurture", "armorNurture", "bootsNurture", "accessoryNurture",
+                        "autoEquipFromWarehouse", "storageBagItems", "storageBagSpiritStones", "spiritStones",
+                        "social_partnerId", "social_partnerSectId",
+                        "social_parentId1", "social_parentId2", "social_lastChildYear",
+                        "social_childBirthMonth", "social_griefEndYear", "social_masterId",
+                        "intelligence", "charm", "loyalty", "comprehension",
+                        "artifactRefining", "pillRefining", "spiritPlanting", "mining",
+                        "teaching", "morality",
+                        "salaryPaidCount", "salaryMissedCount",
+                        "usage_usedFunctionalPillTypes", "usage_usedExtendLifePillIds",
+                        "usage_recruitedMonth", "usage_hasReviveEffect", "usage_hasClearAllEffect"
+                    )
+                    val cols = insertCols.joinToString(", ")
+                    db.execSQL("INSERT INTO `disciples_v31` ($cols) SELECT $cols FROM `disciples`")
+                    db.execSQL("DROP TABLE IF EXISTS `disciples`")
+                    db.execSQL("ALTER TABLE `disciples_v31` RENAME TO `disciples`")
+                    Log.i(TAG, "Migration 30→31: dropped usage_lastTheftMonth from disciples")
+                } else {
+                    Log.i(TAG, "Migration 30→31: usage_lastTheftMonth already absent, skipped")
+                }
+            }
+        }
+
         /**
          * 检查表中是否存在指定列。
          * 检查表中是否存在指定列。
@@ -1486,7 +1596,7 @@ abstract class GameDatabase : RoomDatabase() {
                         Thread(r, "GameDB-Txn")
                     }
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database created")

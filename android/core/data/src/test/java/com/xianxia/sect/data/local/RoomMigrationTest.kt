@@ -396,6 +396,50 @@ class RoomMigrationTest {
         }
     }
 
+    @Test
+    fun `MIGRATION_30_TO_31 removes usage_lastTheftMonth from disciples`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dbName = "m_30_31_drop"
+        context.deleteDatabase(dbName)
+        try {
+            // 使用 v29 schema（含 usage_lastTheftMonth），模拟真实设备上的数据库路径
+            // 当前 30.json 已被覆写（usage_lastTheftMonth 已移除），因此不能直接用 v30 schema 测试
+            val db = createDatabaseFromSchema(context, dbName, 29)
+            // 验证 usage_lastTheftMonth 在 v29 schema 中存在
+            assertTrue("usage_lastTheftMonth should exist in v29 schema",
+                columnExists(db, "disciples", "usage_lastTheftMonth"))
+
+            // 应用 MIGRATION_29_30 到达 v30（新增 annual_theft_count，不影响 disciples）
+            applyMigrationsSequentially(db, listOf(GameDatabase.MIGRATION_29_30))
+
+            // 验证迁移到 v30 后 usage_lastTheftMonth 仍存在
+            assertTrue("usage_lastTheftMonth should still exist at v30",
+                columnExists(db, "disciples", "usage_lastTheftMonth"))
+            assertTrue("annual_theft_count should exist at v30",
+                columnExists(db, "game_data", "annual_theft_count"))
+
+            // 应用 MIGRATION_30_31 删除 usage_lastTheftMonth
+            applyMigrationsSequentially(db, listOf(GameDatabase.MIGRATION_30_31))
+
+            assertFalse("usage_lastTheftMonth should be removed after MIGRATION_30_31",
+                columnExists(db, "disciples", "usage_lastTheftMonth"))
+
+            // 验证关键列未受影响
+            assertTrue("id should still exist after migration",
+                columnExists(db, "disciples", "id"))
+            assertTrue("name should still exist after migration",
+                columnExists(db, "disciples", "name"))
+            assertTrue("cultivation should still exist after migration",
+                columnExists(db, "disciples", "cultivation"))
+            assertTrue("usage_usedFunctionalPillTypes should still exist after migration",
+                columnExists(db, "disciples", "usage_usedFunctionalPillTypes"))
+
+            db.close()
+        } finally {
+            context.deleteDatabase(dbName)
+        }
+    }
+
     // ==================== 数据保留测试 ====================
 
     @Test
