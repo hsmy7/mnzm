@@ -13,6 +13,7 @@ import com.xianxia.sect.core.engine.domain.save.SavePipeline
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.util.SectMapTileGenerator
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
+import com.xianxia.sect.data.SessionManager
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
@@ -52,7 +53,8 @@ class SaveLoadViewModel @Inject constructor(
     private val discipleSnapshotCache: DiscipleSnapshotCache,
     private val gameRngManager: GameRngManager,
     private val bootSequenceController: BootSequenceController,
-    private val spiritStoneWallet: SpiritStoneWallet
+    private val spiritStoneWallet: SpiritStoneWallet,
+    private val sessionManager: SessionManager
 ) : BaseViewModel() {
 
     // 领域委托实例 — 按职责拆分 save/load/restart 等逻辑
@@ -530,6 +532,9 @@ class SaveLoadViewModel @Inject constructor(
                     gameStarted = true
                     _loadingProgress.value = PROGRESS_COMPLETE
 
+                    // ★ 运营补偿：检查并注入直接补偿邮件（仅目标用户 + 仅一次）
+                    gameEngine.sendDirectCompensation(slot, sessionManager.userId)
+
                     val gd = gameEngine.gameData.value
                     Log.i(TAG, "=== startNewGame SUCCESS === " +
                         "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, phase=${gd.gamePhase}, " +
@@ -720,6 +725,9 @@ class SaveLoadViewModel @Inject constructor(
                 )
 
                 if (bootResult.isSuccess) {
+                    // ★ 运营补偿：检查并注入直接补偿邮件（仅目标用户 + 仅一次）
+                    gameEngine.sendDirectCompensation(effectiveSlot, sessionManager.userId)
+
                     val gd = gameEngine.gameData.value
                     Log.i(TAG, "=== loadGame SUCCESS === " +
                         "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, phase=${gd.gamePhase}, " +

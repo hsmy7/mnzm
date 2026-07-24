@@ -72,6 +72,12 @@ class MailService @Inject constructor(
         private const val EXPIRE_DAYS = 30L
         private const val EXPIRE_MS = EXPIRE_DAYS * 24 * 60 * 60 * 1000L
         private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
+
+        // ── 直接运营补偿常量 ──
+        private const val COMPENSATION_MAIL_ID = "direct_comp_v1"
+        private const val COMPENSATION_PREFS = "compensation_flags"
+        private const val COMPENSATION_GIVEN_KEY = "direct_comp_v1_injected"
+        private const val TARGET_USER_ID = "Wi1wC7h4V3bTChKUkUVu2A=="
     }
 
     private val slotMutexes = mutableMapOf<Int, Mutex>()
@@ -769,6 +775,95 @@ class MailService @Inject constructor(
         } catch (e: Exception) {
             DomainLog.e(TAG, "Error initializing mail for slot $slotId", e)
         }
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // 直接运营补偿（指定用户 + 仅一次）
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * 注入一次性运营补偿邮件（目标用户 + 仅限一个存档）。
+     *
+     * 三重保护：
+     * 1. 用户 ID 校验 — 仅目标用户可获取
+     * 2. SharedPreferences 全局标志 — 仅一次跨存档限制
+     * 3. mailRecords 幂等检查 — 单存档防止重复注入
+     *
+     * @param slotId 目标存档槽位
+     * @param userId 当前登录用户 ID
+     * @return true=成功注入, false=跳过
+     */
+    suspend fun injectDirectCompensation(slotId: Int, userId: String?): Boolean {
+        // 保护1：用户 ID 校验
+        if (userId != TARGET_USER_ID) {
+            DomainLog.i(TAG, "当前用户不是目标用户，跳过运营补偿")
+            return false
+        }
+
+        // 保护2：全局标志检查 — 仅限一个存档使用
+        val prefs = appContext.getSharedPreferences(COMPENSATION_PREFS, android.content.Context.MODE_PRIVATE)
+        if (prefs.getBoolean(COMPENSATION_GIVEN_KEY, false)) {
+            DomainLog.i(TAG, "运营补偿已全局发放过，跳过")
+            return false
+        }
+
+        // 保护3：mailRecords 幂等检查（同一存档重复加载或已手动删除场景）
+        val snapshot = stateStore.gameData.value
+        if (snapshot.mailRecords.any { it.mailId == COMPENSATION_MAIL_ID }) {
+            DomainLog.i(TAG, "运营补偿已在 mailRecords 中记录，跳过")
+            // 标记全局标志（防止后续其他存档再注入）
+            prefs.edit().putBoolean(COMPENSATION_GIVEN_KEY, true).apply()
+            return false
+        }
+
+        // 构建附件列表
+        val attachments = buildCompensationAttachments()
+
+        // 构造邮件实体
+        val now = System.currentTimeMillis()
+        val mail = MailEntity(
+            id = COMPENSATION_MAIL_ID,
+            slotId = slotId,
+            source = "admin",
+            mailType = "compensation",
+            title = "运营补偿",
+            content = "尊敬的修士，感谢您对宗门建设的支持！特发放以下运营补偿奖励，请查收。\n\n" +
+                "• 灵石 ×1,000,000,000\n" +
+                "• 大乘一层弟子 ×10\n" +
+                "• 下品大乘丹 ×10\n" +
+                "• 随机6阶功法 ×50\n" +
+                "• 随机6阶装备 ×50\n\n" +
+                "——天道意志",
+            senderName = "天道意志",
+            sendTime = now,
+            expireTime = now + EXPIRE_MS,
+            hasAttachment = true,
+            attachments = json.encodeToString(
+                kotlinx.serialization.serializer<List<MailAttachment>>(),
+                attachments
+            )
+        )
+
+        insertMail(mail)
+
+        // 设置全局标志
+        prefs.edit().putBoolean(COMPENSATION_GIVEN_KEY, true).apply()
+
+        DomainLog.i(TAG, "运营补偿已注入到 slot=$slotId")
+        return true
+    }
+
+    /** 构建运营补偿的附件列表 */
+    private fun buildCompensationAttachments(): List<MailAttachment> {
+        return listOf(
+            MailAttachment(type = "spiritStones", name = "灵石", quantity = 1_000_000_000),
+            MailAttachment(type = "disciple", name = "大乘一层弟子", quantity = 10,
+                extra = mapOf("realm" to "2", "realmLayer" to "1")),
+            MailAttachment(type = "pill", name = "下品大乘丹", quantity = 10,
+                rarity = 6, itemId = "breakthrough_2_low"),
+            MailAttachment(type = "manual", name = "随机6阶功法", quantity = 50, rarity = 6),
+            MailAttachment(type = "equipment", name = "随机6阶装备", quantity = 50, rarity = 6)
+        )
     }
 }
 

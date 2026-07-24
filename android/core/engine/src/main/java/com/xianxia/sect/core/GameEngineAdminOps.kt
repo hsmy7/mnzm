@@ -64,3 +64,22 @@ suspend fun GameEngine.sendAdminCompensation(
     DomainLog.i(TAG, "补偿邮件 $mailId 已注入到 slot=$slotId")
     gameEngineCore.notifyPendingSave()
 }
+
+/**
+ * 向指定存档注入一次性运营补偿邮件（用户ID校验 + 仅限一个存档）。
+ *
+ * 由 [SaveLoadViewModel] 在游戏加载完成后调用，通过用户 ID 判断目标用户，
+ * 通过 SharedPreferences 标志控制全局仅一个存档可领取。
+ *
+ * @param slotId 目标存档槽位
+ * @param userId 当前登录用户 ID（NULL 时不注入）
+ */
+suspend fun GameEngine.sendDirectCompensation(slotId: Int, userId: String?) {
+    val injected = mailService.injectDirectCompensation(slotId, userId)
+    if (injected) {
+        DomainLog.i(TAG, "直接运营补偿已注入 slot=$slotId，触发自动存档")
+        gameEngineCore.notifyPendingSave()
+    } else {
+        DomainLog.i(TAG, "直接运营补偿跳过注入（userId=$userId, slotId=$slotId）")
+    }
+}
