@@ -892,7 +892,7 @@ object GameConfig {
      */
     object Whitelist {
         val AD_FREE_UNION_IDS: Set<String> = setOf(
-            // TODO: 在此添加白名单用户的 unionId
+            "Ck9z455SQZadDlwBueJvRQ==",
         )
     }
 }

@@ -29,7 +29,6 @@ import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.engine.service.DailySignInService
 import com.xianxia.sect.core.engine.service.ClaimResult
 import com.xianxia.sect.core.engine.service.HighFrequencyData
-import com.xianxia.sect.core.AdFreeWhitelist
 import com.xianxia.sect.ui.game.buildBuildingDataArray
 import com.xianxia.sect.ui.game.sect.RenderCommandBus
 import com.xianxia.sect.core.util.GridSnapHelper
@@ -632,19 +631,11 @@ class GameViewModel @Inject constructor(
 
     /**
      * 播放突破修炼奖励广告。
-     * - 免广告特权用户直接发放奖励
-     * - 普通用户通过 [AdService] 播放广告，验证通过后发放
+     * 免广告特权用户在 [AdService] 实现层直接发放奖励。
      */
     fun watchAdForBreakthroughBonus(discipleId: String) {
-        if (AdFreeWhitelist.isCurrentUserPrivileged()) {
-            if (tryMarkAdWatched()) {
-                applyAdBreakthroughBonus(discipleId, AD_BONUS_PER_AD)
-            }
-            return
-        }
         if (isDailyAdLimitReached()) return
         adService.watchAd(AdPurpose.BREAKTHROUGH_BONUS) {
-            // 先标记观看（含限次检查），通过后才发奖励
             if (tryMarkAdWatched()) {
                 applyAdBreakthroughBonus(discipleId, AD_BONUS_PER_AD)
             }
@@ -653,16 +644,9 @@ class GameViewModel @Inject constructor(
 
     /**
      * 播放商人刷新次数广告。
-     * - 免广告特权用户直接发放奖励
-     * - 普通用户通过 [AdService] 播放广告，验证通过后发放
+     * 免广告特权用户在 [AdService] 实现层直接发放奖励。
      */
     fun watchAdForMerchantRefresh() {
-        if (AdFreeWhitelist.isCurrentUserPrivileged()) {
-            if (tryMarkAdWatched()) {
-                grantMerchantRefreshChanceFromAd()
-            }
-            return
-        }
         if (isDailyAdLimitReached()) return
         adService.watchAd(AdPurpose.MERCHANT_REFRESH) {
             if (tryMarkAdWatched()) {

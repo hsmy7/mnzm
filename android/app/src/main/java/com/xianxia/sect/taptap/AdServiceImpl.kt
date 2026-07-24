@@ -2,6 +2,7 @@ package com.xianxia.sect.taptap
 
 import android.app.Activity
 import android.util.Log
+import com.xianxia.sect.core.AdFreeWhitelist
 import com.xianxia.sect.core.engine.service.AdPurpose
 import com.xianxia.sect.core.engine.service.AdService
 import java.util.concurrent.atomic.AtomicBoolean
@@ -40,6 +41,12 @@ class AdServiceImpl @Inject constructor() : AdService {
     }
 
     override fun watchAd(purpose: AdPurpose, onReward: () -> Unit) {
+        // 免广告特权用户直接发放奖励，跳过广告加载和播放
+        if (AdFreeWhitelist.isCurrentUserPrivileged()) {
+            onReward()
+            return
+        }
+
         val activity = activityRef
         if (activity == null) {
             Log.w(TAG, "watchAd skipped: activityRef is null")

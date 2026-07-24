@@ -25,6 +25,7 @@
 - [Mail & Reward System](#mail--reward-system)
 - [Navigation Pattern](#navigation-pattern)
 - [Android SDK / Encoding](#android-sdk--encoding)
+- [免广告特权白名单](#免广告特权白名单)
 
 ---
 
@@ -422,3 +423,52 @@ No `NavHost` is used for the main game. `MainGameScreen` switches content via `M
 | 14 | canAddXxx 读 StateFlow | `canAddItemInTransaction(state)` 方法 |
 | 16 | otherTypes 手动计算 | `otherSlotsCount(excludeType)` 辅助函数 |
 | — | consolidate 合并不彻底（单次循环） | 改为 `while(changed)` 迭代合并 |
+
+---
+
+## 免广告特权白名单
+
+### 架构设计
+
+白名单守卫通过 **集中式入口** 实现，新增广告功能天然继承：
+
+```
+ViewModel → adService.watchAd(AdPurpose.XXX) { 发放奖励 }
+                │
+                ▼
+         AdServiceImpl.watchAd()
+                │
+                ├─ 白名单用户 → onReward() 立即回调（跳过广告加载/播放）
+                └─ 普通用户 → 正常加载并播放激励视频
+```
+
+### 关键文件
+
+| 组件 | 文件 | 职责 |
+|------|------|------|
+| `AdFreeWhitelist` | `:core:domain/.../AdFreeWhitelist.kt` | 白名单身份检查（`isCurrentUserPrivileged()`） |
+| `GameConfig.Whitelist` | `:core:domain/.../GameConfig.kt` | 白名单列表硬编码（`AD_FREE_UNION_IDS`） |
+| `AdService` (interface) | `:core:engine/.../AdService.kt` | 广告服务统一接口 + `AdPurpose` 枚举 |
+| `AdServiceImpl` | `:app/.../taptap/AdServiceImpl.kt` | 白名单守卫集中检查 + 实际广告播放 |
+| `AdsDelegate` | `:feature:game/.../AdsDelegate.kt` | 冷却/每日次数限制（白名单用户自动跳过） |
+
+### 新增广告类型的标准流程
+
+```kotlin
+// 1. AdPurpose 加枚举值
+enum class AdPurpose { BREAKTHROUGH_BONUS, MERCHANT_REFRESH, NEW_FEATURE }
+
+// 2. ViewModel 加方法（不需要任何白名单判断）
+fun watchAdForNewFeature() {
+    if (isDailyAdLimitReached()) return
+    adService.watchAd(AdPurpose.NEW_FEATURE) { 发放奖励() }
+}
+```
+
+白名单检查在 AdService 实现层统一完成，新增广告无需额外处理。
+
+### 白名单管理
+
+- **添加用户**：在 `GameConfig.Whitelist.AD_FREE_UNION_IDS` 的 `setOf(...)` 中添加 unionId
+- **初始化时机**：`GameActivity.onCreate()` → `AdFreeWhitelist.initialize(sessionManager.unionId)`
+- **管理维护**：手动硬编码维护，无需运行时更改
