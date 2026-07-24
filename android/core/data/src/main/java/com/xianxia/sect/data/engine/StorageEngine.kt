@@ -126,21 +126,30 @@ class StorageEngine @Inject constructor(
                 val startTime = System.currentTimeMillis()
 
                 // ── 保存前完整性校验 ──
+                var effectiveData = data
                 if (storageConfig.enablePreSaveValidation) {
                     _progress.value = EngineProgress(EngineProgress.Stage.VALIDATING, 0.05f, "Validating data")
                     val integrityResult = SaveValidator.validate(data)
-                    if (integrityResult is IntegrityResult.Corrupted) {
-                        Log.e(TAG, "拒绝保存损坏数据 slot=$slot")
-                        infra.storageMetrics.recordBackupFailure()
-                        return@withWriteLockLight StorageResult.failure(
-                            StorageError.SAVE_FAILED, "保存前校验拒绝：存档数据损坏"
-                        )
+                    when (integrityResult) {
+                        is IntegrityResult.Corrupted -> {
+                            Log.e(TAG, "拒绝保存损坏数据 slot=$slot")
+                            infra.storageMetrics.recordBackupFailure()
+                            return@withWriteLockLight StorageResult.failure(
+                                StorageError.SAVE_FAILED, "保存前校验拒绝：存档数据损坏"
+                            )
+                        }
+                        is IntegrityResult.Repaired -> {
+                            // ★ 修复：使用修复后的数据替换原始数据，确保修复持久化
+                            Log.w(TAG, "保存前校验修复 ${integrityResult.details.size} 项，使用修复后数据 slot=$slot")
+                            effectiveData = integrityResult.data
+                        }
+                        is IntegrityResult.Passed -> { /* 无操作 */ }
                     }
                 }
 
                 _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.1f, "Saving core data")
 
-                val cleanedData = cleanSaveDataWithArchive(data)
+                val cleanedData = cleanSaveDataWithArchive(effectiveData)
                 val dataWithTimestamp = cleanedData.copy(timestamp = System.currentTimeMillis())
 
                 // ── 备份 ──
