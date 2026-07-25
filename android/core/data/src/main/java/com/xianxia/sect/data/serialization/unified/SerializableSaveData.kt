@@ -259,7 +259,7 @@ data class SerializableDisciple(
     @ProtoNumber(79) val currentHp: Int = -1,
     @ProtoNumber(80) val currentMp: Int = -1,
     @ProtoNumber(90) val portraitRes: String = "",
-    @ProtoNumber(90) val cultivationCheckpoint: Long = 0L,
+    @ProtoNumber(101) val cultivationCheckpoint: Long = 0L,
     @ProtoNumber(91) val cultivationCheckpointGameMonth: Int = 0,
     @ProtoNumber(92) val autoLearnFromWarehouse: Boolean = false,
     @ProtoNumber(93) val masterId: String = "",
@@ -269,7 +269,7 @@ data class SerializableDisciple(
     @ProtoNumber(97) val manualCompletionPhase: Int = 0,
     @ProtoNumber(98) val equipmentNurturingCompletionMonth: Int = 0,
     @ProtoNumber(99) val equipmentNurturingCompletionPhase: Int = 0,
-    @ProtoNumber(100) val childBirthMonth: Int = 0,
+    @ProtoNumber(102) val childBirthMonth: Int = 0,
 )
 
 @Serializable
@@ -482,10 +482,10 @@ data class SerializableBattleLog(
     @ProtoNumber(15) val details: String = "",
     @ProtoNumber(16) val drops: List<String> = emptyList(),
     @ProtoNumber(17) val dungeonName: String = "",
-    @ProtoNumber(9) val teamId: String = "",
-    @ProtoNumber(10) val turns: Int = 0,
-    @ProtoNumber(11) val teamCasualties: Int = 0,
-    @ProtoNumber(12) val beastsDefeated: Int = 0,
+    @ProtoNumber(18) val teamId: String = "",
+    @ProtoNumber(19) val turns: Int = 0,
+    @ProtoNumber(20) val teamCasualties: Int = 0,
+    @ProtoNumber(21) val beastsDefeated: Int = 0,
 )
 
 @Serializable
@@ -609,7 +609,7 @@ data class SerializableWorldSect(
     // @ProtoNumber(14) removed — connectedSectIds no longer used (2026-06-09)
     @ProtoNumber(15) val isOccupied: Boolean,
     @ProtoNumber(16) val occupierTeamId: String = "",
-    @ProtoNumber(17) val occupierTeamName: String,
+    @ProtoNumber(17) val occupierTeamName: String = "",
     @ProtoNumber(18) val mineSlots: List<SerializableMineSlot> = emptyList(),
     @ProtoNumber(19) val occupationTime: Long,
     @ProtoNumber(20) val isOwned: Boolean,
@@ -628,8 +628,8 @@ data class SerializableWorldSect(
     @ProtoNumber(35) val occupierSectId: String = "",
     @ProtoNumber(36) val warehouse: SerializableSectWarehouse = SerializableSectWarehouse(),
     @ProtoNumber(37) val giftPreference: String = "NONE",
-    @ProtoNumber(16) val garrisonSlots: List<SerializableGarrisonSlot> = emptyList(),
-    @ProtoNumber(17) val occupierBattleTeamId: String = "",
+    @ProtoNumber(38) val garrisonSlots: List<SerializableGarrisonSlot> = emptyList(),
+    @ProtoNumber(39) val occupierBattleTeamId: String = "",
 )
 
 @Serializable
@@ -665,7 +665,7 @@ data class SerializableSectDetail(
     @ProtoNumber(10) val lastGiftYear: Int = 0,
     @ProtoNumber(11) val warehouse: SerializableSectWarehouse = SerializableSectWarehouse(),
     @ProtoNumber(12) val giftPreference: String = "NONE",
-    @ProtoNumber(5) val portraitRes: String = "",
+    @ProtoNumber(13) val portraitRes: String = "",
 )
 
 @Serializable
@@ -845,7 +845,7 @@ data class SerializableAICaveTeam(
     @ProtoNumber(9) val memberCount: Int = 5,
     @ProtoNumber(10) val avgRealm: Int = 5,
     @ProtoNumber(11) val avgRealmName: String = "",
-    @ProtoNumber(7) val caveName: String = "",
+    @ProtoNumber(12) val caveName: String = "",
 )
 
 @Serializable
@@ -955,10 +955,10 @@ data class SerializableProductionSlot(
     @ProtoNumber(14) val outputItemId: String = "",
     @ProtoNumber(15) val outputItemName: String,
     @ProtoNumber(16) val outputItemRarity: Int,
-    @ProtoNumber(13) val buildingInstanceId: String = "",
-    @ProtoNumber(14) val baseDuration: Int = 0,
-    @ProtoNumber(15) val requiredMaterials: List<SerializableMaterial> = emptyList(),
-    @ProtoNumber(16) val outputItemSlot: String = "",
+    @ProtoNumber(21) val buildingInstanceId: String = "",
+    @ProtoNumber(22) val baseDuration: Int = 0,
+    @ProtoNumber(23) val requiredMaterials: List<SerializableMaterial> = emptyList(),
+    @ProtoNumber(24) val outputItemSlot: String = "",
     @ProtoNumber(17) val expectedYield: Int = 0,
     @ProtoNumber(18) val autoRestartEnabled: Boolean = false,
     @ProtoNumber(19) val completionMonth: Int = 0,
