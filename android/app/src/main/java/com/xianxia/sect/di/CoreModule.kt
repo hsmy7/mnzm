@@ -28,6 +28,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import com.xianxia.sect.core.concurrent.ThermalController
+import com.xianxia.sect.core.engine.EngineContextDispatcher
+import com.xianxia.sect.core.engine.GameEngineCore
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -42,6 +44,10 @@ object CoreModule {
     @Provides
     @Singleton
     fun provideCoroutineScopeProvider(impl: ApplicationScopeProvider): CoroutineScopeProvider = impl
+
+    @Provides
+    @Singleton
+    fun provideEngineContextDispatcher(core: GameEngineCore): EngineContextDispatcher = core
 
     @Provides
     @Singleton
