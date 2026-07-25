@@ -82,6 +82,7 @@ class GameEngineAtomicAssignTest {
         // 使用 mock() 创建 GameEngine，31 个构造参数中仅 stateStore + assignmentGate 为真实实现
         engine = GameEngine(
             gameEngineCore = mock(),
+            engineContextDispatcher = FakeEngineContextDispatcher(),
             stateStore = store,
             inventorySystem = mock(),
             inventoryConfig = mock(),

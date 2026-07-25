@@ -57,7 +57,9 @@ fun GameEngine.notifyUserInteraction() = gameEngineCore.onUserInteraction()
 // ── Game lifecycle ──────────────────────────────────────────────────
 
 suspend fun GameEngine.initializeNewGameSuspend(gameData: GameData) {
-    stateStore.update { this.gameData = gameData }
+    return engineContextDispatcher.withEngineContext {
+        stateStore.update { this.gameData = gameData }
+    }
 }
 
 suspend fun GameEngine.ensureHeavyDataLoaded() {
@@ -77,176 +79,143 @@ suspend fun GameEngine.loadData(
     productionSlots: List<ProductionSlot> = emptyList(),
     storageBags: List<StorageBag> = emptyList()
 ) {
-    heavyDataLoaded = false
-    val (migratedGameData, migratedDisciples) = migratePatrolSlotsIfNeeded(gameData, disciples)
-    // 防御性幽灵过滤：读档时清除 name 为空的幽灵弟子（补充 SaveValidator 的保护）
-    val cleanedDisciples = migratedDisciples.filter { it.name.isNotBlank() }
-    if (cleanedDisciples.size != migratedDisciples.size) {
-        val count = migratedDisciples.size - cleanedDisciples.size
-        DomainLog.w("GameEngine", "loadData: 过滤了 $count 个幽灵弟子（name为空）")
-    }
-    stateStore.loadFromSnapshot(
-        gameData = migratedGameData, disciples = cleanedDisciples,
-        equipmentStacks = equipmentStacks, equipmentInstances = equipmentInstances,
-        manualStacks = manualStacks, manualInstances = manualInstances, pills = pills,
-        materials = materials, herbs = herbs, seeds = seeds, storageBags = storageBags,
-        teams = teams, battleLogs = battleLogs
-    )
-    // 丹药追踪字段迁移（必须在 stateStore.update 内执行，确保字段守卫通过）
-    stateStore.update {
-        val tables = discipleTables
-        for (id in tables.ids) {
-            val oldFunctionalTypes = tables.usedFunctionalPillTypes.getOrNull(id) ?: emptyList()
-            val currentPermanentKeys = tables.usedPermanentPillKeys.getOrNull(id) ?: emptySet()
-            if (currentPermanentKeys.isEmpty() && oldFunctionalTypes.isNotEmpty()) {
-                tables.usedPermanentPillKeys[id] = oldFunctionalTypes.flatMap { pillType ->
-                    (1..6).map { tier -> "$tier#$pillType" }
-                }.toSet()
-            }
-            val oldExtendLifeIds = tables.usedExtendLifePillIds.getOrNull(id) ?: emptyList()
-            val currentExtendLifeTypes = tables.usedExtendLifePillTypes.getOrNull(id) ?: emptySet()
-            if (currentExtendLifeTypes.isEmpty() && oldExtendLifeIds.isNotEmpty()) {
-                tables.usedExtendLifePillTypes[id] = oldExtendLifeIds.toSet()
-            }
-            val oldActiveCategory = tables.activePillCategories.getOrNull(id) ?: ""
-            val currentActiveTypes = tables.activePillTypes.getOrNull(id) ?: emptySet()
-            if (currentActiveTypes.isEmpty() && oldActiveCategory.isNotEmpty()) {
-                tables.activePillTypes[id] = setOf(oldActiveCategory)
-            }
+    return engineContextDispatcher.withEngineContext {
+        heavyDataLoaded = false
+        val (migratedGameData, migratedDisciples) = migratePatrolSlotsIfNeeded(gameData, disciples)
+        // 防御性幽灵过滤：读档时清除 name 为空的幽灵弟子（补充 SaveValidator 的保护）
+        val cleanedDisciples = migratedDisciples.filter { it.name.isNotBlank() }
+        if (cleanedDisciples.size != migratedDisciples.size) {
+            val count = migratedDisciples.size - cleanedDisciples.size
+            DomainLog.w("GameEngine", "loadData: 过滤了 $count 个幽灵弟子（name为空）")
         }
-    }
-    DomainLog.d("GameEngine", "loadData: restored game year=${gameData.gameYear}, ${disciples.size} disciples, recruitList=${gameData.recruitList.size} unrecruited disciples")
-    val alchemyCount = BuildingFeatureRegistry.countByType(gameData, BuildingType.ALCHEMY)
-    val forgeCount = BuildingFeatureRegistry.countByType(gameData, BuildingType.FORGE)
-    val fixedProductionSlots = fixAlchemyForgeSlotCount(productionSlots, alchemyCount, forgeCount)
-    if (fixedProductionSlots.isNotEmpty()) {
-        productionCoordinator.repository.restoreSlots(fixedProductionSlots, gameData.currentSlot)
-    } else {
-        productionCoordinator.repository.initializeAllSlots(gameData.currentSlot)
-    }
-    checkAndCollectCompletedSlots()
-    val currentData = stateStore.gameDataSnapshot
-    if (currentData.travelingMerchantItems.isEmpty() || currentData.recruitList.isEmpty()) {
-        DomainLog.w("GameEngine", "loadData: detected empty merchant items or recruit list after load, refreshing...")
-        if (currentData.travelingMerchantItems.isEmpty()) {
-            cultivationService.refreshTravelingMerchant(currentData.gameYear, currentData.gameMonth)
-        }
-        if (currentData.recruitList.isEmpty() && currentData.gameYear - currentData.lastRecruitYear >= 3) {
-            cultivationService.refreshRecruitList(currentData.gameYear)
-        }
-    }
-    // 旧存档兼容：merchantRefreshChances=0（该字段加入前的存档）初始化为1
-    // 同时设置 lastGrantYear 防止下一年度事件双倍发放
-    if (currentData.merchantRefreshChances == 0 && currentData.merchantLastRefreshChanceGrantYear == 0) {
+        stateStore.loadFromSnapshot(
+            gameData = migratedGameData, disciples = cleanedDisciples,
+            equipmentStacks = equipmentStacks, equipmentInstances = equipmentInstances,
+            manualStacks = manualStacks, manualInstances = manualInstances, pills = pills,
+            materials = materials, herbs = herbs, seeds = seeds, storageBags = storageBags,
+            teams = teams, battleLogs = battleLogs
+        )
+        // 丹药追踪字段迁移（必须在 stateStore.update 内执行，确保字段守卫通过）
         stateStore.update {
-            this.gameData = this.gameData.copy(
-                merchantRefreshChances = 1,
-                merchantLastRefreshChanceGrantYear = currentData.gameYear
-            )
-        }
-        DomainLog.w("GameEngine", "loadData: merchantRefreshChances was 0, initialized to 1, lastGrantYear=${currentData.gameYear}")
-    }
-    discipleService.syncAllDiscipleStatuses()
-
-    // 旧存档兼容：spiritMineLastSettledMonth=0（该字段加入前的存档）会导致首月灵矿产出暴增
-    // 修复 P1-1：检测到 0 且游戏已有进度时，初始化为当前月份
-    stateStore.update {
-        val data = this.gameData
-        if (data.spiritMineLastSettledMonth == 0) {
-            val currentMonth = data.gameYear * 12 + data.gameMonth
-            if (currentMonth > 1) {
-                this.gameData = data.copy(spiritMineLastSettledMonth = currentMonth)
-                DomainLog.w("GameEngine", "loadData: spiritMineLastSettledMonth was 0, initialized to $currentMonth")
+            val tables = discipleTables
+            for (id in tables.ids) {
+                val oldFunctionalTypes = tables.usedFunctionalPillTypes.getOrNull(id) ?: emptyList()
+                val currentPermanentKeys = tables.usedPermanentPillKeys.getOrNull(id) ?: emptySet()
+                if (currentPermanentKeys.isEmpty() && oldFunctionalTypes.isNotEmpty()) {
+                    tables.usedPermanentPillKeys[id] = oldFunctionalTypes.flatMap { pillType ->
+                        (1..6).map { tier -> "$tier#$pillType" }
+                    }.toSet()
+                }
+                val oldExtendLifeIds = tables.usedExtendLifePillIds.getOrNull(id) ?: emptyList()
+                val currentExtendLifeTypes = tables.usedExtendLifePillTypes.getOrNull(id) ?: emptySet()
+                if (currentExtendLifeTypes.isEmpty() && oldExtendLifeIds.isNotEmpty()) {
+                    tables.usedExtendLifePillTypes[id] = oldExtendLifeIds.toSet()
+                }
+                val oldActiveCategory = tables.activePillCategories.getOrNull(id) ?: ""
+                val currentActiveTypes = tables.activePillTypes.getOrNull(id) ?: emptySet()
+                if (currentActiveTypes.isEmpty() && oldActiveCategory.isNotEmpty()) {
+                    tables.activePillTypes[id] = setOf(oldActiveCategory)
+                }
             }
         }
-    }
-
-    val loadedData = stateStore.gameData.value
-    if (loadedData.aiSectDisciples.isEmpty() && loadedData.worldMapSects.isNotEmpty()) {
-        DomainLog.i("GameEngine", "loadData: aiSectDisciples empty, regenerating for ${loadedData.worldMapSects.size} sects")
-        val regenerated = mutableMapOf<String, List<Disciple>>()
-        for (sect in loadedData.worldMapSects) {
-            if (!sect.isPlayerSect) { val (d, _) = AISectDiscipleManager.initializeSectDisciples(sect.name, sect.level); regenerated[sect.id] = d }
+        DomainLog.d("GameEngine", "loadData: restored game year=${gameData.gameYear}, ${disciples.size} disciples, recruitList=${gameData.recruitList.size} unrecruited disciples")
+        val alchemyCount = BuildingFeatureRegistry.countByType(gameData, BuildingType.ALCHEMY)
+        val forgeCount = BuildingFeatureRegistry.countByType(gameData, BuildingType.FORGE)
+        val fixedProductionSlots = fixAlchemyForgeSlotCount(productionSlots, alchemyCount, forgeCount)
+        if (fixedProductionSlots.isNotEmpty()) {
+            productionCoordinator.repository.restoreSlots(fixedProductionSlots, gameData.currentSlot)
+        } else {
+            productionCoordinator.repository.initializeAllSlots(gameData.currentSlot)
         }
-        stateStore.update { this.gameData = this.gameData.copy(aiSectDisciples = regenerated) }
-    }
-    // 旧存档兼容：AI 宗门弟子数不足 50 人时补充至 50 人
-    val currentDisciples = stateStore.gameData.value.aiSectDisciples
-    val worldSects = stateStore.gameData.value.worldMapSects
-    if (currentDisciples.isNotEmpty() && worldSects.isNotEmpty()) {
-        val filled = currentDisciples.toMutableMap()
-        var filledCount = 0
-        for (sect in worldSects) {
-            if (sect.isPlayerSect) continue
-            val existing = filled[sect.id] ?: continue
-            if (existing.size < 50) {
-                filled[sect.id] = AISectDiscipleManager.fillDisciplesToTarget(
-                    sect.name, existing, 50, sect.level
+        checkAndCollectCompletedSlots()
+        val currentData = stateStore.gameDataSnapshot
+        if (currentData.travelingMerchantItems.isEmpty() || currentData.recruitList.isEmpty()) {
+            DomainLog.w("GameEngine", "loadData: detected empty merchant items or recruit list after load, refreshing...")
+            if (currentData.travelingMerchantItems.isEmpty()) {
+                cultivationService.refreshTravelingMerchant(currentData.gameYear, currentData.gameMonth)
+            }
+            if (currentData.recruitList.isEmpty() && currentData.gameYear - currentData.lastRecruitYear >= 3) {
+                cultivationService.refreshRecruitList(currentData.gameYear)
+            }
+        }
+        // 旧存档兼容：merchantRefreshChances=0（该字段加入前的存档）初始化为1
+        // 同时设置 lastGrantYear 防止下一年度事件双倍发放
+        if (currentData.merchantRefreshChances == 0 && currentData.merchantLastRefreshChanceGrantYear == 0) {
+            stateStore.update {
+                this.gameData = this.gameData.copy(
+                    merchantRefreshChances = 1,
+                    merchantLastRefreshChanceGrantYear = currentData.gameYear
                 )
-                filledCount++
+            }
+            DomainLog.w("GameEngine", "loadData: merchantRefreshChances was 0, initialized to 1, lastGrantYear=${currentData.gameYear}")
+        }
+        discipleService.syncAllDiscipleStatuses()
+
+        // 旧存档兼容：spiritMineLastSettledMonth=0（该字段加入前的存档）会导致首月灵矿产出暴增
+        // 修复 P1-1：检测到 0 且游戏已有进度时，初始化为当前月份
+        stateStore.update {
+            val data = this.gameData
+            if (data.spiritMineLastSettledMonth == 0) {
+                val currentMonth = data.gameYear * 12 + data.gameMonth
+                if (currentMonth > 1) {
+                    this.gameData = data.copy(spiritMineLastSettledMonth = currentMonth)
+                    DomainLog.w("GameEngine", "loadData: spiritMineLastSettledMonth was 0, initialized to $currentMonth")
+                }
             }
         }
-        if (filledCount > 0) {
-            DomainLog.i("GameEngine", "loadData: filled $filledCount AI sects to 50 disciples")
-            stateStore.update { this.gameData = this.gameData.copy(aiSectDisciples = filled) }
+
+        val loadedData = stateStore.gameData.value
+        if (loadedData.aiSectDisciples.isEmpty() && loadedData.worldMapSects.isNotEmpty()) {
+            DomainLog.i("GameEngine", "loadData: aiSectDisciples empty, regenerating for ${loadedData.worldMapSects.size} sects")
+            val regenerated = mutableMapOf<String, List<Disciple>>()
+            for (sect in loadedData.worldMapSects) {
+                if (!sect.isPlayerSect) { val (d, _) = AISectDiscipleManager.initializeSectDisciples(sect.name, sect.level); regenerated[sect.id] = d }
+            }
+            stateStore.update { this.gameData = this.gameData.copy(aiSectDisciples = regenerated) }
         }
+        // 旧存档兼容：AI 宗门弟子数不足 50 人时补充至 50 人
+        val currentDisciples = stateStore.gameData.value.aiSectDisciples
+        val worldSects = stateStore.gameData.value.worldMapSects
+        if (currentDisciples.isNotEmpty() && worldSects.isNotEmpty()) {
+            val filled = currentDisciples.toMutableMap()
+            var filledCount = 0
+            for (sect in worldSects) {
+                if (sect.isPlayerSect) continue
+                val existing = filled[sect.id] ?: continue
+                if (existing.size < 50) {
+                    filled[sect.id] = AISectDiscipleManager.fillDisciplesToTarget(
+                        sect.name, existing, 50, sect.level
+                    )
+                    filledCount++
+                }
+            }
+            if (filledCount > 0) {
+                DomainLog.i("GameEngine", "loadData: filled $filledCount AI sects to 50 disciples")
+                stateStore.update { this.gameData = this.gameData.copy(aiSectDisciples = filled) }
+            }
+        }
+        try { mailService.resetAndInitSlot(gameData.slotId) } catch (e: Exception) { DomainLog.e("GameEngine", "Failed to initialize mail for slot ${gameData.slotId}", e) }
     }
-    try { mailService.resetAndInitSlot(gameData.slotId) } catch (e: Exception) { DomainLog.e("GameEngine", "Failed to initialize mail for slot ${gameData.slotId}", e) }
 }
 
 suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
-    stateStore.resetForSlot(currentSlot); cultivationService.resetHighFrequencyData()
-    // 1. 先初始化世界和游戏状态（邮件依赖 gameData 就绪）
-    initializeWorldAndServices(sectName, currentSlot)
-    val gridCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
-    val centerGrid = gridCells / 2 - 1  // 2x2 building centered on grid
-    val mapSeed = java.util.Random().nextInt()
-    stateStore.update {
-        val initialMine = GridBuildingData(buildingId = "灵矿场", displayName = "灵矿场", gridX = centerGrid, gridY = centerGrid, width = 2, height = 2, instanceId = java.util.UUID.randomUUID().toString(), sectId = "")
-        gameData = gameData.copy(
-            slotId = currentSlot,
-            currentSlot = currentSlot,
-            mapSeed = mapSeed,
-            placedBuildings = listOf(initialMine),
-            spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") },
-            spiritMineLastSettledMonth = 1 * 12 + 1,  // gameYear=1, gameMonth=1
-            // 显式清零所有建筑/槽位相关字段，防止旧存档数据残留
-            productionSlots = emptyList(),
-            residenceSlots = emptyList(),
-            warehouseGarrisons = emptyList(),
-            patrolSlots = emptyList(),
-            patrolConfig = PatrolConfig(),
-            patrolConfigs = emptyList(),
-            librarySlots = emptyList(),
-            spiritFieldPlants = emptyList()
-        )
-        repeat(3) { discipleService.recruitDisciple(realm = 9) }
-    }
-    addInitialStorageBags()
-    // 2. 世界初始化完成后才加载邮件（此时 mailRecords/slotId 等状态已就绪）
-    // Note: isGameStarted is set to true later in SaveLoadViewModel.startNewGame()
-    // after startGameLoop() succeeds, ensuring UI doesn't appear without a running game loop
-    try { mailService.resetAndInitSlot(currentSlot) } catch (e: Exception) { DomainLog.e("GameEngine", "Failed to init mail for new game slot $currentSlot", e) }
-}
-
-suspend fun GameEngine.restartGameSuspend(sectName: String = "", currentSlot: Int = 1) = restartGameInternal(sectName, currentSlot)
-
-private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot: Int) {
-    stateStore.resetForSlot(currentSlot); cultivationService.resetHighFrequencyData()
-    if (sectName.isNotBlank()) {
-        // 1. 先初始化世界和游戏状态
+    return engineContextDispatcher.withEngineContext {
+        stateStore.resetForSlot(currentSlot); cultivationService.resetHighFrequencyData()
+        // 1. 先初始化世界和游戏状态（邮件依赖 gameData 就绪）
         initializeWorldAndServices(sectName, currentSlot)
         val gridCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
-        val centerGrid = gridCells / 2 - 1
+        val centerGrid = gridCells / 2 - 1  // 2x2 building centered on grid
+        val mapSeed = java.util.Random().nextInt()
         stateStore.update {
             val initialMine = GridBuildingData(buildingId = "灵矿场", displayName = "灵矿场", gridX = centerGrid, gridY = centerGrid, width = 2, height = 2, instanceId = java.util.UUID.randomUUID().toString(), sectId = "")
             gameData = gameData.copy(
                 slotId = currentSlot,
                 currentSlot = currentSlot,
+                mapSeed = mapSeed,
                 placedBuildings = listOf(initialMine),
                 spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") },
-            spiritMineLastSettledMonth = 1 * 12 + 1,  // gameYear=1, gameMonth=1
-            // 显式清零所有建筑/槽位相关字段，防止旧存档数据残留
+                spiritMineLastSettledMonth = 1 * 12 + 1,  // gameYear=1, gameMonth=1
+                // 显式清零所有建筑/槽位相关字段，防止旧存档数据残留
                 productionSlots = emptyList(),
                 residenceSlots = emptyList(),
                 warehouseGarrisons = emptyList(),
@@ -259,87 +228,145 @@ private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot
             repeat(3) { discipleService.recruitDisciple(realm = 9) }
         }
         addInitialStorageBags()
-        // 2. 世界初始化完成后才加载邮件
-        // Note: isGameStarted is set to true later in SaveLoadViewModel.restartGame()
-        // after startGameLoop() succeeds
-        try { mailService.resetAndInitSlot(currentSlot) } catch (e: Exception) { DomainLog.e("GameEngine", "Failed to init mail for restarted game slot $currentSlot", e) }
-    } else {
-        stateStore.update { gameData = GameData().copy(currentSlot = currentSlot) }
+        // 2. 世界初始化完成后才加载邮件（此时 mailRecords/slotId 等状态已就绪）
+        // Note: isGameStarted is set to true later in SaveLoadViewModel.startNewGame()
+        // after startGameLoop() succeeds, ensuring UI doesn't appear without a running game loop
+        try { mailService.resetAndInitSlot(currentSlot) } catch (e: Exception) { DomainLog.e("GameEngine", "Failed to init mail for new game slot $currentSlot", e) }
+    }
+}
+
+suspend fun GameEngine.restartGameSuspend(sectName: String = "", currentSlot: Int = 1) = restartGameInternal(sectName, currentSlot)
+
+private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot: Int) {
+    return engineContextDispatcher.withEngineContext {
+        stateStore.resetForSlot(currentSlot); cultivationService.resetHighFrequencyData()
+        if (sectName.isNotBlank()) {
+            // 1. 先初始化世界和游戏状态
+            initializeWorldAndServices(sectName, currentSlot)
+            val gridCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
+            val centerGrid = gridCells / 2 - 1
+            stateStore.update {
+                val initialMine = GridBuildingData(buildingId = "灵矿场", displayName = "灵矿场", gridX = centerGrid, gridY = centerGrid, width = 2, height = 2, instanceId = java.util.UUID.randomUUID().toString(), sectId = "")
+                gameData = gameData.copy(
+                    slotId = currentSlot,
+                    currentSlot = currentSlot,
+                    placedBuildings = listOf(initialMine),
+                    spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") },
+                spiritMineLastSettledMonth = 1 * 12 + 1,  // gameYear=1, gameMonth=1
+                // 显式清零所有建筑/槽位相关字段，防止旧存档数据残留
+                    productionSlots = emptyList(),
+                    residenceSlots = emptyList(),
+                    warehouseGarrisons = emptyList(),
+                    patrolSlots = emptyList(),
+                    patrolConfig = PatrolConfig(),
+                    patrolConfigs = emptyList(),
+                    librarySlots = emptyList(),
+                    spiritFieldPlants = emptyList()
+                )
+                repeat(3) { discipleService.recruitDisciple(realm = 9) }
+            }
+            addInitialStorageBags()
+            // 2. 世界初始化完成后才加载邮件
+            // Note: isGameStarted is set to true later in SaveLoadViewModel.restartGame()
+            // after startGameLoop() succeeds
+            try { mailService.resetAndInitSlot(currentSlot) } catch (e: Exception) { DomainLog.e("GameEngine", "Failed to init mail for restarted game slot $currentSlot", e) }
+        } else {
+            stateStore.update { gameData = GameData().copy(currentSlot = currentSlot) }
+        }
     }
 }
 
 private suspend fun GameEngine.initializeWorldAndServices(sectName: String, currentSlot: Int = 1) {
-    val generationResult = WorldMapGenerator.generateWorldSects(sectName)
-    val sectRelations = WorldMapGenerator.initializeSectRelations(generationResult.sects)
-    productionCoordinator.repository.initializeAllSlots(currentSlot)
-    cultivationService.refreshTravelingMerchant(1, 1)
-    cultivationService.refreshRecruitList(1)
-    cultivationService.refreshMerchantAcquisition(1, 1)
+    return engineContextDispatcher.withEngineContext {
+        val generationResult = WorldMapGenerator.generateWorldSects(sectName)
+        val sectRelations = WorldMapGenerator.initializeSectRelations(generationResult.sects)
+        productionCoordinator.repository.initializeAllSlots(currentSlot)
+        cultivationService.refreshTravelingMerchant(1, 1)
+        cultivationService.refreshRecruitList(1)
+        cultivationService.refreshMerchantAcquisition(1, 1)
 
-    // 为每个 AI 宗门分配唯一弟子头像
-    val aiSects = generationResult.sects.filter { !it.isPlayerSect }
-    val allPortraitNames = com.xianxia.sect.core.util.PortraitPool.allPortraitNames()
-    val sectDetailsMap = aiSects.mapIndexed { index, sect ->
-        val portraitRes = allPortraitNames[index % allPortraitNames.size]
-        sect.id to com.xianxia.sect.core.model.SectDetail(sectId = sect.id, portraitRes = portraitRes)
-    }.toMap()
+        // 为每个 AI 宗门分配唯一弟子头像
+        val aiSects = generationResult.sects.filter { !it.isPlayerSect }
+        val allPortraitNames = com.xianxia.sect.core.util.PortraitPool.allPortraitNames()
+        val sectDetailsMap = aiSects.mapIndexed { index, sect ->
+            val portraitRes = allPortraitNames[index % allPortraitNames.size]
+            sect.id to com.xianxia.sect.core.model.SectDetail(sectId = sect.id, portraitRes = portraitRes)
+        }.toMap()
 
-    stateStore.update {
-        gameData = gameData.copy(
-            sectName = sectName,
-            worldMapSects = generationResult.sects,
-            sectRelations = sectRelations,
-            aiSectDisciples = generationResult.aiSectDisciples,
-            availableMissions = emptyList(),
-            sectDetails = sectDetailsMap
-        )
+        stateStore.update {
+            gameData = gameData.copy(
+                sectName = sectName,
+                worldMapSects = generationResult.sects,
+                sectRelations = sectRelations,
+                aiSectDisciples = generationResult.aiSectDisciples,
+                availableMissions = emptyList(),
+                sectDetails = sectDetailsMap
+            )
+        }
     }
 }
 
 private suspend fun GameEngine.addInitialStorageBags() {
-    stateStore.update {
-        storageBags = storageBags + listOf(
-            StorageBag(name = "凡品储物袋", rarity = 1, quantity = 1),
-            StorageBag(name = "凡品储物袋", rarity = 1, quantity = 1)
-        )
+    return engineContextDispatcher.withEngineContext {
+        stateStore.update {
+            storageBags = storageBags + listOf(
+                StorageBag(name = "凡品储物袋", rarity = 1, quantity = 1),
+                StorageBag(name = "凡品储物袋", rarity = 1, quantity = 1)
+            )
+        }
     }
 }
 
 // ── Data update helpers ─────────────────────────────────────────────
 
-suspend fun GameEngine.updateGameData(update: (GameData) -> GameData) { stateStore.update { gameData = update(gameData) } }
+suspend fun GameEngine.updateGameData(update: (GameData) -> GameData) {
+    return engineContextDispatcher.withEngineContext {
+        stateStore.update { gameData = update(gameData) }
+    }
+}
 
 internal fun GameEngine.updateGameDataSync(update: (GameData) -> GameData) {
     gameEngineCore.launchInScope { stateStore.update { gameData = update(gameData) } }
 }
 
 suspend fun GameEngine.updateDisciple(discipleId: String, update: (Disciple) -> Disciple) {
-    stateStore.update {
-        val id = discipleId.toInt()
-        if (id !in discipleTables.ids) return@update
-        val current = discipleTables.assemble(id)
-        val updated = update(current)
-        discipleTables.remove(id)
-        discipleTables.insert(updated)
+    return engineContextDispatcher.withEngineContext {
+        stateStore.update {
+            val id = discipleId.toInt()
+            if (id !in discipleTables.ids) return@update
+            val current = discipleTables.assemble(id)
+            val updated = update(current)
+            discipleTables.remove(id)
+            discipleTables.insert(updated)
+        }
     }
 }
 
 suspend fun GameEngine.changeDiscipleTypeAtomic(discipleId: String, newType: String) {
-    stateStore.update {
-        val id = discipleId.toInt()
-        if (id in discipleTables.ids) discipleTables.discipleTypes[id] = newType
+    return engineContextDispatcher.withEngineContext {
+        stateStore.update {
+            val id = discipleId.toInt()
+            if (id in discipleTables.ids) discipleTables.discipleTypes[id] = newType
+        }
+        discipleFacade.syncAllDiscipleStatuses()
     }
-    discipleFacade.syncAllDiscipleStatuses()
 }
 
 suspend fun GameEngine.updateGameDataAndSync(update: (GameData) -> GameData) {
-    stateStore.update { gameData = update(gameData) }
-    discipleFacade.syncAllDiscipleStatuses()
+    return engineContextDispatcher.withEngineContext {
+        stateStore.update { gameData = update(gameData) }
+        discipleFacade.syncAllDiscipleStatuses()
+    }
 }
 
 // ── Cross-domain: Sect / Map ────────────────────────────────────────
 
-suspend fun GameEngine.enterSect(sectId: String) { stateStore.update { gameData = gameData.copy(activeSectId = sectId) } }
+suspend fun GameEngine.enterSect(sectId: String) {
+    return engineContextDispatcher.withEngineContext {
+        stateStore.update { gameData = gameData.copy(activeSectId = sectId) }
+    }
+}
+
 fun GameEngine.currentActiveSectId(): String = stateStore.gameDataSnapshot.activeSectId
 
 // ── Cross-domain: Use pill ──────────────────────────────────────────
@@ -370,90 +397,96 @@ suspend fun GameEngine.unequipItemById(discipleId: String, equipmentId: String):
 }
 
 suspend fun GameEngine.forgetManual(discipleId: String, instanceId: String) {
-    cultivationService.markAutoLearnDirty(discipleId)
-    stateStore.update {
-        val instance = manualInstances.get(instanceId) ?: return@update
-        val id = discipleId.toInt()
-        if (id !in discipleTables.ids) return@update
-        val currentDisciple = discipleTables.assemble(id)
-        val bagStackIds = currentDisciple.manualBagStackIds()
-        val result = addManualInstanceToDiscipleBag(disciple = currentDisciple, instance = instance, bagStackIds = bagStackIds, gameYear = gameData.gameYear, gameMonth = gameData.gameMonth, gamePhase = gameData.gamePhase, maxStackSize = inventoryConfig.getMaxStackSize("manual_stack"))
-        val updatedManualIds = currentDisciple.manualIds.filter { mid -> mid != instanceId }
-        val updatedDisciple = result.updatedDisciple.copy(manualIds = updatedManualIds)
-        discipleTables.remove(id)
-        discipleTables.insert(updatedDisciple)
-        val updatedProficiencies = gameData.manualProficiencies.toMutableMap()
-        updatedProficiencies[discipleId]?.let { profList ->
-            val filtered = profList.filter { it.manualId != instanceId }
-            if (filtered.isEmpty()) updatedProficiencies.remove(discipleId) else updatedProficiencies[discipleId] = filtered
+    return engineContextDispatcher.withEngineContext {
+        cultivationService.markAutoLearnDirty(discipleId)
+        stateStore.update {
+            val instance = manualInstances.get(instanceId) ?: return@update
+            val id = discipleId.toInt()
+            if (id !in discipleTables.ids) return@update
+            val currentDisciple = discipleTables.assemble(id)
+            val bagStackIds = currentDisciple.manualBagStackIds()
+            val result = addManualInstanceToDiscipleBag(disciple = currentDisciple, instance = instance, bagStackIds = bagStackIds, gameYear = gameData.gameYear, gameMonth = gameData.gameMonth, gamePhase = gameData.gamePhase, maxStackSize = inventoryConfig.getMaxStackSize("manual_stack"))
+            val updatedManualIds = currentDisciple.manualIds.filter { mid -> mid != instanceId }
+            val updatedDisciple = result.updatedDisciple.copy(manualIds = updatedManualIds)
+            discipleTables.remove(id)
+            discipleTables.insert(updatedDisciple)
+            val updatedProficiencies = gameData.manualProficiencies.toMutableMap()
+            updatedProficiencies[discipleId]?.let { profList ->
+                val filtered = profList.filter { it.manualId != instanceId }
+                if (filtered.isEmpty()) updatedProficiencies.remove(discipleId) else updatedProficiencies[discipleId] = filtered
+            }
+            gameData = gameData.copy(manualProficiencies = updatedProficiencies)
         }
-        gameData = gameData.copy(manualProficiencies = updatedProficiencies)
     }
 }
 
 suspend fun GameEngine.replaceManual(discipleId: String, oldInstanceId: String, newStackId: String) {
-    stateStore.update {
-        val oldInstance = manualInstances.get(oldInstanceId) ?: return@update
-        val newStack = manualStacks.get(newStackId) ?: return@update
-        val id = discipleId.toInt()
-        if (id !in discipleTables.ids) return@update
-        val disciple = discipleTables.assemble(id)
-        if (newStack.quantity < 1) return@update
-        if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, newStack.minRealm)) return@update
-        val blocked = newStack.type == ManualType.MIND && oldInstance.type != ManualType.MIND && disciple.manualIds.filter { it != oldInstanceId }.any { mid -> manualInstances.get(mid)?.type == ManualType.MIND }
-        if (blocked) return@update
-        val hasSameName = disciple.manualIds.filter { it != oldInstanceId }.any { mid -> manualInstances.get(mid)?.name == newStack.name }
-        if (hasSameName) return@update
-        val bagStackIds = disciple.manualBagStackIds()
-        val result = addManualInstanceToDiscipleBag(disciple = disciple, instance = oldInstance, bagStackIds = bagStackIds, gameYear = gameData.gameYear, gameMonth = gameData.gameMonth, gamePhase = gameData.gamePhase, maxStackSize = inventoryConfig.getMaxStackSize("manual_stack"))
-        val currentNewStack = manualStacks.get(newStackId) ?: return@update
-        val newQty = currentNewStack.quantity - 1
-        if (newQty <= 0) manualStacks.remove(newStackId) else manualStacks.update(newStackId) { it.copy(quantity = newQty) }
-        val newInstance = newStack.toInstance(id = java.util.UUID.randomUUID().toString(), ownerId = discipleId, isLearned = true)
-        manualInstances.add(newInstance)
-        val updatedProficiencies = gameData.manualProficiencies.toMutableMap()
-        updatedProficiencies[discipleId]?.let { profList ->
-            val filtered = profList.filter { it.manualId != oldInstanceId }
-            if (filtered.isEmpty()) updatedProficiencies.remove(discipleId) else updatedProficiencies[discipleId] = filtered
+    return engineContextDispatcher.withEngineContext {
+        stateStore.update {
+            val oldInstance = manualInstances.get(oldInstanceId) ?: return@update
+            val newStack = manualStacks.get(newStackId) ?: return@update
+            val id = discipleId.toInt()
+            if (id !in discipleTables.ids) return@update
+            val disciple = discipleTables.assemble(id)
+            if (newStack.quantity < 1) return@update
+            if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, newStack.minRealm)) return@update
+            val blocked = newStack.type == ManualType.MIND && oldInstance.type != ManualType.MIND && disciple.manualIds.filter { it != oldInstanceId }.any { mid -> manualInstances.get(mid)?.type == ManualType.MIND }
+            if (blocked) return@update
+            val hasSameName = disciple.manualIds.filter { it != oldInstanceId }.any { mid -> manualInstances.get(mid)?.name == newStack.name }
+            if (hasSameName) return@update
+            val bagStackIds = disciple.manualBagStackIds()
+            val result = addManualInstanceToDiscipleBag(disciple = disciple, instance = oldInstance, bagStackIds = bagStackIds, gameYear = gameData.gameYear, gameMonth = gameData.gameMonth, gamePhase = gameData.gamePhase, maxStackSize = inventoryConfig.getMaxStackSize("manual_stack"))
+            val currentNewStack = manualStacks.get(newStackId) ?: return@update
+            val newQty = currentNewStack.quantity - 1
+            if (newQty <= 0) manualStacks.remove(newStackId) else manualStacks.update(newStackId) { it.copy(quantity = newQty) }
+            val newInstance = newStack.toInstance(id = java.util.UUID.randomUUID().toString(), ownerId = discipleId, isLearned = true)
+            manualInstances.add(newInstance)
+            val updatedProficiencies = gameData.manualProficiencies.toMutableMap()
+            updatedProficiencies[discipleId]?.let { profList ->
+                val filtered = profList.filter { it.manualId != oldInstanceId }
+                if (filtered.isEmpty()) updatedProficiencies.remove(discipleId) else updatedProficiencies[discipleId] = filtered
+            }
+            val updatedManualIds = (disciple.manualIds.filter { mid -> mid != oldInstanceId }) + newInstance.id
+            val updatedDisciple = result.updatedDisciple.copy(manualIds = updatedManualIds)
+            discipleTables.remove(id)
+            discipleTables.insert(updatedDisciple)
+
+            // 记录功法替换日志
+            val replaceAge = discipleTables.ages[id]
+            val replaceEvents = discipleTables.lifeEvents.getOrDefault(id, emptyList())
+            discipleTables.lifeEvents[id] = replaceEvents +
+                "${replaceAge}岁：将功法${oldInstance.name}替换为${newStack.name}"
+
+            gameData = gameData.copy(manualProficiencies = updatedProficiencies)
         }
-        val updatedManualIds = (disciple.manualIds.filter { mid -> mid != oldInstanceId }) + newInstance.id
-        val updatedDisciple = result.updatedDisciple.copy(manualIds = updatedManualIds)
-        discipleTables.remove(id)
-        discipleTables.insert(updatedDisciple)
-
-        // 记录功法替换日志
-        val replaceAge = discipleTables.ages[id]
-        val replaceEvents = discipleTables.lifeEvents.getOrDefault(id, emptyList())
-        discipleTables.lifeEvents[id] = replaceEvents +
-            "${replaceAge}岁：将功法${oldInstance.name}替换为${newStack.name}"
-
-        gameData = gameData.copy(manualProficiencies = updatedProficiencies)
     }
 }
 
 suspend fun GameEngine.learnManual(discipleId: String, stackId: String) {
-    stateStore.update {
-        val stack = manualStacks.get(stackId) ?: return@update
-        val id = discipleId.toInt()
-        if (id !in discipleTables.ids) return@update
-        val disciple = discipleTables.assemble(id)
-        if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, stack.minRealm)) return@update
-        val maxSlots = DiscipleStatCalculator.getMaxManualSlots(disciple)
-        if (disciple.manualIds.size >= maxSlots) return@update
-        if (stack.type == ManualType.MIND && disciple.manualIds.any { mid -> manualInstances.get(mid)?.type == ManualType.MIND }) return@update
-        if (disciple.manualIds.any { mid -> manualInstances.get(mid)?.name == stack.name }) return@update
-        val newQty = stack.quantity - 1
-        if (newQty <= 0) manualStacks.remove(stackId) else manualStacks.update(stackId) { it.copy(quantity = newQty) }
-        val instanceId = java.util.UUID.randomUUID().toString()
-        val instance = stack.toInstance(id = instanceId, ownerId = discipleId, isLearned = true)
-        manualInstances.add(instance)
-        if (!disciple.manualIds.contains(instanceId)) {
-            val hpDelta = stack.stats["hp"] ?: stack.stats["maxHp"] ?: 0
-            val mpDelta = stack.stats["mp"] ?: stack.stats["maxMp"] ?: 0
-            val rawHp = disciple.combat.currentHp; val rawMp = disciple.combat.currentMp
-            val updatedDisciple = disciple.copy(manualIds = disciple.manualIds + instanceId, combat = disciple.combat.copy(currentHp = if (rawHp >= 0 && hpDelta > 0) rawHp + hpDelta else rawHp, currentMp = if (rawMp >= 0 && mpDelta > 0) rawMp + mpDelta else rawMp))
-            discipleTables.remove(id)
-            discipleTables.insert(updatedDisciple)
+    return engineContextDispatcher.withEngineContext {
+        stateStore.update {
+            val stack = manualStacks.get(stackId) ?: return@update
+            val id = discipleId.toInt()
+            if (id !in discipleTables.ids) return@update
+            val disciple = discipleTables.assemble(id)
+            if (!GameConfig.Realm.meetsRealmRequirement(disciple.realm, stack.minRealm)) return@update
+            val maxSlots = DiscipleStatCalculator.getMaxManualSlots(disciple)
+            if (disciple.manualIds.size >= maxSlots) return@update
+            if (stack.type == ManualType.MIND && disciple.manualIds.any { mid -> manualInstances.get(mid)?.type == ManualType.MIND }) return@update
+            if (disciple.manualIds.any { mid -> manualInstances.get(mid)?.name == stack.name }) return@update
+            val newQty = stack.quantity - 1
+            if (newQty <= 0) manualStacks.remove(stackId) else manualStacks.update(stackId) { it.copy(quantity = newQty) }
+            val instanceId = java.util.UUID.randomUUID().toString()
+            val instance = stack.toInstance(id = instanceId, ownerId = discipleId, isLearned = true)
+            manualInstances.add(instance)
+            if (!disciple.manualIds.contains(instanceId)) {
+                val hpDelta = stack.stats["hp"] ?: stack.stats["maxHp"] ?: 0
+                val mpDelta = stack.stats["mp"] ?: stack.stats["maxMp"] ?: 0
+                val rawHp = disciple.combat.currentHp; val rawMp = disciple.combat.currentMp
+                val updatedDisciple = disciple.copy(manualIds = disciple.manualIds + instanceId, combat = disciple.combat.copy(currentHp = if (rawHp >= 0 && hpDelta > 0) rawHp + hpDelta else rawHp, currentMp = if (rawMp >= 0 && mpDelta > 0) rawMp + mpDelta else rawMp))
+                discipleTables.remove(id)
+                discipleTables.insert(updatedDisciple)
+            }
         }
     }
 }
@@ -461,33 +494,35 @@ suspend fun GameEngine.learnManual(discipleId: String, stackId: String) {
 // ── Cross-domain: Recruit ───────────────────────────────────────────
 
 suspend fun GameEngine.recruitAllFromList(): Int {
-    var recruited = 0
-    stateStore.update {
-        val validRecruits = gameData.recruitList.filter { d ->
-            d.name.isNotBlank() && d.age > 0 && d.realm > 0
-        }
-        if (validRecruits.isEmpty()) {
-            if (gameData.recruitList.isNotEmpty()) {
-                DomainLog.w("GameEngine", "recruitAllFromList: all ${gameData.recruitList.size} recruits are corrupted, skipped")
+    return engineContextDispatcher.withEngineContext {
+        var recruited = 0
+        stateStore.update {
+            val validRecruits = gameData.recruitList.filter { d ->
+                d.name.isNotBlank() && d.age > 0 && d.realm > 0
             }
-            return@update
+            if (validRecruits.isEmpty()) {
+                if (gameData.recruitList.isNotEmpty()) {
+                    DomainLog.w("GameEngine", "recruitAllFromList: all ${gameData.recruitList.size} recruits are corrupted, skipped")
+                }
+                return@update
+            }
+            val droppedCount = gameData.recruitList.size - validRecruits.size
+            val currentMonth = gameData.gameYear * 12 + gameData.gameMonth
+            validRecruits.forEach { disciple ->
+                discipleTables.allocateAndInsert(
+                    disciple.copy(usage = disciple.usage.copy(recruitedMonth = currentMonth))
+                )
+            }
+            recruited = validRecruits.size
+            gameData = gameData.copy(recruitList = emptyList())
+            if (droppedCount > 0) {
+                DomainLog.w("GameEngine", "recruitAllFromList: dropped $droppedCount corrupted recruits, recruited $recruited")
+            } else {
+                DomainLog.i("GameEngine", "recruitAllFromList: recruited $recruited disciples")
+            }
         }
-        val droppedCount = gameData.recruitList.size - validRecruits.size
-        val currentMonth = gameData.gameYear * 12 + gameData.gameMonth
-        validRecruits.forEach { disciple ->
-            discipleTables.allocateAndInsert(
-                disciple.copy(usage = disciple.usage.copy(recruitedMonth = currentMonth))
-            )
-        }
-        recruited = validRecruits.size
-        gameData = gameData.copy(recruitList = emptyList())
-        if (droppedCount > 0) {
-            DomainLog.w("GameEngine", "recruitAllFromList: dropped $droppedCount corrupted recruits, recruited $recruited")
-        } else {
-            DomainLog.i("GameEngine", "recruitAllFromList: recruited $recruited disciples")
-        }
+        return@withEngineContext recruited
     }
-    return recruited
 }
 
 fun GameEngine.removeFromRecruitList(discipleId: String) {
@@ -831,28 +866,30 @@ suspend fun GameEngine.startBloodRefinementAtomic(
     requiredSpiritStones: Long,
     progress: BloodRefinementProgress
 ): BloodRefinementStartResult {
-    if (requiredSpiritStones <= 0) {
-        return BloodRefinementStartResult.Error("灵石消耗必须为正数")
-    }
-    if (materialCount <= 0) {
-        return BloodRefinementStartResult.Error("材料消耗必须为正数")
-    }
-    if (progress.durationMonths <= 0 || progress.bonusPercent <= 0.0) {
-        return BloodRefinementStartResult.Error("血炼配置异常（duration/bonus）")
-    }
-    progress.discipleId.toIntOrNull() ?: return BloodRefinementStartResult.Error("非法弟子ID")
-    try {
-        stateStore.update {
-            checkStones(requiredSpiritStones)
-            consumeMaterial(materialName, materialRarity, materialCount)
-            commitBloodRefinement(buildingInstanceId, requiredSpiritStones, progress)
+    return engineContextDispatcher.withEngineContext {
+        if (requiredSpiritStones <= 0) {
+            return@withEngineContext BloodRefinementStartResult.Error("灵石消耗必须为正数")
         }
-        return BloodRefinementStartResult.Success
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        DomainLog.e("GameEngine", "血炼原子启动失败: ${e.message}", e)
-        return BloodRefinementStartResult.Error(e.message ?: "未知错误")
+        if (materialCount <= 0) {
+            return@withEngineContext BloodRefinementStartResult.Error("材料消耗必须为正数")
+        }
+        if (progress.durationMonths <= 0 || progress.bonusPercent <= 0.0) {
+            return@withEngineContext BloodRefinementStartResult.Error("血炼配置异常（duration/bonus）")
+        }
+        progress.discipleId.toIntOrNull() ?: return@withEngineContext BloodRefinementStartResult.Error("非法弟子ID")
+        try {
+            stateStore.update {
+                checkStones(requiredSpiritStones)
+                consumeMaterial(materialName, materialRarity, materialCount)
+                commitBloodRefinement(buildingInstanceId, requiredSpiritStones, progress)
+            }
+            return@withEngineContext BloodRefinementStartResult.Success
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DomainLog.e("GameEngine", "血炼原子启动失败: ${e.message}", e)
+            return@withEngineContext BloodRefinementStartResult.Error(e.message ?: "未知错误")
+        }
     }
 }
 
@@ -861,14 +898,18 @@ suspend fun GameEngine.cancelBloodRefinement(
     buildingInstanceId: String,
     discipleId: String
 ) {
-    stateStore.update {
-        cancelBloodRefinement(buildingInstanceId, discipleId)
+    return engineContextDispatcher.withEngineContext {
+        stateStore.update {
+            cancelBloodRefinement(buildingInstanceId, discipleId)
+        }
     }
 }
 
 /** 月度结算 — 处理所有到期血炼 */
 suspend fun GameEngine.processBloodRefinementCompletions() {
-    stateStore.update { processBloodRefinementCompletions() }
+    return engineContextDispatcher.withEngineContext {
+        stateStore.update { processBloodRefinementCompletions() }
+    }
 }
 
 /** 校验灵石是否足够 */

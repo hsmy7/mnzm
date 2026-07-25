@@ -36,7 +36,7 @@ private const val WEEK_MS = 7L * 24 * 60 * 60 * 1000
  * 检查该等级上一次领取时间戳，距现实时间不足 7 天则拒绝。
  * 奖励物品（兽血/储物袋/灵石）通过 inventorySystem 直接发放。
  */
-suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult {
+suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult = engineContextDispatcher.withEngineContext {
     val nowMs = System.currentTimeMillis()
     val snapshot = stateStore.gameDataSnapshot
 
@@ -48,14 +48,14 @@ suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult {
         if (elapsed < WEEK_MS) {
             val nextClaimable = lastClaim.claimedAtEpochMs + WEEK_MS
             DomainLog.d(TAG, "claimSectLevelReward: level=$level cooldown, nextClaimable=$nextClaimable")
-            return SectLevelClaimResult.AlreadyClaimed(nextClaimable)
+            return@withEngineContext SectLevelClaimResult.AlreadyClaimed(nextClaimable)
         }
     }
 
     val rewardCards = com.xianxia.sect.core.config.SectLevelRewardConfig.getRewardCards(level)
     if (rewardCards.isEmpty()) {
         DomainLog.w(TAG, "claimSectLevelReward: level=$level has no rewards configured")
-        return SectLevelClaimResult.Error("没有找到该等级的奖励配置")
+        return@withEngineContext SectLevelClaimResult.Error("没有找到该等级的奖励配置")
     }
 
     try {
@@ -188,10 +188,10 @@ suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult {
         }
 
         DomainLog.d(TAG, "claimSectLevelReward: level=$level success, claimedAt=$nowMs, flyCards=${flyCards.size}")
-        return SectLevelClaimResult.Success
+        return@withEngineContext SectLevelClaimResult.Success
     } catch (e: Exception) {
         DomainLog.e(TAG, "claimSectLevelReward failed: level=$level", e)
-        return SectLevelClaimResult.Error("领取失败: ${e.message}")
+        return@withEngineContext SectLevelClaimResult.Error("领取失败: ${e.message}")
     }
 }
 
@@ -214,14 +214,14 @@ fun GameEngine.canClaimSectLevelReward(level: Int): Boolean {
  * 从当前等级读取升级条件并逐一验证，全满足则执行升级。
  * 升级直接写入 worldMapSects 中玩家宗门的 level / levelName。
  */
-suspend fun GameEngine.upgradeSectLevel(): SectLevelUpgradeResult {
+suspend fun GameEngine.upgradeSectLevel(): SectLevelUpgradeResult = engineContextDispatcher.withEngineContext {
     val snapshot = stateStore.gameDataSnapshot
     val playerSect = snapshot.worldMapSects.find { it.isPlayerSect }
-        ?: return SectLevelUpgradeResult.Error("未找到玩家宗门")
+        ?: return@withEngineContext SectLevelUpgradeResult.Error("未找到玩家宗门")
 
     val currentLevel = playerSect.level
     if (currentLevel >= SectLevel.TOP) {
-        return SectLevelUpgradeResult.AlreadyMaxLevel
+        return@withEngineContext SectLevelUpgradeResult.AlreadyMaxLevel
     }
 
     val targetLevel = currentLevel + 1
@@ -245,7 +245,7 @@ suspend fun GameEngine.upgradeSectLevel(): SectLevelUpgradeResult {
     val unmetConditions = conditionStates.filter { !it.isMet }.map { it.description }
     if (unmetConditions.isNotEmpty()) {
         DomainLog.d(TAG, "upgradeSectLevel: level=$currentLevel->$targetLevel unmet: $unmetConditions")
-        return SectLevelUpgradeResult.ConditionsNotMet(unmetConditions)
+        return@withEngineContext SectLevelUpgradeResult.ConditionsNotMet(unmetConditions)
     }
 
     // 条件满足，执行升级
@@ -261,10 +261,10 @@ suspend fun GameEngine.upgradeSectLevel(): SectLevelUpgradeResult {
             )
         }
         DomainLog.d(TAG, "upgradeSectLevel: level=$currentLevel->$targetLevel success")
-        return SectLevelUpgradeResult.Success(targetLevel)
+        return@withEngineContext SectLevelUpgradeResult.Success(targetLevel)
     } catch (e: Exception) {
         DomainLog.e(TAG, "upgradeSectLevel failed", e)
-        return SectLevelUpgradeResult.Error("升级失败: ${e.message}")
+        return@withEngineContext SectLevelUpgradeResult.Error("升级失败: ${e.message}")
     }
 }
 

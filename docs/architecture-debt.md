@@ -27,7 +27,11 @@
 建议：迁移至 `GameRngManager.getRng(RngPartition.SYSTEM)`，与邮件系统随机操作统一。
 当前风险低（邮件/兑换码操作不涉及战斗或突破，RNG 不一致不影响核心玩法）。
 
-## 引擎 suspend API 线程安全自动化（🔴 待实施）
+## 引擎 suspend API 线程安全自动化（✅ 已完成 — 2026-07-25）
+
+详见 [architecture.md](architecture.md#threading-architecture-two-game-threads) 的线程安全约定。
+所有直接调 `stateStore.update{}` 的 `suspend` 引擎方法已通过 `EngineContextDispatcher` 接口 + `withEngineContext` 自动派发到引擎线程。
+测试通过 `FakeEngineContextDispatcher` 注入绕过 mockito suspend 限制。
 
 ### 问题
 

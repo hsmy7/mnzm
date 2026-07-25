@@ -66,6 +66,7 @@ data class GameStateSnapshot(
 @Singleton
 class GameEngine @Inject constructor(
     internal val gameEngineCore: GameEngineCore,
+    internal val engineContextDispatcher: EngineContextDispatcher = gameEngineCore,
     internal val stateStore: GameStateStore,
     internal val inventorySystem: InventorySystem,
     internal val inventoryConfig: InventoryConfig,

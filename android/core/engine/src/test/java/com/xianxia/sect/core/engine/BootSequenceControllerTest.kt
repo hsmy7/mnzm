@@ -36,6 +36,9 @@ class BootSequenceControllerTest {
         buildingConfigService = mock()
         discipleSnapshotCache = mock()
 
+        // EngineContextDispatcher: 使用 Fake 确保 extension 函数内部 withEngineContext 正常执行
+        whenever(gameEngine.engineContextDispatcher).thenReturn(FakeEngineContextDispatcher())
+
         // GameEngine 属性: 扩展函数 (updateGameData / ensureHeavyDataLoaded) 内部
         // 通过 gameEngine.stateStore 访问 FakeGameStateStore，因此需要 stub
         whenever(gameEngine.stateStore).thenReturn(stateStore)

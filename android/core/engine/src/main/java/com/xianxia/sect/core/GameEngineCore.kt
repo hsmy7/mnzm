@@ -54,6 +54,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class GameEngineCore @Inject constructor(
+
     private val stateStore: GameStateStore,
     private val eventBus: EventBusPort,
     private val unifiedPerformanceMonitor: UnifiedPerformanceMonitor,
@@ -65,7 +66,7 @@ class GameEngineCore @Inject constructor(
     private val gameClock: GameTimeClock,
     private val thermalController: ThermalController,
     private val spiritStoneWallet: SpiritStoneWallet
-) {
+) : EngineContextDispatcher {
 
     /**
      * 任务完成检测回调，由 GameEngine 在构造后注入。
@@ -278,7 +279,7 @@ class GameEngineCore @Inject constructor(
      * 若当前已在引擎线程上，则不切换上下文（coroutines 自动优化）。
      * 用于确保 [stateStore.update] 调用在引擎线程上执行，避免主线程 ANR。
      */
-    suspend fun <T> withEngineContext(block: suspend CoroutineScope.() -> T): T {
+    override suspend fun <T> withEngineContext(block: suspend CoroutineScope.() -> T): T {
         return withContext(gameDispatcher, block)
     }
 
@@ -691,12 +692,12 @@ class GameEngineCore @Inject constructor(
     /** 直接读取暂停状态，绕过 unifiedState 的 50ms 采样延迟 */
     val isPausedDirect: Boolean get() = stateStore.isPaused.value
 
-    suspend fun pause() {
+    suspend fun pause() = withEngineContext {
         stateStore.update { isPaused = true }
         cultivationService.resetHighFrequencyData()
     }
-    
-    suspend fun resume() {
+
+    suspend fun resume() = withEngineContext {
         stateStore.update { isPaused = false }
     }
 

@@ -26,6 +26,18 @@
 - **追加：引擎 suspend API 线程安全自动化** — 将所有直接调 `stateStore.update{}` 的 suspend 方法内部加 `withContext(gameDispatcher)` 包裹
 - **追加：Detekt 预存违规记录** — 7 项预存违规写入架构债务文档
 
+### 架构改进
+
+- **新增 `EngineContextDispatcher` 接口** — 提取 `withEngineContext` 为接口（`EngineContextDispatcher.kt`），`GameEngineCore` 实现，`GameEngine.engineContextDispatcher` 注入。34 个 suspend 引擎方法自动派发到引擎线程。测试用 `FakeEngineContextDispatcher` 绕过 Mockito suspend 泛型限制
+- **云存档并发锁 `cloudOpLock`** — `uploadSave`/`downloadSave` 互斥，防止多协程并行操作临时文件
+- **云存档下载备份** — 下载覆盖前备份当前存档（`.bak`）
+- **`invokeGetterString` 静默降级修复** — 返回 `String?` + 异常时 log
+- **云存档跨版本兼容性** — 上传时记录版本号，下载时比对并提示
+- **`sellItem`/`bulkSellItems` 统一入口** — 改为 `StackableItemStore` 操作
+- **`SaveLoadViewModel` 构造参数 15→7** — 提取 `PersistenceFacade` 封装 8 个基础设施依赖
+- **云存档已知问题文档更新** — 完成项标记 ✅，仅保留未完成项
+- **架构债务文档更新** — 引擎 suspend API 自动化标记为 ✅ 已完成
+
 ## [4.0.73] - 2026-07-25（versionCode=4073）
 
 ### 修复

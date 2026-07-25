@@ -1,35 +1,28 @@
 package com.xianxia.sect.ui.game
 
-import android.content.Context
 import android.util.Log
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.viewModelScope
-import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.util.SectMapTileGenerator
-import com.xianxia.sect.core.wallet.SpiritStoneWallet
-import com.xianxia.sect.data.SessionManager
-import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.taptap.TapCloudSaveManager
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.data.unified.SaveError
 import com.xianxia.sect.data.unified.SaveResult
-import com.xianxia.sect.core.engine.domain.disciple.DiscipleSnapshotCache
 import com.xianxia.sect.core.util.CoroutineScopeProvider
-import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.ui.components.AtlasResult
 import com.xianxia.sect.ui.game.saveload.SaveLoadLoadDelegate
 import com.xianxia.sect.ui.game.saveload.SaveLoadPauseDelegate
 import com.xianxia.sect.ui.game.saveload.SaveLoadRestartDelegate
 import com.xianxia.sect.ui.game.saveload.SaveLoadSaveDelegate
 import com.xianxia.sect.ui.game.saveload.SaveLoadStateDelegate
+import com.xianxia.sect.ui.game.saveload.PersistenceFacade
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.util.concurrent.atomic.AtomicBoolean
@@ -39,27 +32,20 @@ import javax.inject.Inject
 class SaveLoadViewModel @Inject constructor(
     private val gameEngine: GameEngine,
     private val gameEngineCore: GameEngineCore,
-    private val storageFacade: StorageFacade,
     private val stateStore: GameStateStore,
     private val coroutineScopeProvider: CoroutineScopeProvider,
-    private val buildingConfigService: BuildingConfigService,
-    @ApplicationContext private val context: Context,
     private val gameClock: com.xianxia.sect.core.engine.system.GameTimeClock,
     private val resourcePreloader: ResourcePreloader,
-    private val discipleSnapshotCache: DiscipleSnapshotCache,
-    private val gameRngManager: GameRngManager,
-    private val bootSequenceController: BootSequenceController,
-    private val spiritStoneWallet: SpiritStoneWallet,
-    private val sessionManager: SessionManager,
-    private val tapCloudSaveManager: TapCloudSaveManager
+    private val persistenceFacade: PersistenceFacade
 ) : BaseViewModel() {
 
     // 领域委托实例 — 按职责拆分 save/load/restart 等逻辑
-    private val saveDelegate by lazy { SaveLoadSaveDelegate(gameEngine, storageFacade, stateStore) }
+    private val saveDelegate by lazy { SaveLoadSaveDelegate(gameEngine, persistenceFacade.storageFacade, stateStore) }
     private val loadDelegate by lazy {
-        SaveLoadLoadDelegate(gameEngine, gameEngineCore, storageFacade, stateStore, buildingConfigService, spiritStoneWallet)
+        SaveLoadLoadDelegate(gameEngine, gameEngineCore, persistenceFacade.storageFacade, stateStore,
+            persistenceFacade.buildingConfigService, persistenceFacade.spiritStoneWallet)
     }
-    private val restartDelegate by lazy { SaveLoadRestartDelegate(gameEngine, gameEngineCore, storageFacade, stateStore) }
+    private val restartDelegate by lazy { SaveLoadRestartDelegate(gameEngine, gameEngineCore, persistenceFacade.storageFacade, stateStore) }
     private val pauseDelegate by lazy { SaveLoadPauseDelegate(gameEngineCore, gameClock) }
     private val stateDelegate by lazy { SaveLoadStateDelegate(stateStore) }
 
@@ -159,7 +145,7 @@ class SaveLoadViewModel @Inject constructor(
     private val _cloudSaveOperationState = MutableStateFlow<CloudSaveOperationState>(CloudSaveOperationState.Idle)
     val cloudSaveOperationState: StateFlow<CloudSaveOperationState> = _cloudSaveOperationState.asStateFlow()
 
-    fun isCloudSaveAvailable(): Boolean = sessionManager.isLoggedIn
+    fun isCloudSaveAvailable(): Boolean = persistenceFacade.sessionManager.isLoggedIn
 
     val saveLoadState: StateFlow<SaveLoadState> = combine(
         stateStore.unifiedState,
@@ -191,13 +177,13 @@ class SaveLoadViewModel @Inject constructor(
         // 加载存档元数据 — 运行在 IO 调度器上，避免主线程等待 Room 查询
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+                _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) {
                 Log.e(TAG, "Failed to load save slots in init, retrying after delay", e)
                 delay(500)
                 try {
-                    _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+                    _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
                 } catch (e: CancellationException) { throw e }
                   catch (e2: Exception) {
                     Log.e(TAG, "Retry loading save slots also failed", e2)
@@ -360,10 +346,10 @@ class SaveLoadViewModel @Inject constructor(
                 Log.d(TAG, "startNewGame: Game engine created new game successfully, elapsed=${System.currentTimeMillis() - startTime}ms")
 
                 // 初始化 RNG 系统种子（新世界使用 mapSeed 确保确定性随机序列）
-                gameRngManager.initSystemSeed(gameEngine.gameData.value.mapSeed.toLong())
+                persistenceFacade.gameRngManager.initSystemSeed(gameEngine.gameData.value.mapSeed.toLong())
                 Log.d(TAG, "startNewGame: GameRngManager initialized with mapSeed=${gameEngine.gameData.value.mapSeed}")
 
-                storageFacade.setCurrentSlot(slot)
+                persistenceFacade.storageFacade.setCurrentSlot(slot)
                 Log.d(TAG, "Active slot set to $slot")
 
                 _loadingProgress.value = PROGRESS_SAVE_COMPLETE
@@ -382,7 +368,7 @@ class SaveLoadViewModel @Inject constructor(
 
                 // BootSequenceController 统一处理：建筑修正、BootPhase 推进、资源预加载、
                 // 弟子快照预热、确保重数据加载、游戏循环启动、地图生成、最终状态切换
-                val bootResult = bootSequenceController.boot(
+                val bootResult = persistenceFacade.bootSequenceController.boot(
                     slot = slot,
                     onPreloadResources = { preloadGameResources() },
                     onProgress = { progress ->
@@ -396,7 +382,7 @@ class SaveLoadViewModel @Inject constructor(
                     _loadingProgress.value = PROGRESS_COMPLETE
 
                     // ★ 运营补偿：检查并注入直接补偿邮件（仅目标用户 + 仅一次）
-                    gameEngine.sendDirectCompensation(slot, sessionManager.userId)
+                    gameEngine.sendDirectCompensation(slot, persistenceFacade.sessionManager.userId)
 
                     val gd = gameEngine.gameData.value
                     Log.i(TAG, "=== startNewGame SUCCESS === " +
@@ -430,7 +416,7 @@ class SaveLoadViewModel @Inject constructor(
                 }
                 if (needSlotRefresh) {
                     try {
-                        _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+                        _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
                     } catch (e: CancellationException) { throw e }
                       catch (e: Exception) {
                         Log.w(TAG, "startNewGame: Failed to refresh save slots after completion: ${e.message}")
@@ -451,7 +437,7 @@ class SaveLoadViewModel @Inject constructor(
             val saveData = trimSaveData(snapshot).copy(gameData = updatedGameData)
 
             val result = withTimeoutOrNull(30_000L) {
-                storageFacade.save(slot, saveData)
+                persistenceFacade.storageFacade.save(slot, saveData)
             }
 
             when {
@@ -463,7 +449,7 @@ class SaveLoadViewModel @Inject constructor(
                 result.isSuccess -> {
                     gameEngine.updateGameData { updatedGameData }
                     try {
-                        _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+                        _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
                     } catch (e: CancellationException) { throw e }
                       catch (e: Exception) {
                         Log.e(TAG, "Failed to refresh slots after synchronous save: ${e.message}", e)
@@ -527,7 +513,7 @@ class SaveLoadViewModel @Inject constructor(
 
                 val saveData = withTimeoutOrNull(60_000L) {
                     try {
-                        val data = storageFacade.load(saveSlot.slot).getOrNull()
+                        val data = persistenceFacade.storageFacade.load(saveSlot.slot).getOrNull()
                         Log.d(TAG, "Save data loaded in ${System.currentTimeMillis() - loadStartTime}ms")
                         data
                     } catch (e: CancellationException) { throw e }
@@ -544,7 +530,7 @@ class SaveLoadViewModel @Inject constructor(
                 }
 
                 val effectiveSlot = saveSlot.slot
-                storageFacade.setCurrentSlot(effectiveSlot)
+                persistenceFacade.storageFacade.setCurrentSlot(effectiveSlot)
                 gameEngine.loadData(
                     gameData = saveData.gameData.copy(currentSlot = effectiveSlot),
                     disciples = saveData.disciples,
@@ -566,7 +552,7 @@ class SaveLoadViewModel @Inject constructor(
                 // 恢复 RNG 分区状态，确保读档后随机序列连续性
                 val loadedGd = gameEngine.gameData.value
                 if (loadedGd.rngStates.isNotEmpty()) {
-                    gameRngManager.restoreStates(loadedGd.rngStates)
+                    persistenceFacade.gameRngManager.restoreStates(loadedGd.rngStates)
                     Log.d(TAG, "loadGame: Restored ${loadedGd.rngStates.size} RNG partition states")
                 }
 
@@ -575,7 +561,7 @@ class SaveLoadViewModel @Inject constructor(
 
                 // BootSequenceController 统一处理：建筑修正、BootPhase 推进、资源预加载、
                 // 弟子快照预热、确保重数据加载、游戏循环启动、地图生成、最终状态切换
-                val bootResult = bootSequenceController.boot(
+                val bootResult = persistenceFacade.bootSequenceController.boot(
                     slot = effectiveSlot,
                     onPreloadResources = { preloadGameResources() },
                     onProgress = { progress ->
@@ -587,7 +573,7 @@ class SaveLoadViewModel @Inject constructor(
 
                 if (bootResult.isSuccess) {
                     // ★ 运营补偿：检查并注入直接补偿邮件（仅目标用户 + 仅一次）
-                    gameEngine.sendDirectCompensation(effectiveSlot, sessionManager.userId)
+                    gameEngine.sendDirectCompensation(effectiveSlot, persistenceFacade.sessionManager.userId)
 
                     val gd = gameEngine.gameData.value
                     Log.i(TAG, "=== loadGame SUCCESS === " +
@@ -656,8 +642,8 @@ class SaveLoadViewModel @Inject constructor(
      *
      * 流程：
      * 1. 设置加载进度反馈（_loadingProgress=0.1f, "正在同步云存档..."）
-     * 2. 下载云存档 (tapCloudSaveManager.downloadSave())
-     * 3. 写入本地存储 (storageFacade.save)
+     * 2. 下载云存档 (persistenceFacade.tapCloudSaveManager.downloadSave())
+     * 3. 写入本地存储 (persistenceFacade.storageFacade.save)
      * 4. 调用 loadGameFromSlot(slot) 走正常 BootSequenceController 启动流程
      * 5. 失败时通过 showError() 展示错误
      *
@@ -675,7 +661,7 @@ class SaveLoadViewModel @Inject constructor(
             }
 
             try {
-                val result = tapCloudSaveManager.downloadSave()
+                val result = persistenceFacade.tapCloudSaveManager.downloadSave()
 
                 when (result) {
                     is TapCloudSaveManager.CloudSaveResult.Success -> {
@@ -687,12 +673,25 @@ class SaveLoadViewModel @Inject constructor(
 
                         // 从云存档数据中提取 slot，写入本地
                         val slot = saveData.gameData.currentSlot.coerceIn(1, 6)
-                        storageFacade.setCurrentSlot(slot)
-                        storageFacade.save(slot, saveData)
+                        persistenceFacade.storageFacade.setCurrentSlot(slot)
+
+                        // 下载覆盖前备份当前存档（触发 StorageEngine SaveFileManager 原子写入创建 .bak 快照）
+                        try {
+                            val currentData = persistenceFacade.storageFacade.load(slot).getOrNull()
+                            if (currentData != null) {
+                                persistenceFacade.storageFacade.save(slot, currentData)
+                                Log.d(TAG, "Backup: preserved current save for slot $slot before cloud download")
+                            }
+                        } catch (e: CancellationException) { throw e }
+                          catch (e: Exception) {
+                            Log.w(TAG, "Failed to backup slot $slot before cloud download", e)
+                        }
+
+                        persistenceFacade.storageFacade.save(slot, saveData)
 
                         // 刷新存档元数据缓存
                         try {
-                            _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+                            _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
                         } catch (e: CancellationException) { throw e }
                           catch (e: Exception) {
                             Log.w(TAG, "loadFromCloudSave: failed to refresh save slots", e)
@@ -711,6 +710,8 @@ class SaveLoadViewModel @Inject constructor(
                         showError("云存档文件过大，无法下载")
                     is TapCloudSaveManager.CloudSaveResult.NoSaveExists ->
                         showError("云存档不存在")
+                    is TapCloudSaveManager.CloudSaveResult.VersionMismatch ->
+                        showError("云存档来自版本 ${result.cloudVersion}，当前版本 ${result.currentVersion} 不支持加载")
                     is TapCloudSaveManager.CloudSaveResult.UnknownError ->
                         showError("未知错误: ${result.message}")
                 }
@@ -739,7 +740,7 @@ class SaveLoadViewModel @Inject constructor(
                         is CloudSaveOperationState.Success -> {
                             showSuccess(state.message)
                             try {
-                                _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+                                _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
                             } catch (e: CancellationException) { throw e }
                               catch (e: Exception) {
                                 Log.w(TAG, "Failed to refresh slots after cloud save", e)
@@ -782,8 +783,8 @@ class SaveLoadViewModel @Inject constructor(
                     return@launch
                 }
 
-                val previousSlot = storageFacade.getCurrentSlot()
-                storageFacade.setCurrentSlot(slot)
+                val previousSlot = persistenceFacade.storageFacade.getCurrentSlot()
+                persistenceFacade.storageFacade.setCurrentSlot(slot)
 
                 try {
                     performGarbageCollection()
@@ -794,7 +795,7 @@ class SaveLoadViewModel @Inject constructor(
                         "disciples=${snapshot.disciples.size}, equipment=${snapshot.equipmentInstances.size}")
                     if (snapshot.gameData.sectName.isBlank()) {
                         Log.e(TAG, "=== saveGame FAILED === gameData not initialized (sectName is blank)")
-                        storageFacade.setCurrentSlot(previousSlot)
+                        persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
                         showError("游戏数据未初始化")
                         return@launch
                     }
@@ -802,12 +803,12 @@ class SaveLoadViewModel @Inject constructor(
                     val saveData = trimSaveData(snapshot).copy(gameData = updatedGameData)
 
                     val saveResult = withTimeoutOrNull(30_000L) {
-                        storageFacade.save(slot, saveData)
+                        persistenceFacade.storageFacade.save(slot, saveData)
                     }
 
                     if (saveResult != null && saveResult.isSuccess) {
                         try {
-                            _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+                            _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
                         } catch (e: CancellationException) { throw e }
                           catch (e: Exception) {
                             Log.e(TAG, "Failed to refresh slots after successful save: ${e.message}", e)
@@ -821,26 +822,26 @@ class SaveLoadViewModel @Inject constructor(
                             "disciples=${saveData.disciples.size}, equipment=${saveData.equipmentInstances.size}, " +
                             "manuals=${saveData.manualInstances.size}, elapsed=${System.currentTimeMillis() - startTime}ms")
                     } else {
-                        storageFacade.setCurrentSlot(previousSlot)
+                        persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
                         val errorMsg = if (saveResult == null) "保存超时，请重试" else "保存失败，请重试"
                         showError(errorMsg)
                         Log.e(TAG, "=== saveGame FAILED === ${if (saveResult == null) "timeout" else "save returned failure"}")
-                        try { _saveSlots.value = storageFacade.getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.e(TAG, "Failed to refresh slots after save failure", e) }
+                        try { _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.e(TAG, "Failed to refresh slots after save failure", e) }
                     }
                 } catch (e: OutOfMemoryError) {
                     Log.e(TAG, "=== saveGame FAILED === OutOfMemoryError", e)
-                    storageFacade.setCurrentSlot(previousSlot)
+                    persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
                     showError("内存不足，保存失败。请关闭其他应用后重试。")
-                    try { _saveSlots.value = storageFacade.getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e2: Exception) { Log.e(TAG, "Failed to refresh slots after OOM", e2) }
+                    try { _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e2: Exception) { Log.e(TAG, "Failed to refresh slots after OOM", e2) }
                 } catch (e: CancellationException) {
                     Log.w(TAG, "saveGame cancelled")
-                    storageFacade.setCurrentSlot(previousSlot)
+                    persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
                     throw e
                 } catch (e: Exception) {
                     Log.e(TAG, "=== saveGame FAILED === error=${e.message}", e)
-                    storageFacade.setCurrentSlot(previousSlot)
+                    persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
                     showError("保存失败: ${e.message}")
-                    try { _saveSlots.value = storageFacade.getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e2: Exception) { Log.e(TAG, "Failed to refresh slots after save failure", e2) }
+                    try { _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e2: Exception) { Log.e(TAG, "Failed to refresh slots after save failure", e2) }
                 } finally {
                     saveLock.set(false)
                 }
@@ -934,16 +935,16 @@ class SaveLoadViewModel @Inject constructor(
                 val currentData = gameEngine.gameData.value
                 val sectName = currentData.sectName.ifBlank { "QingYunSect" }
                 val currentSlot = currentData.currentSlot.let { if (it >= 0) it else 1 }
-                previousSlot = storageFacade.getCurrentSlot()
+                previousSlot = persistenceFacade.storageFacade.getCurrentSlot()
 
                 Log.i(TAG, "=== restartGame BEGIN === currentSlot=$currentSlot, previousSlot=$previousSlot, sectName=$sectName")
 
-                storageFacade.setCurrentSlot(currentSlot)
+                persistenceFacade.storageFacade.setCurrentSlot(currentSlot)
 
                 gameEngine.restartGameSuspend(sectName, currentSlot)
 
                 // 重置 RNG 系统种子（重启即新世界，初始化确定性随机序列）
-                gameRngManager.initSystemSeed(gameEngine.gameData.value.mapSeed.toLong())
+                persistenceFacade.gameRngManager.initSystemSeed(gameEngine.gameData.value.mapSeed.toLong())
                 Log.d(TAG, "restartGame: GameRngManager initialized with mapSeed=${gameEngine.gameData.value.mapSeed}")
 
                 setSaveLoadState(isSaving = true, pendingSlot = currentSlot, pendingAction = "save")
@@ -962,7 +963,7 @@ class SaveLoadViewModel @Inject constructor(
                 }
 
                 // BootSequenceController 统一处理生命周期、游戏循环重启、地图生成
-                val bootResult = bootSequenceController.boot(
+                val bootResult = persistenceFacade.bootSequenceController.boot(
                     slot = currentSlot,
                     onPreloadResources = { preloadGameResources() },
                     onProgress = { progress ->
@@ -981,12 +982,12 @@ class SaveLoadViewModel @Inject constructor(
                 throw e
             } catch (e: OutOfMemoryError) {
                 Log.e(TAG, "=== restartGame FAILED === OutOfMemoryError", e)
-                storageFacade.setCurrentSlot(previousSlot)
+                persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
                 showError("内存不足，重置失败。请关闭其他应用后重试。")
                 setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
             } catch (e: Exception) {
                 Log.e(TAG, "=== restartGame FAILED === error=${e.message}", e)
-                storageFacade.setCurrentSlot(previousSlot)
+                persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
                 showError(e.message ?: "重置游戏失败")
                 setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
             } finally {
@@ -1007,7 +1008,7 @@ class SaveLoadViewModel @Inject constructor(
                 val snapshot = gameEngine.getStateSnapshot()
                 if (snapshot.gameData.sectName.isBlank()) {
                     Log.e(TAG, "performRestartSave: gameData not initialized")
-                    storageFacade.setCurrentSlot(previousSlot)
+                    persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
                     return@withContext false
                 }
 
@@ -1034,13 +1035,13 @@ class SaveLoadViewModel @Inject constructor(
                 )
 
                 val success = withTimeoutOrNull(30_000L) {
-                    storageFacade.save(slot, saveData).isSuccess
+                    persistenceFacade.storageFacade.save(slot, saveData).isSuccess
                 }
 
                 when (success) {
                     true -> {
                         try {
-                            _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+                            _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
                         } catch (e: CancellationException) { throw e }
                           catch (e: Exception) {
                             Log.e(TAG, "Failed to refresh slots after restart save: ${e.message}", e)
@@ -1050,27 +1051,27 @@ class SaveLoadViewModel @Inject constructor(
                     }
                     null -> {
                         Log.e(TAG, "performRestartSave timeout for slot $slot")
-                        storageFacade.setCurrentSlot(previousSlot)
-                        if (storageFacade.isSaveCorruptedSuspend(slot)) {
-                            storageFacade.restoreFromBackupIfCorrupted(slot)
+                        persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
+                        if (persistenceFacade.storageFacade.isSaveCorruptedSuspend(slot)) {
+                            persistenceFacade.storageFacade.restoreFromBackupIfCorrupted(slot)
                             Log.w(TAG, "Save may be corrupted, attempted to restore from backup")
                         }
                         false
                     }
                     false -> {
                         Log.e(TAG, "performRestartSave failed for slot $slot")
-                        storageFacade.setCurrentSlot(previousSlot)
+                        persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
                         false
                     }
                 }
             } catch (e: OutOfMemoryError) {
                 Log.e(TAG, "performRestartSave OutOfMemoryError for slot $slot", e)
-                storageFacade.setCurrentSlot(previousSlot)
+                persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
                 false
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) {
                 Log.e(TAG, "performRestartSave error for slot $slot", e)
-                storageFacade.setCurrentSlot(previousSlot)
+                persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
                 false
             }
         }
@@ -1079,7 +1080,7 @@ class SaveLoadViewModel @Inject constructor(
     fun refreshSaveSlots() {
         viewModelScope.launch {
             try {
-                _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+                _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) {
                 Log.e(TAG, "refreshSaveSlots failed", e)
@@ -1109,9 +1110,9 @@ class SaveLoadViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 // 老玩家首次使用：清理旧版本残留的孤立存档
-                tapCloudSaveManager.oneTimeCleanup()
+                persistenceFacade.tapCloudSaveManager.oneTimeCleanup()
                 // 查询云端存档信息
-                val info = tapCloudSaveManager.checkCloudSave()
+                val info = persistenceFacade.tapCloudSaveManager.checkCloudSave()
                 _cloudSaveInfo.value = info
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) {
@@ -1133,11 +1134,11 @@ class SaveLoadViewModel @Inject constructor(
                 val snapshot = gameEngine.getStateSnapshot()
                 val saveData = createSaveDataFromSnapshot(snapshot)
 
-                val result = tapCloudSaveManager.uploadSave(saveData)
+                val result = persistenceFacade.tapCloudSaveManager.uploadSave(saveData)
 
                 _cloudSaveOperationState.value = when (result) {
                     is TapCloudSaveManager.CloudSaveResult.Success -> {
-                        _cloudSaveInfo.value = tapCloudSaveManager.checkCloudSave()
+                        _cloudSaveInfo.value = persistenceFacade.tapCloudSaveManager.checkCloudSave()
                         CloudSaveOperationState.Success("云存档上传成功")
                     }
                     is TapCloudSaveManager.CloudSaveResult.NetworkError ->
@@ -1152,6 +1153,8 @@ class SaveLoadViewModel @Inject constructor(
                     }
                     is TapCloudSaveManager.CloudSaveResult.NoSaveExists ->
                         CloudSaveOperationState.Error("保存失败")
+                    is TapCloudSaveManager.CloudSaveResult.VersionMismatch ->
+                        CloudSaveOperationState.Error("版本不兼容: ${result.cloudVersion}")
                     is TapCloudSaveManager.CloudSaveResult.UnknownError ->
                         CloudSaveOperationState.Error("未知错误: ${result.message}")
                 }
@@ -1172,7 +1175,7 @@ class SaveLoadViewModel @Inject constructor(
             _cloudSaveOperationState.value = CloudSaveOperationState.Downloading
 
             try {
-                val result = tapCloudSaveManager.downloadSave()
+                val result = persistenceFacade.tapCloudSaveManager.downloadSave()
 
                 when (result) {
                     is TapCloudSaveManager.CloudSaveResult.Success -> {
@@ -1182,7 +1185,13 @@ class SaveLoadViewModel @Inject constructor(
                             return@launch
                         }
 
-                        val effectiveSlot = storageFacade.getCurrentSlot()
+                        // 跨版本兼容提示：云端存档版本与当前版本不同时仅警告不阻止
+                        val cloudVersion = _cloudSaveInfo.value?.appVersion ?: ""
+                        if (cloudVersion.isNotBlank() && cloudVersion != GameConfig.Game.VERSION) {
+                            Log.w(TAG, "云存档版本 $cloudVersion ≠ 当前版本 ${GameConfig.Game.VERSION}，可能不兼容")
+                        }
+
+                        val effectiveSlot = persistenceFacade.storageFacade.getCurrentSlot()
                         gameEngine.loadData(
                             gameData = saveData.gameData.copy(currentSlot = effectiveSlot),
                             disciples = saveData.disciples,
@@ -1201,7 +1210,7 @@ class SaveLoadViewModel @Inject constructor(
                             productionSlots = saveData.productionSlots
                         )
 
-                        val bootResult = bootSequenceController.boot(
+                        val bootResult = persistenceFacade.bootSequenceController.boot(
                             slot = effectiveSlot,
                             onPreloadResources = { preloadGameResources() },
                             onProgress = { progress ->
@@ -1212,7 +1221,7 @@ class SaveLoadViewModel @Inject constructor(
 
                         if (bootResult.isSuccess) {
                             _cloudSaveOperationState.value = CloudSaveOperationState.Success("云存档下载成功")
-                            _cloudSaveInfo.value = tapCloudSaveManager.checkCloudSave()
+                            _cloudSaveInfo.value = persistenceFacade.tapCloudSaveManager.checkCloudSave()
                         } else {
                             _cloudSaveOperationState.value = CloudSaveOperationState.Error(
                                 "读取云存档失败: ${bootResult.exceptionOrNull()?.message}"
@@ -1227,6 +1236,8 @@ class SaveLoadViewModel @Inject constructor(
                         _cloudSaveOperationState.value = CloudSaveOperationState.Error("请先登录TapTap账号")
                     is TapCloudSaveManager.CloudSaveResult.SerializationError ->
                         _cloudSaveOperationState.value = CloudSaveOperationState.Error("反序列化失败: ${result.message}")
+                    is TapCloudSaveManager.CloudSaveResult.VersionMismatch ->
+                        _cloudSaveOperationState.value = CloudSaveOperationState.Error("版本不兼容: ${result.cloudVersion}")
                     is TapCloudSaveManager.CloudSaveResult.UnknownError ->
                         _cloudSaveOperationState.value = CloudSaveOperationState.Error("未知错误: ${result.message}")
                     is TapCloudSaveManager.CloudSaveResult.FileTooLarge ->

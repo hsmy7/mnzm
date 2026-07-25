@@ -2,6 +2,7 @@ package com.xianxia.sect.taptap
 
 import android.content.Context
 import android.util.Log
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.model.SaveData
@@ -13,6 +14,7 @@ import java.lang.reflect.Proxy
 import javax.inject.Inject
 import javax.inject.Singleton
 import org.json.JSONObject
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * TapTap 云存档管理器。
@@ -61,6 +63,9 @@ class TapCloudSaveManager @Inject constructor(
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     }
 
+    /** 云存档操作并发锁，防止上传/下载同时进行 */
+    private val cloudOpLock = AtomicBoolean(false)
+
     private fun getCachedArchiveUuid(): String? {
         val uuid = prefs.getString(KEY_ARCHIVE_UUID, null)
         if (uuid != null) DomainLog.d(TAG, "Using cached archive UUID: $uuid")
@@ -88,7 +93,9 @@ class TapCloudSaveManager @Inject constructor(
         val gameMonth: Int = 0,
         val sectName: String = "",
         val discipleCount: Int = 0,
-        val spiritStones: Long = 0L
+        val spiritStones: Long = 0L,
+        /** 上传存档时的游戏版本号（用于跨版本兼容检查） */
+        val appVersion: String = ""
     )
 
     /** 云存档操作结果 */
@@ -100,6 +107,8 @@ class TapCloudSaveManager @Inject constructor(
         data class NoSaveExists(val message: String = "云存档不存在") : CloudSaveResult()
         data class FileTooLarge(val maxBytes: Long, val actualBytes: Long) : CloudSaveResult()
         data class SerializationError(val message: String) : CloudSaveResult()
+        /** 云存档来自更新的游戏版本，当前版本不支持加载 */
+        data class VersionMismatch(val cloudVersion: String, val currentVersion: String) : CloudSaveResult()
         data class UnknownError(val message: String) : CloudSaveResult()
     }
 
@@ -114,47 +123,55 @@ class TapCloudSaveManager @Inject constructor(
      * 5. 清理临时文件
      */
     suspend fun uploadSave(saveData: SaveData): CloudSaveResult {
-        DomainLog.d(TAG, "Starting cloud save upload...")
-
-        // 1. 序列化 SaveData → ByteArray
-        val serializedBytes = try {
-            serializationModule.serializeAndCompressSaveData(saveData)
-        } catch (e: Exception) {
-            DomainLog.e(TAG, "Serialization failed during cloud upload", e)
-            return CloudSaveResult.SerializationError(e.message ?: "序列化失败")
+        if (!cloudOpLock.compareAndSet(false, true)) {
+            DomainLog.w(TAG, "Cloud save operation already in progress, rejecting concurrent upload")
+            return CloudSaveResult.NetworkError("云存档操作正在进行中，请稍后重试")
         }
-
-        // 2. 检查文件大小（TapTap 限制单个存档 ≤10MB）
-        if (serializedBytes.size > MAX_CLOUD_SAVE_SIZE_BYTES) {
-            val actualMb = serializedBytes.size / (1024 * 1024)
-            val maxMb = MAX_CLOUD_SAVE_SIZE_BYTES / (1024 * 1024)
-            DomainLog.w(TAG, "Cloud save file too large: ${serializedBytes.size} bytes (${actualMb}MB > ${maxMb}MB)")
-            return CloudSaveResult.FileTooLarge(MAX_CLOUD_SAVE_SIZE_BYTES, serializedBytes.size.toLong())
-        }
-
-        // 3. 写入临时文件
-        val tempFile = File(context.cacheDir, CLOUD_SAVE_FILE_NAME)
         try {
-            tempFile.parentFile?.mkdirs()
-            tempFile.writeBytes(serializedBytes)
-        } catch (e: Exception) {
-            DomainLog.e(TAG, "Failed to write temp file for cloud upload", e)
-            return CloudSaveResult.UnknownError("临时文件写入失败: ${e.message}")
-        }
+            DomainLog.d(TAG, "Starting cloud save upload...")
 
-        // 4. 通过 TapTap Cloud Save API 上传
-        return try {
-            performTapTapUpload(tempFile, saveData)
-            DomainLog.i(TAG, "Cloud save upload successful")
-            CloudSaveResult.Success()
-        } catch (e: Exception) {
-            DomainLog.e(TAG, "TapTap cloud save upload failed", e)
-            CloudSaveResult.NetworkError(e.message ?: "上传失败")
-        } finally {
-            // 5. 清理临时文件
-            if (tempFile.exists()) {
-                tempFile.delete()
+            // 1. 序列化 SaveData → ByteArray
+            val serializedBytes = try {
+                serializationModule.serializeAndCompressSaveData(saveData)
+            } catch (e: Exception) {
+                DomainLog.e(TAG, "Serialization failed during cloud upload", e)
+                return CloudSaveResult.SerializationError(e.message ?: "序列化失败")
             }
+
+            // 2. 检查文件大小（TapTap 限制单个存档 ≤10MB）
+            if (serializedBytes.size > MAX_CLOUD_SAVE_SIZE_BYTES) {
+                val actualMb = serializedBytes.size / (1024 * 1024)
+                val maxMb = MAX_CLOUD_SAVE_SIZE_BYTES / (1024 * 1024)
+                DomainLog.w(TAG, "Cloud save file too large: ${serializedBytes.size} bytes (${actualMb}MB > ${maxMb}MB)")
+                return CloudSaveResult.FileTooLarge(MAX_CLOUD_SAVE_SIZE_BYTES, serializedBytes.size.toLong())
+            }
+
+            // 3. 写入临时文件
+            val tempFile = File(context.cacheDir, CLOUD_SAVE_FILE_NAME)
+            try {
+                tempFile.parentFile?.mkdirs()
+                tempFile.writeBytes(serializedBytes)
+            } catch (e: Exception) {
+                DomainLog.e(TAG, "Failed to write temp file for cloud upload", e)
+                return CloudSaveResult.UnknownError("临时文件写入失败: ${e.message}")
+            }
+
+            // 4. 通过 TapTap Cloud Save API 上传
+            return try {
+                performTapTapUpload(tempFile, saveData)
+                DomainLog.i(TAG, "Cloud save upload successful")
+                CloudSaveResult.Success()
+            } catch (e: Exception) {
+                DomainLog.e(TAG, "TapTap cloud save upload failed", e)
+                CloudSaveResult.NetworkError(e.message ?: "上传失败")
+            } finally {
+                // 5. 清理临时文件
+                if (tempFile.exists()) {
+                    tempFile.delete()
+                }
+            }
+        } finally {
+            cloudOpLock.set(false)
         }
     }
 
@@ -169,50 +186,58 @@ class TapCloudSaveManager @Inject constructor(
      * 5. 清理临时文件
      */
     suspend fun downloadSave(): CloudSaveResult {
-        DomainLog.d(TAG, "Starting cloud save download...")
-
-        val tempFile = File(context.cacheDir, CLOUD_SAVE_FILE_NAME)
+        if (!cloudOpLock.compareAndSet(false, true)) {
+            DomainLog.w(TAG, "Cloud save operation already in progress, rejecting concurrent download")
+            return CloudSaveResult.NetworkError("云存档操作正在进行中，请稍后重试")
+        }
         try {
-            tempFile.parentFile?.mkdirs()
+            DomainLog.d(TAG, "Starting cloud save download...")
 
-            // 1. 通过 TapTap API 下载存档
-            val downloadSuccess = performTapTapDownload(tempFile)
-            if (!downloadSuccess) {
-                return CloudSaveResult.NoSaveExists()
-            }
+            val tempFile = File(context.cacheDir, CLOUD_SAVE_FILE_NAME)
+            try {
+                tempFile.parentFile?.mkdirs()
 
-            // 2. 检查文件是否为空
-            if (!tempFile.exists() || tempFile.length() == 0L) {
-                return CloudSaveResult.NoSaveExists("云存档文件为空")
-            }
+                // 1. 通过 TapTap API 下载存档
+                val downloadSuccess = performTapTapDownload(tempFile)
+                if (!downloadSuccess) {
+                    return CloudSaveResult.NoSaveExists()
+                }
 
-            // 3. 读取字节
-            val fileLen = tempFile.length()
-            if (fileLen > MAX_DOWNLOAD_SIZE_BYTES) {
-                DomainLog.w(TAG, "Cloud save download file too large: ${fileLen} bytes")
-                return CloudSaveResult.FileTooLarge(MAX_DOWNLOAD_SIZE_BYTES, fileLen)
-            }
+                // 2. 检查文件是否为空
+                if (!tempFile.exists() || tempFile.length() == 0L) {
+                    return CloudSaveResult.NoSaveExists("云存档文件为空")
+                }
 
-            val bytes = tempFile.readBytes()
+                // 3. 读取字节
+                val fileLen = tempFile.length()
+                if (fileLen > MAX_DOWNLOAD_SIZE_BYTES) {
+                    DomainLog.w(TAG, "Cloud save download file too large: ${fileLen} bytes")
+                    return CloudSaveResult.FileTooLarge(MAX_DOWNLOAD_SIZE_BYTES, fileLen)
+                }
 
-            // 4. 反序列化 ByteArray → SaveData
-            val saveData = try {
-                serializationModule.deserializeSaveData(bytes)
+                val bytes = tempFile.readBytes()
+
+                // 4. 反序列化 ByteArray → SaveData
+                val saveData = try {
+                    serializationModule.deserializeSaveData(bytes)
+                } catch (e: Exception) {
+                    DomainLog.e(TAG, "Deserialization failed during cloud download", e)
+                    return CloudSaveResult.SerializationError(e.message ?: "反序列化失败")
+                }
+
+                DomainLog.i(TAG, "Cloud save download successful")
+                return CloudSaveResult.Success(saveData)
             } catch (e: Exception) {
-                DomainLog.e(TAG, "Deserialization failed during cloud download", e)
-                return CloudSaveResult.SerializationError(e.message ?: "反序列化失败")
+                DomainLog.e(TAG, "TapTap cloud save download failed", e)
+                return CloudSaveResult.NetworkError(e.message ?: "下载失败")
+            } finally {
+                // 5. 清理临时文件
+                if (tempFile.exists()) {
+                    tempFile.delete()
+                }
             }
-
-            DomainLog.i(TAG, "Cloud save download successful")
-            return CloudSaveResult.Success(saveData)
-        } catch (e: Exception) {
-            DomainLog.e(TAG, "TapTap cloud save download failed", e)
-            return CloudSaveResult.NetworkError(e.message ?: "下载失败")
         } finally {
-            // 5. 清理临时文件
-            if (tempFile.exists()) {
-                tempFile.delete()
-            }
+            cloudOpLock.set(false)
         }
     }
 
@@ -234,7 +259,8 @@ class TapCloudSaveManager @Inject constructor(
                 gameMonth = extraData?.optInt("month", 0) ?: 0,
                 sectName = extraData?.optString("sect", "") ?: "",
                 discipleCount = extraData?.optInt("disciples", 0) ?: 0,
-                spiritStones = extraData?.optLong("stones", 0L) ?: 0L
+                spiritStones = extraData?.optLong("stones", 0L) ?: 0L,
+                appVersion = extraData?.optString("version", "") ?: ""
             )
         } catch (e: Exception) {
             DomainLog.w(TAG, "Failed to check cloud save", e)
@@ -273,6 +299,7 @@ class TapCloudSaveManager @Inject constructor(
                 put("sect", gd.sectName)
                 put("disciples", saveData.disciples.size)
                 put("stones", gd.spiritStones)
+                put("version", GameConfig.Game.VERSION)
             }.toString()
             desc to extra
         } else {
@@ -513,16 +540,16 @@ class TapCloudSaveManager @Inject constructor(
             return CloudSaveRawInfo(
                 lastModifiedTime = getModifiedTime(target) * 1000,
                 fileSize = getSaveSize(target),
-                description = getSummary(target),
-                extra = getExtra(target)
+                description = getSummary(target) ?: "",
+                extra = getExtra(target) ?: ""
             )
         }
 
         override suspend fun listAllArchives(): List<ArchiveEntry> {
             val archives = listArchives() ?: return emptyList()
             return archives.mapNotNull { a ->
-                val uuid = getUuid(a)
-                val name = getName(a)
+                val uuid = getUuid(a) ?: ""
+                val name = getName(a) ?: ""
                 if (uuid.isBlank()) null else ArchiveEntry(uuid, name, getModifiedTime(a))
             }
         }
@@ -645,18 +672,21 @@ class TapCloudSaveManager @Inject constructor(
             }
         }
 
-        private fun getName(archive: Any): String = invokeGetterString(archive, "getName")
-        private fun getSummary(archive: Any): String = invokeGetterString(archive, "getSummary")
-        private fun getExtra(archive: Any): String = invokeGetterString(archive, "getExtra")
+        private fun getName(archive: Any): String? = invokeGetterString(archive, "getName")
+        private fun getSummary(archive: Any): String? = invokeGetterString(archive, "getSummary")
+        private fun getExtra(archive: Any): String? = invokeGetterString(archive, "getExtra")
         private fun getSaveSize(archive: Any): Long = invokeGetterLong(archive, "getSaveSize")
         private fun getModifiedTime(archive: Any): Long = invokeGetterLong(archive, "getModifiedTime")
-        private fun getUuid(archive: Any): String = invokeGetterString(archive, "getUuid")
-        private fun getFileId(archive: Any): String = invokeGetterString(archive, "getFileId")
+        private fun getUuid(archive: Any): String? = invokeGetterString(archive, "getUuid")
+        private fun getFileId(archive: Any): String? = invokeGetterString(archive, "getFileId")
 
-        private fun invokeGetterString(archive: Any, methodName: String): String {
+        private fun invokeGetterString(archive: Any, methodName: String): String? {
             return try {
-                archive.javaClass.getMethod(methodName).invoke(archive)?.toString() ?: ""
-            } catch (_: Exception) { "" }
+                archive.javaClass.getMethod(methodName).invoke(archive)?.toString()
+            } catch (e: Exception) {
+                DomainLog.w(TAG, "invokeGetterString failed: method=$methodName class=${archive.javaClass.simpleName}", e)
+                null
+            }
         }
 
         private fun invokeGetterLong(archive: Any, methodName: String): Long {

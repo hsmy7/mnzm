@@ -11,7 +11,15 @@
       "界面：存档选择界面slot0显示云端数据——宗门/年份/弟子/灵石三行显示，有数据可点击下载加载",
       "修复：弟子选择界面不显示可用弟子+一键任命无效——约70处ViewModel和对话框在主线程调stateStore.update，改用launchOnEngine派发到引擎线程",
       "修复：宗门政策开关无法生效——SectPolicyToggleUseCase.toggle()主线程被跳过，用withEngineContext自动切到引擎线程",
-      "加固：GameEngineCore新增withEngineContext——引擎层基础设施供后续自动派发suspend方法到引擎线程"
+      "加固：GameEngineCore新增withEngineContext——引擎层基础设施供后续自动派发suspend方法到引擎线程",
+      "架构：提取EngineContextDispatcher接口——GameEngineCore实现，34个suspend引擎方法自动派发到引擎线程，测试用FakeEngineContextDispatcher避免Mockito限制",
+      "修复：云存档并发锁——uploadSave/downloadSave新增cloudOpLock互斥，防止多协程并行操作临时文件损坏数据",
+      "修复：云存档下载覆盖备份——下载前备份当前存档(.bak)，加载失败可回滚",
+      "修复：invokeGetterString静默降级——返回String?+异常时log，避免字段匹配失败",
+      "修复：云存档跨版本兼容——上传记录版本号，下载时比对版本差异并提示",
+      "优化：sellItem/bulkSellItems统一入口——改为StackableItemStore操作，消除绕过索引风险",
+      "优化：SaveLoadViewModel构造参数15→7——提取PersistenceFacade封装8个基础设施依赖",
+      "文档：架构债务/云存档已知问题更新——完成项标记✅，仅保留未完成项"
     ]
   },
   {
