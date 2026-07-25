@@ -40,6 +40,8 @@ internal class WorldAndSectConverter {
             occupierSectId = sect.occupierSectId ?: "",
             warehouse = detail?.warehouse?.let { convertSectWarehouse(it) } ?: SerializableSectWarehouse(),
             giftPreference = detail?.giftPreference?.name ?: "NONE",
+            garrisonSlots = sect.garrisonSlots.map { convertGarrisonSlot(it) },
+            occupierBattleTeamId = sect.occupierBattleTeamId ?: ""
         )
     }
 
@@ -72,6 +74,8 @@ internal class WorldAndSectConverter {
             isUnderAttack = data.isUnderAttack,
             attackerSectId = attackerSectId,
             occupierSectId = occupierSectId,
+            occupierBattleTeamId = data.occupierBattleTeamId.takeIf { it.isNotEmpty() } ?: "",
+            garrisonSlots = data.garrisonSlots.map { convertBackGarrisonSlot(it) }
         )
     }
 
@@ -111,7 +115,8 @@ internal class WorldAndSectConverter {
             tradeLastRefreshYear = detail.tradeLastRefreshYear,
             lastGiftYear = detail.lastGiftYear,
             warehouse = convertSectWarehouse(detail.warehouse),
-            giftPreference = detail.giftPreference.name
+            giftPreference = detail.giftPreference.name,
+            portraitRes = detail.portraitRes
         )
     }
 
@@ -134,7 +139,8 @@ internal class WorldAndSectConverter {
                 com.xianxia.sect.core.model.GiftPreferenceType.valueOf(data.giftPreference)
             } catch (e: Exception) {
                 com.xianxia.sect.core.model.GiftPreferenceType.NONE
-            }
+            },
+            portraitRes = data.portraitRes
         )
     }
 
@@ -242,14 +248,18 @@ internal class WorldAndSectConverter {
         if (warehouse == null) return SerializableSectWarehouse()
         return SerializableSectWarehouse(
             items = warehouse.items?.map { convertWarehouseItem(it) } ?: emptyList(),
-            spiritStones = warehouse.spiritStones ?: 0L
+            spiritStones = warehouse.spiritStones ?: 0L,
+            midGradeSpiritStones = warehouse.midGradeSpiritStones ?: 0L,
+            highGradeSpiritStones = warehouse.highGradeSpiritStones ?: 0L
         )
     }
 
     fun convertBackSectWarehouse(data: SerializableSectWarehouse): com.xianxia.sect.core.model.SectWarehouse {
         return com.xianxia.sect.core.model.SectWarehouse(
             items = data.items.map { convertBackWarehouseItem(it) },
-            spiritStones = data.spiritStones
+            spiritStones = data.spiritStones,
+            midGradeSpiritStones = data.midGradeSpiritStones,
+            highGradeSpiritStones = data.highGradeSpiritStones
         )
     }
 
@@ -381,6 +391,22 @@ internal class WorldAndSectConverter {
             frugality = data.frugality,
             moralEducation = data.moralEducation,
             benevolentGovernance = data.benevolentGovernance
+        )
+    }
+
+    private fun convertGarrisonSlot(slot: com.xianxia.sect.core.model.GarrisonSlot): SerializableGarrisonSlot {
+        return SerializableGarrisonSlot(
+            slotIndex = slot.index,
+            discipleId = slot.discipleId,
+            discipleName = slot.discipleName
+        )
+    }
+
+    private fun convertBackGarrisonSlot(data: SerializableGarrisonSlot): com.xianxia.sect.core.model.GarrisonSlot {
+        return com.xianxia.sect.core.model.GarrisonSlot(
+            index = data.slotIndex,
+            discipleId = data.discipleId,
+            discipleName = data.discipleName
         )
     }
 

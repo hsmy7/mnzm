@@ -258,7 +258,18 @@ data class SerializableDisciple(
     @ProtoNumber(78) val hasClearAllEffect: Boolean,
     @ProtoNumber(79) val currentHp: Int = -1,
     @ProtoNumber(80) val currentMp: Int = -1,
-    @ProtoNumber(90) val portraitRes: String = ""
+    @ProtoNumber(90) val portraitRes: String = "",
+    @ProtoNumber(90) val cultivationCheckpoint: Long = 0L,
+    @ProtoNumber(91) val cultivationCheckpointGameMonth: Int = 0,
+    @ProtoNumber(92) val autoLearnFromWarehouse: Boolean = false,
+    @ProtoNumber(93) val masterId: String = "",
+    @ProtoNumber(94) val cultivationCompletionMonth: Int = 0,
+    @ProtoNumber(95) val cultivationCompletionPhase: Int = 0,
+    @ProtoNumber(96) val manualCompletionMonth: Int = 0,
+    @ProtoNumber(97) val manualCompletionPhase: Int = 0,
+    @ProtoNumber(98) val equipmentNurturingCompletionMonth: Int = 0,
+    @ProtoNumber(99) val equipmentNurturingCompletionPhase: Int = 0,
+    @ProtoNumber(100) val childBirthMonth: Int = 0,
 )
 
 @Serializable
@@ -292,7 +303,31 @@ data class SerializableManual(
     @ProtoNumber(6) val description: String = "",
     @ProtoNumber(7) val cultivationSpeedPercent: Double = 0.0,
     @ProtoNumber(8) val obtainedYear: Int = 1,
-    @ProtoNumber(9) val obtainedMonth: Int = 1
+    @ProtoNumber(9) val obtainedMonth: Int = 1,
+    @ProtoNumber(10) val skillName: String = "",
+    @ProtoNumber(11) val skillDescription: String = "",
+    @ProtoNumber(12) val skillType: String = "attack",
+    @ProtoNumber(13) val skillDamageType: String = "physical",
+    @ProtoNumber(14) val skillHits: Int = 1,
+    @ProtoNumber(15) val skillDamageMultiplier: Double = 1.0,
+    @ProtoNumber(16) val skillCooldown: Int = 3,
+    @ProtoNumber(17) val skillMpCost: Int = 10,
+    @ProtoNumber(18) val skillHealPercent: Double = 0.0,
+    @ProtoNumber(19) val skillHealFixed: Int = 0,
+    @ProtoNumber(20) val skillHealType: String = "hp",
+    @ProtoNumber(21) val skillBuffType: String = "",
+    @ProtoNumber(22) val skillBuffValue: Double = 0.0,
+    @ProtoNumber(23) val skillBuffDuration: Int = 0,
+    @ProtoNumber(24) val skillBuffsJson: String = "",
+    @ProtoNumber(25) val skillIsAoe: Boolean = false,
+    @ProtoNumber(26) val skillTargetScope: String = "self",
+    @ProtoNumber(27) val skillShieldPercent: Double = 0.0,
+    @ProtoNumber(28) val skillTurnAdvancePercent: Double = 0.0,
+    @ProtoNumber(29) val skillDamageSharePercent: Double = 0.0,
+    @ProtoNumber(30) val skillDamageLinkPercent: Double = 0.0,
+    @ProtoNumber(31) val minRealm: Int = 9,
+    @ProtoNumber(32) val ownerId: String = "",
+    @ProtoNumber(33) val isLearned: Boolean = false
 )
 
 @Serializable
@@ -389,6 +424,12 @@ data class SerializableSeed(
 )
 
 @Serializable
+data class SerializableMapPoint(
+    @ProtoNumber(1) val x: Int,
+    @ProtoNumber(2) val y: Int
+)
+
+@Serializable
 data class SerializableExplorationTeam(
     @ProtoNumber(1) val id: String,
     @ProtoNumber(2) val name: String,
@@ -398,7 +439,28 @@ data class SerializableExplorationTeam(
     @ProtoNumber(6) val startYear: Int = 0,
     @ProtoNumber(7) val startMonth: Int = 0,
     @ProtoNumber(8) val duration: Int = 0,
-    @ProtoNumber(9) val currentProgress: Int = 0
+    @ProtoNumber(9) val currentProgress: Int = 0,
+    @ProtoNumber(12) val caveId: String = "",
+    @ProtoNumber(13) val caveName: String = "",
+    @ProtoNumber(14) val dungeon: String = "",
+    @ProtoNumber(15) val dungeonName: String = "",
+    @ProtoNumber(16) val memberNames: List<String> = emptyList(),
+    @ProtoNumber(17) val startDay: Int = 0,
+    @ProtoNumber(18) val currentX: Int = 0,
+    @ProtoNumber(19) val currentY: Int = 0,
+    @ProtoNumber(20) val targetX: Int = 0,
+    @ProtoNumber(21) val targetY: Int = 0,
+    @ProtoNumber(22) val moveProgress: Double = 0.0,
+    @ProtoNumber(23) val arrivalYear: Int = 0,
+    @ProtoNumber(24) val arrivalMonth: Int = 0,
+    @ProtoNumber(25) val arrivalDay: Int = 0,
+    @ProtoNumber(26) val route: List<SerializableMapPoint> = emptyList(),
+    @ProtoNumber(27) val currentRouteIndex: Int = 0,
+    @ProtoNumber(28) val currentSegmentProgress: Double = 0.0,
+    @ProtoNumber(29) val pityCounterEquipment: Int = 0,
+    @ProtoNumber(30) val pityCounterPill: Int = 0,
+    @ProtoNumber(31) val pityCounterManual: Int = 0,
+    @ProtoNumber(32) val scoutTargetSectName: String = "",
 )
 
 @Serializable
@@ -419,7 +481,11 @@ data class SerializableBattleLog(
     @ProtoNumber(14) val type: String = "PVE",
     @ProtoNumber(15) val details: String = "",
     @ProtoNumber(16) val drops: List<String> = emptyList(),
-    @ProtoNumber(17) val dungeonName: String = ""
+    @ProtoNumber(17) val dungeonName: String = "",
+    @ProtoNumber(9) val teamId: String = "",
+    @ProtoNumber(10) val turns: Int = 0,
+    @ProtoNumber(11) val teamCasualties: Int = 0,
+    @ProtoNumber(12) val beastsDefeated: Int = 0,
 )
 
 @Serializable
@@ -429,6 +495,16 @@ data class SerializableAlliance(
     @ProtoNumber(3) val startYear: Int,
     @ProtoNumber(4) val initiatorId: String,
     @ProtoNumber(5) val envoyDiscipleId: String
+)
+
+@Serializable
+data class SerializableStorageBag(
+    @ProtoNumber(1) val id: String,
+    @ProtoNumber(2) val name: String = "",
+    @ProtoNumber(3) val rarity: Int = 1,
+    @ProtoNumber(4) val description: String = "可随机获得5-20件同品阶物品",
+    @ProtoNumber(5) val quantity: Int = 1,
+    @ProtoNumber(6) val isLocked: Boolean = false
 )
 
 @Serializable
@@ -445,7 +521,8 @@ data class SerializableSaveData(
     @ProtoNumber(10) val seeds: List<SerializableSeed> = emptyList(),
     @ProtoNumber(11) val teams: List<SerializableExplorationTeam> = emptyList(),
     @ProtoNumber(13) val battleLogs: List<SerializableBattleLog> = emptyList(),
-    @ProtoNumber(14) val alliances: List<SerializableAlliance> = emptyList()
+    @ProtoNumber(14) val alliances: List<SerializableAlliance> = emptyList(),
+    @ProtoNumber(15) val storageBags: List<SerializableStorageBag> = emptyList()
 )
 
 @Serializable
@@ -551,6 +628,17 @@ data class SerializableWorldSect(
     @ProtoNumber(35) val occupierSectId: String = "",
     @ProtoNumber(36) val warehouse: SerializableSectWarehouse = SerializableSectWarehouse(),
     @ProtoNumber(37) val giftPreference: String = "NONE",
+    @ProtoNumber(16) val garrisonSlots: List<SerializableGarrisonSlot> = emptyList(),
+    @ProtoNumber(17) val occupierBattleTeamId: String = "",
+)
+
+@Serializable
+data class SerializableGarrisonSlot(
+    @ProtoNumber(1) val buildingInstanceId: String = "",
+    @ProtoNumber(2) val discipleId: String = "",
+    @ProtoNumber(3) val discipleName: String = "",
+    @ProtoNumber(4) val sectId: String = "",
+    @ProtoNumber(5) val slotIndex: Int = 0
 )
 
 @Serializable
@@ -576,13 +664,16 @@ data class SerializableSectDetail(
     @ProtoNumber(9) val tradeLastRefreshYear: Int = 0,
     @ProtoNumber(10) val lastGiftYear: Int = 0,
     @ProtoNumber(11) val warehouse: SerializableSectWarehouse = SerializableSectWarehouse(),
-    @ProtoNumber(12) val giftPreference: String = "NONE"
+    @ProtoNumber(12) val giftPreference: String = "NONE",
+    @ProtoNumber(5) val portraitRes: String = "",
 )
 
 @Serializable
 data class SerializableSectWarehouse(
     @ProtoNumber(1) val items: List<SerializableWarehouseItem> = emptyList(),
-    @ProtoNumber(2) val spiritStones: Long = 0
+    @ProtoNumber(2) val spiritStones: Long = 0,
+    @ProtoNumber(3) val midGradeSpiritStones: Long = 0L,
+    @ProtoNumber(4) val highGradeSpiritStones: Long = 0L,
 )
 
 @Serializable
@@ -753,7 +844,8 @@ data class SerializableAICaveTeam(
     @ProtoNumber(8) val startMonth: Int,
     @ProtoNumber(9) val memberCount: Int = 5,
     @ProtoNumber(10) val avgRealm: Int = 5,
-    @ProtoNumber(11) val avgRealmName: String = ""
+    @ProtoNumber(11) val avgRealmName: String = "",
+    @ProtoNumber(7) val caveName: String = "",
 )
 
 @Serializable
@@ -793,14 +885,17 @@ data class SerializableSpiritMineSlot(
     @ProtoNumber(2) val discipleId: String = "",
     @ProtoNumber(3) val discipleName: String,
     @ProtoNumber(4) val output: Int,
-    @ProtoNumber(5) val sectId: String = ""
+    @ProtoNumber(5) val sectId: String = "",
+    @ProtoNumber(7) val buildingInstanceId: String = "",
+    @ProtoNumber(8) val consecutiveMiningMonths: Int = 0,
 )
 
 @Serializable
 data class SerializableLibrarySlot(
     @ProtoNumber(1) val index: Int,
     @ProtoNumber(2) val discipleId: String = "",
-    @ProtoNumber(3) val discipleName: String
+    @ProtoNumber(3) val discipleName: String,
+    @ProtoNumber(7) val buildingInstanceId: String = "",
 )
 
 @Serializable
@@ -859,7 +954,15 @@ data class SerializableProductionSlot(
     @ProtoNumber(13) val successRate: Double,
     @ProtoNumber(14) val outputItemId: String = "",
     @ProtoNumber(15) val outputItemName: String,
-    @ProtoNumber(16) val outputItemRarity: Int
+    @ProtoNumber(16) val outputItemRarity: Int,
+    @ProtoNumber(13) val buildingInstanceId: String = "",
+    @ProtoNumber(14) val baseDuration: Int = 0,
+    @ProtoNumber(15) val requiredMaterials: List<SerializableMaterial> = emptyList(),
+    @ProtoNumber(16) val outputItemSlot: String = "",
+    @ProtoNumber(17) val expectedYield: Int = 0,
+    @ProtoNumber(18) val autoRestartEnabled: Boolean = false,
+    @ProtoNumber(19) val completionMonth: Int = 0,
+    @ProtoNumber(20) val completionPhase: Int = 0,
 )
 
 @Serializable

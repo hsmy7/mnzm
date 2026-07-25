@@ -20,6 +20,16 @@
 - **修复：云端孤立存档导致数量超限（400003）** — 增加一次性清理 + UUID 缓存 + `shuffled(Random)` 替代 `sortedBy { rng.nextInt() }` 的 TimSort 崩溃
 - **修复：月度事件 `aiBeastAttacksRemaining` TimSort 崩溃** — `sortedBy { rng.nextInt() }` 比较器违反传递性导致 Android TimSort 抛 `Comparison method violates its general contract`，6 处全部改为 `shuffled(java.util.Random(seed))`
 - **修复：AISectBeastAttackProcessor 距离排序 NaN 崩溃** — `mapNotNull` 过滤 `isNaN/isInfinite` 坐标对
+- **修复：SerializableManual 遗漏 21 个技能字段——云存档往返后功法战斗技能完全丢失** — `SerializableManual` 仅序列化 9 元数据字段，`skillName`/`skillType`/`skillDamageMultiplier`/`skillCooldown`/`skillMpCost`/`skillBuffType`/`skillIsAoe` 等 21 个技能定义字段全部遗漏。举一反三排查覆盖所有 Converter 发现 2 处严重序列化遗漏 + 多处中风险遗漏。修复：SerializableManual 新增 ProtoNumber 10-33 完整技能字段 + ManualConverter 双向映射
+- **修复：SerializableSaveData 遗漏 storageBags——云存档往返后储物袋永久丢失** — 新增 `SerializableStorageBag` 数据类 + ProtoNumber 15 字段 + ItemConverter/SaveDataConverter 双向映射
+- **修复：SerializableDisciple 遗漏 cultivationCheckpoint/masterId/autoLearnFromWarehouse 等 10 字段** — 云存档往返后修为存档点丢失（修为动画从 0 播放）、自动学习仓库功法标记丢失、师徒关系断裂。修复：SerializableDisciple 新增 ProtoNumber 90-100 字段 + DiscipleConverter 双向映射
+- **修复：多个 Serializable 类遗漏字段——SerializableProductionSlot/SpiritMineSlot/LibrarySlot/WorldSect/SectWarehouse/ExplorationTeam/BattleLog/AICaveTeam 等累计 40+ 字段** — `buildingInstanceId`（建筑移除时槽位匹配错误）、`garrisonSlots`（AI 宗门驻守丢失）、`midGradeSpiritStones`/`highGradeSpiritStones`（AI 宗门灵石归零）、`caveId`（探索目标洞府 ID 丢失）、`portraitRes`（宗门头像丢失）等。修复：全部补齐+Converter 映射+新增 SerializableGarrisonSlot/SerializableMapPoint 数据类
+- **修复：CloudSaveDialog LaunchedEffect 竞态覆盖 _cloudSaveInfo——上传后卡片仍显示无数据** — `LaunchedEffect(Unit) { checkCloudSave() }` 启动 fire-and-forget 协程查询上传前的 API 状态，响应在 `uploadToCloudSave()` 完成后到达，无条件 `_cloudSaveInfo.value = info` 覆盖本地刚设置的正确数据。修复：`cloudSaveInfoVersion` 版本号追踪，`checkCloudSave` 仅在版本号匹配时才写入
+- **修复：云存档方法缺少防重入保护——重复点击"下载存档"导致闪退** — `downloadFromCloudSave()`/`loadFromCloudSave()` 无 `AtomicBoolean` 锁，`uploadToCloudSave()` 缺少上传中状态检查。修复：`cloudDownloadLock` + 状态前置检查
+- **界面：CloudSaveDialog 上传/下载状态增加转圈动画** — Uploading/Downloading 状态添加 `CircularProgressIndicator`
+- **修复：DiscipleServiceApprenticeTest/CrudTest 预存编译错误** — `DiscipleSlotManager` 构造参数名 `discipleStatusService`→`discipleStatusServiceProvider`（Provider 断环）未同步到测试代码
+- **测试：SerializationCoverageTest 扩展守卫到 SaveData 顶层字段** — 确保新增 SaveData 字段不再遗漏云存档序列化
+- **测试：SaveDataConverterTest 新增 StorageBag roundtrip** — 验证序列化/反序列化后储物袋字段一致
 
 ### 变更
 

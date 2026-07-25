@@ -199,7 +199,9 @@ internal class SlotConverter {
             discipleId = slot.discipleId ?: "",
             discipleName = slot.discipleName ?: "",
             output = slot.output ?: 0,
-            sectId = slot.sectId ?: ""
+            sectId = slot.sectId ?: "",
+            buildingInstanceId = slot.buildingInstanceId,
+            consecutiveMiningMonths = slot.consecutiveMiningMonths
         )
     }
 
@@ -209,7 +211,9 @@ internal class SlotConverter {
             discipleId = data.discipleId,
             discipleName = data.discipleName,
             output = data.output,
-            sectId = data.sectId
+            sectId = data.sectId,
+            buildingInstanceId = data.buildingInstanceId,
+            consecutiveMiningMonths = data.consecutiveMiningMonths
         )
     }
 
@@ -217,7 +221,8 @@ internal class SlotConverter {
         return SerializableLibrarySlot(
             index = slot.index ?: 0,
             discipleId = slot.discipleId ?: "",
-            discipleName = slot.discipleName ?: ""
+            discipleName = slot.discipleName ?: "",
+            buildingInstanceId = slot.buildingInstanceId
         )
     }
 
@@ -225,7 +230,8 @@ internal class SlotConverter {
         return com.xianxia.sect.core.model.LibrarySlot(
             index = data.index,
             discipleId = data.discipleId,
-            discipleName = data.discipleName
+            discipleName = data.discipleName,
+            buildingInstanceId = data.buildingInstanceId
         )
     }
 
@@ -295,7 +301,17 @@ fun convertProductionSlot(slot: com.xianxia.sect.core.model.production.Productio
             successRate = slot.successRate,
             outputItemId = slot.outputItemId ?: "",
             outputItemName = slot.outputItemName,
-            outputItemRarity = slot.outputItemRarity
+            outputItemRarity = slot.outputItemRarity,
+            buildingInstanceId = slot.buildingInstanceId,
+            baseDuration = slot.baseDuration,
+            requiredMaterials = slot.requiredMaterials.map { (matId, qty) ->
+                SerializableMaterial(id = matId, name = "", type = "", rarity = 1, quantity = qty)
+            },
+            outputItemSlot = slot.outputItemSlot,
+            expectedYield = slot.expectedYield,
+            autoRestartEnabled = slot.autoRestartEnabled,
+            completionMonth = slot.completionMonth,
+            completionPhase = slot.completionPhase
         )
     }
 
@@ -316,7 +332,15 @@ fun convertProductionSlot(slot: com.xianxia.sect.core.model.production.Productio
             successRate = data.successRate,
             outputItemId = data.outputItemId,
             outputItemName = data.outputItemName,
-            outputItemRarity = data.outputItemRarity
+            outputItemRarity = data.outputItemRarity,
+            buildingInstanceId = data.buildingInstanceId,
+            baseDuration = data.baseDuration,
+            requiredMaterials = data.requiredMaterials.associate { it.id to it.quantity },
+            outputItemSlot = data.outputItemSlot,
+            expectedYield = data.expectedYield,
+            autoRestartEnabled = data.autoRestartEnabled,
+            completionMonth = data.completionMonth,
+            completionPhase = data.completionPhase
         )
     }
 }

@@ -97,7 +97,18 @@ internal class DiscipleConverter {
             hasClearAllEffect = disciple.usage.hasClearAllEffect ?: false,
             currentHp = disciple.combat.currentHp,
             currentMp = disciple.combat.currentMp,
-            portraitRes = disciple.portraitRes ?: ""
+            portraitRes = disciple.portraitRes ?: "",
+            cultivationCheckpoint = disciple.cultivationCheckpoint.toLong(),
+            cultivationCheckpointGameMonth = disciple.cultivationCheckpointGameMonth,
+            autoLearnFromWarehouse = disciple.autoLearnFromWarehouse,
+            masterId = NullSafeProtoBuf.relationIdToProto(disciple.social.masterId),
+            cultivationCompletionMonth = disciple.cultivationCompletionMonth,
+            cultivationCompletionPhase = disciple.cultivationCompletionPhase,
+            manualCompletionMonth = disciple.manualCompletionMonth,
+            manualCompletionPhase = disciple.manualCompletionPhase,
+            equipmentNurturingCompletionMonth = disciple.equipmentNurturingCompletionMonth,
+            equipmentNurturingCompletionPhase = disciple.equipmentNurturingCompletionPhase,
+            childBirthMonth = disciple.social.childBirthMonth ?: 0
         )
     }
 
@@ -119,6 +130,8 @@ internal class DiscipleConverter {
 
         val griefEndYear = NullSafeProtoBuf.griefEndYearFromProto(data.griefEndYear)
 
+        val masterId = NullSafeProtoBuf.relationIdFromProto(data.masterId)
+
         return com.xianxia.sect.core.model.Disciple(
             id = data.id,
             name = data.name,
@@ -139,6 +152,15 @@ internal class DiscipleConverter {
             cultivationSpeedBonus = data.cultivationSpeedBonus,
             cultivationSpeedDuration = data.cultivationSpeedDuration,
             portraitRes = data.portraitRes,
+            autoLearnFromWarehouse = data.autoLearnFromWarehouse,
+            cultivationCheckpoint = data.cultivationCheckpoint.toDouble(),
+            cultivationCheckpointGameMonth = data.cultivationCheckpointGameMonth,
+            cultivationCompletionMonth = data.cultivationCompletionMonth,
+            cultivationCompletionPhase = data.cultivationCompletionPhase,
+            manualCompletionMonth = data.manualCompletionMonth,
+            manualCompletionPhase = data.manualCompletionPhase,
+            equipmentNurturingCompletionMonth = data.equipmentNurturingCompletionMonth,
+            equipmentNurturingCompletionPhase = data.equipmentNurturingCompletionPhase,
             discipleType = data.discipleType.ifEmpty { "outer" },
             soulPower = data.soulPower,
             combat = com.xianxia.sect.core.model.CombatAttributes(
@@ -198,7 +220,9 @@ internal class DiscipleConverter {
                 parentId1 = parentId1,
                 parentId2 = parentId2,
                 lastChildYear = data.lastChildYear,
-                griefEndYear = griefEndYear
+                griefEndYear = griefEndYear,
+                masterId = masterId,
+                childBirthMonth = data.childBirthMonth.takeIf { it > 0 }
             ),
             skills = com.xianxia.sect.core.model.SkillStats(
                 intelligence = data.intelligence,

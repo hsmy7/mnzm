@@ -36,7 +36,8 @@ class SaveDataConverter @Inject constructor() {
             seeds = saveData.seeds?.map { itemConverter.convertSeed(it) } ?: emptyList(),
             teams = saveData.teams?.map { manualConverter.convertTeam(it) } ?: emptyList(),
             battleLogs = saveData.battleLogs?.map { manualConverter.convertBattleLog(it) } ?: emptyList(),
-            alliances = saveData.alliances?.map { manualConverter.convertAlliance(it) } ?: emptyList()
+            alliances = saveData.alliances?.map { manualConverter.convertAlliance(it) } ?: emptyList(),
+            storageBags = saveData.storageBags?.map { itemConverter.convertStorageBag(it) } ?: emptyList()
         )
     }
 
@@ -57,7 +58,8 @@ class SaveDataConverter @Inject constructor() {
             teams = data.teams.map { manualConverter.convertBackTeam(it) },
             battleLogs = data.battleLogs.map { manualConverter.convertBackBattleLog(it) },
             alliances = data.alliances.map { manualConverter.convertBackAlliance(it) },
-            productionSlots = data.gameData?.productionSlots?.map { manualConverter.convertBackProductionSlot(it) } ?: emptyList()
+            productionSlots = data.gameData?.productionSlots?.map { manualConverter.convertBackProductionSlot(it) } ?: emptyList(),
+            storageBags = data.storageBags.map { itemConverter.convertBackStorageBag(it) }
         )
     }
 

@@ -1,6 +1,7 @@
 package com.xianxia.sect.data.serialization.unified
 
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.data.model.SaveData
 import kotlin.reflect.full.memberProperties
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -249,6 +250,19 @@ class SerializationCoverageTest {
             buildMissingFieldMessage(missing, extra, allExcluded),
             missing.isEmpty()
         )
+    }
+
+    @Test
+    fun `all SaveData fields are covered by SerializableSaveData`() {
+        val saveDataFields = SaveData::class.memberProperties.map { it.name }.toSet()
+        // storageBags is now covered via ProtoNumber 15
+        // equipmentStacks and manualStacks are intentionally excluded (rebuilt from instances)
+        val intentionallyExcludedSaveData = setOf("equipmentStacks", "manualStacks")
+        val saveDataCovered = setOf("version", "timestamp", "gameData", "disciples", "equipmentInstances",
+            "manualInstances", "pills", "materials", "herbs", "seeds", "storageBags", "teams",
+            "battleLogs", "alliances", "productionSlots")
+        val uncovered = saveDataFields - saveDataCovered - intentionallyExcludedSaveData
+        assertTrue("SaveData fields not covered by SerializableSaveData: $uncovered. Add them!", uncovered.isEmpty())
     }
 
     private fun buildMissingFieldMessage(

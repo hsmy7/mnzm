@@ -38,7 +38,16 @@
       "修复：15+对话框释放弟子槽位不生效——releaseDiscipleFromAllSlotsAtomic主线程被跳过，加withContext(IO)",
       "修复：安排/撤换长老后修炼结算不更新——launchElderAction在viewModelScope.launch(主线程)调checkpointAllDisciples被跳过，改Dispatchers.Default",
       "修复：广纳门徒政策开关无法生效——toggleOpenRecruitment缺少withEngineContext（同类中唯一遗漏），补全",
-      "清理：删除死代码UnifiedGameStateManager.kt和SaveLoadStateDelegate.kt——两文件均无调用方"
+      "清理：删除死代码UnifiedGameStateManager.kt和SaveLoadStateDelegate.kt——两文件均无调用方",
+      "修复：SerializableManual遗漏21个技能字段——云存档往返后功法战斗技能完全丢失(ProtoNum10-33)+ManualConverter双向映射",
+      "修复：SerializableSaveData遗漏storageBags——云存档往返后储物袋永久丢失，新增SerializableStorageBag+ProtoNum15+ItemConverter映射",
+      "修复：SerializableDisciple遗漏cultivationCheckpoint/masterId/autoLearnFromWarehouse等10字段——修为存档点/师徒关系/自动学习标记丢失(ProtoNum90-100)",
+      "修复：多个Serializable类遗漏字段——ProductionSlot/SpiritMineSlot/LibrarySlot/WorldSect/SectWarehouse/ExplorationTeam/BattleLog/AICaveTeam累计40+字段，新增SerializableGarrisonSlot/SerializableMapPoint",
+      "修复：CloudSaveDialog LaunchedEffect竞态覆盖_cloudSaveInfo——上传后卡片不显示数据，cloudSaveInfoVersion版本号追踪修复",
+      "修复：云存档方法缺少防重入保护——downloadFromCloudSave/loadFromCloudSave加AtomicBoolean锁/uploadToCloudSave加状态检查",
+      "界面：CloudSaveDialog上传/下载增加CircularProgressIndicator转圈动画",
+      "修复：DiscipleServiceApprenticeTest/CrudTest预存编译错误——DiscipleSlotManager构造参数Provider断环未同步测试",
+      "测试：SerializationCoverageTest扩展守卫到SaveData顶层字段+StorageBag roundtrip测试"
     ]
   },
   {

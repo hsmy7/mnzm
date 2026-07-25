@@ -90,7 +90,7 @@ class DiscipleServiceCrudTest {
             discipleSlotCleanup = DiscipleSlotCleanup(
                 DiscipleAssignmentGate(DiscipleAssignmentRegistry())
             ),
-            discipleStatusService = mock()
+            discipleStatusServiceProvider = javax.inject.Provider { mock() }
         )
         val equipmentService = DiscipleEquipmentService(
             stateStore = mockStore,

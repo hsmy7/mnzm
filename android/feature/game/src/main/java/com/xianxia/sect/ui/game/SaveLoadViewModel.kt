@@ -87,6 +87,7 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     private val saveLock = AtomicBoolean(false)
+    private val cloudDownloadLock = AtomicBoolean(false)
 
     // 游戏是否已加载 = RunState.PLAYING
     val isGameLoaded: Boolean get() = stateStore.runState.value == RunState.PLAYING
@@ -139,6 +140,7 @@ class SaveLoadViewModel @Inject constructor(
     // ── 云存档状态 ──
     private val _cloudSaveInfo = MutableStateFlow(TapCloudSaveManager.CloudSaveInfo(false))
     val cloudSaveInfo: StateFlow<TapCloudSaveManager.CloudSaveInfo> = _cloudSaveInfo.asStateFlow()
+    private val cloudSaveInfoVersion = java.util.concurrent.atomic.AtomicInteger(0)
 
     private val _cloudSaveOperationState = MutableStateFlow<CloudSaveOperationState>(CloudSaveOperationState.Idle)
     val cloudSaveOperationState: StateFlow<CloudSaveOperationState> = _cloudSaveOperationState.asStateFlow()
@@ -649,16 +651,20 @@ class SaveLoadViewModel @Inject constructor(
      * 此方法直接驱动 GameActivity 的 LoadingScreen 进度反馈。
      */
     fun loadFromCloudSave() {
+        if (!cloudDownloadLock.compareAndSet(false, true)) {
+            Log.w(TAG, "Cloud load already in progress, ignoring")
+            return
+        }
         viewModelScope.launch(Dispatchers.IO) {
-            _loadingProgress.value = 0.1f
-            _preloadPhase.value = SaveLoadViewModelConstants.PHASE_CLOUD_SYNC
-
-            if (!isCloudSaveAvailable()) {
-                showError("请先登录 TapTap")
-                return@launch
-            }
-
             try {
+                _loadingProgress.value = 0.1f
+                _preloadPhase.value = SaveLoadViewModelConstants.PHASE_CLOUD_SYNC
+
+                if (!isCloudSaveAvailable()) {
+                    showError("请先登录 TapTap")
+                    return@launch
+                }
+
                 val result = persistenceFacade.tapCloudSaveManager.downloadSave()
 
                 when (result) {
@@ -713,10 +719,12 @@ class SaveLoadViewModel @Inject constructor(
                     is TapCloudSaveManager.CloudSaveResult.UnknownError ->
                         showError("未知错误: ${result.message}")
                 }
-            } catch (e: CancellationException) { throw e }
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
               catch (e: Exception) {
                 Log.e(TAG, "loadFromCloudSave failed", e)
                 showError("加载云存档失败: ${e.message}")
+            } finally {
+                cloudDownloadLock.set(false)
             }
         }
     }
@@ -1105,13 +1113,16 @@ class SaveLoadViewModel @Inject constructor(
     // ── 云存档操作方法 ──
 
     fun checkCloudSave() {
+        val fetchVersion = cloudSaveInfoVersion.incrementAndGet()
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 // 老玩家首次使用：清理旧版本残留的孤立存档
                 persistenceFacade.tapCloudSaveManager.oneTimeCleanup()
                 // 查询云端存档信息
                 val info = persistenceFacade.tapCloudSaveManager.checkCloudSave()
-                _cloudSaveInfo.value = info
+                if (fetchVersion == cloudSaveInfoVersion.get()) {
+                    _cloudSaveInfo.value = info
+                }
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) {
                 Log.w(TAG, "checkCloudSave failed", e)
@@ -1120,6 +1131,8 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     fun uploadToCloudSave() {
+        if (_cloudSaveOperationState.value is CloudSaveOperationState.Uploading ||
+            _cloudSaveOperationState.value is CloudSaveOperationState.Downloading) return
         viewModelScope.launch(Dispatchers.IO) {
             if (!isCloudSaveAvailable()) {
                 _cloudSaveOperationState.value = CloudSaveOperationState.Error("请先登录TapTap账号")
@@ -1149,6 +1162,7 @@ class SaveLoadViewModel @Inject constructor(
                             spiritStones = gd.spiritStones,
                             appVersion = GameConfig.Game.VERSION
                         )
+                        cloudSaveInfoVersion.incrementAndGet()
                         CloudSaveOperationState.Success("云存档上传成功")
                     }
                     is TapCloudSaveManager.CloudSaveResult.NetworkError ->
@@ -1176,15 +1190,19 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     fun downloadFromCloudSave() {
+        if (!cloudDownloadLock.compareAndSet(false, true)) {
+            Log.w(TAG, "Cloud download already in progress, ignoring")
+            return
+        }
         viewModelScope.launch(Dispatchers.IO) {
-            if (!isCloudSaveAvailable()) {
-                _cloudSaveOperationState.value = CloudSaveOperationState.Error("请先登录TapTap账号")
-                return@launch
-            }
-
-            _cloudSaveOperationState.value = CloudSaveOperationState.Downloading
-
             try {
+                if (!isCloudSaveAvailable()) {
+                    _cloudSaveOperationState.value = CloudSaveOperationState.Error("请先登录TapTap账号")
+                    return@launch
+                }
+
+                _cloudSaveOperationState.value = CloudSaveOperationState.Downloading
+
                 val result = persistenceFacade.tapCloudSaveManager.downloadSave()
 
                 when (result) {
@@ -1253,9 +1271,11 @@ class SaveLoadViewModel @Inject constructor(
                     is TapCloudSaveManager.CloudSaveResult.FileTooLarge ->
                         _cloudSaveOperationState.value = CloudSaveOperationState.Error("云存档文件过大")
                 }
-            } catch (e: CancellationException) { throw e }
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
               catch (e: Exception) {
                 _cloudSaveOperationState.value = CloudSaveOperationState.Error("下载失败: ${e.message}")
+            } finally {
+                cloudDownloadLock.set(false)
             }
         }
     }

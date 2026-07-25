@@ -145,18 +145,34 @@ fun CloudSaveDialog(
                             }
                         }
                         is CloudSaveOperationState.Uploading -> {
-                            Text(
-                                text = "正在上传云存档...",
-                                fontSize = 14.sp,
-                                color = Color.Black
-                            )
+                            Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                                androidx.compose.material3.CircularProgressIndicator(
+                                    modifier = androidx.compose.ui.Modifier.size(24.dp),
+                                    strokeWidth = 2.dp,
+                                    color = androidx.compose.ui.graphics.Color(0xFF4A90E2)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "正在上传云存档...",
+                                    fontSize = 14.sp,
+                                    color = Color.Black
+                                )
+                            }
                         }
                         is CloudSaveOperationState.Downloading -> {
-                            Text(
-                                text = "正在下载云存档...",
-                                fontSize = 14.sp,
-                                color = Color.Black
-                            )
+                            Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                                androidx.compose.material3.CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.dp,
+                                    color = Color(0xFF4A90E2)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "正在下载云存档...",
+                                    fontSize = 14.sp,
+                                    color = Color.Black
+                                )
+                            }
                         }
                         is CloudSaveOperationState.Success -> {
                             Text(

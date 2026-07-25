@@ -193,4 +193,26 @@ internal class ItemConverter {
             description = data.description
         )
     }
+
+    fun convertStorageBag(bag: com.xianxia.sect.core.model.StorageBag): SerializableStorageBag {
+        return SerializableStorageBag(
+            id = bag.id,
+            name = bag.name,
+            rarity = bag.rarity,
+            description = bag.description,
+            quantity = bag.quantity,
+            isLocked = bag.isLocked
+        )
+    }
+
+    fun convertBackStorageBag(data: SerializableStorageBag): com.xianxia.sect.core.model.StorageBag {
+        return com.xianxia.sect.core.model.StorageBag(
+            id = data.id,
+            name = data.name,
+            rarity = data.rarity,
+            description = data.description,
+            quantity = data.quantity,
+            isLocked = data.isLocked
+        )
+    }
 }

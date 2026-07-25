@@ -1154,4 +1154,21 @@ class SaveDataConverterTest {
         assertEquals(1, restored.warehouseGarrisons.size)
         assertEquals("wh_1", restored.warehouseGarrisons[0].buildingInstanceId)
     }
+
+    @Test
+    fun `roundtrip preserves storageBags`() {
+        val bags = listOf(
+            com.xianxia.sect.core.model.StorageBag(id = "bag_1", name = "凡品储物袋", rarity = 1, quantity = 1, description = "a", isLocked = false),
+            com.xianxia.sect.core.model.StorageBag(id = "bag_2", name = "灵品储物袋", rarity = 2, quantity = 2, description = "b", isLocked = true)
+        )
+        val saveData = createMinimalSaveData().copy(storageBags = bags)
+        val serializable = converter.toSerializable(saveData)
+        val restored = converter.fromSerializable(serializable)
+
+        assertEquals(2, restored.storageBags.size)
+        assertEquals("bag_1", restored.storageBags[0].id)
+        assertEquals(1, restored.storageBags[0].rarity)
+        assertEquals("灵品储物袋", restored.storageBags[1].name)
+        assertTrue(restored.storageBags[1].isLocked)
+    }
 }

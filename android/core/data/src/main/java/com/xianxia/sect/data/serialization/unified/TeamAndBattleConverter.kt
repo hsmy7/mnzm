@@ -14,7 +14,28 @@ internal class TeamAndBattleConverter {
             startYear = team.startYear,
             startMonth = team.startMonth,
             duration = team.duration,
-            currentProgress = team.progress
+            currentProgress = team.progress,
+            caveId = team.caveId ?: "",
+            caveName = team.caveName,
+            dungeon = team.dungeon,
+            dungeonName = team.dungeonName,
+            memberNames = team.memberNames,
+            startDay = team.startDay,
+            currentX = team.currentX.toInt(),
+            currentY = team.currentY.toInt(),
+            targetX = team.targetX.toInt(),
+            targetY = team.targetY.toInt(),
+            moveProgress = team.moveProgress.toDouble(),
+            arrivalYear = team.arrivalYear,
+            arrivalMonth = team.arrivalMonth,
+            arrivalDay = team.arrivalDay,
+            route = team.route.map { convertRoutePoint(it) },
+            currentRouteIndex = team.currentRouteIndex,
+            currentSegmentProgress = team.currentSegmentProgress.toDouble(),
+            pityCounterEquipment = team.pityCounterEquipment,
+            pityCounterPill = team.pityCounterPill,
+            pityCounterManual = team.pityCounterManual,
+            scoutTargetSectName = team.scoutTargetSectName
         )
     }
 
@@ -28,7 +49,28 @@ internal class TeamAndBattleConverter {
             duration = data.duration,
             status = safeEnumValueOfIgnoreCase(data.status, com.xianxia.sect.core.model.ExplorationStatus.TRAVELING, "status", "ExplorationTeam"),
             progress = data.currentProgress,
-            scoutTargetSectId = data.targetSectId
+            scoutTargetSectId = data.targetSectId,
+            caveId = data.caveId.ifEmpty { null },
+            caveName = data.caveName,
+            dungeon = data.dungeon,
+            dungeonName = data.dungeonName,
+            memberNames = data.memberNames,
+            startDay = data.startDay,
+            currentX = data.currentX.toFloat(),
+            currentY = data.currentY.toFloat(),
+            targetX = data.targetX.toFloat(),
+            targetY = data.targetY.toFloat(),
+            moveProgress = data.moveProgress.toFloat(),
+            arrivalYear = data.arrivalYear,
+            arrivalMonth = data.arrivalMonth,
+            arrivalDay = data.arrivalDay,
+            route = data.route.map { convertBackRoutePoint(it) },
+            currentRouteIndex = data.currentRouteIndex,
+            currentSegmentProgress = data.currentSegmentProgress.toFloat(),
+            pityCounterEquipment = data.pityCounterEquipment,
+            pityCounterPill = data.pityCounterPill,
+            pityCounterManual = data.pityCounterManual,
+            scoutTargetSectName = data.scoutTargetSectName
         )
     }
 
@@ -50,7 +92,11 @@ internal class TeamAndBattleConverter {
             type = log.type.name,
             details = log.details,
             drops = log.drops,
-            dungeonName = log.dungeonName
+            dungeonName = log.dungeonName,
+            teamId = log.teamId ?: "",
+            turns = log.turns,
+            teamCasualties = log.teamCasualties,
+            beastsDefeated = log.beastsDefeated
         )
     }
 
@@ -69,8 +115,24 @@ internal class TeamAndBattleConverter {
             dungeonName = data.dungeonName,
             rounds = data.rounds.map { convertBackBattleLogRound(it) },
             teamMembers = data.attackerMembers.map { convertBackBattleLogMember(it) },
-            enemies = data.defenderMembers.map { convertBackBattleLogEnemy(it) }
+            enemies = data.defenderMembers.map { convertBackBattleLogEnemy(it) },
+            teamId = data.teamId.ifEmpty { null },
+            turns = data.turns,
+            teamCasualties = data.teamCasualties,
+            beastsDefeated = data.beastsDefeated
         )
+    }
+
+    private fun convertRoutePoint(point: String): SerializableMapPoint {
+        val parts = point.split(",", limit = 2)
+        return SerializableMapPoint(
+            x = parts.getOrNull(0)?.toIntOrNull() ?: 0,
+            y = parts.getOrNull(1)?.toIntOrNull() ?: 0
+        )
+    }
+
+    private fun convertBackRoutePoint(data: SerializableMapPoint): String {
+        return "${data.x},${data.y}"
     }
 
     fun convertBattleLogRound(round: com.xianxia.sect.core.model.BattleLogRound): SerializableBattleLogRound {
