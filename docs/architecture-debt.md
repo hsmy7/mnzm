@@ -2,6 +2,12 @@
 
 > 本文件记录已知的架构债务和待完成的技术改进项。
 
+## 角色状态系统：纯推导式迁移（长期，未完成）
+
+**对标：** RimWorld（状态从当前执行任务推导，不手动设置）、MineColonies（三层状态机推导）
+**现状：** 显式式 + 推导修正混合模式（`markDiscipleAssigned` 直接写 + `syncAllDiscipleStatuses` 修正）
+**建议：** 逐步废除 `markDiscipleAssigned` 直接写入，使 `syncAllDiscipleStatuses` 成为唯一状态真相源。新增状态时只需更新推导函数，无需同时修改两处代码。
+
 ## 写入守卫架构债务（⏸️ 暂不修复）
 
 详见 [architecture-debt-write-guard.md](architecture-debt-write-guard.md)，6 项低风险守卫设计限制记录在案：
@@ -82,3 +88,11 @@ detekt 配置 `baseline` 只缩不增（CLAUDE.md 13.2），当前未启用 base
 | `WildcardImport` | `ModeSelectionScreen.kt:8,11` | 2 处通配符 import |
 
 治理策略：后续重构逐步修复，不纳入当前 PR。
+
+## 生命周期 ⏸️ 项（低优先级，已从架构文档移入）
+
+以下为 `BootPhase/RunState` 双层状态机的低优先级待优化项，当前行为正确，无用户可见问题：
+
+1. **重入串行化硬屏障** — 当前 CAS 软屏障工作正常，可改用 `Mutex.withLock` 加固
+2. **LOADING 状态可达补充** — 初次加载补充 `setLoading()`，纯 UI 优化
+3. **取消时状态自动回滚** — 记录初始状态，取消时自动恢复，极少触发

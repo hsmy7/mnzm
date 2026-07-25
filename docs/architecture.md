@@ -223,13 +223,6 @@ RunState（运行时状态 — 可循环回退）
 - 恢复成功则走正常 success 路径（不再返回 failure 误导用户）
 - 恢复失败则 onError + return failure
 
-### 已知状态
-
-- ✅ 双层写入原子性 — 已修复（`LifecycleState` data class 单入口）
-- ⏸️ 重入串行化硬屏障 — 低优先级，当前 CAS 软屏障工作正常
-- ⏸️ LOADING 状态可达补充 — 低优先级，纯 UI 优化
-- ⏸️ 取消时状态自动回滚 — 低优先级，极少触发
-
 ---
 
 ## 抗冻结架构：自适应忙等
@@ -330,10 +323,4 @@ SaveValidator.validate(SaveData)
 
 20 个测试类覆盖全部规则，位于 `data/src/test/.../integrity/rules/`。每规则独立覆盖通过/修复/损坏三类路径。
 
-以下优化项基于 [行业对标分析](knowledge-base.md#行业对标分析报告)（来源包括 UE/Supercell/RimWorld/MineColonies 等）。
-
-### 角色状态系统：纯推导式迁移（长期，未完成）
-
-**对标：** RimWorld（状态从当前执行任务推导，不手动设置）、MineColonies（三层状态机推导）
-**现状：** 显式式 + 推导修正混合模式（`markDiscipleAssigned` 直接写 + `syncAllDiscipleStatuses` 修正）
-**建议：** 逐步废除 `markDiscipleAssigned` 直接写入，使 `syncAllDiscipleStatuses` 成为唯一状态真相源。新增状态时只需更新推导函数，无需同时修改两处代码。
+以下优化项基于 [行业对标分析](knowledge-base.md#行业对标分析报告)（来源包括 UE/Supercell/RimWorld/MineColonies 等）。详见 [架构债务文档](architecture-debt.md)。
