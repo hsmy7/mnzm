@@ -97,7 +97,7 @@ class BloodRefiningViewModel @Inject constructor(
         val bonusPercent = BeastMaterialDatabase.getTierPercentage(material.tier)
         val durationMonths = BeastMaterialDatabase.getTierDuration(material.tier)
 
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             // 构造 BloodRefinementProgress
             val progress = BloodRefinementProgress(
                 discipleId = disciple.id,
@@ -122,54 +122,55 @@ class BloodRefiningViewModel @Inject constructor(
                 progress = progress
             )
 
-            when (result) {
-                is BloodRefinementStartResult.Success -> { /* 继续 */ }
-                is BloodRefinementStartResult.InsufficientStones ->
-                    { showError("灵石不足，洗炼失败"); return@launch }
-                is BloodRefinementStartResult.InsufficientMaterials ->
-                    { showError("兽血材料不足，洗炼失败"); return@launch }
-                is BloodRefinementStartResult.Error ->
-                    { showError("资源不足，洗炼失败"); return@launch }
+            if (result !is BloodRefinementStartResult.Success) {
+                val msg = when (result) {
+                    is BloodRefinementStartResult.InsufficientStones -> "灵石不足，洗炼失败"
+                    is BloodRefinementStartResult.InsufficientMaterials -> "兽血材料不足，洗炼失败"
+                    is BloodRefinementStartResult.Error -> "资源不足，洗炼失败"
+                    else -> null
+                }
+                if (msg != null) { showError(msg) }
+            } else {
+                // 更新UI状态
+                val updatedData = gameEngine.gameData.value
+                val savedProgress = updatedData?.activeBloodRefinements?.get(buildingInstanceId)
+                if (savedProgress != null) {
+                    _uiState.update { it.copy(
+                        isRefining = true,
+                        currentProgress = savedProgress,
+                        remainingMonths = durationMonths,
+                        errorMessage = null
+                    ) }
+                }
+
+                // 登记血炼分配
+                val slotRef = SlotRef(
+                    category = SlotCategory.BLOOD_REFINEMENT,
+                    slotType = buildingInstanceId,
+                    slotId = "blood_$buildingInstanceId"
+                )
+                gameEngine.confirmAssignDisciple(disciple.id, slotRef)
             }
 
-            // 更新UI状态
-            val updatedData = gameEngine.gameData.value
-            val savedProgress = updatedData?.activeBloodRefinements?.get(buildingInstanceId)
-            if (savedProgress != null) {
-                _uiState.update { it.copy(
-                    isRefining = true,
-                    currentProgress = savedProgress,
-                    remainingMonths = durationMonths,
-                    errorMessage = null
-                ) }
-            }
-
-            // 登记血炼分配
-            val slotRef = SlotRef(
-                category = SlotCategory.BLOOD_REFINEMENT,
-                slotType = buildingInstanceId,
-                slotId = "blood_$buildingInstanceId"
-            )
-            gameEngine.confirmAssignDisciple(disciple.id, slotRef)
         }
     }
 
     fun cancelRefine(buildingInstanceId: String) {
         val state = _uiState.value
         val progress = state.currentProgress ?: return
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             gameEngine.cancelBloodRefinement(
                 buildingInstanceId = buildingInstanceId,
                 discipleId = progress.discipleId
             )
             gameEngine.releaseDiscipleAssignment(progress.discipleId)
-            _uiState.update { it.copy(
-                isRefining = false,
-                currentProgress = null,
-                remainingMonths = 0,
-                selectedDisciple = null
-            ) }
         }
+        _uiState.update { it.copy(
+            isRefining = false,
+            currentProgress = null,
+            remainingMonths = 0,
+            selectedDisciple = null
+        ) }
     }
 
     fun clearError() {

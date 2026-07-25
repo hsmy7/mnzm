@@ -427,12 +427,13 @@ class GameActivity : ComponentActivity() {
     }
 
     override fun onPause() {
-        super.onPause()
         frameMetricsMonitor.stopMonitoring(window)
-        // ★ 进入后台 → 暂停游戏循环（本游戏无离线收益，后台应完全暂停）
+        // ★ 进入后台 → 先停游戏循环和自定义渲染器，释放 GPU 资源
+        // 再通知系统暂停（super.onPause），降低 HardwareRenderer.setStopped 阻塞时间
         saveLoadViewModel.pauseForBackground()
         backgroundTaskScheduler.pause()
         wakeLockManager.release()
+        super.onPause()
     }
 
     override fun onStop() {

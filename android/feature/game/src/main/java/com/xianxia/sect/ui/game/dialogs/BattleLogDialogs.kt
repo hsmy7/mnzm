@@ -591,7 +591,7 @@ private fun YearlyReportList(
         modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        itemsIndexed(sorted, key = { _, r -> "report_${r.year}" }) { _, report ->
+        itemsIndexed(sorted, key = { index, r -> "report_${r.year}_$index" }) { _, report ->
             Card(
                 modifier = Modifier.fillMaxWidth().clickable { onDetail(report) },
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F8F8)),

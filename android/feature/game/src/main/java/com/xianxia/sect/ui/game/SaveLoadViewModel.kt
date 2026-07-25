@@ -272,12 +272,12 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     fun cancelSaveLoad() {
-        viewModelScope.launch { setSaveLoadState(isSaving = false, isLoading = false, pendingSlot = null, pendingAction = null) }
+        gameEngine.launchOnEngine { setSaveLoadState(isSaving = false, isLoading = false, pendingSlot = null, pendingAction = null) }
         saveLock.set(false)
     }
 
     fun resetSaveLoadState() {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             try { stateStore.update { isLoading = false } } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "resetSaveLoadState: setLoading failed: ${e.message}") }
             try { stateStore.update { isSaving = false } } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "resetSaveLoadState: setSaving failed: ${e.message}") }
         }
@@ -1103,7 +1103,7 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     fun setAutoSaveIntervalMonths(interval: Int) {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             gameEngine.updateGameData { it.copy(autoSaveIntervalMonths = interval) }
         }
     }
@@ -1125,7 +1125,7 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     fun resumeGameLoop() {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             gameEngineCore.resume()
         }
         if (!isGameLoaded || stateStore.unifiedState.value.isLoading) {
@@ -1184,16 +1184,16 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     fun togglePause() {
-        viewModelScope.launch {
-            // 直接读取 stateStore.isPaused，绕过 unifiedState 的 50ms 采样延迟
-            if (stateStore.isPaused.value) {
+        val wasPaused = stateStore.isPaused.value
+        gameEngine.launchOnEngine {
+            if (wasPaused) {
                 gameEngineCore.resume()
-                if (!gameEngineCore.isGameLoopRunning) {
-                    startGameLoop()
-                }
             } else {
                 gameEngineCore.pause()
             }
+        }
+        if (wasPaused && !gameEngineCore.isGameLoopRunning) {
+            startGameLoop()
         }
     }
 
@@ -1212,17 +1212,17 @@ class SaveLoadViewModel @Inject constructor(
         _timeScale.value = clamped  // UI 即时反馈
         gameClock.setSpeed(clamped)
         if (gameEngineCore.state.value.isPaused) {
-            viewModelScope.launch {
+            gameEngine.launchOnEngine {
                 gameEngineCore.resume()
-                if (!gameEngineCore.isGameLoopRunning) {
-                    startGameLoop()
-                }
+            }
+            if (!gameEngineCore.isGameLoopRunning) {
+                startGameLoop()
             }
         }
     }
 
     fun resetAllDisciplesStatus() {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             gameEngine.resetAllDisciplesStatus()
         }
     }

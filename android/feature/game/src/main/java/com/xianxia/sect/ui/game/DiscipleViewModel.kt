@@ -232,13 +232,13 @@ class DiscipleViewModel @Inject constructor(
     }
     
     fun resetAllDisciplesStatus() {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             gameEngine.resetAllDisciplesStatus()
         }
     }
-    
+
     fun syncAllDiscipleStatuses() {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             gameEngine.syncAllDiscipleStatuses()
         }
     }

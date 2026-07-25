@@ -1,12 +1,17 @@
 [
   {
     "date": "2026-07-25",
-    "version": "4.0.72",
+    "version": "4.0.73",
     "changes": [
       "修复：TapTap沙盒ANR崩溃后存档显示为空或损坏——数据库无game_data条目时不回退到备份文件(.sav/.bak)，新增备份恢复路径消除数据丢失",
       "修复：CorruptedResultHandler备份二次验证为Corrupted时未拦截——损坏数据被静默接受为成功加载，改为返回SLOT_CORRUPTED",
       "修复：GameViewModelTest因缺失adService mock参数编译失败——新增mock字段",
-      "修复：FunctionalWAL.recover()死代码——startMaintenance()时启动WAL崩溃残留扫描与日志记录"
+      "修复：FunctionalWAL.recover()死代码——startMaintenance()时启动WAL崩溃残留扫描与日志记录",
+      "修复：Bugly #5074 ANR——viewModelScope.launch在主线程调stateStore.update阻塞ReentrantLock，11处改为gameEngine.launchOnEngine派发到引擎线程",
+      "修复：Bugly #9056 Input Dispatching Timed Out——onPause先super.onPause再停游戏循环导致GPU setStopped阻塞，调换顺序先停渲染器再通知系统",
+      "修复：Bugly #11002 LazyColumn空字符串key重复——sendAdminCompensation增加require(isNotBlank)校验+MailDialog key空值回退防御",
+      "修复：Bugly #9054 LazyColumn report_2488 key重复——年报列表key增加index后缀确保同年多份report不碰撞",
+      "加固：GameStateStoreImpl.update主线程检测增强——Release构建检测到主线程调用时立即return不阻塞，宁可丢一次状态更新也不触发ANR"
     ]
   },
   {

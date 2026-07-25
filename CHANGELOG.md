@@ -1,4 +1,4 @@
-## [4.0.72] - 2026-07-25（versionCode=4072）
+## [4.0.73] - 2026-07-25（versionCode=4073）
 
 ### 修复
 
@@ -6,6 +6,11 @@
 - **修复：`CorruptedResultHandler` 备份二次验证为 Corrupted 时未拦截** — 损坏数据被静默接受为成功加载，改为返回 `SLOT_CORRUPTED`
 - **修复：`GameViewModelTest` 因缺失 `adService` mock 参数编译失败** — 新增 mock 字段
 - **修复：`FunctionalWAL.recover()` 死代码** — `startMaintenance()` 时启动 WAL 崩溃残留扫描与日志记录
+- **修复：Bugly #5074 ANR** — `viewModelScope.launch` 在主线程调 `stateStore.update{}` 阻塞 ReentrantLock，11 处改为 `gameEngine.launchOnEngine` 派发到引擎线程（涉及 SaveLoadViewModel/BloodRefiningViewModel/DiscipleViewModel）
+- **修复：Bugly #9056 Input Dispatching Timed Out** — `GameActivity.onPause()` 先 `super.onPause()`（触发 `HardwareRenderer.setStopped`）再停游戏循环，调换顺序：先停自定义渲染器释放 GPU 资源再通知系统暂停
+- **修复：Bugly #11002 LazyColumn 空字符串 key 重复** — `GameEngineAdminOps.sendAdminCompensation` 增加 `require(mailId.isNotBlank())` 校验 + `MailDialog` LazyColumn key 增加空值回退
+- **修复：Bugly #9054 LazyColumn "report_2488" key 重复** — `BattleLogDialogs` 年报列表 key 增加 index 后缀确保同年多份 report 不碰撞
+- **加固：`GameStateStoreImpl.update()` 主线程检测增强** — Release 构建检测到主线程调用时立即 return 不阻塞，宁可丢失一次状态更新也不触发 ANR
 
 ## [4.0.71] - 2026-07-25（versionCode=4071）
 

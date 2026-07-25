@@ -33,6 +33,8 @@ suspend fun GameEngine.sendAdminCompensation(
     content: String,
     attachments: List<MailAttachment>
 ) {
+    require(mailId.isNotBlank()) { "sendAdminCompensation: mailId must not be blank" }
+
     // 幂等检查：mailRecords 中已有领取记录 → 该补偿已发放过
     val data = stateStore.gameDataSnapshot
     if (data.mailRecords.any { it.mailId == mailId }) {
