@@ -44,5 +44,6 @@ object SaveLoadViewModelConstants {
     const val PHASE_INIT = "正在初始化引擎..."
     const val PHASE_DATA_PRELOAD = "正在加载宗门数据..."
     const val PHASE_SPRITE_PRELOAD = "正在准备界面资源..."
+    const val PHASE_CLOUD_SYNC = "正在同步云存档..."
     const val PHASE_READY = "即将进入宗门..."
 }

@@ -26,7 +26,11 @@
       "修复：Bugly #9056 Input Dispatching Timed Out——onPause先super.onPause再停游戏循环导致GPU setStopped阻塞，调换顺序先停渲染器再通知系统",
       "修复：Bugly #11002 LazyColumn空字符串key重复——sendAdminCompensation增加require(isNotBlank)校验+MailDialog key空值回退防御",
       "修复：Bugly #9054 LazyColumn report_2488 key重复——年报列表key增加index后缀确保同年多份report不碰撞",
-      "加固：GameStateStoreImpl.update主线程检测增强——Release构建检测到主线程调用时立即return不阻塞，宁可丢一次状态更新也不触发ANR"
+      "加固：GameStateStoreImpl.update主线程检测增强——Release构建检测到主线程调用时立即return不阻塞，宁可丢一次状态更新也不触发ANR",
+      "修复：云存档卡片保存无反馈——slot 0 (云存档)点保存/读取时因uploadToCloudSave不更新isBusy状态，SaveSlotDialog无任何加载反馈，修复补全setSaveLoadState + showSuccess/showError",
+      "修复：云存档卡片读取路径错误——SaveSlotDialog点读取时调用loadGame(SaveSlot)走本地加载(slot 0无本地数据)，改为loadGameFromSlot(Int)正确路由到downloadFromCloudSave",
+      "新增：存档对话框转圈动画——所有保存/读取操作显示居中48dp转圈动画+「保存中.../读取中...」文本，最少显示1秒，操作完成后不自动关闭对话框(用户手动关闭)",
+      "新增：主菜单云存档加载界面——点击云存档卡片不再在MainActivity无反馈下载，改为直接跳转GameActivity显示加载界面+「正在同步云存档...」进度条"
     ]
   },
   {

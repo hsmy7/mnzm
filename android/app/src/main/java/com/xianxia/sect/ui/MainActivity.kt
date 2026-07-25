@@ -136,6 +136,7 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_SLOT = "slot"
         const val EXTRA_NEW_GAME = "new_game"
         const val EXTRA_SECT_NAME = "sect_name"
+        const val EXTRA_CLOUD_SAVE_LOAD = "cloud_save_load"
     }
     
     public sealed class ComplianceDialogState {
@@ -393,33 +394,12 @@ class MainActivity : ComponentActivity() {
                                     Toast.makeText(this@MainActivity, "请先登录 TapTap", Toast.LENGTH_SHORT).show()
                                     return@SaveSelectScreen
                                 }
-                                lifecycleScope.launch(Dispatchers.IO) {
-                                    try {
-                                        when (val result = tapCloudSaveManager.downloadSave()) {
-                                            is TapCloudSaveManager.CloudSaveResult.Success -> {
-                                                val saveData = result.saveData
-                                                if (saveData != null) {
-                                                    val slot = saveData.gameData.currentSlot.coerceIn(1, 6)
-                                                    storageFacade.setCurrentSlot(slot)
-                                                    storageFacade.save(slot, saveData)
-                                                    val intent = Intent(this@MainActivity, GameActivity::class.java).apply {
-                                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                                                        putExtra(EXTRA_SLOT, slot)
-                                                    }
-                                                    startActivity(intent)
-                                                    finish()
-                                                } else {
-                                                    Log.w(TAG, "Cloud save data is null")
-                                                }
-                                            }
-                                            is TapCloudSaveManager.CloudSaveResult.FileTooLarge ->
-                                                Log.w(TAG, "Cloud save too large")
-                                            else -> Log.w(TAG, "Cloud save download failed: $result")
-                                        }
-                                    } catch (e: Exception) {
-                                        Log.e(TAG, "Cloud save load failed", e)
-                                    }
+                                val intent = Intent(this@MainActivity, GameActivity::class.java).apply {
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                                    putExtra(EXTRA_CLOUD_SAVE_LOAD, true)
                                 }
+                                startActivity(intent)
+                                finish()
                             },
                             onNewGame = { slot, sectName ->
                                 val intent = Intent(this@MainActivity, GameActivity::class.java).apply {

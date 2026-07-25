@@ -868,13 +868,29 @@ internal fun SaveSlotDialog(
     val isLoading = saveLoadState.isLoading
     val pendingSlot = saveLoadState.pendingSlot
     var selectedSlot by remember { mutableStateOf<Int?>(null) }
-    var saveCompleted by remember { mutableStateOf(false) }
-    var loadCompleted by remember { mutableStateOf(false) }
+
+    // ── 转圈动画状态（最少显示 1 秒） ──
+    var showAnimation by remember { mutableStateOf(false) }
+    var animationStartTime by remember { mutableLongStateOf(0L) }
+    var operationLabel by remember { mutableStateOf("") }
+
+    LaunchedEffect(isBusy) {
+        if (isBusy) {
+            animationStartTime = System.currentTimeMillis()
+            showAnimation = true
+            operationLabel = if (saveLoadState.isSaving) "保存中..." else "读取中..."
+        } else if (showAnimation) {
+            val elapsed = System.currentTimeMillis() - animationStartTime
+            if (elapsed < 1000) {
+                delay(1000 - elapsed)
+            }
+            showAnimation = false
+        }
+    }
 
     // 打开对话框时，检测 isSaving/isLoading 是否卡住超过阈值并自动恢复
     LaunchedEffect(Unit) {
-        delay(1000) // 给正常操作 1 秒宽限期
-        // 重新读取最新状态（避免竞态条件）
+        delay(30000) // 给云存档网络操作 30 秒宽限期
         val currentState = saveLoadViewModel.saveLoadState.value
         if (currentState.isSaving || currentState.isLoading) {
             saveLoadViewModel.cancelSaveLoad()
@@ -883,17 +899,6 @@ internal fun SaveSlotDialog(
 
     val selectedSlotInfo = remember(saveSlots, selectedSlot) {
         saveSlots.find { it.slot == selectedSlot }
-    }
-
-    LaunchedEffect(isBusy) {
-        if (!isBusy && saveCompleted) {
-            saveCompleted = false
-            onDismiss()
-        }
-        if (!isBusy && loadCompleted) {
-            loadCompleted = false
-            onDismiss()
-        }
     }
     
     Dialog(
@@ -969,50 +974,50 @@ internal fun SaveSlotDialog(
                     }
                 }
                 
-                if (isBusy) {
+                // ── 转圈动画（保存/读取中） ──
+                if (showAnimation) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFFFFF3E0))
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp,
-                                color = Color(0xFFFF9800)
+                                modifier = Modifier.size(48.dp),
+                                strokeWidth = 4.dp,
+                                color = Color.Black
                             )
                             Text(
-                                text = when {
-                                    isSaving -> "正在保存到槽位 $pendingSlot..."
-                                    isLoading -> "正在读取槽位 $pendingSlot..."
-                                    else -> ""
-                                },
-                                fontSize = 12.sp,
-                                color = Color(0xFFE65100)
+                                text = operationLabel,
+                                fontSize = 16.sp,
+                                color = Color.Black
                             )
                         }
                     }
                 }
 
-                LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(saveSlots, key = { it.slot }, contentType = { "save_slot" }) { slot ->
-                        SaveSlotCard(
-                            slot = slot,
-                            isSelected = selectedSlot == slot.slot,
-                            onClick = { selectedSlot = slot.slot }
-                        )
+                if (!showAnimation) {
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(saveSlots, key = { it.slot }, contentType = { "save_slot" }) { slot ->
+                            SaveSlotCard(
+                                slot = slot,
+                                isSelected = selectedSlot == slot.slot,
+                                onClick = { selectedSlot = slot.slot }
+                            )
+                        }
                     }
                 }
 
+                if (!showAnimation) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1029,7 +1034,6 @@ internal fun SaveSlotDialog(
                             .then(
                                 if (saveEnabled) {
                                     Modifier.clickable {
-                                        saveCompleted = true
                                         saveLoadViewModel.saveGame(selectedSlot.toString())
                                     }
                                 } else {
@@ -1044,19 +1048,11 @@ internal fun SaveSlotDialog(
                             modifier = Modifier.matchParentSize(),
                             contentScale = ContentScale.FillBounds
                         )
-                        if (isSaving && pendingSlot == selectedSlot) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp,
-                                color = Color.Black
-                            )
-                        } else {
-                            Text(
-                                text = "保存",
-                                fontSize = 12.sp,
-                                color = Color.Black
-                            )
-                        }
+                        Text(
+                            text = "保存",
+                            fontSize = 12.sp,
+                            color = Color.Black
+                        )
                     }
                     val loadEnabled = selectedSlot != null && saveSlots.find { it.slot == selectedSlot }?.isEmpty == false && !isBusy
                     Box(
@@ -1068,9 +1064,8 @@ internal fun SaveSlotDialog(
                             .then(
                                 if (loadEnabled) {
                                     Modifier.clickable {
-                                        saveSlots.find { it.slot == selectedSlot }?.let { slot ->
-                                            loadCompleted = true
-                                            saveLoadViewModel.loadGame(slot)
+                                        selectedSlot?.let { slotId ->
+                                            saveLoadViewModel.loadGameFromSlot(slotId)
                                         }
                                     }
                                 } else {
@@ -1085,21 +1080,14 @@ internal fun SaveSlotDialog(
                             modifier = Modifier.matchParentSize(),
                             contentScale = ContentScale.FillBounds
                         )
-                        if (isLoading && pendingSlot == selectedSlot) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp,
-                                color = Color.Black
-                            )
-                        } else {
-                            Text(
-                                text = "读取",
-                                fontSize = 12.sp,
-                                color = Color.Black
-                            )
-                        }
+                        Text(
+                            text = "读取",
+                            fontSize = 12.sp,
+                            color = Color.Black
+                        )
                     }
                 }
+            }  // if (!showAnimation) buttons
             }
         }
     }

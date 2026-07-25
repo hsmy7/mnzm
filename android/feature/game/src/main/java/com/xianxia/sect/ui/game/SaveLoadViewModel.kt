@@ -621,9 +621,28 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     fun loadGameFromSlot(slot: Int) {
-        // slot 0 = 从云端下载
+        // slot 0 = 从云端下载（带 saveLoadState 管理 + 结果反馈）
         if (slot == 0) {
-            downloadFromCloudSave()
+            viewModelScope.launch(Dispatchers.IO) {
+                setSaveLoadState(isLoading = true, pendingSlot = 0, pendingAction = "load")
+                try {
+                    downloadFromCloudSave()
+                    // 等待云端操作完成（Downloading → Success/Error）
+                    _cloudSaveOperationState.first {
+                        it is CloudSaveOperationState.Success || it is CloudSaveOperationState.Error
+                    }
+                    when (val state = _cloudSaveOperationState.value) {
+                        is CloudSaveOperationState.Success -> showSuccess(state.message)
+                        is CloudSaveOperationState.Error -> showError(state.message)
+                        else -> {} // Idle 不应出现
+                    }
+                } catch (e: CancellationException) { throw e }
+                  catch (e: Exception) {
+                    showError("下载失败: ${e.message}")
+                } finally {
+                    setSaveLoadState(isLoading = false, pendingSlot = null, pendingAction = null)
+                }
+            }
             return
         }
         // 从已缓存的存档元数据中查找 SaveSlot，兜底构造最小 SaveSlot
@@ -632,12 +651,110 @@ class SaveLoadViewModel @Inject constructor(
         loadGame(saveSlot)
     }
 
+    /**
+     * 从云存档下载并加载游戏（主菜单云存档卡片入口）。
+     *
+     * 流程：
+     * 1. 设置加载进度反馈（_loadingProgress=0.1f, "正在同步云存档..."）
+     * 2. 下载云存档 (tapCloudSaveManager.downloadSave())
+     * 3. 写入本地存储 (storageFacade.save)
+     * 4. 调用 loadGameFromSlot(slot) 走正常 BootSequenceController 启动流程
+     * 5. 失败时通过 showError() 展示错误
+     *
+     * 与 downloadFromCloudSave()（游戏内 SaveSlotDialog 使用）不同，
+     * 此方法直接驱动 GameActivity 的 LoadingScreen 进度反馈。
+     */
+    fun loadFromCloudSave() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _loadingProgress.value = 0.1f
+            _preloadPhase.value = SaveLoadViewModelConstants.PHASE_CLOUD_SYNC
+
+            if (!isCloudSaveAvailable()) {
+                showError("请先登录 TapTap")
+                return@launch
+            }
+
+            try {
+                val result = tapCloudSaveManager.downloadSave()
+
+                when (result) {
+                    is TapCloudSaveManager.CloudSaveResult.Success -> {
+                        val saveData = result.saveData
+                        if (saveData == null) {
+                            showError("云存档数据为空")
+                            return@launch
+                        }
+
+                        // 从云存档数据中提取 slot，写入本地
+                        val slot = saveData.gameData.currentSlot.coerceIn(1, 6)
+                        storageFacade.setCurrentSlot(slot)
+                        storageFacade.save(slot, saveData)
+
+                        // 刷新存档元数据缓存
+                        try {
+                            _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+                        } catch (e: CancellationException) { throw e }
+                          catch (e: Exception) {
+                            Log.w(TAG, "loadFromCloudSave: failed to refresh save slots", e)
+                        }
+
+                        // 走正常读档流程（BootSequenceController.boot + 资源预加载）
+                        loadGameFromSlot(slot)
+                    }
+                    is TapCloudSaveManager.CloudSaveResult.NetworkError ->
+                        showError("网络错误: ${result.message}")
+                    is TapCloudSaveManager.CloudSaveResult.AuthRequired ->
+                        showError("请先登录 TapTap 账号")
+                    is TapCloudSaveManager.CloudSaveResult.SerializationError ->
+                        showError("存档数据异常: ${result.message}")
+                    is TapCloudSaveManager.CloudSaveResult.FileTooLarge ->
+                        showError("云存档文件过大，无法下载")
+                    is TapCloudSaveManager.CloudSaveResult.NoSaveExists ->
+                        showError("云存档不存在")
+                    is TapCloudSaveManager.CloudSaveResult.UnknownError ->
+                        showError("未知错误: ${result.message}")
+                }
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
+                Log.e(TAG, "loadFromCloudSave failed", e)
+                showError("加载云存档失败: ${e.message}")
+            }
+        }
+    }
+
     fun saveGame(slotId: String? = null) {
         val slot = slotId?.toIntOrNull() ?: gameEngine.gameData.value?.currentSlot ?: 1
 
-        // slot 0 = 上传至云端
+        // slot 0 = 上传至云端（带 saveLoadState 管理 + 结果反馈）
         if (slot == 0) {
-            uploadToCloudSave()
+            viewModelScope.launch(Dispatchers.IO) {
+                setSaveLoadState(isSaving = true, pendingSlot = 0, pendingAction = "save")
+                try {
+                    uploadToCloudSave()
+                    // 等待云端操作完成（Uploading → Success/Error）
+                    _cloudSaveOperationState.first {
+                        it is CloudSaveOperationState.Success || it is CloudSaveOperationState.Error
+                    }
+                    when (val state = _cloudSaveOperationState.value) {
+                        is CloudSaveOperationState.Success -> {
+                            showSuccess(state.message)
+                            try {
+                                _saveSlots.value = storageFacade.getSaveSlotsSuspend()
+                            } catch (e: CancellationException) { throw e }
+                              catch (e: Exception) {
+                                Log.w(TAG, "Failed to refresh slots after cloud save", e)
+                            }
+                        }
+                        is CloudSaveOperationState.Error -> showError(state.message)
+                        else -> {} // Idle 不应出现
+                    }
+                } catch (e: CancellationException) { throw e }
+                  catch (e: Exception) {
+                    showError("上传失败: ${e.message}")
+                } finally {
+                    setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
+                }
+            }
             return
         }
 

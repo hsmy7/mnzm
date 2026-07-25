@@ -189,6 +189,7 @@ class GameActivity : ComponentActivity() {
         val intentSlot = intent.getIntExtra(MainActivity.EXTRA_SLOT, -1)
         val isNewGame = intent.getBooleanExtra(MainActivity.EXTRA_NEW_GAME, false)
         val sectName = intent.getStringExtra(MainActivity.EXTRA_SECT_NAME) ?: "青云宗"
+        val isCloudSaveLoad = intent.getBooleanExtra(MainActivity.EXTRA_CLOUD_SAVE_LOAD, false)
         
         val slot = if (savedSlot >= 0) savedSlot else intentSlot
         
@@ -389,10 +390,14 @@ class GameActivity : ComponentActivity() {
 
         if (!saveLoadViewModel.isGameAlreadyLoaded()) {
             saveLoadViewModel.resetSaveLoadState()
-            Log.d(TAG, "onCreate: Game not loaded, will initialize. slot=$slot, isNewGame=$isNewGame")
+            Log.d(TAG, "onCreate: Game not loaded, will initialize. slot=$slot, isNewGame=$isNewGame, isCloudSaveLoad=$isCloudSaveLoad")
             lifecycleScope.launch {
                 VivoGCJITOptimizer.runWithJitPaused(block = {
                     when {
+                        isCloudSaveLoad -> {
+                            Log.d(TAG, "Loading cloud save from MainActivity")
+                            saveLoadViewModel.loadFromCloudSave()
+                        }
                         isNewGame && slot >= 0 -> {
                             Log.d(TAG, "Starting new game: sectName=$sectName, slot=$slot")
                             saveLoadViewModel.startNewGame(sectName, slot)
