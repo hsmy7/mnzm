@@ -176,7 +176,7 @@ object CaveExplorationSystem {
         
         val rarityRange = CaveGenerator.getRarityRangeForCave(cave.ownerRealm)
         
-        val itemTypes = listOf("pill", "equipment", "manual").sortedBy { rng.nextInt() }.take(2)
+        val itemTypes = listOf("pill", "equipment", "manual").shuffled(java.util.Random(rng.nextInt().toLong())).take(2)
         
         itemTypes.forEach { type ->
             val rarity = rarityRange[rng.nextInt(rarityRange.size)]

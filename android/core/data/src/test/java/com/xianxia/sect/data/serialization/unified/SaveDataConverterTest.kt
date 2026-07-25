@@ -232,7 +232,6 @@ class SaveDataConverterTest {
                 gamePhase = 1,  // 中旬 (旧 gameDay=15 → phase=1)
                 spiritStones = 50000L,
                 spiritHerbs = 100,
-                autoSaveIntervalMonths = 3,
                 yearlySalary = mapOf(1 to 1200, 2 to 2400),
                 yearlySalaryEnabled = mapOf(1 to true, 2 to true),
                 worldMapSects = emptyList(),
@@ -379,7 +378,6 @@ class SaveDataConverterTest {
         assertEquals(oGame.gamePhase, sGame.gamePhase)
         assertEquals(oGame.spiritStones, sGame.spiritStones)
         assertEquals(oGame.spiritHerbs, sGame.spiritHerbs)
-        assertEquals(oGame.autoSaveIntervalMonths, sGame.autoSaveIntervalMonths)
     }
 
     @Test

@@ -36,7 +36,6 @@ class SaveLoadCoordinator @Inject constructor(
     
     enum class OperationType {
         MANUAL_SAVE,
-        AUTO_SAVE,
         LOAD
     }
     

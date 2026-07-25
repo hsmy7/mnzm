@@ -122,7 +122,7 @@ data class GameData(
     @SettlementStrategy(Strategy.USE_SHADOW)
     var sectCultivation: Double = 0.0,
 
-    // 自动存档设置（月数，0为停止）
+    // 自动存档间隔（已废弃，为兼容旧存档保留此字段）
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var autoSaveIntervalMonths: Int = 3,
 

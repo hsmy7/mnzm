@@ -160,8 +160,8 @@ class StorageFacade @Inject constructor(
             // this throws immediately, giving a clear error instead of silent failure.
             _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.VALIDATING, 0.5f, "Verifying database integrity")
             try {
-                val metadata = withContext(Dispatchers.IO) { engine.getSlotMetadata(StorageConstants.AUTO_SAVE_SLOT) }
-                Log.d(TAG, "Database integrity check passed (auto-save slot: ${metadata?.sectName ?: "empty"})")
+                val metadata = withContext(Dispatchers.IO) { engine.getSlotMetadata(1) }
+                Log.d(TAG, "Database integrity check passed (slot 1: ${metadata?.sectName ?: "empty"})")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -208,14 +208,14 @@ class StorageFacade @Inject constructor(
 
     // ==================== 异步存取方法 ====================
 
-    suspend fun save(slot: Int, data: SaveData, isAutoSave: Boolean = false): SaveResult<Unit> {
+    suspend fun save(slot: Int, data: SaveData): SaveResult<Unit> {
         ensureInitialized()
         val startTime = System.currentTimeMillis()
 
         return try {
             _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.SAVING, 0.1f, "Saving slot $slot")
 
-            val result = engine.save(slot, data, isAutoSave = isAutoSave)
+            val result = engine.save(slot, data)
             val elapsed = System.currentTimeMillis() - startTime
 
             if (result.isSuccess) {
@@ -233,34 +233,6 @@ class StorageFacade @Inject constructor(
             Log.e(TAG, "Save failed for slot $slot", e)
             _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
             SaveResult.failure(SaveError.SAVE_FAILED, e.message ?: "Save failed", e)
-        }
-    }
-
-    suspend fun incrementalSave(slot: Int): SaveResult<Unit> {
-        ensureInitialized()
-        val startTime = System.currentTimeMillis()
-
-        return try {
-            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.SAVING, 0.1f, "Incremental save slot $slot")
-
-            val result = engine.incrementalSave(slot)
-            val elapsed = System.currentTimeMillis() - startTime
-
-            if (result.isSuccess) {
-                saveCount.incrementAndGet()
-                totalSaveTimeMs.addAndGet(elapsed)
-                _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.COMPLETED, 1.0f, "Incremental save completed")
-                SaveResult.success(Unit)
-            } else {
-                _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f, "Incremental save failed")
-                result.toUnifiedResult().map { }
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "Incremental save failed for slot $slot", e)
-            _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
-            SaveResult.failure(SaveError.SAVE_FAILED, e.message ?: "Incremental save failed", e)
         }
     }
 
@@ -311,6 +283,14 @@ class StorageFacade @Inject constructor(
             Log.e(TAG, "Delete failed for slot $slot", e)
             SaveResult.failure(SaveError.DELETE_FAILED, e.message ?: "Unknown error", e)
         }
+    }
+
+    /**
+     * 强制删除 slot 数据（跳过校验，用于云存档 slot 0 等特殊槽位）。
+     * 只清理 Room DB，不做文件级清理。
+     */
+    suspend fun forceDeleteSlotData(slot: Int) {
+        engine.forceDeleteSlotData(slot)
     }
 
     // ==================== 槽位管理方法 ====================

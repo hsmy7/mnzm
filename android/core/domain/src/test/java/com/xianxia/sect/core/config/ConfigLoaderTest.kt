@@ -39,8 +39,6 @@ class ConfigLoaderTest {
         val config = newLoader().load()
         assertEquals("模拟宗门", config.game.name)
         assertEquals(5, config.game.maxSaveSlots)
-        assertEquals(60L, config.game.autoSaveIntervalSeconds)
-        assertEquals(30000L, config.game.autoSaveDebounceMs)
     }
 
     @Test

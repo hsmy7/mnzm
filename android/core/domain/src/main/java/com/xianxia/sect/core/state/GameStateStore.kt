@@ -73,8 +73,7 @@ interface GameStateStore : GameStateSnapshotProvider {
         val elderSlots: ElderSlots? = null,
         val placedBuildings: List<GridBuildingData> = emptyList(),
         val autoRecruitSpiritRootFilter: Set<Int> = emptySet(),
-        val gameSpeed: Int = 1,
-        val autoSaveIntervalMonths: Int = 3
+        val gameSpeed: Int = 1
     )
 
     val highFreqState: StateFlow<HighFreqState>

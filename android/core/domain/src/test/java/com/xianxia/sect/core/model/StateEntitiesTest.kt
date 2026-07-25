@@ -43,7 +43,6 @@ class StateEntitiesTest {
         assertEquals(emptySet<Int>(), state.autoEquipFromWarehouseRootCounts)
         assertFalse(state.autoLearnFromWarehouseFocused)
         assertEquals(emptySet<Int>(), state.autoLearnFromWarehouseRootCounts)
-        assertEquals(3, state.autoSaveIntervalMonths)
     }
 
     @Test
@@ -69,13 +68,6 @@ class StateEntitiesTest {
         for (realm in 0..9) {
             assertTrue("Realm $realm should be enabled", enabled[realm] == true)
         }
-    }
-
-    @Test
-    fun sectPolicyState_copy() {
-        val original = SectPolicyState()
-        val copied = original.copy(autoSaveIntervalMonths = 6)
-        assertEquals(6, copied.autoSaveIntervalMonths)
     }
 
     // ---- ProductionState ----

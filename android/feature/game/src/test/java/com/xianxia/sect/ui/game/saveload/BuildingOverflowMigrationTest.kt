@@ -9,7 +9,6 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.data.facade.StorageFacade
-import com.xianxia.sect.core.engine.domain.save.SavePipeline
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.Assert.*
@@ -55,7 +54,6 @@ class BuildingOverflowMigrationTest {
             gameEngineCore = mockk(),
             storageFacade = mockk(),
             stateStore = mockk(),
-            savePipeline = mockk(),
             buildingConfigService = buildingConfigService,
             spiritStoneWallet = mockk()
         )

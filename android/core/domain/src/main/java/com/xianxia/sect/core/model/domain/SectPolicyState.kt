@@ -27,8 +27,7 @@ data class SectPolicyDomainState(
     val yearlySalaryEnabled: Map<Int, Boolean> = mapOf(
         9 to true, 8 to true, 7 to true, 6 to true, 5 to true,
         4 to true, 3 to true, 2 to true, 1 to true, 0 to true
-    ),
-    val autoSaveIntervalMonths: Int = 3
+    )
 )
 
 /** 从 GameData 提取宗门政策领域状态 */
@@ -45,8 +44,7 @@ fun GameData.extractSectPolicyState(): SectPolicyDomainState = SectPolicyDomainS
     autoLearnFromWarehouseFocused = autoLearnFromWarehouseFocused,
     autoLearnFromWarehouseRootCounts = autoLearnFromWarehouseRootCounts,
     yearlySalary = yearlySalary,
-    yearlySalaryEnabled = yearlySalaryEnabled,
-    autoSaveIntervalMonths = autoSaveIntervalMonths
+    yearlySalaryEnabled = yearlySalaryEnabled
 )
 
 /** 将宗门政策领域状态合并回 GameData */
@@ -63,6 +61,5 @@ fun GameData.mergeSectPolicyState(state: SectPolicyDomainState): GameData = copy
     autoLearnFromWarehouseFocused = state.autoLearnFromWarehouseFocused,
     autoLearnFromWarehouseRootCounts = state.autoLearnFromWarehouseRootCounts,
     yearlySalary = state.yearlySalary,
-    yearlySalaryEnabled = state.yearlySalaryEnabled,
-    autoSaveIntervalMonths = state.autoSaveIntervalMonths
+    yearlySalaryEnabled = state.yearlySalaryEnabled
 )

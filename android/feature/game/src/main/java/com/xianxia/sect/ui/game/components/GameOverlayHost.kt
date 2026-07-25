@@ -617,6 +617,12 @@ fun GameOverlayHost(
                 dismissOnClickOutside = true
             )
         }
+        is DialogType.CloudSave -> {
+            CloudSaveDialog(
+                saveLoadViewModel = saveLoadViewModel,
+                onDismiss = onDismiss
+            )
+        }
         }
     }
     }

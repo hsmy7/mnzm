@@ -15,12 +15,6 @@ class StorageConstantsTest {
         assertEquals(6, StorageConstants.DEFAULT_MAX_SLOTS)
     }
 
-    @Test
-    fun `AUTO_SAVE_SLOT is 0`() {
-        assertEquals(0, StorageConstants.AUTO_SAVE_SLOT)
-    }
-
-
     // ==================== Cache constants ====================
 
     @Test
@@ -58,11 +52,6 @@ class StorageConstantsTest {
     @Test
     fun `DEFAULT_BATCH_SIZE is 200`() {
         assertEquals(200, StorageConstants.DEFAULT_BATCH_SIZE)
-    }
-
-    @Test
-    fun `INCREMENTAL_THRESHOLD_BYTES is 50KB`() {
-        assertEquals(50 * 1024, StorageConstants.INCREMENTAL_THRESHOLD_BYTES)
     }
 
     // ==================== WAL constants ====================

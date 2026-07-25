@@ -39,10 +39,7 @@ class SlotLockManager(
     private val acquisitionCount = ConcurrentHashMap<Int, Long>()
     private val holdCounts = ConcurrentHashMap<Int, Int>()
 
-    private val slotIndexMap: Map<Int, Int> = mapOf(
-        StorageConstants.AUTO_SAVE_SLOT to 0,
-        *(1..maxSlots).map { it to it }.toTypedArray()
-    )
+    private val slotIndexMap: Map<Int, Int> = (1..maxSlots).map { it to it }.toMap()
 
     private fun getMutex(slot: Int): Mutex {
         val index = slotIndexMap[slot]

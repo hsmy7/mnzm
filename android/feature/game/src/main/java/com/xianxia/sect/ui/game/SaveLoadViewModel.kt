@@ -9,12 +9,12 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.engine.*
-import com.xianxia.sect.core.engine.domain.save.SavePipeline
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.util.SectMapTileGenerator
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.data.SessionManager
 import com.xianxia.sect.data.facade.StorageFacade
+import com.xianxia.sect.taptap.TapCloudSaveManager
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.data.unified.SaveError
@@ -33,9 +33,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicLong
-import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 
 @HiltViewModel
@@ -44,7 +41,6 @@ class SaveLoadViewModel @Inject constructor(
     private val gameEngineCore: GameEngineCore,
     private val storageFacade: StorageFacade,
     private val stateStore: GameStateStore,
-    private val savePipeline: SavePipeline,
     private val coroutineScopeProvider: CoroutineScopeProvider,
     private val buildingConfigService: BuildingConfigService,
     @ApplicationContext private val context: Context,
@@ -54,13 +50,14 @@ class SaveLoadViewModel @Inject constructor(
     private val gameRngManager: GameRngManager,
     private val bootSequenceController: BootSequenceController,
     private val spiritStoneWallet: SpiritStoneWallet,
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    private val tapCloudSaveManager: TapCloudSaveManager
 ) : BaseViewModel() {
 
     // 领域委托实例 — 按职责拆分 save/load/restart 等逻辑
-    private val saveDelegate by lazy { SaveLoadSaveDelegate(gameEngine, storageFacade, stateStore, savePipeline) }
+    private val saveDelegate by lazy { SaveLoadSaveDelegate(gameEngine, storageFacade, stateStore) }
     private val loadDelegate by lazy {
-        SaveLoadLoadDelegate(gameEngine, gameEngineCore, storageFacade, stateStore, savePipeline, buildingConfigService, spiritStoneWallet)
+        SaveLoadLoadDelegate(gameEngine, gameEngineCore, storageFacade, stateStore, buildingConfigService, spiritStoneWallet)
     }
     private val restartDelegate by lazy { SaveLoadRestartDelegate(gameEngine, gameEngineCore, storageFacade, stateStore) }
     private val pauseDelegate by lazy { SaveLoadPauseDelegate(gameEngineCore, gameClock) }
@@ -69,9 +66,6 @@ class SaveLoadViewModel @Inject constructor(
     companion object {
         private const val TAG = SaveLoadViewModelConstants.TAG
         private const val MB = SaveLoadViewModelConstants.MB
-        private const val MAX_CONSECUTIVE_SAVE_FAILURES = SaveLoadViewModelConstants.MAX_CONSECUTIVE_SAVE_FAILURES
-        private const val SAVE_LOCK_TIMEOUT_MS = SaveLoadViewModelConstants.SAVE_LOCK_TIMEOUT_MS
-
         private const val PROGRESS_START = SaveLoadViewModelConstants.PROGRESS_START
         private const val PROGRESS_ENGINE_INIT = SaveLoadViewModelConstants.PROGRESS_ENGINE_INIT
         private const val PROGRESS_DATA_LOAD = SaveLoadViewModelConstants.PROGRESS_DATA_LOAD
@@ -109,9 +103,6 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     private val saveLock = AtomicBoolean(false)
-    private val pendingAutoSave = AtomicReference<SavePipeline.SaveSource?>(null)
-    private val saveLockAcquireTime = AtomicLong(0L)
-    private val consecutiveSaveFailures = AtomicInteger(0)
 
     // 游戏是否已加载 = RunState.PLAYING
     val isGameLoaded: Boolean get() = stateStore.runState.value == RunState.PLAYING
@@ -155,14 +146,20 @@ class SaveLoadViewModel @Inject constructor(
     private val _saveSlots = MutableStateFlow<List<SaveSlot>>(emptyList())
     val saveSlots: StateFlow<List<SaveSlot>> = _saveSlots.asStateFlow()
 
-    private val _autoSaveInterval = MutableStateFlow(5)
-    val autoSaveInterval: StateFlow<Int> = _autoSaveInterval.asStateFlow()
-
     private val _pendingSlot = MutableStateFlow<Int?>(null)
     val pendingSlot: StateFlow<Int?> = _pendingSlot.asStateFlow()
 
     private val _pendingAction = MutableStateFlow<String?>(null)
     val pendingAction: StateFlow<String?> = _pendingAction.asStateFlow()
+
+    // ── 云存档状态 ──
+    private val _cloudSaveInfo = MutableStateFlow(TapCloudSaveManager.CloudSaveInfo(false))
+    val cloudSaveInfo: StateFlow<TapCloudSaveManager.CloudSaveInfo> = _cloudSaveInfo.asStateFlow()
+
+    private val _cloudSaveOperationState = MutableStateFlow<CloudSaveOperationState>(CloudSaveOperationState.Idle)
+    val cloudSaveOperationState: StateFlow<CloudSaveOperationState> = _cloudSaveOperationState.asStateFlow()
+
+    fun isCloudSaveAvailable(): Boolean = sessionManager.isLoggedIn
 
     val saveLoadState: StateFlow<SaveLoadState> = combine(
         stateStore.unifiedState,
@@ -208,50 +205,6 @@ class SaveLoadViewModel @Inject constructor(
             }
         }
 
-        // 系统自动存档收集 — 运行在 Default 调度器上，避免 BufferedChannel.hasNext()
-        // 在主线程上挂起导致 ANR（见 Bugly #3042/#8024）。
-        viewModelScope.launch(Dispatchers.Default) {
-            try {
-                gameEngineCore.autoSaveTrigger.collect { _ ->
-                    try {
-                        if (gameEngine.gameData.value?.autoSaveIntervalMonths ?: 0 <= 0) {
-                            Log.d(TAG, "Auto save trigger received but auto-save is disabled, skipping")
-                            return@collect
-                        }
-                        withTimeoutOrNull(30_000L) {
-                            performAutoSave()
-                        } ?: Log.w(TAG, "Auto save cancelled due to timeout")
-                    } catch (e: CancellationException) {
-                        Log.w(TAG, "Auto save cancelled", e)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Auto save error", e)
-                    }
-                }
-            } catch (e: CancellationException) { throw e }
-              catch (e: Exception) {
-                Log.e(TAG, "autoSaveTrigger collector crashed, will restart on next trigger", e)
-            }
-        }
-
-        // 管道保存结果收集 — 运行在 Default 调度器上
-        viewModelScope.launch(Dispatchers.Default) {
-            try {
-                savePipeline.saveResults.collect { result ->
-                    if (result.success) {
-                        try {
-                            _saveSlots.value = storageFacade.getSaveSlotsSuspend()
-                        } catch (e: CancellationException) { throw e }
-                          catch (e: Exception) {
-                            Log.e(TAG, "Failed to refresh slots after pipeline save: ${e.message}", e)
-                        }
-                        Log.d(TAG, "Save slots refreshed after save completed: slot=${result.slot}, source=${result.source}")
-                    }
-                }
-            } catch (e: CancellationException) { throw e }
-              catch (e: Exception) {
-                Log.e(TAG, "saveResults collector crashed", e)
-            }
-        }
     }
 
     private suspend fun setSaveLoadState(
@@ -273,7 +226,6 @@ class SaveLoadViewModel @Inject constructor(
 
     fun cancelSaveLoad() {
         gameEngine.launchOnEngine { setSaveLoadState(isSaving = false, isLoading = false, pendingSlot = null, pendingAction = null) }
-        saveLock.set(false)
     }
 
     fun resetSaveLoadState() {
@@ -283,7 +235,6 @@ class SaveLoadViewModel @Inject constructor(
         }
         _pendingSlot.value = null
         _pendingAction.value = null
-        saveLock.set(false)
     }
 
     fun setPendingSave(slot: Int) {
@@ -362,94 +313,6 @@ class SaveLoadViewModel @Inject constructor(
         } finally {
             _isTimeRunning.value = false
         }
-    }
-
-    private fun enqueueAutoSave(source: SavePipeline.SaveSource) {
-        val lockAge = System.currentTimeMillis() - saveLockAcquireTime.get()
-        if (saveLock.get() && saveLockAcquireTime.get() > 0 && lockAge > SAVE_LOCK_TIMEOUT_MS) {
-            Log.e(TAG, "Save lock held for ${lockAge}ms, force releasing")
-            saveLock.set(false)
-            saveLockAcquireTime.set(0)
-        }
-
-        if (!saveLock.compareAndSet(false, true)) {
-            pendingAutoSave.set(source)
-            Log.w(TAG, "Already saving, marking pending auto save (source=$source)")
-            return
-        }
-
-        saveLockAcquireTime.set(System.currentTimeMillis())
-
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val autoSaveSlot = com.xianxia.sect.data.StorageConstants.AUTO_SAVE_SLOT
-
-                if (source == SavePipeline.SaveSource.AUTO) {
-                    val incrementalResult = withTimeoutOrNull(15_000L) {
-                        storageFacade.incrementalSave(autoSaveSlot)
-                    }
-
-                    if (incrementalResult != null && incrementalResult.isSuccess) {
-                        consecutiveSaveFailures.set(0)
-                        Log.d(TAG, "Auto incremental save succeeded for slot: $autoSaveSlot")
-                        try {
-                            _saveSlots.value = storageFacade.getSaveSlotsSuspend()
-                        } catch (e: CancellationException) { throw e }
-                          catch (e: Exception) {
-                            Log.e(TAG, "Failed to refresh slots after incremental save", e)
-                        }
-                        return@launch
-                    }
-
-                    Log.w(TAG, "Incremental auto-save failed or timed out for slot $autoSaveSlot, falling back to full save")
-                }
-
-                val snapshot = gameEngine.getStateSnapshot()
-
-                val autoRequest = SavePipeline.SaveRequest(
-                    slot = autoSaveSlot,
-                    snapshot = snapshot,
-                    source = source
-                )
-                val autoEnqueued = savePipeline.enqueue(autoRequest)
-
-                if (!autoEnqueued) {
-                    Log.w(TAG, "Auto save queue full, retrying after delay")
-                    delay(2000)
-                    savePipeline.enqueue(autoRequest)
-                }
-
-                consecutiveSaveFailures.set(0)
-                Log.d(TAG, "Auto save enqueued for slot: $autoSaveSlot, source=$source")
-            } catch (e: CancellationException) {
-                Log.w(TAG, "Auto save cancelled (source=$source)", e)
-                throw e
-            } catch (e: Exception) {
-                val failures = consecutiveSaveFailures.incrementAndGet()
-                Log.e(TAG, "Auto save failed (source=$source): ${e.message}", e)
-                if (failures >= MAX_CONSECUTIVE_SAVE_FAILURES) {
-                    showError("自动保存连续失败，请手动保存或重启游戏")
-                    consecutiveSaveFailures.set(0)
-                }
-            } finally {
-                saveLock.set(false)
-                saveLockAcquireTime.set(0)
-                gameEngineCore.clearActiveSaveJob()
-                val pendingSource = pendingAutoSave.getAndSet(null)
-                if (pendingSource != null) {
-                    if (pendingSource == SavePipeline.SaveSource.AUTO && (gameEngine.gameData.value?.autoSaveIntervalMonths ?: 0) <= 0) {
-                        Log.d(TAG, "Discarding pending auto save because auto-save is disabled")
-                    } else {
-                        Log.d(TAG, "Processing pending auto save (source=$pendingSource)")
-                        enqueueAutoSave(pendingSource)
-                    }
-                }
-            }
-        }.also { gameEngineCore.registerActiveSaveJob(it) }
-    }
-
-    fun performAutoSave() {
-        enqueueAutoSave(SavePipeline.SaveSource.AUTO)
     }
 
     suspend fun createSaveData(): SaveData {
@@ -659,8 +522,6 @@ class SaveLoadViewModel @Inject constructor(
 
                 performGarbageCollection()
 
-                savePipeline.waitForCurrentSave(timeoutMs = 5_000L)
-
                 Log.d(TAG, "Starting to load save data for slot ${saveSlot.slot}")
                 val loadStartTime = System.currentTimeMillis()
 
@@ -682,7 +543,7 @@ class SaveLoadViewModel @Inject constructor(
                     return@launch
                 }
 
-                val effectiveSlot = com.xianxia.sect.data.StorageConstants.resolveEffectiveSlot(saveSlot.slot)
+                val effectiveSlot = saveSlot.slot
                 storageFacade.setCurrentSlot(effectiveSlot)
                 gameEngine.loadData(
                     gameData = saveData.gameData.copy(currentSlot = effectiveSlot),
@@ -760,6 +621,11 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     fun loadGameFromSlot(slot: Int) {
+        // slot 0 = 从云端下载
+        if (slot == 0) {
+            downloadFromCloudSave()
+            return
+        }
         // 从已缓存的存档元数据中查找 SaveSlot，兜底构造最小 SaveSlot
         val saveSlot = _saveSlots.value.find { it.slot == slot }
             ?: SaveSlot(slot, "", 0L, 1, 1, "", 0, 0L)
@@ -767,6 +633,14 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     fun saveGame(slotId: String? = null) {
+        val slot = slotId?.toIntOrNull() ?: gameEngine.gameData.value?.currentSlot ?: 1
+
+        // slot 0 = 上传至云端
+        if (slot == 0) {
+            uploadToCloudSave()
+            return
+        }
+
         if (!isGameLoaded) {
             Log.w(TAG, "Game not loaded, ignoring saveGame request")
             return
@@ -778,7 +652,6 @@ class SaveLoadViewModel @Inject constructor(
             return
         }
 
-        val slot = slotId?.toIntOrNull() ?: gameEngine.gameData.value?.currentSlot ?: 1
         Log.i(TAG, "=== saveGame BEGIN === slot=$slot, slotId=$slotId")
         val startTime = System.currentTimeMillis()
 
@@ -790,11 +663,6 @@ class SaveLoadViewModel @Inject constructor(
                     Log.e(TAG, "=== saveGame FAILED === saveLock busy after timeout")
                     showError("保存操作繁忙，请稍后重试")
                     return@launch
-                }
-
-                val pipelineWaitResult = savePipeline.waitForCurrentSave(timeoutMs = 10_000L)
-                if (!pipelineWaitResult) {
-                    Log.w(TAG, "Timed out waiting for auto-save pipeline to complete, proceeding with manual save anyway")
                 }
 
                 val previousSlot = storageFacade.getCurrentSlot()
@@ -858,7 +726,6 @@ class SaveLoadViewModel @Inject constructor(
                     try { _saveSlots.value = storageFacade.getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e2: Exception) { Log.e(TAG, "Failed to refresh slots after save failure", e2) }
                 } finally {
                     saveLock.set(false)
-                    saveLockAcquireTime.set(0)
                 }
             } finally {
                 try {
@@ -870,16 +737,14 @@ class SaveLoadViewModel @Inject constructor(
                     _pendingSlot.value = null
                     _pendingAction.value = null
                 }
-                gameEngineCore.clearActiveSaveJob()
-            }
-        }.also { gameEngineCore.registerActiveSaveJob(it) }
+                            }
+        }.also {  }
     }
 
     private suspend fun waitForSaveLock(timeoutMs: Long): Boolean {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
             if (saveLock.compareAndSet(false, true)) {
-                saveLockAcquireTime.set(System.currentTimeMillis())
                 return true
             }
             delay(50)
@@ -916,12 +781,10 @@ class SaveLoadViewModel @Inject constructor(
             Log.w(TAG, "Already saving, ignoring restartGame request")
             return
         }
-        saveLockAcquireTime.set(System.currentTimeMillis())
 
         if (stateStore.unifiedState.value.isLoading || _isRestarting.value) {
             Log.w(TAG, "Already loading or restarting, ignoring restartGame request")
             saveLock.set(false)
-            saveLockAcquireTime.set(0)
             return
         }
 
@@ -1012,15 +875,13 @@ class SaveLoadViewModel @Inject constructor(
             } finally {
                 _isRestarting.value = false
                 saveLock.set(false)
-                saveLockAcquireTime.set(0)
-                gameEngineCore.clearActiveSaveJob()
-                // 兜底：若 boot() 未执行（提前 return），则仅记录日志
+                                // 兜底：若 boot() 未执行（提前 return），则仅记录日志
                 // BootSequenceController.boot() 在内部已处理游戏循环恢复
                 if (wasRunning && !_isTimeRunning.value) {
                     Log.w(TAG, "restartGame: game loop not running after restart finally, boot() may have failed")
                 }
             }
-        }.also { gameEngineCore.registerActiveSaveJob(it) }
+        }.also {  }
     }
 
     private suspend fun performRestartSave(slot: Int, previousSlot: Int): Boolean {
@@ -1098,16 +959,6 @@ class SaveLoadViewModel @Inject constructor(
         }
     }
 
-    fun setAutoSaveInterval(interval: Int) {
-        _autoSaveInterval.value = interval
-    }
-
-    fun setAutoSaveIntervalMonths(interval: Int) {
-        gameEngine.launchOnEngine {
-            gameEngine.updateGameData { it.copy(autoSaveIntervalMonths = interval) }
-        }
-    }
-
     fun refreshSaveSlots() {
         viewModelScope.launch {
             try {
@@ -1133,6 +984,150 @@ class SaveLoadViewModel @Inject constructor(
             return
         }
         startGameLoop()
+    }
+
+    // ── 云存档操作方法 ──
+
+    fun checkCloudSave() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // 老玩家首次使用：清理旧版本残留的孤立存档
+                tapCloudSaveManager.oneTimeCleanup()
+                // 查询云端存档信息
+                val info = tapCloudSaveManager.checkCloudSave()
+                _cloudSaveInfo.value = info
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
+                Log.w(TAG, "checkCloudSave failed", e)
+            }
+        }
+    }
+
+    fun uploadToCloudSave() {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (!isCloudSaveAvailable()) {
+                _cloudSaveOperationState.value = CloudSaveOperationState.Error("请先登录TapTap账号")
+                return@launch
+            }
+
+            _cloudSaveOperationState.value = CloudSaveOperationState.Uploading
+
+            try {
+                val snapshot = gameEngine.getStateSnapshot()
+                val saveData = createSaveDataFromSnapshot(snapshot)
+
+                val result = tapCloudSaveManager.uploadSave(saveData)
+
+                _cloudSaveOperationState.value = when (result) {
+                    is TapCloudSaveManager.CloudSaveResult.Success -> {
+                        _cloudSaveInfo.value = tapCloudSaveManager.checkCloudSave()
+                        CloudSaveOperationState.Success("云存档上传成功")
+                    }
+                    is TapCloudSaveManager.CloudSaveResult.NetworkError ->
+                        CloudSaveOperationState.Error("网络错误: ${result.message}")
+                    is TapCloudSaveManager.CloudSaveResult.AuthRequired ->
+                        CloudSaveOperationState.Error("请先登录TapTap账号")
+                    is TapCloudSaveManager.CloudSaveResult.SerializationError ->
+                        CloudSaveOperationState.Error("序列化失败: ${result.message}")
+                    is TapCloudSaveManager.CloudSaveResult.FileTooLarge -> {
+                        val actualMb = result.actualBytes / (1024 * 1024)
+                        CloudSaveOperationState.Error("存档过大(${actualMb}MB)，无法上传")
+                    }
+                    is TapCloudSaveManager.CloudSaveResult.NoSaveExists ->
+                        CloudSaveOperationState.Error("保存失败")
+                    is TapCloudSaveManager.CloudSaveResult.UnknownError ->
+                        CloudSaveOperationState.Error("未知错误: ${result.message}")
+                }
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
+                _cloudSaveOperationState.value = CloudSaveOperationState.Error("上传失败: ${e.message}")
+            }
+        }
+    }
+
+    fun downloadFromCloudSave() {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (!isCloudSaveAvailable()) {
+                _cloudSaveOperationState.value = CloudSaveOperationState.Error("请先登录TapTap账号")
+                return@launch
+            }
+
+            _cloudSaveOperationState.value = CloudSaveOperationState.Downloading
+
+            try {
+                val result = tapCloudSaveManager.downloadSave()
+
+                when (result) {
+                    is TapCloudSaveManager.CloudSaveResult.Success -> {
+                        val saveData = result.saveData
+                        if (saveData == null) {
+                            _cloudSaveOperationState.value = CloudSaveOperationState.Error("云存档为空")
+                            return@launch
+                        }
+
+                        val effectiveSlot = storageFacade.getCurrentSlot()
+                        gameEngine.loadData(
+                            gameData = saveData.gameData.copy(currentSlot = effectiveSlot),
+                            disciples = saveData.disciples,
+                            equipmentStacks = saveData.equipmentStacks,
+                            equipmentInstances = saveData.equipmentInstances,
+                            manualStacks = saveData.manualStacks,
+                            manualInstances = saveData.manualInstances,
+                            pills = saveData.pills,
+                            materials = saveData.materials,
+                            herbs = saveData.herbs,
+                            seeds = saveData.seeds,
+                            storageBags = saveData.storageBags,
+                            teams = saveData.teams,
+                            battleLogs = saveData.battleLogs,
+                            alliances = saveData.alliances,
+                            productionSlots = saveData.productionSlots
+                        )
+
+                        val bootResult = bootSequenceController.boot(
+                            slot = effectiveSlot,
+                            onPreloadResources = { preloadGameResources() },
+                            onProgress = { progress ->
+                                _loadingProgress.value = PROGRESS_START + progress * (PROGRESS_COMPLETE - PROGRESS_START)
+                            },
+                            onMapReady = { mapData -> _mapPreloadData.value = mapData }
+                        )
+
+                        if (bootResult.isSuccess) {
+                            _cloudSaveOperationState.value = CloudSaveOperationState.Success("云存档下载成功")
+                            _cloudSaveInfo.value = tapCloudSaveManager.checkCloudSave()
+                        } else {
+                            _cloudSaveOperationState.value = CloudSaveOperationState.Error(
+                                "读取云存档失败: ${bootResult.exceptionOrNull()?.message}"
+                            )
+                        }
+                    }
+                    is TapCloudSaveManager.CloudSaveResult.NoSaveExists ->
+                        _cloudSaveOperationState.value = CloudSaveOperationState.Error("云存档不存在")
+                    is TapCloudSaveManager.CloudSaveResult.NetworkError ->
+                        _cloudSaveOperationState.value = CloudSaveOperationState.Error("网络错误: ${result.message}")
+                    is TapCloudSaveManager.CloudSaveResult.AuthRequired ->
+                        _cloudSaveOperationState.value = CloudSaveOperationState.Error("请先登录TapTap账号")
+                    is TapCloudSaveManager.CloudSaveResult.SerializationError ->
+                        _cloudSaveOperationState.value = CloudSaveOperationState.Error("反序列化失败: ${result.message}")
+                    is TapCloudSaveManager.CloudSaveResult.UnknownError ->
+                        _cloudSaveOperationState.value = CloudSaveOperationState.Error("未知错误: ${result.message}")
+                    is TapCloudSaveManager.CloudSaveResult.FileTooLarge ->
+                        _cloudSaveOperationState.value = CloudSaveOperationState.Error("云存档文件过大")
+                }
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
+                _cloudSaveOperationState.value = CloudSaveOperationState.Error("下载失败: ${e.message}")
+            }
+        }
+    }
+
+    fun resetCloudSaveOperationState() {
+        _cloudSaveOperationState.value = CloudSaveOperationState.Idle
+    }
+
+    private suspend fun createSaveDataFromSnapshot(snapshot: com.xianxia.sect.core.engine.GameStateSnapshot): SaveData {
+        return SaveDataTrimmer.trimSaveData(snapshot)
     }
 
     override fun onCleared() {
@@ -1226,4 +1221,12 @@ class SaveLoadViewModel @Inject constructor(
             gameEngine.resetAllDisciplesStatus()
         }
     }
+}
+
+sealed class CloudSaveOperationState {
+    data object Idle : CloudSaveOperationState()
+    data object Uploading : CloudSaveOperationState()
+    data object Downloading : CloudSaveOperationState()
+    data class Success(val message: String) : CloudSaveOperationState()
+    data class Error(val message: String) : CloudSaveOperationState()
 }

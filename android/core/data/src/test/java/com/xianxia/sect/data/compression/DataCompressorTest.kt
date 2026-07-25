@@ -106,31 +106,13 @@ class DataCompressorTest {
     // ==================== selectAlgorithm() tests ====================
 
     @Test
-    fun `selectAlgorithm AUTO_SAVE returns LZ4`() {
-        assertEquals(CompressionAlgorithm.LZ4,
-            compressor.selectAlgorithm(UseCase.AUTO_SAVE))
-    }
-
-    @Test
-    fun `selectAlgorithm FULL_SAVE returns ZSTD or GZIP fallback`() {
-        val algo = compressor.selectAlgorithm(UseCase.FULL_SAVE)
-        assertTrue(algo == CompressionAlgorithm.ZSTD || algo == CompressionAlgorithm.GZIP)
-    }
-
-    @Test
-    fun `selectAlgorithm CLOUD_UPLOAD returns ZSTD or GZIP fallback`() {
-        val algo = compressor.selectAlgorithm(UseCase.CLOUD_UPLOAD)
-        assertTrue(algo == CompressionAlgorithm.ZSTD || algo == CompressionAlgorithm.GZIP)
-    }
-
-    @Test
     fun `selectAlgorithm with full parameters works`() {
         val algo = compressor.selectAlgorithm(
             dataSize = 1024,
             dataType = DataType.ARCHIVED,
-            useCase = UseCase.AUTO_SAVE
+            useCase = UseCase.FULL_SAVE
         )
-        assertEquals(CompressionAlgorithm.LZ4, algo)
+        assertTrue(algo == CompressionAlgorithm.ZSTD || algo == CompressionAlgorithm.GZIP)
     }
 
     // ==================== GZIP compression roundtrip test ====================

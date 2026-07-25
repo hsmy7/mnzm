@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.text.KeyboardOptions
 import com.xianxia.sect.core.util.InputValidator
 import com.xianxia.sect.data.model.SaveSlot
+import com.xianxia.sect.taptap.TapCloudSaveManager
 import com.xianxia.sect.ui.components.GameBackground
 import com.xianxia.sect.ui.components.InlineStandardPromptDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
@@ -45,14 +46,12 @@ private data class SlotStyle(
 )
 
 private val slotStyles = mapOf(
-    "auto_empty" to SlotStyle(Color(0xFFCCCCCC), Color(0xFFF5F5F5), Color(0xFFCCCCCC)),
-    "auto_filled" to SlotStyle(Color(0xFF4CAF50), Color(0xFFF0FFF0), Color(0xFF4CAF50)),
-    "manual_empty" to SlotStyle(Color(0xFFDDDDDD), GameColors.CardBackground, Color(0xFFCCCCCC)),
-    "manual_filled" to SlotStyle(Color(0xFF4A90E2), Color(0xFFF0F7FF), Color(0xFF4A90E2))
+    "empty" to SlotStyle(Color(0xFFDDDDDD), GameColors.CardBackground, Color(0xFFCCCCCC)),
+    "filled" to SlotStyle(Color(0xFF4A90E2), Color(0xFFF0F7FF), Color(0xFF4A90E2))
 )
 
 private fun SaveSlot.resolveStyle(): SlotStyle {
-    val key = "${if (isAutoSave) "auto" else "manual"}_${if (isEmpty) "empty" else "filled"}"
+    val key = if (isEmpty) "empty" else "filled"
     return slotStyles.getValue(key)
 }
 
@@ -63,14 +62,16 @@ fun SaveSelectScreen(
     onNewGame: (Int, String) -> Unit,
     onLoadSlot: (Int) -> Unit,
     onDeleteSlot: (Int) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    cloudSaveInfo: TapCloudSaveManager.CloudSaveInfo? = null,
+    onCloudSaveLoad: () -> Unit = {}
 ) {
     var showOverwriteConfirm by remember { mutableStateOf<Int?>(null) }
-    var showAutoSlotError by remember { mutableStateOf(false) }
     var showSectNameDialog by remember { mutableStateOf<Int?>(null) }
     var sectNameInput by remember { mutableStateOf("") }
     var sectNameError by remember { mutableStateOf<String?>(null) }
     var showDeleteConfirm by remember { mutableStateOf<Int?>(null) }
+    var showCloudSaveInfo by remember { mutableStateOf(false) }
     val locale = LocalLocale.current.platformLocale
     val dateFormat = remember(locale) { SimpleDateFormat("yyyy-MM-dd HH:mm", locale) }
 
@@ -131,15 +132,20 @@ fun SaveSelectScreen(
                             slot = slot,
                             mode = mode,
                             dateFormat = dateFormat,
+                            cloudSaveInfo = cloudSaveInfo,
                             onClick = {
-                                when (mode) {
+                                if (slot.slot == 0) {
+                                    if (mode == SaveSelectMode.LOAD_SAVE && cloudSaveInfo?.hasSaveData == true) {
+                                        onCloudSaveLoad()
+                                    } else {
+                                        showCloudSaveInfo = true
+                                    }
+                                } else when (mode) {
                                     SaveSelectMode.NEW_GAME -> {
                                         if (slot.isEmpty) {
                                             showSectNameDialog = slot.slot
                                             sectNameInput = ""
                                             sectNameError = null
-                                        } else if (slot.isAutoSave) {
-                                            showAutoSlotError = true
                                         } else {
                                             showOverwriteConfirm = slot.slot
                                         }
@@ -161,17 +167,6 @@ fun SaveSelectScreen(
                 }
             }
         }
-    }
-
-    // ── 提示框：自动存档不可创建新游戏 ──
-    if (showAutoSlotError) {
-        StandardPromptDialog(
-            onDismissRequest = { showAutoSlotError = false },
-            title = "提示",
-            text = "自动存档不可创建新游戏",
-            confirmLabel = "知道了",
-            onConfirm = { showAutoSlotError = false }
-        )
     }
 
     // ── 提示框：确认覆盖旧存档 ──
@@ -208,6 +203,18 @@ fun SaveSelectScreen(
                 showDeleteConfirm = null
                 onDeleteSlot(slot)
             }
+        )
+    }
+
+    // ── 云存档信息对话框 ──
+    if (showCloudSaveInfo) {
+        StandardPromptDialog(
+            onDismissRequest = { showCloudSaveInfo = false },
+            title = "☁ 云存档",
+            text = "云存档可以将存档上传至云端，在其他设备继续游戏。\n\n请进入游戏后，在「设置」中管理云存档的上传和下载。",
+            confirmLabel = "知道了",
+            onConfirm = { showCloudSaveInfo = false },
+            dismissOnClickOutside = true
         )
     }
 
@@ -274,19 +281,25 @@ fun SaveSlotCard(
     slot: SaveSlot,
     mode: SaveSelectMode,
     dateFormat: SimpleDateFormat,
+    cloudSaveInfo: TapCloudSaveManager.CloudSaveInfo? = null,
     onClick: () -> Unit,
     onDeleteClick: (() -> Unit)? = null
 ) {
     val style = slot.resolveStyle()
-    // 空自动存档不可点击（N/A），其他均可点击
-    val canClick = !(slot.isAutoSave && slot.isEmpty)
+    val canClick = true
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(style.background)
-            .border(2.dp, style.border, RoundedCornerShape(8.dp))
+            .background(
+                if (slot.slot == 0) Color(0xFFF0F7FF) else style.background
+            )
+            .border(
+                2.dp,
+                if (slot.slot == 0) Color(0xFF4A90E2) else style.border,
+                RoundedCornerShape(8.dp)
+            )
             .then(
                 if (canClick) Modifier.clickable { onClick() }
                 else Modifier
@@ -306,34 +319,71 @@ fun SaveSlotCard(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(style.icon),
+                        .background(
+                            if (slot.slot == 0) Color(0xFF4A90E2) else style.icon
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = if (slot.isAutoSave) "自" else slot.slot.toString(),
+                        text = if (slot.slot == 0) "云" else slot.slot.toString(),
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
                 }
 
-                if (!slot.isEmpty) {
+                if (slot.slot == 0) {
+                    // 云存档入口：显示云端存档信息（三行格式与本地存档一致）
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            if (slot.isAutoSave) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(Color(0xFF4CAF50))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = "自动",
-                                        fontSize = 10.sp,
-                                        color = Color.White
-                                    )
-                                }
+                            Text(
+                                text = if (cloudSaveInfo?.hasSaveData == true) {
+                                    cloudSaveInfo?.sectName?.ifEmpty { "云存档" } ?: "云存档"
+                                } else "云存档",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = if (cloudSaveInfo?.hasSaveData == true) Color.Black else Color(0xFF4A90E2)
+                            )
+                        }
+                        if (cloudSaveInfo?.hasSaveData == true) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "第${cloudSaveInfo.gameYear}年 ${cloudSaveInfo.gameMonth}月",
+                                fontSize = 13.sp,
+                                color = Color.Black
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "弟子: ${cloudSaveInfo.discipleCount}  灵石: ${cloudSaveInfo.spiritStones}",
+                                fontSize = 12.sp,
+                                color = Color.Black
+                            )
+                            if (cloudSaveInfo.lastModifiedTime > 0) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "上次同步: ${formatTime(cloudSaveInfo.lastModifiedTime)}",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF999999)
+                                )
                             }
+                        } else {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "暂无云存档数据",
+                                fontSize = 13.sp,
+                                color = Color(0xFF999999)
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = if (mode == SaveSelectMode.LOAD_SAVE) "点击从云端下载存档" else "进入游戏后上传",
+                                fontSize = 11.sp,
+                                color = Color(0xFFBBBBBB)
+                            )
+                        }
+                    }
+                } else if (!slot.isEmpty) {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
                                 text = slot.displayName.ifEmpty { slot.sectName.ifEmpty { "存档 ${slot.slot}" } },
                                 fontSize = 16.sp,
@@ -364,7 +414,7 @@ fun SaveSlotCard(
                     }
                 } else {
                     Text(
-                        text = if (slot.isAutoSave) "自动存档 - 暂无数据" else "空槽位 - 点击创建新游戏",
+                        text = "空槽位 - 点击创建新游戏",
                         fontSize = 16.sp,
                         color = Color.Black
                     )
@@ -385,4 +435,9 @@ fun SaveSlotCard(
             }
         }
     }
+}
+
+private fun formatTime(timestamp: Long): String {
+    val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.CHINA)
+    return sdf.format(Date(timestamp))
 }

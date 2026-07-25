@@ -61,6 +61,10 @@ dependencies {
     // Kotlinx Serialization
     implementation libs.serialization.json
 
+    // TapTap SDK (cloud save)
+    implementation libs.taptap.cloudsave
+    implementation libs.taptap.common
+
     // Room (needed for some ViewModel references)
     implementation libs.room.runtime
 

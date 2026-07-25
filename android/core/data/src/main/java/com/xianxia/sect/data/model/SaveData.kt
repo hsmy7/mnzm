@@ -16,14 +16,13 @@ data class SaveSlot(
     val discipleCount: Int,
     val spiritStones: Long,
     val isEmpty: Boolean = false,
-    val customName: String = "",
-    val isAutoSave: Boolean = false
+    val customName: String = ""
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月"
     val saveTime: String
         get() = if (timestamp > 0) java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.CHINA)
             .format(java.util.Date(timestamp)) else "--"
-    val displayName: String get() = if (isAutoSave) "自动存档" else (if (customName.isNotBlank()) customName else name)
+    val displayName: String get() = if (customName.isNotBlank()) customName else name
 }
 
 @Keep

@@ -64,7 +64,6 @@ suspend fun GameEngine.sendAdminCompensation(
 
     mailService.insertMail(mail)
     DomainLog.i(TAG, "补偿邮件 $mailId 已注入到 slot=$slotId")
-    gameEngineCore.notifyPendingSave()
 }
 
 /**
@@ -79,8 +78,7 @@ suspend fun GameEngine.sendAdminCompensation(
 suspend fun GameEngine.sendDirectCompensation(slotId: Int, userId: String?) {
     val injected = mailService.injectDirectCompensation(slotId, userId)
     if (injected) {
-        DomainLog.i(TAG, "直接运营补偿已注入 slot=$slotId，触发自动存档")
-        gameEngineCore.notifyPendingSave()
+        DomainLog.i(TAG, "直接运营补偿已注入 slot=$slotId")
     } else {
         DomainLog.i(TAG, "直接运营补偿跳过注入（userId=$userId, slotId=$slotId）")
     }

@@ -34,9 +34,6 @@ class StorageConfig @Inject constructor(
     
     val maxBackupVersions: Int
         get() = prefs.getInt("max_backup_versions", DEFAULT_MAX_BACKUP_VERSIONS)
-    
-    val autoSaveIntervalMonths: Int
-        get() = prefs.getInt("auto_save_interval_months", DEFAULT_AUTO_SAVE_INTERVAL_MONTHS)
 
     val autoBackupOnSave: Boolean
         get() = prefs.getBoolean("auto_backup_on_save", DEFAULT_AUTO_BACKUP_ON_SAVE)
@@ -55,12 +52,6 @@ class StorageConfig @Inject constructor(
     
     val maxDeltaChainLength: Int
         get() = prefs.getInt("max_delta_chain_length", DEFAULT_MAX_DELTA_CHAIN_LENGTH)
-    
-    val forceFullSaveInterval: Int
-        get() = prefs.getInt("force_full_save_interval", DEFAULT_FORCE_FULL_SAVE_INTERVAL)
-    
-    val incrementalSaveThreshold: Int
-        get() = prefs.getInt("incremental_save_threshold", DEFAULT_INCREMENTAL_SAVE_THRESHOLD)
     
     val maxDisciples: Int
         get() = prefs.getInt("max_disciples", DEFAULT_MAX_DISCIPLES)
@@ -84,15 +75,6 @@ class StorageConfig @Inject constructor(
             prefs.getString("compression_type", DEFAULT_COMPRESSION_TYPE.name) ?: DEFAULT_COMPRESSION_TYPE.name
         )
 
-    fun getAutoSaveContext(): SerializationContext {
-        return SerializationContext(
-            format = defaultSerializationFormat,
-            compression = defaultCompressionType,
-            compressThreshold = 512,
-            includeChecksum = true
-        )
-    }
-
     fun getQuickSaveContext(): SerializationContext {
         return SerializationContext(
             format = SerializationFormat.PROTOBUF,
@@ -104,10 +86,6 @@ class StorageConfig @Inject constructor(
 
     fun setMaxBackupVersions(versions: Int) {
         prefs.edit().putInt("max_backup_versions", versions.coerceIn(1, 20)).apply()
-    }
-
-    fun setIncrementalSaveThreshold(threshold: Int) {
-        prefs.edit().putInt("incremental_save_threshold", threshold.coerceIn(1, 50)).apply()
     }
 
     fun setCacheDerivedKey(enabled: Boolean) {
@@ -129,15 +107,12 @@ class StorageConfig @Inject constructor(
         const val DEFAULT_MIN_MEMORY_RATIO = 0.15f
         const val DEFAULT_GZIP_BUFFER_SIZE = 64 * 1024
         const val DEFAULT_MAX_BACKUP_VERSIONS = 5
-        const val DEFAULT_AUTO_SAVE_INTERVAL_MONTHS = 3
         const val DEFAULT_AUTO_BACKUP_ON_SAVE = true
         const val DEFAULT_ENABLE_PRE_SAVE_VALIDATION = true
         const val DEFAULT_MAX_RETRY_COUNT = 2
         const val DEFAULT_RETRY_DELAY_MS = 100L
         const val DEFAULT_COMPACTION_THRESHOLD = 10
         const val DEFAULT_MAX_DELTA_CHAIN_LENGTH = 50
-        const val DEFAULT_FORCE_FULL_SAVE_INTERVAL = 20
-        const val DEFAULT_INCREMENTAL_SAVE_THRESHOLD = 10
         const val DEFAULT_MAX_DISCIPLES = 1000
         const val DEFAULT_CACHE_DERIVED_KEY = true
         const val DEFAULT_KEY_CACHE_DURATION_MS = 300_000L

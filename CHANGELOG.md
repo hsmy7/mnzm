@@ -1,3 +1,20 @@
+## [4.0.74] - 2026-07-25
+
+### 修复
+
+- **修复：云存档反射桥接 7 个运行时崩溃 Bug** — 反编译 `tap-cloudsave-4.10.5.aar` 验证实际 API 后修正：主类名 `TapCloudSave`→`TapTapCloudSave`、回调包名 `com.xd.sdk.taptap`→`com.taptap.sdk.cloudsave.internal`、`ArchiveMetadata.Builder` 实例化方式、`onArchiveDataResult` 签名（1参数非3参数）、`setPlaytime` 类型（int 非 long）、`invokeGetter` Long 返回值处理、`NativeTapCloudSaveApi` 完整实现
+- **修复：云端孤立存档导致数量超限（400003）** — 增加一次性清理 + UUID 缓存 + `shuffled(Random)` 替代 `sortedBy { rng.nextInt() }` 的 TimSort 崩溃
+- **修复：月度事件 `aiBeastAttacksRemaining` TimSort 崩溃** — `sortedBy { rng.nextInt() }` 比较器违反传递性导致 Android TimSort 抛 `Comparison method violates its general contract`，6 处全部改为 `shuffled(java.util.Random(seed))`
+- **修复：AISectBeastAttackProcessor 距离排序 NaN 崩溃** — `mapNotNull` 过滤 `isNaN/isInfinite` 坐标对
+
+### 变更
+
+- **变更：移除自动存档机制** — 移除游戏循环触发的周期性自动存档（`GameEngineCore.processTickPhases`）、`SavePipeline` 异步管道、增量保存（`ChangeTracker`）、`AUTO_SAVE_SLOT=0`、`autoSaveIntervalMonths` 字段等 ~40 文件涉及清理
+- **变更：云存档入口移至存档选择界面** — 设置页移除"云存档管理"按钮，slot 0 改为"云"图标显示云端数据（宗门/年份/弟子/灵石），点击直接上传/下载，与本地存档操作一致
+- **变更：旧自动存档 slot 0 数据迁移至空槽位** — 检测到旧版残留的 slot 0 数据时自动复制到第一个空槽位，避免数据丢失
+- **界面：设置页调整** — 原"自动存档"配置区域替换为"云存档"入口，存档选择页移除槽位 0 自动存档卡片
+- **清理：移除 `UseCase.AUTO_SAVE`、`getAutoSaveContext()`、`setIncrementalSaveThreshold()`** — 自动存档相关死代码清理
+
 ## [4.0.73] - 2026-07-25（versionCode=4073）
 
 ### 修复

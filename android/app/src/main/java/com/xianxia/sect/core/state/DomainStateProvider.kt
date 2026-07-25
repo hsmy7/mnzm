@@ -120,6 +120,5 @@ private fun SectPolicyState.toDomainState() = SectPolicyDomainState(
     autoLearnFromWarehouseFocused = autoLearnFromWarehouseFocused,
     autoLearnFromWarehouseRootCounts = autoLearnFromWarehouseRootCounts,
     yearlySalary = yearlySalary,
-    yearlySalaryEnabled = yearlySalaryEnabled,
-    autoSaveIntervalMonths = autoSaveIntervalMonths
+    yearlySalaryEnabled = yearlySalaryEnabled
 )

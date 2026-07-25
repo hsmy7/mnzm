@@ -2,13 +2,10 @@ package com.xianxia.sect.ui.game.saveload
 
 import android.util.Log
 import com.xianxia.sect.core.engine.GameEngine
-import com.xianxia.sect.core.engine.domain.save.SavePipeline
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.ui.game.SaveLoadViewModelConstants
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicReference
 
 /**
  * 存档保存委托 — 管理存档持久化、自动存档、保存状态。
@@ -18,13 +15,10 @@ import java.util.concurrent.atomic.AtomicReference
 class SaveLoadSaveDelegate(
     private val gameEngine: GameEngine,
     private val storageFacade: StorageFacade,
-    private val stateStore: GameStateStore,
-    private val savePipeline: SavePipeline
+    private val stateStore: GameStateStore
 ) {
     private val TAG = SaveLoadViewModelConstants.TAG
     private val saveLock = AtomicBoolean(false)
-    val pendingAutoSave = AtomicReference<SavePipeline.SaveSource?>(null)
-    private val consecutiveSaveFailures = AtomicInteger(0)
     var pendingSlot: Int? = null
     var pendingAction: String? = null
 

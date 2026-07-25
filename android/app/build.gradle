@@ -203,6 +203,7 @@ dependencies {
     implementation libs.taptap.common
     implementation libs.taptap.compliance
     implementation libs.taptap.db
+    implementation libs.taptap.cloudsave
 
     // Network
     implementation libs.retrofit

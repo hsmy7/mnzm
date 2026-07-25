@@ -19,8 +19,6 @@ import javax.inject.Singleton
  * 用于 selectAlgorithm() 根据业务场景推荐最优压缩算法。
  */
 enum class UseCase {
-    /** 自动存档（高频、低延迟优先）-> LZ4 */
-    AUTO_SAVE,
     /** 完整存档（压缩比优先）-> ZSTD */
     FULL_SAVE,
     /** 云存档上传（压缩比优先，减少带宽）-> ZSTD */
@@ -194,7 +192,6 @@ class DataCompressor @Inject constructor(
      * 根据使用场景推荐最优压缩算法。
      *
      * 算法选择策略：
-     * - AUTO_SAVE: LZ4（速度优先，~500MB/s，适合高频自动存档）
      * - FULL_SAVE: ZSTD（压缩比优先，3-5x 比率，减少磁盘占用）
      * - CLOUD_UPLOAD: ZSTD（压缩比优先，减少网络传输时间）
      * - LEGACY: GZIP（兼容性优先，确保旧版可读）
@@ -206,7 +203,6 @@ class DataCompressor @Inject constructor(
      */
     fun selectAlgorithm(dataSize: Int, dataType: DataType, useCase: UseCase): CompressionAlgorithm {
         return when (useCase) {
-            UseCase.AUTO_SAVE -> CompressionAlgorithm.LZ4
             UseCase.FULL_SAVE -> {
                 // 如果 ZSTD 不可用，降级到 GZIP（比 LZ4 压缩率更高）
                 if (isZstdAvailable()) CompressionAlgorithm.ZSTD else CompressionAlgorithm.GZIP

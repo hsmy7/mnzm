@@ -93,11 +93,11 @@ class AISectBeastAttackProcessor @Inject constructor(
     ): List<String> {
         val aiCandidates = gd.worldMapSects
             .filter { !it.isPlayerSect && !it.isPlayerOccupied }
-            .map { sect ->
+            .mapNotNull { sect ->
                 val dx = beast.x - sect.x
                 val dy = beast.y - sect.y
                 val dist = sqrt((dx * dx + dy * dy).toDouble()).toFloat()
-                sect to dist
+                if (dist.isNaN() || dist.isInfinite()) null else sect to dist
             }
             .sortedBy { it.second }
             .take(2)

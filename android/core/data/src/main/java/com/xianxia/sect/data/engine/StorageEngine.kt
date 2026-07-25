@@ -119,7 +119,7 @@ class StorageEngine @Inject constructor(
     private val _currentSlot = MutableStateFlow(1)
     val currentSlot: StateFlow<Int> = _currentSlot.asStateFlow()
 
-    suspend fun save(slot: Int, data: SaveData, priority: SavePriority = SavePriority.NORMAL, isAutoSave: Boolean = false): StorageResult<SaveOperationStats> {
+    suspend fun save(slot: Int, data: SaveData, priority: SavePriority = SavePriority.NORMAL): StorageResult<SaveOperationStats> {
         if (!core.lockManager.isValidSlot(slot)) {
             return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
         }
@@ -156,7 +156,7 @@ class StorageEngine @Inject constructor(
                 val dataWithTimestamp = cleanedData.copy(timestamp = System.currentTimeMillis())
 
                 // ── 备份 ──
-                if (storageConfig.autoBackupOnSave && !isAutoSave) {
+                if (storageConfig.autoBackupOnSave) {
                     _progress.value = EngineProgress(EngineProgress.Stage.VALIDATING, 0.15f, "Writing backup")
                     try {
                         val br = saveFileManager.atomicWrite(slot, dataWithTimestamp)
@@ -366,8 +366,7 @@ class StorageEngine @Inject constructor(
             return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
         }
 
-        val isAutoSave = StorageConstants.isAutoSaveSlot(slot)
-        Log.i(TAG, "Deleting slot $slot (isAutoSave=$isAutoSave)")
+        Log.i(TAG, "Deleting slot $slot")
 
         return core.lockManager.withWriteLockLight(slot) {
             try {
@@ -409,7 +408,7 @@ class StorageEngine @Inject constructor(
                 clearCacheForSlot(slot)
                 saveFileManager.deleteSlot(slot)
 
-                Log.i(TAG, "Deleted all data for slot $slot (isAutoSave=$isAutoSave)")
+                Log.i(TAG, "Deleted all data for slot $slot")
                 StorageResult.success(Unit)
             } catch (e: CancellationException) {
                 throw e
@@ -474,14 +473,18 @@ class StorageEngine @Inject constructor(
     suspend fun getSaveSlots(): List<SaveSlot> {
         val slots = mutableListOf<SaveSlot>()
 
-        try {
-            slots.add(querySingleSlot(StorageConstants.AUTO_SAVE_SLOT))
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to query auto-save slot, using empty placeholder", e)
-            slots.add(SaveSlot(StorageConstants.AUTO_SAVE_SLOT, "", 0, 1, 1, "", 0, 0, true, isAutoSave = true))
-        }
+        // slot 0 = 云存档入口（旧自动存档改造而来）
+        slots.add(SaveSlot(
+            slot = StorageConstants.CLOUD_SAVE_SLOT,
+            name = "云存档",
+            timestamp = 0L,
+            gameYear = 0,
+            gameMonth = 0,
+            sectName = "云存档",
+            discipleCount = 0,
+            spiritStones = 0L,
+            isEmpty = false
+        ))
 
         for (slot in 1..core.lockManager.getMaxSlots()) {
             try {
@@ -505,72 +508,17 @@ class StorageEngine @Inject constructor(
 
     fun getCurrentSlot(): Int = _currentSlot.value
 
-    suspend fun incrementalSave(slot: Int): StorageResult<SaveOperationStats> {
-        if (!core.lockManager.isValidSlot(slot)) {
-            return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
-        }
-
-        return core.lockManager.withWriteLockLight(slot) {
-            try {
-                val startTime = System.currentTimeMillis()
-                _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.1f, "Incremental save")
-
-                // 原子快照读取（持 transactionLock 一次性读取所有字段）
-                val snap = stateStore.takeAtomicSnapshot()
-                val gameData = snap.gameData
-                val disciples = snap.disciples
-                val equipmentStacks = snap.equipmentStacks
-                val equipmentInstances = snap.equipmentInstances
-                val manualStacks = snap.manualStacks
-                val manualInstances = snap.manualInstances
-                val pills = snap.pills
-                val materials = snap.materials
-                val herbs = snap.herbs
-                val seeds = snap.seeds
-                val storageBags = snap.storageBags
-                val teams = snap.teams
-                val battleLogs = snap.battleLogs
-
-                repository.setActiveSlot(slot)
-
-                val gameDataWithTimestamp = gameData.copy(lastSaveTime = System.currentTimeMillis())
-
-                core.database.withTransaction {
-                    repository.flushDirtyState(
-                        gameData = gameDataWithTimestamp,
-                        disciples = disciples,
-                        equipmentStacks = equipmentStacks,
-                        equipmentInstances = equipmentInstances,
-                        manualStacks = manualStacks,
-                        manualInstances = manualInstances,
-                        pills = pills,
-                        materials = materials,
-                        herbs = herbs,
-                        seeds = seeds,
-                        storageBags = storageBags,
-                        teams = teams,
-                        battleLogs = battleLogs
-                    )
-                }
-
-                // 增量存档后清理缓存，确保下次 load() 从 DB 读取最新数据
-                // 而非返回初始完整存档时的陈旧缓存
-                clearCacheForSlot(slot)
-
-                val elapsed = System.currentTimeMillis() - startTime
-                _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Incremental save completed")
-                StorageResult.success(SaveOperationStats(
-                    bytesWritten = 0,
-                    timeMs = elapsed,
-                    wasIncremental = true
-                ))
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "Incremental save failed for slot $slot", e)
-                _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
-                StorageResult.failure(StorageError.SAVE_FAILED, e.message ?: "Incremental save failed", e)
-            }
+    /**
+     * 强制删除指定 slot 的数据（跳过 slot 校验，用于云存档 slot 等特殊槽位）。
+     * 仅清理 Room DB 中的 game_data 条目，不涉及文件级清理。
+     */
+    suspend fun forceDeleteSlotData(slot: Int) {
+        try {
+            core.database.gameDataDao().deleteAll(slot)
+            Log.i(TAG, "forceDeleteSlotData: deleted data for slot $slot")
+        } catch (e: CancellationException) { throw e }
+          catch (e: Exception) {
+            Log.w(TAG, "forceDeleteSlotData: failed for slot $slot", e)
         }
     }
 
@@ -874,8 +822,7 @@ class StorageEngine @Inject constructor(
                 autoLearnFromWarehouseFocused = gd.autoLearnFromWarehouseFocused,
                 autoLearnFromWarehouseRootCounts = gd.autoLearnFromWarehouseRootCounts,
                 yearlySalary = gd.yearlySalary,
-                yearlySalaryEnabled = gd.yearlySalaryEnabled,
-                autoSaveIntervalMonths = gd.autoSaveIntervalMonths
+                yearlySalaryEnabled = gd.yearlySalaryEnabled
             ))
         }
     }
@@ -1258,7 +1205,6 @@ class StorageEngine @Inject constructor(
     }
 
     private suspend fun querySingleSlot(slot: Int): SaveSlot {
-        val isAutoSave = slot == StorageConstants.AUTO_SAVE_SLOT
         return try {
             val meta = core.database.gameDataDao().getMetadataBySlot(slot)
             if (meta != null) {
@@ -1273,10 +1219,9 @@ class StorageEngine @Inject constructor(
                     spiritStones = meta.spiritStones,
                     isEmpty = false,
                     customName = meta.sectName,
-                    isAutoSave = isAutoSave
                 )
             } else {
-                SaveSlot(slot, "", 0, 1, 1, "", 0, 0, true, isAutoSave = isAutoSave)
+                SaveSlot(slot, "", 0, 1, 1, "", 0, 0, true)
             }
         } catch (e: CancellationException) {
             throw e

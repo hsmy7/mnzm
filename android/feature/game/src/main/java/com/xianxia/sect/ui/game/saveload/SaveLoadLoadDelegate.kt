@@ -21,7 +21,6 @@ import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.data.model.SaveData
-import com.xianxia.sect.core.engine.domain.save.SavePipeline
 import kotlinx.coroutines.*
 
 /**
@@ -32,7 +31,6 @@ class SaveLoadLoadDelegate(
     private val gameEngineCore: GameEngineCore,
     private val storageFacade: StorageFacade,
     private val stateStore: GameStateStore,
-    private val savePipeline: SavePipeline,
     private val buildingConfigService: BuildingConfigService,
     private val spiritStoneWallet: SpiritStoneWallet
 ) {
@@ -64,8 +62,6 @@ class SaveLoadLoadDelegate(
                 gameEngineCore.stopGameLoop()
             }
 
-            savePipeline.waitForCurrentSave(timeoutMs = 5_000L)
-
             val saveData = withTimeoutOrNull(60_000L) {
                 try {
                     storageFacade.load(saveSlot.slot).getOrNull()
@@ -81,7 +77,7 @@ class SaveLoadLoadDelegate(
                 return false
             }
 
-            val effectiveSlot = StorageConstants.resolveEffectiveSlot(saveSlot.slot)
+            val effectiveSlot = saveSlot.slot
             storageFacade.setCurrentSlot(effectiveSlot)
             gameEngine.loadData(
                 gameData = saveData.gameData.copy(currentSlot = effectiveSlot),

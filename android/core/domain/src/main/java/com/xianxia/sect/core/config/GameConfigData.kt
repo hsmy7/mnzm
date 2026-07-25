@@ -41,8 +41,6 @@ data class GameConfigData(
     data class GameSection(
         val name: String = "模拟宗门",
         val version: String = "4.0.09",
-        val autoSaveIntervalSeconds: Long = 60L,
-        val autoSaveDebounceMs: Long = 30000L,
         val maxSaveSlots: Int = 5
     )
 

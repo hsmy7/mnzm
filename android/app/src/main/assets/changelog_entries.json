@@ -1,6 +1,18 @@
 [
   {
     "date": "2026-07-25",
+    "version": "4.0.74",
+    "changes": [
+      "修复：云存档反射桥接7个运行时崩溃Bug——TapCloudSave→TapTapCloudSave/回调包名修正/Builder实例化/onArchiveDataResult签名/setPlaytime类型/invokeGetter Long处理/NativeApi完整实现",
+      "修复：云端孤立存档导致数量超限400003——一次性清理+UUID缓存+shuffled替代sortedBy{rng.nextInt()}消除TimSort崩溃",
+      "变更：移除自动存档机制——移除游戏循环触发的周期性自动存档、SavePipeline异步管道、增量保存、AUTO_SAVE_SLOT=0、autoSaveIntervalMonths字段",
+      "变更：云存档入口移至存档选择界面——设置页移除云存档管理按钮，slot0云图标显示云端数据，上传/下载与本地存档一致",
+      "变更：旧自动存档slot0数据迁移至空槽位——检测到旧版残留slot0数据时自动复制到第一个空槽位",
+      "界面：存档选择界面slot0显示云端数据——宗门/年份/弟子/灵石三行显示，有数据可点击下载加载"
+    ]
+  },
+  {
+    "date": "2026-07-25",
     "version": "4.0.73",
     "changes": [
       "修复：TapTap沙盒ANR崩溃后存档显示为空或损坏——数据库无game_data条目时不回退到备份文件(.sav/.bak)，新增备份恢复路径消除数据丢失",

@@ -53,7 +53,10 @@ object EnemyGenerator {
         val equipmentSlots = listOf(
             EquipmentSlot.WEAPON, EquipmentSlot.ARMOR,
             EquipmentSlot.BOOTS, EquipmentSlot.ACCESSORY
-        ).sortedBy { enemyRng.nextInt() }
+        ).let { list ->
+            val seed = enemyRng.nextInt()
+            list.shuffled(java.util.Random(seed.toLong()))
+        }
 
         val equipmentCount = enemyRng.nextInt(5)
         val equipmentInstances = mutableListOf<EquipmentInstance>()

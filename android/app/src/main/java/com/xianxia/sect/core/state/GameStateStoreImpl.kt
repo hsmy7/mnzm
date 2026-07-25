@@ -363,7 +363,6 @@ class GameStateStoreImpl @Inject constructor(
                 elderSlots = gd.elderSlots,
                 placedBuildings = gd.placedBuildings,
                 autoRecruitSpiritRootFilter = gd.autoRecruitSpiritRootFilter,
-                autoSaveIntervalMonths = gd.autoSaveIntervalMonths
             )
         }
         .distinctUntilChanged()

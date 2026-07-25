@@ -23,11 +23,6 @@ class GameConfigTest {
     }
 
     @Test
-    fun `自动保存间隔应为60秒`() {
-        assertEquals(60L, GameConfig.Game.AUTO_SAVE_INTERVAL_SECONDS)
-    }
-
-    @Test
     fun `最大存档槽位应为5`() {
         assertEquals(5, GameConfig.Game.MAX_SAVE_SLOTS)
     }

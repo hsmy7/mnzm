@@ -19,18 +19,12 @@ object StorageConstants {
     /** 默认最大存档槽位数 */
     const val DEFAULT_MAX_SLOTS = 6
 
+    /** 云存档槽位（旧自动存档 slot 0 改为云存档入口） */
+    const val CLOUD_SAVE_SLOT = 0
+
     /** 备份文件目录名 */
     const val BACKUP_DIR_NAME = "saves"
     
-    /** 自动存档槽位 ID */
-    const val AUTO_SAVE_SLOT = 0
-
-    /** 判断给定槽位是否为自动存档槽位 */
-    fun isAutoSaveSlot(slot: Int): Boolean = slot == AUTO_SAVE_SLOT
-
-    /** 根据槽位号解析有效槽位：自动存档返回 AUTO_SAVE_SLOT，手动存档原样返回 */
-    fun resolveEffectiveSlot(slot: Int): Int = if (isAutoSaveSlot(slot)) AUTO_SAVE_SLOT else slot
-
     // ==================== 缓存配置 ====================
     
     /** 内存缓存默认大小 (MB) - 已精简 */
@@ -62,9 +56,6 @@ object StorageConstants {
     /** Room 批量操作默认批次大小 */
     const val DEFAULT_BATCH_SIZE = 200
     
-    /** 增量保存阈值（字节）：小于此值尝试增量保存 */
-    const val INCREMENTAL_THRESHOLD_BYTES = 50 * 1024  // 50KB
-
     // ==================== WAL (Write-Ahead Log) ====================
     
     /** WAL 目录名 */

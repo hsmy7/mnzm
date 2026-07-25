@@ -137,6 +137,7 @@ taptap-core = { group = "com.taptap.sdk", name = "tap-core", version.ref = "tapt
 taptap-common = { group = "com.taptap.sdk", name = "tap-common", version.ref = "taptap-sdk" }
 taptap-compliance = { group = "com.taptap.sdk", name = "tap-compliance", version.ref = "taptap-sdk" }
 taptap-db = { group = "com.taptap.sdk", name = "tap-db", version.ref = "taptap-sdk" }
+taptap-cloudsave = { group = "com.taptap.sdk", name = "tap-cloudsave", version.ref = "taptap-sdk" }
 
 # Bugly
 bugly-crashreport = { group = "com.tencent.bugly", name = "crashreport", version.ref = "bugly" }

@@ -291,21 +291,6 @@ class GameEngineCore @Inject constructor(
     val state: StateFlow<UnifiedGameState> get() = stateStore.unifiedState
     val events: Flow<DomainEvent> get() = eventBus.events
 
-    /** 自动存档触发信号 — SharedFlow 避免 Channel close/replace 生命周期问题导致的 ANR */
-    private val _autoSaveTrigger = MutableSharedFlow<Unit>(
-        extraBufferCapacity = 64,
-        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
-    )
-    val autoSaveTrigger: SharedFlow<Unit> get() = _autoSaveTrigger.asSharedFlow()
-
-    /**
-     * 通知引擎有挂起的变更需要存档。发送自动存档信号，
-     * SaveLoadViewModel 收到后会触发实际存档流程。
-     */
-    fun notifyPendingSave() {
-        _autoSaveTrigger.tryEmit(Unit)
-    }
-    
     private var isInitialized = false
 
     /** 记录 isSaving 变为 true 的时间戳，用于看门狗检测 */
@@ -315,10 +300,6 @@ class GameEngineCore @Inject constructor(
     /** 记录 isLoading 变为 true 的时间戳，用于看门狗检测 */
     @Volatile
     private var loadingStartTime: Long = 0L
-
-    /** 当前正在运行的保存协程 Job，用于看门狗强制取消 */
-    @Volatile
-    private var activeSaveJob: Job? = null
 
     /** 当前正在运行的加载协程 Job，用于看门狗强制取消 */
     @Volatile
@@ -338,7 +319,6 @@ class GameEngineCore @Inject constructor(
             DomainLog.w(TAG, "GameEngineCore already initialized")
             return
         }
-        // autoSaveTrigger 已改为 SharedFlow，无需 close/replace 生命周期管理
         systemManager.initializeAll()
         isInitialized = true
         DomainLog.i(TAG, "GameEngineCore initialized")
@@ -484,7 +464,6 @@ class GameEngineCore @Inject constructor(
         deathEventJob?.cancel()
         deathEventJob = null
         systemManager.releaseAll()
-        // autoSaveTrigger 为 SharedFlow，无需 close
         engineJob.cancel()
         // 不关闭 GAME_DISPATCHER：shutdown 后可能重新 start，需保持线程池可用
         // 若必须关闭，需同时重建 GAME_DISPATCHER（静态 val 无法替换，故此处仅 cancel job）
@@ -827,14 +806,6 @@ class GameEngineCore @Inject constructor(
                 checkBreakthroughsAndPills(this)
                 if (this.gameData.gameMonth != prevMonth) monthChanged = true
                 if (this.gameData.gameYear != prevYear) yearChanged = true
-                val snapshot = this.gameData
-                val interval = snapshot.autoSaveIntervalMonths
-                if (interval > 0 &&
-                    snapshot.gamePhase == GamePhase.EARLY.value &&
-                    snapshot.gameMonth % interval == 0
-                ) {
-                    _autoSaveTrigger.tryEmit(Unit)
-                }
             }
         }
         return Pair(monthChanged, yearChanged)
@@ -940,20 +911,6 @@ class GameEngineCore @Inject constructor(
     }
 
     /**
-     * 注册当前正在运行的保存协程 Job，供看门狗强制取消。
-     * 在 finally 块中应调用 [clearActiveSaveJob] 清除引用。
-     */
-    fun registerActiveSaveJob(job: Job) {
-        activeSaveJob?.cancel()
-        activeSaveJob = job
-    }
-
-    /** 清除保存协程 Job 引用（协程正常结束时调用） */
-    fun clearActiveSaveJob() {
-        activeSaveJob = null
-    }
-
-    /**
      * 注册当前正在运行的加载协程 Job，供看门狗强制取消。
      * 在 finally 块中应调用 [clearActiveLoadJob] 清除引用。
      */
@@ -974,8 +931,6 @@ class GameEngineCore @Inject constructor(
      */
     fun forceResetStuckStates() {
         DomainLog.w(TAG, "Force resetting stuck states: isSaving and isLoading -> false, cancelling active jobs")
-        activeSaveJob?.cancel()
-        activeSaveJob = null
         activeLoadJob?.cancel()
         activeLoadJob = null
         stateStore.setSavingDirect(false)

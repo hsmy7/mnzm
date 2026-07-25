@@ -17,8 +17,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -40,8 +38,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -51,7 +47,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.xianxia.sect.feature.game.R
@@ -66,7 +61,6 @@ import com.xianxia.sect.ui.components.CircularCheckbox
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.InlineStandardPromptDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
-import com.xianxia.sect.ui.components.DialogSoftInputGuard
 import com.xianxia.sect.ui.components.DialogSystemBarGuard
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.dialogs.SalaryRealmCard
@@ -255,187 +249,6 @@ internal fun SettingsTab(
                                 fontSize = 12.sp,
                                 color = Color.Black
                             )
-                        }
-                    }
-                }
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "自动存档",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    val isAutoSaveActive = gameData.autoSaveIntervalMonths > 0
-
-                    val stopAlpha = if (!isAutoSaveActive) 1f else 0.5f
-                    val stopBtnSize = ButtonSizes.StandardHeight + 6.dp
-                    Box(
-                        modifier = Modifier
-                            .size(stopBtnSize)
-                            .alpha(stopAlpha)
-                            .clip(CircleShape)
-                            .clickable { saveLoadViewModel.setAutoSaveIntervalMonths(0) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ui_pause_button),
-                            contentDescription = null,
-                            modifier = Modifier.matchParentSize(),
-                            contentScale = ContentScale.FillBounds
-                        )
-                    }
-
-                    var showEditIntervalDialog by remember { mutableStateOf(false) }
-                    var editIntervalValue by remember { mutableStateOf("") }
-
-                    val intervalAlpha = if (isAutoSaveActive) 1f else 0.5f
-                    Box(
-                        modifier = Modifier
-                            .width(ButtonSizes.StandardWidth)
-                            .height(ButtonSizes.StandardHeight)
-                            .alpha(intervalAlpha)
-                            .clip(RoundedCornerShape(4.dp))
-                            .clickable {
-                                if (!isAutoSaveActive) {
-                                    saveLoadViewModel.setAutoSaveIntervalMonths(3)
-                                } else {
-                                    editIntervalValue = gameData.autoSaveIntervalMonths.toString()
-                                    showEditIntervalDialog = true
-                                }
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ui_button),
-                            contentDescription = null,
-                            modifier = Modifier.matchParentSize(),
-                            contentScale = ContentScale.FillBounds
-                        )
-                        Text(
-                            text = if (isAutoSaveActive) "${gameData.autoSaveIntervalMonths}月" else "3月",
-                            fontSize = 12.sp,
-                            color = Color.Black
-                        )
-                    }
-                    
-                    if (showEditIntervalDialog) {
-                        Dialog(
-                            onDismissRequest = { showEditIntervalDialog = false },
-                            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
-                        ) {
-                        // 切换 softInputMode，切断 OEM 键盘频闪震荡回路
-                        DialogSoftInputGuard()
-                        // 隐藏 Dialog Window 的系统状态栏/导航栏
-                        DialogSystemBarGuard()
-
-                        // 清除焦点 + 隐藏输入法，防止 FloatingActionMode BadTokenException
-                        val editDialogView = LocalView.current
-                        DisposableEffect(Unit) {
-                            onDispose {
-                                editDialogView.clearFocus()
-                                val imm = editDialogView.context.getSystemService(
-                                    android.content.Context.INPUT_METHOD_SERVICE
-                                ) as? android.view.inputmethod.InputMethodManager
-                                imm?.hideSoftInputFromWindow(editDialogView.windowToken, 0)
-                            }
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .imePadding()
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null,
-                                    onClick = { showEditIntervalDialog = false }
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth(0.83f)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null,
-                                        onClick = {}
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Image(
-                                    painter = painterResource(id = com.xianxia.sect.feature.game.R.drawable.bg_horizontal),
-                                    contentDescription = null,
-                                    modifier = Modifier.matchParentSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                                Column(
-                                    modifier = Modifier.padding(20.dp)
-                                ) {
-                                        Text(
-                                            text = "设置自动存档间隔",
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.Black
-                                        )
-                                        Spacer(modifier = Modifier.height(12.dp))
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                        ) {
-                                            OutlinedTextField(
-                                                value = editIntervalValue,
-                                                onValueChange = { input ->
-                                                    val filtered = input.filter { it.isDigit() }
-                                                    editIntervalValue = filtered
-                                                },
-                                                modifier = Modifier.width(80.dp),
-                                                singleLine = true,
-                                                textStyle = androidx.compose.ui.text.TextStyle(
-                                                    fontSize = 14.sp,
-                                                    textAlign = TextAlign.Center
-                                                ),
-                                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
-                                                )
-                                            )
-                                            Text(
-                                                text = "月",
-                                                fontSize = 14.sp,
-                                                color = Color.Black
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.height(16.dp))
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                        ) {
-                                            GameButton(
-                                                text = "取消",
-                                                onClick = { showEditIntervalDialog = false },
-                                                modifier = Modifier.width(ButtonSizes.StandardWidth)
-                                            )
-                                            GameButton(
-                                                text = "确认",
-                                                onClick = {
-                                                    val months = editIntervalValue.toIntOrNull()
-                                                    if (months != null && months in 1..12) {
-                                                        saveLoadViewModel.setAutoSaveIntervalMonths(months)
-                                                    }
-                                                    showEditIntervalDialog = false
-                                                },
-                                                modifier = Modifier.width(ButtonSizes.StandardWidth)
-                                            )
-                                        }
-                                }
-                            }
-                        }
                         }
                     }
                 }
@@ -1071,7 +884,6 @@ internal fun SaveSlotDialog(
     val selectedSlotInfo = remember(saveSlots, selectedSlot) {
         saveSlots.find { it.slot == selectedSlot }
     }
-    val isAutoSaveSlot = selectedSlotInfo?.isAutoSave == true
 
     LaunchedEffect(isBusy) {
         if (!isBusy && saveCompleted) {
@@ -1175,8 +987,8 @@ internal fun SaveSlotDialog(
                             )
                             Text(
                                 text = when {
-                                    isSaving -> "正在保存到槽位 ${if (pendingSlot == 0) "自动存档" else pendingSlot}..."
-                                    isLoading -> "正在读取槽位 ${if (pendingSlot == 0) "自动存档" else pendingSlot}..."
+                                    isSaving -> "正在保存到槽位 $pendingSlot..."
+                                    isLoading -> "正在读取槽位 $pendingSlot..."
                                     else -> ""
                                 },
                                 fontSize = 12.sp,
@@ -1207,7 +1019,7 @@ internal fun SaveSlotDialog(
                         .padding(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val saveEnabled = selectedSlot != null && !isBusy && !isAutoSaveSlot
+                    val saveEnabled = selectedSlot != null && !isBusy
                     Box(
                         modifier = Modifier
                             .width(ButtonSizes.StandardWidth)
@@ -1240,7 +1052,7 @@ internal fun SaveSlotDialog(
                             )
                         } else {
                             Text(
-                                text = if (isAutoSaveSlot) "自动存档不可保存" else "保存",
+                                text = "保存",
                                 fontSize = 12.sp,
                                 color = Color.Black
                             )
@@ -1300,8 +1112,8 @@ internal fun SaveSlotCard(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    val borderColor = if (slot.isAutoSave) Color(0xFF4CAF50) else if (isSelected) Color.Black else GameColors.Border
-    val borderWidth = if (slot.isAutoSave) 2.dp else if (isSelected) 2.dp else 1.dp
+    val borderColor = if (isSelected) Color.Black else GameColors.Border
+    val borderWidth = if (isSelected) 2.dp else 1.dp
 
     Box(
         modifier = Modifier
@@ -1322,20 +1134,6 @@ internal fun SaveSlotCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    if (slot.isAutoSave) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color(0xFF4CAF50))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "自动",
-                                fontSize = 10.sp,
-                                color = Color.White
-                            )
-                        }
-                    }
                     Text(
                         text = slot.displayName,
                         fontSize = 12.sp,

@@ -87,8 +87,6 @@ object GameConfig {
     object Game {
         const val NAME = "模拟宗门"
         const val VERSION = BuildConfig.VERSION_NAME
-        const val AUTO_SAVE_INTERVAL_SECONDS = 60L
-        const val AUTO_SAVE_DEBOUNCE_MS = 30_000L
         const val MAX_SAVE_SLOTS = 5
     }
     

@@ -18,8 +18,8 @@ class SlotLockManagerTest {
     // ==================== isValidSlot ====================
 
     @Test
-    fun `isValidSlot - slot 0 is valid (AUTO_SAVE_SLOT)`() {
-        assertTrue(lockManager.isValidSlot(StorageConstants.AUTO_SAVE_SLOT))
+    fun `isValidSlot - slot 1 is valid`() {
+        assertTrue(lockManager.isValidSlot(1))
     }
 
 
@@ -68,9 +68,9 @@ class SlotLockManagerTest {
     }
 
     @Test
-    fun `withReadLockLight - executes block for slot 0`() = runTest {
-        val result = lockManager.withReadLockLight(0) { "auto_save" }
-        assertEquals("auto_save", result)
+    fun `withReadLockLight - executes block for slot 1`() = runTest {
+        val result = lockManager.withReadLockLight(1) { "manual_save" }
+        assertEquals("manual_save", result)
     }
 
 
@@ -207,10 +207,6 @@ class SlotLockManagerTest {
 
     // ==================== Companion constants ====================
 
-    @Test
-    fun `AUTO_SAVE_SLOT is 0`() {
-        assertEquals(0, StorageConstants.AUTO_SAVE_SLOT)
-    }
 
 
     // ==================== LockStats data class ====================

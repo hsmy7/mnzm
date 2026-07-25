@@ -155,7 +155,7 @@ object AISectDiscipleManager {
         val manualCount = 1 + rng.nextInt(maxManuals)
         val manuals = generateBattleManuals(minRarity, maxRarity, manualCount)
 
-        val equipmentSlots = EquipmentSlot.values().toList().sortedBy { rng.nextInt() }
+        val equipmentSlots = EquipmentSlot.values().toList().shuffled(java.util.Random(rng.nextInt().toLong()))
         val equipmentCount = 1 + rng.nextInt(4)
         val equipments = generateBattleEquipments(minRarity, maxRarity, equipmentSlots.take(equipmentCount))
 
@@ -287,7 +287,7 @@ object AISectDiscipleManager {
         val mindManuals = ManualDatabase.getByType(ManualType.MIND)
             .filter { it.rarity in minRarity..maxRarity }
 
-        val nonMindManuals = (attackManuals + defenseManuals).sortedBy { rng.nextInt() }
+        val nonMindManuals = (attackManuals + defenseManuals).shuffled(java.util.Random(rng.nextInt().toLong()))
         val selectedMind = if (mindManuals.isNotEmpty() && rng.nextInt(2) == 0) {
             listOf(mindManuals[rng.nextInt(mindManuals.size)])
         } else emptyList()

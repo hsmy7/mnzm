@@ -44,6 +44,7 @@ import com.xianxia.sect.data.SessionManager
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.taptap.TapTapAuthManager
+import com.xianxia.sect.taptap.TapCloudSaveManager
 import com.xianxia.sect.taptap.LoginData
 import com.xianxia.sect.taptap.ComplianceManager
 import com.xianxia.sect.ui.game.GameActivity
@@ -118,6 +119,9 @@ class MainActivity : ComponentActivity() {
     
     @Inject
     lateinit var storageFacade: StorageFacade
+
+    @Inject
+    lateinit var tapCloudSaveManager: TapCloudSaveManager
     
     public var complianceDialogState = mutableStateOf<ComplianceDialogState?>(null)
     /** TapTap SDK 初始化就绪状态，登录按钮需此标记为 true 才可点击 */
@@ -344,6 +348,28 @@ class MainActivity : ComponentActivity() {
                     emptyList()
                 }
             }
+            // 迁移旧自动存档数据到空槽位
+            withContext(Dispatchers.IO) {
+                try {
+                    val legacyData = storageFacade.load(0).getOrNull()
+                    if (legacyData != null) {
+                        // 找第一个空槽
+                        val emptySlot = saveSlots.firstOrNull { it.isEmpty }?.slot
+                        if (emptySlot != null) {
+                            storageFacade.setCurrentSlot(emptySlot)
+                            storageFacade.save(emptySlot, legacyData)
+                            storageFacade.forceDeleteSlotData(0)
+                            Log.i(TAG, "Migrated legacy auto-save data to slot $emptySlot")
+                        } else {
+                            Log.w(TAG, "No empty slot found, keeping legacy auto-save in slot 0")
+                        }
+                    }
+                } catch (_: Exception) { }
+            }
+            // 查询云存档信息（异步，失败则静默跳过）
+            val cloudInfo = withContext(Dispatchers.IO) {
+                try { tapCloudSaveManager.checkCloudSave() } catch (_: Exception) { null }
+            }
             setContent {
                 XianxiaTheme {
                     Surface(
@@ -353,6 +379,7 @@ class MainActivity : ComponentActivity() {
                         SaveSelectScreen(
                             mode = mode,
                             saveSlots = saveSlots,
+                            cloudSaveInfo = cloudInfo,
                             onLoadSlot = { slot ->
                                 val intent = Intent(this@MainActivity, GameActivity::class.java).apply {
                                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
@@ -360,6 +387,39 @@ class MainActivity : ComponentActivity() {
                                 }
                                 startActivity(intent)
                                 finish()
+                            },
+                            onCloudSaveLoad = {
+                                if (!sessionManager.isLoggedIn) {
+                                    Toast.makeText(this@MainActivity, "请先登录 TapTap", Toast.LENGTH_SHORT).show()
+                                    return@SaveSelectScreen
+                                }
+                                lifecycleScope.launch(Dispatchers.IO) {
+                                    try {
+                                        when (val result = tapCloudSaveManager.downloadSave()) {
+                                            is TapCloudSaveManager.CloudSaveResult.Success -> {
+                                                val saveData = result.saveData
+                                                if (saveData != null) {
+                                                    val slot = saveData.gameData.currentSlot.coerceIn(1, 6)
+                                                    storageFacade.setCurrentSlot(slot)
+                                                    storageFacade.save(slot, saveData)
+                                                    val intent = Intent(this@MainActivity, GameActivity::class.java).apply {
+                                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                                                        putExtra(EXTRA_SLOT, slot)
+                                                    }
+                                                    startActivity(intent)
+                                                    finish()
+                                                } else {
+                                                    Log.w(TAG, "Cloud save data is null")
+                                                }
+                                            }
+                                            is TapCloudSaveManager.CloudSaveResult.FileTooLarge ->
+                                                Log.w(TAG, "Cloud save too large")
+                                            else -> Log.w(TAG, "Cloud save download failed: $result")
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "Cloud save load failed", e)
+                                    }
+                                }
                             },
                             onNewGame = { slot, sectName ->
                                 val intent = Intent(this@MainActivity, GameActivity::class.java).apply {

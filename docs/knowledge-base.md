@@ -291,6 +291,57 @@ Component Table 模式下的关键性能规则：
 
 ---
 
+## 云存档系统
+
+基于 TapTap Cloud Save SDK (`com.taptap.sdk:tap-cloudsave:4.10.5`) 实现。
+
+### 架构
+
+```
+存档选择界面(slot 0)    ← 显示云端数据、点击下载加载
+    ↕
+TapCloudSaveManager     ← @Singleton，封装上传/下载/查询/清理
+    ↕
+ReflectiveCloudSaveApi  ← 运行时反射桥接 TapTapCloudSave 静态方法
+    ↕
+TapTap Cloud Save API   ← createArchive / updateArchive / getArchiveList / getArchiveData / deleteArchive
+```
+
+### 关键设计
+
+- **slot 0 = 云存档入口** — 在存档选择界面显示"云"图标 + 云端存档信息（宗门/年份/弟子/灵石），与本地存档操作一致
+- **UUID 缓存** — 第一次上传成功后本地缓存云端 Archive UUID，后续直接 `updateArchive(uuid)` 避免创建重复存档
+- **一次性孤岛清理** — 老玩家首次上传前清理云端非 `mnzm_cloud_save` 名称的孤立存档，避免 TapTap 100 存档限制（400003）
+- **反射桥接** — 使用 `java.lang.reflect.Proxy` 动态代理适配 TapTap SDK，兼容 XDSDK 和原生 SDK 两套 API
+
+### 反射 API 确认
+
+反编译 `tap-cloudsave-4.10.5.aar` 确认的实际 API：
+
+```kotlin
+// 主类（Kotlin object，静态方法）
+com.taptap.sdk.cloudsave.TapTapCloudSave
+  fun createArchive(ArchiveMetadata, String, String?, TapCloudSaveRequestCallback)
+  fun updateArchive(String, ArchiveMetadata, String, String?, TapCloudSaveRequestCallback)
+  fun getArchiveList(TapCloudSaveRequestCallback)
+  fun getArchiveData(String, String, TapCloudSaveRequestCallback)
+  fun deleteArchive(String, TapCloudSaveRequestCallback)
+
+// 回调接口
+com.taptap.sdk.cloudsave.internal.TapCloudSaveRequestCallback
+  onArchiveCreated(ArchiveData) / onArchiveUpdated(ArchiveData) / onArchiveDeleted(ArchiveData)
+  onArchiveListResult(List<ArchiveData>) / onArchiveDataResult(ByteArray)
+  onRequestError(Int, String)
+
+// 数据类
+com.taptap.sdk.cloudsave.ArchiveMetadata  ← Builder 模式：setName/setSummary/setExtra(JSON)/setPlaytime(int)
+com.taptap.sdk.cloudsave.ArchiveData      ← getUuid/getFileId/getName/getSummary/getExtra/getSaveSize/getModifiedTime
+```
+
+### 已知待修复问题
+
+见 [cloud-save-known-issues.md](cloud-save-known-issues.md)。
+
 ## Mail & Reward System
 
 Mail reward claims use Saga compensation: `stateStore.update {}` 原子写入物品+claim记录，若 `distributeAttachmentsInline` 抛出则 `mailRecords` 不写入，邮件保持未领取。

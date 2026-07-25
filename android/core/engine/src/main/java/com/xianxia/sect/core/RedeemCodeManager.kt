@@ -670,12 +670,12 @@ object RedeemCodeManager {
             if (cfgSpiritRootCount == 1) {
                 baseType
             } else {
-                val additionalTypes = types.filter { it != baseType }.sortedBy { rng.nextInt() }.take(cfgSpiritRootCount - 1)
+                val additionalTypes = types.filter { it != baseType }.shuffled(java.util.Random(rng.nextInt().toLong())).take(cfgSpiritRootCount - 1)
                 (listOf(baseType) + additionalTypes).joinToString(",")
             }
         } else if (cfgSpiritRootCount != null) {
             val types = listOf("metal", "wood", "water", "fire", "earth")
-            types.sortedBy { rng.nextInt() }.take(cfgSpiritRootCount).joinToString(",")
+            types.shuffled(java.util.Random(rng.nextInt().toLong())).take(cfgSpiritRootCount).joinToString(",")
         } else {
             SpiritRootGenerator.generate(rng.asKotlinRandom())
         }
