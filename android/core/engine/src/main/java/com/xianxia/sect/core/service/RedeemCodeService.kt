@@ -17,6 +17,8 @@ import com.xianxia.sect.core.util.HttpClientProvider
 import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
+import com.xianxia.sect.core.util.RngPartition
+import com.xianxia.sect.core.util.asKotlinRandom
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -46,6 +48,7 @@ class RedeemCodeService @Inject constructor(
     private val inventoryConfig: InventoryConfig,
     private val httpClient: HttpClientProvider,
     private val spiritStoneWallet: SpiritStoneWallet,
+    private val gameRngManager: com.xianxia.sect.core.util.GameRngManager,
     @ApplicationContext private val appContext: Context
 ) {
     companion object {
@@ -110,6 +113,7 @@ class RedeemCodeService @Inject constructor(
             stateStore.update { spiritStoneWallet.add(this, reward.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.RedeemCode) }
         }
 
+        val mailRng = gameRngManager.getRng(RngPartition.MAIL).asKotlinRandom()
         stateStore.update {
             gameData = gameData.copy(
                 usedRedeemCodes = (gameData.usedRedeemCodes + code.uppercase(java.util.Locale.getDefault()))
@@ -122,7 +126,8 @@ class RedeemCodeService @Inject constructor(
                         val qty = reward.quantity.coerceAtLeast(1)
                         val newEquipment = EquipmentDatabase.generateRandom(
                             minRarity = reward.rarity,
-                            maxRarity = reward.rarity
+                            maxRarity = reward.rarity,
+                            random = mailRng
                         ).copy(quantity = qty)
                         val existing = equipmentStacks.find { it.name == newEquipment.name && it.rarity == newEquipment.rarity && it.slot == newEquipment.slot }
                         if (existing != null) {
@@ -152,7 +157,8 @@ class RedeemCodeService @Inject constructor(
                         val qty = reward.quantity.coerceAtLeast(1)
                         val pill = ItemDatabase.generateRandomPill(
                             minRarity = reward.rarity,
-                            maxRarity = reward.rarity
+                            maxRarity = reward.rarity,
+                            random = mailRng
                         ).copy(quantity = qty)
                         val existing = pills.find { it.name == pill.name && it.rarity == pill.rarity && it.category == pill.category }
                         if (existing != null) {
@@ -166,7 +172,8 @@ class RedeemCodeService @Inject constructor(
                         val qty = reward.quantity.coerceAtLeast(1)
                         val material = ItemDatabase.generateRandomMaterial(
                             minRarity = reward.rarity,
-                            maxRarity = reward.rarity
+                            maxRarity = reward.rarity,
+                            random = mailRng
                         ).copy(quantity = qty)
                         val existing = materials.find { it.name == material.name && it.rarity == material.rarity && it.category == material.category }
                         if (existing != null) {
@@ -180,7 +187,8 @@ class RedeemCodeService @Inject constructor(
                         val qty = reward.quantity.coerceAtLeast(1)
                         val herbTemplate = HerbDatabase.generateRandomHerb(
                             minRarity = reward.rarity,
-                            maxRarity = reward.rarity
+                            maxRarity = reward.rarity,
+                            random = mailRng
                         )
                         val herb = Herb(
                             id = java.util.UUID.randomUUID().toString(),
@@ -202,7 +210,8 @@ class RedeemCodeService @Inject constructor(
                         val qty = reward.quantity.coerceAtLeast(1)
                         val seedTemplate = HerbDatabase.generateRandomSeed(
                             minRarity = reward.rarity,
-                            maxRarity = reward.rarity
+                            maxRarity = reward.rarity,
+                            random = mailRng
                         )
                         val seed = Seed(
                             id = java.util.UUID.randomUUID().toString(),
@@ -225,7 +234,7 @@ class RedeemCodeService @Inject constructor(
                         val currentMonthValue = gameData.gameYear * 12 + gameData.gameMonth
                         val usedNames = discipleTables.assembleAll().map { it.name }.toMutableSet()
                         repeat(reward.quantity.coerceAtLeast(1)) {
-                            val disciple = RedeemCodeManager.generateDisciple(null, usedNames)
+                            val disciple = RedeemCodeManager.generateDisciple(null, usedNames, random = mailRng)
                             disciple.usage.recruitedMonth = currentMonthValue
                             discipleTables.allocateAndInsert(disciple)
                             usedNames.add(disciple.name)
@@ -304,8 +313,9 @@ class RedeemCodeService @Inject constructor(
             message = "兑换码不存在"
         )
 
+        val mailRng = gameRngManager.getRng(RngPartition.MAIL).asKotlinRandom()
         val existingNames = stateStore.disciples.value.map { it.name }.toSet()
-        val result = RedeemCodeManager.generateReward(redeemCodeData, existingNames = existingNames)
+        val result = RedeemCodeManager.generateReward(redeemCodeData, existingNames = existingNames, random = mailRng)
 
         if (!result.success) {
             return result
@@ -325,7 +335,8 @@ class RedeemCodeService @Inject constructor(
                         val qty = reward.quantity.coerceAtLeast(1)
                         val newEquipment = EquipmentDatabase.generateRandom(
                             minRarity = redeemCodeData.rarity,
-                            maxRarity = redeemCodeData.rarity
+                            maxRarity = redeemCodeData.rarity,
+                            random = mailRng
                         ).copy(quantity = qty)
                         val existing = equipmentStacks.find { it.name == newEquipment.name && it.rarity == newEquipment.rarity && it.slot == newEquipment.slot }
                         if (existing != null) {
@@ -380,7 +391,8 @@ class RedeemCodeService @Inject constructor(
                         val qty = reward.quantity.coerceAtLeast(1)
                         val pill = ItemDatabase.generateRandomPill(
                             minRarity = redeemCodeData.rarity,
-                            maxRarity = redeemCodeData.rarity
+                            maxRarity = redeemCodeData.rarity,
+                            random = mailRng
                         ).copy(quantity = qty)
                         val existing = pills.find { it.name == pill.name && it.rarity == pill.rarity && it.category == pill.category }
                         if (existing != null) {
@@ -394,7 +406,8 @@ class RedeemCodeService @Inject constructor(
                         val qty = reward.quantity.coerceAtLeast(1)
                         val material = ItemDatabase.generateRandomMaterial(
                             minRarity = redeemCodeData.rarity,
-                            maxRarity = redeemCodeData.rarity
+                            maxRarity = redeemCodeData.rarity,
+                            random = mailRng
                         ).copy(quantity = qty)
                         val existing = materials.find { it.name == material.name && it.rarity == material.rarity && it.category == material.category }
                         if (existing != null) {
@@ -408,7 +421,8 @@ class RedeemCodeService @Inject constructor(
                         val qty = reward.quantity.coerceAtLeast(1)
                         val herbTemplate = HerbDatabase.generateRandomHerb(
                             minRarity = redeemCodeData.rarity,
-                            maxRarity = redeemCodeData.rarity
+                            maxRarity = redeemCodeData.rarity,
+                            random = mailRng
                         )
                         val herb = Herb(
                             id = java.util.UUID.randomUUID().toString(),
@@ -430,7 +444,8 @@ class RedeemCodeService @Inject constructor(
                         val qty = reward.quantity.coerceAtLeast(1)
                         val seedTemplate = HerbDatabase.generateRandomSeed(
                             minRarity = redeemCodeData.rarity,
-                            maxRarity = redeemCodeData.rarity
+                            maxRarity = redeemCodeData.rarity,
+                            random = mailRng
                         )
                         val seed = Seed(
                             id = java.util.UUID.randomUUID().toString(),

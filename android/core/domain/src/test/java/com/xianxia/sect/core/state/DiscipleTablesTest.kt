@@ -403,7 +403,7 @@ class DiscipleTablesTest {
     @Test
     fun `replaceAll preserves deathRecords`() {
         val tables = DiscipleTables()
-        tables.deathRecords.add(DeathRecord(
+        tables.addDeathRecord(DeathRecord(
             id = 1, name = "", surname = "", realm = 9, realmLayer = 1,
             deathAge = 0, deathYear = 100, cause = "test"
         ))

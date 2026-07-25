@@ -152,7 +152,9 @@ class BuildingDelegate(
 
     /** 移动已放置的建筑到新坐标。 */
     suspend fun moveBuilding(instanceId: String, newGridX: Int, newGridY: Int) {
-        buildingFacade.moveBuildingDirect(instanceId, newGridX, newGridY)
+        withContext(Dispatchers.IO) {
+            buildingFacade.moveBuildingDirect(instanceId, newGridX, newGridY)
+        }
     }
 
     /** 拆除建筑，返还一半造价并提示。 */

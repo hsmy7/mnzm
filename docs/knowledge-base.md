@@ -110,10 +110,12 @@ v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管
 | 组件 | 文件 | 说明 |
 |------|------|------|
 | `DeterministicRng` | `util/DeterministicRng.kt` | PCG-XSH-RR 算法，16 字节状态，可序列化 |
-| `GameRngManager` | `util/GameRngManager.kt` | 4 分区管理器（BATTLE / BREAKTHROUGH / EXPLORATION / SYSTEM） |
+| `GameRngManager` | `util/GameRngManager.kt` | 6 分区管理器（BATTLE / BREAKTHROUGH / EXPLORATION / SYSTEM / ENEMY_GEN / MAIL） |
 | `RngPartition` | `util/RngPartition.kt` | 分区枚举 |
 
 **规则：** 新增任何使用随机数的逻辑，必须通过 `GameRngManager.getRng(RngPartition.xxx)` 调用，禁止直接使用 `kotlin.random.Random`。保存时 `exportStates()` 写入 `GameData.rngStates`，加载时 `restoreStates()` 恢复。
+
+**MAIL 分区（2026-07-26 新增）：** `RngPartition.MAIL(5)` 专门用于邮件/兑换码奖励随机生成（弟子属性/装备/丹药/草药等）。`EquipmentDatabase`/`HerbDatabase`/`ItemDatabase`/`ManualDatabase` 的 `generateRandom*` 方法增加可选 `random: kotlin.random.Random` 参数，调用方（`MailService`/`RedeemCodeService`）从 `GameRngManager.getRng(MAIL)` 获取 RNG 传入。
 
 **扩展：`nextGaussian()`** — `DeterministicRng` 新增 Box-Muller 变换实现的 `nextGaussian(mean, stddev)`，消耗 2 次 `nextDouble()` 调用生成 1 个标准正态偏差。不缓存配对值以保持 `snapshot`/`restore` 确定性。用于弟子属性生成（见下文）。
 
@@ -350,6 +352,7 @@ Mail reward claims use Saga compensation: `stateStore.update {}` 原子写入物
 - **GameData 存储**: `mailRecords: List<MailClaimRecord>`（含 mailId/claimedAt/source），非邮件内容
 - **初始化**: `mailService.resetAndInitSlot()` 在世界初始化后调用
 - **清理**: `StorageEngine.delete()` 清理已删档位的 mails 表
+- **RNG 分区（2026-07-26）：** 邮件奖励随机生成使用 `RngPartition.MAIL` 分区 PRNG，通过 `GameRngManager` 注入到 `MailService` 和 `RedeemCodeService`，所有 `generateRandom*` 调用传入一致的 RNG 实例。
 
 ---
 

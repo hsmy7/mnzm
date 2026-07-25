@@ -18,27 +18,23 @@
 
 详见 [architecture-debt-write-guard.md](architecture-debt-write-guard.md)：
 
-- ✅ **writeGuardEnabled ThreadLocal 隔离**（已完成 — 2026-07-26）— 全局 `@Volatile var` 改为 `ThreadLocal.withInitial { true }`，游戏/测试线程独立开关，21 个测试文件零修改
+- ✅ **writeGuardEnabled ThreadLocal 隔离**（已完成 — 2026-07-26）
+- ✅ **`ids` 封装为 `List<Int>` 只读视图**（已完成 — 2026-07-26）— `private val _ids` + `addId()`/`removeId()` 守卫方法
+- ✅ **`deathRecords` 封装为 `List<DeathRecord>` 只读视图**（已完成 — 2026-07-26）— `private val _deathRecords` + `addDeathRecord()` 守卫方法；`DiscipleLifecycleProcessor` 直接 deathRecords.add 生产 Bug 修复
+- ✅ **影子结算死代码清理**（已完成 — 2026-07-26）— 残余 KDoc 引用更新；`copyRowFrom()` 死代码移除
 - ⏸️ `store` 底层存储绕过守卫
 - ⏸️ `requireWrite` / `onWrite` 为 `@JvmField var`
-- ⏸️ `ids` public MutableList
-- ⏸️ `deathRecords` public MutableList
-- ⏸️ 影子结算死代码（已移除守卫兼容代码）
 
-## 邮件/兑换码 RNG 未接入分区 PRNG（⏸️ 低优先级）
+## 邮件/兑换码 RNG 未接入分区 PRNG（✅ 已完成 — 2026-07-26）
 
-`RedeemCodeManager.kt` 顶层使用 `DeterministicRng.fromSeed(System.nanoTime())` 作为随机数源，
-以下路径未走 `GameRngManager` 分区 PRNG：
+已全量接入 `GameRngManager.getRng(RngPartition.MAIL)`：
 
-- `generateDiscipient()` — 弟子属性/灵根/天赋随机生成
-- `generateRandomEquipment()` — 装备随机生成（间接调用 `EquipmentDatabase.generateRandom`）
-
-影响范围：
-- 运营补偿邮件中通过 `MailAttachment(type="disciple")` 发放弟子时，弟子属性随机使用顶层 RNG
-- 兑换码系统中所有随机物品/弟子的生成
-
-建议：迁移至 `GameRngManager.getRng(RngPartition.SYSTEM)`，与邮件系统随机操作统一。
-当前风险低（邮件/兑换码操作不涉及战斗或突破，RNG 不一致不影响核心玩法）。
+- ✅ 新增 `RngPartition.MAIL(5)` 专用分区
+- ✅ `EquipmentDatabase`/`HerbDatabase`/`ItemDatabase`/`ManualDatabase` 的 `generateRandom*` 方法增加可选 `random: kotlin.random.Random` 参数
+- ✅ `RedeemCodeManager` 所有随机路径（`generateDisciple`/`generateRandomTalents`/`generateReward`）通过传入的 `random` 参数走 MAIL 分区
+- ✅ `MailService.distributeAttachmentsInline()` 注入 `GameRngManager`，传 `mailRng` 到所有 `generateRandom*` 调用
+- ✅ `RedeemCodeService` 同理注入并传参
+- ✅ 守卫测试 `GameRngManagerTest.exportStates` 已更新为动态分区数量
 
 ## 引擎 suspend API 线程安全自动化（✅ 已完成 — 2026-07-25）
 

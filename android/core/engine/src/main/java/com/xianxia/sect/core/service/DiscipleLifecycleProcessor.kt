@@ -143,7 +143,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
                 manualInstances = manualInstances.filter { it.id !in deleteManualIds }
 
                 // ── 死亡记录 ──
-                discipleTables.deathRecords.add(DeathRecord(
+                discipleTables.addDeathRecord(DeathRecord(
                     id = id, name = agedDisciple.name, surname = agedDisciple.surname,
                     realm = agedDisciple.realm, realmLayer = agedDisciple.realmLayer,
                     deathAge = agedDisciple.age, deathYear = currentYear, cause = "age"

@@ -1,6 +1,8 @@
 package com.xianxia.sect.ui.game.delegate
 
 import com.xianxia.sect.core.engine.GameEngine
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CoroutineScope
 
 /**
@@ -16,24 +18,24 @@ class BeastAttackDelegate(
     private var isFighting = false  // 双击防抖
 
     /** 处理兽袭事件 — 选择进贡物资以平息该兽袭。 */
-    suspend fun resolveBeastAttackPayTribute(beastLevelId: String): Boolean {
+    suspend fun resolveBeastAttackPayTribute(beastLevelId: String): Boolean = withContext(Dispatchers.IO) {
         val success = gameEngine.resolveBeastAttackPayTribute(beastLevelId)
         if (!success) {
             onMessage?.invoke("该妖兽已被击败，无需进贡", false)
         }
-        return success
+        success
     }
 
     /** 处理兽袭事件 — 选择战斗抵抗（suspend，调用方 await 完成后清理）。 */
-    suspend fun resolveBeastAttackFight(beastLevelId: String): Boolean {
-        if (isFighting) return false  // 双击防抖
+    suspend fun resolveBeastAttackFight(beastLevelId: String): Boolean = withContext(Dispatchers.IO) {
+        if (isFighting) return@withContext false  // 双击防抖
         isFighting = true
         try {
             val success = gameEngine.resolveBeastAttackFight(beastLevelId)
             if (!success) {
                 onMessage?.invoke("该妖兽已被击败", true)
             }
-            return success
+            success
         } finally {
             isFighting = false
         }

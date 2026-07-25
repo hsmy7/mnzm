@@ -10,13 +10,10 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
-import com.xianxia.sect.core.util.DeterministicRng
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
 object ManualDatabase {
-    private val rng by lazy { DeterministicRng.fromSeed(System.nanoTime()) }
-
     private const val TAG = "ManualDatabase"
     
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
@@ -623,26 +620,26 @@ object ManualDatabase {
         )
     }
     
-    fun generateRandom(minRarity: Int = 1, maxRarity: Int = 6, type: ManualType? = null): ManualStack {
+    fun generateRandom(minRarity: Int = 1, maxRarity: Int = 6, type: ManualType? = null, random: kotlin.random.Random = kotlin.random.Random): ManualStack {
         check(_isInitialized) { "ManualDatabase not initialized. Call initialize() first." }
-        
-        val rarity = generateRarity(minRarity, maxRarity)
+
+        val rarity = generateRarity(minRarity, maxRarity, random)
         val templates = if (type != null) {
             getByType(type).filter { it.rarity == rarity }
         } else {
             getByRarity(rarity)
         }
-        
+
         if (templates.isEmpty()) {
             throw NoSuchElementException("No manual templates found for rarity=$rarity, type=$type")
         }
-        
-        val template = templates[rng.nextInt(templates.size)]
+
+        val template = templates[random.nextInt(templates.size)]
         return createFromTemplate(template)
     }
-    
-    private fun generateRarity(minRarity: Int, maxRarity: Int): Int {
-        val rand = rng.nextDouble()
+
+    private fun generateRarity(minRarity: Int, maxRarity: Int, random: kotlin.random.Random = kotlin.random.Random): Int {
+        val rand = random.nextDouble()
         return when {
             rand < 0.5 -> minRarity.coerceAtMost(maxRarity)
             rand < 0.75 -> (minRarity + 1).coerceAtMost(maxRarity)

@@ -229,21 +229,21 @@ object HerbDatabase {
         }
     }
 
-    fun generateRandomHerb(minRarity: Int = 1, maxRarity: Int = 6): Herb {
+    fun generateRandomHerb(minRarity: Int = 1, maxRarity: Int = 6, random: kotlin.random.Random = kotlin.random.Random): Herb {
         val eligibleHerbs = allHerbs.filter { it.rarity in minRarity..maxRarity }
         return if (eligibleHerbs.isNotEmpty()) {
-            eligibleHerbs.random()
+            eligibleHerbs.random(random)
         } else {
-            tier1Herbs.random()
+            tier1Herbs.random(random)
         }
     }
 
-    fun generateRandomSeed(minRarity: Int = 1, maxRarity: Int = 6): Seed {
+    fun generateRandomSeed(minRarity: Int = 1, maxRarity: Int = 6, random: kotlin.random.Random = kotlin.random.Random): Seed {
         val eligibleSeeds = allSeeds.filter { it.rarity in minRarity..maxRarity }
         return if (eligibleSeeds.isNotEmpty()) {
-            eligibleSeeds.random()
+            eligibleSeeds.random(random)
         } else {
-            tier1Seeds.random()
+            tier1Seeds.random(random)
         }
     }
 

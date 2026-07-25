@@ -404,7 +404,7 @@ class LawEnforcementProcessorTest {
     fun `仓库守卫 - 盗贼智力低于守卫被捕获`() {
         val thiefId = 1; val guardId = 2
         val tables = makeTables(thiefId, morale = -100).also {
-            it.ids.add(guardId); it.isAlive[guardId] = 1; it.statuses[guardId] = DiscipleStatus.IDLE
+            it.addId(guardId); it.isAlive[guardId] = 1; it.statuses[guardId] = DiscipleStatus.IDLE
             it.intelligences[guardId] = 150 // 守卫智力150 > 盗贼智力100
             it.realms[guardId] = 5; it.realmLayers[guardId] = 1
         }
@@ -434,7 +434,7 @@ class LawEnforcementProcessorTest {
     fun `仓库守卫 - 盗贼智力高于守卫不被捕获`() {
         val thiefId = 1; val guardId = 2
         val tables = makeTables(thiefId, morale = -100).also {
-            it.ids.add(guardId); it.isAlive[guardId] = 1; it.statuses[guardId] = DiscipleStatus.IDLE
+            it.addId(guardId); it.isAlive[guardId] = 1; it.statuses[guardId] = DiscipleStatus.IDLE
             it.intelligences[guardId] = 50 // 守卫智力50 < 盗贼智力100
             it.realms[guardId] = 5; it.realmLayers[guardId] = 1
         }
@@ -461,7 +461,7 @@ class LawEnforcementProcessorTest {
     fun `仓库守卫 - 盗贼智力等于守卫被捕获`() {
         val thiefId = 1; val guardId = 2
         val tables = makeTables(thiefId, morale = -100).also {
-            it.ids.add(guardId); it.isAlive[guardId] = 1; it.statuses[guardId] = DiscipleStatus.IDLE
+            it.addId(guardId); it.isAlive[guardId] = 1; it.statuses[guardId] = DiscipleStatus.IDLE
             it.intelligences[guardId] = 100 // 守卫智力100 = 盗贼智力100
             it.realms[guardId] = 5; it.realmLayers[guardId] = 1
         }
@@ -553,7 +553,7 @@ class LawEnforcementProcessorTest {
 
     private fun makeTables(id: Int, morale: Int = 10): DiscipleTables {
         val t = DiscipleTables()
-        t.ids.add(id); t.isAlive[id] = 1; t.statuses[id] = DiscipleStatus.IDLE
+        t.addId(id); t.isAlive[id] = 1; t.statuses[id] = DiscipleStatus.IDLE
         t.moralities[id] = morale; t.loyalties[id] = 50
         t.recruitedMonths[id] = 24; t.ages[id] = 30
         t.intelligences[id] = 100; t.baseSpeeds[id] = 100

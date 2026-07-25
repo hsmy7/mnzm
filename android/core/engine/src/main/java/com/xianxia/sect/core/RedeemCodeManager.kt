@@ -11,17 +11,13 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.SpiritRootGenerator
-import com.xianxia.sect.core.util.DeterministicRng
-import com.xianxia.sect.core.util.asKotlinRandom
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 
 object RedeemCodeManager {
-    private val rng by lazy { DeterministicRng.fromSeed(System.nanoTime()) }
-
-    private const val TAG = "RedeemCodeManager"
+    private val TAG = "RedeemCodeManager"
     private const val MIN_CODE_LENGTH = 3
     private const val MAX_CODE_LENGTH = 20
 
@@ -443,7 +439,8 @@ object RedeemCodeManager {
         redeemCode: RedeemCode,
         playerId: String = "default",
         deviceId: String = "unknown",
-        existingNames: Set<String> = emptySet()
+        existingNames: Set<String> = emptySet(),
+        random: kotlin.random.Random = kotlin.random.Random
     ): RedeemResult {
         DomainLog.d(TAG, "Generating reward for code: ${redeemCode.code}, type: ${redeemCode.rewardType}")
 
@@ -469,7 +466,7 @@ object RedeemCodeManager {
             }
             RedeemRewardType.EQUIPMENT -> {
                 repeat(redeemCode.quantity) {
-                    val equipment = generateRandomEquipment(redeemCode.rarity)
+                    val equipment = generateRandomEquipment(redeemCode.rarity, random)
                     rewards.add(
                         RewardSelectedItem(
                             id = equipment.id,
@@ -484,7 +481,7 @@ object RedeemCodeManager {
             }
             RedeemRewardType.MANUAL -> {
                 repeat(redeemCode.quantity) {
-                    val manual = ManualDatabase.generateRandom(minRarity = redeemCode.rarity, maxRarity = redeemCode.rarity)
+                    val manual = ManualDatabase.generateRandom(minRarity = redeemCode.rarity, maxRarity = redeemCode.rarity, random = random)
                     rewards.add(
                         RewardSelectedItem(
                             id = manual.id,
@@ -499,7 +496,7 @@ object RedeemCodeManager {
             }
             RedeemRewardType.PILL -> {
                 repeat(redeemCode.quantity) {
-                    val pill = ItemDatabase.generateRandomPill(minRarity = redeemCode.rarity, maxRarity = redeemCode.rarity)
+                    val pill = ItemDatabase.generateRandomPill(minRarity = redeemCode.rarity, maxRarity = redeemCode.rarity, random = random)
                     rewards.add(
                         RewardSelectedItem(
                             id = pill.id,
@@ -514,7 +511,7 @@ object RedeemCodeManager {
             }
             RedeemRewardType.MATERIAL -> {
                 repeat(redeemCode.quantity) {
-                    val material = ItemDatabase.generateRandomMaterial(minRarity = redeemCode.rarity, maxRarity = redeemCode.rarity)
+                    val material = ItemDatabase.generateRandomMaterial(minRarity = redeemCode.rarity, maxRarity = redeemCode.rarity, random = random)
                     rewards.add(
                         RewardSelectedItem(
                             id = material.id,
@@ -529,7 +526,7 @@ object RedeemCodeManager {
             }
             RedeemRewardType.HERB -> {
                 repeat(redeemCode.quantity) {
-                    val herb = HerbDatabase.generateRandomHerb(minRarity = redeemCode.rarity, maxRarity = redeemCode.rarity)
+                    val herb = HerbDatabase.generateRandomHerb(minRarity = redeemCode.rarity, maxRarity = redeemCode.rarity, random = random)
                     rewards.add(
                         RewardSelectedItem(
                             id = herb.id,
@@ -544,7 +541,7 @@ object RedeemCodeManager {
             }
             RedeemRewardType.SEED -> {
                 repeat(redeemCode.quantity) {
-                    val seed = HerbDatabase.generateRandomSeed(minRarity = redeemCode.rarity, maxRarity = redeemCode.rarity)
+                    val seed = HerbDatabase.generateRandomSeed(minRarity = redeemCode.rarity, maxRarity = redeemCode.rarity, random = random)
                     rewards.add(
                         RewardSelectedItem(
                             id = seed.id,
@@ -561,7 +558,7 @@ object RedeemCodeManager {
                 val count = redeemCode.quantity.coerceAtLeast(1)
                 val usedNames = existingNames.toMutableSet()
                 repeat(count) {
-                    val d = generateDisciple(redeemCode.discipleConfig, usedNames)
+                    val d = generateDisciple(redeemCode.discipleConfig, usedNames, random = random)
                     disciples.add(d)
                     usedNames.add(d.name)
                     rewards.add(
@@ -594,7 +591,8 @@ object RedeemCodeManager {
                             spiritRootCount = 1,
                             loyalty = 80
                         ),
-                        starterUsedNames
+                        starterUsedNames,
+                        random = random
                     )
                     disciples.add(singleRootDisciple)
                     starterUsedNames.add(singleRootDisciple.name)
@@ -615,7 +613,7 @@ object RedeemCodeManager {
                 rarities.forEach { targetRarity ->
                     val templates = ManualDatabase.getByRarity(targetRarity)
                     repeat(30) {
-                        val template = templates[rng.nextInt(templates.size)]
+                        val template = templates[random.nextInt(templates.size)]
                         val manual = ManualDatabase.createFromTemplate(template)
                         rewards.add(
                             RewardSelectedItem(
@@ -647,17 +645,17 @@ object RedeemCodeManager {
         )
     }
 
-    private fun generateRandomEquipment(rarity: Int): EquipmentStack {
-        return EquipmentDatabase.generateRandom(minRarity = rarity, maxRarity = rarity)
+    private fun generateRandomEquipment(rarity: Int, random: kotlin.random.Random = kotlin.random.Random): EquipmentStack {
+        return EquipmentDatabase.generateRandom(minRarity = rarity, maxRarity = rarity, random = random)
     }
 
-    fun generateDisciple(config: DiscipleRewardConfig?, existingNames: Set<String> = emptySet()): Disciple {
+    fun generateDisciple(config: DiscipleRewardConfig?, existingNames: Set<String> = emptySet(), random: kotlin.random.Random = kotlin.random.Random): Disciple {
         val cfg = config ?: DiscipleRewardConfig()
 
         val gender = when (cfg.gender) {
             "male" -> "male"
             "female" -> "female"
-            else -> if (rng.nextInt(2) == 0) "male" else "female"
+            else -> if (random.nextInt(2) == 0) "male" else "female"
         }
 
         val nameResult = NameService.generateName(gender, NameService.NameStyle.XIANXIA, existingNames)
@@ -670,41 +668,41 @@ object RedeemCodeManager {
             if (cfgSpiritRootCount == 1) {
                 baseType
             } else {
-                val additionalTypes = types.filter { it != baseType }.shuffled(java.util.Random(rng.nextInt().toLong())).take(cfgSpiritRootCount - 1)
+                val additionalTypes = types.filter { it != baseType }.shuffled(java.util.Random(random.nextInt().toLong())).take(cfgSpiritRootCount - 1)
                 (listOf(baseType) + additionalTypes).joinToString(",")
             }
         } else if (cfgSpiritRootCount != null) {
             val types = listOf("metal", "wood", "water", "fire", "earth")
-            types.shuffled(java.util.Random(rng.nextInt().toLong())).take(cfgSpiritRootCount).joinToString(",")
+            types.shuffled(java.util.Random(random.nextInt().toLong())).take(cfgSpiritRootCount).joinToString(",")
         } else {
-            SpiritRootGenerator.generate(rng.asKotlinRandom())
+            SpiritRootGenerator.generate(random)
         }
 
         val age = if (cfg.minAge == cfg.maxAge) {
             cfg.minAge
         } else {
-            cfg.minAge + rng.nextInt(cfg.maxAge - cfg.minAge + 1)
+            cfg.minAge + random.nextInt(cfg.maxAge - cfg.minAge + 1)
         }
 
         val realmConfig = GameConfig.Realm.get(cfg.realm)
         val baseLifespan = realmConfig.maxAge
-        val lifespan = (baseLifespan * (1.0 + (-0.1 + rng.nextDouble() * 0.2))).toInt()
+        val lifespan = (baseLifespan * (1.0 + (-0.1 + random.nextDouble() * 0.2))).toInt()
 
         val talentIds = if (cfg.talentIds.isNotEmpty()) {
             cfg.talentIds
         } else {
-            generateRandomTalents()
+            generateRandomTalents(random = random)
         }
 
         val talents = TalentDatabase.getTalentsByIds(talentIds)
         val lifespanBonus = talents.sumOf { it.effects["lifespan"] ?: 0.0 }
-        val hpVariance = -50 + rng.nextInt(101)
-        val mpVariance = -50 + rng.nextInt(101)
-        val physicalAttackVariance = -50 + rng.nextInt(101)
-        val magicAttackVariance = -50 + rng.nextInt(101)
-        val physicalDefenseVariance = -50 + rng.nextInt(101)
-        val magicDefenseVariance = -50 + rng.nextInt(101)
-        val speedVariance = -50 + rng.nextInt(101)
+        val hpVariance = -50 + random.nextInt(101)
+        val mpVariance = -50 + random.nextInt(101)
+        val physicalAttackVariance = -50 + random.nextInt(101)
+        val magicAttackVariance = -50 + random.nextInt(101)
+        val physicalDefenseVariance = -50 + random.nextInt(101)
+        val magicDefenseVariance = -50 + random.nextInt(101)
+        val speedVariance = -50 + random.nextInt(101)
 
         return Disciple(
             name = nameResult.fullName,
@@ -728,22 +726,22 @@ object RedeemCodeManager {
                 speedVariance = speedVariance
             ),
             skills = SkillStats(
-                intelligence = cfg.intelligence ?: 1 + rng.nextInt(100),
+                intelligence = cfg.intelligence ?: 1 + random.nextInt(100),
                 comprehension = cfg.comprehension ?: when (spiritRootType.split(",").size) {
-                    1 -> 80 + rng.nextInt(21)
-                    2 -> 60 + rng.nextInt(41)
-                    3 -> 40 + rng.nextInt(61)
-                    4 -> 20 + rng.nextInt(81)
-                    else -> 1 + rng.nextInt(100)
+                    1 -> 80 + random.nextInt(21)
+                    2 -> 60 + random.nextInt(41)
+                    3 -> 40 + random.nextInt(61)
+                    4 -> 20 + random.nextInt(81)
+                    else -> 1 + random.nextInt(100)
                 },
-                charm = cfg.charm ?: 1 + rng.nextInt(100),
-                loyalty = cfg.loyalty ?: 1 + rng.nextInt(100),
-                artifactRefining = cfg.artifactRefining ?: 1 + rng.nextInt(100),
-                pillRefining = cfg.pillRefining ?: 1 + rng.nextInt(100),
-                spiritPlanting = cfg.spiritPlanting ?: 1 + rng.nextInt(100),
-                mining = cfg.mining ?: 1 + rng.nextInt(100),
-                teaching = cfg.teaching ?: 1 + rng.nextInt(100),
-                morality = cfg.morality ?: 1 + rng.nextInt(100)
+                charm = cfg.charm ?: 1 + random.nextInt(100),
+                loyalty = cfg.loyalty ?: 1 + random.nextInt(100),
+                artifactRefining = cfg.artifactRefining ?: 1 + random.nextInt(100),
+                pillRefining = cfg.pillRefining ?: 1 + random.nextInt(100),
+                spiritPlanting = cfg.spiritPlanting ?: 1 + random.nextInt(100),
+                mining = cfg.mining ?: 1 + random.nextInt(100),
+                teaching = cfg.teaching ?: 1 + random.nextInt(100),
+                morality = cfg.morality ?: 1 + random.nextInt(100)
             )
         ).apply {
             val baseStats = Disciple.calculateBaseStatsWithVariance(
@@ -761,7 +759,7 @@ object RedeemCodeManager {
     }
 
     /** 生成随机天赋（internal 供测试验证模板级去重） */
-    internal fun generateRandomTalents(): List<String> {
+    internal fun generateRandomTalents(random: kotlin.random.Random = kotlin.random.Random): List<String> {
         val talents = mutableListOf<String>()
         val selectedTemplates = mutableSetOf<String>()
 
@@ -772,26 +770,26 @@ object RedeemCodeManager {
             .toMutableList()
 
         val positiveCount = when {
-            rng.nextDouble() < 0.3 -> 2
-            rng.nextDouble() < 0.6 -> 1
+            random.nextDouble() < 0.3 -> 2
+            random.nextDouble() < 0.6 -> 1
             else -> 0
         }
 
         repeat(positiveCount) {
             val filtered = allPositiveData.filter { it.template !in selectedTemplates }
             if (filtered.isEmpty()) return@repeat
-            val selected = filtered[rng.nextInt(filtered.size)]
+            val selected = filtered[random.nextInt(filtered.size)]
             talents.add(selected.id)
             selectedTemplates.add(selected.template)
             allPositiveData.removeAll { it.template == selected.template }
         }
 
         // 负面天赋检查（14%概率）
-        if (rng.nextDouble() < 0.14) {
+        if (random.nextDouble() < 0.14) {
             val allNegativeData = TalentDatabase.getNegativeTalents()
                 .mapNotNull { TalentDatabase.getTalentDataById(it.id) }
             if (allNegativeData.isNotEmpty()) {
-                val talent = allNegativeData[rng.nextInt(allNegativeData.size)]
+                val talent = allNegativeData[random.nextInt(allNegativeData.size)]
                 if (talent.id !in talents) {
                     talents.add(talent.id)
                 }

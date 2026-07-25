@@ -1,5 +1,11 @@
 ## [4.0.74] - 2026-07-26
 
+### 架构债务
+
+- **架构债务：邮件/兑换码 RNG 接入 MAIL 分区 PRNG** — `RedeemCodeManager`/`MailService`/`RedeemCodeService` 所有随机生成路径（弟子属性/装备/丹药/功法/草药/种子）从独立 `DeterministicRng`/`kotlin.random.Random` 统一为 `GameRngManager.getRng(RngPartition.MAIL)`；`EquipmentDatabase`/`HerbDatabase`/`ItemDatabase`/`ManualDatabase` 的 `generateRandom*` 方法增加可选 `random` 参数；新增 `RngPartition.MAIL(5)`；清理 `ManualDatabase`/`RedeemCodeManager` 死字段 `rng`
+- **架构债务：`DiscipleTables.ids`/`deathRecords` public MutableList 封装** — `ids` 和 `deathRecords` 改为 `private val` 背板 + `List` 只读视图，新增 `addId()`/`removeId()`/`addDeathRecord()` 守卫方法；修复 `DiscipleLifecycleProcessor` 生产代码绕过 `markDead()` 直接 `deathRecords.add()` 的 Bug
+- **架构债务：影子结算死代码清理** — 移除 `copyRowFrom()` 死代码；更新 `SettlementStrategy.kt`/`DiscipleTables.kt`/`CultivationSettlementConcurrencyTest.kt` 中引用已删除方法的 KDoc 注释
+
 ### 修复
 
 - **修复：云存档反射桥接 7 个运行时崩溃 Bug** — 反编译 `tap-cloudsave-4.10.5.aar` 验证实际 API 后修正：主类名 `TapCloudSave`→`TapTapCloudSave`、回调包名 `com.xd.sdk.taptap`→`com.taptap.sdk.cloudsave.internal`、`ArchiveMetadata.Builder` 实例化方式、`onArchiveDataResult` 签名（1参数非3参数）、`setPlaytime` 类型（int 非 long）、`invokeGetter` Long 返回值处理、`NativeTapCloudSaveApi` 完整实现

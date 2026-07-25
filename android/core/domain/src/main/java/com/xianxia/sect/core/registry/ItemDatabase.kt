@@ -662,15 +662,15 @@ object ItemDatabase {
         )
     }
 
-    fun generateRandomPill(minRarity: Int = 1, maxRarity: Int = 6): Pill {
+    fun generateRandomPill(minRarity: Int = 1, maxRarity: Int = 6, random: kotlin.random.Random = kotlin.random.Random): Pill {
         val pills = allPills.values.filter { it.rarity in minRarity..maxRarity }
-        val template = pills.random()
+        val template = pills.random(random)
         return createPillFromTemplate(template)
     }
 
-    fun generateRandomMaterial(minRarity: Int = 1, maxRarity: Int = 6): Material {
+    fun generateRandomMaterial(minRarity: Int = 1, maxRarity: Int = 6, random: kotlin.random.Random = kotlin.random.Random): Material {
         val materials = allMaterials.values.filter { it.rarity in minRarity..maxRarity }
-        val template = materials.random()
+        val template = materials.random(random)
         return createMaterialFromTemplate(template)
     }
 }

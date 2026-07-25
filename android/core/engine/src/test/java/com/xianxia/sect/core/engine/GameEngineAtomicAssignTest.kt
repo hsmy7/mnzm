@@ -44,7 +44,7 @@ class GameEngineAtomicAssignTest {
         store.update {
             discipleTables.writeAllowed = true
             val a = DISCIPLE_A.toInt()
-            discipleTables.ids.add(a)
+            discipleTables.addId(a)
             discipleTables.names[a] = "弟子A"
             discipleTables.statuses[a] = DiscipleStatus.IDLE
             discipleTables.isAlive[a] = 1
@@ -53,7 +53,7 @@ class GameEngineAtomicAssignTest {
             discipleTables.portraitRes[a] = "portrait_a"
 
             val b = DISCIPLE_B.toInt()
-            discipleTables.ids.add(b)
+            discipleTables.addId(b)
             discipleTables.names[b] = "弟子B"
             discipleTables.statuses[b] = DiscipleStatus.IDLE
             discipleTables.isAlive[b] = 1

@@ -148,20 +148,20 @@ object EquipmentDatabase {
     fun getByRarity(rarity: Int): List<EquipmentTemplate> =
         allTemplates.values.filter { it.rarity == rarity }
 
-    fun generateRandom(minRarity: Int = 1, maxRarity: Int = 6): EquipmentStack {
+    fun generateRandom(minRarity: Int = 1, maxRarity: Int = 6, random: kotlin.random.Random = kotlin.random.Random): EquipmentStack {
         val rarity = if (minRarity == maxRarity) {
             minRarity
         } else {
-            generateRarity(minRarity, maxRarity)
+            generateRarity(minRarity, maxRarity, random)
         }
         val templates = getByRarity(rarity)
-        val template = if (templates.isNotEmpty()) templates.random() else allTemplates.values.random()
+        val template = if (templates.isNotEmpty()) templates.random(random) else allTemplates.values.random(random)
         return createFromTemplate(template)
     }
 
-    fun generateRandomBySlot(slot: EquipmentSlot, rarity: Int): EquipmentStack {
+    fun generateRandomBySlot(slot: EquipmentSlot, rarity: Int, random: kotlin.random.Random = kotlin.random.Random): EquipmentStack {
         val templates = getBySlot(slot).filter { it.rarity == rarity }
-        val template = if (templates.isNotEmpty()) templates.random() else getBySlot(slot).random()
+        val template = if (templates.isNotEmpty()) templates.random(random) else getBySlot(slot).random(random)
         return createFromTemplate(template)
     }
 
@@ -184,8 +184,8 @@ object EquipmentDatabase {
         )
     }
 
-    private fun generateRarity(min: Int, max: Int): Int {
-        val roll = Random.nextDouble()
+    private fun generateRarity(min: Int, max: Int, random: kotlin.random.Random = Random): Int {
+        val roll = random.nextDouble()
         return when {
             roll < 0.5 -> min.coerceAtLeast(1)
             roll < 0.75 -> (min + 1).coerceIn(min, max)

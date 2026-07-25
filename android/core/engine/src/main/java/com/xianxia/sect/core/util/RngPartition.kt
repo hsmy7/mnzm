@@ -15,5 +15,7 @@ enum class RngPartition(val id: Int) {
     /** 系统级：UI 随机/非关键随机化 */
     SYSTEM(3),
     /** 敌人属性生成：AI 敌人属性方差（与战斗 RNG 隔离，避免跨线程污染） */
-    ENEMY_GEN(4)
+    ENEMY_GEN(4),
+    /** 邮件/兑换码奖励随机生成：弟子属性/装备/丹药/草药等 */
+    MAIL(5)
 }

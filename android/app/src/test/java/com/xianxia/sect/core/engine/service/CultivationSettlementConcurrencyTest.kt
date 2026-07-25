@@ -34,10 +34,10 @@ import org.robolectric.annotation.Config
  * 修复回归测试：弟子批量消失 bug（异步 clear+insert 覆盖竞态）。
  *
  * 根因：processAnnualSalary 等函数在入口捕获快照后通过 scope.launch 异步
- * clear()+insert(陈旧快照)，与 createSettlementShadow().deepCopy() 并发，
- * 导致 shadow 捕获到空 ids，swapFromShadow 整体覆盖活表 → 全体弟子消失。
+ * clear()+insert(陈旧快照)，与 stateStore.update 事务并发，
+ * 导致事务内读到空 ids，整体覆盖活表 → 全体弟子消失。
  *
- * 修复：改为 suspend，在 stateStore.update 事务内读取最新 discipleTables
+ * 修复：改为在 stateStore.update 事务内读取最新 discipleTables
  * 并同步操作，消除异步覆盖竞态。
  *
  * 本测试验证：每次操作后弟子数量不丢失（bug 核心症状）+ 功能正确性。

@@ -351,11 +351,11 @@ class GuideTaskTest {
     fun `DiscipleReachRealm - 计数达到目标`() {
         val tables = DiscipleTables()
         // 弟子 1: realm=3（满足 ≤5）
-        tables.ids.add(1); tables.realms[1] = 3; tables.isAlive[1] = 1
+        tables.addId(1); tables.realms[1] = 3; tables.isAlive[1] = 1
         // 弟子 2: realm=5（满足 ≤5）
-        tables.ids.add(2); tables.realms[2] = 5; tables.isAlive[2] = 1
+        tables.addId(2); tables.realms[2] = 5; tables.isAlive[2] = 1
         // 弟子 3: realm=8（不满足 ≤5）
-        tables.ids.add(3); tables.realms[3] = 8; tables.isAlive[3] = 1
+        tables.addId(3); tables.realms[3] = 8; tables.isAlive[3] = 1
 
         val cond = GuideCondition.DiscipleReachRealm(maxRealmLayer = 5, targetValue = 2, targetLabel = "达到筑基")
         val gd = GameData()
@@ -367,8 +367,8 @@ class GuideTaskTest {
     @Test
     fun `DiscipleReachRealm - 计数未达到目标`() {
         val tables = DiscipleTables()
-        tables.ids.add(1); tables.realms[1] = 3; tables.isAlive[1] = 1
-        tables.ids.add(2); tables.realms[2] = 7; tables.isAlive[2] = 1
+        tables.addId(1); tables.realms[1] = 3; tables.isAlive[1] = 1
+        tables.addId(2); tables.realms[2] = 7; tables.isAlive[2] = 1
 
         val cond = GuideCondition.DiscipleReachRealm(maxRealmLayer = 5, targetValue = 2, targetLabel = "达到筑基")
         val gd = GameData()
@@ -398,11 +398,11 @@ class GuideTaskTest {
     fun `DiscipleReachRealm - 排除死亡弟子`() {
         val tables = DiscipleTables()
         // 弟子 1: alive, realm=3（满足）
-        tables.ids.add(1); tables.realms[1] = 3; tables.isAlive[1] = 1
+        tables.addId(1); tables.realms[1] = 3; tables.isAlive[1] = 1
         // 弟子 2: dead, realm=4（满足但已死亡，不计入）
-        tables.ids.add(2); tables.realms[2] = 4; tables.isAlive[2] = 0
+        tables.addId(2); tables.realms[2] = 4; tables.isAlive[2] = 0
         // 弟子 3: alive, realm=8（不满足）
-        tables.ids.add(3); tables.realms[3] = 8; tables.isAlive[3] = 1
+        tables.addId(3); tables.realms[3] = 8; tables.isAlive[3] = 1
 
         val cond = GuideCondition.DiscipleReachRealm(maxRealmLayer = 5, targetValue = 2, targetLabel = "达到筑基")
         val gd = GameData()

@@ -105,13 +105,14 @@
 
 ## 6. `mergeDiscipleTables` / `createSettlementShadow` 死代码
 
-**文件：** `GameStateStoreImpl.kt`
+**文件：** `GameStateStoreImpl.kt`、`DiscipleTables.kt`
 
-**问题：** 影子结算路径（`swapFromShadow`/`createSettlementShadow`）自惰性结算引擎上线后不再被调用。相关代码依赖 `WriteGuardRule` 才能通过测试。
+**问题：** 影子结算路径（`swapFromShadow`/`createSettlementShadow`）自惰性结算引擎上线后不再被调用。
 
-**状态：** ✅ 已修复守卫兼容（加 `writeAllowed = true`），架构上仍为死代码
-
-**建议：** 在后续迭代中移除整个影子结算架构（`swapFromShadow`、`mergeDiscipleTables`、`createSettlementShadow`、`MutableGameState.isSettlementShadow`）以及相关测试。
+**状态：** ✅ 已清理（2026-07-26）
+- 代码已物理移除（仅剩 KDoc 注释引用，已全部更新）
+- `copyRowFrom()` 死代码已移除
+- `SettlementStrategy.kt` KDoc 已更新为当前架构描述
 
 ---
 

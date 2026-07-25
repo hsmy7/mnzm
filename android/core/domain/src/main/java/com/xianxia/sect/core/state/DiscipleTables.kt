@@ -20,7 +20,8 @@ import com.xianxia.sect.core.model.*
 class DiscipleTables {
 
     /** 已故弟子的简要死亡记录（用于剔除后保留信息） */
-    val deathRecords = mutableListOf<DeathRecord>()
+    private val _deathRecords = mutableListOf<DeathRecord>()
+    val deathRecords: List<DeathRecord> get() = _deathRecords
 
     /** 写操作计数器——GameStateStore 用于脏检测，跳过无变化的 assembleAll */
     @Volatile var mutationVersion: Long = 0
@@ -28,6 +29,17 @@ class DiscipleTables {
 
     /** 在每次写操作后调用，递增版本号 */
     fun markMutated() { mutationVersion++ }
+
+    // ── ID 列表守卫方法 ──
+
+    /** 添加一个弟子 ID（含守卫检查） */
+    fun addId(id: Int) { requireWriteAccess(); _ids.add(id) }
+
+    /** 移除一个弟子 ID（含守卫检查） */
+    fun removeId(id: Int) { requireWriteAccess(); _ids.remove(id) }
+
+    /** 添加一个死亡记录（含守卫检查） */
+    fun addDeathRecord(record: DeathRecord) { requireWriteAccess(); _deathRecords.add(record) }
 
     /**
      * 记录指定弟子 ID 的组件数据被修改。
@@ -69,7 +81,8 @@ class DiscipleTables {
     // 写操作仍使用 synchronized(ids) 保护多表原子性（DiscipleTables 不是
     // 唯一受影响的表 — insert/remove 操作约 90 张组件表）。
     /** 弟子 ID 列表 — 由 [idsLock] 保护，读多写少场景使用读写锁优化性能 */
-    val ids: MutableList<Int> = mutableListOf()
+    private val _ids = mutableListOf<Int>()
+    val ids: List<Int> get() = _ids
 
     // === 基础信息（ComponentTable<String>） ===
     val names = ComponentTable<String>()          // id → name
@@ -203,16 +216,6 @@ class DiscipleTables {
 
     // === 弟子总数 ===
     val count: Int get() = ids.size
-
-    /**
-     * 从另一个 [DiscipleTables] 中复制一个弟子的全部组件到当前表。
-     * 如果 id 已存在则更新，否则插入。
-     * 用于 [GameStateStoreImpl.mergeDiscipleTables] 的简化合并。
-     */
-    fun copyRowFrom(source: DiscipleTables, id: Int) {
-        val disciple = source.assemble(id)
-        if (id in ids) update(disciple) else insert(disciple)
-    }
 
     // ================================================================
     // 迭代式 CRUD 支持（所有组件表的统一引用列表）
@@ -466,11 +469,11 @@ class DiscipleTables {
      * @param disciple 待插入的弟子对象（其 ID 将被覆盖）
      * @return 新分配的 ID（String 格式）
      */
-    fun allocateAndInsert(disciple: Disciple): String = synchronized(ids) {
+    fun allocateAndInsert(disciple: Disciple): String = synchronized(_ids) {
         requireWriteAccess()
-        val id = (ids.maxOrNull() ?: 0) + 1
+        val id = (_ids.maxOrNull() ?: 0) + 1
         val idStr = id.toString()
-        ids.add(id)
+        _ids.add(id)
         // copy() 不复制 class body 属性（如 lifeEvents），手动保留
         val d = disciple.copy(id = idStr)
         d.lifeEvents = disciple.lifeEvents
@@ -486,18 +489,18 @@ class DiscipleTables {
      */
     fun insert(disciple: Disciple) {
         val id = disciple.id.toInt()
-        synchronized(ids) {
+        synchronized(_ids) {
             requireWriteAccess()
-            if (id in ids) {
+            if (id in _ids) {
                 update(disciple)
                 return
             }
-            ids.add(id)
+            _ids.add(id)
             try {
                 writeAllFields(disciple)
             } catch (e: Exception) {
                 // writeAllFields 中途异常 → 回滚 ids，防止幽灵 ID 残留
-                ids.remove(id)
+                _ids.remove(id)
                 throw e
             }
             recordChangedId(id)
@@ -517,9 +520,9 @@ class DiscipleTables {
      */
     fun update(disciple: Disciple) {
         val id = disciple.id.toIntOrNull() ?: return
-        synchronized(ids) {
+        synchronized(_ids) {
             requireWriteAccess()
-            if (!ids.contains(id)) return@synchronized
+            if (!_ids.contains(id)) return@synchronized
             writeAllFields(disciple)
             recordChangedId(id)
         }
@@ -545,22 +548,22 @@ class DiscipleTables {
         requireWriteAccess()
         // 在清除前保存 deathYears，writeAllFields 不写入此表
         val savedDeathYears = mutableMapOf<Int, Int>()
-        synchronized(ids) {
-            for (id in ids) {
+        synchronized(_ids) {
+            for (id in _ids) {
                 if (deathYears.contains(id)) {
                     savedDeathYears[id] = deathYears[id]
                 }
             }
         }
-        synchronized(ids) {
-            ids.clear()
+        synchronized(_ids) {
+            _ids.clear()
             _allCopyableRefs.forEach { it.clear() }
             disciples.forEach { writeAllFields(it) }
             val newIds = disciples.map { it.id.toInt() }
             check(newIds.size == newIds.distinct().size) {
                 "replaceAll: 弟子列表包含重复 ID（编程错误），列表大小=${newIds.size}"
             }
-            ids.addAll(newIds)
+            _ids.addAll(newIds)
             // 恢复死亡年份（仅对仍在列表中的弟子）
             savedDeathYears.forEach { (id, year) ->
                 if (id in ids) deathYears[id] = year
@@ -880,9 +883,9 @@ class DiscipleTables {
      * 锁层次：synchronized(ids) → ComponentTable.synchronized(lock)
      */
     fun remove(id: Int) {
-        synchronized(ids) {
+        synchronized(_ids) {
             requireWriteAccess()
-            ids.remove(id)
+            _ids.remove(id)
             _allCopyableRefs.forEach { it.remove(id) }
             recordChangedId(id)
             assertAllTablesConsistent()
@@ -898,8 +901,8 @@ class DiscipleTables {
     /** 清空所有组件表 */
     fun clear() {
         requireWriteAccess()
-        synchronized(ids) {
-            ids.clear()
+        synchronized(_ids) {
+            _ids.clear()
             _allCopyableRefs.forEach { it.clear() }
         }
     }
@@ -916,9 +919,9 @@ class DiscipleTables {
     fun markDead(id: Int, currentYear: Int, cause: String = "unknown") {
         require(cause in VALID_DEATH_CAUSES) { "Invalid death cause: $cause. Valid: $VALID_DEATH_CAUSES" }
         requireWriteAccess()
-        synchronized(ids) {
-            if (!ids.contains(id)) return@synchronized
-            deathRecords.add(DeathRecord(
+        synchronized(_ids) {
+            if (!_ids.contains(id)) return@synchronized
+            _deathRecords.add(DeathRecord(
                 id = id,
                 name = names.getOrNull(id) ?: "",
                 surname = surnames.getOrNull(id) ?: "",
@@ -980,8 +983,8 @@ class DiscipleTables {
      */
     fun deepCopy(dirtyColumns: Set<Int>? = null): DiscipleTables {
         val copy = DiscipleTables()
-        synchronized(ids) {
-            val idsSnapshot = this.ids.toList()
+        synchronized(_ids) {
+            val idsSnapshot = this._ids.toList()
             if (dirtyColumns.isNullOrEmpty()) {
                 // 全量复制（首次或非脏路径）
                 _allCopyableRefs.forEach { it.copyTo(copy) }
@@ -992,10 +995,10 @@ class DiscipleTables {
                 _allCopyableRefs.forEach { it.copyTo(copy) }
             }
             // 只保留组件表中有完整数据的 ID，过滤掉幽灵 ID（Bug 产生的残留）
-            copy.ids.addAll(idsSnapshot.filter { copy.isAlive.contains(it) })
+            copy._ids.addAll(idsSnapshot.filter { copy.isAlive.contains(it) })
         }
         // 显式复制死亡记录，防止跨 update 边界丢失
-        copy.deathRecords.addAll(this.deathRecords)
+        copy._deathRecords.addAll(this._deathRecords)
         return copy
     }
 
@@ -1054,12 +1057,12 @@ class DiscipleTables {
      */
     fun cullDeadDisciples(thresholdYear: Int) {
         requireWriteAccess()
-        val toRemove = synchronized(ids) {
-            ids.filter { id ->
+        val toRemove = synchronized(_ids) {
+            _ids.filter { id ->
                 deathYears.contains(id) && deathYears[id] <= thresholdYear
             }.also { filtered ->
                 filtered.forEach { id ->
-                    deathRecords.add(DeathRecord(
+                    _deathRecords.add(DeathRecord(
                         id = id,
                         name = names.getOrNull(id) ?: "",
                         surname = surnames.getOrNull(id) ?: "",
@@ -1082,8 +1085,8 @@ class DiscipleTables {
      */
     private fun assertAllTablesConsistent() {
         if (!consistencyCheckEnabled) return
-        synchronized(ids) {
-            for (id in ids) {
+        synchronized(_ids) {
+            for (id in _ids) {
                 _allCopyableRefs.forEach { ref ->
                     // deathYears 是稀疏表——仅已故弟子有条目，存活弟子无写入。
                     // 与 markDead() 的生命周期合约一致，不在此检查范围内。

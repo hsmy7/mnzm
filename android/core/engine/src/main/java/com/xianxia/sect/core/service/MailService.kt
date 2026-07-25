@@ -19,6 +19,8 @@ import com.xianxia.sect.core.repository.MailRepository
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.util.HttpClientProvider
+import com.xianxia.sect.core.util.RngPartition
+import com.xianxia.sect.core.util.asKotlinRandom
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
@@ -63,6 +65,7 @@ class MailService @Inject constructor(
     private val httpClient: HttpClientProvider,
     private val spiritStoneWallet: SpiritStoneWallet,
     private val scopeProvider: com.xianxia.sect.core.util.CoroutineScopeProvider,
+    private val gameRngManager: com.xianxia.sect.core.util.GameRngManager,
 ) {
     companion object {
         private const val TAG = "MailService"
@@ -433,6 +436,7 @@ class MailService @Inject constructor(
         state: MutableGameState,
         attachments: List<MailAttachment>
     ) {
+        val mailRng = gameRngManager.getRng(RngPartition.MAIL).asKotlinRandom()
         attachments.forEach { attachment ->
             when (attachment.type) {
                 "spiritStones" -> {
@@ -453,7 +457,8 @@ class MailService @Inject constructor(
                     repeat(qty) {
                         val newEquipment = EquipmentDatabase.generateRandom(
                             minRarity = attachment.rarity,
-                            maxRarity = attachment.rarity
+                            maxRarity = attachment.rarity,
+                            random = mailRng
                         ).copy(quantity = 1)
                         val existing = state.equipmentStacks.find {
                             it.name == newEquipment.name && it.rarity == newEquipment.rarity && it.slot == newEquipment.slot
@@ -478,7 +483,8 @@ class MailService @Inject constructor(
                     repeat(qty) {
                         val newManual = ManualDatabase.generateRandom(
                             minRarity = attachment.rarity,
-                            maxRarity = attachment.rarity
+                            maxRarity = attachment.rarity,
+                            random = mailRng
                         ).copy(quantity = 1)
                         val existing = state.manualStacks.find {
                             it.name == newManual.name && it.rarity == newManual.rarity && it.type == newManual.type
@@ -505,13 +511,15 @@ class MailService @Inject constructor(
                         } else {
                             ItemDatabase.generateRandomPill(
                                 minRarity = attachment.rarity,
-                                maxRarity = attachment.rarity
+                                maxRarity = attachment.rarity,
+                                random = mailRng
                             ).copy(quantity = qty)
                         }
                     } else {
                         ItemDatabase.generateRandomPill(
                             minRarity = attachment.rarity,
-                            maxRarity = attachment.rarity
+                            maxRarity = attachment.rarity,
+                            random = mailRng
                         ).copy(quantity = qty)
                     }
                     val existing = state.pills.find {
@@ -533,7 +541,8 @@ class MailService @Inject constructor(
                     val qty = attachment.quantity.coerceAtLeast(1)
                     val material = ItemDatabase.generateRandomMaterial(
                         minRarity = attachment.rarity,
-                        maxRarity = attachment.rarity
+                        maxRarity = attachment.rarity,
+                        random = mailRng
                     ).copy(quantity = qty)
                     val existing = state.materials.find {
                         it.name == material.name && it.rarity == material.rarity && it.category == material.category
@@ -577,7 +586,8 @@ class MailService @Inject constructor(
                     val qty = attachment.quantity.coerceAtLeast(1)
                     val herbTemplate = HerbDatabase.generateRandomHerb(
                         minRarity = attachment.rarity,
-                        maxRarity = attachment.rarity
+                        maxRarity = attachment.rarity,
+                        random = mailRng
                     )
                     val herb = Herb(
                         id = java.util.UUID.randomUUID().toString(),
@@ -605,7 +615,8 @@ class MailService @Inject constructor(
                     val qty = attachment.quantity.coerceAtLeast(1)
                     val seedTemplate = HerbDatabase.generateRandomSeed(
                         minRarity = attachment.rarity,
-                        maxRarity = attachment.rarity
+                        maxRarity = attachment.rarity,
+                        random = mailRng
                     )
                     val seed = Seed(
                         id = java.util.UUID.randomUUID().toString(),
@@ -642,7 +653,7 @@ class MailService @Inject constructor(
                         )
                     } else null
                     repeat(attachment.quantity.coerceAtLeast(1)) {
-                        val disciple = RedeemCodeManager.generateDisciple(config, usedNames)
+                        val disciple = RedeemCodeManager.generateDisciple(config, usedNames, random = mailRng)
                         disciple.id = ((state.discipleTables.ids.maxOrNull() ?: 0) + 1).toString()
                         disciple.usage.recruitedMonth = currentMonthValue
                         state.discipleTables.insert(disciple)

@@ -5,6 +5,8 @@ import com.xianxia.sect.core.engine.service.DailySignInService
 import com.xianxia.sect.core.model.BattleRewardItem
 import com.xianxia.sect.core.model.RewardCardItem
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,14 +22,14 @@ class BagDelegate(
     private val _bagRewardCards = MutableStateFlow<List<RewardCardItem>>(emptyList())
     val bagRewardCards: StateFlow<List<RewardCardItem>> = _bagRewardCards.asStateFlow()
 
-    suspend fun openStorageBag(bagId: String): List<BattleRewardItem> {
+    suspend fun openStorageBag(bagId: String): List<BattleRewardItem> = withContext(Dispatchers.IO) {
         val (rewards, cards) = gameEngine.openStorageBag(bagId)
         pendingBagCards = cards
         _bagRewardCards.value = cards
-        return rewards
+        rewards
     }
 
-    suspend fun openAllStorageBags(bagId: String): List<BattleRewardItem> {
+    suspend fun openAllStorageBags(bagId: String): List<BattleRewardItem> = withContext(Dispatchers.IO) {
         val allRewards = mutableListOf<BattleRewardItem>()
         val allCards = mutableListOf<RewardCardItem>()
         while (true) {
@@ -40,7 +42,7 @@ class BagDelegate(
         }
         pendingBagCards = allCards
         _bagRewardCards.value = allCards
-        return allRewards
+        allRewards
     }
 
     fun enqueueBagRewardCards() {
