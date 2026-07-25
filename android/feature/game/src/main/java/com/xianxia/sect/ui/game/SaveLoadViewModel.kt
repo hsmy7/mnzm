@@ -1138,7 +1138,19 @@ class SaveLoadViewModel @Inject constructor(
 
                 _cloudSaveOperationState.value = when (result) {
                     is TapCloudSaveManager.CloudSaveResult.Success -> {
-                        _cloudSaveInfo.value = persistenceFacade.tapCloudSaveManager.checkCloudSave()
+                        // 直接用刚上传的 saveData 构造 CloudSaveInfo，避免 TapTap API 最终一致性延迟
+                        val gd = saveData.gameData
+                        _cloudSaveInfo.value = TapCloudSaveManager.CloudSaveInfo(
+                            hasSaveData = true,
+                            lastModifiedTime = System.currentTimeMillis(),
+                            description = "第${gd.gameYear}年${gd.gameMonth}月 ${gd.sectName}",
+                            gameYear = gd.gameYear,
+                            gameMonth = gd.gameMonth,
+                            sectName = gd.sectName,
+                            discipleCount = saveData.disciples.size,
+                            spiritStones = gd.spiritStones,
+                            appVersion = GameConfig.Game.VERSION
+                        )
                         CloudSaveOperationState.Success("云存档上传成功")
                     }
                     is TapCloudSaveManager.CloudSaveResult.NetworkError ->
