@@ -67,19 +67,18 @@ suspend fun GameEngine.sendAdminCompensation(
 }
 
 /**
- * 向指定存档注入一次性运营补偿邮件（用户ID校验 + 仅限一个存档）。
+ * 向指定存档注入一次性运营补偿邮件（所有人可领，截止明天中午12点）。
  *
- * 由 [SaveLoadViewModel] 在游戏加载完成后调用，通过用户 ID 判断目标用户，
- * 通过 SharedPreferences 标志控制全局仅一个存档可领取。
+ * 由 [SaveLoadViewModel] 在游戏加载完成后调用，每个存档仅可领取一次，
+ * 超过截止时间后停止注入。幂等保证通过 [MailService]、mailRecords 双层防护。
  *
  * @param slotId 目标存档槽位
- * @param userId 当前登录用户 ID（NULL 时不注入）
  */
-suspend fun GameEngine.sendDirectCompensation(slotId: Int, userId: String?) {
-    val injected = mailService.injectDirectCompensation(slotId, userId)
+suspend fun GameEngine.sendDirectCompensation(slotId: Int) {
+    val injected = mailService.injectDirectCompensation(slotId)
     if (injected) {
         DomainLog.i(TAG, "直接运营补偿已注入 slot=$slotId")
     } else {
-        DomainLog.i(TAG, "直接运营补偿跳过注入（userId=$userId, slotId=$slotId）")
+        DomainLog.i(TAG, "直接运营补偿跳过注入（slotId=$slotId）")
     }
 }

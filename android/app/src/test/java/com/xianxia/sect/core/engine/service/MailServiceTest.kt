@@ -96,8 +96,7 @@ class MailServiceTest {
             inventoryConfig = inventoryConfig,
             httpClient = httpClient,
             spiritStoneWallet = spiritStoneWallet,
-            scopeProvider = mock(com.xianxia.sect.core.util.CoroutineScopeProvider::class.java),
-            appContext = mock(android.content.Context::class.java)
+            scopeProvider = mock(com.xianxia.sect.core.util.CoroutineScopeProvider::class.java)
         )
 
         runBlocking { stateStore.reset() }

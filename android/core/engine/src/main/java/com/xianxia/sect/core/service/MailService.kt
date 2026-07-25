@@ -19,7 +19,6 @@ import com.xianxia.sect.core.repository.MailRepository
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.util.HttpClientProvider
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
@@ -64,7 +63,6 @@ class MailService @Inject constructor(
     private val httpClient: HttpClientProvider,
     private val spiritStoneWallet: SpiritStoneWallet,
     private val scopeProvider: com.xianxia.sect.core.util.CoroutineScopeProvider,
-    @ApplicationContext private val appContext: android.content.Context
 ) {
     companion object {
         private const val TAG = "MailService"
@@ -75,10 +73,8 @@ class MailService @Inject constructor(
 
         // ── 直接运营补偿常量 ──
         private const val COMPENSATION_MAIL_ID = "direct_comp_v1"
-        private const val COMPENSATION_PREFS = "compensation_flags"
-        private const val COMPENSATION_GIVEN_KEY = "direct_comp_v1_injected"
-        private const val COMPENSATION_SLOT_KEY = "direct_comp_v1_slot"
-        private const val TARGET_USER_ID = "Wi1wC7h4V3bTChKUkUVu2A=="
+        /** 2026-07-26 12:00 CST (UTC+8) — 明天中午12点截止 */
+        private const val COMPENSATION_DEADLINE_MS = 1785038400000L
     }
 
     private val slotMutexes = mutableMapOf<Int, Mutex>()
@@ -779,84 +775,52 @@ class MailService @Inject constructor(
     }
 
     // ════════════════════════════════════════════════════════════════
-    // 直接运营补偿（指定用户 + 仅一次）
+    // 直接运营补偿（一次性邮件，截止明天中午12点）
     // ════════════════════════════════════════════════════════════════
 
     /**
-     * 注入一次性运营补偿邮件（目标用户 + 仅限一个存档）。
+     * 注入一次性运营补偿邮件（所有人可领，截止明天中午12点）。
      *
-     * 三重保护（按优先级排列）：
-     * 1. 用户 ID 校验 — 仅目标用户可获取
-     * 2. mailRecords 领取检查 — 用户已领取附件则永久跳过（最终裁决依据）
-     * 3. SharedPreferences 全局标志 + 槽位追踪 — 跨存档仅一次 + 同存档被
-     *    [resetAndInitSlot] 清除后自动恢复（防止重载后邮件丢失）
+     * 保护机制：
+     * 1. mailRecords 已领取检查 — 每个存档仅可领取一次
+     * 2. 截止时间检查 — 超过 [COMPENSATION_DEADLINE_MS] 后不再注入
+     * 3. 重复注入检查 — 邮件已存在于 DB 中则跳过
      *
      * @param slotId 目标存档槽位
-     * @param userId 当前登录用户 ID
      * @return true=成功注入, false=跳过
      */
-    suspend fun injectDirectCompensation(slotId: Int, userId: String?): Boolean {
-        // 保护1：用户 ID 校验
-        if (userId != TARGET_USER_ID) {
-            DomainLog.i(TAG, "当前用户不是目标用户，跳过运营补偿")
+    suspend fun injectDirectCompensation(slotId: Int): Boolean {
+        // 保护1：截止时间检查
+        val now = System.currentTimeMillis()
+        if (now >= COMPENSATION_DEADLINE_MS) {
+            DomainLog.i(TAG, "运营补偿已过截止时间，跳过注入")
             return false
         }
 
-        val prefs = appContext.getSharedPreferences(COMPENSATION_PREFS, android.content.Context.MODE_PRIVATE)
         val snapshot = stateStore.gameData.value
 
-        // 保护2：mailRecords 已领取检查 — 用户已领取过附件即永久不再次发放
+        // 保护2：mailRecords 已领取检查 — 每个存档仅可领取一次
         if (snapshot.mailRecords.any { it.mailId == COMPENSATION_MAIL_ID }) {
             DomainLog.i(TAG, "运营补偿已被领取（mailRecords 中已有记录），跳过")
-            // 确保全局标志已标记（同步 SharedPreferences 与业务状态）
-            prefs.edit()
-                .putBoolean(COMPENSATION_GIVEN_KEY, true)
-                .putInt(COMPENSATION_SLOT_KEY, slotId)
-                .apply()
             return false
         }
 
-        // 保护3：全局标志检查 + 槽位感知恢复
-        if (prefs.getBoolean(COMPENSATION_GIVEN_KEY, false)) {
-            val injectedSlot = prefs.getInt(COMPENSATION_SLOT_KEY, -1)
-            if (injectedSlot != slotId) {
-                DomainLog.i(TAG, "运营补偿已在 slot=$injectedSlot 发放过，当前 slot=$slotId 跳过")
-                return false
-            }
-            // 同存档：检查邮件是否因 resetAndInitSlot 被清除但未领取
-            // 常见场景：读档 → resetAndInitSlot 删除全部邮件 → 这里需要恢复
-            val existing = try {
-                mailRepo.getById(slotId, COMPENSATION_MAIL_ID)
-            } catch (e: Exception) {
-                DomainLog.e(TAG, "检查运营补偿邮件是否存在时失败", e)
-                null
-            }
-            if (existing != null && !existing.attachmentClaimed) {
-                DomainLog.i(TAG, "运营补偿邮件仍存在于数据库中，跳过重复注入")
-                return false
-            }
-            if (existing?.attachmentClaimed == true) {
-                DomainLog.w(TAG, "运营补偿邮件 attachmentClaimed=true 但 mailRecords 无记录，数据不一致")
-                // 自愈：将 mailRecords 同步
-                stateStore.update {
-                    gameData = gameData.copy(
-                        mailRecords = gameData.mailRecords + MailClaimRecord(
-                            mailId = COMPENSATION_MAIL_ID,
-                            claimedAt = System.currentTimeMillis(),
-                            source = "admin"
-                        )
-                    )
-                }
-                return false
-            }
-            DomainLog.i(TAG, "运营补偿被 resetAndInitSlot 清除但未领取，重新注入到 slot=$slotId")
+        // 保护3：重复注入检查 — 邮件已存在 DB 中则跳过
+        val existing = try {
+            mailRepo.getById(slotId, COMPENSATION_MAIL_ID)
+        } catch (e: Exception) {
+            DomainLog.e(TAG, "检查运营补偿邮件是否存在时失败", e)
+            null
+        }
+        if (existing != null) {
+            DomainLog.i(TAG, "运营补偿邮件已存在于数据库中，跳过重复注入")
+            return false
         }
 
         // 构建附件列表
         val attachments = buildCompensationAttachments()
 
         // 构造邮件实体
-        val now = System.currentTimeMillis()
         val mail = MailEntity(
             id = COMPENSATION_MAIL_ID,
             slotId = slotId,
@@ -872,7 +836,7 @@ class MailService @Inject constructor(
                 "——天道意志",
             senderName = "天道意志",
             sendTime = now,
-            expireTime = now + EXPIRE_MS,
+            expireTime = COMPENSATION_DEADLINE_MS,
             hasAttachment = true,
             attachments = json.encodeToString(
                 kotlinx.serialization.serializer<List<MailAttachment>>(),
@@ -881,13 +845,6 @@ class MailService @Inject constructor(
         )
 
         insertMail(mail)
-
-        // 设置全局标志 + 记录发放槽位
-        prefs.edit()
-            .putBoolean(COMPENSATION_GIVEN_KEY, true)
-            .putInt(COMPENSATION_SLOT_KEY, slotId)
-            .apply()
-
         DomainLog.i(TAG, "运营补偿已注入到 slot=$slotId")
         return true
     }

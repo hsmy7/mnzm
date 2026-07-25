@@ -381,8 +381,8 @@ class SaveLoadViewModel @Inject constructor(
                     gameStarted = true
                     _loadingProgress.value = PROGRESS_COMPLETE
 
-                    // ★ 运营补偿：检查并注入直接补偿邮件（仅目标用户 + 仅一次）
-                    gameEngine.sendDirectCompensation(slot, persistenceFacade.sessionManager.userId)
+                    // ★ 运营补偿：注入一次性邮件（所有人可领，截止明天中午12点）
+                    gameEngine.sendDirectCompensation(slot)
 
                     val gd = gameEngine.gameData.value
                     Log.i(TAG, "=== startNewGame SUCCESS === " +
@@ -572,8 +572,8 @@ class SaveLoadViewModel @Inject constructor(
                 )
 
                 if (bootResult.isSuccess) {
-                    // ★ 运营补偿：检查并注入直接补偿邮件（仅目标用户 + 仅一次）
-                    gameEngine.sendDirectCompensation(effectiveSlot, persistenceFacade.sessionManager.userId)
+                    // ★ 运营补偿：注入一次性邮件（所有人可领，截止明天中午12点）
+                    gameEngine.sendDirectCompensation(effectiveSlot)
 
                     val gd = gameEngine.gameData.value
                     Log.i(TAG, "=== loadGame SUCCESS === " +
