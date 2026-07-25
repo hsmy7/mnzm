@@ -10,11 +10,11 @@ import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.usecase.ElderManagementUseCase
 import com.xianxia.sect.core.util.AppError
+import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -64,7 +64,7 @@ class AlchemyViewModel @Inject constructor(
         if (_isStartingAlchemy.value) return
         _isStartingAlchemy.value = true
 
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             try {
                 val result = gameEngine.startAlchemy(slotIndex, recipe.id)
                 if (result is DomainResult.Failure) {
@@ -80,7 +80,7 @@ class AlchemyViewModel @Inject constructor(
     }
 
     fun autoAlchemyAllSlots() {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             try {
                 val slots = gameEngine.productionSlots.value
                 val alchemySlots = slots.filter {
@@ -92,7 +92,7 @@ class AlchemyViewModel @Inject constructor(
 
                 if (idleSlotIndices.isEmpty()) {
                     showError("没有空闲的炼丹槽位")
-                    return@launch
+                    return@launchOnEngine
                 }
 
                 var startedCount = 0
@@ -136,14 +136,14 @@ class AlchemyViewModel @Inject constructor(
     fun toggleAuto(buildingIndex: Int) {
         val currentValue = isAutoEnabled(buildingIndex)
         val newValue = !currentValue
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             gameEngine.toggleAutoRestart(BuildingType.ALCHEMY, buildingIndex)
 
             if (newValue) {
                 try {
                     val slot = gameEngine.productionSlots.value.find {
                         it.buildingType == BuildingType.ALCHEMY && it.slotIndex == buildingIndex
-                    } ?: return@launch
+                    } ?: return@launchOnEngine
                     if (slot.status == ProductionSlotStatus.IDLE && !slot.assignedDiscipleId.isNullOrEmpty()) {
                         startBestAlchemyRecipe(slot.slotIndex)
                     }

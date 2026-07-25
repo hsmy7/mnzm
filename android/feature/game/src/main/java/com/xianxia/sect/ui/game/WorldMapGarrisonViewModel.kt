@@ -1,14 +1,13 @@
 package com.xianxia.sect.ui.game
 
-import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.WorldSect
+import com.xianxia.sect.core.util.DomainLog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -33,7 +32,7 @@ class WorldMapGarrisonViewModel @Inject constructor(
     }
 
     fun attackSect(sectId: String, attackSlots: List<Pair<Int, DiscipleAggregate>>) {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             try {
                 gameEngine.attackSect(sectId, attackSlots)
             } catch (e: CancellationException) { throw e }
@@ -44,7 +43,7 @@ class WorldMapGarrisonViewModel @Inject constructor(
     }
 
     fun assignGarrisonDisciple(sectId: String, slotIndex: Int, discipleId: String) {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             try {
                 gameEngine.assignGarrisonDisciple(sectId, slotIndex, discipleId)
             } catch (e: CancellationException) { throw e }
@@ -55,7 +54,7 @@ class WorldMapGarrisonViewModel @Inject constructor(
     }
 
     fun removeGarrisonDisciple(sectId: String, slotIndex: Int) {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             try {
                 gameEngine.removeGarrisonDisciple(sectId, slotIndex)
             } catch (e: CancellationException) { throw e }

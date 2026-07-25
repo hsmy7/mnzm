@@ -138,9 +138,9 @@ class DiscipleViewModel @Inject constructor(
     }
     
     fun dismissDisciple(discipleId: String) {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             try {
-                val disciple = getDiscipleById(discipleId) ?: return@launch
+                val disciple = gameEngine.getDiscipleAggregate(discipleId) ?: return@launchOnEngine
                 gameEngine.dismissDisciple(discipleId)
                 showSuccess("已将${disciple.name}逐出宗门")
             } catch (e: Exception) {
@@ -163,7 +163,7 @@ class DiscipleViewModel @Inject constructor(
     }
     
     fun equipItem(discipleId: String, equipmentId: String) {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             try {
                 val result = gameEngine.equipItem(discipleId, equipmentId)
                 when (result) {
@@ -177,9 +177,9 @@ class DiscipleViewModel @Inject constructor(
             }
         }
     }
-    
+
     fun unequipItem(discipleId: String, equipmentId: String) {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             try {
                 val result = gameEngine.unequipItemById(discipleId, equipmentId)
                 when (result) {

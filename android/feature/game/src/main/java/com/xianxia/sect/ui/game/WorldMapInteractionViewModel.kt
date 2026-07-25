@@ -7,6 +7,7 @@ import com.xianxia.sect.core.domain.favor.GiftResult
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.WorldMapDialogState
 import com.xianxia.sect.core.model.WorldMapDialogType
+import com.xianxia.sect.core.util.DomainLog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
@@ -39,7 +40,7 @@ class WorldMapInteractionViewModel @Inject constructor(
     }
 
     fun startScoutMission(memberIds: List<String>, sectId: String) {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             try {
                 gameEngine.scoutSect(sectId, memberIds)
                 closeScoutDialog()
@@ -82,7 +83,7 @@ class WorldMapInteractionViewModel @Inject constructor(
     fun getPlayerVassals(): List<String> = gameEngine.getPlayerVassals()
 
     fun openSectTradeDialog(sectId: String) {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             _dialogs.value = _dialogs.value.copy(
                 showTrade = true,
                 selectedTradeSectId = sectId,
@@ -96,9 +97,9 @@ class WorldMapInteractionViewModel @Inject constructor(
     }
 
     fun buyFromSectTrade(itemId: String, quantity: Int = 1) {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             try {
-                val sectId = _dialogs.value.selectedTradeSectId ?: return@launch
+                val sectId = _dialogs.value.selectedTradeSectId ?: return@launchOnEngine
                 gameEngine.buyFromSectTradeSync(sectId, itemId, quantity)
                 _dialogs.value = _dialogs.value.copy(
                     tradeItems = gameEngine.getOrRefreshSectTradeItems(sectId)

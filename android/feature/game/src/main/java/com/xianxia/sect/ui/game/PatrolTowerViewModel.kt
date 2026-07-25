@@ -50,7 +50,7 @@ class PatrolTowerViewModel @Inject constructor(
 
     /** 巡视楼分配 fire-and-forget 版本（用于对话框现有调用，内部处理异常） */
     fun assignDiscipleAsync(towerIndex: Int, slotOffset: Int, discipleId: String) {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             try {
                 assignDisciple(towerIndex, slotOffset, discipleId)
             } catch (e: CancellationException) {
@@ -72,7 +72,7 @@ class PatrolTowerViewModel @Inject constructor(
 
     /** 巡视楼移除 fire-and-forget 版本 */
     fun removeDiscipleAsync(towerIndex: Int, slotOffset: Int) {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             try {
                 removeDisciple(towerIndex, slotOffset)
             } catch (e: CancellationException) {
@@ -85,7 +85,7 @@ class PatrolTowerViewModel @Inject constructor(
 
     /** 交换巡视弟子（原子操作） */
     fun swapDisciple(towerIndex: Int, slotOffset: Int, newDiscipleId: String) {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             try {
                 // 获取当前槽位旧弟子的全局索引
                 val fromGlobalIndex = towerIndex * slotsPerTower + slotOffset
@@ -107,10 +107,10 @@ class PatrolTowerViewModel @Inject constructor(
 
     /** 一键任命（原子操作，单事务完成所有分配） */
     fun autoAssign(towerIndex: Int) {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             try {
                 val available = getAvailableDisciples(towerIndex)
-                if (available.isEmpty()) return@launch
+                if (available.isEmpty()) return@launchOnEngine
 
                 val start = towerIndex * slotsPerTower
                 val end = start + slotsPerTower
@@ -128,7 +128,7 @@ class PatrolTowerViewModel @Inject constructor(
                     }
                 }
 
-                if (assignments.isEmpty()) return@launch
+                if (assignments.isEmpty()) return@launchOnEngine
 
                 val result = gameEngine.autoAssignPatrolAtomic(assignments)
                 if (result is DomainResult.Failure) {

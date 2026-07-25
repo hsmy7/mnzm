@@ -37,14 +37,14 @@ class SectPolicyToggleUseCase @Inject constructor(
         getter: (SectPolicies) -> Boolean,
         setter: (SectPolicies, Boolean) -> SectPolicies,
         monthlyCost: () -> Long = { 0L }
-    ): ToggleResult {
-        val gd = gameEngine.gameData.value ?: return ToggleResult.Error("游戏数据不可用")
+    ): ToggleResult = gameEngine.gameEngineCore.withEngineContext {
+        val gd = gameEngine.gameData.value ?: return@withEngineContext ToggleResult.Error("游戏数据不可用")
         val wasEnabled = getter(gd.sectPolicies)
         if (!wasEnabled) {
             val cost = monthlyCost()
             if (cost > 0L) {
                 if (!spiritStoneWallet.canAfford(cost)) {
-                    return ToggleResult.Error("灵石不足${cost}，无法开启政策")
+                    return@withEngineContext ToggleResult.Error("灵石不足${cost}，无法开启政策")
                 }
                 gameEngine.stateStore.update {
                     val data = gameData
@@ -71,11 +71,11 @@ class SectPolicyToggleUseCase @Inject constructor(
                 gameData = gameData.copy(sectPolicies = setter(gameData.sectPolicies, false))
             }
         }
-        return ToggleResult.Success
+        ToggleResult.Success
     }
 
     // ── 灵矿增产（免费） ────────────────────────────
-    suspend fun toggleSpiritMineBoost(): ToggleResult {
+    suspend fun toggleSpiritMineBoost(): ToggleResult = gameEngine.gameEngineCore.withEngineContext {
         gameEngine.stateStore.update {
             val gd = gameData
             val wasEnabled = gd.sectPolicies.spiritMineBoost
@@ -89,7 +89,7 @@ class SectPolicyToggleUseCase @Inject constructor(
                     gd.gameYear * 12 + gd.gameMonth else gd.spiritMineLastSettledMonth
             )
         }
-        return ToggleResult.Success
+        ToggleResult.Success
     }
     fun isSpiritMineBoostEnabled(): Boolean =
         gameEngine.gameData.value?.sectPolicies?.spiritMineBoost ?: false

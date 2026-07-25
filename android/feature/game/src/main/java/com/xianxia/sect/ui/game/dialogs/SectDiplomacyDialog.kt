@@ -85,7 +85,9 @@ internal fun SectDiplomacyDialog(
         skipped = false
         chatMessages = emptyList()
         scope.launch {
-            val result = interactionViewModel.performGiftSpiritStones(sect.id, tier)
+            val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                interactionViewModel.performGiftSpiritStones(sect.id, tier)
+            }
             val playerGiftText = buildPlayerGiftText(sect.name, tier)
             if (result != null) {
                 val aiResponseText = if (result.success) {
@@ -183,7 +185,9 @@ internal fun SectDiplomacyDialog(
                             }?.favor ?: 0
                         } else 0
 
-                        val success = interactionViewModel.requestAllianceSimple(sect.id)
+                        val success = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                            interactionViewModel.requestAllianceSimple(sect.id)
+                        }
                         val aiText = getAiResponseText(favor, success)
                         val playerReply = if (success) {
                             "太好了！从今往后你我二宗同气连枝，守望相助！"
@@ -208,7 +212,9 @@ internal fun SectDiplomacyDialog(
                     skipped = false
                     chatMessages = emptyList()
                     scope.launch {
-                        interactionViewModel.dissolveAllianceSimple(sect.id)
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                            interactionViewModel.dissolveAllianceSimple(sect.id)
+                        }
                         chatMessages = listOf(
                             ChatMessage(
                                 text = "道友，我宗深思熟虑后决定解除盟约，日后各走各路，还望见谅。",
@@ -241,7 +247,9 @@ internal fun SectDiplomacyDialog(
                             }?.favor ?: 0
                         } else 0
 
-                        val success = interactionViewModel.requestVassalContract(sect.id)
+                        val success = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                            interactionViewModel.requestVassalContract(sect.id)
+                        }
                         val aiText = getVassalAiResponseText(favor, success)
                         val playerReply = buildPlayerVassalReplyText(success)
                         chatMessages = listOf(
@@ -258,7 +266,9 @@ internal fun SectDiplomacyDialog(
                     skipped = false
                     chatMessages = emptyList()
                     scope.launch {
-                        interactionViewModel.dissolveVassalContract(sect.id)
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                            interactionViewModel.dissolveVassalContract(sect.id)
+                        }
                         chatMessages = listOf(
                             ChatMessage(text = buildPlayerVassalDissolveText(), isPlayer = true),
                             ChatMessage(text = getVassalAiDissolveText(), isPlayer = false),

@@ -13,6 +13,7 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.HeavenlyTrialSaveData
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.RewardCardItem
+import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.ui.game.dialogs.heavenlytrial.combatLogicRngManager
@@ -23,7 +24,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -111,7 +111,7 @@ class HeavenlyTrialViewModel @Inject constructor(
 
     fun onCombatFinished(won: Boolean) {
         if (won) {
-            viewModelScope.launch {
+            gameEngine.launchOnEngine {
                 trialService.recordPhaseClear(selectedLevelIndex, selectedPhaseIndex)
             }
             if (selectedPhaseIndex == 1) {
@@ -157,7 +157,7 @@ class HeavenlyTrialViewModel @Inject constructor(
         levelIndex: Int,
         onCardsReady: (List<RewardCardItem>) -> Unit
     ) {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             when (val result = trialService.claimClearReward(levelIndex)) {
                 is ClaimClearRewardResult.Success -> {
                     onCardsReady(result.cards)

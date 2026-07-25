@@ -8,7 +8,10 @@
       "变更：移除自动存档机制——移除游戏循环触发的周期性自动存档、SavePipeline异步管道、增量保存、AUTO_SAVE_SLOT=0、autoSaveIntervalMonths字段",
       "变更：云存档入口移至存档选择界面——设置页移除云存档管理按钮，slot0云图标显示云端数据，上传/下载与本地存档一致",
       "变更：旧自动存档slot0数据迁移至空槽位——检测到旧版残留slot0数据时自动复制到第一个空槽位",
-      "界面：存档选择界面slot0显示云端数据——宗门/年份/弟子/灵石三行显示，有数据可点击下载加载"
+      "界面：存档选择界面slot0显示云端数据——宗门/年份/弟子/灵石三行显示，有数据可点击下载加载",
+      "修复：弟子选择界面不显示可用弟子+一键任命无效——约70处ViewModel和对话框在主线程调stateStore.update，改用launchOnEngine派发到引擎线程",
+      "修复：宗门政策开关无法生效——SectPolicyToggleUseCase.toggle()主线程被跳过，用withEngineContext自动切到引擎线程",
+      "加固：GameEngineCore新增withEngineContext——引擎层基础设施供后续自动派发suspend方法到引擎线程"
     ]
   },
   {

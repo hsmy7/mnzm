@@ -15,6 +15,17 @@
 - **界面：设置页调整** — 原"自动存档"配置区域替换为"云存档"入口，存档选择页移除槽位 0 自动存档卡片
 - **清理：移除 `UseCase.AUTO_SAVE`、`getAutoSaveContext()`、`setIncrementalSaveThreshold()`** — 自动存档相关死代码清理
 
+### 修复
+
+- **修复：弟子选择界面不显示可用弟子 + 一键任命无效** — 根因 `SpiritMineViewModel`/`PatrolTowerViewModel`/`DiscipleViewModel`/`AlchemyViewModel`/`ForgeViewModel` 等约 70 处 ViewModel 和对话框从 `viewModelScope.launch` 调用引擎事务方法，触发 `GameStateStoreImpl.update()` 主线程守卫后更新静默丢失。修复：改为 `gameEngine.launchOnEngine` 派发到引擎线程
+- **修复：宗门政策开关无法生效** — `SectPolicyToggleUseCase.toggle()` 直接调 `stateStore.update{}` 从主线程调用时被静默跳过，政策无法开启/关闭。修复：UseCase 层用 `withEngineContext` 自动切换到引擎线程
+- **加固：GameEngineCore 新增 withEngineContext** — 引擎层基础设施，供后续将直接调 `stateStore.update{}` 的 suspend 方法自动派发到引擎线程
+
+### 架构债务
+
+- **追加：引擎 suspend API 线程安全自动化** — 将所有直接调 `stateStore.update{}` 的 suspend 方法内部加 `withContext(gameDispatcher)` 包裹
+- **追加：Detekt 预存违规记录** — 7 项预存违规写入架构债务文档
+
 ## [4.0.73] - 2026-07-25（versionCode=4073）
 
 ### 修复

@@ -1,14 +1,12 @@
 package com.xianxia.sect.ui.game
 
-import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.usecase.ElderManagementUseCase
+import com.xianxia.sect.core.util.DomainLog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -33,7 +31,7 @@ class SpiritMineViewModel @Inject constructor(
     }
 
     fun assignSpiritMineDeacon(slotIndex: Int, discipleId: String) {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             try {
                 // 释放旧槽位（自动移除前职务）
                 gameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId)
@@ -50,13 +48,14 @@ class SpiritMineViewModel @Inject constructor(
                 }
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) {
+                DomainLog.e("SpiritMineVM", "任命失败", e)
                 showError(e.message ?: "任命失败")
             }
         }
     }
 
     fun removeSpiritMineDeacon(slotIndex: Int) {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             try {
                 val currentGameData = gameEngine.gameDataSnapshot
                 val elderSlots = currentGameData.elderSlots
@@ -73,6 +72,7 @@ class SpiritMineViewModel @Inject constructor(
                 }
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) {
+                DomainLog.e("SpiritMineVM", "卸任失败", e)
                 showError(e.message ?: "卸任失败")
             }
         }
@@ -96,18 +96,19 @@ class SpiritMineViewModel @Inject constructor(
     }
 
     fun assignDisciplesToSpiritMineSlots(selectedDisciples: List<DiscipleAggregate>, mineIndex: Int = 0) {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             try {
                 assignDisciplesToEmptyMineSlotsInternal(selectedDisciples, mineIndex)
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) {
+                DomainLog.e("SpiritMineVM", "分配失败", e)
                 showError(e.message ?: "分配失败")
             }
         }
     }
 
     fun removeDiscipleFromSpiritMineSlot(slotIndex: Int) {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             try {
                 val currentGameData = gameEngine.gameDataSnapshot
                 val currentSlots = currentGameData.spiritMineSlots.toMutableList()
@@ -127,6 +128,7 @@ class SpiritMineViewModel @Inject constructor(
                 }
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) {
+                DomainLog.e("SpiritMineVM", "卸任失败", e)
                 showError(e.message ?: "卸任失败")
             }
         }
@@ -134,7 +136,7 @@ class SpiritMineViewModel @Inject constructor(
 
 
     fun swapSpiritMineDisciple(slotIndex: Int, newDiscipleId: String, mineIndex: Int = 0) {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             try {
                 val targetSlot = SlotRef(
                     category = SlotCategory.SPIRIT_MINE,
@@ -161,19 +163,21 @@ class SpiritMineViewModel @Inject constructor(
                 }
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) {
+                DomainLog.e("SpiritMineVM", "更换失败", e)
                 showError(e.message ?: "更换失败")
             }
         }
     }
 
     fun autoAssignSpiritMineMiners(mineIndex: Int = 0) {
-        viewModelScope.launch {
+        gameEngine.launchOnEngine {
             try {
                 val availableDisciples = getAvailableDisciplesForSpiritMining()
-                if (availableDisciples.isEmpty()) return@launch
+                if (availableDisciples.isEmpty()) return@launchOnEngine
                 assignDisciplesToEmptyMineSlotsInternal(availableDisciples, mineIndex)
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) {
+                DomainLog.e("SpiritMineVM", "一键任命失败", e)
                 showError(e.message ?: "一键任命失败")
             }
         }

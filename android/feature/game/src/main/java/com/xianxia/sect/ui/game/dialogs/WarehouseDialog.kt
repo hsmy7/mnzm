@@ -92,8 +92,10 @@ fun WarehouseDialog(
                 onEmptySlotClick = { showGarrisonSelect = true },
                 onDismiss = {
                     scope.launch {
-                        productionViewModel
-                            .removeWarehouseGarrison(buildingInstanceId)
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                            productionViewModel
+                                .removeWarehouseGarrison(buildingInstanceId)
+                        }
                     }
                 },
                 onSwap = { showGarrisonSelect = true }
@@ -128,17 +130,19 @@ fun WarehouseDialog(
             onConfirm = { selected ->
                 if (selected.isNotEmpty()) {
                     scope.launch {
-                        val disciple = selected.first()
-                        if (showAllEnabled
-                            && disciple.status != com.xianxia.sect.core.model.DiscipleStatus.IDLE
-                        ) {
-                            viewModel.releaseDiscipleFromAllSlotsAtomic(disciple.id)
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                            val disciple = selected.first()
+                            if (showAllEnabled
+                                && disciple.status != com.xianxia.sect.core.model.DiscipleStatus.IDLE
+                            ) {
+                                viewModel.releaseDiscipleFromAllSlotsAtomic(disciple.id)
+                            }
+                            productionViewModel.assignWarehouseGarrison(
+                                buildingInstanceId, disciple.id,
+                                disciple.name, activeSectId
+                            )
+                            showGarrisonSelect = false
                         }
-                        productionViewModel.assignWarehouseGarrison(
-                            buildingInstanceId, disciple.id,
-                            disciple.name, activeSectId
-                        )
-                        showGarrisonSelect = false
                     }
                 }
             },

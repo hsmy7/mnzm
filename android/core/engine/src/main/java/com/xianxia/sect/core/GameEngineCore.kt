@@ -273,6 +273,15 @@ class GameEngineCore @Inject constructor(
 
     fun launchInScope(block: suspend CoroutineScope.() -> Unit): Job = engineScope.launch(block = block)
 
+    /**
+     * 在引擎线程上执行指定代码块并返回结果。
+     * 若当前已在引擎线程上，则不切换上下文（coroutines 自动优化）。
+     * 用于确保 [stateStore.update] 调用在引擎线程上执行，避免主线程 ANR。
+     */
+    suspend fun <T> withEngineContext(block: suspend CoroutineScope.() -> T): T {
+        return withContext(gameDispatcher, block)
+    }
+
     fun scopeForStateIn(): CoroutineScope = engineScope
     private var gameLoopJob: Job? = null
     private var gameLoopStoppedSignal = CompletableDeferred<Unit>()
