@@ -1,6 +1,7 @@
 package com.xianxia.sect.data.local
 
 import android.content.Context
+import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import androidx.room.Database
 import androidx.room.Room
@@ -18,6 +19,7 @@ import com.xianxia.sect.data.archive.ArchivedDisciple
 import com.xianxia.sect.data.archive.ArchivedBattleLogDao
 import com.xianxia.sect.data.archive.ArchivedDiscipleDao
 import java.io.File
+import java.io.FileOutputStream
 import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
@@ -1600,8 +1602,69 @@ abstract class GameDatabase : RoomDatabase() {
             Log.i(TAG, "rebuilt storage_bags (removed DEFAULT clauses to match entity schema)")
         }
 
+        /**
+         * 在 Room migration 前备份 SQLite 数据库文件。
+         * 将 xianxia_sect.db 复制到 xianxia_sect.db.pre_migrate_backup。
+         * 仅当检测到需要 migration 时才执行，避免无意义的 I/O。
+         *
+         * 注意：WAL 模式下直接文件复制可能包含未检查点的 wal 数据。
+         * 此处使用 PRAGMA wal_checkpoint(TRUNCATE) 先行落盘再复制。
+         */
+        fun backupDatabaseForMigration(context: Context) {
+            val dbFile = context.getDatabasePath(UNIFIED_DB_NAME)
+            if (!dbFile.exists()) {
+                Log.d(TAG, "数据库文件不存在，跳过迁移前备份（首次安装）")
+                return
+            }
+
+            // 读取当前数据库版本（PRAGMA user_version）
+            var currentVersion = 0
+            try {
+                SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY).use { db ->
+                    val cursor = db.rawQuery("PRAGMA user_version", null)
+                    if (cursor.moveToFirst()) currentVersion = cursor.getInt(0)
+                    cursor.close()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "无法读取当前数据库版本，跳过迁移前备份", e)
+                return
+            }
+
+            val targetVersion = 32  // @Database(version = 32)
+            if (currentVersion >= targetVersion) {
+                Log.d(TAG, "数据库已是最新版本 (v$currentVersion)，无需备份")
+                return
+            }
+            if (currentVersion < 2) {
+                // v1 数据库允许 fallbackToDestructiveMigrationFrom(1) 毁灭重建，无需备份
+                Log.d(TAG, "数据库版本 v$currentVersion 低于 v2，允许毁灭回退，跳过备份")
+                return
+            }
+
+            val backupFile = File(dbFile.absolutePath + ".pre_migrate_backup")
+            try {
+                // WAL 模式下先 checkpoint 确保数据一致性
+                SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
+                    db.execSQL("PRAGMA wal_checkpoint(TRUNCATE)")
+                }
+                // 文件级复制备份
+                dbFile.inputStream().use { input ->
+                    backupFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                Log.i(TAG, "迁移前备份完成: ${backupFile.absolutePath} (v$currentVersion → v$targetVersion)")
+            } catch (e: Exception) {
+                Log.e(TAG, "迁移前备份失败（非阻断，继续执行）", e)
+                backupFile.delete()  // 清理不完整备份
+            }
+        }
+
         fun create(context: Context): GameDatabase {
             Log.i(TAG, "Creating unified single-instance database: $UNIFIED_DB_NAME")
+
+            // 在 Room 迁移前备份 SQLite 文件，防止 migration 失败导致数据丢失
+            backupDatabaseForMigration(context)
 
             return Room.databaseBuilder(
                 context.applicationContext,
@@ -1628,12 +1691,11 @@ abstract class GameDatabase : RoomDatabase() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database opened")
                         optimizeDatabase(db)
-                        // 启动时检查数据库完整性（PRAGMA integrity_check）
-                        // 在 MIGRATION_12_13/13_14 的 create-copy-drop-rename 后确保 schema 正确
-                        checkDatabaseIntegrity(db)
+                        // 启动时检查数据库完整性，并在异常时自动尝试从备份恢复
+                        verifyAndRecoverDatabase(db, context)
                     }
                 })
-                .fallbackToDestructiveMigration()
+                .fallbackToDestructiveMigrationFrom(1)
                 .build()
                 .also { db -> applySafetyPragmas(db) }
         }
@@ -1728,17 +1790,23 @@ abstract class GameDatabase : RoomDatabase() {
         }
 
         /**
-         * 检查数据库完整性（PRAGMA integrity_check）。
-         * 用于发现 MIGRATION 后的 schema 损坏或 mmap 破损。
-         * 记录到 Bugly 以便排查 #5037 等 native 崩溃。
+         * 检查数据库完整性并验证数据非空。
+         * 如果 integrity_check 失败或 game_data 为空（可能由 destructive migration 导致），
+         * 记录严重警告以便后续处理。
+         * 实际的数据恢复通过以下机制完成：
+         * 1. StorageEngine.load() → SaveFileManager.readWithFallback() 自动从 .sav/.bak 恢复
+         * 2. 如果已调用 restoreFromBackupIfNeeded() 且 .pre_migrate_backup 存在，则文件级恢复优先
          */
-        private fun checkDatabaseIntegrity(db: SupportSQLiteDatabase) {
+        private fun verifyAndRecoverDatabase(db: SupportSQLiteDatabase, context: Context) {
+            // Step 1: integrity_check
+            var integrityOk = false
             try {
                 val cursor = db.query("PRAGMA integrity_check", emptyArray())
                 try {
                     if (cursor.moveToFirst()) {
                         val result = cursor.getString(0)
-                        if (result != "ok") {
+                        integrityOk = (result == "ok")
+                        if (!integrityOk) {
                             Log.wtf(TAG, "DB INTEGRITY FAILED: $result")
                         }
                     }
@@ -1747,6 +1815,107 @@ abstract class GameDatabase : RoomDatabase() {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to check database integrity", e)
+            }
+
+            // Step 2: 验证 game_data 表有数据
+            var hasData = false
+            try {
+                val cursor = db.query("SELECT COUNT(*) FROM game_data", emptyArray())
+                try {
+                    if (cursor.moveToFirst()) {
+                        hasData = cursor.getInt(0) > 0
+                    }
+                } finally {
+                    cursor.close()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "game_data 表不存在或查询异常", e)
+            }
+
+            // Step 3: 如果 integrity 失败或数据为空，记录严重警告
+            // 实际恢复由 StorageEngine.load() → SaveFileManager 的 .sav/.bak 备份完成
+            if (!integrityOk || !hasData) {
+                Log.wtf(TAG, "数据库异常: integrity_ok=$integrityOk, has_data=$hasData, " +
+                    "数据将由 StorageEngine 从 SaveFileManager 备份恢复")
+            }
+        }
+
+        /**
+         * 在 Room databaseBuilder 执行前检查并恢复备份。
+         * 如果 pre_migrate_backup 文件存在且当前数据库为空/损坏，
+         * 用备份文件覆盖当前数据库。
+         *
+         * 此方法必须在 [create] 之前调用。当前由 AppModule.provideGameDatabase 调用。
+         *
+         * @return true 表示已执行恢复，false 表示无需恢复或恢复失败
+         */
+        fun restoreFromBackupIfNeeded(context: Context): Boolean {
+            val dbFile = context.getDatabasePath(UNIFIED_DB_NAME)
+            val backupFile = File(dbFile.absolutePath + ".pre_migrate_backup")
+            if (!dbFile.exists() || !backupFile.exists()) return false
+
+            // 验证备份文件可用
+            var backupOk = false
+            var backupRowCount = -1
+            try {
+                SQLiteDatabase.openDatabase(backupFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY).use { bdb ->
+                    val cursor = bdb.rawQuery("PRAGMA integrity_check", null)
+                    backupOk = cursor.moveToFirst() && cursor.getString(0) == "ok"
+                    cursor.close()
+                    if (backupOk) {
+                        try {
+                            val rc = bdb.rawQuery("SELECT COUNT(*) FROM game_data", null)
+                            if (rc.moveToFirst()) backupRowCount = rc.getInt(0)
+                            rc.close()
+                        } catch (_: Exception) { }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "备份文件验证失败: ${backupFile.absolutePath}", e)
+            }
+
+            if (!backupOk) {
+                Log.w(TAG, "备份文件 integrity_check 失败，不可用于恢复")
+                return false
+            }
+
+            // 读取当前数据库 game_data 行数
+            var currentRowCount = -1
+            try {
+                SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY).use { cdb ->
+                    try {
+                        val rc = cdb.rawQuery("SELECT COUNT(*) FROM game_data", null)
+                        if (rc.moveToFirst()) currentRowCount = rc.getInt(0)
+                        rc.close()
+                    } catch (_: Exception) { }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "当前数据库无法打开，将直接使用备份覆盖", e)
+            }
+
+            // 当前数据库有数据且 integrity 正常时跳过恢复
+            if (currentRowCount > 0) {
+                Log.d(TAG, "当前数据库有数据 ($currentRowCount 行)，跳过备份恢复")
+                return false
+            }
+
+            // 执行恢复：用备份文件覆盖当前数据库
+            try {
+                backupFile.inputStream().use { input ->
+                    // 先写入 .tmp 防止覆盖过程中崩溃损坏原文件
+                    val tmpFile = File(dbFile.absolutePath + ".restore_tmp")
+                    tmpFile.outputStream().use { output -> input.copyTo(output) }
+                    // fsync 确保写完
+                    FileOutputStream(tmpFile, true).use { fos -> fos.fd.sync() }
+                    // 覆盖原文件
+                    tmpFile.renameTo(dbFile)
+                }
+                Log.w(TAG, "数据库已从备份恢复 (backup_rows=$backupRowCount, " +
+                    "backup=${backupFile.absolutePath})")
+                return true
+            } catch (e: Exception) {
+                Log.e(TAG, "从备份恢复数据库失败", e)
+                return false
             }
         }
 

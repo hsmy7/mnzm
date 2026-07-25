@@ -2,6 +2,7 @@
 
 import android.app.ActivityManager
 import android.content.Context
+import android.util.Log
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.data.local.*
 import com.xianxia.sect.data.SessionManager
@@ -26,6 +27,7 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
+    private const val TAG = "AppModule"
     
     @Provides
     @Singleton
@@ -35,7 +37,7 @@ object AppModule {
     
     /**
      * GameDatabase 单例提供者 — 使用统一实例创建方法
-     * 
+     *
      * 路由改造说明：
      * - 原路径可能使用 per-slot 数据库（已废弃）
      * - 新路径：统一单实例 DB (xianxia_sect.db)，所有 slot 共享同一数据库文件
@@ -46,6 +48,11 @@ object AppModule {
     @Provides
     @Singleton
     fun provideGameDatabase(@ApplicationContext context: Context): GameDatabase {
+        // 在 Room databaseBuilder 前检查是否需要从 pre_migrate_backup 恢复
+        val restored = GameDatabase.restoreFromBackupIfNeeded(context)
+        if (restored) {
+            Log.w(TAG, "数据库已从迁移前备份恢复")
+        }
         return GameDatabase.create(context.applicationContext)
     }
     

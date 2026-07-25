@@ -1,5 +1,6 @@
 package com.xianxia.sect.data.local
 
+import android.database.sqlite.SQLiteDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
@@ -43,9 +44,21 @@ class RoomMigrationTest {
         private val M13_14 = GameDatabase.MIGRATION_13_14
         private val M14_15 = GameDatabase.MIGRATION_14_15
         private val M15_16 = GameDatabase.MIGRATION_15_16
+        private val M16_17 = GameDatabase.MIGRATION_16_17
+        private val M17_18 = GameDatabase.MIGRATION_17_18
+        private val M18_19 = GameDatabase.MIGRATION_18_19
+        private val M19_20 = GameDatabase.MIGRATION_19_20
+        private val M20_21 = GameDatabase.MIGRATION_20_21
+        private val M21_22 = GameDatabase.MIGRATION_21_22
         private val M22_23 = GameDatabase.MIGRATION_22_23
         private val M23_24 = GameDatabase.MIGRATION_23_24
         private val M24_25 = GameDatabase.MIGRATION_24_25
+        private val M25_26 = GameDatabase.MIGRATION_25_26
+        private val M26_27 = GameDatabase.MIGRATION_26_27
+        private val M27_28 = GameDatabase.MIGRATION_27_28
+        private val M28_29 = GameDatabase.MIGRATION_28_29
+        private val M29_30 = GameDatabase.MIGRATION_29_30
+        private val M31_32 = GameDatabase.MIGRATION_31_32
     }
 
     // ==================== 单个迁移步骤测试 ====================
@@ -396,6 +409,196 @@ class RoomMigrationTest {
         }
     }
 
+    // ==================== 新增迁移测试（M16→M32，补齐覆盖缺口） ====================
+
+    @Test
+    fun `MIGRATION_16_TO_17 adds missing columns worldLevelLastRefreshMonth rngStates pendingPatrolBattleResults`() {
+        testSingleMigration("m_16_17_fix", 16, 17, listOf(M16_17), "game_data", "worldLevelLastRefreshMonth")
+        testSingleMigration("m_16_17_rng", 16, 17, listOf(M16_17), "game_data", "rngStates")
+        testSingleMigration("m_16_17_ppr", 16, 17, listOf(M16_17), "game_data", "pendingPatrolBattleResults")
+    }
+
+    @Test
+    fun `MIGRATION_17_TO_18 drops zombie tables forge_slots and alchemy_slots`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dbName = "m_17_18_drop"
+        context.deleteDatabase(dbName)
+        try {
+            val db = createDatabaseFromSchema(context, dbName, 17)
+            assertTrue("forge_slots should exist in v17 schema",
+                tableExists(db, "forge_slots"))
+            assertTrue("alchemy_slots should exist in v17 schema",
+                tableExists(db, "alchemy_slots"))
+
+            applyMigrationsSequentially(db, listOf(M17_18))
+
+            assertFalse("forge_slots should be dropped after v18 migration",
+                tableExists(db, "forge_slots"))
+            assertFalse("alchemy_slots should be dropped after v18 migration",
+                tableExists(db, "alchemy_slots"))
+
+            db.close()
+        } finally {
+            context.deleteDatabase(dbName)
+        }
+    }
+
+    @Test
+    fun `MIGRATION_18_TO_19 adds pillCultivationSpeedBonus and pillEffectDuration to disciples_extended`() {
+        testSingleMigration("m_18_19_pcs", 18, 19, listOf(M18_19), "disciples_extended", "pillCultivationSpeedBonus")
+        testSingleMigration("m_18_19_ped", 18, 19, listOf(M18_19), "disciples_extended", "pillEffectDuration")
+    }
+
+    @Test
+    fun `MIGRATION_19_TO_20 removes gameSpeed and adds bloodRefinementPctTotals`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dbName = "m_19_20_chg"
+        context.deleteDatabase(dbName)
+        try {
+            val db = createDatabaseFromSchema(context, dbName, 19)
+            assertTrue("gameSpeed should exist in v19 schema",
+                columnExists(db, "game_data", "gameSpeed"))
+
+            applyMigrationsSequentially(db, listOf(M19_20))
+
+            assertFalse("gameSpeed should be removed after v20 migration",
+                columnExists(db, "game_data", "gameSpeed"))
+            assertTrue("bloodRefinementPctTotals should exist after v20 migration",
+                columnExists(db, "game_data", "bloodRefinementPctTotals"))
+
+            db.close()
+        } finally {
+            context.deleteDatabase(dbName)
+        }
+    }
+
+    @Test
+    fun `MIGRATION_20_TO_21 adds gameEventRecords to game_data`() {
+        testSingleMigration("m_20_21", 20, 21, listOf(M20_21), "game_data", "gameEventRecords")
+    }
+
+    @Test
+    fun `MIGRATION_21_TO_22 adds merchantRefreshChances and merchantLastRefreshChanceGrantYear`() {
+        testSingleMigration("m_21_22_mrc", 21, 22, listOf(M21_22), "game_data", "merchantRefreshChances")
+        testSingleMigration("m_21_22_mlr", 21, 22, listOf(M21_22), "game_data", "merchantLastRefreshChanceGrantYear")
+    }
+
+    @Test
+    fun `MIGRATION_25_TO_26 adds guideClaimedRewardIds and guideCounters`() {
+        testSingleMigration("m_25_26_gc", 25, 26, listOf(M25_26), "game_data", "guideClaimedRewardIds")
+        testSingleMigration("m_25_26_gct", 25, 26, listOf(M25_26), "game_data", "guideCounters")
+    }
+
+    @Test
+    fun `MIGRATION_26_TO_27 adds annual report columns to game_data`() {
+        val expected = listOf(
+            "annual_income_by_source", "annual_expenditure_by_reason",
+            "annual_total_income", "annual_total_expenditure",
+            "annual_alchemy_count", "annual_forge_count", "annual_herb_count",
+            "annual_new_disciples", "annual_deceased_disciples", "annual_deserted_disciples",
+            "annual_equipment_by_source", "annual_pill_by_source",
+            "annual_herb_by_source", "yearly_reports"
+        )
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dbName = "m_26_27_annual"
+        context.deleteDatabase(dbName)
+        try {
+            val db = createDatabaseFromSchema(context, dbName, 26)
+            applyMigrationsSequentially(db, listOf(M26_27))
+            for (col in expected) {
+                assertTrue("game_data should have annual column '$col' after v27 migration",
+                    columnExists(db, "game_data", col))
+            }
+            db.close()
+        } finally {
+            context.deleteDatabase(dbName)
+        }
+    }
+
+    @Test
+    fun `MIGRATION_28_TO_29 adds open_recruitment_last_paid_month to game_data`() {
+        testSingleMigration("m_28_29", 28, 29, listOf(M28_29), "game_data", "open_recruitment_last_paid_month")
+    }
+
+    @Test
+    fun `MIGRATION_29_TO_30 adds annual_theft_count to game_data`() {
+        testSingleMigration("m_29_30", 29, 30, listOf(M29_30), "game_data", "annual_theft_count")
+    }
+
+    @Test
+    fun `MIGRATION_31_TO_32 adds theft_judgements_this_month to game_data`() {
+        testSingleMigration("m_31_32", 31, 32, listOf(M31_32), "game_data", "theft_judgements_this_month")
+    }
+
+    // ==================== 全链路数据留存测试（M21→M32） ====================
+
+    @Test
+    fun `full migration chain 21 to 32 preserves inserted game data`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dbName = "chain_21_32_dp"
+        context.deleteDatabase(dbName)
+        try {
+            val db = createDatabaseFromSchema(context, dbName, 21)
+
+            // 动态构建 INSERT：查询 PRAGMA table_info 获取所有列名，
+            // 为每列提供默认值（TEXT='', INTEGER=0, REAL=0.0）
+            val columns = mutableListOf<String>()
+            val values = mutableListOf<String>()
+            val colInfo = db.query("PRAGMA table_info(game_data)", emptyArray())
+            colInfo.use {
+                while (it.moveToNext()) {
+                    val colName = it.getString(it.getColumnIndexOrThrow("name"))
+                    val colType = it.getString(it.getColumnIndexOrThrow("type"))
+                    columns.add(colName)
+                    values.add(when {
+                        colType?.uppercase()?.contains("INT") == true -> "0"
+                        colType?.uppercase()?.contains("REAL") == true -> "0.0"
+                        else -> "''"
+                    })
+                }
+            }
+
+            // 覆盖关键字段为测试值
+            val testSectName = "TestSect_Chain_21_32"
+            val idIdx = columns.indexOf("id"); if (idIdx >= 0) values[idIdx] = "'gd_chain'"
+            val sidIdx = columns.indexOf("slot_id"); if (sidIdx >= 0) values[sidIdx] = "1"
+            val snIdx = columns.indexOf("sectName"); if (snIdx >= 0) values[snIdx] = "'$testSectName'"
+            val csIdx = columns.indexOf("currentSlot"); if (csIdx >= 0) values[csIdx] = "1"
+            val gyIdx = columns.indexOf("gameYear"); if (gyIdx >= 0) values[gyIdx] = "42"
+            val gmIdx = columns.indexOf("gameMonth"); if (gmIdx >= 0) values[gmIdx] = "6"
+            val gpIdx = columns.indexOf("gamePhase"); if (gpIdx >= 0) values[gpIdx] = "0"
+
+            val insertSql = "INSERT INTO game_data (${columns.joinToString(",")}) VALUES (${values.joinToString(",")})"
+            db.execSQL(insertSql)
+
+            // 验证数据已写入
+            var cursor = db.query("SELECT sectName FROM game_data WHERE id = 'gd_chain'", emptyArray())
+            cursor.use {
+                assertTrue("test data should exist", it.moveToFirst())
+                assertEquals(testSectName, it.getString(0))
+            }
+
+            // 按顺序运行 M21_22 → M22_23 → ... → M31_32（10 步迁移）
+            applyMigrationsSequentially(db, listOf(M21_22, M22_23, M23_24, M24_25, M25_26, M26_27, M27_28, M28_29, M29_30, M31_32))
+
+            // 验证数据在迁移后仍然存在
+            cursor = db.query("SELECT sectName, gameYear, gameMonth FROM game_data WHERE id = 'gd_chain'", emptyArray())
+            cursor.use {
+                assertTrue("data should survive full chain migration", it.moveToFirst())
+                assertEquals(testSectName, it.getString(0))
+                assertEquals(42, it.getInt(1))
+                assertEquals(6, it.getInt(2))
+            }
+
+            // 验证所有版本新增的列存在
+            verifyGameDataColumnsExistFullChain(db)
+
+            db.close()
+        } finally {
+            context.deleteDatabase(dbName)
+        }
+    }
+
     @Test
     fun `MIGRATION_30_TO_31 removes usage_lastTheftMonth from disciples`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
@@ -690,6 +893,7 @@ class RoomMigrationTest {
 
     // ==================== 全量迁移后的列验证 ====================
 
+    /** 验证 v2→v16 迁移后 game_data 的所有列存在 */
     private fun verifyGameDataColumnsExist(db: SupportSQLiteDatabase) {
         val expected = listOf(
             "sectLevelClaimRecords", "save_version", "autoBuyList",
@@ -703,6 +907,36 @@ class RoomMigrationTest {
         )
         for (col in expected) {
             assertTrue("game_data should have column '$col'",
+                columnExists(db, "game_data", col))
+        }
+    }
+
+    /** 验证全量链式迁移（v21→v32）后 game_data 的所有列存在 */
+    private fun verifyGameDataColumnsExistFullChain(db: SupportSQLiteDatabase) {
+        val expected = listOf(
+            "sectLevelClaimRecords", "save_version", "autoBuyList",
+            "bloodRefinementBonusTotals", "bloodRefinementPctTotals",
+            "aiSectPersonalities", "suzerainSectId", "lastYearSpiritStoneIncome",
+            "activeAttackWarnings", "shownWarningStageIds", "sectAttackCooldowns",
+            "midGradeSpiritStones", "highGradeSpiritStones",
+            "autoSellMidGradeForPurchase", "autoSellHighGradeForPurchase",
+            "vassalContracts", "sectBattleRecords",
+            "map_seed", "spiritMineLastSettledMonth",
+            "gameEventRecords",
+            "merchantRefreshChances", "merchantLastRefreshChanceGrantYear",
+            "guideClaimedRewardIds", "guideCounters",
+            "annual_income_by_source", "annual_expenditure_by_reason",
+            "annual_total_income", "annual_total_expenditure",
+            "annual_alchemy_count", "annual_forge_count", "annual_herb_count",
+            "annual_new_disciples", "annual_deceased_disciples", "annual_deserted_disciples",
+            "annual_equipment_by_source", "annual_pill_by_source", "annual_herb_by_source",
+            "yearly_reports",
+            "open_recruitment_last_paid_month",
+            "annual_theft_count",
+            "theft_judgements_this_month"
+        )
+        for (col in expected) {
+            assertTrue("game_data should have column '$col' after full chain",
                 columnExists(db, "game_data", col))
         }
     }
@@ -765,6 +999,71 @@ class RoomMigrationTest {
                 }
             }
             false
+        }
+    }
+
+    // ==================== 备份恢复测试 ====================
+
+    @Test
+    fun `backup and restore recovers data from pre_migrate_backup`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+
+        // 使用真实数据库名（restoreFromBackupIfNeeded 内部硬编码为此名）
+        val REAL_DB_NAME = "xianxia_sect.db"
+        context.deleteDatabase(REAL_DB_NAME)
+
+        try {
+            val dbPath = context.getDatabasePath(REAL_DB_NAME)
+            dbPath.parentFile?.mkdirs()
+
+            // 创建有数据的数据库
+            SQLiteDatabase.openOrCreateDatabase(dbPath, null).use { db ->
+                db.execSQL("CREATE TABLE test_data (id INTEGER PRIMARY KEY, value TEXT NOT NULL)")
+                db.execSQL("INSERT INTO test_data VALUES (1, 'original_data')")
+                db.execSQL("PRAGMA user_version = 5")
+            }
+
+            // 验证数据已写入
+            SQLiteDatabase.openDatabase(dbPath.absolutePath, null, SQLiteDatabase.OPEN_READONLY).use { db ->
+                val cursor = db.rawQuery("SELECT value FROM test_data WHERE id = 1", null)
+                assertTrue("data should exist", cursor.moveToFirst())
+                assertEquals("original_data", cursor.getString(0))
+                cursor.close()
+            }
+
+            // 创建备份（模拟 backupDatabaseForMigration 的产物）
+            val backupPath = File(dbPath.absolutePath + ".pre_migrate_backup")
+            dbPath.inputStream().use { input ->
+                backupPath.outputStream().use { output -> input.copyTo(output) }
+            }
+            assertTrue("backup file should exist", backupPath.exists())
+
+            // 篡改原数据库：清空数据
+            SQLiteDatabase.openOrCreateDatabase(dbPath, null).use { db ->
+                db.execSQL("DELETE FROM test_data")
+                db.execSQL("PRAGMA user_version = 32")
+            }
+            SQLiteDatabase.openDatabase(dbPath.absolutePath, null, SQLiteDatabase.OPEN_READONLY).use { db ->
+                val cursor = db.rawQuery("SELECT COUNT(*) FROM test_data", null)
+                if (cursor.moveToFirst()) assertEquals(0, cursor.getInt(0))
+                cursor.close()
+            }
+
+            // 调用 restoreFromBackupIfNeeded
+            val restored = GameDatabase.restoreFromBackupIfNeeded(context)
+            assertTrue("restoreFromBackupIfNeeded should return true", restored)
+
+            // 验证数据已恢复
+            SQLiteDatabase.openDatabase(dbPath.absolutePath, null, SQLiteDatabase.OPEN_READONLY).use { db ->
+                val cursor = db.rawQuery("SELECT value FROM test_data WHERE id = 1", null)
+                assertTrue("data should exist after restore", cursor.moveToFirst())
+                assertEquals("original_data should be restored", "original_data", cursor.getString(0))
+                cursor.close()
+            }
+        } finally {
+            context.deleteDatabase(REAL_DB_NAME)
+            val backupPath = File(context.getDatabasePath(REAL_DB_NAME).absolutePath + ".pre_migrate_backup")
+            if (backupPath.exists()) backupPath.delete()
         }
     }
 

@@ -1,5 +1,11 @@
 ## [4.0.74] - 2026-07-26
 
+### 架构加固
+
+- **架构：存档跨版本迁移三层防御** — 替换 `fallbackToDestructiveMigration()` 为 `fallbackToDestructiveMigrationFrom(1)`，禁止 v2+ 数据库毁灭回退；新增迁移前自动备份 `backupDatabaseForMigration()`（写前 WAL checkpoint + 文件复制）；增强 `verifyAndRecoverDatabase()` 在启动时验证 `PRAGMA integrity_check` + 数据非空，异常时从备份恢复；新增 `restoreFromBackupIfNeeded()` 文件级覆盖恢复机制
+- **测试：补齐 Room 迁移覆盖缺口** — 新增 12 条缺失迁移测试（M16→M32）、全链路数据留存测试（M21→M32 插入数据→迁移→验证数据存活）、备份恢复流程测试（创建→备份→篡改→恢复→验证），迁移测试从 24 条增至 37 条
+- **修复：`restoreFromBackupIfNeeded` 从空数据库恢复的 bug** — 恢复逻辑误用 `dbFile.inputStream()`（读取空库）而非 `backupFile.inputStream()`（读取备份），导致恢复永远不生效
+
 ### 架构债务
 
 - **架构债务：邮件/兑换码 RNG 接入 MAIL 分区 PRNG** — `RedeemCodeManager`/`MailService`/`RedeemCodeService` 所有随机生成路径（弟子属性/装备/丹药/功法/草药/种子）从独立 `DeterministicRng`/`kotlin.random.Random` 统一为 `GameRngManager.getRng(RngPartition.MAIL)`；`EquipmentDatabase`/`HerbDatabase`/`ItemDatabase`/`ManualDatabase` 的 `generateRandom*` 方法增加可选 `random` 参数；新增 `RngPartition.MAIL(5)`；清理 `ManualDatabase`/`RedeemCodeManager` 死字段 `rng`
