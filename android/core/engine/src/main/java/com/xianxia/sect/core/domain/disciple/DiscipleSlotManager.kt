@@ -7,6 +7,7 @@ import com.xianxia.sect.core.util.CoroutineScopeProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import javax.inject.Provider
 import javax.inject.Singleton
 
 /**
@@ -23,7 +24,8 @@ class DiscipleSlotManager @Inject constructor(
     private val productionSlotRepository: ProductionSlotRepository,
     private val scopeProvider: CoroutineScopeProvider,
     private val discipleSlotCleanup: DiscipleSlotCleanup,
-    private val discipleStatusService: DiscipleStatusService,
+    /** 使用 Provider 打破 Hilt 循环依赖：DiscipleStatusService → DiscipleLifecycleManager → DiscipleSlotManager → DiscipleStatusService */
+    private val discipleStatusServiceProvider: Provider<DiscipleStatusService>,
 ) {
     companion object {
         private const val TAG = "DiscipleSlotManager"
@@ -155,7 +157,7 @@ class DiscipleSlotManager @Inject constructor(
             ids
         }
 
-        discipleStatusService.syncAllDiscipleStatuses()
+        discipleStatusServiceProvider.get().syncAllDiscipleStatuses()
 
         val allSlots = productionSlotRepository.getSlots()
         for (slot in allSlots) {
