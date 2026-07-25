@@ -305,6 +305,42 @@ class StorageEngine @Inject constructor(
                     _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (database)")
                     StorageResult.success(finalData)
                 } else {
+                    // ── 数据库无数据时尝试从备份文件恢复 ──
+                    _progress.value = EngineProgress(EngineProgress.Stage.VALIDATING, 0.5f, "尝试从备份恢复...")
+                    val readResult = saveFileManager.readWithFallback(slot)
+                    if (readResult.status == com.xianxia.sect.data.backup.BackupStatus.SUCCESS ||
+                        readResult.status == com.xianxia.sect.data.backup.BackupStatus.RECOVERED
+                    ) {
+                        try {
+                            var restoredData = serializationModule.deserializeSaveData(
+                                readResult.payload ?: return@withReadLockLight StorageResult.failure(
+                                    StorageError.SLOT_CORRUPTED, "备份恢复失败：payload 为空 (slot=$slot)"
+                                )
+                            )
+                            Log.w(TAG, "从备份恢复成功 (slot=$slot) 来源=${readResult.source}")
+
+                            // 备份恢复后二次验证
+                            val reValidation = CorruptedResultHandler.validateRestoredData(slot, restoredData)
+                            if (reValidation is IntegrityResult.Repaired) {
+                                Log.w(TAG, "备份恢复数据二次修复 ${reValidation.details.size} 项 (slot=$slot)")
+                                restoredData = reValidation.data
+                            } else if (reValidation is IntegrityResult.Corrupted) {
+                                Log.e(TAG, "备份恢复数据二次验证无法修复 (slot=$slot)")
+                            }
+
+                            infra.storageMetrics.recordBackupRestore()
+                            performFullTransactionSave(slot, restoredData)
+                            clearCacheForSlot(slot)
+                            updateCacheAfterSave(slot, restoredData)
+                            _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (backup)")
+                            return@withReadLockLight StorageResult.success(restoredData)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "备份反序列化失败 slot=$slot", e)
+                        }
+                    } else {
+                        Log.w(TAG, "备份文件不存在或损坏 slot=$slot")
+                    }
+
                     _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, "No data found")
                     StorageResult.failure(StorageError.SLOT_EMPTY, "No data in slot $slot")
                 }
