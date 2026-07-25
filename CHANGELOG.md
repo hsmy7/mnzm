@@ -3,6 +3,8 @@
 ### 修复
 
 - **修复：云存档反射桥接 7 个运行时崩溃 Bug** — 反编译 `tap-cloudsave-4.10.5.aar` 验证实际 API 后修正：主类名 `TapCloudSave`→`TapTapCloudSave`、回调包名 `com.xd.sdk.taptap`→`com.taptap.sdk.cloudsave.internal`、`ArchiveMetadata.Builder` 实例化方式、`onArchiveDataResult` 签名（1参数非3参数）、`setPlaytime` 类型（int 非 long）、`invokeGetter` Long 返回值处理、`NativeTapCloudSaveApi` 完整实现
+- **修复：云存档仅保存部分数据——66 个 GameData 字段未序列化** — `placedBuildings`（建筑布局）、`portraitRes`（弟子肖像）、`worldLevels`（世界关卡）、`rngStates`（RNG 状态）、`midGradeSpiritStones`/`highGradeSpiritStones`（灵石中上品）、`patrolSlots`/`warehouseGarrisons`/`vassalContracts`/`spiritFieldPlants`/血炼/天道试炼/签到/年度报告等 66 个字段从云存档序列化路径中遗漏，云读档后建筑精灵图不显示、弟子肖像空白、灵石中上品归零。根因：`SaveDataConverter.convertGameData()` 未同步新增字段。修复：一次性完整补全所有缺失字段（SerializableGameData ProtoNumber 94-159 + SerializableDisciple portraitRes @90 + 20 个 Serializable 包装类 + DiscipleConverter 映射 + SaveDataConverter 正反向映射 + 26 个 roundtrip 测试）
+- **文档：架构债务/云存档序列化双路径同步债务** — 记录 GameData→SerializableGameData 手动映射三处同步的架构根因，下次新增字段在守卫测试落地前仍需人工同步
 - **修复：云端孤立存档导致数量超限（400003）** — 增加一次性清理 + UUID 缓存 + `shuffled(Random)` 替代 `sortedBy { rng.nextInt() }` 的 TimSort 崩溃
 - **修复：月度事件 `aiBeastAttacksRemaining` TimSort 崩溃** — `sortedBy { rng.nextInt() }` 比较器违反传递性导致 Android TimSort 抛 `Comparison method violates its general contract`，6 处全部改为 `shuffled(java.util.Random(seed))`
 - **修复：AISectBeastAttackProcessor 距离排序 NaN 崩溃** — `mapNotNull` 过滤 `isNaN/isInfinite` 坐标对

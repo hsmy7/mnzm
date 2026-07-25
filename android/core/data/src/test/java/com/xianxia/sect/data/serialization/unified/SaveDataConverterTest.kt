@@ -739,4 +739,419 @@ class SaveDataConverterTest {
             rDisciple.usage.usedExtendLifePillTypes.isEmpty()
         )
     }
+
+    // ==================== 云存档新增字段测试 ====================
+
+    @Test
+    fun `roundtrip preserves disciple portraitRes`() {
+        val disciple = createRichSaveData().disciples[0].copy(portraitRes = "male_disciple_5")
+        val saveData = createMinimalSaveData().copy(disciples = listOf(disciple))
+        val serializable = converter.toSerializable(saveData)
+        val restored = converter.fromSerializable(serializable)
+
+        assertEquals("male_disciple_5", restored.disciples[0].portraitRes)
+    }
+
+    @Test
+    fun `roundtrip preserves placedBuildings`() {
+        val buildings = listOf(
+            GridBuildingData(buildingId = "alchemy", displayName = "炼丹炉", gridX = 5, gridY = 3, width = 2, height = 2, instanceId = "inst_1"),
+            GridBuildingData(buildingId = "spirit_mine", displayName = "灵矿场", gridX = 0, gridY = 0, width = 3, height = 3, instanceId = "inst_2")
+        )
+        val gameData = GameData().copy(placedBuildings = buildings)
+        val saveData = createMinimalSaveData().copy(gameData = gameData)
+        val serializable = converter.toSerializable(saveData)
+        val restored = converter.fromSerializable(serializable)
+
+        assertEquals(2, restored.gameData.placedBuildings.size)
+        assertEquals("alchemy", restored.gameData.placedBuildings[0].buildingId)
+        assertEquals("炼丹炉", restored.gameData.placedBuildings[0].displayName)
+        assertEquals(5, restored.gameData.placedBuildings[0].gridX)
+        assertEquals(3, restored.gameData.placedBuildings[0].gridY)
+        assertEquals("inst_2", restored.gameData.placedBuildings[1].instanceId)
+    }
+
+    @Test
+    fun `roundtrip preserves midGrade and highGrade spirit stones`() {
+        val gameData = GameData().copy(midGradeSpiritStones = 500L, highGradeSpiritStones = 200L)
+        val saveData = createMinimalSaveData().copy(gameData = gameData)
+        val serializable = converter.toSerializable(saveData)
+        val restored = converter.fromSerializable(serializable)
+
+        assertEquals(500L, restored.gameData.midGradeSpiritStones)
+        assertEquals(200L, restored.gameData.highGradeSpiritStones)
+    }
+
+    @Test
+    fun `roundtrip preserves rngStates`() {
+        val rngStates = mapOf(1 to 12345L, 2 to 67890L)
+        val gameData = GameData().copy(rngStates = rngStates)
+        val saveData = createMinimalSaveData().copy(gameData = gameData)
+        val serializable = converter.toSerializable(saveData)
+        val restored = converter.fromSerializable(serializable)
+
+        assertEquals(rngStates, restored.gameData.rngStates)
+    }
+
+    @Test
+    fun `roundtrip preserves worldLevels`() {
+        val worldLevels = listOf(
+            WorldLevel(id = "wl_1", type = LevelType.BEAST, realm = 5, beastName = "烈焰虎", x = 10f, y = 20f, defeated = false),
+            WorldLevel(id = "wl_2", type = LevelType.CAVE, realm = 3, caveName = "幽冥洞", x = 30f, y = 40f, defeated = true)
+        )
+        val gameData = GameData().copy(worldLevels = worldLevels)
+        val saveData = createMinimalSaveData().copy(gameData = gameData)
+        val serializable = converter.toSerializable(saveData)
+        val restored = converter.fromSerializable(serializable)
+
+        assertEquals(2, restored.gameData.worldLevels.size)
+        assertEquals("wl_1", restored.gameData.worldLevels[0].id)
+        assertEquals(LevelType.BEAST, restored.gameData.worldLevels[0].type)
+        assertEquals("烈焰虎", restored.gameData.worldLevels[0].beastName)
+        assertFalse(restored.gameData.worldLevels[0].defeated)
+        assertTrue(restored.gameData.worldLevels[1].defeated)
+    }
+
+    @Test
+    fun `roundtrip preserves vassalContracts`() {
+        val contracts = listOf(
+            VassalContract(vassalSectId = "sect_2", establishedYear = 5, lastTributeYear = 8)
+        )
+        val gameData = GameData().copy(vassalContracts = contracts)
+        val saveData = createMinimalSaveData().copy(gameData = gameData)
+        val serializable = converter.toSerializable(saveData)
+        val restored = converter.fromSerializable(serializable)
+
+        assertEquals(1, restored.gameData.vassalContracts.size)
+        assertEquals("sect_2", restored.gameData.vassalContracts[0].vassalSectId)
+        assertEquals(5, restored.gameData.vassalContracts[0].establishedYear)
+    }
+
+    @Test
+    fun `roundtrip preserves mapSeed`() {
+        val gameData = GameData().copy(mapSeed = 42)
+        val saveData = createMinimalSaveData().copy(gameData = gameData)
+        val serializable = converter.toSerializable(saveData)
+        val restored = converter.fromSerializable(serializable)
+
+        assertEquals(42, restored.gameData.mapSeed)
+    }
+
+    @Test
+    fun `roundtrip preserves bloodRefinements`() {
+        val bloodRefs = mapOf("disciple_1" to listOf("mat_1", "mat_2"))
+        val gameData = GameData().copy(bloodRefinements = bloodRefs)
+        val saveData = createMinimalSaveData().copy(gameData = gameData)
+        val serializable = converter.toSerializable(saveData)
+        val restored = converter.fromSerializable(serializable)
+
+        assertEquals(bloodRefs, restored.gameData.bloodRefinements)
+    }
+
+    @Test
+    fun `old save compatibility - new SerializableGameData fields default to zero`() {
+        // 模拟旧存档：SerializableGameData 不包含新字段，反序列化后应取默认值
+        val oldStyleSerializable = SerializableGameData(sectName = "旧存档")
+        val restored = converter.fromSerializable(
+            SerializableSaveData(version = "2.0", timestamp = 0L, gameData = oldStyleSerializable)
+        )
+
+        val gd = restored.gameData
+        assertEquals("旧存档", gd.sectName)
+        assertEquals(0L, gd.midGradeSpiritStones)
+        assertEquals(0L, gd.highGradeSpiritStones)
+        assertTrue(gd.placedBuildings.isEmpty())
+        assertTrue(gd.worldLevels.isEmpty())
+        assertEquals(0, gd.mapSeed)
+        assertFalse(gd.isGameOver)
+        assertEquals(0, gd.saveVersion)
+    }
+
+    @Test
+    fun `roundtrip preserves patrolSlots and patrolConfig`() {
+        val patrolSlots = listOf(PatrolSlot(index = 0, discipleId = "d1", discipleName = "弟子一"))
+        val patrolConfig = PatrolConfig(targetRealms = setOf(5, 6), maxBeastCount = 2)
+        val gameData = GameData().copy(
+            patrolSlots = patrolSlots,
+            patrolConfig = patrolConfig
+        )
+        val saveData = createMinimalSaveData().copy(gameData = gameData)
+        val serializable = converter.toSerializable(saveData)
+        val restored = converter.fromSerializable(serializable)
+
+        assertEquals(1, restored.gameData.patrolSlots.size)
+        assertEquals("d1", restored.gameData.patrolSlots[0].discipleId)
+        assertEquals("弟子一", restored.gameData.patrolSlots[0].discipleName)
+        assertEquals(setOf(5, 6), restored.gameData.patrolConfig.targetRealms)
+        assertEquals(2, restored.gameData.patrolConfig.maxBeastCount)
+    }
+
+    @Test
+    fun `roundtrip preserves numeric string and boolean settings fields`() {
+        val gd = GameData().copy(
+            sectCultivation = 8500.0,
+            worldLevelLastRefreshMonth = 120,
+            activeSectId = "sub_sect_1",
+            saveVersion = 42,
+            suzerainSectId = "master_sect",
+            lastYearSpiritStoneIncome = 500000L,
+            isGameOver = true,
+            spiritMineLastSettledMonth = 60,
+            shownWarningStageIds = listOf("warn_1", "warn_2"),
+            sectAttackCooldowns = mapOf("sect_a" to 12, "sect_b" to 24),
+            guideCounters = mapOf("build_count" to 5L, "recruit_count" to 3L)
+        )
+        val saveData = createMinimalSaveData().copy(gameData = gd)
+        val restored = converter.fromSerializable(converter.toSerializable(saveData)).gameData
+
+        assertEquals(8500.0, restored.sectCultivation, 0.001)
+        assertEquals(120, restored.worldLevelLastRefreshMonth)
+        assertEquals("sub_sect_1", restored.activeSectId)
+        assertEquals(42, restored.saveVersion)
+        assertEquals("master_sect", restored.suzerainSectId)
+        assertEquals(500000L, restored.lastYearSpiritStoneIncome)
+        assertTrue(restored.isGameOver)
+        assertEquals(60, restored.spiritMineLastSettledMonth)
+        assertEquals(listOf("warn_1", "warn_2"), restored.shownWarningStageIds)
+        assertEquals(mapOf("sect_a" to 12, "sect_b" to 24), restored.sectAttackCooldowns)
+        assertEquals(mapOf("build_count" to 5L, "recruit_count" to 3L), restored.guideCounters)
+    }
+
+    @Test
+    fun `roundtrip preserves Set fields as Set via List conversion`() {
+        val gd = GameData().copy(
+            autoRecruitSpiritRootFilter = setOf(1, 3, 5),
+            daoCompanionBannedRootCounts = setOf(4),
+            breakthroughAutoPillRootCounts = setOf(1, 2),
+            autoEquipFromWarehouseRootCounts = setOf(3),
+            autoLearnFromWarehouseRootCounts = setOf(1, 5),
+            guideClaimedRewardIds = setOf(10, 20, 30)
+        )
+        val saveData = createMinimalSaveData().copy(gameData = gd)
+        val restored = converter.fromSerializable(converter.toSerializable(saveData)).gameData
+
+        assertEquals(setOf(1, 3, 5), restored.autoRecruitSpiritRootFilter)
+        assertEquals(setOf(4), restored.daoCompanionBannedRootCounts)
+        assertEquals(setOf(1, 2), restored.breakthroughAutoPillRootCounts)
+        assertEquals(setOf(3), restored.autoEquipFromWarehouseRootCounts)
+        assertEquals(setOf(1, 5), restored.autoLearnFromWarehouseRootCounts)
+        assertEquals(setOf(10, 20, 30), restored.guideClaimedRewardIds)
+    }
+
+    @Test
+    fun `roundtrip preserves boolean settings fields`() {
+        val gd = GameData().copy(
+            daoCompanionConsentRequired = true,
+            patrolBattleResultPopup = true,
+            autoSellMidGradeForPurchase = true,
+            autoSellHighGradeForPurchase = false,
+            showAllAvailableDisciples = true,
+            breakthroughAutoPillFocused = false,
+            autoEquipFromWarehouseFocused = true,
+            autoLearnFromWarehouseFocused = false
+        )
+        val saveData = createMinimalSaveData().copy(gameData = gd)
+        val restored = converter.fromSerializable(converter.toSerializable(saveData)).gameData
+
+        assertTrue(restored.daoCompanionConsentRequired)
+        assertTrue(restored.patrolBattleResultPopup)
+        assertTrue(restored.autoSellMidGradeForPurchase)
+        assertFalse(restored.autoSellHighGradeForPurchase)
+        assertTrue(restored.showAllAvailableDisciples)
+        assertFalse(restored.breakthroughAutoPillFocused)
+        assertTrue(restored.autoEquipFromWarehouseFocused)
+        assertFalse(restored.autoLearnFromWarehouseFocused)
+    }
+
+    @Test
+    fun `roundtrip preserves heavenlyTrialState and signInState`() {
+        val htState = HeavenlyTrialSaveData(
+            highestClearedLevel = 3,
+            levelClearCounts = listOf(2, 1, 3, 0, 0, 0, 0, 0),
+            phase1ClearedLevels = listOf(0, 1, 2, 3),
+            phase2ClearedLevels = listOf(0, 1),
+            claimedRewardLevels = listOf(0)
+        )
+        val siState = SignInState(
+            claimedDays = listOf(1, 3, 5, 10),
+            currentMonth = 7,
+            currentYear = 5,
+            claimedMilestones = listOf(7, 30)
+        )
+        val gd = GameData().copy(heavenlyTrialState = htState, signInState = siState)
+        val saveData = createMinimalSaveData().copy(gameData = gd)
+        val restored = converter.fromSerializable(converter.toSerializable(saveData)).gameData
+
+        assertEquals(3, restored.heavenlyTrialState.highestClearedLevel)
+        assertEquals(listOf(2, 1, 3, 0, 0, 0, 0, 0), restored.heavenlyTrialState.levelClearCounts)
+        assertEquals(listOf(0, 1, 2, 3), restored.heavenlyTrialState.phase1ClearedLevels)
+        assertEquals(listOf(0, 1), restored.heavenlyTrialState.phase2ClearedLevels)
+        assertEquals(listOf(0), restored.heavenlyTrialState.claimedRewardLevels)
+        assertEquals(listOf(1, 3, 5, 10), restored.signInState.claimedDays)
+        assertEquals(5, restored.signInState.currentYear)
+        assertEquals(listOf(7, 30), restored.signInState.claimedMilestones)
+    }
+
+    @Test
+    fun `roundtrip preserves aiSectPersonalities map`() {
+        val personalities = mapOf(
+            "sect_a" to AISectPersonality.AGGRESSIVE,
+            "sect_b" to AISectPersonality.CONSERVATIVE
+        )
+        val gd = GameData().copy(aiSectPersonalities = personalities)
+        val saveData = createMinimalSaveData().copy(gameData = gd)
+        val restored = converter.fromSerializable(converter.toSerializable(saveData)).gameData
+
+        assertEquals(2, restored.aiSectPersonalities.size)
+        assertEquals(AISectPersonality.AGGRESSIVE, restored.aiSectPersonalities["sect_a"])
+        assertEquals(AISectPersonality.CONSERVATIVE, restored.aiSectPersonalities["sect_b"])
+    }
+
+    @Test
+    fun `roundtrip preserves activeAttackWarnings and sectBattleRecords`() {
+        val warnings = listOf(
+            AttackWarning("w_1", "sect_a", "魔教", WarningStage.DENUNCIATION, attackMonth = 72, createdAtMonth = 66)
+        )
+        val battles = listOf(
+            SectBattleRecord(year = 5, type = SectBattleType.CONQUEST),
+            SectBattleRecord(year = 6, type = SectBattleType.BATTLE_LOSS)
+        )
+        val gd = GameData().copy(activeAttackWarnings = warnings, sectBattleRecords = battles)
+        val saveData = createMinimalSaveData().copy(gameData = gd)
+        val restored = converter.fromSerializable(converter.toSerializable(saveData)).gameData
+
+        assertEquals(1, restored.activeAttackWarnings.size)
+        assertEquals("sect_a", restored.activeAttackWarnings[0].attackerSectId)
+        assertEquals(WarningStage.DENUNCIATION, restored.activeAttackWarnings[0].stage)
+        assertEquals(2, restored.sectBattleRecords.size)
+        assertEquals(SectBattleType.CONQUEST, restored.sectBattleRecords[0].type)
+        assertEquals(6, restored.sectBattleRecords[1].year)
+    }
+
+    @Test
+    fun `roundtrip preserves yearlyReports`() {
+        val reports = listOf(
+            YearlyReport(year = 3, totalIncome = 100000L, totalExpenditure = 50000L,
+                forgeCompleted = 5, newDisciples = 3)
+        )
+        val gd = GameData().copy(yearlyReports = reports)
+        val saveData = createMinimalSaveData().copy(gameData = gd)
+        val restored = converter.fromSerializable(converter.toSerializable(saveData)).gameData
+
+        assertEquals(1, restored.yearlyReports.size)
+        assertEquals(3, restored.yearlyReports[0].year)
+        assertEquals(100000L, restored.yearlyReports[0].totalIncome)
+        assertEquals(5, restored.yearlyReports[0].forgeCompleted)
+        assertEquals(3, restored.yearlyReports[0].newDisciples)
+    }
+
+    @Test
+    fun `roundtrip preserves annual tracking fields`() {
+        val gd = GameData().copy(
+            annualIncomeBySource = mapOf("tribute" to 5000L, "tax" to 3000L),
+            annualExpenditureByReason = mapOf("salary" to 4000L),
+            annualTotalIncome = 8000L,
+            annualTotalExpenditure = 4000L,
+            annualAlchemyCount = 12,
+            annualForgeCount = 8,
+            annualHerbCount = 20,
+            annualNewDisciples = 5,
+            annualDeceasedDisciples = 2,
+            annualDesertedDisciples = 1,
+            annualTheftCount = 3,
+            theftJudgementsThisMonth = 1,
+            annualEquipmentBySource = mapOf("forge:3" to 2),
+            annualPillBySource = mapOf("alchemy:HIGH" to 5),
+            annualHerbBySource = mapOf("spirit_field" to 15)
+        )
+        val saveData = createMinimalSaveData().copy(gameData = gd)
+        val restored = converter.fromSerializable(converter.toSerializable(saveData)).gameData
+
+        assertEquals(mapOf("tribute" to 5000L, "tax" to 3000L), restored.annualIncomeBySource)
+        assertEquals(mapOf("salary" to 4000L), restored.annualExpenditureByReason)
+        assertEquals(8000L, restored.annualTotalIncome)
+        assertEquals(4000L, restored.annualTotalExpenditure)
+        assertEquals(12, restored.annualAlchemyCount)
+        assertEquals(8, restored.annualForgeCount)
+        assertEquals(20, restored.annualHerbCount)
+        assertEquals(5, restored.annualNewDisciples)
+        assertEquals(2, restored.annualDeceasedDisciples)
+        assertEquals(1, restored.annualDesertedDisciples)
+        assertEquals(3, restored.annualTheftCount)
+        assertEquals(1, restored.theftJudgementsThisMonth)
+        assertEquals(mapOf("forge:3" to 2), restored.annualEquipmentBySource)
+        assertEquals(mapOf("alchemy:HIGH" to 5), restored.annualPillBySource)
+        assertEquals(mapOf("spirit_field" to 15), restored.annualHerbBySource)
+    }
+
+    @Test
+    fun `roundtrip preserves mailRecords and sectLevelClaimRecords`() {
+        val mails = listOf(MailClaimRecord(mailId = "mail_1", claimedAt = 1000L, source = "builtin"))
+        val claims = listOf(SectLevelClaimRecord(level = 3, claimedAtEpochMs = 2000L))
+        val gd = GameData().copy(mailRecords = mails, sectLevelClaimRecords = claims)
+        val saveData = createMinimalSaveData().copy(gameData = gd)
+        val restored = converter.fromSerializable(converter.toSerializable(saveData)).gameData
+
+        assertEquals(1, restored.mailRecords.size)
+        assertEquals("mail_1", restored.mailRecords[0].mailId)
+        assertEquals(1000L, restored.mailRecords[0].claimedAt)
+        assertEquals(1, restored.sectLevelClaimRecords.size)
+        assertEquals(3, restored.sectLevelClaimRecords[0].level)
+    }
+
+    @Test
+    fun `roundtrip preserves autoBuyList`() {
+        val entries = listOf(
+            AutoBuyEntry(itemName = "筑基丹", itemType = "pill", rarity = 3),
+            AutoBuyEntry(itemName = "灵石", itemType = "spiritStone", rarity = 1)
+        )
+        val gd = GameData().copy(autoBuyList = entries)
+        val saveData = createMinimalSaveData().copy(gameData = gd)
+        val restored = converter.fromSerializable(converter.toSerializable(saveData)).gameData
+
+        assertEquals(2, restored.autoBuyList.size)
+        assertEquals("筑基丹", restored.autoBuyList[0].itemName)
+        assertEquals("pill", restored.autoBuyList[0].itemType)
+    }
+
+    @Test
+    fun `roundtrip preserves bloodRefinementMaps`() {
+        val progress = mapOf("bld_1" to BloodRefinementProgress(
+            discipleId = "d1", materialId = "mat_1", startYear = 5, durationMonths = 12, bonusPercent = 0.15
+        ))
+        val bonusTotals = mapOf("d1" to BloodRefinementBonusTotal(hpBonus = 100, physicalAttackBonus = 20))
+        val pctTotals = mapOf("d1" to BloodRefinementPctTotal(hpBonusPct = 5.0, physicalAttackBonusPct = 2.0))
+        val gd = GameData().copy(
+            activeBloodRefinements = progress,
+            bloodRefinementBonusTotals = bonusTotals,
+            bloodRefinementPctTotals = pctTotals
+        )
+        val saveData = createMinimalSaveData().copy(gameData = gd)
+        val restored = converter.fromSerializable(converter.toSerializable(saveData)).gameData
+
+        assertEquals("d1", restored.activeBloodRefinements["bld_1"]?.discipleId ?: "")
+        assertEquals(0.15, restored.activeBloodRefinements["bld_1"]?.bonusPercent ?: 0.0, 0.001)
+        assertEquals(100, restored.bloodRefinementBonusTotals["d1"]?.hpBonus ?: 0)
+        assertEquals(2.0, restored.bloodRefinementPctTotals["d1"]?.physicalAttackBonusPct ?: 0.0, 0.001)
+    }
+
+    @Test
+    fun `roundtrip preserves spiritFieldPlants and warehouseGarrisons`() {
+        val plants = listOf(
+            SpiritFieldPlant(buildingInstanceId = "field_1", seedId = "seed_1", seedName = "火灵花",
+                growTime = 6, expectedYield = 10, plantYear = 5, plantMonth = 3)
+        )
+        val garrisons = listOf(
+            WarehouseGarrisonSlot(buildingInstanceId = "wh_1", discipleId = "d1", discipleName = "弟子一")
+        )
+        val gd = GameData().copy(spiritFieldPlants = plants, warehouseGarrisons = garrisons)
+        val saveData = createMinimalSaveData().copy(gameData = gd)
+        val restored = converter.fromSerializable(converter.toSerializable(saveData)).gameData
+
+        assertEquals(1, restored.spiritFieldPlants.size)
+        assertEquals("field_1", restored.spiritFieldPlants[0].buildingInstanceId)
+        assertEquals("火灵花", restored.spiritFieldPlants[0].seedName)
+        assertEquals(1, restored.warehouseGarrisons.size)
+        assertEquals("wh_1", restored.warehouseGarrisons[0].buildingInstanceId)
+    }
 }

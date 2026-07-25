@@ -19,7 +19,10 @@
       "修复：云存档跨版本兼容——上传记录版本号，下载时比对版本差异并提示",
       "优化：sellItem/bulkSellItems统一入口——改为StackableItemStore操作，消除绕过索引风险",
       "优化：SaveLoadViewModel构造参数15→7——提取PersistenceFacade封装8个基础设施依赖",
-      "文档：架构债务/云存档已知问题更新——完成项标记✅，仅保留未完成项"
+      "文档：架构债务/云存档已知问题更新——完成项标记✅，仅保留未完成项",
+      "修复：云存档仅保存部分数据——弟子肖像/建筑布局/世界关卡/RNG状态/灵石中上品等66个GameData字段未序列化，云读档后地图不显示建筑、弟子肖像空白。根因SaveDataConverter未同步新字段，全量补完",
+      "修复：SerializableDisciple新增portraitRes@ProtoNumber90——弟子肖像数据随云存档保存恢复",
+      "架构债务：云存档序列化双路径同步债务——GameData加字段需手动同步3处(SerializableGameData+convertGameData+convertBackGameData)，后续需害守卫测试防止遗漏"
     ]
   },
   {

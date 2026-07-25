@@ -96,7 +96,8 @@ internal class DiscipleConverter {
             hasReviveEffect = disciple.usage.hasReviveEffect ?: false,
             hasClearAllEffect = disciple.usage.hasClearAllEffect ?: false,
             currentHp = disciple.combat.currentHp,
-            currentMp = disciple.combat.currentMp
+            currentMp = disciple.combat.currentMp,
+            portraitRes = disciple.portraitRes ?: ""
         )
     }
 
@@ -137,6 +138,7 @@ internal class DiscipleConverter {
             statusData = data.statusData,
             cultivationSpeedBonus = data.cultivationSpeedBonus,
             cultivationSpeedDuration = data.cultivationSpeedDuration,
+            portraitRes = data.portraitRes,
             discipleType = data.discipleType.ifEmpty { "outer" },
             soulPower = data.soulPower,
             combat = com.xianxia.sect.core.model.CombatAttributes(

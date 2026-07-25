@@ -96,3 +96,51 @@ detekt 配置 `baseline` 只缩不增（CLAUDE.md 13.2），当前未启用 base
 1. **重入串行化硬屏障** — 当前 CAS 软屏障工作正常，可改用 `Mutex.withLock` 加固
 2. **LOADING 状态可达补充** — 初次加载补充 `setLoading()`，纯 UI 优化
 3. **取消时状态自动回滚** — 记录初始状态，取消时自动恢复，极少触发
+
+## 云存档序列化双路径同步债务（🆕 2026-07-25）
+
+**问题等级：** 🔴 架构级 — 每新增一个 GameData 字段都可能造成云存档静默丢失
+
+### 现象
+
+本次修复前，`GameData` 有 66 个字段（含 `placedBuildings`、`portraitRes`、`worldLevels`、`rngStates` 等核心数据）未通过云存档序列化路径保存，云存档≈本地存档的快照版本，长期无人发现。
+
+### 根因
+
+存档序列化存在两条路径，但没有任何机制保证它们同步：
+
+```
+本地存档: GameData（Room @Entity）→ Room DB（自动覆盖全部 @ColumnInfo 字段）
+云存档:   GameData → SaveDataConverter.convertGameData() → SerializableGameData → Protobuf
+```
+
+每新增一个 GameData 字段，需要手动同步 3 处：
+1. `SerializableGameData.kt` — 定义 `@ProtoNumber(n)` 字段
+2. `SaveDataConverter.convertGameData()` — 正向映射
+3. `SaveDataConverter.convertBackGameData()` — 反向映射
+
+没有编译期检查或守卫测试。开发者加字段时没有云存档序列化意识，导致自云存档上线以来新字段全部漏加。
+
+### 关联的预存问题
+
+1. **`SerializableBattleLogMember` 字段命名不匹配域模型** — `discipleId` vs `id`、`remainingHp` vs `hp`、`remainingMp` vs `mp`，与 `com.xianxia.sect.core.model.BattleLogMember` 字段名不一致，转换时需要手动映射，易出错
+
+2. **序列化层零守卫** — 没有编译期检查或测试守卫（Guard Test）来检测新的 `GameData` 字段是否已被序列化路径覆盖
+
+### 建议根治方案
+
+**方案 A：守卫测试（低成本）**
+新增 `SerializationCoverageTest`，用反射对比 `GameData` 的所有属性名与 `SerializableGameData` 的属性名（或 `convertGameData` 中映射的字段），新增字段未覆盖时测试失败并提示需要同步三处。详见 `docs/architecture-debt-write-guard.md` 的守卫测试模式。
+
+**方案 B：消除中间层（高成本）**
+让云存档直接序列化 `GameData` 本身（它已有 `@Serializable` 注解），消除 `SerializableGameData` 中间层。但需解决：
+- Room `@Ignore` 字段与序列化的冲突
+- `@ProtoNumber` 与 kotlinx.serialization 默认编码的兼容性
+- 对现有云存档的反向兼容
+
+**方案 C：自动生成/代码生成**
+利用 Kotlin Symbol Processing (KSP) 在编译期从 `GameData` 属性声明自动生成 `SerializableGameData` 和 converter 代码，消除手动维护。
+
+### 优先级
+
+🔴 高 — 当前手动补了 66 个字段，下次加字段仍会漏。至少需要方案 A（守卫测试）防止重复发生。

@@ -76,7 +76,74 @@ data class SerializableGameData(
     @ProtoNumber(90) val merchantRefreshChances: Int = 1,
     @ProtoNumber(92) val merchantLastRefreshChanceGrantYear: Int = 0,
     @ProtoNumber(91) val gameEventRecords: List<SerializableGameEventRecord> = emptyList(),
-    @ProtoNumber(93) val openRecruitmentLastPaidMonth: Int = 0
+    @ProtoNumber(93) val openRecruitmentLastPaidMonth: Int = 0,
+    // ==================== 新增字段（ProtoNumber 94+）====================
+    @ProtoNumber(94) val midGradeSpiritStones: Long = 0L,
+    @ProtoNumber(95) val highGradeSpiritStones: Long = 0L,
+    @ProtoNumber(96) val sectCultivation: Double = 0.0,
+    @ProtoNumber(97) val worldLevelLastRefreshMonth: Int = 0,
+    @ProtoNumber(98) val rngStates: Map<Int, Long> = emptyMap(),
+    @ProtoNumber(99) val activeSectId: String = "",
+    @ProtoNumber(100) val saveVersion: Int = 0,
+    @ProtoPacked @ProtoNumber(101) val autoRecruitSpiritRootFilter: List<Int> = emptyList(),
+    @ProtoPacked @ProtoNumber(102) val daoCompanionBannedRootCounts: List<Int> = emptyList(),
+    @ProtoNumber(103) val daoCompanionConsentRequired: Boolean = false,
+    @ProtoNumber(104) val patrolBattleResultPopup: Boolean = false,
+    @ProtoNumber(105) val autoSellMidGradeForPurchase: Boolean = false,
+    @ProtoNumber(106) val autoSellHighGradeForPurchase: Boolean = false,
+    @ProtoNumber(107) val showAllAvailableDisciples: Boolean = false,
+    @ProtoNumber(108) val breakthroughAutoPillFocused: Boolean = false,
+    @ProtoPacked @ProtoNumber(109) val breakthroughAutoPillRootCounts: List<Int> = emptyList(),
+    @ProtoNumber(110) val autoEquipFromWarehouseFocused: Boolean = false,
+    @ProtoPacked @ProtoNumber(111) val autoEquipFromWarehouseRootCounts: List<Int> = emptyList(),
+    @ProtoNumber(112) val autoLearnFromWarehouseFocused: Boolean = false,
+    @ProtoPacked @ProtoNumber(113) val autoLearnFromWarehouseRootCounts: List<Int> = emptyList(),
+    @ProtoNumber(114) val isGameOver: Boolean = false,
+    @ProtoNumber(115) val bloodRefinements: Map<String, List<String>> = emptyMap(),
+    @ProtoNumber(116) val suzerainSectId: String = "",
+    @ProtoNumber(117) val lastYearSpiritStoneIncome: Long = 0L,
+    @ProtoNumber(118) val shownWarningStageIds: List<String> = emptyList(),
+    @ProtoNumber(119) val sectAttackCooldowns: Map<String, Int> = emptyMap(),
+    @ProtoPacked @ProtoNumber(120) val guideClaimedRewardIds: List<Int> = emptyList(),
+    @ProtoNumber(121) val guideCounters: Map<String, Long> = emptyMap(),
+    @ProtoNumber(122) val mapSeed: Int = 0,
+    @ProtoNumber(123) val annualIncomeBySource: Map<String, Long> = emptyMap(),
+    @ProtoNumber(124) val annualExpenditureByReason: Map<String, Long> = emptyMap(),
+    @ProtoNumber(125) val annualTotalIncome: Long = 0L,
+    @ProtoNumber(126) val annualTotalExpenditure: Long = 0L,
+    @ProtoNumber(127) val annualAlchemyCount: Int = 0,
+    @ProtoNumber(128) val annualForgeCount: Int = 0,
+    @ProtoNumber(129) val annualHerbCount: Int = 0,
+    @ProtoNumber(130) val annualNewDisciples: Int = 0,
+    @ProtoNumber(131) val annualDeceasedDisciples: Int = 0,
+    @ProtoNumber(132) val annualDesertedDisciples: Int = 0,
+    @ProtoNumber(133) val annualTheftCount: Int = 0,
+    @ProtoNumber(134) val theftJudgementsThisMonth: Int = 0,
+    @ProtoNumber(135) val annualEquipmentBySource: Map<String, Int> = emptyMap(),
+    @ProtoNumber(136) val annualPillBySource: Map<String, Int> = emptyMap(),
+    @ProtoNumber(137) val annualHerbBySource: Map<String, Int> = emptyMap(),
+    @ProtoNumber(138) val spiritMineLastSettledMonth: Int = 0,
+    @ProtoNumber(139) val placedBuildings: List<GridBuildingData> = emptyList(),
+    @ProtoNumber(140) val worldLevels: List<SerializableWorldLevel> = emptyList(),
+    @ProtoNumber(141) val spiritFieldPlants: List<SerializableSpiritFieldPlant> = emptyList(),
+    @ProtoNumber(142) val patrolSlots: List<SerializablePatrolSlot> = emptyList(),
+    @ProtoNumber(143) val patrolConfig: SerializablePatrolConfig? = null,
+    @ProtoNumber(144) val patrolConfigs: List<SerializablePatrolConfig> = emptyList(),
+    @ProtoNumber(145) val pendingPatrolBattleResults: List<SerializableBattleResultUIData> = emptyList(),
+    @ProtoNumber(146) val warehouseGarrisons: List<SerializableWarehouseGarrisonSlot> = emptyList(),
+    @ProtoNumber(147) val vassalContracts: List<SerializableVassalContract> = emptyList(),
+    @ProtoNumber(148) val mailRecords: List<SerializableMailClaimRecord> = emptyList(),
+    @ProtoNumber(149) val sectLevelClaimRecords: List<SerializableSectLevelClaimRecord> = emptyList(),
+    @ProtoNumber(150) val activeBloodRefinements: Map<String, SerializableBloodRefinementProgress> = emptyMap(),
+    @ProtoNumber(151) val bloodRefinementBonusTotals: Map<String, SerializableBloodRefinementBonusTotal> = emptyMap(),
+    @ProtoNumber(152) val bloodRefinementPctTotals: Map<String, SerializableBloodRefinementPctTotal> = emptyMap(),
+    @ProtoNumber(153) val heavenlyTrialState: SerializableHeavenlyTrialSaveData? = null,
+    @ProtoNumber(154) val signInState: SerializableSignInState? = null,
+    @ProtoNumber(155) val aiSectPersonalities: Map<String, String> = emptyMap(),
+    @ProtoNumber(156) val activeAttackWarnings: List<SerializableAttackWarning> = emptyList(),
+    @ProtoNumber(157) val sectBattleRecords: List<SerializableSectBattleRecord> = emptyList(),
+    @ProtoNumber(158) val yearlyReports: List<SerializableYearlyReport> = emptyList(),
+    @ProtoNumber(159) val autoBuyList: List<SerializableAutoBuyEntry> = emptyList()
 )
 
 @Serializable
@@ -190,7 +257,8 @@ data class SerializableDisciple(
     @ProtoNumber(77) val hasReviveEffect: Boolean,
     @ProtoNumber(78) val hasClearAllEffect: Boolean,
     @ProtoNumber(79) val currentHp: Int = -1,
-    @ProtoNumber(80) val currentMp: Int = -1
+    @ProtoNumber(80) val currentMp: Int = -1,
+    @ProtoNumber(90) val portraitRes: String = ""
 )
 
 @Serializable
@@ -990,6 +1058,208 @@ data class SerializableMission(
     @ProtoNumber(48) val baseMaterialCountMax: Int = 0,
     @ProtoNumber(49) val baseMaterialMinRarity: Int = 1,
     @ProtoNumber(50) val baseMaterialMaxRarity: Int = 1
+)
+
+// ==================== 新增 Serializable 包装类 ====================
+
+@Serializable
+data class SerializableWorldLevel(
+    @ProtoNumber(1) val id: String = "",
+    @ProtoNumber(2) val type: String = "BEAST",
+    @ProtoNumber(3) val beastType: Int = -1,
+    @ProtoNumber(4) val realm: Int = 9,
+    @ProtoNumber(5) val realmLayer: Int = 1,
+    @ProtoNumber(6) val beastName: String = "",
+    @ProtoNumber(7) val guardianName: String = "",
+    @ProtoNumber(8) val caveName: String = "",
+    @ProtoNumber(9) val x: Float = 0f,
+    @ProtoNumber(10) val y: Float = 0f,
+    @ProtoNumber(11) val spawnYear: Int = 1,
+    @ProtoNumber(12) val spawnMonth: Int = 1,
+    @ProtoNumber(13) val expiryYear: Int = 1,
+    @ProtoNumber(14) val expiryMonth: Int = 1,
+    @ProtoNumber(15) val count: Int = 5,
+    @ProtoNumber(16) val caveImageIndex: Int = 0,
+    @ProtoNumber(17) val defeated: Boolean = false,
+    @ProtoNumber(18) val beastMaxHp: Int = 0,
+    @ProtoNumber(19) val beastMaxMp: Int = 0,
+    @ProtoNumber(20) val beastPhysicalAttack: Int = 0,
+    @ProtoNumber(21) val beastMagicAttack: Int = 0,
+    @ProtoNumber(22) val beastPhysicalDefense: Int = 0,
+    @ProtoNumber(23) val beastMagicDefense: Int = 0,
+    @ProtoNumber(24) val beastSpeed: Int = 0
+)
+
+@Serializable
+data class SerializableSpiritFieldPlant(
+    @ProtoNumber(1) val buildingInstanceId: String = "",
+    @ProtoNumber(2) val seedId: String = "",
+    @ProtoNumber(3) val seedName: String = "",
+    @ProtoNumber(4) val growTime: Int = 0,
+    @ProtoNumber(5) val expectedYield: Int = 0,
+    @ProtoNumber(6) val plantYear: Int = 0,
+    @ProtoNumber(7) val plantMonth: Int = 0,
+    @ProtoNumber(8) val sectId: String = "",
+    @ProtoNumber(9) val completionMonth: Int = 0,
+    @ProtoNumber(10) val completionPhase: Int = 1
+)
+
+@Serializable
+data class SerializablePatrolSlot(
+    @ProtoNumber(1) val index: Int = 0,
+    @ProtoNumber(2) val discipleId: String = "",
+    @ProtoNumber(3) val discipleName: String = "",
+    @ProtoNumber(4) val discipleRealm: String = "",
+    @ProtoNumber(5) val portraitRes: String = "",
+    @ProtoNumber(6) val buildingInstanceId: String = ""
+)
+
+@Serializable
+data class SerializablePatrolConfig(
+    @ProtoPacked @ProtoNumber(1) val targetRealms: List<Int> = emptyList(),
+    @ProtoNumber(2) val maxBeastCount: Int = 1,
+    @ProtoNumber(3) val requireFullStatus: Boolean = true
+)
+
+@Serializable
+data class SerializableWarehouseGarrisonSlot(
+    @ProtoNumber(1) val buildingInstanceId: String = "",
+    @ProtoNumber(2) val discipleId: String = "",
+    @ProtoNumber(3) val discipleName: String = "",
+    @ProtoNumber(4) val sectId: String = "",
+    @ProtoNumber(5) val slotIndex: Int = 0
+)
+
+@Serializable
+data class SerializableVassalContract(
+    @ProtoNumber(1) val vassalSectId: String = "",
+    @ProtoNumber(2) val establishedYear: Int = 0,
+    @ProtoNumber(3) val lastTributeYear: Int = 0
+)
+
+@Serializable
+data class SerializableMailClaimRecord(
+    @ProtoNumber(1) val mailId: String = "",
+    @ProtoNumber(2) val claimedAt: Long = 0L,
+    @ProtoNumber(3) val source: String = ""
+)
+
+@Serializable
+data class SerializableSectLevelClaimRecord(
+    @ProtoNumber(1) val level: Int = 0,
+    @ProtoNumber(2) val claimedAtEpochMs: Long = 0L
+)
+
+@Serializable
+data class SerializableBloodRefinementProgress(
+    @ProtoNumber(1) val discipleId: String = "",
+    @ProtoNumber(2) val discipleName: String = "",
+    @ProtoNumber(3) val materialId: String = "",
+    @ProtoNumber(4) val materialName: String = "",
+    @ProtoNumber(5) val startYear: Int = 0,
+    @ProtoNumber(6) val startMonth: Int = 0,
+    @ProtoNumber(7) val durationMonths: Int = 0,
+    @ProtoNumber(8) val selectedStat: String = "",
+    @ProtoNumber(9) val bonusPercent: Double = 0.0
+)
+
+@Serializable
+data class SerializableBloodRefinementBonusTotal(
+    @ProtoNumber(1) val discipleId: String = "",
+    @ProtoNumber(2) val hpBonus: Int = 0,
+    @ProtoNumber(3) val physicalAttackBonus: Int = 0,
+    @ProtoNumber(4) val magicAttackBonus: Int = 0,
+    @ProtoNumber(5) val physicalDefenseBonus: Int = 0,
+    @ProtoNumber(6) val magicDefenseBonus: Int = 0,
+    @ProtoNumber(7) val speedBonus: Int = 0
+)
+
+@Serializable
+data class SerializableBloodRefinementPctTotal(
+    @ProtoNumber(1) val discipleId: String = "",
+    @ProtoNumber(2) val hpBonusPct: Double = 0.0,
+    @ProtoNumber(3) val physicalAttackBonusPct: Double = 0.0,
+    @ProtoNumber(4) val magicAttackBonusPct: Double = 0.0,
+    @ProtoNumber(5) val physicalDefenseBonusPct: Double = 0.0,
+    @ProtoNumber(6) val magicDefenseBonusPct: Double = 0.0,
+    @ProtoNumber(7) val speedBonusPct: Double = 0.0
+)
+
+@Serializable
+data class SerializableHeavenlyTrialSaveData(
+    @ProtoNumber(1) val highestClearedLevel: Int = -1,
+    @ProtoPacked @ProtoNumber(2) val levelClearCounts: List<Int> = emptyList(),
+    @ProtoPacked @ProtoNumber(3) val phase1ClearedLevels: List<Int> = emptyList(),
+    @ProtoPacked @ProtoNumber(4) val phase2ClearedLevels: List<Int> = emptyList(),
+    @ProtoPacked @ProtoNumber(5) val claimedRewardLevels: List<Int> = emptyList()
+)
+
+@Serializable
+data class SerializableSignInState(
+    @ProtoPacked @ProtoNumber(1) val claimedDays: List<Int> = emptyList(),
+    @ProtoNumber(2) val currentMonth: Int = 0,
+    @ProtoNumber(3) val currentYear: Int = 0,
+    @ProtoPacked @ProtoNumber(4) val claimedMilestones: List<Int> = emptyList()
+)
+
+@Serializable
+data class SerializableAttackWarning(
+    @ProtoNumber(1) val warningId: String = "",
+    @ProtoNumber(2) val attackerSectId: String = "",
+    @ProtoNumber(3) val attackerSectName: String = "",
+    @ProtoNumber(4) val stage: String = "DENUNCIATION",
+    @ProtoNumber(5) val attackMonth: Int = 0,
+    @ProtoNumber(6) val createdAtMonth: Int = 0
+)
+
+@Serializable
+data class SerializableSectBattleRecord(
+    @ProtoNumber(1) val year: Int = 0,
+    @ProtoNumber(2) val type: String = "CONQUEST"
+)
+
+@Serializable
+data class SerializableYearlyReport(
+    @ProtoNumber(1) val year: Int = 0,
+    @ProtoNumber(2) val totalIncome: Long = 0L,
+    @ProtoNumber(3) val totalExpenditure: Long = 0L,
+    @ProtoNumber(4) val incomeBySource: Map<String, Long> = emptyMap(),
+    @ProtoNumber(5) val expenditureByReason: Map<String, Long> = emptyMap(),
+    @ProtoNumber(6) val forgeCompleted: Int = 0,
+    @ProtoNumber(7) val alchemyCompleted: Int = 0,
+    @ProtoNumber(8) val herbsHarvested: Int = 0,
+    @ProtoNumber(9) val equipmentBySource: Map<String, Int> = emptyMap(),
+    @ProtoNumber(10) val pillBySource: Map<String, Int> = emptyMap(),
+    @ProtoNumber(11) val herbBySource: Map<String, Int> = emptyMap(),
+    @ProtoNumber(12) val newDisciples: Int = 0,
+    @ProtoNumber(13) val deceasedDisciples: Int = 0,
+    @ProtoNumber(14) val desertedDisciples: Int = 0
+)
+
+@Serializable
+data class SerializableBattleResultUIData(
+    @ProtoNumber(1) val battleLogId: String = "",
+    @ProtoNumber(2) val victory: Boolean = false,
+    @ProtoNumber(3) val teamMembers: List<SerializableBattleLogMember> = emptyList(),
+    @ProtoNumber(4) val rewards: List<SerializableBattleRewardItem> = emptyList(),
+    @ProtoNumber(5) val lootedItems: List<SerializableBattleRewardItem> = emptyList(),
+    @ProtoNumber(6) val isBeastDefense: Boolean = false
+)
+
+@Serializable
+data class SerializableBattleRewardItem(
+    @ProtoNumber(1) val itemId: String = "",
+    @ProtoNumber(2) val name: String = "",
+    @ProtoNumber(3) val quantity: Int = 0,
+    @ProtoNumber(4) val rarity: Int = 1,
+    @ProtoNumber(5) val type: String = ""
+)
+
+@Serializable
+data class SerializableAutoBuyEntry(
+    @ProtoNumber(1) val itemName: String = "",
+    @ProtoNumber(2) val itemType: String = "",
+    @ProtoNumber(3) val rarity: Int = 1
 )
 
 @Serializable
