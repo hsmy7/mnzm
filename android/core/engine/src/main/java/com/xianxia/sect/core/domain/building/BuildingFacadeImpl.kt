@@ -15,6 +15,7 @@ import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -29,6 +30,7 @@ class BuildingFacadeImpl @Inject constructor(
     private val inventorySystem: InventorySystem,
     private val spiritStoneWallet: SpiritStoneWallet,
     private val assignmentGate: com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate,
+    private val discipleStatusService: DiscipleStatusService,
 ) : BuildingFacade {
 
     override suspend fun placeBuilding(building: GridBuildingData) {
@@ -230,13 +232,8 @@ class BuildingFacadeImpl @Inject constructor(
                 }
             }
             if (discipleId != null) {
-                stateStore.update {
-                    val id = discipleId.toIntOrNull() ?: return@update
-                    if (discipleTables.ids.contains(id)) {
-                        discipleTables.statuses[id] = DiscipleStatus.IDLE
-                    }
-                }
                 assignmentGate.release(discipleId)
+                discipleStatusService.syncSingleDiscipleStatus(discipleId)
             }
         }
     }
@@ -391,27 +388,10 @@ class BuildingFacadeImpl @Inject constructor(
                 ?: return@update
             val name = building.displayName
 
-            // 收集将被移除槽位上已分配的弟子 ID
-            val discipleIdsToFree = collectDiscipleIdsForRemoval(name, instanceId)
-
             // 移除建筑 + 返还灵石 + 清洁关联槽位
             gameData = cleanupBuildingSlots(name, instanceId, refund)
-
-            // 将所有关联弟子恢复为空闲状态
-            for (did in discipleIdsToFree) {
-                val id = did.toIntOrNull() ?: continue
-                if (discipleTables.ids.contains(id)) {
-                    discipleTables.statuses[id] = DiscipleStatus.IDLE
-                }
-            }
         }
-    }
-
-    private fun MutableGameState.collectDiscipleIdsForRemoval(
-        name: String, instanceId: String
-    ): Set<String> {
-        val feature = BuildingFeatureRegistry.findByDisplayName(name) ?: return emptySet()
-        return feature.slotGroups.flatMap { it.collectDiscipleIds(gameData, instanceId, feature) }.toSet()
+        discipleStatusService.syncAllDiscipleStatuses()
     }
 
     private fun MutableGameState.cleanupBuildingSlots(
@@ -438,13 +418,8 @@ class BuildingFacadeImpl @Inject constructor(
         return gd
     }
 
-    private suspend fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus) {
-        stateStore.update {
-            val id = discipleId.toIntOrNull() ?: return@update
-            if (discipleTables.ids.contains(id)) {
-                discipleTables.statuses[id] = status
-            }
-        }
+    private fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus) {
+        discipleStatusService.syncSingleDiscipleStatus(discipleId)
     }
 
 }

@@ -348,7 +348,7 @@ suspend fun GameEngine.changeDiscipleTypeAtomic(discipleId: String, newType: Str
             val id = discipleId.toInt()
             if (id in discipleTables.ids) discipleTables.discipleTypes[id] = newType
         }
-        discipleFacade.syncAllDiscipleStatuses()
+        discipleFacade.syncSingleDiscipleStatus(discipleId)
     }
 }
 
@@ -552,11 +552,6 @@ fun GameEngine.validateAndFixSpiritMineData() {
     }
     val finalSlots = rebuiltSlots.toList()
     if (finalSlots != data.spiritMineSlots) {
-        val keptIds = finalSlots.mapNotNull { it.discipleId }.toSet()
-        val orphanedIds = data.spiritMineSlots.filter { it.discipleId.isNotEmpty() && it.discipleId !in keptIds }.mapNotNull { it.discipleId }
-        orphanedIds.forEach { discipleId ->
-            gameEngineCore.launchInScope { stateStore.update { val id = discipleId.toInt(); if (id in discipleTables.ids && discipleTables.statuses[id] == DiscipleStatus.MINING) discipleTables.statuses[id] = DiscipleStatus.IDLE } }
-        }
         updateGameDataSync { it.copy(spiritMineSlots = finalSlots) }
     }
 }
@@ -1050,7 +1045,6 @@ private fun MutableGameState.settleSingleRefinement(
             (progress.discipleId to updatedTotal)
     )
 
-    discipleTables.statuses[dId] = DiscipleStatus.IDLE
     discipleTables.clearBloodRefinementStatusData(dId)
 
     val statName = STAT_DISPLAY_NAMES[statKey] ?: statKey
@@ -1069,7 +1063,6 @@ private fun MutableGameState.cancelBloodRefinement(
     )
     val dId = discipleId.toIntOrNull()
     if (dId != null && dId in discipleTables.ids) {
-        discipleTables.statuses[dId] = DiscipleStatus.IDLE
         discipleTables.clearBloodRefinementStatusData(dId)
     }
 }

@@ -298,14 +298,6 @@ class BootSequenceController @Inject constructor(
                 }
             }
             gameData = gd
-
-            // 释放所有关联弟子
-            for (did in discipleIdsToFree) {
-                val id = did.toIntOrNull() ?: continue
-                if (discipleTables.ids.contains(id) && discipleTables.isAlive[id] == 1) {
-                    discipleTables.statuses[id] = DiscipleStatus.IDLE
-                }
-            }
         }
 
         DomainLog.w(TAG, "迁移边界建筑: 拆除了 ${inBorder.size} 座 (${removedNames.joinToString(", ")}), " +

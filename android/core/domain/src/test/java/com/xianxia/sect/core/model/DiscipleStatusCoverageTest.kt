@@ -6,15 +6,20 @@ import org.junit.Test
 /**
  * 自动守卫：新增 [DiscipleStatus] 枚举值时，若忘记更新 [displayName]，测试将失败。
  *
- * ## 新增弟子状态的必改清单
+ * ## 新增弟子状态的必改清单（完整版）
  *
- * 当你在 [DiscipleStatus] 添加了新的枚举值，测试会在此文件中报错。
- * 请同步更新以下 3 处：
+ * 注意：新增非受保护状态时，需同步更新 6 处。新增受保护状态时只需更新前 3 处。
  *
- * 1. [DiscipleStatus.displayName] — 添加显示名称映射
+ * ### 必改（所有新状态）
+ * 1. [DiscipleStatus.displayName] — 添加显示名称映射（此测试检测）
  * 2. [com.xianxia.sect.ui.game.DiscipleFilterUtils.filterByDiscipleStatus] — 检查新状态是否应在
- *    showAllEnabled=true 时显示。白名单模式：除非新状态应被排除（如"闭关中"），否则默认可见
- * 3. 本测试文件 — 将新 [DiscipleStatus] 加入下方对应的分类集合
+ *    showAllEnabled=true 时显示
+ * 3. [com.xianxia.sect.core.engine.domain.disciple.StatusDerivationCoverageTest] — 查阅该测试的文档
+ *
+ * ### 推导系统（非受保护状态需改，否则该测试会失败）
+ * 4. [com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService.SlotFlags] — 添加对应 flag
+ * 5. [com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService.deriveDiscipleStatus] — 添加 when 分支
+ * 6. [com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService.buildSlotFlagsFor] — 从游戏数据设置 flag
  *
  * ⚠️ filterByDiscipleStatus 使用白名单模式：showAllEnabled=true 时仅排除 ON_MISSION。
  * 新增的状态若应被排除，务必在 filterByDiscipleStatus 中添加检查。

@@ -1,4 +1,4 @@
-## [4.0.74] - 2026-07-25
+## [4.0.74] - 2026-07-26
 
 ### 修复
 
@@ -35,6 +35,15 @@
 - **云存档下载备份** — 下载覆盖前备份当前存档（`.bak`）
 - **`invokeGetterString` 静默降级修复** — 返回 `String?` + 异常时 log
 - **云存档跨版本兼容性** — 上传时记录版本号，下载时比对并提示
+
+### 架构改进（本次）
+
+- **架构：云存档序列化全量守卫测试** — 6 个测试文件覆盖 GameData + 全部嵌套类型的序列化映射覆盖检查
+- **架构：writeGuardEnabled 改为 ThreadLocal 隔离** — 游戏/测试线程独立开关，21 个测试零修改
+- **架构：弟子状态纯推导重构** — `deriveDiscipleStatus` 纯函数 + `SlotFlags` 驱动，废除 26 处直接写入，消除 `getDiscipleStatus` 重复推导
+- **架构：事件驱动增量推导** — 新增 `syncSingleDiscipleStatus`，O(1) 增量更新替代 O(n) 批量扫描
+- **架构：StatusDerivationCoverageTest 守卫** — 新增状态时自动检测 3 处同步更新
+- **规范：修复预存违规** — `resetAllDisciplesStatus` 拆分（提取 `clearSlotsForReset`），`!!`→`mapNotNull`
 - **`sellItem`/`bulkSellItems` 统一入口** — 改为 `StackableItemStore` 操作
 - **`SaveLoadViewModel` 构造参数 15→7** — 提取 `PersistenceFacade` 封装 8 个基础设施依赖
 - **云存档已知问题文档更新** — 完成项标记 ✅，仅保留未完成项

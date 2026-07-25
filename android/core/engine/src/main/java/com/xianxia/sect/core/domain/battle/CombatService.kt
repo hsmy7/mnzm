@@ -194,7 +194,6 @@ class CombatService @Inject constructor(
                     if (su.id in discipleTables.ids) {
                         discipleTables.currentHps[su.id] = su.hp
                         discipleTables.currentMps[su.id] = su.mp
-                        discipleTables.statuses[su.id] = su.newStatus
                     }
                 }
             }

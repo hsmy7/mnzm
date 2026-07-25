@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.exploration
 
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService
 import com.xianxia.sect.core.event.DeathEvent
 import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.event.ExplorationCompletedEvent
@@ -30,7 +31,8 @@ import javax.inject.Singleton
 @Singleton
 class ExplorationTeamManager @Inject constructor(
     private val stateStore: GameStateStore,
-    private val eventBus: EventBusPort
+    private val eventBus: EventBusPort,
+    private val discipleStatusService: DiscipleStatusService
 ) {
     companion object {
         private const val TAG = "ExplorationTeamManager"
@@ -73,17 +75,10 @@ class ExplorationTeamManager @Inject constructor(
                 this.teams = mutableTeams
             }
 
-            // 更新弟子状态为 IDLE（列直写）
-            val idInt = discipleId.toIntOrNull()
-            if (idInt != null && discipleTables.isAlive.contains(idInt) &&
-                discipleTables.isAlive[idInt] == 1
-            ) {
-                discipleTables.statuses[idInt] = DiscipleStatus.IDLE
-            }
-
             DomainLog.d(TAG, "recallDiscipleFromTeam: team=$teamId, disciple=$discipleId")
             true
         }
+        discipleStatusService.syncSingleDiscipleStatus(discipleId)
     }
 
     /**
@@ -123,12 +118,7 @@ class ExplorationTeamManager @Inject constructor(
             team.memberIds.forEach { memberId ->
                 val idInt = memberId.toIntOrNull()
                 if (memberId in survivorIds) {
-                    // 存活弟子：状态置 IDLE
-                    if (idInt != null && discipleTables.isAlive.contains(idInt) &&
-                        discipleTables.isAlive[idInt] == 1
-                    ) {
-                        discipleTables.statuses[idInt] = DiscipleStatus.IDLE
-                    }
+                    // 存活弟子：状态由 syncAllDiscipleStatuses() 统一推导
                 } else {
                     // 阵亡弟子：收集死亡事件 + markDead
                     val name = if (idInt != null) {
@@ -163,6 +153,9 @@ class ExplorationTeamManager @Inject constructor(
 
             deadEvents
         }
+
+        // 状态同步在事务外执行，避免部分状态窗口
+        discipleStatusService.syncAllDiscipleStatuses()
 
         // 死亡事件在事务外 emit，避免部分状态窗口
         deathEvents.forEach { eventBus.emitSync(it) }

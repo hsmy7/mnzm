@@ -89,7 +89,8 @@ class DiscipleServiceCrudTest {
             scopeProvider = mock(),
             discipleSlotCleanup = DiscipleSlotCleanup(
                 DiscipleAssignmentGate(DiscipleAssignmentRegistry())
-            )
+            ),
+            discipleStatusService = mock()
         )
         val equipmentService = DiscipleEquipmentService(
             stateStore = mockStore,

@@ -88,6 +88,8 @@ class DiscipleFacadeImpl @Inject constructor(
 
     override fun syncAllDiscipleStatuses() = discipleService.syncAllDiscipleStatuses()
 
+    override fun syncSingleDiscipleStatus(discipleId: String) = discipleService.syncSingleDiscipleStatus(discipleId)
+
     override suspend fun resetAllDisciplesStatus() = discipleService.resetAllDisciplesStatus()
 
     override fun recruitDisciple(): Disciple = discipleService.recruitDisciple()
@@ -102,13 +104,13 @@ class DiscipleFacadeImpl @Inject constructor(
             val id = discipleId.toIntOrNull() ?: return@update
             if (!discipleTables.ids.contains(id)) return@update
             if (discipleTables.isAlive[id] != 1) return@update
-            discipleTables.statuses[id] = DiscipleStatus.IDLE
             val existingData = discipleTables.statusData[id]
             discipleTables.statusData[id] = existingData - setOf("reflectionStartYear", "reflectionEndYear")
             val disciple = discipleTables.assemble(id)
             val baseStats = DiscipleStatCalculator.getBaseStats(disciple)
             discipleTables.loyalties[id] = (baseStats.loyalty + loyaltyChange).coerceAtLeast(0)
         }
+        discipleService.syncSingleDiscipleStatus(discipleId)
         return loyaltyChange
     }
 
@@ -117,11 +119,11 @@ class DiscipleFacadeImpl @Inject constructor(
             val id = discipleId.toIntOrNull() ?: return@update
             if (!discipleTables.ids.contains(id)) return@update
             if (discipleTables.isAlive[id] != 1) return@update
-            discipleTables.statuses[id] = DiscipleStatus.IDLE
             val existingData = discipleTables.statusData[id]
             discipleTables.statusData[id] = existingData - setOf("reflectionStartYear", "reflectionEndYear")
             // 不修改道德/忠诚/任何数值，纯状态变更
         }
+        discipleService.syncSingleDiscipleStatus(discipleId)
     }
 
     override fun equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> =
@@ -147,11 +149,22 @@ class DiscipleFacadeImpl @Inject constructor(
         discipleService.getAllDiscipleAggregates()
 
     override fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus) {
-        stateStore.update {
-            val id = discipleId.toIntOrNull() ?: return@update
-            if (!discipleTables.ids.contains(id)) return@update
-            discipleTables.statuses[id] = status
+        // 受保护状态（ON_MISSION）必须直接写入，syncAllDiscipleStatuses 不会覆盖它们
+        // 但不会主动设置。非受保护状态（IDLE）委托给 syncAllDiscipleStatuses 推导。
+        val protectedStatuses = setOf(
+            DiscipleStatus.ON_MISSION, DiscipleStatus.REFLECTING, DiscipleStatus.REFINING
+        )
+        if (status in protectedStatuses) {
+            val id = discipleId.toIntOrNull()
+            if (id != null) {
+                stateStore.update {
+                    if (id in discipleTables.ids) {
+                        discipleTables.statuses[id] = status
+                    }
+                }
+            }
         }
+        discipleService.syncSingleDiscipleStatus(discipleId)
     }
 
 
@@ -663,7 +676,7 @@ class DiscipleFacadeImpl @Inject constructor(
                 slotId = "elder_${elderSlotType}_$slotIndex"
             )
             assignmentGate.confirmAssign(discipleId, slotRef)
-            discipleService.syncAllDiscipleStatuses()
+            discipleService.syncSingleDiscipleStatus(discipleId)
         }
     }
 
@@ -716,7 +729,7 @@ class DiscipleFacadeImpl @Inject constructor(
             if (currentDiscipleId.isNotEmpty()) {
                 assignmentGate.release(currentDiscipleId)
             }
-            discipleService.syncAllDiscipleStatuses()
+            discipleService.syncSingleDiscipleStatus(currentDiscipleId)
         }
     }
 
@@ -748,7 +761,6 @@ class DiscipleFacadeImpl @Inject constructor(
                 val id = discipleId.toIntOrNull()
                 if (id != null && id in discipleTables.ids) {
                     gameData = discipleSlotCleanup.clearAllSlots(gameData, discipleId)
-                    discipleTables.statuses[id] = DiscipleStatus.IDLE
                 }
                 val slots = gameData.librarySlots.toMutableList()
                 while (slots.size <= slotIndex) {
@@ -762,7 +774,7 @@ class DiscipleFacadeImpl @Inject constructor(
                 gameData = gameData.copy(librarySlots = slots)
             }
             assignmentGate.confirmAssign(discipleId, targetSlot)
-            discipleService.syncAllDiscipleStatuses()
+            discipleService.syncSingleDiscipleStatus(discipleId)
         }
     }
 
@@ -779,7 +791,7 @@ class DiscipleFacadeImpl @Inject constructor(
             if (discipleId.isNotEmpty()) {
                 assignmentGate.release(discipleId)
             }
-            discipleService.syncAllDiscipleStatuses()
+            discipleService.syncSingleDiscipleStatus(discipleId)
         }
     }
 

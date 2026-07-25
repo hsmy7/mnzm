@@ -233,7 +233,10 @@ class DiscipleTables {
          * - 生产环境始终为 true
          * - 单元测试中设为 false（测试直接操作组件表绕过 stateStore.update{}）
          */
-        @Volatile var writeGuardEnabled: Boolean = true
+        private val _writeGuardEnabled = ThreadLocal.withInitial { true }
+        var writeGuardEnabled: Boolean
+            get() = _writeGuardEnabled.get()
+            set(value) = _writeGuardEnabled.set(value)
 
         /**
          * 跨表一致性校验开关。Release 构建建议关闭。

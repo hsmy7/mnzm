@@ -6,6 +6,7 @@ import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.exploration.ExplorationTeamManager
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.runTest
@@ -24,7 +25,7 @@ class ExplorationTeamManagerTest {
     @Before
     fun setUp() {
         stateStore = FakeStore()
-        manager = ExplorationTeamManager(stateStore, mock())
+        manager = ExplorationTeamManager(stateStore, mock(), mock(DiscipleStatusService::class.java))
     }
 
     @Test fun `recallDiscipleFromTeam false for empty teams`() = runTest {

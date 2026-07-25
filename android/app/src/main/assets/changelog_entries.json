@@ -22,7 +22,12 @@
       "文档：架构债务/云存档已知问题更新——完成项标记✅，仅保留未完成项",
       "修复：云存档仅保存部分数据——弟子肖像/建筑布局/世界关卡/RNG状态/灵石中上品等66个GameData字段未序列化，云读档后地图不显示建筑、弟子肖像空白。根因SaveDataConverter未同步新字段，全量补完",
       "修复：SerializableDisciple新增portraitRes@ProtoNumber90——弟子肖像数据随云存档保存恢复",
-      "架构债务：云存档序列化双路径同步债务——GameData加字段需手动同步3处(SerializableGameData+convertGameData+convertBackGameData)，后续需害守卫测试防止遗漏"
+      "架构债务：云存档序列化双路径同步债务——GameData加字段需手动同步3处(SerializableGameData+convertGameData+convertBackGameData)，后续需害守卫测试防止遗漏",
+      "架构：云存档序列化全量守卫测试——6个测试文件覆盖GameData+全部嵌套类型(SerializationCoverageTest/DiscipleConverter/EquipmentConverter/ManualConverter/ItemConverter/SaveDataConverterInline)",
+      "架构：writeGuardEnabled改为ThreadLocal隔离——测试线程与游戏线程独立开关，21个测试文件无需修改",
+      "架构：弟子状态纯推导重构——deriveDiscipleStatus纯函数+SlotFlags驱动，废除26处直接状态写入（保留REFLECTING/ON_MISSION/REFINING受保护写入），消除DiscipleLifecycleManager.getDiscipleStatus重复推导逻辑",
+      "架构：事件驱动增量推导——新增syncSingleDiscipleStatus方法，O(1)增量更新替代O(n)批量扫描，14处单弟子操作改为增量推导",
+      "架构：StatusDerivationCoverageTest守卫——新增状态时自动检测SlotFlags/deriveDiscipleStatus/buildSlotFlagsFor三处同步更新"
     ]
   },
   {

@@ -553,15 +553,6 @@ suspend fun GameEngine.scoutSect(sectId: String, memberIds: List<String>) {
                 }
             }
         }
-        val scoutIds = memberIds.toSet()
-        stateStore.update {
-            for (id in discipleTables.ids) {
-                val idStr = id.toString()
-                if (idStr in scoutIds && discipleTables.isAlive[id] == 1 && discipleTables.statuses[id] != DiscipleStatus.IDLE) {
-                    discipleTables.statuses[id] = DiscipleStatus.IDLE
-                }
-            }
-        }
         val scoutDiscipleIds = combatDisciples.map { it.id }.toSet()
         val scoutDeadIds = stateStore.discipleTables.ids.filter { it.toString() in scoutDiscipleIds && stateStore.discipleTables.isAlive[it] == 0 }.map { it.toString() }.toSet()
         if (scoutDeadIds.isNotEmpty()) combatService.processBattleCasualties(scoutDeadIds, emptyMap(), emptyMap(), isOutsideSect = true)

@@ -661,11 +661,11 @@ class CultivationEventProcessor @Inject constructor(
                     if (did in reward.survivors) {
                         discipleTables.soulPowers[tid] = discipleTables.soulPowers.getOrDefault(tid, 0) + 1
                     }
-                    discipleTables.statuses[tid] = DiscipleStatus.IDLE
                 }
             }
             gameData = gameData.copy(activeMissions = remainingActive)
         }
+        discipleService.syncAllDiscipleStatuses()
     }
     fun processMissionRefreshIfDue(month: Int) {
         if (month % MissionSystem.REFRESH_INTERVAL_MONTHS != 0) return

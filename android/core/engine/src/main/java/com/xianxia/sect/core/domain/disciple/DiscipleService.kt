@@ -89,6 +89,13 @@ class DiscipleService @Inject constructor(
     fun syncAllDiscipleStatuses() = discipleStatusService.syncAllDiscipleStatuses()
 
     /**
+     * 根据单个弟子的槽位分配推导其状态并写入。
+     * O(1) 推导，避免全量 O(n) 扫描。
+     * 委托给 [DiscipleStatusService]。
+     */
+    fun syncSingleDiscipleStatus(discipleId: String) = discipleStatusService.syncSingleDiscipleStatus(discipleId)
+
+    /**
      * 重置所有弟子为 IDLE 状态。
      * 委托给 [DiscipleStatusService]。
      */

@@ -172,11 +172,6 @@ suspend fun GameEngine.assignPatrolAtomic(
             )
             gameData = gameData.copy(patrolSlots = mutableSlots)
             assignmentGate.release(occupantId)
-            occupantId.toIntOrNull()?.let { oldId ->
-                if (oldId in discipleTables.ids) {
-                    discipleTables.statuses[oldId] = DiscipleStatus.IDLE
-                }
-            }
             DomainLog.d("GameEngine", "assignPatrol: 释放原 occupant=$occupantId（仅巡逻槽位）")
         }
 
@@ -214,8 +209,8 @@ suspend fun GameEngine.assignPatrolAtomic(
             )
         }
 
-        discipleTables.statuses[id] = DiscipleStatus.PATROLLING
     }
+    discipleFacade.syncSingleDiscipleStatus(discipleId)
 }
 
 /**
@@ -243,6 +238,7 @@ suspend fun GameEngine.removePatrolAtomic(
 ): DomainResult<Unit> = DomainResult.catching(
     AppError.Domain.GameLoop.Unknown("移除巡逻失败")
 ) {
+    var removedDiscipleId = ""
     stateStore.update {
         require(globalIndex in gameData.patrolSlots.indices) {
             "巡视槽位越界: index=$globalIndex size=${gameData.patrolSlots.size}"
@@ -251,7 +247,7 @@ suspend fun GameEngine.removePatrolAtomic(
         val slot = gameData.patrolSlots[globalIndex]
         if (slot.discipleId.isEmpty()) return@update // 已为空槽位
 
-        val removedDiscipleId = slot.discipleId
+        removedDiscipleId = slot.discipleId
         val buildingInstanceId = slot.buildingInstanceId
 
         // 仅清空该巡视槽位，不清除其他系统槽位
@@ -265,13 +261,9 @@ suspend fun GameEngine.removePatrolAtomic(
         // 释放 gate 注册（仅影响门卫）
         assignmentGate.release(removedDiscipleId)
 
-        val id = removedDiscipleId.toIntOrNull()
-        if (id != null && id in discipleTables.ids) {
-            discipleTables.statuses[id] = DiscipleStatus.IDLE
-        }
-
         DomainLog.d("GameEngine", "removePatrol: 移除 $removedDiscipleId 从槽位 $globalIndex")
     }
+    discipleFacade.syncSingleDiscipleStatus(removedDiscipleId)
 }
 
 /**
@@ -359,20 +351,9 @@ suspend fun GameEngine.swapPatrolAtomic(
 
         gameData = gameData.copy(patrolSlots = mutableSlots)
 
-        // 更新状态（均由 IDLE → PATROLLING；clearAllSlots 已将状态重置为 IDLE）
-        if (fromDid.isNotEmpty()) {
-            fromDid.toIntOrNull()?.let { fid ->
-                if (fid in discipleTables.ids) discipleTables.statuses[fid] = DiscipleStatus.PATROLLING
-            }
-        }
-        if (toDid.isNotEmpty()) {
-            toDid.toIntOrNull()?.let { tid ->
-                if (tid in discipleTables.ids) discipleTables.statuses[tid] = DiscipleStatus.PATROLLING
-            }
-        }
-
         DomainLog.d("GameEngine", "swapPatrol: $fromDid ↔ $toDid 槽位 $fromGlobalIndex ↔ $toGlobalIndex")
     }
+    discipleFacade.syncAllDiscipleStatuses()
 }
 
 /**
@@ -471,9 +452,6 @@ suspend fun GameEngine.autoAssignPatrolAtomic(
                     )
                     gameData = gameData.copy(patrolSlots = mutableSlots)
 
-                    oldDid.toIntOrNull()?.let { id ->
-                        if (id in discipleTables.ids) discipleTables.statuses[id] = DiscipleStatus.IDLE
-                    }
                 }
             } else {
                 // 分配弟子到槽位
@@ -489,9 +467,6 @@ suspend fun GameEngine.autoAssignPatrolAtomic(
                     ms[globalIndex] = PatrolSlot(index = globalIndex, buildingInstanceId = bi)
                     gameData = gameData.copy(patrolSlots = ms)
                     assignmentGate.release(occupantId)
-                    occupantId.toIntOrNull()?.let { oldId ->
-                        if (oldId in discipleTables.ids) discipleTables.statuses[oldId] = DiscipleStatus.IDLE
-                    }
                 }
 
                 // 清理新弟子旧槽位（全量清除准备分配）
@@ -519,9 +494,8 @@ suspend fun GameEngine.autoAssignPatrolAtomic(
                         SlotRef(SlotCategory.PATROL_SLOT, "patrol", "patrol_$globalIndex")
                     )
                 }
-
-                discipleTables.statuses[id] = DiscipleStatus.PATROLLING
             }
         }
     }
+    discipleFacade.syncAllDiscipleStatuses()
 }

@@ -28,7 +28,8 @@ class DiscipleLifecycleProcessor @Inject constructor(
     private val productionSlotRepository: ProductionSlotRepository,
     private val eventBus: EventBusPort,
     private val discipleSlotCleanup: DiscipleSlotCleanup,
-    private val lawEnforcementProcessor: javax.inject.Provider<LawEnforcementProcessor>
+    private val lawEnforcementProcessor: javax.inject.Provider<LawEnforcementProcessor>,
+    private val discipleStatusService: DiscipleStatusService
 ) {
     private val scope get() = scopeProvider.scope
 
@@ -93,10 +94,10 @@ class DiscipleLifecycleProcessor @Inject constructor(
                     discipleTables.ages[id] = agedAge
                     if (agedAge == 5 && disciple.realmLayer == 0) {
                         discipleTables.realmLayers[id] = 1
-                        discipleTables.statuses[id] = DiscipleStatus.IDLE
                     }
                 }
             }
+            discipleStatusService.syncAllDiscipleStatuses()
             return
         }
 
@@ -169,10 +170,11 @@ class DiscipleLifecycleProcessor @Inject constructor(
                 discipleTables.ages[id] = agedAge
                 if (agedAge == 5 && disciple.realmLayer == 0) {
                     discipleTables.realmLayers[id] = 1
-                    discipleTables.statuses[id] = DiscipleStatus.IDLE
                 }
             }
         }
+
+        discipleStatusService.syncAllDiscipleStatuses()
 
         // ── 事务外操作：forge 槽位清理 + 事件分发（非原子操作，不影响游戏状态一致性）──
         for ((id, agedDisciple) in deadDiscipleData) {

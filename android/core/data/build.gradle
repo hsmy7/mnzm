@@ -76,4 +76,5 @@ dependencies {
     testImplementation libs.test.ext.junit
     testImplementation libs.test.runner
     testImplementation libs.room.testing
+    testImplementation libs.kotlin.reflect
 }

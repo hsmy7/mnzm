@@ -2,21 +2,28 @@
 
 > 本文件记录已知的架构债务和待完成的技术改进项。
 
-## 角色状态系统：纯推导式迁移（长期，未完成）
+## 角色状态系统：纯推导式迁移（✅ 已完成 — 2026-07-26）
 
 **对标：** RimWorld（状态从当前执行任务推导，不手动设置）、MineColonies（三层状态机推导）
-**现状：** 显式式 + 推导修正混合模式（`markDiscipleAssigned` 直接写 + `syncAllDiscipleStatuses` 修正）
-**建议：** 逐步废除 `markDiscipleAssigned` 直接写入，使 `syncAllDiscipleStatuses` 成为唯一状态真相源。新增状态时只需更新推导函数，无需同时修改两处代码。
+**现状：** 已完成全量纯推导迁移（3 阶段）：
+- Phase 1：`deriveDiscipleStatus` 纯函数 + `SlotFlags` data class，`syncAllDiscipleStatuses` 重构调用纯函数
+- Phase 2：废除 26 处直接 `discipleTables.statuses[id] = X` 写入（保留 REFLECTING/ON_MISSION/REFINING 受保护写入），11 个文件修改
+- Phase 3：`DiscipleLifecycleManager.getDiscipleStatus` 统一调用 `deriveDiscipleStatus`，消除 60 行重复推导逻辑
 
-## 写入守卫架构债务（⏸️ 暂不修复）
+**增量升级：** 新增 `syncSingleDiscipleStatus(discipleId)` 事件驱动增量推导，O(1) 更新替代 O(n) 批量扫描
 
-详见 [architecture-debt-write-guard.md](architecture-debt-write-guard.md)，6 项低风险守卫设计限制记录在案：
-1. `store` 底层存储绕过守卫
-2. `requireWrite` / `onWrite` 为 `@JvmField var`
-3. `writeGuardEnabled` 全局开关
-4. `ids` public MutableList
-5. `deathRecords` public MutableList
-6. 影子结算死代码（已移除守卫兼容代码）
+**守卫：** `StatusDerivationCoverageTest` — 新增 DiscipleStatus 值时自动检测 SlotFlags / deriveDiscipleStatus / buildSlotFlagsFor 三处同步
+
+## 写入守卫架构债务（⏸️ 其余暂不修复）
+
+详见 [architecture-debt-write-guard.md](architecture-debt-write-guard.md)：
+
+- ✅ **writeGuardEnabled ThreadLocal 隔离**（已完成 — 2026-07-26）— 全局 `@Volatile var` 改为 `ThreadLocal.withInitial { true }`，游戏/测试线程独立开关，21 个测试文件零修改
+- ⏸️ `store` 底层存储绕过守卫
+- ⏸️ `requireWrite` / `onWrite` 为 `@JvmField var`
+- ⏸️ `ids` public MutableList
+- ⏸️ `deathRecords` public MutableList
+- ⏸️ 影子结算死代码（已移除守卫兼容代码）
 
 ## 邮件/兑换码 RNG 未接入分区 PRNG（⏸️ 低优先级）
 
@@ -97,7 +104,7 @@ detekt 配置 `baseline` 只缩不增（CLAUDE.md 13.2），当前未启用 base
 2. **LOADING 状态可达补充** — 初次加载补充 `setLoading()`，纯 UI 优化
 3. **取消时状态自动回滚** — 记录初始状态，取消时自动恢复，极少触发
 
-## 云存档序列化双路径同步债务（🆕 2026-07-25）
+## 云存档序列化双路径同步债务（✅ 已完成守卫 — 2026-07-26）
 
 **问题等级：** 🔴 架构级 — 每新增一个 GameData 字段都可能造成云存档静默丢失
 
@@ -141,6 +148,9 @@ detekt 配置 `baseline` 只缩不增（CLAUDE.md 13.2），当前未启用 base
 **方案 C：自动生成/代码生成**
 利用 Kotlin Symbol Processing (KSP) 在编译期从 `GameData` 属性声明自动生成 `SerializableGameData` 和 converter 代码，消除手动维护。
 
-### 优先级
+### 完成情况
 
-🔴 高 — 当前手动补了 66 个字段，下次加字段仍会漏。至少需要方案 A（守卫测试）防止重复发生。
+✅ **守卫测试已落地** — `SerializationCoverageTest` 等 6 个测试文件覆盖 GameData + 全部嵌套类型。
+新增 GameData 字段时，守卫测试自动失败并提示同步 3 处（SerializableGameData / convertGameData / convertBackGameData）。
+
+远期方案 C（KSP 代码生成）仍为可选优化路径，已非必需。

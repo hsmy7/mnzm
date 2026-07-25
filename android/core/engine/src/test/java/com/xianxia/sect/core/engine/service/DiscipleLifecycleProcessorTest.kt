@@ -4,6 +4,7 @@ import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentRegistry
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService
 import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.repository.ProductionSlotRepository
@@ -102,7 +103,8 @@ class DiscipleLifecycleProcessorTest {
             ),
             lawEnforcementProcessor = object : javax.inject.Provider<LawEnforcementProcessor> {
                 override fun get(): LawEnforcementProcessor = mock(LawEnforcementProcessor::class.java)
-            }
+            },
+            discipleStatusService = mock(DiscipleStatusService::class.java)
         )
     }
 

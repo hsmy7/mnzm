@@ -10,6 +10,7 @@ fun GameEngine.getDiscipleById(discipleId: String): Disciple? = discipleFacade.g
 fun GameEngine.updateDisciple(disciple: Disciple) = discipleFacade.updateDisciple(disciple)
 fun GameEngine.getDiscipleStatus(discipleId: String): DiscipleStatus = discipleFacade.getDiscipleStatus(discipleId)
 suspend fun GameEngine.syncAllDiscipleStatuses() = discipleFacade.syncAllDiscipleStatuses()
+fun GameEngine.syncSingleDiscipleStatus(discipleId: String) = discipleFacade.syncSingleDiscipleStatus(discipleId)
 suspend fun GameEngine.resetAllDisciplesStatus() = discipleFacade.resetAllDisciplesStatus()
 fun GameEngine.recruitDisciple(): Disciple = discipleFacade.recruitDisciple()
 suspend fun GameEngine.expelDisciple(discipleId: String): DomainResult<Unit> = discipleFacade.expelDisciple(discipleId)
@@ -55,7 +56,6 @@ suspend fun GameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId: String) {
 
         when (discipleTables.statuses[id]) {
             DiscipleStatus.REFLECTING -> {
-                discipleTables.statuses[id] = DiscipleStatus.IDLE
                 val existingData = discipleTables.statusData[id]
                 discipleTables.statusData[id] = existingData - setOf(
                     "reflectionStartYear", "reflectionEndYear"
@@ -63,15 +63,14 @@ suspend fun GameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId: String) {
             }
             DiscipleStatus.REFINING -> {
                 gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlots(gameData, discipleId)
-                discipleTables.statuses[id] = DiscipleStatus.IDLE
                 val current = discipleTables.statusData.getOrDefault(id, emptyMap())
                 discipleTables.statusData[id] = current - "buildingId"
             }
             else -> {
                 gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlots(gameData, discipleId)
-                discipleTables.statuses[id] = DiscipleStatus.IDLE
             }
         }
     }
+    syncSingleDiscipleStatus(discipleId)
     // clearAllSlots 内部已调用 gate.release()，无需重复调用
 }

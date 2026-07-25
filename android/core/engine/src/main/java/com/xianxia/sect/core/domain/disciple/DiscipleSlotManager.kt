@@ -23,6 +23,7 @@ class DiscipleSlotManager @Inject constructor(
     private val productionSlotRepository: ProductionSlotRepository,
     private val scopeProvider: CoroutineScopeProvider,
     private val discipleSlotCleanup: DiscipleSlotCleanup,
+    private val discipleStatusService: DiscipleStatusService,
 ) {
     companion object {
         private const val TAG = "DiscipleSlotManager"
@@ -148,12 +149,13 @@ class DiscipleSlotManager @Inject constructor(
                 if (status == DiscipleStatus.REFLECTING) continue
                 if (status == DiscipleStatus.REFINING) continue
                 if (status == DiscipleStatus.IDLE) continue
-                discipleTables.statuses[id] = DiscipleStatus.IDLE
                 discipleTables.statusData[id] = emptyMap()
             }
 
             ids
         }
+
+        discipleStatusService.syncAllDiscipleStatuses()
 
         val allSlots = productionSlotRepository.getSlots()
         for (slot in allSlots) {

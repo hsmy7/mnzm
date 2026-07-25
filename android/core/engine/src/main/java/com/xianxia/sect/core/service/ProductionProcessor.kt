@@ -789,9 +789,6 @@ class ProductionProcessor @Inject constructor(
                         } else slot
                     }
                 )
-                mineCandidates.forEach { disciple ->
-                    discipleTables.statuses[disciple.id.toInt()] = DiscipleStatus.MINING
-                }
             }
 
             // 4. 炼丹（使用预计算候选迭代器）
@@ -842,9 +839,7 @@ class ProductionProcessor @Inject constructor(
             val candidate = takeNext() ?: break
             updates[emptySlot.slotIndex] = candidate.id to candidate.name
             val cid = candidate.id.toIntOrNull()
-            if (cid != null) {
-                state.discipleTables.statuses[cid] = assignedStatus
-            } else {
+            if (cid == null) {
                 DomainLog.w(TAG, "batchAssignToProductionSlots: invalid disciple id ${candidate.id}")
             }
         }
@@ -858,18 +853,6 @@ class ProductionProcessor @Inject constructor(
                     ) else slot
                 }
             )
-        }
-    }
-
-    /**
-     * 同步更新弟子状态（直接列写入，O(1)）。
-     *
-     * 在 [processAutoAssign] 中连续分配时，
-     * 确保状态变更在后续槽位查询前已可见。
-     */
-    private fun markDiscipleAssigned(discipleId: String, status: DiscipleStatus) {
-        stateStore.update {
-            discipleTables.statuses[discipleId.toInt()] = status
         }
     }
 
@@ -1023,9 +1006,6 @@ class ProductionProcessor @Inject constructor(
                     state.equipmentStacks.add(equipment)
                 }
             }
-            slot.assignedDiscipleId?.toIntOrNull()?.let { did ->
-                state.discipleTables.statuses[did] = DiscipleStatus.IDLE
-            }
             slots[i] = ProductionSlot.createIdle(
                 id = slot.id, slotIndex = slot.slotIndex,
                 buildingType = BuildingType.FORGE,
@@ -1071,9 +1051,6 @@ class ProductionProcessor @Inject constructor(
                     quantity = 1
                 )
                 state.pills.add(pill)
-            }
-            slot.assignedDiscipleId?.toIntOrNull()?.let { did ->
-                state.discipleTables.statuses[did] = DiscipleStatus.IDLE
             }
             slots[i] = ProductionSlot.createIdle(
                 id = slot.id, slotIndex = slot.slotIndex,

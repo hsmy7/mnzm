@@ -184,74 +184,17 @@ class DiscipleLifecycleManager @Inject constructor(
         if (!tables.ids.contains(id)) return DiscipleStatus.IDLE
 
         val isAlive = tables.isAlive[id] == 1
-        if (!isAlive) return DiscipleStatus.DEAD
         val status = tables.statuses[id]
-        if (status == DiscipleStatus.REFLECTING) return DiscipleStatus.REFLECTING
-        if (status == DiscipleStatus.ON_MISSION) return DiscipleStatus.ON_MISSION
-        if (status == DiscipleStatus.REFINING) return DiscipleStatus.REFINING
 
-        val playerSect = data.worldMapSects.find { it.isPlayerSect }
-        val inGarrison = playerSect?.garrisonSlots?.any { it.discipleId == discipleId } == true
-        if (inGarrison) return DiscipleStatus.GARRISONING
-
-        val inBattleTeam = data.battleTeams.any { team ->
-            team.slots.any { it.discipleId == discipleId }
-        }
-        if (inBattleTeam) return DiscipleStatus.IN_TEAM
-
-        if (_isInExploration(discipleId)) return DiscipleStatus.IN_TEAM
-
-        if (_isInCaveExploration(discipleId)) return DiscipleStatus.IN_TEAM
-
-        val elderSlots = data.elderSlots
-        if (elderSlots.lawEnforcementElder == discipleId ||
-            elderSlots.lawEnforcementDisciples.any { it.discipleId == discipleId }) {
-            return DiscipleStatus.LAW_ENFORCING
-        }
-        if (elderSlots.preachingElder == discipleId ||
-            elderSlots.preachingMasters.any { it.discipleId == discipleId }) {
-            return DiscipleStatus.PREACHING
-        }
-        if (elderSlots.qingyunPreachingElder == discipleId ||
-            elderSlots.qingyunPreachingMasters.any { it.discipleId == discipleId }) {
-            return DiscipleStatus.PREACHING
-        }
-
-        if (elderSlots.spiritMineDeaconDisciples.any { it.discipleId == discipleId }) {
-            return DiscipleStatus.DEACONING
-        }
-
-        if (elderSlots.viceSectMaster == discipleId ||
-            elderSlots.outerElder == discipleId ||
-            elderSlots.innerElder == discipleId ||
-            elderSlots.forgeElder == discipleId ||
-            elderSlots.alchemyElder == discipleId ||
-            elderSlots.herbGardenElder == discipleId ||
-            elderSlots.herbGardenDisciples.any { it.discipleId == discipleId } ||
-            elderSlots.alchemyDisciples.any { it.discipleId == discipleId } ||
-            elderSlots.forgeDisciples.any { it.discipleId == discipleId }) {
-            return DiscipleStatus.MANAGING
-        }
-
-        if (data.librarySlots.any { it.discipleId == discipleId }) {
-            return DiscipleStatus.STUDYING
-        }
-
-        if (data.spiritMineSlots.any { it.discipleId == discipleId }) {
-            return DiscipleStatus.MINING
-        }
-
-        if (data.productionSlots.any { it.assignedDiscipleId == discipleId && it.buildingId == "alchemy" }) {
-            return DiscipleStatus.ALCHEMY
-        }
-        if (data.productionSlots.any { it.assignedDiscipleId == discipleId && it.buildingId == "forge" }) {
-            return DiscipleStatus.FORGE
-        }
-        if (data.productionSlots.any { it.assignedDiscipleId == discipleId && it.buildingId == "herbGarden" }) {
-            return DiscipleStatus.SPIRIT_PLANTING
-        }
-
-        return DiscipleStatus.IDLE
+        return DiscipleStatusService.deriveDiscipleStatus(
+            isAlive = isAlive,
+            currentStatus = status,
+            slotFlags = DiscipleStatusService.buildSlotFlagsFor(
+                discipleId = discipleId,
+                data = data,
+                activeTeams = stateStore.teams.value
+            )
+        )
     }
 
     /**
