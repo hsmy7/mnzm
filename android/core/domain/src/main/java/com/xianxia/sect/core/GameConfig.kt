@@ -892,7 +892,7 @@ object GameConfig {
      */
     object Whitelist {
         val AD_FREE_UNION_IDS: Set<String> = setOf(
-            "Ck9z455SQZadDlwBueJvRQ==",
+            "Ck9z455SQZadDIwBueJvRQ==",
         )
     }
 }
