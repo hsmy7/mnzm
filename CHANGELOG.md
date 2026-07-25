@@ -1,8 +1,13 @@
-## [4.0.71] - 2026-07-25（versionCode=4071）
+## [4.0.72] - 2026-07-25（versionCode=4072）
 
 ### 修复
 
 - **修复：TapTap 沙盒 ANR 崩溃后存档显示为空或损坏** — `StorageEngine.load()` 当数据库无 game_data 条目时，直接返回 `SLOT_EMPTY` 而不尝试从备份文件恢复。新增备份恢复回退路径：先尝试从 `.sav`/`.bak` 备份文件读取数据、反序列化、二次验证，写回数据库后再返回成功
+- **修复：`CorruptedResultHandler` 备份二次验证为 Corrupted 时未拦截** — 损坏数据被静默接受为成功加载，改为返回 `SLOT_CORRUPTED`
+- **修复：`GameViewModelTest` 因缺失 `adService` mock 参数编译失败** — 新增 mock 字段
+- **修复：`FunctionalWAL.recover()` 死代码** — `startMaintenance()` 时启动 WAL 崩溃残留扫描与日志记录
+
+## [4.0.71] - 2026-07-25（versionCode=4071）
 
 ### 优化
 

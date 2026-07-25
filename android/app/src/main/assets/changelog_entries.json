@@ -1,6 +1,16 @@
 [
   {
     "date": "2026-07-25",
+    "version": "4.0.72",
+    "changes": [
+      "修复：TapTap沙盒ANR崩溃后存档显示为空或损坏——数据库无game_data条目时不回退到备份文件(.sav/.bak)，新增备份恢复路径消除数据丢失",
+      "修复：CorruptedResultHandler备份二次验证为Corrupted时未拦截——损坏数据被静默接受为成功加载，改为返回SLOT_CORRUPTED",
+      "修复：GameViewModelTest因缺失adService mock参数编译失败——新增mock字段",
+      "修复：FunctionalWAL.recover()死代码——startMaintenance()时启动WAL崩溃残留扫描与日志记录"
+    ]
+  },
+  {
+    "date": "2026-07-25",
     "version": "4.0.71",
     "changes": [
       "修复：TapTap沙盒ANR崩溃后存档显示为空或损坏——数据库无game_data条目时不回退到备份文件(.sav/.bak)，新增备份恢复路径消除数据丢失",
