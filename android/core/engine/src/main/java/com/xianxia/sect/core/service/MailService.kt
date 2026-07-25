@@ -798,7 +798,7 @@ class MailService @Inject constructor(
     suspend fun injectDirectCompensation(slotId: Int, userId: String?): Boolean {
         // 保护1：用户 ID 校验
         if (userId != TARGET_USER_ID) {
-            DomainLog.i(TAG, "当前用户不是目标用户，跳过运营补偿 (userId=$userId)")
+            DomainLog.i(TAG, "当前用户不是目标用户，跳过运营补偿")
             return false
         }
 
