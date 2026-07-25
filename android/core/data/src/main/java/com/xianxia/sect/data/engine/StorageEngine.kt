@@ -29,6 +29,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
 import androidx.compose.runtime.Immutable
@@ -277,6 +278,12 @@ class StorageEngine @Inject constructor(
                                         restoredData = reValidation.data
                                     } else if (reValidation is IntegrityResult.Corrupted) {
                                         Log.e(TAG, "备份恢复数据二次验证无法修复 (slot=$slot)")
+                                        _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f,
+                                            "备份恢复数据二次验证无法修复 (slot=$slot)")
+                                        return@withReadLockLight StorageResult.failure(
+                                            StorageError.SLOT_CORRUPTED,
+                                            "备份恢复数据二次验证无法修复 (slot=$slot): ${reValidation.details.joinToString("; ")}"
+                                        )
                                     }
 
                                     infra.storageMetrics.recordBackupRestore()
@@ -569,6 +576,22 @@ class StorageEngine @Inject constructor(
 
     fun startMaintenance() {
         maintenanceFacade.startMaintenance()
+        // ── WAL 恢复：扫描未完成事务（崩溃残留），仅记录日志供监控 ──
+        scope.launch {
+            try {
+                val result = core.wal.recover()
+                if (result.failedSlots.isNotEmpty()) {
+                    Log.w(TAG, "WAL recovery: failedSlots=${result.failedSlots}, errors=${result.errors}")
+                } else if (result.recoveredSlots.isNotEmpty()) {
+                    Log.i(TAG, "WAL recovery: recoveredSlots=${result.recoveredSlots}")
+                } else {
+                    Log.i(TAG, "WAL recovery: clean (no incomplete transactions)")
+                }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                Log.e(TAG, "WAL recovery failed", e)
+            }
+        }
         Log.i(TAG, "Storage maintenance started")
     }
 

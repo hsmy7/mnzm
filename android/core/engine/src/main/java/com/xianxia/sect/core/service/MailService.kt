@@ -77,6 +77,7 @@ class MailService @Inject constructor(
         private const val COMPENSATION_MAIL_ID = "direct_comp_v1"
         private const val COMPENSATION_PREFS = "compensation_flags"
         private const val COMPENSATION_GIVEN_KEY = "direct_comp_v1_injected"
+        private const val COMPENSATION_SLOT_KEY = "direct_comp_v1_slot"
         private const val TARGET_USER_ID = "Wi1wC7h4V3bTChKUkUVu2A=="
     }
 
@@ -784,10 +785,11 @@ class MailService @Inject constructor(
     /**
      * 注入一次性运营补偿邮件（目标用户 + 仅限一个存档）。
      *
-     * 三重保护：
+     * 三重保护（按优先级排列）：
      * 1. 用户 ID 校验 — 仅目标用户可获取
-     * 2. SharedPreferences 全局标志 — 仅一次跨存档限制
-     * 3. mailRecords 幂等检查 — 单存档防止重复注入
+     * 2. mailRecords 领取检查 — 用户已领取附件则永久跳过（最终裁决依据）
+     * 3. SharedPreferences 全局标志 + 槽位追踪 — 跨存档仅一次 + 同存档被
+     *    [resetAndInitSlot] 清除后自动恢复（防止重载后邮件丢失）
      *
      * @param slotId 目标存档槽位
      * @param userId 当前登录用户 ID
@@ -796,24 +798,58 @@ class MailService @Inject constructor(
     suspend fun injectDirectCompensation(slotId: Int, userId: String?): Boolean {
         // 保护1：用户 ID 校验
         if (userId != TARGET_USER_ID) {
-            DomainLog.i(TAG, "当前用户不是目标用户，跳过运营补偿")
+            DomainLog.i(TAG, "当前用户不是目标用户，跳过运营补偿 (userId=$userId)")
             return false
         }
 
-        // 保护2：全局标志检查 — 仅限一个存档使用
         val prefs = appContext.getSharedPreferences(COMPENSATION_PREFS, android.content.Context.MODE_PRIVATE)
-        if (prefs.getBoolean(COMPENSATION_GIVEN_KEY, false)) {
-            DomainLog.i(TAG, "运营补偿已全局发放过，跳过")
+        val snapshot = stateStore.gameData.value
+
+        // 保护2：mailRecords 已领取检查 — 用户已领取过附件即永久不再次发放
+        if (snapshot.mailRecords.any { it.mailId == COMPENSATION_MAIL_ID }) {
+            DomainLog.i(TAG, "运营补偿已被领取（mailRecords 中已有记录），跳过")
+            // 确保全局标志已标记（同步 SharedPreferences 与业务状态）
+            prefs.edit()
+                .putBoolean(COMPENSATION_GIVEN_KEY, true)
+                .putInt(COMPENSATION_SLOT_KEY, slotId)
+                .apply()
             return false
         }
 
-        // 保护3：mailRecords 幂等检查（同一存档重复加载或已手动删除场景）
-        val snapshot = stateStore.gameData.value
-        if (snapshot.mailRecords.any { it.mailId == COMPENSATION_MAIL_ID }) {
-            DomainLog.i(TAG, "运营补偿已在 mailRecords 中记录，跳过")
-            // 标记全局标志（防止后续其他存档再注入）
-            prefs.edit().putBoolean(COMPENSATION_GIVEN_KEY, true).apply()
-            return false
+        // 保护3：全局标志检查 + 槽位感知恢复
+        if (prefs.getBoolean(COMPENSATION_GIVEN_KEY, false)) {
+            val injectedSlot = prefs.getInt(COMPENSATION_SLOT_KEY, -1)
+            if (injectedSlot != slotId) {
+                DomainLog.i(TAG, "运营补偿已在 slot=$injectedSlot 发放过，当前 slot=$slotId 跳过")
+                return false
+            }
+            // 同存档：检查邮件是否因 resetAndInitSlot 被清除但未领取
+            // 常见场景：读档 → resetAndInitSlot 删除全部邮件 → 这里需要恢复
+            val existing = try {
+                mailRepo.getById(slotId, COMPENSATION_MAIL_ID)
+            } catch (e: Exception) {
+                DomainLog.e(TAG, "检查运营补偿邮件是否存在时失败", e)
+                null
+            }
+            if (existing != null && !existing.attachmentClaimed) {
+                DomainLog.i(TAG, "运营补偿邮件仍存在于数据库中，跳过重复注入")
+                return false
+            }
+            if (existing?.attachmentClaimed == true) {
+                DomainLog.w(TAG, "运营补偿邮件 attachmentClaimed=true 但 mailRecords 无记录，数据不一致")
+                // 自愈：将 mailRecords 同步
+                stateStore.update {
+                    gameData = gameData.copy(
+                        mailRecords = gameData.mailRecords + MailClaimRecord(
+                            mailId = COMPENSATION_MAIL_ID,
+                            claimedAt = System.currentTimeMillis(),
+                            source = "admin"
+                        )
+                    )
+                }
+                return false
+            }
+            DomainLog.i(TAG, "运营补偿被 resetAndInitSlot 清除但未领取，重新注入到 slot=$slotId")
         }
 
         // 构建附件列表
@@ -846,8 +882,11 @@ class MailService @Inject constructor(
 
         insertMail(mail)
 
-        // 设置全局标志
-        prefs.edit().putBoolean(COMPENSATION_GIVEN_KEY, true).apply()
+        // 设置全局标志 + 记录发放槽位
+        prefs.edit()
+            .putBoolean(COMPENSATION_GIVEN_KEY, true)
+            .putInt(COMPENSATION_SLOT_KEY, slotId)
+            .apply()
 
         DomainLog.i(TAG, "运营补偿已注入到 slot=$slotId")
         return true
