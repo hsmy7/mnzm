@@ -20,7 +20,6 @@ import com.xianxia.sect.ui.game.saveload.SaveLoadLoadDelegate
 import com.xianxia.sect.ui.game.saveload.SaveLoadPauseDelegate
 import com.xianxia.sect.ui.game.saveload.SaveLoadRestartDelegate
 import com.xianxia.sect.ui.game.saveload.SaveLoadSaveDelegate
-import com.xianxia.sect.ui.game.saveload.SaveLoadStateDelegate
 import com.xianxia.sect.ui.game.saveload.PersistenceFacade
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.*
@@ -47,7 +46,6 @@ class SaveLoadViewModel @Inject constructor(
     }
     private val restartDelegate by lazy { SaveLoadRestartDelegate(gameEngine, gameEngineCore, persistenceFacade.storageFacade, stateStore) }
     private val pauseDelegate by lazy { SaveLoadPauseDelegate(gameEngineCore, gameClock) }
-    private val stateDelegate by lazy { SaveLoadStateDelegate(stateStore) }
 
     companion object {
         private const val TAG = SaveLoadViewModelConstants.TAG

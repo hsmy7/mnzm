@@ -3,6 +3,8 @@ package com.xianxia.sect.core.engine
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 fun GameEngine.addDisciple(disciple: Disciple) = discipleFacade.addDisciple(disciple)
 fun GameEngine.removeDisciple(discipleId: String): DomainResult<Unit> = discipleFacade.removeDisciple(discipleId)
@@ -50,27 +52,29 @@ fun GameEngine.removeDiscipleFromLibrarySlot(slotIndex: Int) = discipleFacade.re
  *   额外清理 statusData 中的 buildingId（视为血炼失败，不返还材料）
  */
 suspend fun GameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId: String) {
-    stateStore.update {
-        val id = discipleId.toIntOrNull()
-        if (id == null || id !in discipleTables.ids) return@update
+    withContext(Dispatchers.IO) {
+        stateStore.update {
+            val id = discipleId.toIntOrNull()
+            if (id == null || id !in discipleTables.ids) return@update
 
-        when (discipleTables.statuses[id]) {
-            DiscipleStatus.REFLECTING -> {
-                val existingData = discipleTables.statusData[id]
-                discipleTables.statusData[id] = existingData - setOf(
-                    "reflectionStartYear", "reflectionEndYear"
-                )
-            }
-            DiscipleStatus.REFINING -> {
-                gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlots(gameData, discipleId)
-                val current = discipleTables.statusData.getOrDefault(id, emptyMap())
-                discipleTables.statusData[id] = current - "buildingId"
-            }
-            else -> {
-                gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlots(gameData, discipleId)
+            when (discipleTables.statuses[id]) {
+                DiscipleStatus.REFLECTING -> {
+                    val existingData = discipleTables.statusData[id]
+                    discipleTables.statusData[id] = existingData - setOf(
+                        "reflectionStartYear", "reflectionEndYear"
+                    )
+                }
+                DiscipleStatus.REFINING -> {
+                    gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlots(gameData, discipleId)
+                    val current = discipleTables.statusData.getOrDefault(id, emptyMap())
+                    discipleTables.statusData[id] = current - "buildingId"
+                }
+                else -> {
+                    gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlots(gameData, discipleId)
+                }
             }
         }
+        syncSingleDiscipleStatus(discipleId)
+        // clearAllSlots 内部已调用 gate.release()，无需重复调用
     }
-    syncSingleDiscipleStatus(discipleId)
-    // clearAllSlots 内部已调用 gate.release()，无需重复调用
 }

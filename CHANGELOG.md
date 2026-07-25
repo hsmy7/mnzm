@@ -29,6 +29,18 @@
 - **修复：宗门政策开关无法生效** — `SectPolicyToggleUseCase.toggle()` 直接调 `stateStore.update{}` 从主线程调用时被静默跳过，政策无法开启/关闭。修复：UseCase 层用 `withEngineContext` 自动切换到引擎线程
 - **加固：GameEngineCore 新增 withEngineContext** — 引擎层基础设施，供后续将直接调 `stateStore.update{}` 的 suspend 方法自动派发到引擎线程
 
+### 修复
+
+- **修复：长按移动建筑确认后弹回原位** — `BuildingDelegate.moveBuilding()` 在 `moveScope.launch`（主线程）调 `stateStore.update` 被主线程守卫静默跳过。加 `withContext(IO)` 修复
+- **修复：赏赐物品给弟子后仓库显示两本功法（重复）** — `manualStacks` 缺少弟子背包物品过滤（`equipmentStacks` 已有同类过滤），补全 `combine` + `disciples` 过滤逻辑
+- **修复：储物袋开启后物品不入账且袋子不消耗** — `BagDelegate.openStorageBag()` 主线程调 `stateStore.update` 被跳过，加 `withContext(IO)` 修复
+- **修复：兽袭进贡/战斗后状态未保存** — `BeastAttackDelegate.resolveBeastAttackPayTribute/Fight()` 主线程被跳过，加 `withContext(IO)`
+- **修复：15+ 对话框释放弟子槽位不生效** — `releaseDiscipleFromAllSlotsAtomic()` 主线程被跳过，加 `withContext(IO)`，一处修改覆盖全部调用点
+- **修复：安排/撤换长老后修炼结算不更新** — `BaseViewModel.launchElderAction` 在 `viewModelScope.launch`（主线程）运行，改为 `Dispatchers.Default`
+- **修复：广纳门徒政策开关无法生效** — `SectPolicyToggleUseCase.toggleOpenRecruitment()` 遗漏 `withEngineContext`（同类中唯一），补全
+- **举一反三：地毯式排查 58 个 `stateStore.update` 调用点** — 确认外交/存档/引擎核心系统均安全，无遗漏同类问题
+- **清理：删除死代码 `UnifiedGameStateManager.kt` 和 `SaveLoadStateDelegate.kt`** — 两文件均无调用方
+
 ### 架构债务
 
 - **追加：引擎 suspend API 线程安全自动化** — 将所有直接调 `stateStore.update{}` 的 suspend 方法内部加 `withContext(gameDispatcher)` 包裹

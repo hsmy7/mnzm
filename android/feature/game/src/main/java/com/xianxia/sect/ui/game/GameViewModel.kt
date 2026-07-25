@@ -361,7 +361,15 @@ class GameViewModel @Inject constructor(
     }.stateIn(viewModelScope, sharingStarted, emptyList())
 
     val equipmentInstances: StateFlow<List<EquipmentInstance>> get() = gameEngine.equipmentInstances
-    val manualStacks: StateFlow<List<ManualStack>> get() = gameEngine.manualStacks
+    val manualStacks: StateFlow<List<ManualStack>> = combine(
+        gameEngine.manualStacks, gameEngine.disciples
+    ) { stacks, disciples ->
+        val bagStackIds = disciples.filter { it.isAlive }
+            .flatMap { it.equipment.storageBagItems }
+            .filter { it.itemType == "manual_stack" }
+            .map { it.itemId }.toSet()
+        stacks.filter { it.id !in bagStackIds }
+    }.stateIn(viewModelScope, sharingStarted, emptyList())
     val manualInstances: StateFlow<List<ManualInstance>> get() = gameEngine.manualInstances
     val pills: StateFlow<List<Pill>> get() = gameEngine.pills
     val materials: StateFlow<List<Material>> get() = gameEngine.materials

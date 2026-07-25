@@ -214,13 +214,13 @@ class SectPolicyToggleUseCase @Inject constructor(
         gameEngine.gameData.value?.sectPolicies?.benevolentGovernance ?: false
 
     // ── 周期性消耗 ──
-    suspend fun toggleOpenRecruitment(): ToggleResult {
-        val gd = gameEngine.gameData.value ?: return ToggleResult.Error("游戏数据不可用")
+    suspend fun toggleOpenRecruitment(): ToggleResult = gameEngine.gameEngineCore.withEngineContext {
+        val gd = gameEngine.gameData.value ?: return@withEngineContext ToggleResult.Error("游戏数据不可用")
         val wasEnabled = gd.sectPolicies.openRecruitment
         if (!wasEnabled) {
             val cost = GameConfig.PolicyConfig.OPEN_RECRUITMENT_COST
             if (!spiritStoneWallet.canAfford(cost)) {
-                return ToggleResult.Error("灵石不足${cost}，无法开启广纳门徒")
+                return@withEngineContext ToggleResult.Error("灵石不足${cost}，无法开启广纳门徒")
             }
             val currentMonth = gd.gameYear * 12 + gd.gameMonth
             gameEngine.stateStore.update {
@@ -240,7 +240,7 @@ class SectPolicyToggleUseCase @Inject constructor(
                 gameData = gameData.copy(sectPolicies = gameData.sectPolicies.copy(openRecruitment = false))
             }
         }
-        return ToggleResult.Success
+        ToggleResult.Success
     }
     fun isOpenRecruitmentEnabled(): Boolean =
         gameEngine.gameData.value?.sectPolicies?.openRecruitment ?: false

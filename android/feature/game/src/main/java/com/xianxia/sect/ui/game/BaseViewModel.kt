@@ -6,6 +6,7 @@ import com.xianxia.sect.core.usecase.ElderManagementUseCase
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 abstract class BaseViewModel : ViewModel() {
@@ -31,7 +32,7 @@ abstract class BaseViewModel : ViewModel() {
         action: suspend () -> ElderManagementUseCase.ElderResult,
         errorMessage: String = "操作失败"
     ) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.Default) {
             try {
                 when (val result = action()) {
                     is ElderManagementUseCase.ElderResult.Success -> showSuccess(result.message)
