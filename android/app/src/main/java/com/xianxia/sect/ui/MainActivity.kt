@@ -50,8 +50,12 @@ import com.xianxia.sect.taptap.ComplianceManager
 import com.xianxia.sect.ui.game.GameActivity
 import com.xianxia.sect.ui.game.LoadingScreen
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.AudioToggleRow
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.XianxiaTheme
+import com.xianxia.sect.core.audio.AudioConfig
+import com.xianxia.sect.core.audio.AudioEngine
+import com.xianxia.sect.core.audio.AudioPreloader
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -122,6 +126,15 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var tapCloudSaveManager: TapCloudSaveManager
+
+    @Inject
+    lateinit var audioConfig: AudioConfig
+
+    @Inject
+    lateinit var audioEngine: AudioEngine
+
+    @Inject
+    lateinit var audioPreloader: AudioPreloader
     
     public var complianceDialogState = mutableStateOf<ComplianceDialogState?>(null)
     /** TapTap SDK 初始化就绪状态，登录按钮需此标记为 true 才可点击 */
@@ -257,6 +270,15 @@ class MainActivity : ComponentActivity() {
     }
     
     internal fun onLoadingComplete() {
+        // ── 音频引擎初始化（不阻塞后续流程） ──
+        audioEngine.init()
+        audioConfig.loadFromPrefs(sessionManager.soundEnabled, sessionManager.musicEnabled)
+        audioPreloader.preloadAll(listOf("click" to R.raw.sfx_button))
+        audioPreloader.preloadBGM(R.raw.bgm_main)
+        if (audioConfig.musicEnabled) {
+            audioEngine.playBGM()
+        }
+
         lifecycleScope.launch {
             initTapTapSDK()
 
@@ -307,6 +329,17 @@ class MainActivity : ComponentActivity() {
                         },
                         onPrivacyAgreed = {
                             onPrivacyAgreed()
+                        },
+                        soundEnabled = audioConfig.soundEnabled,
+                        musicEnabled = audioConfig.musicEnabled,
+                        onSoundToggle = { enabled ->
+                            audioConfig.soundEnabled = enabled
+                            sessionManager.soundEnabled = enabled
+                        },
+                        onMusicToggle = { enabled ->
+                            audioConfig.musicEnabled = enabled
+                            sessionManager.musicEnabled = enabled
+                            if (enabled) audioEngine.playBGM() else audioEngine.stopBGM()
                         }
                     )
                 }
@@ -331,6 +364,17 @@ class MainActivity : ComponentActivity() {
                         sessionManager.clearSession()
                         ComplianceManager.unregisterCallback()
                         recreate()
+                    },
+                    soundEnabled = audioConfig.soundEnabled,
+                    musicEnabled = audioConfig.musicEnabled,
+                    onSoundToggle = { enabled ->
+                        audioConfig.soundEnabled = enabled
+                        sessionManager.soundEnabled = enabled
+                    },
+                    onMusicToggle = { enabled ->
+                        audioConfig.musicEnabled = enabled
+                        sessionManager.musicEnabled = enabled
+                        if (enabled) audioEngine.playBGM() else audioEngine.stopBGM()
                     }
                 )
             }
@@ -518,10 +562,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onPause() {
+        super.onPause()
+        audioEngine.pauseBGM()
+    }
+
     override fun onResume() {
         super.onResume()
         hideSystemBars()
         requestNotificationPermissionIfNeeded()
+        if (audioConfig.musicEnabled && ::audioEngine.isInitialized) {
+            audioEngine.resumeBGM()
+        }
     }
 
     /**
@@ -636,7 +688,11 @@ fun MainScreen(
     complianceDialogState: MutableState<MainActivity.ComplianceDialogState?>,
     tapTapReady: Boolean = false,
     onLoginSuccess: () -> Unit,
-    onPrivacyAgreed: () -> Unit = {}
+    onPrivacyAgreed: () -> Unit = {},
+    soundEnabled: Boolean = true,
+    musicEnabled: Boolean = true,
+    onSoundToggle: (Boolean) -> Unit = {},
+    onMusicToggle: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     var isLoading by remember { mutableStateOf(false) }
@@ -869,6 +925,20 @@ fun MainScreen(
                 .align(Alignment.BottomEnd)
                 .padding(end = 16.dp, bottom = 12.dp)
         )
+
+        // 右上角：音乐/音效勾选项
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 16.dp, end = 16.dp)
+        ) {
+            AudioToggleRow(
+                soundEnabled = soundEnabled,
+                musicEnabled = musicEnabled,
+                onSoundToggle = onSoundToggle,
+                onMusicToggle = onMusicToggle
+            )
+        }
     }
 }
 

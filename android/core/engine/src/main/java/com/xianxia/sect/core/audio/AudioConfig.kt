@@ -24,6 +24,15 @@ class AudioConfig {
     }
 
     /**
+     * 从 SessionManager 持久化设置初始化。
+     * 在游戏加载前调用（登录/主菜单阶段）。
+     */
+    fun loadFromPrefs(sound: Boolean, music: Boolean) {
+        soundEnabled = sound
+        musicEnabled = music
+    }
+
+    /**
      * 单独更新某一项设置。
      * @param sound 音效开关，null 表示不修改
      * @param music 音乐开关，null 表示不修改

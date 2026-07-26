@@ -33,6 +33,8 @@ import com.xianxia.sect.ui.game.buildBuildingDataArray
 import com.xianxia.sect.ui.game.sect.RenderCommandBus
 import com.xianxia.sect.core.util.GridSnapHelper
 import com.xianxia.sect.core.engine.system.SystemManager
+import com.xianxia.sect.core.audio.AudioConfig
+import com.xianxia.sect.core.audio.AudioEngine
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
@@ -69,7 +71,9 @@ class GameViewModel @Inject constructor(
     private val saveFacade: SaveFacade,
     private val thermalMonitor: ThermalMonitor,
     private val dialogManager: DialogManager,
-    private val adService: AdService
+    private val adService: AdService,
+    private val audioConfig: AudioConfig,
+    private val audioEngine: AudioEngine
 ) : BaseViewModel() {
 
     // ── 新提取的领域委托 ──
@@ -81,7 +85,7 @@ class GameViewModel @Inject constructor(
     val mail = MailDelegate(gameEngine, mailService, dailySignInService, ::showError)
     val signIn = SignInDelegate(gameEngine, dailySignInService, viewModelScope, sharingStarted)
     val gameLoop = GameLoopDelegate(gameEngine, gameEngineCore, systemManager, viewModelScope, ::showError)
-    val settings = SettingsDelegate(gameEngine, discipleFacade)
+    val settings = SettingsDelegate(gameEngine, discipleFacade, audioConfig)
 
     // ── 既有领域委托 ──
 
@@ -723,6 +727,13 @@ class GameViewModel @Inject constructor(
 
     // SettingsDelegate
     fun setPatrolBattleResultPopup(enabled: Boolean) = settings.setPatrolBattleResultPopup(enabled)
+    fun setSoundEnabled(enabled: Boolean) {
+        settings.setSoundEnabled(enabled)
+    }
+    fun setMusicEnabled(enabled: Boolean) {
+        settings.setMusicEnabled(enabled)
+        audioEngine.onSettingsChanged()
+    }
     fun setAutoSellMidGradeForPurchase(enabled: Boolean) = settings.setAutoSellMidGradeForPurchase(enabled)
     fun setAutoSellHighGradeForPurchase(enabled: Boolean) = settings.setAutoSellHighGradeForPurchase(enabled)
     fun setShowAllAvailableDisciples(enabled: Boolean) = settings.setShowAllAvailableDisciples(enabled)

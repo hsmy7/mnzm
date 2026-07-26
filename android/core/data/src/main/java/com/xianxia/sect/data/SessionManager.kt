@@ -66,6 +66,14 @@ class SessionManager @Inject constructor(
         get() = prefs.getString(KEY_AVATAR, null)
         set(value) = edit { putString(KEY_AVATAR, value) }
 
+    var soundEnabled: Boolean
+        get() = prefs.getBoolean(KEY_SOUND_ENABLED, true)
+        set(value) = edit { putBoolean(KEY_SOUND_ENABLED, value) }
+
+    var musicEnabled: Boolean
+        get() = prefs.getBoolean(KEY_MUSIC_ENABLED, true)
+        set(value) = edit { putBoolean(KEY_MUSIC_ENABLED, value) }
+
     fun saveLoginSession(
         userId: String,
         userName: String,
@@ -126,5 +134,7 @@ class SessionManager @Inject constructor(
         private const val KEY_UNION_ID = "union_id"
         private const val KEY_LIMIT_AD_TRACKING = "limit_ad_tracking"
         private const val KEY_AVATAR = "avatar"
+        private const val KEY_SOUND_ENABLED = "sound_enabled"
+        private const val KEY_MUSIC_ENABLED = "music_enabled"
     }
 }

@@ -717,7 +717,16 @@ data class GameData(
     @ProtoNumber(158)
     @ColumnInfo(name = "yearly_reports")
     @SettlementStrategy(Strategy.PRESERVE_OLD)
-    var yearlyReports: List<YearlyReport> = emptyList()
+    var yearlyReports: List<YearlyReport> = emptyList(),
+
+    // 音乐/音效开关
+    @ProtoNumber(160)
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var soundEnabled: Boolean = true,
+
+    @ProtoNumber(161)
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var musicEnabled: Boolean = true,
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月${GamePhase.fromValue(gamePhase).displayName}"
 

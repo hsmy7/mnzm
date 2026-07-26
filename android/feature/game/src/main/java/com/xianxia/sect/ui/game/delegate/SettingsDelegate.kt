@@ -1,11 +1,13 @@
 package com.xianxia.sect.ui.game.delegate
 
+import com.xianxia.sect.core.audio.AudioConfig
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
 
 class SettingsDelegate(
     private val gameEngine: GameEngine,
-    private val discipleFacade: DiscipleFacade
+    private val discipleFacade: DiscipleFacade,
+    private val audioConfig: AudioConfig
 ) {
 
     fun setPatrolBattleResultPopup(enabled: Boolean) {
@@ -79,5 +81,25 @@ class SettingsDelegate(
 
     fun setYearlySalaryEnabled(realm: Int, enabled: Boolean) {
         gameEngine.launchOnEngine { discipleFacade.updateYearlySalaryEnabled(realm, enabled) }
+    }
+
+    fun setSoundEnabled(enabled: Boolean) {
+        gameEngine.launchOnEngine {
+            audioConfig.soundEnabled = enabled
+            val data = gameEngine.gameData.value
+            if (data.soundEnabled != enabled) {
+                gameEngine.updateGameData { it.copy(soundEnabled = enabled) }
+            }
+        }
+    }
+
+    fun setMusicEnabled(enabled: Boolean) {
+        gameEngine.launchOnEngine {
+            audioConfig.musicEnabled = enabled
+            val data = gameEngine.gameData.value
+            if (data.musicEnabled != enabled) {
+                gameEngine.updateGameData { it.copy(musicEnabled = enabled) }
+            }
+        }
     }
 }

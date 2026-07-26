@@ -256,6 +256,41 @@ internal fun SettingsTab(
 
             item {
                 Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Column {
+                        Text(
+                            text = "音乐",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        CircularCheckbox(
+                            checked = gameData.musicEnabled,
+                            onToggle = { viewModel.setMusicEnabled(!gameData.musicEnabled) }
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "音效",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        CircularCheckbox(
+                            checked = gameData.soundEnabled,
+                            onToggle = { viewModel.setSoundEnabled(!gameData.soundEnabled) }
+                        )
+                    }
+                }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(4.dp))
                 BoxWithConstraints {
                     val spacing = 16.dp
                     val columns = when {

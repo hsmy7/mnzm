@@ -289,27 +289,20 @@ class ResourcePreloader @Inject constructor(
      * 预加载音频资源。
      *
      * 在精灵图预加载阶段（Phase 2）末尾调用，不阻塞主流程。
-     * 实际音频资源 ID 由游戏配置定义，此处预留扩展点。
+     * 新增音效或 BGM 时在此处添加预加载调用。
      *
-     * 集成步骤（待音频资源就绪后）：
-     * 1. 将 .ogg/.wav 文件放入 `res/raw/` 目录
-     * 2. 在此方法中调用 `audioEngine?.preloadSound("name", R.raw.xxx)`
-     * 3. 在 Phase L2 加载 BGM：`audioEngine?.preloadBGM(R.raw.bg_main)`
+     * 添加步骤：
+     * 1. 将 .mp3/.ogg 文件放入 `res/raw/` 目录（两个模块均需放置）
+     * 2. 在此方法中调用 engine.preloadSound("名称", R.raw.xxx)
      */
     private fun preloadAudio() {
         val engine = audioEngine ?: return
         if (!engine.isReady) return
 
-        // 预留：在此处添加 SFX 预加载
-        // engine.preloadSound("click", R.raw.sfx_click)
-        // engine.preloadSound("open", R.raw.sfx_open)
-        // engine.preloadSound("close", R.raw.sfx_close)
-        // engine.preloadSound("success", R.raw.sfx_success)
-        // engine.preloadSound("error", R.raw.sfx_error)
-        // engine.preloadSound("battle", R.raw.sfx_battle)
-        // engine.preloadSound("upgrade", R.raw.sfx_upgrade)
-        // engine.preloadSound("purchase", R.raw.sfx_purchase)
-        // engine.preloadBGM(R.raw.bg_main)
+        // 按钮音效
+        engine.preloadSound("click", com.xianxia.sect.feature.game.R.raw.sfx_button)
+        // 背景音乐
+        engine.preloadBGM(com.xianxia.sect.feature.game.R.raw.bgm_main)
 
         Log.d(TAG, "Audio preload phase complete " +
             "(soundCache=${engine.isReady})")

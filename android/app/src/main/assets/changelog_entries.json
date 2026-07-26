@@ -3,6 +3,11 @@
     "date": "2026-07-26",
     "version": "4.0.75",
     "changes": [
+      "新增：背景音乐和按钮音效系统——集成BGM+SFX，SoundPool+MediaPlayer方案",
+      "新增：登录界面右上角音乐/音效勾选——未登录可调节，持久化到本地",
+      "新增：主菜单头像下方音乐/音效勾选——已登录未进游戏时调节",
+      "新增：游戏内设置界面音乐/音效勾选——同步持久化到存档",
+      "新增：双Activity BGM生命周期管理——切后台/切换Activity自动暂停恢复",
       "调整：移除伴侣突破忠诚+3机制",
       "调整：灵石不足无法发年俸时，应得俸禄弟子忠诚-1",
       "清理：移除PartnerSystem死代码（DomainEventSubscriber/eventBus/stateStore依赖）",

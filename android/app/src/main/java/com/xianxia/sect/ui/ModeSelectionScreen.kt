@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bumptech.glide.Glide
 import com.xianxia.sect.R
+import com.xianxia.sect.ui.components.AudioToggleRow
 import com.xianxia.sect.ui.components.SmallScreenDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -42,7 +43,11 @@ fun ModeSelectionScreen(
     avatarUrl: String?,
     onNewGame: () -> Unit,
     onLoadSave: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    soundEnabled: Boolean = true,
+    musicEnabled: Boolean = true,
+    onSoundToggle: (Boolean) -> Unit = {},
+    onMusicToggle: (Boolean) -> Unit = {}
 ) {
     var showUserInfo by remember { mutableStateOf(false) }
     val avatarBitmap = rememberAvatarBitmap(avatarUrl)
@@ -58,12 +63,24 @@ fun ModeSelectionScreen(
 
         // 主内容区 — 仅避让左右安全区域（曲面屏/挖孔屏边缘）
         Box(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Left + WindowInsetsSides.Right))) {
-            // 右上角：用户名 + 头像
-            UserAvatarHeader(
-                userName = userName,
-                avatarBitmap = avatarBitmap,
-                onClick = { showUserInfo = true }
-            )
+            // 右上角：用户名 + 头像 + 音频勾选
+            Column(
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = 16.dp, end = 16.dp),
+                horizontalAlignment = Alignment.End
+            ) {
+                UserAvatarHeader(
+                    userName = userName,
+                    avatarBitmap = avatarBitmap,
+                    onClick = { showUserInfo = true }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                AudioToggleRow(
+                    soundEnabled = soundEnabled,
+                    musicEnabled = musicEnabled,
+                    onSoundToggle = onSoundToggle,
+                    onMusicToggle = onMusicToggle
+                )
+            }
 
             // 左侧：三个按钮纵向排列
             ActionButtons(

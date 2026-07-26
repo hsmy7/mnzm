@@ -48,6 +48,8 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.game.sect.NativeSurfaceView
 import com.xianxia.sect.ui.theme.XianxiaTheme
+import com.xianxia.sect.core.audio.AudioConfig
+import com.xianxia.sect.core.audio.AudioEngine
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -109,6 +111,12 @@ class GameActivity : ComponentActivity() {
 
     @Inject
     lateinit var adServiceImpl: AdServiceImpl
+
+    @Inject
+    lateinit var audioConfig: AudioConfig
+
+    @Inject
+    lateinit var audioEngine: AudioEngine
 
     // ── GameForegroundService 绑定 ──
     // 游戏循环控制权已迁移到 GameForegroundService，Activity 通过 Binder 获取 GameEngineCore 实例
@@ -435,6 +443,7 @@ class GameActivity : ComponentActivity() {
         frameMetricsMonitor.stopMonitoring(window)
         // ★ 进入后台 → 先停游戏循环和自定义渲染器，释放 GPU 资源
         // 再通知系统暂停（super.onPause），降低 HardwareRenderer.setStopped 阻塞时间
+        audioEngine.pauseBGM()
         saveLoadViewModel.pauseForBackground()
         backgroundTaskScheduler.pause()
         wakeLockManager.release()
@@ -456,6 +465,9 @@ class GameActivity : ComponentActivity() {
         hideSystemBars()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             frameMetricsMonitor.startMonitoring(window)
+        }
+        if (audioConfig.musicEnabled) {
+            audioEngine.resumeBGM()
         }
         backgroundTaskScheduler.resume()
         // ★ 回到前台 → 恢复游戏循环
