@@ -4,8 +4,6 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.media.SoundPool
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -49,18 +47,6 @@ class AudioEngine @Inject constructor(
 
     /** name → SoundPool soundId */
     private val soundCache = ConcurrentHashMap<String, Int>()
-
-    /** 循环淡入淡出相关 */
-    private val bgmHandler = Handler(Looper.getMainLooper())
-    private var bgmFadeRunnable: Runnable? = null
-    private var bgmDurationMs: Int = 0
-    private var bgmTargetVolume: Float = 1f
-
-    /** 设置 BGM 音量（0.0～1.0），含淡入淡出安全保护 */
-    private fun setBgmVolume(vol: Float) {
-        bgmTargetVolume = vol.coerceIn(0f, 1f)
-        try { bgmPlayer?.setVolume(bgmTargetVolume, bgmTargetVolume) } catch (_: Exception) {}
-    }
 
     // ==================== 生命周期 ====================
 
@@ -159,9 +145,6 @@ class AudioEngine @Inject constructor(
      *
      * 仅在 [AudioConfig.musicEnabled] 为 true 时实际播放。
      * 如果已有 BGM 在播放，不会重复创建（幂等）。
-     *
-     * 不使用 MediaPlayer 内置的 setLooping(true)，而是手动应答 [OnCompletionListener]
-     * 并配合淡入淡出，消除循环处源文件的音尾突变声。
      */
     fun playBGM() {
         if (!audioConfig.musicEnabled) return
@@ -179,89 +162,18 @@ class AudioEngine @Inject constructor(
         if (bgmResId == 0) return
         try {
             bgmPlayer = MediaPlayer.create(context, bgmResId).apply {
-                bgmDurationMs = duration.coerceAtLeast(1)
                 setVolume(1f, 1f)
-                // 不使用 setLooping(true)，手动处理循环淡入淡出
-                setOnCompletionListener {
-                    // 确保 fade-out 已降至最低后重启
-                    bgmHandler.post {
-                        setBgmVolume(0f)
-                        try { seekTo(0); start() } catch (_: Exception) {}
-                        // 淡入：500ms 从 0→1
-                        startFadeIn(500L)
-                    }
-                }
-                isLooping = false
+                isLooping = true
                 start()
             }
-            // 启动 fade-out 监控：在结束前 600ms 开始淡出
-            startFadeOutBeforeEnd(600L)
-            Log.d(TAG, "BGM started (resId=$bgmResId, duration=${bgmDurationMs}ms)")
+            Log.d(TAG, "BGM started (resId=$bgmResId)")
         } catch (e: Exception) {
             Log.w(TAG, "Failed to create/start MediaPlayer", e)
         }
     }
 
-    /** 启动 fade-out 监控：在结束前 [leadMs] 开始将音量降至 0 */
-    private fun startFadeOutBeforeEnd(leadMs: Long) {
-        bgmFadeRunnable?.let { bgmHandler.removeCallbacks(it) }
-        val r = object : Runnable {
-            private val fadeStepMs = 50L
-            private val fadeSteps = (leadMs / fadeStepMs).coerceAtLeast(1).toInt()
-            private val volStep = 1f / fadeSteps
-            private var step = 0
-            private var faded = false
-
-            override fun run() {
-                val player = bgmPlayer ?: return
-                try {
-                    val pos = player.currentPosition
-                    val remaining = bgmDurationMs - pos
-                    if (!faded && remaining <= leadMs) {
-                        faded = true
-                        step = 0
-                    }
-                    if (faded) {
-                        step++
-                        val vol = (1f - volStep * step).coerceIn(0f, 1f)
-                        setBgmVolume(vol)
-                    }
-                } catch (_: Exception) {}
-                if (player.isPlaying) {
-                    bgmHandler.postDelayed(this, fadeStepMs)
-                }
-            }
-        }
-        bgmFadeRunnable = r
-        bgmHandler.postDelayed(r, 1000L) // 1s后开始监控
-    }
-
-    /** 淡入：从当前音量渐增到 1.0 */
-    private fun startFadeIn(durationMs: Long) {
-        val fadeStepMs = 50L
-        val steps = (durationMs / fadeStepMs).coerceAtLeast(1).toInt()
-        val volStep = 1f / steps
-        bgmFadeRunnable?.let { bgmHandler.removeCallbacks(it) }
-        val r = object : Runnable {
-            private var step = 0
-            override fun run() {
-                step++
-                setBgmVolume((volStep * step).coerceIn(0f, 1f))
-                if (step < steps && bgmPlayer?.isPlaying == true) {
-                    bgmHandler.postDelayed(this, fadeStepMs)
-                } else {
-                    setBgmVolume(1f)
-                }
-            }
-        }
-        bgmFadeRunnable = r
-        bgmHandler.post(r)
-    }
-
     /** 停止并释放背景音乐。 */
     fun stopBGM() {
-        bgmFadeRunnable?.let { bgmHandler.removeCallbacks(it) }
-        bgmFadeRunnable = null
         try {
             bgmPlayer?.let {
                 if (it.isPlaying) it.stop()
