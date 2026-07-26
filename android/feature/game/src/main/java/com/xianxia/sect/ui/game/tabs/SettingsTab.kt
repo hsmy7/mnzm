@@ -1149,7 +1149,7 @@ internal fun SaveSlotCard(
                 color = borderColor,
                 shape = RoundedCornerShape(8.dp)
             )
-            .clickable { onClick() }
+            .clickableWithSound { onClick() }
             .padding(12.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
