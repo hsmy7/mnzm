@@ -36,6 +36,7 @@ fun CloudSaveDialog(
     val operationState = operationStateValue
 
     LaunchedEffect(Unit) {
+        saveLoadViewModel.resetCloudSaveOperationState()
         saveLoadViewModel.checkCloudSave()
     }
 

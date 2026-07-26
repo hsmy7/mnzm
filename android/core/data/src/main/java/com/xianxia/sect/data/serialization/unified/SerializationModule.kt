@@ -34,7 +34,8 @@ class SerializationModule @Inject constructor(
             result.data
         } catch (e: Exception) {
             Log.e(TAG, "Protobuf serialization failed", e)
-            throw SerializationException("Failed to serialize save data via Protobuf", e)
+            val rootCauseMsg = e.cause?.let { " [root: ${it.message}]" }.orEmpty()
+            throw SerializationException("Failed to serialize save data via Protobuf${rootCauseMsg}", e)
         }
     }
 

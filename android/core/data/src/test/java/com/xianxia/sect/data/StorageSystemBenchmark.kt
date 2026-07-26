@@ -590,8 +590,8 @@ class StorageSystemBenchmark {
         println("  字节插入(3字节): checksumValid=${insertResult.checksumValid}, isSuccess=${insertResult.isSuccess}")
         println("  字节删除(3字节): checksumValid=${deleteResult.checksumValid}, isSuccess=${deleteResult.isSuccess}")
 
-        assertFalse("插入字节应导致checksum无效", insertResult.checksumValid || insertResult.isSuccess)
-        assertFalse("删除字节应导致checksum无效", deleteResult.checksumValid || deleteResult.isSuccess)
+        assertFalse("插入字节应导致checksum无效", insertResult.checksumValid)
+        assertFalse("删除字节应导致checksum无效", deleteResult.checksumValid)
     }
 
     @Test

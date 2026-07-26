@@ -270,44 +270,44 @@ enum class MissionTemplate {
 @Keep
 @Serializable
 data class MissionRewardConfig(
-    val spiritStones: Int = 0,
-    val spiritStonesMax: Int = 0,
-    val materialCountMin: Int = 0,
-    val materialCountMax: Int = 0,
-    val materialMinRarity: Int = 1,
-    val materialMaxRarity: Int = 2,
-    val pillCountMin: Int = 0,
-    val pillCountMax: Int = 0,
-    val pillMinRarity: Int = 1,
-    val pillMaxRarity: Int = 1,
-    val equipmentChance: Double = 0.0,
-    val equipmentMinRarity: Int = 1,
-    val equipmentMaxRarity: Int = 1,
-    val manualChance: Double = 0.0,
-    val manualMinRarity: Int = 1,
-    val manualMaxRarity: Int = 1,
-    val baseSpiritStones: Int = 0,
-    val baseMaterialCountMin: Int = 0,
-    val baseMaterialCountMax: Int = 0,
-    val baseMaterialMinRarity: Int = 1,
-    val baseMaterialMaxRarity: Int = 1
+    @ProtoNumber(1) val spiritStones: Int = 0,
+    @ProtoNumber(2) val spiritStonesMax: Int = 0,
+    @ProtoNumber(3) val materialCountMin: Int = 0,
+    @ProtoNumber(4) val materialCountMax: Int = 0,
+    @ProtoNumber(5) val materialMinRarity: Int = 1,
+    @ProtoNumber(6) val materialMaxRarity: Int = 2,
+    @ProtoNumber(7) val pillCountMin: Int = 0,
+    @ProtoNumber(8) val pillCountMax: Int = 0,
+    @ProtoNumber(9) val pillMinRarity: Int = 1,
+    @ProtoNumber(10) val pillMaxRarity: Int = 1,
+    @ProtoNumber(11) val equipmentChance: Double = 0.0,
+    @ProtoNumber(12) val equipmentMinRarity: Int = 1,
+    @ProtoNumber(13) val equipmentMaxRarity: Int = 1,
+    @ProtoNumber(14) val manualChance: Double = 0.0,
+    @ProtoNumber(15) val manualMinRarity: Int = 1,
+    @ProtoNumber(16) val manualMaxRarity: Int = 1,
+    @ProtoNumber(17) val baseSpiritStones: Int = 0,
+    @ProtoNumber(18) val baseMaterialCountMin: Int = 0,
+    @ProtoNumber(19) val baseMaterialCountMax: Int = 0,
+    @ProtoNumber(20) val baseMaterialMinRarity: Int = 1,
+    @ProtoNumber(21) val baseMaterialMaxRarity: Int = 1
 )
 
 @Keep
 @Serializable
 data class Mission(
     @ProtoNumber(1) val id: String = UUID.randomUUID().toString(),
-    val template: MissionTemplate,
+    @ProtoNumber(2) val template: MissionTemplate,
     @ProtoNumber(3) val name: String,
     @ProtoNumber(4) val description: String,
-    val difficulty: MissionDifficulty,
-    @ProtoNumber(7) val duration: Int,
-    val rewards: MissionRewardConfig,
-    val missionType: MissionType = MissionType.NO_COMBAT,
-    val enemyType: EnemyType = EnemyType.BEAST,
-    val triggerChance: Double = 0.0,
-    @ProtoNumber(13) val createdYear: Int = 1,
-    @ProtoNumber(14) val createdMonth: Int = 1
+    @ProtoNumber(5) val difficulty: MissionDifficulty,
+    @ProtoNumber(6) val duration: Int,
+    @ProtoNumber(7) val rewards: MissionRewardConfig,
+    @ProtoNumber(8) val missionType: MissionType = MissionType.NO_COMBAT,
+    @ProtoNumber(9) val enemyType: EnemyType = EnemyType.BEAST,
+    @ProtoNumber(10) val triggerChance: Double = 0.0,
+    @ProtoNumber(11) val createdYear: Int = 1,
+    @ProtoNumber(12) val createdMonth: Int = 1
 ) {
     val memberCount: Int get() = template.requiredMemberCount
 }
@@ -318,18 +318,18 @@ data class ActiveMission(
     @ProtoNumber(1) val id: String = UUID.randomUUID().toString(),
     @ProtoNumber(2) val missionId: String,
     @ProtoNumber(3) val missionName: String = "",
-    val template: MissionTemplate,
-    val difficulty: MissionDifficulty,
-    val discipleIds: List<String> = emptyList(),
-    @ProtoNumber(13) val discipleNames: List<String> = emptyList(),
-    @ProtoNumber(35) val discipleRealms: List<String> = emptyList(),
-    @ProtoNumber(5) val startYear: Int = 1,
-    @ProtoNumber(6) val startMonth: Int = 1,
-    @ProtoNumber(7) val duration: Int = 0,
-    val rewards: MissionRewardConfig,
-    val missionType: MissionType = MissionType.NO_COMBAT,
-    val enemyType: EnemyType = EnemyType.BEAST,
-    val triggerChance: Double = 0.0
+    @ProtoNumber(4) val template: MissionTemplate,
+    @ProtoNumber(5) val difficulty: MissionDifficulty,
+    @ProtoNumber(6) val discipleIds: List<String> = emptyList(),
+    @ProtoNumber(7) val discipleNames: List<String> = emptyList(),
+    @ProtoNumber(8) val discipleRealms: List<String> = emptyList(),
+    @ProtoNumber(9) val startYear: Int = 1,
+    @ProtoNumber(10) val startMonth: Int = 1,
+    @ProtoNumber(11) val duration: Int = 0,
+    @ProtoNumber(12) val rewards: MissionRewardConfig,
+    @ProtoNumber(13) val missionType: MissionType = MissionType.NO_COMBAT,
+    @ProtoNumber(14) val enemyType: EnemyType = EnemyType.BEAST,
+    @ProtoNumber(15) val triggerChance: Double = 0.0
 ) {
     val memberCount: Int get() = discipleIds.size
 

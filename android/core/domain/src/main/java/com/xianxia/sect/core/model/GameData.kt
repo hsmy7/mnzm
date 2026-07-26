@@ -379,6 +379,7 @@ data class GameData(
 
     // AI 宗门妖兽跳过冷却（宗门ID -> 剩余冷却旬数）
     @Ignore
+    @kotlinx.serialization.Transient
     @SettlementStrategy(Strategy.USE_SHADOW)
     var aiSectBeastSkipCooldowns: Map<String, Int> = emptyMap(),
 
@@ -386,6 +387,7 @@ data class GameData(
      *  当 AI 和玩家同时距离妖兽最近时，AI 暂不进攻，
      *  等玩家行动时触发遭遇战。 */
     @Ignore
+    @kotlinx.serialization.Transient
     @SettlementStrategy(Strategy.USE_SHADOW)
     var aiBeastEncounterTargets: Map<String, String> = emptyMap(),
 
@@ -394,6 +396,7 @@ data class GameData(
      *  月度结算中 AI 宗门将跳过对这些妖兽的攻击。
      *  @Ignore 不持久化，读档后自动清空。 */
     @Ignore
+    @kotlinx.serialization.Transient
     @SettlementStrategy(Strategy.USE_SHADOW)
     var lockedBeastIds: Set<String> = emptySet(),
 
@@ -402,6 +405,7 @@ data class GameData(
      *  巡视楼处理后第二阶段的 [processRemainingTargets] 处理剩余未击败妖兽。
      *  空列表表示该妖兽已被 AI 或巡视楼处理。 */
     @Ignore
+    @kotlinx.serialization.Transient
     @SettlementStrategy(Strategy.USE_SHADOW)
     var aiSectBeastDirectTargets: Map<String, List<String>> = emptyMap(),
 
@@ -427,15 +431,18 @@ data class GameData(
     var battleTeam: BattleTeam? = null,
 
     @Ignore
+    @kotlinx.serialization.Transient
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var battleTeams: List<BattleTeam> = emptyList(),
 
     // 已使用的队伍编号（用于解散后编号复用）
     @Ignore
+    @kotlinx.serialization.Transient
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var usedTeamNumbers: List<Int> = emptyList(),
 
     // AI战斗队伍
+    @kotlinx.serialization.Transient
     @SettlementStrategy(Strategy.USE_SHADOW)
     var aiBattleTeams: List<AIBattleTeam> = emptyList(),
 

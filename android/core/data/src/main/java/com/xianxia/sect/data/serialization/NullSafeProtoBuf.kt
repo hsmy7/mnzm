@@ -41,17 +41,19 @@ object NullSafeProtoBuf {
      * 统一的 ProtoBuf 实例配置
      *
      * 关键配置说明：
-     * - encodeDefaults = true: 确保所有字段都被序列化，即使值为默认值
-     *   这对于版本兼容性至关重要，因为新增字段需要有明确的默认值
+     * - encodeDefaults = false: 默认值/空值不编码，符合 Proto3 规范。
+     *   避免 nullable 字段为 null 时抛出异常。
+     *   反序列化时缺失字段使用类定义默认值，不影响版本兼容性。
      * - ignoreUnknownKeys = false: 严格模式，未知字段会抛出异常
      *   这有助于早期发现 schema 不匹配问题
      */
     /**
-     * 统一存档路径用 — 所有字段均为非空 Serializable，需要 encodeDefaults=true
-     * 确保 Schema 演进时新增字段有明确默认值，维持版本兼容性
+     * 统一存档路径用。encodeDefaults=false 使 null 字段自动省略，
+     * 避免 kotlinx.serialization 不支持 nullable 字段的 ProtoBuf 编码错误。
+     * 反序列化时缺失字段使用类定义的默认值，保证版本兼容。
      */
     val protoBuf: ProtoBuf = ProtoBuf {
-        encodeDefaults = true
+        encodeDefaults = false
     }
 
     /**

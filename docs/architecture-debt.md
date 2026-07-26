@@ -106,3 +106,49 @@ detekt 配置 `baseline` 只缩不增（CLAUDE.md 13.2），当前未启用 base
 
 **状态**：⏸️ 待扩充黑名单或实施信号处理方案。
 
+## ProtoBuf 默认值编码治理（⏸️ P1 待完成）
+
+`NullSafeProtoBuf.protoBuf` 已从 `encodeDefaults = true` 改为 `false`，符合 Proto3 规范。
+
+### 已完成
+- ✅ `encodeDefaults = false` — 消除 nullable 字段 null 值序列化崩溃
+- ✅ `ProtoNumberCoverageTest` 守卫 — `@Transient` 跳过 + EXCLUDED_FIELDS 清理
+- ✅ `GameData.kt` — 7 个运行时字段加 `@kotlinx.serialization.Transient`
+
+### 待完成
+
+**1. 关键字段加 `@EncodeDefault(ALWAYS)`**
+
+`encodeDefaults = false` 后，值为默认值的字段不会被写入二进制。以下字段的默认值非 Proto3 零值，或作为版本标识必须始终写入：
+
+```kotlin
+// SaveData.kt
+@EncodeDefault(EncodeDefault.Mode.ALWAYS)
+@ProtoNumber(1) val version: String = GameConfig.Game.VERSION,
+
+// GameData.kt — 非零默认值字段都需要标注
+@EncodeDefault(EncodeDefault.Mode.ALWAYS)
+@ProtoNumber(2) var sectName: String = "青云宗",     // 非 ""
+@EncodeDefault(EncodeDefault.Mode.ALWAYS)
+@ProtoNumber(4) var gameYear: Int = 1,                 // 非 0
+@EncodeDefault(EncodeDefault.Mode.ALWAYS)
+@ProtoNumber(5) var gameMonth: Int = 1,                // 非 0
+// ... 以及其他非零默认值的字段
+```
+
+**2. 编码规范补充**
+
+在 `CLAUDE.md` 或编码规范中新增：
+
+> **新增 `@ProtoNumber` 字段规则：** 字段默认值如果不是该类型的零值（`0`/`""`/`false`/`emptyList()`），必须标注 `@EncodeDefault(EncodeDefault.Mode.ALWAYS)`，否则 `encodeDefaults = false` 下该字段不会被写入二进制。
+
+**3. 守卫测试增强**（P2 可选）
+
+在 `ProtoNumberCoverageTest` 中追加：反射检查所有 `@ProtoNumber` 字段，如果默认值 != 类型零值且未标注 `@EncodeDefault(ALWAYS)`，则测试失败。这样新增字段时自动提醒。
+
+### 影响面
+
+- 此优化不会产生用户可见变化（当前运行行为正确）
+- 纯防御性改进，防止未来改默认值时出现微妙的存档兼容问题
+- 工作量预估：扫描约 150 个 `@ProtoNumber` 字段 + 标注非零默认值字段 + 更新编码规范
+

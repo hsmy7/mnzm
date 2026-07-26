@@ -622,6 +622,7 @@ class SaveLoadViewModel @Inject constructor(
         // slot 0 = 从云端下载（带 saveLoadState 管理 + 结果反馈）
         if (slot == 0) {
             viewModelScope.launch(Dispatchers.IO) {
+                resetCloudSaveOperationState()
                 setSaveLoadState(isLoading = true, pendingSlot = 0, pendingAction = "load")
                 try {
                     downloadFromCloudSave()
@@ -747,6 +748,7 @@ class SaveLoadViewModel @Inject constructor(
         // slot 0 = 上传至云端（带 saveLoadState 管理 + 结果反馈）
         if (slot == 0) {
             viewModelScope.launch(Dispatchers.IO) {
+                resetCloudSaveOperationState()
                 setSaveLoadState(isSaving = true, pendingSlot = 0, pendingAction = "save")
                 try {
                     uploadToCloudSave()

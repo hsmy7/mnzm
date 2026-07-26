@@ -1,5 +1,12 @@
 ## [4.0.75] - 2026-07-26
 
+### 修复
+
+- **修复：云存档序列化崩溃** — NullSafeProtoBuf.encodeDefaults=true→false，Proto3默认值不编码规范修正。修复@Ignore字段缺@Transient导致的NaN/Map不支持问题
+- **修复：云存档反序列化崩溃** — Mission/ActiveMission/MissionRewardConfig字段编号偏移和冲突（duration=7 vs rewards=auto-7），全部字段显式@ProtoNumber对齐旧版声明序编号
+- **修复：GameData 7个运行时字段加@kotlinx.serialization.Transient** — 消除ProtoBuf序列化NaN和Map<String,List<String>>不支持导致的崩溃
+- **架构：ProtoNumberCoverageTest守卫增强** — GameData检查新增@Transient跳过，EXCLUDED_FIELDS清理，防止同类问题复发
+
 ### 新增
 
 - **新增：背景音乐和按钮音效系统** — 集成 BGM + SFX，SoundPool + MediaPlayer 方案

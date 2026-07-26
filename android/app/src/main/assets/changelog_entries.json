@@ -1,5 +1,16 @@
 [
   {
+    "date": "2026-07-27",
+    "changes": [
+      "修复：云存档序列化崩溃——NullSafeProtoBuf.encodeDefaults=true→false，Proto3默认值不编码规范修正。修复@Ignore字段缺@Transient导致的NaN/Map不支持问题。修复Mission/ActiveMission/MissionRewardConfig字段编号偏移和冲突导致的反序列化崩溃",
+      "修复：云存档反序列化崩溃——Mission/ActiveMission全部字段显式@ProtoNumber对齐旧版声明序编号，消除duration=7与rewards=auto-7的重复字段编号",
+      "修复：GameData 7个运行时字段加@kotlinx.serialization.Transient——消除ProtoBuf序列化NaN和Map<String,List<String>>不支持的问题",
+      "架构：ProtoNumberCoverageTest守卫增强——GameData检查新增@Transient跳过，EXCLUDED_FIELDS清理",
+      "架构：docs/architecture-debt.md新增ProtoBuf默认值编码治理待完成项——后续需@EncodeDefault(ALWAYS)标注非零默认值字段",
+      "修复：云存档保存/读取不显示转圈动画——_cloudSaveOperationState停留Success导致.first{}立即返回，每次操作前重置为Idle确保动画正确展示"
+    ]
+  },
+  {
     "date": "2026-07-26",
     "version": "4.0.75",
     "changes": [
