@@ -43,6 +43,7 @@ class InventorySystemTest {
     fun setUp() {
         scopeProvider = ApplicationScopeProvider()
         stateStore = GameStateStoreImpl(scopeProvider, mock(GameStateRepository::class.java))
+        (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = true
         inventoryConfig = InventoryConfig()
         spiritStoneWallet = SpiritStoneWallet(stateStore, SpiritStoneLedger(), mock(EventBus::class.java))
         system = InventorySystem(stateStore, inventoryConfig, spiritStoneWallet)
@@ -52,6 +53,7 @@ class InventorySystemTest {
 
     @After
     fun tearDown() {
+        (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = false
         runBlocking {
             delay(100)
             stateStore.reset()

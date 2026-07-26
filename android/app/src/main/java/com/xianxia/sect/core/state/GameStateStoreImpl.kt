@@ -41,6 +41,10 @@ class GameStateStoreImpl @Inject constructor(
     private val repository: GameStateRepository
 ) : GameStateStore {
 
+    /** 测试模式：允许主线程调用 update（仅在 Robolectric 单元测试中使用） */
+    @Volatile
+    var unsafeAllowMainThreadUpdateForTest = false
+
     @Volatile
     override var activeTab: String = "OVERVIEW"
 
@@ -599,7 +603,7 @@ class GameStateStoreImpl @Inject constructor(
         // ★ 运行时监护：主线程调用 update 是架构违规，
         // 第一层防护（launchOnEngine）已确保所有调用通过引擎线程，
         // 若此处触发说明有代码绕过防护直接调用了 update。
-        if (Looper.myLooper() == Looper.getMainLooper()) {
+        if (!unsafeAllowMainThreadUpdateForTest && Looper.myLooper() == Looper.getMainLooper()) {
             if (BuildConfig.DEBUG) {
                 error("stateStore.update() 被主线程调用，架构违规必须修复")
             } else {

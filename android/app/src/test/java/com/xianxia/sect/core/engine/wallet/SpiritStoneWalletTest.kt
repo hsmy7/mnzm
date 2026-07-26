@@ -36,6 +36,7 @@ class SpiritStoneWalletTest {
             ApplicationScopeProvider(),
             mock(GameStateRepository::class.java)
         )
+        (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = true
         ledger = SpiritStoneLedger()
         wallet = SpiritStoneWallet(stateStore, ledger, mock(EventBus::class.java))
         runBlocking {
@@ -52,6 +53,7 @@ class SpiritStoneWalletTest {
 
     @After
     fun tearDown() {
+        (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = false
         runBlocking {
             delay(100)
             stateStore.reset()

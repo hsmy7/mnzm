@@ -30,6 +30,7 @@ class VassalServiceTest {
     fun setUp() {
         scopeProvider = ApplicationScopeProvider()
         stateStore = GameStateStoreImpl(scopeProvider, mock(GameStateRepository::class.java))
+        (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = true
         spiritStoneWallet = SpiritStoneWallet(stateStore, SpiritStoneLedger(), mock(EventBus::class.java))
         val rngManager = GameRngManager()
         rngManager.initSystemSeed(42L)
@@ -39,6 +40,7 @@ class VassalServiceTest {
 
     @After
     fun tearDown() {
+        (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = false
         runBlocking { stateStore.reset() }
     }
 

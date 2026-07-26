@@ -9,6 +9,8 @@ import com.xianxia.sect.core.repository.MailRepository
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.GameStateStoreImpl
 import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.core.util.DeterministicRng
+import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.di.ApplicationScopeProvider
 import com.xianxia.sect.core.util.HttpClientProvider
@@ -86,9 +88,12 @@ class MailServiceTest {
             scopeProvider,
             mock(GameStateRepository::class.java)
         )
+        (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = true
 
         // 设置默认 mock 行为
         `when`(mailRepo.getActiveMails(any(), any())).thenReturn(flowOf(emptyList()))
+        val gameRngManager = mock(com.xianxia.sect.core.util.GameRngManager::class.java)
+        `when`(gameRngManager.getRng(any())).thenReturn(DeterministicRng(42))
 
         service = MailService(
             mailRepo = mailRepo,
@@ -97,7 +102,7 @@ class MailServiceTest {
             httpClient = httpClient,
             spiritStoneWallet = spiritStoneWallet,
             scopeProvider = mock(com.xianxia.sect.core.util.CoroutineScopeProvider::class.java),
-            gameRngManager = mock(com.xianxia.sect.core.util.GameRngManager::class.java)
+            gameRngManager = gameRngManager
         )
 
         runBlocking { stateStore.reset() }
@@ -105,6 +110,7 @@ class MailServiceTest {
 
     @After
     fun tearDown() {
+        (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = false
         runBlocking { stateStore.reset() }
     }
 

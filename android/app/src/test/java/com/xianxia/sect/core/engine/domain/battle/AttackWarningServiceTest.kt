@@ -23,12 +23,14 @@ class AttackWarningServiceTest {
     @Before
     fun setUp() {
         stateStore = GameStateStoreImpl(ApplicationScopeProvider(), mock(GameStateRepository::class.java))
+        (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = true
         service = AttackWarningService(stateStore)
         runBlocking { stateStore.reset() }
     }
 
     @After
     fun tearDown() {
+        (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = false
         runBlocking { stateStore.reset() }
     }
 

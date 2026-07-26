@@ -7,7 +7,7 @@ import java.io.InputStreamReader
 
 @Serializable
 data class ChangelogEntry(
-    val version: String,
+    val version: String = "",
     val date: String,
     val changes: List<String>
 )

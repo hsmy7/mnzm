@@ -31,6 +31,7 @@ class InventorySystemSpiritStoneTest {
             ApplicationScopeProvider(),
             mock(GameStateRepository::class.java)
         )
+        stateStore.unsafeAllowMainThreadUpdateForTest = true
         InventoryConfig()
         wallet = SpiritStoneWallet(
             stateStore, SpiritStoneLedger(), mock(EventBus::class.java)

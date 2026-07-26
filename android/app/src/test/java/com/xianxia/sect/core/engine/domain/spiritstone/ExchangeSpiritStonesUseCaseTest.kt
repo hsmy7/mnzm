@@ -28,6 +28,7 @@ class ExchangeSpiritStonesUseCaseTest {
             ApplicationScopeProvider(),
             mock(GameStateRepository::class.java)
         )
+        stateStore.unsafeAllowMainThreadUpdateForTest = true
         wallet = SpiritStoneWallet(
             stateStore, SpiritStoneLedger(), mock(EventBus::class.java)
         )

@@ -59,6 +59,7 @@ class CultivationSettlementConcurrencyTest {
     fun setUp() {
         scopeProvider = ApplicationScopeProvider()
         stateStore = GameStateStoreImpl(scopeProvider, mock(GameStateRepository::class.java))
+        (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = true
         spiritStoneWallet = SpiritStoneWallet(stateStore, ledger, eventBus)
         runBlocking {
             stateStore.reset()
@@ -93,6 +94,7 @@ class CultivationSettlementConcurrencyTest {
 
     @After
     fun tearDown() {
+        (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = false
         runBlocking {
             delay(100)
             stateStore.reset()
