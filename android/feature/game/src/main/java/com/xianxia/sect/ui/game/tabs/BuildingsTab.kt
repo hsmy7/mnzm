@@ -77,6 +77,7 @@ import com.xianxia.sect.ui.game.ProductionViewModel
 import com.xianxia.sect.ui.game.SpiritMineViewModel
 
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
+import com.xianxia.sect.ui.components.clickableWithSound
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
 import com.xianxia.sect.ui.theme.Spacing
@@ -164,7 +165,7 @@ internal fun BuildingsTab(
                                         .weight(1f)
                                         .clip(RoundedCornerShape(8.dp))
                                         .border(1.dp, GameColors.Border, RoundedCornerShape(8.dp))
-                                        .clickable { onClick() }
+                                        .clickableWithSound { onClick() }
                                 ) {
                                     Image(
                                         painter = painterResource(id = R.drawable.bg_horizontal),

@@ -62,6 +62,7 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.InlineStandardPromptDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.DialogSystemBarGuard
+import com.xianxia.sect.ui.components.clickableWithSound
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.dialogs.SalaryRealmCard
 import com.xianxia.sect.ui.game.SaveLoadViewModel
@@ -320,7 +321,7 @@ internal fun SettingsTab(
                                     .width(ButtonSizes.StandardWidth)
                                     .height(ButtonSizes.StandardHeight)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .clickable { showSalaryConfigDialog = true },
+                                    .clickableWithSound { showSalaryConfigDialog = true },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Image(
@@ -353,7 +354,7 @@ internal fun SettingsTab(
                                     .width(ButtonSizes.StandardWidth)
                                     .height(ButtonSizes.StandardHeight)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .clickable { showSaveSlotDialog = true },
+                                    .clickableWithSound { showSaveSlotDialog = true },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Image(
@@ -492,7 +493,7 @@ internal fun SettingsTab(
                         .width(ButtonSizes.StandardWidth)
                         .height(ButtonSizes.StandardHeight)
                         .clip(RoundedCornerShape(4.dp))
-                        .clickable { showOtherSettingsDialog = true },
+                        .clickableWithSound { showOtherSettingsDialog = true },
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
@@ -520,7 +521,7 @@ internal fun SettingsTab(
                             .width(ButtonSizes.StandardWidth)
                             .height(ButtonSizes.StandardHeight)
                             .clip(RoundedCornerShape(4.dp))
-                            .clickable { showResetDisciplesConfirmDialog = true },
+                            .clickableWithSound { showResetDisciplesConfirmDialog = true },
                         contentAlignment = Alignment.Center
                     ) {
                         Image(

@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import com.xianxia.sect.feature.game.R
+import com.xianxia.sect.ui.components.clickableWithSound
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -501,7 +502,7 @@ internal fun WarehouseFilterButton(
             .height(ButtonSizes.StandardHeight)
             .alpha(contentAlpha)
             .clip(RoundedCornerShape(4.dp))
-            .clickable { onClick() },
+            .clickableWithSound { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Image(

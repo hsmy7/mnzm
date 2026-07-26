@@ -29,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.xianxia.sect.ui.components.LocalAtlasCache
 import com.xianxia.sect.ui.components.LocalItemSpriteCache
 import com.xianxia.sect.ui.components.SpriteImage
+import com.xianxia.sect.ui.components.clickableWithSound
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
@@ -1041,7 +1042,7 @@ fun MainGameScreen(
                         modifier = Modifier
                             .size(28.dp)
                             .clip(CircleShape)
-                            .clickable { saveLoadViewModel.togglePause() },
+                            .clickableWithSound { saveLoadViewModel.togglePause() },
                         contentAlignment = Alignment.Center
                     ) {
                         SpriteImage(
