@@ -8,8 +8,16 @@
 - **新增：游戏内设置界面音乐/音效勾选** — 同步持久化到存档
 - **新增：双 Activity BGM 生命周期管理** — 切后台/切换 Activity 自动暂停/恢复
 
+### 新增
+
+- **新增：统一点击音效系统** — `clickableWithSound` 扩展函数覆盖全游戏所有可点击元素（23 文件，102 行新增），支持 enabled/interactionSource/indication/onClick 全部参数签名
+- **新增：GameButton/CloseButton 点击音效** — 标准按钮和关闭按钮统一点击反馈
+- **新增：登录界面/选择模式界面按钮音效** — 隐私政策链接、头像、新游戏/读档/退出按钮
+
 ### 调整
 
+- **调整：替换音源文件** — BGM 14MB→1.6MB，SFX 41KB→8.5K，均做增益处理
+- **调整：BGM 循环回退到 setLooping(true)** — 移除复杂淡入淡出监控（Handler 竞态），简单循环方案
 - **调整：移除伴侣突破忠诚+3机制** — 伴侣突破不再增加道侣忠诚度
 - **调整：灵石不足无法发年俸时，应得俸禄弟子忠诚-1** — 宗门灵石不够发工资，该拿工资的弟子忠诚度下降
 - **清理：移除 PartnerSystem 死代码** — 移除 `DomainEventSubscriber`/`eventBus`/`stateStore` 依赖及空 `initialize()/release()` 方法，移除未使用的 `consentRequired` 变量
