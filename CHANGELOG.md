@@ -28,6 +28,16 @@
 - **修复：云存档方法缺少防重入保护——重复点击"下载存档"导致闪退** — `downloadFromCloudSave()`/`loadFromCloudSave()` 无 `AtomicBoolean` 锁，`uploadToCloudSave()` 缺少上传中状态检查。修复：`cloudDownloadLock` + 状态前置检查
 - **界面：CloudSaveDialog 上传/下载状态增加转圈动画** — Uploading/Downloading 状态添加 `CircularProgressIndicator`
 - **修复：DiscipleServiceApprenticeTest/CrudTest 预存编译错误** — `DiscipleSlotManager` 构造参数名 `discipleStatusService`→`discipleStatusServiceProvider`（Provider 断环）未同步到测试代码
+
+### 修复
+
+- **修复：云存档卡片上传后不显示数据** — CloudSaveDialog 中 `collectAsStateWithLifecycle` 在 Dialog 独立窗口可能找不到 LifecycleOwner，改为 `collectAsState`；TapCloudSaveManager 新增本地缓存，API 查询失败时降级到缓存
+- **修复：反复读档存档后闪退** — SaveLoadViewModel 新增 `loadLock` AtomicBoolean + 存读互斥 + `restartGame` 注册协程到 `registerActiveLoadJob`
+- **修复：勾选显示所有弟子后仅显示空闲中** — 新增 `releaseDiscipleForReassignment` 方法，血炼中(REFINING)弟子选择后中止血炼不返还材料，思过中(REFLECTING)选择后释放思过；更新 15+ 处调用点统一使用新方法
+- **修复：多界面遮罩重叠** — `subDialogScrim` 增加 `overlayOrder` 检查；DiscipleSelectorDialog 新增 `scrimEnabled` 参数
+- **加固：主线程 Looper 超时监控 (>3s)** — 检测主线程消息处理超时并记录日志，辅助诊断 ANR
+- **加固：Vulkan createLogicalDevice vkGetDeviceQueue 防崩溃** — 重试 3 次 (2ms 间隔)，空句柄时销毁设备返回 false 触发降级；VulkanPolicy 新增 Adreno 崩溃相关机型黑名单
+- **测试：MailServiceTest/CultivationSettlementConcurrencyTest 预存编译错误修复** — 补全 `gameRngManager`/`discipleStatusService` 构造参数
 - **测试：SerializationCoverageTest 扩展守卫到 SaveData 顶层字段** — 确保新增 SaveData 字段不再遗漏云存档序列化
 - **测试：SaveDataConverterTest 新增 StorageBag roundtrip** — 验证序列化/反序列化后储物袋字段一致
 

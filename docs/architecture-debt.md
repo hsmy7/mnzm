@@ -71,3 +71,38 @@ detekt 配置 `baseline` 只缩不增（CLAUDE.md 13.2），当前未启用 base
 - **`SerializableBattleLogMember` 字段命名对齐域模型** — `discipleId` vs `id`、`remainingHp` vs `hp`、`remainingMp` vs `mp`
 - **方案 C：KSP 代码生成** — 从 GameData 声明自动生成 SerializableGameData 和 converter，消除手动同步。已非必需。
 
+## Crash 1: ANR #5076 — TapTap Sandbox Toast 主线程阻塞（⚠️ 待根治）
+
+**当前措施**：Looper 主线程超时监控（>3s 告警日志）。
+
+**根因**：TapTap SDK 沙箱环境 hook `INotificationManager.enqueueToast`，`SandboxTapAccountChecker.onCheckAccountPass` 触发 `Toast.show()` 时 Binder 调用在主线程堵塞 >5s。
+
+**根治难点**：膨胀点在 TapTap SDK 内部（`com.taptap.sandbox.client.hook`），应用侧无法直接干预。
+
+**待选方案**：
+1. **SDK 升级** — 等待 TapTap SDK 修复沙箱 Toast hook 的同步 Binder 调用
+2. **反射拦截** — 在 TapTap 初始化前用反射替换 `INotificationManager` 代理（Android API 依赖，兼容性风险）
+3. **提前初始化** — 将 TapTap SDK init 提前到 `Application.onCreate()`，使账号检查在用户交互前完成
+
+**状态**：⏸️ 待 TapTap SDK 更新或确定实施方案。
+
+## Crash 2: SIGSEGV #3088 — vulkan.adreno.so vkGetDeviceQueue（⚠️ 待根治）
+
+**当前措施**：
+- VulkanBackend.cpp: vkGetDeviceQueue 重试 3 次（2ms 间隔）+ VK_NULL_HANDLE 检查
+- VulkanPolicy.kt: 新增 Adreno 崩溃相关机型黑名单
+
+**根因**：某些 Adreno GPU 驱动（国产 OEM ROM）在 `vkCreateDevice()` 后立即调用 `vkGetDeviceQueue()` 时存在竞争条件，队列句柄未就绪时访问导致 SIGSEGV。
+
+**根治难点**：
+- SIGSEGV 是 POSIX 信号级崩溃，C++ try-catch 无法捕获
+- 延时重试降低竞争窗口但无法 100% 消除
+- 黑名单需要持续从 Bugly 收集崩溃数据扩充
+
+**待选方案**：
+1. **动态黑名单** — 从 Bugly 或远程配置拉取已知问题设备列表，启动时直接降级到软件渲染
+2. **GPU 驱动版本检测** — 在 `VulkanPolicy.getRenderStrategy()` 中检查 `vkPhysicalDeviceProperties.driverVersion`，驱动版本低于已知稳定版本的设备走 SOFTWARE_ONLY
+3. **信号处理** — 在 C++ 层用 `sigaction` + `sigsetjmp`/`siglongjmp` 捕获 SIGSEGV（Android API 30+ seccomp-bpf 可能限制）
+
+**状态**：⏸️ 待扩充黑名单或实施信号处理方案。
+
