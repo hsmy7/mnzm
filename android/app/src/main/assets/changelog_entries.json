@@ -1,6 +1,12 @@
 [
   {
     "date": "2026-07-26",
+    "changes": [
+      "重构：消除云存档序列化双路径架构债务——删除8个手动转换器和1374行包装类型，50+域类型直接携带@ProtoNumber注解，SaveData直接Protobuf序列化，净删10000行代码。本地Room存储不变，云存档向后兼容。每加字段不再需要同步4处"
+    ]
+  },
+  {
+    "date": "2026-07-26",
     "version": "4.0.74",
     "changes": [
       "修复：云存档反射桥接7个运行时崩溃Bug——TapCloudSave→TapTapCloudSave/回调包名修正/Builder实例化/onArchiveDataResult签名/setPlaytime类型/invokeGetter Long处理/NativeApi完整实现",

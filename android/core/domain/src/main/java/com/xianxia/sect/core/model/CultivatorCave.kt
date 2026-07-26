@@ -7,7 +7,8 @@ import androidx.room.Entity
 import com.xianxia.sect.core.model.production.SlotType
 import com.xianxia.sect.core.util.TimeProgressUtil
 import kotlinx.serialization.Serializable
-
+import kotlinx.serialization.Transient
+import kotlinx.serialization.protobuf.ProtoNumber
 @Keep
 @Serializable
 @Entity(
@@ -16,39 +17,71 @@ import kotlinx.serialization.Serializable
 )
 data class ExplorationTeam(
     @ColumnInfo(name = "id")
+    @ProtoNumber(1)
     val id: String = java.util.UUID.randomUUID().toString(),
 
     @ColumnInfo(name = "slot_id")
+    @Transient
     var slotId: Int = 0,
 
+    @ProtoNumber(2)
     val name: String = "",
+    @Transient
     val caveId: String? = null,
+    @ProtoNumber(13)
     val caveName: String = "",
+    @ProtoNumber(14)
     val dungeon: String = "",
+    @ProtoNumber(15)
     val dungeonName: String = "",
+    @ProtoNumber(3)
     val memberIds: List<String> = emptyList(),
+    @ProtoNumber(16)
     val memberNames: List<String> = emptyList(),
+    @ProtoNumber(6)
     val startYear: Int = 1,
+    @ProtoNumber(7)
     val startMonth: Int = 1,
+    @ProtoNumber(17)
     val startDay: Int = 1,
+    @ProtoNumber(8)
     val duration: Int = 1,
+    @ProtoNumber(4)
+    @Serializable(with = ExplorationStatusAsStringSerializer::class)
     val status: ExplorationStatus = ExplorationStatus.TRAVELING,
+    @ProtoNumber(9)
     val progress: Int = 0,
+    @Transient
     val scoutTargetSectId: String? = null,
+    @ProtoNumber(32)
     val scoutTargetSectName: String = "",
+    @ProtoNumber(18)
     val currentX: Float = 0f,
+    @ProtoNumber(19)
     val currentY: Float = 0f,
+    @ProtoNumber(20)
     val targetX: Float = 0f,
+    @ProtoNumber(21)
     val targetY: Float = 0f,
+    @ProtoNumber(22)
     val moveProgress: Float = 0f,
+    @ProtoNumber(23)
     val arrivalYear: Int = 0,
+    @ProtoNumber(24)
     val arrivalMonth: Int = 0,
+    @ProtoNumber(25)
     val arrivalDay: Int = 0,
+    @ProtoNumber(26)
     val route: List<String> = emptyList(),
+    @ProtoNumber(27)
     val currentRouteIndex: Int = 0,
+    @ProtoNumber(28)
     val currentSegmentProgress: Float = 0f,
+    @ProtoNumber(29)
     val pityCounterEquipment: Int = 0,
+    @ProtoNumber(30)
     val pityCounterPill: Int = 0,
+    @ProtoNumber(31)
     val pityCounterManual: Int = 0
 ) {
     val isTraveling: Boolean get() = status == ExplorationStatus.TRAVELING
@@ -93,21 +126,34 @@ enum class ExplorationStatus {
 )
 data class BuildingSlot(
     @ColumnInfo(name = "id")
+    @ProtoNumber(1)
     val id: String = java.util.UUID.randomUUID().toString(),
 
     @ColumnInfo(name = "slot_id")
+    @Transient
     var slotId: Int = 0,
 
+    @ProtoNumber(2)
     val buildingId: String = "",
+    @ProtoNumber(3)
     val slotIndex: Int = 0,
+    @ProtoNumber(4)
     val type: SlotType = SlotType.IDLE,
+    @Transient
     val discipleId: String? = null,
+    @ProtoNumber(6)
     val discipleName: String = "",
+    @ProtoNumber(7)
     val startYear: Int = 0,
+    @ProtoNumber(8)
     val startMonth: Int = 0,
+    @ProtoNumber(9)
     val duration: Int = 0,
+    @Transient
     val recipeId: String? = null,
+    @ProtoNumber(11)
     val recipeName: String = "",
+    @ProtoNumber(12)
     val status: SlotStatus = SlotStatus.IDLE
 ) {
     fun remainingTime(currentYear: Int, currentMonth: Int): Int {
@@ -182,28 +228,48 @@ enum class RecipeType {
 )
 data class BattleLog(
     @ColumnInfo(name = "id")
+    @ProtoNumber(1)
     val id: String = java.util.UUID.randomUUID().toString(),
 
     @ColumnInfo(name = "slot_id")
+    @Transient
     var slotId: Int = 0,
 
+    @ProtoNumber(2)
     val timestamp: Long = System.currentTimeMillis(),
+    @ProtoNumber(3)
     val year: Int = 1,
+    @ProtoNumber(4)
     val month: Int = 1,
+    @ProtoNumber(14)
+    @Serializable(with = BattleTypeAsStringSerializer::class)
     val type: BattleType = BattleType.PVE,
+    @ProtoNumber(6)
     val attackerName: String = "",
+    @ProtoNumber(8)
     val defenderName: String = "",
+    @ProtoNumber(9)
+    @Serializable(with = BattleResultAsStringSerializer::class)
     val result: BattleResult = BattleResult.DRAW,
+    @ProtoNumber(15)
     val details: String = "",
+    @ProtoNumber(16)
     val drops: List<String> = emptyList(),
+    @ProtoNumber(17)
     val dungeonName: String = "",
+    @Transient
     val teamId: String? = null,
     val teamMembers: List<BattleLogMember> = emptyList(),
     val enemies: List<BattleLogEnemy> = emptyList(),
+    @ProtoNumber(10)
     val rounds: List<BattleLogRound> = emptyList(),
+    @ProtoNumber(19)
     val turns: Int = 0,
+    @ProtoNumber(20)
     val teamCasualties: Int = 0,
+    @ProtoNumber(21)
     val beastsDefeated: Int = 0,
+    @Transient
     val battleResult: BattleLogResult? = null
 ) {
     val displayTime: String get() = "第${year}年${month}月"
@@ -252,23 +318,42 @@ enum class BattleResult {
 @Keep
 @Serializable
 data class CultivatorCave(
+    @ProtoNumber(1)
     val id: String = java.util.UUID.randomUUID().toString(),
+    @ProtoNumber(2)
     val name: String = "",
+    @ProtoNumber(3)
     val ownerRealm: Int = 5,
+    @ProtoNumber(7)
     val ownerRealmName: String = "",
+    @ProtoNumber(4)
     val x: Float = 0f,
+    @ProtoNumber(5)
     val y: Float = 0f,
+    @ProtoNumber(11)
     val spawnYear: Int = 1,
+    @ProtoNumber(12)
     val spawnMonth: Int = 1,
+    @ProtoNumber(13)
     val expiryYear: Int = 1,
+    @ProtoNumber(14)
     val expiryMonth: Int = 1,
+    @ProtoNumber(10)
     val isExplored: Boolean = false,
+    @Transient
     val exploredByTeamId: String? = null,
+    @ProtoNumber(16)
+    @Serializable(with = CaveStatusAsStringSerializer::class)
     val status: CaveStatus = CaveStatus.AVAILABLE,
+    @ProtoNumber(17)
     val canOperate: Boolean = true,
+    @ProtoNumber(18)
     val isOwned: Boolean = false,
+    @ProtoNumber(19)
     val connectedSects: List<String> = emptyList(),
+    @ProtoNumber(20)
     val mineSlots: List<MineSlot> = emptyList(),
+    @ProtoNumber(21)
     val occupationTime: Long = 0
 ) {
     val isAvailable: Boolean get() = status == CaveStatus.AVAILABLE
@@ -319,22 +404,22 @@ enum class AITeamStatus {
 @Keep
 @Serializable
 data class AICaveDisciple(
-    val id: String = "",
-    val name: String = "",
-    val realm: Int = 5,
+    @ProtoNumber(1) val id: String = "",
+    @ProtoNumber(2) val name: String = "",
+    @ProtoNumber(3) val realm: Int = 5,
     val realmName: String = "",
-    val hp: Int = 1000,
-    val maxHp: Int = 1000,
-    val mp: Int = 500,
-    val maxMp: Int = 500,
-    val physicalAttack: Int = 100,
-    val magicAttack: Int = 50,
-    val physicalDefense: Int = 50,
-    val magicDefense: Int = 40,
-    val speed: Int = 100,
-    val critRate: Double = 0.05,
-    val equipments: List<AIRandomEquipment> = emptyList(),
-    val manuals: List<AIRandomManual> = emptyList()
+    @ProtoNumber(5) val hp: Int = 1000,
+    @ProtoNumber(6) val maxHp: Int = 1000,
+    @ProtoNumber(7) val mp: Int = 500,
+    @ProtoNumber(8) val maxMp: Int = 500,
+    @ProtoNumber(9) val physicalAttack: Int = 100,
+    @ProtoNumber(10) val magicAttack: Int = 50,
+    @ProtoNumber(11) val physicalDefense: Int = 50,
+    @ProtoNumber(12) val magicDefense: Int = 40,
+    @ProtoNumber(13) val speed: Int = 100,
+    @ProtoNumber(14) val critRate: Double = 0.05,
+    @ProtoNumber(15) val equipments: List<AIRandomEquipment> = emptyList(),
+    @ProtoNumber(16) val manuals: List<AIRandomManual> = emptyList()
 ) {
     val isAlive: Boolean get() = hp > 0
     val hpPercent: Int get() = if (maxHp > 0) ((hp.toDouble() / maxHp) * 100).toInt() else 0
@@ -343,26 +428,26 @@ data class AICaveDisciple(
 @Keep
 @Serializable
 data class AIRandomEquipment(
-    val slot: EquipmentSlot,
-    val name: String,
-    val rarity: Int,
-    val nurtureLevel: Int,
-    val physicalAttack: Int = 0,
-    val magicAttack: Int = 0,
-    val physicalDefense: Int = 0,
-    val magicDefense: Int = 0,
-    val speed: Int = 0,
-    val hp: Int = 0,
-    val mp: Int = 0
+    @ProtoNumber(1) val slot: EquipmentSlot,
+    @ProtoNumber(2) val name: String,
+    @ProtoNumber(3) val rarity: Int,
+    @ProtoNumber(4) val nurtureLevel: Int,
+    @ProtoNumber(5) val physicalAttack: Int = 0,
+    @ProtoNumber(6) val magicAttack: Int = 0,
+    @ProtoNumber(7) val physicalDefense: Int = 0,
+    @ProtoNumber(8) val magicDefense: Int = 0,
+    @ProtoNumber(9) val speed: Int = 0,
+    @ProtoNumber(10) val hp: Int = 0,
+    @ProtoNumber(11) val mp: Int = 0
 )
 
 @Keep
 @Serializable
 data class AIRandomManual(
-    val name: String,
-    val rarity: Int,
-    val mastery: Int,
-    val stats: Map<String, Int> = emptyMap()
+    @ProtoNumber(1) val name: String,
+    @ProtoNumber(2) val rarity: Int,
+    @ProtoNumber(3) val mastery: Int,
+    @ProtoNumber(4) val stats: Map<String, Int> = emptyMap()
 )
 
 @Keep
@@ -418,55 +503,55 @@ enum class CaveExplorationStatus {
 @Keep
 @Serializable
 data class BattleLogMember(
-    val id: String = "",
-    val name: String = "",
-    val realm: Int = 9,
-    val realmName: String = "",
-    val realmLayer: Int = 0,
-    val hp: Int = 0,
-    val maxHp: Int = 0,
-    val mp: Int = 0,
-    val maxMp: Int = 0,
-    val isAlive: Boolean = true,
-    val portraitRes: String = ""
+    @ProtoNumber(1) val id: String = "",
+    @ProtoNumber(2) val name: String = "",
+    @ProtoNumber(3) val realm: Int = 9,
+    @ProtoNumber(10) val realmName: String = "",
+    @ProtoNumber(11) val realmLayer: Int = 0,
+    @ProtoNumber(5) val hp: Int = 0,
+    @ProtoNumber(6) val maxHp: Int = 0,
+    @ProtoNumber(7) val mp: Int = 0,
+    @ProtoNumber(8) val maxMp: Int = 0,
+    @ProtoNumber(4) val isAlive: Boolean = true,
+    @ProtoNumber(9) val portraitRes: String = ""
 )
 
 @Keep
 @Serializable
 data class BattleLogEnemy(
-    val id: String = "",
-    val name: String = "",
-    val realm: Int = 9,
-    val realmName: String = "",
-    val realmLayer: Int = 0,
-    val hp: Int = 0,
-    val maxHp: Int = 0,
-    val isAlive: Boolean = true,
-    val portraitRes: String = ""
+    @ProtoNumber(1) val id: String = "",
+    @ProtoNumber(2) val name: String = "",
+    @ProtoNumber(3) val realm: Int = 9,
+    @ProtoNumber(10) val realmName: String = "",
+    @ProtoNumber(11) val realmLayer: Int = 0,
+    @ProtoNumber(5) val hp: Int = 0,
+    @ProtoNumber(6) val maxHp: Int = 0,
+    @ProtoNumber(4) val isAlive: Boolean = true,
+    @ProtoNumber(9) val portraitRes: String = ""
 )
 
 // 战斗日志回合
 @Keep
 @Serializable
 data class BattleLogRound(
-    val roundNumber: Int = 1,
-    val actions: List<BattleLogAction> = emptyList()
+    @ProtoNumber(1) val roundNumber: Int = 1,
+    @ProtoNumber(2) val actions: List<BattleLogAction> = emptyList()
 )
 
 // 战斗日志动作
 @Keep
 @Serializable
 data class BattleLogAction(
-    val type: String = "",
-    val attacker: String = "",
-    val attackerType: String = "",
-    val target: String = "",
-    val damage: Int = 0,
-    val damageType: String = "",
-    val isCrit: Boolean = false,
-    val isKill: Boolean = false,
-    val message: String = "",
-    val skillName: String? = null
+    @ProtoNumber(1) val type: String = "",
+    @ProtoNumber(2) val attacker: String = "",
+    @ProtoNumber(3) val attackerType: String = "",
+    @ProtoNumber(4) val target: String = "",
+    @ProtoNumber(7) val damage: Int = 0,
+    @ProtoNumber(11) val damageType: String = "",
+    @ProtoNumber(8) val isCrit: Boolean = false,
+    @ProtoNumber(12) val isKill: Boolean = false,
+    @ProtoNumber(10) val message: String = "",
+    @Transient val skillName: String? = null
 )
 
 // 战斗日志结果
@@ -486,25 +571,27 @@ data class BattleLogResult(
 @Keep
 @Serializable
 data class BattleRewardItem(
-    val itemId: String = "",
-    val name: String,
-    val quantity: Int = 1,
-    val rarity: Int = 1,
-    val type: String = "material"  // "spiritStones", "equipment", "manual", "pill", "material"
+    @ProtoNumber(1) val itemId: String = "",
+    @ProtoNumber(2) val name: String,
+    @ProtoNumber(3) val quantity: Int = 1,
+    @ProtoNumber(4) val rarity: Int = 1,
+    @ProtoNumber(5) val type: String = "material"  // "spiritStones", "equipment", "manual", "pill", "material"
 )
 
 // AI洞府探索队伍（用于GameData）
 @Keep
 @Serializable
 data class AICaveTeam(
-    val id: String = java.util.UUID.randomUUID().toString(),
-    val caveId: String = "",
-    val sectId: String = "",
-    val sectName: String = "",
-    val memberCount: Int = 5,
-    val avgRealm: Int = 5,
-    val avgRealmName: String = "",
-    val disciples: List<AICaveDisciple> = emptyList(),
+    @ProtoNumber(1) val id: String = java.util.UUID.randomUUID().toString(),
+    @ProtoNumber(4) val caveId: String = "",
+    @ProtoNumber(2) val sectId: String = "",
+    @ProtoNumber(3) val sectName: String = "",
+    @ProtoNumber(9) val memberCount: Int = 5,
+    @ProtoNumber(10) val avgRealm: Int = 5,
+    @ProtoNumber(11) val avgRealmName: String = "",
+    @ProtoNumber(5) val disciples: List<AICaveDisciple> = emptyList(),
+    @ProtoNumber(6)
+    @Serializable(with = AITeamStatusAsStringSerializer::class)
     val status: AITeamStatus = AITeamStatus.EXPLORING
 ) {
     val isExploring: Boolean get() = status == AITeamStatus.EXPLORING

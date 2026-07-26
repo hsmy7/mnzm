@@ -2,6 +2,7 @@ package com.xianxia.sect.core.model
 
 import androidx.annotation.Keep
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.protobuf.ProtoNumber
 
 /**
  * 游戏事件记录——消息栏系统的数据单位。
@@ -20,15 +21,15 @@ import kotlinx.serialization.Serializable
 @Keep
 @Serializable
 data class GameEventRecord(
-    val timestamp: Long = System.currentTimeMillis(),
-    val year: Int = 1,
-    val month: Int = 1,
-    val phase: Int = 0,
-    val category: String = "SECT",
-    val eventType: String = "",
-    val summary: String = "",
-    val relatedEntityId: String = "",
-    val relatedEntityName: String = ""
+    @ProtoNumber(1) val timestamp: Long = System.currentTimeMillis(),
+    @ProtoNumber(2) val year: Int = 1,
+    @ProtoNumber(3) val month: Int = 1,
+    @ProtoNumber(4) val phase: Int = 0,
+    @ProtoNumber(5) val category: String = "SECT",
+    @ProtoNumber(6) val eventType: String = "",
+    @ProtoNumber(7) val summary: String = "",
+    @ProtoNumber(8) val relatedEntityId: String = "",
+    @ProtoNumber(9) val relatedEntityName: String = ""
 )
 
 /** 游戏事件类型常量——统一管理，避免散落的字符串字面量 */

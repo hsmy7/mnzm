@@ -2,6 +2,8 @@ package com.xianxia.sect.core.model
 
 import androidx.annotation.Keep
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.protobuf.ProtoNumber
+import kotlinx.serialization.protobuf.ProtoPacked
 
 enum class SignInDayState {
     FUTURE,
@@ -14,10 +16,10 @@ enum class SignInDayState {
 @Keep
 @Serializable
 data class SignInState(
-    val claimedDays: List<Int> = emptyList(),
-    val currentMonth: Int = 0,
-    val currentYear: Int = 0,
-    val claimedMilestones: List<Int> = emptyList()
+    @ProtoPacked @ProtoNumber(1) val claimedDays: List<Int> = emptyList(),
+    @ProtoNumber(2) val currentMonth: Int = 0,
+    @ProtoNumber(3) val currentYear: Int = 0,
+    @ProtoPacked @ProtoNumber(4) val claimedMilestones: List<Int> = emptyList()
 )
 
 @Keep

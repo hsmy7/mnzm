@@ -3,7 +3,6 @@ package com.xianxia.sect.data.crypto
 import android.content.Context
 import android.util.Log
 import com.xianxia.sect.data.serialization.NullSafeProtoBuf
-import com.xianxia.sect.data.serialization.unified.SerializableSaveData
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.math.BigDecimal
 import java.math.RoundingMode

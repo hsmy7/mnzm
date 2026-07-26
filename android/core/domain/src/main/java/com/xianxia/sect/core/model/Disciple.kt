@@ -12,6 +12,7 @@ import androidx.room.Index
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.util.GameRandom
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.protobuf.ProtoNumber
 
 /**
  * 弟子数据模型（Room Entity）
@@ -47,7 +48,7 @@ import kotlinx.serialization.Serializable
  * - getTalentEffects → DiscipleStatsProvider.getTalentEffects
  */
 @Keep
-@Serializable
+@Serializable(with = DiscipleSerializer::class)
 @Entity(
     tableName = "disciples",
     primaryKeys = ["id", "slot_id"],
@@ -438,18 +439,18 @@ data class BaseCombatStats(
 @Keep
 @Serializable
 data class StorageBagItem(
-    val itemId: String,
-    val itemType: String,
-    val name: String,
-    val rarity: Int,
-    val quantity: Int = 1,
-    val obtainedYear: Int = 1,
-    val obtainedMonth: Int = 1,
-    val effect: ItemEffect? = null,
-    val grade: String? = null,
-    val forgetYear: Int? = null,
-    val forgetMonth: Int? = null,
-    val forgetPhase: Int? = null
+    @ProtoNumber(1) val itemId: String,
+    @ProtoNumber(2) val itemType: String,
+    @ProtoNumber(3) val name: String,
+    @ProtoNumber(4) val rarity: Int,
+    @ProtoNumber(5) val quantity: Int = 1,
+    @ProtoNumber(6) val obtainedYear: Int = 1,
+    @ProtoNumber(7) val obtainedMonth: Int = 1,
+    @kotlinx.serialization.Transient val effect: ItemEffect? = null,
+    @kotlinx.serialization.Transient val grade: String? = null,
+    @kotlinx.serialization.Transient val forgetYear: Int? = null,
+    @kotlinx.serialization.Transient val forgetMonth: Int? = null,
+    @kotlinx.serialization.Transient val forgetPhase: Int? = null
 ) {
     val color: String get() = GameConfig.Rarity.getColor(rarity)
     val rarityName: String get() = GameConfig.Rarity.getName(rarity)
@@ -458,45 +459,45 @@ data class StorageBagItem(
 @Keep
 @Serializable
 data class ItemEffect(
-    val tier: Int = 0,  // 丹药品阶，用于永久属性丹去重
-    val cultivationSpeedPercent: Double = 0.0,
-    val skillExpSpeedPercent: Double = 0.0,
-    val nurtureSpeedPercent: Double = 0.0,
-    val breakthroughChance: Double = 0.0,
-    val targetRealm: Int = 0,
-    val cultivationAdd: Int = 0,
-    val skillExpAdd: Int = 0,
-    val nurtureAdd: Int = 0,
-    val healMaxHpPercent: Double = 0.0,
-    val mpRecoverMaxMpPercent: Double = 0.0,
-    val hpAdd: Int = 0,
-    val mpAdd: Int = 0,
-    val extendLife: Int = 0,
-    val physicalAttackAdd: Int = 0,
-    val magicAttackAdd: Int = 0,
-    val physicalDefenseAdd: Int = 0,
-    val magicDefenseAdd: Int = 0,
-    val speedAdd: Int = 0,
-    val critRateAdd: Double = 0.0,
-    val critEffectAdd: Double = 0.0,
-    val intelligenceAdd: Int = 0,
-    val charmAdd: Int = 0,
-    val loyaltyAdd: Int = 0,
-    val comprehensionAdd: Int = 0,
-    val artifactRefiningAdd: Int = 0,
-    val pillRefiningAdd: Int = 0,
-    val spiritPlantingAdd: Int = 0,
-    val teachingAdd: Int = 0,
-    val moralityAdd: Int = 0,
-    val miningAdd: Int = 0,
-    val revive: Boolean = false,
-    val clearAll: Boolean = false,
-    val isAscension: Boolean = false,
-    val duration: Int = 0,
-    val cannotStack: Boolean = true,
-    val minRealm: Int = 9,
-    val pillCategory: String = "",
-    val pillType: String = ""
+    @ProtoNumber(38) val tier: Int = 0,  // 丹药品阶，用于永久属性丹去重
+    @ProtoNumber(1) val cultivationSpeedPercent: Double = 0.0,
+    @ProtoNumber(2) val skillExpSpeedPercent: Double = 0.0,
+    @ProtoNumber(3) val nurtureSpeedPercent: Double = 0.0,
+    @ProtoNumber(4) val breakthroughChance: Double = 0.0,
+    @ProtoNumber(5) val targetRealm: Int = 0,
+    @ProtoNumber(6) val cultivationAdd: Int = 0,
+    @ProtoNumber(7) val skillExpAdd: Int = 0,
+    @ProtoNumber(8) val nurtureAdd: Int = 0,
+    @ProtoNumber(9) val healMaxHpPercent: Double = 0.0,
+    @ProtoNumber(10) val mpRecoverMaxMpPercent: Double = 0.0,
+    @ProtoNumber(11) val hpAdd: Int = 0,
+    @ProtoNumber(12) val mpAdd: Int = 0,
+    @ProtoNumber(13) val extendLife: Int = 0,
+    @ProtoNumber(14) val physicalAttackAdd: Int = 0,
+    @ProtoNumber(15) val magicAttackAdd: Int = 0,
+    @ProtoNumber(16) val physicalDefenseAdd: Int = 0,
+    @ProtoNumber(17) val magicDefenseAdd: Int = 0,
+    @ProtoNumber(18) val speedAdd: Int = 0,
+    @ProtoNumber(19) val critRateAdd: Double = 0.0,
+    @ProtoNumber(20) val critEffectAdd: Double = 0.0,
+    @ProtoNumber(21) val intelligenceAdd: Int = 0,
+    @ProtoNumber(22) val charmAdd: Int = 0,
+    @ProtoNumber(23) val loyaltyAdd: Int = 0,
+    @ProtoNumber(24) val comprehensionAdd: Int = 0,
+    @ProtoNumber(25) val artifactRefiningAdd: Int = 0,
+    @ProtoNumber(26) val pillRefiningAdd: Int = 0,
+    @ProtoNumber(27) val spiritPlantingAdd: Int = 0,
+    @ProtoNumber(28) val teachingAdd: Int = 0,
+    @ProtoNumber(29) val moralityAdd: Int = 0,
+    @ProtoNumber(88) val miningAdd: Int = 0,
+    @ProtoNumber(30) val revive: Boolean = false,
+    @ProtoNumber(31) val clearAll: Boolean = false,
+    @ProtoNumber(32) val isAscension: Boolean = false,
+    @ProtoNumber(33) val duration: Int = 0,
+    @ProtoNumber(34) val cannotStack: Boolean = true,
+    @ProtoNumber(35) val minRealm: Int = 9,
+    @ProtoNumber(36) val pillCategory: String = "",
+    @ProtoNumber(37) val pillType: String = ""
 )
 
 @Keep
@@ -513,8 +514,8 @@ data class RewardSelectedItem(
 @Keep
 @Serializable
 data class EquipmentNurtureData(
-    val equipmentId: String,
-    val rarity: Int,
-    val nurtureLevel: Int = 0,
-    val nurtureProgress: Double = 0.0
+    @ProtoNumber(1) val equipmentId: String,
+    @ProtoNumber(2) val rarity: Int,
+    @ProtoNumber(3) val nurtureLevel: Int = 0,
+    @ProtoNumber(4) val nurtureProgress: Double = 0.0
 )

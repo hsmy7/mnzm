@@ -327,28 +327,6 @@ class UnifiedSerializationEngine @Inject constructor(
         }
     }
 
-    fun validateDataLimits(
-        data: SerializableSaveData,
-        limits: DataLimits = DataLimits.DEFAULT
-    ): DataLimitValidationResult {
-        val violations = mutableListOf<DataLimitViolation>()
-
-        val discipleCount = data.disciples.size.toLong()
-        if (discipleCount > limits.maxDiscipleCount) {
-            violations.add(DataLimitViolation("disciple_count", discipleCount, limits.maxDiscipleCount.toLong()))
-        }
-
-        val battleLogCount = data.battleLogs.size.toLong()
-        if (battleLogCount > limits.maxBattleLogCount) {
-            violations.add(DataLimitViolation("battle_log_count", battleLogCount, limits.maxBattleLogCount.toLong()))
-        }
-
-        return DataLimitValidationResult(
-            isValid = violations.isEmpty(),
-            violations = violations
-        )
-    }
-
     fun getRecommendedContext(dataSize: Int, dataType: DataType): SerializationContext {
         return when (dataType) {
             DataType.HOT_DATA -> SerializationContext(

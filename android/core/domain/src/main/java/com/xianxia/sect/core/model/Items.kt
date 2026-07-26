@@ -16,6 +16,7 @@ import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.util.StackableItem
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.protobuf.ProtoNumber
 import kotlin.math.roundToInt
 
 sealed class GameItem : HasId {
@@ -23,7 +24,7 @@ sealed class GameItem : HasId {
     abstract val name: String
     abstract val rarity: Int
     abstract val description: String
-    
+
     val rarityColor: String get() = GameConfig.Rarity.getColor(rarity)
     val rarityName: String get() = GameConfig.Rarity.getName(rarity)
 }
@@ -44,28 +45,45 @@ sealed class GameItem : HasId {
 @Immutable
 data class EquipmentStack(
     @ColumnInfo(name = "id")
+    @ProtoNumber(1)
     override val id: String = java.util.UUID.randomUUID().toString(),
 
     @ColumnInfo(name = "slot_id")
+    @ProtoNumber(100)
     var slotId: Int = 0,
 
+    @ProtoNumber(2)
     override val name: String = "",
+    @ProtoNumber(4)
     override val rarity: Int = 1,
+    @ProtoNumber(7)
     override val description: String = "",
 
+    @ProtoNumber(3)
     val slot: EquipmentSlot = EquipmentSlot.WEAPON,
+    @ProtoNumber(50)
     val physicalAttack: Int = 0,
+    @ProtoNumber(51)
     val magicAttack: Int = 0,
+    @ProtoNumber(52)
     val physicalDefense: Int = 0,
+    @ProtoNumber(53)
     val magicDefense: Int = 0,
+    @ProtoNumber(54)
     val speed: Int = 0,
+    @ProtoNumber(55)
     val hp: Int = 0,
+    @ProtoNumber(56)
     val mp: Int = 0,
+    @ProtoNumber(10)
     val critChance: Double = 0.0,
 
+    @ProtoNumber(15)
     val minRealm: Int = 9,
 
+    @ProtoNumber(17)
     override var quantity: Int = 1,
+    @ProtoNumber(101)
     override val isLocked: Boolean = false
 ) : GameItem(), StackableItem {
 
@@ -121,31 +139,50 @@ data class EquipmentStack(
 )
 data class EquipmentInstance(
     @ColumnInfo(name = "id")
+    @ProtoNumber(1)
     override val id: String = java.util.UUID.randomUUID().toString(),
 
     @ColumnInfo(name = "slot_id")
+    @ProtoNumber(100)
     var slotId: Int = 0,
 
+    @ProtoNumber(2)
     override val name: String = "",
+    @ProtoNumber(4)
     override val rarity: Int = 1,
+    @ProtoNumber(7)
     override val description: String = "",
 
+    @ProtoNumber(3)
     val slot: EquipmentSlot = EquipmentSlot.WEAPON,
+    @ProtoNumber(50)
     val physicalAttack: Int = 0,
+    @ProtoNumber(51)
     val magicAttack: Int = 0,
+    @ProtoNumber(52)
     val physicalDefense: Int = 0,
+    @ProtoNumber(53)
     val magicDefense: Int = 0,
+    @ProtoNumber(54)
     val speed: Int = 0,
+    @ProtoNumber(55)
     val hp: Int = 0,
+    @ProtoNumber(56)
     val mp: Int = 0,
+    @ProtoNumber(10)
     val critChance: Double = 0.0,
 
+    @ProtoNumber(13)
     val nurtureLevel: Int = 0,
+    @ProtoNumber(14)
     val nurtureProgress: Double = 0.0,
 
+    @ProtoNumber(15)
     val minRealm: Int = 9,
 
+    @ProtoNumber(16)
     val ownerId: String? = null,
+    @ProtoNumber(11)
     val isEquipped: Boolean = false
 ) : GameItem() {
 
@@ -226,8 +263,11 @@ data class EquipmentInstance(
 @Keep
 @Serializable
 enum class EquipmentSlot {
-    WEAPON, ARMOR, BOOTS, ACCESSORY;
-    
+    @ProtoNumber(0) WEAPON,
+    @ProtoNumber(1) ARMOR,
+    @ProtoNumber(2) BOOTS,
+    @ProtoNumber(3) ACCESSORY;
+
     val displayName: String get() = when (this) {
         WEAPON -> "武器"
         ARMOR -> "护甲"
@@ -239,13 +279,13 @@ enum class EquipmentSlot {
 @Keep
 @Serializable
 data class EquipmentStats(
-    val physicalAttack: Int = 0,
-    val magicAttack: Int = 0,
-    val physicalDefense: Int = 0,
-    val magicDefense: Int = 0,
-    val speed: Int = 0,
-    val hp: Int = 0,
-    val mp: Int = 0
+    @ProtoNumber(1) val physicalAttack: Int = 0,
+    @ProtoNumber(2) val magicAttack: Int = 0,
+    @ProtoNumber(3) val physicalDefense: Int = 0,
+    @ProtoNumber(4) val magicDefense: Int = 0,
+    @ProtoNumber(5) val speed: Int = 0,
+    @ProtoNumber(6) val hp: Int = 0,
+    @ProtoNumber(7) val mp: Int = 0
 ) {
     operator fun plus(other: EquipmentStats): EquipmentStats {
         return EquipmentStats(
@@ -258,7 +298,7 @@ data class EquipmentStats(
             mp = mp + other.mp
         )
     }
-    
+
     fun toDiscipleStats(): DiscipleStats = DiscipleStats(
         physicalAttack = physicalAttack,
         magicAttack = magicAttack,
@@ -288,43 +328,74 @@ data class EquipmentStats(
 @Immutable
 data class ManualStack(
     @ColumnInfo(name = "id")
+    @ProtoNumber(1)
     override val id: String = java.util.UUID.randomUUID().toString(),
 
     @ColumnInfo(name = "slot_id")
+    @ProtoNumber(100)
     var slotId: Int = 0,
 
+    @ProtoNumber(2)
     override val name: String = "",
+    @ProtoNumber(4)
     override val rarity: Int = 1,
+    @ProtoNumber(6)
     override val description: String = "",
 
+    @ProtoNumber(3)
     val type: ManualType = ManualType.MIND,
+    @ProtoNumber(5)
     val stats: Map<String, Int> = emptyMap(),
 
+    @ProtoNumber(10)
     val skillName: String? = null,
+    @ProtoNumber(11)
     val skillDescription: String? = null,
+    @ProtoNumber(12)
     val skillType: String = "attack",
+    @ProtoNumber(13)
     val skillDamageType: String = "physical",
+    @ProtoNumber(14)
     val skillHits: Int = 1,
+    @ProtoNumber(15)
     val skillDamageMultiplier: Double = 1.0,
+    @ProtoNumber(16)
     val skillCooldown: Int = 3,
+    @ProtoNumber(17)
     val skillMpCost: Int = 10,
+    @ProtoNumber(18)
     val skillHealPercent: Double = 0.0,
+    @ProtoNumber(19)
     val skillHealFixed: Int = 0,
+    @ProtoNumber(20)
     val skillHealType: String = "hp",
+    @ProtoNumber(21)
     val skillBuffType: String? = null,
+    @ProtoNumber(22)
     val skillBuffValue: Double = 0.0,
+    @ProtoNumber(23)
     val skillBuffDuration: Int = 0,
+    @ProtoNumber(24)
     val skillBuffsJson: String = "",
+    @ProtoNumber(25)
     val skillIsAoe: Boolean = false,
+    @ProtoNumber(26)
     val skillTargetScope: String = "self",
+    @ProtoNumber(27)
     val skillShieldPercent: Double = 0.0,
+    @ProtoNumber(28)
     val skillTurnAdvancePercent: Double = 0.0,
+    @ProtoNumber(29)
     val skillDamageSharePercent: Double = 0.0,
+    @ProtoNumber(30)
     val skillDamageLinkPercent: Double = 0.0,
 
+    @ProtoNumber(31)
     val minRealm: Int = 9,
 
+    @ProtoNumber(101)
     override var quantity: Int = 1,
+    @ProtoNumber(102)
     override val isLocked: Boolean = false
 ) : GameItem(), StackableItem {
 
@@ -383,43 +454,74 @@ data class ManualStack(
 )
 data class ManualInstance(
     @ColumnInfo(name = "id")
+    @ProtoNumber(1)
     override val id: String = java.util.UUID.randomUUID().toString(),
 
     @ColumnInfo(name = "slot_id")
+    @ProtoNumber(100)
     var slotId: Int = 0,
 
+    @ProtoNumber(2)
     override val name: String = "",
+    @ProtoNumber(4)
     override val rarity: Int = 1,
+    @ProtoNumber(6)
     override val description: String = "",
 
+    @ProtoNumber(3)
     val type: ManualType = ManualType.MIND,
+    @ProtoNumber(5)
     val stats: Map<String, Int> = emptyMap(),
 
+    @ProtoNumber(10)
     val skillName: String? = null,
+    @ProtoNumber(11)
     val skillDescription: String? = null,
+    @ProtoNumber(12)
     val skillType: String = "attack",
+    @ProtoNumber(13)
     val skillDamageType: String = "physical",
+    @ProtoNumber(14)
     val skillHits: Int = 1,
+    @ProtoNumber(15)
     val skillDamageMultiplier: Double = 1.0,
+    @ProtoNumber(16)
     val skillCooldown: Int = 3,
+    @ProtoNumber(17)
     val skillMpCost: Int = 10,
+    @ProtoNumber(18)
     val skillHealPercent: Double = 0.0,
+    @ProtoNumber(19)
     val skillHealFixed: Int = 0,
+    @ProtoNumber(20)
     val skillHealType: String = "hp",
+    @ProtoNumber(21)
     val skillBuffType: String? = null,
+    @ProtoNumber(22)
     val skillBuffValue: Double = 0.0,
+    @ProtoNumber(23)
     val skillBuffDuration: Int = 0,
+    @ProtoNumber(24)
     val skillBuffsJson: String = "",
+    @ProtoNumber(25)
     val skillIsAoe: Boolean = false,
+    @ProtoNumber(26)
     val skillTargetScope: String = "self",
+    @ProtoNumber(27)
     val skillShieldPercent: Double = 0.0,
+    @ProtoNumber(28)
     val skillTurnAdvancePercent: Double = 0.0,
+    @ProtoNumber(29)
     val skillDamageSharePercent: Double = 0.0,
+    @ProtoNumber(30)
     val skillDamageLinkPercent: Double = 0.0,
 
+    @ProtoNumber(31)
     val minRealm: Int = 9,
 
+    @ProtoNumber(32)
     val ownerId: String? = null,
+    @ProtoNumber(33)
     val isLearned: Boolean = false
 ) : GameItem() {
 
@@ -535,8 +637,11 @@ data class ManualInstance(
 @Keep
 @Serializable
 enum class ManualType {
-    ATTACK, DEFENSE, SUPPORT, MIND;
-    
+    @ProtoNumber(0) ATTACK,
+    @ProtoNumber(1) DEFENSE,
+    @ProtoNumber(2) SUPPORT,
+    @ProtoNumber(3) MIND;
+
     val displayName: String get() = when (this) {
         ATTACK -> "攻击型"
         DEFENSE -> "防御型"
@@ -548,27 +653,27 @@ enum class ManualType {
 @Keep
 @Serializable
 data class ManualSkill(
-    val name: String,
-    val description: String,
-    val skillType: SkillType = SkillType.ATTACK,
-    val damageType: DamageType = DamageType.PHYSICAL,
-    val hits: Int = 1,
-    val damageMultiplier: Double = 1.0,
-    val cooldown: Int = 3,
-    val mpCost: Int = 10,
-    val healPercent: Double = 0.0,
-    val healFixed: Int = 0,
-    val healType: HealType = HealType.HP,
-    val buffType: BuffType? = null,
-    val buffValue: Double = 0.0,
-    val buffDuration: Int = 0,
-    val buffs: List<Triple<BuffType, Double, Int>> = emptyList(),
-    val isAoe: Boolean = false,
-    val targetScope: String = "self",
-    val shieldPercent: Double = 0.0,
-    val turnAdvancePercent: Double = 0.0,
-    val damageSharePercent: Double = 0.0,
-    val damageLinkPercent: Double = 0.0
+    @ProtoNumber(1) val name: String,
+    @ProtoNumber(2) val description: String,
+    @ProtoNumber(3) val skillType: SkillType = SkillType.ATTACK,
+    @ProtoNumber(4) val damageType: DamageType = DamageType.PHYSICAL,
+    @ProtoNumber(5) val hits: Int = 1,
+    @ProtoNumber(6) val damageMultiplier: Double = 1.0,
+    @ProtoNumber(7) val cooldown: Int = 3,
+    @ProtoNumber(8) val mpCost: Int = 10,
+    @ProtoNumber(9) val healPercent: Double = 0.0,
+    @ProtoNumber(10) val healFixed: Int = 0,
+    @ProtoNumber(11) val healType: HealType = HealType.HP,
+    @ProtoNumber(12) val buffType: BuffType? = null,
+    @ProtoNumber(13) val buffValue: Double = 0.0,
+    @ProtoNumber(14) val buffDuration: Int = 0,
+    @ProtoNumber(15) val buffs: List<Triple<BuffType, Double, Int>> = emptyList(),
+    @ProtoNumber(16) val isAoe: Boolean = false,
+    @ProtoNumber(17) val targetScope: String = "self",
+    @ProtoNumber(18) val shieldPercent: Double = 0.0,
+    @ProtoNumber(19) val turnAdvancePercent: Double = 0.0,
+    @ProtoNumber(20) val damageSharePercent: Double = 0.0,
+    @ProtoNumber(21) val damageLinkPercent: Double = 0.0
 ) {
     fun toCombatSkill(manualName: String = ""): CombatSkill = CombatSkill(
         name = name,
@@ -612,33 +717,45 @@ data class ManualSkill(
 @Immutable
 data class Pill(
     @ColumnInfo(name = "id")
+    @ProtoNumber(1)
     override val id: String = java.util.UUID.randomUUID().toString(),
 
     @ColumnInfo(name = "slot_id")
+    @ProtoNumber(100)
     var slotId: Int = 0,
 
+    @ProtoNumber(2)
     override val name: String = "",
+    @ProtoNumber(4)
     override val rarity: Int = 1,
+    @ProtoNumber(6)
     override val description: String = "",
-    
+
+    @ProtoNumber(10)
     val category: PillCategory = PillCategory.CULTIVATION,
+    @ProtoNumber(11)
     val grade: PillGrade = PillGrade.MEDIUM,
+    @ProtoNumber(15)
     val pillType: String = "",
 
     @Embedded
+    @ProtoNumber(14)
     val effects: PillEffect = PillEffect(),
 
     @ColumnInfo(name = "minRealm", defaultValue = "9")
+    @ProtoNumber(12)
     val minRealm: Int = 9,
-    
+
+    @ProtoNumber(7)
     override var quantity: Int = 1,
+    @ProtoNumber(13)
     override val isLocked: Boolean = false
 ) : GameItem(), StackableItem {
-    
+
     override fun withQuantity(newQuantity: Int): Pill = copy(quantity = newQuantity)
-    
+
     val basePrice: Int get() = (GameConfig.Rarity.get(rarity).pillBasePrice * grade.priceMultiplier).roundToInt()
-    
+
     val breakthroughChance: Double get() = effects.breakthroughChance
     val targetRealm: Int get() = effects.targetRealm
     val isAscension: Boolean get() = effects.isAscension
@@ -679,7 +796,9 @@ data class Pill(
 @Keep
 @Serializable
 enum class PillCategory {
-    CULTIVATION, BATTLE, FUNCTIONAL;
+    @ProtoNumber(0) CULTIVATION,
+    @ProtoNumber(1) BATTLE,
+    @ProtoNumber(2) FUNCTIONAL;
 
     val displayName: String get() = when (this) {
         CULTIVATION -> "修炼丹药"
@@ -691,7 +810,9 @@ enum class PillCategory {
 @Keep
 @Serializable
 enum class PillGrade {
-    LOW, MEDIUM, HIGH;
+    @ProtoNumber(0) LOW,
+    @ProtoNumber(1) MEDIUM,
+    @ProtoNumber(2) HIGH;
 
     val displayName: String get() = when (this) {
         LOW -> "下品"
@@ -736,41 +857,41 @@ enum class PillGrade {
 @Keep
 @Serializable
 data class PillEffect(
-    val breakthroughChance: Double = 0.0,
-    val targetRealm: Int = 0,
-    val isAscension: Boolean = false,
-    val cultivationSpeedPercent: Double = 0.0,
-    val skillExpSpeedPercent: Double = 0.0,
-    val nurtureSpeedPercent: Double = 0.0,
-    val cultivationAdd: Int = 0,
-    val skillExpAdd: Int = 0,
-    val nurtureAdd: Int = 0,
-    val duration: Int = 3,
-    val cannotStack: Boolean = true,
-    val physicalAttackAdd: Int = 0,
-    val magicAttackAdd: Int = 0,
-    val physicalDefenseAdd: Int = 0,
-    val magicDefenseAdd: Int = 0,
-    val hpAdd: Int = 0,
-    val mpAdd: Int = 0,
-    val speedAdd: Int = 0,
-    val critRateAdd: Double = 0.0,
-    val critEffectAdd: Double = 0.0,
-    val extendLife: Int = 0,
-    val intelligenceAdd: Int = 0,
-    val charmAdd: Int = 0,
-    val loyaltyAdd: Int = 0,
-    val comprehensionAdd: Int = 0,
-    val artifactRefiningAdd: Int = 0,
-    val pillRefiningAdd: Int = 0,
-    val spiritPlantingAdd: Int = 0,
-    val teachingAdd: Int = 0,
-    val moralityAdd: Int = 0,
-    val miningAdd: Int = 0,
-    val healMaxHpPercent: Double = 0.0,
-    val mpRecoverMaxMpPercent: Double = 0.0,
-    val revive: Boolean = false,
-    val clearAll: Boolean = false
+    @ProtoNumber(1) val breakthroughChance: Double = 0.0,
+    @ProtoNumber(2) val targetRealm: Int = 0,
+    @ProtoNumber(3) val isAscension: Boolean = false,
+    @ProtoNumber(4) val cultivationSpeedPercent: Double = 0.0,
+    @ProtoNumber(5) val skillExpSpeedPercent: Double = 0.0,
+    @ProtoNumber(6) val nurtureSpeedPercent: Double = 0.0,
+    @ProtoNumber(7) val cultivationAdd: Int = 0,
+    @ProtoNumber(8) val skillExpAdd: Int = 0,
+    @ProtoNumber(9) val nurtureAdd: Int = 0,
+    @ProtoNumber(10) val duration: Int = 3,
+    @ProtoNumber(11) val cannotStack: Boolean = true,
+    @ProtoNumber(12) val physicalAttackAdd: Int = 0,
+    @ProtoNumber(13) val magicAttackAdd: Int = 0,
+    @ProtoNumber(14) val physicalDefenseAdd: Int = 0,
+    @ProtoNumber(15) val magicDefenseAdd: Int = 0,
+    @ProtoNumber(16) val hpAdd: Int = 0,
+    @ProtoNumber(17) val mpAdd: Int = 0,
+    @ProtoNumber(18) val speedAdd: Int = 0,
+    @ProtoNumber(19) val critRateAdd: Double = 0.0,
+    @ProtoNumber(20) val critEffectAdd: Double = 0.0,
+    @ProtoNumber(21) val extendLife: Int = 0,
+    @ProtoNumber(22) val intelligenceAdd: Int = 0,
+    @ProtoNumber(23) val charmAdd: Int = 0,
+    @ProtoNumber(24) val loyaltyAdd: Int = 0,
+    @ProtoNumber(25) val comprehensionAdd: Int = 0,
+    @ProtoNumber(26) val artifactRefiningAdd: Int = 0,
+    @ProtoNumber(27) val pillRefiningAdd: Int = 0,
+    @ProtoNumber(28) val spiritPlantingAdd: Int = 0,
+    @ProtoNumber(29) val teachingAdd: Int = 0,
+    @ProtoNumber(30) val moralityAdd: Int = 0,
+    @ProtoNumber(31) val miningAdd: Int = 0,
+    @ProtoNumber(32) val healMaxHpPercent: Double = 0.0,
+    @ProtoNumber(33) val mpRecoverMaxMpPercent: Double = 0.0,
+    @ProtoNumber(34) val revive: Boolean = false,
+    @ProtoNumber(35) val clearAll: Boolean = false
 )
 
 @Keep
@@ -788,17 +909,25 @@ data class PillEffect(
 @Immutable
 data class Material(
     @ColumnInfo(name = "id")
+    @ProtoNumber(1)
     override val id: String = java.util.UUID.randomUUID().toString(),
 
     @ColumnInfo(name = "slot_id")
+    @ProtoNumber(100)
     var slotId: Int = 0,
 
+    @ProtoNumber(2)
     override val name: String = "",
+    @ProtoNumber(4)
     override val rarity: Int = 1,
+    @ProtoNumber(6)
     override val description: String = "",
-    
+
+    @ProtoNumber(3)
     val category: MaterialCategory = MaterialCategory.BEAST_HIDE,
+    @ProtoNumber(5)
     override var quantity: Int = 1,
+    @ProtoNumber(101)
     override val isLocked: Boolean = false
 ) : GameItem(), StackableItem {
 
@@ -810,18 +939,18 @@ data class Material(
 @Keep
 @Serializable
 enum class MaterialCategory {
-    BEAST_HIDE,
-    BEAST_BONE,
-    BEAST_TOOTH,
-    BEAST_CORE,
-    BEAST_CLAW,
-    BEAST_FEATHER,
-    BEAST_TAIL,
-    BEAST_SCALE,
-    BEAST_HORN,
-    BEAST_SHELL,
-    BEAST_BLOOD,
-    BEAST_PLASTRON;
+    @ProtoNumber(0) BEAST_HIDE,
+    @ProtoNumber(1) BEAST_BONE,
+    @ProtoNumber(2) BEAST_TOOTH,
+    @ProtoNumber(3) BEAST_CORE,
+    @ProtoNumber(4) BEAST_CLAW,
+    @ProtoNumber(5) BEAST_FEATHER,
+    @ProtoNumber(6) BEAST_TAIL,
+    @ProtoNumber(7) BEAST_SCALE,
+    @ProtoNumber(8) BEAST_HORN,
+    @ProtoNumber(9) BEAST_SHELL,
+    @ProtoNumber(10) BEAST_BLOOD,
+    @ProtoNumber(11) BEAST_PLASTRON;
 
     val displayName: String get() = when (this) {
         BEAST_HIDE -> "兽皮"
@@ -854,17 +983,25 @@ enum class MaterialCategory {
 @Immutable
 data class Herb(
     @ColumnInfo(name = "id")
+    @ProtoNumber(1)
     override val id: String = java.util.UUID.randomUUID().toString(),
 
     @ColumnInfo(name = "slot_id")
+    @ProtoNumber(100)
     var slotId: Int = 0,
 
+    @ProtoNumber(2)
     override val name: String = "",
+    @ProtoNumber(3)
     override val rarity: Int = 1,
+    @ProtoNumber(6)
     override val description: String = "",
 
+    @ProtoNumber(50)
     val category: String = "",
+    @ProtoNumber(4)
     override var quantity: Int = 1,
+    @ProtoNumber(101)
     override val isLocked: Boolean = false
 ) : GameItem(), StackableItem {
 
@@ -887,21 +1024,30 @@ data class Herb(
 @Immutable
 data class Seed(
     @ColumnInfo(name = "id")
+    @ProtoNumber(1)
     override val id: String = java.util.UUID.randomUUID().toString(),
 
     @ColumnInfo(name = "slot_id")
+    @ProtoNumber(100)
     var slotId: Int = 0,
 
+    @ProtoNumber(2)
     override val name: String = "",
+    @ProtoNumber(3)
     override val rarity: Int = 1,
+    @ProtoNumber(8)
     override val description: String = "",
-    
+
+    @ProtoNumber(4)
     val growTime: Int = 3,
+    @ProtoNumber(5)
     val yield: Int = 1,
+    @ProtoNumber(7)
     override var quantity: Int = 1,
+    @ProtoNumber(101)
     override val isLocked: Boolean = false
 ) : GameItem(), StackableItem {
-    
+
     override fun withQuantity(newQuantity: Int): Seed = copy(quantity = newQuantity)
 
     val basePrice: Int get() = GameConfig.Rarity.get(rarity).seedPrice
@@ -917,15 +1063,22 @@ data class Seed(
 @Immutable
 data class StorageBag(
     @ColumnInfo(name = "id")
+    @ProtoNumber(1)
     override val id: String = java.util.UUID.randomUUID().toString(),
 
     @ColumnInfo(name = "slot_id")
+    @ProtoNumber(100)
     var slotId: Int = 0,
 
+    @ProtoNumber(2)
     override val name: String = "",
+    @ProtoNumber(3)
     override val rarity: Int = 1,
+    @ProtoNumber(4)
     val description: String = "可随机获得5-20件同品阶物品",
+    @ProtoNumber(5)
     override var quantity: Int = 1,
+    @ProtoNumber(6)
     override val isLocked: Boolean = false
 ) : HasId, StackableItem {
 

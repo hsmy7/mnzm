@@ -505,34 +505,4 @@ class NullSafeProtoBufTest {
         assertNull(NullSafeProtoBuf.intFromProto(-999, sentinel = -999))
     }
 
-    @Test
-    fun `nurtureDataToProto - null returns default with empty equipmentId`() {
-        val result = NullSafeProtoBuf.nurtureDataToProto(null)
-        assertEquals("", result.equipmentId)
-        assertEquals(0, result.rarity)
-        assertEquals(0, result.nurtureLevel)
-        assertEquals(0.0, result.nurtureProgress, 0.001)
-    }
-
-    @Test
-    fun `nurtureDataFromProto - empty equipmentId returns null`() {
-        val proto = com.xianxia.sect.data.serialization.unified.SerializableEquipmentNurtureData(
-            equipmentId = "", rarity = 0
-        )
-        assertNull(NullSafeProtoBuf.nurtureDataFromProto(proto))
-    }
-
-    @Test
-    fun `nurtureDataFromProto - non-empty equipmentId returns data`() {
-        val proto = com.xianxia.sect.data.serialization.unified.SerializableEquipmentNurtureData(
-            equipmentId = "equip_1", rarity = 3, nurtureLevel = 5, nurtureProgress = 0.8
-        )
-        val result = NullSafeProtoBuf.nurtureDataFromProto(proto)
-        assertNotNull(result)
-        assertEquals("equip_1", result!!.equipmentId)
-        assertEquals(3, result.rarity)
-        assertEquals(5, result.nurtureLevel)
-        assertEquals(0.8, result.nurtureProgress!!, 0.001)
-    }
-
 }

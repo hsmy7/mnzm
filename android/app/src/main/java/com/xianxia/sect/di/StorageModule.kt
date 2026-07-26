@@ -65,10 +65,9 @@ object StorageModule {
     @Provides
     @Singleton
     fun provideSerializationModule(
-        serializationEngine: com.xianxia.sect.data.serialization.unified.UnifiedSerializationEngine,
-        saveDataConverter: com.xianxia.sect.data.serialization.unified.SaveDataConverter
+        serializationEngine: com.xianxia.sect.data.serialization.unified.UnifiedSerializationEngine
     ): SerializationModule {
-        return SerializationModule(serializationEngine, saveDataConverter)
+        return SerializationModule(serializationEngine)
     }
 
     @Provides

@@ -1,5 +1,9 @@
 ## [4.0.74] - 2026-07-26
 
+### 架构重构
+
+- **重构：消除云存档双路径序列化架构债务** — 删除 8 个手动转换器（SaveDataConverter/DiscipleConverter/EquipmentConverter/ManualConverter/ItemConverter/TeamAndBattleConverter/WorldAndSectConverter/SlotConverter）及 SerializableSaveData（1374 行包装类型），域类型（GameData/Disciple/EquipmentInstance/Pill/Material/Herb/Seed/BattleLog/ExplorationTeam 等 ~50 个数据类）直接携带 @ProtoNumber 注解，SaveData 直接序列化为 Protobuf 二进制。净删 ~10,000 行代码，新增 GameData/@Embedded EnumStringSerializer/NullableStringAsEmptySerializer 守卫测试。本地 Room 存储路径完全不变，云存档二进制格式向后兼容。消除"每加字段需同步 4 处"的架构债务
+
 ### 架构加固
 
 - **架构：存档跨版本迁移三层防御** — 替换 `fallbackToDestructiveMigration()` 为 `fallbackToDestructiveMigrationFrom(1)`，禁止 v2+ 数据库毁灭回退；新增迁移前自动备份 `backupDatabaseForMigration()`（写前 WAL checkpoint + 文件复制）；增强 `verifyAndRecoverDatabase()` 在启动时验证 `PRAGMA integrity_check` + 数据非空，异常时从备份恢复；新增 `restoreFromBackupIfNeeded()` 文件级覆盖恢复机制

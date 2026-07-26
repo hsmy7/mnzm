@@ -2,6 +2,7 @@ package com.xianxia.sect.core.model
 
 import androidx.annotation.Keep
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.protobuf.ProtoNumber
 
 /**
  * 自动购买条目 — 玩家在商人界面配置的自动购买列表项。
@@ -12,9 +13,9 @@ import kotlinx.serialization.Serializable
 @Keep
 @Serializable
 data class AutoBuyEntry(
-    val itemName: String,
-    val itemType: String,
-    val rarity: Int
+    @ProtoNumber(1) val itemName: String,
+    @ProtoNumber(2) val itemType: String,
+    @ProtoNumber(3) val rarity: Int
 )
 
 /**

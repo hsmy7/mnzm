@@ -382,44 +382,6 @@ object NullSafeProtoBuf {
 
     fun relationIdFromProto(value: String): String? = stringFromProto(value)
 
-    /**
-     * 转换装备培养数据（EquipmentNurtureData?）
-     *
-     * 判断条件：equipmentId 为空表示未设置
-     */
-    fun nurtureDataToProto(
-        value: com.xianxia.sect.core.model.EquipmentNurtureData?
-    ): com.xianxia.sect.data.serialization.unified.SerializableEquipmentNurtureData {
-        return if (value == null) {
-            com.xianxia.sect.data.serialization.unified.SerializableEquipmentNurtureData(
-                equipmentId = "",
-                rarity = 0
-            )
-        } else {
-            com.xianxia.sect.data.serialization.unified.SerializableEquipmentNurtureData(
-                equipmentId = value.equipmentId ?: "",
-                rarity = value.rarity ?: 0,
-                nurtureLevel = value.nurtureLevel ?: 0,
-                nurtureProgress = value.nurtureProgress ?: 0.0
-            )
-        }
-    }
-
-    fun nurtureDataFromProto(
-        value: com.xianxia.sect.data.serialization.unified.SerializableEquipmentNurtureData
-    ): com.xianxia.sect.core.model.EquipmentNurtureData? {
-        return if (value.equipmentId.isEmpty()) {
-            null
-        } else {
-            com.xianxia.sect.core.model.EquipmentNurtureData(
-                equipmentId = value.equipmentId,
-                rarity = value.rarity,
-                nurtureLevel = value.nurtureLevel,
-                nurtureProgress = value.nurtureProgress
-            )
-        }
-    }
-
     // ==================== 常量定义 ====================
 
     /** Int 类型的默认哨兵值（表示 null） */

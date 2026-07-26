@@ -4,6 +4,7 @@ import androidx.annotation.Keep
 import java.util.UUID
 import com.xianxia.sect.core.util.TimeProgressUtil
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.protobuf.ProtoNumber
 
 @Keep
 @Serializable
@@ -295,18 +296,18 @@ data class MissionRewardConfig(
 @Keep
 @Serializable
 data class Mission(
-    val id: String = UUID.randomUUID().toString(),
+    @ProtoNumber(1) val id: String = UUID.randomUUID().toString(),
     val template: MissionTemplate,
-    val name: String,
-    val description: String,
+    @ProtoNumber(3) val name: String,
+    @ProtoNumber(4) val description: String,
     val difficulty: MissionDifficulty,
-    val duration: Int,
+    @ProtoNumber(7) val duration: Int,
     val rewards: MissionRewardConfig,
     val missionType: MissionType = MissionType.NO_COMBAT,
     val enemyType: EnemyType = EnemyType.BEAST,
     val triggerChance: Double = 0.0,
-    val createdYear: Int = 1,
-    val createdMonth: Int = 1
+    @ProtoNumber(13) val createdYear: Int = 1,
+    @ProtoNumber(14) val createdMonth: Int = 1
 ) {
     val memberCount: Int get() = template.requiredMemberCount
 }
@@ -314,17 +315,17 @@ data class Mission(
 @Keep
 @Serializable
 data class ActiveMission(
-    val id: String = UUID.randomUUID().toString(),
-    val missionId: String,
-    val missionName: String,
+    @ProtoNumber(1) val id: String = UUID.randomUUID().toString(),
+    @ProtoNumber(2) val missionId: String,
+    @ProtoNumber(3) val missionName: String = "",
     val template: MissionTemplate,
     val difficulty: MissionDifficulty,
-    val discipleIds: List<String>,
-    val discipleNames: List<String>,
-    val discipleRealms: List<String>,
-    val startYear: Int,
-    val startMonth: Int,
-    val duration: Int,
+    val discipleIds: List<String> = emptyList(),
+    @ProtoNumber(13) val discipleNames: List<String> = emptyList(),
+    @ProtoNumber(35) val discipleRealms: List<String> = emptyList(),
+    @ProtoNumber(5) val startYear: Int = 1,
+    @ProtoNumber(6) val startMonth: Int = 1,
+    @ProtoNumber(7) val duration: Int = 0,
     val rewards: MissionRewardConfig,
     val missionType: MissionType = MissionType.NO_COMBAT,
     val enemyType: EnemyType = EnemyType.BEAST,

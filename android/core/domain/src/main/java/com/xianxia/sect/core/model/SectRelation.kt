@@ -3,6 +3,7 @@ package com.xianxia.sect.core.model
 import androidx.annotation.Keep
 import com.xianxia.sect.core.config.FavorConfig
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.protobuf.ProtoNumber
 
 /**
  * 宗门关系 — 记录两个宗门之间的好感度数据。
@@ -12,10 +13,10 @@ import kotlinx.serialization.Serializable
 @Keep
 @Serializable
 data class SectRelation(
-    val sectId1: String,
-    val sectId2: String,
-    var favor: Int = FavorConfig.INITIAL_FAVOR,
-    var lastInteractionYear: Int = 0,
-    var noGiftYears: Int = 0,
-    var acquainted: Boolean = false
+    @ProtoNumber(1) val sectId1: String,
+    @ProtoNumber(2) val sectId2: String,
+    @ProtoNumber(3) var favor: Int = FavorConfig.INITIAL_FAVOR,
+    @ProtoNumber(4) var lastInteractionYear: Int = 0,
+    @ProtoNumber(5) var noGiftYears: Int = 0,
+    @ProtoNumber(6) var acquainted: Boolean = false
 )

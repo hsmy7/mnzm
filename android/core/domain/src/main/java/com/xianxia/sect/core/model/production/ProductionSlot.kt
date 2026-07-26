@@ -7,8 +7,13 @@ import androidx.room.Index
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import com.xianxia.sect.core.model.EquipmentSlot
+import com.xianxia.sect.core.model.BuildingTypeAsStringSerializer
+import com.xianxia.sect.core.model.NullableStringAsEmptySerializer
+import com.xianxia.sect.core.model.ProductionSlotStatusAsStringSerializer
 import com.xianxia.sect.core.util.TimeProgressUtil
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
+import kotlinx.serialization.protobuf.ProtoNumber
 
 @Keep
 @Serializable
@@ -23,38 +28,67 @@ import kotlinx.serialization.Serializable
 )
 @TypeConverters(ProductionSlotConverters::class)
 data class ProductionSlot(
+    @ProtoNumber(1)
     @ColumnInfo(name = "id")
     val id: String = java.util.UUID.randomUUID().toString(),
 
+    @Transient
     @ColumnInfo(name = "slot_id")
     var slotId: Int = 0,
 
+    @ProtoNumber(2)
     val slotIndex: Int = 0,
+    @ProtoNumber(3)
+    @kotlinx.serialization.Serializable(with = BuildingTypeAsStringSerializer::class)
     val buildingType: BuildingType = BuildingType.ALCHEMY,
+    @ProtoNumber(4)
     val buildingId: String = "",
+    @ProtoNumber(5)
+    @kotlinx.serialization.Serializable(with = ProductionSlotStatusAsStringSerializer::class)
     val status: ProductionSlotStatus = ProductionSlotStatus.IDLE,
+    @ProtoNumber(6)
+    @kotlinx.serialization.Serializable(with = NullableStringAsEmptySerializer::class)
     val recipeId: String? = null,
+    @ProtoNumber(7)
     val recipeName: String = "",
+    @ProtoNumber(8)
     val startYear: Int = 0,
+    @ProtoNumber(9)
     val startMonth: Int = 0,
+    @ProtoNumber(10)
     val duration: Int = 0,
     /** 配方基础持续时间（不含加成），用于月结时动态重算 */
+    @ProtoNumber(22)
     @ColumnInfo(defaultValue = "0")
     val baseDuration: Int = 0,
+    @ProtoNumber(11)
+    @kotlinx.serialization.Serializable(with = NullableStringAsEmptySerializer::class)
     val assignedDiscipleId: String? = null,
+    @ProtoNumber(12)
     val assignedDiscipleName: String = "",
+    @ProtoNumber(13)
     val successRate: Double = 0.0,
+    @Transient
     val requiredMaterials: Map<String, Int> = emptyMap(),
+    @ProtoNumber(14)
+    @kotlinx.serialization.Serializable(with = NullableStringAsEmptySerializer::class)
     val outputItemId: String? = null,
+    @ProtoNumber(15)
     val outputItemName: String = "",
+    @ProtoNumber(16)
     val outputItemRarity: Int = 1,
+    @ProtoNumber(24)
     val outputItemSlot: String = "",
+    @ProtoNumber(17)
     @ColumnInfo(defaultValue = "0")
     val expectedYield: Int = 0,
+    @ProtoNumber(18)
     @ColumnInfo(defaultValue = "0")
     val autoRestartEnabled: Boolean = false,
+    @ProtoNumber(19)
     @ColumnInfo(defaultValue = "0")
     val completionMonth: Int = 0,
+    @ProtoNumber(20)
     @ColumnInfo(defaultValue = "1")
     val completionPhase: Int = 1,
     /**
@@ -66,6 +100,7 @@ data class ProductionSlot(
      * 旧存档加载时为空字符串。由于 ProductionSlot 已迁移到 Repository 管理，
      * 旧数据回填需在 Repository 初始化时按 buildingId 分组顺序推断。
      */
+    @ProtoNumber(21)
     @ColumnInfo(defaultValue = "")
     val buildingInstanceId: String = ""
 ) {
