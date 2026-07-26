@@ -721,10 +721,12 @@ data class GameData(
 
     // 音乐/音效开关
     @ProtoNumber(160)
+    @ColumnInfo(defaultValue = "1")
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var soundEnabled: Boolean = true,
 
     @ProtoNumber(161)
+    @ColumnInfo(defaultValue = "1")
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var musicEnabled: Boolean = true,
 ) {

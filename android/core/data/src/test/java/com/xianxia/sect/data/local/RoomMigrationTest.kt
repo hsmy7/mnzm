@@ -59,6 +59,7 @@ class RoomMigrationTest {
         private val M28_29 = GameDatabase.MIGRATION_28_29
         private val M29_30 = GameDatabase.MIGRATION_29_30
         private val M31_32 = GameDatabase.MIGRATION_31_32
+        private val M32_33 = GameDatabase.MIGRATION_32_33
     }
 
     // ==================== 单个迁移步骤测试 ====================
@@ -530,12 +531,37 @@ class RoomMigrationTest {
         testSingleMigration("m_31_32", 31, 32, listOf(M31_32), "game_data", "theft_judgements_this_month")
     }
 
-    // ==================== 全链路数据留存测试（M21→M32） ====================
+    @Test
+    fun `MIGRATION_32_TO_33 adds soundEnabled to game_data`() {
+        // 32.json 在 GameData 加入 soundEnabled/musicEnabled 后生成，已包含这些列，
+        // 因此从 v31 schema（不含这两列）开始，先走 M31_32 升至 v32，再测 M32_33
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dbName = "m_32_33_se"
+        context.deleteDatabase(dbName)
+        try {
+            val db = createDatabaseFromSchema(context, dbName, 31)
+            applyMigrationsSequentially(db, listOf(M31_32, M32_33))
+            assertTrue("Column 'soundEnabled' should exist after M32_33",
+                columnExists(db, "game_data", "soundEnabled"))
+            assertTrue("Column 'musicEnabled' should exist after M32_33",
+                columnExists(db, "game_data", "musicEnabled"))
+            db.close()
+        } finally {
+            context.deleteDatabase(dbName)
+        }
+    }
 
     @Test
-    fun `full migration chain 21 to 32 preserves inserted game data`() {
+    fun `MIGRATION_32_TO_33 adds musicEnabled to game_data`() {
+        testSingleMigration("m_32_33_me", 31, 33, listOf(M31_32, M32_33), "game_data", "musicEnabled")
+    }
+
+    // ==================== 全链路数据留存测试（M21→M33） ====================
+
+    @Test
+    fun `full migration chain 21 to 33 preserves inserted game data`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val dbName = "chain_21_32_dp"
+        val dbName = "chain_21_33_dp"
         context.deleteDatabase(dbName)
         try {
             val db = createDatabaseFromSchema(context, dbName, 21)
@@ -578,8 +604,8 @@ class RoomMigrationTest {
                 assertEquals(testSectName, it.getString(0))
             }
 
-            // 按顺序运行 M21_22 → M22_23 → ... → M31_32（10 步迁移）
-            applyMigrationsSequentially(db, listOf(M21_22, M22_23, M23_24, M24_25, M25_26, M26_27, M27_28, M28_29, M29_30, M31_32))
+            // 按顺序运行 M21_22 → M22_23 → ... → M32_33（11 步迁移）
+            applyMigrationsSequentially(db, listOf(M21_22, M22_23, M23_24, M24_25, M25_26, M26_27, M27_28, M28_29, M29_30, M31_32, M32_33))
 
             // 验证数据在迁移后仍然存在
             cursor = db.query("SELECT sectName, gameYear, gameMonth FROM game_data WHERE id = 'gd_chain'", emptyArray())
@@ -911,7 +937,7 @@ class RoomMigrationTest {
         }
     }
 
-    /** 验证全量链式迁移（v21→v32）后 game_data 的所有列存在 */
+    /** 验证全量链式迁移（v21→v33）后 game_data 的所有列存在 */
     private fun verifyGameDataColumnsExistFullChain(db: SupportSQLiteDatabase) {
         val expected = listOf(
             "sectLevelClaimRecords", "save_version", "autoBuyList",
@@ -933,7 +959,9 @@ class RoomMigrationTest {
             "yearly_reports",
             "open_recruitment_last_paid_month",
             "annual_theft_count",
-            "theft_judgements_this_month"
+            "theft_judgements_this_month",
+            "soundEnabled",
+            "musicEnabled"
         )
         for (col in expected) {
             assertTrue("game_data should have column '$col' after full chain",

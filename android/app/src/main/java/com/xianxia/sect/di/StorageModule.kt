@@ -65,9 +65,10 @@ object StorageModule {
     @Provides
     @Singleton
     fun provideSerializationModule(
-        serializationEngine: com.xianxia.sect.data.serialization.unified.UnifiedSerializationEngine
+        serializationEngine: com.xianxia.sect.data.serialization.unified.UnifiedSerializationEngine,
+        oldSaveFormatDeserializer: com.xianxia.sect.data.serialization.backwardcompat.OldSaveFormatDeserializer
     ): SerializationModule {
-        return SerializationModule(serializationEngine)
+        return SerializationModule(serializationEngine, oldSaveFormatDeserializer)
     }
 
     @Provides
