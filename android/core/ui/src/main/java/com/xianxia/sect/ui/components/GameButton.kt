@@ -17,6 +17,7 @@ import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +50,8 @@ fun GameButton(
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale = if (isPressed) 0.95f else 1f
+    val playClickSound = LocalPlayClickSound.current
+    val currentOnClick by rememberUpdatedState(onClick)
 
     Box(
         modifier = modifier
@@ -64,7 +67,10 @@ fun GameButton(
                 interactionSource = interactionSource,
                 indication = null,
                 enabled = enabled,
-                onClick = onClick
+                onClick = {
+                    playClickSound?.invoke()
+                    currentOnClick()
+                }
             ),
         contentAlignment = Alignment.Center
     ) {
@@ -97,6 +103,9 @@ fun CloseButton(
     // 触摸目标 ≥ 48dp（Material Design 标准），视觉图标保持 visualSize
     // 通过 padding 扩展触摸区域，不改变视觉尺寸
     val touchPadding = ((48.dp - visualSize) / 2).coerceAtLeast(0.dp)
+    val playClickSound = LocalPlayClickSound.current
+    val currentOnClick by rememberUpdatedState(onClick)
+
     Box(
         modifier = modifier
             .size(visualSize + touchPadding * 2)
@@ -105,7 +114,10 @@ fun CloseButton(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = ripple(),
                 enabled = enabled,
-                onClick = onClick
+                onClick = {
+                    playClickSound?.invoke()
+                    currentOnClick()
+                }
             ),
         contentAlignment = Alignment.Center
     ) {

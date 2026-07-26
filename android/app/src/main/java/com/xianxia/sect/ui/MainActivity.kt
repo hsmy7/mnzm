@@ -51,6 +51,8 @@ import com.xianxia.sect.ui.game.GameActivity
 import com.xianxia.sect.ui.game.LoadingScreen
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.AudioToggleRow
+import androidx.compose.runtime.CompositionLocalProvider
+import com.xianxia.sect.ui.components.LocalPlayClickSound
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.XianxiaTheme
 import com.xianxia.sect.core.audio.AudioConfig
@@ -319,6 +321,7 @@ class MainActivity : ComponentActivity() {
     internal fun showMainScreen() {
         setContent {
             XianxiaTheme {
+                CompositionLocalProvider(LocalPlayClickSound provides { audioEngine.playSound("click") }) {
                 GameBackground {
                     MainScreen(
                         sessionManager = sessionManager,
@@ -343,6 +346,7 @@ class MainActivity : ComponentActivity() {
                         }
                     )
                 }
+                }
             }
         }
     }
@@ -350,6 +354,7 @@ class MainActivity : ComponentActivity() {
     internal fun showModeSelectionScreen() {
         setContent {
             XianxiaTheme {
+                CompositionLocalProvider(LocalPlayClickSound provides { audioEngine.playSound("click") }) {
                 ModeSelectionScreen(
                     userName = sessionManager.userName ?: "TapTap用户",
                     unionId = sessionManager.unionId ?: "",
@@ -377,6 +382,7 @@ class MainActivity : ComponentActivity() {
                         if (enabled) audioEngine.playBGM() else audioEngine.stopBGM()
                     }
                 )
+                }
             }
         }
     }

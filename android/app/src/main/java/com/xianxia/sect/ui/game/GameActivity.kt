@@ -48,8 +48,10 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.game.sect.NativeSurfaceView
 import com.xianxia.sect.ui.theme.XianxiaTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import com.xianxia.sect.core.audio.AudioConfig
 import com.xianxia.sect.core.audio.AudioEngine
+import com.xianxia.sect.ui.components.LocalPlayClickSound
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -206,6 +208,7 @@ class GameActivity : ComponentActivity() {
 
         setContent {
             XianxiaTheme {
+                CompositionLocalProvider(LocalPlayClickSound provides { audioEngine.playSound("click") }) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -393,6 +396,7 @@ class GameActivity : ComponentActivity() {
                         )
                     }
                 }
+            }
             }
         }
 
