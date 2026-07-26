@@ -53,6 +53,7 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.AudioToggleRow
 import androidx.compose.runtime.CompositionLocalProvider
 import com.xianxia.sect.ui.components.LocalPlayClickSound
+import com.xianxia.sect.ui.components.clickableWithSound
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.XianxiaTheme
 import com.xianxia.sect.core.audio.AudioConfig
@@ -915,7 +916,7 @@ fun MainScreen(
                     color = GameColors.SpiritBlue,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
-                    modifier = Modifier.clickable {
+                    modifier = Modifier.clickableWithSound {
                         showInAppPrivacy = true
                     }
                 )

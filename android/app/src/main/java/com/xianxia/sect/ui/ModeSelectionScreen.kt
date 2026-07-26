@@ -25,6 +25,7 @@ import com.bumptech.glide.Glide
 import com.xianxia.sect.R
 import com.xianxia.sect.ui.components.AudioToggleRow
 import com.xianxia.sect.ui.components.SmallScreenDialog
+import com.xianxia.sect.ui.components.clickableWithSound
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -140,7 +141,7 @@ private fun UserAvatarHeader(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 16.dp, end = 16.dp)
-            .clickable { onClick() },
+            .clickableWithSound { onClick() },
         horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -198,7 +199,7 @@ private fun ActionButtons(
             contentDescription = "新游戏",
             modifier = Modifier
                 .height(56.dp)
-                .clickable { onNewGame() },
+                .clickableWithSound { onNewGame() },
             contentScale = ContentScale.Fit
         )
         Spacer(modifier = Modifier.height(16.dp))
@@ -207,7 +208,7 @@ private fun ActionButtons(
             contentDescription = "读取存档",
             modifier = Modifier
                 .height(56.dp)
-                .clickable { onLoadSave() },
+                .clickableWithSound { onLoadSave() },
             contentScale = ContentScale.Fit
         )
         Spacer(modifier = Modifier.height(16.dp))
@@ -216,7 +217,7 @@ private fun ActionButtons(
             contentDescription = "退出登录",
             modifier = Modifier
                 .height(56.dp)
-                .clickable { onLogout() },
+                .clickableWithSound { onLogout() },
             contentScale = ContentScale.Fit
         )
     }
