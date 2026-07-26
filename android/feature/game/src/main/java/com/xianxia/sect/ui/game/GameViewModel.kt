@@ -729,6 +729,37 @@ class GameViewModel @Inject constructor(
     fun releaseDiscipleFromAllSlotsAtomic(discipleId: String) {
         gameEngine.launchOnEngine { gameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId) }
     }
+
+    /**
+     * 释放弟子为其分配新任务。根据当前状态决定释放方式：
+     * - REFLECTING（思过中）→ 释放思过（调用 releaseReflectionDisciple）
+     * - REFINING（血炼中）→ 中止血炼（不返还材料）
+     * - 其他状态 → releaseDiscipleFromAllSlotsAtomic
+     */
+    fun releaseDiscipleForReassignment(discipleId: String) {
+        val status = gameEngine.getDiscipleAggregate(discipleId)?.status ?: return
+        when (status) {
+            com.xianxia.sect.core.model.DiscipleStatus.REFLECTING -> {
+                releaseReflectionDisciple(discipleId)
+            }
+            com.xianxia.sect.core.model.DiscipleStatus.REFINING -> {
+                // 找到该弟子对应的血炼建筑实例 → 中止血炼（不返还材料）
+                val gd = gameEngine.gameDataSnapshot
+                val buildingInstanceId = gd?.activeBloodRefinements?.entries
+                    ?.firstOrNull { it.value.discipleId == discipleId }
+                    ?.key
+                if (buildingInstanceId != null) {
+                    gameEngine.launchOnEngine {
+                        gameEngine.cancelBloodRefinement(buildingInstanceId, discipleId)
+                    }
+                } else {
+                    releaseDiscipleFromAllSlotsAtomic(discipleId)
+                }
+            }
+            else -> releaseDiscipleFromAllSlotsAtomic(discipleId)
+        }
+    }
+
     val showAllAvailableDisciplesSnapshot: Boolean get() = settings.showAllAvailableDisciplesSnapshot
     val battleAndExplorationIdsSnapshot: Set<String> get() = settings.battleAndExplorationIdsSnapshot
     fun setActiveTab(tab: String) = settings.setActiveTab(tab)

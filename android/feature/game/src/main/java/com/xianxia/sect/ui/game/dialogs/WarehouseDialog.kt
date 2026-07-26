@@ -135,7 +135,7 @@ fun WarehouseDialog(
                             if (showAllEnabled
                                 && disciple.status != com.xianxia.sect.core.model.DiscipleStatus.IDLE
                             ) {
-                                viewModel.releaseDiscipleFromAllSlotsAtomic(disciple.id)
+                                viewModel.releaseDiscipleForReassignment(disciple.id)
                             }
                             productionViewModel.assignWarehouseGarrison(
                                 buildingInstanceId, disciple.id,

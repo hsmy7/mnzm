@@ -38,7 +38,8 @@ fun DiscipleSelectorDialog(
     onConfirm: (List<DiscipleAggregate>) -> Unit,
     viewModel: GameViewModel? = null,
     showAllEnabled: Boolean = false,
-    battleAndExplorationIds: Set<String> = emptySet()
+    battleAndExplorationIds: Set<String> = emptySet(),
+    scrimEnabled: Boolean = true
 ) {
     DisposableEffect(Unit) {
         viewModel?.activateSubDialogDomain("DiscipleSelector")
@@ -65,6 +66,7 @@ fun DiscipleSelectorDialog(
         title = config.title,
         mode = DialogMode.Half,
         scrollableContent = false,
+        scrimEnabled = scrimEnabled,
         headerContent = {
             SpiritRootAttributeFilterBar(
                 selectedSpiritRootFilter = filterState.spiritRootFilter,

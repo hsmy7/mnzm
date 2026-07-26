@@ -212,7 +212,7 @@ private fun DisciplePickerDialog(
                         onClick = {
                             scope.launch {
                                 if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
-                                    gameViewModel.releaseDiscipleFromAllSlotsAtomic(disciple.id)
+                                    gameViewModel.releaseDiscipleForReassignment(disciple.id)
                                 }
                                 onSelect(disciple)
                             }

@@ -240,7 +240,7 @@ fun ForgeDialog(
                 val disciple = discipleMap[discipleId]
                 coroutineScope.launch {
                     if (showAllEnabled && disciple?.status != DiscipleStatus.IDLE) {
-                        viewModel.releaseDiscipleFromAllSlotsAtomic(discipleId)
+                        viewModel.releaseDiscipleForReassignment(discipleId)
                     }
                     val d = discipleMap[discipleId]
                     forgeViewModel.assignWorker(buildingIndex, discipleId, d?.name ?: "")

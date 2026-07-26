@@ -34,7 +34,7 @@ class SpiritMineViewModel @Inject constructor(
         gameEngine.launchOnEngine {
             try {
                 // 释放旧槽位（自动移除前职务）
-                gameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId)
+                releaseDiscipleForReassignment(discipleId)
 
                 // 通过 ElderManagementUseCase 统一路径分配亲传弟子
                 when (elderManagement.assignDirectDisciple(
@@ -145,7 +145,7 @@ class SpiritMineViewModel @Inject constructor(
                 )
 
                 // 释放旧槽位（自动移除前职务）
-                gameEngine.releaseDiscipleFromAllSlotsAtomic(newDiscipleId)
+                releaseDiscipleForReassignment(newDiscipleId)
 
                 val currentGameData = gameEngine.gameDataSnapshot
                 val allSlots = currentGameData.spiritMineSlots.toMutableList()
@@ -211,7 +211,7 @@ class SpiritMineViewModel @Inject constructor(
                     sectId = mineSectId
                 )
                 // 释放旧槽位
-                gameEngine.releaseDiscipleFromAllSlotsAtomic(disciple.id)
+                releaseDiscipleForReassignment(disciple.id)
                 assigned++
             }
         }
@@ -230,4 +230,30 @@ class SpiritMineViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 释放弟子为其分配新任务。根据当前状态决定释放方式：
+     * - REFLECTING（思过中）→ 释放思过
+     * - REFINING（血炼中）→ 中止血炼（不返还材料）
+     * - 其他状态 → releaseDiscipleFromAllSlotsAtomic
+     */
+    private suspend fun releaseDiscipleForReassignment(discipleId: String) {
+        val status = gameEngine.getDiscipleAggregate(discipleId)?.status ?: return
+        when (status) {
+            DiscipleStatus.REFLECTING -> {
+                gameEngine.releaseReflectionDisciple(discipleId)
+            }
+            DiscipleStatus.REFINING -> {
+                val gd = gameEngine.gameDataSnapshot
+                val buildingInstanceId = gd?.activeBloodRefinements?.entries
+                    ?.firstOrNull { it.value.discipleId == discipleId }
+                    ?.key
+                if (buildingInstanceId != null) {
+                    gameEngine.cancelBloodRefinement(buildingInstanceId, discipleId)
+                } else {
+                    gameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId)
+                }
+            }
+            else -> gameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId)
+        }
+    }
 }

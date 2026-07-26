@@ -28,6 +28,27 @@ class SettingsDelegate(
         gameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId)
     }
 
+    suspend fun releaseDiscipleForReassignment(discipleId: String) {
+        val status = gameEngine.getDiscipleAggregate(discipleId)?.status ?: return
+        when (status) {
+            com.xianxia.sect.core.model.DiscipleStatus.REFLECTING -> {
+                gameEngine.releaseReflectionDisciple(discipleId)
+            }
+            com.xianxia.sect.core.model.DiscipleStatus.REFINING -> {
+                val gd = gameEngine.gameDataSnapshot
+                val buildingInstanceId = gd?.activeBloodRefinements?.entries
+                    ?.firstOrNull { it.value.discipleId == discipleId }
+                    ?.key
+                if (buildingInstanceId != null) {
+                    gameEngine.cancelBloodRefinement(buildingInstanceId, discipleId)
+                } else {
+                    gameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId)
+                }
+            }
+            else -> gameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId)
+        }
+    }
+
     val showAllAvailableDisciplesSnapshot: Boolean
         get() = gameEngine.gameDataSnapshot?.showAllAvailableDisciples ?: false
 

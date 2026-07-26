@@ -200,6 +200,7 @@ object VulkanPolicy {
 
     // ── 已知问题机型列表（持续扩充） ──
     // 基于 Bugly 崩溃数据和行业报告维护
+    // 特别注意：Adreno GPU vkGetDeviceQueue 崩溃（#3088）— 已在 VulkanBackend.cpp 中增加重试逻辑
     private val KNOWN_PROBLEM_MODELS = setOf(
         // 联想
         "tb320fc",        // 联想平板 (ZUXOS)
@@ -214,6 +215,11 @@ object VulkanPolicy {
         "2210132c",       // 小米 12T
         "2211133c",       // 小米 13
         "23046pnc5c",     // 小米 13T
+        // Adreno vkGetDeviceQueue 崩溃相关机型
+        "2312d0500",      // 小米 14
+        "23127pn0cc",     // 小米 14 Pro
+        "23122rn3bl",     // 小米 13 Ultra
+        "2311drn14c",     // Xiaomi 13T Pro
     )
 
     // ── 已知问题厂商列表 ──

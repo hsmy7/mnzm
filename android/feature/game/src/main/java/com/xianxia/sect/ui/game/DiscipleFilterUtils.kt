@@ -100,13 +100,13 @@ internal fun List<DiscipleAggregate>.applyFilters(
 
 /**
  * 根据"显示所有可用弟子"开关过滤弟子列表：
- * - 勾选时：排除 [ON_MISSION] 及 [battleAndExplorationIds]
- *   中的弟子（战斗中），其余状态均显示（含思过中、血炼中等）
- * - 不勾选时：仅显示 [IDLE]，同时排除 [battleAndExplorationIds] 中的弟子
+ * - 勾选时：排除 [ON_MISSION]（任务中）及 [battleAndExplorationIds]
+ *   中的弟子（探索/战斗中），其余状态均显示（含血炼中、思过中等）
+ * - 不勾选时：仅显示 [IDLE]（空闲中），同时排除 [battleAndExplorationIds] 中的弟子
  * [additionalCheck] 用于叠加其他过滤条件（如 realmLayer、年龄、弟子类型等）
  *
- * ⚠️ 白名单模式：新增 [DiscipleStatus] 时，showAllEnabled=true 默认可见。
- * 如果新状态应被排除（如"闭关中"），请在此函数添加对应的 d.status != xxx 检查。
+ * 当 showAllEnabled=true 时血炼中（REFINING）和思过中（REFLECTING）弟子可见，
+ * 选择后触发对应的特殊行为（血炼失败/释放思过），见 DisciplesTab 的 onClick 逻辑。
  */
 internal fun List<DiscipleAggregate>.filterByDiscipleStatus(
     showAllEnabled: Boolean,

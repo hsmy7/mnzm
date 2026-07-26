@@ -244,7 +244,7 @@ fun AlchemyDialog(
                 val disciple = discipleMap[discipleId]
                 coroutineScope.launch {
                     if (showAllEnabled && disciple?.status != DiscipleStatus.IDLE) {
-                        viewModel.releaseDiscipleFromAllSlotsAtomic(discipleId)
+                        viewModel.releaseDiscipleForReassignment(discipleId)
                     }
                     val d = discipleMap[discipleId]
                     alchemyViewModel.assignWorker(buildingIndex, discipleId, d?.name ?: "")

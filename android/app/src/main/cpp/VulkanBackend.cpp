@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <vector>
 #include <set>
+#include <thread>
+#include <chrono>
 #include <android/log.h>
 #include <cstdio>
 #include <signal.h>
@@ -17,6 +19,7 @@
 #define LOG_TAG "VulkanBackend"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#define LOGW(...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
 
 // ── SIGSEGV 信号保护（用于 vkCreateShaderModule 等驱动缺陷场景） ──
 // 某些 GPU 驱动（TapTap 云游戏 Hook 层/部分 Mali 驱动）在创建 ShaderModule
@@ -507,7 +510,28 @@ bool VulkanBackend::createLogicalDevice() {
         return false;
     }
 
-    vkGetDeviceQueue(m_device, m_graphicsQueueIndex, 0, &m_graphicsQueue);
+    // ── Safe vkGetDeviceQueue with retry ──
+    // Some Adreno GPU drivers (especially on Chinese OEM ROMs) have a race condition
+    // where the device queue handle isn't fully initialized immediately after vkCreateDevice.
+    // Retry with a small delay to allow the driver to finish internal initialization.
+    // While this can't prevent all SIGSEGV crashes (which are signal-level), the delay
+    // significantly reduces the window for the race on affected drivers.
+    m_graphicsQueue = VK_NULL_HANDLE;
+    for (int retry = 0; retry < 3; retry++) {
+        // Small delay before first call too, to let the driver settle
+        if (retry > 0) std::this_thread::sleep_for(std::chrono::milliseconds(2)); // 2ms between retries
+        vkGetDeviceQueue(m_device, m_graphicsQueueIndex, 0, &m_graphicsQueue);
+        if (m_graphicsQueue != VK_NULL_HANDLE) break;
+        LOGW("vkGetDeviceQueue returned VK_NULL_HANDLE (attempt %d/3)", retry + 1);
+    }
+
+    if (m_graphicsQueue == VK_NULL_HANDLE) {
+        LOGE("Failed to get device queue after 3 attempts — likely Adreno driver race condition");
+        vkDestroyDevice(m_device, nullptr);
+        m_device = VK_NULL_HANDLE;
+        return false;
+    }
+
     m_presentQueue = m_graphicsQueue;
 
     LOGI("Logical device created (ASTC=%d, ETC2=%d)",

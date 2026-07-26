@@ -44,10 +44,14 @@ class XianxiaApplication : Application() {
 
     companion object {
         private const val TAG = "XianxiaApplication"
-        
+
         @Volatile
         private var instance: XianxiaApplication? = null
-        
+
+        /** 主线程上次 dispatch 时间戳（ANR 诊断用） */
+        @Volatile
+        private var _lastMainThreadDispatch: Long = 0L
+
         fun getInstance(): XianxiaApplication? = instance
     }
 
@@ -555,6 +559,18 @@ class XianxiaApplication : Application() {
 
         gameMonitorManager.initialize(this)
         gameMonitorManager.startMonitoring()
+
+        // 主线程 Looper 监控：检测消息处理超时（ANR 诊断）
+        android.os.Looper.getMainLooper().setMessageLogging { msg ->
+            if (msg?.startsWith(">>>>> Dispatching") == true) {
+                val currentTime = System.currentTimeMillis()
+                val lastDispatch = _lastMainThreadDispatch
+                if (lastDispatch > 0 && (currentTime - lastDispatch) > 3000) {
+                    Log.w(TAG, "Main thread starved for ${currentTime - lastDispatch}ms (potential ANR indicator)")
+                }
+                _lastMainThreadDispatch = currentTime
+            }
+        }
 
         // 合规：TapTap SDK 必须在用户同意隐私政策后才能初始化。
         // 但在同意前，TapTap 内部可能触发 Toast 等操作访问 lateinit context 导致崩溃。

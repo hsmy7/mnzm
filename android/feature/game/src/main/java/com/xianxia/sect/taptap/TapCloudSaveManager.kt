@@ -54,6 +54,8 @@ class TapCloudSaveManager @Inject constructor(
         /** 云存档 UUID 缓存（避免每次上传都创建新存档） */
         private const val PREFS_NAME = "cloud_save_cache"
         private const val KEY_ARCHIVE_UUID = "archive_uuid"
+        /** 云存档摘要信息本地缓存 key */
+        private const val KEY_CLOUD_SAVE_INFO = "cloud_save_info"
         /** 是否已执行过一次性的孤立存档清理 */
         private const val KEY_CLEANUP_DONE = "cleanup_done"
     }
@@ -243,14 +245,18 @@ class TapCloudSaveManager @Inject constructor(
 
     /**
      * 查询云存档是否存在及摘要信息。
+     *
+     * 优先从本地缓存读取（避免 TapTap API 最终一致性延迟），
+     * 然后异步查询 API 更新缓存。
      */
     suspend fun checkCloudSave(): CloudSaveInfo {
+        // 先尝试 API 查询
         return try {
             val info = performTapTapQuery()
             val extraData = info?.extra?.let { e ->
                 try { JSONObject(e) } catch (ex: kotlinx.coroutines.CancellationException) { throw ex } catch (_: Exception) { null }
             }
-            CloudSaveInfo(
+            val apiResult = CloudSaveInfo(
                 hasSaveData = info != null,
                 lastModifiedTime = info?.lastModifiedTime ?: 0L,
                 saveSize = info?.fileSize ?: 0L,
@@ -262,9 +268,60 @@ class TapCloudSaveManager @Inject constructor(
                 spiritStones = extraData?.optLong("stones", 0L) ?: 0L,
                 appVersion = extraData?.optString("version", "") ?: ""
             )
+            // API 查询成功且有数据时更新本地缓存
+            if (apiResult.hasSaveData) {
+                saveCloudSaveInfoToLocal(apiResult)
+            }
+            apiResult
         } catch (e: Exception) {
-            DomainLog.w(TAG, "Failed to check cloud save", e)
-            CloudSaveInfo(hasSaveData = false)
+            DomainLog.w(TAG, "Failed to check cloud save from API, falling back to cache", e)
+            // API 失败时降级到本地缓存
+            loadCloudSaveInfoFromLocal() ?: CloudSaveInfo(hasSaveData = false)
+        }
+    }
+
+    /** 将 CloudSaveInfo 持久化到本地 SharedPreferences */
+    fun saveCloudSaveInfoToLocal(info: CloudSaveInfo) {
+        try {
+            val json = JSONObject().apply {
+                put("hasSaveData", info.hasSaveData)
+                put("lastModifiedTime", info.lastModifiedTime)
+                put("saveSize", info.saveSize)
+                put("description", info.description)
+                put("gameYear", info.gameYear)
+                put("gameMonth", info.gameMonth)
+                put("sectName", info.sectName)
+                put("discipleCount", info.discipleCount)
+                put("spiritStones", info.spiritStones)
+                put("appVersion", info.appVersion)
+            }
+            prefs.edit().putString(KEY_CLOUD_SAVE_INFO, json.toString()).apply()
+        } catch (e: Exception) {
+            DomainLog.w(TAG, "Failed to save cloud save info to local cache", e)
+        }
+    }
+
+    /** 从本地 SharedPreferences 读取缓存的 CloudSaveInfo */
+    private fun loadCloudSaveInfoFromLocal(): CloudSaveInfo? {
+        return try {
+            val jsonStr = prefs.getString(KEY_CLOUD_SAVE_INFO, null) ?: return null
+            val json = JSONObject(jsonStr)
+            if (!json.optBoolean("hasSaveData", false)) return null
+            CloudSaveInfo(
+                hasSaveData = true,
+                lastModifiedTime = json.optLong("lastModifiedTime", 0L),
+                saveSize = json.optLong("saveSize", 0L),
+                description = json.optString("description", ""),
+                gameYear = json.optInt("gameYear", 0),
+                gameMonth = json.optInt("gameMonth", 0),
+                sectName = json.optString("sectName", ""),
+                discipleCount = json.optInt("discipleCount", 0),
+                spiritStones = json.optLong("spiritStones", 0L),
+                appVersion = json.optString("appVersion", "")
+            )
+        } catch (e: Exception) {
+            DomainLog.w(TAG, "Failed to load cloud save info from local cache", e)
+            null
         }
     }
 

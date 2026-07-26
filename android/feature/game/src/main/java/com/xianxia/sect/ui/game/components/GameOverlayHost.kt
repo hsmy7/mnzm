@@ -638,9 +638,10 @@ fun GameOverlayHost(
         )
     }
 
-    // 子对话框的遮罩控制：有主对话框显示时，子对话框不再叠加自己的遮罩
+    // 子对话框的遮罩控制：有主对话框或 overlay 显示时，子对话框不再叠加自己的遮罩
     val hasMainDialog = currentDialogType != DialogType.None
-    val subDialogScrim = !hasMainDialog
+    val hasOverlay = viewModel.overlayOrder.isNotEmpty()
+    val subDialogScrim = !(hasMainDialog || hasOverlay)
 
     tipDialogMessage?.let { message ->
         StandardPromptDialog(

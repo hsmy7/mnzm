@@ -87,6 +87,7 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     private val saveLock = AtomicBoolean(false)
+    private val loadLock = AtomicBoolean(false)
     private val cloudDownloadLock = AtomicBoolean(false)
 
     // 游戏是否已加载 = RunState.PLAYING
@@ -491,9 +492,19 @@ class SaveLoadViewModel @Inject constructor(
             Log.w(TAG, "Already loading, ignoring loadGame request")
             return
         }
+        if (stateStore.unifiedState.value.isSaving) {
+            Log.w(TAG, "Currently saving, ignoring loadGame request")
+            showError("正在保存中，请稍后读档")
+            return
+        }
+        if (!loadLock.compareAndSet(false, true)) {
+            Log.w(TAG, "loadLock busy, ignoring loadGame request")
+            return
+        }
 
         if (!canPerformSaveOperation()) {
             Log.e(TAG, "=== loadGame FAILED === insufficient memory")
+            loadLock.set(false)
             showError("内存不足，无法读档。请关闭其他应用后重试。")
             return
         }
@@ -601,6 +612,7 @@ class SaveLoadViewModel @Inject constructor(
                     _pendingSlot.value = null
                     _pendingAction.value = null
                 }
+                loadLock.set(false)
                 gameEngineCore.clearActiveLoadJob()
             }
         }.also { gameEngineCore.registerActiveLoadJob(it) }
@@ -767,6 +779,12 @@ class SaveLoadViewModel @Inject constructor(
 
         if (!isGameLoaded) {
             Log.w(TAG, "Game not loaded, ignoring saveGame request")
+            return
+        }
+
+        if (stateStore.unifiedState.value.isLoading || loadLock.get()) {
+            Log.w(TAG, "Load in progress, ignoring saveGame request")
+            showError("正在读档中，请稍后保存")
             return
         }
 
@@ -1005,7 +1023,7 @@ class SaveLoadViewModel @Inject constructor(
                     Log.w(TAG, "restartGame: game loop not running after restart finally, boot() may have failed")
                 }
             }
-        }.also {  }
+        }.also { gameEngineCore.registerActiveLoadJob(it) }
     }
 
     private suspend fun performRestartSave(slot: Int, previousSlot: Int): Boolean {
@@ -1151,7 +1169,7 @@ class SaveLoadViewModel @Inject constructor(
                     is TapCloudSaveManager.CloudSaveResult.Success -> {
                         // 直接用刚上传的 saveData 构造 CloudSaveInfo，避免 TapTap API 最终一致性延迟
                         val gd = saveData.gameData
-                        _cloudSaveInfo.value = TapCloudSaveManager.CloudSaveInfo(
+                        val cloudInfo = TapCloudSaveManager.CloudSaveInfo(
                             hasSaveData = true,
                             lastModifiedTime = System.currentTimeMillis(),
                             description = "第${gd.gameYear}年${gd.gameMonth}月 ${gd.sectName}",
@@ -1162,6 +1180,9 @@ class SaveLoadViewModel @Inject constructor(
                             spiritStones = gd.spiritStones,
                             appVersion = GameConfig.Game.VERSION
                         )
+                        _cloudSaveInfo.value = cloudInfo
+                        // 持久化到本地缓存，避免关闭对话框后 checkCloudSave() 因 API 延迟返回空
+                        persistenceFacade.tapCloudSaveManager.saveCloudSaveInfoToLocal(cloudInfo)
                         cloudSaveInfoVersion.incrementAndGet()
                         CloudSaveOperationState.Success("云存档上传成功")
                     }

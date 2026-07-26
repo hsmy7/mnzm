@@ -567,7 +567,7 @@ private fun GarrisonDiscipleSelectionDialog(
                             onClick = {
                                 scope.launch {
                                     if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
-                                        viewModel.releaseDiscipleFromAllSlotsAtomic(disciple.id)
+                                        viewModel.releaseDiscipleForReassignment(disciple.id)
                                     }
                                     onSelect(disciple)
                                 }

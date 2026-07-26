@@ -213,7 +213,7 @@ fun BloodRefiningPoolDialog(
                 selected.firstOrNull()?.let {
                     scope.launch {
                         if (showAllEnabled && it.status != com.xianxia.sect.core.model.DiscipleStatus.IDLE) {
-                            viewModel.releaseDiscipleFromAllSlotsAtomic(it.id)
+                            viewModel.releaseDiscipleForReassignment(it.id)
                         }
                         bloodRefiningViewModel.selectDisciple(it)
                     }

@@ -398,7 +398,7 @@ internal fun DirectDiscipleSelectionDialog(
                                 onClick = {
                                     scope.launch {
                                         if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
-                                            viewModel.releaseDiscipleFromAllSlotsAtomic(disciple.id)
+                                            viewModel.releaseDiscipleForReassignment(disciple.id)
                                         }
                                         onSelect(disciple.id)
                                     }
@@ -534,7 +534,7 @@ internal fun ElderDiscipleSelectionDialog(
                                 onClick = {
                                     scope.launch {
                                         if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
-                                            viewModel.releaseDiscipleFromAllSlotsAtomic(disciple.id)
+                                            viewModel.releaseDiscipleForReassignment(disciple.id)
                                         }
                                         onSelect(disciple.id)
                                     }
