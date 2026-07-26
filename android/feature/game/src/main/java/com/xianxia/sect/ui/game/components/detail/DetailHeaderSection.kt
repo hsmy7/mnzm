@@ -24,6 +24,7 @@ import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.LocalDismissDropdown
+import com.xianxia.sect.ui.components.clickableWithSound
 
 /**
  * 弟子详情右侧面板的操作按钮回调集合。
@@ -85,7 +86,7 @@ fun DetailRightPanel(
                 Box(
                     modifier = Modifier.size(28.dp).clip(CircleShape)
                         .background(Color(0x99000000))
-                        .clickable { dismissDropdown(); navTo(allDisciples[currentIndex - 1]) },
+                        .clickableWithSound { dismissDropdown(); navTo(allDisciples[currentIndex - 1]) },
                     contentAlignment = Alignment.Center
                 ) { Text("‹", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White) }
             }
@@ -96,7 +97,7 @@ fun DetailRightPanel(
                 color = Color.Black,
                 modifier = Modifier
                     .padding(horizontal = 8.dp)
-                    .clickable(enabled = actions.onRenameDisciple != null) {
+                    .clickableWithSound(enabled = actions.onRenameDisciple != null) {
                         dismissDropdown()
                         actions.onRenameDisciple?.invoke()
                     }
@@ -105,7 +106,7 @@ fun DetailRightPanel(
                 Box(
                     modifier = Modifier.size(28.dp).clip(CircleShape)
                         .background(Color(0x99000000))
-                        .clickable { dismissDropdown(); navTo(allDisciples[currentIndex + 1]) },
+                        .clickableWithSound { dismissDropdown(); navTo(allDisciples[currentIndex + 1]) },
                     contentAlignment = Alignment.Center
                 ) { Text("›", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White) }
             }
@@ -129,7 +130,7 @@ fun DetailRightPanel(
                     modifier = Modifier
                         .clip(btnShape)
                         .background(btnColor)
-                        .clickable { onDiscipleTypeDropdownChange(!showDiscipleTypeDropdown) }
+                        .clickableWithSound { onDiscipleTypeDropdownChange(!showDiscipleTypeDropdown) }
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Text(
@@ -144,7 +145,7 @@ fun DetailRightPanel(
                             .clip(RoundedCornerShape(bottomStart = 4.dp, bottomEnd = 4.dp))
                             .background(Color.White)
                             .border(1.dp, btnColor)
-                            .clickable {
+                            .clickableWithSound {
                                 onDiscipleTypeDropdownChange(false)
                                 val newType = if (localDiscipleType == "outer") "inner" else "outer"
                                 onLocalDiscipleTypeChange(newType)
@@ -163,36 +164,36 @@ fun DetailRightPanel(
             }
             Box(
                 modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF4CAF50))
-                    .clickable { dismissDropdown(); actions.onShowRelations() }.padding(horizontal = 6.dp, vertical = 2.dp)
+                    .clickableWithSound { dismissDropdown(); actions.onShowRelations() }.padding(horizontal = 6.dp, vertical = 2.dp)
             ) { Text("关系", fontSize = 10.sp, color = Color.White) }
             Box(
                 modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF2196F3))
-                    .clickable { dismissDropdown(); actions.onShowStorageBag() }.padding(horizontal = 6.dp, vertical = 2.dp)
+                    .clickableWithSound { dismissDropdown(); actions.onShowStorageBag() }.padding(horizontal = 6.dp, vertical = 2.dp)
             ) { Text("储物袋", fontSize = 10.sp, color = Color.White) }
             Box(
                 modifier = Modifier.clip(RoundedCornerShape(4.dp))
                     .background(if (disciple.isFollowed) Color(0xFFFFD700) else Color.Black)
-                    .clickable { dismissDropdown(); viewModel?.toggleFollowDisciple(disciple.id) }
+                    .clickableWithSound { dismissDropdown(); viewModel?.toggleFollowDisciple(disciple.id) }
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) { Text(if (disciple.isFollowed) "已关注" else "关注", fontSize = 10.sp, color = Color.White) }
             Box(
                 modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFFE74C3C))
-                    .clickable { dismissDropdown(); actions.onShowExpelConfirm() }.padding(horizontal = 6.dp, vertical = 2.dp)
+                    .clickableWithSound { dismissDropdown(); actions.onShowExpelConfirm() }.padding(horizontal = 6.dp, vertical = 2.dp)
             ) { Text("驱逐", fontSize = 10.sp, color = Color.White) }
             Box(
                 modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFFFF9800))
-                    .clickable { dismissDropdown(); actions.onShowChat() }.padding(horizontal = 6.dp, vertical = 2.dp)
+                    .clickableWithSound { dismissDropdown(); actions.onShowChat() }.padding(horizontal = 6.dp, vertical = 2.dp)
             ) { Text("交谈", fontSize = 10.sp, color = Color.White) }
             Box(
                 modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF00BCD4))
-                    .clickable { dismissDropdown(); actions.onShowLifeLog() }.padding(horizontal = 6.dp, vertical = 2.dp)
+                    .clickableWithSound { dismissDropdown(); actions.onShowLifeLog() }.padding(horizontal = 6.dp, vertical = 2.dp)
             ) { Text("日志", fontSize = 10.sp, color = Color.White) }
             // 拜师按钮：已有师父时灰色禁用显示"已拜师"；师徒关系永久，仅一方死亡解绑
             val hasMaster = disciple.masterId != null
             Box(
                 modifier = Modifier.clip(RoundedCornerShape(4.dp))
                     .background(if (hasMaster) Color(0xFF9E9E9E) else Color(0xFF8D6E63))
-                    .clickable(enabled = !hasMaster) { dismissDropdown(); actions.onShowApprentice() }
+                    .clickableWithSound(enabled = !hasMaster) { dismissDropdown(); actions.onShowApprentice() }
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) { Text(if (hasMaster) "已拜师" else "拜师", fontSize = 10.sp, color = Color.White) }
         }

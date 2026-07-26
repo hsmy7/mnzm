@@ -65,6 +65,7 @@ import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.YearlyReport
+import com.xianxia.sect.ui.components.clickableWithSound
 
 /** 日志对话框标签页枚举 */
 private enum class BattleLogTab(val label: String) {
@@ -113,7 +114,7 @@ internal fun BattleLogItem(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .clickable(onClick = onClick),
+            .clickableWithSound(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F8F8)),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
@@ -436,7 +437,7 @@ internal fun BattleLogListDialog(
                     val isActive = selectedTab == tab
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.weight(1f).clickable { selectedTab = tab }
+                        modifier = Modifier.weight(1f).clickableWithSound { selectedTab = tab }
                     ) {
                         Text(tab.label, fontSize = 14.sp, fontWeight = FontWeight.Bold,
                             color = if (isActive) Color.Black else Color.Gray)
@@ -516,7 +517,7 @@ internal fun BattleLogListItem(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .clickable(onClick = onClick),
+            .clickableWithSound(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F8F8)),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
@@ -593,7 +594,7 @@ private fun YearlyReportList(
     ) {
         itemsIndexed(sorted, key = { index, r -> "report_${r.year}_$index" }) { _, report ->
             Card(
-                modifier = Modifier.fillMaxWidth().clickable { onDetail(report) },
+                modifier = Modifier.fillMaxWidth().clickableWithSound { onDetail(report) },
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F8F8)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {

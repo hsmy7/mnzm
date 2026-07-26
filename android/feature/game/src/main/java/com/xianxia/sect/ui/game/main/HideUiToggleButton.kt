@@ -10,6 +10,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import com.xianxia.sect.ui.components.SpriteImage
+import com.xianxia.sect.ui.components.clickableWithSound
 
 /**
  * UI 显隐切换按钮 — 圆形按钮，根据当前状态显示不同的精灵图。
@@ -25,7 +26,7 @@ internal fun HideUiToggleButton(
     Box(
         modifier = modifier
             .clip(CircleShape)
-            .clickable(onClick = onToggle),
+            .clickableWithSound(onClick = onToggle),
         contentAlignment = Alignment.Center
     ) {
         SpriteImage(

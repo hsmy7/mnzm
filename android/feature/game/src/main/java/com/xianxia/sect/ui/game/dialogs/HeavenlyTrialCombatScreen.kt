@@ -46,6 +46,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import com.xianxia.sect.ui.game.dialogs.heavenlytrial.*
+import com.xianxia.sect.ui.components.clickableWithSound
 
 @Composable
 fun HeavenlyTrialCombatScreen(
@@ -483,7 +484,7 @@ fun HeavenlyTrialCombatScreen(
                                 RoundedCornerShape(4.dp)
                             )
                             .background(Color.White)
-                            .clickable {
+                            .clickableWithSound {
                                 coroutineScope.launch {
                                     isAnimating = true
                                     val (finalPlayers, finalEnemies) =
@@ -576,7 +577,7 @@ fun HeavenlyTrialCombatScreen(
                             Box(
                                 modifier = Modifier.size(48.dp)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .clickable(enabled = !isAnimating) {
+                                    .clickableWithSound(enabled = !isAnimating) {
                                         isDefending = isDefending
                                             .toMutableSet()
                                             .apply { add(currentCombatant.id) }
@@ -609,7 +610,7 @@ fun HeavenlyTrialCombatScreen(
                                         .clip(CircleShape)
                                         .border(2.dp, if (canUse) GameColors.Gold else GameColors.Border, CircleShape)
                                         .background(Color.White.copy(alpha = if (canUse) 1f else 0.5f))
-                                        .clickable(enabled = canUse &&
+                                        .clickableWithSound(enabled = canUse &&
                                             phase == BattlePhase.PLAYER_TURN &&
                                             !isAnimating
                                         ) {
@@ -752,7 +753,7 @@ fun HeavenlyTrialCombatScreen(
                             Box(
                                 modifier = Modifier.size(48.dp)
                                     .clip(RoundedCornerShape(4.dp))
-                                    .clickable(enabled = !isAnimating) {
+                                    .clickableWithSound(enabled = !isAnimating) {
                                         coroutineScope.launch {
                                             isAnimating = true
                                             val target = if (

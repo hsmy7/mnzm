@@ -34,6 +34,7 @@ import com.xianxia.sect.ui.game.WorldMapInteractionViewModel
 import com.xianxia.sect.ui.theme.ButtonSizes
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.xianxia.sect.ui.components.clickableWithSound
 
 private data class ChatMessage(
     val text: String,
@@ -637,7 +638,7 @@ private fun GiftOptionsPanel(
                 color = if (canAfford) Color.Black else Color.Gray,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(enabled = canAfford) { onGiftTierClick(tier.tier) }
+                    .clickableWithSound(enabled = canAfford) { onGiftTierClick(tier.tier) }
                     .padding(vertical = 12.dp),
                 textAlign = TextAlign.Center
             )

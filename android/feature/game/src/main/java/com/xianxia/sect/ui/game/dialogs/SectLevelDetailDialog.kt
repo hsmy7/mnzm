@@ -26,6 +26,7 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.components.clickableWithSound
 
 /**
  * 宗门等级详情半屏界面。
@@ -103,7 +104,7 @@ fun SectLevelDetailDialog(
                         fontSize = 24.sp,
                         color = if (canGoLeft) Color.Black else Color.Gray,
                         modifier = Modifier
-                            .clickable(enabled = canGoLeft) {
+                            .clickableWithSound(enabled = canGoLeft) {
                                 if (canGoLeft) viewedLevel--
                             }
                             .padding(8.dp)
@@ -139,7 +140,7 @@ fun SectLevelDetailDialog(
                         fontSize = 24.sp,
                         color = if (canGoRight) Color.Black else Color.Gray,
                         modifier = Modifier
-                            .clickable(enabled = canGoRight) {
+                            .clickableWithSound(enabled = canGoRight) {
                                 if (canGoRight) viewedLevel++
                             }
                             .padding(8.dp)

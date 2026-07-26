@@ -25,6 +25,7 @@ import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.ui.game.map.sect.SectCameraState
 import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.ui.components.clickableWithSound
 
 /**
  * 建筑放置确认/取消按钮 — 固定出现在建筑上方居中，不受地图方格尺寸限制。
@@ -62,14 +63,14 @@ internal fun PlacementConfirmButtons(
             Box(
                 modifier = Modifier.size(btnDp * 2)
                     .background(if (canConfirm) Color(0xFF4CAF50) else Color.Black, CircleShape)
-                    .clickable(enabled = canConfirm) { onConfirm() },
+                    .clickableWithSound(enabled = canConfirm) { onConfirm() },
                 contentAlignment = Alignment.Center
             ) { Text("✓", fontSize = (btnDp.value * 0.5f).sp, color = Color.Black, fontWeight = FontWeight.Bold) }
             Spacer(modifier = Modifier.width(spacerDp))
             Box(
                 modifier = Modifier.size(btnDp * 2)
                     .background(Color(0xFFF44336), CircleShape)
-                    .clickable { onCancel() },
+                    .clickableWithSound { onCancel() },
                 contentAlignment = Alignment.Center
             ) { Text("✗", fontSize = (btnDp.value * 0.5f).sp, color = Color.Black, fontWeight = FontWeight.Bold) }
         }
@@ -128,7 +129,7 @@ internal fun DemolishButton(
             .width(btnW)
             .height(btnH)
             .background(Color(0xFFD32F2F), RoundedCornerShape(6.dp))
-            .clickable { showConfirm = true },
+            .clickableWithSound { showConfirm = true },
         contentAlignment = Alignment.Center
     ) {
         Text("拆除", fontSize = 14.sp, color = Color.Black, fontWeight = FontWeight.Bold)

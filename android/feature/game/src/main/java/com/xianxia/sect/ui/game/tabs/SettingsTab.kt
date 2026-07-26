@@ -661,7 +661,7 @@ internal fun SettingsTab(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clickable(
+                    .clickableWithSound(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = { showOtherSettingsDialog = false }
@@ -673,7 +673,7 @@ internal fun SettingsTab(
                         .fillMaxWidth(0.83f)
                         .fillMaxHeight(0.78f)
                         .clip(RoundedCornerShape(12.dp))
-                        .clickable(
+                        .clickableWithSound(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                             onClick = {}
@@ -821,7 +821,7 @@ internal fun SettingsTab(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .clickable(
+                .clickableWithSound(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = { showSalaryConfigDialog = false }
@@ -833,7 +833,7 @@ internal fun SettingsTab(
                     .fillMaxWidth(0.83f)
                     .fillMaxHeight(0.78f)
                     .clip(RoundedCornerShape(12.dp))
-                    .clickable(
+                    .clickableWithSound(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = {}
@@ -947,7 +947,7 @@ internal fun SaveSlotDialog(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .clickable(
+            .clickableWithSound(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = {
@@ -962,7 +962,7 @@ internal fun SaveSlotDialog(
                 .fillMaxWidth(0.95f)
                 .fillMaxHeight(0.9f)
                 .clip(RoundedCornerShape(12.dp))
-                .clickable(
+                .clickableWithSound(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = {}
@@ -1220,7 +1220,7 @@ private fun ChangelogDialog(onDismiss: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .clickable(
+            .clickableWithSound(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onDismiss
@@ -1231,7 +1231,7 @@ private fun ChangelogDialog(onDismiss: () -> Unit) {
             modifier = Modifier
                 .fillMaxWidth(0.83f)
                 .clip(RoundedCornerShape(12.dp))
-                .clickable(
+                .clickableWithSound(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = {}

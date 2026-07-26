@@ -53,6 +53,7 @@ import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.components.CircularCheckbox
+import com.xianxia.sect.ui.components.clickableWithSound
 
 @Composable
 internal fun DropdownFilterButton(
@@ -69,7 +70,7 @@ internal fun DropdownFilterButton(
             .width(ButtonSizes.StandardWidth).height(ButtonSizes.Large)
             .alpha(contentAlpha)
             .clip(RoundedCornerShape(4.dp))
-            .clickable { onClick() }
+            .clickableWithSound { onClick() }
             .padding(horizontal = 8.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -279,7 +280,7 @@ internal fun FilterChip(
             .height(ButtonSizes.StandardHeight)
             .alpha(contentAlpha)
             .clip(RoundedCornerShape(4.dp))
-            .clickable(onClick = onClick),
+            .clickableWithSound(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         androidx.compose.foundation.Image(

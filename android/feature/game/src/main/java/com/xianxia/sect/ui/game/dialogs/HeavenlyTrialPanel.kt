@@ -23,6 +23,7 @@ import com.xianxia.sect.ui.game.HeavenlyTrialViewModel
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 import androidx.compose.foundation.shape.CircleShape
+import com.xianxia.sect.ui.components.clickableWithSound
 
 @Composable
 fun HeavenlyTrialPanel(
@@ -94,7 +95,7 @@ fun HeavenlyTrialPanel(
                     .clip(RoundedCornerShape(4.dp))
                     .background(btnBgColor)
                     .border(1.dp, Color.Black, RoundedCornerShape(4.dp))
-                    .clickable(enabled = unlocked) {
+                    .clickableWithSound(enabled = unlocked) {
                         viewModel.enterBattlePrep(i)
                     }
                     .padding(horizontal = 4.dp, vertical = 2.dp),

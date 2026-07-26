@@ -33,6 +33,7 @@ import com.xianxia.sect.ui.game.ActivityViewModel
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.HeavenlyTrialViewModel
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.components.clickableWithSound
 
 private val PanelBg = Color(0xFFF6EBD5)
 
@@ -259,7 +260,7 @@ private fun ActivityCard(
             .fillMaxWidth()
             .padding(vertical = 2.dp)
             .clip(RoundedCornerShape(4.dp))
-            .clickable(onClick = onClick),
+            .clickableWithSound(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Image(

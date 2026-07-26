@@ -36,6 +36,7 @@ import com.xianxia.sect.ui.components.rememberChasingProgress
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
+import com.xianxia.sect.ui.components.clickableWithSound
 
 @Composable
 fun BloodRefiningPoolDialog(
@@ -240,7 +241,7 @@ private fun MaterialSlotBox(
             .height(88.dp)
             .clip(RoundedCornerShape(6.dp))
             .border(1.dp, GameColors.Border, RoundedCornerShape(6.dp))
-            .clickable(onClick = onClick)
+            .clickableWithSound(onClick = onClick)
     ) {
         if (selectedMaterial != null) {
             val rarityColor = getRarityColor(selectedMaterial.rarity)

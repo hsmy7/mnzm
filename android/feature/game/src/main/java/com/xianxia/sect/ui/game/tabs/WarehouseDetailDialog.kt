@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.ui.components.InlineStandardPromptDialog
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.components.clickableWithSound
 
 @Composable
 internal fun SellConfirmDialog(
@@ -83,7 +84,7 @@ private fun SellQuantitySelector(
                 .size(36.dp)
                 .clip(RoundedCornerShape(6.dp))
                 .background(if (sellQuantity > 1) Color(0xFFE0E0E0) else Color(0xFFF5F5F5))
-                .clickable(enabled = sellQuantity > 1) {
+                .clickableWithSound(enabled = sellQuantity > 1) {
                     onQuantityChange((sellQuantity - 1).coerceAtLeast(1))
                     quantityInput = (sellQuantity - 1).coerceAtLeast(1).toString()
                 },
@@ -159,7 +160,7 @@ private fun SellQuantitySelector(
                     .clip(RoundedCornerShape(6.dp))
                     .border(1.dp, Color(0xFFCCCCCC), RoundedCornerShape(6.dp))
                     .background(Color.White)
-                    .clickable {
+                    .clickableWithSound {
                         isEditingQuantity = true
                         quantityInput = sellQuantity.toString()
                     },
@@ -181,7 +182,7 @@ private fun SellQuantitySelector(
                 .size(36.dp)
                 .clip(RoundedCornerShape(6.dp))
                 .background(if (sellQuantity < maxQuantity) Color(0xFFE0E0E0) else Color(0xFFF5F5F5))
-                .clickable(enabled = sellQuantity < maxQuantity) {
+                .clickableWithSound(enabled = sellQuantity < maxQuantity) {
                     onQuantityChange((sellQuantity + 1).coerceAtMost(maxQuantity))
                     quantityInput = (sellQuantity + 1).coerceAtMost(maxQuantity).toString()
                 },

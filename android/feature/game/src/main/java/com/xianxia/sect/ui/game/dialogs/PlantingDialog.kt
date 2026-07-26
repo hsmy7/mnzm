@@ -42,6 +42,7 @@ import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.theme.GameColors
 import kotlin.math.ceil
+import com.xianxia.sect.ui.components.clickableWithSound
 
 /**
  * 按种植状态分组的灵田数据。
@@ -489,7 +490,7 @@ fun PlantingDialog(
                                 text = "最小",
                                 fontSize = 12.sp,
                                 color = Color.Black,
-                                modifier = Modifier.clickable(interactionSource = minInteraction, indication = null) {
+                                modifier = Modifier.clickableWithSound(interactionSource = minInteraction, indication = null) {
                                     plantQuantity = 1
                                     qtyInput = "1"
                                 }
@@ -501,7 +502,7 @@ fun PlantingDialog(
                                 color = Color.Black,
                                 modifier = Modifier
                                     .alpha(if (plantQuantity > 1) 1f else 0.3f)
-                                    .clickable(
+                                    .clickableWithSound(
                                         interactionSource = decInteraction,
                                         indication = null,
                                         enabled = plantQuantity > 1
@@ -542,7 +543,7 @@ fun PlantingDialog(
                                 color = Color.Black,
                                 modifier = Modifier
                                     .alpha(if (plantQuantity < unplantedCount) 1f else 0.3f)
-                                    .clickable(
+                                    .clickableWithSound(
                                         interactionSource = incInteraction,
                                         indication = null,
                                         enabled = plantQuantity < unplantedCount
@@ -555,7 +556,7 @@ fun PlantingDialog(
                                 text = "最大",
                                 fontSize = 12.sp,
                                 color = Color.Black,
-                                modifier = Modifier.clickable(interactionSource = maxInteraction, indication = null) {
+                                modifier = Modifier.clickableWithSound(interactionSource = maxInteraction, indication = null) {
                                     plantQuantity = unplantedCount.coerceAtLeast(1)
                                     qtyInput = plantQuantity.toString()
                                 }
@@ -632,7 +633,7 @@ fun PlantingDialog(
                     Text(
                         text = "-1", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black,
                         modifier = Modifier.alpha(if (removeQuantity > 1) 1f else 0.3f)
-                            .clickable(interactionSource = ri, indication = null, enabled = removeQuantity > 1) {
+                            .clickableWithSound(interactionSource = ri, indication = null, enabled = removeQuantity > 1) {
                                 removeQuantity--; removeQtyInput = removeQuantity.toString()
                             }
                     )
@@ -644,7 +645,7 @@ fun PlantingDialog(
                     Text(
                         text = "+1", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black,
                         modifier = Modifier.alpha(if (removeQuantity < maxQty) 1f else 0.3f)
-                            .clickable(interactionSource = ri2, indication = null, enabled = removeQuantity < maxQty) {
+                            .clickableWithSound(interactionSource = ri2, indication = null, enabled = removeQuantity < maxQty) {
                                 removeQuantity++; removeQtyInput = removeQuantity.toString()
                             }
                     )
@@ -687,7 +688,7 @@ private fun PlantingPagination(
                 .background(
                     if (currentPage > 1) Color(0xFF3498DB) else Color(0xFFCCCCCC)
                 )
-                .clickable(enabled = currentPage > 1) { onFirstPage() },
+                .clickableWithSound(enabled = currentPage > 1) { onFirstPage() },
             contentAlignment = Alignment.Center
         ) {
             Text("<<", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
@@ -703,7 +704,7 @@ private fun PlantingPagination(
                 .background(
                     if (currentPage > 1) Color(0xFF3498DB) else Color(0xFFCCCCCC)
                 )
-                .clickable(enabled = currentPage > 1) { onPreviousPage() },
+                .clickableWithSound(enabled = currentPage > 1) { onPreviousPage() },
             contentAlignment = Alignment.Center
         ) {
             Text("<", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
@@ -729,7 +730,7 @@ private fun PlantingPagination(
                 .background(
                     if (currentPage < totalPages) Color(0xFF3498DB) else Color(0xFFCCCCCC)
                 )
-                .clickable(enabled = currentPage < totalPages) { onNextPage() },
+                .clickableWithSound(enabled = currentPage < totalPages) { onNextPage() },
             contentAlignment = Alignment.Center
         ) {
             Text(">", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
@@ -745,7 +746,7 @@ private fun PlantingPagination(
                 .background(
                     if (currentPage < totalPages) Color(0xFF3498DB) else Color(0xFFCCCCCC)
                 )
-                .clickable(enabled = currentPage < totalPages) { onLastPage() },
+                .clickableWithSound(enabled = currentPage < totalPages) { onLastPage() },
             contentAlignment = Alignment.Center
         ) {
             Text(">>", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)

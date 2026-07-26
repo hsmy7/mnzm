@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xianxia.sect.ui.components.clickableWithSound
 
 /**
  * 消息栏收起态——左下角半透明消息摘要。
@@ -31,7 +32,7 @@ fun MessageBarCollapsed(
             .width(220.dp)
             .height(64.dp)
             .background(Color(0x80000000))
-            .clickable(onClick = onClick)
+            .clickableWithSound(onClick = onClick)
     ) {
         // 上横线
         Box(

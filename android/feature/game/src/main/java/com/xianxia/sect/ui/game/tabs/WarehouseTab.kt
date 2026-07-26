@@ -541,7 +541,7 @@ internal fun WarehousePagination(
                 .size(28.dp)
                 .clip(RoundedCornerShape(4.dp))
                 .background(if (currentPage > 1) Color(0xFF3498DB) else Color(0xFFCCCCCC))
-                .clickable(enabled = currentPage > 1) { onFirstPage() },
+                .clickableWithSound(enabled = currentPage > 1) { onFirstPage() },
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -559,7 +559,7 @@ internal fun WarehousePagination(
                 .size(28.dp)
                 .clip(RoundedCornerShape(4.dp))
                 .background(if (currentPage > 1) Color(0xFF3498DB) else Color(0xFFCCCCCC))
-                .clickable(enabled = currentPage > 1) { onPreviousPage() },
+                .clickableWithSound(enabled = currentPage > 1) { onPreviousPage() },
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -586,7 +586,7 @@ internal fun WarehousePagination(
                 .size(28.dp)
                 .clip(RoundedCornerShape(4.dp))
                 .background(if (currentPage < totalPages) Color(0xFF3498DB) else Color(0xFFCCCCCC))
-                .clickable(enabled = currentPage < totalPages) { onNextPage() },
+                .clickableWithSound(enabled = currentPage < totalPages) { onNextPage() },
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -604,7 +604,7 @@ internal fun WarehousePagination(
                 .size(28.dp)
                 .clip(RoundedCornerShape(4.dp))
                 .background(if (currentPage < totalPages) Color(0xFF3498DB) else Color(0xFFCCCCCC))
-                .clickable(enabled = currentPage < totalPages) { onLastPage() },
+                .clickableWithSound(enabled = currentPage < totalPages) { onLastPage() },
             contentAlignment = Alignment.Center
         ) {
             Text(

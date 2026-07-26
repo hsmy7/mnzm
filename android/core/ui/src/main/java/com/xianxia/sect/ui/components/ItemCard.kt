@@ -27,6 +27,7 @@ import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.model.PillGrade
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.components.clickableWithSound
 
 val LocalItemSpriteCache = staticCompositionLocalOf<Map<Int, ImageBitmap>> { emptyMap() }
 
@@ -196,7 +197,7 @@ fun UnifiedItemCard(
                     .offset(x = (-2).dp, y = 2.dp)
                     .clip(RoundedCornerShape(4.dp))
                     .background(Color(0xFFFFD700))
-                    .clickable(
+                    .clickableWithSound(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = { onOverlayButtonClick?.invoke() }

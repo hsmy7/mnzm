@@ -46,6 +46,7 @@ import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.theme.GameColors
 import kotlinx.serialization.json.Json
+import com.xianxia.sect.ui.components.clickableWithSound
 
 private val PanelBg = Color(0xFFF6EBD5)
 private val mailJson = Json { ignoreUnknownKeys = true; coerceInputValues = true }
@@ -249,7 +250,7 @@ private fun MailCard(
             .fillMaxWidth()
             .padding(vertical = 2.dp)
             .clip(RoundedCornerShape(4.dp))
-            .clickable(onClick = onClick)
+            .clickableWithSound(onClick = onClick)
             .alpha(cardAlpha),
         contentAlignment = Alignment.Center
     ) {

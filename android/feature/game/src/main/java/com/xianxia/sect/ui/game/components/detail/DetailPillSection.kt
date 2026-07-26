@@ -28,6 +28,7 @@ import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.theme.GameColors
 import kotlinx.coroutines.launch
+import com.xianxia.sect.ui.components.clickableWithSound
 
 @Composable
 fun StorageBagDialog(
@@ -57,7 +58,7 @@ fun StorageBagDialog(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
                         .background(Color(0xFFFF9800))
-                        .clickable { showRewardDialog = true }
+                        .clickableWithSound { showRewardDialog = true }
                         .padding(horizontal = 6.dp, vertical = 2.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -562,7 +563,7 @@ private fun RewardBottomPanel(
                             .size(32.dp)
                             .clip(RoundedCornerShape(4.dp))
                             .background(if (rewardQuantity > 1 && !isRewarding) Color(0xFF4CAF50) else GameColors.Border)
-                            .clickable(enabled = rewardQuantity > 1 && !isRewarding) { onQuantityChange(rewardQuantity - 1) },
+                            .clickableWithSound(enabled = rewardQuantity > 1 && !isRewarding) { onQuantityChange(rewardQuantity - 1) },
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -584,7 +585,7 @@ private fun RewardBottomPanel(
                             .size(32.dp)
                             .clip(RoundedCornerShape(4.dp))
                             .background(if (rewardQuantity < maxQuantity && !isRewarding) Color(0xFF4CAF50) else GameColors.Border)
-                            .clickable(enabled = rewardQuantity < maxQuantity && !isRewarding) { onQuantityChange(rewardQuantity + 1) },
+                            .clickableWithSound(enabled = rewardQuantity < maxQuantity && !isRewarding) { onQuantityChange(rewardQuantity + 1) },
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -629,7 +630,7 @@ private fun FilterButton(
         modifier = modifier
             .clip(RoundedCornerShape(4.dp))
             .background(if (selected) Color.Black else Color(0xFFEEEEEE))
-            .clickable { onClick() }
+            .clickableWithSound { onClick() }
             .padding(vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {

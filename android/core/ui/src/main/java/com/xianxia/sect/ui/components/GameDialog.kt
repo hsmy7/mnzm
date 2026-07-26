@@ -39,6 +39,7 @@ import com.xianxia.sect.core.ui.R
 import com.xianxia.sect.ui.theme.AppTypography
 import com.xianxia.sect.ui.theme.CornerRadius
 import com.xianxia.sect.ui.theme.Spacing
+import com.xianxia.sect.ui.components.clickableWithSound
 
 enum class DialogMode { Half, Full, Auto }
 
@@ -106,7 +107,7 @@ fun UnifiedGameDialog(
                 )
                 .then(
                     if (dismissOnClickOutside) {
-                        Modifier.clickable(
+                        Modifier.clickableWithSound(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                             onClick = onDismissRequest
@@ -119,7 +120,7 @@ fun UnifiedGameDialog(
                 modifier = modifier
                     .then(widthModifier)
                     .then(heightModifier)
-                    .clickable(
+                    .clickableWithSound(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = {}

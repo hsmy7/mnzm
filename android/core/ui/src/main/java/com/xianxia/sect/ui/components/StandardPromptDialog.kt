@@ -49,6 +49,7 @@ import android.view.Window
 import android.view.WindowManager
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.xianxia.sect.ui.components.clickableWithSound
 
 /**
  * 在 Composable 挂载期间将目标窗口的 softInputMode 临时切换为 [mode]，
@@ -194,7 +195,7 @@ fun StandardPromptDialog(
                 )
                 .then(
                     if (dismissOnClickOutside) {
-                        Modifier.clickable(
+                        Modifier.clickableWithSound(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                             onClick = onDismissRequest
@@ -208,7 +209,7 @@ fun StandardPromptDialog(
                     .width(dialogWidth)
                     .height(dialogHeight)
                     .clip(RoundedCornerShape(12.dp))
-                    .clickable(
+                    .clickableWithSound(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = {}
@@ -394,7 +395,7 @@ fun InlineStandardPromptDialog(
                 )
                 .then(
                     if (dismissOnClickOutside) {
-                        Modifier.clickable(
+                        Modifier.clickableWithSound(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                             onClick = onDismissRequest
@@ -408,7 +409,7 @@ fun InlineStandardPromptDialog(
                 .width(dialogWidth)
                 .height(dialogHeight)
                 .clip(RoundedCornerShape(12.dp))
-                .clickable(
+                .clickableWithSound(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = {} // 阻止点击穿透到外层

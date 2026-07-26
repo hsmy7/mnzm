@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.components.clickableWithSound
 
 @Composable
 fun GameActionButtons(
@@ -127,7 +128,7 @@ private fun FloatingActionButton(
             modifier = Modifier
                 .size(size)
                 .clip(CircleShape)
-                .clickable(onClick = onClick),
+                .clickableWithSound(onClick = onClick),
             contentAlignment = Alignment.BottomCenter
         ) {
             SpriteImage(
