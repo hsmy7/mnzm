@@ -1,3 +1,12 @@
+## [4.0.75] - 2026-07-26
+
+### 调整
+
+- **调整：移除伴侣突破忠诚+3机制** — 伴侣突破不再增加道侣忠诚度
+- **调整：灵石不足无法发年俸时，应得俸禄弟子忠诚-1** — 宗门灵石不够发工资，该拿工资的弟子忠诚度下降
+- **清理：移除 PartnerSystem 死代码** — 移除 `DomainEventSubscriber`/`eventBus`/`stateStore` 依赖及空 `initialize()/release()` 方法，移除未使用的 `consentRequired` 变量
+- **重构：processAnnualSalary 列直写替代 assembleAll→map→replaceAll 模式** — 与惩罚分支保持一致的列直写风格，消除旧模式竞态风险
+
 ## [4.0.74] - 2026-07-26
 
 ### 架构重构

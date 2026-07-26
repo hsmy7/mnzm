@@ -122,7 +122,7 @@ class CultivationSettlementConcurrencyTest {
     }
 
     @Test
-    fun `processAnnualSalary_灵石不足_全员不发`() = runTest {
+    fun `processAnnualSalary_灵石不足_全员忠诚减一`() = runTest {
         insertDisciples(3)
         stateStore.update {
             gameData = gameData.copy(spiritStones = 0L)
@@ -133,7 +133,7 @@ class CultivationSettlementConcurrencyTest {
 
         val after = getDisciples()
         assertEquals("弟子数量不变", 3, after.size)
-        assertEquals("忠诚度不变", before[0].skills.loyalty, after[0].skills.loyalty)
+        assertEquals("忠诚度应 -1", before[0].skills.loyalty - 1, after[0].skills.loyalty)
         assertEquals("俸禄次数不变", before[0].skills.salaryPaidCount, after[0].skills.salaryPaidCount)
     }
 

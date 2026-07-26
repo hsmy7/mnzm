@@ -68,17 +68,6 @@ object EventBusAudit {
                     "processSpiritMineProduction 为异步启动但无结果检查，静默失败风险"
         ),
 
-        ConsumerRecord(
-            consumerClass = "PartnerSystem",
-            eventType = "breakthrough (BreakthroughEvent, 仅 success=true)",
-            threading = "applicationScope.launch — 非主线程",
-            backpressure = "无背压控制: scope.launch 即发即弃",
-            errorHandling = "EventBus 层 try-catch 隔离; onEvent 内 stateStore.update {} 异常会传播但被 EventBus 捕获",
-            riskLevel = "LOW",
-            notes = "initialize()/release() 中 subscribe/unsubscribe 配对正确; " +
-                    "突破成功后伴侣忠诚度+3，逻辑简单，竞态窗口小"
-        ),
-
         // ── Flow 路径消费者 (eventBus.events.collect) ──
 
         ConsumerRecord(

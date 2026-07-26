@@ -76,7 +76,20 @@ class CultivationSettlement @Inject constructor(
      */
     fun processAnnualSalary(year: Int) {
         val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
-        val plan = calculateSalaryPlan(maxLoyalty) ?: return
+        val plan = calculateSalaryPlan() ?: return
+
+        // 灵石不足 → 应得俸禄的弟子忠诚 -1，不发俸禄
+        if (!spiritStoneWallet.canAfford(plan.totalRequired)) {
+            stateStore.update {
+                for ((idStr, _) in plan.eligibleSalaries) {
+                    val id = idStr.toIntOrNull() ?: continue
+                    if (!discipleTables.ids.contains(id) || discipleTables.isAlive[id] != 1) continue
+                    val current = discipleTables.loyalties.getOrDefault(id, 50)
+                    discipleTables.loyalties[id] = (current - 1).coerceAtLeast(GameConfig.Disciple.MIN_LOYALTY)
+                }
+            }
+            return
+        }
 
         stateStore.update {
             val data = gameData
@@ -87,28 +100,21 @@ class CultivationSettlement @Inject constructor(
                 SpiritStoneReason.Salary, SpiritStoneSource.Salary, true)
             if (result !is DeductResult.Success) return@update
 
-            val currentDisciples = discipleTables.assembleAll()
-            val updatedDisciples = currentDisciples.map { disciple ->
-                val salary = plan.eligibleSalaries[disciple.id]
-                if (salary != null && salary > 0L) {
-                    val actualSalary = (salary * salaryMultiplier).roundToLong()
-                    // 开源节流政策下不发忠诚
-                    val newLoyalty = if (!isFrugality && disciple.skills.loyalty < maxLoyalty)
-                        disciple.skills.loyalty + 1 else disciple.skills.loyalty
-                    disciple.copy(
-                        equipment = disciple.equipment.copy(
-                            storageBagSpiritStones = disciple.equipment.storageBagSpiritStones + actualSalary
-                        ),
-                        skills = disciple.skills.copy(
-                            salaryPaidCount = disciple.skills.salaryPaidCount + 1,
-                            loyalty = newLoyalty
-                        )
-                    )
-                } else {
-                    disciple
+            // ★ 列直写替代 assembleAll → map → replaceAll
+            for ((idStr, salary) in plan.eligibleSalaries) {
+                val id = idStr.toIntOrNull() ?: continue
+                if (!discipleTables.ids.contains(id) || discipleTables.isAlive[id] != 1) continue
+                val actualSalary = (salary * salaryMultiplier).roundToLong()
+                val currentStones = discipleTables.storageBagSpiritStones.getOrDefault(id, 0L)
+                discipleTables.storageBagSpiritStones[id] = currentStones + actualSalary
+                discipleTables.salaryPaidCounts[id] =
+                    discipleTables.salaryPaidCounts.getOrDefault(id, 0) + 1
+                // 开源节流政策下不发忠诚
+                if (!isFrugality) {
+                    val current = discipleTables.loyalties.getOrDefault(id, 50)
+                    discipleTables.loyalties[id] = (current + 1).coerceAtMost(maxLoyalty)
                 }
             }
-            discipleTables.replaceAll(updatedDisciples)
         }
     }
 
@@ -117,7 +123,11 @@ class CultivationSettlement @Inject constructor(
         val totalRequired: Long
     )
 
-    private fun calculateSalaryPlan(maxLoyalty: Int): SalaryPlan? {
+    /**
+     * 计算应得俸禄弟子清单及总需求。
+     * 不检查 [spiritStoneWallet.canAfford]（由 [processAnnualSalary] 处理）。
+     */
+    private fun calculateSalaryPlan(): SalaryPlan? {
         val data = stateStore.gameData.value
         val salaryConfig = data.yearlySalary
         val enabledConfig = data.yearlySalaryEnabled
@@ -128,7 +138,6 @@ class CultivationSettlement @Inject constructor(
             .filter { it.second > 0L }
         val totalRequired = eligible.sumOf { it.second }
         if (totalRequired <= 0L) return null
-        if (!spiritStoneWallet.canAfford(totalRequired)) return null
         return SalaryPlan(
             eligibleSalaries = eligible.associate { it.first.id to it.second },
             totalRequired = totalRequired
