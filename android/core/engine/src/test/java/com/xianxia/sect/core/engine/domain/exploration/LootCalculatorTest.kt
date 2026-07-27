@@ -5,6 +5,7 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.util.GameRngManager
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Before
@@ -16,7 +17,7 @@ class LootCalculatorTest {
 
     @Before
     fun setUp() {
-        calculator = LootCalculator()
+        calculator = LootCalculator(GameRngManager().also { it.initSystemSeed(42L) })
     }
 
     private fun newState(gd: GameData = GameData()): MutableGameState {

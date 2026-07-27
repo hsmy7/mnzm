@@ -8,7 +8,11 @@
       "修复：autoAssignPatrolAtomic中!!操作符替换为?: continue",
       "修复：sellItem/bulkSellItems重构——移除绕过容量守卫的临时StackableItemStore(Int.MAX_VALUE)，改为直接EntityStore+withQuantity()操作",
       "修复：sellStack灵石先加到账后扣物品——防止异常时物品丢失",
-      "架构：ProtoBuf @EncodeDefault(ALWAYS)治理——GameData/SaveData/SectPolicies/HeavenlyTrialData/PatrolConfig共27个非零默认值字段标注，守卫测试扩展到嵌套@Serializable类"
+      "架构：ProtoBuf @EncodeDefault(ALWAYS)治理——GameData/SaveData/SectPolicies/HeavenlyTrialData/PatrolConfig共27个非零默认值字段标注，守卫测试扩展到嵌套@Serializable类",
+      "架构：月度/年变事件管线单事务化——processMonthlyEvents 13子服务+processYearlyEvents 18子服务全部移入单次stateStore.update，利用重入缓冲机制保持原子性",
+      "修复：checkAllianceExpiry/garrisonAndReport data.copy覆盖漏洞——子服务写入时用gameData.copy(field=newValue)替代data.copy防止覆盖同一事务内其他服务修改",
+      "修复：syncAllDiscipleStatuses事务内读取——所有状态读取移入stateStore.update块内，重入缓冲下自动获取当前数据",
+      "架构：shuffled()迁移至分区PRNG——DisciplePurchaseService(5处)+LootCalculator(1处)共6处改为GameRngManager分区PRNG，新增RngExt.kt扩展函数"
     ]
   },
   {

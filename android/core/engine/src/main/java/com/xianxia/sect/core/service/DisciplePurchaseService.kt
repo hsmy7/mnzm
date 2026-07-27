@@ -12,7 +12,11 @@ import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.domain.disciple.*
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.DeterministicRng
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.StackableItem
+import com.xianxia.sect.core.util.shuffled
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -36,8 +40,11 @@ import javax.inject.Singleton
 class DisciplePurchaseService @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventorySystem: InventorySystem,
-    private val inventoryConfig: InventoryConfig
+    private val inventoryConfig: InventoryConfig,
+    private val rngManager: GameRngManager
 ) {
+    private val purchaseRng: DeterministicRng get() = rngManager.getRng(RngPartition.SYSTEM)
+
     companion object {
         private const val TAG = "DisciplePurchase"
 
@@ -314,10 +321,10 @@ class DisciplePurchaseService @Inject constructor(
             // A组有空槽位优先，B组满槽升级
             val groupA = interested
                 .filter { it.manualIds.size < ESTIMATED_MAX_MANUAL_SLOTS }
-                .shuffled()
+                .shuffled(purchaseRng)
             val groupB = interested
                 .filter { it.manualIds.size >= ESTIMATED_MAX_MANUAL_SLOTS }
-                .shuffled()
+                .shuffled(purchaseRng)
 
             for (ctx in (groupA + groupB)) {
                 if (countPurchases(decisions, ctx.id, ITEM_TYPE_MANUAL)
@@ -360,10 +367,10 @@ class DisciplePurchaseService @Inject constructor(
             // A组槽位为空优先，B组升级
             val groupA = interested
                 .filter { getEquipIdBySlot(it, eq.slot).isEmpty() }
-                .shuffled()
+                .shuffled(purchaseRng)
             val groupB = interested
                 .filter { getEquipIdBySlot(it, eq.slot).isNotEmpty() }
-                .shuffled()
+                .shuffled(purchaseRng)
 
             for (ctx in (groupA + groupB)) {
                 if (countPurchases(decisions, ctx.id, ITEM_TYPE_EQUIPMENT)
@@ -390,7 +397,7 @@ class DisciplePurchaseService @Inject constructor(
                     >= MAX_PILL_PURCHASES) return@filter false
                 val budget = calculateBudget(ctx.totalFunds, 0L)
                 budget >= item.price
-            }.shuffled()
+            }.shuffled(purchaseRng)
 
             for (ctx in interested) {
                 if (countPurchases(decisions, ctx.id, ITEM_TYPE_PILL)

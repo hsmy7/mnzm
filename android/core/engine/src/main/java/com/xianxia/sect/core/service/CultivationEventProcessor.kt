@@ -291,13 +291,11 @@ class CultivationEventProcessor @Inject constructor(
     }
 
     fun processMonthlyEvents(year: Int, month: Int) {
-        // ── 复杂子服务（委托到 LawEnforcementProcessor，消除 CEP 副本） ──
-        safelyRun("theft") { lawEnforcementProcessor.processTheftIfNeeded() }
-        safelyRun("lawEnforcement") { lawEnforcementProcessor.processLawEnforcementMonthly() }
-        safelyRun("completedMissions") { processCompletedMissionsLazy(year, month) }
-
-        // ── 已迁移 MutableGameState 的子服务：单事务内执行 ──
+        // 单事务：所有月度事件原子提交
         stateStore.update {
+            safelyRunInState("theft") { lawEnforcementProcessor.processTheftIfNeeded() }
+            safelyRunInState("lawEnforcement") { lawEnforcementProcessor.processLawEnforcementMonthly() }
+            safelyRunInState("completedMissions") { processCompletedMissionsLazy(year, month) }
             safelyRunInState("aiSectOperations") { caveExplorationProcessor.get().processAISectOperations(year, month, this) }
             safelyRunInState("gameOverCheck") { checkGameOverCondition(this) }
             safelyRunInState("scoutExpiry") { processScoutInfoExpiryLazy(year, month, this) }
@@ -312,18 +310,6 @@ class CultivationEventProcessor @Inject constructor(
             safelyRunInState("missionRefresh") { processMissionRefreshIfDue(month, this) }
         }
     }
-    /**
-     * 月度 HP/MP 恢复兜底。
-     *
-     * 修炼累积、自动装备/学习/丹药已在每旬 [checkBreakthroughsAndPills] 中实时处理，
-     * 此方法仅做月度 HP/MP 恢复兜底（phaseMultiplier×3 旬的恢复量），
-     * 确保批量轨跳过时弟子仍能回满状态。
-     *
-     * 对标 RimWorld Long Tick — 每月一次性 HP/MP 恢复。
-     */
-    private fun processMonthlyCultivationAndAuto() {
-        stateStore.update { processMonthlyCultivationAndAuto(this) }
-    }
     private fun processMonthlyCultivationAndAuto(state: MutableGameState) {
         val data = state.gameData
         val tables = state.discipleTables
@@ -333,101 +319,102 @@ class CultivationEventProcessor @Inject constructor(
         cultivationCore.recoverHpMpForAllDisciples(state, phasesToSettle = 3)
     }
     fun processYearlyEvents(year: Int) {
-        safelyRun("yearlyTribute") {
-            vassalService.processYearlyTribute()
-        }
-        safelyRun("yearlyVassalTribute") {
-            vassalService.processYearlyVassalTribute(year)
-        }
-        safelyRun("discipleAging") {
-            discipleLifecycleProcessor.processDiscipleAging(year)
-        }
-        safelyRun("sectDisciplesAging") {
-            caveExplorationProcessor.get().processSectDisciplesAging(year)
-        }
-        safelyRun("refreshRecruitList") {
-            if (year % 3 == 1) merchantAndRecruitService.refreshRecruitList(year)
-        }
-        safelyRun("merchantRefreshChance") {
-            merchantAndRecruitService.giveMerchantRefreshChanceIfDue(year)
-        }
-        safelyRun("yearlyAging") {
-            discipleLifecycleProcessor.processYearlyAging(year)
-        }
-        safelyRun("sectYearlyRecruitment") {
-            caveExplorationProcessor.get().processSectDisciplesYearlyRecruitment(year)
-        }
-        safelyRun("autoBuy") {
-            autoBuyService.executeAutoBuy(year, 1)
-        }
-        safelyRun("refreshAcquisition") {
-            merchantAndRecruitService.refreshMerchantAcquisition(year, 1)
-        }
-        safelyRun("partnerMatching") {
-            diplomacyEventProcessor.processCrossSectPartnerMatching(year, 1)
-        }
-        safelyRun("allianceExpiry") {
-            diplomacyEventProcessor.checkAllianceExpiry(year)
-        }
-        safelyRun("allianceFavorDrop") {
-            diplomacyEventProcessor.checkAllianceFavorDrop()
-        }
-        safelyRun("aiAlliances") {
-            diplomacyEventProcessor.processAIAlliances(year)
-        }
-        safelyRun("reflectionRelease") {
-            discipleLifecycleProcessor.processReflectionRelease(year)
-        }
-        safelyRun("favorDecay") {
-            diplomacyEventProcessor.processFavorDecay(year)
-        }
-        safelyRun("garrisonRotation") {
-            val rotated = AISectGarrisonManager.rotateGarrisonSlots(
-                stateStore.gameData.value
-            )
-            stateStore.update { gameData = rotated }
-        }
-        safelyRun("griefExpiry") {
-            discipleLifecycleProcessor.processGriefExpiry(year)
-        }
-        // 年度报告：年变快照
-        safelyRun("annualReportSnapshot") {
-            stateStore.update {
-                val report = YearlyReport(
-                    year = year - 1,
-                    totalIncome = gameData.annualTotalIncome,
-                    totalExpenditure = gameData.annualTotalExpenditure,
-                    incomeBySource = gameData.annualIncomeBySource,
-                    expenditureByReason = gameData.annualExpenditureByReason,
-                    equipmentBySource = gameData.annualEquipmentBySource,
-                    pillBySource = gameData.annualPillBySource,
-                    herbBySource = gameData.annualHerbBySource,
-                    alchemyCompleted = gameData.annualAlchemyCount,
-                    forgeCompleted = gameData.annualForgeCount,
-                    herbsHarvested = gameData.annualHerbCount,
-                    newDisciples = gameData.annualNewDisciples,
-                    deceasedDisciples = gameData.annualDeceasedDisciples,
-                    desertedDisciples = gameData.annualDesertedDisciples
-                )
-                gameData = gameData.copy(
-                    yearlyReports = (gameData.yearlyReports + report)
-                        .takeLast(GameConfig.Logs.MAX_YEARLY_REPORTS),
-                    annualIncomeBySource = emptyMap(),
-                    annualExpenditureByReason = emptyMap(),
-                    annualTotalIncome = 0L,
-                    annualTotalExpenditure = 0L,
-                    annualEquipmentBySource = emptyMap(),
-                    annualPillBySource = emptyMap(),
-                    annualHerbBySource = emptyMap(),
-                    annualAlchemyCount = 0,
-                    annualForgeCount = 0,
-                    annualHerbCount = 0,
-                    annualNewDisciples = 0,
-                    annualDeceasedDisciples = 0,
-                    annualDesertedDisciples = 0,
-                    annualTheftCount = 0
-                )
+        // 单事务：所有年变事件原子提交
+        // 子服务内部 stateStore.update 通过重入缓冲共享同一副本
+        stateStore.update {
+            safelyRunInState("yearlyTribute") { vassalService.processYearlyTribute() }
+            safelyRunInState("yearlyVassalTribute") {
+                vassalService.processYearlyVassalTribute(year)
             }
+            safelyRunInState("discipleAging") {
+                discipleLifecycleProcessor.processDiscipleAging(year)
+            }
+            safelyRunInState("sectDisciplesAging") {
+                caveExplorationProcessor.get().processSectDisciplesAging(year)
+            }
+            safelyRunInState("refreshRecruitList") {
+                if (year % 3 == 1) merchantAndRecruitService.refreshRecruitList(year)
+            }
+            safelyRunInState("merchantRefreshChance") {
+                merchantAndRecruitService.giveMerchantRefreshChanceIfDue(year)
+            }
+            safelyRunInState("yearlyAging") {
+                discipleLifecycleProcessor.processYearlyAging(year)
+            }
+            safelyRunInState("sectYearlyRecruitment") {
+                caveExplorationProcessor.get().processSectDisciplesYearlyRecruitment(year)
+            }
+            safelyRunInState("autoBuy") { autoBuyService.executeAutoBuy(year, 1) }
+            safelyRunInState("refreshAcquisition") {
+                merchantAndRecruitService.refreshMerchantAcquisition(year, 1)
+            }
+            safelyRunInState("partnerMatching") {
+                diplomacyEventProcessor.processCrossSectPartnerMatching(year, 1)
+            }
+            safelyRunInState("allianceExpiry") {
+                diplomacyEventProcessor.checkAllianceExpiry(year)
+            }
+            safelyRunInState("allianceFavorDrop") {
+                diplomacyEventProcessor.checkAllianceFavorDrop()
+            }
+            safelyRunInState("aiAlliances") { diplomacyEventProcessor.processAIAlliances(year) }
+            safelyRunInState("reflectionRelease") {
+                discipleLifecycleProcessor.processReflectionRelease(year)
+            }
+            safelyRunInState("favorDecay") { diplomacyEventProcessor.processFavorDecay(year) }
+            // 年度报告 + 驻军轮换
+            safelyRunInState("garrisonAndReport") { runGarrisonAndReport(year) }
+            safelyRunInState("griefExpiry") {
+                discipleLifecycleProcessor.processGriefExpiry(year)
+            }
+        }
+    }
+
+    /**
+     * 年变：驻军轮换 + 年度报告快照（单次原子 update）。
+     * 已从 [processYearlyEvents] 内联代码提取，降低函数复杂度。
+     */
+    private fun runGarrisonAndReport(year: Int) {
+        val rotated = AISectGarrisonManager.rotateGarrisonSlots(
+            stateStore.gameData.value
+        )
+        val currentData = stateStore.gameData.value
+        val report = YearlyReport(
+            year = currentData.gameYear - 1,
+            totalIncome = currentData.annualTotalIncome,
+            totalExpenditure = currentData.annualTotalExpenditure,
+            incomeBySource = currentData.annualIncomeBySource,
+            expenditureByReason = currentData.annualExpenditureByReason,
+            equipmentBySource = currentData.annualEquipmentBySource,
+            pillBySource = currentData.annualPillBySource,
+            herbBySource = currentData.annualHerbBySource,
+            alchemyCompleted = currentData.annualAlchemyCount,
+            forgeCompleted = currentData.annualForgeCount,
+            herbsHarvested = currentData.annualHerbCount,
+            newDisciples = currentData.annualNewDisciples,
+            deceasedDisciples = currentData.annualDeceasedDisciples,
+            desertedDisciples = currentData.annualDesertedDisciples
+        )
+        stateStore.update {
+            gameData = gameData.copy(
+                worldMapSects = rotated.worldMapSects,
+                yearlyReports = (gameData.yearlyReports + report)
+                    .takeLast(GameConfig.Logs.MAX_YEARLY_REPORTS),
+                annualIncomeBySource = emptyMap(),
+                annualExpenditureByReason = emptyMap(),
+                annualTotalIncome = 0L,
+                annualTotalExpenditure = 0L,
+                annualEquipmentBySource = emptyMap(),
+                annualPillBySource = emptyMap(),
+                annualHerbBySource = emptyMap(),
+                annualAlchemyCount = 0,
+                annualForgeCount = 0,
+                annualHerbCount = 0,
+                annualNewDisciples = 0,
+                annualDeceasedDisciples = 0,
+                annualDesertedDisciples = 0,
+                annualTheftCount = 0
+            )
         }
     }
     // ── 战斗/探索辅助 ──────────────────────────────────────────────────

@@ -46,16 +46,13 @@ class DiplomacyEventProcessor @Inject constructor(
 
         if (expiredAlliances.isEmpty()) return
 
-        val updatedAlliances = data.alliances.filter { year - it.startYear < com.xianxia.sect.core.config.FavorConfig.ALLIANCE_DURATION_YEARS }
-        val updatedSects = data.worldMapSects.map { sect ->
-            if (expiredAlliances.any { it.sectIds.contains(sect.id) }) {
-                sect.copy(allianceId = "", allianceStartYear = 0)
-            } else sect
-        }
-
-        stateStore.update { gameData = data.copy(
-            alliances = updatedAlliances,
-            worldMapSects = updatedSects
+        stateStore.update { gameData = gameData.copy(
+            alliances = gameData.alliances.filter { year - it.startYear < com.xianxia.sect.core.config.FavorConfig.ALLIANCE_DURATION_YEARS },
+            worldMapSects = gameData.worldMapSects.map { sect ->
+                if (expiredAlliances.any { it.sectIds.contains(sect.id) }) {
+                    sect.copy(allianceId = "", allianceStartYear = 0)
+                } else sect
+            }
         ) }
     }
 

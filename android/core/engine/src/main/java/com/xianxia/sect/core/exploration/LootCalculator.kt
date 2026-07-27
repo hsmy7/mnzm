@@ -10,11 +10,15 @@ import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.util.DeterministicRng
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RngPartition
+import com.xianxia.sect.core.util.shuffled
 import javax.inject.Inject
 import kotlin.math.ceil
 
 /**
- * 掠夺计算器（纯函数 + 副作用分离）。
+ * 掠夺计算器（确定性计算 + 副作用分离）。
  *
  * 从 [ExplorationService.computeLoot] + [applyMaterialLoot] 提取，
  * 业务逻辑完全一致，但修复了以下缺陷：
@@ -25,10 +29,13 @@ import kotlin.math.ceil
  * 4. [manualStacks] 增加 [filterInPlace] 过滤（原代码遗漏）
  * 5. 所有物品扣除后 [filterInPlace] 统一在末尾一次完成
  *
- * [computeLootPlan] 为纯函数，只读取状态不写；
+ * [computeLootPlan] 为确定性计算（使用 [GameRngManager] 分区 PRNG），只读取状态不写；
  * [applyLoot] 执行实际扣除，修改 [state] 上的仓库数据。
  */
-class LootCalculator @Inject constructor() {
+class LootCalculator @Inject constructor(
+    private val rngManager: GameRngManager
+) {
+    private val lootRng: DeterministicRng get() = rngManager.getRng(RngPartition.EXPLORATION)
 
     /**
      * 掠夺结果数据。
@@ -179,7 +186,7 @@ class LootCalculator @Inject constructor() {
             .coerceAtMost(entries.size)
         if (stealCount <= 0) return BeastLootData()
 
-        val selected = entries.shuffled().take(stealCount)
+        val selected = entries.shuffled(lootRng).take(stealCount)
 
         val stolenStones = selected.count { it.type == "spiritStones" } * itemUnit
         val stolenBags = selected.count { it.type == "storageBag" }

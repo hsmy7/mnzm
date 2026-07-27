@@ -89,6 +89,58 @@ detekt 配置 `baseline` 只缩不增（CLAUDE.md 13.2），当前未启用 base
 - 编译通过 + 引擎模块全部测试通过
 - 对抗性审查（3 agent × 3 维度）确认修复有效
 
+## 月度事件管线单事务化
+
+**状态：** ✅ 已完成（2026-07-27）。
+
+### 修复内容
+
+`CultivationEventProcessor` 中 3 处多次 `stateStore.update` 问题全部解决，**无尾巴**：
+
+1. **`processMonthlyEvents`** — 将所有子服务（theft/lawEnforcement/completedMissions + 原事务内 9 项）**全部移入同一次 `stateStore.update`**，利用重入缓冲机制保证嵌套调用操作同一副本。月度循环从 **4→1 次 update**（100% 消除）。
+2. **`processYearlyEvents`** — 将所有 18 个子服务（vassalTribute/discipleAging/autoBuy/diplomacyEvents 等）**全部移入同一次 `stateStore.update`**。年变循环从 **~20→1 次 update**（100% 消除）。
+3. **修复 `checkAllianceExpiry` 的 `data.copy` 覆盖问题** — 原代码用 `data.copy(...)` 写入，会覆盖其他服务的中间修改，改为 `gameData.copy(...)`。
+4. **修复 `garrisonAndReport` 的 `rotated.copy` 覆盖问题** — 原代码用 `rotated.copy(...)` 写入，会覆盖其他服务的中间修改，改为 `gameData.copy(worldMapSects=rotated.worldMapSects, ...)`。
+5. **删除死代码** — `processMonthlyCultivationAndAuto()` 无参重载（原起额外事务）。
+
+### 文件变更
+
+| 文件 | 变更 |
+|------|------|
+| `CultivationEventProcessor.kt` | 月度+年变全部子服务移入单事务；删除死代码 |
+| `DiplomacyEventProcessor.kt` | `checkAllianceExpiry` 修复 `data.copy` → `gameData.copy` |
+| `FavorEventProcessor.kt`（如适用） | 无变更（已全在 update 内） |
+
+## `shuffled()` 迁移至分区 PRNG
+
+**状态：** ✅ 已完成（2026-07-27）。
+
+### 修复内容
+
+6 处 `kotlin.collections.shuffled()` 迁移至 `GameRngManager` 分区 PRNG：
+
+| 文件 | 行数 | 使用分区 |
+|------|------|---------|
+| `DisciplePurchaseService.kt` | 5 处 | `RngPartition.SYSTEM` |
+| `LootCalculator.kt` | 1 处 | `RngPartition.EXPLORATION` |
+
+### 新增文件
+
+| 文件 | 说明 |
+|------|------|
+| `core/engine/.../util/RngExt.kt` | `shuffled(rng: DeterministicRng)` 扩展函数 |
+
+### 其他受影响文件
+
+| 文件 | 变更 |
+|------|------|
+| `LootCalculatorTest.kt` | 构造参数传入 `GameRngManager` |
+| `LawEnforcementProcessorTest.kt` | 18 处 `LootCalculator()` → `LootCalculator(GameRngManager())` |
+
+### 验证
+
+- 编译通过 + 引擎模块全部测试通过
+
 ## Crash 2: SIGSEGV #3088 — vulkan.adreno.so vkGetDeviceQueue（⚠️ 待根治）
 
 **当前措施**：

@@ -9,6 +9,10 @@
 ### 架构
 
 - **ProtoBuf 默认值编码治理** — 27 个 @ProtoNumber 非零默认值字段标注 @EncodeDefault(ALWAYS)，ProtoNumberCoverageTest 扩展到递归检查嵌套 @Serializable 类
+- **月度/年变事件管线单事务化** — processMonthlyEvents 13 子服务 + processYearlyEvents 18 子服务全部移入单次 stateStore.update，利用重入缓冲机制保证嵌套 update 共享同一数据副本，消除多事务提交的原子性和部分状态窗口问题
+- **checkAllianceExpiry/garrisonAndReport data.copy 覆盖漏洞修复** — 子服务写入时用 gameData.copy(field=newValue) 替代 data.copy(...)，不覆盖同一事务内其他服务的中间修改
+- **syncAllDiscipleStatuses 事务内读取** — 所有状态读取移入 stateStore.update 块内，重入缓冲下自动获取 reusableMutableState 当前数据，与顺序提交行为完全等价
+- **shuffled() 迁移至分区 PRNG** — DisciplePurchaseService(5处) + LootCalculator(1处) 共 6 处 kotlin.collections.shuffled() 改为 DeterministicRng.shuffled(rng)，使用 RngPartition.SYSTEM/EXPLORATION 分区 PRNG，新增 RngExt.kt 扩展函数
 
 ## [4.0.75] - 2026-07-26
 

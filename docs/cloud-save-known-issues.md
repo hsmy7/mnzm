@@ -13,7 +13,7 @@
 | 2 | 下载覆盖无备份 | P0 | ✅ 2026-07-25 下载前备份原存档 |
 | 3 | `invokeGetterString` 静默降级 | P1 | ✅ 2026-07-25 返回 `String?` + 异常 log |
 | 4 | 跨版本存档兼容性 | P1 | ✅ 2026-07-25 version 元数据 + VersionMismatch 类型 |
-| 5 | `shuffled()` 迁移至分区 PRNG (6处) | P2 | ⏸️ |
+| 5 | `shuffled()` 迁移至分区 PRNG (6处) | P2 | ✅ DisciplePurchaseService(5)+LootCalculator(1) 已迁移至 RngPartition.SYSTEM/EXPLORATION，2026-07-27 |
 | 6 | `SharedPreferences apply() → commit()` | P2 | ⏸️ |
 | 7 | `Dispatchers.IO` 硬编码 (10处) | 编码规范 | ⏸️ 贯穿全项目 |
 | 8 | `GameStateStore` 直接访问 (15处) | 编码规范 | ⏸️ 贯穿全项目 |

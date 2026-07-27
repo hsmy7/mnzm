@@ -243,13 +243,16 @@ class DiscipleStatusService @Inject constructor(
         return ids
     }
 
-    private fun buildInTeamIds(data: GameData): MutableSet<String> {
+    private fun buildInTeamIds(data: GameData): MutableSet<String> =
+        buildInTeamIds(data, stateStore.teams.value)
+
+    private fun buildInTeamIds(data: GameData, teams: List<ExplorationTeam>): MutableSet<String> {
         val ids = mutableSetOf<String>()
         data.battleTeams.flatMap { it.slots }
             .filter { it.discipleId.isNotEmpty() }
             .forEach { ids.add(it.discipleId) }
         // 探索/洞窟队伍成员
-        ids.addAll(stateStore.teams.value
+        ids.addAll(teams
             .filter { it.status in explorationStatuses }
             .flatMap { it.memberIds })
         ids.addAll(data.caveExplorationTeams
@@ -266,40 +269,44 @@ class DiscipleStatusService @Inject constructor(
     /**
      * 根据所有槽位分配同步所有存活弟子的状态。
      * 保留 REFLECTING / ON_MISSION / REFINING 不覆盖。
+     *
+     * 所有读取在 [stateStore.update] 事务内完成：
+     * - 正常调用时：从 deepCopy 读取当前状态
+     * - 重入调用时（在外部事务内）：从 [reusableMutableState] 读取，包含同一事务内前序服务的修改
      */
     fun syncAllDiscipleStatuses() {
-        val data = stateStore.gameData.value
-        val tables = stateStore.discipleTables
-
-        val lawEnforcerIds = buildLawEnforcerIds(data.elderSlots)
-        val preachingIds = buildPreachingIds(data.elderSlots)
-        val deaconingIds = buildDeaconingIds(data.elderSlots)
-        val managingIds = buildManagingIds(data.elderSlots)
-        val studyingIds = buildStudyingIds(data)
-        val miningIds = buildMiningIds(data, tables)
-        val garrisonIds = buildGarrisonIds(data)
-        val inTeamIds = buildInTeamIds(data)
-        val patrollingIds = buildPatrollingIds(data)
-
-        val alchemyIds = data.productionSlots
-            .filter { !it.assignedDiscipleId.isNullOrEmpty()
-                && it.buildingId == "alchemy" }
-            .mapNotNull { it.assignedDiscipleId }.toSet()
-        val forgeIds = data.productionSlots
-            .filter { !it.assignedDiscipleId.isNullOrEmpty()
-                && it.buildingId == "forge" }
-            .mapNotNull { it.assignedDiscipleId }.toSet()
-        val plantIds = data.productionSlots
-            .filter { !it.assignedDiscipleId.isNullOrEmpty()
-                && it.buildingId == "herbGarden" }
-            .mapNotNull { it.assignedDiscipleId }.toSet()
-
-        fixInvalidMiningSlots(data, tables)
-
         stateStore.update {
-            for (id in discipleTables.ids) {
-                val isAlive = discipleTables.isAlive[id] == 1
-                val status = discipleTables.statuses[id]
+            val data = gameData
+            val tables = discipleTables
+
+            val lawEnforcerIds = buildLawEnforcerIds(data.elderSlots)
+            val preachingIds = buildPreachingIds(data.elderSlots)
+            val deaconingIds = buildDeaconingIds(data.elderSlots)
+            val managingIds = buildManagingIds(data.elderSlots)
+            val studyingIds = buildStudyingIds(data)
+            val miningIds = buildMiningIds(data, tables)
+            val garrisonIds = buildGarrisonIds(data)
+            val inTeamIds = buildInTeamIds(data, teams)
+            val patrollingIds = buildPatrollingIds(data)
+
+            val alchemyIds = data.productionSlots
+                .filter { !it.assignedDiscipleId.isNullOrEmpty()
+                    && it.buildingId == "alchemy" }
+                .mapNotNull { it.assignedDiscipleId }.toSet()
+            val forgeIds = data.productionSlots
+                .filter { !it.assignedDiscipleId.isNullOrEmpty()
+                    && it.buildingId == "forge" }
+                .mapNotNull { it.assignedDiscipleId }.toSet()
+            val plantIds = data.productionSlots
+                .filter { !it.assignedDiscipleId.isNullOrEmpty()
+                    && it.buildingId == "herbGarden" }
+                .mapNotNull { it.assignedDiscipleId }.toSet()
+
+            fixInvalidMiningSlots(data, tables)
+
+            for (id in tables.ids) {
+                val isAlive = tables.isAlive[id] == 1
+                val status = tables.statuses[id]
                 if (!isAlive) continue
 
                 val discipleId = id.toString()
@@ -323,7 +330,7 @@ class DiscipleStatusService @Inject constructor(
                 )
 
                 if (status != newStatus) {
-                    discipleTables.statuses[id] = newStatus
+                    tables.statuses[id] = newStatus
                 }
             }
         }

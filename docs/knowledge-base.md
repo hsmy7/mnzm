@@ -389,7 +389,9 @@ No `NavHost` is used for the main game. `MainGameScreen` switches content via `M
 
 ### 已知限制
 - `DiscipleReachRealm` 条件类型 **已实现**（2026-07-24），`GuideCondition` 接口新增 `isMet(gameData, discipleTables)` 重载，`DiscipleTables` 通过 `GuideDelegate` / `GuideDialog` 透传
-- 月度事件管线（`CultivationEventProcessor.processMonthlyEvents`）存在多事务提交问题，已记入架构文档待完成项
+- ✅ 月度事件管线多事务问题已修复（2026-07-27）：所有子服务移入单次 `stateStore.update`，利用重入缓冲机制，月度循环 4→1 次 update
+- ✅ 年变事件管线多事务问题已修复（2026-07-27）：18 个子服务全部移入单次 `stateStore.update`，年变循环 ~20→1 次 update
+- ✅ `shuffled()` 迁移至分区 PRNG（2026-07-27）：`DisciplePurchaseService`(5处)+`LootCalculator`(1处) 改为 `GameRngManager` 分区 PRNG，新增 `RngExt.shuffled(rng)` 扩展函数
 
 ---
 

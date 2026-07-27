@@ -224,7 +224,7 @@ class LawEnforcementProcessorTest {
         val rng = GameRngManager()
         rng.initSystemSeed(7L)
         val proc = LawEnforcementProcessor(mockStore, rng,
-            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
         // 只验证不抛异常即可，RNG由专用测试覆盖
         proc.processSingleDiscipleTheft(id, state)
         assertNotNull("运行完成", state)
@@ -236,7 +236,7 @@ class LawEnforcementProcessorTest {
         val state = makeState(GameData(spiritStones = 0L, gameYear = 10, gameMonth = 6), tables)
         val (mockStore, _) = makeMocks(GameData(spiritStones = 0L))
         val proc = LawEnforcementProcessor(mockStore, GameRngManager(),
-            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
         proc.processSingleDiscipleTheft(id, state)
         assertEquals(0L, state.gameData.spiritStones)
     }
@@ -247,7 +247,7 @@ class LawEnforcementProcessorTest {
         val state = makeState(GameData(spiritStones = 1_000_000L, gameYear = 10, gameMonth = 6), tables)
         val (mockStore, _) = makeMocks(GameData(spiritStones = 1_000_000L))
         val proc = LawEnforcementProcessor(mockStore, GameRngManager(),
-            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
         proc.processSingleDiscipleTheft(id, state)
         assertEquals(1_000_000L, state.gameData.spiritStones)
     }
@@ -258,7 +258,7 @@ class LawEnforcementProcessorTest {
         val state = makeState(GameData(spiritStones = 1_000_000L, gameYear = 10, gameMonth = 6), tables)
         val (mockStore, _) = makeMocks(GameData(spiritStones = 1_000_000L))
         val proc = LawEnforcementProcessor(mockStore, GameRngManager(),
-            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
         proc.processSingleDiscipleTheft(id, state)
         assertEquals(1_000_000L, state.gameData.spiritStones)
     }
@@ -271,7 +271,7 @@ class LawEnforcementProcessorTest {
         val state = makeState(gd, tables)
         val (mockStore, _) = makeMocks(gd)
         val proc = LawEnforcementProcessor(mockStore, GameRngManager(),
-            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
         proc.processSingleDiscipleTheft(id, state)
         // 年上限已满，应跳过偷盗，灵石不变
         assertEquals(1_000_000L, state.gameData.spiritStones)
@@ -287,7 +287,7 @@ class LawEnforcementProcessorTest {
         val rng = GameRngManager()
         rng.initSystemSeed(7L)
         val proc = LawEnforcementProcessor(mockStore, rng,
-            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
         proc.processSingleDiscipleTheft(id, state)
         // 年上限未满，流程应正常执行（灵石可能减少取决于RNG）
         assertNotNull("运行完成", state)
@@ -301,7 +301,7 @@ class LawEnforcementProcessorTest {
         val state = makeState(gd, tables)
         val (mockStore, _) = makeMocks(gd)
         val proc = LawEnforcementProcessor(mockStore, GameRngManager(),
-            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
         proc.processSingleDiscipleTheft(id, state)
         // 道德高，概率0，灵石不变
         assertEquals(1_000_000L, state.gameData.spiritStones)
@@ -313,7 +313,7 @@ class LawEnforcementProcessorTest {
         val state = makeState(GameData(spiritStones = 1_000_000L, gameYear = 10, gameMonth = 6), tables)
         val (mockStore, _) = makeMocks(GameData(spiritStones = 1_000_000L))
         val proc = LawEnforcementProcessor(mockStore, GameRngManager(),
-            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
         proc.processSingleDiscipleTheft(id, state)
         assertEquals(1_000_000L, state.gameData.spiritStones)
     }
@@ -330,7 +330,7 @@ class LawEnforcementProcessorTest {
         val state = makeState(gd, tables)
         val (mockStore, _) = makeMocks(gd)
         val proc = LawEnforcementProcessor(mockStore, GameRngManager(),
-            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
         proc.processSingleDiscipleTheft(id, state)
         // 月上限已满，跳过判定，灵石不变
         assertEquals(1_000_000L, state.gameData.spiritStones)
@@ -349,7 +349,7 @@ class LawEnforcementProcessorTest {
         val rng = GameRngManager()
         rng.initSystemSeed(7L)
         val proc = LawEnforcementProcessor(mockStore, rng,
-            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
         proc.processSingleDiscipleTheft(id, state)
         // 月上限未满，应进入判定流程：月计数+1，lastTheftJudgementYears被标记
         assertEquals(2, state.gameData.theftJudgementsThisMonth)
@@ -365,7 +365,7 @@ class LawEnforcementProcessorTest {
         val rng = GameRngManager()
         rng.initSystemSeed(7L)
         val proc = LawEnforcementProcessor(mockStore, rng,
-            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
         // 第一次判定：正常执行
         proc.processSingleDiscipleTheft(id, state)
         assertEquals(10, state.discipleTables.lastTheftJudgementYears.getOrDefault(id, 0))
@@ -389,7 +389,7 @@ class LawEnforcementProcessorTest {
         val rng = GameRngManager()
         rng.initSystemSeed(7L)
         val proc = LawEnforcementProcessor(mockStore, rng,
-            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
         proc.processSingleDiscipleTheft(id, state)
         // 不同年应能重新判定：lastTheftJudgementYears更新为今年
         assertEquals(10, state.discipleTables.lastTheftJudgementYears.getOrDefault(id, 0))
@@ -421,7 +421,7 @@ class LawEnforcementProcessorTest {
         val rng = GameRngManager()
         rng.initSystemSeed(99L)
         val proc = LawEnforcementProcessor(mockStore, rng,
-            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
         proc.processSingleDiscipleTheft(thiefId, state)
         // 验证守卫已被正确装配（智力比较逻辑在简化后的流程中使用直接值比较）
         // 注意：全流程验证受 RNG 种子影响，守卫智力比对逻辑在 engine 层是纯函数
@@ -451,7 +451,7 @@ class LawEnforcementProcessorTest {
         val rng = GameRngManager()
         rng.initSystemSeed(7L)
         val proc = LawEnforcementProcessor(mockStore, rng,
-            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
         proc.processSingleDiscipleTheft(thiefId, state)
         // 守卫智力(50) < 盗贼智力(100) → 未被捕获，应为IDLE
         assertNotEquals(DiscipleStatus.REFLECTING, state.discipleTables.assemble(thiefId)?.status)
@@ -478,7 +478,7 @@ class LawEnforcementProcessorTest {
         val rng = GameRngManager()
         rng.initSystemSeed(7L)
         val proc = LawEnforcementProcessor(mockStore, rng,
-            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
         proc.processSingleDiscipleTheft(thiefId, state)
         // 验证守卫装配正确
         assertNotNull("guard assembled", state.discipleTables.assemble(guardId))
@@ -496,7 +496,7 @@ class LawEnforcementProcessorTest {
         val rng = GameRngManager()
         rng.initSystemSeed(7L)
         val proc = LawEnforcementProcessor(mockStore, rng,
-            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
         proc.processSingleDiscipleTheft(id, state)
         // 无仓库 → 跳过守卫判定，状态不应为面壁
         assertNotEquals(DiscipleStatus.REFLECTING, state.discipleTables.assemble(id)?.status)
@@ -519,7 +519,7 @@ class LawEnforcementProcessorTest {
         val rng = GameRngManager()
         rng.initSystemSeed(7L)
         val proc = LawEnforcementProcessor(mockStore, rng,
-            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
         proc.processSingleDiscipleTheft(thiefId, state)
         // 无活跃守卫 → 跳过守卫判定，状态不应为面壁
         assertNotEquals(DiscipleStatus.REFLECTING, state.discipleTables.assemble(thiefId)?.status)
@@ -531,7 +531,7 @@ class LawEnforcementProcessorTest {
         Mockito.`when`(mockStore.gameData).thenReturn(MutableStateFlow(GameData()))
         Mockito.`when`(mockStore.disciples).thenReturn(MutableStateFlow(emptyList()))
         val proc = LawEnforcementProcessor(mockStore, GameRngManager(),
-            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator())
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
         // BASE_CAPTURE_RATE=0.0，无执法长老/弟子 → 捕获率为0
         assertEquals(0.0, proc.calculateCaptureRate(), 0.001)
     }
