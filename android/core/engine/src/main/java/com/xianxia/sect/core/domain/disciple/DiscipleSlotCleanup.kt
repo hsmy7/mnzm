@@ -32,6 +32,17 @@ class DiscipleSlotCleanup @Inject constructor(
     fun clearAllSlots(data: GameData, discipleId: String, includeResidence: Boolean = false): GameData {
         // 同步清理 Gate 注册表（对纯住所弟子是空操作）
         assignmentGate.release(discipleId)
+        return clearAllSlotsDataOnly(data, discipleId, includeResidence)
+    }
+
+    /**
+     * 仅清理 GameData 槽位引用，不操作 Gate 注册表。
+     * 专供 [stateStore.update] 事务内部使用——调用方在事务外自行调用 [assignmentGate.release]。
+     *
+     * @param includeResidence 同 [clearAllSlots]。
+     * @return 更新后的 GameData（不含 Gate 操作）。
+     */
+    fun clearAllSlotsDataOnly(data: GameData, discipleId: String, includeResidence: Boolean = false): GameData {
 
         val updatedSpiritMineSlots = data.spiritMineSlots.map {
             if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it

@@ -196,12 +196,21 @@ class ProtoNumberCoverageTest {
                 errors.add("${className}.${fullName}: 默认值=$value 非零值，请添加 @EncodeDefault(EncodeDefault.Mode.ALWAYS)")
             }
 
-            // 仅沿直接引用的 @Serializable 类型递归（非集合/Map），集合类型的默认值是空集合
+            // 沿 @Serializable 类型递归（含集合/Map 的元素类型）
             if (value != null && value !is Collection<*> && value !is Map<*, *>) {
+                // 直接引用的类型：用运行时实例递归
                 collectNestedSerializableClasses(prop.returnType).forEach { nested ->
-                    checkEncodeDefaultCoverage(
-                        className, nested, errors, value, "$fullName."
-                    )
+                    checkEncodeDefaultCoverage(className, nested, errors, value, "$fullName.")
+                }
+            } else {
+                // 集合/Map 类型：用默认构造实例递归元素类型（空集合时无法从运行时取值）
+                collectNestedSerializableClasses(prop.returnType).forEach { nested ->
+                    try {
+                        val defaultInstance = nested.java.getDeclaredConstructor().newInstance()
+                        checkEncodeDefaultCoverage(className, nested, errors, defaultInstance, "$fullName.")
+                    } catch (_: Exception) {
+                        // 元素类型无可访问默认构造，跳过递归
+                    }
                 }
             }
         }

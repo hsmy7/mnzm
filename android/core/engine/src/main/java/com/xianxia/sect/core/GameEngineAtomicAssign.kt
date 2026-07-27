@@ -153,6 +153,8 @@ suspend fun GameEngine.assignPatrolAtomic(
     discipleId: String,
     globalIndex: Int
 ): DomainResult<Unit> = engineContextDispatcher.withEngineContext {
+    var occupantId = ""
+    var occupantReleased = false
     DomainResult.catching(
     AppError.Domain.GameLoop.Unknown("分配巡逻失败 id=$discipleId")
 ) {
@@ -167,9 +169,9 @@ suspend fun GameEngine.assignPatrolAtomic(
         val current = gameData.patrolSlots[globalIndex]
         val isSameDisciple = current.discipleId == discipleId
 
-        // 释放目标槽位原 occupant（仅清空巡逻槽位 + 释放 gate，不清除其他系统槽位）
+        // 释放目标槽位原 occupant（仅清空巡逻槽位，gate.release 在事务外执行）
         if (!isSameDisciple && current.discipleId.isNotEmpty()) {
-            val occupantId = current.discipleId
+            occupantId = current.discipleId
             val buildingInstanceId = current.buildingInstanceId
             val mutableSlots = gameData.patrolSlots.toMutableList()
             mutableSlots[globalIndex] = PatrolSlot(
@@ -177,16 +179,18 @@ suspend fun GameEngine.assignPatrolAtomic(
                 buildingInstanceId = buildingInstanceId
             )
             gameData = gameData.copy(patrolSlots = mutableSlots)
-            assignmentGate.release(occupantId)
+            occupantId = current.discipleId
+            occupantReleased = true
+            occupantReleased = true
             DomainLog.d("GameEngine", "assignPatrol: 释放原 occupant=$occupantId（仅巡逻槽位）")
         }
 
-        // 清理新弟子的旧槽位
+        // 清理新弟子的旧槽位（不含 gate 操作，事务外执行 release）
         if (!isSameDisciple) {
-            gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlots(gameData, discipleId)
+            gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlotsDataOnly(gameData, discipleId)
         }
 
-        // 写入新槽位
+        // 写入新槽位（不含 gate 操作，事务外执行 confirmAssign）
         if (!isSameDisciple) {
             val aggregate = discipleTables.assemble(id)
             val name = aggregate?.name ?: ""
@@ -204,17 +208,18 @@ suspend fun GameEngine.assignPatrolAtomic(
                 buildingInstanceId = buildingInstanceId
             )
             gameData = gameData.copy(patrolSlots = mutableSlots)
-
-            assignmentGate.confirmAssign(
-                discipleId,
-                SlotRef(
-                    category = SlotCategory.PATROL_SLOT,
-                    slotType = "patrol",
-                    slotId = "patrol_$globalIndex"
-                )
-            )
         }
 
+    }
+    // 事务成功后才操作 Gate 注册表（事务失败时 gameData 回滚，gate 也不被误操作）
+    if (occupantReleased) {
+        assignmentGate.release(occupantId)
+    }
+    if (discipleId.toIntOrNull() != null) {
+        assignmentGate.confirmAssign(
+            discipleId,
+            SlotRef(SlotCategory.PATROL_SLOT, "patrol", "patrol_$globalIndex")
+        )
     }
     try {
         discipleFacade.syncSingleDiscipleStatus(discipleId)
@@ -264,7 +269,7 @@ suspend fun GameEngine.removePatrolAtomic(
         removedDiscipleId = slot.discipleId
         val buildingInstanceId = slot.buildingInstanceId
 
-        // 仅清空该巡视槽位，不清除其他系统槽位
+        // 仅清空该巡视槽位（gate 操作在事务外执行）
         val mutableSlots = gameData.patrolSlots.toMutableList()
         mutableSlots[globalIndex] = PatrolSlot(
             index = globalIndex,
@@ -272,10 +277,11 @@ suspend fun GameEngine.removePatrolAtomic(
         )
         gameData = gameData.copy(patrolSlots = mutableSlots)
 
-        // 释放 gate 注册（仅影响门卫）
-        assignmentGate.release(removedDiscipleId)
-
         DomainLog.d("GameEngine", "removePatrol: 移除 $removedDiscipleId 从槽位 $globalIndex")
+    }
+    // 事务成功后释放 gate 注册（事务失败则 gate 不被误操作）
+    if (removedDiscipleId.isNotEmpty()) {
+        assignmentGate.release(removedDiscipleId)
     }
     try {
         discipleFacade.syncSingleDiscipleStatus(removedDiscipleId)
@@ -299,6 +305,8 @@ suspend fun GameEngine.swapPatrolAtomic(
     DomainResult.catching(
     AppError.Domain.GameLoop.Unknown("交换巡逻失败")
 ) {
+    var fromDid = ""
+    var toDid = ""
     stateStore.update {
         require(fromGlobalIndex in gameData.patrolSlots.indices) {
             "来源槽位越界: from=$fromGlobalIndex"
@@ -310,15 +318,15 @@ suspend fun GameEngine.swapPatrolAtomic(
 
         val fromSlot = gameData.patrolSlots[fromGlobalIndex]
         val toSlot = gameData.patrolSlots[toGlobalIndex]
-        val fromDid = fromSlot.discipleId
-        val toDid = toSlot.discipleId
+        fromDid = fromSlot.discipleId
+        toDid = toSlot.discipleId
 
-        // 同时释放两者槽位引用
+        // 仅清理游戏数据槽位引用（gate 操作在事务外执行）
         if (fromDid.isNotEmpty()) {
-            gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlots(gameData, fromDid)
+            gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlotsDataOnly(gameData, fromDid)
         }
         if (toDid.isNotEmpty()) {
-            gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlots(gameData, toDid)
+            gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlotsDataOnly(gameData, toDid)
         }
 
         // 获取交换后各 slot 所需 disciples 数据
@@ -331,49 +339,51 @@ suspend fun GameEngine.swapPatrolAtomic(
 
         val mutableSlots = gameData.patrolSlots.toMutableList()
 
-        // 将 to 的弟子写入 from 槽位
+        // 将 to 的弟子写入 from 槽位（不含 gate 操作）
         mutableSlots[fromGlobalIndex] = if (toDid.isNotEmpty()) {
             val agg = toAgg
             PatrolSlot(
-                index = fromGlobalIndex,
-                discipleId = toDid,
-                discipleName = agg?.name ?: "",
-                discipleRealm = agg?.realmName ?: "",
+                index = fromGlobalIndex, discipleId = toDid,
+                discipleName = agg?.name ?: "", discipleRealm = agg?.realmName ?: "",
                 portraitRes = agg?.portraitRes ?: "",
                 buildingInstanceId = fromSlot.buildingInstanceId
-            ).also {
-                assignmentGate.confirmAssign(
-                    toDid,
-                    SlotRef(SlotCategory.PATROL_SLOT, "patrol", "patrol_$fromGlobalIndex")
-                )
-            }
+            )
         } else {
             PatrolSlot(index = fromGlobalIndex, buildingInstanceId = fromSlot.buildingInstanceId)
         }
 
-        // 将 from 的弟子写入 to 槽位
+        // 将 from 的弟子写入 to 槽位（不含 gate 操作）
         mutableSlots[toGlobalIndex] = if (fromDid.isNotEmpty()) {
             val agg = fromAgg
             PatrolSlot(
-                index = toGlobalIndex,
-                discipleId = fromDid,
-                discipleName = agg?.name ?: "",
-                discipleRealm = agg?.realmName ?: "",
+                index = toGlobalIndex, discipleId = fromDid,
+                discipleName = agg?.name ?: "", discipleRealm = agg?.realmName ?: "",
                 portraitRes = agg?.portraitRes ?: "",
                 buildingInstanceId = toSlot.buildingInstanceId
-            ).also {
-                assignmentGate.confirmAssign(
-                    fromDid,
-                    SlotRef(SlotCategory.PATROL_SLOT, "patrol", "patrol_$toGlobalIndex")
-                )
-            }
+            )
         } else {
             PatrolSlot(index = toGlobalIndex, buildingInstanceId = toSlot.buildingInstanceId)
         }
 
         gameData = gameData.copy(patrolSlots = mutableSlots)
-
         DomainLog.d("GameEngine", "swapPatrol: $fromDid ↔ $toDid 槽位 $fromGlobalIndex ↔ $toGlobalIndex")
+    }
+    // 事务成功后操作 Gate 注册表
+    if (fromDid.isNotEmpty()) {
+        assignmentGate.release(fromDid)
+    }
+    if (toDid.isNotEmpty()) {
+        assignmentGate.release(toDid)
+    }
+    if (toDid.isNotEmpty()) {
+        assignmentGate.confirmAssign(
+            toDid, SlotRef(SlotCategory.PATROL_SLOT, "patrol", "patrol_$fromGlobalIndex")
+        )
+    }
+    if (fromDid.isNotEmpty()) {
+        assignmentGate.confirmAssign(
+            fromDid, SlotRef(SlotCategory.PATROL_SLOT, "patrol", "patrol_$toGlobalIndex")
+        )
     }
     try {
         discipleFacade.syncAllDiscipleStatuses()
@@ -451,6 +461,9 @@ suspend fun GameEngine.autoAssignPatrolAtomic(
         (discipleIds.groupBy { it }.filter { it.value.size > 1 }.keys)
     }
 
+    // 收集事务成功后需要执行的 gate 操作
+    val pendingReleases = mutableListOf<String>()
+    val pendingConfirms = mutableListOf<Pair<String, SlotRef>>()
     stateStore.update {
         // 锁内前置校验：所有槽位索引边界 + 弟子存在性（使用 update 内的最新 gameData/discipleTables，
         // 避免锁外 gameDataSnapshot 的 TOCTOU 竞态。校验在 processing 循环前执行，
@@ -468,12 +481,13 @@ suspend fun GameEngine.autoAssignPatrolAtomic(
 
         for ((globalIndex, discipleId) in assignments) {
             if (discipleId.isEmpty()) {
-                // 清空槽位
+                // 清空槽位（gate 操作在事务外执行）
                 val slot = gameData.patrolSlots[globalIndex]
                 if (slot.discipleId.isNotEmpty()) {
                     val oldDid = slot.discipleId
                     val buildingInstanceId = slot.buildingInstanceId
-                    gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlots(gameData, oldDid)
+                    gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlotsDataOnly(gameData, oldDid)
+                    pendingReleases.add(oldDid)
 
                     val mutableSlots = gameData.patrolSlots.toMutableList()
                     mutableSlots[globalIndex] = PatrolSlot(
@@ -481,27 +495,27 @@ suspend fun GameEngine.autoAssignPatrolAtomic(
                         buildingInstanceId = buildingInstanceId
                     )
                     gameData = gameData.copy(patrolSlots = mutableSlots)
-
                 }
             } else {
-                // 分配弟子到槽位
-                val id = discipleId.toIntOrNull()!!
+                // 分配弟子到槽位（gate 操作在事务外执行）
+                val id = discipleId.toIntOrNull() ?: continue
                 val current = gameData.patrolSlots[globalIndex]
                 val isSame = current.discipleId == discipleId
 
-                // 释放原 occupant（精确释放：仅清空巡逻槽位 + 释放 gate，不清除其他系统槽位）
+                // 释放原 occupant（仅清空巡逻槽位数据）
                 if (!isSame && current.discipleId.isNotEmpty()) {
                     val occupantId = current.discipleId
                     val bi = current.buildingInstanceId
                     val ms = gameData.patrolSlots.toMutableList()
                     ms[globalIndex] = PatrolSlot(index = globalIndex, buildingInstanceId = bi)
                     gameData = gameData.copy(patrolSlots = ms)
-                    assignmentGate.release(occupantId)
+                    pendingReleases.add(occupantId)
                 }
 
-                // 清理新弟子旧槽位（全量清除准备分配）
+                // 清理新弟子旧槽位（不含 gate 操作）
                 if (!isSame) {
-                    gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlots(gameData, discipleId)
+                    gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlotsDataOnly(gameData, discipleId)
+                    pendingReleases.add(discipleId)
                 }
 
                 if (!isSame) {
@@ -510,22 +524,22 @@ suspend fun GameEngine.autoAssignPatrolAtomic(
 
                     val mutableSlots = gameData.patrolSlots.toMutableList()
                     mutableSlots[globalIndex] = PatrolSlot(
-                        index = globalIndex,
-                        discipleId = discipleId,
-                        discipleName = aggregate?.name ?: "",
-                        discipleRealm = aggregate?.realmName ?: "",
+                        index = globalIndex, discipleId = discipleId,
+                        discipleName = aggregate?.name ?: "", discipleRealm = aggregate?.realmName ?: "",
                         portraitRes = aggregate?.portraitRes ?: "",
                         buildingInstanceId = buildingInstanceId
                     )
                     gameData = gameData.copy(patrolSlots = mutableSlots)
 
-                    assignmentGate.confirmAssign(
-                        discipleId,
-                        SlotRef(SlotCategory.PATROL_SLOT, "patrol", "patrol_$globalIndex")
-                    )
+                    pendingConfirms.add(discipleId to SlotRef(SlotCategory.PATROL_SLOT, "patrol", "patrol_$globalIndex"))
                 }
             }
         }
+    }
+    // 事务成功后执行所有收集的 gate 操作
+    pendingReleases.distinct().forEach { assignmentGate.release(it) }
+    for ((did, slotRef) in pendingConfirms) {
+        assignmentGate.confirmAssign(did, slotRef)
     }
     try {
         discipleFacade.syncAllDiscipleStatuses()

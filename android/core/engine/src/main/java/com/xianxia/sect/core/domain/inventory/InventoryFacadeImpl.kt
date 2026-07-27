@@ -331,14 +331,10 @@ class InventoryFacadeImpl @Inject constructor(
     ): Boolean where T : HasId, T : StackableItem {
         val item = store.get(itemId) ?: return false
         if (item.isLocked || quantity !in 1..item.quantity) return false
+        val amount = GameConfig.Rarity.calculateSellPrice(getBasePrice(item), quantity)
+        spiritStoneWallet.add(this, amount, SpiritStoneGrade.LOW, SpiritStoneSource.Sell(itemType))
         val newQty = item.quantity - quantity
         if (newQty <= 0) store.remove(itemId) else store.update(itemId) { it.withQuantity(newQty) as T }
-        spiritStoneWallet.add(
-            this,
-            amount = GameConfig.Rarity.calculateSellPrice(getBasePrice(item), quantity),
-            grade = SpiritStoneGrade.LOW,
-            source = SpiritStoneSource.Sell(itemType)
-        )
         return true
     }
 
