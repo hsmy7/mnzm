@@ -1,3 +1,15 @@
+## [4.0.76] - 2026-07-27
+
+### 修复
+
+- **修复：引擎线程安全加固** — 11 处 suspend 方法添加 `engineContextDispatcher.withEngineContext`，消除 Release 构建静默跳过更新的风险
+- **修复：对抗性审查 11 项发现** — assignmentGate 注册表事务一致性修复（gate 操作移出 stateStore.update）、!! 操作符移除、sellStack 操作顺序修复
+- **修复：sellItem/bulkSellItems 统一入口** — 移除绕过容量守卫的临时 StackableItemStore(Int.MAX_VALUE) 模式
+
+### 架构
+
+- **ProtoBuf 默认值编码治理** — 27 个 @ProtoNumber 非零默认值字段标注 @EncodeDefault(ALWAYS)，ProtoNumberCoverageTest 扩展到递归检查嵌套 @Serializable 类
+
 ## [4.0.75] - 2026-07-26
 
 ### 修复

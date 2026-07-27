@@ -4,32 +4,16 @@
 
 ## 引擎 suspend API 线程安全自动化
 
-**状态：** ⏸️ 基础设施已完成，方法本体改造未全量落地。
+**状态：** ✅ 已全量落地（2026-07-27）。
 
-### 已完成基础设施
+### 完成情况
 
-`EngineContextDispatcher` 接口 + `withEngineContext` 已提取为 `core/engine/EngineContextDispatcher.kt`，
-`GameEngineCore` 实现，`GameEngine.engineContextDispatcher` 注入。测试用 `FakeEngineContextDispatcher` 绕过 mockito suspend 限制。
-
-### 当前问题
-
-`GameStateStoreImpl.update()` (598-610 行) 包含主线程守卫，Release 构建中检测到主线程调用时**静默跳过更新**。
-当前已知违规已全部手工修复（`launchOnEngine` 或 `withContext(Default)`），但以下引擎 `suspend` 方法
-直接调用 `stateStore.update{}` 而未在内部切换到引擎线程——调用方必须手工确保在引擎线程上调用，
-这是一个容易遗漏的隐式契约，新代码仍可能引入同类违规。
-
-### 待改造方法
-
-- `GameEngineCoordination.kt` — `updateGameData`, `updateDisciple`, `updateGameDataAndSync`, `enterSect`, `changeDiscipleTypeAtomic`, `forgetManual`, `replaceManual`, `learnManual`, `recruitAllFromList`, `startBloodRefinementAtomic`, `cancelBloodRefinement`, `processBloodRefinementCompletions`
-- `GameEngineDiscipleOps.kt` — `updateDiscipleStatus`, `releaseDiscipleFromAllSlotsAtomic`, `dismissDisciple`, `expelDisciple`, `syncAllDiscipleStatuses`, `resetAllDisciplesStatus`
-- `GameEngineAtomicAssign.kt` — 6 个原子方法 (`assignToResidenceAtomic`, `removeFromResidenceAtomic`, `assignPatrolAtomic`, `removePatrolAtomic`, `swapPatrolAtomic`, `autoAssignPatrolAtomic`)
-- `GameEngineProductionOps.kt` — `startAlchemy`, `startForging`, `toggleAutoRestart`
-
-### 改造方案
-
-在所有上述方法内部添加 `withContext(gameDispatcher)` 包裹，使这些 API 从任意线程调用时自动切换到引擎线程。
-`withContext(gameDispatcher)` 在已处于引擎线程时是 no-op（Kotlin 协程运行时自动优化跳过调度）。
-对 `DomainResult.catching` 返回模式的原子方法需将 `withContext` 包裹在返回值外部。
+| 文件 | 方法 | 状态 |
+|------|------|------|
+| `GameEngineCoordination.kt` | 全部 18 个 suspend 方法 | ✅ 2026-07-27：`initializeNewGameSuspend`/`loadData`/`createNewGame`/`restartGameSuspend`/`updateGameData`/`updateDisciple`/`changeDiscipleTypeAtomic`/`updateGameDataAndSync`/`enterSect`/`forgetManual`/`replaceManual`/`learnManual`/`recruitAllFromList`/`startBloodRefinementAtomic`/`cancelBloodRefinement`/`processBloodRefinementCompletions` 均已包裹。`checkpointAllDisciples` 改为 `suspend fun` 并包裹 |
+| `GameEngineDiscipleOps.kt` | `releaseDiscipleFromAllSlotsAtomic` | ✅ 2026-07-27：`withContext(Dispatchers.IO)` 改为 `engineContextDispatcher.withEngineContext` |
+| `GameEngineAtomicAssign.kt` | 9 个原子方法 | ✅ 2026-07-27：`assignToResidenceAtomic`/`removeFromResidenceAtomic`/`assignPatrolAtomic`×2/`removePatrolAtomic`×2/`swapPatrolAtomic`×2/`autoAssignPatrolAtomic` 全部包裹 |
+| `GameEngineProductionOps.kt` | `startAlchemy`/`startForging`/`toggleAutoRestart` | ✅ 验证：委托 `buildingFacade`，委托链已有保护 |
 
 ## Detekt 预存违规 baseline（⏸️ 低优先级）
 
@@ -86,6 +70,25 @@ detekt 配置 `baseline` 只缩不增（CLAUDE.md 13.2），当前未启用 base
 
 **状态**：⏸️ 待 TapTap SDK 更新或确定实施方案。
 
+## 对抗性审查发现的 assignmentGate 注册表事务一致性
+
+**状态：** ✅ 已修复（2026-07-27）。
+
+### 问题
+
+`assignmentGate.release()` 和 `assignmentGate.confirmAssign()` 在 `stateStore.update` 的事务 lambda 内部被直接调用。`assignmentGate` 是 `@Singleton`，其内部 `DiscipleAssignmentRegistry` 使用 `mutableMapOf`。当 `stateStore.update` 的 `block()` 抛出异常时，`gameData` 的 copy-on-write 变更被丢弃，但 `assignmentGate.registry` 的变更无法回滚，导致注册表与游戏数据不一致。
+
+### 修复
+
+将 4 个原子方法的 gate 操作全部移出 `stateStore.update` 事务块：
+- `assignPatrolAtomic`、`removePatrolAtomic`、`swapPatrolAtomic`、`autoAssignPatrolAtomic`
+- `DiscipleSlotCleanup` 新增 `clearAllSlotsDataOnly()`，与 `clearAllSlots()` 分离数据修改和 gate 操作
+
+### 验证
+
+- 编译通过 + 引擎模块全部测试通过
+- 对抗性审查（3 agent × 3 维度）确认修复有效
+
 ## Crash 2: SIGSEGV #3088 — vulkan.adreno.so vkGetDeviceQueue（⚠️ 待根治）
 
 **当前措施**：
@@ -106,49 +109,18 @@ detekt 配置 `baseline` 只缩不增（CLAUDE.md 13.2），当前未启用 base
 
 **状态**：⏸️ 待扩充黑名单或实施信号处理方案。
 
-## ProtoBuf 默认值编码治理（⏸️ P1 待完成）
+## ProtoBuf 默认值编码治理
 
-`NullSafeProtoBuf.protoBuf` 已从 `encodeDefaults = true` 改为 `false`，符合 Proto3 规范。
+**状态：** ✅ 已完成（2026-07-27）。
 
-### 已完成
-- ✅ `encodeDefaults = false` — 消除 nullable 字段 null 值序列化崩溃
-- ✅ `ProtoNumberCoverageTest` 守卫 — `@Transient` 跳过 + EXCLUDED_FIELDS 清理
-- ✅ `GameData.kt` — 7 个运行时字段加 `@kotlinx.serialization.Transient`
+### 完成项
 
-### 待完成
-
-**1. 关键字段加 `@EncodeDefault(ALWAYS)`**
-
-`encodeDefaults = false` 后，值为默认值的字段不会被写入二进制。以下字段的默认值非 Proto3 零值，或作为版本标识必须始终写入：
-
-```kotlin
-// SaveData.kt
-@EncodeDefault(EncodeDefault.Mode.ALWAYS)
-@ProtoNumber(1) val version: String = GameConfig.Game.VERSION,
-
-// GameData.kt — 非零默认值字段都需要标注
-@EncodeDefault(EncodeDefault.Mode.ALWAYS)
-@ProtoNumber(2) var sectName: String = "青云宗",     // 非 ""
-@EncodeDefault(EncodeDefault.Mode.ALWAYS)
-@ProtoNumber(4) var gameYear: Int = 1,                 // 非 0
-@EncodeDefault(EncodeDefault.Mode.ALWAYS)
-@ProtoNumber(5) var gameMonth: Int = 1,                // 非 0
-// ... 以及其他非零默认值的字段
-```
-
-**2. 编码规范补充**
-
-在 `CLAUDE.md` 或编码规范中新增：
-
-> **新增 `@ProtoNumber` 字段规则：** 字段默认值如果不是该类型的零值（`0`/`""`/`false`/`emptyList()`），必须标注 `@EncodeDefault(EncodeDefault.Mode.ALWAYS)`，否则 `encodeDefaults = false` 下该字段不会被写入二进制。
-
-**3. 守卫测试增强**（P2 可选）
-
-在 `ProtoNumberCoverageTest` 中追加：反射检查所有 `@ProtoNumber` 字段，如果默认值 != 类型零值且未标注 `@EncodeDefault(ALWAYS)`，则测试失败。这样新增字段时自动提醒。
-
-### 影响面
-
-- 此优化不会产生用户可见变化（当前运行行为正确）
-- 纯防御性改进，防止未来改默认值时出现微妙的存档兼容问题
-- 工作量预估：扫描约 150 个 `@ProtoNumber` 字段 + 标注非零默认值字段 + 更新编码规范
+| # | 项 | 状态 |
+|---|------|------|
+| 1 | `encodeDefaults = false` | ✅ 前期已完成 |
+| 2 | `ProtoNumberCoverageTest` 守卫 | ✅ 前期已完成 |
+| 3 | `@Transient` 标注 | ✅ 前期已完成 |
+| 4 | 非零默认值字段 `@EncodeDefault(ALWAYS)` | ✅ 27 个字段标注：GameData(14) + SaveData(2) + SectPolicies(6) + HeavenlyTrialData(2) + PatrolConfig(3) |
+| 5 | 守卫测试增强（`EncodeDefault` 检查） | ✅ `ProtoNumberCoverageTest` 新增 2 个守卫测试，递归覆盖嵌套 `@Serializable` 类 |
+| 6 | 编码规范补充 | ✅ CLAUDE.md PR 审查清单新增 `@ProtoNumber/@EncodeDefault` 规则 |
 

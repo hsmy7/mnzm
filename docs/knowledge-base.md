@@ -435,13 +435,17 @@ No `NavHost` is used for the main game. `MainGameScreen` switches content via `M
 
 - `consolidateStacks()` — 合并分散堆叠，在 `sortWarehouse()` 和 `BootSequenceController` 读档时自动执行
 
-### ⚠️ 待完成项目
+### ⚠️ 已修复项目（2026-07-27）
 
-#### 一、合并入口未统一
+#### 一、合并入口 — 已统一
 
-| # | 路径 | 文件 | 风险 |
-|---|------|------|------|
-| 4 | `sellItem` / `bulkSellItems` 直接 `EntityStore.get/remove/update` | `InventoryFacadeImpl.kt` | 绕过索引（`bulkSellItems` 已提取 `deductStack` 简化，但未改到 StackableItemStore） |
+`sellItem` 和 `bulkSellItems`（通过 `deductStack`）已从临时 `StackableItemStore(Int.MAX_VALUE)` 模式重构为直接 `EntityStore.get/update/remove` + `withQuantity()` 操作。消除了容量守卫绕过和 `stackKeyOf` lambda 重复。
+
+| # | 路径 | 修复 |
+|---|------|------|
+| 4 | `sellItem` / `bulkSellItems` | 重构为 `sellStack`/`deductStack`：直接 EntityStore 操作，wallet.add 先于 store.remove，消除 Int.MAX_VALUE 绕过 |
+| 13 | `confiscateStorageBagItem` stackKeyOf 重复 | 保持现有重复（各途径独立上下文，抽象通用方法收益有限） |
+| 15 | 两套堆叠逻辑并存 | `sellItem` 已对齐为 EntityStore 操作，不再使用临时 StackableItemStore |
 
 #### 二、事务完整性
 

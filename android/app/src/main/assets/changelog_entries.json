@@ -1,6 +1,18 @@
 [
   {
     "date": "2026-07-27",
+    "version": "4.0.76",
+    "changes": [
+      "修复：引擎线程安全加固——assignPatrolAtomic/removePatrolAtomic/swapPatrolAtomic/autoAssignPatrolAtomic/checkpointAllDisciples/releaseDiscipleFromAllSlotsAtomic等11处添加engineContextDispatcher.withEngineContext",
+      "修复：assignmentGate注册表事务一致性——4原子方法的gate.release/gate.confirmAssign移出stateStore.update，事务失败不再导致注册表与游戏数据不一致",
+      "修复：autoAssignPatrolAtomic中!!操作符替换为?: continue",
+      "修复：sellItem/bulkSellItems重构——移除绕过容量守卫的临时StackableItemStore(Int.MAX_VALUE)，改为直接EntityStore+withQuantity()操作",
+      "修复：sellStack灵石先加到账后扣物品——防止异常时物品丢失",
+      "架构：ProtoBuf @EncodeDefault(ALWAYS)治理——GameData/SaveData/SectPolicies/HeavenlyTrialData/PatrolConfig共27个非零默认值字段标注，守卫测试扩展到嵌套@Serializable类"
+    ]
+  },
+  {
+    "date": "2026-07-27",
     "changes": [
       "修复：云存档序列化崩溃——NullSafeProtoBuf.encodeDefaults=true→false，Proto3默认值不编码规范修正。修复@Ignore字段缺@Transient导致的NaN/Map不支持问题。修复Mission/ActiveMission/MissionRewardConfig字段编号偏移和冲突导致的反序列化崩溃",
       "修复：云存档反序列化崩溃——Mission/ActiveMission全部字段显式@ProtoNumber对齐旧版声明序编号，消除duration=7与rewards=auto-7的重复字段编号",
