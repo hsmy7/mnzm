@@ -5,6 +5,7 @@ import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
+import kotlinx.coroutines.CancellationException
 
 /**
  * GameEngine 扩展 — 住所/巡视楼原子分配操作。
@@ -215,7 +216,13 @@ suspend fun GameEngine.assignPatrolAtomic(
         }
 
     }
-    discipleFacade.syncSingleDiscipleStatus(discipleId)
+    try {
+        discipleFacade.syncSingleDiscipleStatus(discipleId)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        DomainLog.w("GameEngine", "assignPatrol: syncSingleDiscipleStatus 失败", e)
+    }
     }
 }
 
@@ -270,7 +277,13 @@ suspend fun GameEngine.removePatrolAtomic(
 
         DomainLog.d("GameEngine", "removePatrol: 移除 $removedDiscipleId 从槽位 $globalIndex")
     }
-    discipleFacade.syncSingleDiscipleStatus(removedDiscipleId)
+    try {
+        discipleFacade.syncSingleDiscipleStatus(removedDiscipleId)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        DomainLog.w("GameEngine", "removePatrol: syncSingleDiscipleStatus 失败", e)
+    }
     }
 }
 
@@ -362,7 +375,13 @@ suspend fun GameEngine.swapPatrolAtomic(
 
         DomainLog.d("GameEngine", "swapPatrol: $fromDid ↔ $toDid 槽位 $fromGlobalIndex ↔ $toGlobalIndex")
     }
-    discipleFacade.syncAllDiscipleStatuses()
+    try {
+        discipleFacade.syncAllDiscipleStatuses()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        DomainLog.w("GameEngine", "swapPatrol: syncAllDiscipleStatuses 失败", e)
+    }
     }
 }
 
@@ -508,7 +527,13 @@ suspend fun GameEngine.autoAssignPatrolAtomic(
             }
         }
     }
-    discipleFacade.syncAllDiscipleStatuses()
+    try {
+        discipleFacade.syncAllDiscipleStatuses()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        DomainLog.w("GameEngine", "autoAssignPatrol: syncAllDiscipleStatuses 失败", e)
+    }
     }
 }
 
