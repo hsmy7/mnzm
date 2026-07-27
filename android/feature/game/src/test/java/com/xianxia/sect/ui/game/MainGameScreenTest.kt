@@ -64,6 +64,28 @@ class MainGameScreenTest {
     }
 
     @Test
+    fun `buildBuildingDataArray 按地面接触点排序而非gridY`() {
+        // 仓库(fpH=5)在 gridY=0 → 视觉底部=5
+        // 问道塔(fpH=3)在 gridY=1 → 视觉底部=4
+        // 按 gridY: 仓库(0)→问道塔(1) — 错误！问道塔最后绘制，覆盖仓库
+        // 按底部: 问道塔(4)→仓库(5) — 正确！仓库最后绘制，覆盖问道塔
+        val buildings = listOf(
+            GridBuildingData(gridX = 0, gridY = 0, width = 6, height = 5, displayName = "仓库"),
+            GridBuildingData(gridX = 0, gridY = 1, width = 4, height = 3, displayName = "问道塔")
+        )
+        val spriteSizes = mapOf(
+            "仓库" to GridSnapHelper.BuildingSize(6, 6),
+            "问道塔" to GridSnapHelper.BuildingSize(4, 8)
+        )
+
+        val result = buildBuildingDataArray(buildings, spriteSizes)
+
+        // 验证：问道塔(gridY=1, 底部=4) 应排在 仓库(gridY=0, 底部=5) 之前
+        assertEquals("第1个建筑gridY应为1(问道塔)", 1f, result[1], 0.001f)
+        assertEquals("第2个建筑gridY应为0(仓库)", 0f, result[6], 0.001f)
+    }
+
+    @Test
     fun `buildBuildingDataArray 空列表返回空数组`() {
         val result = buildBuildingDataArray(emptyList(), emptyMap())
         assertNotNull("结果不应为null", result)

@@ -1193,8 +1193,8 @@ internal fun buildBuildingDataArray(
     buildings: List<GridBuildingData>,
     spriteSizeMap: Map<String, GridSnapHelper.BuildingSize>
 ): FloatArray {
-    // 按 gridY 升序排列：下方（高Y）建筑最后绘制 → 覆盖上方（低Y）建筑
-    val sorted = buildings.sortedBy { it.gridY }
+    // 按地面接触点(gridY + footprintHeight)升序排列：下方建筑最后绘制→覆盖上方建筑
+    val sorted = buildings.sortedBy { it.gridY + it.height }
     val result = FloatArray(sorted.size * 5)
     for ((i, b) in sorted.withIndex()) {
         val idx = i * 5

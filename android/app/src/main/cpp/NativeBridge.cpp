@@ -341,8 +341,8 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
         buvCount = env->GetArrayLength(buildingUVMap) / 4;
 
         // 占地尺寸查找表（与 SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX 对应）
-        static const int FP_W[] = {4,4,1,4,5,6,6,4,4,6,6,4,4,4,4,6,6,2};
-        static const int FP_H[] = {4,3,1,3,3,5,3,3,3,3,3,3,4,4,4,6,4,2};
+        static const int FP_W[] = {4,4,1,4,5,6,6,4,4,6,6,4,4,4,4,6,6,2,6};
+        static const int FP_H[] = {4,3,1,3,3,5,3,3,3,3,3,3,4,4,4,6,4,2,4};
         static const int FP_COUNT = sizeof(FP_W) / sizeof(FP_W[0]);
 
         for (int i = 0; i < buildingCount; i++) {

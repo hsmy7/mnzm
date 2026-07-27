@@ -20,6 +20,11 @@
 - **syncAllDiscipleStatuses 事务内读取** — 所有状态读取移入 stateStore.update 块内，重入缓冲下自动获取 reusableMutableState 当前数据，与顺序提交行为完全等价
 - **shuffled() 迁移至分区 PRNG** — DisciplePurchaseService(5处) + LootCalculator(1处) 共 6 处 kotlin.collections.shuffled() 改为 DeterministicRng.shuffled(rng)，使用 RngPartition.SYSTEM/EXPLORATION 分区 PRNG，新增 RngExt.kt 扩展函数
 
+### 修复
+
+- **修复：建筑精灵重叠** — Y-Sorting 排序键从 gridY（占地顶部）改为 gridY + height（地面接触点），消除占地高度不同建筑之间的 z-order 颠倒。行业对标：Unity/Godot/Cocos2d/Supercell(CoC)/Factorio 一致确认地面接触点为标准排序键
+- **修复：C++ 占地数组缺少索引 18** — NativeBridge.cpp FP_W/FP_H 数组追加中级多人住所 6×4 条目，修复 Vulkan 路径上该建筑精灵偏移和地砖大小错误
+
 ## [4.0.75] - 2026-07-26
 
 ### 修复

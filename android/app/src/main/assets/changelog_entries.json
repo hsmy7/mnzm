@@ -15,7 +15,10 @@
       "架构：月度/年变事件管线单事务化——processMonthlyEvents 13子服务+processYearlyEvents 18子服务全部移入单次stateStore.update，利用重入缓冲机制保持原子性",
       "修复：checkAllianceExpiry/garrisonAndReport data.copy覆盖漏洞——子服务写入时用gameData.copy(field=newValue)替代data.copy防止覆盖同一事务内其他服务修改",
       "修复：syncAllDiscipleStatuses事务内读取——所有状态读取移入stateStore.update块内，重入缓冲下自动获取当前数据",
-      "架构：shuffled()迁移至分区PRNG——DisciplePurchaseService(5处)+LootCalculator(1处)共6处改为GameRngManager分区PRNG，新增RngExt.kt扩展函数"
+      "架构：shuffled()迁移至分区PRNG——DisciplePurchaseService(5处)+LootCalculator(1处)共6处改为GameRngManager分区PRNG，新增RngExt.kt扩展函数",
+      "修复：建筑精灵重叠——Y-Sorting排序键从gridY改为gridY+占地高度(地面接触点)，消除占地高度不同建筑的z-order颠倒。Unity/Godot/Cocos/CoC等行业对标验证方向正确",
+      "修复：C++占地数组缺少索引18——NativeBridge.cpp FP_W/FP_H追加中级多人住所(6×4)条目，修复Vulkan路径中级多人住所精灵偏移和地砖大小错误",
+      "架构：新增建筑渲染排序守卫测试——占地高度不同时验证排序按地面接触点而非gridY"
     ]
   },
   {

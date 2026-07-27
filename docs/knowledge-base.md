@@ -29,6 +29,13 @@
 
 ---
 
+## Building Y-Sort Rule
+
+- **Y轴排序规则（2026-07-27）** — 宗门地图建筑渲染使用 Painter's Algorithm，排序键为**占地底部 Y 坐标**（`gridY + footprintHeight`），而非占地顶部（`gridY`）。当建筑占地高度不一致时按 `gridY` 排序会导致 z-order 错误。在 `MainGameScreen.buildBuildingDataArray()` 中实现，与 Unity Transparency Sort Axis(Y)、Godot Y Sort、Supercell(CoC) back-to-front 等行业标准一致
+- **C++ 占地数组同步** — `NativeBridge.cpp` 的 `FP_W[]`/`FP_H[]` 与 `SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX` 必须完全同步（索引数量、顺序一致），新增建筑类型时两端同时添加
+
+---
+
 ## Tech Stack
 
 - **Language**: Kotlin 2.0.21, JVM target 17
