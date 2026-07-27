@@ -192,25 +192,25 @@ class SaveValidatorTest {
 
     @Test
     fun `validate - cultivation exceeds realm max - caps`() {
-        // 炼气 1 层: max = 50
+        // 炼气 1 层: max = 65
         val disciple = makeDisciple(realm = 9, realmLayer = 1, cultivation = 999.0)
         val data = minimalValidSaveData().copy(disciples = listOf(disciple))
         val result = SaveValidator.validate(data)
         assertTrue("预期 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
         val repaired = result as IntegrityResult.Repaired
         val cappedDisciple = repaired.data.disciples.first()
-        assertEquals(50.0, cappedDisciple.cultivation, 0.001)
+        assertEquals(65.0, cappedDisciple.cultivation, 0.001)
     }
 
     @Test
     fun `validate - cultivation exceeds high realm max - caps`() {
-        // 筑基 3 层: base=200, next=800, layers=9 → max = 200 + 2*(800-200)/9 = 200 + 2*600/9 = 200 + 133.33 = 333.33
+        // 筑基 3 层: base=260, next=1040, layers=9 → max = 260 + 2*(1040-260)/9 = 260 + 2*780/9 = 433.33
         val disciple = makeDisciple(realm = 8, realmLayer = 3, cultivation = 5000.0)
         val data = minimalValidSaveData().copy(disciples = listOf(disciple))
         val result = SaveValidator.validate(data)
         assertTrue("预期 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
         val capped = (result as IntegrityResult.Repaired).data.disciples.first().cultivation
-        val expected = 200.0 + 2.0 * (800.0 - 200.0) / 9.0
+        val expected = 260.0 + 2.0 * (1040.0 - 260.0) / 9.0
         assertEquals(expected, capped, 0.001)
     }
 
@@ -396,28 +396,27 @@ class SaveValidatorTest {
         assertTrue("预期 Repaired，实际得到 $result", result is IntegrityResult.Repaired)
         val repaired = result as IntegrityResult.Repaired
         val disciples = repaired.data.disciples
-        // d1: cultivation capped to 50, weapon cleared, age clamped to 80
-        assertEquals(50.0, disciples[0].cultivation, 0.001)
+        // d1: cultivation capped to 65, weapon cleared, age clamped to 80
+        assertEquals(65.0, disciples[0].cultivation, 0.001)
         assertEquals("", disciples[0].equipment.weaponId)
         assertEquals(80, disciples[0].age)
         // d2: cultivation capped, armor cleared, age clamped to 100
-        val expectedMaxD2 = 200.0 + 4.0 * (800.0 - 200.0) / 9.0
+        val expectedMaxD2 = 260.0 + 4.0 * (1040.0 - 260.0) / 9.0
         assertEquals(expectedMaxD2, disciples[1].cultivation, 0.001)
         assertEquals("", disciples[1].equipment.armorId)
         assertEquals(100, disciples[1].age)
     }
 
     @Test
-    fun `computeMaxCultivation - realm 9 layer 1 - returns 50`() {
-        assertEquals(50.0, SaveValidator.computeMaxCultivation(9, 1), 0.001)
+    fun `computeMaxCultivation - realm 9 layer 1 - returns 65`() {
+        assertEquals(65.0, SaveValidator.computeMaxCultivation(9, 1), 0.001)
     }
 
     @Test
-    fun `computeMaxCultivation - realm 9 layer 9 - returns 200`() {
-        // 炼气 9 层: base=50, next=200, layers=9 → max = 50 + 8*(200-50)/9 = 50 + 8*150/9 = 50 + 133.33 = 183.33
-        // Wait: 50 + 8 * 150 / 9 = 50 + 1200/9 = 50 + 133.33 = 183.33
+    fun `computeMaxCultivation - realm 9 layer 9`() {
+        // 炼气 9 层: base=65, next=260, layers=9 → max = 65 + 8*(260-65)/9 = 65 + 1560/9 = 238.33
         val result = SaveValidator.computeMaxCultivation(9, 9)
-        val expected = 50.0 + 8.0 * (200.0 - 50.0) / 9.0
+        val expected = 65.0 + 8.0 * (260.0 - 65.0) / 9.0
         assertEquals(expected, result, 0.001)
     }
 

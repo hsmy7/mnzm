@@ -3,6 +3,9 @@
     "date": "2026-07-27",
     "version": "4.0.76",
     "changes": [
+      "平衡：功法修炼速度加成减半——所有品阶心法修炼速度加成下调50%（凡品8%→4%，天品38%→19%）",
+      "平衡：基础修炼速度降低30%——各境界每旬修炼速度下调约30%（炼气28→19，筑基38→26，金丹62→43，元婴100→70，化神156→109，炼虚304→212，合体472→330，大乘762→533，渡劫1180→826，仙人1600→1120）",
+      "平衡：突破所需修为增加30%——各境界突破所需修为上调约30%（炼气50→65，筑基200→260，金丹800→1040，元婴3000→3900，化神10000→13000，炼虚30000→39000，合体100000→130000，大乘300000→390000，渡劫1000000→1300000，仙人3000000→3900000）",
       "修复：引擎线程安全加固——assignPatrolAtomic/removePatrolAtomic/swapPatrolAtomic/autoAssignPatrolAtomic/checkpointAllDisciples/releaseDiscipleFromAllSlotsAtomic等11处添加engineContextDispatcher.withEngineContext",
       "修复：assignmentGate注册表事务一致性——4原子方法的gate.release/gate.confirmAssign移出stateStore.update，事务失败不再导致注册表与游戏数据不一致",
       "修复：autoAssignPatrolAtomic中!!操作符替换为?: continue",

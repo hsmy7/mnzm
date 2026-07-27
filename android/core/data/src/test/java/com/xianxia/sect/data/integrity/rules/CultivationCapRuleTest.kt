@@ -38,7 +38,7 @@ class CultivationCapRuleTest {
         val data = saveData(disciples = listOf(d))
         val result = SaveValidator.validate(data)
         assertTrue(result is IntegrityResult.Repaired)
-        assertEquals(50.0, (result as IntegrityResult.Repaired).data.disciples.first().cultivation, 0.001)
+        assertEquals(65.0, (result as IntegrityResult.Repaired).data.disciples.first().cultivation, 0.001)
     }
 
     @Test
@@ -50,7 +50,7 @@ class CultivationCapRuleTest {
 
     @Test
     fun `cultivation at exact boundary passes`() {
-        val d = makeDisciple(realm = 9, realmLayer = 1, cultivation = 50.0)
+        val d = makeDisciple(realm = 9, realmLayer = 1, cultivation = 65.0)
         val data = saveData(disciples = listOf(d))
         assertEquals(IntegrityResult.Passed, SaveValidator.validate(data))
     }
@@ -73,8 +73,8 @@ class CultivationCapRuleTest {
     }
 
     @Test
-    fun `computeMaxCultivation realm 9 layer 1 returns 50`() {
-        assertEquals(50.0, computeMaxCultivation(9, 1), 0.001)
+    fun `computeMaxCultivation realm 9 layer 1 returns 65`() {
+        assertEquals(65.0, computeMaxCultivation(9, 1), 0.001)
     }
 
     @Test

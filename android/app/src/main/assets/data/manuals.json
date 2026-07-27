@@ -15500,7 +15500,7 @@
       "description": "凡品心法，修炼速度+5%，技能：增加自身20%血量持续3回合",
       "stats": {
         "hp": 36,
-        "cultivationSpeedPercent": 8
+        "cultivationSpeedPercent": 4
       },
       "skillName": "固本",
       "skillDescription": "增加自身20%血量持续3回合",
@@ -15534,7 +15534,7 @@
       "description": "凡品心法，修炼速度+5%，技能：增加自身20%灵力持续3回合",
       "stats": {
         "mp": 18,
-        "cultivationSpeedPercent": 8
+        "cultivationSpeedPercent": 4
       },
       "skillName": "聚灵",
       "skillDescription": "增加自身20%灵力持续3回合",
@@ -15569,7 +15569,7 @@
       "stats": {
         "hp": 36,
         "mp": 18,
-        "cultivationSpeedPercent": 8
+        "cultivationSpeedPercent": 4
       },
       "skillName": "双修",
       "skillDescription": "增加自身20%血量和灵力持续3回合",
@@ -15608,7 +15608,7 @@
       "description": "凡品心法，修炼速度+5%，技能：增加全队20%血量持续3回合",
       "stats": {
         "hp": 18,
-        "cultivationSpeedPercent": 8
+        "cultivationSpeedPercent": 4
       },
       "skillName": "护体",
       "skillDescription": "增加全队20%血量持续3回合",
@@ -15642,7 +15642,7 @@
       "description": "凡品心法，修炼速度+5%，技能：增加全队20%灵力持续3回合",
       "stats": {
         "mp": 9,
-        "cultivationSpeedPercent": 8
+        "cultivationSpeedPercent": 4
       },
       "skillName": "灵蕴",
       "skillDescription": "增加全队20%灵力持续3回合",
@@ -15677,7 +15677,7 @@
       "stats": {
         "hp": 18,
         "mp": 9,
-        "cultivationSpeedPercent": 8
+        "cultivationSpeedPercent": 4
       },
       "skillName": "同心",
       "skillDescription": "增加全队20%血量和灵力持续3回合",
@@ -15716,7 +15716,7 @@
       "description": "灵品心法，修炼速度+8%，技能：增加自身20%血量持续3回合",
       "stats": {
         "hp": 234,
-        "cultivationSpeedPercent": 12
+        "cultivationSpeedPercent": 6
       },
       "skillName": "淬骨",
       "skillDescription": "增加自身20%血量持续3回合",
@@ -15750,7 +15750,7 @@
       "description": "灵品心法，修炼速度+8%，技能：增加自身20%灵力持续3回合",
       "stats": {
         "mp": 117,
-        "cultivationSpeedPercent": 12
+        "cultivationSpeedPercent": 6
       },
       "skillName": "凝神",
       "skillDescription": "增加自身20%灵力持续3回合",
@@ -15785,7 +15785,7 @@
       "stats": {
         "hp": 234,
         "mp": 117,
-        "cultivationSpeedPercent": 12
+        "cultivationSpeedPercent": 6
       },
       "skillName": "阴阳",
       "skillDescription": "增加自身20%血量和灵力持续3回合",
@@ -15824,7 +15824,7 @@
       "description": "灵品心法，修炼速度+8%，技能：增加全队20%血量持续3回合",
       "stats": {
         "hp": 117,
-        "cultivationSpeedPercent": 12
+        "cultivationSpeedPercent": 6
       },
       "skillName": "金刚",
       "skillDescription": "增加全队20%血量持续3回合",
@@ -15858,7 +15858,7 @@
       "description": "灵品心法，修炼速度+8%，技能：增加全队20%灵力持续3回合",
       "stats": {
         "mp": 59,
-        "cultivationSpeedPercent": 12
+        "cultivationSpeedPercent": 6
       },
       "skillName": "灵泉",
       "skillDescription": "增加全队20%灵力持续3回合",
@@ -15893,7 +15893,7 @@
       "stats": {
         "hp": 117,
         "mp": 59,
-        "cultivationSpeedPercent": 12
+        "cultivationSpeedPercent": 6
       },
       "skillName": "共鸣",
       "skillDescription": "增加全队20%血量和灵力持续3回合",
@@ -15932,7 +15932,7 @@
       "description": "宝品心法，修炼速度+12%，技能：增加自身20%血量持续3回合",
       "stats": {
         "hp": 612,
-        "cultivationSpeedPercent": 18
+        "cultivationSpeedPercent": 9
       },
       "skillName": "不灭",
       "skillDescription": "增加自身20%血量持续3回合",
@@ -15966,7 +15966,7 @@
       "description": "宝品心法，修炼速度+12%，技能：增加自身20%灵力持续3回合",
       "stats": {
         "mp": 306,
-        "cultivationSpeedPercent": 18
+        "cultivationSpeedPercent": 9
       },
       "skillName": "元神",
       "skillDescription": "增加自身20%灵力持续3回合",
@@ -16001,7 +16001,7 @@
       "stats": {
         "hp": 612,
         "mp": 306,
-        "cultivationSpeedPercent": 18
+        "cultivationSpeedPercent": 9
       },
       "skillName": "太一",
       "skillDescription": "增加自身20%血量和灵力持续3回合",
@@ -16040,7 +16040,7 @@
       "description": "宝品心法，修炼速度+12%，技能：增加全队20%血量持续3回合",
       "stats": {
         "hp": 306,
-        "cultivationSpeedPercent": 18
+        "cultivationSpeedPercent": 9
       },
       "skillName": "天罡",
       "skillDescription": "增加全队20%血量持续3回合",
@@ -16074,7 +16074,7 @@
       "description": "宝品心法，修炼速度+12%，技能：增加全队20%灵力持续3回合",
       "stats": {
         "mp": 153,
-        "cultivationSpeedPercent": 18
+        "cultivationSpeedPercent": 9
       },
       "skillName": "万灵",
       "skillDescription": "增加全队20%灵力持续3回合",
@@ -16109,7 +16109,7 @@
       "stats": {
         "hp": 306,
         "mp": 153,
-        "cultivationSpeedPercent": 18
+        "cultivationSpeedPercent": 9
       },
       "skillName": "大同",
       "skillDescription": "增加全队20%血量和灵力持续3回合",
@@ -16148,7 +16148,7 @@
       "description": "玄品心法，修炼速度+16%，技能：增加自身20%血量持续3回合",
       "stats": {
         "hp": 1620,
-        "cultivationSpeedPercent": 24
+        "cultivationSpeedPercent": 12
       },
       "skillName": "九转",
       "skillDescription": "增加自身20%血量持续3回合",
@@ -16182,7 +16182,7 @@
       "description": "玄品心法，修炼速度+16%，技能：增加自身20%灵力持续3回合",
       "stats": {
         "mp": 810,
-        "cultivationSpeedPercent": 24
+        "cultivationSpeedPercent": 12
       },
       "skillName": "三花",
       "skillDescription": "增加自身20%灵力持续3回合",
@@ -16217,7 +16217,7 @@
       "stats": {
         "hp": 1620,
         "mp": 810,
-        "cultivationSpeedPercent": 24
+        "cultivationSpeedPercent": 12
       },
       "skillName": "五气",
       "skillDescription": "增加自身20%血量和灵力持续3回合",
@@ -16256,7 +16256,7 @@
       "description": "玄品心法，修炼速度+16%，技能：增加全队20%血量持续3回合",
       "stats": {
         "hp": 810,
-        "cultivationSpeedPercent": 24
+        "cultivationSpeedPercent": 12
       },
       "skillName": "诸天",
       "skillDescription": "增加全队20%血量持续3回合",
@@ -16290,7 +16290,7 @@
       "description": "玄品心法，修炼速度+16%，技能：增加全队20%灵力持续3回合",
       "stats": {
         "mp": 405,
-        "cultivationSpeedPercent": 24
+        "cultivationSpeedPercent": 12
       },
       "skillName": "星河",
       "skillDescription": "增加全队20%灵力持续3回合",
@@ -16325,7 +16325,7 @@
       "stats": {
         "hp": 810,
         "mp": 405,
-        "cultivationSpeedPercent": 24
+        "cultivationSpeedPercent": 12
       },
       "skillName": "太虚",
       "skillDescription": "增加全队20%血量和灵力持续3回合",
@@ -16364,7 +16364,7 @@
       "description": "地品心法，修炼速度+20%，技能：增加自身20%血量持续3回合",
       "stats": {
         "hp": 3960,
-        "cultivationSpeedPercent": 30
+        "cultivationSpeedPercent": 15
       },
       "skillName": "混元",
       "skillDescription": "增加自身20%血量持续3回合",
@@ -16398,7 +16398,7 @@
       "description": "地品心法，修炼速度+20%，技能：增加自身20%灵力持续3回合",
       "stats": {
         "mp": 1980,
-        "cultivationSpeedPercent": 30
+        "cultivationSpeedPercent": 15
       },
       "skillName": "鸿蒙",
       "skillDescription": "增加自身20%灵力持续3回合",
@@ -16433,7 +16433,7 @@
       "stats": {
         "hp": 3960,
         "mp": 1980,
-        "cultivationSpeedPercent": 30
+        "cultivationSpeedPercent": 15
       },
       "skillName": "道衍",
       "skillDescription": "增加自身20%血量和灵力持续3回合",
@@ -16472,7 +16472,7 @@
       "description": "地品心法，修炼速度+20%，技能：增加全队20%血量持续3回合",
       "stats": {
         "hp": 1980,
-        "cultivationSpeedPercent": 30
+        "cultivationSpeedPercent": 15
       },
       "skillName": "宇宙",
       "skillDescription": "增加全队20%血量持续3回合",
@@ -16506,7 +16506,7 @@
       "description": "地品心法，修炼速度+20%，技能：增加全队20%灵力持续3回合",
       "stats": {
         "mp": 990,
-        "cultivationSpeedPercent": 30
+        "cultivationSpeedPercent": 15
       },
       "skillName": "万象",
       "skillDescription": "增加全队20%灵力持续3回合",
@@ -16541,7 +16541,7 @@
       "stats": {
         "hp": 1980,
         "mp": 990,
-        "cultivationSpeedPercent": 30
+        "cultivationSpeedPercent": 15
       },
       "skillName": "归一",
       "skillDescription": "增加全队20%血量和灵力持续3回合",
@@ -16580,7 +16580,7 @@
       "description": "天品心法，修炼速度+25%，技能：增加自身20%血量持续3回合",
       "stats": {
         "hp": 20880,
-        "cultivationSpeedPercent": 38
+        "cultivationSpeedPercent": 19
       },
       "skillName": "永恒",
       "skillDescription": "增加自身20%血量持续3回合",
@@ -16614,7 +16614,7 @@
       "description": "天品心法，修炼速度+25%，技能：增加自身20%灵力持续3回合",
       "stats": {
         "mp": 10440,
-        "cultivationSpeedPercent": 38
+        "cultivationSpeedPercent": 19
       },
       "skillName": "混沌",
       "skillDescription": "增加自身20%灵力持续3回合",
@@ -16649,7 +16649,7 @@
       "stats": {
         "hp": 20880,
         "mp": 10440,
-        "cultivationSpeedPercent": 38
+        "cultivationSpeedPercent": 19
       },
       "skillName": "鸿蒙果",
       "skillDescription": "增加自身20%血量和灵力持续3回合",
@@ -16688,7 +16688,7 @@
       "description": "天品心法，修炼速度+25%，技能：增加全队20%血量持续3回合",
       "stats": {
         "hp": 10440,
-        "cultivationSpeedPercent": 38
+        "cultivationSpeedPercent": 19
       },
       "skillName": "诸界",
       "skillDescription": "增加全队20%血量持续3回合",
@@ -16722,7 +16722,7 @@
       "description": "天品心法，修炼速度+25%，技能：增加全队20%灵力持续3回合",
       "stats": {
         "mp": 5220,
-        "cultivationSpeedPercent": 38
+        "cultivationSpeedPercent": 19
       },
       "skillName": "本源",
       "skillDescription": "增加全队20%灵力持续3回合",
@@ -16757,7 +16757,7 @@
       "stats": {
         "hp": 10440,
         "mp": 5220,
-        "cultivationSpeedPercent": 38
+        "cultivationSpeedPercent": 19
       },
       "skillName": "天人",
       "skillDescription": "增加全队20%血量和灵力持续3回合",

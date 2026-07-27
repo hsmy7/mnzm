@@ -171,7 +171,7 @@ class DiscipleStatCalculatorTest {
     fun `calculateCultivationPerPhase - 单灵根炼气每旬基准速度`() {
         val disciple = createDisciple(spiritRootType = "metal") // 单灵根, 炼气
         val speed = DiscipleStatCalculator.calculateCultivationPerPhase(disciple)
-        assertEquals("单灵根炼气每旬应为28", 28.0, speed, 0.001)
+        assertEquals("单灵根炼气每旬应为19", 19.0, speed, 0.001)
     }
 
     @Test

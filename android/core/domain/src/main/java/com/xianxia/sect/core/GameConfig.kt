@@ -119,16 +119,16 @@ object GameConfig {
     object Cultivation {
         /** 单灵根每旬修炼速度（按境界查表，realm → 每旬修为值） */
         val REALM_SPEED_PER_PHASE: Map<Int, Double> = mapOf(
-            9 to 28.0,      // 炼气
-            8 to 38.0,      // 筑基
-            7 to 62.0,      // 金丹
-            6 to 100.0,     // 元婴
-            5 to 156.0,     // 化神
-            4 to 304.0,     // 炼虚
-            3 to 472.0,     // 合体
-            2 to 762.0,     // 大乘
-            1 to 1180.0,    // 渡劫
-            0 to 1600.0     // 仙人
+            9 to 19.0,      // 炼气（原28，减30%→19）
+            8 to 26.0,      // 筑基（原38，减30%→26）
+            7 to 43.0,      // 金丹（原62，减30%→43）
+            6 to 70.0,      // 元婴（原100，减30%→70）
+            5 to 109.0,     // 化神（原156，减30%→109）
+            4 to 212.0,     // 炼虚（原304，减30%→212）
+            3 to 330.0,     // 合体（原472，减30%→330）
+            2 to 533.0,     // 大乘（原762，减30%→533）
+            1 to 826.0,     // 渡劫（原1180，减30%→826）
+            0 to 1120.0     // 仙人（原1600，减30%→1120）
         )
 
         /** 查询某境界的单灵根每旬修炼速度 */
@@ -199,38 +199,38 @@ object GameConfig {
     
     object Realm {
         val CONFIGS = mapOf(
-            9 to RealmConfig(9, "炼气", 50, 10,
+            9 to RealmConfig(9, "炼气", 65, 10,
                 maxAge = 80, maxLayers = 9,
                 baseHp = 203, baseMp = 78, basePhysicalAttack = 16, baseMagicAttack = 16,
                 basePhysicalDefense = 13, baseMagicDefense = 10, baseSpeed = 15),
-            8 to RealmConfig(8, "筑基", 200, 30,
+            8 to RealmConfig(8, "筑基", 260, 30,
                 maxAge = 120, maxLayers = 9,
                 baseHp = 507, baseMp = 195, basePhysicalAttack = 39, baseMagicAttack = 39,
                 basePhysicalDefense = 33, baseMagicDefense = 26, baseSpeed = 38),
-            7 to RealmConfig(7, "金丹", 800, 50,
+            7 to RealmConfig(7, "金丹", 1040, 50,
                 maxAge = 200, maxLayers = 9,
                 baseHp = 1318, baseMp = 507, basePhysicalAttack = 101, baseMagicAttack = 101,
                 basePhysicalDefense = 85, baseMagicDefense = 68, baseSpeed = 98),
-            6 to RealmConfig(6, "元婴", 3000, 80,
+            6 to RealmConfig(6, "元婴", 3900, 80,
                 maxAge = 300, maxLayers = 9,
                 baseHp = 3448, baseMp = 1326, basePhysicalAttack = 265, baseMagicAttack = 265,
                 basePhysicalDefense = 221, baseMagicDefense = 177, baseSpeed = 255),
-            5 to RealmConfig(5, "化神", 10000, 110,
+            5 to RealmConfig(5, "化神", 13000, 110,
                 maxAge = 500, maxLayers = 9,                baseHp = 9126, baseMp = 3510, basePhysicalAttack = 702, baseMagicAttack = 702,
                 basePhysicalDefense = 585, baseMagicDefense = 468, baseSpeed = 675),
-            4 to RealmConfig(4, "炼虚", 30000, 180,
+            4 to RealmConfig(4, "炼虚", 39000, 180,
                 maxAge = 800, maxLayers = 9,                baseHp = 22308, baseMp = 8580, basePhysicalAttack = 1716, baseMagicAttack = 1716,
                 basePhysicalDefense = 1430, baseMagicDefense = 1144, baseSpeed = 1650),
-            3 to RealmConfig(3, "合体", 100000, 220,
+            3 to RealmConfig(3, "合体", 130000, 220,
                 maxAge = 1500, maxLayers = 9,                baseHp = 52728, baseMp = 20280, basePhysicalAttack = 4056, baseMagicAttack = 4056,
                 basePhysicalDefense = 3380, baseMagicDefense = 2704, baseSpeed = 3900),
-            2 to RealmConfig(2, "大乘", 300000, 280,
+            2 to RealmConfig(2, "大乘", 390000, 280,
                 maxAge = 2500, maxLayers = 9,                baseHp = 117624, baseMp = 45240, basePhysicalAttack = 9048, baseMagicAttack = 9048,
                 basePhysicalDefense = 7540, baseMagicDefense = 6032, baseSpeed = 8700),
-            1 to RealmConfig(1, "渡劫", 1000000, 360,
+            1 to RealmConfig(1, "渡劫", 1300000, 360,
                 maxAge = 4000, maxLayers = 9,                baseHp = 243360, baseMp = 93600, basePhysicalAttack = 18720, baseMagicAttack = 18720,
                 basePhysicalDefense = 15600, baseMagicDefense = 12480, baseSpeed = 18000),
-            0 to RealmConfig(0, "仙人", 3000000, 500,
+            0 to RealmConfig(0, "仙人", 3900000, 500,
                 maxAge = 9999, maxLayers = 9,                baseHp = 507000, baseMp = 195000, basePhysicalAttack = 39000, baseMagicAttack = 39000,
                 basePhysicalDefense = 32500, baseMagicDefense = 26000, baseSpeed = 37500)
         )
