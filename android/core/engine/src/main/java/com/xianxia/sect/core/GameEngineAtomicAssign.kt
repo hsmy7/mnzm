@@ -28,7 +28,8 @@ suspend fun GameEngine.assignToResidenceAtomic(
     buildingInstanceId: String,
     slotIndex: Int,
     discipleId: String
-): DomainResult<Unit> = DomainResult.catching(
+): DomainResult<Unit> = engineContextDispatcher.withEngineContext {
+    DomainResult.catching(
     AppError.Domain.GameLoop.Unknown("分配住所失败 id=$discipleId")
 ) {
     stateStore.update {
@@ -100,6 +101,7 @@ suspend fun GameEngine.assignToResidenceAtomic(
             )
         }
     }
+    }
 }
 
 /**
@@ -110,7 +112,8 @@ suspend fun GameEngine.assignToResidenceAtomic(
 suspend fun GameEngine.removeFromResidenceAtomic(
     buildingInstanceId: String,
     slotIndex: Int
-): DomainResult<Unit> = DomainResult.catching(
+): DomainResult<Unit> = engineContextDispatcher.withEngineContext {
+    DomainResult.catching(
     AppError.Domain.GameLoop.Unknown("移除住所失败")
 ) {
     stateStore.update {
@@ -135,6 +138,7 @@ suspend fun GameEngine.removeFromResidenceAtomic(
 
         DomainLog.d("GameEngine", "removeFromResidence: 移除 ${slot.discipleId}")
     }
+    }
 }
 
 // ── 巡视楼原子操作 ────────────────────────────────────────────────────
@@ -147,7 +151,8 @@ suspend fun GameEngine.removeFromResidenceAtomic(
 suspend fun GameEngine.assignPatrolAtomic(
     discipleId: String,
     globalIndex: Int
-): DomainResult<Unit> = DomainResult.catching(
+): DomainResult<Unit> = engineContextDispatcher.withEngineContext {
+    DomainResult.catching(
     AppError.Domain.GameLoop.Unknown("分配巡逻失败 id=$discipleId")
 ) {
     stateStore.update {
@@ -211,6 +216,7 @@ suspend fun GameEngine.assignPatrolAtomic(
 
     }
     discipleFacade.syncSingleDiscipleStatus(discipleId)
+    }
 }
 
 /**
@@ -235,7 +241,8 @@ suspend fun GameEngine.assignPatrolAtomic(
  */
 suspend fun GameEngine.removePatrolAtomic(
     globalIndex: Int
-): DomainResult<Unit> = DomainResult.catching(
+): DomainResult<Unit> = engineContextDispatcher.withEngineContext {
+    DomainResult.catching(
     AppError.Domain.GameLoop.Unknown("移除巡逻失败")
 ) {
     var removedDiscipleId = ""
@@ -264,6 +271,7 @@ suspend fun GameEngine.removePatrolAtomic(
         DomainLog.d("GameEngine", "removePatrol: 移除 $removedDiscipleId 从槽位 $globalIndex")
     }
     discipleFacade.syncSingleDiscipleStatus(removedDiscipleId)
+    }
 }
 
 /**
@@ -274,7 +282,8 @@ suspend fun GameEngine.removePatrolAtomic(
 suspend fun GameEngine.swapPatrolAtomic(
     fromGlobalIndex: Int,
     toGlobalIndex: Int
-): DomainResult<Unit> = DomainResult.catching(
+): DomainResult<Unit> = engineContextDispatcher.withEngineContext {
+    DomainResult.catching(
     AppError.Domain.GameLoop.Unknown("交换巡逻失败")
 ) {
     stateStore.update {
@@ -354,6 +363,7 @@ suspend fun GameEngine.swapPatrolAtomic(
         DomainLog.d("GameEngine", "swapPatrol: $fromDid ↔ $toDid 槽位 $fromGlobalIndex ↔ $toGlobalIndex")
     }
     discipleFacade.syncAllDiscipleStatuses()
+    }
 }
 
 /**
@@ -396,7 +406,8 @@ suspend fun GameEngine.removePatrolAtomic(
  */
 suspend fun GameEngine.autoAssignPatrolAtomic(
     assignments: List<Pair<Int, String>>
-): DomainResult<Unit> = DomainResult.catching(
+): DomainResult<Unit> = engineContextDispatcher.withEngineContext {
+    DomainResult.catching(
     AppError.Domain.GameLoop.Unknown("批量分配巡逻失败")
 ) {
     // 校验：空列表直接返回（不视为失败，兼容上层调用方）
@@ -498,4 +509,7 @@ suspend fun GameEngine.autoAssignPatrolAtomic(
         }
     }
     discipleFacade.syncAllDiscipleStatuses()
+    }
 }
+
+

@@ -493,6 +493,7 @@ fun `all SlotCategory values are covered by scanAndRegister`() {
 | 🟡 | 公开 API 有 KDoc |
 | 🟡 | Flow 派生用了 `distinctUntilChanged`/`sample`/`stateIn` |
 | 🔴 | 新增 `SlotCategory` 枚举值后需更新 4 处（`SlotCategoryCoverageTest` 会失败并列出具体指引）：`scanAndRegister` + `DiscipleSlotCleanup.clearAllSlots` + 分配入口 `releaseDiscipleFromAllSlotsAtomic` + `confirmAssign` |
+| 🔴 | 新增 `@ProtoNumber` 字段规则：字段默认值如果不是该类型的零值（`0`/`""`/`false`/`emptyList()`），必须标注 `@EncodeDefault(EncodeDefault.Mode.ALWAYS)`，否则 `encodeDefaults = false` 下该字段不会被写入二进制，导致存档数据丢失 |
 | 🔴 | 新增给玩家发放装备/丹药/草药的代码路径已使用 `withTrackingSource("来源名")` 包裹（年度报告统计需要），来源名已添加到 `equipSourceName()`/`pillSourceName()`/`herbSourceName()` 映射。详见 `memory/annual-report-tracking-guide.md` |
 | 🔴 | 新增广告类型（`AdPurpose` 枚举值）已在 ViewModel 中通过 `adService.watchAd()` 统一入口调用，白名单守卫由 `AdServiceImpl` 自动继承。详见 `docs/knowledge-base.md#免广告特权白名单` |
 

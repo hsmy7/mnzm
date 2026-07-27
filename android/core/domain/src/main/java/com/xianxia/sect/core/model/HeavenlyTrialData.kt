@@ -1,12 +1,15 @@
 package com.xianxia.sect.core.model
 
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber
 import kotlinx.serialization.protobuf.ProtoPacked
 
 @Serializable
 data class HeavenlyTrialSaveData(
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(1) val highestClearedLevel: Int = -1,
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoPacked @ProtoNumber(2) val levelClearCounts: List<Int> = MutableList(8) { 0 },
     @ProtoPacked @ProtoNumber(3) val phase1ClearedLevels: List<Int> = emptyList(),
     @ProtoPacked @ProtoNumber(4) val phase2ClearedLevels: List<Int> = emptyList(),

@@ -13,6 +13,7 @@ import com.xianxia.sect.core.state.SettlementStrategy
 import com.xianxia.sect.core.state.Strategy
 import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.util.TimeProgressUtil
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlinx.serialization.protobuf.ProtoNumber
@@ -94,17 +95,21 @@ data class GameData(
     @kotlinx.serialization.Transient
     var slotId: Int = 0,
 
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(2)
     @SettlementStrategy(Strategy.USE_SHADOW)
     var sectName: String = "青云宗",
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(3)
     @SettlementStrategy(Strategy.USE_SHADOW)
     var currentSlot: Int = 1,
 
     // 游戏时间（tick已推进，shadow也同步推进，保留oldState安全）
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(4)
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var gameYear: Int = 1,
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(5)
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var gameMonth: Int = 1,
@@ -117,6 +122,7 @@ data class GameData(
 
     // 资源
     // spiritStones 固定表示下品灵石；中品、上品灵石使用新增字段
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(7)
     @ColumnInfo(name = "spiritStones")
     @SettlementStrategy(Strategy.DELTA)
@@ -137,11 +143,13 @@ data class GameData(
     var sectCultivation: Double = 0.0,
 
     // 自动存档间隔（已废弃，为兼容旧存档保留此字段）
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(9)
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var autoSaveIntervalMonths: Int = 3,
 
     // 年俸配置
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(10)
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     @ColumnInfo(name = "monthlySalary")
@@ -159,6 +167,7 @@ data class GameData(
     ),
 
     // 年俸发放开关（按境界）
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(11)
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     @ColumnInfo(name = "monthlySalaryEnabled")
@@ -214,6 +223,7 @@ data class GameData(
     @SettlementStrategy(Strategy.USE_SHADOW)
     var merchantRefreshCount: Int = 0,
     /** 手动刷新次数（每30年给1次），初始1次 */
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(90)
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var merchantRefreshChances: Int = 1,
@@ -410,6 +420,7 @@ data class GameData(
     var aiSectBeastDirectTargets: Map<String, List<String>> = emptyMap(),
 
     // 玩家最大结盟数量
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(40)
     @SettlementStrategy(Strategy.USE_SHADOW)
     var playerAllianceSlots: Int = 3,
@@ -466,9 +477,11 @@ data class GameData(
     var saveVersion: Int = 0,
 
     // 玩家保护机制：AI宗门100年内不会攻击玩家宗门（若玩家主动攻击则解除）
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(46)
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var playerProtectionEnabled: Boolean = true,
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(47)
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var playerProtectionStartYear: Int = 1,
@@ -727,11 +740,13 @@ data class GameData(
     var yearlyReports: List<YearlyReport> = emptyList(),
 
     // 音乐/音效开关
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(160)
     @ColumnInfo(defaultValue = "1")
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var soundEnabled: Boolean = true,
 
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(161)
     @ColumnInfo(defaultValue = "1")
     @SettlementStrategy(Strategy.PRESERVE_OLD)
@@ -901,21 +916,27 @@ data class SectPolicies(
     // 自动分配：focused = 已关注, rootCounts = 灵根数量筛选, threshold = 属性门槛
     @ProtoNumber(11) val autoMineFocused: Boolean = false,
     @ProtoPacked @ProtoNumber(12) val autoMineRootCounts: List<Int> = emptyList(),
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(13) val autoMineThreshold: Int = 1,
     @ProtoNumber(14) val autoPlantFocused: Boolean = false,
     @ProtoPacked @ProtoNumber(15) val autoPlantRootCounts: List<Int> = emptyList(),
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(16) val autoPlantThreshold: Int = 1,
     @ProtoNumber(17) val autoAlchemyFocused: Boolean = false,
     @ProtoPacked @ProtoNumber(18) val autoAlchemyRootCounts: List<Int> = emptyList(),
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(19) val autoAlchemyThreshold: Int = 1,
     @ProtoNumber(20) val autoForgeFocused: Boolean = false,
     @ProtoPacked @ProtoNumber(21) val autoForgeRootCounts: List<Int> = emptyList(),
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(22) val autoForgeThreshold: Int = 1,
     @ProtoNumber(23) val autoSingleResidenceFocused: Boolean = false,
     @ProtoPacked @ProtoNumber(24) val autoSingleResidenceRootCounts: List<Int> = emptyList(),
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(25) val autoSingleResidenceThreshold: Int = 1,
     @ProtoNumber(26) val autoMultiResidenceFocused: Boolean = false,
     @ProtoPacked @ProtoNumber(27) val autoMultiResidenceRootCounts: List<Int> = emptyList(),
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(28) val autoMultiResidenceThreshold: Int = 1,
 
     // 新增10项政策

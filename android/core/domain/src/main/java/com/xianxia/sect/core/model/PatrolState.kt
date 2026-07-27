@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.model
 
 import androidx.annotation.Keep
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber
 import kotlinx.serialization.protobuf.ProtoPacked
@@ -27,7 +28,10 @@ data class PatrolSlot(
 @Keep
 @Serializable
 data class PatrolConfig(
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoPacked @ProtoNumber(1) val targetRealms: Set<Int> = setOf(9),
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(2) val maxBeastCount: Int = 1,
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(3) val requireFullStatus: Boolean = true
 )

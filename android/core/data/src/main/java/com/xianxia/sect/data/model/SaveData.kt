@@ -4,6 +4,7 @@ import androidx.annotation.Keep
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.ProductionSlot
+import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlinx.serialization.protobuf.ProtoNumber
@@ -30,7 +31,9 @@ data class SaveSlot(
 @Keep
 @Serializable
 data class SaveData(
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(1) val version: String = GameConfig.Game.VERSION,
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(2) val timestamp: Long = System.currentTimeMillis(),
     @ProtoNumber(3) val gameData: GameData,
     @ProtoNumber(4) val disciples: List<Disciple>,

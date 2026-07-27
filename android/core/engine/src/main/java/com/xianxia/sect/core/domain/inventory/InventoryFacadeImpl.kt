@@ -320,59 +320,63 @@ class InventoryFacadeImpl @Inject constructor(
 
     // ── Sell operations ──────────────────────────────────────────────────
 
-    private suspend inline fun <T> sellItem(
+    /** 在 [stateStore.update] 事务内直接扣减堆叠物品，避免绕过容量守卫的临时 StackableItemStore */
+    @Suppress("UNCHECKED_CAST")
+    private inline fun <T> MutableGameState.sellStack(
         itemId: String,
         quantity: Int,
-        crossinline store: (MutableGameState) -> EntityStore<T>,
-        crossinline getBasePrice: (T) -> Int,
-        noinline stackKeyOf: (T) -> StackKey,
+        store: EntityStore<T>,
+        getBasePrice: (T) -> Int,
         itemType: String
     ): Boolean where T : HasId, T : StackableItem {
+        val item = store.get(itemId) ?: return false
+        if (item.isLocked || quantity !in 1..item.quantity) return false
+        val newQty = item.quantity - quantity
+        if (newQty <= 0) store.remove(itemId) else store.update(itemId) { it.withQuantity(newQty) as T }
+        spiritStoneWallet.add(
+            this,
+            amount = GameConfig.Rarity.calculateSellPrice(getBasePrice(item), quantity),
+            grade = SpiritStoneGrade.LOW,
+            source = SpiritStoneSource.Sell(itemType)
+        )
+        return true
+    }
+
+    override suspend fun sellEquipment(equipmentId: String, quantity: Int): Boolean {
         var success = false
-        stateStore.update {
-            val entityStore = store(this)
-            val item = entityStore.get(itemId)
-            if (item != null && !item.isLocked && quantity in 1..item.quantity) {
-                val sis = StackableItemStore(
-                    initialItems = entityStore.all(),
-                    stackKeyOf = stackKeyOf,
-                    maxStack = Int.MAX_VALUE,
-                    maxSlots = { entityStore.all().size },
-                    notFound = { AppError.Domain.Inventory.NotFound(it) }
-                )
-                val result = sis.remove(itemId, quantity)
-                if (result is DomainResult.Success) {
-                    entityStore.replaceAll(sis.all())
-                    spiritStoneWallet.add(
-                        this,
-                        amount = GameConfig.Rarity.calculateSellPrice(getBasePrice(item), quantity),
-                        grade = SpiritStoneGrade.LOW,
-                        source = SpiritStoneSource.Sell(itemType)
-                    )
-                    success = true
-                }
-            }
-        }
+        stateStore.update { success = sellStack(equipmentId, quantity, equipmentStacks, { it.basePrice }, "equipment") }
         return success
     }
 
-    override suspend fun sellEquipment(equipmentId: String, quantity: Int): Boolean =
-        sellItem(equipmentId, quantity, { it.equipmentStacks }, { it.basePrice }, { StackKey.of(it.name, it.rarity, it.slot.name) }, "equipment")
+    override suspend fun sellManual(manualId: String, quantity: Int): Boolean {
+        var success = false
+        stateStore.update { success = sellStack(manualId, quantity, manualStacks, { it.basePrice }, "manual") }
+        return success
+    }
 
-    override suspend fun sellManual(manualId: String, quantity: Int): Boolean =
-        sellItem(manualId, quantity, { it.manualStacks }, { it.basePrice }, { StackKey.of(it.name, it.rarity, it.type.name) }, "manual")
+    override suspend fun sellPill(pillId: String, quantity: Int): Boolean {
+        var success = false
+        stateStore.update { success = sellStack(pillId, quantity, pills, { it.basePrice }, "pill") }
+        return success
+    }
 
-    override suspend fun sellPill(pillId: String, quantity: Int): Boolean =
-        sellItem(pillId, quantity, { it.pills }, { it.basePrice }, { StackKey.of(it.name, it.rarity, it.category.name, it.grade.name) }, "pill")
+    override suspend fun sellMaterial(materialId: String, quantity: Int): Boolean {
+        var success = false
+        stateStore.update { success = sellStack(materialId, quantity, materials, { it.basePrice }, "material") }
+        return success
+    }
 
-    override suspend fun sellMaterial(materialId: String, quantity: Int): Boolean =
-        sellItem(materialId, quantity, { it.materials }, { it.basePrice }, { StackKey.of(it.name, it.rarity, it.category.name) }, "material")
+    override suspend fun sellHerb(herbId: String, quantity: Int): Boolean {
+        var success = false
+        stateStore.update { success = sellStack(herbId, quantity, herbs, { it.basePrice }, "herb") }
+        return success
+    }
 
-    override suspend fun sellHerb(herbId: String, quantity: Int): Boolean =
-        sellItem(herbId, quantity, { it.herbs }, { it.basePrice }, { StackKey.of(it.name, it.rarity, it.category) }, "herb")
-
-    override suspend fun sellSeed(seedId: String, quantity: Int): Boolean =
-        sellItem(seedId, quantity, { it.seeds }, { it.basePrice }, { StackKey.of(it.name, it.rarity, it.growTime) }, "seed")
+    override suspend fun sellSeed(seedId: String, quantity: Int): Boolean {
+        var success = false
+        stateStore.update { success = sellStack(seedId, quantity, seeds, { it.basePrice }, "seed") }
+        return success
+    }
 
     override suspend fun consumeMaterialByName(name: String, rarity: Int, quantity: Int): Boolean {
         var remaining = quantity
@@ -397,26 +401,18 @@ class InventoryFacadeImpl @Inject constructor(
 
     // ── Bulk sell ────────────────────────────────────────────────────────
 
-    /** 在 MutableGameState 事务内扣减堆叠物品数量，返回扣除后的灵石收益。 */
+    /** 在 [MutableGameState] 事务内直接扣减堆叠物品（无需临时 StackableItemStore）。 */
+    @Suppress("UNCHECKED_CAST")
     private fun <T> MutableGameState.deductStack(
         id: String,
         quantity: Int,
         store: EntityStore<T>,
-        stackKeyOf: (T) -> StackKey,
         getBasePrice: (T) -> Int
     ): Long where T : HasId, T : StackableItem {
         val item = store.get(id) ?: return 0L
         if (item.isLocked || quantity !in 1..item.quantity) return 0L
-        val sis = StackableItemStore(
-            initialItems = store.all(),
-            stackKeyOf = stackKeyOf,
-            maxStack = Int.MAX_VALUE,
-            maxSlots = { store.all().size },
-            notFound = { AppError.Domain.Inventory.NotFound(it) }
-        )
-        val result = sis.remove(id, quantity)
-        if (result !is DomainResult.Success) return 0L
-        store.replaceAll(sis.all())
+        val newQty = item.quantity - quantity
+        if (newQty <= 0) store.remove(id) else store.update(id) { it.withQuantity(newQty) as T }
         return GameConfig.Rarity.calculateSellPrice(getBasePrice(item), quantity)
     }
 
@@ -429,12 +425,12 @@ class InventoryFacadeImpl @Inject constructor(
         stateStore.update {
             for (op in operations) {
                 val earned = when (op.itemType) {
-                    "equipment" -> deductStack(op.id, op.quantity, equipmentStacks, { StackKey.of(it.name, it.rarity, it.slot.name) }) { it.basePrice }
-                    "manual" -> deductStack(op.id, op.quantity, manualStacks, { StackKey.of(it.name, it.rarity, it.type.name) }) { it.basePrice }
-                    "pill" -> deductStack(op.id, op.quantity, pills, { StackKey.of(it.name, it.rarity, it.category.name, it.grade.name) }) { it.basePrice }
-                    "material" -> deductStack(op.id, op.quantity, materials, { StackKey.of(it.name, it.rarity, it.category.name) }) { it.basePrice }
-                    "herb" -> deductStack(op.id, op.quantity, herbs, { StackKey.of(it.name, it.rarity, it.category) }) { it.basePrice }
-                    "seed" -> deductStack(op.id, op.quantity, seeds, { StackKey.of(it.name, it.rarity, it.growTime) }) { it.basePrice }
+                    "equipment" -> deductStack(op.id, op.quantity, equipmentStacks) { it.basePrice }
+                    "manual" -> deductStack(op.id, op.quantity, manualStacks) { it.basePrice }
+                    "pill" -> deductStack(op.id, op.quantity, pills) { it.basePrice }
+                    "material" -> deductStack(op.id, op.quantity, materials) { it.basePrice }
+                    "herb" -> deductStack(op.id, op.quantity, herbs) { it.basePrice }
+                    "seed" -> deductStack(op.id, op.quantity, seeds) { it.basePrice }
                     else -> 0L
                 }
                 if (earned > 0) {
