@@ -240,7 +240,7 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 1,
                     cost = 20000,
                     gridWidth = 6,
-                    gridHeight = 5,
+                    gridHeight = 4,
                     spriteWidth = 6,
                     spriteHeight = 6,
                     description = "储存宗门物资，每座+75格容量"
@@ -431,9 +431,9 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 4,
                     cost = 80000,
                     gridWidth = 6,
-                    gridHeight = 4,
+                    gridHeight = 5,
                     spriteWidth = 6,
-                    spriteHeight = 4,
+                    spriteHeight = 5,
                     description = "供多名弟子共同修炼，修炼速度+15%"
                 ),
                 "patrol_tower" to BuildingConfigModel(
@@ -443,7 +443,7 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 8,
                     cost = 35000,
                     gridWidth = 4,
-                    gridHeight = 4,
+                    gridHeight = 3,
                     spriteWidth = 4,
                     spriteHeight = 8,
                     description = "驻守弟子自动巡视地图攻击妖兽"
@@ -455,8 +455,8 @@ class BuildingConfigService @Inject constructor(
                     slotCount = 1,
                     baseSuccessRate = 1.0,
                     cost = 40000,
-                    gridWidth = 2,
-                    gridHeight = 2,
+                    gridWidth = 4,
+                    gridHeight = 4,
                     spriteWidth = 4,
                     spriteHeight = 4,
                     description = "消耗妖兽精血材料淬炼弟子肉身，永久提升战斗属性"

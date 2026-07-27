@@ -5,6 +5,7 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.util.ZoneCalculator
 import org.junit.Assert.*
+import kotlin.math.roundToLong
 import org.junit.Test
 
 /**
@@ -16,6 +17,10 @@ import org.junit.Test
  * - 精度验证：Long + roundToLong 无截断损失
  */
 class SpiritMineMonthlySettlementTest {
+
+    /** 从 GameConfig 常量引用，确保测试与常量定义同步 */
+    private val BASE_PER_MINER = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER.toDouble()
+    private val BASE_PER_MINER_LONG = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER.toLong()
 
     // ═══════════════════════════════════════════════════════════════
     // SpiritMineZones.calculateMonthly
@@ -29,7 +34,7 @@ class SpiritMineMonthlySettlementTest {
             deaconMoralityBonus = 0.0,
             policyBoost = 0.0
         )
-        val result = zones.calculateMonthly(220.0)
+        val result = zones.calculateMonthly(BASE_PER_MINER)
         assertEquals(0L, result)
     }
 
@@ -41,9 +46,9 @@ class SpiritMineMonthlySettlementTest {
             deaconMoralityBonus = 0.0,
             policyBoost = 0.0
         )
-        val result = zones.calculateMonthly(220.0)
-        // 1 × 220 = 220, 无乘区加成
-        assertEquals(220L, result)
+        val result = zones.calculateMonthly(BASE_PER_MINER)
+        // 1 × ${BASE_PER_MINER_LONG}，无乘区加成
+        assertEquals(BASE_PER_MINER_LONG, result)
     }
 
     @Test
@@ -54,9 +59,9 @@ class SpiritMineMonthlySettlementTest {
             deaconMoralityBonus = 0.0,
             policyBoost = 0.0
         )
-        val result = zones.calculateMonthly(220.0)
-        // 100 × 220 = 22000，返回 Long，无截断
-        assertEquals(22000L, result)
+        val result = zones.calculateMonthly(BASE_PER_MINER)
+        // 100 × ${BASE_PER_MINER_LONG}，返回 Long，无截断
+        assertEquals(100L * BASE_PER_MINER_LONG, result)
     }
 
     @Test
@@ -67,9 +72,9 @@ class SpiritMineMonthlySettlementTest {
             deaconMoralityBonus = 0.0,
             policyBoost = ZoneCalculator.multiplierToZone(1.2)  // +20%
         )
-        val result = zones.calculateMonthly(220.0)
-        // 10 × 220 × 1.2 = 2640
-        assertEquals(2640L, result)
+        val result = zones.calculateMonthly(BASE_PER_MINER)
+        // 10 × ${BASE_PER_MINER_LONG} × 1.2
+        assertEquals((10L * BASE_PER_MINER_LONG * 1.2).roundToLong(), result)
     }
 
     @Test
@@ -80,9 +85,9 @@ class SpiritMineMonthlySettlementTest {
             deaconMoralityBonus = 0.15,  // 执事加成 +15%
             policyBoost = 0.0
         )
-        val result = zones.calculateMonthly(220.0)
-        // 10 × 220 × 1.15 = 2530
-        assertEquals(2530L, result)
+        val result = zones.calculateMonthly(BASE_PER_MINER)
+        // 10 × ${BASE_PER_MINER_LONG} × 1.15
+        assertEquals((10L * BASE_PER_MINER_LONG * 1.15).roundToLong(), result)
     }
 
     @Test
@@ -93,9 +98,9 @@ class SpiritMineMonthlySettlementTest {
             deaconMoralityBonus = 0.0,
             policyBoost = 0.0
         )
-        val result = zones.calculateMonthly(220.0)
-        // 10 × 220 × 1.2 = 2640
-        assertEquals(2640L, result)
+        val result = zones.calculateMonthly(BASE_PER_MINER)
+        // 10 × ${BASE_PER_MINER_LONG} × 1.2
+        assertEquals((10L * BASE_PER_MINER_LONG * 1.2).roundToLong(), result)
     }
 
     @Test
@@ -106,9 +111,9 @@ class SpiritMineMonthlySettlementTest {
             deaconMoralityBonus = 0.05,   // +5%
             policyBoost = 0.2             // +20% (灵矿增产)
         )
-        val result = zones.calculateMonthly(220.0)
-        // 50 × 220 × 1.1 × 1.05 × 1.2 = 50 × 220 × 1.386 = 15246
-        assertEquals(15246L, result)
+        val result = zones.calculateMonthly(BASE_PER_MINER)
+        // 50 × ${BASE_PER_MINER_LONG} × 1.1 × 1.05 × 1.2
+        assertEquals((50L * BASE_PER_MINER_LONG * 1.1 * 1.05 * 1.2).roundToLong(), result)
     }
 
     @Test
@@ -120,10 +125,9 @@ class SpiritMineMonthlySettlementTest {
             deaconMoralityBonus = 0.0,
             policyBoost = 0.0
         )
-        val result = zones.calculateMonthly(220.0)
-        // 3 × 220 = 660，返回 Long 类型
-        assertTrue("结果应为 Long 类型", result is Long)
-        assertEquals(660L, result)
+        val result = zones.calculateMonthly(BASE_PER_MINER)
+        // 3 × ${BASE_PER_MINER_LONG}
+        assertEquals(3L * BASE_PER_MINER_LONG, result)
     }
 
     @Test
@@ -148,7 +152,7 @@ class SpiritMineMonthlySettlementTest {
         // 验证回档保护：lastSettledMonth >= currentMonth 时跳过
         val currentMonth = 100  // gameYear*12 + gameMonth
         val lastSettled = 100   // same as current
-        val monthlyRate = 22000L
+        val monthlyRate = BASE_PER_MINER_LONG * 100  // 100 矿工总产出
 
         val delta = currentMonth - lastSettled
         assertTrue("delta <= 0 时应跳过", delta <= 0)
@@ -158,22 +162,22 @@ class SpiritMineMonthlySettlementTest {
     fun `time delta - normal one month catchup`() {
         val currentMonth = 101
         val lastSettled = 100
-        val monthlyRate = 22000L
+        val monthlyRate = BASE_PER_MINER_LONG * 100  // 100 矿工总产出
 
         val delta = currentMonth - lastSettled
         val production = monthlyRate * delta
-        assertEquals(22000L, production)
+        assertEquals(monthlyRate, production)
     }
 
     @Test
     fun `time delta - multiple month catchup`() {
         val currentMonth = 104  // 跳过4个月 (100→101,102,103,104)
         val lastSettled = 100
-        val monthlyRate = 22000L
+        val monthlyRate = BASE_PER_MINER_LONG * 100  // 100 矿工总产出
 
         val delta = currentMonth - lastSettled
         val production = monthlyRate * delta
-        assertEquals(88000L, production)  // 4 × 22000
+        assertEquals(4L * monthlyRate, production)  // 4个月累积
     }
 
     @Test
@@ -181,7 +185,7 @@ class SpiritMineMonthlySettlementTest {
         // 读档回档时：lastSettled > currentMonth
         val currentMonth = 95
         val lastSettled = 100
-        val monthlyRate = 22000L
+        val monthlyRate = BASE_PER_MINER_LONG * 100  // 100 矿工总产出
 
         val delta = currentMonth - lastSettled
         assertTrue("回档时 delta <= 0", delta <= 0)

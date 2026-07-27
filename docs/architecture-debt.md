@@ -161,6 +161,38 @@ detekt 配置 `baseline` 只缩不增（CLAUDE.md 13.2），当前未启用 base
 
 **状态**：⏸️ 待扩充黑名单或实施信号处理方案。
 
+## 游戏数值配置双源不一致：GameConfig vs GameConfigData
+
+**状态：** ⏸️ 待统一（2026-07-27 确认）。
+
+### 问题
+
+`GameConfig`（Kotlin 编译期常量，位于 `core/domain/.../GameConfig.kt`）和 `GameConfigData`（JSON 运行时配置，位于 `core/domain/.../GameConfigData.kt` + `game_config.json`）之间存在**重复的数值定义**。当前生产代码直接引用 `GameConfig` 常量，而 `GameConfigData` 虽被 `ConfigLoader` 加载但从未被生产代码读取。
+
+### 已知重复字段
+
+| 字段 | GameConfig 位置 | GameConfigData 位置 | 当前是否一致 |
+|------|----------------|-------------------|------------|
+| `spiritMineBaseOutputPerMiner` | `GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER` | `ProductionSection.spiritMineBaseOutputPerMiner` | ✅ 均为 160（2026-07-27 对齐）|
+| `spiritMineMiningThreshold` | `GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD` | `ProductionSection.spiritMineMiningThreshold` | ✅ 均为 70 |
+| `spiritMineMiningBonusRate` | `GameConfig.Production.SPIRIT_MINE_MINING_BONUS_RATE` | `ProductionSection.spiritMineMiningBonusRate` | ✅ 均为 0.02 |
+
+（本次仅确认了这 3 个灵矿字段，`GameConfigData` 还可能存在其他未被生产代码引用的字段——需全量排查。）
+
+### 影响
+
+- 改一个漏改另一个时，运行值与预期值脱节
+- JSON 配置形同虚设（`ConfigLoader.load()` 的结果未被使用）
+- 未来想通过 JSON 热更新数值时，需要额外改动生产代码
+
+### 治理方向
+
+**方案 A：守卫测试**（轻量）— 添加测试断言 `GameConfig.Production.* == GameConfigData().production.*`，确保常量漂移时测试失败。
+
+**方案 B：统一到 GameConfigData**（彻底）— 让灵矿等生产代码通过注入读取 `GameConfigData`，删除 `GameConfig.Production` 中的重复常量。
+
+**方案 C：统一到 GameConfig**（激进）— 删除 `GameConfigData.ProductionSection` 和 `game_config.json` 中的对应字段，GameConfig 常量成为唯一源。
+
 ## ProtoBuf 默认值编码治理
 
 **状态：** ✅ 已完成（2026-07-27）。

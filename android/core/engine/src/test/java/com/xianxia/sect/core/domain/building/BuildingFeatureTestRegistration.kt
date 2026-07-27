@@ -32,7 +32,7 @@ fun BuildingFeatureRegistry.registerTestFeatures() {
             baseSuccessRate = 0.7, autoRestartEnabled = true),
         BuildingFeature("warehouse", "仓库", BuildingType.WAREHOUSE,
             listOf(SlotGroup.Warehouse()), unlimitedBuild = true,
-            cost = 1500, gridWidth = 6, gridHeight = 5),
+            cost = 1500, gridWidth = 6, gridHeight = 4),
         BuildingFeature("library", "藏经阁", BuildingType.LIBRARY,
             listOf(SlotGroup.Library(slotsPerInstance = 3)),
             cost = 8000, gridWidth = 6, gridHeight = 3),
@@ -48,7 +48,7 @@ fun BuildingFeatureRegistry.registerTestFeatures() {
             emptyList(), cost = 6000, gridWidth = 4, gridHeight = 3),
         BuildingFeature("patrol_tower", "巡视楼", BuildingType.PATROL,
             listOf(SlotGroup.PatrolTower()), unlimitedBuild = true,
-            cost = 35000, gridWidth = 4, gridHeight = 4),
+            cost = 35000, gridWidth = 4, gridHeight = 3),
         BuildingFeature("reflection_cliff", "监牢", BuildingType.REFLECTION_CLIFF,
             emptyList(), cost = 5000, gridWidth = 4, gridHeight = 4),
         BuildingFeature("single_residence", "单人住所", BuildingType.SINGLE_RESIDENCE,
@@ -65,11 +65,11 @@ fun BuildingFeatureRegistry.registerTestFeatures() {
             residenceSpeedBonus = "修炼速度+10%"),
         BuildingFeature("multi_residence_upgraded", "中级多人住所", BuildingType.MULTI_RESIDENCE,
             listOf(SlotGroup.Residence(4)), isResidence = true, isConstructible = true, unlimitedBuild = true,
-            cost = 80000, gridWidth = 6, gridHeight = 4,
+            cost = 80000, gridWidth = 6, gridHeight = 5,
             residenceSpeedBonus = "修炼速度+15%"),
         BuildingFeature("blood_refining_pool", "血炼池", BuildingType.BLOOD_REFINING_POOL,
             listOf(SlotGroup.BloodRefining()), unlimitedBuild = true,
-            cost = 40000, gridWidth = 2, gridHeight = 2),
+            cost = 40000, gridWidth = 4, gridHeight = 4),
     )
     features.forEach { register(it) }
 }
