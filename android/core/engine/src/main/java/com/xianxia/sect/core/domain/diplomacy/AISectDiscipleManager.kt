@@ -7,6 +7,7 @@ import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.engine.domain.disciple.computeMaxAge
 import com.xianxia.sect.core.engine.EquipmentNurtureSystem
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.util.NameService
@@ -444,7 +445,16 @@ object AISectDiscipleManager {
                     cultivation = newCultivation,
                     realm = newRealm,
                     realmLayer = newRealmLayer,
-                    lifespan = workingDisciple.lifespan
+                    lifespan = if (newRealm != workingDisciple.realm) {
+                        val realmMaxAge = GameConfig.Realm.get(newRealm).maxAge
+                        val bonus = TalentDatabase.calculateTalentEffects(
+                            workingDisciple.talentIds
+                        )["lifespan"] ?: 0.0
+                        val newLifespan = (realmMaxAge * (1.0 + bonus)).toInt().coerceAtLeast(1)
+                        maxOf(workingDisciple.lifespan, newLifespan)
+                    } else {
+                        workingDisciple.lifespan
+                    }
                 )
             }
 
@@ -455,7 +465,8 @@ object AISectDiscipleManager {
     fun processAging(disciples: List<Disciple>): List<Disciple> {
         return disciples.map { disciple ->
             val newAge = disciple.age + 1
-            val isAlive = newAge <= disciple.lifespan
+            val maxAge = disciple.computeMaxAge()
+            val isAlive = newAge <= maxAge
 
             disciple.copy(
                 age = newAge,

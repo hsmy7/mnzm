@@ -294,6 +294,9 @@ class CultivationEventProcessor @Inject constructor(
     fun processMonthlyEvents(year: Int, month: Int) {
         // 单事务：所有月度事件原子提交
         stateStore.update {
+            safelyRunInState("recruitCountReset") {
+                gameData = gameData.copy(recruitCountThisMonth = 0)
+            }
             safelyRunInState("theft") { lawEnforcementProcessor.processTheftIfNeeded() }
             safelyRunInState("lawEnforcement") { lawEnforcementProcessor.processLawEnforcementMonthly() }
             safelyRunInState("completedMissions") { processCompletedMissionsLazy(year, month) }

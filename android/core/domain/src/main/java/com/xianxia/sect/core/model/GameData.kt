@@ -505,6 +505,16 @@ data class GameData(
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var autoRecruitSpiritRootFilter: Set<Int> = emptySet(),
 
+    // 俘虏灵根筛选（1=单灵根, 2=双灵根, 3=三灵根, 4=四灵根, 5=五灵根）
+    @ProtoPacked @ProtoNumber(162)
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var prisonerSpiritRootFilter: Set<Int> = emptySet(),
+
+    // 本月已招募人数计数（每月重置，上限 GameConfig.Logs.RECRUIT_MONTHLY_LIMIT）
+    @ProtoNumber(163)
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var recruitCountThisMonth: Int = 0,
+
     // 道侣管理：禁止结婚的灵根数量（1=单灵根, 2=双灵根, 3=三灵根, 4=四灵根, 5=五灵根）
     @ProtoPacked @ProtoNumber(102)
     @SettlementStrategy(Strategy.PRESERVE_OLD)

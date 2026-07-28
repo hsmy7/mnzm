@@ -155,89 +155,54 @@ private fun AutoRecruitFilterDialog(
 ) {
     val initialFilter = gameData?.autoRecruitSpiritRootFilter ?: emptySet()
     var selectedFilter by remember { mutableStateOf(initialFilter) }
-    val hasChanges = selectedFilter != initialFilter
-    var showUnsavedDialog by remember { mutableStateOf(false) }
-
-    val saveAndDismiss = {
-        viewModel.setAutoRecruitFilter(selectedFilter)
-        onDismiss()
-    }
-
-    val handleClose = {
-        if (hasChanges) {
-            showUnsavedDialog = true
-        } else {
-            onDismiss()
-        }
-    }
 
     UnifiedGameDialog(
-        onDismissRequest = handleClose,
+        onDismissRequest = onDismiss,
         title = "自动招募筛选",
         mode = DialogMode.Half,
         scrollableContent = false
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(16.dp)
+        Column(
+            modifier = Modifier.fillMaxSize().padding(16.dp)
+        ) {
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 5-column filter grid
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(5),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // 5-column filter grid
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(5),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(ROOT_COUNT_OPTIONS, key = { it.first }, contentType = { "root_count_option" }) { (count, name) ->
-                        val rootColor = GameColors.getSpiritRootCountColor(count)
-                        AutoRecruitFilterRow(
-                            label = name,
-                            labelColor = rootColor,
-                            checked = count in selectedFilter,
-                            onToggle = {
-                                selectedFilter = if (count in selectedFilter) {
-                                    selectedFilter - count
-                                } else {
-                                    selectedFilter + count
-                                }
+                items(ROOT_COUNT_OPTIONS, key = { it.first }, contentType = { "root_count_option" }) { (count, name) ->
+                    val rootColor = GameColors.getSpiritRootCountColor(count)
+                    AutoRecruitFilterRow(
+                        label = name,
+                        labelColor = rootColor,
+                        checked = count in selectedFilter,
+                        onToggle = {
+                            val newFilter = if (count in selectedFilter) {
+                                selectedFilter - count
+                            } else {
+                                selectedFilter + count
                             }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Bottom buttons
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    GameButton(text = "取消", onClick = onDismiss)
-                    GameButton(text = "保存", onClick = saveAndDismiss)
+                            selectedFilter = newFilter
+                            viewModel.setAutoRecruitFilter(newFilter)
+                        }
+                    )
                 }
             }
 
-            if (showUnsavedDialog) {
-                StandardPromptDialog(
-                    onDismissRequest = { showUnsavedDialog = false },
-                    title = "未保存更改",
-                    text = "您所做的更改尚未保存，若直接退出则视为取消更改",
-                    confirmLabel = "保存",
-                    onConfirm = {
-                        showUnsavedDialog = false
-                        saveAndDismiss()
-                    },
-                    dismissLabel = "关闭",
-                    onDismiss = {
-                        showUnsavedDialog = false
-                        onDismiss()
-                    }
-                )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Bottom button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                GameButton(text = "关闭", onClick = onDismiss)
             }
         }
     }

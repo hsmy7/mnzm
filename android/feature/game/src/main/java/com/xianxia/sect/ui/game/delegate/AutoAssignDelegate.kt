@@ -108,4 +108,20 @@ class AutoAssignDelegate(
     fun setAutoRecruitFilter(filter: Set<Int>) {
         // 由 DiscipleDelegate 处理，保留为兼容转发
     }
+
+    /** 设置俘虏灵根过滤（勾选/取消即保存）。 */
+    fun setPrisonerSpiritRootFilter(filter: Set<Int>) {
+        gameEngine.launchOnEngine {
+            gameEngine.updateGameData { it.copy(prisonerSpiritRootFilter = filter) }
+        }
+    }
+
+    /** 切换单个灵根数过滤状态（勾选即保存）。 */
+    fun togglePrisonerFilter(rootCount: Int) {
+        gameEngine.launchOnEngine {
+            val current = gameEngine.gameData.value.prisonerSpiritRootFilter
+            val updated = if (rootCount in current) current - rootCount else current + rootCount
+            gameEngine.updateGameData { it.copy(prisonerSpiritRootFilter = updated) }
+        }
+    }
 }

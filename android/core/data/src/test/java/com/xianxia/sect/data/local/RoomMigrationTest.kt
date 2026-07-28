@@ -60,6 +60,7 @@ class RoomMigrationTest {
         private val M29_30 = GameDatabase.MIGRATION_29_30
         private val M31_32 = GameDatabase.MIGRATION_31_32
         private val M32_33 = GameDatabase.MIGRATION_32_33
+        private val M33_34 = GameDatabase.MIGRATION_33_34
     }
 
     // ==================== 单个迁移步骤测试 ====================
@@ -556,6 +557,16 @@ class RoomMigrationTest {
         testSingleMigration("m_32_33_me", 31, 33, listOf(M31_32, M32_33), "game_data", "musicEnabled")
     }
 
+
+    @Test
+    fun `MIGRATION_33_TO_34 adds prisonerSpiritRootFilter to game_data`() {
+        testSingleMigration("m_33_34_psf", 33, 34, listOf(M33_34), "game_data", "prisonerSpiritRootFilter")
+    }
+
+    @Test
+    fun `MIGRATION_33_TO_34 adds recruitCountThisMonth to game_data`() {
+        testSingleMigration("m_33_34_rcm", 33, 34, listOf(M33_34), "game_data", "recruitCountThisMonth")
+    }
     // ==================== 全链路数据留存测试（M21→M33） ====================
 
     @Test

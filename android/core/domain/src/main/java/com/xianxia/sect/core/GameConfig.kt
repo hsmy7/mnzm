@@ -578,6 +578,9 @@ object GameConfig {
         const val MAX_EXPLORATION_LOGS = 100
         const val MAX_YEARLY_REPORTS = 100
     }
+
+    /** 招募弟子每月上限 */
+    const val RECRUIT_MONTHLY_LIMIT = 30
     
     object Battle {
         const val MAX_TEAM_SIZE = 7

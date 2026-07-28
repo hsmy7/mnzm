@@ -556,6 +556,16 @@ suspend fun GameEngine.recruitAllFromList(): Int {
     return engineContextDispatcher.withEngineContext {
         var recruited = 0
         stateStore.update {
+            val count = gameData.recruitCountThisMonth.coerceAtLeast(0)
+            val remaining = GameConfig.RECRUIT_MONTHLY_LIMIT - count
+            if (remaining <= 0) {
+                DomainLog.i("GameEngine", "recruitAllFromList: monthly limit reached ($count/${GameConfig.RECRUIT_MONTHLY_LIMIT})")
+                pendingNotification = GameNotification.RecruitFailed(
+                    "本月招募已达上限（${GameConfig.RECRUIT_MONTHLY_LIMIT}人）"
+                )
+                return@update
+            }
+
             val validRecruits = gameData.recruitList.filter { d ->
                 d.name.isNotBlank() && d.age in 1..MAX_REASONABLE_AGE
                     && d.realm in VALID_REALM_RANGE
@@ -566,10 +576,15 @@ suspend fun GameEngine.recruitAllFromList(): Int {
                 }
                 return@update
             }
+
+            val takeCount = minOf(validRecruits.size, remaining)
+            val toRecruit = validRecruits.take(takeCount)
+            val keepInList = gameData.recruitList.toList() - toRecruit.toSet()
+
             val droppedCount = gameData.recruitList.size - validRecruits.size
             val currentMonth = gameData.gameYear * 12 + gameData.gameMonth
             var successCount = 0
-            validRecruits.forEach { disciple ->
+            toRecruit.forEach { disciple ->
                 val newId = discipleTables.allocateAndInsert(
                     disciple.copy(usage = disciple.usage.copy(recruitedMonth = currentMonth))
                         .also { it.lifeEvents = listOf("${disciple.age}岁：加入宗门") }
@@ -577,9 +592,12 @@ suspend fun GameEngine.recruitAllFromList(): Int {
                 if (newId.isNotEmpty()) successCount++
             }
             recruited = successCount
-            gameData = gameData.copy(recruitList = emptyList())
-            if (droppedCount > 0) {
-                DomainLog.w("GameEngine", "recruitAllFromList: dropped $droppedCount corrupted recruits, recruited $recruited")
+            gameData = gameData.copy(
+                recruitList = keepInList,
+                recruitCountThisMonth = gameData.recruitCountThisMonth + successCount
+            )
+            if (droppedCount > 0 || takeCount < validRecruits.size) {
+                DomainLog.w("GameEngine", "recruitAllFromList: dropped $droppedCount corrupted, recruited $recruited, ${keepInList.size} remain (monthly limit)")
             } else {
                 DomainLog.i("GameEngine", "recruitAllFromList: recruited $recruited disciples")
             }

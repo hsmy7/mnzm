@@ -249,15 +249,15 @@ assertEquals(9L, stateStore.gameData.value.spiritStones)
 
     @Test
     fun `calculateVassalChance zero battle data gives zero occupy and skirmish score`() {
-        // powerRatio=2.0（玩家比 AI 强），但无战斗记录 → occupyScore=0, skirmishScore=0
+        // powerRatio=2.0，无战斗记录，favor=0(HOSTILE 分值为0)
+        // 好感度等级分值为0且favorWeight>0 => 引擎认为该等级不可行 => 返回0
         val chance = service.calculateVassalChance(
             playerPower = 20.0, aiPower = 10.0,
             conquestCount = 0, lostSectCount = 0,
             battleWinCount = 0, battleLossCount = 0,
             favor = 0
         )
-        // powerScore=0.20, occupyScore=0, skirmishScore=0, favorScore=0
-        assertEquals(0.20, chance, 0.001)
+        assertEquals(0.0, chance, 0.001)
     }
 
     @Test
@@ -291,8 +291,8 @@ assertEquals(9L, stateStore.gameData.value.spiritStones)
             battleWinCount = -10, battleLossCount = -2,
             favor = 0
         )
-        // powerScore=0.20, occupyScore=0(totalOccupy=-8→0→0), skirmishScore=0(totalSkirmish=-12→0→0), favorScore=0
-        assertEquals(0.20, chance, 0.001)
+        // favor=0(HOSTILE 分值为0)，好感度等级不可行 => 返回0
+        assertEquals(0.0, chance, 0.001)
     }
 
     @Test

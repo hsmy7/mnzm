@@ -202,6 +202,14 @@ class DiscipleFacadeImpl @Inject constructor(
         }
         var newId: String = ""
         stateStore.update {
+            // 事务内检查招募上限（消除事务外读取的 TOCTOU 窗口）
+            if (gameData.recruitCountThisMonth.coerceAtLeast(0) >= GameConfig.RECRUIT_MONTHLY_LIMIT) {
+                DomainLog.w(TAG, "recruitDiscipleFromList: monthly limit reached (${gameData.recruitCountThisMonth}/${GameConfig.RECRUIT_MONTHLY_LIMIT})")
+                pendingNotification = GameNotification.RecruitFailed(
+                    "本月招募已达上限（${GameConfig.RECRUIT_MONTHLY_LIMIT}人）"
+                )
+                return@update
+            }
             val disciple = gameData.recruitList.toList().find { it.id == discipleId }
             if (disciple == null) {
                 DomainLog.w(TAG, "recruitDiscipleFromList: disciple $discipleId not in recruitList, size=${gameData.recruitList.size}")
@@ -231,7 +239,10 @@ class DiscipleFacadeImpl @Inject constructor(
                 }
             }
             DomainLog.i(TAG, "recruitDiscipleFromList: recruited $discipleId → id=$newId")
-            gameData = gameData.copy(recruitList = gameData.recruitList.filter { it.id != discipleId })
+            gameData = gameData.copy(
+                recruitList = gameData.recruitList.filter { it.id != discipleId },
+                recruitCountThisMonth = gameData.recruitCountThisMonth + 1
+            )
         }
         if (newId.isEmpty()) {
             DomainLog.w(TAG, "recruitDiscipleFromList: FAILED for $discipleId")

@@ -4,6 +4,23 @@
 
 - **从众设计：弟子叛逃/偷盗全局门控** — 宗门所有活弟子的平均忠诚度 ≥ 50 时风气好，无人叛逃、无人偷盗。只有平均忠诚 < 50 时才会按个体忠诚/道德检查。新增 `herdLoyaltyThreshold` 配置项（默认 50），可在 `game_config.json` 中调节
 
+### 新增
+
+- **俘虏管理** — 天枢殿宗门管理选项区域新增俘虏弟子管理，5个灵根勾选框控制攻打AI宗门后哪些俘虏进入招募列表（匹配则进，不匹配则删除）
+- **招募每月上限30人** — 超出上限弹出提示"本月招募已达上限（30人）"，每月初自动重置
+
+### 修复
+
+- **AI宗门弟子寿元计算错误** — `AISectDiscipleManager.processAging` 原使用 `newAge <= disciple.lifespan`（默认80），导致金丹弟子81岁即被判定死亡（应活200岁），现统一为 `computeMaxAge` 公式（含境界 `realmMaxAge` + 天赋加成）
+- **AI宗门弟子突破后 lifespan 未随境界更新** — `processMonthlyCultivation` 突破后原赋值 `lifespan = workingDisciple.lifespan`（不变），改为大境界变化时按新境界 `realmMaxAge` + 天赋加成重新计算
+
+### 重构
+
+- **提取共享寿元计算** — 新增 `Disciple.computeMaxAge()` 扩展函数，统一玩家侧和AI侧的寿元公式，避免两处逻辑不一致
+- **宗门管理界面双区域布局** — 选项区域在上（俘虏管理直接显示5灵根勾选框），管理区域在下（道侣/弟子/自动管理按钮）
+- **所有管理界面移除保存机制** — 道侣管理/弟子管理/自动管理/自动招募过滤均改为勾选即保存，移除保存按钮和未保存提醒对话框
+- **管理按钮响应式布局** — 改为 FlowRow 根据屏幕宽度自动换行排列
+
 ### 修复
 
 - **生产 Bug：批准婚姻时 NoSuchElementException** — `ComponentTable<String?>.get(id)` 无法区分"值=null"和"无条目"，当弟子从未有过伴侣时抛异常崩溃。修复：`partnerIds[id]` → `partnerIds.getOrNull(id)`（波及 PartnerSystem 和 GameEngine 两处）

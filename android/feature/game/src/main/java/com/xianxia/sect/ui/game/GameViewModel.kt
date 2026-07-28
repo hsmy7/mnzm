@@ -511,6 +511,8 @@ class GameViewModel @Inject constructor(
     fun recruitAllDisciples() = disciple.recruitAllDisciples()
     fun rejectDiscipleFromList(discipleId: String) = disciple.rejectDiscipleFromList(discipleId)
     fun setAutoRecruitFilter(filter: Set<Int>) = disciple.setAutoRecruitFilter(filter)
+    fun togglePrisonerFilter(rootCount: Int) = autoAssign.togglePrisonerFilter(rootCount)
+    fun setPrisonerSpiritRootFilter(filter: Set<Int>) = autoAssign.setPrisonerSpiritRootFilter(filter)
     fun setDaoCompanionBannedRootCounts(counts: Set<Int>) = autoAssign.setDaoCompanionBannedRootCounts(counts)
     fun setDaoCompanionConsentRequired(required: Boolean) = autoAssign.setDaoCompanionConsentRequired(required)
     fun setAutoAssignSettings(

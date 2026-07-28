@@ -3,11 +3,9 @@ package com.xianxia.sect.ui.game.dialogs
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -35,12 +33,9 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.ui.components.CircularCheckbox
 import com.xianxia.sect.ui.components.DialogMode
-import com.xianxia.sect.ui.components.GameButton
-import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
-import com.xianxia.sect.ui.theme.ButtonSizes
 
 @Composable
 fun AutoManagementDialog(
@@ -49,7 +44,6 @@ fun AutoManagementDialog(
     onDismiss: () -> Unit
 ) {
     val policies = gameData?.sectPolicies
-    val initialPolicies = remember { gameData?.sectPolicies }
 
     var mineFocused by remember { mutableStateOf(policies?.autoMineFocused ?: false) }
     var mineRootCounts by remember { mutableStateOf(policies?.autoMineRootCounts ?: emptyList<Int>()) }
@@ -75,29 +69,9 @@ fun AutoManagementDialog(
     var plantRootCounts by remember { mutableStateOf(policies?.autoPlantRootCounts ?: emptyList<Int>()) }
     var plantThreshold by remember { mutableStateOf((policies?.autoPlantThreshold ?: 1).toString()) }
 
-    val hasChanges = mineFocused != (initialPolicies?.autoMineFocused ?: false) ||
-            mineRootCounts != (initialPolicies?.autoMineRootCounts ?: emptyList<Int>()) ||
-            mineThreshold != (initialPolicies?.autoMineThreshold ?: 1).toString() ||
-            alchemyFocused != (initialPolicies?.autoAlchemyFocused ?: false) ||
-            alchemyRootCounts != (initialPolicies?.autoAlchemyRootCounts ?: emptyList<Int>()) ||
-            alchemyThreshold != (initialPolicies?.autoAlchemyThreshold ?: 1).toString() ||
-            forgeFocused != (initialPolicies?.autoForgeFocused ?: false) ||
-            forgeRootCounts != (initialPolicies?.autoForgeRootCounts ?: emptyList<Int>()) ||
-            forgeThreshold != (initialPolicies?.autoForgeThreshold ?: 1).toString() ||
-            singleResidenceFocused != (initialPolicies?.autoSingleResidenceFocused ?: false) ||
-            singleResidenceRootCounts != (initialPolicies?.autoSingleResidenceRootCounts ?: emptyList<Int>()) ||
-            singleResidenceThreshold != (initialPolicies?.autoSingleResidenceThreshold ?: 1).toString() ||
-            multiResidenceFocused != (initialPolicies?.autoMultiResidenceFocused ?: false) ||
-            multiResidenceRootCounts != (initialPolicies?.autoMultiResidenceRootCounts ?: emptyList<Int>()) ||
-            multiResidenceThreshold != (initialPolicies?.autoMultiResidenceThreshold ?: 1).toString() ||
-            plantFocused != (initialPolicies?.autoPlantFocused ?: false) ||
-            plantRootCounts != (initialPolicies?.autoPlantRootCounts ?: emptyList<Int>()) ||
-            plantThreshold != (initialPolicies?.autoPlantThreshold ?: 1).toString()
+    val parsedThreshold: (String) -> Int = { it.toIntOrNull()?.coerceIn(1, 999) ?: 1 }
 
-    var showUnsavedDialog by remember { mutableStateOf(false) }
-
-    val saveAndDismiss = {
-        val parsedThreshold: (String) -> Int = { it.toIntOrNull()?.coerceIn(1, 999) ?: 1 }
+    val saveAll = {
         viewModel.setAutoAssignSettings(
             mineFocused, mineRootCounts, parsedThreshold(mineThreshold),
             alchemyFocused, alchemyRootCounts, parsedThreshold(alchemyThreshold),
@@ -106,154 +80,145 @@ fun AutoManagementDialog(
             multiResidenceFocused, multiResidenceRootCounts, parsedThreshold(multiResidenceThreshold),
             plantFocused, plantRootCounts, parsedThreshold(plantThreshold)
         )
-        onDismiss()
-    }
-
-    val handleClose = {
-        if (hasChanges) showUnsavedDialog = true
-        else onDismiss()
     }
 
     UnifiedGameDialog(
-        onDismissRequest = handleClose,
+        onDismissRequest = onDismiss,
         title = "自动管理",
         mode = DialogMode.Half,
         scrollableContent = false
     ) {
         val scrollState = rememberScrollState()
-        Box(modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                // Scrollable content area
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .verticalScroll(scrollState)
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    AutoAssignSection(
-                        title = "无视状态自动入住单人住所",
-                        attrLabel = "悟性 ≥",
-                        focused = singleResidenceFocused,
-                        rootCounts = singleResidenceRootCounts,
-                        threshold = singleResidenceThreshold,
-                        onFocusedToggle = { singleResidenceFocused = !singleResidenceFocused },
-                        onRootToggle = { count ->
-                            singleResidenceRootCounts = if (count in singleResidenceRootCounts)
-                                singleResidenceRootCounts - count else singleResidenceRootCounts + count
-                        },
-                        onThresholdChange = { singleResidenceThreshold = it }
-                    )
-
-                    AutoAssignSection(
-                        title = "无视状态自动入住多人住所",
-                        attrLabel = "悟性 ≥",
-                        focused = multiResidenceFocused,
-                        rootCounts = multiResidenceRootCounts,
-                        threshold = multiResidenceThreshold,
-                        onFocusedToggle = { multiResidenceFocused = !multiResidenceFocused },
-                        onRootToggle = { count ->
-                            multiResidenceRootCounts = if (count in multiResidenceRootCounts)
-                                multiResidenceRootCounts - count else multiResidenceRootCounts + count
-                        },
-                        onThresholdChange = { multiResidenceThreshold = it }
-                    )
-
-                    AutoAssignSection(
-                        title = "空闲弟子自动种植（灵植阁）",
-                        attrLabel = "灵植属性 ≥",
-                        focused = plantFocused,
-                        rootCounts = plantRootCounts,
-                        threshold = plantThreshold,
-                        onFocusedToggle = { plantFocused = !plantFocused },
-                        onRootToggle = { count ->
-                            plantRootCounts = if (count in plantRootCounts) plantRootCounts - count else plantRootCounts + count
-                        },
-                        onThresholdChange = { plantThreshold = it }
-                    )
-
-                    AutoAssignSection(
-                        title = "空闲弟子自动采矿（灵矿场）",
-                        attrLabel = "采矿属性 ≥",
-                        focused = mineFocused,
-                        rootCounts = mineRootCounts,
-                        threshold = mineThreshold,
-                        onFocusedToggle = { mineFocused = !mineFocused },
-                        onRootToggle = { count ->
-                            mineRootCounts = if (count in mineRootCounts) mineRootCounts - count else mineRootCounts + count
-                        },
-                        onThresholdChange = { mineThreshold = it }
-                    )
-
-                    AutoAssignSection(
-                        title = "空闲弟子自动炼丹（炼丹炉）",
-                        attrLabel = "炼丹属性 ≥",
-                        focused = alchemyFocused,
-                        rootCounts = alchemyRootCounts,
-                        threshold = alchemyThreshold,
-                        onFocusedToggle = { alchemyFocused = !alchemyFocused },
-                        onRootToggle = { count ->
-                            alchemyRootCounts = if (count in alchemyRootCounts) alchemyRootCounts - count else alchemyRootCounts + count
-                        },
-                        onThresholdChange = { alchemyThreshold = it }
-                    )
-
-                    AutoAssignSection(
-                        title = "空闲弟子自动炼器（锻造坊）",
-                        attrLabel = "炼器属性 ≥",
-                        focused = forgeFocused,
-                        rootCounts = forgeRootCounts,
-                        threshold = forgeThreshold,
-                        onFocusedToggle = { forgeFocused = !forgeFocused },
-                        onRootToggle = { count ->
-                            forgeRootCounts = if (count in forgeRootCounts) forgeRootCounts - count else forgeRootCounts + count
-                        },
-                        onThresholdChange = { forgeThreshold = it }
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(scrollState)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            AutoAssignSection(
+                title = "无视状态自动入住单人住所",
+                attrLabel = "悟性 ≥",
+                focused = singleResidenceFocused,
+                rootCounts = singleResidenceRootCounts,
+                threshold = singleResidenceThreshold,
+                onFocusedToggle = {
+                    singleResidenceFocused = !singleResidenceFocused
+                    saveAll()
+                },
+                onRootToggle = { count ->
+                    singleResidenceRootCounts = if (count in singleResidenceRootCounts)
+                        singleResidenceRootCounts - count else singleResidenceRootCounts + count
+                    saveAll()
+                },
+                onThresholdChange = {
+                    singleResidenceThreshold = it
+                    saveAll()
                 }
+            )
 
-                // Fixed bottom buttons
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    GameButton(
-                        text = "关闭",
-                        onClick = handleClose,
-                        modifier = Modifier.width(ButtonSizes.StandardWidth)
-                    )
-                    GameButton(
-                        text = "保存",
-                        onClick = saveAndDismiss,
-                        enabled = hasChanges,
-                        modifier = Modifier.width(ButtonSizes.StandardWidth)
-                    )
+            AutoAssignSection(
+                title = "无视状态自动入住多人住所",
+                attrLabel = "悟性 ≥",
+                focused = multiResidenceFocused,
+                rootCounts = multiResidenceRootCounts,
+                threshold = multiResidenceThreshold,
+                onFocusedToggle = {
+                    multiResidenceFocused = !multiResidenceFocused
+                    saveAll()
+                },
+                onRootToggle = { count ->
+                    multiResidenceRootCounts = if (count in multiResidenceRootCounts)
+                        multiResidenceRootCounts - count else multiResidenceRootCounts + count
+                    saveAll()
+                },
+                onThresholdChange = {
+                    multiResidenceThreshold = it
+                    saveAll()
                 }
-            }
+            )
 
-            if (showUnsavedDialog) {
-                StandardPromptDialog(
-                    onDismissRequest = { showUnsavedDialog = false },
-                    title = "未保存更改",
-                    text = "您所做的更改尚未保存，若直接退出则视为取消更改",
-                    confirmLabel = "保存",
-                    onConfirm = {
-                        showUnsavedDialog = false
-                        saveAndDismiss()
-                    },
-                    dismissLabel = "关闭",
-                    onDismiss = {
-                        showUnsavedDialog = false
-                        onDismiss()
-                    },
-                    scrimEnabled = false
-                )
-            }
+            AutoAssignSection(
+                title = "空闲弟子自动种植（灵植阁）",
+                attrLabel = "灵植属性 ≥",
+                focused = plantFocused,
+                rootCounts = plantRootCounts,
+                threshold = plantThreshold,
+                onFocusedToggle = {
+                    plantFocused = !plantFocused
+                    saveAll()
+                },
+                onRootToggle = { count ->
+                    plantRootCounts = if (count in plantRootCounts) plantRootCounts - count else plantRootCounts + count
+                    saveAll()
+                },
+                onThresholdChange = {
+                    plantThreshold = it
+                    saveAll()
+                }
+            )
+
+            AutoAssignSection(
+                title = "空闲弟子自动采矿（灵矿场）",
+                attrLabel = "采矿属性 ≥",
+                focused = mineFocused,
+                rootCounts = mineRootCounts,
+                threshold = mineThreshold,
+                onFocusedToggle = {
+                    mineFocused = !mineFocused
+                    saveAll()
+                },
+                onRootToggle = { count ->
+                    mineRootCounts = if (count in mineRootCounts) mineRootCounts - count else mineRootCounts + count
+                    saveAll()
+                },
+                onThresholdChange = {
+                    mineThreshold = it
+                    saveAll()
+                }
+            )
+
+            AutoAssignSection(
+                title = "空闲弟子自动炼丹（炼丹炉）",
+                attrLabel = "炼丹属性 ≥",
+                focused = alchemyFocused,
+                rootCounts = alchemyRootCounts,
+                threshold = alchemyThreshold,
+                onFocusedToggle = {
+                    alchemyFocused = !alchemyFocused
+                    saveAll()
+                },
+                onRootToggle = { count ->
+                    alchemyRootCounts = if (count in alchemyRootCounts) alchemyRootCounts - count else alchemyRootCounts + count
+                    saveAll()
+                },
+                onThresholdChange = {
+                    alchemyThreshold = it
+                    saveAll()
+                }
+            )
+
+            AutoAssignSection(
+                title = "空闲弟子自动炼器（锻造坊）",
+                attrLabel = "炼器属性 ≥",
+                focused = forgeFocused,
+                rootCounts = forgeRootCounts,
+                threshold = forgeThreshold,
+                onFocusedToggle = {
+                    forgeFocused = !forgeFocused
+                    saveAll()
+                },
+                onRootToggle = { count ->
+                    forgeRootCounts = if (count in forgeRootCounts) forgeRootCounts - count else forgeRootCounts + count
+                    saveAll()
+                },
+                onThresholdChange = {
+                    forgeThreshold = it
+                    saveAll()
+                }
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }

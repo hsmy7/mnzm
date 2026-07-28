@@ -31,8 +31,8 @@ class GameUtilsTest {
     }
 
     @Test
-    fun fromFavor_10_returnsANTAGONISTIC() {
-        assertEquals(SectRelationLevel.ANTAGONISTIC, SectRelationLevel.fromFavor(10))
+    fun fromFavor_10_returnsHOSTILE() {
+        assertEquals(SectRelationLevel.HOSTILE, SectRelationLevel.fromFavor(10))
     }
 
     @Test

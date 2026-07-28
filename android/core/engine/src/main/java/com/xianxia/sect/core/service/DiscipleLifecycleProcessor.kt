@@ -73,11 +73,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
                 agedDisciple = agedDisciple.copy(realmLayer = 1, status = DiscipleStatus.IDLE)
             }
 
-            val talentEffects = TalentDatabase.calculateTalentEffects(agedDisciple.talentIds)
-            val lifespanBonus = talentEffects["lifespan"] ?: 0.0
-            val realmMaxAge = GameConfig.Realm.get(agedDisciple.realm).maxAge
-            val talentLifespan = (realmMaxAge * (1.0 + lifespanBonus)).toInt().coerceAtLeast(1)
-            val maxAge = maxOf(agedDisciple.lifespan, realmMaxAge, talentLifespan)
+            val maxAge = agedDisciple.computeMaxAge()
             if (agedDisciple.age >= maxAge) {
                 val intId = disciple.id.toIntOrNull() ?: continue
                 deadThisYear.add(intId)
