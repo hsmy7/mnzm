@@ -12,6 +12,7 @@ import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.model.AISectPersonality
 import com.xianxia.sect.core.model.BattleLogAction
+import com.xianxia.sect.core.model.SectRelationLevel
 import com.xianxia.sect.core.model.BattleLogEnemy
 import com.xianxia.sect.core.model.BattleLogMember
 import com.xianxia.sect.core.model.BattleLogRound
@@ -24,6 +25,8 @@ import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.domain.FavorDomain
+import com.xianxia.sect.core.engine.domain.diplomacy.IntelligentSectDecisionEngine
+import com.xianxia.sect.core.model.SectBattleType
 import com.xianxia.sect.core.util.BattleCalculator
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
@@ -38,7 +41,6 @@ object AISectAttackManager {
     private const val TAG = "AISectAttackManager"
 
     val MIN_DISCIPLES_FOR_ATTACK get() = GameConfig.AI.MIN_DISCIPLES_FOR_ATTACK
-    private val POWER_RATIO_THRESHOLD get() = GameConfig.AI.POWER_RATIO_THRESHOLD
     val TEAM_SIZE get() = GameConfig.AI.TEAM_SIZE
 
     // PlayerOccupiedDefenseInfo 和 AIAttackResult 保留在 object 内（外部有引用）
@@ -332,6 +334,21 @@ object AISectAttackManager {
         )
     }
 
+    /**
+     * 检查攻击条件 — 使用多因素加权智能判定。
+     *
+     * 保留的二进制硬约束：
+     * - 不能攻击自己
+     * - 最低弟子数
+     * - 同联盟不攻击
+     *
+     * 综合评估委托 [IntelligentSectDecisionEngine] 的四因素加权模型：
+     * - 战力差 (40%) — 攻击方实力与防御方的比值
+     * - 占领丢失 (20%) — 征服次数与总占领/丢失比例
+     * - 胜负 (25%) — 胜率反映实战能力
+     * - 好感度 (15%) — 正值好感不攻击（硬门槛 0）
+     * - AI 个性 — 好战型进攻性更强
+     */
     fun checkAttackConditions(
         attacker: WorldSect,
         defender: WorldSect,
@@ -345,12 +362,11 @@ object AISectAttackManager {
             .filter { it.isAlive }
         if (attackerDisciples.size < MIN_DISCIPLES_FOR_ATTACK) return false
 
-        val favor = FavorDomain.findFavor(gameData.sectRelations, attacker.id, defender.id)
-        if (favor > 0) return false
-
+        // 同联盟不攻击（硬约束）
         if (attacker.allianceId.isNotEmpty() &&
             attacker.allianceId == defender.allianceId) return false
 
+        // 计算战力比
         val attackerPower = calculatePowerScore(attackerDisciples)
         val defenderDisciples = if (defender.isPlayerOccupied) {
             playerGarrisonMap[defender.id] ?: emptyList()
@@ -358,9 +374,34 @@ object AISectAttackManager {
             (aiDisciplesMap[defender.id] ?: emptyList()).filter { it.isAlive }
         }
         val defenderPower = calculatePowerScore(defenderDisciples)
-        if (attackerPower < defenderPower * POWER_RATIO_THRESHOLD) return false
+        if (defenderPower <= 0) return false
+        val powerRatio = attackerPower / defenderPower
 
-        return true
+        // 收集历史数据
+        val favor = FavorDomain.findFavor(gameData.sectRelations, attacker.id, defender.id)
+        val favorLevel = SectRelationLevel.fromFavor(favor)
+        val personality = gameData.aiSectPersonalities[attacker.id] ?: AISectPersonality.BALANCED
+        val recentRecords = gameData.sectBattleRecords.filter {
+            it.year >= gameData.gameYear - 3
+        }
+        val conquestCount = recentRecords.count { it.type == SectBattleType.CONQUEST }
+        val lostSectCount = recentRecords.count { it.type == SectBattleType.LOST_SECT }
+        val battleWinCount = recentRecords.count { it.type == SectBattleType.BATTLE_WIN }
+        val battleLossCount = recentRecords.count { it.type == SectBattleType.BATTLE_LOSS }
+
+        // 使用共享引擎进行多因素综合评估
+        val chance = IntelligentSectDecisionEngine.calculateChance(
+            profile = IntelligentSectDecisionEngine.ATTACK_PROFILE,
+            powerRatio = powerRatio,
+            conquestCount = conquestCount,
+            lostSectCount = lostSectCount,
+            battleWinCount = battleWinCount,
+            battleLossCount = battleLossCount,
+            favorLevel = favorLevel,
+            personality = personality
+        )
+
+        return aisRng.nextDouble() < chance
     }
 
     fun calculatePowerScore(disciples: List<Disciple>): Double {
@@ -425,8 +466,20 @@ object AISectAttackManager {
     /**
      * 决定AI宗门是否应攻击玩家。
      *
-     * 检查顺序：保护期 → 附庸关系 → 已有预警 → 个性冷却 →
-     * 好感度 → 联盟 → 个性宣战概率。
+     * 保留的二进制硬约束（按序检查）：
+     * 1. 保护期
+     * 2. 附庸关系（主宗不攻击附庸）
+     * 3. 已有活跃预警
+     * 4. 攻击冷却期
+     * 5. 最低弟子数
+     * 6. 同联盟不攻击
+     *
+     * 综合评估委托 [IntelligentSectDecisionEngine] 的四因素加权模型：
+     * - 战力差 (40%) — 通过个性偏移因子体现好战/保守差异
+     * - 占领丢失 (20%)
+     * - 胜负 (25%)
+     * - 好感度 (15%) — 正值好感不攻击（ATTACK_PROFILE 的 hard limit 0）
+     * - AI 个性 — 作为最终概率的修正因子
      */
     fun decidePlayerAttack(gameData: GameData): PlayerAttackDecision {
         if (gameData.isPlayerProtected) return PlayerAttackDecision.Skip
@@ -451,42 +504,56 @@ object AISectAttackManager {
             val cooldownUntil = gameData.sectAttackCooldowns[attacker.id]
             if (cooldownUntil != null && nowMonth < cooldownUntil) continue
 
-            // ---- 个性参数获取 ----
+            // ---- 个性参数 ----
             val personality = gameData.aiSectPersonalities[attacker.id]
                 ?: AISectPersonality.BALANCED
-            val denounceInterval = AISectPersonality.randomDenounceInterval(personality)
 
             // ---- 最低弟子数 ----
             val attackerDisciples = aiDisciplesMap[attacker.id] ?: emptyList()
             val aliveAttackers = attackerDisciples.filter { it.isAlive }
             if (aliveAttackers.size < MIN_DISCIPLES_FOR_ATTACK) continue
 
-            // ---- 好感度 ----
-            val favor = FavorDomain.findFavor(gameData.sectRelations, attacker.id, playerSectId)
-            if (favor > 0) continue
-
             // ---- 联盟 ----
             if (attacker.allianceId.isNotEmpty() &&
                 playerSect.allianceId == attacker.allianceId) continue
 
-            // ---- 战力比门槛（按个性） ----
+            // ---- 战力计算 ----
             val attackerPower = calculatePowerScore(aliveAttackers)
             val defenderDisciples = aiDisciplesMap[playerSectId] ?: emptyList()
             val defenderPower = calculatePowerScore(
                 defenderDisciples.filter { it.isAlive }
             )
-            if (defenderPower > 0 &&
-                attackerPower < defenderPower * personality.powerRatioThreshold
-            ) continue
+            if (defenderPower <= 0) continue
+            val powerRatio = attackerPower / defenderPower
 
-            // ---- 宣战概率（按个性） ----
-            if (aisRng.nextDouble() > personality.warProbability) continue
+            // ---- 多因素智能综合评估 ----
+            val favor = FavorDomain.findFavor(gameData.sectRelations, attacker.id, playerSectId)
+            val favorLevel = SectRelationLevel.fromFavor(favor)
+            val recentRecords = gameData.sectBattleRecords.filter {
+                it.year >= gameData.gameYear - 3
+            }
+            val conquestCount = recentRecords.count { it.type == SectBattleType.CONQUEST }
+            val lostSectCount = recentRecords.count { it.type == SectBattleType.LOST_SECT }
+            val battleWinCount = recentRecords.count { it.type == SectBattleType.BATTLE_WIN }
+            val battleLossCount = recentRecords.count { it.type == SectBattleType.BATTLE_LOSS }
 
-            // 通过所有检查 → 生成谴责预警
-            return PlayerAttackDecision.GenerateWarning(
-                attackerSectId = attacker.id,
-                attackerSectName = attacker.name
+            val attackChance = IntelligentSectDecisionEngine.calculateChance(
+                profile = IntelligentSectDecisionEngine.ATTACK_PROFILE,
+                powerRatio = powerRatio,
+                conquestCount = conquestCount,
+                lostSectCount = lostSectCount,
+                battleWinCount = battleWinCount,
+                battleLossCount = battleLossCount,
+                favorLevel = favorLevel,
+                personality = personality
             )
+
+            if (aisRng.nextDouble() < attackChance) {
+                return PlayerAttackDecision.GenerateWarning(
+                    attackerSectId = attacker.id,
+                    attackerSectName = attacker.name
+                )
+            }
         }
 
         return PlayerAttackDecision.Skip
@@ -536,6 +603,12 @@ object AISectAttackManager {
         )
     }
 
+    /**
+     * 查找没有任何可攻击目标的 AI 宗门。
+     *
+     * 为避免概率抖动影响兽潮路由判定，此处只检查硬约束（弟子数、联盟、好感度、战力门槛），
+     * 不执行 RNG 概率判定。
+     */
     fun findSectsWithNoTargets(gameData: GameData): Set<String> {
         val aiSects = gameData.worldMapSects.filter { !it.isPlayerSect }
         val aiDisciplesMap = gameData.aiSectDisciples
@@ -543,14 +616,41 @@ object AISectAttackManager {
 
         for (sect in aiSects) {
             val sectDisciples = aiDisciplesMap[sect.id] ?: emptyList()
-            if (sectDisciples.filter { it.isAlive }.size < MIN_DISCIPLES_FOR_ATTACK) {
+            val aliveSectDisciples = sectDisciples.filter { it.isAlive }
+            if (aliveSectDisciples.size < MIN_DISCIPLES_FOR_ATTACK) {
                 sectsWithNoTargets.add(sect.id)
                 continue
             }
 
+            val sectPower = calculatePowerScore(aliveSectDisciples)
+            val personality = gameData.aiSectPersonalities[sect.id] ?: AISectPersonality.BALANCED
+
             val hasTarget = gameData.worldMapSects.any { target ->
-                target.id != sect.id && target.occupierSectId != sect.id &&
-                checkAttackConditions(sect, target, gameData, aiDisciplesMap)
+                if (target.id == sect.id || target.occupierSectId == sect.id) return@any false
+                if (sect.allianceId.isNotEmpty() && sect.allianceId == target.allianceId) return@any false
+
+                val targetDisciples = if (target.isPlayerOccupied) {
+                    emptyList() // 玩家占领的宗门可能有驻军，不确定时视为有目标
+                } else {
+                    (aiDisciplesMap[target.id] ?: emptyList()).filter { it.isAlive }
+                }
+                if (targetDisciples.isEmpty() && !target.isPlayerSect && !target.isPlayerOccupied) return@any false
+
+                val targetPower = calculatePowerScore(targetDisciples)
+                if (targetPower <= 0) return@any false
+                val powerRatio = sectPower / targetPower
+
+                // 使用引擎计算概率但不执行 RNG，只要 chance > 0 就算有目标
+                val favor = FavorDomain.findFavor(gameData.sectRelations, sect.id, target.id)
+                val favorLevel = SectRelationLevel.fromFavor(favor)
+                val chance = IntelligentSectDecisionEngine.calculateChance(
+                    profile = IntelligentSectDecisionEngine.ATTACK_PROFILE,
+                    powerRatio = powerRatio,
+                    conquestCount = 0, lostSectCount = 0, battleWinCount = 0, battleLossCount = 0,
+                    favorLevel = favorLevel,
+                    personality = personality
+                )
+                chance > 0.0
             }
 
             if (!hasTarget) {

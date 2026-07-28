@@ -11,11 +11,11 @@ enum class SectRelationLevel(
     val maxFavor: Int,
     val colorHex: Long
 ) {
-    /** 敌对 0-9 */
-    HOSTILE("敌对", 0, 9, 0xFFF44336),
+    /** 敌对 0-19 */
+    HOSTILE("敌对", 0, 19, 0xFFF44336),
 
-    /** 交恶 10-39 */
-    ANTAGONISTIC("交恶", 10, 39, 0xFFFF5722),
+    /** 交恶 20-39 */
+    ANTAGONISTIC("交恶", 20, 39, 0xFFFF5722),
 
     /** 普通 40-59 */
     NORMAL("普通", 40, 59, 0xFFFF9800),

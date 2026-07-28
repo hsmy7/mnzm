@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.domain.diplomacy
 
 import com.xianxia.sect.core.domain.FavorDomain
 import com.xianxia.sect.core.domain.favor.FavorService
+import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
 import com.xianxia.sect.core.event.BattleCompletedEvent
 import com.xianxia.sect.core.event.DomainEvent
 import com.xianxia.sect.core.event.DomainEventSubscriber
@@ -60,7 +61,13 @@ class DiplomacyService @Inject constructor(
     /**
      * 简化版结盟请求（聊天流使用）
      * 无灵石费用、无需envoyDiscipleId、无需游说弟子
-     * 仅检查好感度 + 已有盟约 + 概率随机判定
+     *
+     * 使用 [IntelligentSectDecisionEngine] 的四因素加权模型判定：
+     * - 战力差 (20%) — 势均力敌更易结盟
+     * - 占领丢失 (15%)
+     * - 胜负 (25%) — 胜率反映宗门实力
+     * - 好感度 (40%) — 信任是结盟的基础
+     * - AI 个性 — 作为概率修正因子
      */
     suspend fun requestAllianceSimple(sectId: String): Boolean {
         val data = stateStore.gameData.value
@@ -74,13 +81,44 @@ class DiplomacyService @Inject constructor(
         val existingAlliance = data.alliances.any { it.sectIds.contains("player") }
         if (existingAlliance) return false
 
-        val playerSect = data.worldMapSects.find { it.isPlayerSect }
-        val favor = if (playerSect != null) {
-            FavorDomain.findFavor(data.sectRelations, playerSect.id, sectId)
-        } else 0
+        val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return false
+        val playerSectId = playerSect.id
 
-        // 按好感度计算成功概率
-        val successChance = FavorDomain.calculateAllianceSuccessChance(favor)
+        // 计算双方战力
+        val playerPower = calculatePlayerTotalPower()
+        val aiSectDisciples = data.aiSectDisciples[sectId] ?: emptyList()
+        val aiPower = AISectAttackManager.calculatePowerScore(aiSectDisciples)
+        if (aiPower <= 0) return false
+        val powerRatio = playerPower / aiPower
+
+        // 好感度（转为等级）
+        val favor = FavorDomain.findFavor(data.sectRelations, playerSectId, sectId)
+        val favorLevel = SectRelationLevel.fromFavor(favor)
+
+        // AI 个性
+        val personality = data.aiSectPersonalities[sectId] ?: AISectPersonality.BALANCED
+
+        // 战斗记录（近3年）
+        val recentRecords = data.sectBattleRecords.filter {
+            it.year >= data.gameYear - 3
+        }
+        val conquestCount = recentRecords.count { it.type == SectBattleType.CONQUEST }
+        val lostSectCount = recentRecords.count { it.type == SectBattleType.LOST_SECT }
+        val battleWinCount = recentRecords.count { it.type == SectBattleType.BATTLE_WIN }
+        val battleLossCount = recentRecords.count { it.type == SectBattleType.BATTLE_LOSS }
+
+        // 使用共享引擎计算结盟概率
+        val successChance = IntelligentSectDecisionEngine.calculateChance(
+            profile = IntelligentSectDecisionEngine.ALLIANCE_PROFILE,
+            powerRatio = powerRatio,
+            conquestCount = conquestCount,
+            lostSectCount = lostSectCount,
+            battleWinCount = battleWinCount,
+            battleLossCount = battleLossCount,
+            favorLevel = favorLevel,
+            personality = personality
+        )
+
         val success = rng.nextDouble() < successChance
 
         if (success) {
@@ -119,6 +157,12 @@ class DiplomacyService @Inject constructor(
         }
 
         return success
+    }
+
+    /** 计算玩家宗门总战力 */
+    private fun calculatePlayerTotalPower(): Double {
+        val disciples = discipleTables.assembleAll()
+        return AISectAttackManager.calculatePowerScore(disciples)
     }
 
     /**

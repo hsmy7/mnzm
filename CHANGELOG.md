@@ -2,7 +2,27 @@
 
 ### 重构
 
-- **抽取独立 RecruitService** — 招募逻辑从 MerchantAndRecruitService 拆分独立（消除 SRP 违规），新建 RecruitService 负责招募刷新/自动招募/招募数量计算，6 个文件同步更新注入关系
+- **抽取共享AI智能判定引擎** — 从VassalService提取四因素加权模型(战力差/占领丢失/胜负/好感度)为IntelligentSectDecisionEngine，统一供攻击判定/结盟判定/附属判定三种场景使用，消除VassalService内联计算与攻击/结盟独立逻辑的三份重复
+- **好感度五级分档** — SectRelationLevel范围调整(HOSTILE 0→19, ANTAGONISTIC 20→39)，判定引擎参数从`favor: Int`改为`favorLevel: SectRelationLevel`，5种厌恶→友好等级各有固定分值，消除连续数值微调不可预测性
+- **攻击判定改用四因素模型** — checkAttackConditions(原文二进制门槛:好感>0跳过/同联盟跳过/战力比<\<门槛跳过)改为四因素加权(战力40%/占领20%/胜负25%/好感15%)+个性偏移(好战×1.2,保守×0.8,隐世×0.6)；decidePlayerAttack同模型替代warProbability单概率
+- **结盟判定改用四因素模型** — requestAllianceSimple从纯好感度分档(6级favor→概率映射)改为四因素加权(好感40%/战力20%/胜负25%/占领15%)+个性偏移
+- **附属判定迁移至共享引擎** — VassalService.calculateVassalChance/checkSingleVassalBreakaway委托给引擎，脱离概率改用BREAKAWAY_FAVOR_SCORE等级分值映射
+- **SectDecisionConfig配置分离** — 攻击/结盟/附属三种决策类型各有独立权重配置，好感度等级分值映射移除旧FAVOR_HARD_LIMIT硬门槛
+
+### 修复（对抗性审查+代码审查）
+
+- **冗余逻辑清理** — 引擎战力门槛合并为单if，移除isPowerRatioHighIsGood未使用字段
+- **不安全后备值替换** — 脱离好感度`:? 0.5`后备改为`getValue()`，缺少等级直接暴露而非静默用错误值
+- **死代码移除** — SectDecisionConfig.Vassal.BREAKAWAY_FAVOR_BASELINE(脱离已改用等级分值映射)
+- **KDoc错字** — "称重"→"权重"
+
+### 测试
+
+- **新增IntelligentSectDecisionEngineTest** — 36+测试用例覆盖:权重一致性/5级好感度完整性/等级门槛(攻击遇友善至交不攻/结盟遇敌对不结盟)/战力分档/负数防御/NaN防御/个性修正/脱离概率/Profile构造校验
+
+### 架构
+
+- **攻击/结盟/附属统一判定架构** — 三种场景共用IntelligentSectDecisionEngine.calculateChance单一入口，DecisionProfile可插拔配置权重+等级分值+个性修正，达到Stellaris级AI加权决策水平
 - **消除 recruitDisciple 重复** — DiscipleService 与 DiscipleLifecycleManager 中字节级重复的 recruitDisciple 方法，仅保留 DiscipleService 版本
 - **消除 RecruitDiscipleUseCase** — 删除仅 15 行无逻辑的委托 UseCase
 - **AI 宗门 RNG 确定性化** — AISectDiscipleManager 使用存档种子确定性播种，消除 System.nanoTime() 非确定性 RNG；新增 RngPartition.AI_SECT(6) 分区

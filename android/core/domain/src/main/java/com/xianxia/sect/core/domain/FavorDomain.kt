@@ -149,7 +149,18 @@ object FavorDomain {
      *
      * @param favor 当前好感度
      * @return 成功概率 (0.0 - 1.0)
+     *
+     * @deprecated 改用 [IntelligentSectDecisionEngine] 的多因素加权模型，
+     * 使用 [IntelligentSectDecisionEngine.ALLIANCE_PROFILE]。
+     * 此方法仅保留为向后兼容。
      */
+    @Deprecated(
+        "Use IntelligentSectDecisionEngine with ALLIANCE_PROFILE instead",
+        ReplaceWith(
+            "IntelligentSectDecisionEngine.calculateChance(IntelligentSectDecisionEngine.ALLIANCE_PROFILE, ...)",
+            "com.xianxia.sect.core.domain.diplomacy.IntelligentSectDecisionEngine"
+        )
+    )
     fun calculateAllianceSuccessChance(favor: Int): Double {
         return when {
             favor >= 90 -> 0.90
