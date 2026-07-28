@@ -124,9 +124,10 @@ class BootSequenceController @Inject constructor(
             onPhase("ready")
             onProgress(0.40f)
 
-            // ── Step 5: 弟子快照预热 + 重型数据 ──
+            // ── Step 5: 弟子快照预热 + 重型数据 + 数据完整性守卫 ──
             discipleSnapshotCache.prewarm(gameEngine.discipleTables)
             gameEngine.ensureHeavyDataLoaded()
+            gameEngine.ensureGameDataIntegrity()
 
             // ── Step 6: 重建分配注册表（读档后同步 Gate 状态）──
             onProgress(0.50f)

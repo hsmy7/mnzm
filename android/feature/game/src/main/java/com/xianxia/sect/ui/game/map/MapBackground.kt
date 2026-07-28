@@ -33,6 +33,10 @@ fun MapBackground(
     }
 
     Canvas(modifier = modifier.fillMaxSize()) {
+        // 填充视口背景色，防止 minOf 缩放后因视口与地图尺寸不匹配产生的白边
+        // 颜色取自 map_zhongzhou 边缘水域近似色（深灰蓝）
+        drawRect(color = androidx.compose.ui.graphics.Color(0xFF1A1A2E))
+
         withTransform({
             translate(-cameraState.cameraX * cameraState.scale, -cameraState.cameraY * cameraState.scale)
             scale(cameraState.scale, cameraState.scale, Offset.Zero)

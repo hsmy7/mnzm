@@ -7,8 +7,6 @@ import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.engine.WorldMapGenerator
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.GameRngManager
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -17,13 +15,14 @@ class SaveFacadeImpl @Inject constructor(
     private val saveService: SaveService,
     private val stateStore: GameStateStore,
     private val productionCoordinator: ProductionCoordinator,
-    private val coroutineScope: CoroutineScope,
     private val gameRngManager: GameRngManager
 ) : SaveFacade {
 
     /**
      * 存档前防御性校验：如果 worldMapSects 意外为空，从配置表紧急重生。
      * 正常情况下此检查为无操作，仅在数据管线异常时触发。
+     * 注意：此方法必须在 getStateSnapshotSync() 之前同步执行完成，
+     * 确保 snapshot 包含已修复的数据。
      */
     private fun validateWorldMapSectsBeforeSave() {
         val gd = stateStore.gameDataSnapshot
@@ -37,21 +36,20 @@ class SaveFacadeImpl @Inject constructor(
         }
 
         DomainLog.e("SaveFacade", "存档前检测到 worldMapSects 为空，" +
-            "从 FixedSectPositions 紧急重生 sectName=$sectName")
+            "同步重生 sectName=$sectName")
         val generationResult = WorldMapGenerator.generateWorldSects(sectName)
         val sectRelations = WorldMapGenerator.initializeSectRelations(generationResult.sects)
-        coroutineScope.launch {
-            stateStore.update {
-                val current = this.gameData
-                this.gameData = current.copy(
-                    worldMapSects = generationResult.sects,
-                    sectRelations = sectRelations,
-                    aiSectDisciples = if (current.aiSectDisciples.isEmpty()) generationResult.aiSectDisciples
-                        else current.aiSectDisciples
-                )
-            }
+        // 同步更新：getStateSnapshotSync 在同一线程调用，确保 snapshot 包含修复后的数据
+        stateStore.update {
+            val current = this.gameData
+            this.gameData = current.copy(
+                worldMapSects = generationResult.sects,
+                sectRelations = sectRelations,
+                aiSectDisciples = if (current.aiSectDisciples.isEmpty()) generationResult.aiSectDisciples
+                    else current.aiSectDisciples
+            )
         }
-        DomainLog.w("SaveFacade", "worldMapSects 紧急重生已触发，" +
+        DomainLog.w("SaveFacade", "worldMapSects 同步重生完成，" +
             "sects=${generationResult.sects.size}")
     }
 

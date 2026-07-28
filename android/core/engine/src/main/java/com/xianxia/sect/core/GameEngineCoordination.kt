@@ -75,6 +75,93 @@ suspend fun GameEngine.ensureHeavyDataLoaded() {
     DomainLog.d("GameEngine", "ensureHeavyDataLoaded: 完成 slot=$slot worldMapSects=${currentSects.size}")
 }
 
+// ════════════════════════════════════════════════════════════════════════
+// 游戏数据完整性守卫 — 行业第4层防御：Data Regeneration
+// ════════════════════════════════════════════════════════════════════════
+
+/**
+ * 游戏数据完整性守卫 — 检查并修复加载后所有依赖重型数据管线的关键字段。
+ *
+ * ## 对标（行业第4层防御：Data Regeneration）
+ * 行业存档防御链共4层：① Atomic Write ② Backup Fallback ③ Schema Migration
+ * ④ Data Regeneration。①-③已实现，此函数补齐第4层。
+ *
+ * 重型数据管线（game_heavy_data 表）可能因写入中断、反序列化版本不匹配或 Migration
+ * 遗漏导致部分字段在合并后仍为空。此函数在加载管线终点集中从权威源数据恢复。
+ *
+ * ## 设计
+ * - 正常路径零开销（前置 isEmpty 判定）
+ * - 每个字段独立检查+修复，使用最新 snapshot 避免中间状态污染
+ * - 仅修复可自动重生的字段；不可逆字段（exploredSects/scoutInfo）仅记录告警
+ */
+suspend fun GameEngine.ensureGameDataIntegrity() {
+    checkAndRepairWorldMapSects()
+    checkAndRepairAiSectDisciples()
+    checkAndRepairMerchantAndRecruit()
+}
+
+private suspend fun GameEngine.checkAndRepairWorldMapSects() {
+    val gd = stateStore.gameDataSnapshot
+    if (gd.worldMapSects.isNotEmpty()) return
+    val sectName = gd.sectName
+    if (sectName.isBlank()) {
+        DomainLog.e("ensureGameDataIntegrity", "worldMapSects 为空且 sectName 为空，无法重生")
+        return
+    }
+    DomainLog.w("ensureGameDataIntegrity",
+        "worldMapSects 为空，从 FixedSectPositions 重生 (sectName=$sectName)")
+    val generationResult = WorldMapGenerator.generateWorldSects(sectName)
+    val sectRelations = WorldMapGenerator.initializeSectRelations(generationResult.sects)
+    stateStore.update {
+        gameData = gameData.copy(
+            worldMapSects = generationResult.sects,
+            sectRelations = sectRelations,
+            aiSectDisciples = if (gameData.aiSectDisciples.isEmpty())
+                generationResult.aiSectDisciples else gameData.aiSectDisciples
+        )
+    }
+}
+
+private suspend fun GameEngine.checkAndRepairAiSectDisciples() {
+    val gd = stateStore.gameDataSnapshot
+    if (gd.aiSectDisciples.isNotEmpty() &&
+        gd.aiSectDisciples.values.all { it.size >= 50 }) return
+    if (gd.worldMapSects.isEmpty()) return
+    DomainLog.w("ensureGameDataIntegrity", "aiSectDisciples 不足，填充至 50 人")
+    val regenerated = mutableMapOf<String, List<Disciple>>()
+    for (sect in gd.worldMapSects) {
+        if (sect.isPlayerSect) continue
+        val existing = gd.aiSectDisciples[sect.id].orEmpty()
+        if (existing.isEmpty()) {
+            val (d, _) = AISectDiscipleManager.initializeSectDisciples(sect.name, sect.level)
+            regenerated[sect.id] =
+                AISectDiscipleManager.fillDisciplesToTarget(sect.name, d, 50, sect.level)
+        } else if (existing.size < 50) {
+            regenerated[sect.id] =
+                AISectDiscipleManager.fillDisciplesToTarget(sect.name, existing, 50, sect.level)
+        }
+    }
+    if (regenerated.isNotEmpty()) {
+        stateStore.update {
+            val merged = gameData.aiSectDisciples.toMutableMap()
+            merged.putAll(regenerated)
+            gameData = gameData.copy(aiSectDisciples = merged)
+        }
+    }
+}
+
+private suspend fun GameEngine.checkAndRepairMerchantAndRecruit() {
+    val gd = stateStore.gameDataSnapshot
+    if (gd.travelingMerchantItems.isEmpty()) {
+        DomainLog.w("ensureGameDataIntegrity", "travelingMerchantItems 为空，刷新")
+        cultivationService.refreshTravelingMerchant(gd.gameYear, gd.gameMonth)
+    }
+    if (gd.recruitList.isEmpty() && gd.gameYear - gd.lastRecruitYear >= 3) {
+        DomainLog.w("ensureGameDataIntegrity", "recruitList 为空，刷新")
+        cultivationService.refreshRecruitList(gd.gameYear)
+    }
+}
+
 suspend fun GameEngine.loadData(
     gameData: GameData, disciples: List<Disciple>, equipmentStacks: List<EquipmentStack>,
     equipmentInstances: List<EquipmentInstance>, manualStacks: List<ManualStack>,
@@ -134,15 +221,6 @@ suspend fun GameEngine.loadData(
         }
         checkAndCollectCompletedSlots()
         val currentData = stateStore.gameDataSnapshot
-        if (currentData.travelingMerchantItems.isEmpty() || currentData.recruitList.isEmpty()) {
-            DomainLog.w("GameEngine", "loadData: detected empty merchant items or recruit list after load, refreshing...")
-            if (currentData.travelingMerchantItems.isEmpty()) {
-                cultivationService.refreshTravelingMerchant(currentData.gameYear, currentData.gameMonth)
-            }
-            if (currentData.recruitList.isEmpty() && currentData.gameYear - currentData.lastRecruitYear >= 3) {
-                cultivationService.refreshRecruitList(currentData.gameYear)
-            }
-        }
         // 旧存档兼容：merchantRefreshChances=0（该字段加入前的存档）初始化为1
         // 同时设置 lastGrantYear 防止下一年度事件双倍发放
         if (currentData.merchantRefreshChances == 0 && currentData.merchantLastRefreshChanceGrantYear == 0) {
@@ -169,36 +247,6 @@ suspend fun GameEngine.loadData(
             }
         }
 
-        val loadedData = stateStore.gameData.value
-        if (loadedData.aiSectDisciples.isEmpty() && loadedData.worldMapSects.isNotEmpty()) {
-            DomainLog.i("GameEngine", "loadData: aiSectDisciples empty, regenerating for ${loadedData.worldMapSects.size} sects")
-            val regenerated = mutableMapOf<String, List<Disciple>>()
-            for (sect in loadedData.worldMapSects) {
-                if (!sect.isPlayerSect) { val (d, _) = AISectDiscipleManager.initializeSectDisciples(sect.name, sect.level); regenerated[sect.id] = d }
-            }
-            stateStore.update { this.gameData = this.gameData.copy(aiSectDisciples = regenerated) }
-        }
-        // 旧存档兼容：AI 宗门弟子数不足 50 人时补充至 50 人
-        val currentDisciples = stateStore.gameData.value.aiSectDisciples
-        val worldSects = stateStore.gameData.value.worldMapSects
-        if (currentDisciples.isNotEmpty() && worldSects.isNotEmpty()) {
-            val filled = currentDisciples.toMutableMap()
-            var filledCount = 0
-            for (sect in worldSects) {
-                if (sect.isPlayerSect) continue
-                val existing = filled[sect.id] ?: continue
-                if (existing.size < 50) {
-                    filled[sect.id] = AISectDiscipleManager.fillDisciplesToTarget(
-                        sect.name, existing, 50, sect.level
-                    )
-                    filledCount++
-                }
-            }
-            if (filledCount > 0) {
-                DomainLog.i("GameEngine", "loadData: filled $filledCount AI sects to 50 disciples")
-                stateStore.update { this.gameData = this.gameData.copy(aiSectDisciples = filled) }
-            }
-        }
         try { mailService.resetAndInitSlot(gameData.slotId) } catch (e: Exception) { DomainLog.e("GameEngine", "Failed to initialize mail for slot ${gameData.slotId}", e) }
     }
 }
