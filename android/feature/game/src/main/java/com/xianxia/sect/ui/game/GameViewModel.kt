@@ -47,6 +47,7 @@ import com.xianxia.sect.core.state.BattleResultUIData
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.PendingBeastAttack
+import com.xianxia.sect.core.state.PendingMarriageProposal
 import com.xianxia.sect.ui.game.delegate.*
 import com.xianxia.sect.ui.navigation.GameRoute
 import kotlinx.coroutines.*
@@ -232,6 +233,22 @@ class GameViewModel @Inject constructor(
     fun clearPendingBeastAttacks() = beastAttack.clearPendingBeastAttacks()
     fun removePendingBeastAttack(beastLevelId: String) = beastAttack.removePendingBeastAttack(beastLevelId)
 
+    // ── 婚姻提议审批 ─────────────────────────────────────────
+
+    /**
+     * 批准婚姻提议：通知引擎执行配对并移除待处理提议。
+     */
+    fun approveMarriage(maleId: String, femaleId: String) {
+        gameEngine.launchOnEngine { gameEngine.approveMarriageProposal(maleId, femaleId) }
+    }
+
+    /**
+     * 拒绝婚姻提议：通知引擎移除待处理提议，不执行配对。
+     */
+    fun rejectMarriage(maleId: String, femaleId: String) {
+        gameEngine.launchOnEngine { gameEngine.rejectMarriageProposal(maleId, femaleId) }
+    }
+
     // ── Beast View Lock（妖兽弹窗锁定） ───────────────────────
 
     /** 锁定妖兽：打开详情弹窗时调用，月度结算跳过 AI 攻击 */
@@ -387,6 +404,7 @@ class GameViewModel @Inject constructor(
     val pendingBattleResult: StateFlow<BattleResultUIData?> get() = gameEngine.pendingBattleResult
     val pendingBattleRewardCards: StateFlow<List<RewardCardItem>> get() = gameEngine.pendingBattleRewardCards
     val pendingBeastAttacks: StateFlow<List<PendingBeastAttack>> get() = gameEngine.pendingBeastAttacks
+    val pendingMarriageProposals: StateFlow<List<PendingMarriageProposal>> get() = gameEngine.pendingMarriageProposals
 
     val alliances: StateFlow<List<Alliance>> = gameEngine.gameData
         .map { it.alliances }.stateIn(viewModelScope, sharingStarted, emptyList())

@@ -124,6 +124,7 @@ class GameStateStoreImpl @Inject constructor(
     internal val _pendingBattleRewardCardsFlow = MutableStateFlow<List<RewardCardItem>>(emptyList())
     internal val _rewardCardQueueFlow = MutableStateFlow<List<RewardCardItem>>(emptyList())
     internal val _pendingBeastAttacksFlow = MutableStateFlow<List<PendingBeastAttack>>(emptyList())
+    internal val _pendingMarriageProposalsFlow = MutableStateFlow<List<PendingMarriageProposal>>(emptyList())
 
     private val _isPaused = MutableStateFlow(true)
     private val _isLoading = MutableStateFlow(false)
@@ -296,6 +297,7 @@ class GameStateStoreImpl @Inject constructor(
     override val pendingBattleRewardCards: StateFlow<List<RewardCardItem>> = _pendingBattleRewardCardsFlow.asStateFlow()
     override val rewardCardQueue: StateFlow<List<RewardCardItem>> = _rewardCardQueueFlow.asStateFlow()
     override val pendingBeastAttacks: StateFlow<List<PendingBeastAttack>> = _pendingBeastAttacksFlow.asStateFlow()
+    override val pendingMarriageProposals: StateFlow<List<PendingMarriageProposal>> = _pendingMarriageProposalsFlow.asStateFlow()
 
     // === 三层 StateFlow 架构 ===
     // HighFreq: 高频变化字段，sample 降频
@@ -499,7 +501,8 @@ class GameStateStoreImpl @Inject constructor(
         isPaused = true,
         isLoading = false,
         isSaving = false,
-        pendingNotification = null
+        pendingNotification = null,
+        pendingMarriageProposals = emptyList()
     )
 
     override fun setPausedDirect(paused: Boolean) {
@@ -582,6 +585,12 @@ class GameStateStoreImpl @Inject constructor(
         _stateDirty = true
     }
 
+    override fun clearPendingMarriageProposals() {
+        _pendingMarriageProposalsFlow.value = emptyList()
+        _updateVersion.value++
+        _stateDirty = true
+    }
+
     override fun setPendingBattleRewardCards(cards: List<RewardCardItem>) {
         _pendingBattleRewardCardsFlow.value = cards
     }
@@ -649,6 +658,7 @@ class GameStateStoreImpl @Inject constructor(
                 val curLoading = _isLoading.value
                 val curSaving = _isSaving.value
                 val curNotif = _pendingNotificationFlow.value
+                val curProposals = _pendingMarriageProposalsFlow.value
                 reusableMutableState.apply {
                     gameData = curGame
                     // 增量 deepCopy：只复制自上次 update 以来被写过的列
@@ -669,8 +679,10 @@ class GameStateStoreImpl @Inject constructor(
                     isLoading = curLoading
                     isSaving = curSaving
                     pendingNotification = curNotif
+                    pendingMarriageProposals = curProposals
                 }
                 val notificationBeforeBlock = reusableMutableState.pendingNotification
+                val proposalsBeforeBlock = reusableMutableState.pendingMarriageProposals
                 reusableMutableState.block()
                 // ★ 冻结 EntityStore 快照，确保 items 引用正确反映变化
                 reusableMutableState.equipmentStacks.freeze()
@@ -683,6 +695,7 @@ class GameStateStoreImpl @Inject constructor(
                 reusableMutableState.seeds.freeze()
                 reusableMutableState.storageBags.freeze()
                 val blockChangedNotification = reusableMutableState.pendingNotification !== notificationBeforeBlock
+                val blockChangedProposals = reusableMutableState.pendingMarriageProposals !== proposalsBeforeBlock
                 val finalPaused = if (_isPaused.value != curPaused) _isPaused.value else reusableMutableState.isPaused
                 val finalLoading = if (_isLoading.value != curLoading) _isLoading.value else reusableMutableState.isLoading
                 val finalSaving = if (_isSaving.value != curSaving) _isSaving.value else reusableMutableState.isSaving
@@ -707,6 +720,8 @@ class GameStateStoreImpl @Inject constructor(
                     _battleLogsFlow.value = reusableMutableState.battleLogs
                 if (blockChangedNotification)
                     _pendingNotificationFlow.value = reusableMutableState.pendingNotification
+                if (blockChangedProposals)
+                    _pendingMarriageProposalsFlow.value = reusableMutableState.pendingMarriageProposals
                 val disciplesChanged = reusableMutableState.discipleTables !== _discipleTables
                 val mutated = reusableMutableState.discipleTables.mutationVersion
                 disciplesNeedReassemble = disciplesChanged || mutated != lastAssembledMutationVersion
@@ -749,6 +764,7 @@ class GameStateStoreImpl @Inject constructor(
                     || finalLoading != curLoading
                     || finalSaving != curSaving
                     || blockChangedNotification
+                    || blockChangedProposals
                 if (anyFieldChanged) {
                     _updateVersion.value++
                     _stateDirty = true

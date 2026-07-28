@@ -37,7 +37,16 @@
       "测试：新增DiscipleFacadeImplRecruitTest——recruitDiscipleFromList 9测试(正常/损坏/事务/重复招募)",
       "测试：新增GameEngineRecruitTest——recruitAllFromList 6测试(批量/全损坏/部分损坏/recruitedMonth验证)",
       "修复：天道试炼Phase 1/Phase 2通关状态错乱——launchOnEngine异步捕获selectedPhaseIndex读错值，Phase 1通关被记录为Phase 2通关。局部捕获+通关后回到主面板",
-      "修复：4项预存测试数据过期——BootSequenceControllerTest mock缺cultivationService NPE/RecruitServiceTest魅力上限20/IntelligentSectDecisionEngineTest敌对返回0/GameEngineRecruitTest字符串排序弟子10"
+      "修复：4项预存测试数据过期——BootSequenceControllerTest mock缺cultivationService NPE/RecruitServiceTest魅力上限20/IntelligentSectDecisionEngineTest敌对返回0/GameEngineRecruitTest字符串排序弟子10",
+      "修复：勾选\"结婚需同意\"后弟子结婚弹窗不显示——PartnerSystem忽略daoCompanionConsentRequired字段，改用pending state模式(类似妖兽预警)，月度结算提议暂存待处理列表，GameOverlayHost逐对显示MarriageApprovalDialog(复用已有组件)",
+      "修复(对抗审查)：同一女性可获多份提议——pairedFemaleIds未更新，同意模式添加pairedFemaleIds.add()",
+      "修复(对抗审查)：approve不检查已有配对静默覆盖——添加partnerIds非空防御检查+已配对时仅移除提议",
+      "修复(对抗审查)：跨月提议重复+死亡弟子提议残留——添加去重检查+月度清理失效提议",
+      "修复(对抗审查)：关闭同意不清理旧提议——setDaoCompanionConsentRequired(false)时清空pendingMarriageProposals",
+      "修复(对抗审查)：拒绝提议不记录事件日志——rejectMarriageProposal添加recordGameEvent记录拒绝",
+      "修复(对抗审查)：审批对话框遮罩层叠加——subDialogScrim参数传递控制",
+      "测试：新增PartnerSystemTest——16测试用例(自动配对不变性/同意模式/去重/死亡+已配对清理/血亲回避)",
+      "测试：新增GameEngineMarriageProposalTest——8测试用例(approve/reject边缘情况)"
     ]
   },
   {

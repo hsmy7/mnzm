@@ -120,6 +120,8 @@ fun GameOverlayHost(
     val pendingNotification by viewModel.pendingNotification.collectAsStateWithLifecycle()
     val pendingBattleResult by viewModel.pendingBattleResult.collectAsStateWithLifecycle()
     val pendingBattleRewardCards by viewModel.pendingBattleRewardCards.collectAsStateWithLifecycle()
+    val pendingMarriageProposals by viewModel.pendingMarriageProposals.collectAsStateWithLifecycle()
+    val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
 
     var showBattleResult by remember { mutableStateOf(false) }
     var showBattleRewardDialog by remember { mutableStateOf(false) }
@@ -207,6 +209,29 @@ fun GameOverlayHost(
                 }
             }
         )
+    }
+
+    // ── 婚姻提议弹窗 ──────────────────────────────────────────
+
+    // 子对话框的遮罩控制：有主对话框或 overlay 显示时，子对话框不再叠加自己的遮罩
+    val hasMainDialog = currentDialogType != DialogType.None
+    val hasOverlay = viewModel.overlayOrder.isNotEmpty()
+    val subDialogScrim = !(hasMainDialog || hasOverlay)
+
+    val currentProposal = pendingMarriageProposals.firstOrNull()
+
+    if (currentProposal != null) {
+        val maleDisciple = disciples.find { it.id == currentProposal.maleId }
+        val femaleDisciple = disciples.find { it.id == currentProposal.femaleId }
+        if (maleDisciple != null && femaleDisciple != null) {
+            MarriageApprovalDialog(
+                maleDisciple = maleDisciple,
+                femaleDisciple = femaleDisciple,
+                onApprove = { viewModel.approveMarriage(currentProposal.maleId, currentProposal.femaleId) },
+                onReject = { viewModel.rejectMarriage(currentProposal.maleId, currentProposal.femaleId) },
+                scrimEnabled = subDialogScrim
+            )
+        }
     }
 
     // AI宗门进攻预警弹窗
@@ -637,11 +662,6 @@ fun GameOverlayHost(
             }
         )
     }
-
-    // 子对话框的遮罩控制：有主对话框或 overlay 显示时，子对话框不再叠加自己的遮罩
-    val hasMainDialog = currentDialogType != DialogType.None
-    val hasOverlay = viewModel.overlayOrder.isNotEmpty()
-    val subDialogScrim = !(hasMainDialog || hasOverlay)
 
     tipDialogMessage?.let { message ->
         StandardPromptDialog(

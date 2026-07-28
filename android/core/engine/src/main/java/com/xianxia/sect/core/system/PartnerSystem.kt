@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.system
 
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.PendingMarriageProposal
 import com.xianxia.sect.core.state.recordGameEvent
 import com.xianxia.sect.core.model.GameEventCategory
 import com.xianxia.sect.core.model.GameEventType
@@ -37,6 +38,16 @@ class PartnerSystem @Inject constructor(
 
     internal fun processPartnerMatching(state: MutableGameState) {
         val allDisciples = state.discipleTables.assembleAll()
+
+        // 清理失效提议：已死亡或已有道侣的提议应移除
+        val aliveIds = allDisciples.filter { it.isAlive }.map { it.id }.toSet()
+        val partnerIds = state.discipleTables.partnerIds
+        state.pendingMarriageProposals = state.pendingMarriageProposals.filter { p ->
+            p.maleId in aliveIds && p.femaleId in aliveIds &&
+                partnerIds[p.maleId.toIntOrNull() ?: return@filter false] == null &&
+                partnerIds[p.femaleId.toIntOrNull() ?: return@filter false] == null
+        }
+
         val bannedRootCounts = state.gameData.daoCompanionBannedRootCounts
 
         val eligibleMales = allDisciples.filter {
@@ -58,19 +69,31 @@ class PartnerSystem @Inject constructor(
                 if (hasBloodRelation(male, female)) continue
 
                 if (rngManager.getRng(RngPartition.SYSTEM).nextDouble() < PAIRING_PROBABILITY) {
-                    // 消息栏系统：移除了 consentRequired 弹窗，改为自动配对 + 事件记录
-                    // ★ 直接列写入 partnerIds，避免 assembleAll → map → replaceAll
-                    // 全表替换走 writeGuard 可能触发竞态崩溃 #3057
-                    val maleId = male.id.toIntOrNull() ?: continue
-                    val femaleId = female.id.toIntOrNull() ?: continue
-                    state.discipleTables.partnerIds[maleId] = female.id
-                    state.discipleTables.partnerIds[femaleId] = male.id
-                    pairedFemaleIds.add(female.id)
-                    state.recordGameEvent(
-                        GameEventCategory.SECT, GameEventType.MARRIAGE,
-                        "弟子${male.name}与弟子${female.name}结为道侣",
-                        male.id, male.name
-                    )
+                    val consentRequired = state.gameData.daoCompanionConsentRequired
+                    if (consentRequired) {
+                        // 需同意模式：加入待处理列表，不自作主张配对
+                        // 去重检查：避免同一对已存在提议
+                        val alreadyProposed = state.pendingMarriageProposals.any {
+                            it.maleId == male.id && it.femaleId == female.id
+                        }
+                        if (!alreadyProposed) {
+                            state.pendingMarriageProposals = state.pendingMarriageProposals +
+                                PendingMarriageProposal(male.id, male.name, female.id, female.name)
+                            pairedFemaleIds.add(female.id)
+                        }
+                    } else {
+                        // 自动配对模式：直接配对
+                        val maleId = male.id.toIntOrNull() ?: continue
+                        val femaleId = female.id.toIntOrNull() ?: continue
+                        state.discipleTables.partnerIds[maleId] = female.id
+                        state.discipleTables.partnerIds[femaleId] = male.id
+                        pairedFemaleIds.add(female.id)
+                        state.recordGameEvent(
+                            GameEventCategory.SECT, GameEventType.MARRIAGE,
+                            "弟子${male.name}与弟子${female.name}结为道侣",
+                            male.id, male.name
+                        )
+                    }
                 }
             }
         }

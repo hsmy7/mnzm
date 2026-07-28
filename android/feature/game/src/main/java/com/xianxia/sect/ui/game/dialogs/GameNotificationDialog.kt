@@ -5,7 +5,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.ui.components.BattleParticipantSlot
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
@@ -28,16 +28,18 @@ fun LoyaltyChangeDialog(
 
 @Composable
 fun MarriageApprovalDialog(
-    maleDisciple: Disciple,
-    femaleDisciple: Disciple,
+    maleDisciple: DiscipleAggregate,
+    femaleDisciple: DiscipleAggregate,
     onApprove: () -> Unit,
-    onReject: () -> Unit
+    onReject: () -> Unit,
+    scrimEnabled: Boolean = true
 ) {
     StandardPromptDialog(
         onDismissRequest = onReject,
         title = "${maleDisciple.name}弟子与${femaleDisciple.name}弟子请求结婚",
         dismissOnBackPress = false,
         dismissOnClickOutside = false,
+        scrimEnabled = scrimEnabled,
         customButtons = {
             GameButton(text = "同意", onClick = onApprove)
             Spacer(modifier = Modifier.width(8.dp))

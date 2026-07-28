@@ -352,6 +352,7 @@ private class FakeGameStateStore : GameStateStore {
     override val pendingNotification = MutableStateFlow<GameNotification?>(null)
     override val rewardCardQueue = MutableStateFlow<List<RewardCardItem>>(emptyList())
     override val pendingBeastAttacks = MutableStateFlow<List<PendingBeastAttack>>(emptyList())
+    override val pendingMarriageProposals = MutableStateFlow<List<PendingMarriageProposal>>(emptyList())
     override val pendingBattleRewardCards = MutableStateFlow<List<RewardCardItem>>(emptyList())
     override val sectCombatPower = MutableStateFlow(0L)
     override val aiSectCombatPowers = MutableStateFlow<Map<String, Long>>(emptyMap())
@@ -408,6 +409,7 @@ private class FakeGameStateStore : GameStateStore {
     override fun setPendingBeastAttacks(a: List<PendingBeastAttack>) { pendingBeastAttacks.value = a }
     override fun clearPendingBeastAttacks() { pendingBeastAttacks.value = emptyList() }
     override fun removePendingBeastAttack(beastLevelId: String) { pendingBeastAttacks.value = pendingBeastAttacks.value.filter { it.beastLevel.id != beastLevelId } }
+    override fun clearPendingMarriageProposals() { pendingMarriageProposals.value = emptyList() }
     override fun setPendingBattleRewardCards(c: List<RewardCardItem>) { pendingBattleRewardCards.value = c }
     override fun clearPendingBattleRewardCards() { pendingBattleRewardCards.value = emptyList() }
     override fun enqueueRewardCards(items: List<RewardCardItem>) {}

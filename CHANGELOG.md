@@ -20,6 +20,16 @@
 
 - **新增IntelligentSectDecisionEngineTest** — 36+测试用例覆盖:权重一致性/5级好感度完整性/等级门槛(攻击遇友善至交不攻/结盟遇敌对不结盟)/战力分档/负数防御/NaN防御/个性修正/脱离概率/Profile构造校验
 
+### UI
+
+- **修复：勾选"结婚需同意"后弟子结婚弹窗不显示** — `PartnerSystem` 忽略 `daoCompanionConsentRequired` 字段，改用 pending state 模式（类似妖兽预警）。月度结算时提议暂存待处理列表，`GameOverlayHost` 逐对显示 `MarriageApprovalDialog`，同意后引擎原子配对+清理
+- **审查：对抗性审查修复 6 项** — `pairedFemaleIds` 未更新导致同一女性多份提议、approve 不检查已有配对静默覆盖、跨月提议重复+死亡弟子提议残留、关闭同意不清理旧提议、拒绝不记录事件日志、审批对话框遮罩层叠加
+
+### 测试
+
+- **新增PartnerSystemTest** — 16测试用例:自动配对不变性/同意模式/去重/死亡+已配对清理/血亲回避
+- **新增GameEngineMarriageProposalTest** — 8测试用例:approve/reject边缘情况(无效ID/已有道侣/提议不存在)
+
 ### 架构
 
 - **攻击/结盟/附属统一判定架构** — 三种场景共用IntelligentSectDecisionEngine.calculateChance单一入口，DecisionProfile可插拔配置权重+等级分值+个性修正，达到Stellaris级AI加权决策水平

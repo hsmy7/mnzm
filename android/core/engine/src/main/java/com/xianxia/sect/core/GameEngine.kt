@@ -155,6 +155,8 @@ class GameEngine @Inject constructor(
     val rewardCardQueue: StateFlow<List<RewardCardItem>> get() = stateStore.rewardCardQueue
     fun clearRewardCardQueue(count: Int = Int.MAX_VALUE) { stateStore.clearRewardCardQueue(count) }
     val pendingBeastAttacks: StateFlow<List<PendingBeastAttack>> get() = stateStore.pendingBeastAttacks
+    val pendingMarriageProposals: StateFlow<List<PendingMarriageProposal>> get() = stateStore.pendingMarriageProposals
+    fun clearPendingMarriageProposals() { stateStore.clearPendingMarriageProposals() }
     fun clearPendingBeastAttacks() { stateStore.clearPendingBeastAttacks() }
     fun removePendingBeastAttack(beastLevelId: String) { stateStore.removePendingBeastAttack(beastLevelId) }
     suspend fun resolveBeastAttackPayTribute(beastLevelId: String): Boolean {
@@ -167,6 +169,57 @@ class GameEngine @Inject constructor(
         return explorationService.resolveBeastAttackFight(beastLevelId, manualDefenders)
     }
     val warehouseFullEvent get() = stateStore.warehouseFullEvent
+
+    // ── 婚姻提议审批 ──────────────────────────────────────────
+
+    /**
+     * 批准婚姻提议：在 stateStore.update 事务内原子执行配对 + 从待处理列表移除。
+     *
+     * 防御性检查：若任一方已有道侣则跳过配对，仅清理提议避免静默覆盖。
+     */
+    fun approveMarriageProposal(maleId: String, femaleId: String) {
+        stateStore.update {
+            val maleIdInt = maleId.toIntOrNull() ?: return@update
+            val femaleIdInt = femaleId.toIntOrNull() ?: return@update
+            val proposal = pendingMarriageProposals.find {
+                it.maleId == maleId && it.femaleId == femaleId
+            } ?: return@update
+            // 防御性检查：任一方已有道侣则跳过配对
+            if (discipleTables.partnerIds[maleIdInt] != null ||
+                discipleTables.partnerIds[femaleIdInt] != null
+            ) {
+                pendingMarriageProposals = pendingMarriageProposals - proposal
+                return@update
+            }
+            discipleTables.partnerIds[maleIdInt] = femaleId
+            discipleTables.partnerIds[femaleIdInt] = maleId
+            recordGameEvent(
+                com.xianxia.sect.core.model.GameEventCategory.SECT,
+                com.xianxia.sect.core.model.GameEventType.MARRIAGE,
+                "弟子${proposal.maleName}与弟子${proposal.femaleName}结为道侣",
+                maleId, proposal.maleName
+            )
+            pendingMarriageProposals = pendingMarriageProposals - proposal
+        }
+    }
+
+    /**
+     * 拒绝婚姻提议：仅从待处理列表移除，不进行配对。
+     */
+    fun rejectMarriageProposal(maleId: String, femaleId: String) {
+        stateStore.update {
+            val proposal = pendingMarriageProposals.find {
+                it.maleId == maleId && it.femaleId == femaleId
+            } ?: return@update
+            pendingMarriageProposals = pendingMarriageProposals - proposal
+            recordGameEvent(
+                com.xianxia.sect.core.model.GameEventCategory.SECT,
+                com.xianxia.sect.core.model.GameEventType.MARRIAGE,
+                "弟子${proposal.maleName}拒绝与弟子${proposal.femaleName}结为道侣",
+                maleId, proposal.maleName
+            )
+        }
+    }
 
     // ── 妖兽界面锁定 ──────────────────────────────────────────
 

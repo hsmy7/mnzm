@@ -24,6 +24,10 @@ class AutoAssignDelegate(
     fun setDaoCompanionConsentRequired(required: Boolean) {
         gameEngine.launchOnEngine {
             gameEngine.updateGameData { it.copy(daoCompanionConsentRequired = required) }
+            if (!required) {
+                // 关闭同意模式时清理所有待处理提议，防止旧提议被断章取义地批准
+                gameEngine.clearPendingMarriageProposals()
+            }
         }
     }
 
