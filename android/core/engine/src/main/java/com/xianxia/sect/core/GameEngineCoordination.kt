@@ -32,6 +32,8 @@ import com.xianxia.sect.core.util.DomainResult
 
 /** 招募弟子最大合理年龄 */
 private const val MAX_REASONABLE_AGE = 10000
+/** AI 宗门每个宗门的标准弟子数 */
+private const val MAX_AI_SECT_DISCIPLES = 50
 /** 有效境界范围（含两端） */
 private val VALID_REALM_RANGE = GameConfig.Realm.CONFIGS.keys.let { it.min()..it.max() }
 
@@ -109,7 +111,8 @@ private suspend fun GameEngine.checkAndRepairWorldMapSects() {
         return
     }
     DomainLog.w("ensureGameDataIntegrity",
-        "worldMapSects 为空，从 FixedSectPositions 重生 (sectName=$sectName)")
+        "worldMapSects 为空，从 FixedSectPositions 重生" +
+        " (sectName=$sectName)")
     val generationResult = WorldMapGenerator.generateWorldSects(sectName)
     val sectRelations = WorldMapGenerator.initializeSectRelations(generationResult.sects)
     stateStore.update {
@@ -125,7 +128,7 @@ private suspend fun GameEngine.checkAndRepairWorldMapSects() {
 private suspend fun GameEngine.checkAndRepairAiSectDisciples() {
     val gd = stateStore.gameDataSnapshot
     if (gd.aiSectDisciples.isNotEmpty() &&
-        gd.aiSectDisciples.values.all { it.size >= 50 }) return
+        gd.aiSectDisciples.values.all { it.size >= MAX_AI_SECT_DISCIPLES }) return
     if (gd.worldMapSects.isEmpty()) return
     DomainLog.w("ensureGameDataIntegrity", "aiSectDisciples 不足，填充至 50 人")
     val regenerated = mutableMapOf<String, List<Disciple>>()
@@ -133,12 +136,15 @@ private suspend fun GameEngine.checkAndRepairAiSectDisciples() {
         if (sect.isPlayerSect) continue
         val existing = gd.aiSectDisciples[sect.id].orEmpty()
         if (existing.isEmpty()) {
-            val (d, _) = AISectDiscipleManager.initializeSectDisciples(sect.name, sect.level)
+            val (d, _) = AISectDiscipleManager.initializeSectDisciples(
+                sect.name, sect.level)
             regenerated[sect.id] =
-                AISectDiscipleManager.fillDisciplesToTarget(sect.name, d, 50, sect.level)
-        } else if (existing.size < 50) {
+                AISectDiscipleManager.fillDisciplesToTarget(
+                    sect.name, d, MAX_AI_SECT_DISCIPLES, sect.level)
+        } else if (existing.size < MAX_AI_SECT_DISCIPLES) {
             regenerated[sect.id] =
-                AISectDiscipleManager.fillDisciplesToTarget(sect.name, existing, 50, sect.level)
+                AISectDiscipleManager.fillDisciplesToTarget(
+                    sect.name, existing, MAX_AI_SECT_DISCIPLES, sect.level)
         }
     }
     if (regenerated.isNotEmpty()) {
