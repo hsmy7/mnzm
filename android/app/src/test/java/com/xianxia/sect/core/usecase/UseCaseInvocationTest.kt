@@ -487,34 +487,7 @@ class UseCaseInvocationTest {
         assertTrue(result.isFailure)
     }
 
-    // ==================== 13. RecruitDiscipleUseCase ====================
-
-    @Test
-    fun `RecruitDiscipleUseCase - success path`() {
-        val discipleFacade = mock<DiscipleFacade>()
-        val disciple = mock<Disciple>()
-        whenever(discipleFacade.recruitDisciple()).thenReturn(disciple)
-        val useCase = RecruitDiscipleUseCase(discipleFacade)
-
-        val result = useCase()
-
-        assertTrue(result.isSuccess)
-        assertSame(disciple, result.getOrNull())
-        verify(discipleFacade).recruitDisciple()
-    }
-
-    @Test
-    fun `RecruitDiscipleUseCase - failure when facade throws`() {
-        val discipleFacade = mock<DiscipleFacade>()
-        whenever(discipleFacade.recruitDisciple()).thenThrow(RuntimeException("招募失败"))
-        val useCase = RecruitDiscipleUseCase(discipleFacade)
-
-        val result = useCase()
-
-        assertTrue(result.isFailure)
-    }
-
-    // ==================== 14. StartProductionUseCase ====================
+    // ==================== 13. StartProductionUseCase ====================
 
     @Test
     fun `StartProductionUseCase - alchemy delegates to startAlchemy`() = runTest {

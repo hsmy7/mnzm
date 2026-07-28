@@ -201,7 +201,6 @@ class DiscipleFacadeImpl @Inject constructor(
             return ""
         }
         var newId: String = ""
-        var discipleAge: Int = 0
         stateStore.update {
             val disciple = gameData.recruitList.toList().find { it.id == discipleId }
             if (disciple == null) {
@@ -219,24 +218,22 @@ class DiscipleFacadeImpl @Inject constructor(
                 return@update
             }
             val currentMonthValue = gameData.gameYear * 12 + gameData.gameMonth
-            discipleAge = disciple.age
             val recruitedDisciple = disciple.copy(
                 usage = disciple.usage.copy(recruitedMonth = currentMonthValue)
             )
-            // 原子分配 ID + 写入组件表（消灭悬空窗口）
+            // 原子分配 ID + 写入组件表 + 加入宗门日志（消灭悬空窗口）
             newId = discipleTables.allocateAndInsert(recruitedDisciple)
+            if (newId.isNotEmpty()) {
+                val intId = newId.toIntOrNull()
+                if (intId != null) {
+                    val events = discipleTables.lifeEvents.getOrDefault(intId, emptyList())
+                    discipleTables.lifeEvents[intId] = events + "${disciple.age}岁：加入宗门"
+                }
+            }
             DomainLog.i(TAG, "recruitDiscipleFromList: recruited $discipleId → id=$newId")
             gameData = gameData.copy(recruitList = gameData.recruitList.filter { it.id != discipleId })
         }
-        if (newId.isNotEmpty()) {
-            try {
-                // 记录加入宗门日志
-                discipleService.addLifeEvent(newId, "${discipleAge}岁：加入宗门")
-            } catch (e: Exception) {
-                if (e is CancellationException) throw e
-                DomainLog.w(TAG, "recruitDiscipleFromList: addLifeEvent failed for newId=$newId", e)
-            }
-        } else {
+        if (newId.isEmpty()) {
             DomainLog.w(TAG, "recruitDiscipleFromList: FAILED for $discipleId")
         }
         return newId

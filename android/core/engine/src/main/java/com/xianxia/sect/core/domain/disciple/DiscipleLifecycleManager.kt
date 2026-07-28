@@ -228,57 +228,6 @@ class DiscipleLifecycleManager @Inject constructor(
     // ==================== 招募与逐出 ====================
 
     /**
-     * Recruit new disciple
-     * @param realm 境界，默认 9（炼气期），0 为仙人
-     *
-     * 安全操作（name生成、factory创建）优先执行，不涉及 DiscipleTables。
-     * ID 分配 + 组件表写入使用 [allocateAndInsert] 在最后一步原子完成，
-     * 消灭 allocateNextId → insert 之间的悬空窗口。
-     */
-    fun recruitDisciple(realm: Int = 9): Disciple {
-        val gender = if (rng.nextDouble() < 0.5) GENDER_MALE else GENDER_FEMALE
-
-        val existingNames = (stateStore.discipleTables.assembleAll()
-            + stateStore.gameData.value.recruitList)
-            .map { it.name }.toSet()
-        val nameResult = NameService.generateName(
-            gender, NameService.NameStyle.FULL, existingNames
-        )
-
-        val rawDisciple = discipleFactory.create(
-            DiscipleFactory.DiscipleSeed(
-                id = "PENDING",  // 占位 ID，allocateAndInsert 会覆盖
-                gender = gender,
-                nameResult = nameResult,
-                spiritRootType = SpiritRootGenerator.generate(rng.asKotlinRandom()),
-                age = 16 + rng.nextInt(14),
-                realm = realm,
-                realmLayer = 1,
-                social = com.xianxia.sect.core.model.SocialData(),
-                nextInt = { from, until -> from + rng.nextInt(until - from) }
-            )
-        )
-
-        // Set recruitment time
-        val data = stateStore.gameData.value
-        val currentMonthValue = data.gameYear * 12 + data.gameMonth
-        rawDisciple.usage.recruitedMonth = currentMonthValue
-
-        // 最后一步：原子分配 ID + 写入组件表 + 加入宗门日志（消灭悬空窗口）
-        val realId = stateStore.updateAndReturn {
-            val id = discipleTables.allocateAndInsert(rawDisciple)
-            val intId = id.toIntOrNull()
-            if (intId != null) {
-                val events = discipleTables.lifeEvents.getOrDefault(intId, emptyList())
-                discipleTables.lifeEvents[intId] = events + "${rawDisciple.age}岁：加入宗门"
-            }
-            id
-        }
-
-        return rawDisciple.copy(id = realId)
-    }
-
-    /**
      * Expel disciple from sect
      */
     fun expelDisciple(discipleId: String): DomainResult<Unit> {

@@ -30,6 +30,11 @@ import com.xianxia.sect.core.util.manualBagStackIds
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 
+/** 招募弟子最大合理年龄 */
+private const val MAX_REASONABLE_AGE = 10000
+/** 有效境界范围（含两端） */
+private val VALID_REALM_RANGE = GameConfig.Realm.CONFIGS.keys.let { it.min()..it.max() }
+
 // ── Focus / UI state ────────────────────────────────────────────────
 
 fun GameEngine.setFocusedDiscipleId(id: String?) {
@@ -498,7 +503,8 @@ suspend fun GameEngine.recruitAllFromList(): Int {
         var recruited = 0
         stateStore.update {
             val validRecruits = gameData.recruitList.filter { d ->
-                d.name.isNotBlank() && d.age > 0 && d.realm > 0
+                d.name.isNotBlank() && d.age in 1..MAX_REASONABLE_AGE
+                    && d.realm in VALID_REALM_RANGE
             }
             if (validRecruits.isEmpty()) {
                 if (gameData.recruitList.isNotEmpty()) {
@@ -508,12 +514,15 @@ suspend fun GameEngine.recruitAllFromList(): Int {
             }
             val droppedCount = gameData.recruitList.size - validRecruits.size
             val currentMonth = gameData.gameYear * 12 + gameData.gameMonth
+            var successCount = 0
             validRecruits.forEach { disciple ->
-                discipleTables.allocateAndInsert(
+                val newId = discipleTables.allocateAndInsert(
                     disciple.copy(usage = disciple.usage.copy(recruitedMonth = currentMonth))
+                        .also { it.lifeEvents = listOf("${disciple.age}岁：加入宗门") }
                 )
+                if (newId.isNotEmpty()) successCount++
             }
-            recruited = validRecruits.size
+            recruited = successCount
             gameData = gameData.copy(recruitList = emptyList())
             if (droppedCount > 0) {
                 DomainLog.w("GameEngine", "recruitAllFromList: dropped $droppedCount corrupted recruits, recruited $recruited")

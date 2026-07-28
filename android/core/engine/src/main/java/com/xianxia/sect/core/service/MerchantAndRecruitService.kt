@@ -6,15 +6,8 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.registry.*
-import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.GameUtils
-import com.xianxia.sect.core.util.SpiritRootGenerator
-import com.xianxia.sect.core.util.NameService
-import com.xianxia.sect.core.engine.domain.disciple.DiscipleFactory
-import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
@@ -37,12 +30,9 @@ data class MerchantItemPools(
 @GameService("MerchantAndRecruitService")
 class MerchantAndRecruitService @Inject constructor(
     private val stateStore: GameStateStore,
-    private val scopeProvider: CoroutineScopeProvider,
-    private val discipleFactory: com.xianxia.sect.core.engine.domain.disciple.DiscipleFactory,
     private val rngManager: GameRngManager
 ) {
     private val rng get() = rngManager.getRng(RngPartition.SYSTEM)
-    private val scope get() = scopeProvider.scope
 
     companion object {
         private const val TAG = "MerchantAndRecruit"
@@ -50,11 +40,9 @@ class MerchantAndRecruitService @Inject constructor(
         private const val MERCHANT_PITY_THRESHOLD = 10
         private const val ACQUISITION_ITEM_COUNT_MIN = 1
         private const val ACQUISITION_ITEM_COUNT_MAX = 9
-        private const val MAX_REASONABLE_AGE = 10000
         private const val MERCHANT_REFRESH_CHANCE_INTERVAL_YEARS = 30
         /** 手动刷新次数上限 */
         private const val MAX_MERCHANT_REFRESH_CHANCES = 999
-        private val VALID_REALM_RANGE = GameConfig.Realm.CONFIGS.keys.let { it.min()..it.max() }
 
         internal val RARITY_PROBABILITIES = mapOf(
             6 to 0.003,
@@ -64,55 +52,6 @@ class MerchantAndRecruitService @Inject constructor(
             2 to 0.40,
             1 to 0.40
         )
-
-        /** 计算纳徒长老魅力带来的招募上限加成。
-         *  魅力以80为基准，每高4点+1上限，不足0返回0 */
-        fun calcRecruitBonusCap(charm: Int): Int = maxOf(0, (charm - 80) / 4)
-
-        /**
-         * 扫描 [state] 的 recruitList，将符合 autoRecruitSpiritRootFilter 的弟子自动加入宗门。
-         * 必须在 [GameStateStore.update] 事务内调用（接收 [MutableGameState]）。
-         * 任何新增待招募弟子的操作完成后均应调用此方法，确保自动招募及时生效。
-         *
-         * @param state 事务内的可变游戏状态
-         * @return 实际自动招募的弟子数量
-         */
-        fun processAutoRecruit(state: MutableGameState): Int {
-            val rawFilter = state.gameData.autoRecruitSpiritRootFilter
-            if (rawFilter.isNullOrEmpty()) return 0
-            // 守卫：只接受 1-5（有效灵根数量），剔除入库不合理值
-            val filter = rawFilter.filter { it in 1..5 }.toSet()
-            if (filter.isEmpty()) return 0
-
-            val (autoRecruits, keepManual) = state.gameData.recruitList
-                .distinctBy { it.id }
-                .partition { disciple ->
-                disciple.spiritRootType.split(",").count { it.isNotBlank() } in filter
-            }
-            if (autoRecruits.isEmpty()) return 0
-
-            val currentMonthIndex = state.gameData.gameYear * 12 + state.gameData.gameMonth
-            var recruited = 0
-            for (disciple in autoRecruits) {
-                if (disciple.name.isBlank() || disciple.age <= 0 || disciple.age > MAX_REASONABLE_AGE
-                    || disciple.realm !in VALID_REALM_RANGE) {
-                    DomainLog.w(TAG, "processAutoRecruit: skipping corrupted disciple ${disciple.id}")
-                    continue
-                }
-                val newId = state.discipleTables.allocateAndInsert(
-                    disciple.copy(usage = disciple.usage.copy(recruitedMonth = currentMonthIndex))
-                        .also { it.lifeEvents = listOf("${disciple.age}岁：加入宗门") }
-                )
-                if (newId.isNotEmpty()) {
-                    recruited++
-                }
-            }
-
-            state.gameData = state.gameData.copy(recruitList = keepManual)
-            DomainLog.i(TAG, "processAutoRecruit: auto-recruited $recruited disciples, " +
-                "${keepManual.size} left for manual review")
-            return recruited
-        }
     }
 
     // ── 商人 ──────────────────────────────────────────────────────────
@@ -411,68 +350,4 @@ class MerchantAndRecruitService @Inject constructor(
         ) }
     }
 
-    // ── 招募 ──────────────────────────────────────────────────────────
-
-    /** 计算纳徒长老魅力带来的当前招募上限加成 */
-    private fun calcRecruitBonusCap(): Int {
-        val recruitingElderId = stateStore.gameData.value.elderSlots.recruitingElder
-        if (recruitingElderId.isEmpty()) return 0
-        val elderCharm = stateStore.disciples.value
-            .find { it.id == recruitingElderId }?.charm ?: return 0
-        return Companion.calcRecruitBonusCap(elderCharm)
-    }
-
-    fun refreshRecruitList(year: Int) {
-        val playerSect = stateStore.gameData.value.worldMapSects
-            .find { it.isPlayerSect }
-        var recruitCount = if (playerSect != null) {
-            val range = SectLevel.recruitRange(playerSect.level)
-            val bonusCap = calcRecruitBonusCap()
-            val until = range.last + 1 + bonusCap
-            // F2: 防 Range 为空导致 rng.nextInt(bound) 抛 IllegalArgumentException
-            if (until <= range.first) range.first
-            else range.first + rng.nextInt(until - range.first)
-        } else {
-            rng.nextInt(7)  // 兜底：找不到玩家宗门时保持旧逻辑
-        }
-        // 广纳门徒政策：招募弟子数+50%
-        if (recruitCount > 0 && stateStore.gameData.value.sectPolicies.openRecruitment) {
-            recruitCount = (recruitCount * (1.0 + GameConfig.PolicyConfig.OPEN_RECRUITMENT_POOL_BONUS)).roundToInt()
-        }
-        val newRecruitDisciples = mutableListOf<Disciple>()
-        val usedNames = (stateStore.disciples.value + stateStore.gameData.value.recruitList).map { it.name }.toMutableSet()
-        repeat(recruitCount) {
-            val gender = if (rng.nextInt(2) == 0) "male" else "female"
-            val nameResult = NameService.generateName(
-                gender, NameService.NameStyle.FULL, usedNames
-            )
-            val disciple = discipleFactory.create(
-                DiscipleFactory.DiscipleSeed(
-                    id = java.util.UUID.randomUUID().toString(),
-                    gender = gender,
-                    nameResult = nameResult,
-                    spiritRootType = SpiritRootGenerator.generate(object : kotlin.random.Random() {
-                        override fun nextBits(bitCount: Int) = (rng.nextInt() ushr (32 - bitCount))
-                        override fun nextInt(bound: Int) = rng.nextInt(bound)
-                    }),
-                    age = 16 + rng.nextInt(14),
-                    realmLayer = 1,
-                    social = SocialData(),
-                    nextInt = { from, until -> from + rng.nextInt(until - from) }
-                )
-            )
-            newRecruitDisciples.add(disciple)
-            usedNames.add(disciple.name)
-        }
-
-        // 单事务：追加到 recruitList + 自动招募，保证原子性
-        stateStore.update {
-            gameData = gameData.copy(
-                recruitList = gameData.recruitList + newRecruitDisciples,
-                lastRecruitYear = year
-            )
-            processAutoRecruit(this)
-        }
-        DomainLog.d(TAG, "refreshRecruitList: year=$year, generated ${newRecruitDisciples.size} new recruits")
-    }
 }

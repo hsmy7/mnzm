@@ -72,10 +72,10 @@ object SectLevel {
      * @return 招募数量范围（含两端）
      */
     fun recruitRange(level: Int): IntRange = when (level) {
-        SMALL  -> 0..5
-        MEDIUM -> 1..8
-        LARGE  -> 3..15
-        TOP    -> 6..20
-        else   -> 0..5
+        SMALL  -> 1..4
+        MEDIUM -> 1..6
+        LARGE  -> 1..10
+        TOP    -> 1..15
+        else   -> 1..4
     }
 }

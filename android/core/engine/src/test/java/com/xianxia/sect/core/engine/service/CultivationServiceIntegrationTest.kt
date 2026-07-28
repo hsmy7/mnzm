@@ -81,6 +81,7 @@ class CultivationServiceIntegrationTest {
             cultivationSettlement = mock(),
             eventProcessor = mock(),
             productionProcessor = mock(),
+            recruitService = mock(),
             merchantAndRecruitService = mock(),
             caveExplorationProcessor = mock(),
             sharedState = CultivationSharedState(),

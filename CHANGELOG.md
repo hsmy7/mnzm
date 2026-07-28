@@ -1,5 +1,38 @@
 ## [4.0.77] - 2026-07-28
 
+### 重构
+
+- **抽取独立 RecruitService** — 招募逻辑从 MerchantAndRecruitService 拆分独立（消除 SRP 违规），新建 RecruitService 负责招募刷新/自动招募/招募数量计算，6 个文件同步更新注入关系
+- **消除 recruitDisciple 重复** — DiscipleService 与 DiscipleLifecycleManager 中字节级重复的 recruitDisciple 方法，仅保留 DiscipleService 版本
+- **消除 RecruitDiscipleUseCase** — 删除仅 15 行无逻辑的委托 UseCase
+- **AI 宗门 RNG 确定性化** — AISectDiscipleManager 使用存档种子确定性播种，消除 System.nanoTime() 非确定性 RNG；新增 RngPartition.AI_SECT(6) 分区
+- **TOCTOU 根除** — refreshRecruitList 中全部状态读取移入 stateStore.update 事务内，calcRecruitBonusCap 改为接收 MutableGameState 参数
+- **RNG 适配器优化** — refreshRecruitList 循环内用 rng.asKotlinRandom() 一次创建，消除每次迭代创建匿名对象开销
+- **lifeEvent 事务修复** — recruitDiscipleFromList 的加入宗门日志移入 stateStore.update 内，消除窗口期
+
+### 修复（对抗性审查）
+
+- **recruitAllFromList 校验统一** — 对齐单招/自动招募的校验标准（realm in VALID_REALM_RANGE, age ≤ MAX_REASONABLE_AGE），修复 realm=0 仙人弟子被静默丢弃
+- **recruitAllFromList 补充 lifeEvent** — 批量招募时添加「加入宗门」日志条目
+- **processAutoRecruit 损坏数据静默删除** — 损坏的弟子追加回 keepManual 而非无声消失
+- **calcRecruitBonusCap 硬上限** — 魅力加成上限 20，防止极端值导致招募数爆炸
+- **兜底招募至少 1 人** — 玩家宗门不存在时不再可能抽到 0 招募
+- **recruitAllFromList 跟踪实际成功数** — successCount 取代 validRecruits.size，allocateAndInsert 失败不虚报
+- **DiscipleDelegate 并发锁修复** — isRecruitingAll 检查移入 synchronized 内消除 TOCTOU 竞态；全招后清空 recruitingDiscipleIds 防止残留阻塞
+- **AISectDiscipleManager._rng 加 @Volatile** — 确保跨线程可见性
+
+### 调整
+
+- **招募数量范围调整** — 小型 1~4、中型 1~6、大型 1~10、顶级 1~15（原 0~5/1~8/3~15/6~20），所有等级下限统一为 1
+- **待招募弟子每年年龄+1** — recruitList 中的弟子随游戏年份增长年龄
+- **招募弟子固定为练气一层** — 所有招募弟子统一 realm=9, realmLayer=1
+
+### 测试
+
+- **新增 RecruitServiceTest** — processAutoRecruit 边界条件 12 测试 + calcRecruitBonusCap 5 测试
+- **新增 DiscipleFacadeImplRecruitTest** — recruitDiscipleFromList 9 测试（正常/损坏/事务/重复招募）
+- **新增 GameEngineRecruitTest** — recruitAllFromList 6 测试（批量/全损坏/部分损坏/recruitedMonth 验证）
+
 ### 架构
 
 - **架构债务全量治理 — 5 项 Selected 全部落地**

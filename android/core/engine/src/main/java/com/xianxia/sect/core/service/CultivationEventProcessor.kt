@@ -43,6 +43,7 @@ class CultivationEventProcessor @Inject constructor(
     private val breakthroughHandler: DiscipleBreakthroughHandler,
     private val cultivationSettlement: CultivationSettlement,
     private val battleSystem: BattleSystem,
+    private val recruitService: RecruitService,
     private val merchantAndRecruitService: MerchantAndRecruitService,
     private val caveExplorationProcessor: javax.inject.Provider<CaveExplorationProcessor>,
     private val discipleLifecycleProcessor: DiscipleLifecycleProcessor,
@@ -333,13 +334,16 @@ class CultivationEventProcessor @Inject constructor(
                 caveExplorationProcessor.get().processSectDisciplesAging(year)
             }
             safelyRunInState("refreshRecruitList") {
-                if (year % 3 == 1) merchantAndRecruitService.refreshRecruitList(year)
+                if (year % 3 == 1) recruitService.refreshRecruitList(year)
             }
             safelyRunInState("merchantRefreshChance") {
                 merchantAndRecruitService.giveMerchantRefreshChanceIfDue(year)
             }
             safelyRunInState("yearlyAging") {
                 discipleLifecycleProcessor.processYearlyAging(year)
+            }
+            safelyRunInState("recruitAging") {
+                recruitService.ageRecruitList(year)
             }
             safelyRunInState("sectYearlyRecruitment") {
                 caveExplorationProcessor.get().processSectDisciplesYearlyRecruitment(year)

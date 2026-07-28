@@ -5,7 +5,7 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.engine.service.MerchantAndRecruitService
+import com.xianxia.sect.core.engine.service.RecruitService
 import com.xianxia.sect.core.util.GameRandom
 import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.PortraitPool
@@ -111,7 +111,7 @@ class ChildBirthSystem @Inject constructor(
                 recruitList = state.gameData.recruitList.toList() + child
             )
             // 新生儿产生后立即执行自动招募检查
-            MerchantAndRecruitService.processAutoRecruit(state)
+            RecruitService.processAutoRecruit(state)
 
             // 增量更新母亲状态，避免 replaceAll 覆盖 processAutoRecruit 已插入的弟子
             state.discipleTables.update(mother.copy(

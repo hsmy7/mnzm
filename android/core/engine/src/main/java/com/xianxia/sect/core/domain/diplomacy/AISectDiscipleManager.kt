@@ -13,11 +13,32 @@ import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.SpiritRootGenerator
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.DeterministicRng
+import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.asKotlinRandom
 import kotlin.math.roundToInt
 
 object AISectDiscipleManager {
-    private val rng by lazy { DeterministicRng.fromSeed(System.nanoTime()) }
+    /**
+     * AI RNG — 初始化时由 [initForSlot] 传入存档的系统种子进行确定性播种。
+     * 未初始化时以固定 fallback 种子运行（各存档 AI 行为一致但不可与游戏主 PRNG 同步）。
+     */
+    @Volatile
+    private var _rng: DeterministicRng? = null
+    private val rng: DeterministicRng get() {
+        val current = _rng
+        if (current != null) return current
+        // 兜底：引擎初始化前已调用时用 fallback 种子
+        return DeterministicRng.fromSeed(0xA15EC7A15EC7L)
+    }
+
+    /**
+     * 使用存档的 [systemSeed] 初始化 AI 分区 RNG。
+     * 在 GameEngine 初始化世界/读档时调用，确保 AI 宗门行为在相同存档下可复现。
+     */
+    fun initForSlot(systemSeed: Long) {
+        val aiSeed = systemSeed + RngPartition.AI_SECT.id.toLong() * 31337L
+        _rng = DeterministicRng.fromSeed(aiSeed)
+    }
 
     /** 每月真实秒数 = 3 旬 × MS_PER_PHASE_1X / 1000 = 6.0s */
     private val SECONDS_PER_MONTH = com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X * 3 / 1000.0

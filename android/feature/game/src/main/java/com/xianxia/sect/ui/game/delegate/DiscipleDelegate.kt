@@ -240,11 +240,11 @@ class DiscipleDelegate(
             Log.w(TAG, "recruitDiscipleFromList: skipped (empty id)")
             return
         }
-        if (isRecruitingAll) {
-            Log.w(TAG, "recruitDiscipleFromList: skipped (isRecruitingAll=true) for $discipleId")
-            return
-        }
         synchronized(recruitingLock) {
+            if (isRecruitingAll) {
+                Log.w(TAG, "recruitDiscipleFromList: skipped (isRecruitingAll=true) for $discipleId")
+                return
+            }
             if (recruitingDiscipleIds.contains(discipleId)) {
                 Log.w(TAG, "recruitDiscipleFromList: skipped (duplicate) for $discipleId")
                 return
@@ -272,8 +272,8 @@ class DiscipleDelegate(
     }
 
     fun recruitAllDisciples() {
-        if (isRecruitingAll) return
         synchronized(recruitingLock) {
+            if (isRecruitingAll) return
             if (recruitingDiscipleIds.isNotEmpty()) return
             isRecruitingAll = true
         }
@@ -285,6 +285,7 @@ class DiscipleDelegate(
                 if (e is CancellationException) throw e
                 Log.w(TAG, "recruitAllDisciples: failed", e)
             } finally {
+                synchronized(recruitingLock) { recruitingDiscipleIds.clear() }
                 isRecruitingAll = false
             }
         }

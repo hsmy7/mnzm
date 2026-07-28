@@ -8,38 +8,38 @@ class SectLevelTest {
     // ── recruitRange() ──────────────────────────────────────────
 
     @Test
-    fun `recruitRange - 小型宗门返回0到5`() {
+    fun `recruitRange - 小型宗门返回1到4`() {
         val range = SectLevel.recruitRange(SectLevel.SMALL)
-        assertEquals(0, range.first)
-        assertEquals(5, range.last)
+        assertEquals(1, range.first)
+        assertEquals(4, range.last)
     }
 
     @Test
-    fun `recruitRange - 中型宗门返回1到8`() {
+    fun `recruitRange - 中型宗门返回1到6`() {
         val range = SectLevel.recruitRange(SectLevel.MEDIUM)
         assertEquals(1, range.first)
-        assertEquals(8, range.last)
+        assertEquals(6, range.last)
     }
 
     @Test
-    fun `recruitRange - 大型宗门返回3到15`() {
+    fun `recruitRange - 大型宗门返回1到10`() {
         val range = SectLevel.recruitRange(SectLevel.LARGE)
-        assertEquals(3, range.first)
+        assertEquals(1, range.first)
+        assertEquals(10, range.last)
+    }
+
+    @Test
+    fun `recruitRange - 顶级宗门返回1到15`() {
+        val range = SectLevel.recruitRange(SectLevel.TOP)
+        assertEquals(1, range.first)
         assertEquals(15, range.last)
     }
 
     @Test
-    fun `recruitRange - 顶级宗门返回6到20`() {
-        val range = SectLevel.recruitRange(SectLevel.TOP)
-        assertEquals(6, range.first)
-        assertEquals(20, range.last)
-    }
-
-    @Test
-    fun `recruitRange - 非法等级兜底返回小型范围0到5`() {
+    fun `recruitRange - 非法等级兜底返回小型范围1到4`() {
         val range = SectLevel.recruitRange(99)
-        assertEquals(0, range.first)
-        assertEquals(5, range.last)
+        assertEquals(1, range.first)
+        assertEquals(4, range.last)
     }
 
     // ── 已有函数的回归测试 ──────────────────────────────────────

@@ -36,6 +36,7 @@ class CultivationService @Inject constructor(
     private val cultivationSettlement: CultivationSettlement,
     private val eventProcessor: CultivationEventProcessor,
     private val productionProcessor: ProductionProcessor,
+    private val recruitService: RecruitService,
     private val merchantAndRecruitService: MerchantAndRecruitService,
     private val caveExplorationProcessor: Provider<CaveExplorationProcessor>,
     private val sharedState: CultivationSharedState,
@@ -397,7 +398,7 @@ class CultivationService @Inject constructor(
     }
 
     internal suspend fun refreshRecruitList(year: Int) {
-        merchantAndRecruitService.refreshRecruitList(year)
+        recruitService.refreshRecruitList(year)
     }
 
     // ── 委托方法：CaveExplorationProcessor ─────────────────────────────

@@ -7,6 +7,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.engine.*
+import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.util.SectMapTileGenerator
 import com.xianxia.sect.taptap.TapCloudSaveManager
@@ -350,6 +351,7 @@ class SaveLoadViewModel @Inject constructor(
 
                 // 初始化 RNG 系统种子（新世界使用 mapSeed 确保确定性随机序列）
                 persistenceFacade.gameRngManager.initSystemSeed(gameEngine.gameData.value.mapSeed.toLong())
+                AISectDiscipleManager.initForSlot(gameEngine.gameData.value.mapSeed.toLong())
                 Log.d(TAG, "startNewGame: GameRngManager initialized with mapSeed=${gameEngine.gameData.value.mapSeed}")
 
                 persistenceFacade.storageFacade.setCurrentSlot(slot)
@@ -568,6 +570,8 @@ class SaveLoadViewModel @Inject constructor(
                     persistenceFacade.gameRngManager.restoreStates(loadedGd.rngStates)
                     Log.d(TAG, "loadGame: Restored ${loadedGd.rngStates.size} RNG partition states")
                 }
+                // 初始化 AI 宗门 RNG（基于地图种子确保确定性）
+                AISectDiscipleManager.initForSlot(loadedGd.mapSeed.toLong())
 
                 // 建筑占地重叠/越界迁移（旧存档兼容，不在 BootSequenceController 中）
                 loadDelegate.migrateOverflowBuildings()
@@ -973,6 +977,7 @@ class SaveLoadViewModel @Inject constructor(
 
                 // 重置 RNG 系统种子（重启即新世界，初始化确定性随机序列）
                 persistenceFacade.gameRngManager.initSystemSeed(gameEngine.gameData.value.mapSeed.toLong())
+                AISectDiscipleManager.initForSlot(gameEngine.gameData.value.mapSeed.toLong())
                 Log.d(TAG, "restartGame: GameRngManager initialized with mapSeed=${gameEngine.gameData.value.mapSeed}")
 
                 setSaveLoadState(isSaving = true, pendingSlot = currentSlot, pendingAction = "save")
