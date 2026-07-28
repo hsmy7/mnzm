@@ -524,16 +524,15 @@ class IntelligentSectDecisionEngineTest {
     // ═══════════════════════════════════
 
     @Test
-    fun `vassal - favor 0 equivalent to HOSTILE`() {
-        // 旧版 favor=0 → HOSTILE(0-19)
+    fun `vassal - HOSTILE always returns 0`() {
+        // HOSTILE 好感度分值为 0.0，且附属判定有 favorWeight > 0 → 直接返回 0
         val chance = IntelligentSectDecisionEngine.calculateChance(
             profile = IntelligentSectDecisionEngine.VASSAL_PROFILE,
             powerRatio = 2.0, conquestCount = 0, lostSectCount = 0,
             battleWinCount = 0, battleLossCount = 0,
             favorLevel = SectRelationLevel.HOSTILE
         )
-        // HOSTILE→0.0, favorScore=0 → 回退到只有 powerScore
-        assertEquals(0.20, chance, 0.001)
+        assertEquals(0.0, chance, 0.001)
     }
 
     @Test

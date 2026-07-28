@@ -30,6 +30,14 @@
 - **RNG 适配器优化** — refreshRecruitList 循环内用 rng.asKotlinRandom() 一次创建，消除每次迭代创建匿名对象开销
 - **lifeEvent 事务修复** — recruitDiscipleFromList 的加入宗门日志移入 stateStore.update 内，消除窗口期
 
+### 修复
+
+- **天道试炼Phase 1/Phase 2通关状态错乱** — ViewModel中launchOnEngine异步协程捕获selectedPhaseIndex时读取到被后续代码修改的值，导致Phase 1通关记录为Phase 2通关。修复：在lambda外局部捕获当前值 + 通关后回到主面板而非自动跳转Phase 2选人
+- **BootSequenceControllerTest mock不完整** — 启动流程ensureGameDataIntegrity调用cultivationService.refreshTravelingMerchant因mock未stub引发NPE。修复：添加cultivationService stub
+- **GameEngineRecruitTest字符串排序断言** — "弟子10"字符串排序在"弟子9"之前，断言names.last()非预期。修复：按数字后缀排序
+- **IntelligentSectDecisionEngineTest期望值过期** — HOSTILE好感度分值为0时判定引擎直接返回0，测试仍期望旧版powerScore值0.20。修复：更新断言为0.0
+- **RecruitServiceTest魅力加成上限未同步** — MAX_RECRUIT_BONUS_CAP=20已生效但测试仍期望无上限值(30/230)。修复：更新为上限值20
+
 ### 修复（对抗性审查）
 
 - **recruitAllFromList 校验统一** — 对齐单招/自动招募的校验标准（realm in VALID_REALM_RANGE, age ≤ MAX_REASONABLE_AGE），修复 realm=0 仙人弟子被静默丢弃

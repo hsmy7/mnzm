@@ -55,9 +55,9 @@ class RecruitServiceTest {
     }
 
     @Test
-    fun `calcRecruitBonusCap - very high charm caps reasonably`() {
-        assertEquals(30, RecruitService.calcRecruitBonusCap(200)) // (200-80)/4 = 30
-        assertEquals(230, RecruitService.calcRecruitBonusCap(1000)) // (1000-80)/4 = 230
+    fun `calcRecruitBonusCap - very high charm caps at MAX_RECRUIT_BONUS_CAP 20`() {
+        assertEquals(20, RecruitService.calcRecruitBonusCap(200)) // (200-80)/4 = 30 → 上限 20
+        assertEquals(20, RecruitService.calcRecruitBonusCap(1000)) // (1000-80)/4 = 230 → 上限 20
     }
 
     // ==================== processAutoRecruit ====================

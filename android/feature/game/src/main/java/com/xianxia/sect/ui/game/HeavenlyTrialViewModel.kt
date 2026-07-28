@@ -111,14 +111,12 @@ class HeavenlyTrialViewModel @Inject constructor(
 
     fun onCombatFinished(won: Boolean) {
         if (won) {
+            val levelIndex = selectedLevelIndex
+            val phaseIndex = selectedPhaseIndex
             gameEngine.launchOnEngine {
-                trialService.recordPhaseClear(selectedLevelIndex, selectedPhaseIndex)
+                trialService.recordPhaseClear(levelIndex, phaseIndex)
             }
-            if (selectedPhaseIndex == 1) {
-                _currentScreen.value = Screen.Panel
-            } else {
-                startDiscipleSelect(1)
-            }
+            _currentScreen.value = Screen.Panel
         } else {
             _currentScreen.value = Screen.BattlePrep(selectedLevelIndex)
         }

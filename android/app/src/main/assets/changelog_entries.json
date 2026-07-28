@@ -35,7 +35,9 @@
       "调整：招募弟子固定为练气一层——所有招募统一realm=9, realmLayer=1",
       "测试：新增RecruitServiceTest——processAutoRecruit边界12测试+calcRecruitBonusCap 5测试",
       "测试：新增DiscipleFacadeImplRecruitTest——recruitDiscipleFromList 9测试(正常/损坏/事务/重复招募)",
-      "测试：新增GameEngineRecruitTest——recruitAllFromList 6测试(批量/全损坏/部分损坏/recruitedMonth验证)"
+      "测试：新增GameEngineRecruitTest——recruitAllFromList 6测试(批量/全损坏/部分损坏/recruitedMonth验证)",
+      "修复：天道试炼Phase 1/Phase 2通关状态错乱——launchOnEngine异步捕获selectedPhaseIndex读错值，Phase 1通关被记录为Phase 2通关。局部捕获+通关后回到主面板",
+      "修复：4项预存测试数据过期——BootSequenceControllerTest mock缺cultivationService NPE/RecruitServiceTest魅力上限20/IntelligentSectDecisionEngineTest敌对返回0/GameEngineRecruitTest字符串排序弟子10"
     ]
   },
   {

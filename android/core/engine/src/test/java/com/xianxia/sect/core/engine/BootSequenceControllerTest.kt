@@ -60,6 +60,9 @@ class BootSequenceControllerTest {
         doNothing().whenever(gameEngineCore).stopGameLoop()
 
 
+        // CultivationService: ensureGameDataIntegrity → checkAndRepairMerchantAndRecruit 会调用
+        whenever(gameEngine.cultivationService).thenReturn(mock())
+
         // DiscipleSnapshotCache
         doNothing().whenever(discipleSnapshotCache).prewarm(any())
 

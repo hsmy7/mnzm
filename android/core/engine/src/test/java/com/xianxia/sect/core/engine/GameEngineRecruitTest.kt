@@ -145,7 +145,8 @@ class GameEngineRecruitTest {
         assertEquals(10, count)
         assertEquals(0, state.gameData.recruitList.size)
         assertEquals(10, state.discipleTables.ids.size)
-        val names = state.discipleTables.assembleAll().map { it.name }.sorted()
+        val names = state.discipleTables.assembleAll().map { it.name }
+            .sortedWith(compareBy({ it.filter { c -> c.isDigit() }.toIntOrNull() ?: 0 }))
         assertEquals("弟子1", names.first())
         assertEquals("弟子10", names.last())
     }
