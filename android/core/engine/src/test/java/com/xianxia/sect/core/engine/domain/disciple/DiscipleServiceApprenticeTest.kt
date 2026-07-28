@@ -8,6 +8,7 @@ import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.engine.di.IoDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
@@ -67,7 +68,8 @@ class DiscipleServiceApprenticeTest {
             discipleSlotCleanup = DiscipleSlotCleanup(
                 DiscipleAssignmentGate(DiscipleAssignmentRegistry())
             ),
-            discipleStatusServiceProvider = javax.inject.Provider { mock() }
+            discipleStatusServiceProvider = javax.inject.Provider { mock() },
+            ioDispatcher = IoDispatcher()
         )
         val equipmentService = DiscipleEquipmentService(
             stateStore = mockStore,

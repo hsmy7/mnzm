@@ -1,5 +1,6 @@
 package com.xianxia.sect.di
 
+import com.xianxia.sect.core.engine.di.IoDispatcher
 import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertSame
 import org.junit.Test

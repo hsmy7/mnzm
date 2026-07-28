@@ -46,7 +46,8 @@ class InventorySystemTest {
         (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = true
         inventoryConfig = InventoryConfig()
         spiritStoneWallet = SpiritStoneWallet(stateStore, SpiritStoneLedger(), mock(EventBus::class.java))
-        system = InventorySystem(stateStore, inventoryConfig, spiritStoneWallet)
+        system = InventorySystem(stateStore, inventoryConfig, spiritStoneWallet, mock(
+            com.xianxia.sect.core.engine.config.GameConfigProvider::class.java))
         system.initialize()
         runBlocking { stateStore.reset() }
     }

@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.domain.exploration
 
+import com.xianxia.sect.core.model.MSTEdge
 import kotlin.math.sqrt
 
 object GeometryUtils {

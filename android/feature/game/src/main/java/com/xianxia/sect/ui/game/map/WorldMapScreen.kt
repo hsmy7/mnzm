@@ -9,7 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
-import com.xianxia.sect.core.engine.domain.exploration.MSTEdge
+import com.xianxia.sect.core.model.MSTEdge
 import com.xianxia.sect.core.model.MapCoordinateSystem
 import com.xianxia.sect.ui.game.map.markers.LevelMarker
 import com.xianxia.sect.ui.game.map.markers.SectMarker

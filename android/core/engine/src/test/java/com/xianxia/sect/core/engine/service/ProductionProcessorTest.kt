@@ -15,6 +15,7 @@ import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.engine.service.*
+import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
@@ -528,7 +529,8 @@ class ProductionProcessorTest {
             productionSlotRepository = mock(),
             formulaService = mock(),
             rngManager = mock(),
-            scopeProvider = mock()
+            scopeProvider = mock(),
+            ioDispatcher = IoDispatcher()
         )
     }
 

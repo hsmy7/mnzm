@@ -18,6 +18,7 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
 import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
 import com.xianxia.sect.core.engine.domain.production.ProductionFacade
 import com.xianxia.sect.core.engine.domain.save.SaveFacade
+import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.core.engine.service.DailySignInService
 import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.engine.system.SystemManager
@@ -153,7 +154,8 @@ class GameViewModelTest {
             dailySignInService, discipleFacade, productionFacade,
             inventoryFacade, buildingFacade, battleFacade,
             diplomacyFacade, saveFacade, thermalMonitor,
-            dialogManager, adService, audioConfig, audioEngine
+            dialogManager, adService, audioConfig, audioEngine,
+            ioDispatcher = IoDispatcher()
         )
     }
 

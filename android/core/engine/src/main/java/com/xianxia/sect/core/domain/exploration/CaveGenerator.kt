@@ -163,9 +163,3 @@ object CaveGenerator {
         val rarityRange: List<Int>
     )
 }
-
-data class MSTEdge(
-    val sect1: WorldSect,
-    val sect2: WorldSect,
-    val weight: Double
-)

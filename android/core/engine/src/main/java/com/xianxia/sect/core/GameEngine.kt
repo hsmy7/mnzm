@@ -20,6 +20,7 @@ import com.xianxia.sect.core.engine.domain.battle.CombatService
 import com.xianxia.sect.core.engine.domain.building.BuildingService
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleService
 import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
+import com.xianxia.sect.core.engine.domain.exploration.LevelGenerator
 import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyService
 import com.xianxia.sect.core.engine.domain.save.SaveService
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
@@ -197,7 +198,12 @@ class GameEngine @Inject constructor(
 
     val worldMapRenderData: StateFlow<WorldMapRenderData> by lazy {
         stateStore.gameData.map { data ->
-            WorldMapRenderData(worldMapSects = data.worldMapSects, cultivatorCaves = data.cultivatorCaves ?: emptyList(), worldLevels = data.worldLevels ?: emptyList())
+            WorldMapRenderData(
+                worldMapSects = data.worldMapSects,
+                cultivatorCaves = data.cultivatorCaves ?: emptyList(),
+                worldLevels = data.worldLevels ?: emptyList(),
+                connectionEdges = LevelGenerator.buildConnectionEdges(data.worldMapSects)
+            )
         }.distinctUntilChanged()
             .stateIn(gameEngineCore.scopeForStateIn(), kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000), WorldMapRenderData())
     }

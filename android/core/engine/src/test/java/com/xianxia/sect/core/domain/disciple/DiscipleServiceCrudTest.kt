@@ -11,6 +11,7 @@ import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.DomainResult
+import com.xianxia.sect.core.engine.di.IoDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
@@ -90,7 +91,8 @@ class DiscipleServiceCrudTest {
             discipleSlotCleanup = DiscipleSlotCleanup(
                 DiscipleAssignmentGate(DiscipleAssignmentRegistry())
             ),
-            discipleStatusServiceProvider = javax.inject.Provider { mock() }
+            discipleStatusServiceProvider = javax.inject.Provider { mock() },
+            ioDispatcher = IoDispatcher()
         )
         val equipmentService = DiscipleEquipmentService(
             stateStore = mockStore,

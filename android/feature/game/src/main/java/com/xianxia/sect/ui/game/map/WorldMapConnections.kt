@@ -10,7 +10,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import com.xianxia.sect.core.engine.domain.exploration.MSTEdge
+import com.xianxia.sect.core.model.MSTEdge
 import com.xianxia.sect.ui.game.map.world.WorldCameraState
 import kotlin.random.Random
 

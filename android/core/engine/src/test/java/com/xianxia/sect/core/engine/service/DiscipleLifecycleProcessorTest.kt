@@ -14,6 +14,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.core.engine.di.IoDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.runTest
@@ -104,7 +105,8 @@ class DiscipleLifecycleProcessorTest {
             lawEnforcementProcessor = object : javax.inject.Provider<LawEnforcementProcessor> {
                 override fun get(): LawEnforcementProcessor = mock(LawEnforcementProcessor::class.java)
             },
-            discipleStatusService = mock(DiscipleStatusService::class.java)
+            discipleStatusService = mock(DiscipleStatusService::class.java),
+            ioDispatcher = IoDispatcher()
         )
     }
 

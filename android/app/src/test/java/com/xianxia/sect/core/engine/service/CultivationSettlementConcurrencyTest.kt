@@ -89,7 +89,8 @@ class CultivationSettlementConcurrencyTest {
                 override fun get(): com.xianxia.sect.core.engine.service.LawEnforcementProcessor =
                     mock(com.xianxia.sect.core.engine.service.LawEnforcementProcessor::class.java)
             },
-            mock(com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService::class.java)
+            mock(com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService::class.java),
+            com.xianxia.sect.core.engine.di.IoDispatcher()
         )
     }
 
