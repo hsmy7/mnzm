@@ -4,6 +4,7 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.engine.config.GameConfigProvider
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.engine.domain.exploration.CaveExplorationSystem
@@ -59,7 +60,8 @@ class CultivationSettlement @Inject constructor(
     private val stateStore: GameStateStore,
     private val scopeProvider: CoroutineScopeProvider,
     private val spiritStoneWallet: SpiritStoneWallet,
-    private val lawEnforcementProcessor: LawEnforcementProcessor
+    private val lawEnforcementProcessor: LawEnforcementProcessor,
+    private val gameConfigProvider: GameConfigProvider
 ) {
     private val scope get() = scopeProvider.scope
 
@@ -363,7 +365,7 @@ class CultivationSettlement @Inject constructor(
      */
     private fun buildSpiritMineZones(data: GameData, tables: DiscipleTables): SpiritMineZones {
         val minerCount = data.spiritMineSlots.count { it.discipleId.isNotEmpty() }
-        val baseOutput = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER
+        val baseOutput = gameConfigProvider.production.spiritMineBaseOutputPerMiner
 
         var miningBonus = 0.0
         data.spiritMineSlots.forEach { slot ->
@@ -372,9 +374,10 @@ class CultivationSettlement @Inject constructor(
                 val idInt = discipleId.toIntOrNull() ?: return@forEach
                 if (tables.ids.contains(idInt) && tables.isAlive[idInt] == 1) {
                     val mining = tables.minings[idInt] ?: 0
-                    if (mining > GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD) {
-                        miningBonus += (mining - GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD) *
-                            GameConfig.Production.SPIRIT_MINE_MINING_BONUS_RATE
+                    val threshold = gameConfigProvider.production.spiritMineMiningThreshold
+                    if (mining > threshold) {
+                        miningBonus += (mining - threshold) *
+                            gameConfigProvider.production.spiritMineMiningBonusRate
                     }
                 }
             }
@@ -423,7 +426,7 @@ class CultivationSettlement @Inject constructor(
         val data = state.gameData
         val currentMonth = data.gameYear * 12 + data.gameMonth
         val zones = buildSpiritMineZones(data, state.discipleTables)
-        val baseOutput = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER
+        val baseOutput = gameConfigProvider.production.spiritMineBaseOutputPerMiner
         val monthlyRate: Long = zones.calculateMonthly(baseOutput.toDouble())
         val lastSettled = data.spiritMineLastSettledMonth
         if (currentMonth > lastSettled && monthlyRate > 0L) {
@@ -475,3 +478,4 @@ class CultivationSettlement @Inject constructor(
         private const val DEACON_MORALITY_BONUS_RATE = 0.01
     }
 }
+ 

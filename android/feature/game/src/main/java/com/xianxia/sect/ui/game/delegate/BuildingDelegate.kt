@@ -13,6 +13,7 @@ import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.ui.game.sect.GoldFingerState
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -25,6 +26,7 @@ class BuildingDelegate(
     private val gameEngine: GameEngine,
     private val buildingFacade: BuildingFacade,
     private val buildingConfigService: BuildingConfigService,
+    private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val onDemolishSuccess: (String) -> Unit = {}
 ) {
     private companion object {
@@ -152,7 +154,7 @@ class BuildingDelegate(
 
     /** 移动已放置的建筑到新坐标。 */
     suspend fun moveBuilding(instanceId: String, newGridX: Int, newGridY: Int) {
-        withContext(Dispatchers.IO) {
+        withContext(dispatcher) {
             buildingFacade.moveBuildingDirect(instanceId, newGridX, newGridY)
         }
     }
@@ -186,23 +188,23 @@ class BuildingDelegate(
 
     /** 分配弟子到住宅（原子操作）。
      *
-     * 使用 [withContext(Dispatchers.IO)] 确保阻塞的 [stateStore.update] 不在 Main 线程执行，
+     * 使用 [withContext(dispatcher)] 确保阻塞的 [stateStore.update] 不在 Main 线程执行，
      * 避免 DEBUG error() 崩溃和 RELEASE ANR。
      */
     suspend fun assignToResidence(
         buildingInstanceId: String, slotIndex: Int, discipleId: String
-    ): DomainResult<Unit> = withContext(Dispatchers.IO) {
+    ): DomainResult<Unit> = withContext(dispatcher) {
         gameEngine.assignToResidenceAtomic(buildingInstanceId, slotIndex, discipleId)
     }
 
     /** 从住宅移除弟子（原子操作）。
      *
-     * 使用 [withContext(Dispatchers.IO)] 确保阻塞的 [stateStore.update] 不在 Main 线程执行，
+     * 使用 [withContext(dispatcher)] 确保阻塞的 [stateStore.update] 不在 Main 线程执行，
      * 避免 DEBUG error() 崩溃和 RELEASE ANR。
      */
     suspend fun removeFromResidence(
         buildingInstanceId: String, slotIndex: Int
-    ): DomainResult<Unit> = withContext(Dispatchers.IO) {
+    ): DomainResult<Unit> = withContext(dispatcher) {
         gameEngine.removeFromResidenceAtomic(buildingInstanceId, slotIndex)
     }
 }

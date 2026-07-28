@@ -12,7 +12,7 @@ import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.coroutines.Dispatchers
+import com.xianxia.sect.core.engine.di.IoDispatcher
 import kotlinx.coroutines.withContext
 
 data class ProductionTransactionResult(
@@ -31,7 +31,8 @@ data class ProductionRollbackData(
 @Singleton
 class ProductionTransactionManager @Inject constructor(
     private val repository: ProductionSlotRepository,
-    private val rngManager: GameRngManager
+    private val rngManager: GameRngManager,
+    private val ioDispatcher: IoDispatcher
 ) {
     private val rng get() = rngManager.getRng(RngPartition.SYSTEM)
     companion object {
@@ -164,7 +165,7 @@ class ProductionTransactionManager @Inject constructor(
                 buildingType = buildingType,
                 buildingId = buildingId
             )
-            val addResult = withContext(Dispatchers.IO) { repository.addSlot(slot) }
+            val addResult = withContext(ioDispatcher.dispatcher) { repository.addSlot(slot) }
             if (addResult.isFailure) {
                 slot = repository.getSlotByBuildingId(buildingId, slotIndex)
                 if (slot == null) {
@@ -205,7 +206,7 @@ class ProductionTransactionManager @Inject constructor(
 
         val previousState = slot
 
-        val result = withContext(Dispatchers.IO) {
+        val result = withContext(ioDispatcher.dispatcher) {
             repository.updateSlotByBuildingId(buildingId, slotIndex) { currentSlot ->
                 SlotStateMachine.startProduction(
                 slot = currentSlot,

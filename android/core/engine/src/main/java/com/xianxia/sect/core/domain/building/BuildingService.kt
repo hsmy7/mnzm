@@ -20,6 +20,7 @@ import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.BuildingNames
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
+import com.xianxia.sect.core.engine.di.IoDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -35,6 +36,7 @@ class BuildingService @Inject constructor(
     private val formulaService: FormulaService,
     private val rngManager: com.xianxia.sect.core.util.GameRngManager,
     private val assignmentGate: DiscipleAssignmentGate,
+    private val ioDispatcher: IoDispatcher,
 ) {
     companion object {
         private const val TAG = "BuildingService"
@@ -101,7 +103,7 @@ class BuildingService @Inject constructor(
 
         val oldDiscipleId = existingSlot.assignedDiscipleId
 
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher.dispatcher) {
             productionSlotRepository.updateSlotByBuildingId(
                 buildingId, slotIndex
             ) { slot ->
@@ -254,7 +256,7 @@ class BuildingService @Inject constructor(
         existingSlot: ProductionSlot?
     ) {
         if (existingSlot != null) {
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher.dispatcher) {
                 productionSlotRepository.updateSlotByBuildingId(
                     buildingId, slotIndex
                 ) { slot ->
@@ -266,7 +268,7 @@ class BuildingService @Inject constructor(
             }
         } else {
             val buildingType = ProductionSlot.resolveBuildingType(buildingId)
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher.dispatcher) {
                 productionSlotRepository.addSlot(
                     ProductionSlot.createIdle(
                         slotIndex = slotIndex,
@@ -325,7 +327,7 @@ class BuildingService @Inject constructor(
         val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(
             data.gameYear, data.gameMonth
         )
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher.dispatcher) {
             productionSlotRepository.updateSlotByBuildingId(
                 BuildingNames.ALCHEMY, slotIndex
             ) { slot ->
@@ -378,7 +380,7 @@ class BuildingService @Inject constructor(
         val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(
             data.gameYear, data.gameMonth
         )
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher.dispatcher) {
             productionSlotRepository.updateSlotByBuildingId(
                 BuildingNames.FORGE, slotIndex
             ) { slot ->
@@ -416,7 +418,7 @@ class BuildingService @Inject constructor(
             updateDiscipleStatus(discipleId, DiscipleStatus.IDLE)
         }
 
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher.dispatcher) {
             productionCoordinator.resetSlotByBuildingIdAtomic(
                 slot.buildingId, slot.slotIndex
             )
@@ -473,7 +475,7 @@ class BuildingService @Inject constructor(
             }
         }
 
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher.dispatcher) {
             productionCoordinator.resetSlotByBuildingIdAtomic(
                 BuildingNames.ALCHEMY, slot.slotIndex
             )

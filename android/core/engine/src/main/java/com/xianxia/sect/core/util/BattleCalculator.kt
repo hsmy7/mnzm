@@ -229,16 +229,20 @@ object BattleCalculator {
         return (speedDiff.toDouble() / totalSpeed * modifier).coerceIn(0.0, GameConfig.Battle.MAX_DODGE_CHANCE)
     }
 
-    fun calculateRealmGapMultiplier(attackerRealm: Int, defenderRealm: Int): Double {
+    fun calculateRealmGapMultiplier(
+        attackerRealm: Int, defenderRealm: Int,
+        damageBonusPerRealm: Double = GameConfig.Battle.RealmGap.DAMAGE_BONUS_PER_REALM,
+        damagePenaltyPerRealm: Double = GameConfig.Battle.RealmGap.DAMAGE_PENALTY_PER_REALM
+    ): Double {
         val gap = attackerRealm - defenderRealm
         if (gap == 0) return 1.0
 
         val absGap = kotlin.math.abs(gap)
 
         return if (gap < 0) {
-            1.0 + absGap * GameConfig.Battle.RealmGap.DAMAGE_BONUS_PER_REALM
+            1.0 + absGap * damageBonusPerRealm
         } else {
-            (1.0 - absGap * GameConfig.Battle.RealmGap.DAMAGE_PENALTY_PER_REALM).coerceAtLeast(0.0)
+            (1.0 - absGap * damagePenaltyPerRealm).coerceAtLeast(0.0)
         }
     }
 

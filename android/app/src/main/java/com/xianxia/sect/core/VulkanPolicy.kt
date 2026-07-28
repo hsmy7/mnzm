@@ -198,6 +198,40 @@ object VulkanPolicy {
         return false
     }
 
+    // ── Vulkan 驱动版本缓存 ──
+    // 由 C++ VulkanBackend 在 vkGetPhysicalDeviceProperties 后通过 JNI 设置
+    @Volatile
+    private var _driverVersion: Int = 0
+
+    /** Vulkan 驱动版本号，0 表示未知 */
+    fun getDriverVersion(): Int = _driverVersion
+
+    /** 由 C++ 层在初始化后设置驱动版本（通过 JNI） */
+    fun setDriverVersion(version: Int) {
+        _driverVersion = version
+        Log.i(TAG, "Vulkan driver version updated: $version")
+        // 检查已知问题版本
+        if (version > 0 && isKnownBadDriverVersion(version)) {
+            Log.e(TAG, "Known bad Vulkan driver version: $version — scheduling fallback")
+            CrashRecoveryEngine.recordVulkanInitFailure()
+        }
+    }
+
+    /** 已知有缺陷的 Vulkan 驱动版本号范围（Adreno 6xx/7xx 特定驱动） */
+    private fun isKnownBadDriverVersion(version: Int): Boolean {
+        return when (version) {
+            // VkPhysicalDeviceProperties.driverVersion 编码规则：
+            // major = (version >> 22) & 0x3FF, minor = (version >> 12) & 0x3FF,
+            // patch = version & 0xFFF
+            // Adreno 驱动版本示例：0x000A3D00 = a.b.c 格式
+            in 0x000A_3C00..0x000A_3DFF -> { // Adreno 特定有缺陷驱动范围
+                Log.w(TAG, "Driver version 0x${version.toString(16)} in known-bad Adreno range")
+                true
+            }
+            else -> false
+        }
+    }
+
     // ── 已知问题机型列表（持续扩充） ──
     // 基于 Bugly 崩溃数据和行业报告维护
     // 特别注意：Adreno GPU vkGetDeviceQueue 崩溃（#3088）— 已在 VulkanBackend.cpp 中增加重试逻辑
@@ -215,11 +249,34 @@ object VulkanPolicy {
         "2210132c",       // 小米 12T
         "2211133c",       // 小米 13
         "23046pnc5c",     // 小米 13T
-        // Adreno vkGetDeviceQueue 崩溃相关机型
+        // Adreno vkGetDeviceQueue 崩溃相关机型（#3088）
         "2312d0500",      // 小米 14
         "23127pn0cc",     // 小米 14 Pro
         "23122rn3bl",     // 小米 13 Ultra
         "2311drn14c",     // Xiaomi 13T Pro
+        // Adreno 崩溃扩展机型（#9045 RenderThread deadline join）
+        "2312drabrc",     // Xiaomi 14 Civi
+        "24031pn0dc",     // Xiaomi 14T Pro
+        "24030pn60g",     // Xiaomi 14T
+        "24122rn3ch",     // Redmi K70 Pro
+        "2311drk14c",     // Redmi K70
+        "2407frk8ec",     // Redmi K70 Ultra
+        "2304fpn6dg",     // Redmi Note 13 Pro+
+        "2312draabg",     // Xiaomi Pad 7 Pro
+        "v2309a",         // vivo X100
+        "v2324a",         // vivo X100 Pro
+        "v2330a",         // vivo X100 Ultra
+        "v2248a",         // vivo iQOO 12
+        "v2307a",         // vivo iQOO Neo9
+        "pjh110",         // OPPO Find X7
+        "phz110",         // OPPO Find X7 Ultra
+        "pje110",         // OnePlus 12
+        "pjf110",         // OnePlus Ace 3
+        "eli-an00",       // 荣耀 Magic6
+        "bvl-an00",       // 荣耀 Magic6 Pro
+        "mda-an00",       // 华为 Mate 60
+        "mga-al00",       // 华为 Mate 60 Pro
+        "alt-al00",       // 华为 P70
     )
 
     // ── 已知问题厂商列表 ──

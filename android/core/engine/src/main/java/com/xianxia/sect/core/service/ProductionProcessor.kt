@@ -1,8 +1,7 @@
 package com.xianxia.sect.core.engine.service
 
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
+import com.xianxia.sect.core.engine.di.IoDispatcher
 import kotlin.math.roundToInt
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
@@ -44,7 +43,8 @@ class ProductionProcessor @Inject constructor(
     private val productionSlotRepository: ProductionSlotRepository,
     private val formulaService: FormulaService,
     private val rngManager: GameRngManager,
-    private val scopeProvider: CoroutineScopeProvider
+    private val scopeProvider: CoroutineScopeProvider,
+    private val ioDispatcher: IoDispatcher
 ) {
 
     companion object {
@@ -175,7 +175,7 @@ class ProductionProcessor @Inject constructor(
 
     private fun resetSlotToIdle(slot: ProductionSlot, buildingId: String,
                                  buildingType: BuildingType) {
-        scopeProvider.scope.launch(Dispatchers.IO) {
+        scopeProvider.scope.launch(ioDispatcher.dispatcher) {
             productionSlotRepository.updateSlotByBuildingId(buildingId, slot.slotIndex) { s ->
                 ProductionSlot.createIdle(
                     id = s.id,
@@ -421,7 +421,7 @@ class ProductionProcessor @Inject constructor(
         }
         if (disciple == null || !disciple.isAlive || (disciple.status != DiscipleStatus.IDLE && disciple.status != DiscipleStatus.ALCHEMY)) {
             // 弟子不可用 → 清除槽位关联，等待玩家手动处理
-            scopeProvider.scope.launch(Dispatchers.IO) {
+            scopeProvider.scope.launch(ioDispatcher.dispatcher) {
                 productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slotIndex) { s ->
                     s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
                 }
@@ -461,7 +461,7 @@ class ProductionProcessor @Inject constructor(
             val actualDuration = formulaService.calculateWorkDurationWithAllDisciples(
                 recipeToStart.duration, BuildingNames.ALCHEMY)
             val absMonth = data.gameYear * 12 + data.gameMonth
-            scopeProvider.scope.launch(Dispatchers.IO) {
+            scopeProvider.scope.launch(ioDispatcher.dispatcher) {
                 productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slotIndex) { s ->
                     s.copy(
                         duration = actualDuration,
@@ -519,7 +519,7 @@ class ProductionProcessor @Inject constructor(
             allDisciples.find { it.id == id }
         }
         if (disciple == null || !disciple.isAlive || (disciple.status != DiscipleStatus.IDLE && disciple.status != DiscipleStatus.FORGE)) {
-            scopeProvider.scope.launch(Dispatchers.IO) {
+            scopeProvider.scope.launch(ioDispatcher.dispatcher) {
                 productionSlotRepository.updateSlotByBuildingId(BuildingNames.FORGE, slotIndex) { s ->
                     s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
                 }
@@ -1195,7 +1195,7 @@ class ProductionProcessor @Inject constructor(
 
             val remainingMonths = ((1.0 - progressRatio) * newDuration)
                 .roundToInt().coerceAtLeast(1)
-            scopeProvider.scope.launch(Dispatchers.IO) {
+            scopeProvider.scope.launch(ioDispatcher.dispatcher) {
                 productionSlotRepository.updateSlot(
                     slot.buildingType, slot.slotIndex
                 ) { s ->

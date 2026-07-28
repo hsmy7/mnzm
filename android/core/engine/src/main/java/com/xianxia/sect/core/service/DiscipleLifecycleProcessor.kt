@@ -14,8 +14,8 @@ import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.event.DomainEvent
 import com.xianxia.sect.core.event.EventBusPort
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
 import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.engine.di.IoDispatcher
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,7 +29,8 @@ class DiscipleLifecycleProcessor @Inject constructor(
     private val eventBus: EventBusPort,
     private val discipleSlotCleanup: DiscipleSlotCleanup,
     private val lawEnforcementProcessor: javax.inject.Provider<LawEnforcementProcessor>,
-    private val discipleStatusService: DiscipleStatusService
+    private val discipleStatusService: DiscipleStatusService,
+    private val ioDispatcher: IoDispatcher
 ) {
     private val scope get() = scopeProvider.scope
 
@@ -376,7 +377,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
         for (slot in forgeSlots) {
             if (slot.assignedDiscipleId == discipleId) {
                 // 同步阻塞执行 DAO 写，消除 scope.launch 跨线程竞态
-                kotlinx.coroutines.runBlocking(Dispatchers.IO) {
+                kotlinx.coroutines.runBlocking(ioDispatcher.dispatcher) {
                     productionSlotRepository.updateSlotByBuildingId(BUILDING_FORGE, slot.slotIndex) { s ->
                         s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
                     }

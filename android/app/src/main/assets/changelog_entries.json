@@ -1,5 +1,17 @@
 [
   {
+    "date": "2026-07-28",
+    "version": "4.0.77",
+    "changes": [
+      "架构：GameConfig双源不一致根除——守卫测试46用例+4项数值对齐+GameConfig.initialize()注入GameConfigData，Production/Warehouse/Battle.RealmGap/LawEnforcementConfig对应字段改为运行时val委托到_configData",
+      "架构：Dispatchers.IO→IoDispatcher全量替换——IoDispatcher迁至:core:engine/di供全部模块注入，12个Hilt类49处替换+8个非Hilt类dispatcher参数化",
+      "架构：SIGSEGV#3088 vulkan.adreno.so加固——driverVersion JNI桥+C++静态变量+黑名单扩充22机型+GameConfigData.VulkanSection远程配置预备",
+      "架构：ANR#5076 TapTap防御——initAdSdk()顺序修正+5s超时+Looper监控+lateinit异常守卫(根因在TapTap闭源)",
+      "架构：Detekt 6项违规清零——通配符import/catch(Exception)/文件名匹配/长行/return数",
+      "修复：GameConfigData 4项数值偏差——damageBonusPerRealm 0.5→0.35、damagePenaltyPerRealm 0.5→0.35、probPerPoint 0.03→0.01、capacityPerBuilding 50→75(此前未使用不影响实际数值)"
+    ]
+  },
+  {
     "date": "2026-07-27",
     "version": "4.0.76",
     "changes": [

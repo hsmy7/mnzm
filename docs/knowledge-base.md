@@ -273,9 +273,9 @@ interface SaveValidationRule {
 - 入口 facade：`data/src/main/java/.../integrity/SaveValidator.kt`
 - IntegrityResult 密封接口保持兼容不变
 
-### 已知待完成
+### 已知待完成（2026-07-28 已全量治理）
 
-见 [架构债务文档](architecture-debt.md) #21（对抗性审查 4 项未覆盖）、#22（补充修复文件）、#23（EntityCountBoundsRule）。
+全部 5 项 Selected 架构债务已治理完毕，详见 [架构债务文档](architecture-debt.md) 和 [架构债务写守卫](architecture-debt-write-guard.md)。
 
 ## 热控与温度读取
 

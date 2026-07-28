@@ -761,7 +761,12 @@ private fun DisciplesTabContent(viewModel: GameViewModel) {
 }
 
 @Composable
-private fun FullScreenOverlayWarehouse(viewModel: GameViewModel, onDismiss: () -> Unit) {
+private fun FullScreenOverlayWarehouse(
+    viewModel: GameViewModel,
+    onDismiss: () -> Unit,
+    warehouseBaseCapacity: Int = GameConfig.Warehouse.BASE_CAPACITY,
+    warehouseCapacityPerBuilding: Int = GameConfig.Warehouse.CAPACITY_PER_BUILDING
+) {
     val gameData by viewModel.gameDataUi.collectAsStateWithLifecycle()
     val equipmentStacks by viewModel.equipmentStacks.collectAsStateWithLifecycle()
     val manualStacks by viewModel.manualStacks.collectAsStateWithLifecycle()
@@ -772,7 +777,7 @@ private fun FullScreenOverlayWarehouse(viewModel: GameViewModel, onDismiss: () -
 
     var showBulkSell by remember { mutableStateOf(false) }
     val warehouseCount = gameData.placedBuildings.count { it.displayName == "仓库" }
-    val maxCap = GameConfig.Warehouse.BASE_CAPACITY + warehouseCount * GameConfig.Warehouse.CAPACITY_PER_BUILDING
+    val maxCap = warehouseBaseCapacity + warehouseCount * warehouseCapacityPerBuilding
     val totalItems = equipmentStacks.size + manualStacks.size + pills.size + materials.size + herbs.size + seeds.size
     val isFull = totalItems >= maxCap
     val titleText = buildString {

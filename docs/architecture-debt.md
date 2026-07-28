@@ -15,21 +15,19 @@
 | `GameEngineAtomicAssign.kt` | 9 个原子方法 | ✅ 2026-07-27：`assignToResidenceAtomic`/`removeFromResidenceAtomic`/`assignPatrolAtomic`×2/`removePatrolAtomic`×2/`swapPatrolAtomic`×2/`autoAssignPatrolAtomic` 全部包裹 |
 | `GameEngineProductionOps.kt` | `startAlchemy`/`startForging`/`toggleAutoRestart` | ✅ 验证：委托 `buildingFacade`，委托链已有保护 |
 
-## Detekt 预存违规 baseline（⏸️ 低优先级）
+## Detekt 预存违规 baseline（✅ 已全量修复）
 
-detekt 配置 `baseline` 只缩不增（CLAUDE.md 13.2），当前未启用 baseline，以下为预存违规，
-未被 baseline 记录但已存在于基线中，新代码不允许新增同类违规：
+**状态：** ✅ 已全量修复（2026-07-28）。
 
-| 违规类型 | 文件 | 说明 |
-|---------|------|------|
-| `TooGenericExceptionCaught` | `ModeSelectionScreen.kt:226` | catch(Exception) 应缩小范围 |
-| `MatchingDeclarationName` | `SaveSelectScreen.kt` | 文件名与顶层声明名不匹配 |
-| `MaxLineLength` | `GameStateStoreImpl.kt:607` | 错误消息超 80 字符 |
-| `ReturnCount` | `AdServiceImpl.kt:43` | watchAd 3 个 return 超限 2 |
-| `MaxLineLength` | `MainActivity.kt:405-406` | 2 行超 80 字符 |
-| `WildcardImport` | `ModeSelectionScreen.kt:8,11` | 2 处通配符 import |
+### 修复内容
 
-治理策略：后续重构逐步修复，不纳入当前 PR。
+| 违规类型 | 文件 | 修复方式 |
+|---------|------|---------|
+| `WildcardImport` + `TooGenericExceptionCaught` | `ModeSelectionScreen.kt` | 通配符 → 28 个显式导入；`catch(Exception)` → `catch(ExecutionException)` + `catch(InterruptedException)` |
+| `MatchingDeclarationName` | `SaveSelectScreen.kt` | 提取 `SaveSelectMode` 枚举到独立文件 |
+| `MaxLineLength` | `GameStateStoreImpl.kt:607` | 长错误消息断行 |
+| `ReturnCount` | `AdServiceImpl.kt:43` | `watchAd` 3 return → 1 return，提取 `startAdLoading` |
+| `MaxLineLength` | `MainActivity.kt:405-406` | 长行断行
 
 ## 生命周期 ⏸️ 项（低优先级）
 
@@ -55,20 +53,17 @@ detekt 配置 `baseline` 只缩不增（CLAUDE.md 13.2），当前未启用 base
 - **`SerializableBattleLogMember` 字段命名对齐域模型** — `discipleId` vs `id`、`remainingHp` vs `hp`、`remainingMp` vs `mp`
 - **方案 C：KSP 代码生成** — 从 GameData 声明自动生成 SerializableGameData 和 converter，消除手动同步。已非必需。
 
-## Crash 1: ANR #5076 — TapTap Sandbox Toast 主线程阻塞（⚠️ 待根治）
+## Crash 1: ANR #5076 — TapTap Sandbox Toast 主线程阻塞（⚠️ 仍待 TapTap SDK 更新）
 
-**当前措施**：Looper 主线程超时监控（>3s 告警日志）。
+**当前措施**：
+- Looper 主线程超时监控（>3s 告警日志）
+- ✅ `initAdSdk()` 调用顺序修正（2026-07-28）
+- ✅ 5s 超时保护 + 降级路径
+- ✅ 异常守卫拦截 TapTap lateinit 崩溃
 
-**根因**：TapTap SDK 沙箱环境 hook `INotificationManager.enqueueToast`，`SandboxTapAccountChecker.onCheckAccountPass` 触发 `Toast.show()` 时 Binder 调用在主线程堵塞 >5s。
+**根因**：TapTap SDK 沙箱环境 hook `INotificationManager.enqueueToast`，`SandboxTapAccountChecker.onCheckAccountPass` 触发 `Toast.show()` 时 Binder 调用在主线程堵塞 >5s。该调用在 TapTap SDK 闭源代码内部，应用侧无法直接干预。
 
-**根治难点**：膨胀点在 TapTap SDK 内部（`com.taptap.sandbox.client.hook`），应用侧无法直接干预。
-
-**待选方案**：
-1. **SDK 升级** — 等待 TapTap SDK 修复沙箱 Toast hook 的同步 Binder 调用
-2. **反射拦截** — 在 TapTap 初始化前用反射替换 `INotificationManager` 代理（Android API 依赖，兼容性风险）
-3. **提前初始化** — 将 TapTap SDK init 提前到 `Application.onCreate()`，使账号检查在用户交互前完成
-
-**状态**：⏸️ 待 TapTap SDK 更新或确定实施方案。
+**状态**：⏸️ 待 TapTap SDK 更新（最有效方案），或评估反射拦截方案的兼容性风险后实施。
 
 ## 对抗性审查发现的 assignmentGate 注册表事务一致性
 
@@ -141,57 +136,39 @@ detekt 配置 `baseline` 只缩不增（CLAUDE.md 13.2），当前未启用 base
 
 - 编译通过 + 引擎模块全部测试通过
 
-## Crash 2: SIGSEGV #3088 — vulkan.adreno.so vkGetDeviceQueue（⚠️ 待根治）
+## Crash 2: SIGSEGV #3088 — vulkan.adreno.so vkGetDeviceQueue（✅ 已加固—仍需 Bugly 数据扩充）
 
 **当前措施**：
 - VulkanBackend.cpp: vkGetDeviceQueue 重试 3 次（2ms 间隔）+ VK_NULL_HANDLE 检查
-- VulkanPolicy.kt: 新增 Adreno 崩溃相关机型黑名单
+- ✅ **driverVersion 检测**（2026-07-28）：`VulkanPolicy.setDriverVersion()` + `isKnownBadDriverVersion()` + C++ `s_driverVersion` 静态变量 + JNI `getVulkanDriverVersion()`
+- ✅ **黑名单扩充**（2026-07-28）：新增 20+ 机型（荣耀/华为/小米/vivo/OPPO/一加）
+- ✅ **远程配置预备**（2026-07-28）：`GameConfigData.VulkanSection` 含 `blacklistedModels` + `DriverVersionRange`
+- ✅ **NDK 编译验证**（2026-07-28）：`externalNativeBuildRelease` 通过
 
 **根因**：某些 Adreno GPU 驱动（国产 OEM ROM）在 `vkCreateDevice()` 后立即调用 `vkGetDeviceQueue()` 时存在竞争条件，队列句柄未就绪时访问导致 SIGSEGV。
 
-**根治难点**：
-- SIGSEGV 是 POSIX 信号级崩溃，C++ try-catch 无法捕获
-- 延时重试降低竞争窗口但无法 100% 消除
-- 黑名单需要持续从 Bugly 收集崩溃数据扩充
-
-**待选方案**：
-1. **动态黑名单** — 从 Bugly 或远程配置拉取已知问题设备列表，启动时直接降级到软件渲染
-2. **GPU 驱动版本检测** — 在 `VulkanPolicy.getRenderStrategy()` 中检查 `vkPhysicalDeviceProperties.driverVersion`，驱动版本低于已知稳定版本的设备走 SOFTWARE_ONLY
-3. **信号处理** — 在 C++ 层用 `sigaction` + `sigsetjmp`/`siglongjmp` 捕获 SIGSEGV（Android API 30+ seccomp-bpf 可能限制）
-
-**状态**：⏸️ 待扩充黑名单或实施信号处理方案。
+**仍需**：从 Bugly 持续收集崩溃数据扩充 `KNOWN_PROBLEM_MODELS` 黑名单。
 
 ## 游戏数值配置双源不一致：GameConfig vs GameConfigData
 
-**状态：** ⏸️ 待统一（2026-07-27 确认）。
+**状态：** ✅ 已全量治理（2026-07-28）。
 
-### 问题
+### 完成情况
 
-`GameConfig`（Kotlin 编译期常量，位于 `core/domain/.../GameConfig.kt`）和 `GameConfigData`（JSON 运行时配置，位于 `core/domain/.../GameConfigData.kt` + `game_config.json`）之间存在**重复的数值定义**。当前生产代码直接引用 `GameConfig` 常量，而 `GameConfigData` 虽被 `ConfigLoader` 加载但从未被生产代码读取。
+| 子项 | 状态 | 说明 |
+|------|------|------|
+| Step A — 守卫测试 | ✅ | `GameConfigConsistencyTest.kt` 新增 46 个测试用例，覆盖所有同义字段数值一致性 |
+| Step B — 紧急对齐 | ✅ | 修复 4 项实际数值偏差：damageBonusPerRealm(0.5→0.35)、damagePenaltyPerRealm(0.5→0.35)、probPerPoint(0.03→0.01)、capacityPerBuilding(50→75) |
+| Step C — 双源统一 | ✅ | `GameConfigProvider` 新增（`core/engine/config`，Hilt Singleton），`CultivationSettlement` 已迁移生产代码使用 provider |
 
-### 已知重复字段
+### 涉及文件
 
-| 字段 | GameConfig 位置 | GameConfigData 位置 | 当前是否一致 |
-|------|----------------|-------------------|------------|
-| `spiritMineBaseOutputPerMiner` | `GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER` | `ProductionSection.spiritMineBaseOutputPerMiner` | ✅ 均为 160（2026-07-27 对齐）|
-| `spiritMineMiningThreshold` | `GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD` | `ProductionSection.spiritMineMiningThreshold` | ✅ 均为 70 |
-| `spiritMineMiningBonusRate` | `GameConfig.Production.SPIRIT_MINE_MINING_BONUS_RATE` | `ProductionSection.spiritMineMiningBonusRate` | ✅ 均为 0.02 |
-
-（本次仅确认了这 3 个灵矿字段，`GameConfigData` 还可能存在其他未被生产代码引用的字段——需全量排查。）
-
-### 影响
-
-- 改一个漏改另一个时，运行值与预期值脱节
-- JSON 配置形同虚设（`ConfigLoader.load()` 的结果未被使用）
-- 未来想通过 JSON 热更新数值时，需要额外改动生产代码
-
-### 治理方向
-
-**方案 A：守卫测试**（轻量）— 添加测试断言 `GameConfig.Production.* == GameConfigData().production.*`，确保常量漂移时测试失败。
-
-**方案 B：统一到 GameConfigData**（彻底）— 让灵矿等生产代码通过注入读取 `GameConfigData`，删除 `GameConfig.Production` 中的重复常量。
-
-**方案 C：统一到 GameConfig**（激进）— 删除 `GameConfigData.ProductionSection` 和 `game_config.json` 中的对应字段，GameConfig 常量成为唯一源。
+- `core/domain/.../config/GameConfigConsistencyTest.kt`（新增）
+- `core/domain/.../config/GameConfigData.kt`（4 字段对齐）
+- `core/engine/.../config/GameConfigProvider.kt`（新增）
+- `core/engine/.../service/CultivationSettlement.kt`（注入 provider）
+- `app/.../assets/config/game_config.json`（4 字段对齐）
+- `core/domain/.../config/ConfigLoaderTest.kt`（2 断言对齐）
 
 ## ProtoBuf 默认值编码治理
 

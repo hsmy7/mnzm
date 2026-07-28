@@ -62,7 +62,7 @@ import com.xianxia.sect.core.AdFreeWhitelist
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.taptap.AdServiceImpl
 import com.xianxia.sect.core.nativebridge.NativeBridge
-import com.xianxia.sect.di.IoDispatcher
+import com.xianxia.sect.core.engine.di.IoDispatcher
 import kotlinx.coroutines.CoroutineDispatcher
 import android.view.ActionMode
 import android.view.View
@@ -274,6 +274,9 @@ class GameActivity : ComponentActivity() {
                                                 if (prewarmOk) {
                                                     com.xianxia.sect.core.CrashRecoveryEngine.clearVulkanInitFailure()
                                                     com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
+                                                    com.xianxia.sect.core.VulkanPolicy.setDriverVersion(
+                                                        com.xianxia.sect.core.nativebridge.NativeBridge.getVulkanDriverVersion()
+                                                    )
                                                 } else {
                                                     com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
                                                     com.xianxia.sect.core.CrashRecoveryEngine.recordVulkanInitFailure()

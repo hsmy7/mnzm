@@ -2,8 +2,8 @@ package com.xianxia.sect.core.engine.system
 
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.InventoryConfig
+import com.xianxia.sect.core.engine.config.GameConfigProvider
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase.ForgeRecipe
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentStack
@@ -47,7 +47,8 @@ import javax.inject.Singleton
 class InventorySystem @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventoryConfig: InventoryConfig,
-    private val spiritStoneWallet: SpiritStoneWallet
+    private val spiritStoneWallet: SpiritStoneWallet,
+    private val gameConfigProvider: GameConfigProvider,
 ) : GameSystem, ItemAdder {
 
     companion object {
@@ -72,8 +73,8 @@ class InventorySystem @Inject constructor(
         val warehouseCount = buildings.count {
             it.displayName == BuildingType.WAREHOUSE.displayName
         }
-        return com.xianxia.sect.core.GameConfig.Warehouse.BASE_CAPACITY +
-               warehouseCount * com.xianxia.sect.core.GameConfig.Warehouse.CAPACITY_PER_BUILDING
+        return gameConfigProvider.warehouse.baseCapacity +
+               warehouseCount * gameConfigProvider.warehouse.capacityPerBuilding
     }
 
     val equipmentStacks: StateFlow<List<EquipmentStack>> get() = stateStore.equipmentStacks

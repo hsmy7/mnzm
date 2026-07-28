@@ -4,8 +4,8 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.CoroutineScopeProvider
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import com.xianxia.sect.core.engine.di.IoDispatcher
 import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
@@ -26,6 +26,7 @@ class DiscipleSlotManager @Inject constructor(
     private val discipleSlotCleanup: DiscipleSlotCleanup,
     /** 使用 Provider 打破 Hilt 循环依赖：DiscipleStatusService → DiscipleLifecycleManager → DiscipleSlotManager → DiscipleStatusService */
     private val discipleStatusServiceProvider: Provider<DiscipleStatusService>,
+    private val ioDispatcher: IoDispatcher
 ) {
     companion object {
         private const val TAG = "DiscipleSlotManager"
@@ -61,7 +62,7 @@ class DiscipleSlotManager @Inject constructor(
         val forgeSlots = productionSlotRepository.getSlotsByBuildingId(BUILDING_FORGE)
         for (slot in forgeSlots) {
             if (slot.assignedDiscipleId == discipleId && !slot.isWorking) {
-                scopeProvider.scope.launch(Dispatchers.IO) {
+                scopeProvider.scope.launch(ioDispatcher.dispatcher) {
                     productionSlotRepository.updateSlotByBuildingId(BUILDING_FORGE, slot.slotIndex) { s ->
                         s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
                     }

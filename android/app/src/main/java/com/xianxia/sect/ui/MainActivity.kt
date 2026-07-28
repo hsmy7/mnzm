@@ -54,11 +54,13 @@ import com.xianxia.sect.ui.components.AudioToggleRow
 import androidx.compose.runtime.CompositionLocalProvider
 import com.xianxia.sect.ui.components.LocalPlayClickSound
 import com.xianxia.sect.ui.components.clickableWithSound
+import com.xianxia.sect.ui.model.SaveSelectMode
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.XianxiaTheme
 import com.xianxia.sect.core.audio.AudioConfig
 import com.xianxia.sect.core.audio.AudioEngine
 import com.xianxia.sect.core.audio.AudioPreloader
+import com.xianxia.sect.core.engine.di.IoDispatcher
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -138,6 +140,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var audioPreloader: AudioPreloader
+
+    @Inject
+    lateinit var ioDispatcher: IoDispatcher
     
     public var complianceDialogState = mutableStateOf<ComplianceDialogState?>(null)
     /** TapTap SDK 初始化就绪状态，登录按钮需此标记为 true 才可点击 */
@@ -230,7 +235,7 @@ class MainActivity : ComponentActivity() {
         showLoadingScreen()
         startProgressAnimation()
         
-        lifecycleScope.launch(Dispatchers.IO) {
+        lifecycleScope.launch(ioDispatcher.dispatcher) {
             var initialized = false
             var retryCount = 0
             val maxRetries = 3
@@ -390,7 +395,7 @@ class MainActivity : ComponentActivity() {
 
     internal fun showSaveSelectScreen(mode: SaveSelectMode = SaveSelectMode.LOAD_SAVE) {
         lifecycleScope.launch {
-            val saveSlots = withContext(Dispatchers.IO) {
+            val saveSlots = withContext(ioDispatcher.dispatcher) {
                 try {
                     storageFacade.getSaveSlotsSuspend()
                 } catch (e: kotlinx.coroutines.CancellationException) {
@@ -401,7 +406,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
             // 迁移旧自动存档数据到空槽位
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher.dispatcher) {
                 try {
                     val legacyData = storageFacade.load(0).getOrNull()
                     if (legacyData != null) {
@@ -419,7 +424,7 @@ class MainActivity : ComponentActivity() {
                 } catch (_: Exception) { }
             }
             // 查询云存档信息（异步，失败则静默跳过）
-            val cloudInfo = withContext(Dispatchers.IO) {
+            val cloudInfo = withContext(ioDispatcher.dispatcher) {
                 try { tapCloudSaveManager.checkCloudSave() } catch (_: Exception) { null }
             }
             setContent {
@@ -433,8 +438,13 @@ class MainActivity : ComponentActivity() {
                             saveSlots = saveSlots,
                             cloudSaveInfo = cloudInfo,
                             onLoadSlot = { slot ->
-                                val intent = Intent(this@MainActivity, GameActivity::class.java).apply {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                                val intent = Intent(
+                                    this@MainActivity, GameActivity::class.java
+                                ).apply {
+                                    addFlags(
+                                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                                            Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                    )
                                     putExtra(EXTRA_SLOT, slot)
                                 }
                                 startActivity(intent)
@@ -464,7 +474,7 @@ class MainActivity : ComponentActivity() {
                             },
                             onDeleteSlot = { slot ->
                                 lifecycleScope.launch {
-                                    withContext(Dispatchers.IO) {
+                                    withContext(ioDispatcher.dispatcher) {
                                         storageFacade.delete(slot)
                                     }
                                     showSaveSelectScreen(mode)
@@ -481,7 +491,7 @@ class MainActivity : ComponentActivity() {
     }
     
     private fun initTapTapSDK() {
-        lifecycleScope.launch(Dispatchers.IO) {
+        lifecycleScope.launch(ioDispatcher.dispatcher) {
             try {
                 // 必须先初始化 TapTap 核心 SDK，再初始化 Ad SDK
                 // TapAdSdk 内部依赖 TapTapKit.context，反序会导致 lateinit context 未初始化崩溃
@@ -516,7 +526,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** 初始化 Dirichlet Ad SDK（仅在用户同意隐私政策后调用） */
+    /** 初始化 Dirichlet Ad SDK（在 TapTapAuthManager.init() 后调用） */
     private fun initAdSdk() {
         try {
             val config = com.tapsdk.tapad.TapAdConfig.Builder()

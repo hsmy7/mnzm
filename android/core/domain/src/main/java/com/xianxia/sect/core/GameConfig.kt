@@ -1,6 +1,7 @@
 package com.xianxia.sect.core
 
 import com.xianxia.sect.core.config.FavorConfig
+import com.xianxia.sect.core.config.GameConfigData
 import com.xianxia.sect.core.domain.BuildConfig
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.GameRandom
@@ -83,7 +84,25 @@ enum class HealType {
 }
 
 object GameConfig {
-    
+
+    /** 运行时配置数据（由 [initialize] 设置，启动后不应修改） */
+    @Volatile
+    private var _configData: GameConfigData? = null
+
+    /**
+     * 使用 [GameConfigData] 初始化运行时配置。
+     * 此后 [Production]、[Warehouse]、[Battle.RealmGap]、[LawEnforcementConfig] 中的
+     * 对应字段将返回 GameConfigData 中的值而非编译期常量。
+     * 不调用此方法时，仍使用原有的 [const val] 默认值，保证向后兼容。
+     */
+    fun initialize(config: GameConfigData) {
+        _configData = config
+        DomainLog.i("GameConfig", "Runtime config initialized: v${config.version}")
+    }
+
+    /** 获取当前运行时配置（可能为 null，此时使用编译期默认值） */
+    private fun config(): GameConfigData? = _configData
+
     object Game {
         const val NAME = "模拟宗门"
         const val VERSION = BuildConfig.VERSION_NAME
@@ -147,9 +166,12 @@ object GameConfig {
 
     object Production {
 
-        const val SPIRIT_MINE_BASE_OUTPUT_PER_MINER = 160
-        const val SPIRIT_MINE_MINING_THRESHOLD = 70
-        const val SPIRIT_MINE_MINING_BONUS_RATE = 0.02
+        val SPIRIT_MINE_BASE_OUTPUT_PER_MINER: Int
+            get() = config()?.production?.spiritMineBaseOutputPerMiner ?: 160
+        val SPIRIT_MINE_MINING_THRESHOLD: Int
+            get() = config()?.production?.spiritMineMiningThreshold ?: 70
+        val SPIRIT_MINE_MINING_BONUS_RATE: Double
+            get() = config()?.production?.spiritMineMiningBonusRate ?: 0.02
     }
 
     object HerbGarden {
@@ -158,8 +180,10 @@ object GameConfig {
     }
 
     object Warehouse {
-        const val BASE_CAPACITY = 50
-        const val CAPACITY_PER_BUILDING = 75
+        val BASE_CAPACITY: Int
+            get() = config()?.warehouse?.baseCapacity ?: 50
+        val CAPACITY_PER_BUILDING: Int
+            get() = config()?.warehouse?.capacityPerBuilding ?: 75
     }
 
     object Rarity {
@@ -575,8 +599,10 @@ object GameConfig {
         const val MIN_FORMATION_SIZE = ELDER_SLOTS + DISCIPLE_SLOTS
 
         object RealmGap {
-            const val DAMAGE_BONUS_PER_REALM: Double = 0.35
-            const val DAMAGE_PENALTY_PER_REALM: Double = 0.35
+            val DAMAGE_BONUS_PER_REALM: Double
+                get() = config()?.battle?.realmGap?.damageBonusPerRealm ?: 0.35
+            val DAMAGE_PENALTY_PER_REALM: Double
+                get() = config()?.battle?.realmGap?.damagePenaltyPerRealm ?: 0.35
             const val INSTANT_KILL_GAP = 1
         }
     }
@@ -687,17 +713,28 @@ object GameConfig {
     }
 
     object LawEnforcementConfig {
-        const val LOYALTY_THRESHOLD = 30
-        const val MORALITY_THRESHOLD = 30
-        const val PROB_PER_POINT = 0.01
-        const val MAX_PROB = 0.90
-        const val BASE_CAPTURE_RATE = 0.0
-        const val INTELLIGENCE_BASE = 50
-        const val ELDER_BONUS_PER_POINT = 0.01
-        const val DISCIPLE_INTELLIGENCE_STEP = 5
-        const val DISCIPLE_BONUS_PER_STEP = 0.01
-        const val REFLECTION_YEARS = 5
-        const val NEW_DISCIPLE_PROTECTION_MONTHS = 12
+        val LOYALTY_THRESHOLD: Int
+            get() = config()?.lawEnforcement?.loyaltyThreshold ?: 30
+        val MORALITY_THRESHOLD: Int
+            get() = config()?.lawEnforcement?.moralityThreshold ?: 30
+        val PROB_PER_POINT: Double
+            get() = config()?.lawEnforcement?.probPerPoint ?: 0.01
+        val MAX_PROB: Double
+            get() = config()?.lawEnforcement?.maxProb ?: 0.90
+        val BASE_CAPTURE_RATE: Double
+            get() = config()?.lawEnforcement?.baseCaptureRate ?: 0.0
+        val INTELLIGENCE_BASE: Int
+            get() = config()?.lawEnforcement?.intelligenceBase ?: 50
+        val ELDER_BONUS_PER_POINT: Double
+            get() = config()?.lawEnforcement?.elderBonusPerPoint ?: 0.01
+        val DISCIPLE_INTELLIGENCE_STEP: Int
+            get() = config()?.lawEnforcement?.discipleIntelligenceStep ?: 5
+        val DISCIPLE_BONUS_PER_STEP: Double
+            get() = config()?.lawEnforcement?.discipleBonusPerStep ?: 0.01
+        val REFLECTION_YEARS: Int
+            get() = config()?.lawEnforcement?.reflectionYears ?: 5
+        val NEW_DISCIPLE_PROTECTION_MONTHS: Int
+            get() = config()?.lawEnforcement?.newDiscipleProtectionMonths ?: 12
 
         // ── 境界基准偷盗量（等比数列 ×4，1=炼气 … 9=渡劫） ──
         val THEFT_REALM_BASE_AMOUNTS: Map<Int, Long> = mapOf(

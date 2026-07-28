@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.audio.AudioEngine
 import com.xianxia.sect.core.config.ConfigLoader
 import com.xianxia.sect.core.config.BuildingConfigService
@@ -17,6 +18,7 @@ import com.xianxia.sect.ui.components.AtlasPacker
 import com.xianxia.sect.ui.components.AtlasResult
 import com.xianxia.sect.ui.components.SpriteCategory
 import com.xianxia.sect.ui.components.SpriteResRegistry
+import com.xianxia.sect.core.engine.di.IoDispatcher
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,6 +42,7 @@ class ResourcePreloader @Inject constructor(
     @ApplicationContext private val context: Context,
     private val buildingConfigService: BuildingConfigService,
     private val configLoader: ConfigLoader,
+    private val ioDispatcher: IoDispatcher,
     private val audioEngine: AudioEngine? = null
 ) {
     companion object {
@@ -99,12 +102,12 @@ class ResourcePreloader @Inject constructor(
             val dataInit = async(Dispatchers.Default) {
                 val ok = GameDataManager.initialize(context)
                 if (ok) {
-                    configLoader.load()
+                    GameConfig.initialize(configLoader.load())
                     buildingConfigService.initialize()
                 }
                 ok
             }
-            val manualInit = async(Dispatchers.IO) {
+            val manualInit = async(ioDispatcher.dispatcher) {
                 val result = ManualDatabase.initializeSync(context)
                 result.onSuccess { Log.i(TAG, "ManualDatabase preloaded") }
                     .onFailure { Log.w(TAG, "ManualDatabase preload failed", it) }

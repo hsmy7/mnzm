@@ -9,11 +9,13 @@ import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.RewardSelectedItem
 import com.xianxia.sect.core.model.StorageBagItem
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class DiscipleDelegate(
     private val gameEngine: GameEngine,
+    private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
     companion object {
         private const val TAG = "DiscipleDelegate"
@@ -81,7 +83,7 @@ class DiscipleDelegate(
     }
 
     suspend fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>) {
-        withContext(Dispatchers.IO) {
+        withContext(dispatcher) {
             gameEngine.rewardItemsToDisciple(discipleId, items)
         }
     }

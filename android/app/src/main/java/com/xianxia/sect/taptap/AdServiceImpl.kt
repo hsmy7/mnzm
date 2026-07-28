@@ -50,13 +50,18 @@ class AdServiceImpl @Inject constructor() : AdService {
         val activity = activityRef
         if (activity == null) {
             Log.w(TAG, "watchAd skipped: activityRef is null")
-            return
-        }
-        // 串行化广告请求：防止并发调用导致全局回调覆盖
-        if (isLoadingAd) {
+        } else if (isLoadingAd) {
             Log.d(TAG, "watchAd skipped: previous ad still loading")
-            return
+        } else {
+            startAdLoading(activity, purpose, onReward)
         }
+    }
+
+    private fun startAdLoading(
+        activity: Activity,
+        purpose: AdPurpose,
+        onReward: () -> Unit
+    ) {
         isLoadingAd = true
 
         val (rewardName, rewardAmount, spaceId) = when (purpose) {

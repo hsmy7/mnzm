@@ -608,7 +608,12 @@ class GameStateStoreImpl @Inject constructor(
                 error("stateStore.update() 被主线程调用，架构违规必须修复")
             } else {
                 // Release 构建：记录致命错误后立即返回，宁可丢失一次状态更新也不阻塞主线程导致 ANR
-                DomainLog.e(TAG, "update() 被主线程调用! 已跳过此次更新。必须通过 GameEngine.launchOnEngine 派发到引擎线程。", IllegalStateException("主线程调用堆栈"))
+                DomainLog.e(
+                    TAG,
+                    "update() 被主线程调用! 已跳过此次更新。" +
+                        "必须通过 GameEngine.launchOnEngine 派发到引擎线程。",
+                    IllegalStateException("主线程调用堆栈")
+                )
                 return
             }
         }

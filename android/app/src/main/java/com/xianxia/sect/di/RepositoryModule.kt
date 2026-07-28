@@ -1,5 +1,6 @@
 package com.xianxia.sect.di
 
+import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.core.transaction.ProductionTransactionManager
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.util.GameRngManager
@@ -25,6 +26,7 @@ object RepositoryModule {
     @Singleton
     fun provideProductionTransactionManager(
         repository: ProductionSlotRepository,
-        rngManager: GameRngManager
-    ): ProductionTransactionManager = ProductionTransactionManager(repository, rngManager)
+        rngManager: GameRngManager,
+        ioDispatcher: IoDispatcher
+    ): ProductionTransactionManager = ProductionTransactionManager(repository, rngManager, ioDispatcher)
 }

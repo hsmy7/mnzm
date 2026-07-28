@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.core.util.BuildingSpatialIndex
 import com.xianxia.sect.ui.game.components.messagebar.MessageBarHost
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -141,7 +142,9 @@ fun MainGameScreen(
     /** 是否强制使用 Canvas 软件渲染（模拟器/Vulkan 不可用设备） */
     forceSoftwareRendering: Boolean = false,
     /** Vulkan 初始化生命周期监听器（由 GameActivity 注入，驱动 CrashRecoveryEngine） */
-    vulkanInitListener: NativeSurfaceView.VulkanInitListener? = null
+    vulkanInitListener: NativeSurfaceView.VulkanInitListener? = null,
+    /** 用于后台 I/O 操作的协程调度器 */
+    dispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     // [M7-OPT-1] 高频核心数据收集 - 使用 derivedStateOf 限制重组范围
     // gameData 包含资源、日期等，每 tick (100ms) 都可能变化
@@ -391,7 +394,7 @@ fun MainGameScreen(
         // 异步加载避免首次 composition 阻塞主线程（BitmapFactory.decodeResource 是阻塞 I/O）
         var cropBitmaps by remember { mutableStateOf<Map<String, ImageBitmap>>(emptyMap()) }
         LaunchedEffect(Unit) {
-            cropBitmaps = withContext(Dispatchers.IO) {
+            cropBitmaps = withContext(dispatcher) {
                 val map = mutableMapOf<String, ImageBitmap>()
                 val resources = context.resources
                 for (herb in com.xianxia.sect.core.registry.HerbDatabase.getAllHerbs()) {

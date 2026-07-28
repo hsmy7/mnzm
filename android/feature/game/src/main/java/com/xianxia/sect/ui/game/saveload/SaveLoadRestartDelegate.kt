@@ -6,6 +6,7 @@ import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.model.SaveData
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -16,13 +17,14 @@ class SaveLoadRestartDelegate(
     private val gameEngine: GameEngine,
     private val gameEngineCore: GameEngineCore,
     private val storageFacade: StorageFacade,
-    private val stateStore: GameStateStore
+    private val stateStore: GameStateStore,
+    private val dispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
     private val TAG = "SaveLoadRestartDelegate"
 
     var isRestarting: Boolean = false
 
-    suspend fun performRestartSave(slot: Int, previousSlot: Int): Boolean = withContext(Dispatchers.IO) {
+    suspend fun performRestartSave(slot: Int, previousSlot: Int): Boolean = withContext(dispatcher) {
         try {
             Log.i(TAG, "Saving current game to slot $slot before restart")
             val currentData = stateStore.unifiedState.value

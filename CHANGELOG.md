@@ -1,3 +1,18 @@
+## [4.0.77] - 2026-07-28
+
+### 架构
+
+- **架构债务全量治理 — 5 项 Selected 全部落地**
+- **GameConfig 双源不一致根除** — 守卫测试 46 用例 + 4 项数值紧急对齐 + `GameConfig.initialize()` 启动时注入 `GameConfigData`，`Production`/`Warehouse`/`Battle.RealmGap`/`LawEnforcementConfig` 对应字段改为运行时 `val` 委托到 `_configData`，`GameConfigData` 成为唯一真实源
+- **Dispatchers.IO → IoDispatcher 全量替换** — `IoDispatcher` 迁至 `:core:engine/di` 供全部模块注入，12 个 Hilt 类 49 处替换 + 8 个非 Hilt 类 `dispatcher` 参数化
+- **SIGSEGV #3088 vulkan.adreno.so 加固** — driverVersion JNI 桥 + C++ `s_driverVersion` 静态变量 + 黑名单扩充 22 机型 + `GameConfigData.VulkanSection` 远程配置预备
+- **ANR #5076 TapTap Sandbox Toast 防御** — `initAdSdk()` 顺序修正 + 5s 超时保护 + Looper 监控 + lateinit 异常守卫（根因在 TapTap SDK 闭源，应用层已做到极限）
+- **Detekt 6 项违规清零** — 通配符 import/`catch(Exception)`/文件名匹配/长行/return 数
+
+### 修复
+
+- **修复：GameConfigData 4 项数值偏差** — `damageBonusPerRealm` 0.5→0.35、`damagePenaltyPerRealm` 0.5→0.35、`probPerPoint` 0.03→0.01、`capacityPerBuilding` 50→75（此前未被生产代码读取，不影响实际游戏数值）
+
 ## [4.0.76] - 2026-07-27
 
 ### 调整

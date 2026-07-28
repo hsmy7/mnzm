@@ -75,6 +75,7 @@ class CultivationSettlementConcurrencyTest {
             stateStore,
             scopeProvider,
             spiritStoneWallet,
+            mock(),
             mock()
         )
         lifecycleProcessor = DiscipleLifecycleProcessor(

@@ -32,12 +32,7 @@ import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.theme.GameColors
 import java.text.SimpleDateFormat
 import java.util.*
-
-/** 存档选择模式 */
-enum class SaveSelectMode {
-    NEW_GAME,
-    LOAD_SAVE
-}
+import com.xianxia.sect.ui.model.SaveSelectMode
 
 private data class SlotStyle(
     val border: Color,

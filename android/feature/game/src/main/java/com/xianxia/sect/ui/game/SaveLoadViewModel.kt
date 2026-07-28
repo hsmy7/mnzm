@@ -20,6 +20,7 @@ import com.xianxia.sect.ui.game.saveload.SaveLoadLoadDelegate
 import com.xianxia.sect.ui.game.saveload.SaveLoadPauseDelegate
 import com.xianxia.sect.ui.game.saveload.SaveLoadRestartDelegate
 import com.xianxia.sect.ui.game.saveload.SaveLoadSaveDelegate
+import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.ui.game.saveload.PersistenceFacade
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.*
@@ -35,7 +36,8 @@ class SaveLoadViewModel @Inject constructor(
     private val coroutineScopeProvider: CoroutineScopeProvider,
     private val gameClock: com.xianxia.sect.core.engine.system.GameTimeClock,
     private val resourcePreloader: ResourcePreloader,
-    private val persistenceFacade: PersistenceFacade
+    private val persistenceFacade: PersistenceFacade,
+    private val ioDispatcher: IoDispatcher
 ) : BaseViewModel() {
 
     // 领域委托实例 — 按职责拆分 save/load/restart 等逻辑
@@ -44,7 +46,7 @@ class SaveLoadViewModel @Inject constructor(
         SaveLoadLoadDelegate(gameEngine, gameEngineCore, persistenceFacade.storageFacade, stateStore,
             persistenceFacade.buildingConfigService, persistenceFacade.spiritStoneWallet)
     }
-    private val restartDelegate by lazy { SaveLoadRestartDelegate(gameEngine, gameEngineCore, persistenceFacade.storageFacade, stateStore) }
+    private val restartDelegate by lazy { SaveLoadRestartDelegate(gameEngine, gameEngineCore, persistenceFacade.storageFacade, stateStore, dispatcher = ioDispatcher.dispatcher) }
     private val pauseDelegate by lazy { SaveLoadPauseDelegate(gameEngineCore, gameClock) }
 
     companion object {
@@ -176,7 +178,7 @@ class SaveLoadViewModel @Inject constructor(
 
     init {
         // 加载存档元数据 — 运行在 IO 调度器上，避免主线程等待 Room 查询
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher.dispatcher) {
             try {
                 _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
             } catch (e: CancellationException) { throw e }
@@ -334,7 +336,7 @@ class SaveLoadViewModel @Inject constructor(
         Log.i(TAG, "=== startNewGame BEGIN === sectName=$sectName, slot=$slot")
         val startTime = System.currentTimeMillis()
 
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher.dispatcher) {
             var needSlotRefresh = false
             var gameStarted = false
             try {
@@ -513,7 +515,7 @@ class SaveLoadViewModel @Inject constructor(
             "year=${saveSlot.gameYear}, month=${saveSlot.gameMonth}")
         val startTime = System.currentTimeMillis()
 
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher.dispatcher) {
             try {
                 setSaveLoadState(isLoading = true, pendingSlot = saveSlot.slot, pendingAction = "load")
 
@@ -621,7 +623,7 @@ class SaveLoadViewModel @Inject constructor(
     fun loadGameFromSlot(slot: Int) {
         // slot 0 = 从云端下载（带 saveLoadState 管理 + 结果反馈）
         if (slot == 0) {
-            viewModelScope.launch(Dispatchers.IO) {
+            viewModelScope.launch(ioDispatcher.dispatcher) {
                 resetCloudSaveOperationState()
                 setSaveLoadState(isLoading = true, pendingSlot = 0, pendingAction = "load")
                 try {
@@ -668,7 +670,7 @@ class SaveLoadViewModel @Inject constructor(
             Log.w(TAG, "Cloud load already in progress, ignoring")
             return
         }
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher.dispatcher) {
             try {
                 _loadingProgress.value = 0.1f
                 _preloadPhase.value = SaveLoadViewModelConstants.PHASE_CLOUD_SYNC
@@ -747,7 +749,7 @@ class SaveLoadViewModel @Inject constructor(
 
         // slot 0 = 上传至云端（带 saveLoadState 管理 + 结果反馈）
         if (slot == 0) {
-            viewModelScope.launch(Dispatchers.IO) {
+            viewModelScope.launch(ioDispatcher.dispatcher) {
                 resetCloudSaveOperationState()
                 setSaveLoadState(isSaving = true, pendingSlot = 0, pendingAction = "save")
                 try {
@@ -799,7 +801,7 @@ class SaveLoadViewModel @Inject constructor(
         Log.i(TAG, "=== saveGame BEGIN === slot=$slot, slotId=$slotId")
         val startTime = System.currentTimeMillis()
 
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher.dispatcher) {
             setSaveLoadState(isSaving = true, pendingSlot = slot, pendingAction = "save")
 
             try {
@@ -939,7 +941,7 @@ class SaveLoadViewModel @Inject constructor(
             return
         }
 
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher.dispatcher) {
             val wasRunning = _isTimeRunning.value
             var previousSlot = 1
             try {
@@ -1029,7 +1031,7 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     private suspend fun performRestartSave(slot: Int, previousSlot: Int): Boolean {
-        return withContext(Dispatchers.IO) {
+        return withContext(ioDispatcher.dispatcher) {
             try {
                 val snapshot = gameEngine.getStateSnapshot()
                 if (snapshot.gameData.sectName.isBlank()) {
@@ -1134,7 +1136,7 @@ class SaveLoadViewModel @Inject constructor(
 
     fun checkCloudSave() {
         val fetchVersion = cloudSaveInfoVersion.incrementAndGet()
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher.dispatcher) {
             try {
                 // 老玩家首次使用：清理旧版本残留的孤立存档
                 persistenceFacade.tapCloudSaveManager.oneTimeCleanup()
@@ -1153,7 +1155,7 @@ class SaveLoadViewModel @Inject constructor(
     fun uploadToCloudSave() {
         if (_cloudSaveOperationState.value is CloudSaveOperationState.Uploading ||
             _cloudSaveOperationState.value is CloudSaveOperationState.Downloading) return
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher.dispatcher) {
             if (!isCloudSaveAvailable()) {
                 _cloudSaveOperationState.value = CloudSaveOperationState.Error("请先登录TapTap账号")
                 return@launch
@@ -1217,7 +1219,7 @@ class SaveLoadViewModel @Inject constructor(
             Log.w(TAG, "Cloud download already in progress, ignoring")
             return
         }
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher.dispatcher) {
             try {
                 if (!isCloudSaveAvailable()) {
                     _cloudSaveOperationState.value = CloudSaveOperationState.Error("请先登录TapTap账号")
@@ -1315,7 +1317,7 @@ class SaveLoadViewModel @Inject constructor(
         Log.i(TAG, "SaveLoadViewModel cleared")
 
         // ★ 异步清理协程（NonCancellable 确保即使 viewModelScope 取消也执行完成）
-        viewModelScope.launch(NonCancellable + Dispatchers.IO) {
+        viewModelScope.launch(NonCancellable + ioDispatcher.dispatcher) {
             try {
                 // 等待保存完成（最长 2 秒，挂起式等待不阻塞主线程）
                 withTimeout(2000) {

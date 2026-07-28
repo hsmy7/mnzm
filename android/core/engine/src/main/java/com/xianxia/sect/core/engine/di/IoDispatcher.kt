@@ -1,4 +1,4 @@
-package com.xianxia.sect.di
+package com.xianxia.sect.core.engine.di
 
 import dagger.Module
 import dagger.Provides
@@ -7,6 +7,7 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import javax.inject.Inject
+import javax.inject.Qualifier
 import javax.inject.Singleton
 
 /**
@@ -21,7 +22,7 @@ class IoDispatcher @Inject constructor() {
 
 @Module
 @InstallIn(SingletonComponent::class)
-object DispatcherModule {
+object EngineDispatcherModule {
 
     @Provides
     @Singleton

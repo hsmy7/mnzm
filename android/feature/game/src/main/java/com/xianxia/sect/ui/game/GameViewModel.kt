@@ -16,6 +16,7 @@ import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.*
+import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.core.engine.domain.building.BuildingFacade
 import com.xianxia.sect.core.engine.domain.battle.BattleFacade
 import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyFacade
@@ -73,14 +74,15 @@ class GameViewModel @Inject constructor(
     private val dialogManager: DialogManager,
     private val adService: AdService,
     private val audioConfig: AudioConfig,
-    private val audioEngine: AudioEngine
+    private val audioEngine: AudioEngine,
+    private val ioDispatcher: IoDispatcher
 ) : BaseViewModel() {
 
     // ── 新提取的领域委托 ──
 
     val ads = AdsDelegate()
     val overlays = OverlayDelegate(gameEngine, viewModelScope)
-    val bag = BagDelegate(gameEngine, dailySignInService, viewModelScope)
+    val bag = BagDelegate(gameEngine, dailySignInService, viewModelScope, dispatcher = ioDispatcher.dispatcher)
     val redeem = RedeemCodeDelegate(gameEngine, ::showSuccess, ::showError)
     val mail = MailDelegate(gameEngine, mailService, dailySignInService, ::showError)
     val signIn = SignInDelegate(gameEngine, dailySignInService, viewModelScope, sharingStarted)
@@ -90,21 +92,21 @@ class GameViewModel @Inject constructor(
     // ── 既有领域委托 ──
 
     val planting = PlantingDelegate(gameEngine)
-    val disciple = DiscipleDelegate(gameEngine)
+    val disciple = DiscipleDelegate(gameEngine, dispatcher = ioDispatcher.dispatcher)
     val navigation = NavigationDelegate(
         gameEngine, gameEngineCore,
         onNavigate = { _navigationEvents.trySend(it) }
     )
     val inventory = InventoryDelegate(gameEngine)
     val beastAttack = BeastAttackDelegate(
-        gameEngine, viewModelScope,
+        gameEngine, viewModelScope, dispatcher = ioDispatcher.dispatcher,
         onMessage = { message, isError ->
             if (isError) showError(message) else showSuccess(message)
         }
     )
     val warnings = WarningDelegate(gameEngine, viewModelScope)
     val buildingDelegate = BuildingDelegate(
-        gameEngine, buildingFacade, buildingConfigService,
+        gameEngine, buildingFacade, buildingConfigService, dispatcher = ioDispatcher.dispatcher,
         onDemolishSuccess = { msg -> showSuccess(msg) }
     )
     val sectDelegate = SectDelegate(

@@ -8,6 +8,9 @@
 #include <set>
 #include <thread>
 #include <chrono>
+
+/** Vulkan 驱动版本缓存（由 initDevice 设置，供 JNI getVulkanDriverVersion 读取） */
+volatile int VulkanBackend::s_driverVersion = 0;
 #include <android/log.h>
 #include <cstdio>
 #include <signal.h>
@@ -413,6 +416,7 @@ bool VulkanBackend::selectPhysicalDevice() {
         // 参考：Unity 内置最低规格（ARM Mali 要求 >= 1.0.61, 但 1.0 实现普遍不可靠）
         uint32_t apiMajor = VK_API_VERSION_MAJOR(props.apiVersion);
         uint32_t apiMinor = VK_API_VERSION_MINOR(props.apiVersion);
+        s_driverVersion = static_cast<int>(props.driverVersion);
         LOGI("GPU: %s | Vulkan %u.%u.%u (driver 0x%x)",
              props.deviceName,
              apiMajor, apiMinor, VK_API_VERSION_PATCH(props.apiVersion),

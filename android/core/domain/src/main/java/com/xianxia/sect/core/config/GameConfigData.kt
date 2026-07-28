@@ -35,7 +35,8 @@ data class GameConfigData(
     val sectMap: SectMapSection = SectMapSection(),
     val worldMap: WorldMapSection = WorldMapSection(),
     val diplomacy: DiplomacySection = DiplomacySection(),
-    val relativeGift: RelativeGiftSection = RelativeGiftSection()
+    val relativeGift: RelativeGiftSection = RelativeGiftSection(),
+    val vulkan: VulkanSection = VulkanSection()
 ) {
     @Serializable
     data class GameSection(
@@ -98,7 +99,7 @@ data class GameConfigData(
     @Serializable
     data class WarehouseSection(
         val baseCapacity: Int = 50,
-        val capacityPerBuilding: Int = 50
+        val capacityPerBuilding: Int = 75
     )
 
     @Serializable
@@ -158,8 +159,8 @@ data class GameConfigData(
     ) {
         @Serializable
         data class RealmGapSection(
-            val damageBonusPerRealm: Double = 0.5,
-            val damagePenaltyPerRealm: Double = 0.5,
+            val damageBonusPerRealm: Double = 0.35,
+            val damagePenaltyPerRealm: Double = 0.35,
             val instantKillGap: Int = 1
         )
     }
@@ -202,7 +203,7 @@ data class GameConfigData(
     data class LawEnforcementSection(
         val loyaltyThreshold: Int = 30,
         val moralityThreshold: Int = 30,
-        val probPerPoint: Double = 0.03,
+        val probPerPoint: Double = 0.01,
         val maxProb: Double = 0.9,
         @Deprecated("已废弃，改用 realm-based 公式")
         val theftMinRatio: Double = 0.01,
@@ -313,6 +314,25 @@ data class GameConfigData(
         @Serializable
         data class BreakPenaltySection(
             val spiritStonePenaltyRatio: Double = 0.1
+        )
+    }
+
+    /**
+     * Vulkan 渲染器配置 — 远程黑名单等。
+     * 未来可通过 JSON 热更新动态调整已知问题设备列表。
+     */
+    @Serializable
+    data class VulkanSection(
+        /** 已知问题机型 Build.MODEL 黑名单（小写，子串匹配） */
+        val blacklistedModels: List<String> = emptyList(),
+        /** 已知问题 GPU 驱动版本范围（含上下限） */
+        val knownBadDriverRanges: List<DriverVersionRange> = emptyList()
+    ) {
+        @Serializable
+        data class DriverVersionRange(
+            val min: Int = 0,
+            val max: Int = 0,
+            val description: String = ""
         )
     }
 

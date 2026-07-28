@@ -3,7 +3,7 @@ package com.xianxia.sect.core.engine.service
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.engine.BuildConfig
-import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.engine.config.GameConfigProvider
 import com.xianxia.sect.core.config.BuiltinMailConfig
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.RedeemCodeManager
@@ -66,6 +66,7 @@ class MailService @Inject constructor(
     private val spiritStoneWallet: SpiritStoneWallet,
     private val scopeProvider: com.xianxia.sect.core.util.CoroutineScopeProvider,
     private val gameRngManager: com.xianxia.sect.core.util.GameRngManager,
+    private val gameConfigProvider: GameConfigProvider,
 ) {
     companion object {
         private const val TAG = "MailService"
@@ -393,8 +394,8 @@ class MailService @Inject constructor(
                             stateStore.herbs.value.size +
                             stateStore.seeds.value.size
                     val warehouseCount = data.placedBuildings.count { it.displayName == "仓库" }
-                    val maxCap = GameConfig.Warehouse.BASE_CAPACITY +
-                            warehouseCount * GameConfig.Warehouse.CAPACITY_PER_BUILDING
+                    val maxCap = gameConfigProvider.warehouse.baseCapacity +
+                            warehouseCount * gameConfigProvider.warehouse.capacityPerBuilding
 
                     if (totalItems >= maxCap) {
                         // 级联清理：先删已读已领邮件

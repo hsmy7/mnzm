@@ -119,6 +119,12 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_prewarmDevice(
     return JNI_TRUE;
 }
 
+extern "C" JNIEXPORT jint JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_getVulkanDriverVersion(
+    JNIEnv* /*env*/, jobject /*thiz*/) {
+    return static_cast<jint>(VulkanBackend::s_driverVersion);
+}
+
 /** Phase 2: 初始化 Surface（在 SurfaceView 就绪后调用） */
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_xianxia_sect_core_nativebridge_NativeBridge_initRenderer(

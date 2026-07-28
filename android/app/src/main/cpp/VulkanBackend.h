@@ -26,6 +26,9 @@ public:
     VulkanBackend() = default;
     ~VulkanBackend() override { shutdown(); }
 
+    /** 最后一次成功读取的 Vulkan 驱动版本号（0 = 未知/未初始化） */
+    static volatile int s_driverVersion;
+
     // Renderer2D 接口实现
     bool init(const RenderConfig& config, void* nativeWindow) override;
     void shutdown() override;

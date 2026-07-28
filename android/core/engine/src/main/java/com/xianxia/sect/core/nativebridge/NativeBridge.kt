@@ -109,4 +109,7 @@ object NativeBridge {
 
     /** 渲染器是否就绪 */
     external fun isRendererReady(): Boolean
+
+    /** 获取最后一次成功读取的 Vulkan 驱动版本号（0 = 未知/未初始化） */
+    external fun getVulkanDriverVersion(): Int
 }

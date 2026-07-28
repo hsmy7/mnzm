@@ -31,12 +31,14 @@ internal fun MutableGameState.computeSlotCount(): Int =
 /**
  * 在 MutableGameState 事务内计算最大槽位数。
  */
-internal fun MutableGameState.computeMaxSlots(): Int {
+internal fun MutableGameState.computeMaxSlots(
+    baseCapacity: Int = GameConfig.Warehouse.BASE_CAPACITY,
+    capacityPerBuilding: Int = GameConfig.Warehouse.CAPACITY_PER_BUILDING
+): Int {
     val warehouseCount = gameData.placedBuildings.count {
         it.displayName == BuildingType.WAREHOUSE.displayName
     }
-    return GameConfig.Warehouse.BASE_CAPACITY +
-        warehouseCount * GameConfig.Warehouse.CAPACITY_PER_BUILDING
+    return baseCapacity + warehouseCount * capacityPerBuilding
 }
 
 /**
@@ -63,13 +65,16 @@ internal fun inventoryCapacityInfo(stateStore: GameStateStore): CapacityInfo {
 /**
  * 获取最大槽位数（从 GameData 的建筑列表计算）。
  */
-internal fun getMaxSlots(stateStore: GameStateStore): Int {
+internal fun getMaxSlots(
+    stateStore: GameStateStore,
+    baseCapacity: Int = GameConfig.Warehouse.BASE_CAPACITY,
+    capacityPerBuilding: Int = GameConfig.Warehouse.CAPACITY_PER_BUILDING
+): Int {
     val buildings = stateStore.gameData.value.placedBuildings
     val warehouseCount = buildings.count {
         it.displayName == BuildingType.WAREHOUSE.displayName
     }
-    return GameConfig.Warehouse.BASE_CAPACITY +
-        warehouseCount * GameConfig.Warehouse.CAPACITY_PER_BUILDING
+    return baseCapacity + warehouseCount * capacityPerBuilding
 }
 
 /**

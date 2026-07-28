@@ -66,7 +66,7 @@ class ConfigLoaderTest {
         assertTrue(config.battle.minBeastCount > 0)
         assertTrue(config.battle.maxBeastCount > 0)
         assertTrue(config.battle.critMultiplier > 0.0)
-        assertEquals(0.5, config.battle.realmGap.damageBonusPerRealm, 0.001)
+        assertEquals(0.35, config.battle.realmGap.damageBonusPerRealm, 0.001)
         assertEquals(1, config.battle.realmGap.instantKillGap)
     }
 
@@ -108,7 +108,7 @@ class ConfigLoaderTest {
     fun lawEnforcementSection_defaultsAreCorrect() {
         val config = newLoader().load()
         assertEquals(30, config.lawEnforcement.loyaltyThreshold)
-        assertEquals(0.03, config.lawEnforcement.probPerPoint, 0.001)
+        assertEquals(0.01, config.lawEnforcement.probPerPoint, 0.001)
         assertEquals(12, config.lawEnforcement.newDiscipleProtectionMonths)
     }
 

@@ -52,7 +52,10 @@ fun SpiritMineDialog(
     viewModel: GameViewModel,
     productionViewModel: ProductionViewModel,
     spiritMineViewModel: SpiritMineViewModel,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    spiritMineBaseOutput: Int = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER,
+    spiritMineMiningThreshold: Int = GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD,
+    spiritMineMiningBonusRate: Double = GameConfig.Production.SPIRIT_MINE_MINING_BONUS_RATE
 ) {
     val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
     val gameData by viewModel.gameData.collectAsStateWithLifecycle()
@@ -115,18 +118,18 @@ fun SpiritMineDialog(
             val disciple = discipleMap[slot.discipleId]
             if (disciple != null) {
                 val mining = DiscipleStatCalculator.getBaseStats(disciple).mining
-                if (mining > GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD) {
-                    miningBonus += (mining - GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD) * GameConfig.Production.SPIRIT_MINE_MINING_BONUS_RATE
+                if (mining > spiritMineMiningThreshold) {
+                    miningBonus += (mining - spiritMineMiningThreshold) * spiritMineMiningBonusRate
                 }
             }
-            GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER.toLong()
+            spiritMineBaseOutput.toLong()
         }
     }.sum()
 
     val minerCount = slots.count { it.isActive }
     val avgMiningBonus = if (minerCount > 0) miningBonus / minerCount else 0.0
 
-    val baseTotal = minerCount * GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER.toLong()
+    val baseTotal = minerCount * spiritMineBaseOutput.toLong()
     val boostEffect = if (gameData?.sectPolicies?.spiritMineBoost == true) 1.2 else 1.0
     val totalOutput = (baseTotal * (1 + avgMiningBonus) * (1 + deaconBonus) * boostEffect).toLong()
 

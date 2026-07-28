@@ -3,14 +3,15 @@ package com.xianxia.sect.core.engine.domain.save
 import android.util.Log
 import com.xianxia.sect.core.util.ListenerManager
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
-import kotlinx.coroutines.Dispatchers
+import com.xianxia.sect.core.engine.di.IoDispatcher
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class SaveLoadCoordinator @Inject constructor(
-    private val unifiedPerformanceMonitor: UnifiedPerformanceMonitor
+    private val unifiedPerformanceMonitor: UnifiedPerformanceMonitor,
+    private val ioDispatcher: IoDispatcher
 ) {
     companion object {
         private const val TAG = "SaveLoadCoordinator"
@@ -63,7 +64,7 @@ class SaveLoadCoordinator @Inject constructor(
         
         return try {
             unifiedPerformanceMonitor.measureOperation("save_${operationType.name.lowercase()}") {
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher.dispatcher) {
                     saveOperation()
                 }
             }
@@ -110,7 +111,7 @@ class SaveLoadCoordinator @Inject constructor(
             notifyProgressUpdate(context, 0.3f)
             
             val data = unifiedPerformanceMonitor.measureOperation("load_game") {
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher.dispatcher) {
                     loadOperation()
                 }
             }

@@ -16,6 +16,7 @@ import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService
+import com.xianxia.sect.core.engine.di.IoDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -31,6 +32,7 @@ class BuildingFacadeImpl @Inject constructor(
     private val spiritStoneWallet: SpiritStoneWallet,
     private val assignmentGate: com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate,
     private val discipleStatusService: DiscipleStatusService,
+    private val ioDispatcher: IoDispatcher,
 ) : BuildingFacade {
 
     override suspend fun placeBuilding(building: GridBuildingData) {
@@ -181,7 +183,7 @@ class BuildingFacadeImpl @Inject constructor(
 
             // 若该弟子已被分配到其他槽位（门卫注册表中有记录），先释放旧分配
             if (assignmentGate.isAssigned(discipleId)) {
-                withContext(Dispatchers.IO) {
+                withContext(ioDispatcher.dispatcher) {
                     productionCoordinator.repository.getSlots()
                         .filter { it.assignedDiscipleId == discipleId }
                         .forEach { slot ->
@@ -194,7 +196,7 @@ class BuildingFacadeImpl @Inject constructor(
                 updateDiscipleStatus(discipleId, DiscipleStatus.IDLE)
             }
 
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher.dispatcher) {
                 productionCoordinator.repository.updateSlot(buildingType, slotIndex) { slot ->
                     slot.copy(
                         assignedDiscipleId = discipleId,
@@ -215,7 +217,7 @@ class BuildingFacadeImpl @Inject constructor(
             val slot = productionCoordinator.repository.getSlotByIndex(buildingType, slotIndex)
             val discipleId = slot?.assignedDiscipleId
 
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher.dispatcher) {
                 productionCoordinator.repository.updateSlot(buildingType, slotIndex) { s ->
                     if (s.isWorking && !s.assignedDiscipleId.isNullOrEmpty()) {
                         val remaining = s.remainingTime(currentYear, currentMonth)
@@ -239,7 +241,7 @@ class BuildingFacadeImpl @Inject constructor(
     }
 
     override suspend fun toggleAutoRestart(buildingType: BuildingType, slotIndex: Int) {
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher.dispatcher) {
             productionCoordinator.repository.updateSlot(buildingType, slotIndex) { slot ->
                 slot.copy(autoRestartEnabled = !slot.autoRestartEnabled)
             }
@@ -247,7 +249,7 @@ class BuildingFacadeImpl @Inject constructor(
     }
 
     override suspend fun addProductionSlot(slot: ProductionSlot) {
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher.dispatcher) {
             productionCoordinator.repository.addSlot(slot)
         }
     }
@@ -359,7 +361,7 @@ class BuildingFacadeImpl @Inject constructor(
     override fun clearAlchemySlot(slotIndex: Int): DomainResult<Unit> {
         if (slotIndex < 0) return DomainResult.Failure(AppError.Domain.Production.InvalidSlot(slotIndex = slotIndex))
         gameEngineCore.launchInScope {
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher.dispatcher) {
                 productionCoordinator.resetSlotByBuildingIdAtomic(BuildingNames.ALCHEMY, slotIndex)
             }
         }
@@ -375,7 +377,7 @@ class BuildingFacadeImpl @Inject constructor(
                     updateDiscipleStatus(discipleId, DiscipleStatus.IDLE)
                 }
             }
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher.dispatcher) {
                 productionCoordinator.resetSlotByBuildingIdAtomic(BuildingNames.FORGE, slotIndex)
             }
         }
