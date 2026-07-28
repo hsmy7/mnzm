@@ -11,6 +11,7 @@ import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.DeterministicRng
 import org.junit.Assert.*
+import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
@@ -58,6 +59,13 @@ class RecruitServiceTest {
     fun `calcRecruitBonusCap - very high charm caps at MAX_RECRUIT_BONUS_CAP 20`() {
         assertEquals(20, RecruitService.calcRecruitBonusCap(200)) // (200-80)/4 = 30 → 上限 20
         assertEquals(20, RecruitService.calcRecruitBonusCap(1000)) // (1000-80)/4 = 230 → 上限 20
+    }
+
+    @Before
+    fun setUp() {
+        // 重置惰性状态，防止跨测试污染
+        RecruitService.RecruitLazyState.autoRecruitIdle = false
+        RecruitService.RecruitLazyState.autoRejectIdle = false
     }
 
     // ==================== processAutoRecruit ====================
@@ -234,5 +242,170 @@ class RecruitServiceTest {
             filter = setOf(0, 6, 999)
         )
         assertEquals(0, RecruitService.processAutoRecruit(state))
+    }
+
+    // ==================== Monthly limit ====================
+
+    @Test
+    fun `processAutoRecruit respects monthly limit`() {
+        val d1 = makeRecruit("id1", "弟子1", spiritRootType = "金")
+        val d2 = makeRecruit("id2", "弟子2", spiritRootType = "金")
+        val d3 = makeRecruit("id3", "弟子3", spiritRootType = "金")
+        val state = createAutoRecruitState(
+            recruitList = listOf(d1, d2, d3),
+            filter = setOf(1)
+        )
+        // 模拟本月已招募 29 人，剩下 1 个配额
+        state.gameData = state.gameData.copy(recruitCountThisMonth = 29)
+
+        val count = RecruitService.processAutoRecruit(state)
+
+        assertEquals("只应招募 1 人", 1, count)
+        assertEquals("月度计数应为 30", 30, state.gameData.recruitCountThisMonth)
+        assertEquals("recruitList 应剩 2 人", 2, state.gameData.recruitList.size)
+    }
+
+    @Test
+    fun `processAutoRecruit returns 0 when monthly limit reached`() {
+        val d = makeRecruit(spiritRootType = "金")
+        val state = createAutoRecruitState(
+            recruitList = listOf(d),
+            filter = setOf(1)
+        )
+        state.gameData = state.gameData.copy(recruitCountThisMonth = 30)
+
+        assertEquals(0, RecruitService.processAutoRecruit(state))
+        assertEquals("月度计数不变", 30, state.gameData.recruitCountThisMonth)
+        assertTrue("弟子应留在 recruitList", state.gameData.recruitList.isNotEmpty())
+    }
+
+    // ==================== processAutoReject ====================
+
+    @Test
+    fun `processAutoReject removes matching disciples`() {
+        val match = makeRecruit("id1", "单灵根", spiritRootType = "金")
+        val keep = makeRecruit("id2", "三灵根", spiritRootType = "金,木,水")
+        val state = createAutoRecruitState(
+            recruitList = listOf(match, keep)
+        )
+        // 设置自动拒绝 filter：单灵根
+        state.gameData = state.gameData.copy(autoRejectSpiritRootFilter = setOf(1))
+
+        val count = RecruitService.processAutoReject(state)
+
+        assertEquals(1, count)
+        assertEquals("应只剩保留的弟子", 1, state.gameData.recruitList.size)
+        assertEquals("保留的是三灵根", "三灵根", state.gameData.recruitList.first().name)
+    }
+
+    @Test
+    fun `processAutoReject with empty filter returns 0`() {
+        val state = createAutoRecruitState(
+            recruitList = listOf(makeRecruit()),
+            filter = setOf(1)
+        )
+        assertEquals(0, RecruitService.processAutoReject(state))
+    }
+
+    @Test
+    fun `processAutoReject with no matching disciples returns 0`() {
+        val d = makeRecruit(spiritRootType = "金,木")
+        val state = createAutoRecruitState(recruitList = listOf(d))
+        state.gameData = state.gameData.copy(autoRejectSpiritRootFilter = setOf(1))
+        assertEquals(0, RecruitService.processAutoReject(state))
+    }
+
+    // ==================== processRecruitAging ====================
+
+    @Test
+    fun `processRecruitAging removes recruit past max age`() {
+        // lifespan=80, realm=9 → computeMaxAge=80, age=80 老化后 81 >= 80 → 死亡
+        val dead = makeRecruit("id1", "将死弟子", age = 80, realm = 9)
+        val state = createAutoRecruitState(recruitList = listOf(dead))
+
+        RecruitService.processRecruitAging(state)
+
+        assertTrue("超龄弟子应从列表移除", state.gameData.recruitList.isEmpty())
+    }
+
+    @Test
+    fun `processRecruitAging keeps recruit under max age`() {
+        val young = makeRecruit("id1", "年轻弟子", age = 50, realm = 9)
+        val state = createAutoRecruitState(recruitList = listOf(young))
+
+        RecruitService.processRecruitAging(state)
+
+        assertEquals(1, state.gameData.recruitList.size)
+        assertEquals("年龄应 +1", 51, state.gameData.recruitList.first().age)
+    }
+
+    @Test
+    fun `processRecruitAging keeps recruit at boundary age`() {
+        // age=79 老化后 80 == computeMaxAge=80 → 死亡
+        val boundary = makeRecruit("id1", "边界弟子", age = 79, realm = 9)
+        val state = createAutoRecruitState(recruitList = listOf(boundary))
+
+        RecruitService.processRecruitAging(state)
+
+        assertTrue("age=79 的弟子老化到 80 ≥ maxAge(80) 应死亡", state.gameData.recruitList.isEmpty())
+    }
+
+    // ==================== Lazy mechanism ====================
+
+    @Test
+    fun `processAutoRecruit enters idle when no matching disciples`() {
+        val d = makeRecruit(spiritRootType = "金,木,水") // 三灵根
+        val state = createAutoRecruitState(
+            recruitList = listOf(d),
+            filter = setOf(1) // 筛单灵根
+        )
+
+        RecruitService.processAutoRecruit(state)
+
+        assertTrue("无匹配弟子后应进入惰性", RecruitService.RecruitLazyState.autoRecruitIdle)
+    }
+
+    @Test
+    fun `processAutoRecruit does not process when idle`() {
+        RecruitService.RecruitLazyState.autoRecruitIdle = true
+
+        val d = makeRecruit(spiritRootType = "金", name = "单灵根弟子")
+        val state = createAutoRecruitState(
+            recruitList = listOf(d),
+            filter = setOf(1)
+        )
+
+        val count = RecruitService.processAutoRecruit(state)
+
+        assertEquals("惰性状态下应跳过", 0, count)
+        assertTrue("弟子应仍留在列表", state.gameData.recruitList.isNotEmpty())
+    }
+
+    @Test
+    fun `processAutoReject enters idle when no matching disciples`() {
+        val d = makeRecruit(spiritRootType = "金,木,水")
+        val state = createAutoRecruitState(recruitList = listOf(d))
+        state.gameData = state.gameData.copy(autoRejectSpiritRootFilter = setOf(1))
+
+        RecruitService.processAutoReject(state)
+
+        assertTrue("无匹配拒绝弟子后应进入惰性", RecruitService.RecruitLazyState.autoRejectIdle)
+    }
+
+    @Test
+    fun `lazy state reset allows processing again`() {
+        // 首次触发惰性
+        RecruitService.RecruitLazyState.autoRecruitIdle = true
+        // 重置（模拟新增弟子或变更选项）
+        RecruitService.RecruitLazyState.autoRecruitIdle = false
+
+        val d = makeRecruit(spiritRootType = "金", name = "可招募弟子")
+        val state = createAutoRecruitState(
+            recruitList = listOf(d),
+            filter = setOf(1)
+        )
+
+        val count = RecruitService.processAutoRecruit(state)
+        assertEquals("重置后应正常招募", 1, count)
     }
 }

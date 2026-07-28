@@ -179,6 +179,9 @@ suspend fun GameEngine.loadData(
 ) {
     return engineContextDispatcher.withEngineContext {
         heavyDataLoaded = false
+        // 重置招募惰性状态（纯运行时，不持久化）
+        com.xianxia.sect.core.engine.service.RecruitService.resetAutoRecruitIdle()
+        com.xianxia.sect.core.engine.service.RecruitService.resetAutoRejectIdle()
         val (migratedGameData, migratedDisciples) = migratePatrolSlotsIfNeeded(gameData, disciples)
         // 防御性幽灵过滤：读档时清除 name 为空的幽灵弟子（补充 SaveValidator 的保护）
         val cleanedDisciples = migratedDisciples.filter { it.name.isNotBlank() }
@@ -259,6 +262,9 @@ suspend fun GameEngine.loadData(
 
 suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
     return engineContextDispatcher.withEngineContext {
+        // 重置招募惰性状态（纯运行时，新游戏开始时清理）
+        com.xianxia.sect.core.engine.service.RecruitService.resetAutoRecruitIdle()
+        com.xianxia.sect.core.engine.service.RecruitService.resetAutoRejectIdle()
         stateStore.resetForSlot(currentSlot); cultivationService.resetHighFrequencyData()
         // 1. 先初始化世界和游戏状态（邮件依赖 gameData 就绪）
         initializeWorldAndServices(sectName, currentSlot)

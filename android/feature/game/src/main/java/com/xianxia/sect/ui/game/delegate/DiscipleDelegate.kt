@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game.delegate
 
 import android.util.Log
 import com.xianxia.sect.core.engine.*
+import com.xianxia.sect.core.engine.service.RecruitService
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.model.EquipmentSlot
@@ -356,10 +357,22 @@ class DiscipleDelegate(
     }
 
     fun setAutoRecruitFilter(filter: Set<Int>) {
+        val validated = filter.filter { it in 1..5 }.toSet()
         gameEngine.launchOnEngine {
             gameEngine.updateGameData { gd ->
-                gd.copy(autoRecruitSpiritRootFilter = filter)
+                gd.copy(autoRecruitSpiritRootFilter = validated)
             }
+            RecruitService.resetAutoRecruitIdle()
+        }
+    }
+
+    fun setAutoRejectFilter(filter: Set<Int>) {
+        val validated = filter.filter { it in 1..5 }.toSet()
+        gameEngine.launchOnEngine {
+            gameEngine.updateGameData { gd ->
+                gd.copy(autoRejectSpiritRootFilter = validated)
+            }
+            RecruitService.resetAutoRejectIdle()
         }
     }
 }

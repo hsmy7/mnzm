@@ -104,11 +104,6 @@ class AutoAssignDelegate(
         }
     }
 
-    /** 设置招募筛选条件。 */
-    fun setAutoRecruitFilter(filter: Set<Int>) {
-        // 由 DiscipleDelegate 处理，保留为兼容转发
-    }
-
     /** 设置俘虏灵根过滤（勾选/取消即保存）。 */
     fun setPrisonerSpiritRootFilter(filter: Set<Int>) {
         gameEngine.launchOnEngine {

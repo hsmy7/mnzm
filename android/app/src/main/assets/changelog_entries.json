@@ -2,12 +2,10 @@
   {
     "date": "2026-07-29",
     "changes": [
-      "新增：俘虏管理——天枢殿宗门管理选项区域新增俘虏弟子管理，5个灵根勾选框控制攻打AI宗门后哪些俘虏进入招募列表（匹配则进，不匹配则删除）",
       "新增：招募每月上限30人——超出上限弹出提示\"本月招募已达上限（30人）\"，每月初自动重置",
       "架构：提取共享寿元计算computeMaxAge()——统一玩家侧(DiscipleLifecycleProcessor)和AI侧(AISectDiscipleManager)的寿元公式，消除两处不一致（AI侧之前只检查lifespan字段，未考虑境界realmMaxAge）",
       "修复：AI宗门弟子寿元计算错误——AISectDiscipleManager.processAging原使用newAge<=disciple.lifespan（默认80），导致金丹弟子81岁即被判定死亡（应活200岁），现统一为computeMaxAge公式",
       "修复：AI宗门弟子突破后lifespan未随境界更新——processMonthlyCultivation突破后原赋值lifespan=workingDisciple.lifespan（不变），改为大境界变化时按新境界realmMaxAge+天赋加成重新计算",
-      "重构：宗门管理界面双区域布局——选项区域在上（俘虏管理），管理区域在下（道侣/弟子/自动管理按钮FlowRow响应式换行）",
       "重构：所有管理界面移除保存机制——道侣管理/弟子管理/自动管理/自动招募过滤均改为勾选即保存，移除保存按钮和未保存提醒对话框",
       "重构：宗门管理管理按钮改为FlowRow响应式布局——根据屏幕宽度自动换行排列"
     ]

@@ -76,7 +76,15 @@ class CultivationEventProcessor @Inject constructor(
             gameYear = newYear,
             gamePhase = 0
         )
-        if (state != null) state.gameData = updatedData else stateStore.update { gameData = updatedData }
+        if (state != null) {
+            state.gameData = updatedData
+            // 新月份开始时重置招募月度计数，使年变/月变中的招募共享同一月配额
+            state.gameData = state.gameData.copy(recruitCountThisMonth = 0)
+        } else {
+            stateStore.update {
+                gameData = updatedData.copy(recruitCountThisMonth = 0)
+            }
+        }
         if (isYearChanged) {
             processYearlyEvents(newYear)
         }
@@ -90,7 +98,8 @@ class CultivationEventProcessor @Inject constructor(
             gameMonth = 1,
             gamePhase = 0
         )
-        if (state != null) state.gameData = updatedData else stateStore.update { gameData = updatedData }
+        val resetData = updatedData.copy(recruitCountThisMonth = 0)
+        if (state != null) state.gameData = resetData else stateStore.update { gameData = resetData }
         processYearlyEvents(newYear)
         processMonthlyEvents(newYear, 1)
     }
@@ -294,8 +303,8 @@ class CultivationEventProcessor @Inject constructor(
     fun processMonthlyEvents(year: Int, month: Int) {
         // 单事务：所有月度事件原子提交
         stateStore.update {
-            safelyRunInState("recruitCountReset") {
-                gameData = gameData.copy(recruitCountThisMonth = 0)
+            safelyRunInState("autoRecruit") {
+                RecruitService.processAutoRecruit(this)
             }
             safelyRunInState("theft") { lawEnforcementProcessor.processTheftIfNeeded() }
             safelyRunInState("lawEnforcement") { lawEnforcementProcessor.processLawEnforcementMonthly() }
@@ -338,6 +347,9 @@ class CultivationEventProcessor @Inject constructor(
             }
             safelyRunInState("refreshRecruitList") {
                 if (year % 3 == 1) recruitService.refreshRecruitList(year)
+            }
+            safelyRunInState("autoReject") {
+                RecruitService.processAutoReject(this)
             }
             safelyRunInState("merchantRefreshChance") {
                 merchantAndRecruitService.giveMerchantRefreshChanceIfDue(year)

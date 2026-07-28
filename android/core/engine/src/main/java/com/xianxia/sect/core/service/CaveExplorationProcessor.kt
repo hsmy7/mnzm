@@ -688,7 +688,9 @@ class CaveExplorationProcessor @Inject constructor(
                 },
                 recruitList = updatedRecruitList
             )
-            // 被占领AI宗门产生新弟子后立即执行自动招募检查
+            // 被占领AI宗门产生新弟子后立即执行自动招募检查 + 重置惰性
+            RecruitService.RecruitLazyState.autoRecruitIdle = false
+            RecruitService.RecruitLazyState.autoRejectIdle = false
             RecruitService.processAutoRecruit(this)
         }
     }

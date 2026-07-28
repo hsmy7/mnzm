@@ -12,11 +12,19 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.GameRngManager
 import org.junit.Assert.*
+import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.mock
 import java.util.UUID
 
 class MerchantAndRecruitServiceTest {
+
+    @Before
+    fun setUp() {
+        // 重置惰性状态，防止跨测试污染
+        RecruitService.RecruitLazyState.autoRecruitIdle = false
+        RecruitService.RecruitLazyState.autoRejectIdle = false
+    }
 
     // ==================== calcRecruitBonusCap ====================
 

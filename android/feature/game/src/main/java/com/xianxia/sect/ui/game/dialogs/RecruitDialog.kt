@@ -45,7 +45,7 @@ fun RecruitDialog(
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
-    var showAutoRecruitDialog by remember { mutableStateOf(false) }
+    var showRecruitManagementDialog by remember { mutableStateOf(false) }
     var showRejectConfirm by remember { mutableStateOf<String?>(null) }
 
     UnifiedGameDialog(
@@ -55,8 +55,8 @@ fun RecruitDialog(
         scrollableContent = false,
         headerActions = {
             GameButton(
-                text = "自动招募",
-                onClick = { showAutoRecruitDialog = true }
+                text = "招募管理",
+                onClick = { showRecruitManagementDialog = true }
             )
         }
     ) {
@@ -74,7 +74,7 @@ fun RecruitDialog(
                     }
                 } else {
                     val sortedRecruitList = remember(recruitList) {
-                        recruitList.sortedBy { it.spiritRoot.types.size }
+                        recruitList.sortedBy { it.spiritRoot.types.count { it.isNotBlank() } }
                     }
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(3),
@@ -114,11 +114,11 @@ fun RecruitDialog(
                 }
             }
         }
-    if (showAutoRecruitDialog) {
-        AutoRecruitFilterDialog(
+    if (showRecruitManagementDialog) {
+        RecruitManagementDialog(
             gameData = gameData,
             viewModel = viewModel,
-            onDismiss = { showAutoRecruitDialog = false }
+            onDismiss = { showRecruitManagementDialog = false }
         )
     }
 
@@ -130,7 +130,8 @@ fun RecruitDialog(
             text = "确定要拒绝该弟子吗？拒绝后将无法恢复，下一年度才可能刷新到新弟子。",
             confirmLabel = "拒绝",
             onConfirm = {
-                viewModel.rejectDiscipleFromList(showRejectConfirm!!)
+                val id = showRejectConfirm ?: return@StandardPromptDialog
+                viewModel.rejectDiscipleFromList(id)
                 showRejectConfirm = null
             },
             dismissLabel = "取消",
@@ -148,17 +149,19 @@ private val ROOT_COUNT_OPTIONS = listOf(
 )
 
 @Composable
-private fun AutoRecruitFilterDialog(
+private fun RecruitManagementDialog(
     gameData: GameData?,
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
-    val initialFilter = gameData?.autoRecruitSpiritRootFilter ?: emptySet()
-    var selectedFilter by remember { mutableStateOf(initialFilter) }
+    val initialRecruitFilter = gameData?.autoRecruitSpiritRootFilter ?: emptySet()
+    val initialRejectFilter = gameData?.autoRejectSpiritRootFilter ?: emptySet()
+    var recruitFilter by remember { mutableStateOf(initialRecruitFilter) }
+    var rejectFilter by remember { mutableStateOf(initialRejectFilter) }
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
-        title = "自动招募筛选",
+        title = "招募管理",
         mode = DialogMode.Half,
         scrollableContent = false
     ) {
@@ -167,29 +170,76 @@ private fun AutoRecruitFilterDialog(
         ) {
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 5-column filter grid
+            // ═══ 区域 1：自动招募 ═══
+            Text(
+                text = "自动招募",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
             LazyVerticalGrid(
                 columns = GridCells.Fixed(5),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f),
+                    .height(80.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 items(ROOT_COUNT_OPTIONS, key = { it.first }, contentType = { "root_count_option" }) { (count, name) ->
                     val rootColor = GameColors.getSpiritRootCountColor(count)
                     AutoRecruitFilterRow(
                         label = name,
                         labelColor = rootColor,
-                        checked = count in selectedFilter,
+                        checked = count in recruitFilter,
                         onToggle = {
-                            val newFilter = if (count in selectedFilter) {
-                                selectedFilter - count
+                            val newFilter = if (count in recruitFilter) {
+                                recruitFilter - count
                             } else {
-                                selectedFilter + count
+                                recruitFilter + count
                             }
-                            selectedFilter = newFilter
+                            recruitFilter = newFilter
                             viewModel.setAutoRecruitFilter(newFilter)
+                        }
+                    )
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp),
+                color = GameColors.Border, thickness = 1.dp)
+
+            // ═══ 区域 2：自动拒绝 ═══
+            Text(
+                text = "自动拒绝",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(5),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(80.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                items(ROOT_COUNT_OPTIONS, key = { it.first }, contentType = { "root_count_option" }) { (count, name) ->
+                    val rootColor = GameColors.getSpiritRootCountColor(count)
+                    AutoRecruitFilterRow(
+                        label = name,
+                        labelColor = rootColor,
+                        checked = count in rejectFilter,
+                        onToggle = {
+                            val newFilter = if (count in rejectFilter) {
+                                rejectFilter - count
+                            } else {
+                                rejectFilter + count
+                            }
+                            rejectFilter = newFilter
+                            viewModel.setAutoRejectFilter(newFilter)
                         }
                     )
                 }

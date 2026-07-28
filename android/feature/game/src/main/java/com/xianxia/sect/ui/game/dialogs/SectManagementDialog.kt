@@ -29,7 +29,6 @@ import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.GameViewModel
-import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
 import com.xianxia.sect.ui.theme.ButtonSizes
 
 @Composable
@@ -41,8 +40,6 @@ fun SectManagementDialog(
     var showDaoCompanionManagement by remember { mutableStateOf(false) }
     var showDiscipleManagement by remember { mutableStateOf(false) }
     var showAutoManagement by remember { mutableStateOf(false) }
-
-    val currentPrisonerFilter = gameData?.prisonerSpiritRootFilter ?: emptySet()
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
@@ -56,31 +53,75 @@ fun SectManagementDialog(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // ── 选项区域：俘虏弟子管理 ──
+            // ── 选项区域 ──
             Text(
-                text = "俘虏弟子管理",
+                text = "选项区域",
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp,
                 color = Color.Black
             )
+
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Start,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Start
             ) {
-                SPIRIT_ROOT_FILTER_OPTIONS.forEachIndexed { index, (count, label) ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = label, fontSize = 12.sp, color = Color.Black)
-                        Spacer(modifier = Modifier.padding(start = 2.dp))
-                        CircularCheckbox(
-                            checked = count in currentPrisonerFilter,
-                            onToggle = { viewModel.togglePrisonerFilter(count) }
+                Text(
+                    text = "巡视楼弹出战斗结算界面",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.padding(start = 4.dp))
+                CircularCheckbox(
+                    checked = gameData?.patrolBattleResultPopup ?: false,
+                    onToggle = {
+                        viewModel.setPatrolBattleResultPopup(
+                            !(gameData?.patrolBattleResultPopup ?: false)
                         )
                     }
-                    if (index < SPIRIT_ROOT_FILTER_OPTIONS.size - 1) {
-                        Spacer(modifier = Modifier.padding(start = 6.dp))
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Start
+            ) {
+                Text(
+                    text = "自动售卖中品灵石补差价",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.padding(start = 4.dp))
+                CircularCheckbox(
+                    checked = gameData?.autoSellMidGradeForPurchase ?: false,
+                    onToggle = {
+                        viewModel.setAutoSellMidGradeForPurchase(
+                            !(gameData?.autoSellMidGradeForPurchase ?: false)
+                        )
                     }
-                }
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Start
+            ) {
+                Text(
+                    text = "自动售卖上品灵石补差价",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.padding(start = 4.dp))
+                CircularCheckbox(
+                    checked = gameData?.autoSellHighGradeForPurchase ?: false,
+                    onToggle = {
+                        viewModel.setAutoSellHighGradeForPurchase(
+                            !(gameData?.autoSellHighGradeForPurchase ?: false)
+                        )
+                    }
+                )
             }
 
             Spacer(modifier = Modifier.padding(top = 8.dp))

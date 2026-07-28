@@ -515,6 +515,11 @@ data class GameData(
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var recruitCountThisMonth: Int = 0,
 
+    // 自动拒绝灵根筛选（1=单灵根, 2=双灵根, 3=三灵根, 4=四灵根, 5=五灵根）
+    @ProtoPacked @ProtoNumber(210)
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var autoRejectSpiritRootFilter: Set<Int> = emptySet(),
+
     // 道侣管理：禁止结婚的灵根数量（1=单灵根, 2=双灵根, 3=三灵根, 4=四灵根, 5=五灵根）
     @ProtoPacked @ProtoNumber(102)
     @SettlementStrategy(Strategy.PRESERVE_OLD)
