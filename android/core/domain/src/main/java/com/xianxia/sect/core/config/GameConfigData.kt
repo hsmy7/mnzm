@@ -203,6 +203,7 @@ data class GameConfigData(
     data class LawEnforcementSection(
         val loyaltyThreshold: Int = 30,
         val moralityThreshold: Int = 30,
+        val herdLoyaltyThreshold: Int = 50,
         val probPerPoint: Double = 0.01,
         val maxProb: Double = 0.9,
         @Deprecated("已废弃，改用 realm-based 公式")

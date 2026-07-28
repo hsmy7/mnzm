@@ -44,8 +44,8 @@ class PartnerSystem @Inject constructor(
         val partnerIds = state.discipleTables.partnerIds
         state.pendingMarriageProposals = state.pendingMarriageProposals.filter { p ->
             p.maleId in aliveIds && p.femaleId in aliveIds &&
-                partnerIds[p.maleId.toIntOrNull() ?: return@filter false] == null &&
-                partnerIds[p.femaleId.toIntOrNull() ?: return@filter false] == null
+                partnerIds.getOrNull(p.maleId.toIntOrNull() ?: return@filter false) == null &&
+                partnerIds.getOrNull(p.femaleId.toIntOrNull() ?: return@filter false) == null
         }
 
         val bannedRootCounts = state.gameData.daoCompanionBannedRootCounts

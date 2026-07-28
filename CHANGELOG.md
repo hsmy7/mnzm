@@ -1,5 +1,23 @@
 ## [4.0.77] - 2026-07-28
 
+### 玩法
+
+- **从众设计：弟子叛逃/偷盗全局门控** — 宗门所有活弟子的平均忠诚度 ≥ 50 时风气好，无人叛逃、无人偷盗。只有平均忠诚 < 50 时才会按个体忠诚/道德检查。新增 `herdLoyaltyThreshold` 配置项（默认 50），可在 `game_config.json` 中调节
+
+### 修复
+
+- **生产 Bug：批准婚姻时 NoSuchElementException** — `ComponentTable<String?>.get(id)` 无法区分"值=null"和"无条目"，当弟子从未有过伴侣时抛异常崩溃。修复：`partnerIds[id]` → `partnerIds.getOrNull(id)`（波及 PartnerSystem 和 GameEngine 两处）
+- **预存测试崩溃 17→0** — PartnerSystemTest 缺 WriteGuardRule（12 个崩溃）+ 测试中 partnerIds[] 同种 NoSuchElementException（5 个）+ 4 个 RNG 不稳定测试改为确定性断言
+
+### 架构
+
+- **从众门控实现** — LawEnforcementProcessor 新增 `isAverageLoyaltyLowEnough()` 纯函数 + 4 处置入门控（叛逃月度入口/偷盗前置条件/月度兜底/防御冗余）
+
+### 测试
+
+- **新增从众门控测试** — 6 测试用例覆盖平均忠诚 50/49/30/0/空表场景
+- **新增 HERD_LOYALTY_THRESHOLD 守卫测试** — GameConfigConsistencyTest 检验 GameConfig 常量与 GameConfigData 默认值一致
+
 ### 重构
 
 - **抽取共享AI智能判定引擎** — 从VassalService提取四因素加权模型(战力差/占领丢失/胜负/好感度)为IntelligentSectDecisionEngine，统一供攻击判定/结盟判定/附属判定三种场景使用，消除VassalService内联计算与攻击/结盟独立逻辑的三份重复

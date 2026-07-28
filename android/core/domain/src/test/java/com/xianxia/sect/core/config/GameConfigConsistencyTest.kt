@@ -292,6 +292,12 @@ class GameConfigConsistencyTest {
         assertEquals(GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS, data.newDiscipleProtectionMonths)
     }
 
+    @Test
+    fun `从众忠诚阈值两源一致`() {
+        val data = GameConfigData().lawEnforcement
+        assertEquals(GameConfig.LawEnforcementConfig.HERD_LOYALTY_THRESHOLD, data.herdLoyaltyThreshold)
+    }
+
     // ── Rarity ──
     @Test
     fun `出售价格倍率两源一致`() {

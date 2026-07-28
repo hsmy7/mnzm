@@ -90,6 +90,8 @@ class LawEnforcementProcessor @Inject constructor(
 
     /** 前置条件检查。三条规则：弟子年上限 → 月度上限 → 年度成功上限 */
     private fun canDiscipleAttemptTheft(discipleId: Int, tables: DiscipleTables, data: GameData): Boolean {
+        // 从众门控：平均忠诚 ≥ 阈值时不偷盗
+        if (!isAverageLoyaltyLowEnough(tables)) return false
         if (tables.isAlive.getOrDefault(discipleId, 0) != 1) return false
         if (tables.statuses.getOrDefault(discipleId, DiscipleStatus.IDLE) != DiscipleStatus.IDLE) return false
         val currentMonth = data.gameYear * 12 + data.gameMonth
@@ -135,12 +137,14 @@ class LawEnforcementProcessor @Inject constructor(
         return captureRate.coerceIn(0.0, 1.0)
     }
 
-    /** 月度叛逃检测（原逻辑保持不动）。 */
+    /** 月度叛逃检测。 */
     fun processLawEnforcementMonthly() {
         val data = stateStore.gameData.value
+        val tables = stateStore.discipleTables
+        // 从众门控：平均忠诚 ≥ 阈值时不叛逃
+        if (!isAverageLoyaltyLowEnough(tables)) return
         val captureRate = calculateCaptureRate()
         val currentMonthValue = data.gameYear * 12 + data.gameMonth
-        val tables = stateStore.discipleTables
         val threshold = GameConfig.LawEnforcementConfig.LOYALTY_THRESHOLD
         val protectionMonths = GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS
         val atRiskIds = findAtRiskDiscipleIds(currentMonthValue, threshold, protectionMonths, tables)
@@ -160,6 +164,8 @@ class LawEnforcementProcessor @Inject constructor(
         val currentData = stateStore.gameData.value
         if (currentData.spiritStones <= 0) return
         val tables = stateStore.discipleTables
+        // 从众门控：平均忠诚 ≥ 阈值时不偷盗
+        if (!isAverageLoyaltyLowEnough(tables)) return
         val moralThreshold = GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD
         val currentMonth = currentData.gameYear * 12 + currentData.gameMonth
         val protectionMonths = GameConfig.LawEnforcementConfig.NEW_DISCIPLE_PROTECTION_MONTHS
@@ -187,6 +193,8 @@ class LawEnforcementProcessor @Inject constructor(
         if (gd.spiritStones <= 0) return
         if (gd.annualTheftCount >= GameConfig.LawEnforcementConfig.MAX_THEFT_PER_YEAR) return
         val tables = stateStore.discipleTables
+        // 从众门控：平均忠诚 ≥ 阈值时不偷盗
+        if (!isAverageLoyaltyLowEnough(tables)) return
         val moralThreshold = GameConfig.LawEnforcementConfig.MORALITY_THRESHOLD
         val currentMonth = gd.gameYear * 12 + gd.gameMonth
         val hasCandidate = tables.ids.any { id ->
@@ -631,6 +639,20 @@ class LawEnforcementProcessor @Inject constructor(
 
     private fun calcDesertionProbability(threshold: Int, loyal: Int): Double {
         return ((threshold - loyal) * GameConfig.LawEnforcementConfig.PROB_PER_POINT).coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)
+    }
+
+    /**
+     * 从众门控：计算所有活弟子的平均忠诚度，判断是否低于阈值。
+     * 平均忠诚 ≥ [HERD_LOYALTY_THRESHOLD] 时，宗门风气好，不愿叛逃/偷盗。
+     * 只能在 [stateStore.update] 块内或 [MutableGameState] 上下文使用，
+     * 因为 [tables] 必须从事务内获取。
+     */
+    private fun isAverageLoyaltyLowEnough(tables: DiscipleTables): Boolean {
+        val aliveIds = tables.ids.filter { tables.isAlive[it] == 1 }
+        if (aliveIds.isEmpty()) return false
+        val sum = aliveIds.sumOf { tables.loyalties.getOrDefault(it, 0) }
+        val average = sum / aliveIds.size
+        return average < GameConfig.LawEnforcementConfig.HERD_LOYALTY_THRESHOLD
     }
 
     private fun enforceDiscipleDesertion(id: Int, currentYear: Int, captureRate: Double, threshold: Int, tables: DiscipleTables) {

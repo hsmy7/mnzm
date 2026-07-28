@@ -108,8 +108,8 @@ class GameEngineMarriageProposalTest {
     fun `approve - proposers become partners`() {
         engine.approveMarriageProposal(MALE_ID, FEMALE_ID)
         // 检查 companion 设定
-        assertEquals(FEMALE_ID, store._discipleTables.partnerIds[MALE_ID.toInt()])
-        assertEquals(MALE_ID, store._discipleTables.partnerIds[FEMALE_ID.toInt()])
+        assertEquals(FEMALE_ID, store._discipleTables.partnerIds.getOrNull(MALE_ID.toInt()))
+        assertEquals(MALE_ID, store._discipleTables.partnerIds.getOrNull(FEMALE_ID.toInt()))
         // 提议应被清除
         assertTrue("approve 后提议应被移除", store.pendingMarriageProposalsValue.isEmpty())
     }
@@ -117,14 +117,14 @@ class GameEngineMarriageProposalTest {
     @Test
     fun `approve - invalid male ID does nothing`() {
         engine.approveMarriageProposal("999", FEMALE_ID)
-        assertNull(store._discipleTables.partnerIds[999])
+        assertNull(store._discipleTables.partnerIds.getOrNull(999))
         assertEquals(1, store.pendingMarriageProposalsValue.size)
     }
 
     @Test
     fun `approve - non-existent proposal does nothing`() {
         engine.approveMarriageProposal(MALE_ID, "999")
-        assertNull(store._discipleTables.partnerIds[FEMALE_ID.toInt()])
+        assertNull(store._discipleTables.partnerIds.getOrNull(FEMALE_ID.toInt()))
     }
 
     @Test
@@ -134,7 +134,7 @@ class GameEngineMarriageProposalTest {
         }
         engine.approveMarriageProposal(MALE_ID, FEMALE_ID)
         // 原有配套不应被覆盖
-        assertEquals("99", store._discipleTables.partnerIds[MALE_ID.toInt()])
+        assertEquals("99", store._discipleTables.partnerIds.getOrNull(MALE_ID.toInt()))
         // 提议应被清理
         assertTrue("已有道侣时提议应被移除", store.pendingMarriageProposalsValue.isEmpty())
     }
@@ -145,7 +145,7 @@ class GameEngineMarriageProposalTest {
             discipleTables.partnerIds[FEMALE_ID.toInt()] = "99"
         }
         engine.approveMarriageProposal(MALE_ID, FEMALE_ID)
-        assertNull("女性已有道侣，男性不应被配对", store._discipleTables.partnerIds[MALE_ID.toInt()])
+        assertNull("女性已有道侣，男性不应被配对", store._discipleTables.partnerIds.getOrNull(MALE_ID.toInt()))
     }
 
     // ── reject ──────────────────────────────────────────────────
@@ -155,8 +155,8 @@ class GameEngineMarriageProposalTest {
         engine.rejectMarriageProposal(MALE_ID, FEMALE_ID)
         assertTrue("reject 后提议应被移除", store.pendingMarriageProposalsValue.isEmpty())
         // 不应产生配对
-        assertNull(store._discipleTables.partnerIds[MALE_ID.toInt()])
-        assertNull(store._discipleTables.partnerIds[FEMALE_ID.toInt()])
+        assertNull(store._discipleTables.partnerIds.getOrNull(MALE_ID.toInt()))
+        assertNull(store._discipleTables.partnerIds.getOrNull(FEMALE_ID.toInt()))
     }
 
     @Test
@@ -323,7 +323,7 @@ private class MarriageProposalTestStore : GameStateStore {
             if (reusableMutableState.discipleTables.partnerIds !== _discipleTables.partnerIds) {
                 // 如果 block 创建了新的 tables，只复制 partnerIds
                 for (id in reusableMutableState.discipleTables.ids) {
-                    _discipleTables.partnerIds[id] = reusableMutableState.discipleTables.partnerIds[id]
+                    _discipleTables.partnerIds[id] = reusableMutableState.discipleTables.partnerIds.getOrNull(id)
                 }
             }
             if (gameChanged || proposalsChanged) _updateVersion.value++

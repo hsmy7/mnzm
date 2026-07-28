@@ -133,6 +133,7 @@
   "lawEnforcement": {
     "loyaltyThreshold": 30,
     "moralityThreshold": 30,
+    "herdLoyaltyThreshold": 50,
     "probPerPoint": 0.01,
     "maxProb": 0.9,
     "theftMinRatio": 0.01,

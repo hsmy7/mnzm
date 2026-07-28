@@ -735,6 +735,8 @@ object GameConfig {
             get() = config()?.lawEnforcement?.reflectionYears ?: 5
         val NEW_DISCIPLE_PROTECTION_MONTHS: Int
             get() = config()?.lawEnforcement?.newDiscipleProtectionMonths ?: 12
+        val HERD_LOYALTY_THRESHOLD: Int
+            get() = config()?.lawEnforcement?.herdLoyaltyThreshold ?: 50
 
         // ── 境界基准偷盗量（等比数列 ×4，1=炼气 … 9=渡劫） ──
         val THEFT_REALM_BASE_AMOUNTS: Map<Int, Long> = mapOf(

@@ -185,8 +185,8 @@ class GameEngine @Inject constructor(
                 it.maleId == maleId && it.femaleId == femaleId
             } ?: return@update
             // 防御性检查：任一方已有道侣则跳过配对
-            if (discipleTables.partnerIds[maleIdInt] != null ||
-                discipleTables.partnerIds[femaleIdInt] != null
+            if (discipleTables.partnerIds.getOrNull(maleIdInt) != null ||
+                discipleTables.partnerIds.getOrNull(femaleIdInt) != null
             ) {
                 pendingMarriageProposals = pendingMarriageProposals - proposal
                 return@update

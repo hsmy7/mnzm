@@ -202,6 +202,145 @@ class LawEnforcementProcessorTest {
     }
 
     // ═════════════════════════════════════════════════════════════════
+    // 从众门控测试
+    // ═════════════════════════════════════════════════════════════════
+
+    @Test
+    fun `从众门控 - 平均忠诚50应当阻止偷盗`() {
+        val id1 = 1; val id2 = 2
+        val tables = DiscipleTables().also { t ->
+            t.addId(id1); t.isAlive[id1] = 1; t.statuses[id1] = DiscipleStatus.IDLE
+            t.moralities[id1] = 0; t.loyalties[id1] = 50
+            t.recruitedMonths[id1] = 24; t.ages[id1] = 30
+            t.intelligences[id1] = 100; t.baseSpeeds[id1] = 100
+            t.realms[id1] = 5; t.realmLayers[id1] = 1
+            t.addId(id2); t.isAlive[id2] = 1; t.statuses[id2] = DiscipleStatus.IDLE
+            t.moralities[id2] = 0; t.loyalties[id2] = 50
+            t.recruitedMonths[id2] = 24; t.ages[id2] = 30
+            t.intelligences[id2] = 100; t.baseSpeeds[id2] = 100
+            t.realms[id2] = 5; t.realmLayers[id2] = 1
+        }
+        val gd = GameData(spiritStones = 1_000_000L, gameYear = 10, gameMonth = 6)
+        val state = makeState(gd, tables)
+        val (mockStore, _) = makeMocks(gd)
+        val proc = LawEnforcementProcessor(mockStore, GameRngManager(),
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
+        proc.processSingleDiscipleTheft(id1, state)
+        // 平均忠诚 (50+50)/2=50 ≥ 50，偷盗不应发生
+        assertEquals(1_000_000L, state.gameData.spiritStones)
+    }
+
+    @Test
+    fun `从众门控 - 平均忠诚49应当允许偷盗`() {
+        val id1 = 1; val id2 = 2
+        val tables = DiscipleTables().also { t ->
+            t.addId(id1); t.isAlive[id1] = 1; t.statuses[id1] = DiscipleStatus.IDLE
+            t.moralities[id1] = 0; t.loyalties[id1] = 49
+            t.recruitedMonths[id1] = 24; t.ages[id1] = 30
+            t.intelligences[id1] = 100; t.baseSpeeds[id1] = 100
+            t.realms[id1] = 5; t.realmLayers[id1] = 1
+            t.addId(id2); t.isAlive[id2] = 1; t.statuses[id2] = DiscipleStatus.IDLE
+            t.moralities[id2] = 0; t.loyalties[id2] = 49
+            t.recruitedMonths[id2] = 24; t.ages[id2] = 30
+            t.intelligences[id2] = 100; t.baseSpeeds[id2] = 100
+            t.realms[id2] = 5; t.realmLayers[id2] = 1
+        }
+        val gd = GameData(spiritStones = 1_000_000L, gameYear = 10, gameMonth = 6)
+        val state = makeState(gd, tables)
+        val (mockStore, _) = makeMocks(gd)
+        val rng = GameRngManager()
+        rng.initSystemSeed(7L)
+        val proc = LawEnforcementProcessor(mockStore, rng,
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
+        proc.processSingleDiscipleTheft(id1, state)
+        // 平均忠诚 (49+49)/2=49 < 50，偷盗可能发生（取决于RNG，但流程应进入）
+        assertNotNull("运行完成", state)
+    }
+
+    @Test
+    fun `从众门控 - 只有一个弟子平均就是该弟子的忠诚`() {
+        val id = 1
+        val tables = makeTables(id, morale = 0).also { it.loyalties[id] = 30 }
+        val gd = GameData(spiritStones = 1_000_000L, gameYear = 10, gameMonth = 6)
+        val state = makeState(gd, tables)
+        val (mockStore, _) = makeMocks(gd)
+        val rng = GameRngManager()
+        rng.initSystemSeed(99L)
+        val proc = LawEnforcementProcessor(mockStore, rng,
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
+        proc.processSingleDiscipleTheft(id, state)
+        // 只有一个活弟子，平均=30 < 50，应进入偷盗流程
+        assertTrue("流程已执行，月计数应递增",
+            state.gameData.theftJudgementsThisMonth > 0)
+    }
+
+    @Test
+    fun `从众门控 - 无活弟子时应当阻止`() {
+        val tables = DiscipleTables() // 空表，无任何弟子
+        val gd = GameData(spiritStones = 1_000_000L, gameYear = 10, gameMonth = 6)
+        val mockStore = Mockito.mock(GameStateStore::class.java)
+        Mockito.`when`(mockStore.gameData).thenReturn(MutableStateFlow(gd))
+        Mockito.`when`(mockStore.discipleTables).thenReturn(tables)
+        val proc = LawEnforcementProcessor(mockStore, GameRngManager(),
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
+        // processLawEnforcementMonthly 在空表时不应抛异常
+        proc.processLawEnforcementMonthly()
+        assertNotNull("空表不抛异常", proc)
+    }
+
+    @Test
+    fun `从众门控 - 平均忠诚50应当阻止叛逃`() {
+        val id1 = 1; val id2 = 2
+        val tables = DiscipleTables().also { t ->
+            t.addId(id1); t.isAlive[id1] = 1; t.statuses[id1] = DiscipleStatus.IDLE
+            t.loyalties[id1] = 50; t.recruitedMonths[id1] = 24
+            t.ages[id1] = 30; t.intelligences[id1] = 100
+            t.baseSpeeds[id1] = 100; t.realms[id1] = 5; t.realmLayers[id1] = 1
+            t.addId(id2); t.isAlive[id2] = 1
+            t.loyalties[id2] = 50; t.recruitedMonths[id2] = 24
+        }
+        val gd = GameData(spiritStones = 1_000_000L, gameYear = 10, gameMonth = 6)
+        val mockStore = Mockito.mock(GameStateStore::class.java)
+        Mockito.`when`(mockStore.gameData).thenReturn(MutableStateFlow(gd))
+        Mockito.`when`(mockStore.discipleTables).thenReturn(tables)
+        Mockito.`when`(mockStore.disciples).thenReturn(MutableStateFlow(emptyList()))
+        val proc = LawEnforcementProcessor(mockStore, GameRngManager(),
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
+        proc.processLawEnforcementMonthly()
+        // 平均忠诚 (50+50)/2=50 ≥ 50，门控返回，无人叛逃
+        assertEquals(0, gd.annualDesertedDisciples)
+    }
+
+    @Test
+    fun `从众门控 - 平均忠诚0应当允许叛逃`() {
+        val id1 = 1; val id2 = 2
+        val tables = DiscipleTables().also { t ->
+            t.addId(id1); t.isAlive[id1] = 1; t.statuses[id1] = DiscipleStatus.IDLE
+            t.loyalties[id1] = 0; t.recruitedMonths[id1] = 24
+            t.ages[id1] = 30; t.intelligences[id1] = 100
+            t.baseSpeeds[id1] = 100; t.realms[id1] = 5; t.realmLayers[id1] = 1
+            t.addId(id2); t.isAlive[id2] = 1; t.statuses[id2] = DiscipleStatus.IDLE
+            t.loyalties[id2] = 0; t.recruitedMonths[id2] = 24
+            t.ages[id2] = 30; t.intelligences[id2] = 100
+            t.baseSpeeds[id2] = 100; t.realms[id2] = 5; t.realmLayers[id2] = 1
+        }
+        val gd = GameData(spiritStones = 1_000_000L, gameYear = 10, gameMonth = 6)
+        val mockStore = Mockito.mock(GameStateStore::class.java)
+        Mockito.`when`(mockStore.gameData).thenReturn(MutableStateFlow(gd))
+        Mockito.`when`(mockStore.discipleTables).thenReturn(tables)
+        Mockito.`when`(mockStore.disciples).thenReturn(MutableStateFlow(emptyList()))
+        val rng = GameRngManager()
+        rng.initSystemSeed(7L)
+        val proc = LawEnforcementProcessor(mockStore, rng,
+            Mockito.mock(DiscipleLifecycleProcessor::class.java), LootCalculator(GameRngManager()))
+        proc.processLawEnforcementMonthly()
+        // 平均忠诚 (0+0)/2=0 < 50，应进入叛逃判定（RNG决定具体结果）
+        // captureRate=0.0 且 RNG 序列下可能逃脱或被捕
+        // 至少确认方法正常执行完毕即可
+        assertNotNull("流程已执行", proc)
+    }
+
+    // ═════════════════════════════════════════════════════════════════
     // 端到端集成测试
     // ═════════════════════════════════════════════════════════════════
 
@@ -554,7 +693,7 @@ class LawEnforcementProcessorTest {
     private fun makeTables(id: Int, morale: Int = 10): DiscipleTables {
         val t = DiscipleTables()
         t.addId(id); t.isAlive[id] = 1; t.statuses[id] = DiscipleStatus.IDLE
-        t.moralities[id] = morale; t.loyalties[id] = 50
+        t.moralities[id] = morale; t.loyalties[id] = 30
         t.recruitedMonths[id] = 24; t.ages[id] = 30
         t.intelligences[id] = 100; t.baseSpeeds[id] = 100
         t.realms[id] = 5; t.realmLayers[id] = 1

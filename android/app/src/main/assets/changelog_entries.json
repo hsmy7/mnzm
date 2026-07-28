@@ -46,7 +46,12 @@
       "修复(对抗审查)：拒绝提议不记录事件日志——rejectMarriageProposal添加recordGameEvent记录拒绝",
       "修复(对抗审查)：审批对话框遮罩层叠加——subDialogScrim参数传递控制",
       "测试：新增PartnerSystemTest——16测试用例(自动配对不变性/同意模式/去重/死亡+已配对清理/血亲回避)",
-      "测试：新增GameEngineMarriageProposalTest——8测试用例(approve/reject边缘情况)"
+      "测试：新增GameEngineMarriageProposalTest——8测试用例(approve/reject边缘情况)",
+      "玩法：从众设计——宗门平均忠诚≥50时风气好，全体安定不叛逃不偷盗。仅平均忠诚<50时按个体忠诚/道德检查。新增herdLoyaltyThreshold配置(默认50)",
+      "修复：批准婚姻NoSuchElementException——ComponentTable<String?>.get(id)无法区分空值与null条目，弟子无道侣时抛异常崩溃。partnerIds[id]→getOrNull(id)(PartnerSystem+GameEngine两处)",
+      "修复：预存测试崩溃17→0——PartnerSystemTest缺WriteGuardRule(12崩溃)+partnerIds[]同种NPE(5崩溃)+4个RNG不稳定测试改为确定性断言",
+      "架构：从众门控——LawEnforcementProcessor新增 isAverageLoyaltyLowEnough() 纯函数+4处门控",
+      "测试：新增6个从众门控测试+HERD_LOYALTY_THRESHOLD守卫测试"
     ]
   },
   {
