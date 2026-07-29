@@ -1,4 +1,4 @@
-﻿package com.xianxia.sect.ui.game
+package com.xianxia.sect.ui.game
 
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.registry.HerbDatabase
@@ -173,7 +173,7 @@ class AlchemyViewModel @Inject constructor(
 
     fun getAvailableWorkers(): List<DiscipleAggregate> {
         val all = gameEngine.discipleAggregatesSnapshot
-        return all.filter { it.isAlive && !gameEngine.isDiscipleAssigned(it.id) }
+        return all.filter { it.isAlive }
             .sortedByDescending { it.pillRefining }
     }
 }

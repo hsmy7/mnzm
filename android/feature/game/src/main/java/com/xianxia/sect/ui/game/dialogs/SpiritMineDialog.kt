@@ -210,7 +210,7 @@ fun SpiritMineDialog(
     }
 
     if (showDiscipleSelection) {
-        val availableDisciples = spiritMineViewModel.getAvailableDisciplesForSpiritMining()
+        val availableDisciples = spiritMineViewModel.getAvailableDisciplesForSpiritMining(excludeAssigned = false)
         val isSwapping = swappingSlotIndex != null
 
         if (isSwapping) {

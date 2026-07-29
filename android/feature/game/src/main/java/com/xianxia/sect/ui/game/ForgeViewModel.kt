@@ -191,7 +191,7 @@ class ForgeViewModel @Inject constructor(
 
     fun getAvailableWorkers(): List<DiscipleAggregate> {
         val all = gameEngine.discipleAggregatesSnapshot
-        return all.filter { it.isAlive && !gameEngine.isDiscipleAssigned(it.id) }
+        return all.filter { it.isAlive }
             .sortedByDescending { it.artifactRefining }
     }
 }

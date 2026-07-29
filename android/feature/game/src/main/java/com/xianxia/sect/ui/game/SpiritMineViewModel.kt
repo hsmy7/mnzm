@@ -23,7 +23,6 @@ class SpiritMineViewModel @Inject constructor(
         val showAll = gameEngine.gameDataSnapshot.showAllAvailableDisciples
 
         return gameEngine.discipleAggregatesSnapshot
-            .filter { !gameEngine.isDiscipleAssigned(it.id) }
             .filterByDiscipleStatus(showAll, emptySet(), additionalCheck = {
                 it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0
             })
@@ -82,11 +81,11 @@ class SpiritMineViewModel @Inject constructor(
         gameEngine.validateAndFixSpiritMineData()
     }
 
-    fun getAvailableDisciplesForSpiritMining(): List<DiscipleAggregate> {
+    fun getAvailableDisciplesForSpiritMining(excludeAssigned: Boolean = true): List<DiscipleAggregate> {
         val showAll = gameEngine.gameDataSnapshot.showAllAvailableDisciples
 
         return gameEngine.discipleAggregatesSnapshot
-            .filter { !gameEngine.isDiscipleAssigned(it.id) }
+            .let { if (excludeAssigned) it.filter { d -> !gameEngine.isDiscipleAssigned(d.id) } else it }
             .filterByDiscipleStatus(showAll, emptySet(), additionalCheck = {
                 it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0
             })

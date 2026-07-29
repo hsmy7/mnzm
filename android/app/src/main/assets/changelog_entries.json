@@ -8,7 +8,8 @@
       "修复：AI宗门弟子突破后lifespan未随境界更新——processMonthlyCultivation突破后原赋值lifespan=workingDisciple.lifespan（不变），改为大境界变化时按新境界realmMaxAge+天赋加成重新计算",
       "重构：所有管理界面移除保存机制——道侣管理/弟子管理/自动管理/自动招募过滤均改为勾选即保存，移除保存按钮和未保存提醒对话框",
       "重构：宗门管理界面双区域布局——选项区域在上，管理区域在下（道侣/弟子/自动管理按钮FlowRow响应式换行）",
-      "重构：宗门管理管理按钮改为FlowRow响应式布局——根据屏幕宽度自动换行排列"
+      "重构：宗门管理管理按钮改为FlowRow响应式布局——根据屏幕宽度自动换行排列",
+      "修复：勾选\"显示所有弟子\"后灵矿场/炼丹房/锻造房仍不显示已分配弟子——SpiritMineViewModel/AlchemyViewModel/ForgeViewModel的getAvailable*方法在弟子列表交给对话框前用isDiscipleAssigned做全局预过滤，把采矿中/炼丹中/锻造中等已分配弟子全部移除，导致对话框内部filterByDiscipleStatus(showAllEnabled)无法再显示它们。移除该预过滤（灵矿一键任命路径保留excludeAssigned=true以防搬运其他矿场弟子），对话框内部filterByDiscipleStatus接管状态过滤，选中已分配弟子时既有releaseDiscipleForReassignment/assignDiscipleToProductionSlot自动释放原职务"
     ]
   },
   {
