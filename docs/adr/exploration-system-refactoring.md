@@ -142,13 +142,6 @@ enum class RngPartition(val id: Int) {
 var rngStates: Map<Int, Long> = emptyMap()
 ```
 
-#### 调用方改造
-
-所有 `kotlin.random.Random` 调用替换为 `GameRngManager.getRng(partition)`：
-- `ExplorationService` → `RngPartition.EXPLORATION`
-- `BattleCalculator` → `RngPartition.BATTLE`（需后续 PR）
-- `BreakthroughCalculator` → `RngPartition.BREAKTHROUGH`（需后续 PR）
-
 #### 存档/读档流程
 
 ```

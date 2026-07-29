@@ -349,7 +349,7 @@ com.taptap.sdk.cloudsave.ArchiveData      ← getUuid/getFileId/getName/getSumma
 
 ### 已知待修复问题
 
-见 [cloud-save-known-issues.md](cloud-save-known-issues.md)。
+云存档模块的各项问题已在 2026-07-25~28 期间处理完毕（并发锁、下载备份、静默降级、跨版本兼容、shuffled PRNG 迁移等），详见 CHANGELOG.md。
 
 ## Mail & Reward System
 
