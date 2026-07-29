@@ -672,10 +672,12 @@ class CaveExplorationProcessor @Inject constructor(
                 }
                 sect.occupierSectId.isNotEmpty() -> {
                     val occupierDisciples = updatedAiDisciples[sect.occupierSectId] ?: emptyList()
-                    updatedAiDisciples[sect.occupierSectId] = occupierDisciples + newRecruits
+                    updatedAiDisciples[sect.occupierSectId] =
+                        AISectDiscipleManager.truncateToLimit(occupierDisciples + newRecruits)
                 }
                 else -> {
-                    updatedAiDisciples[sectId] = disciples + newRecruits
+                    updatedAiDisciples[sectId] =
+                        AISectDiscipleManager.truncateToLimit(disciples + newRecruits)
                 }
             }
         }

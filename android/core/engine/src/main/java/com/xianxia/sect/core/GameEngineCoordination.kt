@@ -134,6 +134,7 @@ private suspend fun GameEngine.checkAndRepairAiSectDisciples() {
     val regenerated = mutableMapOf<String, List<Disciple>>()
     for (sect in gd.worldMapSects) {
         if (sect.isPlayerSect) continue
+        if (sect.isPlayerOccupied) continue
         val existing = gd.aiSectDisciples[sect.id].orEmpty()
         if (existing.isEmpty()) {
             val (d, _) = AISectDiscipleManager.initializeSectDisciples(

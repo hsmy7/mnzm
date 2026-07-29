@@ -10,6 +10,7 @@
 
 ### 修复
 
+- **战胜AI宗门后玩家宗门涌入1000+弟子** — 三处根因：①AI宗门年度招募无截断累积（普通宗门`else`分支和AI占领宗门`occupierSectId`分支均用`disciples + newRecruits`无上限），新增`AISectDiscipleManager.truncateToLimit`按战力降序截断至`MAX_AI_DISCIPLES_PER_SECT`(1000)，`recruitYearlyDisciples`复用同一逻辑消除重复；②完整性检查`checkAndRepairAiSectDisciples`不跳过`isPlayerOccupied`宗门，占领后清空的弟子池被重新填充50人，新增`isPlayerOccupied`跳过；③`attackSect`不检查`isPlayerOccupied`可反复攻击已占领宗门重复俘虏，新增`isPlayerOccupied`拦截。设计意图不变：俘虏全部进`recruitList`、自动招募遵守月上限30人、已占领宗门继续产0-6人/年入`recruitList`
 - **AI宗门弟子寿元计算错误** — `AISectDiscipleManager.processAging` 原使用 `newAge <= disciple.lifespan`（默认80），导致金丹弟子81岁即被判定死亡（应活200岁），现统一为 `computeMaxAge` 公式（含境界 `realmMaxAge` + 天赋加成）
 - **AI宗门弟子突破后 lifespan 未随境界更新** — `processMonthlyCultivation` 突破后原赋值 `lifespan = workingDisciple.lifespan`（不变），改为大境界变化时按新境界 `realmMaxAge` + 天赋加成重新计算
 

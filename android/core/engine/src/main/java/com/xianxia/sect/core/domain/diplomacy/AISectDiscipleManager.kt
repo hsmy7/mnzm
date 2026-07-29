@@ -362,13 +362,20 @@ object AISectDiscipleManager {
         existingDisciples: List<Disciple>
     ): List<Disciple> {
         val newDisciples = generateYearlyRecruits(sectName, existingDisciples)
-        val allDisciples = existingDisciples + newDisciples
-        return if (allDisciples.size > PlantSlotData.MAX_AI_DISCIPLES_PER_SECT) {
-            allDisciples.sortedByDescending { it.combat.basePhysicalAttack + it.combat.baseMagicAttack + it.combat.baseHp }.take(PlantSlotData.MAX_AI_DISCIPLES_PER_SECT)
-        } else {
-            allDisciples
-        }
+        return truncateToLimit(existingDisciples + newDisciples)
     }
+
+    /**
+     * 按战力降序截断至 [PlantSlotData.MAX_AI_DISCIPLES_PER_SECT]，供年度招募路径复用，
+     * 防止 AI 宗门弟子池无界累积。
+     */
+    fun truncateToLimit(disciples: List<Disciple>): List<Disciple> =
+        if (disciples.size > PlantSlotData.MAX_AI_DISCIPLES_PER_SECT) {
+            disciples.sortedByDescending { it.combat.basePhysicalAttack + it.combat.baseMagicAttack + it.combat.baseHp }
+                .take(PlantSlotData.MAX_AI_DISCIPLES_PER_SECT)
+        } else {
+            disciples
+        }
 
     /**
      * 仅生成年度新弟子列表（不合并现有弟子），供占领路由使用

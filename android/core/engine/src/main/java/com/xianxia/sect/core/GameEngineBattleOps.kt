@@ -43,6 +43,9 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
         // 不能攻击空 ID 或自己的宗门
         if (sectId.isBlank() || targetSect.isPlayerSect) return@withEngineContext
 
+        // 不能攻击已由玩家占领的宗门（避免重复俘虏）
+        if (targetSect.isPlayerOccupied) return@withEngineContext
+
         // 不能攻击自己的附属宗门
         if (data.vassalContracts.any { it.vassalSectId == sectId }) return@withEngineContext
 
