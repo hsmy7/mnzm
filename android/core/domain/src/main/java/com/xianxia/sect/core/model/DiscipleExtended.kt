@@ -16,6 +16,8 @@ data class DiscipleExtended(
 
     var manualIds: List<String> = emptyList(),
     var talentIds: List<String> = emptyList(),
+    var physiqueIds: List<String> = emptyList(),
+    var affixIds: List<String> = emptyList(),
     var manualMasteries: Map<String, Int> = emptyMap(),
     var statusData: Map<String, String> = emptyMap(),
     var cultivationSpeedBonus: Double = 0.0,
@@ -43,6 +45,8 @@ data class DiscipleExtended(
                 discipleId = disciple.id,
                 manualIds = disciple.manualIds,
                 talentIds = disciple.talentIds,
+                physiqueIds = disciple.physiqueIds,
+                affixIds = disciple.affixIds,
                 manualMasteries = disciple.manualMasteries,
                 statusData = disciple.statusData,
                 cultivationSpeedBonus = disciple.cultivationSpeedBonus,

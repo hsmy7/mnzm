@@ -263,6 +263,19 @@ class DiscipleBreakthroughHandler @Inject constructor(
             } else { 0 }
         } else { 0 }
 
+        // 长老职务加成（PositionBonus）：从长老弟子的天赋/词条中提取，作为乘算因子作用于长老职能效果
+        val allDisciples = stateStore.disciples.value.associateBy { it.id }
+        val innerElderPositionBonus = if (innerElderId.isNotEmpty() && disciple.discipleType == TYPE_INNER) {
+            allDisciples[innerElderId]?.let { elder ->
+                DiscipleStatCalculator.getPositionEffectBonus(elder, ElderSlotType.INNER_ELDER)
+            } ?: 0.0
+        } else 0.0
+        val outerElderPositionBonus = if (disciple.discipleType == TYPE_OUTER && outerElderId.isNotEmpty()) {
+            allDisciples[outerElderId]?.let { elder ->
+                DiscipleStatCalculator.getPositionEffectBonus(elder, ElderSlotType.OUTER_ELDER)
+            } ?: 0.0
+        } else 0.0
+
         val adBonus = disciple.statusData?.get("adBreakthroughBonus")?.toDoubleOrNull() ?: 0.0
 
         val griefBreakthroughPenalty = if (DiscipleStatCalculator.isGrieving(disciple.social.griefEndYear, data.gameYear)) {
@@ -287,7 +300,9 @@ class DiscipleBreakthroughHandler @Inject constructor(
             pillBonus = pillBonus,
             adBonus = adBonus,
             griefBreakthroughPenalty = griefBreakthroughPenalty,
-            masterDiscipleBonus = masterDiscipleBonus
+            masterDiscipleBonus = masterDiscipleBonus,
+            innerElderPositionBonus = innerElderPositionBonus,
+            outerElderPositionBonus = outerElderPositionBonus
         )
         return rngManager.getRng(RngPartition.BREAKTHROUGH).nextDouble() < chance
     }

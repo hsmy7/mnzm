@@ -74,7 +74,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 35  // v35: MIGRATION_34_35 新增 game_data.autoRejectSpiritRootFilter 列
+    version = 36  // v36: MIGRATION_35_36 新增 disciples.physiqueIds/affixIds 列
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)
@@ -1405,6 +1405,39 @@ abstract class GameDatabase : RoomDatabase() {
         }
 
         /**
+         * v35→v36: 新增 disciples.physiqueIds/affixIds 与 disciples_extended.physiqueIds/affixIds 列
+         *
+         * 用于弟子天赋三分类重构：将原 Talent 拆分为 Talent（天赋）/Physique（体质）/Affix（词条）。
+         * 旧存档弟子新列默认为空字符串（反序列化为 emptyList），符合"旧存档弟子视为无体质无词条"约定。
+         * List<String> 经 ProtobufConverters 序列化为 Base64，空列表编码后为空字符串。
+         */
+        val MIGRATION_35_36 = object : Migration(35, 36) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                if (!columnExists(db, "disciples", "physiqueIds")) {
+                    db.execSQL(
+                        "ALTER TABLE disciples ADD COLUMN physiqueIds TEXT NOT NULL DEFAULT ''"
+                    )
+                }
+                if (!columnExists(db, "disciples", "affixIds")) {
+                    db.execSQL(
+                        "ALTER TABLE disciples ADD COLUMN affixIds TEXT NOT NULL DEFAULT ''"
+                    )
+                }
+                if (!columnExists(db, "disciples_extended", "physiqueIds")) {
+                    db.execSQL(
+                        "ALTER TABLE disciples_extended ADD COLUMN physiqueIds TEXT NOT NULL DEFAULT ''"
+                    )
+                }
+                if (!columnExists(db, "disciples_extended", "affixIds")) {
+                    db.execSQL(
+                        "ALTER TABLE disciples_extended ADD COLUMN affixIds TEXT NOT NULL DEFAULT ''"
+                    )
+                }
+                Log.i(TAG, "Migration 35→36: added disciples + disciples_extended physiqueIds/affixIds")
+            }
+        }
+
+        /**
          * 检查表中是否存在指定列。
          * 用于处理错误的 Migration 回填（已存在列重复 ALTER 会崩溃）。
          */
@@ -1680,7 +1713,7 @@ abstract class GameDatabase : RoomDatabase() {
                 return
             }
 
-            val targetVersion = 35  // @Database(version = 35)
+            val targetVersion = 36  // @Database(version = 36)
             if (currentVersion >= targetVersion) {
                 Log.d(TAG, "数据库已是最新版本 (v$currentVersion)，无需备份")
                 return
@@ -1732,7 +1765,7 @@ abstract class GameDatabase : RoomDatabase() {
                         Thread(r, "GameDB-Txn")
                     }
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database created")

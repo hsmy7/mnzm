@@ -35,7 +35,10 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.ElderSlotType
 import com.xianxia.sect.core.model.Talent
+import com.xianxia.sect.core.model.Physique
+import com.xianxia.sect.core.model.Affix
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.isFollowed
@@ -138,9 +141,6 @@ fun PortraitDiscipleCard(
     val borderColor = if (isSelected) GameColors.Gold else Color(0xFFE0E0E0)
     val borderWidth = if (isSelected) 2.dp else 1.dp
     val statusText = disciple.status.displayName
-    val talents = remember(disciple.talentIds) {
-        TalentDatabase.getTalentsByIds(disciple.talentIds)
-    }
 
     Box(
         modifier = Modifier
@@ -276,33 +276,6 @@ fun PortraitDiscipleCard(
                     }
                     extraAttributes.forEach { (name, value) ->
                         DiscipleAttrText(name, value)
-                    }
-                }
-                val talentRows = talents.chunked(3)
-                val displayRows = (talentRows + List(2) { emptyList<Talent>() }).take(2)
-                displayRows.forEach { rowTalents ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(3.dp)
-                    ) {
-                        if (rowTalents.isEmpty()) {
-                            Text(
-                                text = " ",
-                                fontSize = 9.sp,
-                                color = Color.Transparent
-                            )
-                        } else {
-                            rowTalents.forEach { talent ->
-                                val rarityColor = getTalentRarityColor(talent.rarity)
-                                Text(
-                                    text = talent.name,
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = rarityColor,
-                                    maxLines = 1
-                                )
-                            }
-                        }
                     }
                 }
             }
@@ -615,7 +588,7 @@ fun TalentDetailDialog(talent: Talent, onDismiss: () -> Unit) {
             color = Color.Black
         )
 
-        if (talent.effects.isEmpty()) {
+        if (talent.effects.isEmpty() && talent.positionBonus == null) {
             Text(
                 text = talent.description,
                 fontSize = 12.sp,
@@ -636,6 +609,22 @@ fun TalentDetailDialog(talent: Talent, onDismiss: () -> Unit) {
                     )
                     Text(
                         text = effectText,
+                        fontSize = 12.sp,
+                        color = Color.Black
+                    )
+                }
+            }
+            talent.positionBonus?.let { bonus ->
+                val slotName = formatSlotTypeName(bonus.slotType)
+                val percent = formatPercentValue(bonus.effectBonus)
+                val sign = if (bonus.effectBonus >= 0) "+" else "-"
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(text = "•", fontSize = 12.sp, color = Color.Black)
+                    Text(
+                        text = "担任职务($slotName)时职能效果 $sign$percent",
                         fontSize = 12.sp,
                         color = Color.Black
                     )
@@ -715,6 +704,164 @@ fun formatEffectKey(key: String): String {
         "moralityFlat" -> "道德"
         "miningFlat" -> "采矿"
         "winBattleRandomAttrPlus" -> "胜利后随机属性成长（无上限）"
+        "damageAmplification" -> "伤害放大"
+        "damageReduction" -> "伤害减免"
+        "critDamageBonus" -> "暴击伤害"
+        "defenseBonus" -> "防御加成"
         else -> key
+    }
+}
+
+/** 职务类型显示名（用于 PositionBonus 文案） */
+fun formatSlotTypeName(slotType: ElderSlotType): String = when (slotType) {
+    ElderSlotType.VICE_SECT_MASTER -> "副宗主"
+    ElderSlotType.HERB_GARDEN -> "灵田长老"
+    ElderSlotType.ALCHEMY -> "炼丹长老"
+    ElderSlotType.FORGE -> "炼器长老"
+    ElderSlotType.OUTER_ELDER -> "外门长老"
+    ElderSlotType.PREACHING -> "传道长老"
+    ElderSlotType.LAW_ENFORCEMENT -> "执法长老"
+    ElderSlotType.INNER_ELDER -> "内门长老"
+    ElderSlotType.RECRUITING -> "纳徒长老"
+    ElderSlotType.CLOUD_PREACHING -> "青云传道长老"
+}
+
+/** 格式化百分比数值：传入小数（如 0.15），输出 "15%" 或 "15.5%" */
+fun formatPercentValue(value: Double): String {
+    val percentValue = kotlin.math.abs(value) * 100
+    return if (percentValue % 1 == 0.0) {
+        String.format(Locale.getDefault(), "%d%%", percentValue.toLong())
+    } else {
+        String.format(Locale.getDefault(), "%.1f%%", percentValue)
+    }
+}
+
+@Composable
+fun PhysiqueDetailDialog(physique: Physique, onDismiss: () -> Unit) {
+    val rarityColor = getTalentRarityColor(physique.rarity)
+
+    SmallScreenDialog(
+        onDismissRequest = onDismiss,
+        title = physique.name,
+        titleColor = rarityColor
+    ) {
+        Text(
+            text = "体质效果",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+
+        val hasAnyEffect = physique.cultivationSpeedBonus != 0.0 ||
+            physique.damageAmplification != 0.0 ||
+            physique.damageReduction != 0.0 ||
+            physique.critDamageBonus != 0.0 ||
+            physique.defenseBonus != 0.0
+
+        if (!hasAnyEffect) {
+            Text(
+                text = physique.description,
+                fontSize = 12.sp,
+                color = Color.Black
+            )
+        } else {
+            if (physique.cultivationSpeedBonus != 0.0) {
+                DetailEffectRow("修炼速度", physique.cultivationSpeedBonus)
+            }
+            if (physique.damageAmplification != 0.0) {
+                DetailEffectRow("伤害放大", physique.damageAmplification)
+            }
+            if (physique.damageReduction != 0.0) {
+                DetailEffectRow("伤害减免", physique.damageReduction)
+            }
+            if (physique.critDamageBonus != 0.0) {
+                DetailEffectRow("暴击伤害", physique.critDamageBonus)
+            }
+            if (physique.defenseBonus != 0.0) {
+                DetailEffectRow("防御加成", physique.defenseBonus)
+            }
+        }
+    }
+}
+
+@Composable
+fun AffixDetailDialog(affix: Affix, onDismiss: () -> Unit) {
+    val rarityColor = getTalentRarityColor(affix.rarity)
+
+    SmallScreenDialog(
+        onDismissRequest = onDismiss,
+        title = affix.name,
+        titleColor = rarityColor
+    ) {
+        Text(
+            text = "词条效果",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+
+        if (affix.effects.isEmpty() && affix.positionBonus == null) {
+            Text(
+                text = affix.description,
+                fontSize = 12.sp,
+                color = Color.Black
+            )
+        } else {
+            affix.effects.forEach { (key, value) ->
+                DetailEffectRow(formatEffectKey(key), value, key)
+            }
+            affix.positionBonus?.let { bonus ->
+                val slotName = formatSlotTypeName(bonus.slotType)
+                val percent = formatPercentValue(bonus.effectBonus)
+                val sign = if (bonus.effectBonus >= 0) "+" else "-"
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(text = "•", fontSize = 12.sp, color = Color.Black)
+                    Text(
+                        text = "担任职务($slotName)时职能效果 $sign$percent",
+                        fontSize = 12.sp,
+                        color = Color.Black
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailEffectRow(name: String, value: Double, key: String? = null) {
+    val flatKeys = setOf(
+        "manualSlot",
+        "comprehensionFlat",
+        "intelligenceFlat",
+        "teachingFlat",
+        "artifactRefiningFlat",
+        "pillRefiningFlat",
+        "spiritPlantingFlat",
+        "charmFlat",
+        "loyaltyFlat",
+        "moralityFlat",
+        "miningFlat"
+    )
+    val valueText = if (key != null && key in flatKeys) {
+        kotlin.math.abs(value).toInt().toString()
+    } else if (key == "winBattleRandomAttrPlus") {
+        kotlin.math.abs(value).toInt().coerceAtLeast(1).toString()
+    } else {
+        formatPercentValue(value)
+    }
+    val sign = if (value >= 0) "+" else "-"
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(text = "•", fontSize = 12.sp, color = Color.Black)
+        Text(
+            text = "$name $sign$valueText",
+            fontSize = 12.sp,
+            color = Color.Black
+        )
     }
 }

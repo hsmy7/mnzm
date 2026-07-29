@@ -1,3 +1,26 @@
+## [4.0.78] - 2026-07-29
+
+### 重构（对抗性审查修复）
+
+- **Combatant 战斗乘算因子封装** — 将散落的 8 个字段（`physiqueDamageAmplification`/`physiqueCritDamageBonus`/`physiqueDamageReduction`/`physiqueDefenseBonus` + `affixDamageAmplification`/`affixCritDamageBonus`/`affixDamageReduction`/`affixDefenseBonus`）封装为 `physique: PhysiqueCombatFactors` + `affix: AffixCombatEffects` 两个结构体字段，`BattleSystem`/`AISectAttackManager` 注入点和 `BattleCalculator.buildDamageZones` 读取点同步更新
+- **`AffixCombatEffects` 定义位置归位** — 从 `PhysiqueDatabase.kt` 移至 `AffixDatabase.kt`，与其使用方和语义归属一致
+- **`getAffixCombatEffects` 代码重复消除** — `DiscipleStatCalculator` 两个公有重载方法（`Disciple`/`DiscipleAggregate`）合并提取私有 `getAffixCombatEffects(affixIds: List<String>)` 公共实现
+
+### 修复（注释/文档一致性）
+
+- **`calculateFinalDamage` 公式注释补全** — 原注释缺失体质/词条增伤、减伤乘区，且未说明 `effectiveAttack`/`effectiveDefense`/防御减伤率的计算过程；补全完整公式与各乘区含义说明
+- **`PhysiqueType` 枚举注释统一** — `CRIT_DAMAGE`/`HYBRID_OFFENSE`/`HYBRID_DEFENSE` 均补标"独立乘算"，与其他枚举值注释风格一致
+- **`critDmgConfigs` 数值注释补标"独立乘算，仅暴击生效"**
+
+### 测试
+
+- **新增体质/词条独立乘算单元测试** — 18 个用例覆盖：体质/词条增伤独立乘算（vs 加算对照）、暴击伤害非暴击不生效 + 暴击独立乘算、体质+词条暴伤同时存在独立乘算、减伤独立乘算、防御加成作用于 `effectiveDefense`、全乘区组合验证、`PhysiqueCombatFactors`/`AffixCombatEffects` 默认值校验。引入浮点期望值计算器避免 Int 截断误差
+
+### 验证
+
+- `:app:compileDebugKotlin :core:engine:compileDebugKotlin :core:domain:compileDebugKotlin` 全模块编译通过
+- BattleCalculatorTest 50 测试全过（含新增 18 个）；BattleAITest 全过（Combatant 结构重构未破坏 AI 行为）
+
 ## [4.0.77] - 2026-07-28
 
 ### 玩法

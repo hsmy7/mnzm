@@ -7,6 +7,8 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.model.SocialData
+import com.xianxia.sect.core.registry.AffixDatabase
+import com.xianxia.sect.core.registry.PhysiqueDatabase
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.PortraitPool
@@ -112,8 +114,12 @@ class DiscipleFactory @Inject constructor() {
             else -> r(COMPREHENSION_5_ROOT_MIN, COMPREHENSION_5_ROOT_MAX)
         }
 
-        // 3. 天赋
+        // 3. 天赋 / 体质 / 词条（三分类，各 0-3 个）
         val talentIds = TalentDatabase.generateTalentsForDisciple()
+            .map { it.id }
+        val physiqueIds = PhysiqueDatabase.generateForDisciple()
+            .map { it.id }
+        val affixIds = AffixDatabase.generateForDisciple()
             .map { it.id }
 
         val disciple = Disciple(
@@ -129,6 +135,8 @@ class DiscipleFactory @Inject constructor() {
             status = DiscipleStatus.IDLE,
             discipleType = TYPE_OUTER,
             talentIds = talentIds,
+            physiqueIds = physiqueIds,
+            affixIds = affixIds,
             combat = CombatAttributes(
                 hpVariance = hpVariance,
                 mpVariance = mpVariance,
@@ -167,10 +175,13 @@ class DiscipleFactory @Inject constructor() {
             combat.baseMagicDefense = baseStats.baseMagicDefense
             combat.baseSpeed = baseStats.baseSpeed
 
-            // 5. 寿命（含天赋加成）
+            // 5. 寿命（含天赋旧加成 + 词条加成，旧天赋 LIFESPAN 已迁移至 AffixDatabase）
             val talentEffects =
                 TalentDatabase.calculateTalentEffects(talentIds)
-            val lifespanBonus = talentEffects["lifespan"] ?: 0.0
+            val affixEffects =
+                AffixDatabase.calculateAffixEffects(affixIds)
+            val lifespanBonus =
+                (talentEffects["lifespan"] ?: 0.0) + (affixEffects["lifespan"] ?: 0.0)
             val baseLifespan = GameConfig.Realm.get(realm).maxAge
             lifespan =
                 (baseLifespan * (1.0 + lifespanBonus)).toInt()

@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.repository.ProductionSlotRepository
@@ -279,17 +280,21 @@ class FormulaService @Inject constructor(
             BuildingNames.FORGE -> {
                 val baseline = GameConfig.PolicyConfig.ELDER_SKILL_BASELINE
                 val diff = (elderDisciple.skills.artifactRefining - baseline).coerceAtLeast(0)
-                diff * 0.01
+                // 体质/词条的职务加成：作为乘算因子作用于长老职能效果
+                val posBonus = DiscipleStatCalculator.getPositionEffectBonus(elderDisciple, ElderSlotType.FORGE)
+                diff * 0.01 * (1.0 + posBonus)
             }
             BuildingNames.ALCHEMY -> {
                 val baseline = GameConfig.PolicyConfig.ELDER_SKILL_BASELINE
                 val diff = (elderDisciple.skills.pillRefining - baseline).coerceAtLeast(0)
-                diff * 0.01
+                val posBonus = DiscipleStatCalculator.getPositionEffectBonus(elderDisciple, ElderSlotType.ALCHEMY)
+                diff * 0.01 * (1.0 + posBonus)
             }
             "herbGarden" -> {
                 val baseline = GameConfig.PolicyConfig.ELDER_SKILL_BASELINE
                 val diff = (elderDisciple.skills.spiritPlanting - baseline).coerceAtLeast(0)
-                diff * 0.01
+                val posBonus = DiscipleStatCalculator.getPositionEffectBonus(elderDisciple, ElderSlotType.HERB_GARDEN)
+                diff * 0.01 * (1.0 + posBonus)
             }
             else -> 0.0
         }
@@ -329,7 +334,8 @@ class FormulaService @Inject constructor(
 
                 elder?.let { e ->
                     val diff = (e.skills.spiritPlanting - elderBaseline).coerceAtLeast(0)
-                    speedBonus += diff * 0.01
+                    val posBonus = DiscipleStatCalculator.getPositionEffectBonus(e, ElderSlotType.HERB_GARDEN)
+                    speedBonus += diff * 0.01 * (1.0 + posBonus)
                 }
                 disciples.forEach { d ->
                     val diff = (d.skills.spiritPlanting - discipleBaseline).coerceAtLeast(0)
@@ -342,7 +348,8 @@ class FormulaService @Inject constructor(
 
                 elder?.let { e ->
                     val diff = (e.skills.pillRefining - elderBaseline).coerceAtLeast(0)
-                    successBonus += diff * 0.01
+                    val posBonus = DiscipleStatCalculator.getPositionEffectBonus(e, ElderSlotType.ALCHEMY)
+                    successBonus += diff * 0.01 * (1.0 + posBonus)
                 }
                 disciples.forEach { d ->
                     val diff = (d.skills.pillRefining - discipleBaseline).coerceAtLeast(0)
@@ -355,7 +362,8 @@ class FormulaService @Inject constructor(
 
                 elder?.let { e ->
                     val diff = (e.skills.artifactRefining - elderBaseline).coerceAtLeast(0)
-                    successBonus += diff * 0.01
+                    val posBonus = DiscipleStatCalculator.getPositionEffectBonus(e, ElderSlotType.FORGE)
+                    successBonus += diff * 0.01 * (1.0 + posBonus)
                 }
                 disciples.forEach { d ->
                     val diff = (d.skills.artifactRefining - discipleBaseline).coerceAtLeast(0)

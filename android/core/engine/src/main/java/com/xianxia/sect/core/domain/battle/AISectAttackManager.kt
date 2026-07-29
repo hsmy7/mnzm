@@ -24,6 +24,7 @@ import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.domain.FavorDomain
 import com.xianxia.sect.core.engine.domain.diplomacy.IntelligentSectDecisionEngine
 import com.xianxia.sect.core.model.SectBattleType
@@ -772,6 +773,11 @@ object AISectAttackManager {
             ?.first
             ?.let { EquipmentDatabase.getById(it)?.name }
 
+        // 体质独立乘算因子：从 DiscipleStatCalculator 注入到 Combatant
+        val physiqueEffects = DiscipleStatCalculator.getPhysiqueEffects(disciple)
+        // 词条独立乘算因子：从 DiscipleStatCalculator 注入到 Combatant
+        val affixCombat = DiscipleStatCalculator.getAffixCombatEffects(disciple)
+
         return Combatant(
             id = disciple.id,
             name = disciple.name,
@@ -793,7 +799,14 @@ object AISectAttackManager {
             buffs = emptyList(),
             element = primaryElement,
             weaponName = weaponName,
-            portraitRes = disciple.portraitRes
+            portraitRes = disciple.portraitRes,
+            physique = PhysiqueCombatFactors(
+                damageAmplification = physiqueEffects.damageAmplification,
+                critDamageBonus = physiqueEffects.critDamageBonus,
+                damageReduction = physiqueEffects.damageReduction,
+                defenseBonus = physiqueEffects.defenseBonus
+            ),
+            affix = affixCombat
         )
     }
 

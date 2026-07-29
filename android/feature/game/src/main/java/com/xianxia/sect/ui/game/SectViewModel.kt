@@ -160,7 +160,7 @@ class SectViewModel @Inject constructor(
     
     fun getViceSectMasterIntelligenceBonus(): Double {
         val viceSectMaster = getViceSectMaster() ?: return 0.0
-        return sectPolicyToggle.getViceSectMasterIntelligenceBonus(viceSectMaster.intelligence)
+        return sectPolicyToggle.getViceSectMasterIntelligenceBonus(viceSectMaster)
     }
 
     // ══════════════════════════════════════════════

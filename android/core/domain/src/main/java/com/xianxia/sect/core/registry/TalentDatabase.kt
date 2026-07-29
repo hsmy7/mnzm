@@ -1,5 +1,7 @@
 package com.xianxia.sect.core.registry
 
+import com.xianxia.sect.core.model.ElderSlotType
+import com.xianxia.sect.core.model.PositionBonus
 import com.xianxia.sect.core.model.Talent
 import java.util.Locale
 import kotlin.math.abs
@@ -48,8 +50,32 @@ object TalentDatabase {
         BASE_MORAL,
         BASE_MINING,
         MANUAL_SLOT,
-        WIN_GROWTH
+        WIN_GROWTH,
+        POSITION_VICE_SECT_MASTER,
+        POSITION_HERB_GARDEN,
+        POSITION_ALCHEMY,
+        POSITION_FORGE,
+        POSITION_OUTER_ELDER,
+        POSITION_PREACHING,
+        POSITION_LAW_ENFORCEMENT,
+        POSITION_INNER_ELDER,
+        POSITION_RECRUITING,
+        POSITION_CLOUD_PREACHING
     }
+
+    /**
+     * 已从新生成池中移除的旧天赋类型（定义保留供旧存档解析）。
+     * - CULT_SPEED 迁移至 PhysiqueDatabase
+     * - LIFESPAN/MANUAL_SLOT/WIN_GROWTH 迁移至 AffixDatabase
+     * - BREAK_CHANCE 直接移除（突破概率不再受天赋影响）
+     */
+    private val DEPRECATED_TALENT_TYPES = setOf(
+        TalentType.CULT_SPEED,
+        TalentType.BREAK_CHANCE,
+        TalentType.LIFESPAN,
+        TalentType.MANUAL_SLOT,
+        TalentType.WIN_GROWTH
+    )
 
     data class TalentData(
         val id: String,
@@ -59,18 +85,10 @@ object TalentDatabase {
         val effects: Map<String, Double>,
         val isNegative: Boolean,
         val type: TalentType,
-        val template: String
+        val template: String,
+        val positionBonus: PositionBonus? = null
     ) {
-        fun toTalent(): Talent = Talent(id, name, description, rarity, effects, isNegative)
-    }
-
-    private fun gradeName(grade: Int): String {
-        return when (grade) {
-            1 -> "下品"
-            2 -> "中品"
-            3 -> "上品"
-            else -> "下品"
-        }
+        fun toTalent(): Talent = Talent(id, name, description, rarity, effects, isNegative, positionBonus)
     }
 
     private data class CultSpeedConfig(val rarity: Int, val value: Double)
@@ -78,7 +96,9 @@ object TalentDatabase {
     private data class LifespanConfig(val rarity: Int, val value: Double)
     private data class BattlePctConfig(val rarity: Int, val value: Double)
     private data class BaseFlatConfig(val rarity: Int, val value: Int)
+    private data class PositionBonusConfig(val rarity: Int, val value: Double)
 
+    // === 旧天赋配置（保留供旧存档解析，6 阶） ===
     private val cultSpeedConfigs = listOf(
         CultSpeedConfig(1, 0.06),
         CultSpeedConfig(2, 0.10),
@@ -106,37 +126,38 @@ object TalentDatabase {
         LifespanConfig(6, 0.60)
     )
 
-    private val batPhyAtkConfigs = listOf(
-        BattlePctConfig(1, 0.05), BattlePctConfig(2, 0.07), BattlePctConfig(3, 0.12),
-        BattlePctConfig(4, 0.15), BattlePctConfig(5, 0.20), BattlePctConfig(6, 0.25)
-    )
-    private val batMagAtkConfigs = batPhyAtkConfigs
-    private val batPhyDefConfigs = batPhyAtkConfigs
-    private val batMagDefConfigs = batPhyAtkConfigs
+    // === 新天赋配置（3 阶，重新设计梯度） ===
 
+    /** 战斗属性百分比：物攻/法攻/物防/法防/速度（1阶 6% / 2阶 13% / 3阶 22%） */
+    private val batAtkDefSpeedConfigs = listOf(
+        BattlePctConfig(1, 0.06), BattlePctConfig(2, 0.13), BattlePctConfig(3, 0.22)
+    )
+
+    /** 气血/法力（1阶 10%/18% / 2阶 18%/30% — 气血用 10/18/30，法力独立配置） */
     private val batHpConfigs = listOf(
-        BattlePctConfig(1, 0.08), BattlePctConfig(2, 0.10), BattlePctConfig(3, 0.16),
-        BattlePctConfig(4, 0.20), BattlePctConfig(5, 0.28), BattlePctConfig(6, 0.35)
+        BattlePctConfig(1, 0.10), BattlePctConfig(2, 0.18), BattlePctConfig(3, 0.30)
     )
     private val batMpConfigs = listOf(
-        BattlePctConfig(1, 0.04), BattlePctConfig(2, 0.06), BattlePctConfig(3, 0.08),
-        BattlePctConfig(4, 0.11), BattlePctConfig(5, 0.14), BattlePctConfig(6, 0.18)
-    )
-    private val batSpeedConfigs = listOf(
-        BattlePctConfig(1, 0.03), BattlePctConfig(2, 0.04), BattlePctConfig(3, 0.06),
-        BattlePctConfig(4, 0.08), BattlePctConfig(5, 0.10), BattlePctConfig(6, 0.13)
-    )
-    private val batCritConfigs = listOf(
-        BattlePctConfig(1, 0.006), BattlePctConfig(2, 0.010), BattlePctConfig(3, 0.015),
-        BattlePctConfig(4, 0.020), BattlePctConfig(5, 0.028), BattlePctConfig(6, 0.038)
+        BattlePctConfig(1, 0.10), BattlePctConfig(2, 0.18), BattlePctConfig(3, 0.30)
     )
 
+    /** 暴击率（1阶 4% / 2阶 8% / 3阶 14%） */
+    private val batCritConfigs = listOf(
+        BattlePctConfig(1, 0.04), BattlePctConfig(2, 0.08), BattlePctConfig(3, 0.14)
+    )
+
+    /** 基础属性扁平加成（1阶 4 / 2阶 10 / 3阶 18） */
     private val baseFlatConfigs = listOf(
-        BaseFlatConfig(1, 2), BaseFlatConfig(2, 3), BaseFlatConfig(3, 5),
-        BaseFlatConfig(4, 7), BaseFlatConfig(5, 10), BaseFlatConfig(6, 13)
+        BaseFlatConfig(1, 4), BaseFlatConfig(2, 10), BaseFlatConfig(3, 18)
+    )
+
+    /** 职务职能效果加成（1阶 7% / 2阶 14% / 3阶 22%） */
+    private val positionBonusConfigs = listOf(
+        PositionBonusConfig(1, 0.07), PositionBonusConfig(2, 0.14), PositionBonusConfig(3, 0.22)
     )
 
     private val positiveTalentsData: List<TalentData> = buildList {
+        // === 旧天赋定义（保留供旧存档解析，不在新生成池中） ===
         cultSpeedConfigs.forEach { cfg ->
             add(TalentData(
                 id = "r${cfg.rarity}_cult_speed",
@@ -173,223 +194,6 @@ object TalentDatabase {
                 template = "lifespan"
             ))
         }
-        batPhyAtkConfigs.forEach { cfg ->
-            add(TalentData(
-                id = "r${cfg.rarity}_bat_phy_atk",
-                name = "力破千军",
-                description = "物理攻击+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
-                rarity = talentGrade(cfg.rarity),
-                effects = mapOf("physicalAttack" to cfg.value),
-                isNegative = false,
-                type = TalentType.BAT_PHY_ATK,
-                template = "bat_phy_atk"
-            ))
-        }
-        batMagAtkConfigs.forEach { cfg ->
-            add(TalentData(
-                id = "r${cfg.rarity}_bat_mag_atk",
-                name = "法贯长虹",
-                description = "法术攻击+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
-                rarity = talentGrade(cfg.rarity),
-                effects = mapOf("magicAttack" to cfg.value),
-                isNegative = false,
-                type = TalentType.BAT_MAG_ATK,
-                template = "bat_mag_atk"
-            ))
-        }
-        batPhyDefConfigs.forEach { cfg ->
-            add(TalentData(
-                id = "r${cfg.rarity}_bat_phy_def",
-                name = "铁壁铜墙",
-                description = "物理防御+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
-                rarity = talentGrade(cfg.rarity),
-                effects = mapOf("physicalDefense" to cfg.value),
-                isNegative = false,
-                type = TalentType.BAT_PHY_DEF,
-                template = "bat_phy_def"
-            ))
-        }
-        batMagDefConfigs.forEach { cfg ->
-            add(TalentData(
-                id = "r${cfg.rarity}_bat_mag_def",
-                name = "灵护元神",
-                description = "法术防御+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
-                rarity = talentGrade(cfg.rarity),
-                effects = mapOf("magicDefense" to cfg.value),
-                isNegative = false,
-                type = TalentType.BAT_MAG_DEF,
-                template = "bat_mag_def"
-            ))
-        }
-        batHpConfigs.forEach { cfg ->
-            add(TalentData(
-                id = "r${cfg.rarity}_bat_hp",
-                name = "气血充盈",
-                description = "生命上限+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
-                rarity = talentGrade(cfg.rarity),
-                effects = mapOf("maxHp" to cfg.value),
-                isNegative = false,
-                type = TalentType.BAT_HP,
-                template = "bat_hp"
-            ))
-        }
-        batMpConfigs.forEach { cfg ->
-            add(TalentData(
-                id = "r${cfg.rarity}_bat_mp",
-                name = "灵海浩瀚",
-                description = "法力上限+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
-                rarity = talentGrade(cfg.rarity),
-                effects = mapOf("maxMp" to cfg.value),
-                isNegative = false,
-                type = TalentType.BAT_MP,
-                template = "bat_mp"
-            ))
-        }
-        batSpeedConfigs.forEach { cfg ->
-            add(TalentData(
-                id = "r${cfg.rarity}_bat_speed",
-                name = "身轻如燕",
-                description = "速度+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
-                rarity = talentGrade(cfg.rarity),
-                effects = mapOf("speed" to cfg.value),
-                isNegative = false,
-                type = TalentType.BAT_SPEED,
-                template = "bat_speed"
-            ))
-        }
-        batCritConfigs.forEach { cfg ->
-            add(TalentData(
-                id = "r${cfg.rarity}_bat_crit",
-                name = "杀意凛然",
-                description = "暴击率+${String.format(Locale.ROOT, "%.1f", cfg.value * 100)}%",
-                rarity = talentGrade(cfg.rarity),
-                effects = mapOf("critRate" to cfg.value),
-                isNegative = false,
-                type = TalentType.BAT_CRIT,
-                template = "bat_crit"
-            ))
-        }
-        baseFlatConfigs.forEach { cfg ->
-            add(TalentData(
-                id = "r${cfg.rarity}_base_int",
-                name = "天资聪颖",
-                description = "智力+${cfg.value}",
-                rarity = talentGrade(cfg.rarity),
-                effects = mapOf("intelligenceFlat" to cfg.value.toDouble()),
-                isNegative = false,
-                type = TalentType.BASE_INT,
-                template = "base_int"
-            ))
-        }
-        baseFlatConfigs.forEach { cfg ->
-            add(TalentData(
-                id = "r${cfg.rarity}_base_charm",
-                name = "风华绝代",
-                description = "魅力+${cfg.value}",
-                rarity = talentGrade(cfg.rarity),
-                effects = mapOf("charmFlat" to cfg.value.toDouble()),
-                isNegative = false,
-                type = TalentType.BASE_CHARM,
-                template = "base_charm"
-            ))
-        }
-        baseFlatConfigs.forEach { cfg ->
-            add(TalentData(
-                id = "r${cfg.rarity}_base_loyal",
-                name = "赤胆忠心",
-                description = "忠诚+${cfg.value}",
-                rarity = talentGrade(cfg.rarity),
-                effects = mapOf("loyaltyFlat" to cfg.value.toDouble()),
-                isNegative = false,
-                type = TalentType.BASE_LOYAL,
-                template = "base_loyal"
-            ))
-        }
-        baseFlatConfigs.forEach { cfg ->
-            add(TalentData(
-                id = "r${cfg.rarity}_base_comp",
-                name = "慧根深植",
-                description = "悟性+${cfg.value}",
-                rarity = talentGrade(cfg.rarity),
-                effects = mapOf("comprehensionFlat" to cfg.value.toDouble()),
-                isNegative = false,
-                type = TalentType.BASE_COMP,
-                template = "base_comp"
-            ))
-        }
-        baseFlatConfigs.forEach { cfg ->
-            add(TalentData(
-                id = "r${cfg.rarity}_base_arti",
-                name = "巧夺天工",
-                description = "炼器+${cfg.value}",
-                rarity = talentGrade(cfg.rarity),
-                effects = mapOf("artifactRefiningFlat" to cfg.value.toDouble()),
-                isNegative = false,
-                type = TalentType.BASE_ARTI,
-                template = "base_arti"
-            ))
-        }
-        baseFlatConfigs.forEach { cfg ->
-            add(TalentData(
-                id = "r${cfg.rarity}_base_pill",
-                name = "丹心妙手",
-                description = "炼丹+${cfg.value}",
-                rarity = talentGrade(cfg.rarity),
-                effects = mapOf("pillRefiningFlat" to cfg.value.toDouble()),
-                isNegative = false,
-                type = TalentType.BASE_PILL,
-                template = "base_pill"
-            ))
-        }
-        baseFlatConfigs.forEach { cfg ->
-            add(TalentData(
-                id = "r${cfg.rarity}_base_plant",
-                name = "灵植亲和",
-                description = "种植+${cfg.value}",
-                rarity = talentGrade(cfg.rarity),
-                effects = mapOf("spiritPlantingFlat" to cfg.value.toDouble()),
-                isNegative = false,
-                type = TalentType.BASE_PLANT,
-                template = "base_plant"
-            ))
-        }
-        baseFlatConfigs.forEach { cfg ->
-            add(TalentData(
-                id = "r${cfg.rarity}_base_teach",
-                name = "循循善诱",
-                description = "传道+${cfg.value}",
-                rarity = talentGrade(cfg.rarity),
-                effects = mapOf("teachingFlat" to cfg.value.toDouble()),
-                isNegative = false,
-                type = TalentType.BASE_TEACH,
-                template = "base_teach"
-            ))
-        }
-        baseFlatConfigs.forEach { cfg ->
-            add(TalentData(
-                id = "r${cfg.rarity}_base_moral",
-                name = "正气浩然",
-                description = "道德+${cfg.value}",
-                rarity = talentGrade(cfg.rarity),
-                effects = mapOf("moralityFlat" to cfg.value.toDouble()),
-                isNegative = false,
-                type = TalentType.BASE_MORAL,
-                template = "base_moral"
-            ))
-        }
-        baseFlatConfigs.forEach { cfg ->
-            add(TalentData(
-                id = "r${cfg.rarity}_base_mining",
-                name = "地脉感应",
-                description = "采矿+${cfg.value}",
-                rarity = talentGrade(cfg.rarity),
-                effects = mapOf("miningFlat" to cfg.value.toDouble()),
-                isNegative = false,
-                type = TalentType.BASE_MINING,
-                template = "base_mining"
-            ))
-        }
-
         add(TalentData(
             id = "r6_manual_slot",
             name = "天衍道藏",
@@ -400,7 +204,6 @@ object TalentDatabase {
             type = TalentType.MANUAL_SLOT,
             template = "manual_slot"
         ))
-
         add(TalentData(
             id = "r6_win_growth",
             name = "百战通神",
@@ -411,29 +214,277 @@ object TalentDatabase {
             type = TalentType.WIN_GROWTH,
             template = "win_growth"
         ))
+
+        // === 新天赋定义（3 阶，新生成池） ===
+
+        // 战斗属性类天赋
+        batAtkDefSpeedConfigs.forEach { cfg ->
+            add(TalentData(
+                id = "r${cfg.rarity}_bat_phy_atk",
+                name = "勇武",
+                description = "物攻+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
+                rarity = cfg.rarity,
+                effects = mapOf("physicalAttack" to cfg.value),
+                isNegative = false,
+                type = TalentType.BAT_PHY_ATK,
+                template = "bat_phy_atk"
+            ))
+        }
+        batAtkDefSpeedConfigs.forEach { cfg ->
+            add(TalentData(
+                id = "r${cfg.rarity}_bat_mag_atk",
+                name = "神通",
+                description = "法攻+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
+                rarity = cfg.rarity,
+                effects = mapOf("magicAttack" to cfg.value),
+                isNegative = false,
+                type = TalentType.BAT_MAG_ATK,
+                template = "bat_mag_atk"
+            ))
+        }
+        batAtkDefSpeedConfigs.forEach { cfg ->
+            add(TalentData(
+                id = "r${cfg.rarity}_bat_phy_def",
+                name = "铁骨",
+                description = "物防+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
+                rarity = cfg.rarity,
+                effects = mapOf("physicalDefense" to cfg.value),
+                isNegative = false,
+                type = TalentType.BAT_PHY_DEF,
+                template = "bat_phy_def"
+            ))
+        }
+        batAtkDefSpeedConfigs.forEach { cfg ->
+            add(TalentData(
+                id = "r${cfg.rarity}_bat_mag_def",
+                name = "玄清",
+                description = "法防+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
+                rarity = cfg.rarity,
+                effects = mapOf("magicDefense" to cfg.value),
+                isNegative = false,
+                type = TalentType.BAT_MAG_DEF,
+                template = "bat_mag_def"
+            ))
+        }
+        batHpConfigs.forEach { cfg ->
+            add(TalentData(
+                id = "r${cfg.rarity}_bat_hp",
+                name = "体健",
+                description = "气血+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
+                rarity = cfg.rarity,
+                effects = mapOf("maxHp" to cfg.value),
+                isNegative = false,
+                type = TalentType.BAT_HP,
+                template = "bat_hp"
+            ))
+        }
+        batMpConfigs.forEach { cfg ->
+            add(TalentData(
+                id = "r${cfg.rarity}_bat_mp",
+                name = "气海",
+                description = "法力+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
+                rarity = cfg.rarity,
+                effects = mapOf("maxMp" to cfg.value),
+                isNegative = false,
+                type = TalentType.BAT_MP,
+                template = "bat_mp"
+            ))
+        }
+        batAtkDefSpeedConfigs.forEach { cfg ->
+            add(TalentData(
+                id = "r${cfg.rarity}_bat_speed",
+                name = "疾风",
+                description = "速度+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
+                rarity = cfg.rarity,
+                effects = mapOf("speed" to cfg.value),
+                isNegative = false,
+                type = TalentType.BAT_SPEED,
+                template = "bat_speed"
+            ))
+        }
+        batCritConfigs.forEach { cfg ->
+            add(TalentData(
+                id = "r${cfg.rarity}_bat_crit",
+                name = "锋锐",
+                description = "暴击+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
+                rarity = cfg.rarity,
+                effects = mapOf("critRate" to cfg.value),
+                isNegative = false,
+                type = TalentType.BAT_CRIT,
+                template = "bat_crit"
+            ))
+        }
+
+        // 基础属性类天赋
+        baseFlatConfigs.forEach { cfg ->
+            add(TalentData(
+                id = "r${cfg.rarity}_base_int",
+                name = "天慧",
+                description = "智力+${cfg.value}",
+                rarity = cfg.rarity,
+                effects = mapOf("intelligenceFlat" to cfg.value.toDouble()),
+                isNegative = false,
+                type = TalentType.BASE_INT,
+                template = "base_int"
+            ))
+        }
+        baseFlatConfigs.forEach { cfg ->
+            add(TalentData(
+                id = "r${cfg.rarity}_base_charm",
+                name = "仙姿",
+                description = "魅力+${cfg.value}",
+                rarity = cfg.rarity,
+                effects = mapOf("charmFlat" to cfg.value.toDouble()),
+                isNegative = false,
+                type = TalentType.BASE_CHARM,
+                template = "base_charm"
+            ))
+        }
+        baseFlatConfigs.forEach { cfg ->
+            add(TalentData(
+                id = "r${cfg.rarity}_base_loyal",
+                name = "赤诚",
+                description = "忠诚+${cfg.value}",
+                rarity = cfg.rarity,
+                effects = mapOf("loyaltyFlat" to cfg.value.toDouble()),
+                isNegative = false,
+                type = TalentType.BASE_LOYAL,
+                template = "base_loyal"
+            ))
+        }
+        baseFlatConfigs.forEach { cfg ->
+            add(TalentData(
+                id = "r${cfg.rarity}_base_comp",
+                name = "顿悟",
+                description = "悟性+${cfg.value}",
+                rarity = cfg.rarity,
+                effects = mapOf("comprehensionFlat" to cfg.value.toDouble()),
+                isNegative = false,
+                type = TalentType.BASE_COMP,
+                template = "base_comp"
+            ))
+        }
+        baseFlatConfigs.forEach { cfg ->
+            add(TalentData(
+                id = "r${cfg.rarity}_base_arti",
+                name = "天工",
+                description = "炼器+${cfg.value}",
+                rarity = cfg.rarity,
+                effects = mapOf("artifactRefiningFlat" to cfg.value.toDouble()),
+                isNegative = false,
+                type = TalentType.BASE_ARTI,
+                template = "base_arti"
+            ))
+        }
+        baseFlatConfigs.forEach { cfg ->
+            add(TalentData(
+                id = "r${cfg.rarity}_base_pill",
+                name = "天丹",
+                description = "炼丹+${cfg.value}",
+                rarity = cfg.rarity,
+                effects = mapOf("pillRefiningFlat" to cfg.value.toDouble()),
+                isNegative = false,
+                type = TalentType.BASE_PILL,
+                template = "base_pill"
+            ))
+        }
+        baseFlatConfigs.forEach { cfg ->
+            add(TalentData(
+                id = "r${cfg.rarity}_base_plant",
+                name = "青帝",
+                description = "灵植+${cfg.value}",
+                rarity = cfg.rarity,
+                effects = mapOf("spiritPlantingFlat" to cfg.value.toDouble()),
+                isNegative = false,
+                type = TalentType.BASE_PLANT,
+                template = "base_plant"
+            ))
+        }
+        baseFlatConfigs.forEach { cfg ->
+            add(TalentData(
+                id = "r${cfg.rarity}_base_teach",
+                name = "夫子",
+                description = "传道+${cfg.value}",
+                rarity = cfg.rarity,
+                effects = mapOf("teachingFlat" to cfg.value.toDouble()),
+                isNegative = false,
+                type = TalentType.BASE_TEACH,
+                template = "base_teach"
+            ))
+        }
+        baseFlatConfigs.forEach { cfg ->
+            add(TalentData(
+                id = "r${cfg.rarity}_base_moral",
+                name = "仁心",
+                description = "德行+${cfg.value}",
+                rarity = cfg.rarity,
+                effects = mapOf("moralityFlat" to cfg.value.toDouble()),
+                isNegative = false,
+                type = TalentType.BASE_MORAL,
+                template = "base_moral"
+            ))
+        }
+        baseFlatConfigs.forEach { cfg ->
+            add(TalentData(
+                id = "r${cfg.rarity}_base_mining",
+                name = "地眼",
+                description = "采矿+${cfg.value}",
+                rarity = cfg.rarity,
+                effects = mapOf("miningFlat" to cfg.value.toDouble()),
+                isNegative = false,
+                type = TalentType.BASE_MINING,
+                template = "base_mining"
+            ))
+        }
+
+        // 职务类天赋（担任职务时增强该职务职能效果）
+        addPositionTalents(this)
+    }
+
+    private fun addPositionTalents(builder: MutableList<TalentData>) {
+        val positionTemplates = listOf(
+            Triple("vice_sect_master", "辅政之才", ElderSlotType.VICE_SECT_MASTER) to "政策效果加成",
+            Triple("herb_garden", "灵田灵手", ElderSlotType.HERB_GARDEN) to "灵药成熟速度加成",
+            Triple("alchemy", "丹道宗师", ElderSlotType.ALCHEMY) to "炼丹成功率加成",
+            Triple("forge", "器道宗师", ElderSlotType.FORGE) to "炼器成功率加成",
+            Triple("outer_elder", "外门栋梁", ElderSlotType.OUTER_ELDER) to "外门弟子突破指导加成",
+            Triple("preaching", "传道大师", ElderSlotType.PREACHING) to "外门弟子传道修炼速度加成",
+            Triple("law_enforcement", "执法金刚", ElderSlotType.LAW_ENFORCEMENT) to "叛逃/偷盗捕获率加成",
+            Triple("inner_elder", "内门柱石", ElderSlotType.INNER_ELDER) to "内门弟子突破指导加成",
+            Triple("recruiting", "招贤伯乐", ElderSlotType.RECRUITING) to "招募弟子数上限加成",
+            Triple("cloud_preaching", "青云传道", ElderSlotType.CLOUD_PREACHING) to "内门弟子传道修炼速度加成"
+        )
+        val typeByTemplate = mapOf(
+            "vice_sect_master" to TalentType.POSITION_VICE_SECT_MASTER,
+            "herb_garden" to TalentType.POSITION_HERB_GARDEN,
+            "alchemy" to TalentType.POSITION_ALCHEMY,
+            "forge" to TalentType.POSITION_FORGE,
+            "outer_elder" to TalentType.POSITION_OUTER_ELDER,
+            "preaching" to TalentType.POSITION_PREACHING,
+            "law_enforcement" to TalentType.POSITION_LAW_ENFORCEMENT,
+            "inner_elder" to TalentType.POSITION_INNER_ELDER,
+            "recruiting" to TalentType.POSITION_RECRUITING,
+            "cloud_preaching" to TalentType.POSITION_CLOUD_PREACHING
+        )
+        positionTemplates.forEach { (key, bonusDesc) ->
+            val (template, name, slotType) = key
+            positionBonusConfigs.forEach { cfg ->
+                builder.add(TalentData(
+                    id = "r${cfg.rarity}_pos_$template",
+                    name = name,
+                    description = "$bonusDesc+${String.format(Locale.ROOT, "%.0f", cfg.value * 100)}%",
+                    rarity = cfg.rarity,
+                    effects = emptyMap(),
+                    isNegative = false,
+                    type = typeByTemplate[template]!!,
+                    template = "pos_$template",
+                    positionBonus = PositionBonus(slotType, cfg.value)
+                ))
+            }
+        }
     }
 
     private val negativeTalentsData = listOf(
-        TalentData(
-            id = "neg_cultivation",
-            name = "灵脉紊乱",
-            description = "修炼速度-15%，突破概率-3%",
-            rarity = 0,
-            effects = mapOf("cultivationSpeed" to -0.15, "breakthroughChance" to -0.03),
-            isNegative = true,
-            type = TalentType.CULT_SPEED,
-            template = "neg_cultivation"
-        ),
-        TalentData(
-            id = "neg_lifespan",
-            name = "寿元亏损",
-            description = "寿命-20%",
-            rarity = 0,
-            effects = mapOf("lifespan" to -0.20),
-            isNegative = true,
-            type = TalentType.LIFESPAN,
-            template = "neg_lifespan"
-        ),
         TalentData(
             id = "neg_base_comprehension",
             name = "神识迟钝",
@@ -505,13 +556,17 @@ object TalentDatabase {
 
     fun getByRarity(rarity: Int): List<Talent> = talents.values.filter { it.rarity == rarity }
 
-    fun getPositiveTalents(): List<Talent> = talents.values.filter { !it.isNegative }
+    fun getPositiveTalents(): List<Talent> = talents.values
+        .filter { !it.isNegative }
+        .filter { getTalentDataById(it.id)?.type !in DEPRECATED_TALENT_TYPES }
 
     fun getNegativeTalents(): List<Talent> = talents.values.filter { it.isNegative }
 
     fun generateRandomTalents(count: Int, maxRarity: Int = 3): List<Talent> {
         val result = mutableListOf<Talent>()
-        val availableTalents = allTalentsData.values.filter { it.rarity <= maxRarity && !it.isNegative }.toMutableList()
+        val availableTalents = allTalentsData.values
+            .filter { it.rarity <= maxRarity && !it.isNegative && it.type !in DEPRECATED_TALENT_TYPES }
+            .toMutableList()
         val selectedTemplates = mutableSetOf<String>()
 
         repeat(count) {
@@ -531,10 +586,12 @@ object TalentDatabase {
 
     fun generateTalentsForDisciple(): List<Talent> {
         val result = mutableListOf<Talent>()
-        val availableTalents = allTalentsData.values.filter { !it.isNegative }.toMutableList()
+        val availableTalents = allTalentsData.values
+            .filter { !it.isNegative && it.type !in DEPRECATED_TALENT_TYPES }
+            .toMutableList()
         val selectedTemplates = mutableSetOf<String>()
 
-        val talentCount = Random.nextInt(0, 6)
+        val talentCount = Random.nextInt(0, 4)  // 0-3 个
 
         repeat(talentCount) {
             if (availableTalents.isEmpty()) return@repeat

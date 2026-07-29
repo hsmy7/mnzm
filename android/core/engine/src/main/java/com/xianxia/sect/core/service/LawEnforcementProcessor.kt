@@ -116,7 +116,9 @@ class LawEnforcementProcessor @Inject constructor(
             if (elderId.isNotEmpty()) {
                 allDisciples[elderId]?.let { elder ->
                     val intelligenceAboveBase = (DiscipleStatCalculator.getBaseStats(elder).intelligence - GameConfig.LawEnforcementConfig.INTELLIGENCE_BASE).coerceAtLeast(0)
-                    captureRate += intelligenceAboveBase * GameConfig.LawEnforcementConfig.ELDER_BONUS_PER_POINT
+                    // 体质/词条的职务加成：作为乘算因子作用于长老职能效果
+                    val posBonus = DiscipleStatCalculator.getPositionEffectBonus(elder, ElderSlotType.LAW_ENFORCEMENT)
+                    captureRate += intelligenceAboveBase * GameConfig.LawEnforcementConfig.ELDER_BONUS_PER_POINT * (1.0 + posBonus)
                 }
             }
         }

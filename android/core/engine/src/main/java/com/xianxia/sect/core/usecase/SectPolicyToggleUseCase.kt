@@ -2,6 +2,10 @@ package com.xianxia.sect.core.usecase
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.*
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.ElderSlotType
 import com.xianxia.sect.core.model.SectPolicies
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.model.SpiritStoneGrade
@@ -251,5 +255,24 @@ class SectPolicyToggleUseCase @Inject constructor(
         val step = GameConfig.PolicyConfig.VICE_SECT_MASTER_INTELLIGENCE_STEP
         val bonusPerStep = GameConfig.PolicyConfig.VICE_SECT_MASTER_INTELLIGENCE_BONUS_PER_STEP
         return ((viceSectMasterIntelligence - baseIntelligence) / step.toDouble() * bonusPerStep).coerceAtLeast(0.0)
+    }
+
+    /**
+     * 副宗主智力加成（含 PositionBonus 乘算因子）。
+     *
+     * @param viceSectMaster 副宗主弟子（含天赋/词条中的职务加成）
+     * @return 加成值 = 基础智力加成 × (1 + PositionBonus)
+     */
+    fun getViceSectMasterIntelligenceBonus(viceSectMaster: Disciple): Double {
+        val baseBonus = getViceSectMasterIntelligenceBonus(viceSectMaster.skills.intelligence)
+        val posBonus = DiscipleStatCalculator.getPositionEffectBonus(viceSectMaster, ElderSlotType.VICE_SECT_MASTER)
+        return baseBonus * (1.0 + posBonus)
+    }
+
+    /** 副宗主智力加成（DiscipleAggregate 重载，含 PositionBonus） */
+    fun getViceSectMasterIntelligenceBonus(viceSectMaster: DiscipleAggregate): Double {
+        val baseBonus = getViceSectMasterIntelligenceBonus(viceSectMaster.intelligence)
+        val posBonus = DiscipleStatCalculator.getPositionEffectBonus(viceSectMaster, ElderSlotType.VICE_SECT_MASTER)
+        return baseBonus * (1.0 + posBonus)
     }
 }

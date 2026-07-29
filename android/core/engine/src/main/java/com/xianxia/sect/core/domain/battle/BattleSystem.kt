@@ -8,6 +8,7 @@ import com.xianxia.sect.core.HealType
 import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.engine.ManualProficiencySystem
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.util.BattleCalculator
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.DomainLog
@@ -120,6 +121,11 @@ class BattleSystem @Inject constructor(
             .takeIf { it.isNotEmpty() }
             ?.let { equipmentMap[it]?.name }
 
+        // 体质独立乘算因子：从 DiscipleStatCalculator 注入到 Combatant
+        val physiqueEffects = DiscipleStatCalculator.getPhysiqueEffects(disciple)
+        // 词条独立乘算因子：从 DiscipleStatCalculator 注入到 Combatant
+        val affixCombat = DiscipleStatCalculator.getAffixCombatEffects(disciple)
+
         return Combatant(
             id = disciple.id,
             name = disciple.name,
@@ -140,7 +146,14 @@ class BattleSystem @Inject constructor(
             realmLayer = disciple.realmLayer,
             element = primaryElement,
             weaponName = weaponName,
-            portraitRes = disciple.portraitRes
+            portraitRes = disciple.portraitRes,
+            physique = PhysiqueCombatFactors(
+                damageAmplification = physiqueEffects.damageAmplification,
+                critDamageBonus = physiqueEffects.critDamageBonus,
+                damageReduction = physiqueEffects.damageReduction,
+                defenseBonus = physiqueEffects.defenseBonus
+            ),
+            affix = affixCombat
         )
     }
 

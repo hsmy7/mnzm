@@ -4,6 +4,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.ElderSlotType
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
@@ -144,13 +145,22 @@ class CultivationRateCalculator @Inject constructor(
     ): Pair<Double, Double> {
         if (disciple.discipleType != targetDiscipleType) return 0.0 to 0.0
         val elderSlots = data.elderSlots
+        // 用于提取长老职务加成（PositionBonus）
+        val allDisciples = stateStore.disciples.value.associateBy { it.id }
 
-        fun elderBonus(elderId: String?): Double {
+        fun elderBonus(elderId: String?, slotType: ElderSlotType): Double {
             val id = elderId?.toIntOrNull() ?: return 0.0
             if (!tables.names.contains(id) || tables.isAlive[id] != 1) return 0.0
             val teaching = tables.teachings[id]
             val realm = tables.realms[id]
-            if (disciple.realm >= realm && teaching >= 80) return ((teaching - 80) * 0.0025).coerceAtMost(0.10)
+            if (disciple.realm >= realm && teaching >= 80) {
+                val base = ((teaching - 80) * 0.0025).coerceAtMost(0.10)
+                // 长老职务加成（PositionBonus）：作为乘算因子作用于长老职能效果
+                val posBonus = allDisciples[elderId]?.let {
+                    DiscipleStatCalculator.getPositionEffectBonus(it, slotType)
+                } ?: 0.0
+                return base * (1.0 + posBonus)
+            }
             return 0.0
         }
 
@@ -167,9 +177,9 @@ class CultivationRateCalculator @Inject constructor(
         }
 
         return when (targetDiscipleType) {
-            "outer" -> elderBonus(elderSlots.preachingElder) to
+            "outer" -> elderBonus(elderSlots.preachingElder, ElderSlotType.PREACHING) to
                 mastersBonus(elderSlots.preachingMasters.map { it.discipleId })
-            "inner" -> elderBonus(elderSlots.qingyunPreachingElder) to
+            "inner" -> elderBonus(elderSlots.qingyunPreachingElder, ElderSlotType.CLOUD_PREACHING) to
                 mastersBonus(elderSlots.qingyunPreachingMasters.map { it.discipleId })
             else -> 0.0 to 0.0
         }

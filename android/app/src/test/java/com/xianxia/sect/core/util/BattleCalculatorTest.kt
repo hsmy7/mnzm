@@ -1,6 +1,8 @@
 package com.xianxia.sect.core.util
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.engine.domain.battle.PhysiqueCombatFactors
+import com.xianxia.sect.core.registry.AffixCombatEffects
 import com.xianxia.sect.core.util.BattleCalculator.CombatantStats
 import com.xianxia.sect.core.util.BattleCalculator.DamageResult
 import org.junit.Assert.*
@@ -385,5 +387,260 @@ class BattleCalculatorTest {
         val lowReduction = 100.0 / (100.0 + GameConfig.Battle.DEFENSE_CONSTANT)
         val highReduction = 900.0 / (900.0 + GameConfig.Battle.DEFENSE_CONSTANT)
         assertTrue("high defense reduction should be higher", highReduction > lowReduction)
+    }
+
+    // ==================== 体质/词条独立乘算因子测试 ====================
+
+    private fun baseZones() = DamageZones()
+    private fun baseFinal(
+        rawAttack: Int = 1000,
+        defense: Int = 200,
+        skillMultiplier: Double = 1.0,
+        realmGapMultiplier: Double = 1.0,
+        zones: DamageZones = baseZones(),
+        isCrit: Boolean = false,
+        variance: Double = 1.0
+    ): Int = BattleCalculator.calculateFinalDamage(
+        rawAttack = rawAttack,
+        defense = defense,
+        skillMultiplier = skillMultiplier,
+        realmGapMultiplier = realmGapMultiplier,
+        zones = zones,
+        isCrit = isCrit,
+        variance = variance
+    )
+
+    /** 复制 calculateFinalDamage 公式的浮点期望值计算，避免 Int 截断误差 */
+    private fun expectedFinalDamage(
+        rawAttack: Int = 1000,
+        defense: Int = 200,
+        skillMultiplier: Double = 1.0,
+        realmGapMultiplier: Double = 1.0,
+        zones: DamageZones = baseZones(),
+        isCrit: Boolean = false,
+        variance: Double = 1.0
+    ): Double {
+        val effectiveAttack = rawAttack * (1.0 + zones.attackBuffs)
+        val effectiveDefense = defense *
+            (1.0 - zones.physiqueDefenseBonus).coerceAtLeast(0.0) *
+            (1.0 - zones.affixDefenseBonus).coerceAtLeast(0.0)
+        val reduction = effectiveDefense / (effectiveDefense + GameConfig.Battle.DEFENSE_CONSTANT)
+        val preCritDamage = effectiveAttack * skillMultiplier * (1.0 - reduction) * realmGapMultiplier
+        val critMult = if (isCrit) 1.0 + GameConfig.Battle.CRIT_BASE_MULTIPLIER else 1.0
+        val physiqueCritMult = if (isCrit) (1.0 + zones.physiqueCritDamageBonus) else 1.0
+        val affixCritMult = if (isCrit) (1.0 + zones.affixCritDamageBonus) else 1.0
+        return preCritDamage * critMult * physiqueCritMult * affixCritMult *
+            (1.0 + zones.damageAmplification) *
+            (1.0 + zones.physiqueDamageAmplification) *
+            (1.0 + zones.affixDamageAmplification) *
+            (1.0 - zones.damageReduction) *
+            (1.0 - zones.physiqueDamageReduction) *
+            (1.0 - zones.affixDamageReduction) *
+            variance
+    }
+
+    private fun Int.toClampedMin(): Int =
+        this.coerceAtLeast(GameConfig.Battle.MIN_DAMAGE)
+
+    @Test
+    fun `physiqueDamageAmplification - 体质增伤独立乘算`() {
+        val zones = baseZones().copy(physiqueDamageAmplification = 0.20)
+        val expected = expectedFinalDamage(zones = zones).toInt().toClampedMin()
+        val actual = baseFinal(zones = zones)
+        assertEquals(expected, actual)
+    }
+
+    @Test
+    fun `physiqueDamageAmplification - 体质增伤与 buff 增伤独立乘算`() {
+        // 独立乘算：base × (1+buff) × (1+physique)，而非 base × (1+buff+physique)
+        val both = baseFinal(zones = baseZones().copy(
+            damageAmplification = 0.10, physiqueDamageAmplification = 0.20
+        ))
+        val additive = baseFinal(zones = baseZones().copy(
+            damageAmplification = 0.30  // 0.10 + 0.20，加算
+        ))
+        assertTrue("独立乘算应大于加算: both=$both, additive=$additive", both > additive)
+    }
+
+    @Test
+    fun `physiqueCritDamageBonus - 非暴击时不生效`() {
+        val base = baseFinal(isCrit = false)
+        val withPhysique = baseFinal(
+            isCrit = false,
+            zones = baseZones().copy(physiqueCritDamageBonus = 0.30)
+        )
+        assertEquals(base, withPhysique)
+    }
+
+    @Test
+    fun `physiqueCritDamageBonus - 暴击时独立乘算`() {
+        val zones = baseZones().copy(physiqueCritDamageBonus = 0.30)
+        val expected = expectedFinalDamage(isCrit = true, zones = zones).toInt().toClampedMin()
+        val actual = baseFinal(isCrit = true, zones = zones)
+        assertEquals(expected, actual)
+    }
+
+    @Test
+    fun `affixCritDamageBonus - 非暴击时不生效`() {
+        val base = baseFinal(isCrit = false)
+        val withAffix = baseFinal(
+            isCrit = false,
+            zones = baseZones().copy(affixCritDamageBonus = 0.25)
+        )
+        assertEquals(base, withAffix)
+    }
+
+    @Test
+    fun `affixCritDamageBonus - 暴击时独立乘算`() {
+        val zones = baseZones().copy(affixCritDamageBonus = 0.25)
+        val expected = expectedFinalDamage(isCrit = true, zones = zones).toInt().toClampedMin()
+        val actual = baseFinal(isCrit = true, zones = zones)
+        assertEquals(expected, actual)
+    }
+
+    @Test
+    fun `physique and affix crit bonuses - 同时存在各自独立乘算`() {
+        // 独立乘算：base × (1+physique) × (1+affix)，而非 base × (1+physique+affix)
+        val both = baseFinal(
+            isCrit = true,
+            zones = baseZones().copy(
+                physiqueCritDamageBonus = 0.30,
+                affixCritDamageBonus = 0.25
+            )
+        )
+        val additive = baseFinal(
+            isCrit = true,
+            zones = baseZones().copy(
+                physiqueCritDamageBonus = 0.55  // 0.30 + 0.25，加算（放到 physique 上模拟）
+            )
+        )
+        assertTrue("暴伤应独立乘算: both=$both, additive=$additive", both > additive)
+    }
+
+    @Test
+    fun `physiqueDamageReduction - 防守方体质减伤独立乘算`() {
+        val zones = baseZones().copy(physiqueDamageReduction = 0.15)
+        val expected = expectedFinalDamage(zones = zones).toInt().toClampedMin()
+        val actual = baseFinal(zones = zones)
+        assertEquals(expected, actual)
+    }
+
+    @Test
+    fun `affixDamageReduction - 防守方词条减伤独立乘算`() {
+        val zones = baseZones().copy(affixDamageReduction = 0.10)
+        val expected = expectedFinalDamage(zones = zones).toInt().toClampedMin()
+        val actual = baseFinal(zones = zones)
+        assertEquals(expected, actual)
+    }
+
+    @Test
+    fun `physique and affix damage reduction - 同时存在各自独立乘算`() {
+        // 独立乘算：base × (1-physique) × (1-affix)，而非 base × (1-physique-affix)
+        val both = baseFinal(zones = baseZones().copy(
+            physiqueDamageReduction = 0.15,
+            affixDamageReduction = 0.10
+        ))
+        val additive = baseFinal(zones = baseZones().copy(
+            physiqueDamageReduction = 0.25  // 0.15 + 0.10，加算
+        ))
+        assertTrue("减伤应独立乘算（独立乘算的减伤效果弱于加算）: both=$both, additive=$additive",
+            both > additive)
+    }
+
+    @Test
+    fun `physiqueDefenseBonus - 防御加成独立作用于 effectiveDefense`() {
+        val defense = 200
+        val zones = baseZones().copy(physiqueDefenseBonus = 0.30)
+        val expected = expectedFinalDamage(defense = defense, zones = zones).toInt().toClampedMin()
+        val actual = baseFinal(defense = defense, zones = zones)
+        assertEquals(expected, actual)
+        // 防御降低 → 减伤率降低 → 伤害提高
+        assertTrue("体质防御加成应降低有效防御，从而提高伤害",
+            actual > baseFinal(defense = defense))
+    }
+
+    @Test
+    fun `affixDefenseBonus - 防御加成独立作用于 effectiveDefense`() {
+        val defense = 200
+        val zones = baseZones().copy(affixDefenseBonus = 0.25)
+        val expected = expectedFinalDamage(defense = defense, zones = zones).toInt().toClampedMin()
+        val actual = baseFinal(defense = defense, zones = zones)
+        assertEquals(expected, actual)
+        assertTrue("词条防御加成应降低有效防御，从而提高伤害",
+            actual > baseFinal(defense = defense))
+    }
+
+    @Test
+    fun `physique and affix defense bonuses - 同时存在各自独立乘算`() {
+        val defense = 200
+        val zones = baseZones().copy(
+            physiqueDefenseBonus = 0.30,
+            affixDefenseBonus = 0.25
+        )
+        val expected = expectedFinalDamage(defense = defense, zones = zones).toInt().toClampedMin()
+        val actual = baseFinal(defense = defense, zones = zones)
+        assertEquals(expected, actual)
+    }
+
+    @Test
+    fun `attackBuffs - 攻击 buff 作用于 effectiveAttack`() {
+        val zones = baseZones().copy(attackBuffs = 0.50)
+        val expected = expectedFinalDamage(rawAttack = 1000, zones = zones).toInt().toClampedMin()
+        val actual = baseFinal(rawAttack = 1000, zones = zones)
+        assertEquals(expected, actual)
+    }
+
+    @Test
+    fun `all zones combined - 全乘区组合验证`() {
+        val allZones = DamageZones(
+            attackBuffs = 0.20,
+            damageAmplification = 0.15,
+            damageReduction = 0.10,
+            physiqueDamageAmplification = 0.20,
+            physiqueCritDamageBonus = 0.30,
+            physiqueDamageReduction = 0.15,
+            physiqueDefenseBonus = 0.30,
+            affixDamageAmplification = 0.10,
+            affixCritDamageBonus = 0.25,
+            affixDamageReduction = 0.10,
+            affixDefenseBonus = 0.25
+        )
+        val expected = expectedFinalDamage(
+            rawAttack = 1000,
+            defense = 200,
+            skillMultiplier = 2.0,
+            realmGapMultiplier = 1.5,
+            zones = allZones,
+            isCrit = true,
+            variance = 1.0
+        ).toInt().toClampedMin()
+        val actual = baseFinal(
+            rawAttack = 1000,
+            defense = 200,
+            skillMultiplier = 2.0,
+            realmGapMultiplier = 1.5,
+            zones = allZones,
+            isCrit = true,
+            variance = 1.0
+        )
+        assertEquals(expected, actual)
+    }
+
+    @Test
+    fun `PhysiqueCombatFactors - 默认值全为零`() {
+        val factors = PhysiqueCombatFactors()
+        assertEquals(0.0, factors.damageAmplification, 0.0)
+        assertEquals(0.0, factors.critDamageBonus, 0.0)
+        assertEquals(0.0, factors.damageReduction, 0.0)
+        assertEquals(0.0, factors.defenseBonus, 0.0)
+    }
+
+    @Test
+    fun `AffixCombatEffects - 默认值全为零`() {
+        val effects = AffixCombatEffects()
+        assertEquals(0.0, effects.damageAmplification, 0.0)
+        assertEquals(0.0, effects.critDamageBonus, 0.0)
+        assertEquals(0.0, effects.damageReduction, 0.0)
+        assertEquals(0.0, effects.defenseBonus, 0.0)
     }
 }

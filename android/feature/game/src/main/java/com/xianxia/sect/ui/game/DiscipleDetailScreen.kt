@@ -22,9 +22,13 @@ import androidx.compose.ui.unit.sp
 import androidx.activity.compose.BackHandler
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.core.registry.TalentDatabase
+import com.xianxia.sect.core.registry.PhysiqueDatabase
+import com.xianxia.sect.core.registry.AffixDatabase
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.Talent
+import com.xianxia.sect.core.model.Physique
+import com.xianxia.sect.core.model.Affix
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.game.components.LearnedManualDetailDialog
@@ -33,6 +37,8 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.TalentDetailDialog
+import com.xianxia.sect.ui.components.PhysiqueDetailDialog
+import com.xianxia.sect.ui.components.AffixDetailDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.components.DialogSystemBarGuard
 import com.xianxia.sect.feature.game.R
@@ -60,6 +66,12 @@ fun DiscipleDetailDialog(
 ) {
     val talents = remember(disciple.talentIds) {
         TalentDatabase.getTalentsByIds(disciple.talentIds)
+    }
+    val physiques = remember(disciple.physiqueIds) {
+        PhysiqueDatabase.getPhysiquesByIds(disciple.physiqueIds)
+    }
+    val affixes = remember(disciple.affixIds) {
+        AffixDatabase.getAffixesByIds(disciple.affixIds)
     }
 
     var showEquipmentSelection by remember { mutableStateOf<String?>(null) }
@@ -105,6 +117,8 @@ fun DiscipleDetailDialog(
     var showDiscipleTypeDropdown by remember { mutableStateOf(false) }
     var localDiscipleType by remember(disciple.id) { mutableStateOf(disciple.discipleType) }
     var selectedTalent by remember { mutableStateOf<Talent?>(null) }
+    var selectedPhysique by remember { mutableStateOf<Physique?>(null) }
+    var selectedAffix by remember { mutableStateOf<Affix?>(null) }
 
     val elderSlots by viewModel?.elderSlots?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(null) }
     val sectPolicies by viewModel?.sectPolicies?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(SectPolicies()) }
@@ -232,6 +246,10 @@ fun DiscipleDetailDialog(
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
                                     TalentsSection(talents, disciple.statusData, onTalentClick = { selectedTalent = it })
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    PhysiquesSection(physiques, onPhysiqueClick = { selectedPhysique = it })
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    AffixesSection(affixes, onAffixClick = { selectedAffix = it })
                                 }
                                 1 -> {
                                     AttributesSection(disciple)
@@ -432,6 +450,20 @@ fun DiscipleDetailDialog(
         TalentDetailDialog(
             talent = talent,
             onDismiss = { selectedTalent = null }
+        )
+    }
+
+    selectedPhysique?.let { physique ->
+        PhysiqueDetailDialog(
+            physique = physique,
+            onDismiss = { selectedPhysique = null }
+        )
+    }
+
+    selectedAffix?.let { affix ->
+        AffixDetailDialog(
+            affix = affix,
+            onDismiss = { selectedAffix = null }
         )
     }
 

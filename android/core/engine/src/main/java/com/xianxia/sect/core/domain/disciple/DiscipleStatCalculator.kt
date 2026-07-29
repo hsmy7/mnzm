@@ -1,14 +1,19 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.registry.AffixDatabase
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
+import com.xianxia.sect.core.registry.PhysiqueDatabase
+import com.xianxia.sect.core.registry.PhysiqueEffects
+import com.xianxia.sect.core.registry.AffixCombatEffects
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.BloodRefinementProgress
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStats
+import com.xianxia.sect.core.model.ElderSlotType
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
@@ -49,6 +54,83 @@ object DiscipleStatCalculator {
 
     fun getTalentEffects(aggregate: DiscipleAggregate): Map<String, Double> =
         computeTalentEffects(aggregate.talentIds)
+
+    // ==================== 体质效果 ====================
+
+    fun getPhysiqueEffects(disciple: Disciple): PhysiqueEffects =
+        PhysiqueDatabase.aggregatePhysiqueEffects(disciple.physiqueIds)
+
+    fun getPhysiqueEffects(aggregate: DiscipleAggregate): PhysiqueEffects =
+        PhysiqueDatabase.aggregatePhysiqueEffects(aggregate.physiqueIds)
+
+    // ==================== 词条效果 ====================
+
+    fun getAffixEffects(disciple: Disciple): Map<String, Double> =
+        AffixDatabase.calculateAffixEffects(disciple.affixIds)
+
+    fun getAffixEffects(aggregate: DiscipleAggregate): Map<String, Double> =
+        AffixDatabase.calculateAffixEffects(aggregate.affixIds)
+
+    /**
+     * 提取词条的战斗特殊加成（独立乘算因子）。
+     * 与体质独立乘算因子分开，各自独立乘算。
+     */
+    fun getAffixCombatEffects(disciple: Disciple): AffixCombatEffects =
+        getAffixCombatEffects(disciple.affixIds)
+
+    fun getAffixCombatEffects(aggregate: DiscipleAggregate): AffixCombatEffects =
+        getAffixCombatEffects(aggregate.affixIds)
+
+    private fun getAffixCombatEffects(affixIds: List<String>): AffixCombatEffects {
+        val effects = AffixDatabase.calculateAffixEffects(affixIds)
+        return AffixCombatEffects(
+            damageAmplification = effects["damageAmplification"] ?: 0.0,
+            critDamageBonus = effects["critDamageBonus"] ?: 0.0,
+            damageReduction = effects["damageReduction"] ?: 0.0,
+            defenseBonus = effects["defenseBonus"] ?: 0.0,
+        )
+    }
+
+    /** 合并天赋+词条的 effects map（用于 baseStats 计算） */
+    private fun getMergedEffects(disciple: Disciple): Map<String, Double> =
+        mergeEffects(getTalentEffects(disciple), getAffixEffects(disciple))
+
+    private fun getMergedEffects(aggregate: DiscipleAggregate): Map<String, Double> =
+        mergeEffects(getTalentEffects(aggregate), getAffixEffects(aggregate))
+
+    private fun mergeEffects(
+        talentEffects: Map<String, Double>,
+        affixEffects: Map<String, Double>
+    ): Map<String, Double> {
+        val merged = mutableMapOf<String, Double>()
+        talentEffects.forEach { (k, v) -> merged[k] = (merged[k] ?: 0.0) + v }
+        affixEffects.forEach { (k, v) -> merged[k] = (merged[k] ?: 0.0) + v }
+        return merged
+    }
+
+    // ==================== 职务加成查询 ====================
+
+    /**
+     * 统计弟子（天赋+词条）中指定 slotType 的 PositionBonus 总和。
+     * 用于担任职务时增强该职务职能效果（乘算因子）。
+     */
+    fun getPositionEffectBonus(disciple: Disciple, slotType: ElderSlotType): Double {
+        val talentBonus = disciple.talentIds.mapNotNull { TalentDatabase.getById(it) }
+            .filter { !it.isNegative }
+            .filter { it.positionBonus?.slotType == slotType }
+            .sumOf { it.positionBonus?.effectBonus ?: 0.0 }
+        val affixBonus = AffixDatabase.aggregatePositionBonus(disciple.affixIds, slotType)
+        return talentBonus + affixBonus
+    }
+
+    fun getPositionEffectBonus(aggregate: DiscipleAggregate, slotType: ElderSlotType): Double {
+        val talentBonus = aggregate.talentIds.mapNotNull { TalentDatabase.getById(it) }
+            .filter { !it.isNegative }
+            .filter { it.positionBonus?.slotType == slotType }
+            .sumOf { it.positionBonus?.effectBonus ?: 0.0 }
+        val affixBonus = AffixDatabase.aggregatePositionBonus(aggregate.affixIds, slotType)
+        return talentBonus + affixBonus
+    }
 
     // ==================== 基础属性 ====================
 
@@ -136,7 +218,7 @@ object DiscipleStatCalculator {
             physicalDefenseVariance = c.physicalDefenseVariance,
             magicDefenseVariance = c.magicDefenseVariance,
             speedVariance = c.speedVariance,
-            talentEffects = getTalentEffects(disciple),
+            talentEffects = getMergedEffects(disciple),
             intelligence = disciple.skills.intelligence,
             charm = disciple.skills.charm,
             loyalty = disciple.skills.loyalty,
@@ -160,7 +242,7 @@ object DiscipleStatCalculator {
             physicalDefenseVariance = cs?.physicalDefenseVariance ?: 0,
             magicDefenseVariance = cs?.magicDefenseVariance ?: 0,
             speedVariance = cs?.speedVariance ?: 0,
-            talentEffects = getTalentEffects(aggregate),
+            talentEffects = getMergedEffects(aggregate),
             intelligence = attr?.intelligence ?: 50,
             charm = attr?.charm ?: 50,
             loyalty = attr?.loyalty ?: 50,
@@ -196,7 +278,7 @@ object DiscipleStatCalculator {
             physicalDefenseVariance = cs?.physicalDefenseVariance ?: 0,
             magicDefenseVariance = cs?.magicDefenseVariance ?: 0,
             speedVariance = cs?.speedVariance ?: 0,
-            talentEffects = getTalentEffects(aggregate),
+            talentEffects = getMergedEffects(aggregate),
             bloodRefinementPct = bloodRefinementPct,
             intelligence = attr?.intelligence ?: 50,
             charm = attr?.charm ?: 50,
@@ -433,7 +515,8 @@ object DiscipleStatCalculator {
     }
 
     private fun computeCultivationZones(
-        talentEffects: Map<String, Double>,
+        mergedEffects: Map<String, Double>,
+        physiqueEffects: PhysiqueEffects,
         manualIds: List<String>,
         manuals: Map<String, ManualInstance>,
         manualProficiencies: Map<String, ManualProficiencyData>,
@@ -448,8 +531,9 @@ object DiscipleStatCalculator {
         lifespan: Int,
         temporaryBonus: Double
     ): CultivationSpeedZones {
-        // ── 资质乘区：天赋 ──
-        val aptitudeBonus = talentEffects["cultivationSpeed"] ?: 0.0
+        // ── 资质乘区：天赋(旧存档可能有) + 体质 + 词条 ──
+        val aptitudeBonus = (mergedEffects["cultivationSpeed"] ?: 0.0) +
+            physiqueEffects.cultivationSpeedBonus
 
         // ── 资源乘区：功法 + 建筑 ──
         var resourceBonus = (buildingBonus - 1.0)
@@ -511,7 +595,8 @@ object DiscipleStatCalculator {
             temporaryBonus += disciple.pillEffects.pillCultivationSpeedBonus
         }
         return computeCultivationZones(
-            talentEffects = getTalentEffects(disciple),
+            mergedEffects = getMergedEffects(disciple),
+            physiqueEffects = getPhysiqueEffects(disciple),
             manualIds = disciple.manualIds,
             manuals = manuals,
             manualProficiencies = manualProficiencies,
@@ -552,7 +637,8 @@ object DiscipleStatCalculator {
             temporaryBonus += ext.pillCultivationSpeedBonus
         }
         return computeCultivationZones(
-            talentEffects = getTalentEffects(aggregate),
+            mergedEffects = getMergedEffects(aggregate),
+            physiqueEffects = getPhysiqueEffects(aggregate),
             manualIds = aggregate.manualIds,
             manuals = manuals,
             manualProficiencies = manualProficiencies,
@@ -644,24 +730,27 @@ object DiscipleStatCalculator {
         soulPower: Int,
         age: Int,
         lifespan: Int,
-        talentBreakthroughBonus: Double,
         innerElderComprehension: Int,
         outerElderComprehension: Int,
         pillBonus: Double,
         adBonus: Double,
         griefBreakthroughPenalty: Double,
-        masterDiscipleBonus: Double
+        masterDiscipleBonus: Double,
+        innerElderPositionBonus: Double = 0.0,
+        outerElderPositionBonus: Double = 0.0
     ): BreakthroughZones {
         val baseZone = GameConfig.Realm.getBreakthroughChance(realm, spiritRootCount, realmLayer)
-        val innerElderBonus = elderBreakthroughBonus(innerElderComprehension)
-        val outerElderBonus = elderBreakthroughBonus(outerElderComprehension)
+        // 长老职能效果 × (1 + PositionBonus)：PositionBonus 来自长老弟子（非突破弟子）的天赋/词条
+        val innerElderBonus = elderBreakthroughBonus(innerElderComprehension) * (1.0 + innerElderPositionBonus)
+        val outerElderBonus = elderBreakthroughBonus(outerElderComprehension) * (1.0 + outerElderPositionBonus)
         val soulPowerBonus = getSoulPowerBreakthroughBonus(soulPower)
         val lifespanPenalty = calculateLifespanBreakthroughPenalty(age, lifespan)
 
+        // 突破加成已从天赋系统中移除：selfBonus 不再包含 talentBreakthroughBonus
         return BreakthroughZones(
             baseZone = baseZone,
             elderGuidance = innerElderBonus + outerElderBonus,
-            selfBonus = pillBonus + talentBreakthroughBonus + soulPowerBonus + masterDiscipleBonus,
+            selfBonus = pillBonus + soulPowerBonus + masterDiscipleBonus,
             statusPenalty = griefBreakthroughPenalty + lifespanPenalty,
             adFlatBonus = adBonus
         )
@@ -677,7 +766,9 @@ object DiscipleStatCalculator {
         pillBonus: Double = 0.0,
         adBonus: Double = 0.0,
         griefBreakthroughPenalty: Double = 0.0,
-        masterDiscipleBonus: Double = 0.0
+        masterDiscipleBonus: Double = 0.0,
+        innerElderPositionBonus: Double = 0.0,
+        outerElderPositionBonus: Double = 0.0
     ): BreakthroughZones = computeBreakthroughZones(
         realm = disciple.realm,
         realmLayer = disciple.realmLayer,
@@ -685,13 +776,14 @@ object DiscipleStatCalculator {
         soulPower = disciple.soulPower,
         age = disciple.age,
         lifespan = disciple.lifespan,
-        talentBreakthroughBonus = getTalentEffects(disciple)["breakthroughChance"] ?: 0.0,
         innerElderComprehension = innerElderComprehension,
         outerElderComprehension = outerElderComprehension,
         pillBonus = pillBonus,
         adBonus = adBonus,
         griefBreakthroughPenalty = griefBreakthroughPenalty,
-        masterDiscipleBonus = masterDiscipleBonus
+        masterDiscipleBonus = masterDiscipleBonus,
+        innerElderPositionBonus = innerElderPositionBonus,
+        outerElderPositionBonus = outerElderPositionBonus
     )
 
     /**
@@ -704,7 +796,9 @@ object DiscipleStatCalculator {
         pillBonus: Double = 0.0,
         adBonus: Double = 0.0,
         griefBreakthroughPenalty: Double = 0.0,
-        masterDiscipleBonus: Double = 0.0
+        masterDiscipleBonus: Double = 0.0,
+        innerElderPositionBonus: Double = 0.0,
+        outerElderPositionBonus: Double = 0.0
     ): BreakthroughZones = computeBreakthroughZones(
         realm = aggregate.realm,
         realmLayer = aggregate.realmLayer,
@@ -712,13 +806,14 @@ object DiscipleStatCalculator {
         soulPower = aggregate.soulPower,
         age = aggregate.age,
         lifespan = aggregate.lifespan,
-        talentBreakthroughBonus = getTalentEffects(aggregate)["breakthroughChance"] ?: 0.0,
         innerElderComprehension = innerElderComprehension,
         outerElderComprehension = outerElderComprehension,
         pillBonus = pillBonus,
         adBonus = adBonus,
         griefBreakthroughPenalty = griefBreakthroughPenalty,
-        masterDiscipleBonus = masterDiscipleBonus
+        masterDiscipleBonus = masterDiscipleBonus,
+        innerElderPositionBonus = innerElderPositionBonus,
+        outerElderPositionBonus = outerElderPositionBonus
     )
 
     /**
@@ -761,12 +856,15 @@ object DiscipleStatCalculator {
         pillBonus: Double = 0.0,
         adBonus: Double = 0.0,
         griefBreakthroughPenalty: Double = 0.0,
-        masterDiscipleBonus: Double = 0.0
+        masterDiscipleBonus: Double = 0.0,
+        innerElderPositionBonus: Double = 0.0,
+        outerElderPositionBonus: Double = 0.0
     ): Double {
         if (disciple.realm < 0) return 0.0
         val zones = buildBreakthroughZones(
             disciple, innerElderComprehension, outerElderComprehension,
-            pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus
+            pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus,
+            innerElderPositionBonus, outerElderPositionBonus
         )
         return calculateBreakthroughChance(zones)
     }
@@ -781,12 +879,15 @@ object DiscipleStatCalculator {
         pillBonus: Double = 0.0,
         adBonus: Double = 0.0,
         griefBreakthroughPenalty: Double = 0.0,
-        masterDiscipleBonus: Double = 0.0
+        masterDiscipleBonus: Double = 0.0,
+        innerElderPositionBonus: Double = 0.0,
+        outerElderPositionBonus: Double = 0.0
     ): Double {
         if (aggregate.realm < 0) return 0.0
         val zones = buildBreakthroughZones(
             aggregate, innerElderComprehension, outerElderComprehension,
-            pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus
+            pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus,
+            innerElderPositionBonus, outerElderPositionBonus
         )
         return calculateBreakthroughChance(zones)
     }
@@ -799,6 +900,7 @@ object DiscipleStatCalculator {
         val baseChance: Double,
         val innerElderBonus: Double,
         val outerElderBonus: Double,
+        /** @deprecated 突破加成已从天赋系统移除，此字段仅供旧存档显示，不参与计算 */
         val talentBonus: Double,
         val soulPowerBonus: Double,
         val pillBonus: Double,
@@ -828,6 +930,7 @@ object DiscipleStatCalculator {
             baseChance = zones.baseZone,
             innerElderBonus = elderBreakthroughBonus(innerElderComprehension),
             outerElderBonus = elderBreakthroughBonus(outerElderComprehension),
+            // 旧存档弟子可能有 breakthroughChance 天赋，仅供显示，不参与 total 计算
             talentBonus = getTalentEffects(aggregate)["breakthroughChance"] ?: 0.0,
             soulPowerBonus = getSoulPowerBreakthroughBonus(aggregate.soulPower),
             pillBonus = pillBonus,
@@ -841,16 +944,16 @@ object DiscipleStatCalculator {
 
     // ==================== 功法/灵根槽位 ====================
 
-    private fun computeMaxManualSlots(talentEffects: Map<String, Double>): Int {
-        val manualSlotBonus = talentEffects["manualSlot"]?.toInt() ?: 0
+    private fun computeMaxManualSlots(mergedEffects: Map<String, Double>): Int {
+        val manualSlotBonus = mergedEffects["manualSlot"]?.toInt() ?: 0
         return BASE_MANUAL_SLOTS + manualSlotBonus
     }
 
     fun getMaxManualSlots(disciple: Disciple): Int =
-        computeMaxManualSlots(getTalentEffects(disciple))
+        computeMaxManualSlots(getMergedEffects(disciple))
 
     fun getMaxManualSlots(aggregate: DiscipleAggregate): Int =
-        computeMaxManualSlots(getTalentEffects(aggregate))
+        computeMaxManualSlots(getMergedEffects(aggregate))
 
     // ==================== 传道加成 ====================
 
@@ -869,8 +972,14 @@ object DiscipleStatCalculator {
         if (preachingElder != null && preachingElder.isAlive) {
             val elderTeaching = getBaseStats(preachingElder).teaching
             if (realm >= preachingElder.realm && elderTeaching >= ELDER_TEACHING_BASELINE) {
-                elderBonus = ((elderTeaching - ELDER_TEACHING_BASELINE) * ELDER_TEACHING_RATE)
+                val base = ((elderTeaching - ELDER_TEACHING_BASELINE) * ELDER_TEACHING_RATE)
                     .coerceAtMost(ELDER_TEACHING_MAX_BONUS)
+                // 长老职务加成（PositionBonus）：作为乘算因子作用于长老职能效果
+                // 外门传道→PREACHING，内门青云传道→CLOUD_PREACHING
+                val slotType = if (targetDiscipleType == TYPE_OUTER) ElderSlotType.PREACHING
+                    else ElderSlotType.CLOUD_PREACHING
+                val posBonus = getPositionEffectBonus(preachingElder, slotType)
+                elderBonus = base * (1.0 + posBonus)
             }
         }
 

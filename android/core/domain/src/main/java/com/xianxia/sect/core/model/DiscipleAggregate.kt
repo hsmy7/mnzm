@@ -97,6 +97,8 @@ data class DiscipleAggregate(
     
     val manualIds: List<String> get() = extended?.manualIds ?: emptyList()
     val talentIds: List<String> get() = extended?.talentIds ?: emptyList()
+    val physiqueIds: List<String> get() = extended?.physiqueIds ?: emptyList()
+    val affixIds: List<String> get() = extended?.affixIds ?: emptyList()
     val manualMasteries: Map<String, Int> get() = extended?.manualMasteries ?: emptyMap()
     val statusData: Map<String, String> get() = extended?.statusData ?: emptyMap()
     val cultivationSpeedBonus: Double get() = extended?.cultivationSpeedBonus ?: 0.0
@@ -208,6 +210,8 @@ data class DiscipleAggregate(
             portraitRes = portraitRes,
             manualIds = manualIds,
             talentIds = talentIds,
+            physiqueIds = physiqueIds,
+            affixIds = affixIds,
             manualMasteries = manualMasteries,
             status = status,
             statusData = statusData,

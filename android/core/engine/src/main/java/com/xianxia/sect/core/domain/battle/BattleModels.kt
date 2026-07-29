@@ -6,6 +6,7 @@ import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.HealType
 import com.xianxia.sect.core.model.CombatSkill
+import com.xianxia.sect.core.registry.AffixCombatEffects
 
 /**
  * 战斗数据模型（从 BattleSystem.kt 提取）
@@ -53,7 +54,11 @@ data class Combatant(
     val bootsName: String? = null,
     val accessoryName: String? = null,
     val portraitRes: String = "",
-    val isBeast: Boolean = false
+    val isBeast: Boolean = false,
+    // ── 体质独立乘算因子（从 DiscipleStatCalculator.getPhysiqueEffects 注入，剥离修炼速度） ──
+    val physique: PhysiqueCombatFactors = PhysiqueCombatFactors(),
+    // ── 词条独立乘算因子（从 DiscipleStatCalculator.getAffixCombatEffects 注入） ──
+    val affix: AffixCombatEffects = AffixCombatEffects()
 ) {
     val isDead: Boolean get() = hp <= 0
     val hpPercent: Double get() = if (maxHp > 0) hp.toDouble() / maxHp else 0.0
@@ -110,6 +115,19 @@ data class Combatant(
 enum class BattleWinner {
     TEAM, BEASTS, DRAW
 }
+
+/**
+ * Combatant 持有的体质战斗乘算因子（独立乘算，与 buff、词条乘区分开）。
+ *
+ * 从 [com.xianxia.sect.core.registry.PhysiqueEffects] 剥离修炼速度加成，
+ * 仅保留战斗相关的 4 个独立乘算因子。
+ */
+data class PhysiqueCombatFactors(
+    val damageAmplification: Double = 0.0,
+    val critDamageBonus: Double = 0.0,
+    val damageReduction: Double = 0.0,
+    val defenseBonus: Double = 0.0
+)
 
 data class AttackResult(
     val attacker: Combatant,

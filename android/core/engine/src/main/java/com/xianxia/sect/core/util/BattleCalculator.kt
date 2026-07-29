@@ -18,15 +18,33 @@ import com.xianxia.sect.core.engine.domain.battle.Combatant
  * - attackBuffs：攻防 Buff 对攻击力的影响（同类加算）
  * - damageAmplification：增伤乘区（DAMAGE_BOOST 等）
  * - damageReduction：减伤乘区（DAMAGE_REDUCTION 等）
- * - critDamageBonus：暴伤乘区（超出基础暴伤的部分）
- * - defensePenetration：防御穿透乘区（百分比忽略防御）
+ *
+ * 体质独立乘算因子（与 buff 乘区分开，独立乘算）：
+ * - physiqueDamageAmplification：进攻方体质伤害加成
+ * - physiqueCritDamageBonus：进攻方体质暴击伤害加成
+ * - physiqueDamageReduction：防守方体质减伤
+ * - physiqueDefenseBonus：防守方体质防御加成
+ *
+ * 词条独立乘算因子（与 buff、体质分开，各自独立乘算）：
+ * - affixDamageAmplification：进攻方词条伤害加成
+ * - affixCritDamageBonus：进攻方词条暴击伤害加成
+ * - affixDamageReduction：防守方词条减伤
+ * - affixDefenseBonus：防守方词条防御加成
  */
 data class DamageZones(
     val attackBuffs: Double = 0.0,
-    val defensePenetration: Double = 0.0,
-    val critDamageBonus: Double = 0.0,
     val damageAmplification: Double = 0.0,
     val damageReduction: Double = 0.0,
+    // 体质独立乘算因子（与 buff 乘区分开）
+    val physiqueDamageAmplification: Double = 0.0,
+    val physiqueCritDamageBonus: Double = 0.0,
+    val physiqueDamageReduction: Double = 0.0,
+    val physiqueDefenseBonus: Double = 0.0,
+    // 词条独立乘算因子（与 buff、体质分开，各自独立乘算）
+    val affixDamageAmplification: Double = 0.0,
+    val affixCritDamageBonus: Double = 0.0,
+    val affixDamageReduction: Double = 0.0,
+    val affixDefenseBonus: Double = 0.0,
 )
 
 object BattleCalculator {
@@ -65,11 +83,12 @@ object BattleCalculator {
 
     /**
      * 从 Combatant 的 Buff 列表构建战斗乘区。
-     */
-    /**
+     *
+     * @param attacker 进攻方（提供 attackBuffs/damageAmplification + 体质伤害加成/暴伤）
+     * @param defender 防守方（可选，提供 damageReduction + 体质减伤/防御加成）
      * @param extraAmplification 外部额外增伤（如政策加成），直接加到 damageAmplification 乘区
      */
-    fun buildDamageZones(attacker: Combatant, extraAmplification: Double = 0.0): DamageZones {
+    fun buildDamageZones(attacker: Combatant, defender: Combatant? = null, extraAmplification: Double = 0.0): DamageZones {
         val atkBoost = attacker.buffs
             .filter { it.type == BuffType.PHYSICAL_ATTACK_BOOST || it.type == BuffType.MAGIC_ATTACK_BOOST }
             .sumOf { it.value }
@@ -79,28 +98,44 @@ object BattleCalculator {
         val dmgBoost = attacker.buffs
             .filter { it.type == BuffType.DAMAGE_BOOST }
             .sumOf { it.value }
-        val dmgReduce = attacker.buffs
-            .filter { it.type == BuffType.DAMAGE_REDUCTION }
-            .sumOf { it.value }
-        val critDmg = attacker.buffs
-            .filter { it.type == BuffType.CRIT_DAMAGE_BOOST }
-            .sumOf { it.value }
+        val dmgReduce = defender?.buffs
+            ?.filter { it.type == BuffType.DAMAGE_REDUCTION }
+            ?.sumOf { it.value } ?: 0.0
 
         return DamageZones(
             attackBuffs = atkBoost - atkReduce,
             damageAmplification = dmgBoost + extraAmplification,
             damageReduction = dmgReduce,
-            critDamageBonus = critDmg,
+            // 体质独立乘算因子：进攻方提供伤害加成/暴伤，防守方提供减伤/防御
+            physiqueDamageAmplification = attacker.physique.damageAmplification,
+            physiqueCritDamageBonus = attacker.physique.critDamageBonus,
+            physiqueDamageReduction = defender?.physique?.damageReduction ?: 0.0,
+            physiqueDefenseBonus = defender?.physique?.defenseBonus ?: 0.0,
+            // 词条独立乘算因子：进攻方提供伤害加成/暴伤，防守方提供减伤/防御
+            affixDamageAmplification = attacker.affix.damageAmplification,
+            affixCritDamageBonus = attacker.affix.critDamageBonus,
+            affixDamageReduction = defender?.affix?.damageReduction ?: 0.0,
+            affixDefenseBonus = defender?.affix?.defenseBonus ?: 0.0,
         )
     }
 
     /**
      * 乘区法核心伤害计算。
      *
-     * 公式：effectiveAtk × skillMult × (1 - 减伤率) × realmGap
-     *       × (1 + 增伤) × (1 - 减伤) × critMult × 波动
+     * 公式：
+     *   effectiveAtk × skillMult × (1 - 防御减伤率) × realmGap
+     *   × critMult × physiqueCritMult × affixCritMult
+     *   × (1 + 增伤) × (1 + 体质增伤) × (1 + 词条增伤)
+     *   × (1 - 减伤) × (1 - 体质减伤) × (1 - 词条减伤)
+     *   × 波动
      *
-     * 其中 critMult = 暴击时 (1 + 基础暴伤 + 暴伤加成)，非暴击时 1.0
+     * 其中：
+     * - effectiveAtk = rawAttack × (1 + attackBuffs)
+     * - 防御减伤率 = effectiveDefense / (effectiveDefense + DEFENSE_CONSTANT)
+     *   effectiveDefense 已叠加体质/词条防御加成（各自独立乘算）
+     * - critMult = 暴击时 (1 + 基础暴伤)，非暴击时 1.0
+     * - physiqueCritMult = 暴击时 (1 + 体质暴伤加成)，非暴击时 1.0（独立乘算，仅暴击生效）
+     * - affixCritMult = 暴击时 (1 + 词条暴伤加成)，非暴击时 1.0（独立乘算，仅暴击生效）
      */
     fun calculateFinalDamage(
         rawAttack: Int,
@@ -112,17 +147,28 @@ object BattleCalculator {
         variance: Double
     ): Int {
         val effectiveAttack = rawAttack * (1.0 + zones.attackBuffs)
-        val effectiveDefense = defense * (1.0 - zones.defensePenetration).coerceAtLeast(0.0)
+        // 防御乘区：(1 - 体质防御加成) × (1 - 词条防御加成)，二者独立乘算
+        val effectiveDefense = defense *
+            (1.0 - zones.physiqueDefenseBonus).coerceAtLeast(0.0) *
+            (1.0 - zones.affixDefenseBonus).coerceAtLeast(0.0)
         val reduction = effectiveDefense / (effectiveDefense + GameConfig.Battle.DEFENSE_CONSTANT)
         val preCritDamage = effectiveAttack * skillMultiplier * (1.0 - reduction) * realmGapMultiplier
         val critMult = if (isCrit) {
-            1.0 + GameConfig.Battle.CRIT_BASE_MULTIPLIER + zones.critDamageBonus
+            1.0 + GameConfig.Battle.CRIT_BASE_MULTIPLIER
         } else {
             1.0
         }
-        return (preCritDamage * critMult
+        // 体质暴伤为额外加成，独立乘算，仅暴击时生效
+        val physiqueCritMult = if (isCrit) (1.0 + zones.physiqueCritDamageBonus) else 1.0
+        // 词条暴伤为额外加成，独立乘算，仅暴击时生效
+        val affixCritMult = if (isCrit) (1.0 + zones.affixCritDamageBonus) else 1.0
+        return (preCritDamage * critMult * physiqueCritMult * affixCritMult
             * (1.0 + zones.damageAmplification)
+            * (1.0 + zones.physiqueDamageAmplification)
+            * (1.0 + zones.affixDamageAmplification)
             * (1.0 - zones.damageReduction)
+            * (1.0 - zones.physiqueDamageReduction)
+            * (1.0 - zones.affixDamageReduction)
             * variance
         ).toInt().coerceAtLeast(GameConfig.Battle.MIN_DAMAGE)
     }
@@ -166,8 +212,17 @@ object BattleCalculator {
         val critRate: Double
         val realm: Int
         val element: String
+        /** 含 buff 的有效暴击率，默认实现返回基础暴击率 */
+        val effectiveCritRate: Double get() = critRate
     }
 
+    /**
+     * 基础伤害计算入口（接收 CombatantStats 接口，无 buffs 字段）。
+     *
+     * 注意：此入口默认 zones 为空，不应用体质/词条等独立乘算因子。
+     * 生产环境应优先使用 [calculateCombatantDamage]（接收 Combatant，自动构建 zones）。
+     * 此入口保留主要用于测试场景。
+     */
     fun calculateDamage(
         attacker: CombatantStats,
         defender: CombatantStats,
@@ -195,7 +250,7 @@ object BattleCalculator {
         val attack = if (usePhysical) attacker.physicalAttack else attacker.magicAttack
         val defense = if (usePhysical) defender.physicalDefense else defender.magicDefense
 
-        val isCrit = rng.nextDouble() < attacker.critRate
+        val isCrit = rng.nextDouble() < attacker.effectiveCritRate
         val realmGapMultiplier = calculateRealmGapMultiplier(attacker.realm, defender.realm)
         val variance = calculateDamageVariance(rng)
 
@@ -306,7 +361,7 @@ object BattleCalculator {
         }
 
         val isPhysical = if (isSkillAttack) skill?.damageType == DamageType.PHYSICAL ?: true else attacker.physicalAttack >= attacker.magicAttack
-        val attack = if (isPhysical) attacker.effectivePhysicalAttack else attacker.effectiveMagicAttack
+        val attack = if (isPhysical) attacker.physicalAttack else attacker.magicAttack
         val defense = if (isPhysical) defender.effectivePhysicalDefense else defender.effectiveMagicDefense
 
         val isCrit = rng.nextDouble() < attacker.effectiveCritRate
@@ -314,7 +369,7 @@ object BattleCalculator {
         val realmGapMultiplier = calculateRealmGapMultiplier(attacker.realm, defender.realm)
         val variance = calculateDamageVariance(rng)
 
-        val damageZones = zones ?: buildDamageZones(attacker)
+        val damageZones = zones ?: buildDamageZones(attacker, defender)
 
         val finalDamage = calculateFinalDamage(
             rawAttack = attack,
@@ -353,22 +408,26 @@ object BattleCalculator {
     ): Int {
         val isPhysical = skill.damageType == DamageType.PHYSICAL
         val atk = if (isPhysical)
-            attacker.effectivePhysicalAttack
-        else attacker.effectiveMagicAttack
+            attacker.physicalAttack
+        else attacker.magicAttack
         val def = if (isPhysical)
             defender.effectivePhysicalDefense
         else defender.effectiveMagicDefense
         val realmGap = calculateRealmGapMultiplier(
             attacker.realm, defender.realm
         )
-        val damageZones = zones ?: buildDamageZones(attacker)
+        val damageZones = zones ?: buildDamageZones(attacker, defender)
 
-        // 期望暴击：平均暴击倍率 = 1 + 暴击率 × (基础暴伤 + 暴伤加成)
-        val totalCritDmg =
-            GameConfig.Battle.CRIT_BASE_MULTIPLIER + damageZones.critDamageBonus
-        val avgCritMult = 1.0 + attacker.effectiveCritRate * totalCritDmg
+        // 期望暴击：体质暴伤与词条暴伤均为独立乘算因子，仅暴击时生效
+        // avgCritMult = (1 - p) × 1.0 + p × (1 + 基础暴伤) × (1 + 体质暴伤加成) × (1 + 词条暴伤加成)
+        val buffCritMult = 1.0 + GameConfig.Battle.CRIT_BASE_MULTIPLIER
+        val physiqueCritMult = 1.0 + damageZones.physiqueCritDamageBonus
+        val affixCritMult = 1.0 + damageZones.affixCritDamageBonus
+        val critRate = attacker.effectiveCritRate.coerceIn(0.0, 1.0)
+        val avgCritMult = (1.0 - critRate) * 1.0 + critRate * buffCritMult * physiqueCritMult * affixCritMult
 
-        val penFactor = (1.0 - damageZones.defensePenetration).coerceAtLeast(0.0)
+        val penFactor = (1.0 - damageZones.physiqueDefenseBonus).coerceAtLeast(0.0) *
+            (1.0 - damageZones.affixDefenseBonus).coerceAtLeast(0.0)
         val effectiveDef = def * penFactor
         val reduction = effectiveDef /
             (effectiveDef + GameConfig.Battle.DEFENSE_CONSTANT)
@@ -377,7 +436,11 @@ object BattleCalculator {
             skill.damageMultiplier * (1.0 - reduction) * realmGap
         val rawDmg = preCritDmg * avgCritMult *
             (1.0 + damageZones.damageAmplification) *
-            (1.0 - damageZones.damageReduction) * skill.hits
+            (1.0 + damageZones.physiqueDamageAmplification) *
+            (1.0 + damageZones.affixDamageAmplification) *
+            (1.0 - damageZones.damageReduction) *
+            (1.0 - damageZones.physiqueDamageReduction) *
+            (1.0 - damageZones.affixDamageReduction) * skill.hits
         return rawDmg.toInt()
             .coerceAtLeast(GameConfig.Battle.MIN_DAMAGE)
     }

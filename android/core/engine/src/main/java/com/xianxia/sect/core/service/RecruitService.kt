@@ -9,6 +9,7 @@ import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.util.SpiritRootGenerator
 import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFactory
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.disciple.computeMaxAge
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.GameRngManager
@@ -254,7 +255,12 @@ class RecruitService @Inject constructor(
         if (recruitingElderId.isEmpty()) return 0
         val intId = recruitingElderId.toIntOrNull() ?: return 0
         val elderCharm = state.discipleTables.charms[intId] ?: return 0
-        return calcRecruitBonusCap(elderCharm)
+        // 体质/词条的职务加成：作为乘算因子作用于长老职能效果
+        val elder = stateStore.disciples.value.find { it.id == recruitingElderId }
+        val posBonus = elder?.let {
+            DiscipleStatCalculator.getPositionEffectBonus(it, ElderSlotType.RECRUITING)
+        } ?: 0.0
+        return (calcRecruitBonusCap(elderCharm) * (1.0 + posBonus)).toInt()
     }
 
     // ── 招募池刷新 ─────────────────────────────────────────────────────

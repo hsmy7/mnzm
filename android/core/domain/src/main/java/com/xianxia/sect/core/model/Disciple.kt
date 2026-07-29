@@ -91,6 +91,8 @@ data class Disciple(
 
     var manualIds: List<String> = emptyList(),
     var talentIds: List<String> = emptyList(),
+    var physiqueIds: List<String> = emptyList(),
+    var affixIds: List<String> = emptyList(),
 
     var manualMasteries: Map<String, Int> = emptyMap(),
 
@@ -363,6 +365,46 @@ data class Talent(
     val description: String,
     val rarity: Int,
     val effects: Map<String, Double>,
+    val isNegative: Boolean = false,
+    val positionBonus: PositionBonus? = null
+) {
+    val color: String get() = when {
+        isNegative -> "#9E9E9E"
+        rarity == 1 -> "#4CAF50"
+        rarity == 2 -> "#2196F3"
+        rarity == 3 -> "#E74C3C"
+        else -> "#4CAF50"
+    }
+    val rarityName: String get() = when {
+        isNegative -> "负面"
+        rarity == 1 -> "下品"
+        rarity == 2 -> "中品"
+        rarity == 3 -> "上品"
+        else -> "下品"
+    }
+}
+
+/** 职务职能效果加成：拥有对应天赋/词条的弟子担任职务时，该职务职能效果获得额外百分比加成（乘算） */
+@Keep
+@Serializable
+data class PositionBonus(
+    val slotType: ElderSlotType,
+    val effectBonus: Double
+)
+
+/** 体质：修炼速度加成 + 战斗伤害特殊加成（独立乘算） */
+@Keep
+@Serializable
+data class Physique(
+    val id: String,
+    val name: String,
+    val description: String,
+    val rarity: Int,
+    val cultivationSpeedBonus: Double,
+    val damageAmplification: Double,
+    val damageReduction: Double,
+    val critDamageBonus: Double,
+    val defenseBonus: Double,
     val isNegative: Boolean = false
 ) {
     val color: String get() = when {
@@ -372,10 +414,39 @@ data class Talent(
         rarity == 3 -> "#E74C3C"
         else -> "#4CAF50"
     }
-    val rarityName: String get() = when (rarity) {
-        1 -> "下品"
-        2 -> "中品"
-        3 -> "上品"
+    val rarityName: String get() = when {
+        isNegative -> "负面"
+        rarity == 1 -> "下品"
+        rarity == 2 -> "中品"
+        rarity == 3 -> "上品"
+        else -> "下品"
+    }
+}
+
+/** 词条：通用加成，覆盖基础属性/战斗属性/职务/战斗伤害特殊/修炼速度所有加成类型 */
+@Keep
+@Serializable
+data class Affix(
+    val id: String,
+    val name: String,
+    val description: String,
+    val rarity: Int,
+    val effects: Map<String, Double>,
+    val isNegative: Boolean = false,
+    val positionBonus: PositionBonus? = null
+) {
+    val color: String get() = when {
+        isNegative -> "#9E9E9E"
+        rarity == 1 -> "#4CAF50"
+        rarity == 2 -> "#2196F3"
+        rarity == 3 -> "#E74C3C"
+        else -> "#4CAF50"
+    }
+    val rarityName: String get() = when {
+        isNegative -> "负面"
+        rarity == 1 -> "下品"
+        rarity == 2 -> "中品"
+        rarity == 3 -> "上品"
         else -> "下品"
     }
 }
