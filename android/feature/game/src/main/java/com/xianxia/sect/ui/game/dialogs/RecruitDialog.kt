@@ -163,7 +163,7 @@ private fun RecruitManagementDialog(
         onDismissRequest = onDismiss,
         title = "招募管理",
         mode = DialogMode.Half,
-        scrollableContent = false
+        scrollableContent = true
     ) {
         Column(
             modifier = Modifier.fillMaxSize().padding(16.dp)
@@ -188,7 +188,8 @@ private fun RecruitManagementDialog(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 items(ROOT_COUNT_OPTIONS, key = { it.first }, contentType = { "root_count_option" }) { (count, name) ->
-                    val rootColor = GameColors.getSpiritRootCountColor(count)
+                    val baseColor = GameColors.getSpiritRootCountColor(count)
+                    val rootColor = if (count == 5) Color.Black else baseColor
                     AutoRecruitFilterRow(
                         label = name,
                         labelColor = rootColor,
@@ -227,7 +228,8 @@ private fun RecruitManagementDialog(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 items(ROOT_COUNT_OPTIONS, key = { it.first }, contentType = { "root_count_option" }) { (count, name) ->
-                    val rootColor = GameColors.getSpiritRootCountColor(count)
+                    val baseColor = GameColors.getSpiritRootCountColor(count)
+                    val rootColor = if (count == 5) Color.Black else baseColor
                     AutoRecruitFilterRow(
                         label = name,
                         labelColor = rootColor,
@@ -269,7 +271,7 @@ private fun AutoRecruitFilterRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
