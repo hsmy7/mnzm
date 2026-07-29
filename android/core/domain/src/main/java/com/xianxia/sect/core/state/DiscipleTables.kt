@@ -116,6 +116,8 @@ class DiscipleTables {
     // === 列表类型（ComponentTable<List<T>>） ===
     val manualIds = ComponentTable<List<String>>()        // id → [manualId1, ...]
     val talentIds = ComponentTable<List<String>>()        // id → [talentId1, ...]
+    val physiqueIds = ComponentTable<List<String>>()      // id → [physiqueId1, ...]
+    val affixIds = ComponentTable<List<String>>()         // id → [affixId1, ...]
     val lifeEvents = ComponentTable<List<String>>()       // id → ["11岁：加入宗门", ...]
     val manualMasteries = ComponentTable<Map<String, Int>>()
 
@@ -424,6 +426,8 @@ class DiscipleTables {
         // ── List 表（需深拷贝 toList） ──
         MutableTableRef(manualIds, DiscipleTables::manualIds, "manualIds") { it.toList() },
         MutableTableRef(talentIds, DiscipleTables::talentIds, "talentIds") { it.toList() },
+        MutableTableRef(physiqueIds, DiscipleTables::physiqueIds, "physiqueIds") { it.toList() },
+        MutableTableRef(affixIds, DiscipleTables::affixIds, "affixIds") { it.toList() },
         MutableTableRef(lifeEvents, DiscipleTables::lifeEvents, "lifeEvents") { it.toList() },
         MutableTableRef(storageBagItems, DiscipleTables::storageBagItems, "storageBagItems") { it.toList() },
         MutableTableRef(usedFunctionalPillTypes, DiscipleTables::usedFunctionalPillTypes, "usedFunctionalPillTypes") { it.toList() },
@@ -609,6 +613,7 @@ class DiscipleTables {
 
         // 列表/映射
         manualIds[id] = disciple.manualIds; talentIds[id] = disciple.talentIds
+        physiqueIds[id] = disciple.physiqueIds; affixIds[id] = disciple.affixIds
         lifeEvents[id] = disciple.lifeEvents; manualMasteries[id] = disciple.manualMasteries
 
         // 状态
@@ -716,6 +721,8 @@ class DiscipleTables {
         portraitRes = portraitRes.getOrNull(id) ?: "",
         manualIds = manualIds.getOrNull(id) ?: emptyList(),
         talentIds = talentIds.getOrNull(id) ?: emptyList(),
+        physiqueIds = physiqueIds.getOrNull(id) ?: emptyList(),
+        affixIds = affixIds.getOrNull(id) ?: emptyList(),
         manualMasteries = manualMasteries.getOrNull(id) ?: emptyMap(),
         status = statuses.getOrNull(id) ?: DiscipleStatus.IDLE,
         statusData = statusData.getOrNull(id) ?: emptyMap(),

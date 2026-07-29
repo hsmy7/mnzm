@@ -414,4 +414,113 @@ class DiscipleTablesTest {
         assertEquals("deathRecords 不应被清空", 1, tables.deathRecords.size)
         assertEquals(100, tables.deathRecords[0].deathYear)
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // physiqueIds / affixIds 往返测试（修复漏写 bug 的回归测试）
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `physiqueIds and affixIds survive assemble round-trip`() {
+        val tables = DiscipleTables()
+        val d = createTestDisciple(id = "1").copy(
+            physiqueIds = listOf("r1_phy_dmg_amp", "r2_phy_crit"),
+            affixIds = listOf("r1_aff_base_int", "neg_aff_base")
+        )
+        tables.insert(d)
+
+        val assembled = tables.assemble(1)
+        assertEquals(listOf("r1_phy_dmg_amp", "r2_phy_crit"), assembled.physiqueIds)
+        assertEquals(listOf("r1_aff_base_int", "neg_aff_base"), assembled.affixIds)
+    }
+
+    @Test
+    fun `allocateAndInsert writes physiqueIds and affixIds`() {
+        val tables = DiscipleTables()
+        val d = createTestDisciple(id = "0").copy(
+            physiqueIds = listOf("r3_phy_dmg_reduce"),
+            affixIds = listOf("r2_aff_bat_atk")
+        )
+
+        val assignedId = tables.allocateAndInsert(d)
+        val idInt = assignedId.toInt()
+
+        assertEquals(listOf("r3_phy_dmg_reduce"), tables.physiqueIds[idInt])
+        assertEquals(listOf("r2_aff_bat_atk"), tables.affixIds[idInt])
+
+        val assembled = tables.assemble(idInt)
+        assertEquals(listOf("r3_phy_dmg_reduce"), assembled.physiqueIds)
+        assertEquals(listOf("r2_aff_bat_atk"), assembled.affixIds)
+    }
+
+    @Test
+    fun `replaceAll writes physiqueIds and affixIds for new batch`() {
+        val tables = DiscipleTables()
+        tables.insert(createTestDisciple(id = "1").copy(
+            physiqueIds = listOf("old_phy"),
+            affixIds = listOf("old_aff")
+        ))
+
+        val replacement = listOf(
+            createTestDisciple(id = "2").copy(
+                physiqueIds = listOf("r1_phy_dmg_amp"),
+                affixIds = listOf("r1_aff_lifespan")
+            ),
+            createTestDisciple(id = "3").copy(
+                physiqueIds = emptyList(),
+                affixIds = listOf("r3_aff_manual_slot")
+            )
+        )
+        tables.replaceAll(replacement)
+
+        assertEquals(listOf("r1_phy_dmg_amp"), tables.physiqueIds[2])
+        assertEquals(listOf("r1_aff_lifespan"), tables.affixIds[2])
+        assertEquals(emptyList<String>(), tables.physiqueIds[3])
+        assertEquals(listOf("r3_aff_manual_slot"), tables.affixIds[3])
+        assertFalse("旧 ID 1 的 physiqueIds 应被清除", tables.physiqueIds.contains(1))
+    }
+
+    @Test
+    fun `physiqueIds and affixIds deep copy is independent`() {
+        val tables = DiscipleTables()
+        tables.insert(createTestDisciple(id = "1").copy(
+            physiqueIds = listOf("r1_phy_dmg_amp"),
+            affixIds = listOf("r1_aff_base_int")
+        ))
+
+        val copy = tables.deepCopy()
+        copy.physiqueIds[1] = copy.physiqueIds[1] + "r2_phy_crit"
+        copy.affixIds[1] = listOf("r3_aff_win_growth")
+
+        assertEquals(
+            "原表 physiqueIds 不应被修改",
+            listOf("r1_phy_dmg_amp"),
+            tables.physiqueIds[1]
+        )
+        assertEquals(
+            "原表 affixIds 不应被修改",
+            listOf("r1_aff_base_int"),
+            tables.affixIds[1]
+        )
+        assertEquals(
+            listOf("r1_phy_dmg_amp", "r2_phy_crit"),
+            copy.physiqueIds[1]
+        )
+        assertEquals(
+            listOf("r3_aff_win_growth"),
+            copy.affixIds[1]
+        )
+    }
+
+    @Test
+    fun `physiqueIds and affixIds default to empty when not set`() {
+        val tables = DiscipleTables()
+        tables.insert(createTestDisciple(id = "1"))
+
+        assertEquals(emptyList<String>(), tables.physiqueIds[1])
+        assertEquals(emptyList<String>(), tables.affixIds[1])
+
+        val assembled = tables.assemble(1)
+        assertEquals(emptyList<String>(), assembled.physiqueIds)
+        assertEquals(emptyList<String>(), assembled.affixIds)
+    }
 }
