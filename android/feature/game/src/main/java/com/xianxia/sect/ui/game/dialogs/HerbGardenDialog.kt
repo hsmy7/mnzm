@@ -104,6 +104,7 @@ fun HerbGardenDialog(
                 productionViewModel.assignDirectDisciple("herbGarden", slotIndex, discipleId)
                 showDirectDiscipleSelection = null
             },
+            viewModel = viewModel,
             battleAndExplorationIds = battleAndExplorationIds,
         )
     }

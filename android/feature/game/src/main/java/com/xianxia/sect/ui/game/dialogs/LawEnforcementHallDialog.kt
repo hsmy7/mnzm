@@ -158,6 +158,7 @@ fun LawEnforcementHallDialog(
                 productionViewModel.assignDirectDisciple("lawEnforcement", slotIndex, discipleId)
                 showDiscipleSelection = null
             },
+            viewModel = viewModel,
             battleAndExplorationIds = battleAndExplorationIds,
         )
     }

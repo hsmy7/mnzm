@@ -683,10 +683,10 @@ class CaveExplorationProcessor @Inject constructor(
         }
         stateStore.update {
             gameData = gameData.copy(
+                // 直接采用截断后的 calculated，避免 current + 新弟子 使 truncateToLimit 失效。
+                // 未参与本次年度招募的宗门（如 isPlayerOccupied）保留原池。
                 aiSectDisciples = gameData.aiSectDisciples.mapValues { (sId, current) ->
-                    val calculated = updatedAiDisciples[sId] ?: return@mapValues current
-                    val currentIds = current.map { it.id }.toSet()
-                    current + calculated.filter { it.id !in currentIds }
+                    updatedAiDisciples[sId] ?: current
                 },
                 recruitList = updatedRecruitList
             )
