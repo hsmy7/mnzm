@@ -3,7 +3,8 @@
     "version": "4.0.79",
     "date": "2026-07-30",
     "changes": [
-      "修复：每月招募上限不重置——recruitCountThisMonth=0重置代码在CultivationEventProcessor.advanceMonth()中但未被游戏主循环调用（死代码），导致第1个月招满30人后所有后续月份无法招募任何弟子。移入processMonthlyEvents()后每月正常重置"
+      "修复：每月招募上限不重置——recruitCountThisMonth=0重置代码在CultivationEventProcessor.advanceMonth()中但未被游戏主循环调用（死代码），导致第1个月招满30人后所有后续月份无法招募任何弟子。移入processMonthlyEvents()后每月正常重置",
+      "修复：国产ROM Bitmap双释放崩溃(#11008)——华为鸿蒙/小米澎湃OS/OPPO ColorOS等国产ROM的NativeAllocationRegistry CleanerThunk在recycle()后未正确注销，GC再次释放已释放内存导致SIGABRT。移除所有bitmap.recycle()调用改为GC自然回收"
     ]
   },
   {

@@ -3,6 +3,7 @@
 ### 修复
 
 - **每月招募上限不重置** — `recruitCountThisMonth=0` 重置代码在 `CultivationEventProcessor.advanceMonth()` 中但未被游戏主循环调用（死代码），导致第1个月招满30人后所有后续月份无法招募任何弟子。移入 `processMonthlyEvents()` 后每月正常重置
+- **国产ROM Bitmap双释放崩溃(#11008)** — 华为鸿蒙/小米澎湃OS/OPPO ColorOS等国产ROM的 `NativeAllocationRegistry.CleanerThunk` 在 `Bitmap.recycle()` 后未正确注销，GC再次释放已释放的原生内存导致SIGABRT。移除所有 `bitmap.recycle()` 调用改为GC自然回收
 
 ## [4.0.78] - 2026-07-29
 

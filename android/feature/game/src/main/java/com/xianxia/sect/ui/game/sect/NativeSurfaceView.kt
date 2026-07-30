@@ -167,7 +167,10 @@ class NativeSurfaceView(
             buffer[i * 4 + 3] = ((p shr 24) and 0xFF).toByte()
         }
         val texId = NativeBridge.uploadTexture(buffer, atlas.width, atlas.height)
-        atlas.recycle()
+        // ★ 不调 recycle()：atlas 仍在 atlasBitmap 字段引用，调 recycle()
+        //   会导致国产 ROM (#11008) double-free。Vulkan 模式下 atlasBitmap
+        //   不会被 SOFTWARE 路径读取（renderMode 非 SOFTWARE），置 null 即可
+        atlasBitmap = null
         return texId
     }
 
@@ -273,7 +276,9 @@ class NativeSurfaceView(
                             android.graphics.Rect(slot.x, slot.y,
                                 slot.x + slot.w, slot.y + slot.h),
                             paint)
-                        bmp.recycle()
+                        // ★ 不调 recycle()：避免国产 ROM NativeAllocationRegistry
+                        //   CleanerThunk double-free SIGABRT (#11008)。子精灵
+                        //   Bitmap 很小（<1KB～4KB），自然 GC 消耗可忽略
                         loadedCount++
                     } else {
                         android.util.Log.w("NativeSurfaceView",

@@ -539,7 +539,8 @@ class SoftwareCanvasBackend(
         val fb = frameBuffer
         if (fb == null || fb.width != vpW || fb.height != vpH || qualityChanged) {
             val bmpConfig = if (qualityFactor < 0.6f) Bitmap.Config.RGB_565 else Bitmap.Config.ARGB_8888
-            frameBuffer?.recycle()
+            // ★ 不调 recycle() — 见 release() 注释。GC + NativeAllocationRegistry
+            //   自然回收即可避免 #11008 国产 ROM double-free SIGABRT
             frameBuffer = Bitmap.createBitmap(vpW.coerceAtLeast(1), vpH.coerceAtLeast(1), bmpConfig)
             frameCanvas = Canvas(frameBuffer ?: return)
             // resize 时清除缓存
@@ -608,8 +609,12 @@ class SoftwareCanvasBackend(
     }
 
     fun release() {
-        chunkCaches.forEach { col -> col.forEach { it.bitmap?.recycle() } }
-        frameBuffer?.recycle()
+        // ★ 不调 Bitmap.recycle() — 国产 ROM (鸿蒙/澎湃OS/ColorOS) 的
+        //   NativeAllocationRegistry CleanerThunk 在 recycle() 后仍会尝试
+        //   二次释放原生内存导致 SIGABRT。直接置 null 让 GC 自然回收，
+        //   NativeAllocationRegistry 的单次释放流程是安全的。
+        //   参考: Bugly #11008 SIGABRT 根因分析
+        chunkCaches.forEach { col -> col.forEach { it.bitmap = null } }
         frameBuffer = null
         frameCanvas = null
     }
