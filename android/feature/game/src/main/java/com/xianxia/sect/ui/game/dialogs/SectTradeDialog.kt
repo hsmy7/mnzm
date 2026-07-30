@@ -70,7 +70,7 @@ fun SectTradeDialog(
 
     val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
     val relation = if (playerSect != null && sect != null) {
-        FavorDomain.findFavor(gameData!!.sectRelations, playerSect.id, sect.id)
+        FavorDomain.findFavor(gameData?.sectRelations ?: emptyList(), playerSect.id, sect.id)
     } else 0
     val isAlly = sect?.let { interactionViewModel.isAlly(it.id) } ?: false
 

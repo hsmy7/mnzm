@@ -959,20 +959,20 @@ class DiscipleTables {
             }
             when (ref) {
                 is IntTableRef -> {
-                    ref.table.onWrite = dirtyCb
-                    ref.table.requireWrite = guard
+                    ref.table.setMutationCallback(dirtyCb)
+                    ref.table.setWriteGuard(guard)
                 }
                 is DoubleTableRef -> {
-                    ref.table.onWrite = dirtyCb
-                    ref.table.requireWrite = guard
+                    ref.table.setMutationCallback(dirtyCb)
+                    ref.table.setWriteGuard(guard)
                 }
                 is RefTableRef<*> -> {
-                    ref.table.onWrite = dirtyCb
-                    ref.table.requireWrite = guard
+                    ref.table.setMutationCallback(dirtyCb)
+                    ref.table.setWriteGuard(guard)
                 }
                 is MutableTableRef<*> -> {
-                    ref.table.onWrite = dirtyCb
-                    ref.table.requireWrite = guard
+                    ref.table.setMutationCallback(dirtyCb)
+                    ref.table.setWriteGuard(guard)
                 }
             }
         }

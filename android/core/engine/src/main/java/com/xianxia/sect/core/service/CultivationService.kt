@@ -310,12 +310,19 @@ class CultivationService @Inject constructor(
     }
 
     /**
-     * @deprecated 月度事件已移至 shadow 外部处理（见 [processMonthlyEvents]），
-     * 此方法不再从 SettlementCoordinator 调用。保留供兼容。
+     * 带状态版本的月度事件处理 — 在已存在的事务内使用。
+     * 操作在传入的 state 上，而非打开新的 [stateStore.update]。
+     */
+    fun processMonthlyEventsOnState(state: MutableGameState) {
+        val data = state.gameData
+        eventProcessor.processMonthlyEvents(data.gameYear, data.gameMonth, state)
+    }
+
+    /**
+     * @deprecated 月度事件已移至 shadow 外部处理。保留供兼容。
      */
     fun processMonthlyEventsOnShadow(state: MutableGameState) {
-        val data = state.gameData
-            eventProcessor.processMonthlyEvents(data.gameYear, data.gameMonth)
+        processMonthlyEventsOnState(state)
     }
 
     fun processYearlyEventsOnShadow(state: MutableGameState) {

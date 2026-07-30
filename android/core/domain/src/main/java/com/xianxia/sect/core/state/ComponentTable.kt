@@ -8,14 +8,27 @@ import android.util.SparseArray
  */
 class ComponentTable<T> @JvmOverloads constructor(initialCapacity: Int = 64) {
     @PublishedApi internal val store = SparseArray<T>(initialCapacity)
-    @JvmField var onWrite: (() -> Unit)? = null
+    private var onWrite: (() -> Unit)? = null
     /** 写入前守卫检查，由 [DiscipleTables.bindAllOnWrite] 绑定为 [DiscipleTables.requireWriteAccess] */
-    @JvmField var requireWrite: (() -> Unit)? = null
+    private var requireWrite: (() -> Unit)? = null
+
+    /** 设置写入守卫回调（update {} 事务外调用）。替换 @JvmField var requireWrite */
+    fun setWriteGuard(callback: () -> Unit) { requireWrite = callback }
+    /** 设置变更回调（update {} 事务外调用）。替换 @JvmField var onWrite */
+    fun setMutationCallback(callback: () -> Unit) { onWrite = callback }
+    /**
+     * 带守卫的跨表/外部写入：通过本表的写入守卫后，将值写入存储。
+     * 替换对 `target.store.put(key, value)` 的直接访问。
+     */
+    @PublishedApi internal fun putTo(key: Int, value: T) {
+        requireWrite?.invoke(); store.put(key, value); onWrite?.invoke()
+    }
+
     operator fun get(id: Int): T = store[id] ?: throw NoSuchElementException("ComponentTable: no entry for id=$id")
     fun getOrNull(id: Int): T? = store[id]
     fun getOrDefault(id: Int, default: T): T = store[id] ?: default
     operator fun set(id: Int, value: T) { requireWrite?.invoke(); store.put(id, value); onWrite?.invoke() }
-    inline fun update(id: Int, block: (T) -> T) { requireWrite?.invoke(); store[id] = block(store[id]); onWrite?.invoke() }
+    fun update(id: Int, block: (T) -> T) { requireWrite?.invoke(); store[id] = block(store[id]); onWrite?.invoke() }
     fun ids(): IntArray { val r = IntArray(store.size()); for (i in 0 until store.size()) r[i] = store.keyAt(i); return r }
     val size: Int get() = store.size()
     fun isEmpty(): Boolean = store.size() == 0
@@ -124,9 +137,22 @@ class DoubleFlatArray @JvmOverloads constructor(initialCapacity: Int = 64) {
 
 class IntComponentTable(initialCapacity: Int = 64) {
     @PublishedApi internal val store = IntFlatArray(initialCapacity)
-    @JvmField var onWrite: (() -> Unit)? = null
+    private var onWrite: (() -> Unit)? = null
     /** 写入前守卫检查，由 [DiscipleTables.bindAllOnWrite] 绑定为 [DiscipleTables.requireWriteAccess] */
-    @JvmField var requireWrite: (() -> Unit)? = null
+    private var requireWrite: (() -> Unit)? = null
+
+    /** 设置写入守卫回调（update {} 事务外调用）。替换 @JvmField var requireWrite */
+    fun setWriteGuard(callback: () -> Unit) { requireWrite = callback }
+    /** 设置变更回调（update {} 事务外调用）。替换 @JvmField var onWrite */
+    fun setMutationCallback(callback: () -> Unit) { onWrite = callback }
+    /**
+     * 带守卫的跨表/外部写入：通过本表的写入守卫后，将值写入存储。
+     * 替换对 `target.store.put(key, value)` 的直接访问。
+     */
+    @PublishedApi internal fun putTo(key: Int, value: Int) {
+        requireWrite?.invoke(); store.put(key, value); onWrite?.invoke()
+    }
+
     operator fun get(id: Int): Int = store[id]
     fun getOrDefault(id: Int, default: Int): Int = store.get(id, default)
     fun getOrNull(id: Int): Int? = if (store.contains(id)) store[id] else null
@@ -144,9 +170,22 @@ class IntComponentTable(initialCapacity: Int = 64) {
 
 class DoubleComponentTable(initialCapacity: Int = 64) {
     @PublishedApi internal val store = DoubleFlatArray(initialCapacity)
-    @JvmField var onWrite: (() -> Unit)? = null
+    private var onWrite: (() -> Unit)? = null
     /** 写入前守卫检查，由 [DiscipleTables.bindAllOnWrite] 绑定为 [DiscipleTables.requireWriteAccess] */
-    @JvmField var requireWrite: (() -> Unit)? = null
+    private var requireWrite: (() -> Unit)? = null
+
+    /** 设置写入守卫回调（update {} 事务外调用）。替换 @JvmField var requireWrite */
+    fun setWriteGuard(callback: () -> Unit) { requireWrite = callback }
+    /** 设置变更回调（update {} 事务外调用）。替换 @JvmField var onWrite */
+    fun setMutationCallback(callback: () -> Unit) { onWrite = callback }
+    /**
+     * 带守卫的跨表/外部写入：通过本表的写入守卫后，将值写入存储。
+     * 替换对 `target.store.put(key, value)` 的直接访问。
+     */
+    @PublishedApi internal fun putTo(key: Int, value: Double) {
+        requireWrite?.invoke(); store.put(key, value); onWrite?.invoke()
+    }
+
     operator fun get(id: Int): Double = store[id]
     fun getOrDefault(id: Int, default: Double): Double = store.get(id, default)
     operator fun set(id: Int, value: Double) { requireWrite?.invoke(); store.put(id, value); onWrite?.invoke() }
@@ -184,9 +223,9 @@ class IntTableRef(
     override fun clear() = table.clear()
     override val size: Int get() = table.size
     override fun contains(id: Int): Boolean = table.contains(id)
-    override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.store.put(table.store.keyAt(i), table.store.valueAt(i)) }
+    override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.putTo(table.store.keyAt(i), table.store.valueAt(i)) }
     /** 仅复制本表数据到 dest（用于 DirtyTracker 增量 deepCopy） */
-    fun copySelfTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.store.put(table.store.keyAt(i), table.store.valueAt(i)) }
+    fun copySelfTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.putTo(table.store.keyAt(i), table.store.valueAt(i)) }
 }
 
 class DoubleTableRef(
@@ -199,8 +238,8 @@ class DoubleTableRef(
     override fun clear() = table.clear()
     override val size: Int get() = table.size
     override fun contains(id: Int): Boolean = table.contains(id)
-    override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.store.put(table.store.keyAt(i), table.store.valueAt(i)) }
-    fun copySelfTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.store.put(table.store.keyAt(i), table.store.valueAt(i)) }
+    override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.putTo(table.store.keyAt(i), table.store.valueAt(i)) }
+    fun copySelfTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.putTo(table.store.keyAt(i), table.store.valueAt(i)) }
 }
 
 class RefTableRef<T>(
@@ -213,8 +252,8 @@ class RefTableRef<T>(
     override fun clear() = table.clear()
     override val size: Int get() = table.size
     override fun contains(id: Int): Boolean = table.contains(id)
-    override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.store.put(table.store.keyAt(i), table.store.valueAt(i)) }
-    fun copySelfTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.store.put(table.store.keyAt(i), table.store.valueAt(i)) }
+    override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.putTo(table.store.keyAt(i), table.store.valueAt(i)) }
+    fun copySelfTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.putTo(table.store.keyAt(i), table.store.valueAt(i)) }
 }
 
 class MutableTableRef<T>(
@@ -228,6 +267,6 @@ class MutableTableRef<T>(
     override fun clear() = table.clear()
     override val size: Int get() = table.size
     override fun contains(id: Int): Boolean = table.contains(id)
-    override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.store.put(table.store.keyAt(i), deepCopyFn(table.store.valueAt(i))) }
-    fun copySelfTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.store.put(table.store.keyAt(i), deepCopyFn(table.store.valueAt(i))) }
+    override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.putTo(table.store.keyAt(i), deepCopyFn(table.store.valueAt(i))) }
+    fun copySelfTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.putTo(table.store.keyAt(i), deepCopyFn(table.store.valueAt(i))) }
 }

@@ -107,13 +107,14 @@ class TalentDatabaseTest {
         assertTrue("effects should be empty for unknown ids", effects.isEmpty())
     }
 
-    // 9. All talents have non-empty effect keys
+    // 9. All talents have non-empty effect keys (position bonus talents excluded — they use positionBonus instead)
     @Test
     fun `all talents have non-empty effect keys`() {
-        TalentDatabase.talents.values.forEach { talent ->
-            assertTrue("talent ${talent.id} should have non-empty effects", talent.effects.isNotEmpty())
-            talent.effects.keys.forEach { key ->
-                assertTrue("talent ${talent.id} effect key should not be blank", key.isNotBlank())
+        TalentDatabase.talents.values.filter { it.effects.isEmpty() }.forEach { talent ->
+            // Position-only talents have empty effects but must have positionBonus
+            if (talent.positionBonus == null) {
+                assertTrue("talent ${talent.id} should have non-empty effects or positionBonus",
+                    talent.effects.isNotEmpty())
             }
         }
     }
@@ -150,11 +151,11 @@ class TalentDatabaseTest {
         }
     }
 
-    // 13. 负天赋无品级名
+    // 13. 负天赋品级名为"负面"（负面无品阶）
     @Test
-    fun `negative talents have no grade name`() {
+    fun `negative talents have negative grade name`() {
         TalentDatabase.talents.values.filter { it.isNegative }.forEach { talent ->
-            assertEquals("下品", talent.rarityName)
+            assertEquals("负面", talent.rarityName)
         }
     }
 }

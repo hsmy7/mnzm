@@ -11,7 +11,12 @@
       "优化：CultivationRateCalculator映射缓存——associateBy改用引用检测自动缓存，修炼热路径每秒省2-3次全量重建",
       "优化：processTickPhases Pair消除——改为Int bitmask，减少30次/秒分配",
       "优化：Baseline Profile——app/src/main/baseline-prof/baseline.prof含111条启动路径HSPL规则，首次启动AOT编译加速",
-      "修复：CultivationCoreTest/DiscipleBreakthroughHandlerTest 17个预存测试失败——Mockito mock补stub disciples StateFlow"
+      "修复：CultivationCoreTest/DiscipleBreakthroughHandlerTest 17个预存测试失败——Mockito mock补stub disciples StateFlow",
+      "重构：ComponentTable写入守卫加固——requireWrite/onWrite改为private+setter，新增putTo()守卫方法，封堵copyTo()字节码级暴露路径",
+      "重构：月度交易合并——GameEngineCore中政策成本+月变事件+自动排班+月度事件合并为单stateStore.update事务",
+      "优化：ADPF Performance Hint集成——游戏循环接入ThermalMonitor帧率提示，API 31+帧率稳定性提升",
+      "优化：AAB纹理压缩格式分发——Google Play自动为设备分配合适纹理格式",
+      "修复：TalentDatabaseTest 2个预存失败——负天赋品级名断言对齐\「负面」，位置天赋排除空effects检查"
     ]
   },
   {

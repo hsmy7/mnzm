@@ -244,7 +244,7 @@ fun DiscipleChatDialog(
             val blocked = mutableListOf<String>()
             val canBlock = skills != null
             val e = randomized.copy(
-                loyaltyDelta = if (canBlock && randomized.loyaltyDelta > 0 && skills!!.loyalty >= 100) { blocked.add("弟子忠诚超群无法再提升"); 0 }
+                loyaltyDelta = if (canBlock && randomized.loyaltyDelta > 0 && skills.loyalty >= 100) { blocked.add("弟子忠诚超群无法再提升"); 0 }
                     else if (canBlock && randomized.loyaltyDelta < 0 && skills.loyalty <= 1) { blocked.add("弟子忠诚已至谷底无法再降低"); 0 }
                     else randomized.loyaltyDelta,
                 moralityDelta = if (canBlock && randomized.moralityDelta > 0 && skills.morality >= 100) { blocked.add("弟子道德超群无法再提升"); 0 }

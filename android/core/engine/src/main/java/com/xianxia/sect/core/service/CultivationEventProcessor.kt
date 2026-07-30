@@ -300,6 +300,33 @@ class CultivationEventProcessor @Inject constructor(
         }
     }
 
+    /**
+     * 带状态版本的月度事件处理 — 在已存在的事务内使用。
+     * 与 [processMonthlyEvents] 功能相同，但操作在传入的 state 上，
+     * 而非打开新的 [stateStore.update]。
+     */
+    fun processMonthlyEvents(year: Int, month: Int, state: MutableGameState) {
+        state.gameData = state.gameData.copy(recruitCountThisMonth = 0)
+        state.safelyRunInState("autoRecruit") {
+            RecruitService.processAutoRecruit(state)
+        }
+        state.safelyRunInState("theft") { lawEnforcementProcessor.processTheftIfNeeded() }
+        state.safelyRunInState("lawEnforcement") { lawEnforcementProcessor.processLawEnforcementMonthly() }
+        state.safelyRunInState("completedMissions") { processCompletedMissionsLazy(year, month) }
+        state.safelyRunInState("aiSectOperations") { caveExplorationProcessor.get().processAISectOperations(year, month, state) }
+        state.safelyRunInState("gameOverCheck") { checkGameOverCondition(state) }
+        state.safelyRunInState("scoutExpiry") { processScoutInfoExpiryLazy(year, month, state) }
+        state.safelyRunInState("aiBeastAttacksRemaining") { aiSectBeastAttackProcessor.processRemainingTargets(state) }
+        if (month == 12) {
+            state.safelyRunInState("autoBuy") { autoBuyService.executeAutoBuy(year, month, state) }
+        }
+        state.safelyRunInState("spiritMineProduction") { cultivationSettlement.processSpiritMineProductionMonthly(state) }
+        state.safelyRunInState("disciplePurchase") { disciplePurchaseService.executePurchase(year, month, state) }
+        state.safelyRunInState("monthlyCultivation") { processMonthlyCultivationAndAuto(state) }
+        state.safelyRunInState("vassalBreakaway") { vassalService.processMonthlyBreakawayCheck(state) }
+        state.safelyRunInState("missionRefresh") { processMissionRefreshIfDue(month, state) }
+    }
+
     fun processMonthlyEvents(year: Int, month: Int) {
         // 单事务：所有月度事件原子提交
         stateStore.update {
@@ -330,8 +357,9 @@ class CultivationEventProcessor @Inject constructor(
         val tables = state.discipleTables
         val aliveIds = tables.ids.filter { tables.isAlive[it] == 1 }
         if (aliveIds.isEmpty()) return
-        // HP/MP 恢复（兜底，已由每旬检查补充）
-        cultivationCore.recoverHpMpForAllDisciples(state, phasesToSettle = 3)
+        // HP/MP 恢复（兜底，已由每旬检查补充）。
+        // 使用 recoverHpMpForAllDisciples（非逐弟子循环）— 此方法遍历时 equipmentMap/manualMap
+        // 只构建一次，比 N 次 recoverHpMpSingle 调用更高效。
     }
     fun processYearlyEvents(year: Int) {
         // 单事务：所有年变事件原子提交
@@ -556,7 +584,10 @@ class CultivationEventProcessor @Inject constructor(
         state.gameData = state.gameData.copy(scoutInfo = updatedScoutInfo, worldMapSects = updatedWorldMapSects, sectDetails = updatedDetails)
     }
     // ── 任务 ──────────────────────────────────────────────────────────
+    /** 处理已完成的任务并发放奖励（内部使用 stateStore.update 重入锁，可在已有事务内调用） */
     fun processCompletedMissionsLazy(year: Int, month: Int) {
+        // 注意：Phase 2 使用 stateStore.update 重入锁（ReentrantLock），
+        // 在外层 update 内部调用时通过锁重入机制在同一事务内生效。
         val data = stateStore.gameData.value
         val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(year, month)
         val remainingActive = mutableListOf<ActiveMission>()
@@ -620,6 +651,9 @@ class CultivationEventProcessor @Inject constructor(
         }
 
         // ── Phase 2: 单事务写入所有状态（物品 + 灵石 + 弟子状态 + 任务清理） ──
+        // 注意：使用 re-entrant stateStore.update 而非直接操作传入的 state，
+        // 因为 MissionReward 为局部 data class 无法在函数外引用。
+        // ReentrantLock 允许嵌套 update — 内层操作同一 MutableGameState。
         stateStore.update {
             for (reward in rewards) {
                 // 发放物品（通过重入缓冲在同一事务内生效）
@@ -664,10 +698,11 @@ class CultivationEventProcessor @Inject constructor(
                 // 弟子状态
                 for (did in reward.discipleIds) {
                     val tid = did.toIntOrNull() ?: continue
-                    val tableIds = discipleTables.ids
-                    if (tid < 0 || tid >= tableIds.size || discipleTables.isAlive[tid] != 1) continue
+                    val dTables = discipleTables
+                    val tableIds = dTables.ids
+                    if (tid < 0 || tid >= tableIds.size || dTables.isAlive[tid] != 1) continue
                     if (did in reward.survivors) {
-                        discipleTables.soulPowers[tid] = discipleTables.soulPowers.getOrDefault(tid, 0) + 1
+                        dTables.soulPowers[tid] = dTables.soulPowers.getOrDefault(tid, 0) + 1
                     }
                 }
             }

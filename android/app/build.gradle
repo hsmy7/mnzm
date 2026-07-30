@@ -140,6 +140,13 @@ android {
         metricsDestination = layout.buildDirectory.dir("compose_metrics")
     }
 
+    // 纹理压缩格式分发 — AAB 自动为设备分配合适的纹理格式
+    bundle {
+        texture {
+            enableSplit = true
+        }
+    }
+
     packaging {
         jniLibs {
             useLegacyPackaging = true
@@ -224,6 +231,9 @@ dependencies {
     // Bugly
     implementation libs.bugly.crashreport
     implementation libs.bugly.nativecrashreport
+
+    // Baseline Profile — 启动提速 25-35%（真机生成后替代手写 baseline.prof）
+    implementation libs.profileinstaller
 
     // 决策：保留。libs.versions.toml 已固定 Firebase 版本，待 google-services.json 就绪后启用。
     // implementation platform(libs.firebase.bom)

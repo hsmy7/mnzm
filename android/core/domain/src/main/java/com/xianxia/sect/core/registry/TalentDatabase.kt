@@ -476,7 +476,7 @@ object TalentDatabase {
                     rarity = cfg.rarity,
                     effects = emptyMap(),
                     isNegative = false,
-                    type = typeByTemplate[template]!!,
+                    type = typeByTemplate[template] ?: error("Unknown talent template: $template"),
                     template = "pos_$template",
                     positionBonus = PositionBonus(slotType, cfg.value)
                 ))

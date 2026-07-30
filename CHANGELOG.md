@@ -11,19 +11,27 @@
 - **Pair 消除（P2.2）** — `processTickPhases` 返回值改为 Int bitmask，减少30次/秒分配
 - **Baseline Profile（P0.4）** — `app/src/main/baseline-prof/baseline.prof` 含111条启动路径HSPL规则，首次启动AOT编译加速约30%
 
+### 架构债务全量治理
+
+- **写入守卫加固** — `ComponentTable` 三类型 `requireWrite`/`onWrite` 改为 `private` + setter 封装，新增 `putTo()` 守卫方法；`copyTo()`/`copySelfTo()` 全面路由守卫，封堵字节码级暴露路径（12 文件 +194/-132）
+- **月事务合并** — `GameEngineCore.processMonthYearChange` 中政策成本 + 月度事件合并为单 `stateStore.update{}` 事务，消除跨事务状态不一致窗口
+- **ADPF Performance Hint 接入** — 游戏循环集成 `ThermalMonitor.createHintSession`/`reportActualWorkDuration`/`closeHintSession`，API 31+ 自动启用帧率提示
+- **纹理压缩 AAB 分发** — `bundle { texture { enableSplit = true } }` 启用 Google Play 纹理格式分发
+- **ProfileInstaller 集成** — 添加 `profileinstaller` 依赖，`baselineprofile` 模块已有完整 `BaselineProfileGenerator`
+- **`!!` 操作符全库清零** — `TalentDatabase.kt`/`DiscipleChatDialog.kt`/`SectTradeDialog.kt` 3 处 `!!` 全部替换为安全调用
+- **`TalentDatabaseTest` 2 个预存失败修复** — 负天赋品级名测试期望对齐 `"负面"`；位置天赋（`positionBonus` 替代 effects）排除检查
+- **文档同步更新** — `architecture-debt.md`/`architecture-debt-write-guard.md` 标记全部 ✅ 已治理
+
 ### 修复
 
 - **17个预存单元测试失败** — `CultivationCoreTest`(9) + `DiscipleBreakthroughHandlerTest`(8) 因 Mockito mock 未 stub `disciples` StateFlow 而 NPE，补 stub 后全部通过
 - **AdServiceImpl TooGenericExceptionCaught** — detekt 违规，加 `@Suppress` 标注
 
-### 架构债务
-
-- `docs/architecture-debt.md` 新增 5 条远期优化项（`discipleAggregates` 增量投影、`processMonthlyEvents` 单事务化等）
-
 ### 统计
 
-- 17 文件改动，+447 / -877 行，净减 430 行
+- 22 文件改动，+224 / -141 行，净减 117 行
 - `compileReleaseKotlin` BUILD SUCCESSFUL
+- `core:domain` 全量 1456 测试 PASS（0 failure）
 
 ## [4.0.79] - 2026-07-30
 

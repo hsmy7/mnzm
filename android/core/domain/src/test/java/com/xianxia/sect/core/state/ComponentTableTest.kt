@@ -111,7 +111,7 @@ class ComponentTableTest {
     fun `onWrite callback invoked on set update remove put clear`() {
         val table = IntComponentTable()
         var writeCount = 0
-        table.onWrite = { writeCount++ }
+        table.setMutationCallback { writeCount++ }
         table[1] = 10
         assertEquals(1, writeCount)
         table.update(1) { it + 1 }
@@ -144,7 +144,7 @@ class ComponentTableTest {
     fun `onWrite not invoked on reads`() {
         val table = IntComponentTable()
         var writeCount = 0
-        table.onWrite = { writeCount++ }
+        table.setMutationCallback { writeCount++ }
         table[1] = 100
         assertEquals(1, writeCount)
         val v = table[1]

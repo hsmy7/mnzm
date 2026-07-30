@@ -65,6 +65,7 @@ class GameEngineCore @Inject constructor(
     private val aiSectBeastAttackProcessor: com.xianxia.sect.core.exploration.AISectBeastAttackProcessor,
     private val gameClock: GameTimeClock,
     private val thermalController: ThermalController,
+    private val thermalMonitor: com.xianxia.sect.core.perf.ThermalMonitor,
     private val spiritStoneWallet: SpiritStoneWallet
 ) : EngineContextDispatcher {
 
@@ -385,6 +386,8 @@ class GameEngineCore @Inject constructor(
             // ★ 帧驱动 Accumulator 循环
             var accumulatorNs = 0L
             var lastFrameTimeNs = System.nanoTime()
+            // ADPF: 创建 Performance Hint Session（API 31+，低版本自动跳过）
+            thermalMonitor.createHintSession(16_666_667L) // 60 FPS 目标
             try {
                 while (isActive) {
                     try {
@@ -433,6 +436,8 @@ class GameEngineCore @Inject constructor(
                             }
                         }
                         updateRenderFrameRate()
+                        // ADPF: 报告帧实际耗时（deltaNs 为帧间实际间隔）
+                        thermalMonitor.reportActualWorkDuration(deltaNs)
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
@@ -446,6 +451,7 @@ class GameEngineCore @Inject constructor(
                     }
                 }
             } finally {
+                thermalMonitor.closeHintSession()
                 gameLoopStoppedSignal.complete(Unit)
                 DomainLog.i(TAG, "Game loop stopped signal sent")
             }
@@ -850,6 +856,8 @@ class GameEngineCore @Inject constructor(
                 processBloodRefinementCompletions()
                 // P0.2: 自动排班 + 住所忠诚度合入同一事务，减少月度独立事务数量
                 cultivationService.processMonthlyAutoAssignments(this)
+                // ★ 月度事件合并到同一事务（单原子提交 policy + 月变 + 重算 checkpoints）
+                cultivationService.processMonthlyEventsOnState(this)
             }
             if (policyResult is PolicyCostResult.SomeDisabled) {
                 val disabledList = (policyResult as PolicyCostResult.SomeDisabled).disabledPolicies
@@ -857,10 +865,8 @@ class GameEngineCore @Inject constructor(
                 DomainLog.w(TAG, "tickInternal: policies auto-disabled due to insufficient spirit stones: " +
                     "${disabledList.joinToString(", ")}")
             }
-            // 月度事件（内部有多事务操作，后续需重构为单事务）
-            cultivationService.processMonthlyEvents()
             missionCheck?.invoke()
-            // ★ 事务外 flush 灵石变更事件，避免 UI 层读到部分状态窗口
+            // 事务外 flush 灵石变更事件，避免 UI 层读到部分状态窗口
             spiritStoneWallet.flushPendingEvents(eventBus)
         }
     }
