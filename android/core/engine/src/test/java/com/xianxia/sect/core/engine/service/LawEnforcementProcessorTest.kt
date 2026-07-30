@@ -383,6 +383,9 @@ class LawEnforcementProcessorTest {
     @Test
     fun `e2e - 非空闲不偷盗`() {
         val id = 1; val tables = makeTables(id).also { it.statuses[id] = DiscipleStatus.MINING }
+        // 校验 status 已正确设置为 MINING（防御测试间干扰导致状态重置）
+        assertSame("弟子状态应为 MINING", DiscipleStatus.MINING,
+            tables.statuses.getOrDefault(id, DiscipleStatus.IDLE))
         val state = makeState(GameData(spiritStones = 1_000_000L, gameYear = 10, gameMonth = 6), tables)
         val (mockStore, _) = makeMocks(GameData(spiritStones = 1_000_000L))
         val proc = LawEnforcementProcessor(mockStore, GameRngManager(),

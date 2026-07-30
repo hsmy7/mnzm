@@ -216,8 +216,18 @@ fun GameEngine.canClaimSectLevelReward(level: Int): Boolean {
  */
 suspend fun GameEngine.upgradeSectLevel(): SectLevelUpgradeResult = engineContextDispatcher.withEngineContext {
     val snapshot = stateStore.gameDataSnapshot
-    val playerSect = snapshot.worldMapSects.find { it.isPlayerSect }
-        ?: return@withEngineContext SectLevelUpgradeResult.Error("未找到玩家宗门")
+    var playerSect = snapshot.worldMapSects.find { it.isPlayerSect }
+
+    // 未找到玩家宗门时，尝试修复后重试一次
+    if (playerSect == null) {
+        DomainLog.w(TAG, "upgradeSectLevel: 未找到玩家宗门，尝试修复")
+        ensureGameDataIntegrity()
+        val repairedSnapshot = stateStore.gameDataSnapshot
+        playerSect = repairedSnapshot.worldMapSects.find { it.isPlayerSect }
+        if (playerSect == null) {
+            return@withEngineContext SectLevelUpgradeResult.Error("未找到玩家宗门，修复后仍不存在")
+        }
+    }
 
     val currentLevel = playerSect.level
     if (currentLevel >= SectLevel.TOP) {

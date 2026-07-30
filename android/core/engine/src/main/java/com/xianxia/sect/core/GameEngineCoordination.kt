@@ -104,15 +104,28 @@ suspend fun GameEngine.ensureGameDataIntegrity() {
 
 private suspend fun GameEngine.checkAndRepairWorldMapSects() {
     val gd = stateStore.gameDataSnapshot
-    if (gd.worldMapSects.isNotEmpty()) return
-    val sectName = gd.sectName
+    // 阶段1：列表为空 → 重生
+    if (gd.worldMapSects.isEmpty()) {
+        regenerateAllWorldSects(gd.sectName)
+        return
+    }
+    // 阶段2：列表非空但缺少玩家宗门 → 修复重生
+    if (gd.worldMapSects.none { it.isPlayerSect }) {
+        DomainLog.w("ensureGameDataIntegrity",
+            "worldMapSects 非空 (${gd.worldMapSects.size} 个) 但缺少玩家宗门，修复重生" +
+            " (sectName=${gd.sectName})")
+        regenerateAllWorldSects(gd.sectName)
+    }
+}
+
+/** 通过 WorldMapGenerator 重生全部宗门数据（含 sectRelations/aiSectDisciples） */
+private suspend fun GameEngine.regenerateAllWorldSects(sectName: String) {
     if (sectName.isBlank()) {
-        DomainLog.e("ensureGameDataIntegrity", "worldMapSects 为空且 sectName 为空，无法重生")
+        DomainLog.e("ensureGameDataIntegrity", "worldMapSects 为空/缺且 sectName 为空，无法重生")
         return
     }
     DomainLog.w("ensureGameDataIntegrity",
-        "worldMapSects 为空，从 FixedSectPositions 重生" +
-        " (sectName=$sectName)")
+        "从 FixedSectPositions 重生 worldMapSects (sectName=$sectName)")
     val generationResult = WorldMapGenerator.generateWorldSects(sectName)
     val sectRelations = WorldMapGenerator.initializeSectRelations(generationResult.sects)
     stateStore.update {

@@ -26,17 +26,26 @@ class SaveFacadeImpl @Inject constructor(
      */
     private fun validateWorldMapSectsBeforeSave() {
         val gd = stateStore.gameDataSnapshot
-        if (gd.worldMapSects.isNotEmpty()) return
-
-        val sectName = gd.sectName
-        if (sectName.isBlank()) {
-            DomainLog.e("SaveFacade", "存档前检测到 worldMapSects 为空且 sectName 为空，" +
-                "无法重生宗门数据，存档将包含空宗门列表")
+        // 阶段1：列表为空 → 重生
+        if (gd.worldMapSects.isEmpty()) {
+            regenerateSectsBeforeSave(gd.sectName)
             return
         }
+        // 阶段2：列表非空但缺少玩家宗门 → 修复重生
+        if (gd.worldMapSects.none { it.isPlayerSect }) {
+            DomainLog.e("SaveFacade", "存档前检测到 worldMapSects 缺少玩家宗门，" +
+                "同步重生 sectName=${gd.sectName}")
+            regenerateSectsBeforeSave(gd.sectName)
+        }
+    }
 
-        DomainLog.e("SaveFacade", "存档前检测到 worldMapSects 为空，" +
-            "同步重生 sectName=$sectName")
+    private fun SaveFacadeImpl.regenerateSectsBeforeSave(sectName: String) {
+        if (sectName.isBlank()) {
+            DomainLog.e("SaveFacade", "存档前 worldMapSects 缺失且 sectName 为空，" +
+                "无法重生宗门数据，存档将包含不完整宗门列表")
+            return
+        }
+        DomainLog.e("SaveFacade", "存档前同步重生 worldMapSects sectName=$sectName")
         val generationResult = WorldMapGenerator.generateWorldSects(sectName)
         val sectRelations = WorldMapGenerator.initializeSectRelations(generationResult.sects)
         // 同步更新：getStateSnapshotSync 在同一线程调用，确保 snapshot 包含修复后的数据

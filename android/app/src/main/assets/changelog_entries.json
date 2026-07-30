@@ -1,7 +1,7 @@
 [
   {
     "version": "4.0.80",
-    "date": "2026-07-30",
+    "date": "2026-07-31",
     "changes": [
       "修复：弟子执行任务后永远卡在「任务中」——processCompletedMissionsLazy移除任务后漏掉了弟子状态重置，导致弟子永远无法恢复为「空闲中」",
       "修复：任务阁拆除无法释放卡住的弟子——拆除时未清理activeMissions且ON_MISSION是受保护状态，拆除任务阁后弟子依然卡在任务中",
@@ -20,7 +20,9 @@
       "优化：ADPF Performance Hint集成——游戏循环接入ThermalMonitor帧率提示，API 31+帧率稳定性提升",
       "优化：AAB纹理压缩格式分发——Google Play自动为设备分配合适纹理格式",
       "修复：TalentDatabaseTest 2个预存失败——负天赋品级名断言对齐\「负面」，位置天赋排除空effects检查",
-      "修复：红米/小米等设备音频断续——游戏线程THREAD_PRIORITY_URGENT_AUDIO(-19)高于音频混音线程(-16)，导致音频buffer underrun。降级为THREAD_PRIORITY_URGENT_DISPLAY(-8)"
+      "修复：红米/小米等设备音频断续——游戏线程THREAD_PRIORITY_URGENT_AUDIO(-19)高于音频混音线程(-16)，导致音频buffer underrun。降级为THREAD_PRIORITY_URGENT_DISPLAY(-8)",
+      "修复：没收弟子装备/功法无效——confiscateStorageBagItem的when分支匹配「equipment」/「manual」，但储物袋实际存的是「equipment_stack」/「manual_stack」，导致装备/功法没收静默无动作。now分支同时匹配带/不带_stack后缀变体",
+      "修复：宗门晋升显示「未找到玩家宗门」——checkAndRepairWorldMapSects等保护函数只检查worldMapSects列表是否为空，不检查列表中是否缺少玩家宗门。增加玩家宗门缺失检测+upgradeSectLevel修复重试机制"
     ]
   },
   {

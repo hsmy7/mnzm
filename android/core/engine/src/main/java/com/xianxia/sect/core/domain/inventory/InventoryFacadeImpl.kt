@@ -24,6 +24,10 @@ import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.StackKey
 import com.xianxia.sect.core.state.StackableItemStore
 
+import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_EQUIPMENT_INSTANCE
+import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_EQUIPMENT_STACK
+import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_MANUAL_INSTANCE
+import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_MANUAL_STACK
 import com.xianxia.sect.core.engine.system.computeMaxSlots
 import com.xianxia.sect.core.engine.system.computeSlotCount
 import com.xianxia.sect.core.util.GameRngManager
@@ -92,7 +96,7 @@ class InventoryFacadeImpl @Inject constructor(
             val disciple = discipleTables.assemble(id)
 
             when (item.itemType.lowercase()) {
-                "equipment" -> {
+                "equipment", ITEM_TYPE_EQUIPMENT_STACK, ITEM_TYPE_EQUIPMENT_INSTANCE -> {
                     val template = EquipmentDatabase.getTemplateByName(item.name)
                     if (template != null) {
                         val stack = EquipmentStack(
@@ -134,7 +138,7 @@ class InventoryFacadeImpl @Inject constructor(
                         DomainLog.w(TAG, "没收物品失败：找不到 ${item.name} 的模板")
                     }
                 }
-                "manual" -> {
+                "manual", ITEM_TYPE_MANUAL_STACK, ITEM_TYPE_MANUAL_INSTANCE -> {
                     val template = ManualDatabase.getByName(item.name)
                     if (template != null) {
                         val mStack = ManualDatabase.createFromTemplate(template).copy(quantity = 1)

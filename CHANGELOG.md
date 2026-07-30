@@ -1,4 +1,4 @@
-## [4.0.80] - 2026-07-30
+## [4.0.80] - 2026-07-31
 
 ### 修复
 
@@ -32,6 +32,11 @@
 
 - **17个预存单元测试失败** — `CultivationCoreTest`(9) + `DiscipleBreakthroughHandlerTest`(8) 因 Mockito mock 未 stub `disciples` StateFlow 而 NPE，补 stub 后全部通过
 - **AdServiceImpl TooGenericExceptionCaught** — detekt 违规，加 `@Suppress` 标注
+
+### 修复
+
+- **没收弟子装备/功法物品无效** — `confiscateStorageBagItem` 的 `when` 分支匹配 `"equipment"`/`"manual"`，但储物袋实际存的是 `"equipment_stack"`/`"manual_stack"`（带 `_stack` 后缀），导致所有装备/功法没收静默无动作。修复：`when` 分支同时匹配带/不带后缀变体
+- **宗门晋升显示「未找到玩家宗门」** — `checkAndRepairWorldMapSects()` 等保护函数只检查列表是否为空，不检查列表中是否缺少玩家宗门。修复：增加第二阶段检测——列表非空但 `isPlayerSect == true` 宗门不存在时触发重生；`upgradeSectLevel()` 找不到玩家宗门时先调 `ensureGameDataIntegrity()` 修复重试再报错
 
 ### 统计
 
