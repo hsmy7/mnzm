@@ -61,6 +61,8 @@ suspend fun GameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId: String) {
                     discipleTables.statusData[id] = existingData - setOf(
                         "reflectionStartYear", "reflectionEndYear"
                     )
+                    // 清除受保护状态标记，后续 syncSingleDiscipleStatus 会重新推导正确状态
+                    discipleTables.statuses[id] = DiscipleStatus.IDLE
                 }
                 DiscipleStatus.REFINING -> {
                     gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlots(gameData, discipleId)

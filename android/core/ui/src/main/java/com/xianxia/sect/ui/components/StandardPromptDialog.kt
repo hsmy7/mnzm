@@ -1,6 +1,14 @@
 package com.xianxia.sect.ui.components
 
+import android.app.Activity
+import android.os.Build
+import android.util.Log
+import android.view.View
+import android.view.Window
+import android.view.WindowManager
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -13,14 +21,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,8 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.annotation.DrawableRes
-import com.xianxia.sect.core.ui.R
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -38,16 +46,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
-import androidx.activity.compose.LocalActivity
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
-import android.app.Activity
-import android.os.Build
-import android.view.View
-import android.view.Window
-import android.view.WindowManager
 import androidx.core.view.WindowInsetsCompat
+import com.xianxia.sect.core.ui.R
 import androidx.core.view.WindowInsetsControllerCompat
 import com.xianxia.sect.ui.components.clickableWithSound
 
@@ -55,11 +55,21 @@ import com.xianxia.sect.ui.components.clickableWithSound
  * 在 Composable 挂载期间将目标窗口的 softInputMode 临时切换为 [mode]，
  * 卸载时自动恢复。适用于 [Dialog] 内的平台 Dialog 窗口和 Activity 内的 Box overlay。
  *
- * 解决 Xiaomi HyperOS 上 [adjustResize] 导致的键盘反复弹出收起频闪问题。
+ * 使用 [SOFT_INPUT_ADJUST_PAN] 替代 [SOFT_INPUT_ADJUST_NOTHING] 以兼容
+ * 国产 ROM（小米 HyperOS 等）上 [adjustResize] 导致的键盘反复弹出收起频闪问题。
+ * [ADJUST_PAN] 不做窗口 resize（切断振荡回路），仅平移内容，配合 [imePadding] 保持输入框可见。
+ *
+ * 行业调研结论（2026-07）：
+ * - Google IssueTracker #229378542: imePadding 在 Dialog 内不可靠
+ * - StackOverflow 社区共识: adjustPan 是 Compose Dialog 输入框的最佳实践
+ * - Xiaomi MIUI/HyperOS 已知缺陷: imePadding 在 Dialog 窗口上无法正确处理 keyboard insets
+ * - Unity/Flutter 游戏行业: adjustNothing + 手动键盘高度监听
+ *
+ * @see DialogSystemBarGuard
  */
 @Composable
 fun DialogSoftInputGuard(
-    mode: Int = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+    mode: Int = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN
 ) {
     // 遍历 View 层级寻找 DialogWindowProvider（平台 Dialog 窗口）
     val dialogWindow = generateSequence(LocalView.current) {
@@ -69,8 +79,18 @@ fun DialogSoftInputGuard(
         .firstOrNull()
         ?.window
     val targetWindow = dialogWindow
+        ?: run {
+            // 回退路径：部分国产 ROM 的 Dialog 视图层级可能不包含 DialogWindowProvider，
+            // 尝试通过 rootView（Dialog 窗口的顶层 View）获取
+            val rootView = LocalView.current.rootView
+            (rootView as? DialogWindowProvider)?.window
+        }
         ?: (LocalActivity.current as? Activity)?.window
-        ?: return
+        ?: run {
+            Log.w("DialogSoftInputGuard", "无法获取 Dialog/Activity 窗口引用，" +
+                "softInputMode 防护失效——当前 ROM 可能在 Dialog 窗口上触发键盘振荡")
+            return
+        }
     val originalMode = remember { targetWindow.attributes.softInputMode }
     DisposableEffect(targetWindow) {
         targetWindow.setSoftInputMode(mode)

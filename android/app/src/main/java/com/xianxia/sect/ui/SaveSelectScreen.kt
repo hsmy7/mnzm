@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalLocale
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.sp
@@ -216,6 +217,7 @@ fun SaveSelectScreen(
     // ── 宗门名输入对话框 ──
     if (showSectNameDialog != null) {
         val focusRequester = remember { FocusRequester() }
+        val dialogView = LocalView.current  // 在 Composable 上下文中捕获 View 引用
         InlineStandardPromptDialog(
             onDismissRequest = { showSectNameDialog = null },
             title = "创建宗门",
@@ -232,8 +234,9 @@ fun SaveSelectScreen(
             },
             content = {
                 LaunchedEffect(Unit) {
-                    kotlinx.coroutines.delay(100) // 等待 Dialog 入场动画完成，兼容 ColorOS/FuntouchOS
-                    focusRequester.requestFocus()
+                    // 等待 Dialog 布局完成后再请求焦点，避免在入场动画完成前弹出键盘
+                    // 使用 view.post 替代固定 delay(100)，适配不同设备动画速度差异
+                    dialogView.post { focusRequester.requestFocus() }
                 }
                 Spacer(Modifier.weight(1f))
                 OutlinedTextField(

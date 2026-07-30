@@ -5,6 +5,8 @@
 - **弟子执行任务后永远卡在「任务中」** — `processCompletedMissionsLazy` 在 `CultivationEventProcessor` 中移除已完成任务后漏掉了给 `discipleTables.statuses[tid]` 设置 `IDLE`，导致弟子状态永远卡在 `ON_MISSION`。`deriveDiscipleStatus` 中对 `ON_MISSION` 的无条件保护使后续的 `syncAllDiscipleStatuses` 无法修复。修复：在月度结算的奖励发放事务中直接写入 `DiscipleStatus.IDLE`；同时 `ON_MISSION` 改为从 `activeMissions` 数据推导（`hasActiveMission` 参数），旧存档中已卡住的弟子在下次状态同步时自动愈合
 - **任务阁拆除无法释放卡住弟子** — 任务阁注册时 `slotGroups = emptyList()`，拆除时 `cleanupBuildingSlots` 不清理 `activeMissions`。修复：在 `cleanupBuildingSlots` 中检测 `BuildingType.MISSION_HALL` 时清除 `activeMissions` 并重置所有 `ON_MISSION` 存活弟子为 `IDLE`
 - **红米/小米等设备音频断续** — `GameEngineCore` 游戏线程使用 `THREAD_PRIORITY_URGENT_AUDIO`(-19)，优先级高于音频混音线程(-16)，导致音频 buffer underrun 断断续续。修复：降级为 `THREAD_PRIORITY_URGENT_DISPLAY`(-8)
+- **监牢释放弟子无反应** — `releaseReflectionDisciple` 移除了 statusData 中的思过年份标记但未重置弟子状态字段，`deriveDiscipleStatus` 的受保护状态检查（`currentStatus == REFLECTING → REFLECTING`）继续锁定状态。修复：释放时显式将 `statuses[id]` 设为 `IDLE`，使后续状态推导能正确计算；同修 `releaseTheftDisciple` 和 `releaseDiscipleFromAllSlotsAtomic` REFLECTING 分支
+- **创建宗门输入框键盘频闪（小米 HyperOS）** — `DialogSoftInputGuard` 的 ADJUST_NOTHING 因国产 ROM 视图树中找不到 `DialogWindowProvider` 而静默回退到 Activity 窗口，Dialog 窗口仍使用默认 adjustResize 触发键盘振荡。修复：行业调研驱动，改为 ADJUST_PAN（不 resize 窗口切断振荡回路）+ `rootView` 备用窗口查找路径 + 焦点请求从固定 `delay(100)` 改为布局完成后回调
 
 ### 优化
 

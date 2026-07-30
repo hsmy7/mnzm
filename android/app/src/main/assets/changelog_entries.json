@@ -22,7 +22,9 @@
       "修复：TalentDatabaseTest 2个预存失败——负天赋品级名断言对齐\「负面」，位置天赋排除空effects检查",
       "修复：红米/小米等设备音频断续——游戏线程THREAD_PRIORITY_URGENT_AUDIO(-19)高于音频混音线程(-16)，导致音频buffer underrun。降级为THREAD_PRIORITY_URGENT_DISPLAY(-8)",
       "修复：没收弟子装备/功法无效——confiscateStorageBagItem的when分支匹配「equipment」/「manual」，但储物袋实际存的是「equipment_stack」/「manual_stack」，导致装备/功法没收静默无动作。now分支同时匹配带/不带_stack后缀变体",
-      "修复：宗门晋升显示「未找到玩家宗门」——checkAndRepairWorldMapSects等保护函数只检查worldMapSects列表是否为空，不检查列表中是否缺少玩家宗门。增加玩家宗门缺失检测+upgradeSectLevel修复重试机制"
+      "修复：宗门晋升显示「未找到玩家宗门」——checkAndRepairWorldMapSects等保护函数只检查worldMapSects列表是否为空，不检查列表中是否缺少玩家宗门。增加玩家宗门缺失检测+upgradeSectLevel修复重试机制",
+      "修复：监牢释放弟子无反应——releaseReflectionDisciple移除了statusData中的思过年份标记但未重置弟子状态字段，deriveDiscipleStatus的受保护状态检查继续返回REFLECTING，弟子永远无法从监牢释放",
+      "修复：创建宗门输入框键盘频闪——小米HyperOS上DialogSoftInputGuard的ADJUST_NOTHING因视图树遍历找不到DialogWindowProvider而静默失效，Dialog窗口仍使用adjustResize触发键盘振荡。改为ADJUST_PAN（不触发窗口resize）+焦点请求从固定delay(100)改为布局完成回调"
     ]
   },
   {

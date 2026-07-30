@@ -106,6 +106,8 @@ class DiscipleFacadeImpl @Inject constructor(
             if (discipleTables.isAlive[id] != 1) return@update
             val existingData = discipleTables.statusData[id]
             discipleTables.statusData[id] = existingData - setOf("reflectionStartYear", "reflectionEndYear")
+            // 清除受保护状态标记，使 deriveDiscipleStatus 可以重新推导
+            discipleTables.statuses[id] = DiscipleStatus.IDLE
             val disciple = discipleTables.assemble(id)
             val baseStats = DiscipleStatCalculator.getBaseStats(disciple)
             discipleTables.loyalties[id] = (baseStats.loyalty + loyaltyChange).coerceAtLeast(0)
@@ -121,7 +123,8 @@ class DiscipleFacadeImpl @Inject constructor(
             if (discipleTables.isAlive[id] != 1) return@update
             val existingData = discipleTables.statusData[id]
             discipleTables.statusData[id] = existingData - setOf("reflectionStartYear", "reflectionEndYear")
-            // 不修改道德/忠诚/任何数值，纯状态变更
+            // 清除受保护状态标记，使 deriveDiscipleStatus 可以重新推导（否则 REFLECTING 受保护检查会锁定状态）
+            discipleTables.statuses[id] = DiscipleStatus.IDLE
         }
         discipleService.syncSingleDiscipleStatus(discipleId)
     }
