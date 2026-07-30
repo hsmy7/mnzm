@@ -990,6 +990,11 @@ class DiscipleTables {
      */
     fun deepCopy(dirtyColumns: Set<Int>? = null): DiscipleTables {
         val copy = DiscipleTables()
+        // ★ 设置 writeAllowed = true 后再执行复制，防止 copyTo → putTo → requireWrite 因
+        //    copy.writeAllowed == false 抛 IllegalStateException。deepCopy 的调用方
+        //    （stateStore.update{}）随后会将 writeAllowed 重置为 true 供事务内使用，
+        //    事务结束后置回 false，因此此处分两个阶段管理 writeAllowed 是安全的。
+        copy.writeAllowed = true
         synchronized(_ids) {
             val idsSnapshot = this._ids.toList()
             if (dirtyColumns.isNullOrEmpty()) {
@@ -1006,6 +1011,7 @@ class DiscipleTables {
         }
         // 显式复制死亡记录，防止跨 update 边界丢失
         copy._deathRecords.addAll(this._deathRecords)
+        copy.writeAllowed = false  // ★ 复制完成后重置守卫，由调用方（update{}）的 .apply { writeAllowed = true } 再次开启
         return copy
     }
 
