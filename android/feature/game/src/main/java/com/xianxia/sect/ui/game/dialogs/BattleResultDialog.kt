@@ -39,7 +39,8 @@ internal fun BattleResultDialog(
     battleLog: BattleLog?,
     onConfirm: () -> Unit,
     onViewDetail: (BattleLog) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    scrimEnabled: Boolean = true
 ) {
     val resultColor = if (resultData.victory) Color(0xFF4CAF50) else Color(0xFFF44336)
     val title = if (resultData.isBeastDefense) {
@@ -61,7 +62,8 @@ internal fun BattleResultDialog(
         mode = DialogMode.Half,
         scrollableContent = false,
         showCloseButton = false,
-        dismissOnClickOutside = false
+        dismissOnClickOutside = false,
+        scrimEnabled = scrimEnabled
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             LazyColumn(

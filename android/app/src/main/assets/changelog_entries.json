@@ -1,5 +1,12 @@
 [
   {
+    "version": "4.0.81",
+    "date": "2026-07-31",
+    "changes": [
+      "优化：对话框遮罩层统一——无论同时打开几个界面，全局只渲染一层遮罩。取消各Dialog窗口独立scrim绘制，改为GameOverlayHost根节点单例scrim，消除多界面叠加时遮罩变黑问题"
+    ]
+  },
+  {
     "version": "4.0.80",
     "date": "2026-07-31",
     "changes": [
@@ -10,6 +17,7 @@
       "优化：月度结算事务合并——processAutoAssign+processResidenceLoyalty移入主事务，月流事务数4→2",
       "优化：突破判定列级直读过滤——assembleAll()全量组装改为列级过滤+按需assemble，每tick节省~0.5-1ms",
       "优化：UnifiedPerformanceMonitor精简——1122行精简至477行，删除未使用的Trace/月变事件指标/Choreographer回调等645行废弃代码",
+      "优化：对话框遮罩层统一——无论同时打开几个界面，全局只渲染一层遮罩。取消各Dialog窗口的独立scrim绘制，改为GameOverlayHost根节点单例scrim，消除多界面叠加时遮罩变黑问题",
       "优化：SoftwareCanvasBackend每帧Set分配消除——mutableSetOf改为BooleanArray(16)，减少渲染线程GC压力",
       "优化：CultivationRateCalculator映射缓存——associateBy改用引用检测自动缓存，修炼热路径每秒省2-3次全量重建",
       "优化：processTickPhases Pair消除——改为Int bitmask，减少30次/秒分配",

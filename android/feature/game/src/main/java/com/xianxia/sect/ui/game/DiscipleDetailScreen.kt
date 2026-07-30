@@ -62,7 +62,8 @@ fun DiscipleDetailDialog(
     manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
     viewModel: GameViewModel? = null,
     onDismiss: () -> Unit,
-    onNavigateToDisciple: ((DiscipleAggregate) -> Unit)? = null
+    onNavigateToDisciple: ((DiscipleAggregate) -> Unit)? = null,
+    scrimEnabled: Boolean = true
 ) {
     val talents = remember(disciple.talentIds) {
         TalentDatabase.getTalentsByIds(disciple.talentIds)
@@ -172,7 +173,10 @@ fun DiscipleDetailDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0x99000000))
+                .then(
+                    if (scrimEnabled) Modifier.background(Color(0x99000000))
+                    else Modifier
+                )
         ) {
             key(disciple.id) {
             BackHandler(onBack = onDismiss)
@@ -684,7 +688,8 @@ fun DiscipleDetailDialog(
     manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(),
     viewModel: GameViewModel,
     onDismiss: () -> Unit,
-    onNavigateToDisciple: ((DiscipleAggregate) -> Unit)? = null
+    onNavigateToDisciple: ((DiscipleAggregate) -> Unit)? = null,
+    scrimEnabled: Boolean = true
 ) {
     val equipment by viewModel.equipmentInstances.collectAsStateWithLifecycle()
     val manuals by viewModel.manualInstances.collectAsStateWithLifecycle()
@@ -701,6 +706,7 @@ fun DiscipleDetailDialog(
         manualProficiencies = manualProficiencies,
         viewModel = viewModel,
         onDismiss = onDismiss,
-        onNavigateToDisciple = onNavigateToDisciple
+        onNavigateToDisciple = onNavigateToDisciple,
+        scrimEnabled = scrimEnabled
     )
 }

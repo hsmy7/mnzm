@@ -25,6 +25,7 @@ import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
+import com.xianxia.sect.core.model.WarningStage
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.ui.game.AlchemyViewModel
 import com.xianxia.sect.ui.game.ActivityViewModel
@@ -183,11 +184,34 @@ fun GameOverlayHost(
             viewModel.clearPendingBeastAttacks()
         }
     }
+    // 单例遮罩层：无论开几个界面，永远只画一层遮罩
+    val marriageProposalVisible = pendingMarriageProposals.firstOrNull() != null
+    val attackWarningVisible = viewModel.attackWarnings.value.any { warning ->
+        val shownIds = viewModel.shownWarningStageIds.value
+        (warning.stage == WarningStage.DENUNCIATION && "${warning.warningId}:DENUNCIATION" !in shownIds) ||
+            (warning.stage == WarningStage.WAR_DECLARATION && "${warning.warningId}:WAR_DECLARATION" !in shownIds)
+    }
+    val anyDialogVisible = currentDialogType != DialogType.None ||
+        tipDialogMessage != null ||
+        showWarehouseFullDialog ||
+        pendingNotification != null ||
+        currentAttack != null ||
+        marriageProposalVisible ||
+        attackWarningVisible ||
+        viewModel.overlayOrder.isNotEmpty()
+    if (anyDialogVisible) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0x99000000))
+        )
+    }
 
     if (currentAttack != null && beastStillAlive) {
         BeastAttackWarningDialog(
             attack = currentAttack,
             currentSpiritStones = gdSnapshot.spiritStones,
+            scrimEnabled = false,
             onPayTribute = {
                 coroutineScope.launch {
                     viewModel.resolveBeastAttackPayTribute(
@@ -213,11 +237,6 @@ fun GameOverlayHost(
 
     // ── 婚姻提议弹窗 ──────────────────────────────────────────
 
-    // 子对话框的遮罩控制：有主对话框或 overlay 显示时，子对话框不再叠加自己的遮罩
-    val hasMainDialog = currentDialogType != DialogType.None
-    val hasOverlay = viewModel.overlayOrder.isNotEmpty()
-    val subDialogScrim = !(hasMainDialog || hasOverlay)
-
     val currentProposal = pendingMarriageProposals.firstOrNull()
 
     if (currentProposal != null) {
@@ -229,7 +248,7 @@ fun GameOverlayHost(
                 femaleDisciple = femaleDisciple,
                 onApprove = { viewModel.approveMarriage(currentProposal.maleId, currentProposal.femaleId) },
                 onReject = { viewModel.rejectMarriage(currentProposal.maleId, currentProposal.femaleId) },
-                scrimEnabled = subDialogScrim
+                scrimEnabled = false
             )
         }
     }
@@ -243,6 +262,7 @@ fun GameOverlayHost(
         warnings = attackWarnings,
         shownStageIds = shownWarningStageIds,
         currentSpiritStones = gdForWarning.spiritStones,
+        scrimEnabled = false,
         onAppease = { warning ->
             viewModel.resolveAttackWarningAppease(warning.attackerSectId)
         },
@@ -271,7 +291,7 @@ fun GameOverlayHost(
                 viewModel.setActiveTab("DISCIPLES")
                 onDispose { viewModel.setActiveTab("OVERVIEW") }
             }
-            FullScreenOverlay(title = "弟子", onDismiss = onDismiss) {
+            FullScreenOverlay(title = "弟子", onDismiss = onDismiss, scrimEnabled = false) {
                 DisciplesTabContent(viewModel = viewModel)
             }
         }
@@ -287,7 +307,7 @@ fun GameOverlayHost(
                 viewModel.setActiveTab("SETTINGS")
                 onDispose { viewModel.setActiveTab("OVERVIEW") }
             }
-            FullScreenOverlay(title = "设置", onDismiss = onDismiss, deferContent = false) {
+            FullScreenOverlay(title = "设置", onDismiss = onDismiss, scrimEnabled = false, deferContent = false) {
                 SettingsTab(
                     viewModel = viewModel,
                     saveLoadViewModel = saveLoadViewModel,
@@ -303,7 +323,7 @@ fun GameOverlayHost(
                 viewModel.setActiveTab("BUILDINGS")
                 onDispose { viewModel.setActiveTab("OVERVIEW") }
             }
-            FullScreenOverlay(title = "建造", onDismiss = onDismiss, deferContent = false) {
+            FullScreenOverlay(title = "建造", onDismiss = onDismiss, scrimEnabled = false, deferContent = false) {
                 BuildingsTab(
                     viewModel = viewModel,
                     productionViewModel = productionViewModel,
@@ -638,7 +658,7 @@ fun GameOverlayHost(
                 title = "建造限制",
                 text = "需升级至${levelName}方可建造",
                 confirmLabel = "知道了",
-                scrimEnabled = true,
+                scrimEnabled = false,
                 dismissOnClickOutside = true
             )
         }
@@ -669,7 +689,7 @@ fun GameOverlayHost(
             title = if (tipDialogIsError) "错误" else "提示",
             text = message,
             confirmLabel = "确定",
-            scrimEnabled = subDialogScrim
+            scrimEnabled = false
         )
     }
 
@@ -679,7 +699,7 @@ fun GameOverlayHost(
             title = "仓库已满",
             text = "仓库已满物品无法进入仓库直接遗失",
             confirmLabel = "知道了",
-            scrimEnabled = subDialogScrim
+            scrimEnabled = false
         )
     }
 
@@ -692,7 +712,7 @@ fun GameOverlayHost(
                         title = "招募失败",
                         text = notification.reason,
                         confirmLabel = "知道了",
-                        scrimEnabled = subDialogScrim
+                        scrimEnabled = false
                     )
                 }
             }
@@ -709,6 +729,7 @@ fun GameOverlayHost(
                     BattleResultDialog(
                         resultData = result,
                         battleLog = log,
+                        scrimEnabled = false,
                         onConfirm = {
                             viewModel.dismissBattleResult()
                             showBattleResult = false
@@ -730,7 +751,8 @@ fun GameOverlayHost(
                 detailBattleLog?.let { log ->
                     BattleLogDetailDialog(
                         log = log,
-                        onDismiss = { detailBattleLog = null }
+                        onDismiss = { detailBattleLog = null },
+                        scrimEnabled = false
                     )
                 }
             }
@@ -751,6 +773,7 @@ fun GameOverlayHost(
                         manualProficiencies = manualProficiencies,
                         viewModel = viewModel,
                         onDismiss = { viewModel.dismissDiscipleDetail() },
+                        scrimEnabled = false,
                         onNavigateToDisciple = req.onNavigateToDisciple
                             ?: { d -> viewModel.navigateDiscipleDetail(d) }
                     )
@@ -807,6 +830,7 @@ private fun FullScreenOverlayWarehouse(
     FullScreenOverlay(
         title = titleText,
         onDismiss = onDismiss,
+        scrimEnabled = false,
         actions = {
             GameButton(
                 text = "一键出售",
@@ -851,6 +875,7 @@ private fun FullScreenOverlay(
     onDismiss: () -> Unit,
     actions: @Composable (() -> Unit)? = null,
     deferContent: Boolean = true,
+    scrimEnabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
     UnifiedGameDialog(
@@ -861,7 +886,8 @@ private fun FullScreenOverlay(
         dismissOnBackPress = true,
         dismissOnClickOutside = false,
         headerActions = actions,
-        scrollableContent = false
+        scrollableContent = false,
+        scrimEnabled = scrimEnabled
     ) {
         if (deferContent) {
             DeferredContent { content() }

@@ -25,7 +25,8 @@ internal fun DenunciationDialog(
     warning: AttackWarning,
     currentSpiritStones: Long,
     onAppease: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    scrimEnabled: Boolean = true
 ) {
     val canAppease = currentSpiritStones >=
         GameConfig.AIAttack.APPEASE_GIFT_SPIRIT_STONES
@@ -37,7 +38,8 @@ internal fun DenunciationDialog(
         scrollableContent = false,
         showCloseButton = true,
         dismissOnClickOutside = false,
-        dismissOnBackPress = true
+        dismissOnBackPress = true,
+        scrimEnabled = scrimEnabled
     ) {
         Column(
             modifier = Modifier
@@ -96,7 +98,8 @@ internal fun WarDeclarationDialog(
     currentSpiritStones: Long,
     onAppease: () -> Unit,
     onBecomeVassal: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    scrimEnabled: Boolean = true
 ) {
     val canAppease = currentSpiritStones >=
         GameConfig.AIAttack.APPEASE_GIFT_SPIRIT_STONES
@@ -108,7 +111,8 @@ internal fun WarDeclarationDialog(
         scrollableContent = false,
         showCloseButton = true,
         dismissOnClickOutside = false,
-        dismissOnBackPress = true
+        dismissOnBackPress = true,
+        scrimEnabled = scrimEnabled
     ) {
         Column(
             modifier = Modifier
@@ -177,7 +181,8 @@ internal fun AttackWarningDialogs(
     currentSpiritStones: Long,
     onAppease: (AttackWarning) -> Unit,
     onBecomeVassal: (AttackWarning) -> Unit,
-    onDismissWarning: (AttackWarning) -> Unit
+    onDismissWarning: (AttackWarning) -> Unit,
+    scrimEnabled: Boolean = true
 ) {
     val denunciation = warnings.firstOrNull { warning ->
         warning.stage == WarningStage.DENUNCIATION &&
@@ -188,7 +193,8 @@ internal fun AttackWarningDialogs(
             warning = denunciation,
             currentSpiritStones = currentSpiritStones,
             onAppease = { onAppease(denunciation) },
-            onDismiss = { onDismissWarning(denunciation) }
+            onDismiss = { onDismissWarning(denunciation) },
+            scrimEnabled = scrimEnabled
         )
         return
     }
@@ -203,7 +209,8 @@ internal fun AttackWarningDialogs(
             currentSpiritStones = currentSpiritStones,
             onAppease = { onAppease(warDeclaration) },
             onBecomeVassal = { onBecomeVassal(warDeclaration) },
-            onDismiss = { onDismissWarning(warDeclaration) }
+            onDismiss = { onDismissWarning(warDeclaration) },
+            scrimEnabled = scrimEnabled
         )
     }
 }

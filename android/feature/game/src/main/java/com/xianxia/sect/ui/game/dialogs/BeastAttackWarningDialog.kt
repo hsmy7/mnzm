@@ -25,7 +25,8 @@ internal fun BeastAttackWarningDialog(
     attack: PendingBeastAttack,
     currentSpiritStones: Long,
     onPayTribute: () -> Unit,
-    onFight: () -> Unit
+    onFight: () -> Unit,
+    scrimEnabled: Boolean = true
 ) {
     val canPay = currentSpiritStones >= GameConfig.WorldMap.BEAST_TRIBUTE_MIN
 
@@ -33,6 +34,7 @@ internal fun BeastAttackWarningDialog(
         onDismissRequest = onFight,
         title = "妖兽来袭",
         mode = DialogMode.Half,
+        scrimEnabled = scrimEnabled,
         scrollableContent = false,
         showCloseButton = false,
         dismissOnClickOutside = false,

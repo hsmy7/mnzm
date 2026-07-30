@@ -158,7 +158,8 @@ internal fun BattleLogItem(
 @Composable
 internal fun BattleLogDetailDialog(
     log: BattleLog,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    scrimEnabled: Boolean = true
 ) {
     val resultColor = when (log.result) {
         BattleResult.WIN -> Color(0xFF4CAF50)
@@ -176,7 +177,8 @@ internal fun BattleLogDetailDialog(
         onDismissRequest = onDismiss,
         title = "战斗详情",
         mode = DialogMode.Half,
-        scrollableContent = false
+        scrollableContent = false,
+        scrimEnabled = scrimEnabled
     ) {
         Column(
             modifier = Modifier.fillMaxSize()
