@@ -1,3 +1,9 @@
+## [4.0.79] - 2026-07-30
+
+### 修复
+
+- **每月招募上限不重置** — `recruitCountThisMonth=0` 重置代码在 `CultivationEventProcessor.advanceMonth()` 中但未被游戏主循环调用（死代码），导致第1个月招满30人后所有后续月份无法招募任何弟子。移入 `processMonthlyEvents()` 后每月正常重置
+
 ## [4.0.78] - 2026-07-29
 
 ### 重构（对抗性审查修复）

@@ -303,6 +303,8 @@ class CultivationEventProcessor @Inject constructor(
     fun processMonthlyEvents(year: Int, month: Int) {
         // 单事务：所有月度事件原子提交
         stateStore.update {
+            // 每月开始时重置招募月度计数，使当月招募享有完整上限配额
+            gameData = gameData.copy(recruitCountThisMonth = 0)
             safelyRunInState("autoRecruit") {
                 RecruitService.processAutoRecruit(this)
             }
