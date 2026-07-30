@@ -417,6 +417,17 @@ class BuildingFacadeImpl @Inject constructor(
                     .forEach { slot -> productionCoordinator.repository.removeSlot(slot.id) }
             }
         }
+        // 任务阁拆除：清理所有活跃任务并释放卡在 ON_MISSION 的弟子
+        if (feature.buildingType == BuildingType.MISSION_HALL) {
+            gd = gd.copy(activeMissions = emptyList())
+            for (id in discipleTables.ids) {
+                if (discipleTables.statuses[id] == DiscipleStatus.ON_MISSION &&
+                    discipleTables.isAlive[id] == 1
+                ) {
+                    discipleTables.statuses[id] = DiscipleStatus.IDLE
+                }
+            }
+        }
         return gd
     }
 

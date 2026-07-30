@@ -36,22 +36,28 @@ class DiscipleStatusService @Inject constructor(
          * 不访问 GameStateStore，无副作用，可独立测试。
          *
          * 优先级顺序（匹配 syncAllDiscipleStatuses 的 when 链）：
-         * 受保护状态（REFLECTING/ON_MISSION/REFINING）→ 驻守 → 队伍 → 执法 → 传道 →
+         * 死亡 → 活跃任务（ON_MISSION 从 activeMissions 推导，非无条件保护）
+         * → 受保护状态（REFLECTING/REFINING）→ 驻守 → 队伍 → 执法 → 传道 →
          * 执事 → 管理 → 学习 → 采矿 → 巡视 → 炼丹 → 锻造 → 灵植 → 空闲
          *
+         * 注：ON_MISSION 不再是无条件受保护状态，而是通过 [hasActiveMission] 参数
+         * 从实际数据推导。这修复了旧存档中任务已移除但弟子卡在 ON_MISSION 的问题。
+         *
          * @param isAlive 是否存活（死亡直接返回 DEAD）
-         * @param currentStatus 当前状态（受保护状态保持不变）
+         * @param currentStatus 当前状态（仅 REFLECTING/REFINING 受保护）
          * @param slotFlags 槽位归属标志，见 [SlotFlags]
+         * @param hasActiveMission 弟子是否有活跃任务（来自 gameData.activeMissions）
          * @return 推导出的正确状态
          */
         fun deriveDiscipleStatus(
             isAlive: Boolean,
             currentStatus: DiscipleStatus,
-            slotFlags: SlotFlags = SlotFlags()
+            slotFlags: SlotFlags = SlotFlags(),
+            hasActiveMission: Boolean = false
         ): DiscipleStatus = when {
             !isAlive -> DiscipleStatus.DEAD
+            hasActiveMission -> DiscipleStatus.ON_MISSION
             currentStatus == DiscipleStatus.REFLECTING -> DiscipleStatus.REFLECTING
-            currentStatus == DiscipleStatus.ON_MISSION -> DiscipleStatus.ON_MISSION
             currentStatus == DiscipleStatus.REFINING -> DiscipleStatus.REFINING
             slotFlags.inGarrison -> DiscipleStatus.GARRISONING
             slotFlags.inTeam -> DiscipleStatus.IN_TEAM
@@ -304,6 +310,9 @@ class DiscipleStatusService @Inject constructor(
 
             fixInvalidMiningSlots(data, tables)
 
+            // 构建活跃任务弟子 ID 集合 — 用于推导 ON_MISSION
+            val activeMissionDiscipleIds = data.activeMissions.flatMap { it.discipleIds }.toSet()
+
             for (id in tables.ids) {
                 val isAlive = tables.isAlive[id] == 1
                 val status = tables.statuses[id]
@@ -326,7 +335,8 @@ class DiscipleStatusService @Inject constructor(
                         alchemy = alchemyIds.contains(discipleId),
                         forge = forgeIds.contains(discipleId),
                         spiritPlanting = plantIds.contains(discipleId)
-                    )
+                    ),
+                    hasActiveMission = discipleId in activeMissionDiscipleIds
                 )
 
                 if (status != newStatus) {
@@ -354,6 +364,9 @@ class DiscipleStatusService @Inject constructor(
             val currentStatus = discipleTables.statuses[id]
             val data = gameData
 
+            // 检查弟子是否有活跃任务
+            val hasActiveMission = data.activeMissions.any { it.discipleIds.contains(discipleId) }
+
             val newStatus = deriveDiscipleStatus(
                 isAlive = isAlive,
                 currentStatus = currentStatus,
@@ -361,7 +374,8 @@ class DiscipleStatusService @Inject constructor(
                     discipleId = discipleId,
                     data = data,
                     activeTeams = activeTeams
-                )
+                ),
+                hasActiveMission = hasActiveMission
             )
 
             if (currentStatus != newStatus) {

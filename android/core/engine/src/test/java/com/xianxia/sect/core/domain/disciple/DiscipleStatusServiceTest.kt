@@ -69,9 +69,22 @@ class DiscipleStatusServiceTest {
     }
 
     @Test
-    fun `deriveDiscipleStatus - ON_MISSION is preserved`() {
+    fun `deriveDiscipleStatus - ON_MISSION derived from hasActiveMission`() {
         assertEquals(
             DiscipleStatus.ON_MISSION,
+            DiscipleStatusService.deriveDiscipleStatus(
+                isAlive = true,
+                currentStatus = DiscipleStatus.ON_MISSION,
+                slotFlags = DiscipleStatusService.SlotFlags(),
+                hasActiveMission = true
+            )
+        )
+    }
+
+    @Test
+    fun `deriveDiscipleStatus - ON_MISSION without hasActiveMission falls through to slots`() {
+        assertEquals(
+            DiscipleStatus.IDLE,
             DiscipleStatusService.deriveDiscipleStatus(
                 isAlive = true,
                 currentStatus = DiscipleStatus.ON_MISSION,
@@ -81,13 +94,14 @@ class DiscipleStatusServiceTest {
     }
 
     @Test
-    fun `deriveDiscipleStatus - ON_MISSION preserved even with slot assignments`() {
+    fun `deriveDiscipleStatus - ON_MISSION derived even with slot assignments`() {
         assertEquals(
             DiscipleStatus.ON_MISSION,
             DiscipleStatusService.deriveDiscipleStatus(
                 isAlive = true,
                 currentStatus = DiscipleStatus.ON_MISSION,
-                slotFlags = DiscipleStatusService.SlotFlags(studying = true, patrolling = true)
+                slotFlags = DiscipleStatusService.SlotFlags(studying = true, patrolling = true),
+                hasActiveMission = true
             )
         )
     }

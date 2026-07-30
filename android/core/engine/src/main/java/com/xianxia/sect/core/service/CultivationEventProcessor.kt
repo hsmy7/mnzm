@@ -701,6 +701,10 @@ class CultivationEventProcessor @Inject constructor(
                     val dTables = discipleTables
                     val tableIds = dTables.ids
                     if (tid < 0 || tid >= tableIds.size || dTables.isAlive[tid] != 1) continue
+                    // ★ 修复：重置状态为 IDLE — processCompletedMissionsLazy 此前漏掉了状态重置，
+                    // 导致任务已从 activeMissions 移除但弟子永远卡在 ON_MISSION。
+                    // 随后 syncAllDiscipleStatuses() 看到 IDLE 状态后推导正确，不会触发 ON_MISSION 保护守卫。
+                    dTables.statuses[tid] = DiscipleStatus.IDLE
                     if (did in reward.survivors) {
                         dTables.soulPowers[tid] = dTables.soulPowers.getOrDefault(tid, 0) + 1
                     }
