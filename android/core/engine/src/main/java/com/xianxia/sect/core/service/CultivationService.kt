@@ -71,6 +71,13 @@ class CultivationService @Inject constructor(
         cultivationCore.recoverHpMpForAllDisciples(state, phasesToSettle)
     }
 
+    /** 单弟子旬级 HP/MP 恢复（委托 CultivationCore） */
+    fun recoverHpMpSingle(
+        state: MutableGameState, id: Int, phasesToSettle: Int = 1
+    ) {
+        cultivationCore.recoverHpMpSingle(state, id, phasesToSettle)
+    }
+
     fun calculateDiscipleCultivationPerPhase(
         disciple: com.xianxia.sect.core.model.Disciple,
         data: com.xianxia.sect.core.model.GameData,
@@ -104,9 +111,19 @@ class CultivationService @Inject constructor(
         cultivationCore.processManualProficiencyPerPhase(state)
     }
 
+    /** 单弟子每旬功法熟练度增长（委托 CultivationCore） */
+    fun processManualProficiencySingle(state: MutableGameState, id: Int) {
+        cultivationCore.processManualProficiencySingle(state, id)
+    }
+
     /** 每旬装备孕养经验增长（委托 CultivationCore） */
     fun processEquipmentNurturePerPhase(state: MutableGameState) {
         cultivationCore.processEquipmentNurturePerPhase(state)
+    }
+
+    /** 单弟子每旬装备孕养经验增长（委托 CultivationCore） */
+    fun processEquipmentNurtureSingle(state: MutableGameState, id: Int) {
+        cultivationCore.processEquipmentNurtureSingle(state, id)
     }
 
     /**
@@ -165,8 +182,28 @@ class CultivationService @Inject constructor(
     }
 
     fun processBreakthroughs(state: MutableGameState) {
-        val livingDisciples = state.discipleTables.assembleAll().filter { it.isAlive }
-        breakthroughHandler.processRealtimeBreakthroughs(livingDisciples, state.gameData, state)
+        val tables = state.discipleTables
+        val data = state.gameData
+
+        // 1. 列级直读：快速筛选需要突破判定的弟子，避免 assembleAll() 全量组装
+        val candidateDiscipleIds = mutableListOf<Int>()
+        for (id in tables.ids) {
+            if (tables.isAlive[id] != 1) continue
+            val realm = tables.realms.getOrDefault(id, 9)
+            if (realm <= 0) continue
+            val realmLayer = tables.realmLayers.getOrDefault(id, 1)
+            val cultivation = tables.cultivations.getOrDefault(id, 0.0)
+            val maxCultivation = computeMaxCultivation(realm, realmLayer, cultivation)
+            if (cultivation < maxCultivation) continue
+            if (!cultivationCore.isDiscipleFullHpMp(id, tables)) continue
+            candidateDiscipleIds.add(id)
+        }
+
+        if (candidateDiscipleIds.isEmpty()) return
+
+        // 2. 仅对候选弟子按需组装完整对象
+        val livingDisciples = candidateDiscipleIds.mapNotNull { tables.assemble(it) }
+        breakthroughHandler.processRealtimeBreakthroughs(livingDisciples, data, state)
     }
 
     /**
@@ -224,8 +261,14 @@ class CultivationService @Inject constructor(
         cultivationSettlement.processAnnualSalary(year)
     }
 
-    fun processResidenceLoyalty() {
-        cultivationSettlement.processResidenceLoyalty()
+    fun processResidenceLoyalty(state: MutableGameState) {
+        cultivationSettlement.processResidenceLoyalty(state)
+    }
+
+    /** 月度自动排班 + 住所忠诚度，在事务 A 内由 [GameEngineCore.processMonthYearChange] 调用。 */
+    fun processMonthlyAutoAssignments(state: MutableGameState) {
+        productionProcessor.processAutoAssign(state)
+        cultivationSettlement.processResidenceLoyalty(state)
     }
 
     internal fun processPolicyCosts(state: MutableGameState): PolicyCostResult {
@@ -264,8 +307,6 @@ class CultivationService @Inject constructor(
     fun processMonthlyEvents() {
         val data = stateStore.gameData.value
             eventProcessor.processMonthlyEvents(data.gameYear, data.gameMonth)
-            productionProcessor.processAutoAssign()
-            cultivationSettlement.processResidenceLoyalty()
     }
 
     /**
@@ -405,5 +446,20 @@ class CultivationService @Inject constructor(
 
     suspend fun processCaveLifecycle(year: Int, month: Int) {
         caveExplorationProcessor.get().processCaveLifecycle(year, month)
+    }
+
+    // ── P0.3 优化辅助 ────────────────────────────────────────────
+
+    /**
+     * 根据境界/层数/修为计算当前境界满修为值（即突破所需修为上限）。
+     * 公式与 [DiscipleCore.maxCultivation] 一致，用于列级直读过滤，
+     * 避免为了获取 maxCultivation 而组装完整的 Disciple 对象。
+     */
+    private fun computeMaxCultivation(realm: Int, realmLayer: Int, cultivation: Double): Double {
+        if (realm == 0) return cultivation
+        val base = GameConfig.Realm.get(realm).cultivationBase
+        val nextBase = GameConfig.Realm.get(realm - 1).cultivationBase
+        val maxLayers = GameConfig.Realm.get(realm).maxLayers
+        return base + (realmLayer - 1) * (nextBase - base).toDouble() / maxLayers
     }
 }

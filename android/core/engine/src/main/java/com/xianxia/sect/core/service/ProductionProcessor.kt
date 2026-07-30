@@ -568,10 +568,10 @@ class ProductionProcessor @Inject constructor(
         return false
     }
 
-    fun processAutoAssign() {
-        val data = stateStore.gameData.value
+    fun processAutoAssign(state: MutableGameState) {
+        val data = state.gameData
         val policies = data.sectPolicies
-        val idleDisciples = stateStore.disciples.value
+        val idleDisciples = state.discipleTables.assembleAll()
             .filter { d -> d.status == DiscipleStatus.IDLE && d.isAlive }
             .toMutableList()
 
@@ -645,7 +645,7 @@ class ProductionProcessor @Inject constructor(
                     } }.map { it.instanceId }.toSet()
             } else emptySet()
 
-            val allCandidates = stateStore.disciples.value
+            val allCandidates = state.discipleTables.assembleAll()
                 .filter { d -> d.isAlive && d.id !in occupiedResidentIds }
 
             val singleAssignments = mutableMapOf<String, Pair<String, String>>()
@@ -741,7 +741,7 @@ class ProductionProcessor @Inject constructor(
         } else emptyList()
 
         // ══════════════════════════════════════════════════════════════════
-        // 单次原子写入（所有 5 步骤在同一事务内完成）
+        // 单次原子写入（所有 5 步骤在同一事务内完成，由调用方 stateStore.update 包裹）
         // ══════════════════════════════════════════════════════════════════
         if (allAssignments.isEmpty() && herbCandidates.isEmpty() && mineCandidates.isEmpty()
             && alchemyCandidates.isEmpty() && forgeCandidates.isEmpty()) return
@@ -751,61 +751,59 @@ class ProductionProcessor @Inject constructor(
         val alchemyIter = alchemyCandidates.iterator()
         val forgeIter = forgeCandidates.iterator()
 
-        stateStore.update {
-            // 1. 住所写入 + 状态同步
-            if (allAssignments.isNotEmpty()) {
-                val writtenIds = mutableSetOf<String>()
-                gameData = gameData.copy(
-                    residenceSlots = gameData.residenceSlots.map { slot ->
-                        val key = "${slot.buildingInstanceId}:${slot.slotIndex}"
-                        val assignment = allAssignments[key]
-                        if (assignment != null && slot.discipleId.isEmpty()
-                            && assignment.first !in writtenIds
-                        ) {
-                            writtenIds.add(assignment.first)
-                            slot.copy(discipleId = assignment.first, discipleName = assignment.second)
-                        } else slot
-                    }
-                )
-            }
+        // 1. 住所写入 + 状态同步
+        if (allAssignments.isNotEmpty()) {
+            val writtenIds = mutableSetOf<String>()
+            state.gameData = state.gameData.copy(
+                residenceSlots = state.gameData.residenceSlots.map { slot ->
+                    val key = "${slot.buildingInstanceId}:${slot.slotIndex}"
+                    val assignment = allAssignments[key]
+                    if (assignment != null && slot.discipleId.isEmpty()
+                        && assignment.first !in writtenIds
+                    ) {
+                        writtenIds.add(assignment.first)
+                        slot.copy(discipleId = assignment.first, discipleName = assignment.second)
+                    } else slot
+                }
+            )
+        }
 
-            // 2. 灵植（使用预计算候选迭代器）
-            if (herbCandidates.isNotEmpty()) {
-                batchAssignToProductionSlots(
-                    BuildingType.HERB_GARDEN, BuildingNames.HERB_GARDEN,
-                    { if (herbIter.hasNext()) herbIter.next() else null }, this
-                )
-            }
+        // 2. 灵植（使用预计算候选迭代器）
+        if (herbCandidates.isNotEmpty()) {
+            batchAssignToProductionSlots(
+                BuildingType.HERB_GARDEN, BuildingNames.HERB_GARDEN,
+                { if (herbIter.hasNext()) herbIter.next() else null }, state
+            )
+        }
 
-            // 3. 灵矿（inline 写入 + 状态同步）
-            if (mineCandidates.isNotEmpty()) {
-                val mineAssignments = mineCandidates.map { it.id to it.name }
-                val mineAssignIter = mineAssignments.iterator()
-                gameData = gameData.copy(
-                    spiritMineSlots = gameData.spiritMineSlots.map { slot ->
-                        if (slot.discipleId.isEmpty() && mineAssignIter.hasNext()) {
-                            val (id, name) = mineAssignIter.next()
-                            slot.copy(discipleId = id, discipleName = name)
-                        } else slot
-                    }
-                )
-            }
+        // 3. 灵矿（inline 写入 + 状态同步）
+        if (mineCandidates.isNotEmpty()) {
+            val mineAssignments = mineCandidates.map { it.id to it.name }
+            val mineAssignIter = mineAssignments.iterator()
+            state.gameData = state.gameData.copy(
+                spiritMineSlots = state.gameData.spiritMineSlots.map { slot ->
+                    if (slot.discipleId.isEmpty() && mineAssignIter.hasNext()) {
+                        val (id, name) = mineAssignIter.next()
+                        slot.copy(discipleId = id, discipleName = name)
+                    } else slot
+                }
+            )
+        }
 
-            // 4. 炼丹（使用预计算候选迭代器）
-            if (alchemyCandidates.isNotEmpty()) {
-                batchAssignToProductionSlots(
-                    BuildingType.ALCHEMY, BuildingNames.ALCHEMY,
-                    { if (alchemyIter.hasNext()) alchemyIter.next() else null }, this
-                )
-            }
+        // 4. 炼丹（使用预计算候选迭代器）
+        if (alchemyCandidates.isNotEmpty()) {
+            batchAssignToProductionSlots(
+                BuildingType.ALCHEMY, BuildingNames.ALCHEMY,
+                { if (alchemyIter.hasNext()) alchemyIter.next() else null }, state
+            )
+        }
 
-            // 5. 锻造（使用预计算候选迭代器）
-            if (forgeCandidates.isNotEmpty()) {
-                batchAssignToProductionSlots(
-                    BuildingType.FORGE, BuildingNames.FORGE,
-                    { if (forgeIter.hasNext()) forgeIter.next() else null }, this
-                )
-            }
+        // 5. 锻造（使用预计算候选迭代器）
+        if (forgeCandidates.isNotEmpty()) {
+            batchAssignToProductionSlots(
+                BuildingType.FORGE, BuildingNames.FORGE,
+                { if (forgeIter.hasNext()) forgeIter.next() else null }, state
+            )
         }
     }
 

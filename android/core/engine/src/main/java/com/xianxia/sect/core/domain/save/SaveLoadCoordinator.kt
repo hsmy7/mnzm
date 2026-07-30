@@ -2,7 +2,6 @@ package com.xianxia.sect.core.engine.domain.save
 
 import android.util.Log
 import com.xianxia.sect.core.util.ListenerManager
-import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -10,7 +9,6 @@ import javax.inject.Singleton
 
 @Singleton
 class SaveLoadCoordinator @Inject constructor(
-    private val unifiedPerformanceMonitor: UnifiedPerformanceMonitor,
     private val ioDispatcher: IoDispatcher
 ) {
     companion object {
@@ -63,59 +61,55 @@ class SaveLoadCoordinator @Inject constructor(
         notifyOperationStart(context)
         
         return try {
-            unifiedPerformanceMonitor.measureOperation("save_${operationType.name.lowercase()}") {
-                withContext(ioDispatcher.dispatcher) {
-                    saveOperation()
-                }
+            withContext(ioDispatcher.dispatcher) {
+                saveOperation()
             }
-            
+
             val durationMs = System.currentTimeMillis() - startTime
-            
+
             if (durationMs > SLOW_SAVE_THRESHOLD_MS) {
                 Log.w(TAG, "Slow save operation: $operationType took ${durationMs}ms")
             }
-            
+
             val result = SaveLoadResult(
                 success = true,
                 durationMs = durationMs
             )
-            
+
             notifyOperationEnd(context, result)
             result
         } catch (e: Exception) {
             val durationMs = System.currentTimeMillis() - startTime
             Log.e(TAG, "Save operation failed: $operationType", e)
-            
+
             val result = SaveLoadResult(
                 success = false,
                 durationMs = durationMs,
                 errorMessage = e.message
             )
-            
+
             notifyOperationEnd(context, result)
             result
         }
     }
-    
+
     suspend fun <T> executeLoadWithMonitoring(
         saveSlot: Int,
         loadOperation: suspend () -> T
     ): Pair<SaveLoadResult, T?> {
         val startTime = System.currentTimeMillis()
         val context = SaveLoadContext(OperationType.LOAD, saveSlot)
-        
+
         notifyOperationStart(context)
         notifyProgressUpdate(context, 0.1f)
-        
+
         return try {
             notifyProgressUpdate(context, 0.3f)
-            
-            val data = unifiedPerformanceMonitor.measureOperation("load_game") {
-                withContext(ioDispatcher.dispatcher) {
-                    loadOperation()
-                }
+
+            val data = withContext(ioDispatcher.dispatcher) {
+                loadOperation()
             }
-            
+
             notifyProgressUpdate(context, 0.9f)
             
             val durationMs = System.currentTimeMillis() - startTime

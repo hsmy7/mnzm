@@ -70,6 +70,9 @@ class CultivationCore @Inject constructor(
     fun recoverHpMpForAllDisciples(state: MutableGameState, phasesToSettle: Int = 3) =
         hpMpRecoveryService.recoverHpMpForAllDisciples(state, phasesToSettle)
 
+    fun recoverHpMpSingle(state: MutableGameState, id: Int, phasesToSettle: Int = 1) =
+        hpMpRecoveryService.recoverHpMpSingle(state, id, phasesToSettle)
+
     fun recoverMonthlyHpMp(tables: DiscipleTables, id: Int, focusedPhaseCount: Int = 0,
         zones: RecoveryZones = RecoveryZones()
     ) = hpMpRecoveryService.recoverMonthlyHpMp(tables, id, focusedPhaseCount, zones)
@@ -190,6 +193,110 @@ class CultivationCore @Inject constructor(
         }
     }
 
+    /**
+     * 单弟子每旬功法熟练度增长。
+     *
+     * 从 [processManualProficiencyPerPhase] 的循环体中提取，
+     * 仅处理指定 ID 的存活弟子。使用列级直读（manualIds、comprehensions），
+     * 不调用 assemble()。
+     *
+     * @param state 可变游戏状态
+     * @param id 弟子 ID
+     */
+    fun processManualProficiencySingle(state: MutableGameState, id: Int) {
+        val tables = state.discipleTables
+        if (tables.isAlive[id] != 1) return
+        val manualIds = tables.manualIds.getOrDefault(id, emptyList())
+        if (manualIds.isEmpty()) return
 
+        val manualMap = state.manualInstances.associateBy { it.id }
+        val data = state.gameData
+        val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
+        val discipleId = id.toString()
+        val comprehension = tables.comprehensions.getOrDefault(id, 0)
+        val inLibrary = data.librarySlots.any { it.discipleId == discipleId }
+        val libraryBonus = if (inLibrary)
+            ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
+        val profGain = ManualProficiencySystem.calculateProficiencyGainPerPhase(
+            comprehension, libraryBonus
+        )
+        if (profGain <= 0.0) return
+
+        val profList = data.manualProficiencies
+            .getOrDefault(discipleId, emptyList())
+            .toMutableList()
+        var changed = false
+
+        for (manualId in manualIds) {
+            manualMap[manualId]?.let { manual ->
+                val idx = profList.indexOfFirst { it.manualId == manualId }
+                if (idx >= 0) {
+                    val cp = profList[idx]
+                    val newProf = (cp.proficiency + profGain)
+                        .coerceAtMost(maxProf.toDouble())
+                    if (newProf != cp.proficiency) {
+                        profList[idx] = cp.copy(
+                            proficiency = newProf,
+                            masteryLevel = ManualProficiencySystem.MasteryLevel
+                                .fromProficiency(newProf).level
+                        )
+                        changed = true
+                    }
+                } else {
+                    profList.add(ManualProficiencyData(
+                        manualId = manualId, manualName = manual.name,
+                        proficiency = profGain.coerceAtMost(maxProf.toDouble()),
+                        maxProficiency = maxProf,
+                        masteryLevel = ManualProficiencySystem.MasteryLevel
+                            .fromProficiency(profGain).level
+                    ))
+                    changed = true
+                }
+            }
+        }
+
+        // ★ 清理已替换/遗忘功法的残留熟练度，防止僵尸条目累积
+        val currentSet = manualIds.toSet()
+        if (profList.removeAll { it.manualId !in currentSet }) changed = true
+
+        if (changed) {
+            val newProficiencies = data.manualProficiencies.toMutableMap()
+            if (profList.isEmpty()) {
+                newProficiencies.remove(discipleId)
+            } else {
+                newProficiencies[discipleId] = profList
+            }
+            state.gameData = data.copy(manualProficiencies = newProficiencies)
+        }
+    }
+
+    /**
+     * 单弟子每旬装备孕养经验增长。
+     *
+     * 从 [processEquipmentNurturePerPhase] 的循环体中提取，
+     * 仅处理指定 ID 的存活弟子。无需 assemble，
+     * 通过 tables.weaponIds/armorIds/bootsIds/accessoryIds 列级直读装备 ID。
+     *
+     * @param state 可变游戏状态
+     * @param id 弟子 ID
+     */
+    fun processEquipmentNurtureSingle(state: MutableGameState, id: Int) {
+        val tables = state.discipleTables
+        if (tables.isAlive[id] != 1) return
+        val equipmentMap = state.equipmentInstances.associateBy { it.id }
+        val equipmentUpdates = mutableMapOf<String, EquipmentInstance>()
+
+        equipmentNurtureService.settleNurtureInPlace(
+            id = id, tables = tables, equipmentMap = equipmentMap,
+            nurtureGainPerPhase = EquipmentNurtureSystem.NURTURE_GAIN_PER_PHASE,
+            phasesToSettle = 1, equipmentUpdates = equipmentUpdates
+        )
+
+        if (equipmentUpdates.isNotEmpty()) {
+            state.equipmentInstances = state.equipmentInstances.map { eq ->
+                equipmentUpdates[eq.id] ?: eq
+            }
+        }
+    }
 
 }

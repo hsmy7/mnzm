@@ -176,6 +176,10 @@ class GameEngineCore @Inject constructor(
         private const val ANTI_FREEZE_TRIGGER_THRESHOLD = 3
         private const val ANTI_FREEZE_NORMAL_THRESHOLD = 20
 
+        // processTickPhases 返回值的 bitmask 标志
+        private const val FLAG_MONTH_CHANGED = 1
+        private const val FLAG_YEAR_CHANGED = 2
+
         // 游戏引擎线程 — 非守护线程 + 最高优先级。
         // 红米K80 (HyperOS 2.0) 实测：守护线程会被电源管理挂起，
         // 导致触摸后游戏时间冻结。与看门狗线程对齐为非守护线程，
@@ -770,8 +774,11 @@ class GameEngineCore @Inject constructor(
             System.currentTimeMillis() else 0L
         val tickResult = gameClock.tick(isSettlementPending = false)
         thermalController.checkAndAdjust(_fps.value)
-        val (monthChanged, yearChanged) = processTickPhases(tickResult.phasesToAdvance)
-        processMonthYearChange(monthChanged, yearChanged)
+        val tickFlags = processTickPhases(tickResult.phasesToAdvance)
+        processMonthYearChange(
+            monthChanged = (tickFlags and FLAG_MONTH_CHANGED) != 0,
+            yearChanged = (tickFlags and FLAG_YEAR_CHANGED) != 0
+        )
         val patrolResults = explorationService.consumePendingPatrolResults()
         for (result in patrolResults) {
             stateStore.setPendingBattleResult(result)
@@ -802,9 +809,8 @@ class GameEngineCore @Inject constructor(
         return true
     }
     
-    private suspend fun processTickPhases(phasesToAdvance: Int): Pair<Boolean, Boolean> {
-        var monthChanged = false
-        var yearChanged = false
+    private suspend fun processTickPhases(phasesToAdvance: Int): Int {
+        var flags = 0
         for (phaseIndex in 1..phasesToAdvance) {
             stateStore.update {
                 // ★ 必须在 onPhaseTick 前捕获 prevMonth/prevYear，
@@ -814,11 +820,11 @@ class GameEngineCore @Inject constructor(
                 systemManager.getSystem(TimeSystem::class)
                     .onPhaseTick(this, phasesToSettle = 1)
                 checkBreakthroughsAndPills(this)
-                if (this.gameData.gameMonth != prevMonth) monthChanged = true
-                if (this.gameData.gameYear != prevYear) yearChanged = true
+                if (this.gameData.gameMonth != prevMonth) flags = flags or FLAG_MONTH_CHANGED
+                if (this.gameData.gameYear != prevYear) flags = flags or FLAG_YEAR_CHANGED
             }
         }
-        return Pair(monthChanged, yearChanged)
+        return flags
     }
     
     private suspend fun processMonthYearChange(monthChanged: Boolean, yearChanged: Boolean) {
@@ -842,6 +848,8 @@ class GameEngineCore @Inject constructor(
                 aiSectBeastAttackProcessor.precomputeTargets(this, gameData.gameYear, gameData.gameMonth)
                 systemManager.onMonthlyEvent(this)
                 processBloodRefinementCompletions()
+                // P0.2: 自动排班 + 住所忠诚度合入同一事务，减少月度独立事务数量
+                cultivationService.processMonthlyAutoAssignments(this)
             }
             if (policyResult is PolicyCostResult.SomeDisabled) {
                 val disabledList = (policyResult as PolicyCostResult.SomeDisabled).disabledPolicies
@@ -868,23 +876,25 @@ class GameEngineCore @Inject constructor(
      * 5) 突破检测
      */
     private fun checkBreakthroughsAndPills(state: MutableGameState) {
-        cultivationService.recoverHpMpForAllDisciples(state, phasesToSettle = 1)
         cultivationService.processAutoFromWarehouseRealtime(state)
 
-        // 修炼累积：只处理未达修炼上限的弟子（列直读跳过，避免 assemble 开销）
+        // 合并遍历：HP/MP 恢复 + 修炼累积 + 功法熟练度 + 装备孕养
+        // 原 7 次独立遍历 → 1 次合并遍历（P0.1 优化）
         for (id in state.discipleTables.ids) {
             if (state.discipleTables.isAlive[id] != 1) continue
-            // 列级快速跳过：cultivation >= 1e8 表示已满（凡界最大值约 2e7）
-            if (state.discipleTables.cultivations.getOrDefault(id, 0.0) >= 1e8) continue
-            cultivationService.accumulateCultivationPerPhase(id, state)
+            // 1) HP/MP 恢复
+            cultivationService.recoverHpMpSingle(state, id, phasesToSettle = 1)
+            // 2) 修炼累积（列级快速跳过：cultivation >= 1e8 表示已满，凡界最大值约 2e7）
+            if (state.discipleTables.cultivations.getOrDefault(id, 0.0) < 1e8) {
+                cultivationService.accumulateCultivationPerPhase(id, state)
+            }
+            // 3) 功法熟练度增长
+            cultivationService.processManualProficiencySingle(state, id)
+            // 4) 装备孕养增长
+            cultivationService.processEquipmentNurtureSingle(state, id)
         }
 
         cultivationService.processAutoPillsRealtime(state)
-
-        // ★ 每旬功法熟练度 + 装备孕养增长
-        cultivationService.processManualProficiencyPerPhase(state)
-        cultivationService.processEquipmentNurturePerPhase(state)
-
         cultivationService.processBreakthroughs(state)
     }
 

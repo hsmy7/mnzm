@@ -129,6 +129,51 @@ class HpMpRecoveryService @Inject constructor() {
     }
 
     /**
+     * 单弟子旬级 HP/MP 恢复。
+     *
+     * 从 [recoverHpMpForAllDisciples] 的循环体中提取。恢复量 =
+     * maxHp/maxMp × DAILY_HP_MP_RECOVERY_RATE × PHASE_MULTIPLIER × phasesToSettle，
+     * 至少恢复 1 点，且不超过上限。
+     *
+     * @param state 可变游戏状态
+     * @param id 弟子 ID
+     * @param phasesToSettle 需结算的旬数（默认 1）
+     * @param zones 恢复乘区（可选，默认为无额外加成）
+     */
+    fun recoverHpMpSingle(
+        state: MutableGameState,
+        id: Int,
+        phasesToSettle: Int = 1,
+        zones: RecoveryZones = RecoveryZones()
+    ) {
+        if (phasesToSettle <= 0) return
+        val tables = state.discipleTables
+        val curHp = tables.currentHps[id]
+        val curMp = tables.currentMps[id]
+        if (curHp < 0 && curMp < 0) return
+
+        val disciple = tables.assemble(id)
+        val equipmentMap = state.equipmentInstances.associateBy { it.id }
+        val manualMap = state.manualInstances.associateBy { it.id }
+        val allProficiencies = state.gameData.manualProficiencies
+        val proficiencyMap = allProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap()
+        val finalStats = DiscipleStatCalculator.getFinalStats(
+            disciple, equipmentMap, manualMap, proficiencyMap
+        )
+        val maxHp = finalStats.maxHp
+        val maxMp = finalStats.maxMp
+
+        val multiplier = PHASE_MULTIPLIER.toDouble() * phasesToSettle
+        val hpRecovery = zones.calculateRecovery(maxHp, multiplier)
+        val mpRecovery = zones.calculateRecovery(maxMp, multiplier)
+        val newHp = if (curHp < 0) curHp else (curHp + hpRecovery).coerceAtMost(maxHp)
+        val newMp = if (curMp < 0) curMp else (curMp + mpRecovery).coerceAtMost(maxMp)
+
+        if (newHp != curHp) tables.currentHps[id] = newHp
+        if (newMp != curMp) tables.currentMps[id] = newMp
+    }
+
+    /**
      * 月度 HP/MP 恢复（月结制专用）。
      * 每旬 multiplier=10，每月 3 旬 → 月度 multiplier=30。
      * @param tables 弟子数据表

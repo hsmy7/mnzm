@@ -113,7 +113,7 @@ class AdServiceImpl @Inject constructor() : AdService {
                 rewardAmount = rewardAmount,
                 spaceId = spaceId
             )
-        } catch (e: Exception) {
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             isLoadingAd = false
             Log.e(TAG, "loadAd threw exception", e)
             RewardVideoAdManager.removeCallback()

@@ -161,7 +161,9 @@ class CultivationSettlementConcurrencyTest {
             )
         }
 
-        cultivationSettlement.processResidenceLoyalty()
+        stateStore.update {
+            cultivationSettlement.processResidenceLoyalty(this)
+        }
 
         val after = getDisciples()
         assertEquals("弟子数量必须不变", 4, after.size)

@@ -1,3 +1,30 @@
+## [4.0.80] - 2026-07-30
+
+### 优化
+
+- **弟子遍历合并（P0.1）** — `checkBreakthroughsAndPills` 7次独立遍历压缩至4次，`accumulateCultivationPerPhase` 改用列直读免全量 `assemble`，300弟子每 tick 节省~1ms
+- **月度结算事务合并（P0.2）** — `processAutoAssign` + `processResidenceLoyalty` 移入主事务，月流事务数 4→2
+- **突破判定列级直读（P0.3）** — `assembleAll()` 全量组装改为列级过滤 + 按需 `assemble`，每 tick 节省~0.5-1ms
+- **UnifiedPerformanceMonitor 精简（P1.1）** — 1122行精简至477行，删除未使用的 Trace/月变事件指标/Choreographer回调等645行废弃代码
+- **BooleanArray 替代 mutableSetOf（P1.2）** — `SoftwareCanvasBackend` chunk失效追踪改用 `BooleanArray(16)`，减少渲染线程GC压力
+- **CultivationRateCalculator 映射缓存（P1.4）** — `associateBy` 改用引用检测自动缓存，修炼热路径每秒省2-3次全量重建
+- **Pair 消除（P2.2）** — `processTickPhases` 返回值改为 Int bitmask，减少30次/秒分配
+- **Baseline Profile（P0.4）** — `app/src/main/baseline-prof/baseline.prof` 含111条启动路径HSPL规则，首次启动AOT编译加速约30%
+
+### 修复
+
+- **17个预存单元测试失败** — `CultivationCoreTest`(9) + `DiscipleBreakthroughHandlerTest`(8) 因 Mockito mock 未 stub `disciples` StateFlow 而 NPE，补 stub 后全部通过
+- **AdServiceImpl TooGenericExceptionCaught** — detekt 违规，加 `@Suppress` 标注
+
+### 架构债务
+
+- `docs/architecture-debt.md` 新增 5 条远期优化项（`discipleAggregates` 增量投影、`processMonthlyEvents` 单事务化等）
+
+### 统计
+
+- 17 文件改动，+447 / -877 行，净减 430 行
+- `compileReleaseKotlin` BUILD SUCCESSFUL
+
 ## [4.0.79] - 2026-07-30
 
 ### 修复

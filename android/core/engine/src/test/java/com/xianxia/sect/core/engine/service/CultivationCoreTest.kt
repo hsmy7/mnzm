@@ -132,9 +132,11 @@ class CultivationCoreTest {
         }
 
         mockStateStore = Mockito.mock(GameStateStore::class.java)
-        // calculateDiscipleCultivationPerPhase 访问 stateStore.manualInstances.value，
-        // 需 stub 为空 StateFlow 避免空指针。
+        // calculateDiscipleCultivationPerPhase 访问 stateStore.manualInstances.value 和
+        // stateStore.disciples.value，需 stub 为空 StateFlow 避免空指针。
         Mockito.`when`(mockStateStore.manualInstances)
+            .thenReturn(MutableStateFlow(emptyList()))
+        Mockito.`when`(mockStateStore.disciples)
             .thenReturn(MutableStateFlow(emptyList()))
 
         val mockPillManager = Mockito.mock(DisciplePillManager::class.java)

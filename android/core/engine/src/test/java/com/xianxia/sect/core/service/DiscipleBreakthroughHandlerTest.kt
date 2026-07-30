@@ -47,6 +47,8 @@ class DiscipleBreakthroughHandlerTest {
             .thenReturn(MutableStateFlow(emptyList()))
         Mockito.`when`(mockStore.manualStacks)
             .thenReturn(MutableStateFlow(emptyList()))
+        Mockito.`when`(mockStore.disciples)
+            .thenReturn(MutableStateFlow(emptyList()))
         Mockito.`when`(cultivationCore.isDiscipleFullHpMp(
             any<Disciple>()
         )).thenReturn(true)
@@ -343,3 +345,4 @@ class DiscipleBreakthroughHandlerTest {
         assertNotNull("tryBreakthrough should return a result", success)
     }
 }
+

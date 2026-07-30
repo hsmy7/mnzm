@@ -185,17 +185,14 @@ class CultivationSettlement @Inject constructor(
         }
     }
 
-    fun processResidenceLoyalty() {
+    fun processResidenceLoyalty(state: MutableGameState) {
         val maxLoyalty = GameConfig.Disciple.MAX_LOYALTY
-        stateStore.update {
-            val data = gameData
-            val residentIds = data.residenceSlots.filter { it.isActive }.map { it.discipleId }.toSet()
-            // ★ 列直写替代 assembleAll → map → replaceAll
-            for (id in discipleTables.ids) {
-                if (id.toString() in residentIds && discipleTables.loyalties[id] < maxLoyalty) {
-                    discipleTables.loyalties[id] =
-                        (discipleTables.loyalties[id] + 1).coerceAtMost(maxLoyalty)
-                }
+        val residentIds = state.gameData.residenceSlots.filter { it.isActive }.map { it.discipleId }.toSet()
+        // ★ 列直写替代 assembleAll → map → replaceAll
+        for (id in state.discipleTables.ids) {
+            if (id.toString() in residentIds && state.discipleTables.loyalties[id] < maxLoyalty) {
+                state.discipleTables.loyalties[id] =
+                    (state.discipleTables.loyalties[id] + 1).coerceAtMost(maxLoyalty)
             }
         }
     }

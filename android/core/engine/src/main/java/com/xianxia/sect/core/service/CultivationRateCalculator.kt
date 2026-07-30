@@ -6,6 +6,7 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.ElderSlotType
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
 import javax.inject.Inject
@@ -18,12 +19,44 @@ import javax.inject.Singleton
  * - 计算弟子每旬修炼速度（乘区法）
  * - 境界寿命增益查询
  * - 修炼相关加成计算（住所、讲道、师徒、父母灵根、丧期惩罚）
+ *
+ * 缓存说明：
+ * `manualInstanceMap` 和 `disciplesMap` 在同一个 stateStore.update {} 事务内
+ * 引用不变，因此使用引用相等检测实现自动缓存，避免每弟子每旬重建映射。
  */
 @Singleton
 @GameService("CultivationRateCalculator")
 class CultivationRateCalculator @Inject constructor(
     private val stateStore: GameStateStore
 ) {
+
+    // ── 映射缓存（热路径优化：associateBy 在每个 tick 中只构建一次） ──────
+
+    /** manualInstances 列表引用缓存。引用变化时自动重建映射。 */
+    private var lastManualInstances: List<ManualInstance>? = null
+    private var cachedManualInstanceMap: Map<String, ManualInstance> = emptyMap()
+
+    /** disciples 列表引用缓存。引用变化时自动重建映射。 */
+    private var lastDisciples: List<Disciple>? = null
+    private var cachedDisciplesMap: Map<String, Disciple> = emptyMap()
+
+    private fun getManualInstanceMap(): Map<String, ManualInstance> {
+        val current = stateStore.manualInstances.value
+        if (lastManualInstances !== current) {
+            lastManualInstances = current
+            cachedManualInstanceMap = current.associateBy { it.id }
+        }
+        return cachedManualInstanceMap
+    }
+
+    private fun getDisciplesMap(): Map<String, Disciple> {
+        val current = stateStore.disciples.value
+        if (lastDisciples !== current) {
+            lastDisciples = current
+            cachedDisciplesMap = current.associateBy { it.id }
+        }
+        return cachedDisciplesMap
+    }
 
     /**
      * 计算弟子每旬修炼速度（1x 速度基准）。
@@ -54,7 +87,7 @@ class CultivationRateCalculator @Inject constructor(
             relaxedMgmtPenalty = -GameConfig.PolicyConfig.RELAXED_MGMT_CULTIVATION_PENALTY
         }
 
-        val manualInstanceMap = stateStore.manualInstances.value.associateBy { it.id }
+        val manualInstanceMap = getManualInstanceMap()
         val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
             list.associateBy { it.manualId }
         }
@@ -146,7 +179,7 @@ class CultivationRateCalculator @Inject constructor(
         if (disciple.discipleType != targetDiscipleType) return 0.0 to 0.0
         val elderSlots = data.elderSlots
         // 用于提取长老职务加成（PositionBonus）
-        val allDisciples = stateStore.disciples.value.associateBy { it.id }
+        val allDisciples = getDisciplesMap()
 
         fun elderBonus(elderId: String?, slotType: ElderSlotType): Double {
             val id = elderId?.toIntOrNull() ?: return 0.0

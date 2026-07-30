@@ -258,6 +258,9 @@ class SoftwareCanvasBackend(
         }
     }
 
+    /** BooleanArray 替代 mutableSetOf 追踪建筑变化需要失效的 chunk（P1.2 优化） */
+    private val chunkInvalidationFlags = BooleanArray(NUM_CHUNKS_COL * NUM_CHUNKS_ROW)
+
     /** decorationsDisabled 版本号，变化时失效所有 chunk */
     private var chunkDecorVersion: Int = 0
     /** 上一次记录的 decorationsDisabled 值 */
@@ -417,7 +420,6 @@ class SoftwareCanvasBackend(
         if (chunkBuildingChanged) {
             chunkBuildingHash = buildingHash
             if (buildingArray != null) {
-                val chunksToInvalidate = mutableSetOf<Pair<Int, Int>>()
                 val count = frame.buildingCount.coerceAtMost(buildingArray.size / 5)
                 for (i in 0 until count) {
                     val idx = i * 5
@@ -436,12 +438,17 @@ class SoftwareCanvasBackend(
                         .coerceIn(0, NUM_CHUNKS_ROW - 1)
                     for (c in firstCol..lastChunkCol) {
                         for (r in firstRow..lastChunkRow) {
-                            chunksToInvalidate.add(c to r)
+                            chunkInvalidationFlags[r * NUM_CHUNKS_COL + c] = true
                         }
                     }
                 }
-                for ((col, row) in chunksToInvalidate) {
-                    chunkCaches[col][row].isValid = false
+                for (col in 0 until NUM_CHUNKS_COL) {
+                    for (row in 0 until NUM_CHUNKS_ROW) {
+                        if (chunkInvalidationFlags[row * NUM_CHUNKS_COL + col]) {
+                            chunkCaches[col][row].isValid = false
+                            chunkInvalidationFlags[row * NUM_CHUNKS_COL + col] = false
+                        }
+                    }
                 }
             } else {
                 for (col in 0 until NUM_CHUNKS_COL) {

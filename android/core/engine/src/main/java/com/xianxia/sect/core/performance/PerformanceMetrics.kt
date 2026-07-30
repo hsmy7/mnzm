@@ -130,33 +130,6 @@ class MetricCollector(
     }
 }
 
-data class Trace(
-    val name: String,
-    val startTime: Long,
-    val tags: Map<String, String> = emptyMap(),
-    val endTime: Long = 0,
-    val duration: Long = 0,
-    val isCompleted: Boolean = false
-) {
-    fun complete(): Trace {
-        val endTime = System.nanoTime()
-        return copy(
-            endTime = endTime,
-            duration = endTime - startTime,
-            isCompleted = true
-        )
-    }
-    
-    fun durationMs(): Double = duration / 1_000_000.0
-    
-    fun durationMicros(): Double = duration / 1_000.0
-    
-    fun toFormattedString(): String {
-        val status = if (isCompleted) "completed" else "running"
-        return "Trace[$name]: ${String.format(Locale.ROOT, "%.3f", durationMs())}ms ($status)"
-    }
-}
-
 enum class MetricCategory {
     PERFORMANCE,
     MEMORY,
@@ -180,5 +153,4 @@ data class MetricDefinition(
 interface MetricsListener {
     fun onMetricRecorded(name: String, value: Long, stats: MetricStats)
     fun onThresholdExceeded(name: String, value: Long, threshold: Long, isCritical: Boolean)
-    fun onTraceCompleted(trace: Trace)
 }

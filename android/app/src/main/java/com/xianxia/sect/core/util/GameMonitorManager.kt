@@ -8,7 +8,6 @@ import com.xianxia.sect.core.performance.MetricDefinition
 import com.xianxia.sect.core.performance.MetricsListener
 import com.xianxia.sect.core.performance.MetricStats
 import com.xianxia.sect.core.performance.OptimizationLevel
-import com.xianxia.sect.core.performance.Trace
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
 import com.xianxia.sect.di.ApplicationScopeProvider
 import javax.inject.Inject
@@ -166,18 +165,6 @@ class GameMonitorManager @Inject constructor(
     fun getGCOptimizer(): GCOptimizer = gcOptimizer
 
     fun getUnifiedPerformanceMonitor(): UnifiedPerformanceMonitor = unifiedPerformanceMonitor
-
-    fun startTrace(name: String, tags: Map<String, String> = emptyMap()): Trace {
-        return unifiedPerformanceMonitor.startTrace(name, tags)
-    }
-
-    fun endTrace(trace: Trace): Trace {
-        return unifiedPerformanceMonitor.endTrace(trace)
-    }
-
-    fun <T> trace(name: String, tags: Map<String, String> = emptyMap(), block: () -> T): T {
-        return unifiedPerformanceMonitor.trace(name, tags, block)
-    }
 
     fun recordMetric(name: String, value: Long) {
         unifiedPerformanceMonitor.recordMetric(name, value)

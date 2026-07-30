@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game.sect
 
+import androidx.compose.runtime.Immutable
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.util.GridSnapHelper
 
@@ -48,6 +49,7 @@ data class MoveModeState(
 /**
  * 金手指模式状态 — 一键批量建造。
  */
+@Immutable
 data class GoldFingerState(
     val isActive: Boolean = false,
     val startGridX: Int = 0,
