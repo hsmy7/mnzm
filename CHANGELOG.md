@@ -4,6 +4,7 @@
 
 - **弟子执行任务后永远卡在「任务中」** — `processCompletedMissionsLazy` 在 `CultivationEventProcessor` 中移除已完成任务后漏掉了给 `discipleTables.statuses[tid]` 设置 `IDLE`，导致弟子状态永远卡在 `ON_MISSION`。`deriveDiscipleStatus` 中对 `ON_MISSION` 的无条件保护使后续的 `syncAllDiscipleStatuses` 无法修复。修复：在月度结算的奖励发放事务中直接写入 `DiscipleStatus.IDLE`；同时 `ON_MISSION` 改为从 `activeMissions` 数据推导（`hasActiveMission` 参数），旧存档中已卡住的弟子在下次状态同步时自动愈合
 - **任务阁拆除无法释放卡住弟子** — 任务阁注册时 `slotGroups = emptyList()`，拆除时 `cleanupBuildingSlots` 不清理 `activeMissions`。修复：在 `cleanupBuildingSlots` 中检测 `BuildingType.MISSION_HALL` 时清除 `activeMissions` 并重置所有 `ON_MISSION` 存活弟子为 `IDLE`
+- **红米/小米等设备音频断续** — `GameEngineCore` 游戏线程使用 `THREAD_PRIORITY_URGENT_AUDIO`(-19)，优先级高于音频混音线程(-16)，导致音频 buffer underrun 断断续续。修复：降级为 `THREAD_PRIORITY_URGENT_DISPLAY`(-8)
 
 ### 优化
 

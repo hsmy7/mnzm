@@ -19,7 +19,8 @@
       "重构：月度交易合并——GameEngineCore中政策成本+月变事件+自动排班+月度事件合并为单stateStore.update事务",
       "优化：ADPF Performance Hint集成——游戏循环接入ThermalMonitor帧率提示，API 31+帧率稳定性提升",
       "优化：AAB纹理压缩格式分发——Google Play自动为设备分配合适纹理格式",
-      "修复：TalentDatabaseTest 2个预存失败——负天赋品级名断言对齐\「负面」，位置天赋排除空effects检查"
+      "修复：TalentDatabaseTest 2个预存失败——负天赋品级名断言对齐\「负面」，位置天赋排除空effects检查",
+      "修复：红米/小米等设备音频断续——游戏线程THREAD_PRIORITY_URGENT_AUDIO(-19)高于音频混音线程(-16)，导致音频buffer underrun。降级为THREAD_PRIORITY_URGENT_DISPLAY(-8)"
     ]
   },
   {

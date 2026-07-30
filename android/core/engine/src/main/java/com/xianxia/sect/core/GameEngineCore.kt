@@ -370,14 +370,14 @@ class GameEngineCore @Inject constructor(
             DomainLog.i(TAG, "Starting game loop")
 
             // 双重保险：线程工厂已设 MAX_PRIORITY，但部分 OEM 覆盖线程优先级。
-            // Process.setThreadPriority(THREAD_PRIORITY_URGENT_AUDIO) 是 Linux
-            // nice 值 -19（最高实时优先级），独立于 Java Thread.priority 体系，
-            // 即使 OEM 修改了 Thread.priority 映射也依然生效。
+            // Process.setThreadPriority(THREAD_PRIORITY_URGENT_DISPLAY) 是 Linux
+            // nice 值 -8，低于音频线程 THREAD_PRIORITY_AUDIO (-16)，
+            // 防止游戏线程优先级高于音频混音线程导致 buffer underrun（红米/小米等设备上音频断续）
             try {
                 android.os.Process.setThreadPriority(
-                    android.os.Process.THREAD_PRIORITY_URGENT_AUDIO
+                    android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY
                 )
-                DomainLog.d(TAG, "Game thread priority: URGENT_AUDIO (-19)")
+                DomainLog.d(TAG, "Game thread priority: URGENT_DISPLAY (-8)")
             } catch (e: CancellationException) { throw e }
               catch (e: Exception) {
                 DomainLog.w(TAG, "Cannot set thread priority: ${e.message}")
