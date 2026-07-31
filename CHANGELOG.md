@@ -3,9 +3,14 @@
 ### 修复
 
 - **招募弟子列表每 3 年不刷新** — 年变事件单事务化后，`processSectDisciplesYearlyRecruitment` 仍读取已提交旧快照（`stateStore.gameData.value`）覆盖事务缓冲，把 `refreshRecruitList` 刚追加的新弟子全部清除：未被自动招募的弟子直接消失（自动招募在覆盖前执行所以正常），取消自动招募后列表完全不变。修复：改为基于事务缓冲（`MutableGameState`）读写；同类问题 `processSectDisciplesAging` 一并修复（AI 宗门弟子年度老化结果不再被回滚）
+- **招募刷新判据自愈** — 刷新时机由固定年份模运算（`year % 3 == 1`）改为距上次刷新满 3 年触发（`year - lastRecruitYear >= 3`），与启动补刷判据统一：老存档/跨版本相位漂移自动对齐，刷新异常时次年自动补齐，不再永久错过
+- **Android 10 设备温度监测闪退** — 热回调注册守卫从 API 29 对齐到 API 30：`AndroidThermalReader` 的 `platformCallback` 使用 API 30 才引入的 `PowerManager.OnThermalStatusChangedListener`，API 29 设备通过旧守卫后访问该字段会 `NoSuchFieldError` 闪退
+- **低版本 Android 设备存档备份校验异常** — `computeCrc32c` 由 `NoClassDefFoundError` 隐式回退改为 `Build.VERSION.SDK_INT >= 34` 显式分支（CRC32C/CRC32），同设备自洽且行为确定，低版本设备备份恢复不再校验失败
+- **炼丹/锻造界面「显示所有可用弟子」勾选状态不实时更新** — `viewModel.gameData.value` 在 Composition 内读取不触发重组，改为复用响应式 `gameData` 参数派生
 
 ### 优化
 
+- **年度报告数据完整** — `runGarrisonAndReport` 改为在年变事务缓冲内读取数据生成年报，纳贡/俸禄等同事务前序事件写入的收入正确计入当年年报（此前读已提交旧值导致漏计）
 - **对话框遮罩层统一** — 无论同时打开几个界面，全局只渲染一层遮罩。取消各独立 Dialog 窗口各自的 scrim 绘制，改为在 GameOverlayHost 根节点画单例 scrim。消除多界面叠加时遮罩变黑（叠加后约 84% 不透光）的问题
 
 ## [4.0.80] - 2026-07-31
