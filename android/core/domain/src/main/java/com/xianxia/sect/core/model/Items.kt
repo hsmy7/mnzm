@@ -1053,6 +1053,39 @@ data class Seed(
     val basePrice: Int get() = GameConfig.Rarity.get(rarity).seedPrice
 }
 
+/**
+ * 从装备实例重建堆叠（旧存档兜底，2026-08-01 堆叠序列化缺陷修复）。
+ *
+ * 历史缺陷：SaveData 中 equipmentStacks 曾被标记 @Transient，备份文件/云存档不含堆叠，
+ * 恢复路径会永久清空仓库堆叠。本函数仅对"未装备且无归属"的实例按 (name, rarity, slot)
+ * 分组重建——仓库物品物理上从未被序列化过，无法无损恢复，仅能恢复已装备之外的游离实例。
+ *
+ * @param instances 装备实例列表
+ * @return 按 (name, rarity, slot) 分组聚合的重建堆叠；无游离实例时返回空列表
+ */
+fun rebuildEquipmentStacks(instances: List<EquipmentInstance>): List<EquipmentStack> {
+    val unowned = instances.filter { it.ownerId == null && !it.isEquipped }
+    if (unowned.isEmpty()) return emptyList()
+    return unowned
+        .groupBy { Triple(it.name, it.rarity, it.slot) }
+        .map { (_, group) -> group.first().toStack(quantity = group.size) }
+}
+
+/**
+ * 从功法实例重建堆叠（旧存档兜底，2026-08-01 堆叠序列化缺陷修复）。
+ * 语义同 [rebuildEquipmentStacks]，仅重建未学习（ownerId == null && !isLearned）的实例。
+ *
+ * @param instances 功法实例列表
+ * @return 按 (name, rarity, type) 分组聚合的重建堆叠；无游离实例时返回空列表
+ */
+fun rebuildManualStacks(instances: List<ManualInstance>): List<ManualStack> {
+    val unlearned = instances.filter { it.ownerId == null && !it.isLearned }
+    if (unlearned.isEmpty()) return emptyList()
+    return unlearned
+        .groupBy { Triple(it.name, it.rarity, it.type) }
+        .map { (_, group) -> group.first().toStack(quantity = group.size) }
+}
+
 @Entity(
     tableName = "storage_bags",
     primaryKeys = ["id", "slot_id"],

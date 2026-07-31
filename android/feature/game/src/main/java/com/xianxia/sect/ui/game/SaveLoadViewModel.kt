@@ -12,6 +12,7 @@ import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.util.SectMapTileGenerator
 import com.xianxia.sect.taptap.TapCloudSaveManager
 import com.xianxia.sect.data.model.SaveData
+import com.xianxia.sect.data.serialization.unified.SaveDataReconciler
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.data.unified.SaveError
 import com.xianxia.sect.data.unified.SaveResult
@@ -410,8 +411,7 @@ class SaveLoadViewModel @Inject constructor(
                 } catch (e: CancellationException) { throw e }
                   catch (resetEx: Exception) {
                     Log.e(TAG, "startNewGame: Failed to reset loading state in finally block, forcing direct reset", resetEx)
-                    try { stateStore.update { isLoading = false } } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "stateStore.update { isLoading = false } also failed: ${e.message}") }
-                    try { stateStore.update { isSaving = false } } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "stateStore.update { isSaving = false } also failed: ${e.message}") }
+                    try { gameEngine.setSaveLoadFlags(false, false) } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "stateStore.update fallback also failed: ${e.message}") }
                     _pendingSlot.value = null
                     _pendingAction.value = null
                 }
@@ -614,7 +614,7 @@ class SaveLoadViewModel @Inject constructor(
                 } catch (e: CancellationException) { throw e }
                   catch (resetEx: Exception) {
                     Log.e(TAG, "loadGame: Failed to reset loading state in finally block, forcing direct reset", resetEx)
-                    try { stateStore.update { isLoading = false } } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "stateStore.update { isLoading = false } also failed: ${e.message}") }
+                    try { gameEngine.setSaveLoadFlags(false, false) } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "stateStore.update fallback also failed: ${e.message}") }
                     _pendingSlot.value = null
                     _pendingAction.value = null
                 }
@@ -883,7 +883,7 @@ class SaveLoadViewModel @Inject constructor(
                 } catch (e: CancellationException) { throw e }
                   catch (resetEx: Exception) {
                     Log.e(TAG, "saveGame: Failed to reset saving state in finally block, forcing direct reset", resetEx)
-                    try { stateStore.update { isSaving = false } } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "stateStore.update { isSaving = false } also failed: ${e.message}") }
+                    try { gameEngine.setSaveLoadFlags(false, false) } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "stateStore.update fallback also failed: ${e.message}") }
                     _pendingSlot.value = null
                     _pendingAction.value = null
                 }
@@ -1249,23 +1249,25 @@ class SaveLoadViewModel @Inject constructor(
                             Log.w(TAG, "云存档版本 $cloudVersion ≠ 当前版本 ${GameConfig.Game.VERSION}，可能不兼容")
                         }
 
+                        // 旧格式云存档无堆叠数据：从实例重建兜底（2026-08-01 堆叠序列化缺陷修复）
+                        val reconciled = SaveDataReconciler.reconcileStacks(saveData)
                         val effectiveSlot = persistenceFacade.storageFacade.getCurrentSlot()
                         gameEngine.loadData(
-                            gameData = saveData.gameData.copy(currentSlot = effectiveSlot),
-                            disciples = saveData.disciples,
-                            equipmentStacks = saveData.equipmentStacks,
-                            equipmentInstances = saveData.equipmentInstances,
-                            manualStacks = saveData.manualStacks,
-                            manualInstances = saveData.manualInstances,
-                            pills = saveData.pills,
-                            materials = saveData.materials,
-                            herbs = saveData.herbs,
-                            seeds = saveData.seeds,
-                            storageBags = saveData.storageBags,
-                            teams = saveData.teams,
-                            battleLogs = saveData.battleLogs,
-                            alliances = saveData.alliances,
-                            productionSlots = saveData.productionSlots
+                            gameData = reconciled.gameData.copy(currentSlot = effectiveSlot),
+                            disciples = reconciled.disciples,
+                            equipmentStacks = reconciled.equipmentStacks,
+                            equipmentInstances = reconciled.equipmentInstances,
+                            manualStacks = reconciled.manualStacks,
+                            manualInstances = reconciled.manualInstances,
+                            pills = reconciled.pills,
+                            materials = reconciled.materials,
+                            herbs = reconciled.herbs,
+                            seeds = reconciled.seeds,
+                            storageBags = reconciled.storageBags,
+                            teams = reconciled.teams,
+                            battleLogs = reconciled.battleLogs,
+                            alliances = reconciled.alliances,
+                            productionSlots = reconciled.productionSlots
                         )
 
                         val bootResult = persistenceFacade.bootSequenceController.boot(
@@ -1355,14 +1357,16 @@ class SaveLoadViewModel @Inject constructor(
 
         // 重置生命周期状态，防止 Singleton GameStateStore 在下一次 Activity 创建时
         // 仍保持 PLAYING 导致 isGameLoaded == true 阻止新游戏/读档
-        try {
-            stateStore.resetBootPhase()
-            stateStore.setIdle()
-        } catch (_: Exception) {
-            // 非关键清理，失败不影响主流程
+        // 2026-08-01：走引擎线程（onCleared 主线程直调违反双线程模型），
+        // NonCancellable 保证清理不被取消
+        viewModelScope.launch(NonCancellable) {
+            try {
+                gameEngine.resetLifecycleState()
+                gameEngine.setPausedDirectOnEngine(true)
+            } catch (_: Exception) {
+                // 非关键清理，失败不影响主流程
+            }
         }
-
-        stateStore.setPausedDirect(true)
         super.onCleared()
     }
 

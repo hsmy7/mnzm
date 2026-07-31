@@ -30,7 +30,6 @@ data class TransactionRecord(
     val slot: Int,
     val operation: WALEntryType,
     val startTime: Long,
-    val snapshotFile: java.io.File?,
     val statusRef: AtomicReference<TransactionStatus> = AtomicReference(TransactionStatus.ACTIVE),
     var checksum: String = "",
     var gameEvent: String? = null,
@@ -46,8 +45,7 @@ interface WALProvider {
 
     suspend fun beginTransaction(
         slot: Int,
-        operation: WALEntryType,
-        snapshotProvider: (suspend (Int) -> ByteArray)?
+        operation: WALEntryType
     ): SaveResult<Long>
 
     suspend fun commit(
@@ -57,23 +55,11 @@ interface WALProvider {
         currentGameYear: Int = 0
     ): SaveResult<Unit>
 
-    suspend fun createImportantSnapshot(
-        slot: Int,
-        snapshotProvider: suspend (Int) -> ByteArray,
-        eventType: String,
-        currentGameYear: Int = 0
-    ): SaveResult<Long>
-
     suspend fun abort(txnId: Long): SaveResult<Unit>
 
     fun abortSync(txnId: Long): SaveResult<Unit>
 
     suspend fun recover(): RecoveryResult
-
-    suspend fun restoreFromSnapshot(
-        slot: Int,
-        dataConsumer: suspend (ByteArray) -> Boolean
-    ): SaveResult<Unit>
 
     suspend fun checkpoint(): Boolean
 

@@ -4,6 +4,8 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
+    // 2026-08-01：kover 覆盖率盲区修复——全模块纳入统计
+    alias(libs.plugins.kover)
 }
 
 android {
@@ -26,6 +28,8 @@ android {
 
 tasks.withType(Test).configureEach {
     maxHeapSize = "2g"
+    // 2026-08-01：显式单 fork——共享静态状态跨测试类并行污染
+    maxParallelForks = 1
 }
 
 dependencies {
@@ -43,7 +47,6 @@ dependencies {
     implementation libs.activity.compose
     implementation libs.lifecycle.viewmodel.compose
     implementation libs.lifecycle.runtime.compose
-    implementation libs.navigation.compose
     debugImplementation libs.compose.ui.tooling
 
     // Hilt

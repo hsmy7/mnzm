@@ -99,9 +99,6 @@ sealed interface DialogType {
 
     data object GameOver : DialogType
 
-    /** 薪资配置（尚未实现独立界面） */
-    data object SalaryConfig : DialogType
-
     /** 云存档 */
     data object CloudSave : DialogType
 

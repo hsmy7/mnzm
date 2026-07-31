@@ -178,6 +178,78 @@ class HpMpRecoveryService @Inject constructor() {
     }
 
     /**
+     * 单弟子旬级 HP/MP 恢复（列直读版，2026-08-01 每旬热点专用）。
+     *
+     * 与 [recoverHpMpSingle] 数学等价（共用 [DiscipleStatCalculator.computeBaseHpMp]
+     * 公式），但不 assemble 弟子对象——只直读 17 列（境界/层/方差/天赋/词条/四槽装备/
+     * 功法/丹药），省去 ~90 列读取 + 嵌套对象分配。
+     * 满血弟子提前退出（无需计算 maxHp 也能判断：curHp 达上限与否——注意
+     * maxHp 由列版廉价算出后比较）。
+     *
+     * @param state 可变游戏状态
+     * @param id 弟子 ID
+     * @param phasesToSettle 需结算的旬数（默认 1）
+     * @param zones 恢复乘区（可选，默认为无额外加成）
+     * @param equipmentMap 装备实例映射（每旬热点循环共享构建，null 时内部构建）
+     * @param manualMap 功法实例映射（每旬热点循环共享构建，null 时内部构建）
+     * @param manualProficiencies 功法熟练度映射（每旬热点循环共享构建，null 时内部构建）
+     * @return 是否发生写入
+     */
+    fun recoverHpMpSingleColumn(
+        state: MutableGameState,
+        id: Int,
+        phasesToSettle: Int = 1,
+        zones: RecoveryZones = RecoveryZones(),
+        equipmentMap: Map<String, EquipmentInstance>? = null,
+        manualMap: Map<String, ManualInstance>? = null,
+        manualProficiencies: Map<String, List<ManualProficiencyData>>? = null
+    ): Boolean {
+        if (phasesToSettle <= 0) return false
+        val tables = state.discipleTables
+        val curHp = tables.currentHps[id]
+        val curMp = tables.currentMps[id]
+        if (curHp < 0 && curMp < 0) return false
+
+        val input = DiscipleStatCalculator.HpMpColumnInput(
+            realm = tables.realms[id],
+            realmLayer = tables.realmLayers[id],
+            hpVariance = tables.hpVariances[id],
+            mpVariance = tables.mpVariances[id],
+            talentIds = tables.talentIds.getOrNull(id) ?: emptyList(),
+            affixIds = tables.affixIds.getOrNull(id) ?: emptyList(),
+            weaponId = tables.weaponIds.getOrNull(id),
+            armorId = tables.armorIds.getOrNull(id),
+            bootsId = tables.bootsIds.getOrNull(id),
+            accessoryId = tables.accessoryIds.getOrNull(id),
+            manualIds = tables.manualIds.getOrNull(id) ?: emptyList(),
+            pillEffectDuration = tables.pillEffectDurations[id],
+            pillHpBonus = tables.pillHpBonuses[id],
+            pillMpBonus = tables.pillMpBonuses[id]
+        )
+        val eqMap = equipmentMap ?: state.equipmentInstances.associateBy { it.id }
+        val mMap = manualMap ?: state.manualInstances.associateBy { it.id }
+        val profList = manualProficiencies ?: state.gameData.manualProficiencies
+        val profMap = profList[id.toString()]?.associateBy { it.manualId } ?: emptyMap()
+        val (maxHp, maxMp) = DiscipleStatCalculator.getMaxHpMpColumn(input, eqMap, mMap, profMap)
+
+        // 满血提前退出（负值视为满，语义与对象版一致）
+        val effHp = if (curHp < 0) maxHp else curHp
+        val effMp = if (curMp < 0) maxMp else curMp
+        if (effHp >= maxHp && effMp >= maxMp) return false
+
+        val multiplier = PHASE_MULTIPLIER.toDouble() * phasesToSettle
+        val hpRecovery = zones.calculateRecovery(maxHp, multiplier)
+        val mpRecovery = zones.calculateRecovery(maxMp, multiplier)
+        val newHp = if (curHp < 0) curHp else (curHp + hpRecovery).coerceAtMost(maxHp)
+        val newMp = if (curMp < 0) curMp else (curMp + mpRecovery).coerceAtMost(maxMp)
+
+        var wrote = false
+        if (newHp != curHp) { tables.currentHps[id] = newHp; wrote = true }
+        if (newMp != curMp) { tables.currentMps[id] = newMp; wrote = true }
+        return wrote
+    }
+
+    /**
      * 月度 HP/MP 恢复（月结制专用）。
      * 每旬 multiplier=10，每月 3 旬 → 月度 multiplier=30。
      * @param tables 弟子数据表

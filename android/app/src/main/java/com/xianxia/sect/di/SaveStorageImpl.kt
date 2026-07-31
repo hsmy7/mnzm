@@ -32,7 +32,8 @@ class SaveStorageImpl @Inject constructor(
             battleLogs = snapshot.battleLogs,
             alliances = snapshot.alliances,
             productionSlots = snapshot.productionSlots,
-            storageBags = snapshot.storageBags
+            storageBags = snapshot.storageBags,
+            stacksSerialized = true
         )
         val result = storageFacade.save(slot, saveData)
         return result.isSuccess

@@ -1,11 +1,41 @@
 package com.xianxia.sect.core.engine.system
 
 import android.os.SystemClock
+import android.util.Log
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/**
+ * 单调时钟抽象（2026-08-01 注入化）。
+ *
+ * 生产使用 [SystemTimeSource]（SystemClock.elapsedRealtime()）；
+ * 测试注入 FakeTimeSource 手工推进——修复旧测试依赖
+ * returnDefaultValues 下 SystemClock 恒 0 的"算术恒等式假绿"。
+ */
+fun interface TimeSource {
+    fun elapsedRealtime(): Long
+}
+
+/** 生产实现：Android 单调时钟。 */
+object SystemTimeSource : TimeSource {
+    override fun elapsedRealtime(): Long = SystemClock.elapsedRealtime()
+}
+
+/** TimeSource Hilt 绑定（生产恒为 [SystemTimeSource]；测试直接构造 GameTimeClock(Fake)）。 */
+@Module
+@InstallIn(SingletonComponent::class)
+object TimeSourceModule {
+    @Provides
+    @Singleton
+    fun provideTimeSource(): TimeSource = SystemTimeSource
+}
 
 /**
  * 游戏时间时钟 — 全项目唯一的时间推进入口。
@@ -26,7 +56,9 @@ import javax.inject.Singleton
  * |   2   |  1.0s  |  3.0s  |
  */
 @Singleton
-class GameTimeClock @Inject constructor() {
+class GameTimeClock @Inject constructor(
+    private val timeSource: TimeSource
+) {
 
     // ── 公开状态 ──
 
@@ -69,7 +101,7 @@ class GameTimeClock @Inject constructor() {
 
     /** 启动/重置时钟。游戏循环开始时调用。 */
     fun start() {
-        lastWallMs = SystemClock.elapsedRealtime()
+        lastWallMs = timeSource.elapsedRealtime()
         accumulatedGameMs = 0L
     }
 
@@ -78,7 +110,7 @@ class GameTimeClock @Inject constructor() {
      * @param newSpeed 0=暂停, 1=1x, 2=2x
      */
     fun setSpeed(newSpeed: Int) {
-        val now = SystemClock.elapsedRealtime()
+        val now = timeSource.elapsedRealtime()
         // 先结算从上次取样到此刻的累积量（用旧速度）
         if (speed > 0) {
             accumulatedGameMs += (now - lastWallMs) * speed
@@ -94,7 +126,7 @@ class GameTimeClock @Inject constructor() {
      * @return 本 tick 应推进的旬数，以及是否需要等待结算
      */
     fun tick(isSettlementPending: Boolean): TickResult {
-        val now = SystemClock.elapsedRealtime()
+        val now = timeSource.elapsedRealtime()
         val rawDelta = now - lastWallMs
         lastWallMs = now
 
@@ -106,8 +138,17 @@ class GameTimeClock @Inject constructor() {
             accumulatedGameMs += realDelta * speed
         }
 
-        val phases = (accumulatedGameMs / msPerPhase).toInt()
-        if (phases > 0) {
+        var phases = (accumulatedGameMs / msPerPhase).toInt()
+
+        // 2026-08-01 修复：单 tick 追补上限（MAX_CATCHUP_MS 30s × 2x = 60 旬连跑，
+        // 导致引擎线程单帧内连续执行数十个完整事务、看门狗与业务互搏）。
+        // 追补源是 OEM 挂起/看门狗重启（非正常离线），玩家应尽快回到实时——
+        // 触发上限时丢弃余量并记录，而非留存分摊。
+        if (phases > MAX_PHASES_PER_TICK) {
+            Log.w(TAG, "tick catch-up capped at $MAX_PHASES_PER_TICK phases, dropped ${phases - MAX_PHASES_PER_TICK}")
+            phases = MAX_PHASES_PER_TICK
+            accumulatedGameMs = 0L
+        } else if (phases > 0) {
             accumulatedGameMs -= phases.toLong() * msPerPhase
         }
         return TickResult(phases, isSettlementPending)
@@ -121,7 +162,7 @@ class GameTimeClock @Inject constructor() {
      * accumulatedGameMs 保持不变 — 阻塞期间不产生游戏时间。
      */
     fun consumeDeadTime() {
-        lastWallMs = SystemClock.elapsedRealtime()
+        lastWallMs = timeSource.elapsedRealtime()
     }
 
     /**
@@ -130,16 +171,6 @@ class GameTimeClock @Inject constructor() {
      */
     fun forceConsumeOnePhase() {
         accumulatedGameMs = maxOf(0L, accumulatedGameMs - msPerPhase)
-    }
-
-    /**
-     * 仅测试用：直接设置 lastWallMs 以模拟时间流逝。
-     *
-     * 生产代码不应调用此方法 — lastWallMs 由 [tick] / [start] /
-     * [setSpeed] / [consumeDeadTime] 自动维护。
-     */
-    internal fun setLastWallMsForTest(ms: Long) {
-        lastWallMs = ms
     }
 
     // ── 类型 ──
@@ -152,10 +183,18 @@ class GameTimeClock @Inject constructor() {
     )
 
     companion object {
+        private const val TAG = "GameTimeClock"
+
         /** 1x 速度下每旬对应的真实时间毫秒数 */
         const val MS_PER_PHASE_1X: Long = 2000L
 
         /** 单次 tick 最大追赶时间（毫秒）。防止线程长时间挂起后恢复时时间爆炸式跳变。 */
         private const val MAX_CATCHUP_MS: Long = 30_000L  // 30秒 — 正常玩法不受影响，阻断分钟级挂起爆炸
+
+        /**
+         * 单 tick 最大追补旬数（2026-08-01 修复）。
+         * 超过即丢弃余量并记录日志——追补源是 OEM 挂起/看门狗重启，玩家应尽快回到实时。
+         */
+        const val MAX_PHASES_PER_TICK: Int = 3
     }
 }

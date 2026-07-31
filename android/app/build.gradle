@@ -106,11 +106,11 @@ android {
             buildConfigField "boolean", "DEBUG_MODE", "false"
         }
         debug {
-            debuggable false
-            if (canSignRelease) {
-                signingConfig = signingConfigs.release
-            }
-            buildConfigField "boolean", "DEBUG_MODE", "false"
+            // 2026-08-01 修复：恢复 debuggable + 移除 release 签名——
+            // 旧配置导致无法 attach debugger，且 debug 包与 release 同签名可
+            // 直接覆盖安装正式包（数据/凭证串包风险）
+            debuggable true
+            buildConfigField "boolean", "DEBUG_MODE", "true"
         }
     }
 
@@ -126,6 +126,12 @@ android {
             includeAndroidResources = true
             returnDefaultValues = true
         }
+    }
+
+    // 2026-08-01：显式单 fork——共享静态状态（GameLoopDelegate.healthCheckEnabled 等）
+    // 跨测试类并行时相互污染（CI 并行曾出现 98 个失败）
+    tasks.withType(Test).configureEach {
+        maxParallelForks = 1
     }
 
     buildFeatures {
@@ -177,7 +183,6 @@ dependencies {
     implementation libs.activity.compose
     implementation libs.lifecycle.viewmodel.compose
     implementation libs.lifecycle.runtime.compose
-    implementation libs.navigation.compose
     debugImplementation libs.compose.ui.tooling
 
     // Room
@@ -214,12 +219,10 @@ dependencies {
 
     // Network
     implementation libs.retrofit
-    implementation libs.retrofit.converter.gson
     implementation libs.okhttp
     implementation libs.okhttp.logging
 
     // Gson
-    implementation libs.gson
 
     // Security
     implementation libs.security.crypto

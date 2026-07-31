@@ -38,7 +38,7 @@
 
 ## Tech Stack
 
-- **Language**: Kotlin 2.0.21, JVM target 17
+- **Language**: Kotlin 2.2.20, JVM target 17
 - **UI**: Jetpack Compose with Material3 (BOM 2025.02.00), no XML layouts
 - **DI**: Hilt 2.56 (`@HiltAndroidApp`, `@HiltViewModel`, `@AndroidEntryPoint`)
 - **Database**: Room 2.6.1 with KSP annotation processing; single shared DB file (`xianxia_sect.db`) for all save slots
@@ -260,7 +260,7 @@ interface SaveValidationRule {
 
 `RuleContext` 在遍历规则前一次性预计算：`allEquipmentIds`（equipmentStacks + instances 的 ID 并集）、`buildingInstanceIds`（placedBuildings 非空 instanceId）。中间状态 `removedDiscipleIds` 由 GhostDiscipleCleanupRule 写入、GhostRefCleanupRule 消费。
 
-### 当前已注册规则（14 条）
+### 当前已注册规则（20 条，2026-08-01 实测核对）
 
 | 规则 | 现有/新增 | 功能 |
 |------|-----------|------|

@@ -254,6 +254,17 @@ class DiscipleTables {
          * 仅用于重构回归调试，生产环境保持 false。
          */
         @Volatile var forceFullCopy: Boolean = false
+
+        /**
+         * Mutable 列值对象防御开关（2026-08-01 浅共享修复配套）。
+         *
+         * 13 张 List/Map/Set 列改为 O(1) 浅共享后，值对象在源快照与事务缓冲间共享
+         * 引用——若未来代码对列返回值做原地修改（绕过 set → 不触发 ensureOwned），
+         * 会污染源存储破坏快照隔离。Debug/CI 开启时 [deepCopy] 对 Mutable 列每值
+         * 包装 unmodifiable（任何原地修改立即抛 UnsupportedOperationException）；
+         * Release 关闭（纯共享零成本）。
+         */
+        @Volatile var mutableValueGuardEnabled: Boolean = true
     }
 
     private val _allCopyableRefs: List<CopyableTableRef> = buildCopyableRefs().also { refs ->
@@ -306,24 +317,32 @@ class DiscipleTables {
     // 对标 Bevy ECS change tick 跳过未修改组件的表迭代。
     // ════════════════════════════════════════════════════════════
     class ChangedIdTracker {
-        private val changedIds = mutableSetOf<Int>()
+        // 2026-08-01：mutableSetOf → java.util.BitSet（每旬 D 次列写热路径零装箱，
+        // 单字更新；consume 用 nextSetBit 构造，天然升序供增量归并使用）
+        private val changedBits = java.util.BitSet()
         private val lock = Any()
 
         /** 记录某弟子 ID 被修改 */
-        fun record(id: Int) { synchronized(lock) { changedIds.add(id) } }
+        fun record(id: Int) { synchronized(lock) { changedBits.set(id) } }
 
         /** 记录多个弟子 ID 被修改（如批量写入场景） */
-        fun recordAll(ids: Collection<Int>) { synchronized(lock) { changedIds.addAll(ids) } }
+        fun recordAll(ids: Collection<Int>) { synchronized(lock) { ids.forEach { changedBits.set(it) } } }
 
         /**
          * 消费并清除已修改的 ID 集合。
-         * @return 自上次消费以来被修改过的所有弟子 ID
+         * @return 自上次消费以来被修改过的所有弟子 ID（升序）
          */
         fun consumeChangedIds(): Set<Int> {
             synchronized(lock) {
-                val copy = changedIds.toSet()
-                changedIds.clear()
-                return copy
+                if (changedBits.isEmpty) return emptySet()
+                val result = LinkedHashSet<Int>()
+                var bit = changedBits.nextSetBit(0)
+                while (bit >= 0) {
+                    result.add(bit)
+                    bit = changedBits.nextSetBit(bit + 1)
+                }
+                changedBits.clear()
+                return result
             }
         }
     }
@@ -872,23 +891,59 @@ class DiscipleTables {
      * 增量组装：只重新组装 [changedIds] 中的弟子，与 [prevSnapshot] 合并。
      * 对标 Bevy ECS change tick 跳过未修改组件的表迭代。
      *
-     * @param prevSnapshot 上一次的完整弟子列表
-     * @param changedIds 本次事务中修改过的弟子 ID
-     * @return 合并后的完整弟子列表
+     * 2026-08-01：`(unchanged + changed).sortedBy`（O(D log D)）改为双指针归并
+     * （O(D + C)）——prevSnapshot 按 id 升序（既有不变量）、changedIds 按 BitSet
+     * 升序，线性归并且未变弟子复用旧对象引用（UI 侧 data class 相等跳过重组）。
+     *
+     * @param prevSnapshot 上一次的完整弟子列表（id 升序）
+     * @param changedIds 本次事务中修改过的弟子 ID（升序）
+     * @return 合并后的完整弟子列表（id 升序）
      */
     fun assembleAllIncremental(prevSnapshot: List<Disciple>, changedIds: Set<Int>): List<Disciple> {
         if (changedIds.isEmpty()) return prevSnapshot
-        val changedSet = changedIds.toSet()
-        val changed = changedIds.mapNotNull { id ->
+        // changedIds 升序迭代（BitSet nextSetBit 天然升序）——组装为 id→Disciple 映射
+        val changedMap = HashMap<Int, Disciple>(changedIds.size * 2)
+        for (id in changedIds) {
             if (!isAlive.contains(id) || !names.contains(id) || !realms.contains(id)) {
                 Log.w(TAG, "assembleAllIncremental: ghost skipped id=$id")
-                null
-            } else {
-                try { assemble(id) } catch (e: NoSuchElementException) { null }
+                continue
             }
+            try { changedMap[id] = assemble(id) } catch (e: NoSuchElementException) { /* ghost */ }
         }
-        val unchanged = prevSnapshot.filter { it.id.toIntOrNull() !in changedSet }
-        return (unchanged + changed).sortedBy { it.id.toIntOrNull() ?: 0 }
+        // 注意：changedMap 为空时不能提前返回——remove 场景 changedIds 含被删弟子
+        //（组装必然失败），此时归并仍须从 prevSnapshot 剔除这些 id（防陈尸残留）
+
+        // 已移除/幽灵弟子 id：changedIds 中存在但组装失败的——归并时必须从
+        // prevSnapshot 中剔除（否则陈尸残留）
+        val removedIds = changedIds.filter { it !in changedMap }.toHashSet()
+
+        // 双指针归并：prevSnapshot（id 升序）∪ changedMap（id 升序）
+        val result = ArrayList<Disciple>(prevSnapshot.size + changedMap.size)
+        var i = 0
+        val prevSize = prevSnapshot.size
+        for ((id, disciple) in changedMap.entries.sortedBy { it.key }) {
+            // 复制 prevSnapshot 中 id < 当前变更 id 的未变弟子（剔除已移除 id）
+            while (i < prevSize) {
+                val prevId = prevSnapshot[i].id.toIntOrNull() ?: break
+                if (prevId >= id) break
+                if (prevId !in removedIds) result.add(prevSnapshot[i])
+                i++
+            }
+            // 跳过 prevSnapshot 中与变更 id 重合的旧条目（id 唯一，最多一个）
+            while (i < prevSize) {
+                val prevId = prevSnapshot[i].id.toIntOrNull() ?: break
+                if (prevId != id) break
+                i++
+            }
+            result.add(disciple)
+        }
+        // 追加尾部未变弟子（剔除已移除 id）
+        while (i < prevSize) {
+            val prevId = prevSnapshot[i].id.toIntOrNull()
+            if (prevId == null || prevId !in removedIds) result.add(prevSnapshot[i])
+            i++
+        }
+        return result
     }
 
     /**
@@ -968,22 +1023,29 @@ class DiscipleTables {
                 mutationVersion++
                 dirtyTracker.markDirty(ref.columnIndex)
             }
+            // 按 id 写入回调（2026-08-01 增量组装基建）：
+            // 列级 setter 记录被修改的弟子 ID → changedIdTracker → 增量 assemble 不再全量兜底
+            val idCb: (Int) -> Unit = { id -> changedIdTracker.record(id) }
             when (ref) {
                 is IntTableRef -> {
                     ref.table.setMutationCallback(dirtyCb)
                     ref.table.setWriteGuard(guard)
+                    ref.table.setIdWriteCallback(idCb)
                 }
                 is DoubleTableRef -> {
                     ref.table.setMutationCallback(dirtyCb)
                     ref.table.setWriteGuard(guard)
+                    ref.table.setIdWriteCallback(idCb)
                 }
                 is RefTableRef<*> -> {
                     ref.table.setMutationCallback(dirtyCb)
                     ref.table.setWriteGuard(guard)
+                    ref.table.setIdWriteCallback(idCb)
                 }
                 is MutableTableRef<*> -> {
                     ref.table.setMutationCallback(dirtyCb)
                     ref.table.setWriteGuard(guard)
+                    ref.table.setIdWriteCallback(idCb)
                 }
             }
         }
@@ -1012,6 +1074,7 @@ class DiscipleTables {
                 _allCopyableRefs.forEach { it.copyTo(copy) }
             } else {
                 // COW 路径：共享存储引用，首次写入时自动私有化
+                // （Mutable 列的 unmodifiable 包装已在 MutableTableRef.shareStoreTo 内完成）
                 _allCopyableRefs.forEach { it.shareStoreTo(copy) }
             }
             // 只保留组件表中有完整数据的 ID，过滤掉幽灵 ID（Bug 产生的残留）

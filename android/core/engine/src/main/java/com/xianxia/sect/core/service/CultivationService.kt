@@ -83,6 +83,21 @@ class CultivationService @Inject constructor(
         )
     }
 
+    /**
+     * 列直读版 HP/MP 恢复（2026-08-01 每旬热点专用，无 assemble）。
+     * @return 是否发生写入
+     */
+    fun recoverHpMpSingleColumn(
+        state: MutableGameState, id: Int, phasesToSettle: Int = 1,
+        equipmentMap: Map<String, EquipmentInstance>? = null,
+        manualMap: Map<String, ManualInstance>? = null,
+        manualProficiencies: Map<String, List<ManualProficiencyData>>? = null
+    ): Boolean = cultivationCore.recoverHpMpSingleColumn(
+        state, id, phasesToSettle,
+        equipmentMap = equipmentMap, manualMap = manualMap,
+        manualProficiencies = manualProficiencies
+    )
+
     fun calculateDiscipleCultivationPerPhase(
         disciple: com.xianxia.sect.core.model.Disciple,
         data: com.xianxia.sect.core.model.GameData,
@@ -117,6 +132,20 @@ class CultivationService @Inject constructor(
         if (rate <= 0.0) return
 
         tables.cultivations[id] = (curCult + rate).coerceAtMost(maxCultivation)
+
+        // 2026-08-01 接回投影：realtimeCultivation 填充 getEffectiveCultivation
+        // （checkpoint + rate×Δmonth×3）——修复"checkpoint 生产只写不读"的死代码埋雷。
+        // 投影值在两次 checkpoint 之间为常数，值未变时跳过 Map 重建（每旬零额外开销）。
+        val currentMonth = state.gameData.gameYear * 12 + state.gameData.gameMonth
+        val projection = tables.getEffectiveCultivation(id, currentMonth, rate)
+        val cur = _highFrequencyData.value
+        val prevMap = cur.realtimeCultivation
+        val key = id.toString()
+        if (prevMap == null || prevMap[key] != projection) {
+            _highFrequencyData.value = cur.copy(
+                realtimeCultivation = (prevMap ?: emptyMap()) + (key to projection)
+            )
+        }
     }
 
     /** 每旬功法熟练度增长（委托 CultivationCore） */

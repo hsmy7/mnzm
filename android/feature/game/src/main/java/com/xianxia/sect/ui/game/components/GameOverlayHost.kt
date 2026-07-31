@@ -379,7 +379,6 @@ fun GameOverlayHost(
                 onDismiss = onDismiss
             )
         }
-        is DialogType.SalaryConfig -> { }
         is DialogType.WorldMap -> {
             val mapRenderData by viewModel.worldMapRenderData.collectAsStateWithLifecycle()
             val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()

@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.serialization)
+    // 2026-08-01：kover 覆盖率盲区修复——全模块纳入统计
+    alias(libs.plugins.kover)
 }
 
 def versionPropsFile = rootProject.file("../version.properties")
@@ -24,6 +26,11 @@ android {
         compose = false
         buildConfig = true
     }
+}
+
+// 2026-08-01：显式单 fork——共享静态状态跨测试类并行污染
+tasks.withType(Test).configureEach {
+    maxParallelForks = 1
 }
 
 dependencies {

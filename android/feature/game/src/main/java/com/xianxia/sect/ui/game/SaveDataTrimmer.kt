@@ -40,7 +40,9 @@ object SaveDataTrimmer {
             battleLogs = trimmedBattleLogs,
             alliances = snapshot.alliances,
             productionSlots = snapshot.productionSlots,
-            storageBags = snapshot.storageBags
+            storageBags = snapshot.storageBags,
+            // 正常保存路径恒为新格式：堆叠已序列化（2026-08-01 堆叠序列化缺陷修复）
+            stacksSerialized = true
         )
     }
 }

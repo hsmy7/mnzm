@@ -1,6 +1,29 @@
 ## [4.0.82] - 2026-07-31
 
-### 修复
+### 修复（2026-08-01 架构全面审查批次）
+
+- **备份/云存档恢复会永久清空仓库装备/功法堆叠** — `SaveData` 的 `equipmentStacks/manualStacks` 曾被标记 `@Transient`，备份文件与云存档不含堆叠数据，恢复路径先删表再写空列表导致仓库物品永久丢失且不可逆。修复：堆叠字段纳入序列化（新存档无损）；旧格式存档从装备/功法实例重建堆叠兜底（仓库物品物理上从未存在，仅恢复游离实例，日志如实提示）；恢复路径加删表守卫（旧格式保留 DB 残留堆叠）
+- **v2-v11 老存档升级即崩溃** — 迁移链缺列（`merchantAcquisition*`/`mailRecords`/`heavenly_trial_state`/`sign_in_state_json` 无 ALTER 添加，`MIGRATION_12_13` 引用即崩）。修复：`MIGRATION_10_11`/`11_12` 补列 + 全链迁移测试从 v2 覆盖到 v36（修复前跳过 v2→v12 段）
+- **低内存时保存静默跳过但提示成功** — 内存态与 DB 脱节且无提示。修复：低内存返回失败结果（OOM 类跳过重试），手动保存提示、自动存档日志
+- **存档数据列被静默清零** — Room TypeConverter 序列化失败返回空串（超限/OOM/异常），整列数据无声丢失。修复：编码失败抛异常使保存事务回滚（宁可保存失败不可静默丢数据）
+- **保存备份写入早于 DB 事务成功** — DB 失败时备份含新数据而被丢弃。修复：备份仅在 DB 事务成功后写入
+- **读档后弟子列表短暂损坏（丢弟子/陈尸）** — load/reset 与锁外增量组装协程数据竞争。修复：状态版本号作废旧任务 + load 组装投递同一单线程调度器
+- **主线程直写 GameStateStore（双线程模型违规）** — SaveLoadViewModel onCleared 直调生命周期重置、建筑迁移在主线程直写事务。修复：新增引擎线程入口（`resetLifecycleState`/`setPausedDirectOnEngine`/`setSaveLoadFlags`/`applyBuildingMigrationOnEngine`），UI 层只保留只读
+- **升级事件清空全部玩家本地数据** — v4_reset 机制（4.0.00 删档重置遗留，无确认/备份）。已直接移除
+- **DialogType.SalaryConfig 空渲染分支黑屏软锁** — 全屏无关闭按钮遮罩。已移除死枚举与死路由 + 新增渲染覆盖守卫测试
+
+### 优化（2026-08-01 架构全面审查批次）
+
+- **每旬热点路径全面列直读** — ① 列级写入接入 changedId 追踪（修复"增量组装"承诺落空：每旬事务从全量 assembleAll 兜底改为双指针归并增量组装，未变弟子复用对象引用）；② HP/MP 恢复列直读（17 列替代 ~90 列 assemble + getFinalStats，满血提前退出），等价性守卫测试逐 fixture 精确相等；③ 13 张 List/Map/Set 列由每事务急切深拷贝改为 O(1) 浅共享（全库审计无原地修改，Debug 下 unmodifiable 包装防御）；④ 每旬原始表同值写短路（满血重写不再触发 COW 私有化）
+- **聚合链缓存化 + 增量** — 快照读取从主线程全量扫描改为 O(1) 缓存（弹窗打开不再掉帧）；聚合链双指针 diff 仅变更弟子重算，未变对象复用
+- **游戏时间追补上限** — OEM 挂起恢复后单 tick 最多推进 3 旬（修复 60 旬连跑导致数秒卡顿 + 看门狗互搏），超限丢弃余量
+- **统一快照原子化** — unifiedState 持锁一次性读取（修复新旧混合 torn read）；通知队列变更纳入版本号发射
+- **修炼 checkpoint 接回投影** — 补齐服药路径缺失的 checkpoint + 实时修炼投影（getEffectiveCultivation）填充 + 调用点守卫测试
+- **Bugly/MMKV 初始化后台化** — 原生库加载与网络初始化移出主线程（冷启动提速），自研 CrashHandler 先行安装兜底
+- **存档列表查询改 COUNT(*)** — 数千弟子时不再全表物化只为数个数
+- **CI/测试基建** — `GameViewModelTest` 18 个失败根因修复（relaxed mock 上 `launchOnEngine` lambda 永不执行——文档误诊为 mockkStatic/Kotlin 2.2 问题，已修正）；gradle.properties 移除 Windows 硬编码路径与 Bugly 明文密钥（本地路径移入 gitignore 的 local.properties）；Kover 覆盖全模块启用；CI 单 worker + 禁增量编译；GameTimeClock 注入 TimeSource（修复 returnDefaultValues 下 SystemClock 恒 0 的假绿测试）；C++/Kotlin 建筑占地表跨语言一致性守卫测试；Gson/navigation-compose 死依赖移除；debug 构建恢复可调试
+
+## [4.0.81] - 2026-07-31
 
 - **招募列表出现无肖像且无法招募的幽灵弟子** — 历史版本 Bug 遗留的异常/重复招募条目（name 空/年龄越界/境界越界/内容重复/已入宗门残留）读档原样保留且永不自动移除（三个招募守卫均跳过损坏条目、净化逻辑缺失）。修复：三层自愈——新增 SaveValidator 规则 `RecruitListCleanupRule`（读档主通道）+ `loadData` 引擎层净化（覆盖 cache 捷径）+ 年变净化挂载 `ageRecruitList`；点击招募遇到损坏条目时同事务移除（幽灵立即消失）；新增 domain 纯函数 `RecruitIntegrity`（isValidRecruit/isSamePerson/sanitizeRecruitList，四步净化：损坏移除→id去重→内容去重→跨表残留比对，38岁炼虚等合法数据明确保留，死亡弟子非对称年龄容差防逃逸）
 - **弟子列表出现两个完全相同的弟子** — recruitList 同内容双胞胎被招募路径各自分配新 ID 插入（`recruitAllFromList` 无去重；`processAutoRecruit` 只按 id 去重；手动招募只移除点击那条）。修复：批量招募路径（自动/一键）统一 `dedupeRecruits` 三级去重（id/内容/同人签名）、`recruitAllFromList` 事务开头净化 + 按 id 移除已招募条目；`recruitDiscipleFromList` 招募成功时按 `isSamePerson` 同步移除同内容双胞胎；三处招募守卫统一为 `RecruitIntegrity::isValidRecruit`；UI 层 `recruitListAggregates` 按 id 去重兜底（防 LazyVerticalGrid 重复 key 异常）

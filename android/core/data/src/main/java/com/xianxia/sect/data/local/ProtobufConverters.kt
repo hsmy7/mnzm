@@ -30,6 +30,17 @@ import net.jpountz.lz4.LZ4FastDecompressor
  * - 序列化/反序列化速度提升 2-5x
  * - 类型安全：编译时检查 schema 一致性
  */
+/**
+ * 序列化失败异常（2026-08-01 修复）。
+ *
+ * TypeConverter 编码失败时抛出，使 Room 事务回滚、保存返回失败——
+ * 宁可保存失败也不静默清空数据列（旧实现返回空串导致整列数据无声丢失）。
+ */
+class SerializationFailureException(
+    message: String,
+    cause: Throwable? = null
+) : Exception(message, cause)
+
 object ProtobufConverters {
 
     private const val TAG = "ProtobufConverters"
@@ -92,36 +103,53 @@ object ProtobufConverters {
     /**
      * 通用序列化方法：将任意 @Serializable 对象编码为 Base64 字符串
      * encodeDefaults=false 使可空字段为 null 时自动省略，符合 ProtoBuf proto3 语义
+     *
+     * @throws SerializationFailureException 超限/OOM/序列化异常时抛出（2026-08-01 修复：
+     * 旧实现返回空串导致 Room 列被静默清零，现改为抛异常使保存事务失败、保留旧数据）
      */
     internal fun <T : Any> encodeToBase64(serializer: KSerializer<T>, value: T): String {
-        if (isTooLarge(value, serializer.descriptor.serialName)) return ""
+        if (isTooLarge(value, serializer.descriptor.serialName)) {
+            throw SerializationFailureException(
+                "${serializer.descriptor.serialName} 超过 MAX_COLLECTION_SIZE=$MAX_COLLECTION_SIZE，拒绝序列化"
+            )
+        }
         try {
             val bytes = protoBuf.encodeToByteArray(serializer, value)
             return bytesToBase64(bytes)
         } catch (e: OutOfMemoryError) {
             Log.e(TAG, "OOM during serialization of ${serializer.descriptor.serialName}!")
-            return ""
+            throw SerializationFailureException("OOM during serialization of ${serializer.descriptor.serialName}", e)
         } catch (e: Throwable) {
             Log.e(TAG, "Protobuf serialization FAILED for ${serializer.descriptor.serialName}, data will be lost!", e)
-            return ""
+            throw SerializationFailureException(
+                "Protobuf serialization FAILED for ${serializer.descriptor.serialName}", e
+            )
         }
     }
 
     /**
      * 可空类型序列化方法
+     *
+     * @throws SerializationFailureException 超限/OOM/序列化异常时抛出（2026-08-01 修复，见 [encodeToBase64]）
      */
     internal fun <T : Any> encodeNullableToBase64(serializer: KSerializer<T>, value: T?): String {
         if (value == null) return ""
-        if (isTooLarge(value, serializer.descriptor.serialName)) return ""
+        if (isTooLarge(value, serializer.descriptor.serialName)) {
+            throw SerializationFailureException(
+                "${serializer.descriptor.serialName} 超过 MAX_COLLECTION_SIZE=$MAX_COLLECTION_SIZE，拒绝序列化"
+            )
+        }
         try {
             val bytes = protoBuf.encodeToByteArray(serializer, value)
             return bytesToBase64(bytes)
         } catch (e: OutOfMemoryError) {
             Log.e(TAG, "OOM during nullable serialization of ${serializer.descriptor.serialName}!")
-            return ""
+            throw SerializationFailureException("OOM during nullable serialization of ${serializer.descriptor.serialName}", e)
         } catch (e: Throwable) {
             Log.e(TAG, "Protobuf nullable serialization FAILED for ${serializer.descriptor.serialName}, data will be lost!", e)
-            return ""
+            throw SerializationFailureException(
+                "Protobuf nullable serialization FAILED for ${serializer.descriptor.serialName}", e
+            )
         }
     }
 
@@ -483,8 +511,9 @@ object ProtobufConverters {
                 else -> -1
             }
             if (sizeCheck > MAX_COLLECTION_SIZE) {
-                Log.e(TAG, "CRITICAL: BLOB encode ${serializer.descriptor.serialName} has $sizeCheck entries, refusing to prevent OOM!")
-                return ByteArray(0)
+                throw SerializationFailureException(
+                    "BLOB encode ${serializer.descriptor.serialName} has $sizeCheck entries, refusing to prevent OOM"
+                )
             }
             val bytes = protoBuf.encodeToByteArray(serializer, value)
             if (bytes.size >= LZ4_COMPRESSION_THRESHOLD) {
@@ -504,9 +533,12 @@ object ProtobufConverters {
                 }
             }
             return bytes
+        } catch (e: SerializationFailureException) {
+            throw e
         } catch (e: Throwable) {
             Log.e(TAG, "Protobuf BLOB encode FAILED for ${serializer.descriptor.serialName}", e)
-            return ByteArray(0)
+            // 2026-08-01 修复：抛异常使保存事务失败，而非静默返回空数组清空数据
+            throw SerializationFailureException("BLOB encode FAILED for ${serializer.descriptor.serialName}", e)
         }
     }
 

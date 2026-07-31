@@ -38,6 +38,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executors
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -503,23 +504,8 @@ class XianxiaApplication : Application() {
             originalHandler?.uncaughtException(thread, throwable)
         }
 
-        // 4.0 重置：清空 MMKV 和 SharedPreferences
-        val resetMarker = "v4_reset_done"
-        val resetPrefs = getSharedPreferences("v4_reset", MODE_PRIVATE)
-        if (!resetPrefs.getBoolean(resetMarker, false)) {
-            try {
-                MMKV.defaultMMKV().clearAll()
-                Log.i(TAG, "[4.0] MMKV cleared")
-                listOf("crash_handler", "app_session").forEach { name ->
-                    getSharedPreferences(name, MODE_PRIVATE).edit { clear() }
-                }
-                Log.i(TAG, "[4.0] SharedPreferences cleared")
-                resetPrefs.edit { putBoolean(resetMarker, true) }
-                Log.i(TAG, "[4.0] All storage reset complete")
-            } catch (e: Exception) {
-                Log.e(TAG, "[4.0] Storage reset failed", e)
-            }
-        }
+        // 2026-08-01 移除：v4_reset 一键清空玩家本地数据机制（4.0.00 删档重置遗留）。
+        // 该机制无确认/备份，一次升级事件即清空全部玩家数据——删档已过，遗留炸弹直接移除。
 
         // 建筑特征注册表初始化（必须在第一次查询 BuildingFeatureRegistry 之前）
         BuildingFeatureRegistry.registerDefaults()
@@ -674,43 +660,49 @@ class XianxiaApplication : Application() {
         }
     }
 
-    /** Bugly 崩溃收集 + MMKV 显式初始化（含 ReLinker 兜底） */
+    /**
+     * Bugly 崩溃收集 + MMKV 显式初始化（含 ReLinker 兜底）。
+     *
+     * 2026-08-01 后台化：原生库加载（ReLinker 从 APK 解压 .so）与 Bugly 网络初始化
+     * 是典型冷启动杀手（数百 ms 主线程阻塞）。两者均支持非主线程初始化；
+     * Application.onCreate 后续代码不依赖 MMKV（已确认 SaveCrypto/ChangelogData 无依赖），
+     * 首次业务访问发生在 Activity 阶段（后台任务早已完成）。
+     * 崩溃保护仍由 initCrashProtection 的自研 handler 先行安装兜底。
+     */
     private fun initBuglyAndMmkv() {
-        // 腾讯 Bugly 崩溃收集（主崩溃收集 SDK，自研 CrashHandler 保留作为兜底）
-        try {
-            CrashReport.initCrashReport(this, BuildConfig.BUGLY_APP_ID, BuildConfig.DEBUG)
-            CrashReport.setAppVersion(this, BuildConfig.VERSION_NAME)
-            CrashReport.setUserId("unknown")
-            CrashReport.putUserData(this, "manufacturer", android.os.Build.MANUFACTURER)
-            CrashReport.putUserData(this, "model", android.os.Build.MODEL)
-            Log.i(TAG, "Bugly crash report initialized")
-        } catch (e: Exception) {
-            Log.w(TAG, "Bugly initialization failed, self-built CrashHandler will be fallback", e)
-        }
-
-        // P0修复：MMKV 显式初始化，使用 ReLinker 兜底原生库加载
-        // 华为 HarmonyOS/EMUI 的 linker 不支持从 APK 直接 mmap 加载 .so，
-        // ReLinker 会在系统加载失败后手动从 APK 提取 .so 到私有目录再加载
-        try {
-            MMKV.initialize(this, object : MMKV.LibLoader {
-                override fun loadLibrary(libName: String?) {
-                    ReLinker.loadLibrary(
-                        this@XianxiaApplication,
-                        requireNotNull(libName) { "libName must not be null" }
-                    )
-                }
-            })
-            Log.i(TAG, "MMKV initialized with ReLinker fallback")
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Throwable) {
-            Log.e(TAG, "MMKV initialization failed, falling back to default loader", e)
+        Executors.newSingleThreadExecutor { r ->
+            Thread(r, "AppStartup-Init").apply { priority = Thread.NORM_PRIORITY }
+        }.execute {
+            // MMKV 排首位：ReLinker 解压耗时最长，尽早开始
             try {
-                MMKV.initialize(this)
-            } catch (e2: CancellationException) {
-                throw e2
-            } catch (e2: Throwable) {
-                Log.e(TAG, "MMKV default initialization also failed", e2)
+                MMKV.initialize(this, object : MMKV.LibLoader {
+                    override fun loadLibrary(libName: String?) {
+                        ReLinker.loadLibrary(
+                            this@XianxiaApplication,
+                            requireNotNull(libName) { "libName must not be null" }
+                        )
+                    }
+                })
+                Log.i(TAG, "MMKV initialized with ReLinker fallback")
+            } catch (e: Throwable) {
+                Log.e(TAG, "MMKV initialization failed, falling back to default loader", e)
+                try {
+                    MMKV.initialize(this)
+                } catch (e2: Throwable) {
+                    Log.e(TAG, "MMKV default initialization also failed", e2)
+                }
+            }
+
+            // 腾讯 Bugly 崩溃收集（主崩溃收集 SDK，自研 CrashHandler 保留作为兜底）
+            try {
+                CrashReport.initCrashReport(this, BuildConfig.BUGLY_APP_ID, BuildConfig.DEBUG)
+                CrashReport.setAppVersion(this, BuildConfig.VERSION_NAME)
+                CrashReport.setUserId("unknown")
+                CrashReport.putUserData(this, "manufacturer", android.os.Build.MANUFACTURER)
+                CrashReport.putUserData(this, "model", android.os.Build.MODEL)
+                Log.i(TAG, "Bugly crash report initialized")
+            } catch (e: Exception) {
+                Log.w(TAG, "Bugly initialization failed, self-built CrashHandler will be fallback", e)
             }
         }
     }

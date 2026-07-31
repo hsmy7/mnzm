@@ -816,8 +816,11 @@ class GameEngineCore @Inject constructor(
     }
     
     private suspend fun processTickPhases(phasesToAdvance: Int): Int {
+        // 2026-08-01 双保险：时钟层已截断 MAX_PHASES_PER_TICK，此处防御未来
+        // 新调用点绕过时钟直接调用（防止单帧连续执行数十个完整事务卡死）
+        val capped = phasesToAdvance.coerceAtMost(GameTimeClock.MAX_PHASES_PER_TICK)
         var flags = 0
-        for (phaseIndex in 1..phasesToAdvance) {
+        for (phaseIndex in 1..capped) {
             stateStore.update {
                 // ★ 必须在 onPhaseTick 前捕获 prevMonth/prevYear，
                 // 否则 onPhaseTick 已修改 gameMonth/gameYear，后续比较永远相等。
@@ -889,12 +892,14 @@ class GameEngineCore @Inject constructor(
         // 每旬共享映射：所有弟子复用同一份，避免每弟子 O(N) 重建（O(D×N) → O(D+N)）
         val equipmentMap = state.equipmentInstances.associateBy { it.id }
         val manualMap = state.manualInstances.associateBy { it.id }
+        val manualProficiencies = state.gameData.manualProficiencies
         for (id in state.discipleTables.ids) {
             if (state.discipleTables.isAlive[id] != 1) continue
-            // 1) HP/MP 恢复
-            cultivationService.recoverHpMpSingle(
+            // 1) HP/MP 恢复（2026-08-01 列直读版：无 assemble，满血提前退出）
+            cultivationService.recoverHpMpSingleColumn(
                 state, id, phasesToSettle = 1,
-                equipmentMap = equipmentMap, manualMap = manualMap
+                equipmentMap = equipmentMap, manualMap = manualMap,
+                manualProficiencies = manualProficiencies
             )
             // 2) 修炼累积（列级快速跳过：cultivation >= 1e8 表示已满，凡界最大值约 2e7）
             if (state.discipleTables.cultivations.getOrDefault(id, 0.0) < 1e8) {

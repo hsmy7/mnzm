@@ -5,6 +5,8 @@ plugins {
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
     alias(libs.plugins.protobuf)
+    // 2026-08-01：kover 覆盖率盲区修复——全模块纳入统计
+    alias(libs.plugins.kover)
 }
 
 def apiPropertiesFile = rootProject.file("api.properties")
@@ -30,6 +32,11 @@ android {
         unitTests {
             returnDefaultValues = true
         }
+    }
+
+    // 2026-08-01：显式单 fork——共享静态状态跨测试类并行污染
+    tasks.withType(Test).configureEach {
+        maxParallelForks = 1
     }
 
     defaultConfig {

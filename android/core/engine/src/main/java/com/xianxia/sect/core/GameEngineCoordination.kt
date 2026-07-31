@@ -1222,3 +1222,84 @@ private fun DiscipleTables.clearBloodRefinementStatusData(dId: Int) {
     val current = statusData.getOrDefault(dId, emptyMap())
     statusData[dId] = current - "buildingId"
 }
+
+// ════════════════════════════════════════════════════════════
+// 2026-08-01 生命周期状态引擎线程入口（架构合规）
+//
+// 修复前 SaveLoadViewModel 及 3 个 SaveLoad delegate 直接操作
+// GameStateStore（resetBootPhase/setIdle/setPausedDirect/update），
+// 违反 CLAUDE.md 4.4 与双线程模型（主线程直写绕过引擎串行化）。
+// 本组入口统一走引擎线程，UI 层只允许读 StateFlow。
+// ════════════════════════════════════════════════════════════
+
+/** 重置生命周期状态（读档/重启路径：bootPhase → UNINITIALIZED, runState → IDLE）。 */
+suspend fun GameEngine.resetLifecycleState() {
+    engineContextDispatcher.withEngineContext {
+        stateStore.resetBootPhase()
+        stateStore.setIdle()
+    }
+}
+
+/** 引擎线程设置暂停标志（SaveLoad 流程用，替代 UI 直调 setPausedDirect）。 */
+suspend fun GameEngine.setPausedDirectOnEngine(paused: Boolean) {
+    engineContextDispatcher.withEngineContext {
+        stateStore.setPausedDirect(paused)
+    }
+}
+
+/** 引擎线程批量设置保存/加载标志（替代 UI 层多次 stateStore.update）。 */
+fun GameEngine.setSaveLoadFlags(isSaving: Boolean, isLoading: Boolean) {
+    launchOnEngine {
+        stateStore.update {
+            this.isSaving = isSaving
+            this.isLoading = isLoading
+        }
+    }
+}
+
+/**
+ * 建筑占地迁移状态应用（2026-08-01 引擎线程入口）。
+ *
+ * 修复前 SaveLoadLoadDelegate.migrateOverflowBuildings 在主线程直接
+ * stateStore.update（读档路径违规）。计算（纯函数）留在 delegate，
+ * 状态应用（灵石退款 + 建筑列表 + 槽位清理 + 弟子状态）走本入口。
+ */
+suspend fun GameEngine.applyBuildingMigrationOnEngine(
+    kept: List<com.xianxia.sect.core.model.GridBuildingData>,
+    totalRefund: Long,
+    freedDiscipleIds: Set<String>
+) {
+    engineContextDispatcher.withEngineContext {
+        stateStore.update {
+            if (totalRefund > 0) {
+                spiritStoneWallet.add(
+                    this, totalRefund,
+                    com.xianxia.sect.core.model.SpiritStoneGrade.LOW,
+                    com.xianxia.sect.core.wallet.SpiritStoneSource.Refund
+                )
+            }
+            var gd = gameData.copy(placedBuildings = kept)
+            // 清除已拆除建筑的关联槽位数据
+            val keptIds = kept.map { it.instanceId }.toSet()
+            val removedIds = gameData.placedBuildings.map { it.instanceId }.toSet() - keptIds
+            if (removedIds.isNotEmpty()) {
+                gd = gd.copy(
+                    productionSlots = gd.productionSlots.filter { it.buildingInstanceId !in removedIds },
+                    residenceSlots = gd.residenceSlots.filter { it.buildingInstanceId !in removedIds },
+                    spiritMineSlots = gd.spiritMineSlots.filter { it.buildingInstanceId !in removedIds },
+                    patrolSlots = gd.patrolSlots.filter { it.buildingInstanceId !in removedIds },
+                    warehouseGarrisons = gd.warehouseGarrisons.filter { it.buildingInstanceId !in removedIds },
+                    activeBloodRefinements = gd.activeBloodRefinements.filterKeys { it !in removedIds }
+                )
+            }
+            gameData = gd
+
+            for (didStr in freedDiscipleIds) {
+                val id = didStr.toIntOrNull() ?: continue
+                if (discipleTables.ids.contains(id) && discipleTables.isAlive[id] == 1) {
+                    discipleTables.statuses[id] = com.xianxia.sect.core.model.DiscipleStatus.IDLE
+                }
+            }
+        }
+    }
+}

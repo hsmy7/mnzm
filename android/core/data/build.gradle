@@ -21,6 +21,11 @@ android {
         }
     }
 
+    // 2026-08-01：显式单 fork——共享静态状态跨测试类并行污染
+    tasks.withType(Test).configureEach {
+        maxParallelForks = 1
+    }
+
     defaultConfig {
         consumerProguardFiles "consumer-rules.pro"
     }
@@ -48,7 +53,7 @@ dependencies {
     ksp libs.hilt.compiler
 
     // Network (for serialization helpers)
-    implementation libs.gson
+    testImplementation libs.gson
 
     // Security
     implementation libs.security.crypto

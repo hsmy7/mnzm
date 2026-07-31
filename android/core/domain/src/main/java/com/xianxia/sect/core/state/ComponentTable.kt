@@ -20,17 +20,21 @@ class ComponentTable<T> @JvmOverloads constructor(initialCapacity: Int = 64) {
     private var onWrite: (() -> Unit)? = null
     /** 写入前守卫检查，由 [DiscipleTables.bindAllOnWrite] 绑定为 [DiscipleTables.requireWriteAccess] */
     private var requireWrite: (() -> Unit)? = null
+    /** 按 id 的写入回调（2026-08-01 增量组装基建）：记录被写入的弟子 ID */
+    private var onIdWrite: ((Int) -> Unit)? = null
 
     /** 设置写入守卫回调（update {} 事务外调用）。替换 @JvmField var requireWrite */
     fun setWriteGuard(callback: () -> Unit) { requireWrite = callback }
     /** 设置变更回调（update {} 事务外调用）。替换 @JvmField var onWrite */
     fun setMutationCallback(callback: () -> Unit) { onWrite = callback }
+    /** 设置按 id 写入回调（update {} 事务外调用）。替换 @JvmField var onIdWrite */
+    fun setIdWriteCallback(callback: (Int) -> Unit) { onIdWrite = callback }
     /**
      * 带守卫的跨表/外部写入：通过本表的写入守卫后，将值写入存储。
      * 替换对 `target.store.put(key, value)` 的直接访问。
      */
     @PublishedApi internal fun putTo(key: Int, value: T) {
-        requireWrite?.invoke(); ensureOwned(); store.put(key, value); onWrite?.invoke()
+        requireWrite?.invoke(); ensureOwned(); store.put(key, value); onWrite?.invoke(); onIdWrite?.invoke(key)
     }
 
     /**
@@ -67,8 +71,17 @@ class ComponentTable<T> @JvmOverloads constructor(initialCapacity: Int = 64) {
     }
     fun getOrNull(id: Int): T? = store[id]
     fun getOrDefault(id: Int, default: T): T = store[id] ?: default
-    operator fun set(id: Int, value: T) { requireWrite?.invoke(); ensureOwned(); store.put(id, value); onWrite?.invoke() }
-    fun update(id: Int, block: (T) -> T) { requireWrite?.invoke(); ensureOwned(); store[id] = block(store[id]); onWrite?.invoke() }
+    operator fun set(id: Int, value: T) { requireWrite?.invoke(); ensureOwned(); store.put(id, value); onWrite?.invoke(); onIdWrite?.invoke(id) }
+    fun update(id: Int, block: (T) -> T) { requireWrite?.invoke(); ensureOwned(); store[id] = block(store[id]); onWrite?.invoke(); onIdWrite?.invoke(id) }
+
+    /**
+     * 无回调写入（2026-08-01）：仅 COW 私有化 + 存储写入，不触发 onWrite/onIdWrite。
+     * 供 Mutable 列 unmodifiable 包装专用——包装值写入新副本时不应产生脏标记/changedId。
+     */
+    @PublishedApi internal fun putNoCallback(id: Int, value: T) {
+        ensureOwned(); store.put(id, value)
+    }
+
     fun ids(): IntArray { val r = IntArray(store.size()); for (i in 0 until store.size()) r[i] = store.keyAt(i); return r }
     val size: Int get() = store.size()
     fun isEmpty(): Boolean = store.size() == 0
@@ -76,9 +89,21 @@ class ComponentTable<T> @JvmOverloads constructor(initialCapacity: Int = 64) {
     inline fun forEach(action: (Int, T) -> Unit) { for (i in 0 until store.size()) action(store.keyAt(i), store.valueAt(i)) }
     inline fun forEachValue(action: (T) -> Unit) { for (i in 0 until store.size()) action(store.valueAt(i)) }
     fun values(): List<T> = (0 until store.size()).map { store.valueAt(it) }
-    fun put(id: Int, value: T) { requireWrite?.invoke(); ensureOwned(); store.put(id, value); onWrite?.invoke() }
+    fun put(id: Int, value: T) { requireWrite?.invoke(); ensureOwned(); store.put(id, value); onWrite?.invoke(); onIdWrite?.invoke(id) }
     fun remove(id: Int) { requireWrite?.invoke(); ensureOwned(); store.remove(id); onWrite?.invoke() }
     fun clear() { requireWrite?.invoke(); ensureOwned(); store.clear(); onWrite?.invoke() }
+}
+
+/**
+ * 值对象 unmodifiable 包装（2026-08-01 Mutable 列浅共享防御）。
+ * List/Set/Map 包装为不可变视图；其余类型原样返回。
+ */
+@Suppress("UNCHECKED_CAST")
+internal fun <T> wrapUnmodifiableValue(value: T): T = when (value) {
+    is List<*> -> java.util.Collections.unmodifiableList(value) as T
+    is Set<*> -> java.util.Collections.unmodifiableSet(value) as T
+    is Map<*, *> -> java.util.Collections.unmodifiableMap(value) as T
+    else -> value
 }
 
 class IntFlatArray @JvmOverloads constructor(initialCapacity: Int = 64) {
@@ -211,17 +236,21 @@ class IntComponentTable(initialCapacity: Int = 64) {
     private var onWrite: (() -> Unit)? = null
     /** 写入前守卫检查，由 [DiscipleTables.bindAllOnWrite] 绑定为 [DiscipleTables.requireWriteAccess] */
     private var requireWrite: (() -> Unit)? = null
+    /** 按 id 的写入回调（2026-08-01 增量组装基建）：记录被写入的弟子 ID */
+    private var onIdWrite: ((Int) -> Unit)? = null
 
     /** 设置写入守卫回调（update {} 事务外调用）。替换 @JvmField var requireWrite */
     fun setWriteGuard(callback: () -> Unit) { requireWrite = callback }
     /** 设置变更回调（update {} 事务外调用）。替换 @JvmField var onWrite */
     fun setMutationCallback(callback: () -> Unit) { onWrite = callback }
+    /** 设置按 id 写入回调（update {} 事务外调用）。替换 @JvmField var onIdWrite */
+    fun setIdWriteCallback(callback: (Int) -> Unit) { onIdWrite = callback }
     /**
      * 带守卫的跨表/外部写入：通过本表的写入守卫后，将值写入存储。
      * 替换对 `target.store.put(key, value)` 的直接访问。
      */
     @PublishedApi internal fun putTo(key: Int, value: Int) {
-        requireWrite?.invoke(); ensureOwned(); store.put(key, value); onWrite?.invoke()
+        requireWrite?.invoke(); ensureOwned(); store.put(key, value); onWrite?.invoke(); onIdWrite?.invoke(key)
     }
 
     /**
@@ -240,14 +269,24 @@ class IntComponentTable(initialCapacity: Int = 64) {
     operator fun get(id: Int): Int = store[id]
     fun getOrDefault(id: Int, default: Int): Int = store.get(id, default)
     fun getOrNull(id: Int): Int? = if (store.contains(id)) store[id] else null
-    operator fun set(id: Int, value: Int) { requireWrite?.invoke(); ensureOwned(); store.put(id, value); onWrite?.invoke() }
-    fun update(id: Int, block: (Int) -> Int) { requireWrite?.invoke(); ensureOwned(); store.update(id, block); onWrite?.invoke() }
+
+    /** 同值写短路（2026-08-01）：已存在且值相同则跳过——每旬热点满血重写不再触发脏标记/COW 私有化 */
+    private fun isSameValue(id: Int, value: Int): Boolean = store.contains(id) && store[id] == value
+
+    operator fun set(id: Int, value: Int) {
+        requireWrite?.invoke(); if (isSameValue(id, value)) return
+        ensureOwned(); store.put(id, value); onWrite?.invoke(); onIdWrite?.invoke(id)
+    }
+    fun update(id: Int, block: (Int) -> Int) { requireWrite?.invoke(); ensureOwned(); store.update(id, block); onWrite?.invoke(); onIdWrite?.invoke(id) }
     fun ids(): IntArray { val r = IntArray(store.size()); for (i in 0 until store.size()) r[i] = store.keyAt(i); return r }
     val size: Int get() = store.size()
     fun contains(id: Int): Boolean = store.indexOfKey(id) >= 0
     fun forEach(action: (Int, Int) -> Unit) { for (i in 0 until store.size()) action(store.keyAt(i), store.valueAt(i)) }
     fun values(): List<Int> = (0 until store.size()).map { store.valueAt(it) }
-    fun put(id: Int, value: Int) { requireWrite?.invoke(); ensureOwned(); store.put(id, value); onWrite?.invoke() }
+    fun put(id: Int, value: Int) {
+        requireWrite?.invoke(); if (isSameValue(id, value)) return
+        ensureOwned(); store.put(id, value); onWrite?.invoke(); onIdWrite?.invoke(id)
+    }
     fun remove(id: Int) { requireWrite?.invoke(); ensureOwned(); store.delete(id); onWrite?.invoke() }
     fun clear() { requireWrite?.invoke(); ensureOwned(); store.clear(); onWrite?.invoke() }
 }
@@ -258,17 +297,21 @@ class DoubleComponentTable(initialCapacity: Int = 64) {
     private var onWrite: (() -> Unit)? = null
     /** 写入前守卫检查，由 [DiscipleTables.bindAllOnWrite] 绑定为 [DiscipleTables.requireWriteAccess] */
     private var requireWrite: (() -> Unit)? = null
+    /** 按 id 的写入回调（2026-08-01 增量组装基建）：记录被写入的弟子 ID */
+    private var onIdWrite: ((Int) -> Unit)? = null
 
     /** 设置写入守卫回调（update {} 事务外调用）。替换 @JvmField var requireWrite */
     fun setWriteGuard(callback: () -> Unit) { requireWrite = callback }
     /** 设置变更回调（update {} 事务外调用）。替换 @JvmField var onWrite */
     fun setMutationCallback(callback: () -> Unit) { onWrite = callback }
+    /** 设置按 id 写入回调（update {} 事务外调用）。替换 @JvmField var onIdWrite */
+    fun setIdWriteCallback(callback: (Int) -> Unit) { onIdWrite = callback }
     /**
      * 带守卫的跨表/外部写入：通过本表的写入守卫后，将值写入存储。
      * 替换对 `target.store.put(key, value)` 的直接访问。
      */
     @PublishedApi internal fun putTo(key: Int, value: Double) {
-        requireWrite?.invoke(); ensureOwned(); store.put(key, value); onWrite?.invoke()
+        requireWrite?.invoke(); ensureOwned(); store.put(key, value); onWrite?.invoke(); onIdWrite?.invoke(key)
     }
 
     /**
@@ -284,16 +327,25 @@ class DoubleComponentTable(initialCapacity: Int = 64) {
         if (shared) { store = store.copyForWrite(); shared = false }
     }
 
+    /** 同值写短路（2026-08-01）：已存在且值相同则跳过——每旬热点重复写不再触发脏标记/COW 私有化 */
+    private fun isSameValue(id: Int, value: Double): Boolean = store.contains(id) && store[id] == value
+
     operator fun get(id: Int): Double = store[id]
     fun getOrDefault(id: Int, default: Double): Double = store.get(id, default)
-    operator fun set(id: Int, value: Double) { requireWrite?.invoke(); ensureOwned(); store.put(id, value); onWrite?.invoke() }
-    fun update(id: Int, block: (Double) -> Double) { requireWrite?.invoke(); ensureOwned(); store.update(id, block); onWrite?.invoke() }
+    operator fun set(id: Int, value: Double) {
+        requireWrite?.invoke(); if (isSameValue(id, value)) return
+        ensureOwned(); store.put(id, value); onWrite?.invoke(); onIdWrite?.invoke(id)
+    }
+    fun update(id: Int, block: (Double) -> Double) { requireWrite?.invoke(); ensureOwned(); store.update(id, block); onWrite?.invoke(); onIdWrite?.invoke(id) }
     fun ids(): IntArray { val r = IntArray(store.size()); for (i in 0 until store.size()) r[i] = store.keyAt(i); return r }
     val size: Int get() = store.size()
     fun contains(id: Int): Boolean = store.indexOfKey(id) >= 0
     fun forEach(action: (Int, Double) -> Unit) { for (i in 0 until store.size()) action(store.keyAt(i), store.valueAt(i)) }
     fun values(): List<Double> = (0 until store.size()).map { store.valueAt(it) }
-    fun put(id: Int, value: Double) { requireWrite?.invoke(); ensureOwned(); store.put(id, value); onWrite?.invoke() }
+    fun put(id: Int, value: Double) {
+        requireWrite?.invoke(); if (isSameValue(id, value)) return
+        ensureOwned(); store.put(id, value); onWrite?.invoke(); onIdWrite?.invoke(id)
+    }
     fun remove(id: Int) { requireWrite?.invoke(); ensureOwned(); store.delete(id); onWrite?.invoke() }
     fun clear() { requireWrite?.invoke(); ensureOwned(); store.clear(); onWrite?.invoke() }
 }
@@ -371,6 +423,27 @@ class MutableTableRef<T>(
     override val size: Int get() = table.size
     override fun contains(id: Int): Boolean = table.contains(id)
     override fun copyTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.putTo(table.store.keyAt(i), deepCopyFn(table.store.valueAt(i))) }
-    override fun shareStoreTo(dest: DiscipleTables) { destProp.get(dest).adoptDeep(table.store, deepCopyFn) }
+
+    /**
+     * 2026-08-01 修复：Mutable 列改为 O(1) 浅共享（与 RefTableRef 一致）。
+     *
+     * 历史问题：旧实现每事务对全部弟子的 List/Map/Set 列急切深拷贝（adoptDeep）——
+     * 全库审计确认 13 列写点均为整体重新赋值（无原地修改模式），急切深拷贝是纯浪费
+     * （O(D×均值长度) 分配/GC，lifeEvents 逐年增长线性恶化）。
+     * 安全性由 [DiscipleTables.mutableValueGuardEnabled]（Debug 开）的
+     * unmodifiable 包装兜底：未来任何原地修改在事务缓冲上立即抛异常。
+     * 包装用 putNoCallback（不触发 onWrite/onIdWrite）——包装值写入新副本
+     * 不应产生脏标记或污染 changedIdTracker。
+     */
+    override fun shareStoreTo(dest: DiscipleTables) {
+        val dst = destProp.get(dest)
+        if (DiscipleTables.mutableValueGuardEnabled) {
+            for (i in 0 until table.store.size()) {
+                dst.putNoCallback(table.store.keyAt(i), wrapUnmodifiableValue(table.store.valueAt(i)))
+            }
+        } else {
+            dst.adopt(table.store)
+        }
+    }
     fun copySelfTo(dest: DiscipleTables) { val dst = destProp.get(dest); for (i in 0 until table.store.size()) dst.putTo(table.store.keyAt(i), deepCopyFn(table.store.valueAt(i))) }
 }

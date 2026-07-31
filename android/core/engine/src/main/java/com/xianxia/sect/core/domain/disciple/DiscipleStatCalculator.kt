@@ -136,6 +136,38 @@ object DiscipleStatCalculator {
 
     // ==================== 基础属性 ====================
 
+    /**
+     * maxHp/maxMp 基础值计算（2026-08-01 列直读抽取）。
+     *
+     * 公式：基础 × 方差乘区 × 层数乘区 × (1 + 天赋% + 血炼%)。
+     * 对象版 [computeBaseStats] 与列直读版 [getMaxHpMpColumn] 共用本实现，杜绝公式漂移。
+     *
+     * @return (maxHp, maxMp)
+     */
+    private fun computeBaseHpMp(
+        realm: Int,
+        realmLayer: Int,
+        hpVariance: Int,
+        mpVariance: Int,
+        talentEffects: Map<String, Double>,
+        bloodRefinementPct: BloodRefinementPctTotal? = null
+    ): Pair<Int, Int> {
+        val realmConfig = GameConfig.Realm.get(realm)
+        val layerMult = 1.0 + (realmLayer - 1) * LAYER_MULTIPLIER
+
+        // 血炼百分比乘区与天赋同乘区加算（防御存档篡改的 NaN/Infinity/负数）
+        fun safeBrPct(pct: Double): Double =
+            pct.coerceAtLeast(0.0).takeIf { it.isFinite() } ?: 0.0
+        val hpBonus = (talentEffects["maxHp"] ?: 0.0) + safeBrPct(bloodRefinementPct?.hpBonusPct ?: 0.0)
+        val mpBonus = talentEffects["maxMp"] ?: 0.0
+
+        val hpVar = 1.0 + hpVariance / 100.0
+        val mpVar = 1.0 + mpVariance / 100.0
+        val maxHp = (realmConfig.baseHp * hpVar * layerMult * (1.0 + hpBonus)).roundToInt()
+        val maxMp = (realmConfig.baseMp * mpVar * layerMult * (1.0 + mpBonus)).roundToInt()
+        return Pair(maxHp, maxMp)
+    }
+
     private fun computeBaseStats(
         realm: Int,
         realmLayer: Int,
@@ -163,8 +195,6 @@ object DiscipleStatCalculator {
         fun safeBrPct(pct: Double): Double =
             pct.coerceAtLeast(0.0).takeIf { it.isFinite() } ?: 0.0
         val br = bloodRefinementPct
-        val hpBonus = (talentEffects["maxHp"] ?: 0.0) + safeBrPct(br?.hpBonusPct ?: 0.0)
-        val mpBonus = talentEffects["maxMp"] ?: 0.0
         val attackBonus = (talentEffects["physicalAttack"] ?: 0.0) + safeBrPct(br?.physicalAttackBonusPct ?: 0.0)
         val magicAttackBonus = (talentEffects["magicAttack"] ?: 0.0) + safeBrPct(br?.magicAttackBonusPct ?: 0.0)
         val defenseBonus = (talentEffects["physicalDefense"] ?: 0.0) + safeBrPct(br?.physicalDefenseBonusPct ?: 0.0)
@@ -179,19 +209,20 @@ object DiscipleStatCalculator {
         val moralityFlat = (talentEffects["moralityFlat"] ?: 0.0).toInt()
         val miningFlat = (talentEffects["miningFlat"] ?: 0.0).toInt()
 
-        val hpVar = 1.0 + hpVariance / 100.0
-        val mpVar = 1.0 + mpVariance / 100.0
         val paVar = 1.0 + physicalAttackVariance / 100.0
         val maVar = 1.0 + magicAttackVariance / 100.0
         val pdVar = 1.0 + physicalDefenseVariance / 100.0
         val mdVar = 1.0 + magicDefenseVariance / 100.0
         val spdVar = 1.0 + speedVariance / 100.0
 
+        // maxHp/maxMp 共用实现（computeBaseHpMp），与列直读版公式单一来源
+        val (maxHp, maxMp) = computeBaseHpMp(realm, realmLayer, hpVariance, mpVariance, talentEffects, bloodRefinementPct)
+
         return DiscipleStats(
-            hp = (realmConfig.baseHp * hpVar * layerMult * (1.0 + hpBonus)).roundToInt(),
-            maxHp = (realmConfig.baseHp * hpVar * layerMult * (1.0 + hpBonus)).roundToInt(),
-            mp = (realmConfig.baseMp * mpVar * layerMult * (1.0 + mpBonus)).roundToInt(),
-            maxMp = (realmConfig.baseMp * mpVar * layerMult * (1.0 + mpBonus)).roundToInt(),
+            hp = maxHp,
+            maxHp = maxHp,
+            mp = maxMp,
+            maxMp = maxMp,
             physicalAttack = (realmConfig.basePhysicalAttack * paVar * layerMult * (1.0 + attackBonus)).roundToInt(),
             magicAttack = (realmConfig.baseMagicAttack * maVar * layerMult * (1.0 + magicAttackBonus)).roundToInt(),
             physicalDefense = (realmConfig.basePhysicalDefense * pdVar * layerMult * (1.0 + defenseBonus)).roundToInt(),
@@ -443,6 +474,90 @@ object DiscipleStatCalculator {
             pillSpeedBonus = pe.pillSpeedBonus,
             pillCritRateBonus = pe.pillCritRateBonus
         )
+    }
+
+    // ==================== 列直读 maxHp/maxMp（2026-08-01 每旬热点） ====================
+
+    /**
+     * 列直读输入（2026-08-01）：每旬 HP/MP 恢复热点的最小列集。
+     *
+     * 对应 [DiscipleTables] 的 17 列（相对 assemble 的 ~90 列省 80%），
+     * 数学等价于 [getFinalStats] 的 maxHp/maxMp（共用 [computeBaseHpMp] 公式）。
+     */
+    data class HpMpColumnInput(
+        val realm: Int,
+        val realmLayer: Int,
+        val hpVariance: Int,
+        val mpVariance: Int,
+        val talentIds: List<String>,
+        val affixIds: List<String>,
+        val weaponId: String?,
+        val armorId: String?,
+        val bootsId: String?,
+        val accessoryId: String?,
+        val manualIds: List<String>,
+        val pillEffectDuration: Int,
+        val pillHpBonus: Int,
+        val pillMpBonus: Int
+    )
+
+    /**
+     * 列直读 maxHp/maxMp 计算（每旬热点专用，无 Disciple 组装）。
+     *
+     * 基础值走 [computeBaseHpMp]（与对象版同一实现）；装备/功法/丹药加成
+     * 与 [computeFinalStats] 的 hp/mp 逻辑逐字一致。
+     *
+     * @param input 列直读输入
+     * @param equipments 装备实例映射（每旬热点循环共享构建）
+     * @param manuals 功法实例映射（每旬热点循环共享构建）
+     * @param manualProficiencies 功法熟练度（按 manualId 索引）
+     * @return (maxHp, maxMp)
+     */
+    fun getMaxHpMpColumn(
+        input: HpMpColumnInput,
+        equipments: Map<String, EquipmentInstance>,
+        manuals: Map<String, ManualInstance>,
+        manualProficiencies: Map<String, ManualProficiencyData>
+    ): Pair<Int, Int> {
+        val talentEffects = mergeEffects(
+            computeTalentEffects(input.talentIds),
+            AffixDatabase.calculateAffixEffects(input.affixIds)
+        )
+        val (baseHp, baseMp) = computeBaseHpMp(
+            input.realm, input.realmLayer, input.hpVariance, input.mpVariance, talentEffects
+        )
+        var hp = baseHp
+        var mp = baseMp
+
+        // 装备（与 computeFinalStats 的 getFinalStats().toDiscipleStats() 加成一字一致）
+        listOfNotNull(input.weaponId, input.armorId, input.bootsId, input.accessoryId).forEach { equipId ->
+            val equipment = equipments[equipId]
+            if (equipment != null) {
+                val fs = equipment.getFinalStats()
+                hp += fs.hp
+                mp += fs.mp
+            }
+        }
+
+        // 功法（熟练度加成与 computeFinalStats 一致）
+        input.manualIds.forEach { manualId ->
+            val manual = manuals[manualId]
+            if (manual != null) {
+                val masteryLevel = manualProficiencies[manualId]?.masteryLevel ?: 0
+                val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
+                val hpValue = manual.stats["hp"] ?: manual.stats["maxHp"] ?: 0
+                val mpValue = manual.stats["mp"] ?: manual.stats["maxMp"] ?: 0
+                hp += (hpValue * masteryBonus).toInt()
+                mp += (mpValue * masteryBonus).toInt()
+            }
+        }
+
+        // 丹药（与 computeFinalStats 的 hasPillEffect 判定一致）
+        if (input.pillEffectDuration > 0) {
+            hp += input.pillHpBonus
+            mp += input.pillMpBonus
+        }
+        return Pair(hp, mp)
     }
 
     fun getFinalStats(

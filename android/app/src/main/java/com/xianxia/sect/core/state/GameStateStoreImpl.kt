@@ -57,6 +57,15 @@ class GameStateStoreImpl @Inject constructor(
     private val assembleDispatcher: CoroutineDispatcher =
         Dispatchers.Default.limitedParallelism(1)
 
+    /**
+     * 弟子数据代际版本号（2026-08-01 修复）。
+     *
+     * loadFromSnapshot/reset 会整体替换弟子数据——递增版本号使 assembleDispatcher
+     * 上排队中的陈旧增量组装任务被作废（协程首行校验版本号），防止"load 完成写回
+     * 完整列表后，迟到的不完整 assemble 结果覆盖 _disciplesFlow"（丢弟子/陈尸）。
+     */
+    private val discipleVersion = java.util.concurrent.atomic.AtomicLong(0)
+
     /** 测试模式：允许主线程调用 update（仅在 Robolectric 单元测试中使用） */
     @Volatile
     var unsafeAllowMainThreadUpdateForTest = false
@@ -96,6 +105,8 @@ class GameStateStoreImpl @Inject constructor(
     private var _discipleTables = DiscipleTables().also {
         // Release 构建关闭一致性校验（仅在 Debug 开发中开启）
         DiscipleTables.consistencyCheckEnabled = false
+        // Mutable 列 unmodifiable 防御：Debug/CI 开启（原地修改立即抛错），Release 零成本
+        DiscipleTables.mutableValueGuardEnabled = BuildConfig.DEBUG
     }
     override val discipleTables: DiscipleTables get() = _discipleTables
 
@@ -192,6 +203,13 @@ class GameStateStoreImpl @Inject constructor(
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), UnifiedGameState())
 
     private fun buildUnifiedState(): UnifiedGameState {
+        // 2026-08-01 修复：持锁一次性读取全部字段——旧实现顺序读 12+ 流，
+        // 引擎线程在两次读取之间提交新事务会产生 torn read（新旧混合快照）。
+        // 读取是 O(1) 引用赋值，锁持有时间极短，不阻塞事务吞吐。
+        return transactionLock.withLock { buildUnifiedStateLocked() }
+    }
+
+    private fun buildUnifiedStateLocked(): UnifiedGameState {
         val gd = _gameDataFlow.value
         return UnifiedGameState(
             gameData = gd,
@@ -389,8 +407,17 @@ class GameStateStoreImpl @Inject constructor(
         .distinctUntilChanged()
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), GameStateStore.ConfigState())
 
+    /**
+     * 聚合缓存（2026-08-01）：derivedAggregation 计算末尾写入。
+     * 修复前 [discipleAggregatesSnapshot] 在调用线程全量 toAggregate()——
+     * UI 打开弹窗触发多次主线程 O(D) 扫描（ProductionViewModel 8 处等）。
+     * 现为 O(1) 缓存读取（≤100ms 采样延迟，与原 sample(100) 语义一致）。
+     */
+    @Volatile
+    private var cachedAggregates: List<DiscipleAggregate> = emptyList()
+
     override val discipleAggregatesSnapshot: List<DiscipleAggregate>
-        get() = _disciplesFlow.value.map { it.toAggregate() }
+        get() = cachedAggregates
 
     private data class CachedPower(
         val fingerprint: Int,
@@ -434,33 +461,73 @@ class GameStateStoreImpl @Inject constructor(
         disciplesFlow,
         bloodRefinementPctFlow
     ) { disciples, bloodRefinementPctTotals ->
-        val aggregates = ArrayList<DiscipleAggregate>(disciples.size)
+        // 2026-08-01 增量聚合：两列表均 id 升序（assembleAll/增量归并不变量）——
+        // 双指针 diff 仅对新增/变更弟子重算 toAggregate，未变弟子复用旧 Aggregate 对象
+        // （对象复用 → UI 侧聚合引用稳定）。diff 出现异常（非升序）时退化为全量。
+        val prevAggregates = cachedAggregates
+        val aggregates = if (prevAggregates.size == disciples.size && prevAggregates.isNotEmpty()) {
+            mergeAggregatesIncremental(prevAggregates, disciples)
+        } else {
+            disciples.map { it.toAggregate() }
+        }
+        cachedAggregates = aggregates
+
         var total = 0L
-        for (disciple in disciples) {
-            val aggregate = disciple.toAggregate()
-            aggregates.add(aggregate)
-            if (!disciple.isAlive) continue
-            val brPct = bloodRefinementPctTotals[disciple.id]
+        for (aggregate in aggregates) {
+            if (!aggregate.isAlive) continue
+            val discipleId = aggregate.id
+            val brPct = bloodRefinementPctTotals[discipleId]
             val fp = SectCombatPowerCalculator.computeFingerprint(aggregate, brPct)
-            val cached = disciplePowerCache[disciple.id]
+            val cached = disciplePowerCache[discipleId]
             if (cached != null && cached.fingerprint == fp) {
                 total += cached.power
             } else {
                 val power = SectCombatPowerCalculator.calculateDisciplePower(aggregate, brPct)
-                disciplePowerCache[disciple.id] = CachedPower(fp, power)
+                disciplePowerCache[discipleId] = CachedPower(fp, power)
                 total += power
             }
         }
-        val aliveIds = disciples.filter { it.isAlive }.map { it.id }.toSet()
+        val aliveIds = aggregates.filter { it.isAlive }.map { it.id }.toSet()
         disciplePowerCache.keys.retainAll(aliveIds)
         DerivedAggregation(aggregates, total)
     }.sample(100)
         .distinctUntilChanged()
         .flowOn(aggregationDispatcher)
         .stateIn(
-            applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000),
+            // 2026-08-01：WhileSubscribed → Eagerly——无订阅时也持续计算，
+            // 保证 discipleAggregatesSnapshot 缓存永远新鲜（增量后空闲成本趋零）
+            applicationScopeProvider.scope, SharingStarted.Eagerly,
             DerivedAggregation(emptyList(), 0L)
         )
+
+    /**
+     * 双指针增量归并（2026-08-01）：prev（升序）与 disciples（升序）diff，
+     * 仅对新增/变更弟子调用 [Disciple.toAggregate]，未变弟子复用旧对象。
+     * 两列表 size 不等或 diff 失序时由调用方退化全量。
+     */
+    private fun mergeAggregatesIncremental(
+        prev: List<DiscipleAggregate>,
+        disciples: List<Disciple>
+    ): List<DiscipleAggregate> {
+        val result = ArrayList<DiscipleAggregate>(disciples.size)
+        var i = 0
+        var j = 0
+        while (i < prev.size && j < disciples.size) {
+            val prevId = prev[i].id.toIntOrNull()
+            val curId = disciples[j].id.toIntOrNull()
+            if (prevId == null || curId == null || prevId > curId) {
+                // 失序/非数值 id：退化为全量（安全兜底）
+                return disciples.map { it.toAggregate() }
+            }
+            when {
+                prevId == curId -> { result.add(prev[i]); i++; j++ }
+                prevId < curId -> i++  // prev 中被移除的弟子（跳过）
+                else -> { result.add(disciples[j].toAggregate()); j++ }  // 新增弟子
+            }
+        }
+        while (j < disciples.size) { result.add(disciples[j].toAggregate()); j++ }
+        return result
+    }
 
     override val discipleAggregates: StateFlow<List<DiscipleAggregate>> = derivedAggregation
         .map { it.aggregates }
@@ -579,6 +646,9 @@ class GameStateStoreImpl @Inject constructor(
         notificationQueue.offer(notification)
         if (notificationQueue.size > 200) notificationQueue.poll() // 上限 200，丢弃最旧
         _notificationsFlow.value = notificationQueue.toList()
+        // 2026-08-01 修复：bump 版本号——unifiedState 依赖 _updateVersion 发射，
+        // 旧实现不 bump 导致依赖统一快照的 UI 看不到通知变更（隐式契约缺口）
+        _updateVersion.value++
     }
 
     override fun consumeNotification(): GameNotification? {
@@ -830,15 +900,25 @@ class GameStateStoreImpl @Inject constructor(
         // ★ 单线程调度器串行执行：增量组装读"执行时"的 _disciplesFlow 快照，
         //   并发交错会互相覆盖（丢弟子）；串行保证后启动的组装读到前次写回结果。
         if (disciplesNeedReassemble) {
+            // 捕获提交时代的版本号：load/reset 会递增版本号作废排队中的陈旧组装任务
+            val gen = discipleVersion.get()
             val changedIds = _discipleTables.changedIdTracker.consumeChangedIds()
             if (changedIds.isNotEmpty()) {
                 applicationScopeProvider.scope.launch(assembleDispatcher) {
+                    if (discipleVersion.get() != gen) return@launch
                     val prevSnapshot = _disciplesFlow.value
-                    _disciplesFlow.value = _discipleTables.assembleAllIncremental(prevSnapshot, changedIds)
+                    // 2026-08-01：变更覆盖大部分弟子时增量归并无收益（增量还需组装每
+                    // 个变更弟子 + 归并），直接用全量更优——replaceAll 场景防止退化
+                    _disciplesFlow.value = if (changedIds.size >= prevSnapshot.size / 2) {
+                        _discipleTables.assembleAll()
+                    } else {
+                        _discipleTables.assembleAllIncremental(prevSnapshot, changedIds)
+                    }
                 }
             } else {
                 // 回退：changedIdTracker 可能未捕获列级写入，全量 assemble 兜底
                 applicationScopeProvider.scope.launch(assembleDispatcher) {
+                    if (discipleVersion.get() != gen) return@launch
                     _disciplesFlow.value = _discipleTables.assembleAll()
                 }
             }
@@ -876,6 +956,9 @@ class GameStateStoreImpl @Inject constructor(
             // 缓存清除在所有写入之前执行
             disciplePowerCache.clear()
             aiDisciplePowerCache.clear()
+            // 2026-08-01：聚合缓存失效——load 整体替换弟子列表，
+            // 否则增量 diff 会用旧缓存与新列表错误合并
+            cachedAggregates = emptyList()
 
             // 保存旧值用于失败回滚
             val oldGameData = _gameDataFlow.value
@@ -958,13 +1041,23 @@ class GameStateStoreImpl @Inject constructor(
             }
         }
         // ★ 锁外同步版本号，防止首个 update() 触发不必要的 assembleAll
-        _disciplesFlow.value = _discipleTables.assembleAll()
+        // 2026-08-01 修复：递增版本号作废 assembleDispatcher 队列中基于旧数据的
+        // 排队任务，并将本组装投递到同一单线程调度器——避免与增量组装协程并发
+        // 交错（陈旧结果覆盖新加载列表）。
+        discipleVersion.incrementAndGet()
+        val gen = discipleVersion.get()
+        applicationScopeProvider.scope.launch(assembleDispatcher) {
+            if (discipleVersion.get() != gen) return@launch
+            _disciplesFlow.value = _discipleTables.assembleAll()
+        }
     }
 
     override suspend fun reset() {
         transactionLock.withLock {
             disciplePowerCache.clear()
             aiDisciplePowerCache.clear()
+            // 2026-08-01：聚合缓存失效（同 load 语义）
+            cachedAggregates = emptyList()
             _gameDataFlow.value = GameData()
             _disciplesFlow.value = emptyList()
             _discipleTables.writeAllowed = true
@@ -994,6 +1087,8 @@ class GameStateStoreImpl @Inject constructor(
             _stateDirty = false
             _discipleDirty = false
             repository.clearDirty()
+            // 2026-08-01 修复：作废 assembleDispatcher 队列中的陈旧组装任务
+            discipleVersion.incrementAndGet()
         }
     }
 

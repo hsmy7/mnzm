@@ -58,9 +58,12 @@ class RoomMigrationTest {
         private val M27_28 = GameDatabase.MIGRATION_27_28
         private val M28_29 = GameDatabase.MIGRATION_28_29
         private val M29_30 = GameDatabase.MIGRATION_29_30
+        private val M30_31 = GameDatabase.MIGRATION_30_31
         private val M31_32 = GameDatabase.MIGRATION_31_32
         private val M32_33 = GameDatabase.MIGRATION_32_33
         private val M33_34 = GameDatabase.MIGRATION_33_34
+        private val M34_35 = GameDatabase.MIGRATION_34_35
+        private val M35_36 = GameDatabase.MIGRATION_35_36
     }
 
     // ==================== 单个迁移步骤测试 ====================
@@ -374,17 +377,75 @@ class RoomMigrationTest {
     // ==================== 全量迁移测试 ====================
 
     @Test
-    fun `full migration from v2 to v16 applies all steps without crash`() {
+    fun `full migration from v2 to v36 applies all steps without crash and preserves seed data`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val dbName = "full_migrate"
+        val dbName = "full_migrate_v36"
         context.deleteDatabase(dbName)
         try {
-            // 注意：早期版本（v2-v11）缺少后来加入实体的列（如 merchantAcquisitionItems），
-            // 而部分列没有对应的 ALTER TABLE ADD COLUMN 迁移，因此全量迁移测试跳过 v2→v12 段，
-            // 直接从 v12 schema 开始测试 v12→v16 的核心迁移路径
-            val db = createDatabaseFromSchema(context, dbName, 12)
-            applyMigrationsSequentially(db, listOf(M12_13, M13_14, M14_15, M15_16))
+            // 2026-08-01 修复：全链迁移从 v2 起点覆盖全部 34 条迁移。
+            // 旧测试跳过 v2→v12 段，导致 MIGRATION_12_13 引用缺失列
+            // （merchantAcquisitionItems）的升级崩溃缺陷未被发现。
+            val db = createDatabaseFromSchema(context, dbName, 2)
 
+            // ── 在 v2 种子库插入最小 game_data 行（v2 createSql 列集）──
+            db.execSQL(
+                "INSERT INTO game_data (" +
+                    "id, slot_id, sectName, currentSlot, gameYear, gameMonth, gamePhase, " +
+                    "isGameStarted, gameSpeed, spiritStones, spiritHerbs, sectCultivation, " +
+                    "autoSaveIntervalMonths, monthlySalary, monthlySalaryEnabled, " +
+                    "worldMapSects, sectDetails, aiSectDisciples, exploredSects, scoutInfo, " +
+                    "manualProficiencies, travelingMerchantItems, merchantLastRefreshYear, " +
+                    "merchantRefreshCount, playerListedItems, recruitList, lastRecruitYear, " +
+                    "worldLevels, cultivatorCaves, caveExplorationTeams, aiCaveTeams, " +
+                    "unlockedRecipes, unlockedManuals, lastSaveTime, elderSlots, spiritMineSlots, " +
+                    "spiritMineExpansions, librarySlots, productionSlots, placedBuildings, " +
+                    "spiritFieldPlants, activeSectId, residenceSlots, warehouseGarrisons, " +
+                    "patrolSlots, patrolConfig, patrolConfigs, alliances, sectRelations, " +
+                    "playerAllianceSlots, sectPolicies, battleTeam, aiBattleTeams, " +
+                    "usedRedeemCodes, claimedMailIds, playerProtectionEnabled, " +
+                    "playerProtectionStartYear, playerHasAttackedAI, activeMissions, " +
+                    "availableMissions, autoRecruitSpiritRootFilter, daoCompanionBannedRootCounts, " +
+                    "daoCompanionConsentRequired, patrolBattleResultPopup, " +
+                    "breakthroughAutoPillFocused, breakthroughAutoPillRootCounts, " +
+                    "autoEquipFromWarehouseFocused, autoEquipFromWarehouseRootCounts, " +
+                    "autoLearnFromWarehouseFocused, autoLearnFromWarehouseRootCounts, isGameOver" +
+                    ") VALUES (" +
+                    "'game_data_1', 1, '测试宗门', 0, 1, 1, 0, 1, 1, 100, 0, 0.0, 3, '0', '0', " +
+                    "'[]', '{}', '{}', '{}', '{}', '{}', '[]', 0, 0, '[]', '[]', 0, '[]', " +
+                    "'[]', '[]', '[]', '[]', '[]', 0, '{}', '[]', 0, '[]', '[]', '[]', '[]', " +
+                    "'sect_1', '[]', '[]', '[]', '{}', '{}', '[]', '[]', 0, '{}', NULL, '{}', " +
+                    "'[]', '[]', 0, 0, 0, '[]', '[]', '[]', '{}', 0, 0, 0, '{}', 0, '{}', 0, '{}', 0" +
+                    ")"
+            )
+
+            applyMigrationsSequentially(
+                db,
+                listOf(
+                    M2_3, M3_4, M4_5, M5_6, M6_7, M7_8, M8_9, M9_10,
+                    M10_11, M11_12, M12_13, M13_14, M14_15, M15_16,
+                    M16_17, M17_18, M18_19, M19_20, M20_21, M21_22,
+                    M22_23, M23_24, M24_25, M25_26, M26_27, M27_28,
+                    M28_29, M29_30, M30_31, M31_32, M32_33, M33_34, M34_35, M35_36
+                )
+            )
+
+            // ── 种子数据保留验证 ──
+            val sectName = db.query("SELECT sectName, gameYear, gameMonth, spiritStones FROM game_data WHERE slot_id = 1").use { cursor ->
+                var result = ""
+                if (cursor.moveToFirst()) {
+                    result = cursor.getString(0)
+                }
+                result
+            }
+            assertEquals("种子 sectName 应在全链迁移后保留", "测试宗门", sectName)
+
+            // ── 历史缺陷回归：MIGRATION_12_13 引用的列必须存在 ──
+            assertTrue("merchantAcquisitionItems should exist after full chain migration",
+                columnExists(db, "game_data", "merchantAcquisitionItems"))
+            assertTrue("merchantAcquisitionLastRefreshYear should exist after full chain migration",
+                columnExists(db, "game_data", "merchantAcquisitionLastRefreshYear"))
+
+            // ── 各表列完整性验证 ──
             verifyGameDataColumnsExist(db)
             verifyDisciplesColumnsExist(db)
             verifyProductionSlotsColumnsExist(db)
@@ -398,12 +459,17 @@ class RoomMigrationTest {
                 columnExists(db, "disciples", "cultivationCheckpoint"))
             assertTrue("cultivationCheckpointGameMonth should exist after v14 migration",
                 columnExists(db, "disciples", "cultivationCheckpointGameMonth"))
-            // 验证 v15 新增列存在
-            assertTrue("discipleDesertionPopup should exist after v15 migration",
+            // discipleDesertionPopup 在 v15 加入、v25 移除——全链终点（v36）应不存在
+            assertFalse("discipleDesertionPopup should be removed by v25 migration",
                 columnExists(db, "game_data", "discipleDesertionPopup"))
             // 验证 v16 新增列存在
             assertTrue("showAllAvailableDisciples should exist after v16 migration",
                 columnExists(db, "game_data", "showAllAvailableDisciples"))
+            // 验证 v36 新增列存在（2026-07-31 体质/词条列）
+            assertTrue("physiqueIds should exist after v36 migration",
+                columnExists(db, "disciples", "physiqueIds"))
+            assertTrue("affixIds should exist after v36 migration",
+                columnExists(db, "disciples", "affixIds"))
 
             db.close()
         } finally {
@@ -981,7 +1047,8 @@ class RoomMigrationTest {
     }
 
     private fun verifyDisciplesColumnsExist(db: SupportSQLiteDatabase) {
-        assertTrue("disciples should have usage_lastTheftMonth",
+        // usage_lastTheftMonth 已在 v31 删除（偷盗系统年上限重构）——v36 不应存在
+        assertFalse("usage_lastTheftMonth should be removed after v31 migration",
             columnExists(db, "disciples", "usage_lastTheftMonth"))
         assertTrue("disciples should have social_masterId",
             columnExists(db, "disciples", "social_masterId"))

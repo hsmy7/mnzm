@@ -55,6 +55,11 @@ class SlotLockManager(
      * 不在锁内执行 `withContext(Dispatchers.IO)` 切换，
      * 调用方若已在 IO 调度器上，可避免不必要的线程跳转开销。
      *
+     * 注意（2026-08-01 语义澄清）：与 [withWriteLockLight] 实际是**同一把排他
+     * Mutex**——"读锁"命名仅表达调用语义，同一槽位的读操作之间也互相串行
+     * （不同槽位可并行）。StorageEngine.load 依赖此排他语义才可在"读锁"内
+     * 执行 performFullTransactionSave 写库。
+     *
      * @param slot 槽位编号
      * @param block 在持有读锁期间执行的挂起代码块
      * @return 代码块的返回值

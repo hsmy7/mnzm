@@ -36,7 +36,6 @@ sealed class GameRoute(val route: String) {
     object Merchant : GameRoute("merchant")
     object Diplomacy : GameRoute("diplomacy")
     object Planting : GameRoute("planting")
-    object SalaryConfig : GameRoute("salary_config")
     object WorldMap : GameRoute("world_map")
     object BattleLog : GameRoute("battle_log")
     object Mail : GameRoute("mail")
@@ -63,7 +62,6 @@ fun GameRoute.toDialogType(buildingInstanceId: String = ""): com.xianxia.sect.co
     GameRoute.Diplomacy -> com.xianxia.sect.core.domain.dialog.DialogType.Diplomacy
     GameRoute.Planting -> com.xianxia.sect.core.domain.dialog.DialogType.Planting
     GameRoute.Merchant -> com.xianxia.sect.core.domain.dialog.DialogType.Merchant
-    GameRoute.SalaryConfig -> com.xianxia.sect.core.domain.dialog.DialogType.SalaryConfig
     GameRoute.WorldMap -> com.xianxia.sect.core.domain.dialog.DialogType.WorldMap
     GameRoute.BattleLog -> com.xianxia.sect.core.domain.dialog.DialogType.BattleLog
     GameRoute.Mail -> com.xianxia.sect.core.domain.dialog.DialogType.Mail

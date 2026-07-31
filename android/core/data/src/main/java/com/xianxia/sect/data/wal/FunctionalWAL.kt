@@ -62,9 +62,6 @@ class FunctionalWAL @Inject constructor(
 
         /** 最小完整条目大小 (头部 + 校验和，无 data) */
         private const val ENTRY_MIN_SIZE = ENTRY_HEADER_SIZE + CHECKSUM_SIZE
-
-        /** 快照文件命名格式: slot_{slotId}_txn_{txnId}.snap (与 SnapshotRetentionPolicy 兼容) */
-        private const val SNAPSHOT_FILE_FORMAT = "slot_%d_txn_%d.snap"
     }
 
     /** 解析后的 WAL 条目 */
@@ -107,7 +104,6 @@ class FunctionalWAL @Inject constructor(
     // 文件路径
     private val walDir: File = File(context.filesDir, StorageConstants.WAL_DIR_NAME)
     private val walFile: File = File(walDir, StorageConstants.WAL_FILE_NAME)
-    private val snapshotDir: File = File(walDir, StorageConstants.SNAPSHOT_DIR_NAME)
 
     // 输出流 (所有访问在 writeLock 内)
     private var bufferedOutputStream: BufferedOutputStream? = null
@@ -121,7 +117,6 @@ class FunctionalWAL @Inject constructor(
     init {
         try {
             walDir.mkdirs()
-            snapshotDir.mkdirs()
             openWALFile()
             recoverTxnIdCounter()
             startFlushTimer()
@@ -372,118 +367,25 @@ class FunctionalWAL @Inject constructor(
                 (data[offset + 3].toInt() and 0xFF)
     }
 
-    // ==================== 快照文件管理 ====================
-
-    /**
-     * 将快照数据保存到独立文件。
-     * 文件命名: slot_{slotId}_txn_{txnId}.snap
-     */
-    private fun saveSnapshotFile(slot: Int, txnId: Long, data: ByteArray): File? {
-        return try {
-            if (data.size > StorageConstants.MAX_SNAPSHOT_SIZE_BYTES) {
-                Log.w(TAG, "Snapshot too large: ${data.size}B for slot $slot, limit=${StorageConstants.MAX_SNAPSHOT_SIZE_BYTES}")
-                return null
-            }
-            val file = File(snapshotDir, SNAPSHOT_FILE_FORMAT.format(slot, txnId))
-            FileOutputStream(file).use { fos ->
-                fos.write(data)
-                fos.fd.sync()
-            }
-            Log.d(TAG, "Snapshot saved: ${file.name}, size=${data.size}B")
-            file
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to save snapshot for slot $slot, txnId $txnId", e)
-            null
-        }
-    }
-
-    private fun deleteSnapshotFile(file: File?) {
-        if (file == null) return
-        try {
-            if (file.exists()) {
-                file.delete()
-                Log.d(TAG, "Snapshot deleted: ${file.name}")
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to delete snapshot: ${file.name}", e)
-        }
-    }
-
-    /**
-     * 查找指定 slot 的最新快照文件。
-     */
-    private fun findLatestSnapshotFile(slot: Int): File? {
-        if (!snapshotDir.exists()) return null
-        return snapshotDir.listFiles()
-            ?.filter { it.name.startsWith("slot_${slot}_txn_") && it.name.endsWith(".snap") }
-            ?.maxByOrNull { it.lastModified() }
-    }
-
-    /**
-     * 根据 txnId 查找对应的快照文件。
-     */
-    private fun findSnapshotFile(slot: Int, txnId: Long): File? {
-        if (!snapshotDir.exists()) return null
-        val file = File(snapshotDir, SNAPSHOT_FILE_FORMAT.format(slot, txnId))
-        return if (file.exists()) file else null
-    }
-
-    /**
-     * 清理过期快照文件。
-     * 遵循 StorageConstants 中的保留策略。
-     */
-    private fun cleanupOldSnapshots() {
-        try {
-            if (!snapshotDir.exists()) return
-            val now = System.currentTimeMillis()
-            val maxAge = StorageConstants.MAX_SNAPSHOT_AGE_MS
-            val minKeep = StorageConstants.MIN_SNAPSHOTS_TO_KEEP
-
-            val snapshots = snapshotDir.listFiles()
-                ?.filter { it.name.endsWith(".snap") }
-                ?.sortedByDescending { it.lastModified() }
-                ?: return
-
-            var kept = 0
-            var deleted = 0
-            var totalSize = 0L
-
-            for (snap in snapshots) {
-                totalSize += snap.length()
-                val age = now - snap.lastModified()
-                if (kept >= minKeep && (age > maxAge || totalSize > StorageConstants.MAX_TOTAL_SNAPSHOTS_SIZE_BYTES)) {
-                    snap.delete()
-                    deleted++
-                } else {
-                    kept++
-                }
-            }
-
-            if (deleted > 0) {
-                Log.d(TAG, "Snapshot cleanup: deleted=$deleted, kept=$kept")
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Snapshot cleanup failed", e)
-        }
-    }
+    // ==================== 快照文件管理（已移除 2026-08-01）====================
+    // 快照能力从未接线（StorageEngine 恒传 null provider、restoreFromSnapshot 无调用点），
+    // 崩溃恢复由 Room WAL 事务原子性 + .sav 备份承担。
 
     // ==================== 公开 API ====================
 
     /**
      * 开始一个新事务。
      *
-     * 如果提供了 [snapshotProvider]，会在事务开始前保存快照到磁盘，
-     * 以便在崩溃后恢复该 slot 的数据。
+     * 仅作日志记账（BEGIN 条目 + 活跃事务注册）；崩溃恢复职责由 Room WAL 事务原子性
+     * 与 .sav 备份承担（2026-08-01 清理：快照能力从未接线，移除）。
      *
      * @param slot 目标存档槽位
      * @param operation 事务操作类型 (通常为 DATA)
-     * @param snapshotProvider 快照数据提供者，传入 slot 返回序列化后的字节数组
      * @return 成功时返回事务 ID，失败时返回 WAL_ERROR
      */
     override suspend fun beginTransaction(
         slot: Int,
-        operation: WALEntryType,
-        snapshotProvider: (suspend (Int) -> ByteArray)?
+        operation: WALEntryType
     ): SaveResult<Long> {
         if (isShutdown.get()) {
             return SaveResult.failure(SaveError.WAL_ERROR, "WAL is shutdown")
@@ -493,23 +395,9 @@ class FunctionalWAL @Inject constructor(
             try {
                 val txnId = txnIdGenerator.incrementAndGet()
 
-                // 保存快照 (如果提供了 provider)
-                var snapshotFile: File? = null
-                if (snapshotProvider != null) {
-                    try {
-                        val snapshotData = snapshotProvider(slot)
-                        snapshotFile = saveSnapshotFile(slot, txnId, snapshotData)
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Snapshot provider failed for slot=$slot, txnId=$txnId", e)
-                        // 快照失败不阻止事务开始，但恢复时可能缺少快照
-                    }
-                }
-
                 // 写入 BEGIN 条目，data 字段存储操作类型名称
                 val entryData = operation.name.toByteArray(Charsets.UTF_8)
                 if (!writeEntry(WALEntryType.BEGIN, txnId, slot, entryData)) {
-                    // 写入失败，清理已保存的快照
-                    deleteSnapshotFile(snapshotFile)
                     return@withContext SaveResult.failure(
                         SaveError.WAL_ERROR,
                         "Failed to write BEGIN entry for transaction $txnId"
@@ -521,14 +409,13 @@ class FunctionalWAL @Inject constructor(
                     txnId = txnId,
                     slot = slot,
                     operation = operation,
-                    startTime = System.currentTimeMillis(),
-                    snapshotFile = snapshotFile
+                    startTime = System.currentTimeMillis()
                 )
                 activeTransactions[txnId] = record
                 txnLocks[txnId] = ReentrantLock()
                 totalTransactions.incrementAndGet()
 
-                Log.d(TAG, "Transaction begun: txnId=$txnId, slot=$slot, op=$operation, hasSnapshot=${snapshotFile != null}")
+                Log.d(TAG, "Transaction begun: txnId=$txnId, slot=$slot, op=$operation")
                 SaveResult.success(txnId)
             } catch (e: Exception) {
                 Log.e(TAG, "beginTransaction failed: slot=$slot", e)
@@ -599,8 +486,6 @@ class FunctionalWAL @Inject constructor(
                     activeTransactions.remove(txnId)
                     committedCount.incrementAndGet()
 
-                    deleteSnapshotFile(record.snapshotFile)
-
                     val sinceCp = commitsSinceCheckpoint.incrementAndGet()
                     if (sinceCp >= StorageConstants.CHECKPOINT_INTERVAL) {
                         if (!thermalMonitor.shouldReduceWorkload()) {
@@ -626,70 +511,9 @@ class FunctionalWAL @Inject constructor(
     }
 
     /**
-     * 创建重要快照 (独立于事务生命周期)。
-     *
-     * 用于关键游戏事件 (境界突破、年份变化等) 的数据保护。
-     * 快照数据保存到独立文件，WAL 中记录 SNAPSHOT 条目。
-     *
-     * @param slot 目标槽位
-     * @param snapshotProvider 快照数据提供者
-     * @param eventType 事件类型标识
-     * @param currentGameYear 当前游戏年份
-     * @return 成功时返回快照事务 ID
-     */
-    override suspend fun createImportantSnapshot(
-        slot: Int,
-        snapshotProvider: suspend (Int) -> ByteArray,
-        eventType: String,
-        currentGameYear: Int
-    ): SaveResult<Long> {
-        if (isShutdown.get()) {
-            return SaveResult.failure(SaveError.WAL_ERROR, "WAL is shutdown")
-        }
-
-        return withContext(Dispatchers.IO) {
-            try {
-                val txnId = txnIdGenerator.incrementAndGet()
-
-                // 获取快照数据
-                val snapshotData = snapshotProvider(slot)
-
-                // 保存到独立文件
-                val snapshotFile = saveSnapshotFile(slot, txnId, snapshotData)
-
-                // 构建 SNAPSHOT 条目数据: 文件引用 + 元数据
-                val entryData = buildString {
-                    append("snapshotFile=").append(snapshotFile?.name ?: "")
-                    append("|eventType=").append(eventType)
-                    append("|currentGameYear=").append(currentGameYear)
-                }.toByteArray(Charsets.UTF_8)
-
-                // 写入 SNAPSHOT 条目
-                if (!writeEntry(WALEntryType.SNAPSHOT, txnId, slot, entryData)) {
-                    // 写入失败，清理已保存的快照
-                    deleteSnapshotFile(snapshotFile)
-                    return@withContext SaveResult.failure(
-                        SaveError.WAL_ERROR,
-                        "Failed to write SNAPSHOT entry for transaction $txnId"
-                    )
-                }
-                flushInternal()
-
-                totalTransactions.incrementAndGet()
-
-                Log.d(TAG, "Important snapshot created: txnId=$txnId, slot=$slot, event=$eventType, size=${snapshotData.size}B")
-                SaveResult.success(txnId)
-            } catch (e: Exception) {
-                Log.e(TAG, "createImportantSnapshot failed: slot=$slot", e)
-                SaveResult.failure(SaveError.WAL_ERROR, "Failed to create snapshot: ${e.message}", e)
-            }
-        }
-    }
-
-    /**
      * 异步中止事务。
      *
-     * 写入 ABORT 条目，删除关联快照。
+     * 写入 ABORT 条目并解除活跃事务注册。
      */
     override suspend fun abort(txnId: Long): SaveResult<Unit> {
         if (isShutdown.get()) {
@@ -740,8 +564,6 @@ class FunctionalWAL @Inject constructor(
                 record.statusRef.set(TransactionStatus.ABORTED)
                 activeTransactions.remove(txnId)
                 abortedCount.incrementAndGet()
-
-                deleteSnapshotFile(record.snapshotFile)
 
                 Log.d(TAG, "Transaction aborted: txnId=$txnId, slot=${record.slot}")
                 SaveResult.success(Unit)
@@ -822,27 +644,20 @@ class FunctionalWAL @Inject constructor(
 
                 for ((txnId, info) in uncommitted) {
                     val slot = info.slotId
-                    val snapshotFile = findSnapshotFile(slot, txnId)
-                    val hasSnapshot = snapshotFile != null && snapshotFile.exists()
 
-                    // 将未完成事务注册到活跃事务表
+                    // 将未完成事务注册到活跃事务表（快照能力已移除 2026-08-01，
+                    // 恢复依赖 Room WAL 事务原子性 + .sav 备份，未完成事务仅登记供监控）
                     val record = TransactionRecord(
                         txnId = txnId,
                         slot = slot,
                         operation = info.operation ?: WALEntryType.DATA,
-                        startTime = info.timestamp,
-                        snapshotFile = snapshotFile
+                        startTime = info.timestamp
                     )
                     activeTransactions[txnId] = record
 
-                    if (hasSnapshot) {
-                        recoveredSlots.add(slot)
-                        Log.i(TAG, "Recoverable transaction: txnId=$txnId, slot=$slot (snapshot available)")
-                    } else {
-                        failedSlots.add(slot)
-                        errors.add("No snapshot for uncommitted transaction $txnId on slot $slot")
-                        Log.w(TAG, "Unrecoverable transaction: txnId=$txnId, slot=$slot (no snapshot)")
-                    }
+                    failedSlots.add(slot)
+                    errors.add("Uncommitted transaction $txnId on slot $slot (DB 事务已回滚，无需快照恢复)")
+                    Log.w(TAG, "Uncommitted transaction: txnId=$txnId, slot=$slot")
                 }
 
                 // 更新 txnIdGenerator 避免冲突
@@ -867,60 +682,9 @@ class FunctionalWAL @Inject constructor(
     }
 
     /**
-     * 从快照恢复指定 slot 的数据。
-     *
-     * 查找该 slot 的最新快照文件，读取数据后传递给 [dataConsumer]。
-     *
-     * @param slot 目标槽位
-     * @param dataConsumer 数据消费者，返回 true 表示接受，false 表示拒绝
-     * @return 恢复结果
-     */
-    override suspend fun restoreFromSnapshot(
-        slot: Int,
-        dataConsumer: suspend (ByteArray) -> Boolean
-    ): SaveResult<Unit> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val snapshotFile = findLatestSnapshotFile(slot)
-                if (snapshotFile == null || !snapshotFile.exists()) {
-                    return@withContext SaveResult.failure(
-                        SaveError.SLOT_CORRUPTED,
-                        "No snapshot found for slot $slot"
-                    )
-                }
-
-                val data = snapshotFile.readBytes()
-                if (data.isEmpty()) {
-                    return@withContext SaveResult.failure(
-                        SaveError.SLOT_CORRUPTED,
-                        "Snapshot file is empty for slot $slot"
-                    )
-                }
-
-                val accepted = dataConsumer(data)
-
-                if (accepted) {
-                    Log.i(TAG, "Snapshot restored: slot=$slot, file=${snapshotFile.name}, size=${data.size}B")
-                    SaveResult.success(Unit)
-                } else {
-                    Log.w(TAG, "Snapshot data rejected by consumer: slot=$slot")
-                    SaveResult.failure(
-                        SaveError.RESTORE_FAILED,
-                        "Data consumer rejected snapshot for slot $slot"
-                    )
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "restoreFromSnapshot failed: slot=$slot", e)
-                SaveResult.failure(SaveError.RESTORE_FAILED, "Failed to restore snapshot: ${e.message}", e)
-            }
-        }
-    }
-
-    /**
      * 执行 checkpoint 操作，压缩 WAL 文件。
      *
-     * 移除已完成事务 (COMMITTED/ABORTED) 的条目，
-     * 保留活跃事务条目和有效快照引用。
+     * 移除已完成事务 (COMMITTED/ABORTED) 的条目，保留活跃事务条目。
      *
      * @return true 表示成功
      */
@@ -976,24 +740,8 @@ class FunctionalWAL @Inject constructor(
                 val filteredEntries = entries.filter { entry ->
                     if (!entry.valid) return@filter false
 
-                    // 保留活跃事务的所有条目
-                    if (entry.txnId in activeTxnIds) return@filter true
-
-                    // 保留快照条目 (仅当快照文件仍存在时)
-                    if (entry.type == WALEntryType.SNAPSHOT) {
-                        val metaData = String(entry.data, Charsets.UTF_8)
-                        val fileName = metaData.split("|")
-                            .find { it.startsWith("snapshotFile=") }
-                            ?.removePrefix("snapshotFile=")
-                            ?.trim()
-                        if (!fileName.isNullOrEmpty()) {
-                            return@filter File(snapshotDir, fileName).exists()
-                        }
-                        return@filter false
-                    }
-
-                    // 移除已完成事务的条目
-                    false
+                    // 保留活跃事务的所有条目；移除已完成事务的条目（快照条目保留逻辑已移除 2026-08-01）
+                    entry.txnId in activeTxnIds
                 }
 
                 // 步骤 4: 写入临时文件
@@ -1054,9 +802,6 @@ class FunctionalWAL @Inject constructor(
                 // 更新统计
                 lastCheckpointTime = System.currentTimeMillis()
                 commitsSinceCheckpoint.set(0L)
-
-                // 清理过期快照
-                cleanupOldSnapshots()
 
                 Log.i(TAG, "Checkpoint completed: kept=${filteredEntries.size} entries, size=${walFile.length()}B")
                 true
@@ -1121,7 +866,7 @@ class FunctionalWAL @Inject constructor(
     /**
      * 清空所有 WAL 数据。
      *
-     * 删除 WAL 文件和所有快照，重置内存状态，重新初始化输出流。
+     * 删除 WAL 文件，重置内存状态，重新初始化输出流。
      */
     override fun clear() {
         writeLock.withLock {
@@ -1131,15 +876,6 @@ class FunctionalWAL @Inject constructor(
                 // 删除 WAL 文件
                 if (walFile.exists()) {
                     walFile.delete()
-                }
-
-                // 删除快照
-                if (snapshotDir.exists()) {
-                    snapshotDir.listFiles()?.forEach { file ->
-                        if (file.name.endsWith(".snap") || file.name == "snapshot_registry.json") {
-                            file.delete()
-                        }
-                    }
                 }
 
                 // 重置状态

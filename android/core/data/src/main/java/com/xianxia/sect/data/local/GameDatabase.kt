@@ -450,7 +450,22 @@ abstract class GameDatabase : RoomDatabase() {
                         "NOT NULL DEFAULT '[]'"
                     )
                 }
-                Log.i(TAG, "Migration 10→11: added vassalContracts, sectBattleRecords")
+                // 2026-08-01 修复：merchantAcquisition* 列缺失导致 v2-v11 老存档在
+                // MIGRATION_12_13 的 INSERT SELECT 处崩溃（no such column）。
+                // 实体在 v11 引入但迁移缺失——在此补齐，使 v10→v11 输出与 schema 11.json 一致。
+                if (!columnExists(db, "game_data", "merchantAcquisitionItems")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN merchantAcquisitionItems TEXT " +
+                        "NOT NULL DEFAULT '[]'"
+                    )
+                }
+                if (!columnExists(db, "game_data", "merchantAcquisitionLastRefreshYear")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN merchantAcquisitionLastRefreshYear " +
+                        "INTEGER NOT NULL DEFAULT 0"
+                    )
+                }
+                Log.i(TAG, "Migration 10→11: added vassalContracts, sectBattleRecords, merchantAcquisition*")
             }
         }
 
@@ -462,7 +477,42 @@ abstract class GameDatabase : RoomDatabase() {
                         "ALTER TABLE game_data ADD COLUMN map_seed INTEGER NOT NULL DEFAULT 0"
                     )
                 }
-                Log.i(TAG, "Migration 11→12: added map_seed")
+                // 防御纵深（2026-08-01）：若旧版本升级链在 MIGRATION_10_11 之前已存在
+                //（如 v2→v11 的中间版本），此处兜底补齐 merchantAcquisition* 列
+                if (!columnExists(db, "game_data", "merchantAcquisitionItems")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN merchantAcquisitionItems TEXT " +
+                        "NOT NULL DEFAULT '[]'"
+                    )
+                }
+                if (!columnExists(db, "game_data", "merchantAcquisitionLastRefreshYear")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN merchantAcquisitionLastRefreshYear " +
+                        "INTEGER NOT NULL DEFAULT 0"
+                    )
+                }
+                // 2026-08-01 修复（全链迁移测试暴露）：v12 schema 已含 mailRecords /
+                // heavenly_trial_state / sign_in_state_json，但 v2-v11 段无任何迁移添加
+                // 这三列——MIGRATION_12_13 的 INSERT SELECT 引用它们导致升级崩溃
+                if (!columnExists(db, "game_data", "mailRecords")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN mailRecords TEXT " +
+                        "NOT NULL DEFAULT '[]'"
+                    )
+                }
+                if (!columnExists(db, "game_data", "heavenly_trial_state")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN heavenly_trial_state TEXT " +
+                        "NOT NULL DEFAULT '{\"highestClearedLevel\":-1,\"levelClearCounts\":[0,0,0,0,0,0,0,0]}'"
+                    )
+                }
+                if (!columnExists(db, "game_data", "sign_in_state_json")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN sign_in_state_json TEXT " +
+                        "NOT NULL DEFAULT '{\"claimedDays\":[],\"currentMonth\":0,\"currentYear\":0}'"
+                    )
+                }
+                Log.i(TAG, "Migration 11→12: added map_seed, merchantAcquisition*, mailRecords, heavenly_trial_state, sign_in_state_json (defense)")
             }
         }
 

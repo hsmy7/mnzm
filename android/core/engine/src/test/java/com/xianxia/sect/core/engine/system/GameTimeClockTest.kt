@@ -1,18 +1,44 @@
 package com.xianxia.sect.core.engine.system
 
-import android.os.SystemClock
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
+/**
+ * GameTimeClock 单元测试（2026-08-01 重写）。
+ *
+ * 历史假绿：旧测试用 `setLastWallMsForTest(SystemClock.elapsedRealtime() - elapsedMs)`
+ * 回拨时钟——在 `returnDefaultValues = true` 的纯 JVM 下 SystemClock.elapsedRealtime()
+ * 恒返回 0，测试靠"双读同为 0 相减"的算术恒等式通过，实现被改写也会照样绿。
+ * 现改为注入 FakeTimeSource 手工推进，测试验证真实时间语义。
+ *
+ * 2026-08-01 语义变更：单 tick 追补上限 MAX_PHASES_PER_TICK = 3
+ * （防止 OEM 挂起恢复后 60 旬连跑卡死），超限丢弃余量。
+ */
 class GameTimeClockTest {
 
+    private lateinit var fakeTime: FakeTimeSource
     private lateinit var clock: GameTimeClock
+
+    /** 可手工推进的单调时钟 */
+    private class FakeTimeSource(var now: Long = 0L) : TimeSource {
+        override fun elapsedRealtime(): Long = now
+        fun advanceBy(ms: Long) { now += ms }
+    }
 
     @Before
     fun setUp() {
-        clock = GameTimeClock()
+        fakeTime = FakeTimeSource()
+        clock = GameTimeClock(fakeTime)
         clock.start()
+    }
+
+    /** 推进真实时间并 tick */
+    private fun simulateTick(elapsedMs: Long, isSettlementPending: Boolean = false): GameTimeClock.TickResult {
+        fakeTime.advanceBy(elapsedMs)
+        return clock.tick(isSettlementPending)
     }
 
     // 1. 1x 速度下 2000ms → 恰好 1 旬
@@ -35,18 +61,16 @@ class GameTimeClockTest {
         clock.setSpeed(2)
         clock.start()  // 重置 accumulator，避免 setSpeed 期间的杂散累积
         val result = simulateTick(1000L)
-        // 1000ms 真实时间 × 2(speed) = 2000ms 游戏时间 / 1000(msPerPhase) = 2 旬
         assertEquals(2, result.phasesToAdvance)
     }
 
-    // 4. 2x 速度下 3000ms 真实时间 = 6000ms 游戏时间 → 6 旬（= 2 个月）
+    // 4. 2x 速度下 3000ms 真实时间 = 6000ms 游戏时间 = 6 旬 → 超过追补上限截断为 3
     @Test
-    fun speed2x_3000ms_advances6Phases() {
+    fun speed2x_3000ms_cappedAtMaxPhasesPerTick() {
         clock.setSpeed(2)
-        clock.start()  // 重置 accumulator
+        clock.start()
         val result = simulateTick(3000L)
-        // 3000ms 真实时间 × 2(speed) = 6000ms 游戏时间 / 1000(msPerPhase) = 6 旬
-        assertEquals(6, result.phasesToAdvance)
+        assertEquals(GameTimeClock.MAX_PHASES_PER_TICK, result.phasesToAdvance)
     }
 
     // 5. 暂停(speed=0) → 不推进任何旬
@@ -66,7 +90,6 @@ class GameTimeClockTest {
 
         // 切到 2x：setSpeed 保留累积的 1500ms game time
         clock.setSpeed(2)
-        // 注意：不调 start()，否则会丢失累积的 1500ms
 
         // 2x 下再过 500ms 真实时间 → 新增 1000ms 游戏时间
         // 总计 = 1500 + 1000 = 2500ms / 1000 = 2 旬，余 500ms
@@ -114,22 +137,20 @@ class GameTimeClockTest {
         assertFalse(result.isSettlementPending)
     }
 
-    // 11. 一次 tick 内累积多旬（从暂停恢复/卡顿后追赶）
+    // 11. 一次 tick 内累积多旬（从暂停恢复/卡顿后追赶）——4 旬超上限截断为 3
     @Test
-    fun multiPhaseInOneTick() {
-        // 8000ms < MAX_CATCHUP_MS(30000)，不被截断
+    fun multiPhaseInOneTick_cappedAt3() {
         val result = simulateTick(8000L)
-        assertEquals(4, result.phasesToAdvance)
+        assertEquals(GameTimeClock.MAX_PHASES_PER_TICK, result.phasesToAdvance)
     }
 
-    // 12. 超大 delta 被安全上限截断，防止挂起恢复后时间爆炸
+    // 12. 超大 delta 被 MAX_CATCHUP_MS 截断后再被 MAX_PHASES_PER_TICK 上限约束
     @Test
-    fun largeDelta_cappedByMaxCatchup() {
+    fun largeDelta_cappedByMaxCatchupThenMaxPhases() {
         clock.setSpeed(2)
-        // 100000ms 真实时间 >> MAX_CATCHUP_MS(30000)，应被截断
-        // 截断后: 30000 * 2 = 60000 game ms / 1000 = 60 phases
         val result = simulateTick(100_000L)
-        assertEquals(60, result.phasesToAdvance)
+        // 截断后: 30000 * 2 = 60000 game ms / 1000 = 60 phases → 再被上限截为 3
+        assertEquals(GameTimeClock.MAX_PHASES_PER_TICK, result.phasesToAdvance)
     }
 
     // 13. 暂停后恢复：speed=0 暂停 → speed=1 恢复，累积量不丢
@@ -139,18 +160,16 @@ class GameTimeClockTest {
         clock.setSpeed(0)
         simulateTick(5000L) // paused: no accumulation
         clock.setSpeed(1)
-        // Now 1000ms game time already accumulated, need another 1000ms for 1 phase
         val result = simulateTick(1000L) // 1x: 1000ms more game time
         assertEquals(1, result.phasesToAdvance)
     }
 
-    // 14. 极端：2x 下 10 秒 → 10 旬（3 月 + 1 旬）
+    // 14. 2x 下 10 秒 → 20 旬 → 超上限截断为 3
     @Test
-    fun speed2x_10seconds() {
+    fun speed2x_10seconds_cappedAt3() {
         clock.setSpeed(2)
         val result = simulateTick(10_000L)
-        // 10000 * 2 = 20000 game ms, / 1000 = 20 phases
-        assertEquals(20, result.phasesToAdvance)
+        assertEquals(GameTimeClock.MAX_PHASES_PER_TICK, result.phasesToAdvance)
     }
 
     // 15. forceConsumeOnePhase 正确扣除
@@ -158,42 +177,50 @@ class GameTimeClockTest {
     fun forceConsumeOnePhase_deducts() {
         clock.start()
         simulateTick(2500L) // 1 旬被消费，accumulator 剩余 500ms
-        assertEquals(1500L, clock.remainingPhaseMs) // 2000 - 500 = 1500ms 到下一旬
+        assertEquals(1500L, clock.remainingPhaseMs)
 
         clock.forceConsumeOnePhase()
         // forceConsume: max(0, 500 - 2000) = 0 → accumulator 归零
-        // 下一旬需要完整的 2000ms
         assertEquals(2000L, clock.remainingPhaseMs)
     }
 
-    // 16. 协程冻结 20s 后恢复 tick() → 游戏时间被补算（20s × speed）
-    //     场景：OEM 省电策略冻结协程 20s，恢复后 tick() 基于 now - lastWallMs 补算
+    // 16. 冻结 20s 后恢复 → 2x 下 40 旬 → 被追补上限截断为 3
     @Test
-    fun freeze20s_compensatesFully() {
-        // 2x 速度：20s 真实时间 × 2 = 40s 游戏时间 = 40000ms / 1000(msPerPhase@2x) = 40 旬
-        // 20000ms < MAX_CATCHUP_MS(30000)，不被截断，全额补算
+    fun freeze20s_cappedAtMaxPhases() {
         clock.setSpeed(2)
-        clock.start()  // 重置 accumulator，避免 setSpeed 期间的杂散累积
+        clock.start()
         val result = simulateTick(20_000L)
-        assertEquals(40, result.phasesToAdvance)
+        assertEquals(GameTimeClock.MAX_PHASES_PER_TICK, result.phasesToAdvance)
     }
 
-    // 17. 协程冻结 60s → 被 MAX_CATCHUP_MS(30s) 截断
-    //     场景：长时间冻结恢复，单次 delta 被安全上限截断防止时间爆炸
+    // 17. 冻结 60s → MAX_CATCHUP_MS(30s) 截断 → 15 旬 → 再被追补上限截为 3
     @Test
-    fun freeze60s_cappedTo30s() {
-        // 1x 速度：60s 真实时间被截断为 30s = 30000ms / 2000(msPerPhase@1x) = 15 旬
+    fun freeze60s_cappedTo3() {
         val result = simulateTick(60_000L)
-        assertEquals(15, result.phasesToAdvance)
+        assertEquals(GameTimeClock.MAX_PHASES_PER_TICK, result.phasesToAdvance)
     }
 
-    // ── 辅助方法 ──
+    // 18. 追补上限触发后余量被丢弃：下一 tick 从零累积（不残留爆炸余量）
+    @Test
+    fun catchUpCap_discardsRemainder() {
+        clock.setSpeed(2)
+        val result = simulateTick(10_000L)  // 20 旬 → 截断为 3，余量丢弃
+        assertEquals(GameTimeClock.MAX_PHASES_PER_TICK, result.phasesToAdvance)
 
-    /**
-     * 模拟一次 tick：通过 setLastWallMsForTest 回拨时钟来模拟时间流逝。
-     */
-    private fun simulateTick(elapsedMs: Long, isSettlementPending: Boolean = false): GameTimeClock.TickResult {
-        clock.setLastWallMsForTest(SystemClock.elapsedRealtime() - elapsedMs)
-        return clock.tick(isSettlementPending)
+        // 紧接 100ms 后 tick：只推进 0 旬（accumulatedGameMs 已清零）
+        val next = simulateTick(100L)
+        assertEquals(0, next.phasesToAdvance)
+    }
+
+    // 19. 未触发上限时余量保留：8000ms→3 旬 + 余 2000ms → 再 100ms 后仍 0 旬
+    //     （区别于 18：此场景 phases==3 未超上限，但余量 2000ms 恰好凑不出下一旬）
+    @Test
+    fun underCap_preservesRemainder() {
+        // 7000ms / 2000 = 3 旬（≤3 上限），余 1000ms 保留
+        val result = simulateTick(7000L)
+        assertEquals(3, result.phasesToAdvance)
+        // 再 1000ms → 累积 2000ms → 1 旬
+        val next = simulateTick(1000L)
+        assertEquals(1, next.phasesToAdvance)
     }
 }

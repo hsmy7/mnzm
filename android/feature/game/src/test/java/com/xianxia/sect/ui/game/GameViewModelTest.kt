@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.game
 
 import android.content.Context
+import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.config.BuildingConfigModel
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.GameEngine
@@ -12,9 +13,11 @@ import com.xianxia.sect.core.engine.setActiveDialog
 import com.xianxia.sect.core.engine.setFocusedDiscipleId
 import com.xianxia.sect.core.engine.updateGameData
 import com.xianxia.sect.core.engine.updateDisciple
+import com.xianxia.sect.core.engine.batchUpdateAutoAssignAndGuide
 import com.xianxia.sect.core.engine.domain.battle.BattleFacade
 import com.xianxia.sect.core.engine.domain.building.BuildingFacade
 import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyFacade
+import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
 import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
 import com.xianxia.sect.core.engine.domain.production.ProductionFacade
@@ -29,6 +32,7 @@ import com.xianxia.sect.core.model.DiscipleCore
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.model.SectPolicies
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.engine.service.AdService
@@ -41,6 +45,7 @@ import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.domain.dialog.DialogManager
 import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.ui.navigation.GameRoute
+import com.xianxia.sect.ui.game.building.registerDefaults
 import io.mockk.MockKAnnotations
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -52,12 +57,15 @@ import io.mockk.runs
 import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -112,10 +120,32 @@ class GameViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var viewModel: GameViewModel
 
+    /**
+     * launchOnEngine 捕获列表（2026-08-01 根因修复）。
+     *
+     * 历史误诊：文档声称 18 个失败源于"mockkStatic 拦截 Kotlin 2.2 顶层扩展函数失效"，
+     * 实际根因是 relaxed mock 上 launchOnEngine 返回 mock Job、lambda 永不执行——
+     * 所有异步路径（delegate 经 launchOnEngine 派发）的副作用从未发生。
+     * 本列表捕获 lambda，测试内通过 runEngineBlocks() 显式执行。
+     */
+    private val engineBlocks = mutableListOf<suspend CoroutineScope.() -> Unit>()
+
+    /** 执行所有捕获的引擎块并清空（TestScope 实现 CoroutineScope） */
+    private suspend fun TestScope.runEngineBlocks() {
+        engineBlocks.toList().forEach { block -> block.invoke(this) }
+        engineBlocks.clear()
+    }
+
     @Before
     fun setUp() {
         MockKAnnotations.init(this, relaxUnitFun = true)
         Dispatchers.setMain(testDispatcher)
+
+        // ── 捕获 launchOnEngine 的 lambda：relaxed mock 默认返回 mock Job 且不执行 ──
+        coEvery { gameEngine.launchOnEngine(any()) } answers {
+            engineBlocks += args[0] as suspend CoroutineScope.() -> Unit
+            mockk<Job>(relaxed = true)
+        }
 
         // ── Stub gameEngine StateFlow 属性（构造期间被 Flow 链引用）──
         every { gameEngine.gameData } returns MutableStateFlow(GameData())
@@ -123,6 +153,14 @@ class GameViewModelTest {
         every { gameEngine.disciples } returns MutableStateFlow(emptyList<Disciple>())
         every { gameEngine.equipmentStacks } returns MutableStateFlow(emptyList<EquipmentStack>())
         every { gameEngine.productionSlots } returns MutableStateFlow(emptyList<ProductionSlot>())
+
+        // ── Stub gameDataSnapshot：玩家宗门 HUGE 级，绕过 placeBuilding 的
+        //    宗门等级硬检查（relaxed mock 返回空 worldMapSects → SMALL < 建筑要求）──
+        every { gameEngine.gameDataSnapshot } returns GameData(
+            worldMapSects = listOf(
+                WorldSect(id = "player_sect", name = "玩家宗门", level = SectLevel.TOP, isPlayerSect = true)
+            )
+        )
 
         // ── Stub gameEngineCore.state（isPaused Flow 链引用）──
         every { gameEngineCore.state } returns MutableStateFlow(UnifiedGameState())
@@ -143,8 +181,13 @@ class GameViewModelTest {
         // ── Stub dialogManager.currentDialog（init 块中收集）──
         every { dialogManager.currentDialog } returns MutableStateFlow(null)
 
-        // ── Mock GameEngine 扩展函数（定义在 GameEngineCoordination.kt）──
+        // ── 注册建筑特征注册表（XianxiaApplication.onCreate 在测试环境不执行，
+        //    findByDisplayName 返回 null 会使 placeBuilding 提前 return）──
+        BuildingFeatureRegistry.registerDefaults()
+
+        // ── Mock GameEngine 扩展函数（定义在 GameEngineCoordination.kt / GameEngineGuideOps.kt）──
         mockkStatic("com.xianxia.sect.core.engine.GameEngineCoordinationKt")
+        mockkStatic("com.xianxia.sect.core.engine.GameEngineGuideOpsKt")
         every { gameEngine.setFocusedDiscipleId(any()) } just runs
         every { gameEngine.currentActiveSectId() } returns "test-sect"
         every { gameEngine.notifyUserInteraction() } just runs
@@ -160,13 +203,16 @@ class GameViewModelTest {
             inventoryFacade, buildingFacade, battleFacade,
             diplomacyFacade, saveFacade, thermalMonitor,
             dialogManager, adService, audioConfig, audioEngine,
-            ioDispatcher = IoDispatcher()
+            // 2026-08-01：注入 TestDispatcher 替代真实 Dispatchers.IO
+            //（旧代码用真实 IO 线程，runTest 的 advanceUntilIdle 等待不到）
+            ioDispatcher = IoDispatcher(testDispatcher)
         )
     }
 
     @After
     fun tearDown() {
         GameLoopDelegate.healthCheckEnabled = true
+        engineBlocks.clear()
         Dispatchers.resetMain()
         unmockkAll()
     }
@@ -209,7 +255,8 @@ class GameViewModelTest {
             )
         every { buildingConfigService.getBuildingGridSize("炼丹炉") } returns Pair(2, 3)
 
-        viewModel.placeBuilding("炼丹炉", 0, 0)
+        viewModel.placeBuilding("炼丹炉", 3, 3)
+        runEngineBlocks()
         advanceUntilIdle()
 
         verify { buildingConfigService.getBuildingConfigByDisplayName("炼丹炉") }
@@ -225,7 +272,8 @@ class GameViewModelTest {
             )
         every { buildingConfigService.getBuildingGridSize("炼丹炉") } returns Pair(2, 3)
 
-        viewModel.placeBuilding("炼丹炉", 0, 0)
+        viewModel.placeBuilding("炼丹炉", 3, 3)
+        runEngineBlocks()
         advanceUntilIdle()
 
         verify { gameEngine.currentActiveSectId() }
@@ -240,7 +288,8 @@ class GameViewModelTest {
             )
         every { buildingConfigService.getBuildingGridSize("炼丹炉") } returns Pair(2, 3)
 
-        viewModel.placeBuilding("炼丹炉", 0, 0)
+        viewModel.placeBuilding("炼丹炉", 3, 3)
+        runEngineBlocks()
         advanceUntilIdle()
 
         coVerify { gameEngine.updateGameData(any()) }
@@ -259,7 +308,8 @@ class GameViewModelTest {
         val lambdaSlot = slot<(GameData) -> GameData>()
         coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
 
-        viewModel.placeBuilding("炼丹炉", 1, 2)
+        viewModel.placeBuilding("炼丹炉", 4, 5)
+        runEngineBlocks()
         advanceUntilIdle()
 
         assertTrue("updateGameData 闭包应被捕获", lambdaSlot.isCaptured)
@@ -271,8 +321,8 @@ class GameViewModelTest {
         assertEquals("灵石应扣除 500", 4500L, result.spiritStones)
         assertEquals("应新增 1 个建筑", 1, result.placedBuildings.size)
         assertEquals("建筑名应为炼丹炉", "炼丹炉", result.placedBuildings[0].displayName)
-        assertEquals("建筑 X 坐标应为 1", 1, result.placedBuildings[0].gridX)
-        assertEquals("建筑 Y 坐标应为 2", 2, result.placedBuildings[0].gridY)
+        assertEquals("建筑 X 坐标应为 4", 4, result.placedBuildings[0].gridX)
+        assertEquals("建筑 Y 坐标应为 5", 5, result.placedBuildings[0].gridY)
         assertEquals("建筑宽度应为 2", 2, result.placedBuildings[0].width)
         assertEquals("建筑高度应为 3", 3, result.placedBuildings[0].height)
         assertEquals("宗门 ID 应为 test-sect", "test-sect", result.placedBuildings[0].sectId)
@@ -290,7 +340,8 @@ class GameViewModelTest {
         val lambdaSlot = slot<(GameData) -> GameData>()
         coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
 
-        viewModel.placeBuilding("炼丹炉", 0, 0)
+        viewModel.placeBuilding("炼丹炉", 3, 3)
+        runEngineBlocks()
         advanceUntilIdle()
 
         val originalData = GameData(spiritStones = 100L) // 不足 500
@@ -312,7 +363,8 @@ class GameViewModelTest {
         val lambdaSlot = slot<(GameData) -> GameData>()
         coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
 
-        viewModel.placeBuilding("炼丹炉", 0, 0)
+        viewModel.placeBuilding("炼丹炉", 3, 3)
+        runEngineBlocks()
         advanceUntilIdle()
 
         val result = lambdaSlot.captured(GameData(spiritStones = 5000L))
@@ -339,7 +391,8 @@ class GameViewModelTest {
         val lambdaSlot = slot<(GameData) -> GameData>()
         coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
 
-        viewModel.placeBuilding("藏经阁", 0, 0)
+        viewModel.placeBuilding("藏经阁", 3, 3)
+        runEngineBlocks()
         advanceUntilIdle()
 
         // 预置一个同宗门同名建筑
@@ -435,6 +488,7 @@ class GameViewModelTest {
     @Test
     fun `toggleFollowDisciple - 委托到 DiscipleDelegate 并调用 updateDisciple`() = runTest(testDispatcher) {
         viewModel.toggleFollowDisciple("d1")
+        runEngineBlocks()
         advanceUntilIdle()
 
         coVerify { gameEngine.updateDisciple("d1", any()) }
@@ -545,18 +599,20 @@ class GameViewModelTest {
 
     @Test
     fun `setAutoAssignSettings - 9参数正确映射到 sectPolicies copy`() = runTest(testDispatcher) {
-        val lambdaSlot = slot<(GameData) -> GameData>()
-        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+        // 实际调用链是 batchUpdateAutoAssignAndGuide（合并引导计数器，非 updateGameData）
+        val newPoliciesSlot = slot<SectPolicies>()
+        coEvery { gameEngine.batchUpdateAutoAssignAndGuide(any(), capture(newPoliciesSlot), any(), any(), any()) } just runs
 
         viewModel.setAutoAssignSettings(
             mineFocused = true, mineRootCounts = listOf(1, 2), mineThreshold = 5,
             alchemyFocused = true, alchemyRootCounts = emptyList(), alchemyThreshold = 1,
             forgeFocused = false, forgeRootCounts = listOf(1, 3, 5), forgeThreshold = 10
         )
+        runEngineBlocks()
         advanceUntilIdle()
 
-        val result = lambdaSlot.captured(GameData())
-        val p = result.sectPolicies
+        assertTrue("newPolicies 应被捕获", newPoliciesSlot.isCaptured)
+        val p = newPoliciesSlot.captured
 
         assertTrue("灵矿 focused 应为 true", p.autoMineFocused)
         assertEquals("灵矿 rootCounts", listOf(1, 2), p.autoMineRootCounts)
@@ -573,18 +629,19 @@ class GameViewModelTest {
 
     @Test
     fun `setAutoAssignSettings - 全默认值时仍正确传递`() = runTest(testDispatcher) {
-        val lambdaSlot = slot<(GameData) -> GameData>()
-        coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
+        val newPoliciesSlot = slot<SectPolicies>()
+        coEvery { gameEngine.batchUpdateAutoAssignAndGuide(any(), capture(newPoliciesSlot), any(), any(), any()) } just runs
 
         viewModel.setAutoAssignSettings(
             mineFocused = false, mineRootCounts = emptyList(), mineThreshold = 1,
             alchemyFocused = false, alchemyRootCounts = emptyList(), alchemyThreshold = 1,
             forgeFocused = false, forgeRootCounts = emptyList(), forgeThreshold = 1
         )
+        runEngineBlocks()
         advanceUntilIdle()
 
-        val result = lambdaSlot.captured(GameData())
-        val p = result.sectPolicies
+        assertTrue("newPolicies 应被捕获", newPoliciesSlot.isCaptured)
+        val p = newPoliciesSlot.captured
         assertFalse("灵矿 focused 应为 false", p.autoMineFocused)
         assertEquals("灵矿 rootCounts 应为空", emptyList<Int>(), p.autoMineRootCounts)
         assertEquals("灵矿 threshold", 1, p.autoMineThreshold)
@@ -600,6 +657,7 @@ class GameViewModelTest {
         coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
 
         viewModel.setBreakthroughAutoPillSettings(focused = true, rootCounts = setOf(1, 3))
+        runEngineBlocks()
         advanceUntilIdle()
 
         val result = lambdaSlot.captured(GameData())
@@ -613,6 +671,7 @@ class GameViewModelTest {
         coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
 
         viewModel.setAutoEquipSettings(focused = true, rootCounts = setOf(2))
+        runEngineBlocks()
         advanceUntilIdle()
 
         val result = lambdaSlot.captured(GameData())
@@ -626,6 +685,7 @@ class GameViewModelTest {
         coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
 
         viewModel.setAutoLearnSettings(focused = false, rootCounts = emptySet())
+        runEngineBlocks()
         advanceUntilIdle()
 
         val result = lambdaSlot.captured(GameData())
@@ -639,6 +699,7 @@ class GameViewModelTest {
         coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
 
         viewModel.setDaoCompanionBannedRootCounts(setOf(4, 5))
+        runEngineBlocks()
         advanceUntilIdle()
 
         val result = lambdaSlot.captured(GameData())
@@ -651,6 +712,7 @@ class GameViewModelTest {
         coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
 
         viewModel.setDaoCompanionConsentRequired(required = true)
+        runEngineBlocks()
         advanceUntilIdle()
 
         val result = lambdaSlot.captured(GameData())
@@ -674,6 +736,7 @@ class GameViewModelTest {
         )
 
         viewModel.renameSect("太虚宗")
+        runEngineBlocks()
         advanceUntilIdle()
 
         val result = lambdaSlot.captured(originalData)
@@ -691,6 +754,7 @@ class GameViewModelTest {
         val originalData = GameData(sectName = "青云宗", worldMapSects = listOf(playerSect))
 
         viewModel.renameSect("青云宗")
+        runEngineBlocks()
         advanceUntilIdle()
 
         val result = lambdaSlot.captured(originalData)
@@ -704,6 +768,7 @@ class GameViewModelTest {
         coEvery { gameEngine.updateGameData(capture(lambdaSlot)) } returns Unit
 
         viewModel.renameSect("太虚宗")
+        runEngineBlocks()
         advanceUntilIdle()
 
         coVerify { gameEngine.updateGameData(any()) }

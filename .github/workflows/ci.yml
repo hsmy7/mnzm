@@ -32,20 +32,24 @@ jobs:
           path: ~/.gradle/caches
           key: gradle-${{ hashFiles('android/**/*.gradle*', 'android/**/libs.versions.toml') }}
 
+      # 2026-08-01 修复：--max-workers=1 关闭跨模块并行编译（Windows/CI 上跨模块
+      # Kotlin 增量编译互删 build 目录导致测试失败）；-Pkotlin.incremental=false
+      # 消除增量状态陈旧问题。本地开发仍保留并行+增量（gradle.properties）。
       - name: Compile check
-        run: ./gradlew compileReleaseKotlin --no-daemon
+        run: ./gradlew compileReleaseKotlin --no-daemon --max-workers=1 -Pkotlin.incremental=false
 
       - name: Run unit tests
-        run: ./gradlew testReleaseUnitTest --no-daemon
+        run: ./gradlew testReleaseUnitTest --no-daemon --max-workers=1 -Pkotlin.incremental=false
 
       - name: Run Detekt
-        run: ./gradlew detekt --no-daemon
+        run: ./gradlew detekt --no-daemon --max-workers=1
 
       - name: Validate changelog JSON
         run: ./gradlew validateChangelogJson --no-daemon
 
+      # 2026-08-01 修复：移除 `|| true`——测试失败必须使 CI 变红（Kover 已在全部模块启用）
       - name: Generate coverage report
-        run: ./gradlew koverHtmlReport --no-daemon || true  # 部分测试失败（预存图片资源问题）仍可生成二进制覆盖数据
+        run: ./gradlew koverHtmlReport --no-daemon --max-workers=1
 
       - name: Upload coverage report (if generated)
         uses: actions/upload-artifact@v4

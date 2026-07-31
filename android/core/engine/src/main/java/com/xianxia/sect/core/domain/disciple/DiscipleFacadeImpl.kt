@@ -436,6 +436,9 @@ class DiscipleFacadeImpl @Inject constructor(
             // 以旬为单位，不再 *30
             discipleTables.cultivationSpeedDurations[id] = if (effect.duration > 0) effect.duration
                 else discipleTables.cultivationSpeedDurations[id]
+            // 2026-08-01 修复：速率变化点必须同步 checkpoint——
+            // 缺失会导致 getEffectiveCultivation 投影用旧速率推导（checkpoint 死代码埋雷）
+            discipleTables.checkpointDisciple(id, gameData.gameYear * 12 + gameData.gameMonth)
         }
 
         if (effect.extendLife > 0) {

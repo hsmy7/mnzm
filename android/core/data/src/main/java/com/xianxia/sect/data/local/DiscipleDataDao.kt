@@ -55,6 +55,13 @@ interface DiscipleDao {
     @Query("SELECT COUNT(*) FROM disciples WHERE slot_id = :slotId AND isAlive = 1")
     fun getAliveCount(slotId: Int): Flow<Int>
 
+    /**
+     * 同步存活弟子计数（2026-08-01）：存档列表/元数据查询专用——
+     * 替代全表物化 getAllAliveSync().size（数千弟子时上万行全量对象）。
+     */
+    @Query("SELECT COUNT(*) FROM disciples WHERE slot_id = :slotId AND isAlive = 1")
+    fun getAliveCountSync(slotId: Int): Int
+
     @Query("SELECT COUNT(*) FROM disciples WHERE slot_id = :slotId AND isAlive = 1 AND realm = :realm")
     suspend fun getCountByRealm(slotId: Int, realm: Int): Int
 

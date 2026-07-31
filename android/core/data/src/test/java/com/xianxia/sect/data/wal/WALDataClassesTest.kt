@@ -103,14 +103,12 @@ class WALDataClassesTest {
             txnId = 1L,
             slot = 3,
             operation = WALEntryType.BEGIN,
-            startTime = 1000L,
-            snapshotFile = null
+            startTime = 1000L
         )
         assertEquals(1L, record.txnId)
         assertEquals(3, record.slot)
         assertEquals(WALEntryType.BEGIN, record.operation)
         assertEquals(1000L, record.startTime)
-        assertNull(record.snapshotFile)
         assertEquals(TransactionStatus.ACTIVE, record.status)
         assertEquals("", record.checksum)
         assertNull(record.gameEvent)
@@ -123,8 +121,7 @@ class WALDataClassesTest {
             txnId = 1L,
             slot = 1,
             operation = WALEntryType.BEGIN,
-            startTime = 0L,
-            snapshotFile = null
+            startTime = 0L
         )
         assertEquals(TransactionStatus.ACTIVE, record.status)
 
@@ -143,8 +140,7 @@ class WALDataClassesTest {
             txnId = 5L,
             slot = 2,
             operation = WALEntryType.COMMIT,
-            startTime = 0L,
-            snapshotFile = null
+            startTime = 0L
         )
         record.checksum = "abc123"
         record.gameEvent = "CRITICAL_SAVE"
@@ -156,8 +152,8 @@ class WALDataClassesTest {
 
     @Test
     fun `TransactionRecord - statusRef is independent per record`() {
-        val record1 = TransactionRecord(1L, 1, WALEntryType.BEGIN, 0L, null)
-        val record2 = TransactionRecord(2L, 2, WALEntryType.BEGIN, 0L, null)
+        val record1 = TransactionRecord(1L, 1, WALEntryType.BEGIN, 0L)
+        val record2 = TransactionRecord(2L, 2, WALEntryType.BEGIN, 0L)
 
         record1.compareAndSetStatus(TransactionStatus.ACTIVE, TransactionStatus.COMMITTED)
         assertEquals(TransactionStatus.COMMITTED, record1.status)

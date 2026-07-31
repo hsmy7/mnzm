@@ -21,6 +21,7 @@ import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.data.result.StorageError
 import com.xianxia.sect.data.result.StorageResult
+import com.xianxia.sect.data.serialization.unified.SaveDataReconciler
 import com.xianxia.sect.data.serialization.unified.SerializationModule
 import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.unified.SlotMetadata
@@ -85,6 +86,12 @@ class StorageEngine @Inject constructor(
     companion object {
         private const val TAG = "StorageEngine"
         private const val MAX_BATCH_SIZE = 200
+
+        /**
+         * 低内存保存守卫阈值（MB）。低于此值拒绝保存并返回失败，
+         * 避免"静默跳过但报成功"导致内存态与 DB 脱节（2026-08-01 修复）。
+         */
+        private const val LOW_MEMORY_THRESHOLD_MB = 100L
 
         fun estimateSaveSize(data: SaveData): Long {
             val es = StorageConstants.EntitySize
@@ -155,24 +162,13 @@ class StorageEngine @Inject constructor(
                 val cleanedData = cleanSaveDataWithArchive(effectiveData)
                 val dataWithTimestamp = cleanedData.copy(timestamp = System.currentTimeMillis())
 
-                // ── 备份 ──
-                if (storageConfig.autoBackupOnSave) {
-                    _progress.value = EngineProgress(EngineProgress.Stage.VALIDATING, 0.15f, "Writing backup")
-                    try {
-                        val br = saveFileManager.atomicWrite(slot, dataWithTimestamp)
-                        if (br.isSuccess) infra.storageMetrics.recordBackupSuccess()
-                        else infra.storageMetrics.recordBackupFailure()
-                    } catch (e: Exception) {
-                        Log.w(TAG, "备份异常 slot=$slot (非阻断)", e)
-                        infra.storageMetrics.recordBackupFailure()
-                    }
-                }
-
-                // ── 重试 ──
+                // ── 重试（内存守卫已前置到 performFullTransactionSave：低内存直接失败不写 DB）──
                 var result = performFullTransactionSave(slot, dataWithTimestamp)
                 var retryCount = 0
                 val maxRetries = storageConfig.maxRetryCount
                 while (result.isFailure && retryCount < maxRetries) {
+                    // OOM 类失败重试无意义（内存不会在毫秒级恢复），直接终止
+                    if (result is StorageResult.Failure && result.error == StorageError.OUT_OF_MEMORY) break
                     retryCount++
                     Log.w(TAG, "保存重试 ($retryCount/$maxRetries) slot=$slot")
                     kotlinx.coroutines.delay(storageConfig.retryDelayMs * retryCount)
@@ -180,6 +176,19 @@ class StorageEngine @Inject constructor(
                 }
 
                 if (result.isSuccess) {
+                    // ── 备份（2026-08-01 时序修复）：仅在 DB 事务成功后写入，
+                    // 避免"备份比真相新"——DB 失败时 .sav 含新数据而被丢弃 ──
+                    if (storageConfig.autoBackupOnSave) {
+                        _progress.value = EngineProgress(EngineProgress.Stage.VALIDATING, 0.15f, "Writing backup")
+                        try {
+                            val br = saveFileManager.atomicWrite(slot, dataWithTimestamp)
+                            if (br.isSuccess) infra.storageMetrics.recordBackupSuccess()
+                            else infra.storageMetrics.recordBackupFailure()
+                        } catch (e: Exception) {
+                            Log.w(TAG, "备份异常 slot=$slot (非阻断)", e)
+                            infra.storageMetrics.recordBackupFailure()
+                        }
+                    }
                     _progress.value = EngineProgress(EngineProgress.Stage.UPDATING_CACHE, 0.8f, "Updating cache")
                     updateCacheAfterSave(slot, dataWithTimestamp)
                     _progress.value = EngineProgress(EngineProgress.Stage.SAVING_HISTORY, 0.85f, "Logging changes")
@@ -287,6 +296,8 @@ class StorageEngine @Inject constructor(
                                     }
 
                                     infra.storageMetrics.recordBackupRestore()
+                                    // 旧格式备份无堆叠数据：从实例重建兜底（2026-08-01 堆叠序列化缺陷修复）
+                                    restoredData = SaveDataReconciler.reconcileStacks(restoredData)
                                     performFullTransactionSave(slot, restoredData)
                                     clearCacheForSlot(slot)
                                     updateCacheAfterSave(slot, restoredData)
@@ -336,6 +347,8 @@ class StorageEngine @Inject constructor(
                             }
 
                             infra.storageMetrics.recordBackupRestore()
+                            // 旧格式备份无堆叠数据：从实例重建兜底（2026-08-01 堆叠序列化缺陷修复）
+                            restoredData = SaveDataReconciler.reconcileStacks(restoredData)
                             performFullTransactionSave(slot, restoredData)
                             clearCacheForSlot(slot)
                             updateCacheAfterSave(slot, restoredData)
@@ -443,7 +456,7 @@ class StorageEngine @Inject constructor(
                 gameYear = meta.gameYear,
                 gameMonth = meta.gameMonth,
                 sectName = meta.sectName,
-                discipleCount = core.database.discipleDao().getAllAliveSync(slot).size,
+                discipleCount = core.database.discipleDao().getAliveCountSync(slot),
                 spiritStones = meta.spiritStones,
                 fileSize = 0,
                 customName = meta.sectName
@@ -573,18 +586,31 @@ class StorageEngine @Inject constructor(
     }
 
     private suspend fun performFullTransactionSave(slot: Int, data: SaveData): StorageResult<SaveOperationStats> {
+        // ── 内存守卫前置（2026-08-01 修复）：低内存直接失败，不写 DB / 不写 WAL / 不写备份 ──
+        // 原实现低内存时静默 return 且上层仍报"保存成功"，导致内存态与 DB 脱节。
+        if (availableMemoryMB() < LOW_MEMORY_THRESHOLD_MB) {
+            Log.w(TAG, "Low memory (${availableMemoryMB()}MB available), save rejected for slot $slot")
+            return StorageResult.failure(StorageError.OUT_OF_MEMORY, "内存不足（${availableMemoryMB()}MB），保存被拒绝")
+        }
+
         // ── WAL 事务开始 ──
         var txnId: Long? = null
         try {
-            val result = core.wal.beginTransaction(slot, com.xianxia.sect.data.wal.WALEntryType.DATA, null)
+            val result = core.wal.beginTransaction(slot, com.xianxia.sect.data.wal.WALEntryType.DATA)
             if (result.isSuccess) txnId = result.getOrNull()
         } catch (e: Exception) {
             Log.w(TAG, "WAL beginTransaction 失败（非阻断）", e)
         }
 
         try {
-            core.database.withTransaction {
+            val writeResult = core.database.withTransaction {
                 writeAllDataToDatabase(slot, data)
+            }
+            if (writeResult.isFailure) {
+                // OOM 类失败（TypeConverter 抛 SerializationFailureException 等）：
+                // 事务已回滚，DB 保持旧数据，直接返回失败
+                if (txnId != null) try { core.wal.abort(txnId) } catch (e2: Exception) { Log.w(TAG, "WAL abort 失败", e2) }
+                return writeResult.map { SaveOperationStats(bytesWritten = 0, timeMs = 0, wasIncremental = false) }
             }
 
             try {
@@ -616,21 +642,10 @@ class StorageEngine @Inject constructor(
         }
     }
 
-    private suspend fun writeAllDataToDatabase(slot: Int, data: SaveData) {
+    private suspend fun writeAllDataToDatabase(slot: Int, data: SaveData): StorageResult<Unit> {
         Log.d(TAG, "writeAllDataToDatabase: slot=$slot, " +
             "${data.disciples.size} disciples, " +
             "recruitList=${data.gameData.recruitList.size} unrecruited")
-
-        // ── 内存守卫 ──
-        val runtime = Runtime.getRuntime()
-        val maxMem = runtime.maxMemory()
-        val usedMem = runtime.totalMemory() - runtime.freeMemory()
-        val availableMem = maxMem - usedMem
-        if (availableMem < 100L * 1024 * 1024) {
-            Log.w(TAG, "Low memory (${availableMem / 1024 / 1024}MB available), " +
-                "skipping auto-save for slot $slot")
-            return
-        }
 
         // ── 存档前数据完整性校验 ──
         if (data.gameData.worldMapSects.isEmpty()) {
@@ -709,9 +724,14 @@ class StorageEngine @Inject constructor(
             core.database.discipleEquipmentDao().deleteAll(slot)
             core.database.discipleExtendedDao().deleteAll(slot)
             core.database.discipleAttributesDao().deleteAll(slot)
-            core.database.equipmentStackDao().deleteAll(slot)
+            // 堆叠删表守卫（2026-08-01 堆叠序列化缺陷修复）：
+            // 旧格式存档（stacksSerialized = false，如旧备份恢复）的堆叠未进入 SaveData，
+            // 此时不删除 DB 残留的堆叠行——保留完好的既有堆叠，重建结果以 upsert 合并。
+            if (data.stacksSerialized) {
+                core.database.equipmentStackDao().deleteAll(slot)
+                core.database.manualStackDao().deleteAll(slot)
+            }
             core.database.equipmentInstanceDao().deleteAll(slot)
-            core.database.manualStackDao().deleteAll(slot)
             core.database.manualInstanceDao().deleteAll(slot)
             core.database.pillDao().deleteAll(slot)
             core.database.materialDao().deleteAll(slot)
@@ -825,6 +845,18 @@ class StorageEngine @Inject constructor(
                 yearlySalaryEnabled = gd.yearlySalaryEnabled
             ))
         }
+
+        return StorageResult.success(Unit)
+    }
+
+    /**
+     * 当前可用内存（MB）。
+     */
+    private fun availableMemoryMB(): Long {
+        val runtime = Runtime.getRuntime()
+        val maxMem = runtime.maxMemory()
+        val usedMem = runtime.totalMemory() - runtime.freeMemory()
+        return (maxMem - usedMem) / 1024 / 1024
     }
 
     private suspend fun syncSlotMetadata(slot: Int, data: SaveData) {
@@ -1180,7 +1212,8 @@ class StorageEngine @Inject constructor(
             teams = teams,
             battleLogs = battleLogs,
             alliances = alliances,
-            productionSlots = productionSlots
+            productionSlots = productionSlots,
+            stacksSerialized = true
         ).also {
             Log.d(TAG, "loadFromDatabase: slot=$slot, ${disciples.size} disciples, recruitList=${gameData.recruitList.size} unrecruited disciples")
         }
@@ -1215,7 +1248,7 @@ class StorageEngine @Inject constructor(
                     gameYear = meta.gameYear,
                     gameMonth = meta.gameMonth,
                     sectName = meta.sectName,
-                    discipleCount = core.database.discipleDao().getAllAliveSync(slot).size,
+                    discipleCount = core.database.discipleDao().getAliveCountSync(slot),
                     spiritStones = meta.spiritStones,
                     isEmpty = false,
                     customName = meta.sectName,

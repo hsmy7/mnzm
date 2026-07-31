@@ -277,11 +277,11 @@ RunState（运行时状态 — 可循环回退）
 
 | 待办 | 现状 | 说明 |
 |------|------|------|
-| GameViewModelTest 18 个失败 | ❌ 未修 | `mockkStatic` 拦截 Kotlin 2.2 编译的顶层扩展函数失效（`updateGameData` 等 verify 不命中），升级 mockk 1.13.17 无效。HEAD 干净副本同样失败。需重构测试拦截方式（改实例方法 stub）或等待 mockk 兼容 Kotlin 2.2 |
-| 全量测试必须 `--max-workers=1` 串行 | ❌ 未修 | `gradle.properties` 的 `org.gradle.parallel=true` 并行跑 testReleaseUnitTest 时 app 模块出现 98 个失败（共享静态状态竞争）且 feature:game 测试卡死。需排查并行配置 |
-| Mutable 列值对象共享（F4） | ⚠️ 防御缺口 | `assemble()`/`writeAllFields` 对 List/Map 列存调用方引用——若调用方原地修改（绕过 set → 不触发 ensureOwned）会污染源存储破坏快照隔离。当前全库无原地修改模式，列为调用方契约注意项 |
+| GameViewModelTest 18 个失败 | ✅ 已修复 | **原诊断有误**：失败根因不是 mockkStatic/Kotlin 2.2 兼容（测试 XML 证据：18 个失败全为异步路径、21 个通过全为同步路径），而是 relaxed mock 上 `launchOnEngine` 返回 mock Job、lambda 永不执行。2026-08-01 修复：捕获 lambda 到 engineBlocks 列表 + 测试内显式执行 + IoDispatcher 注入 TestDispatcher + 建筑注册表/宗门等级 stub。39/39 通过 |
+| 全量测试必须 `--max-workers=1` 串行 | ✅ 已修复 | CI 全部 gradle 命令加 `--max-workers=1` + `-Pkotlin.incremental=false`；各模块显式 `maxParallelForks = 1`（共享静态状态跨类污染）。本地保留并行 |
+| Mutable 列值对象共享（F4） | ✅ 已修复 | 13 张 Mutable 列改为 O(1) 浅共享（全库审计无原地修改）；`mutableValueGuardEnabled`（Debug/CI 开）unmodifiable 包装——未来原地修改立即抛异常。隔离测试 5 项覆盖 |
 | 半幽灵防御不一致（F3） | ⚠️ 已缓解 | 列直读默认值已与 assemble 对齐（age=16/lifespan=80）；但 assembleAll 三表检查（isAlive+names+realms）与 deepCopy 单表 isAlive 过滤的幽灵防御粒度仍不一致 |
-| CI 从未跑过 testReleaseUnitTest 全量 | ⚠️ 流程缺失 | 上述预存测试缺陷（缺 Robolectric 注解的 8 个类、mockkStatic 失效等）长期未被发现，说明 CI 全量测试未覆盖或结果未被关注 |
+| CI 从未跑过 testReleaseUnitTest 全量 | ⚠️ 流程缺失 | 2026-08-01 起 CI 全量测试为硬性门槛（移除 `\|\| true`）；`gradle.properties` 的 Windows 硬编码路径已移除（此前 ubuntu CI 守护进程启动即失败） |
 
 ---
 

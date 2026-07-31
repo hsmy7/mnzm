@@ -6,7 +6,6 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.ProductionSlot
 import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.Transient
 import kotlinx.serialization.protobuf.ProtoNumber
 
 data class SaveSlot(
@@ -37,10 +36,19 @@ data class SaveData(
     @ProtoNumber(2) val timestamp: Long = System.currentTimeMillis(),
     @ProtoNumber(3) val gameData: GameData,
     @ProtoNumber(4) val disciples: List<Disciple>,
-    @Transient val equipmentStacks: List<EquipmentStack> = emptyList(),
+    @ProtoNumber(53) val equipmentStacks: List<EquipmentStack> = emptyList(),
     @ProtoNumber(5) val equipmentInstances: List<EquipmentInstance> = emptyList(),
-    @Transient val manualStacks: List<ManualStack> = emptyList(),
+    @ProtoNumber(54) val manualStacks: List<ManualStack> = emptyList(),
     @ProtoNumber(6) val manualInstances: List<ManualInstance> = emptyList(),
+    /**
+     * 堆叠数据是否已序列化。
+     *
+     * 历史缺陷（2026-08-01 修复前）：equipmentStacks/manualStacks 曾被标记 @Transient，
+     * 备份文件与云存档中不含堆叠，恢复路径会永久清空仓库堆叠。
+     * 新存档恒为 true；旧存档（false）由 SaveDataReconciler 从实例重建堆叠兜底。
+     */
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    @ProtoNumber(55) val stacksSerialized: Boolean = false,
     @ProtoNumber(7) val pills: List<Pill>,
     @ProtoNumber(8) val materials: List<Material>,
     @ProtoNumber(9) val herbs: List<Herb>,

@@ -80,6 +80,20 @@ class CultivationCore @Inject constructor(
         manualMap: Map<String, ManualInstance>? = null
     ) = hpMpRecoveryService.recoverHpMpSingle(state, id, phasesToSettle, equipmentMap = equipmentMap, manualMap = manualMap)
 
+    /**
+     * 列直读版 HP/MP 恢复（2026-08-01 每旬热点专用，无 assemble）。
+     */
+    fun recoverHpMpSingleColumn(
+        state: MutableGameState, id: Int, phasesToSettle: Int = 1,
+        equipmentMap: Map<String, EquipmentInstance>? = null,
+        manualMap: Map<String, ManualInstance>? = null,
+        manualProficiencies: Map<String, List<ManualProficiencyData>>? = null
+    ): Boolean = hpMpRecoveryService.recoverHpMpSingleColumn(
+        state, id, phasesToSettle,
+        equipmentMap = equipmentMap, manualMap = manualMap,
+        manualProficiencies = manualProficiencies
+    )
+
     fun recoverMonthlyHpMp(tables: DiscipleTables, id: Int, focusedPhaseCount: Int = 0,
         zones: RecoveryZones = RecoveryZones()
     ) = hpMpRecoveryService.recoverMonthlyHpMp(tables, id, focusedPhaseCount, zones)
