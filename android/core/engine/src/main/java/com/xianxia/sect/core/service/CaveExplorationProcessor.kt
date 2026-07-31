@@ -656,8 +656,8 @@ class CaveExplorationProcessor @Inject constructor(
         }
     }
 
-    fun processSectDisciplesYearlyRecruitment(year: Int) {
-        val data = stateStore.gameData.value
+    fun processSectDisciplesYearlyRecruitment(year: Int, state: MutableGameState) {
+        val data = state.gameData
         var updatedAiDisciples = data.aiSectDisciples.toMutableMap()
         var updatedRecruitList = data.recruitList
 
@@ -681,41 +681,29 @@ class CaveExplorationProcessor @Inject constructor(
                 }
             }
         }
-        stateStore.update {
-            gameData = gameData.copy(
-                // 直接采用截断后的 calculated，避免 current + 新弟子 使 truncateToLimit 失效。
-                // 未参与本次年度招募的宗门（如 isPlayerOccupied）保留原池。
-                aiSectDisciples = gameData.aiSectDisciples.mapValues { (sId, current) ->
-                    updatedAiDisciples[sId] ?: current
-                },
-                recruitList = updatedRecruitList
-            )
-            // 被占领AI宗门产生新弟子后立即执行自动招募检查 + 重置惰性
-            RecruitService.RecruitLazyState.autoRecruitIdle = false
-            RecruitService.RecruitLazyState.autoRejectIdle = false
-            RecruitService.processAutoRecruit(this)
-        }
+        // 直接基于事务 buffer 写回：年变单事务内前序事件（如 refreshRecruitList）
+        // 对 buffer 的修改必须保留，禁止读已提交快照覆盖（招募列表不刷新 MNG 修复）。
+        state.gameData = state.gameData.copy(
+            aiSectDisciples = updatedAiDisciples,
+            recruitList = updatedRecruitList
+        )
+        // 被占领AI宗门产生新弟子后立即执行自动招募检查 + 重置惰性
+        RecruitService.RecruitLazyState.autoRecruitIdle = false
+        RecruitService.RecruitLazyState.autoRejectIdle = false
+        RecruitService.processAutoRecruit(state)
     }
 
-    fun processSectDisciplesAging(year: Int) {
-        val data = stateStore.gameData.value
+    fun processSectDisciplesAging(year: Int, state: MutableGameState) {
+        val data = state.gameData
         val updatedAiDisciples = data.aiSectDisciples.mapValues { (sectId, disciples) ->
             val sect = data.worldMapSects.find { it.id == sectId }
             if (sect == null || sect.isPlayerSect) return@mapValues disciples
             AISectDiscipleManager.processAging(disciples)
         }
-        // 年度老化仅修改年龄，不改变境界，无需同步宗门等级
-        stateStore.update {
-            gameData = gameData.copy(
-                aiSectDisciples = gameData.aiSectDisciples.mapValues { entry ->
-                    val sId = entry.key
-                    val current = entry.value
-                    val calculated = updatedAiDisciples[sId] ?: return@mapValues current
-                    val currentIds = current.map { it.id }.toSet()
-                    calculated.filter { it.id in currentIds }
-                }
-            )
-        }
+        // 年度老化仅修改年龄，不改变境界，无需同步宗门等级。
+        // 基于事务 buffer 写回，保留同事务前序事件对 aiSectDisciples 的修改
+        // （禁止读已提交快照覆盖，招募列表不刷新 MNG 修复）。
+        state.gameData = state.gameData.copy(aiSectDisciples = updatedAiDisciples)
     }
 
     // ── processCaveLifecycle 辅助方法 ──────────────────────────────────

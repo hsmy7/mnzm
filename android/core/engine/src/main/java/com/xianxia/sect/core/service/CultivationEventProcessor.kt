@@ -373,7 +373,7 @@ class CultivationEventProcessor @Inject constructor(
                 discipleLifecycleProcessor.processDiscipleAging(year)
             }
             safelyRunInState("sectDisciplesAging") {
-                caveExplorationProcessor.get().processSectDisciplesAging(year)
+                caveExplorationProcessor.get().processSectDisciplesAging(year, this)
             }
             safelyRunInState("refreshRecruitList") {
                 if (year % 3 == 1) recruitService.refreshRecruitList(year)
@@ -391,7 +391,7 @@ class CultivationEventProcessor @Inject constructor(
                 recruitService.ageRecruitList(year)
             }
             safelyRunInState("sectYearlyRecruitment") {
-                caveExplorationProcessor.get().processSectDisciplesYearlyRecruitment(year)
+                caveExplorationProcessor.get().processSectDisciplesYearlyRecruitment(year, this)
             }
             safelyRunInState("autoBuy") { autoBuyService.executeAutoBuy(year, 1) }
             safelyRunInState("refreshAcquisition") {

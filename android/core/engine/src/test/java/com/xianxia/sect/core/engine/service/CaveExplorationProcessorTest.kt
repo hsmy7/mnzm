@@ -1,9 +1,25 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.engine.SectWarehouseManager
+import com.xianxia.sect.core.engine.domain.battle.AttackWarningService
+import com.xianxia.sect.core.engine.domain.battle.BattleSystem
+import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.model.BattleLogEnemy
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.WorldSect
+import com.xianxia.sect.core.perf.ThermalMonitor
+import com.xianxia.sect.core.state.DiscipleTables
+import com.xianxia.sect.core.state.EntityStore
+import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.util.AnalyticsTracker
+import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import org.junit.Assert.*
 import org.junit.Test
+import org.mockito.Mockito.mock
 
 class CaveExplorationProcessorTest {
 
@@ -127,6 +143,132 @@ class CaveExplorationProcessorTest {
         )
 
         assertTrue(enemies.isEmpty())
+    }
+
+    // ── 年变单事务内快照覆写回归测试 ──
+    // 背景：年变事件单事务化后，processSectDisciplesYearlyRecruitment 曾读已提交
+    // 快照（stateStore.gameData.value）覆盖事务 buffer，导致 refreshRecruitList
+    // 追加的新弟子丢失（招募列表每3年不刷新）。修复后必须基于 buffer 读写。
+
+    private val processor: CaveExplorationProcessor by lazy { createProcessor() }
+
+    private fun createProcessor(): CaveExplorationProcessor {
+        return CaveExplorationProcessor(
+            stateStore = mock(GameStateStore::class.java),
+            inventorySystem = mock(InventorySystem::class.java),
+            scopeProvider = mock(CoroutineScopeProvider::class.java),
+            battleSystem = mock(BattleSystem::class.java),
+            eventProcessor = mock(CultivationEventProcessor::class.java),
+            analyticsTracker = mock(AnalyticsTracker::class.java),
+            thermalMonitor = mock(ThermalMonitor::class.java),
+            attackWarningService = mock(AttackWarningService::class.java),
+            sectWarehouseManager = mock(SectWarehouseManager::class.java),
+            cultivationService = mock(CultivationService::class.java),
+            spiritStoneWallet = mock(SpiritStoneWallet::class.java),
+            rngManager = mock(GameRngManager::class.java)
+        )
+    }
+
+    private fun createState(
+        recruitList: List<Disciple> = emptyList(),
+        aiSectDisciples: Map<String, List<Disciple>> = emptyMap(),
+        worldMapSects: List<WorldSect> = emptyList()
+    ): MutableGameState {
+        val tables = DiscipleTables()
+        tables.writeAllowed = true
+        return MutableGameState(
+            gameData = GameData(
+                recruitList = recruitList,
+                aiSectDisciples = aiSectDisciples,
+                worldMapSects = worldMapSects
+            ),
+            discipleTables = tables,
+            equipmentStacks = EntityStore(),
+            equipmentInstances = EntityStore(),
+            manualStacks = EntityStore(),
+            manualInstances = EntityStore(),
+            pills = EntityStore(),
+            materials = EntityStore(),
+            herbs = EntityStore(),
+            seeds = EntityStore(),
+            storageBags = EntityStore(),
+            teams = emptyList(),
+            battleLogs = emptyList(),
+            isPaused = false,
+            isLoading = false,
+            isSaving = false
+        )
+    }
+
+    @Test
+    fun `processSectDisciplesYearlyRecruitment - 同事务内 refreshRecruitList 追加的弟子不被覆盖`() {
+        val initialRecruit = makeDisciple(id = "recruit_old", realm = 9)
+        val freshRecruits = listOf(
+            makeDisciple(id = "recruit_fresh_1", realm = 9),
+            makeDisciple(id = "recruit_fresh_2", realm = 9)
+        )
+        val state = createState(
+            recruitList = listOf(initialRecruit),
+            aiSectDisciples = mapOf(
+                "ai1" to listOf(makeDisciple(id = "ai_d1", realm = 9))
+            ),
+            worldMapSects = listOf(
+                WorldSect(id = "player", isPlayerSect = true),
+                WorldSect(id = "ai1", isPlayerOccupied = true)
+            )
+        )
+        // 模拟年变单事务内 refreshRecruitList 的追加（buffer 操作）
+        state.gameData = state.gameData.copy(
+            recruitList = state.gameData.recruitList + freshRecruits
+        )
+        // 随后调用被修复函数：必须基于同一 buffer 读写，不得用已提交快照覆盖
+        processor.processSectDisciplesYearlyRecruitment(4, state)
+        val finalIds = state.gameData.recruitList.map { it.id }
+        assertTrue(
+            "refreshRecruitList 追加的弟子被覆盖丢失: $finalIds",
+            finalIds.containsAll(freshRecruits.map { it.id })
+        )
+        assertTrue("初始弟子丢失: $finalIds", finalIds.contains("recruit_old"))
+    }
+
+    @Test
+    fun `processSectDisciplesYearlyRecruitment - 无占领宗门时保留现有招募列表`() {
+        val initialRecruit = makeDisciple(id = "recruit_old", realm = 9)
+        val freshRecruits = listOf(makeDisciple(id = "recruit_fresh_1", realm = 9))
+        val state = createState(
+            recruitList = listOf(initialRecruit),
+            aiSectDisciples = mapOf(
+                "ai1" to listOf(makeDisciple(id = "ai_d1", realm = 9))
+            ),
+            worldMapSects = listOf(
+                WorldSect(id = "player", isPlayerSect = true),
+                WorldSect(id = "ai1")
+            )
+        )
+        state.gameData = state.gameData.copy(
+            recruitList = state.gameData.recruitList + freshRecruits
+        )
+        processor.processSectDisciplesYearlyRecruitment(4, state)
+        val finalIds = state.gameData.recruitList.map { it.id }
+        // 未被占领的 AI 宗门不产生招募俘虏，列表必须保留 refreshRecruitList 的追加
+        assertEquals(setOf("recruit_old", "recruit_fresh_1"), finalIds.toSet())
+    }
+
+    @Test
+    fun `processSectDisciplesAging - AI 宗门弟子老化结果写入 buffer`() {
+        val state = createState(
+            aiSectDisciples = mapOf(
+                "ai1" to listOf(makeDisciple(id = "ai_d1", realm = 9).copy(age = 30))
+            ),
+            worldMapSects = listOf(
+                WorldSect(id = "player", isPlayerSect = true),
+                WorldSect(id = "ai1")
+            )
+        )
+        processor.processSectDisciplesAging(5, state)
+        val aged = state.gameData.aiSectDisciples["ai1"]
+        assertEquals(1, aged?.size)
+        assertEquals(31, aged?.singleOrNull()?.age)
     }
 
     // ── 辅助方法 ──
