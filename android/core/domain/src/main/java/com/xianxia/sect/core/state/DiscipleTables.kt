@@ -27,7 +27,10 @@ class DiscipleTables {
     @Volatile var mutationVersion: Long = 0
         private set
 
-    /** 在每次写操作后调用，递增版本号 */
+    /**
+     * 递增版本号（2026-08-01：仅兼容保留——列级写入回调（bindAllOnWrite 的 dirtyCb）
+     * 已自动递增，insert/replaceAll 的显式 markMutated 双计已移除。无生产调用者）。
+     */
     fun markMutated() { mutationVersion++ }
 
     // ── ID 列表守卫方法 ──
@@ -507,7 +510,6 @@ class DiscipleTables {
         val d = disciple.copy(id = idStr)
         d.lifeEvents = disciple.lifeEvents
         writeAllFields(d)
-        markMutated()
         recordChangedId(id)
         idStr
     }
@@ -597,7 +599,6 @@ class DiscipleTables {
             savedDeathYears.forEach { (id, year) ->
                 if (id in ids) deathYears[id] = year
             }
-            markMutated()
             recordChangedIds(newIds)
         }
         assertAllTablesConsistent()

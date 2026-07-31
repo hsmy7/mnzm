@@ -410,3 +410,40 @@ tasks.register('validateChangelogJson') {
     }
 }
 tasks.named('check').configure { dependsOn('validateChangelogJson') }
+
+// ============================================================
+// 2026-08-01：建筑占地尺寸 C++ 头文件生成任务
+// SpriteAtlasDef.kt（Kotlin）为唯一真相源 → footprint_table.h（C++）
+// 消灭 NativeBridge.cpp / SpriteAtlasDef 双份手写魔法表的漂移风险
+// ============================================================
+tasks.register('generateFootprintHeader') {
+    group = 'build'
+    description = '从 SpriteAtlasDef.kt 生成 NativeBridge.cpp 引用的 footprint_table.h'
+    doLast {
+        def src = file("${rootProject.projectDir}/core/engine/src/main/java/com/xianxia/sect/core/render/SpriteAtlasDef.kt").text
+        // 提取 FOOTPRINT_BY_NAME_INDEX 数组的 (w to h) pair（格式固定：N to N,）
+        def pairs = []
+        def matcher = src =~ /(\d+)\s+to\s+(\d+)/
+        while (matcher.find()) {
+            pairs.add([matcher.group(1).toInteger(), matcher.group(2).toInteger()])
+        }
+        if (pairs.isEmpty()) {
+            throw new GradleException("generateFootprintHeader: 未从 SpriteAtlasDef.kt 提取到占地尺寸 pair")
+        }
+        def w = pairs.collect { it[0] }.join(',')
+        def h = pairs.collect { it[1] }.join(',')
+        def header = """// GENERATED FILE — 由 SpriteAtlasDef.kt 生成，禁止手改。
+// 修改建筑占地尺寸请改 SpriteAtlasDef.kt 的 FOOTPRINT_BY_NAME_INDEX，
+// 然后运行: ./gradlew generateFootprintHeader
+static const int FP_W[] = {${w}};
+static const int FP_H[] = {${h}};
+static const int FP_COUNT = ${pairs.size};
+"""
+        def out = file('src/main/cpp/footprint_table.h')
+        out.parentFile.mkdirs()
+        out.write(header)
+        logger.lifecycle("generateFootprintHeader: ${out} (${pairs.size} entries)")
+    }
+}
+// preBuild 前生成——确保 native 编译时头文件最新
+tasks.named('preBuild').configure { dependsOn('generateFootprintHeader') }

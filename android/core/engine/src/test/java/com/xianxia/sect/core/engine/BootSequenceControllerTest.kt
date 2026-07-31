@@ -55,7 +55,6 @@ class BootSequenceControllerTest {
         }
 
         // GameEngineCore 生命周期方法: 不执行真实逻辑
-        doNothing().whenever(gameEngineCore).startListening()
         doNothing().whenever(gameEngineCore).startGameLoop()
         doNothing().whenever(gameEngineCore).stopGameLoop()
 
@@ -110,7 +109,6 @@ class BootSequenceControllerTest {
             stateStore.bootPhaseHistory
         )
 
-        verify(gameEngineCore).startListening()
         verify(gameEngineCore).startGameLoop()
         verify(buildingConfigService).fixupBuildingSizes(any())
         verify(discipleSnapshotCache).prewarm(discipleTables)
@@ -145,7 +143,6 @@ class BootSequenceControllerTest {
         )
 
         // 正常推进路径继续执行
-        verify(gameEngineCore).startListening()
         verify(gameEngineCore).startGameLoop()
     }
 

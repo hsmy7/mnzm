@@ -206,7 +206,6 @@ class BootSequenceController @Inject constructor(
     }
 
     private fun startGameLoop() {
-        gameEngineCore.startListening()
         gameEngineCore.startGameLoop()
         DomainLog.d(TAG, "Game loop started")
     }

@@ -7,12 +7,12 @@ import org.junit.Test
 import java.io.File
 
 /**
- * C++/Kotlin 足迹尺寸表同步守卫测试（2026-08-01 新增）。
+ * C++/Kotlin 足迹尺寸表同步守卫测试（2026-08-01 新增，2026-08-01 生成任务改造）。
  *
- * `NativeBridge.cpp` 的 FP_W[]/FP_H[]（19 项）与 `SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX`
- * 是双份手写魔法表——新增建筑或调整索引顺序时一侧遗忘即导致建筑地砖错位/回退 2×2，
- * 且只在真机 Vulkan 路径暴露（软件路径读 Kotlin 表，两路径显示还会不一致）。
- * 本测试解析 C++ 源文件与 Kotlin 表逐项比对，双向防漂移（PR CI 常驻）。
+ * `footprint_table.h`（由 `./gradlew generateFootprintHeader` 从
+ * `SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX` 自动生成）与 Kotlin 表必须逐项一致——
+ * 若生成任务失效或有人手改头文件，本测试失败。
+ * 同时校验 BUILDING_NAMES 与足迹表数量一致（新增建筑时两侧同步）。
  */
 class FootprintTableSyncTest {
 
@@ -58,18 +58,21 @@ class FootprintTableSyncTest {
     }
 
     /**
-     * 解析 NativeBridge.cpp 的 FP_W[]/FP_H[] 整型字面量。
+     * 解析 footprint_table.h 的 FP_W[]/FP_H[] 整型字面量。
      * 数组是纯数字字面量单行格式，正则提取可靠。
      */
     private fun parseFootprintArrays(): Pair<List<Int>, List<Int>> {
-        val cppFile = File("src/main/cpp/NativeBridge.cpp")
-        assertTrue("NativeBridge.cpp 不存在：${cppFile.absolutePath}", cppFile.exists())
-        val source = cppFile.readText()
+        val headerFile = File("src/main/cpp/footprint_table.h")
+        assertTrue(
+            "footprint_table.h 不存在：${headerFile.absolutePath}——请运行 ./gradlew generateFootprintHeader",
+            headerFile.exists()
+        )
+        val source = headerFile.readText()
 
         fun extractArray(name: String): List<Int> {
             val regex = Regex("""$name\[\]\s*=\s*\{(.*?)\}""", RegexOption.DOT_MATCHES_ALL)
             val match = regex.find(source)
-                ?: throw AssertionError("NativeBridge.cpp 中未找到 $name[] 数组")
+                ?: throw AssertionError("footprint_table.h 中未找到 $name[] 数组")
             return match.groupValues[1]
                 .split(",")
                 .map { it.trim().toInt() }

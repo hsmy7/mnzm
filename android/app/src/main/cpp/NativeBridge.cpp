@@ -7,6 +7,9 @@
 #include "VulkanBackend.h"
 #include "TextureAtlas.h"
 #include "SpriteBatcher.h"
+// 建筑占地尺寸查找表（2026-08-01：由 SpriteAtlasDef.kt 生成，禁止手改——
+// 运行 ./gradlew generateFootprintHeader 重新生成）
+#include "footprint_table.h"
 
 // UV 向内收缩 0.5 texel（匹配 Cocos2d-x CC_FIX_ARTIFACTS_BY_STRECHING_TEXEL）
 // 防止 CLAMP_TO_EDGE + NEAREST 采样下 UV 边界采样到相邻图素，消除彩色缝合线
@@ -346,9 +349,6 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
         buvs = env->GetFloatArrayElements(buildingUVMap, nullptr);
         buvCount = env->GetArrayLength(buildingUVMap) / 4;
 
-        // 占地尺寸查找表（与 SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX 对应）
-        static const int FP_W[] = {4,4,1,4,5,6,6,4,4,6,6,4,4,4,4,6,6,4,6};
-        static const int FP_H[] = {4,3,1,3,3,4,3,3,3,3,3,3,3,4,4,6,4,4,5};
         static const int FP_COUNT = sizeof(FP_W) / sizeof(FP_W[0]);
 
         for (int i = 0; i < buildingCount; i++) {

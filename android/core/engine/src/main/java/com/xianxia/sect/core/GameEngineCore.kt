@@ -291,7 +291,6 @@ class GameEngineCore @Inject constructor(
     fun scopeForStateIn(): CoroutineScope = engineScope
     private var gameLoopJob: Job? = null
     private var gameLoopStoppedSignal = CompletableDeferred<Unit>()
-    private var deathEventJob: Job? = null
     
     private val _tickCount = MutableStateFlow(0L)
     val tickCount: StateFlow<Long> = _tickCount.asStateFlow()
@@ -481,8 +480,6 @@ class GameEngineCore @Inject constructor(
     fun shutdown() {
         stopGameLoop()
         stopWatchdog()
-        deathEventJob?.cancel()
-        deathEventJob = null
         systemManager.releaseAll()
         engineJob.cancel()
         // 不关闭 GAME_DISPATCHER：shutdown 后可能重新 start，需保持线程池可用
@@ -1114,15 +1111,5 @@ class GameEngineCore @Inject constructor(
         )
     }
     
-    fun startListening() {
-        if (deathEventJob?.isActive == true) return
-        deathEventJob = engineScope.launch {
-            eventBus.events.collect { event ->
-                if (event is DeathEvent) {
-                    // 弟子陨落事件（消息系统已移除）
-                }
-            }
-        }
-    }
 }
 

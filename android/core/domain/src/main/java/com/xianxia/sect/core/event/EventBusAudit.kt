@@ -70,19 +70,9 @@ object EventBusAudit {
 
         // ── Flow 路径消费者 (eventBus.events.collect) ──
 
-        ConsumerRecord(
-            consumerClass = "GameEngineCore",
-            eventType = "death (DeathEvent) — 全事件 collect 后类型过滤",
-            threading = "engineScope (Dispatchers.Default + SupervisorJob) — 非主线程",
-            backpressure = "Channel 背压: collect 挂起等待，不会堆积; 但处理逻辑为空 (注释: 消息系统已移除)",
-            errorHandling = "engineExceptionHandler 捕获 CancellationException 以外的异常; collect 内无 try-catch",
-            riskLevel = "LOW",
-            notes = "当前 DeathEvent 处理体为空，仅消费事件不执行操作; " +
-                    "startListening() 有幂等检查 (deathEventJob?.isActive); " +
-                    "shutdown() 中 cancel deathEventJob; " +
-                    "⚠️ 全事件 collect: 即使只关心 DeathEvent，也会消费 Channel 中所有事件，" +
-                    "与 Subscriber 路径共享同一 Channel，不会互相阻塞 (collect 和 for-loop 各自独立消费)"
-        ),
+        // 2026-08-01 移除：GameEngineCore.startListening 空 collect 死代码已删除
+        //（处理体恒为空、仅消费事件不执行操作；BootSequenceController 调用点与
+        //  deathEventJob 生命周期管理同步清理）——DeathEvent 当前无消费方。
 
         // ── 事件生产者 (仅记录，非消费者) ──
         // 以下两条记录事件来源侧的信息，帮助理解事件流向

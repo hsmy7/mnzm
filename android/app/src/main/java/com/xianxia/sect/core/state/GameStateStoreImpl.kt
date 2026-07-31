@@ -503,9 +503,14 @@ class GameStateStoreImpl @Inject constructor(
     /**
      * 双指针增量归并（2026-08-01）：prev（升序）与 disciples（升序）diff，
      * 仅对新增/变更弟子调用 [Disciple.toAggregate]，未变弟子复用旧对象。
+     *
+     * 变化判定：`prev.sourceRef === disciples[j]`（引用相等）——增量组装
+     * （assembleAllIncremental）保证未变弟子复用旧 Disciple 对象引用、变更弟子
+     * 产出新对象。2026-08-01 修复：仅按 id 匹配复用会丢失列级变更
+     * （同 id 新 Disciple 的修为/生死/属性不反映到聚合）。
      * 两列表 size 不等或 diff 失序时由调用方退化全量。
      */
-    private fun mergeAggregatesIncremental(
+    internal fun mergeAggregatesIncremental(
         prev: List<DiscipleAggregate>,
         disciples: List<Disciple>
     ): List<DiscipleAggregate> {
@@ -520,7 +525,15 @@ class GameStateStoreImpl @Inject constructor(
                 return disciples.map { it.toAggregate() }
             }
             when {
-                prevId == curId -> { result.add(prev[i]); i++; j++ }
+                prevId == curId -> {
+                    // 引用相等 → 未变复用；否则变更 → 重建（列级写入/生死变化）
+                    if (prev[i].sourceRef === disciples[j]) {
+                        result.add(prev[i])
+                    } else {
+                        result.add(disciples[j].toAggregate())
+                    }
+                    i++; j++
+                }
                 prevId < curId -> i++  // prev 中被移除的弟子（跳过）
                 else -> { result.add(disciples[j].toAggregate()); j++ }  // 新增弟子
             }
@@ -953,6 +966,9 @@ class GameStateStoreImpl @Inject constructor(
         isSaving: Boolean
     ) {
         transactionLock.withLock {
+            // 2026-08-01 修复：版本号递增必须**最先**执行（clear 之前）——
+            // 排队中的增量组装若在 load 获取锁前通过 gen 检查，会与 clear+insert 并发
+            discipleVersion.incrementAndGet()
             // 缓存清除在所有写入之前执行
             disciplePowerCache.clear()
             aiDisciplePowerCache.clear()
@@ -1040,11 +1056,9 @@ class GameStateStoreImpl @Inject constructor(
                 _discipleTables.writeAllowed = false
             }
         }
-        // ★ 锁外同步版本号，防止首个 update() 触发不必要的 assembleAll
-        // 2026-08-01 修复：递增版本号作废 assembleDispatcher 队列中基于旧数据的
-        // 排队任务，并将本组装投递到同一单线程调度器——避免与增量组装协程并发
-        // 交错（陈旧结果覆盖新加载列表）。
-        discipleVersion.incrementAndGet()
+        // ★ 锁外投递组装（版本号已在锁内最先递增——2026-08-01 修复）：
+        // 递增版本号作废 assembleDispatcher 队列中基于旧数据的排队任务，
+        // 并将本组装投递到同一单线程调度器——避免与增量组装协程并发交错
         val gen = discipleVersion.get()
         applicationScopeProvider.scope.launch(assembleDispatcher) {
             if (discipleVersion.get() != gen) return@launch
@@ -1054,6 +1068,10 @@ class GameStateStoreImpl @Inject constructor(
 
     override suspend fun reset() {
         transactionLock.withLock {
+            // 2026-08-01 修复：版本号递增必须**最先**执行（clear 之前）——
+            // 若在锁内末尾递增，排队中的增量组装可在 reset 获取锁前通过 gen 检查，
+            // 与 clear 并发遍历表（组装出半截列表覆盖空列表）
+            discipleVersion.incrementAndGet()
             disciplePowerCache.clear()
             aiDisciplePowerCache.clear()
             // 2026-08-01：聚合缓存失效（同 load 语义）
@@ -1087,8 +1105,6 @@ class GameStateStoreImpl @Inject constructor(
             _stateDirty = false
             _discipleDirty = false
             repository.clearDirty()
-            // 2026-08-01 修复：作废 assembleDispatcher 队列中的陈旧组装任务
-            discipleVersion.incrementAndGet()
         }
     }
 

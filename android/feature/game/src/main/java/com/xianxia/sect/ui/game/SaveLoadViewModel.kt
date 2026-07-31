@@ -289,7 +289,6 @@ class SaveLoadViewModel @Inject constructor(
         SaveDataTrimmer.trimSaveData(snapshot)
 
     private fun startGameLoop() {
-        gameEngineCore.startListening()
         gameEngineCore.startGameLoop()
         _isTimeRunning.value = true
         Log.d(TAG, "Game loop started via GameEngineCore")
