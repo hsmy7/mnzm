@@ -28,11 +28,11 @@ import com.xianxia.sect.core.engine.domain.battle.Combatant
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.ui.components.beastSpriteRes
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.core.util.GameRandom
 import com.xianxia.sect.core.util.PortraitPool
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
-import kotlin.random.Random
 import androidx.compose.ui.zIndex
 
 /**
@@ -157,8 +157,8 @@ internal fun CombatantPortrait(combatant: Combatant, size: Int = 44) {
             }
             else -> {
                 val randomPortrait = PortraitPool.getRandomPortrait(
-                    if (Random.nextBoolean()) "male" else "female"
-                )
+                    if (GameRandom.nextBoolean()) "male" else "female"
+                ) { GameRandom.nextInt(it) }
                 PortraitPool.getResourceId(randomPortrait).takeIf { it != 0 }
                     ?: SpriteResRegistry.resolve("disciple_portrait") ?: 0
             }

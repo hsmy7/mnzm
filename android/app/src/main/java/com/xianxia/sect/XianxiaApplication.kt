@@ -40,6 +40,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.Inject
 
 @HiltAndroidApp
+@Suppress("TooManyFunctions") // 生命周期回调 + 跨模块注入/初始化方法均为独立职责
 class XianxiaApplication : Application() {
 
     companion object {
@@ -85,99 +86,9 @@ class XianxiaApplication : Application() {
         super.onCreate()
         instance = this
 
-        // 注入 Android 日志实现到 domain 模块
-        DomainLog.setLogger(object : DomainLog.Logger {
-            override fun d(tag: String, msg: String) { Log.d(tag, msg) }
-            override fun i(tag: String, msg: String) { Log.i(tag, msg) }
-            override fun w(tag: String, msg: String, throwable: Throwable?) {
-                if (throwable != null) Log.w(tag, msg, throwable) else Log.w(tag, msg)
-            }
-            override fun e(tag: String, msg: String, throwable: Throwable?) {
-                if (throwable != null) Log.e(tag, msg, throwable) else Log.e(tag, msg)
-            }
-        })
-
-        // 注入 AccountBindingProvider 实现到 data 模块
-        com.xianxia.sect.data.crypto.SecureKeyManager.accountBindingProvider =
-            object : com.xianxia.sect.core.util.AccountBindingProvider {
-                override fun isLoggedIn(): Boolean = com.xianxia.sect.taptap.TapTapAuthManager.isLoggedIn()
-                override fun getAccountUserId(): String? {
-                    val account = com.xianxia.sect.taptap.TapTapAuthManager.getCurrentAccount()
-                    return account?.openId ?: account?.unionId
-                }
-            }
-
-        // 注入 DiscipleStatCalculator 实现到 domain 模块
-        DiscipleAggregate.statsProvider = object : DiscipleStatsProvider {
-            override fun getBaseStats(disciple: com.xianxia.sect.core.model.Disciple) = DiscipleStatCalculator.getBaseStats(disciple)
-            override fun getBaseStats(aggregate: DiscipleAggregate) = DiscipleStatCalculator.getBaseStats(aggregate)
-            override fun getTalentEffects(disciple: com.xianxia.sect.core.model.Disciple) = DiscipleStatCalculator.getTalentEffects(disciple)
-            override fun getTalentEffects(aggregate: DiscipleAggregate) = DiscipleStatCalculator.getTalentEffects(aggregate)
-            override fun getStatsWithEquipment(disciple: com.xianxia.sect.core.model.Disciple, equipments: Map<String, EquipmentInstance>) = DiscipleStatCalculator.getStatsWithEquipment(disciple, equipments)
-            override fun getStatsWithEquipment(aggregate: DiscipleAggregate, equipments: Map<String, EquipmentInstance>) = DiscipleStatCalculator.getStatsWithEquipment(aggregate, equipments)
-            override fun getFinalStats(disciple: com.xianxia.sect.core.model.Disciple, equipments: Map<String, EquipmentInstance>, manuals: Map<String, ManualInstance>, manualProficiencies: Map<String, ManualProficiencyData>) = DiscipleStatCalculator.getFinalStats(disciple, equipments, manuals, manualProficiencies)
-            override fun getFinalStats(aggregate: DiscipleAggregate, equipments: Map<String, EquipmentInstance>, manuals: Map<String, ManualInstance>, manualProficiencies: Map<String, ManualProficiencyData>) = DiscipleStatCalculator.getFinalStats(aggregate, equipments, manuals, manualProficiencies)
-            override fun calculateCultivationSpeed(disciple: com.xianxia.sect.core.model.Disciple, manuals: Map<String, ManualInstance>, manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double, additionalBonus: Double, preachingElderBonus: Double, preachingMastersBonus: Double, cultivationSubsidyBonus: Double, parentCultivationBonus: Double, griefCultivationSpeedPenalty: Double, masterDiscipleBonus: Double) = DiscipleStatCalculator.calculateCultivationPerPhase(disciple, manuals, manualProficiencies, buildingBonus, preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus, parentCultivationBonus, griefCultivationSpeedPenalty, masterDiscipleBonus)
-            override fun calculateCultivationSpeed(aggregate: DiscipleAggregate, manuals: Map<String, ManualInstance>, manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double, additionalBonus: Double, preachingElderBonus: Double, preachingMastersBonus: Double, cultivationSubsidyBonus: Double, parentCultivationBonus: Double, griefCultivationSpeedPenalty: Double, masterDiscipleBonus: Double) = DiscipleStatCalculator.calculateCultivationPerPhase(aggregate, manuals, manualProficiencies, buildingBonus, preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus, parentCultivationBonus, griefCultivationSpeedPenalty, masterDiscipleBonus)
-            override fun getBreakthroughChance(disciple: com.xianxia.sect.core.model.Disciple, innerElderComprehension: Int, outerElderComprehension: Int, pillBonus: Double, adBonus: Double, griefBreakthroughPenalty: Double, masterDiscipleBonus: Double) = DiscipleStatCalculator.getBreakthroughChance(disciple, innerElderComprehension, outerElderComprehension, pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus)
-            override fun getBreakthroughChance(aggregate: DiscipleAggregate, innerElderComprehension: Int, outerElderComprehension: Int, pillBonus: Double, adBonus: Double, griefBreakthroughPenalty: Double, masterDiscipleBonus: Double) = DiscipleStatCalculator.getBreakthroughChance(aggregate, innerElderComprehension, outerElderComprehension, pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus)
-        }
-
-        DeviceCompatibilityHelper.logDeviceInfo()
-
-        // 全厂商适配：根据当前设备厂商执行差异化适配策略
-        ManufacturerAdapter.apply(this)
-
-        // ── 崩溃自愈引擎初始化 ──
-        // 必须在任何 Activity 启动前完成，GameActivity.onCreate 中会读取安全模式状态
-        CrashRecoveryEngine.initialize(this)
-        // 渲染策略初始化——缓存硬件加速决策，供 GameActivity 在 super.onCreate() 前读取
-        VulkanPolicy.initialize(this)
-        // 渲染策略诊断（记录到日志供 Bugly 分析）
-        VulkanPolicy.logDeviceDiagnostics(this)
-        // 渲染相关崩溃计数器 + 设备分级 → 决定是否进入安全模式
-        if (CrashRecoveryEngine.isSafeMode()) {
-            android.util.Log.w(TAG,
-                "Render safe mode is ACTIVE — HW acceleration disabled")
-        } else if (VulkanPolicy.detectTier(this)
-            == VulkanPolicy.DeviceTier.PROBLEMATIC) {
-            android.util.Log.w(TAG, "Problematic device detected — crash recovery will activate on consecutive crashes")
-        }
-
-        // 腾讯 Bugly 崩溃收集（主崩溃收集 SDK，自研 CrashHandler 保留作为兜底）
-        try {
-            CrashReport.initCrashReport(this, BuildConfig.BUGLY_APP_ID, BuildConfig.DEBUG)
-            CrashReport.setAppVersion(this, BuildConfig.VERSION_NAME)
-            CrashReport.setUserId("unknown")
-            CrashReport.putUserData(this, "manufacturer", android.os.Build.MANUFACTURER)
-            CrashReport.putUserData(this, "model", android.os.Build.MODEL)
-            Log.i(TAG, "Bugly crash report initialized")
-        } catch (e: Exception) {
-            Log.w(TAG, "Bugly initialization failed, self-built CrashHandler will be fallback", e)
-        }
-
-        // P0修复：MMKV 显式初始化，使用 ReLinker 兜底原生库加载
-        // 华为 HarmonyOS/EMUI 的 linker 不支持从 APK 直接 mmap 加载 .so，
-        // ReLinker 会在系统加载失败后手动从 APK 提取 .so 到私有目录再加载
-        try {
-            MMKV.initialize(this, object : MMKV.LibLoader {
-                override fun loadLibrary(libName: String?) {
-                    ReLinker.loadLibrary(this@XianxiaApplication, requireNotNull(libName) { "libName must not be null" })
-                }
-            })
-            Log.i(TAG, "MMKV initialized with ReLinker fallback")
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Throwable) {
-            Log.e(TAG, "MMKV initialization failed, falling back to default loader", e)
-            try {
-                MMKV.initialize(this)
-            } catch (e2: CancellationException) {
-                throw e2
-            } catch (e2: Throwable) {
-                Log.e(TAG, "MMKV default initialization also failed", e2)
-            }
-        }
+        injectDomainDependencies()
+        initCrashProtection()
+        initBuglyAndMmkv()
 
         SaveCrypto.initialize(applicationScopeProvider)
 
@@ -613,8 +524,193 @@ class XianxiaApplication : Application() {
 
         Log.i(TAG, "Application initialized with monitoring systems")
 
+    }
 
+    /** 注入跨模块实现（日志 / 账号绑定 / 弟子属性计算） */
+    private fun injectDomainDependencies() {
+        // 注入 Android 日志实现到 domain 模块
+        DomainLog.setLogger(object : DomainLog.Logger {
+            override fun d(tag: String, msg: String) { Log.d(tag, msg) }
+            override fun i(tag: String, msg: String) { Log.i(tag, msg) }
+            override fun w(tag: String, msg: String, throwable: Throwable?) {
+                if (throwable != null) Log.w(tag, msg, throwable) else Log.w(tag, msg)
+            }
+            override fun e(tag: String, msg: String, throwable: Throwable?) {
+                if (throwable != null) Log.e(tag, msg, throwable) else Log.e(tag, msg)
+            }
+        })
 
+        // 注入 AccountBindingProvider 实现到 data 模块
+        com.xianxia.sect.data.crypto.SecureKeyManager.accountBindingProvider =
+            object : com.xianxia.sect.core.util.AccountBindingProvider {
+                override fun isLoggedIn(): Boolean =
+                    com.xianxia.sect.taptap.TapTapAuthManager.isLoggedIn()
+                override fun getAccountUserId(): String? {
+                    val account = com.xianxia.sect.taptap.TapTapAuthManager.getCurrentAccount()
+                    return account?.openId ?: account?.unionId
+                }
+            }
+
+        // 注入 DiscipleStatCalculator 实现到 domain 模块
+        DiscipleAggregate.statsProvider = object : DiscipleStatsProvider {
+            override fun getBaseStats(disciple: com.xianxia.sect.core.model.Disciple) =
+                DiscipleStatCalculator.getBaseStats(disciple)
+            override fun getBaseStats(aggregate: DiscipleAggregate) =
+                DiscipleStatCalculator.getBaseStats(aggregate)
+            override fun getTalentEffects(disciple: com.xianxia.sect.core.model.Disciple) =
+                DiscipleStatCalculator.getTalentEffects(disciple)
+            override fun getTalentEffects(aggregate: DiscipleAggregate) =
+                DiscipleStatCalculator.getTalentEffects(aggregate)
+            override fun getStatsWithEquipment(
+                disciple: com.xianxia.sect.core.model.Disciple,
+                equipments: Map<String, EquipmentInstance>
+            ) = DiscipleStatCalculator.getStatsWithEquipment(disciple, equipments)
+            override fun getStatsWithEquipment(
+                aggregate: DiscipleAggregate,
+                equipments: Map<String, EquipmentInstance>
+            ) = DiscipleStatCalculator.getStatsWithEquipment(aggregate, equipments)
+            override fun getFinalStats(
+                disciple: com.xianxia.sect.core.model.Disciple,
+                equipments: Map<String, EquipmentInstance>,
+                manuals: Map<String, ManualInstance>,
+                manualProficiencies: Map<String, ManualProficiencyData>
+            ) = DiscipleStatCalculator.getFinalStats(
+                disciple, equipments, manuals, manualProficiencies
+            )
+            override fun getFinalStats(
+                aggregate: DiscipleAggregate,
+                equipments: Map<String, EquipmentInstance>,
+                manuals: Map<String, ManualInstance>,
+                manualProficiencies: Map<String, ManualProficiencyData>
+            ) = DiscipleStatCalculator.getFinalStats(
+                aggregate, equipments, manuals, manualProficiencies
+            )
+            override fun calculateCultivationSpeed(
+                disciple: com.xianxia.sect.core.model.Disciple,
+                manuals: Map<String, ManualInstance>,
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                buildingBonus: Double,
+                additionalBonus: Double,
+                preachingElderBonus: Double,
+                preachingMastersBonus: Double,
+                cultivationSubsidyBonus: Double,
+                parentCultivationBonus: Double,
+                griefCultivationSpeedPenalty: Double,
+                masterDiscipleBonus: Double
+            ) = DiscipleStatCalculator.calculateCultivationPerPhase(
+                disciple, manuals, manualProficiencies, buildingBonus,
+                preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus,
+                parentCultivationBonus, griefCultivationSpeedPenalty, masterDiscipleBonus
+            )
+            override fun calculateCultivationSpeed(
+                aggregate: DiscipleAggregate,
+                manuals: Map<String, ManualInstance>,
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                buildingBonus: Double,
+                additionalBonus: Double,
+                preachingElderBonus: Double,
+                preachingMastersBonus: Double,
+                cultivationSubsidyBonus: Double,
+                parentCultivationBonus: Double,
+                griefCultivationSpeedPenalty: Double,
+                masterDiscipleBonus: Double
+            ) = DiscipleStatCalculator.calculateCultivationPerPhase(
+                aggregate, manuals, manualProficiencies, buildingBonus,
+                preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus,
+                parentCultivationBonus, griefCultivationSpeedPenalty, masterDiscipleBonus
+            )
+            override fun getBreakthroughChance(
+                disciple: com.xianxia.sect.core.model.Disciple,
+                innerElderComprehension: Int,
+                outerElderComprehension: Int,
+                pillBonus: Double,
+                adBonus: Double,
+                griefBreakthroughPenalty: Double,
+                masterDiscipleBonus: Double
+            ) = DiscipleStatCalculator.getBreakthroughChance(
+                disciple, innerElderComprehension, outerElderComprehension,
+                pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus
+            )
+            override fun getBreakthroughChance(
+                aggregate: DiscipleAggregate,
+                innerElderComprehension: Int,
+                outerElderComprehension: Int,
+                pillBonus: Double,
+                adBonus: Double,
+                griefBreakthroughPenalty: Double,
+                masterDiscipleBonus: Double
+            ) = DiscipleStatCalculator.getBreakthroughChance(
+                aggregate, innerElderComprehension, outerElderComprehension,
+                pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus
+            )
+        }
+    }
+
+    /** 崩溃自愈引擎 + 渲染策略初始化（必须在任何 Activity 启动前完成） */
+    private fun initCrashProtection() {
+        DeviceCompatibilityHelper.logDeviceInfo()
+
+        // 全厂商适配：根据当前设备厂商执行差异化适配策略
+        ManufacturerAdapter.apply(this)
+
+        // ── 崩溃自愈引擎初始化 ──
+        // 必须在任何 Activity 启动前完成，GameActivity.onCreate 中会读取安全模式状态
+        CrashRecoveryEngine.initialize(this)
+        // 渲染策略初始化——缓存硬件加速决策，供 GameActivity 在 super.onCreate() 前读取
+        VulkanPolicy.initialize(this)
+        // 渲染策略诊断（记录到日志供 Bugly 分析）
+        VulkanPolicy.logDeviceDiagnostics(this)
+        // 渲染相关崩溃计数器 + 设备分级 → 决定是否进入安全模式
+        if (CrashRecoveryEngine.isSafeMode()) {
+            android.util.Log.w(
+                TAG, "Render safe mode is ACTIVE — HW acceleration disabled"
+            )
+        } else if (VulkanPolicy.detectTier(this) == VulkanPolicy.DeviceTier.PROBLEMATIC) {
+            android.util.Log.w(
+                TAG, "Problematic device detected — crash recovery will activate on consecutive crashes"
+            )
+        }
+    }
+
+    /** Bugly 崩溃收集 + MMKV 显式初始化（含 ReLinker 兜底） */
+    private fun initBuglyAndMmkv() {
+        // 腾讯 Bugly 崩溃收集（主崩溃收集 SDK，自研 CrashHandler 保留作为兜底）
+        try {
+            CrashReport.initCrashReport(this, BuildConfig.BUGLY_APP_ID, BuildConfig.DEBUG)
+            CrashReport.setAppVersion(this, BuildConfig.VERSION_NAME)
+            CrashReport.setUserId("unknown")
+            CrashReport.putUserData(this, "manufacturer", android.os.Build.MANUFACTURER)
+            CrashReport.putUserData(this, "model", android.os.Build.MODEL)
+            Log.i(TAG, "Bugly crash report initialized")
+        } catch (e: Exception) {
+            Log.w(TAG, "Bugly initialization failed, self-built CrashHandler will be fallback", e)
+        }
+
+        // P0修复：MMKV 显式初始化，使用 ReLinker 兜底原生库加载
+        // 华为 HarmonyOS/EMUI 的 linker 不支持从 APK 直接 mmap 加载 .so，
+        // ReLinker 会在系统加载失败后手动从 APK 提取 .so 到私有目录再加载
+        try {
+            MMKV.initialize(this, object : MMKV.LibLoader {
+                override fun loadLibrary(libName: String?) {
+                    ReLinker.loadLibrary(
+                        this@XianxiaApplication,
+                        requireNotNull(libName) { "libName must not be null" }
+                    )
+                }
+            })
+            Log.i(TAG, "MMKV initialized with ReLinker fallback")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            Log.e(TAG, "MMKV initialization failed, falling back to default loader", e)
+            try {
+                MMKV.initialize(this)
+            } catch (e2: CancellationException) {
+                throw e2
+            } catch (e2: Throwable) {
+                Log.e(TAG, "MMKV default initialization also failed", e2)
+            }
+        }
     }
 
     @Suppress("DEPRECATION")

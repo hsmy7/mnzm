@@ -60,7 +60,7 @@ class DiscipleMergeCoverageTest {
         "cultivationCheckpoint",        // 修炼投影检查点，未启用前由 copy() 保留
         "cultivationCheckpointGameMonth",
         "portraitRes",
-        "talentIds",
+        "talentIds", "physiqueIds", "affixIds",
         "manualMasteries",
         "autoLearnFromWarehouse",
         "soulPower",

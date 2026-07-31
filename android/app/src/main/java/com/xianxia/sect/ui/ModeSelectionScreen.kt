@@ -59,6 +59,7 @@ private const val TAG = "ModeSelectionScreen"
  * 右上角显示 TapTap 用户名和头像。
  */
 @Composable
+@Suppress("LongParameterList") // 屏幕级入口函数：登录信息/音频/导航回调参数分组会破坏调用语义
 fun ModeSelectionScreen(
     userName: String,
     unionId: String,
@@ -84,10 +85,20 @@ fun ModeSelectionScreen(
         )
 
         // 主内容区 — 仅避让左右安全区域（曲面屏/挖孔屏边缘）
-        Box(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Left + WindowInsetsSides.Right))) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(
+                    WindowInsets.systemBars.only(
+                        WindowInsetsSides.Left + WindowInsetsSides.Right
+                    )
+                )
+        ) {
             // 右上角：用户名 + 头像 + 音频勾选
             Column(
-                modifier = Modifier.align(Alignment.TopEnd).padding(top = 16.dp, end = 16.dp),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 16.dp, end = 16.dp),
                 horizontalAlignment = Alignment.End
             ) {
                 UserAvatarHeader(
@@ -114,41 +125,55 @@ fun ModeSelectionScreen(
 
         // 用户信息小屏对话框
         if (showUserInfo) {
-            SmallScreenDialog(
-                onDismissRequest = { showUserInfo = false },
-                title = "用户信息",
-                titleColor = Color.Black
-            ) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "用户名称",
-                    fontSize = 12.sp,
-                    color = Color(0xFF888888)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = userName,
-                    fontSize = 16.sp,
-                    color = Color.Black,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "TapTap UnionId",
-                    fontSize = 12.sp,
-                    color = Color(0xFF888888)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = unionId,
-                    fontSize = 14.sp,
-                    color = Color.Black,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+            UserInfoDialog(
+                userName = userName,
+                unionId = unionId,
+                onDismiss = { showUserInfo = false }
+            )
         }
+    }
+}
+
+/** 用户信息小屏对话框 */
+@Composable
+private fun UserInfoDialog(
+    userName: String,
+    unionId: String,
+    onDismiss: () -> Unit
+) {
+    SmallScreenDialog(
+        onDismissRequest = onDismiss,
+        title = "用户信息",
+        titleColor = Color.Black
+    ) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "用户名称",
+            fontSize = 12.sp,
+            color = Color(0xFF888888)
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = userName,
+            fontSize = 16.sp,
+            color = Color.Black,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "TapTap UnionId",
+            fontSize = 12.sp,
+            color = Color(0xFF888888)
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = unionId,
+            fontSize = 14.sp,
+            color = Color.Black,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

@@ -24,6 +24,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.activity.enableEdgeToEdge
+import androidx.core.graphics.drawable.toDrawable
+import androidx.core.net.toUri
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
@@ -170,7 +172,7 @@ class GameActivity : ComponentActivity() {
         // 设置实心窗口背景，防止华为模拟器等设备上 MainActivity 窗口残留
         // 穿透透明 windowBackground 显示。必须在 setContent 之前调用。
         window.setBackgroundDrawable(
-            android.graphics.drawable.ColorDrawable(android.graphics.Color.BLACK)
+            android.graphics.Color.BLACK.toDrawable()
         )
 
         // 初始化并注册崩溃处理器
@@ -275,7 +277,8 @@ class GameActivity : ComponentActivity() {
                                                     com.xianxia.sect.core.CrashRecoveryEngine.clearVulkanInitFailure()
                                                     com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
                                                     com.xianxia.sect.core.VulkanPolicy.setDriverVersion(
-                                                        com.xianxia.sect.core.nativebridge.NativeBridge.getVulkanDriverVersion()
+                                                        com.xianxia.sect.core.nativebridge
+                                                            .NativeBridge.getVulkanDriverVersion()
                                                     )
                                                 } else {
                                                     com.xianxia.sect.core.CrashRecoveryEngine.clearPrewarmStarted()
@@ -405,7 +408,11 @@ class GameActivity : ComponentActivity() {
 
         if (!saveLoadViewModel.isGameAlreadyLoaded()) {
             saveLoadViewModel.resetSaveLoadState()
-            Log.d(TAG, "onCreate: Game not loaded, will initialize. slot=$slot, isNewGame=$isNewGame, isCloudSaveLoad=$isCloudSaveLoad")
+            Log.d(
+                TAG,
+                "onCreate: Game not loaded, will initialize. slot=$slot, " +
+                    "isNewGame=$isNewGame, isCloudSaveLoad=$isCloudSaveLoad"
+            )
             lifecycleScope.launch {
                 VivoGCJITOptimizer.runWithJitPaused(block = {
                     when {
@@ -783,7 +790,7 @@ class GameActivity : ComponentActivity() {
 
         try {
             val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
-                .setData(Uri.parse("package:$packageName"))
+                .setData("package:$packageName".toUri())
             startActivity(intent)
             Log.d(TAG, "Requesting SCHEDULE_EXACT_ALARM permission")
         } catch (e: Exception) {

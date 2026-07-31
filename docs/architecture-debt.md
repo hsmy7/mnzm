@@ -23,6 +23,28 @@
 
 ---
 
+## ⏳ 待完成项（2026-07-31 招募完整性修复遗留）
+
+> 2026-07-31 招募列表完整性修复（幽灵弟子/重复弟子/38岁炼虚）过程中发现并评估的遗留项，
+> 未纳入本次修复范围，按优先级排序：
+
+| # | 项目 | 风险 | 修复成本 | 决策 |
+|---|------|------|---------|------|
+| 1 | **ChildBirthSystem 全局 `GameRandom` → 分区 PRNG** | 低（预存确定性 RNG 违规；迁移会改变出生随机流，需存档兼容评估） | 中 | ⏳ 待办，单独工单 |
+| 2 | **`GameEngineCoordination.mapSeed` 的 `java.util.Random`** | 低（非弟子数据，确定性审计项） | 低 | ⏳ 待办 |
+| 3 | **`renameDisciple` 打破 `RecruitIntegrity.isSamePerson` 签名假设** | 极低（重命名宗门弟子后，对应残留双胞胎失去姓名匹配、逃脱净化） | 低（重命名时同步净化 recruitList） | ⏳ 待办 |
+| 4 | **AI 弟子"按修炼年数推演境界"彻底重构** | 设计层面（当前"生成时按境界配年龄"已消除 38 岁炼虚，推演式更真实但改动大） | 高 | ⏳ 待办（平衡工单） |
+| 5 | **`DiscipleTablesRecruitTest` 测试内预存 `!!`** | 极低（测试代码） | 低 | ⏳ 待办 |
+| 6 | **lint-baseline 97 条既有 warning 治理** | 低（UnusedResources 51 / UseKtx 22 / GradleDependency 7 等，多为历史遗留资源与 API 建议，非 Bug） | 中 | ⏳ 待办，逐条治理 |
+| 7 | **`changelog_entries.json` 无格式守卫** | 低（本次修复了既有 `\「` 非法转义，防止再犯可加 CI 校验） | 低 | ⏳ 待办 |
+
+**已完成的连带项（2026-07-31）**：
+- ✅ `DiscipleSerializer` 补 `physiqueIds/affixIds` 序列化（@ProtoNumber 104/105，此前读档后招募弟子丢失体质/词条）
+- ✅ app 模块 17 个 detekt 预存违规归零（拆分 + 标注 Suppress）
+- ✅ lint-baseline 重新校准为准确状态（旧 baseline 44 条因行号漂移失效）
+
+---
+
 ## ⏸️ 暂缓项（低优先级）
 
 以下项目当前行为正确，无用户可见问题，暂不修复：

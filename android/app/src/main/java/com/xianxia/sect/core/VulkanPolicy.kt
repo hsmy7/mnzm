@@ -37,6 +37,7 @@ import java.io.FileReader
  *
  * @see CrashRecoveryEngine 崩溃自愈机制
  */
+@Suppress("TooManyFunctions") // GPU 黑名单核心类：12 个判定函数均为独立决策维度，拆分破坏内聚
 object VulkanPolicy {
 
     private const val TAG = "VulkanPolicy"

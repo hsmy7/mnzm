@@ -713,7 +713,7 @@ object RedeemCodeManager {
             age = age,
             lifespan = (lifespan * (1.0 + lifespanBonus)).toInt(),
             gender = gender,
-            portraitRes = PortraitPool.getRandomPortrait(gender),
+            portraitRes = PortraitPool.getRandomPortrait(gender) { random.nextInt(it) },
             discipleType = "outer",
             talentIds = talentIds,
             combat = CombatAttributes(

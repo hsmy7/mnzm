@@ -1,3 +1,17 @@
+## [4.0.82] - 2026-07-31
+
+### 修复
+
+- **招募列表出现无肖像且无法招募的幽灵弟子** — 历史版本 Bug 遗留的异常/重复招募条目（name 空/年龄越界/境界越界/内容重复/已入宗门残留）读档原样保留且永不自动移除（三个招募守卫均跳过损坏条目、净化逻辑缺失）。修复：三层自愈——新增 SaveValidator 规则 `RecruitListCleanupRule`（读档主通道）+ `loadData` 引擎层净化（覆盖 cache 捷径）+ 年变净化挂载 `ageRecruitList`；点击招募遇到损坏条目时同事务移除（幽灵立即消失）；新增 domain 纯函数 `RecruitIntegrity`（isValidRecruit/isSamePerson/sanitizeRecruitList，四步净化：损坏移除→id去重→内容去重→跨表残留比对，38岁炼虚等合法数据明确保留，死亡弟子非对称年龄容差防逃逸）
+- **弟子列表出现两个完全相同的弟子** — recruitList 同内容双胞胎被招募路径各自分配新 ID 插入（`recruitAllFromList` 无去重；`processAutoRecruit` 只按 id 去重；手动招募只移除点击那条）。修复：批量招募路径（自动/一键）统一 `dedupeRecruits` 三级去重（id/内容/同人签名）、`recruitAllFromList` 事务开头净化 + 按 id 移除已招募条目；`recruitDiscipleFromList` 招募成功时按 `isSamePerson` 同步移除同内容双胞胎；三处招募守卫统一为 `RecruitIntegrity::isValidRecruit`；UI 层 `recruitListAggregates` 按 id 去重兜底（防 LazyVerticalGrid 重复 key 异常）
+- **AI 宗门弟子出现 38 岁炼虚等年轻高境界** — `adjustDiscipleRealm` 给 16-29 岁 AI 弟子直接赋高境界不改年龄，俘虏入列后原样成为玩家弟子。修复：AI 生成时按境界配最小合理年龄（`GameConfig.Realm.minReasonableAge`：炼虚≥300岁、化神≥200岁等，均低于寿元上限）；招募时仅软校验日志不阻断（保住俘虏玩法）
+- **弟子体质/词条在存档读档后丢失** — `DiscipleSerializer` 序列化缺少 `physiqueIds/affixIds`，读档后招募列表与 AI 宗门弟子体质/词条恒空（招募到"无体质无词条"弟子）。修复：补全序列化字段（@ProtoNumber 104/105，向后兼容）+ 序列化往返守卫测试
+
+### 优化
+
+- **弟子肖像选择接入确定性随机** — `PortraitPool.getRandomPortrait` 改为调用方注入 `nextInt`（消灭裸 `kotlin.random.Random` 违规），4 个调用点分别接入分区 PRNG/GameRandom，读档后肖像与存档一致
+- **招募净化零 RNG 消耗** — 净化逻辑不消耗分区 PRNG，不破坏存档确定性
+
 ## [4.0.81] - 2026-07-31
 
 ### 修复

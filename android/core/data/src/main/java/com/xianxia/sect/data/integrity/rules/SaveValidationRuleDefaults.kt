@@ -25,6 +25,7 @@ fun SaveValidationRuleRegistry.registerDefaults() {
             BloodRefinementRefRule,    // order=17
             ItemRefConsistencyRule,    // order=18
             EntityCountBoundsRule,     // order=19
+            RecruitListCleanupRule,    // order=20
         )
     )
 }

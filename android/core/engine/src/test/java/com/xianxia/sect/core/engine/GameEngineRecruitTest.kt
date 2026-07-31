@@ -1,7 +1,9 @@
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.engine.service.RecruitService
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.RecruitIntegrity
 import com.xianxia.sect.core.model.UsageTracking
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
@@ -29,9 +31,10 @@ class GameEngineRecruitTest {
 
     /** 模拟 recruitAllFromList 的事务内逻辑（纯 [MutableGameState] 操作） */
     private fun executeRecruitAll(state: MutableGameState): Int {
-        val validRecruits = state.gameData.recruitList.filter { d ->
-            d.name.isNotBlank() && d.age > 0 && d.realm > 0
-        }
+        // 模拟事务开头净化：损坏/重复/残留条目移除（与真实实现一致）
+        val sanitized = RecruitService.sanitizeRecruitList(state)
+        val validRecruits = state.gameData.recruitList
+            .filter(RecruitIntegrity::isValidRecruit)
         if (validRecruits.isEmpty()) return 0
 
         val currentMonth = state.gameData.gameYear * 12 + state.gameData.gameMonth
@@ -108,16 +111,14 @@ class GameEngineRecruitTest {
             createRecruit(name = "有效弟子", id = validId),
             createRecruit(name = "", age = 20, realm = 9),           // blank name
             createRecruit(name = "零岁", age = 0, realm = 9),        // age 0
-            createRecruit(name = "零境界", age = 20, realm = 0),     // realm 0
+            createRecruit(name = "仙人", age = 20, realm = 0),       // realm 0 仙人合法
         ))
 
         val count = executeRecruitAll(state)
 
-        assertEquals("应招募 1 人（仅有效者）", 1, count)
+        assertEquals("应招募 2 人（有效者+仙人）", 2, count)
         assertEquals("recruitList 清空", 0, state.gameData.recruitList.size)
-        assertEquals("DiscipleTables 新增 1 人", 1, state.discipleTables.ids.size)
-        val recruitedName = state.discipleTables.assembleAll().first().name
-        assertEquals("有效弟子", recruitedName)
+        assertEquals("DiscipleTables 新增 2 人", 2, state.discipleTables.ids.size)
     }
 
     @Test
@@ -130,7 +131,7 @@ class GameEngineRecruitTest {
         val count = executeRecruitAll(state)
 
         assertEquals("应招募 0 人", 0, count)
-        assertEquals("recruitList 保持不变", 2, state.gameData.recruitList.size)
+        assertEquals("损坏条目应被事务开头净化移除", 0, state.gameData.recruitList.size)
         assertEquals("DiscipleTables 不变", 0, state.discipleTables.ids.size)
     }
 
@@ -164,5 +165,45 @@ class GameEngineRecruitTest {
         for (id in state.discipleTables.ids) {
             assertEquals("recruitedMonth 正确", expectedMonth, state.discipleTables.recruitedMonths[id])
         }
+    }
+
+    @Test
+    fun `recruit all - duplicate ids recruit once`() {
+        val dupId = UUID.randomUUID().toString()
+        val state = createState(recruitList = listOf(
+            createRecruit(name = "张三", id = dupId),
+            createRecruit(name = "李四", id = dupId)
+        ))
+
+        val count = executeRecruitAll(state)
+
+        assertEquals("同 id 两条应只招募 1 人", 1, count)
+        assertEquals("DiscipleTables 只新增 1 人", 1, state.discipleTables.ids.size)
+        assertEquals("recruitList 应清空（同 id 残余一并移除）",
+            0, state.gameData.recruitList.size)
+    }
+
+    @Test
+    fun `recruit all - twin content different ids recruit once`() {
+        val state = createState(recruitList = listOf(
+            createRecruit(name = "张三", age = 20),
+            createRecruit(name = "张三", age = 20)
+        ))
+
+        val count = executeRecruitAll(state)
+
+        assertEquals("同内容双胞胎应只招募 1 人", 1, count)
+        assertEquals("DiscipleTables 只新增 1 人", 1, state.discipleTables.ids.size)
+    }
+
+    @Test
+    fun `recruit all - realm zero immortal is valid`() {
+        val state = createState(recruitList = listOf(
+            createRecruit(name = "仙人弟子", realm = 0)
+        ))
+
+        val count = executeRecruitAll(state)
+
+        assertEquals("realm=0（仙人）应可招募", 1, count)
     }
 }

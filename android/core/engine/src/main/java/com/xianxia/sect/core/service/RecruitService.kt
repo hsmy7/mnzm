@@ -37,10 +37,6 @@ class RecruitService @Inject constructor(
     companion object {
         private const val TAG = "RecruitService"
 
-        /** 招募弟子最大合理年龄（超过此值的视为数据损坏） */
-        private const val MAX_REASONABLE_AGE = 10000
-        private val VALID_REALM_RANGE = GameConfig.Realm.CONFIGS.keys.let { it.min()..it.max() }
-
         /** 招募弟子基础年龄范围 */
         private const val RECRUIT_AGE_MIN = 16
         private const val RECRUIT_AGE_RANGE = 14
@@ -85,13 +81,17 @@ class RecruitService @Inject constructor(
             val filter = rawFilter.filter { it in 1..5 }.toSet()
             if (filter.isEmpty()) return 0
 
-            val distinctRecruits = state.gameData.recruitList
-                .distinctBy { it.id }.also { deduped ->
-                    val dupCount = state.gameData.recruitList.size - deduped.size
-                    if (dupCount > 0) {
-                        DomainLog.w(TAG, "processAutoRecruit: $dupCount duplicate recruit IDs removed")
-                    }
+            // 先过滤损坏条目，再三级去重（与净化逻辑一致：损坏先于去重，
+            // 防损坏条目与正常条目同人签名时去重丢弃正常者；损坏条目
+            // 随列表重建被移除，不再永久残留）
+            val distinctRecruits = RecruitIntegrity.dedupeRecruits(
+                state.gameData.recruitList.filter(RecruitIntegrity::isValidRecruit)
+            ).also { deduped ->
+                val dupCount = state.gameData.recruitList.size - deduped.size
+                if (dupCount > 0) {
+                    DomainLog.w(TAG, "processAutoRecruit: $dupCount corrupted/duplicate recruit entries removed")
                 }
+            }
             val (autoRecruits, keepManual) = distinctRecruits
                 .partition { disciple ->
                     disciple.spiritRootType.split(",")
@@ -119,8 +119,7 @@ class RecruitService @Inject constructor(
             val overflowKeep = autoRecruits.drop(remaining)
 
             for (disciple in toRecruit) {
-                if (disciple.name.isBlank() || disciple.age <= 0 || disciple.age > MAX_REASONABLE_AGE
-                    || disciple.realm !in VALID_REALM_RANGE) {
+                if (!RecruitIntegrity.isValidRecruit(disciple)) {
                     DomainLog.w(TAG, "processAutoRecruit: skipping corrupted disciple ${disciple.id}")
                     corruptedIds.add(disciple.id)
                     continue
@@ -196,9 +195,8 @@ class RecruitService @Inject constructor(
                 }
 
             // 损坏数据守卫：跳过空白名字/无效年龄/无效境界的条目
-            val (validRejected, corruptedRejected) = rejected.partition { d ->
-                d.name.isNotBlank() && d.age in 1..MAX_REASONABLE_AGE
-                    && d.realm in VALID_REALM_RANGE
+            val (validRejected, corruptedRejected) = rejected.partition {
+                RecruitIntegrity.isValidRecruit(it)
             }
 
             if (validRejected.isEmpty()) {
@@ -218,6 +216,31 @@ class RecruitService @Inject constructor(
                 "${corruptedRejected.size} corrupted skipped")
             return validRejected.size
         }
+        /**
+         * 净化 recruitList：移除损坏条目 / 同 id 重复 / 同内容双胞胎 /
+         * 已入宗门残留。必须在 [GameStateStore.update] 事务内调用
+         * （接收 [MutableGameState]）。
+         *
+         * 有移除时复位双惰性状态，让后续 processAutoRecruit /
+         * processAutoReject 重新评估列表。
+         *
+         * @param state 事务内的可变游戏状态
+         * @return 实际移除的条目数量
+         */
+        fun sanitizeRecruitList(state: MutableGameState): Int {
+            val report = RecruitIntegrity.sanitizeRecruitList(
+                recruits = state.gameData.recruitList,
+                sectDisciples = state.discipleTables.assembleAll()
+            )
+            if (report.removedCount > 0) {
+                state.gameData = state.gameData.copy(recruitList = report.cleaned)
+                RecruitLazyState.autoRecruitIdle = false
+                RecruitLazyState.autoRejectIdle = false
+                report.details.forEach { DomainLog.w(TAG, "sanitizeRecruitList: $it") }
+            }
+            return report.removedCount
+        }
+
         /**
          * 重置自动招募惰性状态。
          * 当玩家变更自动招募筛选条件时调用，使每月招募检测重新活跃。
@@ -337,12 +360,15 @@ class RecruitService @Inject constructor(
     // ── 招募列表老化 ──────────────────────────────────────────────────
 
     /**
-     * 每年对所有待招募弟子年龄 +1，超龄者死亡移除。
+     * 每年对所有待招募弟子年龄 +1（超龄者死亡移除）后净化招募列表
+     * （异常条目清理）。先老化后净化：老化产生的越界年龄（如 10000→10001）
+     * 由净化即时清除，不留存至次年。
      * 在 [CultivationEventProcessor.processYearlyEvents] 中调用。
      */
     fun ageRecruitList(year: Int) {
         stateStore.update {
             processRecruitAging(this)
+            sanitizeRecruitList(this)
         }
         val recruitCount = stateStore.gameDataSnapshot.recruitList.size
         DomainLog.d(TAG, "ageRecruitList: year=$year, remaining $recruitCount recruits")

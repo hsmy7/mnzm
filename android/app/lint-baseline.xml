@@ -1,560 +1,592 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<issues format="6" by="lint 8.8.0">
+<issues format="6" by="lint 8.10.0" type="baseline" client="gradle" dependencies="false" name="AGP (8.10.0)" variant="all" version="8.10.0">
 
     <issue
-        id="DefaultLocale"
-        severity="Warning"
-        message="Implicitly using the default locale is a common source of bugs: Use `String.format(Locale, ...)` instead"
-        category="Correctness"
-        priority="6"
-        summary="Implied default locale in case conversion">
+        id="ImplicitSamInstance"
+        message="This argument is a new instance so `stopService` will not remove anything"
+        errorLine1="            stopService(Intent(this, GameForegroundService::class.java))"
+        errorLine2="                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
-            file="src/main/java/com/xianxia/sect/core/engine/domain/settlement/SettlementMetrics.kt"
-            line="33"
-            column="42"/>
-    </issue>
-
-    <issue
-        id="InlinedApi"
-        severity="Warning"
-        message="Field requires API level 29 (current min is 24)"
-        category="Correctness"
-        priority="6"
-        summary="Using inlined constants on older versions">
-        <location
-            file="src/main/java/com/xianxia/sect/core/perf/ThermalMonitor.kt"
-            line="70"
-            column="33"/>
-    </issue>
-
-    <issue
-        id="InlinedApi"
-        severity="Warning"
-        message="Field requires API level 29 (current min is 24)"
-        category="Correctness"
-        priority="6"
-        summary="Using inlined constants on older versions">
-        <location
-            file="src/main/java/com/xianxia/sect/core/perf/ThermalMonitor.kt"
-            line="74"
-            column="33"/>
-    </issue>
-
-    <issue
-        id="InlinedApi"
-        severity="Warning"
-        message="Field requires API level 29 (current min is 24)"
-        category="Correctness"
-        priority="6"
-        summary="Using inlined constants on older versions">
-        <location
-            file="src/main/java/com/xianxia/sect/core/perf/ThermalMonitor.kt"
-            line="78"
-            column="33"/>
-    </issue>
-
-    <issue
-        id="NewApi"
-        severity="Error"
-        message="Call requires API level 35 (current min is 24): java.util.List#removeFirst"
-        category="Correctness"
-        priority="6"
-        summary="Calling new methods on older versions">
-        <location
-            file="src/main/java/com/xianxia/sect/core/engine/domain/battle/AISectGarrisonManager.kt"
-            line="60"
-            column="38"/>
-    </issue>
-
-    <issue
-        id="NewApi"
-        severity="Error"
-        message="Call requires API level 35 (current min is 24): java.util.List#removeFirst"
-        category="Correctness"
-        priority="6"
-        summary="Calling new methods on older versions">
-        <location
-            file="src/main/java/com/xianxia/sect/core/engine/domain/battle/AISectGarrisonManager.kt"
-            line="107"
-            column="38"/>
-    </issue>
-
-    <issue
-        id="NewApi"
-        severity="Error"
-        message="Call requires API level 26, or core library desugaring (current min is 24): java.util.Base64#getDecoder"
-        category="Correctness"
-        priority="6"
-        summary="Calling new methods on older versions">
-        <location
-            file="src/main/java/com/xianxia/sect/data/local/ProtobufConverters.kt"
-            line="532"
-            column="39"/>
-    </issue>
-
-    <issue
-        id="NewApi"
-        severity="Error"
-        message="Call requires API level 26, or core library desugaring (current min is 24): java.util.Base64.Decoder#decode"
-        category="Correctness"
-        priority="6"
-        summary="Calling new methods on older versions">
-        <location
-            file="src/main/java/com/xianxia/sect/data/local/ProtobufConverters.kt"
-            line="532"
-            column="52"/>
-    </issue>
-
-    <issue
-        id="GradleDependency"
-        severity="Warning"
-        message="A newer version of org.jetbrains.kotlin.plugin.serialization than 2.0.21 is available"
-        category="Correctness"
-        priority="4"
-        summary="Obsolete Gradle Dependency">
-        <location
-            file="build.gradle"
-            line="5"
-            column="60"/>
-    </issue>
-
-    <issue
-        id="GradleDependency"
-        severity="Warning"
-        message="A newer version of androidx.compose.material3:material3 than 1.3.1 is available"
-        category="Correctness"
-        priority="4"
-        summary="Obsolete Gradle Dependency">
-        <location
-            file="build.gradle"
-            line="171"
-            column="20"/>
-    </issue>
-
-    <issue
-        id="GradleDependency"
-        severity="Warning"
-        message="A newer version of com.google.dagger:hilt-android than 2.56 is available"
-        category="Correctness"
-        priority="4"
-        summary="Obsolete Gradle Dependency">
-        <location
-            file="build.gradle"
-            line="189"
-            column="20"/>
-    </issue>
-
-    <issue
-        id="GradleDependency"
-        severity="Warning"
-        message="A newer version of com.google.dagger:hilt-compiler than 2.56 is available"
-        category="Correctness"
-        priority="4"
-        summary="Obsolete Gradle Dependency">
-        <location
-            file="build.gradle"
-            line="190"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="GradleDependency"
-        severity="Warning"
-        message="A newer version of org.jetbrains.kotlinx:kotlinx-serialization-json than 1.7.3 is available"
-        category="Correctness"
-        priority="4"
-        summary="Obsolete Gradle Dependency">
-        <location
-            file="build.gradle"
-            line="198"
-            column="20"/>
-    </issue>
-
-    <issue
-        id="GradleDependency"
-        severity="Warning"
-        message="A newer version of org.jetbrains.kotlinx:kotlinx-serialization-protobuf than 1.7.3 is available"
-        category="Correctness"
-        priority="4"
-        summary="Obsolete Gradle Dependency">
-        <location
-            file="build.gradle"
-            line="199"
-            column="20"/>
-    </issue>
-
-    <issue
-        id="ConfigurationScreenWidthHeight"
-        severity="Warning"
-        message="Using Configuration.screenWidthDp instead of LocalWindowInfo.current.containerSize"
-        category="Correctness"
-        priority="3"
-        summary="Using Configuration.screenWidthDp/screenHeightDp instead of LocalWindowInfo.current.containerSize">
-        <location
-            file="src/main/java/com/xianxia/sect/ui/game/dialogs/ResidenceDialog.kt"
-            line="71"
-            column="28"/>
-    </issue>
-
-    <issue
-        id="ConfigurationScreenWidthHeight"
-        severity="Warning"
-        message="Using Configuration.screenHeightDp instead of LocalWindowInfo.current.containerSize"
-        category="Correctness"
-        priority="3"
-        summary="Using Configuration.screenWidthDp/screenHeightDp instead of LocalWindowInfo.current.containerSize">
-        <location
-            file="src/main/java/com/xianxia/sect/ui/game/dialogs/ResidenceDialog.kt"
-            line="72"
-            column="29"/>
-    </issue>
-
-    <issue
-        id="ConfigurationScreenWidthHeight"
-        severity="Warning"
-        message="Using Configuration.screenWidthDp instead of LocalWindowInfo.current.containerSize"
-        category="Correctness"
-        priority="3"
-        summary="Using Configuration.screenWidthDp/screenHeightDp instead of LocalWindowInfo.current.containerSize">
-        <location
-            file="src/main/java/com/xianxia/sect/ui/components/StandardPromptDialog.kt"
-            line="51"
-            column="24"/>
-    </issue>
-
-    <issue
-        id="ConfigurationScreenWidthHeight"
-        severity="Warning"
-        message="Using Configuration.screenHeightDp instead of LocalWindowInfo.current.containerSize"
-        category="Correctness"
-        priority="3"
-        summary="Using Configuration.screenWidthDp/screenHeightDp instead of LocalWindowInfo.current.containerSize">
-        <location
-            file="src/main/java/com/xianxia/sect/ui/components/StandardPromptDialog.kt"
-            line="52"
+            file="src/main/java/com/xianxia/sect/ui/game/GameActivity.kt"
+            line="658"
             column="25"/>
     </issue>
 
     <issue
-        id="ModifierParameter"
-        severity="Warning"
-        message="Modifier parameter should be the first optional parameter"
-        category="Correctness"
-        priority="3"
-        summary="Guidelines for Modifier parameters in a Composable function">
+        id="PrivateApi"
+        message="Accessing internal APIs via reflection is not supported and may not work on all devices or in the future"
+        errorLine1="                val sysPropClass = Class.forName(&quot;android.os.SystemProperties&quot;)"
+        errorLine2="                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
-            file="src/main/java/com/xianxia/sect/ui/game/MainGameScreen.kt"
-            line="921"
-            column="5"/>
+            file="src/main/java/com/xianxia/sect/core/VulkanPolicy.kt"
+            line="189"
+            column="36"/>
     </issue>
 
     <issue
-        id="StateFlowValueCalledInComposition"
-        severity="Error"
-        message="StateFlow.value should not be called within composition"
-        category="Correctness"
-        priority="3"
-        summary="StateFlow.value should not be called within composition">
-        <location
-            file="src/main/java/com/xianxia/sect/ui/game/dialogs/WorldMapSectDetailDialog.kt"
-            line="397"
-            column="58"/>
-    </issue>
-
-    <issue
-        id="StateFlowValueCalledInComposition"
-        severity="Error"
-        message="StateFlow.value should not be called within composition"
-        category="Correctness"
-        priority="3"
-        summary="StateFlow.value should not be called within composition">
-        <location
-            file="src/main/java/com/xianxia/sect/ui/game/dialogs/WorldMapSectDetailDialog.kt"
-            line="418"
-            column="58"/>
-    </issue>
-
-    <issue
-        id="UnrememberedMutableState"
-        severity="Error"
-        message="Creating a state object during composition without using `remember`"
-        category="Correctness"
-        priority="3"
-        summary="Creating a state object during composition without using `remember`">
-        <location
-            file="src/main/java/com/xianxia/sect/ui/game/MainGameScreen.kt"
-            line="166"
-            column="31"/>
-    </issue>
-
-    <issue
-        id="UnrememberedMutableState"
-        severity="Error"
-        message="Creating a state object during composition without using `remember`"
-        category="Correctness"
-        priority="3"
-        summary="Creating a state object during composition without using `remember`">
-        <location
-            file="src/main/java/com/xianxia/sect/ui/game/MainGameScreen.kt"
-            line="172"
-            column="32"/>
-    </issue>
-
-    <issue
-        id="UnrememberedMutableState"
-        severity="Error"
-        message="Creating a state object during composition without using `remember`"
-        category="Correctness"
-        priority="3"
-        summary="Creating a state object during composition without using `remember`">
-        <location
-            file="src/main/java/com/xianxia/sect/ui/game/MainGameScreen.kt"
-            line="176"
-            column="37"/>
-    </issue>
-
-    <issue
-        id="DiscouragedApi"
-        severity="Warning"
-        message="Use of this function is discouraged"
-        category="Correctness"
-        priority="2"
-        summary="Using discouraged APIs">
-        <location
-            file="src/main/java/com/xianxia/sect/core/util/PortraitPool.kt"
-            line="16"
-            column="34"/>
-    </issue>
-
-    <issue
-        id="TrustAllX509TrustManager"
-        severity="Warning"
-        message="checkClientTrusted is empty"
-        category="Security"
-        priority="6"
-        summary="Insecure TLS/SSL trust manager">
-        <location
-            file="../../../.gradle/caches/8.14.5/transforms/2dab7018d87d499bb49d221c90fa69cd/transformed/jetified-dirichlet_ad_4.2.5.0/jars/classes.jar"/>
-    </issue>
-
-    <issue
-        id="QueryAllPackagesPermission"
-        severity="Error"
-        message="A queries declaration should generally be used instead of QUERY_ALL_PACKAGES"
-        category="Compliance"
-        priority="8"
-        summary="Using the QUERY_ALL_PACKAGES permission">
+        id="UnusedAttribute"
+        message="Attribute `appCategory` is only used in API level 26 and higher (current min is 24)"
+        errorLine1="        android:appCategory=&quot;game&quot;"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
             file="src/main/AndroidManifest.xml"
-            line="20"
-            column="22"/>
+            line="77"
+            column="9"/>
     </issue>
 
     <issue
-        id="ObsoleteSdkInt"
-        severity="Warning"
-        message="Unnecessary; SDK_INT is always >= 24"
-        category="Performance"
-        priority="6"
-        summary="Obsolete SDK_INT Version Check">
+        id="BatteryLife"
+        message="Use of `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` violates the Play Store Content Policy regarding acceptable use cases, as described in https://developer.android.com/training/monitoring-device-state/doze-standby.html"
+        errorLine1="            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {"
+        errorLine2="                                         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
-            file="src/main/java/com/xianxia/sect/core/perf/FrameMetricsMonitor.kt"
+            file="src/main/java/com/xianxia/sect/core/util/BatteryOptimizationHelper.kt"
             line="46"
-            column="5"/>
+            column="42"/>
     </issue>
 
     <issue
-        id="ObsoleteSdkInt"
-        severity="Warning"
-        message="Unnecessary; SDK_INT is always >= 24"
-        category="Performance"
-        priority="6"
-        summary="Obsolete SDK_INT Version Check">
+        id="GradleDependency"
+        message="A newer version of androidx.lifecycle:lifecycle-runtime-compose than 2.8.7 is available: 2.9.4"
+        errorLine1="lifecycle = &quot;2.8.7&quot;"
+        errorLine2="            ~~~~~~~">
         <location
-            file="src/main/java/com/xianxia/sect/core/perf/FrameMetricsMonitor.kt"
-            line="101"
-            column="17"/>
-    </issue>
-
-    <issue
-        id="ObsoleteSdkInt"
-        severity="Warning"
-        message="Unnecessary; SDK_INT is always >= 24"
-        category="Performance"
-        priority="6"
-        summary="Obsolete SDK_INT Version Check">
-        <location
-            file="src/main/java/com/xianxia/sect/ui/game/GameActivity.kt"
-            line="412"
+            file="../gradle/libs.versions.toml"
+            line="15"
             column="13"/>
     </issue>
 
     <issue
-        id="AutoboxingStateCreation"
-        severity="Information"
-        message="Prefer mutableFloatStateOf instead of mutableStateOf"
-        category="Performance"
-        priority="3"
-        summary="State will autobox values assigned to this state. Use a specialized state type instead.">
+        id="GradleDependency"
+        message="A newer version of androidx.lifecycle:lifecycle-runtime-ktx than 2.8.7 is available: 2.9.4"
+        errorLine1="lifecycle = &quot;2.8.7&quot;"
+        errorLine2="            ~~~~~~~">
         <location
-            file="src/main/java/com/xianxia/sect/ui/game/components/detail/DetailCultivationSection.kt"
-            line="377"
-            column="35"/>
+            file="../gradle/libs.versions.toml"
+            line="15"
+            column="13"/>
     </issue>
 
     <issue
-        id="AutoboxingStateCreation"
-        severity="Information"
-        message="Prefer mutableFloatStateOf instead of mutableStateOf"
-        category="Performance"
-        priority="3"
-        summary="State will autobox values assigned to this state. Use a specialized state type instead.">
+        id="GradleDependency"
+        message="A newer version of androidx.lifecycle:lifecycle-viewmodel-compose than 2.8.7 is available: 2.9.4"
+        errorLine1="lifecycle = &quot;2.8.7&quot;"
+        errorLine2="            ~~~~~~~">
         <location
-            file="src/main/java/com/xianxia/sect/ui/game/components/detail/DetailCultivationSection.kt"
-            line="378"
-            column="35"/>
+            file="../gradle/libs.versions.toml"
+            line="15"
+            column="13"/>
     </issue>
 
     <issue
-        id="AutoboxingStateCreation"
-        severity="Information"
-        message="Prefer mutableFloatStateOf instead of mutableStateOf"
-        category="Performance"
-        priority="3"
-        summary="State will autobox values assigned to this state. Use a specialized state type instead.">
+        id="GradleDependency"
+        message="A newer version of androidx.lifecycle:lifecycle-viewmodel-ktx than 2.8.7 is available: 2.9.4"
+        errorLine1="lifecycle = &quot;2.8.7&quot;"
+        errorLine2="            ~~~~~~~">
         <location
-            file="src/main/java/com/xianxia/sect/ui/game/components/ItemDetailDialog.kt"
-            line="206"
-            column="53"/>
+            file="../gradle/libs.versions.toml"
+            line="15"
+            column="13"/>
     </issue>
 
     <issue
-        id="AutoboxingStateCreation"
-        severity="Information"
-        message="Prefer mutableFloatStateOf instead of mutableStateOf"
-        category="Performance"
-        priority="3"
-        summary="State will autobox values assigned to this state. Use a specialized state type instead.">
+        id="GradleDependency"
+        message="A newer version of com.tencent:mmkv than 2.3.0 is available: 2.4.0"
+        errorLine1="mmkv = &quot;2.3.0&quot;"
+        errorLine2="       ~~~~~~~">
         <location
-            file="src/main/java/com/xianxia/sect/ui/game/components/ItemDetailDialog.kt"
-            line="391"
-            column="53"/>
+            file="../gradle/libs.versions.toml"
+            line="18"
+            column="8"/>
     </issue>
 
     <issue
-        id="AutoboxingStateCreation"
-        severity="Information"
-        message="Prefer mutableIntStateOf instead of mutableStateOf"
-        category="Performance"
-        priority="3"
-        summary="State will autobox values assigned to this state. Use a specialized state type instead.">
+        id="GradleDependency"
+        message="A newer version of androidx.core:core-ktx than 1.13.1 is available: 1.16.0"
+        errorLine1="core-ktx = &quot;1.13.1&quot;"
+        errorLine2="           ~~~~~~~~">
         <location
-            file="src/main/java/com/xianxia/sect/ui/game/dialogs/MissionHallDialog.kt"
-            line="535"
-            column="42"/>
+            file="../gradle/libs.versions.toml"
+            line="34"
+            column="12"/>
     </issue>
 
     <issue
-        id="AutoboxingStateCreation"
-        severity="Information"
-        message="Prefer mutableIntStateOf instead of mutableStateOf"
-        category="Performance"
-        priority="3"
-        summary="State will autobox values assigned to this state. Use a specialized state type instead.">
+        id="GradleDependency"
+        message="A newer version of androidx.annotation:annotation than 1.9.1 is available: 1.10.0"
+        errorLine1="annotation = { group = &quot;androidx.annotation&quot;, name = &quot;annotation&quot;, version = &quot;1.9.1&quot; }"
+        errorLine2="                                                                             ~~~~~~~">
         <location
-            file="src/main/java/com/xianxia/sect/ui/game/dialogs/PatrolTowerDialog.kt"
-            line="57"
-            column="42"/>
+            file="../gradle/libs.versions.toml"
+            line="63"
+            column="78"/>
     </issue>
 
     <issue
-        id="AutoboxingStateCreation"
-        severity="Information"
-        message="Prefer mutableIntStateOf instead of mutableStateOf"
-        category="Performance"
-        priority="3"
-        summary="State will autobox values assigned to this state. Use a specialized state type instead.">
+        id="SwitchIntDef"
+        message="Switch statement on an `int` with known associated constant missing case `ComponentCallbacks2.TRIM_MEMORY_COMPLETE`, `ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW`"
+        errorLine1="        when (level) {"
+        errorLine2="        ~~~~">
         <location
-            file="src/main/java/com/xianxia/sect/ui/game/dialogs/ResidenceDialog.kt"
-            line="61"
-            column="41"/>
+            file="src/main/java/com/xianxia/sect/ui/game/GameActivity.kt"
+            line="673"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="Aligned16KB"
+        message="The native library `x86_64/libBugly.so` (from `com.tencent.bugly:nativecrashreport:3.9.2`) is not 16 KB aligned">
+        <location
+            file="$GRADLE_USER_HOME/caches/8.14.5/transforms/db43ca30ff5c5bacb26063554a60c3e1/transformed/jetified-nativecrashreport-3.9.2/jni/x86_64/libBugly.so"/>
+    </issue>
+
+    <issue
+        id="Aligned16KB"
+        message="The native library `x86_64/libBugly.so` (from `com.tencent.bugly:nativecrashreport:3.9.2`) is not 16 KB aligned">
+        <location
+            file="$GRADLE_USER_HOME/caches/8.14.5/transforms/db43ca30ff5c5bacb26063554a60c3e1/transformed/jetified-nativecrashreport-3.9.2/jni/x86_64/libBugly.so"/>
+    </issue>
+
+    <issue
+        id="Aligned16KB"
+        message="The native library `x86_64/libBugly_Native.so` (from `com.tencent.bugly:crashreport:4.1.9.3`) is not 16 KB aligned">
+        <location
+            file="$GRADLE_USER_HOME/caches/8.14.5/transforms/8401e77b3295548ebb56c1436fd4b669/transformed/jetified-crashreport-4.1.9.3/jni/x86_64/libBugly_Native.so"/>
+    </issue>
+
+    <issue
+        id="Aligned16KB"
+        message="The native library `x86_64/libBugly_Native.so` (from `com.tencent.bugly:crashreport:4.1.9.3`) is not 16 KB aligned"
+        errorLine1="bugly-crashreport = { group = &quot;com.tencent.bugly&quot;, name = &quot;crashreport&quot;, version.ref = &quot;bugly&quot; }"
+        errorLine2="                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="../gradle/libs.versions.toml"
+            line="143"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="HardwareIds"
+        message="Using `SERIAL` to get device identifiers is not recommended"
+        errorLine1="            if (Build.SERIAL?.lowercase() == &quot;unknown&quot;) {"
+        errorLine2="                      ~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/core/VulkanPolicy.kt"
+            line="136"
+            column="23"/>
+    </issue>
+
+    <issue
+        id="TrustAllX509TrustManager"
+        message="`checkClientTrusted` is empty, which could cause insecure network traffic due to trusting arbitrary TLS/SSL certificates presented by peers">
+        <location
+            file="$GRADLE_USER_HOME/caches/8.14.5/transforms/6a6290bc6868696f4c00d2541730357a/transformed/jetified-dirichlet_ad_4.2.5.0/jars/classes.jar"/>
+    </issue>
+
+    <issue
+        id="WakelockTimeout"
+        message="Provide a timeout when requesting a wakelock with `PowerManager.Wakelock.acquire(long timeout)`. This will ensure the OS will cleanup any wakelocks that last longer than you intend, and will save your user&apos;s battery."
+        errorLine1="            acquire()"
+        errorLine2="            ~~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/core/util/WakeLockManager.kt"
+            line="75"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="ObsoleteSdkInt"
+        message="Unnecessary; `SDK_INT` is never &lt; 24"
+        errorLine1="        if (Build.VERSION.SDK_INT &lt; Build.VERSION_CODES.M) return true"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/core/util/BatteryOptimizationHelper.kt"
+            line="34"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="ObsoleteSdkInt"
+        message="Unnecessary; `SDK_INT` is never &lt; 24"
+        errorLine1="        if (Build.VERSION.SDK_INT &lt; Build.VERSION_CODES.M) return"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/core/util/BatteryOptimizationHelper.kt"
+            line="42"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="ObsoleteSdkInt"
+        message="Unnecessary; `SDK_INT` is always >= 24"
+        errorLine1="        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/ui/game/GameActivity.kt"
+            line="480"
+            column="13"/>
     </issue>
 
     <issue
         id="UnusedResources"
-        severity="Warning"
-        message="The resource R.drawable.bg_navbar appears to be unused"
-        category="Performance"
-        priority="3"
-        summary="Unused resources">
+        message="The resource `R.drawable.blood_refining_pool` appears to be unused">
         <location
-            file="src/main/res/drawable-nodpi/bg_navbar.jpg"/>
+            file="src/main/res/drawable-nodpi/blood_refining_pool.webp"/>
     </issue>
 
     <issue
         id="UnusedResources"
-        severity="Warning"
-        message="The resource R.drawable.bg_screen appears to be unused"
-        category="Performance"
-        priority="3"
-        summary="Unused resources">
+        message="The resource `R.drawable.building_multi_residence_upgraded` appears to be unused">
         <location
-            file="src/main/res/drawable-nodpi/bg_screen.webp"/>
+            file="src/main/res/drawable-nodpi/building_multi_residence_upgraded.webp"/>
     </issue>
 
     <issue
-        id="IconLocation"
-        severity="Warning"
-        message="Found bitmap drawable in densityless folder"
-        category="Usability:Icons"
-        priority="5"
-        summary="Image defined in density-independent drawable folder">
+        id="UnusedResources"
+        message="The resource `R.drawable.building_patrol_tower` appears to be unused">
         <location
-            file="src/main/res/drawable/building_multi_residence.png"/>
+            file="src/main/res/drawable-nodpi/building_patrol_tower.webp"/>
     </issue>
 
     <issue
-        id="IconLocation"
-        severity="Warning"
-        message="Found bitmap drawable in densityless folder"
-        category="Usability:Icons"
-        priority="5"
-        summary="Image defined in density-independent drawable folder">
+        id="UnusedResources"
+        message="The resource `R.drawable.female_disciple_1` appears to be unused">
         <location
-            file="src/main/res/drawable/building_single_residence.png"/>
+            file="src/main/res/drawable-nodpi/female_disciple_1.webp"/>
     </issue>
 
     <issue
-        id="IconLocation"
-        severity="Warning"
-        message="Found bitmap drawable in densityless folder"
-        category="Usability:Icons"
-        priority="5"
-        summary="Image defined in density-independent drawable folder">
+        id="UnusedResources"
+        message="The resource `R.drawable.female_disciple_10` appears to be unused">
         <location
-            file="src/main/res/drawable/building_single_residence_upgraded.png"/>
+            file="src/main/res/drawable-nodpi/female_disciple_10.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.female_disciple_11` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/female_disciple_11.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.female_disciple_12` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/female_disciple_12.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.female_disciple_13` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/female_disciple_13.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.female_disciple_14` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/female_disciple_14.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.female_disciple_15` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/female_disciple_15.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.female_disciple_16` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/female_disciple_16.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.female_disciple_17` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/female_disciple_17.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.female_disciple_2` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/female_disciple_2.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.female_disciple_3` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/female_disciple_3.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.female_disciple_4` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/female_disciple_4.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.female_disciple_5` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/female_disciple_5.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.female_disciple_6` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/female_disciple_6.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.female_disciple_7` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/female_disciple_7.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.female_disciple_8` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/female_disciple_8.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.female_disciple_9` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/female_disciple_9.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.floor_tile_2x2` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/floor_tile_2x2.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.floor_tile_2x3` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/floor_tile_2x3.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.floor_tile_3x2` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/floor_tile_3x2.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.floor_tile_3x3` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/floor_tile_3x3.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.male_disciple_1` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/male_disciple_1.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.male_disciple_10` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/male_disciple_10.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.male_disciple_11` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/male_disciple_11.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.male_disciple_12` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/male_disciple_12.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.male_disciple_13` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/male_disciple_13.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.male_disciple_14` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/male_disciple_14.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.male_disciple_15` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/male_disciple_15.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.male_disciple_16` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/male_disciple_16.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.male_disciple_17` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/male_disciple_17.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.male_disciple_18` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/male_disciple_18.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.male_disciple_19` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/male_disciple_19.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.male_disciple_2` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/male_disciple_2.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.male_disciple_20` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/male_disciple_20.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.male_disciple_3` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/male_disciple_3.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.male_disciple_4` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/male_disciple_4.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.male_disciple_5` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/male_disciple_5.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.male_disciple_6` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/male_disciple_6.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.male_disciple_7` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/male_disciple_7.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.male_disciple_8` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/male_disciple_8.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.male_disciple_9` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/male_disciple_9.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.sect_map_bg` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/sect_map_bg.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.spirit_mine_ground` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/spirit_mine_ground.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.spirit_stone` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/spirit_stone.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.tiger_bone` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/tiger_bone.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.ui_reward` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/ui_reward.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.ui_secret_realm_button` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/ui_secret_realm_button.webp"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.drawable.ui_sprites` appears to be unused">
+        <location
+            file="src/main/res/drawable-nodpi/ui_sprites.webp"/>
     </issue>
 
     <issue
         id="IconDuplicates"
-        severity="Warning"
-        message="The following unrelated icon files have identical contents"
-        category="Usability:Icons"
-        priority="3"
-        summary="Duplicated icons under different names">
-        <location
-            file="src/main/res/drawable-nodpi/bg_navbar.jpg"/>
-        <location
-            file="src/main/res/drawable-nodpi/bg_horizontal.jpg"/>
-    </issue>
-
-    <issue
-        id="IconDuplicates"
-        severity="Warning"
-        message="The following unrelated icon files have identical contents"
-        category="Usability:Icons"
-        priority="3"
-        summary="Duplicated icons under different names">
+        message="The following unrelated icon files have identical contents: dialog_box.webp, ui_tooltip.webp">
         <location
             file="src/main/res/drawable-nodpi/ui_tooltip.webp"/>
         <location
@@ -562,25 +594,245 @@
     </issue>
 
     <issue
-        id="IconExtension"
-        severity="Warning"
-        message="Misleading file extension; named .webp but the file format is png"
-        category="Usability:Icons"
-        priority="3"
-        summary="Icon format does not match the file extension">
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                data = Uri.parse(&quot;package:${activity.packageName}&quot;)"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
-            file="src/main/res/drawable-nodpi/bg_dialog_mail.webp"/>
+            file="src/main/java/com/xianxia/sect/core/util/BatteryOptimizationHelper.kt"
+            line="47"
+            column="24"/>
     </issue>
 
     <issue
-        id="IconExtension"
-        severity="Warning"
-        message="Misleading file extension; named .webp but the file format is png"
-        category="Usability:Icons"
-        priority="3"
-        summary="Icon format does not match the file extension">
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                data = Uri.parse(&quot;package:${activity.packageName}&quot;)"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
-            file="src/main/res/drawable-nodpi/ui_mail_button.webp"/>
+            file="src/main/java/com/xianxia/sect/core/util/BatteryOptimizationHelper.kt"
+            line="47"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                data = Uri.parse(&quot;package:${context.packageName}&quot;)"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/core/util/BatteryOptimizationHelper.kt"
+            line="103"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="                data = Uri.parse(&quot;package:${context.packageName}&quot;)"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/core/util/BatteryOptimizationHelper.kt"
+            line="103"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="            prefs.edit()"
+        errorLine2="            ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/core/CrashHandler.kt"
+            line="309"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        p.edit()"
+        errorLine2="        ~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/core/CrashRecoveryEngine.kt"
+            line="84"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        p.edit().remove(KEY_CONSECUTIVE_CRASHES).apply()"
+        errorLine2="        ~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/core/CrashRecoveryEngine.kt"
+            line="112"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        requirePrefs().edit()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/core/CrashRecoveryEngine.kt"
+            line="127"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        p.edit().putBoolean(KEY_RENDER_SAFE_MODE, true).apply()"
+        errorLine2="        ~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/core/CrashRecoveryEngine.kt"
+            line="146"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        requirePrefs().edit().putBoolean(KEY_VULKAN_INIT_FAILED, true).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/core/CrashRecoveryEngine.kt"
+            line="168"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        requirePrefs().edit().remove(KEY_VULKAN_INIT_FAILED).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/core/CrashRecoveryEngine.kt"
+            line="176"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        requirePrefs().edit().putBoolean(KEY_PREWARM_STARTED, true).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/core/CrashRecoveryEngine.kt"
+            line="199"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        requirePrefs().edit().remove(KEY_PREWARM_STARTED).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/core/CrashRecoveryEngine.kt"
+            line="207"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        requirePrefs().edit().putBoolean(KEY_SURFACE_INIT_STARTED, true).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/core/CrashRecoveryEngine.kt"
+            line="227"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        requirePrefs().edit().remove(KEY_SURFACE_INIT_STARTED).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/core/CrashRecoveryEngine.kt"
+            line="235"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        requirePrefs().edit().putBoolean(KEY_VULKAN_CRASH_DETECTED, true).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/core/CrashRecoveryEngine.kt"
+            line="254"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        requirePrefs().edit().remove(KEY_VULKAN_CRASH_DETECTED).apply()"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/core/CrashRecoveryEngine.kt"
+            line="269"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        prefs.edit().putBoolean(&quot;oem_guide_shown&quot;, true).apply()"
+        errorLine2="        ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/ui/game/GameActivity.kt"
+            line="750"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="        prefs.edit().putBoolean(&quot;exact_alarm_prompted&quot;, true).apply()"
+        errorLine2="        ~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/ui/game/GameActivity.kt"
+            line="789"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `String.toUri` instead?"
+        errorLine1="        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))"
+        errorLine2="                                                ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/ui/PrivacyConsentScreen.kt"
+            line="41"
+            column="49"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="                    getSharedPreferences(name, MODE_PRIVATE).edit().clear().apply()"
+        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/XianxiaApplication.kt"
+            line="512"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="UseKtx"
+        message="Use the KTX extension function `SharedPreferences.edit` instead?"
+        errorLine1="                resetPrefs.edit().putBoolean(resetMarker, true).apply()"
+        errorLine2="                ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/xianxia/sect/XianxiaApplication.kt"
+            line="515"
+            column="17"/>
     </issue>
 
 </issues>

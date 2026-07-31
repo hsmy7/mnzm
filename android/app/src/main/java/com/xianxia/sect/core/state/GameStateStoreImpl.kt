@@ -124,7 +124,8 @@ class GameStateStoreImpl @Inject constructor(
     internal val _pendingBattleRewardCardsFlow = MutableStateFlow<List<RewardCardItem>>(emptyList())
     internal val _rewardCardQueueFlow = MutableStateFlow<List<RewardCardItem>>(emptyList())
     internal val _pendingBeastAttacksFlow = MutableStateFlow<List<PendingBeastAttack>>(emptyList())
-    internal val _pendingMarriageProposalsFlow = MutableStateFlow<List<PendingMarriageProposal>>(emptyList())
+    private val _pendingMarriageProposalsFlow =
+        MutableStateFlow<List<PendingMarriageProposal>>(emptyList())
 
     private val _isPaused = MutableStateFlow(true)
     private val _isLoading = MutableStateFlow(false)
@@ -297,7 +298,8 @@ class GameStateStoreImpl @Inject constructor(
     override val pendingBattleRewardCards: StateFlow<List<RewardCardItem>> = _pendingBattleRewardCardsFlow.asStateFlow()
     override val rewardCardQueue: StateFlow<List<RewardCardItem>> = _rewardCardQueueFlow.asStateFlow()
     override val pendingBeastAttacks: StateFlow<List<PendingBeastAttack>> = _pendingBeastAttacksFlow.asStateFlow()
-    override val pendingMarriageProposals: StateFlow<List<PendingMarriageProposal>> = _pendingMarriageProposalsFlow.asStateFlow()
+    override val pendingMarriageProposals: StateFlow<List<PendingMarriageProposal>> =
+        _pendingMarriageProposalsFlow.asStateFlow()
 
     // === 三层 StateFlow 架构 ===
     // HighFreq: 高频变化字段，sample 降频

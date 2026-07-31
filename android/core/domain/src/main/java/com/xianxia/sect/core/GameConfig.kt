@@ -311,6 +311,19 @@ object GameConfig {
         }
 
         fun meetsRealmRequirement(discipleRealm: Int, minRealm: Int): Boolean = discipleRealm <= minRealm
+
+        /**
+         * 各境界最小合理年龄（AI 弟子生成时年龄-境界匹配，防"38岁炼虚"类数据）。
+         * 所有值均低于对应境界 [RealmConfig.maxAge]，无寿元冲突。
+         */
+        val REALM_MIN_REASONABLE_AGE: Map<Int, Int> = mapOf(
+            9 to 10, 8 to 30, 7 to 60, 6 to 100, 5 to 200,
+            4 to 300, 3 to 500, 2 to 800, 1 to 1200, 0 to 2000
+        )
+
+        /** 获取指定境界的最小合理年龄，未知境界回退炼气标准 */
+        fun minReasonableAge(realm: Int): Int =
+            REALM_MIN_REASONABLE_AGE[realm] ?: REALM_MIN_REASONABLE_AGE.getValue(9)
     }
     
     object SpiritRoot {

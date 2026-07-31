@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.view.ActionMode
@@ -395,101 +396,134 @@ class MainActivity : ComponentActivity() {
 
     internal fun showSaveSelectScreen(mode: SaveSelectMode = SaveSelectMode.LOAD_SAVE) {
         lifecycleScope.launch {
-            val saveSlots = withContext(ioDispatcher.dispatcher) {
-                try {
-                    storageFacade.getSaveSlotsSuspend()
-                } catch (e: kotlinx.coroutines.CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Log.e(TAG, "getSaveSlots failed, returning empty list", e)
-                    emptyList()
-                }
-            }
-            // 迁移旧自动存档数据到空槽位
-            withContext(ioDispatcher.dispatcher) {
-                try {
-                    val legacyData = storageFacade.load(0).getOrNull()
-                    if (legacyData != null) {
-                        // 找第一个空槽
-                        val emptySlot = saveSlots.firstOrNull { it.isEmpty }?.slot
-                        if (emptySlot != null) {
-                            storageFacade.setCurrentSlot(emptySlot)
-                            storageFacade.save(emptySlot, legacyData)
-                            storageFacade.forceDeleteSlotData(0)
-                            Log.i(TAG, "Migrated legacy auto-save data to slot $emptySlot")
-                        } else {
-                            Log.w(TAG, "No empty slot found, keeping legacy auto-save in slot 0")
-                        }
-                    }
-                } catch (_: Exception) { }
-            }
-            // 查询云存档信息（异步，失败则静默跳过）
-            val cloudInfo = withContext(ioDispatcher.dispatcher) {
-                try { tapCloudSaveManager.checkCloudSave() } catch (_: Exception) { null }
-            }
-            setContent {
-                XianxiaTheme {
-                    Surface(
-                        modifier = Modifier.fillMaxSize(),
-                        color = Color.White
-                    ) {
-                        SaveSelectScreen(
-                            mode = mode,
-                            saveSlots = saveSlots,
-                            cloudSaveInfo = cloudInfo,
-                            onLoadSlot = { slot ->
-                                val intent = Intent(
-                                    this@MainActivity, GameActivity::class.java
-                                ).apply {
-                                    addFlags(
-                                        Intent.FLAG_ACTIVITY_NEW_TASK or
-                                            Intent.FLAG_ACTIVITY_CLEAR_TASK
-                                    )
-                                    putExtra(EXTRA_SLOT, slot)
-                                }
-                                startActivity(intent)
-                                finish()
-                            },
-                            onCloudSaveLoad = {
-                                if (!sessionManager.isLoggedIn) {
-                                    Toast.makeText(this@MainActivity, "请先登录 TapTap", Toast.LENGTH_SHORT).show()
-                                    return@SaveSelectScreen
-                                }
-                                val intent = Intent(this@MainActivity, GameActivity::class.java).apply {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                                    putExtra(EXTRA_CLOUD_SAVE_LOAD, true)
-                                }
-                                startActivity(intent)
-                                finish()
-                            },
-                            onNewGame = { slot, sectName ->
-                                val intent = Intent(this@MainActivity, GameActivity::class.java).apply {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                                    putExtra(EXTRA_SLOT, slot)
-                                    putExtra(EXTRA_NEW_GAME, true)
-                                    putExtra(EXTRA_SECT_NAME, sectName)
-                                }
-                                startActivity(intent)
-                                finish()
-                            },
-                            onDeleteSlot = { slot ->
-                                lifecycleScope.launch {
-                                    withContext(ioDispatcher.dispatcher) {
-                                        storageFacade.delete(slot)
-                                    }
-                                    showSaveSelectScreen(mode)
-                                }
-                            },
-                            onBack = {
-                                showModeSelectionScreen()
+            val saveSlots = loadSaveSlotsForSelect()
+            migrateLegacyAutoSave(saveSlots)
+            val cloudInfo = queryCloudSaveInfo()
+            renderSaveSelectScreen(mode, saveSlots, cloudInfo)
+        }
+    }
+
+    /** 渲染存档选择界面（含全部存档操作回调） */
+    private fun renderSaveSelectScreen(
+        mode: SaveSelectMode,
+        saveSlots: List<SaveSlot>,
+        cloudInfo: TapCloudSaveManager.CloudSaveInfo?
+    ) {
+        setContent {
+            XianxiaTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = Color.White
+                ) {
+                    SaveSelectScreen(
+                        mode = mode,
+                        saveSlots = saveSlots,
+                        cloudSaveInfo = cloudInfo,
+                        onLoadSlot = { slot ->
+                            launchGame(slot = slot)
+                        },
+                        onCloudSaveLoad = {
+                            if (!sessionManager.isLoggedIn) {
+                                Toast.makeText(
+                                    this@MainActivity, "请先登录 TapTap",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                return@SaveSelectScreen
                             }
-                        )
-                    }
+                            launchGame(cloudLoad = true)
+                        },
+                        onNewGame = { slot, sectName ->
+                            launchGame(
+                                slot = slot,
+                                newGame = true,
+                                sectName = sectName
+                            )
+                        },
+                        onDeleteSlot = { slot ->
+                            lifecycleScope.launch {
+                                withContext(ioDispatcher.dispatcher) {
+                                    storageFacade.delete(slot)
+                                }
+                                showSaveSelectScreen(mode)
+                            }
+                        },
+                        onBack = {
+                            showModeSelectionScreen()
+                        }
+                    )
                 }
             }
         }
     }
     
+    /** 携带存档参数启动游戏 Activity（slot/新游戏/云存档 三选一或组合） */
+    private fun launchGame(
+        slot: Int? = null,
+        newGame: Boolean = false,
+        sectName: String? = null,
+        cloudLoad: Boolean = false
+    ) {
+        val intent = Intent(this, GameActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            if (slot != null) putExtra(EXTRA_SLOT, slot)
+            if (newGame) {
+                putExtra(EXTRA_NEW_GAME, true)
+                putExtra(EXTRA_SECT_NAME, sectName)
+            }
+            if (cloudLoad) putExtra(EXTRA_CLOUD_SAVE_LOAD, true)
+        }
+        startActivity(intent)
+        finish()
+    }
+
+    /** 加载全部存档槽位（失败返回空列表） */
+    private suspend fun loadSaveSlotsForSelect(): List<SaveSlot> {
+        return withContext(ioDispatcher.dispatcher) {
+            try {
+                storageFacade.getSaveSlotsSuspend()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "getSaveSlots failed, returning empty list", e)
+                emptyList()
+            }
+        }
+    }
+
+    /** 查询云存档信息（异步，失败则静默跳过） */
+    private suspend fun queryCloudSaveInfo(): TapCloudSaveManager.CloudSaveInfo? {
+        return withContext(ioDispatcher.dispatcher) {
+            try {
+                tapCloudSaveManager.checkCloudSave()
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
+
+    /** 迁移旧自动存档数据（slot 0）到第一个空槽位 */
+    private suspend fun migrateLegacyAutoSave(saveSlots: List<SaveSlot>) {
+        withContext(ioDispatcher.dispatcher) {
+            try {
+                val legacyData = storageFacade.load(0).getOrNull()
+                if (legacyData != null) {
+                    // 找第一个空槽
+                    val emptySlot = saveSlots.firstOrNull { it.isEmpty }?.slot
+                    if (emptySlot != null) {
+                        storageFacade.setCurrentSlot(emptySlot)
+                        storageFacade.save(emptySlot, legacyData)
+                        storageFacade.forceDeleteSlotData(0)
+                        Log.i(TAG, "Migrated legacy auto-save data to slot $emptySlot")
+                    } else {
+                        Log.w(TAG, "No empty slot found, keeping legacy auto-save in slot 0")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Legacy auto-save migration failed", e)
+            }
+        }
+    }
+
     private fun initTapTapSDK() {
         lifecycleScope.launch(ioDispatcher.dispatcher) {
             try {
@@ -700,6 +734,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
+@Suppress("LongParameterList") // 屏幕级入口函数：登录/合规/音频等跨模块参数分组会破坏调用语义
 fun MainScreen(
     sessionManager: SessionManager,
     complianceDialogState: MutableState<MainActivity.ComplianceDialogState?>,
@@ -716,14 +751,155 @@ fun MainScreen(
     var loginResult by remember { mutableStateOf<String?>(null) }
     var showInAppPrivacy by remember { mutableStateOf(false) }
     var privacyChecked by remember { mutableStateOf(sessionManager.privacyCheckboxConfirmed) }
-    
-    if (showInAppPrivacy) {
-        FullPrivacyPolicyScreen(
-            onBack = { showInAppPrivacy = false }
+
+    MainComplianceDialogs(
+        showInAppPrivacy = showInAppPrivacy,
+        onBackFromPrivacy = { showInAppPrivacy = false },
+        complianceDialogState = complianceDialogState,
+        sessionManager = sessionManager,
+        context = context
+    )
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        // 登录界面背景图
+        Image(
+            painter = painterResource(id = R.drawable.login_background),
+            contentDescription = "登录界面背景",
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.FillBounds
         )
+
+        LoginColumnContent(
+            context = context,
+            sessionManager = sessionManager,
+            isLoading = isLoading,
+            loginResult = loginResult,
+            privacyChecked = privacyChecked,
+            onPrivacyCheckedChange = { checked ->
+                privacyChecked = checked
+                sessionManager.privacyCheckboxConfirmed = checked
+            },
+            tapTapReady = tapTapReady,
+            onLoadingChange = { isLoading = it },
+            onLoginError = { loginResult = it },
+            onShowPrivacy = { showInAppPrivacy = true }
+        )
+
+        VersionAndAudioOverlay(
+            soundEnabled = soundEnabled,
+            musicEnabled = musicEnabled,
+            onSoundToggle = onSoundToggle,
+            onMusicToggle = onMusicToggle
+        )
+    }
+}
+
+/** 右下角版本号 + 右上角音乐/音效勾选浮层 */
+@Composable
+private fun VersionAndAudioOverlay(
+    soundEnabled: Boolean,
+    musicEnabled: Boolean,
+    onSoundToggle: (Boolean) -> Unit,
+    onMusicToggle: (Boolean) -> Unit
+) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Text(
+            text = "v${com.xianxia.sect.core.GameConfig.Game.VERSION}",
+            color = Color.Black,
+            fontSize = 12.sp,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp, bottom = 12.dp)
+        )
+
+        // 右上角：音乐/音效勾选项
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 16.dp, end = 16.dp)
+        ) {
+            AudioToggleRow(
+                soundEnabled = soundEnabled,
+                musicEnabled = musicEnabled,
+                onSoundToggle = onSoundToggle,
+                onMusicToggle = onMusicToggle
+            )
+        }
+    }
+}
+
+/** 登录列内容：加载指示 / TapTap 登录按钮 / 错误提示 / 隐私勾选 */
+@Composable
+@Suppress("LongParameterList") // 登录状态与回调聚合，分组会破坏状态编排可读性
+private fun LoginColumnContent(
+    context: Context,
+    sessionManager: SessionManager,
+    isLoading: Boolean,
+    loginResult: String?,
+    privacyChecked: Boolean,
+    onPrivacyCheckedChange: (Boolean) -> Unit,
+    tapTapReady: Boolean,
+    onLoadingChange: (Boolean) -> Unit,
+    onLoginError: (String?) -> Unit,
+    onShowPrivacy: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Bottom
+    ) {
+        if (isLoading) {
+            CircularProgressIndicator()
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("正在登录...", color = Color.Black)
+        } else {
+            TapTapLoginButton(
+                context = context,
+                sessionManager = sessionManager,
+                privacyChecked = privacyChecked,
+                tapTapReady = tapTapReady,
+                isLoading = isLoading,
+                onLoadingChange = onLoadingChange,
+                onLoginError = onLoginError
+            )
+        }
+
+        loginResult?.let { error ->
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = error,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        PrivacyAgreementRow(
+            privacyChecked = privacyChecked,
+            onCheckedChange = onPrivacyCheckedChange,
+            onShowPrivacy = onShowPrivacy
+        )
+    }
+}
+
+/** 隐私政策展示 + 合规限制对话框（适龄限制/账号封禁提示） */
+@Composable
+private fun MainComplianceDialogs(
+    showInAppPrivacy: Boolean,
+    onBackFromPrivacy: () -> Unit,
+    complianceDialogState: MutableState<MainActivity.ComplianceDialogState?>,
+    sessionManager: SessionManager,
+    context: Context
+) {
+    if (showInAppPrivacy) {
+        FullPrivacyPolicyScreen(onBack = onBackFromPrivacy)
         return
     }
-    
+
     complianceDialogState.value?.let { state ->
         when (state) {
             is MainActivity.ComplianceDialogState.Restrict -> {
@@ -773,189 +949,144 @@ fun MainScreen(
             }
         }
     }
-    
-    Box(modifier = Modifier.fillMaxSize()) {
-        // 登录界面背景图
-        Image(
-            painter = painterResource(id = R.drawable.login_background),
-            contentDescription = "登录界面背景",
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.FillBounds
-        )
+}
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Bottom
-        ) {
-            if (isLoading) {
-                CircularProgressIndicator()
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("正在登录...", color = Color.Black)
-            } else {
-                Button(
-                    onClick = {
-                        if (!privacyChecked) {
-                            Toast.makeText(context, "请先阅读并同意隐私政策", Toast.LENGTH_SHORT).show()
-                            return@Button
-                        }
-
-                        if (!tapTapReady) {
-                            Toast.makeText(context, "TapTap SDK 正在初始化，请稍后再试", Toast.LENGTH_SHORT).show()
-                            return@Button
-                        }
-
-                        isLoading = true
-                        loginResult = null
-
-                        val activity = context as? MainActivity
-                        if (activity == null) {
-                            isLoading = false
-                            Toast.makeText(context, "登录失败", Toast.LENGTH_SHORT).show()
-                            return@Button
-                        }
-
-                        TapTapAuthManager.login(activity, object : TapTapAuthManager.LoginResultCallback {
-                            override fun onSuccess(data: LoginData) {
-                                Log.d("MainScreen", "登录成功: ${data.name}")
-
-                                val unionId = data.unionid
-                                if (unionId.isNullOrEmpty()) {
-                                    Log.e("MainScreen", "unionId为空，登录失败")
-                                    isLoading = false
-                                    Toast.makeText(context, "登录失败，请重试", Toast.LENGTH_SHORT).show()
-                                    return
-                                }
-
-                                sessionManager.saveLoginSession(
-                                    userId = data.openid ?: "taptap_${System.currentTimeMillis()}",
-                                    userName = data.name ?: "TapTap用户",
-                                    loginType = "taptap",
-                                    unionId = unionId,
-                                    avatar = data.avatar
-                                )
-
-                                com.xianxia.sect.taptap.TapDBManager.setUser(
-                                    userId = data.openid ?: "taptap_${System.currentTimeMillis()}",
-                                    name = data.name
-                                )
-
-                                Toast.makeText(context, "欢迎, ${data.name}!", Toast.LENGTH_SHORT).show()
-
-                                isLoading = false
-                                val activity = context as? MainActivity
-                                activity?.runOnUiThread {
-                                    activity.startComplianceCheck(unionId)
-                                }
-                            }
-
-                            override fun onFailure(error: Exception) {
-                                Log.e("MainScreen", "登录失败: ${error.message}")
-                                isLoading = false
-                                loginResult = error.message
-                                Toast.makeText(context, "登录失败: ${error.message}", Toast.LENGTH_SHORT).show()
-                            }
-                        })
-                    },
-                    modifier = Modifier
-                        .wrapContentWidth()
-                        .height(56.dp),
-                    shape = RoundedCornerShape(28.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (privacyChecked) Color(0xFF00D26A) else Color(0xFFCCCCCC),
-                        contentColor = Color.White
-                    ),
-                    enabled = !isLoading
-                ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_taptap),
-                        contentDescription = "TapTap",
-                        modifier = Modifier.size(24.dp),
-                        tint = Color.White
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        "使用 TapTap 登录",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+/** TapTap 登录按钮：隐私校验 + SDK 登录 + 会话保存 + 合规检查触发 */
+@Composable
+private fun TapTapLoginButton(
+    context: Context,
+    sessionManager: SessionManager,
+    privacyChecked: Boolean,
+    tapTapReady: Boolean,
+    isLoading: Boolean,
+    onLoadingChange: (Boolean) -> Unit,
+    onLoginError: (String?) -> Unit
+) {
+    Button(
+        onClick = {
+            if (!privacyChecked) {
+                Toast.makeText(context, "请先阅读并同意隐私政策", Toast.LENGTH_SHORT).show()
+                return@Button
             }
 
-            loginResult?.let { error ->
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = error,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall
-                )
+            if (!tapTapReady) {
+                Toast.makeText(context, "TapTap SDK 正在初始化，请稍后再试", Toast.LENGTH_SHORT).show()
+                return@Button
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            onLoadingChange(true)
+            onLoginError(null)
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Checkbox(
-                    checked = privacyChecked,
-                    onCheckedChange = { checked ->
-                        privacyChecked = checked
-                        sessionManager.privacyCheckboxConfirmed = checked
-                    },
-                    colors = CheckboxDefaults.colors(
-                        checkedColor = GameColors.SpiritBlue,
-                        uncheckedColor = Color(0xFFCCCCCC)
-                    )
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "已阅读并同意",
-                    color = if (privacyChecked) Color.Black else Color.Black,
-                    fontSize = 12.sp
-                )
-                Spacer(modifier = Modifier.width(2.dp))
-                Text(
-                    text = "《隐私政策》",
-                    color = GameColors.SpiritBlue,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.clickableWithSound {
-                        showInAppPrivacy = true
+            val activity = context as? MainActivity
+            if (activity == null) {
+                onLoadingChange(false)
+                Toast.makeText(context, "登录失败", Toast.LENGTH_SHORT).show()
+                return@Button
+            }
+
+            TapTapAuthManager.login(activity, object : TapTapAuthManager.LoginResultCallback {
+                override fun onSuccess(data: LoginData) {
+                    Log.d("MainScreen", "登录成功: ${data.name}")
+
+                    val unionId = data.unionid
+                    if (unionId.isNullOrEmpty()) {
+                        Log.e("MainScreen", "unionId为空，登录失败")
+                        onLoadingChange(false)
+                        Toast.makeText(context, "登录失败，请重试", Toast.LENGTH_SHORT).show()
+                        return
                     }
-                )
-            }
 
-        }
+                    sessionManager.saveLoginSession(
+                        userId = data.openid ?: "taptap_${System.currentTimeMillis()}",
+                        userName = data.name ?: "TapTap用户",
+                        loginType = "taptap",
+                        unionId = unionId,
+                        avatar = data.avatar
+                    )
 
-        Text(
-            text = "v${com.xianxia.sect.core.GameConfig.Game.VERSION}",
-            color = Color.Black,
-            fontSize = 12.sp,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 16.dp, bottom = 12.dp)
+                    com.xianxia.sect.taptap.TapDBManager.setUser(
+                        userId = data.openid ?: "taptap_${System.currentTimeMillis()}",
+                        name = data.name
+                    )
+
+                    Toast.makeText(context, "欢迎, ${data.name}!", Toast.LENGTH_SHORT).show()
+
+                    onLoadingChange(false)
+                    val act = context as? MainActivity
+                    act?.runOnUiThread {
+                        act.startComplianceCheck(unionId)
+                    }
+                }
+
+                override fun onFailure(error: Exception) {
+                    Log.e("MainScreen", "登录失败: ${error.message}")
+                    onLoadingChange(false)
+                    onLoginError(error.message)
+                    Toast.makeText(context, "登录失败: ${error.message}", Toast.LENGTH_SHORT).show()
+                }
+            })
+        },
+        modifier = Modifier
+            .wrapContentWidth()
+            .height(56.dp),
+        shape = RoundedCornerShape(28.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (privacyChecked) Color(0xFF00D26A) else Color(0xFFCCCCCC),
+            contentColor = Color.White
+        ),
+        enabled = !isLoading
+    ) {
+        Icon(
+            painter = painterResource(id = R.drawable.ic_taptap),
+            contentDescription = "TapTap",
+            modifier = Modifier.size(24.dp),
+            tint = Color.White
         )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            "使用 TapTap 登录",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
 
-        // 右上角：音乐/音效勾选项
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(top = 16.dp, end = 16.dp)
-        ) {
-            AudioToggleRow(
-                soundEnabled = soundEnabled,
-                musicEnabled = musicEnabled,
-                onSoundToggle = onSoundToggle,
-                onMusicToggle = onMusicToggle
+/** 隐私政策勾选行 */
+@Composable
+private fun PrivacyAgreementRow(
+    privacyChecked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    onShowPrivacy: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(
+            checked = privacyChecked,
+            onCheckedChange = onCheckedChange,
+            colors = CheckboxDefaults.colors(
+                checkedColor = GameColors.SpiritBlue,
+                uncheckedColor = Color(0xFFCCCCCC)
             )
-        }
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = "已阅读并同意",
+            color = if (privacyChecked) Color.Black else Color.Black,
+            fontSize = 12.sp
+        )
+        Spacer(modifier = Modifier.width(2.dp))
+        Text(
+            text = "《隐私政策》",
+            color = GameColors.SpiritBlue,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.clickableWithSound { onShowPrivacy() }
+        )
     }
 }
 

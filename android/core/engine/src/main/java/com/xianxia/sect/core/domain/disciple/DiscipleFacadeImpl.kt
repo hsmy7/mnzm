@@ -43,9 +43,7 @@ class DiscipleFacadeImpl @Inject constructor(
 
     companion object {
         private const val TAG = "DiscipleFacadeImpl"
-        private const val MAX_REASONABLE_AGE = 10000
         private const val MAX_NAME_DISPLAY_LEN = 30
-        private val VALID_REALM_RANGE = GameConfig.Realm.CONFIGS.keys.let { it.min()..it.max() }
     }
 
     override val disciples: StateFlow<List<Disciple>> get() = stateStore.disciples
@@ -219,10 +217,12 @@ class DiscipleFacadeImpl @Inject constructor(
                 pendingNotification = GameNotification.RecruitFailed("招募失败：该弟子已不在招募列表中")
                 return@update
             }
-            // ── 完整性校验：跳过损坏的弟子数据 ──
-            if (disciple.name.isBlank() || disciple.age <= 0 || disciple.age > MAX_REASONABLE_AGE
-                || disciple.realm !in VALID_REALM_RANGE) {
+            // ── 完整性校验：损坏条目同事务移除（幽灵立即消失，不再永久残留）──
+            if (!RecruitIntegrity.isValidRecruit(disciple)) {
                 DomainLog.w(TAG, "recruitDiscipleFromList: skipping corrupted disciple $discipleId: name='${disciple.name}' age=${disciple.age} realm=${disciple.realm}")
+                gameData = gameData.copy(
+                    recruitList = gameData.recruitList.filter { it.id != discipleId }
+                )
                 pendingNotification = GameNotification.RecruitFailed(
                     "招募失败：「${disciple.name.take(MAX_NAME_DISPLAY_LEN)}」数据异常"
                 )
@@ -232,6 +232,10 @@ class DiscipleFacadeImpl @Inject constructor(
             val recruitedDisciple = disciple.copy(
                 usage = disciple.usage.copy(recruitedMonth = currentMonthValue)
             )
+            // 年龄-境界合理性软校验（不阻断：俘虏玩法允许年轻高境界）
+            if (disciple.age < GameConfig.Realm.minReasonableAge(disciple.realm)) {
+                DomainLog.w(TAG, "recruitDiscipleFromList: recruit ${disciple.name} age=${disciple.age} realm=${disciple.realm} 低于境界最小合理年龄")
+            }
             // 原子分配 ID + 写入组件表 + 加入宗门日志（消灭悬空窗口）
             newId = discipleTables.allocateAndInsert(recruitedDisciple)
             if (newId.isNotEmpty()) {
@@ -242,8 +246,11 @@ class DiscipleFacadeImpl @Inject constructor(
                 }
             }
             DomainLog.i(TAG, "recruitDiscipleFromList: recruited $discipleId → id=$newId")
+            // 招募成功后同步移除同内容双胞胎（防"完全相同弟子"重复招募）
             gameData = gameData.copy(
-                recruitList = gameData.recruitList.filter { it.id != discipleId },
+                recruitList = gameData.recruitList.filter {
+                    it.id != discipleId && !RecruitIntegrity.isSamePerson(it, recruitedDisciple)
+                },
                 recruitCountThisMonth = gameData.recruitCountThisMonth + 1
             )
         }

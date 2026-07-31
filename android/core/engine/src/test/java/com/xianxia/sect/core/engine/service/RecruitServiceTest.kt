@@ -13,8 +13,10 @@ import com.xianxia.sect.core.util.DeterministicRng
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
+import org.robolectric.RobolectricTestRunner
 import java.util.UUID
 
 /**
@@ -22,7 +24,10 @@ import java.util.UUID
  *
  * 注：refreshRecruitList 的完整测试依赖真实 GameStateStore，当前聚焦
  * processAutoRecruit 的边界条件和 calcRecruitBonusCap 的算术正确性。
+ * 需要 Robolectric：DiscipleTables 的 ComponentTable 底层是 android.util.SparseArray，
+ * 纯 JVM 环境（returnDefaultValues）下写入会静默丢失。
  */
+@RunWith(RobolectricTestRunner::class)
 class RecruitServiceTest {
 
     // ==================== calcRecruitBonusCap ====================
@@ -176,6 +181,22 @@ class RecruitServiceTest {
         assertEquals(1, count)
         assertTrue("recruitList 应只剩 1 人", state.gameData.recruitList.size == 1)
         assertEquals("剩下的是不匹配的弟子", "三灵根弟子", state.gameData.recruitList.first().name)
+    }
+
+    @Test
+    fun `processAutoRecruit with twin recruits recruits only one`() {
+        // 同内容双胞胎（不同 id）应只自动招募 1 人（三级去重）
+        val d1 = makeRecruit(name = "双胞胎", spiritRootType = "金")
+        val d2 = makeRecruit(name = "双胞胎", spiritRootType = "金")
+        val state = createAutoRecruitState(
+            recruitList = listOf(d1, d2),
+            filter = setOf(1)
+        )
+
+        val count = RecruitService.processAutoRecruit(state)
+
+        assertEquals(1, count)
+        assertEquals("DiscipleTables 只新增 1 人", 1, state.discipleTables.ids.size)
     }
 
     @Test
@@ -407,5 +428,67 @@ class RecruitServiceTest {
 
         val count = RecruitService.processAutoRecruit(state)
         assertEquals("重置后应正常招募", 1, count)
+    }
+
+    // ==================== sanitizeRecruitList ====================
+
+    @Test
+    fun `sanitizeRecruitList - 存在损坏 移除并复位惰性`() {
+        val state = createAutoRecruitState(
+            recruitList = listOf(
+                makeRecruit(name = ""),
+                makeRecruit(name = "正常弟子")
+            )
+        )
+        RecruitService.RecruitLazyState.autoRecruitIdle = true
+
+        val removed = RecruitService.sanitizeRecruitList(state)
+
+        assertEquals(1, removed)
+        assertEquals("损坏条目应被移除", 1, state.gameData.recruitList.size)
+        assertEquals("正常弟子", state.gameData.recruitList.first().name)
+        assertTrue("有移除应复位惰性", !RecruitService.RecruitLazyState.autoRecruitIdle)
+    }
+
+    @Test
+    fun `sanitizeRecruitList - 无损坏 列表不变不复位`() {
+        val state = createAutoRecruitState(
+            recruitList = listOf(makeRecruit(name = "正常弟子"))
+        )
+        RecruitService.RecruitLazyState.autoRecruitIdle = true
+
+        val removed = RecruitService.sanitizeRecruitList(state)
+
+        assertEquals(0, removed)
+        assertEquals(1, state.gameData.recruitList.size)
+        assertTrue("无移除不应复位惰性", RecruitService.RecruitLazyState.autoRecruitIdle)
+    }
+
+    @Test
+    fun `sanitizeRecruitList - 已入宗门残留 移除`() {
+        val state = createAutoRecruitState(
+            recruitList = listOf(makeRecruit(name = "张三", age = 20))
+        )
+        // 模拟同内容弟子已在宗门（跨表比对）
+        val inSect = makeRecruit(name = "张三", age = 20)
+        state.discipleTables.writeAllowed = true
+        state.discipleTables.allocateAndInsert(inSect)
+
+        val removed = RecruitService.sanitizeRecruitList(state)
+
+        assertEquals(1, removed)
+        assertTrue("残留应被移除", state.gameData.recruitList.isEmpty())
+    }
+
+    @Test
+    fun `sanitizeRecruitList - 38岁炼虚 保留`() {
+        val state = createAutoRecruitState(
+            recruitList = listOf(makeRecruit(name = "天才", age = 38, realm = 4))
+        )
+
+        val removed = RecruitService.sanitizeRecruitList(state)
+
+        assertEquals(0, removed)
+        assertEquals(1, state.gameData.recruitList.size)
     }
 }

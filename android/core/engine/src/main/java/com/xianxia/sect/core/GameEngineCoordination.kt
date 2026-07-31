@@ -30,12 +30,8 @@ import com.xianxia.sect.core.util.manualBagStackIds
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 
-/** 招募弟子最大合理年龄 */
-private const val MAX_REASONABLE_AGE = 10000
 /** AI 宗门每个宗门的标准弟子数 */
 private const val MAX_AI_SECT_DISCIPLES = 50
-/** 有效境界范围（含两端） */
-private val VALID_REALM_RANGE = GameConfig.Realm.CONFIGS.keys.let { it.min()..it.max() }
 
 // ── Focus / UI state ────────────────────────────────────────────────
 
@@ -233,7 +229,17 @@ suspend fun GameEngine.loadData(
                 }
             }
         }
-        DomainLog.d("GameEngine", "loadData: restored game year=${gameData.gameYear}, ${disciples.size} disciples, recruitList=${gameData.recruitList.size} unrecruited disciples")
+        // 读档自愈（第二道防线）：cache 命中路径绕过 SaveValidator，此处兜底
+        // 净化 recruitList 的损坏/重复/已入宗门残留条目（幽灵弟子根治）
+        stateStore.update {
+            val removed = com.xianxia.sect.core.engine.service.RecruitService
+                .sanitizeRecruitList(this)
+            if (removed > 0) {
+                DomainLog.w("GameEngine", "loadData: 净化 recruitList $removed 条异常条目")
+            }
+        }
+        val restoredRecruitCount = stateStore.gameDataSnapshot.recruitList.size
+        DomainLog.d("GameEngine", "loadData: restored game year=${gameData.gameYear}, ${disciples.size} disciples, recruitList=$restoredRecruitCount unrecruited disciples")
         val alchemyCount = BuildingFeatureRegistry.countByType(gameData, BuildingType.ALCHEMY)
         val forgeCount = BuildingFeatureRegistry.countByType(gameData, BuildingType.FORGE)
         val fixedProductionSlots = fixAlchemyForgeSlotCount(productionSlots, alchemyCount, forgeCount)
@@ -576,6 +582,13 @@ suspend fun GameEngine.recruitAllFromList(): Int {
     return engineContextDispatcher.withEngineContext {
         var recruited = 0
         stateStore.update {
+            // 事务开头净化：损坏/重复/残留条目同事务移除（与点击招募一致），
+            // 防一键招募时幽灵/双胞胎入宗门
+            val sanitized = com.xianxia.sect.core.engine.service.RecruitService
+                .sanitizeRecruitList(this)
+            if (sanitized > 0) {
+                DomainLog.w("GameEngine", "recruitAllFromList: 净化 recruitList $sanitized 条异常条目")
+            }
             val count = gameData.recruitCountThisMonth.coerceAtLeast(0)
             val remaining = GameConfig.RECRUIT_MONTHLY_LIMIT - count
             if (remaining <= 0) {
@@ -586,11 +599,10 @@ suspend fun GameEngine.recruitAllFromList(): Int {
                 return@update
             }
 
-            val validRecruits = gameData.recruitList.filter { d ->
-                d.name.isNotBlank() && d.age in 1..MAX_REASONABLE_AGE
-                    && d.realm in VALID_REALM_RANGE
-            }
+            // 净化已移除损坏条目并去重，此处过滤为防御纵深
+            val validRecruits = gameData.recruitList.filter(RecruitIntegrity::isValidRecruit)
             if (validRecruits.isEmpty()) {
+                // 净化后损坏条目理论上不可达（防御保留）
                 if (gameData.recruitList.isNotEmpty()) {
                     DomainLog.w("GameEngine", "recruitAllFromList: all ${gameData.recruitList.size} recruits are corrupted, skipped")
                 }
@@ -599,7 +611,10 @@ suspend fun GameEngine.recruitAllFromList(): Int {
 
             val takeCount = minOf(validRecruits.size, remaining)
             val toRecruit = validRecruits.take(takeCount)
-            val keepInList = gameData.recruitList.toList() - toRecruit.toSet()
+            // 按 id 移除已招募条目（而非 data class 全字段 equals，
+            // 防同 id 不同内容的残余条目存活）
+            val toRecruitIds = toRecruit.map { it.id }.toSet()
+            val keepInList = gameData.recruitList.filter { it.id !in toRecruitIds }
 
             val droppedCount = gameData.recruitList.size - validRecruits.size
             val currentMonth = gameData.gameYear * 12 + gameData.gameMonth

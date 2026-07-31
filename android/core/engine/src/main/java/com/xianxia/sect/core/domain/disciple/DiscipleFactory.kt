@@ -127,7 +127,9 @@ class DiscipleFactory @Inject constructor() {
             name = seed.nameResult.fullName,
             surname = seed.nameResult.surname,
             gender = seed.gender,
-            portraitRes = PortraitPool.getRandomPortrait(seed.gender),
+            portraitRes = PortraitPool.getRandomPortrait(seed.gender) { bound ->
+                r(0, bound)
+            },
             age = seed.age,
             realm = seed.realm,
             realmLayer = seed.realmLayer,

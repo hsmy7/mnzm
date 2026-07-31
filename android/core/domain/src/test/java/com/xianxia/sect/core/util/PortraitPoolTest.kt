@@ -41,4 +41,34 @@ class PortraitPoolTest {
         val names = PortraitPool.allPortraitNames()
         assertEquals(names.size, names.toSet().size)
     }
+
+    // ==================== getRandomPortrait（注入式 RNG）====================
+
+    @Test
+    fun `getRandomPortrait - 注入nextInt 返回值在池范围内`() {
+        val name = PortraitPool.getRandomPortrait("male") { bound ->
+            bound - 1
+        }
+        assertEquals("male_disciple_20", name)
+    }
+
+    @Test
+    fun `getRandomPortrait - nextInt返回0 取池首`() {
+        val name = PortraitPool.getRandomPortrait("male") { 0 }
+        assertEquals("male_disciple_1", name)
+    }
+
+    @Test
+    fun `getRandomPortrait - 女性池边界`() {
+        val first = PortraitPool.getRandomPortrait("female") { 0 }
+        val last = PortraitPool.getRandomPortrait("female") { bound -> bound - 1 }
+        assertEquals("female_disciple_1", first)
+        assertEquals("female_disciple_17", last)
+    }
+
+    @Test
+    fun `getRandomPortrait - 未知性别回退女性池`() {
+        val name = PortraitPool.getRandomPortrait("unknown") { 0 }
+        assertEquals("female_disciple_1", name)
+    }
 }

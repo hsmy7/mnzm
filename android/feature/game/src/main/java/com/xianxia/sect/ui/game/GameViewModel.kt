@@ -371,7 +371,8 @@ class GameViewModel @Inject constructor(
     fun upgradeSectLevel() = sectDelegate.upgradeSectLevel()
 
     val recruitListAggregates: StateFlow<List<DiscipleAggregate>> = gameData
-        .map { data -> data.recruitList.map { it.toAggregate() } }
+        // 按 id 去重兜底（引擎/数据层已保证不变量，防 LazyVerticalGrid 重复 key 异常）
+        .map { data -> data.recruitList.distinctBy { it.id }.map { it.toAggregate() } }
         .stateIn(viewModelScope, sharingStarted, emptyList())
 
     val equipmentStacks: StateFlow<List<EquipmentStack>> = combine(

@@ -1,7 +1,5 @@
 package com.xianxia.sect.core.util
 
-import kotlin.random.Random
-
 /**
  * 弟子肖像池。
  *
@@ -40,9 +38,17 @@ object PortraitPool {
         initialized = true
     }
 
-    fun getRandomPortrait(gender: String): String {
+    /**
+     * 从性别对应肖像池随机选一个（确定性 RNG：随机源由调用方注入，
+     * 禁止裸 kotlin.random.Random——需接入分区 PRNG 或 GameRandom）。
+     *
+     * @param gender 性别（"male"/"female"，未知性别回退女性池）
+     * @param nextInt 随机上界函数 `(bound) -> value`，返回 [0, bound)
+     * @return 肖像资源名称
+     */
+    fun getRandomPortrait(gender: String, nextInt: (Int) -> Int): String {
         val pool = if (gender == "male") malePortraits else femalePortraits
-        return pool[Random.nextInt(pool.size)]
+        return pool[nextInt(pool.size)]
     }
 
     /** 返回所有头像资源名称列表（用于预加载） */

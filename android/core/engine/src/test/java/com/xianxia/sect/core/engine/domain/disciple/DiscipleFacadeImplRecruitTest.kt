@@ -32,7 +32,13 @@ class DiscipleFacadeImplRecruitTest {
     ): String {
         val disciple = state.gameData.recruitList.toList().find { it.id == recruitId }
         if (disciple == null) return ""
-        if (disciple.name.isBlank() || disciple.age <= 0 || disciple.realm <= 0) return ""
+        if (!RecruitIntegrity.isValidRecruit(disciple)) {
+            // 与真实实现对齐：损坏条目同事务移除（幽灵不再残留）
+            state.gameData = state.gameData.copy(
+                recruitList = state.gameData.recruitList.filter { it.id != recruitId }
+            )
+            return ""
+        }
         val currentMonth = state.gameData.gameYear * 12 + state.gameData.gameMonth
         val recruited = disciple.copy(
             usage = disciple.usage.copy(recruitedMonth = currentMonth)
@@ -46,7 +52,9 @@ class DiscipleFacadeImplRecruitTest {
             }
         }
         state.gameData = state.gameData.copy(
-            recruitList = state.gameData.recruitList.filter { it.id != recruitId }
+            recruitList = state.gameData.recruitList.filter {
+                it.id != recruitId && !RecruitIntegrity.isSamePerson(it, recruited)
+            }
         )
         return newId
     }
@@ -135,14 +143,42 @@ class DiscipleFacadeImplRecruitTest {
     }
 
     @Test
-    fun `recruit from list - corrupted data (realm 0) returns empty`() {
+    fun `recruit from list - realm 0 immortal is recruitable`() {
         val recruitId = UUID.randomUUID().toString()
         val state = createState(recruitList = listOf(createRecruitDisciple(realm = 0, id = recruitId)))
 
         val newId = executeRecruitFlow(recruitId, state)
 
+        assertTrue("仙人（realm=0）应可招募", newId.isNotEmpty())
+        assertEquals(1, state.discipleTables.ids.size)
+    }
+
+    @Test
+    fun `recruit from list - corrupted entry removed on failed recruit`() {
+        val recruitId = UUID.randomUUID().toString()
+        val state = createState(recruitList = listOf(createRecruitDisciple(name = "", id = recruitId)))
+
+        val newId = executeRecruitFlow(recruitId, state)
+
         assertEquals("空 ID", "", newId)
+        assertEquals("损坏条目应同事务移除", 0, state.gameData.recruitList.size)
         assertEquals("DiscipleTables 不变", 0, state.discipleTables.ids.size)
+    }
+
+    @Test
+    fun `recruit from list - twin content entry removed with recruited one`() {
+        val recruitId = UUID.randomUUID().toString()
+        val twinId = UUID.randomUUID().toString()
+        val state = createState(recruitList = listOf(
+            createRecruitDisciple(name = "张三", age = 20, id = recruitId),
+            createRecruitDisciple(name = "张三", age = 20, id = twinId)
+        ))
+
+        val newId = executeRecruitFlow(recruitId, state)
+
+        assertTrue("新 ID 非空", newId.isNotEmpty())
+        assertEquals("同内容双胞胎应一并移除", 0, state.gameData.recruitList.size)
+        assertEquals("DiscipleTables 只新增 1 人", 1, state.discipleTables.ids.size)
     }
 
     @Test

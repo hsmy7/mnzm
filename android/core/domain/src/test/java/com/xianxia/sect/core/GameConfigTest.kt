@@ -688,6 +688,40 @@ class GameConfigTest {
         assertEquals(9, GameConfig.Realm.getMinRealmForRarity(0))
     }
 
+    // Realm 对象 - minReasonableAge 方法
+
+    @Test
+    fun `最小合理年龄表应覆盖全部10个境界`() {
+        assertEquals(10, GameConfig.Realm.REALM_MIN_REASONABLE_AGE.size)
+        assertEquals(GameConfig.Realm.CONFIGS.keys,
+            GameConfig.Realm.REALM_MIN_REASONABLE_AGE.keys)
+    }
+
+    @Test
+    fun `最小合理年龄应低于对应境界寿元上限`() {
+        for ((realm, minAge) in GameConfig.Realm.REALM_MIN_REASONABLE_AGE) {
+            val maxAge = GameConfig.Realm.get(realm).maxAge
+            assertTrue("境界 $realm 最小年龄 $minAge 应小于寿元 $maxAge",
+                minAge < maxAge)
+        }
+    }
+
+    @Test
+    fun `未知境界的最小合理年龄应回退炼气标准`() {
+        assertEquals(10, GameConfig.Realm.minReasonableAge(99))
+        assertEquals(10, GameConfig.Realm.minReasonableAge(-1))
+    }
+
+    @Test
+    fun `炼气最小合理年龄应为10岁`() {
+        assertEquals(10, GameConfig.Realm.minReasonableAge(9))
+    }
+
+    @Test
+    fun `炼虚最小合理年龄应为300岁`() {
+        assertEquals(300, GameConfig.Realm.minReasonableAge(4))
+    }
+
     // ============================================================
     // SpiritRoot 对象 - ELEMENTS 列表
     // ============================================================

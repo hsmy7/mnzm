@@ -95,7 +95,7 @@ object AISectDiscipleManager {
             name = nameResult.fullName,
             surname = nameResult.surname,
             gender = gender,
-            portraitRes = PortraitPool.getRandomPortrait(gender),
+            portraitRes = PortraitPool.getRandomPortrait(gender) { rng.nextInt(it) },
             realm = 9,
             realmLayer = 1,
             cultivation = 0.0,
@@ -624,7 +624,9 @@ object AISectDiscipleManager {
             realm = targetRealm,
             realmLayer = 1 + rng.nextInt(maxLayer),
             cultivation = rng.nextDouble() * 0.8 * GameConfig.Realm.get(targetRealm).cultivationBase,
-            lifespan = newLifespan
+            lifespan = newLifespan,
+            // 高境界配合理年龄（防"38岁炼虚"类数据；炼气 realm=9 不调整）
+            age = maxOf(disciple.age, GameConfig.Realm.minReasonableAge(targetRealm))
         )
     }
 }
