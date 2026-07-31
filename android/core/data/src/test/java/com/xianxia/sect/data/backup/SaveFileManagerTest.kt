@@ -6,6 +6,9 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import java.io.File
 import java.util.zip.CRC32C
 
@@ -16,7 +19,11 @@ import java.util.zip.CRC32C
  * - 使用 JUnit TemporaryFolder 管理临时文件
  * - 直接构造合法/非法的备份文件验证 CRC32C 校验和原子写入
  * - serialization 层通过自定义 SaveSerializer 绕过（readWithFallback 返回原始字节）
+ * - 固定 SDK 34：生产代码 API 34+ 用 CRC32C、更低版本回退 CRC32，
+ *   辅助函数直接写 CRC32C，测试环境必须对齐 API 34 分支
  */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class SaveFileManagerTest {
 
     @get:Rule

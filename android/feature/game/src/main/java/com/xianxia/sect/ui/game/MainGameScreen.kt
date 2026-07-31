@@ -280,10 +280,6 @@ fun MainGameScreen(
         GridSystem(tileSize, worldWidthCells, worldHeightCells,
             buildableBorder = GameConfig.SectMap.BORDER_TREE_RING)
     }
-    // BORDER_TREE_RING 的 remember key（若常量化后变为动态值，确保 gridSystem 重建）
-    val unusedBorderRing = GameConfig.SectMap.BORDER_TREE_RING
-    remember(tileSize, worldWidthCells, worldHeightCells, unusedBorderRing) { }
-
     LaunchedEffect(effectivePlacedBuildings) {
         gridSystem.rebuildFrom(effectivePlacedBuildings)
     }

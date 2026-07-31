@@ -186,8 +186,10 @@ fun GameOverlayHost(
     }
     // 单例遮罩层：无论开几个界面，永远只画一层遮罩
     val marriageProposalVisible = pendingMarriageProposals.firstOrNull() != null
-    val attackWarningVisible = viewModel.attackWarnings.value.any { warning ->
-        val shownIds = viewModel.shownWarningStageIds.value
+    val attackWarnings by viewModel.attackWarnings.collectAsStateWithLifecycle()
+    val shownWarningStageIds by viewModel.shownWarningStageIds.collectAsStateWithLifecycle()
+    val attackWarningVisible = attackWarnings.any { warning ->
+        val shownIds = shownWarningStageIds
         (warning.stage == WarningStage.DENUNCIATION && "${warning.warningId}:DENUNCIATION" !in shownIds) ||
             (warning.stage == WarningStage.WAR_DECLARATION && "${warning.warningId}:WAR_DECLARATION" !in shownIds)
     }
@@ -254,8 +256,6 @@ fun GameOverlayHost(
     }
 
     // AI宗门进攻预警弹窗
-    val attackWarnings by viewModel.attackWarnings.collectAsStateWithLifecycle()
-    val shownWarningStageIds by viewModel.shownWarningStageIds.collectAsStateWithLifecycle()
     val gdForWarning by viewModel.gameDataUi.collectAsStateWithLifecycle()
 
     AttackWarningDialogs(

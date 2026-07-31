@@ -60,6 +60,9 @@ class CultivationEventProcessor @Inject constructor(
     private val scope get() = scopeProvider.scope
     companion object {
         private const val TAG = "CultivationEventProc"
+
+        /** 招募列表刷新间隔（年）— 与启动补刷路径（checkAndRepairMerchantAndRecruit）共用差值判据 */
+        private const val RECRUIT_REFRESH_INTERVAL_YEARS = 3
     }
     // ── 时间推进 ──────────────────────────────────────────────────────
     fun advanceMonth(state: MutableGameState? = null) {
@@ -376,7 +379,11 @@ class CultivationEventProcessor @Inject constructor(
                 caveExplorationProcessor.get().processSectDisciplesAging(year, this)
             }
             safelyRunInState("refreshRecruitList") {
-                if (year % 3 == 1) recruitService.refreshRecruitList(year)
+                // 差值判据（非模运算）：老存档/跨版本相位漂移自愈；
+                // 刷新失败时 lastRecruitYear 不更新，次年自动重试
+                if (year - gameData.lastRecruitYear >= RECRUIT_REFRESH_INTERVAL_YEARS) {
+                    recruitService.refreshRecruitList(year)
+                }
             }
             safelyRunInState("autoReject") {
                 RecruitService.processAutoReject(this)
@@ -412,7 +419,7 @@ class CultivationEventProcessor @Inject constructor(
             }
             safelyRunInState("favorDecay") { diplomacyEventProcessor.processFavorDecay(year) }
             // 年度报告 + 驻军轮换
-            safelyRunInState("garrisonAndReport") { runGarrisonAndReport(year) }
+            safelyRunInState("garrisonAndReport") { runGarrisonAndReport(year, this) }
             safelyRunInState("griefExpiry") {
                 discipleLifecycleProcessor.processGriefExpiry(year)
             }
@@ -423,11 +430,11 @@ class CultivationEventProcessor @Inject constructor(
      * 年变：驻军轮换 + 年度报告快照（单次原子 update）。
      * 已从 [processYearlyEvents] 内联代码提取，降低函数复杂度。
      */
-    private fun runGarrisonAndReport(year: Int) {
-        val rotated = AISectGarrisonManager.rotateGarrisonSlots(
-            stateStore.gameData.value
-        )
-        val currentData = stateStore.gameData.value
+    private fun runGarrisonAndReport(year: Int, state: MutableGameState) {
+        // 基于事务 buffer 读写：年变单事务内前序事件（纳贡/俸禄等）写入的
+        // annual* 字段必须计入年报，禁止读已提交快照（与招募列表不刷新同源修复）。
+        val currentData = state.gameData
+        val rotated = AISectGarrisonManager.rotateGarrisonSlots(currentData)
         val report = YearlyReport(
             year = currentData.gameYear - 1,
             totalIncome = currentData.annualTotalIncome,
@@ -444,27 +451,25 @@ class CultivationEventProcessor @Inject constructor(
             deceasedDisciples = currentData.annualDeceasedDisciples,
             desertedDisciples = currentData.annualDesertedDisciples
         )
-        stateStore.update {
-            gameData = gameData.copy(
-                worldMapSects = rotated.worldMapSects,
-                yearlyReports = (gameData.yearlyReports + report)
-                    .takeLast(GameConfig.Logs.MAX_YEARLY_REPORTS),
-                annualIncomeBySource = emptyMap(),
-                annualExpenditureByReason = emptyMap(),
-                annualTotalIncome = 0L,
-                annualTotalExpenditure = 0L,
-                annualEquipmentBySource = emptyMap(),
-                annualPillBySource = emptyMap(),
-                annualHerbBySource = emptyMap(),
-                annualAlchemyCount = 0,
-                annualForgeCount = 0,
-                annualHerbCount = 0,
-                annualNewDisciples = 0,
-                annualDeceasedDisciples = 0,
-                annualDesertedDisciples = 0,
-                annualTheftCount = 0
-            )
-        }
+        state.gameData = currentData.copy(
+            worldMapSects = rotated.worldMapSects,
+            yearlyReports = (currentData.yearlyReports + report)
+                .takeLast(GameConfig.Logs.MAX_YEARLY_REPORTS),
+            annualIncomeBySource = emptyMap(),
+            annualExpenditureByReason = emptyMap(),
+            annualTotalIncome = 0L,
+            annualTotalExpenditure = 0L,
+            annualEquipmentBySource = emptyMap(),
+            annualPillBySource = emptyMap(),
+            annualHerbBySource = emptyMap(),
+            annualAlchemyCount = 0,
+            annualForgeCount = 0,
+            annualHerbCount = 0,
+            annualNewDisciples = 0,
+            annualDeceasedDisciples = 0,
+            annualDesertedDisciples = 0,
+            annualTheftCount = 0
+        )
     }
     // ── 战斗/探索辅助 ──────────────────────────────────────────────────
     fun updateDiscipleHpMpAfterBattle(battleMembers: List<BattleMemberData>) {

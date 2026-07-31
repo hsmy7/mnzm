@@ -1,10 +1,11 @@
 package com.xianxia.sect.data.backup
 
+import android.os.Build
 import android.util.Log
+import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.result.StorageError
 import com.xianxia.sect.data.result.StorageResult
-import com.xianxia.sect.data.StorageConstants
 import java.io.File
 import java.io.FileOutputStream
 import java.util.zip.CRC32C
@@ -402,16 +403,16 @@ class SaveFileManager @Inject constructor(
 
     /**
      * 计算 CRC32C 校验和。
-     * API 24+ 使用硬件加速的 java.util.zip.CRC32C，
+     * API 34+ 使用 java.util.zip.CRC32C（API 34 才引入），
      * 更低版本回退到 java.util.zip.CRC32。
+     * 同设备写入/读取走同一分支，校验自洽。
      */
     private fun computeCrc32c(data: ByteArray): Int {
-        return try {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             val crc = CRC32C()
             crc.update(data)
             crc.value.toInt()
-        } catch (e: NoClassDefFoundError) {
-            // 极低 API 版本回退
+        } else {
             val crc = CRC32()
             crc.update(data)
             crc.value.toInt()

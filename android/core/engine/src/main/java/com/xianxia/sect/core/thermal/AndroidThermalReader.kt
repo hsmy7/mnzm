@@ -184,7 +184,9 @@ class AndroidThermalReader @Inject constructor(
 
     override fun registerThermalCallback(onStateChanged: (ThermalState) -> Unit): Boolean {
         val pm = powerManager ?: return false
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return false
+        // platformCallback 使用 PowerManager.OnThermalStatusChangedListener（API 30+），
+        // 守卫必须对齐 R；Q(29) 设备上访问该字段会 NoSuchFieldError 闪退
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return false
 
         return try {
             registeredCallback = onStateChanged
@@ -200,7 +202,7 @@ class AndroidThermalReader @Inject constructor(
 
     override fun unregisterThermalCallback() {
         val pm = powerManager ?: return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             try {
                 pm.removeThermalStatusListener(platformCallback)
             } catch (_: Exception) { }

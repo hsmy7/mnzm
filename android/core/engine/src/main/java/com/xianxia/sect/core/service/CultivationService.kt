@@ -296,7 +296,7 @@ class CultivationService @Inject constructor(
      */
     fun processYearlyEvents() {
         val year = stateStore.gameData.value.gameYear
-            eventProcessor.processYearlyEvents(year)
+        eventProcessor.processYearlyEvents(year)
     }
 
     /**
@@ -306,7 +306,7 @@ class CultivationService @Inject constructor(
      */
     fun processMonthlyEvents() {
         val data = stateStore.gameData.value
-            eventProcessor.processMonthlyEvents(data.gameYear, data.gameMonth)
+        eventProcessor.processMonthlyEvents(data.gameYear, data.gameMonth)
     }
 
     /**
@@ -316,18 +316,6 @@ class CultivationService @Inject constructor(
     fun processMonthlyEventsOnState(state: MutableGameState) {
         val data = state.gameData
         eventProcessor.processMonthlyEvents(data.gameYear, data.gameMonth, state)
-    }
-
-    /**
-     * @deprecated 月度事件已移至 shadow 外部处理。保留供兼容。
-     */
-    fun processMonthlyEventsOnShadow(state: MutableGameState) {
-        processMonthlyEventsOnState(state)
-    }
-
-    fun processYearlyEventsOnShadow(state: MutableGameState) {
-        val data = state.gameData
-            eventProcessor.processYearlyEvents(data.gameYear)
     }
 
     fun getHighFrequencyData(): StateFlow<HighFrequencyData> = _highFrequencyData

@@ -72,11 +72,12 @@ class AndroidThermalReaderTest {
     // ============================================================
 
     @Test
-    @Config(sdk = [Build.VERSION_CODES.Q])
+    @Config(sdk = [Build.VERSION_CODES.R])
     fun `registerThermalCallback returns true on supported API`() {
         val registered = reader.registerThermalCallback { }
-        // Robolectric 模拟 API 29+，应返回 true
-        assertTrue("API 29+ 应支持回调注册", registered)
+        // platformCallback 使用 PowerManager.OnThermalStatusChangedListener（API 30+），
+        // 守卫对齐 R；API 29 设备访问该字段会 NoSuchFieldError 闪退
+        assertTrue("API 30+ 应支持回调注册", registered)
     }
 
     @Test

@@ -680,8 +680,8 @@ object BattleCalculator {
     fun checkInstantKill(attackerRealm: Int, defenderRealm: Int, attackerLayer: Int, defenderLayer: Int): Boolean {
         val MAX_MINOR_LAYERS = 9
         // 总小层差距 = 大境界差×9 - 层数差（防御方层数越高越强，差距缩小）
-        val gap = (defenderRealm - attackerRealm) * MAX_MINOR_LAYERS
-            - (defenderLayer - attackerLayer)
+        val gap = (defenderRealm - attackerRealm) * MAX_MINOR_LAYERS -
+            (defenderLayer - attackerLayer)
         return gap > MAX_MINOR_LAYERS
     }
 

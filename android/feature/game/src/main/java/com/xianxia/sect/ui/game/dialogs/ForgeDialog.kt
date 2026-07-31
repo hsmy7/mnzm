@@ -93,7 +93,8 @@ fun ForgeDialog(
     val workerDisciple = if (assignedDiscipleId.isNullOrEmpty()) null
         else discipleMap[assignedDiscipleId]
     val coroutineScope = rememberCoroutineScope()
-    val showAllEnabled = viewModel.gameData.value.showAllAvailableDisciples
+    // Composition 内禁止读 StateFlow.value（不触发重组）；gameData 参数已由调用方 collect 派生
+    val showAllEnabled = gameData?.showAllAvailableDisciples ?: false
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
