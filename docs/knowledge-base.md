@@ -117,7 +117,7 @@ v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管
 | 组件 | 文件 | 说明 |
 |------|------|------|
 | `DeterministicRng` | `util/DeterministicRng.kt` | PCG-XSH-RR 算法，16 字节状态，可序列化 |
-| `GameRngManager` | `util/GameRngManager.kt` | 6 分区管理器（BATTLE / BREAKTHROUGH / EXPLORATION / SYSTEM / ENEMY_GEN / MAIL） |
+| `GameRngManager` | `util/GameRngManager.kt` | 7 分区管理器（BATTLE / BREAKTHROUGH / EXPLORATION / SYSTEM / ENEMY_GEN / MAIL / AI_SECT） |
 | `RngPartition` | `util/RngPartition.kt` | 分区枚举 |
 
 **规则：** 新增任何使用随机数的逻辑，必须通过 `GameRngManager.getRng(RngPartition.xxx)` 调用，禁止直接使用 `kotlin.random.Random`。保存时 `exportStates()` 写入 `GameData.rngStates`，加载时 `restoreStates()` 恢复。
@@ -125,6 +125,10 @@ v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管
 **MAIL 分区（2026-07-26 新增）：** `RngPartition.MAIL(5)` 专门用于邮件/兑换码奖励随机生成（弟子属性/装备/丹药/草药等）。`EquipmentDatabase`/`HerbDatabase`/`ItemDatabase`/`ManualDatabase` 的 `generateRandom*` 方法增加可选 `random: kotlin.random.Random` 参数，调用方（`MailService`/`RedeemCodeService`）从 `GameRngManager.getRng(MAIL)` 获取 RNG 传入。
 
 **扩展：`nextGaussian()`** — `DeterministicRng` 新增 Box-Muller 变换实现的 `nextGaussian(mean, stddev)`，消耗 2 次 `nextDouble()` 调用生成 1 个标准正态偏差。不缓存配对值以保持 `snapshot`/`restore` 确定性。用于弟子属性生成（见下文）。
+
+**出生随机流（2026-07-31 迁移）：** `ChildBirthSystem` 的受孕判定/出生月份/性别/灵根继承/新生儿属性全部迁移至 `RngPartition.SYSTEM` 分区（6 处 `GameRandom` → `rngManager.getRng(SYSTEM)`，灵根随机经 `rng.asKotlinRandom()` 适配 `SpiritRootGenerator.generate`）。旧存档已出生弟子不受影响；未来出生结果随存档确定性，读档后基于 `restoreStates` 继续推进。
+
+**宗门地图种子（2026-07-31 确定性化）：** `createNewGame`/`restartGameInternal` 的 `mapSeed` 改用 `GameRandom.nextInt(Int.MAX_VALUE)` 生成（一次性熵源，非分区——同时作为分区 PRNG 的 `initSystemSeed` 输入，从分区生成会自引用）；连带修复 `restartGameInternal` 不生成 mapSeed 导致重启后全分区种子为 0、地图完全相同的缺陷。
 
 ---
 
@@ -273,10 +277,6 @@ interface SaveValidationRule {
 - 入口 facade：`data/src/main/java/.../integrity/SaveValidator.kt`
 - IntegrityResult 密封接口保持兼容不变
 
-### 已知待完成（2026-07-28 已全量治理）
-
-全部 5 项 Selected 架构债务已治理完毕，详见 [架构债务文档](architecture-debt.md) 和 [架构债务写守卫](architecture-debt-write-guard.md)。
-
 ## 热控与温度读取
 
 `ThermalReader` 接口定义三通道温度获取策略，`AndroidThermalReader` 实现（v4.0.41）：
@@ -399,6 +399,8 @@ No `NavHost` is used for the main game. `MainGameScreen` switches content via `M
 - ✅ 月度事件管线多事务问题已修复（2026-07-27）：所有子服务移入单次 `stateStore.update`，利用重入缓冲机制，月度循环 4→1 次 update
 - ✅ 年变事件管线多事务问题已修复（2026-07-27）：18 个子服务全部移入单次 `stateStore.update`，年变循环 ~20→1 次 update
 - ✅ `shuffled()` 迁移至分区 PRNG（2026-07-27）：`DisciplePurchaseService`(5处)+`LootCalculator`(1处) 改为 `GameRngManager` 分区 PRNG，新增 `RngExt.shuffled(rng)` 扩展函数
+- ✅ 出生/地图种子确定性化（2026-07-31）：`ChildBirthSystem` 迁移 SYSTEM 分区（见"确定性 RNG 系统"章节）；`mapSeed` 改用 `GameRandom` 并修复重启种子恒 0 缺陷
+- ✅ `GameEngine.renameDisciple` 原子改名（2026-07-31）：单 `stateStore.update` 事务内改名 + 按改名前的旧身份 `RecruitIntegrity.isSamePerson` 签名净化 `recruitList` 同人残留，杜绝改名破坏 5 字段签名后残留双胞胎永久逃脱三层净化、可被重复招募
 
 ---
 

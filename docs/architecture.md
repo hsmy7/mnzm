@@ -256,8 +256,6 @@ RunState（运行时状态 — 可循环回退）
 - [宗门地图渲染架构](map-rendering-architecture.md) — 三层按格实时绘制（地面/装饰/建筑分离），v4.0.42+
 - [加载阶段后台任务架构](loading-architecture.md) — 7模块并行加载（UI预组合/弟子快照/存档校验/图集约/地图并行/字体/音频）
 - [弟子分配门卫架构](disciple-assignment-architecture.md) — DiscipleAssignmentGate + 11槽位统一注册表，v4.0.58
-- [架构债务清单](architecture-debt.md)
-- [架构债务写守卫](architecture-debt-write-guard.md)
 
 ---
 
@@ -322,19 +320,3 @@ SaveValidator.validate(SaveData)
 ### 测试
 
 20 个测试类覆盖全部规则，位于 `data/src/test/.../integrity/rules/`。每规则独立覆盖通过/修复/损坏三类路径。
-
-以下优化项基于 [行业对标分析](knowledge-base.md#行业对标分析报告)（来源包括 UE/Supercell/RimWorld/MineColonies 等）。详见 [架构债务文档](architecture-debt.md)。
-
----
-
-## 2026-07-28 架构债务全量治理
-
-详见 [架构债务记录](architecture-debt.md)。包含 5 项 Selected 治理：
-
-| 项 | 治理内容 | 状态 |
-|---|---------|------|
-| **GameConfig 双源不一致** | `GameConfig.initialize()` 启动注入 `GameConfigData`，`Production`/`Warehouse`/`Battle.RealmGap`/`LawEnforcementConfig` 对应字段运行时委托到 `_configData` | ✅ 100% |
-| **Dispatchers.IO → IoDispatcher** | `IoDispatcher` 迁至 `:core:engine/di`，12 个 Hilt 类 49 处替换 + 8 个非 Hilt 类 `dispatcher` 参数化 | ✅ 100% |
-| **Vulkan SIGSEGV #3088** | driverVersion JNI + C++ 静态变量 + 黑名单扩充 22 机型 + `VulkanSection` 远程配置 | ✅ 100% |
-| **ANR #5076 TapTap** | `initAdSdk()` 顺序修正 + 超时 + Looper 监控 + 异常守卫 | ✅ 应用层满（根因在 TapTap 闭源）|
-| **Detekt 违规** | 6 项清零 | ✅ 100% |

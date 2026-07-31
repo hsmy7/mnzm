@@ -182,14 +182,3 @@ gate.release(id)   // 统一清理注册表
 | SlotCategoryCoverageTest | 新增槽位系统时忘记注册 | 枚举守卫测试 |
 
 两者结合后，3 种防止幽灵弟子的机制（ComponentTable 事务守卫 + Gate 分配追踪 + 读档重建）形成完整防线。
-
-## 架构债务
-
-详见 [architecture-debt-write-guard.md](architecture-debt-write-guard.md) 中记录的 6 项待完成项：
-
-1. `store` 底层存储绕过守卫
-2. `requireWrite` / `onWrite` 为 `@JvmField var` 可被覆盖
-3. `writeGuardEnabled` 全局开关可关闭所有守卫
-4. `ids` 为 public `MutableList` 可被直接变异
-5. `deathRecords` 为 public `MutableList` 可被直接变异
-6. `mergeDiscipleTables` / `createSettlementShadow` 死代码

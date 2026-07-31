@@ -1,5 +1,6 @@
 package com.xianxia.sect.core
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
@@ -76,6 +77,8 @@ object VulkanPolicy {
      *
      * @see Flutter Impeller 2025.1 模拟器 Vulkan 禁用策略
      */
+    // HardwareIds：SERIAL 仅用于模拟器/云环境检测的 "unknown" 判断，无设备标识用途
+    @SuppressLint("HardwareIds")
     @Suppress("ReturnCount", "ComplexCondition", "CyclomaticComplexMethod")
     fun isEmulator(): Boolean {
         // 信号 1: Build 硬件属性（Google Android Emulator / Genymotion）
@@ -154,6 +157,8 @@ object VulkanPolicy {
      * @see Flutter Impeller — API 版本门槛 + 已知问题 SoC 禁用
      * @see Chromium GPU Blocklist — Mali-G57 driver ≤ 40 blocklist
      */
+    // PrivateApi：云游戏检测无公开替代 API（Build.HOST 已被 CI 假阳性排除），反射仅读不写
+    @SuppressLint("PrivateApi")
     @Suppress("ReturnCount")
     private fun isTapTapCloudGaming(context: Context): Boolean {
         // 信号 1: /proc/self/maps 包含 taptap 沙箱库

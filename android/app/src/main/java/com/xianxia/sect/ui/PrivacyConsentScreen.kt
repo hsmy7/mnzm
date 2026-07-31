@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -36,6 +37,8 @@ private const val MMKV_URL = "https://github.com/Tencent/MMKV"
 private const val DIRICHLET_AD_SDK_PRIVACY_URL = "https://ssp.dirichlet.cn/docs/agreement/"
 private const val PRIVACY_POLICY_URL = "https://hsmy7.github.io/mnzm/"
 
+// UseKtx 保留 Uri.parse：隐私政策 URL 来自固定常量，显式构造 Uri 表达明确意图
+@SuppressLint("UseKtx")
 private fun openUrlInBrowser(context: android.content.Context, url: String) {
     try {
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))

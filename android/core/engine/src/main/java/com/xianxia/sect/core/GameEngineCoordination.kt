@@ -29,6 +29,7 @@ import com.xianxia.sect.core.util.addManualInstanceToDiscipleBag
 import com.xianxia.sect.core.util.manualBagStackIds
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
+import com.xianxia.sect.core.util.GameRandom
 
 /** AI 宗门每个宗门的标准弟子数 */
 private const val MAX_AI_SECT_DISCIPLES = 50
@@ -290,7 +291,7 @@ suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
         initializeWorldAndServices(sectName, currentSlot)
         val gridCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
         val centerGrid = gridCells / 2 - 1  // 2x2 building centered on grid
-        val mapSeed = java.util.Random().nextInt()
+        val mapSeed = GameRandom.nextInt(Int.MAX_VALUE)
         stateStore.update {
             val initialMine = GridBuildingData(buildingId = "灵矿场", displayName = "灵矿场", gridX = centerGrid, gridY = centerGrid, width = 2, height = 2, instanceId = java.util.UUID.randomUUID().toString(), sectId = "")
             gameData = gameData.copy(
@@ -325,6 +326,8 @@ suspend fun GameEngine.restartGameSuspend(sectName: String = "", currentSlot: In
 private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot: Int) {
     return engineContextDispatcher.withEngineContext {
         stateStore.resetForSlot(currentSlot); cultivationService.resetHighFrequencyData()
+        // 每次重启生成新的地图/随机种子，避免全分区 PRNG 种子恒为 0、地图完全相同
+        val mapSeed = GameRandom.nextInt(Int.MAX_VALUE)
         if (sectName.isNotBlank()) {
             // 1. 先初始化世界和游戏状态
             initializeWorldAndServices(sectName, currentSlot)
@@ -335,6 +338,7 @@ private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot
                 gameData = gameData.copy(
                     slotId = currentSlot,
                     currentSlot = currentSlot,
+                    mapSeed = mapSeed,
                     placedBuildings = listOf(initialMine),
                     spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") },
                 spiritMineLastSettledMonth = 1 * 12 + 1,  // gameYear=1, gameMonth=1
@@ -356,7 +360,7 @@ private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot
             // after startGameLoop() succeeds
             try { mailService.resetAndInitSlot(currentSlot) } catch (e: Exception) { DomainLog.e("GameEngine", "Failed to init mail for restarted game slot $currentSlot", e) }
         } else {
-            stateStore.update { gameData = GameData().copy(currentSlot = currentSlot) }
+            stateStore.update { gameData = GameData().copy(currentSlot = currentSlot, mapSeed = mapSeed) }
         }
     }
 }
@@ -423,6 +427,32 @@ suspend fun GameEngine.updateDisciple(discipleId: String, update: (Disciple) -> 
             val updated = update(current)
             discipleTables.remove(id)
             discipleTables.insert(updated)
+        }
+    }
+}
+
+/**
+ * 原子重命名宗门弟子，并在同一事务内清除招募列表中与"旧身份"同人的残留条目。
+ * 改名会破坏 [RecruitIntegrity.isSamePerson] 的 5 字段签名匹配，
+ * 若不在此净化，残留双胞胎将永久逃脱净化、可被重复招募。
+ *
+ * @param discipleId 宗门弟子 ID
+ * @param newName 新姓名
+ */
+suspend fun GameEngine.renameDisciple(discipleId: String, newName: String) {
+    return engineContextDispatcher.withEngineContext {
+        stateStore.update {
+            val id = discipleId.toInt()
+            if (id !in discipleTables.ids) return@update
+            val current = discipleTables.assemble(id)
+            val updated = current.copy(name = newName)
+            discipleTables.remove(id)
+            discipleTables.insert(updated)
+            // 按改名前的旧身份过滤：签名+年龄容差命中的同人残留一并清除
+            val kept = gameData.recruitList.filter { !RecruitIntegrity.isSamePerson(it, current) }
+            if (kept.size != gameData.recruitList.size) {
+                gameData = gameData.copy(recruitList = kept)
+            }
         }
     }
 }

@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.os.Build
 import android.os.Process
 import android.util.Log
+import androidx.core.content.edit
 import com.xianxia.sect.BuildConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import okhttp3.FormBody
@@ -306,12 +307,12 @@ class CrashHandler @Inject constructor(
      */
     fun clearCrashState() {
         try {
-            prefs.edit()
-                .remove(KEY_CRASH_FLAG)
-                .remove(KEY_CRASH_TIME)
-                .remove(KEY_CRASH_MESSAGE)
-                .remove(KEY_CRASH_STACK_TRACE)
-                .apply()
+            prefs.edit {
+                remove(KEY_CRASH_FLAG)
+                remove(KEY_CRASH_TIME)
+                remove(KEY_CRASH_MESSAGE)
+                remove(KEY_CRASH_STACK_TRACE)
+            }
             Log.d(TAG, "Crash state cleared")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to clear crash state", e)

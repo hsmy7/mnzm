@@ -6,11 +6,15 @@
 - **弟子列表出现两个完全相同的弟子** — recruitList 同内容双胞胎被招募路径各自分配新 ID 插入（`recruitAllFromList` 无去重；`processAutoRecruit` 只按 id 去重；手动招募只移除点击那条）。修复：批量招募路径（自动/一键）统一 `dedupeRecruits` 三级去重（id/内容/同人签名）、`recruitAllFromList` 事务开头净化 + 按 id 移除已招募条目；`recruitDiscipleFromList` 招募成功时按 `isSamePerson` 同步移除同内容双胞胎；三处招募守卫统一为 `RecruitIntegrity::isValidRecruit`；UI 层 `recruitListAggregates` 按 id 去重兜底（防 LazyVerticalGrid 重复 key 异常）
 - **AI 宗门弟子出现 38 岁炼虚等年轻高境界** — `adjustDiscipleRealm` 给 16-29 岁 AI 弟子直接赋高境界不改年龄，俘虏入列后原样成为玩家弟子。修复：AI 生成时按境界配最小合理年龄（`GameConfig.Realm.minReasonableAge`：炼虚≥300岁、化神≥200岁等，均低于寿元上限）；招募时仅软校验日志不阻断（保住俘虏玩法）
 - **弟子体质/词条在存档读档后丢失** — `DiscipleSerializer` 序列化缺少 `physiqueIds/affixIds`，读档后招募列表与 AI 宗门弟子体质/词条恒空（招募到"无体质无词条"弟子）。修复：补全序列化字段（@ProtoNumber 104/105，向后兼容）+ 序列化往返守卫测试
+- **宗门弟子改名后招募列表残留同名可招募的重复弟子** — 改名破坏 `RecruitIntegrity.isSamePerson` 5 字段签名匹配，recruitList 中旧名残留双胞胎永久逃脱三层净化、可被重复招募。修复：新增 `GameEngine.renameDisciple` 原子改名，同一事务内按改名前的旧身份签名清除招募列表同人残留
 
 ### 优化
 
 - **弟子肖像选择接入确定性随机** — `PortraitPool.getRandomPortrait` 改为调用方注入 `nextInt`（消灭裸 `kotlin.random.Random` 违规），4 个调用点分别接入分区 PRNG/GameRandom，读档后肖像与存档一致
 - **招募净化零 RNG 消耗** — 净化逻辑不消耗分区 PRNG，不破坏存档确定性
+- **弟子怀孕/出生接入存档确定性随机** — `ChildBirthSystem` 的受孕/分娩随机流迁移至 SYSTEM 分区 PRNG，出生弟子结果随存档确定性，读档续玩与存档一致
+- **宗门地图随机种子确定性化** — 新开游戏地图种子改用确定性随机源；修复重启游戏后种子恒为 0 导致每次地图与随机序列完全相同的缺陷，重启将生成全新地图
+- **技术债治理** — lint-baseline 96 条清零至 7 条（删除 52 个重复图片资源、KTX API 改写、4 个依赖升级）；`changelog_entries.json` 新增格式守卫（CI 自动校验）；清理过时架构债务文档
 
 ## [4.0.81] - 2026-07-31
 

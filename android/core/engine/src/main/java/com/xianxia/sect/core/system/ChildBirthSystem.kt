@@ -6,10 +6,12 @@ import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.service.RecruitService
-import com.xianxia.sect.core.util.GameRandom
+import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.PortraitPool
+import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.SpiritRootGenerator
+import com.xianxia.sect.core.util.asKotlinRandom
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -19,10 +21,14 @@ import javax.inject.Singleton
 @SystemPriority(order = 235)
 class ChildBirthSystem @Inject constructor(
     private val stateStore: GameStateStore,
-    private val discipleFactory: com.xianxia.sect.core.engine.domain.disciple.DiscipleFactory
+    private val discipleFactory: com.xianxia.sect.core.engine.domain.disciple.DiscipleFactory,
+    private val rngManager: GameRngManager
 ) : GameSystem {
 
     override val systemName: String = "ChildBirthSystem"
+
+    /** 出生随机流走 SYSTEM 分区（与伴侣配对/弟子招募同类系统级随机） */
+    private val rng get() = rngManager.getRng(RngPartition.SYSTEM)
 
     companion object {
         private const val CONCEPTION_PROBABILITY = 0.005
@@ -63,8 +69,8 @@ class ChildBirthSystem @Inject constructor(
             val father = discipleMap[fatherId]
             if (father == null || !father.isAlive) continue
 
-            if (GameRandom.nextDouble() < CONCEPTION_PROBABILITY) {
-                val birthMonth = GameRandom.nextInt(1, 13)
+            if (rng.nextDouble() < CONCEPTION_PROBABILITY) {
+                val birthMonth = 1 + rng.nextInt(12)
                 currentList = currentList.map { disciple ->
                     if (disciple.id == mother.id) {
                         disciple.copy(social = disciple.social.copy(childBirthMonth = birthMonth))
@@ -127,17 +133,17 @@ class ChildBirthSystem @Inject constructor(
 
     private fun createChild(mother: Disciple, father: Disciple, currentYear: Int, state: MutableGameState): Disciple {
         val id = UUID.randomUUID().toString()
-        val gender = if (GameRandom.nextBoolean()) "male" else "female"
+        val gender = if (rng.nextInt(2) == 0) "male" else "female"
 
         val fatherSurname = if (father.surname.isNotEmpty()) father.surname
             else NameService.extractSurname(father.name)
         val existingNames = (state.discipleTables.assembleAll() + state.gameData.recruitList).map { it.name }.toSet()
         val nameResult = NameService.inheritName(fatherSurname, gender, existingNames)
 
-        val spiritRootType = when (GameRandom.nextInt(100)) {
+        val spiritRootType = when (rng.nextInt(100)) {
             in 0..29 -> father.spiritRootType
             in 30..59 -> mother.spiritRootType
-            else -> SpiritRootGenerator.generateWithGameRandom()
+            else -> SpiritRootGenerator.generate(rng.asKotlinRandom())
         }
 
         return discipleFactory.create(
@@ -152,7 +158,7 @@ class ChildBirthSystem @Inject constructor(
                     parentId1 = mother.id,
                     parentId2 = father.id
                 ),
-                nextInt = { from, until -> GameRandom.nextInt(from, until) }
+                nextInt = { from, until -> from + rng.nextInt(until - from) }
             )
         )
     }

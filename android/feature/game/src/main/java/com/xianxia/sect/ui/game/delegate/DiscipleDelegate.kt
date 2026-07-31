@@ -226,9 +226,8 @@ class DiscipleDelegate(
     fun renameDisciple(discipleId: String, newName: String) {
         gameEngine.launchOnEngine {
             try {
-                gameEngine.updateDisciple(discipleId) { disciple ->
-                    disciple.copy(name = newName)
-                }
+                // 引擎层原子改名 + 同事务净化招募列表同人残留（防改名后重复可招募）
+                gameEngine.renameDisciple(discipleId, newName)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 Log.w("DiscipleDelegate", "operation failed", e)

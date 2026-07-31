@@ -1139,17 +1139,4 @@ cd android && ./gradlew.bat testDebugUnitTest \
 - 自动装备/自动学习脏标记：仅储物袋有物品或装备/功法变更时检测（`ConcurrentHashMap.newKeySet`）
 - **战斗前 HP/MP 恢复**：`recoverHpMpForBattleParticipants` 仅对非满状态弟子做正常恢复结算（`rate × multiplier`），满 HP+MP 跳过
 
----
-
-## 架构债务
-
-> 详见 [docs/architecture-debt.md](docs/architecture-debt.md)
-
-当前已知 3 项架构级债务：
-1. ~~**`allocateNextId()` 两步模式与批量原子 API 缺失**~~ — ✅ 已完成。`allocateNextId()`/`rollbackAllocation()` 已标记 `@Deprecated`；`DiscipleTables` 新增 `replaceAll()`；28 处 `clear()+insert()` 迁移完毕
-2. **`stateStore.update{}` 隔离语义不统一** — gameData/discipleTables/EntityStore 三种不同机制
-3. **`wallet.deduct()` 返回值未强制检查** — sealed class 但编译器不强制
-
----
-
 

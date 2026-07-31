@@ -41,6 +41,9 @@ jobs:
       - name: Run Detekt
         run: ./gradlew detekt --no-daemon
 
+      - name: Validate changelog JSON
+        run: ./gradlew validateChangelogJson --no-daemon
+
       - name: Generate coverage report
         run: ./gradlew koverHtmlReport --no-daemon || true  # 部分测试失败（预存图片资源问题）仍可生成二进制覆盖数据
 

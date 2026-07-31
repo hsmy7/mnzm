@@ -1,13 +1,13 @@
 package com.xianxia.sect.core.util
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
-import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
+import androidx.core.net.toUri
 
 /**
  * ## 电池优化检测与厂商白名单引导
@@ -31,20 +31,23 @@ object BatteryOptimizationHelper {
 
     /** 检查是否已豁免电池优化 */
     fun isExempted(context: Context): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
         val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
             ?: return true
         return pm.isIgnoringBatteryOptimizations(context.packageName)
     }
 
-    /** 请求电池优化豁免（弹出系统对话框） */
+    /**
+     * 请求电池优化豁免（弹出系统对话框）。
+     * BatteryLife 属有意使用：游戏需持续前台运行，引导用户豁免电池优化
+     * 是国产 OEM（华为/小米/OPPO/vivo/荣耀）环境的必需路径，请求弹窗由用户主动确认。
+     */
+    @SuppressLint("BatteryLife")
     fun requestExemption(activity: Activity) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
         if (isExempted(activity)) return
 
         try {
             val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                data = Uri.parse("package:${activity.packageName}")
+                data = "package:${activity.packageName}".toUri()
             }
             activity.startActivity(intent)
         } catch (e: Exception) {
@@ -100,7 +103,7 @@ object BatteryOptimizationHelper {
         try {
             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                data = Uri.parse("package:${context.packageName}")
+                data = "package:${context.packageName}".toUri()
             }
             context.startActivity(intent)
         } catch (e: Exception) {

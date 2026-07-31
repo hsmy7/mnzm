@@ -3,6 +3,7 @@ package com.xianxia.sect.core
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import androidx.core.content.edit
 
 /**
  * 崩溃自愈引擎 — 追踪 Native 层连续崩溃，自动进入安全模式。
@@ -81,11 +82,11 @@ object CrashRecoveryEngine {
         val count = p.getInt(KEY_CONSECUTIVE_CRASHES, 0) + 1
         val stackHash = stackTrace?.let { it.hashCode().toString() }
 
-        p.edit()
-            .putInt(KEY_CONSECUTIVE_CRASHES, count)
-            .putLong(KEY_LAST_CRASH_TIMESTAMP, System.currentTimeMillis())
-            .putString(KEY_LAST_CRASH_STACK_HASH, stackHash)
-            .apply()
+        p.edit {
+            putInt(KEY_CONSECUTIVE_CRASHES, count)
+            putLong(KEY_LAST_CRASH_TIMESTAMP, System.currentTimeMillis())
+            putString(KEY_LAST_CRASH_STACK_HASH, stackHash)
+        }
 
         Log.w(TAG, "Crash recorded (#$count consecutive)")
 
@@ -109,7 +110,7 @@ object CrashRecoveryEngine {
      */
     fun onCleanLaunch() {
         val p = requirePrefs()
-        p.edit().remove(KEY_CONSECUTIVE_CRASHES).apply()
+        p.edit { remove(KEY_CONSECUTIVE_CRASHES) }
         Log.d(TAG, "Consecutive crash counter reset on clean launch")
     }
 
@@ -124,10 +125,10 @@ object CrashRecoveryEngine {
      * 手动解除安全模式（用户点击"不提示"）
      */
     fun leaveSafeMode() {
-        requirePrefs().edit()
-            .remove(KEY_RENDER_SAFE_MODE)
-            .remove(KEY_CONSECUTIVE_CRASHES)
-            .apply()
+        requirePrefs().edit {
+            remove(KEY_RENDER_SAFE_MODE)
+            remove(KEY_CONSECUTIVE_CRASHES)
+        }
         Log.i(TAG, "Render safe mode manually disabled")
     }
 
@@ -143,7 +144,7 @@ object CrashRecoveryEngine {
     private fun enterSafeMode(p: SharedPreferences) {
         if (p.getBoolean(KEY_RENDER_SAFE_MODE, false)) return // 已在安全模式
 
-        p.edit().putBoolean(KEY_RENDER_SAFE_MODE, true).apply()
+        p.edit { putBoolean(KEY_RENDER_SAFE_MODE, true) }
         Log.e(TAG, """
             ╔══════════════════════════════════════════════════════════╗
             ║  RENDER SAFE MODE ACTIVATED                             ║
@@ -165,7 +166,7 @@ object CrashRecoveryEngine {
      * 不是进程崩溃。标记持久化后，后续启动可直接跳过 Vulkan 尝试。
      */
     fun recordVulkanInitFailure() {
-        requirePrefs().edit().putBoolean(KEY_VULKAN_INIT_FAILED, true).apply()
+        requirePrefs().edit { putBoolean(KEY_VULKAN_INIT_FAILED, true) }
         Log.w(TAG, "Vulkan init failure recorded — will skip Vulkan on next launch")
     }
 
@@ -173,7 +174,7 @@ object CrashRecoveryEngine {
      * 清除 Vulkan 初始化失败标记（用户手动恢复或版本更新后调用）。
      */
     fun clearVulkanInitFailure() {
-        requirePrefs().edit().remove(KEY_VULKAN_INIT_FAILED).apply()
+        requirePrefs().edit { remove(KEY_VULKAN_INIT_FAILED) }
         Log.d(TAG, "Vulkan init failure flag cleared")
     }
 
@@ -196,7 +197,7 @@ object CrashRecoveryEngine {
      * 下次启动时 [wasPrewarmKilled] 返回 true → 直接禁用 Vulkan。
      */
     fun markPrewarmStarted() {
-        requirePrefs().edit().putBoolean(KEY_PREWARM_STARTED, true).apply()
+        requirePrefs().edit { putBoolean(KEY_PREWARM_STARTED, true) }
         Log.d(TAG, "Prewarm started mark set")
     }
 
@@ -204,7 +205,7 @@ object CrashRecoveryEngine {
      * 清除 prewarm 标记（在 prewarmDevice 成功后调用）。
      */
     fun clearPrewarmStarted() {
-        requirePrefs().edit().remove(KEY_PREWARM_STARTED).apply()
+        requirePrefs().edit { remove(KEY_PREWARM_STARTED) }
         Log.d(TAG, "Prewarm started mark cleared")
     }
 
@@ -224,7 +225,7 @@ object CrashRecoveryEngine {
      * 下次启动时 [wasSurfaceInitKilled] 返回 true → 直接禁用 Vulkan。
      */
     fun markSurfaceInitStarted() {
-        requirePrefs().edit().putBoolean(KEY_SURFACE_INIT_STARTED, true).apply()
+        requirePrefs().edit { putBoolean(KEY_SURFACE_INIT_STARTED, true) }
         Log.d(TAG, "Surface init started mark set")
     }
 
@@ -232,7 +233,7 @@ object CrashRecoveryEngine {
      * 清除 surface init 标记（在 initRenderer 成功后调用）。
      */
     fun clearSurfaceInitStarted() {
-        requirePrefs().edit().remove(KEY_SURFACE_INIT_STARTED).apply()
+        requirePrefs().edit { remove(KEY_SURFACE_INIT_STARTED) }
         Log.d(TAG, "Surface init started mark cleared")
     }
 
@@ -251,7 +252,7 @@ object CrashRecoveryEngine {
      * 一次崩溃即触发 SoftwareOnly 降级，无需积累到 SAFE_MODE_THRESHOLD。
      */
     fun markVulkanCrashDetected() {
-        requirePrefs().edit().putBoolean(KEY_VULKAN_CRASH_DETECTED, true).apply()
+        requirePrefs().edit { putBoolean(KEY_VULKAN_CRASH_DETECTED, true) }
         Log.e(TAG, "Vulkan crash detected — will force SOFTWARE_ONLY on next launch")
     }
 
@@ -266,7 +267,7 @@ object CrashRecoveryEngine {
      * 清除 Vulkan 崩溃标记（版本更新或用户手动恢复后调用）。
      */
     fun clearVulkanCrashDetected() {
-        requirePrefs().edit().remove(KEY_VULKAN_CRASH_DETECTED).apply()
+        requirePrefs().edit { remove(KEY_VULKAN_CRASH_DETECTED) }
         Log.d(TAG, "Vulkan crash detected flag cleared")
     }
 

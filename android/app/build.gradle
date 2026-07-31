@@ -372,3 +372,38 @@ tasks.register('checkDelegateLaunchPattern') {
     }
 }
 tasks.named('detekt').configure { finalizedBy('checkDelegateLaunchPattern') }
+
+// 🔴 编译时防护：changelog_entries.json 格式守卫，防止非法 JSON/缺字段再次入库
+tasks.register('validateChangelogJson') {
+    group = 'verification'
+    description = '校验 changelog_entries.json 顶层数组与 date/changes/version 字段'
+    doLast {
+        def jsonFile = file("$projectDir/src/main/assets/changelog_entries.json")
+        if (!jsonFile.exists()) {
+            throw new GradleException("changelog_entries.json 不存在: ${jsonFile}")
+        }
+        def json = new groovy.json.JsonSlurper().parse(jsonFile)
+        if (!(json instanceof List)) {
+            throw new GradleException("changelog_entries.json 顶层必须是数组")
+        }
+        json.eachWithIndex { entry, i ->
+            if (!(entry instanceof Map)) throw new GradleException("条目[$i] 必须是对象")
+            if (!(entry.date instanceof String) || entry.date.isBlank()) {
+                throw new GradleException("条目[$i] 缺少非空字符串 date")
+            }
+            if (!(entry.changes instanceof List) || entry.changes.isEmpty()) {
+                throw new GradleException("条目[$i] 缺少非空字符串数组 changes")
+            }
+            entry.changes.each { c ->
+                if (!(c instanceof String) || c.isBlank()) {
+                    throw new GradleException("条目[$i] changes 含非字符串/空白项")
+                }
+            }
+            if (entry.containsKey("version") && !(entry.version instanceof String)) {
+                throw new GradleException("条目[$i] version 若存在必须为字符串")
+            }
+        }
+        logger.lifecycle("validateChangelogJson 通过：共 ${json.size} 条")
+    }
+}
+tasks.named('check').configure { dependsOn('validateChangelogJson') }

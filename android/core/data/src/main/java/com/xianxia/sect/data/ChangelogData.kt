@@ -1,6 +1,7 @@
 package com.xianxia.sect.data
 
 import android.content.Context
+import com.xianxia.sect.core.util.DomainLog
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.InputStreamReader
@@ -41,6 +42,7 @@ object ChangelogData {
             reader.close()
             json.decodeFromString<List<ChangelogEntry>>(jsonString)
         } catch (e: Exception) {
+            DomainLog.w("ChangelogData", "changelog_entries.json 解析失败，返回空列表", e)
             emptyList()
         }
     }

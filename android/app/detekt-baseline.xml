@@ -10,7 +10,7 @@
     <ID>CyclomaticComplexMethod:GameStateStoreImpl.kt$GameStateStoreImpl$override fun update(block: MutableGameState.() -&gt; Unit)</ID>
     <ID>CyclomaticComplexMethod:UiError.kt$UiError.Companion$fun fromAppError(error: AppError): UiError</ID>
     <ID>CyclomaticComplexMethod:VulkanPolicy.kt$VulkanPolicy$@Suppress("ReturnCount") fun getRenderStrategy(context: Context): RenderStrategy</ID>
-    <ID>CyclomaticComplexMethod:VulkanPolicy.kt$VulkanPolicy$@Suppress("ReturnCount") private fun isTapTapCloudGaming(context: Context): Boolean</ID>
+    <ID>CyclomaticComplexMethod:VulkanPolicy.kt$VulkanPolicy$@SuppressLint("PrivateApi") @Suppress("ReturnCount") private fun isTapTapCloudGaming(context: Context): Boolean</ID>
     <ID>EmptyKtFile:GameStateStoreMergeTest.kt$.GameStateStoreMergeTest.kt</ID>
     <ID>EmptyKtFile:StateRevertRegressionTest.kt$.StateRevertRegressionTest.kt</ID>
     <ID>ExplicitGarbageCollectionCall:VivoGCJITOptimizer.kt$VivoGCJITOptimizer$gc()</ID>
@@ -164,7 +164,7 @@
     <ID>NestedBlockDepth:CrashHandler.kt$CrashHandler$private fun cleanupOldCrashLogs(crashLogDir: File)</ID>
     <ID>NestedBlockDepth:CrashHandler.kt$CrashHandler$private fun writeCrashLogToFile(thread: Thread, throwable: Throwable, stackTrace: String): File?</ID>
     <ID>NestedBlockDepth:ObjectPool.kt$ObjectPool.Pool$fun release(instance: T)</ID>
-    <ID>NestedBlockDepth:VulkanPolicy.kt$VulkanPolicy$@Suppress("ReturnCount") private fun isTapTapCloudGaming(context: Context): Boolean</ID>
+    <ID>NestedBlockDepth:VulkanPolicy.kt$VulkanPolicy$@SuppressLint("PrivateApi") @Suppress("ReturnCount") private fun isTapTapCloudGaming(context: Context): Boolean</ID>
     <ID>ReturnCount:BatteryOptimizationHelper.kt$BatteryOptimizationHelper$fun isExempted(context: Context): Boolean</ID>
     <ID>ReturnCount:GCOptimizer.kt$GCOptimizer$fun optimizeForLowMemory(): GCOptimizationResult?</ID>
     <ID>ReturnCount:GCOptimizer.kt$GCOptimizer$fun suggestGC(): Boolean</ID>

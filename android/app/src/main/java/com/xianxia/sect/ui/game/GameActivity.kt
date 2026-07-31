@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game
 
+import android.annotation.SuppressLint
 import android.app.AlarmManager
 import android.content.ComponentCallbacks2
 import android.content.ComponentName
@@ -24,6 +25,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.activity.enableEdgeToEdge
+import androidx.core.content.edit
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.net.toUri
 import androidx.core.view.WindowInsetsCompat
@@ -477,9 +479,7 @@ class GameActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         hideSystemBars()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            frameMetricsMonitor.startMonitoring(window)
-        }
+        frameMetricsMonitor.startMonitoring(window)
         if (audioConfig.musicEnabled) {
             audioEngine.resumeBGM()
         }
@@ -655,7 +655,10 @@ class GameActivity : ComponentActivity() {
         // 用户主动退出（isFinishing=true）时停止 Service，释放游戏循环与 WakeLock
         // 配置变更等非主动退出场景不停止 Service，保持游戏在后台运行
         if (isFinishing) {
-            stopService(Intent(this, GameForegroundService::class.java))
+            // ImplicitSamInstance 为 lint 误报：component-based Intent 是 stopService 标准写法
+            @SuppressLint("ImplicitSamInstance")
+            val stopIntent = Intent(this, GameForegroundService::class.java)
+            stopService(stopIntent)
         }
         // 注意：不在此处调用 gameEngineCore.shutdown()
         // shutdown 会取消协程作用域和释放系统。
@@ -674,10 +677,12 @@ class GameActivity : ComponentActivity() {
             ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN -> {
                 // Release UI-only resources
             }
-            ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL -> {
+            ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL,
+            ComponentCallbacks2.TRIM_MEMORY_COMPLETE -> {
                 // 释放地图 Bitmap 引用以允许 GC 回收内存（ImageBitmap 无 recycle API）
                 mapPreloadDataRef = null
             }
+            ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW,
             ComponentCallbacks2.TRIM_MEMORY_RUNNING_MODERATE,
             ComponentCallbacks2.TRIM_MEMORY_BACKGROUND -> {
                 Log.w(TAG, "运行时内存压力(level=$level)")
@@ -747,7 +752,7 @@ class GameActivity : ComponentActivity() {
         val prefs = getSharedPreferences("battery_guide", MODE_PRIVATE)
         if (prefs.getBoolean("oem_guide_shown", false)) return
 
-        prefs.edit().putBoolean("oem_guide_shown", true).apply()
+        prefs.edit { putBoolean("oem_guide_shown", true) }
 
         val guideText = helper.getGuideText(this)
         if (guideText.isEmpty()) return
@@ -786,7 +791,7 @@ class GameActivity : ComponentActivity() {
         val prefs = getSharedPreferences("exact_alarm_prefs", MODE_PRIVATE)
         if (prefs.getBoolean("exact_alarm_prompted", false)) return
 
-        prefs.edit().putBoolean("exact_alarm_prompted", true).apply()
+        prefs.edit { putBoolean("exact_alarm_prompted", true) }
 
         try {
             val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)

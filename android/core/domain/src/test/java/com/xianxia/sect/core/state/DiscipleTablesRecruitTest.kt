@@ -151,28 +151,28 @@ class DiscipleTablesRecruitTest {
     @Test
     fun `integrity - blank name`() {
         val list = listOf(createRecruit("", id = "x"))
-        val d = list.find { it.id == "x" }!!
+        val d = requireNotNull(list.find { it.id == "x" }) { "fixture 必须包含 id=x 的条目" }
         assertTrue(d.name.isBlank() || d.age <= 0 || d.realm <= 0)
     }
 
     @Test
     fun `integrity - age zero`() {
         val list = listOf(createRecruit("x", age = 0, id = "x"))
-        val d = list.find { it.id == "x" }!!
+        val d = requireNotNull(list.find { it.id == "x" }) { "fixture 必须包含 id=x 的条目" }
         assertTrue(d.name.isBlank() || d.age <= 0 || d.realm <= 0)
     }
 
     @Test
     fun `integrity - realm zero`() {
         val list = listOf(createRecruit("x", realm = 0, id = "x"))
-        val d = list.find { it.id == "x" }!!
+        val d = requireNotNull(list.find { it.id == "x" }) { "fixture 必须包含 id=x 的条目" }
         assertTrue(d.name.isBlank() || d.age <= 0 || d.realm <= 0)
     }
 
     @Test
     fun `integrity - valid data passes`() {
         val list = listOf(createRecruit("正常", age = 20, realm = 9, id = "x"))
-        val d = list.find { it.id == "x" }!!
+        val d = requireNotNull(list.find { it.id == "x" }) { "fixture 必须包含 id=x 的条目" }
         assertFalse(d.name.isBlank() || d.age <= 0 || d.realm <= 0)
     }
 
@@ -187,7 +187,9 @@ class DiscipleTablesRecruitTest {
         val recruit = createRecruit("新弟子", id = recruitId, age = 20, realm = 9)
         var gameData = GameData(recruitList = listOf(recruit))
 
-        val found = gameData.recruitList.find { it.id == recruitId }!!
+        val found = requireNotNull(gameData.recruitList.find { it.id == recruitId }) {
+            "fixture 必须包含 id=$recruitId 的招募条目"
+        }
         val month = gameData.gameYear * 12 + gameData.gameMonth
         val newId = tables.allocateAndInsert(
             found.copy(usage = found.usage.copy(recruitedMonth = month))
@@ -215,7 +217,9 @@ class DiscipleTablesRecruitTest {
         val tables = DiscipleTables()
         val recruitId = UUID.randomUUID().toString()
         var gameData = GameData(recruitList = listOf(createRecruit("张三", age = 0, id = recruitId)))
-        val found = gameData.recruitList.find { it.id == recruitId }!!
+        val found = requireNotNull(gameData.recruitList.find { it.id == recruitId }) {
+            "fixture 必须包含 id=$recruitId 的招募条目"
+        }
         val shouldSkip = found.name.isBlank() || found.age <= 0 || found.realm <= 0
         assertTrue("损坏数据应跳过", shouldSkip)
         assertEquals("不应招募", 0, tables.count)
@@ -229,7 +233,9 @@ class DiscipleTablesRecruitTest {
         val recruit = createRecruit("新弟子", id = recruitId, age = 20, realm = 9)
         var gameData = GameData(recruitList = listOf(recruit))
 
-        val found = gameData.recruitList.find { it.id == recruitId }!!
+        val found = requireNotNull(gameData.recruitList.find { it.id == recruitId }) {
+            "fixture 必须包含 id=$recruitId 的招募条目"
+        }
         val month = gameData.gameYear * 12 + gameData.gameMonth
         tables.allocateAndInsert(found.copy(usage = found.usage.copy(recruitedMonth = month)))
         gameData = gameData.copy(recruitList = gameData.recruitList.filter { it.id != recruitId })

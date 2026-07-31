@@ -32,6 +32,9 @@ class WakeLockManager @Inject constructor(
     companion object {
         private const val TAG = "WakeLockManager"
 
+        /** WakeLock 最大持有时长：12 小时，仅作防泄漏兜底（正常由 onPause→release 管理） */
+        private const val WAKE_LOCK_MAX_TIMEOUT_MS = 12L * 60L * 60L * 1000L
+
         /**
          * WakeLock tag，由 [ManufacturerAdapter.profile] 数据驱动。
          *
@@ -64,18 +67,18 @@ class WakeLockManager @Inject constructor(
             return
         }
 
-        // 无超时 acquire()：游戏期间需持续持有 WakeLock 防止 OEM 挂起 CPU。
-        // 荣耀 MagicOS 等激进电源管理在 WakeLock 缺失时会将 CPU 挂起，
-        // 即使 App 在前台。生命周期由 GameActivity.onPause() → release() 管理。
+        // 12 小时超时兜底：游戏期间需持续持有 WakeLock 防止 OEM 挂起 CPU，
+        // 正常生命周期由 GameActivity.onPause() → release() 管理，超时仅防泄漏。
+        // 荣耀 MagicOS 等激进电源管理在 WakeLock 缺失时会将 CPU 挂起，即使 App 在前台。
         wakeLock = pm.newWakeLock(
             PowerManager.PARTIAL_WAKE_LOCK,
             WAKE_LOCK_TAG
         ).apply {
             setReferenceCounted(false)
-            acquire()
+            acquire(WAKE_LOCK_MAX_TIMEOUT_MS)
         }
 
-        Log.d(TAG, "WakeLock acquired (no timeout, released in onPause)")
+        Log.d(TAG, "WakeLock acquired (12h timeout guard, released in onPause)")
     }
 
     /** 释放 WakeLock。幂等。 */

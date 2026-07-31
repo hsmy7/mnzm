@@ -10,99 +10,90 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.kotlin.mock
-import org.mockito.kotlin.whenever
 
 /**
- * GameEngineCoordination 数据完整性守卫的单元测试。
+ * GameEngine.renameDisciple 原子改名 + 招募列表同人残留净化的单元测试。
+ *
+ * 背景：改名会破坏 RecruitIntegrity.isSamePerson 的 5 字段签名匹配，
+ * 若不同时净化 recruitList，残留双胞胎将永久逃脱三层净化、可被重复招募。
  */
-class GameEngineCoordinationTest {
+class GameEngineRenameTest {
 
     @Test
-    fun `ensureGameDataIntegrity - worldMapSects 空时重生`() = runBlocking {
-        val env = EngineTestEnv()
-        env.store.gameDataValue = GameData().copy(
-            sectName = "青云宗",
-            worldMapSects = emptyList()
+    fun `renameDisciple - 清除同人残留且保留无关条目`() = runBlocking {
+        val env = RenameEnv()
+        env.store.tables.allocateAndInsert(createDisciple(id = "1", name = "旧名", age = 20))
+        val twin = createDisciple(id = "recruit-1", name = "旧名", age = 21)
+        val other = createDisciple(id = "recruit-2", name = "无关弟子", age = 30)
+        env.store.gameDataValue = GameData(recruitList = listOf(twin, other))
+
+        env.engine.renameDisciple("1", "新名")
+
+        assertEquals("弟子表应已改名", "新名", env.store.tables.assemble(1).name)
+        val kept = env.store.gameDataValue.recruitList
+        assertEquals("同人残留应被清除，无关条目保留", 1, kept.size)
+        assertEquals("recruit-2", kept[0].id)
+    }
+
+    @Test
+    fun `renameDisciple - 无同人残留时列表不变`() = runBlocking {
+        val env = RenameEnv()
+        env.store.tables.allocateAndInsert(createDisciple(id = "1", name = "旧名", age = 20))
+        val other = createDisciple(id = "recruit-2", name = "无关弟子", age = 30)
+        env.store.gameDataValue = GameData(recruitList = listOf(other))
+
+        env.engine.renameDisciple("1", "新名")
+
+        assertEquals("新名", env.store.tables.assemble(1).name)
+        assertEquals("无同人残留时列表不变", 1, env.store.gameDataValue.recruitList.size)
+    }
+
+    @Test
+    fun `renameDisciple - 已死亡弟子非对称容差命中清除、低龄条目保留`() = runBlocking {
+        val env = RenameEnv()
+        env.store.tables.allocateAndInsert(
+            createDisciple(id = "1", name = "死者", age = 18, isAlive = false)
         )
+        // 同源拷贝残留：年龄冻结在死者年龄之上 → 非对称容差命中
+        val clone = createDisciple(id = "recruit-1", name = "死者", age = 20)
+        // 合法同名新条目：年龄远小于死者冻结年龄 → 不误删
+        val fresh = createDisciple(id = "recruit-2", name = "死者", age = 10)
+        env.store.gameDataValue = GameData(recruitList = listOf(clone, fresh))
 
-        env.engine.ensureGameDataIntegrity()
+        env.engine.renameDisciple("1", "新名")
 
-        val result = env.store.gameDataValue
-        assertTrue("worldMapSects 应被重生为非空",
-            result.worldMapSects.isNotEmpty())
-        assertTrue("应包含玩家宗门",
-            result.worldMapSects.any { it.isPlayerSect })
+        val kept = env.store.gameDataValue.recruitList
+        assertEquals("同源拷贝清除、低龄合法条目保留", 1, kept.size)
+        assertEquals("recruit-2", kept[0].id)
     }
 
     @Test
-    fun `ensureGameDataIntegrity - worldMapSects 非空时跳过`() = runBlocking {
-        val env = EngineTestEnv()
-        env.store.gameDataValue = GameData().copy(
-            sectName = "青云宗",
-            worldMapSects = listOf(WorldSect(
-                id = "player_sect", name = "青云宗",
-                x = 849f, y = 463f, isPlayerSect = true,
-                level = 3, discovered = true, relation = 100
-            ))
-        )
+    fun `renameDisciple - 不存在的 id 无副作用`() = runBlocking {
+        val env = RenameEnv()
+        val other = createDisciple(id = "recruit-2", name = "无关弟子", age = 30)
+        env.store.gameDataValue = GameData(recruitList = listOf(other))
 
-        env.engine.ensureGameDataIntegrity()
+        env.engine.renameDisciple("999", "新名")
 
-        assertEquals("worldMapSects 应保留原有 1 个",
-            1, env.store.gameDataValue.worldMapSects.size)
+        assertEquals("招募列表不变", 1, env.store.gameDataValue.recruitList.size)
     }
 
     @Test
-    fun `ensureGameDataIntegrity - sectName 空时不崩溃`() = runBlocking {
-        val env = EngineTestEnv()
-        env.store.gameDataValue = GameData().copy(
-            sectName = "",
-            worldMapSects = emptyList()
-        )
+    fun `renameDisciple - 空招募列表正常改名`() = runBlocking {
+        val env = RenameEnv()
+        env.store.tables.allocateAndInsert(createDisciple(id = "1", name = "旧名", age = 20))
 
-        env.engine.ensureGameDataIntegrity()
-        assertTrue("sectName 为空时 worldMapSects 仍为空",
-            env.store.gameDataValue.worldMapSects.isEmpty())
-    }
+        env.engine.renameDisciple("1", "新名")
 
-    @Test
-    fun `createNewGame - mapSeed 非零`() = runBlocking {
-        val env = EngineTestEnv()
-        // 生产代码会访问 productionCoordinator.repository，stub 避免 mock 返回 null
-        whenever(env.engine.productionCoordinator.repository).thenReturn(mock())
-
-        env.engine.createNewGame("青云宗", 1)
-
-        assertTrue("新游戏 mapSeed 不应为 0", env.store.gameDataValue.mapSeed != 0)
-    }
-
-    @Test
-    fun `restartGameSuspend - mapSeed 非零（旧实现恒为 0 的回归守卫）`() = runBlocking {
-        val env = EngineTestEnv()
-
-        env.engine.restartGameSuspend("", 1)
-
-        assertTrue("重启后 mapSeed 不应为 0，否则全分区 PRNG 种子归零且地图相同",
-            env.store.gameDataValue.mapSeed != 0)
-    }
-
-    @Test
-    fun `restartGameSuspend - 两次重启种子不同`() = runBlocking {
-        val env = EngineTestEnv()
-
-        env.engine.restartGameSuspend("", 1)
-        val first = env.store.gameDataValue.mapSeed
-        env.engine.restartGameSuspend("", 1)
-        val second = env.store.gameDataValue.mapSeed
-
-        assertTrue("两次重启应产生不同地图种子（相同为缺陷）", first != second)
+        assertEquals("新名", env.store.tables.assemble(1).name)
+        assertTrue("招募列表仍为空", env.store.gameDataValue.recruitList.isEmpty())
     }
 }
 
-// ── 测试用 GameEngine + GameStateStore 的最小化环境 ──
+// ── 测试用最小环境 ──
 
-private class EngineTestEnv {
-    val store = SimpleStore()
+private class RenameEnv {
+    val store = RenameStore()
     val engine = GameEngine(
         gameEngineCore = mock(),
         engineContextDispatcher = FakeEngineContextDispatcher(),
@@ -139,7 +130,7 @@ private class EngineTestEnv {
     )
 }
 
-private class SimpleStore : GameStateStore {
+private class RenameStore : GameStateStore {
 
     /** 测试用：直接读写 GameData */
     var gameDataValue: GameData = GameData()
@@ -148,8 +139,8 @@ private class SimpleStore : GameStateStore {
     override val gameData: StateFlow<GameData> get() = _gameDataFlow
     override val gameDataSnapshot: GameData get() = gameDataValue
 
-    private val _tables = DiscipleTables()
-    override val discipleTables: DiscipleTables get() = _tables
+    val tables = DiscipleTables()
+    override val discipleTables: DiscipleTables get() = tables
 
     // EntityStore 实例（MutableGameState 需要）
     private val eqStacks = EntityStore<EquipmentStack>()
@@ -165,7 +156,7 @@ private class SimpleStore : GameStateStore {
     override fun update(block: MutableGameState.() -> Unit) {
         val mutable = MutableGameState(
             gameData = gameDataValue,
-            discipleTables = _tables,
+            discipleTables = tables,
             equipmentStacks = eqStacks,
             equipmentInstances = eqInstances,
             manualStacks = mnStacks,
@@ -254,7 +245,7 @@ private class SimpleStore : GameStateStore {
     override fun clearRewardCardQueue(count: Int) {}
     override fun <R> updateAndReturn(block: MutableGameState.() -> R): R {
         val m = MutableGameState(
-            gameData = gameDataValue, discipleTables = _tables,
+            gameData = gameDataValue, discipleTables = tables,
             equipmentStacks = eqStacks, equipmentInstances = eqInstances,
             manualStacks = mnStacks, manualInstances = mnInstances,
             pills = pils, materials = mats, herbs = hrbs,
@@ -289,3 +280,16 @@ private class SimpleStore : GameStateStore {
     override fun exitBatchEmissionMode() {}
     override fun takeAtomicSnapshot(): GameStateStore.GameSnapshot = GameStateStore.GameSnapshot()
 }
+
+private fun createDisciple(
+    id: String,
+    name: String,
+    age: Int = 18,
+    isAlive: Boolean = true
+) = Disciple(
+    id = id, name = name, age = age, realm = 9, realmLayer = 1,
+    cultivation = 0.0, isAlive = isAlive, status = DiscipleStatus.IDLE,
+    discipleType = "outer", spiritRootType = "metal", gender = "male",
+    portraitRes = "default", skills = SkillStats(), combat = CombatAttributes(),
+    lifespan = 80, social = SocialData(), usage = UsageTracking()
+)

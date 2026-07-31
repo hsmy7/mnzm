@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.ComponentCallbacks2
 import android.content.res.Configuration
 import android.util.Log
+import androidx.core.content.edit
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.GameMonitorManager
@@ -392,7 +393,8 @@ class XianxiaApplication : Application() {
             "ui_recruit_button" to R.drawable.ui_recruit_button,
             "ui_mail_button" to R.drawable.ui_mail_button,
             "ui_log_button" to R.drawable.ui_log_button,
-            "ui_tooltip" to R.drawable.ui_tooltip,
+            // ui_tooltip 与 dialog_box 内容相同（md5 一致），复用 dialog_box 消除重复资源
+            "ui_tooltip" to R.drawable.dialog_box,
             "ui_hide_button" to R.drawable.ui_hide_button,
             "ui_show_button" to R.drawable.ui_show_button,
             "ui_play_button" to R.drawable.ui_play_button,
@@ -509,10 +511,10 @@ class XianxiaApplication : Application() {
                 MMKV.defaultMMKV().clearAll()
                 Log.i(TAG, "[4.0] MMKV cleared")
                 listOf("crash_handler", "app_session").forEach { name ->
-                    getSharedPreferences(name, MODE_PRIVATE).edit().clear().apply()
+                    getSharedPreferences(name, MODE_PRIVATE).edit { clear() }
                 }
                 Log.i(TAG, "[4.0] SharedPreferences cleared")
-                resetPrefs.edit().putBoolean(resetMarker, true).apply()
+                resetPrefs.edit { putBoolean(resetMarker, true) }
                 Log.i(TAG, "[4.0] All storage reset complete")
             } catch (e: Exception) {
                 Log.e(TAG, "[4.0] Storage reset failed", e)
