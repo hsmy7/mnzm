@@ -61,6 +61,10 @@ class CultivationCore @Inject constructor(
     fun calculateDiscipleCultivationPerPhase(disciple: Disciple, data: GameData, tables: DiscipleTables): Double =
         cultivationRateCalculator.calculateDiscipleCultivationPerPhase(disciple, data, tables)
 
+    /** 列直读版每旬修炼速率（无 Disciple 组装），供每旬热点循环使用 */
+    fun calculateCultivationPerPhaseById(id: Int, data: GameData, tables: DiscipleTables): Double =
+        cultivationRateCalculator.calculateCultivationPerPhaseById(id, data, tables)
+
     fun getLifespanGainForRealm(realm: Int): Int = cultivationRateCalculator.getLifespanGainForRealm(realm)
 
     fun isDiscipleFullHpMp(disciple: Disciple): Boolean = hpMpRecoveryService.isDiscipleFullHpMp(disciple)
@@ -70,8 +74,11 @@ class CultivationCore @Inject constructor(
     fun recoverHpMpForAllDisciples(state: MutableGameState, phasesToSettle: Int = 3) =
         hpMpRecoveryService.recoverHpMpForAllDisciples(state, phasesToSettle)
 
-    fun recoverHpMpSingle(state: MutableGameState, id: Int, phasesToSettle: Int = 1) =
-        hpMpRecoveryService.recoverHpMpSingle(state, id, phasesToSettle)
+    fun recoverHpMpSingle(
+        state: MutableGameState, id: Int, phasesToSettle: Int = 1,
+        equipmentMap: Map<String, EquipmentInstance>? = null,
+        manualMap: Map<String, ManualInstance>? = null
+    ) = hpMpRecoveryService.recoverHpMpSingle(state, id, phasesToSettle, equipmentMap = equipmentMap, manualMap = manualMap)
 
     fun recoverMonthlyHpMp(tables: DiscipleTables, id: Int, focusedPhaseCount: Int = 0,
         zones: RecoveryZones = RecoveryZones()
@@ -202,14 +209,18 @@ class CultivationCore @Inject constructor(
      *
      * @param state 可变游戏状态
      * @param id 弟子 ID
+     * @param manualInstanceMap 功法实例映射（每旬热点循环共享构建，null 时内部构建）
      */
-    fun processManualProficiencySingle(state: MutableGameState, id: Int) {
+    fun processManualProficiencySingle(
+        state: MutableGameState, id: Int,
+        manualInstanceMap: Map<String, ManualInstance>? = null
+    ) {
         val tables = state.discipleTables
         if (tables.isAlive[id] != 1) return
         val manualIds = tables.manualIds.getOrDefault(id, emptyList())
         if (manualIds.isEmpty()) return
 
-        val manualMap = state.manualInstances.associateBy { it.id }
+        val manualMap = manualInstanceMap ?: state.manualInstances.associateBy { it.id }
         val data = state.gameData
         val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
         val discipleId = id.toString()
@@ -279,15 +290,19 @@ class CultivationCore @Inject constructor(
      *
      * @param state 可变游戏状态
      * @param id 弟子 ID
+     * @param equipmentMap 装备实例映射（每旬热点循环共享构建，null 时内部构建）
      */
-    fun processEquipmentNurtureSingle(state: MutableGameState, id: Int) {
+    fun processEquipmentNurtureSingle(
+        state: MutableGameState, id: Int,
+        equipmentMap: Map<String, EquipmentInstance>? = null
+    ) {
         val tables = state.discipleTables
         if (tables.isAlive[id] != 1) return
-        val equipmentMap = state.equipmentInstances.associateBy { it.id }
+        val eqMap = equipmentMap ?: state.equipmentInstances.associateBy { it.id }
         val equipmentUpdates = mutableMapOf<String, EquipmentInstance>()
 
         equipmentNurtureService.settleNurtureInPlace(
-            id = id, tables = tables, equipmentMap = equipmentMap,
+            id = id, tables = tables, equipmentMap = eqMap,
             nurtureGainPerPhase = EquipmentNurtureSystem.NURTURE_GAIN_PER_PHASE,
             phasesToSettle = 1, equipmentUpdates = equipmentUpdates
         )

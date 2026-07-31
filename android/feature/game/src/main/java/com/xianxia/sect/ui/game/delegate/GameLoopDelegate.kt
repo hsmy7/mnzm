@@ -27,6 +27,22 @@ class GameLoopDelegate(
 
     companion object {
         private const val TAG = "GameLoopDelegate"
+
+        /**
+         * 健康检查开关（测试环境禁用）。
+         *
+         * 健康检查每秒访问 gameEngineCore.tickCount/isPausedDirect——在
+         * mockk relaxed mock 环境下每次属性访问都触发 Kotlin 反射
+         *（findBackingField → 全类成员解析 → 大量类加载，MR-JAR 版本化
+         * 条目读取极慢），实测 GameViewModelTest 卡死（jstack：
+         * JarFile.getVersionedEntry）。测试环境无真实游戏循环，健康检查
+         * 无意义，禁用之。
+         *
+         * 与 [com.xianxia.sect.core.state.DiscipleTables.writeGuardEnabled]
+         * 同模式的测试开关。
+         */
+        @Volatile
+        var healthCheckEnabled: Boolean = true
     }
 
     init {
@@ -46,6 +62,7 @@ class GameLoopDelegate(
     }
 
     private fun launchMainThreadHealthCheck() {
+        if (!healthCheckEnabled) return  // 测试环境禁用（mock 反射卡死，见 companion）
         scope.launch(Dispatchers.Main) {
             var lastTick = 0L
             var stallCount = 0

@@ -15,12 +15,19 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.runner.RunWith
 import org.mockito.kotlin.mock
+import org.robolectric.RobolectricTestRunner
 
 /**
  * ChildBirthSystem 测试 — 受孕/分娩流程 + SYSTEM 分区 PRNG 确定性。
  * ChildBirthSystem 的方法只经 MutableGameState 参数访问状态，stateStore 未使用，用 mock 注入。
+ *
+ * ★ Robolectric 必需：DiscipleTables 的 Ref 列（names/social 等）基于
+ * android.util.SparseArray——无 Robolectric 时 SparseArray 未 mock
+ * （returnDefaultValues 静默失效），写入被丢弃导致业务断言假失败。
  */
+@RunWith(RobolectricTestRunner::class)
 class ChildBirthSystemTest {
 
     @get:Rule val writeGuardRule = WriteGuardRule()
@@ -41,11 +48,15 @@ class ChildBirthSystemTest {
         rngManager = rng
     )
 
-    /** 造父/母：gameYear=3、gameMonth=5，母亲到月（childBirthMonth=5）可直接分娩 */
+    /**
+     * 造父/母：gameYear=3、gameMonth=5，母亲默认到月（childBirthMonth=5）可直接分娩。
+     * 受孕场景传 [motherChildBirthMonth] = null（受孕判定要求 childBirthMonth == null）。
+     */
     private fun createParents(
         fatherRoot: String = "metal",
         motherRoot: String = "wood",
-        fatherAlive: Boolean = true
+        fatherAlive: Boolean = true,
+        motherChildBirthMonth: Int? = 5
     ): Pair<Disciple, Disciple> {
         val father = Disciple(
             id = "2",
@@ -69,7 +80,7 @@ class ChildBirthSystemTest {
             status = DiscipleStatus.IDLE,
             spiritRootType = motherRoot,
             portraitRes = "portrait_default",
-            social = SocialData(partnerId = "2", childBirthMonth = 5)
+            social = SocialData(partnerId = "2", childBirthMonth = motherChildBirthMonth)
         )
         return father to mother
     }
@@ -177,12 +188,14 @@ class ChildBirthSystemTest {
     @Test
     fun `yearly conception - 同种子两次年变结果一致且 SYSTEM 分区推进`() {
         // 扫描种子，找一个受孕命中的（受孕概率 0.5%）
+        // 注意：母亲初始 childBirthMonth 必须为 null（受孕判定要求），
+        // 否则 eligibleMothers 为空、onYearlyEvent 提前 return 不消费 RNG
         var hitSeed = 0L
         for (seed in 1L..5000L) {
             val rng = GameRngManager()
             rng.initSystemSeed(seed)
             val sys = createSystem(rng)
-            val (father, mother) = createParents()
+            val (father, mother) = createParents(motherChildBirthMonth = null)
             val state = createState(father, mother)
             sys.onYearlyEvent(state)
             val conceived = state.discipleTables.assembleAll()
@@ -199,14 +212,14 @@ class ChildBirthSystemTest {
         rngA.initSystemSeed(hitSeed)
         val initialSystemState = rngA.exportStates()[RngPartition.SYSTEM.id]
         val sysA = createSystem(rngA)
-        val (fatherA, motherA) = createParents()
+        val (fatherA, motherA) = createParents(motherChildBirthMonth = null)
         val stateA = createState(fatherA, motherA)
         sysA.onYearlyEvent(stateA)
 
         val rngB = GameRngManager()
         rngB.initSystemSeed(hitSeed)
         val sysB = createSystem(rngB)
-        val (fatherB, motherB) = createParents()
+        val (fatherB, motherB) = createParents(motherChildBirthMonth = null)
         val stateB = createState(fatherB, motherB)
         sysB.onYearlyEvent(stateB)
 

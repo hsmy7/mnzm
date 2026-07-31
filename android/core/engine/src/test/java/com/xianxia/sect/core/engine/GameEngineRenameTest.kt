@@ -8,16 +8,27 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.runner.RunWith
 import org.mockito.kotlin.mock
+import org.robolectric.RobolectricTestRunner
 
 /**
  * GameEngine.renameDisciple 原子改名 + 招募列表同人残留净化的单元测试。
  *
  * 背景：改名会破坏 RecruitIntegrity.isSamePerson 的 5 字段签名匹配，
  * 若不同时净化 recruitList，残留双胞胎将永久逃脱三层净化、可被重复招募。
+ *
+ * ★ Robolectric 必需：DiscipleTables 的 Ref 列（names 等）基于
+ * android.util.SparseArray——无 Robolectric 时 SparseArray 未 mock
+ * （returnDefaultValues 静默失效），写入被丢弃导致测试假失败。
  */
+@RunWith(RobolectricTestRunner::class)
 class GameEngineRenameTest {
+
+    /** 测试直接操作 DiscipleTables（事务外 allocateAndInsert）需要禁用写守卫 */
+    @get:Rule val writeGuardRule = WriteGuardRule()
 
     @Test
     fun `renameDisciple - 清除同人残留且保留无关条目`() = runBlocking {
@@ -172,7 +183,15 @@ private class RenameStore : GameStateStore {
             isLoading = false,
             isSaving = false
         )
-        block(mutable)
+        // ★ 模拟真实 GameStateStoreImpl 语义：事务内 writeAllowed=true（COW 提交表锁定后，
+        // 引擎线程执行 update 时 writeGuardEnabled=true，测试 store 不放开会抛
+        // "Direct write outside stateStore.update"）
+        tables.writeAllowed = true
+        try {
+            block(mutable)
+        } finally {
+            tables.writeAllowed = false
+        }
         gameDataValue = mutable.gameData
         _gameDataFlow.value = mutable.gameData
     }

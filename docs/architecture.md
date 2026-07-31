@@ -251,6 +251,40 @@ RunState（运行时状态 — 可循环回退）
 
 ---
 
+## 状态层快照隔离：列级 Copy-on-Write（v4.0.82+）
+
+`DiscipleTables.deepCopy` 从"每次 update 全量深拷贝约 100 张组件表"重构为**列级 COW 快照隔离**：
+
+- **机制**：`ComponentTable.store` 存储引用化（`adopt` 共享源存储 O(1)），事务缓冲**首次写入某列**时 `ensureOwned` 私有化（Int/Double 平铺数组整体 copyOf / SparseArray clone，O(capacity)），未触及列共享引用。旧快照（UI 持有）引用旧存储，事务永不原地修改源存储，天然隔离。
+- **13 张 Mutable 列**（List/Set/Map：manualIds/lifeEvents/storageBagItems 等）走 `adoptDeep` **急切深拷贝**（防值对象原地修改泄漏），与旧 copyTo 语义逐字一致。
+- **脏判定**：`GameStateStoreImpl.update` 事务提交后以 `dirtyTracker.isDirty` 判定"本次事务是否真的改了弟子数据"——纯 UI 事务（无弟子数据变更）不再触发全量 assembleAll（旧逻辑恒真触发）。`lastAssembledMutationVersion` 已删除。
+- **锁外组装串行化**：增量 assembleAllIncremental 在专用单线程调度器执行（并发交错会互相覆盖丢弟子——burst 更新实测丢 2/50）。
+- **兜底开关**：`DiscipleTables.forceFullCopy = true` 走旧逐元素全量复制路径（仅回归调试用）。
+
+**性能基准**：100 弟子 × 1000 次 deepCopy + 写 3 列 = 122μs/次（重构前每次约 10,000 次 SparseArray put + 回调 + 锁）。
+
+### 每旬热点削减（v4.0.82+）
+
+- `CultivationRateCalculator.calculateCultivationPerPhaseById` **列直读速率**（无 Disciple 组装），与对象式入口数学等价（`CultivationRateEquivalenceTest` 30+ fixtures 1e-9 守卫）。
+- **每旬 checkpointDisciple 移除**：checkpoint 只在速率变化点（政策/长老/丹药/突破）更新——政策切换已补 `checkpointAllDisciples`（`SectPolicyToggleUseCase` 三个修炼政策）。`getEffectiveCultivation` 投影语义保持。
+- **每旬共享映射**：`checkBreakthroughsAndPills` 循环顶部一次性构建 equipmentMap/manualMap（O(D×N)→O(D+N)）；`manualProficiencies` 不再每弟子重建全量 outer map（O(D×P)→O(P)）。
+
+### 聚合链合并（v4.0.82+）
+
+`discipleAggregates`（sample 200）+ `sectCombatPower`（sample 300）两条独立全量扫描链合并为单一 `DerivedAggregation` 派生链（sample 100 + 专用单线程调度器 + 指纹缓存）。语义保持：aggregates 覆盖全部弟子（含死亡），combatPower 仅累计存活。纯 UI 事务不触发重扫。
+
+### 待完成项（预存缺陷，2026-08-01 对抗性审查发现）
+
+| 待办 | 现状 | 说明 |
+|------|------|------|
+| GameViewModelTest 18 个失败 | ❌ 未修 | `mockkStatic` 拦截 Kotlin 2.2 编译的顶层扩展函数失效（`updateGameData` 等 verify 不命中），升级 mockk 1.13.17 无效。HEAD 干净副本同样失败。需重构测试拦截方式（改实例方法 stub）或等待 mockk 兼容 Kotlin 2.2 |
+| 全量测试必须 `--max-workers=1` 串行 | ❌ 未修 | `gradle.properties` 的 `org.gradle.parallel=true` 并行跑 testReleaseUnitTest 时 app 模块出现 98 个失败（共享静态状态竞争）且 feature:game 测试卡死。需排查并行配置 |
+| Mutable 列值对象共享（F4） | ⚠️ 防御缺口 | `assemble()`/`writeAllFields` 对 List/Map 列存调用方引用——若调用方原地修改（绕过 set → 不触发 ensureOwned）会污染源存储破坏快照隔离。当前全库无原地修改模式，列为调用方契约注意项 |
+| 半幽灵防御不一致（F3） | ⚠️ 已缓解 | 列直读默认值已与 assemble 对齐（age=16/lifespan=80）；但 assembleAll 三表检查（isAlive+names+realms）与 deepCopy 单表 isAlive 过滤的幽灵防御粒度仍不一致 |
+| CI 从未跑过 testReleaseUnitTest 全量 | ⚠️ 流程缺失 | 上述预存测试缺陷（缺 Robolectric 注解的 8 个类、mockkStatic 失效等）长期未被发现，说明 CI 全量测试未覆盖或结果未被关注 |
+
+---
+
 ## Architecture Docs
 
 - [宗门地图渲染架构](map-rendering-architecture.md) — 三层按格实时绘制（地面/装饰/建筑分离），v4.0.42+

@@ -10,6 +10,7 @@ import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.FlowPreview
@@ -40,6 +41,21 @@ class GameStateStoreImpl @Inject constructor(
     private val applicationScopeProvider: ApplicationScopeProvider,
     private val repository: GameStateRepository
 ) : GameStateStore {
+
+    /** 聚合派生链专用单线程调度器——与引擎增量组装隔离，不再抢 Dispatchers.Default */
+    private val aggregationDispatcher: CoroutineDispatcher =
+        Dispatchers.Default.limitedParallelism(1)
+
+    /**
+     * 锁外弟子组装专用单线程调度器。
+     *
+     * 竞态防护：assembleAllIncremental 基于执行时读取的 _disciplesFlow 快照合并
+     * changedIds——若多个增量组装协程并发交错（各自读同一旧快照、后写覆盖先写），
+     * 会丢失弟子（burst 更新实测丢 2/50）。单线程串行执行保证
+     * 后启动的组装读到前一次写回的结果，顺序正确。
+     */
+    private val assembleDispatcher: CoroutineDispatcher =
+        Dispatchers.Default.limitedParallelism(1)
 
     /** 测试模式：允许主线程调用 update（仅在 Robolectric 单元测试中使用） */
     @Volatile
@@ -98,9 +114,6 @@ class GameStateStoreImpl @Inject constructor(
      */
     private val reentrantCount = AtomicInteger(0)
     private val reentrantBuffer = AtomicReference<MutableGameState?>(null)
-
-    /** 上次 assembleAll 时的 mutationVersion，用于跳过无变化的重新装配 */
-    private var lastAssembledMutationVersion: Long = 0
 
     // 增量发射：每个字段独立的 MutableStateFlow，只在引用变化时发射
     internal val _gameDataFlow = MutableStateFlow(GameData())
@@ -376,14 +389,6 @@ class GameStateStoreImpl @Inject constructor(
         .distinctUntilChanged()
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), GameStateStore.ConfigState())
 
-    override val discipleAggregates: StateFlow<List<DiscipleAggregate>> = _disciplesFlow
-        .sample(200)
-        .map { disciples ->
-            disciples.map { it.toAggregate() }
-        }
-        .flowOn(Dispatchers.Default)
-        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
     override val discipleAggregatesSnapshot: List<DiscipleAggregate>
         get() = _disciplesFlow.value.map { it.toAggregate() }
 
@@ -410,18 +415,31 @@ class GameStateStoreImpl @Inject constructor(
     private val manualInstancesFlow = _manualInstancesFlow
         .distinctUntilChanged { old, new -> old === new }
 
-    override val sectCombatPower: StateFlow<Long> = combine(
+    /**
+     * 派生聚合（单次扫描同时产出弟子聚合列表与宗门战力）。
+     *
+     * 原 discipleAggregates（sample 200）+ sectCombatPower（sample 300）两条
+     * 独立全量扫描链合并为一条：每弟子 [DiscipleAggregate.toAggregate] 只做一次。
+     * - aggregates 覆盖全部弟子（含死亡，保持原 discipleAggregates 语义）
+     * - combatPower 仅累计存活弟子（保持原 sectCombatPower 语义，指纹缓存保留）
+     * - sample(100) 合并窗口：突发更新最多 10 次扫描/秒（原两链合计 ~12 次/秒）
+     * - 专用单线程调度器：不再与引擎增量组装抢 Dispatchers.Default
+     */
+    private data class DerivedAggregation(
+        val aggregates: List<DiscipleAggregate>,
+        val combatPower: Long
+    )
+
+    private val derivedAggregation: StateFlow<DerivedAggregation> = combine(
         disciplesFlow,
         bloodRefinementPctFlow
     ) { disciples, bloodRefinementPctTotals ->
-        val aliveDisciples = disciples.filter { it.isAlive }
-        val aliveIds = aliveDisciples.map { it.id }.toSet()
-
-        disciplePowerCache.keys.retainAll(aliveIds)
-
+        val aggregates = ArrayList<DiscipleAggregate>(disciples.size)
         var total = 0L
-        for (disciple in aliveDisciples) {
+        for (disciple in disciples) {
             val aggregate = disciple.toAggregate()
+            aggregates.add(aggregate)
+            if (!disciple.isAlive) continue
             val brPct = bloodRefinementPctTotals[disciple.id]
             val fp = SectCombatPowerCalculator.computeFingerprint(aggregate, brPct)
             val cached = disciplePowerCache[disciple.id]
@@ -433,10 +451,23 @@ class GameStateStoreImpl @Inject constructor(
                 total += power
             }
         }
-        total
-    }.sample(300)
+        val aliveIds = disciples.filter { it.isAlive }.map { it.id }.toSet()
+        disciplePowerCache.keys.retainAll(aliveIds)
+        DerivedAggregation(aggregates, total)
+    }.sample(100)
         .distinctUntilChanged()
-        .flowOn(Dispatchers.Default)
+        .flowOn(aggregationDispatcher)
+        .stateIn(
+            applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000),
+            DerivedAggregation(emptyList(), 0L)
+        )
+
+    override val discipleAggregates: StateFlow<List<DiscipleAggregate>> = derivedAggregation
+        .map { it.aggregates }
+        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    override val sectCombatPower: StateFlow<Long> = derivedAggregation
+        .map { it.combatPower }
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), 0L)
 
     private val aiSectDisciplesFlow = _gameDataFlow
@@ -663,7 +694,8 @@ class GameStateStoreImpl @Inject constructor(
                 val curProposals = _pendingMarriageProposalsFlow.value
                 reusableMutableState.apply {
                     gameData = curGame
-                    // 增量 deepCopy：只复制自上次 update 以来被写过的列
+                    // COW deepCopy 每列 O(1) 共享存储，无需增量复制；
+                    // consumeDirtyColumns 仅为维护 DirtyTracker 状态（提交后表无事务外写入，恒为空）
                     val dirtyCols = _discipleTables.dirtyTracker.consumeDirtyColumns()
                     discipleTables = _discipleTables.deepCopy(dirtyCols).apply { writeAllowed = true }
                     equipmentStacks = EntityStore(curES)
@@ -724,13 +756,16 @@ class GameStateStoreImpl @Inject constructor(
                     _pendingNotificationFlow.value = reusableMutableState.pendingNotification
                 if (blockChangedProposals)
                     _pendingMarriageProposalsFlow.value = reusableMutableState.pendingMarriageProposals
-                val disciplesChanged = reusableMutableState.discipleTables !== _discipleTables
-                val mutated = reusableMutableState.discipleTables.mutationVersion
-                disciplesNeedReassemble = disciplesChanged || mutated != lastAssembledMutationVersion
+                // COW 快照隔离后，副本的 mutationVersion 从 0 起步且不再被
+                // copyTo 逐元素写入污染，dirtyTracker 只记录本次事务真实写入的列。
+                // 用 isDirty 判定"本次事务是否真的改了弟子数据"：
+                // 纯 UI 事务（无弟子数据变更）不再触发全量 assembleAll。
+                // 所有生产写路径（列级写入/insert/update/remove/replaceAll/
+                // markDead/clear）均伴随列级 onWrite → dirtyTracker 标记。
+                disciplesNeedReassemble = reusableMutableState.discipleTables.dirtyTracker.isDirty
                 if (disciplesNeedReassemble) {
-                    // 锁内仅标记 mutationVersion，实际 assembleAll() 在锁外执行
+                    // 锁内仅标记，实际 assembleAll() 在锁外执行
                     // 减少 transactionMutex 持有时间，降低游戏循环锁争用
-                    lastAssembledMutationVersion = mutated
                     _discipleDirty = true
                 }
                 repository.markDirty(
@@ -792,16 +827,18 @@ class GameStateStoreImpl @Inject constructor(
         // 使用 changedIdTracker 追踪本次事务中修改过的弟子 ID，
         // 只重新组装有变化的弟子，与全量缓存合并。
         // 对标 Bevy ECS change tick 跳过未修改组件的表迭代。
+        // ★ 单线程调度器串行执行：增量组装读"执行时"的 _disciplesFlow 快照，
+        //   并发交错会互相覆盖（丢弟子）；串行保证后启动的组装读到前次写回结果。
         if (disciplesNeedReassemble) {
             val changedIds = _discipleTables.changedIdTracker.consumeChangedIds()
             if (changedIds.isNotEmpty()) {
-                applicationScopeProvider.scope.launch {
+                applicationScopeProvider.scope.launch(assembleDispatcher) {
                     val prevSnapshot = _disciplesFlow.value
                     _disciplesFlow.value = _discipleTables.assembleAllIncremental(prevSnapshot, changedIds)
                 }
             } else {
                 // 回退：changedIdTracker 可能未捕获列级写入，全量 assemble 兜底
-                applicationScopeProvider.scope.launch {
+                applicationScopeProvider.scope.launch(assembleDispatcher) {
                     _disciplesFlow.value = _discipleTables.assembleAll()
                 }
             }
@@ -857,7 +894,8 @@ class GameStateStoreImpl @Inject constructor(
             val oldIsPaused = _isPaused.value
             val oldIsLoading = _isLoading.value
             val oldIsSaving = _isSaving.value
-            val oldTables = _discipleTables.deepCopy()
+            // clear() 现会清空 _deathRecords——回滚时需恢复
+            val oldDeathRecords = _discipleTables.deathRecords.toList()
 
             try {
                 _gameDataFlow.value = gameData
@@ -895,10 +933,11 @@ class GameStateStoreImpl @Inject constructor(
                 _gameDataFlow.value = oldGameData
                 _disciplesFlow.value = oldDisciples
                 _discipleTables.apply { writeAllowed = true }.clear()
-                oldTables.ids.forEach { id ->
-                    val d = oldTables.assemble(id)
-                    _discipleTables.insert(d)
-                }
+                // ★ COW 快照隔离：不能依赖 oldTables.deepCopy()（共享 store 会被
+                // 上面 clear() 原地清空——提交后的列是 owned 状态不触发私有化）。
+                // 回滚直接用内存中的 oldDisciples 列表（不受 clear 影响）重建。
+                oldDisciples.forEach { _discipleTables.insert(it) }
+                oldDeathRecords.forEach { _discipleTables.addDeathRecord(it) }
                 _equipmentStacksFlow.value = oldEquipmentStacks
                 _equipmentInstancesFlow.value = oldEquipmentInstances
                 _manualStacksFlow.value = oldManualStacks
@@ -920,7 +959,6 @@ class GameStateStoreImpl @Inject constructor(
         }
         // ★ 锁外同步版本号，防止首个 update() 触发不必要的 assembleAll
         _disciplesFlow.value = _discipleTables.assembleAll()
-        lastAssembledMutationVersion = _discipleTables.mutationVersion
     }
 
     override suspend fun reset() {

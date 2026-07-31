@@ -16,8 +16,8 @@ import org.robolectric.RobolectricTestRunner
 
 /**
  * 验证 [CultivationService.accumulateCultivationPerPhase] 的端到端行为：
- * - 存活弟子修为正确累加
- * - checkpoint 与 cultivation 同步更新
+ * - 存活弟子修为正确累加（列直读速率，无 Disciple 组装）
+ * - checkpoint 不随每旬累积更新（只在速率变化点——政策/长老/丹药/突破——更新）
  * - 满修为/死亡/零速率等边界条件
  */
 @RunWith(RobolectricTestRunner::class)
@@ -106,7 +106,7 @@ class CultivationServiceIntegrationTest {
     }
 
     @Test
-    fun `accumulateCultivationPerPhase increases cultivation and syncs checkpoint`() {
+    fun `accumulateCultivationPerPhase increases cultivation without syncing checkpoint`() {
         insertDisciple(id = 1, cultivation = 10.0, realm = 9)
 
         val state = MutableGameState(
@@ -123,18 +123,19 @@ class CultivationServiceIntegrationTest {
         )
 
         val before = tables.cultivations[1]
+        val cpBefore = tables.cultivationCheckpoints.getOrDefault(1, -1.0)
+        val cpMonthBefore = tables.cultivationCheckpointGameMonths.getOrDefault(1, -1)
         service.accumulateCultivationPerPhase(1, state)
 
         val after = tables.cultivations[1]
-        val cpAfter = tables.cultivationCheckpoints[1]
-        val cpMonthAfter = tables.cultivationCheckpointGameMonths[1]
+        val cpAfter = tables.cultivationCheckpoints.getOrDefault(1, -1.0)
+        val cpMonthAfter = tables.cultivationCheckpointGameMonths.getOrDefault(1, -1)
 
         // 修炼值增加了
         assertTrue("cultivation should increase", after > before)
-        // checkpoint 同步到新值
-        assertEquals("checkpoint should equal new cultivation", after, cpAfter, 0.001)
-        // checkpoint month 更新为当前月份
-        assertEquals("checkpoint month should advance", 18, cpMonthAfter) // 1*12+6 = 18
+        // checkpoint 不随每旬累积更新（只在速率变化点——政策/长老/丹药/突破——同步）
+        assertEquals("checkpoint should stay unchanged", cpBefore, cpAfter, 0.001)
+        assertEquals("checkpoint month should stay unchanged", cpMonthBefore, cpMonthAfter)
     }
 
     @Test
@@ -163,7 +164,7 @@ class CultivationServiceIntegrationTest {
     }
 
     @Test
-    fun `accumulateCultivationPerPhase caps at max cultivation and still checkpoints`() {
+    fun `accumulateCultivationPerPhase caps at max cultivation`() {
         insertDisciple(id = 1, cultivation = 45.0, realm = 9)  // maxCultivation=50，加1旬速率后可能超过
 
         val state = MutableGameState(

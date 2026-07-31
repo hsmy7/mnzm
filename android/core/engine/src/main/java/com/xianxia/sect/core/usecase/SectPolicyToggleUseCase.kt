@@ -36,11 +36,17 @@ class SectPolicyToggleUseCase @Inject constructor(
     /**
      * 翻转指定的政策开关。
      * 开启时若 [monthlyCost] > 0，先检查余额再扣首月费用。
+     *
+     * @param affectsCultivationRate 政策是否影响修炼速率（修行津贴/苦修令/松弛管理）。
+     *   为 true 时切换后必须同步 checkpointAllDisciples——检查点只在速率变化点更新
+     *   （重构后每旬不再无条件同步），否则投影（getEffectiveCultivation）按新速率
+     *   高估此前低速期的修为并随存档持久化。
      */
     private suspend fun toggle(
         getter: (SectPolicies) -> Boolean,
         setter: (SectPolicies, Boolean) -> SectPolicies,
-        monthlyCost: () -> Long = { 0L }
+        monthlyCost: () -> Long = { 0L },
+        affectsCultivationRate: Boolean = false
     ): ToggleResult = gameEngine.gameEngineCore.withEngineContext {
         val gd = gameEngine.gameData.value ?: return@withEngineContext ToggleResult.Error("游戏数据不可用")
         val wasEnabled = getter(gd.sectPolicies)
@@ -60,6 +66,11 @@ class SectPolicyToggleUseCase @Inject constructor(
                         guideCounters = data.guideCounters + (GuideCounterKeys.POLICY_ACTIVATED to
                             ((data.guideCounters[GuideCounterKeys.POLICY_ACTIVATED] ?: 0L) + 1))
                     )
+                    if (affectsCultivationRate) {
+                        discipleTables.checkpointAllDisciples(
+                            data.gameYear * 12 + data.gameMonth
+                        )
+                    }
                 }
             } else {
                 gameEngine.stateStore.update {
@@ -68,11 +79,21 @@ class SectPolicyToggleUseCase @Inject constructor(
                         guideCounters = gameData.guideCounters + (GuideCounterKeys.POLICY_ACTIVATED to
                             ((gameData.guideCounters[GuideCounterKeys.POLICY_ACTIVATED] ?: 0L) + 1))
                     )
+                    if (affectsCultivationRate) {
+                        discipleTables.checkpointAllDisciples(
+                            gameData.gameYear * 12 + gameData.gameMonth
+                        )
+                    }
                 }
             }
         } else {
             gameEngine.stateStore.update {
                 gameData = gameData.copy(sectPolicies = setter(gameData.sectPolicies, false))
+                if (affectsCultivationRate) {
+                    discipleTables.checkpointAllDisciples(
+                        gameData.gameYear * 12 + gameData.gameMonth
+                    )
+                }
             }
         }
         ToggleResult.Success
@@ -164,7 +185,8 @@ class SectPolicyToggleUseCase @Inject constructor(
 
     suspend fun toggleRelaxedMgmt() = toggle(
         getter = { it.relaxedMgmt }, setter = { p, v -> p.copy(relaxedMgmt = v) },
-        monthlyCost = { GameConfig.PolicyConfig.RELAXED_MGMT_MONTHLY }
+        monthlyCost = { GameConfig.PolicyConfig.RELAXED_MGMT_MONTHLY },
+        affectsCultivationRate = true  // 修炼速度 -10%
     )
     fun isRelaxedMgmtEnabled(): Boolean =
         gameEngine.gameData.value?.sectPolicies?.relaxedMgmt ?: false
@@ -191,14 +213,16 @@ class SectPolicyToggleUseCase @Inject constructor(
 
     suspend fun toggleCultivationSubsidy() = toggle(
         getter = { it.cultivationSubsidy }, setter = { p, v -> p.copy(cultivationSubsidy = v) },
-        monthlyCost = { GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_PER_DISCIPLE * countHuashenBelow() }
+        monthlyCost = { GameConfig.PolicyConfig.CULTIVATION_SUBSIDY_PER_DISCIPLE * countHuashenBelow() },
+        affectsCultivationRate = true  // 化神下弟子修炼速度 +15%
     )
     fun isCultivationSubsidyEnabled(): Boolean =
         gameEngine.gameData.value?.sectPolicies?.cultivationSubsidy ?: false
 
     suspend fun toggleAsceticTraining() = toggle(
         getter = { it.asceticTraining }, setter = { p, v -> p.copy(asceticTraining = v) },
-        monthlyCost = { GameConfig.PolicyConfig.ASCETIC_TRAINING_PER_DISCIPLE * countTotalDisciples() }
+        monthlyCost = { GameConfig.PolicyConfig.ASCETIC_TRAINING_PER_DISCIPLE * countTotalDisciples() },
+        affectsCultivationRate = true  // 全体修炼速度 +25%
     )
     fun isAsceticTrainingEnabled(): Boolean =
         gameEngine.gameData.value?.sectPolicies?.asceticTraining ?: false

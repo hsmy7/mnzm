@@ -59,7 +59,10 @@
 - **`GameViewModel`** — 主 ViewModel (Hilt)，通过 9 个 Delegate 拆分领域逻辑
 - **`MainGameScreen`** — Tab 布局 (OVERVIEW/DISCIPLES/BUILDINGS/WAREHOUSE/SETTINGS)，无 NavHost
 - **`GameData`** — Room @Entity，主键 (id, slot_id)
-- **`CultivationService`** — 修炼 Checkpoint 快照法入口：`checkpointDisciple()` / `accumulateCultivationPerPhase()` / `checkpointAllProduction()`
+- **`CultivationService`** — 修炼 Checkpoint 快照法入口：`checkpointDisciple()` / `accumulateCultivationPerPhase()`（v4.0.82+ 列直读，无 Disciple 组装）/ `checkpointAllProduction()`
+- **`CultivationRateCalculator`** — 修炼速率计算器（乘区法）。v4.0.82+ 新增列直读入口 `calculateCultivationPerPhaseById`（每旬热点用），`calculatePreachingBonusesColumn` 含 teachingFlat 天赋加成（对齐 `getBaseStats().teaching` 语义）
+- **`GameStateStoreImpl`** — v4.0.82+：`discipleAggregates` + `sectCombatPower` 合并为单一 `DerivedAggregation` 派生链（sample 100 + 专用单线程调度器）；锁外弟子组装走 `assembleDispatcher` 单线程（防并发交错丢弟子）；`lastAssembledMutationVersion` 已删除
+- **`GameLoopDelegate`** — 主线程健康检查（检测游戏循环卡死自动重启）。v4.0.82+ 加静态开关 `healthCheckEnabled`（测试环境禁用——mock 环境下每秒访问 relaxed mock 属性触发反射类加载风暴卡死）
 - **`DiscipleAssignmentGate`** — 弟子分配门卫（v4.0.58），统一管理 11 个槽位系统的分配/释放/查询/读档重建
 
 ---
@@ -182,15 +185,21 @@ v4.0.58 引入 `DiscipleAssignmentGate` + `DiscipleAssignmentRegistry` 集中管
 
 ## Component Table Architecture
 
-Disciple entities are stored in `DiscipleTables` — ~90 narrow `ComponentTable`/`IntComponentTable`/`DoubleComponentTable` columns. 底层使用 `IntPackedArray`（dense IntArray + idToIndex）和 `DoublePackedArray`（零装箱），查询 O(1)，删除 O(1) swap-on-remove。所有 CRUD 通过 `buildCopyableRefs()` 声明式列表驱动，新增列只需在列表加一行。
+Disciple entities are stored in `DiscipleTables` — ~95 narrow `ComponentTable`/`IntComponentTable`/`DoubleComponentTable` columns. 底层使用 `IntFlatArray`/`DoubleFlatArray`（dense 平铺数组 + idToSlot，零装箱），查询 O(1)，删除 O(1) swap-on-remove。所有 CRUD 通过 `buildCopyableRefs()` 声明式列表驱动，新增列只需在列表加一行。
+
+**列级 Copy-on-Write 快照隔离（v4.0.82+）：** `deepCopy` 不再逐元素全量复制——`ComponentTable.store` 存储引用化，`adopt()` 共享源存储（O(1)），事务缓冲首次写入某列时 `ensureOwned` 私有化（Int/Double 整体 copyOf / SparseArray clone，O(capacity)）。13 张 Mutable 列（List/Set/Map）走 `adoptDeep` 急切深拷贝。`GameStateStoreImpl` 脏判定改为 `dirtyTracker.isDirty`——纯 UI 事务不再触发全量 assembleAll。兜底开关 `DiscipleTables.forceFullCopy`。性能基准：100 弟子 deepCopy+写 3 列 ≈ 122μs/次。
+
+**注意事项：** 值对象（lifeEvents 等 List/Map 列）必须整体替换（`col[id] = newList`），禁止原地修改后依赖自动检测——原地修改绕过 set 不触发 COW 私有化，会污染共享存储破坏快照隔离。
 
 ---
 
 ## 修炼 Checkpoint
 
-`cultivationCheckpoints: DoubleComponentTable` + `cultivationCheckpointGameMonths: IntComponentTable`。修炼值 = checkpoint + rate × (currentMonth - cpMonth) × 3。Checkpoint 在每旬累积时更新，在速率变化时通过 `checkpointDisciple()` 同步。
+`cultivationCheckpoints: DoubleComponentTable` + `cultivationCheckpointGameMonths: IntComponentTable`。修炼值 = checkpoint + rate × (currentMonth - cpMonth) × 3。
 
-**运行时投影：** `tables.cultivationCheckpoints[id]` + `tables.cultivationCheckpointGameMonths[id]` — 每旬 `accumulateCultivationPerPhase()` 更新，`getEffectiveCultivation()` 实时投影。
+**v4.0.82+ 变更：** Checkpoint **不再每旬同步**——每旬累积只改变修为、从不改变速率，每旬同步会让检查点恒等于修为、投影退化为恒等函数。现在只在**速率变化点**更新：政策切换（`SectPolicyToggleUseCase` 三个修炼政策已补 `checkpointAllDisciples`）、长老变更（`ElderManagementUseCase`）、丹药（`AutoPillService`）、突破（`DiscipleBreakthroughHandler`）。
+
+**运行时投影：** `getEffectiveCultivation()` 实时投影（当前无生产调用方，仅测试引用）。修炼速率计算走列直读 `CultivationRateCalculator.calculateCultivationPerPhaseById`（无 Disciple 组装，与对象式入口数学等价——`CultivationRateEquivalenceTest` 30+ fixtures 守卫，含 teachingFlat 天赋/哀悼哨兵/父母/师徒/政策组合）。
 
 ---
 

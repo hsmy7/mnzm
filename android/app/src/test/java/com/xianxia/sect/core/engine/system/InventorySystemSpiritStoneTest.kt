@@ -14,12 +14,17 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import org.mockito.Mockito.mock
 
 /**
  * SpiritStoneWallet 灵石操作测试（替代旧的 InventorySystem 直调测试，
  * 灵石操作已全部迁移至 SpiritStoneWallet）。
  */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class InventorySystemSpiritStoneTest {
 
     private lateinit var stateStore: GameStateStoreImpl

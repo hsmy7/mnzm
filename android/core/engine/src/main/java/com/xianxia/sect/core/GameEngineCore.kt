@@ -886,18 +886,24 @@ class GameEngineCore @Inject constructor(
 
         // 合并遍历：HP/MP 恢复 + 修炼累积 + 功法熟练度 + 装备孕养
         // 原 7 次独立遍历 → 1 次合并遍历（P0.1 优化）
+        // 每旬共享映射：所有弟子复用同一份，避免每弟子 O(N) 重建（O(D×N) → O(D+N)）
+        val equipmentMap = state.equipmentInstances.associateBy { it.id }
+        val manualMap = state.manualInstances.associateBy { it.id }
         for (id in state.discipleTables.ids) {
             if (state.discipleTables.isAlive[id] != 1) continue
             // 1) HP/MP 恢复
-            cultivationService.recoverHpMpSingle(state, id, phasesToSettle = 1)
+            cultivationService.recoverHpMpSingle(
+                state, id, phasesToSettle = 1,
+                equipmentMap = equipmentMap, manualMap = manualMap
+            )
             // 2) 修炼累积（列级快速跳过：cultivation >= 1e8 表示已满，凡界最大值约 2e7）
             if (state.discipleTables.cultivations.getOrDefault(id, 0.0) < 1e8) {
                 cultivationService.accumulateCultivationPerPhase(id, state)
             }
             // 3) 功法熟练度增长
-            cultivationService.processManualProficiencySingle(state, id)
+            cultivationService.processManualProficiencySingle(state, id, manualMap)
             // 4) 装备孕养增长
-            cultivationService.processEquipmentNurtureSingle(state, id)
+            cultivationService.processEquipmentNurtureSingle(state, id, equipmentMap)
         }
 
         cultivationService.processAutoPillsRealtime(state)

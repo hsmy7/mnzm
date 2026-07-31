@@ -114,21 +114,23 @@ object DiscipleStatCalculator {
      * 统计弟子（天赋+词条）中指定 slotType 的 PositionBonus 总和。
      * 用于担任职务时增强该职务职能效果（乘算因子）。
      */
-    fun getPositionEffectBonus(disciple: Disciple, slotType: ElderSlotType): Double {
-        val talentBonus = disciple.talentIds.mapNotNull { TalentDatabase.getById(it) }
-            .filter { !it.isNegative }
-            .filter { it.positionBonus?.slotType == slotType }
-            .sumOf { it.positionBonus?.effectBonus ?: 0.0 }
-        val affixBonus = AffixDatabase.aggregatePositionBonus(disciple.affixIds, slotType)
-        return talentBonus + affixBonus
-    }
+    fun getPositionEffectBonus(disciple: Disciple, slotType: ElderSlotType): Double =
+        getPositionEffectBonus(disciple.talentIds, disciple.affixIds, slotType)
 
-    fun getPositionEffectBonus(aggregate: DiscipleAggregate, slotType: ElderSlotType): Double {
-        val talentBonus = aggregate.talentIds.mapNotNull { TalentDatabase.getById(it) }
+    fun getPositionEffectBonus(aggregate: DiscipleAggregate, slotType: ElderSlotType): Double =
+        getPositionEffectBonus(aggregate.talentIds, aggregate.affixIds, slotType)
+
+    /** 列式重载：从原始 talentIds/affixIds 计算职务加成（无 Disciple 组装） */
+    fun getPositionEffectBonus(
+        talentIds: List<String>,
+        affixIds: List<String>,
+        slotType: ElderSlotType
+    ): Double {
+        val talentBonus = talentIds.mapNotNull { TalentDatabase.getById(it) }
             .filter { !it.isNegative }
             .filter { it.positionBonus?.slotType == slotType }
             .sumOf { it.positionBonus?.effectBonus ?: 0.0 }
-        val affixBonus = AffixDatabase.aggregatePositionBonus(aggregate.affixIds, slotType)
+        val affixBonus = AffixDatabase.aggregatePositionBonus(affixIds, slotType)
         return talentBonus + affixBonus
     }
 
@@ -656,6 +658,76 @@ object DiscipleStatCalculator {
     }
 
     // ==================== 修炼乘区便捷计算（公共） ====================
+
+    /**
+     * 列式修炼速率计算的输入字段。
+     *
+     * 由调用方从 [com.xianxia.sect.core.state.DiscipleTables] 列直读提取，
+     * 避免为计算速率而 assemble 完整 Disciple 对象（每旬热点循环用）。
+     */
+    data class CultivationRateColumnInput(
+        val realm: Int,
+        val spiritRootCount: Int,
+        val talentIds: List<String>,
+        val physiqueIds: List<String>,
+        val affixIds: List<String>,
+        val manualIds: List<String>,
+        val age: Int,
+        val lifespan: Int,
+        val cultivationSpeedDuration: Int,
+        val cultivationSpeedBonus: Double,
+        val pillEffectDuration: Int,
+        val pillCultivationSpeedBonus: Double
+    )
+
+    /**
+     * 使用乘区制计算每旬修炼值（列式直读版本，无 Disciple 组装）。
+     *
+     * 与 [calculateCultivationPerPhase]（Disciple 版本）语义等价：
+     * 从 [CultivationRateColumnInput] 提取原始字段，复用同一套乘区计算。
+     * 供每旬热点循环（accumulateCultivationPerPhase）使用。
+     */
+    fun calculateCultivationPerPhaseColumn(
+        input: CultivationRateColumnInput,
+        manuals: Map<String, ManualInstance> = emptyMap(),
+        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
+        buildingBonus: Double = 1.0,
+        preachingElderBonus: Double = 0.0,
+        preachingMastersBonus: Double = 0.0,
+        cultivationSubsidyBonus: Double = 0.0,
+        parentCultivationBonus: Double = 0.0,
+        griefCultivationSpeedPenalty: Double = 0.0,
+        masterDiscipleBonus: Double = 0.0
+    ): Double {
+        var temporaryBonus = 0.0
+        if (input.cultivationSpeedDuration > 0 && input.cultivationSpeedBonus > 0.0) {
+            temporaryBonus += input.cultivationSpeedBonus
+        }
+        if (input.pillEffectDuration > 0 && input.pillCultivationSpeedBonus > 0.0) {
+            temporaryBonus += input.pillCultivationSpeedBonus
+        }
+        val zones = computeCultivationZones(
+            mergedEffects = mergeEffects(
+                computeTalentEffects(input.talentIds),
+                AffixDatabase.calculateAffixEffects(input.affixIds)
+            ),
+            physiqueEffects = PhysiqueDatabase.aggregatePhysiqueEffects(input.physiqueIds),
+            manualIds = input.manualIds,
+            manuals = manuals,
+            manualProficiencies = manualProficiencies,
+            buildingBonus = buildingBonus,
+            preachingElderBonus = preachingElderBonus,
+            preachingMastersBonus = preachingMastersBonus,
+            parentCultivationBonus = parentCultivationBonus,
+            masterDiscipleBonus = masterDiscipleBonus,
+            cultivationSubsidyBonus = cultivationSubsidyBonus,
+            griefCultivationSpeedPenalty = griefCultivationSpeedPenalty,
+            age = input.age,
+            lifespan = input.lifespan,
+            temporaryBonus = temporaryBonus
+        )
+        return calculateCultivationPerPhase(input.realm, input.spiritRootCount, zones)
+    }
 
     /**
      * 使用乘区制计算每旬修炼值（Disciple 版本便捷入口）。

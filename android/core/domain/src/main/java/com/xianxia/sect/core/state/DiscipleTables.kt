@@ -248,6 +248,12 @@ class DiscipleTables {
          * 在 GameStateStoreImpl 的 Release 构造函数中设为 false。
          */
         @Volatile var consistencyCheckEnabled: Boolean = true
+
+        /**
+         * COW 兜底开关：为 true 时 [deepCopy] 走旧的逐元素全量复制路径。
+         * 仅用于重构回归调试，生产环境保持 false。
+         */
+        @Volatile var forceFullCopy: Boolean = false
     }
 
     private val _allCopyableRefs: List<CopyableTableRef> = buildCopyableRefs().also { refs ->
@@ -905,11 +911,12 @@ class DiscipleTables {
         }
     }
 
-    /** 清空所有组件表 */
+    /** 清空所有组件表与死亡记录 */
     fun clear() {
         requireWriteAccess()
         synchronized(_ids) {
             _ids.clear()
+            _deathRecords.clear()
             _allCopyableRefs.forEach { it.clear() }
         }
     }
@@ -941,6 +948,10 @@ class DiscipleTables {
             isAlive[id] = 0
             statuses[id] = DiscipleStatus.DEAD
             deathYears[id] = currentYear
+            // ★ 记录 changedId：markDead 修改了弟子数据，若本事务还包含其他
+            // update/insert（产生 changedIds），增量组装必须重排本弟子，
+            // 否则快照会保留其"存活"旧数据（陈尸）。
+            recordChangedId(id)
         }
     }
 
@@ -979,32 +990,29 @@ class DiscipleTables {
     }
 
     /**
-     * 深拷贝组件表。
+     * 深拷贝组件表（列级 Copy-on-Write 快照隔离）。
      *
-     * @param dirtyColumns 脏列索引集合（来自 [dirtyTracker.consumeDirtyColumns]）。
-     *   - null 或空集合 = 全量复制（兼容旧调用方或首次复制）
-     *   - 非空集合 = 仅复制这些列（增量 deepCopy）
+     * 默认路径（[forceFullCopy] = false）：每张组件表 [shareStoreTo] 共享源表存储
+     * （O(1) 引用赋值，零数据复制），事务缓冲首次写入某列时自动私有化。
+     * 非脏列共享的是引用而非空数组——assembleAll() 在任意快照上都能读到全列数据。
+     * 旧快照（UI 持有）引用旧存储，事务永不原地修改源存储，天然隔离。
      *
-     * 通过 [synchronized(ids)] 保护 ids 快照一致性。
-     * 使用 DirtyTracker 的列级脏标记，只复制被修改过的表。
+     * 兜底路径（[forceFullCopy] = true）：逐元素全量复制，与重构前语义逐字一致。
+     *
+     * @param dirtyColumns 兼容参数（已弃用——COW 每列 O(1) adopt，无需增量复制）。
+     *   由 [dirtyTracker.consumeDirtyColumns] 收集，仅用于 DirtyTracker 维护。
      */
     fun deepCopy(dirtyColumns: Set<Int>? = null): DiscipleTables {
         val copy = DiscipleTables()
-        // ★ 设置 writeAllowed = true 后再执行复制，防止 copyTo → putTo → requireWrite 因
-        //    copy.writeAllowed == false 抛 IllegalStateException。deepCopy 的调用方
-        //    （stateStore.update{}）随后会将 writeAllowed 重置为 true 供事务内使用，
-        //    事务结束后置回 false，因此此处分两个阶段管理 writeAllowed 是安全的。
         copy.writeAllowed = true
         synchronized(_ids) {
             val idsSnapshot = this._ids.toList()
-            if (dirtyColumns.isNullOrEmpty()) {
-                // 全量复制（首次或非脏路径）
+            if (forceFullCopy) {
+                // 兜底路径：逐元素全量复制
                 _allCopyableRefs.forEach { it.copyTo(copy) }
             } else {
-                // 增量复制因只复制脏列导致非脏列（names/realms 等）为空，
-                // assembleAll() 读到空数据返回 0 弟子。因此始终全量复制。
-                // dirtyColumns 用于 DirtyTracker 而非 deepCopy。
-                _allCopyableRefs.forEach { it.copyTo(copy) }
+                // COW 路径：共享存储引用，首次写入时自动私有化
+                _allCopyableRefs.forEach { it.shareStoreTo(copy) }
             }
             // 只保留组件表中有完整数据的 ID，过滤掉幽灵 ID（Bug 产生的残留）
             copy._ids.addAll(idsSnapshot.filter { copy.isAlive.contains(it) })

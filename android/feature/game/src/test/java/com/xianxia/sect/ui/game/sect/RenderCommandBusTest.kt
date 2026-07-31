@@ -7,7 +7,14 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 
+/**
+ * ★ Robolectric 必需：RenderCommandBus 的帧数据依赖 android.util 类型，
+ * 无 Robolectric 时未 mock 导致数据丢失断言假失败。
+ */
+@RunWith(RobolectricTestRunner::class)
 class RenderCommandBusTest {
 
     @Test
@@ -26,14 +33,15 @@ class RenderCommandBusTest {
     @Test
     fun `post overwrites previous data`() {
         val bus = RenderCommandBus()
-        val dataA = floatArrayOf(1f, 2f, 3f)
-        val dataB = floatArrayOf(4f, 5f, 6f)
+        // 契约：每建筑 5 个 float（data.size >= count*5），否则 count 被钳到 0
+        val dataA = floatArrayOf(1f, 2f, 3f, 4f, 5f)
+        val dataB = floatArrayOf(4f, 5f, 6f, 7f, 8f, 9f, 10f, 11f, 12f, 13f)
 
         bus.postBuildingData(dataA, 1)
         bus.postBuildingData(dataB, 2)
         val snapshot = bus.consumeBuildingData()
 
-        assertArrayEquals(floatArrayOf(4f, 5f, 6f), snapshot.data, 0f)
+        assertArrayEquals(floatArrayOf(4f, 5f, 6f, 7f, 8f, 9f, 10f, 11f, 12f, 13f), snapshot.data, 0f)
         assertEquals(2, snapshot.count)
     }
 
@@ -77,7 +85,8 @@ class RenderCommandBusTest {
     @Test
     fun `copyOf prevents mutation after post`() {
         val bus = RenderCommandBus()
-        val original = floatArrayOf(1f, 2f, 3f)
+        // 契约：每建筑 5 个 float（data.size >= count*5）
+        val original = floatArrayOf(1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f, 10f, 11f, 12f, 13f, 14f, 15f)
         bus.postBuildingData(original, 3)
 
         // Modify the original array after posting
@@ -86,33 +95,39 @@ class RenderCommandBusTest {
         original[2] = 77f
 
         val snapshot = bus.consumeBuildingData()
-        assertArrayEquals(floatArrayOf(1f, 2f, 3f), snapshot.data, 0f)
+        assertArrayEquals(
+            floatArrayOf(1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f, 10f, 11f, 12f, 13f, 14f, 15f),
+            snapshot.data, 0f
+        )
         assertEquals(3, snapshot.count)
     }
 
     @Test
     fun `multiple posts without consume in between`() {
         val bus = RenderCommandBus()
-        val dataA = floatArrayOf(1f, 2f)
-        val dataB = floatArrayOf(3f, 4f, 5f)
+        val dataA = floatArrayOf(1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f, 10f)
+        val dataB = floatArrayOf(11f, 12f, 13f, 14f, 15f, 16f, 17f, 18f, 19f, 20f, 21f, 22f, 23f, 24f, 25f)
 
         bus.postBuildingData(dataA, 2)
         bus.postBuildingData(dataB, 3)
         val snapshot = bus.consumeBuildingData()
 
-        assertArrayEquals(floatArrayOf(3f, 4f, 5f), snapshot.data, 0f)
+        assertArrayEquals(
+            floatArrayOf(11f, 12f, 13f, 14f, 15f, 16f, 17f, 18f, 19f, 20f, 21f, 22f, 23f, 24f, 25f),
+            snapshot.data, 0f
+        )
         assertEquals(3, snapshot.count)
     }
 
     @Test
     fun `consumeBuildingData returns correct snapshot`() {
         val bus = RenderCommandBus()
-        val data = floatArrayOf(10f, 20f, 30f, 40f)
+        val data = floatArrayOf(10f, 20f, 30f, 40f, 50f, 60f, 70f, 80f, 90f, 100f, 110f, 120f, 130f, 140f, 150f, 160f, 170f, 180f, 190f, 200f)
 
         bus.postBuildingData(data, 4)
         val snapshot = bus.consumeBuildingData()
 
-        assertArrayEquals(floatArrayOf(10f, 20f, 30f, 40f), snapshot.data, 0f)
+        assertArrayEquals(data, snapshot.data, 0f)
         assertEquals(4, snapshot.count)
     }
 }

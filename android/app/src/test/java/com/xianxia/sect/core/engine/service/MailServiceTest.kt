@@ -22,6 +22,9 @@ import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import org.mockito.Mockito.*
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argThat
@@ -34,6 +37,8 @@ import org.mockito.kotlin.eq
  * - claimAttachment 检测 mailRecords 不一致时自愈 Room 状态
  * - claimAttachmentInternal 被 mailRecords 拦截不重复发放物品
  */
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class MailServiceTest {
 
     private lateinit var service: MailService

@@ -5,6 +5,7 @@ import com.xianxia.sect.core.config.BuildingConfigModel
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
+import com.xianxia.sect.ui.game.delegate.GameLoopDelegate
 import com.xianxia.sect.core.engine.currentActiveSectId
 import com.xianxia.sect.core.engine.notifyUserInteraction
 import com.xianxia.sect.core.engine.setActiveDialog
@@ -126,6 +127,10 @@ class GameViewModelTest {
         // ── Stub gameEngineCore.state（isPaused Flow 链引用）──
         every { gameEngineCore.state } returns MutableStateFlow(UnifiedGameState())
 
+        // ── 禁用健康检查（GameLoopDelegate 每秒访问 mock 属性 → Kotlin 反射
+        //    类加载风暴 → 测试卡死，jstack 实证 JarFile.getVersionedEntry）──
+        GameLoopDelegate.healthCheckEnabled = false
+
         // ── Stub systemManager.errors（init 块中收集）──
         every { systemManager.errors } returns emptyFlow()
 
@@ -161,6 +166,7 @@ class GameViewModelTest {
 
     @After
     fun tearDown() {
+        GameLoopDelegate.healthCheckEnabled = true
         Dispatchers.resetMain()
         unmockkAll()
     }

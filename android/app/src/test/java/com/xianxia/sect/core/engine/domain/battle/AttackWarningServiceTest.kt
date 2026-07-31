@@ -13,8 +13,13 @@ import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 import org.mockito.Mockito.mock
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class AttackWarningServiceTest {
 
     private lateinit var service: AttackWarningService

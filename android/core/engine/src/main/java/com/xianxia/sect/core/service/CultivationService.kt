@@ -73,9 +73,14 @@ class CultivationService @Inject constructor(
 
     /** 单弟子旬级 HP/MP 恢复（委托 CultivationCore） */
     fun recoverHpMpSingle(
-        state: MutableGameState, id: Int, phasesToSettle: Int = 1
+        state: MutableGameState, id: Int, phasesToSettle: Int = 1,
+        equipmentMap: Map<String, EquipmentInstance>? = null,
+        manualMap: Map<String, ManualInstance>? = null
     ) {
-        cultivationCore.recoverHpMpSingle(state, id, phasesToSettle)
+        cultivationCore.recoverHpMpSingle(
+            state, id, phasesToSettle,
+            equipmentMap = equipmentMap, manualMap = manualMap
+        )
     }
 
     fun calculateDiscipleCultivationPerPhase(
@@ -84,26 +89,34 @@ class CultivationService @Inject constructor(
         tables: com.xianxia.sect.core.state.DiscipleTables
     ): Double = cultivationCore.calculateDiscipleCultivationPerPhase(disciple, data, tables)
 
-    /** 每旬修炼累积：按当前速率累加1旬修为。不更新检查点（只在速率变化时更新）。 */
+    /**
+     * 每旬修炼累积：按当前速率累加1旬修为。
+     *
+     * 列直读版（无 assemble）：每旬热点循环（每 2 秒 × 每弟子）不再组装
+     * 完整 Disciple 对象，速率计算走 [CultivationRateCalculator.calculateCultivationPerPhaseById]。
+     *
+     * 不更新检查点（checkpoint 只在速率变化点更新——政策/长老/丹药/突破）。
+     * 每旬累积只改变修为、从不改变速率，每旬同步 checkpoint 会让
+     * cultivationCheckpoints 恒等于 cultivations，投影退化为恒等函数，纯属浪费 2 次列写。
+     */
     fun accumulateCultivationPerPhase(
         id: Int,
         state: com.xianxia.sect.core.state.MutableGameState
     ) {
         val tables = state.discipleTables
         if (tables.isAlive[id] != 1) return
-        val disciple = tables.assemble(id) ?: return
-        if (disciple.cultivation >= disciple.maxCultivation) return
+        val realm = tables.realms.getOrDefault(id, 9)
+        val realmLayer = tables.realmLayers.getOrDefault(id, 1)
+        val curCult = tables.cultivations.getOrDefault(id, 0.0)
+        val maxCultivation = computeMaxCultivation(realm, realmLayer, curCult)
+        if (curCult >= maxCultivation) return
 
-        val rate = cultivationCore.calculateDiscipleCultivationPerPhase(
-            disciple, state.gameData, tables
+        val rate = cultivationCore.calculateCultivationPerPhaseById(
+            id, state.gameData, tables
         )
         if (rate <= 0.0) return
 
-        val curCult = tables.cultivations.getOrDefault(id, 0.0)
-        tables.cultivations[id] = (curCult + rate).coerceAtMost(disciple.maxCultivation.toDouble())
-        // Checkpoint：每旬累积后同步检查点，确保 getEffectiveCultivation 投影准确
-        val currentMonth = state.gameData.gameYear * 12 + state.gameData.gameMonth
-        tables.checkpointDisciple(id, currentMonth)
+        tables.cultivations[id] = (curCult + rate).coerceAtMost(maxCultivation)
     }
 
     /** 每旬功法熟练度增长（委托 CultivationCore） */
@@ -112,8 +125,11 @@ class CultivationService @Inject constructor(
     }
 
     /** 单弟子每旬功法熟练度增长（委托 CultivationCore） */
-    fun processManualProficiencySingle(state: MutableGameState, id: Int) {
-        cultivationCore.processManualProficiencySingle(state, id)
+    fun processManualProficiencySingle(
+        state: MutableGameState, id: Int,
+        manualInstanceMap: Map<String, ManualInstance>? = null
+    ) {
+        cultivationCore.processManualProficiencySingle(state, id, manualInstanceMap)
     }
 
     /** 每旬装备孕养经验增长（委托 CultivationCore） */
@@ -122,8 +138,11 @@ class CultivationService @Inject constructor(
     }
 
     /** 单弟子每旬装备孕养经验增长（委托 CultivationCore） */
-    fun processEquipmentNurtureSingle(state: MutableGameState, id: Int) {
-        cultivationCore.processEquipmentNurtureSingle(state, id)
+    fun processEquipmentNurtureSingle(
+        state: MutableGameState, id: Int,
+        equipmentMap: Map<String, EquipmentInstance>? = null
+    ) {
+        cultivationCore.processEquipmentNurtureSingle(state, id, equipmentMap)
     }
 
     /**

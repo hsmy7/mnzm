@@ -139,12 +139,16 @@ class HpMpRecoveryService @Inject constructor() {
      * @param id 弟子 ID
      * @param phasesToSettle 需结算的旬数（默认 1）
      * @param zones 恢复乘区（可选，默认为无额外加成）
+     * @param equipmentMap 装备实例映射（每旬热点循环共享构建，null 时内部构建）
+     * @param manualMap 功法实例映射（每旬热点循环共享构建，null 时内部构建）
      */
     fun recoverHpMpSingle(
         state: MutableGameState,
         id: Int,
         phasesToSettle: Int = 1,
-        zones: RecoveryZones = RecoveryZones()
+        zones: RecoveryZones = RecoveryZones(),
+        equipmentMap: Map<String, EquipmentInstance>? = null,
+        manualMap: Map<String, ManualInstance>? = null
     ) {
         if (phasesToSettle <= 0) return
         val tables = state.discipleTables
@@ -153,12 +157,12 @@ class HpMpRecoveryService @Inject constructor() {
         if (curHp < 0 && curMp < 0) return
 
         val disciple = tables.assemble(id)
-        val equipmentMap = state.equipmentInstances.associateBy { it.id }
-        val manualMap = state.manualInstances.associateBy { it.id }
+        val eqMap = equipmentMap ?: state.equipmentInstances.associateBy { it.id }
+        val mMap = manualMap ?: state.manualInstances.associateBy { it.id }
         val allProficiencies = state.gameData.manualProficiencies
         val proficiencyMap = allProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap()
         val finalStats = DiscipleStatCalculator.getFinalStats(
-            disciple, equipmentMap, manualMap, proficiencyMap
+            disciple, eqMap, mMap, proficiencyMap
         )
         val maxHp = finalStats.maxHp
         val maxMp = finalStats.maxMp
