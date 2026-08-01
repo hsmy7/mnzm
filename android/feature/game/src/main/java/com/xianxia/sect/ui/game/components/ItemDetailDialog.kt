@@ -189,23 +189,10 @@ fun ItemDetailDialog(
             fontSize = 11.sp,
             color = GameColors.TextSecondary
         )
-        // 关注按钮：viewModel 非空且物品可关注（灵石/储物袋不可关注）时显示
+        // 关注键：viewModel 非空且物品可关注（灵石/储物袋不可关注）时返回非空
         val watchKey = remember(item) { watchKeyOf(item) }
         val watchedKeys = viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value
             ?: emptySet()
-        if (watchKey != null && viewModel != null) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Start
-            ) {
-                WatchItemButton(
-                    watchKey = watchKey,
-                    watchedKeys = watchedKeys,
-                    onToggleWatch = { key -> viewModel.toggleWatchItem(key) }
-                )
-            }
-        }
         Spacer(modifier = Modifier.height(8.dp))
         HorizontalDivider(color = GameColors.Background, thickness = 1.dp)
         Spacer(modifier = Modifier.height(8.dp))
@@ -294,9 +281,22 @@ fun ItemDetailDialog(
             )
         }
 
-        if (extraActions != null) {
+        // 底部操作区：关注按钮与其他操作按钮并列（关注按钮移至此位置）
+        if (extraActions != null || (watchKey != null && viewModel != null)) {
             Spacer(modifier = Modifier.height(8.dp))
-            extraActions()
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (watchKey != null && viewModel != null) {
+                    WatchItemButton(
+                        watchKey = watchKey,
+                        watchedKeys = watchedKeys,
+                        onToggleWatch = { key -> viewModel.toggleWatchItem(key) }
+                    )
+                }
+                extraActions?.invoke()
+            }
         }
     }
 }

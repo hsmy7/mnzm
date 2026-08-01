@@ -466,22 +466,6 @@ private fun PillDetailDialog(
                     Text(text = "时间: ${recipe.duration}月", fontSize = 12.sp, color = Color.Black)
                 }
 
-                // 关注按钮：viewModel 非空时显示（丹药按名称关注）
-                if (viewModel != null) {
-                    val watchedKeys =
-                        viewModel.watchedItemIds.collectAsStateWithLifecycle().value
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Start
-                    ) {
-                        WatchItemButton(
-                            watchKey = watchKey("pill", recipe.name),
-                            watchedKeys = watchedKeys,
-                            onToggleWatch = { key -> viewModel.toggleWatchItem(key) }
-                        )
-                    }
-                }
-
                 Text(text = "所需材料:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
 
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -545,6 +529,22 @@ private fun PillDetailDialog(
 
                 Text(text = "描述:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
                 Text(text = recipe.description, fontSize = 11.sp, color = Color.Black)
+
+                // 关注按钮：viewModel 非空时显示（丹药按名称关注），位于底部操作区
+                if (viewModel != null) {
+                    val watchedKeys =
+                        viewModel.watchedItemIds.collectAsStateWithLifecycle().value
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Start
+                    ) {
+                        WatchItemButton(
+                            watchKey = watchKey("pill", recipe.name),
+                            watchedKeys = watchedKeys,
+                            onToggleWatch = { key -> viewModel.toggleWatchItem(key) }
+                        )
+                    }
+                }
                 }
             }
     }

@@ -36,17 +36,6 @@
 - **内存不足时保存反复重试拖慢** — 内存不足的保存失败直接终止重试，快速失败
 - **追补游戏时间按速度缩放** — 2 倍速下不再因短暂卡顿丢失进度（1 倍 3 旬/2 倍 6 旬上限）
 
-### 加固（2026-08-01 待完成项收尾批次——架构文档遗留项全部闭环，无玩家可见变化）
-
-- **异常弟子数据防御统一** — 弟子列表展示、界面快照、存档序列化三条路径统一同一完整性判据（此前界面快照路径仅按存活标记过滤，数据不完整的异常弟子仍可能进入快照被界面看到）
-- **崩溃收集映射上传读取真实配置** — 本地密钥迁移到 api.properties 后上传任务改读同一来源，不再恒为空静默失败；密钥缺失时明确提示并跳过
-- **建筑占地尺寸生成严格限定数据块** — 生成任务只解析建筑占地声明块（此前匹配整个文件，注释中任何"数字 to 数字"都会被误读）；新增占地条目数与建筑名称条数一致性守卫，失配即构建失败
-- **启动初始化执行器加入关闭流程** — 进程退出时完整释放后台初始化线程（防重入守卫 + 幂等关闭）
-- **测试稳定性加固** — 3 个依赖固定真实时间的测试改为轮询目标状态（慢设备/CI 不再偶发失败）；新增幽灵防御与旧存档缺失字段兼容的真实覆盖测试
-- **代码卫生** — 删除失效的时间裁剪常量与误导性注释；补全生命周期清理路径的异常日志
-
-## [4.0.82] - 2026-07-31
-
 ### 修复（2026-08-01 架构全面审查批次）
 
 - **备份/云存档恢复会永久清空仓库装备/功法堆叠** — `SaveData` 的 `equipmentStacks/manualStacks` 曾被标记 `@Transient`，备份文件与云存档不含堆叠数据，恢复路径先删表再写空列表导致仓库物品永久丢失且不可逆。修复：堆叠字段纳入序列化（新存档无损）；旧格式存档从装备/功法实例重建堆叠兜底（仓库物品物理上从未存在，仅恢复游离实例，日志如实提示）；恢复路径加删表守卫（旧格式保留 DB 残留堆叠）
@@ -70,13 +59,29 @@
 - **存档列表查询改 COUNT(*)** — 数千弟子时不再全表物化只为数个数
 - **CI/测试基建** — `GameViewModelTest` 18 个失败根因修复（relaxed mock 上 `launchOnEngine` lambda 永不执行——文档误诊为 mockkStatic/Kotlin 2.2 问题，已修正）；gradle.properties 移除 Windows 硬编码路径与 Bugly 明文密钥（本地路径移入 gitignore 的 local.properties）；Kover 覆盖全模块启用；CI 单 worker + 禁增量编译；GameTimeClock 注入 TimeSource（修复 returnDefaultValues 下 SystemClock 恒 0 的假绿测试）；C++/Kotlin 建筑占地表跨语言一致性守卫测试；Gson/navigation-compose 死依赖移除；debug 构建恢复可调试
 
+### 加固（2026-08-01 待完成项收尾批次——架构文档遗留项全部闭环，无玩家可见变化）
+
+- **异常弟子数据防御统一** — 弟子列表展示、界面快照、存档序列化三条路径统一同一完整性判据（此前界面快照路径仅按存活标记过滤，数据不完整的异常弟子仍可能进入快照被界面看到）
+- **崩溃收集映射上传读取真实配置** — 本地密钥迁移到 api.properties 后上传任务改读同一来源，不再恒为空静默失败；密钥缺失时明确提示并跳过
+- **建筑占地尺寸生成严格限定数据块** — 生成任务只解析建筑占地声明块（此前匹配整个文件，注释中任何"数字 to 数字"都会被误读）；新增占地条目数与建筑名称条数一致性守卫，失配即构建失败
+- **启动初始化执行器加入关闭流程** — 进程退出时完整释放后台初始化线程（防重入守卫 + 幂等关闭）
+- **测试稳定性加固** — 3 个依赖固定真实时间的测试改为轮询目标状态（慢设备/CI 不再偶发失败）；新增幽灵防御与旧存档缺失字段兼容的真实覆盖测试
+- **代码卫生** — 删除失效的时间裁剪常量与误导性注释；补全生命周期清理路径的异常日志
+
 ## [4.0.81] - 2026-07-31
+
+### 修复
 
 - **招募列表出现无肖像且无法招募的幽灵弟子** — 历史版本 Bug 遗留的异常/重复招募条目（name 空/年龄越界/境界越界/内容重复/已入宗门残留）读档原样保留且永不自动移除（三个招募守卫均跳过损坏条目、净化逻辑缺失）。修复：三层自愈——新增 SaveValidator 规则 `RecruitListCleanupRule`（读档主通道）+ `loadData` 引擎层净化（覆盖 cache 捷径）+ 年变净化挂载 `ageRecruitList`；点击招募遇到损坏条目时同事务移除（幽灵立即消失）；新增 domain 纯函数 `RecruitIntegrity`（isValidRecruit/isSamePerson/sanitizeRecruitList，四步净化：损坏移除→id去重→内容去重→跨表残留比对，38岁炼虚等合法数据明确保留，死亡弟子非对称年龄容差防逃逸）
 - **弟子列表出现两个完全相同的弟子** — recruitList 同内容双胞胎被招募路径各自分配新 ID 插入（`recruitAllFromList` 无去重；`processAutoRecruit` 只按 id 去重；手动招募只移除点击那条）。修复：批量招募路径（自动/一键）统一 `dedupeRecruits` 三级去重（id/内容/同人签名）、`recruitAllFromList` 事务开头净化 + 按 id 移除已招募条目；`recruitDiscipleFromList` 招募成功时按 `isSamePerson` 同步移除同内容双胞胎；三处招募守卫统一为 `RecruitIntegrity::isValidRecruit`；UI 层 `recruitListAggregates` 按 id 去重兜底（防 LazyVerticalGrid 重复 key 异常）
 - **AI 宗门弟子出现 38 岁炼虚等年轻高境界** — `adjustDiscipleRealm` 给 16-29 岁 AI 弟子直接赋高境界不改年龄，俘虏入列后原样成为玩家弟子。修复：AI 生成时按境界配最小合理年龄（`GameConfig.Realm.minReasonableAge`：炼虚≥300岁、化神≥200岁等，均低于寿元上限）；招募时仅软校验日志不阻断（保住俘虏玩法）
 - **弟子体质/词条在存档读档后丢失** — `DiscipleSerializer` 序列化缺少 `physiqueIds/affixIds`，读档后招募列表与 AI 宗门弟子体质/词条恒空（招募到"无体质无词条"弟子）。修复：补全序列化字段（@ProtoNumber 104/105，向后兼容）+ 序列化往返守卫测试
 - **宗门弟子改名后招募列表残留同名可招募的重复弟子** — 改名破坏 `RecruitIntegrity.isSamePerson` 5 字段签名匹配，recruitList 中旧名残留双胞胎永久逃脱三层净化、可被重复招募。修复：新增 `GameEngine.renameDisciple` 原子改名，同一事务内按改名前的旧身份签名清除招募列表同人残留
+- **招募弟子列表每 3 年不刷新** — 年变事件单事务化后，`processSectDisciplesYearlyRecruitment` 仍读取已提交旧快照（`stateStore.gameData.value`）覆盖事务缓冲，把 `refreshRecruitList` 刚追加的新弟子全部清除：未被自动招募的弟子直接消失（自动招募在覆盖前执行所以正常），取消自动招募后列表完全不变。修复：改为基于事务缓冲（`MutableGameState`）读写；同类问题 `processSectDisciplesAging` 一并修复（AI 宗门弟子年度老化结果不再被回滚）
+- **招募刷新判据自愈** — 刷新时机由固定年份模运算（`year % 3 == 1`）改为距上次刷新满 3 年触发（`year - lastRecruitYear >= 3`），与启动补刷判据统一：老存档/跨版本相位漂移自动对齐，刷新异常时次年自动补齐，不再永久错过
+- **Android 10 设备温度监测闪退** — 热回调注册守卫从 API 29 对齐到 API 30：`AndroidThermalReader` 的 `platformCallback` 使用 API 30 才引入的 `PowerManager.OnThermalStatusChangedListener`，API 29 设备通过旧守卫后访问该字段会 `NoSuchFieldError` 闪退
+- **低版本 Android 设备存档备份校验异常** — `computeCrc32c` 由 `NoClassDefFoundError` 隐式回退改为 `Build.VERSION.SDK_INT >= 34` 显式分支（CRC32C/CRC32），同设备自洽且行为确定，低版本设备备份恢复不再校验失败
+- **炼丹/锻造界面「显示所有可用弟子」勾选状态不实时更新** — `viewModel.gameData.value` 在 Composition 内读取不触发重组，改为复用响应式 `gameData` 参数派生
 
 ### 优化
 
@@ -87,19 +92,6 @@
 - **技术债治理** — lint-baseline 96 条清零至 7 条（删除 52 个重复图片资源、KTX API 改写、4 个依赖升级）；`changelog_entries.json` 新增格式守卫（CI 自动校验）；清理过时架构债务文档
 - **引擎状态层性能重构** — ① 弟子数据快照隔离改为列级写时复制（COW）：每次状态更新的拷贝成本从全量 100 张组件表降至仅实际写入列（基准 100 弟子 ≈122μs/次），纯界面操作不再触发弟子全量重组装，游戏更流畅省电；② 每旬修炼结算改列直读（无弟子对象组装）+ 共享映射复用，修炼热点开销大幅下降；③ 弟子聚合列表与宗门战力两条周期扫描链合并为单条，后台扫描次数减半；④ 修复弟子批量更新时快照并发交错丢数据（最多丢 2/50）的竞态
 - **测试基础设施修复** — 全量回归暴露并修复 10 个预存测试缺陷（8 个测试类缺失 Robolectric 注解导致安卓数据结构静默失效、受孕/渲染总线测试数据不符合契约等）；`GameViewModelTest` 卡死根因定位（mockk 反射类加载风暴）并加健康检查开关
-
-## [4.0.81] - 2026-07-31
-
-### 修复
-
-- **招募弟子列表每 3 年不刷新** — 年变事件单事务化后，`processSectDisciplesYearlyRecruitment` 仍读取已提交旧快照（`stateStore.gameData.value`）覆盖事务缓冲，把 `refreshRecruitList` 刚追加的新弟子全部清除：未被自动招募的弟子直接消失（自动招募在覆盖前执行所以正常），取消自动招募后列表完全不变。修复：改为基于事务缓冲（`MutableGameState`）读写；同类问题 `processSectDisciplesAging` 一并修复（AI 宗门弟子年度老化结果不再被回滚）
-- **招募刷新判据自愈** — 刷新时机由固定年份模运算（`year % 3 == 1`）改为距上次刷新满 3 年触发（`year - lastRecruitYear >= 3`），与启动补刷判据统一：老存档/跨版本相位漂移自动对齐，刷新异常时次年自动补齐，不再永久错过
-- **Android 10 设备温度监测闪退** — 热回调注册守卫从 API 29 对齐到 API 30：`AndroidThermalReader` 的 `platformCallback` 使用 API 30 才引入的 `PowerManager.OnThermalStatusChangedListener`，API 29 设备通过旧守卫后访问该字段会 `NoSuchFieldError` 闪退
-- **低版本 Android 设备存档备份校验异常** — `computeCrc32c` 由 `NoClassDefFoundError` 隐式回退改为 `Build.VERSION.SDK_INT >= 34` 显式分支（CRC32C/CRC32），同设备自洽且行为确定，低版本设备备份恢复不再校验失败
-- **炼丹/锻造界面「显示所有可用弟子」勾选状态不实时更新** — `viewModel.gameData.value` 在 Composition 内读取不触发重组，改为复用响应式 `gameData` 参数派生
-
-### 优化
-
 - **年度报告数据完整** — `runGarrisonAndReport` 改为在年变事务缓冲内读取数据生成年报，纳贡/俸禄等同事务前序事件写入的收入正确计入当年年报（此前读已提交旧值导致漏计）
 - **对话框遮罩层统一** — 无论同时打开几个界面，全局只渲染一层遮罩。取消各独立 Dialog 窗口各自的 scrim 绘制，改为在 GameOverlayHost 根节点画单例 scrim。消除多界面叠加时遮罩变黑（叠加后约 84% 不透光）的问题
 
@@ -1978,11 +1970,6 @@
 - **外交界面宗门卡片单行布局优化** — 宗门卡片改为单行显示，左侧宗门等级图标 + 宗门名称 + 好感度，右侧放置送礼/结盟/交易按钮，提升空间利用率和信息密度
 - **宗门卡片背景改用纯色** — 移除背景图片，改用 `GameColors.CardBackground` 纯色圆角背景，视觉更简洁
 - **清理未使用 import** — 删除 `ContentScale` 和 `R.drawable` 相关未使用导入
-
-## [4.0.31] - 2026-07-01（versionCode=4031）
-
-### 优化
-
 - **TapTap SDK 升级至 4.10.5** — 从 4.10.1 升级至 4.10.5，修复部分设备上 sandbox hook 导致的 SIGILL/SIGSEGV 崩溃（#4018/#5004），提升稳定性和兼容性
 
 ## [4.0.30] - 2026-07-01（versionCode=4030）
