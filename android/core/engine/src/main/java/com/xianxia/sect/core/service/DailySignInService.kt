@@ -235,21 +235,26 @@ class DailySignInService @Inject constructor(
         stateStore.update {
             inventorySystem.withOverflowMailSuppressed {
             inventorySystem.withTrackingSource("sign_in") {
-                when (reward.type) {
-                    "beastMaterial" ->
-                        generatedCards.addAll(distributeBeastMaterialReward(reward, onFailure))
-                    "pill" ->
-                        generatedCards.addAll(distributePillReward(reward, onFailure))
-                    "randomMaterial" ->
-                        generatedCards.addAll(distributeRandomMaterialReward(reward, onFailure))
-                    "randomSeed" ->
-                        generatedCards.addAll(distributeRandomSeedReward(reward, onFailure))
-                    "randomPill" ->
-                        generatedCards.addAll(distributeRandomPillReward(reward, onFailure))
-                    "randomHerb" ->
-                        generatedCards.addAll(distributeRandomHerbReward(reward, onFailure))
-                    "storageBag" ->
-                        generatedCards.addAll(distributeStorageBagReward(reward, onFailure))
+                try {
+                    when (reward.type) {
+                        "beastMaterial" ->
+                            generatedCards.addAll(distributeBeastMaterialReward(reward, onFailure))
+                        "pill" ->
+                            generatedCards.addAll(distributePillReward(reward, onFailure))
+                        "randomMaterial" ->
+                            generatedCards.addAll(distributeRandomMaterialReward(reward, onFailure))
+                        "randomSeed" ->
+                            generatedCards.addAll(distributeRandomSeedReward(reward, onFailure))
+                        "randomPill" ->
+                            generatedCards.addAll(distributeRandomPillReward(reward, onFailure))
+                        "randomHerb" ->
+                            generatedCards.addAll(distributeRandomHerbReward(reward, onFailure))
+                        "storageBag" ->
+                            generatedCards.addAll(distributeStorageBagReward(reward, onFailure))
+                    }
+                } catch (e: IllegalStateException) {
+                    // Partial 溢出 → 事务回滚（物品/claimedDays 均未写），转容量提示
+                    capacityError = e.message ?: "仓库空间不足，请清理后再领取"
                 }
             }
         }
@@ -439,10 +444,17 @@ class DailySignInService @Inject constructor(
     }
 
     /** 记录 addXxx 三态结果；Failure 时通过 onFailure 上报错误消息 */
+    /**
+     * 记录 addXxx 三态结果。
+     *
+     * 对抗性审查修复：Partial 时抛出异常——外层 stateStore.update 事务整体回滚
+     * （物品未入仓、claimedDays 未写），签到拒绝并提示容量不足；玩家清理后
+     * 重试全量发放，溢出部分不丢失、不重复（凭据类路径语义，与 MailService 一致）。
+     */
     private fun handleResult(result: DomainResult<*>, label: String, onFailure: (String) -> Unit) {
         when (result) {
             is DomainResult.Success -> { /* 正常发放 */ }
-            is DomainResult.Partial -> DomainLog.w(TAG, "$label 仓库已满，溢出 ${result.overflow} 个")
+            is DomainResult.Partial -> throw IllegalStateException("$label 仓库空间不足，溢出 ${result.overflow} 个")
             is DomainResult.Failure -> onFailure("$label 仓库空间不足，请清理后再领取")
         }
     }

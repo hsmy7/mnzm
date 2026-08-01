@@ -54,8 +54,12 @@ class OverflowMailSender @Inject constructor(
         /** 邮件最大数量（复用 MailService 上限语义） */
         private const val MAX_MAILS_PER_SLOT = 1000
 
-        /** 溢出邮件有效期（天） */
-        private const val MAIL_EXPIRE_DAYS = 30L
+        /**
+         * 溢出邮件有效期（天）。
+         * 对抗性审查 M4 修复：溢出物品是玩家已获得的资产（部分路径已付灵石），
+         * 不设 30 天过期——设为 10 年（过期删除仅清理真正的过期邮件，不吞资产）。
+         */
+        private const val MAIL_EXPIRE_DAYS = 3650L
 
         private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
 
@@ -90,24 +94,34 @@ class OverflowMailSender @Inject constructor(
     }
 
     private val pendingDrafts = ConcurrentLinkedQueue<OverflowMailDraft>()
+
+    /** 单飞调度标志——@Volatile 保证跨线程可见（对抗性审查 M1 修复） */
+    @Volatile
     private var drainScheduled = false
 
     /** 入队草稿并调度防抖 drain（引擎线程安全：addXxx 收尾与 drain 均经此单飞标志） */
     override fun sendOverflowMails(drafts: List<OverflowMailDraft>) {
         if (drafts.isEmpty()) return
         pendingDrafts.addAll(drafts)
+        scheduleDrain()
+    }
+
+    /** 调度防抖 drain（单飞：drainScheduled 保证同时最多一个 drain 在途） */
+    private fun scheduleDrain() {
         if (drainScheduled) return
         drainScheduled = true
         scopeProvider.scope.launch {
             try {
                 delay(DEBOUNCE_MS)
-                drainScheduled = false
                 drain()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                drainScheduled = false
                 DomainLog.e(TAG, "溢出邮件发送失败（草稿保留，下次发送重试）", e)
+            } finally {
+                drainScheduled = false
+                // drain 期间（挂起窗口）新入队的草稿 → 再次调度，保持"一次战斗一封"的批组合并
+                if (pendingDrafts.isNotEmpty()) scheduleDrain()
             }
         }
     }
@@ -123,6 +137,7 @@ class OverflowMailSender @Inject constructor(
 
         val now = System.currentTimeMillis()
         val grouped = drafts.groupBy { it.slotId to it.source }
+        var anyWritten = false
         for ((key, group) in grouped) {
             val (slotId, source) = key
             try {
@@ -136,18 +151,23 @@ class OverflowMailSender @Inject constructor(
                 }
                 val mail = buildOverflowMail(slotId, source, attachments, now)
                 mailRepo.insertWithEnforceLimit(mail, MAX_MAILS_PER_SLOT)
+                anyWritten = true
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                DomainLog.e(TAG, "溢出邮件写入失败 slotId=$slotId source=$source", e)
+                // 对抗性审查 MEDIUM-4 修复：写入失败 → 草稿回队，下次 drain 重试（不永久丢失）
+                DomainLog.e(TAG, "溢出邮件写入失败 slotId=$slotId source=$source（草稿回队重试）", e)
+                pendingDrafts.addAll(group)
             }
         }
-        // 通知玩家（统一容量提示框由 UI 层消费）
-        stateStore.warehouseFullEvent.tryEmit("仓库容量不足，部分奖励已转入邮件，请到邮件中查收")
+        // 通知玩家（统一容量提示框由 UI 层消费）；仅在有邮件成功写入时提示
+        if (anyWritten) {
+            stateStore.warehouseFullEvent.tryEmit("仓库容量不足，部分奖励已转入邮件，请到邮件中查收")
+        }
     }
 
-    /** 构建溢出邮件（标题/内容清晰说明来源与原因） */
-    private fun buildOverflowMail(
+    /** 构建溢出邮件（标题/内容清晰说明来源与原因）——internal 供单元测试直测 */
+    internal fun buildOverflowMail(
         slotId: Int,
         source: String,
         attachments: List<MailAttachment>,

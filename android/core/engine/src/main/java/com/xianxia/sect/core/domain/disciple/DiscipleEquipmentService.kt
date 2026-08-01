@@ -192,36 +192,49 @@ class DiscipleEquipmentService @Inject constructor(
         val bootsId = discipleTables.bootsIds[id]
         val accessoryId = discipleTables.accessoryIds[id]
 
-        val changed = when {
-            weaponId == equipmentId -> { discipleTables.weaponIds[id] = ""; true }
-            armorId == equipmentId -> { discipleTables.armorIds[id] = ""; true }
-            bootsId == equipmentId -> { discipleTables.bootsIds[id] = ""; true }
-            accessoryId == equipmentId -> { discipleTables.accessoryIds[id] = ""; true }
-            else -> false
+        // 仅判断装备所属槽位（槽位清空移到入仓成功后，失败时保留槽位不悬空）
+        val slotToClear = when {
+            weaponId == equipmentId -> { "weapon" }
+            armorId == equipmentId -> { "armor" }
+            bootsId == equipmentId -> { "boots" }
+            accessoryId == equipmentId -> { "accessory" }
+            else -> null
         }
 
-        if (changed) {
+        if (slotToClear != null) {
             val eq = equipmentInstances.get(equipmentId)
 
             if (eq != null) {
-                // 统一委托 addEquipmentStack（重入事务同一缓冲；溢出自动转邮件）
-                val result = inventorySystem.addEquipmentStack(eq.toStack(quantity = 1))
-                if (result is DomainResult.Success || result is DomainResult.Partial) {
+                // 凭据类路径：抑制溢出转邮件——仅全部入仓成功才清槽位+删实例；
+                // Partial/Failure 保留槽位与实例，玩家清理后重试补齐，
+                // 避免"邮件已发 + 槽位悬空/实例孤儿"（对抗性审查 H1 修复）
+                val result = inventorySystem.withOverflowMailSuppressed {
+                    inventorySystem.addEquipmentStack(eq.toStack(quantity = 1))
+                }
+                if (result is DomainResult.Success) {
+                    clearEquipmentSlot(id, slotToClear)
                     equipmentInstances = equipmentInstances.filter { it.id != equipmentId }
-                }
-                if (result is DomainResult.Partial) {
-                    DomainLog.w(TAG, "卸下装备溢出：${eq.name} 溢出 ${result.overflow} 个（已转邮件）")
-                }
-                if (result is DomainResult.Failure) {
-                    DomainLog.w(TAG, "卸下装备失败：${eq.name} 仓库已满，装备未移除")
+                } else {
+                    DomainLog.w(TAG, "卸下装备失败：${eq.name} 仓库空间不足，槽位与装备保留，清理后可重试")
                     return false
                 }
             } else {
                 DomainLog.w(TAG, "unequipEquipmentLogic: equipment instance $equipmentId not found for disciple $discipleId, clearing slot only")
+                clearEquipmentSlot(id, slotToClear)
             }
 
             return true
         }
         return false
+    }
+
+    /** 清空弟子指定装备槽位 */
+    private fun MutableGameState.clearEquipmentSlot(id: Int, slot: String) {
+        when (slot) {
+            "weapon" -> discipleTables.weaponIds[id] = ""
+            "armor" -> discipleTables.armorIds[id] = ""
+            "boots" -> discipleTables.bootsIds[id] = ""
+            "accessory" -> discipleTables.accessoryIds[id] = ""
+        }
     }
 }

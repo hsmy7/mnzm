@@ -83,7 +83,7 @@ class AutoBuyService @Inject constructor(
             if (merchantItem.quantity <= 0) continue
 
             // 检查仓库容量
-            if (!canAddToWarehouse(merchantItem)) {
+            if (!state.canAddToWarehouse(merchantItem)) {
                 DomainLog.i(TAG,
                     "自动购买跳过（仓库满）: ${merchantItem.name}")
                 continue
@@ -151,8 +151,16 @@ class AutoBuyService @Inject constructor(
 
     // ── 内部方法（在 MutableGameState 上下文中调用） ─────────────────
 
-    private fun canAddToWarehouse(item: MerchantItem): Boolean =
-        when (item.type.lowercase(Locale.ROOT)) {
+    /**
+     * 自动购买预检（在事务缓冲内调用）。
+     *
+     * 对抗性审查 M3 修复：先查事务缓冲槽位（批内条目可见前一条已占用的槽位，
+     * 避免"预检已提交快照过期 → 灵石花在溢出转邮件的物品上"），
+     * 再按类型查合并空间（已提交快照，宽松检查——实际由 addXxx 兜底）。
+     */
+    private fun MutableGameState.canAddToWarehouse(item: MerchantItem): Boolean {
+        if (!inventorySystem.canAddItemInTransaction(this)) return false
+        return when (item.type.lowercase(Locale.ROOT)) {
             "equipment" -> {
                 val eq = MerchantItemConverter.toEquipment(item)
                 inventorySystem.canAddEquipment(eq.name, eq.rarity, eq.slot)
@@ -184,6 +192,7 @@ class AutoBuyService @Inject constructor(
             "spiritstone" -> true
             else -> false
         }
+    }
 
     /**
      * 自动购买入库——统一委托 [InventorySystem.addXxx]（重入事务操作同一缓冲）。

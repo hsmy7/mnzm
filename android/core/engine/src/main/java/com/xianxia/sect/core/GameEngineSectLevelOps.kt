@@ -150,16 +150,12 @@ suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult = 
                         category = template.materialCategory,
                         quantity = pair.second
                     )
+                    // 对抗性审查 H2 修复：Partial/Failure 抛异常整体回滚（物品/灵石/记录均未写），
+                    // 凭据保留 → 玩家清理后重试全量，避免"部分入仓 + 凭据保留"重复发放
                     when (val r = inventorySystem.addMaterial(material)) {
                         is DomainResult.Success -> {}
-                        is DomainResult.Partial -> {
-                            DomainLog.w(TAG, "材料 ${material.name} 溢出 ${r.overflow} 个")
-                            allSucceeded = false
-                        }
-                        is DomainResult.Failure -> {
-                            DomainLog.w(TAG, "添加材料失败: ${r.error}")
-                            allSucceeded = false
-                        }
+                        is DomainResult.Partial -> throw IllegalStateException("材料 ${material.name} 仓库空间不足，溢出 ${r.overflow} 个")
+                        is DomainResult.Failure -> throw IllegalStateException("材料 ${material.name} 添加失败: ${r.error}")
                     }
                 }
             }
@@ -176,8 +172,7 @@ suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult = 
                     )
                 )
                 if (r !is DomainResult.Success) {
-                    DomainLog.w(TAG, "储物袋 $bagName 发放失败: ${(r as? DomainResult.Failure)?.error}")
-                    allSucceeded = false
+                    throw IllegalStateException("储物袋 $bagName 发放失败: ${(r as? DomainResult.Failure)?.error}")
                 }
             }
 
@@ -198,18 +193,19 @@ suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult = 
         }
 
         // 3. 入队飞行卡片（具体物品名，精灵图可正确解析）
+        // 卡片仅在全部成功时入队（对抗性审查 M2 修复：失败时无幻影卡片）
         if (flyCards.isNotEmpty()) {
             stateStore.enqueueRewardCards(flyCards)
         }
 
-        if (!allSucceeded) {
-            DomainLog.w(TAG, "claimSectLevelReward: level=$level 仓库容量不足，未标记已领取")
-            return@withEngineContext SectLevelClaimResult.CapacityInsufficient(
-                "仓库容量不足，奖励未发放，请清理仓库后重新领取"
-            )
-        }
         DomainLog.d(TAG, "claimSectLevelReward: level=$level success, claimedAt=$nowMs, flyCards=${flyCards.size}")
         return@withEngineContext SectLevelClaimResult.Success
+    } catch (e: IllegalStateException) {
+        // 容量不足/发放失败 → 事务整体回滚（物品/灵石/记录均未写），凭据保留可重试
+        DomainLog.w(TAG, "claimSectLevelReward: level=$level 仓库容量不足（事务已回滚）")
+        return@withEngineContext SectLevelClaimResult.CapacityInsufficient(
+            e.message ?: "仓库容量不足，奖励未发放，请清理仓库后重新领取"
+        )
     } catch (e: Exception) {
         DomainLog.e(TAG, "claimSectLevelReward failed: level=$level", e)
         return@withEngineContext SectLevelClaimResult.Error("领取失败: ${e.message}")

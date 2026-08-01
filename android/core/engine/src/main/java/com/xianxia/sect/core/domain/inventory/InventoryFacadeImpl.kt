@@ -95,8 +95,11 @@ class InventoryFacadeImpl @Inject constructor(
             if (!discipleTables.ids.contains(id)) return@update
             val disciple = discipleTables.assemble(id)
 
-            // 统一委托 addXxx（重入事务同一缓冲）；Partial（溢出转邮件）视为成功——
-            // 物品已入仓部分 + 邮件部分，总量不丢失，从弟子袋移除
+            // 统一委托 addXxx（重入事务同一缓冲）；凭据类路径：抑制溢出转邮件——
+            // 仅全部入仓成功（Success）才从弟子袋移除物品；
+            // Partial/Failure 保留袋内物品，玩家清理后重试补齐（已入仓部分合并不重复），
+            // 避免"邮件已发 + 袋内保留"造成物品复制（对抗性审查 C1 修复）
+            inventorySystem.withOverflowMailSuppressed {
             inventorySystem.withTrackingSource("confiscate") {
             when (item.itemType.lowercase()) {
                 "equipment", ITEM_TYPE_EQUIPMENT_STACK, ITEM_TYPE_EQUIPMENT_INSTANCE -> {
@@ -111,7 +114,7 @@ class InventoryFacadeImpl @Inject constructor(
                             minRealm = GameConfig.Realm.getMinRealmForRarity(template.rarity)
                         )
                         val result = inventorySystem.addEquipmentStack(stack.copy(quantity = 1))
-                        if (result.isSuccess || result is DomainResult.Partial) {
+                        if (result is DomainResult.Success) {
                             // 仓库已入仓（含溢出转邮件），从弟子储物袋移除物品
                             val updatedItems = com.xianxia.sect.core.util.StorageBagUtils.decreaseItemQuantity(
                                 disciple.equipment.storageBagItems, item.itemId, 1
@@ -121,7 +124,7 @@ class InventoryFacadeImpl @Inject constructor(
                             ))
                         }
                         if (result is DomainResult.Partial) {
-                            DomainLog.w(TAG, "没收装备溢出：${stack.name} 溢出 ${result.overflow} 个（已转邮件）")
+                            DomainLog.w(TAG, "没收装备溢出：${stack.name} 溢出 ${result.overflow} 个，保留袋内物品待重试")
                         }
                     } else {
                         DomainLog.w(TAG, "没收物品失败：找不到 ${item.name} 的模板")
@@ -132,7 +135,7 @@ class InventoryFacadeImpl @Inject constructor(
                     if (template != null) {
                         val mStack = ManualDatabase.createFromTemplate(template).copy(quantity = 1)
                         val result = inventorySystem.addManualStack(mStack)
-                        if (result.isSuccess || result is DomainResult.Partial) {
+                        if (result is DomainResult.Success) {
                             val updatedItems = com.xianxia.sect.core.util.StorageBagUtils.decreaseItemQuantity(
                                 disciple.equipment.storageBagItems, item.itemId, 1
                             )
@@ -141,7 +144,7 @@ class InventoryFacadeImpl @Inject constructor(
                             ))
                         }
                         if (result is DomainResult.Partial) {
-                            DomainLog.w(TAG, "没收功法溢出：${template.name} 溢出 ${result.overflow} 个（已转邮件）")
+                            DomainLog.w(TAG, "没收功法溢出：${template.name} 溢出 ${result.overflow} 个，保留袋内物品待重试")
                         }
                     } else {
                         DomainLog.w(TAG, "没收物品失败：找不到 ${item.name} 的模板")
@@ -153,7 +156,7 @@ class InventoryFacadeImpl @Inject constructor(
                     if (template != null) {
                         val pill = com.xianxia.sect.core.registry.ItemDatabase.createPillFromTemplate(template, quantity = 1)
                         val result = inventorySystem.addPill(pill)
-                        if (result.isSuccess || result is DomainResult.Partial) {
+                        if (result is DomainResult.Success) {
                             val updatedItems = com.xianxia.sect.core.util.StorageBagUtils.decreaseItemQuantity(
                                 disciple.equipment.storageBagItems, item.itemId, 1
                             )
@@ -162,7 +165,7 @@ class InventoryFacadeImpl @Inject constructor(
                             ))
                         }
                         if (result is DomainResult.Partial) {
-                            DomainLog.w(TAG, "没收丹药溢出：${template.name} 溢出 ${result.overflow} 个（已转邮件）")
+                            DomainLog.w(TAG, "没收丹药溢出：${template.name} 溢出 ${result.overflow} 个，保留袋内物品待重试")
                         }
                     } else {
                         DomainLog.w(TAG, "没收物品失败：找不到 ${item.name} 的模板")
@@ -176,7 +179,7 @@ class InventoryFacadeImpl @Inject constructor(
                         description = herbTemplate?.description ?: "", category = herbCategory, quantity = 1
                     )
                     val result = inventorySystem.addHerb(herb)
-                    if (result.isSuccess || result is DomainResult.Partial) {
+                    if (result is DomainResult.Success) {
                         val updatedItems = com.xianxia.sect.core.util.StorageBagUtils.decreaseItemQuantity(
                             disciple.equipment.storageBagItems, item.itemId, 1
                         )
@@ -185,7 +188,7 @@ class InventoryFacadeImpl @Inject constructor(
                         ))
                     }
                     if (result is DomainResult.Partial) {
-                        DomainLog.w(TAG, "没收草药溢出：${item.name} 溢出 ${result.overflow} 个（已转邮件）")
+                        DomainLog.w(TAG, "没收草药溢出：${item.name} 溢出 ${result.overflow} 个，保留袋内物品待重试")
                     }
                 }
                 "seed" -> {
@@ -196,7 +199,7 @@ class InventoryFacadeImpl @Inject constructor(
                         growTime = seedTemplate?.growTime ?: 0, quantity = 1
                     )
                     val result = inventorySystem.addSeed(seed)
-                    if (result.isSuccess || result is DomainResult.Partial) {
+                    if (result is DomainResult.Success) {
                         val updatedItems = com.xianxia.sect.core.util.StorageBagUtils.decreaseItemQuantity(
                             disciple.equipment.storageBagItems, item.itemId, 1
                         )
@@ -205,7 +208,7 @@ class InventoryFacadeImpl @Inject constructor(
                         ))
                     }
                     if (result is DomainResult.Partial) {
-                        DomainLog.w(TAG, "没收种子溢出：${item.name} 溢出 ${result.overflow} 个（已转邮件）")
+                        DomainLog.w(TAG, "没收种子溢出：${item.name} 溢出 ${result.overflow} 个，保留袋内物品待重试")
                     }
                 }
                 "material" -> {
@@ -220,7 +223,7 @@ class InventoryFacadeImpl @Inject constructor(
                         description = matTemplate?.description ?: "", category = matCategory, quantity = 1
                     )
                     val result = inventorySystem.addMaterial(material)
-                    if (result.isSuccess || result is DomainResult.Partial) {
+                    if (result is DomainResult.Success) {
                         val updatedItems = com.xianxia.sect.core.util.StorageBagUtils.decreaseItemQuantity(
                             disciple.equipment.storageBagItems, item.itemId, 1
                         )
@@ -229,13 +232,14 @@ class InventoryFacadeImpl @Inject constructor(
                         ))
                     }
                     if (result is DomainResult.Partial) {
-                        DomainLog.w(TAG, "没收材料溢出：${item.name} 溢出 ${result.overflow} 个（已转邮件）")
+                        DomainLog.w(TAG, "没收材料溢出：${item.name} 溢出 ${result.overflow} 个，保留袋内物品待重试")
                     }
                 }
             }
             }
         }
     }
+}
 
     override fun createEquipmentStackFromRecipe(recipe: com.xianxia.sect.core.registry.ForgeRecipeDatabase.ForgeRecipe): EquipmentStack =
         inventorySystem.createEquipmentFromRecipe(recipe)

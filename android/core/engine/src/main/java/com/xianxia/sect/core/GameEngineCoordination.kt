@@ -756,14 +756,15 @@ private suspend fun GameEngine.applyMissionResult(
     // 引导系统：累计完成任务
     incrementGuideCounter(GuideCounterKeys.MISSIONS_COMPLETED)
     if (result.spiritStones > 0) addSpiritStones(result.spiritStones.toLong())
-    result.materials.forEach { material ->
-        when (val r = inventorySystem.addMaterial(material)) {
-            is DomainResult.Success -> {}
-            is DomainResult.Partial -> DomainLog.w("GameEngine", "材料 ${material.name} 溢出 ${r.overflow} 个")
-            is DomainResult.Failure -> DomainLog.w("GameEngine", "添加材料失败: ${r.error}")
+    // 统一 quest 来源（对抗性审查 LOW-11 修复：材料/功法溢出邮件来源不再显示"未知"）
+    inventorySystem.withTrackingSource("quest") {
+        result.materials.forEach { material ->
+            when (val r = inventorySystem.addMaterial(material)) {
+                is DomainResult.Success -> {}
+                is DomainResult.Partial -> DomainLog.w("GameEngine", "材料 ${material.name} 溢出 ${r.overflow} 个")
+                is DomainResult.Failure -> DomainLog.w("GameEngine", "添加材料失败: ${r.error}")
+            }
         }
-    }
-    inventorySystem.withTrackingSource("sect_level") {
         result.pills.forEach { pill ->
             when (val r = inventorySystem.addPill(pill)) {
                 is DomainResult.Success -> {}
@@ -778,12 +779,12 @@ private suspend fun GameEngine.applyMissionResult(
                 is DomainResult.Failure -> DomainLog.w("GameEngine", "添加装备失败: ${r.error}")
             }
         }
-    }
-    result.manualStacks.forEach { manual ->
-        when (val r = inventorySystem.addManualStack(manual)) {
-            is DomainResult.Success -> {}
-            is DomainResult.Partial -> DomainLog.w("GameEngine", "功法 ${manual.name} 溢出 ${r.overflow} 个")
-            is DomainResult.Failure -> DomainLog.w("GameEngine", "添加功法失败: ${r.error}")
+        result.manualStacks.forEach { manual ->
+            when (val r = inventorySystem.addManualStack(manual)) {
+                is DomainResult.Success -> {}
+                is DomainResult.Partial -> DomainLog.w("GameEngine", "功法 ${manual.name} 溢出 ${r.overflow} 个")
+                is DomainResult.Failure -> DomainLog.w("GameEngine", "添加功法失败: ${r.error}")
+            }
         }
     }
 

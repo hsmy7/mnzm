@@ -117,11 +117,8 @@ class RedeemCodeService @Inject constructor(
     }
 
     private suspend fun applyApiRewardsAndMarkUsed(code: String, rewards: List<RedeemApiReward>): Boolean {
-        // 灵石通过 SpiritStoneWallet 独立发放
-        rewards.filter { it.type == "spiritStones" }.forEach { reward ->
-            stateStore.update { spiritStoneWallet.add(this, reward.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.RedeemCode) }
-        }
-
+        // 灵石发放移到物品全部成功之后（对抗性审查 C3 修复：失败时灵石不入账，
+        // 避免"灵石已入账 + 兑换码保留"重试时灵石双发）
         val mailRng = gameRngManager.getRng(RngPartition.MAIL).asKotlinRandom()
         var allSucceeded = true
         stateStore.update {
@@ -133,6 +130,10 @@ class RedeemCodeService @Inject constructor(
                     applyRedeemReward(reward.type, reward.name, reward.quantity, reward.rarity, reward.rarity, mailRng)
                 }
                 if (allSucceeded) {
+                    // 物品全部成功 → 发放灵石 + 标记已用（灵石发放独立事务，成功路径才执行）
+                    rewards.filter { it.type == "spiritStones" }.forEach { reward ->
+                        spiritStoneWallet.add(this, reward.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.RedeemCode)
+                    }
                     gameData = gameData.copy(
                         usedRedeemCodes = (gameData.usedRedeemCodes + code.uppercase(java.util.Locale.getDefault()))
                             .distinct()
@@ -375,11 +376,6 @@ class RedeemCodeService @Inject constructor(
 
         val data = stateStore.gameData.value
 
-        // 灵石通过 SpiritStoneWallet 独立发放
-        result.rewards.filter { it.type == "spiritStones" }.forEach { reward ->
-            stateStore.update { spiritStoneWallet.add(this, reward.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.RedeemCode) }
-        }
-
         var allSucceeded = true
         stateStore.update {
             // 对抗性审查修复：任一物品发放失败/溢出（仓库满）时不标记兑换码已用，
@@ -392,13 +388,18 @@ class RedeemCodeService @Inject constructor(
             }
             }
 
+            if (!allSucceeded) return@update
+
+            // 物品全部成功后才发放灵石与弟子（对抗性审查 C3 修复：
+            // 失败时灵石/弟子不入账，避免"已入账 + 凭据保留"重试时双发）
+            result.rewards.filter { it.type == "spiritStones" }.forEach { reward ->
+                spiritStoneWallet.add(this, reward.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.RedeemCode)
+            }
             result.disciples.forEach { disciple ->
                 val currentMonthValue = gameData.gameYear * 12 + gameData.gameMonth
                 disciple.usage.recruitedMonth = currentMonthValue
                 discipleTables.allocateAndInsert(disciple)
             }
-
-            if (!allSucceeded) return@update
 
             gameData = gameData.copy(
                 usedRedeemCodes = (gameData.usedRedeemCodes + code.uppercase(java.util.Locale.getDefault()))
