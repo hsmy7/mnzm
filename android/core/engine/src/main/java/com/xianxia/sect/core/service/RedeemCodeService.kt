@@ -5,12 +5,14 @@ import com.xianxia.sect.core.engine.annotation.GameService
 import android.content.Context
 import android.content.pm.PackageManager
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.engine.BuildConfig
 import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.RedeemCodeManager
 import com.xianxia.sect.core.util.InputValidator
 import com.xianxia.sect.core.util.HttpClientProvider
@@ -49,7 +51,8 @@ class RedeemCodeService @Inject constructor(
     private val httpClient: HttpClientProvider,
     private val spiritStoneWallet: SpiritStoneWallet,
     private val gameRngManager: com.xianxia.sect.core.util.GameRngManager,
-    @ApplicationContext private val appContext: Context
+    @ApplicationContext private val appContext: Context,
+    private val inventorySystem: com.xianxia.sect.core.engine.system.InventorySystem,
 ) {
     companion object {
         private const val TAG = "RedeemCodeService"
@@ -120,126 +123,120 @@ class RedeemCodeService @Inject constructor(
                     .distinct()
                     .takeLast(GameData.MAX_REDEEM_CODES)
             )
-            rewards.filter { it.type != "spiritStones" }.forEach { reward ->
-                when (reward.type) {
-                    "equipment" -> {
-                        val qty = reward.quantity.coerceAtLeast(1)
-                        val newEquipment = EquipmentDatabase.generateRandom(
-                            minRarity = reward.rarity,
-                            maxRarity = reward.rarity,
-                            random = mailRng
-                        ).copy(quantity = qty)
-                        val existing = equipmentStacks.find { it.name == newEquipment.name && it.rarity == newEquipment.rarity && it.slot == newEquipment.slot }
-                        if (existing != null) {
-                            val newQty = (existing.quantity + newEquipment.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("equipment_stack"))
-                            equipmentStacks = equipmentStacks.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
-                        } else {
-                            equipmentStacks = equipmentStacks + newEquipment
-                        }
-                    }
-                    "manual" -> {
-                        val template = ManualDatabase.getByNameAndRarity(reward.name, reward.rarity)
-                        if (template != null) {
-                            val qty = reward.quantity.coerceAtLeast(1)
-                            val manual = ManualDatabase.createFromTemplate(template).copy(quantity = qty)
-                            val existing = manualStacks.find {
-                                it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type
-                            }
-                            if (existing != null) {
-                                val newQty = (existing.quantity + manual.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("manual_stack"))
-                                manualStacks = manualStacks.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
-                            } else {
-                                manualStacks = manualStacks + manual
-                            }
-                        }
-                    }
-                    "pill" -> {
-                        val qty = reward.quantity.coerceAtLeast(1)
-                        val pill = ItemDatabase.generateRandomPill(
-                            minRarity = reward.rarity,
-                            maxRarity = reward.rarity,
-                            random = mailRng
-                        ).copy(quantity = qty)
-                        val existing = pills.find { it.name == pill.name && it.rarity == pill.rarity && it.category == pill.category }
-                        if (existing != null) {
-                            val newQty = (existing.quantity + pill.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("pill"))
-                            pills = pills.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
-                        } else {
-                            pills = pills + pill
-                        }
-                    }
-                    "material" -> {
-                        val qty = reward.quantity.coerceAtLeast(1)
-                        val material = ItemDatabase.generateRandomMaterial(
-                            minRarity = reward.rarity,
-                            maxRarity = reward.rarity,
-                            random = mailRng
-                        ).copy(quantity = qty)
-                        val existing = materials.find { it.name == material.name && it.rarity == material.rarity && it.category == material.category }
-                        if (existing != null) {
-                            val newQty = (existing.quantity + material.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("material"))
-                            materials = materials.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
-                        } else {
-                            materials = materials + material
-                        }
-                    }
-                    "herb" -> {
-                        val qty = reward.quantity.coerceAtLeast(1)
-                        val herbTemplate = HerbDatabase.generateRandomHerb(
-                            minRarity = reward.rarity,
-                            maxRarity = reward.rarity,
-                            random = mailRng
-                        )
-                        val herb = Herb(
-                            id = java.util.UUID.randomUUID().toString(),
-                            name = herbTemplate.name,
-                            rarity = herbTemplate.rarity,
-                            description = herbTemplate.description,
-                            category = herbTemplate.category,
-                            quantity = qty
-                        )
-                        val existing = herbs.find { it.name == herb.name && it.rarity == herb.rarity && it.category == herb.category }
-                        if (existing != null) {
-                            val newQty = (existing.quantity + herb.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("herb"))
-                            herbs = herbs.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
-                        } else {
-                            herbs = herbs + herb
-                        }
-                    }
-                    "seed" -> {
-                        val qty = reward.quantity.coerceAtLeast(1)
-                        val seedTemplate = HerbDatabase.generateRandomSeed(
-                            minRarity = reward.rarity,
-                            maxRarity = reward.rarity,
-                            random = mailRng
-                        )
-                        val seed = Seed(
-                            id = java.util.UUID.randomUUID().toString(),
-                            name = seedTemplate.name,
-                            rarity = seedTemplate.rarity,
-                            description = seedTemplate.description,
-                            growTime = seedTemplate.growTime,
-                            yield = seedTemplate.yield,
-                            quantity = qty
-                        )
-                        val existing = seeds.find { it.name == seed.name && it.rarity == seed.rarity && it.growTime == seed.growTime }
-                        if (existing != null) {
-                            val newQty = (existing.quantity + seed.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("seed"))
-                            seeds = seeds.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
-                        } else {
-                            seeds = seeds + seed
-                        }
-                    }
-                    "disciple" -> {
-                        val currentMonthValue = gameData.gameYear * 12 + gameData.gameMonth
-                        val usedNames = discipleTables.assembleAll().map { it.name }.toMutableSet()
-                        repeat(reward.quantity.coerceAtLeast(1)) {
-                            val disciple = RedeemCodeManager.generateDisciple(null, usedNames, random = mailRng)
-                            disciple.usage.recruitedMonth = currentMonthValue
-                            discipleTables.allocateAndInsert(disciple)
-                            usedNames.add(disciple.name)
-                        }
-                    }
+            inventorySystem.withTrackingSource("redeem") {
+                rewards.filter { it.type != "spiritStones" }.forEach { reward ->
+                    applyRedeemReward(reward.type, reward.name, reward.quantity, reward.rarity, reward.rarity, mailRng)
+                }
+            }
+        }
+    }
+
+    /** 记录 addXxx 三态结果 */
+    private fun handleRedeemResult(result: DomainResult<*>, label: String) {
+        when (result) {
+            is DomainResult.Success -> { /* 正常发放 */ }
+            is DomainResult.Partial -> DomainLog.w(TAG, "$label 仓库已满，溢出 ${result.overflow} 个")
+            is DomainResult.Failure -> DomainLog.w(TAG, "$label 发放失败: ${result.error}")
+        }
+    }
+
+    /**
+     * 单类兑换奖励发放——统一委托 [InventorySystem.addXxx]（走 StackableItemStore 合并），
+     * 消除手写"找第一个堆叠 + 追加"导致同种物品分裂为多个堆叠的问题。
+     *
+     * @param type 奖励类型（equipment/manual/pill/material/herb/seed/disciple）
+     * @param name 奖励名称（功法模板查找用）
+     * @param quantity 数量
+     * @param rarity 稀有度（功法模板查找用，历史取值与 defaultRarity 不同）
+     * @param defaultRarity 随机物品的稀有度来源（本地兑换与服务器兑换的历史取值不同）
+     */
+    private fun MutableGameState.applyRedeemReward(
+        type: String,
+        name: String,
+        quantity: Int,
+        rarity: Int,
+        defaultRarity: Int,
+        mailRng: kotlin.random.Random
+    ) {
+        when (type) {
+            "equipment" -> {
+                val qty = quantity.coerceAtLeast(1)
+                val newEquipment = EquipmentDatabase.generateRandom(
+                    minRarity = defaultRarity,
+                    maxRarity = defaultRarity,
+                    random = mailRng
+                ).copy(quantity = qty)
+                handleRedeemResult(inventorySystem.addEquipmentStack(newEquipment), "装备 ${newEquipment.name}")
+            }
+            "manual" -> {
+                val template = ManualDatabase.getByNameAndRarity(name, rarity)
+                if (template != null) {
+                    val qty = quantity.coerceAtLeast(1)
+                    val manual = ManualDatabase.createFromTemplate(template).copy(quantity = qty)
+                    handleRedeemResult(inventorySystem.addManualStack(manual), "功法 ${manual.name}")
+                }
+            }
+            "pill" -> {
+                val qty = quantity.coerceAtLeast(1)
+                val pill = ItemDatabase.generateRandomPill(
+                    minRarity = defaultRarity,
+                    maxRarity = defaultRarity,
+                    random = mailRng
+                ).copy(quantity = qty)
+                handleRedeemResult(inventorySystem.addPill(pill), "丹药 ${pill.name}")
+            }
+            "material" -> {
+                val qty = quantity.coerceAtLeast(1)
+                val material = ItemDatabase.generateRandomMaterial(
+                    minRarity = defaultRarity,
+                    maxRarity = defaultRarity,
+                    random = mailRng
+                ).copy(quantity = qty)
+                handleRedeemResult(inventorySystem.addMaterial(material), "材料 ${material.name}")
+            }
+            "herb" -> {
+                val qty = quantity.coerceAtLeast(1)
+                val herbTemplate = HerbDatabase.generateRandomHerb(
+                    minRarity = defaultRarity,
+                    maxRarity = defaultRarity,
+                    random = mailRng
+                )
+                val herb = Herb(
+                    id = java.util.UUID.randomUUID().toString(),
+                    name = herbTemplate.name,
+                    rarity = herbTemplate.rarity,
+                    description = herbTemplate.description,
+                    category = herbTemplate.category,
+                    quantity = qty
+                )
+                handleRedeemResult(inventorySystem.addHerb(herb), "草药 ${herb.name}")
+            }
+            "seed" -> {
+                val qty = quantity.coerceAtLeast(1)
+                val seedTemplate = HerbDatabase.generateRandomSeed(
+                    minRarity = defaultRarity,
+                    maxRarity = defaultRarity,
+                    random = mailRng
+                )
+                val seed = Seed(
+                    id = java.util.UUID.randomUUID().toString(),
+                    name = seedTemplate.name,
+                    rarity = seedTemplate.rarity,
+                    description = seedTemplate.description,
+                    growTime = seedTemplate.growTime,
+                    yield = seedTemplate.yield,
+                    quantity = qty
+                )
+                handleRedeemResult(inventorySystem.addSeed(seed), "种子 ${seed.name}")
+            }
+            "disciple" -> {
+                val currentMonthValue = gameData.gameYear * 12 + gameData.gameMonth
+                val usedNames = discipleTables.assembleAll().map { it.name }.toMutableSet()
+                repeat(quantity.coerceAtLeast(1)) {
+                    val disciple = RedeemCodeManager.generateDisciple(null, usedNames, random = mailRng)
+                    disciple.usage.recruitedMonth = currentMonthValue
+                    discipleTables.allocateAndInsert(disciple)
+                    usedNames.add(disciple.name)
                 }
             }
         }
@@ -329,141 +326,9 @@ class RedeemCodeService @Inject constructor(
         }
 
         stateStore.update {
-            result.rewards.filter { it.type != "spiritStones" }.forEach { reward ->
-                when (reward.type) {
-                    "equipment" -> {
-                        val qty = reward.quantity.coerceAtLeast(1)
-                        val newEquipment = EquipmentDatabase.generateRandom(
-                            minRarity = redeemCodeData.rarity,
-                            maxRarity = redeemCodeData.rarity,
-                            random = mailRng
-                        ).copy(quantity = qty)
-                        val existing = equipmentStacks.find { it.name == newEquipment.name && it.rarity == newEquipment.rarity && it.slot == newEquipment.slot }
-                        if (existing != null) {
-                            val newQty = (existing.quantity + newEquipment.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("equipment_stack"))
-                            equipmentStacks = equipmentStacks.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
-                        } else {
-                            equipmentStacks = equipmentStacks + newEquipment
-                        }
-                    }
-                    "manual" -> {
-                        val template = ManualDatabase.getByNameAndRarity(reward.name, reward.rarity)
-                        if (template != null) {
-                            val manual = ManualStack(
-                                id = java.util.UUID.randomUUID().toString(),
-                                name = template.name,
-                                rarity = reward.rarity,
-                                description = template.description,
-                                type = template.type,
-                                stats = template.stats,
-                                skillName = template.skillName,
-                                skillDescription = template.skillDescription,
-                                skillType = template.skillType,
-                                skillDamageType = template.skillDamageType,
-                                skillHits = template.skillHits,
-                                skillDamageMultiplier = template.skillDamageMultiplier,
-                                skillCooldown = template.skillCooldown,
-                                skillMpCost = template.skillMpCost,
-                                skillHealPercent = template.skillHealPercent,
-                                skillHealType = template.skillHealType,
-                                skillBuffType = template.skillBuffType,
-                                skillBuffValue = template.skillBuffValue,
-                                skillBuffDuration = template.skillBuffDuration,
-                                minRealm = GameConfig.Realm.getMinRealmForRarity(reward.rarity),
-                                quantity = reward.quantity
-                            )
-                            val existing = manualStacks.find {
-                                it.name == manual.name && it.rarity == manual.rarity && it.type == manual.type
-                            }
-                            if (existing != null) {
-                                val newQty = (existing.quantity + manual.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("manual_stack"))
-                                manualStacks = manualStacks.map {
-                                    if (it.id == existing.id) it.copy(quantity = newQty) else it
-                                }
-                            } else {
-                                manualStacks = manualStacks + manual
-                            }
-                        } else {
-                            DomainLog.w(TAG, "无法找到功法模板: ${reward.name}, rarity: ${reward.rarity}")
-                        }
-                    }
-                    "pill" -> {
-                        val qty = reward.quantity.coerceAtLeast(1)
-                        val pill = ItemDatabase.generateRandomPill(
-                            minRarity = redeemCodeData.rarity,
-                            maxRarity = redeemCodeData.rarity,
-                            random = mailRng
-                        ).copy(quantity = qty)
-                        val existing = pills.find { it.name == pill.name && it.rarity == pill.rarity && it.category == pill.category }
-                        if (existing != null) {
-                            val newQty = (existing.quantity + pill.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("pill"))
-                            pills = pills.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
-                        } else {
-                            pills = pills + pill
-                        }
-                    }
-                    "material" -> {
-                        val qty = reward.quantity.coerceAtLeast(1)
-                        val material = ItemDatabase.generateRandomMaterial(
-                            minRarity = redeemCodeData.rarity,
-                            maxRarity = redeemCodeData.rarity,
-                            random = mailRng
-                        ).copy(quantity = qty)
-                        val existing = materials.find { it.name == material.name && it.rarity == material.rarity && it.category == material.category }
-                        if (existing != null) {
-                            val newQty = (existing.quantity + material.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("material"))
-                            materials = materials.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
-                        } else {
-                            materials = materials + material
-                        }
-                    }
-                    "herb" -> {
-                        val qty = reward.quantity.coerceAtLeast(1)
-                        val herbTemplate = HerbDatabase.generateRandomHerb(
-                            minRarity = redeemCodeData.rarity,
-                            maxRarity = redeemCodeData.rarity,
-                            random = mailRng
-                        )
-                        val herb = Herb(
-                            id = java.util.UUID.randomUUID().toString(),
-                            name = herbTemplate.name,
-                            rarity = herbTemplate.rarity,
-                            description = herbTemplate.description,
-                            category = herbTemplate.category,
-                            quantity = qty
-                        )
-                        val existing = herbs.find { it.name == herb.name && it.rarity == herb.rarity && it.category == herb.category }
-                        if (existing != null) {
-                            val newQty = (existing.quantity + herb.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("herb"))
-                            herbs = herbs.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
-                        } else {
-                            herbs = herbs + herb
-                        }
-                    }
-                    "seed" -> {
-                        val qty = reward.quantity.coerceAtLeast(1)
-                        val seedTemplate = HerbDatabase.generateRandomSeed(
-                            minRarity = redeemCodeData.rarity,
-                            maxRarity = redeemCodeData.rarity,
-                            random = mailRng
-                        )
-                        val seed = Seed(
-                            id = java.util.UUID.randomUUID().toString(),
-                            name = seedTemplate.name,
-                            rarity = seedTemplate.rarity,
-                            description = seedTemplate.description,
-                            growTime = seedTemplate.growTime,
-                            yield = seedTemplate.yield,
-                            quantity = qty
-                        )
-                        val existing = seeds.find { it.name == seed.name && it.rarity == seed.rarity && it.growTime == seed.growTime }
-                        if (existing != null) {
-                            val newQty = (existing.quantity + seed.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("seed"))
-                            seeds = seeds.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
-                        } else {
-                            seeds = seeds + seed
-                        }
-                    }
+            inventorySystem.withTrackingSource("redeem") {
+                result.rewards.filter { it.type != "spiritStones" }.forEach { reward ->
+                    applyRedeemReward(reward.type, reward.name, reward.quantity, reward.rarity, redeemCodeData.rarity, mailRng)
                 }
             }
 

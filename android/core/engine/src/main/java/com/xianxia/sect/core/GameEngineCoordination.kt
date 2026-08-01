@@ -397,12 +397,8 @@ private suspend fun GameEngine.initializeWorldAndServices(sectName: String, curr
 
 private suspend fun GameEngine.addInitialStorageBags() {
     return engineContextDispatcher.withEngineContext {
-        stateStore.update {
-            storageBags = storageBags + listOf(
-                StorageBag(name = "凡品储物袋", rarity = 1, quantity = 1),
-                StorageBag(name = "凡品储物袋", rarity = 1, quantity = 1)
-            )
-        }
+        // 单个堆叠 quantity=2（修复历史版本同稀有度储物袋分成两个独立条目的问题）
+        inventorySystem.addStorageBag(StorageBag(name = "凡品储物袋", rarity = 1, quantity = 2))
     }
 }
 

@@ -95,7 +95,6 @@ class DiscipleLifecycleProcessorTest {
         // 这些 mock 在测试方法中不会被 verify，只用作哑对象。
         processor = DiscipleLifecycleProcessor(
             stateStore = mockStore,
-            inventoryConfig = mock(InventoryConfig::class.java),
             scopeProvider = mock(CoroutineScopeProvider::class.java),
             productionSlotRepository = mock(ProductionSlotRepository::class.java),
             eventBus = mock(EventBusPort::class.java),
@@ -106,7 +105,13 @@ class DiscipleLifecycleProcessorTest {
                 override fun get(): LawEnforcementProcessor = mock(LawEnforcementProcessor::class.java)
             },
             discipleStatusService = mock(DiscipleStatusService::class.java),
-            ioDispatcher = IoDispatcher()
+            ioDispatcher = IoDispatcher(),
+            inventorySystem = com.xianxia.sect.core.engine.system.InventorySystem(
+                stateStore = mockStore,
+                inventoryConfig = mock(InventoryConfig::class.java),
+                spiritStoneWallet = mock(com.xianxia.sect.core.wallet.SpiritStoneWallet::class.java),
+                gameConfigProvider = mock(com.xianxia.sect.core.engine.config.GameConfigProvider::class.java)
+            )
         )
     }
 

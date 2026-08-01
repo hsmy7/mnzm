@@ -153,20 +153,15 @@ suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult = 
 
             storageBagRarities.forEach { (rarity, count) ->
                 val bagName = StorageBag.TIER_NAMES.getOrElse(rarity - 1) { "凡品储物袋" }
-                val existing = storageBags.find { it.rarity == rarity && it.name == bagName }
-                if (existing != null) {
-                    storageBags = storageBags.map {
-                        if (it.id == existing.id) it.copy(quantity = it.quantity + count)
-                        else it
-                    }
-                } else {
-                    storageBags = storageBags + StorageBag(
+                // 统一委托 addStorageBag（走 StackableItemStore 合并，同稀有度自动合并）
+                inventorySystem.addStorageBag(
+                    StorageBag(
                         id = UUID.randomUUID().toString(),
                         name = bagName,
                         rarity = rarity,
                         quantity = count
                     )
-                }
+                )
             }
 
             if (totalSpiritStones > 0) {

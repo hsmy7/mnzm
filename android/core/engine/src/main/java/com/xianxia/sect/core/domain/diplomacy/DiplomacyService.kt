@@ -20,6 +20,7 @@ import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.wallet.SpiritStoneReason
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.DeductResult
@@ -513,72 +514,51 @@ suspend fun buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int =
         }
     }
 
+    /**
+     * 宗门贸易物品入库——统一委托 [InventorySystem.addXxx]（走 StackableItemStore 合并），
+     * 消除手写"找第一个堆叠 + 追加"导致同种物品分裂为多个堆叠的问题。
+     */
     private fun MutableGameState.addSectTradeItemToMutableState(item: MerchantItem, actualQuantity: Int) {
-        when (item.type.lowercase()) {
-            "equipment" -> {
-                val eq = MerchantItemConverter.toEquipment(item).copy(quantity = actualQuantity)
-                val existing = equipmentStacks.find { it.name == eq.name && it.rarity == eq.rarity && it.slot == eq.slot }
-                if (existing != null) {
-                    val newQty = (existing.quantity + eq.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("equipment_stack"))
-                    equipmentStacks = equipmentStacks.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
-                } else {
-                    equipmentStacks = equipmentStacks + eq
+        inventorySystem.withTrackingSource("sect_trade") {
+            when (item.type.lowercase()) {
+                "equipment" -> {
+                    val eq = MerchantItemConverter.toEquipment(item).copy(quantity = actualQuantity)
+                    handleSectTradeResult(inventorySystem.addEquipmentStack(eq), "装备 ${eq.name}")
+                }
+                "manual" -> {
+                    val m = MerchantItemConverter.toManual(item).copy(quantity = actualQuantity)
+                    handleSectTradeResult(inventorySystem.addManualStack(m), "功法 ${m.name}")
+                }
+                "pill" -> {
+                    val p = MerchantItemConverter.toPill(item).copy(quantity = actualQuantity)
+                    handleSectTradeResult(inventorySystem.addPill(p), "丹药 ${p.name}")
+                }
+                "material" -> {
+                    val m = MerchantItemConverter.toMaterial(item).copy(quantity = actualQuantity)
+                    handleSectTradeResult(inventorySystem.addMaterial(m), "材料 ${m.name}")
+                }
+                "herb" -> {
+                    val h = MerchantItemConverter.toHerb(item).copy(quantity = actualQuantity)
+                    handleSectTradeResult(inventorySystem.addHerb(h), "草药 ${h.name}")
+                }
+                "seed" -> {
+                    val s = MerchantItemConverter.toSeed(item).copy(quantity = actualQuantity)
+                    handleSectTradeResult(inventorySystem.addSeed(s), "种子 ${s.name}")
+                }
+                "spiritstone" -> {
+                    val grade = SpiritStoneGrade.fromDisplayName(item.name) ?: return@withTrackingSource
+                    spiritStoneWallet.add(this, actualQuantity.toLong(), grade, SpiritStoneSource.MerchantTrade)
                 }
             }
-            "manual" -> {
-                val m = MerchantItemConverter.toManual(item).copy(quantity = actualQuantity)
-                val existing = manualStacks.find { it.name == m.name && it.rarity == m.rarity && it.type == m.type }
-                if (existing != null) {
-                    val newQty = (existing.quantity + m.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("manual_stack"))
-                    manualStacks = manualStacks.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
-                } else {
-                    manualStacks = manualStacks + m
-                }
-            }
-            "pill" -> {
-                val p = MerchantItemConverter.toPill(item).copy(quantity = actualQuantity)
-                val existing = pills.find { it.name == p.name && it.rarity == p.rarity && it.category == p.category && it.grade == p.grade }
-                if (existing != null) {
-                    val newQty = (existing.quantity + p.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("pill"))
-                    pills = pills.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
-                } else {
-                    pills = pills + p
-                }
-            }
-            "material" -> {
-                val m = MerchantItemConverter.toMaterial(item).copy(quantity = actualQuantity)
-                val existing = materials.find { it.name == m.name && it.rarity == m.rarity && it.category == m.category }
-                if (existing != null) {
-                    val newQty = (existing.quantity + m.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("material"))
-                    materials = materials.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
-                } else {
-                    materials = materials + m
-                }
-            }
-            "herb" -> {
-                val h = MerchantItemConverter.toHerb(item).copy(quantity = actualQuantity)
-                val existing = herbs.find { it.name == h.name && it.rarity == h.rarity && it.category == h.category }
-                if (existing != null) {
-                    val newQty = (existing.quantity + h.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("herb"))
-                    herbs = herbs.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
-                } else {
-                    herbs = herbs + h
-                }
-            }
-            "seed" -> {
-                val s = MerchantItemConverter.toSeed(item).copy(quantity = actualQuantity)
-                val existing = seeds.find { it.name == s.name && it.rarity == s.rarity && it.growTime == s.growTime }
-                if (existing != null) {
-                    val newQty = (existing.quantity + s.quantity).coerceAtMost(inventoryConfig.getMaxStackSize("seed"))
-                    seeds = seeds.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
-                } else {
-                    seeds = seeds + s
-                }
-            }
-            "spiritstone" -> {
-                val grade = SpiritStoneGrade.fromDisplayName(item.name) ?: return
-                spiritStoneWallet.add(this, actualQuantity.toLong(), grade, SpiritStoneSource.MerchantTrade)
-            }
+        }
+    }
+
+    /** 记录 addXxx 三态结果 */
+    private fun handleSectTradeResult(result: DomainResult<*>, label: String) {
+        when (result) {
+            is DomainResult.Success -> { /* 正常入库 */ }
+            is DomainResult.Partial -> DomainLog.w(TAG, "$label 仓库已满，溢出 ${result.overflow} 个")
+            is DomainResult.Failure -> DomainLog.w(TAG, "$label 入库失败: ${result.error}")
         }
     }
 

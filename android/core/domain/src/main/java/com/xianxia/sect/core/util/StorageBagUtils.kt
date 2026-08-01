@@ -5,6 +5,9 @@ import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.StackKeys
+import com.xianxia.sect.core.state.StackableItemStore
+import com.xianxia.sect.core.util.AppError
 
 object StorageBagUtils {
 
@@ -95,19 +98,25 @@ private fun MutableGameState.mergeEquipmentStackToWarehouse(
     maxStackSize: Int,
     instance: EquipmentInstance
 ): StackMergeResult {
-    val existingStack = equipmentStacks.find {
-        it.name == instance.name && it.rarity == instance.rarity && it.slot == instance.slot &&
-            it.id != excludeStackId && it.quantity < maxStackSize
-    }
-    return if (existingStack != null) {
-        equipmentStacks = equipmentStacks.map { s ->
-            if (s.id == existingStack.id) s.copy(quantity = existingStack.quantity + 1) else s
-        }
-        StackMergeResult(storageItemId = existingStack.id, isMerge = true)
-    } else {
-        val newStack = instance.toStack(quantity = 1)
-        equipmentStacks = equipmentStacks + newStack
-        StackMergeResult(storageItemId = newStack.id, isMerge = false)
+    // 统一走 StackableItemStore 合并（遍历所有同键堆叠），排除背包引用堆叠：
+    // 合并后将其放回列表尾部，防止背包引用指向被扣减的源堆叠
+    val allStacks = equipmentStacks.all()
+    val excluded = excludeStackId?.let { id -> allStacks.find { it.id == id } }
+    val candidates = if (excluded != null) allStacks - excluded else allStacks
+    val store = StackableItemStore(
+        initialItems = candidates,
+        stackKeyOf = StackKeys::equipment,
+        maxStack = maxStackSize,
+        maxSlots = { candidates.size + 1 },
+        notFound = { AppError.Domain.Inventory.NotFound(it) }
+    )
+    val result = store.add(instance.toStack(quantity = 1))
+    val finalStacks = if (excluded != null) store.all() + excluded else store.all()
+    equipmentStacks.replaceAll(finalStacks)
+    return when (result) {
+        is DomainResult.Success -> StackMergeResult(storageItemId = result.data.id, isMerge = true)
+        is DomainResult.Partial -> StackMergeResult(storageItemId = result.data.id, isMerge = true)
+        is DomainResult.Failure -> StackMergeResult(storageItemId = instance.id, isMerge = false)
     }
 }
 
@@ -116,19 +125,25 @@ private fun MutableGameState.mergeManualStackToWarehouse(
     maxStackSize: Int,
     instance: ManualInstance
 ): StackMergeResult {
-    val existingStack = manualStacks.find {
-        it.name == instance.name && it.rarity == instance.rarity && it.type == instance.type &&
-            it.id != excludeStackId && it.quantity < maxStackSize
-    }
-    return if (existingStack != null) {
-        manualStacks = manualStacks.map {
-            if (it.id == existingStack.id) it.copy(quantity = existingStack.quantity + 1) else it
-        }
-        StackMergeResult(storageItemId = existingStack.id, isMerge = true)
-    } else {
-        val newStack = instance.toStack(quantity = 1)
-        manualStacks = manualStacks + newStack
-        StackMergeResult(storageItemId = newStack.id, isMerge = false)
+    // 统一走 StackableItemStore 合并（遍历所有同键堆叠），排除背包引用堆叠：
+    // 合并后将其放回列表尾部，防止背包引用指向被扣减的源堆叠
+    val allStacks = manualStacks.all()
+    val excluded = excludeStackId?.let { id -> allStacks.find { it.id == id } }
+    val candidates = if (excluded != null) allStacks - excluded else allStacks
+    val store = StackableItemStore(
+        initialItems = candidates,
+        stackKeyOf = StackKeys::manual,
+        maxStack = maxStackSize,
+        maxSlots = { candidates.size + 1 },
+        notFound = { AppError.Domain.Inventory.NotFound(it) }
+    )
+    val result = store.add(instance.toStack(quantity = 1))
+    val finalStacks = if (excluded != null) store.all() + excluded else store.all()
+    manualStacks.replaceAll(finalStacks)
+    return when (result) {
+        is DomainResult.Success -> StackMergeResult(storageItemId = result.data.id, isMerge = true)
+        is DomainResult.Partial -> StackMergeResult(storageItemId = result.data.id, isMerge = true)
+        is DomainResult.Failure -> StackMergeResult(storageItemId = instance.id, isMerge = false)
     }
 }
 

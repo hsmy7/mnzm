@@ -11,6 +11,7 @@ import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
@@ -23,7 +24,8 @@ import javax.inject.Singleton
 class DailySignInService @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventoryConfig: InventoryConfig,
-    private val spiritStoneWallet: SpiritStoneWallet
+    private val spiritStoneWallet: SpiritStoneWallet,
+    private val inventorySystem: com.xianxia.sect.core.engine.system.InventorySystem,
 ) {
     companion object {
         private const val TAG = "DailySignInService"
@@ -204,6 +206,9 @@ class DailySignInService @Inject constructor(
      * @return Pair(capacityError, generatedCards)
      *   capacityError: null 表示成功，非 null 为错误消息
      *   generatedCards: 实际生成的物品卡片（用于奖励动效）
+     *
+     * 物品发放统一委托 [InventorySystem.addXxx]（走 StackableItemStore 合并）。
+     * 行为变化：堆叠满不再拒绝签到（自动开新堆叠）；仅仓库总容量满时返回错误。
      */
     private suspend fun distributeReward(
         reward: DailySignInReward
@@ -228,261 +233,181 @@ class DailySignInService @Inject constructor(
         }
 
         stateStore.update {
-            when (reward.type) {
-                "beastMaterial" -> {
-                    val beastMat = BeastMaterialDatabase.getMaterialByName(reward.itemName)
-                    val actualName: String
-                    val actualRarity: Int
-                    if (beastMat == null) {
-                        DomainLog.w("DailySignInService", "Beast material '${reward.itemName}' not found in database")
-                        val qty = reward.quantity.coerceAtLeast(1)
-                        val mat = com.xianxia.sect.core.model.Material(
-                            id = java.util.UUID.randomUUID().toString(),
-                            name = reward.itemName,
-                            rarity = reward.rarity,
-                            category = com.xianxia.sect.core.model.MaterialCategory.BEAST_HIDE,
-                            quantity = qty
-                        )
-                        actualName = mat.name; actualRarity = mat.rarity
-                        val existing = materials.find {
-                            it.name == mat.name && it.rarity == mat.rarity && it.category == mat.category
+            inventorySystem.withTrackingSource("sign_in") {
+                when (reward.type) {
+                    "beastMaterial" -> {
+                        val mat = buildBeastMaterial(reward)
+                        val actualName = mat.name
+                        val actualRarity = mat.rarity
+                        handleResult(inventorySystem.addMaterial(mat), "材料「$actualName」") { msg ->
+                            capacityError = msg
                         }
-                        if (existing != null) {
-                            val maxStack = inventoryConfig.getMaxStackSize("material")
-                            if (existing.quantity >= maxStack) {
-                                capacityError = "材料「${reward.itemName}」已达堆叠上限，请清理背包后重试"
-                            } else {
-                                val newQty = (existing.quantity + mat.quantity).coerceAtMost(maxStack)
-                                materials = materials.map {
-                                    if (it.id == existing.id) it.copy(quantity = newQty) else it
-                                }
-                            }
-                        } else {
-                            materials = materials + mat
-                        }
-                    } else {
-                        val qty = reward.quantity.coerceAtLeast(1)
-                        val mat = com.xianxia.sect.core.model.Material(
-                            id = java.util.UUID.randomUUID().toString(),
-                            name = beastMat.name,
-                            rarity = beastMat.rarity,
-                            category = beastMat.materialCategory,
-                            quantity = qty
-                        )
-                        actualName = mat.name; actualRarity = mat.rarity
-                        val existing = materials.find {
-                            it.name == mat.name && it.rarity == mat.rarity && it.category == mat.category
-                        }
-                        if (existing != null) {
-                            val maxStack = inventoryConfig.getMaxStackSize("material")
-                            if (existing.quantity >= maxStack) {
-                                capacityError = "材料「${reward.itemName}」已达堆叠上限，请清理背包后重试"
-                            } else {
-                                val newQty = (existing.quantity + mat.quantity).coerceAtMost(maxStack)
-                                materials = materials.map {
-                                    if (it.id == existing.id) it.copy(quantity = newQty) else it
-                                }
-                            }
-                        } else {
-                            materials = materials + mat
-                        }
-                    }
-                    generatedCards.add(RewardCardItem(
-                        itemName = actualName, itemType = "material",
-                        rarity = actualRarity, quantity = reward.quantity
-                    ))
-                }
-                "pill" -> {
-                    val qty = reward.quantity.coerceAtLeast(1)
-                    val template = ItemDatabase.getPillByName(reward.itemName)
-                    val pill = if (template != null) {
-                        ItemDatabase.createPillFromTemplate(template, qty)
-                    } else {
-                        DomainLog.w("DailySignInService", "Pill '${reward.itemName}' not found in ItemDatabase, generating random")
-                        ItemDatabase.generateRandomPill(
-                            minRarity = reward.rarity,
-                            maxRarity = reward.rarity
-                        ).copy(quantity = qty)
-                    }
-                    val existing = pills.find {
-                        it.name == pill.name && it.rarity == pill.rarity && it.category == pill.category
-                    }
-                    if (existing != null) {
-                        val maxStack = inventoryConfig.getMaxStackSize("pill")
-                        if (existing.quantity >= maxStack) {
-                            capacityError = "丹药「${reward.itemName}」已达堆叠上限，请清理背包后重试"
-                        } else {
-                            val newQty = (existing.quantity + pill.quantity).coerceAtMost(maxStack)
-                            pills = pills.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
-                        }
-                    } else {
-                        pills = pills + pill
-                    }
-                    generatedCards.add(RewardCardItem(
-                        itemName = pill.name, itemType = "pill",
-                        rarity = pill.rarity, quantity = qty
-                    ))
-                }
-                "randomMaterial" -> {
-                    val qty = reward.quantity.coerceAtLeast(1)
-                    val generated = mutableListOf<RewardCardItem>()
-                    repeat(qty) {
-                        val mat = ItemDatabase.generateRandomMaterial(minRarity = 1, maxRarity = 1).copy(
-                            id = java.util.UUID.randomUUID().toString(), quantity = 1
-                        )
-                        val existing = materials.find {
-                            it.name == mat.name && it.rarity == mat.rarity && it.category == mat.category
-                        }
-                        if (existing != null) {
-                            val maxStack = inventoryConfig.getMaxStackSize("material")
-                            if (existing.quantity < maxStack) {
-                                val newQty = existing.quantity + 1
-                                materials = materials.map {
-                                    if (it.id == existing.id) it.copy(quantity = newQty) else it
-                                }
-                            }
-                        } else {
-                            materials = materials + mat
-                        }
-                        generated.add(RewardCardItem(
-                            itemName = mat.name, itemType = "material",
-                            rarity = mat.rarity, quantity = 1
+                        generatedCards.add(RewardCardItem(
+                            itemName = actualName, itemType = "material",
+                            rarity = actualRarity, quantity = reward.quantity
                         ))
                     }
-                    // 合并同名卡片
-                    generatedCards.addAll(mergeCardsByName(generated))
-                }
-                "randomSeed" -> {
-                    val qty = reward.quantity.coerceAtLeast(1)
-                    val generated = mutableListOf<RewardCardItem>()
-                    repeat(qty) {
-                        val template = com.xianxia.sect.core.registry.HerbDatabase.generateRandomSeed(
-                            minRarity = 1, maxRarity = 1
-                        )
-                        val seed = com.xianxia.sect.core.model.Seed(
-                            id = java.util.UUID.randomUUID().toString(),
-                            name = template.name,
-                            rarity = template.rarity,
-                            description = template.description,
-                            growTime = template.growTime,
-                            yield = template.yield,
-                            quantity = 1
-                        )
-                        val existing = seeds.find {
-                            it.name == seed.name && it.rarity == seed.rarity
-                        }
-                        if (existing != null) {
-                            val maxStack = inventoryConfig.getMaxStackSize("seed")
-                            if (existing.quantity < maxStack) {
-                                val newQty = existing.quantity + 1
-                                seeds = seeds.map {
-                                    if (it.id == existing.id) it.copy(quantity = newQty) else it
-                                }
-                            }
+                    "pill" -> {
+                        val qty = reward.quantity.coerceAtLeast(1)
+                        val template = ItemDatabase.getPillByName(reward.itemName)
+                        val pill = if (template != null) {
+                            ItemDatabase.createPillFromTemplate(template, qty)
                         } else {
-                            seeds = seeds + seed
+                            DomainLog.w(TAG, "Pill '${reward.itemName}' not found in ItemDatabase, generating random")
+                            ItemDatabase.generateRandomPill(
+                                minRarity = reward.rarity,
+                                maxRarity = reward.rarity
+                            ).copy(quantity = qty)
                         }
-                        generated.add(RewardCardItem(
-                            itemName = seed.name, itemType = "seed",
-                            rarity = seed.rarity, quantity = 1
-                        ))
-                    }
-                    generatedCards.addAll(mergeCardsByName(generated))
-                }
-                "randomPill" -> {
-                    val qty = reward.quantity.coerceAtLeast(1)
-                    val generated = mutableListOf<RewardCardItem>()
-                    repeat(qty) {
-                        val pill = ItemDatabase.generateRandomPill(minRarity = 1, maxRarity = 1).copy(
-                            id = java.util.UUID.randomUUID().toString(), quantity = 1
-                        )
-                        val existing = pills.find {
-                            it.name == pill.name && it.rarity == pill.rarity && it.category == pill.category
+                        handleResult(inventorySystem.addPill(pill), "丹药「${pill.name}」") { msg ->
+                            capacityError = msg
                         }
-                        if (existing != null) {
-                            val maxStack = inventoryConfig.getMaxStackSize("pill")
-                            if (existing.quantity < maxStack) {
-                                val newQty = existing.quantity + 1
-                                pills = pills.map {
-                                    if (it.id == existing.id) it.copy(quantity = newQty) else it
-                                }
-                            }
-                        } else {
-                            pills = pills + pill
-                        }
-                        generated.add(RewardCardItem(
+                        generatedCards.add(RewardCardItem(
                             itemName = pill.name, itemType = "pill",
-                            rarity = pill.rarity, quantity = 1
+                            rarity = pill.rarity, quantity = qty
                         ))
                     }
-                    generatedCards.addAll(mergeCardsByName(generated))
-                }
-                "randomHerb" -> {
-                    val qty = reward.quantity.coerceAtLeast(1)
-                    val generated = mutableListOf<RewardCardItem>()
-                    repeat(qty) {
-                        val template = com.xianxia.sect.core.registry.HerbDatabase
-                            .generateRandomHerb(minRarity = 1, maxRarity = 1)
-                        val herb = com.xianxia.sect.core.model.Herb(
-                            id = java.util.UUID.randomUUID().toString(),
-                            name = template.name,
-                            rarity = template.rarity,
-                            description = template.description,
-                            category = template.category,
-                            quantity = 1
-                        )
-                        val existing = herbs.find {
-                            it.name == herb.name && it.rarity == herb.rarity &&
-                                it.category == herb.category
-                        }
-                        if (existing != null) {
-                            val maxStack = inventoryConfig.getMaxStackSize("herb")
-                            if (existing.quantity < maxStack) {
-                                val newQty = existing.quantity + 1
-                                herbs = herbs.map {
-                                    if (it.id == existing.id)
-                                        it.copy(quantity = newQty) else it
-                                }
+                    "randomMaterial" -> {
+                        val qty = reward.quantity.coerceAtLeast(1)
+                        val generated = mutableListOf<RewardCardItem>()
+                        repeat(qty) {
+                            val mat = ItemDatabase.generateRandomMaterial(minRarity = 1, maxRarity = 1).copy(
+                                id = java.util.UUID.randomUUID().toString(), quantity = 1
+                            )
+                            handleResult(inventorySystem.addMaterial(mat), "材料「${mat.name}」") { msg ->
+                                capacityError = msg
                             }
-                        } else {
-                            herbs = herbs + herb
+                            generated.add(RewardCardItem(
+                                itemName = mat.name, itemType = "material",
+                                rarity = mat.rarity, quantity = 1
+                            ))
                         }
-                        generated.add(RewardCardItem(
-                            itemName = herb.name, itemType = "herb",
-                            rarity = herb.rarity, quantity = 1
+                        // 合并同名卡片
+                        generatedCards.addAll(mergeCardsByName(generated))
+                    }
+                    "randomSeed" -> {
+                        val qty = reward.quantity.coerceAtLeast(1)
+                        val generated = mutableListOf<RewardCardItem>()
+                        repeat(qty) {
+                            val template = com.xianxia.sect.core.registry.HerbDatabase.generateRandomSeed(
+                                minRarity = 1, maxRarity = 1
+                            )
+                            val seed = com.xianxia.sect.core.model.Seed(
+                                id = java.util.UUID.randomUUID().toString(),
+                                name = template.name,
+                                rarity = template.rarity,
+                                description = template.description,
+                                growTime = template.growTime,
+                                yield = template.yield,
+                                quantity = 1
+                            )
+                            handleResult(inventorySystem.addSeed(seed), "种子「${seed.name}」") { msg ->
+                                capacityError = msg
+                            }
+                            generated.add(RewardCardItem(
+                                itemName = seed.name, itemType = "seed",
+                                rarity = seed.rarity, quantity = 1
+                            ))
+                        }
+                        generatedCards.addAll(mergeCardsByName(generated))
+                    }
+                    "randomPill" -> {
+                        val qty = reward.quantity.coerceAtLeast(1)
+                        val generated = mutableListOf<RewardCardItem>()
+                        repeat(qty) {
+                            val pill = ItemDatabase.generateRandomPill(minRarity = 1, maxRarity = 1).copy(
+                                id = java.util.UUID.randomUUID().toString(), quantity = 1
+                            )
+                            handleResult(inventorySystem.addPill(pill), "丹药「${pill.name}」") { msg ->
+                                capacityError = msg
+                            }
+                            generated.add(RewardCardItem(
+                                itemName = pill.name, itemType = "pill",
+                                rarity = pill.rarity, quantity = 1
+                            ))
+                        }
+                        generatedCards.addAll(mergeCardsByName(generated))
+                    }
+                    "randomHerb" -> {
+                        val qty = reward.quantity.coerceAtLeast(1)
+                        val generated = mutableListOf<RewardCardItem>()
+                        repeat(qty) {
+                            val template = com.xianxia.sect.core.registry.HerbDatabase
+                                .generateRandomHerb(minRarity = 1, maxRarity = 1)
+                            val herb = com.xianxia.sect.core.model.Herb(
+                                id = java.util.UUID.randomUUID().toString(),
+                                name = template.name,
+                                rarity = template.rarity,
+                                description = template.description,
+                                category = template.category,
+                                quantity = 1
+                            )
+                            handleResult(inventorySystem.addHerb(herb), "草药「${herb.name}」") { msg ->
+                                capacityError = msg
+                            }
+                            generated.add(RewardCardItem(
+                                itemName = herb.name, itemType = "herb",
+                                rarity = herb.rarity, quantity = 1
+                            ))
+                        }
+                        generatedCards.addAll(mergeCardsByName(generated))
+                    }
+                    "storageBag" -> {
+                        val qty = reward.quantity.coerceAtLeast(1)
+                        val rarity = reward.rarity.coerceIn(1, 6)
+                        val bagName = com.xianxia.sect.core.model.StorageBag.TIER_NAMES.getOrElse(rarity - 1) { "凡品储物袋" }
+                        handleResult(
+                            inventorySystem.addStorageBag(
+                                com.xianxia.sect.core.model.StorageBag(
+                                    id = java.util.UUID.randomUUID().toString(),
+                                    name = bagName,
+                                    rarity = rarity,
+                                    quantity = qty
+                                )
+                            ),
+                            "储物袋"
+                        ) { msg -> capacityError = msg }
+                        generatedCards.add(RewardCardItem(
+                            itemName = bagName, itemType = "storageBag",
+                            rarity = rarity, quantity = qty
                         ))
                     }
-                    generatedCards.addAll(mergeCardsByName(generated))
-                }
-                "storageBag" -> {
-                    val qty = reward.quantity.coerceAtLeast(1)
-                    val rarity = reward.rarity.coerceIn(1, 6)
-                    val bagName = com.xianxia.sect.core.model.StorageBag.TIER_NAMES.getOrElse(rarity - 1) { "凡品储物袋" }
-                    val existing = storageBags.find { it.rarity == rarity }
-                    if (existing != null) {
-                        val maxStack = inventoryConfig.getMaxStackSize("storageBag")
-                        if (existing.quantity >= maxStack) {
-                            capacityError = "储物袋已达堆叠上限，请清理背包后重试"
-                        } else {
-                            val newQty = (existing.quantity + qty).coerceAtMost(maxStack)
-                            storageBags = storageBags.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
-                        }
-                    } else {
-                        storageBags = storageBags + com.xianxia.sect.core.model.StorageBag(
-                            id = java.util.UUID.randomUUID().toString(),
-                            name = bagName,
-                            rarity = rarity,
-                            quantity = qty
-                        )
-                    }
-                    generatedCards.add(RewardCardItem(
-                        itemName = bagName, itemType = "storageBag",
-                        rarity = rarity, quantity = qty
-                    ))
                 }
             }
         }
         return Pair(capacityError, generatedCards)
+    }
+
+    /** 按奖励表名称构建妖兽材料（数据库缺失时降级为通用兽皮材料） */
+    private fun buildBeastMaterial(reward: DailySignInReward): com.xianxia.sect.core.model.Material {
+        val beastMat = BeastMaterialDatabase.getMaterialByName(reward.itemName)
+        val qty = reward.quantity.coerceAtLeast(1)
+        if (beastMat != null) {
+            return com.xianxia.sect.core.model.Material(
+                id = java.util.UUID.randomUUID().toString(),
+                name = beastMat.name,
+                rarity = beastMat.rarity,
+                category = beastMat.materialCategory,
+                quantity = qty
+            )
+        }
+        DomainLog.w(TAG, "Beast material '${reward.itemName}' not found in database")
+        return com.xianxia.sect.core.model.Material(
+            id = java.util.UUID.randomUUID().toString(),
+            name = reward.itemName,
+            rarity = reward.rarity,
+            category = com.xianxia.sect.core.model.MaterialCategory.BEAST_HIDE,
+            quantity = qty
+        )
+    }
+
+    /** 记录 addXxx 三态结果；Failure 时通过 onFailure 上报错误消息 */
+    private fun handleResult(result: DomainResult<*>, label: String, onFailure: (String) -> Unit) {
+        when (result) {
+            is DomainResult.Success -> { /* 正常发放 */ }
+            is DomainResult.Partial -> DomainLog.w(TAG, "$label 仓库已满，溢出 ${result.overflow} 个")
+            is DomainResult.Failure -> onFailure("$label 仓库空间不足，请清理后再领取")
+        }
     }
 
     /** 合并同名同稀有度的卡片 */

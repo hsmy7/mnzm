@@ -100,15 +100,21 @@ class MailServiceTest {
         val gameRngManager = mock(com.xianxia.sect.core.util.GameRngManager::class.java)
         `when`(gameRngManager.getRng(any())).thenReturn(DeterministicRng(42))
 
+        val inventorySystem = com.xianxia.sect.core.engine.system.InventorySystem(
+            stateStore,
+            inventoryConfig,
+            spiritStoneWallet,
+            mock(com.xianxia.sect.core.engine.config.GameConfigProvider::class.java)
+        )
         service = MailService(
             mailRepo = mailRepo,
             stateStore = stateStore,
-            inventoryConfig = inventoryConfig,
             httpClient = httpClient,
             spiritStoneWallet = spiritStoneWallet,
             scopeProvider = mock(com.xianxia.sect.core.util.CoroutineScopeProvider::class.java),
             gameRngManager = gameRngManager,
-            gameConfigProvider = mock(com.xianxia.sect.core.engine.config.GameConfigProvider::class.java)
+            gameConfigProvider = mock(com.xianxia.sect.core.engine.config.GameConfigProvider::class.java),
+            inventorySystem = inventorySystem
         )
 
         runBlocking { stateStore.reset() }

@@ -20,20 +20,15 @@ fun GameEngine.claimGuideReward(taskId: Int): Boolean {
 
         val bagName = StorageBag.TIER_NAMES[0]
         val quantity = task.rewardItemQuantity
-        val existing = storageBags.find { it.rarity == 1 }
-        if (existing != null) {
-            val newQty = existing.quantity + quantity
-            storageBags = storageBags.map {
-                if (it.id == existing.id) it.copy(quantity = newQty) else it
-            }
-        } else {
-            storageBags = storageBags + StorageBag(
+        // 统一委托 addStorageBag（走 StackableItemStore 合并，同稀有度自动合并）
+        inventorySystem.addStorageBag(
+            StorageBag(
                 id = java.util.UUID(rng.nextLong(), rng.nextLong()).toString(),
                 name = bagName,
                 rarity = 1,
                 quantity = quantity
             )
-        }
+        )
         gameData = gd.copy(
             guideClaimedRewardIds = gd.guideClaimedRewardIds + taskId
         )

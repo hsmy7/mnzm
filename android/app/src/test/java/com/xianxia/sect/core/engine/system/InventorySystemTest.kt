@@ -16,6 +16,8 @@ import com.xianxia.sect.core.model.PillGrade
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.MaterialCategory
 import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.StorageBag
+import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.GameStateStoreImpl
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
@@ -576,5 +578,91 @@ class InventorySystemTest {
         assertEquals(9999, inventoryConfig.getMaxStackSize("material"))
         assertEquals(9999, inventoryConfig.getMaxStackSize("herb"))
         assertEquals(9999, inventoryConfig.getMaxStackSize("seed"))
+    }
+
+    @Test
+    fun `addStorageBag - merge same rarity into single stack`() = runBlocking {
+        stateStore.update {
+            system.addStorageBag(StorageBag(id = "b1", name = "凡品储物袋", rarity = 1, quantity = 1))
+            system.addStorageBag(StorageBag(id = "b2", name = "凡品储物袋", rarity = 1, quantity = 1))
+        }
+        val bags = stateStore.storageBags.value
+        assertEquals(1, bags.size)
+        assertEquals(2, bags[0].quantity)
+    }
+
+    @Test
+    fun `addStorageBag - different rarity stays separate`() = runBlocking {
+        stateStore.update {
+            system.addStorageBag(StorageBag(id = "b1", name = "凡品储物袋", rarity = 1, quantity = 1))
+            system.addStorageBag(StorageBag(id = "b2", name = "灵品储物袋", rarity = 2, quantity = 1))
+        }
+        val bags = stateStore.storageBags.value
+        assertEquals(2, bags.size)
+    }
+
+    @Test
+    fun `consolidateStacks - merges split storage bags`() = runBlocking {
+        stateStore.update {
+            storageBags = EntityStore(listOf(
+                StorageBag(id = "b1", name = "凡品储物袋", rarity = 1, quantity = 3),
+                StorageBag(id = "b2", name = "凡品储物袋", rarity = 1, quantity = 3),
+                StorageBag(id = "b3", name = "凡品储物袋", rarity = 1, quantity = 2)
+            ))
+        }
+        system.consolidateStacks()
+        val bags = stateStore.storageBags.value
+        assertEquals(1, bags.size)
+        assertEquals(8, bags[0].quantity)
+    }
+
+    @Test
+    fun `consolidateStacks - locked stack absorbs quantity but is never removed`() = runBlocking {
+        stateStore.update {
+            pills = EntityStore(listOf(
+                Pill(
+                    id = "pLocked", name = "回气丹", rarity = 1,
+                    category = PillCategory.CULTIVATION, grade = PillGrade.LOW,
+                    quantity = 5, isLocked = true
+                ),
+                Pill(
+                    id = "pFree", name = "回气丹", rarity = 1,
+                    category = PillCategory.CULTIVATION, grade = PillGrade.LOW,
+                    quantity = 3
+                )
+            ))
+        }
+        system.consolidateStacks()
+        val pills = stateStore.pills.value
+        assertEquals(1, pills.size)
+        // 锁定堆叠作为合并目标，吸收数量且自身保持不变（ID 与 isLocked）
+        assertTrue(pills[0].isLocked)
+        assertEquals("pLocked", pills[0].id)
+        assertEquals(8, pills[0].quantity)
+    }
+
+    @Test
+    fun `consolidateStacks - locked stack as target absorbs free source, lock preserved`() = runBlocking {
+        stateStore.update {
+            pills = EntityStore(listOf(
+                Pill(
+                    id = "pLocked", name = "回气丹", rarity = 1,
+                    category = PillCategory.CULTIVATION, grade = PillGrade.LOW,
+                    quantity = 3, isLocked = true
+                ),
+                Pill(
+                    id = "pFree", name = "回气丹", rarity = 1,
+                    category = PillCategory.CULTIVATION, grade = PillGrade.LOW,
+                    quantity = 3
+                )
+            ))
+        }
+        // 锁定堆叠作为合并目标吸收未锁定来源；锁定堆叠自身 ID 与 isLocked 不变
+        system.consolidateStacks()
+        val pills = stateStore.pills.value
+        assertEquals(1, pills.size)
+        assertTrue(pills[0].isLocked)
+        assertEquals("pLocked", pills[0].id)
+        assertEquals(6, pills[0].quantity)
     }
 }

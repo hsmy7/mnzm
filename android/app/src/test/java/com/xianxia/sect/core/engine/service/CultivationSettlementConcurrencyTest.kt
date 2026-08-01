@@ -80,7 +80,6 @@ class CultivationSettlementConcurrencyTest {
         )
         lifecycleProcessor = DiscipleLifecycleProcessor(
             stateStore,
-            InventoryConfig(),
             scopeProvider,
             mock(ProductionSlotRepository::class.java),
             mock(com.xianxia.sect.core.event.EventBusPort::class.java),
@@ -90,7 +89,13 @@ class CultivationSettlementConcurrencyTest {
                     mock(com.xianxia.sect.core.engine.service.LawEnforcementProcessor::class.java)
             },
             mock(com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService::class.java),
-            com.xianxia.sect.core.engine.di.IoDispatcher()
+            com.xianxia.sect.core.engine.di.IoDispatcher(),
+            com.xianxia.sect.core.engine.system.InventorySystem(
+                stateStore,
+                InventoryConfig(),
+                mock(com.xianxia.sect.core.wallet.SpiritStoneWallet::class.java),
+                mock(com.xianxia.sect.core.engine.config.GameConfigProvider::class.java)
+            )
         )
     }
 

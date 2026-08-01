@@ -223,7 +223,20 @@ internal fun WarehouseTab(
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            WarehouseFilterButton(
+                text = "整理仓库",
+                selected = false,
+                onClick = { viewModel.onSortWarehouse() }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
 
         if (currentFilterItems.isEmpty()) {
             EmptyWarehouseMessage()

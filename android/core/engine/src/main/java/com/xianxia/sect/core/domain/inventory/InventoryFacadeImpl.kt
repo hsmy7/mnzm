@@ -21,7 +21,7 @@ import java.util.UUID
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.state.StackKey
+import com.xianxia.sect.core.state.StackKeys
 import com.xianxia.sect.core.state.StackableItemStore
 
 import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_EQUIPMENT_INSTANCE
@@ -110,7 +110,7 @@ class InventoryFacadeImpl @Inject constructor(
                         val otherTypes = otherSlotsCount("equipment")
                         val store = StackableItemStore(
                             initialItems = equipmentStacks.all(),
-                            stackKeyOf = { StackKey.of(it.name, it.rarity, it.slot.name) },
+                            stackKeyOf = StackKeys::equipment,
                             maxStack = inventoryConfig.getMaxStackSize("equipment_stack"),
                             maxSlots = { computeMaxSlots() - otherTypes },
                             notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -145,7 +145,7 @@ class InventoryFacadeImpl @Inject constructor(
                         val otherTypes = otherSlotsCount("manual")
                         val store = StackableItemStore(
                             initialItems = manualStacks.all(),
-                            stackKeyOf = { StackKey.of(it.name, it.rarity, it.type.name) },
+                            stackKeyOf = StackKeys::manual,
                             maxStack = inventoryConfig.getMaxStackSize("manual_stack"),
                             maxSlots = { computeMaxSlots() - otherTypes },
                             notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -175,7 +175,7 @@ class InventoryFacadeImpl @Inject constructor(
                         val otherTypes = otherSlotsCount("pill")
                         val store = StackableItemStore(
                             initialItems = pills.all(),
-                            stackKeyOf = { StackKey.of(it.name, it.rarity, it.category.name, it.grade.name) },
+                            stackKeyOf = StackKeys::pill,
                             maxStack = inventoryConfig.getMaxStackSize("pill"),
                             maxSlots = { computeMaxSlots() - otherTypes },
                             notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -212,7 +212,7 @@ class InventoryFacadeImpl @Inject constructor(
                     val otherTypes = otherSlotsCount("herb")
                     val store = StackableItemStore(
                         initialItems = herbs.all(),
-                        stackKeyOf = { StackKey.of(it.name, it.rarity, it.category) },
+                        stackKeyOf = StackKeys::herb,
                         maxStack = inventoryConfig.getMaxStackSize("herb"),
                         maxSlots = { computeMaxSlots() - otherTypes },
                         notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -245,7 +245,7 @@ class InventoryFacadeImpl @Inject constructor(
                     val otherTypes = otherSlotsCount("seed")
                     val store = StackableItemStore(
                         initialItems = seeds.all(),
-                        stackKeyOf = { StackKey.of(it.name, it.rarity, it.growTime) },
+                        stackKeyOf = StackKeys::seed,
                         maxStack = inventoryConfig.getMaxStackSize("seed"),
                         maxSlots = { computeMaxSlots() - otherTypes },
                         notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -278,7 +278,7 @@ class InventoryFacadeImpl @Inject constructor(
                     val otherTypes = otherSlotsCount("material")
                     val store = StackableItemStore(
                         initialItems = materials.all(),
-                        stackKeyOf = { StackKey.of(it.name, it.rarity, it.category.name) },
+                        stackKeyOf = StackKeys::material,
                         maxStack = inventoryConfig.getMaxStackSize("material"),
                         maxSlots = { computeMaxSlots() - otherTypes },
                         notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -511,7 +511,7 @@ class InventoryFacadeImpl @Inject constructor(
                     val otherTypes = otherSlotsCount("equipment")
                     val store = StackableItemStore(
                         initialItems = equipmentStacks.all(),
-                        stackKeyOf = { StackKey.of(it.name, it.rarity, it.slot.name) },
+                        stackKeyOf = StackKeys::equipment,
                         maxStack = inventoryConfig.getMaxStackSize("equipment_stack"),
                         maxSlots = { computeMaxSlots() - otherTypes },
                         notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -531,7 +531,7 @@ class InventoryFacadeImpl @Inject constructor(
                     val otherTypes = otherSlotsCount("manual")
                     val store = StackableItemStore(
                         initialItems = manualStacks.all(),
-                        stackKeyOf = { StackKey.of(it.name, it.rarity, it.type.name) },
+                        stackKeyOf = StackKeys::manual,
                         maxStack = inventoryConfig.getMaxStackSize("manual_stack"),
                         maxSlots = { computeMaxSlots() - otherTypes },
                         notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -551,7 +551,7 @@ class InventoryFacadeImpl @Inject constructor(
                     val otherTypes = otherSlotsCount("pill")
                     val store = StackableItemStore(
                         initialItems = pills.all(),
-                        stackKeyOf = { StackKey.of(it.name, it.rarity, it.category.name, it.grade.name) },
+                        stackKeyOf = StackKeys::pill,
                         maxStack = inventoryConfig.getMaxStackSize("pill"),
                         maxSlots = { computeMaxSlots() - otherTypes },
                         notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -571,7 +571,7 @@ class InventoryFacadeImpl @Inject constructor(
                     val otherTypes = otherSlotsCount("material")
                     val store = StackableItemStore(
                         initialItems = materials.all(),
-                        stackKeyOf = { StackKey.of(it.name, it.rarity, it.category.name) },
+                        stackKeyOf = StackKeys::material,
                         maxStack = inventoryConfig.getMaxStackSize("material"),
                         maxSlots = { computeMaxSlots() - otherTypes },
                         notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -591,7 +591,7 @@ class InventoryFacadeImpl @Inject constructor(
                     val otherTypes = otherSlotsCount("herb")
                     val store = StackableItemStore(
                         initialItems = herbs.all(),
-                        stackKeyOf = { StackKey.of(it.name, it.rarity, it.category) },
+                        stackKeyOf = StackKeys::herb,
                         maxStack = inventoryConfig.getMaxStackSize("herb"),
                         maxSlots = { computeMaxSlots() - otherTypes },
                         notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -611,7 +611,7 @@ class InventoryFacadeImpl @Inject constructor(
                     val otherTypes = otherSlotsCount("seed")
                     val store = StackableItemStore(
                         initialItems = seeds.all(),
-                        stackKeyOf = { StackKey.of(it.name, it.rarity, it.growTime) },
+                        stackKeyOf = StackKeys::seed,
                         maxStack = inventoryConfig.getMaxStackSize("seed"),
                         maxSlots = { computeMaxSlots() - otherTypes },
                         notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -935,7 +935,7 @@ stateStore.update {
                 val otherTypes = otherSlotsCount("equipment")
                 val store = StackableItemStore(
                     initialItems = equipmentStacks.all(),
-                    stackKeyOf = { StackKey.of(it.name, it.rarity, it.slot.name) },
+                    stackKeyOf = StackKeys::equipment,
                     maxStack = inventoryConfig.getMaxStackSize("equipment_stack"),
                     maxSlots = { computeMaxSlots() - otherTypes },
                     notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -950,7 +950,7 @@ stateStore.update {
                 val otherTypes = otherSlotsCount("manual")
                 val store = StackableItemStore(
                     initialItems = manualStacks.all(),
-                    stackKeyOf = { StackKey.of(it.name, it.rarity, it.type.name) },
+                    stackKeyOf = StackKeys::manual,
                     maxStack = inventoryConfig.getMaxStackSize("manual_stack"),
                     maxSlots = { computeMaxSlots() - otherTypes },
                     notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -963,7 +963,7 @@ stateStore.update {
                 val otherTypes = otherSlotsCount("pill")
                 val store = StackableItemStore(
                     initialItems = pills.all(),
-                    stackKeyOf = { StackKey.of(it.name, it.rarity, it.category.name, it.grade.name) },
+                    stackKeyOf = StackKeys::pill,
                     maxStack = inventoryConfig.getMaxStackSize("pill"),
                     maxSlots = { computeMaxSlots() - otherTypes },
                     notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -979,7 +979,7 @@ stateStore.update {
                 val otherTypes = otherSlotsCount("herb")
                 val store = StackableItemStore(
                     initialItems = herbs.all(),
-                    stackKeyOf = { StackKey.of(it.name, it.rarity, it.category) },
+                    stackKeyOf = StackKeys::herb,
                     maxStack = inventoryConfig.getMaxStackSize("herb"),
                     maxSlots = { computeMaxSlots() - otherTypes },
                     notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -993,7 +993,7 @@ stateStore.update {
                 val otherTypes = otherSlotsCount("seed")
                 val store = StackableItemStore(
                     initialItems = seeds.all(),
-                    stackKeyOf = { StackKey.of(it.name, it.rarity, it.growTime) },
+                    stackKeyOf = StackKeys::seed,
                     maxStack = inventoryConfig.getMaxStackSize("seed"),
                     maxSlots = { computeMaxSlots() - otherTypes },
                     notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -1006,7 +1006,7 @@ stateStore.update {
                 val otherTypes = otherSlotsCount("material")
                 val store = StackableItemStore(
                     initialItems = materials.all(),
-                    stackKeyOf = { StackKey.of(it.name, it.rarity, it.category.name) },
+                    stackKeyOf = StackKeys::material,
                     maxStack = inventoryConfig.getMaxStackSize("material"),
                     maxSlots = { computeMaxSlots() - otherTypes },
                     notFound = { AppError.Domain.Inventory.NotFound(it) }

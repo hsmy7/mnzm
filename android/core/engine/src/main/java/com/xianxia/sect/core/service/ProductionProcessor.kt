@@ -20,6 +20,8 @@ import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.repository.SlotUpdate
 import com.xianxia.sect.core.config.InventoryConfig
+import com.xianxia.sect.core.engine.system.computeMaxSlots
+import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.BuildingNames
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.DomainLog
@@ -44,7 +46,8 @@ class ProductionProcessor @Inject constructor(
     private val formulaService: FormulaService,
     private val rngManager: GameRngManager,
     private val scopeProvider: CoroutineScopeProvider,
-    private val ioDispatcher: IoDispatcher
+    private val ioDispatcher: IoDispatcher,
+    private val inventoryConfig: com.xianxia.sect.core.config.InventoryConfig,
 ) {
 
     companion object {
@@ -224,13 +227,11 @@ class ProductionProcessor @Inject constructor(
                     return@forEach
                 }
                 addHarvestedHerbsToState(plant, dbHerb, state)
-                // 引导系统：累计收获灵植
+                // 引导系统：累计收获灵植（annualHerbBySource 由 addHerb 内部按实际收获量累加）
                 val prevHerbCount = state.gameData.guideCounters[GuideCounterKeys.HERBS_HARVESTED] ?: 0L
-                val prevHerbSource = state.gameData.annualHerbBySource["spirit_field"] ?: 0
                 state.gameData = state.gameData.copy(
                     guideCounters = state.gameData.guideCounters + (GuideCounterKeys.HERBS_HARVESTED to prevHerbCount + 1),
-                    annualHerbCount = state.gameData.annualHerbCount + 1,
-                    annualHerbBySource = state.gameData.annualHerbBySource + ("spirit_field" to prevHerbSource + 1)
+                    annualHerbCount = state.gameData.annualHerbCount + 1
                 )
 
                 val (newPlants, changed) = updateSlotAfterHarvest(
@@ -248,8 +249,13 @@ class ProductionProcessor @Inject constructor(
     }
 
     /**
-     * 将收获的灵草合并到影子状态中。
-     * 查找同名同品质的已有草药进行数量合并，否则新增条目。
+     * 将收获的灵草合并到传入的事务缓冲 state 中。
+     *
+     * 本方法直接操作 state 参数（区别于其他服务的 stateStore.update 模式——
+     * 灵田收获由 PlantingSystem.onMonthlyEvent 传入事务缓冲），
+     * 合并逻辑统一走 [StackableItemStore]（与 InventorySystem 主路径同一实现），
+     * 消除手写"找第一个堆叠 + 追加"导致同种草药分裂为多个堆叠的问题。
+     * 年度报告来源 `spirit_field` 按实际收获量累加（原为每株 +1）。
      */
     private fun addHarvestedHerbsToState(
         plant: SpiritFieldPlant,
@@ -257,28 +263,27 @@ class ProductionProcessor @Inject constructor(
         state: MutableGameState
     ) {
         val finalYield = plant.expectedYield.coerceAtLeast(1)
-        val herbName = dbHerb.name
-        val herbRarity = dbHerb.rarity
-        val herbCat = dbHerb.category
-
-        val currentHerbsList = state.herbs.all()
-        val existingIdx = currentHerbsList.indexOfFirst { h ->
-            h.name == herbName && h.rarity == herbRarity && h.category == herbCat
-        }
-        if (existingIdx >= 0) {
-            val existing = currentHerbsList[existingIdx]
-            state.herbs.update(existing.id) {
-                it.copy(quantity = it.quantity + finalYield)
-            }
-        } else {
-            val newHerb = Herb(
-                id = java.util.UUID.randomUUID().toString(),
-                name = herbName, rarity = herbRarity,
-                description = dbHerb.description,
-                category = herbCat, quantity = finalYield
-            )
-            state.herbs.add(newHerb)
-        }
+        val newHerb = Herb(
+            id = java.util.UUID.randomUUID().toString(),
+            name = dbHerb.name, rarity = dbHerb.rarity,
+            description = dbHerb.description,
+            category = dbHerb.category, quantity = finalYield
+        )
+        val otherTypes = state.equipmentStacks.size + state.manualStacks.size +
+            state.pills.size + state.materials.size + state.seeds.size
+        val store = StackableItemStore(
+            initialItems = state.herbs.all(),
+            stackKeyOf = StackKeys::herb,
+            maxStack = inventoryConfig.getMaxStackSize("herb"),
+            maxSlots = { state.computeMaxSlots() - otherTypes },
+            notFound = { AppError.Domain.Inventory.NotFound(it) }
+        )
+        store.add(newHerb)
+        state.herbs.replaceAll(store.all())
+        state.gameData = state.gameData.copy(
+            annualHerbBySource = state.gameData.annualHerbBySource +
+                ("spirit_field" to (state.gameData.annualHerbBySource["spirit_field"] ?: 0) + finalYield)
+        )
     }
 
     /**

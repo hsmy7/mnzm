@@ -2,10 +2,10 @@ package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.engine.BuildConfig
 import com.xianxia.sect.core.engine.config.GameConfigProvider
 import com.xianxia.sect.core.config.BuiltinMailConfig
-import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.RedeemCodeManager
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
@@ -61,12 +61,12 @@ data class MarkAllReadResult(
 class MailService @Inject constructor(
     private val mailRepo: MailRepository,
     private val stateStore: GameStateStore,
-    private val inventoryConfig: InventoryConfig,
     private val httpClient: HttpClientProvider,
     private val spiritStoneWallet: SpiritStoneWallet,
     private val scopeProvider: com.xianxia.sect.core.util.CoroutineScopeProvider,
     private val gameRngManager: com.xianxia.sect.core.util.GameRngManager,
     private val gameConfigProvider: GameConfigProvider,
+    private val inventorySystem: com.xianxia.sect.core.engine.system.InventorySystem,
 ) {
     companion object {
         private const val TAG = "MailService"
@@ -432,255 +432,217 @@ class MailService @Inject constructor(
     /**
      * 内联附件发放——直接修改 MutableGameState，由调用方包裹在 stateStore.update {} 中。
      * 发放失败时异常传播到外层，由外层决定是否回滚（不记录 mailRecords）。
+     *
+     * 所有可堆叠物品统一委托 [InventorySystem.addXxx]（走 StackableItemStore 合并），
+     * 消除手写"找第一个堆叠 + 追加"导致同种物品分裂为多个堆叠的问题。
+     * 年度报告来源由 addXxx 内部按 `mail:...` 键自动累加，键格式与原手写统计一致。
      */
     private fun distributeAttachmentsInline(
         state: MutableGameState,
         attachments: List<MailAttachment>
     ) {
         val mailRng = gameRngManager.getRng(RngPartition.MAIL).asKotlinRandom()
-        attachments.forEach { attachment ->
-            when (attachment.type) {
-                "spiritStones" -> {
-                    spiritStoneWallet.add(
-                        state = state,
-                        amount = attachment.quantity.toLong(),
-                        grade = SpiritStoneGrade.LOW,
-                        source = SpiritStoneSource.Mail
-                    )
-                }
-                "spiritHerbs" -> {
-                    state.gameData = state.gameData.copy(
-                        spiritHerbs = state.gameData.spiritHerbs + attachment.quantity
-                    )
-                }
-                "equipment" -> {
-                    val qty = attachment.quantity.coerceAtLeast(1)
-                    repeat(qty) {
-                        val newEquipment = EquipmentDatabase.generateRandom(
-                            minRarity = attachment.rarity,
-                            maxRarity = attachment.rarity,
-                            random = mailRng
-                        ).copy(quantity = 1)
-                        val existing = state.equipmentStacks.find {
-                            it.name == newEquipment.name && it.rarity == newEquipment.rarity && it.slot == newEquipment.slot
-                        }
-                        if (existing != null) {
-                            val newQty = (existing.quantity + 1)
-                                .coerceAtMost(inventoryConfig.getMaxStackSize("equipment_stack"))
-                            state.equipmentStacks = state.equipmentStacks.map {
-                                if (it.id == existing.id) it.copy(quantity = newQty) else it
-                            }
-                        } else {
-                            state.equipmentStacks = state.equipmentStacks + newEquipment
-                        }
-                    }
-                    val eqKey = "mail:${attachment.rarity}"
-                    state.gameData = state.gameData.copy(
-                        annualEquipmentBySource = state.gameData.annualEquipmentBySource + (eqKey to (state.gameData.annualEquipmentBySource[eqKey] ?: 0) + qty)
-                    )
-                }
-                "manual" -> {
-                    val qty = attachment.quantity.coerceAtLeast(1)
-                    repeat(qty) {
-                        val newManual = ManualDatabase.generateRandom(
-                            minRarity = attachment.rarity,
-                            maxRarity = attachment.rarity,
-                            random = mailRng
-                        ).copy(quantity = 1)
-                        val existing = state.manualStacks.find {
-                            it.name == newManual.name && it.rarity == newManual.rarity && it.type == newManual.type
-                        }
-                        if (existing != null) {
-                            val newQty = (existing.quantity + 1)
-                                .coerceAtMost(inventoryConfig.getMaxStackSize("manual_stack"))
-                            state.manualStacks = state.manualStacks.map {
-                                if (it.id == existing.id) it.copy(quantity = newQty) else it
-                            }
-                        } else {
-                            state.manualStacks = state.manualStacks + newManual
-                        }
-                    }
-                }
-                "pill" -> {
-                    val qty = attachment.quantity.coerceAtLeast(1)
-                    val pillItemId = attachment.itemId // local val for cross-module smart cast
-                    val pill = if (pillItemId != null) {
-                        // 指定具体丹药模板（如下品大乘丹 breakthrough_2_low）
-                        val template = ItemDatabase.getPillById(pillItemId)
-                        if (template != null) {
-                            ItemDatabase.createPillFromTemplate(template, qty)
-                        } else {
-                            ItemDatabase.generateRandomPill(
-                                minRarity = attachment.rarity,
-                                maxRarity = attachment.rarity,
-                                random = mailRng
-                            ).copy(quantity = qty)
-                        }
-                    } else {
-                        ItemDatabase.generateRandomPill(
-                            minRarity = attachment.rarity,
-                            maxRarity = attachment.rarity,
-                            random = mailRng
-                        ).copy(quantity = qty)
-                    }
-                    val existing = state.pills.find {
-                        it.name == pill.name && it.rarity == pill.rarity && it.category == pill.category
-                    }
-                    if (existing != null) {
-                        val newQty = (existing.quantity + pill.quantity)
-                            .coerceAtMost(inventoryConfig.getMaxStackSize("pill"))
-                        state.pills = state.pills.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
-                    } else {
-                        state.pills = state.pills + pill
-                    }
-                    val pillKey = "mail:${pill.grade?.name ?: "LOW"}"
-                    state.gameData = state.gameData.copy(
-                        annualPillBySource = state.gameData.annualPillBySource + (pillKey to (state.gameData.annualPillBySource[pillKey] ?: 0) + qty)
-                    )
-                }
-                "material" -> {
-                    val qty = attachment.quantity.coerceAtLeast(1)
-                    val material = ItemDatabase.generateRandomMaterial(
-                        minRarity = attachment.rarity,
-                        maxRarity = attachment.rarity,
-                        random = mailRng
-                    ).copy(quantity = qty)
-                    val existing = state.materials.find {
-                        it.name == material.name && it.rarity == material.rarity && it.category == material.category
-                    }
-                    if (existing != null) {
-                        val newQty = (existing.quantity + material.quantity)
-                            .coerceAtMost(inventoryConfig.getMaxStackSize("material"))
-                        state.materials = state.materials.map {
-                            if (it.id == existing.id) it.copy(quantity = newQty) else it
-                        }
-                    } else {
-                        state.materials = state.materials + material
-                    }
-                }
-                "beastMaterial" -> {
-                    val beastMat = BeastMaterialDatabase.getMaterialById(attachment.itemId ?: "")
-                    if (beastMat != null) {
-                        val qty = attachment.quantity.coerceAtLeast(1)
-                        val mat = Material(
-                            id = java.util.UUID.randomUUID().toString(),
-                            name = beastMat.name,
-                            rarity = beastMat.rarity,
-                            category = beastMat.materialCategory,
-                            quantity = qty
-                        )
-                        val existing = state.materials.find {
-                            it.name == mat.name && it.rarity == mat.rarity && it.category == mat.category
-                        }
-                        if (existing != null) {
-                            val newQty = (existing.quantity + mat.quantity)
-                                .coerceAtMost(inventoryConfig.getMaxStackSize("material"))
-                            state.materials = state.materials.map {
-                                if (it.id == existing.id) it.copy(quantity = newQty) else it
-                            }
-                        } else {
-                            state.materials = state.materials + mat
-                        }
-                    }
-                }
-                "herb" -> {
-                    val qty = attachment.quantity.coerceAtLeast(1)
-                    val herbTemplate = HerbDatabase.generateRandomHerb(
-                        minRarity = attachment.rarity,
-                        maxRarity = attachment.rarity,
-                        random = mailRng
-                    )
-                    val herb = Herb(
-                        id = java.util.UUID.randomUUID().toString(),
-                        name = herbTemplate.name,
-                        rarity = herbTemplate.rarity,
-                        description = herbTemplate.description,
-                        category = herbTemplate.category,
-                        quantity = qty
-                    )
-                    val existing = state.herbs.find {
-                        it.name == herb.name && it.rarity == herb.rarity && it.category == herb.category
-                    }
-                    if (existing != null) {
-                        val newQty = (existing.quantity + herb.quantity)
-                            .coerceAtMost(inventoryConfig.getMaxStackSize("herb"))
-                        state.herbs = state.herbs.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
-                    } else {
-                        state.herbs = state.herbs + herb
-                    }
-                    state.gameData = state.gameData.copy(
-                        annualHerbBySource = state.gameData.annualHerbBySource + ("mail" to (state.gameData.annualHerbBySource["mail"] ?: 0) + qty)
-                    )
-                }
-                "seed" -> {
-                    val qty = attachment.quantity.coerceAtLeast(1)
-                    val seedTemplate = HerbDatabase.generateRandomSeed(
-                        minRarity = attachment.rarity,
-                        maxRarity = attachment.rarity,
-                        random = mailRng
-                    )
-                    val seed = Seed(
-                        id = java.util.UUID.randomUUID().toString(),
-                        name = seedTemplate.name,
-                        rarity = seedTemplate.rarity,
-                        description = seedTemplate.description,
-                        growTime = seedTemplate.growTime,
-                        yield = seedTemplate.yield,
-                        quantity = qty
-                    )
-                    val existing = state.seeds.find {
-                        it.name == seed.name && it.rarity == seed.rarity && it.growTime == seed.growTime
-                    }
-                    if (existing != null) {
-                        val newQty = (existing.quantity + seed.quantity)
-                            .coerceAtMost(inventoryConfig.getMaxStackSize("seed"))
-                        state.seeds = state.seeds.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
-                    } else {
-                        state.seeds = state.seeds + seed
-                    }
-                }
-                "disciple" -> {
-                    val currentMonthValue = state.gameData.gameYear * 12 + state.gameData.gameMonth
-                    val usedNames = state.discipleTables.assembleAll().map { it.name }.toMutableSet()
-                    // 支持通过 extra 传递境界参数（realm / realmLayer）和灵根数（spiritRootCount）
-                    val realm = attachment.extra["realm"]?.toIntOrNull() ?: 9
-                    val realmLayer = attachment.extra["realmLayer"]?.toIntOrNull() ?: 1
-                    val spiritRootCount = attachment.extra["spiritRootCount"]?.toIntOrNull()
-                    val config = if (realm != 9 || realmLayer != 1 || spiritRootCount != null) {
-                        DiscipleRewardConfig(
-                            realm = realm,
-                            realmLayer = realmLayer,
-                            spiritRootCount = spiritRootCount
-                        )
-                    } else null
-                    repeat(attachment.quantity.coerceAtLeast(1)) {
-                        val disciple = RedeemCodeManager.generateDisciple(config, usedNames, random = mailRng)
-                        disciple.id = ((state.discipleTables.ids.maxOrNull() ?: 0) + 1).toString()
-                        disciple.usage.recruitedMonth = currentMonthValue
-                        state.discipleTables.insert(disciple)
-                        usedNames.add(disciple.name)
-                    }
-                }
-                "storageBag" -> {
-                    val qty = attachment.quantity.coerceAtLeast(1)
-                    val rarity = attachment.rarity.coerceIn(1, 6)
-                    val bagName = StorageBag.TIER_NAMES.getOrElse(rarity - 1) { "凡品储物袋" }
-                    val existing = state.storageBags.find { it.rarity == rarity }
-                    if (existing != null) {
-                        val newQty = (existing.quantity + qty)
-                            .coerceAtMost(inventoryConfig.getMaxStackSize("storageBag"))
-                        state.storageBags = state.storageBags.map { if (it.id == existing.id) it.copy(quantity = newQty) else it }
-                    } else {
-                        state.storageBags = state.storageBags + StorageBag(
-                            id = java.util.UUID.randomUUID().toString(),
-                            name = bagName,
-                            rarity = rarity,
-                            quantity = qty
+        inventorySystem.withTrackingSource("mail") {
+            for (attachment in attachments) {
+                when (attachment.type) {
+                    "spiritStones" -> {
+                        spiritStoneWallet.add(
+                            state = state,
+                            amount = attachment.quantity.toLong(),
+                            grade = SpiritStoneGrade.LOW,
+                            source = SpiritStoneSource.Mail
                         )
                     }
+                    "spiritHerbs" -> {
+                        state.gameData = state.gameData.copy(
+                            spiritHerbs = state.gameData.spiritHerbs + attachment.quantity
+                        )
+                    }
+                    "equipment" -> distributeEquipmentAttachment(attachment, mailRng)
+                    "manual" -> distributeManualAttachment(attachment, mailRng)
+                    "pill" -> distributePillAttachment(attachment, mailRng)
+                    "material" -> distributeMaterialAttachment(attachment, mailRng)
+                    "beastMaterial" -> distributeBeastMaterialAttachment(attachment)
+                    "herb" -> distributeHerbAttachment(attachment, mailRng)
+                    "seed" -> distributeSeedAttachment(attachment, mailRng)
+                    "disciple" -> distributeDiscipleAttachment(state, attachment, mailRng)
+                    "storageBag" -> distributeStorageBagAttachment(attachment)
                 }
             }
         }
+    }
+
+    /** 记录 addXxx 三态结果（Success 静默 / Partial 溢出 / Failure 失败） */
+    private fun handleResult(result: DomainResult<*>, label: String) {
+        when (result) {
+            is DomainResult.Success -> { /* 正常发放 */ }
+            is DomainResult.Partial -> DomainLog.w(TAG, "$label 仓库已满，溢出 ${result.overflow} 个")
+            is DomainResult.Failure -> DomainLog.w(TAG, "$label 发放失败: ${result.error}")
+        }
+    }
+
+    /** 装备附件：逐件随机生成（每件可能不同），委托 addEquipmentStack 合并 */
+    private fun distributeEquipmentAttachment(attachment: MailAttachment, mailRng: kotlin.random.Random) {
+        val qty = attachment.quantity.coerceAtLeast(1)
+        repeat(qty) {
+            val newEquipment = EquipmentDatabase.generateRandom(
+                minRarity = attachment.rarity,
+                maxRarity = attachment.rarity,
+                random = mailRng
+            ).copy(quantity = 1)
+            handleResult(inventorySystem.addEquipmentStack(newEquipment), "装备 ${newEquipment.name}")
+        }
+    }
+
+    /** 功法附件：逐件随机生成（每件可能不同），委托 addManualStack 合并 */
+    private fun distributeManualAttachment(attachment: MailAttachment, mailRng: kotlin.random.Random) {
+        val qty = attachment.quantity.coerceAtLeast(1)
+        repeat(qty) {
+            val newManual = ManualDatabase.generateRandom(
+                minRarity = attachment.rarity,
+                maxRarity = attachment.rarity,
+                random = mailRng
+            ).copy(quantity = 1)
+            handleResult(inventorySystem.addManualStack(newManual), "功法 ${newManual.name}")
+        }
+    }
+
+    /** 丹药附件：按模板或随机生成，委托 addPill 合并（含品阶键，跨品阶不合并） */
+    private fun distributePillAttachment(attachment: MailAttachment, mailRng: kotlin.random.Random) {
+        val qty = attachment.quantity.coerceAtLeast(1)
+        val pillItemId = attachment.itemId // local val for cross-module smart cast
+        val pill = if (pillItemId != null) {
+            // 指定具体丹药模板（如下品大乘丹 breakthrough_2_low）
+            val template = ItemDatabase.getPillById(pillItemId)
+            if (template != null) {
+                ItemDatabase.createPillFromTemplate(template, qty)
+            } else {
+                ItemDatabase.generateRandomPill(
+                    minRarity = attachment.rarity,
+                    maxRarity = attachment.rarity,
+                    random = mailRng
+                ).copy(quantity = qty)
+            }
+        } else {
+            ItemDatabase.generateRandomPill(
+                minRarity = attachment.rarity,
+                maxRarity = attachment.rarity,
+                random = mailRng
+            ).copy(quantity = qty)
+        }
+        handleResult(inventorySystem.addPill(pill), "丹药 ${pill.name}")
+    }
+
+    /** 材料附件：随机生成，委托 addMaterial 合并 */
+    private fun distributeMaterialAttachment(attachment: MailAttachment, mailRng: kotlin.random.Random) {
+        val qty = attachment.quantity.coerceAtLeast(1)
+        val material = ItemDatabase.generateRandomMaterial(
+            minRarity = attachment.rarity,
+            maxRarity = attachment.rarity,
+            random = mailRng
+        ).copy(quantity = qty)
+        handleResult(inventorySystem.addMaterial(material), "材料 ${material.name}")
+    }
+
+    /** 妖兽材料附件：按 itemId 查库，委托 addMaterial 合并 */
+    private fun distributeBeastMaterialAttachment(attachment: MailAttachment) {
+        val beastMat = BeastMaterialDatabase.getMaterialById(attachment.itemId ?: "")
+        if (beastMat != null) {
+            val qty = attachment.quantity.coerceAtLeast(1)
+            val mat = Material(
+                id = java.util.UUID.randomUUID().toString(),
+                name = beastMat.name,
+                rarity = beastMat.rarity,
+                category = beastMat.materialCategory,
+                quantity = qty
+            )
+            handleResult(inventorySystem.addMaterial(mat), "材料 ${mat.name}")
+        }
+    }
+
+    /** 草药附件：随机生成，委托 addHerb 合并 */
+    private fun distributeHerbAttachment(attachment: MailAttachment, mailRng: kotlin.random.Random) {
+        val qty = attachment.quantity.coerceAtLeast(1)
+        val herbTemplate = HerbDatabase.generateRandomHerb(
+            minRarity = attachment.rarity,
+            maxRarity = attachment.rarity,
+            random = mailRng
+        )
+        val herb = Herb(
+            id = java.util.UUID.randomUUID().toString(),
+            name = herbTemplate.name,
+            rarity = herbTemplate.rarity,
+            description = herbTemplate.description,
+            category = herbTemplate.category,
+            quantity = qty
+        )
+        handleResult(inventorySystem.addHerb(herb), "草药 ${herb.name}")
+    }
+
+    /** 种子附件：随机生成，委托 addSeed 合并 */
+    private fun distributeSeedAttachment(attachment: MailAttachment, mailRng: kotlin.random.Random) {
+        val qty = attachment.quantity.coerceAtLeast(1)
+        val seedTemplate = HerbDatabase.generateRandomSeed(
+            minRarity = attachment.rarity,
+            maxRarity = attachment.rarity,
+            random = mailRng
+        )
+        val seed = Seed(
+            id = java.util.UUID.randomUUID().toString(),
+            name = seedTemplate.name,
+            rarity = seedTemplate.rarity,
+            description = seedTemplate.description,
+            growTime = seedTemplate.growTime,
+            yield = seedTemplate.yield,
+            quantity = qty
+        )
+        handleResult(inventorySystem.addSeed(seed), "种子 ${seed.name}")
+    }
+
+    /** 弟子附件：直接生成弟子，不走仓库 */
+    private fun distributeDiscipleAttachment(
+        state: MutableGameState,
+        attachment: MailAttachment,
+        mailRng: kotlin.random.Random
+    ) {
+        val currentMonthValue = state.gameData.gameYear * 12 + state.gameData.gameMonth
+        val usedNames = state.discipleTables.assembleAll().map { it.name }.toMutableSet()
+        // 支持通过 extra 传递境界参数（realm / realmLayer）和灵根数（spiritRootCount）
+        val realm = attachment.extra["realm"]?.toIntOrNull() ?: 9
+        val realmLayer = attachment.extra["realmLayer"]?.toIntOrNull() ?: 1
+        val spiritRootCount = attachment.extra["spiritRootCount"]?.toIntOrNull()
+        val config = if (realm != 9 || realmLayer != 1 || spiritRootCount != null) {
+            DiscipleRewardConfig(
+                realm = realm,
+                realmLayer = realmLayer,
+                spiritRootCount = spiritRootCount
+            )
+        } else null
+        repeat(attachment.quantity.coerceAtLeast(1)) {
+            val disciple = RedeemCodeManager.generateDisciple(config, usedNames, random = mailRng)
+            disciple.id = ((state.discipleTables.ids.maxOrNull() ?: 0) + 1).toString()
+            disciple.usage.recruitedMonth = currentMonthValue
+            state.discipleTables.insert(disciple)
+            usedNames.add(disciple.name)
+        }
+    }
+
+    /** 储物袋附件：委托 addStorageBag 合并（同稀有度合并为一个堆叠） */
+    private fun distributeStorageBagAttachment(attachment: MailAttachment) {
+        val qty = attachment.quantity.coerceAtLeast(1)
+        val rarity = attachment.rarity.coerceIn(1, 6)
+        val bagName = StorageBag.TIER_NAMES.getOrElse(rarity - 1) { "凡品储物袋" }
+        handleResult(
+            inventorySystem.addStorageBag(
+                StorageBag(
+                    id = java.util.UUID.randomUUID().toString(),
+                    name = bagName,
+                    rarity = rarity,
+                    quantity = qty
+                )
+            ),
+            "储物袋"
+        )
     }
 
     private fun buildRewardCardsFromAttachments(

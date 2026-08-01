@@ -13,6 +13,7 @@ import com.xianxia.sect.core.model.HasId
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.StackKey
+import com.xianxia.sect.core.state.StackKeys
 import com.xianxia.sect.core.state.StackableItemStore
 import com.xianxia.sect.core.util.StackableItem
 import com.xianxia.sect.core.model.ManualInstance
@@ -28,6 +29,7 @@ import com.xianxia.sect.core.model.PillGrade
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.SpiritStoneExchange
 import com.xianxia.sect.core.model.SpiritStoneGrade
+import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneReason
@@ -55,6 +57,10 @@ class InventorySystem @Inject constructor(
         private const val TAG = "InventorySystem"
         const val SYSTEM_NAME = "InventorySystem"
         private val VALID_RARITY_RANGE = 1..6
+
+        /** 储物袋槽位预算：储物袋不占仓库建筑容量（computeSlotCount 不含 storageBags），
+         *  此值仅防止极端情况下堆叠无限增长（6 种稀有度各若干堆）。 */
+        private const val STORAGE_BAG_SLOT_BUDGET = 64
     }
 
     /** 年度报告物品来源上下文——引擎单线程安全。在调用 add* 前设置来源 */
@@ -85,6 +91,7 @@ class InventorySystem @Inject constructor(
     val materials: StateFlow<List<Material>> get() = stateStore.materials
     val herbs: StateFlow<List<Herb>> get() = stateStore.herbs
     val seeds: StateFlow<List<Seed>> get() = stateStore.seeds
+    val storageBags: StateFlow<List<StorageBag>> get() = stateStore.storageBags
 
     override val systemName: String = SYSTEM_NAME
 
@@ -147,25 +154,7 @@ class InventorySystem @Inject constructor(
 
     private fun getMaxStackForType(type: String): Int = inventoryConfig.getMaxStackSize(type)
 
-    // ── StackableItemStore 统一合并键（单一事实来源，根除 6 套不一致）──
-
-    private fun equipmentStackKey(item: EquipmentStack) =
-        StackKey.of(item.name, item.rarity, item.slot.name)
-
-    private fun manualStackKey(item: ManualStack) =
-        StackKey.of(item.name, item.rarity, item.type.name)
-
-    private fun pillKey(item: Pill) =
-        StackKey.of(item.name, item.rarity, item.category.name, item.grade.name)
-
-    private fun materialKey(item: Material) =
-        StackKey.of(item.name, item.rarity, item.category.name)
-
-    private fun herbKey(item: Herb) =
-        StackKey.of(item.name, item.rarity, item.category)
-
-    private fun seedKey(item: Seed) =
-        StackKey.of(item.name, item.rarity, item.growTime)
+    // ── StackableItemStore 统一合并键（单一事实来源见 StackKeys，根除 6 套不一致）──
 
     /** 通用 getById */
     private fun <T : HasId> getById(items: List<T>, id: String): T? = items.find { it.id == id }
@@ -263,7 +252,7 @@ class InventorySystem @Inject constructor(
             val otherTypes = manualStacks.size + pills.size + materials.size + herbs.size + seeds.size
             val store = StackableItemStore(
                 initialItems = equipmentStacks.all(),
-                stackKeyOf = ::equipmentStackKey,
+                stackKeyOf = StackKeys::equipment,
                 maxStack = getMaxStackForType("equipment_stack"),
                 maxSlots = { computeMaxSlots() - otherTypes },
                 notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -312,7 +301,7 @@ class InventorySystem @Inject constructor(
             val otherTypes = equipmentStacks.size + pills.size + materials.size + herbs.size + seeds.size
             val store = StackableItemStore(
                 initialItems = manualStacks.all(),
-                stackKeyOf = ::manualStackKey,
+                stackKeyOf = StackKeys::manual,
                 maxStack = getMaxStackForType("manual_stack"),
                 maxSlots = { computeMaxSlots() - otherTypes },
                 notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -342,7 +331,7 @@ class InventorySystem @Inject constructor(
             val otherTypes = manualStacks.size + pills.size + materials.size + herbs.size + seeds.size
             val store = StackableItemStore(
                 initialItems = equipmentStacks.all(),
-                stackKeyOf = ::equipmentStackKey,
+                stackKeyOf = StackKeys::equipment,
                 maxStack = getMaxStackForType("equipment_stack"),
                 maxSlots = { computeMaxSlots() - otherTypes },
                 notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -359,7 +348,7 @@ class InventorySystem @Inject constructor(
             val otherTypes = equipmentStacks.size + pills.size + materials.size + herbs.size + seeds.size
             val store = StackableItemStore(
                 initialItems = manualStacks.all(),
-                stackKeyOf = ::manualStackKey,
+                stackKeyOf = StackKeys::manual,
                 maxStack = getMaxStackForType("manual_stack"),
                 maxSlots = { computeMaxSlots() - otherTypes },
                 notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -507,7 +496,7 @@ class InventorySystem @Inject constructor(
             val otherTypes = equipmentStacks.size + manualStacks.size + materials.size + herbs.size + seeds.size
             val store = StackableItemStore(
                 initialItems = pills.all(),
-                stackKeyOf = ::pillKey,
+                stackKeyOf = StackKeys::pill,
                 maxStack = getMaxStackForType("pill"),
                 maxSlots = { computeMaxSlots() - otherTypes },
                 notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -634,7 +623,7 @@ class InventorySystem @Inject constructor(
             val otherTypes = equipmentStacks.size + manualStacks.size + pills.size + herbs.size + seeds.size
             val store = StackableItemStore(
                 initialItems = materials.all(),
-                stackKeyOf = ::materialKey,
+                stackKeyOf = StackKeys::material,
                 maxStack = getMaxStackForType("material"),
                 maxSlots = { computeMaxSlots() - otherTypes },
                 notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -739,7 +728,7 @@ class InventorySystem @Inject constructor(
             val otherTypes = equipmentStacks.size + manualStacks.size + pills.size + materials.size + seeds.size
             val store = StackableItemStore(
                 initialItems = herbs.all(),
-                stackKeyOf = ::herbKey,
+                stackKeyOf = StackKeys::herb,
                 maxStack = getMaxStackForType("herb"),
                 maxSlots = { computeMaxSlots() - otherTypes },
                 notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -860,13 +849,40 @@ class InventorySystem @Inject constructor(
             val otherTypes = equipmentStacks.size + manualStacks.size + pills.size + materials.size + herbs.size
             val store = StackableItemStore(
                 initialItems = seeds.all(),
-                stackKeyOf = ::seedKey,
+                stackKeyOf = StackKeys::seed,
                 maxStack = getMaxStackForType("seed"),
                 maxSlots = { computeMaxSlots() - otherTypes },
                 notFound = { AppError.Domain.Inventory.NotFound(it) }
             )
             val result = store.add(item, merge = merge)
             seeds.replaceAll(store.all())
+            result
+        }
+    }
+
+    /**
+     * 添加储物袋。
+     *
+     * 走 [StackableItemStore] 统一合并：同稀有度的储物袋自动合并为单个堆叠。
+     * 储物袋不占仓库槽位预算（[computeSlotCount] 本就不含 storageBags）。
+     *
+     * @param item 待添加的储物袋
+     * @return [DomainResult.Success] 全部成功 / [DomainResult.Partial] 部分成功 / [DomainResult.Failure] 失败
+     */
+    fun addStorageBag(item: StorageBag): DomainResult<StorageBag> {
+        if (item.quantity <= 0) {
+            return DomainResult.Failure(AppError.Domain.Inventory.InvalidQuantity(item.quantity))
+        }
+        return stateStore.updateAndReturn {
+            val store = StackableItemStore(
+                initialItems = storageBags.all(),
+                stackKeyOf = StackKeys::storageBag,
+                maxStack = getMaxStackForType("storageBag"),
+                maxSlots = { STORAGE_BAG_SLOT_BUDGET },
+                notFound = { AppError.Domain.Inventory.NotFound(it) }
+            )
+            val result = store.add(item)
+            storageBags.replaceAll(store.all())
             result
         }
     }
@@ -906,7 +922,7 @@ class InventorySystem @Inject constructor(
             val otherTypes = equipmentStacks.size + manualStacks.size + pills.size + materials.size + herbs.size
             val store = StackableItemStore(
                 initialItems = seeds.all(),
-                stackKeyOf = ::seedKey,
+                stackKeyOf = StackKeys::seed,
                 maxStack = getMaxStackForType("seed"),
                 maxSlots = { computeMaxSlots() - otherTypes },
                 notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -1020,12 +1036,12 @@ class InventorySystem @Inject constructor(
     }
 
     /**
-     * 合并分散堆叠。遍历所有物品，对同 key 的堆叠尝试合并到第一个非满堆叠。
-     * 与 sortWarehouse 配合使用——先合并后排序。
-     */
-    /**
      * 在 MutableGameState 事务内合并分散堆叠。
      * 由 [consolidateStacks] 和 [sortWarehouse] 共用。
+     *
+     * 锁定策略：锁定堆叠**允许作为合并目标**（吸收数量、自身 ID 与 isLocked 不变），
+     * **禁止作为合并来源**（锁定堆叠绝不被删除/减少，否则锁定标记与 ID 丢失）。
+     * 与 [StackableItemStore.add]（本就合并进锁定堆叠）行为一致。
      */
     private fun MutableGameState.consolidateAllStacks() {
         fun <T> consolidate(items: EntityStore<T>, keyOf: (T) -> StackKey, maxStack: Int)
@@ -1036,7 +1052,8 @@ class InventorySystem @Inject constructor(
                 val groups = items.all().groupBy { keyOf(it) }
                 for ((_, list) in groups) {
                     if (list.size <= 1) continue
-                    var primaryId = list.firstOrNull { !it.isLocked }?.id ?: continue
+                    // 首选第一个未满堆叠（可含锁定）作为合并目标
+                    var primaryId = list.firstOrNull { it.quantity < maxStack }?.id ?: continue
                     for (i in 1 until list.size) {
                         val secondary = list[i]
                         if (secondary.id == primaryId || secondary.isLocked) continue
@@ -1066,12 +1083,14 @@ class InventorySystem @Inject constructor(
         val maxMat = getMaxStackForType("material")
         val maxHerb = getMaxStackForType("herb")
         val maxSeed = getMaxStackForType("seed")
-        consolidate(equipmentStacks, { StackKey.of(it.name, it.rarity, it.slot.name) }, maxEq)
-        consolidate(manualStacks, { StackKey.of(it.name, it.rarity, it.type.name) }, maxMn)
-        consolidate(pills, { StackKey.of(it.name, it.rarity, it.category.name, it.grade.name) }, maxPill)
-        consolidate(materials, { StackKey.of(it.name, it.rarity, it.category.name) }, maxMat)
-        consolidate(herbs, { StackKey.of(it.name, it.rarity, it.category) }, maxHerb)
-        consolidate(seeds, { StackKey.of(it.name, it.rarity, it.growTime) }, maxSeed)
+        val maxBag = getMaxStackForType("storageBag")
+        consolidate(equipmentStacks, StackKeys::equipment, maxEq)
+        consolidate(manualStacks, StackKeys::manual, maxMn)
+        consolidate(pills, StackKeys::pill, maxPill)
+        consolidate(materials, StackKeys::material, maxMat)
+        consolidate(herbs, StackKeys::herb, maxHerb)
+        consolidate(seeds, StackKeys::seed, maxSeed)
+        consolidate(storageBags, StackKeys::storageBag, maxBag)
     }
 
     fun consolidateStacks() {

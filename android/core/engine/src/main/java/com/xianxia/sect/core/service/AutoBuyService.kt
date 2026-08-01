@@ -195,7 +195,7 @@ class AutoBuyService @Inject constructor(
                 val otherTypes = manualStacks.size + pills.size + materials.size + herbs.size + seeds.size
                 val store = StackableItemStore(
                     initialItems = equipmentStacks.all(),
-                    stackKeyOf = { StackKey.of(it.name, it.rarity, it.slot.name) },
+                    stackKeyOf = StackKeys::equipment,
                     maxStack = inventoryConfig.getMaxStackSize("equipment_stack"),
                     maxSlots = { computeMaxSlots() - otherTypes },
                     notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -208,7 +208,7 @@ class AutoBuyService @Inject constructor(
                 val otherTypes = equipmentStacks.size + pills.size + materials.size + herbs.size + seeds.size
                 val store = StackableItemStore(
                     initialItems = manualStacks.all(),
-                    stackKeyOf = { StackKey.of(it.name, it.rarity, it.type.name) },
+                    stackKeyOf = StackKeys::manual,
                     maxStack = inventoryConfig.getMaxStackSize("manual_stack"),
                     maxSlots = { computeMaxSlots() - otherTypes },
                     notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -221,7 +221,7 @@ class AutoBuyService @Inject constructor(
                 val otherTypes = equipmentStacks.size + manualStacks.size + materials.size + herbs.size + seeds.size
                 val store = StackableItemStore(
                     initialItems = pills.all(),
-                    stackKeyOf = { StackKey.of(it.name, it.rarity, it.category.name, it.grade.name) },
+                    stackKeyOf = StackKeys::pill,
                     maxStack = inventoryConfig.getMaxStackSize("pill"),
                     maxSlots = { computeMaxSlots() - otherTypes },
                     notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -234,7 +234,7 @@ class AutoBuyService @Inject constructor(
                 val otherTypes = equipmentStacks.size + manualStacks.size + pills.size + herbs.size + seeds.size
                 val store = StackableItemStore(
                     initialItems = materials.all(),
-                    stackKeyOf = { StackKey.of(it.name, it.rarity, it.category.name) },
+                    stackKeyOf = StackKeys::material,
                     maxStack = inventoryConfig.getMaxStackSize("material"),
                     maxSlots = { computeMaxSlots() - otherTypes },
                     notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -247,7 +247,7 @@ class AutoBuyService @Inject constructor(
                 val otherTypes = equipmentStacks.size + manualStacks.size + pills.size + materials.size + seeds.size
                 val store = StackableItemStore(
                     initialItems = herbs.all(),
-                    stackKeyOf = { StackKey.of(it.name, it.rarity, it.category) },
+                    stackKeyOf = StackKeys::herb,
                     maxStack = inventoryConfig.getMaxStackSize("herb"),
                     maxSlots = { computeMaxSlots() - otherTypes },
                     notFound = { AppError.Domain.Inventory.NotFound(it) }
@@ -260,7 +260,7 @@ class AutoBuyService @Inject constructor(
                 val otherTypes = equipmentStacks.size + manualStacks.size + pills.size + materials.size + herbs.size
                 val store = StackableItemStore(
                     initialItems = seeds.all(),
-                    stackKeyOf = { StackKey.of(it.name, it.rarity, it.growTime) },
+                    stackKeyOf = StackKeys::seed,
                     maxStack = inventoryConfig.getMaxStackSize("seed"),
                     maxSlots = { computeMaxSlots() - otherTypes },
                     notFound = { AppError.Domain.Inventory.NotFound(it) }

@@ -9,7 +9,6 @@ import com.xianxia.sect.core.engine.domain.disciple.*
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.repository.ProductionSlotRepository
-import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.event.DomainEvent
 import com.xianxia.sect.core.event.EventBusPort
@@ -23,14 +22,14 @@ import javax.inject.Singleton
 @GameService("DiscipleLifecycleProcessor")
 class DiscipleLifecycleProcessor @Inject constructor(
     private val stateStore: GameStateStore,
-    private val inventoryConfig: InventoryConfig,
     private val scopeProvider: CoroutineScopeProvider,
     private val productionSlotRepository: ProductionSlotRepository,
     private val eventBus: EventBusPort,
     private val discipleSlotCleanup: DiscipleSlotCleanup,
     private val lawEnforcementProcessor: javax.inject.Provider<LawEnforcementProcessor>,
     private val discipleStatusService: DiscipleStatusService,
-    private val ioDispatcher: IoDispatcher
+    private val ioDispatcher: IoDispatcher,
+    private val inventorySystem: com.xianxia.sect.core.engine.system.InventorySystem,
 ) {
     private val scope get() = scopeProvider.scope
 
@@ -385,21 +384,10 @@ class DiscipleLifecycleProcessor @Inject constructor(
     fun returnEquipmentToWarehouse(equipmentId: String) {
         val currentInstances = stateStore.equipmentInstances.value
         val eq = currentInstances.find { it.id == equipmentId } ?: return
-        val stack = eq.toStack()
-        val currentStacks = stateStore.equipmentStacks.value
-        val existingStack = currentStacks.find {
-            it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot
-        }
         stateStore.update {
-            if (existingStack != null) {
-                val maxQty = inventoryConfig.getMaxStackSize(ITEM_TYPE_EQUIPMENT_STACK)
-                val newQty = (existingStack.quantity + stack.quantity).coerceAtMost(maxQty)
-                equipmentStacks = equipmentStacks.map { s ->
-                    if (s.id == existingStack.id) s.copy(quantity = newQty) else s
-                }
-            } else {
-                equipmentStacks = equipmentStacks + stack
-            }
+            // 统一委托 returnEquipmentToStack（走 StackableItemStore 合并），
+            // 消除手写"找第一个堆叠 + 追加"导致同种装备分裂为多个堆叠的问题
+            inventorySystem.returnEquipmentToStack(eq)
             equipmentInstances = equipmentInstances.filter { it.id != equipmentId }
         }
     }

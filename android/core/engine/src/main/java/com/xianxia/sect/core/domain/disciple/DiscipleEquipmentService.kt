@@ -10,7 +10,7 @@ import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.state.StackableItemStore
-import com.xianxia.sect.core.state.StackKey
+import com.xianxia.sect.core.state.StackKeys
 import com.xianxia.sect.core.engine.system.computeMaxSlots
 import java.util.UUID
 import javax.inject.Inject
@@ -207,7 +207,7 @@ class DiscipleEquipmentService @Inject constructor(
                 val otherTypes = manualStacks.size + pills.size + materials.size + herbs.size + seeds.size
                 val store = StackableItemStore(
                     initialItems = equipmentStacks.all(),
-                    stackKeyOf = { StackKey.of(it.name, it.rarity, it.slot.name) },
+                    stackKeyOf = StackKeys::equipment,
                     maxStack = inventoryConfig.getMaxStackSize(ITEM_TYPE_EQUIPMENT_STACK),
                     maxSlots = { computeMaxSlots() - otherTypes },
                     notFound = { AppError.Domain.Inventory.NotFound(it) })

@@ -530,7 +530,8 @@ class ProductionProcessorTest {
             formulaService = mock(),
             rngManager = mock(),
             scopeProvider = mock(),
-            ioDispatcher = IoDispatcher()
+            ioDispatcher = IoDispatcher(),
+            inventoryConfig = com.xianxia.sect.core.config.InventoryConfig()
         )
     }
 
