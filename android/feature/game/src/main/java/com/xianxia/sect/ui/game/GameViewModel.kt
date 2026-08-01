@@ -574,13 +574,6 @@ class GameViewModel @Inject constructor(
     fun getManualById(id: String): ManualInstance? = inventory.getManualById(id)
     fun getManualInstanceById(id: String): ManualInstance? = inventory.getManualInstanceById(id)
     fun getEquipmentInstanceById(id: String): EquipmentInstance? = inventory.getEquipmentInstanceById(id)
-    /** 整理仓库：合并分散堆叠并按稀有度/名称排序（玩家手动兜底，自动合并由引擎保证） */
-    fun onSortWarehouse() {
-        gameEngine.launchOnEngine {
-            gameEngine.sortWarehouse()
-        }
-    }
-
     fun toggleItemLock(itemId: String, itemType: String) = inventory.toggleItemLock(itemId, itemType)
     fun sellToMerchant(itemId: String, quantity: Int) = inventory.sellToMerchant(itemId, quantity)
     fun sellItem(itemId: String, itemType: String, quantity: Int) = inventory.sellItem(itemId, itemType, quantity)
