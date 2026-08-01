@@ -4,6 +4,8 @@ import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.model.SectPolicies
 import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
+import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.RngPartition
 
 /**
@@ -21,7 +23,7 @@ fun GameEngine.claimGuideReward(taskId: Int): Boolean {
         val bagName = StorageBag.TIER_NAMES[0]
         val quantity = task.rewardItemQuantity
         // 统一委托 addStorageBag（走 StackableItemStore 合并，同稀有度自动合并）
-        inventorySystem.addStorageBag(
+        val result = inventorySystem.addStorageBag(
             StorageBag(
                 id = java.util.UUID(rng.nextLong(), rng.nextLong()).toString(),
                 name = bagName,
@@ -29,6 +31,11 @@ fun GameEngine.claimGuideReward(taskId: Int): Boolean {
                 quantity = quantity
             )
         )
+        // 对抗性审查修复：发放失败（仓库满）时不标记已领取，玩家清理后可重试
+        if (result !is DomainResult.Success) {
+            DomainLog.w("GameEngineGuideOps", "引导奖励 $bagName 发放失败，不标记已领取: ${(result as? DomainResult.Failure)?.error}")
+            return@update
+        }
         gameData = gd.copy(
             guideClaimedRewardIds = gd.guideClaimedRewardIds + taskId
         )

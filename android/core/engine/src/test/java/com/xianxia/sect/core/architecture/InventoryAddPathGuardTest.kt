@@ -19,23 +19,42 @@ import java.io.File
  */
 class InventoryAddPathGuardTest {
 
-    /** 反模式 1：溢出用 coerceAtMost 截断丢弃（应改走 StackableItemStore 的 Partial 语义） */
-    private val truncationPattern = Regex("coerceAtMost\\s*\\(\\s*inventoryConfig\\.getMaxStackSize")
-
-    /** 反模式 2：向仓库堆叠列表直接追加新条目（应改走 addXxx 合并） */
-    private val directAppendPattern = Regex(
-        "(equipmentStacks|manualStacks|pills|materials|herbs|seeds|storageBags)" +
-            "\\s*=\\s*\\1\\s*\\+"
+    /**
+     * 反模式 1：溢出用 coerceAtMost 截断丢弃（应改走 StackableItemStore 的 Partial 语义）。
+     * 覆盖 `inventoryConfig.getMaxStackSize` / `config.getMaxStackSize` / 本地 maxStack 变量别名。
+     */
+    private val truncationPattern = Regex(
+        "coerceAtMost\\s*\\(\\s*(?:\\w+\\.)*\\w*[sS]tackSize\\s*\\)"
     )
 
-    /** 反模式 3：手写"数量相加合并"（find 第一个匹配堆叠 + newQty 相加） */
-    private val inlineMergeAddPattern = Regex("newQty\\s*=\\s*\\(?\\w+\\.quantity\\s*\\+")
+    /**
+     * 反模式 2：向仓库堆叠列表直接追加新条目（应改走 addXxx 合并）。
+     * 对抗性审查增强：覆盖 `+=`、`state.`/`this.` 前缀、括号、`=` 右侧全限定
+     * 以及 `.plus(` 变体（历史 bug 的原始写法就是 `state.equipmentStacks = state.equipmentStacks + x`）。
+     */
+    private val directAppendPattern = Regex(
+        "(equipmentStacks|manualStacks|pills|materials|herbs|seeds|storageBags)" +
+            "\\s*(\\+=|=)\\s*\\(?\\s*(?:state|this)?\\s*\\.?\\s*\\1\\s*(?:\\+|\\s*\\.\\s*plus\\s*\\()"
+    )
+
+    /**
+     * 反模式 3：手写"数量相加合并"（find 第一个匹配堆叠 + 数量相加）。
+     * 对抗性审查增强：覆盖 newCount 等变量名变体与 `.plus(` 变体。
+     */
+    private val inlineMergeAddPattern = Regex(
+        "new\\w*\\s*=\\s*\\(?\\w+\\.quantity\\s*(?:\\+|\\s*\\.\\s*plus\\s*\\()"
+    )
 
     /**
      * 白名单：离线遗留仓库路径（SectWarehouse/WarehouseItem，主流程未使用），
      * 仍保留自己的堆叠实现，不属于统一入口范围。
+     * 对抗性审查修复：按相对路径匹配（避免任意包下同名文件被静默豁免），
+     * 并有存在性断言（文件被删除/改名时守卫测试失败，防止白名单悬空）。
      */
-    private val allowedFiles = setOf("OptimizedWarehouseManager.kt")
+    private val allowedFiles = setOf(
+        "com" + File.separator + "xianxia" + File.separator + "sect" + File.separator +
+            "core" + File.separator + "warehouse" + File.separator + "OptimizedWarehouseManager.kt"
+    )
 
     // Gradle 测试工作目录为模块目录（android/core/engine）
     private val engineSourceDir = File(
@@ -51,6 +70,21 @@ class InventoryAddPathGuardTest {
                 if (pattern.containsMatchIn(line)) file to "${file.name}:${index + 1}: $line" else null
             }
         }
+
+    /** 文件相对 engine 源码根（src/main/java/）的路径，用于白名单匹配 */
+    private fun relativePath(file: File): String =
+        file.path.substringAfter(engineSourceDir.path + File.separator)
+
+    @Test
+    fun `guard whitelist files still exist`() {
+        val files = sourceFiles().map { relativePath(it) }.toSet()
+        val missing = allowedFiles.filter { it !in files }
+        assertEquals(
+            "白名单文件不存在或已被改名/删除：$missing\n" +
+                "若文件确实已移除，请同时删除对应白名单条目",
+            emptyList<String>(), missing
+        )
+    }
 
     @Test
     fun `no overflow truncation via coerceAtMost in any add path`() {
@@ -78,7 +112,7 @@ class InventoryAddPathGuardTest {
 
     @Test
     fun `no inline quantity-merge outside allowed legacy file`() {
-        val files = sourceFiles().filter { it.name !in allowedFiles }
+        val files = sourceFiles().filter { relativePath(it) !in allowedFiles }
         val matches = matchesIn(files, inlineMergeAddPattern)
         assertEquals(
             "发现 ${matches.size} 处手写数量相加合并：\n" +

@@ -10,6 +10,8 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.event.DomainEvent
 import com.xianxia.sect.core.event.EventBusPort
 import kotlinx.coroutines.launch
@@ -387,8 +389,14 @@ class DiscipleLifecycleProcessor @Inject constructor(
         stateStore.update {
             // 统一委托 returnEquipmentToStack（走 StackableItemStore 合并），
             // 消除手写"找第一个堆叠 + 追加"导致同种装备分裂为多个堆叠的问题
-            inventorySystem.returnEquipmentToStack(eq)
-            equipmentInstances = equipmentInstances.filter { it.id != equipmentId }
+            val result = inventorySystem.returnEquipmentToStack(eq)
+            if (result is DomainResult.Success || result is DomainResult.Partial) {
+                equipmentInstances = equipmentInstances.filter { it.id != equipmentId }
+            } else {
+                // 对抗性审查修复：仓库满时保留装备实例（否则装备永久丢失）
+                val error = (result as? DomainResult.Failure)?.error ?: "溢出"
+                DomainLog.w(TAG, "归还装备 ${eq.name} 失败（仓库空间不足），保留装备实例: $error")
+            }
         }
     }
 

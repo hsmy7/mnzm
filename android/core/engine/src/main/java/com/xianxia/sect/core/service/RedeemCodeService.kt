@@ -10,7 +10,6 @@ import com.xianxia.sect.core.engine.BuildConfig
 import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.RedeemCodeManager
@@ -47,7 +46,6 @@ data class RedeemApiReward(
 @Singleton
 class RedeemCodeService @Inject constructor(
     private val stateStore: GameStateStore,
-    private val inventoryConfig: InventoryConfig,
     private val httpClient: HttpClientProvider,
     private val spiritStoneWallet: SpiritStoneWallet,
     private val gameRngManager: com.xianxia.sect.core.util.GameRngManager,
@@ -118,25 +116,40 @@ class RedeemCodeService @Inject constructor(
 
         val mailRng = gameRngManager.getRng(RngPartition.MAIL).asKotlinRandom()
         stateStore.update {
-            gameData = gameData.copy(
-                usedRedeemCodes = (gameData.usedRedeemCodes + code.uppercase(java.util.Locale.getDefault()))
-                    .distinct()
-                    .takeLast(GameData.MAX_REDEEM_CODES)
-            )
             inventorySystem.withTrackingSource("redeem") {
-                rewards.filter { it.type != "spiritStones" }.forEach { reward ->
+                // 对抗性审查修复：任一物品发放失败/溢出（仓库满）时不标记兑换码已用，
+                // 玩家清理仓库后可重新兑换，奖励不丢失
+                val allSucceeded = rewards.filter { it.type != "spiritStones" }.all { reward ->
                     applyRedeemReward(reward.type, reward.name, reward.quantity, reward.rarity, reward.rarity, mailRng)
+                }
+                if (allSucceeded) {
+                    gameData = gameData.copy(
+                        usedRedeemCodes = (gameData.usedRedeemCodes + code.uppercase(java.util.Locale.getDefault()))
+                            .distinct()
+                            .takeLast(GameData.MAX_REDEEM_CODES)
+                    )
                 }
             }
         }
     }
 
-    /** 记录 addXxx 三态结果 */
-    private fun handleRedeemResult(result: DomainResult<*>, label: String) {
-        when (result) {
-            is DomainResult.Success -> { /* 正常发放 */ }
-            is DomainResult.Partial -> DomainLog.w(TAG, "$label 仓库已满，溢出 ${result.overflow} 个")
-            is DomainResult.Failure -> DomainLog.w(TAG, "$label 发放失败: ${result.error}")
+    /**
+     * 记录 addXxx 三态结果。
+     *
+     * @return true=全部成功；false=失败/溢出（对抗性审查修复：调用方
+     * 据此不标记兑换码已用，玩家清理仓库后可重新兑换，奖励不丢失）
+     */
+    private fun handleRedeemResult(result: DomainResult<*>, label: String): Boolean {
+        return when (result) {
+            is DomainResult.Success -> true
+            is DomainResult.Partial -> {
+                DomainLog.w(TAG, "$label 仓库已满，溢出 ${result.overflow} 个")
+                false
+            }
+            is DomainResult.Failure -> {
+                DomainLog.w(TAG, "$label 发放失败: ${result.error}")
+                false
+            }
         }
     }
 
@@ -149,6 +162,7 @@ class RedeemCodeService @Inject constructor(
      * @param quantity 数量
      * @param rarity 稀有度（功法模板查找用，历史取值与 defaultRarity 不同）
      * @param defaultRarity 随机物品的稀有度来源（本地兑换与服务器兑换的历史取值不同）
+     * @return true=该类型奖励全部发放成功；false=仓库满/失败（兑换码不应标记已用）
      */
     private fun MutableGameState.applyRedeemReward(
         type: String,
@@ -157,89 +171,118 @@ class RedeemCodeService @Inject constructor(
         rarity: Int,
         defaultRarity: Int,
         mailRng: kotlin.random.Random
-    ) {
-        when (type) {
-            "equipment" -> {
-                val qty = quantity.coerceAtLeast(1)
-                val newEquipment = EquipmentDatabase.generateRandom(
-                    minRarity = defaultRarity,
-                    maxRarity = defaultRarity,
-                    random = mailRng
-                ).copy(quantity = qty)
-                handleRedeemResult(inventorySystem.addEquipmentStack(newEquipment), "装备 ${newEquipment.name}")
-            }
-            "manual" -> {
-                val template = ManualDatabase.getByNameAndRarity(name, rarity)
-                if (template != null) {
-                    val qty = quantity.coerceAtLeast(1)
-                    val manual = ManualDatabase.createFromTemplate(template).copy(quantity = qty)
-                    handleRedeemResult(inventorySystem.addManualStack(manual), "功法 ${manual.name}")
-                }
-            }
-            "pill" -> {
-                val qty = quantity.coerceAtLeast(1)
-                val pill = ItemDatabase.generateRandomPill(
-                    minRarity = defaultRarity,
-                    maxRarity = defaultRarity,
-                    random = mailRng
-                ).copy(quantity = qty)
-                handleRedeemResult(inventorySystem.addPill(pill), "丹药 ${pill.name}")
-            }
-            "material" -> {
-                val qty = quantity.coerceAtLeast(1)
-                val material = ItemDatabase.generateRandomMaterial(
-                    minRarity = defaultRarity,
-                    maxRarity = defaultRarity,
-                    random = mailRng
-                ).copy(quantity = qty)
-                handleRedeemResult(inventorySystem.addMaterial(material), "材料 ${material.name}")
-            }
-            "herb" -> {
-                val qty = quantity.coerceAtLeast(1)
-                val herbTemplate = HerbDatabase.generateRandomHerb(
-                    minRarity = defaultRarity,
-                    maxRarity = defaultRarity,
-                    random = mailRng
-                )
-                val herb = Herb(
-                    id = java.util.UUID.randomUUID().toString(),
-                    name = herbTemplate.name,
-                    rarity = herbTemplate.rarity,
-                    description = herbTemplate.description,
-                    category = herbTemplate.category,
-                    quantity = qty
-                )
-                handleRedeemResult(inventorySystem.addHerb(herb), "草药 ${herb.name}")
-            }
-            "seed" -> {
-                val qty = quantity.coerceAtLeast(1)
-                val seedTemplate = HerbDatabase.generateRandomSeed(
-                    minRarity = defaultRarity,
-                    maxRarity = defaultRarity,
-                    random = mailRng
-                )
-                val seed = Seed(
-                    id = java.util.UUID.randomUUID().toString(),
-                    name = seedTemplate.name,
-                    rarity = seedTemplate.rarity,
-                    description = seedTemplate.description,
-                    growTime = seedTemplate.growTime,
-                    yield = seedTemplate.yield,
-                    quantity = qty
-                )
-                handleRedeemResult(inventorySystem.addSeed(seed), "种子 ${seed.name}")
-            }
-            "disciple" -> {
-                val currentMonthValue = gameData.gameYear * 12 + gameData.gameMonth
-                val usedNames = discipleTables.assembleAll().map { it.name }.toMutableSet()
-                repeat(quantity.coerceAtLeast(1)) {
-                    val disciple = RedeemCodeManager.generateDisciple(null, usedNames, random = mailRng)
-                    disciple.usage.recruitedMonth = currentMonthValue
-                    discipleTables.allocateAndInsert(disciple)
-                    usedNames.add(disciple.name)
-                }
-            }
+    ): Boolean {
+        return when (type) {
+            "equipment" -> applyEquipmentRedeemReward(quantity, defaultRarity, mailRng)
+            "manual" -> applyManualRedeemReward(name, quantity, rarity, mailRng)
+            "pill" -> applyPillRedeemReward(quantity, defaultRarity, mailRng)
+            "material" -> applyMaterialRedeemReward(quantity, defaultRarity, mailRng)
+            "herb" -> applyHerbRedeemReward(quantity, defaultRarity, mailRng)
+            "seed" -> applySeedRedeemReward(quantity, defaultRarity, mailRng)
+            "disciple" -> applyDiscipleRedeemReward(quantity, mailRng)
+            else -> true
         }
+    }
+
+    private fun MutableGameState.applyEquipmentRedeemReward(
+        quantity: Int, defaultRarity: Int, mailRng: kotlin.random.Random
+    ): Boolean {
+        val qty = quantity.coerceAtLeast(1)
+        val newEquipment = EquipmentDatabase.generateRandom(
+            minRarity = defaultRarity,
+            maxRarity = defaultRarity,
+            random = mailRng
+        ).copy(quantity = qty)
+        return handleRedeemResult(inventorySystem.addEquipmentStack(newEquipment), "装备 ${newEquipment.name}")
+    }
+
+    private fun MutableGameState.applyManualRedeemReward(
+        name: String, quantity: Int, rarity: Int, mailRng: kotlin.random.Random
+    ): Boolean {
+        val template = ManualDatabase.getByNameAndRarity(name, rarity)
+        if (template == null) return true
+        val qty = quantity.coerceAtLeast(1)
+        val manual = ManualDatabase.createFromTemplate(template).copy(quantity = qty)
+        return handleRedeemResult(inventorySystem.addManualStack(manual), "功法 ${manual.name}")
+    }
+
+    private fun MutableGameState.applyPillRedeemReward(
+        quantity: Int, defaultRarity: Int, mailRng: kotlin.random.Random
+    ): Boolean {
+        val qty = quantity.coerceAtLeast(1)
+        val pill = ItemDatabase.generateRandomPill(
+            minRarity = defaultRarity,
+            maxRarity = defaultRarity,
+            random = mailRng
+        ).copy(quantity = qty)
+        return handleRedeemResult(inventorySystem.addPill(pill), "丹药 ${pill.name}")
+    }
+
+    private fun MutableGameState.applyMaterialRedeemReward(
+        quantity: Int, defaultRarity: Int, mailRng: kotlin.random.Random
+    ): Boolean {
+        val qty = quantity.coerceAtLeast(1)
+        val material = ItemDatabase.generateRandomMaterial(
+            minRarity = defaultRarity,
+            maxRarity = defaultRarity,
+            random = mailRng
+        ).copy(quantity = qty)
+        return handleRedeemResult(inventorySystem.addMaterial(material), "材料 ${material.name}")
+    }
+
+    private fun MutableGameState.applyHerbRedeemReward(
+        quantity: Int, defaultRarity: Int, mailRng: kotlin.random.Random
+    ): Boolean {
+        val qty = quantity.coerceAtLeast(1)
+        val herbTemplate = HerbDatabase.generateRandomHerb(
+            minRarity = defaultRarity,
+            maxRarity = defaultRarity,
+            random = mailRng
+        )
+        val herb = Herb(
+            id = java.util.UUID.randomUUID().toString(),
+            name = herbTemplate.name,
+            rarity = herbTemplate.rarity,
+            description = herbTemplate.description,
+            category = herbTemplate.category,
+            quantity = qty
+        )
+        return handleRedeemResult(inventorySystem.addHerb(herb), "草药 ${herb.name}")
+    }
+
+    private fun MutableGameState.applySeedRedeemReward(
+        quantity: Int, defaultRarity: Int, mailRng: kotlin.random.Random
+    ): Boolean {
+        val qty = quantity.coerceAtLeast(1)
+        val seedTemplate = HerbDatabase.generateRandomSeed(
+            minRarity = defaultRarity,
+            maxRarity = defaultRarity,
+            random = mailRng
+        )
+        val seed = Seed(
+            id = java.util.UUID.randomUUID().toString(),
+            name = seedTemplate.name,
+            rarity = seedTemplate.rarity,
+            description = seedTemplate.description,
+            growTime = seedTemplate.growTime,
+            yield = seedTemplate.yield,
+            quantity = qty
+        )
+        return handleRedeemResult(inventorySystem.addSeed(seed), "种子 ${seed.name}")
+    }
+
+    private fun MutableGameState.applyDiscipleRedeemReward(
+        quantity: Int, mailRng: kotlin.random.Random
+    ): Boolean {
+        val currentMonthValue = gameData.gameYear * 12 + gameData.gameMonth
+        val usedNames = discipleTables.assembleAll().map { it.name }.toMutableSet()
+        repeat(quantity.coerceAtLeast(1)) {
+            val disciple = RedeemCodeManager.generateDisciple(null, usedNames, random = mailRng)
+            disciple.usage.recruitedMonth = currentMonthValue
+            discipleTables.allocateAndInsert(disciple)
+            usedNames.add(disciple.name)
+        }
+        return true
     }
 
     private fun verifyApkSignature(): Boolean {
@@ -326,8 +369,10 @@ class RedeemCodeService @Inject constructor(
         }
 
         stateStore.update {
-            inventorySystem.withTrackingSource("redeem") {
-                result.rewards.filter { it.type != "spiritStones" }.forEach { reward ->
+            // 对抗性审查修复：任一物品发放失败/溢出（仓库满）时不标记兑换码已用，
+            // 玩家清理仓库后可重新兑换，奖励不丢失
+            val allSucceeded = inventorySystem.withTrackingSource("redeem") {
+                result.rewards.filter { it.type != "spiritStones" }.all { reward ->
                     applyRedeemReward(reward.type, reward.name, reward.quantity, reward.rarity, redeemCodeData.rarity, mailRng)
                 }
             }
@@ -337,6 +382,8 @@ class RedeemCodeService @Inject constructor(
                 disciple.usage.recruitedMonth = currentMonthValue
                 discipleTables.allocateAndInsert(disciple)
             }
+
+            if (!allSucceeded) return@update
 
             gameData = gameData.copy(
                 usedRedeemCodes = (gameData.usedRedeemCodes + code.uppercase(java.util.Locale.getDefault()))

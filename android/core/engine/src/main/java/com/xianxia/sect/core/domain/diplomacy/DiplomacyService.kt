@@ -16,7 +16,6 @@ import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.recordGameEvent
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.system.MerchantItemConverter
-import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.DomainLog
@@ -43,7 +42,6 @@ import java.util.UUID
 class DiplomacyService @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventorySystem: InventorySystem,
-    private val inventoryConfig: InventoryConfig,
     private val eventBus: EventBusPort,
     private val favorService: FavorService,
     private val spiritStoneWallet: SpiritStoneWallet,

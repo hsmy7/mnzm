@@ -472,12 +472,19 @@ class MailService @Inject constructor(
         }
     }
 
-    /** 记录 addXxx 三态结果（Success 静默 / Partial 溢出 / Failure 失败） */
+    /**
+     * 记录 addXxx 三态结果。
+     *
+     * 对抗性审查修复：Partial/Failure 时抛出异常——外层 stateStore.update
+     * 未提交（事务回滚），邮件保持未领取状态，玩家清理仓库后可重新领取，
+     * 物品不会部分发放后静默丢失。与 distributeAttachmentsInline 的
+     * KDoc 契约（"发放失败时异常传播到外层回滚"）一致。
+     */
     private fun handleResult(result: DomainResult<*>, label: String) {
         when (result) {
             is DomainResult.Success -> { /* 正常发放 */ }
-            is DomainResult.Partial -> DomainLog.w(TAG, "$label 仓库已满，溢出 ${result.overflow} 个")
-            is DomainResult.Failure -> DomainLog.w(TAG, "$label 发放失败: ${result.error}")
+            is DomainResult.Partial -> throw IllegalStateException("$label 仓库空间不足，溢出 ${result.overflow} 个")
+            is DomainResult.Failure -> throw IllegalStateException("$label 发放失败: ${result.error}")
         }
     }
 

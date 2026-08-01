@@ -1039,40 +1039,49 @@ class InventorySystem @Inject constructor(
      * 在 MutableGameState 事务内合并分散堆叠。
      * 由 [consolidateStacks] 和 [sortWarehouse] 共用。
      *
-     * 锁定策略：锁定堆叠**允许作为合并目标**（吸收数量、自身 ID 与 isLocked 不变），
-     * **禁止作为合并来源**（锁定堆叠绝不被删除/减少，否则锁定标记与 ID 丢失）。
+     * 单遍合并保证终止（见 consolidate 内注释）；锁定堆叠**允许作为合并目标**
+     * （吸收数量、自身 ID 与 isLocked 不变），**禁止作为合并来源**
+     * （锁定堆叠绝不被删除/减少，否则锁定标记与 ID 丢失）。
      * 与 [StackableItemStore.add]（本就合并进锁定堆叠）行为一致。
      */
     private fun MutableGameState.consolidateAllStacks() {
+        /**
+         * 单遍合并分散堆叠：每组以第一个未满堆叠为合并目标，顺序吸收后续**未满**堆叠。
+         *
+         * 终止性保证（对抗性审查修复，2026-08-01）：
+         * - 单遍（无 while 循环）——每堆叠最多被处理一次，必然终止；
+         * - 满堆叠（quantity >= maxStack）跳过——禁止"从满堆叠抽回"，
+         *   否则 ≥3 个同键堆叠且总数 > maxStack 时会在"满/半满"之间无限振荡
+         *   （如 [999,543,999] ↔ [999,999,543] 死循环）。
+         *
+         * 锁定策略：锁定堆叠**允许作为合并目标**（吸收数量、自身 ID 与 isLocked 不变），
+         * **禁止作为合并来源**（锁定堆叠绝不被删除/减少）。
+         */
         fun <T> consolidate(items: EntityStore<T>, keyOf: (T) -> StackKey, maxStack: Int)
                 where T : HasId, T : StackableItem {
-            var changed = true
-            while (changed) {
-                changed = false
-                val groups = items.all().groupBy { keyOf(it) }
-                for ((_, list) in groups) {
-                    if (list.size <= 1) continue
-                    // 首选第一个未满堆叠（可含锁定）作为合并目标
-                    var primaryId = list.firstOrNull { it.quantity < maxStack }?.id ?: continue
-                    for (i in 1 until list.size) {
-                        val secondary = list[i]
-                        if (secondary.id == primaryId || secondary.isLocked) continue
-                        val primary = items.get(primaryId) ?: break
-                        val space = maxStack - primary.quantity
-                        if (space <= 0) { primaryId = secondary.id; continue }
-                        val transfer = minOf(space, secondary.quantity)
+            val groups = items.all().groupBy { keyOf(it) }
+            for ((_, list) in groups) {
+                if (list.size <= 1) continue
+                // 首选第一个未满堆叠（可含锁定）作为合并目标
+                var primaryId = list.firstOrNull { it.quantity < maxStack }?.id ?: continue
+                for (i in 1 until list.size) {
+                    val secondary = list[i]
+                    if (secondary.id == primaryId || secondary.isLocked) continue
+                    if (secondary.quantity >= maxStack) continue
+                    val primary = items.get(primaryId) ?: break
+                    val space = maxStack - primary.quantity
+                    if (space <= 0) { primaryId = secondary.id; continue }
+                    val transfer = minOf(space, secondary.quantity)
+                    @Suppress("UNCHECKED_CAST")
+                    items.update(primaryId) {
+                        (it as StackableItem).withQuantity(it.quantity + transfer) as T
+                    }
+                    if (transfer >= secondary.quantity) items.remove(secondary.id)
+                    else {
                         @Suppress("UNCHECKED_CAST")
-                        items.update(primaryId) {
-                            (it as StackableItem).withQuantity(it.quantity + transfer) as T
+                        items.update(secondary.id) {
+                            (it as StackableItem).withQuantity(it.quantity - transfer) as T
                         }
-                        if (transfer >= secondary.quantity) items.remove(secondary.id)
-                        else {
-                            @Suppress("UNCHECKED_CAST")
-                            items.update(secondary.id) {
-                                (it as StackableItem).withQuantity(it.quantity - transfer) as T
-                            }
-                        }
-                        changed = true
                     }
                 }
             }

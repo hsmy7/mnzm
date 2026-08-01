@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.engine.annotation.GameService
-import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.model.DailySignInReward
 import com.xianxia.sect.core.model.MilestoneReward
 import com.xianxia.sect.core.model.RewardCardItem
@@ -10,6 +9,7 @@ import com.xianxia.sect.core.model.SignInState
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.model.SpiritStoneGrade
@@ -23,7 +23,6 @@ import javax.inject.Singleton
 @Singleton
 class DailySignInService @Inject constructor(
     private val stateStore: GameStateStore,
-    private val inventoryConfig: InventoryConfig,
     private val spiritStoneWallet: SpiritStoneWallet,
     private val inventorySystem: com.xianxia.sect.core.engine.system.InventorySystem,
 ) {
@@ -215,6 +214,7 @@ class DailySignInService @Inject constructor(
     ): Pair<String?, List<RewardCardItem>> {
         var capacityError: String? = null
         val generatedCards = mutableListOf<RewardCardItem>()
+        val onFailure: (String) -> Unit = { msg -> capacityError = msg }
 
         // 灵石通过 SpiritStoneWallet 独立发放（不与其他物品在同一个事务中）
         if (reward.type == "spiritStones") {
@@ -235,147 +235,182 @@ class DailySignInService @Inject constructor(
         stateStore.update {
             inventorySystem.withTrackingSource("sign_in") {
                 when (reward.type) {
-                    "beastMaterial" -> {
-                        val mat = buildBeastMaterial(reward)
-                        val actualName = mat.name
-                        val actualRarity = mat.rarity
-                        handleResult(inventorySystem.addMaterial(mat), "材料「$actualName」") { msg ->
-                            capacityError = msg
-                        }
-                        generatedCards.add(RewardCardItem(
-                            itemName = actualName, itemType = "material",
-                            rarity = actualRarity, quantity = reward.quantity
-                        ))
-                    }
-                    "pill" -> {
-                        val qty = reward.quantity.coerceAtLeast(1)
-                        val template = ItemDatabase.getPillByName(reward.itemName)
-                        val pill = if (template != null) {
-                            ItemDatabase.createPillFromTemplate(template, qty)
-                        } else {
-                            DomainLog.w(TAG, "Pill '${reward.itemName}' not found in ItemDatabase, generating random")
-                            ItemDatabase.generateRandomPill(
-                                minRarity = reward.rarity,
-                                maxRarity = reward.rarity
-                            ).copy(quantity = qty)
-                        }
-                        handleResult(inventorySystem.addPill(pill), "丹药「${pill.name}」") { msg ->
-                            capacityError = msg
-                        }
-                        generatedCards.add(RewardCardItem(
-                            itemName = pill.name, itemType = "pill",
-                            rarity = pill.rarity, quantity = qty
-                        ))
-                    }
-                    "randomMaterial" -> {
-                        val qty = reward.quantity.coerceAtLeast(1)
-                        val generated = mutableListOf<RewardCardItem>()
-                        repeat(qty) {
-                            val mat = ItemDatabase.generateRandomMaterial(minRarity = 1, maxRarity = 1).copy(
-                                id = java.util.UUID.randomUUID().toString(), quantity = 1
-                            )
-                            handleResult(inventorySystem.addMaterial(mat), "材料「${mat.name}」") { msg ->
-                                capacityError = msg
-                            }
-                            generated.add(RewardCardItem(
-                                itemName = mat.name, itemType = "material",
-                                rarity = mat.rarity, quantity = 1
-                            ))
-                        }
-                        // 合并同名卡片
-                        generatedCards.addAll(mergeCardsByName(generated))
-                    }
-                    "randomSeed" -> {
-                        val qty = reward.quantity.coerceAtLeast(1)
-                        val generated = mutableListOf<RewardCardItem>()
-                        repeat(qty) {
-                            val template = com.xianxia.sect.core.registry.HerbDatabase.generateRandomSeed(
-                                minRarity = 1, maxRarity = 1
-                            )
-                            val seed = com.xianxia.sect.core.model.Seed(
-                                id = java.util.UUID.randomUUID().toString(),
-                                name = template.name,
-                                rarity = template.rarity,
-                                description = template.description,
-                                growTime = template.growTime,
-                                yield = template.yield,
-                                quantity = 1
-                            )
-                            handleResult(inventorySystem.addSeed(seed), "种子「${seed.name}」") { msg ->
-                                capacityError = msg
-                            }
-                            generated.add(RewardCardItem(
-                                itemName = seed.name, itemType = "seed",
-                                rarity = seed.rarity, quantity = 1
-                            ))
-                        }
-                        generatedCards.addAll(mergeCardsByName(generated))
-                    }
-                    "randomPill" -> {
-                        val qty = reward.quantity.coerceAtLeast(1)
-                        val generated = mutableListOf<RewardCardItem>()
-                        repeat(qty) {
-                            val pill = ItemDatabase.generateRandomPill(minRarity = 1, maxRarity = 1).copy(
-                                id = java.util.UUID.randomUUID().toString(), quantity = 1
-                            )
-                            handleResult(inventorySystem.addPill(pill), "丹药「${pill.name}」") { msg ->
-                                capacityError = msg
-                            }
-                            generated.add(RewardCardItem(
-                                itemName = pill.name, itemType = "pill",
-                                rarity = pill.rarity, quantity = 1
-                            ))
-                        }
-                        generatedCards.addAll(mergeCardsByName(generated))
-                    }
-                    "randomHerb" -> {
-                        val qty = reward.quantity.coerceAtLeast(1)
-                        val generated = mutableListOf<RewardCardItem>()
-                        repeat(qty) {
-                            val template = com.xianxia.sect.core.registry.HerbDatabase
-                                .generateRandomHerb(minRarity = 1, maxRarity = 1)
-                            val herb = com.xianxia.sect.core.model.Herb(
-                                id = java.util.UUID.randomUUID().toString(),
-                                name = template.name,
-                                rarity = template.rarity,
-                                description = template.description,
-                                category = template.category,
-                                quantity = 1
-                            )
-                            handleResult(inventorySystem.addHerb(herb), "草药「${herb.name}」") { msg ->
-                                capacityError = msg
-                            }
-                            generated.add(RewardCardItem(
-                                itemName = herb.name, itemType = "herb",
-                                rarity = herb.rarity, quantity = 1
-                            ))
-                        }
-                        generatedCards.addAll(mergeCardsByName(generated))
-                    }
-                    "storageBag" -> {
-                        val qty = reward.quantity.coerceAtLeast(1)
-                        val rarity = reward.rarity.coerceIn(1, 6)
-                        val bagName = com.xianxia.sect.core.model.StorageBag.TIER_NAMES.getOrElse(rarity - 1) { "凡品储物袋" }
-                        handleResult(
-                            inventorySystem.addStorageBag(
-                                com.xianxia.sect.core.model.StorageBag(
-                                    id = java.util.UUID.randomUUID().toString(),
-                                    name = bagName,
-                                    rarity = rarity,
-                                    quantity = qty
-                                )
-                            ),
-                            "储物袋"
-                        ) { msg -> capacityError = msg }
-                        generatedCards.add(RewardCardItem(
-                            itemName = bagName, itemType = "storageBag",
-                            rarity = rarity, quantity = qty
-                        ))
-                    }
+                    "beastMaterial" ->
+                        generatedCards.addAll(distributeBeastMaterialReward(reward, onFailure))
+                    "pill" ->
+                        generatedCards.addAll(distributePillReward(reward, onFailure))
+                    "randomMaterial" ->
+                        generatedCards.addAll(distributeRandomMaterialReward(reward, onFailure))
+                    "randomSeed" ->
+                        generatedCards.addAll(distributeRandomSeedReward(reward, onFailure))
+                    "randomPill" ->
+                        generatedCards.addAll(distributeRandomPillReward(reward, onFailure))
+                    "randomHerb" ->
+                        generatedCards.addAll(distributeRandomHerbReward(reward, onFailure))
+                    "storageBag" ->
+                        generatedCards.addAll(distributeStorageBagReward(reward, onFailure))
                 }
             }
         }
         return Pair(capacityError, generatedCards)
+    }
+
+    /** 妖兽材料奖励：委托 addMaterial 合并，返回奖励卡片 */
+    private fun MutableGameState.distributeBeastMaterialReward(
+        reward: DailySignInReward,
+        onFailure: (String) -> Unit
+    ): List<RewardCardItem> {
+        val mat = buildBeastMaterial(reward)
+        handleResult(inventorySystem.addMaterial(mat), "材料「${mat.name}」", onFailure)
+        return listOf(RewardCardItem(
+            itemName = mat.name, itemType = "material",
+            rarity = mat.rarity, quantity = reward.quantity
+        ))
+    }
+
+    /** 指定丹药奖励：按模板或随机生成，委托 addPill 合并，返回奖励卡片 */
+    private fun MutableGameState.distributePillReward(
+        reward: DailySignInReward,
+        onFailure: (String) -> Unit
+    ): List<RewardCardItem> {
+        val qty = reward.quantity.coerceAtLeast(1)
+        val template = ItemDatabase.getPillByName(reward.itemName)
+        val pill = if (template != null) {
+            ItemDatabase.createPillFromTemplate(template, qty)
+        } else {
+            DomainLog.w(TAG, "Pill '${reward.itemName}' not found in ItemDatabase, generating random")
+            ItemDatabase.generateRandomPill(
+                minRarity = reward.rarity,
+                maxRarity = reward.rarity
+            ).copy(quantity = qty)
+        }
+        handleResult(inventorySystem.addPill(pill), "丹药「${pill.name}」", onFailure)
+        return listOf(RewardCardItem(
+            itemName = pill.name, itemType = "pill",
+            rarity = pill.rarity, quantity = qty
+        ))
+    }
+
+    /** 随机材料奖励：逐件生成并委托 addMaterial 合并，返回合并后的卡片 */
+    private fun MutableGameState.distributeRandomMaterialReward(
+        reward: DailySignInReward,
+        onFailure: (String) -> Unit
+    ): List<RewardCardItem> {
+        val qty = reward.quantity.coerceAtLeast(1)
+        val generated = mutableListOf<RewardCardItem>()
+        repeat(qty) {
+            val mat = ItemDatabase.generateRandomMaterial(minRarity = 1, maxRarity = 1).copy(
+                id = java.util.UUID.randomUUID().toString(), quantity = 1
+            )
+            handleResult(inventorySystem.addMaterial(mat), "材料「${mat.name}」", onFailure)
+            generated.add(RewardCardItem(
+                itemName = mat.name, itemType = "material",
+                rarity = mat.rarity, quantity = 1
+            ))
+        }
+        // 合并同名卡片
+        return mergeCardsByName(generated)
+    }
+
+    /** 随机种子奖励：逐件生成并委托 addSeed 合并，返回合并后的卡片 */
+    private fun MutableGameState.distributeRandomSeedReward(
+        reward: DailySignInReward,
+        onFailure: (String) -> Unit
+    ): List<RewardCardItem> {
+        val qty = reward.quantity.coerceAtLeast(1)
+        val generated = mutableListOf<RewardCardItem>()
+        repeat(qty) {
+            val template = com.xianxia.sect.core.registry.HerbDatabase.generateRandomSeed(
+                minRarity = 1, maxRarity = 1
+            )
+            val seed = com.xianxia.sect.core.model.Seed(
+                id = java.util.UUID.randomUUID().toString(),
+                name = template.name,
+                rarity = template.rarity,
+                description = template.description,
+                growTime = template.growTime,
+                yield = template.yield,
+                quantity = 1
+            )
+            handleResult(inventorySystem.addSeed(seed), "种子「${seed.name}」", onFailure)
+            generated.add(RewardCardItem(
+                itemName = seed.name, itemType = "seed",
+                rarity = seed.rarity, quantity = 1
+            ))
+        }
+        return mergeCardsByName(generated)
+    }
+
+    /** 随机丹药奖励：逐件生成并委托 addPill 合并，返回合并后的卡片 */
+    private fun MutableGameState.distributeRandomPillReward(
+        reward: DailySignInReward,
+        onFailure: (String) -> Unit
+    ): List<RewardCardItem> {
+        val qty = reward.quantity.coerceAtLeast(1)
+        val generated = mutableListOf<RewardCardItem>()
+        repeat(qty) {
+            val pill = ItemDatabase.generateRandomPill(minRarity = 1, maxRarity = 1).copy(
+                id = java.util.UUID.randomUUID().toString(), quantity = 1
+            )
+            handleResult(inventorySystem.addPill(pill), "丹药「${pill.name}」", onFailure)
+            generated.add(RewardCardItem(
+                itemName = pill.name, itemType = "pill",
+                rarity = pill.rarity, quantity = 1
+            ))
+        }
+        return mergeCardsByName(generated)
+    }
+
+    /** 随机草药奖励：逐件生成并委托 addHerb 合并，返回合并后的卡片 */
+    private fun MutableGameState.distributeRandomHerbReward(
+        reward: DailySignInReward,
+        onFailure: (String) -> Unit
+    ): List<RewardCardItem> {
+        val qty = reward.quantity.coerceAtLeast(1)
+        val generated = mutableListOf<RewardCardItem>()
+        repeat(qty) {
+            val template = com.xianxia.sect.core.registry.HerbDatabase
+                .generateRandomHerb(minRarity = 1, maxRarity = 1)
+            val herb = com.xianxia.sect.core.model.Herb(
+                id = java.util.UUID.randomUUID().toString(),
+                name = template.name,
+                rarity = template.rarity,
+                description = template.description,
+                category = template.category,
+                quantity = 1
+            )
+            handleResult(inventorySystem.addHerb(herb), "草药「${herb.name}」", onFailure)
+            generated.add(RewardCardItem(
+                itemName = herb.name, itemType = "herb",
+                rarity = herb.rarity, quantity = 1
+            ))
+        }
+        return mergeCardsByName(generated)
+    }
+
+    /** 储物袋奖励：委托 addStorageBag 合并，返回奖励卡片 */
+    private fun MutableGameState.distributeStorageBagReward(
+        reward: DailySignInReward,
+        onFailure: (String) -> Unit
+    ): List<RewardCardItem> {
+        val qty = reward.quantity.coerceAtLeast(1)
+        val rarity = reward.rarity.coerceIn(1, 6)
+        val bagName = com.xianxia.sect.core.model.StorageBag.TIER_NAMES.getOrElse(rarity - 1) { "凡品储物袋" }
+        handleResult(
+            inventorySystem.addStorageBag(
+                com.xianxia.sect.core.model.StorageBag(
+                    id = java.util.UUID.randomUUID().toString(),
+                    name = bagName,
+                    rarity = rarity,
+                    quantity = qty
+                )
+            ),
+            "储物袋"
+        ) { msg -> onFailure(msg) }
+        return listOf(RewardCardItem(
+            itemName = bagName, itemType = "storageBag",
+            rarity = rarity, quantity = qty
+        ))
     }
 
     /** 按奖励表名称构建妖兽材料（数据库缺失时降级为通用兽皮材料） */

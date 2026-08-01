@@ -131,6 +131,9 @@ suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult = 
         }
 
         // 2. 写入 state（发放物品 + 记录领取时间戳）
+        // 对抗性审查修复：任一物品发放失败/溢出（仓库满）时不写领取记录，
+        // 玩家清理仓库后可重新领取，奖励不会永久消耗
+        var allSucceeded = true
         stateStore.update {
             generatedBeastBlood.forEach { (name, pair) ->
                 val template = BeastMaterialDatabase.getMaterialsByRarity(pair.first)
@@ -145,8 +148,14 @@ suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult = 
                     )
                     when (val r = inventorySystem.addMaterial(material)) {
                         is DomainResult.Success -> {}
-                        is DomainResult.Partial -> DomainLog.w(TAG, "材料 ${material.name} 溢出 ${r.overflow} 个")
-                        is DomainResult.Failure -> DomainLog.w(TAG, "添加材料失败: ${r.error}")
+                        is DomainResult.Partial -> {
+                            DomainLog.w(TAG, "材料 ${material.name} 溢出 ${r.overflow} 个")
+                            allSucceeded = false
+                        }
+                        is DomainResult.Failure -> {
+                            DomainLog.w(TAG, "添加材料失败: ${r.error}")
+                            allSucceeded = false
+                        }
                     }
                 }
             }
@@ -154,7 +163,7 @@ suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult = 
             storageBagRarities.forEach { (rarity, count) ->
                 val bagName = StorageBag.TIER_NAMES.getOrElse(rarity - 1) { "凡品储物袋" }
                 // 统一委托 addStorageBag（走 StackableItemStore 合并，同稀有度自动合并）
-                inventorySystem.addStorageBag(
+                val r = inventorySystem.addStorageBag(
                     StorageBag(
                         id = UUID.randomUUID().toString(),
                         name = bagName,
@@ -162,19 +171,25 @@ suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult = 
                         quantity = count
                     )
                 )
+                if (r !is DomainResult.Success) {
+                    DomainLog.w(TAG, "储物袋 $bagName 发放失败: ${(r as? DomainResult.Failure)?.error}")
+                    allSucceeded = false
+                }
             }
 
             if (totalSpiritStones > 0) {
                 spiritStoneWallet.add(this, totalSpiritStones, SpiritStoneGrade.LOW, SpiritStoneSource.SectLevelReward)
             }
 
-            val newRecord = SectLevelClaimRecord(
-                level = level,
-                claimedAtEpochMs = nowMs
-            )
-            val updatedRecords = gameData.sectLevelClaimRecords
-                .filter { it.level != level } + newRecord
-            gameData = gameData.copy(sectLevelClaimRecords = updatedRecords)
+            if (allSucceeded) {
+                val newRecord = SectLevelClaimRecord(
+                    level = level,
+                    claimedAtEpochMs = nowMs
+                )
+                val updatedRecords = gameData.sectLevelClaimRecords
+                    .filter { it.level != level } + newRecord
+                gameData = gameData.copy(sectLevelClaimRecords = updatedRecords)
+            }
         }
 
         // 3. 入队飞行卡片（具体物品名，精灵图可正确解析）

@@ -255,13 +255,17 @@ class ProductionProcessor @Inject constructor(
      * 灵田收获由 PlantingSystem.onMonthlyEvent 传入事务缓冲），
      * 合并逻辑统一走 [StackableItemStore]（与 InventorySystem 主路径同一实现），
      * 消除手写"找第一个堆叠 + 追加"导致同种草药分裂为多个堆叠的问题。
-     * 年度报告来源 `spirit_field` 按实际收获量累加（原为每株 +1）。
+     *
+     * 对抗性审查修复：检查 add 结果——仓库满时灵草溢出不再静默丢失，
+     * 打日志明确提示；年度报告 `spirit_field` 只按**实际入库量**累加。
+     *
+     * @return 实际入库数量
      */
     private fun addHarvestedHerbsToState(
         plant: SpiritFieldPlant,
         dbHerb: HerbDatabase.Herb,
         state: MutableGameState
-    ) {
+    ): Int {
         val finalYield = plant.expectedYield.coerceAtLeast(1)
         val newHerb = Herb(
             id = java.util.UUID.randomUUID().toString(),
@@ -278,12 +282,24 @@ class ProductionProcessor @Inject constructor(
             maxSlots = { state.computeMaxSlots() - otherTypes },
             notFound = { AppError.Domain.Inventory.NotFound(it) }
         )
-        store.add(newHerb)
+        val result = store.add(newHerb)
         state.herbs.replaceAll(store.all())
+        val actualAdded = when (result) {
+            is DomainResult.Success -> finalYield
+            is DomainResult.Partial -> finalYield - result.overflow
+            is DomainResult.Failure -> 0
+        }
+        if (actualAdded < finalYield) {
+            DomainLog.w(
+                TAG,
+                "灵田收获 ${dbHerb.name} 仓库空间不足，实际入库 $actualAdded/$finalYield"
+            )
+        }
         state.gameData = state.gameData.copy(
             annualHerbBySource = state.gameData.annualHerbBySource +
-                ("spirit_field" to (state.gameData.annualHerbBySource["spirit_field"] ?: 0) + finalYield)
+                ("spirit_field" to (state.gameData.annualHerbBySource["spirit_field"] ?: 0) + actualAdded)
         )
+        return actualAdded
     }
 
     /**

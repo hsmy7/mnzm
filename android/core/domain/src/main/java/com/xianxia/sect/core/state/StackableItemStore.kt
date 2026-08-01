@@ -83,7 +83,10 @@ class StackableItemStore<T>(
      *
      * ## 合并策略（多堆叠遍历）
      * 遍历 [keyIndex] 中所有同 [StackKey] 的堆叠，逐个填充剩余空间。
-     * - 所有匹配堆叠填满后仍有剩余 → 创建新堆叠（若槽位足够）或返回 [DomainResult.Partial]
+     * - 所有匹配堆叠填满后仍有剩余 → 按 [maxStack] 分块创建新堆叠（若槽位足够）
+     * - 槽位不足时返回 [DomainResult.Partial]（带溢出量）；**本次零合并且无空槽时返回
+     *   [DomainResult.Failure]**（Partial 语义为"部分成功"，零合并应视为失败，
+     *   避免调用方把"仓库满"当作"已发放"导致物品静默丢失）
      * - 成功合并后目标 ID 移到列表首部（最近使用优先）
      *
      * @param item 待添加的物品
@@ -98,6 +101,7 @@ class StackableItemStore<T>(
         }
         val key = stackKeyOf(item)
         var remaining = item.quantity
+        var mergedAny = false
 
         if (merge) {
             val ids = keyIndex[key] ?: emptyList()
@@ -111,6 +115,7 @@ class StackableItemStore<T>(
                 val updated = existing.withQuantity(existing.quantity + addQty) as T
                 store.update(id) { updated }
                 remaining -= addQty
+                mergedAny = true
                 promoteKey(key, id)
 
                 if (remaining <= 0) {
@@ -119,13 +124,14 @@ class StackableItemStore<T>(
             }
         }
 
-        // 还有剩余 → 尝试创建新堆叠
+        // 还有剩余 → 按 maxStack 分块创建新堆叠
         if (remaining > 0) {
             if (store.size >= maxSlots()) {
-                // 无空槽：若有已合并的堆叠则返回 Partial，否则 Failure
-                // merge=false 时即使有匹配堆叠也视为未合并，直接返回 Failure
+                // 无空槽：本次有实际合并量则返回 Partial（溢出量=剩余），
+                // 本次零合并（或 merge=false）则视为仓库满返回 Failure——
+                // 否则调用方会把"零合并 Partial"当作部分成功，物品静默丢失且不可重试
                 val lastMergedId = if (!merge) null else (keyIndex[key]?.lastOrNull())
-                return if (lastMergedId != null) {
+                return if (mergedAny && lastMergedId != null) {
                     val lastMerged = store.get(lastMergedId) ?: return@add DomainResult.Failure(
                         AppError.Domain.Inventory.NotFound(lastMergedId)
                     )
@@ -135,10 +141,22 @@ class StackableItemStore<T>(
                 }
             }
 
-            val newItem = item.withQuantity(remaining) as T
-            store.add(newItem)
-            keyIndex.getOrPut(key) { mutableListOf() }.add(newItem.id)
-            return DomainResult.Success(newItem)
+            // 分块创建：单次添加数量可能超过 maxStack，逐块生成不超过上限的堆叠
+            while (remaining > 0 && store.size < maxSlots()) {
+                val chunk = minOf(remaining, maxStack)
+                val newItem = item.withQuantity(chunk) as T
+                store.add(newItem)
+                keyIndex.getOrPut(key) { mutableListOf() }.add(newItem.id)
+                remaining -= chunk
+            }
+            if (remaining > 0) {
+                // 槽位中途耗尽：返回 Partial（溢出量=剩余）
+                val lastMergedId = keyIndex[key]?.lastOrNull()
+                val lastMerged = lastMergedId?.let { store.get(it) }
+                    ?: return DomainResult.Failure(AppError.Domain.Inventory.Full())
+                return DomainResult.Partial(lastMerged as T, remaining)
+            }
+            return DomainResult.Success(item)
         }
 
         // remaining == 0：全部已合并，返回 Success（用最后一个被合并的堆叠作为 data）
@@ -244,57 +262,4 @@ class StackableItemStore<T>(
      */
     fun snapshot(): EntityStore<T> = store
 
-    // === 库外辅助：不依赖内部状态，用于纯 List 场景 ===
-
-    companion object {
-        /**
-         * 将分散堆叠合并到第一个非满堆叠。
-         * 仅用于 [consolidateStacks] 等库外辅助功能，不维护 keyIndex。
-         *
-         * @return 合并后的列表
-         */
-        fun <T> consolidateList(
-            items: List<T>,
-            matchKey: (T) -> StackKey,
-            maxStack: Int
-        ): List<T> where T : HasId, T : StackableItem {
-            val groups = items.groupBy { matchKey(it) }
-            val result = mutableListOf<T>()
-            for ((_, list) in groups) {
-                if (list.size <= 1) {
-                    result.addAll(list)
-                    continue
-                }
-                var primaryId = list.first().id
-                val remaining = mutableListOf<T>()
-                // 从第二个开始合并
-                for (i in 1 until list.size) {
-                    val secondary = list[i]
-                    val primaryIdx = result.indexOfFirst { it.id == primaryId }
-                    val primary = if (primaryIdx >= 0) result[primaryIdx] else list.first()
-                    val space = maxStack - primary.quantity
-                    if (space <= 0) {
-                        // 主堆叠已满，切换到当前堆叠为新主
-                        primaryId = secondary.id
-                        remaining.add(secondary)
-                        continue
-                    }
-                    val transfer = minOf(space, secondary.quantity)
-                    val newPrimary = primary.withQuantity(primary.quantity + transfer) as T
-                    if (primaryIdx >= 0) {
-                        result[primaryIdx] = newPrimary
-                    } else {
-                        result.add(newPrimary)
-                    }
-                    if (transfer < secondary.quantity) {
-                        val remainder = secondary.withQuantity(secondary.quantity - transfer) as T
-                        remaining.add(remainder)
-                    }
-                }
-                // 添加完全未合并的次堆叠
-                result.addAll(remaining)
-            }
-            return result
-        }
-    }
 }
