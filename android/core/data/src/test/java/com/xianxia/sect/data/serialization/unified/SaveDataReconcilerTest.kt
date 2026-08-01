@@ -135,12 +135,15 @@ class SaveDataReconcilerTest {
     }
 }
 
-/** 读取 protobuf varint，返回 (值, 占用字节数) */
+/** 读取 protobuf varint，返回 (值, 占用字节数)。
+ *  不完整（字节耗尽）或超长（>64 位）的 varint 显式抛错，拒绝静默截断。 */
 private fun readVarint(bytes: ByteArray, offset: Int): Pair<Long, Int> {
     var result = 0L
     var shift = 0
     var i = offset
-    while (i < bytes.size && shift < 64) {
+    while (true) {
+        if (i >= bytes.size) throw IllegalArgumentException("truncated varint at offset=$offset")
+        if (shift > 63) throw IllegalArgumentException("varint too long at offset=$offset")
         val b = bytes[i].toInt() and 0xFF
         result = result or ((b and 0x7F).toLong() shl shift)
         i++

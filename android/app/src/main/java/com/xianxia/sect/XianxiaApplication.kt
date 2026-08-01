@@ -674,6 +674,8 @@ class XianxiaApplication : Application() {
      * 崩溃保护仍由 initCrashProtection 的自研 handler 先行安装兜底。
      */
     private fun initBuglyAndMmkv() {
+        // 幂等守卫：已初始化过（executor 非空）则跳过，防止二次调用覆盖执行器引用
+        if (appStartupExecutor != null) return
         val executor = Executors.newSingleThreadExecutor { r ->
             Thread(r, "AppStartup-Init").apply { priority = Thread.NORM_PRIORITY }
         }

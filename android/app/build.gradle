@@ -441,7 +441,8 @@ tasks.register('generateFootprintHeader') {
         }
         def pairs = []
         body.take(endIdx).each { line ->
-            def m = (line =~ /(\d+)\s+to\s+(\d+)/)
+            def code = line.split('//')[0] // 忽略行内注释，防注释中的 "N to N" 误捕
+            def m = (code =~ /(\d+)\s+to\s+(\d+)/)
             if (m.find()) {
                 pairs.add([m.group(1).toInteger(), m.group(2).toInteger()])
             }
@@ -456,7 +457,9 @@ tasks.register('generateFootprintHeader') {
         }
         def namesBody = lines.drop(namesDecl + 1)
         def namesEnd = namesBody.findIndexOf { it.trim().startsWith(')') }
-        def expectedCount = namesBody.take(namesEnd).sum { line -> (line =~ /"[^"]+"/).getCount() }
+        def expectedCount = namesBody.take(namesEnd).sum { line ->
+            (line.split('//')[0] =~ /"[^"]+"/).getCount() // 忽略行内注释，防注释中的引号误计
+        }
         if (pairs.size() != expectedCount) {
             throw new GradleException(
                 "generateFootprintHeader: FOOTPRINT 条目 ${pairs.size()} != " +
