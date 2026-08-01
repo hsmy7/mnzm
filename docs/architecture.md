@@ -283,12 +283,26 @@ RunState（运行时状态 — 可循环回退）
 | 半幽灵防御不一致（F3） | ⚠️ 已缓解 | 列直读默认值已与 assemble 对齐（age=16/lifespan=80）；但 assembleAll 三表检查（isAlive+names+realms）与 deepCopy 单表 isAlive 过滤的幽灵防御粒度仍不一致 |
 | CI 从未跑过 testReleaseUnitTest 全量 | ⚠️ 流程缺失 | 2026-08-01 起 CI 全量测试为硬性门槛（移除 `\|\| true`）；`gradle.properties` 的 Windows 硬编码路径已移除（此前 ubuntu CI 守护进程启动即失败） |
 
+### 待完成项（2026-08-01 第二轮对抗性审查遗留，LOW 级）
+
+| 待办 | 现状 | 说明 |
+|------|------|------|
+| `_ids` 注释与实现不符 | ⚠️ 未修 | `DiscipleTables.kt:88-89` 注释声称 CopyOnWriteArrayList，实现为 `mutableListOf`（预存不一致，锁内访问安全但注释误导） |
+| `MAX_CATCHUP_MS` 死常量 | ⚠️ 未修 | `GameTimeClock.kt` 单次 delta 上限已被 `MAX_PHASES_PER_TICK`（按速度缩放）取代，常量本身仍保留但实际不生效，属代码卫生 |
+| XianxiaApplication 后台执行器不 shutdown | ⚠️ 未修 | `initBuglyAndMmkv` 的 `Executors.newSingleThreadExecutor` 常驻非 daemon 线程（进程存活期）；MMKV 后台化依赖"未来不新增启动期 MMKV 依赖"的脆弱假设（华为设备 ReLinker 场景） |
+| Bugly mapping 上传任务恒空 | ⚠️ 未修 | `app/build.gradle:305` `findProperty('BUGLY_APP_ID')` 随 gradle.properties 密钥移除后恒空；缺 api.properties 时 Bugly 静默不启用且无构建警告 |
+| 时序依赖测试抖动风险 | ⚠️ 未修 | `GameStateStoreAggregationCacheTest`（delay(800)）、`GameStateStoreLoadRaceTest`（delay(500)）、`DiscipleAggregationBenchmarkTest`（Thread.sleep(800)）用固定真实时间等待异步计算——慢 CI 上可能不足，建议轮询化 |
+| generateFootprintHeader 正则未锚定 | ⚠️ 未修 | `app/build.gradle` 的 `(\d+)\s+to\s+(\d+)` 会匹配 SpriteAtlasDef.kt 中任何 "N to N" 模式（非 FOOTPRINT 数组也会被捕获），建议锚定 `FOOTPRINT_BY_NAME_INDEX` 声明块 |
+| SaveDataReconcilerTest "缺字段"测试名不符 | ⚠️ 未修 | 测试实际编码显式 `stacksSerialized=false`（@EncodeDefault ALWAYS），非"缺失字段"的旧二进制——缺失字段解码路径未被真实覆盖 |
+| onCleared 异步窗口期 | ⚠️ 已接受 | `viewModelScope.launch(NonCancellable)` 异步重置生命周期状态——引擎线程繁忙时重置延迟，下次 Activity 启动瞬间可能读到旧 PLAYING（boot 序列有 `isGameLoaded` 检查兜底）；catch 空块未补 Log |
+| DeathEvent 无消费方 | ✅ 已确认安全 | `startListening` 空 collect 删除后，EventBus 自身 `startProcessing()` 是 Channel 唯一消费者（Channel 256 + trySend 丢弃不阻塞），背压无依赖 |
+
 ---
 
 ## Architecture Docs
 
 - [宗门地图渲染架构](map-rendering-architecture.md) — 三层按格实时绘制（地面/装饰/建筑分离），v4.0.42+
-- [加载阶段后台任务架构](loading-architecture.md) — 7模块并行加载（UI预组合/弟子快照/存档校验/图集约/地图并行/字体/音频）
+- [加载阶段后台任务架构](loading-architecture.md) — BootSequenceController.boot() 顺序 8 步（ResourcePreloader 内部 2+3 路 async 并行）
 - [弟子分配门卫架构](disciple-assignment-architecture.md) — DiscipleAssignmentGate + 11槽位统一注册表，v4.0.58
 
 ---
