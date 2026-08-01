@@ -106,10 +106,15 @@ android {
             buildConfigField "boolean", "DEBUG_MODE", "false"
         }
         debug {
-            // 2026-08-01 修复：恢复 debuggable + 移除 release 签名——
-            // 旧配置导致无法 attach debugger，且 debug 包与 release 同签名可
-            // 直接覆盖安装正式包（数据/凭证串包风险）
+            // 2026-08-02 恢复同签名：TapTap 后台不支持一个包名配置两个签名，
+            // debug 复用 release 签名，保证 Android Studio 直接运行的包能通过
+            // TapTap 签名校验（签名 = 正式包 8f670470a0bb240c590d2d55e162ffc0）。
+            // 注意：同签名意味着 debug 包可覆盖安装正式包（数据/凭证串包风险），
+            // 测试机请勿存放重要正式档。
             debuggable true
+            if (canSignRelease) {
+                signingConfig = signingConfigs.release
+            }
             buildConfigField "boolean", "DEBUG_MODE", "true"
         }
     }
