@@ -7,6 +7,7 @@ import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.serialization.NullSafeProtoBuf
+import java.io.ByteArrayOutputStream
 import kotlinx.serialization.serializer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -97,13 +98,15 @@ class SaveDataReconcilerTest {
         assertEquals(5, restored.equipmentStacks[0].quantity)
         assertEquals(1, restored.manualStacks.size)
         assertEquals(2, restored.manualStacks[0].quantity)
-        // stacksSerialized 使用 @EncodeDefault(ALWAYS)：false 默认值也必须被编码
+        // 显式编码 true 的往返——验证堆叠字段真实序列化
         assertTrue(restored.stacksSerialized)
     }
 
     @Test
-    fun `旧格式反序列化 - 缺字段读默认 stacksSerialized=false`() {
-        // 模拟旧云存档：编码时手工构建不含新字段的二进制
+    fun `显式编码 stacksSerialized=false 反序列化触发重建兜底`() {
+        // 注意：显式编码 false 时受 @EncodeDefault(ALWAYS) 影响（encodeDefaults=false
+        // 下该字段仍真实写入字节流），并非"缺失字段"——真实缺失字段解码路径
+        // 由下方 stripVarintField 测试覆盖
         val legacy = baseSaveData().copy(stacksSerialized = false)
         val bytes = NullSafeProtoBuf.protoBuf.encodeToByteArray(serializer<SaveData>(), legacy)
         val restored = NullSafeProtoBuf.protoBuf.decodeFromByteArray(serializer<SaveData>(), bytes)
@@ -113,4 +116,71 @@ class SaveDataReconcilerTest {
         val reconciled = SaveDataReconciler.reconcileStacks(restored)
         assertTrue(reconciled.stacksSerialized)
     }
+
+    @Test
+    fun `旧格式反序列化 - 真实缺失字段（剥离 field 55）读默认 stacksSerialized=false`() {
+        // 真实模拟旧云存档：物理上不含 field 55 的二进制（kotlinx protobuf 对缺失
+        // 字段走默认值——与历史存档可读的事实基础一致）
+        val encoded = NullSafeProtoBuf.protoBuf.encodeToByteArray(
+            serializer<SaveData>(), baseSaveData().copy(stacksSerialized = false)
+        )
+        val legacy = stripVarintField(encoded, field = 55)
+
+        val restored = NullSafeProtoBuf.protoBuf.decodeFromByteArray(serializer<SaveData>(), legacy)
+        assertFalse("缺失字段应走默认值 false", restored.stacksSerialized)
+        val reconciled = SaveDataReconciler.reconcileStacks(restored)
+        assertTrue("协调后应重建并置 true", reconciled.stacksSerialized)
+        // 辅助函数只删目标字段：其余字段仍完整
+        assertEquals(baseSaveData().gameData, restored.gameData)
+    }
+}
+
+/** 读取 protobuf varint，返回 (值, 占用字节数) */
+private fun readVarint(bytes: ByteArray, offset: Int): Pair<Long, Int> {
+    var result = 0L
+    var shift = 0
+    var i = offset
+    while (i < bytes.size && shift < 64) {
+        val b = bytes[i].toInt() and 0xFF
+        result = result or ((b and 0x7F).toLong() shl shift)
+        i++
+        if (b and 0x80 == 0) break
+        shift += 7
+    }
+    return result to (i - offset)
+}
+
+/**
+ * 剥离顶层指定 varint 字段（wire type 0），模拟旧格式物理上缺失该字段的二进制。
+ * 遍历 TLV：跳过 length-delimited/定长字段体，丢弃目标字段（field 号 + wire type 0）。
+ */
+private fun stripVarintField(bytes: ByteArray, field: Int): ByteArray {
+    val kept = ByteArrayOutputStream()
+    var i = 0
+    while (i < bytes.size) {
+        val fieldStart = i
+        val (tag, tagLen) = readVarint(bytes, i)
+        i += tagLen
+        val fieldNum = (tag ushr 3).toInt()
+        val wireType = (tag and 0x7).toInt()
+        val payloadLen = when (wireType) {
+            0 -> readVarint(bytes, i).second // varint 字段的 payload 即值本身
+            1 -> 8 // 64-bit
+            2 -> {
+                // length-delimited：先推进 i 越过长度 varint，再返回内容长度值
+                val (len, lenBytes) = readVarint(bytes, i)
+                i += lenBytes
+                len.toInt()
+            }
+            5 -> 4 // 32-bit
+            else -> throw IllegalArgumentException("unexpected wire type: $wireType")
+        }
+        if (fieldNum == field && wireType == 0) {
+            i += payloadLen // 丢弃目标字段体
+            continue
+        }
+        kept.write(bytes, fieldStart, (i + payloadLen) - fieldStart)
+        i += payloadLen
+    }
+    return kept.toByteArray()
 }

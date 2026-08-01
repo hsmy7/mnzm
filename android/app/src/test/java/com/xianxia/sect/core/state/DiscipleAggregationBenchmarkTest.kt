@@ -54,8 +54,10 @@ class DiscipleAggregationBenchmarkTest {
         store.update {
             for (i in 1..300) discipleTables.insert(disciple(i))
         }
-        // 等待聚合计算
-        Thread.sleep(800)
+        // 等待聚合计算（轮询目标状态，慢 CI 不抖动）
+        TestPolling.awaitCondition("300 弟子聚合快照就绪") {
+            store.discipleAggregatesSnapshot.size == 300
+        }
 
         // 缓存读取应接近零成本（不触发任何扫描）
         val time = measure(1000) { store.discipleAggregatesSnapshot }

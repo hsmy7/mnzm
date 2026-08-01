@@ -38,6 +38,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import javax.inject.Inject
 
@@ -68,6 +69,9 @@ class XianxiaApplication : Application() {
     lateinit var storageFacade: StorageFacade
 
     private val memoryPressureListeners = CopyOnWriteArrayList<MemoryPressureListener>()
+
+    /** AppStartup-Init 后台初始化执行器（Bugly/MMKV 一次性任务），onTerminate 时幂等 shutdown */
+    private var appStartupExecutor: ExecutorService? = null
 
     interface MemoryPressureListener {
         fun onMemoryPressure(level: Int)
@@ -670,9 +674,11 @@ class XianxiaApplication : Application() {
      * 崩溃保护仍由 initCrashProtection 的自研 handler 先行安装兜底。
      */
     private fun initBuglyAndMmkv() {
-        Executors.newSingleThreadExecutor { r ->
+        val executor = Executors.newSingleThreadExecutor { r ->
             Thread(r, "AppStartup-Init").apply { priority = Thread.NORM_PRIORITY }
-        }.execute {
+        }
+        appStartupExecutor = executor
+        executor.execute {
             // MMKV 排首位：ReLinker 解压耗时最长，尽早开始
             try {
                 MMKV.initialize(this, object : MMKV.LibLoader {
@@ -781,6 +787,13 @@ class XianxiaApplication : Application() {
             applicationScopeProvider.close()
         } catch (e: Exception) {
             Log.e(TAG, "Error closing ApplicationScopeProvider", e)
+        }
+
+        try {
+            appStartupExecutor?.shutdown()
+            appStartupExecutor = null
+        } catch (e: Exception) {
+            Log.e(TAG, "Error shutting down app startup executor", e)
         }
 
         gameMonitorManager.cleanup()

@@ -4,7 +4,6 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -45,8 +44,10 @@ class GameStateStoreAggregationCacheTest {
         store.update {
             for (i in 1..300) discipleTables.insert(disciple(i))
         }
-        // 等 sample(100) 窗口 + 聚合计算
-        delay(800)
+        // 等 sample(100) 窗口 + 聚合计算（轮询目标状态，慢 CI 不抖动）
+        TestPolling.awaitCondition("300 弟子聚合快照就绪") {
+            store.discipleAggregatesSnapshot.size == 300
+        }
 
         val snapshot = store.discipleAggregatesSnapshot
         assertEquals("快照应覆盖全部 300 弟子", 300, snapshot.size)
@@ -63,14 +64,23 @@ class GameStateStoreAggregationCacheTest {
         store.update {
             for (i in 1..100) discipleTables.insert(disciple(i))
         }
-        delay(800)
+        TestPolling.awaitCondition("100 弟子聚合快照就绪") {
+            store.discipleAggregatesSnapshot.size == 100
+        }
         val before = store.discipleAggregatesSnapshot
 
         // 变更单个弟子（修为列级写入）
         store.update {
             discipleTables.cultivations[50] = 999.0
         }
-        delay(800)
+        TestPolling.awaitCondition(
+            "单弟子变更后聚合生效",
+            condition = {
+                store.discipleAggregatesSnapshot.size == 100 &&
+                    store.discipleAggregatesSnapshot.firstOrNull { it.id == "50" }?.cultivation == 999.0
+            },
+            stateSnapshot = { store.discipleAggregatesSnapshot.size.toString() }
+        )
         val after = store.discipleAggregatesSnapshot
 
         assertEquals("数量不变", before.size, after.size)
@@ -90,16 +100,17 @@ class GameStateStoreAggregationCacheTest {
         store.update {
             discipleTables.insert(disciple(1))
         }
-        delay(800)
-        assertEquals("初始快照 1 弟子", 1, store.discipleAggregatesSnapshot.size)
+        TestPolling.awaitCondition("初始快照 1 弟子") {
+            store.discipleAggregatesSnapshot.size == 1
+        }
 
         // 不订阅任何聚合 StateFlow（Eagerly 保证无订阅也计算）
         store.update {
             discipleTables.insert(disciple(2))
         }
-        delay(800)
-
-        assertEquals("无订阅时缓存仍更新", 2, store.discipleAggregatesSnapshot.size)
+        TestPolling.awaitCondition("无订阅时缓存仍更新为 2 弟子") {
+            store.discipleAggregatesSnapshot.size == 2
+        }
     }
 
     @Test
@@ -109,12 +120,24 @@ class GameStateStoreAggregationCacheTest {
             discipleTables.insert(disciple(1))
             discipleTables.insert(disciple(2))
         }
-        delay(800)
+        TestPolling.awaitCondition("2 弟子聚合快照就绪") {
+            store.discipleAggregatesSnapshot.size == 2
+        }
 
         store.update {
             discipleTables.markDead(2, currentYear = 10, cause = "battle")
         }
-        delay(800)
+        TestPolling.awaitCondition(
+            "死亡弟子聚合生效",
+            condition = {
+                store.discipleAggregatesSnapshot.size == 2 &&
+                    store.discipleAggregatesSnapshot.firstOrNull { it.id == "2" }?.isAlive == false
+            },
+            stateSnapshot = {
+                "size=${store.discipleAggregatesSnapshot.size}, " +
+                    "id2.isAlive=${store.discipleAggregatesSnapshot.firstOrNull { it.id == "2" }?.isAlive}"
+            }
+        )
 
         val snapshot = store.discipleAggregatesSnapshot
         assertEquals("死亡弟子仍在快照中（aggregates 覆盖全部弟子）", 2, snapshot.size)

@@ -76,11 +76,11 @@ class DiscipleTables {
     }
 
     // === 标识 ===
-    // CopyOnWriteArrayList 保证并发安全：读操作（maxOrNull/for-in/filter）
-    // 无需额外同步，迭代器为快照不会抛 ConcurrentModificationException。
-    // 写操作仍使用 synchronized(ids) 保护多表原子性（DiscipleTables 不是
-    // 唯一受影响的表 — insert/remove 操作约 90 张组件表）。
-    /** 弟子 ID 列表 — 由 [idsLock] 保护，读多写少场景使用读写锁优化性能 */
+    // _ids 是普通 mutableListOf（非 CopyOnWriteArrayList）：读侧暴露可变列表的
+    // 只读引用，调用方不得持有后跨线程使用；所有写点均以 synchronized(_ids)
+    // 互斥（DiscipleTables 不是唯一受影响的表 — insert/remove 操作约 90 张
+    // 组件表），多表原子性由同一把锁保证。
+    /** 弟子 ID 列表 — 由 synchronized(_ids) 写互斥保护 */
     private val _ids = mutableListOf<Int>()
     val ids: List<Int> get() = _ids
 
@@ -863,6 +863,12 @@ class DiscipleTables {
         hasClearAllEffect = hasClearAllEffects.getOrDefault(id, 0) == 1,
     )
 
+    /** 三表齐全判据：isAlive + names + realms 任一缺失 → 幽灵（ID 未完整写入）。
+     *  assembleAll / assembleAllIncremental / deepCopy 三处共用，保证快照 ids、
+     *  UI 列表、序列化三条路径的幽灵防御粒度一致。 */
+    private fun isCompleteId(id: Int): Boolean =
+        isAlive.contains(id) && names.contains(id) && realms.contains(id)
+
     /** 组装全部弟子的 List<Disciple>（用于序列化、旧 API 兼容）。
      *  含幽灵弟子防御性跳过：ID 在 ids 中但组件表数据缺失 → 跳过并打 Log。
      *  isAlive.contains(id) 校验确保 ID 经过了 writeAllFields 全表写入，
@@ -871,7 +877,7 @@ class DiscipleTables {
         val result = ids.distinct().mapNotNull { id ->
             try {
                 // 全幽灵防御：isAlive + names + realms 任一缺失说明 ID 未完整写入
-                if (!isAlive.contains(id) || !names.contains(id) || !realms.contains(id)) {
+                if (!isCompleteId(id)) {
                     val reason = when {
                         !isAlive.contains(id) -> "isAlive table missing"
                         !names.contains(id) -> "names table missing"
@@ -881,6 +887,8 @@ class DiscipleTables {
                     return@mapNotNull null
                 }
                 val d = assemble(id)
+                // 有意差异：deepCopy 的三表过滤保留空名字弟子（三表齐全，非半幽灵），
+                // 空名防御仅在本处 assembleAll 执行——两处组合保证 UI 永不见空名/半幽灵。
                 if (d.name.isBlank()) {
                     Log.w(TAG, "GHOST DISCIPLE (skipped): id=${d.id}, " +
                         "age=${d.age}, realm=${d.realm}/${d.realmLayer}, " +
@@ -928,7 +936,7 @@ class DiscipleTables {
         // changedIds 升序迭代（BitSet nextSetBit 天然升序）——组装为 id→Disciple 映射
         val changedMap = HashMap<Int, Disciple>(changedIds.size * 2)
         for (id in changedIds) {
-            if (!isAlive.contains(id) || !names.contains(id) || !realms.contains(id)) {
+            if (!isCompleteId(id)) {
                 Log.w(TAG, "assembleAllIncremental: ghost skipped id=$id")
                 continue
             }
@@ -1104,7 +1112,8 @@ class DiscipleTables {
                 _allCopyableRefs.forEach { it.shareStoreTo(copy) }
             }
             // 只保留组件表中有完整数据的 ID，过滤掉幽灵 ID（Bug 产生的残留）
-            copy._ids.addAll(idsSnapshot.filter { copy.isAlive.contains(it) })
+            // 三表判据与 assembleAll/assembleAllIncremental 一致（isCompleteId）
+            copy._ids.addAll(idsSnapshot.filter { copy.isCompleteId(it) })
         }
         // 显式复制死亡记录，防止跨 update 边界丢失
         copy._deathRecords.addAll(this._deathRecords)

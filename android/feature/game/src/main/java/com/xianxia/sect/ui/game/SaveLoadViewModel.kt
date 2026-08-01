@@ -1365,8 +1365,10 @@ class SaveLoadViewModel @Inject constructor(
             try {
                 gameEngine.resetLifecycleState()
                 gameEngine.setPausedDirectOnEngine(true)
-            } catch (_: Exception) {
-                // 非关键清理，失败不影响主流程
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "resetLifecycleState failed", e)
             }
         }
         super.onCleared()

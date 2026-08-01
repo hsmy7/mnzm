@@ -301,9 +301,10 @@ detekt {
     parallel = true
 }
 
-// Bugly mapping 存档 + 上传
-def buglyAppId = findProperty('BUGLY_APP_ID') ?: ''
-def buglyAppKey = findProperty('BUGLY_APP_KEY') ?: ''
+// Bugly mapping 存档 + 上传（密钥与 BuildConfig 同源，均读 api.properties——
+// gradle.properties 中的 BUGLY_* 已随密钥迁移移除，findProperty 恒空）
+def buglyAppId = apiProperties.getProperty('BUGLY_APP_ID', '')
+def buglyAppKey = apiProperties.getProperty('BUGLY_APP_KEY', '')
 def mappingVersionName = android.defaultConfig.versionName
 def mappingPkgName = android.defaultConfig.applicationId
 def mappingBuildDir = layout.buildDirectory
@@ -322,6 +323,11 @@ tasks.register('archiveAndUploadMapping') {
         destDir.mkdirs()
         mappingFile.renameTo(new File(destDir, "mapping-${mappingVersionName}.txt"))
         logger.lifecycle("Mapping archived to ${destDir}")
+
+        if (buglyAppId.isEmpty() || buglyAppKey.isEmpty()) {
+            logger.warn("BUGLY_APP_ID/BUGLY_APP_KEY 未配置（api.properties 缺失或为空），mapping 已存档但跳过上传")
+            return
+        }
 
         logger.lifecycle("Uploading mapping to Bugly...")
         def cmd = [
@@ -420,15 +426,42 @@ tasks.register('generateFootprintHeader') {
     group = 'build'
     description = '从 SpriteAtlasDef.kt 生成 NativeBridge.cpp 引用的 footprint_table.h'
     doLast {
-        def src = file("${rootProject.projectDir}/core/engine/src/main/java/com/xianxia/sect/core/render/SpriteAtlasDef.kt").text
-        // 提取 FOOTPRINT_BY_NAME_INDEX 数组的 (w to h) pair（格式固定：N to N,）
+        def srcFile = file("${rootProject.projectDir}/core/engine/src/main/java/com/xianxia/sect/core/render/SpriteAtlasDef.kt")
+        def lines = srcFile.readLines()
+        // 行级锚定：仅提取 FOOTPRINT_BY_NAME_INDEX 声明块内的 "N to N"，
+        // 避免误匹配文件其他位置的 "N to N" 模式（注释/其他数组）
+        def declIdx = lines.findIndexOf { it.contains('FOOTPRINT_BY_NAME_INDEX') }
+        if (declIdx < 0) {
+            throw new GradleException("generateFootprintHeader: 未找到 FOOTPRINT_BY_NAME_INDEX 声明")
+        }
+        def body = lines.drop(declIdx + 1) // 跳过声明行（arrayOf( 所在行）
+        def endIdx = body.findIndexOf { it.trim().startsWith(')') }
+        if (endIdx < 0) {
+            throw new GradleException("generateFootprintHeader: 未找到 FOOTPRINT_BY_NAME_INDEX 数组结束行")
+        }
         def pairs = []
-        def matcher = src =~ /(\d+)\s+to\s+(\d+)/
-        while (matcher.find()) {
-            pairs.add([matcher.group(1).toInteger(), matcher.group(2).toInteger()])
+        body.take(endIdx).each { line ->
+            def m = (line =~ /(\d+)\s+to\s+(\d+)/)
+            if (m.find()) {
+                pairs.add([m.group(1).toInteger(), m.group(2).toInteger()])
+            }
         }
         if (pairs.isEmpty()) {
-            throw new GradleException("generateFootprintHeader: 未从 SpriteAtlasDef.kt 提取到占地尺寸 pair")
+            throw new GradleException("generateFootprintHeader: FOOTPRINT_BY_NAME_INDEX 块内未提取到占地尺寸 pair")
+        }
+        // 守卫：FOOTPRINT 条目数必须等于 BUILDING_NAMES 条目数（防漏行/多行导致 C++ 表漂移）
+        def namesDecl = lines.findIndexOf { it.contains('BUILDING_NAMES = listOf(') }
+        if (namesDecl < 0) {
+            throw new GradleException("generateFootprintHeader: 未找到 BUILDING_NAMES 声明")
+        }
+        def namesBody = lines.drop(namesDecl + 1)
+        def namesEnd = namesBody.findIndexOf { it.trim().startsWith(')') }
+        def expectedCount = namesBody.take(namesEnd).sum { line -> (line =~ /"[^"]+"/).getCount() }
+        if (pairs.size() != expectedCount) {
+            throw new GradleException(
+                "generateFootprintHeader: FOOTPRINT 条目 ${pairs.size()} != " +
+                    "BUILDING_NAMES 条目 ${expectedCount}，请检查 SpriteAtlasDef.kt"
+            )
         }
         def w = pairs.collect { it[0] }.join(',')
         def h = pairs.collect { it[1] }.join(',')

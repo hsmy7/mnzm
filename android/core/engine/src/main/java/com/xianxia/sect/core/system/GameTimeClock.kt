@@ -130,9 +130,9 @@ class GameTimeClock @Inject constructor(
         val rawDelta = now - lastWallMs
         lastWallMs = now
 
-        // 防御：单次 delta 不超过 MAX_CATCHUP_MS，
-        // 防止线程长时间挂起后恢复时游戏时间爆炸式跳变
-        val realDelta = rawDelta.coerceAtMost(MAX_CATCHUP_MS)
+        // rawDelta 不做单次上限裁剪——防爆炸式跳变由下方 MAX_PHASES_PER_TICK
+        // 追补上限（按速度缩放）承担，此处保留原始增量供 accumulatedGameMs 累积
+        val realDelta = rawDelta
 
         if (speed > 0) {
             accumulatedGameMs += realDelta * speed
@@ -140,12 +140,11 @@ class GameTimeClock @Inject constructor(
 
         var phases = (accumulatedGameMs / msPerPhase).toInt()
 
-        // 2026-08-01 修复：单 tick 追补上限（MAX_CATCHUP_MS 30s × 2x = 60 旬连跑，
-        // 导致引擎线程单帧内连续执行数十个完整事务、看门狗与业务互搏）。
-        // 追补源是 OEM 挂起/看门狗重启（非正常离线），玩家应尽快回到实时——
+        // 2026-08-01 修复：单 tick 追补上限（1x=3 旬、2x=6 旬）——OEM 挂起/
+        // 看门狗重启时单帧连续执行数十个完整事务、看门狗与业务互搏。
+        // 追补源是异常挂起（非正常离线），玩家应尽快回到实时——
         // 触发上限时丢弃余量并记录，而非留存分摊。
-        // 2026-08-01 对抗性审查修复：上限按速度缩放（1x=3 旬、2x=6 旬）——
-        // 旧固定阈值 3 在 2x 下引擎阻塞 1.5s 即触发丢弃（正常玩法误伤），
+        // 上限按速度缩放：旧固定阈值 3 在 2x 下引擎阻塞 1.5s 即触发丢弃（正常玩法误伤），
         // 缩放后按真实时间对称（两种速度下均约 6s 阻塞触发）。
         val phaseCap = MAX_PHASES_PER_TICK * speed.coerceAtLeast(1)
         if (phases > phaseCap) {
@@ -192,12 +191,11 @@ class GameTimeClock @Inject constructor(
         /** 1x 速度下每旬对应的真实时间毫秒数 */
         const val MS_PER_PHASE_1X: Long = 2000L
 
-        /** 单次 tick 最大追赶时间（毫秒）。防止线程长时间挂起后恢复时时间爆炸式跳变。 */
-        private const val MAX_CATCHUP_MS: Long = 30_000L  // 30秒 — 正常玩法不受影响，阻断分钟级挂起爆炸
-
         /**
          * 单 tick 最大追补旬数（2026-08-01 修复）。
          * 超过即丢弃余量并记录日志——追补源是 OEM 挂起/看门狗重启，玩家应尽快回到实时。
+         * 防爆炸式跳变的唯一上限（曾另有 MAX_CATCHUP_MS 30s 裁剪，已被此按速度缩放的
+         * 旬数上限完全覆盖，属冗余约束，已删除）。
          */
         const val MAX_PHASES_PER_TICK: Int = 3
     }

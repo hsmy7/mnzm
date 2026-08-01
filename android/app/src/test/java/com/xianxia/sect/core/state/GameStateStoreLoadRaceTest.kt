@@ -4,7 +4,6 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.di.ApplicationScopeProvider
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -70,7 +69,11 @@ class GameStateStoreLoadRaceTest {
         )
 
         // 等待 assembleDispatcher 队列排空（陈旧任务作废 + load 组装完成）
-        delay(500)
+        TestPolling.awaitCondition(
+            "load 组装完成（陈旧增量作废）",
+            condition = { store.disciples.value.map { it.id } == listOf("10", "11") },
+            stateSnapshot = { store.disciples.value.map { it.id }.toString() }
+        )
 
         val finalDisciples = store.disciples.value
         assertEquals("加载列表应完整（2 个新弟子）", listOf("10", "11"), finalDisciples.map { it.id })
@@ -99,13 +102,24 @@ class GameStateStoreLoadRaceTest {
             isLoading = false,
             isSaving = false
         )
-        delay(500)  // load 组装完成
+        TestPolling.awaitCondition(
+            "load 组装完成",
+            condition = { store.disciples.value.map { it.id } == listOf("1", "2") },
+            stateSnapshot = { store.disciples.value.map { it.id }.toString() }
+        )
 
         // load 后的新 update：列级写入弟子 1 的修为
         store.update {
             discipleTables.cultivations[1] = 1234.5
         }
-        delay(500)
+        TestPolling.awaitCondition(
+            "列级写入聚合生效",
+            condition = {
+                store.disciples.value.size == 2 &&
+                    store.disciples.value.firstOrNull { it.id == "1" }?.cultivation == 1234.5
+            },
+            stateSnapshot = { store.disciples.value.map { "${it.id}:${it.cultivation}" }.toString() }
+        )
 
         val finalDisciples = store.disciples.value
         assertEquals("加载列表基础上合并（2 弟子）", listOf("1", "2"), finalDisciples.map { it.id })
@@ -121,7 +135,11 @@ class GameStateStoreLoadRaceTest {
             discipleTables.insert(disciple(2))
         }
         store.reset()
-        delay(500)
+        TestPolling.awaitCondition(
+            "reset 生效列表清空",
+            condition = { store.disciples.value.isEmpty() },
+            stateSnapshot = { store.disciples.value.map { it.id }.toString() }
+        )
 
         assertEquals("reset 后列表应为空", emptyList<String>(), store.disciples.value.map { it.id })
     }
