@@ -43,6 +43,7 @@ import com.xianxia.sect.ui.components.PhysiqueDetailDialog
 import com.xianxia.sect.ui.components.AffixDetailDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.components.DialogSystemBarGuard
+import com.xianxia.sect.ui.components.DialogFocusGuard
 import com.xianxia.sect.feature.game.R
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -172,6 +173,7 @@ fun DiscipleDetailDialog(
         )
     ) {
         DialogSystemBarGuard()
+        DialogFocusGuard()
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -632,6 +634,7 @@ private fun ManualReplaceDialog(
         },
         text = {
             DialogSystemBarGuard()
+            DialogFocusGuard()
 
             if (availableManualStacks.isEmpty()) {
                 Text(

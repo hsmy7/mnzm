@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.view.ActionMode
 import android.view.View
 import android.view.Window
 import android.os.Build
@@ -33,8 +32,13 @@ import androidx.compose.ui.unit.sp
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import com.xianxia.sect.R
+import com.xianxia.sect.ui.components.DialogFocusGuard
+import com.xianxia.sect.ui.components.canRenderDialogs
 import com.xianxia.sect.ui.components.GameBackground
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -50,6 +54,7 @@ import com.xianxia.sect.taptap.LoginData
 import com.xianxia.sect.taptap.ComplianceManager
 import com.xianxia.sect.ui.game.GameActivity
 import com.xianxia.sect.ui.game.LoadingScreen
+import com.xianxia.sect.ui.util.ActionModeSafeCallback
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.AudioToggleRow
 import androidx.compose.runtime.CompositionLocalProvider
@@ -67,8 +72,15 @@ import javax.inject.Inject
 
 /** 具名 ComplianceCallback 实现（避免匿名内部类触发 KSP getSimpleName NPE） */
 private class MainComplianceCallback(private val activity: MainActivity) : ComplianceManager.ComplianceCallback {
-    override fun onLoginSuccess() {
+    /** 回调经 SDK 线程到达，销毁窗口期执行会导致 Dialog.show BadToken（Bugly #3098） */
+    private fun runOnUiThreadIfAlive(block: () -> Unit) {
         activity.runOnUiThread {
+            if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+            block()
+        }
+    }
+    override fun onLoginSuccess() {
+        runOnUiThreadIfAlive {
             activity.sessionManager.markComplianceVerified()
             activity.showModeSelectionScreen()
         }
@@ -76,7 +88,7 @@ private class MainComplianceCallback(private val activity: MainActivity) : Compl
     override fun onExited() = activity.handleUserExit()
     override fun onSwitchAccount() = activity.handleUserExit()
     override fun onPeriodRestrict() {
-        activity.runOnUiThread {
+        runOnUiThreadIfAlive {
             activity.sessionManager.complianceVerified = false
             activity.complianceDialogState.value = MainActivity.ComplianceDialogState.Restrict(
                 "时间限制", "根据防沉迷规定，未成年人仅可在周五、周六、周日及法定节假日的20:00-21:00进行游戏。"
@@ -84,7 +96,7 @@ private class MainComplianceCallback(private val activity: MainActivity) : Compl
         }
     }
     override fun onDurationLimit() {
-        activity.runOnUiThread {
+        runOnUiThreadIfAlive {
             activity.sessionManager.complianceVerified = false
             activity.complianceDialogState.value = MainActivity.ComplianceDialogState.Restrict(
                 "时长限制", "您今日的游戏时长已用尽，请合理安排游戏时间。"
@@ -92,13 +104,16 @@ private class MainComplianceCallback(private val activity: MainActivity) : Compl
         }
     }
     override fun onAgeLimit() {
-        activity.runOnUiThread {
+        runOnUiThreadIfAlive {
             activity.sessionManager.complianceVerified = false
             activity.complianceDialogState.value = MainActivity.ComplianceDialogState.AgeLimit
         }
     }
     override fun onNetworkError() {
-        activity.runOnUiThread { Toast.makeText(activity, "网络连接异常，请检查网络后重试", Toast.LENGTH_LONG).show(); activity.showMainScreen() }
+        runOnUiThreadIfAlive {
+            Toast.makeText(activity, "网络连接异常，请检查网络后重试", Toast.LENGTH_LONG).show()
+            activity.showMainScreen()
+        }
     }
     override fun onRealNameStop() = activity.handleUserExit()
 }
@@ -674,6 +689,19 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        // 回到前台：复位销毁态，恢复文本选择 ActionMode 能力
+        actionModeTracker?.resetForResume()
+    }
+
+    override fun onStop() {
+        // 与 GameActivity 对齐：进入后台前结束文本选择 ActionMode，
+        // 缩小窗口 token 失效期间的崩溃窗口（Bugly #3026）
+        actionModeTracker?.finishActiveActionMode()
+        super.onStop()
+    }
+
     override fun onDestroy() {
         actionModeTracker?.finishActiveActionMode()
         actionModeTracker = null
@@ -681,7 +709,7 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    // ── ActionMode 安全回调（与 GameActivity.ActionModeSafeCallback 一致） ──
+    // ── ActionMode 安全回调（共享实现见 com.xianxia.sect.ui.util.ActionModeSafeCallback） ──
     // 拦截 ActionMode（FloatingActionMode/文本选择工具栏）生命周期，
     // 确保在 Activity 销毁前结束活跃的 ActionMode，防止 BadTokenException。
 
@@ -691,44 +719,9 @@ class MainActivity : ComponentActivity() {
     private fun installActionModeSafeCallback() {
         val original = window.callback ?: return
         if (original is ActionModeSafeCallback) return
-        ActionModeSafeCallback(original).also {
+        ActionModeSafeCallback(original, applicationContext).also {
             window.callback = it
             actionModeTracker = it
-        }
-    }
-
-    private class ActionModeSafeCallback(
-        private val delegate: Window.Callback
-    ) : Window.Callback by delegate {
-
-        @Volatile
-        var activeActionMode: ActionMode? = null
-            private set
-
-        @Volatile
-        var isTearingDown: Boolean = false
-            private set
-
-        override fun onActionModeStarted(mode: ActionMode) {
-            if (isTearingDown) {
-                try { mode.finish() } catch (_: Exception) { }
-                return
-            }
-            activeActionMode = mode
-            delegate.onActionModeStarted(mode)
-        }
-
-        override fun onActionModeFinished(mode: ActionMode) {
-            if (activeActionMode === mode) activeActionMode = null
-            delegate.onActionModeFinished(mode)
-        }
-
-        fun finishActiveActionMode() {
-            activeActionMode?.let { mode ->
-                isTearingDown = true
-                try { mode.finish() } catch (_: Exception) { }
-                activeActionMode = null
-            }
         }
     }
 }
@@ -886,6 +879,13 @@ private fun LoginColumnContent(
     }
 }
 
+/** 当前组合是否允许渲染 Dialog（Activity 生命周期 ≥ STARTED）。 */
+@Composable
+private fun dialogRenderableInComposition(): Boolean {
+    val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
+    return lifecycleState.canRenderDialogs()
+}
+
 /** 隐私政策展示 + 合规限制对话框（适龄限制/账号封禁提示） */
 @Composable
 private fun MainComplianceDialogs(
@@ -900,13 +900,16 @@ private fun MainComplianceDialogs(
         return
     }
 
+    // 生命周期门控：销毁窗口期渲染 AlertDialog 抛 BadToken（Bugly #3098）
+    if (!dialogRenderableInComposition()) return
+
     complianceDialogState.value?.let { state ->
         when (state) {
             is MainActivity.ComplianceDialogState.Restrict -> {
                 AlertDialog(
                     onDismissRequest = { },
                     title = { Text(state.title) },
-                    text = { Text(state.message) },
+                    text = { DialogFocusGuard(); Text(state.message) },
                     confirmButton = {
                         GameButton(
                             text = "退出游戏",
@@ -935,7 +938,7 @@ private fun MainComplianceDialogs(
                 AlertDialog(
                     onDismissRequest = { },
                     title = { Text("适龄限制") },
-                    text = { Text("根据游戏适龄提示，您当前年龄不符合本游戏的游玩要求。") },
+                    text = { DialogFocusGuard(); Text("根据游戏适龄提示，您当前年龄不符合本游戏的游玩要求。") },
                     confirmButton = {
                         GameButton(
                             text = "退出游戏",

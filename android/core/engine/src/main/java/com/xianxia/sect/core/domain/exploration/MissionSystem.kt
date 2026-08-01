@@ -329,6 +329,13 @@ object MissionSystem {
         currentMonth: Int
     ): ActiveMission {
         require(disciples.size == mission.memberCount) { "任务需要 ${mission.memberCount} 名弟子，实际传入 ${disciples.size}" }
+        // 弟子 id 不变量：重复或空 id 会导致 MissionHallDialog 网格 LazyGrid 重复 key 崩溃（Bugly #5079/#3091）
+        require(disciples.all { it.id.isNotBlank() }) {
+            "任务弟子存在空 id: ${disciples.filter { it.id.isBlank() }.map { it.name }}"
+        }
+        require(disciples.map { it.id }.distinct().size == disciples.size) {
+            "任务弟子存在重复 id: ${disciples.groupBy { it.id }.filter { it.value.size > 1 }.keys}"
+        }
 
         return ActiveMission(
             missionId = mission.id,

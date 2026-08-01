@@ -354,7 +354,11 @@ class GameViewModel @Inject constructor(
     val notifications: StateFlow<List<GameNotification>> get() = gameEngine.notifications
     val rewardCardQueue: StateFlow<List<RewardCardItem>> get() = gameEngine.rewardCardQueue
     val warehouseFullEvent get() = gameEngine.warehouseFullEvent
-    val discipleAggregates: StateFlow<List<DiscipleAggregate>> get() = gameEngine.discipleAggregates
+    // 按 id 去重兜底（引擎已保证不变量：读档归一化 + 运行时守卫），
+    // 防损坏存档的重复/空 id 弟子触发 LazyVerticalGrid 重复 key 崩溃（Bugly #5079/#3091）
+    val discipleAggregates: StateFlow<List<DiscipleAggregate>> = gameEngine.discipleAggregates
+        .map { aggregates -> aggregates.distinctBy { it.id } }
+        .stateIn(viewModelScope, sharingStarted, emptyList())
     val sectCombatPower: StateFlow<Long> get() = gameEngine.sectCombatPower
     val thermalState: StateFlow<ThermalState> = thermalMonitor.thermalState
     val aiSectCombatPowers: StateFlow<Map<String, Long>> get() = gameEngine.aiSectCombatPowers

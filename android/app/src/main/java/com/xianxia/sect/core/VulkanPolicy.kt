@@ -153,34 +153,42 @@ object VulkanPolicy {
      * 此类环境使用 GPU Hook 层拦截 Vulkan 调用，存在 vkCreateShaderModule
      * 内部 SIGSEGV 缺陷。使用 5 信号检测法，任一信号命中即认为云游戏环境。
      *
+     * 进程级缓存：沙箱库在进程启动即注入，/proc/self/maps 中标记进程期恒定，
+     * 缓存无陈旧风险。Application.onCreate 与 GameActivity.onCreate 各触发一次
+     * 检测（合计 2 次全量读 maps），缓存后合并为 1 次；且信号重排后沙箱环境
+     * 大概率被廉价信号（HOST/installer/SystemProperties）命中，maps 读取 0 次
+     * ——沙箱 hook 会放大 FileInputStream.open 的 IO 延迟，是 ANR 嫌疑点
+     * （Bugly #11/#13006）。
+     *
      * @see Unity Vulkan Device Filtering — Allow/Deny 列表
      * @see Flutter Impeller — API 版本门槛 + 已知问题 SoC 禁用
      * @see Chromium GPU Blocklist — Mali-G57 driver ≤ 40 blocklist
      */
     // PrivateApi：云游戏检测无公开替代 API（Build.HOST 已被 CI 假阳性排除），反射仅读不写
-    @SuppressLint("PrivateApi")
     @Suppress("ReturnCount")
     private fun isTapTapCloudGaming(context: Context): Boolean {
-        // 信号 1: /proc/self/maps 包含 taptap 沙箱库
-        try {
-            BufferedReader(FileReader("/proc/self/maps")).use { reader ->
-                reader.lineSequence().forEach { line ->
-                    if (line.contains("libtaptap_sandbox.so") ||
-                        line.contains("libcloudgame.so")
-                    ) return true
-                }
-            }
-        } catch (e: Exception) {
-            Log.d(TAG, "Could not read /proc/self/maps")
-        }
+        cloudGamingResult?.let { return it }
+        val result = computeCloudGaming(context)
+        cloudGamingResult = result
+        return result
+    }
 
-        // 信号 2: Build.HOST 包含 taptap/sandbox 标记
+    /**
+     * 计算云游戏/沙箱检测结果（纯计算，结果可缓存）。
+     * 信号顺序：廉价信号（Build.HOST / installer / SystemProperties）先行，
+     * /proc/self/maps 扫描放最后——沙箱环境大概率被前置信号命中时零 IO。
+     */
+    // ReturnCount/NestedBlockDepth：多信号 OR 检测的自然结构，与 isEmulator 一致
+    // PrivateApi：SystemProperties 反射检测在 192 行附近，仅读不写
+    @Suppress("ReturnCount", "NestedBlockDepth", "PrivateApi")
+    private fun computeCloudGaming(context: Context): Boolean {
+        // 信号 1: Build.HOST 包含 taptap/sandbox 标记
         // 注意：不使用 "cloud" 关键词，CI/CD 构建环境（如 cloudbuild）
         // 和云服务主机名可能包含 "cloud" 导致假阳性。
         val host = Build.HOST?.lowercase() ?: ""
         if (host.contains("taptap") || host.contains("tapsandbox")) return true
 
-        // 信号 3: 包安装器来源（TapTap 分发的游戏）
+        // 信号 2: 包安装器来源（TapTap 分发的游戏）
         try {
             val installerPkg = context.packageManager
                 .getInstallerPackageName(context.packageName)
@@ -188,7 +196,7 @@ object VulkanPolicy {
             if (installerPkg.contains("taptap")) return true
         } catch (e: Exception) { /* 忽略 */ }
 
-        // 信号 4: SystemProperties 反射检测
+        // 信号 3: SystemProperties 反射检测
         if (Build.VERSION.SDK_INT >= 29) {
             try {
                 val sysPropClass = Class.forName("android.os.SystemProperties")
@@ -201,7 +209,37 @@ object VulkanPolicy {
             } catch (e: Exception) { /* 忽略 */ }
         }
 
-        return false
+        // 信号 4: /proc/self/maps 包含 taptap 沙箱库（IO 最重，放最后）
+        return scanMapsForSandbox()
+    }
+
+    /** /proc/self/maps 扫描沙箱库标记（读完整文件，命中即提前返回）。 */
+    // NestedBlockDepth：try→use→forEach→if 的只读扫描结构，拆分会损失提前返回
+    @Suppress("NestedBlockDepth")
+    internal fun scanMapsForSandbox(path: String = "/proc/self/maps"): Boolean {
+        return try {
+            BufferedReader(FileReader(path)).use { reader ->
+                reader.lineSequence().forEach { line ->
+                    if (line.contains("libtaptap_sandbox.so") ||
+                        line.contains("libcloudgame.so") ||
+                        line.contains("libsandbox_ext.so")
+                    ) return true
+                }
+            }
+            false
+        } catch (e: Exception) {
+            Log.d(TAG, "Could not read /proc/self/maps")
+            false
+        }
+    }
+
+    /** 云游戏检测进程级缓存（沙箱标记进程期恒定） */
+    @Volatile
+    private var cloudGamingResult: Boolean? = null
+
+    /** 仅测试用：清空缓存强制重算。 */
+    internal fun resetCloudGamingCache() {
+        cloudGamingResult = null
     }
 
     // ── Vulkan 驱动版本缓存 ──

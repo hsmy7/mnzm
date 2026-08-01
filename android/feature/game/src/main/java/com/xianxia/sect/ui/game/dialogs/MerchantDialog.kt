@@ -104,7 +104,9 @@ fun MerchantDialog(
     val filteredItems = remember(merchantItems, selectedFilter, watchedKeys) {
         val items = if (selectedFilter == MerchantFilter.ALL) merchantItems
         else merchantItems.filter { it.type == selectedFilter.typeValue }
-        items.sortedByWatchedThenRarity(
+        // id 去重兜底：损坏存档可能出现重复/空 id 商品，
+        // 防 LazyVerticalGrid key="" 重复崩溃（Bugly #5079/#3091）
+        items.distinctBy { it.id }.sortedByWatchedThenRarity(
             watchedKeys,
             keyOf = { watchKeyOf(it) },
             rarityOf = { it.rarity },
@@ -225,7 +227,8 @@ fun MerchantDialog(
 
                 MerchantMode.ACQUISITION -> {
                     val sortedAcquisitionItems = remember(acquisitionItems, watchedKeys) {
-                        acquisitionItems.sortedByWatchedThenRarity(
+                        // id 去重兜底：防 LazyColumn key="" 重复崩溃（Bugly #5079/#3091）
+                        acquisitionItems.distinctBy { it.id }.sortedByWatchedThenRarity(
                             watchedKeys,
                             keyOf = { watchKeyOf(it) },
                             rarityOf = { it.rarity },

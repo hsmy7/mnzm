@@ -80,6 +80,8 @@ fun ElderBonusInfoDialog(
     ) {
         // 隐藏 Dialog Window 的系统状态栏/导航栏
         DialogSystemBarGuard()
+        // 窗口销毁前清除焦点并隐藏软键盘，防文本选择 FloatingActionMode BadToken（Bugly #3026）
+        DialogFocusGuard()
 
         Box(
             modifier = Modifier

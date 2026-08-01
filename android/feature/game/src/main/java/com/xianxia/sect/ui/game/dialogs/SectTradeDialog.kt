@@ -73,7 +73,9 @@ fun SectTradeDialog(
 
     val watchedKeys by viewModel.watchedItemIds.collectAsStateWithLifecycle()
     val sortedTradeItems = remember(tradeItems, watchedKeys) {
-        tradeItems.sortedByWatchedThenRarity(
+        // id 去重兜底：损坏存档可能出现重复/空 id 商品，
+        // 防 LazyVerticalGrid key="" 重复崩溃（Bugly #5079/#3091）
+        tradeItems.distinctBy { it.id }.sortedByWatchedThenRarity(
             watchedKeys,
             keyOf = { watchKeyOf(it) },
             rarityOf = { it.rarity },

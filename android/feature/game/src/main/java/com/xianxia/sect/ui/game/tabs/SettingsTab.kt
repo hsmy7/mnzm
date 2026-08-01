@@ -46,6 +46,7 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.InlineStandardPromptDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.DialogSystemBarGuard
+import com.xianxia.sect.ui.components.DialogFocusGuard
 import com.xianxia.sect.ui.components.clickableWithSound
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.dialogs.SalaryRealmCard
@@ -549,6 +550,7 @@ internal fun SettingsTab(
         ) {
             // 隐藏 Dialog Window 的系统状态栏/导航栏
             DialogSystemBarGuard()
+            DialogFocusGuard()
 
             Box(
                 modifier = Modifier
@@ -709,6 +711,7 @@ internal fun SettingsTab(
         ) {
             // 隐藏 Dialog Window 的系统状态栏/导航栏
             DialogSystemBarGuard()
+            DialogFocusGuard()
 
         Box(
             modifier = Modifier
@@ -835,6 +838,7 @@ internal fun SaveSlotDialog(
     ) {
         // 隐藏 Dialog Window 的系统状态栏/导航栏
         DialogSystemBarGuard()
+        DialogFocusGuard()
 
     Box(
         modifier = Modifier
@@ -1108,6 +1112,7 @@ private fun ChangelogDialog(onDismiss: () -> Unit) {
         ) {
             // 隐藏 Dialog Window 的系统状态栏/导航栏
             DialogSystemBarGuard()
+            DialogFocusGuard()
 
     Box(
         modifier = Modifier

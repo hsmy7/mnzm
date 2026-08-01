@@ -193,18 +193,9 @@ fun StandardPromptDialog(
         DialogSoftInputGuard()
         // 隐藏 Dialog Window 的系统状态栏/导航栏（该 Window 不继承 Activity 的设置）
         DialogSystemBarGuard()
-
-        // Dialog 窗口销毁前清除焦点，防止文本选择 FloatingActionMode
-        // 在窗口 token 失效后尝试弹出 PopupWindow 导致 BadTokenException
-        val dialogView = LocalView.current
-        DisposableEffect(Unit) {
-            onDispose {
-                dialogView.clearFocus()
-                val imm = dialogView.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
-                    as? android.view.inputmethod.InputMethodManager
-                imm?.hideSoftInputFromWindow(dialogView.windowToken, 0)
-            }
-        }
+        // Dialog 窗口销毁前清除焦点并隐藏软键盘，防止文本选择 FloatingActionMode
+        // 在窗口 token 失效后尝试弹出 PopupWindow 导致 BadTokenException（Bugly #3026）
+        DialogFocusGuard()
 
         Box(
             modifier = Modifier
@@ -392,18 +383,9 @@ fun InlineStandardPromptDialog(
         DialogSoftInputGuard()
         // 隐藏 Dialog Window 的系统状态栏/导航栏
         DialogSystemBarGuard()
-
-        // Dialog 窗口销毁前清除焦点，防止文本选择 FloatingActionMode
-        // 在窗口 token 失效后尝试弹出 PopupWindow 导致 BadTokenException
-        val dialogView = LocalView.current
-        DisposableEffect(Unit) {
-            onDispose {
-                dialogView.clearFocus()
-                val imm = dialogView.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
-                    as? android.view.inputmethod.InputMethodManager
-                imm?.hideSoftInputFromWindow(dialogView.windowToken, 0)
-            }
-        }
+        // Dialog 窗口销毁前清除焦点并隐藏软键盘，防止文本选择 FloatingActionMode
+        // 在窗口 token 失效后尝试弹出 PopupWindow 导致 BadTokenException（Bugly #3026）
+        DialogFocusGuard()
 
         Box(
             modifier = Modifier

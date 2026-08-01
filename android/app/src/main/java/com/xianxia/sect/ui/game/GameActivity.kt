@@ -30,7 +30,10 @@ import androidx.core.graphics.drawable.toDrawable
 import androidx.core.net.toUri
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import com.xianxia.sect.R
 import com.xianxia.sect.XianxiaApplication
 import com.xianxia.sect.core.CrashHandler
@@ -40,6 +43,7 @@ import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.util.GameForegroundService
 import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.state.BootPhase
+import com.xianxia.sect.ui.util.ActionModeSafeCallback
 import com.xianxia.sect.core.state.RunState
 import com.xianxia.sect.core.util.VivoGCJITOptimizer
 import com.xianxia.sect.core.perf.FrameMetricsMonitor
@@ -395,13 +399,18 @@ class GameActivity : ComponentActivity() {
                         }
                     }
 
-                    errorMessage?.let { error ->
-                        StandardPromptDialog(
-                            onDismissRequest = { errorMessage = null },
-                            title = "提示",
-                            text = error,
-                            confirmLabel = "确定"
-                        )
+                    // 生命周期门控：存档错误事件可能落在 Activity 销毁窗口期，
+                    // 此时渲染 Dialog 会抛 BadTokenException（Bugly #3098）
+                    val activityLifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
+                    if (activityLifecycleState.isAtLeast(Lifecycle.State.STARTED)) {
+                        errorMessage?.let { error ->
+                            StandardPromptDialog(
+                                onDismissRequest = { errorMessage = null },
+                                title = "提示",
+                                text = error,
+                                confirmLabel = "确定"
+                            )
+                        }
                     }
                 }
             }
@@ -464,6 +473,13 @@ class GameActivity : ComponentActivity() {
         backgroundTaskScheduler.pause()
         wakeLockManager.release()
         super.onPause()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // 回到前台：复位销毁态，恢复文本选择 ActionMode 能力
+        // （onStop 进入销毁态后若不复位，返回前台后文本选择永久失效）
+        actionModeTracker?.resetForResume()
     }
 
     override fun onStop() {
@@ -570,67 +586,15 @@ class GameActivity : ComponentActivity() {
      * 拦截 [ActionMode]（FloatingActionMode/文本选择工具栏）生命周期，
      * 确保在 Activity 销毁前结束活跃的 ActionMode，防止
      * [android.view.WindowManager.BadTokenException]。
+     * 共享实现见 [com.xianxia.sect.ui.util.ActionModeSafeCallback]
+     * （含创建期 stub 拦截与 onStart 复位）。
      */
     private fun installActionModeSafeCallback() {
         val original = window.callback ?: return
         if (original is ActionModeSafeCallback) return
-        ActionModeSafeCallback(original).also {
+        ActionModeSafeCallback(original, applicationContext).also {
             window.callback = it
             actionModeTracker = it
-        }
-    }
-
-    /**
-     * 安全的 [Window.Callback] 包装器，跟踪当前活跃的 [ActionMode]。
-     *
-     * 当 Activity 开始销毁时，通过 [finishActiveActionMode] 提前结束文本选择
-     * ActionMode，并标记 [isTearingDown]。销毁过程中若系统尝试创建新的
-     * ActionMode（如视图销毁触发的文本选择回调），立即将其 finish，
-     * 阻止 FloatingActionMode 弹出 PopupWindow 时抛出 BadTokenException。
-     */
-    private class ActionModeSafeCallback(
-        private val delegate: Window.Callback
-    ) : Window.Callback by delegate {
-
-        @Volatile
-        var activeActionMode: ActionMode? = null
-            private set
-
-        @Volatile
-        var isTearingDown: Boolean = false
-            private set
-
-        override fun onActionModeStarted(mode: ActionMode) {
-            if (isTearingDown) {
-                // 窗口正在销毁，立即结束新创建的 ActionMode 防止崩溃
-                try {
-                    mode.finish()
-                } catch (_: Exception) {
-                    // 静默 — 尽力而为的清理
-                }
-                return
-            }
-            activeActionMode = mode
-            delegate.onActionModeStarted(mode)
-        }
-
-        override fun onActionModeFinished(mode: ActionMode) {
-            if (activeActionMode === mode) {
-                activeActionMode = null
-            }
-            delegate.onActionModeFinished(mode)
-        }
-
-        fun finishActiveActionMode() {
-            activeActionMode?.let { mode ->
-                isTearingDown = true
-                try {
-                    mode.finish()
-                } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-                    Log.w(TAG, "finishActiveActionMode failed: ${e.message}")
-                }
-                activeActionMode = null
-            }
         }
     }
 

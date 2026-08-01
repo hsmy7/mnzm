@@ -34,6 +34,9 @@ class CrashHandler @Inject constructor(
 
     companion object {
         private const val TAG = "CrashHandler"
+
+        /** 崩溃日志打印的最大字符数（防崩溃处理期日志 IO 过大） */
+        private const val MAX_LOG_STACK_LENGTH = 2000
         private const val PREFS_NAME = "crash_prefs"
         private const val KEY_CRASH_FLAG = "crash_flag"
         private const val KEY_CRASH_TIME = "crash_time"
@@ -103,7 +106,9 @@ class CrashHandler @Inject constructor(
             "Stack trace unavailable: ${e.message}"
         }
 
-        Log.e(TAG, "Uncaught exception in thread ${thread.name}\n$stackTrace")
+        // 日志截断：崩溃处理期系统日志 IO 同样占用崩溃线程（沙盒 hook 下被放大，
+        // 见 Bugly #13006），全量 stackTrace 可能极大，前 2000 字符足够定位
+        Log.e(TAG, "Uncaught exception in thread ${thread.name}\n${stackTrace.take(MAX_LOG_STACK_LENGTH)}")
 
         try {
             // 1. 通知崩溃自愈引擎（用于安全模式判定）

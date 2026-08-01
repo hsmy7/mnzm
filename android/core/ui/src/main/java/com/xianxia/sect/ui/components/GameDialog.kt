@@ -97,6 +97,10 @@ fun UnifiedGameDialog(
         DialogSoftInputGuard()
         // 隐藏 Dialog Window 的系统状态栏/导航栏（必须放在 Dialog {} 块内，才能获取 Dialog Window 引用）
         DialogSystemBarGuard()
+        // Dialog 窗口销毁前清除焦点并隐藏软键盘：UnifiedGameDialog 覆盖全部
+        // 含输入框的对话框（AutoManagement/PatrolTower 等），防文本选择
+        // FloatingActionMode 在窗口 token 失效后弹 PopupWindow 崩溃（Bugly #3026）
+        DialogFocusGuard()
 
         Box(
             modifier = Modifier

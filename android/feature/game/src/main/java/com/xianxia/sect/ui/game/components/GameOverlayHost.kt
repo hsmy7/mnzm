@@ -9,7 +9,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.currentStateAsState
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,6 +61,7 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.RewardDisplayDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.canRenderDialogs
 import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.core.model.guide.GuideTaskRegistry
 import com.xianxia.sect.ui.game.dialogs.GuideDialog
@@ -123,6 +127,14 @@ fun GameOverlayHost(
     val pendingBattleRewardCards by viewModel.pendingBattleRewardCards.collectAsStateWithLifecycle()
     val pendingMarriageProposals by viewModel.pendingMarriageProposals.collectAsStateWithLifecycle()
     val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()
+
+    // 引擎事件弹窗生命周期门控（Bugly #3098）：Activity 销毁窗口期（token 失效但
+    // 组合仍挂载、doFrame 已排队）禁止新 Dialog 进入组合，否则 Dialog.show 抛
+    // BadTokenException。只门控渲染不早退——收集器保持运行，单值状态互相覆盖，
+    // 返回前台仅显示最新一条（早退会让 Channel(UNLIMITED) 积压事件爆发回放）。
+    // 用户主动打开的对话框（currentDialogType 路径）不门控，避免行为回归。
+    val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
+    val dialogRenderable = lifecycleState.canRenderDialogs()
 
     var showBattleResult by remember { mutableStateOf(false) }
     var showBattleRewardDialog by remember { mutableStateOf(false) }
@@ -217,7 +229,7 @@ fun GameOverlayHost(
         )
     }
 
-    if (currentAttack != null && beastStillAlive) {
+    if (dialogRenderable && currentAttack != null && beastStillAlive) {
         BeastAttackWarningDialog(
             attack = currentAttack,
             currentSpiritStones = gdSnapshot.spiritStones,
@@ -249,7 +261,7 @@ fun GameOverlayHost(
 
     val currentProposal = pendingMarriageProposals.firstOrNull()
 
-    if (currentProposal != null) {
+    if (dialogRenderable && currentProposal != null) {
         val maleDisciple = disciples.find { it.id == currentProposal.maleId }
         val femaleDisciple = disciples.find { it.id == currentProposal.femaleId }
         if (maleDisciple != null && femaleDisciple != null) {
@@ -266,7 +278,8 @@ fun GameOverlayHost(
     // AI宗门进攻预警弹窗
     val gdForWarning by viewModel.gameDataUi.collectAsStateWithLifecycle()
 
-    AttackWarningDialogs(
+    if (dialogRenderable) {
+        AttackWarningDialogs(
         warnings = attackWarnings,
         shownStageIds = shownWarningStageIds,
         currentSpiritStones = gdForWarning.spiritStones,
@@ -283,6 +296,7 @@ fun GameOverlayHost(
             )
         }
     )
+    }
 
     val onDismiss: () -> Unit = { viewModel.dismissDialog() }
 
@@ -679,7 +693,7 @@ fun GameOverlayHost(
     }
     }
 
-    if (showBattleRewardDialog && pendingBattleRewardCards.isNotEmpty()) {
+    if (dialogRenderable && showBattleRewardDialog && pendingBattleRewardCards.isNotEmpty()) {
         RewardDisplayDialog(
             title = "战斗奖励",
             cards = pendingBattleRewardCards,
@@ -690,7 +704,7 @@ fun GameOverlayHost(
         )
     }
 
-    tipDialogMessage?.let { message ->
+    if (dialogRenderable) tipDialogMessage?.let { message ->
         StandardPromptDialog(
             onDismissRequest = { tipDialogMessage = null },
             title = if (tipDialogIsError) "错误" else "提示",
@@ -700,7 +714,7 @@ fun GameOverlayHost(
         )
     }
 
-    capacityWarningMessage?.let { message ->
+    if (dialogRenderable) capacityWarningMessage?.let { message ->
         StandardPromptDialog(
             onDismissRequest = { capacityWarningMessage = null },
             title = "仓库容量不足",
@@ -711,7 +725,7 @@ fun GameOverlayHost(
         )
     }
 
-    if (pendingNotification != null) {
+    if (dialogRenderable && pendingNotification != null) {
         pendingNotification?.let { notification ->
             when (notification) {
                 is GameNotification.RecruitFailed -> {
@@ -732,7 +746,7 @@ fun GameOverlayHost(
             TopOverlay.BATTLE_RESULT -> {
                 val battleLogs by viewModel.battleLogs.collectAsStateWithLifecycle()
                 val result = pendingBattleResult
-                if (result != null && showBattleResult) {
+                if (dialogRenderable && result != null && showBattleResult) {
                     val log = battleLogs.find { it.id == result.battleLogId }
                     BattleResultDialog(
                         resultData = result,

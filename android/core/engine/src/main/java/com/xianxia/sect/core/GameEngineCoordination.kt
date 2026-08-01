@@ -31,6 +31,7 @@ import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.GameRandom
+import java.util.UUID
 
 /** AI 宗门每个宗门的标准弟子数 */
 private const val MAX_AI_SECT_DISCIPLES = 50
@@ -192,10 +193,49 @@ private suspend fun GameEngine.checkAndRepairMerchantAndRecruit() {
         DomainLog.w("ensureGameDataIntegrity", "travelingMerchantItems 为空，刷新")
         cultivationService.refreshTravelingMerchant(gd.gameYear, gd.gameMonth)
     }
+    // 商人商品 id 去重净化：损坏/旧存档可能出现重复或空 id 商品，
+    // 多个空 id 商品同时展示会触发 LazyGrid key="" 崩溃（Bugly #5079/#3091）
+    if (gd.travelingMerchantItems.size != gd.travelingMerchantItems.distinctBy { it.id }.size) {
+        val removed = gd.travelingMerchantItems.size - gd.travelingMerchantItems.distinctBy { it.id }.size
+        DomainLog.w("ensureGameDataIntegrity", "travelingMerchantItems 存在重复 id，净化 $removed 条")
+        stateStore.update {
+            gameData = gameData.copy(
+                travelingMerchantItems = gameData.travelingMerchantItems.distinctBy { it.id }
+            )
+        }
+    }
     if (gd.recruitList.isEmpty() && gd.gameYear - gd.lastRecruitYear >= 3) {
         DomainLog.w("ensureGameDataIntegrity", "recruitList 为空，刷新")
         cultivationService.refreshRecruitList(gd.gameYear)
     }
+}
+
+/**
+ * 读档弟子 id 归一化：空 id 重分配新 UUID，重复 id 去重（保留首个）。
+ *
+ * 防御旧存档的 LazyGrid key="" 重复崩溃（Bugly #5079/#3091）：
+ * DiscipleSerializer 缺 id 字段时 surrogate 默认空串，损坏存档可能出现
+ * 全体弟子空 id / 重复 id。空 id 不删除（静默丢弟子不可接受），重分配保命。
+ * 纯函数便于测试。
+ *
+ * @param disciples 读档弟子列表（已通过幽灵过滤）
+ * @return id 全部非空且唯一的弟子列表
+ */
+internal fun normalizeDiscipleIds(disciples: List<Disciple>): List<Disciple> {
+    val seen = mutableSetOf<String>()
+    return disciples.map { disciple ->
+        when {
+            disciple.id.isBlank() -> {
+                DomainLog.w("GameEngine", "loadData: 弟子 ${disciple.name} id 为空，分配新 UUID")
+                disciple.copy(id = UUID.randomUUID().toString())
+            }
+            !seen.add(disciple.id) -> {
+                DomainLog.w("GameEngine", "loadData: 弟子 id=${disciple.id} 重复，仅保留首个")
+                null
+            }
+            else -> disciple
+        }
+    }.filterNotNull()
 }
 
 suspend fun GameEngine.loadData(
@@ -219,8 +259,11 @@ suspend fun GameEngine.loadData(
             val count = migratedDisciples.size - cleanedDisciples.size
             DomainLog.w("GameEngine", "loadData: 过滤了 $count 个幽灵弟子（name为空）")
         }
+        // 防御性 id 归一化：空 id 重分配 UUID、重复 id 去重保留首个
+        // （防旧存档 LazyGrid key="" 重复崩溃，Bugly #5079/#3091）
+        val idSafeDisciples = normalizeDiscipleIds(cleanedDisciples)
         stateStore.loadFromSnapshot(
-            gameData = migratedGameData, disciples = cleanedDisciples,
+            gameData = migratedGameData, disciples = idSafeDisciples,
             equipmentStacks = equipmentStacks, equipmentInstances = equipmentInstances,
             manualStacks = manualStacks, manualInstances = manualInstances, pills = pills,
             materials = materials, herbs = herbs, seeds = seeds, storageBags = storageBags,

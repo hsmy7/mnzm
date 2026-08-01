@@ -424,14 +424,20 @@ private fun ActiveMissionDetailDialog(
                         color = Color.Black
                     )
 
+                    val gridDiscipleIds = remember(mission.discipleIds) {
+                        // 防御旧存档重复/空 id（MissionSystem 已加引擎侧校验），
+                        // 防 LazyVerticalGrid key="" 重复崩溃（Bugly #5079/#3091）
+                        mission.discipleIds.distinct()
+                            .mapIndexed { index, id -> id.ifBlank { "blank_$index" } }
+                    }
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(3),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.heightIn(max = 240.dp)
                     ) {
-                        items(mission.discipleIds, key = { it }, contentType = { "disciple_id" }) { discipleId ->
-                            val index = mission.discipleIds.indexOf(discipleId)
+                        items(gridDiscipleIds, key = { it }, contentType = { "disciple_id" }) { discipleId ->
+                            val index = gridDiscipleIds.indexOf(discipleId)
                             val name = if (index < mission.discipleNames.size) mission.discipleNames[index] else "未知"
                             val realm = if (index < mission.discipleRealms.size) mission.discipleRealms[index] else ""
                             val disciple = discipleMap[discipleId]

@@ -144,6 +144,35 @@ class LootCalculatorTest {
     }
 
     @Test
+    fun `toRewardItems - 灵石与储物袋同时被掠夺时 itemId 非空且唯一`() {
+        // 回归守卫（Bugly #5079/#3091）：灵石+储物袋行此前 itemId 缺省 "",
+        // 同列表两个空 key 导致 LazyRow "Key "" was already used" 崩溃
+        val loot = LootCalculator.BeastLootData(
+            stolenSpiritStones = 20000,
+            stolenBagCount = 2,
+            stolenItems = listOf(
+                LootCalculator.LootedItem("m1", "铁矿石", "material", 1, 3)
+            )
+        )
+        val items = loot.toRewardItems()
+        assertEquals(3, items.size)
+        assertTrue("所有 itemId 必须非空", items.all { it.itemId.isNotBlank() })
+        assertEquals("灵石行使用固定合成键", LootCalculator.LOOTED_SPIRIT_STONES_ID,
+            items.first { it.type == "spiritStones" }.itemId)
+        assertEquals("储物袋行使用固定合成键", LootCalculator.LOOTED_STORAGE_BAG_ID,
+            items.first { it.type == "storageBag" }.itemId)
+        assertEquals("itemId 必须唯一", items.size, items.map { it.itemId }.distinct().size)
+    }
+
+    @Test
+    fun `toRewardItems - 仅灵石被掠夺时 itemId 仍非空`() {
+        val loot = LootCalculator.BeastLootData(stolenSpiritStones = 40000)
+        val items = loot.toRewardItems()
+        assertEquals(1, items.size)
+        assertTrue(items.all { it.itemId.isNotBlank() })
+    }
+
+    @Test
     fun `applyLoot deducts full bags first`() = runBlocking {
         val state = newState()
         state.storageBags.add(StorageBag(id = "a", name = "小袋", rarity = 1, quantity = 2))

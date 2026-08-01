@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
@@ -166,7 +167,11 @@ internal fun BattleResultDialog(
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(sortedLooted, key = { it.itemId }, contentType = { "looted_item" }) { loot ->
+                            itemsIndexed(
+                                sortedLooted,
+                                key = { index, loot -> loot.itemId.ifBlank { "looted_$index" } },
+                                contentType = { _, _ -> "looted_item" }
+                            ) { _, loot ->
                                 UnifiedItemCard(
                                     data = ItemCardData(
                                         id = loot.itemId,
@@ -256,7 +261,11 @@ internal fun BattleResultDialog(
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(sortedRewards, key = { it.itemId }, contentType = { "reward" }) { reward ->
+                            itemsIndexed(
+                                sortedRewards,
+                                key = { index, reward -> reward.itemId.ifBlank { "reward_$index" } },
+                                contentType = { _, _ -> "reward" }
+                            ) { _, reward ->
                                 UnifiedItemCard(
                                     data = ItemCardData(
                                         id = reward.itemId,

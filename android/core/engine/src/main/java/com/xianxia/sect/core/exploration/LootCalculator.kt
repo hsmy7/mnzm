@@ -37,6 +37,14 @@ class LootCalculator @Inject constructor(
 ) {
     private val lootRng: DeterministicRng get() = rngManager.getRng(RngPartition.EXPLORATION)
 
+    companion object {
+        /** 灵石掠夺行固定展示键（防 LazyRow 空 key 崩溃，Bugly #5079） */
+        internal const val LOOTED_SPIRIT_STONES_ID = "looted_spirit_stones"
+
+        /** 储物袋掠夺行固定展示键（防 LazyRow 空 key 崩溃，Bugly #5079） */
+        internal const val LOOTED_STORAGE_BAG_ID = "looted_storage_bag"
+    }
+
     /**
      * 掠夺结果数据。
      */
@@ -70,7 +78,9 @@ class LootCalculator @Inject constructor(
         fun toRewardItems(): List<BattleRewardItem> {
             val items = mutableListOf<BattleRewardItem>()
             if (stolenSpiritStones > 0) {
+                // itemId 必须非空唯一：灵石行固定合成键，防 LazyRow key="" 重复崩溃（Bugly #5079）
                 items.add(BattleRewardItem(
+                    itemId = LOOTED_SPIRIT_STONES_ID,
                     name = "灵石",
                     quantity = stolenSpiritStones.toInt(),
                     rarity = 1,
@@ -87,7 +97,9 @@ class LootCalculator @Inject constructor(
                 ))
             }
             if (stolenBagCount > 0) {
+                // 同上：储物袋行固定合成键
                 items.add(BattleRewardItem(
+                    itemId = LOOTED_STORAGE_BAG_ID,
                     name = "储物袋",
                     quantity = stolenBagCount,
                     rarity = 1,

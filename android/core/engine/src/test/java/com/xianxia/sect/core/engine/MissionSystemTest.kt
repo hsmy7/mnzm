@@ -447,4 +447,98 @@ class MissionSystemTest {
         assertTrue(MissionTemplate.EXPLORE_ANCIENT_CAVE.triggerChance < MissionTemplate.EXPLORE_ANCIENT_BATTLEFIELD.triggerChance)
         assertTrue(MissionTemplate.EXPLORE_ANCIENT_BATTLEFIELD.triggerChance < MissionTemplate.EXPLORE_CORE_BATTLEFIELD.triggerChance)
     }
+
+    @Test
+    fun `createActiveMission - 重复弟子 id 抛异常`() {
+        // 回归守卫（Bugly #5079/#3091）：重复 id 会导致 MissionHallDialog
+        // LazyVerticalGrid key 重复崩溃，引擎侧必须拒绝
+        val mission = Mission(
+            template = MissionTemplate.PATROL_TERRITORY,
+            name = "巡查领地",
+            description = "测试",
+            difficulty = MissionDifficulty.SIMPLE,
+            duration = 3,
+            rewards = com.xianxia.sect.core.model.MissionRewardConfig(),
+            missionType = MissionType.NO_COMBAT
+        )
+        val duplicateDisciples = listOf(
+            createDisciple(id = "d1", name = "弟子1"),
+            createDisciple(id = "d1", name = "弟子1副本"), // 同 id 重复
+            createDisciple(id = "d2", name = "弟子2"),
+            createDisciple(id = "d3", name = "弟子3"),
+            createDisciple(id = "d4", name = "弟子4"),
+            createDisciple(id = "d5", name = "弟子5")
+        )
+        try {
+            MissionSystem.createActiveMission(
+                mission = mission,
+                disciples = duplicateDisciples,
+                currentYear = 1,
+                currentMonth = 1
+            )
+            fail("重复弟子 id 应抛 IllegalArgumentException")
+        } catch (e: IllegalArgumentException) {
+            assertTrue(e.message!!.contains("重复"))
+        }
+    }
+
+    @Test
+    fun `createActiveMission - 空 id 弟子抛异常`() {
+        val mission = Mission(
+            template = MissionTemplate.PATROL_TERRITORY,
+            name = "巡查领地",
+            description = "测试",
+            difficulty = MissionDifficulty.SIMPLE,
+            duration = 3,
+            rewards = com.xianxia.sect.core.model.MissionRewardConfig(),
+            missionType = MissionType.NO_COMBAT
+        )
+        val blankIdDisciples = listOf(
+            createDisciple(id = "", name = "无id弟子"),
+            createDisciple(id = "d1", name = "弟子1"),
+            createDisciple(id = "d2", name = "弟子2"),
+            createDisciple(id = "d3", name = "弟子3"),
+            createDisciple(id = "d4", name = "弟子4"),
+            createDisciple(id = "d5", name = "弟子5")
+        )
+        try {
+            MissionSystem.createActiveMission(
+                mission = mission,
+                disciples = blankIdDisciples,
+                currentYear = 1,
+                currentMonth = 1
+            )
+            fail("空 id 弟子应抛 IllegalArgumentException")
+        } catch (e: IllegalArgumentException) {
+            assertTrue(e.message!!.contains("空 id"))
+        }
+    }
+
+    @Test
+    fun `createActiveMission - 正常弟子保留顺序`() {
+        val mission = Mission(
+            template = MissionTemplate.PATROL_TERRITORY,
+            name = "巡查领地",
+            description = "测试",
+            difficulty = MissionDifficulty.SIMPLE,
+            duration = 3,
+            rewards = com.xianxia.sect.core.model.MissionRewardConfig(),
+            missionType = MissionType.NO_COMBAT
+        )
+        val disciples = listOf(
+            createDisciple(id = "d1", name = "弟子1"),
+            createDisciple(id = "d2", name = "弟子2"),
+            createDisciple(id = "d3", name = "弟子3"),
+            createDisciple(id = "d4", name = "弟子4"),
+            createDisciple(id = "d5", name = "弟子5"),
+            createDisciple(id = "d6", name = "弟子6")
+        )
+        val activeMission = MissionSystem.createActiveMission(
+            mission = mission,
+            disciples = disciples,
+            currentYear = 1,
+            currentMonth = 1
+        )
+        assertEquals(listOf("d1", "d2", "d3", "d4", "d5", "d6"), activeMission.discipleIds)
+    }
 }
