@@ -44,6 +44,8 @@ import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.core.util.sortedByWatchedThenRarity
+import com.xianxia.sect.ui.game.components.watchKeyOf
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.ItemCardData
@@ -87,6 +89,8 @@ fun MerchantDialog(
 
     val acquisitionItems = gameData?.merchantAcquisitionItems ?: emptyList()
 
+    val watchedKeys by viewModel.watchedItemIds.collectAsStateWithLifecycle()
+
     fun getWarehouseQuantity(item: MerchantItem): Int = when (item.type.lowercase()) {
         "equipment" -> equipment.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
         "manual" -> manuals.filter { it.name == item.name && it.rarity == item.rarity }.sumOf { it.quantity }
@@ -97,10 +101,15 @@ fun MerchantDialog(
         else -> 0
     }
 
-    val filteredItems = remember(merchantItems, selectedFilter) {
+    val filteredItems = remember(merchantItems, selectedFilter, watchedKeys) {
         val items = if (selectedFilter == MerchantFilter.ALL) merchantItems
         else merchantItems.filter { it.type == selectedFilter.typeValue }
-        items.sortedWith(compareByDescending<MerchantItem> { it.rarity }.thenBy { it.name })
+        items.sortedByWatchedThenRarity(
+            watchedKeys,
+            keyOf = { watchKeyOf(it) },
+            rarityOf = { it.rarity },
+            nameOf = { it.name }
+        )
     }
 
     UnifiedGameDialog(
@@ -199,6 +208,7 @@ fun MerchantDialog(
                                             grade = item.grade, isManual = item.type == "manual", isPill = item.type == "pill",
                                             isHerb = item.type == "herb", isSeed = item.type == "seed", isMaterial = item.type == "material"),
                                             isSelected = selectedItem?.id == item.id,
+                                            isFollowed = watchKeyOf(item)?.let { it in watchedKeys } ?: false,
                                             onClick = { if (selectedItem?.id == item.id) { selectedItem = null; buyQuantity = 1 } else { selectedItem = item; buyQuantity = 1 } },
                                             onLongPress = { selectedItem = item; showDetailDialog = true })
                                     }
@@ -214,8 +224,13 @@ fun MerchantDialog(
                 }
 
                 MerchantMode.ACQUISITION -> {
-                    val sortedAcquisitionItems = remember(acquisitionItems) {
-                        acquisitionItems.sortedWith(compareByDescending<MerchantItem> { it.rarity }.thenBy { it.name })
+                    val sortedAcquisitionItems = remember(acquisitionItems, watchedKeys) {
+                        acquisitionItems.sortedByWatchedThenRarity(
+                            watchedKeys,
+                            keyOf = { watchKeyOf(it) },
+                            rarityOf = { it.rarity },
+                            nameOf = { it.name }
+                        )
                     }
                     if (sortedAcquisitionItems.isEmpty()) {
                         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -240,6 +255,7 @@ fun MerchantDialog(
                                                 grade = item.grade, isManual = item.type == "manual", isPill = item.type == "pill",
                                                 isHerb = item.type == "herb", isSeed = item.type == "seed", isMaterial = item.type == "material"),
                                                 isSelected = false,
+                                                isFollowed = watchKeyOf(item)?.let { it in watchedKeys } ?: false,
                                                 onClick = { if (item.quantity > 0 && warehouseQty > 0) { selectedAcquisitionItem = item; showSellConfirmDialog = true } },
                                                 onLongPress = { selectedItem = item; showDetailDialog = true })
                                         }
@@ -264,7 +280,11 @@ fun MerchantDialog(
 
     if (showDetailDialog) {
         selectedItem?.let { item ->
-            com.xianxia.sect.ui.game.components.ItemDetailDialog(item = item, onDismiss = { showDetailDialog = false })
+            com.xianxia.sect.ui.game.components.ItemDetailDialog(
+                item = item,
+                onDismiss = { showDetailDialog = false },
+                viewModel = viewModel
+            )
         }
     }
     if (showListingDialog) {

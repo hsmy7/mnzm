@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.DailySignInReward
 import com.xianxia.sect.core.model.MilestoneReward
+import com.xianxia.sect.core.util.watchKey
+import com.xianxia.sect.core.util.normalizeItemType
 import com.xianxia.sect.core.model.SignInDayState
 import com.xianxia.sect.core.model.SignInState
 import com.xianxia.sect.core.model.SpiritStoneGrade
@@ -48,6 +50,7 @@ fun DailySignInPanel(
     val canClaimToday by viewModel.canClaimToday.collectAsStateWithLifecycle()
     val claimedDaysCount by viewModel.claimedDaysCount.collectAsStateWithLifecycle()
     val claimedMilestones by viewModel.claimedMilestones.collectAsStateWithLifecycle()
+    val watchedKeys by viewModel.watchedItemIds.collectAsStateWithLifecycle()
 
     val daysInMonth = remember(signInState.currentMonth, signInState.currentYear) {
         viewModel.getDaysInMonth()
@@ -175,6 +178,7 @@ fun DailySignInPanel(
                             cellHeight = cardH,
                             cellSpacing = gap,
                             nameFontSize = nameFontSize,
+                            watchedKeys = watchedKeys,
                             onLongPress = { item -> detailItem = item }
                         )
                     }
@@ -205,6 +209,7 @@ fun DailySignInPanel(
                         labelSpacing = 6.dp,
                         dayLabelWidth = 38.dp,
                         nameFontSize = nameFontSize,
+                        watchedKeys = watchedKeys,
                         onLongPress = { item -> detailItem = item }
                     )
                 }
@@ -233,7 +238,8 @@ fun DailySignInPanel(
     detailItem?.let { item ->
         ItemDetailDialog(
             item = item,
-            onDismiss = { detailItem = null }
+            onDismiss = { detailItem = null },
+            viewModel = viewModel
         )
     }
 }
@@ -249,6 +255,7 @@ private fun SignInCalendarGrid(
     cellHeight: Dp,
     cellSpacing: Dp,
     nameFontSize: TextUnit,
+    watchedKeys: Set<String> = emptySet(),
     onLongPress: (Any) -> Unit
 ) {
     val days = (1..daysInMonth).toList()
@@ -273,6 +280,7 @@ private fun SignInCalendarGrid(
                         cellWidth = cellWidth,
                         cellHeight = cellHeight,
                         nameFontSize = nameFontSize,
+                        watchedKeys = watchedKeys,
                         onLongPress = { item ->
                             onLongPress(item)
                         }
@@ -296,6 +304,7 @@ private fun SignInDayCard(
     cellWidth: Dp,
     cellHeight: Dp,
     nameFontSize: TextUnit,
+    watchedKeys: Set<String> = emptySet(),
     modifier: Modifier = Modifier,
     onLongPress: (Any) -> Unit = {}
 ) {
@@ -341,6 +350,9 @@ private fun SignInDayCard(
             size = cellHeight,
             isSelected = isTodayUnclaimed,
             selectedBorderColor = GameColors.Gold,
+            isFollowed = watchedKeys.contains(
+                watchKey(normalizeItemType(reward.type), reward.itemName)
+            ),
             showQuantity = true,
             showPlaceholderText = !isRandomReward,
             nameFontSize = nameFontSize
@@ -406,6 +418,7 @@ private fun SignInMilestoneRewardsPanel(
     labelSpacing: Dp,
     dayLabelWidth: Dp,
     nameFontSize: TextUnit,
+    watchedKeys: Set<String> = emptySet(),
     onLongPress: (Any) -> Unit
 ) {
     Column(
@@ -429,6 +442,7 @@ private fun SignInMilestoneRewardsPanel(
                     labelSpacing = labelSpacing,
                     dayLabelWidth = dayLabelWidth,
                     nameFontSize = nameFontSize,
+                    watchedKeys = watchedKeys,
                     onLongPress = onLongPress
                 )
             }
@@ -442,6 +456,7 @@ private fun SignInMilestoneRewardsPanel(
 private fun MilestoneRewardRow(
     milestone: MilestoneReward,
     isClaimed: Boolean,
+    watchedKeys: Set<String> = emptySet(),
     isReached: Boolean,
     cardSize: Dp,
     cardHeight: Dp,
@@ -503,6 +518,9 @@ private fun MilestoneRewardRow(
                 size = cardHeight,
                 isSelected = isReached,
                 selectedBorderColor = GameColors.Gold,
+                isFollowed = watchedKeys.contains(
+                    watchKey(normalizeItemType(milestone.type), milestone.itemName)
+                ),
                 showQuantity = true,
                 nameFontSize = nameFontSize
             )

@@ -29,6 +29,7 @@ import com.xianxia.sect.ui.components.*
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.BloodRefiningViewModel
+import com.xianxia.sect.core.util.watchKey
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
@@ -186,6 +187,7 @@ fun BloodRefiningPoolDialog(
     if (showMaterialSelection) {
         MaterialSelectorDialog(
             bloodMaterials = bloodMaterials,
+            viewModel = viewModel,
             onDismiss = { showMaterialSelection = false },
             onSelect = { mat, qty ->
                 bloodRefiningViewModel.selectMaterial(mat, qty)
@@ -300,6 +302,7 @@ private fun MaterialSlotBox(
 @Composable
 private fun MaterialSelectorDialog(
     bloodMaterials: List<Pair<BeastMaterialDatabase.BeastMaterial, Int>>,
+    viewModel: GameViewModel? = null,
     onDismiss: () -> Unit,
     onSelect: (BeastMaterialDatabase.BeastMaterial, Int) -> Unit
 ) {
@@ -323,9 +326,15 @@ private fun MaterialSelectorDialog(
                 val bloodOrder = listOf("tiger", "snake", "turtle")
                 val grouped = bloodMaterials.groupBy { BeastMaterialDatabase.getBloodTypeFromMaterialId(it.first.id) ?: "" }
 
+                val watchedKeys = viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value
+                    ?: emptySet()
                 bloodOrder.forEach { bloodType ->
                     val items = grouped[bloodType] ?: return@forEach
-                    items.sortedByDescending { it.first.tier }.forEach { (beastMat, qty) ->
+                    items.sortedWith(
+                        compareByDescending<Pair<BeastMaterialDatabase.BeastMaterial, Int>> {
+                            watchKey("material", it.first.name) in watchedKeys
+                        }.thenByDescending { it.first.tier }
+                    ).forEach { (beastMat, qty) ->
                         UnifiedItemCard(
                             data = ItemCardData(
                                 id = beastMat.id,
@@ -336,6 +345,7 @@ private fun MaterialSelectorDialog(
                                 isMaterial = true
                             ),
                             isSelected = false,
+                            isFollowed = watchKey("material", beastMat.name) in watchedKeys,
                             showQuantity = true,
                             onClick = { onSelect(beastMat, qty) },
                             onLongPress = {
@@ -360,7 +370,8 @@ private fun MaterialSelectorDialog(
                 onDismiss = {
                     showDetail = false
                     detailMaterial = null
-                }
+                },
+                viewModel = viewModel
             )
         }
     }

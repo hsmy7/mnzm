@@ -1,6 +1,11 @@
 package com.xianxia.sect.ui.game.dialogs
 
 import com.xianxia.sect.core.util.GameUtils
+import com.xianxia.sect.core.util.WATCHABLE_ITEM_TYPES
+import com.xianxia.sect.core.util.sortedByWatchedThenRarity
+import com.xianxia.sect.core.util.watchKey
+import com.xianxia.sect.core.util.normalizeItemType
+import com.xianxia.sect.ui.game.components.watchKeyOf
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -173,6 +178,7 @@ fun MailDialog(
                         if (selectedMail != null) {
                             MailDetailPanel(
                                 mail = selectedMail,
+                                viewModel = viewModel,
                                 onClaim = {
                                     viewModel.claimMailAttachment(selectedMail.id) { result ->
                                         when (result) {
@@ -298,14 +304,26 @@ private fun MailCard(
 @Composable
 private fun MailDetailPanel(
     mail: MailEntity,
+    viewModel: GameViewModel? = null,
     onClaim: () -> Unit
 ) {
     // 解析附件（领取后仍显示，已领时精灵图替换为"已领"文本）
-    val attachments: List<MailAttachment> = remember(mail.attachments) {
-        if (mail.hasAttachment) {
+    val watchedKeys = viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value
+        ?: emptySet()
+    val attachments: List<MailAttachment> = remember(mail.attachments, watchedKeys) {
+        val parsed = if (mail.hasAttachment) {
             try { mailJson.decodeFromString<List<MailAttachment>>(mail.attachments) }
             catch (_: Exception) { emptyList() }
         } else emptyList()
+        parsed.sortedByWatchedThenRarity(
+            watchedKeys,
+            keyOf = { attachment ->
+                val type = normalizeItemType(attachment.type)
+                if (type in WATCHABLE_ITEM_TYPES) watchKey(type, attachment.name) else null
+            },
+            rarityOf = { it.rarity },
+            nameOf = { it.name }
+        )
     }
 
     var showDetail by remember { mutableStateOf(false) }
@@ -346,7 +364,7 @@ private fun MailDetailPanel(
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         attachments.forEach { attachment ->
-                            ClaimedAttachmentCard(attachment)
+                            ClaimedAttachmentCard(attachment, watchedKeys)
                         }
                     }
                 } else {
@@ -371,6 +389,7 @@ private fun MailDetailPanel(
                                     isBag = attachment.type == "storageBag"
                                 ),
                                 showQuantity = true,
+                                isFollowed = watchKeyOf(attachment)?.let { it in watchedKeys } ?: false,
                                 onLongPress = {
                                     detailAttachment = attachment
                                     showDetail = true
@@ -402,7 +421,7 @@ private fun MailDetailPanel(
             item = MerchantItem(
                 id = attachment.itemId ?: "",
                 name = attachment.name,
-                type = attachment.type,
+                type = normalizeItemType(attachment.type),
                 rarity = attachment.rarity,
                 quantity = attachment.quantity,
                 price = 0L
@@ -410,7 +429,8 @@ private fun MailDetailPanel(
             onDismiss = {
                 showDetail = false
                 detailAttachment = null
-            }
+            },
+            viewModel = viewModel
         )
     }
 }
@@ -420,7 +440,10 @@ private fun MailDetailPanel(
  * 仅精灵图替换为绿色"已领"文本，名称和数量不变。
  */
 @Composable
-private fun ClaimedAttachmentCard(attachment: MailAttachment) {
+private fun ClaimedAttachmentCard(
+    attachment: MailAttachment,
+    watchedKeys: Set<String> = emptySet()
+) {
     Box(
         modifier = Modifier.size(60.dp),
         contentAlignment = Alignment.Center
@@ -429,7 +452,15 @@ private fun ClaimedAttachmentCard(attachment: MailAttachment) {
             modifier = Modifier
                 .fillMaxSize()
                 .clip(RoundedCornerShape(6.dp))
-                .border(2.dp, GameColors.Border, RoundedCornerShape(6.dp))
+                .border(
+                    2.dp,
+                    if (watchKeyOf(attachment)?.let { it in watchedKeys } == true) {
+                        GameColors.Gold
+                    } else {
+                        GameColors.Border
+                    },
+                    RoundedCornerShape(6.dp)
+                )
         ) {
             // 精灵图区域（与 UnifiedItemCard 比例一致）
             Box(

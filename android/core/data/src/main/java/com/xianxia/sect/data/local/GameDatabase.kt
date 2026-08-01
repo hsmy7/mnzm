@@ -74,7 +74,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 36  // v36: MIGRATION_35_36 新增 disciples.physiqueIds/affixIds 列
+    version = 37  // v37: MIGRATION_36_37 新增 game_data.watchedItemIds 列
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)
@@ -1488,6 +1488,25 @@ abstract class GameDatabase : RoomDatabase() {
         }
 
         /**
+         * v36→v37: 新增 game_data.watchedItemIds 列（物品关注列表）
+         *
+         * List<String> 经 ProtobufConverters 序列化为 Base64，空列表编码后为空字符串，
+         * 默认值用 ''（与 MIGRATION_35_36 physiqueIds/affixIds 先例一致）。
+         * 旧存档反序列化取默认空列表。
+         */
+        val MIGRATION_36_37 = object : Migration(36, 37) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                if (!columnExists(db, "game_data", "watchedItemIds")) {
+                    db.execSQL(
+                        "ALTER TABLE game_data ADD COLUMN watchedItemIds " +
+                        "TEXT NOT NULL DEFAULT ''"
+                    )
+                }
+                Log.i(TAG, "Migration 36→37: added game_data.watchedItemIds")
+            }
+        }
+
+        /**
          * 检查表中是否存在指定列。
          * 用于处理错误的 Migration 回填（已存在列重复 ALTER 会崩溃）。
          */
@@ -1763,7 +1782,7 @@ abstract class GameDatabase : RoomDatabase() {
                 return
             }
 
-            val targetVersion = 36  // @Database(version = 36)
+            val targetVersion = 37  // @Database(version = 37)
             if (currentVersion >= targetVersion) {
                 Log.d(TAG, "数据库已是最新版本 (v$currentVersion)，无需备份")
                 return
@@ -1815,7 +1834,7 @@ abstract class GameDatabase : RoomDatabase() {
                         Thread(r, "GameDB-Txn")
                     }
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database created")

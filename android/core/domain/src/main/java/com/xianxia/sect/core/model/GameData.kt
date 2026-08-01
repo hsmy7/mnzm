@@ -520,6 +520,11 @@ data class GameData(
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var autoRejectSpiritRootFilter: Set<Int> = emptySet(),
 
+    // 物品关注列表（键 = "type:name"，如 "pill:聚气丹"）。纯玩家偏好，无结算参与。
+    @ProtoNumber(211)
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var watchedItemIds: List<String> = emptyList(),
+
     // 道侣管理：禁止结婚的灵根数量（1=单灵根, 2=双灵根, 3=三灵根, 4=四灵根, 5=五灵根）
     @ProtoPacked @ProtoNumber(102)
     @SettlementStrategy(Strategy.PRESERVE_OLD)
@@ -769,6 +774,13 @@ data class GameData(
 ) {
     val displayTime: String get() = "第${gameYear}年${gameMonth}月${GamePhase.fromValue(gamePhase).displayName}"
 
+    /** 切换物品关注状态：已关注则移除，未关注则添加（去重并截断到 [MAX_WATCHED_ITEMS]） */
+    fun toggleWatchedItem(key: String): GameData {
+        val watched = watchedItemIds.toMutableSet()
+        if (!watched.add(key)) watched.remove(key)
+        return copy(watchedItemIds = watched.toList().takeLast(MAX_WATCHED_ITEMS))
+    }
+
     /** 按品阶获取灵石数量 */
     fun spiritStoneCount(grade: SpiritStoneGrade): Long = when (grade) {
         SpiritStoneGrade.LOW -> spiritStones
@@ -908,6 +920,7 @@ data class GameData(
 
     companion object {
         const val MAX_REDEEM_CODES = 500
+        const val MAX_WATCHED_ITEMS = 500
     }
 }
 

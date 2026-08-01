@@ -33,6 +33,7 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.components.watchKeyOf
 import com.xianxia.sect.ui.game.HeavenlyTrialViewModel
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.theme.GameColors
@@ -197,7 +198,7 @@ fun HeavenlyTrialBattleDialog(
                         // 信息区 — 占9份
                         Column(modifier = Modifier.weight(9f)) {
                             if (selectedEnemy != null) {
-                                EnemyInfoDetail(selectedEnemy)
+                                EnemyInfoDetail(selectedEnemy, gameViewModel)
                             }
                         }
                         // 横线
@@ -233,8 +234,14 @@ fun HeavenlyTrialBattleDialog(
 }
 
 @Composable
-private fun EnemyInfoDetail(enemy: Combatant) {
+private fun EnemyInfoDetail(
+    enemy: Combatant,
+    gameViewModel: GameViewModel? = null
+) {
     var detailTarget by remember { mutableStateOf<Any?>(null) }
+
+    val watchedKeys = gameViewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value
+        ?: emptySet()
 
     Column(modifier = Modifier.padding(8.dp).verticalScroll(rememberScrollState())) {
         // 基本信息
@@ -299,6 +306,8 @@ private fun EnemyInfoDetail(enemy: Combatant) {
                             UnifiedItemCard(
                                 data = ItemCardData(name = recipe.name, rarity = recipe.rarity),
                                 showQuantity = false,
+                                isFollowed = template?.let { watchKeyOf(it)?.let { k -> k in watchedKeys } }
+                                    ?: false,
                                 onLongPress = if (template != null) {
                                     { detailTarget = template }
                                 } else null
@@ -336,6 +345,8 @@ private fun EnemyInfoDetail(enemy: Combatant) {
                                     UnifiedItemCard(
                                         data = ItemCardData(name = name, rarity = rarity, isManual = true),
                                         showQuantity = false,
+                                        isFollowed = manual?.let { watchKeyOf(it)?.let { k -> k in watchedKeys } }
+                                            ?: false,
                                         onLongPress = if (manual != null) {
                                             { detailTarget = manual }
                                         } else null
@@ -353,7 +364,8 @@ private fun EnemyInfoDetail(enemy: Combatant) {
     if (detailTarget != null) {
         ItemDetailDialog(
             item = checkNotNull(detailTarget) { "detailTarget is null" },
-            onDismiss = { detailTarget = null }
+            onDismiss = { detailTarget = null },
+            viewModel = gameViewModel
         )
     }
 }

@@ -130,6 +130,12 @@ class GameViewModel @Inject constructor(
         .distinctUntilChanged()
         .stateIn(viewModelScope, sharingStarted, gameData.value.guideClaimedRewardIds)
 
+    // 已关注物品键集合（由 gameData.watchedItemIds 派生，键格式 "type:name"）
+    val watchedItemIds: StateFlow<Set<String>> = gameData
+        .map { it.watchedItemIds.toSet() }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, sharingStarted, gameData.value.watchedItemIds.toSet())
+
     fun claimGuideReward(taskId: Int) {
         gameEngine.launchOnEngine {
             gameEngine.claimGuideReward(taskId)
@@ -579,6 +585,7 @@ class GameViewModel @Inject constructor(
     fun getManualInstanceById(id: String): ManualInstance? = inventory.getManualInstanceById(id)
     fun getEquipmentInstanceById(id: String): EquipmentInstance? = inventory.getEquipmentInstanceById(id)
     fun toggleItemLock(itemId: String, itemType: String) = inventory.toggleItemLock(itemId, itemType)
+    fun toggleWatchItem(key: String) = inventory.toggleWatchItem(key)
     fun sellToMerchant(itemId: String, quantity: Int) = inventory.sellToMerchant(itemId, quantity)
     fun sellItem(itemId: String, itemType: String, quantity: Int) = inventory.sellItem(itemId, itemType, quantity)
     fun addAutoBuyEntries(entries: List<AutoBuyEntry>) = inventory.addAutoBuyEntries(entries)

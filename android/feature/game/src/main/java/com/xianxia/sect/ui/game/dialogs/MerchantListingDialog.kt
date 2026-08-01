@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
@@ -21,6 +22,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.GameItem
+import com.xianxia.sect.core.util.WATCHABLE_ITEM_TYPES
+import com.xianxia.sect.core.util.sortedByWatchedThenRarity
+import com.xianxia.sect.core.util.watchKey
+import com.xianxia.sect.core.util.normalizeItemType
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.components.GameButton
@@ -45,12 +51,21 @@ fun ListingManagementDialog(
 ) {
     val playerListedItems = gameData?.playerListedItems ?: emptyList()
     var showInventorySelectDialog by remember { mutableStateOf(false) }
-    val listItems = remember(playerListedItems) {
+    val watchedKeys by viewModel.watchedItemIds.collectAsStateWithLifecycle()
+    val listItems = remember(playerListedItems, watchedKeys) {
         playerListedItems.map { item ->
             PlayerListItem(id = item.id, name = item.name, type = item.type,
                 rarity = item.rarity, quantity = item.quantity, price = item.price,
                 itemId = item.itemId, grade = item.grade)
-        }
+        }.sortedByWatchedThenRarity(
+            watchedKeys,
+            keyOf = { item ->
+                val type = normalizeItemType(item.type)
+                if (type in WATCHABLE_ITEM_TYPES) watchKey(type, item.name) else null
+            },
+            rarityOf = { it.rarity },
+            nameOf = { it.name }
+        )
     }
 
     UnifiedGameDialog(onDismissRequest = onDismiss, title = "上架管理", mode = DialogMode.Full, scrollableContent = false,
@@ -73,7 +88,13 @@ fun ListingManagementDialog(
                         LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
                             itemsIndexed(listItems, key = { _, item -> item.id }) { index, item ->
                                 Column {
-                                    ListedItemCard(item = item, onDelist = { viewModel.removePlayerListedItem(item.id) })
+                                    ListedItemCard(
+                                        item = item,
+                                        isFollowed = watchedKeys.contains(
+                                            watchKey(normalizeItemType(item.type), item.name)
+                                        ),
+                                        onDelist = { viewModel.removePlayerListedItem(item.id) }
+                                    )
                                     if (index < listItems.lastIndex) HorizontalDivider(thickness = 1.dp, color = Color(0xFFBDBDBD))
                                 }
                             }
@@ -90,8 +111,21 @@ fun ListingManagementDialog(
 }
 
 @Composable
-private fun ListedItemCard(item: PlayerListItem, onDelist: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun ListedItemCard(
+    item: PlayerListItem,
+    isFollowed: Boolean = false,
+    onDelist: () -> Unit
+) {
+    Row(
+        Modifier.fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 8.dp)
+            .border(
+                2.dp,
+                if (isFollowed) GameColors.Gold else Color.Transparent,
+                RoundedCornerShape(4.dp)
+            ),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(item.name, fontSize = 11.sp, color = Color.Black)
             if (item.grade != null) {
@@ -104,9 +138,13 @@ private fun ListedItemCard(item: PlayerListItem, onDelist: () -> Unit) {
     }
 }
 
-fun <T : GameItem> filterAndSortItems(items: List<T>, excludeIds: Set<String>): List<T> {
+fun <T : GameItem> filterAndSortItems(
+    items: List<T>,
+    excludeIds: Set<String>,
+    watchedKeys: Set<String> = emptySet()
+): List<T> {
     return items.filter { it.id !in excludeIds }
-        .sortedWith(compareByDescending<T> { it.rarity }.thenBy { it.name })
+        .sortedByWatchedThenRarity(watchedKeys)
 }
 
 enum class ListingFilter(val displayName: String) {

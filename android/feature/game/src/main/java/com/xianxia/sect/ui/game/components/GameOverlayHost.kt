@@ -737,6 +737,7 @@ fun GameOverlayHost(
                     BattleResultDialog(
                         resultData = result,
                         battleLog = log,
+                        viewModel = viewModel,
                         scrimEnabled = false,
                         onConfirm = {
                             viewModel.dismissBattleResult()

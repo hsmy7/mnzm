@@ -24,6 +24,10 @@ import androidx.compose.ui.platform.LocalConfiguration
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.util.sortedByWatchedThenRarity
+import com.xianxia.sect.core.util.watchKey
+import com.xianxia.sect.ui.game.GameViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
@@ -152,9 +156,13 @@ fun ManualSelectionDialog(
     selectedManualId: String?,
     onSelect: (String) -> Unit,
     onConfirm: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    viewModel: GameViewModel? = null
 ) {
-    val availableManualStacks = remember(manualStacks, allManuals, currentManualIds, discipleRealm, maxManualSlots) {
+    val watchedKeys = viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value
+        ?: emptySet()
+
+    val availableManualStacks = remember(manualStacks, allManuals, currentManualIds, discipleRealm, maxManualSlots, watchedKeys) {
         if (currentManualIds.size >= maxManualSlots) {
             emptyList()
         } else {
@@ -165,7 +173,7 @@ fun ManualSelectionDialog(
                 !(hasMindManual && stack.type == ManualType.MIND) &&
                 stack.name !in learnedNames &&
                 GameConfig.Realm.meetsRealmRequirement(discipleRealm, stack.minRealm)
-            }.sortedByDescending { it.rarity }
+            }.sortedByWatchedThenRarity(watchedKeys)
         }
     }
 
@@ -220,6 +228,7 @@ fun ManualSelectionDialog(
                                 isManual = true
                             ),
                             isSelected = selectedManualId == stack.id,
+                            isFollowed = stack.watchKey() in watchedKeys,
                             onClick = {
                                 onSelect(stack.id)
                             },
@@ -249,7 +258,8 @@ fun ManualSelectionDialog(
     showDetailStack?.let { stack ->
         ItemDetailDialog(
             item = stack,
-            onDismiss = { showDetailStack = null }
+            onDismiss = { showDetailStack = null },
+            viewModel = viewModel
         )
     }
 }

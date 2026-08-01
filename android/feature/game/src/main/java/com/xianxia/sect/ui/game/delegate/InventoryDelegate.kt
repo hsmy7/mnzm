@@ -1,5 +1,6 @@
 package com.xianxia.sect.ui.game.delegate
 
+import android.util.Log
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.model.AutoBuyCatalogItem
 import com.xianxia.sect.core.model.AutoBuyEntry
@@ -9,15 +10,29 @@ import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.util.DomainResult
 import kotlinx.coroutines.CancellationException
 
 class InventoryDelegate(
     private val gameEngine: GameEngine
 ) {
+    private companion object {
+        const val TAG = "InventoryDelegate"
+    }
 
     fun toggleItemLock(itemId: String, itemType: String) {
         gameEngine.launchOnEngine {
             gameEngine.toggleItemLock(itemId, itemType)
+        }
+    }
+
+    /** 关注/取消关注物品（键为 "type:name"，如 "pill:聚气丹"） */
+    fun toggleWatchItem(key: String) {
+        gameEngine.launchOnEngine {
+            val result = gameEngine.toggleWatchItem(key)
+            if (result is DomainResult.Failure) {
+                Log.w(TAG, "toggleWatchItem failed: key=$key error=${result.error.message}")
+            }
         }
     }
 

@@ -28,11 +28,15 @@ import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.util.addManualInstanceToDiscipleBag
 import com.xianxia.sect.core.util.manualBagStackIds
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.GameRandom
 
 /** AI 宗门每个宗门的标准弟子数 */
 private const val MAX_AI_SECT_DISCIPLES = 50
+
+/** 关注键最大长度（type 前缀 + 冒号 + 最长物品名，防御恶意超长键撑爆存档） */
+private const val MAX_WATCHED_KEY_LENGTH = 64
 
 // ── Focus / UI state ────────────────────────────────────────────────
 
@@ -97,6 +101,21 @@ suspend fun GameEngine.ensureGameDataIntegrity() {
     checkAndRepairWorldMapSects()
     checkAndRepairAiSectDisciples()
     checkAndRepairMerchantAndRecruit()
+    checkAndRepairWatchedItemIds()
+}
+
+/** 关注列表上限收敛：恶意/损坏存档可注入超长列表，超限会令每次保存失败 */
+private suspend fun GameEngine.checkAndRepairWatchedItemIds() {
+    val gd = stateStore.gameDataSnapshot
+    val watched = gd.watchedItemIds
+    if (watched.size <= GameData.MAX_WATCHED_ITEMS && watched.size == watched.toSet().size) return
+    stateStore.update {
+        gameData = gameData.copy(
+            watchedItemIds = gameData.watchedItemIds
+                .takeLast(GameData.MAX_WATCHED_ITEMS)
+                .distinct()
+        )
+    }
 }
 
 private suspend fun GameEngine.checkAndRepairWorldMapSects() {
@@ -407,6 +426,35 @@ private suspend fun GameEngine.addInitialStorageBags() {
 suspend fun GameEngine.updateGameData(update: (GameData) -> GameData) {
     return engineContextDispatcher.withEngineContext {
         stateStore.update { gameData = update(gameData) }
+    }
+}
+
+/**
+ * 切换物品关注状态（键格式 "type:name"，如 "pill:聚气丹"）。
+ * 已关注则取消，未关注则添加；去重并截断到 [GameData.MAX_WATCHED_ITEMS]。
+ *
+ * @param key 关注键，空白/超长/格式错误视为无效输入返回失败（正常 UI 路径不会产生）
+ * @return 成功或校验失败
+ */
+suspend fun GameEngine.toggleWatchItem(key: String): DomainResult<Unit> {
+    if (key.isBlank()) {
+        return DomainResult.Failure(
+            AppError.Domain.Validation.InvalidInput("物品关注键不能为空")
+        )
+    }
+    if (key.length > MAX_WATCHED_KEY_LENGTH) {
+        return DomainResult.Failure(
+            AppError.Domain.Validation.InvalidInput("物品关注键过长")
+        )
+    }
+    if (':' !in key) {
+        return DomainResult.Failure(
+            AppError.Domain.Validation.InvalidInput("物品关注键格式错误")
+        )
+    }
+    return engineContextDispatcher.withEngineContext {
+        stateStore.update { gameData = gameData.toggleWatchedItem(key) }
+        DomainResult.Success(Unit)
     }
 }
 

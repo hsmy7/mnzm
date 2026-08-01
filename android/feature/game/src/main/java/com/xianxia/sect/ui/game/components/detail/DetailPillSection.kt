@@ -23,8 +23,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.util.sortedByWatchedThenRarity
 import com.xianxia.sect.ui.components.*
 import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.components.watchKeyOf
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.theme.GameColors
 import kotlinx.coroutines.launch
@@ -41,6 +43,17 @@ fun StorageBagDialog(
     var showRewardDialog by remember { mutableStateOf(false) }
     var selectedItem by remember { mutableStateOf<StorageBagItem?>(null) }
     var showDetailDialog by remember { mutableStateOf(false) }
+
+    val watchedKeys = viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value
+        ?: emptySet()
+    val sortedItems = remember(items, watchedKeys) {
+        items.sortedByWatchedThenRarity(
+            watchedKeys,
+            keyOf = { watchKeyOf(it) },
+            rarityOf = { it.rarity },
+            nameOf = { it.name }
+        )
+    }
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
@@ -81,7 +94,7 @@ fun StorageBagDialog(
                     .fillMaxWidth()
                     .heightIn(max = 400.dp)
             ) {
-                if (items.isEmpty()) {
+                if (sortedItems.isEmpty()) {
                     Text(
                         text = "储物袋为空",
                         fontSize = 12.sp,
@@ -89,7 +102,7 @@ fun StorageBagDialog(
                     )
                 } else {
                     Text(
-                        text = "共 ${items.size} 种物品",
+                        text = "共 ${sortedItems.size} 种物品",
                         fontSize = 11.sp,
                         color = Color.Black
                     )
@@ -104,7 +117,7 @@ fun StorageBagDialog(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        itemsIndexed(items, key = { index, item -> "${item.itemId}_$index" }) { index, item ->
+                        itemsIndexed(sortedItems, key = { index, item -> "${item.itemId}_$index" }) { index, item ->
                             UnifiedItemCard(
                                 data = ItemCardData(
                                     id = item.itemId,
@@ -117,6 +130,7 @@ fun StorageBagDialog(
                                     isMaterial = item.itemType == "material"
                                 ),
                                 isSelected = selectedItem?.itemId == item.itemId,
+                                isFollowed = watchKeyOf(item)?.let { it in watchedKeys } ?: false,
                                 onClick = {
                                     selectedItem = if (selectedItem?.itemId == item.itemId) null else item
                                 },
@@ -137,6 +151,7 @@ fun StorageBagDialog(
             ItemDetailDialog(
                 item = item,
                 onDismiss = { showDetailDialog = false },
+                viewModel = viewModel,
                 extraActions = {
                     GameButton(
                         text = "没收",
@@ -190,6 +205,7 @@ private fun RewardItemsDialog(
     val materials by viewModel.materials.collectAsStateWithLifecycle()
     val herbs by viewModel.herbs.collectAsStateWithLifecycle()
     val seeds by viewModel.seeds.collectAsStateWithLifecycle()
+    val watchedKeys by viewModel.watchedItemIds.collectAsStateWithLifecycle()
 
     val availableManuals = manualStacks
     val availableEquipment = equipmentStacks
@@ -271,6 +287,7 @@ private fun RewardItemsDialog(
                         materials = materials,
                         herbs = herbs,
                         seeds = seeds,
+                        watchedKeys = watchedKeys,
                         selectedItem = selectedItem,
                         onItemSelect = { item ->
                             selectedItem = if (selectedItem?.id == item.id) null else item
@@ -283,6 +300,7 @@ private fun RewardItemsDialog(
                     )
                     RewardFilter.EQUIPMENT -> RewardItemGrid(
                         items = availableEquipment,
+                        watchedKeys = watchedKeys,
                         selectedItem = selectedItem,
                         onItemSelect = { item ->
                             selectedItem = if (selectedItem?.id == item.id) null else item
@@ -295,6 +313,7 @@ private fun RewardItemsDialog(
                     )
                     RewardFilter.PILL -> RewardItemGrid(
                         items = pills,
+                        watchedKeys = watchedKeys,
                         selectedItem = selectedItem,
                         onItemSelect = { item ->
                             selectedItem = if (selectedItem?.id == item.id) null else item
@@ -307,6 +326,7 @@ private fun RewardItemsDialog(
                     )
                     RewardFilter.MANUAL -> RewardItemGrid(
                         items = availableManuals,
+                        watchedKeys = watchedKeys,
                         selectedItem = selectedItem,
                         onItemSelect = { item ->
                             selectedItem = if (selectedItem?.id == item.id) null else item
@@ -319,6 +339,7 @@ private fun RewardItemsDialog(
                     )
                     RewardFilter.HERB -> RewardItemGrid(
                         items = herbs,
+                        watchedKeys = watchedKeys,
                         selectedItem = selectedItem,
                         onItemSelect = { item ->
                             selectedItem = if (selectedItem?.id == item.id) null else item
@@ -331,6 +352,7 @@ private fun RewardItemsDialog(
                     )
                     RewardFilter.SEED -> RewardItemGrid(
                         items = seeds,
+                        watchedKeys = watchedKeys,
                         selectedItem = selectedItem,
                         onItemSelect = { item ->
                             selectedItem = if (selectedItem?.id == item.id) null else item
@@ -343,6 +365,7 @@ private fun RewardItemsDialog(
                     )
                     RewardFilter.MATERIAL -> RewardItemGrid(
                         items = materials,
+                        watchedKeys = watchedKeys,
                         selectedItem = selectedItem,
                         onItemSelect = { item ->
                             selectedItem = if (selectedItem?.id == item.id) null else item
@@ -385,7 +408,8 @@ private fun RewardItemsDialog(
         detailItem?.let { item ->
             ItemDetailDialog(
                 item = item,
-                onDismiss = { showDetailDialog = false }
+                onDismiss = { showDetailDialog = false },
+                viewModel = viewModel
             )
         }
     }
@@ -395,6 +419,7 @@ private fun RewardItemsDialog(
 private fun <T> RewardItemGrid(
     items: List<T>,
     selectedItem: RewardSelectedItem?,
+    watchedKeys: Set<String> = emptySet(),
     onItemSelect: (RewardSelectedItem) -> Unit,
     onViewDetail: (Any) -> Unit = {}
 ) {
@@ -449,6 +474,7 @@ private fun <T> RewardItemGrid(
                             isMaterial = currentSelectedItem.type == "material"
                         ),
                         isSelected = isSelected,
+                        isFollowed = watchKeyOf(item)?.let { it in watchedKeys } ?: false,
                         onClick = { onItemSelect(currentSelectedItem) },
                         onLongPress = { onViewDetail(item as Any) }
                     )
@@ -467,10 +493,13 @@ private fun RewardAllItemsGrid(
     herbs: List<Herb>,
     seeds: List<Seed>,
     selectedItem: RewardSelectedItem?,
+    watchedKeys: Set<String> = emptySet(),
     onItemSelect: (RewardSelectedItem) -> Unit,
     onViewDetail: (Any) -> Unit = {}
 ) {
-    val allItems: List<GameItem> = equipment + manuals + pills + materials + herbs + seeds
+    val allItems: List<GameItem> =
+        (equipment + manuals + pills + materials + herbs + seeds)
+            .sortedByWatchedThenRarity(watchedKeys)
 
     if (allItems.isEmpty()) {
         EmptyListMessage("暂无道具")
@@ -523,6 +552,7 @@ private fun RewardAllItemsGrid(
                             isMaterial = currentSelectedItem.type == "material"
                         ),
                         isSelected = isSelected,
+                        isFollowed = watchKeyOf(item)?.let { it in watchedKeys } ?: false,
                         onClick = { onItemSelect(currentSelectedItem) },
                         onLongPress = { onViewDetail(item as Any) }
                     )

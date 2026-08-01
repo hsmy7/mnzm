@@ -296,7 +296,8 @@ internal fun BulkSellDialog(
             onDismiss = {
                 showDetailDialog = false
                 detailItem = null
-            }
+            },
+            viewModel = viewModel
         )
     }
 }

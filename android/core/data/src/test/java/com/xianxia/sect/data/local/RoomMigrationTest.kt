@@ -64,9 +64,17 @@ class RoomMigrationTest {
         private val M33_34 = GameDatabase.MIGRATION_33_34
         private val M34_35 = GameDatabase.MIGRATION_34_35
         private val M35_36 = GameDatabase.MIGRATION_35_36
+        private val M36_37 = GameDatabase.MIGRATION_36_37
     }
 
     // ==================== 单个迁移步骤测试 ====================
+
+    @Test
+    fun `MIGRATION_36_TO_37 adds watchedItemIds to game_data`() {
+        testSingleMigration(
+            "m_36_37", 36, 37, listOf(M36_37), "game_data", "watchedItemIds"
+        )
+    }
 
     @Test
     fun `MIGRATION_2_TO_3 adds sectLevelClaimRecords to game_data`() {

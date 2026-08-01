@@ -143,7 +143,8 @@ data class SerializableGameData(
     @ProtoNumber(156) val activeAttackWarnings: List<SerializableAttackWarning> = emptyList(),
     @ProtoNumber(157) val sectBattleRecords: List<SerializableSectBattleRecord> = emptyList(),
     @ProtoNumber(158) val yearlyReports: List<SerializableYearlyReport> = emptyList(),
-    @ProtoNumber(159) val autoBuyList: List<SerializableAutoBuyEntry> = emptyList()
+    @ProtoNumber(159) val autoBuyList: List<SerializableAutoBuyEntry> = emptyList(),
+    @ProtoNumber(211) val watchedItemIds: List<String> = emptyList()
 )
 
 @Serializable

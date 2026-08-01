@@ -225,6 +225,7 @@ fun ActivityDialog(
                     HeavenlyTrialClearRewardDialog(
                         trialState = ts,
                         claimableLevels = cl,
+                        viewModel = gameViewModel,
                         onClaim = { levelIndex ->
                             trialViewModel.claimClearReward(levelIndex) { cards ->
                                 gameViewModel.enqueueRewardCards(cards)

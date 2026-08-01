@@ -27,6 +27,10 @@ import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.GameViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.xianxia.sect.core.util.sortedByWatchedThenRarity
+import com.xianxia.sect.core.util.watchKey
+import com.xianxia.sect.core.util.WATCHABLE_ITEM_TYPES
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.theme.GameColors
 
@@ -54,9 +58,22 @@ fun AutoBuyDialog(
     viewModel: GameViewModel,
     onDismiss: () -> Unit
 ) {
-    val autoBuyList = remember(gameData?.autoBuyList) {
+    val watchedKeys by viewModel.watchedItemIds.collectAsStateWithLifecycle()
+    val autoBuyList = remember(gameData?.autoBuyList, watchedKeys) {
         (gameData?.autoBuyList ?: emptyList())
             .distinctBy { "${it.itemName}:${it.itemType}:${it.rarity}" }
+            .sortedByWatchedThenRarity(
+                watchedKeys,
+                keyOf = {
+                    if (it.itemType in WATCHABLE_ITEM_TYPES) {
+                        watchKey(it.itemType, it.itemName)
+                    } else {
+                        null
+                    }
+                },
+                rarityOf = { it.rarity },
+                nameOf = { it.itemName }
+            )
     }
     var deleteMode by remember { mutableStateOf(false) }
     var showItemSelectDialog by remember { mutableStateOf(false) }
@@ -134,6 +151,7 @@ fun AutoBuyDialog(
                                 isSeed = entry.itemType == "seed"
                             ),
                             isSelected = isSelected,
+                            isFollowed = watchKey(entry.itemType, entry.itemName) in watchedKeys,
                             selectedBorderColor = Color.Red,
                             showQuantity = false,
                             onClick = {
@@ -193,7 +211,8 @@ fun AutoBuyDialog(
     detailItem?.let { item ->
         ItemDetailDialog(
             item = item,
-            onDismiss = { detailItem = null }
+            onDismiss = { detailItem = null },
+            viewModel = viewModel
         )
     }
 }
@@ -258,14 +277,27 @@ fun AutoBuyItemSelectDialog(
         existingList.map { "${it.itemName}:${it.itemType}:${it.rarity}" }.toSet()
     }
 
-    // 过滤并排序
-    val availableItems = remember(catalogItems, selectedFilter, existingKeys) {
+    // 过滤并排序（已关注优先 → 品阶降序）
+    val watchedKeys by viewModel.watchedItemIds.collectAsStateWithLifecycle()
+    val availableItems = remember(catalogItems, selectedFilter, existingKeys, watchedKeys) {
         catalogItems
             .filter { "${it.name}:${it.type}:${it.rarity}" !in existingKeys }
             .let { items ->
                 if (selectedFilter == AutoBuyFilter.ALL) items
                 else items.filter { it.type == selectedFilter.typeValue }
             }
+            .sortedByWatchedThenRarity(
+                watchedKeys,
+                keyOf = { item ->
+                    if (item.type in WATCHABLE_ITEM_TYPES) {
+                        watchKey(item.type, item.name)
+                    } else {
+                        null
+                    }
+                },
+                rarityOf = { it.rarity },
+                nameOf = { it.name }
+            )
     }
 
     UnifiedGameDialog(
@@ -335,6 +367,7 @@ fun AutoBuyItemSelectDialog(
                                 isSeed = item.type == "seed"
                             ),
                             isSelected = isSelected,
+                            isFollowed = watchKey(item.type, item.name) in watchedKeys,
                             showQuantity = false,
                             onClick = {
                                 if (isSelected) {
@@ -397,7 +430,8 @@ fun AutoBuyItemSelectDialog(
         detailItem?.let { item ->
             ItemDetailDialog(
                 item = item,
-                onDismiss = { detailItem = null }
+                onDismiss = { detailItem = null },
+                viewModel = viewModel
             )
         }
     }

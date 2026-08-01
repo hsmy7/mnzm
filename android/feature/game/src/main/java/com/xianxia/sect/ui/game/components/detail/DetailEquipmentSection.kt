@@ -19,6 +19,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.util.sortedByWatchedThenRarity
+import com.xianxia.sect.core.util.watchKey
+import com.xianxia.sect.ui.game.GameViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
@@ -119,7 +123,8 @@ fun EquipmentSelectionDialog(
     selectedEquipmentId: String?,
     onSelect: (String) -> Unit,
     onConfirm: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    viewModel: GameViewModel? = null
 ) {
     val slotTypeText = when (slotType) {
         "weapon" -> "武器"
@@ -129,7 +134,10 @@ fun EquipmentSelectionDialog(
         else -> "装备"
     }
 
-    val availableItems = remember(allEquipment, equipmentStacks, slotType, currentEquipmentId, currentDiscipleId, discipleRealm) {
+    val watchedKeys = viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value
+        ?: emptySet()
+
+    val availableItems = remember(allEquipment, equipmentStacks, slotType, currentEquipmentId, currentDiscipleId, discipleRealm, watchedKeys) {
         val slotEnum = try {
             EquipmentSlot.valueOf(slotType.uppercase(Locale.getDefault()))
         } catch (_: Exception) {
@@ -148,7 +156,12 @@ fun EquipmentSelectionDialog(
             GameConfig.Realm.meetsRealmRequirement(discipleRealm, it.minRealm)
         }.map { inst -> EquipmentSelectionItem(inst.id, inst.name, inst.rarity, 1, false, false) }
 
-        (stacks + instances).sortedByDescending { it.rarity }
+        (stacks + instances).sortedByWatchedThenRarity(
+            watchedKeys,
+            keyOf = { watchKey("equipment", it.name) },
+            rarityOf = { it.rarity },
+            nameOf = { it.name }
+        )
     }
 
     var showDetailItem by remember { mutableStateOf<Any?>(null) }
@@ -190,6 +203,7 @@ fun EquipmentSelectionDialog(
                                     isLocked = item.isLocked
                                 ),
                                 isSelected = selectedEquipmentId == item.id,
+                                isFollowed = watchKey("equipment", item.name) in watchedKeys,
                                 onClick = {
                                     onSelect(item.id)
                                 },
@@ -227,7 +241,8 @@ fun EquipmentSelectionDialog(
     showDetailItem?.let { item ->
         ItemDetailDialog(
             item = item,
-            onDismiss = { showDetailItem = null }
+            onDismiss = { showDetailItem = null },
+            viewModel = viewModel
         )
     }
 }

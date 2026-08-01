@@ -58,7 +58,8 @@ fun UnifiedItemCard(
     modifier: Modifier = Modifier,
     size: Dp = 60.dp,
     isSelected: Boolean = false,
-    selectedBorderColor: Color = Color(0xFFFFD700),
+    selectedBorderColor: Color = Color.White,
+    isFollowed: Boolean = false,
     showQuantity: Boolean = true,
     showPrice: Boolean = false,
     craftable: Boolean = true,
@@ -90,8 +91,12 @@ fun UnifiedItemCard(
                 .fillMaxSize()
                 .clip(RoundedCornerShape(6.dp))
                 .border(
-                    width = if (isSelected) 3.dp else 2.dp,
-                    color = if (isSelected) selectedBorderColor else GameColors.Border,
+                    width = 2.dp,
+                    color = when {
+                        isSelected -> selectedBorderColor
+                        isFollowed -> GameColors.Gold
+                        else -> GameColors.Border
+                    },
                     shape = RoundedCornerShape(6.dp)
                 )
                 .combinedClickable(

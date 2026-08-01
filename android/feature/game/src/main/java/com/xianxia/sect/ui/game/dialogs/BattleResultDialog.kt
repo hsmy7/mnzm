@@ -24,6 +24,13 @@ import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.BattleRewardItem
 import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.state.BattleResultUIData
+import com.xianxia.sect.core.util.WATCHABLE_ITEM_TYPES
+import com.xianxia.sect.core.util.sortedByWatchedThenRarity
+import com.xianxia.sect.core.util.watchKey
+import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.core.util.normalizeItemType
+import com.xianxia.sect.ui.game.components.watchKeyOf
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.ui.components.BattleParticipantSlot
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
@@ -40,6 +47,7 @@ internal fun BattleResultDialog(
     onConfirm: () -> Unit,
     onViewDetail: (BattleLog) -> Unit,
     onDismiss: () -> Unit,
+    viewModel: GameViewModel? = null,
     scrimEnabled: Boolean = true
 ) {
     val resultColor = if (resultData.victory) Color(0xFF4CAF50) else Color(0xFFF44336)
@@ -50,6 +58,31 @@ internal fun BattleResultDialog(
     }
     var showDetail by remember { mutableStateOf(false) }
     var detailReward by remember { mutableStateOf<BattleRewardItem?>(null) }
+
+    val watchedKeys = viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value
+        ?: emptySet()
+    val sortedRewards = remember(resultData.rewards, watchedKeys) {
+        resultData.rewards.sortedByWatchedThenRarity(
+            watchedKeys,
+            keyOf = { reward ->
+                val type = normalizeItemType(reward.type)
+                if (type in WATCHABLE_ITEM_TYPES) watchKey(type, reward.name) else null
+            },
+            rarityOf = { it.rarity },
+            nameOf = { it.name }
+        )
+    }
+    val sortedLooted = remember(resultData.lootedItems, watchedKeys) {
+        resultData.lootedItems.sortedByWatchedThenRarity(
+            watchedKeys,
+            keyOf = { loot ->
+                val type = normalizeItemType(loot.type)
+                if (type in WATCHABLE_ITEM_TYPES) watchKey(type, loot.name) else null
+            },
+            rarityOf = { it.rarity },
+            nameOf = { it.name }
+        )
+    }
 
     // 阵亡弟子
     val deadMembers = resultData.teamMembers.filter { !it.isAlive }
@@ -133,7 +166,7 @@ internal fun BattleResultDialog(
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(resultData.lootedItems, key = { it.itemId }, contentType = { "looted_item" }) { loot ->
+                            items(sortedLooted, key = { it.itemId }, contentType = { "looted_item" }) { loot ->
                                 UnifiedItemCard(
                                     data = ItemCardData(
                                         id = loot.itemId,
@@ -146,6 +179,7 @@ internal fun BattleResultDialog(
                                         isMaterial = loot.type == "material",
                                         spiritStoneGrade = if (loot.type == "spiritStones") SpiritStoneGrade.LOW else null
                                     ),
+                                    isFollowed = watchKeyOf(loot)?.let { it in watchedKeys } ?: false,
                                     onLongPress = {
                                         detailReward = loot
                                         showDetail = true
@@ -222,7 +256,7 @@ internal fun BattleResultDialog(
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(resultData.rewards, key = { it.itemId }, contentType = { "reward" }) { reward ->
+                            items(sortedRewards, key = { it.itemId }, contentType = { "reward" }) { reward ->
                                 UnifiedItemCard(
                                     data = ItemCardData(
                                         id = reward.itemId,
@@ -235,6 +269,7 @@ internal fun BattleResultDialog(
                                         isMaterial = reward.type == "material",
                                         spiritStoneGrade = if (reward.type == "spiritStones") SpiritStoneGrade.LOW else null
                                     ),
+                                    isFollowed = watchKeyOf(reward)?.let { it in watchedKeys } ?: false,
                                     onLongPress = {
                                         detailReward = reward
                                         showDetail = true
@@ -292,7 +327,7 @@ internal fun BattleResultDialog(
             item = MerchantItem(
                 id = reward.itemId,
                 name = reward.name,
-                type = reward.type,
+                type = normalizeItemType(reward.type),
                 rarity = reward.rarity,
                 quantity = reward.quantity,
                 price = 0L
@@ -300,7 +335,8 @@ internal fun BattleResultDialog(
             onDismiss = {
                 showDetail = false
                 detailReward = null
-            }
+            },
+            viewModel = viewModel
         )
     }
 }

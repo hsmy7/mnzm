@@ -37,6 +37,9 @@ import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.components.ItemCardData
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.xianxia.sect.core.util.sortedByWatchedThenRarity
+import com.xianxia.sect.ui.game.components.watchKeyOf
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.WorldMapInteractionViewModel
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
@@ -66,6 +69,16 @@ fun SectTradeDialog(
             val updated = tradeItems.find { it.id == currentId }
             selectedItem = updated
         }
+    }
+
+    val watchedKeys by viewModel.watchedItemIds.collectAsStateWithLifecycle()
+    val sortedTradeItems = remember(tradeItems, watchedKeys) {
+        tradeItems.sortedByWatchedThenRarity(
+            watchedKeys,
+            keyOf = { watchKeyOf(it) },
+            rarityOf = { it.rarity },
+            nameOf = { it.name }
+        )
     }
 
     val playerSect = gameData?.worldMapSects?.find { it.isPlayerSect }
@@ -172,7 +185,7 @@ fun SectTradeDialog(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(tradeItems, key = { it.id }, contentType = { "merchant_item" }) { item ->
+                        items(sortedTradeItems, key = { it.id }, contentType = { "merchant_item" }) { item ->
                             val canBuyThisItem = canTrade && item.rarity <= maxAllowedRarity
                             val adjustedPrice = (item.price * priceMultiplier).toLong()
 
@@ -193,6 +206,7 @@ fun SectTradeDialog(
                                     isMaterial = item.type == "material"
                                 ),
                                 isSelected = selectedItem?.id == item.id,
+                                isFollowed = watchKeyOf(item)?.let { it in watchedKeys } ?: false,
                                 onClick = {
                                     if (!canBuyThisItem) {
                                         lockedItemName = item.name
@@ -433,7 +447,8 @@ fun SectTradeDialog(
         selectedItem?.let { item ->
             ItemDetailDialog(
                 item = item,
-                onDismiss = { showDetailDialog = false }
+                onDismiss = { showDetailDialog = false },
+                viewModel = viewModel
             )
         }
     }

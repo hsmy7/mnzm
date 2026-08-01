@@ -28,9 +28,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.util.GameUtils
+import com.xianxia.sect.core.util.watchKey
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.components.WatchItemButton
 import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.ElderBonusInfo
 import com.xianxia.sect.ui.components.GameButton
@@ -44,7 +47,6 @@ import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.AlchemyViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel
-import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.ALCHEMY_THEME
 import com.xianxia.sect.ui.game.ProductionSlotItem
 import com.xianxia.sect.ui.game.ProductionTheme
@@ -335,9 +337,13 @@ private fun PillSelectionDialog(
             }
         }
 
-        val sortedRecipes = remember(recipesWithStatus) {
+        val watchedKeys by viewModel.watchedItemIds.collectAsStateWithLifecycle()
+        val sortedRecipes = remember(recipesWithStatus, watchedKeys) {
             val (craftable, uncraftable) = recipesWithStatus.partition { it.canCraft }
-            val comparator = compareByDescending<RecipeWithStatus> { it.recipe.tier }
+            val comparator =
+                compareByDescending<RecipeWithStatus> {
+                    watchKey("pill", it.recipe.name) in watchedKeys
+                }.thenByDescending { it.recipe.tier }
             craftable.sortedWith(comparator) + uncraftable.sortedWith(comparator)
         }
 
@@ -363,6 +369,7 @@ private fun PillSelectionDialog(
                                 isPill = true
                             ),
                             isSelected = isSelected,
+                            isFollowed = watchKey("pill", recipe.name) in watchedKeys,
                             craftable = hasEnoughMaterials,
                             showQuantity = false,
                             onClick = {
@@ -412,6 +419,7 @@ private fun PillSelectionDialog(
             PillDetailDialog(
                 recipes = allGrades,
                 herbs = herbs,
+                viewModel = viewModel,
                 onDismiss = { showDetail = false }
             )
         }
@@ -422,6 +430,7 @@ private fun PillSelectionDialog(
 private fun PillDetailDialog(
     recipes: List<PillRecipeDatabase.PillRecipe>,
     herbs: List<Herb>,
+    viewModel: GameViewModel? = null,
     onDismiss: () -> Unit
 ) {
     val recipe = recipes.first()
@@ -455,6 +464,22 @@ private fun PillDetailDialog(
                 ) {
                     Text(text = "品阶: ${recipe.tier}阶", fontSize = 12.sp, color = Color.Black)
                     Text(text = "时间: ${recipe.duration}月", fontSize = 12.sp, color = Color.Black)
+                }
+
+                // 关注按钮：viewModel 非空时显示（丹药按名称关注）
+                if (viewModel != null) {
+                    val watchedKeys =
+                        viewModel.watchedItemIds.collectAsStateWithLifecycle().value
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Start
+                    ) {
+                        WatchItemButton(
+                            watchKey = watchKey("pill", recipe.name),
+                            watchedKeys = watchedKeys,
+                            onToggleWatch = { key -> viewModel.toggleWatchItem(key) }
+                        )
+                    }
                 }
 
                 Text(text = "所需材料:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)

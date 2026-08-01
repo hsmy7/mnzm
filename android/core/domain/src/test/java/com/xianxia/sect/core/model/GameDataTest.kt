@@ -292,6 +292,49 @@ class GameDataTest {
         assertEquals(500, GameData.MAX_REDEEM_CODES)
     }
 
+    @Test
+    fun gameData_maxWatchedItems() {
+        assertEquals(500, GameData.MAX_WATCHED_ITEMS)
+    }
+
+    // ==================== 物品关注列表 ====================
+
+    @Test
+    fun defaultConstruction_watchedItemIds_empty() {
+        val data = GameData()
+        assertTrue(data.watchedItemIds.isEmpty())
+    }
+
+    @Test
+    fun toggleWatchedItem_未关注_添加() {
+        val data = GameData()
+        val updated = data.toggleWatchedItem("pill:聚气丹")
+        assertEquals(listOf("pill:聚气丹"), updated.watchedItemIds)
+    }
+
+    @Test
+    fun toggleWatchedItem_已关注_取消() {
+        val data = GameData().copy(watchedItemIds = listOf("pill:聚气丹"))
+        val updated = data.toggleWatchedItem("pill:聚气丹")
+        assertTrue(updated.watchedItemIds.isEmpty())
+    }
+
+    @Test
+    fun toggleWatchedItem_重复键_去重() {
+        val data = GameData().copy(watchedItemIds = listOf("pill:聚气丹", "pill:聚气丹"))
+        val updated = data.toggleWatchedItem("equipment:精铁剑")
+        assertEquals(2, updated.watchedItemIds.size)
+    }
+
+    @Test
+    fun toggleWatchedItem_超过上限_截断保留最新() {
+        val keys = (1..GameData.MAX_WATCHED_ITEMS + 10).map { "pill:丹药$it" }
+        val data = GameData().copy(watchedItemIds = keys)
+        val updated = data.toggleWatchedItem("material:新关注")
+        assertEquals(GameData.MAX_WATCHED_ITEMS, updated.watchedItemIds.size)
+        assertTrue("material:新关注" in updated.watchedItemIds)
+    }
+
     // ==================== SectPolicies ====================
 
     @Test

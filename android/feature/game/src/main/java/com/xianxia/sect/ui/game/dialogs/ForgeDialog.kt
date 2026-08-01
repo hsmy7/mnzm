@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.offset
 import com.xianxia.sect.core.util.GameUtils
+import com.xianxia.sect.core.util.watchKey
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.model.*
@@ -37,6 +38,7 @@ import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.UnifiedItemCard
+import com.xianxia.sect.ui.game.components.WatchItemButton
 import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.ForgeViewModel
@@ -321,9 +323,14 @@ private fun EquipmentSelectionDialog(
             }
         }
 
-        val sortedRecipes = remember(recipesWithStatus) {
+        val watchedKeys by viewModel.watchedItemIds.collectAsStateWithLifecycle()
+        val sortedRecipes = remember(recipesWithStatus, watchedKeys) {
             val (craftable, uncraftable) = recipesWithStatus.partition { it.canCraft }
-            craftable.sortedByDescending { it.recipe.rarity } + uncraftable
+            val comparator =
+                compareByDescending<RecipeWithStatus> {
+                    watchKey("equipment", it.recipe.name) in watchedKeys
+                }.thenByDescending { it.recipe.rarity }
+            craftable.sortedWith(comparator) + uncraftable.sortedWith(comparator)
         }
 
         Column(modifier = Modifier.weight(1f)) {
@@ -347,6 +354,7 @@ private fun EquipmentSelectionDialog(
                                 rarity = recipe.rarity
                             ),
                             isSelected = isSelected,
+                            isFollowed = watchKey("equipment", recipe.name) in watchedKeys,
                             craftable = hasEnoughMaterials,
                             showQuantity = false,
                             onClick = {
@@ -390,6 +398,7 @@ private fun EquipmentSelectionDialog(
             EquipmentDetailDialog(
                 recipe = recipe,
                 materials = materials,
+                viewModel = viewModel,
                 onDismiss = { showDetail = false }
             )
         }
@@ -400,6 +409,7 @@ private fun EquipmentSelectionDialog(
 private fun EquipmentDetailDialog(
     recipe: ForgeRecipeDatabase.ForgeRecipe,
     materials: List<Material>,
+    viewModel: GameViewModel? = null,
     onDismiss: () -> Unit
 ) {
     SmallScreenDialog(
@@ -415,6 +425,22 @@ private fun EquipmentDetailDialog(
                 ) {
                     Text(text = "品阶: ${recipe.tier}阶", fontSize = 12.sp, color = Color.Black)
                     Text(text = "时间: ${recipe.duration}月", fontSize = 12.sp, color = Color.Black)
+                }
+
+                // 关注按钮：viewModel 非空时显示（装备按名称关注）
+                if (viewModel != null) {
+                    val watchedKeys =
+                        viewModel.watchedItemIds.collectAsStateWithLifecycle().value
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Start
+                    ) {
+                        WatchItemButton(
+                            watchKey = watchKey("equipment", recipe.name),
+                            watchedKeys = watchedKeys,
+                            onToggleWatch = { key -> viewModel.toggleWatchItem(key) }
+                        )
+                    }
                 }
 
                 Text(text = "所需材料:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)

@@ -18,6 +18,10 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.HEAVENLY_TRIAL_CLEAR_REWARDS
 import com.xianxia.sect.core.model.HeavenlyTrialSaveData
 import com.xianxia.sect.core.model.SpiritStoneGrade
+import com.xianxia.sect.core.util.watchKey
+import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.core.util.normalizeItemType
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
@@ -32,9 +36,12 @@ private val DividerGray = Color(0xFFBDBDBD)
 fun HeavenlyTrialClearRewardDialog(
     trialState: HeavenlyTrialSaveData,
     claimableLevels: List<Int>,
+    viewModel: GameViewModel? = null,
     onClaim: (levelIndex: Int) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val watchedKeys = viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value
+        ?: emptySet()
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
         title = "通关奖励",
@@ -58,6 +65,7 @@ fun HeavenlyTrialClearRewardDialog(
                         items = reward.items,
                         isCleared = isCleared,
                         canClaim = canClaim,
+                        watchedKeys = watchedKeys,
                         onClaim = { onClaim(reward.levelIndex) }
                     )
                     // 关卡之间 1dp 灰色横线（最后一项不加）
@@ -81,6 +89,7 @@ private fun ClearRewardRow(
     items: List<com.xianxia.sect.core.model.ClearRewardItem>,
     isCleared: Boolean,
     canClaim: Boolean,
+    watchedKeys: Set<String> = emptySet(),
     onClaim: () -> Unit
 ) {
     Row(
@@ -161,7 +170,10 @@ private fun ClearRewardRow(
                         )
                         UnifiedItemCard(
                             data = cardData,
-                            showQuantity = true
+                            showQuantity = true,
+                            isFollowed = watchedKeys.contains(
+                                watchKey(normalizeItemType(item.itemType), item.itemName)
+                            )
                         )
                     }
                     // 红点

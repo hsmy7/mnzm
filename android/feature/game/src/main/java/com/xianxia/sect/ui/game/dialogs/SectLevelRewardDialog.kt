@@ -17,6 +17,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.core.util.GameUtils
+import com.xianxia.sect.core.util.watchKey
+import com.xianxia.sect.core.util.normalizeItemType
 import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.config.SectLevelRewardConfig
 import com.xianxia.sect.core.model.RewardCardItem
@@ -42,6 +44,7 @@ fun SectLevelRewardDialog(
     onDismiss: () -> Unit
 ) {
     val rewardClaimable by viewModel.sectLevelRewardClaimable.collectAsStateWithLifecycle()
+    val watchedKeys by viewModel.watchedItemIds.collectAsStateWithLifecycle()
     var hasClaimed by remember { mutableStateOf(false) }
 
     val rewardCards = remember(level) {
@@ -89,6 +92,9 @@ fun SectLevelRewardDialog(
                                 UnifiedItemCard(
                                     data = card.toItemCardData(),
                                     showQuantity = true,
+                                    isFollowed = watchedKeys.contains(
+                                        watchKey(normalizeItemType(card.itemType), card.itemName)
+                                    ),
                                     modifier = Modifier.padding(4.dp)
                                 )
                             }

@@ -39,6 +39,9 @@ import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.core.util.sortedByWatchedThenRarity
+import com.xianxia.sect.core.util.watchKey
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.theme.GameColors
 import kotlin.math.ceil
@@ -93,11 +96,12 @@ fun PlantingDialog(
     var detailSeed by remember { mutableStateOf<Seed?>(null) }
 
     // ── 派生数据 ───────────────────────────────────────────
-    // 可用种子：排序 稀有度降 → 名称升
-    val activeSeeds = remember(seeds) {
+    // 可用种子：已关注优先 → 稀有度降 → 名称升
+    val watchedKeys by viewModel.watchedItemIds.collectAsStateWithLifecycle()
+    val activeSeeds = remember(seeds, watchedKeys) {
         seeds
             .filter { it.quantity > 0 }
-            .sortedWith(compareByDescending<Seed> { it.rarity }.thenBy { it.name })
+            .sortedByWatchedThenRarity(watchedKeys)
     }
 
     // 当前宗门的灵田
@@ -258,6 +262,7 @@ fun PlantingDialog(
                                         isSeed = true
                                     ),
                                     isSelected = seed.id == selectedSeedId,
+                                    isFollowed = seed.watchKey() in watchedKeys,
                                     onClick = {
                                         selectedSeedId =
                                             if (selectedSeedId == seed.id) null else seed.id
@@ -387,6 +392,7 @@ fun PlantingDialog(
                                                     isSeed = true
                                                 ),
                                                 isSelected = false,
+                                                isFollowed = plantedSeed.watchKey() in watchedKeys,
                                                 onClick = { selectedSeedId = plantedSeed.id },
                                                 onLongPress = {
                                                     detailSeed = plantedSeed
@@ -405,6 +411,7 @@ fun PlantingDialog(
                                                         isSeed = true
                                                     ),
                                                     isSelected = false,
+                                                    isFollowed = watchKey("seed", fbSeed.name) in watchedKeys,
                                                     onClick = {},
                                                     onLongPress = {
                                                         detailSeed = Seed(
@@ -592,7 +599,8 @@ fun PlantingDialog(
             onDismiss = {
                 showSeedDetail = false
                 detailSeed = null
-            }
+            },
+            viewModel = viewModel
         )
     }
 

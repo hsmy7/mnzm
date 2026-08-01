@@ -40,6 +40,8 @@ import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
+import com.xianxia.sect.ui.game.components.watchKeyOf
+import com.xianxia.sect.core.util.sortedByWatchedThenRarity
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 
@@ -98,30 +100,33 @@ internal fun WarehouseTab(
         cards
     }
 
-    val equipment = remember(equipmentStacks) {
-        equipmentStacks.sortedWith(compareByDescending<EquipmentStack> { it.rarity }.thenBy { it.name })
+    val watchedKeys by viewModel.watchedItemIds.collectAsStateWithLifecycle()
+
+    val equipment = remember(equipmentStacks, watchedKeys) {
+        equipmentStacks.sortedByWatchedThenRarity(watchedKeys)
     }
 
-    val manuals = remember(manualStacks) {
-        manualStacks.sortedWith(compareByDescending<ManualStack> { it.rarity }.thenBy { it.name })
+    val manuals = remember(manualStacks, watchedKeys) {
+        manualStacks.sortedByWatchedThenRarity(watchedKeys)
     }
 
-    val sortedPills = remember(pills) {
-        pills.sortedWith(compareByDescending<Pill> { it.rarity }.thenBy { it.name })
+    val sortedPills = remember(pills, watchedKeys) {
+        pills.sortedByWatchedThenRarity(watchedKeys)
     }
 
-    val sortedMaterials = remember(materials) {
-        materials.sortedWith(compareByDescending<Material> { it.rarity }.thenBy { it.name })
+    val sortedMaterials = remember(materials, watchedKeys) {
+        materials.sortedByWatchedThenRarity(watchedKeys)
     }
 
-    val sortedHerbs = remember(herbs) {
-        herbs.sortedWith(compareByDescending<Herb> { it.rarity }.thenBy { it.name })
+    val sortedHerbs = remember(herbs, watchedKeys) {
+        herbs.sortedByWatchedThenRarity(watchedKeys)
     }
 
-    val sortedSeeds = remember(seeds) {
-        seeds.sortedWith(compareByDescending<Seed> { it.rarity }.thenBy { it.name })
+    val sortedSeeds = remember(seeds, watchedKeys) {
+        seeds.sortedByWatchedThenRarity(watchedKeys)
     }
 
+    // 储物袋不可关注，保持原排序
     val sortedBags = remember(storageBags) {
         storageBags.sortedWith(compareByDescending<StorageBag> { it.rarity }.thenBy { it.name })
     }
@@ -133,7 +138,7 @@ internal fun WarehouseTab(
         val item: Any
     )
 
-    val allSortedItems = remember(equipment, manuals, sortedPills, sortedMaterials, sortedHerbs, sortedSeeds, sortedBags, spiritStoneCards) {
+    val allSortedItems = remember(equipment, manuals, sortedPills, sortedMaterials, sortedHerbs, sortedSeeds, sortedBags, spiritStoneCards, watchedKeys) {
         val items = mutableListOf<WarehouseItemData>()
         equipment.forEach { items.add(WarehouseItemData(it.id, it.name, it.rarity, it)) }
         manuals.forEach { items.add(WarehouseItemData(it.id, it.name, it.rarity, it)) }
@@ -149,7 +154,12 @@ internal fun WarehouseTab(
                 SpiritStoneGrade.HIGH -> 5
             }, info))
         }
-        items.sortedWith(compareByDescending<WarehouseItemData> { it.rarity }.thenBy { it.name })
+        items.sortedByWatchedThenRarity(
+            watchedKeys,
+            keyOf = { watchKeyOf(it.item) },
+            rarityOf = { it.rarity },
+            nameOf = { it.name }
+        )
     }
 
     var selectedFilter by remember { mutableStateOf(WarehouseFilter.ALL) }
@@ -173,7 +183,7 @@ internal fun WarehouseTab(
     }
     var currentPage by remember { mutableIntStateOf(0) }
 
-    val currentFilterItems = remember(selectedFilter, allSortedItems, equipment, sortedPills, manuals, sortedHerbs, sortedSeeds, sortedMaterials, spiritStoneCards, sortedBags) {
+    val currentFilterItems = remember(selectedFilter, allSortedItems, equipment, sortedPills, manuals, sortedHerbs, sortedSeeds, sortedMaterials, spiritStoneCards, sortedBags, watchedKeys) {
         when (selectedFilter) {
             WarehouseFilter.ALL -> allSortedItems
             WarehouseFilter.EQUIPMENT -> equipment.map { WarehouseItemData(it.id, it.name, it.rarity, it) }
@@ -297,6 +307,8 @@ internal fun WarehouseTab(
                                             isBag = warehouseItem.item is StorageBag
                                         ),
                                         isSelected = selectedItemId == warehouseItem.id,
+                                        isFollowed = watchKeyOf(warehouseItem.item)
+                                            ?.let { it in watchedKeys } ?: false,
                                         onLongPress = {
                                             selectedItemId = warehouseItem.id
                                             showDetailDialog = true
@@ -400,6 +412,7 @@ internal fun WarehouseTab(
                     showDetailDialog = false
                     selectedItemId = null
                 },
+                viewModel = viewModel,
                 extraActions = {
                     val scope = rememberCoroutineScope()
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -30,6 +30,8 @@ import com.xianxia.sect.core.model.Talent
 import com.xianxia.sect.core.model.Physique
 import com.xianxia.sect.core.model.Affix
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.util.sortedByWatchedThenRarity
+import com.xianxia.sect.core.util.watchKey
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.game.components.LearnedManualDetailDialog
 import com.xianxia.sect.ui.components.CloseButton
@@ -496,7 +498,9 @@ fun DiscipleDetailDialog(
         )
 
         if (showManualReplaceSelection) {
-            val availableManualStacks = remember(manualStacks, allManuals, disciple.manualIds, manual, disciple.realm) {
+            val watchedKeys = viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value
+                ?: emptySet()
+            val availableManualStacks = remember(manualStacks, allManuals, disciple.manualIds, manual, disciple.realm, watchedKeys) {
                 val manualMap = allManuals.associateBy { it.id }
                 val otherManualIds = disciple.manualIds.filter { it != manual.id }
                 val hasMindManual = otherManualIds.any { mid -> manualMap[mid]?.type == ManualType.MIND }
@@ -505,7 +509,7 @@ fun DiscipleDetailDialog(
                     !(hasMindManual && stack.type == ManualType.MIND) &&
                     stack.name !in learnedNames &&
                     GameConfig.Realm.meetsRealmRequirement(disciple.realm, stack.minRealm)
-                }.sortedByDescending { it.rarity }
+                }.sortedByWatchedThenRarity(watchedKeys)
             }
             var selectedReplaceManualId by remember { mutableStateOf<String?>(null) }
             var showReplaceDetailStack by remember { mutableStateOf<ManualStack?>(null) }
@@ -513,6 +517,7 @@ fun DiscipleDetailDialog(
             ManualReplaceDialog(
                 availableManualStacks = availableManualStacks,
                 selectedReplaceManualId = selectedReplaceManualId,
+                watchedKeys = watchedKeys,
                 onSelectReplaceManual = { id ->
                     selectedReplaceManualId = if (selectedReplaceManualId == id) null else id
                 },
@@ -532,7 +537,8 @@ fun DiscipleDetailDialog(
             showReplaceDetailStack?.let { stack ->
                 ItemDetailDialog(
                     item = stack,
-                    onDismiss = { showReplaceDetailStack = null }
+                    onDismiss = { showReplaceDetailStack = null },
+                    viewModel = viewModel
                 )
             }
         }
@@ -545,6 +551,7 @@ fun DiscipleDetailDialog(
             onDismiss = {
                 showEquipmentDetailDialog = null
             },
+            viewModel = viewModel,
             extraActions = {
                 GameButton(
                     text = "卸下",
@@ -598,6 +605,7 @@ fun DiscipleDetailDialog(
 private fun ManualReplaceDialog(
     availableManualStacks: List<ManualStack>,
     selectedReplaceManualId: String?,
+    watchedKeys: Set<String> = emptySet(),
     onSelectReplaceManual: (String) -> Unit,
     onViewReplaceDetail: (ManualStack) -> Unit,
     onConfirmReplace: () -> Unit,
@@ -652,6 +660,7 @@ private fun ManualReplaceDialog(
                                 isManual = true
                             ),
                             isSelected = selectedReplaceManualId == stack.id,
+                            isFollowed = stack.watchKey() in watchedKeys,
                             onClick = { onSelectReplaceManual(stack.id) },
                             onLongPress = { onViewReplaceDetail(stack) }
                         )

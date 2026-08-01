@@ -29,12 +29,15 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.SmallScreenDialog
 import com.xianxia.sect.ui.components.getRarityName
 import com.xianxia.sect.ui.game.tabs.SpiritStoneInfo
+import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.theme.getRarityColor
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
 fun ItemDetailDialog(
     item: Any,
     onDismiss: () -> Unit,
+    viewModel: GameViewModel? = null,
     extraActions: @Composable (() -> Unit)? = null
 ) {
     val name: String
@@ -186,6 +189,23 @@ fun ItemDetailDialog(
             fontSize = 11.sp,
             color = GameColors.TextSecondary
         )
+        // 关注按钮：viewModel 非空且物品可关注（灵石/储物袋不可关注）时显示
+        val watchKey = remember(item) { watchKeyOf(item) }
+        val watchedKeys = viewModel?.watchedItemIds?.collectAsStateWithLifecycle()?.value
+            ?: emptySet()
+        if (watchKey != null && viewModel != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Start
+            ) {
+                WatchItemButton(
+                    watchKey = watchKey,
+                    watchedKeys = watchedKeys,
+                    onToggleWatch = { key -> viewModel.toggleWatchItem(key) }
+                )
+            }
+        }
         Spacer(modifier = Modifier.height(8.dp))
         HorizontalDivider(color = GameColors.Background, thickness = 1.dp)
         Spacer(modifier = Modifier.height(8.dp))

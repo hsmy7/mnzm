@@ -17,6 +17,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.util.sortedByWatchedThenRarity
+import com.xianxia.sect.ui.game.components.watchKeyOf
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
@@ -38,12 +40,14 @@ fun InventorySelectDialog(viewModel: GameViewModel, onDismiss: () -> Unit) {
     var showConfirmDialog by remember { mutableStateOf(false) }
     var isSubmitting by remember { mutableStateOf(false) }
 
+    val watchedKeys by viewModel.watchedItemIds.collectAsStateWithLifecycle()
+
     val listedItemIds = remember(gameData?.playerListedItems) {
         gameData?.playerListedItems?.map { it.itemId }?.toSet() ?: emptySet()
     }
-    val sortedEquipment = remember(equipment, listedItemIds) { filterAndSortItems(equipment, listedItemIds) }
-    val sortedManuals = remember(manuals, listedItemIds) { filterAndSortItems(manuals, listedItemIds) }
-    val sortedPills = remember(pills, listedItemIds) { filterAndSortItems(pills, listedItemIds) }
+    val sortedEquipment = remember(equipment, listedItemIds, watchedKeys) { filterAndSortItems(equipment, listedItemIds, watchedKeys) }
+    val sortedManuals = remember(manuals, listedItemIds, watchedKeys) { filterAndSortItems(manuals, listedItemIds, watchedKeys) }
+    val sortedPills = remember(pills, listedItemIds, watchedKeys) { filterAndSortItems(pills, listedItemIds, watchedKeys) }
 
     UnifiedGameDialog(onDismissRequest = onDismiss, title = "选择上架道具", mode = DialogMode.Full, scrollableContent = false,
         headerActions = {
@@ -63,10 +67,10 @@ fun InventorySelectDialog(viewModel: GameViewModel, onDismiss: () -> Unit) {
             }
             Box(Modifier.weight(1f).fillMaxWidth().background(GameColors.CardBackground, RoundedCornerShape(4.dp)).padding(4.dp)) {
                 when (selectedFilter) {
-                    ListingFilter.ALL -> AllItemsSelectGrid(equipment = sortedEquipment, manuals = sortedManuals, pills = sortedPills, selectedItems = selectedItems)
-                    ListingFilter.EQUIPMENT -> InventorySelectGrid(items = sortedEquipment, selectedItems = selectedItems, emptyMessage = "暂无装备")
-                    ListingFilter.MANUAL -> InventorySelectGrid(items = sortedManuals, selectedItems = selectedItems, emptyMessage = "暂无功法")
-                    ListingFilter.PILL -> InventorySelectGrid(items = sortedPills, selectedItems = selectedItems, emptyMessage = "暂无丹药")
+                    ListingFilter.ALL -> AllItemsSelectGrid(equipment = sortedEquipment, manuals = sortedManuals, pills = sortedPills, selectedItems = selectedItems, watchedKeys = watchedKeys, viewModel = viewModel)
+                    ListingFilter.EQUIPMENT -> InventorySelectGrid(items = sortedEquipment, selectedItems = selectedItems, emptyMessage = "暂无装备", watchedKeys = watchedKeys, viewModel = viewModel)
+                    ListingFilter.MANUAL -> InventorySelectGrid(items = sortedManuals, selectedItems = selectedItems, emptyMessage = "暂无功法", watchedKeys = watchedKeys, viewModel = viewModel)
+                    ListingFilter.PILL -> InventorySelectGrid(items = sortedPills, selectedItems = selectedItems, emptyMessage = "暂无丹药", watchedKeys = watchedKeys, viewModel = viewModel)
                 }
             }
         }
@@ -86,7 +90,13 @@ fun InventorySelectDialog(viewModel: GameViewModel, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun <T> InventorySelectGrid(items: List<T>, selectedItems: MutableMap<String, Int>, emptyMessage: String) {
+private fun <T> InventorySelectGrid(
+    items: List<T>,
+    selectedItems: MutableMap<String, Int>,
+    emptyMessage: String,
+    watchedKeys: Set<String> = emptySet(),
+    viewModel: GameViewModel? = null
+) {
     var selectedItem by remember { mutableStateOf<T?>(null) }
     var showDetailDialog by remember { mutableStateOf(false) }
 
@@ -106,30 +116,46 @@ private fun <T> InventorySelectGrid(items: List<T>, selectedItems: MutableMap<St
                 UnifiedItemCard(data = ItemCardData(id = id, name = name, rarity = rar, quantity = qty,
                     grade = (item as? Pill)?.grade?.displayName, isManual = item is ManualStack, isPill = item is Pill),
                     isSelected = isSelected,
+                    isFollowed = watchKeyOf(item)?.let { it in watchedKeys } ?: false,
                     onClick = { if (isSelected) selectedItems.remove(id) else selectedItems[id] = qty },
                     onLongPress = { selectedItem = item; showDetailDialog = true })
             }
         }
     }
     if (showDetailDialog) {
-        selectedItem?.let { com.xianxia.sect.ui.game.components.ItemDetailDialog(item = it, onDismiss = { showDetailDialog = false }) }
+        selectedItem?.let {
+            com.xianxia.sect.ui.game.components.ItemDetailDialog(
+                item = it,
+                onDismiss = { showDetailDialog = false },
+                viewModel = viewModel
+            )
+        }
     }
 }
 
 @Composable
 private fun AllItemsSelectGrid(
     equipment: List<EquipmentStack>, manuals: List<ManualStack>, pills: List<Pill>,
-    selectedItems: MutableMap<String, Int>
+    selectedItems: MutableMap<String, Int>,
+    watchedKeys: Set<String> = emptySet(),
+    viewModel: GameViewModel? = null
 ) {
     var selectedItem by remember { mutableStateOf<Any?>(null) }
     var showDetailDialog by remember { mutableStateOf(false) }
 
-    val allItems = remember(equipment, manuals, pills) {
+    val allItems = remember(equipment, manuals, pills, watchedKeys) {
         val items = mutableListOf<Any>()
         items.addAll(equipment); items.addAll(manuals); items.addAll(pills)
-        items.sortedWith(compareByDescending<Any> {
-            when (it) { is EquipmentStack -> it.rarity; is ManualStack -> it.rarity; is Pill -> it.rarity; else -> 1 }
-        }.thenBy { when (it) { is EquipmentStack -> it.name; is ManualStack -> it.name; is Pill -> it.name; else -> "" } })
+        items.sortedByWatchedThenRarity(
+            watchedKeys,
+            keyOf = { watchKeyOf(it) },
+            rarityOf = { it ->
+                when (it) { is EquipmentStack -> it.rarity; is ManualStack -> it.rarity; is Pill -> it.rarity; else -> 1 }
+            },
+            nameOf = { it ->
+                when (it) { is EquipmentStack -> it.name; is ManualStack -> it.name; is Pill -> it.name; else -> "" }
+            }
+        )
     }
 
     if (allItems.isEmpty()) {
@@ -148,13 +174,20 @@ private fun AllItemsSelectGrid(
                 UnifiedItemCard(data = ItemCardData(id = id, name = name, rarity = rarity, quantity = qty,
                     grade = (item as? Pill)?.grade?.displayName, isManual = item is ManualStack, isPill = item is Pill),
                     isSelected = isSelected,
+                    isFollowed = watchKeyOf(item)?.let { it in watchedKeys } ?: false,
                     onClick = { if (isSelected) selectedItems.remove(id) else selectedItems[id] = qty },
                     onLongPress = { selectedItem = item; showDetailDialog = true })
             }
         }
     }
     if (showDetailDialog) {
-        selectedItem?.let { com.xianxia.sect.ui.game.components.ItemDetailDialog(item = it, onDismiss = { showDetailDialog = false }) }
+        selectedItem?.let {
+            com.xianxia.sect.ui.game.components.ItemDetailDialog(
+                item = it,
+                onDismiss = { showDetailDialog = false },
+                viewModel = viewModel
+            )
+        }
     }
 }
 
