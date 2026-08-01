@@ -144,12 +144,12 @@ class GameTimeClockTest {
         assertEquals(GameTimeClock.MAX_PHASES_PER_TICK, result.phasesToAdvance)
     }
 
-    // 12. 超大 delta 被 MAX_CATCHUP_MS 截断后再被 MAX_PHASES_PER_TICK 上限约束
+    // 12. 超大 delta 直接由 MAX_PHASES_PER_TICK 缩放上限约束（曾由 MAX_CATCHUP_MS 先截断，已删）
     @Test
     fun largeDelta_cappedByMaxCatchupThenMaxPhases() {
         clock.setSpeed(2)
         val result = simulateTick(100_000L)
-        // 截断后: 30000 * 2 = 60000 game ms / 1000 = 60 phases → 再被缩放上限（3×2）截为 6
+        // 100000 * 2 = 200000 game ms / 1000 = 200 phases → 被缩放上限（3×2）截为 6
         assertEquals(GameTimeClock.MAX_PHASES_PER_TICK * 2, result.phasesToAdvance)
     }
 
@@ -193,7 +193,7 @@ class GameTimeClockTest {
         assertEquals(GameTimeClock.MAX_PHASES_PER_TICK * 2, result.phasesToAdvance)
     }
 
-    // 17. 冻结 60s → MAX_CATCHUP_MS(30s) 截断 → 15 旬 → 再被追补上限截为 3
+    // 17. 冻结 60s → 60000 game ms / 1000 = 60 旬 → 被追补上限截为 3
     @Test
     fun freeze60s_cappedTo3() {
         val result = simulateTick(60_000L)
