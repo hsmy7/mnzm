@@ -25,14 +25,17 @@ object SaveDataReconciler {
         if (data.stacksSerialized) return data
         val rebuiltEquipment = rebuildEquipmentStacks(data.equipmentInstances)
         val rebuiltManual = rebuildManualStacks(data.manualInstances)
-        if (rebuiltEquipment.isNotEmpty() || rebuiltManual.isNotEmpty()) {
-            Log.w(
-                TAG,
-                "旧存档无堆叠数据，从实例重建兜底：" +
-                    "equipment=${rebuiltEquipment.size} 组, manual=${rebuiltManual.size} 组。" +
-                    "仓库物品（仅以堆叠形式存在）无法从备份恢复，本次仅恢复游离实例。"
-            )
-        }
+        // 2026-08-01 对抗性审查修复：无论重建是否为空都输出警告——
+        // 旧格式的仓库堆叠从未被序列化（物理上无法恢复），空结果时也须如实提示
+        Log.w(
+            TAG,
+            "旧存档无堆叠数据（stacksSerialized=false），从实例重建兜底：" +
+                "equipment=${rebuiltEquipment.size} 组, manual=${rebuiltManual.size} 组。" +
+                "仓库物品（仅以堆叠形式存在）从未被序列化，无法从备份恢复" +
+                if (rebuiltEquipment.isEmpty() && rebuiltManual.isEmpty())
+                    "——本次无可恢复的游离实例，仓库堆叠将为空（数据物理上不存在）。"
+                else "——本次仅恢复未装备/未学习的游离实例。"
+        )
         return data.copy(
             equipmentStacks = rebuiltEquipment,
             manualStacks = rebuiltManual,

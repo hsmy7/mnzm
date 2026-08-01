@@ -3,7 +3,7 @@ package com.xianxia.sect.core.state
 import android.util.SparseArray
 
 /** 组件表 ID 安全上限（游戏弟子规模远小于此，防篡改存档的溢出 OOM） */
-private const val MAX_SAFE_CAPACITY = 10_000_000
+internal const val MAX_SAFE_CAPACITY = 10_000_000
 
 /**
  * 线程安全由 GameStateStoreImpl.transactionLock（ReentrantLock）保证，

@@ -43,7 +43,9 @@ class SaveLoadRestartDelegate(
                 teams = currentData.teams,
                 battleLogs = currentData.battleLogs,
                 alliances = emptyList(),
-                productionSlots = emptyList()
+                productionSlots = emptyList(),
+                // 2026-08-01 对抗性审查修复：缺该标志会使删表守卫失效
+                stacksSerialized = true
             )
             val result = storageFacade.save(slot, saveData)
             if (result.isSuccess) {

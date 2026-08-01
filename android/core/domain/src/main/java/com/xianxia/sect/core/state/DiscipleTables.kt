@@ -23,15 +23,12 @@ class DiscipleTables {
     private val _deathRecords = mutableListOf<DeathRecord>()
     val deathRecords: List<DeathRecord> get() = _deathRecords
 
-    /** 写操作计数器——GameStateStore 用于脏检测，跳过无变化的 assembleAll */
+    /**
+     * 写操作计数器——由列级写入回调（bindAllOnWrite 的 dirtyCb）自动递增。
+     * 2026-08-01 对抗性审查：显式 markMutated 双计已移除（无生产消费者）。
+     */
     @Volatile var mutationVersion: Long = 0
         private set
-
-    /**
-     * 递增版本号（2026-08-01：仅兼容保留——列级写入回调（bindAllOnWrite 的 dirtyCb）
-     * 已自动递增，insert/replaceAll 的显式 markMutated 双计已移除。无生产调用者）。
-     */
-    fun markMutated() { mutationVersion++ }
 
     // ── ID 列表守卫方法 ──
 
@@ -325,11 +322,21 @@ class DiscipleTables {
         private val changedBits = java.util.BitSet()
         private val lock = Any()
 
-        /** 记录某弟子 ID 被修改 */
-        fun record(id: Int) { synchronized(lock) { changedBits.set(id) } }
+        /**
+         * 记录某弟子 ID 被修改。
+         * 2026-08-01 对抗性审查修复：BitSet 内存与最大 id 成正比——crafted 存档
+         * id=2^30 时 set() 分配 ~128MB 可 OOM。超出安全上限的 id 拒绝记录
+         * （增量组装退化为全量兜底，正确性不受影响）。
+         */
+        fun record(id: Int) {
+            synchronized(lock) {
+                if (id < 0 || id >= MAX_SAFE_CAPACITY) return
+                changedBits.set(id)
+            }
+        }
 
         /** 记录多个弟子 ID 被修改（如批量写入场景） */
-        fun recordAll(ids: Collection<Int>) { synchronized(lock) { ids.forEach { changedBits.set(it) } } }
+        fun recordAll(ids: Collection<Int>) { synchronized(lock) { ids.forEach { if (it >= 0 && it < MAX_SAFE_CAPACITY) changedBits.set(it) } } }
 
         /**
          * 消费并清除已修改的 ID 集合。
@@ -562,12 +569,12 @@ class DiscipleTables {
     /**
      * 原子全量替换所有弟子数据。
      *
-     * 在单个 [synchronized(ids)] 锁内完成五步操作：
+     * 在单个 [synchronized(ids)] 锁内完成四步操作：
      *   1) ids.clear()       — 清空 ID 索引列表
      *   2) 全表 clear()      — 清空所有组件表（通过 _allCopyableRefs 迭代）
      *   3) 全量写入           — 对每个弟子调用 writeAllFields()
-     *   4) ids.addAll(...)   — 重建 ID 索引列表
-     *   5) markMutated()     — 递增版本号（仅一次）
+     *   4) ids.addAll(...)   — 重建 ID 索引列表 + recordChangedIds
+     *   （mutationVersion 由列写回调自动递增，2026-08-01 移除显式 markMutated）
      *
      * 替代 [clear] + 多次 [insert] 的 N+1 锁裸模式，提供更清晰的批量替换语义。
      * 调用方传入的列表必须已是完整替换集——[replaceAll] 不负责过滤/保留。
@@ -902,6 +909,22 @@ class DiscipleTables {
      */
     fun assembleAllIncremental(prevSnapshot: List<Disciple>, changedIds: Set<Int>): List<Disciple> {
         if (changedIds.isEmpty()) return prevSnapshot
+
+        // 2026-08-01 对抗性审查修复：双指针归并依赖 prevSnapshot 按 id 升序——
+        // 读档路径（DiscipleDataDao.getAllSync = ORDER BY realm, cultivation）产出
+        // 非升序列表直接赋给 _disciplesFlow，失序归并会产生重复弟子。
+        // 入口 O(D) 校验升序，失序时退化为全量组装（正确性优先）。
+        var prevSorted = true
+        var lastId = -1
+        for (d in prevSnapshot) {
+            val id = d.id.toIntOrNull()
+            if (id == null || id < lastId) { prevSorted = false; break }
+            lastId = id
+        }
+        if (!prevSorted) {
+            Log.w(TAG, "assembleAllIncremental: prevSnapshot 非升序（读档路径），退化为全量组装")
+            return assembleAll()
+        }
         // changedIds 升序迭代（BitSet nextSetBit 天然升序）——组装为 id→Disciple 映射
         val changedMap = HashMap<Int, Disciple>(changedIds.size * 2)
         for (id in changedIds) {
@@ -909,7 +932,9 @@ class DiscipleTables {
                 Log.w(TAG, "assembleAllIncremental: ghost skipped id=$id")
                 continue
             }
-            try { changedMap[id] = assemble(id) } catch (e: NoSuchElementException) { /* ghost */ }
+            try { changedMap[id] = assemble(id) } catch (e: NoSuchElementException) {
+                Log.w(TAG, "assembleAllIncremental: assemble 失败 id=$id（列缺失）", e)
+            }
         }
         // 注意：changedMap 为空时不能提前返回——remove 场景 changedIds 含被删弟子
         //（组装必然失败），此时归并仍须从 prevSnapshot 剔除这些 id（防陈尸残留）

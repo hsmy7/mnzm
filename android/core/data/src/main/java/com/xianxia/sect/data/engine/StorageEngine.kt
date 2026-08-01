@@ -217,9 +217,14 @@ class StorageEngine @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "Save failed for slot $slot", e)
                 _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
-                val error = when (e) {
-                    is OutOfMemoryError -> StorageError.OUT_OF_MEMORY
-                    is java.io.IOException -> StorageError.IO_ERROR
+                // 2026-08-01 对抗性审查修复：OutOfMemoryError 是 Error 非 Exception，
+                // 旧 `is OutOfMemoryError` 分支是死代码；SerializationFailureException
+                // 的 cause 可能是 OOM——识别异常链使 save() 重试循环正确短路
+                // （OOM 重试无意义，旧行为会完整重试 3 次全量编码拉长 ANR 窗口）
+                val isOom = e is OutOfMemoryError || e.cause is OutOfMemoryError
+                val error = when {
+                    isOom -> StorageError.OUT_OF_MEMORY
+                    e is java.io.IOException -> StorageError.IO_ERROR
                     else -> StorageError.SAVE_FAILED
                 }
                 StorageResult.failure(error, e.message ?: "Save failed", e)
@@ -298,7 +303,12 @@ class StorageEngine @Inject constructor(
                                     infra.storageMetrics.recordBackupRestore()
                                     // 旧格式备份无堆叠数据：从实例重建兜底（2026-08-01 堆叠序列化缺陷修复）
                                     restoredData = SaveDataReconciler.reconcileStacks(restoredData)
-                                    performFullTransactionSave(slot, restoredData)
+                                    // 2026-08-01 对抗性审查修复：检查保存结果——低内存/编码失败时
+                                    // 不再静默"报成功"（旧实现忽略结果，DB 未写但 load 返回 success）
+                                    val restoreSave = performFullTransactionSave(slot, restoredData)
+                                    if (restoreSave is com.xianxia.sect.data.result.StorageResult.Failure) {
+                                        Log.e(TAG, "备份恢复写库失败 slot=$slot: ${restoreSave.message}")
+                                    }
                                     clearCacheForSlot(slot)
                                     updateCacheAfterSave(slot, restoredData)
                                     _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (backup)")
@@ -349,7 +359,11 @@ class StorageEngine @Inject constructor(
                             infra.storageMetrics.recordBackupRestore()
                             // 旧格式备份无堆叠数据：从实例重建兜底（2026-08-01 堆叠序列化缺陷修复）
                             restoredData = SaveDataReconciler.reconcileStacks(restoredData)
-                            performFullTransactionSave(slot, restoredData)
+                            // 2026-08-01 对抗性审查修复：检查保存结果（同上）
+                            val restoreSave = performFullTransactionSave(slot, restoredData)
+                            if (restoreSave is com.xianxia.sect.data.result.StorageResult.Failure) {
+                                Log.e(TAG, "备份恢复写库失败 slot=$slot: ${restoreSave.message}")
+                            }
                             clearCacheForSlot(slot)
                             updateCacheAfterSave(slot, restoredData)
                             _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (backup)")

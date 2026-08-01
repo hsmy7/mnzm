@@ -1063,7 +1063,10 @@ class SaveLoadViewModel @Inject constructor(
                         battleLogs = snapshot.battleLogs,
                     alliances = snapshot.alliances,
                     productionSlots = snapshot.productionSlots,
-                    storageBags = snapshot.storageBags
+                    storageBags = snapshot.storageBags,
+                    // 2026-08-01 对抗性审查修复：restart 保存缺该标志会使删表守卫失效，
+                    // 旧世界堆叠残留泄漏进新世界
+                    stacksSerialized = true
                 )
 
                 val success = withTimeoutOrNull(30_000L) {

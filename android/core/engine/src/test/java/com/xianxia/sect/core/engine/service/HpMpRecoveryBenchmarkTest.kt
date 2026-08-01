@@ -96,8 +96,9 @@ class HpMpRecoveryBenchmarkTest {
         val ratio = columnTime.toDouble() / objectTime
         assertTrue(
             "列直读(${columnTime / 1000}μs) 应显著快于对象式(${objectTime / 1000}μs)，" +
-                "实际比值 $ratio > 0.40——列直读路径可能误用 assemble，请检查 recoverHpMpSingleColumn",
-            ratio <= 0.40
+                "实际比值 $ratio > 0.50——列直读路径可能误用 assemble，请检查 recoverHpMpSingleColumn" +
+                "（实测 ~0.40，Robolectric 噪声使比值在 0.35~0.45 漂移，阈值 0.50 捕获结构性退化 ≈1.0）",
+            ratio <= 0.50
         )
     }
 

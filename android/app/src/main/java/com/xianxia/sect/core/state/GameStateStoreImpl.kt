@@ -461,6 +461,10 @@ class GameStateStoreImpl @Inject constructor(
         disciplesFlow,
         bloodRefinementPctFlow
     ) { disciples, bloodRefinementPctTotals ->
+        // 2026-08-01 对抗性审查修复：捕获代际版本号——load/reset 会递增版本号并清空
+        // cachedAggregates；若本计算基于旧 disciplesFlow（旧代），写缓存会覆盖清空，
+        // 使 UI 短暂显示旧档聚合。计算完成后校验版本号未变才写缓存。
+        val gen = discipleVersion.get()
         // 2026-08-01 增量聚合：两列表均 id 升序（assembleAll/增量归并不变量）——
         // 双指针 diff 仅对新增/变更弟子重算 toAggregate，未变弟子复用旧 Aggregate 对象
         // （对象复用 → UI 侧聚合引用稳定）。diff 出现异常（非升序）时退化为全量。
@@ -470,7 +474,9 @@ class GameStateStoreImpl @Inject constructor(
         } else {
             disciples.map { it.toAggregate() }
         }
-        cachedAggregates = aggregates
+        if (discipleVersion.get() == gen) {
+            cachedAggregates = aggregates
+        }
 
         var total = 0L
         for (aggregate in aggregates) {
@@ -514,18 +520,20 @@ class GameStateStoreImpl @Inject constructor(
         prev: List<DiscipleAggregate>,
         disciples: List<Disciple>
     ): List<DiscipleAggregate> {
+        // 2026-08-01 对抗性审查优化：一次性预解析两侧 id 数组 + 升序校验——
+        // 旧实现在双指针循环内每次 toIntOrNull() 字符串解析（300 次×2），
+        // 遍历开销与 toAggregate 同量级，增量收益被吃掉大半；
+        // 解析失败/失序时退化为全量（安全兜底）
+        val prevIds = parseOrderedIds(prev.size) { prev[it].id }
+        val curIds = parseOrderedIds(disciples.size) { disciples[it].id }
+        if (prevIds == null || curIds == null) return disciples.map { it.toAggregate() }
+
         val result = ArrayList<DiscipleAggregate>(disciples.size)
         var i = 0
         var j = 0
         while (i < prev.size && j < disciples.size) {
-            val prevId = prev[i].id.toIntOrNull()
-            val curId = disciples[j].id.toIntOrNull()
-            if (prevId == null || curId == null || prevId > curId) {
-                // 失序/非数值 id：退化为全量（安全兜底）
-                return disciples.map { it.toAggregate() }
-            }
             when {
-                prevId == curId -> {
+                prevIds[i] == curIds[j] -> {
                     // 引用相等 → 未变复用；否则变更 → 重建（列级写入/生死变化）
                     if (prev[i].sourceRef === disciples[j]) {
                         result.add(prev[i])
@@ -534,12 +542,32 @@ class GameStateStoreImpl @Inject constructor(
                     }
                     i++; j++
                 }
-                prevId < curId -> i++  // prev 中被移除的弟子（跳过）
+                prevIds[i] < curIds[j] -> i++  // prev 中被移除的弟子（跳过）
                 else -> { result.add(disciples[j].toAggregate()); j++ }  // 新增弟子
             }
         }
         while (j < disciples.size) { result.add(disciples[j].toAggregate()); j++ }
         return result
+    }
+
+    /**
+     * 预解析弟子 id 数组并校验升序（2026-08-01 增量聚合辅助）。
+     * 解析失败（非数值 id）或失序时返回 null——调用方退化为全量。
+     *
+     * @param size 弟子数量
+     * @param idAt 按索引取 id 字符串
+     * @return 升序 id 数组；非数值/失序返回 null
+     */
+    private fun parseOrderedIds(size: Int, idAt: (Int) -> String?): IntArray? {
+        val ids = IntArray(size)
+        var lastId = -1
+        for (i in 0 until size) {
+            val id = idAt(i)?.toIntOrNull()
+            if (id == null || id < lastId) return null
+            ids[i] = id
+            lastId = id
+        }
+        return ids
     }
 
     override val discipleAggregates: StateFlow<List<DiscipleAggregate>> = derivedAggregation
@@ -1105,6 +1133,15 @@ class GameStateStoreImpl @Inject constructor(
             _stateDirty = false
             _discipleDirty = false
             repository.clearDirty()
+        }
+        // 2026-08-01 对抗性审查修复：reset 后投递同调度器全量组装（镜像 load 做法）——
+        // 版本号检查是"检查后执行"单点模式，排队任务若在 reset 锁前通过 gen 检查，
+        // 会在 reset 清表后把陈旧列表写回（覆盖空列表）。投递组装任务使其成为
+        // 最后写者（FIFO），彻底闭合 TOCTOU 窗口。
+        val gen = discipleVersion.get()
+        applicationScopeProvider.scope.launch(assembleDispatcher) {
+            if (discipleVersion.get() != gen) return@launch
+            _disciplesFlow.value = _discipleTables.assembleAll()
         }
     }
 

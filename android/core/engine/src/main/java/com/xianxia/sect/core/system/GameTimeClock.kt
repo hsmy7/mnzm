@@ -144,9 +144,13 @@ class GameTimeClock @Inject constructor(
         // 导致引擎线程单帧内连续执行数十个完整事务、看门狗与业务互搏）。
         // 追补源是 OEM 挂起/看门狗重启（非正常离线），玩家应尽快回到实时——
         // 触发上限时丢弃余量并记录，而非留存分摊。
-        if (phases > MAX_PHASES_PER_TICK) {
-            Log.w(TAG, "tick catch-up capped at $MAX_PHASES_PER_TICK phases, dropped ${phases - MAX_PHASES_PER_TICK}")
-            phases = MAX_PHASES_PER_TICK
+        // 2026-08-01 对抗性审查修复：上限按速度缩放（1x=3 旬、2x=6 旬）——
+        // 旧固定阈值 3 在 2x 下引擎阻塞 1.5s 即触发丢弃（正常玩法误伤），
+        // 缩放后按真实时间对称（两种速度下均约 6s 阻塞触发）。
+        val phaseCap = MAX_PHASES_PER_TICK * speed.coerceAtLeast(1)
+        if (phases > phaseCap) {
+            Log.w(TAG, "tick catch-up capped at $phaseCap phases, dropped ${phases - phaseCap}")
+            phases = phaseCap
             accumulatedGameMs = 0L
         } else if (phases > 0) {
             accumulatedGameMs -= phases.toLong() * msPerPhase

@@ -14,7 +14,7 @@ import org.robolectric.RobolectricTestRunner
  * 修复后：增量双指针归并（O(D+C)），未变弟子复用旧对象。
  *
  * 断言（Robolectric 环境相对比值，受机器波动影响小）：
- * - changed=100（D=300）时增量耗时 ≤ 全量 30%
+ * - changed=100（D=300）时增量不退化为全量（比值 ≤ 0.85，理论下限 ~0.33）
  * - changed=5 时增量耗时 ≤ 全量 10%
  * 若断言失败说明增量路径退化为全量或归并实现有性能回归。
  */

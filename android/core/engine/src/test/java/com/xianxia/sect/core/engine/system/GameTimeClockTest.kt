@@ -64,13 +64,13 @@ class GameTimeClockTest {
         assertEquals(2, result.phasesToAdvance)
     }
 
-    // 4. 2x 速度下 3000ms 真实时间 = 6000ms 游戏时间 = 6 旬 → 超过追补上限截断为 3
+    // 4. 2x 速度下 3000ms 真实时间 = 6000ms 游戏时间 = 6 旬 = 缩放后上限（3×2）→ 恰好不截断
     @Test
-    fun speed2x_3000ms_cappedAtMaxPhasesPerTick() {
+    fun speed2x_3000ms_atScaledCap() {
         clock.setSpeed(2)
         clock.start()
         val result = simulateTick(3000L)
-        assertEquals(GameTimeClock.MAX_PHASES_PER_TICK, result.phasesToAdvance)
+        assertEquals(GameTimeClock.MAX_PHASES_PER_TICK * 2, result.phasesToAdvance)
     }
 
     // 5. 暂停(speed=0) → 不推进任何旬
@@ -149,8 +149,8 @@ class GameTimeClockTest {
     fun largeDelta_cappedByMaxCatchupThenMaxPhases() {
         clock.setSpeed(2)
         val result = simulateTick(100_000L)
-        // 截断后: 30000 * 2 = 60000 game ms / 1000 = 60 phases → 再被上限截为 3
-        assertEquals(GameTimeClock.MAX_PHASES_PER_TICK, result.phasesToAdvance)
+        // 截断后: 30000 * 2 = 60000 game ms / 1000 = 60 phases → 再被缩放上限（3×2）截为 6
+        assertEquals(GameTimeClock.MAX_PHASES_PER_TICK * 2, result.phasesToAdvance)
     }
 
     // 13. 暂停后恢复：speed=0 暂停 → speed=1 恢复，累积量不丢
@@ -164,12 +164,12 @@ class GameTimeClockTest {
         assertEquals(1, result.phasesToAdvance)
     }
 
-    // 14. 2x 下 10 秒 → 20 旬 → 超上限截断为 3
+    // 14. 2x 下 10 秒 → 20 旬 → 超缩放上限（6）截断为 6
     @Test
-    fun speed2x_10seconds_cappedAt3() {
+    fun speed2x_10seconds_cappedAtScaled() {
         clock.setSpeed(2)
         val result = simulateTick(10_000L)
-        assertEquals(GameTimeClock.MAX_PHASES_PER_TICK, result.phasesToAdvance)
+        assertEquals(GameTimeClock.MAX_PHASES_PER_TICK * 2, result.phasesToAdvance)
     }
 
     // 15. forceConsumeOnePhase 正确扣除
@@ -184,13 +184,13 @@ class GameTimeClockTest {
         assertEquals(2000L, clock.remainingPhaseMs)
     }
 
-    // 16. 冻结 20s 后恢复 → 2x 下 40 旬 → 被追补上限截断为 3
+    // 16. 冻结 20s 后恢复 → 2x 下 40 旬 → 被缩放上限（6）截断
     @Test
-    fun freeze20s_cappedAtMaxPhases() {
+    fun freeze20s_cappedAtScaledMaxPhases() {
         clock.setSpeed(2)
         clock.start()
         val result = simulateTick(20_000L)
-        assertEquals(GameTimeClock.MAX_PHASES_PER_TICK, result.phasesToAdvance)
+        assertEquals(GameTimeClock.MAX_PHASES_PER_TICK * 2, result.phasesToAdvance)
     }
 
     // 17. 冻结 60s → MAX_CATCHUP_MS(30s) 截断 → 15 旬 → 再被追补上限截为 3
@@ -204,8 +204,8 @@ class GameTimeClockTest {
     @Test
     fun catchUpCap_discardsRemainder() {
         clock.setSpeed(2)
-        val result = simulateTick(10_000L)  // 20 旬 → 截断为 3，余量丢弃
-        assertEquals(GameTimeClock.MAX_PHASES_PER_TICK, result.phasesToAdvance)
+        val result = simulateTick(10_000L)  // 20 旬 → 截断为 6（缩放上限），余量丢弃
+        assertEquals(GameTimeClock.MAX_PHASES_PER_TICK * 2, result.phasesToAdvance)
 
         // 紧接 100ms 后 tick：只推进 0 旬（accumulatedGameMs 已清零）
         val next = simulateTick(100L)

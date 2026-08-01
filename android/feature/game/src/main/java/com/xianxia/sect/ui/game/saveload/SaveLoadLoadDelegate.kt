@@ -143,14 +143,17 @@ class SaveLoadLoadDelegate(
     internal suspend fun migrateOverflowBuildings() {
         // 2026-08-01：计算（纯函数）留在主线程，状态应用走引擎线程入口
         // （修复前直接 stateStore.update 主线程直写，违反双线程模型）
-        val allBuildings = stateStore.unifiedState.value.gameData.placedBuildings
+        // 2026-08-01 对抗性审查修复：统一读 gameDataSnapshot（实时快照）——
+        // unifiedState 是 sample(50) 批处理派生流，加载界面无订阅时恒为旧会话值，
+        // 会拿旧布局覆盖新档建筑（毁档级）。实时快照与 loadData 后的状态一致。
+        val gd = stateStore.gameDataSnapshot
+        val allBuildings = gd.placedBuildings
         if (allBuildings.isEmpty()) return
 
         val buildingsBySect = allBuildings.groupBy { it.sectId }
         val allKept = mutableListOf<GridBuildingData>()
         var totalRefund = 0L
         val allFreedDiscipleIds = mutableSetOf<String>()
-        val gd = stateStore.gameDataSnapshot
 
         for ((_, sectBuildings) in buildingsBySect) {
             val result = computeBuildingOverflowMigration(

@@ -1248,8 +1248,16 @@ suspend fun GameEngine.setPausedDirectOnEngine(paused: Boolean) {
 }
 
 /** 引擎线程批量设置保存/加载标志（替代 UI 层多次 stateStore.update）。 */
-fun GameEngine.setSaveLoadFlags(isSaving: Boolean, isLoading: Boolean) {
-    launchOnEngine {
+/**
+ * 引擎线程批量设置保存/加载标志（2026-08-01 对抗性审查修复）。
+ *
+ * 由 fire-and-forget（launchOnEngine）改为 suspend + withEngineContext——
+ * 旧实现调用立即返回，finally 异常兜底路径的标志复位无时序保证
+ * （下一次 load 的 setLoading(true) 可能在复位之后执行，加载期间引擎误推进）。
+ * 调用方 await 后标志立即生效。
+ */
+suspend fun GameEngine.setSaveLoadFlags(isSaving: Boolean, isLoading: Boolean) {
+    engineContextDispatcher.withEngineContext {
         stateStore.update {
             this.isSaving = isSaving
             this.isLoading = isLoading
