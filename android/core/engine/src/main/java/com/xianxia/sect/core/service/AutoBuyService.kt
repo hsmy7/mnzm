@@ -185,97 +185,37 @@ class AutoBuyService @Inject constructor(
             else -> false
         }
 
+    /**
+     * 自动购买入库——统一委托 [InventorySystem.addXxx]（重入事务操作同一缓冲）。
+     * 溢出部分由溢出邮件机制转为邮件通知玩家（自动类路径，物品不丢失）。
+     */
     private fun MutableGameState.addToWarehouse(
         item: MerchantItem,
         quantity: Int
     ) {
-        when (item.type.lowercase(Locale.ROOT)) {
-            "equipment" -> {
-                val stack = MerchantItemConverter.toEquipment(item).copy(quantity = quantity)
-                val otherTypes = manualStacks.size + pills.size + materials.size + herbs.size + seeds.size
-                val store = StackableItemStore(
-                    initialItems = equipmentStacks.all(),
-                    stackKeyOf = StackKeys::equipment,
-                    maxStack = inventoryConfig.getMaxStackSize("equipment_stack"),
-                    maxSlots = { computeMaxSlots() - otherTypes },
-                    notFound = { AppError.Domain.Inventory.NotFound(it) }
-                )
-                store.add(stack)
-                equipmentStacks.replaceAll(store.all())
-            }
-            "manual" -> {
-                val stack = MerchantItemConverter.toManual(item).copy(quantity = quantity)
-                val otherTypes = equipmentStacks.size + pills.size + materials.size + herbs.size + seeds.size
-                val store = StackableItemStore(
-                    initialItems = manualStacks.all(),
-                    stackKeyOf = StackKeys::manual,
-                    maxStack = inventoryConfig.getMaxStackSize("manual_stack"),
-                    maxSlots = { computeMaxSlots() - otherTypes },
-                    notFound = { AppError.Domain.Inventory.NotFound(it) }
-                )
-                store.add(stack)
-                manualStacks.replaceAll(store.all())
-            }
-            "pill" -> {
-                val p = MerchantItemConverter.toPill(item).copy(quantity = quantity)
-                val otherTypes = equipmentStacks.size + manualStacks.size + materials.size + herbs.size + seeds.size
-                val store = StackableItemStore(
-                    initialItems = pills.all(),
-                    stackKeyOf = StackKeys::pill,
-                    maxStack = inventoryConfig.getMaxStackSize("pill"),
-                    maxSlots = { computeMaxSlots() - otherTypes },
-                    notFound = { AppError.Domain.Inventory.NotFound(it) }
-                )
-                store.add(p)
-                pills.replaceAll(store.all())
-            }
-            "material" -> {
-                val m = MerchantItemConverter.toMaterial(item).copy(quantity = quantity)
-                val otherTypes = equipmentStacks.size + manualStacks.size + pills.size + herbs.size + seeds.size
-                val store = StackableItemStore(
-                    initialItems = materials.all(),
-                    stackKeyOf = StackKeys::material,
-                    maxStack = inventoryConfig.getMaxStackSize("material"),
-                    maxSlots = { computeMaxSlots() - otherTypes },
-                    notFound = { AppError.Domain.Inventory.NotFound(it) }
-                )
-                store.add(m)
-                materials.replaceAll(store.all())
-            }
-            "herb" -> {
-                val h = MerchantItemConverter.toHerb(item).copy(quantity = quantity)
-                val otherTypes = equipmentStacks.size + manualStacks.size + pills.size + materials.size + seeds.size
-                val store = StackableItemStore(
-                    initialItems = herbs.all(),
-                    stackKeyOf = StackKeys::herb,
-                    maxStack = inventoryConfig.getMaxStackSize("herb"),
-                    maxSlots = { computeMaxSlots() - otherTypes },
-                    notFound = { AppError.Domain.Inventory.NotFound(it) }
-                )
-                store.add(h)
-                herbs.replaceAll(store.all())
-            }
-            "seed" -> {
-                val s = MerchantItemConverter.toSeed(item).copy(quantity = quantity)
-                val otherTypes = equipmentStacks.size + manualStacks.size + pills.size + materials.size + herbs.size
-                val store = StackableItemStore(
-                    initialItems = seeds.all(),
-                    stackKeyOf = StackKeys::seed,
-                    maxStack = inventoryConfig.getMaxStackSize("seed"),
-                    maxSlots = { computeMaxSlots() - otherTypes },
-                    notFound = { AppError.Domain.Inventory.NotFound(it) }
-                )
-                store.add(s)
-                seeds.replaceAll(store.all())
-            }
-            "spiritstone" -> {
-                when (item.name) {
-                    "中品灵石" -> gameData = gameData.copy(
-                        midGradeSpiritStones = gameData.midGradeSpiritStones + quantity
-                    )
-                    "上品灵石" -> gameData = gameData.copy(
-                        highGradeSpiritStones = gameData.highGradeSpiritStones + quantity
-                    )
+        inventorySystem.withTrackingSource("merchant") {
+            when (item.type.lowercase(Locale.ROOT)) {
+                "equipment" ->
+                    inventorySystem.addEquipmentStack(MerchantItemConverter.toEquipment(item).copy(quantity = quantity))
+                "manual" ->
+                    inventorySystem.addManualStack(MerchantItemConverter.toManual(item).copy(quantity = quantity))
+                "pill" ->
+                    inventorySystem.addPill(MerchantItemConverter.toPill(item).copy(quantity = quantity))
+                "material" ->
+                    inventorySystem.addMaterial(MerchantItemConverter.toMaterial(item).copy(quantity = quantity))
+                "herb" ->
+                    inventorySystem.addHerb(MerchantItemConverter.toHerb(item).copy(quantity = quantity))
+                "seed" ->
+                    inventorySystem.addSeed(MerchantItemConverter.toSeed(item).copy(quantity = quantity))
+                "spiritstone" -> {
+                    when (item.name) {
+                        "中品灵石" -> gameData = gameData.copy(
+                            midGradeSpiritStones = gameData.midGradeSpiritStones + quantity
+                        )
+                        "上品灵石" -> gameData = gameData.copy(
+                            highGradeSpiritStones = gameData.highGradeSpiritStones + quantity
+                        )
+                    }
                 }
             }
         }

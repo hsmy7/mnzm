@@ -615,7 +615,7 @@ private suspend fun GameEngine.handleBeastLevelVictory(level: WorldLevel): List<
             val beastMaterial = com.xianxia.sect.core.registry.BeastMaterialDatabase.getRandomMaterialByBeastType(beastConfig.name, tier)
             if (beastMaterial != null) {
                 val material = Material(id = java.util.UUID.randomUUID().toString(), name = beastMaterial.name, rarity = beastMaterial.rarity, description = beastMaterial.description, category = beastMaterial.materialCategory, quantity = 1)
-                val result = inventorySystem.addMaterial(material)
+                val result = inventorySystem.withTrackingSource("beast_world") { inventorySystem.addMaterial(material) }
                 when (result) {
                     is DomainResult.Success -> rewards.add(BattleRewardItem(itemId = material.id, name = material.name, quantity = 1, rarity = material.rarity, type = "material"))
                     is DomainResult.Partial -> {
@@ -648,7 +648,7 @@ private suspend fun GameEngine.handleCaveLevelVictory(level: WorldLevel): List<B
             0 -> {
                 val manual = com.xianxia.sect.core.registry.ManualDatabase.generateRandom(rarity)
                 if (manual != null) {
-                    val result = inventorySystem.addManualStack(manual)
+                    val result = inventorySystem.withTrackingSource("cave_world") { inventorySystem.addManualStack(manual) }
                     when (result) {
                         is DomainResult.Success -> rewards.add(BattleRewardItem(itemId = manual.id, name = manual.name, quantity = 1, rarity = manual.rarity, type = "manual"))
                         is DomainResult.Partial -> {
@@ -662,7 +662,7 @@ private suspend fun GameEngine.handleCaveLevelVictory(level: WorldLevel): List<B
             1 -> {
                 val equip = com.xianxia.sect.core.registry.EquipmentDatabase.generateRandom(rarity)
                 if (equip != null) {
-                    val result = inventorySystem.withTrackingSource("battle") { inventorySystem.addEquipmentStack(equip) }
+                    val result = inventorySystem.withTrackingSource("cave_world") { inventorySystem.addEquipmentStack(equip) }
                     when (result) {
                         is DomainResult.Success -> rewards.add(BattleRewardItem(itemId = equip.id, name = equip.name, quantity = 1, rarity = equip.rarity, type = "equipment"))
                         is DomainResult.Partial -> {
@@ -676,7 +676,7 @@ private suspend fun GameEngine.handleCaveLevelVictory(level: WorldLevel): List<B
             else -> {
                 val pill = com.xianxia.sect.core.registry.ItemDatabase.generateRandomPill(rarity)
                 if (pill != null) {
-                    val result = inventorySystem.withTrackingSource("battle") { inventorySystem.addPill(pill) }
+                    val result = inventorySystem.withTrackingSource("cave_world") { inventorySystem.addPill(pill) }
                     when (result) {
                         is DomainResult.Success -> rewards.add(BattleRewardItem(itemId = pill.id, name = pill.name, quantity = 1, rarity = pill.rarity, type = "pill"))
                         is DomainResult.Partial -> {

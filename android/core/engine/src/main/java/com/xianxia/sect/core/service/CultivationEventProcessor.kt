@@ -663,7 +663,7 @@ class CultivationEventProcessor @Inject constructor(
             for (reward in rewards) {
                 // 发放物品（通过重入缓冲在同一事务内生效）
                 reward.materials.forEach { material ->
-                    val r = inventorySystem.addMaterial(material)
+                    val r = inventorySystem.withTrackingSource("quest") { inventorySystem.addMaterial(material) }
                     when (r) {
                         is DomainResult.Success -> {}
                         is DomainResult.Partial -> DomainLog.w(TAG, "${material.name} 溢出 ${r.overflow} 个")

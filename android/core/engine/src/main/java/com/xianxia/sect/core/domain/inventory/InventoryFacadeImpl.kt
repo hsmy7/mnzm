@@ -95,6 +95,9 @@ class InventoryFacadeImpl @Inject constructor(
             if (!discipleTables.ids.contains(id)) return@update
             val disciple = discipleTables.assemble(id)
 
+            // 统一委托 addXxx（重入事务同一缓冲）；Partial（溢出转邮件）视为成功——
+            // 物品已入仓部分 + 邮件部分，总量不丢失，从弟子袋移除
+            inventorySystem.withTrackingSource("confiscate") {
             when (item.itemType.lowercase()) {
                 "equipment", ITEM_TYPE_EQUIPMENT_STACK, ITEM_TYPE_EQUIPMENT_INSTANCE -> {
                     val template = EquipmentDatabase.getTemplateByName(item.name)
@@ -107,32 +110,18 @@ class InventoryFacadeImpl @Inject constructor(
                             description = template.description,
                             minRealm = GameConfig.Realm.getMinRealmForRarity(template.rarity)
                         )
-                        val otherTypes = otherSlotsCount("equipment")
-                        val store = StackableItemStore(
-                            initialItems = equipmentStacks.all(),
-                            stackKeyOf = StackKeys::equipment,
-                            maxStack = inventoryConfig.getMaxStackSize("equipment_stack"),
-                            maxSlots = { computeMaxSlots() - otherTypes },
-                            notFound = { AppError.Domain.Inventory.NotFound(it) }
-                        )
-                        val result = store.add(stack.copy(quantity = 1))
-                        equipmentStacks.replaceAll(store.all())
-                        if (result.isSuccess) {
-                            // 仓库添加成功，从弟子储物袋移除物品
+                        val result = inventorySystem.addEquipmentStack(stack.copy(quantity = 1))
+                        if (result.isSuccess || result is DomainResult.Partial) {
+                            // 仓库已入仓（含溢出转邮件），从弟子储物袋移除物品
                             val updatedItems = com.xianxia.sect.core.util.StorageBagUtils.decreaseItemQuantity(
                                 disciple.equipment.storageBagItems, item.itemId, 1
                             )
                             discipleTables.update(disciple.copy(
                                 equipment = disciple.equipment.copy(storageBagItems = updatedItems)
                             ))
-                            val srcKey = "confiscate:${stack.rarity}"
-                            gameData = gameData.copy(
-                                annualEquipmentBySource = gameData.annualEquipmentBySource +
-                                    (srcKey to (gameData.annualEquipmentBySource[srcKey] ?: 0) + 1)
-                            )
                         }
                         if (result is DomainResult.Partial) {
-                            DomainLog.w(TAG, "没收装备溢出：${stack.name} 溢出 ${result.overflow} 个")
+                            DomainLog.w(TAG, "没收装备溢出：${stack.name} 溢出 ${result.overflow} 个（已转邮件）")
                         }
                     } else {
                         DomainLog.w(TAG, "没收物品失败：找不到 ${item.name} 的模板")
@@ -142,17 +131,8 @@ class InventoryFacadeImpl @Inject constructor(
                     val template = ManualDatabase.getByName(item.name)
                     if (template != null) {
                         val mStack = ManualDatabase.createFromTemplate(template).copy(quantity = 1)
-                        val otherTypes = otherSlotsCount("manual")
-                        val store = StackableItemStore(
-                            initialItems = manualStacks.all(),
-                            stackKeyOf = StackKeys::manual,
-                            maxStack = inventoryConfig.getMaxStackSize("manual_stack"),
-                            maxSlots = { computeMaxSlots() - otherTypes },
-                            notFound = { AppError.Domain.Inventory.NotFound(it) }
-                        )
-                        val result = store.add(mStack)
-                        manualStacks.replaceAll(store.all())
-                        if (result.isSuccess) {
+                        val result = inventorySystem.addManualStack(mStack)
+                        if (result.isSuccess || result is DomainResult.Partial) {
                             val updatedItems = com.xianxia.sect.core.util.StorageBagUtils.decreaseItemQuantity(
                                 disciple.equipment.storageBagItems, item.itemId, 1
                             )
@@ -161,7 +141,7 @@ class InventoryFacadeImpl @Inject constructor(
                             ))
                         }
                         if (result is DomainResult.Partial) {
-                            DomainLog.w(TAG, "没收功法溢出：${template.name} 溢出 ${result.overflow} 个")
+                            DomainLog.w(TAG, "没收功法溢出：${template.name} 溢出 ${result.overflow} 个（已转邮件）")
                         }
                     } else {
                         DomainLog.w(TAG, "没收物品失败：找不到 ${item.name} 的模板")
@@ -172,31 +152,17 @@ class InventoryFacadeImpl @Inject constructor(
                         ?: com.xianxia.sect.core.registry.ItemDatabase.getPillByName(item.name)
                     if (template != null) {
                         val pill = com.xianxia.sect.core.registry.ItemDatabase.createPillFromTemplate(template, quantity = 1)
-                        val otherTypes = otherSlotsCount("pill")
-                        val store = StackableItemStore(
-                            initialItems = pills.all(),
-                            stackKeyOf = StackKeys::pill,
-                            maxStack = inventoryConfig.getMaxStackSize("pill"),
-                            maxSlots = { computeMaxSlots() - otherTypes },
-                            notFound = { AppError.Domain.Inventory.NotFound(it) }
-                        )
-                        val result = store.add(pill)
-                        pills.replaceAll(store.all())
-                        if (result.isSuccess) {
+                        val result = inventorySystem.addPill(pill)
+                        if (result.isSuccess || result is DomainResult.Partial) {
                             val updatedItems = com.xianxia.sect.core.util.StorageBagUtils.decreaseItemQuantity(
                                 disciple.equipment.storageBagItems, item.itemId, 1
                             )
                             discipleTables.update(disciple.copy(
                                 equipment = disciple.equipment.copy(storageBagItems = updatedItems)
                             ))
-                            val srcKey = "confiscate:${pill.grade?.name ?: "LOW"}"
-                            gameData = gameData.copy(
-                                annualPillBySource = gameData.annualPillBySource +
-                                    (srcKey to (gameData.annualPillBySource[srcKey] ?: 0) + 1)
-                            )
                         }
                         if (result is DomainResult.Partial) {
-                            DomainLog.w(TAG, "没收丹药溢出：${template.name} 溢出 ${result.overflow} 个")
+                            DomainLog.w(TAG, "没收丹药溢出：${template.name} 溢出 ${result.overflow} 个（已转邮件）")
                         }
                     } else {
                         DomainLog.w(TAG, "没收物品失败：找不到 ${item.name} 的模板")
@@ -209,30 +175,17 @@ class InventoryFacadeImpl @Inject constructor(
                         name = item.name, rarity = item.rarity,
                         description = herbTemplate?.description ?: "", category = herbCategory, quantity = 1
                     )
-                    val otherTypes = otherSlotsCount("herb")
-                    val store = StackableItemStore(
-                        initialItems = herbs.all(),
-                        stackKeyOf = StackKeys::herb,
-                        maxStack = inventoryConfig.getMaxStackSize("herb"),
-                        maxSlots = { computeMaxSlots() - otherTypes },
-                        notFound = { AppError.Domain.Inventory.NotFound(it) }
-                    )
-                    val result = store.add(herb)
-                    herbs.replaceAll(store.all())
-                    if (result.isSuccess) {
+                    val result = inventorySystem.addHerb(herb)
+                    if (result.isSuccess || result is DomainResult.Partial) {
                         val updatedItems = com.xianxia.sect.core.util.StorageBagUtils.decreaseItemQuantity(
                             disciple.equipment.storageBagItems, item.itemId, 1
                         )
                         discipleTables.update(disciple.copy(
                             equipment = disciple.equipment.copy(storageBagItems = updatedItems)
                         ))
-                        gameData = gameData.copy(
-                            annualHerbBySource = gameData.annualHerbBySource +
-                                ("confiscate" to (gameData.annualHerbBySource["confiscate"] ?: 0) + 1)
-                        )
                     }
                     if (result is DomainResult.Partial) {
-                        DomainLog.w(TAG, "没收草药溢出：${item.name} 溢出 ${result.overflow} 个")
+                        DomainLog.w(TAG, "没收草药溢出：${item.name} 溢出 ${result.overflow} 个（已转邮件）")
                     }
                 }
                 "seed" -> {
@@ -242,17 +195,8 @@ class InventoryFacadeImpl @Inject constructor(
                         description = seedTemplate?.description ?: "",
                         growTime = seedTemplate?.growTime ?: 0, quantity = 1
                     )
-                    val otherTypes = otherSlotsCount("seed")
-                    val store = StackableItemStore(
-                        initialItems = seeds.all(),
-                        stackKeyOf = StackKeys::seed,
-                        maxStack = inventoryConfig.getMaxStackSize("seed"),
-                        maxSlots = { computeMaxSlots() - otherTypes },
-                        notFound = { AppError.Domain.Inventory.NotFound(it) }
-                    )
-                    val result = store.add(seed)
-                    seeds.replaceAll(store.all())
-                    if (result.isSuccess) {
+                    val result = inventorySystem.addSeed(seed)
+                    if (result.isSuccess || result is DomainResult.Partial) {
                         val updatedItems = com.xianxia.sect.core.util.StorageBagUtils.decreaseItemQuantity(
                             disciple.equipment.storageBagItems, item.itemId, 1
                         )
@@ -261,7 +205,7 @@ class InventoryFacadeImpl @Inject constructor(
                         ))
                     }
                     if (result is DomainResult.Partial) {
-                        DomainLog.w(TAG, "没收种子溢出：${item.name} 溢出 ${result.overflow} 个")
+                        DomainLog.w(TAG, "没收种子溢出：${item.name} 溢出 ${result.overflow} 个（已转邮件）")
                     }
                 }
                 "material" -> {
@@ -275,17 +219,8 @@ class InventoryFacadeImpl @Inject constructor(
                         name = item.name, rarity = item.rarity,
                         description = matTemplate?.description ?: "", category = matCategory, quantity = 1
                     )
-                    val otherTypes = otherSlotsCount("material")
-                    val store = StackableItemStore(
-                        initialItems = materials.all(),
-                        stackKeyOf = StackKeys::material,
-                        maxStack = inventoryConfig.getMaxStackSize("material"),
-                        maxSlots = { computeMaxSlots() - otherTypes },
-                        notFound = { AppError.Domain.Inventory.NotFound(it) }
-                    )
-                    val result = store.add(material)
-                    materials.replaceAll(store.all())
-                    if (result.isSuccess) {
+                    val result = inventorySystem.addMaterial(material)
+                    if (result.isSuccess || result is DomainResult.Partial) {
                         val updatedItems = com.xianxia.sect.core.util.StorageBagUtils.decreaseItemQuantity(
                             disciple.equipment.storageBagItems, item.itemId, 1
                         )
@@ -294,9 +229,10 @@ class InventoryFacadeImpl @Inject constructor(
                         ))
                     }
                     if (result is DomainResult.Partial) {
-                        DomainLog.w(TAG, "没收材料溢出：${item.name} 溢出 ${result.overflow} 个")
+                        DomainLog.w(TAG, "没收材料溢出：${item.name} 溢出 ${result.overflow} 个（已转邮件）")
                     }
                 }
+            }
             }
         }
     }
@@ -503,141 +439,78 @@ class InventoryFacadeImpl @Inject constructor(
                 "spiritstone" -> { /* 灵石不占用仓库槽位 */ }
             }
 
-            // ★ 先加物品后扣灵石——确保物品添加成功后再扣灵石，避免灵石损失
+            // ★ 先加物品后扣灵石——统一委托 addXxx（重入事务同一缓冲）；
+            // 语义升级：Partial（溢出转邮件）视为成功，灵石照扣，玩家实得全部物品
             var addOk = true
-            when (merchantItem.type.lowercase(java.util.Locale.getDefault())) {
-                "equipment" -> {
-                    val stack = MerchantItemConverter.toEquipment(merchantItem).copy(quantity = quantity)
-                    val otherTypes = otherSlotsCount("equipment")
-                    val store = StackableItemStore(
-                        initialItems = equipmentStacks.all(),
-                        stackKeyOf = StackKeys::equipment,
-                        maxStack = inventoryConfig.getMaxStackSize("equipment_stack"),
-                        maxSlots = { computeMaxSlots() - otherTypes },
-                        notFound = { AppError.Domain.Inventory.NotFound(it) }
-                    )
-                    val result = store.add(stack)
-                    equipmentStacks.replaceAll(store.all())
-                    if (result is DomainResult.Failure) {
-                        DomainLog.w(TAG, "购买装备失败：${stack.name}")
-                        addOk = false
-                    } else if (result is DomainResult.Partial) {
-                        DomainLog.w(TAG, "购买装备溢出：${stack.name} 溢出 ${result.overflow} 个")
-                        addOk = false
-                    }
-                }
-                "manual" -> {
-                    val m = MerchantItemConverter.toManual(merchantItem).copy(quantity = quantity)
-                    val otherTypes = otherSlotsCount("manual")
-                    val store = StackableItemStore(
-                        initialItems = manualStacks.all(),
-                        stackKeyOf = StackKeys::manual,
-                        maxStack = inventoryConfig.getMaxStackSize("manual_stack"),
-                        maxSlots = { computeMaxSlots() - otherTypes },
-                        notFound = { AppError.Domain.Inventory.NotFound(it) }
-                    )
-                    val result = store.add(m)
-                    manualStacks.replaceAll(store.all())
-                    if (result is DomainResult.Failure) {
-                        DomainLog.w(TAG, "购买功法失败：${m.name}")
-                        addOk = false
-                    } else if (result is DomainResult.Partial) {
-                        DomainLog.w(TAG, "购买功法溢出：${m.name} 溢出 ${result.overflow} 个")
-                        addOk = false
-                    }
-                }
-                "pill" -> {
-                    val p = MerchantItemConverter.toPill(merchantItem).copy(quantity = quantity)
-                    val otherTypes = otherSlotsCount("pill")
-                    val store = StackableItemStore(
-                        initialItems = pills.all(),
-                        stackKeyOf = StackKeys::pill,
-                        maxStack = inventoryConfig.getMaxStackSize("pill"),
-                        maxSlots = { computeMaxSlots() - otherTypes },
-                        notFound = { AppError.Domain.Inventory.NotFound(it) }
-                    )
-                    val result = store.add(p)
-                    pills.replaceAll(store.all())
-                    if (result is DomainResult.Failure) {
-                        DomainLog.w(TAG, "购买丹药失败：${p.name}")
-                        addOk = false
-                    } else if (result is DomainResult.Partial) {
-                        DomainLog.w(TAG, "购买丹药溢出：${p.name} 溢出 ${result.overflow} 个")
-                        addOk = false
-                    }
-                }
-                "material" -> {
-                    val m = MerchantItemConverter.toMaterial(merchantItem).copy(quantity = quantity)
-                    val otherTypes = otherSlotsCount("material")
-                    val store = StackableItemStore(
-                        initialItems = materials.all(),
-                        stackKeyOf = StackKeys::material,
-                        maxStack = inventoryConfig.getMaxStackSize("material"),
-                        maxSlots = { computeMaxSlots() - otherTypes },
-                        notFound = { AppError.Domain.Inventory.NotFound(it) }
-                    )
-                    val result = store.add(m)
-                    materials.replaceAll(store.all())
-                    if (result is DomainResult.Failure) {
-                        DomainLog.w(TAG, "购买材料失败：${m.name}")
-                        addOk = false
-                    } else if (result is DomainResult.Partial) {
-                        DomainLog.w(TAG, "购买材料溢出：${m.name} 溢出 ${result.overflow} 个")
-                        addOk = false
-                    }
-                }
-                "herb" -> {
-                    val h = MerchantItemConverter.toHerb(merchantItem).copy(quantity = quantity)
-                    val otherTypes = otherSlotsCount("herb")
-                    val store = StackableItemStore(
-                        initialItems = herbs.all(),
-                        stackKeyOf = StackKeys::herb,
-                        maxStack = inventoryConfig.getMaxStackSize("herb"),
-                        maxSlots = { computeMaxSlots() - otherTypes },
-                        notFound = { AppError.Domain.Inventory.NotFound(it) }
-                    )
-                    val result = store.add(h)
-                    herbs.replaceAll(store.all())
-                    if (result is DomainResult.Failure) {
-                        DomainLog.w(TAG, "购买草药失败：${h.name}")
-                        addOk = false
-                    } else if (result is DomainResult.Partial) {
-                        DomainLog.w(TAG, "购买草药溢出：${h.name} 溢出 ${result.overflow} 个")
-                        addOk = false
-                    }
-                }
-                "seed" -> {
-                    val s = MerchantItemConverter.toSeed(merchantItem).copy(quantity = quantity)
-                    val otherTypes = otherSlotsCount("seed")
-                    val store = StackableItemStore(
-                        initialItems = seeds.all(),
-                        stackKeyOf = StackKeys::seed,
-                        maxStack = inventoryConfig.getMaxStackSize("seed"),
-                        maxSlots = { computeMaxSlots() - otherTypes },
-                        notFound = { AppError.Domain.Inventory.NotFound(it) }
-                    )
-                    val result = store.add(s)
-                    seeds.replaceAll(store.all())
-                    if (result is DomainResult.Failure) {
-                        DomainLog.w(TAG, "购买种子失败：${s.name}")
-                        addOk = false
-                    } else if (result is DomainResult.Partial) {
-                        DomainLog.w(TAG, "购买种子溢出：${s.name} 溢出 ${result.overflow} 个")
-                        addOk = false
-                    }
-                }
-                "spiritstone" -> {
-                    when (merchantItem.name) {
-                        "中品灵石" -> gameData = gameData.copy(
-                            midGradeSpiritStones = gameData.midGradeSpiritStones + quantity
+            inventorySystem.withTrackingSource("merchant") {
+                when (merchantItem.type.lowercase(java.util.Locale.getDefault())) {
+                    "equipment" -> {
+                        val result = inventorySystem.addEquipmentStack(
+                            MerchantItemConverter.toEquipment(merchantItem).copy(quantity = quantity)
                         )
-                        "上品灵石" -> gameData = gameData.copy(
-                            highGradeSpiritStones = gameData.highGradeSpiritStones + quantity
+                        if (result is DomainResult.Failure) {
+                            DomainLog.w(TAG, "购买装备失败：${merchantItem.name}")
+                            addOk = false
+                        }
+                    }
+                    "manual" -> {
+                        val result = inventorySystem.addManualStack(
+                            MerchantItemConverter.toManual(merchantItem).copy(quantity = quantity)
                         )
+                        if (result is DomainResult.Failure) {
+                            DomainLog.w(TAG, "购买功法失败：${merchantItem.name}")
+                            addOk = false
+                        }
+                    }
+                    "pill" -> {
+                        val result = inventorySystem.addPill(
+                            MerchantItemConverter.toPill(merchantItem).copy(quantity = quantity)
+                        )
+                        if (result is DomainResult.Failure) {
+                            DomainLog.w(TAG, "购买丹药失败：${merchantItem.name}")
+                            addOk = false
+                        }
+                    }
+                    "material" -> {
+                        val result = inventorySystem.addMaterial(
+                            MerchantItemConverter.toMaterial(merchantItem).copy(quantity = quantity)
+                        )
+                        if (result is DomainResult.Failure) {
+                            DomainLog.w(TAG, "购买材料失败：${merchantItem.name}")
+                            addOk = false
+                        }
+                    }
+                    "herb" -> {
+                        val result = inventorySystem.addHerb(
+                            MerchantItemConverter.toHerb(merchantItem).copy(quantity = quantity)
+                        )
+                        if (result is DomainResult.Failure) {
+                            DomainLog.w(TAG, "购买草药失败：${merchantItem.name}")
+                            addOk = false
+                        }
+                    }
+                    "seed" -> {
+                        val result = inventorySystem.addSeed(
+                            MerchantItemConverter.toSeed(merchantItem).copy(quantity = quantity)
+                        )
+                        if (result is DomainResult.Failure) {
+                            DomainLog.w(TAG, "购买种子失败：${merchantItem.name}")
+                            addOk = false
+                        }
+                    }
+                    "spiritstone" -> {
+                        when (merchantItem.name) {
+                            "中品灵石" -> gameData = gameData.copy(
+                                midGradeSpiritStones = gameData.midGradeSpiritStones + quantity
+                            )
+                            "上品灵石" -> gameData = gameData.copy(
+                                highGradeSpiritStones = gameData.highGradeSpiritStones + quantity
+                            )
+                        }
                     }
                 }
             }
-            // 物品添加完全失败 → 不扣灵石，不更新商家库存
+            // 物品添加完全失败（零合并且仓库满，溢出已转邮件）→ 不扣灵石，不更新商家库存
             if (!addOk) return@update
 
             // 扣灵石（现在物品已成功添加）
@@ -652,23 +525,7 @@ class InventoryFacadeImpl @Inject constructor(
                     } else item
                 }.filterNotNull()
             )
-
-            // 年度报告：追踪商人购买来源
-            val merchSrc = "merchant"
-            when (merchantItem.type.lowercase(java.util.Locale.getDefault())) {
-                "equipment" -> {
-                    val k = "$merchSrc:${merchantItem.rarity}"
-                    gameData = gameData.copy(annualEquipmentBySource = gameData.annualEquipmentBySource + (k to (gameData.annualEquipmentBySource[k] ?: 0) + quantity))
-                }
-                "pill" -> {
-                    val g = merchantItem.grade ?: "LOW"
-                    val k = "$merchSrc:$g"
-                    gameData = gameData.copy(annualPillBySource = gameData.annualPillBySource + (k to (gameData.annualPillBySource[k] ?: 0) + quantity))
-                }
-                "herb" -> {
-                    gameData = gameData.copy(annualHerbBySource = gameData.annualHerbBySource + (merchSrc to (gameData.annualHerbBySource[merchSrc] ?: 0) + quantity))
-                }
-            }
+            // 年度报告由 addXxx 按 "merchant" 来源自动累加（删除原手写统计防双计）
             itemName = merchantItem.name
             itemType = merchantItem.type
             itemRarity = merchantItem.rarity
@@ -924,95 +781,22 @@ stateStore.update {
         }
 
         // 单事务原子写入：消耗储物袋 + 发放所有奖励
+        // （手动-消耗类路径：统一委托 addXxx，仓库满时溢出自动转邮件，物品不丢失）
         stateStore.update {
             // 消耗袋子
             val bag = storageBags.get(bagId) ?: return@update
             if (bag.quantity <= 1) storageBags.remove(bagId)
             else storageBags.update(bagId) { it.copy(quantity = it.quantity - 1) }
 
-            // 装备
-            for (stack in pendingEquipment) {
-                val otherTypes = otherSlotsCount("equipment")
-                val store = StackableItemStore(
-                    initialItems = equipmentStacks.all(),
-                    stackKeyOf = StackKeys::equipment,
-                    maxStack = inventoryConfig.getMaxStackSize("equipment_stack"),
-                    maxSlots = { computeMaxSlots() - otherTypes },
-                    notFound = { AppError.Domain.Inventory.NotFound(it) }
-                )
-                store.add(stack)
-                equipmentStacks.replaceAll(store.all())
-                val k = "storage_bag:${stack.rarity}"
-                gameData = gameData.copy(annualEquipmentBySource = gameData.annualEquipmentBySource + (k to (gameData.annualEquipmentBySource[k] ?: 0) + 1))
-            }
-            // 功法
-            for (stack in pendingManuals) {
-                val otherTypes = otherSlotsCount("manual")
-                val store = StackableItemStore(
-                    initialItems = manualStacks.all(),
-                    stackKeyOf = StackKeys::manual,
-                    maxStack = inventoryConfig.getMaxStackSize("manual_stack"),
-                    maxSlots = { computeMaxSlots() - otherTypes },
-                    notFound = { AppError.Domain.Inventory.NotFound(it) }
-                )
-                store.add(stack)
-                manualStacks.replaceAll(store.all())
-            }
-            // 丹药
-            for (pill in pendingPills) {
-                val otherTypes = otherSlotsCount("pill")
-                val store = StackableItemStore(
-                    initialItems = pills.all(),
-                    stackKeyOf = StackKeys::pill,
-                    maxStack = inventoryConfig.getMaxStackSize("pill"),
-                    maxSlots = { computeMaxSlots() - otherTypes },
-                    notFound = { AppError.Domain.Inventory.NotFound(it) }
-                )
-                store.add(pill)
-                pills.replaceAll(store.all())
-                val g = pill.grade?.name ?: "LOW"
-                val k = "storage_bag:$g"
-                gameData = gameData.copy(annualPillBySource = gameData.annualPillBySource + (k to (gameData.annualPillBySource[k] ?: 0) + 1))
-            }
-            // 草药
-            for (herb in pendingHerbs) {
-                val otherTypes = otherSlotsCount("herb")
-                val store = StackableItemStore(
-                    initialItems = herbs.all(),
-                    stackKeyOf = StackKeys::herb,
-                    maxStack = inventoryConfig.getMaxStackSize("herb"),
-                    maxSlots = { computeMaxSlots() - otherTypes },
-                    notFound = { AppError.Domain.Inventory.NotFound(it) }
-                )
-                store.add(herb)
-                herbs.replaceAll(store.all())
-                gameData = gameData.copy(annualHerbBySource = gameData.annualHerbBySource + ("storage_bag" to (gameData.annualHerbBySource["storage_bag"] ?: 0) + 1))
-            }
-            // 种子
-            for (seed in pendingSeeds) {
-                val otherTypes = otherSlotsCount("seed")
-                val store = StackableItemStore(
-                    initialItems = seeds.all(),
-                    stackKeyOf = StackKeys::seed,
-                    maxStack = inventoryConfig.getMaxStackSize("seed"),
-                    maxSlots = { computeMaxSlots() - otherTypes },
-                    notFound = { AppError.Domain.Inventory.NotFound(it) }
-                )
-                store.add(seed)
-                seeds.replaceAll(store.all())
-            }
-            // 材料
-            for (mat in pendingMaterials) {
-                val otherTypes = otherSlotsCount("material")
-                val store = StackableItemStore(
-                    initialItems = materials.all(),
-                    stackKeyOf = StackKeys::material,
-                    maxStack = inventoryConfig.getMaxStackSize("material"),
-                    maxSlots = { computeMaxSlots() - otherTypes },
-                    notFound = { AppError.Domain.Inventory.NotFound(it) }
-                )
-                store.add(mat)
-                materials.replaceAll(store.all())
+            // 全部物品统一委托 addXxx（重入事务操作同一缓冲；年度统计由 addXxx 按
+            // "storage_bag" 来源自动累加，键格式与原手写一致，删除手写 annual 防双计）
+            inventorySystem.withTrackingSource("storage_bag") {
+                for (stack in pendingEquipment) inventorySystem.addEquipmentStack(stack)
+                for (stack in pendingManuals) inventorySystem.addManualStack(stack)
+                for (pill in pendingPills) inventorySystem.addPill(pill)
+                for (herb in pendingHerbs) inventorySystem.addHerb(herb)
+                for (seed in pendingSeeds) inventorySystem.addSeed(seed)
+                for (mat in pendingMaterials) inventorySystem.addMaterial(mat)
             }
             // 灵石
             if (pendingSpiritStones > 0) {

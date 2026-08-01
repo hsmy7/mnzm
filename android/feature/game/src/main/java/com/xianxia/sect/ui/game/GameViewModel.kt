@@ -84,9 +84,12 @@ class GameViewModel @Inject constructor(
     val ads = AdsDelegate()
     val overlays = OverlayDelegate(gameEngine, viewModelScope)
     val bag = BagDelegate(gameEngine, dailySignInService, viewModelScope, dispatcher = ioDispatcher.dispatcher)
-    val redeem = RedeemCodeDelegate(gameEngine, ::showSuccess, ::showError)
+    val redeem = RedeemCodeDelegate(
+        gameEngine, ::showSuccess, ::showError,
+        onCapacityWarning = { msg -> showCapacityWarning(msg) }
+    )
     val mail = MailDelegate(gameEngine, mailService, dailySignInService, ::showError)
-    val signIn = SignInDelegate(gameEngine, dailySignInService, viewModelScope, sharingStarted)
+    val signIn = SignInDelegate(gameEngine, dailySignInService, viewModelScope, sharingStarted) { showCapacityWarning(it) }
     val gameLoop = GameLoopDelegate(gameEngine, gameEngineCore, systemManager, viewModelScope, ::showError)
     val settings = SettingsDelegate(gameEngine, discipleFacade, audioConfig)
 
@@ -114,6 +117,7 @@ class GameViewModel @Inject constructor(
         gameEngine,
         onShowSuccess = { msg -> showSuccess(msg) },
         onShowError = { msg -> showError(msg) },
+        onCapacityWarning = { msg -> showCapacityWarning(msg) },
         onNavigateToDialog = { route -> navigateToDialog(route) },
         onDismissDialog = { dismissDialog() }
     )
@@ -732,13 +736,14 @@ class GameViewModel @Inject constructor(
     val claimedDaysCount: StateFlow<Int> get() = signIn.claimedDaysCount
     val claimedMilestones: StateFlow<List<Int>> get() = signIn.claimedMilestones
     val milestoneRewards: List<MilestoneReward> get() = signIn.milestoneRewards
-    val signInCapacityWarning: StateFlow<String?> get() = signIn.signInCapacityWarning
     fun getRewardForWeekday(weekday: Int): DailySignInReward = signIn.getRewardForWeekday(weekday)
     fun getDayState(dayOfMonth: Int, signInState: SignInState): SignInDayState = signIn.getDayState(dayOfMonth, signInState)
     fun getDaysInMonth(): Int = signIn.getDaysInMonth()
     fun getWeekdayForDay(dayOfMonth: Int): Int = signIn.getWeekdayForDay(dayOfMonth)
-    fun dismissCapacityWarning() = signIn.dismissCapacityWarning()
     fun claimDailySignIn() = signIn.claimDailySignIn()
+
+    /** 统一仓库容量不足提示框（GameOverlayHost 渲染，未来新增领取按钮直接调用） */
+    override fun showCapacityWarning(message: String) = super.showCapacityWarning(message)
     fun enqueueRewardCards(cards: List<RewardCardItem>) = signIn.enqueueRewardCards(cards)
 
     // GameLoopDelegate

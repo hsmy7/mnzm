@@ -249,15 +249,13 @@ class ProductionProcessor @Inject constructor(
     }
 
     /**
-     * 将收获的灵草合并到传入的事务缓冲 state 中。
+     * 将收获的灵草合并到传入的事务缓冲 state 中（自动类：PlantingSystem 月度自动触发）。
      *
      * 本方法直接操作 state 参数（区别于其他服务的 stateStore.update 模式——
      * 灵田收获由 PlantingSystem.onMonthlyEvent 传入事务缓冲），
-     * 合并逻辑统一走 [StackableItemStore]（与 InventorySystem 主路径同一实现），
-     * 消除手写"找第一个堆叠 + 追加"导致同种草药分裂为多个堆叠的问题。
-     *
-     * 对抗性审查修复：检查 add 结果——仓库满时灵草溢出不再静默丢失，
-     * 打日志明确提示；年度报告 `spirit_field` 只按**实际入库量**累加。
+     * 合并逻辑统一走 [StackableItemStore]（与 InventorySystem 主路径同一实现）；
+     * 仓库满时溢出部分通过 [InventorySystem.sendOverflowMail] 转为邮件通知玩家
+     * （自动类路径物品不丢失），年度报告按实际入库量累加。
      *
      * @return 实际入库数量
      */
@@ -286,13 +284,23 @@ class ProductionProcessor @Inject constructor(
         state.herbs.replaceAll(store.all())
         val actualAdded = when (result) {
             is DomainResult.Success -> finalYield
-            is DomainResult.Partial -> finalYield - result.overflow
-            is DomainResult.Failure -> 0
+            is DomainResult.Partial -> {
+                inventorySystem.sendOverflowMail(
+                    "spirit_field", "herb", dbHerb.name, dbHerb.rarity, result.overflow
+                )
+                finalYield - result.overflow
+            }
+            is DomainResult.Failure -> {
+                inventorySystem.sendOverflowMail(
+                    "spirit_field", "herb", dbHerb.name, dbHerb.rarity, finalYield
+                )
+                0
+            }
         }
         if (actualAdded < finalYield) {
             DomainLog.w(
                 TAG,
-                "灵田收获 ${dbHerb.name} 仓库空间不足，实际入库 $actualAdded/$finalYield"
+                "灵田收获 ${dbHerb.name} 仓库空间不足，实际入库 $actualAdded/$finalYield（溢出已转邮件）"
             )
         }
         state.gameData = state.gameData.copy(

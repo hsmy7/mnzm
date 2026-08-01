@@ -227,7 +227,7 @@ private class MarriageProposalTestStore : GameStateStore {
     override val storageBagsSnapshot: List<StorageBag> get() = storageBags.value
     override val battleLogsSnapshot: List<BattleLog> get() = battleLogs.value
     override val teamsSnapshot: List<ExplorationTeam> get() = teams.value
-    override val warehouseFullEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    override val warehouseFullEvent = MutableSharedFlow<String>(extraBufferCapacity = 1)
     override val notifications = MutableStateFlow<List<GameNotification>>(emptyList())
     override val lifecycleState = MutableStateFlow(GameStateStore.LifecycleState())
     override val bootPhase = MutableStateFlow(com.xianxia.sect.core.state.BootPhase.UNINITIALIZED)

@@ -515,7 +515,8 @@ class ExplorationService @Inject constructor(
                         description = mat.description,
                         category = mat.materialCategory, quantity = 1
                     )
-                    when (val addR = inventorySystem.addMaterial(material)) {
+                    val addR = inventorySystem.withTrackingSource("beast_raid") { inventorySystem.addMaterial(material) }
+                    when (addR) {
                         is DomainResult.Success -> {
                             allRewards.add(BattleRewardItem(
                                 itemId = material.id,

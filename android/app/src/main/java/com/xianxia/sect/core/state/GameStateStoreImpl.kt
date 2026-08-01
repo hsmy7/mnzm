@@ -193,7 +193,7 @@ class GameStateStoreImpl @Inject constructor(
     /** 预留接口，已弃用（不再自动触发） */
     override fun exitBatchEmissionMode() { /* no-op */ }
 
-    override val warehouseFullEvent: MutableSharedFlow<Unit> = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    override val warehouseFullEvent: MutableSharedFlow<String> = MutableSharedFlow<String>(extraBufferCapacity = 1)
 
     // LEGACY: 按版本触发的批处理模式，50ms 内多次更新合并为一次
     // 新代码应使用 highFreqState / entityState / configState 或独立 StateFlow

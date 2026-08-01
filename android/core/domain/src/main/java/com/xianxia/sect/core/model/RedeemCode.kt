@@ -66,5 +66,7 @@ data class RedeemResult(
     val message: String,
     val rewards: List<RewardSelectedItem> = emptyList(),
     val disciple: Disciple? = null,
-    val disciples: List<Disciple> = emptyList()
+    val disciples: List<Disciple> = emptyList(),
+    /** true=仓库容量不足导致兑换未生效（兑换码未标记已用，清理后可重试）；UI 应弹容量提示框 */
+    val capacityInsufficient: Boolean = false
 )

@@ -96,9 +96,17 @@ class RedeemCodeService @Inject constructor(
             val apiResult = json.decodeFromString<RedeemApiResponse>(body)
 
             if (apiResult.success) {
-                applyApiRewardsAndMarkUsed(code, apiResult.rewards)
+                val allSucceeded = applyApiRewardsAndMarkUsed(code, apiResult.rewards)
                 enqueueRewardCardsFromApiRewards(apiResult.rewards)
-                RedeemResult(success = true, message = apiResult.message)
+                if (allSucceeded) {
+                    RedeemResult(success = true, message = apiResult.message)
+                } else {
+                    RedeemResult(
+                        success = false,
+                        capacityInsufficient = true,
+                        message = "仓库容量不足，兑换码未使用，清理仓库后可重新兑换"
+                    )
+                }
             } else {
                 RedeemResult(success = false, message = apiResult.message)
             }
@@ -108,18 +116,20 @@ class RedeemCodeService @Inject constructor(
         }
     }
 
-    private suspend fun applyApiRewardsAndMarkUsed(code: String, rewards: List<RedeemApiReward>) {
+    private suspend fun applyApiRewardsAndMarkUsed(code: String, rewards: List<RedeemApiReward>): Boolean {
         // 灵石通过 SpiritStoneWallet 独立发放
         rewards.filter { it.type == "spiritStones" }.forEach { reward ->
             stateStore.update { spiritStoneWallet.add(this, reward.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.RedeemCode) }
         }
 
         val mailRng = gameRngManager.getRng(RngPartition.MAIL).asKotlinRandom()
+        var allSucceeded = true
         stateStore.update {
+            inventorySystem.withOverflowMailSuppressed {
             inventorySystem.withTrackingSource("redeem") {
                 // 对抗性审查修复：任一物品发放失败/溢出（仓库满）时不标记兑换码已用，
                 // 玩家清理仓库后可重新兑换，奖励不丢失
-                val allSucceeded = rewards.filter { it.type != "spiritStones" }.all { reward ->
+                allSucceeded = rewards.filter { it.type != "spiritStones" }.all { reward ->
                     applyRedeemReward(reward.type, reward.name, reward.quantity, reward.rarity, reward.rarity, mailRng)
                 }
                 if (allSucceeded) {
@@ -131,6 +141,8 @@ class RedeemCodeService @Inject constructor(
                 }
             }
         }
+        }
+        return allSucceeded
     }
 
     /**
@@ -368,13 +380,16 @@ class RedeemCodeService @Inject constructor(
             stateStore.update { spiritStoneWallet.add(this, reward.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.RedeemCode) }
         }
 
+        var allSucceeded = true
         stateStore.update {
             // 对抗性审查修复：任一物品发放失败/溢出（仓库满）时不标记兑换码已用，
             // 玩家清理仓库后可重新兑换，奖励不丢失
-            val allSucceeded = inventorySystem.withTrackingSource("redeem") {
+            allSucceeded = inventorySystem.withOverflowMailSuppressed {
+            inventorySystem.withTrackingSource("redeem") {
                 result.rewards.filter { it.type != "spiritStones" }.all { reward ->
                     applyRedeemReward(reward.type, reward.name, reward.quantity, reward.rarity, redeemCodeData.rarity, mailRng)
                 }
+            }
             }
 
             result.disciples.forEach { disciple ->
@@ -402,6 +417,13 @@ class RedeemCodeService @Inject constructor(
             }
         }
 
+        if (!allSucceeded) {
+            return RedeemResult(
+                success = false,
+                capacityInsufficient = true,
+                message = "仓库容量不足，兑换码未使用，清理仓库后可重新兑换"
+            )
+        }
         return RedeemResult(
             success = true,
             message = "兑换成功！获得：$rewardDescription",

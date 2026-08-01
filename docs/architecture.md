@@ -297,6 +297,23 @@ RunState（运行时状态 — 可循环回退）
 | onCleared 异步窗口期 | ✅ 已收尾 | 风险保持"已接受"（boot 序列 `isGameLoaded` 兜底）；catch 空块补 `Log.w` + `CancellationException` 重新抛出 |
 | DeathEvent 无消费方 | ✅ 已确认安全 | `startListening` 空 collect 删除后，EventBus 自身 `startProcessing()` 是 Channel 唯一消费者（Channel 256 + trySend 丢弃不阻塞），背压无依赖 |
 
+### 待完成项（仓库容量溢出专项，2026-08-01 对抗性审查发现，已由"容量不足提示框 + 溢出转邮件"方案处理）
+
+| # | 待办 | 现状 | 说明 |
+|---|------|------|------|
+| P1 | 兑换码容量不足无提示，UI 显示"兑换成功"但物品未入账 | ✅ 已修复 | `RedeemResult` 加 `capacityInsufficient` 字段，失败时路由统一容量提示框 |
+| P2 | 宗门等级领取静默关闭对话框，无容量反馈 | ✅ 已修复 | `SectLevelClaimResult` 新增 `CapacityInsufficient` 分支，路由统一提示框 |
+| P3 | 引导任务奖励无 UI 提示 | ✅ 已修复 | `claimGuideReward` 返回 sealed `GuideClaimResult`，GameViewModel 路由提示 |
+| P4 | 天劫容量不足走全局"错误"标题 | ✅ 已修复 | 改走统一 `showCapacityWarning` 通道 |
+| P5 | 储物袋开启静默丢弃溢出物品（袋已消耗） | ✅ 已修复 | openStorageBag 迁移 addXxx，溢出自动转邮件 + 通知 |
+| P6 | 灵田自动收获静默丢弃（仅日志） | ✅ 已修复 | addHarvestedHerbsToState 迁移 addHerb，溢出自动转邮件 |
+| P7 | AutoBuyService 预检通过后仍可 Partial 静默丢弃 | ✅ 已修复 | addToWarehouse 迁移 addXxx，溢出自动转邮件 |
+| P8 | 商人购买灵石已扣物品丢失 | ✅ 已修复 | buyMerchantItem 迁移 addXxx；Partial 视为发放成功（溢出转邮件，灵石照扣） |
+| P9 | 多处战斗奖励无 withTrackingSource（来源为 unknown） | ✅ 已修复 | 妖兽战/洞穴战/妖兽侵袭/巡视塔/任务路径补 source 包裹 |
+| P10 | 洞府探索 grantManualReward 用 isSuccess 误判 Partial 为成功 | ✅ 已修复 | 改用穷尽 when（Partial 计溢出，统一机制接管） |
+| P11 | warehouseFullEvent 只带 Unit 无法区分拒绝/转邮件 | ✅ 已修复 | 类型升级为 `MutableSharedFlow<String>` 携带文案 |
+| P12 | 外交宗门交易扣款后 add 失败灵石已扣物品丢失 | ✅ 已修复 | 购买前容量预检拒绝购买 + Partial 溢出自动转邮件 |
+
 ---
 
 ## Architecture Docs

@@ -96,7 +96,8 @@ class DiscipleServiceCrudTest {
         )
         val equipmentService = DiscipleEquipmentService(
             stateStore = mockStore,
-            inventoryConfig = mock()
+            inventoryConfig = mock(),
+            inventorySystem = mock(com.xianxia.sect.core.engine.system.InventorySystem::class.java)
         )
         val masterService = DiscipleMasterApprenticeService(
             stateStore = mockStore

@@ -381,7 +381,7 @@ private class FakeGameStateStore : GameStateStore {
     override val gameLifecycle = MutableStateFlow(GameLifecycle.UNINITIALIZED)
 
     // ── 事件 ──
-    override val warehouseFullEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    override val warehouseFullEvent = MutableSharedFlow<String>(extraBufferCapacity = 1)
 
     // ── UI 交互状态 ──
     override var activeTab: String = ""

@@ -353,7 +353,7 @@ private class FakeAtomicStateStore : GameStateStore {
 
     // ── 兼容层 ──
     override val gameLifecycle = MutableStateFlow(GameLifecycle.UNINITIALIZED)
-    override val warehouseFullEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    override val warehouseFullEvent = MutableSharedFlow<String>(extraBufferCapacity = 1)
 
     // ── UI 交互状态 ──
     override var activeTab: String = ""

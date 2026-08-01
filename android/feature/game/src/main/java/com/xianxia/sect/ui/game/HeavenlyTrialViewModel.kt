@@ -161,7 +161,8 @@ class HeavenlyTrialViewModel @Inject constructor(
                     onCardsReady(result.cards)
                 }
                 is ClaimClearRewardResult.CapacityInsufficient -> {
-                    showError(result.message ?: "领取失败")
+                    // 统一容量提示框（仓库容量不足/知道了）
+                    showCapacityWarning(result.message ?: "仓库容量不足，请清理后重试")
                 }
                 is ClaimClearRewardResult.AlreadyClaimed -> {
                     // 按钮状态已阻止此路径

@@ -500,6 +500,12 @@ suspend fun buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int =
                 )
             )
 
+            // 对抗性审查修复 P12：扣款前容量预检（事务内最新状态）——
+            // 仓库满时拒绝购买不扣灵石，避免"灵石已扣物品丢失"
+            if (!inventorySystem.canAddItemInTransaction(this)) {
+                stateStore.warehouseFullEvent.tryEmit("仓库容量不足，无法购买宗门贸易物品")
+                return@update
+            }
             val deductResult = spiritStoneWallet.deduct(this, v.totalPrice, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)
             if (deductResult !is DeductResult.Success) {
                 return@update
@@ -508,6 +514,7 @@ suspend fun buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int =
                 sectRelations = gameData.sectRelations,
                 sectDetails = v.updatedSectDetails
             )
+            // 预检后仍 Partial（合并空间不足）→ 溢出自动转邮件（手动-消耗类路径），物品不丢失
             addSectTradeItemToMutableState(v.item, v.actualQuantity)
         }
     }

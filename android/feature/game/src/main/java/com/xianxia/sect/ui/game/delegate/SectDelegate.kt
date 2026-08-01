@@ -21,6 +21,7 @@ class SectDelegate(
     private val gameEngine: GameEngine,
     private val onShowSuccess: (String) -> Unit = {},
     private val onShowError: (String) -> Unit = {},
+    private val onCapacityWarning: (String) -> Unit = {},
     private val onNavigateToDialog: (com.xianxia.sect.core.domain.dialog.DialogType) -> Unit = {},
     private val onDismissDialog: () -> Unit = {}
 ) {
@@ -56,6 +57,8 @@ class SectDelegate(
                     is SectLevelClaimResult.Success -> { /* 奖励已入队，由 RewardCardHost 播放 */ }
                     is SectLevelClaimResult.AlreadyClaimed ->
                         onShowError("本周已领取过该等级奖励")
+                    is SectLevelClaimResult.CapacityInsufficient ->
+                        onCapacityWarning(result.message)
                     is SectLevelClaimResult.Error ->
                         onShowError(result.message)
                 }

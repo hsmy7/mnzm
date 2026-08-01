@@ -92,11 +92,30 @@ class MailService @Inject constructor(
 
     private var currentSlot: Int = -1
 
+    /** Room flow 收集任务：溢出邮件（OverflowMailSender 直写 Room）等外部写入立即可见 */
+    private var mailFlowJob: kotlinx.coroutines.Job? = null
+
     private suspend fun refreshActiveMails(slotId: Int) {
         currentSlot = slotId
         val now = System.currentTimeMillis()
         _activeMails.value = mailRepo.getActiveMails(slotId, now).first()
         _unreadCount.value = _activeMails.value.count { !it.isRead }
+    }
+
+    /**
+     * 启动 Room flow 持续收集（替代一次性快照）。
+     * 溢出邮件等外部直写 Room 后，activeMails/unreadCount 自动更新，UI 立即可见。
+     */
+    private fun startMailFlowCollector(slotId: Int) {
+        mailFlowJob?.cancel()
+        currentSlot = slotId
+        mailFlowJob = scopeProvider.scope.launch {
+            val now = System.currentTimeMillis()
+            mailRepo.getActiveMails(slotId, now).collect { mails ->
+                _activeMails.value = mails
+                _unreadCount.value = mails.count { !it.isRead }
+            }
+        }
     }
 
     private fun getMutex(slotId: Int): Mutex {
@@ -442,6 +461,9 @@ class MailService @Inject constructor(
         attachments: List<MailAttachment>
     ) {
         val mailRng = gameRngManager.getRng(RngPartition.MAIL).asKotlinRandom()
+        // 抑制溢出转邮件：本路径 Partial/Failure 抛异常回滚整个领取事务，
+        // 若已入队邮件草稿会造成"物品回滚但邮件已发"的双重发放
+        inventorySystem.withOverflowMailSuppressed {
         inventorySystem.withTrackingSource("mail") {
             for (attachment in attachments) {
                 when (attachment.type) {
@@ -469,6 +491,7 @@ class MailService @Inject constructor(
                     "storageBag" -> distributeStorageBagAttachment(attachment)
                 }
             }
+        }
         }
     }
 
@@ -737,6 +760,8 @@ class MailService @Inject constructor(
                 }
                 DomainLog.i(TAG, "resetAndInitSlot DONE for slot $slotId")
                 refreshActiveMails(slotId)
+                // Room flow 持续收集：溢出邮件等外部写入立即可见
+                startMailFlowCollector(slotId)
             } catch (e: Exception) {
                 DomainLog.e(TAG, "Error in resetAndInitSlot for slot $slotId", e)
             }

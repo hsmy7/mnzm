@@ -20,6 +20,8 @@ fun GameEngine.claimGuideReward(taskId: Int): Boolean {
         if (taskId in gd.guideClaimedRewardIds) return@update
         if (!task.conditions.all { it.isMet(gd) }) return@update
 
+        // 凭据类路径：抑制溢出转邮件（失败时不标记已领取，重试补齐）
+        inventorySystem.withOverflowMailSuppressed {
         val bagName = StorageBag.TIER_NAMES[0]
         val quantity = task.rewardItemQuantity
         // 统一委托 addStorageBag（走 StackableItemStore 合并，同稀有度自动合并）
@@ -34,12 +36,13 @@ fun GameEngine.claimGuideReward(taskId: Int): Boolean {
         // 对抗性审查修复：发放失败（仓库满）时不标记已领取，玩家清理后可重试
         if (result !is DomainResult.Success) {
             DomainLog.w("GameEngineGuideOps", "引导奖励 $bagName 发放失败，不标记已领取: ${(result as? DomainResult.Failure)?.error}")
-            return@update
+        } else {
+            gameData = gd.copy(
+                guideClaimedRewardIds = gd.guideClaimedRewardIds + taskId
+            )
+            claimed = true
         }
-        gameData = gd.copy(
-            guideClaimedRewardIds = gd.guideClaimedRewardIds + taskId
-        )
-        claimed = true
+        }
     }
     if (claimed) {
         // 入队奖励卡片，触发 RewardCardHost 飞出动画

@@ -665,7 +665,8 @@ class PatrolBattleSystem @Inject constructor(
                         category = beastMat.materialCategory,
                         quantity = 1
                     )
-                    when (val addResult = inventorySystem.addMaterial(material)) {
+                    val addResult = inventorySystem.withTrackingSource("patrol") { inventorySystem.addMaterial(material) }
+                    when (addResult) {
                         is DomainResult.Success -> {
                             allRewards += BattleRewardItem(
                                 itemId = material.id, name = material.name,

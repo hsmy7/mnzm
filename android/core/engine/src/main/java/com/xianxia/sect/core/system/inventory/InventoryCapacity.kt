@@ -89,7 +89,7 @@ internal fun inventoryCanAddItem(stateStore: GameStateStore): Boolean {
         stateStore.herbs.value,
         stateStore.seeds.value
     ) >= getMaxSlots(stateStore)
-    if (full) stateStore.warehouseFullEvent.tryEmit(Unit)
+    if (full) stateStore.warehouseFullEvent.tryEmit("仓库容量已满，无法添加物品")
     return !full
 }
 
@@ -105,6 +105,6 @@ internal fun inventoryCanAddItems(stateStore: GameStateStore, count: Int): Boole
         stateStore.herbs.value,
         stateStore.seeds.value
     ) + count > getMaxSlots(stateStore)
-    if (full) stateStore.warehouseFullEvent.tryEmit(Unit)
+    if (full) stateStore.warehouseFullEvent.tryEmit("仓库容量已满，无法添加物品")
     return !full
 }

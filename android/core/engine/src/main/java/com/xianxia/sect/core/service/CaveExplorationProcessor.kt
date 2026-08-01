@@ -910,15 +910,34 @@ class CaveExplorationProcessor @Inject constructor(
                 rarity = reward.rarity,
                 quantity = reward.quantity
             )
-            val result = inventorySystem.addManualStack(manual)
-            if (result.isSuccess) {
-                battleRewardItems.add(BattleRewardItem(
-                    itemId = reward.itemId,
-                    name = reward.name,
-                    quantity = reward.quantity,
-                    rarity = reward.rarity,
-                    type = reward.type
-                ))
+            // 修复 P10：isSuccess 对 Partial 误判为成功——改用穷尽 when；
+            // Partial 时溢出已转邮件（自动类路径），物品总量不丢失，卡片照常展示
+            val result = inventorySystem.withTrackingSource("cave") {
+                inventorySystem.addManualStack(manual)
+            }
+            when (result) {
+                is DomainResult.Success -> {
+                    battleRewardItems.add(BattleRewardItem(
+                        itemId = reward.itemId,
+                        name = reward.name,
+                        quantity = reward.quantity,
+                        rarity = reward.rarity,
+                        type = reward.type
+                    ))
+                }
+                is DomainResult.Partial -> {
+                    DomainLog.w(TAG, "洞府功法 ${manual.name} 溢出 ${result.overflow} 个（已转邮件）")
+                    battleRewardItems.add(BattleRewardItem(
+                        itemId = reward.itemId,
+                        name = reward.name,
+                        quantity = reward.quantity,
+                        rarity = reward.rarity,
+                        type = reward.type
+                    ))
+                }
+                is DomainResult.Failure -> {
+                    DomainLog.w(TAG, "洞府功法 ${manual.name} 发放失败: ${result.error}")
+                }
             }
         }
     }

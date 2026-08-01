@@ -46,7 +46,6 @@ fun DailySignInPanel(
 ) {
     val signInState by viewModel.signInState.collectAsStateWithLifecycle()
     val canClaimToday by viewModel.canClaimToday.collectAsStateWithLifecycle()
-    val capacityWarning by viewModel.signInCapacityWarning.collectAsStateWithLifecycle()
     val claimedDaysCount by viewModel.claimedDaysCount.collectAsStateWithLifecycle()
     val claimedMilestones by viewModel.claimedMilestones.collectAsStateWithLifecycle()
 
@@ -228,17 +227,7 @@ fun DailySignInPanel(
         }
     }
 
-    // 仓库容量不足提示框（每次点击签到且容量不足时弹出）
-    if (capacityWarning != null) {
-        StandardPromptDialog(
-            onDismissRequest = { viewModel.dismissCapacityWarning() },
-            title = "仓库容量不足",
-            text = capacityWarning,
-            confirmLabel = "知道了",
-            onConfirm = { viewModel.dismissCapacityWarning() },
-            dismissLabel = null
-        )
-    }
+    // 仓库容量不足提示由 GameOverlayHost 统一渲染（showCapacityWarning 通道）
 
     // 物品详情弹窗（长按物品卡片触发）
     detailItem?.let { item ->

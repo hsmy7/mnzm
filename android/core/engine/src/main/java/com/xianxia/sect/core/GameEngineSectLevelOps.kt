@@ -14,6 +14,8 @@ import java.util.UUID
 sealed interface SectLevelClaimResult {
     data object Success : SectLevelClaimResult
     data class AlreadyClaimed(val nextClaimableMs: Long) : SectLevelClaimResult
+    /** 仓库容量不足：奖励未发放、领取记录未写入，清理后可重新领取 */
+    data class CapacityInsufficient(val message: String) : SectLevelClaimResult
     data class Error(val message: String) : SectLevelClaimResult
 }
 
@@ -132,9 +134,11 @@ suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult = 
 
         // 2. 写入 state（发放物品 + 记录领取时间戳）
         // 对抗性审查修复：任一物品发放失败/溢出（仓库满）时不写领取记录，
-        // 玩家清理仓库后可重新领取，奖励不会永久消耗
+        // 玩家清理仓库后可重新领取，奖励不会永久消耗（凭据类路径：抑制溢出转邮件，
+        // 溢出部分由重试补齐，避免"邮件 + 重试"重复发放）
         var allSucceeded = true
         stateStore.update {
+            inventorySystem.withOverflowMailSuppressed {
             generatedBeastBlood.forEach { (name, pair) ->
                 val template = BeastMaterialDatabase.getMaterialsByRarity(pair.first)
                     .find { it.name == name && it.category == "blood" }
@@ -190,6 +194,7 @@ suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult = 
                     .filter { it.level != level } + newRecord
                 gameData = gameData.copy(sectLevelClaimRecords = updatedRecords)
             }
+            }
         }
 
         // 3. 入队飞行卡片（具体物品名，精灵图可正确解析）
@@ -197,6 +202,12 @@ suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult = 
             stateStore.enqueueRewardCards(flyCards)
         }
 
+        if (!allSucceeded) {
+            DomainLog.w(TAG, "claimSectLevelReward: level=$level 仓库容量不足，未标记已领取")
+            return@withEngineContext SectLevelClaimResult.CapacityInsufficient(
+                "仓库容量不足，奖励未发放，请清理仓库后重新领取"
+            )
+        }
         DomainLog.d(TAG, "claimSectLevelReward: level=$level success, claimedAt=$nowMs, flyCards=${flyCards.size}")
         return@withEngineContext SectLevelClaimResult.Success
     } catch (e: Exception) {

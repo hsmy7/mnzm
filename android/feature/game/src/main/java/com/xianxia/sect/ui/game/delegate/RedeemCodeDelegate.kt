@@ -12,7 +12,8 @@ import kotlinx.coroutines.withContext
 class RedeemCodeDelegate(
     private val gameEngine: GameEngine,
     private val onShowSuccess: (String) -> Unit = {},
-    private val onShowError: (String) -> Unit = {}
+    private val onShowError: (String) -> Unit = {},
+    private val onCapacityWarning: (String) -> Unit = {}
 ) {
 
     companion object {
@@ -48,6 +49,7 @@ class RedeemCodeDelegate(
                 _redeemResult.value = result
                 withContext(Dispatchers.Main) {
                     if (result.success) onShowSuccess(result.message)
+                    else if (result.capacityInsufficient) onCapacityWarning(result.message)
                     else onShowError(result.message)
                 }
             } catch (e: kotlinx.coroutines.CancellationException) { throw e }

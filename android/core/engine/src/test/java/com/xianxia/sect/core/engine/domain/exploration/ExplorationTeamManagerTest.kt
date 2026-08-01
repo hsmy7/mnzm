@@ -123,7 +123,7 @@ private class FakeStore : GameStateStore {
     override val teamsSnapshot: List<ExplorationTeam> get() = teamList
     override val battleLogsSnapshot: List<BattleLog> get() = battleLogs.value
     override val discipleTables: DiscipleTables = DiscipleTables()
-    override val warehouseFullEvent = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    override val warehouseFullEvent = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 1)
     override val gameLifecycle = MutableStateFlow(GameLifecycle.UNINITIALIZED)
     override val lifecycleState = MutableStateFlow(GameStateStore.LifecycleState())
     override val bootPhase = MutableStateFlow(BootPhase.UNINITIALIZED)

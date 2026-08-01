@@ -162,9 +162,17 @@ fun GameOverlayHost(
         }
     }
 
-    var showWarehouseFullDialog by remember { mutableStateOf(false) }
+    // 统一"仓库容量不足"提示框：手动获得路径（领取按钮等）与自动入库路径（溢出转邮件）共用
+    var capacityWarningMessage by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
-        viewModel.warehouseFullEvent.collect { showWarehouseFullDialog = true }
+        viewModel.capacityWarningEvents.collect { message ->
+            capacityWarningMessage = message
+        }
+    }
+    LaunchedEffect(Unit) {
+        viewModel.warehouseFullEvent.collect { message ->
+            capacityWarningMessage = message
+        }
     }
 
     // 妖兽进攻预警
@@ -195,7 +203,7 @@ fun GameOverlayHost(
     }
     val anyDialogVisible = currentDialogType != DialogType.None ||
         tipDialogMessage != null ||
-        showWarehouseFullDialog ||
+        capacityWarningMessage != null ||
         pendingNotification != null ||
         currentAttack != null ||
         marriageProposalVisible ||
@@ -692,12 +700,13 @@ fun GameOverlayHost(
         )
     }
 
-    if (showWarehouseFullDialog) {
+    capacityWarningMessage?.let { message ->
         StandardPromptDialog(
-            onDismissRequest = { showWarehouseFullDialog = false },
-            title = "仓库已满",
-            text = "仓库已满物品无法进入仓库直接遗失",
+            onDismissRequest = { capacityWarningMessage = null },
+            title = "仓库容量不足",
+            text = message,
             confirmLabel = "知道了",
+            // 支持点击屏幕外关闭（dismissOnClickOutside 默认 true）
             scrimEnabled = false
         )
     }

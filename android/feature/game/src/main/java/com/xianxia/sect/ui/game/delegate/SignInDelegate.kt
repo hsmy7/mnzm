@@ -20,7 +20,9 @@ class SignInDelegate(
     private val gameEngine: GameEngine,
     private val dailySignInService: DailySignInService,
     private val scope: CoroutineScope,
-    private val sharingStarted: SharingStarted
+    private val sharingStarted: SharingStarted,
+    /** 容量不足提示回调（GameViewModel → showCapacityWarning 统一提示框） */
+    private val onCapacityWarning: (String) -> Unit
 ) {
 
     val signInState: StateFlow<SignInState> = gameEngine.gameData
@@ -57,11 +59,6 @@ class SignInDelegate(
     fun getDaysInMonth(): Int = dailySignInService.getDaysInMonth()
     fun getWeekdayForDay(dayOfMonth: Int): Int = dailySignInService.getWeekdayForDay(dayOfMonth)
 
-    private val _signInCapacityWarning = MutableStateFlow<String?>(null)
-    val signInCapacityWarning: StateFlow<String?> = _signInCapacityWarning.asStateFlow()
-
-    fun dismissCapacityWarning() { _signInCapacityWarning.value = null }
-
     fun claimDailySignIn() {
         gameEngine.launchOnEngine {
             val result = dailySignInService.claimDailySignIn()
@@ -69,7 +66,10 @@ class SignInDelegate(
                 is ClaimDailyResult.Success -> dailySignInService.enqueueSignInCards(result.cards)
                 is ClaimDailyResult.SuccessWithMilestones -> dailySignInService.enqueueSignInCards(result.cards)
                 is ClaimDailyResult.AlreadyClaimed -> { }
-                is ClaimDailyResult.CapacityInsufficient -> withContext(Dispatchers.Main) { _signInCapacityWarning.value = result.message }
+                // 统一容量提示框（GameOverlayHost 渲染"仓库容量不足/知道了"）
+                is ClaimDailyResult.CapacityInsufficient -> withContext(Dispatchers.Main) {
+                    onCapacityWarning(result.message)
+                }
             }
         }
     }

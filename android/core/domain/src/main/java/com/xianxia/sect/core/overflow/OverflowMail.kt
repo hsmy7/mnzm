@@ -1,0 +1,50 @@
+package com.xianxia.sect.core.overflow
+
+/**
+ * 溢出邮件草稿：由 [InventorySystem 各 addXxx] 的 Partial 分支产生，
+ * 描述"仓库容量不足未入仓"的物品，供实现方组装为邮件通知玩家。
+ *
+ * @param slotId 存档槽位
+ * @param source 物品来源（withTrackingSource 的 source 值，如 "battle"/"cave"）
+ * @param itemType 物品类型（与 MailAttachment.type 对齐：equipment/manual/pill/
+ *   material/herb/seed/storageBag）
+ * @param itemName 物品名称
+ * @param rarity 稀有度
+ * @param quantity 溢出数量（未入仓数量）
+ */
+data class OverflowMailDraft(
+    val slotId: Int,
+    val source: String,
+    val itemType: String,
+    val itemName: String,
+    val rarity: Int,
+    val quantity: Int
+)
+
+/**
+ * 溢出邮件处理接口。
+ *
+ * [InventorySystem] 构造注入本接口，实现方（engine 层）负责把草稿转为邮件写入
+ * 玩家邮箱。**接口放 domain、实现不得依赖 InventorySystem**——避免
+ * InventorySystem → 实现 → MailService → InventorySystem 循环依赖。
+ */
+interface OverflowMailHandler {
+
+    /**
+     * 发送溢出邮件草稿。
+     *
+     * 实现方应：按 (slotId, source) 分组合并为少量邮件、异步写入（不得在
+     * stateStore.update 事务内执行 suspend/Room 操作）、并在发送后通过
+     * 容量通知通道提示玩家。
+     *
+     * @param drafts 溢出草稿列表（可能包含多件物品，同一来源合并为一封邮件）
+     */
+    fun sendOverflowMails(drafts: List<OverflowMailDraft>)
+}
+
+/** 无操作实现：测试或未接入时的默认值（不发送邮件，仅静默丢弃——由调用方日志兜底） */
+object NoOpOverflowMailHandler : OverflowMailHandler {
+    override fun sendOverflowMails(drafts: List<OverflowMailDraft>) {
+        // 无操作：测试环境默认不接入邮件系统
+    }
+}

@@ -27,6 +27,7 @@ import javax.inject.Singleton
 class DiscipleEquipmentService @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventoryConfig: InventoryConfig,
+    private val inventorySystem: com.xianxia.sect.core.engine.system.InventorySystem,
 ) {
     companion object {
         private const val TAG = "DiscipleEquipmentService"
@@ -203,22 +204,13 @@ class DiscipleEquipmentService @Inject constructor(
             val eq = equipmentInstances.get(equipmentId)
 
             if (eq != null) {
-                // ★ 使用 StackableItemStore 统一入口将装备放回仓库，替代存储袋直写
-                val otherTypes = manualStacks.size + pills.size + materials.size + herbs.size + seeds.size
-                val store = StackableItemStore(
-                    initialItems = equipmentStacks.all(),
-                    stackKeyOf = StackKeys::equipment,
-                    maxStack = inventoryConfig.getMaxStackSize(ITEM_TYPE_EQUIPMENT_STACK),
-                    maxSlots = { computeMaxSlots() - otherTypes },
-                    notFound = { AppError.Domain.Inventory.NotFound(it) })
-                val item = eq.toStack(quantity = 1)
-                val result = store.add(item)
-                equipmentStacks.replaceAll(store.all())
+                // 统一委托 addEquipmentStack（重入事务同一缓冲；溢出自动转邮件）
+                val result = inventorySystem.addEquipmentStack(eq.toStack(quantity = 1))
                 if (result is DomainResult.Success || result is DomainResult.Partial) {
                     equipmentInstances = equipmentInstances.filter { it.id != equipmentId }
                 }
                 if (result is DomainResult.Partial) {
-                    DomainLog.w(TAG, "卸下装备溢出：${eq.name} 溢出 ${result.overflow} 个")
+                    DomainLog.w(TAG, "卸下装备溢出：${eq.name} 溢出 ${result.overflow} 个（已转邮件）")
                 }
                 if (result is DomainResult.Failure) {
                     DomainLog.w(TAG, "卸下装备失败：${eq.name} 仓库已满，装备未移除")

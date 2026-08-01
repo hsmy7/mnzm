@@ -36,6 +36,9 @@ import com.xianxia.sect.core.wallet.SpiritStoneReason
 import com.xianxia.sect.core.wallet.DeductResult
 import com.xianxia.sect.core.wallet.SpiritStoneOperation
 import com.xianxia.sect.core.model.production.BuildingType
+import com.xianxia.sect.core.overflow.NoOpOverflowMailHandler
+import com.xianxia.sect.core.overflow.OverflowMailDraft
+import com.xianxia.sect.core.overflow.OverflowMailHandler
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.AppError
 import kotlinx.coroutines.flow.StateFlow
@@ -51,6 +54,7 @@ class InventorySystem @Inject constructor(
     private val inventoryConfig: InventoryConfig,
     private val spiritStoneWallet: SpiritStoneWallet,
     private val gameConfigProvider: GameConfigProvider,
+    private val overflowMailHandler: OverflowMailHandler = NoOpOverflowMailHandler,
 ) : GameSystem, ItemAdder {
 
     companion object {
@@ -66,11 +70,78 @@ class InventorySystem @Inject constructor(
     /** 年度报告物品来源上下文——引擎单线程安全。在调用 add* 前设置来源 */
     private var trackingSource: String = "unknown"
 
+    /** 溢出转邮件抑制标志——MailService 等"事务回滚"语义路径使用 */
+    private var overflowMailSuppressed = false
+
     /** 在指定 source 上下文中执行 block，用于年度报告物品来源追踪 */
     fun <T> withTrackingSource(source: String, block: () -> T): T {
         val prev = trackingSource
         trackingSource = source
         try { return block() } finally { trackingSource = prev }
+    }
+
+    /**
+     * 在抑制溢出转邮件的上下文中执行 block。
+     *
+     * 仅用于"发放失败时整个事务回滚"的路径（如 MailService 领取：Partial 抛异常
+     * 回滚，若此时已入队邮件草稿会造成"物品回滚但邮件已发"的双重发放）。
+     */
+    fun <T> withOverflowMailSuppressed(block: () -> T): T {
+        val prev = overflowMailSuppressed
+        overflowMailSuppressed = true
+        try { return block() } finally { overflowMailSuppressed = prev }
+    }
+
+    /**
+     * addXxx 的统一溢出收尾（事务外调用）：把未入仓部分转为邮件草稿。
+     *
+     * 转换规则：
+     * - [DomainResult.Partial]：溢出量转邮件（发放类路径——战斗/灵田/开袋等，
+     *   物品已生成无凭据可重试，不转即丢失）
+     * - [DomainResult.Failure]（仓库满 Full）：全部数量转邮件（同上，
+     *   零合并且无空槽时物品全部无法入仓，不转即丢失）
+     * - [withOverflowMailSuppressed] 内（凭据类路径——签到/兑换码/宗门等级/
+     *   引导/邮件领取）：不转邮件，由调用方拒绝并保留凭据，玩家清理后可重试补齐
+     *
+     * @param itemType 与 MailAttachment.type 对齐（equipment/manual/pill/...）
+     */
+    private fun <T> handleOverflowResult(result: DomainResult<T>, itemType: String, item: T) {
+        if (overflowMailSuppressed) return
+        val stackable = item as? StackableItem ?: return
+        val overflowQty = when (result) {
+            is DomainResult.Partial -> result.overflow
+            is DomainResult.Failure -> {
+                if (result.error !is AppError.Domain.Inventory.Full) return
+                stackable.quantity
+            }
+            else -> return
+        }
+        sendOverflowMail(trackingSource, itemType, stackable.name, stackable.rarity, overflowQty)
+    }
+
+    /**
+     * 公开溢出转邮件入口（供"state 参数直传"路径使用——如灵田收获直接操作
+     * 事务缓冲 state，不走本类 addXxx 时自行处理 Partial/Failure 溢出）。
+     *
+     * @param source 物品来源（与 withTrackingSource 的 source 值一致）
+     * @param itemType 与 MailAttachment.type 对齐
+     * @param itemName 物品名称
+     * @param rarity 稀有度
+     * @param quantity 溢出数量（>0 才发送）
+     */
+    fun sendOverflowMail(source: String, itemType: String, itemName: String, rarity: Int, quantity: Int) {
+        if (overflowMailSuppressed) return
+        if (quantity <= 0) return
+        overflowMailHandler.sendOverflowMails(listOf(
+            OverflowMailDraft(
+                slotId = stateStore.gameData.value.currentSlot,
+                source = source,
+                itemType = itemType,
+                itemName = itemName,
+                rarity = rarity,
+                quantity = quantity
+            )
+        ))
     }
 
 
@@ -275,6 +346,7 @@ class InventorySystem @Inject constructor(
                 }
                 is DomainResult.Failure -> { }
             }
+            handleOverflowResult(result, "equipment", item)
             result
         }
     }
@@ -308,6 +380,7 @@ class InventorySystem @Inject constructor(
             )
             val result = store.add(item, merge = merge)
             manualStacks.replaceAll(store.all())
+            handleOverflowResult(result, "manual", item)
             result
         }
     }
@@ -339,6 +412,7 @@ class InventorySystem @Inject constructor(
             val item = instance.toStack(quantity = 1)
             val result = store.add(item)
             equipmentStacks.replaceAll(store.all())
+            handleOverflowResult(result, "equipment", item)
             result
         }
     }
@@ -356,6 +430,7 @@ class InventorySystem @Inject constructor(
             val item = instance.toStack(quantity = 1)
             val result = store.add(item)
             manualStacks.replaceAll(store.all())
+            handleOverflowResult(result, "manual", item)
             result
         }
     }
@@ -521,6 +596,7 @@ class InventorySystem @Inject constructor(
                 }
                 is DomainResult.Failure -> { }
             }
+            handleOverflowResult(result, "pill", item)
             result
         }
     }
@@ -630,6 +706,7 @@ class InventorySystem @Inject constructor(
             )
             val result = store.add(item, merge = merge)
             materials.replaceAll(store.all())
+            handleOverflowResult(result, "material", item)
             result
         }
     }
@@ -751,6 +828,7 @@ class InventorySystem @Inject constructor(
                 }
                 is DomainResult.Failure -> { }
             }
+            handleOverflowResult(result, "herb", item)
             result
         }
     }
@@ -856,6 +934,7 @@ class InventorySystem @Inject constructor(
             )
             val result = store.add(item, merge = merge)
             seeds.replaceAll(store.all())
+            handleOverflowResult(result, "seed", item)
             result
         }
     }
@@ -883,6 +962,7 @@ class InventorySystem @Inject constructor(
             )
             val result = store.add(item)
             storageBags.replaceAll(store.all())
+            handleOverflowResult(result, "storageBag", item)
             result
         }
     }
@@ -929,6 +1009,7 @@ class InventorySystem @Inject constructor(
             )
             val result = store.add(item, merge = merge)
             seeds.replaceAll(store.all())
+            handleOverflowResult(result, "seed", item)
             result
         }
     }

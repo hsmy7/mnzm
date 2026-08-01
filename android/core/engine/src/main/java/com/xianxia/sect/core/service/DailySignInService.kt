@@ -233,6 +233,7 @@ class DailySignInService @Inject constructor(
         }
 
         stateStore.update {
+            inventorySystem.withOverflowMailSuppressed {
             inventorySystem.withTrackingSource("sign_in") {
                 when (reward.type) {
                     "beastMaterial" ->
@@ -251,6 +252,7 @@ class DailySignInService @Inject constructor(
                         generatedCards.addAll(distributeStorageBagReward(reward, onFailure))
                 }
             }
+        }
         }
         return Pair(capacityError, generatedCards)
     }

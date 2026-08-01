@@ -121,4 +121,28 @@ class InventoryAddPathGuardTest {
             emptyList<Pair<File, String>>(), matches
         )
     }
+
+    /** 反模式 4：手写 StackableItemStore 构造（应统一走 InventorySystem.addXxx） */
+    private val handWrittenStorePattern = Regex("StackableItemStore\\s*\\(")
+
+    /**
+     * 允许使用 StackableItemStore 的文件：
+     * - InventorySystem.kt：统一入口内部（7 个 addXxx 的实现）
+     * - ProductionProcessor.kt：灵田收获走"state 参数直传"模式（PlantingSystem
+     *   onMonthlyEvent 传入事务缓冲，区别于 stateStore.update 模式），
+     *   溢出通过 InventorySystem.sendOverflowMail 转邮件
+     */
+    private val storeAllowedFiles = setOf("InventorySystem.kt", "ProductionProcessor.kt")
+
+    @Test
+    fun `no hand-written StackableItemStore outside unified entry`() {
+        val files = sourceFiles().filter { it.name !in storeAllowedFiles }
+        val matches = matchesIn(files, handWrittenStorePattern)
+        assertEquals(
+            "发现 ${matches.size} 处手写 StackableItemStore 构造：\n" +
+                matches.joinToString("\n") { it.second } +
+                "\n应改为委托 InventorySystem.addXxx（自动获得合并/溢出转邮件/容量通知能力）",
+            emptyList<Pair<File, String>>(), matches
+        )
+    }
 }

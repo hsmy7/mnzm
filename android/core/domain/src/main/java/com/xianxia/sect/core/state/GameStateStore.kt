@@ -89,7 +89,7 @@ interface GameStateStore : GameStateSnapshotProvider {
     val discipleAggregatesSnapshot: List<DiscipleAggregate>
 
     // === 事件 ===
-    val warehouseFullEvent: MutableSharedFlow<Unit>
+    val warehouseFullEvent: MutableSharedFlow<String>
 
     // === 快照读取（绕过 stateIn 调度延迟） ===
     fun getCurrentSeeds(): List<Seed>

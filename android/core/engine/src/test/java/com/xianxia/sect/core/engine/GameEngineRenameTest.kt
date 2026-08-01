@@ -241,7 +241,7 @@ private class RenameStore : GameStateStore {
     override val battleLogsSnapshot: List<BattleLog> get() = emptyList()
     override val discipleAggregatesSnapshot: List<DiscipleAggregate> get() = emptyList()
     override val notifications = MutableStateFlow<List<GameNotification>>(emptyList())
-    override val warehouseFullEvent = MutableSharedFlow<Unit>()
+    override val warehouseFullEvent = MutableSharedFlow<String>()
     override var activeTab: String = ""
     override var activeDialog: String? = null
     override var activeSubDialogs: Set<String> = emptySet()
