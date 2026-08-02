@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.engine.ManualProficiencySystem
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentNurtureData
@@ -24,19 +25,39 @@ import java.util.UUID
  */
 fun MutableGameState.materializeCaptiveGear(captive: Disciple, newId: String) {
     val intId = newId.toIntOrNull() ?: return
-    if (!shouldMaterializeCaptiveGear(captive, intId)) return
+    if (!shouldMaterializeCaptiveGear(captive, newId, intId)) return
     materializeEquipments(captive, intId)
     materializeManuals(captive, newId, intId)
 }
 
 /**
- * 幂等/合法性守卫：弟子 id 存在，且武器槽未落库（落库后槽位为玩家实例 id）。
- * 注：纯 JVM 测试环境下列写入可能静默丢失（SparseArray），需空安全处理。
+ * 幂等/合法性守卫：弟子 id 存在且未落库。
+ *
+ * 落库哨兵双通道：① `gameData.manualProficiencies` 已注册该弟子（纯 Kotlin map，
+ * 任何环境可靠）；② 任一装备槽位列已写入玩家实例 id（区别于俘虏模板 id）。
+ * 仅依赖武器槽单列会漏掉"无武器俘虏"（小型宗门约 3/4 俘虏无武器），导致重复落库。
  */
-private fun MutableGameState.shouldMaterializeCaptiveGear(captive: Disciple, intId: Int): Boolean {
-    if (!discipleTables.ids.contains(intId)) return false
-    val weaponId = discipleTables.weaponIds[intId]
-    return weaponId.isNullOrEmpty() || weaponId == captive.equipment.weaponId
+private fun MutableGameState.shouldMaterializeCaptiveGear(
+    captive: Disciple,
+    newId: String,
+    intId: Int
+): Boolean {
+    if (!discipleTables.ids.contains(intId) || gameData.manualProficiencies.containsKey(newId)) {
+        return false
+    }
+    val anySlotInstance = listOf(
+        discipleTables.weaponIds[intId],
+        discipleTables.armorIds[intId],
+        discipleTables.bootsIds[intId],
+        discipleTables.accessoryIds[intId]
+    ).any { slotId ->
+        !slotId.isNullOrEmpty() &&
+            slotId != captive.equipment.weaponId &&
+            slotId != captive.equipment.armorId &&
+            slotId != captive.equipment.bootsId &&
+            slotId != captive.equipment.accessoryId
+    }
+    return !anySlotInstance
 }
 
 /** 按模板重建 4 槽位装备实例（新 UUID、ownerId、isEquipped），孕养数据从俘虏继承。 */
@@ -55,7 +76,6 @@ private fun MutableGameState.materializeEquipments(captive: Disciple, intId: Int
             EquipmentSlot.ARMOR -> discipleTables.armorIds[intId] = instance.id
             EquipmentSlot.BOOTS -> discipleTables.bootsIds[intId] = instance.id
             EquipmentSlot.ACCESSORY -> discipleTables.accessoryIds[intId] = instance.id
-            else -> {}
         }
     }
 }
@@ -87,6 +107,9 @@ private fun buildEquipmentInstanceForCaptive(
 private fun MutableGameState.materializeManuals(captive: Disciple, newId: String, intId: Int) {
     if (captive.manualIds.isEmpty()) return
 
+    // 去重 + 对齐玩家功法槽位上限（getMaxManualSlots），防损坏存档重复/超量功法入池
+    val maxManualSlots = DiscipleStatCalculator.getMaxManualSlots(captive)
+    val manualTemplateIds = captive.manualIds.distinct().take(maxManualSlots)
     val templateToInstanceId = mutableMapOf<String, String>()
     val newManualIds = mutableListOf<String>()
     val proficiencyList = mutableListOf<ManualProficiencyData>()
@@ -94,7 +117,7 @@ private fun MutableGameState.materializeManuals(captive: Disciple, newId: String
     var hp = discipleTables.currentHps[intId]
     var mp = discipleTables.currentMps[intId]
 
-    for (templateId in captive.manualIds) {
+    for (templateId in manualTemplateIds) {
         val created = createManualForCaptive(captive, templateId, newId, maxProf, hp, mp) ?: continue
         manualInstances.add(created.instance)
         templateToInstanceId[templateId] = created.instance.id
@@ -160,7 +183,8 @@ private fun createManualForCaptive(
         proficiency = ManualProficiencyData(
             manualId = instance.id,
             manualName = template.name,
-            proficiency = mastery.toDouble().coerceAtMost(maxProf.toDouble()),
+            // 上下界防护：损坏存档负熟练度归零
+            proficiency = mastery.toDouble().coerceIn(0.0, maxProf.toDouble()),
             maxProficiency = maxProf,
             masteryLevel = ManualProficiencySystem.MasteryLevel
                 .fromProficiency(mastery.toDouble()).level

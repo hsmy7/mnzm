@@ -312,6 +312,47 @@ class AISectDiscipleManagerTest {
     }
 
     @Test
+    fun `ensureDiscipleGear - 空分类补全写入roll标记防止重复消耗RNG`() {
+        // 对抗审查修复：体质/词条/天赋为 0-3 随机，roll 出 0 时若每次读档重 roll
+        // 会消耗 AI 分区 RNG 导致同档两次读档演化序列漂移——补全后须持久化标记收敛
+        AISectDiscipleManager.initForSlot(42L)
+        ManualDatabase.initializeWithManuals(testManuals())
+        val old = makeGearDisciple(realm = 5).copy(
+            physiqueIds = emptyList(), affixIds = emptyList(), talentIds = emptyList()
+        )
+
+        val first = AISectDiscipleManager.ensureDiscipleGear(old, SectLevel.MEDIUM)
+        val rolled = first.statusData?.get(AISectDiscipleManager.GEAR_ROLL_MARKER) == "1"
+        assertTrue("补全后应写入 roll 标记", rolled)
+
+        // 带标记弟子再次调用：不再 roll（physique/affix/talent 即使为空也不再生成）
+        val second = AISectDiscipleManager.ensureDiscipleGear(first, SectLevel.MEDIUM)
+        assertEquals("二次调用应保持与首次结果一致（无重复 roll）", first, second)
+    }
+
+    @Test
+    fun `isGearCompleteForLevel - 数量达标判定`() {
+        AISectDiscipleManager.initForSlot(42L)
+        ManualDatabase.initializeWithManuals(testManuals())
+        // 大型宗门标准：4 装 6 功法
+        val full = AISectDiscipleManager.applyGearToDisciple(
+            makeGearDisciple(realm = 5), SectLevel.LARGE
+        )
+        assertTrue("满配弟子应达标", AISectDiscipleManager.isGearCompleteForLevel(full, SectLevel.LARGE))
+        // 只有 1 件装备 1 本功法的旧档弟子：达标判定须为 false（数量而非"有"）
+        val partial = full.copy(
+            equipment = full.equipment.copy(
+                weaponId = full.equipment.weaponId, armorId = "", bootsId = "", accessoryId = ""
+            ),
+            manualIds = full.manualIds.take(1),
+            manualMasteries = full.manualMasteries.filterKeys { it == full.manualIds.first() }
+        )
+        assertFalse("只有 1 装 1 功法不应达标", AISectDiscipleManager.isGearCompleteForLevel(partial, SectLevel.LARGE))
+        // 小型宗门标准：1 装 1 功法——partial 达标
+        assertTrue("小型宗门标准下应达标", AISectDiscipleManager.isGearCompleteForLevel(partial, SectLevel.SMALL))
+    }
+
+    @Test
     fun `ensureDiscipleGear - 只补缺不覆盖`() {
         AISectDiscipleManager.initForSlot(42L)
         ManualDatabase.initializeWithManuals(testManuals())
@@ -338,7 +379,7 @@ class AISectDiscipleManagerTest {
             targetCount = 50, sectLevel = 2
         )
         assertEquals(50, result.size)
-        val oldResult = result.find { it.id == old.id }!!
+        val oldResult = requireNotNull(result.find { it.id == old.id })
         assertTrue("存量老档弟子应补全装备", oldResult.equipment.hasEquippedItems)
         assertTrue("存量老档弟子应补全功法", oldResult.manualIds.isNotEmpty())
         assertTrue("存量老档弟子应补全体质/词条", oldResult.physiqueIds.isNotEmpty() || oldResult.affixIds.isNotEmpty())

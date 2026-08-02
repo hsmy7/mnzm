@@ -157,31 +157,37 @@ private suspend fun GameEngine.regenerateAllWorldSects(sectName: String) {
 
 private suspend fun GameEngine.checkAndRepairAiSectDisciples() {
     val gd = stateStore.gameDataSnapshot
-    // 满员且全部弟子已带装备/功法才跳过（装备/功法为确定生成，可作老档完整性标志；
-    // 体质/词条为 0-3 个随机生成，可能天然为 0，不作为判断标准）
-    val hasGear = { d: Disciple -> d.equipment.hasEquippedItems && d.manualIds.isNotEmpty() }
-    if (gd.aiSectDisciples.isNotEmpty() &&
-        gd.aiSectDisciples.values.all { it.size >= MAX_AI_SECT_DISCIPLES && it.all(hasGear) }) return
+    val sectById = gd.worldMapSects.associateBy { it.id }
+    // 非占领宗门全部满员且装备/功法数量达到宗门等级标准才跳过。
+    // 注意：① 占领宗门弟子池只会减少（防守战/年度流入招募），永久无法满员，须排除；
+    // ② 数量判定而非"有"判定——只有 1 件装备的旧档弟子需补齐到等级标准
+    val canSkip = gd.aiSectDisciples.isNotEmpty() && gd.aiSectDisciples.all { (sectId, list) ->
+        val sect = sectById[sectId]
+        if (sect == null || sect.isPlayerOccupied) return@all true
+        list.size >= MAX_AI_SECT_DISCIPLES &&
+            list.all { AISectDiscipleManager.isGearCompleteForLevel(it, sect.level) }
+    }
+    if (canSkip) return
     if (gd.worldMapSects.isEmpty()) return
-    DomainLog.w("ensureGameDataIntegrity", "aiSectDisciples 不足或缺少装备/功法，填充/补全")
+    DomainLog.w("ensureGameDataIntegrity", "aiSectDisciples 不足或装备/功法未达标，填充/补全")
     val regenerated = mutableMapOf<String, List<Disciple>>()
     for (sect in gd.worldMapSects) {
         if (sect.isPlayerSect) continue
         if (sect.isPlayerOccupied) continue
         val existing = gd.aiSectDisciples[sect.id].orEmpty()
-        if (existing.isEmpty()) {
+        val filled = if (existing.isEmpty()) {
             val (d, _) = AISectDiscipleManager.initializeSectDisciples(
                 sect.name, sect.level)
-            regenerated[sect.id] =
-                AISectDiscipleManager.fillDisciplesToTarget(
-                    sect.name, d, MAX_AI_SECT_DISCIPLES, sect.level)
+            AISectDiscipleManager.fillDisciplesToTarget(
+                sect.name, d, MAX_AI_SECT_DISCIPLES, sect.level)
         } else {
             // 老档补全：fillDisciplesToTarget 内部对存量弟子 ensureDiscipleGear（只补缺）、
             // 对新弟子 applyGearToDisciple；满员时早退分支同样执行 ensureDiscipleGear
-            regenerated[sect.id] =
-                AISectDiscipleManager.fillDisciplesToTarget(
-                    sect.name, existing, MAX_AI_SECT_DISCIPLES, sect.level)
+            AISectDiscipleManager.fillDisciplesToTarget(
+                sect.name, existing, MAX_AI_SECT_DISCIPLES, sect.level)
         }
+        // 超限宗门（损坏存档）截断至硬上限 MAX_AI_DISCIPLES_PER_SECT
+        regenerated[sect.id] = AISectDiscipleManager.truncateToLimit(filled)
     }
     if (regenerated.isNotEmpty()) {
         stateStore.update {
@@ -354,11 +360,14 @@ suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
         com.xianxia.sect.core.engine.service.RecruitService.resetAutoRecruitIdle()
         com.xianxia.sect.core.engine.service.RecruitService.resetAutoRejectIdle()
         stateStore.resetForSlot(currentSlot); cultivationService.resetHighFrequencyData()
+        // 地图种子须在生成世界前产生并播种 AI 分区 RNG——AI 弟子生成（generateWorldSects）
+        // 必须使用已播种的确定性流，否则 fallback RNG 每次新建实例导致初始弟子全员克隆
+        val mapSeed = GameRandom.nextInt(Int.MAX_VALUE)
+        AISectDiscipleManager.initForSlot(mapSeed.toLong())
         // 1. 先初始化世界和游戏状态（邮件依赖 gameData 就绪）
         initializeWorldAndServices(sectName, currentSlot)
         val gridCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
         val centerGrid = gridCells / 2 - 1  // 2x2 building centered on grid
-        val mapSeed = GameRandom.nextInt(Int.MAX_VALUE)
         stateStore.update {
             val initialMine = GridBuildingData(buildingId = "灵矿场", displayName = "灵矿场", gridX = centerGrid, gridY = centerGrid, width = 2, height = 2, instanceId = java.util.UUID.randomUUID().toString(), sectId = "")
             gameData = gameData.copy(
@@ -393,8 +402,10 @@ suspend fun GameEngine.restartGameSuspend(sectName: String = "", currentSlot: In
 private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot: Int) {
     return engineContextDispatcher.withEngineContext {
         stateStore.resetForSlot(currentSlot); cultivationService.resetHighFrequencyData()
-        // 每次重启生成新的地图/随机种子，避免全分区 PRNG 种子恒为 0、地图完全相同
+        // 每次重启生成新的地图/随机种子，避免全分区 PRNG 种子恒为 0、地图完全相同。
+        // 播种须在生成世界前完成（AI 弟子生成走确定性流，防 fallback RNG 克隆）
         val mapSeed = GameRandom.nextInt(Int.MAX_VALUE)
+        AISectDiscipleManager.initForSlot(mapSeed.toLong())
         if (sectName.isNotBlank()) {
             // 1. 先初始化世界和游戏状态
             initializeWorldAndServices(sectName, currentSlot)

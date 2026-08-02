@@ -209,9 +209,9 @@ class RecruitServiceTest {
         assertEquals("功法实例应落库", 1, state.manualInstances.size)
         val profs = state.gameData.manualProficiencies[newId]
         assertNotNull("熟练度应注册", profs)
-        assertEquals("熟练度值应继承", 2000.0, profs!!.first().proficiency, 0.001)
+        assertEquals("熟练度值应继承", 2000.0, requireNotNull(profs).first().proficiency, 0.001)
         // 槽位列回写实例 id
-        val intId = newId.toInt()
+        val intId = requireNotNull(newId.toIntOrNull())
         assertEquals("weaponIds 列应回写实例 id", weaponInstance.id, state.discipleTables.weaponIds[intId])
     }
 

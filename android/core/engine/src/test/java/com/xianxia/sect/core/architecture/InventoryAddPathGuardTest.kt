@@ -16,6 +16,12 @@ import java.io.File
  * 1. `coerceAtMost(inventoryConfig.getMaxStackSize` — 溢出静默截断
  * 2. `equipmentStacks = equipmentStacks + item` — 列表直接追加新堆叠
  * 3. `newQty = existing.quantity + X` — 手写"相加合并"（仅匹配仓库堆叠字段）
+ *
+ * 已知豁免（有意为之，不在此守卫范围）：
+ * - `CaptiveGearUtils.materializeCaptiveGear` 直接写 `equipmentInstances/manualInstances`
+ *   实例表——这是"俘虏模板 id → 玩家 UUID 实例"的转换落库，非仓库堆叠发放，
+ *   无合并/溢出语义；且仅由三条招募入口在事务内调用，空装备弟子天然短路。
+ *   若未来实例表引入容量/来源追踪约束，需同步更新本守卫或该落库路径。
  */
 class InventoryAddPathGuardTest {
 

@@ -107,14 +107,15 @@ class CaptiveGearMaterializationTest {
         val state = createState()
         val captive = makeCaptive()
         val newId = state.discipleTables.allocateAndInsert(captive)
-        val intId = newId.toIntOrNull()!!
+        val intId = requireNotNull(newId.toIntOrNull())
 
         state.materializeCaptiveGear(captive, newId)
 
         // 1. 装备实例：2 件（ironSword/leatherArmor），UUID id、ownerId、isEquipped
         assertEquals("应创建 2 件装备实例", 2, state.equipmentInstances.size)
-        val weaponInstance = state.equipmentInstances
-            .firstOrNull { it.name == "精铁剑" }!!
+        val weaponInstance = requireNotNull(
+            state.equipmentInstances.firstOrNull { it.name == "精铁剑" }
+        )
         assertNotEquals("实例 id 应为 UUID 而非模板 id", "ironSword", weaponInstance.id)
         assertEquals("ownerId 应为新弟子 id", newId, weaponInstance.ownerId)
         assertTrue("应标记为已装备", weaponInstance.isEquipped)
@@ -126,8 +127,9 @@ class CaptiveGearMaterializationTest {
         assertTrue("armorIds 列应非空", state.discipleTables.armorIds[intId].isNotEmpty())
         // 3. 功法实例：3 本，isLearned
         assertEquals("应创建 3 本功法实例", 3, state.manualInstances.size)
-        val atkInstance = state.manualInstances
-            .firstOrNull { it.name == "烈阳剑诀" }!!
+        val atkInstance = requireNotNull(
+            state.manualInstances.firstOrNull { it.name == "烈阳剑诀" }
+        )
         assertTrue("应标记为已学习", atkInstance.isLearned)
         // 4. manualIds 列全量回写为实例 id（无模板 id 残留）
         val manualIdList = state.discipleTables.manualIds[intId]
@@ -137,7 +139,7 @@ class CaptiveGearMaterializationTest {
         // 5. 熟练度注册进 gameData.manualProficiencies（按新弟子 id）
         val proficiencies = state.gameData.manualProficiencies[newId]
         assertNotNull("应注册 manualProficiencies", proficiencies)
-        assertEquals(3, proficiencies!!.size)
+        assertEquals(3, requireNotNull(proficiencies).size)
         val atkProf = proficiencies.first { it.manualId == atkInstance.id }
         assertEquals("熟练度值应继承", 5000.0, atkProf.proficiency, 0.001)
     }
@@ -147,7 +149,7 @@ class CaptiveGearMaterializationTest {
         val state = createState()
         val captive = makeCaptive()
         val newId = state.discipleTables.allocateAndInsert(captive)
-        val intId = newId.toIntOrNull()!!
+        val intId = requireNotNull(newId.toIntOrNull())
         state.discipleTables.currentHps[intId] = 500
         state.discipleTables.currentMps[intId] = 400
 
@@ -170,6 +172,69 @@ class CaptiveGearMaterializationTest {
         assertEquals("重复调用不应重复创建装备实例", 2, state.equipmentInstances.size)
         assertEquals("重复调用不应重复创建功法实例", 3, state.manualInstances.size)
     }
+
+    @Test
+    fun `materializeCaptiveGear - 无武器俘虏幂等`() {
+        // 对抗审查修复：幂等守卫曾只依赖武器槽——无武器俘虏（小型宗门约 3/4）
+        // 落库后武器列仍空，重复调用会完整重放。现改为 manualProficiencies + 4 槽双通道哨兵。
+        val state = createState()
+        val captive = makeCaptive().copy(
+            equipment = EquipmentSet(armorId = "leatherArmor")
+        )  // 只有护甲、无武器
+        val newId = state.discipleTables.allocateAndInsert(captive)
+
+        state.materializeCaptiveGear(captive, newId)
+        state.materializeCaptiveGear(captive, newId)
+
+        assertEquals("重复调用不应重复创建装备实例", 1, state.equipmentInstances.size)
+        assertEquals("重复调用不应重复创建功法实例", 3, state.manualInstances.size)
+        // 功法熟练度只注册一次
+        assertEquals(3, requireNotNull(state.gameData.manualProficiencies[newId]).size)
+    }
+
+    @Test
+    fun `materializeCaptiveGear - 重复功法模板去重`() {
+        // 对抗审查修复：损坏数据 manualIds 含重复模板时须去重，防同名功法双实例 + HP 双加
+        val state = createState()
+        val captive = makeCaptive().copy(
+            manualIds = listOf("testAtk1", "testAtk1", "testDef1"),
+            manualMasteries = mapOf("testAtk1" to 5000, "testDef1" to 15000)
+        )
+        val newId = state.discipleTables.allocateAndInsert(captive)
+        state.discipleTables.currentHps[intId(newId)] = 500
+
+        state.materializeCaptiveGear(captive, newId)
+
+        assertEquals("重复模板应只创建一本实例", 2, state.manualInstances.size)
+        assertEquals("HP 只加一次增量", 530, state.discipleTables.currentHps[intId(newId)])
+    }
+
+    @Test
+    fun `materializeCaptiveGear - 超量功法截断至槽位上限`() {
+        // 对抗审查修复：损坏存档 100 本功法须按玩家槽位上限截断，防存档膨胀/属性暴涨
+        val state = createState()
+        val manuals = (0 until 30).associate { i ->
+            "m$i" to ManualDatabase.ManualTemplate(
+                id = "m$i", name = "功法$i", type = ManualType.ATTACK,
+                rarity = 4, description = "测试",
+                stats = mapOf("cultivationSpeedPercent" to 40)
+            )
+        }
+        ManualDatabase.initializeWithManuals(manuals)
+        val captive = makeCaptive().copy(
+            manualIds = (0 until 30).map { "m$it" },
+            manualMasteries = (0 until 30).associate { "m$it" to 1000 }
+        )
+        val newId = state.discipleTables.allocateAndInsert(captive)
+
+        state.materializeCaptiveGear(captive, newId)
+
+        // 玩家槽位上限 = 6 + 词条加成（此俘虏无词条加成 → 6）
+        assertEquals(6, state.manualInstances.size)
+        assertEquals(6, state.discipleTables.manualIds[intId(newId)].size)
+    }
+
+    private fun intId(newId: String): Int = requireNotNull(newId.toIntOrNull())
 
     @Test
     fun `materializeCaptiveGear - 无装备功法的普通弟子跳过`() {

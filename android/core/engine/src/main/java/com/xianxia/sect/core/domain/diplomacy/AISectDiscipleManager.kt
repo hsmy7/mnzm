@@ -37,6 +37,10 @@ object AISectDiscipleManager {
     /**
      * 使用存档的 [systemSeed] 初始化 AI 分区 RNG。
      * 在 GameEngine 初始化世界/读档时调用，确保 AI 宗门行为在相同存档下可复现。
+     *
+     * 确定性范围说明：同一存档在相同结算路径下可复现（读档→结算→读档→结算结果一致）。
+     * 热控分批（aiNonFocusedBatchMonths 跳月）为预存机制，跳过月份不消耗 RNG——
+     * 跨设备/跨热状态的 AI 演化可能不同，属既定行为。
      */
     fun initForSlot(systemSeed: Long) {
         val aiSeed = systemSeed + RngPartition.AI_SECT.id.toLong() * 31337L
@@ -51,6 +55,14 @@ object AISectDiscipleManager {
 
     /** MIND 功法选取概率分母（50% 概率带 1 本心法） */
     private const val MIND_MANUAL_ROLL_DENOMINATOR = 2
+
+    /** 功法掌握等级熟练度阈值（对齐 ManualProficiencySystem.MasteryLevel 区间） */
+    private const val MASTERY_NOVICE_MAX = 1000
+    private const val MASTERY_SMALL_MAX = 10000
+    private const val MASTERY_GREAT_MAX = 30000
+
+    /** statusData 中"已尝试补全体质/词条/天赋"标记（防重复 roll 导致 RNG 漂移） */
+    const val GEAR_ROLL_MARKER = "aiGearRolled"
 
     /** AI 宗门装备数量按宗门等级：小型 1 / 中型 2 / 大型 4 / 顶级 4 */
     private val EQUIPMENT_COUNT_BY_SECT_LEVEL = mapOf(
@@ -170,6 +182,54 @@ object AISectDiscipleManager {
     private fun generateSpiritRoot(): String = SpiritRootGenerator.generate(rng.asKotlinRandom())
 
     /**
+     * 弟子装备/功法是否达到宗门等级标准数量（老档补全早退判定用）。
+     *
+     * @param disciple 目标弟子
+     * @param sectLevel 宗门等级（0-3）
+     * @return 装备数 ≥ 等级配置 且 功法数 ≥ 等级配置
+     */
+    fun isGearCompleteForLevel(disciple: Disciple, sectLevel: Int): Boolean =
+        disciple.equipment.equippedItemIds.size >= (EQUIPMENT_COUNT_BY_SECT_LEVEL[sectLevel] ?: 1) &&
+            disciple.manualIds.size >= (MANUAL_COUNT_BY_SECT_LEVEL[sectLevel] ?: 1)
+
+    /**
+     * 为缺失的体质/词条/天赋分类生成随机标签（0-3 个），并写入已尝试标记。
+     *
+     * 标记保证后续读档不再对空分类重复 roll——空是合法状态（0-3 随机可能为 0），
+     * 若不标记，每次读档都会重新 roll 并消耗 AI 分区 RNG，导致同档演化序列漂移。
+     */
+    private fun rollMissingCategories(disciple: Disciple): Disciple {
+        var working = disciple
+        var rolled = false
+        if (working.physiqueIds.isEmpty()) {
+            working = working.copy(
+                physiqueIds = PhysiqueDatabase.generateForDisciple(rng.asKotlinRandom()).map { it.id }
+            )
+            rolled = true
+        }
+        if (working.affixIds.isEmpty()) {
+            working = working.copy(
+                affixIds = AffixDatabase.generateForDisciple(rng.asKotlinRandom()).map { it.id }
+            )
+            rolled = true
+        }
+        if (working.talentIds.isEmpty()) {
+            working = working.copy(
+                talentIds = TalentDatabase.generateTalentsForDisciple(rng.asKotlinRandom()).map { it.id }
+            )
+            rolled = true
+        }
+        // 仅实际 roll 过才写标记（已齐备弟子保持原状，无状态变更）
+        return if (rolled) {
+            working.copy(
+                statusData = (working.statusData ?: emptyMap()) + (GEAR_ROLL_MARKER to "1")
+            )
+        } else {
+            working
+        }
+    }
+
+    /**
      * 为 AI 弟子完整生成/刷新装备与功法（持久化）。
      *
      * 品阶恒为境界上限品阶（[GameConfig.Realm.getMaxRarity]），
@@ -205,6 +265,9 @@ object AISectDiscipleManager {
      * 只补缺不覆盖：体质/词条/天赋为空则生成，装备/功法不足则补至宗门等级数量。
      *
      * 用于旧档补全与宗门等级升级后的数量补齐，绝不重生成或删除已有项。
+     * 体质/词条/天赋为 0-3 随机生成（可能 roll 出 0 个），补全后写入
+     * [GEAR_ROLL_MARKER] 标记——防止下次读档对空分类重复 roll 造成
+     * AI 分区 RNG 序列漂移（同档两次读档演化结果不一致）。
      *
      * @param disciple 目标弟子
      * @param sectLevel 宗门等级（0-3）
@@ -212,20 +275,8 @@ object AISectDiscipleManager {
      */
     fun ensureDiscipleGear(disciple: Disciple, sectLevel: Int): Disciple {
         var working = disciple
-        if (working.physiqueIds.isEmpty()) {
-            working = working.copy(
-                physiqueIds = PhysiqueDatabase.generateForDisciple(rng.asKotlinRandom()).map { it.id }
-            )
-        }
-        if (working.affixIds.isEmpty()) {
-            working = working.copy(
-                affixIds = AffixDatabase.generateForDisciple(rng.asKotlinRandom()).map { it.id }
-            )
-        }
-        if (working.talentIds.isEmpty()) {
-            working = working.copy(
-                talentIds = TalentDatabase.generateTalentsForDisciple(rng.asKotlinRandom()).map { it.id }
-            )
+        if (working.statusData?.get(GEAR_ROLL_MARKER) != "1") {
+            working = rollMissingCategories(working)
         }
         if (!ManualDatabase.isInitialized || !EquipmentDatabase.isInitialized) return working
 
@@ -322,10 +373,15 @@ object AISectDiscipleManager {
         val maxMasteryLevel = ManualProficiencySystem.MasteryLevel.values().last().level
         val masteryLevel = ManualProficiencySystem.MasteryLevel.fromLevel(rng.nextInt(maxMasteryLevel + 1))
         return when (masteryLevel) {
-            ManualProficiencySystem.MasteryLevel.NOVICE -> (rng.nextDouble() * 1000.0).toInt()
-            ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS -> (1000.0 + rng.nextDouble() * 9000.0).toInt()
-            ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS -> (10000.0 + rng.nextDouble() * 20000.0).toInt()
-            ManualProficiencySystem.MasteryLevel.PERFECTION -> 30000
+            ManualProficiencySystem.MasteryLevel.NOVICE ->
+                (rng.nextDouble() * MASTERY_NOVICE_MAX).toInt()
+            ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS ->
+                (MASTERY_NOVICE_MAX +
+                    rng.nextDouble() * (MASTERY_SMALL_MAX - MASTERY_NOVICE_MAX)).toInt()
+            ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS ->
+                (MASTERY_SMALL_MAX +
+                    rng.nextDouble() * (MASTERY_GREAT_MAX - MASTERY_SMALL_MAX)).toInt()
+            ManualProficiencySystem.MasteryLevel.PERFECTION -> MASTERY_GREAT_MAX
         }
     }
 
@@ -426,7 +482,8 @@ object AISectDiscipleManager {
             val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
             ManualProficiencyData(
                 manualId = mId,
-                proficiency = mastery.toDouble().coerceAtMost(maxProf.toDouble()),
+                // 下界防护：损坏存档负熟练度归零（负值会放大 NOVICE 加成语义）
+                proficiency = mastery.toDouble().coerceIn(0.0, maxProf.toDouble()),
                 maxProficiency = maxProf,
                 masteryLevel = masteryLevel
             )
@@ -517,7 +574,10 @@ object AISectDiscipleManager {
         batchMonths: Int = 1,
         sectLevel: Int = SectLevel.SMALL
     ): List<Disciple> {
-        if (batchMonths <= 0 || disciples.isEmpty()) return disciples
+        // 与同文件其他函数一致：registry 未初始化时优雅降级（功法查询会抛异常）
+        if (batchMonths <= 0 || disciples.isEmpty() || !ManualDatabase.isInitialized) {
+            return disciples
+        }
 
         return disciples.map { disciple ->
             if (!disciple.isAlive) return@map disciple
@@ -544,8 +604,10 @@ object AISectDiscipleManager {
             preachingMastersBonus = 0.0,
             cultivationSubsidyBonus = 0.0
         )
+        // NaN/Infinity 防御：损坏存档修为异常时归零，避免永久卡死与存档污染
+        val baseCultivation = disciple.cultivation.takeIf { it.isFinite() } ?: 0.0
         var working = disciple.copy(
-            cultivation = disciple.cultivation + cultivationSpeed * SECONDS_PER_MONTH
+            cultivation = baseCultivation + cultivationSpeed * SECONDS_PER_MONTH
         )
 
         while (working.cultivation >= working.maxCultivation && working.realm > 0) {
@@ -585,8 +647,15 @@ object AISectDiscipleManager {
         }
     }
 
-    /** 突破失败：修为清零 + HP/MP 打一折（对齐玩家 applyBreakthroughFailure）。 */
+    /**
+     * 突破失败：修为清零 + HP/MP 打一折（对齐玩家 applyBreakthroughFailure）。
+     *
+     * AI 弟子无持续战斗资源状态（currentHp 恒为 -1 满血语义，战斗全恢复且不回写），
+     * 此时跳过 HP/MP 惩罚，避免向存档写入 10% 血量的失真值并随俘虏流入玩家池。
+     */
     private fun applyBreakthroughFailure(d: Disciple): Disciple {
+        val hasRealHpState = d.combat.currentHp >= 0 || d.combat.currentMp >= 0
+        if (!hasRealHpState) return d.copy(cultivation = 0.0)
         val curHp = if (d.combat.currentHp < 0) d.maxHp else d.combat.currentHp
         val curMp = if (d.combat.currentMp < 0) d.maxMp else d.combat.currentMp
         return d.copy(
@@ -602,7 +671,8 @@ object AISectDiscipleManager {
 
     /**
      * 功法熟练度月度等效增长（对齐玩家每旬公式，1 月 = 3 旬）。
-     * AI 无藏经阁建筑 → libraryBonus = 0；上限 MAX_PROFICIENCY。
+     * AI 无藏经阁建筑 → libraryBonus = 0；上限 MAX_PROFICIENCY；
+     * 只保留 manualIds 中的键，清理残留/孤儿熟练度条目（防存档冗余累积）。
      */
     private fun applyMonthlyProficiencyGain(disciple: Disciple): Disciple {
         if (!ManualDatabase.isInitialized || disciple.manualIds.isEmpty()) return disciple
@@ -610,14 +680,17 @@ object AISectDiscipleManager {
             disciple.skills.comprehension,
             libraryBonus = 0.0
         ) * PROFICIENCY_PHASES_PER_MONTH
-        val updated = disciple.manualMasteries.mapValues { (mId, mastery) ->
-            if (ManualDatabase.getById(mId) == null) {
-                mastery
-            } else {
-                (mastery + perMonthGain).toInt()
-                    .coerceAtMost(ManualProficiencySystem.MAX_PROFICIENCY.toInt())
+        val validIds = disciple.manualIds.toSet()
+        val updated = disciple.manualMasteries
+            .filterKeys { it in validIds }
+            .mapValues { (mId, mastery) ->
+                if (ManualDatabase.getById(mId) == null) {
+                    mastery
+                } else {
+                    (mastery + perMonthGain).toInt()
+                        .coerceAtMost(ManualProficiencySystem.MAX_PROFICIENCY.toInt())
+                }
             }
-        }
         return disciple.copy(manualMasteries = updated)
     }
 
