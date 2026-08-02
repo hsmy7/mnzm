@@ -37,4 +37,12 @@ interface BuildingFacade {
     fun clearAlchemySlot(slotIndex: Int): DomainResult<Unit>
     fun clearForgeSlot(slotIndex: Int): DomainResult<Unit>
     suspend fun removeBuilding(instanceId: String, refund: Long)
+
+    /**
+     * 批量拆除多座建筑（一键拆除）。
+     * 单次事务内逐栋清理关联槽位并返还灵石，事务后统一同步弟子状态。
+     *
+     * @param refunds 建筑 instanceId → 返还灵石数映射；未知实例自动跳过
+     */
+    suspend fun removeBuildings(refunds: Map<String, Long>)
 }

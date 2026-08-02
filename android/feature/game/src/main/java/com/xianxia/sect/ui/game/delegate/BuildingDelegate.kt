@@ -175,6 +175,27 @@ class BuildingDelegate(
         }
     }
 
+    /**
+     * 一键批量拆除：单次事务移除多座建筑并汇总返还灵石。
+     * 未知/已不存在的实例自动跳过。
+     */
+    fun demolishBuildings(instanceIds: List<String>) {
+        gameEngine.launchOnEngine {
+            val snapshot = gameEngine.gameDataSnapshot
+            val refunds = instanceIds.mapNotNull { id ->
+                snapshot.placedBuildings.find { it.instanceId == id }?.let { b ->
+                    val cost = buildingConfigService.getBuildingConfigByDisplayName(b.displayName)?.cost ?: 1000L
+                    id to cost / 2
+                }
+            }.toMap()
+            if (refunds.isEmpty()) return@launchOnEngine
+            gameEngine.removeBuildings(refunds)
+            withContext(Dispatchers.Main) {
+                onDemolishSuccess("已拆除${refunds.size}座建筑，返还灵石×${refunds.values.sum()}")
+            }
+        }
+    }
+
     /** 修正已有存档中的建筑尺寸（存档加载后调用）。 */
     fun fixupBuildingSizesIfNeeded() {
         gameEngine.launchOnEngine {

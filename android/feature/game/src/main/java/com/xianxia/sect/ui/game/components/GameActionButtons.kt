@@ -115,14 +115,15 @@ fun LeftSideButtons(
 }
 
 @Composable
-private fun FloatingActionButton(
+internal fun FloatingActionButton(
     text: String,
     spriteName: String = "ui_button",
     badge: Int = 0,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     val size = 35.dp
-    Box {
+    Box(modifier = modifier) {
         // 按钮本体
         Box(
             modifier = Modifier

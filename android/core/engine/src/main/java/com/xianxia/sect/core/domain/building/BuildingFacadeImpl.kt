@@ -385,21 +385,56 @@ class BuildingFacadeImpl @Inject constructor(
     }
 
     override suspend fun removeBuilding(instanceId: String, refund: Long) {
-        stateStore.update {
-            val building = gameData.placedBuildings.find { it.instanceId == instanceId }
-                ?: return@update
-            val name = building.displayName
+        removeBuildings(mapOf(instanceId to refund))
+    }
 
-            // 移除建筑 + 返还灵石 + 清洁关联槽位
-            gameData = cleanupBuildingSlots(name, instanceId, refund)
+    override suspend fun removeBuildings(refunds: Map<String, Long>) {
+        if (refunds.isEmpty()) return
+        val productionIds = mutableSetOf<String>()
+        stateStore.update {
+            // 预解析目标：未知建筑/实例在此跳过（避免事务循环内多处 continue）
+            val targets = refunds.mapNotNull { (instanceId, refund) ->
+                val building = gameData.placedBuildings.find { it.instanceId == instanceId }
+                    ?: return@mapNotNull null
+                val feature = BuildingFeatureRegistry.findByDisplayName(building.displayName)
+                    ?: return@mapNotNull null
+                Triple(feature, building, refund)
+            }
+            for ((feature, building, refund) in targets) {
+                if (feature.slotGroups.any { it is SlotGroup.ProductionSlotGroup }) {
+                    productionIds.add(building.instanceId)
+                }
+                gameData = cleanupBuildingSlots(feature, building, refund)
+            }
         }
+        removeProductionSlotsFromRepository(productionIds)
         discipleStatusService.syncAllDiscipleStatuses()
     }
 
+    /** 事务外单个协程批量删除 Repository 生产槽位（避免原事务内多协程竞态）。 */
+    private fun removeProductionSlotsFromRepository(instanceIds: Set<String>) {
+        if (instanceIds.isEmpty()) return
+        gameEngineCore.launchInScope {
+            productionCoordinator.repository.getSlots()
+                .filter { it.buildingInstanceId in instanceIds }
+                .forEach { slot -> productionCoordinator.repository.removeSlot(slot.id) }
+        }
+    }
+
     private fun MutableGameState.cleanupBuildingSlots(
-        name: String, instanceId: String, refund: Long
+        feature: BuildingFeature, building: GridBuildingData, refund: Long
     ): GameData {
-        val feature = BuildingFeatureRegistry.findByDisplayName(name) ?: return gameData
+        val instanceId = building.instanceId
+        // 收集关联弟子须在槽位过滤之前（filterFromGameData 会删除槽位记录，
+        // 之后收集将丢失弟子 ID）；生产槽位须查运行时 Repository（GameData 仅存档镜像）
+        val discipleIds = feature.slotGroups
+            .flatMap { it.collectDiscipleIds(gameData, instanceId, feature) }
+            .toMutableSet()
+        if (feature.slotGroups.any { it is SlotGroup.ProductionSlotGroup }) {
+            discipleIds += productionCoordinator.repository.getSlots()
+                .filter { it.buildingInstanceId == instanceId }
+                .mapNotNull { it.assignedDiscipleId }
+        }
         // 通过钱包记录灵石返还
         spiritStoneWallet.add(this, refund, SpiritStoneGrade.LOW, SpiritStoneSource.Refund)
         // 移除建筑 + 清洁关联槽位（灵石已由 applyAdd 处理）
@@ -409,13 +444,9 @@ class BuildingFacadeImpl @Inject constructor(
         for (group in feature.slotGroups) {
             gd = group.filterFromGameData(gd, instanceId, feature)
         }
-        // 生产槽位同步清理 Repository
-        if (feature.slotGroups.any { it is SlotGroup.ProductionSlotGroup }) {
-            gameEngineCore.launchInScope {
-                productionCoordinator.repository.getSlots()
-                    .filter { it.buildingInstanceId == instanceId }
-                    .forEach { slot -> productionCoordinator.repository.removeSlot(slot.id) }
-            }
+        releaseBuildingDiscipleIds(discipleIds)
+        if (feature.buildingType == BuildingType.REFLECTION_CLIFF) {
+            releaseReflectingDisciples()
         }
         // 任务阁拆除：清理所有活跃任务并释放卡在 ON_MISSION 的弟子
         if (feature.buildingType == BuildingType.MISSION_HALL) {
@@ -429,6 +460,34 @@ class BuildingFacadeImpl @Inject constructor(
             }
         }
         return gd
+    }
+
+    /**
+     * 释放建筑关联弟子：Gate 注册 + 血炼 REFINING 状态。
+     * 血炼受保护状态须在事务内显式打破，否则事务外重推拉不回 IDLE。
+     */
+    private fun MutableGameState.releaseBuildingDiscipleIds(discipleIds: Set<String>) {
+        discipleIds.forEach { assignmentGate.release(it) }
+        discipleIds.mapNotNull { it.toIntOrNull() }
+            .filter { it in discipleTables.ids }
+            .filter { discipleTables.statuses[it] == DiscipleStatus.REFINING }
+            .forEach { dId ->
+                discipleTables.statuses[dId] = DiscipleStatus.IDLE
+                discipleTables.statusData[dId] =
+                    (discipleTables.statusData[dId] ?: emptyMap()) - setOf("buildingId")
+            }
+    }
+
+    /** 监牢拆除：释放所有思过弟子（监牢限建 1 座，无实例归属记录，全量释放）。 */
+    private fun MutableGameState.releaseReflectingDisciples() {
+        for (id in discipleTables.ids) {
+            if (discipleTables.statuses[id] == DiscipleStatus.REFLECTING) {
+                discipleTables.statuses[id] = DiscipleStatus.IDLE
+                discipleTables.statusData[id] =
+                    (discipleTables.statusData[id] ?: emptyMap()) -
+                    setOf("reflectionStartYear", "reflectionEndYear")
+            }
+        }
     }
 
     private fun updateDiscipleStatus(discipleId: String, status: DiscipleStatus) {

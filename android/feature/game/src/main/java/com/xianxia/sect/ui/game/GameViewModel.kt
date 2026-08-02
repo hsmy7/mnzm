@@ -300,6 +300,7 @@ class GameViewModel @Inject constructor(
     suspend fun moveBuilding(instanceId: String, newGridX: Int, newGridY: Int) =
         buildingDelegate.moveBuilding(instanceId, newGridX, newGridY)
     fun demolishBuilding(instanceId: String) = buildingDelegate.demolishBuilding(instanceId)
+    fun demolishBuildings(instanceIds: List<String>) = buildingDelegate.demolishBuildings(instanceIds)
     fun fixupBuildingSizesIfNeeded() = buildingDelegate.fixupBuildingSizesIfNeeded()
 
     // ── 核心状态流 ──

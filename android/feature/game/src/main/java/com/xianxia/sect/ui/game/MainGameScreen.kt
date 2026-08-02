@@ -168,6 +168,10 @@ fun MainGameScreen(
     var buildingBarExpanded by remember { mutableStateOf(false) }
     var isUiVisible by remember { mutableStateOf(true) }
 
+    // 一键拆除模式状态
+    var isDemolishMode by remember { mutableStateOf(false) }
+    var demolishSelectedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+
     // 建筑移动状态（长按拖动）
     var movingBuilding by remember { mutableStateOf<GridBuildingData?>(null) }
     var movingWorldX by remember { mutableFloatStateOf(0f) }
@@ -327,6 +331,8 @@ fun MainGameScreen(
                 isPlacingBuilding = false
                 movingBuilding = null
                 buildingBarExpanded = false
+                isDemolishMode = false
+                demolishSelectedIds = emptySet()
             }
         }
     }
@@ -347,12 +353,17 @@ fun MainGameScreen(
         }
     }
 
-    // 移动模式/金手指模式下按返回键取消
-    BackHandler(enabled = movingBuilding != null || goldFingerState.isActive) {
-        if (goldFingerState.isActive) {
-            goldFingerState = GoldFingerState()
-        } else {
-            movingBuilding = null
+    // 移动模式/金手指/拆除模式下按返回键取消
+    BackHandler(
+        enabled = movingBuilding != null || goldFingerState.isActive || isDemolishMode
+    ) {
+        when {
+            goldFingerState.isActive -> goldFingerState = GoldFingerState()
+            isDemolishMode -> {
+                isDemolishMode = false
+                demolishSelectedIds = emptySet()
+            }
+            else -> movingBuilding = null
         }
     }
 
@@ -528,6 +539,16 @@ fun MainGameScreen(
                         val wy = cameraState.screenToWorldY(screenY)
                         val gx = (wx / tileSize).toInt()
                         val gy = (wy / tileSize).toInt()
+                        // 拆除模式：点击建筑切换选中状态，不弹详情
+                        if (isDemolishMode) {
+                            val b = buildingIndex.findBuildingAt(gx, gy) ?: return
+                            if (BuildingFeatureRegistry.findByDisplayName(b.displayName) != null) {
+                                demolishSelectedIds = if (b.instanceId in demolishSelectedIds)
+                                    demolishSelectedIds - b.instanceId
+                                else demolishSelectedIds + b.instanceId
+                            }
+                            return
+                        }
                         val clicked = buildingIndex.findBuildingAt(gx, gy)
                         if (clicked != null && !isPlacingBuilding && movingBuilding == null) {
                             val def = BuildingFeatureRegistry.findByDisplayName(clicked.displayName)
@@ -594,7 +615,8 @@ fun MainGameScreen(
                         // 非放置模式 → 建筑长按 → 移动模式
                         // 注意：movingBuilding 可能非 null（上次拖拽后确认/取消按钮还在显示）
                         // 如果按钮显示期间再次长按同一建筑，应允许继续拖拽
-                        if (!isPlacingBuilding) {
+                        // 拆除模式禁止长按移动
+                        if (!isPlacingBuilding && !isDemolishMode) {
                             val touched = buildingIndex.findBuildingAt(gx, gy)
                                 ?: (if (movingBuilding != null) movingBuilding else null)
                             if (touched != null) {
@@ -679,6 +701,9 @@ fun MainGameScreen(
                      * 复用 buildingIndex 的 O(1) 空间索引查询。
                      */
                     override fun findBuildingAt(screenX: Float, screenY: Float): Any? {
+                        // 拆除模式：不返回建筑 → touch 引擎不会启动 BuildingDrag 定时器，
+                        // 短按/滑动正常走 onTap / 平移相机
+                        if (isDemolishMode) return null
                         val wx = cameraState.screenToWorldX(screenX)
                         val wy = cameraState.screenToWorldY(screenY)
 
@@ -791,6 +816,16 @@ fun MainGameScreen(
                 cameraState = cameraState,
                 tileSize = tileSize,
                 goldenFingerBmp = goldenFingerBmp
+            )
+        }
+
+        // 一键拆除覆盖层 — 所有可拆建筑显示绿色占地框，选中变红
+        if (isDemolishMode) {
+            DemolishSelectionOverlay(
+                buildings = activeSectBuildings,
+                selectedIds = demolishSelectedIds,
+                cameraState = cameraState,
+                tileSize = tileSize
             )
         }
 
@@ -989,10 +1024,14 @@ fun MainGameScreen(
                         isPlacingBuilding = false
                         movingBuilding = null
                         goldFingerState = GoldFingerState()
+                        isDemolishMode = false
+                        demolishSelectedIds = emptySet()
                     },
                     onCancelPlacement = {
                         isPlacingBuilding = false
                         movingBuilding = null
+                        isDemolishMode = false
+                        demolishSelectedIds = emptySet()
                     },
                     modifier = Modifier.align(Alignment.TopEnd)
                 )
@@ -1031,6 +1070,14 @@ fun MainGameScreen(
                         size.width, size.height
                     )
                 },
+                onEnterDemolishMode = {
+                    isDemolishMode = true
+                    buildingBarExpanded = false
+                    isPlacingBuilding = false
+                    placingBuildingName = ""
+                    movingBuilding = null
+                    goldFingerState = GoldFingerState()
+                },
                 modifier = Modifier.align(Alignment.BottomCenter),
                 getBuildingMaxCount = { name ->
                     when {
@@ -1045,6 +1092,30 @@ fun MainGameScreen(
                         activeSectBuildings.count { it.displayName == name }
                     }
                 }
+            )
+        }
+
+        // 拆除模式工具栏 — 取消拆除 / 选中统计 / 确认拆除（与建造栏同位置）
+        if (isDemolishMode) {
+            val selectedBuildings = activeSectBuildings.filter {
+                it.instanceId in demolishSelectedIds
+            }
+            val refundEstimate = selectedBuildings.sumOf {
+                viewModel.getBuildingCost(it.displayName) / 2
+            }
+            DemolishModeBar(
+                selectedCount = selectedBuildings.size,
+                refundEstimate = refundEstimate,
+                onCancel = {
+                    isDemolishMode = false
+                    demolishSelectedIds = emptySet()
+                },
+                onConfirm = {
+                    viewModel.demolishBuildings(demolishSelectedIds.toList())
+                    isDemolishMode = false
+                    demolishSelectedIds = emptySet()
+                },
+                modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
 

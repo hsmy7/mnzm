@@ -216,6 +216,146 @@ sealed interface SlotGroup {
             return SlotCreationResult(librarySlots = slots)
         }
     }
+
+    /**
+     * 长老职务槽位清理规格。
+     *
+     * [ElderSlots] 是按建筑类型的全局单槽（无 buildingInstanceId），
+     * 仅当该类型最后一座建筑被拆除时才清空对应职务字段，使长老弟子回归空闲。
+     *
+     * `slotsPerInstance = 0`，不影响 slotCount 与建造创建逻辑；
+     * 列表字段清空时保留空槽（沿用 [DiscipleSlotCleanup] 惯例）。
+     */
+    data class ElderPositions(
+        override val slotsPerInstance: Int = 0,
+        private val clearSpec: (ElderSlots) -> ElderSlots,
+        private val collectSpec: (ElderSlots) -> Set<String>
+    ) : SlotGroup {
+        override fun filterFromGameData(data: GameData, instanceId: String, feature: BuildingFeature?): GameData {
+            val hasRemaining = data.placedBuildings.any {
+                it.instanceId != instanceId && it.displayName == feature?.displayName
+            }
+            return if (hasRemaining) data
+            else data.copy(elderSlots = clearSpec(data.elderSlots))
+        }
+
+        override fun collectDiscipleIds(data: GameData, instanceId: String, feature: BuildingFeature?) =
+            collectSpec(data.elderSlots)
+
+        override fun createSlots(
+            instanceId: String, existingData: GameData, activeId: String,
+            feature: BuildingFeature, startIndex: Int
+        ) = SlotCreationResult()
+
+        companion object {
+            /** 炼丹炉：炼丹长老 + 炼丹弟子 */
+            val ALCHEMY = ElderPositions(
+                clearSpec = { e ->
+                    e.copy(
+                        alchemyElder = "",
+                        alchemyDisciples = e.alchemyDisciples.map { DirectDiscipleSlot(index = it.index) }
+                    )
+                },
+                collectSpec = { e ->
+                    (listOf(e.alchemyElder) + e.alchemyDisciples.map { it.discipleId })
+                        .filter { it.isNotEmpty() }.toSet()
+                }
+            )
+
+            /** 锻造坊：锻造长老 + 锻造弟子 */
+            val FORGE = ElderPositions(
+                clearSpec = { e ->
+                    e.copy(
+                        forgeElder = "",
+                        forgeDisciples = e.forgeDisciples.map { DirectDiscipleSlot(index = it.index) }
+                    )
+                },
+                collectSpec = { e ->
+                    (listOf(e.forgeElder) + e.forgeDisciples.map { it.discipleId })
+                        .filter { it.isNotEmpty() }.toSet()
+                }
+            )
+
+            /** 灵植阁：灵植长老 + 灵植弟子 */
+            val HERB_GARDEN = ElderPositions(
+                clearSpec = { e ->
+                    e.copy(
+                        herbGardenElder = "",
+                        herbGardenDisciples = e.herbGardenDisciples.map { DirectDiscipleSlot(index = it.index) }
+                    )
+                },
+                collectSpec = { e ->
+                    (listOf(e.herbGardenElder) + e.herbGardenDisciples.map { it.discipleId })
+                        .filter { it.isNotEmpty() }.toSet()
+                }
+            )
+
+            /** 灵矿场：采矿执事弟子 */
+            val SPIRIT_MINE = ElderPositions(
+                clearSpec = { e ->
+                    e.copy(
+                        spiritMineDeaconDisciples = e.spiritMineDeaconDisciples
+                            .map { DirectDiscipleSlot(index = it.index) }
+                    )
+                },
+                collectSpec = { e ->
+                    e.spiritMineDeaconDisciples.map { it.discipleId }.filter { it.isNotEmpty() }.toSet()
+                }
+            )
+
+            /** 执法堂：执法长老 + 执法弟子 */
+            val LAW_ENFORCEMENT = ElderPositions(
+                clearSpec = { e ->
+                    e.copy(
+                        lawEnforcementElder = "",
+                        lawEnforcementDisciples = e.lawEnforcementDisciples.map { DirectDiscipleSlot(index = it.index) }
+                    )
+                },
+                collectSpec = { e ->
+                    (listOf(e.lawEnforcementElder) + e.lawEnforcementDisciples.map { it.discipleId })
+                        .filter { it.isNotEmpty() }.toSet()
+                }
+            )
+
+            /** 问道塔：外门长老 + 传道长老 + 传道大师 */
+            val WEN_DAO_PEAK = ElderPositions(
+                clearSpec = { e ->
+                    e.copy(
+                        outerElder = "",
+                        preachingElder = "",
+                        preachingMasters = e.preachingMasters.map { DirectDiscipleSlot(index = it.index) }
+                    )
+                },
+                collectSpec = { e ->
+                    (listOf(e.outerElder, e.preachingElder) + e.preachingMasters.map { it.discipleId })
+                        .filter { it.isNotEmpty() }.toSet()
+                }
+            )
+
+            /** 青云塔：内门长老 + 青云传道长老 + 青云传道大师 */
+            val QINGYUN_PEAK = ElderPositions(
+                clearSpec = { e ->
+                    e.copy(
+                        innerElder = "",
+                        qingyunPreachingElder = "",
+                        qingyunPreachingMasters = e.qingyunPreachingMasters.map { DirectDiscipleSlot(index = it.index) }
+                    )
+                },
+                collectSpec = { e ->
+                    (listOf(e.innerElder, e.qingyunPreachingElder) + e.qingyunPreachingMasters.map { it.discipleId })
+                        .filter { it.isNotEmpty() }.toSet()
+                }
+            )
+
+            /** 天枢殿：副宗主 + 招募长老 */
+            val TIANSHU_HALL = ElderPositions(
+                clearSpec = { e -> e.copy(viceSectMaster = "", recruitingElder = "") },
+                collectSpec = { e ->
+                    listOf(e.viceSectMaster, e.recruitingElder).filter { it.isNotEmpty() }.toSet()
+                }
+            )
+        }
+    }
 }
 
 /**

@@ -58,17 +58,29 @@ class BuildingRemovalSlotCleanupTest {
             // BuildingFeatureRegistry 初始化（不依赖 R.drawable）
             if (BuildingFeatureRegistry.findByDisplayName("灵矿场") == null) {
                 val features = listOf(
-                    BuildingFeature("spirit_mine", "灵矿场", BuildingType.MINING, listOf(SlotGroup.SpiritMine())),
+                    BuildingFeature("spirit_mine", "灵矿场", BuildingType.MINING,
+                        listOf(SlotGroup.SpiritMine(), SlotGroup.ElderPositions.SPIRIT_MINE)),
                     BuildingFeature("spirit_field", "灵田", BuildingType.SPIRIT_FIELD, listOf(SlotGroup.SpiritField())),
-                    BuildingFeature("herb_garden", "灵植阁", BuildingType.HERB_GARDEN, listOf(SlotGroup.ProductionSlotGroup())),
-                    BuildingFeature("alchemy", "炼丹炉", BuildingType.ALCHEMY, listOf(SlotGroup.ProductionSlotGroup())),
-                    BuildingFeature("forge", "锻造坊", BuildingType.FORGE, listOf(SlotGroup.ProductionSlotGroup())),
+                    BuildingFeature("herb_garden", "灵植阁", BuildingType.HERB_GARDEN,
+                        listOf(SlotGroup.ProductionSlotGroup(), SlotGroup.ElderPositions.HERB_GARDEN)),
+                    BuildingFeature("alchemy", "炼丹炉", BuildingType.ALCHEMY,
+                        listOf(SlotGroup.ProductionSlotGroup(), SlotGroup.ElderPositions.ALCHEMY)),
+                    BuildingFeature("forge", "锻造坊", BuildingType.FORGE,
+                        listOf(SlotGroup.ProductionSlotGroup(), SlotGroup.ElderPositions.FORGE)),
                     BuildingFeature("warehouse", "仓库", BuildingType.WAREHOUSE, listOf(SlotGroup.Warehouse())),
                     BuildingFeature("patrol_tower", "巡视楼", BuildingType.PATROL, listOf(SlotGroup.PatrolTower())),
                     BuildingFeature("single_residence", "单人住所", BuildingType.SINGLE_RESIDENCE, listOf(SlotGroup.Residence(1))),
                     BuildingFeature("multi_residence", "多人住所", BuildingType.MULTI_RESIDENCE, listOf(SlotGroup.Residence(4))),
                     BuildingFeature("blood_refining_pool", "血炼池", BuildingType.BLOOD_REFINING_POOL, listOf(SlotGroup.BloodRefining())),
                     BuildingFeature("library", "藏经阁", BuildingType.LIBRARY, listOf(SlotGroup.Library())),
+                    BuildingFeature("wen_dao_peak", "问道塔", BuildingType.WEN_DAO_PEAK,
+                        listOf(SlotGroup.ElderPositions.WEN_DAO_PEAK)),
+                    BuildingFeature("qingyun_peak", "青云塔", BuildingType.QINGYUN_PEAK,
+                        listOf(SlotGroup.ElderPositions.QINGYUN_PEAK)),
+                    BuildingFeature("tianshu_hall", "天枢殿", BuildingType.ADMINISTRATION,
+                        listOf(SlotGroup.ElderPositions.TIANSHU_HALL)),
+                    BuildingFeature("law_enforcement_hall", "执法堂", BuildingType.LAW_ENFORCEMENT_HALL,
+                        listOf(SlotGroup.ElderPositions.LAW_ENFORCEMENT)),
                 )
                 features.forEach { BuildingFeatureRegistry.register(it) }
             }
