@@ -441,7 +441,7 @@
     <ID>NestedBlockDepth:ItemDatabase.kt$ItemDatabase$private fun generateFunctionalPills(): List&lt;PillTemplate&gt;</ID>
     <ID>NewLineAtEndOfFile:EquipmentDatabase.kt$com.xianxia.sect.core.registry.EquipmentDatabase.kt</ID>
     <ID>NewLineAtEndOfFile:GameUtils.kt$com.xianxia.sect.core.util.GameUtils.kt</ID>
-    <ID>ReturnCount:AffixDatabase.kt$AffixDatabase$private fun pickByDistribution(candidates: List&lt;AffixData&gt;): AffixData</ID>
+    <ID>ReturnCount:AffixDatabase.kt$AffixDatabase$private fun pickByDistribution( candidates: List&lt;AffixData&gt;, random: kotlin.random.Random ): AffixData</ID>
     <ID>ReturnCount:BeastMaterialDatabase.kt$BeastMaterialDatabase$fun getRandomMaterialByBeastType(beastType: String, tier: Int, luck: Double = 1.0): BeastMaterial?</ID>
     <ID>ReturnCount:BeastMaterialDatabase.kt$BeastMaterialDatabase$fun getRandomMaterialByRealm(realm: Int, luck: Double = 1.0): BeastMaterial?</ID>
     <ID>ReturnCount:ConfigLoader.kt$ConfigLoader$suspend fun loadAsync(): GameConfigData</ID>
@@ -466,14 +466,14 @@
     <ID>ReturnCount:MutableGameState.kt$fun MutableGameState.recordGameEvent( category: GameEventCategory, eventType: String, summary: String, relatedEntityId: String = "", relatedEntityName: String = "" )</ID>
     <ID>ReturnCount:NameService.kt$NameService$fun generateName( gender: String, style: NameStyle = NameStyle.XIANXIA, existingNames: Set&lt;String&gt; = emptySet() ): NameResult</ID>
     <ID>ReturnCount:NameService.kt$NameService$fun inheritName( parentSurname: String, gender: String, existingNames: Set&lt;String&gt; = emptySet() ): NameResult</ID>
-    <ID>ReturnCount:PhysiqueDatabase.kt$PhysiqueDatabase$private fun pickByDistribution(candidates: List&lt;PhysiqueData&gt;): PhysiqueData</ID>
+    <ID>ReturnCount:PhysiqueDatabase.kt$PhysiqueDatabase$private fun pickByDistribution( candidates: List&lt;PhysiqueData&gt;, random: kotlin.random.Random ): PhysiqueData</ID>
     <ID>ReturnCount:PillRecipeRegistry.kt$PillRecipeRegistry$fun getFullPillRecipe(id: String): FullPillRecipe?</ID>
     <ID>ReturnCount:SpiritStone.kt$SpiritStoneExchange$fun exchange( quantity: Long, source: SpiritStoneGrade, target: SpiritStoneGrade ): Pair&lt;Long, Long&gt;</ID>
     <ID>ReturnCount:StackableItemStore.kt$StackableItemStore$@Suppress("UNCHECKED_CAST") fun add(item: T, merge: Boolean = true): DomainResult&lt;T&gt;</ID>
     <ID>ReturnCount:StackableItemStore.kt$StackableItemStore$@Suppress("UNCHECKED_CAST") fun remove(id: String, count: Int = 1): DomainResult&lt;Unit&gt;</ID>
     <ID>ReturnCount:StorageBagUtils.kt$StorageBagUtils$fun isInCoolingPeriod(item: StorageBagItem, currentYear: Int, currentMonth: Int, currentPhase: Int): Boolean</ID>
-    <ID>ReturnCount:TalentDatabase.kt$TalentDatabase$fun generateRandomTalents(count: Int, maxRarity: Int = 3): List&lt;Talent&gt;</ID>
-    <ID>ReturnCount:TalentDatabase.kt$TalentDatabase$private fun pickTalentByDistribution(candidates: List&lt;TalentData&gt;): TalentData</ID>
+    <ID>ReturnCount:TalentDatabase.kt$TalentDatabase$fun generateRandomTalents( count: Int, maxRarity: Int = 3, random: kotlin.random.Random = kotlin.random.Random ): List&lt;Talent&gt;</ID>
+    <ID>ReturnCount:TalentDatabase.kt$TalentDatabase$private fun pickTalentByDistribution( candidates: List&lt;TalentData&gt;, random: kotlin.random.Random ): TalentData</ID>
     <ID>ReturnCount:WorldLevel.kt$WorldLevel$fun checkExpired(currentYear: Int, currentMonth: Int): Boolean</ID>
     <ID>SpreadOperator:PillRecipeDatabase.kt$PillRecipeDatabase$(tier, *herbPatterns[idx].toIntArray())</ID>
     <ID>SwallowedException:DomainResult.kt$DomainResult.Companion$e: Exception</ID>

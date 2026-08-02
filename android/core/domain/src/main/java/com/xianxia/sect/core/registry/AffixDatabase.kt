@@ -431,14 +431,14 @@ object AffixDatabase {
             .sumOf { it.positionBonus?.effectBonus ?: 0.0 }
     }
 
-    fun generateForDisciple(): List<Affix> {
+    fun generateForDisciple(random: kotlin.random.Random = kotlin.random.Random): List<Affix> {
         val result = mutableListOf<Affix>()
         val available = allAffixesData.values
             .filter { !it.isNegative }
             .toMutableList()
         val selectedTemplates = mutableSetOf<String>()
 
-        val count = Random.nextInt(0, 4)  // 0-3 个
+        val count = random.nextInt(0, 4)  // 0-3 个
 
         repeat(count) {
             if (available.isEmpty()) return@repeat
@@ -446,7 +446,7 @@ object AffixDatabase {
             val filtered = available.filter { it.template !in selectedTemplates }
             if (filtered.isEmpty()) return@repeat
 
-            val selected = pickByDistribution(filtered)
+            val selected = pickByDistribution(filtered, random)
             result.add(selected.toAffix())
             selectedTemplates.add(selected.template)
             available.removeAll { it.template == selected.template }
@@ -455,36 +455,39 @@ object AffixDatabase {
         return result
     }
 
-    private fun pickByDistribution(candidates: List<AffixData>): AffixData {
+    private fun pickByDistribution(
+        candidates: List<AffixData>,
+        random: kotlin.random.Random
+    ): AffixData {
         if (candidates.isEmpty()) {
             throw IllegalArgumentException("candidates cannot be empty")
         }
 
         val negativeCandidates = candidates.filter { it.isNegative }
-        if (negativeCandidates.isNotEmpty() && Random.nextDouble() < NEGATIVE_AFFIX_CHANCE) {
-            return negativeCandidates.random()
+        if (negativeCandidates.isNotEmpty() && random.nextDouble() < NEGATIVE_AFFIX_CHANCE) {
+            return negativeCandidates.random(random)
         }
 
         val positiveCandidates = candidates.filter { !it.isNegative }
         if (positiveCandidates.isEmpty()) {
-            return candidates.random()
+            return candidates.random(random)
         }
 
-        val targetRarity = pickRarityByDistribution()
+        val targetRarity = pickRarityByDistribution(random)
         val exactCandidates = positiveCandidates.filter { it.rarity == targetRarity }
         if (exactCandidates.isNotEmpty()) {
-            return exactCandidates.random()
+            return exactCandidates.random(random)
         }
 
         val fallbackRarity = positiveCandidates.map { it.rarity }.distinct()
             .minWithOrNull(compareBy<Int> { abs(it - targetRarity) }.thenByDescending { it })
             ?: positiveCandidates.first().rarity
 
-        return positiveCandidates.filter { it.rarity == fallbackRarity }.random()
+        return positiveCandidates.filter { it.rarity == fallbackRarity }.random(random)
     }
 
-    private fun pickRarityByDistribution(): Int {
-        val roll = Random.nextDouble()
+    private fun pickRarityByDistribution(random: kotlin.random.Random): Int {
+        val roll = random.nextDouble()
         var cumulative = 0.0
         for ((rarity, probability) in POSITIVE_RARITY_DISTRIBUTION) {
             cumulative += probability

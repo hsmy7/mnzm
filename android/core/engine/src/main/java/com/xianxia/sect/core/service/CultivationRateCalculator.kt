@@ -16,6 +16,29 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
+ * 境界寿命增益映射（顶层共享函数，供 [CultivationRateCalculator.getLifespanGainForRealm]
+ * 与 [DiscipleStatCalculator.calculateBreakthroughLifespanGain] 复用，禁止双份公式）。
+ *
+ * 境界越低（凡人/练气）寿命增益越大，境界越高（渡劫/飞升）增益越小：
+ * realm 0 -> 10000，realm 8 -> 50；未知境界返回 0。
+ *
+ * @param realm 境界等级（0-8）
+ * @return 该境界对应的寿命增益值；未知境界返回 0
+ */
+internal fun lifespanGainForRealm(realm: Int): Int = when (realm) {
+    8 -> 50
+    7 -> 100
+    6 -> 200
+    5 -> 400
+    4 -> 800
+    3 -> 1500
+    2 -> 3000
+    1 -> 5000
+    0 -> 10000
+    else -> 0
+}
+
+/**
  * 修炼速率计算器。
  *
  * 职责：
@@ -229,26 +252,12 @@ class CultivationRateCalculator @Inject constructor(
     /**
      * 根据境界等级返回对应的寿命增益。
      *
-     * 境界越低（凡人/练气）寿命增益越大，境界越高（渡劫/飞升）增益越小：
-     * realm 0 -> 10000，realm 8 -> 50；未知境界返回 0。
+     * 委托共享顶层函数 [lifespanGainForRealm]，供突破结算等场景复用。
      *
      * @param realm 境界等级（0-8）
      * @return 该境界对应的寿命增益值；未知境界返回 0
      */
-    fun getLifespanGainForRealm(realm: Int): Int {
-        return when (realm) {
-            8 -> 50
-            7 -> 100
-            6 -> 200
-            5 -> 400
-            4 -> 800
-            3 -> 1500
-            2 -> 3000
-            1 -> 5000
-            0 -> 10000
-            else -> 0
-        }
-    }
+    fun getLifespanGainForRealm(realm: Int): Int = lifespanGainForRealm(realm)
 
     // ── 私有辅助方法 ──────────────────────────────────
 

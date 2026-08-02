@@ -317,13 +317,13 @@ class CaveExplorationProcessor @Inject constructor(
             }
         }
 
-        // AI 弟子修炼（热控分批：跳过时保留原数据）
+        // AI 弟子修炼（热控分批：跳过时保留原数据；传宗门等级供突破刷新装备/功法数量）
         val updatedAiDisciples = if (aiNonFocusedBatchMonths > 0) {
             aiDisciples.mapValues { (sectId, disciples) ->
                 val sect = data.worldMapSects.find { it.id == sectId }
                 if (sect == null || sect.isPlayerSect) return@mapValues disciples
                 AISectDiscipleManager.processMonthlyCultivation(
-                    disciples, aiNonFocusedBatchMonths
+                    disciples, aiNonFocusedBatchMonths, sect.level
                 )
             }
         } else {
@@ -332,6 +332,7 @@ class CaveExplorationProcessor @Inject constructor(
 
         // 同步 AI 宗门等级 — 月度修炼弟子只会变强，仅用 any{} 短路检查升级（只升不降）
         // 玩家宗门等级由玩家手动升级（通过 SectLevelDetailDialog），此处跳过
+        var finalAiDisciples = updatedAiDisciples
         val syncedWorldSects = data.worldMapSects.map { sect ->
             if (sect.isPlayerSect) {
                 sect  // 玩家宗门手动升级，月度 tick 不再自动升级
@@ -346,6 +347,10 @@ class CaveExplorationProcessor @Inject constructor(
                     else -> sect.level
                 }
                 if (sect.level != newLevel) {
+                    // 等级升级：全宗门补装备/功法数量至新等级标准（只补缺，不动已有；
+                    // 同时修正"突破当月按旧等级计数"的数量滞后）
+                    val upgraded = disciples.map { AISectDiscipleManager.ensureDiscipleGear(it, newLevel) }
+                    finalAiDisciples = finalAiDisciples + (sect.id to upgraded)
                     sect.copy(level = newLevel, levelName = SectLevel.levelName(newLevel))
                 } else {
                     sect
@@ -356,7 +361,7 @@ class CaveExplorationProcessor @Inject constructor(
         state.gameData = state.gameData.copy(
             sectDetails = cleanedSectDetails,
             aiSectDisciples = state.gameData.aiSectDisciples.mapValues { (sId, current) ->
-                val calculated = updatedAiDisciples[sId] ?: return@mapValues current
+                val calculated = finalAiDisciples[sId] ?: return@mapValues current
                 val currentIds = current.map { it.id }.toSet()
                 calculated.filter { it.id in currentIds }
             },
@@ -685,7 +690,9 @@ class CaveExplorationProcessor @Inject constructor(
             val sect = data.worldMapSects.find { it.id == sectId } ?: continue
             if (sect.isPlayerSect) continue
 
-            val newRecruits = AISectDiscipleManager.generateYearlyRecruits(sect.name, disciples)
+            val newRecruits = AISectDiscipleManager.generateYearlyRecruits(
+                sect.name, disciples, sect.level
+            )
             when {
                 sect.isPlayerOccupied -> {
                     updatedRecruitList = updatedRecruitList + newRecruits

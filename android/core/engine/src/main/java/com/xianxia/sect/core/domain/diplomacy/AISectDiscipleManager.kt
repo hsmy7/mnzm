@@ -2,8 +2,10 @@ package com.xianxia.sect.core.engine.domain.diplomacy
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.SectLevel
+import com.xianxia.sect.core.registry.AffixDatabase
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
+import com.xianxia.sect.core.registry.PhysiqueDatabase
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
@@ -44,13 +46,26 @@ object AISectDiscipleManager {
     /** 每月真实秒数 = 3 旬 × MS_PER_PHASE_1X / 1000 = 6.0s */
     private val SECONDS_PER_MONTH = com.xianxia.sect.core.engine.system.GameTimeClock.MS_PER_PHASE_1X * 3 / 1000.0
 
-    data class BattleItems(
-        val manuals: List<Pair<String, Int>>,
-        val equipments: List<Pair<String, EquipmentSlot>>,
-        val weaponNurture: EquipmentNurtureData,
-        val armorNurture: EquipmentNurtureData,
-        val bootsNurture: EquipmentNurtureData,
-        val accessoryNurture: EquipmentNurtureData
+    /** 每月旬数（修炼速度与熟练度月度等效计算用，对齐 SECONDS_PER_MONTH 的 3 旬定义） */
+    private const val PROFICIENCY_PHASES_PER_MONTH = 3
+
+    /** MIND 功法选取概率分母（50% 概率带 1 本心法） */
+    private const val MIND_MANUAL_ROLL_DENOMINATOR = 2
+
+    /** AI 宗门装备数量按宗门等级：小型 1 / 中型 2 / 大型 4 / 顶级 4 */
+    private val EQUIPMENT_COUNT_BY_SECT_LEVEL = mapOf(
+        SectLevel.SMALL to 1,
+        SectLevel.MEDIUM to 2,
+        SectLevel.LARGE to 4,
+        SectLevel.TOP to 4
+    )
+
+    /** AI 宗门功法数量按宗门等级：小型 1 / 中型 3 / 大型 6 / 顶级 6 */
+    private val MANUAL_COUNT_BY_SECT_LEVEL = mapOf(
+        SectLevel.SMALL to 1,
+        SectLevel.MEDIUM to 3,
+        SectLevel.LARGE to 6,
+        SectLevel.TOP to 6
     )
 
     /**
@@ -83,10 +98,16 @@ object AISectDiscipleManager {
         val physicalDefenseVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
         val magicDefenseVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
         val speedVariance = rng.nextGaussian(0.0, 16.667).roundToInt().coerceIn(-50, 50)
-        val talents = TalentDatabase.generateTalentsForDisciple().map { it.id }
+        // 天赋/体质/词条三类标签（与 DiscipleFactory.create 同构，走 AI 分区 RNG 保证确定性）
+        val talents = TalentDatabase.generateTalentsForDisciple(rng.asKotlinRandom()).map { it.id }
+        val physiqueIds = PhysiqueDatabase.generateForDisciple(rng.asKotlinRandom()).map { it.id }
+        val affixIds = AffixDatabase.generateForDisciple(rng.asKotlinRandom()).map { it.id }
 
+        // 寿命含天赋 + 词条加成（对齐 DiscipleFactory.create 的 lifespan 计算）
         val talentEffects = TalentDatabase.calculateTalentEffects(talents)
-        val lifespanBonus = talentEffects["lifespan"] ?: 0.0
+        val affixEffects = AffixDatabase.calculateAffixEffects(affixIds)
+        val lifespanBonus =
+            (talentEffects["lifespan"] ?: 0.0) + (affixEffects["lifespan"] ?: 0.0)
         val baseLifespan = GameConfig.Realm.get(9).maxAge
         val lifespan = (baseLifespan * (1.0 + lifespanBonus)).toInt().coerceAtLeast(1)
 
@@ -105,6 +126,8 @@ object AISectDiscipleManager {
             isAlive = true,
             discipleType = "outer",
             talentIds = talents,
+            physiqueIds = physiqueIds,
+            affixIds = affixIds,
             manualIds = emptyList(),
             manualMasteries = emptyMap(),
             combat = CombatAttributes(
@@ -146,141 +169,268 @@ object AISectDiscipleManager {
 
     private fun generateSpiritRoot(): String = SpiritRootGenerator.generate(rng.asKotlinRandom())
 
-    fun getMaxRarityByRealm(realm: Int): Int = GameConfig.Realm.getMaxRarity(realm)
-
-    fun getMinRarityByRealm(realm: Int): Int = when (realm) {
-        9, 8 -> 1
-        7 -> 1
-        6 -> 1
-        5 -> 2
-        4 -> 2
-        3 -> 3
-        2 -> 3
-        1 -> 4
-        0 -> 5
-        else -> 1
-    }
-
-    fun getMaxManualsByRealm(realm: Int): Int = when {
-        realm >= 8 -> 3
-        realm >= 6 -> 4
-        realm >= 4 -> 5
-        else -> 6
-    }
-
-    fun generateBattleItems(disciple: Disciple): BattleItems {
-        val realm = disciple.realm
-        val maxRarity = getMaxRarityByRealm(realm)
-        val minRarity = getMinRarityByRealm(realm)
-        val maxManuals = getMaxManualsByRealm(realm)
-
-        val manualCount = 1 + rng.nextInt(maxManuals)
-        val manuals = generateBattleManuals(minRarity, maxRarity, manualCount)
-
-        val equipmentSlots = EquipmentSlot.values().toList().shuffled(java.util.Random(rng.nextInt().toLong()))
-        val equipmentCount = 1 + rng.nextInt(4)
-        val equipments = generateBattleEquipments(minRarity, maxRarity, equipmentSlots.take(equipmentCount))
-
-        val weaponId = equipments.firstOrNull { it.second == EquipmentSlot.WEAPON }?.first ?: ""
-        val armorId = equipments.firstOrNull { it.second == EquipmentSlot.ARMOR }?.first ?: ""
-        val bootsId = equipments.firstOrNull { it.second == EquipmentSlot.BOOTS }?.first ?: ""
-        val accessoryId = equipments.firstOrNull { it.second == EquipmentSlot.ACCESSORY }?.first ?: ""
-
-        val weaponNurture = if (weaponId.isNotEmpty()) generateRandomNurture(weaponId) else EquipmentNurtureData("", 0)
-        val armorNurture = if (armorId.isNotEmpty()) generateRandomNurture(armorId) else EquipmentNurtureData("", 0)
-        val bootsNurture = if (bootsId.isNotEmpty()) generateRandomNurture(bootsId) else EquipmentNurtureData("", 0)
-        val accessoryNurture = if (accessoryId.isNotEmpty()) generateRandomNurture(accessoryId) else EquipmentNurtureData("", 0)
-
-        return BattleItems(
-            manuals = manuals,
-            equipments = equipments,
-            weaponNurture = weaponNurture,
-            armorNurture = armorNurture,
-            bootsNurture = bootsNurture,
-            accessoryNurture = accessoryNurture
+    /**
+     * 为 AI 弟子完整生成/刷新装备与功法（持久化）。
+     *
+     * 品阶恒为境界上限品阶（[GameConfig.Realm.getMaxRarity]），
+     * 数量按宗门等级（[EQUIPMENT_COUNT_BY_SECT_LEVEL] / [MANUAL_COUNT_BY_SECT_LEVEL]）。
+     * 用于新弟子生成与突破大境界后的刷新——保证永远是当前境界最高可用品阶。
+     *
+     * @param disciple 目标弟子（境界须已定型）
+     * @param sectLevel 宗门等级（0-3）
+     * @return 带装备/功法字段的弟子副本；registry 未初始化时原样返回
+     */
+    fun applyGearToDisciple(disciple: Disciple, sectLevel: Int): Disciple {
+        if (!ManualDatabase.isInitialized || !EquipmentDatabase.isInitialized) return disciple
+        val maxRarity = GameConfig.Realm.getMaxRarity(disciple.realm)
+        val equipmentIds = generateEquipmentIds(maxRarity, EQUIPMENT_COUNT_BY_SECT_LEVEL[sectLevel] ?: 1)
+        val manuals = generateManuals(maxRarity, MANUAL_COUNT_BY_SECT_LEVEL[sectLevel] ?: 1)
+        return disciple.copy(
+            manualIds = manuals.map { it.first },
+            manualMasteries = manuals.toMap(),
+            equipment = disciple.equipment.copy(
+                weaponId = equipmentIds[EquipmentSlot.WEAPON].orEmpty(),
+                armorId = equipmentIds[EquipmentSlot.ARMOR].orEmpty(),
+                bootsId = equipmentIds[EquipmentSlot.BOOTS].orEmpty(),
+                accessoryId = equipmentIds[EquipmentSlot.ACCESSORY].orEmpty(),
+                weaponNurture = generateRandomNurture(equipmentIds[EquipmentSlot.WEAPON].orEmpty()),
+                armorNurture = generateRandomNurture(equipmentIds[EquipmentSlot.ARMOR].orEmpty()),
+                bootsNurture = generateRandomNurture(equipmentIds[EquipmentSlot.BOOTS].orEmpty()),
+                accessoryNurture = generateRandomNurture(equipmentIds[EquipmentSlot.ACCESSORY].orEmpty())
+            )
         )
     }
 
     /**
-     * 为 AI 弟子列表生成模拟装备/功法并准备战斗数据。
+     * 只补缺不覆盖：体质/词条/天赋为空则生成，装备/功法不足则补至宗门等级数量。
      *
-     * AI 弟子本身不持久化装备/功法，每次参战前根据境界范围随机生成。
+     * 用于旧档补全与宗门等级升级后的数量补齐，绝不重生成或删除已有项。
+     *
+     * @param disciple 目标弟子
+     * @param sectLevel 宗门等级（0-3）
+     * @return 补齐后的弟子副本
+     */
+    fun ensureDiscipleGear(disciple: Disciple, sectLevel: Int): Disciple {
+        var working = disciple
+        if (working.physiqueIds.isEmpty()) {
+            working = working.copy(
+                physiqueIds = PhysiqueDatabase.generateForDisciple(rng.asKotlinRandom()).map { it.id }
+            )
+        }
+        if (working.affixIds.isEmpty()) {
+            working = working.copy(
+                affixIds = AffixDatabase.generateForDisciple(rng.asKotlinRandom()).map { it.id }
+            )
+        }
+        if (working.talentIds.isEmpty()) {
+            working = working.copy(
+                talentIds = TalentDatabase.generateTalentsForDisciple(rng.asKotlinRandom()).map { it.id }
+            )
+        }
+        if (!ManualDatabase.isInitialized || !EquipmentDatabase.isInitialized) return working
+
+        val maxRarity = GameConfig.Realm.getMaxRarity(working.realm)
+        val expectedEquip = EQUIPMENT_COUNT_BY_SECT_LEVEL[sectLevel] ?: 1
+        val expectedManuals = MANUAL_COUNT_BY_SECT_LEVEL[sectLevel] ?: 1
+
+        var equipment = working.equipment
+        val currentEquip = equipment.equippedItemIds.size
+        if (currentEquip < expectedEquip) {
+            val emptySlots = EquipmentSlot.values()
+                .filter { slot -> equipment.idFor(slot).isEmpty() }
+                .shuffled(java.util.Random(rng.nextInt().toLong()))
+            val toAdd = (expectedEquip - currentEquip).coerceAtMost(emptySlots.size)
+            repeat(toAdd) { i ->
+                val slot = emptySlots[i]
+                val template = pickEquipmentTemplate(slot, maxRarity) ?: return@repeat
+                equipment = equipment.withEquipped(slot, template.id, generateRandomNurture(template.id))
+            }
+        }
+        working = working.copy(equipment = equipment)
+
+        val currentManuals = working.manualIds.size
+        if (currentManuals < expectedManuals) {
+            val existing = working.manualIds.toSet()
+            val newManuals = generateManuals(maxRarity, expectedManuals)
+                .filter { it.first !in existing }
+                .take(expectedManuals - currentManuals)
+            working = working.copy(
+                manualIds = working.manualIds + newManuals.map { it.first },
+                manualMasteries = working.manualMasteries + newManuals.toMap()
+            )
+        }
+        return working
+    }
+
+    /** 按境界上限品阶从槽位模板池选取装备（无该品阶时取槽位最高品阶兜底）。 */
+    private fun pickEquipmentTemplate(
+        slot: EquipmentSlot,
+        maxRarity: Int
+    ): EquipmentDatabase.EquipmentTemplate? {
+        val allSlotTemplates = EquipmentDatabase.getBySlot(slot)
+        return if (allSlotTemplates.isEmpty()) {
+            null
+        } else {
+            val exact = allSlotTemplates.filter { it.rarity == maxRarity }
+            if (exact.isNotEmpty()) {
+                exact[rng.nextInt(exact.size)]
+            } else {
+                allSlotTemplates.maxByOrNull { it.rarity }
+            }
+        }
+    }
+
+    /** 随机选取 [count] 个装备槽位并生成境界上限品阶装备 id，返回 槽位 → 模板 id 映射。 */
+    private fun generateEquipmentIds(maxRarity: Int, count: Int): Map<EquipmentSlot, String> {
+        if (count <= 0) return emptyMap()
+        val slots = EquipmentSlot.values().toList()
+            .shuffled(java.util.Random(rng.nextInt().toLong()))
+            .take(count)
+        return slots.mapNotNull { slot ->
+            pickEquipmentTemplate(slot, maxRarity)?.let { Pair(slot, it.id) }
+        }.toMap()
+    }
+
+    /**
+     * 生成 [count] 本功法（模板 id + 初始熟练度）。
+     *
+     * 沿用原战前随机选取逻辑：攻+防池、50% 概率带 1 本心法、其余补足；
+     * 品阶过滤改为恒等于境界上限品阶。
+     */
+    private fun generateManuals(maxRarity: Int, count: Int): List<Pair<String, Int>> {
+        val attackManuals = ManualDatabase.getByType(ManualType.ATTACK)
+            .filter { it.rarity == maxRarity }
+        val defenseManuals = ManualDatabase.getByType(ManualType.DEFENSE)
+            .filter { it.rarity == maxRarity }
+        val mindManuals = ManualDatabase.getByType(ManualType.MIND)
+            .filter { it.rarity == maxRarity }
+
+        val nonMindManuals = (attackManuals + defenseManuals)
+            .shuffled(java.util.Random(rng.nextInt().toLong()))
+        val selectedMind = if (mindManuals.isNotEmpty() && rng.nextInt(MIND_MANUAL_ROLL_DENOMINATOR) == 0) {
+            listOf(mindManuals[rng.nextInt(mindManuals.size)])
+        } else emptyList()
+
+        val remainingCount = (count - selectedMind.size).coerceAtLeast(0)
+        val selected = selectedMind + nonMindManuals.take(remainingCount)
+
+        return selected.map { manual -> Pair(manual.id, randomMasteryProficiency()) }
+    }
+
+    /** 随机初始功法熟练度（NOVICE..PERFECTION 各段区间取值）。 */
+    private fun randomMasteryProficiency(): Int {
+        val maxMasteryLevel = ManualProficiencySystem.MasteryLevel.values().last().level
+        val masteryLevel = ManualProficiencySystem.MasteryLevel.fromLevel(rng.nextInt(maxMasteryLevel + 1))
+        return when (masteryLevel) {
+            ManualProficiencySystem.MasteryLevel.NOVICE -> (rng.nextDouble() * 1000.0).toInt()
+            ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS -> (1000.0 + rng.nextDouble() * 9000.0).toInt()
+            ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS -> (10000.0 + rng.nextDouble() * 20000.0).toInt()
+            ManualProficiencySystem.MasteryLevel.PERFECTION -> 30000
+        }
+    }
+
+    /** 读取指定槽位已装备的模板 id。 */
+    private fun EquipmentSet.idFor(slot: EquipmentSlot): String = when (slot) {
+        EquipmentSlot.WEAPON -> weaponId
+        EquipmentSlot.ARMOR -> armorId
+        EquipmentSlot.BOOTS -> bootsId
+        EquipmentSlot.ACCESSORY -> accessoryId
+    }
+
+    /** 将装备写入指定槽位（含孕养数据）。 */
+    private fun EquipmentSet.withEquipped(
+        slot: EquipmentSlot,
+        id: String,
+        nurture: EquipmentNurtureData
+    ): EquipmentSet = when (slot) {
+        EquipmentSlot.WEAPON -> copy(weaponId = id, weaponNurture = nurture)
+        EquipmentSlot.ARMOR -> copy(armorId = id, armorNurture = nurture)
+        EquipmentSlot.BOOTS -> copy(bootsId = id, bootsNurture = nurture)
+        EquipmentSlot.ACCESSORY -> copy(accessoryId = id, accessoryNurture = nurture)
+    }
+
+    /**
+     * 为 AI 弟子列表准备战斗数据（读取持久化的装备/功法字段）。
+     *
+     * AI 弟子装备/功法已在生成与突破刷新时持久化（模板 id + 熟练度），
+     * 本函数仅按模板构建临时实例映射供战斗使用，不修改原弟子。
      * 丹药/血炼不计入。
      *
      * @param disciples AI 弟子列表
-     * @return 包含修改后弟子副本和装备/功法实例映射的 [AIPreparedBattle]
+     * @return 包含原弟子列表和装备/功法实例映射的 [AIPreparedBattle]
      */
     fun prepareDisciplesForBattle(disciples: List<Disciple>): AIPreparedBattle {
-        if (!ManualDatabase.isInitialized) {
+        if (!ManualDatabase.isInitialized || !EquipmentDatabase.isInitialized) {
             return AIPreparedBattle(disciples, emptyMap(), emptyMap(), emptyMap())
         }
 
         val equipmentMap = mutableMapOf<String, EquipmentInstance>()
         val manualMap = mutableMapOf<String, ManualInstance>()
         val proficiencies = mutableMapOf<String, Map<String, ManualProficiencyData>>()
-        val modifiedDisciples = mutableListOf<Disciple>()
 
         for (disciple in disciples) {
-            val items = generateBattleItems(disciple)
-            val weaponId = items.equipments
-                .firstOrNull { it.second == EquipmentSlot.WEAPON }?.first ?: ""
-            val armorId = items.equipments
-                .firstOrNull { it.second == EquipmentSlot.ARMOR }?.first ?: ""
-            val bootsId = items.equipments
-                .firstOrNull { it.second == EquipmentSlot.BOOTS }?.first ?: ""
-            val accessoryId = items.equipments
-                .firstOrNull { it.second == EquipmentSlot.ACCESSORY }?.first ?: ""
-
-            buildEquipmentEntry(equipmentMap, weaponId, items.weaponNurture)
-            buildEquipmentEntry(equipmentMap, armorId, items.armorNurture)
-            buildEquipmentEntry(equipmentMap, bootsId, items.bootsNurture)
-            buildEquipmentEntry(equipmentMap, accessoryId, items.accessoryNurture)
-
-            val manualIds = items.manuals.map { it.first }
-            val manualMasteries = items.manuals.toMap()
-            for (mId in manualIds) {
-                if (mId !in manualMap) {
-                    val template = ManualDatabase.getById(mId) ?: continue
-                    manualMap[mId] = ManualDatabase.createFromTemplate(template)
-                        .toInstance(id = mId)
-                }
-            }
-
-            val discipleProfs = manualIds.associateWith { mId ->
-                val mastery = manualMasteries[mId] ?: 0
-                val manual = ManualDatabase.getById(mId)
-                val masteryLevel = if (manual != null) {
-                    ManualProficiencySystem.MasteryLevel.fromProficiency(mastery.toDouble()).level
-                } else 0
-                val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
-                ManualProficiencyData(
-                    manualId = mId,
-                    proficiency = mastery.toDouble().coerceAtMost(maxProf.toDouble()),
-                    maxProficiency = maxProf,
-                    masteryLevel = masteryLevel
-                )
-            }
+            equipmentMap.putAll(buildEquipmentMapForDisciple(disciple))
+            val (discipleManuals, discipleProfs) = buildManualDataForDisciple(disciple)
+            manualMap.putAll(discipleManuals)
             proficiencies[disciple.id] = discipleProfs
-
-            modifiedDisciples.add(
-                disciple.copy(
-                    manualIds = manualIds,
-                    manualMasteries = manualMasteries,
-                    equipment = disciple.equipment.copy(
-                        weaponId = weaponId,
-                        armorId = armorId,
-                        bootsId = bootsId,
-                        accessoryId = accessoryId,
-                        weaponNurture = items.weaponNurture,
-                        armorNurture = items.armorNurture,
-                        bootsNurture = items.bootsNurture,
-                        accessoryNurture = items.accessoryNurture
-                    )
-                )
-            )
         }
 
-        return AIPreparedBattle(modifiedDisciples, equipmentMap, manualMap, proficiencies)
+        return AIPreparedBattle(disciples, equipmentMap, manualMap, proficiencies)
+    }
+
+    /**
+     * 从持久化字段构建单个弟子的装备实例映射（模板 id → 临时实例 + 孕养覆盖）。
+     *
+     * 供 [prepareDisciplesForBattle] 与 AISectAttackManager 战斗组装复用。
+     */
+    fun buildEquipmentMapForDisciple(disciple: Disciple): Map<String, EquipmentInstance> {
+        val equipmentMap = mutableMapOf<String, EquipmentInstance>()
+        buildEquipmentEntry(equipmentMap, disciple.equipment.weaponId, disciple.equipment.weaponNurture)
+        buildEquipmentEntry(equipmentMap, disciple.equipment.armorId, disciple.equipment.armorNurture)
+        buildEquipmentEntry(equipmentMap, disciple.equipment.bootsId, disciple.equipment.bootsNurture)
+        buildEquipmentEntry(equipmentMap, disciple.equipment.accessoryId, disciple.equipment.accessoryNurture)
+        return equipmentMap
+    }
+
+    /**
+     * 从持久化字段构建单个弟子的功法实例映射 + 熟练度数据。
+     *
+     * 功法实例以模板 id 为实例 id（AI 侧不落玩家实例表），
+     * 熟练度从 [Disciple.manualMasteries] 转换（[ManualProficiencyData] 语义）。
+     */
+    fun buildManualDataForDisciple(
+        disciple: Disciple
+    ): Pair<Map<String, ManualInstance>, Map<String, ManualProficiencyData>> {
+        val manualMap = mutableMapOf<String, ManualInstance>()
+        for (mId in disciple.manualIds) {
+            if (mId !in manualMap) {
+                val template = ManualDatabase.getById(mId) ?: continue
+                manualMap[mId] = ManualDatabase.createFromTemplate(template)
+                    .toInstance(id = mId)
+            }
+        }
+        return Pair(manualMap, buildProficiencyDataFromMasteries(disciple))
+    }
+
+    /**
+     * 将 [Disciple.manualMasteries]（模板 id → 熟练度）转换为
+     * 修炼/战斗可用的 [ManualProficiencyData] 映射（manualId → 数据）。
+     */
+    fun buildProficiencyDataFromMasteries(disciple: Disciple): Map<String, ManualProficiencyData> {
+        return disciple.manualIds.associateWith { mId ->
+            val mastery = disciple.manualMasteries[mId] ?: 0
+            val manual = ManualDatabase.getById(mId)
+            val masteryLevel = if (manual != null) {
+                ManualProficiencySystem.MasteryLevel.fromProficiency(mastery.toDouble()).level
+            } else 0
+            val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
+            ManualProficiencyData(
+                manualId = mId,
+                proficiency = mastery.toDouble().coerceAtMost(maxProf.toDouble()),
+                maxProficiency = maxProf,
+                masteryLevel = masteryLevel
+            )
+        }
     }
 
     /** 向装备映射中添加单件装备条目（如已存在则跳过）。 */
@@ -301,50 +451,6 @@ object AISectDiscipleManager {
         equipmentMap[eqId] = instance
     }
 
-    private fun generateBattleManuals(minRarity: Int, maxRarity: Int, count: Int): List<Pair<String, Int>> {
-        val attackManuals = ManualDatabase.getByType(ManualType.ATTACK)
-            .filter { it.rarity in minRarity..maxRarity }
-        val defenseManuals = ManualDatabase.getByType(ManualType.DEFENSE)
-            .filter { it.rarity in minRarity..maxRarity }
-        val mindManuals = ManualDatabase.getByType(ManualType.MIND)
-            .filter { it.rarity in minRarity..maxRarity }
-
-        val nonMindManuals = (attackManuals + defenseManuals).shuffled(java.util.Random(rng.nextInt().toLong()))
-        val selectedMind = if (mindManuals.isNotEmpty() && rng.nextInt(2) == 0) {
-            listOf(mindManuals[rng.nextInt(mindManuals.size)])
-        } else emptyList()
-
-        val remainingCount = (count - selectedMind.size).coerceAtLeast(0)
-        val selectedNonMind = nonMindManuals.take(remainingCount)
-        val selected = selectedMind + selectedNonMind
-
-        if (selected.isEmpty()) return emptyList()
-
-        return selected.map { manual ->
-            val maxMasteryLevel = ManualProficiencySystem.MasteryLevel.values().last().level
-            val randomMasteryLevel = rng.nextInt(maxMasteryLevel + 1)
-            val masteryLevel = ManualProficiencySystem.MasteryLevel.fromLevel(randomMasteryLevel)
-            val proficiency = when (masteryLevel) {
-                ManualProficiencySystem.MasteryLevel.NOVICE -> rng.nextDouble() * 1000.0
-                ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS -> 1000.0 + rng.nextDouble() * 9000.0
-                ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS -> 10000.0 + rng.nextDouble() * 20000.0
-                ManualProficiencySystem.MasteryLevel.PERFECTION -> 30000.0
-            }
-            Pair(manual.id, proficiency.toInt())
-        }
-    }
-
-    private fun generateBattleEquipments(minRarity: Int, maxRarity: Int, slots: List<EquipmentSlot>): List<Pair<String, EquipmentSlot>> {
-        return slots.mapNotNull { slot ->
-            val allSlotTemplates = EquipmentDatabase.getBySlot(slot)
-            if (allSlotTemplates.isEmpty()) return@mapNotNull null
-
-            val templates = allSlotTemplates.filter { it.rarity in minRarity..maxRarity }
-            val template = if (templates.isNotEmpty()) templates[rng.nextInt(templates.size)] else allSlotTemplates[rng.nextInt(allSlotTemplates.size)]
-            Pair(template.id, slot)
-        }
-    }
-
     private fun generateRandomNurture(equipmentId: String): EquipmentNurtureData {
         val template = EquipmentDatabase.getById(equipmentId) ?: return EquipmentNurtureData("", 0)
         val maxLevel = EquipmentNurtureSystem.getMaxNurtureLevel(template.rarity)
@@ -359,9 +465,10 @@ object AISectDiscipleManager {
 
     fun recruitYearlyDisciples(
         sectName: String,
-        existingDisciples: List<Disciple>
+        existingDisciples: List<Disciple>,
+        sectLevel: Int = SectLevel.SMALL
     ): List<Disciple> {
-        val newDisciples = generateYearlyRecruits(sectName, existingDisciples)
+        val newDisciples = generateYearlyRecruits(sectName, existingDisciples, sectLevel)
         return truncateToLimit(existingDisciples + newDisciples)
     }
 
@@ -379,94 +486,139 @@ object AISectDiscipleManager {
 
     /**
      * 仅生成年度新弟子列表（不合并现有弟子），供占领路由使用
+     *
+     * @param sectLevel 宗门等级（决定新弟子装备/功法数量）
      */
     fun generateYearlyRecruits(
         sectName: String,
-        existingDisciples: List<Disciple>
+        existingDisciples: List<Disciple>,
+        sectLevel: Int = SectLevel.SMALL
     ): List<Disciple> {
         val newDisciples = mutableListOf<Disciple>()
         val usedNames = existingDisciples.map { it.name }.toMutableSet()
         repeat(rng.nextInt(7)) {
-            val disciple = generateQiRefiningDisciple(sectName, usedNames)
+            val disciple = generateQiRefiningDisciple(sectName, usedNames, sectLevel)
             newDisciples.add(disciple)
             usedNames.add(disciple.name)
         }
         return newDisciples
     }
 
-    private fun generateQiRefiningDisciple(sectName: String, existingNames: Set<String>): Disciple {
-        return generateRandomDisciple(sectName, 9, existingNames)
+    private fun generateQiRefiningDisciple(
+        sectName: String,
+        existingNames: Set<String>,
+        sectLevel: Int
+    ): Disciple {
+        return applyGearToDisciple(generateRandomDisciple(sectName, 9, existingNames), sectLevel)
     }
 
     fun processMonthlyCultivation(
         disciples: List<Disciple>,
         batchMonths: Int = 1,
-        manualProficienciesMap: Map<String, Map<String, ManualProficiencyData>> = emptyMap()
+        sectLevel: Int = SectLevel.SMALL
     ): List<Disciple> {
         if (batchMonths <= 0 || disciples.isEmpty()) return disciples
 
         return disciples.map { disciple ->
             if (!disciple.isAlive) return@map disciple
-
-            var workingDisciple = disciple
-
+            var working = disciple
             repeat(batchMonths) {
-                // 每月重新计算修炼速度（突破后境界可能改变）
-                val cultivationSpeed = DiscipleStatCalculator.calculateCultivationPerPhase(
-                    workingDisciple,
-                    manuals = emptyMap(),
-                    manualProficiencies = emptyMap(),
-                    buildingBonus = 1.0,
-                    preachingElderBonus = 0.0,
-                    preachingMastersBonus = 0.0,
-                    cultivationSubsidyBonus = 0.0
-                )
-                val monthlyGain = cultivationSpeed * SECONDS_PER_MONTH
-
-                var newCultivation = workingDisciple.cultivation + monthlyGain
-                var newRealm = workingDisciple.realm
-                var newRealmLayer = workingDisciple.realmLayer
-
-                while (newCultivation >= workingDisciple.maxCultivation && newRealm > 0) {
-                    val isMajorBreakthrough = newRealmLayer >= GameConfig.Realm.get(newRealm).maxLayers
-                    val rootCount = workingDisciple.spiritRoot.types.size
-                    val breakthroughChance = GameConfig.Realm.getBreakthroughChance(
-                        newRealm, rootCount, newRealmLayer
-                    )
-                    if (rng.nextDouble() < breakthroughChance) {
-                        newCultivation = 0.0
-
-                        if (!isMajorBreakthrough) {
-                            newRealmLayer++
-                        } else {
-                            newRealm--
-                            newRealmLayer = 1
-                        }
-                    } else {
-                        newCultivation = 0.0
-                        break
-                    }
-                }
-
-                workingDisciple = workingDisciple.copy(
-                    cultivation = newCultivation,
-                    realm = newRealm,
-                    realmLayer = newRealmLayer,
-                    lifespan = if (newRealm != workingDisciple.realm) {
-                        val realmMaxAge = GameConfig.Realm.get(newRealm).maxAge
-                        val bonus = TalentDatabase.calculateTalentEffects(
-                            workingDisciple.talentIds
-                        )["lifespan"] ?: 0.0
-                        val newLifespan = (realmMaxAge * (1.0 + bonus)).toInt().coerceAtLeast(1)
-                        maxOf(workingDisciple.lifespan, newLifespan)
-                    } else {
-                        workingDisciple.lifespan
-                    }
-                )
+                working = settleMonthlyCultivation(working, sectLevel)
+                working = applyMonthlyProficiencyGain(working)
             }
-
-            workingDisciple
+            working
         }
+    }
+
+    /**
+     * 单月修炼结算：修炼加速（吃功法/体质/词条加成）→ 突破判定（完整乘区）→
+     * 大境界突破成功时按新境界刷新装备/功法（永远最高可用品阶）。
+     */
+    private fun settleMonthlyCultivation(disciple: Disciple, sectLevel: Int): Disciple {
+        val cultivationSpeed = DiscipleStatCalculator.calculateCultivationPerPhase(
+            disciple,
+            manuals = emptyMap(),
+            manualProficiencies = buildProficiencyDataFromMasteries(disciple),
+            buildingBonus = 1.0,
+            preachingElderBonus = 0.0,
+            preachingMastersBonus = 0.0,
+            cultivationSubsidyBonus = 0.0
+        )
+        var working = disciple.copy(
+            cultivation = disciple.cultivation + cultivationSpeed * SECONDS_PER_MONTH
+        )
+
+        while (working.cultivation >= working.maxCultivation && working.realm > 0) {
+            val breakthroughChance = DiscipleStatCalculator.getBreakthroughChance(working)
+            if (rng.nextDouble() >= breakthroughChance) {
+                working = applyBreakthroughFailure(working)
+                break
+            }
+            working = applyBreakthroughSuccess(working)
+        }
+
+        return if (working.realm != disciple.realm) {
+            applyGearToDisciple(working, sectLevel)
+        } else {
+            working
+        }
+    }
+
+    /** 突破成功：修为清零、层数+1 或大境界+1（对齐玩家 applyBreakthroughSuccess）。 */
+    private fun applyBreakthroughSuccess(d: Disciple): Disciple {
+        var working = d.copy(cultivation = 0.0)
+        val oldRealm = working.realm
+        working = if (working.realmLayer < GameConfig.Realm.get(working.realm).maxLayers) {
+            working.copy(realmLayer = working.realmLayer + 1)
+        } else {
+            working.copy(realm = working.realm - 1, realmLayer = 1)
+        }
+        return if (working.realm != oldRealm) {
+            working.copy(
+                lifespan = working.lifespan +
+                    DiscipleStatCalculator.calculateBreakthroughLifespanGain(
+                        working.realm, working.talentIds
+                    )
+            )
+        } else {
+            working
+        }
+    }
+
+    /** 突破失败：修为清零 + HP/MP 打一折（对齐玩家 applyBreakthroughFailure）。 */
+    private fun applyBreakthroughFailure(d: Disciple): Disciple {
+        val curHp = if (d.combat.currentHp < 0) d.maxHp else d.combat.currentHp
+        val curMp = if (d.combat.currentMp < 0) d.maxMp else d.combat.currentMp
+        return d.copy(
+            cultivation = 0.0,
+            combat = d.combat.copy(
+                currentHp = (curHp * DiscipleStatCalculator.BREAKTHROUGH_FAILURE_HP_MP_RATIO)
+                    .toInt().coerceAtLeast(1),
+                currentMp = (curMp * DiscipleStatCalculator.BREAKTHROUGH_FAILURE_HP_MP_RATIO)
+                    .toInt().coerceAtLeast(1)
+            )
+        )
+    }
+
+    /**
+     * 功法熟练度月度等效增长（对齐玩家每旬公式，1 月 = 3 旬）。
+     * AI 无藏经阁建筑 → libraryBonus = 0；上限 MAX_PROFICIENCY。
+     */
+    private fun applyMonthlyProficiencyGain(disciple: Disciple): Disciple {
+        if (!ManualDatabase.isInitialized || disciple.manualIds.isEmpty()) return disciple
+        val perMonthGain = ManualProficiencySystem.calculateProficiencyGainPerPhase(
+            disciple.skills.comprehension,
+            libraryBonus = 0.0
+        ) * PROFICIENCY_PHASES_PER_MONTH
+        val updated = disciple.manualMasteries.mapValues { (mId, mastery) ->
+            if (ManualDatabase.getById(mId) == null) {
+                mastery
+            } else {
+                (mastery + perMonthGain).toInt()
+                    .coerceAtMost(ManualProficiencySystem.MAX_PROFICIENCY.toInt())
+            }
+        }
+        return disciple.copy(manualMasteries = updated)
     }
 
     fun processAging(disciples: List<Disciple>): List<Disciple> {
@@ -494,7 +646,7 @@ object AISectDiscipleManager {
         realmDistribution.forEach { (realm, count) ->
             repeat(count) {
                 val disciple = generateRandomDisciple(sectName, config.normalMaxRealm, usedNames)
-                val adjustedDisciple = adjustDiscipleRealm(disciple, realm)
+                val adjustedDisciple = applyGearToDisciple(adjustDiscipleRealm(disciple, realm), sectLevel)
                 disciples.add(adjustedDisciple)
                 usedNames.add(adjustedDisciple.name)
             }
@@ -502,7 +654,7 @@ object AISectDiscipleManager {
 
         repeat(config.eliteCount) {
             val disciple = generateRandomDisciple(sectName, config.eliteRealm, usedNames)
-            val adjustedDisciple = adjustDiscipleRealm(disciple, config.eliteRealm)
+            val adjustedDisciple = applyGearToDisciple(adjustDiscipleRealm(disciple, config.eliteRealm), sectLevel)
             disciples.add(adjustedDisciple)
             usedNames.add(adjustedDisciple.name)
         }
@@ -590,7 +742,10 @@ object AISectDiscipleManager {
         targetCount: Int,
         sectLevel: Int
     ): List<Disciple> {
-        if (existingDisciples.size >= targetCount) return existingDisciples
+        // 已满员时仍补全存量弟子缺失的体质/词条/装备/功法（老档升级路径，只补缺不覆盖）
+        if (existingDisciples.size >= targetCount) {
+            return existingDisciples.map { ensureDiscipleGear(it, sectLevel) }
+        }
 
         val maxRealm = SectLevel.maxRealmForLevel(sectLevel)
         val usedNames = existingDisciples.map { it.name }.toMutableSet()
@@ -602,13 +757,13 @@ object AISectDiscipleManager {
         realmDistribution.forEach { (realm, count) ->
             repeat(count) {
                 val disciple = generateRandomDisciple(sectName, maxRealm, usedNames)
-                val adjusted = adjustDiscipleRealm(disciple, realm)
+                val adjusted = applyGearToDisciple(adjustDiscipleRealm(disciple, realm), sectLevel)
                 newDisciples.add(adjusted)
                 usedNames.add(adjusted.name)
             }
         }
 
-        return existingDisciples + newDisciples
+        return existingDisciples.map { ensureDiscipleGear(it, sectLevel) } + newDisciples
     }
 
     private fun adjustDiscipleRealm(disciple: Disciple, targetRealm: Int): Disciple {

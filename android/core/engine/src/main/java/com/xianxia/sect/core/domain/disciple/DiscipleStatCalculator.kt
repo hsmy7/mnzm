@@ -18,6 +18,7 @@ import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.engine.ManualProficiencySystem
+import com.xianxia.sect.core.engine.service.lifespanGainForRealm
 import kotlin.math.roundToInt
 
 object DiscipleStatCalculator {
@@ -35,6 +36,29 @@ object DiscipleStatCalculator {
     private const val MASTER_TEACHING_RATE = 0.001
     private const val ELDER_TEACHING_MAX_BONUS = 0.10
     private const val MASTER_TEACHING_MAX_BONUS = 0.05
+
+    /** 突破失败后气血/法力的剩余比例（修为清零外，HP/MP 打一折，玩家与 AI 共用） */
+    const val BREAKTHROUGH_FAILURE_HP_MP_RATIO = 0.1
+
+    /**
+     * 突破大境界成功后的寿命增益（对齐玩家 DiscipleBreakthroughHandler 算法）。
+     *
+     * 境界基准增益 + 天赋寿命加成（加成的整数部分），供玩家与 AI 突破共用。
+     *
+     * @param newRealm 突破后的新境界
+     * @param talentIds 弟子天赋 ID 列表
+     * @return 寿命增益值
+     */
+    fun calculateBreakthroughLifespanGain(newRealm: Int, talentIds: List<String>): Int {
+        val baseGain = lifespanGainForRealm(newRealm)
+        val lifespanTalentBonus =
+            TalentDatabase.calculateTalentEffects(talentIds)["lifespan"] ?: 0.0
+        return if (lifespanTalentBonus != 0.0) {
+            baseGain + (baseGain * lifespanTalentBonus).toInt()
+        } else {
+            baseGain
+        }
+    }
 
     // ==================== 天赋效果 ====================
 

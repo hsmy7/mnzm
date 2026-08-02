@@ -558,6 +558,14 @@ object ManualDatabase {
             _isInitialized = true
         }
     }
+
+    /** 测试专用：重置为未初始化状态（保证各测试类独立注入互不污染）。 */
+    internal fun resetForTest() {
+        synchronized(initLock) {
+            _allManuals = null
+            _isInitialized = false
+        }
+    }
     
     fun getById(id: String): ManualTemplate? {
         check(_isInitialized) { "ManualDatabase not initialized. Call initialize() first." }

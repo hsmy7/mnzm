@@ -113,7 +113,7 @@ class AISectBeastAttackProcessor @Inject constructor(
             val aliveDisciples = aiDisciples.filter { it.isAlive }
             if (aliveDisciples.size < GameConfig.AI.MIN_DISCIPLES_FOR_ATTACK) continue
 
-            val aiPower = AISectAttackManager.calculatePowerScore(aliveDisciples)
+            val aiPower = SectCombatPowerCalculator.calculateSectPower(aliveDisciples)
             val beastPower = SectCombatPowerCalculator.calculateBeastCombatPower(
                 maxHp = beast.beastMaxHp, physicalAttack = beast.beastPhysicalAttack,
                 magicAttack = beast.beastMagicAttack, physicalDefense = beast.beastPhysicalDefense,

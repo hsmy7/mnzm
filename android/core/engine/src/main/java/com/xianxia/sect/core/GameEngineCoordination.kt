@@ -157,10 +157,13 @@ private suspend fun GameEngine.regenerateAllWorldSects(sectName: String) {
 
 private suspend fun GameEngine.checkAndRepairAiSectDisciples() {
     val gd = stateStore.gameDataSnapshot
+    // 满员且全部弟子已带装备/功法才跳过（装备/功法为确定生成，可作老档完整性标志；
+    // 体质/词条为 0-3 个随机生成，可能天然为 0，不作为判断标准）
+    val hasGear = { d: Disciple -> d.equipment.hasEquippedItems && d.manualIds.isNotEmpty() }
     if (gd.aiSectDisciples.isNotEmpty() &&
-        gd.aiSectDisciples.values.all { it.size >= MAX_AI_SECT_DISCIPLES }) return
+        gd.aiSectDisciples.values.all { it.size >= MAX_AI_SECT_DISCIPLES && it.all(hasGear) }) return
     if (gd.worldMapSects.isEmpty()) return
-    DomainLog.w("ensureGameDataIntegrity", "aiSectDisciples 不足，填充至 50 人")
+    DomainLog.w("ensureGameDataIntegrity", "aiSectDisciples 不足或缺少装备/功法，填充/补全")
     val regenerated = mutableMapOf<String, List<Disciple>>()
     for (sect in gd.worldMapSects) {
         if (sect.isPlayerSect) continue
@@ -172,7 +175,9 @@ private suspend fun GameEngine.checkAndRepairAiSectDisciples() {
             regenerated[sect.id] =
                 AISectDiscipleManager.fillDisciplesToTarget(
                     sect.name, d, MAX_AI_SECT_DISCIPLES, sect.level)
-        } else if (existing.size < MAX_AI_SECT_DISCIPLES) {
+        } else {
+            // 老档补全：fillDisciplesToTarget 内部对存量弟子 ensureDiscipleGear（只补缺）、
+            // 对新弟子 applyGearToDisciple；满员时早退分支同样执行 ensureDiscipleGear
             regenerated[sect.id] =
                 AISectDiscipleManager.fillDisciplesToTarget(
                     sect.name, existing, MAX_AI_SECT_DISCIPLES, sect.level)
@@ -741,7 +746,11 @@ suspend fun GameEngine.recruitAllFromList(): Int {
                     disciple.copy(usage = disciple.usage.copy(recruitedMonth = currentMonth))
                         .also { it.lifeEvents = listOf("${disciple.age}岁：加入宗门") }
                 )
-                if (newId.isNotEmpty()) successCount++
+                if (newId.isNotEmpty()) {
+                    // 俘虏自带装备/功法落库为玩家实例（幂等）
+                    materializeCaptiveGear(disciple, newId)
+                    successCount++
+                }
             }
             recruited = successCount
             gameData = gameData.copy(

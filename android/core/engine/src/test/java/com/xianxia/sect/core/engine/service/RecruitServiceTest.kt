@@ -1,7 +1,10 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.EquipmentSet
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.ManualType
+import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.MutableGameState
@@ -10,6 +13,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.DeterministicRng
+import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -71,6 +75,12 @@ class RecruitServiceTest {
         // 重置惰性状态，防止跨测试污染
         RecruitService.RecruitLazyState.autoRecruitIdle = false
         RecruitService.RecruitLazyState.autoRejectIdle = false
+    }
+
+    @After
+    fun tearDown() {
+        // 恢复全局单例，避免注入的测试功法库污染其他测试类
+        ManualDatabase.resetForTest()
     }
 
     // ==================== processAutoRecruit ====================
@@ -165,6 +175,44 @@ class RecruitServiceTest {
         assertEquals(0, count)
         assertTrue("不应有弟子上架", state.discipleTables.ids.isEmpty())
         assertEquals("弟子应留在 recruitList", 1, state.gameData.recruitList.size)
+    }
+
+    @Test
+    fun `processAutoRecruit - 俘虏带装备功法落库为玩家实例`() {
+        ManualDatabase.initializeWithManuals(mapOf(
+            "testAtk1" to ManualDatabase.ManualTemplate(
+                id = "testAtk1", name = "烈阳剑诀", type = ManualType.ATTACK,
+                rarity = 4, description = "测试功法",
+                stats = mapOf("cultivationSpeedPercent" to 40)
+            )
+        ))
+        val captive = makeRecruit(spiritRootType = "金").copy(
+            manualIds = listOf("testAtk1"),
+            manualMasteries = mapOf("testAtk1" to 2000),
+            equipment = EquipmentSet(weaponId = "ironSword")
+        )
+        val state = createAutoRecruitState(
+            recruitList = listOf(captive),
+            filter = setOf(1)  // 单灵根
+        )
+
+        val count = RecruitService.processAutoRecruit(state)
+
+        assertEquals(1, count)
+        val newId = state.discipleTables.ids.first().toString()
+        // 装备实例落库（模板 id → UUID 实例）
+        assertEquals("装备实例应落库", 1, state.equipmentInstances.size)
+        val weaponInstance = state.equipmentInstances.first()
+        assertEquals("实例 ownerId 应为新弟子 id", newId, weaponInstance.ownerId)
+        assertTrue("应标记已装备", weaponInstance.isEquipped)
+        // 功法实例落库 + 熟练度注册
+        assertEquals("功法实例应落库", 1, state.manualInstances.size)
+        val profs = state.gameData.manualProficiencies[newId]
+        assertNotNull("熟练度应注册", profs)
+        assertEquals("熟练度值应继承", 2000.0, profs!!.first().proficiency, 0.001)
+        // 槽位列回写实例 id
+        val intId = newId.toInt()
+        assertEquals("weaponIds 列应回写实例 id", weaponInstance.id, state.discipleTables.weaponIds[intId])
     }
 
     @Test

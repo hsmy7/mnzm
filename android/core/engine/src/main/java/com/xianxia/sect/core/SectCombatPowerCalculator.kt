@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.BloodRefinementPctTotal
+import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStats
 
@@ -84,6 +85,17 @@ object SectCombatPowerCalculator {
         val stats = DiscipleStatCalculator.getPermanentBaseStats(aggregate, bloodRefinementPct)
         return calculateDiscipleCombatPower(stats)
     }
+
+    /**
+     * 宗门总战力 = 存活弟子永久基础属性战力之和（玩家/AI 同一公式）。
+     *
+     * 不包含装备、功法、临时丹药等临时加成；AI 弟子无血炼 → bloodRefinementPct 传 null。
+     *
+     * @param disciples 弟子列表
+     * @return 宗门总战力
+     */
+    fun calculateSectPower(disciples: List<Disciple>): Long =
+        disciples.filter { it.isAlive }.sumOf { calculateDisciplePower(it.toAggregate(), null) }
 
     /**
      * 为弟子的战力值计算缓存指纹。

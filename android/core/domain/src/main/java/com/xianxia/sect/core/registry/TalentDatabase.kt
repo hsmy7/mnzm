@@ -562,7 +562,11 @@ object TalentDatabase {
 
     fun getNegativeTalents(): List<Talent> = talents.values.filter { it.isNegative }
 
-    fun generateRandomTalents(count: Int, maxRarity: Int = 3): List<Talent> {
+    fun generateRandomTalents(
+        count: Int,
+        maxRarity: Int = 3,
+        random: kotlin.random.Random = kotlin.random.Random
+    ): List<Talent> {
         val result = mutableListOf<Talent>()
         val availableTalents = allTalentsData.values
             .filter { it.rarity <= maxRarity && !it.isNegative && it.type !in DEPRECATED_TALENT_TYPES }
@@ -575,7 +579,7 @@ object TalentDatabase {
             val filteredTalents = availableTalents.filter { it.template !in selectedTemplates }
             if (filteredTalents.isEmpty()) return result
 
-            val selected = pickTalentByDistribution(filteredTalents)
+            val selected = pickTalentByDistribution(filteredTalents, random)
             result.add(selected.toTalent())
             selectedTemplates.add(selected.template)
             availableTalents.removeAll { it.template == selected.template }
@@ -584,14 +588,14 @@ object TalentDatabase {
         return result
     }
 
-    fun generateTalentsForDisciple(): List<Talent> {
+    fun generateTalentsForDisciple(random: kotlin.random.Random = kotlin.random.Random): List<Talent> {
         val result = mutableListOf<Talent>()
         val availableTalents = allTalentsData.values
             .filter { !it.isNegative && it.type !in DEPRECATED_TALENT_TYPES }
             .toMutableList()
         val selectedTemplates = mutableSetOf<String>()
 
-        val talentCount = Random.nextInt(0, 4)  // 0-3 个
+        val talentCount = random.nextInt(0, 4)  // 0-3 个
 
         repeat(talentCount) {
             if (availableTalents.isEmpty()) return@repeat
@@ -599,7 +603,7 @@ object TalentDatabase {
             val filteredTalents = availableTalents.filter { it.template !in selectedTemplates }
             if (filteredTalents.isEmpty()) return@repeat
 
-            val selected = pickTalentByDistribution(filteredTalents)
+            val selected = pickTalentByDistribution(filteredTalents, random)
             result.add(selected.toTalent())
             selectedTemplates.add(selected.template)
             availableTalents.removeAll { it.template == selected.template }
@@ -608,36 +612,39 @@ object TalentDatabase {
         return result
     }
 
-    private fun pickTalentByDistribution(candidates: List<TalentData>): TalentData {
+    private fun pickTalentByDistribution(
+        candidates: List<TalentData>,
+        random: kotlin.random.Random
+    ): TalentData {
         if (candidates.isEmpty()) {
             throw IllegalArgumentException("candidates cannot be empty")
         }
 
         val negativeCandidates = candidates.filter { it.isNegative }
-        if (negativeCandidates.isNotEmpty() && Random.nextDouble() < NEGATIVE_TALENT_CHANCE) {
-            return negativeCandidates.random()
+        if (negativeCandidates.isNotEmpty() && random.nextDouble() < NEGATIVE_TALENT_CHANCE) {
+            return negativeCandidates.random(random)
         }
 
         val positiveCandidates = candidates.filter { !it.isNegative }
         if (positiveCandidates.isEmpty()) {
-            return candidates.random()
+            return candidates.random(random)
         }
 
-        val targetRarity = pickRarityByDistribution()
+        val targetRarity = pickRarityByDistribution(random)
         val exactCandidates = positiveCandidates.filter { it.rarity == targetRarity }
         if (exactCandidates.isNotEmpty()) {
-            return exactCandidates.random()
+            return exactCandidates.random(random)
         }
 
         val fallbackRarity = positiveCandidates.map { it.rarity }.distinct()
             .minWithOrNull(compareBy<Int> { abs(it - targetRarity) }.thenByDescending { it })
             ?: positiveCandidates.first().rarity
 
-        return positiveCandidates.filter { it.rarity == fallbackRarity }.random()
+        return positiveCandidates.filter { it.rarity == fallbackRarity }.random(random)
     }
 
-    private fun pickRarityByDistribution(): Int {
-        val roll = Random.nextDouble()
+    private fun pickRarityByDistribution(random: kotlin.random.Random): Int {
+        val roll = random.nextDouble()
         var cumulative = 0.0
         for ((rarity, probability) in POSITIVE_RARITY_DISTRIBUTION) {
             cumulative += probability

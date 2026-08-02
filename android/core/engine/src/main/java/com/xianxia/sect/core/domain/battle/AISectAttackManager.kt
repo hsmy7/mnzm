@@ -25,6 +25,7 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.engine.ManualProficiencySystem
+import com.xianxia.sect.core.engine.SectCombatPowerCalculator
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.domain.FavorDomain
@@ -369,16 +370,16 @@ object AISectAttackManager {
         if (attacker.allianceId.isNotEmpty() &&
             attacker.allianceId == defender.allianceId) return false
 
-        // 计算战力比
-        val attackerPower = calculatePowerScore(attackerDisciples)
+        // 计算战力比（永久基础属性统一公式，无装备/功法估算项）
+        val attackerPower = SectCombatPowerCalculator.calculateSectPower(attackerDisciples)
         val defenderDisciples = if (defender.isPlayerOccupied) {
             playerGarrisonMap[defender.id] ?: emptyList()
         } else {
             (aiDisciplesMap[defender.id] ?: emptyList()).filter { it.isAlive }
         }
-        val defenderPower = calculatePowerScore(defenderDisciples)
+        val defenderPower = SectCombatPowerCalculator.calculateSectPower(defenderDisciples)
         if (defenderPower <= 0) return false
-        val powerRatio = attackerPower / defenderPower
+        val powerRatio = attackerPower.toDouble() / defenderPower.toDouble()
 
         // 收集历史数据
         val favor = FavorDomain.findFavor(gameData.sectRelations, attacker.id, defender.id)
@@ -405,30 +406,6 @@ object AISectAttackManager {
         )
 
         return aisRng.nextDouble() < chance
-    }
-
-    fun calculatePowerScore(disciples: List<Disciple>): Double {
-        val aliveDisciples = disciples.filter { it.isAlive }
-        if (aliveDisciples.isEmpty()) return 0.0
-
-        val weights = GameConfig.AI.PowerWeights
-        var totalPower = 0.0
-
-        for (disciple in aliveDisciples) {
-            val realmPower = (10 - disciple.realm) * weights.REALM_BASE
-            val maxRarity = GameConfig.Realm.getMaxRarity(disciple.realm)
-            val minRarity = AISectDiscipleManager.getMinRarityByRealm(disciple.realm)
-            val avgEquipmentRarity = (minRarity + maxRarity) / 2.0
-            val avgManualRarity = (minRarity + maxRarity) / 2.0
-            val maxManuals = AISectDiscipleManager.getMaxManualsByRealm(disciple.realm)
-            val equipmentPower = avgEquipmentRarity * 2.0 * weights.EQUIPMENT_RARITY
-            val manualPower = avgManualRarity * (maxManuals / 2.0) * weights.MANUAL_RARITY
-            val talentPower = disciple.talentIds.sumOf { talentId ->
-                TalentDatabase.getById(talentId)?.rarity?.times(weights.TALENT_RARITY) ?: 0.0
-            }
-            totalPower += realmPower + equipmentPower + manualPower + talentPower
-        }
-        return totalPower
     }
 
     fun createAttackTeam(
@@ -521,13 +498,13 @@ object AISectAttackManager {
                 playerSect.allianceId == attacker.allianceId) continue
 
             // ---- 战力计算 ----
-            val attackerPower = calculatePowerScore(aliveAttackers)
+            val attackerPower = SectCombatPowerCalculator.calculateSectPower(aliveAttackers)
             val defenderDisciples = aiDisciplesMap[playerSectId] ?: emptyList()
-            val defenderPower = calculatePowerScore(
+            val defenderPower = SectCombatPowerCalculator.calculateSectPower(
                 defenderDisciples.filter { it.isAlive }
             )
             if (defenderPower <= 0) continue
-            val powerRatio = attackerPower / defenderPower
+            val powerRatio = attackerPower.toDouble() / defenderPower.toDouble()
 
             // ---- 多因素智能综合评估 ----
             val favor = FavorDomain.findFavor(gameData.sectRelations, attacker.id, playerSectId)
@@ -625,7 +602,7 @@ object AISectAttackManager {
                 continue
             }
 
-            val sectPower = calculatePowerScore(aliveSectDisciples)
+            val sectPower = SectCombatPowerCalculator.calculateSectPower(aliveSectDisciples)
             val personality = gameData.aiSectPersonalities[sect.id] ?: AISectPersonality.BALANCED
 
             val hasTarget = gameData.worldMapSects.any { target ->
@@ -639,9 +616,9 @@ object AISectAttackManager {
                 }
                 if (targetDisciples.isEmpty() && !target.isPlayerSect && !target.isPlayerOccupied) return@any false
 
-                val targetPower = calculatePowerScore(targetDisciples)
+                val targetPower = SectCombatPowerCalculator.calculateSectPower(targetDisciples)
                 if (targetPower <= 0) return@any false
-                val powerRatio = sectPower / targetPower
+                val powerRatio = sectPower.toDouble() / targetPower.toDouble()
 
                 // 使用引擎计算概率但不执行 RNG，只要 chance > 0 就算有目标
                 val favor = FavorDomain.findFavor(gameData.sectRelations, sect.id, target.id)
@@ -669,44 +646,20 @@ object AISectAttackManager {
             throw IllegalStateException("ManualDatabase not initialized when converting disciple ${disciple.name} to combatant")
         }
 
-        val battleItems = AISectDiscipleManager.generateBattleItems(disciple)
+        // 读取持久化的装备/功法字段（模板 id → 临时实例映射），不再战前随机生成
+        val equipmentMap = AISectDiscipleManager.buildEquipmentMapForDisciple(disciple)
+        val (manualMap, manualProficiencies) =
+            AISectDiscipleManager.buildManualDataForDisciple(disciple)
 
-        val weaponId = battleItems.equipments.firstOrNull { it.second == EquipmentSlot.WEAPON }?.first ?: ""
-        val armorId = battleItems.equipments.firstOrNull { it.second == EquipmentSlot.ARMOR }?.first ?: ""
-        val bootsId = battleItems.equipments.firstOrNull { it.second == EquipmentSlot.BOOTS }?.first ?: ""
-        val accessoryId = battleItems.equipments.firstOrNull { it.second == EquipmentSlot.ACCESSORY }?.first ?: ""
-
-        // P-2/Q-6：装备映射构建提取（原 4 个逐字相同块统一为槽位循环，行为逐行一致）
-        val equipmentMap = buildEquipmentMap(battleItems)
-
-        // P-2：功法数据构建提取（manualMap + proficiencies）
-        val (manualIds, manualMap, manualProficiencies) = buildManualData(battleItems)
-
-        val battleDisciple = disciple.copy(
-            manualIds = manualIds,
-            manualMasteries = battleItems.manuals.toMap(),
-            equipment = disciple.equipment.copy(
-                weaponId = weaponId,
-                armorId = armorId,
-                bootsId = bootsId,
-                accessoryId = accessoryId,
-                weaponNurture = battleItems.weaponNurture,
-                armorNurture = battleItems.armorNurture,
-                bootsNurture = battleItems.bootsNurture,
-                accessoryNurture = battleItems.accessoryNurture
-            )
-        )
-
-        val stats = battleDisciple.getFinalStats(equipmentMap, manualMap, manualProficiencies)
+        val stats = disciple.getFinalStats(equipmentMap, manualMap, manualProficiencies)
 
         val skills = buildCombatSkills(manualMap, manualProficiencies)
 
         val spiritRootTypes = disciple.spiritRoot.types
         val primaryElement = spiritRootTypes.firstOrNull()?.trim() ?: "metal"
-        val weaponName = battleItems.equipments
-            .firstOrNull { it.second == EquipmentSlot.WEAPON }
-            ?.first
-            ?.let { EquipmentDatabase.getById(it)?.name }
+        val weaponName = disciple.equipment.weaponId
+            .takeIf { it.isNotEmpty() }
+            ?.let { equipmentMap[it]?.name }
 
         // 体质独立乘算因子：从 DiscipleStatCalculator 注入到 Combatant
         val physiqueEffects = DiscipleStatCalculator.getPhysiqueEffects(disciple)
@@ -743,67 +696,6 @@ object AISectAttackManager {
             ),
             affix = affixCombat
         )
-    }
-
-    /**
-     * P-2/Q-6：构建装备实例映射（从模板实例化 + 孕养覆盖）。
-     * 原 convertToCombatant 中 4 个逐字相同的 weapon/armor/boots/accessory 块统一为槽位循环。
-     */
-    private fun buildEquipmentMap(
-        battleItems: AISectDiscipleManager.BattleItems
-    ): Map<String, EquipmentInstance> {
-        val slots = listOf(
-            EquipmentSlot.WEAPON to battleItems.weaponNurture,
-            EquipmentSlot.ARMOR to battleItems.armorNurture,
-            EquipmentSlot.BOOTS to battleItems.bootsNurture,
-            EquipmentSlot.ACCESSORY to battleItems.accessoryNurture
-        )
-        val result = mutableMapOf<String, EquipmentInstance>()
-        for ((slot, nurture) in slots) {
-            val id = battleItems.equipments
-                .firstOrNull { it.second == slot }?.first ?: continue
-            EquipmentDatabase.getById(id)?.let { template ->
-                val eq = EquipmentDatabase.createFromTemplate(template).toInstance(id = id)
-                result[id] = if (nurture.equipmentId == id) {
-                    eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress)
-                } else eq
-            }
-        }
-        return result
-    }
-
-    /**
-     * P-2：构建功法数据（实例映射 + 熟练度条目）。
-     *
-     * @return Triple(manualIds, manualMap, manualProficiencies)
-     */
-    private fun buildManualData(
-        battleItems: AISectDiscipleManager.BattleItems
-    ): Triple<List<String>, Map<String, ManualInstance>, Map<String, ManualProficiencyData>> {
-        val manualIds = battleItems.manuals.map { it.first }
-        val manualMasteries = battleItems.manuals.toMap()
-
-        val manualMap = manualIds.mapNotNull { mId ->
-            ManualDatabase.getById(mId)?.let { template ->
-                mId to ManualDatabase.createFromTemplate(template).toInstance(id = mId)
-            }
-        }.toMap()
-
-        val manualProficiencies = manualIds.associateWith { mId ->
-            val mastery = manualMasteries[mId] ?: 0
-            val manual = ManualDatabase.getById(mId)
-            val masteryLevel = if (manual != null) {
-                ManualProficiencySystem.MasteryLevel.fromProficiency(mastery.toDouble()).level
-            } else 0
-            val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
-            ManualProficiencyData(
-                manualId = mId,
-                proficiency = mastery.toDouble().coerceAtMost(maxProf.toDouble()),
-                maxProficiency = maxProf,
-                masteryLevel = masteryLevel
-            )
-        }
-        return Triple(manualIds, manualMap, manualProficiencies)
     }
 
     /** P-2：构建战斗技能列表（熟练度加成调整伤害倍率）。 */

@@ -6,6 +6,7 @@ import com.xianxia.sect.core.model.DiscipleStats
 import com.xianxia.sect.core.model.Disciple
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SectCombatPowerCalculatorTest {
@@ -115,6 +116,40 @@ class SectCombatPowerCalculatorTest {
         val fp1 = SectCombatPowerCalculator.computeFingerprint(d1.toAggregate())
         val fp2 = SectCombatPowerCalculator.computeFingerprint(d2.toAggregate())
         assertEquals("相同境界/层数的弟子指纹应相同（装备不影响）", fp1, fp2)
+    }
+
+    // ========== 宗门总战力（原 AI calculatePowerScore 迁移） ==========
+
+    @Test
+    fun `calculateSectPower - 空列表返回0`() {
+        assertEquals(0L, SectCombatPowerCalculator.calculateSectPower(emptyList()))
+    }
+
+    @Test
+    fun `calculateSectPower - 高境界弟子战力更高`() {
+        val weak = Disciple(name = "弱", realm = 9, realmLayer = 1)
+        val strong = Disciple(name = "强", realm = 0, realmLayer = 1)
+        val weakPower = SectCombatPowerCalculator.calculateSectPower(listOf(weak))
+        val strongPower = SectCombatPowerCalculator.calculateSectPower(listOf(strong))
+        assertTrue("高境界（realm 小）弟子战力应更高", strongPower > weakPower)
+    }
+
+    @Test
+    fun `calculateSectPower - 仅计算存活弟子`() {
+        val alive = Disciple(name = "活", realm = 0, realmLayer = 1, isAlive = true)
+        val dead = Disciple(name = "死", realm = 0, realmLayer = 1, isAlive = false)
+        val scoreBoth = SectCombatPowerCalculator.calculateSectPower(listOf(alive, dead))
+        val scoreAlive = SectCombatPowerCalculator.calculateSectPower(listOf(alive))
+        assertEquals("死亡弟子不应计入战力", scoreAlive, scoreBoth)
+    }
+
+    @Test
+    fun `calculateSectPower - 总战力等于各弟子之和`() {
+        val d1 = Disciple(name = "A", realm = 5, realmLayer = 3)
+        val d2 = Disciple(name = "B", realm = 6, realmLayer = 2)
+        val sum = SectCombatPowerCalculator.calculateSectPower(listOf(d1)) +
+            SectCombatPowerCalculator.calculateSectPower(listOf(d2))
+        assertEquals(sum, SectCombatPowerCalculator.calculateSectPower(listOf(d1, d2)))
     }
 
     // ========== 妖兽战力测试 ==========

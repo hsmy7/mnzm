@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.domain.diplomacy
 
 import com.xianxia.sect.core.domain.FavorDomain
 import com.xianxia.sect.core.domain.favor.FavorService
+import com.xianxia.sect.core.engine.SectCombatPowerCalculator
 import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
 import com.xianxia.sect.core.event.BattleCompletedEvent
 import com.xianxia.sect.core.event.DomainEvent
@@ -83,12 +84,12 @@ class DiplomacyService @Inject constructor(
         val playerSect = data.worldMapSects.find { it.isPlayerSect } ?: return false
         val playerSectId = playerSect.id
 
-        // 计算双方战力
+        // 计算双方战力（统一永久基础属性公式，无装备/功法估算项）
         val playerPower = calculatePlayerTotalPower()
         val aiSectDisciples = data.aiSectDisciples[sectId] ?: emptyList()
-        val aiPower = AISectAttackManager.calculatePowerScore(aiSectDisciples)
+        val aiPower = SectCombatPowerCalculator.calculateSectPower(aiSectDisciples)
         if (aiPower <= 0) return false
-        val powerRatio = playerPower / aiPower
+        val powerRatio = playerPower.toDouble() / aiPower.toDouble()
 
         // 好感度（转为等级）
         val favor = FavorDomain.findFavor(data.sectRelations, playerSectId, sectId)
@@ -158,10 +159,10 @@ class DiplomacyService @Inject constructor(
         return success
     }
 
-    /** 计算玩家宗门总战力 */
-    private fun calculatePlayerTotalPower(): Double {
+    /** 计算玩家宗门总战力（与 AI 同一公式：永久基础属性，无装备/功法） */
+    private fun calculatePlayerTotalPower(): Long {
         val disciples = discipleTables.assembleAll()
-        return AISectAttackManager.calculatePowerScore(disciples)
+        return SectCombatPowerCalculator.calculateSectPower(disciples)
     }
 
     /**

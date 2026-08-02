@@ -118,12 +118,12 @@ class DiscipleBreakthroughHandler @Inject constructor(
             disciple = disciple.copy(realm = disciple.realm - 1, realmLayer = 1)
         }
         if (disciple.realm != oldRealm) {
-            var lifespanGain = cultivationCore.getLifespanGainForRealm(disciple.realm)
-            val lifespanTalentBonus = TalentDatabase.calculateTalentEffects(disciple.talentIds)["lifespan"] ?: 0.0
-            if (lifespanTalentBonus != 0.0) {
-                lifespanGain += (cultivationCore.getLifespanGainForRealm(disciple.realm) * lifespanTalentBonus).toInt()
-            }
-            disciple = disciple.copy(lifespan = disciple.lifespan + lifespanGain)
+            disciple = disciple.copy(
+                lifespan = disciple.lifespan +
+                    DiscipleStatCalculator.calculateBreakthroughLifespanGain(
+                        disciple.realm, disciple.talentIds
+                    )
+            )
         }
         return disciple
     }
@@ -134,8 +134,10 @@ class DiscipleBreakthroughHandler @Inject constructor(
         return d.copy(
             cultivation = 0.0,
             combat = d.combat.copy(
-                currentHp = (curHp * FAILURE_HP_MP_RATIO).toInt().coerceAtLeast(1),
-                currentMp = (curMp * FAILURE_HP_MP_RATIO).toInt().coerceAtLeast(1)
+                currentHp = (curHp * DiscipleStatCalculator.BREAKTHROUGH_FAILURE_HP_MP_RATIO)
+                    .toInt().coerceAtLeast(1),
+                currentMp = (curMp * DiscipleStatCalculator.BREAKTHROUGH_FAILURE_HP_MP_RATIO)
+                    .toInt().coerceAtLeast(1)
             )
         )
     }
@@ -309,6 +311,5 @@ class DiscipleBreakthroughHandler @Inject constructor(
 
     companion object {
         private const val TAG = "DiscipleBreakthroughHandler"
-        private const val FAILURE_HP_MP_RATIO = 0.1
     }
 }

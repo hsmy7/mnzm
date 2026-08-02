@@ -197,7 +197,7 @@ class VassalService @Inject constructor(
         }
 
         val chance = calculateVassalChance(
-            playerPower, aiPower,
+            playerPower.toDouble(), aiPower.toDouble(),
             conquestCount, lostSectCount,
             battleWinCount, battleLossCount, favor
         )
@@ -316,7 +316,7 @@ class VassalService @Inject constructor(
 
         for (contract in contracts) {
             if (checkSingleVassalBreakaway(
-                contract, data, playerPower, playerSect,
+                contract, data, playerPower.toDouble(), playerSect,
                 conquests, losses, battleWins, battleLosses
             )) {
                 removedIds.add(contract.vassalSectId)
@@ -357,10 +357,10 @@ class VassalService @Inject constructor(
 
         // 使用传入的 data 快照计算 AI 战力，保持与快照一致
         val aiDisciples = data.aiSectDisciples[contract.vassalSectId] ?: emptyList()
-        val aiPower = AISectAttackManager.calculatePowerScore(aiDisciples)
+        val aiPower = SectCombatPowerCalculator.calculateSectPower(aiDisciples)
         if (aiPower <= 0) return false
 
-        val powerRatio = playerPower / aiPower
+        val powerRatio = playerPower / aiPower.toDouble()
 
         // 委托共享引擎计算脱离概率
         val breakawayFavor = computeBreakawayFavor(data.sectRelations, playerSect.id, contract.vassalSectId)
@@ -397,23 +397,23 @@ class VassalService @Inject constructor(
     // 私有辅助方法
     // ═══════════════════════════
 
-    /** 计算玩家宗门总战力 */
-    private fun computePlayerTotalPower(): Double {
+    /** 计算玩家宗门总战力（统一永久基础属性公式，无装备/功法估算项） */
+    private fun computePlayerTotalPower(): Long {
         val disciples = stateStore.discipleTables.assembleAll()
-        return AISectAttackManager.calculatePowerScore(disciples)
+        return SectCombatPowerCalculator.calculateSectPower(disciples)
     }
 
     /** 计算玩家宗门总战力（MutableGameState 重载，使用事务内数据） */
-    private fun computePlayerTotalPower(tables: DiscipleTables): Double {
+    private fun computePlayerTotalPower(tables: DiscipleTables): Long {
         val disciples = tables.assembleAll()
-        return AISectAttackManager.calculatePowerScore(disciples)
+        return SectCombatPowerCalculator.calculateSectPower(disciples)
     }
 
     /** 计算AI宗门总战力 */
-    private fun computeAITotalPower(sectId: String): Double {
+    private fun computeAITotalPower(sectId: String): Long {
         val data = stateStore.gameData.value
         val aiDisciples = data.aiSectDisciples[sectId]
             ?: emptyList()
-        return AISectAttackManager.calculatePowerScore(aiDisciples)
+        return SectCombatPowerCalculator.calculateSectPower(aiDisciples)
     }
 }

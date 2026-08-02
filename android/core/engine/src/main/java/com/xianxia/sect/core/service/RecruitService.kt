@@ -4,6 +4,7 @@ import kotlin.math.roundToInt
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.materializeCaptiveGear
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.util.SpiritRootGenerator
@@ -129,6 +130,8 @@ class RecruitService @Inject constructor(
                         .also { it.lifeEvents = listOf("${disciple.age}岁：加入宗门") }
                 )
                 if (newId.isNotEmpty()) {
+                    // 俘虏自带装备/功法落库为玩家实例（幂等）
+                    state.materializeCaptiveGear(disciple, newId)
                     recruited++
                 }
             }

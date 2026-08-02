@@ -1,9 +1,6 @@
 package com.xianxia.sect.core.engine.domain.battle
 
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.registry.TalentDatabase
-import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
@@ -12,39 +9,6 @@ import com.xianxia.sect.core.util.RngPartition
 var teamComposerRngManager: GameRngManager? = null
 private val teamComposerRng: DeterministicRng
     get() = (teamComposerRngManager ?: error("TeamComposer RNG not initialized")).getRng(RngPartition.BATTLE)
-
-/**
- * AI 宗门战力评分 — 基于境界、装备、功法、天赋综合计算。
- */
-internal fun calculatePowerScore(disciples: List<Disciple>): Double {
-    val aliveDisciples = disciples.filter { it.isAlive }
-    if (aliveDisciples.isEmpty()) return 0.0
-
-    val weights = GameConfig.AI.PowerWeights
-    var totalPower = 0.0
-
-    for (disciple in aliveDisciples) {
-        val realmPower = (10 - disciple.realm) * weights.REALM_BASE
-
-        val maxRarity = GameConfig.Realm.getMaxRarity(disciple.realm)
-        val minRarity = AISectDiscipleManager.getMinRarityByRealm(disciple.realm)
-        val avgEquipmentRarity = (minRarity + maxRarity) / 2.0
-        val avgManualRarity = (minRarity + maxRarity) / 2.0
-        val maxManuals = AISectDiscipleManager.getMaxManualsByRealm(disciple.realm)
-
-        val equipmentPower = avgEquipmentRarity * 2.0 * weights.EQUIPMENT_RARITY
-        val manualPower = avgManualRarity * (maxManuals / 2.0) * weights.MANUAL_RARITY
-
-        val talentPower = disciple.talentIds.sumOf { talentId ->
-            TalentDatabase.getById(talentId)?.rarity?.times(weights.TALENT_RARITY) ?: 0.0
-        }
-
-        val individualPower = realmPower + equipmentPower + manualPower + talentPower
-        totalPower += individualPower
-    }
-
-    return totalPower
-}
 
 /**
  * 创建进攻队伍 — 按境界排序，选取战斗力最低的 N 个弟子。

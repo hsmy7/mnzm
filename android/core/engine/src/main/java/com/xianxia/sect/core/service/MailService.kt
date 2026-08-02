@@ -795,6 +795,8 @@ class MailService @Inject constructor(
      * @param slotId 目标存档槽位
      * @return true=成功注入, false=跳过
      */
+    // 三道独立保护守卫均为提前返回（白名单/已领取/已存在），守卫式出口为惯用法
+    @Suppress("ReturnCount")
     suspend fun injectWhitelistBonus(slotId: Int): Boolean {
         // 保护1：白名单检查
         if (!AdFreeWhitelist.isCurrentUserPrivileged()) {

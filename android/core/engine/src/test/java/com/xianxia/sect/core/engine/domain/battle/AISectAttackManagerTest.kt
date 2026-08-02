@@ -89,32 +89,6 @@ class AISectAttackManagerTest {
         assertEquals(listOf(0, 1, 2), team.map { it.realm })
     }
 
-    // ── 战力计算 ──
-
-    @Test
-    fun `calculatePowerScore - 空列表返回0`() {
-        assertEquals(0.0, AISectAttackManager.calculatePowerScore(emptyList()), 0.0)
-    }
-
-    @Test
-    fun `calculatePowerScore - 高境界弟子战力更高`() {
-        val weak = listOf(makeDisciple("d1", realm = 9))
-        val strong = listOf(makeDisciple("d1", realm = 0))
-        assertTrue(
-            AISectAttackManager.calculatePowerScore(strong) >
-            AISectAttackManager.calculatePowerScore(weak)
-        )
-    }
-
-    @Test
-    fun `calculatePowerScore - 仅计算存活弟子`() {
-        val alive = makeDisciple("d1", realm = 0, isAlive = true)
-        val dead = makeDisciple("d2", realm = 0, isAlive = false)
-        val scoreBoth = AISectAttackManager.calculatePowerScore(listOf(alive, dead))
-        val scoreAlive = AISectAttackManager.calculatePowerScore(listOf(alive))
-        assertEquals(scoreAlive, scoreBoth, 0.01)
-    }
-
     // ── 辅助方法 ──
 
     @Test

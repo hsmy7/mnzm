@@ -860,16 +860,6 @@ object GameConfig {
         const val POWER_RATIO_THRESHOLD = 0.8
         const val TEAM_SIZE = 10
         const val MAX_BATTLE_TURNS = 200
-        
-        object PowerWeights {
-            const val REALM_BASE = 100.0
-            const val EQUIPMENT_RARITY = 20.0
-            const val EQUIPMENT_LEVEL = 5.0
-            const val MANUAL_RARITY = 15.0
-            const val MANUAL_LEVEL = 3.0
-            const val MANUAL_MASTERY = 0.5
-            const val TALENT_RARITY = 10.0
-        }
     }
     
     object SectMap {

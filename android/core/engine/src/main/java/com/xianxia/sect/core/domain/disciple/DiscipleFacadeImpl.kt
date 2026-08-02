@@ -244,6 +244,8 @@ class DiscipleFacadeImpl @Inject constructor(
                     val events = discipleTables.lifeEvents.getOrDefault(intId, emptyList())
                     discipleTables.lifeEvents[intId] = events + "${disciple.age}岁：加入宗门"
                 }
+                // 俘虏自带装备/功法落库为玩家实例（幂等；普通招募弟子无装备/功法字段，直接跳过）
+                materializeCaptiveGear(recruitedDisciple, newId)
             }
             DomainLog.i(TAG, "recruitDiscipleFromList: recruited $discipleId → id=$newId")
             // 招募成功后同步移除同内容双胞胎（防"完全相同弟子"重复招募）
