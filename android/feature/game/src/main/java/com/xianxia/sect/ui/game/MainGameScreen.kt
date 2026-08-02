@@ -32,6 +32,7 @@ import com.xianxia.sect.ui.components.LocalItemSpriteCache
 import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.ui.components.clickableWithSound
 import com.xianxia.sect.ui.components.SpriteResRegistry
+import com.xianxia.sect.ui.components.GameButton
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -1038,7 +1039,7 @@ fun MainGameScreen(
             }
         }
 
-        // 建造栏 — 开关式，展开时显示
+        // 建造栏 — 开关式，展开时显示；拆除模式按钮位于建造栏外部上方最右侧（间距 2dp）
         if (buildingBarExpanded && isUiVisible) {
             val currentSectLevel by viewModel.playerSectLevel.collectAsStateWithLifecycle()
             val constructionBarList = remember {
@@ -1047,76 +1048,93 @@ fun MainGameScreen(
             val buildingCosts = remember {
                 constructionBarList.associate { (name, _) -> name to viewModel.getBuildingCost(name) }
             }
-            BuildingConstructionBar(
-                buildingList = constructionBarList,
-                placedBuildings = activeSectBuildings,
-                buildingCosts = buildingCosts,
-                spiritStones = gameData.spiritStones,
-                currentSectLevel = currentSectLevel,
-                onSelectBuildingLevelRequirement = { name ->
-                    viewModel.navigateToDialog(DialogType.BuildingSectLevelRequirement(name))
-                },
-                onSelectBuilding = { name ->
-                    val size = buildingSizes[name] ?: GridSnapHelper.BuildingSize(2, 3)
-                    isPlacingBuilding = true
-                    placingBuildingName = name
-                    placingBuildingSize = size
-                    placingWorldX = cameraState.screenToWorldX(screenWidthPx / 2f) - size.width * tileSize / 2f
-                    placingWorldY = cameraState.screenToWorldY(screenHeightPx / 2f) - size.height * tileSize / 2f
-                    placingSnappedGridX = GridSnapHelper.worldToGrid(placingWorldX, tileSize)
-                    placingSnappedGridY = GridSnapHelper.worldToGrid(placingWorldY, tileSize)
-                    placementValidity = gridSystem.validatePlacement(
-                        placingSnappedGridX, placingSnappedGridY,
-                        size.width, size.height
-                    )
-                },
-                onEnterDemolishMode = {
-                    isDemolishMode = true
-                    buildingBarExpanded = false
-                    isPlacingBuilding = false
-                    placingBuildingName = ""
-                    movingBuilding = null
-                    goldFingerState = GoldFingerState()
-                },
-                modifier = Modifier.align(Alignment.BottomCenter),
-                getBuildingMaxCount = { name ->
-                    when {
-                        BuildingFeatureRegistry.isResidence(name) || BuildingFeatureRegistry.hasNoLimit(name) -> Int.MAX_VALUE
-                        else -> 1
-                    }
-                },
-                getBuildingCount = { name ->
-                    if (BuildingFeatureRegistry.isGloballyUnique(name)) {
-                        gameData.placedBuildings.count { it.displayName == name }
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+            ) {
+                // 按钮行：建造栏外部上方最右侧；拆除模式显示 取消+确认，否则显示 一键拆除
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(end = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Spacer(modifier = Modifier.weight(1f))
+                    if (isDemolishMode) {
+                        GameButton(
+                            text = "取消拆除",
+                            onClick = {
+                                isDemolishMode = false
+                                demolishSelectedIds = emptySet()
+                            }
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        GameButton(
+                            text = "确认拆除",
+                            enabled = demolishSelectedIds.isNotEmpty(),
+                            onClick = {
+                                viewModel.demolishBuildings(demolishSelectedIds.toList())
+                                isDemolishMode = false
+                                demolishSelectedIds = emptySet()
+                            }
+                        )
                     } else {
-                        activeSectBuildings.count { it.displayName == name }
+                        GameButton(
+                            text = "一键拆除",
+                            onClick = {
+                                isDemolishMode = true
+                                demolishSelectedIds = emptySet()
+                                isPlacingBuilding = false
+                                placingBuildingName = ""
+                                movingBuilding = null
+                                goldFingerState = GoldFingerState()
+                            }
+                        )
                     }
                 }
-            )
-        }
-
-        // 拆除模式工具栏 — 取消拆除 / 选中统计 / 确认拆除（与建造栏同位置）
-        if (isDemolishMode) {
-            val selectedBuildings = activeSectBuildings.filter {
-                it.instanceId in demolishSelectedIds
+                Spacer(modifier = Modifier.height(2.dp)) // 与建造栏距离 2dp
+                BuildingConstructionBar(
+                    buildingList = constructionBarList,
+                    placedBuildings = activeSectBuildings,
+                    buildingCosts = buildingCosts,
+                    spiritStones = gameData.spiritStones,
+                    currentSectLevel = currentSectLevel,
+                    onSelectBuildingLevelRequirement = { name ->
+                        viewModel.navigateToDialog(DialogType.BuildingSectLevelRequirement(name))
+                    },
+                    onSelectBuilding = { name ->
+                        // 拆除模式下点击建造卡片不进入放置模式
+                        if (!isDemolishMode) {
+                            val size = buildingSizes[name] ?: GridSnapHelper.BuildingSize(2, 3)
+                            isPlacingBuilding = true
+                            placingBuildingName = name
+                            placingBuildingSize = size
+                            placingWorldX = cameraState.screenToWorldX(screenWidthPx / 2f) - size.width * tileSize / 2f
+                            placingWorldY = cameraState.screenToWorldY(screenHeightPx / 2f) - size.height * tileSize / 2f
+                            placingSnappedGridX = GridSnapHelper.worldToGrid(placingWorldX, tileSize)
+                            placingSnappedGridY = GridSnapHelper.worldToGrid(placingWorldY, tileSize)
+                            placementValidity = gridSystem.validatePlacement(
+                                placingSnappedGridX, placingSnappedGridY,
+                                size.width, size.height
+                            )
+                        }
+                    },
+                    getBuildingMaxCount = { name ->
+                        when {
+                            BuildingFeatureRegistry.isResidence(name) || BuildingFeatureRegistry.hasNoLimit(name) -> Int.MAX_VALUE
+                            else -> 1
+                        }
+                    },
+                    getBuildingCount = { name ->
+                        if (BuildingFeatureRegistry.isGloballyUnique(name)) {
+                            gameData.placedBuildings.count { it.displayName == name }
+                        } else {
+                            activeSectBuildings.count { it.displayName == name }
+                        }
+                    }
+                )
             }
-            val refundEstimate = selectedBuildings.sumOf {
-                viewModel.getBuildingCost(it.displayName) / 2
-            }
-            DemolishModeBar(
-                selectedCount = selectedBuildings.size,
-                refundEstimate = refundEstimate,
-                onCancel = {
-                    isDemolishMode = false
-                    demolishSelectedIds = emptySet()
-                },
-                onConfirm = {
-                    viewModel.demolishBuildings(demolishSelectedIds.toList())
-                    isDemolishMode = false
-                    demolishSelectedIds = emptySet()
-                },
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
         }
 
         // Dialog overlay — extracted to GameOverlayHost

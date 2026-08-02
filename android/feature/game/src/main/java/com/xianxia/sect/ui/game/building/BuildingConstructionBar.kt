@@ -31,7 +31,6 @@ import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
-import com.xianxia.sect.ui.game.components.FloatingActionButton
 
 @Composable
 fun BuildingConstructionBar(
@@ -46,9 +45,7 @@ fun BuildingConstructionBar(
     /** 当前宗门等级（SectLevel 常量），用于检测中级建筑等级限制 */
     currentSectLevel: Int = 0,
     /** 等级不足时的回调，在中级建筑被点击时触发 */
-    onSelectBuildingLevelRequirement: ((String) -> Unit)? = null,
-    /** 一键拆除入口：非空时在建造栏右上方显示"一键拆除"按钮 */
-    onEnterDemolishMode: (() -> Unit)? = null
+    onSelectBuildingLevelRequirement: ((String) -> Unit)? = null
 ) {
     Box(modifier = modifier.fillMaxWidth()) {
         Image(
@@ -61,7 +58,7 @@ fun BuildingConstructionBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(start = 8.dp, top = 6.dp, bottom = 6.dp, end = 44.dp),
+                .padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             buildingList.forEach { (name, _) ->
@@ -129,17 +126,6 @@ fun BuildingConstructionBar(
                     }
                 }
             }
-        }
-
-        // 一键拆除按钮 — 固定于建造栏右上方（横滑 Row 之外，不随内容滚动）
-        if (onEnterDemolishMode != null) {
-            FloatingActionButton(
-                text = "一键拆除",
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 4.dp, end = 6.dp),
-                onClick = onEnterDemolishMode
-            )
         }
     }
 }
