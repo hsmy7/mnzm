@@ -16,7 +16,6 @@ set(SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shaders)
 
 # 主库
 add_library(native-renderer SHARED
-    Renderer2D.cpp
     VulkanBackend.cpp
     SpriteBatcher.cpp
     TextureAtlas.cpp

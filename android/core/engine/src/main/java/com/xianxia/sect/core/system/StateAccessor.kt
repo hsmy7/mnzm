@@ -44,7 +44,7 @@ class StateAccessorFactory(
         stateStore, scope, dispatcher,
         stateGetter = { it?.gameData },
         stateSetter = { s, v -> s.gameData = v },
-        fallbackGetter = { stateStore.unifiedState.value.gameData }
+        fallbackGetter = { stateStore.gameData.value }
     )
 
     fun disciples(): StateAccessor<List<Disciple>> = StateAccessor(
@@ -60,7 +60,7 @@ class StateAccessorFactory(
         stateSetter = { s, v ->
             s.discipleTables.replaceAll(v)
         },
-        fallbackGetter = { stateStore.unifiedState.value.disciples }
+        fallbackGetter = { stateStore.disciples.value }
     )
 
     fun equipmentStacks(): StateAccessor<List<EquipmentStack>> = StateAccessor(
@@ -151,7 +151,7 @@ class StateAccessorFactory(
         stateStore, scope, dispatcher,
         stateGetter = { it?.teams },
         stateSetter = { s, v -> s.teams = v },
-        fallbackGetter = { stateStore.unifiedState.value.teams }
+        fallbackGetter = { stateStore.teams.value }
     )
 
     fun battleLogs(): StateAccessor<List<BattleLog>> = StateAccessor(

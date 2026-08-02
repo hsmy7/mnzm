@@ -118,153 +118,195 @@ object SecureKeyManager {
         if (!checkFileSystemHealth(context)) {
             throw KeyFileSystemException("File system is not healthy or accessible")
         }
-        
+
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val keyFile = File(context.filesDir, KEY_FILE_NAME)
         val backupFile = File(context.filesDir, BACKUP_FILE_NAME)
-        
-        if (keyFile.exists()) {
-            try {
-                val readResult = readKeyFileSafely(context, keyFile)
-                when (readResult) {
-                    is KeyReadResult.Success -> {
-                        val deviceSecret = getDeviceSecret(context)
-                        val decryptedKey = decryptKey(readResult.data, deviceSecret)
-                        
-                        val storedHash = prefs.getString(KEY_PREF_KEY, null)
-                        if (storedHash != null) {
-                            val currentHash = MessageDigest.getInstance("SHA-256").digest(decryptedKey)
-                                .joinToString("") { "%02x".format(it) }
-                            if (currentHash != storedHash) {
-                                Log.w(TAG, "Key hash mismatch, attempting recovery from backup")
-                                return tryRecoverFromBackup(context, backupFile, prefs)
-                                    ?: throw KeyIntegrityException(
-                                        "Key integrity verification failed. " +
-                                        "This may indicate data corruption or tampering."
-                                    )
-                            }
-                        }
-                        
-                        return decryptedKey
-                    }
-                    is KeyReadResult.FileNotFound -> {
-                        Log.w(TAG, "Key file reported as existing but could not be found")
-                    }
-                    is KeyReadResult.PermissionDenied -> {
-                        Log.w(TAG, "Permission denied reading key file, attempting backup recovery")
-                        val recoveredKey = tryRecoverFromBackup(context, backupFile, prefs)
-                        if (recoveredKey != null) {
-                            return recoveredKey
-                        }
-                        throw KeyPermissionException("Permission denied accessing key file and no backup available")
-                    }
-                    is KeyReadResult.Error -> {
-                        Log.w(TAG, "Error reading key file: ${readResult.exception.message}", readResult.exception)
-                    }
-                }
-                
+
+        // P-2 拆分：读现有密钥 + 校验 + 备份恢复提取
+        val existingKey = readExistingKeyOrRecover(context, prefs, keyFile, backupFile)
+        if (existingKey != null) {
+            return existingKey
+        }
+
+        // 行为保持（原 260-268）：密钥文件不存在 → 备份恢复/直接生成（不经过预警）
+        if (!keyFile.exists()) {
+            if (backupFile.exists()) {
+                Log.i(TAG, "Key file missing but backup exists, attempting recovery")
                 val recoveredKey = tryRecoverFromBackup(context, backupFile, prefs)
                 if (recoveredKey != null) {
                     return recoveredKey
                 }
-                throw KeyIntegrityException(
-                    "Failed to read key file and no valid backup found."
-                )
-            } catch (e: javax.crypto.AEADBadTagException) {
-                Log.w(TAG, "Key decryption failed (AEADBadTagException), device secret may have changed", e)
-            } catch (e: java.security.InvalidKeyException) {
-                Log.w(TAG, "Key decryption failed (InvalidKeyException), key material invalid", e)
-            } catch (e: IllegalArgumentException) {
-                Log.w(TAG, "Key data appears corrupted or truncated", e)
-            } catch (e: KeyIntegrityException) {
-                throw e
-            } catch (e: KeyPermissionException) {
-                throw e
-            } catch (e: KeyFileSystemException) {
-                throw e
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to read existing key, attempting recovery from backup", e)
+            }
+            return generateNewKey(context, prefs, keyFile, backupFile)
+        }
+
+        // 密钥文件存在但不可恢复 → 丢失预警 + 用户决策（原 193-257）
+        return handleKeyLossAndRegenerate(context, prefs, keyFile, backupFile)
+    }
+
+    /**
+     * P-2：读取现有密钥文件（含完整性校验），失败时尝试备份恢复。
+     *
+     * @return 有效密钥；密钥文件不存在或不可恢复时返回 null
+     */
+    private fun readExistingKeyOrRecover(
+        context: Context,
+        prefs: android.content.SharedPreferences,
+        keyFile: File,
+        backupFile: File
+    ): ByteArray? {
+        if (!keyFile.exists()) {
+            // 密钥文件缺失但备份存在：尝试备份恢复
+            if (backupFile.exists()) {
+                Log.i(TAG, "Key file missing but backup exists, attempting recovery")
+                val recoveredKey = tryRecoverFromBackup(context, backupFile, prefs)
+                if (recoveredKey != null) {
+                    return recoveredKey
+                }
+            }
+            return null
+        }
+        try {
+            val readResult = readKeyFileSafely(context, keyFile)
+            when (readResult) {
+                is KeyReadResult.Success -> {
+                    val deviceSecret = getDeviceSecret(context)
+                    val decryptedKey = decryptKey(readResult.data, deviceSecret)
+
+                    val storedHash = prefs.getString(KEY_PREF_KEY, null)
+                    if (storedHash != null) {
+                        val currentHash = MessageDigest.getInstance("SHA-256").digest(decryptedKey)
+                            .joinToString("") { "%02x".format(it) }
+                        if (currentHash != storedHash) {
+                            Log.w(TAG, "Key hash mismatch, attempting recovery from backup")
+                            return tryRecoverFromBackup(context, backupFile, prefs)
+                                ?: throw KeyIntegrityException(
+                                    "Key integrity verification failed. " +
+                                    "This may indicate data corruption or tampering."
+                                )
+                        }
+                    }
+
+                    return decryptedKey
+                }
+                is KeyReadResult.FileNotFound -> {
+                    Log.w(TAG, "Key file reported as existing but could not be found")
+                }
+                is KeyReadResult.PermissionDenied -> {
+                    Log.w(TAG, "Permission denied reading key file, attempting backup recovery")
+                    val recoveredKey = tryRecoverFromBackup(context, backupFile, prefs)
+                    if (recoveredKey != null) {
+                        return recoveredKey
+                    }
+                    throw KeyPermissionException("Permission denied accessing key file and no backup available")
+                }
+                is KeyReadResult.Error -> {
+                    Log.w(TAG, "Error reading key file: ${readResult.exception.message}", readResult.exception)
+                }
             }
 
             val recoveredKey = tryRecoverFromBackup(context, backupFile, prefs)
             if (recoveredKey != null) {
-                return recoveredKey }
-            
-            // ========== 密钥丢失预警机制 ==========
-            // 原问题：此处直接调用 generateNewKey() 会导致所有旧存档永久丢失，且无任何用户确认。
-            // 修复方案：通过 recoveryCallback 让用户/调用方决策是否允许生成新密钥。
-            val lossReason = "Both key file and backup are unrecoverable. " +
-                    "keyFile exists=${keyFile.exists()}, backupFile exists=${backupFile.exists()}. " +
-                    "WARNING: Generating a new key will permanently lose access to all existing save data."
-            
-            Log.e(TAG, "[KEY LOSS WARNING] $lossReason")
-            
-            // 检查是否有注册的恢复回调
-            val callback = recoveryCallback
-            if (callback != null) {
-                // 有回调：交由用户决策
-                Log.i(TAG, "KeyRecoveryCallback registered, requesting user decision")
-                val decision = callback.onKeyRecoveryRequired(lossReason)
-                
-                when (decision) {
-                    KeyRecoveryDecision.IMPORT_TOKEN -> {
-                        // 用户选择导入 token，抛出异常提示上层处理导入流程
-                        throw KeyIntegrityException(
-                            "User chose to import recovery token. " +
-                            "Call importKeyRecoveryToken() with user-provided token, then retry."
-                        )
-                    }
-                    KeyRecoveryDecision.GENERATE_NEW_KEY -> {
-                        // 用户明确确认生成新密钥（已知旧存档将丢失）
-                        Log.w(TAG, "[USER CONFIRMED] User explicitly confirmed key regeneration. Old saves will be permanently lost.")
-                    }
-                    KeyRecoveryDecision.RETRY -> {
-                        // 用户选择重试，再次尝试从备份恢复
-                        Log.i(TAG, "User requested retry, attempting backup recovery again")
-                        val retryKey = tryRecoverFromBackup(context, backupFile, prefs)
-                        if (retryKey != null) {
-                            return retryKey
-                        }
-                        // 重试仍失败，继续走生成新密钥流程（但已记录警告）
-                        Log.w(TAG, "Retry failed, proceeding with key generation after user acknowledgment")
-                    }
-                    KeyRecoveryDecision.CANCEL -> {
-                        // 用户取消操作，阻止自动恢复
-                        throw KeyIntegrityException(
-                            "Operation cancelled by user. Key recovery aborted to protect existing data."
-                        )
-                    }
-                }
-                // 决策为 GENERATE_NEW_KEY 或 RETRY 失败后的兜底：继续执行生成新密钥
-            } else {
-                if (!allowAutoRecovery) {
-                    throw KeyIntegrityException(
-                        "No KeyRecoveryCallback registered and auto-recovery is disabled. " +
-                        "Register a callback via SecureKeyManager.recoveryCallback, or enable " +
-                        "auto-recovery with SecureKeyManager.allowAutoRecovery = true (not recommended)."
-                    )
-                }
-                Log.w(TAG,
-                    "[BACKWARD COMPATIBILITY] Auto-recovery explicitly enabled. " +
-                    "OLD SAVES WILL BE LOST.")
-            }
-            
-            // 二次确认日志：在真正执行生成新密钥前再次记录
-            Log.w(TAG, "[FINAL CONFIRMATION] Executing generateNewKey(). This action is irreversible.")
-            
-            if (keyFile.exists()) keyFile.delete()
-            if (backupFile.exists()) backupFile.delete()
-            return generateNewKey(context, prefs, keyFile, backupFile)
-        }
-        
-        if (backupFile.exists()) {
-            Log.i(TAG, "Key file missing but backup exists, attempting recovery")
-            val recoveredKey = tryRecoverFromBackup(context, backupFile, prefs)
-            if (recoveredKey != null) {
                 return recoveredKey
             }
+            throw KeyIntegrityException(
+                "Failed to read key file and no valid backup found."
+            )
+        } catch (e: javax.crypto.AEADBadTagException) {
+            Log.w(TAG, "Key decryption failed (AEADBadTagException), device secret may have changed", e)
+        } catch (e: java.security.InvalidKeyException) {
+            Log.w(TAG, "Key decryption failed (InvalidKeyException), key material invalid", e)
+        } catch (e: IllegalArgumentException) {
+            Log.w(TAG, "Key data appears corrupted or truncated", e)
+        } catch (e: KeyIntegrityException) {
+            throw e
+        } catch (e: KeyPermissionException) {
+            throw e
+        } catch (e: KeyFileSystemException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to read existing key, attempting recovery from backup", e)
         }
-        
+
+        val recoveredKey = tryRecoverFromBackup(context, backupFile, prefs)
+        return recoveredKey
+    }
+
+    /**
+     * P-2：密钥丢失预警 + 用户/回调决策 + 生成新密钥。
+     *
+     * 原问题：直接 generateNewKey() 会导致所有旧存档永久丢失且无用户确认。
+     * 修复方案：通过 recoveryCallback 让用户/调用方决策是否允许生成新密钥。
+     */
+    private fun handleKeyLossAndRegenerate(
+        context: Context,
+        prefs: android.content.SharedPreferences,
+        keyFile: File,
+        backupFile: File
+    ): ByteArray {
+        // ========== 密钥丢失预警机制 ==========
+        val lossReason = "Both key file and backup are unrecoverable. " +
+                "keyFile exists=${keyFile.exists()}, backupFile exists=${backupFile.exists()}. " +
+                "WARNING: Generating a new key will permanently lose access to all existing save data."
+
+        Log.e(TAG, "[KEY LOSS WARNING] $lossReason")
+
+        // 检查是否有注册的恢复回调
+        val callback = recoveryCallback
+        if (callback != null) {
+            // 有回调：交由用户决策
+            Log.i(TAG, "KeyRecoveryCallback registered, requesting user decision")
+            val decision = callback.onKeyRecoveryRequired(lossReason)
+
+            when (decision) {
+                KeyRecoveryDecision.IMPORT_TOKEN -> {
+                    // 用户选择导入 token，抛出异常提示上层处理导入流程
+                    throw KeyIntegrityException(
+                        "User chose to import recovery token. " +
+                        "Call importKeyRecoveryToken() with user-provided token, then retry."
+                    )
+                }
+                KeyRecoveryDecision.GENERATE_NEW_KEY -> {
+                    // 用户明确确认生成新密钥（已知旧存档将丢失）
+                    Log.w(TAG, "[USER CONFIRMED] User explicitly confirmed key regeneration. Old saves will be permanently lost.")
+                }
+                KeyRecoveryDecision.RETRY -> {
+                    // 用户选择重试，再次尝试从备份恢复
+                    Log.i(TAG, "User requested retry, attempting backup recovery again")
+                    val retryKey = tryRecoverFromBackup(context, backupFile, prefs)
+                    if (retryKey != null) {
+                        return retryKey
+                    }
+                    // 重试仍失败，继续走生成新密钥流程（但已记录警告）
+                    Log.w(TAG, "Retry failed, proceeding with key generation after user acknowledgment")
+                }
+                KeyRecoveryDecision.CANCEL -> {
+                    // 用户取消操作，阻止自动恢复
+                    throw KeyIntegrityException(
+                        "Operation cancelled by user. Key recovery aborted to protect existing data."
+                    )
+                }
+            }
+            // 决策为 GENERATE_NEW_KEY 或 RETRY 失败后的兜底：继续执行生成新密钥
+        } else {
+            if (!allowAutoRecovery) {
+                throw KeyIntegrityException(
+                    "No KeyRecoveryCallback registered and auto-recovery is disabled. " +
+                    "Register a callback via SecureKeyManager.recoveryCallback, or enable " +
+                    "auto-recovery with SecureKeyManager.allowAutoRecovery = true (not recommended)."
+                )
+            }
+            Log.w(TAG,
+                "[BACKWARD COMPATIBILITY] Auto-recovery explicitly enabled. " +
+                "OLD SAVES WILL BE LOST.")
+        }
+
+        // 二次确认日志：在真正执行生成新密钥前再次记录
+        Log.w(TAG, "[FINAL CONFIRMATION] Executing generateNewKey(). This action is irreversible.")
+
+        if (keyFile.exists()) keyFile.delete()
+        if (backupFile.exists()) backupFile.delete()
         return generateNewKey(context, prefs, keyFile, backupFile)
     }
     

@@ -80,6 +80,13 @@ interface GameStateStore : GameStateSnapshotProvider {
     val highFreqState: StateFlow<HighFreqState>
     val entityState: StateFlow<EntityState>
     val configState: StateFlow<ConfigState>
+
+    /**
+     * @deprecated P-8：20Hz 锁竞争采样管道已由各独立窄流替代（isPaused/isLoading/
+     *   isSaving/gameData/entityState/highFreqState 等）。新代码禁止订阅本流——
+     *   订阅会激活 WhileSubscribed 管道造成每 50ms 一次锁获取。待全部消费方清零后删除。
+     */
+    @Deprecated("Use dedicated narrow StateFlows (isPaused/isLoading/gameData/...). Will be removed.")
     val unifiedState: StateFlow<UnifiedGameState>
 
     // === 聚合状态 ===
@@ -189,10 +196,6 @@ interface GameStateStore : GameStateSnapshotProvider {
     /** 设置运行状态为 LOADING（启动任务开始）。 */
     fun setLoading() {}
 
-    // === 生命周期状态（旧 API，兼容层） ===
-    @Deprecated("Use bootPhase/runState instead. Will be removed in next major version.")
-    @Suppress("DEPRECATION")
-    val gameLifecycle: StateFlow<GameLifecycle>
 
     // === 核心写入 API ===
     fun update(block: MutableGameState.() -> Unit)

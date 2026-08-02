@@ -593,42 +593,87 @@ fun PlantingDialog(
         }
     }
 
-    if (showSeedDetail && detailSeed != null) {
+    // P-2：种子详情弹窗提取（行为逐行一致）
+    SeedDetailDialog(
+        show = showSeedDetail,
+        seed = detailSeed,
+        onDismiss = {
+            showSeedDetail = false
+            detailSeed = null
+        },
+        viewModel = viewModel
+    )
+
+    // P-2：铲除确认弹窗提取（行为逐行一致）
+    RemoveConfirmationDialog(
+        group = removeDialogGroup,
+        removeQuantity = removeQuantity,
+        removeQtyInput = removeQtyInput,
+        onQuantityChange = { qty ->
+            removeQuantity = qty
+            removeQtyInput = qty.toString()
+        },
+        onConfirm = {
+            removeDialogGroup = null
+            removeQuantity = 1
+            removeQtyInput = "1"
+        },
+        onDismiss = { removeDialogGroup = null },
+        onRemove = { ids -> viewModel.planting.removePlantsFromSpiritFields(ids) }
+    )
+    }
+}
+
+/** P-2：种子详情弹窗（从 PlantingDialog 提取）。 */
+@Composable
+private fun SeedDetailDialog(
+    show: Boolean,
+    seed: Seed?,
+    onDismiss: () -> Unit,
+    viewModel: com.xianxia.sect.ui.game.GameViewModel
+) {
+    if (show && seed != null) {
         ItemDetailDialog(
-            item = checkNotNull(detailSeed) { "detailSeed is null" },
-            onDismiss = {
-                showSeedDetail = false
-                detailSeed = null
-            },
+            item = checkNotNull(seed) { "detailSeed is null" },
+            onDismiss = onDismiss,
             viewModel = viewModel
         )
     }
+}
 
-    // ═════════════════ 铲除确认弹窗 ════════════════
-    removeDialogGroup?.let { group ->
+/** P-2：铲除确认弹窗（从 PlantingDialog 提取，状态由调用方持有）。 */
+@Composable
+private fun RemoveConfirmationDialog(
+    group: FieldGroup?,
+    removeQuantity: Int,
+    removeQtyInput: String,
+    onQuantityChange: (Int) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    onRemove: (List<String>) -> Unit
+) {
+    group?.let {
         StandardPromptDialog(
-            onDismissRequest = { removeDialogGroup = null },
+            onDismissRequest = onDismiss,
             title = "确认铲除",
             confirmLabel = "确认",
             dismissLabel = "取消",
             onConfirm = {
-                val toRemove = removeQuantity.coerceAtMost(group.plantEntries.size)
-                val ids = group.plantEntries.take(toRemove).map { it.buildingInstanceId }
+                val toRemove = removeQuantity.coerceAtMost(it.plantEntries.size)
+                val ids = it.plantEntries.take(toRemove).map { e -> e.buildingInstanceId }
                 if (ids.isNotEmpty()) {
-                    viewModel.planting.removePlantsFromSpiritFields(ids)
+                    onRemove(ids)
                 }
-                removeDialogGroup = null
-                removeQuantity = 1
-                removeQtyInput = "1"
+                onConfirm()
             },
-            onDismiss = { removeDialogGroup = null }
+            onDismiss = onDismiss
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    "当前分组：${group.seedName}（${group.fields.size}块）",
+                    "当前分组：${it.seedName}（${it.fields.size}块）",
                     fontSize = 12.sp,
                     color = Color.Black
                 )
@@ -642,25 +687,24 @@ fun PlantingDialog(
                         text = "-1", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black,
                         modifier = Modifier.alpha(if (removeQuantity > 1) 1f else 0.3f)
                             .clickableWithSound(interactionSource = ri, indication = null, enabled = removeQuantity > 1) {
-                                removeQuantity--; removeQtyInput = removeQuantity.toString()
+                                onQuantityChange(removeQuantity - 1)
                             }
                     )
                     Text(
                         text = "$removeQuantity", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black
                     )
                     val ri2 = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                    val maxQty = group.fields.size.coerceAtLeast(1)
+                    val maxQty = it.fields.size.coerceAtLeast(1)
                     Text(
                         text = "+1", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black,
                         modifier = Modifier.alpha(if (removeQuantity < maxQty) 1f else 0.3f)
                             .clickableWithSound(interactionSource = ri2, indication = null, enabled = removeQuantity < maxQty) {
-                                removeQuantity++; removeQtyInput = removeQuantity.toString()
+                                onQuantityChange(removeQuantity + 1)
                             }
                     )
                 }
             }
         }
-    }
     }
 }
 

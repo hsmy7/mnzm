@@ -17,6 +17,8 @@ import kotlinx.serialization.protobuf.ProtoNumber
  * @param summary 显示文本
  * @param relatedEntityId 关联实体 ID（弟子 ID、宗门 ID 等）
  * @param relatedEntityName 关联实体名称
+ * @param sequenceId 追加序号（P-9：消息列表稳定 key，头部 takeLast 移除时
+ *   不引起其余条目 key 位移）。0 表示旧档未分配（加载后一次性回填）
  */
 @Keep
 @Serializable
@@ -29,8 +31,21 @@ data class GameEventRecord(
     @ProtoNumber(6) val eventType: String = "",
     @ProtoNumber(7) val summary: String = "",
     @ProtoNumber(8) val relatedEntityId: String = "",
-    @ProtoNumber(9) val relatedEntityName: String = ""
+    @ProtoNumber(9) val relatedEntityName: String = "",
+    @ProtoNumber(10) val sequenceId: Long = 0
 )
+
+/**
+ * 计算下一条事件序号（S5 修复：Long.MAX_VALUE + 1 溢出为负数会与已有序号
+ * 碰撞导致 LazyColumn 重复 key 崩溃；溢出时从头（1）重新计数）。
+ *
+ * @param records 当前事件列表（含未回填的旧档条目）
+ * @return 下一条序号（恒为正数，且不等于溢出前的 MAX_VALUE 本身）
+ */
+fun nextEventSequenceId(records: List<GameEventRecord>): Long {
+    val max = records.maxOfOrNull { it.sequenceId } ?: 0L
+    return if (max >= Long.MAX_VALUE - 1) 1L else max + 1
+}
 
 /** 游戏事件类型常量——统一管理，避免散落的字符串字面量 */
 object GameEventType {

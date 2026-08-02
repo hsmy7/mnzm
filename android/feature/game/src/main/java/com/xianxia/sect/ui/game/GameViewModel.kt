@@ -345,7 +345,8 @@ class GameViewModel @Inject constructor(
         val isPaused: Boolean
     )
     val gameScreenState: StateFlow<GameScreenAggState> = combine(
-        gameEngine.gameData, highFreqState, configState, gameEngineCore.state.map { it.isPaused }
+        // P-8：unifiedState（20Hz 锁竞争）→ isPaused 窄流直连
+        gameEngine.gameData, highFreqState, configState, gameEngineCore.isPaused
     ) { gd, hf, cfg, paused -> GameScreenAggState(gd, hf, cfg, paused) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000),
             GameScreenAggState(GameData(), GameStateStore.HighFreqState(), GameStateStore.ConfigState(), true))
@@ -389,23 +390,51 @@ class GameViewModel @Inject constructor(
         .map { data -> data.recruitList.distinctBy { it.id }.map { it.toAggregate() } }
         .stateIn(viewModelScope, sharingStarted, emptyList())
 
+    /**
+     * P-10：储物袋装备栈 ID 窄流（distinctUntilChanged——集合相等时不发射）。
+     *
+     * 原实现 combine(equipmentStacks, disciples)：disciples 每旬发射新引用 → combine
+     * 每旬重算 filter + 发射新列表 → UI 每旬重组。窄流化后 bagStackIds 无变化时
+     * combine 不发射，UI 零重组；计算量（O(D×bags) 平铺）仍在每旬 map 内执行。
+     */
+    private val equipmentBagStackIds: StateFlow<Set<String>> = gameEngine.disciples
+        .map { disciples ->
+            disciples.filter { it.isAlive }
+                .flatMap { it.equipment.storageBagItems }
+                .filter { it.itemType == "equipment_stack" }.map { it.itemId }.toSet()
+        }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, sharingStarted, emptySet())
+
     val equipmentStacks: StateFlow<List<EquipmentStack>> = combine(
-        gameEngine.equipmentStacks, gameEngine.disciples
-    ) { stacks, disciples ->
-        val bagStackIds = disciples.filter { it.isAlive }
-            .flatMap { it.equipment.storageBagItems }
-            .filter { it.itemType == "equipment_stack" }.map { it.itemId }.toSet()
+        gameEngine.equipmentStacks, equipmentBagStackIds
+    ) { stacks, bagStackIds ->
         stacks.filter { it.id !in bagStackIds }
     }.stateIn(viewModelScope, sharingStarted, emptyList())
 
     val equipmentInstances: StateFlow<List<EquipmentInstance>> get() = gameEngine.equipmentInstances
+
+    /** P-10：储物袋功法栈 ID 窄流（同 [equipmentBagStackIds]） */
+    private val manualBagStackIds: StateFlow<Set<String>> = gameEngine.disciples
+        .map { disciples ->
+            disciples.filter { it.isAlive }
+                .flatMap { it.equipment.storageBagItems }
+                .filter { it.itemType == "manual_stack" }
+                .map { it.itemId }.toSet()
+        }
+        .distinctUntilChanged()
+        // S8 修复（对抗性审查）：初始值用当前弟子储物袋计算（同 equipmentBagStackIds）
+        .stateIn(
+            viewModelScope, sharingStarted,
+            gameEngine.disciples.value.filter { it.isAlive }
+                .flatMap { it.equipment.storageBagItems }
+                .filter { it.itemType == "manual_stack" }
+                .map { it.itemId }.toSet()
+        )
+
     val manualStacks: StateFlow<List<ManualStack>> = combine(
-        gameEngine.manualStacks, gameEngine.disciples
-    ) { stacks, disciples ->
-        val bagStackIds = disciples.filter { it.isAlive }
-            .flatMap { it.equipment.storageBagItems }
-            .filter { it.itemType == "manual_stack" }
-            .map { it.itemId }.toSet()
+        gameEngine.manualStacks, manualBagStackIds
+    ) { stacks, bagStackIds ->
         stacks.filter { it.id !in bagStackIds }
     }.stateIn(viewModelScope, sharingStarted, emptyList())
     val manualInstances: StateFlow<List<ManualInstance>> get() = gameEngine.manualInstances
@@ -479,8 +508,9 @@ class GameViewModel @Inject constructor(
         emit(ForgeRecipeDatabase.getAllRecipes())
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    val isPaused: StateFlow<Boolean> = gameEngineCore.state
-        .map { it.isPaused }.stateIn(viewModelScope, SharingStarted.Lazily, true)
+    // S6 修复（对抗性审查）：P-8 漏迁——原走 50ms 采样废弃流 unifiedState，
+    // 与 togglePause 直读混用导致快速双击被吞；改用 isPaused 窄流（零采样延迟）
+    val isPaused: StateFlow<Boolean> = gameEngineCore.isPaused
 
     val gameEventRecords: StateFlow<List<GameEventRecord>> = gameEngine.gameData
         .map { it.gameEventRecords }.distinctUntilChanged()

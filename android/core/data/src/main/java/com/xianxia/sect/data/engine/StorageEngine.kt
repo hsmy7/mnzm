@@ -15,6 +15,7 @@ import com.xianxia.sect.data.cache.CacheKey
 import com.xianxia.sect.data.config.SaveLimitsConfig
 import com.xianxia.sect.data.config.StorageConfig
 import com.xianxia.sect.data.incremental.ChangeLogOperation
+import com.xianxia.sect.data.local.GameHeavyDataDao
 import com.xianxia.sect.data.local.ProtobufConverters
 import com.xianxia.sect.data.local.SaveSlotMetadata
 import com.xianxia.sect.data.model.SaveData
@@ -135,78 +136,17 @@ class StorageEngine @Inject constructor(
             try {
                 val startTime = System.currentTimeMillis()
 
-                // ── 保存前完整性校验 ──
-                var effectiveData = data
-                if (storageConfig.enablePreSaveValidation) {
-                    _progress.value = EngineProgress(EngineProgress.Stage.VALIDATING, 0.05f, "Validating data")
-                    val integrityResult = SaveValidator.validate(data)
-                    when (integrityResult) {
-                        is IntegrityResult.Corrupted -> {
-                            Log.e(TAG, "拒绝保存损坏数据 slot=$slot")
-                            infra.storageMetrics.recordBackupFailure()
-                            return@withWriteLockLight StorageResult.failure(
-                                StorageError.SAVE_FAILED, "保存前校验拒绝：存档数据损坏"
-                            )
-                        }
-                        is IntegrityResult.Repaired -> {
-                            // ★ 修复：使用修复后的数据替换原始数据，确保修复持久化
-                            Log.w(TAG, "保存前校验修复 ${integrityResult.details.size} 项，使用修复后数据 slot=$slot")
-                            effectiveData = integrityResult.data
-                        }
-                        is IntegrityResult.Passed -> { /* 无操作 */ }
-                    }
-                }
+                // P-2 拆分：保存前校验 + 清理 + 时间戳
+                val dataWithTimestamp = validateAndPrepareData(slot, data)
+                    ?: return@withWriteLockLight StorageResult.failure(
+                        StorageError.SAVE_FAILED, "保存前校验拒绝：存档数据损坏"
+                    )
 
-                _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.1f, "Saving core data")
+                // P-2 拆分：重试保存（OOM 短路）
+                val result = saveWithRetry(slot, dataWithTimestamp)
 
-                val cleanedData = cleanSaveDataWithArchive(effectiveData)
-                val dataWithTimestamp = cleanedData.copy(timestamp = System.currentTimeMillis())
-
-                // ── 重试（内存守卫已前置到 performFullTransactionSave：低内存直接失败不写 DB）──
-                var result = performFullTransactionSave(slot, dataWithTimestamp)
-                var retryCount = 0
-                val maxRetries = storageConfig.maxRetryCount
-                while (result.isFailure && retryCount < maxRetries) {
-                    // OOM 类失败重试无意义（内存不会在毫秒级恢复），直接终止
-                    if (result is StorageResult.Failure && result.error == StorageError.OUT_OF_MEMORY) break
-                    retryCount++
-                    Log.w(TAG, "保存重试 ($retryCount/$maxRetries) slot=$slot")
-                    kotlinx.coroutines.delay(storageConfig.retryDelayMs * retryCount)
-                    result = performFullTransactionSave(slot, dataWithTimestamp)
-                }
-
-                if (result.isSuccess) {
-                    // ── 备份（2026-08-01 时序修复）：仅在 DB 事务成功后写入，
-                    // 避免"备份比真相新"——DB 失败时 .sav 含新数据而被丢弃 ──
-                    if (storageConfig.autoBackupOnSave) {
-                        _progress.value = EngineProgress(EngineProgress.Stage.VALIDATING, 0.15f, "Writing backup")
-                        try {
-                            val br = saveFileManager.atomicWrite(slot, dataWithTimestamp)
-                            if (br.isSuccess) infra.storageMetrics.recordBackupSuccess()
-                            else infra.storageMetrics.recordBackupFailure()
-                        } catch (e: Exception) {
-                            Log.w(TAG, "备份异常 slot=$slot (非阻断)", e)
-                            infra.storageMetrics.recordBackupFailure()
-                        }
-                    }
-                    _progress.value = EngineProgress(EngineProgress.Stage.UPDATING_CACHE, 0.8f, "Updating cache")
-                    updateCacheAfterSave(slot, dataWithTimestamp)
-                    _progress.value = EngineProgress(EngineProgress.Stage.SAVING_HISTORY, 0.85f, "Logging changes")
-                    logSaveChanges(slot, dataWithTimestamp)
-                    infra.storageMetrics.recordSave()
-                    _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Save completed")
-                } else {
-                    Log.e(TAG, "保存失败（${maxRetries}次重试），尝试恢复 slot=$slot")
-                    try {
-                        val rr = saveFileManager.readWithFallback(slot)
-                        if (rr.status == com.xianxia.sect.data.backup.BackupStatus.SUCCESS ||
-                            rr.status == com.xianxia.sect.data.backup.BackupStatus.RECOVERED) {
-                            Log.w(TAG, "从备份恢复数据成功 slot=$slot")
-                        }
-                    } catch (e2: Exception) {
-                        Log.e(TAG, "备份恢复也失败 slot=$slot", e2)
-                    }
-                }
+                // P-2 拆分：结果处理（备份/缓存/变更日志/失败恢复）
+                handleSaveResult(slot, result, dataWithTimestamp)
 
                 result.map { stats ->
                     val elapsed = System.currentTimeMillis() - startTime
@@ -232,6 +172,99 @@ class StorageEngine @Inject constructor(
         }
     }
 
+    /**
+     * P-2：保存前数据准备——完整性校验（损坏拒绝/修复替换）+ 清理 + 时间戳。
+     *
+     * @return 准备后的数据；校验拒绝损坏数据时返回 null
+     */
+    private suspend fun validateAndPrepareData(slot: Int, data: SaveData): SaveData? {
+        // ── 保存前完整性校验 ──
+        var effectiveData = data
+        if (storageConfig.enablePreSaveValidation) {
+            _progress.value = EngineProgress(EngineProgress.Stage.VALIDATING, 0.05f, "Validating data")
+            val integrityResult = SaveValidator.validate(data)
+            when (integrityResult) {
+                is IntegrityResult.Corrupted -> {
+                    Log.e(TAG, "拒绝保存损坏数据 slot=$slot")
+                    infra.storageMetrics.recordBackupFailure()
+                    return null
+                }
+                is IntegrityResult.Repaired -> {
+                    // ★ 修复：使用修复后的数据替换原始数据，确保修复持久化
+                    Log.w(TAG, "保存前校验修复 ${integrityResult.details.size} 项，使用修复后数据 slot=$slot")
+                    effectiveData = integrityResult.data
+                }
+                is IntegrityResult.Passed -> { /* 无操作 */ }
+            }
+        }
+
+        _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.1f, "Saving core data")
+
+        val cleanedData = cleanSaveDataWithArchive(effectiveData)
+        return cleanedData.copy(timestamp = System.currentTimeMillis())
+    }
+
+    /** P-2：全量事务保存 + 重试（内存守卫已前置；OOM 类失败直接终止重试）。 */
+    private suspend fun saveWithRetry(
+        slot: Int,
+        dataWithTimestamp: SaveData
+    ): StorageResult<SaveOperationStats> {
+        var result = performFullTransactionSave(slot, dataWithTimestamp)
+        var retryCount = 0
+        val maxRetries = storageConfig.maxRetryCount
+        while (result.isFailure && retryCount < maxRetries) {
+            // OOM 类失败重试无意义（内存不会在毫秒级恢复），直接终止
+            if (result is StorageResult.Failure && result.error == StorageError.OUT_OF_MEMORY) break
+            retryCount++
+            Log.w(TAG, "保存重试 ($retryCount/$maxRetries) slot=$slot")
+            kotlinx.coroutines.delay(storageConfig.retryDelayMs * retryCount)
+            result = performFullTransactionSave(slot, dataWithTimestamp)
+        }
+        return result
+    }
+
+    /**
+     * P-2：保存结果处理——成功（备份/缓存/变更日志）或失败（备份恢复尝试）。
+     * 备份仅在 DB 事务成功后写入（2026-08-01 时序修复，避免"备份比真相新"）。
+     */
+    @Suppress("NestedBlockDepth")  // 备份异常处理守卫结构（try/catch 嵌套为既有模式）
+    private suspend fun handleSaveResult(
+        slot: Int,
+        result: StorageResult<SaveOperationStats>,
+        dataWithTimestamp: SaveData
+    ) {
+        if (result.isSuccess) {
+            if (storageConfig.autoBackupOnSave) {
+                _progress.value = EngineProgress(EngineProgress.Stage.VALIDATING, 0.15f, "Writing backup")
+                try {
+                    val br = saveFileManager.atomicWrite(slot, dataWithTimestamp)
+                    if (br.isSuccess) infra.storageMetrics.recordBackupSuccess()
+                    else infra.storageMetrics.recordBackupFailure()
+                } catch (e: Exception) {
+                    Log.w(TAG, "备份异常 slot=$slot (非阻断)", e)
+                    infra.storageMetrics.recordBackupFailure()
+                }
+            }
+            _progress.value = EngineProgress(EngineProgress.Stage.UPDATING_CACHE, 0.8f, "Updating cache")
+            updateCacheAfterSave(slot, dataWithTimestamp)
+            _progress.value = EngineProgress(EngineProgress.Stage.SAVING_HISTORY, 0.85f, "Logging changes")
+            logSaveChanges(slot, dataWithTimestamp)
+            infra.storageMetrics.recordSave()
+            _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Save completed")
+        } else {
+            Log.e(TAG, "保存失败（${storageConfig.maxRetryCount}次重试），尝试恢复 slot=$slot")
+            try {
+                val rr = saveFileManager.readWithFallback(slot)
+                if (rr.status == com.xianxia.sect.data.backup.BackupStatus.SUCCESS ||
+                    rr.status == com.xianxia.sect.data.backup.BackupStatus.RECOVERED) {
+                    Log.w(TAG, "从备份恢复数据成功 slot=$slot")
+                }
+            } catch (e2: Exception) {
+                Log.e(TAG, "备份恢复也失败 slot=$slot", e2)
+            }
+        }
+    }
+
     suspend fun load(slot: Int): StorageResult<SaveData> {
         if (!core.lockManager.isValidSlot(slot)) {
             return StorageResult.failure(StorageError.INVALID_SLOT, "Invalid slot: $slot")
@@ -239,16 +272,8 @@ class StorageEngine @Inject constructor(
 
         return core.lockManager.withReadLockLight(slot) {
             try {
-                _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.1f, "Loading from cache")
-
-                val cachedData = loadFromCache(slot)
-                if (cachedData != null) {
-                    infra.storageMetrics.recordCacheHit()
-                    infra.storageMetrics.recordLoad()
-                    Log.d(TAG, "Cache hit for slot $slot")
-                    _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (cache)")
-                    return@withReadLockLight StorageResult.success(cachedData)
-                }
+                // P-2 拆分：缓存命中优先
+                tryCacheLoad(slot)?.let { return@withReadLockLight StorageResult.success(it) }
 
                 infra.storageMetrics.recordCacheMiss()
                 _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.2f, "Loading from database")
@@ -257,127 +282,15 @@ class StorageEngine @Inject constructor(
                 if (dbData != null) {
                     infra.storageMetrics.recordLoad()
                     clearCacheForSlot(slot)
-
-                    // ── 存档完整性校验 ──
-                    val integrityResult = SaveValidator.validate(dbData)
-                    val finalData: SaveData = when (integrityResult) {
-                        is IntegrityResult.Passed -> dbData
-                        is IntegrityResult.Repaired -> {
-                            Log.w(TAG, "存档完整性修复 (slot=$slot): ${integrityResult.details.size} 项")
-                            integrityResult.details.forEach { Log.i(TAG, "  → $it") }
-                            // 修复后数据替换缓存
-                            // 注意：读锁内无法升级写锁持久化，修复数据仅缓存，下次保存时自动持久化
-                            val repairedData = integrityResult.data
-                            SaveValidatorFixes.logRepairStatus(slot, integrityResult.details.size, persisted = false)
-                            repairedData
-                        }
-                        is IntegrityResult.Corrupted -> {
-                            Log.e(TAG, "存档数据损坏 (slot=$slot): ${integrityResult.details.size} 项")
-                            integrityResult.details.forEach { Log.e(TAG, "  → $it") }
-
-                            // ── 尝试从备份文件恢复 ──
-                            _progress.value = EngineProgress(EngineProgress.Stage.VALIDATING, 0.5f, "尝试从备份恢复...")
-                            val readResult = saveFileManager.readWithFallback(slot)
-                            if (readResult.status == com.xianxia.sect.data.backup.BackupStatus.SUCCESS ||
-                                readResult.status == com.xianxia.sect.data.backup.BackupStatus.RECOVERED) {
-                                try {
-                                    var restoredData = serializationModule.deserializeSaveData(readResult.payload ?: return@withReadLockLight StorageResult.failure(
-    StorageError.SLOT_CORRUPTED, "备份恢复失败：payload 为空 (slot=$slot)"))
-                                    Log.w(TAG, "备份恢复成功 (slot=$slot) 来源=${readResult.source}")
-
-                                    // ★ 备份恢复后二次验证：防止备份本身存在数据问题
-                                    val reValidation = CorruptedResultHandler.validateRestoredData(slot, restoredData)
-                                    if (reValidation is IntegrityResult.Repaired) {
-                                        Log.w(TAG, "备份恢复数据二次修复 ${reValidation.details.size} 项 (slot=$slot)")
-                                        restoredData = reValidation.data
-                                    } else if (reValidation is IntegrityResult.Corrupted) {
-                                        Log.e(TAG, "备份恢复数据二次验证无法修复 (slot=$slot)")
-                                        _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f,
-                                            "备份恢复数据二次验证无法修复 (slot=$slot)")
-                                        return@withReadLockLight StorageResult.failure(
-                                            StorageError.SLOT_CORRUPTED,
-                                            "备份恢复数据二次验证无法修复 (slot=$slot): ${reValidation.details.joinToString("; ")}"
-                                        )
-                                    }
-
-                                    infra.storageMetrics.recordBackupRestore()
-                                    // 旧格式备份无堆叠数据：从实例重建兜底（2026-08-01 堆叠序列化缺陷修复）
-                                    restoredData = SaveDataReconciler.reconcileStacks(restoredData)
-                                    // 2026-08-01 对抗性审查修复：检查保存结果——低内存/编码失败时
-                                    // 不再静默"报成功"（旧实现忽略结果，DB 未写但 load 返回 success）
-                                    val restoreSave = performFullTransactionSave(slot, restoredData)
-                                    if (restoreSave is com.xianxia.sect.data.result.StorageResult.Failure) {
-                                        Log.e(TAG, "备份恢复写库失败 slot=$slot: ${restoreSave.message}")
-                                    }
-                                    clearCacheForSlot(slot)
-                                    updateCacheAfterSave(slot, restoredData)
-                                    _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (backup)")
-                                    return@withReadLockLight StorageResult.success(restoredData)
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "备份反序列化失败 slot=$slot", e)
-                                }
-                            } else {
-                                Log.e(TAG, "备份文件也损坏或不存在 slot=$slot")
-                            }
-
-                            _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f,
-                                "存档损坏且备份恢复失败: ${integrityResult.details.size} 项问题")
-                            return@withReadLockLight StorageResult.failure(
-                                StorageError.SLOT_CORRUPTED,
-                                "存档校验失败且备份不可用 (slot=$slot): ${integrityResult.details.joinToString("; ")}"
-                            )
-                        }
-                    }
-
-                    updateCacheAfterSave(slot, finalData)
-                    _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (database)")
-                    StorageResult.success(finalData)
-                } else {
-                    // ── 数据库无数据时尝试从备份文件恢复 ──
-                    _progress.value = EngineProgress(EngineProgress.Stage.VALIDATING, 0.5f, "尝试从备份恢复...")
-                    val readResult = saveFileManager.readWithFallback(slot)
-                    if (readResult.status == com.xianxia.sect.data.backup.BackupStatus.SUCCESS ||
-                        readResult.status == com.xianxia.sect.data.backup.BackupStatus.RECOVERED
-                    ) {
-                        try {
-                            var restoredData = serializationModule.deserializeSaveData(
-                                readResult.payload ?: return@withReadLockLight StorageResult.failure(
-                                    StorageError.SLOT_CORRUPTED, "备份恢复失败：payload 为空 (slot=$slot)"
-                                )
-                            )
-                            Log.w(TAG, "从备份恢复成功 (slot=$slot) 来源=${readResult.source}")
-
-                            // 备份恢复后二次验证
-                            val reValidation = CorruptedResultHandler.validateRestoredData(slot, restoredData)
-                            if (reValidation is IntegrityResult.Repaired) {
-                                Log.w(TAG, "备份恢复数据二次修复 ${reValidation.details.size} 项 (slot=$slot)")
-                                restoredData = reValidation.data
-                            } else if (reValidation is IntegrityResult.Corrupted) {
-                                Log.e(TAG, "备份恢复数据二次验证无法修复 (slot=$slot)")
-                            }
-
-                            infra.storageMetrics.recordBackupRestore()
-                            // 旧格式备份无堆叠数据：从实例重建兜底（2026-08-01 堆叠序列化缺陷修复）
-                            restoredData = SaveDataReconciler.reconcileStacks(restoredData)
-                            // 2026-08-01 对抗性审查修复：检查保存结果（同上）
-                            val restoreSave = performFullTransactionSave(slot, restoredData)
-                            if (restoreSave is com.xianxia.sect.data.result.StorageResult.Failure) {
-                                Log.e(TAG, "备份恢复写库失败 slot=$slot: ${restoreSave.message}")
-                            }
-                            clearCacheForSlot(slot)
-                            updateCacheAfterSave(slot, restoredData)
-                            _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (backup)")
-                            return@withReadLockLight StorageResult.success(restoredData)
-                        } catch (e: Exception) {
-                            Log.e(TAG, "备份反序列化失败 slot=$slot", e)
-                        }
-                    } else {
-                        Log.w(TAG, "备份文件不存在或损坏 slot=$slot")
-                    }
-
-                    _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, "No data found")
-                    StorageResult.failure(StorageError.SLOT_EMPTY, "No data in slot $slot")
+                    // P-2 拆分：完整性校验 + 损坏备份恢复
+                    return@withReadLockLight validateDbData(slot, dbData)
                 }
+
+                // ── 数据库无数据时尝试从备份文件恢复 ──
+                val restored = restoreFromBackup(slot)
+                if (restored != null) return@withReadLockLight restored
+                _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, "No data found")
+                StorageResult.failure(StorageError.SLOT_EMPTY, "No data in slot $slot")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -385,6 +298,121 @@ class StorageEngine @Inject constructor(
                 _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
                 StorageResult.failure(StorageError.LOAD_FAILED, e.message ?: "Load failed", e)
             }
+        }
+    }
+
+    /** P-2：缓存命中尝试（命中时记录指标与进度，返回数据；未命中返回 null）。 */
+    private suspend fun tryCacheLoad(slot: Int): SaveData? {
+        _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.1f, "Loading from cache")
+        val cachedData = loadFromCache(slot) ?: return null
+        infra.storageMetrics.recordCacheHit()
+        infra.storageMetrics.recordLoad()
+        Log.d(TAG, "Cache hit for slot $slot")
+        _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (cache)")
+        return cachedData
+    }
+
+    /**
+     * P-2：数据库数据完整性校验（通过/修复/损坏→备份恢复）。
+     *
+     * 修复后数据仅缓存（读锁内无法升级写锁持久化，下次保存时自动持久化）。
+     */
+    @Suppress("ReturnCount")  // 校验结果分派（通过/修复/损坏→恢复），多 return 为守卫风格
+    private suspend fun validateDbData(slot: Int, dbData: SaveData): StorageResult<SaveData> {
+        val integrityResult = SaveValidator.validate(dbData)
+        when (integrityResult) {
+            is IntegrityResult.Passed -> {
+                updateCacheAfterSave(slot, dbData)
+                _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (database)")
+                return StorageResult.success(dbData)
+            }
+            is IntegrityResult.Repaired -> {
+                Log.w(TAG, "存档完整性修复 (slot=$slot): ${integrityResult.details.size} 项")
+                integrityResult.details.forEach { Log.i(TAG, "  → $it") }
+                val repairedData = integrityResult.data
+                SaveValidatorFixes.logRepairStatus(slot, integrityResult.details.size, persisted = false)
+                updateCacheAfterSave(slot, repairedData)
+                _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (database)")
+                return StorageResult.success(repairedData)
+            }
+            is IntegrityResult.Corrupted -> {
+                Log.e(TAG, "存档数据损坏 (slot=$slot): ${integrityResult.details.size} 项")
+                integrityResult.details.forEach { Log.e(TAG, "  → $it") }
+                val restored = restoreFromBackup(slot)
+                if (restored != null) return restored
+                _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f,
+                    "存档损坏且备份恢复失败: ${integrityResult.details.size} 项问题")
+                return StorageResult.failure(
+                    StorageError.SLOT_CORRUPTED,
+                    "存档校验失败且备份不可用 (slot=$slot): ${integrityResult.details.joinToString("; ")}"
+                )
+            }
+        }
+    }
+
+    /**
+     * P-2：从备份文件恢复（损坏恢复/无数据恢复两场景共用）。
+     *
+     * 流程：读备份 → 反序列化 → 二次验证 → 堆叠重建 → 写库（检查结果）→ 缓存。
+     *
+     * @return 恢复成功的数据；备份不可用时返回 null（调用方决定失败语义）
+     */
+    @Suppress("ReturnCount")  // 备份恢复多失败路径，多 return 为守卫风格
+    private suspend fun restoreFromBackup(
+        slot: Int
+    ): StorageResult<SaveData>? {
+        _progress.value = EngineProgress(EngineProgress.Stage.VALIDATING, 0.5f, "尝试从备份恢复...")
+        val readResult = saveFileManager.readWithFallback(slot)
+        if (readResult.status != com.xianxia.sect.data.backup.BackupStatus.SUCCESS &&
+            readResult.status != com.xianxia.sect.data.backup.BackupStatus.RECOVERED
+        ) {
+            Log.w(TAG, "备份文件不存在或损坏 slot=$slot")
+            return null
+        }
+        try {
+            var restoredData = serializationModule.deserializeSaveData(
+                readResult.payload ?: return StorageResult.failure(
+                    StorageError.SLOT_CORRUPTED, "备份恢复失败：payload 为空 (slot=$slot)"
+                )
+            )
+            Log.w(TAG, "备份恢复成功 (slot=$slot) 来源=${readResult.source}")
+
+            // ★ 备份恢复后二次验证：防止备份本身存在数据问题
+            val reValidation = CorruptedResultHandler.validateRestoredData(slot, restoredData)
+            if (reValidation is IntegrityResult.Repaired) {
+                Log.w(TAG, "备份恢复数据二次修复 ${reValidation.details.size} 项 (slot=$slot)")
+                restoredData = reValidation.data
+            } else if (reValidation is IntegrityResult.Corrupted) {
+                Log.e(TAG, "备份恢复数据二次验证无法修复 (slot=$slot)")
+                return StorageResult.failure(
+                    StorageError.SLOT_CORRUPTED,
+                    "备份恢复数据二次验证无法修复 (slot=$slot): ${reValidation.details.joinToString("; ")}"
+                )
+            }
+
+            infra.storageMetrics.recordBackupRestore()
+            // 旧格式备份无堆叠数据：从实例重建兜底（2026-08-01 堆叠序列化缺陷修复）
+            restoredData = SaveDataReconciler.reconcileStacks(restoredData)
+            // 2026-08-01 对抗性审查修复：检查保存结果——低内存/编码失败时
+            // 不再静默"报成功"（旧实现忽略结果，DB 未写但 load 返回 success）
+            // S11 修复（对抗性审查）：写库失败必须返回失败——否则 load 报成功、
+            // 缓存与内存持有恢复数据，但 DB 仍是损坏数据 → 重启后再损坏、恢复
+            // 循环丢进度（原实现仅 Log.e 后继续 success，与注释声明矛盾）
+            val restoreSave = performFullTransactionSave(slot, restoredData)
+            if (restoreSave is com.xianxia.sect.data.result.StorageResult.Failure) {
+                Log.e(TAG, "备份恢复写库失败 slot=$slot: ${restoreSave.message}")
+                return StorageResult.failure(
+                    StorageError.SLOT_CORRUPTED,
+                    "备份恢复写库失败 (slot=$slot): ${restoreSave.message}"
+                )
+            }
+            clearCacheForSlot(slot)
+            updateCacheAfterSave(slot, restoredData)
+            _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (backup)")
+            return StorageResult.success(restoredData)
+        } catch (e: Exception) {
+            Log.e(TAG, "备份反序列化失败 slot=$slot", e)
+            return null
         }
     }
 
@@ -673,7 +701,23 @@ class StorageEngine @Inject constructor(
         val now = System.currentTimeMillis()
         val heavyDao = core.database.gameHeavyDataDao()
 
-        // ── 清除旧重型数据（按前缀批量删除）──
+        // C-8 拆分：重型数据清理/写入/轻量实体写入分别提取（行为逐行一致）
+        clearHeavyDataByPrefix(heavyDao, slot)
+        writeHeavyDataIncremental(heavyDao, slot, data)
+
+        // ── 轻型 GameData（所有大型字段已清空，TypeConverter 编码近乎零开销）──
+        val lightGameData = buildLightGameData(data, slot)
+        core.database.withTransaction {
+            clearOldSlotEntities(slot, data)
+            writeCoreEntities(slot, data, lightGameData)
+            writeDomainEntities(slot, data)
+        }
+
+        return StorageResult.success(Unit)
+    }
+
+    /** C-8：清除旧重型数据（按前缀批量删除）。 */
+    private suspend fun clearHeavyDataByPrefix(heavyDao: GameHeavyDataDao, slot: Int) {
         val allPrefixes = listOf(
             GameHeavyData.KEY_AI_SECT_DISCIPLES,
             GameHeavyData.KEY_SECT_DETAILS,
@@ -686,8 +730,10 @@ class StorageEngine @Inject constructor(
         for (prefix in allPrefixes) {
             heavyDao.deleteByKeyPrefix(slot, prefix)
         }
+    }
 
-        // ── 增量编码写入（每项编码完立即写入，立即释放 ByteArray）──
+    /** C-8：增量编码写入重型数据（每项编码完立即写入，立即释放 ByteArray）。 */
+    private suspend fun writeHeavyDataIncremental(heavyDao: GameHeavyDataDao, slot: Int, data: SaveData) {
         ProtobufConverters.encodeDiscipleListMapIncremental(
             data.gameData.aiSectDisciples, slot, GameHeavyData.KEY_AI_SECT_DISCIPLES
         ) { chunks -> heavyDao.upsertAll(chunks) }
@@ -715,9 +761,11 @@ class StorageEngine @Inject constructor(
         ProtobufConverters.encodeWorldSectListIncremental(
             data.gameData.worldMapSects, slot, GameHeavyData.KEY_WORLD_MAP_SECTS
         ) { chunks -> heavyDao.upsertAll(chunks) }
+    }
 
-        // ── 轻型 GameData（所有大型字段已清空，TypeConverter 编码近乎零开销）──
-        val lightGameData = data.gameData.copy(
+    /** C-8：构建轻型 GameData（大型字段清空，TypeConverter 编码近乎零开销）。 */
+    private fun buildLightGameData(data: SaveData, slot: Int): GameData =
+        data.gameData.copy(
             slotId = slot,
             id = "game_data_$slot",
             lastSaveTime = data.timestamp,
@@ -729,138 +777,139 @@ class StorageEngine @Inject constructor(
             recruitList = emptyList(),
             worldMapSects = emptyList()
         )
-        core.database.withTransaction {
-            // ── 先清空所有旧数据，再写入新数据 ──
-            // 防止重新开始游戏时，旧存档的高 ID 行残留在数据库中
-            core.database.discipleDao().deleteAll(slot)
-            core.database.discipleCoreDao().deleteAll(slot)
-            core.database.discipleCombatStatsDao().deleteAll(slot)
-            core.database.discipleEquipmentDao().deleteAll(slot)
-            core.database.discipleExtendedDao().deleteAll(slot)
-            core.database.discipleAttributesDao().deleteAll(slot)
-            // 堆叠删表守卫（2026-08-01 堆叠序列化缺陷修复）：
-            // 旧格式存档（stacksSerialized = false，如旧备份恢复）的堆叠未进入 SaveData，
-            // 此时不删除 DB 残留的堆叠行——保留完好的既有堆叠，重建结果以 upsert 合并。
-            if (data.stacksSerialized) {
-                core.database.equipmentStackDao().deleteAll(slot)
-                core.database.manualStackDao().deleteAll(slot)
-            }
-            core.database.equipmentInstanceDao().deleteAll(slot)
-            core.database.manualInstanceDao().deleteAll(slot)
-            core.database.pillDao().deleteAll(slot)
-            core.database.materialDao().deleteAll(slot)
-            core.database.herbDao().deleteAll(slot)
-            core.database.seedDao().deleteAll(slot)
-            core.database.storageBagDao().deleteAll(slot)
-            core.database.explorationTeamDao().deleteAll(slot)
-            core.database.battleLogDao().deleteAll(slot)
-            core.database.recipeDao().deleteAll(slot)
-            core.database.productionSlotDao().deleteBySlot(slot)
-            core.database.discipleCompactDao().deleteAll(slot)
 
-            // ── 轻型 GameData ──
-            core.database.gameDataDao().insert(lightGameData)
+    /** C-8：清空槽位旧数据（先清后写，防止旧存档高 ID 行残留）。 */
+    private suspend fun clearOldSlotEntities(slot: Int, data: SaveData) {
+        core.database.discipleDao().deleteAll(slot)
+        core.database.discipleCoreDao().deleteAll(slot)
+        core.database.discipleCombatStatsDao().deleteAll(slot)
+        core.database.discipleEquipmentDao().deleteAll(slot)
+        core.database.discipleExtendedDao().deleteAll(slot)
+        core.database.discipleAttributesDao().deleteAll(slot)
+        // 堆叠删表守卫（2026-08-01 堆叠序列化缺陷修复）：
+        // 旧格式存档（stacksSerialized = false，如旧备份恢复）的堆叠未进入 SaveData，
+        // 此时不删除 DB 残留的堆叠行——保留完好的既有堆叠，重建结果以 upsert 合并。
+        if (data.stacksSerialized) {
+            core.database.equipmentStackDao().deleteAll(slot)
+            core.database.manualStackDao().deleteAll(slot)
+        }
+        core.database.equipmentInstanceDao().deleteAll(slot)
+        core.database.manualInstanceDao().deleteAll(slot)
+        core.database.pillDao().deleteAll(slot)
+        core.database.materialDao().deleteAll(slot)
+        core.database.herbDao().deleteAll(slot)
+        core.database.seedDao().deleteAll(slot)
+        core.database.storageBagDao().deleteAll(slot)
+        core.database.explorationTeamDao().deleteAll(slot)
+        core.database.battleLogDao().deleteAll(slot)
+        core.database.recipeDao().deleteAll(slot)
+        core.database.productionSlotDao().deleteBySlot(slot)
+        core.database.discipleCompactDao().deleteAll(slot)
+    }
 
-            // bloodRefinementPctTotals 拍快照防止并发修改
-            val bptSnapshot = data.gameData.bloodRefinementPctTotals
-            data.disciples.chunked(MAX_BATCH_SIZE).forEach { batch ->
-                val withSlot = batch.map { d -> d.copy(slotId = slot) }
-                core.database.discipleDao().upsertAll(withSlot)
-                core.database.discipleCoreDao().upsertAll(batch.map { d -> DiscipleCore.fromDisciple(d).copy(slotId = slot) })
-                core.database.discipleCombatStatsDao().upsertAll(batch.map { d -> DiscipleCombatStats.fromDisciple(d).copy(slotId = slot) })
-                core.database.discipleEquipmentDao().upsertAll(batch.map { d -> DiscipleEquipment.fromDisciple(d).copy(slotId = slot) })
-                core.database.discipleExtendedDao().upsertAll(batch.map { d -> DiscipleExtended.fromDisciple(d).copy(slotId = slot) })
-                core.database.discipleAttributesDao().upsertAll(batch.map { d -> DiscipleAttributes.fromDisciple(d).copy(slotId = slot) })
-                    core.database.discipleCompactDao().insertAll(batch.map { d ->
-                        DiscipleCompact.fromDisciple(d, bptSnapshot).copy(slotId = slot)
-                    })
-            }
+    /** C-8：写入核心实体（轻型 GameData + 弟子/堆叠/实例/生产槽等）。 */
+    private suspend fun writeCoreEntities(slot: Int, data: SaveData, lightGameData: GameData) {
+        core.database.gameDataDao().insert(lightGameData)
 
-            data.equipmentStacks.chunked(MAX_BATCH_SIZE).forEach { core.database.equipmentStackDao().upsertAll(it.map { e -> e.copy(slotId = slot) }) }
-            data.equipmentInstances.chunked(MAX_BATCH_SIZE).forEach { core.database.equipmentInstanceDao().upsertAll(it.map { e -> e.copy(slotId = slot) }) }
-            data.manualStacks.chunked(MAX_BATCH_SIZE).forEach { core.database.manualStackDao().upsertAll(it.map { m -> m.copy(slotId = slot) }) }
-            data.manualInstances.chunked(MAX_BATCH_SIZE).forEach { core.database.manualInstanceDao().upsertAll(it.map { m -> m.copy(slotId = slot) }) }
-            data.pills.chunked(MAX_BATCH_SIZE).forEach { core.database.pillDao().upsertAll(it.map { p -> p.copy(slotId = slot) }) }
-            data.materials.chunked(MAX_BATCH_SIZE).forEach { core.database.materialDao().upsertAll(it.map { m -> m.copy(slotId = slot) }) }
-            data.herbs.chunked(MAX_BATCH_SIZE).forEach { core.database.herbDao().upsertAll(it.map { h -> h.copy(slotId = slot) }) }
-            data.seeds.chunked(MAX_BATCH_SIZE).forEach { core.database.seedDao().upsertAll(it.map { s -> s.copy(slotId = slot) }) }
-
-            data.storageBags.chunked(MAX_BATCH_SIZE).forEach { core.database.storageBagDao().upsertAll(it.map { b -> b.copy(slotId = slot) }) }
-
-            data.teams.chunked(MAX_BATCH_SIZE).forEach { core.database.explorationTeamDao().upsertAll(it.map { t -> t.copy(slotId = slot) }) }
-
-            data.battleLogs.chunked(MAX_BATCH_SIZE).forEach { core.database.battleLogDao().upsertAll(it.map { b -> b.copy(slotId = slot) }) }
-
-            val productionSlotsToSave = data.productionSlots
-            if (productionSlotsToSave.isEmpty()) {
-                Log.w(TAG, "writeAllDataToDatabase: productionSlotsToSave is EMPTY for slot $slot — " +
-                    "data.productionSlots.size=${data.productionSlots.size}")
-            }
-            productionSlotsToSave.chunked(MAX_BATCH_SIZE).forEach { batch ->
-                core.database.productionSlotDao().upsertAll(batch.map { it.copy(slotId = slot) })
-            }
-
-            data.gameData.unlockedRecipes?.map { Recipe(it, slotId = slot) }?.let { recipes ->
-                core.database.recipeDao().upsertAll(recipes)
-            }
-
-            syncSlotMetadata(slot, data)
-
-            // ── 领域实体表写入（Phase B：细粒度读取路径）──
-            val gd = data.gameData
-            core.database.diplomacyStateDao().upsert(DiplomacyState(
-                slotId = slot,
-                sectRelations = gd.sectRelations,
-                alliances = gd.alliances,
-                playerAllianceSlots = gd.playerAllianceSlots,
-                playerProtectionEnabled = gd.playerProtectionEnabled,
-                playerProtectionStartYear = gd.playerProtectionStartYear,
-                playerHasAttackedAI = gd.playerHasAttackedAI,
-                sectDetails = gd.sectDetails,
-                exploredSects = gd.exploredSects,
-                scoutInfo = gd.scoutInfo
-            ))
-            core.database.productionStateDao().upsert(ProductionState(
-                slotId = slot,
-                spiritFieldPlants = gd.spiritFieldPlants,
-                unlockedRecipes = gd.unlockedRecipes ?: emptyList(),
-                unlockedManuals = gd.unlockedManuals ?: emptyList(),
-                manualProficiencies = gd.manualProficiencies
-            ))
-            core.database.patrolStateDao().upsert(PatrolStateEntity(
-                slotId = slot,
-                patrolSlots = gd.patrolSlots,
-                patrolConfig = gd.patrolConfig,
-                patrolConfigs = gd.patrolConfigs,
-                patrolBattleResultPopup = gd.patrolBattleResultPopup
-            ))
-            core.database.worldMapStateDao().upsert(WorldMapStateEntity(
-                slotId = slot,
-                worldMapSects = gd.worldMapSects,
-                aiSectDisciples = gd.aiSectDisciples,
-                cultivatorCaves = gd.cultivatorCaves,
-                caveExplorationTeams = gd.caveExplorationTeams,
-                aiCaveTeams = gd.aiCaveTeams,
-                worldLevels = gd.worldLevels
-            ))
-            core.database.sectPolicyStateDao().upsert(SectPolicyState(
-                slotId = slot,
-                sectPolicies = gd.sectPolicies,
-                autoRecruitSpiritRootFilter = gd.autoRecruitSpiritRootFilter,
-                daoCompanionBannedRootCounts = gd.daoCompanionBannedRootCounts,
-                daoCompanionConsentRequired = gd.daoCompanionConsentRequired,
-                breakthroughAutoPillFocused = gd.breakthroughAutoPillFocused,
-                breakthroughAutoPillRootCounts = gd.breakthroughAutoPillRootCounts,
-                autoEquipFromWarehouseFocused = gd.autoEquipFromWarehouseFocused,
-                autoEquipFromWarehouseRootCounts = gd.autoEquipFromWarehouseRootCounts,
-                autoLearnFromWarehouseFocused = gd.autoLearnFromWarehouseFocused,
-                autoLearnFromWarehouseRootCounts = gd.autoLearnFromWarehouseRootCounts,
-                yearlySalary = gd.yearlySalary,
-                yearlySalaryEnabled = gd.yearlySalaryEnabled
-            ))
+        // bloodRefinementPctTotals 拍快照防止并发修改
+        val bptSnapshot = data.gameData.bloodRefinementPctTotals
+        data.disciples.chunked(MAX_BATCH_SIZE).forEach { batch ->
+            val withSlot = batch.map { d -> d.copy(slotId = slot) }
+            core.database.discipleDao().upsertAll(withSlot)
+            core.database.discipleCoreDao().upsertAll(batch.map { d -> DiscipleCore.fromDisciple(d).copy(slotId = slot) })
+            core.database.discipleCombatStatsDao().upsertAll(batch.map { d -> DiscipleCombatStats.fromDisciple(d).copy(slotId = slot) })
+            core.database.discipleEquipmentDao().upsertAll(batch.map { d -> DiscipleEquipment.fromDisciple(d).copy(slotId = slot) })
+            core.database.discipleExtendedDao().upsertAll(batch.map { d -> DiscipleExtended.fromDisciple(d).copy(slotId = slot) })
+            core.database.discipleAttributesDao().upsertAll(batch.map { d -> DiscipleAttributes.fromDisciple(d).copy(slotId = slot) })
+                core.database.discipleCompactDao().insertAll(batch.map { d ->
+                    DiscipleCompact.fromDisciple(d, bptSnapshot).copy(slotId = slot)
+                })
         }
 
-        return StorageResult.success(Unit)
+        data.equipmentStacks.chunked(MAX_BATCH_SIZE).forEach { core.database.equipmentStackDao().upsertAll(it.map { e -> e.copy(slotId = slot) }) }
+        data.equipmentInstances.chunked(MAX_BATCH_SIZE).forEach { core.database.equipmentInstanceDao().upsertAll(it.map { e -> e.copy(slotId = slot) }) }
+        data.manualStacks.chunked(MAX_BATCH_SIZE).forEach { core.database.manualStackDao().upsertAll(it.map { m -> m.copy(slotId = slot) }) }
+        data.manualInstances.chunked(MAX_BATCH_SIZE).forEach { core.database.manualInstanceDao().upsertAll(it.map { m -> m.copy(slotId = slot) }) }
+        data.pills.chunked(MAX_BATCH_SIZE).forEach { core.database.pillDao().upsertAll(it.map { p -> p.copy(slotId = slot) }) }
+        data.materials.chunked(MAX_BATCH_SIZE).forEach { core.database.materialDao().upsertAll(it.map { m -> m.copy(slotId = slot) }) }
+        data.herbs.chunked(MAX_BATCH_SIZE).forEach { core.database.herbDao().upsertAll(it.map { h -> h.copy(slotId = slot) }) }
+        data.seeds.chunked(MAX_BATCH_SIZE).forEach { core.database.seedDao().upsertAll(it.map { s -> s.copy(slotId = slot) }) }
+
+        data.storageBags.chunked(MAX_BATCH_SIZE).forEach { core.database.storageBagDao().upsertAll(it.map { b -> b.copy(slotId = slot) }) }
+
+        data.teams.chunked(MAX_BATCH_SIZE).forEach { core.database.explorationTeamDao().upsertAll(it.map { t -> t.copy(slotId = slot) }) }
+
+        data.battleLogs.chunked(MAX_BATCH_SIZE).forEach { core.database.battleLogDao().upsertAll(it.map { b -> b.copy(slotId = slot) }) }
+
+        val productionSlotsToSave = data.productionSlots
+        if (productionSlotsToSave.isEmpty()) {
+            Log.w(TAG, "writeAllDataToDatabase: productionSlotsToSave is EMPTY for slot $slot — " +
+                "data.productionSlots.size=${data.productionSlots.size}")
+        }
+        productionSlotsToSave.chunked(MAX_BATCH_SIZE).forEach { batch ->
+            core.database.productionSlotDao().upsertAll(batch.map { it.copy(slotId = slot) })
+        }
+
+        data.gameData.unlockedRecipes?.map { Recipe(it, slotId = slot) }?.let { recipes ->
+            core.database.recipeDao().upsertAll(recipes)
+        }
+
+        syncSlotMetadata(slot, data)
+    }
+
+    /** C-8：写入领域实体表（外交/生产状态/巡逻/世界地图/政策——Phase B 细粒度读取路径）。 */
+    private suspend fun writeDomainEntities(slot: Int, data: SaveData) {
+        val gd = data.gameData
+        core.database.diplomacyStateDao().upsert(DiplomacyState(
+            slotId = slot,
+            sectRelations = gd.sectRelations,
+            alliances = gd.alliances,
+            playerAllianceSlots = gd.playerAllianceSlots,
+            playerProtectionEnabled = gd.playerProtectionEnabled,
+            playerProtectionStartYear = gd.playerProtectionStartYear,
+            playerHasAttackedAI = gd.playerHasAttackedAI,
+            sectDetails = gd.sectDetails,
+            exploredSects = gd.exploredSects,
+            scoutInfo = gd.scoutInfo
+        ))
+        core.database.productionStateDao().upsert(ProductionState(
+            slotId = slot,
+            spiritFieldPlants = gd.spiritFieldPlants,
+            unlockedRecipes = gd.unlockedRecipes ?: emptyList(),
+            unlockedManuals = gd.unlockedManuals ?: emptyList(),
+            manualProficiencies = gd.manualProficiencies
+        ))
+        core.database.patrolStateDao().upsert(PatrolStateEntity(
+            slotId = slot,
+            patrolSlots = gd.patrolSlots,
+            patrolConfig = gd.patrolConfig,
+            patrolConfigs = gd.patrolConfigs,
+            patrolBattleResultPopup = gd.patrolBattleResultPopup
+        ))
+        core.database.worldMapStateDao().upsert(WorldMapStateEntity(
+            slotId = slot,
+            worldMapSects = gd.worldMapSects,
+            aiSectDisciples = gd.aiSectDisciples,
+            cultivatorCaves = gd.cultivatorCaves,
+            caveExplorationTeams = gd.caveExplorationTeams,
+            aiCaveTeams = gd.aiCaveTeams,
+            worldLevels = gd.worldLevels
+        ))
+        core.database.sectPolicyStateDao().upsert(SectPolicyState(
+            slotId = slot,
+            sectPolicies = gd.sectPolicies,
+            autoRecruitSpiritRootFilter = gd.autoRecruitSpiritRootFilter,
+            daoCompanionBannedRootCounts = gd.daoCompanionBannedRootCounts,
+            daoCompanionConsentRequired = gd.daoCompanionConsentRequired,
+            breakthroughAutoPillFocused = gd.breakthroughAutoPillFocused,
+            breakthroughAutoPillRootCounts = gd.breakthroughAutoPillRootCounts,
+            autoEquipFromWarehouseFocused = gd.autoEquipFromWarehouseFocused,
+            autoEquipFromWarehouseRootCounts = gd.autoEquipFromWarehouseRootCounts,
+            autoLearnFromWarehouseFocused = gd.autoLearnFromWarehouseFocused,
+            autoLearnFromWarehouseRootCounts = gd.autoLearnFromWarehouseRootCounts,
+            yearlySalary = gd.yearlySalary,
+            yearlySalaryEnabled = gd.yearlySalaryEnabled
+        ))
     }
 
     /**

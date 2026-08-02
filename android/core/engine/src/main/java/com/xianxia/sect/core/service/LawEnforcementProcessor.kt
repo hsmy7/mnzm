@@ -746,27 +746,12 @@ class LawEnforcementProcessor @Inject constructor(
         }
     }
 
-    private fun recordGameEventSect(category: String, type: String, summary: String, relatedEntityId: String, relatedEntityName: String) {
-        val data = stateStore.gameData.value
-        val records = data.gameEventRecords.toMutableList()
-        records.add(GameEventRecord(
-            timestamp = System.currentTimeMillis(),
-            year = data.gameYear,
-            month = data.gameMonth,
-            phase = data.gamePhase,
-            category = category,
-            eventType = type,
-            summary = summary,
-            relatedEntityId = relatedEntityId,
-            relatedEntityName = relatedEntityName
-        ))
-        val trimmed = if (records.size > 200) records.takeLast(200) else records
-        stateStore.update { gameData = gameData.copy(gameEventRecords = trimmed) }
-    }
 
     /** 事务内添加事件记录 —— 直接修改 [state]，不含独立的 stateStore.update。 */
     private fun addEventRecord(state: MutableGameState, category: String, type: String, summary: String, relatedEntityId: String, relatedEntityName: String) {
         val records = state.gameData.gameEventRecords.toMutableList()
+        // P-9：追加序号分配（与 MutableGameState.recordGameEvent 一致）
+        val nextSeq = nextEventSequenceId(records)
         records.add(GameEventRecord(
             timestamp = System.currentTimeMillis(),
             year = state.gameData.gameYear,
@@ -776,7 +761,8 @@ class LawEnforcementProcessor @Inject constructor(
             eventType = type,
             summary = summary,
             relatedEntityId = relatedEntityId,
-            relatedEntityName = relatedEntityName
+            relatedEntityName = relatedEntityName,
+            sequenceId = nextSeq
         ))
         state.gameData = state.gameData.copy(gameEventRecords = if (records.size > 200) records.takeLast(200) else records)
     }

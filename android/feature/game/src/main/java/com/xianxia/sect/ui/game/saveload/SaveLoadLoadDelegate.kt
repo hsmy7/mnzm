@@ -45,7 +45,7 @@ class SaveLoadLoadDelegate(
     }
 
     suspend fun loadGame(saveSlot: SaveSlot): Boolean {
-        if (stateStore.unifiedState.value.isLoading) {
+        if (stateStore.isLoading.value) {
             Log.w(TAG, "Already loading, ignoring loadGame request")
             return false
         }

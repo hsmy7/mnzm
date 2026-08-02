@@ -7,7 +7,9 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.ElderSlotType
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
 import javax.inject.Inject
@@ -105,11 +107,15 @@ class CultivationRateCalculator @Inject constructor(
      * 消除每弟子每旬的 assemble（60~100 次列读取 + 10 个嵌套对象分配）。
      */
     fun calculateCultivationPerPhaseById(
-        id: Int, data: GameData, tables: DiscipleTables
+        id: Int, data: GameData, tables: DiscipleTables,
+        residenceByDiscipleId: Map<Int, ResidenceSlot> = emptyMap(),
+        buildingByInstanceId: Map<String, GridBuildingData> = emptyMap()
     ): Double {
         val realm = tables.realms.getOrDefault(id, 9)
         val discipleType = tables.discipleTypes.getOrNull(id) ?: "outer"
-        val buildingBonus = calculateBuildingCultivationBonus(id, data)
+        val buildingBonus = calculateBuildingCultivationBonus(
+            id, data, residenceByDiscipleId, buildingByInstanceId
+        )
         val (wenDaoElderBonus, wenDaoMastersBonus) = calculatePreachingBonusesColumn(
             realm, discipleType, data, tables, "outer"
         )
@@ -337,14 +343,45 @@ class CultivationRateCalculator @Inject constructor(
      */
     private fun calculateBuildingCultivationBonus(disciple: Disciple, data: GameData): Double {
         val id = disciple.id.toIntOrNull() ?: return 1.0
-        return calculateBuildingCultivationBonus(id, data)
+        return calculateBuildingCultivationBonus(id, data, emptyMap(), emptyMap())
     }
 
     /** 列直读版住所加成，无 Disciple 组装。对标原 calculateBuildingCultivationBonus。 */
-    private fun calculateBuildingCultivationBonus(id: Int, data: GameData): Double {
-        val slot = data.residenceSlots.firstOrNull { it.discipleId == id.toString() } ?: return 1.0
-        val building = data.placedBuildings.firstOrNull { it.instanceId == slot.buildingInstanceId } ?: return 1.0
+    private fun calculateBuildingCultivationBonus(
+        id: Int, data: GameData,
+        residenceByDiscipleId: Map<Int, ResidenceSlot>,
+        buildingByInstanceId: Map<String, GridBuildingData>
+    ): Double {
+        // P-4：预构建索引为空时懒构建（直接调用方不受影响）；
+        // 每旬热点循环预构建后 O(1) 查找，消除 O(R)+O(B) 线性扫描 + 每弟子 id.toString()
+        val residenceMap = if (residenceByDiscipleId.isNotEmpty()) {
+            residenceByDiscipleId
+        } else {
+            buildResidenceIndex(data)
+        }
+        val buildingMap = if (buildingByInstanceId.isNotEmpty()) {
+            buildingByInstanceId
+        } else {
+            data.placedBuildings.associateBy { it.instanceId }
+        }
+        val slot = residenceMap[id] ?: return 1.0
+        val building = buildingMap[slot.buildingInstanceId] ?: return 1.0
         return GameConfig.Cultivation.BUILDING_BONUSES[building.displayName] ?: 1.0
+    }
+
+    /**
+     * 构建住所索引（P-4）：discipleId → 槽位。
+     *
+     * 与原 firstOrNull 语义一致——重复 discipleId 保留第一个匹配槽位；
+     * 非数值 discipleId（如空串）永不匹配弟子 id.toString()，直接跳过。
+     */
+    private fun buildResidenceIndex(data: GameData): Map<Int, ResidenceSlot> {
+        val map = HashMap<Int, ResidenceSlot>()
+        for (r in data.residenceSlots) {
+            val rid = r.discipleId.toIntOrNull() ?: continue
+            if (rid !in map) map[rid] = r
+        }
+        return map
     }
 
     companion object {

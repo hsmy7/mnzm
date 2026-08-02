@@ -27,21 +27,29 @@ class SaveLoadRestartDelegate(
     suspend fun performRestartSave(slot: Int, previousSlot: Int): Boolean = withContext(dispatcher) {
         try {
             Log.i(TAG, "Saving current game to slot $slot before restart")
-            val currentData = stateStore.unifiedState.value
+            // S9 修复（对抗性审查）：恢复"未初始化即中止"守卫——原 gameData ?: return false
+            // 守卫在 P-8 迁移时丢失；gameDataSnapshot 恒非空默认值，若在状态未初始化时
+            // 触发重启存档会用空 GameData 覆盖槽位（数据丢失面）。以 sectName 判空
+            // （与 performRestartSave 的既有守卫一致——游戏未初始化时 sectName 为空）。
+            if (stateStore.gameDataSnapshot.sectName.isBlank()) {
+                Log.w(TAG, "performRestartSave: gameData not initialized, aborting")
+                return@withContext false
+            }
+            // P-8：unifiedState → 独立窄流直读（gameData 为可空旧字段，经 gameDataSnapshot 更实时）
             val saveData = com.xianxia.sect.data.model.SaveData(
-                gameData = currentData.gameData ?: return@withContext false,
+                gameData = stateStore.gameDataSnapshot,
                 disciples = emptyList(),
-                equipmentStacks = currentData.equipmentStacks,
-                equipmentInstances = currentData.equipmentInstances,
-                manualStacks = currentData.manualStacks,
-                manualInstances = currentData.manualInstances,
-                pills = currentData.pills,
-                materials = currentData.materials,
-                herbs = currentData.herbs,
-                seeds = currentData.seeds,
-                storageBags = currentData.storageBags,
-                teams = currentData.teams,
-                battleLogs = currentData.battleLogs,
+                equipmentStacks = stateStore.equipmentStacks.value,
+                equipmentInstances = stateStore.equipmentInstances.value,
+                manualStacks = stateStore.manualStacks.value,
+                manualInstances = stateStore.manualInstances.value,
+                pills = stateStore.pills.value,
+                materials = stateStore.materials.value,
+                herbs = stateStore.herbs.value,
+                seeds = stateStore.seeds.value,
+                storageBags = stateStore.storageBags.value,
+                teams = stateStore.teams.value,
+                battleLogs = stateStore.battleLogs.value,
                 alliances = emptyList(),
                 productionSlots = emptyList(),
                 // 2026-08-01 对抗性审查修复：缺该标志会使删表守卫失效

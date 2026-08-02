@@ -276,53 +276,37 @@ private class FakeGameStateStore : GameStateStore {
     var reloadingCalled = false
     var resetCalled = false
 
-    private fun syncGameLifecycle() {
-        gameLifecycle.value = when {
-            runState.value == RunState.PLAYING && bootPhase.value >= BootPhase.BOOT_COMPLETE -> GameLifecycle.PLAYING
-            bootPhase.value >= BootPhase.MAP_READY -> GameLifecycle.MAP_READY
-            bootPhase.value >= BootPhase.SYSTEMS_READY -> GameLifecycle.SYSTEMS_READY
-            bootPhase.value >= BootPhase.DATA_READY -> GameLifecycle.DATA_READY
-            else -> GameLifecycle.UNINITIALIZED
-        }
-    }
-
     override fun advanceBootPhase() {
         val next = BootPhase.entries[bootPhase.value.ordinal + 1]
         bootPhase.value = next
         bootPhaseHistory.add(next)
-        syncGameLifecycle()
     }
 
     override fun resetBootPhase() {
         bootPhase.value = BootPhase.UNINITIALIZED
         bootPhaseHistory.add(BootPhase.UNINITIALIZED)
         resetCalled = true
-        syncGameLifecycle()
     }
 
     override fun setPlaying() {
         runState.value = RunState.PLAYING
         runStateHistory.add(RunState.PLAYING)
-        syncGameLifecycle()
     }
 
     override fun setReloading() {
         runState.value = RunState.RELOADING
         runStateHistory.add(RunState.RELOADING)
         reloadingCalled = true
-        syncGameLifecycle()
     }
 
     override fun setLoading() {
         runState.value = RunState.LOADING
         runStateHistory.add(RunState.LOADING)
-        syncGameLifecycle()
     }
 
     override fun setIdle() {
         runState.value = RunState.IDLE
         runStateHistory.add(RunState.IDLE)
-        syncGameLifecycle()
     }
 
     // ── StateFlow 观察 ──
@@ -378,7 +362,6 @@ private class FakeGameStateStore : GameStateStore {
     override val battleLogsSnapshot: List<BattleLog> get() = battleLogs.value
 
     // ── 兼容层 API ──
-    override val gameLifecycle = MutableStateFlow(GameLifecycle.UNINITIALIZED)
 
     // ── 事件 ──
     override val warehouseFullEvent = MutableSharedFlow<String>(extraBufferCapacity = 1)

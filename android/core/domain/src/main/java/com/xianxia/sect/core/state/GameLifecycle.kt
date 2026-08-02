@@ -63,11 +63,3 @@ enum class RunState {
  * - MAP_READY ← BootPhase.MAP_READY
  * - PLAYING ← BootPhase.BOOT_COMPLETE + RunState.PLAYING
  */
-@Deprecated("Use BootPhase/RunState instead. Kept for backward compatibility.")
-enum class GameLifecycle {
-    UNINITIALIZED,
-    DATA_READY,
-    SYSTEMS_READY,
-    MAP_READY,
-    PLAYING
-}

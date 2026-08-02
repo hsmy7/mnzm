@@ -42,9 +42,21 @@ class GameStateStoreImpl @Inject constructor(
     private val repository: GameStateRepository
 ) : GameStateStore {
 
-    /** 聚合派生链专用单线程调度器——与引擎增量组装隔离，不再抢 Dispatchers.Default */
-    private val aggregationDispatcher: CoroutineDispatcher =
-        Dispatchers.Default.limitedParallelism(1)
+    /**
+     * P-5：弟子聚合结果流——由 assemble 写回点同步更新（与组装对齐，
+     * 消除常驻 10Hz 采样管道）。无订阅时仍持有最新值（每旬一次增量归并，成本微秒级）。
+     */
+    private val _aggregatesFlow = MutableStateFlow<List<DiscipleAggregate>>(emptyList())
+
+    /**
+     * P-5：聚合代际版本号——与 [discipleVersion] 对齐。
+     * 不匹配时 [discipleAggregatesSnapshot] 按需重算一次（load/reset 清缓存窗口兜底）。
+     */
+    @Volatile
+    private var aggregatesGen = -1L
+
+    /** P-5：宗门战力——与聚合同步计算（同刻可观察），血炼变化在 update 提交处重算 */
+    private val _combatPowerFlow = MutableStateFlow(0L)
 
     /**
      * 锁外弟子组装专用单线程调度器。
@@ -108,6 +120,9 @@ class GameStateStoreImpl @Inject constructor(
         // Mutable 列 unmodifiable 防御：Debug/CI 开启（原地修改立即抛错），Release 零成本
         DiscipleTables.mutableValueGuardEnabled = BuildConfig.DEBUG
     }
+    /** P-3：最近一次 update 事务的脏列索引（供锁外 patch 组装复用子对象引用） */
+    @Volatile
+    private var lastDirtyColumns: Set<Int> = emptySet()
     override val discipleTables: DiscipleTables get() = _discipleTables
 
     private val transactionLock = ReentrantLock()
@@ -161,24 +176,12 @@ class GameStateStoreImpl @Inject constructor(
     // 派生 StateFlow（保持旧引用者不中断）
     private val _bootPhase = MutableStateFlow(BootPhase.UNINITIALIZED)
     private val _runState = MutableStateFlow(RunState.IDLE)
-    // 旧 API 兼容：由 _lifecycleState 同步更新
-    private val _gameLifecycle = MutableStateFlow(GameLifecycle.UNINITIALIZED)
 
-    /** 根据当前 BootPhase + RunState 计算对应的 GameLifecycle 兼容值 */
-    private fun computeGameLifecycle(boot: BootPhase, run: RunState): GameLifecycle = when {
-        run == RunState.PLAYING && boot >= BootPhase.BOOT_COMPLETE -> GameLifecycle.PLAYING
-        boot >= BootPhase.MAP_READY -> GameLifecycle.MAP_READY
-        boot >= BootPhase.SYSTEMS_READY -> GameLifecycle.SYSTEMS_READY
-        boot >= BootPhase.DATA_READY -> GameLifecycle.DATA_READY
-        else -> GameLifecycle.UNINITIALIZED
-    }
-
-    /** 原子化设置生命周期状态 — 同时更新 _lifecycleState、_bootPhase、_runState、_gameLifecycle */
+    /** 原子化设置生命周期状态 — 同时更新 _lifecycleState、_bootPhase、_runState */
     private fun setLifecycleStateAtomic(bootPhase: BootPhase, runState: RunState) {
         _lifecycleState.value = GameStateStore.LifecycleState(bootPhase = bootPhase, runState = runState)
         _bootPhase.value = bootPhase
         _runState.value = runState
-        _gameLifecycle.value = computeGameLifecycle(bootPhase, runState)
     }
 
     // 版本计数器：每次 update() 有字段变化时递增，用于 unifiedState 批处理触发
@@ -286,9 +289,8 @@ class GameStateStoreImpl @Inject constructor(
     override val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
     override val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
 
-    override val lifecycleState: StateFlow<GameStateStore.LifecycleState> = _lifecycleState.asStateFlow()
-    override val gameLifecycle: StateFlow<GameLifecycle> = _gameLifecycle.asStateFlow()
     override val bootPhase: StateFlow<BootPhase> = _bootPhase.asStateFlow()
+    override val lifecycleState: StateFlow<GameStateStore.LifecycleState> = _lifecycleState.asStateFlow()
     override val runState: StateFlow<RunState> = _runState.asStateFlow()
 
     override fun advanceBootPhase() {
@@ -408,16 +410,42 @@ class GameStateStoreImpl @Inject constructor(
         .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), GameStateStore.ConfigState())
 
     /**
-     * 聚合缓存（2026-08-01）：derivedAggregation 计算末尾写入。
+     * 聚合缓存（P-5）：assemble 写回点同步写入。
      * 修复前 [discipleAggregatesSnapshot] 在调用线程全量 toAggregate()——
      * UI 打开弹窗触发多次主线程 O(D) 扫描（ProductionViewModel 8 处等）。
-     * 现为 O(1) 缓存读取（≤100ms 采样延迟，与原 sample(100) 语义一致）。
+     * 现为 O(1) 缓存读取；仅 load/reset 清缓存后、写回点未覆盖的窗口
+     * 按需重算一次（见 getter 代际校验）。
      */
     @Volatile
     private var cachedAggregates: List<DiscipleAggregate> = emptyList()
 
     override val discipleAggregatesSnapshot: List<DiscipleAggregate>
-        get() = cachedAggregates
+        get() {
+            // P-5：写回点未覆盖窗口（loadFromSnapshot 清缓存后到 assemble 协程
+            // 执行完成之间、失败回滚后）按需重算一次并同步 flow——随后写回点接管。
+            if (aggregatesGen != discipleVersion.get()) {
+                // S2 修复（对抗性审查）：TOCTOU——计算期间 load/reset 可能递增代际
+                // 并清空缓存，本 getter 不取锁，计算完成后必须校验代际未变才写缓存，
+                // 否则陈旧聚合被盖上"当前代"印章持久化（读档后 UI 显示旧档数据直到
+                // 下一笔弟子事务）。恢复旧 derivedAggregation 的"计算后校验"模式。
+                val gen = discipleVersion.get()
+                val disciples = _disciplesFlow.value
+                val fresh = disciples.map { it.toAggregate() }
+                if (discipleVersion.get() != gen) {
+                    // 代际已变（load/reset 发生）：丢弃本次结果，下次调用重算
+                    return cachedAggregates
+                }
+                // P-5：战力与聚合同步（先算后写，避免中间状态窗口）
+                val power = computeCombatPower(
+                    fresh, _gameDataFlow.value.bloodRefinementPctTotals
+                )
+                cachedAggregates = fresh
+                _aggregatesFlow.value = fresh
+                _combatPowerFlow.value = power
+                aggregatesGen = discipleVersion.get()
+            }
+            return cachedAggregates
+        }
 
     private data class CachedPower(
         val fingerprint: Int,
@@ -429,9 +457,7 @@ class GameStateStoreImpl @Inject constructor(
 
     // 中间流：直接从独立 MutableStateFlow 派生
     // 这些独立流只在对应字段实际变化时才发射，所以 combine 的频率大幅降低
-    private val disciplesFlow = _disciplesFlow
-        .distinctUntilChanged { old, new -> old === new }
-
+    // （disciplesFlow 已随 P-5 聚合管道移除——聚合改为 assemble 写回点同步计算）
     private val bloodRefinementPctFlow = _gameDataFlow
         .map { it.bloodRefinementPctTotals }
         .distinctUntilChanged { old, new -> old === new }
@@ -443,41 +469,48 @@ class GameStateStoreImpl @Inject constructor(
         .distinctUntilChanged { old, new -> old === new }
 
     /**
-     * 派生聚合（单次扫描同时产出弟子聚合列表与宗门战力）。
+     * P-5：聚合计算写回点（由 assemble 协程在写回 [disciplesFlow] 后同步调用）。
      *
-     * 原 discipleAggregates（sample 200）+ sectCombatPower（sample 300）两条
-     * 独立全量扫描链合并为一条：每弟子 [DiscipleAggregate.toAggregate] 只做一次。
-     * - aggregates 覆盖全部弟子（含死亡，保持原 discipleAggregates 语义）
-     * - combatPower 仅累计存活弟子（保持原 sectCombatPower 语义，指纹缓存保留）
-     * - sample(100) 合并窗口：突发更新最多 10 次扫描/秒（原两链合计 ~12 次/秒）
-     * - 专用单线程调度器：不再与引擎增量组装抢 Dispatchers.Default
+     * 原 10Hz 常驻 combine/sample 管道（无 UI 订阅也持续轮询 + O(D) 深比较）移除，
+     * 聚合改为"组装完成即计算"（assembleDispatcher 单线程串行，无竞争）——
+     * 空闲零成本，更新零延迟（原 ≤100ms 采样延迟）。
+     * 增量归并（[mergeAggregatesIncremental]）语义不变：仅新增/变更弟子重算
+     * toAggregate，未变弟子复用旧 Aggregate 对象（UI 引用稳定）。
+     *
+     * @param disciples 组装后的完整弟子列表（id 升序）
+     * @param gen 组装任务的代际版本号（调用点已校验与当前一致）
      */
-    private data class DerivedAggregation(
-        val aggregates: List<DiscipleAggregate>,
-        val combatPower: Long
-    )
-
-    private val derivedAggregation: StateFlow<DerivedAggregation> = combine(
-        disciplesFlow,
-        bloodRefinementPctFlow
-    ) { disciples, bloodRefinementPctTotals ->
-        // 2026-08-01 对抗性审查修复：捕获代际版本号——load/reset 会递增版本号并清空
-        // cachedAggregates；若本计算基于旧 disciplesFlow（旧代），写缓存会覆盖清空，
-        // 使 UI 短暂显示旧档聚合。计算完成后校验版本号未变才写缓存。
-        val gen = discipleVersion.get()
-        // 2026-08-01 增量聚合：两列表均 id 升序（assembleAll/增量归并不变量）——
-        // 双指针 diff 仅对新增/变更弟子重算 toAggregate，未变弟子复用旧 Aggregate 对象
-        // （对象复用 → UI 侧聚合引用稳定）。diff 出现异常（非升序）时退化为全量。
+    private fun updateAggregates(disciples: List<Disciple>, gen: Long) {
         val prevAggregates = cachedAggregates
         val aggregates = if (prevAggregates.size == disciples.size && prevAggregates.isNotEmpty()) {
             mergeAggregatesIncremental(prevAggregates, disciples)
         } else {
             disciples.map { it.toAggregate() }
         }
-        if (discipleVersion.get() == gen) {
-            cachedAggregates = aggregates
-        }
+        // 先计算后写入：战力计算可能耗时（首次 JIT/冷路径），若先写 aggregates 再算
+        // 战力，观察者会在两流写入之间看到"聚合新、战力旧"的中间状态窗口。
+        // 两值算完再连续写入（纳秒级窗口，观察者不可能命中）。
+        val power = computeCombatPower(
+            aggregates, _gameDataFlow.value.bloodRefinementPctTotals
+        )
+        cachedAggregates = aggregates
+        _aggregatesFlow.value = aggregates
+        _combatPowerFlow.value = power
+        aggregatesGen = gen
+    }
 
+    /**
+     * 宗门战力汇总（仅存活弟子累计；指纹缓存保留——血炼百分比变化时仅重算
+     * 血炼弟子，其余缓存命中）。
+     *
+     * @param aggregates 弟子聚合列表
+     * @param bloodRefinementPctTotals 血炼百分比总计映射
+     * @return 宗门总战力
+     */
+    private fun computeCombatPower(
+        aggregates: List<DiscipleAggregate>,
+        bloodRefinementPctTotals: Map<String, BloodRefinementPctTotal>
+    ): Long {
         var total = 0L
         for (aggregate in aggregates) {
             if (!aggregate.isAlive) continue
@@ -495,16 +528,8 @@ class GameStateStoreImpl @Inject constructor(
         }
         val aliveIds = aggregates.filter { it.isAlive }.map { it.id }.toSet()
         disciplePowerCache.keys.retainAll(aliveIds)
-        DerivedAggregation(aggregates, total)
-    }.sample(100)
-        .distinctUntilChanged()
-        .flowOn(aggregationDispatcher)
-        .stateIn(
-            // 2026-08-01：WhileSubscribed → Eagerly——无订阅时也持续计算，
-            // 保证 discipleAggregatesSnapshot 缓存永远新鲜（增量后空闲成本趋零）
-            applicationScopeProvider.scope, SharingStarted.Eagerly,
-            DerivedAggregation(emptyList(), 0L)
-        )
+        return total
+    }
 
     /**
      * 双指针增量归并（2026-08-01）：prev（升序）与 disciples（升序）diff，
@@ -570,13 +595,11 @@ class GameStateStoreImpl @Inject constructor(
         return ids
     }
 
-    override val discipleAggregates: StateFlow<List<DiscipleAggregate>> = derivedAggregation
-        .map { it.aggregates }
-        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    override val discipleAggregates: StateFlow<List<DiscipleAggregate>> =
+        _aggregatesFlow.asStateFlow()
 
-    override val sectCombatPower: StateFlow<Long> = derivedAggregation
-        .map { it.combatPower }
-        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), 0L)
+    /** 宗门战力：与聚合同步（[updateAggregates] 写回点 + update 提交处血炼重算） */
+    override val sectCombatPower: StateFlow<Long> = _combatPowerFlow.asStateFlow()
 
     private val aiSectDisciplesFlow = _gameDataFlow
         .map { it.aiSectDisciples }
@@ -752,6 +775,41 @@ class GameStateStoreImpl @Inject constructor(
     }
 
 
+    /**
+     * update() 事务起始快照——字段变化检测基准。
+     *
+     * 将事务前全部 StateFlow 值聚合为单一对象，避免 diffAndEmit/markDirty/
+     * detectFieldChanges 等辅助函数出现超长参数列表（聚合 data class 模式）。
+     */
+    private data class UpdateBaseline(
+        val gameData: GameData,
+        val equipmentStacks: List<EquipmentStack>,
+        val equipmentInstances: List<EquipmentInstance>,
+        val manualStacks: List<ManualStack>,
+        val manualInstances: List<ManualInstance>,
+        val pills: List<Pill>,
+        val materials: List<Material>,
+        val herbs: List<Herb>,
+        val seeds: List<Seed>,
+        val storageBags: List<StorageBag>,
+        val battleLogs: List<BattleLog>,
+        val teams: List<ExplorationTeam>,
+        val isPaused: Boolean,
+        val isLoading: Boolean,
+        val isSaving: Boolean,
+        val pendingNotification: GameNotification?,
+        val pendingMarriageProposals: List<PendingMarriageProposal>
+    )
+
+    /** 提交阶段标志：final 状态三连 + block 内通知/婚姻变更检测结果 */
+    private data class CommitFlags(
+        val finalPaused: Boolean,
+        val finalLoading: Boolean,
+        val finalSaving: Boolean,
+        val notificationChanged: Boolean,
+        val proposalsChanged: Boolean
+    )
+
     override fun update(block: MutableGameState.() -> Unit) {
         // ★ 运行时监护：主线程调用 update 是架构违规，
         // 第一层防护（launchOnEngine）已确保所有调用通过引擎线程，
@@ -786,87 +844,22 @@ class GameStateStoreImpl @Inject constructor(
             try {
                 reentrantCount.set(1)
                 reentrantBuffer.set(reusableMutableState)
-                val curGame = _gameDataFlow.value
-                val curES = _equipmentStacksFlow.value
-                val curEI = _equipmentInstancesFlow.value
-                val curMS = _manualStacksFlow.value
-                val curMI = _manualInstancesFlow.value
-                val curP = _pillsFlow.value
-                val curMat = _materialsFlow.value
-                val curH = _herbsFlow.value
-                val curS = _seedsFlow.value
-                val curSB = _storageBagsFlow.value
-                val curBL = _battleLogsFlow.value
-                val curT = _teamsFlow.value
-                val curPaused = _isPaused.value
-                val curLoading = _isLoading.value
-                val curSaving = _isSaving.value
-                val curNotif = _pendingNotificationFlow.value
-                val curProposals = _pendingMarriageProposalsFlow.value
-                reusableMutableState.apply {
-                    gameData = curGame
-                    // COW deepCopy 每列 O(1) 共享存储，无需增量复制；
-                    // consumeDirtyColumns 仅为维护 DirtyTracker 状态（提交后表无事务外写入，恒为空）
-                    val dirtyCols = _discipleTables.dirtyTracker.consumeDirtyColumns()
-                    discipleTables = _discipleTables.deepCopy(dirtyCols).apply { writeAllowed = true }
-                    equipmentStacks = EntityStore(curES)
-                    equipmentInstances = EntityStore(curEI)
-                    manualStacks = EntityStore(curMS)
-                    manualInstances = EntityStore(curMI)
-                    pills = EntityStore(curP)
-                    materials = EntityStore(curMat)
-                    herbs = EntityStore(curH)
-                    seeds = EntityStore(curS)
-                    storageBags = EntityStore(curSB)
-                    battleLogs = curBL
-                    teams = curT
-                    isPaused = curPaused
-                    isLoading = curLoading
-                    isSaving = curSaving
-                    pendingNotification = curNotif
-                    pendingMarriageProposals = curProposals
-                }
+                val baseline = captureBaseline()
+                initReusableState(baseline)
                 val notificationBeforeBlock = reusableMutableState.pendingNotification
                 val proposalsBeforeBlock = reusableMutableState.pendingMarriageProposals
                 reusableMutableState.block()
                 // ★ 冻结 EntityStore 快照，确保 items 引用正确反映变化
-                reusableMutableState.equipmentStacks.freeze()
-                reusableMutableState.equipmentInstances.freeze()
-                reusableMutableState.manualStacks.freeze()
-                reusableMutableState.manualInstances.freeze()
-                reusableMutableState.pills.freeze()
-                reusableMutableState.materials.freeze()
-                reusableMutableState.herbs.freeze()
-                reusableMutableState.seeds.freeze()
-                reusableMutableState.storageBags.freeze()
-                val blockChangedNotification = reusableMutableState.pendingNotification !== notificationBeforeBlock
-                val blockChangedProposals = reusableMutableState.pendingMarriageProposals !== proposalsBeforeBlock
-                val finalPaused = if (_isPaused.value != curPaused) _isPaused.value else reusableMutableState.isPaused
-                val finalLoading = if (_isLoading.value != curLoading) _isLoading.value else reusableMutableState.isLoading
-                val finalSaving = if (_isSaving.value != curSaving) _isSaving.value else reusableMutableState.isSaving
-                _isPaused.value = finalPaused
-                _isLoading.value = finalLoading
-                _isSaving.value = finalSaving
+                freezeStores()
+                val flags = resolveCommitFlags(
+                    baseline,
+                    reusableMutableState.pendingNotification !== notificationBeforeBlock,
+                    reusableMutableState.pendingMarriageProposals !== proposalsBeforeBlock
+                )
                 // 个体 StateFlow 发射（始终执行，但有 !!! 引用比较防止无意义发射）
                 // ★ 已移除自动批量发射模式：该模式在 ≥3 字段变化时抑制个体发射，
                 // 导致时间和仓库显示冻结，而修炼流（锁外异步组装）继续更新。
-                if (reusableMutableState.gameData !== curGame) _gameDataFlow.value = reusableMutableState.gameData
-                if (reusableMutableState.equipmentStacks.items !== curES) _equipmentStacksFlow.value = reusableMutableState.equipmentStacks.items
-                if (reusableMutableState.equipmentInstances.items !== curEI) _equipmentInstancesFlow.value = reusableMutableState.equipmentInstances.items
-                if (reusableMutableState.manualStacks.items !== curMS) _manualStacksFlow.value = reusableMutableState.manualStacks.items
-                if (reusableMutableState.manualInstances.items !== curMI) _manualInstancesFlow.value = reusableMutableState.manualInstances.items
-                if (reusableMutableState.pills.items !== curP) _pillsFlow.value = reusableMutableState.pills.items
-                if (reusableMutableState.materials.items !== curMat) _materialsFlow.value = reusableMutableState.materials.items
-                if (reusableMutableState.herbs.items !== curH) _herbsFlow.value = reusableMutableState.herbs.items
-                if (reusableMutableState.seeds.items !== curS) _seedsFlow.value = reusableMutableState.seeds.items
-                if (reusableMutableState.storageBags.items !== curSB) _storageBagsFlow.value = reusableMutableState.storageBags.items
-                if (reusableMutableState.teams !== curT) _teamsFlow.value = reusableMutableState.teams
-                if (reusableMutableState.battleLogs !== curBL)
-                    _battleLogsFlow.value = reusableMutableState.battleLogs
-                if (blockChangedNotification)
-                    _pendingNotificationFlow.value = reusableMutableState.pendingNotification
-                if (blockChangedProposals)
-                    _pendingMarriageProposalsFlow.value = reusableMutableState.pendingMarriageProposals
+                emitStateFlows(baseline, flags)
                 // COW 快照隔离后，副本的 mutationVersion 从 0 起步且不再被
                 // copyTo 逐元素写入污染，dirtyTracker 只记录本次事务真实写入的列。
                 // 用 isDirty 判定"本次事务是否真的改了弟子数据"：
@@ -879,46 +872,31 @@ class GameStateStoreImpl @Inject constructor(
                     // 减少 transactionMutex 持有时间，降低游戏循环锁争用
                     _discipleDirty = true
                 }
-                repository.markDirty(
-                    gameData = reusableMutableState.gameData !== curGame,
-                    disciples = disciplesNeedReassemble,
-                    equipmentStacks = reusableMutableState.equipmentStacks.items !== curES,
-                    equipmentInstances = reusableMutableState.equipmentInstances.items !== curEI,
-                    manualStacks = reusableMutableState.manualStacks.items !== curMS,
-                    manualInstances = reusableMutableState.manualInstances.items !== curMI,
-                    pills = reusableMutableState.pills.items !== curP,
-                    materials = reusableMutableState.materials.items !== curMat,
-                    herbs = reusableMutableState.herbs.items !== curH,
-                    seeds = reusableMutableState.seeds.items !== curS,
-                    storageBags = reusableMutableState.storageBags.items !== curSB,
-                    teams = reusableMutableState.teams !== curT,
-                    battleLogs = reusableMutableState.battleLogs !== curBL
-                )
+                markDirtyFor(baseline, disciplesNeedReassemble)
                 // 仅在有字段变化时递增版本号，触发 unifiedState 批处理重建
-                val anyFieldChanged = reusableMutableState.gameData !== curGame
-                    || disciplesNeedReassemble
-                    || reusableMutableState.equipmentStacks.items !== curES
-                    || reusableMutableState.equipmentInstances.items !== curEI
-                    || reusableMutableState.manualStacks.items !== curMS
-                    || reusableMutableState.manualInstances.items !== curMI
-                    || reusableMutableState.pills.items !== curP
-                    || reusableMutableState.materials.items !== curMat
-                    || reusableMutableState.herbs.items !== curH
-                    || reusableMutableState.seeds.items !== curS
-                    || reusableMutableState.storageBags.items !== curSB
-                    || reusableMutableState.teams !== curT
-                    || reusableMutableState.battleLogs !== curBL
-                    || finalPaused != curPaused
-                    || finalLoading != curLoading
-                    || finalSaving != curSaving
-                    || blockChangedNotification
-                    || blockChangedProposals
-                if (anyFieldChanged) {
+                if (detectFieldChanges(baseline, disciplesNeedReassemble, flags)) {
                     _updateVersion.value++
                     _stateDirty = true
                 }
+                // P-5：血炼百分比变化（不触发弟子组装）时同步重算战力——
+                // 指纹缓存使仅血炼弟子重算、其余命中（O(D) 引用比较 + 缓存查找，微秒级）；
+                // 弟子同时变化时由锁外 assemble 写回点（updateAggregates）统一重算。
+                // S3 修复（对抗性审查）：cachedAggregates 为空（load/reset 窗口）时跳过——
+                // 空缓存重算战力=0 会闪 0，且此时全量冷算在锁内（load 已清指纹缓存）；
+                // 由随后的 assemble 写回点用最新血炼补算。
+                if (reusableMutableState.gameData.bloodRefinementPctTotals
+                    !== baseline.gameData.bloodRefinementPctTotals &&
+                    !disciplesNeedReassemble && cachedAggregates.isNotEmpty()
+                ) {
+                    _combatPowerFlow.value = computeCombatPower(
+                        cachedAggregates, reusableMutableState.gameData.bloodRefinementPctTotals
+                    )
+                }
                 _discipleTables = reusableMutableState.discipleTables
                 _discipleTables.writeAllowed = false  // ★ 出厂后锁定，防止绕过 update{} 直接写
+                // P-3：捕获本事务脏列索引（供锁外 patch 组装复用子对象引用）。
+                // 提交后立即消费——下一事务开始时 DirtyTracker 恒为空（既有不变量）。
+                lastDirtyColumns = _discipleTables.dirtyTracker.consumeDirtyColumns()
 
                 // ANR 诊断：记录锁内耗时超过阈值的 update 调用
                 val lockElapsedMs = (System.nanoTime() - lockStartNs) / 1_000_000
@@ -941,30 +919,208 @@ class GameStateStoreImpl @Inject constructor(
         // ★ 单线程调度器串行执行：增量组装读"执行时"的 _disciplesFlow 快照，
         //   并发交错会互相覆盖（丢弟子）；串行保证后启动的组装读到前次写回结果。
         if (disciplesNeedReassemble) {
-            // 捕获提交时代的版本号：load/reset 会递增版本号作废排队中的陈旧组装任务
-            val gen = discipleVersion.get()
-            val changedIds = _discipleTables.changedIdTracker.consumeChangedIds()
-            if (changedIds.isNotEmpty()) {
-                applicationScopeProvider.scope.launch(assembleDispatcher) {
-                    if (discipleVersion.get() != gen) return@launch
-                    val prevSnapshot = _disciplesFlow.value
-                    // 2026-08-01：变更覆盖大部分弟子时增量归并无收益（增量还需组装每
-                    // 个变更弟子 + 归并），直接用全量更优——replaceAll 场景防止退化
-                    _disciplesFlow.value = if (changedIds.size >= prevSnapshot.size / 2) {
-                        _discipleTables.assembleAll()
-                    } else {
-                        _discipleTables.assembleAllIncremental(prevSnapshot, changedIds)
-                    }
-                }
-            } else {
-                // 回退：changedIdTracker 可能未捕获列级写入，全量 assemble 兜底
-                applicationScopeProvider.scope.launch(assembleDispatcher) {
-                    if (discipleVersion.get() != gen) return@launch
-                    _disciplesFlow.value = _discipleTables.assembleAll()
-                }
-            }
+            dispatchAssemble()
         }
 
+    }
+
+    /** 捕获事务起始时全部 StateFlow 快照（字段变化检测基准）。 */
+    private fun captureBaseline(): UpdateBaseline = UpdateBaseline(
+        gameData = _gameDataFlow.value,
+        equipmentStacks = _equipmentStacksFlow.value,
+        equipmentInstances = _equipmentInstancesFlow.value,
+        manualStacks = _manualStacksFlow.value,
+        manualInstances = _manualInstancesFlow.value,
+        pills = _pillsFlow.value,
+        materials = _materialsFlow.value,
+        herbs = _herbsFlow.value,
+        seeds = _seedsFlow.value,
+        storageBags = _storageBagsFlow.value,
+        battleLogs = _battleLogsFlow.value,
+        teams = _teamsFlow.value,
+        isPaused = _isPaused.value,
+        isLoading = _isLoading.value,
+        isSaving = _isSaving.value,
+        pendingNotification = _pendingNotificationFlow.value,
+        pendingMarriageProposals = _pendingMarriageProposalsFlow.value
+    )
+
+    /** 用基线快照初始化 reusableMutableState（COW deepCopy 每列 O(1) 共享存储）。 */
+    private fun initReusableState(baseline: UpdateBaseline) {
+        reusableMutableState.apply {
+            gameData = baseline.gameData
+            // COW deepCopy 每列 O(1) 共享存储，无需增量复制；
+            // consumeDirtyColumns 仅为维护 DirtyTracker 状态（提交后表无事务外写入，恒为空）
+            val dirtyCols = _discipleTables.dirtyTracker.consumeDirtyColumns()
+            discipleTables = _discipleTables.deepCopy(dirtyCols).apply { writeAllowed = true }
+            equipmentStacks = EntityStore(baseline.equipmentStacks)
+            equipmentInstances = EntityStore(baseline.equipmentInstances)
+            manualStacks = EntityStore(baseline.manualStacks)
+            manualInstances = EntityStore(baseline.manualInstances)
+            pills = EntityStore(baseline.pills)
+            materials = EntityStore(baseline.materials)
+            herbs = EntityStore(baseline.herbs)
+            seeds = EntityStore(baseline.seeds)
+            storageBags = EntityStore(baseline.storageBags)
+            battleLogs = baseline.battleLogs
+            teams = baseline.teams
+            isPaused = baseline.isPaused
+            isLoading = baseline.isLoading
+            isSaving = baseline.isSaving
+            pendingNotification = baseline.pendingNotification
+            pendingMarriageProposals = baseline.pendingMarriageProposals
+        }
+    }
+
+    /** 冻结全部 EntityStore 快照，确保 items 引用正确反映变化。 */
+    private fun freezeStores() {
+        reusableMutableState.equipmentStacks.freeze()
+        reusableMutableState.equipmentInstances.freeze()
+        reusableMutableState.manualStacks.freeze()
+        reusableMutableState.manualInstances.freeze()
+        reusableMutableState.pills.freeze()
+        reusableMutableState.materials.freeze()
+        reusableMutableState.herbs.freeze()
+        reusableMutableState.seeds.freeze()
+        reusableMutableState.storageBags.freeze()
+    }
+
+    /** 计算 final 状态三连 + 提交标志（isSaving/isLoading 以锁外最新值为准）。 */
+    private fun resolveCommitFlags(
+        baseline: UpdateBaseline,
+        notificationChanged: Boolean,
+        proposalsChanged: Boolean
+    ): CommitFlags {
+        val finalPaused = if (_isPaused.value != baseline.isPaused)
+            _isPaused.value else reusableMutableState.isPaused
+        val finalLoading = if (_isLoading.value != baseline.isLoading)
+            _isLoading.value else reusableMutableState.isLoading
+        val finalSaving = if (_isSaving.value != baseline.isSaving)
+            _isSaving.value else reusableMutableState.isSaving
+        _isPaused.value = finalPaused
+        _isLoading.value = finalLoading
+        _isSaving.value = finalSaving
+        return CommitFlags(finalPaused, finalLoading, finalSaving, notificationChanged, proposalsChanged)
+    }
+
+    /** 个体 StateFlow 发射（引用比较防止无意义发射）。 */
+    @Suppress("CyclomaticComplexMethod")  // 14 路引用比较分发，逻辑不可简化（原 update 内联时同复杂度）
+    private fun emitStateFlows(baseline: UpdateBaseline, flags: CommitFlags) {
+        if (reusableMutableState.gameData !== baseline.gameData)
+            _gameDataFlow.value = reusableMutableState.gameData
+        if (reusableMutableState.equipmentStacks.items !== baseline.equipmentStacks)
+            _equipmentStacksFlow.value = reusableMutableState.equipmentStacks.items
+        if (reusableMutableState.equipmentInstances.items !== baseline.equipmentInstances)
+            _equipmentInstancesFlow.value = reusableMutableState.equipmentInstances.items
+        if (reusableMutableState.manualStacks.items !== baseline.manualStacks)
+            _manualStacksFlow.value = reusableMutableState.manualStacks.items
+        if (reusableMutableState.manualInstances.items !== baseline.manualInstances)
+            _manualInstancesFlow.value = reusableMutableState.manualInstances.items
+        if (reusableMutableState.pills.items !== baseline.pills)
+            _pillsFlow.value = reusableMutableState.pills.items
+        if (reusableMutableState.materials.items !== baseline.materials)
+            _materialsFlow.value = reusableMutableState.materials.items
+        if (reusableMutableState.herbs.items !== baseline.herbs)
+            _herbsFlow.value = reusableMutableState.herbs.items
+        if (reusableMutableState.seeds.items !== baseline.seeds)
+            _seedsFlow.value = reusableMutableState.seeds.items
+        if (reusableMutableState.storageBags.items !== baseline.storageBags)
+            _storageBagsFlow.value = reusableMutableState.storageBags.items
+        if (reusableMutableState.teams !== baseline.teams)
+            _teamsFlow.value = reusableMutableState.teams
+        if (reusableMutableState.battleLogs !== baseline.battleLogs)
+            _battleLogsFlow.value = reusableMutableState.battleLogs
+        if (flags.notificationChanged)
+            _pendingNotificationFlow.value = reusableMutableState.pendingNotification
+        if (flags.proposalsChanged)
+            _pendingMarriageProposalsFlow.value = reusableMutableState.pendingMarriageProposals
+    }
+
+    /** 仓库脏标记（repository 持久化调度依据）。 */
+    private fun markDirtyFor(baseline: UpdateBaseline, disciplesNeedReassemble: Boolean) {
+        repository.markDirty(
+            gameData = reusableMutableState.gameData !== baseline.gameData,
+            disciples = disciplesNeedReassemble,
+            equipmentStacks = reusableMutableState.equipmentStacks.items !== baseline.equipmentStacks,
+            equipmentInstances = reusableMutableState.equipmentInstances.items !== baseline.equipmentInstances,
+            manualStacks = reusableMutableState.manualStacks.items !== baseline.manualStacks,
+            manualInstances = reusableMutableState.manualInstances.items !== baseline.manualInstances,
+            pills = reusableMutableState.pills.items !== baseline.pills,
+            materials = reusableMutableState.materials.items !== baseline.materials,
+            herbs = reusableMutableState.herbs.items !== baseline.herbs,
+            seeds = reusableMutableState.seeds.items !== baseline.seeds,
+            storageBags = reusableMutableState.storageBags.items !== baseline.storageBags,
+            teams = reusableMutableState.teams !== baseline.teams,
+            battleLogs = reusableMutableState.battleLogs !== baseline.battleLogs
+        )
+    }
+
+    /** 事务内是否有字段变化（决定是否递增版本号触发 unifiedState 重建）。 */
+    @Suppress("CyclomaticComplexMethod")  // 17 路字段比较，逻辑不可简化（原 update 内联时同复杂度）
+    private fun detectFieldChanges(
+        baseline: UpdateBaseline,
+        disciplesNeedReassemble: Boolean,
+        flags: CommitFlags
+    ): Boolean = reusableMutableState.gameData !== baseline.gameData
+        || disciplesNeedReassemble
+        || reusableMutableState.equipmentStacks.items !== baseline.equipmentStacks
+        || reusableMutableState.equipmentInstances.items !== baseline.equipmentInstances
+        || reusableMutableState.manualStacks.items !== baseline.manualStacks
+        || reusableMutableState.manualInstances.items !== baseline.manualInstances
+        || reusableMutableState.pills.items !== baseline.pills
+        || reusableMutableState.materials.items !== baseline.materials
+        || reusableMutableState.herbs.items !== baseline.herbs
+        || reusableMutableState.seeds.items !== baseline.seeds
+        || reusableMutableState.storageBags.items !== baseline.storageBags
+        || reusableMutableState.teams !== baseline.teams
+        || reusableMutableState.battleLogs !== baseline.battleLogs
+        || flags.finalPaused != baseline.isPaused
+        || flags.finalLoading != baseline.isLoading
+        || flags.finalSaving != baseline.isSaving
+        || flags.notificationChanged
+        || flags.proposalsChanged
+
+    /**
+     * 锁外增量组装（减少 transactionMutex 持有时间）。
+     *
+     * 使用 changedIdTracker 追踪本次事务中修改过的弟子 ID，
+     * 只重新组装有变化的弟子，与全量缓存合并。
+     * 对标 Bevy ECS change tick 跳过未修改组件的表迭代。
+     * ★ 单线程调度器串行执行：增量组装读"执行时"的 _disciplesFlow 快照，
+     *   并发交错会互相覆盖（丢弟子）；串行保证后启动的组装读到前次写回结果。
+     */
+    private fun dispatchAssemble() {
+        // 捕获提交时代的版本号：load/reset 会递增版本号作废排队中的陈旧组装任务
+        val gen = discipleVersion.get()
+        val changedIds = _discipleTables.changedIdTracker.consumeChangedIds()
+        // P-3：本事务脏列索引（update 提交处捕获，patch 组装按组复用子对象引用）
+        val dirtyColumns = lastDirtyColumns
+        if (changedIds.isNotEmpty()) {
+            applicationScopeProvider.scope.launch(assembleDispatcher) {
+                if (discipleVersion.get() != gen) return@launch
+                val prevSnapshot = _disciplesFlow.value
+                // 2026-08-01：变更覆盖大部分弟子时增量归并无收益（增量还需组装每
+                // 个变更弟子 + 归并）；P-3 起全量路径改用 patch 组装——仅重装脏列
+                // 所属子对象组，未脏组复用 prev 引用（每旬 cultivation 全量场景
+                // 消除 ~67 列读 + 6 子对象分配/弟子）
+                val list = if (changedIds.size >= prevSnapshot.size / 2) {
+                    _discipleTables.assembleAllPatched(prevSnapshot, changedIds, dirtyColumns)
+                } else {
+                    _discipleTables.assembleAllIncremental(prevSnapshot, changedIds)
+                }
+                _disciplesFlow.value = list
+                // P-5：聚合与组装对齐（单线程串行，无竞争；组装完成即聚合新鲜）
+                updateAggregates(list, gen)
+            }
+        } else {
+            // 回退：changedIdTracker 可能未捕获列级写入，全量 assemble 兜底
+            applicationScopeProvider.scope.launch(assembleDispatcher) {
+                if (discipleVersion.get() != gen) return@launch
+                val list = _discipleTables.assembleAll()
+                _disciplesFlow.value = list
+                updateAggregates(list, gen)
+            }
+        }
     }
 
     override fun <R> updateAndReturn(block: MutableGameState.() -> R): R {
@@ -975,6 +1131,27 @@ class GameStateStoreImpl @Inject constructor(
         }
         return result as R
     }
+    /** loadFromSnapshot 失败回滚基线（C-8 拆分——旧值快照聚合） */
+    private data class LoadBaseline(
+        val gameData: GameData,
+        val disciples: List<Disciple>,
+        val equipmentStacks: List<EquipmentStack>,
+        val equipmentInstances: List<EquipmentInstance>,
+        val manualStacks: List<ManualStack>,
+        val manualInstances: List<ManualInstance>,
+        val pills: List<Pill>,
+        val materials: List<Material>,
+        val herbs: List<Herb>,
+        val seeds: List<Seed>,
+        val storageBags: List<StorageBag>,
+        val teams: List<ExplorationTeam>,
+        val battleLogs: List<BattleLog>,
+        val isPaused: Boolean,
+        val isLoading: Boolean,
+        val isSaving: Boolean,
+        val deathRecords: List<DeathRecord>
+    )
+
     override suspend fun loadFromSnapshot(
         gameData: GameData,
         disciples: List<Disciple>,
@@ -1004,28 +1181,32 @@ class GameStateStoreImpl @Inject constructor(
             // 否则增量 diff 会用旧缓存与新列表错误合并
             cachedAggregates = emptyList()
 
-            // 保存旧值用于失败回滚
-            val oldGameData = _gameDataFlow.value
-            val oldDisciples = _disciplesFlow.value
-            val oldEquipmentStacks = _equipmentStacksFlow.value
-            val oldEquipmentInstances = _equipmentInstancesFlow.value
-            val oldManualStacks = _manualStacksFlow.value
-            val oldManualInstances = _manualInstancesFlow.value
-            val oldPills = _pillsFlow.value
-            val oldMaterials = _materialsFlow.value
-            val oldHerbs = _herbsFlow.value
-            val oldSeeds = _seedsFlow.value
-            val oldStorageBags = _storageBagsFlow.value
-            val oldTeams = _teamsFlow.value
-            val oldBattleLogs = _battleLogsFlow.value
-            val oldIsPaused = _isPaused.value
-            val oldIsLoading = _isLoading.value
-            val oldIsSaving = _isSaving.value
-            // clear() 现会清空 _deathRecords——回滚时需恢复
-            val oldDeathRecords = _discipleTables.deathRecords.toList()
+            // 保存旧值用于失败回滚（C-8 拆分：LoadBaseline 聚合）
+            val baseline = LoadBaseline(
+                gameData = _gameDataFlow.value,
+                disciples = _disciplesFlow.value,
+                equipmentStacks = _equipmentStacksFlow.value,
+                equipmentInstances = _equipmentInstancesFlow.value,
+                manualStacks = _manualStacksFlow.value,
+                manualInstances = _manualInstancesFlow.value,
+                pills = _pillsFlow.value,
+                materials = _materialsFlow.value,
+                herbs = _herbsFlow.value,
+                seeds = _seedsFlow.value,
+                storageBags = _storageBagsFlow.value,
+                teams = _teamsFlow.value,
+                battleLogs = _battleLogsFlow.value,
+                isPaused = _isPaused.value,
+                isLoading = _isLoading.value,
+                isSaving = _isSaving.value,
+                // clear() 现会清空 _deathRecords——回滚时需恢复
+                deathRecords = _discipleTables.deathRecords.toList()
+            )
 
             try {
-                _gameDataFlow.value = gameData
+                // P-9：旧档事件 sequenceId 一次性回填（旧档全 0 → 按列表序分配，
+                // 保证消息列表稳定 key；新档无 0 序号时零成本跳过）
+                _gameDataFlow.value = backfillEventSequenceIds(gameData)
                 _disciplesFlow.value = disciples
                 _discipleTables.apply { writeAllowed = true }.clear()
                 disciples.forEach { _discipleTables.insert(it) }
@@ -1055,30 +1236,7 @@ class GameStateStoreImpl @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                // 回滚所有已写入的 Flow 值
-                DomainLog.e(TAG, "loadFromSnapshot 失败，执行回滚: ${e.message}", e)
-                _gameDataFlow.value = oldGameData
-                _disciplesFlow.value = oldDisciples
-                _discipleTables.apply { writeAllowed = true }.clear()
-                // ★ COW 快照隔离：不能依赖 oldTables.deepCopy()（共享 store 会被
-                // 上面 clear() 原地清空——提交后的列是 owned 状态不触发私有化）。
-                // 回滚直接用内存中的 oldDisciples 列表（不受 clear 影响）重建。
-                oldDisciples.forEach { _discipleTables.insert(it) }
-                oldDeathRecords.forEach { _discipleTables.addDeathRecord(it) }
-                _equipmentStacksFlow.value = oldEquipmentStacks
-                _equipmentInstancesFlow.value = oldEquipmentInstances
-                _manualStacksFlow.value = oldManualStacks
-                _manualInstancesFlow.value = oldManualInstances
-                _pillsFlow.value = oldPills
-                _materialsFlow.value = oldMaterials
-                _herbsFlow.value = oldHerbs
-                _seedsFlow.value = oldSeeds
-                _storageBagsFlow.value = oldStorageBags
-                _teamsFlow.value = oldTeams
-                _battleLogsFlow.value = oldBattleLogs
-                _isPaused.value = oldIsPaused
-                _isLoading.value = oldIsLoading
-                _isSaving.value = oldIsSaving
+                rollbackLoad(baseline, e)
                 throw e
             } finally {
                 _discipleTables.writeAllowed = false
@@ -1090,8 +1248,72 @@ class GameStateStoreImpl @Inject constructor(
         val gen = discipleVersion.get()
         applicationScopeProvider.scope.launch(assembleDispatcher) {
             if (discipleVersion.get() != gen) return@launch
-            _disciplesFlow.value = _discipleTables.assembleAll()
+            val list = _discipleTables.assembleAll()
+            _disciplesFlow.value = list
+            // P-5：load 后聚合同步新鲜（getter 代际校验兜底窗口收敛到协程执行完成）
+            updateAggregates(list, gen)
         }
+    }
+
+    /**
+     * C-8：loadFromSnapshot 失败回滚——恢复全部 Flow 旧值 + 重建 DiscipleTables。
+     *
+     * ★ COW 快照隔离：不能依赖 oldTables.deepCopy()（共享 store 会被 clear()
+     * 原地清空——提交后的列是 owned 状态不触发私有化）。回滚直接用内存中的
+     * oldDisciples 列表（不受 clear 影响）重建。
+     *
+     * @param baseline 事务前快照（LoadBaseline）
+     * @param e 触发回滚的异常（仅用于日志）
+     */
+    private fun rollbackLoad(baseline: LoadBaseline, e: Exception) {
+        DomainLog.e(TAG, "loadFromSnapshot 失败，执行回滚: ${e.message}", e)
+        _gameDataFlow.value = baseline.gameData
+        _disciplesFlow.value = baseline.disciples
+        // P-5：回滚路径同步恢复聚合（load 开头已清空缓存）
+        cachedAggregates = baseline.disciples.map { it.toAggregate() }
+        _aggregatesFlow.value = cachedAggregates
+        _combatPowerFlow.value = computeCombatPower(
+            cachedAggregates, baseline.gameData.bloodRefinementPctTotals
+        )
+        aggregatesGen = discipleVersion.get()
+        _discipleTables.apply { writeAllowed = true }.clear()
+        baseline.disciples.forEach { _discipleTables.insert(it) }
+        baseline.deathRecords.forEach { _discipleTables.addDeathRecord(it) }
+        _equipmentStacksFlow.value = baseline.equipmentStacks
+        _equipmentInstancesFlow.value = baseline.equipmentInstances
+        _manualStacksFlow.value = baseline.manualStacks
+        _manualInstancesFlow.value = baseline.manualInstances
+        _pillsFlow.value = baseline.pills
+        _materialsFlow.value = baseline.materials
+        _herbsFlow.value = baseline.herbs
+        _seedsFlow.value = baseline.seeds
+        _storageBagsFlow.value = baseline.storageBags
+        _teamsFlow.value = baseline.teams
+        _battleLogsFlow.value = baseline.battleLogs
+        _isPaused.value = baseline.isPaused
+        _isLoading.value = baseline.isLoading
+        _isSaving.value = baseline.isSaving
+    }
+
+    /**
+     * P-9：旧档事件 [GameEventRecord.sequenceId] 一次性回填。
+     *
+     * 旧档（v4.0.83 之前）全部 sequenceId=0，消息列表头部 takeLast 移除后
+     * 全部 key 位移导致整列表重建；加载后按列表序回填 1..N（已有非 0 序号时
+     * 从 max+1 继续，保证新旧事件序号单调递增）。无 0 序号时零成本返回原对象。
+     * O(N) 一次（列表上限 200 条）。
+     *
+     * @param gameData 待加载的游戏数据
+     * @return 回填后的 GameData（无变化时返回原引用）
+     */
+    private fun backfillEventSequenceIds(gameData: GameData): GameData {
+        val records = gameData.gameEventRecords
+        if (records.none { it.sequenceId == 0L }) return gameData
+        var next = (records.maxOfOrNull { it.sequenceId } ?: 0L) + 1
+        val backfilled = records.map { record ->
+            if (record.sequenceId == 0L) record.copy(sequenceId = next++) else record
+        }
+        return gameData.copy(gameEventRecords = backfilled)
     }
 
     override suspend fun reset() {
@@ -1141,7 +1363,10 @@ class GameStateStoreImpl @Inject constructor(
         val gen = discipleVersion.get()
         applicationScopeProvider.scope.launch(assembleDispatcher) {
             if (discipleVersion.get() != gen) return@launch
-            _disciplesFlow.value = _discipleTables.assembleAll()
+            val list = _discipleTables.assembleAll()
+            _disciplesFlow.value = list
+            // P-5：reset 后聚合同步新鲜
+            updateAggregates(list, gen)
         }
     }
 

@@ -457,137 +457,47 @@ fun MainGameScreen(
         var lastRenderDataSyncNs by remember { mutableLongStateOf(0L) }
 
         // 缓存 buildingData 哈希值，避免每帧重复分配 FloatArray
-        AndroidView(
-            factory = { ctx ->
-                NativeSurfaceView(ctx, nativeConfig).also { view ->
-                    nativeSurfaceView = view
-
-                    // 强制软件渲染（模拟器/Vulkan 不可用设备）
-                    if (forceSoftwareRendering) {
-                        view.useRenderMode = NativeSurfaceView.RenderMode.SOFTWARE
-                    }
-
-                    // 渲染器就绪后上传纹理（地面/装饰/建筑全部在单张图集中）
-                    view.onRendererReady = {
-                        view.atlasTextureId = view.buildAtlas(ctx)
-                    }
-
-                    // Vulkan 初始化生命周期监听（由 GameActivity 驱动 CrashRecoveryEngine）
-                    view.vulkanInitListener = vulkanInitListener
-
-                    // 初始设置 camera + 瓦片数据（通过 RenderFrame 单通道传递）
-                    view.updateRenderState(
-                        RenderFrame(
-                            tileData = flatTileData,
-                            cols = worldWidthCells,
-                            rows = worldHeightCells,
-                            camX = cameraState.cameraX,
-                            camY = cameraState.cameraY,
-                            scale = cameraState.scale
-                        )
-                    )
-                }
-            },
-            update = { view ->
-                // ★ 优化：RenderFrame 推送帧率门控
-                // SOFTWARE 路径限制推送频率（RenderThread 自行读取 currentFrame 原子快照）
-                // Vulkan 路径也限制不高于 60fps
-                val now = System.nanoTime()
-                val minIntervalNs = if (forceSoftwareRendering) 33_000_000L else 16_000_000L
-
-                // 始终同步视口到 touchEngine（手势引擎与帧率无关）
-                view.touchEngine?.updateViewport(view.width.toFloat(), view.height.toFloat())
-
-                // ★ 在门控外读取相机状态，维持 Compose 订阅活跃。
-                // 门控内读取时，若门控未通过则 Compose 移除依赖跟踪，
-                // 导致后续 cameraState.pan() 不再触发重组，地图停滞。
-                val snapCamX = cameraState.cameraX
-                val snapCamY = cameraState.cameraY
-                val snapScale = cameraState.scale
-
-                // ★ 独立推送相机（不经过帧率门控），确保拖拽时相机响应无延迟
-                view.setCamera(snapCamX, snapCamY, snapScale)
-
-                // ★ 注入渲染命令总线（直达推送通道，在帧率门控外注入引用）
-                // 使 RenderThread 可通过 commandBus.buildingData 读取最新建筑数据
-                view.commandBus = viewModel.getRenderCommandBus()
-
-                // ★ 在门控外读取预览相关状态，确保 Compose 订阅活跃。
-                // 门控内读取时，若门控未通过则 Compose 移除依赖跟踪，
-                // 导致拖拽中精灵图不跟随移动（与 camera 同理）。
-                val mb = movingBuilding
-                val isPreviewActive = isPlacingBuilding || mb != null
-                val previewBuildingName = when {
-                    isPlacingBuilding -> placingBuildingName
-                    mb != null -> mb.displayName
-                    else -> ""
-                }
-                val previewNameIdx = BUILDING_NAME_INDEX[previewBuildingName] ?: -1
-                val hasPreview = isPreviewActive && previewNameIdx >= 0
-
-                val previewUvs = if (hasPreview) {
-                    floatArrayOf(
-                        BUILDING_UV_MAP[previewNameIdx * 4],
-                        BUILDING_UV_MAP[previewNameIdx * 4 + 1],
-                        BUILDING_UV_MAP[previewNameIdx * 4 + 2],
-                        BUILDING_UV_MAP[previewNameIdx * 4 + 3]
-                    )
-                } else null
-
-                val px = if (mb != null) movingWorldX else placingWorldX
-                val py = if (mb != null) movingWorldY else placingWorldY
-                val pSize = if (mb != null) movingBuildingSize else placingBuildingSize
-                val pValid = if (mb != null) movingValid else placementValidity
-
-                // 视觉比例居中偏移：精灵居中于占地网格
-                val (previewSW, previewSH) = if (previewBuildingName.isNotEmpty()) {
-                    val s = buildingSpriteSizes[previewBuildingName]
-                    (s?.width ?: pSize.width) to (s?.height ?: pSize.height)
-                } else (pSize.width to pSize.height)
-                val previewOffsetX = (pSize.width - previewSW) * tileSize * 0.5f
-                val previewOffsetY = (pSize.height - previewSH) * tileSize.toFloat() // 底部对齐
-
-                // ★ 建筑数据也必须在门控外读取（effectivePlacedBuildings 变化时
-                // 若门控关闭则 buildingDataArray 不推送，导致取消后建筑消失）
-                val buildingData = buildingDataArray
-                val effectiveCount = effectivePlacedBuildings.size
-
-                // 帧率门控：低于间隔直接跳过 RenderFrame 推送（不影响 RenderCommandBus 直达通道）
-                // buildingData 已通过命令总线独立推送，此处仅用于 tileData + preview
-                if (now - lastRenderDataSyncNs >= minIntervalNs) {
-                    lastRenderDataSyncNs = now
-
-                // Camera + 预览 + 建筑数据通过 RenderFrame 推送
-                // 单通道：Vulkan 和 Canvas 两后端均消费同一份 RenderFrame
-                view.updateRenderState(
-                    RenderFrame(
-                        tileData = flatTileData,
-                        cols = worldWidthCells,
-                        rows = worldHeightCells,
-                        camX = snapCamX,
-                        camY = snapCamY,
-                        scale = snapScale,
-                        buildingVisible = true,
-                        buildingData = buildingData,
-                        buildingCount = effectiveCount,
-                        showPreview = hasPreview,
-                        previewX = px + previewOffsetX,
-                        previewY = py + previewOffsetY,
-                        previewW = (previewSW * tileSize).toFloat(),
-                        previewH = (previewSH * tileSize).toFloat(),
-                        previewU0 = previewUvs?.get(0) ?: 0f,
-                        previewV0 = previewUvs?.get(1) ?: 0f,
-                        previewU1 = previewUvs?.get(2) ?: 0f,
-                        previewV1 = previewUvs?.get(3) ?: 0f,
-                        previewTintRed = 1.0f,
-                        previewTintGreen = 1.0f,
-                        previewTintBlue = 1.0f,
-                        previewAlpha = 0.5f
-                    )
-                )   // view.updateRenderState()
-                }   // if (now - lastRenderDataSyncNs >= minIntervalNs)
-            },  // update = { view ->
-            modifier = Modifier.fillMaxSize()
+        // P-7：地图视口抽离为 SectMapViewport（参数稳定引用——每旬 gameData
+        // 变化不触发 AndroidView update；相机/预览/建筑实际变化才重组）
+        val viewportParams = remember {
+            derivedStateOf {
+                SectMapViewportParams(
+                    nativeConfig = nativeConfig,
+                    cameraState = cameraState,
+                    flatTileData = flatTileData,
+                    buildingDataArray = buildingDataArray,
+                    buildingCount = effectivePlacedBuildings.size,
+                    tileSize = tileSize,
+                    worldWidthCells = worldWidthCells,
+                    worldHeightCells = worldHeightCells,
+                    forceSoftwareRendering = forceSoftwareRendering,
+                    vulkanInitListener = vulkanInitListener,
+                    buildingSpriteSizes = buildingSpriteSizes
+                )
+            }
+        }
+        val previewState = remember {
+            derivedStateOf {
+                MapPreviewState(
+                    isPlacingBuilding = isPlacingBuilding,
+                    placingBuildingName = placingBuildingName,
+                    placingWorldX = placingWorldX,
+                    placingWorldY = placingWorldY,
+                    placingBuildingSize = placingBuildingSize,
+                    placementValidity = placementValidity,
+                    movingBuilding = movingBuilding,
+                    movingWorldX = movingWorldX,
+                    movingWorldY = movingWorldY,
+                    movingBuildingSize = movingBuildingSize,
+                    movingValid = movingValid
+                )
+            }
+        }
+        SectMapViewport(
+            params = viewportParams.value,
+            preview = previewState.value,
+            commandBus = viewModel.getRenderCommandBus(),
+            onViewCreated = { view -> nativeSurfaceView = view }
         )
 
         // ================================================================
@@ -1209,10 +1119,7 @@ internal fun buildBuildingDataArray(
     return result
 }
 
-/** 建筑名称 → 图集中的索引（来自 SpriteAtlasDef） */
-private val BUILDING_NAME_INDEX: Map<String, Int> = SpriteAtlasDef.BUILDING_NAME_INDEX
+// BUILDING_NAME_INDEX / BUILDING_UV_MAP 已移入 SectMapViewport.kt（P-7，同包 internal）
 
-/** 建筑 UV 坐标（来自 SpriteAtlasDef，与 C++ TextureAtlas.h MAP_SPRITES 一致） */
-private val BUILDING_UV_MAP: FloatArray = SpriteAtlasDef.BUILDING_UV_MAP
 
 

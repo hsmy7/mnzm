@@ -5,6 +5,15 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
     alias(libs.plugins.kover)
+    alias(libs.plugins.detekt)
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    allRules = false
+    config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
+    baseline = file("$projectDir/detekt-baseline.xml")
+    parallel = true
 }
 
 android {
@@ -36,6 +45,8 @@ ksp {
 }
 
 dependencies {
+    // 自定义 Detekt 规则（game-engine 规则集，防 ANR #9041/#5068）
+    detektPlugins(project(':detekt-rules'))
     api project(':core:domain')
 
     // Kotlinx

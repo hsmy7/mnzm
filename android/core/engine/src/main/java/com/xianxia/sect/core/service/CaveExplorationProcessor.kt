@@ -441,7 +441,7 @@ class CaveExplorationProcessor @Inject constructor(
 
         // 驻军弟子由 BattleTickSystem 每 tick 实时结算，此处无需重复
 
-        // 构建玩家占领宗门防御信息
+        // 构建玩家占领宗门防御信息（P-2 拆分：防御构建提取）
         val allDisciples = stateStore.discipleTables.assembleAll()
         val equipmentMap = stateStore.equipmentInstancesSnapshot
             .associateBy { it.id }
@@ -450,36 +450,57 @@ class CaveExplorationProcessor @Inject constructor(
         val profMap = data.manualProficiencies.mapValues { (_, list) ->
             list.associateBy { it.manualId }
         }
-
-        val playerDefenders = if (playerSectId != null) {
-            data.worldMapSects
-                .filter { it.isPlayerOccupied && it.occupierSectId == playerSectId }
-                .associate { sect ->
-                    val garrisoned = sect.garrisonSlots
-                        .filter { it.discipleId.isNotEmpty() }
-                        .mapNotNull { slot ->
-                            allDisciples.find { d ->
-                                d.id == slot.discipleId && d.isAlive
-                            }
-                        }
-                    val combatants = garrisoned.map { d ->
-                        battleSystem.convertDiscipleToCombatant(
-                            d, equipmentMap, manualMap, profMap,
-                            CombatantSide.DEFENDER
-                        )
-                    }
-                    sect.id to AISectAttackManager.PlayerOccupiedDefenseInfo(
-                        disciples = garrisoned,
-                        combatants = combatants
-                    )
-                }
-        } else emptyMap()
+        val playerDefenders = buildPlayerDefenseInfo(
+            data, allDisciples, equipmentMap, manualMap, profMap, playerSectId
+        )
 
         val results = AISectAttackManager.decideAttacks(data, playerDefenders)
         if (results.isEmpty()) return
 
+        // P-2 拆分：单次攻击结果应用提取（含占领/关系变更）
         for (result in results) {
-            stateStore.update {
+            applyAIAttackResult(result, data.gameYear)
+        }
+    }
+
+    /** P-2：构建玩家占领宗门的防御信息（驻军弟子 + 战斗参战者）。 */
+    private fun buildPlayerDefenseInfo(
+        data: com.xianxia.sect.core.model.GameData,
+        allDisciples: List<com.xianxia.sect.core.model.Disciple>,
+        equipmentMap: Map<String, com.xianxia.sect.core.model.EquipmentInstance>,
+        manualMap: Map<String, com.xianxia.sect.core.model.ManualInstance>,
+        profMap: Map<String, Map<String, com.xianxia.sect.core.model.ManualProficiencyData>>,
+        playerSectId: String?
+    ): Map<String, AISectAttackManager.PlayerOccupiedDefenseInfo> = if (playerSectId != null) {
+        data.worldMapSects
+            .filter { it.isPlayerOccupied && it.occupierSectId == playerSectId }
+            .associate { sect ->
+                val garrisoned = sect.garrisonSlots
+                    .filter { it.discipleId.isNotEmpty() }
+                    .mapNotNull { slot ->
+                        allDisciples.find { d ->
+                            d.id == slot.discipleId && d.isAlive
+                        }
+                    }
+                val combatants = garrisoned.map { d ->
+                    battleSystem.convertDiscipleToCombatant(
+                        d, equipmentMap, manualMap, profMap,
+                        CombatantSide.DEFENDER
+                    )
+                }
+                sect.id to AISectAttackManager.PlayerOccupiedDefenseInfo(
+                    disciples = garrisoned,
+                    combatants = combatants
+                )
+            }
+    } else emptyMap()
+
+    /** P-2：应用单次 AI 进攻结果（死亡过滤/占领/关系变更，单事务原子提交）。 */
+    private fun applyAIAttackResult(
+        result: AISectAttackManager.AIAttackResult,
+        gameYear: Int
+    ) {
+        stateStore.update {
                 val currentGameData = gameData
                 val defenderSect = currentGameData.worldMapSects
                     .find { it.id == result.defenderSectId }
@@ -489,7 +510,7 @@ class CaveExplorationProcessor @Inject constructor(
                 // 玩家占领宗门防御：更新驻军弟子状态
                 if (isPlayerOccupied) {
                     updatePlayerGarrisonState(
-                        result, discipleTables, data.gameYear
+                        result, discipleTables, gameYear
                     )
                 }
 
@@ -600,7 +621,6 @@ class CaveExplorationProcessor @Inject constructor(
 
                 gameData = updatedData
             }
-        }
     }
 
     private fun updatePlayerGarrisonState(

@@ -17,15 +17,7 @@
 -keep class com.taptap.sdk.servicemanager.annotation.** { *; }
 -keep class com.taptap.sdk.startup.annotation.** { *; }
 
-# Gson
--keepattributes Signature
--keepattributes *Annotation*
--keep class com.google.gson.** { *; }
--keep class * implements com.google.gson.TypeAdapterFactory
--keep class * implements com.google.gson.JsonSerializer
--keep class * implements com.google.gson.JsonDeserializer
-
-# Keep all data models for Gson serialization
+# Keep all data models (kotlinx.serialization 编译器生成序列化器 + @Keep 注解覆盖)
 -keep class com.xianxia.sect.core.model.** { *; }
 -keep class com.xianxia.sect.data.model.** { *; }
 

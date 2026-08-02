@@ -765,9 +765,9 @@ fun GameEngine.removeFromRecruitList(discipleId: String) {
 // ── Cross-domain: Spirit mine / patrol / salary ─────────────────────
 
 fun GameEngine.validateAndFixSpiritMineData() {
-    val unified = stateStore.unifiedState.value
-    val data = unified.gameData
-    val discipleMap = unified.disciples.associateBy { it.id }
+    // P-8：unifiedState → 独立窄流直读
+    val data = stateStore.gameData.value
+    val discipleMap = stateStore.disciples.value.associateBy { it.id }
     val globalMines = data.placedBuildings.filter {
         BuildingFeatureRegistry.findByDisplayName(it.displayName)?.buildingType == BuildingType.MINING
     }

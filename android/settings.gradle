@@ -15,27 +15,18 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven { url = 'https://jitpack.io' }
-        maven { url = 'https://maven.taptap.io' }
+        // 2026-08-02 修复：TapTap 私有镜像仅解析 TapTap 包（不含则被用于
+        // androidx 等依赖解析，镜像缺 artifact 导致依赖解析失败——如
+        // androidx.benchmark:benchmark-macro-junit5:1.3.3）
+        maven {
+            url = 'https://maven.taptap.io'
+            content { includeGroupByRegex("com\\.taptap.*") }
+        }
         maven { url = 'https://developer.huawei.com/repo/' }
         // Dirichlet Ad SDK AAR 本地仓库
         flatDir { dirs 'app/src/main/libs' }
     }
 }
-
-// ============================================================
-// 决策：保留。Remote Build Cache 待 CI 缓存服务器就绪后启用（当前为占位配置）。
-// 信任梯度: 开发者只读 → Pre-merge CI 只读 → Post-merge CI 推送
-// ============================================================
-// buildCache {
-//     local {
-//         isEnabled = true
-//         removeUnusedEntriesAfterDays = 7
-//     }
-//     remote(HttpBuildCache) {
-//         url = uri("https://your-cache-server/cache/")
-//         isPush = System.getenv("CI") == "true"
-//     }
-// }
 
 rootProject.name = "XianxiaSect"
 include ':app'

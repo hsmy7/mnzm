@@ -21,8 +21,8 @@ class SaveLoadPauseDelegate(
     private val _timeScale = MutableStateFlow(1)
     val timeScale: StateFlow<Int> = _timeScale.asStateFlow()
 
-    val isPaused: Flow<Boolean> = gameEngineCore.state
-        .map { it.isPaused }
+    // P-8：unifiedState → isPaused 窄流直连（零采样延迟）
+    val isPaused: Flow<Boolean> = gameEngineCore.isPaused
 
     var wasRunningBeforeBackground = false
 

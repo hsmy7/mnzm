@@ -170,7 +170,7 @@ espresso-core = { group = "androidx.test.espresso", name = "espresso-core", vers
 test-runner = { group = "androidx.test", name = "runner", version.ref = "test-runner" }
 test-rules = { group = "androidx.test", name = "rules", version.ref = "test-rules" }
 uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }
-benchmark-macro-junit5 = { group = "androidx.benchmark", name = "benchmark-macro-junit5", version.ref = "benchmark-macro" }
+benchmark-macro-junit4 = { group = "androidx.benchmark", name = "benchmark-macro-junit4", version.ref = "benchmark-macro" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

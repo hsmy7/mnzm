@@ -302,6 +302,11 @@ class GameEngineCore @Inject constructor(
     private var frameCount = 0
     private var fpsAccumulator = 0f
     
+    /**
+     * @deprecated P-8：统一状态流已废弃（20Hz 锁竞争）。改用
+     *   [isPaused]/gameData/entityState/highFreqState 等窄流。
+     */
+    @Deprecated("Use dedicated narrow StateFlows instead. Will be removed.")
     val state: StateFlow<UnifiedGameState> get() = stateStore.unifiedState
     val events: Flow<DomainEvent> get() = eventBus.events
 
@@ -699,6 +704,9 @@ class GameEngineCore @Inject constructor(
     /** 直接读取暂停状态，绕过 unifiedState 的 50ms 采样延迟 */
     val isPausedDirect: Boolean get() = stateStore.isPaused.value
 
+    /** P-8：暂停状态窄流（替代 unifiedState.map{isPaused}，消除 20Hz 锁竞争依赖） */
+    val isPaused: StateFlow<Boolean> get() = stateStore.isPaused
+
     suspend fun pause() = withEngineContext {
         stateStore.update { isPaused = true }
         cultivationService.resetHighFrequencyData()
@@ -890,6 +898,21 @@ class GameEngineCore @Inject constructor(
         val equipmentMap = state.equipmentInstances.associateBy { it.id }
         val manualMap = state.manualInstances.associateBy { it.id }
         val manualProficiencies = state.gameData.manualProficiencies
+        // P-1：藏经阁弟子预构建 Set（替代每弟子 O(L) 线性扫描）+ 熟练度批量累积
+        val libraryDiscipleIds = state.gameData.librarySlots.mapTo(HashSet()) { it.discipleId }
+        val pendingProficiencies = mutableMapOf<String, List<ManualProficiencyData>?>()
+        // P-2：装备孕养共享累积 Map（循环后单次 List 重建，O(D×E) → O(E)）
+        val pendingEquipmentUpdates = mutableMapOf<String, EquipmentInstance>()
+        // P-4：住所/建筑预构建索引（消除每弟子 O(R)+O(B) 线性扫描 + id.toString() 分配）
+        val residenceByDiscipleId = HashMap<Int, ResidenceSlot>()
+        for (r in state.gameData.residenceSlots) {
+            val rid = r.discipleId.toIntOrNull() ?: continue
+            if (rid !in residenceByDiscipleId) residenceByDiscipleId[rid] = r
+        }
+        val buildingByInstanceId = state.gameData.placedBuildings.associateBy { it.instanceId }
+        // P-6：realtimeCultivation 投影批量累积（D 次发射 → 1 次）
+        val pendingRealtime = mutableMapOf<String, Double>()
+
         for (id in state.discipleTables.ids) {
             if (state.discipleTables.isAlive[id] != 1) continue
             // 1) HP/MP 恢复（2026-08-01 列直读版：无 assemble，满血提前退出）
@@ -900,13 +923,26 @@ class GameEngineCore @Inject constructor(
             )
             // 2) 修炼累积（列级快速跳过：cultivation >= 1e8 表示已满，凡界最大值约 2e7）
             if (state.discipleTables.cultivations.getOrDefault(id, 0.0) < 1e8) {
-                cultivationService.accumulateCultivationPerPhase(id, state)
+                cultivationService.accumulateCultivationPerPhase(
+                    id, state, pendingRealtime, residenceByDiscipleId, buildingByInstanceId
+                )
             }
-            // 3) 功法熟练度增长
-            cultivationService.processManualProficiencySingle(state, id, manualMap)
-            // 4) 装备孕养增长
-            cultivationService.processEquipmentNurtureSingle(state, id, equipmentMap)
+            // 3) 功法熟练度增长（P-1 批量模式：只累积不写 state）
+            cultivationService.processManualProficiencySingle(
+                state, id, manualMap, pendingProficiencies, libraryDiscipleIds
+            )
+            // 4) 装备孕养增长（P-2 批量模式：只累积不重建 List）
+            cultivationService.processEquipmentNurtureSingle(
+                state, id, equipmentMap, pendingEquipmentUpdates
+            )
         }
+
+        // P-1：单次提交熟练度（O(D²) 全量 Map 拷贝 → O(D)）
+        cultivationService.commitManualProficiencies(state, pendingProficiencies)
+        // P-2：单次重建装备实例列表（O(D×E) → O(E)）
+        cultivationService.applyEquipmentUpdates(state, pendingEquipmentUpdates)
+        // P-6：单次发射 realtimeCultivation 投影（D 次发射 → 1 次）
+        cultivationService.flushRealtimeCultivation(pendingRealtime)
 
         cultivationService.processAutoPillsRealtime(state)
         cultivationService.processBreakthroughs(state)

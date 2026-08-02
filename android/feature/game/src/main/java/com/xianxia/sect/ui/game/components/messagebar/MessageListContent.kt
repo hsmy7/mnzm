@@ -86,8 +86,12 @@ fun MessageListContent(
             itemsIndexed(
                 items = events,
                 key = { index, event ->
-                    // index 保证在同一 events 列表内唯一，消除系统的突破事件同毫秒 key 碰撞
-                    "${index}_${event.timestamp}_${event.eventType}"
+                    // P-9：sequenceId 稳定 key——头部 takeLast 移除不再使其余条目 key
+                    // 位移（整列表重建）。旧档未回填（sequenceId=0）时退回 index+时间戳
+                    // +类型组合（S4 修复：index 前缀防同毫秒同类型碰撞——原旧实现含
+                    // index，去掉会重引入此前 Bugly 已修过的 LazyColumn 重复 key 崩溃）
+                    if (event.sequenceId != 0L) "seq_${event.sequenceId}"
+                    else "${index}_${event.timestamp}_${event.eventType}"
                 }
             ) { _, event ->
                 MessageRow(event = event)

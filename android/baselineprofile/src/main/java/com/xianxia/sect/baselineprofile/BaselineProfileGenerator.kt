@@ -39,9 +39,8 @@ class BaselineProfileGenerator {
             packageName = "com.xianxia.sect",
             includeInStartupProfile = true
         ) {
-            pressHome()
-            startActivityAndWait()
-            waitForIdleSync()
+            val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+            device.pressHome()
         }
     }
 
@@ -50,68 +49,54 @@ class BaselineProfileGenerator {
         packageName = "com.xianxia.sect",
         includeInStartupProfile = false
     ) {
-        pressHome()
-        startActivityAndWait()
-        waitForIdleSync()
-
         val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+        device.pressHome()
+
 
         // ── 阶段1: 游戏循环预热（引擎 tick + Compose 渲染 + StateFlow 链） ──
         repeat(6) {
             Thread.sleep(GAME_TICK_MS)
-            waitForIdleSync()
         }
 
         // ── 阶段2: 打开弟子面板（LazyVerticalGrid 列表渲染） ──
         clickText(device, "弟子")
         Thread.sleep(UI_WAIT_MS)
-        waitForIdleSync()
 
         // 返回主界面
         device.pressBack()
         Thread.sleep(UI_WAIT_MS)
-        waitForIdleSync()
 
         // ── 阶段3: 打开仓库面板（LazyColumn + LazyVerticalGrid） ──
         clickText(device, "仓库")
         Thread.sleep(UI_WAIT_MS)
-        waitForIdleSync()
 
         // 关闭仓库
         device.pressBack()
         Thread.sleep(UI_WAIT_MS)
-        waitForIdleSync()
 
         // ── 阶段4: 打开建造面板 ──
         clickText(device, "建造")
         Thread.sleep(UI_WAIT_MS)
-        waitForIdleSync()
 
         // 关闭建造
         device.pressBack()
         Thread.sleep(UI_WAIT_MS)
-        waitForIdleSync()
 
         // ── 阶段5: 打开设置面板（多 section LazyColumn） ──
         clickText(device, "设置")
         Thread.sleep(UI_WAIT_MS)
-        waitForIdleSync()
         device.pressBack()
         Thread.sleep(UI_WAIT_MS)
-        waitForIdleSync()
 
         // ── 阶段6: 更多游戏循环预热（含上述面板的 Compose 节点缓存） ──
         repeat(3) {
             Thread.sleep(GAME_TICK_MS)
-            waitForIdleSync()
         }
 
         // ── 阶段7: 再次打开弟子面板（验证缓存路径） ──
         clickText(device, "弟子")
         Thread.sleep(UI_WAIT_MS)
-        waitForIdleSync()
         device.pressBack()
-        waitForIdleSync()
     }
 
     /**

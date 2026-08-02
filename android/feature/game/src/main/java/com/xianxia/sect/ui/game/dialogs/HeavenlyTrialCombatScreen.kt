@@ -814,18 +814,17 @@ fun HeavenlyTrialCombatScreen(
             }
         }
 
-        // 战斗结算
-        if (viewModel.showResult) {
-            HeavenlyTrialBattleResultDialog(
-                won = viewModel.resultWon,
-                durationSeconds = viewModel.resultDuration,
-                totalRounds = currentRound,
-                onDismiss = {
-                    viewModel.dismissResult()
-                    onFinished(viewModel.resultWon)
-                }
-            )
-        }
+        // 战斗结算（P-2：结算面板提取）
+        BattleResultPanel(
+            showResult = viewModel.showResult,
+            won = viewModel.resultWon,
+            durationSeconds = viewModel.resultDuration,
+            totalRounds = currentRound,
+            onDismiss = {
+                viewModel.dismissResult()
+                onFinished(viewModel.resultWon)
+            }
+        )
     }
 
     // 退出确认提示框
@@ -841,6 +840,25 @@ fun HeavenlyTrialCombatScreen(
             },
             dismissLabel = "取消",
             onDismiss = { showExitConfirm = false }
+        )
+    }
+}
+
+/** P-2：天道试炼战斗结算面板（从 HeavenlyTrialCombatScreen 提取，行为逐行一致）。 */
+@Composable
+private fun BattleResultPanel(
+    showResult: Boolean,
+    won: Boolean,
+    durationSeconds: Long,
+    totalRounds: Int,
+    onDismiss: () -> Unit
+) {
+    if (showResult) {
+        HeavenlyTrialBattleResultDialog(
+            won = won,
+            durationSeconds = durationSeconds,
+            totalRounds = totalRounds,
+            onDismiss = onDismiss
         )
     }
 }

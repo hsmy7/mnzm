@@ -464,95 +464,34 @@ object RedeemCodeManager {
                 )
                 DomainLog.d(TAG, "Generated spirit stones reward: ${redeemCode.quantity}")
             }
-            RedeemRewardType.EQUIPMENT -> {
-                repeat(redeemCode.quantity) {
-                    val equipment = generateRandomEquipment(redeemCode.rarity, random)
-                    rewards.add(
-                        RewardSelectedItem(
-                            id = equipment.id,
-                            type = "equipment",
-                            name = equipment.name,
-                            rarity = equipment.rarity,
-                            quantity = 1
-                        )
-                    )
-                }
-                DomainLog.d(TAG, "Generated ${redeemCode.quantity} equipment(s) with rarity ${redeemCode.rarity}")
-            }
-            RedeemRewardType.MANUAL -> {
-                repeat(redeemCode.quantity) {
-                    val manual = ManualDatabase.generateRandom(minRarity = redeemCode.rarity, maxRarity = redeemCode.rarity, random = random)
-                    rewards.add(
-                        RewardSelectedItem(
-                            id = manual.id,
-                            type = "manual",
-                            name = manual.name,
-                            rarity = manual.rarity,
-                            quantity = 1
-                        )
-                    )
-                }
-                DomainLog.d(TAG, "Generated ${redeemCode.quantity} manual(s) with rarity ${redeemCode.rarity}")
-            }
-            RedeemRewardType.PILL -> {
-                repeat(redeemCode.quantity) {
-                    val pill = ItemDatabase.generateRandomPill(minRarity = redeemCode.rarity, maxRarity = redeemCode.rarity, random = random)
-                    rewards.add(
-                        RewardSelectedItem(
-                            id = pill.id,
-                            type = "pill",
-                            name = pill.name,
-                            rarity = pill.rarity,
-                            quantity = 1
-                        )
-                    )
-                }
-                DomainLog.d(TAG, "Generated ${redeemCode.quantity} pill(s) with rarity ${redeemCode.rarity}")
-            }
-            RedeemRewardType.MATERIAL -> {
-                repeat(redeemCode.quantity) {
-                    val material = ItemDatabase.generateRandomMaterial(minRarity = redeemCode.rarity, maxRarity = redeemCode.rarity, random = random)
-                    rewards.add(
-                        RewardSelectedItem(
-                            id = material.id,
-                            type = "material",
-                            name = material.name,
-                            rarity = material.rarity,
-                            quantity = 1
-                        )
-                    )
-                }
-                DomainLog.d(TAG, "Generated ${redeemCode.quantity} material(s) with rarity ${redeemCode.rarity}")
-            }
-            RedeemRewardType.HERB -> {
-                repeat(redeemCode.quantity) {
-                    val herb = HerbDatabase.generateRandomHerb(minRarity = redeemCode.rarity, maxRarity = redeemCode.rarity, random = random)
-                    rewards.add(
-                        RewardSelectedItem(
-                            id = herb.id,
-                            type = "herb",
-                            name = herb.name,
-                            rarity = herb.rarity,
-                            quantity = 1
-                        )
-                    )
-                }
-                DomainLog.d(TAG, "Generated ${redeemCode.quantity} herb(s) with rarity ${redeemCode.rarity}")
-            }
+            // P-2 拆分：6 种物品类奖励统一为生成器循环（RNG 调用序与原逐分支完全一致）
+            RedeemRewardType.EQUIPMENT,
+            RedeemRewardType.MANUAL,
+            RedeemRewardType.PILL,
+            RedeemRewardType.MATERIAL,
+            RedeemRewardType.HERB,
             RedeemRewardType.SEED -> {
-                repeat(redeemCode.quantity) {
-                    val seed = HerbDatabase.generateRandomSeed(minRarity = redeemCode.rarity, maxRarity = redeemCode.rarity, random = random)
+                // S13 修复（对抗性审查，预存在）：quantity 负数时 repeat 零次迭代 →
+                // 零奖励但兑换码照常消耗（静默吞码）；coerceAtLeast(1) 兜底
+                repeat(redeemCode.quantity.coerceAtLeast(1)) {
+                    val (id, name, rarity) = generateSingleItemReward(
+                        redeemCode.rewardType, redeemCode.rarity, random
+                    )
                     rewards.add(
                         RewardSelectedItem(
-                            id = seed.id,
-                            type = "seed",
-                            name = seed.name,
-                            rarity = seed.rarity,
+                            id = id,
+                            type = redeemCode.rewardType.name.lowercase(),
+                            name = name,
+                            rarity = rarity,
                             quantity = 1
                         )
                     )
                 }
-                DomainLog.d(TAG, "Generated ${redeemCode.quantity} seed(s) with rarity ${redeemCode.rarity}")
+                DomainLog.d(
+                    TAG,
+                    "Generated ${redeemCode.quantity} ${redeemCode.rewardType.name.lowercase()}(s) " +
+                        "with rarity ${redeemCode.rarity}"
+                )
             }
             RedeemRewardType.DISCIPLE -> {
                 val count = redeemCode.quantity.coerceAtLeast(1)
@@ -649,6 +588,43 @@ object RedeemCodeManager {
         return EquipmentDatabase.generateRandom(minRarity = rarity, maxRarity = rarity, random = random)
     }
 
+    /**
+     * P-2：单物品类奖励生成（统一 6 种物品类型的生成器分派）。
+     *
+     * @return Triple(id, name, rarity)——RewardSelectedItem 构造所需字段
+     */
+    private fun generateSingleItemReward(
+        type: RedeemRewardType,
+        rarity: Int,
+        random: kotlin.random.Random
+    ): Triple<String, String, Int> = when (type) {
+        RedeemRewardType.EQUIPMENT -> {
+            val equipment = generateRandomEquipment(rarity, random)
+            Triple(equipment.id, equipment.name, equipment.rarity)
+        }
+        RedeemRewardType.MANUAL -> {
+            val manual = ManualDatabase.generateRandom(minRarity = rarity, maxRarity = rarity, random = random)
+            Triple(manual.id, manual.name, manual.rarity)
+        }
+        RedeemRewardType.PILL -> {
+            val pill = ItemDatabase.generateRandomPill(minRarity = rarity, maxRarity = rarity, random = random)
+            Triple(pill.id, pill.name, pill.rarity)
+        }
+        RedeemRewardType.MATERIAL -> {
+            val material = ItemDatabase.generateRandomMaterial(minRarity = rarity, maxRarity = rarity, random = random)
+            Triple(material.id, material.name, material.rarity)
+        }
+        RedeemRewardType.HERB -> {
+            val herb = HerbDatabase.generateRandomHerb(minRarity = rarity, maxRarity = rarity, random = random)
+            Triple(herb.id, herb.name, herb.rarity)
+        }
+        RedeemRewardType.SEED -> {
+            val seed = HerbDatabase.generateRandomSeed(minRarity = rarity, maxRarity = rarity, random = random)
+            Triple(seed.id, seed.name, seed.rarity)
+        }
+        else -> error("generateSingleItemReward 仅支持物品类奖励，实际: $type")
+    }
+
     fun generateDisciple(config: DiscipleRewardConfig?, existingNames: Set<String> = emptySet(), random: kotlin.random.Random = kotlin.random.Random): Disciple {
         val cfg = config ?: DiscipleRewardConfig()
 
@@ -660,49 +636,21 @@ object RedeemCodeManager {
 
         val nameResult = NameService.generateName(gender, NameService.NameStyle.XIANXIA, existingNames)
 
-        val cfgSpiritRootType = cfg.spiritRootType
-        val cfgSpiritRootCount = cfg.spiritRootCount
-        val spiritRootType = if (cfgSpiritRootType != null && cfgSpiritRootCount != null) {
-            val types = listOf("metal", "wood", "water", "fire", "earth")
-            val baseType = cfgSpiritRootType
-            if (cfgSpiritRootCount == 1) {
-                baseType
-            } else {
-                val additionalTypes = types.filter { it != baseType }.shuffled(java.util.Random(random.nextInt().toLong())).take(cfgSpiritRootCount - 1)
-                (listOf(baseType) + additionalTypes).joinToString(",")
-            }
-        } else if (cfgSpiritRootCount != null) {
-            val types = listOf("metal", "wood", "water", "fire", "earth")
-            types.shuffled(java.util.Random(random.nextInt().toLong())).take(cfgSpiritRootCount).joinToString(",")
-        } else {
-            SpiritRootGenerator.generate(random)
-        }
-
-        val age = if (cfg.minAge == cfg.maxAge) {
-            cfg.minAge
-        } else {
-            cfg.minAge + random.nextInt(cfg.maxAge - cfg.minAge + 1)
-        }
-
-        val realmConfig = GameConfig.Realm.get(cfg.realm)
-        val baseLifespan = realmConfig.maxAge
-        val lifespan = (baseLifespan * (1.0 + (-0.1 + random.nextDouble() * 0.2))).toInt()
-
-        val talentIds = if (cfg.talentIds.isNotEmpty()) {
-            cfg.talentIds
-        } else {
-            generateRandomTalents(random = random)
-        }
+        // P-2 拆分：灵根/年龄寿命/天赋分别提取（RNG 调用序与原逐行一致）
+        val spiritRootType = resolveSpiritRoot(cfg, random)
+        val (age, lifespan) = resolveAgeAndLifespan(cfg, random)
+        val talentIds = resolveTalentIds(cfg, random)
 
         val talents = TalentDatabase.getTalentsByIds(talentIds)
         val lifespanBonus = talents.sumOf { it.effects["lifespan"] ?: 0.0 }
-        val hpVariance = -50 + random.nextInt(101)
-        val mpVariance = -50 + random.nextInt(101)
-        val physicalAttackVariance = -50 + random.nextInt(101)
-        val magicAttackVariance = -50 + random.nextInt(101)
-        val physicalDefenseVariance = -50 + random.nextInt(101)
-        val magicDefenseVariance = -50 + random.nextInt(101)
-        val speedVariance = -50 + random.nextInt(101)
+        // 属性方差（7 次 random 调用，顺序与原一致：hp/mp/pa/ma/pd/md/spd）
+        val hpVariance = generateVariance(random)
+        val mpVariance = generateVariance(random)
+        val physicalAttackVariance = generateVariance(random)
+        val magicAttackVariance = generateVariance(random)
+        val physicalDefenseVariance = generateVariance(random)
+        val magicDefenseVariance = generateVariance(random)
+        val speedVariance = generateVariance(random)
 
         return Disciple(
             name = nameResult.fullName,
@@ -757,6 +705,62 @@ object RedeemCodeManager {
             combat.baseSpeed = baseStats.baseSpeed
         }
     }
+
+    /** P-2：灵根类型解析（配置指定/数量随机/默认生成，RNG 调用序与原一致）。 */
+    private fun resolveSpiritRoot(
+        cfg: DiscipleRewardConfig,
+        random: kotlin.random.Random
+    ): String {
+        val cfgSpiritRootType = cfg.spiritRootType
+        // S13 修复（对抗性审查，预存在）：spiritRootCount ≤ 0 会产生空灵根字符串 ""
+        // （0 灵根弟子数据错误）；coerceAtLeast(1) 兜底为单灵根
+        val cfgSpiritRootCount = cfg.spiritRootCount?.coerceAtLeast(1)
+        return if (cfgSpiritRootType != null && cfgSpiritRootCount != null) {
+            val types = listOf("metal", "wood", "water", "fire", "earth")
+            val baseType = cfgSpiritRootType
+            if (cfgSpiritRootCount == 1) {
+                baseType
+            } else {
+                val additionalTypes = types.filter { it != baseType }.shuffled(java.util.Random(random.nextInt().toLong())).take(cfgSpiritRootCount - 1)
+                (listOf(baseType) + additionalTypes).joinToString(",")
+            }
+        } else if (cfgSpiritRootCount != null) {
+            val types = listOf("metal", "wood", "water", "fire", "earth")
+            types.shuffled(java.util.Random(random.nextInt().toLong())).take(cfgSpiritRootCount).joinToString(",")
+        } else {
+            SpiritRootGenerator.generate(random)
+        }
+    }
+
+    /** P-2：年龄与基础寿命解析（含 ±10% 寿命波动，RNG 调用序与原一致）。 */
+    private fun resolveAgeAndLifespan(
+        cfg: DiscipleRewardConfig,
+        random: kotlin.random.Random
+    ): Pair<Int, Int> {
+        // S13 修复（对抗性审查，预存在）：minAge > maxAge 时 nextInt(负数) 抛
+        // IllegalArgumentException 崩溃（服务端 config 可注入）；改为 >= 直接取 minAge
+        val age = if (cfg.minAge >= cfg.maxAge) {
+            cfg.minAge
+        } else {
+            cfg.minAge + random.nextInt(cfg.maxAge - cfg.minAge + 1)
+        }
+        val realmConfig = GameConfig.Realm.get(cfg.realm)
+        val lifespan = (realmConfig.maxAge * (1.0 + (-0.1 + random.nextDouble() * 0.2))).toInt()
+        return age to lifespan
+    }
+
+    /** P-2：天赋 ID 解析（配置指定或随机生成）。 */
+    private fun resolveTalentIds(
+        cfg: DiscipleRewardConfig,
+        random: kotlin.random.Random
+    ): List<String> = if (cfg.talentIds.isNotEmpty()) {
+        cfg.talentIds
+    } else {
+        generateRandomTalents(random = random)
+    }
+
+    /** P-2：属性方差生成（-50..50，替代原逐行重复的 nextInt 表达式）。 */
+    private fun generateVariance(random: kotlin.random.Random): Int = -50 + random.nextInt(101)
 
     /** 生成随机天赋（internal 供测试验证模板级去重） */
     internal fun generateRandomTalents(random: kotlin.random.Random = kotlin.random.Random): List<String> {

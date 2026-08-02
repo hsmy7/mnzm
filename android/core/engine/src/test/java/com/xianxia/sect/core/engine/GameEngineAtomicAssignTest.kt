@@ -352,7 +352,6 @@ private class FakeAtomicStateStore : GameStateStore {
     override val battleLogsSnapshot: List<BattleLog> get() = battleLogs.value
 
     // ── 兼容层 ──
-    override val gameLifecycle = MutableStateFlow(GameLifecycle.UNINITIALIZED)
     override val warehouseFullEvent = MutableSharedFlow<String>(extraBufferCapacity = 1)
 
     // ── UI 交互状态 ──

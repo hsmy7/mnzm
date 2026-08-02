@@ -233,7 +233,6 @@ private class MarriageProposalTestStore : GameStateStore {
     override val bootPhase = MutableStateFlow(com.xianxia.sect.core.state.BootPhase.UNINITIALIZED)
     override val runState = MutableStateFlow(com.xianxia.sect.core.state.RunState.IDLE)
     @Deprecated("Use bootPhase/runState instead")
-    override val gameLifecycle = MutableStateFlow(GameLifecycle.UNINITIALIZED)
     override val gameDataSnapshot: GameData get() = _gameData.value
     override var activeTab: String = ""
     override var activeDialog: String? = null

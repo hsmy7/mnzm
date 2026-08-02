@@ -30,41 +30,41 @@ class RoomMigrationTest {
             "com.xianxia.sect.data.local.GameDatabase"
         )
 
-        private val M2_3 = GameDatabase.MIGRATION_2_3
-        private val M3_4 = GameDatabase.MIGRATION_3_4
-        private val M4_5 = GameDatabase.MIGRATION_4_5
-        private val M5_6 = GameDatabase.MIGRATION_5_6
-        private val M6_7 = GameDatabase.MIGRATION_6_7
-        private val M7_8 = GameDatabase.MIGRATION_7_8
-        private val M8_9 = GameDatabase.MIGRATION_8_9
-        private val M9_10 = GameDatabase.MIGRATION_9_10
-        private val M10_11 = GameDatabase.MIGRATION_10_11
-        private val M11_12 = GameDatabase.MIGRATION_11_12
-        private val M12_13 = GameDatabase.MIGRATION_12_13
-        private val M13_14 = GameDatabase.MIGRATION_13_14
-        private val M14_15 = GameDatabase.MIGRATION_14_15
-        private val M15_16 = GameDatabase.MIGRATION_15_16
-        private val M16_17 = GameDatabase.MIGRATION_16_17
-        private val M17_18 = GameDatabase.MIGRATION_17_18
-        private val M18_19 = GameDatabase.MIGRATION_18_19
-        private val M19_20 = GameDatabase.MIGRATION_19_20
-        private val M20_21 = GameDatabase.MIGRATION_20_21
-        private val M21_22 = GameDatabase.MIGRATION_21_22
-        private val M22_23 = GameDatabase.MIGRATION_22_23
-        private val M23_24 = GameDatabase.MIGRATION_23_24
-        private val M24_25 = GameDatabase.MIGRATION_24_25
-        private val M25_26 = GameDatabase.MIGRATION_25_26
-        private val M26_27 = GameDatabase.MIGRATION_26_27
-        private val M27_28 = GameDatabase.MIGRATION_27_28
-        private val M28_29 = GameDatabase.MIGRATION_28_29
-        private val M29_30 = GameDatabase.MIGRATION_29_30
-        private val M30_31 = GameDatabase.MIGRATION_30_31
-        private val M31_32 = GameDatabase.MIGRATION_31_32
-        private val M32_33 = GameDatabase.MIGRATION_32_33
-        private val M33_34 = GameDatabase.MIGRATION_33_34
-        private val M34_35 = GameDatabase.MIGRATION_34_35
-        private val M35_36 = GameDatabase.MIGRATION_35_36
-        private val M36_37 = GameDatabase.MIGRATION_36_37
+        private val M2_3 = MIGRATION_2_3
+        private val M3_4 = MIGRATION_3_4
+        private val M4_5 = MIGRATION_4_5
+        private val M5_6 = MIGRATION_5_6
+        private val M6_7 = MIGRATION_6_7
+        private val M7_8 = MIGRATION_7_8
+        private val M8_9 = MIGRATION_8_9
+        private val M9_10 = MIGRATION_9_10
+        private val M10_11 = MIGRATION_10_11
+        private val M11_12 = MIGRATION_11_12
+        private val M12_13 = MIGRATION_12_13
+        private val M13_14 = MIGRATION_13_14
+        private val M14_15 = MIGRATION_14_15
+        private val M15_16 = MIGRATION_15_16
+        private val M16_17 = MIGRATION_16_17
+        private val M17_18 = MIGRATION_17_18
+        private val M18_19 = MIGRATION_18_19
+        private val M19_20 = MIGRATION_19_20
+        private val M20_21 = MIGRATION_20_21
+        private val M21_22 = MIGRATION_21_22
+        private val M22_23 = MIGRATION_22_23
+        private val M23_24 = MIGRATION_23_24
+        private val M24_25 = MIGRATION_24_25
+        private val M25_26 = MIGRATION_25_26
+        private val M26_27 = MIGRATION_26_27
+        private val M27_28 = MIGRATION_27_28
+        private val M28_29 = MIGRATION_28_29
+        private val M29_30 = MIGRATION_29_30
+        private val M30_31 = MIGRATION_30_31
+        private val M31_32 = MIGRATION_31_32
+        private val M32_33 = MIGRATION_32_33
+        private val M33_34 = MIGRATION_33_34
+        private val M34_35 = MIGRATION_34_35
+        private val M35_36 = MIGRATION_35_36
+        private val M36_37 = MIGRATION_36_37
     }
 
     // ==================== 单个迁移步骤测试 ====================
@@ -724,7 +724,7 @@ class RoomMigrationTest {
                 columnExists(db, "disciples", "usage_lastTheftMonth"))
 
             // 应用 MIGRATION_29_30 到达 v30（新增 annual_theft_count，不影响 disciples）
-            applyMigrationsSequentially(db, listOf(GameDatabase.MIGRATION_29_30))
+            applyMigrationsSequentially(db, listOf(MIGRATION_29_30))
 
             // 验证迁移到 v30 后 usage_lastTheftMonth 仍存在
             assertTrue("usage_lastTheftMonth should still exist at v30",
@@ -733,7 +733,7 @@ class RoomMigrationTest {
                 columnExists(db, "game_data", "annual_theft_count"))
 
             // 应用 MIGRATION_30_31 删除 usage_lastTheftMonth
-            applyMigrationsSequentially(db, listOf(GameDatabase.MIGRATION_30_31))
+            applyMigrationsSequentially(db, listOf(MIGRATION_30_31))
 
             assertFalse("usage_lastTheftMonth should be removed after MIGRATION_30_31",
                 columnExists(db, "disciples", "usage_lastTheftMonth"))

@@ -199,7 +199,6 @@ private class RenameStore : GameStateStore {
     override val bootPhase = MutableStateFlow(BootPhase.UNINITIALIZED)
     override val runState = MutableStateFlow(RunState.IDLE)
     override val unifiedState = MutableStateFlow(UnifiedGameState())
-    override val gameLifecycle = MutableStateFlow(GameLifecycle.UNINITIALIZED)
     override val disciples = MutableStateFlow<List<Disciple>>(emptyList())
     override val discipleAggregates = MutableStateFlow<List<DiscipleAggregate>>(emptyList())
     override val equipmentStacks = MutableStateFlow<List<EquipmentStack>>(emptyList())

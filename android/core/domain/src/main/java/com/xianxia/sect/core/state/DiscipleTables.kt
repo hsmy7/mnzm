@@ -360,6 +360,116 @@ class DiscipleTables {
     /** ChangedIdTracker 实例 — 追踪本次事务中哪些弟子被修改 */
     val changedIdTracker = ChangedIdTracker()
 
+    /**
+     * P-3 子对象组装组——[assembleAllPatched] 的复用粒度。
+     * 每组对应一个 assembleXxx 子对象（lifeEvents 单独一组）。
+     */
+    internal enum class AssembleGroup { COMBAT, PILL, EQUIPMENT, SOCIAL, SKILLS, USAGE, LIFEEVENTS }
+
+    /**
+     * 列索引 → 子对象组（P-3 列级 patch 组装）。
+     *
+     * 列名从 [buildCopyableRefs] 注册表按名解析为索引；未知列（新列未注册映射）
+     * 值为 -1 → [assembleAllPatched] 整体退化全量（正确性优先，绝不复用旧数据）。
+     * 映射表从 assembleCombat/assemblePillEffects/assembleEquipment/assembleSocial/
+     * assembleSkills/assembleUsage 的读取点逐行推导，新增列必须同步更新。
+     */
+    private val columnGroupByIndex: IntArray = run {
+        val byName: Map<String, AssembleGroup> = mapOf(
+            // assembleCombat 读取列
+            "baseHps" to AssembleGroup.COMBAT,
+            "baseMps" to AssembleGroup.COMBAT,
+            "basePhysicalAttacks" to AssembleGroup.COMBAT,
+            "baseMagicAttacks" to AssembleGroup.COMBAT,
+            "basePhysicalDefenses" to AssembleGroup.COMBAT,
+            "baseMagicDefenses" to AssembleGroup.COMBAT,
+            "baseSpeeds" to AssembleGroup.COMBAT,
+            "hpVariances" to AssembleGroup.COMBAT,
+            "mpVariances" to AssembleGroup.COMBAT,
+            "physicalAttackVariances" to AssembleGroup.COMBAT,
+            "magicAttackVariances" to AssembleGroup.COMBAT,
+            "physicalDefenseVariances" to AssembleGroup.COMBAT,
+            "magicDefenseVariances" to AssembleGroup.COMBAT,
+            "speedVariances" to AssembleGroup.COMBAT,
+            "totalCultivations" to AssembleGroup.COMBAT,
+            "breakthroughCounts" to AssembleGroup.COMBAT,
+            "breakthroughFailCounts" to AssembleGroup.COMBAT,
+            "currentHps" to AssembleGroup.COMBAT,
+            "currentMps" to AssembleGroup.COMBAT,
+            // assemblePillEffects 读取列
+            "pillPhysicalAttackBonuses" to AssembleGroup.PILL,
+            "pillMagicAttackBonuses" to AssembleGroup.PILL,
+            "pillPhysicalDefenseBonuses" to AssembleGroup.PILL,
+            "pillMagicDefenseBonuses" to AssembleGroup.PILL,
+            "pillHpBonuses" to AssembleGroup.PILL,
+            "pillMpBonuses" to AssembleGroup.PILL,
+            "pillSpeedBonuses" to AssembleGroup.PILL,
+            "pillEffectDurations" to AssembleGroup.PILL,
+            "pillCritRateBonuses" to AssembleGroup.PILL,
+            "pillCritEffectBonuses" to AssembleGroup.PILL,
+            "pillCultivationSpeedBonuses" to AssembleGroup.PILL,
+            "pillSkillExpSpeedBonuses" to AssembleGroup.PILL,
+            "pillNurtureSpeedBonuses" to AssembleGroup.PILL,
+            "activePillCategories" to AssembleGroup.PILL,
+            "activePillTypes" to AssembleGroup.PILL,
+            // assembleEquipment 读取列
+            "weaponIds" to AssembleGroup.EQUIPMENT,
+            "armorIds" to AssembleGroup.EQUIPMENT,
+            "bootsIds" to AssembleGroup.EQUIPMENT,
+            "accessoryIds" to AssembleGroup.EQUIPMENT,
+            "weaponNurtures" to AssembleGroup.EQUIPMENT,
+            "armorNurtures" to AssembleGroup.EQUIPMENT,
+            "bootsNurtures" to AssembleGroup.EQUIPMENT,
+            "accessoryNurtures" to AssembleGroup.EQUIPMENT,
+            "autoEquipFromWarehouse" to AssembleGroup.EQUIPMENT,
+            "storageBagItems" to AssembleGroup.EQUIPMENT,
+            "storageBagSpiritStones" to AssembleGroup.EQUIPMENT,
+            "discipleSpiritStones" to AssembleGroup.EQUIPMENT,
+            // assembleSocial 读取列
+            "partnerIds" to AssembleGroup.SOCIAL,
+            "partnerSectIds" to AssembleGroup.SOCIAL,
+            "parentId1s" to AssembleGroup.SOCIAL,
+            "parentId2s" to AssembleGroup.SOCIAL,
+            "lastChildYears" to AssembleGroup.SOCIAL,
+            "childBirthMonths" to AssembleGroup.SOCIAL,
+            "griefEndYears" to AssembleGroup.SOCIAL,
+            "masterIds" to AssembleGroup.SOCIAL,
+            // assembleSkills 读取列
+            "intelligences" to AssembleGroup.SKILLS,
+            "charms" to AssembleGroup.SKILLS,
+            "loyalties" to AssembleGroup.SKILLS,
+            "comprehensions" to AssembleGroup.SKILLS,
+            "artifactRefinings" to AssembleGroup.SKILLS,
+            "pillRefinings" to AssembleGroup.SKILLS,
+            "spiritPlantings" to AssembleGroup.SKILLS,
+            "minings" to AssembleGroup.SKILLS,
+            "teachings" to AssembleGroup.SKILLS,
+            "moralities" to AssembleGroup.SKILLS,
+            "salaryPaidCounts" to AssembleGroup.SKILLS,
+            "salaryMissedCounts" to AssembleGroup.SKILLS,
+            // assembleUsage 读取列
+            "usedFunctionalPillTypes" to AssembleGroup.USAGE,
+            "usedExtendLifePillIds" to AssembleGroup.USAGE,
+            "usedPermanentPillKeys" to AssembleGroup.USAGE,
+            "usedExtendLifePillTypes" to AssembleGroup.USAGE,
+            "recruitedMonths" to AssembleGroup.USAGE,
+            "hasReviveEffects" to AssembleGroup.USAGE,
+            "hasClearAllEffects" to AssembleGroup.USAGE,
+            // lifeEvents（assemble .also 读取列）
+            "lifeEvents" to AssembleGroup.LIFEEVENTS
+        )
+        IntArray(_allCopyableRefs.size) { index ->
+            byName[_allCopyableRefs[index].debugName]?.ordinal ?: -1
+        }
+    }
+
+    /** P-3 辅助：dirtyGroups 位图是否包含指定组。 */
+    private fun Int.hasGroup(group: AssembleGroup): Boolean = (this and (1 shl group.ordinal)) != 0
+
+    /** P-3 测试辅助：列名 → 注册索引（-1 表示列未注册）。 */
+    internal fun columnIndexOf(name: String): Int =
+        _allCopyableRefs.indexOfFirst { it.debugName == name }
+
     @Suppress("LongMethod")
     private fun buildCopyableRefs(): List<CopyableTableRef> = listOf(
         // ── Int 表（值拷贝） ──
@@ -736,47 +846,81 @@ class DiscipleTables {
      *   - 网络同步
      * 不应在 tick 热路径中调用。
      */
-    fun assemble(id: Int): Disciple = Disciple(
-        id = id.toString(),
-        slotId = slotIds.getOrDefault(id, 0),
-        name = names.getOrNull(id) ?: "",
-        surname = surnames.getOrNull(id) ?: "",
-        realm = realms.getOrDefault(id, 9),
-        realmLayer = realmLayers.getOrDefault(id, 1),
-        cultivation = cultivations.getOrDefault(id, 0.0),
-        cultivationCheckpoint = cultivationCheckpoints.getOrDefault(id, 0.0),
-        cultivationCheckpointGameMonth = cultivationCheckpointGameMonths.getOrDefault(id, 0),
-        spiritRootType = spiritRootTypes.getOrNull(id) ?: "metal",
-        age = ages.getOrDefault(id, 16),
-        lifespan = lifespans.getOrDefault(id, 80),
-        isAlive = isAlive.getOrDefault(id, 1) == 1,
-        gender = genders.getOrNull(id) ?: "male",
-        portraitRes = portraitRes.getOrNull(id) ?: "",
-        manualIds = manualIds.getOrNull(id) ?: emptyList(),
-        talentIds = talentIds.getOrNull(id) ?: emptyList(),
-        physiqueIds = physiqueIds.getOrNull(id) ?: emptyList(),
-        affixIds = affixIds.getOrNull(id) ?: emptyList(),
-        manualMasteries = manualMasteries.getOrNull(id) ?: emptyMap(),
-        status = statuses.getOrNull(id) ?: DiscipleStatus.IDLE,
-        statusData = statusData.getOrNull(id) ?: emptyMap(),
-        cultivationSpeedBonus = cultivationSpeedBonuses.getOrDefault(id, 0.0),
-        cultivationSpeedDuration = cultivationSpeedDurations.getOrDefault(id, 0),
-        discipleType = discipleTypes.getOrNull(id) ?: "outer",
-        autoLearnFromWarehouse = autoLearnFromWarehouse.getOrDefault(id, 0) == 1,
-        soulPower = soulPowers.getOrDefault(id, 0),
-        cultivationCompletionMonth = cultivationCompletionMonths.getOrDefault(id, 0),
-        cultivationCompletionPhase = cultivationCompletionPhases.getOrDefault(id, 1),
-        manualCompletionMonth = manualCompletionMonths.getOrDefault(id, 0),
-        manualCompletionPhase = manualCompletionPhases.getOrDefault(id, 1),
-        equipmentNurturingCompletionMonth = equipmentNurturingCompletionMonths.getOrDefault(id, 0),
-        equipmentNurturingCompletionPhase = equipmentNurturingCompletionPhases.getOrDefault(id, 1),
-        combat = assembleCombat(id),
-        pillEffects = assemblePillEffects(id),
-        equipment = assembleEquipment(id),
-        social = assembleSocial(id),
-        skills = assembleSkills(id),
-        usage = assembleUsage(id)
-    ).also { it.lifeEvents = lifeEvents.getOrNull(id) ?: emptyList() }
+    fun assemble(id: Int): Disciple = assembleCoreFields(id, prev = null, dirtyGroups = 0)
+
+    /**
+     * P-3 子对象级 patch 组装：仅重装脏列所属子对象组，未脏组复用 [prev] 引用。
+     *
+     * 每旬 changedIds ≈ 全量（cultivation 列几乎全部弟子写入）时，原全量
+     * [assembleAll] 每弟子 ~100 列读 + 10 个嵌套对象分配。patch 后本体字段
+     * （~33 列，含 cultivation）始终重读，6 个子对象 + lifeEvents 仅在对应组
+     * 脏时重装——每旬典型（仅 cultivation + HP/MP 变化）可复用全部子对象引用，
+     * 消除 ~67 列读与 6 个对象分配/弟子。
+     *
+     * @param id 弟子 ID
+     * @param prev 上一快照中的同 ID 弟子（未脏组复用的引用来源）
+     * @param dirtyGroups 脏列所属组位图（[AssembleGroup.ordinal] 位），0=全部未脏
+     * @return 组装后的 Disciple
+     */
+    private fun assembleCoreFields(id: Int, prev: Disciple?, dirtyGroups: Int): Disciple {
+        val combat = if (prev == null || dirtyGroups.hasGroup(AssembleGroup.COMBAT))
+            assembleCombat(id) else prev.combat
+        val pillEffects = if (prev == null || dirtyGroups.hasGroup(AssembleGroup.PILL))
+            assemblePillEffects(id) else prev.pillEffects
+        val equipment = if (prev == null || dirtyGroups.hasGroup(AssembleGroup.EQUIPMENT))
+            assembleEquipment(id) else prev.equipment
+        val social = if (prev == null || dirtyGroups.hasGroup(AssembleGroup.SOCIAL))
+            assembleSocial(id) else prev.social
+        val skills = if (prev == null || dirtyGroups.hasGroup(AssembleGroup.SKILLS))
+            assembleSkills(id) else prev.skills
+        val usage = if (prev == null || dirtyGroups.hasGroup(AssembleGroup.USAGE))
+            assembleUsage(id) else prev.usage
+        return Disciple(
+            id = id.toString(),
+            slotId = slotIds.getOrDefault(id, 0),
+            name = names.getOrNull(id) ?: "",
+            surname = surnames.getOrNull(id) ?: "",
+            realm = realms.getOrDefault(id, 9),
+            realmLayer = realmLayers.getOrDefault(id, 1),
+            cultivation = cultivations.getOrDefault(id, 0.0),
+            cultivationCheckpoint = cultivationCheckpoints.getOrDefault(id, 0.0),
+            cultivationCheckpointGameMonth = cultivationCheckpointGameMonths.getOrDefault(id, 0),
+            spiritRootType = spiritRootTypes.getOrNull(id) ?: "metal",
+            age = ages.getOrDefault(id, 16),
+            lifespan = lifespans.getOrDefault(id, 80),
+            isAlive = isAlive.getOrDefault(id, 1) == 1,
+            gender = genders.getOrNull(id) ?: "male",
+            portraitRes = portraitRes.getOrNull(id) ?: "",
+            manualIds = manualIds.getOrNull(id) ?: emptyList(),
+            talentIds = talentIds.getOrNull(id) ?: emptyList(),
+            physiqueIds = physiqueIds.getOrNull(id) ?: emptyList(),
+            affixIds = affixIds.getOrNull(id) ?: emptyList(),
+            manualMasteries = manualMasteries.getOrNull(id) ?: emptyMap(),
+            status = statuses.getOrNull(id) ?: DiscipleStatus.IDLE,
+            statusData = statusData.getOrNull(id) ?: emptyMap(),
+            cultivationSpeedBonus = cultivationSpeedBonuses.getOrDefault(id, 0.0),
+            cultivationSpeedDuration = cultivationSpeedDurations.getOrDefault(id, 0),
+            discipleType = discipleTypes.getOrNull(id) ?: "outer",
+            autoLearnFromWarehouse = autoLearnFromWarehouse.getOrDefault(id, 0) == 1,
+            soulPower = soulPowers.getOrDefault(id, 0),
+            cultivationCompletionMonth = cultivationCompletionMonths.getOrDefault(id, 0),
+            cultivationCompletionPhase = cultivationCompletionPhases.getOrDefault(id, 1),
+            manualCompletionMonth = manualCompletionMonths.getOrDefault(id, 0),
+            manualCompletionPhase = manualCompletionPhases.getOrDefault(id, 1),
+            equipmentNurturingCompletionMonth = equipmentNurturingCompletionMonths.getOrDefault(id, 0),
+            equipmentNurturingCompletionPhase = equipmentNurturingCompletionPhases.getOrDefault(id, 1),
+            combat = combat,
+            pillEffects = pillEffects,
+            equipment = equipment,
+            social = social,
+            skills = skills,
+            usage = usage
+        ).also {
+            it.lifeEvents = if (prev == null || dirtyGroups.hasGroup(AssembleGroup.LIFEEVENTS))
+                lifeEvents.getOrNull(id) ?: emptyList()
+            else prev.lifeEvents
+        }
+    }
 
     private fun assembleCombat(id: Int) = CombatAttributes(
         baseHp = baseHps.getOrDefault(id, 0), baseMp = baseMps.getOrDefault(id, 0),
@@ -942,6 +1086,114 @@ class DiscipleTables {
             }
             try { changedMap[id] = assemble(id) } catch (e: NoSuchElementException) {
                 Log.w(TAG, "assembleAllIncremental: assemble 失败 id=$id（列缺失）", e)
+            }
+        }
+        // 注意：changedMap 为空时不能提前返回——remove 场景 changedIds 含被删弟子
+        //（组装必然失败），此时归并仍须从 prevSnapshot 剔除这些 id（防陈尸残留）
+
+        // 已移除/幽灵弟子 id：changedIds 中存在但组装失败的——归并时必须从
+        // prevSnapshot 中剔除（否则陈尸残留）
+        val removedIds = changedIds.filter { it !in changedMap }.toHashSet()
+
+        // 双指针归并：prevSnapshot（id 升序）∪ changedMap（id 升序）
+        val result = ArrayList<Disciple>(prevSnapshot.size + changedMap.size)
+        var i = 0
+        val prevSize = prevSnapshot.size
+        for ((id, disciple) in changedMap.entries.sortedBy { it.key }) {
+            // 复制 prevSnapshot 中 id < 当前变更 id 的未变弟子（剔除已移除 id）
+            while (i < prevSize) {
+                val prevId = prevSnapshot[i].id.toIntOrNull() ?: break
+                if (prevId >= id) break
+                if (prevId !in removedIds) result.add(prevSnapshot[i])
+                i++
+            }
+            // 跳过 prevSnapshot 中与变更 id 重合的旧条目（id 唯一，最多一个）
+            while (i < prevSize) {
+                val prevId = prevSnapshot[i].id.toIntOrNull() ?: break
+                if (prevId != id) break
+                i++
+            }
+            result.add(disciple)
+        }
+        // 追加尾部未变弟子（剔除已移除 id）
+        while (i < prevSize) {
+            val prevId = prevSnapshot[i].id.toIntOrNull()
+            if (prevId == null || prevId !in removedIds) result.add(prevSnapshot[i])
+            i++
+        }
+        return result
+    }
+
+    /**
+     * P-3 子对象级 patch 增量组装：changedIds ≈ 全量时替代 [assembleAll]。
+     *
+     * 每旬 cultivation 列写几乎所有弟子 → 原全量路径每弟子 ~100 列读 + 10 个
+     * 嵌套对象分配。本方法按脏列所属子对象组只重装对应组（未脏组复用
+     * [prevSnapshot] 中同 ID 弟子的子对象引用），本体字段（~33 列）始终重读。
+     *
+     * 安全网：脏列含未注册映射的列（-1 组）时整体退化为全量 [assembleAll]——
+     * 新增列未同步映射时绝不复用旧子对象数据（正确性优先）。
+     * 失序/幽灵防御与 [assembleAllIncremental] 一致。
+     *
+     * @param prevSnapshot 上一次的完整弟子列表（id 升序）
+     * @param changedIds 本次事务中修改过的弟子 ID（升序）
+     * @param dirtyColumnIndices 本次事务脏列索引集合（DirtyTracker 消费结果）
+     * @return 合并后的完整弟子列表（id 升序）
+     */
+    fun assembleAllPatched(
+        prevSnapshot: List<Disciple>,
+        changedIds: Set<Int>,
+        dirtyColumnIndices: Set<Int>
+    ): List<Disciple> {
+        if (changedIds.isEmpty()) return prevSnapshot
+
+        // 脏列 → 组位图。注意：-1 组 = 本体列（如 cultivations，始终重读），
+        // 属正常情况不退化；仅"列索引越界"（新增列未注册）才整体退化全量。
+        var dirtyGroups = 0
+        var hasUnknownColumn = false
+        for (ci in dirtyColumnIndices) {
+            if (ci < 0 || ci >= columnGroupByIndex.size) { hasUnknownColumn = true; break }
+            val group = columnGroupByIndex[ci]
+            if (group >= 0) dirtyGroups = dirtyGroups or (1 shl group)
+        }
+        if (hasUnknownColumn) {
+            Log.w(
+                TAG,
+                "assembleAllPatched: 脏列含未注册组映射（新增列未同步 columnGroupByIndex），" +
+                    "退化为全量组装——请检查 DiscipleTables 的列→组映射表"
+            )
+            return assembleAll()
+        }
+
+        // 升序校验（与 assembleAllIncremental 相同：读档路径可能非升序）
+        var prevSorted = true
+        var lastId = -1
+        for (d in prevSnapshot) {
+            val id = d.id.toIntOrNull()
+            if (id == null || id < lastId) { prevSorted = false; break }
+            lastId = id
+        }
+        if (!prevSorted) {
+            Log.w(TAG, "assembleAllPatched: prevSnapshot 非升序（读档路径），退化为全量组装")
+            return assembleAll()
+        }
+
+        // prevSnapshot → id 映射（O(D)，patch 复用 prev 子对象引用）
+        val prevById = HashMap<Int, Disciple>(prevSnapshot.size * 2)
+        for (d in prevSnapshot) {
+            d.id.toIntOrNull()?.let { prevById[it] = d }
+        }
+
+        val changedMap = HashMap<Int, Disciple>(changedIds.size * 2)
+        for (id in changedIds) {
+            if (!isCompleteId(id)) {
+                Log.w(TAG, "assembleAllPatched: ghost skipped id=$id")
+                continue
+            }
+            try {
+                changedMap[id] = assembleCoreFields(id, prevById[id], dirtyGroups)
+            } catch (e: NoSuchElementException) {
+                Log.w(TAG, "assembleAllPatched: assemble 失败 id=$id（列缺失）", e)
             }
         }
         // 注意：changedMap 为空时不能提前返回——remove 场景 changedIds 含被删弟子

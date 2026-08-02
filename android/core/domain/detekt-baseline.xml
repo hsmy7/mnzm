@@ -1,0 +1,592 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:AppError.kt$AppError.Companion$fun fromException(e: Throwable): AppError</ID>
+    <ID>CyclomaticComplexMethod:DiscipleCompact.kt$DiscipleCompact.Companion$private fun computeCombatPower( disciple: Disciple, bloodRefinementPct: BloodRefinementPctTotal? = null ): Long</ID>
+    <ID>CyclomaticComplexMethod:DiscipleTables.kt$DiscipleTables$fun assembleAllIncremental(prevSnapshot: List&lt;Disciple&gt;, changedIds: Set&lt;Int&gt;): List&lt;Disciple&gt;</ID>
+    <ID>CyclomaticComplexMethod:DiscipleTables.kt$DiscipleTables$fun assembleAllPatched( prevSnapshot: List&lt;Disciple&gt;, changedIds: Set&lt;Int&gt;, dirtyColumnIndices: Set&lt;Int&gt; ): List&lt;Disciple&gt;</ID>
+    <ID>CyclomaticComplexMethod:DiscipleTables.kt$DiscipleTables$private fun assembleCoreFields(id: Int, prev: Disciple?, dirtyGroups: Int): Disciple</ID>
+    <ID>CyclomaticComplexMethod:GuideTask.kt$GuideCondition.ElderAppointed$override fun currentValue(gameData: GameData): Long</ID>
+    <ID>CyclomaticComplexMethod:ItemDatabase.kt$ItemDatabase$private fun generateBattlePills(): List&lt;PillTemplate&gt;</ID>
+    <ID>CyclomaticComplexMethod:ItemDatabase.kt$ItemDatabase$private fun generateFunctionalPills(): List&lt;PillTemplate&gt;</ID>
+    <ID>CyclomaticComplexMethod:Items.kt$ManualInstance$private fun parseBuffType(bt: String): BuffType?</ID>
+    <ID>CyclomaticComplexMethod:StackableItemStore.kt$StackableItemStore$@Suppress("UNCHECKED_CAST") fun add(item: T, merge: Boolean = true): DomainResult&lt;T&gt;</ID>
+    <ID>CyclomaticComplexMethod:TalentRegistry.kt$TalentRegistry$private fun inferTalentType(effects: Map&lt;String, Double&gt;, isNegative: Boolean): TalentDatabase.TalentType</ID>
+    <ID>EmptyElseBlock:ComponentTable.kt$DoubleFlatArray$if (key &lt; 0) return</ID>
+    <ID>EmptyElseBlock:ComponentTable.kt$DoubleFlatArray$if (size_ &gt;= keys.size) growKeys()</ID>
+    <ID>EmptyElseBlock:ComponentTable.kt$IntFlatArray$if (key &lt; 0) return</ID>
+    <ID>EmptyElseBlock:ComponentTable.kt$IntFlatArray$if (size_ &gt;= keys.size) growKeys()</ID>
+    <ID>InvalidPackageDeclaration:GameConfigTest.kt$package com.xianxia.sect</ID>
+    <ID>InvalidRange:GameRandomTest.kt$GameRandomTest$5..4</ID>
+    <ID>LargeClass:DiscipleTables.kt$DiscipleTables</ID>
+    <ID>LargeClass:GameConfigTest.kt$GameConfigTest</ID>
+    <ID>LargeClass:ItemsTest.kt$ItemsTest</ID>
+    <ID>LongMethod:DiscipleAggregate.kt$DiscipleAggregate$fun toDisciple(): Disciple</ID>
+    <ID>LongMethod:DiscipleSerializer.kt$DiscipleSerializer$override fun deserialize(decoder: Decoder): Disciple</ID>
+    <ID>LongMethod:DiscipleSerializer.kt$DiscipleSerializer$override fun serialize(encoder: Encoder, value: Disciple)</ID>
+    <ID>LongMethod:DiscipleTables.kt$DiscipleTables$fun assembleAllPatched( prevSnapshot: List&lt;Disciple&gt;, changedIds: Set&lt;Int&gt;, dirtyColumnIndices: Set&lt;Int&gt; ): List&lt;Disciple&gt;</ID>
+    <ID>LongMethod:DiscipleTables.kt$DiscipleTables$private fun writeAllFields(disciple: Disciple)</ID>
+    <ID>LongMethod:ItemDatabase.kt$ItemDatabase$private fun generateBattlePills(): List&lt;PillTemplate&gt;</ID>
+    <ID>LongMethod:ItemDatabase.kt$ItemDatabase$private fun generateCultivationPills(): List&lt;PillTemplate&gt;</ID>
+    <ID>LongMethod:ItemDatabase.kt$ItemDatabase$private fun generateFunctionalPills(): List&lt;PillTemplate&gt;</ID>
+    <ID>LongMethod:PillRecipeDatabase.kt$PillRecipeDatabase$private fun generateBattleRecipes(): List&lt;PillRecipe&gt;</ID>
+    <ID>LongMethod:PillRecipeDatabase.kt$PillRecipeDatabase$private fun generateCultivationRecipes(): List&lt;PillRecipe&gt;</ID>
+    <ID>LongMethod:PillRecipeDatabase.kt$PillRecipeDatabase$private fun generateFunctionalRecipes(): List&lt;PillRecipe&gt;</ID>
+    <ID>LongMethod:SectLevelRewardConfig.kt$SectLevelRewardConfig$fun getRewardCards(level: Int): List&lt;RewardCardItem&gt;</ID>
+    <ID>LongParameterList:Disciple.kt$Disciple$(manuals: Map&lt;String, ManualInstance&gt; = emptyMap(), manualProficiencies: Map&lt;String, ManualProficiencyData&gt; = emptyMap(), buildingBonus: Double = 1.0, additionalBonus: Double = 0.0, preachingElderBonus: Double = 0.0, preachingMastersBonus: Double = 0.0, cultivationSubsidyBonus: Double = 0.0, parentCultivationBonus: Double = 0.0, griefCultivationSpeedPenalty: Double = 0.0)</ID>
+    <ID>LongParameterList:DiscipleAggregate.kt$DiscipleAggregate$(manuals: Map&lt;String, ManualInstance&gt; = emptyMap(), manualProficiencies: Map&lt;String, ManualProficiencyData&gt; = emptyMap(), buildingBonus: Double = 1.0, additionalBonus: Double = 0.0, preachingElderBonus: Double = 0.0, preachingMastersBonus: Double = 0.0, cultivationSubsidyBonus: Double = 0.0, parentCultivationBonus: Double = 0.0, griefCultivationSpeedPenalty: Double = 0.0)</ID>
+    <ID>LongParameterList:DiscipleStatsProvider.kt$DiscipleStatsProvider$( aggregate: DiscipleAggregate, manuals: Map&lt;String, ManualInstance&gt; = emptyMap(), manualProficiencies: Map&lt;String, ManualProficiencyData&gt; = emptyMap(), buildingBonus: Double = 1.0, additionalBonus: Double = 0.0, preachingElderBonus: Double = 0.0, preachingMastersBonus: Double = 0.0, cultivationSubsidyBonus: Double = 0.0, parentCultivationBonus: Double = 0.0, griefCultivationSpeedPenalty: Double = 0.0, masterDiscipleBonus: Double = 0.0 )</ID>
+    <ID>LongParameterList:DiscipleStatsProvider.kt$DiscipleStatsProvider$( disciple: Disciple, manuals: Map&lt;String, ManualInstance&gt; = emptyMap(), manualProficiencies: Map&lt;String, ManualProficiencyData&gt; = emptyMap(), buildingBonus: Double = 1.0, additionalBonus: Double = 0.0, preachingElderBonus: Double = 0.0, preachingMastersBonus: Double = 0.0, cultivationSubsidyBonus: Double = 0.0, parentCultivationBonus: Double = 0.0, griefCultivationSpeedPenalty: Double = 0.0, masterDiscipleBonus: Double = 0.0 )</ID>
+    <ID>LongParameterList:DiscipleTablesRecruitTest.kt$DiscipleTablesRecruitTest$( name: String, id: String = UUID.randomUUID().toString(), age: Int = 18, realm: Int = 9, realmLayer: Int = 1, cultivation: Double = 0.0, gender: String = "male", spiritRootType: String = "metal", discipleType: String = "outer", skills: SkillStats = SkillStats(), combat: CombatAttributes = CombatAttributes() )</ID>
+    <ID>LongParameterList:GameStateStore.kt$GameStateStore$( gameData: GameData, disciples: List&lt;Disciple&gt;, equipmentStacks: List&lt;EquipmentStack&gt; = emptyList(), equipmentInstances: List&lt;EquipmentInstance&gt; = emptyList(), manualStacks: List&lt;ManualStack&gt; = emptyList(), manualInstances: List&lt;ManualInstance&gt; = emptyList(), pills: List&lt;Pill&gt;, materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, seeds: List&lt;Seed&gt;, storageBags: List&lt;StorageBag&gt; = emptyList(), teams: List&lt;ExplorationTeam&gt;, battleLogs: List&lt;BattleLog&gt;, isPaused: Boolean = true, isLoading: Boolean = false, isSaving: Boolean = false )</ID>
+    <ID>LongParameterList:MutableGameState.kt$( year: Int, month: Int, type: BattleType, attackerName: String, defenderName: String, result: BattleResult, teamMembers: List&lt;BattleLogMember&gt; = emptyList(), enemies: List&lt;BattleLogEnemy&gt; = emptyList(), rounds: List&lt;BattleLogRound&gt; = emptyList(), turns: Int = 0, details: String = "", drops: List&lt;String&gt; = emptyList(), beastsDefeated: Int = 0, teamCasualties: Int = 0 )</ID>
+    <ID>LongParameterList:ProductionParams.kt$ProductionParams.Companion$( buildingType: BuildingType, slotIndex: Int, recipeId: String, recipeName: String, duration: Int, currentYear: Int, currentMonth: Int, discipleId: String?, discipleName: String, successRate: Double, materials: Map&lt;String, Int&gt;, availableMaterials: Map&lt;String, Int&gt;, outputItemId: String?, outputItemName: String, outputItemRarity: Int, outputItemSlot: String = "" )</ID>
+    <ID>LongParameterList:ProductionSlot.kt$ProductionSlot.Companion$( id: String = java.util.UUID.randomUUID().toString(), slotIndex: Int, buildingType: BuildingType, buildingId: String = "", autoRestartEnabled: Boolean = false, assignedDiscipleId: String? = null, assignedDiscipleName: String = "", recipeId: String? = null )</ID>
+    <ID>LongParameterList:SlotStateMachine.kt$SlotStateMachine$( slot: ProductionSlot, recipeId: String, recipeName: String, duration: Int, currentYear: Int, currentMonth: Int, discipleId: String?, discipleName: String, successRate: Double, materials: Map&lt;String, Int&gt;, outputItemId: String?, outputItemName: String, outputItemRarity: Int )</ID>
+    <ID>LongParameterList:StorageBagUtils.kt$( disciple: Disciple, instance: EquipmentInstance, bagStackIds: Set&lt;String&gt;, excludeStackId: String? = null, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStackSize: Int )</ID>
+    <ID>LongParameterList:StorageBagUtils.kt$( disciple: Disciple, instance: ManualInstance, bagStackIds: Set&lt;String&gt;, excludeStackId: String? = null, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStackSize: Int )</ID>
+    <ID>LoopWithTooManyJumpStatements:DiscipleSnapshot.kt$DiscipleSnapshot.Companion$for</ID>
+    <ID>LoopWithTooManyJumpStatements:DiscipleTables.kt$DiscipleTables$while</ID>
+    <ID>LoopWithTooManyJumpStatements:EntityStore.kt$for</ID>
+    <ID>LoopWithTooManyJumpStatements:StackableItemStore.kt$StackableItemStore$for</ID>
+    <ID>MatchingDeclarationName:DiplomacyState.kt$DiplomacyDomainState</ID>
+    <ID>MatchingDeclarationName:DiplomacyStateEntity.kt$DiplomacyState</ID>
+    <ID>MatchingDeclarationName:PatrolState.kt$PatrolDomainState</ID>
+    <ID>MatchingDeclarationName:ProductionState.kt$ProductionDomainState</ID>
+    <ID>MatchingDeclarationName:ProductionStateEntity.kt$ProductionState</ID>
+    <ID>MatchingDeclarationName:SectPolicyState.kt$SectPolicyDomainState</ID>
+    <ID>MatchingDeclarationName:SectPolicyStateEntity.kt$SectPolicyState</ID>
+    <ID>MatchingDeclarationName:WorldMapState.kt$WorldMapDomainState</ID>
+    <ID>MaxLineLength:BeastMaterialRegistry.kt$BeastMaterialRegistry$fun</ID>
+    <ID>MaxLineLength:BuiltinMailConfig.kt$BuiltinMailConfig$content = "道友安好！\n\n为方便诸位道友交流修仙心得、分享宗门建设经验，特此建立官方玩家交流QQ群。\n\n群号：1085248982\n\n入群即可结识天下道友，共探仙道之秘。特奉上宝品储物袋十枚，助道友收纳四方宝物！\n\n——天道意志"</ID>
+    <ID>MaxLineLength:ComponentTable.kt$ComponentTable$fun ids(): IntArray</ID>
+    <ID>MaxLineLength:ComponentTable.kt$ComponentTable$fun put(id: Int, value: T)</ID>
+    <ID>MaxLineLength:ComponentTable.kt$ComponentTable$fun update(id: Int, block: (T) -&gt; T)</ID>
+    <ID>MaxLineLength:ComponentTable.kt$ComponentTable$inline fun forEach(action: (Int, T) -&gt; Unit)</ID>
+    <ID>MaxLineLength:ComponentTable.kt$ComponentTable$operator fun set(id: Int, value: T)</ID>
+    <ID>MaxLineLength:ComponentTable.kt$DoubleComponentTable$fun forEach(action: (Int, Double) -&gt; Unit)</ID>
+    <ID>MaxLineLength:ComponentTable.kt$DoubleComponentTable$fun ids(): IntArray</ID>
+    <ID>MaxLineLength:ComponentTable.kt$DoubleComponentTable$fun update(id: Int, block: (Double) -&gt; Double)</ID>
+    <ID>MaxLineLength:ComponentTable.kt$DoubleFlatArray$fun clear()</ID>
+    <ID>MaxLineLength:ComponentTable.kt$DoubleFlatArray$fun get(key: Int, default: Double): Double</ID>
+    <ID>MaxLineLength:ComponentTable.kt$DoubleFlatArray$fun keyAt(index: Int): Int</ID>
+    <ID>MaxLineLength:ComponentTable.kt$DoubleFlatArray$fun put(key: Int, value: Double)</ID>
+    <ID>MaxLineLength:ComponentTable.kt$DoubleFlatArray$fun valueAt(index: Int): Double</ID>
+    <ID>MaxLineLength:ComponentTable.kt$DoubleTableRef$fun copySelfTo(dest: DiscipleTables)</ID>
+    <ID>MaxLineLength:ComponentTable.kt$DoubleTableRef$override fun copyTo(dest: DiscipleTables)</ID>
+    <ID>MaxLineLength:ComponentTable.kt$IntComponentTable$fun ids(): IntArray</ID>
+    <ID>MaxLineLength:ComponentTable.kt$IntComponentTable$fun update(id: Int, block: (Int) -&gt; Int)</ID>
+    <ID>MaxLineLength:ComponentTable.kt$IntFlatArray$fun clear()</ID>
+    <ID>MaxLineLength:ComponentTable.kt$IntFlatArray$fun get(key: Int, default: Int): Int</ID>
+    <ID>MaxLineLength:ComponentTable.kt$IntFlatArray$fun keyAt(index: Int): Int</ID>
+    <ID>MaxLineLength:ComponentTable.kt$IntFlatArray$fun put(key: Int, value: Int)</ID>
+    <ID>MaxLineLength:ComponentTable.kt$IntFlatArray$fun valueAt(index: Int): Int</ID>
+    <ID>MaxLineLength:ComponentTable.kt$IntTableRef$fun</ID>
+    <ID>MaxLineLength:ComponentTable.kt$IntTableRef$override fun copyTo(dest: DiscipleTables)</ID>
+    <ID>MaxLineLength:ComponentTable.kt$MutableTableRef$fun copySelfTo(dest: DiscipleTables)</ID>
+    <ID>MaxLineLength:ComponentTable.kt$MutableTableRef$override fun copyTo(dest: DiscipleTables)</ID>
+    <ID>MaxLineLength:ComponentTable.kt$RefTableRef$fun copySelfTo(dest: DiscipleTables)</ID>
+    <ID>MaxLineLength:ComponentTable.kt$RefTableRef$override fun copyTo(dest: DiscipleTables)</ID>
+    <ID>MaxLineLength:Disciple.kt$Disciple$DiscipleAggregate.statsProvider.getBreakthroughChance(this, innerElderComprehension, outerElderComprehension, pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus)</ID>
+    <ID>MaxLineLength:Disciple.kt$Disciple$fun</ID>
+    <ID>MaxLineLength:Disciple.kt$Disciple$fun calculateCultivationSpeed(manuals: Map&lt;String, ManualInstance&gt; = emptyMap(), manualProficiencies: Map&lt;String, ManualProficiencyData&gt; = emptyMap(), buildingBonus: Double = 1.0, additionalBonus: Double = 0.0, preachingElderBonus: Double = 0.0, preachingMastersBonus: Double = 0.0, cultivationSubsidyBonus: Double = 0.0, parentCultivationBonus: Double = 0.0, griefCultivationSpeedPenalty: Double = 0.0): Double</ID>
+    <ID>MaxLineLength:Disciple.kt$Disciple$fun getFinalStats(equipments: Map&lt;String, EquipmentInstance&gt;, manuals: Map&lt;String, ManualInstance&gt;, manualProficiencies: Map&lt;String, ManualProficiencyData&gt; = emptyMap()): DiscipleStats</ID>
+    <ID>MaxLineLength:Disciple.kt$Disciple$fun getStatsWithEquipment(equipments: Map&lt;String, EquipmentInstance&gt;): DiscipleStats</ID>
+    <ID>MaxLineLength:Disciple.kt$DiscipleStatus$IDLE</ID>
+    <ID>MaxLineLength:DiscipleAggregate.kt$DiscipleAggregate$fun</ID>
+    <ID>MaxLineLength:DiscipleAggregate.kt$DiscipleAggregate$fun calculateCultivationSpeed(manuals: Map&lt;String, ManualInstance&gt; = emptyMap(), manualProficiencies: Map&lt;String, ManualProficiencyData&gt; = emptyMap(), buildingBonus: Double = 1.0, additionalBonus: Double = 0.0, preachingElderBonus: Double = 0.0, preachingMastersBonus: Double = 0.0, cultivationSubsidyBonus: Double = 0.0, parentCultivationBonus: Double = 0.0, griefCultivationSpeedPenalty: Double = 0.0): Double</ID>
+    <ID>MaxLineLength:DiscipleAggregate.kt$DiscipleAggregate$fun getFinalStats(equipments: Map&lt;String, EquipmentInstance&gt;, manuals: Map&lt;String, ManualInstance&gt;, manualProficiencies: Map&lt;String, ManualProficiencyData&gt; = emptyMap()): DiscipleStats</ID>
+    <ID>MaxLineLength:DiscipleAggregate.kt$DiscipleAggregate$fun getStatsWithEquipment(equipments: Map&lt;String, EquipmentInstance&gt;): DiscipleStats</ID>
+    <ID>MaxLineLength:DiscipleAggregate.kt$DiscipleAggregate.Companion.&lt;no name provided&gt;$override fun calculateCultivationSpeed(aggregate: DiscipleAggregate, manuals: Map&lt;String, ManualInstance&gt;, manualProficiencies: Map&lt;String, ManualProficiencyData&gt;, buildingBonus: Double, additionalBonus: Double, preachingElderBonus: Double, preachingMastersBonus: Double, cultivationSubsidyBonus: Double, parentCultivationBonus: Double, griefCultivationSpeedPenalty: Double, masterDiscipleBonus: Double)</ID>
+    <ID>MaxLineLength:DiscipleAggregate.kt$DiscipleAggregate.Companion.&lt;no name provided&gt;$override fun calculateCultivationSpeed(disciple: Disciple, manuals: Map&lt;String, ManualInstance&gt;, manualProficiencies: Map&lt;String, ManualProficiencyData&gt;, buildingBonus: Double, additionalBonus: Double, preachingElderBonus: Double, preachingMastersBonus: Double, cultivationSubsidyBonus: Double, parentCultivationBonus: Double, griefCultivationSpeedPenalty: Double, masterDiscipleBonus: Double)</ID>
+    <ID>MaxLineLength:DiscipleAggregate.kt$DiscipleAggregate.Companion.&lt;no name provided&gt;$override fun getBreakthroughChance(aggregate: DiscipleAggregate, innerElderComprehension: Int, outerElderComprehension: Int, pillBonus: Double, adBonus: Double, griefBreakthroughPenalty: Double, masterDiscipleBonus: Double)</ID>
+    <ID>MaxLineLength:DiscipleAggregate.kt$DiscipleAggregate.Companion.&lt;no name provided&gt;$override fun getBreakthroughChance(disciple: Disciple, innerElderComprehension: Int, outerElderComprehension: Int, pillBonus: Double, adBonus: Double, griefBreakthroughPenalty: Double, masterDiscipleBonus: Double)</ID>
+    <ID>MaxLineLength:DiscipleAggregate.kt$DiscipleAggregate.Companion.&lt;no name provided&gt;$override fun getFinalStats(aggregate: DiscipleAggregate, equipments: Map&lt;String, EquipmentInstance&gt;, manuals: Map&lt;String, ManualInstance&gt;, manualProficiencies: Map&lt;String, ManualProficiencyData&gt;)</ID>
+    <ID>MaxLineLength:DiscipleAggregate.kt$DiscipleAggregate.Companion.&lt;no name provided&gt;$override fun getFinalStats(disciple: Disciple, equipments: Map&lt;String, EquipmentInstance&gt;, manuals: Map&lt;String, ManualInstance&gt;, manualProficiencies: Map&lt;String, ManualProficiencyData&gt;)</ID>
+    <ID>MaxLineLength:DiscipleAggregate.kt$DiscipleAggregate.Companion.&lt;no name provided&gt;$override fun getStatsWithEquipment(aggregate: DiscipleAggregate, equipments: Map&lt;String, EquipmentInstance&gt;)</ID>
+    <ID>MaxLineLength:DiscipleAggregate.kt$DiscipleAggregate.Companion.&lt;no name provided&gt;$override fun getStatsWithEquipment(disciple: Disciple, equipments: Map&lt;String, EquipmentInstance&gt;)</ID>
+    <ID>MaxLineLength:DiscipleDelegates.kt$var</ID>
+    <ID>MaxLineLength:DiscipleTables.kt$DiscipleTables$DoubleTableRef(pillCultivationSpeedBonuses, DiscipleTables::pillCultivationSpeedBonuses, "pillCultivationSpeedBonuses")</ID>
+    <ID>MaxLineLength:DiscipleTables.kt$DiscipleTables$IntTableRef(cultivationCheckpointGameMonths, DiscipleTables::cultivationCheckpointGameMonths, "cultivationCheckpointGameMonths")</ID>
+    <ID>MaxLineLength:DiscipleTables.kt$DiscipleTables$IntTableRef(cultivationCompletionMonths, DiscipleTables::cultivationCompletionMonths, "cultivationCompletionMonths")</ID>
+    <ID>MaxLineLength:DiscipleTables.kt$DiscipleTables$IntTableRef(cultivationCompletionPhases, DiscipleTables::cultivationCompletionPhases, "cultivationCompletionPhases")</ID>
+    <ID>MaxLineLength:DiscipleTables.kt$DiscipleTables$IntTableRef(equipmentNurturingCompletionMonths, DiscipleTables::equipmentNurturingCompletionMonths, "equipmentNurturingCompletionMonths")</ID>
+    <ID>MaxLineLength:DiscipleTables.kt$DiscipleTables$IntTableRef(equipmentNurturingCompletionPhases, DiscipleTables::equipmentNurturingCompletionPhases, "equipmentNurturingCompletionPhases")</ID>
+    <ID>MaxLineLength:DiscipleTables.kt$DiscipleTables$IntTableRef(pillPhysicalDefenseBonuses, DiscipleTables::pillPhysicalDefenseBonuses, "pillPhysicalDefenseBonuses")</ID>
+    <ID>MaxLineLength:DiscipleTables.kt$DiscipleTables$MutableTableRef(usedExtendLifePillIds, DiscipleTables::usedExtendLifePillIds, "usedExtendLifePillIds") { it.toList() }</ID>
+    <ID>MaxLineLength:DiscipleTables.kt$DiscipleTables$MutableTableRef(usedExtendLifePillTypes, DiscipleTables::usedExtendLifePillTypes, "usedExtendLifePillTypes") { it.toSet() }</ID>
+    <ID>MaxLineLength:DiscipleTables.kt$DiscipleTables$MutableTableRef(usedFunctionalPillTypes, DiscipleTables::usedFunctionalPillTypes, "usedFunctionalPillTypes") { it.toList() }</ID>
+    <ID>MaxLineLength:DiscipleTables.kt$DiscipleTables$MutableTableRef(usedPermanentPillKeys, DiscipleTables::usedPermanentPillKeys, "usedPermanentPillKeys") { it.toSet() }</ID>
+    <ID>MaxLineLength:DiscipleTables.kt$DiscipleTables.ChangedIdTracker$fun</ID>
+    <ID>MaxLineLength:EnumSerializers.kt$AITeamStatusAsStringSerializer$override fun deserialize(decoder: Decoder): AITeamStatus</ID>
+    <ID>MaxLineLength:EnumSerializers.kt$CaveExplorationStatusAsStringSerializer$override fun deserialize(decoder: Decoder): CaveExplorationStatus</ID>
+    <ID>MaxLineLength:EnumSerializers.kt$ExplorationStatusAsStringSerializer$override fun deserialize(decoder: Decoder): ExplorationStatus</ID>
+    <ID>MaxLineLength:EnumSerializers.kt$ProductionSlotStatusAsStringSerializer$override fun deserialize(decoder: Decoder): ProductionSlotStatus</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"battleAxe" to EquipmentTemplate("battleAxe", "凌华刀", EquipmentSlot.WEAPON, 2, physicalAttack = 66, critChance = 0.09, description = "刀光凌厉如华，威力巨大且易暴击", price = 16000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"bronzeDagger" to EquipmentTemplate("bronzeDagger", "精铁刀", EquipmentSlot.WEAPON, 1, physicalAttack = 21, critChance = 0.06, description = "精铁锻造的宝刀，锋利易暴击", price = 4000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"bronzePlate" to EquipmentTemplate("bronzePlate", "精铁甲", EquipmentSlot.ARMOR, 1, magicDefense = 11, hp = 126, description = "精铁铸造的铠甲，坚固且增强生命", price = 4000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"celestialOrb" to EquipmentTemplate("celestialOrb", "天玄杖", EquipmentSlot.WEAPON, 5, magicAttack = 1920, critChance = 0.22499999999999998, description = "蕴含天玄之力的神杖，攻击易暴击", price = 3360000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"celestialRobe" to EquipmentTemplate("celestialRobe", "凌星袍", EquipmentSlot.ARMOR, 5, magicDefense = 975, hp = 12750, description = "凌驾星辰之力的法袍，法术防御超凡入圣", price = 3360000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"chainMail" to EquipmentTemplate("chainMail", "锁子甲", EquipmentSlot.ARMOR, 1, physicalDefense = 17, hp = 189, description = "铁环编织的护甲，增强生命力", price = 4000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"chaosBead" to EquipmentTemplate("chaosBead", "幽朔珠", EquipmentSlot.ACCESSORY, 6, mp = 20100, speed = 3072, description = "蕴含幽朔之力的灵珠，灵力超凡入圣", price = 26880000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"chaosBlade" to EquipmentTemplate("chaosBlade", "玄玉刃", EquipmentSlot.WEAPON, 6, physicalAttack = 5970, critChance = 0.27, description = "玄玉淬炼的神刃，暴击率超凡入圣", price = 26880000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"chaosRobe" to EquipmentTemplate("chaosRobe", "云影袍", EquipmentSlot.ARMOR, 6, magicDefense = 4500, hp = 59100, description = "云影交织的法袍，蕴含无尽生命之力", price = 26880000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"chaosStepBoots" to EquipmentTemplate("chaosStepBoots", "鹤岚靴", EquipmentSlot.BOOTS, 6, speed = 4575, hp = 59100, description = "鹤翔岚雾而行，蕴含无尽生命之力", price = 26880000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"clothBoots" to EquipmentTemplate("clothBoots", "青澜靴", EquipmentSlot.BOOTS, 1, speed = 11, hp = 126, description = "青澜丝线织就的轻靴，提升移动速度", price = 4000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"clothRobe" to EquipmentTemplate("clothRobe", "灵竹衣", EquipmentSlot.ARMOR, 1, magicDefense = 17, hp = 189, description = "灵竹纤维制成的衣物，法术防御出众", price = 4000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"cloudBoots" to EquipmentTemplate("cloudBoots", "踏云履", EquipmentSlot.BOOTS, 4, speed = 323, hp = 4032, description = "踏云而行的仙家法宝，速度惊人", price = 480000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"cloudRobe" to EquipmentTemplate("cloudRobe", "云纹袍", EquipmentSlot.ARMOR, 2, magicDefense = 51, hp = 594, description = "绣有云纹的法袍，增强生命力", price = 16000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"copperNecklace" to EquipmentTemplate("copperNecklace", "铜项链", EquipmentSlot.ACCESSORY, 1, mp = 95, speed = 15, description = "铜制项链，可提升身法速度", price = 4000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"crystalOrb" to EquipmentTemplate("crystalOrb", "碧木扇", EquipmentSlot.WEAPON, 1, magicAttack = 21, critChance = 0.06, description = "碧木炼制的灵扇，蕴含微量灵气，易触发暴击", price = 4000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"divinePlate" to EquipmentTemplate("divinePlate", "墨幽铠", EquipmentSlot.ARMOR, 5, physicalDefense = 1467, hp = 19140, description = "墨幽玄铁铸造的铠甲，增强生命力", price = 3360000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"dragonEye" to EquipmentTemplate("dragonEye", "龙灵珠", EquipmentSlot.ACCESSORY, 4, mp = 2040, speed = 323, description = "真龙之灵凝聚的宝珠，灵力出众", price = 480000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"dragonEyePendant" to EquipmentTemplate("dragonEyePendant", "隐云佩", EquipmentSlot.ACCESSORY, 5, mp = 9630, speed = 1488, description = "隐于云端的灵佩，可大幅提升身法速度", price = 3360000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"dragonScale" to EquipmentTemplate("dragonScale", "龙鳞铠", EquipmentSlot.ARMOR, 4, physicalDefense = 315, hp = 4032, description = "真龙鳞片锻造的铠甲，物理防御无双", price = 480000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"dragonSlayer" to EquipmentTemplate("dragonSlayer", "凤炎刃", EquipmentSlot.WEAPON, 5, physicalAttack = 1320, critChance = 0.15000000000000002, description = "蕴含凤炎之力的绝世神兵，物理攻击力无双", price = 3360000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"earthArmor" to EquipmentTemplate("earthArmor", "玄幽袍", EquipmentSlot.ARMOR, 5, physicalDefense = 975, hp = 12750, description = "承载玄幽之力的法袍，物理防御如幽渊般坚固", price = 3360000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"earthCore" to EquipmentTemplate("earthCore", "渡厄佩", EquipmentSlot.ACCESSORY, 5, mp = 6420, speed = 996, description = "可渡厄解难的灵佩，灵力出众", price = 3360000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"flameSword" to EquipmentTemplate("flameSword", "烈焰剑", EquipmentSlot.WEAPON, 3, physicalAttack = 204, critChance = 0.135, description = "燃烧着火焰的灵剑，攻击易暴击", price = 80000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"frostBlade" to EquipmentTemplate("frostBlade", "青碧刃", EquipmentSlot.WEAPON, 3, physicalAttack = 138, critChance = 0.09, description = "蕴含青碧灵力的宝刀，物理攻击力出众", price = 80000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"frostOrb" to EquipmentTemplate("frostOrb", "玄冰扇", EquipmentSlot.WEAPON, 3, magicAttack = 204, critChance = 0.135, description = "蕴含玄冰之力的宝扇，攻击易暴击", price = 80000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"godSlayer" to EquipmentTemplate("godSlayer", "青莲剑", EquipmentSlot.WEAPON, 5, physicalAttack = 1920, critChance = 0.22499999999999998, description = "传说中自青莲中诞生的神剑，剑气纵横天地间", price = 3360000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"healthRing" to EquipmentTemplate("healthRing", "蕴灵戒", EquipmentSlot.ACCESSORY, 2, mp = 308, speed = 50, description = "可蕴养灵力的戒指，灵力出众", price = 16000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"heavenRing" to EquipmentTemplate("heavenRing", "长明坠", EquipmentSlot.ACCESSORY, 6, mp = 30150, speed = 4575, description = "长明不灭的灵坠，身法速度无双", price = 26880000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"immortalArmor" to EquipmentTemplate("immortalArmor", "不朽铠", EquipmentSlot.ARMOR, 6, physicalDefense = 3000, hp = 39300, description = "仙界神甲，物理防御不朽不灭", price = 26880000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"immortalBoots" to EquipmentTemplate("immortalBoots", "鸾羽履", EquipmentSlot.BOOTS, 6, speed = 3072, hp = 39300, description = "鸾鸟仙羽织就的灵履，速度超凡入圣", price = 26880000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"immortalRobe" to EquipmentTemplate("immortalRobe", "曦光铠", EquipmentSlot.ARMOR, 6, magicDefense = 3000, hp = 39300, description = "蕴含曦光之力的铠甲，法术防御超凡入圣", price = 26880000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"immortalSword" to EquipmentTemplate("immortalSword", "诛仙剑", EquipmentSlot.WEAPON, 6, physicalAttack = 4050, critChance = 0.195, description = "上古仙人遗留的仙器，物理攻击力毁天灭地", price = 26880000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"ironPlate" to EquipmentTemplate("ironPlate", "碧叶甲", EquipmentSlot.ARMOR, 2, physicalDefense = 33, hp = 396, description = "碧玉叶片打造的护甲，物理防御力强大", price = 16000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"ironSword" to EquipmentTemplate("ironSword", "精铁剑", EquipmentSlot.WEAPON, 1, physicalAttack = 15, critChance = 0.03, description = "普通铁匠打造的精铁剑，物理攻击力出众", price = 4000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"jadeRing" to EquipmentTemplate("jadeRing", "玉戒指", EquipmentSlot.ACCESSORY, 1, mp = 63, speed = 11, description = "蕴含微量灵气的玉戒指，灵力出众", price = 4000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"jadeStaff" to EquipmentTemplate("jadeStaff", "碧玉杖", EquipmentSlot.WEAPON, 2, magicAttack = 45, critChance = 0.06, description = "碧玉雕刻的法杖，法术攻击力出众", price = 16000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"leatherArmor" to EquipmentTemplate("leatherArmor", "皮甲", EquipmentSlot.ARMOR, 1, physicalDefense = 11, hp = 126, description = "野兽皮革制成的护甲，物理防御出众", price = 4000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"leatherBoots" to EquipmentTemplate("leatherBoots", "兽皮靴", EquipmentSlot.BOOTS, 1, speed = 15, hp = 189, description = "兽皮鞣制的厚靴，增强生命力", price = 4000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"lightBoots" to EquipmentTemplate("lightBoots", "轻羽靴", EquipmentSlot.BOOTS, 2, speed = 50, hp = 594, description = "如羽毛般轻盈，蕴含生命之力", price = 16000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"mistBoots" to EquipmentTemplate("mistBoots", "云栖靴", EquipmentSlot.BOOTS, 3, speed = 155, hp = 1905, description = "云栖之处步履轻盈，蕴含浓郁生命气息", price = 80000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"moonRobe" to EquipmentTemplate("moonRobe", "月华袍", EquipmentSlot.ARMOR, 4, magicDefense = 473, hp = 6048, description = "吸收月华之力织成的法袍，增强生命力", price = 480000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"mysticRobe" to EquipmentTemplate("mysticRobe", "汐流衣", EquipmentSlot.ARMOR, 3, magicDefense = 102, hp = 1269, description = "蕴含汐流之力的法衣，法术防御出众", price = 80000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"phoenixFan" to EquipmentTemplate("phoenixFan", "凰焰扇", EquipmentSlot.WEAPON, 4, magicAttack = 630, critChance = 0.18, description = "凰焰淬炼的神扇，攻击易暴击", price = 480000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"phoenixHeart" to EquipmentTemplate("phoenixHeart", "凤羽坠", EquipmentSlot.ACCESSORY, 4, mp = 3060, speed = 480, description = "凤凰羽翼炼制的坠饰，可提升身法速度", price = 480000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"phoenixWing" to EquipmentTemplate("phoenixWing", "阴阳扇", EquipmentSlot.WEAPON, 5, magicAttack = 1320, critChance = 0.15000000000000002, description = "蕴含阴阳之力的神扇，法术攻击力出众", price = 3360000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"plateArmor" to EquipmentTemplate("plateArmor", "银板铠", EquipmentSlot.ARMOR, 3, physicalDefense = 153, hp = 1905, description = "整块银钢锻造的铠甲，增强生命力", price = 80000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"primordialArmor" to EquipmentTemplate("primordialArmor", "苍罡铠", EquipmentSlot.ARMOR, 6, physicalDefense = 4500, hp = 59100, description = "苍罡之力凝聚的神甲，承载创世生命之力", price = 26880000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"primordialStaff" to EquipmentTemplate("primordialStaff", "天星杖", EquipmentSlot.WEAPON, 6, magicAttack = 4050, critChance = 0.195, description = "凝聚天星之力的法杖，法术攻击力无双", price = 26880000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"scaleArmor" to EquipmentTemplate("scaleArmor", "青鳞铠", EquipmentSlot.ARMOR, 3, physicalDefense = 102, hp = 1269, description = "妖兽青鳞打造的铠甲，物理防御力惊人", price = 80000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"shadowBlade" to EquipmentTemplate("shadowBlade", "暗影刃", EquipmentSlot.WEAPON, 4, physicalAttack = 630, critChance = 0.18, description = "来无影去无踪的暗杀之刃，暴击率极高", price = 480000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"shadowStepBoots" to EquipmentTemplate("shadowStepBoots", "赤煞靴", EquipmentSlot.BOOTS, 5, speed = 1488, hp = 19140, description = "赤煞之气凝聚的战靴，蕴含浩瀚生命力", price = 3360000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"spiritFan" to EquipmentTemplate("spiritFan", "灵风扇", EquipmentSlot.WEAPON, 2, magicAttack = 66, critChance = 0.09, description = "可扇出灵风的法器，攻击易暴击", price = 16000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"spiritPendant" to EquipmentTemplate("spiritPendant", "灵玉佩", EquipmentSlot.ACCESSORY, 2, mp = 204, speed = 33, description = "蕴含灵气的玉佩，灵力出众", price = 16000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"spiritRobe" to EquipmentTemplate("spiritRobe", "灵丝袍", EquipmentSlot.ARMOR, 2, magicDefense = 33, hp = 396, description = "灵蚕丝织成的法袍，法术防御出众", price = 16000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"spiritSword" to EquipmentTemplate("spiritSword", "灵锋剑", EquipmentSlot.WEAPON, 2, physicalAttack = 45, critChance = 0.06, description = "注入灵气的锋利长剑，物理攻击力强大", price = 16000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"starRobe" to EquipmentTemplate("starRobe", "星辰袍", EquipmentSlot.ARMOR, 3, magicDefense = 153, hp = 1905, description = "绣有星辰图案的法袍，增强生命力", price = 80000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"steelArmor" to EquipmentTemplate("steelArmor", "丹羽衣", EquipmentSlot.ARMOR, 2, physicalDefense = 51, hp = 594, description = "丹砂羽线织成的法衣，增强生命力", price = 16000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"storageRing" to EquipmentTemplate("storageRing", "灵泉戒", EquipmentSlot.ACCESSORY, 3, mp = 645, speed = 104, description = "蕴含灵泉之力的戒指，灵力出众", price = 80000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"swiftBoots" to EquipmentTemplate("swiftBoots", "疾风靴", EquipmentSlot.BOOTS, 2, speed = 33, hp = 396, description = "穿上可大幅提升移动速度", price = 16000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"thunderBoots" to EquipmentTemplate("thunderBoots", "奔雷靴", EquipmentSlot.BOOTS, 4, speed = 480, hp = 6048, description = "如雷电般厚重，蕴含磅礴生命力", price = 480000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"thunderStaff" to EquipmentTemplate("thunderStaff", "玄雷杖", EquipmentSlot.WEAPON, 3, magicAttack = 138, critChance = 0.09, description = "可召唤雷电的法杖，法术攻击力强大", price = 80000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"thunderSword" to EquipmentTemplate("thunderSword", "雷霆剑", EquipmentSlot.WEAPON, 4, physicalAttack = 428, critChance = 0.12, description = "引动天雷的玄妙飞剑，物理攻击力惊人", price = 480000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"titanArmor" to EquipmentTemplate("titanArmor", "渊岩铠", EquipmentSlot.ARMOR, 4, physicalDefense = 473, hp = 6048, description = "深渊岩铁铸造的铠甲，增强生命力", price = 480000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"voidBoots" to EquipmentTemplate("voidBoots", "溯光靴", EquipmentSlot.BOOTS, 5, speed = 996, hp = 12750, description = "溯光逐影穿梭虚空，速度无双", price = 3360000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"voidRobe" to EquipmentTemplate("voidRobe", "瑶光袍", EquipmentSlot.ARMOR, 4, magicDefense = 315, hp = 4032, description = "蕴含瑶光之力的法袍，法术防御出众", price = 480000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"voidShadowRobe" to EquipmentTemplate("voidShadowRobe", "定海铠", EquipmentSlot.ARMOR, 5, magicDefense = 1467, hp = 19140, description = "定海之力凝聚的铠甲，增强生命力", price = 3360000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"voidStaff" to EquipmentTemplate("voidStaff", "虚华杖", EquipmentSlot.WEAPON, 4, magicAttack = 428, critChance = 0.12, description = "虚华流转的玄妙法杖，法术攻击力出众", price = 480000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"windBoots" to EquipmentTemplate("windBoots", "追风靴", EquipmentSlot.BOOTS, 3, speed = 104, hp = 1269, description = "追逐风的速度，极速无双", price = 80000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"wisdomOrb" to EquipmentTemplate("wisdomOrb", "迅捷珠", EquipmentSlot.ACCESSORY, 3, mp = 968, speed = 155, description = "可提升身法速度的宝珠", price = 80000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"woodenStaff" to EquipmentTemplate("woodenStaff", "桃木杖", EquipmentSlot.WEAPON, 1, magicAttack = 15, critChance = 0.03, description = "百年桃木制成的法杖，法术攻击力强大", price = 4000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$"yinYangOrb" to EquipmentTemplate("yinYangOrb", "天玄扇", EquipmentSlot.WEAPON, 6, magicAttack = 5970, critChance = 0.27, description = "蕴含天玄道韵的至宝，攻击易暴击", price = 26880000)</ID>
+    <ID>MaxLineLength:EquipmentDatabase.kt$EquipmentDatabase$fun</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"battleAxe" to EquipmentDatabase.EquipmentTemplate("battleAxe", "凌华刀", EquipmentSlot.WEAPON, 2, physicalAttack = 44, critChance = 0.06, description = "刀光凌厉如华，威力巨大且易暴击", price = 16200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"bronzeDagger" to EquipmentDatabase.EquipmentTemplate("bronzeDagger", "精铁刀", EquipmentSlot.WEAPON, 1, physicalAttack = 14, critChance = 0.04, description = "精铁锻造的宝刀，锋利易暴击", price = 3600)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"bronzePlate" to EquipmentDatabase.EquipmentTemplate("bronzePlate", "精铁甲", EquipmentSlot.ARMOR, 1, magicDefense = 7, hp = 84, description = "精铁铸造的铠甲，坚固且增强生命", price = 3600)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"celestialOrb" to EquipmentDatabase.EquipmentTemplate("celestialOrb", "天玄杖", EquipmentSlot.WEAPON, 5, magicAttack = 1280, critChance = 0.15, description = "蕴含天玄之力的神杖，攻击易暴击", price = 1036800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"celestialRobe" to EquipmentDatabase.EquipmentTemplate("celestialRobe", "凌星袍", EquipmentSlot.ARMOR, 5, magicDefense = 650, hp = 8500, description = "凌驾星辰之力的法袍，法术防御超凡入圣", price = 1036800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"chainMail" to EquipmentDatabase.EquipmentTemplate("chainMail", "锁子甲", EquipmentSlot.ARMOR, 1, physicalDefense = 11, hp = 126, description = "铁环编织的护甲，增强生命力", price = 3600)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"chaosBead" to EquipmentDatabase.EquipmentTemplate("chaosBead", "幽朔珠", EquipmentSlot.ACCESSORY, 6, mp = 13400, speed = 2048, description = "蕴含幽朔之力的灵珠，灵力超凡入圣", price = 6000000)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"chaosBlade" to EquipmentDatabase.EquipmentTemplate("chaosBlade", "玄玉刃", EquipmentSlot.WEAPON, 6, physicalAttack = 3980, critChance = 0.18, description = "玄玉淬炼的神刃，暴击率超凡入圣", price = 6000000)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"chaosRobe" to EquipmentDatabase.EquipmentTemplate("chaosRobe", "云影袍", EquipmentSlot.ARMOR, 6, magicDefense = 3000, hp = 39400, description = "云影交织的法袍，蕴含无尽生命之力", price = 6000000)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"chaosStepBoots" to EquipmentDatabase.EquipmentTemplate("chaosStepBoots", "鹤岚靴", EquipmentSlot.BOOTS, 6, speed = 3050, hp = 39400, description = "鹤翔岚雾而行，蕴含无尽生命之力", price = 6000000)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"clothBoots" to EquipmentDatabase.EquipmentTemplate("clothBoots", "青澜靴", EquipmentSlot.BOOTS, 1, speed = 7, hp = 84, description = "青澜丝线织就的轻靴，提升移动速度", price = 3600)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"clothRobe" to EquipmentDatabase.EquipmentTemplate("clothRobe", "灵竹衣", EquipmentSlot.ARMOR, 1, magicDefense = 11, hp = 126, description = "灵竹纤维制成的衣物，法术防御出众", price = 3600)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"cloudBoots" to EquipmentDatabase.EquipmentTemplate("cloudBoots", "踏云履", EquipmentSlot.BOOTS, 4, speed = 215, hp = 2688, description = "踏云而行的仙家法宝，速度惊人", price = 259200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"cloudRobe" to EquipmentDatabase.EquipmentTemplate("cloudRobe", "云纹袍", EquipmentSlot.ARMOR, 2, magicDefense = 34, hp = 396, description = "绣有云纹的法袍，增强生命力", price = 16200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"copperNecklace" to EquipmentDatabase.EquipmentTemplate("copperNecklace", "铜项链", EquipmentSlot.ACCESSORY, 1, mp = 63, speed = 10, description = "铜制项链，可提升身法速度", price = 3600)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"crystalOrb" to EquipmentDatabase.EquipmentTemplate("crystalOrb", "碧木扇", EquipmentSlot.WEAPON, 1, magicAttack = 14, critChance = 0.04, description = "碧木炼制的灵扇，蕴含微量灵气，易触发暴击", price = 3600)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"divinePlate" to EquipmentDatabase.EquipmentTemplate("divinePlate", "墨幽铠", EquipmentSlot.ARMOR, 5, physicalDefense = 978, hp = 12760, description = "墨幽玄铁铸造的铠甲，增强生命力", price = 1036800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"dragonEye" to EquipmentDatabase.EquipmentTemplate("dragonEye", "龙灵珠", EquipmentSlot.ACCESSORY, 4, mp = 1360, speed = 215, description = "真龙之灵凝聚的宝珠，灵力出众", price = 259200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"dragonEyePendant" to EquipmentDatabase.EquipmentTemplate("dragonEyePendant", "隐云佩", EquipmentSlot.ACCESSORY, 5, mp = 6420, speed = 992, description = "隐于云端的灵佩，可大幅提升身法速度", price = 1036800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"dragonScale" to EquipmentDatabase.EquipmentTemplate("dragonScale", "龙鳞铠", EquipmentSlot.ARMOR, 4, physicalDefense = 210, hp = 2688, description = "真龙鳞片锻造的铠甲，物理防御无双", price = 259200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"dragonSlayer" to EquipmentDatabase.EquipmentTemplate("dragonSlayer", "凤炎刃", EquipmentSlot.WEAPON, 5, physicalAttack = 880, critChance = 0.10, description = "蕴含凤炎之力的绝世神兵，物理攻击力无双", price = 1036800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"earthArmor" to EquipmentDatabase.EquipmentTemplate("earthArmor", "玄幽袍", EquipmentSlot.ARMOR, 5, physicalDefense = 650, hp = 8500, description = "承载玄幽之力的法袍，物理防御如幽渊般坚固", price = 1036800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"earthCore" to EquipmentDatabase.EquipmentTemplate("earthCore", "渡厄佩", EquipmentSlot.ACCESSORY, 5, mp = 4280, speed = 664, description = "可渡厄解难的灵佩，灵力出众", price = 1036800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"flameSword" to EquipmentDatabase.EquipmentTemplate("flameSword", "烈焰剑", EquipmentSlot.WEAPON, 3, physicalAttack = 136, critChance = 0.09, description = "燃烧着火焰的灵剑，攻击易暴击", price = 64800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"frostBlade" to EquipmentDatabase.EquipmentTemplate("frostBlade", "青碧刃", EquipmentSlot.WEAPON, 3, physicalAttack = 92, critChance = 0.06, description = "蕴含青碧灵力的宝刀，物理攻击力出众", price = 64800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"frostOrb" to EquipmentDatabase.EquipmentTemplate("frostOrb", "玄冰扇", EquipmentSlot.WEAPON, 3, magicAttack = 136, critChance = 0.09, description = "蕴含玄冰之力的宝扇，攻击易暴击", price = 64800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"godSlayer" to EquipmentDatabase.EquipmentTemplate("godSlayer", "青莲剑", EquipmentSlot.WEAPON, 5, physicalAttack = 1280, critChance = 0.15, description = "传说中自青莲中诞生的神剑，剑气纵横天地间", price = 1036800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"healthRing" to EquipmentDatabase.EquipmentTemplate("healthRing", "蕴灵戒", EquipmentSlot.ACCESSORY, 2, mp = 205, speed = 33, description = "可蕴养灵力的戒指，灵力出众", price = 16200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"heavenRing" to EquipmentDatabase.EquipmentTemplate("heavenRing", "长明坠", EquipmentSlot.ACCESSORY, 6, mp = 20100, speed = 3050, description = "长明不灭的灵坠，身法速度无双", price = 6000000)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"immortalArmor" to EquipmentDatabase.EquipmentTemplate("immortalArmor", "不朽铠", EquipmentSlot.ARMOR, 6, physicalDefense = 2000, hp = 26200, description = "仙界神甲，物理防御不朽不灭", price = 6000000)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"immortalBoots" to EquipmentDatabase.EquipmentTemplate("immortalBoots", "鸾羽履", EquipmentSlot.BOOTS, 6, speed = 2048, hp = 26200, description = "鸾鸟仙羽织就的灵履，速度超凡入圣", price = 6000000)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"immortalRobe" to EquipmentDatabase.EquipmentTemplate("immortalRobe", "曦光铠", EquipmentSlot.ARMOR, 6, magicDefense = 2000, hp = 26200, description = "蕴含曦光之力的铠甲，法术防御超凡入圣", price = 6000000)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"immortalSword" to EquipmentDatabase.EquipmentTemplate("immortalSword", "诛仙剑", EquipmentSlot.WEAPON, 6, physicalAttack = 2700, critChance = 0.13, description = "上古仙人遗留的仙器，物理攻击力毁天灭地", price = 6000000)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"ironPlate" to EquipmentDatabase.EquipmentTemplate("ironPlate", "碧叶甲", EquipmentSlot.ARMOR, 2, physicalDefense = 22, hp = 264, description = "碧玉叶片打造的护甲，物理防御力强大", price = 16200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"ironSword" to EquipmentDatabase.EquipmentTemplate("ironSword", "精铁剑", EquipmentSlot.WEAPON, 1, physicalAttack = 10, critChance = 0.02, description = "普通铁匠打造的精铁剑，物理攻击力出众", price = 3600)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"jadeRing" to EquipmentDatabase.EquipmentTemplate("jadeRing", "玉戒指", EquipmentSlot.ACCESSORY, 1, mp = 42, speed = 7, description = "蕴含微量灵气的玉戒指，灵力出众", price = 3600)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"jadeStaff" to EquipmentDatabase.EquipmentTemplate("jadeStaff", "碧玉杖", EquipmentSlot.WEAPON, 2, magicAttack = 30, critChance = 0.04, description = "碧玉雕刻的法杖，法术攻击力出众", price = 16200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"leatherArmor" to EquipmentDatabase.EquipmentTemplate("leatherArmor", "皮甲", EquipmentSlot.ARMOR, 1, physicalDefense = 7, hp = 84, description = "野兽皮革制成的护甲，物理防御出众", price = 3600)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"leatherBoots" to EquipmentDatabase.EquipmentTemplate("leatherBoots", "兽皮靴", EquipmentSlot.BOOTS, 1, speed = 10, hp = 126, description = "兽皮鞣制的厚靴，增强生命力", price = 3600)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"lightBoots" to EquipmentDatabase.EquipmentTemplate("lightBoots", "轻羽靴", EquipmentSlot.BOOTS, 2, speed = 33, hp = 396, description = "如羽毛般轻盈，蕴含生命之力", price = 16200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"mistBoots" to EquipmentDatabase.EquipmentTemplate("mistBoots", "云栖靴", EquipmentSlot.BOOTS, 3, speed = 103, hp = 1270, description = "云栖之处步履轻盈，蕴含浓郁生命气息", price = 64800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"moonRobe" to EquipmentDatabase.EquipmentTemplate("moonRobe", "月华袍", EquipmentSlot.ARMOR, 4, magicDefense = 315, hp = 4032, description = "吸收月华之力织成的法袍，增强生命力", price = 259200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"mysticRobe" to EquipmentDatabase.EquipmentTemplate("mysticRobe", "汐流衣", EquipmentSlot.ARMOR, 3, magicDefense = 68, hp = 846, description = "蕴含汐流之力的法衣，法术防御出众", price = 64800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"phoenixFan" to EquipmentDatabase.EquipmentTemplate("phoenixFan", "凰焰扇", EquipmentSlot.WEAPON, 4, magicAttack = 420, critChance = 0.12, description = "凰焰淬炼的神扇，攻击易暴击", price = 259200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"phoenixHeart" to EquipmentDatabase.EquipmentTemplate("phoenixHeart", "凤羽坠", EquipmentSlot.ACCESSORY, 4, mp = 2040, speed = 320, description = "凤凰羽翼炼制的坠饰，可提升身法速度", price = 259200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"phoenixWing" to EquipmentDatabase.EquipmentTemplate("phoenixWing", "阴阳扇", EquipmentSlot.WEAPON, 5, magicAttack = 880, critChance = 0.10, description = "蕴含阴阳之力的神扇，法术攻击力出众", price = 1036800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"plateArmor" to EquipmentDatabase.EquipmentTemplate("plateArmor", "银板铠", EquipmentSlot.ARMOR, 3, physicalDefense = 102, hp = 1270, description = "整块银钢锻造的铠甲，增强生命力", price = 64800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"primordialArmor" to EquipmentDatabase.EquipmentTemplate("primordialArmor", "苍罡铠", EquipmentSlot.ARMOR, 6, physicalDefense = 3000, hp = 39400, description = "苍罡之力凝聚的神甲，承载创世生命之力", price = 6000000)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"primordialStaff" to EquipmentDatabase.EquipmentTemplate("primordialStaff", "天星杖", EquipmentSlot.WEAPON, 6, magicAttack = 2700, critChance = 0.13, description = "凝聚天星之力的法杖，法术攻击力无双", price = 6000000)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"scaleArmor" to EquipmentDatabase.EquipmentTemplate("scaleArmor", "青鳞铠", EquipmentSlot.ARMOR, 3, physicalDefense = 68, hp = 846, description = "妖兽青鳞打造的铠甲，物理防御力惊人", price = 64800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"shadowBlade" to EquipmentDatabase.EquipmentTemplate("shadowBlade", "暗影刃", EquipmentSlot.WEAPON, 4, physicalAttack = 420, critChance = 0.12, description = "来无影去无踪的暗杀之刃，暴击率极高", price = 259200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"shadowStepBoots" to EquipmentDatabase.EquipmentTemplate("shadowStepBoots", "赤煞靴", EquipmentSlot.BOOTS, 5, speed = 992, hp = 12760, description = "赤煞之气凝聚的战靴，蕴含浩瀚生命力", price = 1036800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"spiritFan" to EquipmentDatabase.EquipmentTemplate("spiritFan", "灵风扇", EquipmentSlot.WEAPON, 2, magicAttack = 44, critChance = 0.06, description = "可扇出灵风的法器，攻击易暴击", price = 16200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"spiritPendant" to EquipmentDatabase.EquipmentTemplate("spiritPendant", "灵玉佩", EquipmentSlot.ACCESSORY, 2, mp = 136, speed = 22, description = "蕴含灵气的玉佩，灵力出众", price = 16200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"spiritRobe" to EquipmentDatabase.EquipmentTemplate("spiritRobe", "灵丝袍", EquipmentSlot.ARMOR, 2, magicDefense = 22, hp = 264, description = "灵蚕丝织成的法袍，法术防御出众", price = 16200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"spiritSword" to EquipmentDatabase.EquipmentTemplate("spiritSword", "灵锋剑", EquipmentSlot.WEAPON, 2, physicalAttack = 30, critChance = 0.04, description = "注入灵气的锋利长剑，物理攻击力强大", price = 16200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"starRobe" to EquipmentDatabase.EquipmentTemplate("starRobe", "星辰袍", EquipmentSlot.ARMOR, 3, magicDefense = 102, hp = 1270, description = "绣有星辰图案的法袍，增强生命力", price = 64800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"steelArmor" to EquipmentDatabase.EquipmentTemplate("steelArmor", "丹羽衣", EquipmentSlot.ARMOR, 2, physicalDefense = 34, hp = 396, description = "丹砂羽线织成的法衣，增强生命力", price = 16200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"storageRing" to EquipmentDatabase.EquipmentTemplate("storageRing", "灵泉戒", EquipmentSlot.ACCESSORY, 3, mp = 430, speed = 69, description = "蕴含灵泉之力的戒指，灵力出众", price = 64800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"swiftBoots" to EquipmentDatabase.EquipmentTemplate("swiftBoots", "疾风靴", EquipmentSlot.BOOTS, 2, speed = 22, hp = 264, description = "穿上可大幅提升移动速度", price = 16200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"thunderBoots" to EquipmentDatabase.EquipmentTemplate("thunderBoots", "奔雷靴", EquipmentSlot.BOOTS, 4, speed = 320, hp = 4032, description = "如雷电般厚重，蕴含磅礴生命力", price = 259200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"thunderStaff" to EquipmentDatabase.EquipmentTemplate("thunderStaff", "玄雷杖", EquipmentSlot.WEAPON, 3, magicAttack = 92, critChance = 0.06, description = "可召唤雷电的法杖，法术攻击力强大", price = 64800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"thunderSword" to EquipmentDatabase.EquipmentTemplate("thunderSword", "雷霆剑", EquipmentSlot.WEAPON, 4, physicalAttack = 285, critChance = 0.08, description = "引动天雷的玄妙飞剑，物理攻击力惊人", price = 259200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"titanArmor" to EquipmentDatabase.EquipmentTemplate("titanArmor", "渊岩铠", EquipmentSlot.ARMOR, 4, physicalDefense = 315, hp = 4032, description = "深渊岩铁铸造的铠甲，增强生命力", price = 259200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"voidBoots" to EquipmentDatabase.EquipmentTemplate("voidBoots", "溯光靴", EquipmentSlot.BOOTS, 5, speed = 664, hp = 8500, description = "溯光逐影穿梭虚空，速度无双", price = 1036800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"voidRobe" to EquipmentDatabase.EquipmentTemplate("voidRobe", "瑶光袍", EquipmentSlot.ARMOR, 4, magicDefense = 210, hp = 2688, description = "蕴含瑶光之力的法袍，法术防御出众", price = 259200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"voidShadowRobe" to EquipmentDatabase.EquipmentTemplate("voidShadowRobe", "定海铠", EquipmentSlot.ARMOR, 5, magicDefense = 978, hp = 12760, description = "定海之力凝聚的铠甲，增强生命力", price = 1036800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"voidStaff" to EquipmentDatabase.EquipmentTemplate("voidStaff", "虚华杖", EquipmentSlot.WEAPON, 4, magicAttack = 285, critChance = 0.08, description = "虚华流转的玄妙法杖，法术攻击力出众", price = 259200)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"windBoots" to EquipmentDatabase.EquipmentTemplate("windBoots", "追风靴", EquipmentSlot.BOOTS, 3, speed = 69, hp = 846, description = "追逐风的速度，极速无双", price = 64800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"wisdomOrb" to EquipmentDatabase.EquipmentTemplate("wisdomOrb", "迅捷珠", EquipmentSlot.ACCESSORY, 3, mp = 645, speed = 103, description = "可提升身法速度的宝珠", price = 64800)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"woodenStaff" to EquipmentDatabase.EquipmentTemplate("woodenStaff", "桃木杖", EquipmentSlot.WEAPON, 1, magicAttack = 10, critChance = 0.02, description = "百年桃木制成的法杖，法术攻击力强大", price = 3600)</ID>
+    <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"yinYangOrb" to EquipmentDatabase.EquipmentTemplate("yinYangOrb", "天玄扇", EquipmentSlot.WEAPON, 6, magicAttack = 3980, critChance = 0.18, description = "蕴含天玄道韵的至宝，攻击易暴击", price = 6000000)</ID>
+    <ID>MaxLineLength:EventBusAudit.kt$EventBusAudit$errorHandling = "EventBus 层 try-catch 隔离; onEvent 内无 try-catch, cultivationService.processSpiritMineProduction() 异常会传播"</ID>
+    <ID>MaxLineLength:FavorDomainTest.kt$FavorDomainTest$val alliances = listOf(Alliance(id = "a1", sectIds = listOf("player", "target"), startYear = 1, initiatorId = "player"))</ID>
+    <ID>MaxLineLength:FavorDomainTest.kt$FavorDomainTest$val relations = listOf(SectRelation(sectId1 = "a", sectId2 = "b", favor = 30, lastInteractionYear = 1, acquainted = true))</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("battleAxe", "凌华刀", EquipmentSlot.WEAPON, 2, 2, "刀光凌厉如华", mapOf("tigerBlood1" to 5, "eagleClaw1" to 2), 6, 0.65)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("bronzeDagger", "精铁刀", EquipmentSlot.WEAPON, 1, 1, "精铁锻造的宝刀", mapOf("tigerTooth0" to 4, "eagleClaw0" to 2), 3, 0.70)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("bronzePlate", "精铁甲", EquipmentSlot.ARMOR, 1, 1, "精铁铸造的铠甲", mapOf("turtleShell0" to 4, "turtleBone0" to 2), 3, 0.70)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("celestialOrb", "天玄杖", EquipmentSlot.WEAPON, 5, 5, "蕴含天玄之力的神杖", mapOf("snakeBlood4" to 5, "snakeCore4" to 4, "foxCore4" to 2, "dragonCore4" to 2), 72, 0.30)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("celestialRobe", "凌星袍", EquipmentSlot.ARMOR, 5, 5, "凌驾星辰之力的法袍", mapOf("turtleShell4" to 6, "turtleBone4" to 4, "turtleCore4" to 2, "dragonScale4" to 2), 72, 0.30)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("chainMail", "锁子甲", EquipmentSlot.ARMOR, 1, 1, "铁环相扣的护甲", mapOf("bearBone0" to 5, "bearHide0" to 2), 3, 0.70)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("chaosBead", "幽朔珠", EquipmentSlot.ACCESSORY, 6, 6, "蕴含幽朔之力的灵珠", mapOf("foxCore5" to 8, "foxBone5" to 5, "foxHide5" to 3, "dragonCore5" to 3), 120, 0.25)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("chaosBlade", "玄玉刃", EquipmentSlot.WEAPON, 6, 6, "玄玉淬炼的神刃", mapOf("tigerBlood5" to 6, "tigerTooth5" to 5, "eagleClaw5" to 4, "tigerCore5" to 3), 120, 0.25)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("chaosRobe", "云影袍", EquipmentSlot.ARMOR, 6, 6, "云影交织的法袍", mapOf("bearHide5" to 6, "snakeScale5" to 4, "bearCore5" to 4, "dragonClaw5" to 3), 120, 0.25)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("chaosStepBoots", "鹤岚靴", EquipmentSlot.BOOTS, 6, 6, "鹤翔岚雾而行", mapOf("wolfHide5" to 6, "eagleClaw5" to 4, "wolfCore5" to 4, "dragonClaw5" to 3), 120, 0.25)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("clothBoots", "青澜靴", EquipmentSlot.BOOTS, 1, 1, "青澜丝线织就的轻靴", mapOf("wolfHide0" to 3, "wolfBone0" to 2), 3, 0.70)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("clothRobe", "灵竹衣", EquipmentSlot.ARMOR, 1, 1, "灵竹纤维制成的衣物", mapOf("turtleShell0" to 3, "snakeScale0" to 2), 3, 0.70)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("cloudBoots", "踏云履", EquipmentSlot.BOOTS, 4, 4, "踏云而行的仙家法宝", mapOf("wolfHide3" to 5, "eagleFeather3" to 4, "wolfCore3" to 2), 36, 0.35)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("cloudRobe", "云纹袍", EquipmentSlot.ARMOR, 2, 2, "绣有云纹的法袍", mapOf("turtleShell1" to 3, "turtleBone1" to 3), 6, 0.65)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("copperNecklace", "铜项链", EquipmentSlot.ACCESSORY, 1, 1, "铜制项链", mapOf("foxBone0" to 3, "foxTail0" to 2), 3, 0.70)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("crystalOrb", "碧木扇", EquipmentSlot.WEAPON, 1, 1, "蕴含微量灵气的碧木扇", mapOf("snakeCore0" to 3, "foxCore0" to 2), 3, 0.70)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("divinePlate", "墨幽铠", EquipmentSlot.ARMOR, 5, 5, "墨幽玄铁铸造的铠甲", mapOf("bearHide4" to 6, "bearBone4" to 4, "bearClaw4" to 2, "bearCore4" to 2), 72, 0.30)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("dragonEye", "龙灵珠", EquipmentSlot.ACCESSORY, 4, 4, "真龙之灵凝聚的宝珠", mapOf("foxCore3" to 5, "foxBone3" to 4, "foxHide3" to 2), 36, 0.35)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("dragonEyePendant", "隐云佩", EquipmentSlot.ACCESSORY, 5, 5, "隐于云端的灵佩", mapOf("wolfTooth4" to 5, "eagleClaw4" to 4, "foxTail4" to 2, "wolfCore4" to 2), 72, 0.30)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("dragonScale", "龙鳞铠", EquipmentSlot.ARMOR, 4, 4, "真龙鳞片锻造的铠甲", mapOf("snakeScale3" to 6, "snakeBlood3" to 4, "snakeCore3" to 2), 36, 0.35)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("dragonSlayer", "凤炎刃", EquipmentSlot.WEAPON, 5, 5, "蕴含凤炎之力的绝世神兵", mapOf("tigerBlood4" to 6, "tigerTooth4" to 4, "tigerCore4" to 2, "dragonHorn4" to 2), 72, 0.30)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("earthArmor", "玄幽袍", EquipmentSlot.ARMOR, 5, 5, "承载玄幽之力的法袍", mapOf("snakeScale4" to 6, "snakeBlood4" to 4, "snakeCore4" to 2, "dragonScale4" to 2), 72, 0.30)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("earthCore", "渡厄佩", EquipmentSlot.ACCESSORY, 5, 5, "可渡厄解难的灵佩", mapOf("foxCore4" to 6, "foxBone4" to 4, "foxHide4" to 2, "dragonCore4" to 2), 72, 0.30)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("flameSword", "烈焰剑", EquipmentSlot.WEAPON, 3, 3, "燃烧着火焰的灵剑", mapOf("tigerBlood2" to 4, "tigerCore2" to 2, "tigerTooth2" to 3), 12, 0.60)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("frostBlade", "青碧刃", EquipmentSlot.WEAPON, 3, 3, "蕴含青碧灵力的宝刀", mapOf("tigerBlood2" to 5, "snakeScale2" to 3, "tigerTooth2" to 2), 12, 0.60)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("frostOrb", "玄冰扇", EquipmentSlot.WEAPON, 3, 3, "蕴含玄冰之力的宝扇", mapOf("snakeCore2" to 4, "foxCore2" to 2, "snakeBlood2" to 2), 12, 0.60)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("godSlayer", "青莲剑", EquipmentSlot.WEAPON, 5, 5, "自青莲中诞生的神剑", mapOf("tigerBlood4" to 5, "tigerTooth4" to 4, "eagleClaw4" to 3, "tigerCore4" to 2), 72, 0.30)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("healthRing", "蕴灵戒", EquipmentSlot.ACCESSORY, 2, 2, "可蕴养灵力的戒指", mapOf("wolfTooth1" to 3, "foxTail1" to 2), 6, 0.65)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("heavenRing", "长明坠", EquipmentSlot.ACCESSORY, 6, 6, "长明不灭的灵坠", mapOf("wolfTooth5" to 7, "eagleClaw5" to 5, "foxTail5" to 3, "dragonScale5" to 3), 120, 0.25)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("immortalArmor", "不朽铠", EquipmentSlot.ARMOR, 6, 6, "仙界神甲", mapOf("snakeScale5" to 8, "snakeBlood5" to 5, "snakeCore5" to 3, "dragonScale5" to 3), 120, 0.25)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("immortalBoots", "鸾羽履", EquipmentSlot.BOOTS, 6, 6, "鸾鸟仙羽织就的灵履", mapOf("wolfHide5" to 7, "wolfTooth5" to 5, "wolfCore5" to 3, "dragonScale5" to 3), 120, 0.25)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("immortalRobe", "曦光铠", EquipmentSlot.ARMOR, 6, 6, "蕴含曦光之力的铠甲", mapOf("turtleShell5" to 8, "turtleBone5" to 5, "turtleCore5" to 3, "dragonScale5" to 3), 120, 0.25)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("immortalSword", "诛仙剑", EquipmentSlot.WEAPON, 6, 6, "上古仙人遗留的仙器", mapOf("tigerBlood5" to 8, "tigerTooth5" to 5, "tigerCore5" to 3, "dragonHorn5" to 3), 120, 0.25)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("ironPlate", "碧叶甲", EquipmentSlot.ARMOR, 2, 2, "碧玉叶片打造的护甲", mapOf("bearHide1" to 5, "bearBone1" to 2), 6, 0.65)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("ironSword", "精铁剑", EquipmentSlot.WEAPON, 1, 1, "普通铁匠打造的精铁剑", mapOf("tigerBlood0" to 3, "tigerTooth0" to 2), 3, 0.70)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("jadeRing", "玉戒指", EquipmentSlot.ACCESSORY, 1, 1, "蕴含微量灵气的玉戒指", mapOf("foxCore0" to 2, "foxBone0" to 3), 3, 0.70)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("jadeStaff", "碧玉杖", EquipmentSlot.WEAPON, 2, 2, "碧玉雕刻的法杖", mapOf("snakeBlood1" to 4, "snakeCore1" to 2), 6, 0.65)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("leatherArmor", "皮甲", EquipmentSlot.ARMOR, 1, 1, "野兽皮革制成的护甲", mapOf("bearHide0" to 4, "bearBone0" to 2), 3, 0.70)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("leatherBoots", "兽皮靴", EquipmentSlot.BOOTS, 1, 1, "兽皮鞣制的厚靴", mapOf("wolfHide0" to 4, "wolfTooth0" to 1), 3, 0.70)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("lightBoots", "轻羽靴", EquipmentSlot.BOOTS, 2, 2, "如羽毛般轻盈", mapOf("wolfHide1" to 3, "eagleFeather1" to 3), 6, 0.65)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("mistBoots", "云栖靴", EquipmentSlot.BOOTS, 3, 3, "云栖之处步履轻盈", mapOf("wolfHide2" to 4, "eagleFeather2" to 2, "wolfTooth2" to 2), 12, 0.60)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("moonRobe", "月华袍", EquipmentSlot.ARMOR, 4, 4, "吸收月华之力织成的法袍", mapOf("bearHide3" to 5, "snakeScale3" to 3, "bearCore3" to 3), 36, 0.35)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("mysticRobe", "汐流衣", EquipmentSlot.ARMOR, 3, 3, "蕴含汐流之力的法衣", mapOf("turtleShell2" to 5, "turtleBone2" to 3, "turtleCore2" to 2), 12, 0.60)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("phoenixFan", "凰焰扇", EquipmentSlot.WEAPON, 4, 4, "凰焰淬炼的神扇", mapOf("eagleFeather3" to 6, "eagleClaw3" to 3, "eagleCore3" to 2), 36, 0.35)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("phoenixHeart", "凤羽坠", EquipmentSlot.ACCESSORY, 4, 4, "凤凰羽翼炼制的坠饰", mapOf("wolfTooth3" to 5, "eagleClaw3" to 3, "foxTail3" to 3), 36, 0.35)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("phoenixWing", "阴阳扇", EquipmentSlot.WEAPON, 5, 5, "蕴含阴阳之力的神扇", mapOf("eagleFeather4" to 6, "eagleClaw4" to 4, "eagleCore4" to 2, "snakeCore4" to 2), 72, 0.30)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("plateArmor", "银板铠", EquipmentSlot.ARMOR, 3, 3, "厚重的银板护甲", mapOf("bearHide2" to 4, "bearBone2" to 3, "bearCore2" to 2), 12, 0.60)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("primordialArmor", "苍罡铠", EquipmentSlot.ARMOR, 6, 6, "苍罡之力凝聚的神甲", mapOf("bearHide5" to 8, "bearBone5" to 5, "bearCore5" to 3, "dragonClaw5" to 3), 120, 0.25)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("primordialStaff", "天星杖", EquipmentSlot.WEAPON, 6, 6, "凝聚天星之力的法杖", mapOf("snakeBlood5" to 7, "snakeCore5" to 5, "eagleFeather5" to 3, "dragonCore5" to 3), 120, 0.25)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("scaleArmor", "青鳞铠", EquipmentSlot.ARMOR, 3, 3, "妖兽青鳞打造的铠甲", mapOf("snakeScale2" to 5, "snakeBlood2" to 3, "snakeCore2" to 2), 12, 0.60)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("shadowBlade", "暗影刃", EquipmentSlot.WEAPON, 4, 4, "融入暗影的短刃", mapOf("tigerBlood3" to 5, "eagleClaw3" to 4, "foxCore3" to 2), 36, 0.35)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("shadowStepBoots", "赤煞靴", EquipmentSlot.BOOTS, 5, 5, "赤煞之气凝聚的战靴", mapOf("wolfHide4" to 5, "eagleClaw4" to 3, "wolfCore4" to 2, "foxTail4" to 2), 72, 0.30)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("spiritFan", "灵风扇", EquipmentSlot.WEAPON, 2, 2, "可扇出灵风的法器", mapOf("eagleFeather1" to 4, "snakeCore1" to 2), 6, 0.65)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("spiritPendant", "灵玉佩", EquipmentSlot.ACCESSORY, 2, 2, "蕴含灵气的玉佩", mapOf("foxCore1" to 3, "foxBone1" to 3), 6, 0.65)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("spiritRobe", "灵丝袍", EquipmentSlot.ARMOR, 2, 2, "灵蚕丝织成的法袍", mapOf("turtleShell1" to 4, "snakeScale1" to 2), 6, 0.65)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("spiritSword", "灵锋剑", EquipmentSlot.WEAPON, 2, 2, "注入灵气的锋利长剑", mapOf("tigerBlood1" to 4, "tigerTooth1" to 3), 6, 0.65)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("starRobe", "星辰袍", EquipmentSlot.ARMOR, 3, 3, "绣有星辰图案的法袍", mapOf("bearHide2" to 3, "snakeScale2" to 3, "bearCore2" to 2), 12, 0.60)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("steelArmor", "丹羽衣", EquipmentSlot.ARMOR, 2, 2, "丹砂羽线织成的法衣", mapOf("bearBone1" to 4, "bearCore1" to 2), 6, 0.65)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("storageRing", "灵泉戒", EquipmentSlot.ACCESSORY, 3, 3, "蕴含灵泉之力的戒指", mapOf("foxCore2" to 4, "foxBone2" to 3, "foxTail2" to 2), 12, 0.60)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("swiftBoots", "疾风靴", EquipmentSlot.BOOTS, 2, 2, "穿上可大幅提升移动速度", mapOf("wolfHide1" to 4, "wolfBone1" to 2), 6, 0.65)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("thunderBoots", "奔雷靴", EquipmentSlot.BOOTS, 4, 4, "如雷电般迅捷的靴子", mapOf("wolfHide3" to 5, "wolfBone3" to 3, "wolfCore3" to 3), 36, 0.35)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("thunderStaff", "玄雷杖", EquipmentSlot.WEAPON, 3, 3, "可召唤雷电的法杖", mapOf("snakeBlood2" to 4, "snakeCore2" to 3, "eagleFeather2" to 2), 12, 0.60)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("thunderSword", "雷霆剑", EquipmentSlot.WEAPON, 4, 4, "引动天雷的玄妙飞剑", mapOf("tigerBlood3" to 6, "tigerHide3" to 4, "tigerCore3" to 2), 36, 0.35)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("titanArmor", "渊岩铠", EquipmentSlot.ARMOR, 4, 4, "深渊岩铁铸造的铠甲", mapOf("bearHide3" to 5, "bearBone3" to 4, "bearCore3" to 3), 36, 0.35)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("voidBoots", "溯光靴", EquipmentSlot.BOOTS, 5, 5, "溯光逐影穿梭虚空", mapOf("wolfHide4" to 5, "wolfTooth4" to 4, "wolfCore4" to 2, "dragonScale4" to 2), 72, 0.30)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("voidRobe", "瑶光袍", EquipmentSlot.ARMOR, 4, 4, "蕴含瑶光之力的法袍", mapOf("turtleShell3" to 6, "turtleBone3" to 4, "turtleCore3" to 2), 36, 0.35)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("voidShadowRobe", "定海铠", EquipmentSlot.ARMOR, 5, 5, "定海之力凝聚的铠甲", mapOf("bearHide4" to 5, "snakeScale4" to 3, "bearCore4" to 3, "foxCore4" to 2), 72, 0.30)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("voidStaff", "虚华杖", EquipmentSlot.WEAPON, 4, 4, "虚华流转的玄妙法杖", mapOf("snakeBlood3" to 5, "snakeCore3" to 4, "foxCore3" to 2), 36, 0.35)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("windBoots", "追风靴", EquipmentSlot.BOOTS, 3, 3, "追逐风的速度", mapOf("wolfHide2" to 4, "wolfBone2" to 3, "wolfCore2" to 2), 12, 0.60)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("wisdomOrb", "迅捷珠", EquipmentSlot.ACCESSORY, 3, 3, "可提升身法速度的宝珠", mapOf("wolfTooth2" to 4, "eagleClaw2" to 2, "foxCore2" to 2), 12, 0.60)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("woodenStaff", "桃木杖", EquipmentSlot.WEAPON, 1, 1, "百年桃木制成的法杖", mapOf("snakeBlood0" to 3, "snakeCore0" to 2), 3, 0.70)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("yinYangOrb", "天玄扇", EquipmentSlot.WEAPON, 6, 6, "蕴含天玄道韵的至宝", mapOf("snakeBlood5" to 6, "snakeCore5" to 5, "foxCore5" to 3, "dragonCore5" to 3), 120, 0.25)</ID>
+    <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$fun getRecipesByMaterial(materialId: String): List&lt;ForgeRecipe&gt;</ID>
+    <ID>MaxLineLength:ForgeRecipeRegistry.kt$ForgeRecipeRegistry$fun</ID>
+    <ID>MaxLineLength:GameConfig.kt$GameConfig.Realm$maxAge = 1500</ID>
+    <ID>MaxLineLength:GameConfig.kt$GameConfig.Realm$maxAge = 2500</ID>
+    <ID>MaxLineLength:GameConfig.kt$GameConfig.Realm$maxAge = 4000</ID>
+    <ID>MaxLineLength:GameConfig.kt$GameConfig.Realm$maxAge = 500</ID>
+    <ID>MaxLineLength:GameConfig.kt$GameConfig.Realm$maxAge = 800</ID>
+    <ID>MaxLineLength:GameConfig.kt$GameConfig.Realm$maxAge = 9999</ID>
+    <ID>MaxLineLength:GameData.kt$GameData$@ColumnInfo(name = "heavenly_trial_state", defaultValue = "{\"highestClearedLevel\":-1,\"levelClearCounts\":[0,0,0,0,0,0,0,0]}")</ID>
+    <ID>MaxLineLength:GameDataBloodRefinement.kt$BloodRefinementProgress$@ProtoNumber(8) val selectedStat: String = ""</ID>
+    <ID>MaxLineLength:GameEvents.kt$EventBus$DomainLog.w("EventBus", "Event dropped (total: $droppedEventCount), type=${event.type}. Consider reducing event frequency.")</ID>
+    <ID>MaxLineLength:GameEventsTest.kt$GameEventsTest$arrayOf(NotificationSeverity.INFO, NotificationSeverity.WARNING, NotificationSeverity.ERROR, NotificationSeverity.SUCCESS)</ID>
+    <ID>MaxLineLength:GameHeavyData.kt$GameHeavyData.Companion$fun</ID>
+    <ID>MaxLineLength:HeavenlyTrialConfig.kt$HeavenlyTrialConfig$manualIds = listOf("common_magic_single_1", "common_magic_aoe_1", "common_magic_multi_1", "common_magic_aoe_multi_1", "new_stun_1", "mind_common_both_1")</ID>
+    <ID>MaxLineLength:HeavenlyTrialConfig.kt$HeavenlyTrialConfig$manualIds = listOf("epic_magic_single_1", "epic_magic_aoe_1", "epic_magic_multi_1", "epic_magic_aoe_multi_1", "new_stun_4", "mind_epic_both_1")</ID>
+    <ID>MaxLineLength:HeavenlyTrialConfig.kt$HeavenlyTrialConfig$manualIds = listOf("legendary_magic_single_1", "legendary_magic_aoe_1", "legendary_magic_multi_1", "legendary_magic_aoe_multi_1", "new_stun_5", "mind_legendary_both_1")</ID>
+    <ID>MaxLineLength:HeavenlyTrialConfig.kt$HeavenlyTrialConfig$manualIds = listOf("mythic_magic_single_1", "mythic_magic_aoe_1", "mythic_magic_multi_1", "mythic_magic_aoe_multi_1", "new_stun_6", "mind_mythic_both_1")</ID>
+    <ID>MaxLineLength:HeavenlyTrialConfig.kt$HeavenlyTrialConfig$manualIds = listOf("new_hp_pct_team_2", "new_hp_pct_single_2", "support_r2_pa_ma", "support_r2_pd_md", "support_r2_speed", "mind_uncommon_team_both_1")</ID>
+    <ID>MaxLineLength:HeavenlyTrialConfig.kt$HeavenlyTrialConfig$manualIds = listOf("new_hp_pct_team_4", "new_hp_pct_single_4", "support_r4_pa_ma", "support_r4_pd_md", "support_r4_speed", "mind_epic_team_both_1")</ID>
+    <ID>MaxLineLength:HeavenlyTrialConfig.kt$HeavenlyTrialConfig$manualIds = listOf("new_hp_pct_team_5", "new_hp_pct_single_5", "support_r5_pa_ma", "support_r5_pd_md", "support_r5_hp_pd", "mind_legendary_team_both_1")</ID>
+    <ID>MaxLineLength:HeavenlyTrialConfig.kt$HeavenlyTrialConfig$manualIds = listOf("new_hp_pct_team_5", "new_hp_pct_single_5", "support_r5_pa_ma", "support_r5_pd_md", "support_r5_speed", "mind_legendary_team_both_1")</ID>
+    <ID>MaxLineLength:HeavenlyTrialConfig.kt$HeavenlyTrialConfig$manualIds = listOf("new_hp_pct_team_6", "new_hp_pct_single_6", "support_r6_pa_ma", "support_r6_pd_md", "support_r6_hp_pd", "mind_mythic_team_both_1")</ID>
+    <ID>MaxLineLength:HeavenlyTrialConfig.kt$HeavenlyTrialConfig$manualIds = listOf("new_taunt_1", "new_shield_self_1", "phys_hp_def_common_self", "new_share_ally_1", "new_stun_1", "mind_common_both_1")</ID>
+    <ID>MaxLineLength:HeavenlyTrialConfig.kt$HeavenlyTrialConfig$manualIds = listOf("new_taunt_2", "new_shield_self_2", "phys_hp_def_uncommon_self", "new_share_ally_2", "new_stun_2", "mind_uncommon_both_1")</ID>
+    <ID>MaxLineLength:HeavenlyTrialConfig.kt$HeavenlyTrialConfig$manualIds = listOf("new_taunt_3", "new_shield_self_3", "phys_hp_def_rare_self", "new_share_ally_3", "new_stun_3", "mind_rare_both_1")</ID>
+    <ID>MaxLineLength:HeavenlyTrialConfig.kt$HeavenlyTrialConfig$manualIds = listOf("new_taunt_4", "new_shield_self_4", "phys_hp_def_epic_self", "new_share_ally_4", "new_stun_4", "mind_epic_both_1")</ID>
+    <ID>MaxLineLength:HeavenlyTrialConfig.kt$HeavenlyTrialConfig$manualIds = listOf("new_taunt_5", "new_shield_self_5", "phys_hp_def_legendary_self", "new_share_ally_5", "new_stun_5", "mind_legendary_both_1")</ID>
+    <ID>MaxLineLength:HeavenlyTrialConfig.kt$HeavenlyTrialConfig$manualIds = listOf("new_taunt_6", "new_shield_self_6", "phys_hp_def_mythic_self", "new_share_ally_6", "new_stun_6", "mind_mythic_both_1")</ID>
+    <ID>MaxLineLength:HeavenlyTrialConfig.kt$HeavenlyTrialConfig$manualIds = listOf("rare_magic_single_1", "rare_magic_aoe_1", "rare_magic_multi_1", "rare_magic_aoe_multi_1", "new_stun_3", "mind_rare_both_1")</ID>
+    <ID>MaxLineLength:HeavenlyTrialConfig.kt$HeavenlyTrialConfig$manualIds = listOf("uncommon_magic_single_1", "uncommon_magic_aoe_1", "uncommon_magic_multi_1", "uncommon_magic_aoe_multi_1", "new_stun_2", "mind_uncommon_both_1")</ID>
+    <ID>MaxLineLength:HerbDatabase.kt$HerbDatabase$fun</ID>
+    <ID>MaxLineLength:InventoryConfig.kt$InventoryConfig$quantity &gt; maxStack -&gt; Result.failure(IllegalArgumentException("Quantity $quantity exceeds max stack size: $maxStack"))</ID>
+    <ID>MaxLineLength:ItemDatabase.kt$ItemDatabase$BaseAttrConfig("artifactRefining", "炼器", mapOf(1 to "铸魂丹", 2 to "灵铸丹", 3 to "宝铸丹", 4 to "玄铸丹", 5 to "地铸丹", 6 to "天铸丹"))</ID>
+    <ID>MaxLineLength:ItemDatabase.kt$ItemDatabase$BaseAttrConfig("charm", "魅力", mapOf(1 to "仙姿丹", 2 to "灵姿丹", 3 to "玉姿丹", 4 to "玄姿丹", 5 to "地姿丹", 6 to "天姿丹"))</ID>
+    <ID>MaxLineLength:ItemDatabase.kt$ItemDatabase$BaseAttrConfig("comprehension", "悟性", mapOf(1 to "悟道丹", 2 to "明悟丹", 3 to "通悟丹", 4 to "玄悟丹", 5 to "地悟丹", 6 to "天悟丹"))</ID>
+    <ID>MaxLineLength:ItemDatabase.kt$ItemDatabase$BaseAttrConfig("intelligence", "智力", mapOf(1 to "慧根丹", 2 to "灵慧丹", 3 to "明慧丹", 4 to "玄慧丹", 5 to "地慧丹", 6 to "天慧丹"))</ID>
+    <ID>MaxLineLength:ItemDatabase.kt$ItemDatabase$BaseAttrConfig("loyalty", "忠诚", mapOf(1 to "忠心丹", 2 to "赤诚丹", 3 to "铁心丹", 4 to "玄心丹", 5 to "地心丹", 6 to "天心丹"))</ID>
+    <ID>MaxLineLength:ItemDatabase.kt$ItemDatabase$BaseAttrConfig("mining", "采矿", mapOf(1 to "探矿丹", 2 to "灵石丹", 3 to "宝矿丹", 4 to "玄矿丹", 5 to "地矿丹", 6 to "天矿丹"))</ID>
+    <ID>MaxLineLength:ItemDatabase.kt$ItemDatabase$BaseAttrConfig("morality", "道德", mapOf(1 to "善行丹", 2 to "灵善丹", 3 to "宝善丹", 4 to "玄善丹", 5 to "地善丹", 6 to "天善丹"))</ID>
+    <ID>MaxLineLength:ItemDatabase.kt$ItemDatabase$BaseAttrConfig("pillRefining", "炼丹", mapOf(1 to "丹心丹", 2 to "灵丹丹", 3 to "宝丹丹", 4 to "玄丹丹", 5 to "地丹丹", 6 to "天丹丹"))</ID>
+    <ID>MaxLineLength:ItemDatabase.kt$ItemDatabase$BaseAttrConfig("spiritPlanting", "种植", mapOf(1 to "灵植丹", 2 to "灵耘丹", 3 to "宝耘丹", 4 to "玄耘丹", 5 to "地耘丹", 6 to "天耘丹"))</ID>
+    <ID>MaxLineLength:ItemDatabase.kt$ItemDatabase$BaseAttrConfig("teaching", "教学", mapOf(1 to "传道丹", 2 to "灵传丹", 3 to "宝传丹", 4 to "玄传丹", 5 to "地传丹", 6 to "天传丹"))</ID>
+    <ID>MaxLineLength:ItemDatabase.kt$ItemDatabase$Triple("physicalAttack", "物攻", mapOf(1 to "虎力丹", 2 to "熊力丹", 3 to "龙力丹", 4 to "神力丹", 5 to "霸力丹", 6 to "天力丹"))</ID>
+    <ID>MaxLineLength:ItemDatabase.kt$ItemDatabase$Triple("physicalDefense", "物防", mapOf(1 to "铁甲丹", 2 to "铜墙丹", 3 to "金刚丹", 4 to "玄盾丹", 5 to "地罡丹", 6 to "天罡丹"))</ID>
+    <ID>MaxLineLength:ItemDatabase.kt$ItemDatabase$description = "${tierName}${g}${config.descName}丹，增加${v1}点${config.attr1}和${v2}点${config.attr2}，持续9旬"</ID>
+    <ID>MaxLineLength:ItemDatabase.kt$ItemDatabase$description = "${tierName}${g}${config.descName}丹，永久增加${v1}点${config.attr1}和${v2}点${config.attr2}"</ID>
+    <ID>MaxLineLength:ItemDatabase.kt$ItemDatabase$description = "${tierName}${g}修炼速度丹，提升境界修炼速度${(applyGrade(speedPct, grade) * 100).roundToInt()}%，持续9旬"</ID>
+    <ID>MaxLineLength:ItemDatabase.kt$ItemDatabase$description = "${tierName}${g}功法速度丹，提升功法熟练度修炼速度${(applyGrade(speedPct, grade) * 100).roundToInt()}%，持续9旬"</ID>
+    <ID>MaxLineLength:ItemDatabase.kt$ItemDatabase$description = "${tierName}${g}孕养速度丹，提升装备孕养等级修炼速度${(applyGrade(speedPct, grade) * 100).roundToInt()}%，持续9旬"</ID>
+    <ID>MaxLineLength:ItemDatabase.kt$ItemDatabase$fun</ID>
+    <ID>MaxLineLength:ItemDatabase.kt$ItemDatabase$magicAttackAdd = if (config.attr1 == "magicAttack") v1 else if (config.attr2 == "magicAttack") v2 else 0</ID>
+    <ID>MaxLineLength:ItemDatabase.kt$ItemDatabase$magicDefenseAdd = if (config.attr1 == "magicDefense") v1 else if (config.attr2 == "magicDefense") v2 else 0</ID>
+    <ID>MaxLineLength:ItemDatabase.kt$ItemDatabase$physicalAttackAdd = if (config.attr1 == "physicalAttack") v1 else if (config.attr2 == "physicalAttack") v2 else 0</ID>
+    <ID>MaxLineLength:ItemDatabase.kt$ItemDatabase$physicalDefenseAdd = if (config.attr1 == "physicalDefense") v1 else if (config.attr2 == "physicalDefense") v2 else 0</ID>
+    <ID>MaxLineLength:Items.kt$EquipmentStack$fun</ID>
+    <ID>MaxLineLength:Items.kt$ManualStack$fun</ID>
+    <ID>MaxLineLength:MaterialTemplateRegistry.kt$MaterialTemplateRegistry$fun</ID>
+    <ID>MaxLineLength:PhysiqueDatabase.kt$PhysiqueDatabase$description = "伤害加成+${String.format(Locale.ROOT, "%.0f", cfg.amp * 100)}%，暴击伤害+${String.format(Locale.ROOT, "%.0f", cfg.crit * 100)}%"</ID>
+    <ID>MaxLineLength:PhysiqueDatabase.kt$PhysiqueDatabase$description = "减伤+${String.format(Locale.ROOT, "%.0f", cfg.reduce * 100)}%，防御加成+${String.format(Locale.ROOT, "%.0f", cfg.def * 100)}%"</ID>
+    <ID>MaxLineLength:PillRecipeDatabase.kt$PillRecipeDatabase$1 to listOf("spiritGrass1", "spiritGrass2", "spiritGrass3", "spiritFlower1", "spiritFlower2", "spiritFlower3", "spiritFruit1", "spiritFruit2", "spiritFruit3")</ID>
+    <ID>MaxLineLength:PillRecipeDatabase.kt$PillRecipeDatabase$2 to listOf("spiritGrass4", "spiritGrass5", "spiritGrass6", "spiritFlower4", "spiritFlower5", "spiritFlower6", "spiritFruit4", "spiritFruit5", "spiritFruit6")</ID>
+    <ID>MaxLineLength:PillRecipeDatabase.kt$PillRecipeDatabase$3 to listOf("spiritGrass7", "spiritGrass8", "spiritGrass9", "spiritFlower7", "spiritFlower8", "spiritFlower9", "spiritFruit7", "spiritFruit8", "spiritFruit9")</ID>
+    <ID>MaxLineLength:PillRecipeDatabase.kt$PillRecipeDatabase$4 to listOf("spiritGrass10", "spiritGrass11", "spiritGrass12", "spiritFlower10", "spiritFlower11", "spiritFlower12", "spiritFruit10", "spiritFruit11", "spiritFruit12")</ID>
+    <ID>MaxLineLength:PillRecipeDatabase.kt$PillRecipeDatabase$5 to listOf("spiritGrass13", "spiritGrass14", "spiritGrass15", "spiritFlower13", "spiritFlower14", "spiritFlower15", "spiritFruit13", "spiritFruit14", "spiritFruit15")</ID>
+    <ID>MaxLineLength:PillRecipeDatabase.kt$PillRecipeDatabase$6 to listOf("spiritGrass16", "spiritGrass17", "spiritGrass18", "spiritFlower16", "spiritFlower17", "spiritFlower18", "spiritFruit16", "spiritFruit17", "spiritFruit18")</ID>
+    <ID>MaxLineLength:PillRecipeDatabase.kt$PillRecipeDatabase$fun getRecipeByNameAndGrade(name: String, grade: PillGrade): PillRecipe?</ID>
+    <ID>MaxLineLength:PillRecipeDatabase.kt$PillRecipeDatabase$fun getRecipesByMaterial(materialId: String): List&lt;PillRecipe&gt;</ID>
+    <ID>MaxLineLength:PillRecipeDatabase.kt$PillRecipeDatabase$val dualTypes = listOf("intelligenceComprehension", "charmLoyalty", "pillRefiningArtifactRefining", "spiritPlantingTeaching", "intelligenceCharm", "comprehensionMorality")</ID>
+    <ID>MaxLineLength:PillRecipeDatabase.kt$PillRecipeDatabase$val dualTypes = listOf("physicalAttackDefense", "magicAttackDefense", "attackMixed", "defenseMixed", "hpMp", "attackSpeed", "magicSpeed")</ID>
+    <ID>MaxLineLength:PillRecipeDatabase.kt$PillRecipeDatabase$val pillTypes = listOf("cultivationSpeed", "skillExpSpeed", "nurtureSpeed", "cultivationAdd", "skillExpAdd", "nurtureAdd")</ID>
+    <ID>MaxLineLength:PillRecipeDatabase.kt$PillRecipeDatabase$val singleTypes = listOf("extendLife", "intelligence", "charm", "loyalty", "comprehension", "artifactRefining", "pillRefining", "spiritPlanting", "teaching", "morality", "mining")</ID>
+    <ID>MaxLineLength:PillRecipeDatabase.kt$PillRecipeDatabase$val singleTypes = listOf("physicalAttack", "magicAttack", "physicalDefense", "magicDefense", "hp", "mp", "speed")</ID>
+    <ID>MaxLineLength:PillRecipeDatabase.kt$PillRecipeDatabase$val template = ItemDatabase.getPillById("breakthrough_${targetRealm}_${grade.name.lowercase()}") ?: continue</ID>
+    <ID>MaxLineLength:RepoInterfaces.kt$HeavyDataDecoder$fun decodeDiscipleListFromRows(rows: List&lt;com.xianxia.sect.core.model.GameHeavyData&gt;, key: String): List&lt;com.xianxia.sect.core.model.Disciple&gt;</ID>
+    <ID>MaxLineLength:RepoInterfaces.kt$HeavyDataDecoder$fun decodeDiscipleListMapFromRows(rows: List&lt;com.xianxia.sect.core.model.GameHeavyData&gt;, key: String): Map&lt;String, List&lt;com.xianxia.sect.core.model.Disciple&gt;&gt;</ID>
+    <ID>MaxLineLength:RepoInterfaces.kt$HeavyDataDecoder$fun decodeExploredSectInfoMapFromRows(rows: List&lt;com.xianxia.sect.core.model.GameHeavyData&gt;, key: String): Map&lt;String, com.xianxia.sect.core.model.ExploredSectInfo&gt;</ID>
+    <ID>MaxLineLength:RepoInterfaces.kt$HeavyDataDecoder$fun decodeManualProficiencyMapFromRows(rows: List&lt;com.xianxia.sect.core.model.GameHeavyData&gt;, key: String): Map&lt;String, List&lt;com.xianxia.sect.core.model.ManualProficiencyData&gt;&gt;</ID>
+    <ID>MaxLineLength:RepoInterfaces.kt$HeavyDataDecoder$fun decodeSectDetailMapFromRows(rows: List&lt;com.xianxia.sect.core.model.GameHeavyData&gt;, key: String): Map&lt;String, com.xianxia.sect.core.model.SectDetail&gt;</ID>
+    <ID>MaxLineLength:RepoInterfaces.kt$HeavyDataDecoder$fun decodeSectScoutInfoMapFromRows(rows: List&lt;com.xianxia.sect.core.model.GameHeavyData&gt;, key: String): Map&lt;String, com.xianxia.sect.core.model.SectScoutInfo&gt;</ID>
+    <ID>MaxLineLength:RepoInterfaces.kt$HeavyDataDecoder$fun decodeWorldSectListFromRows(rows: List&lt;com.xianxia.sect.core.model.GameHeavyData&gt;, key: String): List&lt;com.xianxia.sect.core.model.WorldSect&gt;</ID>
+    <ID>MaxLineLength:SpiritStoneExchangeTest.kt$SpiritStoneExchangeTest$val (converted, remaining) = SpiritStoneExchange.exchange(99_999_999L, SpiritStoneGrade.LOW, SpiritStoneGrade.MID)</ID>
+    <ID>MaxLineLength:StackKeysTest.kt$StackKeysTest$val medium = Pill(id = "3", name = "回气丹", rarity = 1, category = PillCategory.CULTIVATION, grade = PillGrade.MEDIUM)</ID>
+    <ID>MaxLineLength:StorageBagUtils.kt$StorageBagUtils$fun</ID>
+    <ID>MaxLineLength:StorageBagUtils.kt$StorageBagUtils$mutableItems[existingIndex] = existing.copy(quantity = (existing.quantity + item.quantity).coerceAtMost(maxStack))</ID>
+    <ID>MaxLineLength:TimeProgressUtil.kt$TimeProgressUtil$fun</ID>
+    <ID>MaxLineLength:UnifiedGameState.kt$UnifiedGameState$fun getEquipmentByOwner(discipleId: String): List&lt;EquipmentInstance&gt;</ID>
+    <ID>MaxLineLength:UnifiedGameState.kt$UnifiedGameState$fun getManualsByOwner(discipleId: String): List&lt;ManualInstance&gt;</ID>
+    <ID>MayBeConst:AffixDatabase.kt$AffixDatabase$val isInitialized: Boolean = true</ID>
+    <ID>MayBeConst:EquipmentDatabase.kt$EquipmentDatabase$val isInitialized: Boolean = true</ID>
+    <ID>MayBeConst:GameConfig.kt$GameConfig.SectMap$val WORLD_PIXEL_HEIGHT = WORLD_HEIGHT_CELLS * TILE_SIZE</ID>
+    <ID>MayBeConst:GameConfig.kt$GameConfig.SectMap$val WORLD_PIXEL_WIDTH = WORLD_WIDTH_CELLS * TILE_SIZE</ID>
+    <ID>MayBeConst:PhysiqueDatabase.kt$PhysiqueDatabase$val isInitialized: Boolean = true</ID>
+    <ID>MayBeConst:TalentDatabase.kt$TalentDatabase$val isInitialized: Boolean = true</ID>
+    <ID>ModifierOrder:Items.kt$GameItem$override abstract</ID>
+    <ID>NestedBlockDepth:ItemDatabase.kt$ItemDatabase$private fun generateCultivationPills(): List&lt;PillTemplate&gt;</ID>
+    <ID>NestedBlockDepth:ItemDatabase.kt$ItemDatabase$private fun generateFunctionalPills(): List&lt;PillTemplate&gt;</ID>
+    <ID>NewLineAtEndOfFile:EquipmentDatabase.kt$com.xianxia.sect.core.registry.EquipmentDatabase.kt</ID>
+    <ID>NewLineAtEndOfFile:GameUtils.kt$com.xianxia.sect.core.util.GameUtils.kt</ID>
+    <ID>ReturnCount:AffixDatabase.kt$AffixDatabase$private fun pickByDistribution(candidates: List&lt;AffixData&gt;): AffixData</ID>
+    <ID>ReturnCount:BeastMaterialDatabase.kt$BeastMaterialDatabase$fun getRandomMaterialByBeastType(beastType: String, tier: Int, luck: Double = 1.0): BeastMaterial?</ID>
+    <ID>ReturnCount:BeastMaterialDatabase.kt$BeastMaterialDatabase$fun getRandomMaterialByRealm(realm: Int, luck: Double = 1.0): BeastMaterial?</ID>
+    <ID>ReturnCount:ConfigLoader.kt$ConfigLoader$suspend fun loadAsync(): GameConfigData</ID>
+    <ID>ReturnCount:CultivatorCave.kt$CultivatorCave$fun isExpired(currentYear: Int, currentMonth: Int): Boolean</ID>
+    <ID>ReturnCount:DiscipleSnapshot.kt$DiscipleSnapshot.Companion$private fun buildRealmName(realm: Int, realmLayer: Int, age: Int): String</ID>
+    <ID>ReturnCount:DiscipleTables.kt$DiscipleTables$fun assembleAllIncremental(prevSnapshot: List&lt;Disciple&gt;, changedIds: Set&lt;Int&gt;): List&lt;Disciple&gt;</ID>
+    <ID>ReturnCount:DiscipleTables.kt$DiscipleTables$fun assembleAllPatched( prevSnapshot: List&lt;Disciple&gt;, changedIds: Set&lt;Int&gt;, dirtyColumnIndices: Set&lt;Int&gt; ): List&lt;Disciple&gt;</ID>
+    <ID>ReturnCount:DiscipleTables.kt$DiscipleTables$fun getEffectiveCultivation(id: Int, currentMonth: Int, rate: Double): Double</ID>
+    <ID>ReturnCount:FavorDomain.kt$FavorDomain$fun setAcquainted( relations: List&lt;SectRelation&gt;, sectId1: String, sectId2: String, year: Int = 0 ): List&lt;SectRelation&gt;</ID>
+    <ID>ReturnCount:FavorDomain.kt$FavorDomain$fun updateFavor( relations: List&lt;SectRelation&gt;, sectId1: String, sectId2: String, newFavor: Int, year: Int = 0 ): List&lt;SectRelation&gt;</ID>
+    <ID>ReturnCount:ForgeRecipeRegistry.kt$ForgeRecipeRegistry$fun getFullForgeInfo(recipeId: String): Pair&lt;ForgeRecipeDatabase.ForgeRecipe, EquipmentDatabase.EquipmentTemplate&gt;?</ID>
+    <ID>ReturnCount:GameConfig.kt$GameConfig.Realm$fun getBreakthroughChance(realm: Int, rootCount: Int, realmLayer: Int = 1): Double</ID>
+    <ID>ReturnCount:GameDataSectModels.kt$ElderSlots$fun isDiscipleInAnyPosition(discipleId: String): Boolean</ID>
+    <ID>ReturnCount:HerbDatabase.kt$HerbDatabase$fun getHerbFromSeedName(seedName: String): Herb?</ID>
+    <ID>ReturnCount:InputValidator.kt$InputValidator$fun validateDiscipleName(name: String): String?</ID>
+    <ID>ReturnCount:InputValidator.kt$InputValidator$fun validateQuantity(quantity: Int, min: Int = 1, max: Int = Int.MAX_VALUE): String?</ID>
+    <ID>ReturnCount:InputValidator.kt$InputValidator$fun validateRedeemCode(code: String): String?</ID>
+    <ID>ReturnCount:InputValidator.kt$InputValidator$fun validateSaveName(name: String): String?</ID>
+    <ID>ReturnCount:InputValidator.kt$InputValidator$fun validateSectName(name: String): String?</ID>
+    <ID>ReturnCount:InputValidator.kt$InputValidator$fun validateSpiritStones(amount: Long, minRequired: Long = 0): String?</ID>
+    <ID>ReturnCount:InputValidator.kt$InputValidator$fun validateTeamName(name: String): String?</ID>
+    <ID>ReturnCount:MutableGameState.kt$fun MutableGameState.recordGameEvent( category: GameEventCategory, eventType: String, summary: String, relatedEntityId: String = "", relatedEntityName: String = "" )</ID>
+    <ID>ReturnCount:NameService.kt$NameService$fun generateName( gender: String, style: NameStyle = NameStyle.XIANXIA, existingNames: Set&lt;String&gt; = emptySet() ): NameResult</ID>
+    <ID>ReturnCount:NameService.kt$NameService$fun inheritName( parentSurname: String, gender: String, existingNames: Set&lt;String&gt; = emptySet() ): NameResult</ID>
+    <ID>ReturnCount:PhysiqueDatabase.kt$PhysiqueDatabase$private fun pickByDistribution(candidates: List&lt;PhysiqueData&gt;): PhysiqueData</ID>
+    <ID>ReturnCount:PillRecipeRegistry.kt$PillRecipeRegistry$fun getFullPillRecipe(id: String): FullPillRecipe?</ID>
+    <ID>ReturnCount:SpiritStone.kt$SpiritStoneExchange$fun exchange( quantity: Long, source: SpiritStoneGrade, target: SpiritStoneGrade ): Pair&lt;Long, Long&gt;</ID>
+    <ID>ReturnCount:StackableItemStore.kt$StackableItemStore$@Suppress("UNCHECKED_CAST") fun add(item: T, merge: Boolean = true): DomainResult&lt;T&gt;</ID>
+    <ID>ReturnCount:StackableItemStore.kt$StackableItemStore$@Suppress("UNCHECKED_CAST") fun remove(id: String, count: Int = 1): DomainResult&lt;Unit&gt;</ID>
+    <ID>ReturnCount:StorageBagUtils.kt$StorageBagUtils$fun isInCoolingPeriod(item: StorageBagItem, currentYear: Int, currentMonth: Int, currentPhase: Int): Boolean</ID>
+    <ID>ReturnCount:TalentDatabase.kt$TalentDatabase$fun generateRandomTalents(count: Int, maxRarity: Int = 3): List&lt;Talent&gt;</ID>
+    <ID>ReturnCount:TalentDatabase.kt$TalentDatabase$private fun pickTalentByDistribution(candidates: List&lt;TalentData&gt;): TalentData</ID>
+    <ID>ReturnCount:WorldLevel.kt$WorldLevel$fun checkExpired(currentYear: Int, currentMonth: Int): Boolean</ID>
+    <ID>SpreadOperator:PillRecipeDatabase.kt$PillRecipeDatabase$(tier, *herbPatterns[idx].toIntArray())</ID>
+    <ID>SwallowedException:DomainResult.kt$DomainResult.Companion$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:BackgroundTaskScheduler.kt$BackgroundTaskScheduler$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ConfigLoader.kt$ConfigLoader$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DiscipleTables.kt$DiscipleTables$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DomainResult.kt$DomainResult.Companion$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:GameEvents.kt$EventBus$e: Exception</ID>
+    <ID>TooGenericExceptionThrown:DomainResultTest.kt$DomainResultTest$throw RuntimeException()</ID>
+    <ID>TooManyFunctions:AffixDatabase.kt$AffixDatabase</ID>
+    <ID>TooManyFunctions:BaseTemplateRegistry.kt$BaseTemplateRegistry&lt;T&gt; : TemplateRegistry</ID>
+    <ID>TooManyFunctions:BeastMaterialDatabase.kt$BeastMaterialDatabase</ID>
+    <ID>TooManyFunctions:ComponentTable.kt$ComponentTable&lt;T&gt;</ID>
+    <ID>TooManyFunctions:ComponentTable.kt$DoubleComponentTable</ID>
+    <ID>TooManyFunctions:ComponentTable.kt$DoubleFlatArray</ID>
+    <ID>TooManyFunctions:ComponentTable.kt$IntComponentTable</ID>
+    <ID>TooManyFunctions:ComponentTable.kt$IntFlatArray</ID>
+    <ID>TooManyFunctions:DiscipleAggregate.kt$DiscipleAggregate.Companion$&lt;no name provided&gt; : DiscipleStatsProvider</ID>
+    <ID>TooManyFunctions:DiscipleStatsProvider.kt$DiscipleStatsProvider</ID>
+    <ID>TooManyFunctions:DiscipleTables.kt$DiscipleTables</ID>
+    <ID>TooManyFunctions:EntityStore.kt$EntityStore&lt;T : HasId&gt; : Iterable</ID>
+    <ID>TooManyFunctions:FavorDomain.kt$FavorDomain</ID>
+    <ID>TooManyFunctions:GameEvents.kt$EventBus : EventBusPort</ID>
+    <ID>TooManyFunctions:GameRandom.kt$GameRandom</ID>
+    <ID>TooManyFunctions:GameStateStore.kt$GameStateStore : GameStateSnapshotProvider</ID>
+    <ID>TooManyFunctions:HerbDatabase.kt$HerbDatabase</ID>
+    <ID>TooManyFunctions:HerbRegistry.kt$HerbRegistry : BaseTemplateRegistry</ID>
+    <ID>TooManyFunctions:InventoryConfig.kt$InventoryConfig</ID>
+    <ID>TooManyFunctions:ItemDatabase.kt$ItemDatabase</ID>
+    <ID>TooManyFunctions:MailRepository.kt$MailRepository</ID>
+    <ID>TooManyFunctions:PillRecipeDatabase.kt$PillRecipeDatabase</ID>
+    <ID>TooManyFunctions:RepoInterfaces.kt$InventoryRepository</ID>
+    <ID>TooManyFunctions:RepoInterfaces.kt$WorldRepository</ID>
+    <ID>TooManyFunctions:StackableItemStore.kt$StackableItemStore&lt;T&gt;</ID>
+    <ID>TooManyFunctions:TalentDatabase.kt$TalentDatabase</ID>
+    <ID>UnusedParameter:DiscipleTables.kt$DiscipleTables$dirtyColumns: Set&lt;Int&gt;? = null</ID>
+    <ID>UnusedParameter:SectResponseTexts.kt$SectResponseTexts$itemType: String</ID>
+    <ID>UnusedParameter:StorageBagUtils.kt$bagStackIds: Set&lt;String&gt;</ID>
+    <ID>UnusedParameter:StorageBagUtils.kt$gameMonth: Int</ID>
+    <ID>UnusedParameter:StorageBagUtils.kt$gamePhase: Int</ID>
+    <ID>UnusedParameter:StorageBagUtils.kt$gameYear: Int</ID>
+    <ID>UnusedParameter:TalentRegistry.kt$TalentRegistry$isNegative: Boolean</ID>
+    <ID>UnusedPrivateMember:StackableItemStore.kt$StackableItemStore$private fun addToKeyIndex(key: StackKey, id: String)</ID>
+    <ID>UnusedPrivateProperty:BaseTemplateRegistry.kt$BaseTemplateRegistry$val __templates = _templates</ID>
+    <ID>UnusedPrivateProperty:ComponentTableTest.kt$ComponentTableTest$val sum = arr.keys.sumOf { arr.values[it] }</ID>
+    <ID>UnusedPrivateProperty:TalentRegistry.kt$TalentRegistry$/** * 天赋原始数据（包含额外的元信息） */ private val allTalentData: Map&lt;String, TalentDatabase.TalentData&gt; by lazy { // 从 TalentDatabase 的 talents 映射构建 TalentData val talentDataMap = mutableMapOf&lt;String, TalentDatabase.TalentData&gt;() TalentDatabase.talents.forEach { (id, talent) -&gt; val type = inferTalentType(talent.effects, talent.isNegative) talentDataMap[id] = TalentDatabase.TalentData( id = talent.id, name = talent.name, description = talent.description, rarity = talent.rarity, effects = talent.effects, isNegative = talent.isNegative, type = type, template = id ) } talentDataMap }</ID>
+    <ID>UnusedPrivateProperty:TalentRegistry.kt$TalentRegistry$/** * 正天赋稀有度分布配置 */ private val positiveRarityDistribution = listOf( 1 to 0.69, 2 to 0.25, 3 to 0.06 )</ID>
+    <ID>UnusedPrivateProperty:TalentRegistry.kt$TalentRegistry$/** * 负天赋出现概率 */ private val negativeTalentChance = 0.14</ID>
+    <ID>UseRequire:AffixDatabase.kt$AffixDatabase$throw IllegalArgumentException("candidates cannot be empty")</ID>
+    <ID>UseRequire:BaseTemplateRegistry.kt$BaseTemplateRegistry$throw IllegalArgumentException("candidates cannot be empty")</ID>
+    <ID>UseRequire:GameRandom.kt$GameRandom$throw IllegalArgumentException("Range is empty")</ID>
+    <ID>UseRequire:PhysiqueDatabase.kt$PhysiqueDatabase$throw IllegalArgumentException("candidates cannot be empty")</ID>
+    <ID>UseRequire:TalentDatabase.kt$TalentDatabase$throw IllegalArgumentException("candidates cannot be empty")</ID>
+    <ID>VariableNaming:BaseTemplateRegistry.kt$BaseTemplateRegistry$val __templates = _templates</ID>
+    <ID>VariableNaming:ComponentTable.kt$DoubleFlatArray$@PublishedApi internal var size_ = 0</ID>
+    <ID>VariableNaming:ComponentTable.kt$IntFlatArray$@PublishedApi internal var size_ = 0</ID>
+    <ID>VariableNaming:DiscipleTablesAssembleBenchmarkTest.kt$DiscipleTablesAssembleBenchmarkTest$private val DISCIPLE_COUNT = 300</ID>
+    <ID>VariableNaming:EntityStore.kt$EntityStore$// ★ 内部可变列表 — 写操作原地修改，零分配 private val items_ = initialItems.toMutableList()</ID>
+    <ID>WildcardImport:AlchemySystemTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:BackgroundTaskScheduler.kt$import kotlinx.coroutines.*</ID>
+    <ID>WildcardImport:BannedWordsTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:BaseTemplateRegistryTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:BeastMaterialDatabaseTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:BuildingStateTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:BuiltinMailConfigTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:ComponentTableTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:DiplomacyState.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:DiscipleModelsTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:DiscipleStatusCoverageTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:DiscipleTables.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:DiscipleTablesCowTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:DiscipleTablesRecruitTest.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:DiscipleTablesRecruitTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:DiscipleTablesTest.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:DiscipleTablesTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:EnumsTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:EquipmentDatabaseTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:EventBusAuditTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:FavorDomainTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:ForgeRecipeDatabaseTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:GameConfigTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:GameDataTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:GameEventsTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:GamePhaseTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:GameRandomTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:GameStateSnapshotProvider.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:GameStateStore.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:GiftConfigTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:GuideTaskTest.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:GuideTaskTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:HerbDatabaseTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:InputValidatorTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:InventoryConfigTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:ItemDatabaseTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:ItemsTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:MailEntityTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:MapModelsTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:MissionTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:MutableGameState.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:PatrolState.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:PillRecipeDatabaseTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:ProductionState.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:RarityTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:RedeemCodeTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:RepoInterfaces.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:SectLevelTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:SectPolicyState.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:SectResponseTextsTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:StackableItemStoreTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:StateEntitiesTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:TalentDatabaseTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:UnifiedGameState.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:WorldLevelTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:WorldMapState.kt$import com.xianxia.sect.core.model.*</ID>
+  </CurrentIssues>
+</SmellBaseline>

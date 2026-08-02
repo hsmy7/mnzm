@@ -1,0 +1,593 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>ComplexCondition:DiscipleDeadStatusRule.kt$DiscipleDeadStatusRule$hasWeapon || hasArmor || hasBoots || hasAccessory</ID>
+    <ID>ComplexCondition:ProtobufConverters.kt$ProtobufConverters$originalSize &lt;= 0 || originalSize &gt; MAX_DECOMPRESS_SIZE || (compressedSize &gt; 0 &amp;&amp; originalSize / compressedSize &gt; MAX_LZ4_DECOMPRESS_RATIO)</ID>
+    <ID>CyclomaticComplexMethod:ChangeLogEntity.kt$ChangeLogEntity$override fun equals(other: Any?): Boolean</ID>
+    <ID>CyclomaticComplexMethod:EquipmentDedupeRule.kt$EquipmentDedupeRule$override fun execute(data: SaveData, context: RuleContext): RuleOutcome</ID>
+    <ID>CyclomaticComplexMethod:FunctionalWAL.kt$FunctionalWAL$override suspend fun recover(): RecoveryResult</ID>
+    <ID>CyclomaticComplexMethod:GameDatabase.kt$GameDatabase.Companion$fun restoreFromBackupIfNeeded(context: Context): Boolean</ID>
+    <ID>CyclomaticComplexMethod:GameDatabaseMigrationSupport.kt$internal fun rebuildGameData( db: SupportSQLiteDatabase, oldSuffix: String, sourceColumns: List&lt;String&gt; )</ID>
+    <ID>CyclomaticComplexMethod:GameStateRepository.kt$GameStateRepository$suspend fun flushDirtyState( gameData: GameData, disciples: List&lt;Disciple&gt;, equipmentStacks: List&lt;EquipmentStack&gt;, equipmentInstances: List&lt;EquipmentInstance&gt;, manualStacks: List&lt;ManualStack&gt;, manualInstances: List&lt;ManualInstance&gt;, pills: List&lt;Pill&gt;, materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, seeds: List&lt;Seed&gt;, storageBags: List&lt;StorageBag&gt;, teams: List&lt;ExplorationTeam&gt;, battleLogs: List&lt;BattleLog&gt; )</ID>
+    <ID>CyclomaticComplexMethod:ProtoNumberCoverageTest.kt$ProtoNumberCoverageTest$private fun checkEncodeDefaultCoverage( className: String, clazz: KClass&lt;*&gt;, errors: MutableList&lt;String&gt;, instance: Any, prefix: String )</ID>
+    <ID>CyclomaticComplexMethod:RoomMigrationTest.kt$RoomMigrationTest$@Test fun `full migration chain 21 to 33 preserves inserted game data`()</ID>
+    <ID>CyclomaticComplexMethod:SecureKeyManager.kt$SecureKeyManager$private fun readExistingKeyOrRecover( context: Context, prefs: android.content.SharedPreferences, keyFile: File, backupFile: File ): ByteArray?</ID>
+    <ID>CyclomaticComplexMethod:SecureKeyManager.kt$SecureKeyManager$private fun writeKeyFileAtomically( context: Context, keyFile: File, backupFile: File, encryptedKey: ByteArray )</ID>
+    <ID>CyclomaticComplexMethod:StorageEngine.kt$StorageEngine$private suspend fun mergeHeavyData(gameData: GameData, slot: Int): GameData</ID>
+    <ID>CyclomaticComplexMethod:StorageEngine.kt$StorageEngine$private suspend fun performFullTransactionSave(slot: Int, data: SaveData): StorageResult&lt;SaveOperationStats&gt;</ID>
+    <ID>CyclomaticComplexMethod:StorageEngine.kt$StorageEngine$private suspend fun writeCoreEntities(slot: Int, data: SaveData, lightGameData: GameData)</ID>
+    <ID>CyclomaticComplexMethod:StorageEngine.kt$StorageEngine$suspend fun load(slot: Int): StorageResult&lt;SaveData&gt;</ID>
+    <ID>CyclomaticComplexMethod:StorageEngine.kt$StorageEngine$suspend fun save(slot: Int, data: SaveData, priority: SavePriority = SavePriority.NORMAL): StorageResult&lt;SaveOperationStats&gt;</ID>
+    <ID>CyclomaticComplexMethod:StorageFacade.kt$fun &lt;T&gt; com.xianxia.sect.data.result.StorageResult&lt;T&gt;.toUnifiedResult(): SaveResult&lt;T&gt;</ID>
+    <ID>EmptyFunctionBlock:CacheLayer.kt$GameDataCacheManager${}</ID>
+    <ID>EmptyFunctionBlock:GameDatabaseTest.kt$GameDatabaseTest.&lt;no name provided&gt;${}</ID>
+    <ID>EmptyFunctionBlock:RoomMigrationTest.kt$RoomMigrationTest.&lt;no name provided&gt;${}</ID>
+    <ID>ExplicitGarbageCollectionCall:DynamicMemoryManager.kt$DynamicMemoryManager$gc()</ID>
+    <ID>ExplicitGarbageCollectionCall:DynamicMemoryManager.kt$DynamicMemoryManager$runFinalization()</ID>
+    <ID>ImplicitDefaultLocale:ProactiveMemoryGuard.kt$ProactiveMemoryGuard$String.format("%.1f%%", jvmUsedPercent)</ID>
+    <ID>ImplicitDefaultLocale:ProactiveMemoryGuard.kt$ProactiveMemoryGuard$String.format("%.1f%%", systemAvailPercent)</ID>
+    <ID>InstanceOfCheckForException:StorageEngine.kt$StorageEngine$e is OutOfMemoryError</ID>
+    <ID>InstanceOfCheckForException:StorageEngine.kt$StorageEngine$e is java.io.IOException</ID>
+    <ID>LargeClass:RoomMigrationTest.kt$RoomMigrationTest</ID>
+    <ID>LargeClass:SecureKeyManager.kt$SecureKeyManager</ID>
+    <ID>LargeClass:StorageEngine.kt$StorageEngine</ID>
+    <ID>LargeClass:StorageSystemBenchmark.kt$StorageSystemBenchmark</ID>
+    <ID>LongMethod:FunctionalWAL.kt$FunctionalWAL$override suspend fun commit( txnId: Long, checksum: String, gameEvent: String?, currentGameYear: Int ): SaveResult&lt;Unit&gt;</ID>
+    <ID>LongMethod:FunctionalWAL.kt$FunctionalWAL$override suspend fun recover(): RecoveryResult</ID>
+    <ID>LongMethod:FunctionalWAL.kt$FunctionalWAL$private fun launchCheckpoint(): Boolean</ID>
+    <ID>LongMethod:GameDatabaseMigrationSupport.kt$internal fun rebuildGameData( db: SupportSQLiteDatabase, oldSuffix: String, sourceColumns: List&lt;String&gt; )</ID>
+    <ID>LongMethod:GameDatabaseMigrationsV11ToV20.kt$&lt;no name provided&gt;$override fun migrate(db: SupportSQLiteDatabase)</ID>
+    <ID>LongMethod:GameDatabaseMigrationsV21ToV30.kt$&lt;no name provided&gt;$override fun migrate(db: SupportSQLiteDatabase)</ID>
+    <ID>LongMethod:GameStateRepository.kt$GameStateRepository$suspend fun flushDirtyState( gameData: GameData, disciples: List&lt;Disciple&gt;, equipmentStacks: List&lt;EquipmentStack&gt;, equipmentInstances: List&lt;EquipmentInstance&gt;, manualStacks: List&lt;ManualStack&gt;, manualInstances: List&lt;ManualInstance&gt;, pills: List&lt;Pill&gt;, materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, seeds: List&lt;Seed&gt;, storageBags: List&lt;StorageBag&gt;, teams: List&lt;ExplorationTeam&gt;, battleLogs: List&lt;BattleLog&gt; )</ID>
+    <ID>LongMethod:RoomMigrationTest.kt$RoomMigrationTest$@Test fun `full migration from v2 to v36 applies all steps without crash and preserves seed data`()</ID>
+    <ID>LongMethod:SecureKeyManager.kt$SecureKeyManager$private fun readExistingKeyOrRecover( context: Context, prefs: android.content.SharedPreferences, keyFile: File, backupFile: File ): ByteArray?</ID>
+    <ID>LongMethod:StorageEngine.kt$StorageEngine$private suspend fun buildSaveDataFromDatabase(slot: Int, gameData: GameData): SaveData</ID>
+    <ID>LongMethod:StorageEngine.kt$StorageEngine$private suspend fun mergeHeavyData(gameData: GameData, slot: Int): GameData</ID>
+    <ID>LongMethod:StorageEngine.kt$StorageEngine$suspend fun load(slot: Int): StorageResult&lt;SaveData&gt;</ID>
+    <ID>LongMethod:StorageEngine.kt$StorageEngine$suspend fun save(slot: Int, data: SaveData, priority: SavePriority = SavePriority.NORMAL): StorageResult&lt;SaveOperationStats&gt;</ID>
+    <ID>LongMethod:StorageSystemBenchmark.kt$StorageSystemBenchmark$@Test fun `generate comprehensive storage system assessment report`()</ID>
+    <ID>LongMethod:UiKeyRecoveryCallback.kt$UiKeyRecoveryCallback$override fun onKeyRecoveryRequired(reason: String): KeyRecoveryDecision</ID>
+    <ID>LongMethod:UnifiedSerializationEngine.kt$UnifiedSerializationEngine$@OptIn(ExperimentalSerializationApi::class) fun &lt;T&gt; deserialize( data: ByteArray, context: SerializationContext = SerializationContext(), serializer: KSerializer&lt;T&gt; ): DeserializationResult&lt;T&gt;</ID>
+    <ID>LongParameterList:CultivationCapRuleTest.kt$CultivationCapRuleTest$( id: String = "d-1", name: String = "甲", realm: Int = 9, realmLayer: Int = 1, cultivation: Double = 10.0, age: Int = 20, lifespan: Int = 80, isAlive: Boolean = true )</ID>
+    <ID>LongParameterList:GameStateRepository.kt$GameStateRepository$( gameData: Boolean = false, disciples: Boolean = false, equipmentStacks: Boolean = false, equipmentInstances: Boolean = false, manualStacks: Boolean = false, manualInstances: Boolean = false, pills: Boolean = false, materials: Boolean = false, herbs: Boolean = false, seeds: Boolean = false, storageBags: Boolean = false, teams: Boolean = false, battleLogs: Boolean = false )</ID>
+    <ID>LongParameterList:GameStateRepository.kt$GameStateRepository$( gameData: GameData, disciples: List&lt;Disciple&gt;, equipmentStacks: List&lt;EquipmentStack&gt;, equipmentInstances: List&lt;EquipmentInstance&gt;, manualStacks: List&lt;ManualStack&gt;, manualInstances: List&lt;ManualInstance&gt;, pills: List&lt;Pill&gt;, materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, seeds: List&lt;Seed&gt;, storageBags: List&lt;StorageBag&gt;, teams: List&lt;ExplorationTeam&gt;, battleLogs: List&lt;BattleLog&gt; )</ID>
+    <ID>LongParameterList:GameStateRepository.kt$GameStateRepository$( private val database: GameDatabase, private val gameDataDao: GameDataDao, private val discipleDao: DiscipleDao, private val discipleCoreDao: DiscipleCoreDao, private val discipleCombatStatsDao: DiscipleCombatStatsDao, private val discipleEquipmentDao: DiscipleEquipmentDao, private val discipleExtendedDao: DiscipleExtendedDao, private val discipleAttributesDao: DiscipleAttributesDao, private val equipmentStackDao: EquipmentStackDao, private val equipmentInstanceDao: EquipmentInstanceDao, private val manualStackDao: ManualStackDao, private val manualInstanceDao: ManualInstanceDao, private val pillDao: PillDao, private val materialDao: MaterialDao, private val seedDao: SeedDao, private val herbDao: HerbDao, private val storageBagDao: StorageBagDao, private val explorationTeamDao: ExplorationTeamDao, private val buildingSlotDao: BuildingSlotDao, private val recipeDao: RecipeDao, private val battleLogDao: BattleLogDao, private val productionSlotDao: ProductionSlotDao, private val changeLogDao: ChangeLogDao )</ID>
+    <ID>LongParameterList:SaveValidatorTest.kt$SaveValidatorTest$( id: String = "d-1", name: String = "弟子甲", realm: Int = 9, realmLayer: Int = 1, cultivation: Double = 10.0, age: Int = 20, lifespan: Int = 80, isAlive: Boolean = true, weaponId: String = "", armorId: String = "", bootsId: String = "", accessoryId: String = "" )</ID>
+    <ID>LongParameterList:StorageEngine.kt$StorageEngine$( private val core: StorageCoreFacade, private val saveLimitsConfig: SaveLimitsConfig, private val dataArchiver: DataArchiver, private val infra: StorageInfraFacade, private val maintenanceFacade: StorageMaintenanceFacade, private val stateStore: GameStateStore, private val repository: GameStateRepository, private val saveFileManager: SaveFileManager, private val serializationModule: SerializationModule, private val storageConfig: StorageConfig )</ID>
+    <ID>LoopWithTooManyJumpStatements:FunctionalWAL.kt$FunctionalWAL$while</ID>
+    <ID>LoopWithTooManyJumpStatements:ProtoNumberCoverageTest.kt$ProtoNumberCoverageTest$for</ID>
+    <ID>MatchingDeclarationName:DiscipleDataDao.kt$DiscipleDao</ID>
+    <ID>MatchingDeclarationName:DiscipleRepository.kt$DiscipleRepositoryImpl : DiscipleRepository</ID>
+    <ID>MatchingDeclarationName:EnumStringConverters.kt$JsonConverters</ID>
+    <ID>MatchingDeclarationName:EquipmentRepository.kt$EquipmentRepositoryImpl : EquipmentRepository</ID>
+    <ID>MatchingDeclarationName:GameDataRepository.kt$GameDataRepositoryImpl : GameDataRepository</ID>
+    <ID>MatchingDeclarationName:InventoryRepository.kt$InventoryRepositoryImpl : InventoryRepository</ID>
+    <ID>MatchingDeclarationName:OldSaveCompat.kt$OldSaveFormatDeserializer</ID>
+    <ID>MatchingDeclarationName:SaveDataMigrator.kt$SchemaVersion : Comparable</ID>
+    <ID>MatchingDeclarationName:WorldRepository.kt$WorldRepositoryImpl : WorldRepository</ID>
+    <ID>MaxLineLength:ArchiveDaos.kt$ArchivedBattleLogDao$@Query("SELECT * FROM archived_battle_logs WHERE slot_id = :slotId AND timestamp BETWEEN :startMs AND :endMs ORDER BY timestamp DESC")</ID>
+    <ID>MaxLineLength:BuildingRefRuleTest.kt$BuildingRefRuleTest$assertEquals("bld-001", (result as IntegrityResult.Repaired).data.gameData.residenceSlots.first().buildingInstanceId)</ID>
+    <ID>MaxLineLength:CacheLayer.kt$GameDataCacheManager$@Suppress("UNUSED_PARAMETER") private val database: GameDatabase</ID>
+    <ID>MaxLineLength:CacheLayer.kt$GameDataCacheManager$Log.d(TAG, "Memory pressure changed to: ${snapshot.pressureLevel.name} (${snapshot.availablePercent}% available)")</ID>
+    <ID>MaxLineLength:CacheLayer.kt$GameDataCacheManager$Log.i(TAG, "Cache config adjusted for low-memory device: ${adjustedConfig.memoryCacheSize / (1024 * 1024)}MB")</ID>
+    <ID>MaxLineLength:CacheLayer.kt$GameDataCacheManager$Log.i(TAG, "DynamicMemoryManager integration enabled - Device tier: ${memoryManager.deviceTier.displayName}")</ID>
+    <ID>MaxLineLength:CacheLayer.kt$GameDataCacheManager$Log.w(TAG, "Low memory device detected (${"%.0f".format(availMemMb)}MB available), reducing cache limit")</ID>
+    <ID>MaxLineLength:CacheLayer.kt$GameDataCacheManager$Log.w(TAG, "Medium-low memory device (${"%.0f".format(availMemMb)}MB available), reducing cache limit")</ID>
+    <ID>MaxLineLength:ChangeLogDao.kt$ChangeLogDao$@Query("SELECT * FROM change_log WHERE table_name = :tableName AND record_id = :recordId ORDER BY timestamp DESC LIMIT 1")</ID>
+    <ID>MaxLineLength:CollectionConverters.kt$CollectionConverters$ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), BloodRefinementBonusTotal.serializer()), value) { emptyMap() }</ID>
+    <ID>MaxLineLength:CollectionConverters.kt$CollectionConverters$ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), BloodRefinementPctTotal.serializer()), value) { emptyMap() }</ID>
+    <ID>MaxLineLength:CollectionConverters.kt$CollectionConverters$ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), BloodRefinementProgress.serializer()), value) { emptyMap() }</ID>
+    <ID>MaxLineLength:CollectionConverters.kt$CollectionConverters$ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), ExploredSectInfo.serializer()), value) { emptyMap() }</ID>
+    <ID>MaxLineLength:CollectionConverters.kt$CollectionConverters$ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), ListSerializer(ManualProficiencyData.serializer())), value) { emptyMap() }</ID>
+    <ID>MaxLineLength:CollectionConverters.kt$CollectionConverters$ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), ListSerializer(String.serializer())), value) { emptyMap() }</ID>
+    <ID>MaxLineLength:CollectionConverters.kt$CollectionConverters$ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), SectDetail.serializer()), value) { emptyMap() }</ID>
+    <ID>MaxLineLength:CollectionConverters.kt$CollectionConverters$ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), SectScoutInfo.serializer()), value) { emptyMap() }</ID>
+    <ID>MaxLineLength:CollectionConverters.kt$CollectionConverters$ProtobufConverters.encodeToBase64(MapSerializer(String.serializer(), BloodRefinementBonusTotal.serializer()), value)</ID>
+    <ID>MaxLineLength:CollectionConverters.kt$CollectionConverters$ProtobufConverters.encodeToBase64(MapSerializer(String.serializer(), BloodRefinementPctTotal.serializer()), value)</ID>
+    <ID>MaxLineLength:CollectionConverters.kt$CollectionConverters$ProtobufConverters.encodeToBase64(MapSerializer(String.serializer(), BloodRefinementProgress.serializer()), value)</ID>
+    <ID>MaxLineLength:CollectionConverters.kt$CollectionConverters$ProtobufConverters.encodeToBase64(MapSerializer(String.serializer(), ListSerializer(ManualProficiencyData.serializer())), value)</ID>
+    <ID>MaxLineLength:CollectionConverters.kt$CollectionConverters$ProtobufConverters.encodeToBase64(MapSerializer(String.serializer(), ListSerializer(String.serializer())), value)</ID>
+    <ID>MaxLineLength:CollectionConverters.kt$CollectionConverters$android.util.Log.e("CollectionConverters", "CRITICAL: fromDiscipleList serialization FAILED for ${value.size} disciples! Data will be lost on save!")</ID>
+    <ID>MaxLineLength:CollectionConverters.kt$CollectionConverters$android.util.Log.e("CollectionConverters", "CRITICAL: toDiscipleList deserialization returned empty list from non-empty data! Encoded length: ${value.length}")</ID>
+    <ID>MaxLineLength:CollectionConverters.kt$CollectionConverters$android.util.Log.w("CollectionConverters", "aiSectDisciples has ${value.size} sects / ${value.values.sumOf { it.size }} disciples — should use incremental encoding, TypeConverter returns empty to avoid OOM")</ID>
+    <ID>MaxLineLength:CollectionConverters.kt$CollectionConverters$else</ID>
+    <ID>MaxLineLength:DataArchiver.kt$DataArchiver$Log.d(TAG, "Written archive file: ${file.absolutePath} (${compressed.data.size} bytes, original: ${serialized.size})")</ID>
+    <ID>MaxLineLength:DataArchiver.kt$DataArchiver$compressionRatio = if (totalOriginalSize &gt; 0) totalOriginalSize.toDouble() / totalSize.coerceAtLeast(1) else 0.0</ID>
+    <ID>MaxLineLength:DataArchiver.kt$DataArchiver$fun</ID>
+    <ID>MaxLineLength:DataArchiver.kt$DataArchiver$val fileName = "${dataType.filePrefix}_${checkNotNull(TIMESTAMP_FORMAT.get()).format(calendar.time)}_$batchId.arc"</ID>
+    <ID>MaxLineLength:DataCompressor.kt$DataCompressor$if (BuildConfig.DEBUG) Log.d(TAG, "ZSTD compression successful: ${data.size} -&gt; ${compressed.size} bytes (level=3)")</ID>
+    <ID>MaxLineLength:DataCompressor.kt$DataCompressor$if (BuildConfig.DEBUG) Log.d(TAG, "ZSTD decompression successful: ${compressedData.size} -&gt; ${it.size} bytes")</ID>
+    <ID>MaxLineLength:DiscipleAgePositiveRuleTest.kt$DiscipleAgePositiveRuleTest$@Before fun setup()</ID>
+    <ID>MaxLineLength:DiscipleDataDao.kt$DiscipleDao$@Query("SELECT * FROM disciples WHERE slot_id = :slotId AND isAlive = 1 AND discipleType = :type ORDER BY realm ASC")</ID>
+    <ID>MaxLineLength:DiscipleDataDao.kt$DiscipleDao$@Query("SELECT * FROM disciples WHERE slot_id = :slotId AND isAlive = 1 AND loyalty &lt; :threshold ORDER BY loyalty ASC")</ID>
+    <ID>MaxLineLength:DiscipleDataDao.kt$DiscipleDao$@Query("SELECT * FROM disciples WHERE slot_id = :slotId AND isAlive = 1 AND realm &lt;= :maxRealm ORDER BY realm DESC, cultivation DESC")</ID>
+    <ID>MaxLineLength:DiscipleDataDao.kt$DiscipleDao$@Query("SELECT * FROM disciples WHERE slot_id = :slotId AND isAlive = 1 AND realm = :realm ORDER BY cultivation DESC")</ID>
+    <ID>MaxLineLength:DiscipleDataDao.kt$DiscipleDao$@Query("SELECT * FROM disciples WHERE slot_id = :slotId AND isAlive = 1 AND realm BETWEEN :minRealm AND :maxRealm ORDER BY realm ASC")</ID>
+    <ID>MaxLineLength:DiscipleDataDao.kt$DiscipleDao$@Query("SELECT * FROM disciples WHERE slot_id = :slotId AND isAlive = 1 AND status = :status ORDER BY realm DESC LIMIT :limit")</ID>
+    <ID>MaxLineLength:DiscipleDeadStatusRuleTest.kt$DiscipleDeadStatusRuleTest$@Before fun setup()</ID>
+    <ID>MaxLineLength:DiscipleRealmConsistencyRuleTest.kt$DiscipleRealmConsistencyRuleTest$@Before fun setup()</ID>
+    <ID>MaxLineLength:DiscipleSubDaos.kt$DiscipleCoreDao$@Query("SELECT * FROM disciples_core WHERE slot_id = :slotId AND isAlive = 1 AND realm = :realm ORDER BY cultivation DESC")</ID>
+    <ID>MaxLineLength:DuplicateDiscipleIdRuleTest.kt$DuplicateDiscipleIdRuleTest$@Before fun setup()</ID>
+    <ID>MaxLineLength:DynamicMemoryManager.kt$DynamicMemoryManager$Log.i(TAG, "Initialized - Device tier: ${deviceTier.displayName}, Total RAM: ${totalRamBytes / (1024 * 1024)} MB")</ID>
+    <ID>MaxLineLength:DynamicMemoryManager.kt$DynamicMemoryManager$Log.w(TAG, "Insufficient absolute memory: ${snapshot.availableRamBytes / (1024 * 1024)} MB &lt; $MIN_ABSOLUTE_AVAILABLE_MB MB")</ID>
+    <ID>MaxLineLength:DynamicMemoryManager.kt$DynamicMemoryManager$Log.w(TAG, "Insufficient memory for save data: need ${snapshot.requiredForSaveData + snapshot.safetyMarginBytes}, available ${snapshot.availableRamBytes}")</ID>
+    <ID>MaxLineLength:DynamicMemoryManager.kt$DynamicMemoryManager$notifyDegradationApplied(strategy, "Pressure: ${snapshot.pressureLevel.name}, Available: ${snapshot.availablePercent}%")</ID>
+    <ID>MaxLineLength:DynamicMemoryManager.kt$MemorySnapshot$appendLine(" JVM: ${formatBytes(jvmUsedMemory)} / ${formatBytes(jvmMaxMemory)} (${String.format(Locale.getDefault(), "%.1f%%", jvmUsagePercent)})")</ID>
+    <ID>MaxLineLength:DynamicMemoryManager.kt$MemorySnapshot$appendLine(" RAM: ${formatBytes(availableRamBytes)} / ${formatBytes(totalRamBytes)} (${String.format(Locale.getDefault(), "%.1f%%", availablePercent)})")</ID>
+    <ID>MaxLineLength:FunctionalWAL.kt$FunctionalWAL$*</ID>
+    <ID>MaxLineLength:FunctionalWAL.kt$FunctionalWAL$Log.i(TAG, "Recovery completed: recovered=${recoveredSlots.size}, failed=${failedSlots.size}, errors=${errors.size}")</ID>
+    <ID>MaxLineLength:FunctionalWAL.kt$FunctionalWAL$if</ID>
+    <ID>MaxLineLength:GameDataDao.kt$GameDataDao$@Query("SELECT slot_id, sectName, gameYear, gameMonth, gamePhase, spiritStones, spiritHerbs, sectCultivation, lastSaveTime FROM game_data ORDER BY slot_id ASC")</ID>
+    <ID>MaxLineLength:GameDataDao.kt$GameDataDao$@Query("SELECT slot_id, sectName, gameYear, gameMonth, gamePhase, spiritStones, spiritHerbs, sectCultivation, lastSaveTime FROM game_data WHERE slot_id = :slotId LIMIT 1")</ID>
+    <ID>MaxLineLength:GameDatabase.kt$GameDatabase.Companion$.</ID>
+    <ID>MaxLineLength:GameDatabase.kt$GameDatabase.Companion$Log.d(TAG, "Database configuration completed (mmap=0, cache=${-dynamicCacheSize / 1024}MB, temp_store=${if (totalMemMB &gt;= 4096) "MEMORY" else "FILE"}, journal_limit=5MB)")</ID>
+    <ID>MaxLineLength:GameDatabaseMigrationSupport.kt$"CREATE TABLE IF NOT EXISTS `storage_bags` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `rarity` INTEGER NOT NULL, `description` TEXT NOT NULL, `quantity` INTEGER NOT NULL, `isLocked` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))"</ID>
+    <ID>MaxLineLength:GameDatabaseMigrationSupport.kt$db.execSQL("CREATE INDEX IF NOT EXISTS `index_game_data_gameYear_gameMonth` ON `game_data` (`gameYear`, `gameMonth`)")</ID>
+    <ID>MaxLineLength:GameDatabaseMigrationsV11ToV20.kt$/** v13→v14: 新增 cultivationCheckpoint/cultivationCheckpointGameMonth 到 disciples + spiritMineLastSettledMonth 到 game_data + baseDuration 到 production_slots */</ID>
+    <ID>MaxLineLength:GameDatabaseMigrationsV11ToV20.kt$/** v15→v16: 新增 showAllAvailableDisciples + worldLevelLastRefreshMonth + rngStates + pendingPatrolBattleResults 列 */</ID>
+    <ID>MaxLineLength:GameDatabaseMigrationsV11ToV20.kt$&lt;no name provided&gt;$Log.i(TAG, "Migration 11→12: added map_seed, merchantAcquisition*, mailRecords, heavenly_trial_state, sign_in_state_json (defense)")</ID>
+    <ID>MaxLineLength:GameDatabaseMigrationsV11ToV20.kt$&lt;no name provided&gt;$Log.i(TAG, "Migration 13→14: added cultivationCheckpoint, cultivationCheckpointGameMonth columns to disciples")</ID>
+    <ID>MaxLineLength:GameDatabaseMigrationsV11ToV20.kt$&lt;no name provided&gt;$Log.i(TAG, "Migration 15→16: added showAllAvailableDisciples, worldLevelLastRefreshMonth, rngStates, pendingPatrolBattleResults to game_data")</ID>
+    <ID>MaxLineLength:GameDatabaseMigrationsV11ToV20.kt$&lt;no name provided&gt;$Log.i(TAG, "Migration 16→17: added missing worldLevelLastRefreshMonth, rngStates, pendingPatrolBattleResults to game_data")</ID>
+    <ID>MaxLineLength:GameDatabaseMigrationsV11ToV20.kt$&lt;no name provided&gt;$db.execSQL("ALTER TABLE disciples_extended ADD COLUMN pillCultivationSpeedBonus REAL NOT NULL DEFAULT 0.0")</ID>
+    <ID>MaxLineLength:GameDatabaseMigrationsV11ToV20.kt$&lt;no name provided&gt;$db.execSQL("ALTER TABLE disciples_extended ADD COLUMN pillEffectDuration INTEGER NOT NULL DEFAULT 0")</ID>
+    <ID>MaxLineLength:GameDatabaseMigrationsV11ToV20.kt$&lt;no name provided&gt;$db.execSQL("CREATE INDEX IF NOT EXISTS `index_game_data_gameYear_gameMonth` ON `game_data` (`gameYear`, `gameMonth`)")</ID>
+    <ID>MaxLineLength:GameDatabaseMigrationsV11ToV20.kt$&lt;no name provided&gt;$db.execSQL("CREATE INDEX IF NOT EXISTS `index_game_data_lastSaveTime` ON `game_data` (`lastSaveTime`)")</ID>
+    <ID>MaxLineLength:GameDatabaseMigrationsV11ToV20.kt$&lt;no name provided&gt;$db.execSQL("CREATE INDEX IF NOT EXISTS `index_game_data_spiritStones` ON `game_data` (`spiritStones`)")</ID>
+    <ID>MaxLineLength:GameDatabaseMigrationsV11ToV20.kt$&lt;no name provided&gt;$db.execSQL("UPDATE `game_data` SET `sectLevelClaimRecords` = '[]' WHERE `sectLevelClaimRecords` IS NULL")</ID>
+    <ID>MaxLineLength:GameDatabaseMigrationsV21ToV30.kt$&lt;no name provided&gt;$Log.i(TAG, "Migration 21-&gt;22: added merchantRefreshChances, merchantLastRefreshChanceGrantYear to game_data")</ID>
+    <ID>MaxLineLength:GameDatabaseMigrationsV21ToV30.kt$&lt;no name provided&gt;$Log.i(TAG, "Migration 22-&gt;23: dropped discipleDesertionPopup from game_data (fixed CTAS constraint loss)")</ID>
+    <ID>MaxLineLength:GameDatabaseMigrationsV21ToV30.kt$&lt;no name provided&gt;$Log.i(TAG, "Migration 23-&gt;24: rebuilt storage_bags with composite PK (id, slot_id) — no DEFAULT clauses")</ID>
+    <ID>MaxLineLength:GameDatabaseMigrationsV21ToV30.kt$&lt;no name provided&gt;$db.execSQL("ALTER TABLE game_data ADD COLUMN merchantLastRefreshChanceGrantYear INTEGER NOT NULL DEFAULT 0")</ID>
+    <ID>MaxLineLength:GameDatabaseMigrationsV21ToV30.kt$&lt;no name provided&gt;$db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_discipleType` ON `disciples` (`discipleType`)")</ID>
+    <ID>MaxLineLength:GameDatabaseMigrationsV21ToV30.kt$&lt;no name provided&gt;$db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_isAlive_realm` ON `disciples` (`isAlive`, `realm`)")</ID>
+    <ID>MaxLineLength:GameDatabaseMigrationsV21ToV30.kt$&lt;no name provided&gt;$db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_isAlive_status` ON `disciples` (`isAlive`, `status`)")</ID>
+    <ID>MaxLineLength:GameDatabaseMigrationsV21ToV30.kt$&lt;no name provided&gt;$db.execSQL("CREATE INDEX IF NOT EXISTS `index_disciples_realm_realmLayer` ON `disciples` (`realm`, `realmLayer`)")</ID>
+    <ID>MaxLineLength:GameStateRepository.kt$GameStateRepository$discipleAttributesDao.upsertAll(batch.map { DiscipleAttributes.fromDisciple(it).copy(slotId = slotId) })</ID>
+    <ID>MaxLineLength:GameStateRepository.kt$GameStateRepository$discipleCombatStatsDao.upsertAll(batch.map { DiscipleCombatStats.fromDisciple(it).copy(slotId = slotId) })</ID>
+    <ID>MaxLineLength:GameStateRepository.kt$GameStateRepository$discipleEquipmentDao.upsertAll(batch.map { DiscipleEquipment.fromDisciple(it).copy(slotId = slotId) })</ID>
+    <ID>MaxLineLength:GhostDiscipleCleanupRuleTest.kt$GhostDiscipleCleanupRuleTest$@Before fun setup()</ID>
+    <ID>MaxLineLength:HeavyDataDecoderImpl.kt$HeavyDataDecoderImpl$override</ID>
+    <ID>MaxLineLength:InventoryDaos.kt$HerbDao$@Query("SELECT * FROM herbs WHERE slot_id = :slotId AND rarity &gt;= :minRarity AND quantity &gt; 0 ORDER BY rarity DESC, name ASC")</ID>
+    <ID>MaxLineLength:InventoryDaos.kt$MaterialDao$@Query("SELECT * FROM materials WHERE slot_id = :slotId AND category = :category AND quantity &gt; 0 ORDER BY rarity DESC")</ID>
+    <ID>MaxLineLength:InventoryDaos.kt$MaterialDao$@Query("SELECT * FROM materials WHERE slot_id = :slotId AND rarity &gt;= :minRarity AND quantity &gt; 0 ORDER BY rarity DESC, name ASC")</ID>
+    <ID>MaxLineLength:InventoryDaos.kt$PillDao$@Query("SELECT * FROM pills WHERE slot_id = :slotId AND breakthroughChance &gt; 0 AND targetRealm = :realm AND quantity &gt; 0 ORDER BY breakthroughChance DESC")</ID>
+    <ID>MaxLineLength:InventoryDaos.kt$PillDao$@Query("SELECT * FROM pills WHERE slot_id = :slotId AND rarity &gt;= :minRarity AND quantity &gt; 0 ORDER BY rarity DESC, name ASC")</ID>
+    <ID>MaxLineLength:InventoryDaos.kt$SeedDao$@Query("SELECT * FROM seeds WHERE slot_id = :slotId AND growTime &lt;= :maxGrowTime AND quantity &gt; 0 ORDER BY growTime ASC")</ID>
+    <ID>MaxLineLength:InventoryDaos.kt$SeedDao$@Query("SELECT * FROM seeds WHERE slot_id = :slotId AND rarity &gt;= :minRarity AND quantity &gt; 0 ORDER BY rarity DESC, growTime ASC")</ID>
+    <ID>MaxLineLength:MailDao.kt$MailDao$@Query("DELETE FROM mails WHERE id IN (SELECT id FROM mails WHERE slotId = :slotId AND isRead = 1 AND attachmentClaimed = 1 ORDER BY sendTime ASC LIMIT :count)")</ID>
+    <ID>MaxLineLength:OldSaveCompat.kt$private val Boolean.json: kotlinx.serialization.json.JsonPrimitive get() = kotlinx.serialization.json.JsonPrimitive(this)</ID>
+    <ID>MaxLineLength:OldSerializableSaveData.kt$SerializableDisciple$@ProtoNumber(24) val weaponNurture: SerializableEquipmentNurtureData = SerializableEquipmentNurtureData(equipmentId="", rarity=0)</ID>
+    <ID>MaxLineLength:OldSerializableSaveData.kt$SerializableDisciple$@ProtoNumber(25) val armorNurture: SerializableEquipmentNurtureData = SerializableEquipmentNurtureData(equipmentId="", rarity=0)</ID>
+    <ID>MaxLineLength:OldSerializableSaveData.kt$SerializableDisciple$@ProtoNumber(26) val bootsNurture: SerializableEquipmentNurtureData = SerializableEquipmentNurtureData(equipmentId="", rarity=0)</ID>
+    <ID>MaxLineLength:OldSerializableSaveData.kt$SerializableDisciple$@ProtoNumber(27) val accessoryNurture: SerializableEquipmentNurtureData = SerializableEquipmentNurtureData(equipmentId="", rarity=0)</ID>
+    <ID>MaxLineLength:OldSerializableSaveData.kt$SerializableSectDetail$@ProtoNumber(7) val scoutInfo: SerializableSectScoutInfo = SerializableSectScoutInfo(sectId="", sectName="", scoutYear=0, scoutMonth=0, discipleCount=0, maxRealm=0, isKnown=false, expiryYear=0, expiryMonth=0)</ID>
+    <ID>MaxLineLength:OldSerializableSaveData.kt$SerializableWorldSect$@ProtoNumber(23) val scoutInfo: SerializableSectScoutInfo = SerializableSectScoutInfo(sectId="", sectName="", scoutYear=0, scoutMonth=0, discipleCount=0, maxRealm=0, isKnown=false, expiryYear=0, expiryMonth=0)</ID>
+    <ID>MaxLineLength:ProtobufConverters.kt$ProtobufConverters$Log.e(TAG, "CRITICAL: $name has $size entries (&gt;$MAX_COLLECTION_SIZE), refusing to serialize to prevent OOM!")</ID>
+    <ID>MaxLineLength:ProtobufConverters.kt$ProtobufConverters$Log.e(TAG, "Deserialization FAILED for ${serializer.descriptor.serialName}, returning default! Encoded length: ${encoded.length}", e)</ID>
+    <ID>MaxLineLength:ProtobufConverters.kt$ProtobufConverters$Log.e(TAG, "Deserialization REJECTED for ${serializer.descriptor.serialName}: encoded length ${encoded.length} exceeds hard limit $DECODE_HARD_LIMIT, returning default to prevent OOM")</ID>
+    <ID>MaxLineLength:ProtobufConverters.kt$ProtobufConverters$Log.e(TAG, "Protobuf nullable serialization FAILED for ${serializer.descriptor.serialName}, data will be lost!", e)</ID>
+    <ID>MaxLineLength:ProtobufConverters.kt$ProtobufConverters$Log.w(TAG, "Deserialization WARNING for ${serializer.descriptor.serialName}: encoded length ${encoded.length} exceeds warn threshold $DECODE_WARN_LENGTH, attempting decode")</ID>
+    <ID>MaxLineLength:ProtobufConverters.kt$ProtobufConverters$Log.w(TAG, "LZ4 decompression failed for ${serializer.descriptor.serialName}, falling back to direct decode", e)</ID>
+    <ID>MaxLineLength:ProtobufConverters.kt$ProtobufConverters$throw SerializationFailureException("OOM during nullable serialization of ${serializer.descriptor.serialName}", e)</ID>
+    <ID>MaxLineLength:RoomMigrationTest.kt$RoomMigrationTest$applyMigrationsSequentially(db, listOf(M21_22, M22_23, M23_24, M24_25, M25_26, M26_27, M27_28, M28_29, M29_30, M31_32, M32_33))</ID>
+    <ID>MaxLineLength:RoomMigrationTest.kt$RoomMigrationTest$db.execSQL("INSERT INTO storage_bags (id, slot_id, name, rarity, description, quantity, isLocked) VALUES ('test_id_1', 0, '测试储物袋', 1, '', 1, 0)")</ID>
+    <ID>MaxLineLength:RoomMigrationTest.kt$RoomMigrationTest$db.execSQL("INSERT INTO storage_bags (id, slot_id, name, rarity, description, quantity, isLocked) VALUES ('test_id_1', 2, '跨槽位测试', 1, '', 1, 0)")</ID>
+    <ID>MaxLineLength:RoomMigrationTest.kt$RoomMigrationTest$val</ID>
+    <ID>MaxLineLength:SaveCrypto.kt$SaveCrypto$Log.d(TAG, "Argon2id derivation completed (memory=${effectiveMemoryKib}KiB, parallelism=$ARGON2ID_PARALLELISM, iterations=$ARGON2ID_ITERATIONS) [v3: Argon2ParameterSpec]")</ID>
+    <ID>MaxLineLength:SaveCrypto.kt$SaveCrypto$Log.d(TAG, "High-end device detected (${totalMemMB}MB RAM), using 64MB Argon2id memory (OWASP 2025)")</ID>
+    <ID>MaxLineLength:SaveCrypto.kt$SaveCrypto$Log.d(TAG, "Periodic cache cleanup started (interval=${CACHE_CLEANUP_INTERVAL_MS}ms, ttl=${UNIFIED_CACHE_TTL_MS}ms)")</ID>
+    <ID>MaxLineLength:SaveCrypto.kt$SaveCrypto$Log.e(TAG, "Unsupported version header: 0x${version.toString(16)}, expected 0x${VERSION_ARGON2ID.toString(16)}")</ID>
+    <ID>MaxLineLength:SaveDataReconcilerTest.kt$SaveDataReconcilerTest$EquipmentInstance(name = "玄铁甲", rarity = 2, slot = EquipmentSlot.ARMOR, ownerId = "d1", isEquipped = true)</ID>
+    <ID>MaxLineLength:SaveDataReconcilerTest.kt$SaveDataReconcilerTest$EquipmentInstance(name = "青锋剑", rarity = 3, slot = EquipmentSlot.WEAPON, ownerId = "d1", isEquipped = true)</ID>
+    <ID>MaxLineLength:SaveDataReconcilerTest.kt$SaveDataReconcilerTest$com.xianxia.sect.core.model.EquipmentStack(name = "青锋剑", rarity = 3, slot = EquipmentSlot.WEAPON, quantity = 5)</ID>
+    <ID>MaxLineLength:SaveDataReconcilerTest.kt$SaveDataReconcilerTest$com.xianxia.sect.core.model.ManualStack(name = "御剑诀", rarity = 3, type = ManualType.ATTACK, quantity = 2)</ID>
+    <ID>MaxLineLength:SaveResult.kt$SaveResult$Failure : SaveResult</ID>
+    <ID>MaxLineLength:SaveResultTest.kt$SaveResultTest$val result = SaveResult.failure(SaveError.CHECKSUM_MISMATCH, "hash mismatch", RuntimeException("cause")) as SaveResult.Failure</ID>
+    <ID>MaxLineLength:SecureKeyManager.kt$SecureKeyManager$Log.d(TAG, "Using deprecated setUserAuthenticationValidityDurationSeconds() for API ${Build.VERSION.SDK_INT}")</ID>
+    <ID>MaxLineLength:SecureKeyManager.kt$SecureKeyManager$Log.w(TAG, "[USER CONFIRMED] User explicitly confirmed key regeneration. Old saves will be permanently lost.")</ID>
+    <ID>MaxLineLength:SpiritStoneNonNegativeRuleTest.kt$SpiritStoneNonNegativeRuleTest$@Before fun setup()</ID>
+    <ID>MaxLineLength:StorageConfig.kt$StorageConfig$prefs.getString("serialization_format", DEFAULT_SERIALIZATION_FORMAT.name) ?: DEFAULT_SERIALIZATION_FORMAT.name</ID>
+    <ID>MaxLineLength:StorageConstantsTest.kt$StorageConstantsTest$assertTrue(StorageConstants.TrimMemoryPressure.RUNNING_LOW &lt; StorageConstants.TrimMemoryPressure.RUNNING_MODERATE)</ID>
+    <ID>MaxLineLength:StorageConstantsTest.kt$StorageConstantsTest$assertTrue(StorageConstants.TrimMemoryPressure.RUNNING_MODERATE &lt; StorageConstants.TrimMemoryPressure.BACKGROUND)</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$Log.d(TAG, "loadFromDatabase: slot=$slot, ${disciples.size} disciples, recruitList=${gameData.recruitList.size} unrecruited disciples")</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$Log.e(TAG, "querySingleSlot FAILED for slot $slot -- database may be unreachable or schema is mismatched", e)</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$Log.w(TAG, "Save data validation failed for slot $slot: gameYear=${gameData.gameYear}, gameMonth=${gameData.gameMonth}, sectName='${gameData.sectName}'")</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$_progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (backup)")</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$core.database.discipleAttributesDao().upsertAll(batch.map { d -&gt; DiscipleAttributes.fromDisciple(d).copy(slotId = slot) })</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$core.database.discipleCombatStatsDao().upsertAll(batch.map { d -&gt; DiscipleCombatStats.fromDisciple(d).copy(slotId = slot) })</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$core.database.discipleCoreDao().upsertAll(batch.map { d -&gt; DiscipleCore.fromDisciple(d).copy(slotId = slot) })</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$core.database.discipleEquipmentDao().upsertAll(batch.map { d -&gt; DiscipleEquipment.fromDisciple(d).copy(slotId = slot) })</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$core.database.discipleExtendedDao().upsertAll(batch.map { d -&gt; DiscipleExtended.fromDisciple(d).copy(slotId = slot) })</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$data.battleLogs.chunked(MAX_BATCH_SIZE).forEach { core.database.battleLogDao().upsertAll(it.map { b -&gt; b.copy(slotId = slot) }) }</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$data.equipmentInstances.chunked(MAX_BATCH_SIZE).forEach { core.database.equipmentInstanceDao().upsertAll(it.map { e -&gt; e.copy(slotId = slot) }) }</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$data.equipmentStacks.chunked(MAX_BATCH_SIZE).forEach { core.database.equipmentStackDao().upsertAll(it.map { e -&gt; e.copy(slotId = slot) }) }</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$data.herbs.chunked(MAX_BATCH_SIZE).forEach { core.database.herbDao().upsertAll(it.map { h -&gt; h.copy(slotId = slot) }) }</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$data.manualInstances.chunked(MAX_BATCH_SIZE).forEach { core.database.manualInstanceDao().upsertAll(it.map { m -&gt; m.copy(slotId = slot) }) }</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$data.manualStacks.chunked(MAX_BATCH_SIZE).forEach { core.database.manualStackDao().upsertAll(it.map { m -&gt; m.copy(slotId = slot) }) }</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$data.materials.chunked(MAX_BATCH_SIZE).forEach { core.database.materialDao().upsertAll(it.map { m -&gt; m.copy(slotId = slot) }) }</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$data.pills.chunked(MAX_BATCH_SIZE).forEach { core.database.pillDao().upsertAll(it.map { p -&gt; p.copy(slotId = slot) }) }</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$data.seeds.chunked(MAX_BATCH_SIZE).forEach { core.database.seedDao().upsertAll(it.map { s -&gt; s.copy(slotId = slot) }) }</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$data.storageBags.chunked(MAX_BATCH_SIZE).forEach { core.database.storageBagDao().upsertAll(it.map { b -&gt; b.copy(slotId = slot) }) }</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$data.teams.chunked(MAX_BATCH_SIZE).forEach { core.database.explorationTeamDao().upsertAll(it.map { t -&gt; t.copy(slotId = slot) }) }</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$if (txnId != null) try { core.wal.abort(txnId) } catch (e2: Exception) { Log.w(TAG, "WAL abort 失败", e2) }</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$if (txnId != null) try { core.wal.abortSync(txnId) } catch (e2: Exception) { Log.w(TAG, "WAL abortSync 失败", e2) }</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$private suspend</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$return StorageResult.success(SaveOperationStats(bytesWritten = bytesWritten, timeMs = 0, wasIncremental = false))</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$suspend</ID>
+    <ID>MaxLineLength:StorageEngine.kt$StorageEngine$var</ID>
+    <ID>MaxLineLength:StorageFacade.kt$StorageFacade$_progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.VALIDATING, 0.5f, "Verifying database integrity")</ID>
+    <ID>MaxLineLength:StorageResult.kt$StorageResult$Failure : StorageResult</ID>
+    <ID>MaxLineLength:StorageResultTest.kt$StorageResultTest$val allFailed = BatchOperationResult(totalCount = 3, successCount = 0, failureCount = 3, errors = mapOf(0 to StorageError.SAVE_FAILED, 1 to StorageError.SAVE_FAILED, 2 to StorageError.SAVE_FAILED))</ID>
+    <ID>MaxLineLength:StorageResultTest.kt$StorageResultTest$val partialSuccess = BatchOperationResult(totalCount = 5, successCount = 3, failureCount = 2, errors = mapOf(1 to StorageError.IO_ERROR, 3 to StorageError.TIMEOUT))</ID>
+    <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark$"compressionRatio" to "%.2f".format(if (avgCompressed &gt; 0) avgOriginal.toDouble() / avgCompressed else 0.0)</ID>
+    <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark$"篡改payload头部" to fullEntry.copyOf().also { it[WAL_HEADER_SIZE + 5] = (it[WAL_HEADER_SIZE + 5].toInt() xor 0xAA).toByte() }</ID>
+    <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark$BenchmarkHerb(id = "herb_$i", name = "灵草${i}号", rarity = rng.nextInt(1, 5), quantity = rng.nextInt(1, 200))</ID>
+    <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark$BenchmarkMaterial(id = "mat_$i", name = "材料${i}号", rarity = rng.nextInt(1, 5), quantity = rng.nextInt(1, 500))</ID>
+    <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark$BenchmarkSeed(id = "seed_$i", name = "种子${i}号", rarity = rng.nextInt(1, 4), quantity = rng.nextInt(1, 50))</ID>
+    <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark$compRatios[i] = if (result.compressedSize &gt; 0) result.originalSize.toDouble() / result.compressedSize else 0.0</ID>
+    <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark$println(" ${r.testName}: ${"%.0f".format(r.opsPerSecond)} ops/s, ${"%.2f".format(r.throughputMBps)} MB/s")</ID>
+    <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark$println(" ${r.testName}: avg=${"%.2f".format(r.avgMs)}ms, throughput=${"%.2f".format(r.throughputMBps)}MB/s, P95=${r.p95Ms}ms")</ID>
+    <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark$println(" ${r.testName}: 存=${r.extraMetrics["save_avg_ms"]}ms, 读=${r.extraMetrics["load_avg_ms"]}ms, 总计=${r.extraMetrics["total_avg_ms"]}ms, 输出=${r.extraMetrics["outputBytes"]}B, OK=${r.extraMetrics["roundtripOk"]}")</ID>
+    <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark$println(" ${scale.label}: 全部字段匹配 ✓ (disciples=${restored.disciples.size}, eq=${restored.equipment.size}, logs=${restored.battleLogs.size})")</ID>
+    <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark$println(" ${scale.label}: 反序列化失败或校验和不匹配 ✗ (valid=${deserialized.checksumValid}, success=${deserialized.isSuccess})")</ID>
+    <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark$println(" GZIP: 输出=${gzipCompressed.data.size}B, 压缩比=${"%.2f".format(data.size.toDouble() / gzipCompressed.data.size)}, 耗时(avg)=${"%.2f".format(gzipResult.avgMs)}ms")</ID>
+    <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark$println(" LZ4: 输出=${lz4Compressed.data.size}B, 压缩比=${"%.2f".format(data.size.toDouble() / lz4Compressed.data.size)}, 耗时(avg)=${"%.2f".format(lz4Result.avgMs)}ms")</ID>
+    <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark$println(" 原始: ${avgOrigSize / 1024}KB → 压缩后: ${avgCompSize / 1024}KB | 比率: ${"%.2f".format(avgRatio)}x")</ID>
+    <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark$println(" 平均耗时: ${"%.2f".format(avgDe)}ms (P95: ${deP95}ms) | 阈值: 2000ms | ${if (avgDe &lt; 2000) "✓ 通过" else "✗ 超标"}")</ID>
+    <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark$println(" 平均耗时: ${"%.2f".format(avgSer)}ms (P95: ${serP95}ms) | 阈值: 500ms | ${if (avgSer &lt; 500) "✓ 通过" else "✗ 超标"}")</ID>
+    <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark$println(" 测试点数: $totalTests | 检测成功: $detectedCorruptions | 检测率: ${detectedCorruptions * 100 / totalTests.coerceAtLeast(1)}%")</ID>
+    <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark$stats = mapOf("atk" to rng.nextInt(10, 5000), "def" to rng.nextInt(5, 3000), "spd" to rng.nextInt(1, 500))</ID>
+    <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark$val corruptedPositions = listOf(0, 10, serialized.data.size / 4, serialized.data.size / 2, serialized.data.size - 2)</ID>
+    <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark$val deserialized = serializationEngine.deserialize(serialized.data, context, BenchmarkSaveData.serializer())</ID>
+    <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark.BenchmarkResult$appendLine(" Min: ${minMs}ms | P50: ${p50Ms}ms | P95: ${p95Ms}ms | P99: ${p99Ms}ms | Max: ${maxMs}ms")</ID>
+    <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark.BenchmarkResult$appendLine(" Total: ${totalMs}ms | Avg: ${"%.2f".format(avgMs)}ms | Ops/s: ${"%.0f".format(opsPerSecond)}")</ID>
+    <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark.DataScale$enum</ID>
+    <ID>MaxLineLength:StorageValidator.kt$StorageValidator$context = mapOf("required" to requiredBytes, "available" to freeSpace, "directory" to directory.absolutePath)</ID>
+    <ID>MaxLineLength:StorageValidator.kt$StorageValidator$fun</ID>
+    <ID>MaxLineLength:StorageValidator.kt$StorageValidator$private</ID>
+    <ID>MaxLineLength:StorageValidator.kt$StorageValidator.ValidationResult.Companion$fun</ID>
+    <ID>MayBeConst:DynamicMemoryManager.kt$DynamicMemoryManager.Companion$/** RAM 分级阈值（字节） */ private val TIER_LOW_MAX = 4L * 1024 * 1024 * 1024 // 4 GB</ID>
+    <ID>MayBeConst:DynamicMemoryManager.kt$DynamicMemoryManager.Companion$private val TIER_HIGH_MAX = 8L * 1024 * 1024 * 1024 // 8 GB</ID>
+    <ID>MayBeConst:DynamicMemoryManager.kt$DynamicMemoryManager.Companion$private val TIER_MEDIUM_MAX = 6L * 1024 * 1024 * 1024 // 6 GB</ID>
+    <ID>MayBeConst:GameDatabaseMigrationSupport.kt$/** * Room v25 生成的 storage_bags 表 CREATE TABLE SQL（单行，来自 25.json createSql）。 * 必须与 StorageBag 实体完全一致：无 DEFAULT 子句。 */ internal val STORAGE_BAGS_CREATE_SQL = "CREATE TABLE IF NOT EXISTS `storage_bags` (`id` TEXT NOT NULL, `slot_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `rarity` INTEGER NOT NULL, `description` TEXT NOT NULL, `quantity` INTEGER NOT NULL, `isLocked` INTEGER NOT NULL, PRIMARY KEY(`id`, `slot_id`))"</ID>
+    <ID>MayBeConst:SaveCrypto.kt$SaveCrypto$/** * Argon2id 默认内存参数�?4MB（KiB 单位�? * * OWASP 2025 推荐配置（高安全性）�? * - memoryCost = 64 MB (65536 KiB) * - timeCost (iterations) = 3 * - parallelism = 2 * - hashLength = 32 bytes (256 bits) * * 自适应降级策略（见 [resolveEffectiveMemoryKib]）： * - &lt; 2GB RAM: 8MB（避�?OOM�? * - &lt; 4GB RAM: 16MB（标准移动端�? * - &gt;= 4GB RAM: 64MB（默认高安全性） * * 变更记录 (v2-&gt;v3): �?16MB 提升�?64MB 默认值， * 符合 OWASP 2025 对抗 GPU/ASIC 攻击的最新建议�? */ private val ARGON2ID_MEMORY_KIB_DEFAULT = 65536 // 64MB - OWASP 2025 recommended</ID>
+    <ID>NestedBlockDepth:ChangeTracker.kt$ChangeTracker$private fun computeFieldChanges(oldValue: Any, newValue: Any): Map&lt;String, FieldChange&gt;</ID>
+    <ID>NestedBlockDepth:CryptoModule.kt$IntegrityValidator$private fun canonicalizeElement(element: JsonElement): String</ID>
+    <ID>NestedBlockDepth:DataArchiver.kt$DataArchiver$private suspend fun &lt;T&gt; queryArchived( dataType: ArchivedDataType, startMs: Long?, endMs: Long?, deserializer: (ByteArray) -&gt; T ): QueryResult&lt;T&gt;</ID>
+    <ID>NestedBlockDepth:GameDatabase.kt$GameDatabase.Companion$fun restoreFromBackupIfNeeded(context: Context): Boolean</ID>
+    <ID>NestedBlockDepth:GameDatabase.kt$GameDatabase.Companion$private fun verifyAndRecoverDatabase(db: SupportSQLiteDatabase, context: Context)</ID>
+    <ID>NestedBlockDepth:GameDatabaseMigrationSupport.kt$internal fun rebuildGameData( db: SupportSQLiteDatabase, oldSuffix: String, sourceColumns: List&lt;String&gt; )</ID>
+    <ID>NestedBlockDepth:GameDatabaseMigrationsV21ToV30.kt$&lt;no name provided&gt;$override fun migrate(db: SupportSQLiteDatabase)</ID>
+    <ID>NestedBlockDepth:ProtoNumberCoverageTest.kt$ProtoNumberCoverageTest$private fun checkEncodeDefaultCoverage( className: String, clazz: KClass&lt;*&gt;, errors: MutableList&lt;String&gt;, instance: Any, prefix: String )</ID>
+    <ID>NestedBlockDepth:RoomMigrationTest.kt$RoomMigrationTest$@Test fun `MIGRATION_24_TO_25 fixes broken constraints from CTAS on game_data`()</ID>
+    <ID>NestedBlockDepth:SaveCrypto.kt$SaveCrypto$fun deriveKeyArgon2id(password: String, salt: ByteArray, context: Context? = null): ByteArray</ID>
+    <ID>NestedBlockDepth:SecureKeyManager.kt$SecureKeyManager$private fun readExistingKeyOrRecover( context: Context, prefs: android.content.SharedPreferences, keyFile: File, backupFile: File ): ByteArray?</ID>
+    <ID>NestedBlockDepth:SecureKeyManager.kt$SecureKeyManager$private fun writeKeyFileAtomically( context: Context, keyFile: File, backupFile: File, encryptedKey: ByteArray )</ID>
+    <ID>NestedBlockDepth:StorageEngine.kt$StorageEngine$private suspend fun performFullTransactionSave(slot: Int, data: SaveData): StorageResult&lt;SaveOperationStats&gt;</ID>
+    <ID>NestedBlockDepth:StorageFacade.kt$StorageFacade$suspend fun getStorageUsageSuspend(): StorageUsage</ID>
+    <ID>NestedBlockDepth:StorageValidator.kt$StorageValidator.RuleEngine$fun validate(data: SaveData): ValidationResult</ID>
+    <ID>NewLineAtEndOfFile:CryptoModule.kt$com.xianxia.sect.data.crypto.CryptoModule.kt</ID>
+    <ID>ReturnCount:BackupStrategy.kt$BackupStrategy$fun parseBackupFileName(fileName: String): ParsedBackupName?</ID>
+    <ID>ReturnCount:BackupStrategy.kt$BackupStrategy$fun suggestImportance( type: BackupType, context: Map&lt;String, Any&gt;? = null ): BackupImportance</ID>
+    <ID>ReturnCount:CacheLayer.kt$GameDataCacheManager$suspend fun &lt;T : Any&gt; get( key: CacheKey, loader: suspend () -&gt; T ): T</ID>
+    <ID>ReturnCount:CryptoModule.kt$IntegrityValidator$fun verifySignedPayload( data: Any, payload: SignedPayload, key: ByteArray, maxAgeMs: Long = Long.MAX_VALUE ): VerificationResult</ID>
+    <ID>ReturnCount:DataArchiveScheduler.kt$DataArchiveScheduler$private suspend fun archiveBattleLogs(slotId: Int): Int</ID>
+    <ID>ReturnCount:DataCompressor.kt$DataCompressor$fun compress( data: ByteArray, algorithm: CompressionAlgorithm = defaultAlgorithm ): CompressedData</ID>
+    <ID>ReturnCount:DataCompressor.kt$DataCompressor$private fun compressZstdWithActualAlgo(data: ByteArray): Pair&lt;ByteArray, CompressionAlgorithm&gt;</ID>
+    <ID>ReturnCount:DataCompressor.kt$DataCompressor.ZstdWrapper$fun compress(data: ByteArray): ByteArray?</ID>
+    <ID>ReturnCount:DataCompressor.kt$DataCompressor.ZstdWrapper$fun decompress(compressedData: ByteArray): ByteArray?</ID>
+    <ID>ReturnCount:DynamicMemoryManager.kt$DynamicMemoryManager$fun checkAvailableMemory(saveDataSizeBytes: Long? = null): Boolean</ID>
+    <ID>ReturnCount:FunctionalWAL.kt$FunctionalWAL$private fun launchCheckpoint(): Boolean</ID>
+    <ID>ReturnCount:FunctionalWAL.kt$FunctionalWAL$private fun writeEntry( type: WALEntryType, txnId: Long, slotId: Int, data: ByteArray = ByteArray(0) ): Boolean</ID>
+    <ID>ReturnCount:GameDatabase.kt$GameDatabase.Companion$fun backupDatabaseForMigration(context: Context)</ID>
+    <ID>ReturnCount:GameDatabase.kt$GameDatabase.Companion$fun restoreFromBackupIfNeeded(context: Context): Boolean</ID>
+    <ID>ReturnCount:GameDatabase.kt$GameDatabase.Companion$private fun resolveDynamicCacheSize(context: Context?): Int</ID>
+    <ID>ReturnCount:GameDatabase.kt$GameDatabase.Companion$private fun resolveTotalMem(context: Context?): Long</ID>
+    <ID>ReturnCount:ProtoNumberCoverageTest.kt$ProtoNumberCoverageTest$private fun collectNestedSerializableClasses(type: KType): Set&lt;KClass&lt;*&gt;&gt;</ID>
+    <ID>ReturnCount:ProtobufConverters.kt$ProtobufConverters$internal fun &lt;T&gt; decodeFromBase64(serializer: KSerializer&lt;T&gt;, encoded: String, default: () -&gt; T): T</ID>
+    <ID>ReturnCount:ProtobufConverters.kt$ProtobufConverters$private fun &lt;T&gt; decodeFromBlobInternal( serializer: KSerializer&lt;T&gt;, data: ByteArray, default: () -&gt; T ): T</ID>
+    <ID>ReturnCount:SaveCrypto.kt$SaveCrypto$fun decrypt(data: ByteArray, key: ByteArray): ByteArray?</ID>
+    <ID>ReturnCount:SaveCrypto.kt$SaveCrypto$fun decrypt(data: ByteArray, password: String): ByteArray?</ID>
+    <ID>ReturnCount:SaveCrypto.kt$SaveCrypto$fun decryptXChaCha20(data: ByteArray, password: String): ByteArray?</ID>
+    <ID>ReturnCount:SaveCrypto.kt$SaveCrypto$fun resolveEffectiveMemoryKib(context: Context?): Int</ID>
+    <ID>ReturnCount:SaveCrypto.kt$SaveCrypto$private fun decryptWithVersion( data: ByteArray, password: String, saltLength: Int, keyDerivation: (String, ByteArray) -&gt; ByteArray ): ByteArray?</ID>
+    <ID>ReturnCount:SaveCrypto.kt$SaveCrypto$private fun getFromUnifiedCache(cacheKey: String): Pair&lt;ByteArray, KeySource&gt;?</ID>
+    <ID>ReturnCount:SaveCrypto.kt$SaveCrypto$private fun tryDecryptWithKeyVersioned( data: ByteArray, key: ByteArray, saltLength: Int ): ByteArray?</ID>
+    <ID>ReturnCount:SaveFileManager.kt$SaveFileManager$fun atomicWrite(slot: Int, saveData: SaveData): StorageResult&lt;Unit&gt;</ID>
+    <ID>ReturnCount:SaveFileManager.kt$SaveFileManager$fun readWithFallback(slot: Int): BackupReadResult</ID>
+    <ID>ReturnCount:SaveFileManager.kt$SaveFileManager$private fun readAndVerify(file: File): ByteArray?</ID>
+    <ID>ReturnCount:SecureKeyManager.kt$SecureKeyManager$fun getAccountBindingFactor(context: Context): String</ID>
+    <ID>ReturnCount:SecureKeyManager.kt$SecureKeyManager$fun recoverKey(context: Context): KeyRecoveryResult</ID>
+    <ID>ReturnCount:SecureKeyManager.kt$SecureKeyManager$private fun checkFileSystemHealth(context: Context): Boolean</ID>
+    <ID>ReturnCount:SecureKeyManager.kt$SecureKeyManager$private fun getOrCreateDerivedKey(context: Context): ByteArray</ID>
+    <ID>ReturnCount:SecureKeyManager.kt$SecureKeyManager$private fun readExistingKeyOrRecover( context: Context, prefs: android.content.SharedPreferences, keyFile: File, backupFile: File ): ByteArray?</ID>
+    <ID>ReturnCount:SecureKeyManager.kt$SecureKeyManager$private fun readKeyFileSafely(context: Context, file: File): KeyReadResult</ID>
+    <ID>ReturnCount:SecureKeyManager.kt$SecureKeyManager$private fun tryRecoverFromBackup( context: Context, backupFile: File, prefs: android.content.SharedPreferences ): ByteArray?</ID>
+    <ID>ReturnCount:SerializationModule.kt$SerializationModule$fun deserializeSaveData(data: ByteArray): SaveData</ID>
+    <ID>ReturnCount:StorageEngine.kt$StorageEngine$private fun validateSaveData(data: SaveData): Boolean</ID>
+    <ID>ReturnCount:StorageEngine.kt$StorageEngine$private suspend fun loadFromDatabaseInternal(slot: Int, loadHeavyData: Boolean = false): SaveData?</ID>
+    <ID>ReturnCount:StorageEngine.kt$StorageEngine$private suspend fun mergeHeavyData(gameData: GameData, slot: Int): GameData</ID>
+    <ID>ReturnCount:StorageEngine.kt$StorageEngine$private suspend fun performFullTransactionSave(slot: Int, data: SaveData): StorageResult&lt;SaveOperationStats&gt;</ID>
+    <ID>ReturnCount:StorageEngine.kt$StorageEngine$suspend fun getSlotMetadata(slot: Int): SlotMetadata?</ID>
+    <ID>ReturnCount:StorageFacade.kt$StorageFacade$suspend fun initialize(): SaveResult&lt;Unit&gt;</ID>
+    <ID>ReturnCount:StorageValidator.kt$StorageValidator$@Suppress("DEPRECATION") private fun verifySignatureFormat(payload: SignedPayload, key: ByteArray): CryptoVerificationResult</ID>
+    <ID>ReturnCount:StorageValidator.kt$StorageValidator$fun validateBeforeLoad(slot: Int, maxSlots: Int, saveFile: File): ValidationResult</ID>
+    <ID>ReturnCount:UnifiedSerializationEngine.kt$UnifiedSerializationEngine$@OptIn(ExperimentalSerializationApi::class) fun &lt;T&gt; deserialize( data: ByteArray, context: SerializationContext = SerializationContext(), serializer: KSerializer&lt;T&gt; ): DeserializationResult&lt;T&gt;</ID>
+    <ID>SwallowedException:ChangeLogPersistence.kt$ChangeLogPersistence$e: Exception</ID>
+    <ID>SwallowedException:CryptoModule.kt$IntegrityValidator$e: Exception</ID>
+    <ID>SwallowedException:CryptoModule.kt$SignedPayload.Companion$e: Exception</ID>
+    <ID>SwallowedException:DataCompressor.kt$DataCompressor.ZstdWrapper$e: ClassNotFoundException</ID>
+    <ID>SwallowedException:DataCompressorTest.kt$DataCompressorTest$e: Exception</ID>
+    <ID>SwallowedException:GameDatabase.kt$GameDatabase$e: Exception</ID>
+    <ID>SwallowedException:GameDatabase.kt$GameDatabase.Companion$e: Exception</ID>
+    <ID>SwallowedException:GameDatabaseTest.kt$GameDatabaseTest$e: android.database.sqlite.SQLiteException</ID>
+    <ID>SwallowedException:ProtobufConverters.kt$ProtobufConverters$e: IllegalArgumentException</ID>
+    <ID>SwallowedException:ProtobufConvertersTest.kt$ProtobufConvertersTest$e: Exception</ID>
+    <ID>SwallowedException:SaveCrypto.kt$SaveCrypto$cnfe: ClassNotFoundException</ID>
+    <ID>SwallowedException:SecureKeyManager.kt$SecureKeyManager$e: Exception</ID>
+    <ID>SwallowedException:SecureKeyManager.kt$SecureKeyManager$e: FileNotFoundException</ID>
+    <ID>SwallowedException:SecureKeyManager.kt$SecureKeyManager$e: java.security.InvalidAlgorithmParameterException</ID>
+    <ID>SwallowedException:SerializationTypes.kt$e: IllegalArgumentException</ID>
+    <ID>SwallowedException:StorageFacade.kt$StorageFacade$e: Exception</ID>
+    <ID>ThrowsCount:ProtobufConverters.kt$ProtobufConverters$internal fun &lt;T : Any&gt; encodeNullableToBase64(serializer: KSerializer&lt;T&gt;, value: T?): String</ID>
+    <ID>ThrowsCount:ProtobufConverters.kt$ProtobufConverters$internal fun &lt;T : Any&gt; encodeToBase64(serializer: KSerializer&lt;T&gt;, value: T): String</ID>
+    <ID>ThrowsCount:ProtobufConverters.kt$ProtobufConverters$private fun &lt;T : Any&gt; encodeToBlobInternal(serializer: KSerializer&lt;T&gt;, value: T): ByteArray</ID>
+    <ID>ThrowsCount:SecureKeyManager.kt$SecureKeyManager$private fun handleKeyLossAndRegenerate( context: Context, prefs: android.content.SharedPreferences, keyFile: File, backupFile: File ): ByteArray</ID>
+    <ID>ThrowsCount:SecureKeyManager.kt$SecureKeyManager$private fun readExistingKeyOrRecover( context: Context, prefs: android.content.SharedPreferences, keyFile: File, backupFile: File ): ByteArray?</ID>
+    <ID>ThrowsCount:SecureKeyManager.kt$SecureKeyManager$private fun writeKeyFileAtomically( context: Context, keyFile: File, backupFile: File, encryptedKey: ByteArray )</ID>
+    <ID>ThrowsCount:SerializationModule.kt$SerializationModule$fun deserializeSaveData(data: ByteArray): SaveData</ID>
+    <ID>ThrowsCount:StorageEngine.kt$StorageEngine$private suspend fun loadHeavyDataSafe(slot: Int): List&lt;GameHeavyData&gt;</ID>
+    <ID>ThrowsCount:StorageEngine.kt$StorageEngine$private suspend fun mergeHeavyData(gameData: GameData, slot: Int): GameData</ID>
+    <ID>ThrowsCount:StorageEngine.kt$StorageEngine$private suspend fun performFullTransactionSave(slot: Int, data: SaveData): StorageResult&lt;SaveOperationStats&gt;</ID>
+    <ID>TooGenericExceptionCaught:CacheLayer.kt$GameDataCacheManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ChangeLogPersistence.kt$ChangeLogPersistence$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ChangeTracker.kt$ChangeTracker$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ChangelogData.kt$ChangelogData$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CryptoModule.kt$IntegrityValidator$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CryptoModule.kt$SignedPayload.Companion$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DataArchiveScheduler.kt$DataArchiveScheduler$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DataArchiver.kt$DataArchiver$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DataCompressor.kt$DataCompressor$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DataCompressor.kt$DataCompressor$gzipEx: Exception</ID>
+    <ID>TooGenericExceptionCaught:DataCompressor.kt$DataCompressor.ZstdWrapper$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DataPruningScheduler.kt$DataPruningScheduler$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DynamicMemoryManager.kt$DynamicMemoryManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:FunctionalWAL.kt$FunctionalWAL$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:FunctionalWAL.kt$FunctionalWAL$reopenEx: Exception</ID>
+    <ID>TooGenericExceptionCaught:GameDatabase.kt$GameDatabase$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:GameDatabase.kt$GameDatabase$q: Exception</ID>
+    <ID>TooGenericExceptionCaught:GameDatabase.kt$GameDatabase.Companion$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:GameStateRepository.kt$GameStateRepository$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:KeyRotationManager.kt$KeyRotationManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:KeyRotationManager.kt$KeyRotationManager$slotEx: Exception</ID>
+    <ID>TooGenericExceptionCaught:OldSaveCompat.kt$OldSaveFormatDeserializer$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ProactiveMemoryGuard.kt$ProactiveMemoryGuard$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ProtobufConverters.kt$ProtobufConverters$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ProtobufConverters.kt$ProtobufConverters$e: Throwable</ID>
+    <ID>TooGenericExceptionCaught:SaveCrypto.kt$SaveCrypto$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SaveCrypto.kt$SaveCrypto$specEx: Exception</ID>
+    <ID>TooGenericExceptionCaught:SaveFileManager.kt$SaveFileManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SaveValidator.kt$SaveValidator$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SecureKeyManager.kt$SecureKeyManager$directError: Exception</ID>
+    <ID>TooGenericExceptionCaught:SecureKeyManager.kt$SecureKeyManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SerializationModule.kt$SerializationModule$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SerializationTypes.kt$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:StorageEngine.kt$StorageEngine$e2: Exception</ID>
+    <ID>TooGenericExceptionCaught:StorageEngine.kt$StorageEngine$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:StorageFacade.kt$StorageFacade$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:StorageValidator.kt$StorageValidator$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:StorageValidator.kt$StorageValidator.RuleEngine$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:UiKeyRecoveryCallback.kt$UiKeyRecoveryCallback$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:UnifiedSerializationEngine.kt$UnifiedSerializationEngine$e: Exception</ID>
+    <ID>TooGenericExceptionThrown:StorageEngine.kt$StorageEngine$throw RuntimeException("Failed to query save slot $slot: ${e.message}", e)</ID>
+    <ID>TooGenericExceptionThrown:StorageValidatorTest.kt$StorageValidatorTest.&lt;no name provided&gt;$throw RuntimeException("test failure")</ID>
+    <ID>TooManyFunctions:BattleLogDao.kt$BattleLogDao</ID>
+    <ID>TooManyFunctions:CacheKey.kt$CacheKey$Companion</ID>
+    <ID>TooManyFunctions:CacheLayer.kt$CacheLayer</ID>
+    <ID>TooManyFunctions:CacheLayer.kt$GameDataCacheManager : MemoryEventListenerComponentCallbacks2</ID>
+    <ID>TooManyFunctions:ChangeLogDao.kt$ChangeLogDao</ID>
+    <ID>TooManyFunctions:ChangeTracker.kt$ChangeTracker</ID>
+    <ID>TooManyFunctions:CollectionConverters.kt$CollectionConverters</ID>
+    <ID>TooManyFunctions:CryptoModule.kt$CryptoModule</ID>
+    <ID>TooManyFunctions:CryptoModule.kt$IntegrityValidator</ID>
+    <ID>TooManyFunctions:DataArchiver.kt$DataArchiver</ID>
+    <ID>TooManyFunctions:DataCompressor.kt$DataCompressor</ID>
+    <ID>TooManyFunctions:DiscipleDataDao.kt$DiscipleDao</ID>
+    <ID>TooManyFunctions:DiscipleSubDaos.kt$DiscipleAttributesDao</ID>
+    <ID>TooManyFunctions:DiscipleSubDaos.kt$DiscipleCombatStatsDao</ID>
+    <ID>TooManyFunctions:DiscipleSubDaos.kt$DiscipleCoreDao</ID>
+    <ID>TooManyFunctions:DiscipleSubDaos.kt$DiscipleEquipmentDao</ID>
+    <ID>TooManyFunctions:DiscipleSubDaos.kt$DiscipleExtendedDao</ID>
+    <ID>TooManyFunctions:DynamicMemoryManager.kt$DynamicMemoryManager</ID>
+    <ID>TooManyFunctions:EnumConverters.kt$EnumConverters</ID>
+    <ID>TooManyFunctions:EnumStringConverters.kt$JsonConverters</ID>
+    <ID>TooManyFunctions:EquipmentDaos.kt$EquipmentInstanceDao</ID>
+    <ID>TooManyFunctions:EquipmentDaos.kt$EquipmentStackDao</ID>
+    <ID>TooManyFunctions:FunctionalWAL.kt$FunctionalWAL : WALProvider</ID>
+    <ID>TooManyFunctions:GameDatabase.kt$GameDatabase : RoomDatabase</ID>
+    <ID>TooManyFunctions:InventoryDaos.kt$HerbDao</ID>
+    <ID>TooManyFunctions:InventoryDaos.kt$MaterialDao</ID>
+    <ID>TooManyFunctions:InventoryDaos.kt$PillDao</ID>
+    <ID>TooManyFunctions:InventoryDaos.kt$SeedDao</ID>
+    <ID>TooManyFunctions:InventoryRepository.kt$InventoryRepositoryImpl : InventoryRepository</ID>
+    <ID>TooManyFunctions:MailDao.kt$MailDao</ID>
+    <ID>TooManyFunctions:ManualDaos.kt$ManualInstanceDao</ID>
+    <ID>TooManyFunctions:ManualDaos.kt$ManualStackDao</ID>
+    <ID>TooManyFunctions:MiscDaos.kt$ExplorationTeamDao</ID>
+    <ID>TooManyFunctions:NullSafeProtoBuf.kt$NullSafeProtoBuf</ID>
+    <ID>TooManyFunctions:ProactiveMemoryGuard.kt$ProactiveMemoryGuard</ID>
+    <ID>TooManyFunctions:ProductionDaos.kt$BuildingSlotDao</ID>
+    <ID>TooManyFunctions:ProductionDaos.kt$RecipeDao</ID>
+    <ID>TooManyFunctions:ProductionSlotDao.kt$ProductionSlotDao</ID>
+    <ID>TooManyFunctions:ProtobufConverters.kt$ProtobufConverters</ID>
+    <ID>TooManyFunctions:SaveCrypto.kt$SaveCrypto</ID>
+    <ID>TooManyFunctions:SaveFileManager.kt$SaveFileManager</ID>
+    <ID>TooManyFunctions:SecureKeyManager.kt$SecureKeyManager</ID>
+    <ID>TooManyFunctions:SlotLockManager.kt$SlotLockManager</ID>
+    <ID>TooManyFunctions:StorageEngine.kt$StorageEngine</ID>
+    <ID>TooManyFunctions:StorageFacade.kt$StorageFacade</ID>
+    <ID>TooManyFunctions:StorageValidator.kt$StorageValidator</ID>
+    <ID>TooManyFunctions:UnifiedSerializationEngine.kt$UnifiedSerializationEngine</ID>
+    <ID>TooManyFunctions:WALProvider.kt$WALProvider</ID>
+    <ID>TooManyFunctions:WorldRepository.kt$WorldRepositoryImpl : WorldRepository</ID>
+    <ID>UnusedParameter:BackupStrategy.kt$BackupStrategy$additionalContext: Map&lt;String, Any&gt;? = null</ID>
+    <ID>UnusedParameter:DataArchiver.kt$DataArchiver$timestamps: List&lt;Long&gt;</ID>
+    <ID>UnusedParameter:DataCompressor.kt$DataCompressor$dataSize: Int</ID>
+    <ID>UnusedParameter:DataCompressor.kt$DataCompressor$dataType: DataType</ID>
+    <ID>UnusedParameter:GameDatabase.kt$GameDatabase.Companion$context: Context</ID>
+    <ID>UnusedParameter:GameDatabaseMigrationSupport.kt$sourceColumns: List&lt;String&gt;</ID>
+    <ID>UnusedParameter:RoomMigrationTest.kt$RoomMigrationTest$toVersion: Int</ID>
+    <ID>UnusedParameter:StorageEngine.kt$StorageEngine$data: SaveData</ID>
+    <ID>UnusedParameter:StorageEngine.kt$StorageEngine$priority: SavePriority = SavePriority.NORMAL</ID>
+    <ID>UnusedParameter:StorageValidator.kt$StorageValidator$key: ByteArray</ID>
+    <ID>UnusedParameter:UnifiedSerializationEngine.kt$UnifiedSerializationEngine$dataSize: Int</ID>
+    <ID>UnusedPrivateMember:DataCompressor.kt$DataCompressor$private fun compressZstd(data: ByteArray): ByteArray</ID>
+    <ID>UnusedPrivateMember:DynamicMemoryManager.kt$DynamicMemoryManager$private fun notifyPressureChanged(snapshot: MemorySnapshot)</ID>
+    <ID>UnusedPrivateMember:DynamicMemoryManager.kt$DynamicMemoryManager$private fun notifyWarning(event: MemoryWarningEvent)</ID>
+    <ID>UnusedPrivateMember:RoomMigrationTest.kt$RoomMigrationTest$private fun insertMinimalGameDataRow( db: SupportSQLiteDatabase, id: String, slotId: Int )</ID>
+    <ID>UnusedPrivateMember:SaveCrypto.kt$SaveCrypto$private fun deriveKey(password: String, salt: ByteArray): ByteArray</ID>
+    <ID>UnusedPrivateMember:SaveCrypto.kt$SaveCrypto$private fun deriveKeyWithIterations( password: String, salt: ByteArray, iterations: Int ): ByteArray</ID>
+    <ID>UnusedPrivateProperty:BackupStrategy.kt$BackupStrategy.Companion$private const val TAG = "BackupStrategy"</ID>
+    <ID>UnusedPrivateProperty:CacheLayer.kt$GameDataCacheManager$@Volatile private var slotIsolationEnabled: Boolean = true</ID>
+    <ID>UnusedPrivateProperty:CacheLayer.kt$GameDataCacheManager$private var lastMemoryCheckTime = AtomicLong(System.currentTimeMillis())</ID>
+    <ID>UnusedPrivateProperty:CacheLayer.kt$GameDataCacheManager.Companion$private const val CLEANUP_INTERVAL_MS = 30_000L</ID>
+    <ID>UnusedPrivateProperty:ChangeLogPersistence.kt$ChangeLogPersistence.Companion$private const val CLEANUP_BATCH_SIZE = 500</ID>
+    <ID>UnusedPrivateProperty:CryptoHashUtilsTest.kt$CryptoHashUtilsTest$private val testPassword = "MySecurePassword123!"</ID>
+    <ID>UnusedPrivateProperty:CryptoModule.kt$IntegrityValidator$private const val SIGNATURE_LENGTH = 64</ID>
+    <ID>UnusedPrivateProperty:DataArchiver.kt$DataArchiver$val checksum = computeChecksum(serialized)</ID>
+    <ID>UnusedPrivateProperty:DynamicMemoryManager.kt$DynamicMemoryManager.Companion$/** RAM 分级阈值（字节） */ private val TIER_LOW_MAX = 4L * 1024 * 1024 * 1024 // 4 GB</ID>
+    <ID>UnusedPrivateProperty:DynamicMemoryManager.kt$DynamicMemoryManager.Companion$private val TIER_HIGH_MAX = 8L * 1024 * 1024 * 1024 // 8 GB</ID>
+    <ID>UnusedPrivateProperty:DynamicMemoryManager.kt$DynamicMemoryManager.Companion$private val TIER_MEDIUM_MAX = 6L * 1024 * 1024 * 1024 // 6 GB</ID>
+    <ID>UnusedPrivateProperty:EnumConverters.kt$EnumConverters$private val protoBuf = NullSafeProtoBuf.roomProtoBuf</ID>
+    <ID>UnusedPrivateProperty:GameStateRepository.kt$GameStateRepository$private val buildingSlotDao: BuildingSlotDao</ID>
+    <ID>UnusedPrivateProperty:GameStateRepository.kt$GameStateRepository$private val changeLogDao: ChangeLogDao</ID>
+    <ID>UnusedPrivateProperty:GameStateRepository.kt$GameStateRepository$private val productionSlotDao: ProductionSlotDao</ID>
+    <ID>UnusedPrivateProperty:GameStateRepository.kt$GameStateRepository$private val recipeDao: RecipeDao</ID>
+    <ID>UnusedPrivateProperty:GameStateRepository.kt$GameStateRepository.Companion$private const val WRITE_BATCH_DEBOUNCE_MS = 500L</ID>
+    <ID>UnusedPrivateProperty:SaveCrypto.kt$SaveCrypto$/** * 历史版本 PBKDF2 迭代次数�?0,000（OWASP 2021 推荐值，已过时） * * 用途：仅作为版本化记录�? * 若迭代次数再次变更，需根据此常量实现兼容解密逻辑�? * * 版本化策略详见文件头�?"迭代次数版本化策�? 章节�? */ private const val PBKDF2_LEGACY_ITERATIONS = 60_000</ID>
+    <ID>UnusedPrivateProperty:SaveCrypto.kt$SaveCrypto$val specClass = Class.forName("javax.crypto.spec.Argon2ParameterSpec")</ID>
+    <ID>UnusedPrivateProperty:SecureKeyManager.kt$SecureKeyManager$private const val SALT_LENGTH = 32</ID>
+    <ID>UnusedPrivateProperty:SecureKeyManager.kt$SecureKeyManager$val tokenData = StringBuilder().apply { append("v=1|") append("ts=").append(timestamp).append("|") append("af=").append(accountFactor).append("|") append("df=").append(deviceFingerprint).append("|") append("pkg=").append(context.packageName) }.toString()</ID>
+    <ID>UnusedPrivateProperty:SessionManager.kt$SessionManager.Companion$private const val TAG = "SessionManager"</ID>
+    <ID>UnusedPrivateProperty:SlotLockManager.kt$SlotLockManager.Companion$private const val TAG = "SlotLockManager"</ID>
+    <ID>UnusedPrivateProperty:StorageEngine.kt$StorageEngine$private val repository: GameStateRepository</ID>
+    <ID>UnusedPrivateProperty:StorageEngine.kt$StorageEngine$private val stateStore: GameStateStore</ID>
+    <ID>UnusedPrivateProperty:StorageEngine.kt$StorageEngine$val now = System.currentTimeMillis()</ID>
+    <ID>UnusedPrivateProperty:StorageFacade.kt$StorageFacade$@ApplicationContext private val context: Context</ID>
+    <ID>UnusedPrivateProperty:StorageMetrics.kt$StorageMetrics.Companion$private const val TAG = "StorageMetrics"</ID>
+    <ID>UnusedPrivateProperty:StorageSystemBenchmark.kt$StorageSystemBenchmark$val deResult = serializationEngine.deserialize(result.data, context, BenchmarkSaveData.serializer())</ID>
+    <ID>UseCheckOrError:SaveFileManager.kt$SaveFileManager$throw IllegalStateException("SaveFileManager 未初始化 — 请先调用 initialize()")</ID>
+    <ID>UseCheckOrError:SecureKeyManager.kt$SecureKeyManager$throw IllegalStateException("Failed to generate secure random secret")</ID>
+    <ID>UseCheckOrError:SecureKeyManager.kt$SecureKeyManager$throw IllegalStateException("Failed to store hardware secret")</ID>
+    <ID>UseRequire:DataArchiver.kt$DataArchiver$throw IllegalArgumentException("Expected ${expectedType.name}, got ${batch.dataType.name}")</ID>
+    <ID>UseRequire:SaveDataReconcilerTest.kt$throw IllegalArgumentException("truncated varint at offset=$offset")</ID>
+    <ID>UseRequire:SaveDataReconcilerTest.kt$throw IllegalArgumentException("varint too long at offset=$offset")</ID>
+    <ID>UseRequire:SecureKeyManager.kt$SecureKeyManager$throw IllegalArgumentException("Invalid encrypted key length: ${encryptedKey.size}, min: $minLen")</ID>
+    <ID>UseRequire:SecureKeyManager.kt$SecureKeyManager$throw IllegalArgumentException("Invalid token format")</ID>
+    <ID>UseRequire:SecureKeyManager.kt$SecureKeyManager$throw IllegalArgumentException("Recovered key has invalid size")</ID>
+    <ID>VariableNaming:ProtoNumberCoverageTest.kt$ProtoNumberCoverageTest$/** * 不可用 @Transient 排除的字段（如 computed property）， * 仍需要手动加入此列表，并注明原因。 * * 所有可添加 @Transient 的运行时字段应直接标注 @kotlinx.serialization.Transient， * 不应写入此表。此表仅为无法标注 @Transient 的字段提供逃生门。 */ private val EXCLUDED_FIELDS = mapOf( // GameData 计算属性（仅 getter，无 backing field → 无 @Transient） "displayTime" to "格式化显示时间 getter", "worldMap" to "世界地图聚合 getter", "buildings" to "建筑状态聚合 getter", "economy" to "经济状态聚合 getter", "organization" to "组织架构聚合 getter", "exploration" to "探索状态聚合 getter", "isPlayerProtected" to "玩家保护状态计算 getter", "playerProtectionRemainingYears" to "玩家保护剩余年数计算 getter", )</ID>
+    <ID>VariableNaming:ProtoNumberCoverageTest.kt$ProtoNumberCoverageTest$/** 类型/类的跳过列表 — 非序列化实体或枚举 */ private val SKIP_TYPES = setOf( java.lang.String::class, java.util.UUID::class, )</ID>
+    <ID>VariableNaming:RoomMigrationTest.kt$RoomMigrationTest$val REAL_DB_NAME = "xianxia_sect.db"</ID>
+    <ID>VariableNaming:StorageSystemBenchmark.kt$StorageSystemBenchmark$private val ITERATIONS_LARGE = 10</ID>
+    <ID>VariableNaming:StorageSystemBenchmark.kt$StorageSystemBenchmark$private val ITERATIONS_MEDIUM = 20</ID>
+    <ID>VariableNaming:StorageSystemBenchmark.kt$StorageSystemBenchmark$private val ITERATIONS_SMALL = 50</ID>
+    <ID>VariableNaming:StorageSystemBenchmark.kt$StorageSystemBenchmark$val CHECKSUM_SIZE = 32</ID>
+    <ID>VariableNaming:StorageSystemBenchmark.kt$StorageSystemBenchmark$val MAGIC = byteArrayOf(0x57, 0x34)</ID>
+    <ID>VariableNaming:StorageSystemBenchmark.kt$StorageSystemBenchmark$val WAL_HEADER_SIZE = 27</ID>
+    <ID>WildcardImport:AgeLifespanRuleTest.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:AgeLifespanRuleTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:BattleLogDao.kt$import androidx.room.*</ID>
+    <ID>WildcardImport:BuildingRefRuleTest.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:BuildingRefRuleTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:CacheKeyTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:CacheLayer.kt$import kotlinx.coroutines.*</ID>
+    <ID>WildcardImport:CollectionConverters.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:CompressedDataTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:CompressionAlgorithmTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:CryptoHashUtilsTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:CultivationCapRuleTest.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:CultivationCapRuleTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:DataCompressorTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:DiplomacyStateDao.kt$import androidx.room.*</ID>
+    <ID>WildcardImport:DiscipleAgePositiveRuleTest.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:DiscipleAgePositiveRuleTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:DiscipleDeadStatusRuleTest.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:DiscipleDeadStatusRuleTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:DiscipleRealmConsistencyRuleTest.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:DiscipleRealmConsistencyRuleTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:DiscipleSubDaos.kt$import androidx.room.*</ID>
+    <ID>WildcardImport:DiscipleSubDaos.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:DuplicateDiscipleIdRuleTest.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:DuplicateDiscipleIdRuleTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:EnumConverters.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:EnumStringConverters.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:EquipmentDaos.kt$import androidx.room.*</ID>
+    <ID>WildcardImport:EquipmentDaos.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:EquipmentRefRuleTest.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:EquipmentRefRuleTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:GameDatabase.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:GameDatabaseTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:GameDateRuleTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:GamePhaseRangeRuleTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:GameStateRepository.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:GameStateRepository.kt$import com.xianxia.sect.data.local.*</ID>
+    <ID>WildcardImport:GameStateRepository.kt$import kotlinx.coroutines.*</ID>
+    <ID>WildcardImport:GameStateRepository.kt$import kotlinx.coroutines.flow.*</ID>
+    <ID>WildcardImport:GhostDiscipleCleanupRuleTest.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:GhostDiscipleCleanupRuleTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:GhostRefCleanupRuleTest.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:GhostRefCleanupRuleTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:IntegrityValidatorTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:InventoryDaos.kt$import androidx.room.*</ID>
+    <ID>WildcardImport:InventoryDaos.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:MailDao.kt$import androidx.room.*</ID>
+    <ID>WildcardImport:ManualDaos.kt$import androidx.room.*</ID>
+    <ID>WildcardImport:ManualDaos.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:MiscDaos.kt$import androidx.room.*</ID>
+    <ID>WildcardImport:MiscDaos.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:NullSafeProtoBufTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:OldSaveCompat.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:OldSaveCompat.kt$import com.xianxia.sect.data.serialization.unified.*</ID>
+    <ID>WildcardImport:OldSerializableSaveData.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:OldSerializableSaveData.kt$import kotlinx.serialization.*</ID>
+    <ID>WildcardImport:PatrolStateDao.kt$import androidx.room.*</ID>
+    <ID>WildcardImport:ProductionDaos.kt$import androidx.room.*</ID>
+    <ID>WildcardImport:ProductionDaos.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:ProductionSlotDao.kt$import androidx.room.*</ID>
+    <ID>WildcardImport:ProductionStateDao.kt$import androidx.room.*</ID>
+    <ID>WildcardImport:ProtobufConverters.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:ProtobufConvertersTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:RoomMigrationTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:RuleContextTest.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:RuleContextTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:SaveData.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:SaveFileManagerTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:SaveResultTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:SaveSlotTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:SaveValidationRuleRegistryTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:SaveValidatorIntegrationTest.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:SaveValidatorIntegrationTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:SaveValidatorTest.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:SaveValidatorTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:SectNameRuleTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:SectPolicyStateDao.kt$import androidx.room.*</ID>
+    <ID>WildcardImport:SecureKeyManager.kt$import java.io.*</ID>
+    <ID>WildcardImport:SecureKeyManager.kt$import java.security.*</ID>
+    <ID>WildcardImport:SecureKeyManager.kt$import javax.crypto.*</ID>
+    <ID>WildcardImport:SecureKeyManager.kt$import javax.crypto.spec.*</ID>
+    <ID>WildcardImport:SecureKeyTypesTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:SlotLockManagerTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:SpiritStoneNonNegativeRuleTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:StorageConstantsTest.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:StorageConstantsTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:StorageEngine.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:StorageResultTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:StorageSystemBenchmark.kt$import com.xianxia.sect.data.serialization.unified.*</ID>
+    <ID>WildcardImport:StorageSystemBenchmark.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:StorageValidatorTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:WALDataClassesTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:WorldMapStateDao.kt$import androidx.room.*</ID>
+  </CurrentIssues>
+</SmellBaseline>

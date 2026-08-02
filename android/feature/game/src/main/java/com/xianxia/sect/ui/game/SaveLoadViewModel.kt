@@ -152,14 +152,16 @@ class SaveLoadViewModel @Inject constructor(
 
     fun isCloudSaveAvailable(): Boolean = persistenceFacade.sessionManager.isLoggedIn
 
+    // P-8：unifiedState（20Hz 锁竞争 + 50ms 采样延迟）→ 独立窄流直连（零延迟）
     val saveLoadState: StateFlow<SaveLoadState> = combine(
-        stateStore.unifiedState,
+        stateStore.isSaving,
+        stateStore.isLoading,
         _pendingSlot,
         _pendingAction
-    ) { engineState, slot, action ->
+    ) { isSaving, isLoading, slot, action ->
         SaveLoadState(
-            isSaving = engineState.isSaving,
-            isLoading = engineState.isLoading,
+            isSaving = isSaving,
+            isLoading = isLoading,
             pendingSlot = slot,
             pendingAction = action
         )
@@ -204,12 +206,17 @@ class SaveLoadViewModel @Inject constructor(
         pendingSlot: Int? = _pendingSlot.value,
         pendingAction: String? = _pendingAction.value
     ) {
-        val current = stateStore.unifiedState.value
-        val finalIsSaving = isSaving ?: current.isSaving
-        val finalIsLoading = isLoading ?: current.isLoading
-
-        try { stateStore.update { this.isLoading = finalIsLoading } } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "Failed to sync isLoading to stateStore: ${e.message}") }
-        try { stateStore.update { this.isSaving = finalIsSaving } } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "Failed to sync isSaving to stateStore: ${e.message}") }
+        // Q-1：isSaving/isLoading 同步收敛到引擎原子入口（单事务设置两标志）
+        val finalIsSaving = isSaving ?: stateStore.isSaving.value
+        val finalIsLoading = isLoading ?: stateStore.isLoading.value
+        if (isSaving != null || isLoading != null) {
+            try {
+                gameEngine.setSaveLoadFlags(finalIsSaving, finalIsLoading)
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
+                Log.w(TAG, "Failed to sync save/load flags to stateStore: ${e.message}")
+            }
+        }
 
         _pendingSlot.value = pendingSlot
         _pendingAction.value = pendingAction
@@ -221,8 +228,11 @@ class SaveLoadViewModel @Inject constructor(
 
     fun resetSaveLoadState() {
         gameEngine.launchOnEngine {
-            try { stateStore.update { isLoading = false } } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "resetSaveLoadState: setLoading failed: ${e.message}") }
-            try { stateStore.update { isSaving = false } } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "resetSaveLoadState: setSaving failed: ${e.message}") }
+            // Q-1：收敛到引擎原子入口（单事务设置两标志）
+            try {
+                gameEngine.setSaveLoadFlags(false, false)
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) { Log.w(TAG, "resetSaveLoadState: setSaveLoadFlags failed: ${e.message}") }
         }
         _pendingSlot.value = null
         _pendingAction.value = null
@@ -324,7 +334,7 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     fun startNewGame(sectName: String, slot: Int = 1) {
-        if (stateStore.unifiedState.value.isLoading && _loadingProgress.value < PROGRESS_COMPLETE) {
+        if (stateStore.isLoading.value && _loadingProgress.value < PROGRESS_COMPLETE) {
             Log.w(TAG, "Already loading with progress ${_loadingProgress.value}, ignoring startNewGame request")
             return
         }
@@ -338,6 +348,16 @@ class SaveLoadViewModel @Inject constructor(
         val startTime = System.currentTimeMillis()
 
         viewModelScope.launch(ioDispatcher.dispatcher) {
+            // C-8：新游戏主流程提取（行为逐行一致）
+            performStartNewGame(sectName, slot, startTime)
+        }.also { gameEngineCore.registerActiveLoadJob(it) }
+    }
+
+    /**
+     * C-8：新游戏主流程（startNewGame 协程体提取）。
+     * 创建新游戏 → RNG 播种 → 首存（失败重试一次）→ BootSequenceController 启动。
+     */
+    private suspend fun performStartNewGame(sectName: String, slot: Int, startTime: Long) {
             var needSlotRefresh = false
             var gameStarted = false
             try {
@@ -368,7 +388,7 @@ class SaveLoadViewModel @Inject constructor(
                 if (!saveSuccess) {
                     Log.e(TAG, "=== startNewGame SAVE FAILED AFTER RETRY === aborting game start for slot $slot")
                     showError("保存失败，无法启动游戏。请检查存储空间后重试。")
-                    return@launch
+                    return
                 }
 
                 // BootSequenceController 统一处理：建筑修正、BootPhase 推进、资源预加载、
@@ -405,12 +425,13 @@ class SaveLoadViewModel @Inject constructor(
                 Log.e(TAG, "=== startNewGame FAILED === error=${e.message}", e)
                 showError(e.message ?: "开始新游戏失败")
             } finally {
+                // S1 修复：NonCancellable 保证取消路径复位（详见 performLoadToSlot finally 注释）
                 try {
-                    setSaveLoadState(isLoading = false, pendingSlot = null, pendingAction = null)
-                } catch (e: CancellationException) { throw e }
-                  catch (resetEx: Exception) {
-                    Log.e(TAG, "startNewGame: Failed to reset loading state in finally block, forcing direct reset", resetEx)
-                    try { gameEngine.setSaveLoadFlags(false, false) } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "stateStore.update fallback also failed: ${e.message}") }
+                    withContext(NonCancellable) {
+                        gameEngine.setSaveLoadFlags(false, false)
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "startNewGame: Failed to reset loading state in finally block", e)
                     _pendingSlot.value = null
                     _pendingAction.value = null
                 }
@@ -427,7 +448,6 @@ class SaveLoadViewModel @Inject constructor(
                     }
                 }
             }
-        }.also { gameEngineCore.registerActiveLoadJob(it) }
     }
 
     private suspend fun performSynchronousSave(slot: Int): Boolean {
@@ -491,11 +511,11 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     fun loadGame(saveSlot: SaveSlot) {
-        if (stateStore.unifiedState.value.isLoading) {
+        if (stateStore.isLoading.value) {
             Log.w(TAG, "Already loading, ignoring loadGame request")
             return
         }
-        if (stateStore.unifiedState.value.isSaving) {
+        if (stateStore.isSaving.value) {
             Log.w(TAG, "Currently saving, ignoring loadGame request")
             showError("正在保存中，请稍后读档")
             return
@@ -517,6 +537,16 @@ class SaveLoadViewModel @Inject constructor(
         val startTime = System.currentTimeMillis()
 
         viewModelScope.launch(ioDispatcher.dispatcher) {
+            // C-8：读档主流程提取（行为逐行一致）
+            performLoadToSlot(saveSlot, startTime)
+        }.also { gameEngineCore.registerActiveLoadJob(it) }
+    }
+
+    /**
+     * C-8：读档主流程（loadGame 协程体提取）。
+     * 读取存档 → 引擎加载 → RNG 恢复 → BootSequenceController 启动。
+     */
+    private suspend fun performLoadToSlot(saveSlot: SaveSlot, startTime: Long) {
             try {
                 setSaveLoadState(isLoading = true, pendingSlot = saveSlot.slot, pendingAction = "load")
 
@@ -540,7 +570,7 @@ class SaveLoadViewModel @Inject constructor(
                     val elapsed = System.currentTimeMillis() - loadStartTime
                     Log.e(TAG, "=== loadGame FAILED === timeout or null for slot ${saveSlot.slot}, elapsed=${elapsed}ms")
                     showError(if (elapsed >= 60_000L) "读档超时，请重试" else "存档为空或已损坏，请重试")
-                    return@launch
+                    return
                 }
 
                 val effectiveSlot = saveSlot.slot
@@ -608,19 +638,21 @@ class SaveLoadViewModel @Inject constructor(
                 Log.e(TAG, "=== loadGame FAILED === error=${e.message}", e)
                 showError("加载游戏失败: ${e.message}")
             } finally {
+                // S1 修复：finally 复位必须用 NonCancellable——setSaveLoadFlags 是挂起函数，
+                // 看门狗取消协程后挂起调用立即抛 CancellationException 截断 finally，
+                // 导致 loadLock 泄漏（读档永久拒绝）与 isSaving/isLoading 永不复位。
                 try {
-                    setSaveLoadState(isLoading = false, pendingSlot = null, pendingAction = null)
-                } catch (e: CancellationException) { throw e }
-                  catch (resetEx: Exception) {
-                    Log.e(TAG, "loadGame: Failed to reset loading state in finally block, forcing direct reset", resetEx)
-                    try { gameEngine.setSaveLoadFlags(false, false) } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "stateStore.update fallback also failed: ${e.message}") }
+                    withContext(NonCancellable) {
+                        gameEngine.setSaveLoadFlags(false, false)
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "loadGame: Failed to reset loading state in finally block", e)
                     _pendingSlot.value = null
                     _pendingAction.value = null
                 }
                 loadLock.set(false)
                 gameEngineCore.clearActiveLoadJob()
             }
-        }.also { gameEngineCore.registerActiveLoadJob(it) }
     }
 
     fun loadGameFromSlot(slot: Int) {
@@ -674,13 +706,20 @@ class SaveLoadViewModel @Inject constructor(
             return
         }
         viewModelScope.launch(ioDispatcher.dispatcher) {
+            // C-8：云读档主流程提取（行为逐行一致）
+            performCloudLoad()
+        }
+    }
+
+    /** C-8：云读档主流程（loadFromCloudSave 协程体提取）。 */
+    private suspend fun performCloudLoad() {
             try {
                 _loadingProgress.value = 0.1f
                 _preloadPhase.value = SaveLoadViewModelConstants.PHASE_CLOUD_SYNC
 
                 if (!isCloudSaveAvailable()) {
                     showError("请先登录 TapTap")
-                    return@launch
+                    return
                 }
 
                 val result = persistenceFacade.tapCloudSaveManager.downloadSave()
@@ -690,7 +729,7 @@ class SaveLoadViewModel @Inject constructor(
                         val saveData = result.saveData
                         if (saveData == null) {
                             showError("云存档数据为空")
-                            return@launch
+                            return
                         }
 
                         // 从云存档数据中提取 slot，写入本地
@@ -744,7 +783,6 @@ class SaveLoadViewModel @Inject constructor(
             } finally {
                 cloudDownloadLock.set(false)
             }
-        }
     }
 
     fun saveGame(slotId: String? = null) {
@@ -752,35 +790,7 @@ class SaveLoadViewModel @Inject constructor(
 
         // slot 0 = 上传至云端（带 saveLoadState 管理 + 结果反馈）
         if (slot == 0) {
-            viewModelScope.launch(ioDispatcher.dispatcher) {
-                resetCloudSaveOperationState()
-                setSaveLoadState(isSaving = true, pendingSlot = 0, pendingAction = "save")
-                try {
-                    uploadToCloudSave()
-                    // 等待云端操作完成（Uploading → Success/Error）
-                    _cloudSaveOperationState.first {
-                        it is CloudSaveOperationState.Success || it is CloudSaveOperationState.Error
-                    }
-                    when (val state = _cloudSaveOperationState.value) {
-                        is CloudSaveOperationState.Success -> {
-                            showSuccess(state.message)
-                            try {
-                                _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
-                            } catch (e: CancellationException) { throw e }
-                              catch (e: Exception) {
-                                Log.w(TAG, "Failed to refresh slots after cloud save", e)
-                            }
-                        }
-                        is CloudSaveOperationState.Error -> showError(state.message)
-                        else -> {} // Idle 不应出现
-                    }
-                } catch (e: CancellationException) { throw e }
-                  catch (e: Exception) {
-                    showError("上传失败: ${e.message}")
-                } finally {
-                    setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
-                }
-            }
+            saveToCloudViaSlot()
             return
         }
 
@@ -789,7 +799,15 @@ class SaveLoadViewModel @Inject constructor(
             return
         }
 
-        if (stateStore.unifiedState.value.isLoading || loadLock.get()) {
+        // S12 修复（对抗性审查）：isSaving 守卫——原无此检查，快速连点两次保存时
+        // 后一次会覆写前一次的 isSaving 标志（保存 B 期间 tick 恢复 → torn 存档）
+        if (stateStore.isSaving.value) {
+            Log.w(TAG, "Currently saving, ignoring saveGame request")
+            showError("正在保存中，请稍后")
+            return
+        }
+
+        if (stateStore.isLoading.value || loadLock.get()) {
             Log.w(TAG, "Load in progress, ignoring saveGame request")
             showError("正在读档中，请稍后保存")
             return
@@ -805,13 +823,24 @@ class SaveLoadViewModel @Inject constructor(
         val startTime = System.currentTimeMillis()
 
         viewModelScope.launch(ioDispatcher.dispatcher) {
+            // C-8：本地保存流程提取（行为逐行一致）
+            val previousSlot = persistenceFacade.storageFacade.getCurrentSlot()
+            performLocalSaveToSlot(slot, previousSlot, startTime)
+        }
+    }
+
+    /**
+     * C-8：本地保存主流程（saveGame 协程体提取）。
+     * 快照 → 校验 → 保存 → 结果反馈 → 失败回滚 currentSlot。
+     */
+    private suspend fun performLocalSaveToSlot(slot: Int, previousSlot: Int, startTime: Long) {
             setSaveLoadState(isSaving = true, pendingSlot = slot, pendingAction = "save")
 
             try {
                 if (!waitForSaveLock(timeoutMs = 5000)) {
                     Log.e(TAG, "=== saveGame FAILED === saveLock busy after timeout")
                     showError("保存操作繁忙，请稍后重试")
-                    return@launch
+                    return
                 }
 
                 val previousSlot = persistenceFacade.storageFacade.getCurrentSlot()
@@ -828,7 +857,7 @@ class SaveLoadViewModel @Inject constructor(
                         Log.e(TAG, "=== saveGame FAILED === gameData not initialized (sectName is blank)")
                         persistenceFacade.storageFacade.setCurrentSlot(previousSlot)
                         showError("游戏数据未初始化")
-                        return@launch
+                        return
                     }
                     val updatedGameData = snapshot.gameData.copy(currentSlot = slot)
                     val saveData = trimSaveData(snapshot).copy(gameData = updatedGameData)
@@ -877,17 +906,53 @@ class SaveLoadViewModel @Inject constructor(
                     saveLock.set(false)
                 }
             } finally {
+                // S1 修复：NonCancellable 保证取消路径复位（详见 performLoadToSlot finally 注释）
                 try {
-                    setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
-                } catch (e: CancellationException) { throw e }
-                  catch (resetEx: Exception) {
-                    Log.e(TAG, "saveGame: Failed to reset saving state in finally block, forcing direct reset", resetEx)
-                    try { gameEngine.setSaveLoadFlags(false, false) } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.w(TAG, "stateStore.update fallback also failed: ${e.message}") }
+                    withContext(NonCancellable) {
+                        gameEngine.setSaveLoadFlags(false, false)
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "saveGame: Failed to reset saving state in finally block", e)
                     _pendingSlot.value = null
                     _pendingAction.value = null
                 }
-                            }
-        }.also {  }
+            }
+    }
+
+    /**
+     * C-8：slot=0 云保存流程（带 saveLoadState 管理 + 结果反馈）。
+     * 从 saveGame 拆分（2026-08-02），行为逐行一致。
+     */
+    private fun saveToCloudViaSlot() {
+        viewModelScope.launch(ioDispatcher.dispatcher) {
+            resetCloudSaveOperationState()
+            setSaveLoadState(isSaving = true, pendingSlot = 0, pendingAction = "save")
+            try {
+                uploadToCloudSave()
+                // 等待云端操作完成（Uploading → Success/Error）
+                _cloudSaveOperationState.first {
+                    it is CloudSaveOperationState.Success || it is CloudSaveOperationState.Error
+                }
+                when (val state = _cloudSaveOperationState.value) {
+                    is CloudSaveOperationState.Success -> {
+                        showSuccess(state.message)
+                        try {
+                            _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend()
+                        } catch (e: CancellationException) { throw e }
+                          catch (e: Exception) {
+                            Log.w(TAG, "Failed to refresh slots after cloud save", e)
+                        }
+                    }
+                    is CloudSaveOperationState.Error -> showError(state.message)
+                    else -> {} // Idle 不应出现
+                }
+            } catch (e: CancellationException) { throw e }
+              catch (e: Exception) {
+                showError("上传失败: ${e.message}")
+            } finally {
+                setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
+            }
+        }
     }
 
     private suspend fun waitForSaveLock(timeoutMs: Long): Boolean {
@@ -931,7 +996,7 @@ class SaveLoadViewModel @Inject constructor(
             return
         }
 
-        if (stateStore.unifiedState.value.isLoading || _isRestarting.value) {
+        if (stateStore.isLoading.value || _isRestarting.value) {
             Log.w(TAG, "Already loading or restarting, ignoring restartGame request")
             saveLock.set(false)
             return
@@ -945,7 +1010,16 @@ class SaveLoadViewModel @Inject constructor(
         }
 
         viewModelScope.launch(ioDispatcher.dispatcher) {
-            val wasRunning = _isTimeRunning.value
+            // C-8：重启主流程提取（行为逐行一致）
+            performRestartGame(wasRunning = _isTimeRunning.value)
+        }.also { gameEngineCore.registerActiveLoadJob(it) }
+    }
+
+    /**
+     * C-8：重启主流程（restartGame 协程体提取）。
+     * 停止循环 → 重置引擎 → RNG 重新播种 → 重启存档 → BootSequenceController 启动。
+     */
+    private suspend fun performRestartGame(wasRunning: Boolean) {
             var previousSlot = 1
             try {
                 _isRestarting.value = true
@@ -955,7 +1029,7 @@ class SaveLoadViewModel @Inject constructor(
                     if (!stopped) {
                         Log.e(TAG, "Failed to stop game loop within timeout")
                         showError("无法停止游戏循环，请重试")
-                        return@launch
+                        return
                     }
                     _isTimeRunning.value = false
                     Log.d(TAG, "Game loop stopped for restart operation")
@@ -1025,13 +1099,12 @@ class SaveLoadViewModel @Inject constructor(
             } finally {
                 _isRestarting.value = false
                 saveLock.set(false)
-                                // 兜底：若 boot() 未执行（提前 return），则仅记录日志
+                // 兜底：若 boot() 未执行（提前 return），则仅记录日志
                 // BootSequenceController.boot() 在内部已处理游戏循环恢复
                 if (wasRunning && !_isTimeRunning.value) {
                     Log.w(TAG, "restartGame: game loop not running after restart finally, boot() may have failed")
                 }
             }
-        }.also { gameEngineCore.registerActiveLoadJob(it) }
     }
 
     private suspend fun performRestartSave(slot: Int, previousSlot: Int): Boolean {
@@ -1132,8 +1205,8 @@ class SaveLoadViewModel @Inject constructor(
         gameEngine.launchOnEngine {
             gameEngineCore.resume()
         }
-        if (!isGameLoaded || stateStore.unifiedState.value.isLoading) {
-            Log.d(TAG, "resumeGameLoop: Skipping startGameLoop - isGameLoaded=$isGameLoaded, isLoading=${stateStore.unifiedState.value.isLoading}")
+        if (!isGameLoaded || stateStore.isLoading.value) {
+            Log.d(TAG, "resumeGameLoop: Skipping startGameLoop - isGameLoaded=$isGameLoaded, isLoading=${stateStore.isLoading.value}")
             return
         }
         startGameLoop()
@@ -1163,9 +1236,16 @@ class SaveLoadViewModel @Inject constructor(
         if (_cloudSaveOperationState.value is CloudSaveOperationState.Uploading ||
             _cloudSaveOperationState.value is CloudSaveOperationState.Downloading) return
         viewModelScope.launch(ioDispatcher.dispatcher) {
+            // C-8：云上传主流程提取（行为逐行一致）
+            performCloudUpload()
+        }
+    }
+
+    /** C-8：云上传主流程（uploadToCloudSave 协程体提取）。 */
+    private suspend fun performCloudUpload() {
             if (!isCloudSaveAvailable()) {
                 _cloudSaveOperationState.value = CloudSaveOperationState.Error("请先登录TapTap账号")
-                return@launch
+                return
             }
 
             _cloudSaveOperationState.value = CloudSaveOperationState.Uploading
@@ -1218,7 +1298,6 @@ class SaveLoadViewModel @Inject constructor(
               catch (e: Exception) {
                 _cloudSaveOperationState.value = CloudSaveOperationState.Error("上传失败: ${e.message}")
             }
-        }
     }
 
     fun downloadFromCloudSave() {
@@ -1227,10 +1306,17 @@ class SaveLoadViewModel @Inject constructor(
             return
         }
         viewModelScope.launch(ioDispatcher.dispatcher) {
+            // C-8：云下载主流程提取（行为逐行一致）
+            performCloudDownload()
+        }
+    }
+
+    /** C-8：云下载主流程（downloadFromCloudSave 协程体提取）。 */
+    private suspend fun performCloudDownload() {
             try {
                 if (!isCloudSaveAvailable()) {
                     _cloudSaveOperationState.value = CloudSaveOperationState.Error("请先登录TapTap账号")
-                    return@launch
+                    return
                 }
 
                 _cloudSaveOperationState.value = CloudSaveOperationState.Downloading
@@ -1242,7 +1328,7 @@ class SaveLoadViewModel @Inject constructor(
                         val saveData = result.saveData
                         if (saveData == null) {
                             _cloudSaveOperationState.value = CloudSaveOperationState.Error("云存档为空")
-                            return@launch
+                            return
                         }
 
                         // 跨版本兼容提示：云端存档版本与当前版本不同时仅警告不阻止
@@ -1311,7 +1397,6 @@ class SaveLoadViewModel @Inject constructor(
             } finally {
                 cloudDownloadLock.set(false)
             }
-        }
     }
 
     fun resetCloudSaveOperationState() {
@@ -1330,7 +1415,7 @@ class SaveLoadViewModel @Inject constructor(
             try {
                 // 等待保存完成（最长 2 秒，挂起式等待不阻塞主线程）
                 withTimeout(2000) {
-                    while (stateStore.unifiedState.value.isSaving) {
+                    while (stateStore.isSaving.value) {
                         delay(100)
                     }
                 }
@@ -1394,15 +1479,14 @@ class SaveLoadViewModel @Inject constructor(
     val timeSpeed: StateFlow<Int> = gameClock.speedFlow
         .stateIn(viewModelScope, SharingStarted.Lazily, 1)
 
-    val isPaused: StateFlow<Boolean> = gameEngineCore.state
-        .map { it.isPaused }
-        .stateIn(viewModelScope, SharingStarted.Lazily, true)
+    // S6 修复（对抗性审查）：P-8 漏迁——改用 isPaused 窄流（零采样延迟）
+    val isPaused: StateFlow<Boolean> = gameEngineCore.isPaused
 
     fun setTimeSpeed(speed: Int) {
         val clamped = speed.coerceIn(0, 2)
         _timeScale.value = clamped  // UI 即时反馈
         gameClock.setSpeed(clamped)
-        if (gameEngineCore.state.value.isPaused) {
+        if (gameEngineCore.isPausedDirect) {
             gameEngine.launchOnEngine {
                 gameEngineCore.resume()
             }

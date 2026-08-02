@@ -4,12 +4,21 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     // 2026-08-01：kover 覆盖率盲区修复——全模块纳入统计
     alias(libs.plugins.kover)
+    alias(libs.plugins.detekt)
 }
 
 def versionPropsFile = rootProject.file("../version.properties")
 def versionProps = new Properties()
 if (versionPropsFile.exists()) {
     versionProps.load(new FileInputStream(versionPropsFile))
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    allRules = false
+    config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
+    baseline = file("$projectDir/detekt-baseline.xml")
+    parallel = true
 }
 
 android {
@@ -34,6 +43,8 @@ tasks.withType(Test).configureEach {
 }
 
 dependencies {
+    // 自定义 Detekt 规则（game-engine 规则集，防 ANR #9041/#5068）
+    detektPlugins(project(':detekt-rules'))
     // Kotlinx
     implementation libs.serialization.json
     implementation libs.serialization.protobuf

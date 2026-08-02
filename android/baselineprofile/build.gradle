@@ -22,5 +22,5 @@ dependencies {
     implementation libs.test.ext.junit
     implementation libs.espresso.core
     implementation libs.uiautomator
-    implementation libs.benchmark.macro.junit5
+    implementation libs.benchmark.macro.junit4
 }

@@ -387,24 +387,76 @@ class BattleSystem @Inject constructor(
             .filter { !it.isDead }
             .sortedByDescending { it.effectiveSpeed }
 
-        var team = battle.team.toMutableList()
-        var beasts = battle.beasts.toMutableList()
-        var teamIndexMap = team.withIndex().associate { it.value.id to it.index }
-        var beastsIndexMap = beasts.withIndex().associate { it.value.id to it.index }
-        val actions = mutableListOf<BattleActionData>()
+        val ctx = TurnContext(
+            team = battle.team.toMutableList(),
+            beasts = battle.beasts.toMutableList(),
+            teamIndexMap = battle.team.withIndex().associate { it.value.id to it.index },
+            beastsIndexMap = battle.beasts.withIndex().associate { it.value.id to it.index },
+            actions = mutableListOf()
+        )
 
         for (combatant in allCombatants) {
             if (combatant.isDead) continue
+            val outcome = executeCombatantTurn(ctx, combatant)
+            if (outcome is TurnOutcome.EndBattle) {
+                return Pair(
+                    battle.copy(team = ctx.team, beasts = ctx.beasts, isFinished = true),
+                    BattleRoundData(battle.turn + 1, ctx.actions)
+                )
+            }
+        }
+
+        processDotEffects(ctx.team, ctx.beasts, ctx.actions)
+
+        return Pair(
+            battle.copy(
+                team = ctx.team,
+                beasts = ctx.beasts,
+                turn = battle.turn + 1
+            ),
+            BattleRoundData(battle.turn + 1, ctx.actions)
+        )
+    }
+
+    /** 回合执行上下文（C-6 拆分——随回合变化的可变战斗状态容器） */
+    private data class TurnContext(
+        val team: MutableList<Combatant>,
+        val beasts: MutableList<Combatant>,
+        val teamIndexMap: Map<String, Int>,
+        val beastsIndexMap: Map<String, Int>,
+        val actions: MutableList<BattleActionData>
+    )
+
+    /** 单参战者回合执行结果（C-6：早退/跳过信号） */
+    private sealed interface TurnOutcome {
+        data object Continue : TurnOutcome
+        data object EndBattle : TurnOutcome
+    }
+
+    /**
+     * 执行单参战者回合（C-6 从 executeTurnWithLog 循环体提取）。
+     *
+     * 控制效果检查 → 技能/攻击选择执行 → 行动记录 → 伤害结算 → 冷却/治疗/拉条。
+     * 逐行搬移（2026-08-02），RNG 调用顺序与内联时完全一致
+     * （rng 经类属性访问，GameRngManager 分区调用序不变）。
+     *
+     * @param ctx 回合上下文（team/beasts 原地修改）
+     * @param combatant 当前行动的参战者（按速度排序遍历）
+     * @return Continue 继续回合；EndBattle 敌方全灭提前结束
+     */
+    private fun executeCombatantTurn(ctx: TurnContext, combatant: Combatant): TurnOutcome {
+
+            if (combatant.isDead) return TurnOutcome.Continue
 
             val isTeamMember = combatant.side == CombatantSide.DEFENDER
-            val allies = if (isTeamMember) team else beasts
-            val enemies = if (isTeamMember) beasts else team
-            val alliesIndexMap = if (isTeamMember) teamIndexMap else beastsIndexMap
-            val enemiesIndexMap = if (isTeamMember) beastsIndexMap else teamIndexMap
+            val allies = if (isTeamMember) ctx.team else ctx.beasts
+            val enemies = if (isTeamMember) ctx.beasts else ctx.team
+            val alliesIndexMap = if (isTeamMember) ctx.teamIndexMap else ctx.beastsIndexMap
+            val enemiesIndexMap = if (isTeamMember) ctx.beastsIndexMap else ctx.teamIndexMap
 
             val aliveEnemies = enemies.filter { !it.isDead }
             if (aliveEnemies.isEmpty()) {
-                return Pair(battle.copy(team = team, beasts = beasts, isFinished = true), BattleRoundData(battle.turn + 1, actions))
+                return TurnOutcome.EndBattle
             }
 
             val currentCombatant = allies.find { it.id == combatant.id } ?: combatant
@@ -412,7 +464,7 @@ class BattleSystem @Inject constructor(
             if (currentCombatant.hasControlEffect) {
                 val stunBuff = currentCombatant.buffs.find { it.type == BuffType.STUN || it.type == BuffType.FREEZE }
                 if (stunBuff != null) {
-                    actions.add(BattleActionData(
+                    ctx.actions.add(BattleActionData(
                         type = "control",
                         attacker = currentCombatant.name,
                         attackerType = if (isTeamMember) "disciple" else if (currentCombatant.isBeast) "beast" else "disciple",
@@ -422,7 +474,7 @@ class BattleSystem @Inject constructor(
                         message = "${currentCombatant.name}因${stunBuff.type.displayName}无法行动！"
                     ))
                     updateCombatantBuffs(currentCombatant, allies, alliesIndexMap)
-                    continue
+                return TurnOutcome.Continue
                 }
             }
 
@@ -513,7 +565,7 @@ class BattleSystem @Inject constructor(
                 )
             }
 
-            actions.add(BattleActionData(
+            ctx.actions.add(BattleActionData(
                 type = when {
                     isSupportSkill -> "support"
                     availableSkill != null -> "skill"
@@ -521,7 +573,7 @@ class BattleSystem @Inject constructor(
                 },
                 attacker = currentCombatant.name,
                 attackerType = if (isTeamMember) "disciple" else if (currentCombatant.isBeast) "beast" else "disciple",
-                target = if (isSupportSkill) "team" else if (isAoeSkill) "全体敌人" else result.target.name,
+                target = if (isSupportSkill) "ctx.team" else if (isAoeSkill) "全体敌人" else result.target.name,
                 damage = if (isAoeSkill) totalDamage else result.damage,
                 damageType = if (isInstantKill) "必杀" else if (result.isSupport) "support" else if (result.isDodged) "闪避" else if (result.isPhysical) "物理" else "法术",
                 isCrit = results.any { it.isCrit },
@@ -541,64 +593,64 @@ class BattleSystem @Inject constructor(
                     val damageAfterShield = shieldResult.remainingDamage
                     val newHp = maxOf(0, r.target.hp - damageAfterShield)
                     if (isTeamMember) {
-                        beasts[targetIndex] = beasts[targetIndex].copy(hp = newHp)
+                        ctx.beasts[targetIndex] = ctx.beasts[targetIndex].copy(hp = newHp)
                         // Update shield buff if partially consumed
                         if (shieldResult.shieldBuff != null) {
-                            val shieldBuffs = beasts[targetIndex].buffs.map { b ->
+                            val shieldBuffs = ctx.beasts[targetIndex].buffs.map { b ->
                                 if (b.type == BuffType.SHIELD && b.remainingDuration == shieldResult.shieldBuff.remainingDuration)
-                                    b.copy(value = shieldResult.remainingShield.toDouble() / beasts[targetIndex].maxHp.coerceAtLeast(1))
+                                    b.copy(value = shieldResult.remainingShield.toDouble() / ctx.beasts[targetIndex].maxHp.coerceAtLeast(1))
                                 else b
                             }
-                            beasts[targetIndex] = beasts[targetIndex].copy(buffs = shieldBuffs)
+                            ctx.beasts[targetIndex] = ctx.beasts[targetIndex].copy(buffs = shieldBuffs)
                         }
                     } else {
-                        team[targetIndex] = team[targetIndex].copy(hp = newHp)
+                        ctx.team[targetIndex] = ctx.team[targetIndex].copy(hp = newHp)
                         if (shieldResult.shieldBuff != null) {
-                            val shieldBuffs = team[targetIndex].buffs.map { b ->
+                            val shieldBuffs = ctx.team[targetIndex].buffs.map { b ->
                                 if (b.type == BuffType.SHIELD && b.remainingDuration == shieldResult.shieldBuff.remainingDuration)
-                                    b.copy(value = shieldResult.remainingShield.toDouble() / team[targetIndex].maxHp.coerceAtLeast(1))
+                                    b.copy(value = shieldResult.remainingShield.toDouble() / ctx.team[targetIndex].maxHp.coerceAtLeast(1))
                                 else b
                             }
-                            team[targetIndex] = team[targetIndex].copy(buffs = shieldBuffs)
+                            ctx.team[targetIndex] = ctx.team[targetIndex].copy(buffs = shieldBuffs)
                         }
                     }
 
                     // Damage link: apply linked damage to the linked enemy
                     val linkedDmg = BattleCalculator.calculateLinkedDamage(
-                        currentCombatant, r.target, r.damage, beasts, team
+                        currentCombatant, r.target, r.damage, ctx.beasts, ctx.team
                     )
                     linkedDmg.forEach { (linkedId, linkDmg) ->
-                        val linkedInBeasts = beasts.indexOfFirst { it.id == linkedId }
-                        val linkedInTeam = team.indexOfFirst { it.id == linkedId }
+                        val linkedInBeasts = ctx.beasts.indexOfFirst { it.id == linkedId }
+                        val linkedInTeam = ctx.team.indexOfFirst { it.id == linkedId }
                         if (linkedInBeasts >= 0) {
-                            beasts[linkedInBeasts] = beasts[linkedInBeasts].copy(
-                                hp = maxOf(0, beasts[linkedInBeasts].hp - linkDmg)
+                            ctx.beasts[linkedInBeasts] = ctx.beasts[linkedInBeasts].copy(
+                                hp = maxOf(0, ctx.beasts[linkedInBeasts].hp - linkDmg)
                             )
                         } else if (linkedInTeam >= 0) {
-                            team[linkedInTeam] = team[linkedInTeam].copy(
-                                hp = maxOf(0, team[linkedInTeam].hp - linkDmg)
+                            ctx.team[linkedInTeam] = ctx.team[linkedInTeam].copy(
+                                hp = maxOf(0, ctx.team[linkedInTeam].hp - linkDmg)
                             )
                         }
                     }
 
                     // Damage share: redistribute damage to sharers
                     val shareDmg = BattleCalculator.calculateDamageShare(
-                        r.target.id, r.target.side, r.damage, team, beasts
+                        r.target.id, r.target.side, r.damage, ctx.team, ctx.beasts
                     )
                     shareDmg.forEach { (sharerId, shareDamage) ->
-                        val sharerInTeam = team.indexOfFirst { it.id == sharerId }
-                        val sharerInBeasts = beasts.indexOfFirst { it.id == sharerId }
+                        val sharerInTeam = ctx.team.indexOfFirst { it.id == sharerId }
+                        val sharerInBeasts = ctx.beasts.indexOfFirst { it.id == sharerId }
                         val shareAfterShield = BattleCalculator.calculateShieldAbsorption(
-                            if (sharerInTeam >= 0) team[sharerInTeam] else beasts[sharerInBeasts],
+                            if (sharerInTeam >= 0) ctx.team[sharerInTeam] else ctx.beasts[sharerInBeasts],
                             shareDamage
                         )
                         if (sharerInTeam >= 0) {
-                            team[sharerInTeam] = team[sharerInTeam].copy(
-                                hp = maxOf(0, team[sharerInTeam].hp - shareAfterShield.remainingDamage)
+                            ctx.team[sharerInTeam] = ctx.team[sharerInTeam].copy(
+                                hp = maxOf(0, ctx.team[sharerInTeam].hp - shareAfterShield.remainingDamage)
                             )
                         } else if (sharerInBeasts >= 0) {
-                            beasts[sharerInBeasts] = beasts[sharerInBeasts].copy(
-                                hp = maxOf(0, beasts[sharerInBeasts].hp - shareAfterShield.remainingDamage)
+                            ctx.beasts[sharerInBeasts] = ctx.beasts[sharerInBeasts].copy(
+                                hp = maxOf(0, ctx.beasts[sharerInBeasts].hp - shareAfterShield.remainingDamage)
                             )
                         }
                     }
@@ -611,13 +663,13 @@ class BattleSystem @Inject constructor(
                             remainingDuration = availableSkill.buffDuration,
                             sourceRealm = currentCombatant.realm
                         )
-                        if (isTeamMember && targetIndex < beasts.size) {
-                            beasts[targetIndex] = beasts[targetIndex].copy(
-                                buffs = beasts[targetIndex].buffs + debuff
+                        if (isTeamMember && targetIndex < ctx.beasts.size) {
+                            ctx.beasts[targetIndex] = ctx.beasts[targetIndex].copy(
+                                buffs = ctx.beasts[targetIndex].buffs + debuff
                             )
-                        } else if (targetIndex < team.size) {
-                            team[targetIndex] = team[targetIndex].copy(
-                                buffs = team[targetIndex].buffs + debuff
+                        } else if (targetIndex < ctx.team.size) {
+                            ctx.team[targetIndex] = ctx.team[targetIndex].copy(
+                                buffs = ctx.team[targetIndex].buffs + debuff
                             )
                         }
                     }
@@ -631,23 +683,23 @@ class BattleSystem @Inject constructor(
                             sourceRealm = currentCombatant.realm
                         )
                         // Remove existing link from any other enemy (only one link at a time)
-                        val enemies = if (isTeamMember) beasts else team
+                        val enemies = if (isTeamMember) ctx.beasts else ctx.team
                         enemies.forEachIndexed { idx, enemy ->
                             val hasLink = enemy.buffs.any { it.type == BuffType.DAMAGE_LINK }
                             if (hasLink) {
                                 val cleaned = enemy.buffs.filter { it.type != BuffType.DAMAGE_LINK }
-                                if (isTeamMember && idx < beasts.size) beasts[idx] = beasts[idx].copy(buffs = cleaned)
-                                else if (idx < team.size) team[idx] = team[idx].copy(buffs = cleaned)
+                                if (isTeamMember && idx < ctx.beasts.size) ctx.beasts[idx] = ctx.beasts[idx].copy(buffs = cleaned)
+                                else if (idx < ctx.team.size) ctx.team[idx] = ctx.team[idx].copy(buffs = cleaned)
                             }
                         }
                         // Apply new link to target
-                        if (isTeamMember && targetIndex < beasts.size) {
-                            beasts[targetIndex] = beasts[targetIndex].copy(
-                                buffs = beasts[targetIndex].buffs + linkDebuff
+                        if (isTeamMember && targetIndex < ctx.beasts.size) {
+                            ctx.beasts[targetIndex] = ctx.beasts[targetIndex].copy(
+                                buffs = ctx.beasts[targetIndex].buffs + linkDebuff
                             )
-                        } else if (targetIndex < team.size) {
-                            team[targetIndex] = team[targetIndex].copy(
-                                buffs = team[targetIndex].buffs + linkDebuff
+                        } else if (targetIndex < ctx.team.size) {
+                            ctx.team[targetIndex] = ctx.team[targetIndex].copy(
+                                buffs = ctx.team[targetIndex].buffs + linkDebuff
                             )
                         }
                     }
@@ -664,10 +716,10 @@ class BattleSystem @Inject constructor(
                     )
                     aliveEnemies.filter { !it.isDead }.forEach { enemy ->
                         val idx = enemiesIndexMap[enemy.id] ?: return@forEach
-                        if (isTeamMember && idx < beasts.size) {
-                            beasts[idx] = beasts[idx].copy(buffs = beasts[idx].buffs + debuff)
-                        } else if (idx < team.size) {
-                            team[idx] = team[idx].copy(buffs = team[idx].buffs + debuff)
+                        if (isTeamMember && idx < ctx.beasts.size) {
+                            ctx.beasts[idx] = ctx.beasts[idx].copy(buffs = ctx.beasts[idx].buffs + debuff)
+                        } else if (idx < ctx.team.size) {
+                            ctx.team[idx] = ctx.team[idx].copy(buffs = ctx.team[idx].buffs + debuff)
                         }
                     }
                     }
@@ -681,10 +733,10 @@ class BattleSystem @Inject constructor(
                         val sr = BattleCalculator.calculateShieldAbsorption(r.target, r.damage)
                         if (sr.shieldBuff != null) {
                             val updatedHp = maxOf(0, r.target.hp - sr.remainingDamage)
-                            if (isTeamMember && tIdx < beasts.size) {
-                                beasts[tIdx] = beasts[tIdx].copy(hp = updatedHp)
-                            } else if (tIdx < team.size) {
-                                team[tIdx] = team[tIdx].copy(hp = updatedHp)
+                            if (isTeamMember && tIdx < ctx.beasts.size) {
+                                ctx.beasts[tIdx] = ctx.beasts[tIdx].copy(hp = updatedHp)
+                            } else if (tIdx < ctx.team.size) {
+                                ctx.team[tIdx] = ctx.team[tIdx].copy(hp = updatedHp)
                             }
                         }
                     }
@@ -698,24 +750,24 @@ class BattleSystem @Inject constructor(
                     val updatedCombatant = BattleCalculator.updateCombatantCooldowns(currentCombatant, availableSkill)
 
                     if (isTeamMember) {
-                        team[combatantIndex] = updatedCombatant
+                        ctx.team[combatantIndex] = updatedCombatant
                     } else {
-                        beasts[combatantIndex] = updatedCombatant
+                        ctx.beasts[combatantIndex] = updatedCombatant
                     }
                 }
 
                 if (isSupportSkill) {
                     if (result.healedIds.isNotEmpty()) {
                         result.healedIds.forEach { healedId ->
-                            val healedIndex = team.indexOfFirst { it.id == healedId }
+                            val healedIndex = ctx.team.indexOfFirst { it.id == healedId }
                             if (healedIndex >= 0) {
-                                val healed = team[healedIndex]
+                                val healed = ctx.team[healedIndex]
                                 if (result.healType == HealType.MP) {
-                                    team[healedIndex] = healed.copy(
+                                    ctx.team[healedIndex] = healed.copy(
                                         mp = minOf(healed.mp + result.healAmount, healed.maxMp)
                                     )
                                 } else {
-                                    team[healedIndex] = healed.copy(
+                                    ctx.team[healedIndex] = healed.copy(
                                         hp = minOf(healed.hp + result.healAmount, healed.maxHp)
                                     )
                                 }
@@ -731,9 +783,9 @@ class BattleSystem @Inject constructor(
                                 val existingBuffs = member.buffs.filter { it.remainingDuration > 0 }
                                 val updated = member.copy(buffs = existingBuffs + buffs)
                                 if (isTeamMember) {
-                                    team[memberIndex] = updated
+                                    ctx.team[memberIndex] = updated
                                 } else {
-                                    beasts[memberIndex] = updated
+                                    ctx.beasts[memberIndex] = updated
                                 }
                             }
                         }
@@ -747,8 +799,8 @@ class BattleSystem @Inject constructor(
                             val advancedAlly = allies.find { it.id == advancedId && !it.isDead }
                             if (advancedAlly != null && advancedAlly.id != currentCombatant.id) {
                                 // Process the advanced ally's turn immediately
-                                val advAllies = if (isTeamMember) team else beasts
-                                val advEnemies = if (isTeamMember) beasts else team
+                                val advAllies = if (isTeamMember) ctx.team else ctx.beasts
+                                val advEnemies = if (isTeamMember) ctx.beasts else ctx.team
                                 val advAliveEnemies = advEnemies.filter { !it.isDead }
                                 val advIdx = advAllies.indexOfFirst { it.id == advancedId }
                                 if (advIdx >= 0 && advAliveEnemies.isNotEmpty()) {
@@ -763,7 +815,7 @@ class BattleSystem @Inject constructor(
                                         executeAttack(advancedAlly, advTarget, advDmgMod)
                                     }
                                     val advDmg = if (advResult.isSupport) 0 else advResult.damage
-                                    actions.add(BattleActionData(
+                                    ctx.actions.add(BattleActionData(
                                         type = if (advSkill != null) "skill" else "attack",
                                         attacker = advancedAlly.name,
                                         attackerType = if (isTeamMember) "disciple" else "beast",
@@ -779,17 +831,17 @@ class BattleSystem @Inject constructor(
                                         val advTargetIdx = enemiesIndexMap[advResult.target.id]
                                         if (advTargetIdx != null) {
                                             val shieldR = BattleCalculator.calculateShieldAbsorption(advResult.target, advDmg)
-                                            if (isTeamMember && advTargetIdx < beasts.size) {
-                                                beasts[advTargetIdx] = beasts[advTargetIdx].copy(hp = maxOf(0, beasts[advTargetIdx].hp - shieldR.remainingDamage))
-                                            } else if (advTargetIdx < team.size) {
-                                                team[advTargetIdx] = team[advTargetIdx].copy(hp = maxOf(0, team[advTargetIdx].hp - shieldR.remainingDamage))
+                                            if (isTeamMember && advTargetIdx < ctx.beasts.size) {
+                                                ctx.beasts[advTargetIdx] = ctx.beasts[advTargetIdx].copy(hp = maxOf(0, ctx.beasts[advTargetIdx].hp - shieldR.remainingDamage))
+                                            } else if (advTargetIdx < ctx.team.size) {
+                                                ctx.team[advTargetIdx] = ctx.team[advTargetIdx].copy(hp = maxOf(0, ctx.team[advTargetIdx].hp - shieldR.remainingDamage))
                                             }
                                         }
                                     }
                                     // Update cooldowns for advanced ally
                                     if (advSkill != null && advIdx >= 0) {
                                         val updatedAdv = BattleCalculator.updateCombatantCooldowns(advancedAlly, advSkill)
-                                        if (isTeamMember) team[advIdx] = updatedAdv else beasts[advIdx] = updatedAdv
+                                        if (isTeamMember) ctx.team[advIdx] = updatedAdv else ctx.beasts[advIdx] = updatedAdv
                                     }
                                 }
                             }
@@ -799,18 +851,7 @@ class BattleSystem @Inject constructor(
             } else {
                 updateCombatantBuffs(currentCombatant, allies, alliesIndexMap)
             }
-        }
-
-        processDotEffects(team, beasts, actions)
-
-        return Pair(
-            battle.copy(
-                team = team,
-                beasts = beasts,
-                turn = battle.turn + 1
-            ),
-            BattleRoundData(battle.turn + 1, actions)
-        )
+        return TurnOutcome.Continue
     }
 
     private fun updateCombatantBuffs(combatant: Combatant, list: MutableList<Combatant>, indexMap: Map<String, Int>) {
@@ -942,3 +983,4 @@ class BattleSystem @Inject constructor(
         return rewards
     }
 }
+

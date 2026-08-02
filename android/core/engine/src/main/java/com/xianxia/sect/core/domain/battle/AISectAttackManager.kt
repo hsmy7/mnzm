@@ -10,6 +10,8 @@ import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.CombatSkill
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.AISectPersonality
 import com.xianxia.sect.core.model.BattleLogAction
 import com.xianxia.sect.core.model.SectRelationLevel
@@ -674,64 +676,15 @@ object AISectAttackManager {
         val bootsId = battleItems.equipments.firstOrNull { it.second == EquipmentSlot.BOOTS }?.first ?: ""
         val accessoryId = battleItems.equipments.firstOrNull { it.second == EquipmentSlot.ACCESSORY }?.first ?: ""
 
-        val equipmentMap = buildMap {
-            if (weaponId.isNotEmpty()) {
-                EquipmentDatabase.getById(weaponId)?.let { template ->
-                    val eq = EquipmentDatabase.createFromTemplate(template).toInstance(id = weaponId)
-                    val nurture = battleItems.weaponNurture
-                    put(weaponId, if (nurture.equipmentId == weaponId) eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress) else eq)
-                }
-            }
-            if (armorId.isNotEmpty()) {
-                EquipmentDatabase.getById(armorId)?.let { template ->
-                    val eq = EquipmentDatabase.createFromTemplate(template).toInstance(id = armorId)
-                    val nurture = battleItems.armorNurture
-                    put(armorId, if (nurture.equipmentId == armorId) eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress) else eq)
-                }
-            }
-            if (bootsId.isNotEmpty()) {
-                EquipmentDatabase.getById(bootsId)?.let { template ->
-                    val eq = EquipmentDatabase.createFromTemplate(template).toInstance(id = bootsId)
-                    val nurture = battleItems.bootsNurture
-                    put(bootsId, if (nurture.equipmentId == bootsId) eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress) else eq)
-                }
-            }
-            if (accessoryId.isNotEmpty()) {
-                EquipmentDatabase.getById(accessoryId)?.let { template ->
-                    val eq = EquipmentDatabase.createFromTemplate(template).toInstance(id = accessoryId)
-                    val nurture = battleItems.accessoryNurture
-                    put(accessoryId, if (nurture.equipmentId == accessoryId) eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress) else eq)
-                }
-            }
-        }
+        // P-2/Q-6：装备映射构建提取（原 4 个逐字相同块统一为槽位循环，行为逐行一致）
+        val equipmentMap = buildEquipmentMap(battleItems)
 
-        val manualIds = battleItems.manuals.map { it.first }
-        val manualMasteries = battleItems.manuals.toMap()
-
-        val manualMap = manualIds.mapNotNull { mId ->
-            ManualDatabase.getById(mId)?.let { template ->
-                mId to ManualDatabase.createFromTemplate(template).toInstance(id = mId)
-            }
-        }.toMap()
-
-        val manualProficiencies = manualIds.associateWith { mId ->
-            val mastery = manualMasteries[mId] ?: 0
-            val manual = ManualDatabase.getById(mId)
-            val masteryLevel = if (manual != null) {
-                ManualProficiencySystem.MasteryLevel.fromProficiency(mastery.toDouble()).level
-            } else 0
-            val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
-            ManualProficiencyData(
-                manualId = mId,
-                proficiency = mastery.toDouble().coerceAtMost(maxProf.toDouble()),
-                maxProficiency = maxProf,
-                masteryLevel = masteryLevel
-            )
-        }
+        // P-2：功法数据构建提取（manualMap + proficiencies）
+        val (manualIds, manualMap, manualProficiencies) = buildManualData(battleItems)
 
         val battleDisciple = disciple.copy(
             manualIds = manualIds,
-            manualMasteries = manualMasteries,
+            manualMasteries = battleItems.manuals.toMap(),
             equipment = disciple.equipment.copy(
                 weaponId = weaponId,
                 armorId = armorId,
@@ -746,25 +699,7 @@ object AISectAttackManager {
 
         val stats = battleDisciple.getFinalStats(equipmentMap, manualMap, manualProficiencies)
 
-        val skills = manualIds.mapNotNull { mId ->
-            val manual = manualMap[mId] ?: return@mapNotNull null
-            val skill = manual.skill ?: return@mapNotNull null
-            val proficiencyData = manualProficiencies[mId]
-            val masteryLevel = proficiencyData?.masteryLevel ?: 0
-            val adjustedMultiplier = ManualProficiencySystem.calculateSkillDamageMultiplier(
-                skill.damageMultiplier,
-                masteryLevel
-            )
-            CombatSkill(
-                name = skill.name,
-                damageType = if (skill.damageType == DamageType.PHYSICAL) DamageType.PHYSICAL else DamageType.MAGIC,
-                damageMultiplier = adjustedMultiplier,
-                mpCost = skill.mpCost,
-                cooldown = skill.cooldown,
-                currentCooldown = 0,
-                hits = skill.hits
-            )
-        }
+        val skills = buildCombatSkills(manualMap, manualProficiencies)
 
         val spiritRootTypes = disciple.spiritRoot.types
         val primaryElement = spiritRootTypes.firstOrNull()?.trim() ?: "metal"
@@ -807,6 +742,91 @@ object AISectAttackManager {
                 defenseBonus = physiqueEffects.defenseBonus
             ),
             affix = affixCombat
+        )
+    }
+
+    /**
+     * P-2/Q-6：构建装备实例映射（从模板实例化 + 孕养覆盖）。
+     * 原 convertToCombatant 中 4 个逐字相同的 weapon/armor/boots/accessory 块统一为槽位循环。
+     */
+    private fun buildEquipmentMap(
+        battleItems: AISectDiscipleManager.BattleItems
+    ): Map<String, EquipmentInstance> {
+        val slots = listOf(
+            EquipmentSlot.WEAPON to battleItems.weaponNurture,
+            EquipmentSlot.ARMOR to battleItems.armorNurture,
+            EquipmentSlot.BOOTS to battleItems.bootsNurture,
+            EquipmentSlot.ACCESSORY to battleItems.accessoryNurture
+        )
+        val result = mutableMapOf<String, EquipmentInstance>()
+        for ((slot, nurture) in slots) {
+            val id = battleItems.equipments
+                .firstOrNull { it.second == slot }?.first ?: continue
+            EquipmentDatabase.getById(id)?.let { template ->
+                val eq = EquipmentDatabase.createFromTemplate(template).toInstance(id = id)
+                result[id] = if (nurture.equipmentId == id) {
+                    eq.copy(nurtureLevel = nurture.nurtureLevel, nurtureProgress = nurture.nurtureProgress)
+                } else eq
+            }
+        }
+        return result
+    }
+
+    /**
+     * P-2：构建功法数据（实例映射 + 熟练度条目）。
+     *
+     * @return Triple(manualIds, manualMap, manualProficiencies)
+     */
+    private fun buildManualData(
+        battleItems: AISectDiscipleManager.BattleItems
+    ): Triple<List<String>, Map<String, ManualInstance>, Map<String, ManualProficiencyData>> {
+        val manualIds = battleItems.manuals.map { it.first }
+        val manualMasteries = battleItems.manuals.toMap()
+
+        val manualMap = manualIds.mapNotNull { mId ->
+            ManualDatabase.getById(mId)?.let { template ->
+                mId to ManualDatabase.createFromTemplate(template).toInstance(id = mId)
+            }
+        }.toMap()
+
+        val manualProficiencies = manualIds.associateWith { mId ->
+            val mastery = manualMasteries[mId] ?: 0
+            val manual = ManualDatabase.getById(mId)
+            val masteryLevel = if (manual != null) {
+                ManualProficiencySystem.MasteryLevel.fromProficiency(mastery.toDouble()).level
+            } else 0
+            val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
+            ManualProficiencyData(
+                manualId = mId,
+                proficiency = mastery.toDouble().coerceAtMost(maxProf.toDouble()),
+                maxProficiency = maxProf,
+                masteryLevel = masteryLevel
+            )
+        }
+        return Triple(manualIds, manualMap, manualProficiencies)
+    }
+
+    /** P-2：构建战斗技能列表（熟练度加成调整伤害倍率）。 */
+    private fun buildCombatSkills(
+        manualMap: Map<String, ManualInstance>,
+        manualProficiencies: Map<String, ManualProficiencyData>
+    ): List<CombatSkill> = manualMap.keys.mapNotNull { mId ->
+        val manual = manualMap[mId] ?: return@mapNotNull null
+        val skill = manual.skill ?: return@mapNotNull null
+        val proficiencyData = manualProficiencies[mId]
+        val masteryLevel = proficiencyData?.masteryLevel ?: 0
+        val adjustedMultiplier = ManualProficiencySystem.calculateSkillDamageMultiplier(
+            skill.damageMultiplier,
+            masteryLevel
+        )
+        CombatSkill(
+            name = skill.name,
+            damageType = if (skill.damageType == DamageType.PHYSICAL) DamageType.PHYSICAL else DamageType.MAGIC,
+            damageMultiplier = adjustedMultiplier,
+            mpCost = skill.mpCost,
+            cooldown = skill.cooldown,
+            currentCooldown = 0,
+            hits = skill.hits
         )
     }
 

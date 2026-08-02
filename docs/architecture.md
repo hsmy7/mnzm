@@ -312,6 +312,19 @@ RunState（运行时状态 — 可循环回退）
 | P9 | 多处战斗奖励无 withTrackingSource（来源为 unknown） | ✅ 已修复 | 妖兽战/洞穴战/妖兽侵袭/巡视塔/任务路径补 source 包裹 |
 | P10 | 洞府探索 grantManualReward 用 isSuccess 误判 Partial 为成功 | ✅ 已修复 | 改用穷尽 when（Partial 计溢出，统一机制接管） |
 | P11 | warehouseFullEvent 只带 Unit 无法区分拒绝/转邮件 | ✅ 已修复 | 类型升级为 `MutableSharedFlow<String>` 携带文案 |
+
+### 待完成项（2026-08-02 综合优化对抗性审查遗留，预存问题/设计决策）
+
+本次综合优化（性能批量改造/状态管道重构/代码精简）经 3 个对抗性审查代理（边界狂魔/状态破坏者/数据篡改者）审查，**新增引入的 15 项问题已全部修复**（见提交说明）；以下为**预存问题或设计权衡**，需人工决策后处理：
+
+| # | 待办 | 现状 | 说明 |
+|---|------|------|------|
+| T1 | 混合 0/非 0 sequenceId 回填破坏单调递增 | ⏸️ 记录 | 旧档 `[0,0,5]` 回填为 `[6,7,5]`——靠前 0 序号条目拿到比靠后非零条目更大的序号。当前唯一消费者是 LazyColumn key（无排序依赖），无即时后果；任何未来按 sequenceId 排序/取"最新"的消费方会读错顺序。修复方案：回填时对非 0 序号也做整体重编号（一次性 O(N)） |
+| T2 | restart 与 load 无互斥 | ⏸️ 记录 | `restartGame` 不设 isLoading、不查 loadLock；`loadGame` 不查 `_isRestarting`/saveLock。重启期间读档可双 boot 竞态（`bootInProgress` CAS 使第二次失败 + loadFromSnapshot 覆写已重置的新世界）。修复需在两者之间加互斥标志（改动涉及 SaveLoadViewModel 全流程，预存设计缺口） |
+| T3 | 组装任务与 load 原地清表并发 | ⏸️ 记录 | 组装任务 T0 通过 gen 检查后与 load 的 `clear()+insert()` 并发遍历同一 `_discipleTables`（可能产出半截列表瞬时写回）；load 自身任务 T1（FIFO 后置）兜底最终一致。gen 检查为单点入口设计，中间窗口无法完全消除；观察窗口内 UI 闪旧/错数据（丢弟子外观、陈尸闪现） |
+| T4 | changedIdTracker MAX_SAFE_CAPACITY 守卫缺口 | ⏸️ 记录 | crafted 存档含 id ≥ 10_000_000 的弟子 + 同事务其他弟子有修改时，大 id 弟子被 `record(id)` 静默拒绝但 changedIds 非空 → 走增量路径 → 快照保留其陈旧数据。注释声称"全量兜底"仅在 changedIds 完全为空时成立。修复：容量拒绝时强制整体退化全量组装 |
+| T5 | 双保存竞态（isSaving 标志跨协程覆写） | ✅ 部分修复 | `saveGame` 已加 isSaving 守卫（快速连点第二次被拒绝）；仍存在的窗口：首次保存进行中再次触发（守卫生效），修复后残余风险低 |
+| T6 | RedeemCodeManager 服务端 config 校验 | ✅ 已修复 | minAge>maxAge 崩溃、quantity 负数吞码、spiritRootCount≤0 空灵根——已加 coerce 兜底；服务端侧建议同步校验（防御纵深） |
 | P12 | 外交宗门交易扣款后 add 失败灵石已扣物品丢失 | ✅ 已修复 | 购买前容量预检拒绝购买 + Partial 溢出自动转邮件 |
 
 ---

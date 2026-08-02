@@ -116,7 +116,10 @@ class CultivationService @Inject constructor(
      */
     fun accumulateCultivationPerPhase(
         id: Int,
-        state: com.xianxia.sect.core.state.MutableGameState
+        state: com.xianxia.sect.core.state.MutableGameState,
+        pendingRealtime: MutableMap<String, Double>? = null,
+        residenceByDiscipleId: Map<Int, ResidenceSlot> = emptyMap(),
+        buildingByInstanceId: Map<String, GridBuildingData> = emptyMap()
     ) {
         val tables = state.discipleTables
         if (tables.isAlive[id] != 1) return
@@ -127,7 +130,7 @@ class CultivationService @Inject constructor(
         if (curCult >= maxCultivation) return
 
         val rate = cultivationCore.calculateCultivationPerPhaseById(
-            id, state.gameData, tables
+            id, state.gameData, tables, residenceByDiscipleId, buildingByInstanceId
         )
         if (rate <= 0.0) return
 
@@ -138,13 +141,40 @@ class CultivationService @Inject constructor(
         // 投影值在两次 checkpoint 之间为常数，值未变时跳过 Map 重建（每旬零额外开销）。
         val currentMonth = state.gameData.gameYear * 12 + state.gameData.gameMonth
         val projection = tables.getEffectiveCultivation(id, currentMonth, rate)
+        val key = id.toString()
+        if (pendingRealtime != null) {
+            // P-6 批量模式：只累积投影变化的弟子（与已发射值比较），
+            // 循环后由 flushRealtimeCultivation 单次发射（D 次发射 → 1 次）
+            val prevMap = _highFrequencyData.value.realtimeCultivation
+            if (prevMap == null || prevMap[key] != projection) {
+                pendingRealtime[key] = projection
+            }
+            return
+        }
         val cur = _highFrequencyData.value
         val prevMap = cur.realtimeCultivation
-        val key = id.toString()
         if (prevMap == null || prevMap[key] != projection) {
-            _highFrequencyData.value = cur.copy(
-                realtimeCultivation = (prevMap ?: emptyMap()) + (key to projection)
-            )
+            // Q-2：写入经共享状态更新入口（对外只读封装）
+            sharedState.updateHighFrequencyData { c ->
+                c.copy(realtimeCultivation = (c.realtimeCultivation ?: emptyMap()) + (key to projection))
+            }
+        }
+    }
+
+    /**
+     * P-6：批量发射 realtimeCultivation 投影（D 次 StateFlow 发射 → 1 次，
+     * O(D²) Map 重建 → O(D) 单次合并）。
+     *
+     * 最终 Map 与逐弟子发射逐 key 相同（prevMap + pending 单次合并）；
+     * 无订阅中间值依赖（UI 只消费最终值）。pending 为空时不做任何事。
+     *
+     * @param pending 由 [accumulateCultivationPerPhase] 批量模式累积的投影变更
+     */
+    fun flushRealtimeCultivation(pending: MutableMap<String, Double>) {
+        if (pending.isEmpty()) return
+        // Q-2：写入经共享状态更新入口（对外只读封装）
+        sharedState.updateHighFrequencyData { cur ->
+            cur.copy(realtimeCultivation = (cur.realtimeCultivation ?: emptyMap()) + pending)
         }
     }
 
@@ -156,9 +186,21 @@ class CultivationService @Inject constructor(
     /** 单弟子每旬功法熟练度增长（委托 CultivationCore） */
     fun processManualProficiencySingle(
         state: MutableGameState, id: Int,
-        manualInstanceMap: Map<String, ManualInstance>? = null
+        manualInstanceMap: Map<String, ManualInstance>? = null,
+        pendingProficiencies: MutableMap<String, List<ManualProficiencyData>?>? = null,
+        libraryDiscipleIds: Set<String>? = null
     ) {
-        cultivationCore.processManualProficiencySingle(state, id, manualInstanceMap)
+        cultivationCore.processManualProficiencySingle(
+            state, id, manualInstanceMap, pendingProficiencies, libraryDiscipleIds
+        )
+    }
+
+    /** P-1 批量提交功法熟练度（委托 CultivationCore） */
+    fun commitManualProficiencies(
+        state: MutableGameState,
+        pending: MutableMap<String, List<ManualProficiencyData>?>
+    ) {
+        cultivationCore.commitManualProficiencies(state, pending)
     }
 
     /** 每旬装备孕养经验增长（委托 CultivationCore） */
@@ -169,9 +211,18 @@ class CultivationService @Inject constructor(
     /** 单弟子每旬装备孕养经验增长（委托 CultivationCore） */
     fun processEquipmentNurtureSingle(
         state: MutableGameState, id: Int,
-        equipmentMap: Map<String, EquipmentInstance>? = null
+        equipmentMap: Map<String, EquipmentInstance>? = null,
+        sharedUpdates: MutableMap<String, EquipmentInstance>? = null
     ) {
-        cultivationCore.processEquipmentNurtureSingle(state, id, equipmentMap)
+        cultivationCore.processEquipmentNurtureSingle(state, id, equipmentMap, sharedUpdates)
+    }
+
+    /** P-2 批量提交装备孕养更新（委托 CultivationCore） */
+    fun applyEquipmentUpdates(
+        state: MutableGameState,
+        updates: Map<String, EquipmentInstance>
+    ) {
+        cultivationCore.applyEquipmentUpdates(state, updates)
     }
 
     /**
@@ -369,7 +420,8 @@ class CultivationService @Inject constructor(
     fun getHighFrequencyData(): StateFlow<HighFrequencyData> = _highFrequencyData
 
     fun resetHighFrequencyData() {
-        _highFrequencyData.value = HighFrequencyData()
+        // Q-2：写入经共享状态更新入口（对外只读封装）
+        sharedState.updateHighFrequencyData { HighFrequencyData() }
     }
 
     // ── 空闲模式专用方法 ────────────────────────────────────────────

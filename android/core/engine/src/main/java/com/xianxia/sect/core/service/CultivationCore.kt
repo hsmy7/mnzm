@@ -62,8 +62,13 @@ class CultivationCore @Inject constructor(
         cultivationRateCalculator.calculateDiscipleCultivationPerPhase(disciple, data, tables)
 
     /** 列直读版每旬修炼速率（无 Disciple 组装），供每旬热点循环使用 */
-    fun calculateCultivationPerPhaseById(id: Int, data: GameData, tables: DiscipleTables): Double =
-        cultivationRateCalculator.calculateCultivationPerPhaseById(id, data, tables)
+    fun calculateCultivationPerPhaseById(
+        id: Int, data: GameData, tables: DiscipleTables,
+        residenceByDiscipleId: Map<Int, ResidenceSlot> = emptyMap(),
+        buildingByInstanceId: Map<String, GridBuildingData> = emptyMap()
+    ): Double = cultivationRateCalculator.calculateCultivationPerPhaseById(
+        id, data, tables, residenceByDiscipleId, buildingByInstanceId
+    )
 
     fun getLifespanGainForRealm(realm: Int): Int = cultivationRateCalculator.getLifespanGainForRealm(realm)
 
@@ -221,13 +226,24 @@ class CultivationCore @Inject constructor(
      * 仅处理指定 ID 的存活弟子。使用列级直读（manualIds、comprehensions），
      * 不调用 assemble()。
      *
+     * 批量模式（P-1 优化）：当 [pendingProficiencies] 非空时，本函数只做单弟子
+     * 条目级计算并累积到 pending（O(P)），**不写 state**；调用方循环结束后统一
+     * 调用 [commitManualProficiencies] 单次构建 Map + 单次 copy——将每旬
+     * O(D²) 全量 Map 拷贝（每弟子 toMutableMap + GameData.copy）降为 O(D)。
+     *
      * @param state 可变游戏状态
      * @param id 弟子 ID
      * @param manualInstanceMap 功法实例映射（每旬热点循环共享构建，null 时内部构建）
+     * @param pendingProficiencies 批量累积目标（null 时保持旧的单弟子直写行为）；
+     *   值 null 表示该弟子条目应被移除（等价于单弟子版的 remove）
+     * @param libraryDiscipleIds 藏经阁弟子 ID 预构建集合（消除每弟子 O(L) 扫描，
+     *   null 时内部线性扫描）
      */
     fun processManualProficiencySingle(
         state: MutableGameState, id: Int,
-        manualInstanceMap: Map<String, ManualInstance>? = null
+        manualInstanceMap: Map<String, ManualInstance>? = null,
+        pendingProficiencies: MutableMap<String, List<ManualProficiencyData>?>? = null,
+        libraryDiscipleIds: Set<String>? = null
     ) {
         val tables = state.discipleTables
         if (tables.isAlive[id] != 1) return
@@ -239,7 +255,8 @@ class CultivationCore @Inject constructor(
         val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
         val discipleId = id.toString()
         val comprehension = tables.comprehensions.getOrDefault(id, 0)
-        val inLibrary = data.librarySlots.any { it.discipleId == discipleId }
+        val inLibrary = libraryDiscipleIds?.contains(discipleId)
+            ?: data.librarySlots.any { it.discipleId == discipleId }
         val libraryBonus = if (inLibrary)
             ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
         val profGain = ManualProficiencySystem.calculateProficiencyGainPerPhase(
@@ -247,9 +264,17 @@ class CultivationCore @Inject constructor(
         )
         if (profGain <= 0.0) return
 
-        val profList = data.manualProficiencies
-            .getOrDefault(discipleId, emptyList())
-            .toMutableList()
+        // S10 修复（对抗性审查）：批量模式下从 pending 读累积视图。
+        // 用 containsKey 区分"pending 显式 null（移除计划）"与"pending 无该条目
+        // （首次处理）"——原实现两者都读旧 data 的残留条目，若同一批量周期内
+        // 弟子被处理两次（或调用方预置 null=移除），残留条目会复活并叠加双倍增长。
+        val hasPending = pendingProficiencies != null &&
+            pendingProficiencies.containsKey(discipleId)
+        val profList = if (hasPending) {
+            (pendingProficiencies?.get(discipleId) ?: emptyList()).toMutableList()
+        } else {
+            data.manualProficiencies.getOrDefault(discipleId, emptyList()).toMutableList()
+        }
         var changed = false
 
         for (manualId in manualIds) {
@@ -285,14 +310,43 @@ class CultivationCore @Inject constructor(
         if (profList.removeAll { it.manualId !in currentSet }) changed = true
 
         if (changed) {
-            val newProficiencies = data.manualProficiencies.toMutableMap()
-            if (profList.isEmpty()) {
-                newProficiencies.remove(discipleId)
+            if (pendingProficiencies != null) {
+                // 批量模式：累积到 pending，不写 state（空列表=移除条目，与单弟子版 remove 等价）
+                pendingProficiencies[discipleId] = profList.ifEmpty { null }
             } else {
-                newProficiencies[discipleId] = profList
+                // 单弟子模式（兼容旧调用方与测试）：直接写 state
+                val newProficiencies = data.manualProficiencies.toMutableMap()
+                if (profList.isEmpty()) {
+                    newProficiencies.remove(discipleId)
+                } else {
+                    newProficiencies[discipleId] = profList
+                }
+                state.gameData = data.copy(manualProficiencies = newProficiencies)
             }
-            state.gameData = data.copy(manualProficiencies = newProficiencies)
         }
+    }
+
+    /**
+     * 批量提交功法熟练度累积结果（P-1：单次 Map 构建 + 单次 copy）。
+     *
+     * 与单弟子模式逐弟子写等价：null/空列表条目移除，其余按 key 覆盖。
+     * pending 为空时不做任何事（无变化则不触发 GameData.copy）。
+     *
+     * @param state 可变游戏状态
+     * @param pending 由 [processManualProficiencySingle] 批量模式累积的变更
+     */
+    fun commitManualProficiencies(
+        state: MutableGameState,
+        pending: MutableMap<String, List<ManualProficiencyData>?>
+    ) {
+        if (pending.isEmpty()) return
+        val data = state.gameData
+        val merged = data.manualProficiencies.toMutableMap()
+        for ((discipleId, list) in pending) {
+            if (list == null) merged.remove(discipleId)
+            else merged[discipleId] = list
+        }
+        state.gameData = data.copy(manualProficiencies = merged)
     }
 
     /**
@@ -302,29 +356,56 @@ class CultivationCore @Inject constructor(
      * 仅处理指定 ID 的存活弟子。无需 assemble，
      * 通过 tables.weaponIds/armorIds/bootsIds/accessoryIds 列级直读装备 ID。
      *
+     * 批量模式（P-2 优化）：当 [sharedUpdates] 非空时，本函数把装备更新累积到
+     * sharedUpdates 且**不写 state**；调用方循环结束后统一调用
+     * [applyEquipmentUpdates] 单次重建 List——将每旬 O(D×E) 全量列表重建
+     * （每弟子 map 全部装备）降为 O(E)。
+     *
      * @param state 可变游戏状态
      * @param id 弟子 ID
      * @param equipmentMap 装备实例映射（每旬热点循环共享构建，null 时内部构建）
+     * @param sharedUpdates 批量累积目标（null 时保持旧的单弟子直写行为）
      */
     fun processEquipmentNurtureSingle(
         state: MutableGameState, id: Int,
-        equipmentMap: Map<String, EquipmentInstance>? = null
+        equipmentMap: Map<String, EquipmentInstance>? = null,
+        sharedUpdates: MutableMap<String, EquipmentInstance>? = null
     ) {
         val tables = state.discipleTables
         if (tables.isAlive[id] != 1) return
         val eqMap = equipmentMap ?: state.equipmentInstances.associateBy { it.id }
-        val equipmentUpdates = mutableMapOf<String, EquipmentInstance>()
+        val updates = sharedUpdates ?: mutableMapOf<String, EquipmentInstance>()
 
         equipmentNurtureService.settleNurtureInPlace(
             id = id, tables = tables, equipmentMap = eqMap,
             nurtureGainPerPhase = EquipmentNurtureSystem.NURTURE_GAIN_PER_PHASE,
-            phasesToSettle = 1, equipmentUpdates = equipmentUpdates
+            phasesToSettle = 1, equipmentUpdates = updates
         )
 
-        if (equipmentUpdates.isNotEmpty()) {
+        // 单弟子模式才立即写 state；批量模式由调用方统一提交
+        if (sharedUpdates == null && updates.isNotEmpty()) {
             state.equipmentInstances = state.equipmentInstances.map { eq ->
-                equipmentUpdates[eq.id] ?: eq
+                updates[eq.id] ?: eq
             }
+        }
+    }
+
+    /**
+     * 批量提交装备孕养累积结果（P-2：单次 List 重建）。
+     *
+     * 与单弟子模式逐弟子写等价：`map { updates[it.id] ?: it }` 保持原列表顺序，
+     * 最终列表逐元素相同。updates 为空时不做任何事（无变化则不重建）。
+     *
+     * @param state 可变游戏状态
+     * @param updates 由 [processEquipmentNurtureSingle] 批量模式累积的装备更新
+     */
+    fun applyEquipmentUpdates(
+        state: MutableGameState,
+        updates: Map<String, EquipmentInstance>
+    ) {
+        if (updates.isEmpty()) return
+        state.equipmentInstances = state.equipmentInstances.map { eq ->
+            updates[eq.id] ?: eq
         }
     }
 

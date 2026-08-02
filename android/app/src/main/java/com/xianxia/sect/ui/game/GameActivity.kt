@@ -160,61 +160,51 @@ class GameActivity : ComponentActivity() {
     private var actionModeTracker: ActionModeSafeCallback? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // ── 渲染安全模式检测 ──
-        // 在 super.onCreate() 前切换主题，使 hardwareAccelerated 生效
-        // CrashRecoveryEngine + VulkanPolicy 在 Application.onCreate 中已初始化，
-        // 此处直接读取缓存的决策，无需 Context
-        val disableAccel = CrashRecoveryEngine.isSafeMode() ||
-            VulkanPolicy.isAccelerationDisabled()
-        if (disableAccel) {
-            setTheme(R.style.Theme_XianxiaSect_GameSafe)
-            val msg = "HW accel disabled: safeMode=${CrashRecoveryEngine.isSafeMode()}, " +
-                "vulkan=${VulkanPolicy.isAccelerationDisabled()}"
-            Log.w(TAG, msg)
-        }
+        // P-2 拆分：渲染安全模式检测（必须在 super.onCreate() 前）
+        applySafeModeThemeIfNeeded()
         super.onCreate(savedInstanceState)
         Log.d(TAG, "onCreate started, savedInstanceState=$savedInstanceState")
 
-        // 设置实心窗口背景，防止华为模拟器等设备上 MainActivity 窗口残留
-        // 穿透透明 windowBackground 显示。必须在 setContent 之前调用。
-        window.setBackgroundDrawable(
-            android.graphics.Color.BLACK.toDrawable()
-        )
-
-        // 初始化并注册崩溃处理器
-        setupCrashHandler()
-
-        // 拦截和管理 ActionMode 生命周期，防止 FloatingActionMode（文本选择工具栏）
-        // 在 Activity 销毁时弹出 PopupWindow 导致 BadTokenException
-        installActionModeSafeCallback()
-
-        // 记录设备诊断信息到日志（供 Bugly / 崩溃分析使用）
-        VulkanPolicy.logDeviceDiagnostics(this)
-        // 标记本次为干净启动，重置连续崩溃计数器
-        CrashRecoveryEngine.onCleanLaunch()
-
-        // ★ 渲染策略决策：模拟器直接走软件渲染，正常设备 Vulkan（带降级回退）
-        val renderStrategy = VulkanPolicy.getRenderStrategy(this)
-        val isSoftwareRendering = renderStrategy == VulkanPolicy.RenderStrategy.SOFTWARE_ONLY
-        Log.i(TAG, "Render strategy: ${renderStrategy.description}")
+        // P-2 拆分：窗口背景/崩溃处理器/渲染策略/系统 UI
+        setupWindowAndDiagnostics()
 
         SecureKeyManager.recoveryCallback = UiKeyRecoveryCallback { this@GameActivity }
 
-        enableEdgeToEdge()
-        hideSystemBars()
+        // P-2 拆分：启动参数解析
+        val launch = resolveLaunchIntent(savedInstanceState)
+        val slot = launch.slot
+        val isNewGame = launch.isNewGame
+        val sectName = launch.sectName
+        val isCloudSaveLoad = launch.isCloudSaveLoad
+        val isSoftwareRendering = launch.isSoftwareRendering
 
-        val savedSlot = savedInstanceState?.getInt(KEY_CURRENT_SLOT, -1) ?: -1
-        val intentSlot = intent.getIntExtra(MainActivity.EXTRA_SLOT, -1)
-        val isNewGame = intent.getBooleanExtra(MainActivity.EXTRA_NEW_GAME, false)
-        val sectName = intent.getStringExtra(MainActivity.EXTRA_SECT_NAME) ?: "青云宗"
-        val isCloudSaveLoad = intent.getBooleanExtra(MainActivity.EXTRA_CLOUD_SAVE_LOAD, false)
-        
-        val slot = if (savedSlot >= 0) savedSlot else intentSlot
-        
-        Log.d(TAG, "Slot info: savedSlot=$savedSlot, intentSlot=$intentSlot, finalSlot=$slot, isNewGame=$isNewGame, sectName=$sectName")
+        Log.d(
+            TAG,
+            "Slot info: savedSlot=${savedInstanceState?.getInt(KEY_CURRENT_SLOT, -1)}, " +
+                "intentSlot=${intent.getIntExtra(MainActivity.EXTRA_SLOT, -1)}, " +
+                "finalSlot=$slot, isNewGame=$isNewGame, sectName=$sectName"
+        )
         Log.d(TAG, "ViewModel game loaded: ${saveLoadViewModel.isGameAlreadyLoaded()}")
 
         setContent {
+            GameContent(isSoftwareRendering)
+        }
+
+        // P-2 拆分：游戏初始化分发（新游戏/读档/云读档）
+        initializeGameIfNeeded(slot, isNewGame, sectName, isCloudSaveLoad)
+
+        Log.d(TAG, "onCreate completed")
+    }
+
+    /**
+     * 游戏主内容（P-2：setContent 块提取——成员字段可直接访问）。
+     *
+     * 声明式 UI 单屏（LoadingScreen/MainGameScreen 过渡 + Vulkan 预热），
+     * 结构不可再拆（状态驱动渲染树），复杂度豁免与 MainGameScreen 同类。
+     */
+    @Suppress("LongMethod", "CyclomaticComplexMethod")
+    @Composable
+    private fun GameContent(isSoftwareRendering: Boolean) {
             XianxiaTheme {
                 CompositionLocalProvider(LocalPlayClickSound provides { audioEngine.playSound("click") }) {
                 Surface(
@@ -238,10 +228,14 @@ class GameActivity : ComponentActivity() {
                     // 游戏生命周期驱动 UI 过渡（替代旧的 gameData.isGameStarted 方案）
                     // MAP_READY → 地图瓦片就绪，安全切换 Crossfade 到 MainGameScreen
                     // PLAYING   → 游戏 fully loaded，触发 TapDB 上报和 Vulkan 预热
-                    LaunchedEffect(bootPhase, runState) {
+                    // S13 修复（对抗性审查）：restartVersion 变化（游戏内重启）时强制
+                    // 刷新地图瓦片——原 mapPreloadData == null 守卫使重启后旧世界瓦片
+                    // 与新世界建筑混显（restartVersion 递增但无人消费）
+                    val restartVersion by saveLoadViewModel.restartVersion.collectAsStateWithLifecycle()
+                    LaunchedEffect(bootPhase, runState, restartVersion) {
                         when {
-                            bootPhase >= BootPhase.MAP_READY && mapPreloadData == null -> {
-                                // 从 ViewModel 获取已预生成的地图瓦片数据
+                            bootPhase >= BootPhase.MAP_READY -> {
+                                // 从 ViewModel 获取已预生成的地图瓦片数据（重启后必是新世界数据）
                                 val precomputed = saveLoadViewModel.mapPreloadData.value
                                 if (precomputed != null) {
                                     mapPreloadData = precomputed
@@ -417,44 +411,119 @@ class GameActivity : ComponentActivity() {
             }
         }
 
-        if (!saveLoadViewModel.isGameAlreadyLoaded()) {
-            saveLoadViewModel.resetSaveLoadState()
-            Log.d(
-                TAG,
-                "onCreate: Game not loaded, will initialize. slot=$slot, " +
-                    "isNewGame=$isNewGame, isCloudSaveLoad=$isCloudSaveLoad"
-            )
-            lifecycleScope.launch {
-                VivoGCJITOptimizer.runWithJitPaused(block = {
-                    when {
-                        isCloudSaveLoad -> {
-                            Log.d(TAG, "Loading cloud save from MainActivity")
-                            saveLoadViewModel.loadFromCloudSave()
-                        }
-                        isNewGame && slot >= 0 -> {
-                            Log.d(TAG, "Starting new game: sectName=$sectName, slot=$slot")
-                            saveLoadViewModel.startNewGame(sectName, slot)
-                        }
-                        slot >= 0 -> {
-                            Log.d(TAG, "Loading game from slot: $slot")
-                            saveLoadViewModel.loadGameFromSlot(slot)
-                        }
-                        isNewGame -> {
-                            Log.d(TAG, "Starting new game with default slot: sectName=$sectName")
-                            saveLoadViewModel.startNewGame(sectName = sectName)
-                        }
-                        else -> {
-                            Log.e(TAG, "Invalid game start parameters: slot=$slot, isNewGame=$isNewGame")
-                            finish()
-                        }
-                    }
-                }, tag = "GameActivity_Init")
-            }
-        } else {
-            Log.d(TAG, "Game already loaded in ViewModel, skipping initialization")
+    /** P-2：渲染安全模式检测——super.onCreate() 前切换主题使 hardwareAccelerated 生效。 */
+    private fun applySafeModeThemeIfNeeded() {
+        // CrashRecoveryEngine + VulkanPolicy 在 Application.onCreate 中已初始化，
+        // 此处直接读取缓存的决策，无需 Context
+        val disableAccel = CrashRecoveryEngine.isSafeMode() ||
+            VulkanPolicy.isAccelerationDisabled()
+        if (disableAccel) {
+            setTheme(R.style.Theme_XianxiaSect_GameSafe)
+            val msg = "HW accel disabled: safeMode=${CrashRecoveryEngine.isSafeMode()}, " +
+                "vulkan=${VulkanPolicy.isAccelerationDisabled()}"
+            Log.w(TAG, msg)
         }
+    }
 
-        Log.d(TAG, "onCreate completed")
+    /** 渲染策略（P-2：setupWindowAndDiagnostics 与启动解析共享） */
+    @Volatile
+    private var _isSoftwareRendering = false
+
+    /**
+     * P-2：窗口背景/崩溃处理/ActionMode 拦截/渲染策略/系统 UI 初始化。
+     * 必须在 setContent 之前调用。
+     */
+    private fun setupWindowAndDiagnostics() {
+        // 设置实心窗口背景，防止华为模拟器等设备上 MainActivity 窗口残留
+        // 穿透透明 windowBackground 显示。必须在 setContent 之前调用。
+        window.setBackgroundDrawable(
+            android.graphics.Color.BLACK.toDrawable()
+        )
+
+        // 初始化并注册崩溃处理器
+        setupCrashHandler()
+
+        // 拦截和管理 ActionMode 生命周期，防止 FloatingActionMode（文本选择工具栏）
+        // 在 Activity 销毁时弹出 PopupWindow 导致 BadTokenException
+        installActionModeSafeCallback()
+
+        // 记录设备诊断信息到日志（供 Bugly / 崩溃分析使用）
+        VulkanPolicy.logDeviceDiagnostics(this)
+        // 标记本次为干净启动，重置连续崩溃计数器
+        CrashRecoveryEngine.onCleanLaunch()
+
+        // ★ 渲染策略决策：模拟器直接走软件渲染，正常设备 Vulkan（带降级回退）
+        val renderStrategy = VulkanPolicy.getRenderStrategy(this)
+        _isSoftwareRendering = renderStrategy == VulkanPolicy.RenderStrategy.SOFTWARE_ONLY
+        Log.i(TAG, "Render strategy: ${renderStrategy.description}")
+
+        enableEdgeToEdge()
+        hideSystemBars()
+    }
+
+    /** P-2：从 savedInstanceState/intent 解析启动参数。 */
+    private fun resolveLaunchIntent(savedInstanceState: Bundle?): GameLaunchParams {
+        val savedSlot = savedInstanceState?.getInt(KEY_CURRENT_SLOT, -1) ?: -1
+        val intentSlot = intent.getIntExtra(MainActivity.EXTRA_SLOT, -1)
+        val isNewGame = intent.getBooleanExtra(MainActivity.EXTRA_NEW_GAME, false)
+        val sectName = intent.getStringExtra(MainActivity.EXTRA_SECT_NAME) ?: "青云宗"
+        val isCloudSaveLoad = intent.getBooleanExtra(MainActivity.EXTRA_CLOUD_SAVE_LOAD, false)
+        return GameLaunchParams(
+            slot = if (savedSlot >= 0) savedSlot else intentSlot,
+            isNewGame = isNewGame,
+            sectName = sectName,
+            isCloudSaveLoad = isCloudSaveLoad,
+            isSoftwareRendering = _isSoftwareRendering
+        )
+    }
+
+    /** P-2：启动参数聚合。 */
+    private data class GameLaunchParams(
+        val slot: Int,
+        val isNewGame: Boolean,
+        val sectName: String,
+        val isCloudSaveLoad: Boolean,
+        val isSoftwareRendering: Boolean
+    )
+
+    /** P-2：游戏初始化分发（新游戏/读档/云读档，JIT 暂停下执行）。 */
+    private fun initializeGameIfNeeded(slot: Int, isNewGame: Boolean, sectName: String, isCloudSaveLoad: Boolean) {
+        if (saveLoadViewModel.isGameAlreadyLoaded()) {
+            Log.d(TAG, "Game already loaded in ViewModel, skipping initialization")
+            return
+        }
+        saveLoadViewModel.resetSaveLoadState()
+        Log.d(
+            TAG,
+            "onCreate: Game not loaded, will initialize. slot=$slot, " +
+                "isNewGame=$isNewGame, isCloudSaveLoad=$isCloudSaveLoad"
+        )
+        lifecycleScope.launch {
+            VivoGCJITOptimizer.runWithJitPaused(block = {
+                when {
+                    isCloudSaveLoad -> {
+                        Log.d(TAG, "Loading cloud save from MainActivity")
+                        saveLoadViewModel.loadFromCloudSave()
+                    }
+                    isNewGame && slot >= 0 -> {
+                        Log.d(TAG, "Starting new game: sectName=$sectName, slot=$slot")
+                        saveLoadViewModel.startNewGame(sectName, slot)
+                    }
+                    slot >= 0 -> {
+                        Log.d(TAG, "Loading game from slot: $slot")
+                        saveLoadViewModel.loadGameFromSlot(slot)
+                    }
+                    isNewGame -> {
+                        Log.d(TAG, "Starting new game with default slot: sectName=$sectName")
+                        saveLoadViewModel.startNewGame(sectName = sectName)
+                    }
+                    else -> {
+                        Log.e(TAG, "Invalid game start parameters: slot=$slot, isNewGame=$isNewGame")
+                        finish()
+                    }
+                }
+            }, tag = "GameActivity_Init")
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
