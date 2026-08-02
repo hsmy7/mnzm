@@ -112,7 +112,8 @@ class GameEngineAtomicAssignTest {
             spiritStoneWallet = mock(),
             gameRngManager = mock(),
             assignmentGate = gate,
-            lawEnforcementProcessor = mock()
+            lawEnforcementProcessor = mock(),
+        secretRealmService = mock()
         )
     }
 

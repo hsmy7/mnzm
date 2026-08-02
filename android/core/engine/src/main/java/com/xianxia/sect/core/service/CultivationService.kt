@@ -285,9 +285,12 @@ class CultivationService @Inject constructor(
         val data = state.gameData
 
         // 1. 列级直读：快速筛选需要突破判定的弟子，避免 assembleAll() 全量组装
+        // 远古秘境：探索中弟子不可突破（跳过判定候选）
+        val secretRealmMemberIds = data.secretRealmMemberIds()
         val candidateDiscipleIds = mutableListOf<Int>()
         for (id in tables.ids) {
             if (tables.isAlive[id] != 1) continue
+            if (id in secretRealmMemberIds) continue
             val realm = tables.realms.getOrDefault(id, 9)
             if (realm <= 0) continue
             val realmLayer = tables.realmLayers.getOrDefault(id, 1)

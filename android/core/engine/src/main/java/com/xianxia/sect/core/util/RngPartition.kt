@@ -19,5 +19,7 @@ enum class RngPartition(val id: Int) {
     /** 邮件/兑换码奖励随机生成：弟子属性/装备/丹药/草药等 */
     MAIL(5),
     /** AI 宗门：弟子生成/装备分配/修炼演化（与主游戏 RNG 隔离，避免跨线程污染） */
-    AI_SECT(6);
+    AI_SECT(6),
+    /** 远古秘境：秘境刷新/事件生成/妖兽属性/分支判定 */
+    SECRET_REALM(7);
 }

@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.game.map
 
 import com.xianxia.sect.core.model.LevelType
+import com.xianxia.sect.core.model.SecretRealmState
 import com.xianxia.sect.core.model.WorldLevel
 import com.xianxia.sect.core.model.WorldSect
 
@@ -51,4 +52,16 @@ object MapItemMapper {
                     beastSpeed = level.beastSpeed
                 )
             }
+
+    fun fromSecretRealm(state: SecretRealmState): MapItem.SecretRealm? {
+        if (!state.exists) return null
+        return MapItem.SecretRealm(
+            id = state.id,
+            worldX = state.x,
+            worldY = state.y,
+            name = state.name,
+            spawnYear = state.spawnYear,
+            spriteIndex = state.spriteIndex
+        )
+    }
 }

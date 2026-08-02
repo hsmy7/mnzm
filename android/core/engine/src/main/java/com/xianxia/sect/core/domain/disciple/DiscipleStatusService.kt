@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
+import com.xianxia.sect.core.engine.service.SecretRealmService
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
@@ -18,7 +19,8 @@ import javax.inject.Singleton
 @Singleton
 class DiscipleStatusService @Inject constructor(
     private val stateStore: GameStateStore,
-    private val discipleLifecycleManager: DiscipleLifecycleManager
+    private val discipleLifecycleManager: DiscipleLifecycleManager,
+    private val secretRealmService: SecretRealmService
 ) {
     companion object {
         private val explorationStatuses = setOf(
@@ -98,12 +100,15 @@ class DiscipleStatusService @Inject constructor(
                 team.memberIds.contains(discipleId) &&
                     team.status in caveExplorationStatuses
             }
+            // 远古秘境：探索会话存在且秘境在地图上时，成员视为队伍占用（IN_TEAM）
+            val inSecretRealm = data.secretRealmState.exists &&
+                data.secretRealmSession.members.any { it.discipleId == discipleId && !it.isDead }
 
             val inGarrison =
                 playerSect?.garrisonSlots?.any { it.discipleId == discipleId } == true
             val inTeam = data.battleTeams
                 .any { t -> t.slots.any { it.discipleId == discipleId } }
-                || inExploration || inCaveExploration
+                || inExploration || inCaveExploration || inSecretRealm
             val lawEnforcing = elderSlots.lawEnforcementElder == discipleId
                 || elderSlots.lawEnforcementDisciples
                     .any { it.discipleId == discipleId }
@@ -264,6 +269,13 @@ class DiscipleStatusService @Inject constructor(
         ids.addAll(data.caveExplorationTeams
             .filter { it.status in caveExplorationStatuses }
             .flatMap { it.memberIds })
+        // 远古秘境探索成员（与 buildSlotFlagsFor 的 inSecretRealm 保持一致——
+        // 对抗性审查 S5：此前仅纯函数版本含秘境成员，syncAllDiscipleStatuses 推导为 IDLE）
+        if (data.secretRealmState.exists) {
+            ids.addAll(data.secretRealmSession.members
+                .filter { !it.isDead }
+                .map { it.discipleId })
+        }
         return ids
     }
 
@@ -458,6 +470,11 @@ class DiscipleStatusService @Inject constructor(
             activeMissions = clearedActiveMissions
         )
         teams = updatedTeams
+
+        // 远古秘境：重置所有弟子时终止探索会话（背包结算入仓 + 秘境消失 + 冷却）
+        if (gameData.secretRealmSession.isActive || gameData.secretRealmState.exists) {
+            secretRealmService.endSession(this)
+        }
 
         for (id in discipleTables.ids) {
             val isAlive = discipleTables.isAlive[id] == 1

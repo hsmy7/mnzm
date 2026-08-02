@@ -98,7 +98,8 @@ class GameEngineMarriageProposalTest {
             spiritStoneWallet = mock(),
             gameRngManager = mock(),
             assignmentGate = mock(),
-            lawEnforcementProcessor = mock()
+            lawEnforcementProcessor = mock(),
+        secretRealmService = mock()
         )
     }
 

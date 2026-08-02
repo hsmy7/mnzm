@@ -5,6 +5,7 @@ import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
 import com.xianxia.sect.core.engine.domain.disciple.PillRule
 import com.xianxia.sect.core.model.ItemEffect
+import com.xianxia.sect.core.model.secretRealmMemberIds
 import com.xianxia.sect.core.model.PillEffects
 import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.state.DiscipleTables
@@ -50,8 +51,11 @@ class AutoPillService @Inject constructor(
     ) {
         val tables = state.discipleTables
         val currentMonth = state.gameData.gameYear * 12 + state.gameData.gameMonth
+        // 远古秘境：探索中弟子不自动服用丹药（不可突破、不可恢复状态）
+        val secretRealmMemberIds = state.gameData.secretRealmMemberIds()
         for (id in tables.ids) {
             if (tables.isAlive[id] != 1) continue
+            if (id in secretRealmMemberIds) continue
             if (!hasUsablePills(id, tables)) continue
 
             val disciple = tables.assemble(id)

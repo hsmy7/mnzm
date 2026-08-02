@@ -596,4 +596,40 @@ object CollectionConverters {
     fun toStringLongMap(value: String): Map<String, Long> =
         ProtobufConverters.decodeFromBase64(MapSerializer(String.serializer(), Long.serializer()), value) { emptyMap() }
 
+    // ==================== 远古秘境转换器 ====================
+
+    @TypeConverter
+    @JvmStatic
+    fun fromSecretRealmState(value: SecretRealmState): String =
+        ProtobufConverters.encodeToBase64(SecretRealmState.serializer(), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toSecretRealmState(value: String): SecretRealmState =
+        ProtobufConverters.decodeFromBase64(SecretRealmState.serializer(), value) { SecretRealmState() }
+
+    @TypeConverter
+    @JvmStatic
+    fun fromSecretRealmExplorationSession(value: SecretRealmExplorationSession): String =
+        ProtobufConverters.encodeToBase64(SecretRealmExplorationSession.serializer(), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toSecretRealmExplorationSession(value: String): SecretRealmExplorationSession =
+        ProtobufConverters.decodeFromBase64(SecretRealmExplorationSession.serializer(), value) {
+            SecretRealmExplorationSession()
+        }
+
+    @TypeConverter
+    @JvmStatic
+    fun fromSecretRealmAITeamList(value: List<SecretRealmAITeam>): String =
+        ProtobufConverters.encodeToBase64(ListSerializer(SecretRealmAITeam.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toSecretRealmAITeamList(value: String): List<SecretRealmAITeam> =
+        ProtobufConverters.decodeFromBase64(ListSerializer(SecretRealmAITeam.serializer()), value) {
+            emptyList()
+        }
+
 }

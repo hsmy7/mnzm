@@ -20,7 +20,8 @@ data class WorldMapRenderData(
     val worldMapSects: List<WorldSect> = emptyList(),
     val cultivatorCaves: List<CultivatorCave> = emptyList(),
     val worldLevels: List<WorldLevel> = emptyList(),
-    val connectionEdges: List<MSTEdge> = emptyList()
+    val connectionEdges: List<MSTEdge> = emptyList(),
+    val secretRealm: SecretRealmState? = null
 )
 
 data class WorldMapDialogState(

@@ -84,6 +84,8 @@ data class YearlyReport(
         Index(value = ["spiritStones"])
     ]
 )
+// 全量存档载体（Room Entity + ProtoBuf + 惰性结算字段聚合），拆分会破坏单事务原子存档
+@Suppress("LargeClass")
 data class GameData(
     @ColumnInfo(name = "id")
     @SettlementStrategy(Strategy.USE_SHADOW)
@@ -524,6 +526,30 @@ data class GameData(
     @ProtoNumber(211)
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var watchedItemIds: List<String> = emptyList(),
+
+    // 远古秘境地图实例（id 为空 = 当前不存在）。纯玩法状态，结算不参与。
+    @ProtoNumber(212)
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    @ColumnInfo(name = "secret_realm_state", defaultValue = "")
+    var secretRealmState: SecretRealmState = SecretRealmState(),
+
+    // 远古秘境上次消失年份（冷却判据；0 = 从未出现）
+    @ProtoNumber(213)
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    @ColumnInfo(name = "secret_realm_cooldown_year", defaultValue = "0")
+    var secretRealmCooldownYear: Int = 0,
+
+    // 远古秘境探索会话（members 为空 = 无活跃会话）
+    @ProtoNumber(214)
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    @ColumnInfo(name = "secret_realm_session", defaultValue = "")
+    var secretRealmSession: SecretRealmExplorationSession = SecretRealmExplorationSession(),
+
+    // 秘境中 AI 宗门探索队伍列表
+    @ProtoNumber(215)
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    @ColumnInfo(name = "secret_realm_ai_teams", defaultValue = "")
+    var secretRealmAITeams: List<SecretRealmAITeam> = emptyList(),
 
     // 道侣管理：禁止结婚的灵根数量（1=单灵根, 2=双灵根, 3=三灵根, 4=四灵根, 5=五灵根）
     @ProtoPacked @ProtoNumber(102)

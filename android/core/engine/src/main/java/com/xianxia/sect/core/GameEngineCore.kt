@@ -716,6 +716,34 @@ class GameEngineCore @Inject constructor(
         stateStore.update { isPaused = false }
     }
 
+    /** 远古秘境探索暂停锁：进入探索界面时若未暂停则由秘境持有暂停，退出时恢复 */
+    @Volatile
+    var secretRealmPauseLock: Boolean = false
+
+    /**
+     * 秘境探索暂停：若当前未暂停则暂停游戏时间并记录锁（退出探索时恢复）。
+     * 用户在探索前手动暂停的场景不抢占。
+     */
+    fun pauseForSecretRealm() {
+        if (!stateStore.isPaused.value) {
+            stateStore.setPausedDirect(true)
+            secretRealmPauseLock = true
+        }
+    }
+
+    /** 秘境探索恢复：仅当暂停由秘境持有（进入探索时记录）时才恢复游戏时间。 */
+    fun resumeFromSecretRealm() {
+        if (secretRealmPauseLock) {
+            stateStore.setPausedDirect(false)
+            secretRealmPauseLock = false
+            // 自检：若游戏循环未运行则重启（防御探索期间后台恢复等路径导致循环丢失，
+            // 不依赖 GameForegroundService 的隐式重启——代码质量审查问题 6）
+            if (!isGameLoopRunning) {
+                startGameLoop()
+            }
+        }
+    }
+
     fun pauseForBackground() {
         if (isGameLoopRunning) {
             wasRunningBeforeBackground = true
@@ -731,6 +759,12 @@ class GameEngineCore @Inject constructor(
     }
 
     fun resumeFromBackground() {
+        // 远古秘境探索界面打开期间：暂停由秘境持有（secretRealmPauseLock），
+        // 回前台必须保持暂停（对抗性审查 S4：此前无条件恢复导致探索期间月变/年变发生）
+        if (secretRealmPauseLock) {
+            clearBackgroundPauseFlag()
+            return
+        }
         if (_wasPausedByBackground && wasRunningBeforeBackground) {
             stateStore.setPausedDirect(false)
             startGameLoop()
@@ -912,9 +946,14 @@ class GameEngineCore @Inject constructor(
         val buildingByInstanceId = state.gameData.placedBuildings.associateBy { it.instanceId }
         // P-6：realtimeCultivation 投影批量累积（D 次发射 → 1 次）
         val pendingRealtime = mutableMapOf<String, Double>()
+        // 远古秘境：探索中弟子不参与恢复/修炼/熟练度/孕养（不可突破、不可恢复状态）
+        val secretRealmMemberIds = state.gameData.secretRealmMemberIds()
 
         for (id in state.discipleTables.ids) {
-            if (state.discipleTables.isAlive[id] != 1) continue
+            // 存活 + 非秘境成员才参与恢复/修炼（合并跳转条件，保持循环单跳转）
+            if (state.discipleTables.isAlive[id] != 1 ||
+                id in secretRealmMemberIds
+            ) continue
             // 1) HP/MP 恢复（2026-08-01 列直读版：无 assemble，满血提前退出）
             cultivationService.recoverHpMpSingleColumn(
                 state, id, phasesToSettle = 1,

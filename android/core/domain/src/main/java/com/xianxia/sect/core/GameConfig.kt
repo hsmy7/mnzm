@@ -923,6 +923,32 @@ object GameConfig {
     }
 
     /**
+     * 远古秘境玩法配置。
+     */
+    object SecretRealm {
+        const val SPAWN_PROBABILITY_PER_YEAR = 0.008      // 每年刷新概率 0.8%
+        const val COOLDOWN_YEARS = 50                      // 探索结束后冷却 50 年
+        const val REALM_MIN = 0                            // 境界下限（仙人）
+        const val REALM_MAX = 9                            // 境界上限（炼气）
+        const val BEAST_LAYER_VARIANT_COUNT = 9            // 妖兽层数方差档位（1..9 层）
+        const val SPRITE_VARIANT_COUNT = 3                 // 秘境精灵图变体数量（cave_1..3）
+        const val POSITION_ATTEMPTS = 100                  // 地图位置随机尝试次数
+        const val FALLBACK_SCAN_STEP = 8                   // 兜底位置扫描步长（px）
+        const val SECT_CLEARANCE = 20                      // 秘境与宗门的安全距离余量（px）
+        const val STAMINA_MAX = 20                         // 初始体力上限
+        const val STAMINA_COST_PER_CHOICE = 1              // 每选一个选项扣 1 体力
+        const val TEAM_SIZE = 4                            // 探索队伍人数
+        const val BEAST_COUNT_MIN = 1                      // 妖兽数量下限
+        const val BEAST_COUNT_MAX = 6                      // 妖兽数量上限
+        const val AMBUSH_BEAST_HP_REDUCTION = 0.10         // 偷袭成功：妖兽初始血量 -10%
+        const val FLEE_DETECT_CHANCE = 0.30                // 选择"远离"被妖兽发现的概率
+        const val AMBUSH_DETECT_CHANCE = 0.50              // 选择"偷袭"被妖兽发现的概率
+        const val LOOT_LOSS_MIN = 0.20                     // 战斗失败丢失物品比例下限
+        const val LOOT_LOSS_MAX = 0.45                     // 战斗失败丢失物品比例上限
+        const val AI_TEAM_SIZE = 4                         // AI 宗门队伍人数
+    }
+
+    /**
      * 免广告特权白名单。
      *
      * 在此列表中的 TapTap unionId 对应玩家跳过广告播放、

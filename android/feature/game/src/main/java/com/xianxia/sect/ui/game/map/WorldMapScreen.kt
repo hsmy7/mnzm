@@ -12,6 +12,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import com.xianxia.sect.core.model.MSTEdge
 import com.xianxia.sect.core.model.MapCoordinateSystem
 import com.xianxia.sect.ui.game.map.markers.LevelMarker
+import com.xianxia.sect.ui.game.map.markers.SecretRealmMarker
 import com.xianxia.sect.ui.game.map.markers.SectMarker
 import com.xianxia.sect.ui.game.map.world.WorldCameraState
 import com.xianxia.sect.ui.game.map.world.rememberWorldCamera
@@ -28,6 +29,7 @@ fun WorldMapScreen(
     onBack: () -> Unit = {},
     onSectClick: (MapItem.Sect) -> Unit = {},
     onLevelClick: (MapItem.Level) -> Unit = {},
+    onSecretRealmClick: (MapItem.SecretRealm) -> Unit = {},
     onUserInteraction: () -> Unit = {},
     connectionEdges: List<MSTEdge> = emptyList()
 ) {
@@ -86,6 +88,12 @@ fun WorldMapScreen(
                     item = item,
                     cameraState = cameraState,
                     onClick = { onLevelClick(item) }
+                )
+
+                is MapItem.SecretRealm -> SecretRealmMarker(
+                    item = item,
+                    cameraState = cameraState,
+                    onClick = { onSecretRealmClick(item) }
                 )
             }
         }

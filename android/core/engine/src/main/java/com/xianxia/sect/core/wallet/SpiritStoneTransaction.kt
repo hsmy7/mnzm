@@ -55,6 +55,7 @@ sealed class SpiritStoneSource {
     object Refund : SpiritStoneSource()
     object Salary : SpiritStoneSource()
     object StorageBag : SpiritStoneSource()
+    object SecretRealm : SpiritStoneSource()
 
     /** 内部使用（从 InventorySystem 委托时的默认值） */
     object Internal : SpiritStoneSource()

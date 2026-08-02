@@ -55,7 +55,8 @@ class CultivationEventProcessor @Inject constructor(
     private val disciplePurchaseService: DisciplePurchaseService,
     private val aiSectBeastAttackProcessor: AISectBeastAttackProcessor,
     private val lawEnforcementProcessor: LawEnforcementProcessor,
-    private val rngManager: GameRngManager
+    private val rngManager: GameRngManager,
+    private val secretRealmService: SecretRealmService
 ) {
     private val scope get() = scopeProvider.scope
     companion object {
@@ -151,7 +152,10 @@ class CultivationEventProcessor @Inject constructor(
         }
 
         // Phase 2: 列级预过滤后只 assemble 储物袋有匹配物品的弟子
+        // 远古秘境：探索中弟子不自动装备/学习（状态冻结语义，与修炼/服药跳过一致）
+        val secretRealmMemberIds = gameData.secretRealmMemberIds()
         val updatedDisciples = tables.ids.filter { tables.isAlive[it] == 1 }
+            .filter { id -> id !in secretRealmMemberIds }
             .filter { id ->
                 val bags = tables.storageBagItems.getOrDefault(id, emptyList())
                 bags.any { item ->
@@ -422,6 +426,9 @@ class CultivationEventProcessor @Inject constructor(
             safelyRunInState("garrisonAndReport") { runGarrisonAndReport(year, this) }
             safelyRunInState("griefExpiry") {
                 discipleLifecycleProcessor.processGriefExpiry(year)
+            }
+            safelyRunInState("ancientSecretRealmSpawn") {
+                secretRealmService.processYearlySpawn(year, this)
             }
         }
     }

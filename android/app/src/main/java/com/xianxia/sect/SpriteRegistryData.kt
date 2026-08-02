@@ -328,7 +328,8 @@ internal val SPRITES_UI = mapOf(
         "spirit_stone_low" to R.drawable.spirit_stone_low,
         "spirit_stone_mid" to R.drawable.spirit_stone_mid,
         "spirit_stone_high" to R.drawable.spirit_stone_high,
-        "golden_finger" to R.drawable.golden_finger
+        "golden_finger" to R.drawable.golden_finger,
+        "secret_realm_option_card" to R.drawable.secret_realm_option_card
 )
 
 /** SPRITES_BEAST — 精灵图资源映射（原 XianxiaApplication.onCreate 逐行搬移） */
@@ -347,7 +348,8 @@ internal val SPRITES_BEAST = mapOf(
 internal val SPRITES_CAVE = mapOf(
         "cave_1" to R.drawable.cave_1,
         "cave_2" to R.drawable.cave_2,
-        "cave_3" to R.drawable.cave_3
+        "cave_3" to R.drawable.cave_3,
+        "secret_realm" to R.drawable.secret_realm
 )
 
 /** SPRITES_HEAVENLY_TRIAL — 精灵图资源映射（原 XianxiaApplication.onCreate 逐行搬移） */
@@ -379,7 +381,8 @@ internal val SPRITES_BACKGROUND = mapOf(
         "map_zhongzhou" to R.drawable.map_zhongzhou,
         "dialogue_bg" to R.drawable.dialogue_bg,
         "dialogue_bubble_left" to R.drawable.dialogue_bubble_left,
-        "dialogue_bubble_right" to R.drawable.dialogue_bubble_right
+        "dialogue_bubble_right" to R.drawable.dialogue_bubble_right,
+        "secret_realm_bg" to R.drawable.secret_realm_bg
 )
 
 /** SPRITES_PORTRAIT — 精灵图资源映射（原 XianxiaApplication.onCreate 逐行搬移） */

@@ -14,7 +14,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
+import org.junit.runner.RunWith
 import org.mockito.Mockito
+import org.robolectric.RobolectricTestRunner
 
 /**
  * LawEnforcementProcessor 偷盗机制单元测试。
@@ -27,6 +29,7 @@ import org.mockito.Mockito
  * - 仓库守卫纯智力对比
  * - 端到端集成：全流程验证
  */
+@RunWith(RobolectricTestRunner::class)
 class LawEnforcementProcessorTest {
 
     @get:Rule val writeGuardRule = WriteGuardRule()

@@ -85,6 +85,7 @@ class OverflowMailSender @Inject constructor(
             "quest" to "任务",
             "building" to "建筑",
             "confiscate" to "储物袋回收",
+            "secret_realm" to "远古秘境",
             "unknown" to "未知"
         )
 

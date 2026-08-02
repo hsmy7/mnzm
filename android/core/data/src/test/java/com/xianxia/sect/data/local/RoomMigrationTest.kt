@@ -65,6 +65,7 @@ class RoomMigrationTest {
         private val M34_35 = MIGRATION_34_35
         private val M35_36 = MIGRATION_35_36
         private val M36_37 = MIGRATION_36_37
+        private val M37_38 = MIGRATION_37_38
     }
 
     // ==================== 单个迁移步骤测试 ====================
@@ -73,6 +74,22 @@ class RoomMigrationTest {
     fun `MIGRATION_36_TO_37 adds watchedItemIds to game_data`() {
         testSingleMigration(
             "m_36_37", 36, 37, listOf(M36_37), "game_data", "watchedItemIds"
+        )
+    }
+
+    @Test
+    fun `MIGRATION_37_TO_38 adds secret realm 4 columns to game_data`() {
+        testSingleMigration(
+            "m_37_38", 37, 38, listOf(M37_38), "game_data", "secret_realm_state"
+        )
+        testSingleMigration(
+            "m_37_38_cd", 37, 38, listOf(M37_38), "game_data", "secret_realm_cooldown_year"
+        )
+        testSingleMigration(
+            "m_37_38_sess", 37, 38, listOf(M37_38), "game_data", "secret_realm_session"
+        )
+        testSingleMigration(
+            "m_37_38_ai", 37, 38, listOf(M37_38), "game_data", "secret_realm_ai_teams"
         )
     }
 

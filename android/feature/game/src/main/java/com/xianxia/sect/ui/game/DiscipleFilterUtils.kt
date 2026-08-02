@@ -116,6 +116,9 @@ internal fun List<DiscipleAggregate>.filterByDiscipleStatus(
     return filter { d ->
         val statusOk = if (showAllEnabled) {
             d.status != DiscipleStatus.ON_MISSION
+            // 探索/战斗中弟子（含远古秘境成员，由 buildSlotFlagsFor 推导为 IN_TEAM）
+            // 在"显示所有"模式下同样不可被其他系统分配
+            && d.status != DiscipleStatus.IN_TEAM
             && d.id !in battleAndExplorationIds
         } else {
             d.status == DiscipleStatus.IDLE

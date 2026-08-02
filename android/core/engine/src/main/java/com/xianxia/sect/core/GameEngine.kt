@@ -98,6 +98,7 @@ class GameEngine @Inject constructor(
     internal val gameRngManager: GameRngManager,
     internal val assignmentGate: com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate,
     internal val lawEnforcementProcessor: com.xianxia.sect.core.engine.service.LawEnforcementProcessor,
+    internal val secretRealmService: com.xianxia.sect.core.engine.service.SecretRealmService,
 ) {
     init {
         // 注入任务完成检测回调到 GameEngineCore，
@@ -255,7 +256,8 @@ class GameEngine @Inject constructor(
                 worldMapSects = data.worldMapSects,
                 cultivatorCaves = data.cultivatorCaves ?: emptyList(),
                 worldLevels = data.worldLevels ?: emptyList(),
-                connectionEdges = LevelGenerator.buildConnectionEdges(data.worldMapSects)
+                connectionEdges = LevelGenerator.buildConnectionEdges(data.worldMapSects),
+                secretRealm = data.secretRealmState.takeIf { it.exists }
             )
         }.distinctUntilChanged()
             .stateIn(gameEngineCore.scopeForStateIn(), kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000), WorldMapRenderData())

@@ -44,4 +44,14 @@ sealed interface MapItem {
         val beastMagicDefense: Int = 0,
         val beastSpeed: Int = 0
     ) : MapItem
+
+    /** 远古秘境标记（精灵图，点击弹出详情） */
+    data class SecretRealm(
+        override val id: String,
+        override val worldX: Float,
+        override val worldY: Float,
+        val name: String,
+        val spawnYear: Int,
+        val spriteIndex: Int
+    ) : MapItem
 }
