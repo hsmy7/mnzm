@@ -190,6 +190,10 @@ class GameActivity : ComponentActivity() {
             GameContent(isSoftwareRendering)
         }
 
+        // 免广告白名单须在游戏初始化前就绪：boot 后同协程即注入特权邮件，
+        // 若等 Compose 重组，unionId 尚为 null，白名单判定会失败
+        AdFreeWhitelist.initialize(sessionManager.unionId)
+
         // P-2 拆分：游戏初始化分发（新游戏/读档/云读档）
         initializeGameIfNeeded(slot, isNewGame, sectName, isCloudSaveLoad)
 
@@ -327,9 +331,6 @@ class GameActivity : ComponentActivity() {
                     ) { showGame ->
                         val preloadData = mapPreloadData
                         if (showGame && preloadData != null) {
-                            // 初始化免广告特权白名单
-                            AdFreeWhitelist.initialize(sessionManager.unionId)
-
                             // 注入 Activity 引用到广告服务实现
                             adServiceImpl.attachActivity(this@GameActivity)
 

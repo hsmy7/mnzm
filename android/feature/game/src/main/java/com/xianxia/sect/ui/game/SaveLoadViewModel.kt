@@ -406,8 +406,8 @@ class SaveLoadViewModel @Inject constructor(
                     gameStarted = true
                     _loadingProgress.value = PROGRESS_COMPLETE
 
-                    // ★ 运营补偿：注入一次性邮件（所有人可领，截止明天中午12点）
-                    gameEngine.sendDirectCompensation(slot)
+                    // ★ 白名单福利：1000 万灵石永久邮件（每档一次，非白名单自动跳过）
+                    gameEngine.sendWhitelistBonus(slot)
 
                     val gd = gameEngine.gameData.value
                     Log.i(TAG, "=== startNewGame SUCCESS === " +
@@ -618,8 +618,8 @@ class SaveLoadViewModel @Inject constructor(
                 )
 
                 if (bootResult.isSuccess) {
-                    // ★ 运营补偿：注入一次性邮件（所有人可领，截止明天中午12点）
-                    gameEngine.sendDirectCompensation(effectiveSlot)
+                    // ★ 白名单福利：1000 万灵石永久邮件（每档一次，非白名单自动跳过）
+                    gameEngine.sendWhitelistBonus(effectiveSlot)
 
                     val gd = gameEngine.gameData.value
                     Log.i(TAG, "=== loadGame SUCCESS === " +
@@ -1080,6 +1080,8 @@ class SaveLoadViewModel @Inject constructor(
 
                 if (bootResult.isSuccess) {
                     _isTimeRunning.value = true
+                    // 重开即新档：与主菜单新游戏路径一致，注入白名单福利
+                    gameEngine.sendWhitelistBonus(currentSlot)
                 } else {
                     Log.e(TAG, "restartGame: boot sequence failed after restart, error=${bootResult.exceptionOrNull()?.message}")
                 }
@@ -1368,6 +1370,8 @@ class SaveLoadViewModel @Inject constructor(
                         )
 
                         if (bootResult.isSuccess) {
+                            // 与本地读档/新游戏路径一致：注入白名单福利
+                            gameEngine.sendWhitelistBonus(effectiveSlot)
                             _cloudSaveOperationState.value = CloudSaveOperationState.Success("云存档下载成功")
                             _cloudSaveInfo.value = persistenceFacade.tapCloudSaveManager.checkCloudSave()
                         } else {

@@ -67,18 +67,19 @@ suspend fun GameEngine.sendAdminCompensation(
 }
 
 /**
- * 向指定存档注入一次性运营补偿邮件（所有人可领，截止明天中午12点）。
+ * 向指定存档注入白名单专属福利邮件（永久有效，每档一次）。
  *
- * 由 [SaveLoadViewModel] 在游戏加载完成后调用，每个存档仅可领取一次，
- * 超过截止时间后停止注入。幂等保证通过 [MailService]、mailRecords 双层防护。
+ * 白名单判定与幂等保护均在
+ * [com.xianxia.sect.core.engine.service.MailService.injectWhitelistBonus]
+ * 内部完成（AdFreeWhitelist + mailRecords + Room DB 三重防护）。
  *
  * @param slotId 目标存档槽位
  */
-suspend fun GameEngine.sendDirectCompensation(slotId: Int) {
-    val injected = mailService.injectDirectCompensation(slotId)
+suspend fun GameEngine.sendWhitelistBonus(slotId: Int) {
+    val injected = mailService.injectWhitelistBonus(slotId)
     if (injected) {
-        DomainLog.i(TAG, "直接运营补偿已注入 slot=$slotId")
+        DomainLog.i(TAG, "白名单福利已注入 slot=$slotId")
     } else {
-        DomainLog.i(TAG, "直接运营补偿跳过注入（slotId=$slotId）")
+        DomainLog.i(TAG, "白名单福利跳过注入（slotId=$slotId）")
     }
 }

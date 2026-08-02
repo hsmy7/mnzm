@@ -512,6 +512,8 @@ private fun formatExpireTime(expireTime: Long): String {
     val now = System.currentTimeMillis()
     val diff = expireTime - now
     if (diff <= 0) return "已过期"
+    // 永久邮件（Long.MAX_VALUE）显示"永久有效"，而非超大天数
+    if (diff >= 100L * 365 * 24 * 60 * 60 * 1000) return "永久有效"
 
     val days = diff / (24 * 60 * 60 * 1000)
     val hours = diff / (60 * 60 * 1000)

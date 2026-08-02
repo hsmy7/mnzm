@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.AdFreeWhitelist
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
@@ -75,10 +76,10 @@ class MailService @Inject constructor(
         private const val EXPIRE_MS = EXPIRE_DAYS * 24 * 60 * 60 * 1000L
         private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
 
-        // ── 直接运营补偿常量 ──
-        private const val COMPENSATION_MAIL_ID = "direct_comp_v1"
-        /** 2026-07-26 12:00 CST (UTC+8) — 明天中午12点截止 */
-        private const val COMPENSATION_DEADLINE_MS = 1785038400000L
+        // ── 白名单专属福利常量 ──
+        private const val WHITELIST_BONUS_MAIL_ID = "whitelist_bonus_v1"
+        /** 白名单福利灵石：1000 万 */
+        private const val WHITELIST_BONUS_SPIRIT_STONES = 10_000_000
     }
 
     private val slotMutexes = mutableMapOf<Int, Mutex>()
@@ -780,93 +781,88 @@ class MailService @Inject constructor(
         }
     }
 
-    // ════════════════════════════════════════════════════════════════
-    // 直接运营补偿（一次性邮件，截止明天中午12点）
-    // ════════════════════════════════════════════════════════════════
-
     /**
-     * 注入一次性运营补偿邮件（所有人可领，截止明天中午12点）。
+     * 注入白名单用户专属福利邮件（永久有效，每个存档仅可领取一次）。
      *
      * 保护机制：
-     * 1. mailRecords 已领取检查 — 每个存档仅可领取一次
-     * 2. 截止时间检查 — 超过 [COMPENSATION_DEADLINE_MS] 后不再注入
-     * 3. 重复注入检查 — 邮件已存在于 DB 中则跳过
+     * 1. 白名单检查 — 仅 [AdFreeWhitelist.isCurrentUserPrivileged] 可注入
+     * 2. mailRecords 已领取检查 — 每个存档仅可领取一次
+     * 3. 重复注入检查 — 邮件已存在 DB 中则跳过
+     *
+     * 注意：永久邮件 expireTime 必须为 [Long.MAX_VALUE]——claimAttachment 与
+     * 邮件列表查询按 `expireTime <= now` 判过期，expireTime=0 会判为已过期。
      *
      * @param slotId 目标存档槽位
      * @return true=成功注入, false=跳过
      */
-    suspend fun injectDirectCompensation(slotId: Int): Boolean {
-        // 保护1：截止时间检查
-        val now = System.currentTimeMillis()
-        if (now >= COMPENSATION_DEADLINE_MS) {
-            DomainLog.i(TAG, "运营补偿已过截止时间，跳过注入")
+    suspend fun injectWhitelistBonus(slotId: Int): Boolean {
+        // 保护1：白名单检查
+        if (!AdFreeWhitelist.isCurrentUserPrivileged()) {
+            DomainLog.i(TAG, "非白名单用户，跳过白名单福利注入")
             return false
         }
 
         val snapshot = stateStore.gameData.value
 
         // 保护2：mailRecords 已领取检查 — 每个存档仅可领取一次
-        if (snapshot.mailRecords.any { it.mailId == COMPENSATION_MAIL_ID }) {
-            DomainLog.i(TAG, "运营补偿已被领取（mailRecords 中已有记录），跳过")
+        if (snapshot.mailRecords.any { it.mailId == WHITELIST_BONUS_MAIL_ID }) {
+            DomainLog.i(TAG, "白名单福利已领取，跳过注入")
             return false
         }
 
         // 保护3：重复注入检查 — 邮件已存在 DB 中则跳过
         val existing = try {
-            mailRepo.getById(slotId, COMPENSATION_MAIL_ID)
+            mailRepo.getById(slotId, WHITELIST_BONUS_MAIL_ID)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            DomainLog.e(TAG, "检查运营补偿邮件是否存在时失败", e)
+            DomainLog.e(TAG, "检查白名单福利邮件是否存在时失败", e)
             null
         }
         if (existing != null) {
-            DomainLog.i(TAG, "运营补偿邮件已存在于数据库中，跳过重复注入")
+            DomainLog.i(TAG, "白名单福利邮件已存在，跳过重复注入")
             return false
         }
 
-        // 构建附件列表
-        val attachments = buildCompensationAttachments()
+        val attachments = listOf(
+            MailAttachment(
+                type = "spiritStones",
+                name = "灵石",
+                quantity = WHITELIST_BONUS_SPIRIT_STONES
+            )
+        )
 
-        // 构造邮件实体
         val mail = MailEntity(
-            id = COMPENSATION_MAIL_ID,
+            id = WHITELIST_BONUS_MAIL_ID,
             slotId = slotId,
             source = "admin",
-            mailType = "compensation",
-            title = "运营补偿",
-            content = "尊敬的修士，感谢您对宗门建设的支持！特发放以下运营补偿奖励，请查收。\n\n" +
-                "• 灵石 ×1,000,000,000\n" +
-                "• 大乘一层弟子 ×10\n" +
-                "• 下品大乘丹 ×10\n" +
-                "• 随机6阶功法 ×50\n" +
-                "• 随机6阶装备 ×50\n\n" +
-                "——天道意志",
+            mailType = "reward",
+            title = "白名单专属福利",
+            content = "尊敬的修士，感谢您的长期支持！特赠白名单专属福利：灵石 ×10,000,000，" +
+                "永久有效，每档仅可领取一次。\n\n——天道意志",
             senderName = "天道意志",
-            sendTime = now,
-            expireTime = COMPENSATION_DEADLINE_MS,
+            sendTime = System.currentTimeMillis(),
+            expireTime = Long.MAX_VALUE,
             hasAttachment = true,
             attachments = json.encodeToString(
-                kotlinx.serialization.serializer<List<MailAttachment>>(),
+                serializer<List<MailAttachment>>(),
                 attachments
             )
         )
 
-        insertMail(mail)
-        DomainLog.i(TAG, "运营补偿已注入到 slot=$slotId")
-        return true
+        return try {
+            insertMail(mail)
+            DomainLog.i(TAG, "白名单福利已注入到 slot=$slotId")
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // 注入失败不应阻塞游戏启动（boot 已成功），下次启动自动重试
+            DomainLog.e(TAG, "白名单福利邮件插入失败 slot=$slotId", e)
+            false
+        }
     }
 
-    /** 构建运营补偿的附件列表 */
-    private fun buildCompensationAttachments(): List<MailAttachment> {
-        return listOf(
-            MailAttachment(type = "spiritStones", name = "灵石", quantity = 1_000_000_000),
-            MailAttachment(type = "disciple", name = "大乘一层弟子", quantity = 10,
-                extra = mapOf("realm" to "2", "realmLayer" to "1")),
-            MailAttachment(type = "pill", name = "下品大乘丹", quantity = 10,
-                rarity = 6, itemId = "breakthrough_2_low"),
-            MailAttachment(type = "manual", name = "随机6阶功法", quantity = 50, rarity = 6),
-            MailAttachment(type = "equipment", name = "随机6阶装备", quantity = 50, rarity = 6)
-        )
-    }
 }
 
 @Serializable

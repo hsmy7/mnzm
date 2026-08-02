@@ -2,6 +2,7 @@ package com.xianxia.sect.core
 
 import org.junit.After
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AdFreeWhitelistTest {
@@ -35,5 +36,12 @@ class AdFreeWhitelistTest {
         AdFreeWhitelist.initialize("some_id")
         AdFreeWhitelist.initialize(null)
         assertFalse(AdFreeWhitelist.isCurrentUserPrivileged())
+    }
+
+    @Test
+    fun `isCurrentUserPrivileged - new whitelist unionId returns true`() {
+        // 数据回归：GameConfig.Whitelist.AD_FREE_UNION_IDS 新增的用户
+        AdFreeWhitelist.initialize("4FTGX7tp7MO1nr+j/Vwm5A==")
+        assertTrue(AdFreeWhitelist.isCurrentUserPrivileged())
     }
 }

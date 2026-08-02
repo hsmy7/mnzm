@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.AdFreeWhitelist
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.model.GameData
@@ -122,6 +123,8 @@ class MailServiceTest {
 
     @After
     fun tearDown() {
+        // 清除白名单状态，防止污染其他测试
+        AdFreeWhitelist.initialize(null)
         (stateStore as GameStateStoreImpl).unsafeAllowMainThreadUpdateForTest = false
         runBlocking { stateStore.reset() }
     }
@@ -261,5 +264,170 @@ class MailServiceTest {
             ClaimResult.DistributeFailed("发放失败")
         )
         assertEquals(6, variants.size)
+    }
+
+    // ============================================================
+    // injectWhitelistBonus — 白名单用户专属福利（1000 万灵石永久邮件）
+    // ============================================================
+
+    private companion object {
+        const val WHITELIST_UNION_ID = "4FTGX7tp7MO1nr+j/Vwm5A=="
+        const val WHITELIST_BONUS_MAIL_ID = "whitelist_bonus_v1"
+        const val WHITELIST_BONUS_AMOUNT = 10_000_000
+    }
+
+    @Test
+    fun `injectWhitelistBonus - privileged user injects 10M permanent mail`() = runBlocking {
+        // Arrange: 白名单用户，DB 中无该邮件
+        AdFreeWhitelist.initialize(WHITELIST_UNION_ID)
+        `when`(mailRepo.getById(eq(testSlotId), eq(WHITELIST_BONUS_MAIL_ID))).thenReturn(null)
+
+        // Act
+        val injected = service.injectWhitelistBonus(testSlotId)
+
+        // Assert
+        assertTrue("白名单用户应成功注入", injected)
+        verify(mailRepo).insertWithEnforceLimit(argThat { mail ->
+            mail.id == WHITELIST_BONUS_MAIL_ID &&
+                mail.expireTime == Long.MAX_VALUE &&
+                mail.source == "admin" &&
+                mail.hasAttachment &&
+                mail.attachments.contains("\"quantity\":$WHITELIST_BONUS_AMOUNT")
+        }, any())
+    }
+
+    @Test
+    fun `injectWhitelistBonus - non whitelist user skips`() = runBlocking {
+        // Arrange: 非白名单用户
+        AdFreeWhitelist.initialize("some_other_union_id")
+
+        // Act
+        val injected = service.injectWhitelistBonus(testSlotId)
+
+        // Assert
+        assertFalse("非白名单用户应跳过", injected)
+        verify(mailRepo, never()).insertWithEnforceLimit(any(), any())
+    }
+
+    @Test
+    fun `injectWhitelistBonus - uninitialized unionId skips`() = runBlocking {
+        // Arrange: 未初始化（时序兜底：即使初始化丢失也不注入）
+        AdFreeWhitelist.initialize(null)
+
+        // Act
+        val injected = service.injectWhitelistBonus(testSlotId)
+
+        // Assert
+        assertFalse("unionId 未初始化时应跳过", injected)
+        verify(mailRepo, never()).insertWithEnforceLimit(any(), any())
+    }
+
+    @Test
+    fun `injectWhitelistBonus - already claimed in mailRecords skips`() = runBlocking {
+        // Arrange: 白名单用户，但 mailRecords 已有领取记录
+        AdFreeWhitelist.initialize(WHITELIST_UNION_ID)
+        stateStore.update {
+            gameData = gameData.copy(
+                mailRecords = listOf(
+                    MailClaimRecord(WHITELIST_BONUS_MAIL_ID, now, "admin")
+                )
+            )
+        }
+
+        // Act
+        val injected = service.injectWhitelistBonus(testSlotId)
+
+        // Assert
+        assertFalse("已领取时应跳过", injected)
+        verify(mailRepo, never()).insertWithEnforceLimit(any(), any())
+    }
+
+    @Test
+    fun `injectWhitelistBonus - mail already in DB skips`() = runBlocking {
+        // Arrange: 白名单用户，但 DB 中已存在该邮件
+        AdFreeWhitelist.initialize(WHITELIST_UNION_ID)
+        val existing = MailEntity(
+            id = WHITELIST_BONUS_MAIL_ID,
+            slotId = testSlotId,
+            source = "admin",
+            mailType = "reward",
+            title = "白名单专属福利",
+            content = "",
+            senderName = "天道意志",
+            sendTime = now,
+            expireTime = Long.MAX_VALUE,
+            hasAttachment = true,
+            attachments = "[]"
+        )
+        `when`(mailRepo.getById(eq(testSlotId), eq(WHITELIST_BONUS_MAIL_ID)))
+            .thenReturn(existing)
+
+        // Act
+        val injected = service.injectWhitelistBonus(testSlotId)
+
+        // Assert
+        assertFalse("邮件已存在时应跳过", injected)
+        verify(mailRepo, never()).insertWithEnforceLimit(any(), any())
+    }
+
+    @Test
+    fun `injectWhitelistBonus - repeated calls inject only once`() = runBlocking {
+        // Arrange: 用内存 map 模拟 Room DB 的写入可见性
+        AdFreeWhitelist.initialize(WHITELIST_UNION_ID)
+        val db = mutableMapOf<String, MailEntity>()
+        `when`(mailRepo.getById(eq(testSlotId), any())).thenAnswer { inv ->
+            val mailId: String = inv.getArgument(1)
+            db[mailId]
+        }
+        `when`(mailRepo.insertWithEnforceLimit(any(), any())).thenAnswer { inv ->
+            val mail: MailEntity = inv.getArgument(0)
+            db[mail.id] = mail
+            null
+        }
+
+        // Act
+        val first = service.injectWhitelistBonus(testSlotId)
+        val second = service.injectWhitelistBonus(testSlotId)
+
+        // Assert: 首次注入成功，第二次被 DB 存在性检查拦截
+        assertTrue("首次调用应注入成功", first)
+        assertFalse("第二次调用应跳过（DB 已存在）", second)
+        assertEquals("DB 中应只有一封福利邮件", 1, db.size)
+    }
+
+    @Test
+    fun `injectWhitelistBonus - getById throws still injects`() = runBlocking {
+        // Arrange: DB 检查异常时不应阻塞注入（与 getById 容错模式一致）
+        AdFreeWhitelist.initialize(WHITELIST_UNION_ID)
+        `when`(mailRepo.getById(eq(testSlotId), eq(WHITELIST_BONUS_MAIL_ID)))
+            .thenThrow(RuntimeException("DB error"))
+
+        // Act
+        val injected = service.injectWhitelistBonus(testSlotId)
+
+        // Assert
+        assertTrue("getById 抛异常时仍应注入", injected)
+        verify(mailRepo).insertWithEnforceLimit(any(), any())
+    }
+
+    @Test
+    fun `claimAttachment - permanent mail never expires`() = runBlocking {
+        // Arrange: expireTime = Long.MAX_VALUE 的永久邮件，mailRecords 无记录
+        val permanentMail = createUnclaimedMail().copy(
+            id = WHITELIST_BONUS_MAIL_ID,
+            expireTime = Long.MAX_VALUE,
+            source = "admin"
+        )
+        `when`(mailRepo.getById(eq(testSlotId), eq(WHITELIST_BONUS_MAIL_ID)))
+            .thenReturn(permanentMail)
+
+        // Act
+        val result = service.claimAttachment(WHITELIST_BONUS_MAIL_ID, testSlotId)
+
+        // Assert: 永久邮件不应被判为过期
+        assertTrue(
+            "永久邮件领取不应返回 Expired",
+            result !is ClaimResult.Expired
+        )
     }
 }
