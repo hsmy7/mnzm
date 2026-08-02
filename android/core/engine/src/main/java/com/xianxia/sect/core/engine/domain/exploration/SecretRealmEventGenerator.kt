@@ -44,7 +44,9 @@ sealed interface SecretRealmChoiceResult {
         /** 本场永久死亡弟子 ID（调用方事务外触发哀伤） */
         val deadIds: Set<String> = emptySet(),
         /** 自动结束时需要释放 gate 占用的成员 ID */
-        val releasedMemberIds: Set<String> = emptySet()
+        val releasedMemberIds: Set<String> = emptySet(),
+        /** 偷袭选项是否成功（UI 用于区分"偷袭成功/偷袭失败"标题） */
+        val ambushSucceeded: Boolean = false
     ) : SecretRealmChoiceResult
 }
 
@@ -103,6 +105,7 @@ object SecretRealmEventGenerator {
     fun generateBeastEvent(rng: DeterministicRng, playerAvgRealm: Int): SecretRealmEventRecord {
         val config = GameConfig.Beast.TYPES[rng.nextInt(GameConfig.Beast.TYPES.size)]
         val realm = rollBeastRealm(rng, playerAvgRealm)
+        val layer = 1 + rng.nextInt(GameConfig.SecretRealm.BEAST_LAYER_VARIANT_COUNT)
         val count = GameConfig.SecretRealm.BEAST_COUNT_MIN +
             rng.nextInt(GameConfig.SecretRealm.BEAST_COUNT_MAX - GameConfig.SecretRealm.BEAST_COUNT_MIN + 1)
         val beastName = "${config.prefix}${config.name}"
@@ -120,6 +123,7 @@ object SecretRealmEventGenerator {
             params = SecretRealmEventParams(
                 beastTypeName = config.name,
                 beastRealm = realm,
+                beastLayer = layer,
                 beastCount = count
             )
         )
@@ -152,19 +156,24 @@ object SecretRealmEventGenerator {
      * @param realm 妖兽境界 0~9
      * @param beastTypeName 妖兽类型名（GameConfig.Beast.TYPES 中的 name）
      * @param ambushSucceeded 偷袭成功：所有妖兽初始血量 -10%
+     * @param beastLayer 妖兽层数 1..9（与事件显示层数一致，派生战斗倍率）
      */
     fun buildBeastPreGenStats(
         rng: DeterministicRng,
         realm: Int,
         beastTypeName: String,
-        ambushSucceeded: Boolean
+        ambushSucceeded: Boolean,
+        beastLayer: Int = 1
     ): BattleSystem.BeastPreGenStats {
         val config = GameConfig.Beast.TYPES.firstOrNull { it.name == beastTypeName }
             ?: GameConfig.Beast.TYPES[0]
         val stats = GameConfig.Beast.getRealmStats(realm)
-        // 公式与 LevelGenerator.generateBeastLevel 完全对齐（maxHp/maxMp 共用 hpVariance、
-        // maxMp = stats.mp × layerMult × (hpMod + variance)），避免平衡调整时分叉
-        val layerMult = 1.0 + (rng.nextInt(GameConfig.SecretRealm.BEAST_LAYER_VARIANT_COUNT)) * 0.1
+        // 层数倍率与显示层数一致（LevelGenerator.generateBeastLevel 同公式：
+        // layerMult = 1.0 + (realmLayer-1)*0.1），防止"显示九层实际最弱"脱钩
+        val clampedLayer = beastLayer.coerceIn(
+            1, GameConfig.SecretRealm.BEAST_LAYER_VARIANT_COUNT
+        )
+        val layerMult = 1.0 + (clampedLayer - 1) * 0.1
         val hpVariance = -0.2 + rng.nextDouble() * 0.4
         val atkVariance = -0.2 + rng.nextDouble() * 0.4
         val defVariance = -0.2 + rng.nextDouble() * 0.4
@@ -188,7 +197,7 @@ object SecretRealmEventGenerator {
             physicalDefense = def,
             magicDefense = def,
             speed = speed,
-            realmLayer = 1
+            realmLayer = clampedLayer
         )
     }
 

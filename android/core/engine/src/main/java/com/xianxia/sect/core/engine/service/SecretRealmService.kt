@@ -72,7 +72,8 @@ class SecretRealmService @Inject constructor(
     fun processYearlySpawn(year: Int, state: MutableGameState) {
         val data = state.gameData
         if (data.secretRealmState.exists) return
-        val cooldown = data.secretRealmCooldownYear
+        // 篡改档防御：负冷却年视为从未出现（clamp 到 0），避免绕过冷却判据
+        val cooldown = data.secretRealmCooldownYear.coerceAtLeast(0)
         if (cooldown > 0 && year - cooldown < GameConfig.SecretRealm.COOLDOWN_YEARS) return
         val rng = rngManager.getRng(RngPartition.SECRET_REALM)
         if (rng.nextDouble() >= GameConfig.SecretRealm.SPAWN_PROBABILITY_PER_YEAR) return
@@ -246,7 +247,8 @@ class SecretRealmService @Inject constructor(
                 combatLog = resolution.combatLog,
                 victory = resolution.victory,
                 deadIds = resolution.deadIds,
-                releasedMemberIds = session.members.map { it.discipleId }.toSet()
+                releasedMemberIds = session.members.map { it.discipleId }.toSet(),
+                ambushSucceeded = resolution.params.ambushSucceeded
             )
         }
 
@@ -255,7 +257,8 @@ class SecretRealmService @Inject constructor(
             enteredCombat = resolution.enteredCombat,
             combatLog = resolution.combatLog,
             victory = resolution.victory,
-            deadIds = resolution.deadIds
+            deadIds = resolution.deadIds,
+            ambushSucceeded = resolution.params.ambushSucceeded
         )
     }
 
@@ -422,7 +425,8 @@ class SecretRealmService @Inject constructor(
             list.associateBy { it.manualId }
         }
         val beastPreGenStats = SecretRealmEventGenerator.buildBeastPreGenStats(
-            rng, eventParams.beastRealm, eventParams.beastTypeName, eventParams.ambushSucceeded
+            rng, eventParams.beastRealm, eventParams.beastTypeName, eventParams.ambushSucceeded,
+            beastLayer = eventParams.beastLayer
         )
         // 篡改档防御：妖兽数量 clamp 到正常范围（对抗性审查 B6）
         val beastCount = eventParams.beastCount.coerceIn(

@@ -210,7 +210,7 @@ class SecretRealmServiceTest {
     }
 
     @Test
-    fun `processYearlySpawn - 冷却差值不满 50 年时即使概率通过也不刷新`() {
+    fun `processYearlySpawn - 冷却差值不满 40 年时即使概率通过也不刷新`() {
         val state = createState()
         state.gameData = state.gameData.copy(secretRealmCooldownYear = 100)
         val mockRng = mock(DeterministicRng::class.java)
@@ -221,7 +221,7 @@ class SecretRealmServiceTest {
     }
 
     @Test
-    fun `processYearlySpawn - 冷却满 50 年且概率通过时创建秘境`() {
+    fun `processYearlySpawn - 冷却满 40 年且概率通过时创建秘境`() {
         val state = createState()
         state.gameData = state.gameData.copy(secretRealmCooldownYear = 70)
         val mockRng = mock(DeterministicRng::class.java)
@@ -379,6 +379,33 @@ class SecretRealmServiceTest {
         assertTrue(tables.isAlive[4] == 0)
         // 1 号幸存者未标记死亡
         assertTrue(tables.isAlive[1] == 1)
+    }
+
+    @Test
+    fun `chooseOption - 偷袭成功时回传 ambushSucceeded=true`() {
+        val state = createState()
+        val ids = setupActiveSession(state)
+        stubBattle(victoryBattle(ids))
+        // 偷袭判定：nextDouble() >= 0.5 视为成功
+        val mockRng = mock(DeterministicRng::class.java)
+        `when`(mockRng.nextDouble()).thenReturn(0.9)
+        `when`(rngManager.getRng(RngPartition.SECRET_REALM)).thenReturn(mockRng)
+        val result = service.chooseOption(2, state)  // 选项 2 = 尝试偷袭
+        val success = result as SecretRealmChoiceResult.Success
+        assertTrue(success.ambushSucceeded)
+    }
+
+    @Test
+    fun `chooseOption - 偷袭失败时回传 ambushSucceeded=false`() {
+        val state = createState()
+        val ids = setupActiveSession(state)
+        stubBattle(victoryBattle(ids))
+        val mockRng = mock(DeterministicRng::class.java)
+        `when`(mockRng.nextDouble()).thenReturn(0.4)  // < 0.5 判定失败
+        `when`(rngManager.getRng(RngPartition.SECRET_REALM)).thenReturn(mockRng)
+        val result = service.chooseOption(2, state)
+        val success = result as SecretRealmChoiceResult.Success
+        assertFalse(success.ambushSucceeded)
     }
 
     @Test

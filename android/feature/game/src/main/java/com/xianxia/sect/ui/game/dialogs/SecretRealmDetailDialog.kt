@@ -36,7 +36,7 @@ import com.xianxia.sect.ui.theme.GameColors
 
 /** 远古秘境详情描述文案 */
 private const val SECRET_REALM_DESCRIPTION =
-    "上古大能陨落之地，藏有无数机缘与凶险。每逢天地灵气波动之际现世，五十年一遇。"
+    "上古大能陨落之地，藏有无数机缘与凶险。每逢天地灵气波动之际现世，四十年一遇。"
 
 /**
  * 远古秘境详情半屏界面：精灵图 + 描述 / 探索一队 + 一键任命 / 4 槽位 / 出发探索（继续探索）。
@@ -97,7 +97,8 @@ fun SecretRealmDetailDialog(
         onDismissRequest = onDismiss,
         title = "探索远古秘境",
         mode = DialogMode.Half,
-        scrollableContent = false
+        // 小屏/矮屏设备上内容超高时可滚动，防止底部槽位与出发按钮被截断
+        scrollableContent = true
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),

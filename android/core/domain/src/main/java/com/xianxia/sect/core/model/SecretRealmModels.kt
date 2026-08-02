@@ -118,6 +118,9 @@ data class SecretRealmEventParams(
     @ProtoNumber(3) val beastCount: Int = 1,
     /** 偷袭成功：妖兽初始血量 -10% */
     @ProtoNumber(4) val ambushSucceeded: Boolean = false,
+    /** 妖兽层数（1..9，境界显示如"炼气三层"） */
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    @ProtoNumber(8) val beastLayer: Int = 1,
     /** 战斗失败丢失件数（随机选定后写入） */
     @ProtoNumber(5) val lostItemCount: Int = 0,
     @ProtoNumber(6) val spiritStones: Long = 0L,

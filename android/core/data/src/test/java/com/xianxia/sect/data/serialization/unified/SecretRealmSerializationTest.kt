@@ -58,6 +58,8 @@ class SecretRealmSerializationTest {
         assertEquals(3, event.options.size)
         assertTrue(event.params.ambushSucceeded)
         assertEquals(3, event.params.beastCount)
+        // 非默认值 beastLayer（7）往返保持（@EncodeDefault(ALWAYS) 守卫）
+        assertEquals(7, event.params.beastLayer)
         assertEquals("你方一击得手！", session2.resultMessage)
     }
 
@@ -98,7 +100,7 @@ class SecretRealmSerializationTest {
             ),
             params = SecretRealmEventParams(
                 beastTypeName = "虎妖", beastRealm = 5, beastCount = 3,
-                ambushSucceeded = true
+                ambushSucceeded = true, beastLayer = 7
             )
         ),
         resultMessage = "你方一击得手！"

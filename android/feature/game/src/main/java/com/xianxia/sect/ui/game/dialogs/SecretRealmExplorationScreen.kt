@@ -7,42 +7,48 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.battle.BattleLogData
 import com.xianxia.sect.core.engine.domain.battle.BattleRoundData
+import com.xianxia.sect.core.model.BattleLogAction
 import com.xianxia.sect.core.model.BattleLogRound
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.SecretRealmBackpack
 import com.xianxia.sect.core.model.SecretRealmEventRecord
 import com.xianxia.sect.core.model.SecretRealmExplorationSession
 import com.xianxia.sect.core.model.SecretRealmMemberState
-import com.xianxia.sect.core.util.PortraitPool
-import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.ui.components.SpriteResRegistry
-import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.SecretRealmViewModel
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 import kotlinx.coroutines.delay
 
-private val beastSpriteNames =
-    listOf("tiger", "wolf", "snake", "bear", "eagle", "fox", "dragon", "turtle")
+/** 末战回放写入缓冲（ms）：引擎回调写入 combatLog 晚于会话清空，等待写回窗口再关闭界面 */
+private const val BATTLE_LOG_WRITE_GRACE_MS = 300L
+
+/** 妖兽类型名 → 精灵图名（与 GameConfig.Beast.TYPES 显式对应，防止索引错位/新增类型误配） */
+private val beastSpriteNames = mapOf(
+    "虎妖" to "tiger", "狼妖" to "wolf", "蛇妖" to "snake", "熊妖" to "bear",
+    "鹰妖" to "eagle", "狐妖" to "fox", "龙妖" to "dragon", "龟妖" to "turtle"
+)
 
 /** 探索成员 UI 状态 */
 @androidx.compose.runtime.Immutable
@@ -60,8 +66,10 @@ private data class MemberHpUi(
 /**
  * 远古秘境探索全屏界面。
  *
- * 布局：右上体力 / 中央事件内容区（事件视图或战斗播放视图）/ 选择区（结束探索+选择选项）
- * / 底部左侧背包按钮 + 4 弟子列（名称/圆形头像/血量条或濒死红字）。
+ * 布局：全屏背景图（secret_realm_bg）/ 米色纯色面板（与消息栏展开态同色）内含事件
+ * 内容区（事件视图或战斗播放视图；右上角叠加体力与跳过按钮）与选择区（结束探索+
+ * 选择选项）/ 选项卡片覆盖层（进入界面/新事件自动弹出，可收起）/ 底部左侧 4 弟子列
+ * （间距 5dp）+ 右侧背包按钮。
  */
 @Composable
 fun SecretRealmExplorationScreen(
@@ -72,10 +80,13 @@ fun SecretRealmExplorationScreen(
     val session by viewModel.session.collectAsStateWithLifecycle()
     val disciples by viewModel.disciples.collectAsStateWithLifecycle()
 
+    // 选项卡片：事件信息逐行显示完成后自动弹出（初始不弹，等待逐行播放）
     var showOptions by remember { mutableStateOf(false) }
     var showBackpack by remember { mutableStateOf(false) }
     // 战斗播放数据（chooseOption 返回的战斗日志）
     var combatLog by remember { mutableStateOf<BattleLogData?>(null) }
+    // 战斗场景标题（如"远离妖兽被发现"/"发起战斗"/"尝试偷袭"，由所选选项决定）
+    var combatTitle by remember { mutableStateOf<String?>(null) }
     var skipCombat by remember { mutableStateOf(false) }
     // 选项请求锁：引擎事务完成前禁止再次选择（对抗性审查 M2 连点防重）
     var choosing by remember { mutableStateOf(false) }
@@ -90,12 +101,17 @@ fun SecretRealmExplorationScreen(
 
     // 探索会话结束（主动结束/体力耗尽/全灭）→ 通知宿主关闭
     // 末战回放保留：会话已清但战斗日志仍在播放时暂不关闭（对抗性审查 B5）
+    // 竞态防护：引擎回调写入 combatLog 晚于会话清空（跨线程），等待写回窗口再决定关闭，
+    // 避免末战回放偶发丢失、界面直接关闭
     LaunchedEffect(session, combatLog) {
         if (session != null) {
             hasSessionBefore = true
         } else if (combatLog == null && hasSessionBefore) {
-            showOptions = false
-            onFinished()
+            delay(BATTLE_LOG_WRITE_GRACE_MS)
+            if (combatLog == null) {
+                showOptions = false
+                onFinished()
+            }
         }
     }
 
@@ -108,6 +124,10 @@ fun SecretRealmExplorationScreen(
     val event = session?.currentEvent
     val stamina = session?.stamina ?: 0
 
+    // 当前事件逐行播放完成标记：新事件重置；收起卡片重新查看事件时直接全量显示（不重复播放）
+    var eventLinesShown by remember { mutableStateOf(false) }
+    LaunchedEffect(event) { eventLinesShown = false }
+
     // 战斗播放推进：每秒 2 回合（500ms/回合），播完或跳过 → 清除播放态显示衔接事件
     var playedRounds by remember(combatLog) { mutableIntStateOf(0) }
     LaunchedEffect(combatLog, skipCombat) {
@@ -116,8 +136,9 @@ fun SecretRealmExplorationScreen(
             delay(500)
             playedRounds++
         }
-        // 播放完成或跳过：结算已完成，直接进入衔接事件
+        // 播放完成或跳过：结算已完成，显示衔接事件（逐行播放完成后自动弹出选项卡片）
         combatLog = null
+        combatTitle = null
         skipCombat = false
         playedRounds = 0
     }
@@ -127,11 +148,10 @@ fun SecretRealmExplorationScreen(
         color = GameColors.PageBackground
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // 背景
+            // 全屏背景图（保留）
             Image(
                 painter = painterResource(
-                    id = com.xianxia.sect.ui.components.SpriteResRegistry.resolve("secret_realm_bg")
-                        ?: 0
+                    id = SpriteResRegistry.resolve("secret_realm_bg") ?: 0
                 ),
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
@@ -139,119 +159,168 @@ fun SecretRealmExplorationScreen(
             )
 
             Column(modifier = Modifier.fillMaxSize()) {
-                // ===== 顶部：体力显示（右上角） =====
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp, end = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Spacer(modifier = Modifier.weight(1f))
-                    Text(
-                        text = "体力:$stamina",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (stamina <= 5) Color(0xFFF44336) else Color.White,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0x66000000))
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                    )
-                }
-
-                // ===== 中央事件内容区 =====
-                Box(
+                // ===== 米色纯色面板 + 面板下方操作行（左右留 10%、上方留 15%） =====
+                BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(SecretRealmEventBackground)
                 ) {
-                    val currentCombatLog = combatLog
-                    if (currentCombatLog != null) {
-                        CombatPlaybackContent(
-                            log = currentCombatLog,
-                            playedRounds = playedRounds,
-                            onSkip = { skipCombat = true }
-                        )
-                    } else if (event != null) {
-                        EventContent(event = event, resultMessage = session?.resultMessage ?: "")
-                    }
-                }
-
-                // ===== 选择区（战斗播放时隐藏） =====
-                if (combatLog == null && event != null) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.Center
+                    // 面板上方留 15%（提前捕获，供嵌套作用域使用）
+                    val panelTopPadding = maxHeight * 0.15f
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .fillMaxWidth(0.8f)
+                            .fillMaxHeight(1f)
                     ) {
-                        GameButton(
-                            text = "结束探索",
-                            width = ButtonSizes.StandardWidth,
-                            height = ButtonSizes.StandardHeight,
-                            onClick = {
-                                showOptions = false
-                                viewModel.endExploration(onDone = { /* 会话清空后 LaunchedEffect 触发 onFinished */ })
+                        // 米色纯色面板（与消息栏展开态同色）：上方留 15%
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .padding(top = panelTopPadding)
+                                .background(SecretRealmBackground)
+                        ) {
+                            // 中央事件内容区（右上角叠加体力与跳过按钮；卡片弹出时不显示事件文字）
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f)
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                val currentCombatLog = combatLog
+                                if (currentCombatLog != null) {
+                                    CombatPlaybackContent(
+                                        title = combatTitle ?: "发生战斗",
+                                        log = currentCombatLog,
+                                        playedRounds = playedRounds
+                                    )
+                                } else if (!showOptions && event != null) {
+                                    // 卡片弹出时事件内容区不显示任何内容（仅保留右上角体力）
+                                    EventContent(
+                                        event = event,
+                                        alreadyShown = eventLinesShown,
+                                        onLinesShown = {
+                                            eventLinesShown = true
+                                            showOptions = true
+                                        }
+                                    )
+                                }
+
+                                // ===== 右上角：体力（无背景）+ 战斗播放时的跳过按钮 =====
+                                Row(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(end = 10.dp, top = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (currentCombatLog != null) {
+                                        GameButton(
+                                            text = "跳过",
+                                            width = ButtonSizes.StandardWidth,
+                                            height = ButtonSizes.StandardHeight,
+                                            onClick = { skipCombat = true }
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                    }
+                                    Text(
+                                        // 篡改档防御：体力显示 clamp 到正常范围
+                                        text = "体力:${stamina.coerceIn(0, GameConfig.SecretRealm.STAMINA_MAX)}",
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (stamina <= 5) Color(0xFFF44336) else Color.Black
+                                    )
+                                }
                             }
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        GameButton(
-                            text = "选择选项",
-                            width = ButtonSizes.StandardWidth,
-                            height = ButtonSizes.StandardHeight,
-                            onClick = { showOptions = true }
-                        )
+
+                        }
                     }
                 }
 
-                // ===== 底部左侧：背包按钮 + 4 弟子列 =====
-                Row(
+                // ===== 底部（背景图上）：弟子头像列（左下）+ 结束探索/选择选项（屏幕水平居中、面板与底部间垂直居中）+ 背包按钮（右下） =====
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 12.dp, end = 12.dp, bottom = 10.dp),
-                    verticalAlignment = Alignment.Bottom
+                        .padding(start = 12.dp, end = 12.dp, bottom = 10.dp)
                 ) {
-                    // 背包按钮（左下角）
+                    // 4 弟子横排（左下）
+                    Row(
+                        modifier = Modifier.align(Alignment.BottomStart),
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        verticalAlignment = Alignment.Bottom
+                    ) {
+                        // 篡改档防御：最多显示队伍上限人数，防止底部行水平溢出
+                        memberUis.take(GameConfig.SecretRealm.TEAM_SIZE).forEach { member ->
+                            MemberColumn(member = member)
+                        }
+                    }
+                    // 结束探索 / 选择选项（屏幕水平居中；卡片弹出时隐藏）
+                    // 会话活跃时始终显示"结束探索"（含 event 异常的篡改档兜底，防软锁）
+                    if (!showOptions && combatLog == null && (event != null || session != null)) {
+                        Row(
+                            modifier = Modifier.align(Alignment.Center),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            GameButton(
+                                text = "结束探索",
+                                width = ButtonSizes.StandardWidth,
+                                height = ButtonSizes.StandardHeight,
+                                onClick = {
+                                    showOptions = false
+                                    viewModel.endExploration(onDone = { /* 会话清空后 LaunchedEffect 触发 onFinished */ })
+                                }
+                            )
+                            if (event != null) {
+                                Spacer(modifier = Modifier.width(16.dp))
+                                GameButton(
+                                    text = "选择选项",
+                                    width = ButtonSizes.StandardWidth,
+                                    height = ButtonSizes.StandardHeight,
+                                    onClick = {
+                                        // 播放中断标记：收起后不再从头重播该事件
+                                        eventLinesShown = true
+                                        showOptions = true
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    // 背包按钮（右下）
                     GameButton(
+                        modifier = Modifier.align(Alignment.BottomEnd),
                         text = "背包",
                         width = ButtonSizes.StandardWidth,
                         height = ButtonSizes.StandardHeight,
                         onClick = { showBackpack = true }
                     )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    // 4 弟子横排
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.Bottom
-                    ) {
-                        memberUis.forEach { member ->
-                            MemberColumn(member = member)
-                        }
-                    }
                 }
             }
-        }
-    }
 
-    // ===== 选项卡片弹窗 =====
-    if (showOptions && event != null && combatLog == null) {
-        SecretRealmOptionsDialog(
-            options = event.options,
-            onSelect = { index ->
-                if (choosing) return@SecretRealmOptionsDialog
-                choosing = true
-                showOptions = false
-                viewModel.chooseOption(index) { result ->
-                    choosing = false
-                    val success = result as? com.xianxia.sect.core.engine.domain.exploration.SecretRealmChoiceResult.Success
-                    if (success != null && success.enteredCombat && success.combatLog != null) {
-                        combatLog = success.combatLog
-                        skipCombat = false
-                    }
-                }
-            },
-            onDismiss = { showOptions = false }
-        )
+            // ===== 选项卡片覆盖层（覆盖全屏，卡片+收起按钮整体居中与屏幕完全对称） =====
+            if (showOptions && event != null && combatLog == null) {
+                OptionsOverlay(
+                    options = event.options,
+                    onSelect = { index ->
+                        if (!choosing) {
+                            choosing = true
+                            // 提前重置播放标记（新事件到达前），避免新事件内容闪现全量一帧
+                            eventLinesShown = false
+                            showOptions = false
+                            viewModel.chooseOption(index) { result ->
+                                choosing = false
+                                val success = result as? com.xianxia.sect.core.engine.domain.exploration.SecretRealmChoiceResult.Success
+                                if (success != null && success.enteredCombat && success.combatLog != null) {
+                                    combatTitle = combatTitleFor(index, success.ambushSucceeded)
+                                    combatLog = success.combatLog
+                                    skipCombat = false
+                                }
+                            }
+                        }
+                    },
+                    onCollapse = { showOptions = false }
+                )
+            }
+        }
     }
 
     // ===== 背包弹窗 =====
@@ -265,212 +334,162 @@ fun SecretRealmExplorationScreen(
 
 // ── 子组件 ────────────────────────────────────────────────────────────
 
-/** 事件视图：标题 / 描述 / 上次结果反馈 */
+/** 事件视图：信息逐行显示（每秒一行），全部显示完后回调 [onLinesShown]（用于自动弹出选项卡片） */
 @Composable
 private fun EventContent(
     event: com.xianxia.sect.core.model.SecretRealmEventRecord,
-    resultMessage: String
+    alreadyShown: Boolean,
+    onLinesShown: () -> Unit
 ) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = event.title,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = event.description,
-            fontSize = 14.sp,
-            color = Color.White,
-            lineHeight = 20.sp
-        )
-        if (resultMessage.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = resultMessage,
-                fontSize = 12.sp,
-                color = Color(0xFFFFEB3B),
-                lineHeight = 17.sp
-            )
-        }
+    // 逐行显示：每秒显示一行（第 1 行也从第 1 秒开始，行数 = 标题 + 内容块）
+    // 未来新增事件类型沿用该逐行机制，只需扩展内容块（第 2 行）
+    var visibleLines by remember(event, alreadyShown) {
+        mutableIntStateOf(if (alreadyShown) EVENT_LINE_COUNT else 0)
     }
-}
+    LaunchedEffect(event, alreadyShown) {
+        if (alreadyShown) return@LaunchedEffect
+        while (visibleLines < EVENT_LINE_COUNT) {
+            delay(1000)
+            visibleLines++
+        }
+        // 完整信息显示完毕后延迟 1 秒，再触发自动弹出选项卡片
+        delay(1000)
+        onLinesShown()
+    }
 
-/** 战斗播放视图：第一行玩家槽位 / 第二行敌人槽位 / 第三行回合日志（右上角跳过） */
-@Composable
-private fun CombatPlaybackContent(
-    log: BattleLogData,
-    playedRounds: Int,
-    onSkip: () -> Unit
-) {
-    Box(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(
+        modifier = Modifier.fillMaxSize()
+    ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.Top
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
-            // 第一行：玩家队伍槽位
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                log.teamMembers.forEach { m ->
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.width(60.dp)
-                    ) {
-                        Text(
-                            text = m.name,
-                            fontSize = 9.sp,
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        if (m.isAlive) {
-                            val resId = portraitResId(m.portraitRes)
-                            if (resId != 0) {
-                                Image(
-                                    painter = painterResource(id = resId),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(28.dp),
-                                    contentScale = ContentScale.Fit
-                                )
-                            }
-                        } else {
-                            Text(text = "阵亡", fontSize = 9.sp, color = Color(0xFFF44336))
-                        }
-                        Spacer(modifier = Modifier.height(2.dp))
-                        BattleHpBar(hp = m.hp, maxHp = m.maxHp)
-                    }
-                }
+            // 第 1 行：事件标题（居中、置顶）
+            if (visibleLines >= 1) {
+                Text(
+                    text = event.title,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
-            Spacer(modifier = Modifier.height(6.dp))
-            // 第二行：敌人槽位（妖兽）
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                log.enemies.forEach { e ->
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.width(60.dp)
-                    ) {
-                        Text(
-                            text = e.name,
-                            fontSize = 9.sp,
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        val beastIndex = e.portraitRes.removePrefix("beast_").toIntOrNull() ?: 0
-                        SpriteImage(
-                            name = beastSpriteNames.getOrElse(beastIndex) { "tiger" },
-                            contentDescription = null,
-                            modifier = Modifier.size(30.dp)
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        BattleHpBar(hp = e.hp, maxHp = e.maxHp)
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            // 第三行：战斗回合日志（滚动）
-            val listState = rememberLazyListState()
-            val visibleRounds = log.rounds.take(playedRounds)
-            LaunchedEffect(playedRounds) {
-                if (visibleRounds.isNotEmpty()) {
-                    listState.animateScrollToItem(visibleRounds.size - 1)
-                }
-            }
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Color(0x40000000))
-            ) {
-                itemsIndexed(visibleRounds) { _, round ->
+            // 第 2 行：内容块（妖兽事件 = 精灵图+境界视为一行；其他 = 描述）
+            if (visibleLines >= 2) {
+                if (event.params.beastTypeName.isNotEmpty()) {
+                    BeastEventContent(event = event)
+                } else {
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = buildRoundText(round),
-                        fontSize = 11.sp,
-                        color = Color.White,
-                        lineHeight = 15.sp
+                        text = event.description,
+                        fontSize = 14.sp,
+                        color = Color.Black,
+                        lineHeight = 20.sp
                     )
                 }
             }
         }
-        // 右上角跳过按钮
-        GameButton(
-            text = "跳过",
-            width = ButtonSizes.StandardWidth,
-            height = ButtonSizes.StandardHeight,
-            modifier = Modifier.align(Alignment.TopEnd).padding(6.dp),
-            onClick = onSkip
-        )
     }
 }
 
-private fun buildRoundText(round: BattleRoundData): String {
-    val actions = round.actions.joinToString("；") { a ->
-        if (a.message.isNotBlank()) a.message
-        else "${a.attacker} 攻击 ${a.target}（伤害 ${a.damage}）"
-    }
-    return "第${round.roundNumber}回合：$actions"
-}
-
+/** 妖兽事件内容块：妖兽精灵图 + 境界（如"化神一层"），视为一行显示 */
 @Composable
-private fun BattleHpBar(hp: Int, maxHp: Int) {
-    val effectiveMax = if (maxHp > 0) maxHp else 1
-    val percent = (hp.toFloat() / effectiveMax).coerceIn(0f, 1f)
-    val color = when {
-        percent > 0.5f -> Color(0xFF4CAF50)
-        percent > 0.25f -> Color(0xFFFFEB3B)
-        else -> Color(0xFFF44336)
-    }
-    Box(
-        modifier = Modifier.width(44.dp).height(5.dp).clip(RoundedCornerShape(2.dp))
-            .background(Color.DarkGray)
-    ) {
-        Box(
-            modifier = Modifier.fillMaxHeight().fillMaxWidth(fraction = percent)
-                .background(color, RoundedCornerShape(2.dp))
+private fun BeastEventContent(event: com.xianxia.sect.core.model.SecretRealmEventRecord) {
+    Spacer(modifier = Modifier.height(10.dp))
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        SpriteImage(
+            name = beastSpriteNames[event.params.beastTypeName] ?: "tiger",
+            contentDescription = null,
+            modifier = Modifier.size(72.dp)
         )
     }
+    Spacer(modifier = Modifier.height(4.dp))
+    Text(
+        // 篡改档防御：层数 clamp 到 1..9，避免显示"XX0层/XX99层"
+        text = "${com.xianxia.sect.core.GameConfig.Realm.getName(event.params.beastRealm)}" +
+            "${event.params.beastLayer.coerceIn(
+                1, com.xianxia.sect.core.GameConfig.SecretRealm.BEAST_LAYER_VARIANT_COUNT
+            )}层",
+        fontSize = 12.sp,
+        color = Color.Black,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth()
+    )
 }
 
-private fun portraitResId(portraitRes: String): Int {
-    if (portraitRes.isNotBlank()) {
-        val id = PortraitPool.getResourceId(portraitRes)
-        if (id != 0) return id
+/** 事件信息行数：标题（第 1 行）+ 内容块（第 2 行），逐行显示每秒一行 */
+private const val EVENT_LINE_COUNT = 2
+
+/** 战斗场景标题：选项索引（0=远离 / 1=战斗 / 2=偷袭，与妖兽事件选项顺序一致）→ 触发战斗的具体场景 */
+private fun combatTitleFor(optionIndex: Int, ambushSucceeded: Boolean): String = when (optionIndex) {
+    0 -> "远离妖兽被发现"
+    1 -> "发起战斗"
+    else -> if (ambushSucceeded) "偷袭成功" else "偷袭失败"
+}
+
+/** 战斗播放视图：场景标题 + 战斗消息栏（逐回合日志，与战斗日志弹窗显示一致；跳过按钮由外层与体力并排渲染） */
+@Composable
+private fun CombatPlaybackContent(
+    title: String,
+    log: BattleLogData,
+    playedRounds: Int
+) {
+    Column(
+        // 顶部留出右上角"跳过 + 体力"按钮区（38dp 按钮 + 4dp 内边距）
+        modifier = Modifier.fillMaxSize().padding(start = 10.dp, top = 48.dp, end = 10.dp, bottom = 8.dp),
+        verticalArrangement = Arrangement.Top
+    ) {
+        // 战斗场景标题（清晰显示触发原因，如"远离妖兽被发现"）
+        Text(
+            text = title,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        // 战斗消息栏：逐回合展示（复用战斗日志弹窗的 BattleRoundItem 显示格式）
+        val listState = rememberLazyListState()
+        val visibleRounds = log.rounds.take(playedRounds)
+        LaunchedEffect(playedRounds) {
+            if (visibleRounds.isNotEmpty()) {
+                listState.animateScrollToItem(visibleRounds.size - 1)
+            }
+        }
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            itemsIndexed(visibleRounds) { _, round ->
+                BattleRoundItem(round = round.toBattleLogRound())
+            }
+        }
     }
-    return SpriteResRegistry.resolve("disciple_portrait") ?: 0
 }
 
-/** 弟子列：名称（上）→ 圆形头像 → 血量条（濒死红色文字代替） */
+/** 引擎战斗回合数据 → 战斗日志模型（复用战斗日志弹窗的回合显示组件） */
+private fun BattleRoundData.toBattleLogRound(): BattleLogRound = BattleLogRound(
+    roundNumber = roundNumber,
+    actions = actions.map { a ->
+        BattleLogAction(
+            type = a.type, attacker = a.attacker, attackerType = a.attackerType,
+            target = a.target, damage = a.damage, damageType = a.damageType,
+            isCrit = a.isCrit, isKill = a.isKill, message = a.message,
+            skillName = a.skillName
+        )
+    }
+)
+
+/** 弟子列：血量条/状态（上）→ 圆形头像 → 名称（下） */
 @Composable
 private fun MemberColumn(member: MemberHpUi) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = member.name,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-        SecretRealmPortrait(
-            portraitRes = member.portraitRes,
-            size = 40,
-            isDead = member.isDead
-        )
-        Spacer(modifier = Modifier.height(2.dp))
         when {
             member.isDead -> Text(
                 text = "已陨落",
@@ -488,6 +507,21 @@ private fun MemberColumn(member: MemberHpUi) {
                 maxHp = member.maxHp
             )
         }
+        Spacer(modifier = Modifier.height(2.dp))
+        SecretRealmPortrait(
+            portraitRes = member.portraitRes,
+            size = 40,
+            isDead = member.isDead
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = member.name,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -507,30 +541,49 @@ private fun SecretRealmMemberState.toMemberHpUi(
     )
 }
 
-/** 选项卡片弹窗（卡片居中显示） */
+/** 选项卡片覆盖层：三张卡片并排（间距 2dp）+ 收起按钮整体垂直居中（与屏幕完全对称），浮于面板之上 */
 @Composable
-private fun SecretRealmOptionsDialog(
+private fun OptionsOverlay(
     options: List<com.xianxia.sect.core.model.SecretRealmOption>,
     onSelect: (Int) -> Unit,
-    onDismiss: () -> Unit
+    onCollapse: () -> Unit
 ) {
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = "选择行动",
-        mode = DialogMode.Auto,
-        scrollableContent = false
+    BoxWithConstraints(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
     ) {
+        // 卡片高度 = 覆盖区域高度 × 65%（提前捕获，供嵌套作用域使用）
+        val cardHeight = maxHeight * OPTION_CARD_HEIGHT_RATIO
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            options.forEachIndexed { index, option ->
-                SecretRealmOptionCard(
-                    label = option.label,
-                    description = option.description,
-                    onClick = { onSelect(index) }
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                options.forEachIndexed { index, option ->
+                    SecretRealmOptionCard(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(cardHeight),
+                        label = option.label,
+                        description = option.description,
+                        onClick = { onSelect(index) }
+                    )
+                }
             }
+            Spacer(modifier = Modifier.height(12.dp))
+            // 收起选项按钮（中间卡片正下方）
+            GameButton(
+                text = "收起选项",
+                width = ButtonSizes.StandardWidth,
+                height = ButtonSizes.StandardHeight,
+                onClick = onCollapse
+            )
         }
     }
 }
+
+/** 选项卡片高度 = 覆盖区域高度 × 65% */
+private const val OPTION_CARD_HEIGHT_RATIO = 0.65f

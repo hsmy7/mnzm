@@ -17,6 +17,7 @@ import com.xianxia.sect.core.model.SecretRealmState
 import com.xianxia.sect.core.util.DomainResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -99,7 +100,14 @@ class SecretRealmViewModel @Inject constructor(
         onDone: (SecretRealmChoiceResult) -> Unit
     ) {
         gameEngine.launchOnEngine {
-            val result = gameEngine.chooseSecretRealmOption(optionIndex)
+            val result = try {
+                gameEngine.chooseSecretRealmOption(optionIndex)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // 异常转 Error 结果回调：UI 的 choosing 请求锁得以释放，避免选项被永久静默禁用
+                SecretRealmChoiceResult.Error(message = "选择失败，请重试")
+            }
             onDone(result)
         }
     }

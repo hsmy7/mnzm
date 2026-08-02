@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,8 +35,8 @@ import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.ui.components.SpriteResRegistry
 
-/** 事件内容区背景色（与消息栏背景色一致） */
-internal val SecretRealmEventBackground = Color(0x80000000)
+/** 事件区/选择区纯色面板背景（与消息栏展开态背景一致） */
+internal val SecretRealmBackground = Color(0xFFF5F5DC)
 
 /**
  * 探索弟子圆形头像（参考天道试炼 CombatantPortrait 圆形肖像；死亡置灰）。
@@ -108,14 +110,14 @@ internal fun SecretRealmHpBar(
  */
 @Composable
 internal fun SecretRealmOptionCard(
+    modifier: Modifier = Modifier,
     label: String,
     description: String,
     onClick: () -> Unit
 ) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .height(64.dp)
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
@@ -126,13 +128,16 @@ internal fun SecretRealmOptionCard(
         )
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(horizontal = 16.dp)
+            // 内容超高时在卡片内滚动，防止超长描述撑破卡片边界
+            modifier = Modifier
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState())
         ) {
             Text(
                 text = label,
-                fontSize = 15.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = Color.Black,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center
@@ -141,9 +146,8 @@ internal fun SecretRealmOptionCard(
                 Text(
                     text = description,
                     fontSize = 10.sp,
-                    color = Color(0xCCFFFFFF),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    color = Color.Black,
+                    // 描述文字按卡片宽度自然换行（行列动态，无行数限制）
                     textAlign = TextAlign.Center
                 )
             }

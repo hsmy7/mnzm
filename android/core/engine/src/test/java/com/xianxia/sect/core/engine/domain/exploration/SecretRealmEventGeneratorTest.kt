@@ -27,6 +27,15 @@ class SecretRealmEventGeneratorTest {
             )
             assertTrue(event.params.beastRealm in 0..9)
             assertTrue(event.params.beastTypeName.isNotEmpty())
+            // 妖兽层数 1..9（境界显示如"炼气三层"）
+            assertTrue(event.params.beastLayer in 1..9)
+            // 层数与战斗倍率一致：预生成属性的 realmLayer 必须等于显示层数
+            // （防止"显示九层实际最弱"的显示/战力脱钩）
+            val stats = SecretRealmEventGenerator.buildBeastPreGenStats(
+                rng, event.params.beastRealm, event.params.beastTypeName,
+                event.params.ambushSucceeded, beastLayer = event.params.beastLayer
+            )
+            assertEquals(event.params.beastLayer, stats.realmLayer)
         }
     }
 
