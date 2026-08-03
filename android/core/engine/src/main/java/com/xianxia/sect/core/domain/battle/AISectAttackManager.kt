@@ -85,103 +85,45 @@ object AISectAttackManager {
 
             for (defender in allTargets) {
                 if (results.any { it.defenderSectId == defender.id || it.attackerSectId == attacker.id }) continue
-                if (!checkAttackConditions(
-                        attacker, defender, gameData, aiDisciplesMap,
-                        playerGarrisonMap = playerOccupiedDefendersMap
-                            .mapValues { it.value.disciples }
-                    )) continue
-
-                // Build attack team
-                val selectedAttackers = availableAttackers
-                    .sortedBy { it.realm }
-                    .take(TEAM_SIZE)
-                if (selectedAttackers.size < MIN_DISCIPLES_FOR_ATTACK) continue
-
-                // Get defenders: garrison first, then sect disciples
-                val defenderSect = gameData.worldMapSects.find {
-                    it.id == defender.id
-                }
-                val isAiOccupied = defenderSect?.occupierSectId
-                    ?.isNotEmpty() == true &&
-                    defenderSect.occupierSectId != attacker.id
-                val isPlayerOccupied = defenderSect?.isPlayerOccupied == true
-                val garrisonDisciples = if (isAiOccupied) {
-                    if (isPlayerOccupied) {
-                        playerOccupiedDefendersMap[defender.id]
-                            ?.disciples ?: emptyList()
-                    } else {
-                        val occupierDisciples = aiDisciplesMap[
-                            defenderSect.occupierSectId] ?: emptyList()
-                        defenderSect.garrisonSlots
-                            .filter { it.discipleId.isNotEmpty() }
-                            .mapNotNull { slot ->
-                                occupierDisciples.find { d ->
-                                    d.id == slot.discipleId && d.isAlive
-                                }
-                            }
-                    }
-                } else {
-                    emptyList()
-                }
-
-                val defenderPool = aiDisciplesMap[defender.id] ?: emptyList()
-                val defenderDisciples = if (garrisonDisciples.isNotEmpty()) {
-                    garrisonDisciples
-                } else {
-                    defenderPool.filter { it.isAlive }
-                        .sortedBy { it.realm }.take(TEAM_SIZE)
-                }
-
-                if (defenderDisciples.isEmpty()) continue
-
-                // Full defender pool for occupation check
-                val allDefenderPool = if (garrisonDisciples.isNotEmpty()) {
-                    if (isPlayerOccupied) {
-                        garrisonDisciples
-                    } else {
-                        aiDisciplesMap[
-                            defenderSect?.occupierSectId ?: ""]
-                            ?: emptyList()
-                    }
-                } else {
-                    defenderPool
-                }
-
-                // Execute battle immediately
-                val battleResult = if (isPlayerOccupied &&
-                    garrisonDisciples.isNotEmpty()) {
-                    val garrisonCombatants = playerOccupiedDefendersMap[
-                        defender.id]?.combatants ?: emptyList()
-                    executePlayerSectBattle(
-                        selectedAttackers, garrisonCombatants)
-                } else {
-                    executeSectBattle(selectedAttackers,
-                        defenderSect ?: defender,
-                        defenderDisciples, allDefenderPool)
-                }
-
-                val survivingAttackers = selectedAttackers.filter { it.id !in battleResult.deadAttackerIds }
-
-                results.add(
-                    AIAttackResult(
-                        attackerSectId = attacker.id,
-                        defenderSectId = defender.id,
-                        attackerSectName = attacker.name,
-                        defenderSectName = defender.name,
-                        winner = battleResult.winner,
-                        deadAttackerIds = battleResult.deadAttackerIds,
-                        deadDefenderIds = battleResult.deadDefenderIds,
-                        canOccupy = battleResult.canOccupy,
-                        survivingAttackers = survivingAttackers
-                    )
-                )
-
+                val attack = tryDecideAttack(
+                    attacker, defender, gameData, aiDisciplesMap, availableAttackers, playerOccupiedDefendersMap
+                ) ?: continue
+                results.add(attack)
                 // One attack per attacker per month
                 break
             }
         }
 
         return results
+    }
+
+    /**
+     * 单次 AI 攻击决策：攻击条件检查、队伍构建、防守者解析、战斗执行与结果构造。
+     * 条件不满足（无可用攻击者/防守者）时返回 null。
+     */
+    private fun tryDecideAttack(
+        attacker: WorldSect,
+        defender: WorldSect,
+        gameData: GameData,
+        aiDisciplesMap: Map<String, List<Disciple>>,
+        availableAttackers: List<Disciple>,
+        playerOccupiedDefendersMap: Map<String, PlayerOccupiedDefenseInfo>
+    ): AIAttackResult? {
+        if (!checkAttackConditions(
+                attacker, defender, gameData, aiDisciplesMap,
+                playerGarrisonMap = playerOccupiedDefendersMap
+                    .mapValues { it.value.disciples }
+            )) return null
+
+        // Build attack team
+        val selectedAttackers = availableAttackers
+            .sortedBy { it.realm }
+            .take(TEAM_SIZE)
+        if (selectedAttackers.size < MIN_DISCIPLES_FOR_ATTACK) return null
+
+        return resolveDefendersAndBattle(
+            attacker, defender, gameData, aiDisciplesMap, selectedAttackers, playerOccupiedDefendersMap
+        )
     }
 
     /**
@@ -205,6 +147,24 @@ object AISectAttackManager {
             .take(TEAM_SIZE)
         if (selectedAttackers.size < MIN_DISCIPLES_FOR_ATTACK) return null
 
+        return resolveDefendersAndBattle(
+            attacker, defender, gameData, aiDisciplesMap, selectedAttackers, playerOccupiedDefendersMap
+        )
+    }
+
+    /**
+     * 共享的防守者解析 + 战斗执行 + 结果构造。
+     * 被 [tryDecideAttack] 与 [tryAttackTarget] 复用（两者 90% 重复收敛）。
+     * 防守者为空时返回 null。
+     */
+    private fun resolveDefendersAndBattle(
+        attacker: WorldSect,
+        defender: WorldSect,
+        gameData: GameData,
+        aiDisciplesMap: Map<String, List<Disciple>>,
+        selectedAttackers: List<Disciple>,
+        playerOccupiedDefendersMap: Map<String, PlayerOccupiedDefenseInfo>
+    ): AIAttackResult? {
         val defenderSect = gameData.worldMapSects.find {
             it.id == defender.id
         }
