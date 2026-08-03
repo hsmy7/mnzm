@@ -10,7 +10,9 @@ import com.xianxia.sect.core.model.SecretRealmEventType
 import com.xianxia.sect.core.model.SecretRealmExplorationSession
 import com.xianxia.sect.core.model.SecretRealmMemberState
 import com.xianxia.sect.core.model.SecretRealmOption
+import com.xianxia.sect.core.model.SecretRealmRewardItem
 import com.xianxia.sect.core.model.SecretRealmState
+import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.serialization.NullSafeProtoBuf
 import kotlinx.serialization.serializer
@@ -52,10 +54,16 @@ class SecretRealmSerializationTest {
         assertEquals(2500L, session2.backpack.spiritStones)
         assertEquals(1, session2.backpack.materials.size)
         assertEquals("虎骨", session2.backpack.materials.first().name)
+        // 种子往返 + totalItemCount 含种子
+        assertEquals(1, session2.backpack.seeds.size)
+        assertEquals("聚灵草种", session2.backpack.seeds.first().name)
+        assertEquals(2, session2.backpack.totalItemCount)
         assertNotNull(session2.currentEvent)
         val event = session2.currentEvent ?: return
         assertEquals(SecretRealmEventType.BEAST_ENCOUNTER.name, event.eventType)
         assertEquals(3, event.options.size)
+        // 选项默认体力消耗 1 往返保持（缺省字段读默认值）
+        assertTrue(event.options.all { it.staminaCost == 1 })
         assertTrue(event.params.ambushSucceeded)
         assertEquals(3, event.params.beastCount)
         // 非默认值 beastLayer（7）往返保持（@EncodeDefault(ALWAYS) 守卫）
@@ -85,6 +93,12 @@ class SecretRealmSerializationTest {
                     description = "虎妖的骨骼",
                     category = MaterialCategory.BEAST_BONE,
                     quantity = 1
+                )
+            ),
+            seeds = listOf(
+                Seed(
+                    id = "s1", name = "聚灵草种", rarity = 2,
+                    description = "聚灵草的种子", growTime = 3, yield = 2, quantity = 3
                 )
             )
         ),
@@ -148,6 +162,71 @@ class SecretRealmSerializationTest {
         assertEquals(
             "剑尘", gd.secretRealmAITeams.first().members.first().name
         )
+    }
+
+    @Test
+    fun `ruin events round-trip preserves stamina cost and item rewards`() {
+        val baseSession = SecretRealmExplorationSession(
+            secretRealmId = "realm_2",
+            members = listOf(
+                SecretRealmMemberState(discipleId = "1", name = "张三", currentHp = -1)
+            ),
+            stamina = 15,
+            currentEvent = SecretRealmEventRecord(
+                eventType = SecretRealmEventType.RUIN_EXPLORE.name,
+                title = "发现遗迹",
+                description = "发现未知遗迹可能存在未知宝物",
+                options = listOf(
+                    SecretRealmOption("直接离开", ""),
+                    SecretRealmOption("简单搜寻", ""),
+                    SecretRealmOption("仔细搜寻", "", staminaCost = 2)
+                )
+            )
+        )
+        val explore = roundTrip(baseSession)
+        val event = explore.currentEvent ?: return
+        assertEquals(SecretRealmEventType.RUIN_EXPLORE.name, event.eventType)
+        // 非默认值 staminaCost=2 往返保持（@EncodeDefault(ALWAYS) 守卫）
+        assertEquals(2, event.options[2].staminaCost)
+        // 默认值 1 往返保持
+        assertEquals(1, event.options[0].staminaCost)
+        assertEquals(1, event.options[1].staminaCost)
+
+        val resultSession = baseSession.copy(
+            currentEvent = SecretRealmEventRecord(
+                eventType = SecretRealmEventType.RUIN_RESULT.name,
+                title = "发现秘宝",
+                description = "发现物品：青锋剑",
+                options = listOf(SecretRealmOption("继续前进", "")),
+                params = SecretRealmEventParams(
+                    itemRewards = listOf(
+                        SecretRealmRewardItem(
+                            type = "equipment", itemId = "e1",
+                            name = "青锋剑", rarity = 2, quantity = 1
+                        )
+                    )
+                )
+            )
+        )
+        val result = roundTrip(resultSession)
+        val resultEvent = result.currentEvent ?: return
+        assertEquals(SecretRealmEventType.RUIN_RESULT.name, resultEvent.eventType)
+        assertEquals(1, resultEvent.params.itemRewards.size)
+        assertEquals("青锋剑", resultEvent.params.itemRewards.first().name)
+        assertEquals("equipment", resultEvent.params.itemRewards.first().type)
+    }
+
+    /** 秘境会话 → SaveData → 往返 → 恢复会话 */
+    private fun roundTrip(session: SecretRealmExplorationSession): SecretRealmExplorationSession {
+        val save = SaveData(
+            gameData = com.xianxia.sect.core.model.GameData(secretRealmSession = session),
+            disciples = emptyList(), pills = emptyList(),
+            materials = emptyList(),
+            herbs = emptyList(), seeds = emptyList(), teams = emptyList()
+        )
+        val bytes = NullSafeProtoBuf.protoBuf.encodeToByteArray(serializer<SaveData>(), save)
+        val restored = NullSafeProtoBuf.protoBuf.decodeFromByteArray(serializer<SaveData>(), bytes)
+        return restored.gameData.secretRealmSession
     }
 
     @Test

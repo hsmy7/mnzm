@@ -554,6 +554,42 @@ class SecretRealmServiceTest {
             org.mockito.ArgumentMatchers.anyInt()
         )
     }
+
+    @Test
+    fun `endSession - 仓库满失败不重复补偿邮件`() {
+        val state = createState()
+        setupActiveSession(state)
+        // 仓库满：addMaterial 返回 Failure(Inventory.Full)，addXxx 内部已按整件转邮件
+        val full = com.xianxia.sect.core.model.Material(
+            id = "full_1", name = "虎骨", rarity = 2,
+            description = "", category = com.xianxia.sect.core.model.MaterialCategory.BEAST_BONE,
+            quantity = 2
+        )
+        state.gameData = state.gameData.copy(
+            secretRealmSession = state.gameData.secretRealmSession.copy(
+                backpack = com.xianxia.sect.core.model.SecretRealmBackpack(
+                    materials = listOf(full)
+                )
+            )
+        )
+        org.mockito.kotlin.whenever(inventorySystem.addMaterial(full))
+            .thenReturn(
+                com.xianxia.sect.core.util.DomainResult.Failure(
+                    com.xianxia.sect.core.util.AppError.Domain.Inventory.Full()
+                )
+            )
+        service.endSession(state)
+        // Full 已由 addXxx 内部 handleOverflowResult 按整件转邮件，settleItem 不得重复补偿
+        org.mockito.Mockito.verify(
+            inventorySystem, org.mockito.Mockito.never()
+        ).sendOverflowMail(
+            org.mockito.kotlin.eq("secret_realm"),
+            org.mockito.kotlin.eq("material"),
+            org.mockito.kotlin.eq("虎骨"),
+            org.mockito.ArgumentMatchers.anyInt(),
+            org.mockito.ArgumentMatchers.anyInt()
+        )
+    }
 }
 
 // ── sealed 结果便捷访问（测试断言辅助，internal 供同模块测试类共享） ──

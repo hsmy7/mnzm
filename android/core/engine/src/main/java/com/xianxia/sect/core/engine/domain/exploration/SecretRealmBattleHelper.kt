@@ -7,6 +7,7 @@ import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.SecretRealmBackpack
+import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.asKotlinRandom
 import kotlin.math.ceil
@@ -40,35 +41,20 @@ object SecretRealmBattleHelper {
             return LootLossResult(backpack, 0, 0L)
         }
 
-        // 随机选取 lostItemCount 件物品（索引空间 = 五类列表拼接）
+        // 随机选取 lostItemCount 件物品（索引空间 = 六类列表拼接，与 totalItemCount 一致）
         val lostIndices = (0 until totalItems)
             .shuffled(rng.asKotlinRandom())
             .take(lostItemCount)
             .toSet()
 
-        var cursor = 0
-        var lost = 0
-        val keptEquipment = mutableListOf<EquipmentStack>()
-        val keptManuals = mutableListOf<ManualStack>()
-        val keptPills = mutableListOf<Pill>()
-        val keptMaterials = mutableListOf<Material>()
-        val keptHerbs = mutableListOf<Herb>()
-
-        for (item in backpack.equipment) {
-            if (cursor++ in lostIndices) lost++ else keptEquipment.add(item)
-        }
-        for (item in backpack.manuals) {
-            if (cursor++ in lostIndices) lost++ else keptManuals.add(item)
-        }
-        for (item in backpack.pills) {
-            if (cursor++ in lostIndices) lost++ else keptPills.add(item)
-        }
-        for (item in backpack.materials) {
-            if (cursor++ in lostIndices) lost++ else keptMaterials.add(item)
-        }
-        for (item in backpack.herbs) {
-            if (cursor++ in lostIndices) lost++ else keptHerbs.add(item)
-        }
+        val (lostE, keptEquipment, cursor1) = collectKept(backpack.equipment, lostIndices, 0)
+        val (lostM, keptManuals, cursor2) = collectKept(backpack.manuals, lostIndices, cursor1)
+        val (lostP, keptPills, cursor3) = collectKept(backpack.pills, lostIndices, cursor2)
+        val (lostMa, keptMaterials, cursor4) = collectKept(backpack.materials, lostIndices, cursor3)
+        val (lostH, keptHerbs, cursor5) = collectKept(backpack.herbs, lostIndices, cursor4)
+        // 种子与其余五类同规则参与丢失选取（此前缺失导致 seeds 无条件全丢——
+        // 对抗性审查发现，且 totalItemCount 索引空间与遍历空间不一致）
+        val (lostS, keptSeeds, _) = collectKept(backpack.seeds, lostIndices, cursor5)
 
         return LootLossResult(
             backpack = SecretRealmBackpack(
@@ -77,10 +63,30 @@ object SecretRealmBattleHelper {
                 manuals = keptManuals,
                 pills = keptPills,
                 materials = keptMaterials,
-                herbs = keptHerbs
+                herbs = keptHerbs,
+                seeds = keptSeeds
             ),
-            lostItemCount = lost,
+            lostItemCount = lostE + lostM + lostP + lostMa + lostH + lostS,
             lostSpiritStones = lostSpiritStones
         )
+    }
+
+    /**
+     * 遍历一类物品：命中丢失索引则计数丢弃，否则保留。
+     *
+     * @return 丢失数 + 保留列表 + 下一个遍历游标（索引空间 = 六类列表拼接）
+     */
+    private fun <T> collectKept(
+        items: List<T>,
+        lostIndices: Set<Int>,
+        startCursor: Int
+    ): Triple<Int, List<T>, Int> {
+        var lost = 0
+        var cursor = startCursor
+        val kept = mutableListOf<T>()
+        for (item in items) {
+            if (cursor++ in lostIndices) lost++ else kept.add(item)
+        }
+        return Triple(lost, kept, cursor)
     }
 }

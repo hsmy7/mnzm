@@ -11,6 +11,10 @@ import com.xianxia.sect.core.model.SecretRealmMemberState
 import com.xianxia.sect.core.model.SecretRealmOption
 import com.xianxia.sect.core.model.SecretRealmRewardItem
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
+import com.xianxia.sect.core.registry.EquipmentDatabase
+import com.xianxia.sect.core.registry.HerbDatabase
+import com.xianxia.sect.core.registry.ItemDatabase
+import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.util.DeterministicRng
 
 /** 远古秘境探索结束原因 */
@@ -78,7 +82,7 @@ internal data class SecretRealmBattleOutcome(
  * 远古秘境事件生成器——纯函数（注入 SECRET_REALM 分区 PRNG）。
  *
  * 事件流：遭遇妖兽事件 →（选择结算）→ 衔接事件（选择方向）→
- * 30% 概率空地事件 / 妖兽事件 →（选择结算）→ 衔接事件 → …
+ * 30% 概率空地事件 / 20% 概率发现遗迹事件 / 妖兽事件 →（选择结算）→ 衔接事件 → …
  */
 object SecretRealmEventGenerator {
 
@@ -149,19 +153,140 @@ object SecretRealmEventGenerator {
     )
 
     /**
-     * 衔接方向选择后的下一事件分派：REST_AREA_CHANCE 概率生成空地事件，否则妖兽事件。
-     * 消费 rng 一次 nextDouble()（分派判定）。
+     * 衔接方向选择后的下一事件分派：一次 nextDouble() 分段判定——
+     * < REST_AREA_CHANCE 空地事件；[REST_AREA_CHANCE, REST_AREA_CHANCE + RUINS_CHANCE) 发现遗迹；
+     * 其余妖兽事件。仍只消费一次 nextDouble()（RNG 消费次数与旧版一致，读档确定性不变）。
      *
      * @param rng SECRET_REALM 分区 PRNG
      * @param playerAvgRealm 玩家队伍平均境界（数值越小境界越高）
-     * @return 空地事件或妖兽事件记录
+     * @return 空地事件 / 发现遗迹事件 / 妖兽事件记录
      */
-    fun rollNextEvent(rng: DeterministicRng, playerAvgRealm: Int): SecretRealmEventRecord =
-        if (rng.nextDouble() < GameConfig.SecretRealm.REST_AREA_CHANCE) {
-            generateRestAreaEvent()
-        } else {
-            generateBeastEvent(rng, playerAvgRealm)
+    fun rollNextEvent(rng: DeterministicRng, playerAvgRealm: Int): SecretRealmEventRecord {
+        val roll = rng.nextDouble()
+        return when {
+            roll < GameConfig.SecretRealm.REST_AREA_CHANCE -> generateRestAreaEvent()
+            roll < GameConfig.SecretRealm.REST_AREA_CHANCE +
+                GameConfig.SecretRealm.RUINS_CHANCE -> generateRuinsEvent()
+            else -> generateBeastEvent(rng, playerAvgRealm)
         }
+    }
+
+    // ── 发现遗迹事件 ─────────────────────────────────────────────────
+
+    /**
+     * 生成"发现遗迹"事件（内容无随机性，无需 rng）。
+     *
+     * 选项 0：直接离开（扣 1 体力）；选项 1：简单搜寻（扣 1 体力）；
+     * 选项 2：仔细搜寻（扣 [GameConfig.SecretRealm.CAREFUL_SEARCH_STAMINA_COST] 体力）。
+     * 搜寻结果（空无一物 / 发现秘宝）为独立的 [SecretRealmEventType.RUIN_RESULT] 子事件。
+     */
+    fun generateRuinsEvent(): SecretRealmEventRecord = SecretRealmEventRecord(
+        eventType = SecretRealmEventType.RUIN_EXPLORE.name,
+        title = "发现遗迹",
+        description = "发现未知遗迹可能存在未知宝物",
+        options = listOf(
+            SecretRealmOption("直接离开", "不进入遗迹，继续探索"),
+            SecretRealmOption("简单搜寻", "简单搜寻一番，可能有所发现"),
+            SecretRealmOption(
+                "仔细搜寻",
+                "仔细搜寻一番，消耗更多体力但收获更丰",
+                staminaCost = GameConfig.SecretRealm.CAREFUL_SEARCH_STAMINA_COST
+            )
+        )
+    )
+
+    /**
+     * 生成遗迹搜寻结果子事件（空无一物 / 发现秘宝共用 RUIN_RESULT，title/description 区分）。
+     *
+     * @param title 子事件标题（"空无一物" / "发现秘宝"）
+     * @param description 子事件描述（发现秘宝时列出所获物品）
+     * @param itemRewards 秘宝奖励描述符（发现秘宝时非空；空无一物时为空）
+     * @return 结果子事件记录（唯一选项"继续前进"进入衔接事件）
+     */
+    fun generateRuinsResultEvent(
+        title: String,
+        description: String,
+        itemRewards: List<SecretRealmRewardItem> = emptyList()
+    ): SecretRealmEventRecord = SecretRealmEventRecord(
+        eventType = SecretRealmEventType.RUIN_RESULT.name,
+        title = title,
+        description = description,
+        options = listOf(SecretRealmOption("继续前进", "")),
+        params = SecretRealmEventParams(itemRewards = itemRewards)
+    )
+
+    /**
+     * 秘宝可出物品类型（装备/功法/丹药/材料/草药/种子六类；索引式选取，RNG 消费确定）。
+     */
+    private val RUIN_ITEM_TYPES = listOf("equipment", "manual", "pill", "material", "herb", "seed")
+
+    /**
+     * 秘宝奖励生成（描述符，模板 ID 入 params；实例化在 Service 结算时）。
+     *
+     * RNG 消费顺序（读档确定性关键，顺序固定不可调换）：
+     * 1×nextInt(数量) → 每件物品：1×nextInt(类型) + 1×nextInt(品阶) + 1×nextInt(模板选取)。
+     * 全部经 SECRET_REALM 分区 PRNG，禁用 kotlin.random 默认随机（否则读档随机序列漂移）。
+     * 数据空洞（该品阶无可用模板）时重试补生成，保证实际件数达到配置数量。
+     *
+     * @param rng SECRET_REALM 分区 PRNG
+     * @param minCount / maxCount 物品数量范围
+     * @param minRarity / maxRarity 品阶范围（1..6）
+     * @return 奖励描述符列表（每件 quantity = 1）
+     */
+    fun generateRuinsTreasure(
+        rng: DeterministicRng,
+        minCount: Int,
+        maxCount: Int,
+        minRarity: Int,
+        maxRarity: Int
+    ): List<SecretRealmRewardItem> {
+        val count = minCount + rng.nextInt(maxCount - minCount + 1)
+        val rewards = mutableListOf<SecretRealmRewardItem>()
+        var attempts = 0
+        // 补生成：跳过数据空洞件后继续尝试，直到凑满 count 件（上限防极端数据死循环）
+        while (rewards.size < count && attempts < count * RUIN_PICK_MAX_ATTEMPTS) {
+            attempts++
+            val type = RUIN_ITEM_TYPES[rng.nextInt(RUIN_ITEM_TYPES.size)]
+            val rarity = minRarity + rng.nextInt(maxRarity - minRarity + 1)
+            val template = pickRuinsTemplate(type, rarity, rng) ?: continue
+            rewards.add(
+                SecretRealmRewardItem(
+                    type = type,
+                    itemId = template.first,
+                    name = template.second,
+                    rarity = rarity,
+                    quantity = 1
+                )
+            )
+        }
+        return rewards
+    }
+
+    /** 单件秘宝的模板选取最大尝试次数（数据空洞补生成上限） */
+    private const val RUIN_PICK_MAX_ATTEMPTS = 5
+
+    /**
+     * 按类型 + 品阶选取模板（仅取模板 ID 与名称）。数据空洞（该品阶无模板）或
+     * ManualDatabase 未初始化时返回 null（调用方跳过该件，不抛异常）。
+     */
+    private fun pickRuinsTemplate(
+        type: String,
+        rarity: Int,
+        rng: DeterministicRng
+    ): Pair<String, String>? = when (type) {
+        "equipment" -> pickTemplate(EquipmentDatabase.getByRarity(rarity).map { it.id to it.name }, rng)
+        "manual" -> {
+            if (!ManualDatabase.isInitialized) null
+            else pickTemplate(ManualDatabase.getByRarity(rarity).map { it.id to it.name }, rng)
+        }
+        "pill" -> pickTemplate(ItemDatabase.getPillsByRarity(rarity).map { it.id to it.name }, rng)
+        "material" -> pickTemplate(
+            ItemDatabase.allMaterials.values.filter { it.rarity == rarity }.map { it.id to it.name }, rng
+        )
+        "herb" -> pickTemplate(HerbDatabase.getByRarity(rarity).map { it.id to it.name }, rng)
+        "seed" -> pickTemplate(HerbDatabase.getSeedsByRarity(rarity).map { it.id to it.name }, rng)
+        else -> null
+    }
 
     // ── 衔接事件 ──────────────────────────────────────────────────────
 
@@ -271,3 +396,10 @@ object SecretRealmEventGenerator {
         return rewards
     }
 }
+
+/** 从模板 ID/名称列表中按 rng 索引选取（空列表返回 null）——文件级私有，不计入 object 函数数 */
+private fun pickTemplate(
+    templates: List<Pair<String, String>>,
+    rng: DeterministicRng
+): Pair<String, String>? =
+    if (templates.isEmpty()) null else templates[rng.nextInt(templates.size)]

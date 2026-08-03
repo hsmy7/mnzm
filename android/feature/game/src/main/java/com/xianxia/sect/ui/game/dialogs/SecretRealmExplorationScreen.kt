@@ -598,6 +598,7 @@ private fun OptionsOverlay(
                             .height(cardHeight),
                         label = option.label,
                         description = option.description,
+                        staminaCost = option.staminaCost,
                         onClick = { onSelect(index) }
                     )
                 }

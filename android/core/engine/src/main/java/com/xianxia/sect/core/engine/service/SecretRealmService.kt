@@ -11,6 +11,7 @@ import com.xianxia.sect.core.engine.domain.exploration.SecretRealmBattleOutcome
 import com.xianxia.sect.core.engine.domain.exploration.SecretRealmBeastChoiceResolution
 import com.xianxia.sect.core.engine.domain.exploration.SecretRealmEndReason
 import com.xianxia.sect.core.engine.domain.exploration.SecretRealmEventGenerator
+import com.xianxia.sect.core.engine.domain.exploration.SecretRealmRuinsResolver
 import com.xianxia.sect.core.model.BattleLogAction
 import com.xianxia.sect.core.model.BattleLogEnemy
 import com.xianxia.sect.core.model.BattleLogMember
@@ -55,7 +56,8 @@ import javax.inject.Singleton
 @Singleton
 @GameService("SecretRealmService")
 // 领域聚合服务：刷新/出发/选择/战斗/结算操作较多，拆分为独立服务反而割裂事务内状态流转
-@Suppress("TooManyFunctions")
+// （事件结算已拆至 SecretRealmEventGenerator / SecretRealmRuinsResolver，此处保留事务编排）
+@Suppress("TooManyFunctions", "LargeClass")
 class SecretRealmService @Inject constructor(
     private val rngManager: GameRngManager,
     private val battleSystem: BattleSystem,
@@ -211,20 +213,18 @@ class SecretRealmService @Inject constructor(
             ?: return SecretRealmChoiceResult.Error(message = "当前无进行中的事件")
 
         val rng = rngManager.getRng(RngPartition.SECRET_REALM)
-        // 篡改档防御：体力 clamp 到正常范围（对抗性审查 B11/D3；Long 运算防 MIN_VALUE 回绕）
-        val newStamina = (session.stamina.toLong() - GameConfig.SecretRealm.STAMINA_COST_PER_CHOICE)
-            .coerceIn(0, GameConfig.SecretRealm.STAMINA_MAX.toLong())
-            .toInt()
+        val newStamina = calculateNewStamina(session, activeEvent, optionIndex)
         val markedEvent = activeEvent.copy(chosenOptionIndex = optionIndex)
-
-        val eventType = runCatching { SecretRealmEventType.valueOf(activeEvent.eventType) }
-            .getOrDefault(SecretRealmEventType.BRIDGE)
         // 篡改档非法 eventType 回退 BRIDGE 分支（getOrDefault 兜底）
-        val resolution = when (eventType) {
+        val resolution = when (resolveEventType(activeEvent.eventType)) {
             SecretRealmEventType.BEAST_ENCOUNTER ->
                 resolveBeastEncounter(optionIndex, state, session, activeEvent, rng)
             SecretRealmEventType.REST_AREA ->
                 resolveRestArea(optionIndex, state, session)
+            SecretRealmEventType.RUIN_EXPLORE ->
+                SecretRealmRuinsResolver.resolveRuinsExplore(optionIndex, session, rng)
+            SecretRealmEventType.RUIN_RESULT ->
+                SecretRealmRuinsResolver.resolveRuinsResult(session, activeEvent)
             SecretRealmEventType.BRIDGE ->
                 resolveBridgeChoice(optionIndex, session, rng)
         }
@@ -247,26 +247,63 @@ class SecretRealmService @Inject constructor(
 
         if (sessionEnded) {
             endSession(state, if (allDead) SecretRealmEndReason.WIPEOUT else SecretRealmEndReason.EXHAUSTED)
-            return SecretRealmChoiceResult.Success(
-                message = if (allDead) "队伍全军覆没！" else "体力耗尽，被传送出秘境",
-                sessionEnded = true,
-                enteredCombat = resolution.enteredCombat,
-                combatLog = resolution.combatLog,
-                victory = resolution.victory,
-                deadIds = resolution.deadIds,
-                releasedMemberIds = session.members.map { it.discipleId }.toSet(),
-                ambushSucceeded = resolution.params.ambushSucceeded
-            )
+            return buildEndedResult(resolution, allDead, session)
         }
+        return buildContinueResult(resolution)
+    }
 
-        return SecretRealmChoiceResult.Success(
-            message = resolution.resultText,
-            enteredCombat = resolution.enteredCombat,
-            combatLog = resolution.combatLog,
-            victory = resolution.victory,
-            deadIds = resolution.deadIds,
-            ambushSucceeded = resolution.params.ambushSucceeded
+    /** 会话结束结果（体力耗尽/全灭）：附带释放 gate 占用的成员 ID */
+    private fun buildEndedResult(
+        resolution: SecretRealmBeastChoiceResolution,
+        allDead: Boolean,
+        session: SecretRealmExplorationSession
+    ): SecretRealmChoiceResult.Success = SecretRealmChoiceResult.Success(
+        message = if (allDead) "队伍全军覆没！" else "体力耗尽，被传送出秘境",
+        sessionEnded = true,
+        enteredCombat = resolution.enteredCombat,
+        combatLog = resolution.combatLog,
+        victory = resolution.victory,
+        deadIds = resolution.deadIds,
+        releasedMemberIds = session.members.map { it.discipleId }.toSet(),
+        ambushSucceeded = resolution.params.ambushSucceeded
+    )
+
+    /** 会话继续结果（战斗播放数据透传） */
+    private fun buildContinueResult(
+        resolution: SecretRealmBeastChoiceResolution
+    ): SecretRealmChoiceResult.Success = SecretRealmChoiceResult.Success(
+        message = resolution.resultText,
+        enteredCombat = resolution.enteredCombat,
+        combatLog = resolution.combatLog,
+        victory = resolution.victory,
+        deadIds = resolution.deadIds,
+        ambushSucceeded = resolution.params.ambushSucceeded
+    )
+
+    /** 事件类型字符串解析（篡改档非法值回退衔接分支） */
+    private fun resolveEventType(eventType: String): SecretRealmEventType =
+        runCatching { SecretRealmEventType.valueOf(eventType) }
+            .getOrDefault(SecretRealmEventType.BRIDGE)
+
+    /**
+     * 计算选择选项后的体力：按选项自身体力消耗扣除（默认 1）。
+     * 篡改档防御：非法消耗（0/负数/超大值）clamp 到 1..STAMINA_MAX——选项永不免费、
+     * 单次最多耗尽整管体力；Long 运算防 MIN_VALUE 回绕（对抗性审查 B11/D3）。
+     */
+    private fun calculateNewStamina(
+        session: SecretRealmExplorationSession,
+        event: SecretRealmEventRecord,
+        optionIndex: Int
+    ): Int {
+        val optionCost = event.options.getOrNull(optionIndex)?.staminaCost
+            ?: GameConfig.SecretRealm.STAMINA_COST_PER_CHOICE
+        val safeCost = optionCost.coerceIn(
+            GameConfig.SecretRealm.STAMINA_COST_PER_CHOICE,
+            GameConfig.SecretRealm.STAMINA_MAX
         )
+        return (session.stamina.toLong() - safeCost)
+            .coerceIn(0, GameConfig.SecretRealm.STAMINA_MAX.toLong())
+            .toInt()
     }
 
     /** 选择前置校验：返回错误结果或 null（通过） */
@@ -343,6 +380,9 @@ class SecretRealmService @Inject constructor(
         return SecretRealmBeastChoiceResolution(
             resultText = resultText,
             members = session.members,
+            // 携带会话背包（对抗性审查：不携带则 chooseOption 用空 resolution.backpack 覆盖，
+            // 战斗胜利的灵石/材料在选方向后被清空——预存严重 bug）
+            backpack = session.backpack,
             nextEvent = SecretRealmEventGenerator.rollNextEvent(rng, playerAvgRealm)
         )
     }
@@ -358,6 +398,8 @@ class SecretRealmService @Inject constructor(
             return SecretRealmBeastChoiceResolution(
                 resultText = resultText,
                 members = newMembers,
+                // 携带会话背包（休整不改变背包，防 chooseOption 空覆盖——对抗性审查发现）
+                backpack = session.backpack,
                 nextEvent = SecretRealmEventGenerator.generateBridgeEvent(resultText)
             )
         }
@@ -422,13 +464,14 @@ class SecretRealmService @Inject constructor(
         nextEvent = SecretRealmEventGenerator.generateBridgeEvent(outcome.resultText)
     )
 
-    /** 无战斗分支结算载体（成员不变） */
+    /** 无战斗分支结算载体（成员不变，携带会话背包防清空——对抗性审查发现） */
     private fun bridgeResolution(
         resultText: String,
         session: SecretRealmExplorationSession
     ): SecretRealmBeastChoiceResolution = SecretRealmBeastChoiceResolution(
         resultText = resultText,
         members = session.members,
+        backpack = session.backpack,
         nextEvent = SecretRealmEventGenerator.generateBridgeEvent(resultText)
     )
 
@@ -708,31 +751,43 @@ class SecretRealmService @Inject constructor(
         if (backpack.totalItemCount == 0) return
         inventorySystem.withTrackingSource("secret_realm") {
             backpack.equipment.forEach { item ->
-                settleItem(item.name, item.rarity, "equipment", inventorySystem.addEquipmentStack(item))
+                settleItem(item.name, item.rarity, "equipment", item.quantity,
+                    inventorySystem.addEquipmentStack(item))
             }
             backpack.manuals.forEach { item ->
-                settleItem(item.name, item.rarity, "manual", inventorySystem.addManualStack(item))
+                settleItem(item.name, item.rarity, "manual", item.quantity,
+                    inventorySystem.addManualStack(item))
             }
             backpack.pills.forEach { item ->
-                settleItem(item.name, item.rarity, "pill", inventorySystem.addPill(item))
+                settleItem(item.name, item.rarity, "pill", item.quantity,
+                    inventorySystem.addPill(item))
             }
             backpack.materials.forEach { item ->
-                settleItem(item.name, item.rarity, "material", inventorySystem.addMaterial(item))
+                settleItem(item.name, item.rarity, "material", item.quantity,
+                    inventorySystem.addMaterial(item))
             }
             backpack.herbs.forEach { item ->
-                settleItem(item.name, item.rarity, "herb", inventorySystem.addHerb(item))
+                settleItem(item.name, item.rarity, "herb", item.quantity,
+                    inventorySystem.addHerb(item))
+            }
+            backpack.seeds.forEach { item ->
+                settleItem(item.name, item.rarity, "seed", item.quantity,
+                    inventorySystem.addSeed(item))
             }
         }
     }
 
     /**
      * 单件物品结算结果处理：Partial 溢出已自动转邮件；
-     * Failure（如篡改档非法物品）转邮件补偿，防止物品静默丢失（对抗性审查 D2）。
+     * Failure 中仓库满（Inventory.Full）已由 addXxx 内部按整件转邮件，此处不再重复补偿
+     * （对抗性审查：双重发放）；其余 Failure（如 SlotNotFound 基础设施错误）按实际数量
+     * 转邮件补偿，防止物品静默丢失（对抗性审查 D2）。
      */
     private fun settleItem(
         itemName: String,
         itemRarity: Int,
         itemType: String,
+        itemQuantity: Int,
         result: DomainResult<*>
     ) {
         when (result) {
@@ -742,8 +797,9 @@ class SecretRealmService @Inject constructor(
             )
             is DomainResult.Failure -> {
                 DomainLog.w(TAG, "秘境结算 $itemName 失败: ${result.error}，转邮件补偿")
+                if (result.error is AppError.Domain.Inventory.Full) return
                 inventorySystem.sendOverflowMail(
-                    "secret_realm", itemType, itemName, itemRarity, 1
+                    "secret_realm", itemType, itemName, itemRarity, itemQuantity
                 )
             }
         }

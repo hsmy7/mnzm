@@ -106,15 +106,23 @@ internal fun SecretRealmHpBar(
 }
 
 /**
- * 探索事件选项卡片（secret_realm_option_card 背景 + 居中文字，整卡可点）。
+ * 探索事件选项卡片（secret_realm_option_card 背景 + 居中文字 + 底部体力消耗，整卡可点）。
+ *
+ * @param staminaCost 选择该选项消耗的体力（卡片底部显示"体力-X"）
  */
 @Composable
 internal fun SecretRealmOptionCard(
     modifier: Modifier = Modifier,
     label: String,
     description: String,
+    staminaCost: Int = 1,
     onClick: () -> Unit
 ) {
+    // 篡改档防御：显示与引擎一致的 clamp 值（0/负值显示 -1，超大值显示 -20）
+    val displayCost = staminaCost.coerceIn(
+        com.xianxia.sect.core.GameConfig.SecretRealm.STAMINA_COST_PER_CHOICE,
+        com.xianxia.sect.core.GameConfig.SecretRealm.STAMINA_MAX
+    )
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -152,5 +160,15 @@ internal fun SecretRealmOptionCard(
                 )
             }
         }
+        // 体力消耗（与滚动内容独立，固定贴底；警示红与秘境体力告警同色）
+        Text(
+            text = "体力-$displayCost",
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 8.dp),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFFF44336)
+        )
     }
 }

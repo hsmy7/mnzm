@@ -2,10 +2,13 @@ package com.xianxia.sect.core.engine.domain.exploration
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.SecretRealmEventType
+import com.xianxia.sect.core.model.SecretRealmRewardItem
 import com.xianxia.sect.core.util.DeterministicRng
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.mockito.Mockito.`when`
+import org.mockito.Mockito.mock
 
 class SecretRealmEventGeneratorTest {
 
@@ -129,5 +132,174 @@ class SecretRealmEventGeneratorTest {
         assertTrue(loot.all { it.type == "material" })
         assertTrue(loot.all { it.quantity == 1 })
         assertTrue(loot.all { it.name.isNotEmpty() })
+    }
+
+    // ── 发现遗迹事件 ──────────────────────────────────────────────────
+
+    @Test
+    fun `generateRuinsEvent - 事件类型标题描述与三个选项正确`() {
+        val event = SecretRealmEventGenerator.generateRuinsEvent()
+        assertEquals(SecretRealmEventType.RUIN_EXPLORE.name, event.eventType)
+        assertEquals("发现遗迹", event.title)
+        assertEquals("发现未知遗迹可能存在未知宝物", event.description)
+        assertEquals(listOf("直接离开", "简单搜寻", "仔细搜寻"), event.options.map { it.label })
+        // 体力消耗：前两项默认 1，仔细搜寻 2
+        assertEquals(1, event.options[0].staminaCost)
+        assertEquals(1, event.options[1].staminaCost)
+        assertEquals(GameConfig.SecretRealm.CAREFUL_SEARCH_STAMINA_COST, event.options[2].staminaCost)
+        // params 妖兽字段为空 → UI 走描述分支而非妖兽精灵图分支
+        assertTrue(event.params.beastTypeName.isEmpty())
+    }
+
+    @Test
+    fun `generateRuinsResultEvent - 空无一物子事件正确`() {
+        val event = SecretRealmEventGenerator.generateRuinsResultEvent(
+            title = "空无一物",
+            description = "这里什么都没有"
+        )
+        assertEquals(SecretRealmEventType.RUIN_RESULT.name, event.eventType)
+        assertEquals("空无一物", event.title)
+        assertEquals("这里什么都没有", event.description)
+        assertEquals(listOf("继续前进"), event.options.map { it.label })
+        assertTrue(event.params.itemRewards.isEmpty())
+    }
+
+    @Test
+    fun `generateRuinsResultEvent - 秘宝子事件携带奖励描述`() {
+        val rewards = listOf(
+            SecretRealmRewardItem(type = "equipment", itemId = "e1", name = "青锋剑", rarity = 2),
+            SecretRealmRewardItem(type = "pill", itemId = "p1", name = "聚灵丹", rarity = 3)
+        )
+        val event = SecretRealmEventGenerator.generateRuinsResultEvent(
+            title = "发现秘宝",
+            description = "发现物品：青锋剑、聚灵丹",
+            itemRewards = rewards
+        )
+        assertEquals(2, event.params.itemRewards.size)
+        assertEquals("equipment", event.params.itemRewards[0].type)
+        assertEquals("聚灵丹", event.params.itemRewards[1].name)
+    }
+
+    @Test
+    fun `generateRuinsTreasure - 数量与品阶范围正确`() {
+        repeat(50) {
+            val simple = SecretRealmEventGenerator.generateRuinsTreasure(
+                rng,
+                GameConfig.SecretRealm.SIMPLE_SEARCH_COUNT_MIN,
+                GameConfig.SecretRealm.SIMPLE_SEARCH_COUNT_MAX,
+                GameConfig.SecretRealm.SIMPLE_SEARCH_RARITY_MIN,
+                GameConfig.SecretRealm.SIMPLE_SEARCH_RARITY_MAX
+            )
+            assertTrue(
+                "简单搜寻数量 ${simple.size} 超出 1..5",
+                simple.size in GameConfig.SecretRealm.SIMPLE_SEARCH_COUNT_MIN..
+                    GameConfig.SecretRealm.SIMPLE_SEARCH_COUNT_MAX
+            )
+            assertTrue(
+                "简单搜寻品阶越界",
+                simple.all { it.rarity in GameConfig.SecretRealm.SIMPLE_SEARCH_RARITY_MIN..
+                    GameConfig.SecretRealm.SIMPLE_SEARCH_RARITY_MAX }
+            )
+            val careful = SecretRealmEventGenerator.generateRuinsTreasure(
+                rng,
+                GameConfig.SecretRealm.CAREFUL_SEARCH_COUNT_MIN,
+                GameConfig.SecretRealm.CAREFUL_SEARCH_COUNT_MAX,
+                GameConfig.SecretRealm.CAREFUL_SEARCH_RARITY_MIN,
+                GameConfig.SecretRealm.CAREFUL_SEARCH_RARITY_MAX
+            )
+            assertTrue(
+                "仔细搜寻数量 ${careful.size} 超出 2..7",
+                careful.size in GameConfig.SecretRealm.CAREFUL_SEARCH_COUNT_MIN..
+                    GameConfig.SecretRealm.CAREFUL_SEARCH_COUNT_MAX
+            )
+            assertTrue(
+                "仔细搜寻品阶越界",
+                careful.all { it.rarity in GameConfig.SecretRealm.CAREFUL_SEARCH_RARITY_MIN..
+                    GameConfig.SecretRealm.CAREFUL_SEARCH_RARITY_MAX }
+            )
+        }
+        // 通用约束：数量为 1、名称非空、类型为六类之一
+        val sample = SecretRealmEventGenerator.generateRuinsTreasure(rng, 2, 7, 2, 4)
+        assertTrue(sample.all { it.quantity == 1 })
+        assertTrue(sample.all { it.name.isNotEmpty() })
+        assertTrue(
+            sample.all { it.type in listOf("equipment", "manual", "pill", "material", "herb", "seed") }
+        )
+    }
+
+    @Test
+    fun `generateRuinsTreasure - 相同种子产生相同结果`() {
+        val first = SecretRealmEventGenerator.generateRuinsTreasure(
+            DeterministicRng.fromSeed(20260803L), 2, 7, 2, 4
+        )
+        val second = SecretRealmEventGenerator.generateRuinsTreasure(
+            DeterministicRng.fromSeed(20260803L), 2, 7, 2, 4
+        )
+        assertEquals(first, second)
+    }
+
+    @Test
+    fun `ruins 配置不变量 - 数量品阶范围合法且概率分段无重叠`() {
+        // 数量范围 min<=max（守卫：未来配置改坏会导致 rng.nextInt(bound<=0) 抛异常）
+        assertTrue(GameConfig.SecretRealm.SIMPLE_SEARCH_COUNT_MIN <=
+            GameConfig.SecretRealm.SIMPLE_SEARCH_COUNT_MAX)
+        assertTrue(GameConfig.SecretRealm.CAREFUL_SEARCH_COUNT_MIN <=
+            GameConfig.SecretRealm.CAREFUL_SEARCH_COUNT_MAX)
+        // 品阶范围在合法区间 1..6 且 min<=max
+        assertTrue(GameConfig.SecretRealm.SIMPLE_SEARCH_RARITY_MIN in 1..6)
+        assertTrue(GameConfig.SecretRealm.SIMPLE_SEARCH_RARITY_MAX in 1..6)
+        assertTrue(GameConfig.SecretRealm.SIMPLE_SEARCH_RARITY_MIN <=
+            GameConfig.SecretRealm.SIMPLE_SEARCH_RARITY_MAX)
+        assertTrue(GameConfig.SecretRealm.CAREFUL_SEARCH_RARITY_MIN in 1..6)
+        assertTrue(GameConfig.SecretRealm.CAREFUL_SEARCH_RARITY_MAX in 1..6)
+        assertTrue(GameConfig.SecretRealm.CAREFUL_SEARCH_RARITY_MIN <=
+            GameConfig.SecretRealm.CAREFUL_SEARCH_RARITY_MAX)
+        // 事件分段概率和无重叠且不超过 1（nextDouble 单次分段判定依赖）
+        assertTrue(GameConfig.SecretRealm.REST_AREA_CHANCE +
+            GameConfig.SecretRealm.RUINS_CHANCE <= 1.0)
+        // 仔细搜寻体力消耗在合法扣费范围内（calculateNewStamina clamp 依赖）
+        assertTrue(GameConfig.SecretRealm.CAREFUL_SEARCH_STAMINA_COST in
+            1..GameConfig.SecretRealm.STAMINA_MAX)
+        // 秘宝概率在开区间 (0,1) 内
+        assertTrue(GameConfig.SecretRealm.RUINS_TREASURE_CHANCE > 0.0)
+        assertTrue(GameConfig.SecretRealm.RUINS_TREASURE_CHANCE < 1.0)
+    }
+
+    @Test
+    fun `rollNextEvent - 三分段 mock 分支判定`() {
+        // 0.2999 < 0.30 → 空地事件
+        var mockRng = mock(DeterministicRng::class.java)
+        `when`(mockRng.nextDouble()).thenReturn(0.2999)
+        assertEquals(
+            SecretRealmEventType.REST_AREA.name,
+            SecretRealmEventGenerator.rollNextEvent(mockRng, 5).eventType
+        )
+        // 0.30 <= roll < 0.50 → 发现遗迹（含恰值 0.30 边界）
+        mockRng = mock(DeterministicRng::class.java)
+        `when`(mockRng.nextDouble()).thenReturn(0.30)
+        assertEquals(
+            SecretRealmEventType.RUIN_EXPLORE.name,
+            SecretRealmEventGenerator.rollNextEvent(mockRng, 5).eventType
+        )
+        // 中段 → 发现遗迹
+        mockRng = mock(DeterministicRng::class.java)
+        `when`(mockRng.nextDouble()).thenReturn(0.4)
+        assertEquals(
+            SecretRealmEventType.RUIN_EXPLORE.name,
+            SecretRealmEventGenerator.rollNextEvent(mockRng, 5).eventType
+        )
+        // 0.50 <= roll → 妖兽事件（含恰值 0.50 边界）
+        mockRng = mock(DeterministicRng::class.java)
+        `when`(mockRng.nextDouble()).thenReturn(0.50)
+        assertEquals(
+            SecretRealmEventType.BEAST_ENCOUNTER.name,
+            SecretRealmEventGenerator.rollNextEvent(mockRng, 5).eventType
+        )
+        mockRng = mock(DeterministicRng::class.java)
+        `when`(mockRng.nextDouble()).thenReturn(0.9)
+        assertEquals(
+            SecretRealmEventType.BEAST_ENCOUNTER.name,
+            SecretRealmEventGenerator.rollNextEvent(mockRng, 5).eventType
+        )
     }
 }

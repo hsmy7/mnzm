@@ -6,6 +6,7 @@ import com.xianxia.sect.core.model.MaterialCategory
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.PillCategory
 import com.xianxia.sect.core.model.SecretRealmBackpack
+import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.util.DeterministicRng
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -87,6 +88,35 @@ class SecretRealmBattleHelperTest {
             assertEquals(backpack.totalItemCount - result.lostItemCount, result.backpack.totalItemCount)
             // 丢失件数 ≥ ceil(15×0.2)=3 且 ≤ ceil(15×0.45)=7
             assertTrue(result.lostItemCount in 3..7)
+        }
+    }
+
+    @Test
+    fun `applyLootLoss - 种子参与丢失选取不静默全丢`() {
+        val backpack = SecretRealmBackpack(
+            materials = (1..10).map {
+                Material(
+                    id = "m$it", name = "材料$it", rarity = 2,
+                    description = "", category = MaterialCategory.BEAST_BONE, quantity = 1
+                )
+            },
+            seeds = (1..5).map {
+                Seed(
+                    id = "s$it", name = "种子$it", rarity = 2,
+                    description = "", growTime = 3, yield = 1, quantity = 1
+                )
+            }
+        )
+        repeat(10) {
+            val result = SecretRealmBattleHelper.applyLootLoss(backpack, rng)
+            // 保留件数 = 总数 - 丢失数（六类一致；修复前 seeds 不参与遍历但被重建清空导致不等）
+            assertEquals(
+                backpack.totalItemCount - result.lostItemCount,
+                result.backpack.totalItemCount
+            )
+            // 种子与五类同规则参与丢失：种子丢失数计入 lostItemCount（不静默丢）
+            val seedLost = backpack.seeds.size - result.backpack.seeds.size
+            assertTrue(seedLost in 0..result.lostItemCount)
         }
     }
 }

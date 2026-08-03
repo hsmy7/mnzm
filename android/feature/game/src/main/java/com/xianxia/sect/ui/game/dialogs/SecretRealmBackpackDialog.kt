@@ -1,6 +1,13 @@
 package com.xianxia.sect.ui.game.dialogs
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -11,12 +18,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.model.SecretRealmBackpack
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.UnifiedItemCard
+import com.xianxia.sect.ui.components.toItemCardData
 
 /**
- * 远古秘境探索背包弹窗——显示探索过程中获得的物品（结束时统一结算入宗门仓库）。
+ * 远古秘境探索背包弹窗——以物品卡片展示探索过程中获得的物品（结束时统一结算入宗门仓库）。
  */
 @Composable
 internal fun SecretRealmBackpackDialog(
@@ -46,12 +56,83 @@ internal fun SecretRealmBackpackDialog(
                 return@UnifiedGameDialog
             }
 
-            BackpackSection("灵石", "${backpack.spiritStones}")
-            BackpackSection("装备", "×${backpack.equipment.size}")
-            BackpackSection("功法", "×${backpack.manuals.size}")
-            BackpackSection("丹药", "×${backpack.pills.size}")
-            BackpackSection("材料", "×${backpack.materials.size}")
-            BackpackSection("草药", "×${backpack.herbs.size}")
+            // 物品卡片网格：灵石一张卡片 + 六类物品逐件一张卡片（品阶色边框 + 精灵图 + 数量）
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                if (backpack.spiritStones > 0L) {
+                    UnifiedItemCard(
+                        data = RewardCardItem(
+                            itemName = "灵石",
+                            itemType = "spiritStones",
+                            rarity = 1,
+                            quantity = backpack.spiritStones
+                                .coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+                        ).toItemCardData()
+                    )
+                }
+                backpack.equipment.forEach { item ->
+                    UnifiedItemCard(
+                        data = RewardCardItem(
+                            itemName = item.name,
+                            itemType = "equipment",
+                            rarity = item.rarity,
+                            quantity = item.quantity
+                        ).toItemCardData()
+                    )
+                }
+                backpack.manuals.forEach { item ->
+                    UnifiedItemCard(
+                        data = RewardCardItem(
+                            itemName = item.name,
+                            itemType = "manual",
+                            rarity = item.rarity,
+                            quantity = item.quantity
+                        ).toItemCardData()
+                    )
+                }
+                backpack.pills.forEach { item ->
+                    UnifiedItemCard(
+                        data = RewardCardItem(
+                            itemName = item.name,
+                            itemType = "pill",
+                            rarity = item.rarity,
+                            quantity = item.quantity
+                        ).toItemCardData()
+                    )
+                }
+                backpack.materials.forEach { item ->
+                    UnifiedItemCard(
+                        data = RewardCardItem(
+                            itemName = item.name,
+                            itemType = "material",
+                            rarity = item.rarity,
+                            quantity = item.quantity
+                        ).toItemCardData()
+                    )
+                }
+                backpack.herbs.forEach { item ->
+                    UnifiedItemCard(
+                        data = RewardCardItem(
+                            itemName = item.name,
+                            itemType = "herb",
+                            rarity = item.rarity,
+                            quantity = item.quantity
+                        ).toItemCardData()
+                    )
+                }
+                backpack.seeds.forEach { item ->
+                    UnifiedItemCard(
+                        data = RewardCardItem(
+                            itemName = item.name,
+                            itemType = "seed",
+                            rarity = item.rarity,
+                            quantity = item.quantity
+                        ).toItemCardData()
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
             Text(
@@ -61,26 +142,5 @@ internal fun SecretRealmBackpackDialog(
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
-    }
-}
-
-@Composable
-private fun BackpackSection(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
-        )
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(
-            text = value,
-            fontSize = 14.sp,
-            color = Color.Black
-        )
     }
 }

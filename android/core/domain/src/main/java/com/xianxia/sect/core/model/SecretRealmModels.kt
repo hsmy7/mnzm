@@ -85,7 +85,7 @@ data class SecretRealmMemberState(
 @Serializable
 @Immutable
 data class SecretRealmEventRecord(
-    /** SecretRealmEventType.name：BEAST_ENCOUNTER / REST_AREA / BRIDGE */
+    /** SecretRealmEventType.name：BEAST_ENCOUNTER / REST_AREA / RUIN_EXPLORE / RUIN_RESULT / BRIDGE */
     @ProtoNumber(1) val eventType: String = "",
     @ProtoNumber(2) val title: String = "",
     @ProtoNumber(3) val description: String = "",
@@ -99,13 +99,16 @@ data class SecretRealmEventRecord(
     @ProtoNumber(8) val absoluteMonth: Int = 0
 )
 
-/** 事件选项（效果由 eventType + optionIndex 在引擎解析，不持久化） */
+/** 事件选项（效果由 eventType + optionIndex + staminaCost 在引擎解析，不持久化） */
 @Keep
 @Serializable
 @Immutable
 data class SecretRealmOption(
     @ProtoNumber(1) val label: String = "",
-    @ProtoNumber(2) val description: String = ""
+    @ProtoNumber(2) val description: String = "",
+    /** 选择该选项消耗的体力；默认 1（所有选项统一扣 1，个别选项差异化扣费如"仔细搜寻"扣 2） */
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    @ProtoNumber(3) val staminaCost: Int = 1
 )
 
 /** 妖兽事件参数（战斗/掉落/损失，读档一致性关键） */
@@ -139,12 +142,14 @@ data class SecretRealmBackpack(
     @ProtoNumber(3) val manuals: List<ManualStack> = emptyList(),
     @ProtoNumber(4) val pills: List<Pill> = emptyList(),
     @ProtoNumber(5) val materials: List<Material> = emptyList(),
-    @ProtoNumber(6) val herbs: List<Herb> = emptyList()
+    @ProtoNumber(6) val herbs: List<Herb> = emptyList(),
+    /** 种子（遗迹秘宝可产出；protobuf list 缺省即空，与其余六类字段一致） */
+    @ProtoNumber(7) val seeds: List<Seed> = emptyList()
 ) {
     /** 背包物品总件数（运行时推导，不序列化） */
     @Transient
     val totalItemCount: Int
-        get() = equipment.size + manuals.size + pills.size + materials.size + herbs.size
+        get() = equipment.size + manuals.size + pills.size + materials.size + herbs.size + seeds.size
 }
 
 /** 奖励物品描述（结算时才实例化入仓） */
@@ -152,7 +157,7 @@ data class SecretRealmBackpack(
 @Serializable
 @Immutable
 data class SecretRealmRewardItem(
-    /** equipment / manual / pill / material / herb */
+    /** equipment / manual / pill / material / herb / seed */
     @ProtoNumber(1) val type: String = "",
     @ProtoNumber(2) val itemId: String = "",
     @ProtoNumber(3) val name: String = "",
@@ -203,6 +208,10 @@ enum class SecretRealmEventType {
     BEAST_ENCOUNTER,
     /** 空地事件（休整恢复 / 继续前进），不触发战斗 */
     REST_AREA,
+    /** 发现遗迹事件（选项：直接离开 / 简单搜寻 / 仔细搜寻） */
+    RUIN_EXPLORE,
+    /** 遗迹搜寻结果子事件（空无一物 / 发现秘宝，title 区分），继续前进进入衔接事件 */
+    RUIN_RESULT,
     /** 衔接事件（结果描述 + 选择探索方向） */
     BRIDGE
 }

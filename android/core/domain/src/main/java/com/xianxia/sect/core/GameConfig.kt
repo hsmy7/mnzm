@@ -944,6 +944,17 @@ object GameConfig {
         const val FLEE_DETECT_CHANCE = 0.30                // 选择"远离"被妖兽发现的概率
         const val AMBUSH_DETECT_CHANCE = 0.50              // 选择"偷袭"被妖兽发现的概率
         const val REST_AREA_CHANCE = 0.30                  // 衔接方向选择后出现空地事件的概率
+        const val RUINS_CHANCE = 0.20                      // 衔接方向选择后出现发现遗迹事件的概率
+        const val RUINS_TREASURE_CHANCE = 0.50             // 搜寻遗迹后获得秘宝（而非空无一物）的概率
+        const val SIMPLE_SEARCH_COUNT_MIN = 1              // 简单搜寻获得物品数量下限
+        const val SIMPLE_SEARCH_COUNT_MAX = 5              // 简单搜寻获得物品数量上限
+        const val CAREFUL_SEARCH_COUNT_MIN = 2             // 仔细搜寻获得物品数量下限
+        const val CAREFUL_SEARCH_COUNT_MAX = 7             // 仔细搜寻获得物品数量上限
+        const val SIMPLE_SEARCH_RARITY_MIN = 2             // 简单搜寻品阶下限（灵品）
+        const val SIMPLE_SEARCH_RARITY_MAX = 3             // 简单搜寻品阶上限（宝品）
+        const val CAREFUL_SEARCH_RARITY_MIN = 2            // 仔细搜寻品阶下限（灵品）
+        const val CAREFUL_SEARCH_RARITY_MAX = 4            // 仔细搜寻品阶上限（玄品）
+        const val CAREFUL_SEARCH_STAMINA_COST = 2          // 仔细搜寻体力消耗
         const val REST_RECOVERY_RATIO = 0.40               // 原地休整恢复最大生命值的比例
         const val LOOT_LOSS_MIN = 0.20                     // 战斗失败丢失物品比例下限
         const val LOOT_LOSS_MAX = 0.45                     // 战斗失败丢失物品比例上限
