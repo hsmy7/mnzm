@@ -943,6 +943,8 @@ object GameConfig {
         const val AMBUSH_BEAST_HP_REDUCTION = 0.10         // 偷袭成功：妖兽初始血量 -10%
         const val FLEE_DETECT_CHANCE = 0.30                // 选择"远离"被妖兽发现的概率
         const val AMBUSH_DETECT_CHANCE = 0.50              // 选择"偷袭"被妖兽发现的概率
+        const val REST_AREA_CHANCE = 0.30                  // 衔接方向选择后出现空地事件的概率
+        const val REST_RECOVERY_RATIO = 0.40               // 原地休整恢复最大生命值的比例
         const val LOOT_LOSS_MIN = 0.20                     // 战斗失败丢失物品比例下限
         const val LOOT_LOSS_MAX = 0.45                     // 战斗失败丢失物品比例上限
         const val AI_TEAM_SIZE = 4                         // AI 宗门队伍人数

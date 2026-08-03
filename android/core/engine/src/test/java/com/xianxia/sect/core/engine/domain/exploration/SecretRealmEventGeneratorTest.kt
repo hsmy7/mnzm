@@ -11,6 +11,14 @@ class SecretRealmEventGeneratorTest {
 
     private val rng = DeterministicRng.fromSeed(99L)
 
+    companion object {
+        /** rollNextEvent 空地分支种子：首次 nextDouble() ≈ 6.5e-9（< REST_AREA_CHANCE 0.30） */
+        private const val REST_AREA_SEED = 1L
+
+        /** rollNextEvent 妖兽分支种子：首次 nextDouble() ≈ 0.5000000009（>= REST_AREA_CHANCE 0.30） */
+        private const val BEAST_SEED = 4L
+    }
+
     @Test
     fun `generateBeastEvent - 描述含妖兽名数量境界且选项 3 个`() {
         repeat(20) {
@@ -74,6 +82,35 @@ class SecretRealmEventGeneratorTest {
             Math.abs(ambushed.maxHp - normal.maxHp * 0.9) <= 1.5
         )
         assertTrue(ambushed.maxHp > 0)
+    }
+
+    @Test
+    fun `generateRestAreaEvent - 事件类型标题描述与两个选项正确`() {
+        val event = SecretRealmEventGenerator.generateRestAreaEvent()
+        assertEquals(SecretRealmEventType.REST_AREA.name, event.eventType)
+        assertEquals("发现空地", event.title)
+        assertEquals("发现一处平坦空地", event.description)
+        assertEquals(listOf("原地休整", "继续前进"), event.options.map { it.label })
+        assertTrue(event.options.all { it.description.isNotEmpty() })
+        // params 妖兽字段为空 → UI 走描述分支而非妖兽精灵图分支
+        assertTrue(event.params.beastTypeName.isEmpty())
+    }
+
+    @Test
+    fun `rollNextEvent - 首次随机值低于三成时生成空地事件`() {
+        val event = SecretRealmEventGenerator.rollNextEvent(
+            DeterministicRng.fromSeed(REST_AREA_SEED), playerAvgRealm = 5
+        )
+        assertEquals(SecretRealmEventType.REST_AREA.name, event.eventType)
+        assertEquals("发现空地", event.title)
+    }
+
+    @Test
+    fun `rollNextEvent - 首次随机值不低于三成时生成妖兽事件`() {
+        val event = SecretRealmEventGenerator.rollNextEvent(
+            DeterministicRng.fromSeed(BEAST_SEED), playerAvgRealm = 5
+        )
+        assertEquals(SecretRealmEventType.BEAST_ENCOUNTER.name, event.eventType)
     }
 
     @Test

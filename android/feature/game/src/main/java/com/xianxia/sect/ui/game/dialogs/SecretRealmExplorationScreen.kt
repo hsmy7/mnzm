@@ -341,17 +341,18 @@ fun SecretRealmExplorationScreen(
 
 // ── 子组件 ────────────────────────────────────────────────────────────
 
-/** 事件视图：信息逐行显示（每秒一行），全部显示完后回调 [onLinesShown]（用于自动弹出选项卡片） */
+/** 事件视图：信息逐行显示（标题立即显示、内容延迟 1 秒），全部显示完后回调 [onLinesShown]（用于自动弹出选项卡片） */
 @Composable
 private fun EventContent(
     event: com.xianxia.sect.core.model.SecretRealmEventRecord,
     alreadyShown: Boolean,
     onLinesShown: () -> Unit
 ) {
-    // 逐行显示：每秒显示一行（第 1 行也从第 1 秒开始，行数 = 标题 + 内容块）
+    // 逐行显示：第 1 行（标题）立即显示，第 2 行（内容块）1 秒后显示；
+    // 全部显示完毕后再延迟 1 秒自动弹出选项卡片
     // 未来新增事件类型沿用该逐行机制，只需扩展内容块（第 2 行）
     var visibleLines by remember(event, alreadyShown) {
-        mutableIntStateOf(if (alreadyShown) EVENT_LINE_COUNT else 0)
+        mutableIntStateOf(if (alreadyShown) EVENT_LINE_COUNT else 1)
     }
     LaunchedEffect(event, alreadyShown) {
         if (alreadyShown) return@LaunchedEffect
@@ -429,7 +430,7 @@ private fun BeastEventContent(event: com.xianxia.sect.core.model.SecretRealmEven
     )
 }
 
-/** 事件信息行数：标题（第 1 行）+ 内容块（第 2 行），逐行显示每秒一行 */
+/** 事件信息行数：标题（第 1 行，立即显示）+ 内容块（第 2 行，延迟 1 秒） */
 private const val EVENT_LINE_COUNT = 2
 
 /** 战斗场景标题：选项索引（0=远离 / 1=战斗 / 2=偷袭，与妖兽事件选项顺序一致）→ 触发战斗的具体场景 */
@@ -551,13 +552,14 @@ private fun SecretRealmMemberState.toMemberHpUi(
         portraitRes = portraitRes,
         realmName = realmName,
         currentHp = currentHp,
-        maxHp = d?.maxHp ?: 100,
+        // 战斗口径 maxHp 优先（与战斗写回/休整恢复同口径），旧档 0 回退基础装配值
+        maxHp = maxHp.takeIf { it > 0 } ?: (d?.maxHp ?: 100),
         isDying = isDying,
         isDead = isDead
     )
 }
 
-/** 选项卡片覆盖层：三张卡片并排（间距 2dp）+ 收起按钮整体垂直居中（与屏幕完全对称），浮于面板之上 */
+/** 选项卡片覆盖层：卡片并排（间距 8dp）+ 收起按钮整体垂直居中（与屏幕完全对称），浮于面板之上 */
 @Composable
 private fun OptionsOverlay(
     options: List<com.xianxia.sect.core.model.SecretRealmOption>,
@@ -570,9 +572,11 @@ private fun OptionsOverlay(
     ) {
         // 卡片高度 = 覆盖区域高度 × 65%（提前捕获，供嵌套作用域使用）
         val cardHeight = maxHeight * OPTION_CARD_HEIGHT_RATIO
-        // 卡片槽位宽 =（覆盖区宽 - 左右边距 - 卡片间距 × (n-1)）/ n（防篡改档空列表除零）
-        val slotWidth = (maxWidth - OPTION_OVERLAY_PADDING * 2 -
-            OPTION_CARD_SPACING * (maxOf(1, options.size) - 1)) / maxOf(1, options.size)
+        // 卡片槽位宽 =（覆盖区宽 - 左右边距 - 卡片间距 × (n-1)）/ n
+        // （防篡改档空列表除零 + 超长选项列表导致槽位为负）
+        val slotWidth = ((maxWidth - OPTION_OVERLAY_PADDING * 2 -
+            OPTION_CARD_SPACING * (maxOf(1, options.size) - 1)) / maxOf(1, options.size))
+            .coerceAtLeast(0.dp)
         // 精灵图按 Fit 缩放：槽位宽高比超过图片宽高比时图形横向留白，卡片宽度
         // 限定为图形实际绘制宽度，文字换行宽度随之限定，永不出卡片左右
         val cardWidth = minOf(slotWidth, cardHeight * OPTION_CARD_IMG_ASPECT)
@@ -620,4 +624,4 @@ private const val OPTION_CARD_IMG_ASPECT = 796f / 1535f
 private val OPTION_OVERLAY_PADDING = 16.dp
 
 /** 选项卡片间距 */
-private val OPTION_CARD_SPACING = 2.dp
+private val OPTION_CARD_SPACING = 8.dp

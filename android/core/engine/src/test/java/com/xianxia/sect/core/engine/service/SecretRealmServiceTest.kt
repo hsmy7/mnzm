@@ -429,23 +429,30 @@ class SecretRealmServiceTest {
         assertFalse(state.gameData.secretRealmSession.isActive)
     }
 
+    /** 构造衔接事件（选择探索方向） */
+    private fun bridgeEvent(): com.xianxia.sect.core.model.SecretRealmEventRecord =
+        com.xianxia.sect.core.model.SecretRealmEventRecord(
+            eventType = SecretRealmEventType.BRIDGE.name,
+            title = "探索方向",
+            description = "已避开妖兽，请选择探索方向",
+            options = listOf(
+                com.xianxia.sect.core.model.SecretRealmOption("走左路", ""),
+                com.xianxia.sect.core.model.SecretRealmOption("直线前进", ""),
+                com.xianxia.sect.core.model.SecretRealmOption("走右路", "")
+            )
+        )
+
     @Test
     fun `chooseOption - 衔接事件选择方向后生成下一妖兽事件`() {
         val state = createState()
         val ids = setupActiveSession(state)
-        // 直接切换到衔接事件
+        // 直接切换到衔接事件；mock rng 首次 nextDouble()=0.9（>= 0.30 → 妖兽分支）
+        val mockRng = mock(DeterministicRng::class.java)
+        `when`(mockRng.nextDouble()).thenReturn(0.9)
+        `when`(rngManager.getRng(RngPartition.SECRET_REALM)).thenReturn(mockRng)
         state.gameData = state.gameData.copy(
             secretRealmSession = state.gameData.secretRealmSession.copy(
-                currentEvent = com.xianxia.sect.core.model.SecretRealmEventRecord(
-                    eventType = SecretRealmEventType.BRIDGE.name,
-                    title = "探索方向",
-                    description = "已避开妖兽，请选择探索方向",
-                    options = listOf(
-                        com.xianxia.sect.core.model.SecretRealmOption("走左路", ""),
-                        com.xianxia.sect.core.model.SecretRealmOption("直线前进", ""),
-                        com.xianxia.sect.core.model.SecretRealmOption("走右路", "")
-                    )
-                )
+                currentEvent = bridgeEvent()
             )
         )
         val result = service.chooseOption(0, state)
@@ -549,16 +556,16 @@ class SecretRealmServiceTest {
     }
 }
 
-// ── sealed 结果便捷访问（测试断言辅助） ─────────────────────────────
+// ── sealed 结果便捷访问（测试断言辅助，internal 供同模块测试类共享） ──
 
-private val SecretRealmChoiceResult.isSuccess: Boolean
+internal val SecretRealmChoiceResult.isSuccess: Boolean
     get() = this is SecretRealmChoiceResult.Success
 
-private val SecretRealmChoiceResult.isSessionEnded: Boolean
+internal val SecretRealmChoiceResult.isSessionEnded: Boolean
     get() = (this as? SecretRealmChoiceResult.Success)?.sessionEnded == true
 
-private val SecretRealmChoiceResult.isEnteredCombat: Boolean
+internal val SecretRealmChoiceResult.isEnteredCombat: Boolean
     get() = (this as? SecretRealmChoiceResult.Success)?.enteredCombat == true
 
-private val SecretRealmChoiceResult.isVictory: Boolean
+internal val SecretRealmChoiceResult.isVictory: Boolean
     get() = (this as? SecretRealmChoiceResult.Success)?.victory == true

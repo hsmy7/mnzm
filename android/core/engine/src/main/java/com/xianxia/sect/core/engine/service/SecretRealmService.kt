@@ -180,7 +180,9 @@ class SecretRealmService @Inject constructor(
                     name = d.name,
                     portraitRes = d.portraitRes,
                     realm = d.realm,
-                    realmName = d.realmName
+                    realmName = d.realmName,
+                    // 初始参考值（未战斗，基础口径）；战斗后由写回维护为战斗口径
+                    maxHp = d.maxHp
                 )
             },
             stamina = GameConfig.SecretRealm.STAMINA_MAX,
@@ -209,17 +211,22 @@ class SecretRealmService @Inject constructor(
             ?: return SecretRealmChoiceResult.Error(message = "当前无进行中的事件")
 
         val rng = rngManager.getRng(RngPartition.SECRET_REALM)
-        // 篡改档防御：体力 clamp 到正常范围（对抗性审查 B11/D3）
-        val newStamina = (session.stamina - GameConfig.SecretRealm.STAMINA_COST_PER_CHOICE)
-            .coerceIn(0, GameConfig.SecretRealm.STAMINA_MAX)
+        // 篡改档防御：体力 clamp 到正常范围（对抗性审查 B11/D3；Long 运算防 MIN_VALUE 回绕）
+        val newStamina = (session.stamina.toLong() - GameConfig.SecretRealm.STAMINA_COST_PER_CHOICE)
+            .coerceIn(0, GameConfig.SecretRealm.STAMINA_MAX.toLong())
+            .toInt()
         val markedEvent = activeEvent.copy(chosenOptionIndex = optionIndex)
 
         val eventType = runCatching { SecretRealmEventType.valueOf(activeEvent.eventType) }
             .getOrDefault(SecretRealmEventType.BRIDGE)
-        val resolution = if (eventType == SecretRealmEventType.BEAST_ENCOUNTER) {
-            resolveBeastEncounter(optionIndex, state, session, activeEvent, rng)
-        } else {
-            resolveBridgeChoice(optionIndex, session, rng)
+        // 篡改档非法 eventType 回退 BRIDGE 分支（getOrDefault 兜底）
+        val resolution = when (eventType) {
+            SecretRealmEventType.BEAST_ENCOUNTER ->
+                resolveBeastEncounter(optionIndex, state, session, activeEvent, rng)
+            SecretRealmEventType.REST_AREA ->
+                resolveRestArea(optionIndex, state, session)
+            SecretRealmEventType.BRIDGE ->
+                resolveBridgeChoice(optionIndex, session, rng)
         }
 
         val allDead = resolution.members.isNotEmpty() && resolution.members.all { it.isDead }
@@ -315,7 +322,7 @@ class SecretRealmService @Inject constructor(
         }
     }
 
-    /** 衔接事件分支：选择方向 → 下一妖兽事件 */
+    /** 衔接事件分支：选择方向 → 下一事件（30% 概率空地，否则妖兽） */
     private fun resolveBridgeChoice(
         optionIndex: Int,
         session: SecretRealmExplorationSession,
@@ -336,8 +343,68 @@ class SecretRealmService @Inject constructor(
         return SecretRealmBeastChoiceResolution(
             resultText = resultText,
             members = session.members,
-            nextEvent = SecretRealmEventGenerator.generateBeastEvent(rng, playerAvgRealm)
+            nextEvent = SecretRealmEventGenerator.rollNextEvent(rng, playerAvgRealm)
         )
+    }
+
+    /** 空地事件分支：休整恢复全队 40% 最大生命（含濒死）；继续前进则成员不变 */
+    private fun resolveRestArea(
+        optionIndex: Int,
+        state: MutableGameState,
+        session: SecretRealmExplorationSession
+    ): SecretRealmBeastChoiceResolution {
+        if (optionIndex == 0) {
+            val (newMembers, resultText) = applyRestRecovery(state, session)
+            return SecretRealmBeastChoiceResolution(
+                resultText = resultText,
+                members = newMembers,
+                nextEvent = SecretRealmEventGenerator.generateBridgeEvent(resultText)
+            )
+        }
+        return bridgeResolution("你方不做停留，继续探索", session)
+    }
+
+    /**
+     * 原地休整：存活成员恢复 maxHp×REST_RECOVERY_RATIO（满血封顶），濒死成员脱离濒死并写回弟子表；
+     * 死亡 / 表中找不到 / 表级已死亡 / 满血 / 异常数据的成员跳过。
+     *
+     * 口径说明：上限取成员战斗口径 maxHp（战斗写回维护，含装备/功法加成），旧档 0 回退基础装配值；
+     * 上限不低于当前血量，防止装备加成导致"恢复反而降血"（对抗性审查）。
+     *
+     * @return 恢复后的成员列表 + 结果描述（成为衔接事件前缀）
+     */
+    private fun applyRestRecovery(
+        state: MutableGameState,
+        session: SecretRealmExplorationSession
+    ): Pair<List<SecretRealmMemberState>, String> {
+        val tables = state.discipleTables
+        val allDisciples = tables.assembleAll()
+        val newMembers = session.members.map { ms ->
+            if (ms.isDead) return@map ms
+            // 篡改档防御：非数字 id / 表级已死亡 / 表中不存在 → 跳过
+            val idInt = ms.discipleId.toIntOrNull()
+            if (idInt == null || tables.isAlive[idInt] != 1) return@map ms
+            val baseMaxHp = allDisciples.find { it.id == ms.discipleId }?.maxHp ?: return@map ms
+            if (baseMaxHp <= 0) return@map ms
+            // 战斗口径 maxHp 优先（战斗写回维护），旧档 0 回退基础装配值
+            val maxHp = ms.maxHp.takeIf { it > 0 } ?: baseMaxHp
+            // 濒死成员血量归一（-1 矛盾数据按濒死保底 1 血处理）；其余负值视为满血跳过
+            val curHp = if (ms.isDying && ms.currentHp < 0) 1 else ms.currentHp
+            if (curHp < 0) return@map ms
+            // 篡改档防御：超过已知上限的血量按上限处理（战斗写回口径下 curHp 永不超过 maxHp，
+            // 正常流程不会降血；旧档缺战斗 maxHp 时以基础口径收敛，不产生垃圾值）
+            val safeCur = curHp.coerceAtMost(maxHp)
+            val heal = (maxHp * GameConfig.SecretRealm.REST_RECOVERY_RATIO).toInt()
+            // Long 运算防 Int 溢出回绕（对抗性审查：currentHp 为篡改档极大值时写坏真值表）
+            val newHp = (safeCur.toLong() + heal).coerceAtMost(maxHp.toLong()).toInt()
+            // 只增不减：防篡改档成员声称值低于表值时把表级血量写低
+            tables.currentHps[idInt] = maxOf(newHp, tables.currentHps[idInt])
+            ms.copy(
+                currentHp = if (newHp >= maxHp) -1 else newHp,
+                isDying = false
+            )
+        }
+        return newMembers to "你方原地休整，全队恢复生命状态"
     }
 
     /** 战斗结果 → 分支结算载体（衔接事件前缀 = 战斗结果文本） */
@@ -467,7 +534,8 @@ class SecretRealmService @Inject constructor(
             if (ms.discipleId in survivorIds) {
                 val clamped = hp.coerceIn(0, maxHp)
                 idInt?.let { tables.currentHps[it] = clamped }
-                ms.copy(currentHp = if (clamped >= maxHp) -1 else clamped)
+                // 记录战斗口径 maxHp（含装备/功法加成），供休整恢复/血条显示使用
+                ms.copy(currentHp = if (clamped >= maxHp) -1 else clamped, maxHp = maxHp)
             } else {
                 if (ms.isDying) {
                     idInt?.let { tables.markDead(it, year, "battle") }
@@ -475,7 +543,7 @@ class SecretRealmService @Inject constructor(
                     ms.copy(isDead = true)
                 } else {
                     idInt?.let { tables.currentHps[it] = 1 }
-                    ms.copy(isDying = true, currentHp = 1)
+                    ms.copy(isDying = true, currentHp = 1, maxHp = maxHp)
                 }
             }
         }

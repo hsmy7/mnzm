@@ -77,7 +77,8 @@ internal data class SecretRealmBattleOutcome(
 /**
  * 远古秘境事件生成器——纯函数（注入 SECRET_REALM 分区 PRNG）。
  *
- * 事件流：遭遇妖兽事件 →（选择结算）→ 衔接事件（选择方向）→ 遭遇妖兽事件 → …
+ * 事件流：遭遇妖兽事件 →（选择结算）→ 衔接事件（选择方向）→
+ * 30% 概率空地事件 / 妖兽事件 →（选择结算）→ 衔接事件 → …
  */
 object SecretRealmEventGenerator {
 
@@ -128,6 +129,39 @@ object SecretRealmEventGenerator {
             )
         )
     }
+
+    // ── 空地事件 ─────────────────────────────────────────────────────
+
+    /**
+     * 生成"平坦空地"事件（内容无随机性，无需 rng）。
+     *
+     * 选项 0：原地休整（所有弟子恢复 40% 最大生命，含重伤濒死）；
+     * 选项 1：继续前进。两项均进入衔接事件。
+     */
+    fun generateRestAreaEvent(): SecretRealmEventRecord = SecretRealmEventRecord(
+        eventType = SecretRealmEventType.REST_AREA.name,
+        title = "发现空地",
+        description = "发现一处平坦空地",
+        options = listOf(
+            SecretRealmOption("原地休整", "所有弟子恢复40%状态"),
+            SecretRealmOption("继续前进", "不做停留，继续探索")
+        )
+    )
+
+    /**
+     * 衔接方向选择后的下一事件分派：REST_AREA_CHANCE 概率生成空地事件，否则妖兽事件。
+     * 消费 rng 一次 nextDouble()（分派判定）。
+     *
+     * @param rng SECRET_REALM 分区 PRNG
+     * @param playerAvgRealm 玩家队伍平均境界（数值越小境界越高）
+     * @return 空地事件或妖兽事件记录
+     */
+    fun rollNextEvent(rng: DeterministicRng, playerAvgRealm: Int): SecretRealmEventRecord =
+        if (rng.nextDouble() < GameConfig.SecretRealm.REST_AREA_CHANCE) {
+            generateRestAreaEvent()
+        } else {
+            generateBeastEvent(rng, playerAvgRealm)
+        }
 
     // ── 衔接事件 ──────────────────────────────────────────────────────
 

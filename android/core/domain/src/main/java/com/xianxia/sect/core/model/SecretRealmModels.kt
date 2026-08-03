@@ -75,7 +75,9 @@ data class SecretRealmMemberState(
     /** 重伤濒死：首次战斗阵亡保命状态（红字代替血条；再参战血量 1） */
     @ProtoNumber(7) val isDying: Boolean = false,
     /** 已永久死亡（濒死后再阵亡，已 markDead） */
-    @ProtoNumber(8) val isDead: Boolean = false
+    @ProtoNumber(8) val isDead: Boolean = false,
+    /** 战斗口径最大生命值（含装备/功法加成，由战斗写回维护）；0 = 未知（回退基础装配值） */
+    @ProtoNumber(9) val maxHp: Int = 0
 )
 
 /** 探索事件记录——整个事件序列化（含参数），读档后可直接继续 */
@@ -83,7 +85,7 @@ data class SecretRealmMemberState(
 @Serializable
 @Immutable
 data class SecretRealmEventRecord(
-    /** SecretRealmEventType.name：BEAST_ENCOUNTER / BRIDGE */
+    /** SecretRealmEventType.name：BEAST_ENCOUNTER / REST_AREA / BRIDGE */
     @ProtoNumber(1) val eventType: String = "",
     @ProtoNumber(2) val title: String = "",
     @ProtoNumber(3) val description: String = "",
@@ -199,6 +201,8 @@ fun GameData.secretRealmMemberIds(): Set<Int> =
 enum class SecretRealmEventType {
     /** 遭遇妖兽（唯一战斗事件） */
     BEAST_ENCOUNTER,
+    /** 空地事件（休整恢复 / 继续前进），不触发战斗 */
+    REST_AREA,
     /** 衔接事件（结果描述 + 选择探索方向） */
     BRIDGE
 }
