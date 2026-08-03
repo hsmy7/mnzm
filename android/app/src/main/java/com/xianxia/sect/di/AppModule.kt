@@ -5,7 +5,10 @@ import android.content.Context
 import android.util.Log
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.data.local.*
+import com.xianxia.sect.data.DiscipleDaos
+import com.xianxia.sect.data.ItemDaos
 import com.xianxia.sect.data.SessionManager
+import com.xianxia.sect.data.WorldDaos
 import com.xianxia.sect.data.cache.CacheConfig
 import com.xianxia.sect.data.cache.GameDataCacheManager
 import com.xianxia.sect.data.incremental.ChangeTracker
@@ -88,6 +91,39 @@ object AppModule {
 
     @Provides
     fun provideChangeLogDao(database: GameDatabase): ChangeLogDao = database.changeLogDao()
+
+    @Provides
+    fun provideDiscipleDaos(database: GameDatabase): DiscipleDaos = DiscipleDaos(
+        discipleDao = database.discipleDao(),
+        discipleCoreDao = database.discipleCoreDao(),
+        discipleCombatStatsDao = database.discipleCombatStatsDao(),
+        discipleEquipmentDao = database.discipleEquipmentDao(),
+        discipleExtendedDao = database.discipleExtendedDao(),
+        discipleAttributesDao = database.discipleAttributesDao()
+    )
+
+    @Provides
+    fun provideItemDaos(database: GameDatabase): ItemDaos = ItemDaos(
+        equipmentStackDao = database.equipmentStackDao(),
+        equipmentInstanceDao = database.equipmentInstanceDao(),
+        manualStackDao = database.manualStackDao(),
+        manualInstanceDao = database.manualInstanceDao(),
+        pillDao = database.pillDao(),
+        materialDao = database.materialDao(),
+        seedDao = database.seedDao(),
+        herbDao = database.herbDao(),
+        storageBagDao = database.storageBagDao()
+    )
+
+    @Provides
+    fun provideWorldDaos(database: GameDatabase): WorldDaos = WorldDaos(
+        explorationTeamDao = database.explorationTeamDao(),
+        buildingSlotDao = database.buildingSlotDao(),
+        recipeDao = database.recipeDao(),
+        battleLogDao = database.battleLogDao(),
+        productionSlotDao = database.productionSlotDao(),
+        changeLogDao = database.changeLogDao()
+    )
 
     @Provides
     fun provideMailDao(database: GameDatabase): MailDao = database.mailDao()

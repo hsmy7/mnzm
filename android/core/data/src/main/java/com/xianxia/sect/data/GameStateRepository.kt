@@ -4,7 +4,6 @@ import android.util.Log
 import androidx.room.withTransaction
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.data.local.*
-import com.xianxia.sect.data.incremental.ChangeLogDao
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.util.concurrent.atomic.AtomicReference
@@ -15,27 +14,9 @@ import javax.inject.Singleton
 class GameStateRepository @Inject constructor(
     private val database: GameDatabase,
     private val gameDataDao: GameDataDao,
-    private val discipleDao: DiscipleDao,
-    private val discipleCoreDao: DiscipleCoreDao,
-    private val discipleCombatStatsDao: DiscipleCombatStatsDao,
-    private val discipleEquipmentDao: DiscipleEquipmentDao,
-    private val discipleExtendedDao: DiscipleExtendedDao,
-    private val discipleAttributesDao: DiscipleAttributesDao,
-    private val equipmentStackDao: EquipmentStackDao,
-    private val equipmentInstanceDao: EquipmentInstanceDao,
-    private val manualStackDao: ManualStackDao,
-    private val manualInstanceDao: ManualInstanceDao,
-    private val pillDao: PillDao,
-    private val materialDao: MaterialDao,
-    private val seedDao: SeedDao,
-    private val herbDao: HerbDao,
-    private val storageBagDao: StorageBagDao,
-    private val explorationTeamDao: ExplorationTeamDao,
-    private val buildingSlotDao: BuildingSlotDao,
-    private val recipeDao: RecipeDao,
-    private val battleLogDao: BattleLogDao,
-    private val productionSlotDao: ProductionSlotDao,
-    private val changeLogDao: ChangeLogDao
+    private val discipleDaos: DiscipleDaos,
+    private val itemDaos: ItemDaos,
+    private val worldDaos: WorldDaos
 ) {
     companion object {
         private const val TAG = "GameStateRepository"
@@ -148,57 +129,67 @@ class GameStateRepository @Inject constructor(
                 }
                 if (snapshot.disciples) {
                     // 先清后写：防止已移除弟子的行残留在 DB 中
-                    discipleDao.deleteAll(slotId)
-                    discipleCoreDao.deleteAll(slotId)
-                    discipleCombatStatsDao.deleteAll(slotId)
-                    discipleEquipmentDao.deleteAll(slotId)
-                    discipleExtendedDao.deleteAll(slotId)
-                    discipleAttributesDao.deleteAll(slotId)
+                    discipleDaos.discipleDao.deleteAll(slotId)
+                    discipleDaos.discipleCoreDao.deleteAll(slotId)
+                    discipleDaos.discipleCombatStatsDao.deleteAll(slotId)
+                    discipleDaos.discipleEquipmentDao.deleteAll(slotId)
+                    discipleDaos.discipleExtendedDao.deleteAll(slotId)
+                    discipleDaos.discipleAttributesDao.deleteAll(slotId)
                     database.discipleCompactDao().deleteAll(slotId)
 
                     val batch = disciples.map { it.copy(slotId = slotId) }
-                    discipleDao.upsertAll(batch)
-                    discipleCoreDao.upsertAll(batch.map { DiscipleCore.fromDisciple(it).copy(slotId = slotId) })
-                    discipleCombatStatsDao.upsertAll(batch.map { DiscipleCombatStats.fromDisciple(it).copy(slotId = slotId) })
-                    discipleEquipmentDao.upsertAll(batch.map { DiscipleEquipment.fromDisciple(it).copy(slotId = slotId) })
-                    discipleExtendedDao.upsertAll(batch.map { DiscipleExtended.fromDisciple(it).copy(slotId = slotId) })
-                    discipleAttributesDao.upsertAll(batch.map { DiscipleAttributes.fromDisciple(it).copy(slotId = slotId) })
+                    discipleDaos.discipleDao.upsertAll(batch)
+                    discipleDaos.discipleCoreDao.upsertAll(
+                        batch.map { DiscipleCore.fromDisciple(it).copy(slotId = slotId) }
+                    )
+                    discipleDaos.discipleCombatStatsDao.upsertAll(
+                        batch.map { DiscipleCombatStats.fromDisciple(it).copy(slotId = slotId) }
+                    )
+                    discipleDaos.discipleEquipmentDao.upsertAll(
+                        batch.map { DiscipleEquipment.fromDisciple(it).copy(slotId = slotId) }
+                    )
+                    discipleDaos.discipleExtendedDao.upsertAll(
+                        batch.map { DiscipleExtended.fromDisciple(it).copy(slotId = slotId) }
+                    )
+                    discipleDaos.discipleAttributesDao.upsertAll(
+                        batch.map { DiscipleAttributes.fromDisciple(it).copy(slotId = slotId) }
+                    )
                     database.discipleCompactDao().insertAll(batch.map {
                         DiscipleCompact.fromDisciple(it, gameData.bloodRefinementPctTotals)
                     })
                 }
                 if (snapshot.equipmentStacks) {
-                    equipmentStackDao.upsertAll(equipmentStacks.map { it.copy(slotId = slotId) })
+                    itemDaos.equipmentStackDao.upsertAll(equipmentStacks.map { it.copy(slotId = slotId) })
                 }
                 if (snapshot.equipmentInstances) {
-                    equipmentInstanceDao.upsertAll(equipmentInstances.map { it.copy(slotId = slotId) })
+                    itemDaos.equipmentInstanceDao.upsertAll(equipmentInstances.map { it.copy(slotId = slotId) })
                 }
                 if (snapshot.manualStacks) {
-                    manualStackDao.upsertAll(manualStacks.map { it.copy(slotId = slotId) })
+                    itemDaos.manualStackDao.upsertAll(manualStacks.map { it.copy(slotId = slotId) })
                 }
                 if (snapshot.manualInstances) {
-                    manualInstanceDao.upsertAll(manualInstances.map { it.copy(slotId = slotId) })
+                    itemDaos.manualInstanceDao.upsertAll(manualInstances.map { it.copy(slotId = slotId) })
                 }
                 if (snapshot.pills) {
-                    pillDao.upsertAll(pills.map { it.copy(slotId = slotId) })
+                    itemDaos.pillDao.upsertAll(pills.map { it.copy(slotId = slotId) })
                 }
                 if (snapshot.materials) {
-                    materialDao.upsertAll(materials.map { it.copy(slotId = slotId) })
+                    itemDaos.materialDao.upsertAll(materials.map { it.copy(slotId = slotId) })
                 }
                 if (snapshot.herbs) {
-                    herbDao.upsertAll(herbs.map { it.copy(slotId = slotId) })
+                    itemDaos.herbDao.upsertAll(herbs.map { it.copy(slotId = slotId) })
                 }
                 if (snapshot.seeds) {
-                    seedDao.upsertAll(seeds.map { it.copy(slotId = slotId) })
+                    itemDaos.seedDao.upsertAll(seeds.map { it.copy(slotId = slotId) })
                 }
                 if (snapshot.storageBags) {
-                    storageBagDao.upsertAll(storageBags.map { it.copy(slotId = slotId) })
+                    itemDaos.storageBagDao.upsertAll(storageBags.map { it.copy(slotId = slotId) })
                 }
                 if (snapshot.teams) {
-                    explorationTeamDao.upsertAll(teams.map { it.copy(slotId = slotId) })
+                    worldDaos.explorationTeamDao.upsertAll(teams.map { it.copy(slotId = slotId) })
                 }
                 if (snapshot.battleLogs) {
-                    battleLogDao.upsertAll(battleLogs.map { it.copy(slotId = slotId) })
+                    worldDaos.battleLogDao.upsertAll(battleLogs.map { it.copy(slotId = slotId) })
                 }
             }
             // dirty 已在 getAndSet 中原子清空，事务成功则无需再清理
@@ -230,18 +221,18 @@ class GameStateRepository @Inject constructor(
     suspend fun loadFullState(slotId: Int): FullGameState? {
         return try {
             val gameData = gameDataDao.getGameDataSync(slotId) ?: return null
-            val disciples = discipleDao.getAllSync(slotId)
-            val equipmentStacks = equipmentStackDao.getAllSync(slotId)
-            val equipmentInstances = equipmentInstanceDao.getAllSync(slotId)
-            val manualStacks = manualStackDao.getAllSync(slotId)
-            val manualInstances = manualInstanceDao.getAllSync(slotId)
-            val pills = pillDao.getAllSync(slotId)
-            val materials = materialDao.getAllSync(slotId)
-            val herbs = herbDao.getAllSync(slotId)
-            val seeds = seedDao.getAllSync(slotId)
-            val storageBags = storageBagDao.getAllSync(slotId)
-            val teams = explorationTeamDao.getAllSync(slotId)
-            val battleLogs = battleLogDao.getAllSync(slotId)
+            val disciples = discipleDaos.discipleDao.getAllSync(slotId)
+            val equipmentStacks = itemDaos.equipmentStackDao.getAllSync(slotId)
+            val equipmentInstances = itemDaos.equipmentInstanceDao.getAllSync(slotId)
+            val manualStacks = itemDaos.manualStackDao.getAllSync(slotId)
+            val manualInstances = itemDaos.manualInstanceDao.getAllSync(slotId)
+            val pills = itemDaos.pillDao.getAllSync(slotId)
+            val materials = itemDaos.materialDao.getAllSync(slotId)
+            val herbs = itemDaos.herbDao.getAllSync(slotId)
+            val seeds = itemDaos.seedDao.getAllSync(slotId)
+            val storageBags = itemDaos.storageBagDao.getAllSync(slotId)
+            val teams = worldDaos.explorationTeamDao.getAllSync(slotId)
+            val battleLogs = worldDaos.battleLogDao.getAllSync(slotId)
             currentSlotId = slotId
             dirty.set(DirtySet())
             FullGameState(
