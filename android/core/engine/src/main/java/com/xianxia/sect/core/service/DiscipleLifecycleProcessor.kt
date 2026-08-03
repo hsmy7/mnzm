@@ -59,10 +59,52 @@ class DiscipleLifecycleProcessor @Inject constructor(
     fun processDiscipleAging(currentYear: Int) {
         // 从组件表读取，不依赖 Flow（防止 Flow 缺失数据被 replaceAll 永久覆盖）
         val currentList = stateStore.discipleTables.assembleAll()
+        val (deadThisYear, deadDiscipleData) = computeAgedDeathData(currentList)
+
+        if (deadThisYear.isEmpty()) {
+            // 无死亡，仅更新活弟子字段（单事务）
+            stateStore.update {
+                applyAliveUpdates(currentList, emptySet())
+            }
+            discipleStatusService.syncAllDiscipleStatuses()
+            return
+        }
+
+        // 第二阶段+第三阶段合并：单事务内完成死亡处理+活弟子字段更新
+        // 消除原两阶段间的 TOCTOU 窗口（handleDiscipleDeath 的事务与 Phase3 事务之间）
+        stateStore.update {
+            for ((id, agedDisciple) in deadDiscipleData) {
+                applyAgedDeath(currentList, agedDisciple, currentYear)
+            }
+            // ── 活弟子字段更新 ──
+            applyAliveUpdates(currentList, deadThisYear)
+        }
+
+        discipleStatusService.syncAllDiscipleStatuses()
+
+        // ── 事务外操作：forge 槽位清理 + 事件分发（非原子操作，不影响游戏状态一致性）──
+        for ((id, agedDisciple) in deadDiscipleData) {
+            clearForgeSlotsIfNeeded(agedDisciple.id)
+            eventBus.emitSync(DeathEvent(
+                discipleId = agedDisciple.id,
+                discipleName = agedDisciple.name,
+                cause = "age",
+                deathYear = currentYear
+            ))
+        }
+    }
+
+    /** 老化判断结果：寿元耗尽弟子（id → 老化后快照） */
+    private data class AgedDeathData(
+        val deadThisYear: Set<Int>,
+        val deadDiscipleData: Map<Int, Disciple>
+    )
+
+    /** 第一阶段：判断生死、标记回生（5 岁境界层回正） */
+    private fun computeAgedDeathData(currentList: List<Disciple>): AgedDeathData {
         val deadThisYear = mutableSetOf<Int>()
         val deadDiscipleData = mutableMapOf<Int, Disciple>() // id → aged disciple snapshot
 
-        // 第一阶段：判断生死、标记回生
         for (disciple in currentList) {
             if (!disciple.isAlive) continue
 
@@ -79,108 +121,90 @@ class DiscipleLifecycleProcessor @Inject constructor(
                 deadDiscipleData[intId] = agedDisciple
             }
         }
+        return AgedDeathData(deadThisYear, deadDiscipleData)
+    }
 
-        if (deadThisYear.isEmpty()) {
-            // 无死亡，仅更新活弟子字段（单事务）
-            stateStore.update {
-                for (disciple in currentList) {
-                    val id = disciple.id.toIntOrNull() ?: continue
-                    if (!disciple.isAlive) continue
-                    val agedAge = disciple.age + 1
-                    discipleTables.ages[id] = agedAge
-                    if (agedAge == 5 && disciple.realmLayer == 0) {
-                        discipleTables.realmLayers[id] = 1
-                    }
-                }
-            }
-            discipleStatusService.syncAllDiscipleStatuses()
-            return
+    /**
+     * 单死者老化死亡事务处理：槽位清理、哀悼传播、伴侣/师徒解绑、
+     * 血炼清理、装备/功法清除、死亡记录。
+     * 在调用方 stateStore.update 事务内执行。
+     */
+    private fun MutableGameState.applyAgedDeath(
+        currentList: List<Disciple>,
+        agedDisciple: Disciple,
+        currentYear: Int
+    ) {
+        val id = agedDisciple.id.toIntOrNull() ?: return
+        // ── 槽位清理（事务内版本，替换 handleDiscipleDeath 的独立 update）──
+        gameData = discipleSlotCleanup.clearAllSlots(gameData, agedDisciple.id, includeResidence = true)
+
+        // ── 哀悼期传播 + 伴侣/师徒解绑 ──
+        val griefUpdated = propagateGriefToRelatives(currentList, agedDisciple, currentYear)
+        unbindPartnerRelationship(griefUpdated, agedDisciple)
+        unbindMasterRelationships(griefUpdated, agedDisciple)
+
+        val lifeEventsToWrite = computeBereavementLifeEvents(
+            griefUpdated, currentList, agedDisciple, discipleTables
+        )
+
+        discipleTables.replaceAll(griefUpdated)
+        discipleTables.deathYears[id] = currentYear
+
+        lifeEventsToWrite.forEach { (grievingId, event) ->
+            val prevEvents = discipleTables.lifeEvents.getOrDefault(grievingId, emptyList())
+            discipleTables.lifeEvents[grievingId] = prevEvents + event
         }
 
-        // 第二阶段+第三阶段合并：单事务内完成死亡处理+活弟子字段更新
-        // 消除原两阶段间的 TOCTOU 窗口（handleDiscipleDeath 的事务与 Phase3 事务之间）
-        stateStore.update {
-            for ((id, agedDisciple) in deadDiscipleData) {
-                // ── 槽位清理（事务内版本，替换 handleDiscipleDeath 的独立 update）──
-                gameData = discipleSlotCleanup.clearAllSlots(gameData, agedDisciple.id, includeResidence = true)
+        // ── 血炼清理 ──
+        gameData = gameData.copy(
+            bloodRefinementBonusTotals = gameData.bloodRefinementBonusTotals - agedDisciple.id,
+            bloodRefinements = gameData.bloodRefinements - agedDisciple.id
+        )
 
-                // ── 哀悼期传播 + 伴侣/师徒解绑 ──
-                val griefUpdated = propagateGriefToRelatives(currentList, agedDisciple, currentYear)
-                unbindPartnerRelationship(griefUpdated, agedDisciple)
-                unbindMasterRelationships(griefUpdated, agedDisciple)
+        // ── 装备/功法清除 ──
+        val deleteEquipIds = mutableSetOf<String>()
+        agedDisciple.equipment.weaponId?.let { deleteEquipIds.add(it) }
+        agedDisciple.equipment.armorId?.let { deleteEquipIds.add(it) }
+        agedDisciple.equipment.bootsId?.let { deleteEquipIds.add(it) }
+        agedDisciple.equipment.accessoryId?.let { deleteEquipIds.add(it) }
+        val deleteManualIds = agedDisciple.manualIds.toSet()
 
-                val lifeEventsToWrite = computeBereavementLifeEvents(
-                    griefUpdated, currentList, agedDisciple, discipleTables
-                )
+        equipmentInstances = equipmentInstances.filter { it.id !in deleteEquipIds }
+        manualInstances = manualInstances.filter { it.id !in deleteManualIds }
 
-                discipleTables.replaceAll(griefUpdated)
-                discipleTables.deathYears[id] = currentYear
+        // ── 死亡记录 ──
+        discipleTables.addDeathRecord(DeathRecord(
+            id = id, name = agedDisciple.name, surname = agedDisciple.surname,
+            realm = agedDisciple.realm, realmLayer = agedDisciple.realmLayer,
+            deathAge = agedDisciple.age, deathYear = currentYear, cause = "age"
+        ))
+        discipleTables.remove(id)
+        // remove 会清空 deathYears，重新写入以保留记录
+        discipleTables.deathYears[id] = currentYear
 
-                lifeEventsToWrite.forEach { (grievingId, event) ->
-                    val prevEvents = discipleTables.lifeEvents.getOrDefault(grievingId, emptyList())
-                    discipleTables.lifeEvents[grievingId] = prevEvents + event
-                }
+        recordGameEvent(
+            GameEventCategory.SECT, GameEventType.DEATH,
+            "${agedDisciple.name}陨落（寿元耗尽）",
+            agedDisciple.id, agedDisciple.name
+        )
+        gameData = gameData.copy(
+            annualDeceasedDisciples = gameData.annualDeceasedDisciples + 1
+        )
+    }
 
-                // ── 血炼清理 ──
-                gameData = gameData.copy(
-                    bloodRefinementBonusTotals = gameData.bloodRefinementBonusTotals - agedDisciple.id,
-                    bloodRefinements = gameData.bloodRefinements - agedDisciple.id
-                )
-
-                // ── 装备/功法清除 ──
-                val deleteEquipIds = mutableSetOf<String>()
-                agedDisciple.equipment.weaponId?.let { deleteEquipIds.add(it) }
-                agedDisciple.equipment.armorId?.let { deleteEquipIds.add(it) }
-                agedDisciple.equipment.bootsId?.let { deleteEquipIds.add(it) }
-                agedDisciple.equipment.accessoryId?.let { deleteEquipIds.add(it) }
-                val deleteManualIds = agedDisciple.manualIds.toSet()
-
-                equipmentInstances = equipmentInstances.filter { it.id !in deleteEquipIds }
-                manualInstances = manualInstances.filter { it.id !in deleteManualIds }
-
-                // ── 死亡记录 ──
-                discipleTables.addDeathRecord(DeathRecord(
-                    id = id, name = agedDisciple.name, surname = agedDisciple.surname,
-                    realm = agedDisciple.realm, realmLayer = agedDisciple.realmLayer,
-                    deathAge = agedDisciple.age, deathYear = currentYear, cause = "age"
-                ))
-                discipleTables.remove(id)
-                // remove 会清空 deathYears，重新写入以保留记录
-                discipleTables.deathYears[id] = currentYear
-
-                recordGameEvent(
-                    GameEventCategory.SECT, GameEventType.DEATH,
-                    "${agedDisciple.name}陨落（寿元耗尽）",
-                    agedDisciple.id, agedDisciple.name
-                )
-                gameData = gameData.copy(
-                    annualDeceasedDisciples = gameData.annualDeceasedDisciples + 1
-                )
+    /** 活弟子老化字段更新（年龄 +1、5 岁境界层回正），跳过死亡弟子 */
+    private fun MutableGameState.applyAliveUpdates(
+        currentList: List<Disciple>,
+        deadThisYear: Set<Int>
+    ) {
+        for (disciple in currentList) {
+            val id = disciple.id.toIntOrNull() ?: continue
+            if (id in deadThisYear || !disciple.isAlive) continue
+            val agedAge = disciple.age + 1
+            discipleTables.ages[id] = agedAge
+            if (agedAge == 5 && disciple.realmLayer == 0) {
+                discipleTables.realmLayers[id] = 1
             }
-
-            // ── 活弟子字段更新 ──
-            for (disciple in currentList) {
-                val id = disciple.id.toIntOrNull() ?: continue
-                if (id in deadThisYear || !disciple.isAlive) continue
-                val agedAge = disciple.age + 1
-                discipleTables.ages[id] = agedAge
-                if (agedAge == 5 && disciple.realmLayer == 0) {
-                    discipleTables.realmLayers[id] = 1
-                }
-            }
-        }
-
-        discipleStatusService.syncAllDiscipleStatuses()
-
-        // ── 事务外操作：forge 槽位清理 + 事件分发（非原子操作，不影响游戏状态一致性）──
-        for ((id, agedDisciple) in deadDiscipleData) {
-            clearForgeSlotsIfNeeded(agedDisciple.id)
-            eventBus.emitSync(DeathEvent(
-                discipleId = agedDisciple.id,
-                discipleName = agedDisciple.name,
-                cause = "age",
-                deathYear = currentYear
-            ))
         }
     }
 

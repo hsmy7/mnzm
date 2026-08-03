@@ -593,43 +593,56 @@ class CaveExplorationProcessor @Inject constructor(
                 )
 
                 // 占领处理
-                if (result.winner == AIBattleWinner.ATTACKER &&
-                    result.canOccupy
-                ) {
-                    updatedData = if (isPlayerOccupied) {
-                        updatedData.copy(
-                            worldMapSects = updatedData.worldMapSects.map { s ->
-                                if (s.id == result.defenderSectId) s.copy(
-                                    isPlayerOccupied = false,
-                                    occupierSectId = result.attackerSectId,
-                                    garrisonSlots = buildGarrSlots(
-                                        result.survivingAttackers
-                                    )
-                                ) else s
-                            }
-                        )
-                    } else {
-                        updatedData.copy(
-                            worldMapSects = updatedData.worldMapSects.map { s ->
-                                if (s.id == result.defenderSectId) s.copy(
-                                    occupierSectId = result.attackerSectId,
-                                    garrisonSlots = buildGarrSlots(
-                                        result.survivingAttackers
-                                    )
-                                ) else s
-                            },
-                            aiSectDisciples = updatedData.aiSectDisciples
-                                .toMutableMap().apply {
-                                    this[result.attackerSectId] =
-                                        updatedAttacker + updatedDefender
-                                    this[result.defenderSectId] = emptyList()
-                                }
-                        )
-                    }
-                }
+                updatedData = applyAIOccupation(
+                    updatedData, result, isPlayerOccupied, updatedAttacker, updatedDefender
+                )
 
                 gameData = updatedData
             }
+    }
+
+    /**
+     * AI 攻占处理：占领成功时更新宗门归属（玩家占领被夺回 / AI 占领者接管）、
+     * 驻军槽位与宗门弟子池合并。
+     */
+    private fun applyAIOccupation(
+        updatedData: GameData,
+        result: AISectAttackManager.AIAttackResult,
+        isPlayerOccupied: Boolean,
+        updatedAttacker: List<Disciple>,
+        updatedDefender: List<Disciple>
+    ): GameData {
+        if (result.winner != AIBattleWinner.ATTACKER || !result.canOccupy) return updatedData
+        return if (isPlayerOccupied) {
+            updatedData.copy(
+                worldMapSects = updatedData.worldMapSects.map { s ->
+                    if (s.id == result.defenderSectId) s.copy(
+                        isPlayerOccupied = false,
+                        occupierSectId = result.attackerSectId,
+                        garrisonSlots = buildGarrSlots(
+                            result.survivingAttackers
+                        )
+                    ) else s
+                }
+            )
+        } else {
+            updatedData.copy(
+                worldMapSects = updatedData.worldMapSects.map { s ->
+                    if (s.id == result.defenderSectId) s.copy(
+                        occupierSectId = result.attackerSectId,
+                        garrisonSlots = buildGarrSlots(
+                            result.survivingAttackers
+                        )
+                    ) else s
+                },
+                aiSectDisciples = updatedData.aiSectDisciples
+                    .toMutableMap().apply {
+                        this[result.attackerSectId] =
+                            updatedAttacker + updatedDefender
+                        this[result.defenderSectId] = emptyList()
+                    }
+            )
+        }
     }
 
     private fun updatePlayerGarrisonState(

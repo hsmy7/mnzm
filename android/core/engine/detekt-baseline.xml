@@ -46,7 +46,7 @@
     <ID>CyclomaticComplexMethod:CombatService.kt$CombatService$suspend fun processBattleCasualties( deadMemberIds: Set&lt;String&gt;, survivorHpMap: Map&lt;String, Int&gt;, survivorMpMap: Map&lt;String, Int&gt; = emptyMap(), isOutsideSect: Boolean = true )</ID>
     <ID>CyclomaticComplexMethod:CultivationCore.kt$CultivationCore$fun processManualProficiencySingle( state: MutableGameState, id: Int, manualInstanceMap: Map&lt;String, ManualInstance&gt;? = null, pendingProficiencies: MutableMap&lt;String, List&lt;ManualProficiencyData&gt;?&gt;? = null, libraryDiscipleIds: Set&lt;String&gt;? = null )</ID>
     <ID>CyclomaticComplexMethod:CultivationCoreRealtimeAutoPillsTest.kt$PillsRealtime$fun process( state: MutableGameState, pillManager: DisciplePillManager, year: Int, month: Int, phase: Int )</ID>
-    <ID>CyclomaticComplexMethod:CultivationEventProcessor.kt$CultivationEventProcessor$fun processCompletedMissionsLazy(year: Int, month: Int)</ID>
+    <ID>CyclomaticComplexMethod:CultivationEventProcessor.kt$CultivationEventProcessor$private fun MutableGameState.applyMissionRewards(rewards: List&lt;MissionReward&gt;)</ID>
     <ID>CyclomaticComplexMethod:CultivationEventProcessor.kt$CultivationEventProcessor$private fun processAutoFromWarehouse( year: Int, month: Int, phase: Int, state: MutableGameState )</ID>
     <ID>CyclomaticComplexMethod:CultivationRateCalculator.kt$CultivationRateCalculator$private fun calculatePreachingBonusesColumn( discipleRealm: Int, discipleType: String, data: GameData, tables: DiscipleTables, targetDiscipleType: String ): Pair&lt;Double, Double&gt;</ID>
     <ID>CyclomaticComplexMethod:CultivationService.kt$CultivationService$fun recoverHpMpForCombatDisciples(state: MutableGameState)</ID>
@@ -64,7 +64,6 @@
     <ID>CyclomaticComplexMethod:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$private fun learnManual(discipleId: String, stackId: String)</ID>
     <ID>CyclomaticComplexMethod:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$private fun rewardEquipment(discipleId: String, item: RewardSelectedItem)</ID>
     <ID>CyclomaticComplexMethod:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$private fun rewardManual(discipleId: String, item: RewardSelectedItem)</ID>
-    <ID>CyclomaticComplexMethod:DiscipleLifecycleProcessor.kt$DiscipleLifecycleProcessor$fun processDiscipleAging(currentYear: Int)</ID>
     <ID>CyclomaticComplexMethod:DiscipleManualManager.kt$DiscipleManualManager$fun processAutoLearn( disciple: Disciple, manualStacks: List&lt;ManualStack&gt;, manualInstances: Map&lt;String, ManualInstance&gt;, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStack: Int = MAX_MANUAL_STACK, instantMessage: Boolean = false ): ManualLearnResult</ID>
     <ID>CyclomaticComplexMethod:DiscipleManualManager.kt$DiscipleManualManager$fun processAutoLearnFromWarehouse( disciple: Disciple, warehouseStacks: List&lt;ManualStack&gt;, manualInstances: Map&lt;String, ManualInstance&gt;, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStack: Int = MAX_MANUAL_STACK ): ManualLearnResult</ID>
     <ID>CyclomaticComplexMethod:DiscipleManualManager.kt$DiscipleManualManager$private fun tryReplaceManual( disciple: Disciple, stack: ManualStack, existingInstanceId: String, manualInstances: Map&lt;String, ManualInstance&gt;, manualStacks: List&lt;ManualStack&gt;, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStack: Int, instantMessage: Boolean ): ManualLearnResult</ID>
@@ -123,6 +122,7 @@
     <ID>CyclomaticComplexMethod:ProductionCoordinator.kt$ProductionCoordinator$suspend fun startForgingAtomic( slotIndex: Int, recipeId: String, currentYear: Int, currentMonth: Int, materials: List&lt;Material&gt;, buildingId: String = "forge", forgePolicyBonus: Double = 0.0 ): DomainResult&lt;ProductionStartData&gt;</ID>
     <ID>CyclomaticComplexMethod:ProductionProcessor.kt$ProductionProcessor$fun processAutoAssign(state: MutableGameState)</ID>
     <ID>CyclomaticComplexMethod:ProductionProcessor.kt$ProductionProcessor$private fun batchAlchemyCompletion( slots: MutableList&lt;ProductionSlot&gt;, state: MutableGameState )</ID>
+    <ID>CyclomaticComplexMethod:ProductionProcessor.kt$ProductionProcessor$private fun computeResidenceAssignments( state: MutableGameState, data: GameData, policies: SectPolicies, occupiedResidentIds: Set&lt;String&gt; ): Map&lt;String, Pair&lt;String, String&gt;&gt;</ID>
     <ID>CyclomaticComplexMethod:ProductionProcessor.kt$ProductionProcessor$private suspend fun processAutoForgeSlot( slot: ProductionSlot, data: GameData, allDisciples: List&lt;Disciple&gt;, forgePolicyBonus: Double, allRecipes: List&lt;ForgeRecipeDatabase.ForgeRecipe&gt; ): Boolean</ID>
     <ID>CyclomaticComplexMethod:RedeemCodeManager.kt$RedeemCodeManager$fun generateDisciple(config: DiscipleRewardConfig?, existingNames: Set&lt;String&gt; = emptySet(), random: kotlin.random.Random = kotlin.random.Random): Disciple</ID>
     <ID>CyclomaticComplexMethod:RelativeGiftHandler.kt$RelativeGiftHandler$internal fun selectBestGift( bagItems: List&lt;StorageBagItem&gt;, receiverId: Int, receiverRealm: Int, tables: DiscipleTables, state: MutableGameState ): StorageBagItem?</ID>
@@ -323,7 +323,6 @@
     <ID>LongMethod:CombatService.kt$CombatService$suspend fun processBattleCasualties( deadMemberIds: Set&lt;String&gt;, survivorHpMap: Map&lt;String, Int&gt;, survivorMpMap: Map&lt;String, Int&gt; = emptyMap(), isOutsideSect: Boolean = true )</ID>
     <ID>LongMethod:CultivationCore.kt$CultivationCore$fun processManualProficiencySingle( state: MutableGameState, id: Int, manualInstanceMap: Map&lt;String, ManualInstance&gt;? = null, pendingProficiencies: MutableMap&lt;String, List&lt;ManualProficiencyData&gt;?&gt;? = null, libraryDiscipleIds: Set&lt;String&gt;? = null )</ID>
     <ID>LongMethod:CultivationCoreRealtimeAutoPillsTest.kt$PillsRealtime$fun process( state: MutableGameState, pillManager: DisciplePillManager, year: Int, month: Int, phase: Int )</ID>
-    <ID>LongMethod:CultivationEventProcessor.kt$CultivationEventProcessor$fun processCompletedMissionsLazy(year: Int, month: Int)</ID>
     <ID>LongMethod:CultivationEventProcessor.kt$CultivationEventProcessor$private fun processAutoFromWarehouse( year: Int, month: Int, phase: Int, state: MutableGameState )</ID>
     <ID>LongMethod:CultivationRateCalculator.kt$CultivationRateCalculator$fun calculateCultivationPerPhaseById( id: Int, data: GameData, tables: DiscipleTables, residenceByDiscipleId: Map&lt;Int, ResidenceSlot&gt; = emptyMap(), buildingByInstanceId: Map&lt;String, GridBuildingData&gt; = emptyMap() ): Double</ID>
     <ID>LongMethod:CultivationRateEquivalenceTest.kt$CultivationRateEquivalenceTest$private fun fixtures(): List&lt;Fixture&gt;</ID>
@@ -337,7 +336,6 @@
     <ID>LongMethod:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$private fun MutableGameState.applyPillEffectsToDisciple(id: Int, pill: Pill)</ID>
     <ID>LongMethod:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$private fun rewardEquipment(discipleId: String, item: RewardSelectedItem)</ID>
     <ID>LongMethod:DiscipleFactory.kt$DiscipleFactory$fun create(seed: DiscipleSeed): Disciple</ID>
-    <ID>LongMethod:DiscipleLifecycleProcessor.kt$DiscipleLifecycleProcessor$fun processDiscipleAging(currentYear: Int)</ID>
     <ID>LongMethod:DiscipleManualManager.kt$DiscipleManualManager$fun processAutoLearn( disciple: Disciple, manualStacks: List&lt;ManualStack&gt;, manualInstances: Map&lt;String, ManualInstance&gt;, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStack: Int = MAX_MANUAL_STACK, instantMessage: Boolean = false ): ManualLearnResult</ID>
     <ID>LongMethod:DiscipleServiceCrudTest.kt$DiscipleServiceCrudTest$@Before fun setUp()</ID>
     <ID>LongMethod:DiscipleSlotManager.kt$DiscipleSlotManager$suspend fun resetAllDisciplesStatus()</ID>
@@ -379,6 +377,7 @@
     <ID>LongMethod:ProductionCoordinator.kt$ProductionCoordinator$suspend fun startAlchemyAtomic( slotIndex: Int, recipeId: String, currentYear: Int, currentMonth: Int, herbs: List&lt;Herb&gt;, buildingId: String = "alchemy", alchemyPolicyBonus: Double = 0.0 ): DomainResult&lt;ProductionStartData&gt;</ID>
     <ID>LongMethod:ProductionCoordinator.kt$ProductionCoordinator$suspend fun startForgingAtomic( slotIndex: Int, recipeId: String, currentYear: Int, currentMonth: Int, materials: List&lt;Material&gt;, buildingId: String = "forge", forgePolicyBonus: Double = 0.0 ): DomainResult&lt;ProductionStartData&gt;</ID>
     <ID>LongMethod:ProductionProcessor.kt$ProductionProcessor$fun processAutoAssign(state: MutableGameState)</ID>
+    <ID>LongMethod:ProductionProcessor.kt$ProductionProcessor$private fun computeResidenceAssignments( state: MutableGameState, data: GameData, policies: SectPolicies, occupiedResidentIds: Set&lt;String&gt; ): Map&lt;String, Pair&lt;String, String&gt;&gt;</ID>
     <ID>LongMethod:ProductionProcessorAutoAlchemyTest.kt$ProductionProcessorAutoAlchemyTest$@Test fun `findBestCraftableRecipe - sorts by tier descending then rarity descending`()</ID>
     <ID>LongMethod:ProductionTransactionManager.kt$ProductionTransactionManager$suspend fun executeStartProduction( buildingType: BuildingType, slotIndex: Int, recipeId: String, recipeName: String, duration: Int, currentYear: Int, currentMonth: Int, discipleId: String?, discipleName: String, successRate: Double, materials: Map&lt;String, Int&gt;, availableMaterials: Map&lt;String, Int&gt;, outputItemId: String?, outputItemName: String, outputItemRarity: Int ): ProductionTransactionResult</ID>
     <ID>LongMethod:ProductionTransactionManager.kt$ProductionTransactionManager$suspend fun executeStartProductionByBuildingId( buildingId: String, slotIndex: Int, recipeId: String, recipeName: String, duration: Int, currentYear: Int, currentMonth: Int, discipleId: String?, discipleName: String, successRate: Double, materials: Map&lt;String, Int&gt;, availableMaterials: Map&lt;String, Int&gt;, outputItemId: String?, outputItemName: String, outputItemRarity: Int ): ProductionTransactionResult</ID>
@@ -562,7 +561,6 @@
     <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$currentDisciplesList[index] = disciple.copy(status = DiscipleStatus.IDLE, combat = disciple.combat.copy(currentHp = hp, currentMp = mp))</ID>
     <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$fun</ID>
     <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$safelyRunInState("aiSectOperations") { caveExplorationProcessor.get().processAISectOperations(year, month, this) }</ID>
-    <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$spiritStoneWallet.add(this, reward.spiritStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.Quest)</ID>
     <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$state.gameData = state.gameData.copy(scoutInfo = updatedScoutInfo, worldMapSects = updatedWorldMapSects, sectDetails = updatedDetails)</ID>
     <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$state.safelyRunInState("aiSectOperations") { caveExplorationProcessor.get().processAISectOperations(year, month, state) }</ID>
     <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$state.safelyRunInState("spiritMineProduction") { cultivationSettlement.processSpiritMineProductionMonthly(state) }</ID>
@@ -1034,7 +1032,6 @@
     <ID>NestedBlockDepth:MailService.kt$MailService$private suspend fun ensureCapacity(attachments: List&lt;MailAttachment&gt;, slotId: Int): String?</ID>
     <ID>NestedBlockDepth:ManualDatabase.kt$ManualDatabase$private fun validateWithProto(manuals: Map&lt;String, ManualTemplate&gt;): ValidationResult</ID>
     <ID>NestedBlockDepth:PartnerSystem.kt$PartnerSystem$internal fun processPartnerMatching(state: MutableGameState)</ID>
-    <ID>NestedBlockDepth:ProductionProcessor.kt$ProductionProcessor$fun processAutoAssign(state: MutableGameState)</ID>
     <ID>NestedBlockDepth:SaveLoadCoordinator.kt$SaveLoadCoordinator$fun validateSaveData(data: Any?, expectedVersion: Int? = null): ValidationResult</ID>
     <ID>NestedBlockDepth:SectMapTileGenerator.kt$SectMapTileGenerator$private fun placeBorderTrees( data: Array&lt;IntArray&gt;, w: Int, h: Int, ring: Int )</ID>
     <ID>NestedBlockDepth:SpiritStoneWallet.kt$SpiritStoneWallet$fun batch( state: MutableGameState, operations: List&lt;SpiritStoneOperation&gt;, autoConvert: Boolean = false ): BatchResult</ID>

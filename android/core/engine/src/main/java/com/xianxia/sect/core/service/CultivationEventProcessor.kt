@@ -586,20 +586,41 @@ class CultivationEventProcessor @Inject constructor(
         // 注意：Phase 2 使用 stateStore.update 重入锁（ReentrantLock），
         // 在外层 update 内部调用时通过锁重入机制在同一事务内生效。
         val data = stateStore.gameData.value
-        val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(year, month)
-        val remainingActive = mutableListOf<ActiveMission>()
 
         // ── Phase 1: 事务外计算（仅收集奖励数据，不变更任何状态） ──
-        data class MissionReward(
-            val missionId: String,
-            val spiritStones: Int,
-            val survivors: Set<String>,
-            val discipleIds: List<String>,
-            val materials: List<Material>,
-            val pills: List<Pill>,
-            val equipmentStacks: List<EquipmentStack>,
-            val manualStacks: List<ManualStack>
-        )
+        val (rewards, remainingActive) = collectCompletedMissionRewards(year, month, data)
+
+        // ── Phase 2: 单事务写入所有状态（物品 + 灵石 + 弟子状态 + 任务清理） ──
+        // ReentrantLock 允许嵌套 update — 内层操作同一 MutableGameState。
+        stateStore.update {
+            applyMissionRewards(rewards)
+            gameData = gameData.copy(activeMissions = remainingActive)
+        }
+        discipleService.syncAllDiscipleStatuses()
+    }
+
+    /** 已完成任务的奖励收集结果（Phase 1 只读计算） */
+    private data class MissionReward(
+        val missionId: String,
+        val spiritStones: Int,
+        val survivors: Set<String>,
+        val discipleIds: List<String>,
+        val materials: List<Material>,
+        val pills: List<Pill>,
+        val equipmentStacks: List<EquipmentStack>,
+        val manualStacks: List<ManualStack>
+    )
+
+    /**
+     * Phase 1 — 事务外计算：遍历活跃任务，收集已完成任务（含失败保留）的奖励数据。
+     */
+    private fun collectCompletedMissionRewards(
+        year: Int,
+        month: Int,
+        data: GameData
+    ): Pair<List<MissionReward>, List<ActiveMission>> {
+        val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(year, month)
+        val remainingActive = mutableListOf<ActiveMission>()
         val rewards = mutableListOf<MissionReward>()
 
         for (activeMission in data.activeMissions) {
@@ -646,70 +667,69 @@ class CultivationEventProcessor @Inject constructor(
                 remainingActive.add(activeMission) // 失败的任务保留到下次
             }
         }
+        return rewards to remainingActive
+    }
 
-        // ── Phase 2: 单事务写入所有状态（物品 + 灵石 + 弟子状态 + 任务清理） ──
-        // 注意：使用 re-entrant stateStore.update 而非直接操作传入的 state，
-        // 因为 MissionReward 为局部 data class 无法在函数外引用。
-        // ReentrantLock 允许嵌套 update — 内层操作同一 MutableGameState。
-        stateStore.update {
-            for (reward in rewards) {
-                // 发放物品（通过重入缓冲在同一事务内生效）
-                reward.materials.forEach { material ->
-                    val r = inventorySystem.withTrackingSource("quest") { inventorySystem.addMaterial(material) }
+    /**
+     * Phase 2 — 单事务写入：发放任务奖励（物品/灵石）并重置弟子状态。
+     * 在调用方 stateStore.update 事务内执行。
+     */
+    private fun MutableGameState.applyMissionRewards(rewards: List<MissionReward>) {
+        for (reward in rewards) {
+            // 发放物品（通过重入缓冲在同一事务内生效）
+            reward.materials.forEach { material ->
+                val r = inventorySystem.withTrackingSource("quest") { inventorySystem.addMaterial(material) }
+                when (r) {
+                    is DomainResult.Success -> {}
+                    is DomainResult.Partial -> DomainLog.w(TAG, "${material.name} 溢出 ${r.overflow} 个")
+                    is DomainResult.Failure -> DomainLog.w(TAG, "添加 ${material.name} 失败: ${r.error}")
+                }
+            }
+            inventorySystem.withTrackingSource("trial") {
+                reward.pills.forEach { pill ->
+                    val r = inventorySystem.addPill(pill)
                     when (r) {
                         is DomainResult.Success -> {}
-                        is DomainResult.Partial -> DomainLog.w(TAG, "${material.name} 溢出 ${r.overflow} 个")
-                        is DomainResult.Failure -> DomainLog.w(TAG, "添加 ${material.name} 失败: ${r.error}")
+                        is DomainResult.Partial -> DomainLog.w(TAG, "${pill.name} 溢出 ${r.overflow} 个")
+                        is DomainResult.Failure -> DomainLog.w(TAG, "添加 ${pill.name} 失败: ${r.error}")
                     }
                 }
-                inventorySystem.withTrackingSource("trial") {
-                    reward.pills.forEach { pill ->
-                        val r = inventorySystem.addPill(pill)
-                        when (r) {
-                            is DomainResult.Success -> {}
-                            is DomainResult.Partial -> DomainLog.w(TAG, "${pill.name} 溢出 ${r.overflow} 个")
-                            is DomainResult.Failure -> DomainLog.w(TAG, "添加 ${pill.name} 失败: ${r.error}")
-                        }
-                    }
-                    reward.equipmentStacks.forEach { equip ->
-                        val r = inventorySystem.addEquipmentStack(equip)
-                        when (r) {
-                            is DomainResult.Success -> {}
-                            is DomainResult.Partial -> DomainLog.w(TAG, "${equip.name} 溢出 ${r.overflow} 个")
-                            is DomainResult.Failure -> DomainLog.w(TAG, "添加 ${equip.name} 失败: ${r.error}")
-                        }
-                    }
-                }
-                reward.manualStacks.forEach { manual ->
-                    val r = inventorySystem.addManualStack(manual)
+                reward.equipmentStacks.forEach { equip ->
+                    val r = inventorySystem.addEquipmentStack(equip)
                     when (r) {
                         is DomainResult.Success -> {}
-                        is DomainResult.Partial -> DomainLog.w(TAG, "${manual.name} 溢出 ${r.overflow} 个")
-                        is DomainResult.Failure -> DomainLog.w(TAG, "添加 ${manual.name} 失败: ${r.error}")
-                    }
-                }
-                // 灵石
-                if (reward.spiritStones > 0) {
-                    spiritStoneWallet.add(this, reward.spiritStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.Quest)
-                }
-                // 弟子状态
-                for (did in reward.discipleIds) {
-                    val tid = did.toIntOrNull() ?: continue
-                    val dTables = discipleTables
-                    val tableIds = dTables.ids
-                    if (tid < 0 || tid >= tableIds.size || dTables.isAlive[tid] != 1) continue
-                    // ★ 修复：重置状态为 IDLE — processCompletedMissionsLazy 此前漏掉了状态重置，
-                    // 导致任务已从 activeMissions 移除但弟子永远卡在 ON_MISSION。
-                    // 随后 syncAllDiscipleStatuses() 看到 IDLE 状态后推导正确，不会触发 ON_MISSION 保护守卫。
-                    dTables.statuses[tid] = DiscipleStatus.IDLE
-                    if (did in reward.survivors) {
-                        dTables.soulPowers[tid] = dTables.soulPowers.getOrDefault(tid, 0) + 1
+                        is DomainResult.Partial -> DomainLog.w(TAG, "${equip.name} 溢出 ${r.overflow} 个")
+                        is DomainResult.Failure -> DomainLog.w(TAG, "添加 ${equip.name} 失败: ${r.error}")
                     }
                 }
             }
-            gameData = gameData.copy(activeMissions = remainingActive)
+            reward.manualStacks.forEach { manual ->
+                val r = inventorySystem.addManualStack(manual)
+                when (r) {
+                    is DomainResult.Success -> {}
+                    is DomainResult.Partial -> DomainLog.w(TAG, "${manual.name} 溢出 ${r.overflow} 个")
+                    is DomainResult.Failure -> DomainLog.w(TAG, "添加 ${manual.name} 失败: ${r.error}")
+                }
+            }
+            // 灵石
+            if (reward.spiritStones > 0) {
+                spiritStoneWallet.add(this, reward.spiritStones.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.Quest)
+            }
+            // 弟子状态
+            for (did in reward.discipleIds) {
+                val tid = did.toIntOrNull() ?: continue
+                val dTables = discipleTables
+                val tableIds = dTables.ids
+                if (tid < 0 || tid >= tableIds.size || dTables.isAlive[tid] != 1) continue
+                // ★ 修复：重置状态为 IDLE — processCompletedMissionsLazy 此前漏掉了状态重置，
+                // 导致任务已从 activeMissions 移除但弟子永远卡在 ON_MISSION。
+                // 随后 syncAllDiscipleStatuses() 看到 IDLE 状态后推导正确，不会触发 ON_MISSION 保护守卫。
+                dTables.statuses[tid] = DiscipleStatus.IDLE
+                if (did in reward.survivors) {
+                    dTables.soulPowers[tid] = dTables.soulPowers.getOrDefault(tid, 0) + 1
+                }
+            }
         }
-        discipleService.syncAllDiscipleStatuses()
     }
     fun processMissionRefreshIfDue(month: Int) {
         if (month % MissionSystem.REFRESH_INTERVAL_MONTHS != 0) return

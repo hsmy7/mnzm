@@ -140,7 +140,7 @@ class EncounterBattleService @Inject constructor(
     }
 
     /** Phase 1 结算结果（胜方 + 幸存弟子 + 胜方配置） */
-    private data class Phase1Outcome(
+    private data class Phase1Result(
         val winnerP1: EncounterAttacker,
         val winnerSurvivors: List<Disciple>,
         val winnerSide: PreparedSide
@@ -160,7 +160,7 @@ class EncounterBattleService @Inject constructor(
         year: Int,
         month: Int,
         favorDedup: MutableSet<String>?
-    ): Phase1Outcome {
+    ): Phase1Result {
         val pvpResult = battleSystem.executeBattle(pvpBattle)
 
         // 判定 Phase 1 胜方/败方
@@ -228,7 +228,7 @@ class EncounterBattleService @Inject constructor(
         val winnerSide = preparedSides.getValue(winnerP1.sectId)
         val winnerSurvivors = winnerSide.disciples
             .filter { it.id in winnerAliveIdsP1 }
-        return Phase1Outcome(winnerP1, winnerSurvivors, winnerSide)
+        return Phase1Result(winnerP1, winnerSurvivors, winnerSide)
     }
 
     /**
