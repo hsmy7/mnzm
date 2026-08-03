@@ -26,7 +26,11 @@ data class DiscipleSelectorConfig(
     val headerColor: Color? = null,
     val defaultSortAttribute: String? = null,
     val currentId: String? = null,
-    val extraAttributesProvider: ((DiscipleAggregate) -> List<Pair<String, Int>>)? = null
+    val extraAttributesProvider: ((DiscipleAggregate) -> List<Pair<String, Int>>)? = null,
+    /** 状态过滤之外的附加条件（如 realmLayer/age/已选 ID 排除） */
+    val additionalCheck: ((DiscipleAggregate) -> Boolean)? = null,
+    /** 当前已分配弟子强制包含在筛选中（无论状态过滤结果） */
+    val alwaysIncludeCurrentId: Boolean = false
 )
 
 @Composable
@@ -49,8 +53,19 @@ fun DiscipleSelectorDialog(
 
     val filterState = rememberDiscipleFilterState(config.defaultSortAttribute)
 
-    val statusFiltered = remember(disciples, showAllEnabled, battleAndExplorationIds) {
-        disciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds)
+    val statusFiltered = remember(disciples, showAllEnabled, battleAndExplorationIds, config.additionalCheck, config.currentId, config.alwaysIncludeCurrentId) {
+        val base = disciples.filterByDiscipleStatus(
+            showAllEnabled, battleAndExplorationIds,
+            additionalCheck = config.additionalCheck ?: { true }
+        )
+        val needCurrentInclusion = config.alwaysIncludeCurrentId && config.currentId != null
+        val currentIsAlive = config.currentId?.let { id -> disciples.any { it.id == id && it.isAlive } } == true
+        if (needCurrentInclusion && currentIsAlive) {
+            val current = disciples.filter { it.id == config.currentId && it.isAlive }
+            (base + current).distinctBy { it.id }
+        } else {
+            base
+        }
     }
 
     val realmCounts = remember(statusFiltered) { filterState.realmCounts(statusFiltered) }
