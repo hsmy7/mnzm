@@ -735,6 +735,52 @@ object AISectAttackManager {
         val rounds: List<BattleLogRound> = emptyList()
     )
 
+    /**
+     * 单个参战者回合行动：控制效果跳过 / 支援 / AOE / 单体技能 / 普攻四分支。
+     * 原地修改 [currentAttackers]/[currentDefenders] 中对应 combatant。
+     */
+    private fun executeAiCombatantTurn(
+        currentAttackers: MutableList<Combatant>,
+        currentDefenders: MutableList<Combatant>,
+        combatant: Combatant,
+        roundActions: MutableList<BattleLogAction>
+    ) {
+        val isAttacker = combatant.side == CombatantSide.ATTACKER
+        val allies = if (isAttacker) currentAttackers else currentDefenders
+        val enemies = if (isAttacker) currentDefenders else currentAttackers
+        val alliesIndexMap = allies.withIndex().associate { it.value.id to it.index }
+        val enemiesIndexMap = enemies.withIndex().associate { it.value.id to it.index }
+
+        val aliveEnemies = enemies.filter { !it.isDead }
+        if (aliveEnemies.isEmpty()) return
+
+        val combatantIdx = alliesIndexMap[combatant.id] ?: return
+        val currentCombatant = allies[combatantIdx]
+
+        if (currentCombatant.hasControlEffect) {
+            allies[combatantIdx] = BattleCalculator.updateCombatantBuffsOnly(currentCombatant)
+            return
+        }
+
+        val silenceBuff = currentCombatant.buffs.find { it.type == BuffType.SILENCE && it.remainingDuration > 0 }
+        val availableSkill = selectAISkill(currentCombatant, aliveEnemies, allies.filter { !it.isDead }, silenceBuff != null)
+
+        val isSupportSkill = availableSkill?.skillType == SkillType.SUPPORT
+        val isAoeSkill = availableSkill?.isAoe == true && !isSupportSkill
+
+        if (availableSkill != null && isSupportSkill) {
+            executeSupportAction(currentCombatant, allies.filter { !it.isDead }, availableSkill, allies, alliesIndexMap, roundActions)
+        } else if (availableSkill != null && isAoeSkill) {
+            executeAoeAttackAction(currentCombatant, aliveEnemies, availableSkill, allies, enemies, alliesIndexMap, enemiesIndexMap, roundActions)
+        } else if (availableSkill != null) {
+            val target = selectAITarget(currentCombatant, aliveEnemies)
+            executeSingleAttackAction(currentCombatant, target, availableSkill, allies, enemies, alliesIndexMap, enemiesIndexMap, roundActions)
+        } else {
+            val target = selectAITarget(currentCombatant, aliveEnemies)
+            executeNormalAttackAction(currentCombatant, target, allies, enemies, alliesIndexMap, enemiesIndexMap, roundActions)
+        }
+    }
+
     private fun executeUnifiedAIBattle(
         attackers: List<Combatant>,
         defenders: List<Combatant>
@@ -752,42 +798,9 @@ object AISectAttackManager {
 
             for (combatant in allCombatants) {
                 if (combatant.isDead) continue
-
-                val isAttacker = combatant.side == CombatantSide.ATTACKER
-                val allies = if (isAttacker) currentAttackers else currentDefenders
-                val enemies = if (isAttacker) currentDefenders else currentAttackers
-                val alliesIndexMap = allies.withIndex().associate { it.value.id to it.index }
-                val enemiesIndexMap = enemies.withIndex().associate { it.value.id to it.index }
-
-                val aliveEnemies = enemies.filter { !it.isDead }
-                if (aliveEnemies.isEmpty()) break
-
-                val combatantIdx = alliesIndexMap[combatant.id] ?: continue
-                val currentCombatant = allies[combatantIdx]
-
-                if (currentCombatant.hasControlEffect) {
-                    allies[combatantIdx] = BattleCalculator.updateCombatantBuffsOnly(currentCombatant)
-                    continue
-                }
-
-                val silenceBuff = currentCombatant.buffs.find { it.type == BuffType.SILENCE && it.remainingDuration > 0 }
-                val availableSkill = selectAISkill(currentCombatant, aliveEnemies, allies.filter { !it.isDead }, silenceBuff != null)
-
-                val isSupportSkill = availableSkill?.skillType == SkillType.SUPPORT
-                val isAoeSkill = availableSkill?.isAoe == true && !isSupportSkill
-
-                if (availableSkill != null && isSupportSkill) {
-                    executeSupportAction(currentCombatant, allies.filter { !it.isDead }, availableSkill, allies, alliesIndexMap, roundActions)
-                } else if (availableSkill != null && isAoeSkill) {
-                    executeAoeAttackAction(currentCombatant, aliveEnemies, availableSkill, allies, enemies, alliesIndexMap, enemiesIndexMap, roundActions)
-                } else if (availableSkill != null) {
-                    val target = selectAITarget(currentCombatant, aliveEnemies)
-                    executeSingleAttackAction(currentCombatant, target, availableSkill, allies, enemies, alliesIndexMap, enemiesIndexMap, roundActions)
-                } else {
-                    val target = selectAITarget(currentCombatant, aliveEnemies)
-                    executeNormalAttackAction(currentCombatant, target, allies, enemies, alliesIndexMap, enemiesIndexMap, roundActions)
-                }
-
+                executeAiCombatantTurn(
+                    currentAttackers, currentDefenders, combatant, roundActions
+                )
                 currentAttackers = currentAttackers.filter { !it.isDead }.toMutableList()
                 currentDefenders = currentDefenders.filter { !it.isDead }.toMutableList()
             }
