@@ -90,6 +90,9 @@ class CaveExplorationProcessor @Inject constructor(
         private const val THERMAL_REDUCE_BATCH = 6
         private const val THERMAL_NORMAL_BATCH = 1
 
+        /** 探索战斗日志展示截断上限（与内存释放策略 [GameEngineCoordination] 的保留数独立） */
+        private const val BATTLE_LOG_DISPLAY_LIMIT = 49
+
         /**
          * 从实际参战弟子构建防守战日志的敌人快照列表（纯函数）。
          * 供 BattleTickSystem 和测试使用。
@@ -1087,7 +1090,7 @@ class CaveExplorationProcessor @Inject constructor(
                 beastsDefeated = battleResult.log.enemies.count { !it.isAlive }
             )
         )
-        stateStore.update { battleLogs = listOf(battleLog) + battleLogs.take(49) }
+        stateStore.update { battleLogs = listOf(battleLog) + battleLogs.take(BATTLE_LOG_DISPLAY_LIMIT) }
         return battleLog
     }
 

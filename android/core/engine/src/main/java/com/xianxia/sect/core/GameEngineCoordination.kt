@@ -24,6 +24,21 @@ import java.util.UUID
 /** AI 宗门每个宗门的标准弟子数 */
 private const val MAX_AI_SECT_DISCIPLES = 50
 
+/** 内存压力释放时战斗日志保留数（MODERATE 级）——与探索展示截断 [BATTLE_LOG_DISPLAY_LIMIT] 独立 */
+private const val MEMORY_RELEASE_LOG_KEEP_MODERATE = 20
+
+/** 内存压力释放时战斗日志保留数（CRITICAL 级） */
+private const val MEMORY_RELEASE_LOG_KEEP_CRITICAL = 10
+
+/** 内存压力释放时秘境探索队伍（玩家/AI）裁剪上限 */
+private const val MEMORY_RELEASE_CAVE_TEAM_LIMIT = 15
+
+/** 内存压力释放时世界地图宗门裁剪上限（玩家宗门存在时少留 1 个） */
+private const val MEMORY_SECT_LIMIT_WITH_PLAYER = 29
+
+/** 内存压力释放时世界地图宗门裁剪上限（无玩家宗门时） */
+private const val MEMORY_SECT_LIMIT_PLAIN = 30
+
 /** 关注键最大长度（type 前缀 + 冒号 + 最长物品名，防御恶意超长键撑爆存档） */
 private const val MAX_WATCHED_KEY_LENGTH = 64
 
@@ -1056,7 +1071,7 @@ fun GameEngine.releaseMemory(level: Int) {
         android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL, android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE, 2 -> 2
         else -> { DomainLog.w("GameEngine", "未知的内存压力级别: $level，忽略"); return }
     }
-    val logsToKeep = if (normalizedLevel == 1) 20 else 10
+    val logsToKeep = if (normalizedLevel == 1) MEMORY_RELEASE_LOG_KEEP_MODERATE else MEMORY_RELEASE_LOG_KEEP_CRITICAL
     val levelName = if (normalizedLevel == 1) "MODERATE" else "CRITICAL"
     gameEngineCore.launchInScope {
         stateStore.update {
@@ -1066,14 +1081,27 @@ fun GameEngine.releaseMemory(level: Int) {
                 val worldSects = gameData.worldMapSects
                 if (worldSects.size > 30) {
                     val playerSect = worldSects.find { it.isPlayerSect }
-                    val otherSects = worldSects.filter { !it.isPlayerSect }.sortedByDescending { s -> s.relation }.take(if (playerSect != null) 29 else 30)
+                    val sectLimit =
+                        if (playerSect != null) MEMORY_SECT_LIMIT_WITH_PLAYER else MEMORY_SECT_LIMIT_PLAIN
+                    val otherSects = worldSects.filter { !it.isPlayerSect }
+                        .sortedByDescending { s -> s.relation }.take(sectLimit)
                     val trimmedSects = if (playerSect != null) listOf(playerSect) + otherSects else otherSects
                     gameData = gameData.copy(worldMapSects = trimmedSects); trimmed = true; DomainLog.d("GameEngine", "内存释放($levelName): worldMapSects 裁剪至 ${trimmedSects.size} 个")
                 }
                 val caveTeams = gameData.caveExplorationTeams
-                if (caveTeams.size > 15) { gameData = gameData.copy(caveExplorationTeams = caveTeams.take(15)); trimmed = true; DomainLog.d("GameEngine", "内存释放($levelName): caveExplorationTeams 裁剪至 15 个") }
+                if (caveTeams.size > MEMORY_RELEASE_CAVE_TEAM_LIMIT) {
+                    val trimmedCave = caveTeams.take(MEMORY_RELEASE_CAVE_TEAM_LIMIT)
+                    gameData = gameData.copy(caveExplorationTeams = trimmedCave)
+                    trimmed = true
+                    DomainLog.d("GameEngine", "内存释放($levelName): caveExplorationTeams 裁剪至 ${trimmedCave.size} 个")
+                }
                 val aiCaveTeams = gameData.aiCaveTeams
-                if (aiCaveTeams.size > 15) { gameData = gameData.copy(aiCaveTeams = aiCaveTeams.take(15)); trimmed = true; DomainLog.d("GameEngine", "内存释放($levelName): aiCaveTeams 裁剪至 15 个") }
+                if (aiCaveTeams.size > MEMORY_RELEASE_CAVE_TEAM_LIMIT) {
+                    val trimmedAiCave = aiCaveTeams.take(MEMORY_RELEASE_CAVE_TEAM_LIMIT)
+                    gameData = gameData.copy(aiCaveTeams = trimmedAiCave)
+                    trimmed = true
+                    DomainLog.d("GameEngine", "内存释放($levelName): aiCaveTeams 裁剪至 ${trimmedAiCave.size} 个")
+                }
                 if (!trimmed) DomainLog.d("GameEngine", "内存释放($levelName): 无需裁剪其他列表")
             }
         }
