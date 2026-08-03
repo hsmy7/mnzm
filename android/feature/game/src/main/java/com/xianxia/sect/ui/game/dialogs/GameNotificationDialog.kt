@@ -14,19 +14,6 @@ import com.xianxia.sect.ui.components.StandardPromptDialog
  * 释放后忠诚度变化提示框
  */
 @Composable
-fun LoyaltyChangeDialog(
-    loyaltyChange: Int,
-    onDismiss: () -> Unit
-) {
-    StandardPromptDialog(
-        onDismissRequest = onDismiss,
-        title = "忠诚度 +$loyaltyChange",
-        confirmLabel = "知道了",
-        onConfirm = onDismiss
-    )
-}
-
-@Composable
 fun MarriageApprovalDialog(
     maleDisciple: DiscipleAggregate,
     femaleDisciple: DiscipleAggregate,

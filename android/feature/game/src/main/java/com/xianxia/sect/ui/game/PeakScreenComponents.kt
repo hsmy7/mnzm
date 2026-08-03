@@ -57,39 +57,6 @@ data class PeakPreachingMasterConfig(
 )
 
 @Composable
-fun PeakDialog(
-    title: String,
-    subtitle: String,
-    onDismiss: () -> Unit,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = title,
-        mode = DialogMode.Half,
-        scrollableContent = false
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Text(
-                text = subtitle,
-                fontSize = 10.sp,
-                color = Color(0xFF4CAF50),
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = DialogDefaults.CommonMaxHeight)
-            ) {
-                content()
-            }
-        }
-    }
-}
-
-@Composable
 fun PeakElderSection(
     slot1: PeakElderSlotConfig,
     slot2: PeakElderSlotConfig
@@ -254,87 +221,6 @@ private fun PeakPreachingMasterSlotItem(
             onDismiss = { onRemove() },
             onSwap = { onSwap() }
         )
-    }
-}
-
-@Composable
-fun PeakDiscipleListSection(
-    sectionTitle: String,
-    emptyText: String,
-    disciples: List<DiscipleAggregate>,
-    maxHeightDp: Dp = 180.dp,
-    truncateAt: Int? = 10
-) {
-    val sortedDisciples = remember(disciples) {
-        disciples.sortedBy { it.spiritRoot.types.size }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(GameColors.CardBackground)
-            .padding(12.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = sectionTitle,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black
-            )
-            Text(
-                text = "共${disciples.size}人",
-                fontSize = 10.sp,
-                color = Color.Black
-            )
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        if (sortedDisciples.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(60.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = emptyText,
-                    fontSize = 12.sp,
-                    color = Color.Black
-                )
-            }
-        } else {
-            val displayItems = truncateAt?.let { sortedDisciples.take(it) } ?: sortedDisciples
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = maxHeightDp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                items(displayItems, key = { it.id }, contentType = { "disciple" }) { disciple ->
-                    PortraitDiscipleCard(disciple = disciple, onClick = {})
-                }
-                if (truncateAt != null && sortedDisciples.size > truncateAt) {
-                    item(span = { GridItemSpan(2) }) {
-                        Text(
-                            text = "还有${sortedDisciples.size - truncateAt}名弟子...",
-                            fontSize = 10.sp,
-                            color = Color.Black,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-            }
-        }
     }
 }
 

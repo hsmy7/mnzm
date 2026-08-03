@@ -64,31 +64,6 @@ fun LoadingScreen(
  * @param onDismiss 对话框关闭回调
  */
 @Composable
-fun LoadingDialog(
-    progress: Float = 0f,
-    showProgress: Boolean = false,
-    phaseText: String = "",
-    onDismiss: () -> Unit = {}
-) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
-    ) {
-        // 隐藏 Dialog Window 的系统状态栏/导航栏（LoadingScreen 在游戏加载时全屏显示）
-        DialogSystemBarGuard()
-
-        LoadingScreenContent(
-            progress = progress,
-            showProgress = showProgress,
-            phaseText = phaseText
-        )
-    }
-}
-
-/**
- * 加载界面通用内容组件
- */
-@Composable
 private fun LoadingScreenContent(
     progress: Float,
     showProgress: Boolean,

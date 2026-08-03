@@ -234,67 +234,6 @@ fun ProductionElderSection(
 }
 
 @Composable
-fun ProductionDirectDiscipleSection(
-    theme: ProductionTheme,
-    directDisciples: List<DirectDiscipleSlot>,
-    disciples: List<DiscipleAggregate>,
-    slotCount: Int,
-    onDirectDiscipleClick: (Int) -> Unit,
-    onDirectDiscipleRemove: (Int) -> Unit,
-    onDirectDiscipleSwap: (Int) -> Unit = {}
-) {
-    val discipleMap = disciples.associateBy { it.id }
-    Column(
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(text = "亲传弟子", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
-        ) {
-            (0 until slotCount).forEach { index ->
-                val slot = directDisciples.getOrNull(index) ?: DirectDiscipleSlot(index = index)
-                val disciple = if (slot.isActive) discipleMap[slot.discipleId] else null
-                val borderColor = if (slot.isActive) {
-                    try { Color(android.graphics.Color.parseColor(disciple?.spiritRoot?.countColor)) }
-                    catch (e: Exception) { theme.defaultBorderColor }
-                } else {
-                    GameColors.Border
-                }
-                ProductionDirectDiscipleSlotItem(
-                    disciple = disciple,
-                    borderColor = borderColor,
-                    onSlotClick = { onDirectDiscipleClick(index) },
-                    onDismiss = { onDirectDiscipleRemove(index) },
-                    onSwap = { onDirectDiscipleSwap(index) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ProductionDirectDiscipleSlotItem(
-    disciple: DiscipleAggregate?,
-    borderColor: Color,
-    onSlotClick: () -> Unit,
-    onDismiss: () -> Unit,
-    onSwap: () -> Unit
-) {
-    DiscipleSlot(
-        disciple = disciple,
-        borderColor = borderColor,
-        showActions = true,
-        onSlotClick = { onSlotClick() },
-        onEmptySlotClick = { onSwap() },
-        onDismiss = { onDismiss() },
-        onSwap = { onSwap() }
-    )
-}
-
-@Composable
 fun ProductionSlotItem(
     theme: ProductionTheme,
     productName: String?,

@@ -357,34 +357,6 @@ fun TianshuHallDialog(
 }
 
 @Composable
-private fun SectAffairsPlaceholderDialog(onDismiss: () -> Unit) {
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = "宗门事务",
-        mode = DialogMode.Half
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        text = "宗门日常事务管理功能开发中...",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-    }
-}
-
-@Composable
 private fun SectPoliciesDialog(
     gameData: GameData?,
     viewModel: GameViewModel,

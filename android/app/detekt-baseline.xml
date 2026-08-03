@@ -17,9 +17,6 @@
     <ID>ImplicitDefaultLocale:MemoryMonitor.kt$MemoryMonitor$String.format("%.1f", info.usedPercent * 100)</ID>
     <ID>ImplicitDefaultLocale:MemoryMonitor.kt$MemoryMonitor$String.format("%.1f", snapshot.usedPercent * 100)</ID>
     <ID>LargeClass:GameStateStoreImpl.kt$GameStateStoreImpl : GameStateStore</ID>
-    <ID>LongMethod:DiscipleObjectPool.kt$MutableDisciple$fun copyFrom(disciple: Disciple)</ID>
-    <ID>LongMethod:DiscipleObjectPool.kt$MutableDisciple$fun reset()</ID>
-    <ID>LongMethod:DiscipleObjectPool.kt$MutableDisciple$fun toDisciple(): Disciple</ID>
     <ID>LongMethod:GameActivity.kt$GameActivity$override fun onCreate(savedInstanceState: Bundle?)</ID>
     <ID>LongMethod:GameMonitorManager.kt$GameMonitorManager$private fun registerDefaultMetrics()</ID>
     <ID>LongMethod:GameStateStoreImpl.kt$GameStateStoreImpl$override fun update(block: MutableGameState.() -&gt; Unit)</ID>
@@ -223,7 +220,6 @@
     <ID>TooManyFunctions:DiscipleIndex.kt$DiscipleIndex</ID>
     <ID>TooManyFunctions:GCOptimizer.kt$GCOptimizer</ID>
     <ID>TooManyFunctions:GameActivity.kt$GameActivity : ComponentActivity</ID>
-    <ID>TooManyFunctions:GameLogger.kt$GameLogger</ID>
     <ID>TooManyFunctions:GameMonitorManager.kt$GameMonitorManager</ID>
     <ID>TooManyFunctions:GameStateStoreImpl.kt$GameStateStoreImpl : GameStateStore</ID>
     <ID>TooManyFunctions:MailRepositoryImpl.kt$MailRepositoryImpl : MailRepository</ID>
@@ -300,8 +296,6 @@
     <ID>WildcardImport:DiscipleTablesIntegrationTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:DiscipleUtilsTest.kt$import com.xianxia.sect.core.model.*</ID>
     <ID>WildcardImport:DiscipleUtilsTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DomainStateProvider.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DomainStateProvider.kt$import com.xianxia.sect.core.model.domain.*</ID>
     <ID>WildcardImport:GameActivity.kt$import androidx.compose.foundation.layout.*</ID>
     <ID>WildcardImport:GameActivity.kt$import androidx.compose.material3.*</ID>
     <ID>WildcardImport:GameActivity.kt$import androidx.compose.runtime.*</ID>

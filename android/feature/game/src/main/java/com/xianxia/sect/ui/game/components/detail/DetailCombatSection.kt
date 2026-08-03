@@ -182,22 +182,3 @@ fun StatItemWithBonus(name: String, baseValue: Int, finalValue: Int, modifier: M
     }
 }
 
-@Composable
-fun InfoRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(
-            text = label,
-            fontSize = 12.sp,
-            color = Color.Black
-        )
-        Text(
-            text = value,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
-        )
-    }
-}

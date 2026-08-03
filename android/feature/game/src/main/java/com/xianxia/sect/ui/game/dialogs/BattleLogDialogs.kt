@@ -94,68 +94,6 @@ private fun resolveBattleTypeName(log: BattleLog): String = when (log.type) {
 }
 
 @Composable
-internal fun BattleLogItem(
-    log: BattleLog,
-    onClick: () -> Unit
-) {
-    val resultColor = when (log.result) {
-        BattleResult.WIN -> Color(0xFF4CAF50)
-        BattleResult.LOSE -> Color(0xFFF44336)
-        BattleResult.DRAW -> Color(0xFFFF9800)
-    }
-
-    val resultText = when (log.result) {
-        BattleResult.WIN -> "胜利"
-        BattleResult.LOSE -> "失败"
-        BattleResult.DRAW -> "平局"
-    }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .clickableWithSound(onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F8F8)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = "${resolveBattleTypeName(log)} · 第${log.year}年${log.month}月",
-                    fontSize = 11.sp,
-                    color = Color.Black
-                )
-                Text(
-                    text = "回合: ${log.turns} | 敌人: ${log.enemies.size}",
-                    fontSize = 10.sp,
-                    color = Color.Black
-                )
-            }
-
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(resultColor)
-                    .padding(horizontal = 12.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    text = resultText,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            }
-        }
-    }
-}
-
-@Composable
 internal fun BattleLogDetailDialog(
     log: BattleLog,
     onDismiss: () -> Unit,
