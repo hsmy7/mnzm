@@ -398,3 +398,42 @@ SaveValidator.validate(SaveData)
 ### 测试
 
 20 个测试类覆盖全部规则，位于 `data/src/test/.../integrity/rules/`。每规则独立覆盖通过/修复/损坏三类路径。
+
+## 待完成项（2026-08-04 代码质量优化方案登记）
+
+> 以下为 2026-08-04 代码质量优化 + 冗余清理方案（P0-P7）执行后的待完成项登记。
+> 已完成项见方案提交记录（P0-P2 完整、P3C 完整、P4B/4D 完成、P5 SettingsTab、P6 大部分小项）。
+> 未完成项按优先级排序，完成标准以"≤60 行函数 / 构造依赖 ≤7"等方案量化指标为准。
+
+### 函数级（超限未拆）
+
+| 项 | 位置 | 现状 | 目标 |
+|---|---|---|---|
+| executeCombatantTurn 主函数 | `core/engine/.../domain/battle/BattleSystem.kt` | 130 行 | ≤60 行（补抽 selectCombatantSkill / checkCombatantKill） |
+| attackSect | `core/engine/.../GameEngineBattleOps.kt` | 156 行 | ≤60 行（补抽 selectAttackTarget / execSectBattle / processSectCasualties / updateSectReputation） |
+| encounter | `core/engine/.../domain/battle/EncounterBattleService.kt` | 66 行 | ≤60 行 |
+| processBattleCasualties | `core/engine/.../domain/battle/CombatService.kt` | 122 行 | ≤60 行（阶段 2 update 块再拆） |
+
+### 上帝对象（未拆）
+
+| 项 | 位置 | 现状 | 目标 |
+|---|---|---|---|
+| P4A GameViewModel | `feature/game/.../GameViewModel.kt` | 20 构造依赖（Delegate 化已存在） | 按域拆 Delegate 使构造依赖下降 |
+| P4C GameEngine | `core/engine/.../GameEngine.kt` | 33 构造依赖（Ops 架构已成型） | 新建 Exploration/Cultivation/Economy 3 个 Facade 归组 |
+| P4D CultivationCore | `core/engine/.../service/CultivationCore.kt` | 15 构造依赖（门面委托已存在） | 拆 AutoPillProcessor / BreakthroughProcessor / CultivationCheckpointOps |
+| P4D ExplorationService | `core/engine/.../domain/exploration/ExplorationService.kt` | 12 构造依赖 | 按死亡/队伍两域收尾 |
+| P4D CaveExplorationProcessor | `core/engine/.../service/CaveExplorationProcessor.kt` | 12 构造依赖 | 纯工具（rngManager/thermalMonitor）改参数传入 |
+
+### UI（未拆/未迁）
+
+| 项 | 位置 | 现状 | 目标 |
+|---|---|---|---|
+| P5 OverlayDialogRoute | `feature/game/.../components/OverlayDialogRouter.kt` | 409 行分派表（30 分支） | when 分支按 DialogType 分组到独立文件 |
+| P6 raw Dialog（4 处） | `feature/game/.../tabs/SettingsTab.kt` | 平台 Dialog + 手写守卫 | 迁移 UnifiedGameDialog（已评估：复杂嵌套 + 已含守卫，风险>收益——**执行前需先评估 UnifiedGameDialog 全屏嵌套兼容**） |
+| P6 raw Dialog（1 处） | `feature/game/.../DiscipleDetailScreen.kt` | Material3 AlertDialog | 可选迁移（Material3 标准组件，守卫相对完整） |
+
+### P6 已评估不做（记录在案）
+
+- `core/ui` 5 处平台 Dialog：组件库基础设施（UnifiedGameDialog/StandardPromptDialog/SmallScreenDialog 本体），不能自我迁移
+- `clearPendingNotification`：`_pendingNotificationFlow` 仍有 GameOverlayHost UI 消费者，通知系统迁移完成前保留
+- `ui-layout-unification` 分支 4 个超限文件：分支已删除/合并，无合回风险（FileLengthRule 仍是通用门槛）
