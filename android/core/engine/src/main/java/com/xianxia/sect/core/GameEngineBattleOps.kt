@@ -1,4 +1,5 @@
 package com.xianxia.sect.core.engine
+import com.xianxia.sect.core.util.ItemNames
 
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
@@ -232,7 +233,7 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
     private fun GameEngine.buildBattleRewardCards(rewards: WarRewards): List<RewardCardItem> {
         val cards = mutableListOf<RewardCardItem>()
         if (rewards.spiritStones > 0) {
-            cards.add(RewardCardItem(itemName = "灵石", itemType = "spiritStones", rarity = Rarity.COMMON.toInt(), quantity = rewards.spiritStones.toInt()))
+            cards.add(RewardCardItem(itemName = ItemNames.SPIRIT_STONE, itemType = "spiritStones", rarity = Rarity.COMMON.toInt(), quantity = rewards.spiritStones.toInt()))
         }
         rewards.equipmentStacks.forEach { cards.add(RewardCardItem(itemName = it.name, itemType = "equipment", rarity = it.rarity, quantity = it.quantity)) }
         rewards.manualStacks.forEach { cards.add(RewardCardItem(itemName = it.name, itemType = "manual", rarity = it.rarity, quantity = it.quantity)) }
@@ -245,7 +246,7 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
 
 private fun warRewardsToBattleRewardItems(rewards: WarRewards): List<BattleRewardItem> {
     val items = mutableListOf<BattleRewardItem>()
-    if (rewards.spiritStones > 0) items.add(BattleRewardItem(name = "灵石", quantity = rewards.spiritStones.toInt(), rarity = Rarity.COMMON.toInt(), type = "spiritStones"))
+    if (rewards.spiritStones > 0) items.add(BattleRewardItem(name = ItemNames.SPIRIT_STONE, quantity = rewards.spiritStones.toInt(), rarity = Rarity.COMMON.toInt(), type = "spiritStones"))
     rewards.equipmentStacks.forEach { items.add(BattleRewardItem(itemId = it.id, name = it.name, quantity = it.quantity, rarity = it.rarity, type = "equipment")) }
     rewards.manualStacks.forEach { items.add(BattleRewardItem(itemId = it.id, name = it.name, quantity = it.quantity, rarity = it.rarity, type = "manual")) }
     rewards.pills.forEach { items.add(BattleRewardItem(itemId = it.id, name = it.name, quantity = it.quantity, rarity = it.rarity, type = "pill")) }
@@ -427,7 +428,7 @@ suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List<Strin
                 val engineSsRewards = result.rewards["spiritStones"] ?: 0
                 if (engineSsRewards > 0) {
                     addSpiritStones(engineSsRewards.toLong())
-                    allRewards.add(BattleRewardItem(name = "灵石", quantity = engineSsRewards, rarity = Rarity.COMMON.toInt(), type = "spiritStones"))
+                    allRewards.add(BattleRewardItem(name = ItemNames.SPIRIT_STONE, quantity = engineSsRewards, rarity = Rarity.COMMON.toInt(), type = "spiritStones"))
                 }
             } else {
                 allRewards.addAll(handleCaveLevelVictory(level))
@@ -569,7 +570,7 @@ private suspend fun GameEngine.handleCaveLevelVictory(level: WorldLevel): List<B
     val spiritMultiplier = 0.8 + (seed % 5) * 0.1 // 0.8/0.9/1.0/1.1/1.2
     val spiritStones = (config.baseSpiritStones * spiritMultiplier).toLong()
     addSpiritStones(spiritStones)
-    if (spiritStones > 0) rewards.add(BattleRewardItem(name = "灵石", quantity = spiritStones.toInt(), rarity = Rarity.COMMON.toInt(), type = "spiritStones"))
+    if (spiritStones > 0) rewards.add(BattleRewardItem(name = ItemNames.SPIRIT_STONE, quantity = spiritStones.toInt(), rarity = Rarity.COMMON.toInt(), type = "spiritStones"))
     val (minRarity, maxRarity) = config.rarityRange
     val itemCount = 1 + (seed / 7) % 6 // 1~6
     repeat(itemCount) {

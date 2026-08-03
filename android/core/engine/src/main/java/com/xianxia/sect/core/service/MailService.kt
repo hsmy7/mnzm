@@ -1,4 +1,5 @@
 package com.xianxia.sect.core.engine.service
+import com.xianxia.sect.core.util.ItemNames
 
 import com.xianxia.sect.core.AdFreeWhitelist
 import com.xianxia.sect.core.engine.annotation.GameService
@@ -829,7 +830,7 @@ class MailService @Inject constructor(
         val attachments = listOf(
             MailAttachment(
                 type = "spiritStones",
-                name = "灵石",
+                name = ItemNames.SPIRIT_STONE,
                 quantity = WHITELIST_BONUS_SPIRIT_STONES
             )
         )

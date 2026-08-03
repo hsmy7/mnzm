@@ -1,4 +1,5 @@
 package com.xianxia.sect.core.exploration
+import com.xianxia.sect.core.util.ItemNames
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.BattleRewardItem
@@ -81,7 +82,7 @@ class LootCalculator @Inject constructor(
                 // itemId 必须非空唯一：灵石行固定合成键，防 LazyRow key="" 重复崩溃（Bugly #5079）
                 items.add(BattleRewardItem(
                     itemId = LOOTED_SPIRIT_STONES_ID,
-                    name = "灵石",
+                    name = ItemNames.SPIRIT_STONE,
                     quantity = stolenSpiritStones.toInt(),
                     rarity = 1,
                     type = "spiritStones"

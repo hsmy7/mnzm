@@ -1,4 +1,5 @@
 package com.xianxia.sect.core.engine.domain.exploration
+import com.xianxia.sect.core.util.ItemNames
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.domain.battle.EncounterAttacker
@@ -551,7 +552,7 @@ class ExplorationService @Inject constructor(
                 SpiritStoneGrade.LOW, SpiritStoneSource.Battle
             )
             allRewards.add(BattleRewardItem(
-                name = "灵石", quantity = sr, rarity = 1,
+                name = ItemNames.SPIRIT_STONE, quantity = sr, rarity = 1,
                 type = "spiritStones"
             ))
         }

@@ -1,4 +1,4 @@
-package com.xianxia.sect.ui.game.dialogs
+package com.xianxia.sect.ui.game.dialogs.shared
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -21,20 +21,24 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.core.util.InputValidator
 import com.xianxia.sect.ui.components.InlineStandardPromptDialog
+import com.xianxia.sect.core.util.InputValidator
+
+/** 改名弹窗配置（宗门/弟子共用，差异：标题/占位符/长度/校验器） */
+data class RenameDialogConfig(
+    val title: String,
+    val placeholder: String,
+    val maxLength: Int,
+    val validate: (String) -> String?
+)
 
 /**
- * 宗门改名对话框。
- * 复用 [InlineStandardPromptDialog] + [OutlinedTextField] 模式，
- * 与新建宗门时 [com.xianxia.sect.ui.SaveSelectScreen] 中的输入框一致。
- *
- * @param currentName 当前宗门名称（预填到输入框）
- * @param onConfirm 用户确认改名时回调，传入新名称（已通过 [InputValidator.validateSectName] 验证）
- * @param onDismiss 取消/关闭对话框回调
+ * 共享改名弹窗：RenameSectDialog/RenameDiscipleDialog 同构合并。
+ * 含 ColorOS/FuntouchOS 兼容的自动聚焦与键盘 Done 提交。
  */
 @Composable
-fun RenameSectDialog(
+fun RenameDialog(
+    config: RenameDialogConfig,
     currentName: String,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit
@@ -45,7 +49,7 @@ fun RenameSectDialog(
 
     InlineStandardPromptDialog(
         onDismissRequest = onDismiss,
-        title = "修改宗门名称",
+        title = config.title,
         confirmLabel = "确定",
         dismissLabel = "取消",
         onConfirm = {
@@ -63,14 +67,14 @@ fun RenameSectDialog(
             OutlinedTextField(
                 value = input,
                 onValueChange = { newValue ->
-                    if (newValue.length <= InputValidator.MAX_SECT_NAME_LENGTH) {
+                    if (newValue.length <= config.maxLength) {
                         input = newValue
                         // 空输入不校验（留空时用户需自行点击取消）
                         error = newValue.takeIf { it.isNotBlank() }
-                            ?.let { InputValidator.validateSectName(it) }
+                            ?.let { config.validate(it) }
                     }
                 },
-                placeholder = { Text("青云宗", color = Color(0xFF999999)) },
+                placeholder = { Text(config.placeholder, color = Color(0xFF999999)) },
                 singleLine = true,
                 isError = error != null,
                 textStyle = TextStyle(color = Color.Black, fontSize = 14.sp),
@@ -83,7 +87,7 @@ fun RenameSectDialog(
                     .focusRequester(focusRequester)
             )
             Text(
-                text = error ?: "${input.length}/${InputValidator.MAX_SECT_NAME_LENGTH}",
+                text = error ?: "${input.length}/${config.maxLength}",
                 fontSize = 11.sp,
                 color = if (error != null) Color(0xFFEF5350) else Color.Black,
                 textAlign = TextAlign.End,
@@ -92,5 +96,45 @@ fun RenameSectDialog(
                     .padding(top = 4.dp)
             )
         }
+    )
+}
+
+/** 宗门改名弹窗（配置固定） */
+@Composable
+fun RenameSectDialog(
+    currentName: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    RenameDialog(
+        config = RenameDialogConfig(
+            title = "修改宗门名称",
+            placeholder = "青云宗",
+            maxLength = InputValidator.MAX_SECT_NAME_LENGTH,
+            validate = InputValidator::validateSectName
+        ),
+        currentName = currentName,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss
+    )
+}
+
+/** 弟子改名弹窗（配置固定） */
+@Composable
+fun RenameDiscipleDialog(
+    currentName: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    RenameDialog(
+        config = RenameDialogConfig(
+            title = "修改弟子名称",
+            placeholder = "张三",
+            maxLength = InputValidator.MAX_DISCIPLE_NAME_LENGTH,
+            validate = InputValidator::validateDiscipleName
+        ),
+        currentName = currentName,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss
     )
 }

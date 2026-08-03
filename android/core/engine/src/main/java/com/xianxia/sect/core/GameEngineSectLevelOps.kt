@@ -1,4 +1,5 @@
 package com.xianxia.sect.core.engine
+import com.xianxia.sect.core.util.ItemNames
 
 import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.model.*
@@ -125,7 +126,7 @@ suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult = 
         // 灵石飞行卡片
         if (totalSpiritStones > 0) {
             flyCards.add(RewardCardItem(
-                itemName = "灵石",
+                itemName = ItemNames.SPIRIT_STONE,
                 itemType = "spiritStones",
                 rarity = 1,
                 quantity = totalSpiritStones.toInt().coerceAtMost(Int.MAX_VALUE)

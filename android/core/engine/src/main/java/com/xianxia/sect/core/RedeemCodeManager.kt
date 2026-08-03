@@ -1,4 +1,5 @@
 package com.xianxia.sect.core.engine
+import com.xianxia.sect.core.util.ItemNames
 
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.GameConfig
@@ -457,7 +458,7 @@ object RedeemCodeManager {
                     RewardSelectedItem(
                         id = "spiritStones",
                         type = "spiritStones",
-                        name = "灵石",
+                        name = ItemNames.SPIRIT_STONE,
                         rarity = 1,
                         quantity = redeemCode.quantity
                     )
@@ -517,7 +518,7 @@ object RedeemCodeManager {
                     RewardSelectedItem(
                         id = "spiritStones",
                         type = "spiritStones",
-                        name = "灵石",
+                        name = ItemNames.SPIRIT_STONE,
                         rarity = 1,
                         quantity = 10000000
                     )

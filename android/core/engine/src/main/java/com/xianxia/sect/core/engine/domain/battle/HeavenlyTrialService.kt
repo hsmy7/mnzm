@@ -1,4 +1,5 @@
 package com.xianxia.sect.core.engine.domain.battle
+import com.xianxia.sect.core.util.ItemNames
 
 import com.xianxia.sect.core.BuffType
 import com.xianxia.sect.core.CombatantSide
@@ -369,7 +370,7 @@ class HeavenlyTrialService @Inject constructor(
                 "spiritStones" -> {
                     spiritStoneWallet.add(this, item.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.HeavenlyTrial)
                     generatedCards.add(RewardCardItem(
-                        itemName = "灵石", itemType = "spiritStones",
+                        itemName = ItemNames.SPIRIT_STONE, itemType = "spiritStones",
                         rarity = 1, quantity = item.quantity
                     ))
                 }

@@ -49,7 +49,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.xianxia.sect.ui.game.components.detail.*
 import com.xianxia.sect.ui.game.dialogs.DiscipleChatDialog
-import com.xianxia.sect.ui.game.dialogs.RenameDiscipleDialog
+import com.xianxia.sect.ui.game.dialogs.shared.RenameDiscipleDialog
 import com.xianxia.sect.ui.theme.GameColors
 
 val LocalDismissDropdown = compositionLocalOf { {} }

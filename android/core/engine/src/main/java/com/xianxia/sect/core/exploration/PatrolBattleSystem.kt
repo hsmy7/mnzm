@@ -1,4 +1,5 @@
 package com.xianxia.sect.core.exploration
+import com.xianxia.sect.core.util.ItemNames
 
 import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
@@ -722,7 +723,7 @@ class PatrolBattleSystem @Inject constructor(
                 spiritStones = state.gameData.spiritStones + spiritStoneReward
             )
             allRewards += BattleRewardItem(
-                name = "灵石", quantity = spiritStoneReward,
+                name = ItemNames.SPIRIT_STONE, quantity = spiritStoneReward,
                 rarity = 1, type = "spiritStones"
             )
         }

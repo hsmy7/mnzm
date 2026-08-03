@@ -1,4 +1,5 @@
 package com.xianxia.sect.core.engine.domain.exploration
+import com.xianxia.sect.core.util.ItemNames
 
 import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
@@ -170,7 +171,7 @@ object CaveExplorationSystem {
         val spiritStones = 800 + rng.nextInt(4201)
         rewards.add(CaveRewardItem(
             type = "spiritStones",
-            name = "灵石",
+            name = ItemNames.SPIRIT_STONE,
             quantity = spiritStones
         ))
         

@@ -1,4 +1,5 @@
 package com.xianxia.sect.core.engine.domain.inventory
+import com.xianxia.sect.core.util.ItemNames
 
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
@@ -774,7 +775,7 @@ stateStore.update {
                     if (existing != null) {
                         rewards[rewards.indexOf(existing)] = existing.copy(quantity = existing.quantity + amount.toInt())
                     } else {
-                        rewards.add(BattleRewardItem(name = "灵石", quantity = amount.toInt(), rarity = 1, type = "spiritStones"))
+                        rewards.add(BattleRewardItem(name = ItemNames.SPIRIT_STONE, quantity = amount.toInt(), rarity = 1, type = "spiritStones"))
                     }
                 }
             }

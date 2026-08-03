@@ -330,6 +330,7 @@
     <ID>MatchingDeclarationName:DiscipleSelectorDialog.kt$DiscipleSelectorConfig</ID>
     <ID>MatchingDeclarationName:GoldFingerOverlay.kt$GridPlacement</ID>
     <ID>MatchingDeclarationName:ProductionComponents.kt$ProductionTheme</ID>
+    <ID>MatchingDeclarationName:RenameDialog.kt$RenameDialogConfig</ID>
     <ID>MatchingDeclarationName:RewardDialog.kt$RewardItem</ID>
     <ID>MaxLineLength:ActivityDialog.kt$val vm = checkNotNull(trialViewModel) { "trialViewModel null in HeavenlyTrialPanel" }</ID>
     <ID>MaxLineLength:AlchemyDialog.kt$if (recipe.cultivationSpeedPercent &gt; 0) add(StatLine("修炼速度", pctRange { it.cultivationSpeedPercent }))</ID>

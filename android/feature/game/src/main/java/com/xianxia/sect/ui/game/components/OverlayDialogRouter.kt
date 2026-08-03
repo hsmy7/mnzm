@@ -27,6 +27,7 @@ import com.xianxia.sect.core.model.guide.GuideTaskRegistry
 import com.xianxia.sect.ui.game.ActivityViewModel
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.dialogs.*
+import com.xianxia.sect.ui.game.dialogs.shared.RenameSectDialog
 import com.xianxia.sect.ui.game.dialogs.GuideDialog
 import com.xianxia.sect.ui.game.tabs.BuildingsTab
 import com.xianxia.sect.ui.game.tabs.DisciplesTab
