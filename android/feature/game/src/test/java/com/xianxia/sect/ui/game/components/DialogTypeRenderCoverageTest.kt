@@ -36,6 +36,7 @@ class DialogTypeRenderCoverageTest {
         DialogType.BattleLog,
         DialogType.Mail,
         DialogType.Activity,
+        DialogType.Lizhan,
         DialogType.SpiritMine(""),
         DialogType.HerbGarden,
         DialogType.Alchemy(""),

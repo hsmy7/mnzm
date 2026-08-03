@@ -81,10 +81,20 @@ internal data class SecretRealmBattleOutcome(
 /**
  * 远古秘境事件生成器——纯函数（注入 SECRET_REALM 分区 PRNG）。
  *
- * 事件流：遭遇妖兽事件 →（选择结算）→ 衔接事件（选择方向）→
- * 30% 概率空地事件 / 20% 概率发现遗迹事件 / 妖兽事件 →（选择结算）→ 衔接事件 → …
+ * 事件流：遭遇妖兽事件 →（选择结算）→ 30% 概率空地事件 /
+ * 20% 概率发现遗迹事件 / 妖兽事件 →（选择结算）→ …
  */
 object SecretRealmEventGenerator {
+
+    /** 存活成员平均境界（全灭时取上限，供下一事件难度判定） */
+    fun playerAvgRealm(members: List<SecretRealmMemberState>): Int {
+        val aliveRealms = members.filter { !it.isDead }.map { it.realm }
+        return if (aliveRealms.isEmpty()) {
+            GameConfig.SecretRealm.REALM_MAX
+        } else {
+            aliveRealms.average().toInt()
+        }
+    }
 
     /**
      * 秘境妖兽境界：玩家队伍平均境界附近随机 [avg-1, avg+2]，clamp 0..9。
@@ -287,24 +297,6 @@ object SecretRealmEventGenerator {
         "seed" -> pickTemplate(HerbDatabase.getSeedsByRarity(rarity).map { it.id to it.name }, rng)
         else -> null
     }
-
-    // ── 衔接事件 ──────────────────────────────────────────────────────
-
-    /**
-     * 生成"衔接事件"（上个事件结果描述 + 请选择探索方向）。
-     *
-     * @param resultText 上个事件的结果描述（成为衔接事件描述前缀）
-     */
-    fun generateBridgeEvent(resultText: String): SecretRealmEventRecord = SecretRealmEventRecord(
-        eventType = SecretRealmEventType.BRIDGE.name,
-        title = "探索方向",
-        description = "$resultText，请选择探索方向",
-        options = listOf(
-            SecretRealmOption("走左路", ""),
-            SecretRealmOption("直线前进", ""),
-            SecretRealmOption("走右路", "")
-        )
-    )
 
     // ── 妖兽属性预生成 ────────────────────────────────────────────────
 

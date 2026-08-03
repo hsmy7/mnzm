@@ -24,14 +24,18 @@ import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 import androidx.compose.foundation.shape.CircleShape
 import com.xianxia.sect.ui.components.clickableWithSound
+import kotlinx.coroutines.launch
 
 @Composable
 fun HeavenlyTrialPanel(
     viewModel: HeavenlyTrialViewModel,
-    onOpenClearRewards: () -> Unit = {}
+    onOpenClearRewards: () -> Unit = {},
+    /** 是否绘制自带背景图（半屏嵌入时由宿主对话框提供背景，传 false 避免叠加） */
+    showBackground: Boolean = true
 ) {
     val trialState by viewModel.trialState.collectAsStateWithLifecycle()
     val hasClaimable by viewModel.hasClaimableRewards.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
 
     // 8 座岛屿图资源
     val islandNames = (1..8).map { "heavenly_trial_island_$it" }
@@ -49,13 +53,15 @@ fun HeavenlyTrialPanel(
         // 岛屿图尺寸（按容器宽度的 1/8 缩放）
         val islandSize = containerWidth * 0.14f
 
-        // 与挑战界面共用背景图
-        SpriteImage(
-            name = "heavenly_trial_challenge_bg",
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.FillBounds
-        )
+        // 与挑战界面共用背景图（宿主已提供背景时可关闭避免叠加）
+        if (showBackground) {
+            SpriteImage(
+                name = "heavenly_trial_challenge_bg",
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.FillBounds
+            )
+        }
 
         // 放置 8 座岛屿 + 关卡按钮
         for (i in 0 until HeavenlyTrialConfig.levelCount) {
@@ -96,7 +102,9 @@ fun HeavenlyTrialPanel(
                     .background(btnBgColor)
                     .border(1.dp, Color.Black, RoundedCornerShape(4.dp))
                     .clickableWithSound(enabled = unlocked) {
-                        viewModel.enterBattlePrep(i)
+                        // 延迟一帧切换挑战分支：指针事件处理中组合结构剧变
+                        // （半屏面板→全屏挑战）会中断当前 pointer input 丢失点击
+                        scope.launch { viewModel.enterBattlePrep(i) }
                     }
                     .padding(horizontal = 4.dp, vertical = 2.dp),
                 contentAlignment = Alignment.Center

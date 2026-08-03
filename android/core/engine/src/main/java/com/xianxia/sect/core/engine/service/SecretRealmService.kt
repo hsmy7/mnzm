@@ -68,7 +68,8 @@ class SecretRealmService @Inject constructor(
     // ── 年变刷新 ──────────────────────────────────────────────────────
 
     /**
-     * 年变刷新：0.8% 概率 + 50 年冷却差值判据（对照 MerchantAndRecruitService）。
+     * 年变刷新：确定性开启——距上次消失（或开档，cooldownYear=0）满
+     * COOLDOWN_YEARS（50）年必现世（"每50年开启一次"），位置/精灵变体仍随机。
      */
     @Suppress("ReturnCount")
     fun processYearlySpawn(year: Int, state: MutableGameState) {
@@ -76,9 +77,9 @@ class SecretRealmService @Inject constructor(
         if (data.secretRealmState.exists) return
         // 篡改档防御：负冷却年视为从未出现（clamp 到 0），避免绕过冷却判据
         val cooldown = data.secretRealmCooldownYear.coerceAtLeast(0)
-        if (cooldown > 0 && year - cooldown < GameConfig.SecretRealm.COOLDOWN_YEARS) return
+        // 统一判据：首次（cooldown=0）第 50 年现世；之后每次消失后再过 50 年
+        if (year - cooldown < GameConfig.SecretRealm.COOLDOWN_YEARS) return
         val rng = rngManager.getRng(RngPartition.SECRET_REALM)
-        if (rng.nextDouble() >= GameConfig.SecretRealm.SPAWN_PROBABILITY_PER_YEAR) return
 
         val (x, y) = findFreePosition(rng, data)
         val realm = SecretRealmState(
@@ -215,18 +216,16 @@ class SecretRealmService @Inject constructor(
         val rng = rngManager.getRng(RngPartition.SECRET_REALM)
         val newStamina = calculateNewStamina(session, activeEvent, optionIndex)
         val markedEvent = activeEvent.copy(chosenOptionIndex = optionIndex)
-        // 篡改档非法 eventType 回退 BRIDGE 分支（getOrDefault 兜底）
+        // 篡改档非法 eventType 回退战斗分支（getOrDefault 兜底）
         val resolution = when (resolveEventType(activeEvent.eventType)) {
             SecretRealmEventType.BEAST_ENCOUNTER ->
                 resolveBeastEncounter(optionIndex, state, session, activeEvent, rng)
             SecretRealmEventType.REST_AREA ->
-                resolveRestArea(optionIndex, state, session)
+                resolveRestArea(optionIndex, state, session, rng)
             SecretRealmEventType.RUIN_EXPLORE ->
                 SecretRealmRuinsResolver.resolveRuinsExplore(optionIndex, session, rng)
             SecretRealmEventType.RUIN_RESULT ->
-                SecretRealmRuinsResolver.resolveRuinsResult(session, activeEvent)
-            SecretRealmEventType.BRIDGE ->
-                resolveBridgeChoice(optionIndex, session, rng)
+                SecretRealmRuinsResolver.resolveRuinsResult(session, activeEvent, rng)
         }
 
         val allDead = resolution.members.isNotEmpty() && resolution.members.all { it.isDead }
@@ -280,10 +279,10 @@ class SecretRealmService @Inject constructor(
         ambushSucceeded = resolution.params.ambushSucceeded
     )
 
-    /** 事件类型字符串解析（篡改档非法值回退衔接分支） */
+    /** 事件类型字符串解析（篡改档非法值回退战斗分支） */
     private fun resolveEventType(eventType: String): SecretRealmEventType =
         runCatching { SecretRealmEventType.valueOf(eventType) }
-            .getOrDefault(SecretRealmEventType.BRIDGE)
+            .getOrDefault(SecretRealmEventType.BEAST_ENCOUNTER)
 
     /**
      * 计算选择选项后的体力：按选项自身体力消耗扣除（默认 1）。
@@ -341,57 +340,36 @@ class SecretRealmService @Inject constructor(
             0 -> {
                 val detected = rng.nextDouble() < GameConfig.SecretRealm.FLEE_DETECT_CHANCE
                 if (detected) {
-                    toResolution(runBeastBattle(state, session, event.params, rng))
+                    toResolution(runBeastBattle(state, session, event.params, rng), rng)
                 } else {
-                    bridgeResolution("你方悄然绕行，成功避开了妖兽的注意", session)
+                    bridgeResolution(
+                        "你方悄然绕行，成功避开了妖兽的注意", session, rng
+                    )
                 }
             }
             // ② 发起战斗
-            1 -> toResolution(runBeastBattle(state, session, event.params, rng))
+            1 -> toResolution(runBeastBattle(state, session, event.params, rng), rng)
             // ③ 尝试偷袭：50% 成功（妖兽血量 -10%）；失败被察觉
             else -> {
                 val ambushSucceeded =
                     rng.nextDouble() >= GameConfig.SecretRealm.AMBUSH_DETECT_CHANCE
                 toResolution(
-                    runBeastBattle(state, session, event.params.copy(ambushSucceeded = ambushSucceeded), rng)
+                    runBeastBattle(
+                        state, session,
+                        event.params.copy(ambushSucceeded = ambushSucceeded), rng
+                    ),
+                    rng
                 )
             }
         }
-    }
-
-    /** 衔接事件分支：选择方向 → 下一事件（30% 概率空地，否则妖兽） */
-    private fun resolveBridgeChoice(
-        optionIndex: Int,
-        session: SecretRealmExplorationSession,
-        rng: DeterministicRng
-    ): SecretRealmBeastChoiceResolution {
-        val directionName = when (optionIndex) {
-            0 -> "左路"
-            1 -> "直线"
-            else -> "右路"
-        }
-        val resultText = "你方沿${directionName}继续前行"
-        val aliveRealms = session.members.filter { !it.isDead }.map { it.realm }
-        val playerAvgRealm = if (aliveRealms.isEmpty()) {
-            GameConfig.SecretRealm.REALM_MAX
-        } else {
-            aliveRealms.average().toInt()
-        }
-        return SecretRealmBeastChoiceResolution(
-            resultText = resultText,
-            members = session.members,
-            // 携带会话背包（对抗性审查：不携带则 chooseOption 用空 resolution.backpack 覆盖，
-            // 战斗胜利的灵石/材料在选方向后被清空——预存严重 bug）
-            backpack = session.backpack,
-            nextEvent = SecretRealmEventGenerator.rollNextEvent(rng, playerAvgRealm)
-        )
     }
 
     /** 空地事件分支：休整恢复全队 40% 最大生命（含濒死）；继续前进则成员不变 */
     private fun resolveRestArea(
         optionIndex: Int,
         state: MutableGameState,
-        session: SecretRealmExplorationSession
+        session: SecretRealmExplorationSession,
+        rng: DeterministicRng
     ): SecretRealmBeastChoiceResolution {
         if (optionIndex == 0) {
             val (newMembers, resultText) = applyRestRecovery(state, session)
@@ -400,10 +378,13 @@ class SecretRealmService @Inject constructor(
                 members = newMembers,
                 // 携带会话背包（休整不改变背包，防 chooseOption 空覆盖——对抗性审查发现）
                 backpack = session.backpack,
-                nextEvent = SecretRealmEventGenerator.generateBridgeEvent(resultText)
+                // 结算后直接进入下一事件（衔接事件已移除）
+                nextEvent = SecretRealmEventGenerator.rollNextEvent(
+                    rng, SecretRealmEventGenerator.playerAvgRealm(session.members)
+                )
             )
         }
-        return bridgeResolution("你方不做停留，继续探索", session)
+        return bridgeResolution("你方不做停留，继续探索", session, rng)
     }
 
     /**
@@ -449,9 +430,10 @@ class SecretRealmService @Inject constructor(
         return newMembers to "你方原地休整，全队恢复生命状态"
     }
 
-    /** 战斗结果 → 分支结算载体（衔接事件前缀 = 战斗结果文本） */
+    /** 战斗结果 → 分支结算载体（结算后直接进入下一事件） */
     private fun toResolution(
-        outcome: SecretRealmBattleOutcome
+        outcome: SecretRealmBattleOutcome,
+        rng: DeterministicRng
     ): SecretRealmBeastChoiceResolution = SecretRealmBeastChoiceResolution(
         resultText = outcome.resultText,
         enteredCombat = true,
@@ -461,18 +443,23 @@ class SecretRealmService @Inject constructor(
         members = outcome.members,
         deadIds = outcome.deadIds,
         params = outcome.params,
-        nextEvent = SecretRealmEventGenerator.generateBridgeEvent(outcome.resultText)
+        nextEvent = SecretRealmEventGenerator.rollNextEvent(
+            rng, SecretRealmEventGenerator.playerAvgRealm(outcome.members)
+        )
     )
 
     /** 无战斗分支结算载体（成员不变，携带会话背包防清空——对抗性审查发现） */
     private fun bridgeResolution(
         resultText: String,
-        session: SecretRealmExplorationSession
+        session: SecretRealmExplorationSession,
+        rng: DeterministicRng
     ): SecretRealmBeastChoiceResolution = SecretRealmBeastChoiceResolution(
         resultText = resultText,
         members = session.members,
         backpack = session.backpack,
-        nextEvent = SecretRealmEventGenerator.generateBridgeEvent(resultText)
+        nextEvent = SecretRealmEventGenerator.rollNextEvent(
+            rng, SecretRealmEventGenerator.playerAvgRealm(session.members)
+        )
     )
 
     // ── 战斗执行（事务内） ────────────────────────────────────────────

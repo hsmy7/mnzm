@@ -59,6 +59,8 @@ fun UnifiedGameDialog(
     titleFontSize: TextUnit = AppTypography.Title,
     titleAlignment: Alignment = Alignment.Center,
     showCloseButton: Boolean = true,
+    /** 是否渲染标题栏（false 时隐藏 header 且内容区零 padding，供全屏内容覆盖使用） */
+    showHeader: Boolean = true,
     @DrawableRes backgroundRes: Int = SpriteResRegistry.resolve("bg_horizontal")
         ?: R.drawable.bg_horizontal,
     @DrawableRes closeButtonRes: Int = SpriteResRegistry.resolve("ui_close_button")
@@ -131,55 +133,67 @@ fun UnifiedGameDialog(
                     )
                     .clip(RoundedCornerShape(CornerRadius.LG))
             ) {
-                Image(
-                    painter = painterResource(id = backgroundRes),
-                    contentDescription = null,
-                    modifier = Modifier.matchParentSize(),
-                    contentScale = ContentScale.Crop
-                )
+                // backgroundRes = 0 时不绘制背景图（纯色背景由调用方内容区提供）
+                if (backgroundRes != 0) {
+                    Image(
+                        painter = painterResource(id = backgroundRes),
+                        contentDescription = null,
+                        modifier = Modifier.matchParentSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
                 Column(modifier = Modifier.fillMaxSize()) {
-                    // Unified header
-                    val headerH = if (mode == DialogMode.Full) 32.dp else Spacing.MD
-                    val headerTopPadding = if (mode == DialogMode.Full) 4.dp else Spacing.XS
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = headerH, end = headerH, top = headerTopPadding),
-                        contentAlignment = titleAlignment
-                    ) {
-                        Text(
-                            text = title,
-                            fontSize = titleFontSize,
-                            fontWeight = FontWeight.Bold,
-                            color = titleColor
-                        )
-                        if (showCloseButton || headerActions != null) {
-                            Row(
-                                modifier = Modifier.align(Alignment.CenterEnd),
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.SM),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                headerActions?.invoke()
-                                if (showCloseButton) {
-                                    CloseButton(onClick = onDismissRequest, closeButtonRes = closeButtonRes)
+                    // Unified header（showHeader=false 时整体隐藏，供全屏内容覆盖）
+                    if (showHeader) {
+                        val headerH = if (mode == DialogMode.Full) 32.dp else Spacing.MD
+                        val headerTopPadding = if (mode == DialogMode.Full) 4.dp else Spacing.XS
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = headerH, end = headerH, top = headerTopPadding),
+                            contentAlignment = titleAlignment
+                        ) {
+                            Text(
+                                text = title,
+                                fontSize = titleFontSize,
+                                fontWeight = FontWeight.Bold,
+                                color = titleColor
+                            )
+                            if (showCloseButton || headerActions != null) {
+                                Row(
+                                    modifier = Modifier.align(Alignment.CenterEnd),
+                                    horizontalArrangement = Arrangement.spacedBy(Spacing.SM),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    headerActions?.invoke()
+                                    if (showCloseButton) {
+                                        CloseButton(onClick = onDismissRequest, closeButtonRes = closeButtonRes)
+                                    }
                                 }
                             }
                         }
+                        // Header extension content (e.g. filter bar)
+                        headerContent?.invoke()
                     }
-                    // Header extension content (e.g. filter bar)
-                    headerContent?.invoke()
                     // Scrollable content
                     val contentScrollModifier = if (scrollableContent) {
                         Modifier.verticalScroll(rememberScrollState())
                     } else {
                         Modifier
                     }
+                    val contentHPadding = if (!showHeader) {
+                        0.dp
+                    } else if (mode == DialogMode.Full) {
+                        32.dp
+                    } else {
+                        Spacing.MD
+                    }
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f)
                             .then(contentScrollModifier)
-                            .padding(horizontal = if (mode == DialogMode.Full) 32.dp else Spacing.MD)
+                            .padding(horizontal = contentHPadding)
                     ) {
                         content()
                     }

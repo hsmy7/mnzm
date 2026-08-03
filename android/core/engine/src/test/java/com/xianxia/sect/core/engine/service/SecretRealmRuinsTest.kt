@@ -170,16 +170,20 @@ class SecretRealmRuinsTest {
     // ── 发现遗迹事件 ──────────────────────────────────────────────────
 
     @Test
-    fun `chooseOption - 发现遗迹直接离开扣 1 体力进衔接事件`() {
+    fun `chooseOption - 发现遗迹直接离开扣 1 体力进入下一真实事件`() {
         val state = createState()
         setupSession(state, ruinsEvent())
         val result = service.chooseOption(0, state)
         assertTrue(result.isSuccess)
         val session = state.gameData.secretRealmSession
         assertEquals(19, session.stamina)
-        assertEquals(
-            SecretRealmEventType.BRIDGE.name,
-            session.currentEvent?.eventType
+        // 衔接事件已移除：结算后直接进入下一真实事件
+        assertTrue(
+            session.currentEvent?.eventType in setOf(
+                SecretRealmEventType.BEAST_ENCOUNTER.name,
+                SecretRealmEventType.REST_AREA.name,
+                SecretRealmEventType.RUIN_EXPLORE.name
+            )
         )
         assertTrue(session.resultMessage.contains("离开遗迹"))
         // 未搜寻，背包无变化
@@ -263,7 +267,13 @@ class SecretRealmRuinsTest {
         val result = service.chooseOption(0, state)
         assertTrue(result.isSuccess)
         val session = state.gameData.secretRealmSession
-        assertEquals(SecretRealmEventType.BRIDGE.name, session.currentEvent?.eventType)
+        assertTrue(
+            session.currentEvent?.eventType in setOf(
+                SecretRealmEventType.BEAST_ENCOUNTER.name,
+                SecretRealmEventType.REST_AREA.name,
+                SecretRealmEventType.RUIN_EXPLORE.name
+            )
+        )
         assertTrue(session.resultMessage.contains("携秘宝"))
         // 子事件选项同样扣 1 体力
         assertEquals(19, session.stamina)
@@ -275,43 +285,22 @@ class SecretRealmRuinsTest {
     }
 
     @Test
-    fun `chooseOption - 空无一物子事件继续前进进入衔接事件且背包保留`() {
+    fun `chooseOption - 空无一物子事件继续前进进入下一真实事件且背包保留`() {
         val state = createState()
         setupSession(state, ruinsResultEvent(title = "空无一物"), backpack = presetBackpack())
         val result = service.chooseOption(0, state)
         assertTrue(result.isSuccess)
         val session = state.gameData.secretRealmSession
-        assertEquals(SecretRealmEventType.BRIDGE.name, session.currentEvent?.eventType)
+        assertTrue(
+            session.currentEvent?.eventType in setOf(
+                SecretRealmEventType.BEAST_ENCOUNTER.name,
+                SecretRealmEventType.REST_AREA.name,
+                SecretRealmEventType.RUIN_EXPLORE.name
+            )
+        )
         assertTrue(session.resultMessage.contains("空无一物"))
         assertEquals(100L, session.backpack.spiritStones)
         assertEquals(2, session.backpack.totalItemCount)
-    }
-
-    @Test
-    fun `chooseOption - 衔接事件选方向不改变背包`() {
-        val state = createState()
-        setupSession(
-            state,
-            SecretRealmEventRecord(
-                eventType = SecretRealmEventType.BRIDGE.name,
-                title = "探索方向",
-                description = "请选择探索方向",
-                options = listOf(
-                    SecretRealmOption("走左路", ""),
-                    SecretRealmOption("直线前进", ""),
-                    SecretRealmOption("走右路", "")
-                )
-            ),
-            backpack = presetBackpack()
-        )
-        val result = service.chooseOption(0, state)
-        assertTrue(result.isSuccess)
-        val session = state.gameData.secretRealmSession
-        // 选方向后背包保留（预存严重 bug 回归：此前战斗胜利的灵石/材料在选方向后被清空）
-        assertEquals(100L, session.backpack.spiritStones)
-        assertEquals(2, session.backpack.totalItemCount)
-        assertEquals(1, session.backpack.materials.size)
-        assertEquals(1, session.backpack.seeds.size)
     }
 
     @Test
@@ -409,7 +398,13 @@ class SecretRealmRuinsTest {
         val result = service.chooseOption(0, state)
         // 文案判定用 itemRewards 不依赖 title，走空文案分支，无异常
         assertTrue(result.isSuccess)
-        assertEquals(SecretRealmEventType.BRIDGE.name, state.gameData.secretRealmSession.currentEvent?.eventType)
+        assertTrue(
+            state.gameData.secretRealmSession.currentEvent?.eventType in setOf(
+                SecretRealmEventType.BEAST_ENCOUNTER.name,
+                SecretRealmEventType.REST_AREA.name,
+                SecretRealmEventType.RUIN_EXPLORE.name
+            )
+        )
     }
 
     // ── 确定性 ────────────────────────────────────────────────────────

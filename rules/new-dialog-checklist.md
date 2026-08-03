@@ -45,7 +45,7 @@ is DialogType.MyNewDialog -> {
 - [ ] 使用了 `UnifiedGameDialog(mode = Half/Full/Auto)` 容器（自带 `DialogSystemBarGuard` + `DialogSoftInputGuard` + 60% 遮罩）
 - [ ] 聊天/对话类使用了 `UnifiedGameDialog(mode = Full)`（chat-dialog-design.md）
 - [ ] 精灵图已在 SpriteResRegistry 注册
-- [ ] 聚焦域：若显示实时数据（进度条/倒计时），更新 FocusDomain
+- [ ] 实时数据：焦点域已移除（CLAUDE.md 6.5），需要实时数据的界面在 ViewModel 中订阅 engine StateFlow 派生，不注册任何焦点域
 - [ ] 点击屏幕外可关闭：`onDismissRequest` 已设置，非阻塞交互不得阻止点外关闭
 
 ## 原理

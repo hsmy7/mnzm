@@ -135,7 +135,14 @@ class HeavenlyTrialViewModel @Inject constructor(
         // selectedPhaseIndex 导致 recordPhaseClear 记录错误的阶段
     }
 
-    fun dismiss() { _currentScreen.value = Screen.Panel }
+    fun dismiss() {
+        _currentScreen.value = Screen.Panel
+        // 对抗性审查：Activity 重建后 ViewModel 级弹窗状态残留，
+        // 重开界面时旧胜利弹窗立即弹出可被用于零战斗刷通关记录；
+        // 退出挑战统一复位弹窗状态（result 弹窗/通关奖励弹窗）
+        showResult = false
+        showClearRewardDialog = false
+    }
 
     fun dismissDiscipleSelect() {
         _currentScreen.value = Screen.BattlePrep(selectedLevelIndex)

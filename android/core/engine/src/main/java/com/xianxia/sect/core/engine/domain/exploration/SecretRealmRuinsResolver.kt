@@ -22,14 +22,14 @@ import java.util.UUID
  */
 internal object SecretRealmRuinsResolver {
 
-    /** 遗迹探索选项结算：0=直接离开（进衔接事件）；>=1 视为搜寻（简单/仔细，防篡改档多选项） */
+    /** 遗迹探索选项结算：0=直接离开（进入下一事件）；>=1 视为搜寻（简单/仔细，防篡改档多选项） */
     fun resolveRuinsExplore(
         optionIndex: Int,
         session: SecretRealmExplorationSession,
         rng: DeterministicRng
     ): SecretRealmBeastChoiceResolution {
         if (optionIndex == 0) {
-            return bridgeResolution("你方决定离开遗迹，继续探索", session)
+            return bridgeResolution("你方决定离开遗迹，继续探索", session, rng)
         }
         return resolveRuinsSearch(optionIndex, session, rng)
     }
@@ -100,10 +100,11 @@ internal object SecretRealmRuinsResolver {
         )
     )
 
-    /** 遗迹结果子事件：唯一选项"继续前进" → 衔接事件（按有无奖励区分文案，防篡改档 title 不一致） */
+    /** 遗迹结果子事件：唯一选项"继续前进" → 下一事件（按有无奖励区分文案，防篡改档 title 不一致） */
     fun resolveRuinsResult(
         session: SecretRealmExplorationSession,
-        event: SecretRealmEventRecord
+        event: SecretRealmEventRecord,
+        rng: DeterministicRng
     ): SecretRealmBeastChoiceResolution {
         val resultText = if (event.params.itemRewards.isEmpty()) {
             "遗迹中空无一物，你方继续前行"
@@ -113,7 +114,7 @@ internal object SecretRealmRuinsResolver {
         // 保留 event.params（itemRewards 秘宝描述符）——chooseOption 写入 eventHistory 时
         // 用 resolution.params 覆盖 markedEvent.params，若不携带则历史中秘宝明细丢失
         // （与 BEAST_ENCOUNTER 历史保留掉落描述符行为一致，对抗性审查发现）
-        return bridgeResolution(resultText, session).copy(params = event.params)
+        return bridgeResolution(resultText, session, rng).copy(params = event.params)
     }
 
     /**
@@ -203,13 +204,16 @@ internal object SecretRealmRuinsResolver {
     } ?: backpack
 }
 
-/** 无战斗分支结算载体（成员不变，携带会话背包防 chooseOption 空覆盖——对抗性审查发现） */
+/** 无战斗分支结算载体（成员不变，携带会话背包防 chooseOption 空覆盖；结算后直接进入下一事件） */
 private fun bridgeResolution(
     resultText: String,
-    session: SecretRealmExplorationSession
+    session: SecretRealmExplorationSession,
+    rng: DeterministicRng
 ): SecretRealmBeastChoiceResolution = SecretRealmBeastChoiceResolution(
     resultText = resultText,
     members = session.members,
     backpack = session.backpack,
-    nextEvent = SecretRealmEventGenerator.generateBridgeEvent(resultText)
+    nextEvent = SecretRealmEventGenerator.rollNextEvent(
+        rng, SecretRealmEventGenerator.playerAvgRealm(session.members)
+    )
 )

@@ -44,7 +44,7 @@ private const val BATTLE_LOG_WRITE_GRACE_MS = 300L
 /** 战斗回合播放间隔（ms）：每秒 2 回合 */
 private const val BATTLE_ROUND_DELAY_MS = 500L
 
-/** 全部回合播完后切换到衔接事件前的停顿（ms） */
+/** 全部回合播完后切换到下一事件前的停顿（ms） */
 private const val BATTLE_END_PAUSE_MS = 1000L
 
 /** 妖兽类型名 → 精灵图名（与 GameConfig.Beast.TYPES 显式对应，防止索引错位/新增类型误配） */
@@ -131,7 +131,7 @@ fun SecretRealmExplorationScreen(
     var eventLinesShown by remember { mutableStateOf(false) }
     LaunchedEffect(event) { eventLinesShown = false }
 
-    // 战斗播放推进：每秒 2 回合；全部回合播完停顿 1 秒再切换衔接事件（跳过则不等待）
+    // 战斗播放推进：每秒 2 回合；全部回合播完停顿 1 秒再切换下一事件（跳过则不等待）
     var playedRounds by remember(combatLog) { mutableIntStateOf(0) }
     LaunchedEffect(combatLog, skipCombat) {
         val log = combatLog ?: return@LaunchedEffect
@@ -140,10 +140,10 @@ fun SecretRealmExplorationScreen(
             playedRounds++
         }
         if (!skipCombat) {
-            // 全部回合播放完成：停顿 1 秒展示战果，再切换到衔接事件
+            // 全部回合播放完成：停顿 1 秒展示战果，再切换到下一事件
             delay(BATTLE_END_PAUSE_MS)
         }
-        // 播放完成或跳过：结算已完成，显示衔接事件（逐行播放完成后自动弹出选项卡片）
+        // 播放完成或跳过：结算已完成，显示下一事件（逐行播放完成后自动弹出选项卡片）
         combatLog = null
         combatTitle = null
         skipCombat = false
@@ -618,8 +618,8 @@ private fun OptionsOverlay(
 /** 选项卡片高度 = 覆盖区域高度 × 65% */
 private const val OPTION_CARD_HEIGHT_RATIO = 0.65f
 
-/** 选项卡片精灵图宽高比（secret_realm_option_card.webp = 796×1535），Fit 缩放横向留白阈值 */
-private const val OPTION_CARD_IMG_ASPECT = 796f / 1535f
+/** 选项卡片精灵图宽高比（secret_realm_option_card.webp = 834×1536），Fit 缩放横向留白阈值 */
+private const val OPTION_CARD_IMG_ASPECT = 834f / 1536f
 
 /** 选项覆盖层左右边距 */
 private val OPTION_OVERLAY_PADDING = 16.dp

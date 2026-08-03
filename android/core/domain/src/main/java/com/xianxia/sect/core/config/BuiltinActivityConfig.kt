@@ -7,17 +7,7 @@ import com.xianxia.sect.core.model.ActivityType
 object BuiltinActivityConfig {
 
     fun getAllActivities(): List<ActivityDef> = listOf(
-        ActivityDef(
-            id = "heavenly_trial",
-            name = "天道试炼",
-            description = "挑战天道试炼八关，突破层层试炼",
-            type = ActivityType.SPECIAL,
-            startTime = 0,
-            endTime = 0,
-            rewardPreview = emptyList(),
-            status = ActivityStatus.ACTIVE,
-            sortOrder = -1
-        ),
+        // 天道试炼已移至历战入口（LizhanDialog），不再作为活动展示
         ActivityDef(
             id = "daily_sign_in",
             name = "每日签到",

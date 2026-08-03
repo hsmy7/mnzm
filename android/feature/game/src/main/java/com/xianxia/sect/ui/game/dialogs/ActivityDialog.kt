@@ -45,6 +45,7 @@ fun ActivityDialog(
 ) {
     val activities by viewModel.activities.collectAsStateWithLifecycle()
     val selectedActivityId by viewModel.selectedActivityId.collectAsStateWithLifecycle()
+    // 天道试炼已移至历战入口（BuiltinActivityConfig 不再包含），活动列表仅每日签到
     val selectedActivity = activities.find { it.id == selectedActivityId }
 
     // 天道试炼 ViewModel — 提前获取，供活动面板和全屏挑战共用

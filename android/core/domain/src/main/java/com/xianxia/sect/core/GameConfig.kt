@@ -926,8 +926,7 @@ object GameConfig {
      * 远古秘境玩法配置。
      */
     object SecretRealm {
-        const val SPAWN_PROBABILITY_PER_YEAR = 0.016      // 每年刷新概率 1.6%
-        const val COOLDOWN_YEARS = 40                      // 探索结束后冷却 40 年
+        const val COOLDOWN_YEARS = 50                      // 每 50 年开启一次（首次为第 50 年）
         const val REALM_MIN = 0                            // 境界下限（仙人）
         const val REALM_MAX = 9                            // 境界上限（炼气）
         const val BEAST_LAYER_VARIANT_COUNT = 9            // 妖兽层数方差档位（1..9 层）

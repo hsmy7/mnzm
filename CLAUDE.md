@@ -213,7 +213,7 @@ sealed interface ToggleResult {
 
 **3.1 🔴 单文件最大 2000 行**（生成代码如 Room `_Impl`、ProtoBuf 生成代码除外）。
 
-**3.2 🔴 单行最大 80 字符** — import 语句、KDoc `@param`/`@return` 标签、URL 除外。
+**3.2 🔴 单行最大 120 字符** — 以 `config/detekt/detekt.yml` 的 `MaxLineLength: maxLineLength: 120` 为准（Compose UI 链式调用需要；import 语句、KDoc 标签、URL 除外）。
 
 **3.3 🟡 单函数体最大 60 行** — 超限须拆分为私有辅助函数。
 
@@ -310,15 +310,12 @@ stateStore.update {
 - 新增生产速率因子 → `calculateWorkDurationWithAllDisciples` / `calculateSpiritFieldMaturityBonus`
 - 新增丹药类型 → `CultivationCore.processRealtimeAutoPills` + `DisciplePillManager.classify`
 
-**6.5 🔴 新增/改动界面必须重新评估焦点域映射** — 焦点域采用纯视角驱动 + 域声明系统：**每个 UI 界面对应一个 FocusDomain 枚举值，域通过 `systemClasses` 反向声明激活时需实时 tick 的系统**。
+**6.5 🔴 界面实时性：焦点域已移除，依赖 ViewModel 订阅 engine StateFlow** — 惰性结算引擎重构已删除 `FocusDomain`/`InterfaceDomainMap`/`DomainMappingTest`（约 3500 行，见 CHANGELOG），**UI 不再驱动系统 tick**。
 
-新增界面（Tab / Dialog）或改动现有界面展示内容时，必须同步更新：
+新增界面（Tab / Dialog）或改动现有界面展示内容时：
 
-1. `FocusDomain.kt` — 新增枚举值（含 `systemClasses` 声明）或修改现有域的系统列表
-2. `InterfaceDomainMap` — 添加 UI 名 → 域的 1:1 映射
-3. `DomainMappingTest.kt` — 添加对应的测试用例
-
-判定原则：**界面显示随时间变化的数据（进度条、倒计时、数量增减），就应映射到对应的 FocusDomain。仅静态信息（历史记录、配置面板）的界面不在此表。**
+1. **无需任何焦点域注册** — `FocusDomain.kt`/`InterfaceDomainMap`/`DomainMappingTest` 已不存在，禁止按旧规则添加
+2. 界面需要随时间变化的数据（进度条、倒计时、数量增减）时，直接订阅对应 `GameEngine` StateFlow 派生（参照 `HeavenlyTrialViewModel.trialState` / `SecretRealmViewModel.session` 的 `map + stateIn` 模式）
 
 **6.6 🔴 精灵图必须统一注册并使用统一入口** — 详见 `rules/static-resources.md`。所有静态图片资源必须：
 
@@ -502,7 +499,7 @@ fun `all SlotCategory values are covered by scanAndRegister`() {
 ```yaml
 style:
   MaxLineLength:
-    maxLineLength: 80       # import/KDoc标签/URL 除外
+    maxLineLength: 120      # Compose UI 链式调用需要；import/KDoc标签/URL 除外
   WildcardImport:
     active: true
   MagicNumber:

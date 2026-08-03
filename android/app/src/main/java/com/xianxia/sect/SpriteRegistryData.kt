@@ -329,7 +329,14 @@ internal val SPRITES_UI = mapOf(
         "spirit_stone_mid" to R.drawable.spirit_stone_mid,
         "spirit_stone_high" to R.drawable.spirit_stone_high,
         "golden_finger" to R.drawable.golden_finger,
-        "secret_realm_option_card" to R.drawable.secret_realm_option_card
+        "secret_realm_option_card" to R.drawable.secret_realm_option_card,
+        // 历战入口与活动卡片
+        "ui_lizhan_button" to R.drawable.ui_lizhan_button,
+        "li_zhan_card" to R.drawable.li_zhan_card,
+        "heavenly_trial_icon" to R.drawable.heavenly_trial_icon,
+        // 历战翻页按钮
+        "ui_flip_left" to R.drawable.ui_flip_left,
+        "ui_flip_right" to R.drawable.ui_flip_right
 )
 
 /** SPRITES_BEAST — 精灵图资源映射（原 XianxiaApplication.onCreate 逐行搬移） */

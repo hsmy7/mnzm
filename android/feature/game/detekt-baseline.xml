@@ -1,0 +1,1249 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>ComplexCondition:BaseCameraState.kt$BaseCameraState$x.isNaN() || x.isInfinite() || y.isNaN() || y.isInfinite()</ID>
+    <ID>ComplexCondition:BuildingDelegate.kt$BuildingDelegate$gridX &lt; border || gridY &lt; border || gridX + gridW &gt; GameConfig.SectMap.WORLD_WIDTH_CELLS - border || gridY + gridH &gt; GameConfig.SectMap.WORLD_HEIGHT_CELLS - border</ID>
+    <ID>ComplexCondition:DetailActionButtons.kt$parent1 == null &amp;&amp; parent2 == null &amp;&amp; partner == null &amp;&amp; children.isEmpty() &amp;&amp; siblings.isEmpty() &amp;&amp; master == null &amp;&amp; apprentices.isEmpty()</ID>
+    <ID>ComplexCondition:HeavenlyTrialCombatScreen.kt$phase == BattlePhase.PLAYER_TURN &amp;&amp; cellCombatant != null &amp;&amp; !cellCombatant.isDead &amp;&amp; !isAnimating</ID>
+    <ID>ComplexCondition:MainGameScreen.kt$&lt;no name provided&gt;$gx &gt;= movingSnappedGridX &amp;&amp; gx &lt; movingSnappedGridX + mb.width &amp;&amp; gy &gt;= movingSnappedGridY &amp;&amp; gy &lt; movingSnappedGridY + mb.height</ID>
+    <ID>ComplexCondition:MainGameScreen.kt$&lt;no name provided&gt;$wx &gt;= gfWx &amp;&amp; wx &lt; gfWx + tileSize &amp;&amp; wy &gt;= gfWy &amp;&amp; wy &lt; gfWy + tileSize</ID>
+    <ID>ComplexCondition:MainGameScreen.kt$&lt;no name provided&gt;$wx &gt;= previewLeft &amp;&amp; wx &lt; previewRight &amp;&amp; wy &gt;= previewTop &amp;&amp; wy &lt; previewBottom</ID>
+    <ID>ComplexCondition:MainGameScreen.kt$b != null &amp;&amp; movingValid == GridSnapHelper.PlacementValidity.Valid &amp;&amp; (movingSnappedGridX != b.gridX || movingSnappedGridY != b.gridY)</ID>
+    <ID>ComplexCondition:SaveLoadLoadDelegate.kt$SaveLoadLoadDelegate$b.gridX &lt; 0 || b.gridY &lt; 0 || b.gridX + b.width &gt; gridW || b.gridY + b.height &gt; gridH</ID>
+    <ID>ComplexCondition:SecretRealmExplorationScreen.kt$!showOptions &amp;&amp; combatLog == null &amp;&amp; (event != null || session != null)</ID>
+    <ID>ComplexCondition:SectCameraState.kt$SectCameraState$prevW &gt; 0 &amp;&amp; prevH &gt; 0 &amp;&amp; (abs(w - prevW) &gt; CENTER_THRESHOLD || abs(h - prevH) &gt; CENTER_THRESHOLD)</ID>
+    <ID>ComplexCondition:SectMapEdgeOverlay.kt$!showLeft &amp;&amp; !showTop &amp;&amp; !showRight &amp;&amp; !showBottom</ID>
+    <ID>ComplexCondition:SoftwareCanvasBackend.kt$SoftwareCanvasBackend$dstLeft &gt;= canvas.width || dstTop &gt;= canvas.height || dstRight &lt;= 0 || dstBottom &lt;= 0</ID>
+    <ID>ComplexCondition:SoftwareCanvasBackend.kt$SoftwareCanvasBackend$fb == null || fb.width != vpW || fb.height != vpH || qualityChanged</ID>
+    <ID>ComplexCondition:SoftwareCanvasBackend.kt$SoftwareCanvasBackend$frame.camX.isNaN() || frame.camX.isInfinite() || frame.camY.isNaN() || frame.camY.isInfinite() || frame.scale.isNaN() || frame.scale.isInfinite()</ID>
+    <ID>ComplexCondition:SoftwareCanvasBackend.kt$SoftwareCanvasBackend$screenX + scaledW &lt; 0 || screenY + scaledH &lt; 0 || screenX &gt; vpW || screenY &gt; vpH</ID>
+    <ID>ComplexCondition:SoftwareCanvasBackend.kt$SoftwareCanvasBackend.Companion$bDstLeft &gt;= vpW || bDstTop &gt;= vpH || bDstRight &lt;= 0 || bDstBottom &lt;= 0</ID>
+    <ID>ComplexCondition:WorldCameraState.kt$WorldCameraState$prevW &gt; 0 &amp;&amp; prevH &gt; 0 &amp;&amp; (abs(w - prevW) &gt; CENTER_THRESHOLD || abs(h - prevH) &gt; CENTER_THRESHOLD)</ID>
+    <ID>CyclomaticComplexMethod:ActivityDialog.kt$@Composable fun ActivityDialog( viewModel: ActivityViewModel, gameViewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:AlchemyDialog.kt$@Composable fun AlchemyDialog( buildingInstanceId: String = "", alchemySlots: List&lt;AlchemySlot&gt;, materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, productionViewModel: ProductionViewModel, alchemyViewModel: AlchemyViewModel, colors: com.xianxia.sect.ui.theme.XianxiaColorScheme, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:AlchemyDialog.kt$@Composable private fun PillDetailDialog( recipes: List&lt;PillRecipeDatabase.PillRecipe&gt;, herbs: List&lt;Herb&gt;, viewModel: GameViewModel? = null, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:AutoManagementDialog.kt$@Composable fun AutoManagementDialog( gameData: GameData?, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:BattleLogDialogs.kt$@Composable internal fun BattleActionItem( action: BattleLogAction )</ID>
+    <ID>CyclomaticComplexMethod:BattleLogDialogs.kt$@Composable internal fun BattleLogDetailDialog( log: BattleLog, onDismiss: () -&gt; Unit, scrimEnabled: Boolean = true )</ID>
+    <ID>CyclomaticComplexMethod:BattleLogDialogs.kt$private fun reasonDisplayName(key: String): String</ID>
+    <ID>CyclomaticComplexMethod:BattleLogDialogs.kt$private fun sourceDisplayName(key: String): String</ID>
+    <ID>CyclomaticComplexMethod:BattleResultDialog.kt$@Composable internal fun BattleResultDialog( resultData: BattleResultUIData, battleLog: BattleLog?, onConfirm: () -&gt; Unit, onViewDetail: (BattleLog) -&gt; Unit, onDismiss: () -&gt; Unit, viewModel: GameViewModel? = null, scrimEnabled: Boolean = true )</ID>
+    <ID>CyclomaticComplexMethod:BloodRefiningPoolDialog.kt$@Composable fun BloodRefiningPoolDialog( buildingInstanceId: String, viewModel: GameViewModel, bloodRefiningViewModel: BloodRefiningViewModel, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, materials: List&lt;Material&gt;, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:BuildingDelegate.kt$BuildingDelegate$private suspend fun doPlaceBuilding(name: String, gridX: Int, gridY: Int, width: Int, height: Int)</ID>
+    <ID>CyclomaticComplexMethod:BuildingsTab.kt$@Composable internal fun BuildingsTab( viewModel: GameViewModel, productionViewModel: ProductionViewModel, alchemyViewModel: AlchemyViewModel, forgeViewModel: ForgeViewModel, herbGardenViewModel: HerbGardenViewModel, spiritMineViewModel: SpiritMineViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:DailySignInDialog.kt$@OptIn(ExperimentalFoundationApi::class) @Composable private fun SignInDayCard( dayOfMonth: Int, reward: DailySignInReward, state: SignInDayState, cellWidth: Dp, cellHeight: Dp, nameFontSize: TextUnit, watchedKeys: Set&lt;String&gt; = emptySet(), modifier: Modifier = Modifier, onLongPress: (Any) -&gt; Unit = {} )</ID>
+    <ID>CyclomaticComplexMethod:DetailActionButtons.kt$@Composable fun RelationsDialog( disciple: DiscipleAggregate, allDisciples: List&lt;DiscipleAggregate&gt;, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:DetailCultivationSection.kt$@Composable fun BasicInfoSection( disciple: DiscipleAggregate, allEquipment: List&lt;EquipmentInstance&gt; = emptyList(), allManuals: List&lt;ManualInstance&gt; = emptyList(), manualProficiencies: Map&lt;String, List&lt;ManualProficiencyData&gt;&gt; = emptyMap(), elderSlots: ElderSlots? = null, allDisciples: List&lt;DiscipleAggregate&gt; = emptyList(), sectPolicies: SectPolicies? = null, residenceSlots: List&lt;ResidenceSlot&gt; = emptyList(), placedBuildings: List&lt;GridBuildingData&gt; = emptyList(), viewModel: GameViewModel? = null, gameMonth: Int = 1, gameYear: Int = 1, gamePhase: Int = 0, gameSpeed: Int = 1 )</ID>
+    <ID>CyclomaticComplexMethod:DetailCultivationSection.kt$@Composable fun BreakthroughDetailDialog( detail: DiscipleStatCalculator.BreakthroughBonusDetail, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:DetailCultivationSection.kt$internal fun calculatePreachingBonusesForDisplay( disciple: DiscipleAggregate, elderSlots: ElderSlots?, allDisciples: List&lt;DiscipleAggregate&gt;, sectPolicies: SectPolicies? = null ): Triple&lt;Double, Double, Double&gt;</ID>
+    <ID>CyclomaticComplexMethod:DetailEquipmentSection.kt$@Composable fun EquipmentSelectionDialog( slotType: String, allEquipment: List&lt;EquipmentInstance&gt;, equipmentStacks: List&lt;EquipmentStack&gt;, currentEquipmentId: String?, currentDiscipleId: String, discipleRealm: Int, selectedEquipmentId: String?, onSelect: (String) -&gt; Unit, onConfirm: () -&gt; Unit, onDismiss: () -&gt; Unit, viewModel: GameViewModel? = null )</ID>
+    <ID>CyclomaticComplexMethod:DetailHeaderSection.kt$@Composable fun DetailRightPanel( disciple: DiscipleAggregate, allDisciples: List&lt;DiscipleAggregate&gt;, localDiscipleType: String, showDiscipleTypeDropdown: Boolean, onDiscipleTypeDropdownChange: (Boolean) -&gt; Unit, onLocalDiscipleTypeChange: (String) -&gt; Unit, actions: DetailActionCallbacks, viewModel: GameViewModel? )</ID>
+    <ID>CyclomaticComplexMethod:DetailPillSection.kt$@Composable private fun &lt;T&gt; RewardItemGrid( items: List&lt;T&gt;, selectedItem: RewardSelectedItem?, watchedKeys: Set&lt;String&gt; = emptySet(), onItemSelect: (RewardSelectedItem) -&gt; Unit, onViewDetail: (Any) -&gt; Unit = {} )</ID>
+    <ID>CyclomaticComplexMethod:DetailPillSection.kt$@Composable private fun RewardAllItemsGrid( equipment: List&lt;EquipmentStack&gt;, manuals: List&lt;ManualStack&gt;, pills: List&lt;Pill&gt;, materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, seeds: List&lt;Seed&gt;, selectedItem: RewardSelectedItem?, watchedKeys: Set&lt;String&gt; = emptySet(), onItemSelect: (RewardSelectedItem) -&gt; Unit, onViewDetail: (Any) -&gt; Unit = {} )</ID>
+    <ID>CyclomaticComplexMethod:DetailPillSection.kt$@Composable private fun RewardBottomPanel( selectedItem: RewardSelectedItem?, rewardQuantity: Int, maxQuantity: Int, isRewarding: Boolean = false, onQuantityChange: (Int) -&gt; Unit, onRewardClick: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:DetailPillSection.kt$@Composable private fun RewardItemsDialog( disciple: DiscipleAggregate, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:DiplomacyDialog.kt$@Composable fun DiplomacyDialog( gameData: GameData?, viewModel: GameViewModel, interactionViewModel: WorldMapInteractionViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:DiscipleChatDialog.kt$@Composable fun DiscipleChatDialog( disciple: DiscipleAggregate, gameYear: Int, hasCooldown: Boolean, viewModel: GameViewModel?, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:DiscipleComponents.kt$@Composable fun DiscipleSlot( disciple: DiscipleAggregate?, modifier: Modifier = Modifier, borderColor: Color = GameColors.Border, showActions: Boolean = false, onSlotClick: () -&gt; Unit = {}, onEmptySlotClick: () -&gt; Unit = {}, onDismiss: (() -&gt; Unit)? = null, onSwap: (() -&gt; Unit)? = null )</ID>
+    <ID>CyclomaticComplexMethod:DiscipleComponents.kt$@Composable fun PortraitDiscipleCard( disciple: DiscipleAggregate, isSelected: Boolean = false, isCurrent: Boolean = false, showStatus: Boolean = true, extraAttributes: List&lt;Pair&lt;String, Int&gt;&gt; = emptyList(), customAttributes: @Composable (() -&gt; Unit)? = null, actions: @Composable (() -&gt; Unit)? = null, onClick: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:DiscipleComponents.kt$fun formatEffectKey(key: String): String</ID>
+    <ID>CyclomaticComplexMethod:DiscipleDetailScreen.kt$@Composable fun DiscipleDetailDialog( disciple: DiscipleAggregate, allDisciples: List&lt;DiscipleAggregate&gt; = emptyList(), allEquipment: List&lt;EquipmentInstance&gt; = emptyList(), allManuals: List&lt;ManualInstance&gt; = emptyList(), manualStacks: List&lt;ManualStack&gt; = emptyList(), equipmentStacks: List&lt;EquipmentStack&gt; = emptyList(), manualProficiencies: Map&lt;String, List&lt;ManualProficiencyData&gt;&gt; = emptyMap(), viewModel: GameViewModel? = null, onDismiss: () -&gt; Unit, onNavigateToDisciple: ((DiscipleAggregate) -&gt; Unit)? = null, scrimEnabled: Boolean = true )</ID>
+    <ID>CyclomaticComplexMethod:DisciplesTab.kt$@Composable internal fun DirectDiscipleSelectionDialog( disciples: List&lt;DiscipleAggregate&gt;, requiredAttribute: Pair&lt;String, String&gt;?, elderSlots: ElderSlots, viewModel: GameViewModel, onDismiss: () -&gt; Unit, onSelect: (String) -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:DisciplesTab.kt$@Composable internal fun ElderDiscipleSelectionDialog( disciples: List&lt;DiscipleAggregate&gt;, currentElderId: String?, requiredAttribute: Pair&lt;String, String&gt;?, elderSlots: ElderSlots, viewModel: GameViewModel, onDismiss: () -&gt; Unit, onSelect: (String) -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:ForgeDialog.kt$@Composable fun ForgeDialog( buildingInstanceId: String = "", forgeSlots: List&lt;ForgeSlot&gt;, materials: List&lt;Material&gt;, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, productionViewModel: ProductionViewModel, forgeViewModel: ForgeViewModel, colors: com.xianxia.sect.ui.theme.XianxiaColorScheme, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:ForgeDialog.kt$@Composable private fun EquipmentDetailDialog( recipe: ForgeRecipeDatabase.ForgeRecipe, materials: List&lt;Material&gt;, viewModel: GameViewModel? = null, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:GameOverlayHost.kt$@Composable fun GameOverlayHost( vms: OverlayViewModels, callbacks: OverlayCallbacks )</ID>
+    <ID>CyclomaticComplexMethod:GameViewModel.kt$GameViewModel$fun bulkSellItems(selectedRarities: Set&lt;Int&gt;, selectedTypes: Set&lt;String&gt;)</ID>
+    <ID>CyclomaticComplexMethod:HeavenlyTrialBattleDialog.kt$@Composable fun HeavenlyTrialBattleDialog( levelIndex: Int, viewModel: HeavenlyTrialViewModel, gameViewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:HeavenlyTrialBattleDialog.kt$@Composable private fun EnemyInfoDetail( enemy: Combatant, gameViewModel: GameViewModel? = null )</ID>
+    <ID>CyclomaticComplexMethod:HeavenlyTrialCombatLogic.kt$internal fun executePlayerSkill( attacker: Combatant, skill: CombatSkill, selectedTargetId: String?, selectedIsAlly: Boolean, playerTeam: List&lt;Combatant&gt;, enemyTeam: List&lt;Combatant&gt;, isDefending: Set&lt;String&gt; ): Pair&lt;List&lt;Combatant&gt;, List&lt;Combatant&gt;&gt;</ID>
+    <ID>CyclomaticComplexMethod:HeavenlyTrialCombatLogic.kt$internal fun resolveAIAction( actor: Combatant, ai: BattleAI.AIAction, actorIsPlayer: Boolean, players: List&lt;Combatant&gt;, enemies: List&lt;Combatant&gt;, rng: DeterministicRng = combatRng ): Pair&lt;List&lt;Combatant&gt;, List&lt;Combatant&gt;&gt;</ID>
+    <ID>CyclomaticComplexMethod:HeavenlyTrialCombatScreen.kt$@Composable fun HeavenlyTrialCombatScreen( viewModel: HeavenlyTrialViewModel, onFinished: (won: Boolean) -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:HeavenlyTrialComponents.kt$@Composable internal fun CombatUnitCell( combatant: Combatant?, isCurrent: Boolean = false, isAllySelected: Boolean = false, isEnemySelected: Boolean = false, isShaking: Boolean = false, flightAnim: FlightAnimState = FlightAnimState(), modifier: Modifier = Modifier, onClick: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:ItemDetailDialog.kt$@Composable @Suppress("DEPRECATION") private fun ManualStatsContent( manual: ManualInstance, bonusMultiplier: Double, rarityColor: Color )</ID>
+    <ID>CyclomaticComplexMethod:ItemDetailDialog.kt$@Composable fun ItemDetailDialog( item: Any, onDismiss: () -&gt; Unit, viewModel: GameViewModel? = null, extraActions: @Composable (() -&gt; Unit)? = null )</ID>
+    <ID>CyclomaticComplexMethod:ItemDetailDialog.kt$@Composable fun LearnedManualDetailDialog( manual: ManualInstance, proficiencyData: ManualProficiencyData?, onForget: () -&gt; Unit, onDismiss: () -&gt; Unit, extraActions: @Composable (() -&gt; Unit)? = null )</ID>
+    <ID>CyclomaticComplexMethod:ItemDetailEffects.kt$@Suppress("DEPRECATION") internal fun getEquipmentEffects(item: EquipmentInstance): List&lt;String&gt;</ID>
+    <ID>CyclomaticComplexMethod:ItemDetailEffects.kt$@Suppress("DEPRECATION") internal fun getManualEffects(item: ManualInstance): List&lt;String&gt;</ID>
+    <ID>CyclomaticComplexMethod:ItemDetailEffects.kt$@Suppress("DEPRECATION") internal fun getManualStackEffects(item: ManualStack): List&lt;String&gt;</ID>
+    <ID>CyclomaticComplexMethod:ItemDetailEffects.kt$internal fun MutableList&lt;String&gt;.addManualSkillInfo(template: ManualDatabase.ManualTemplate)</ID>
+    <ID>CyclomaticComplexMethod:ItemDetailEffects.kt$internal fun getBuffTypeName(buffType: String): String</ID>
+    <ID>CyclomaticComplexMethod:ItemDetailEffects.kt$internal fun getPillEffects(item: Pill): List&lt;String&gt;</ID>
+    <ID>CyclomaticComplexMethod:ItemDetailEffects.kt$internal fun getStatDisplayName(key: String): String</ID>
+    <ID>CyclomaticComplexMethod:ItemDetailEffects.kt$internal fun parseManualStackBuffs(json: String): List&lt;Triple&lt;com.xianxia.sect.core.BuffType, Double, Int&gt;&gt;</ID>
+    <ID>CyclomaticComplexMethod:ItemDetailOtherEffects.kt$internal fun getMerchantItemEffects(item: MerchantItem): List&lt;String&gt;</ID>
+    <ID>CyclomaticComplexMethod:ItemDetailOtherEffects.kt$internal fun getStorageBagItemEffects(item: StorageBagItem): List&lt;String&gt;</ID>
+    <ID>CyclomaticComplexMethod:LevelDetailDialog.kt$@Composable fun LevelDetailDialog( level: MapItem.Level, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, onAttack: (List&lt;String?&gt;) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:MailDialog.kt$@OptIn(ExperimentalLayoutApi::class) @Composable private fun MailDetailPanel( mail: MailEntity, viewModel: GameViewModel? = null, onClaim: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:MainGameScreen.kt$@Composable fun MainGameScreen( mapPreloadData: MapPreloadData, viewModel: GameViewModel, saveLoadViewModel: SaveLoadViewModel, productionViewModel: ProductionViewModel, alchemyViewModel: AlchemyViewModel, forgeViewModel: ForgeViewModel, herbGardenViewModel: HerbGardenViewModel, spiritMineViewModel: SpiritMineViewModel, patrolTowerViewModel: PatrolTowerViewModel, bloodRefiningViewModel: BloodRefiningViewModel, worldMapInteractionViewModel: WorldMapInteractionViewModel, worldMapGarrisonViewModel: WorldMapGarrisonViewModel, battleViewModel: BattleViewModel, onLogout: () -&gt; Unit, onRestartGame: () -&gt; Unit, limitAdTracking: Boolean = true, onLimitAdTrackingChanged: (Boolean) -&gt; Unit = {}, /** 是否强制使用 Canvas 软件渲染（模拟器/Vulkan 不可用设备） */ forceSoftwareRendering: Boolean = false, /** Vulkan 初始化生命周期监听器（由 GameActivity 注入，驱动 CrashRecoveryEngine） */ vulkanInitListener: NativeSurfaceView.VulkanInitListener? = null, /** 用于后台 I/O 操作的协程调度器 */ dispatcher: CoroutineDispatcher = Dispatchers.IO )</ID>
+    <ID>CyclomaticComplexMethod:MerchantDialog.kt$@Composable fun MerchantDialog( gameData: GameData?, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:MerchantInventoryDialog.kt$@Composable private fun &lt;T&gt; InventorySelectGrid( items: List&lt;T&gt;, selectedItems: MutableMap&lt;String, Int&gt;, emptyMessage: String, watchedKeys: Set&lt;String&gt; = emptySet(), viewModel: GameViewModel? = null )</ID>
+    <ID>CyclomaticComplexMethod:MerchantInventoryDialog.kt$@Composable private fun AllItemsSelectGrid( equipment: List&lt;EquipmentStack&gt;, manuals: List&lt;ManualStack&gt;, pills: List&lt;Pill&gt;, selectedItems: MutableMap&lt;String, Int&gt;, watchedKeys: Set&lt;String&gt; = emptySet(), viewModel: GameViewModel? = null )</ID>
+    <ID>CyclomaticComplexMethod:NativeSurfaceView.kt$NativeSurfaceView$override fun surfaceChanged(holder: SurfaceHolder, format: Int, w: Int, h: Int)</ID>
+    <ID>CyclomaticComplexMethod:NativeSurfaceView.kt$NativeSurfaceView.Companion$fun buildAtlasBitmap(context: android.content.Context): android.graphics.Bitmap</ID>
+    <ID>CyclomaticComplexMethod:NativeSurfaceView.kt$NativeSurfaceView.RenderThread$private fun renderSoftwareFrame()</ID>
+    <ID>CyclomaticComplexMethod:OverlayDialogRouter.kt$@Composable internal fun OverlayDialogRoute( type: DialogType, vms: OverlayViewModels, callbacks: OverlayCallbacks, gameData: GameData, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:PlantingDialog.kt$@Composable fun PlantingDialog( seeds: List&lt;Seed&gt;, gameData: GameData, viewModel: GameViewModel, activeSectId: String, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:ResidenceDialog.kt$@Composable fun ResidenceDialog( buildingInstanceId: String, viewModel: GameViewModel, disciples: List&lt;DiscipleAggregate&gt;, gameData: GameData, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performCloudDownload()</ID>
+    <ID>CyclomaticComplexMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performCloudLoad()</ID>
+    <ID>CyclomaticComplexMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performLocalSaveToSlot(slot: Int, previousSlot: Int, startTime: Long)</ID>
+    <ID>CyclomaticComplexMethod:SecretRealmDetailDialog.kt$@Composable fun SecretRealmDetailDialog( realm: MapItem.SecretRealm, gameData: GameData?, viewModel: SecretRealmViewModel, onStart: (memberIds: List&lt;String&gt;) -&gt; Unit, onContinue: () -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:SecretRealmExplorationScreen.kt$@Composable fun SecretRealmExplorationScreen( viewModel: SecretRealmViewModel, onExit: () -&gt; Unit, onFinished: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:SectDiplomacyDialog.kt$@Composable internal fun SectDiplomacyDialog( sect: WorldSect, relation: Int, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, interactionViewModel: WorldMapInteractionViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:SectLevelDetailDialog.kt$@Composable fun SectLevelDetailDialog( gameData: GameData, aliveDisciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:SectMapViewport.kt$@Composable internal fun SectMapViewport( params: SectMapViewportParams, preview: MapPreviewState, commandBus: RenderCommandBus, onViewCreated: (NativeSurfaceView) -&gt; Unit, modifier: Modifier = Modifier )</ID>
+    <ID>CyclomaticComplexMethod:SectTradeDialog.kt$@Composable fun SectTradeDialog( sect: WorldSect?, gameData: GameData?, tradeItems: List&lt;MerchantItem&gt;, viewModel: GameViewModel, interactionViewModel: WorldMapInteractionViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:SettingsTab.kt$@Composable internal fun SaveSlotDialog( viewModel: GameViewModel, saveLoadViewModel: SaveLoadViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:SettingsTab.kt$@Composable internal fun SettingsTab( viewModel: GameViewModel, saveLoadViewModel: SaveLoadViewModel, onLogout: () -&gt; Unit, onDismiss: () -&gt; Unit, limitAdTracking: Boolean = true, onLimitAdTrackingChanged: (Boolean) -&gt; Unit = {} )</ID>
+    <ID>CyclomaticComplexMethod:SoftwareCanvasBackend.kt$SoftwareCanvasBackend$fun renderFrame( frame: RenderFrame, atlas: Bitmap, vpW: Int, vpH: Int ): Bitmap?</ID>
+    <ID>CyclomaticComplexMethod:SoftwareCanvasBackend.kt$SoftwareCanvasBackend.ChunkTile$fun rebuild( atlas: Bitmap, tileData: IntArray, rows: Int, cols: Int, buildingArray: FloatArray?, buildingCount: Int, tileSize: Int, decorationsDisabled: Boolean, tileSrcRects: Array&lt;Rect&gt;, buildingSrcRects: Array&lt;Rect&gt;, floorTileSrcRects: Array&lt;Rect&gt; )</ID>
+    <ID>CyclomaticComplexMethod:SpiritMineDialog.kt$@Composable fun SpiritMineDialog( buildingInstanceId: String = "", viewModel: GameViewModel, productionViewModel: ProductionViewModel, spiritMineViewModel: SpiritMineViewModel, onDismiss: () -&gt; Unit, spiritMineBaseOutput: Int = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER, spiritMineMiningThreshold: Int = GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD, spiritMineMiningBonusRate: Double = GameConfig.Production.SPIRIT_MINE_MINING_BONUS_RATE )</ID>
+    <ID>CyclomaticComplexMethod:TapCloudSaveManager.kt$TapCloudSaveManager$suspend fun checkCloudSave(): CloudSaveInfo</ID>
+    <ID>CyclomaticComplexMethod:TianshuHallDialog.kt$@Composable fun TianshuHallDialog( gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, productionViewModel: ProductionViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:TianshuHallDialog.kt$@Composable private fun SectPoliciesDialog( gameData: GameData?, viewModel: GameViewModel, productionViewModel: ProductionViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:WarehouseBulkSellDialog.kt$@Composable internal fun BulkSellDialog( viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:WarehouseDiscipleSelectDialog.kt$@Composable internal fun DiscipleSelectForRewardDialog( itemName: String, itemId: String, itemType: String, itemRarity: Int, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:WarehouseTab.kt$@Composable internal fun WarehouseTab( viewModel: GameViewModel, showBulkSellDialog: Boolean = false, onBulkSellDismiss: () -&gt; Unit = {}, onDismiss: () -&gt; Unit = {} )</ID>
+    <ID>CyclomaticComplexMethod:WorldMapDialog.kt$@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class) @Composable internal fun WorldMapDialog( worldSects: List&lt;WorldSect&gt;, mapRenderData: WorldMapRenderData, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, interactionViewModel: WorldMapInteractionViewModel, garrisonViewModel: WorldMapGarrisonViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>CyclomaticComplexMethod:WorldMapSectDetailDialog.kt$@Composable internal fun WorldMapSectDetailDialog( sect: WorldSect, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, interactionViewModel: WorldMapInteractionViewModel, garrisonViewModel: WorldMapGarrisonViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>EmptyClassBlock:SaveLoadViewModelLoadTest.kt$SaveLoadViewModelLoadTest${ }</ID>
+    <ID>ExplicitGarbageCollectionCall:NativeSurfaceView.kt$NativeSurfaceView.RenderThread$gc()</ID>
+    <ID>ExplicitGarbageCollectionCall:SaveLoadSaveDelegate.kt$SaveLoadSaveDelegate$gc()</ID>
+    <ID>ExplicitGarbageCollectionCall:SaveLoadViewModel.kt$SaveLoadViewModel$gc()</ID>
+    <ID>ExplicitItLambdaParameter:MerchantInventoryDialog.kt${ it -&gt; when (it) { is EquipmentStack -&gt; it.name; is ManualStack -&gt; it.name; is Pill -&gt; it.name; else -&gt; "" } }</ID>
+    <ID>ExplicitItLambdaParameter:MerchantInventoryDialog.kt${ it -&gt; when (it) { is EquipmentStack -&gt; it.rarity; is ManualStack -&gt; it.rarity; is Pill -&gt; it.rarity; else -&gt; 1 } }</ID>
+    <ID>ForEachOnRange:DisciplesTab.kt$0..1</ID>
+    <ID>ForEachOnRange:HerbGardenDialog.kt$0 until 1</ID>
+    <ID>ForEachOnRange:LawEnforcementHallDialog.kt$0..3</ID>
+    <ID>ForEachOnRange:LawEnforcementHallDialog.kt$4..7</ID>
+    <ID>ForEachOnRange:PeakScreenComponents.kt$0..3</ID>
+    <ID>ForEachOnRange:ProductionComponents.kt$0 until slotCount</ID>
+    <ID>ForEachOnRange:WorldMapSectDetailDialog.kt$0..4</ID>
+    <ID>ForEachOnRange:WorldMapSectDetailDialog.kt$5..9</ID>
+    <ID>InstanceOfCheckForException:DiscipleDelegate.kt$DiscipleDelegate$e is CancellationException</ID>
+    <ID>InstanceOfCheckForException:DiscipleViewModel.kt$DiscipleViewModel$e is CancellationException</ID>
+    <ID>InstanceOfCheckForException:InventoryDelegate.kt$InventoryDelegate$e is kotlinx.coroutines.CancellationException</ID>
+    <ID>InstanceOfCheckForException:NativeSurfaceView.kt$NativeSurfaceView$t is InterruptedException</ID>
+    <ID>InstanceOfCheckForException:PlantingDelegate.kt$PlantingDelegate$e is kotlinx.coroutines.CancellationException</ID>
+    <ID>LargeClass:GameViewModel.kt$GameViewModel : BaseViewModel</ID>
+    <ID>LargeClass:SaveLoadViewModel.kt$SaveLoadViewModel : BaseViewModel</ID>
+    <ID>LaunchOnEngineRequired:GameLoopDelegate.kt$GameLoopDelegate$launch { val current = _cultivationProgress.value val diff = target - current val steps = 6 for (i in 1..steps) { _cultivationProgress.value = current + diff * i / steps delay(16) } _cultivationProgress.value = target }</ID>
+    <ID>LongMethod:ActivityDialog.kt$@Composable fun ActivityDialog( viewModel: ActivityViewModel, gameViewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:AlchemyDialog.kt$@Composable fun AlchemyDialog( buildingInstanceId: String = "", alchemySlots: List&lt;AlchemySlot&gt;, materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, productionViewModel: ProductionViewModel, alchemyViewModel: AlchemyViewModel, colors: com.xianxia.sect.ui.theme.XianxiaColorScheme, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:AlchemyDialog.kt$@Composable private fun PillDetailDialog( recipes: List&lt;PillRecipeDatabase.PillRecipe&gt;, herbs: List&lt;Herb&gt;, viewModel: GameViewModel? = null, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:AlchemyDialog.kt$@Composable private fun PillSelectionDialog( materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, slotIndex: Int, viewModel: GameViewModel, productionViewModel: ProductionViewModel, alchemyViewModel: AlchemyViewModel, onDismiss: () -&gt; Unit, onConfirmOverride: ((PillRecipeDatabase.PillRecipe) -&gt; Unit)? = null )</ID>
+    <ID>LongMethod:AttackDiscipleDialog.kt$@Composable internal fun AttackDiscipleDialog( sectName: String, disciples: List&lt;DiscipleAggregate&gt;, gameData: GameData?, viewModel: GameViewModel, onAttack: (List&lt;Pair&lt;Int, DiscipleAggregate&gt;&gt;) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:AttackDiscipleDialog.kt$@Composable private fun AttackDiscipleSelectionDialog( disciples: List&lt;DiscipleAggregate&gt;, currentSlotDiscipleId: String? = null, alreadySelectedIds: Set&lt;String&gt; = emptySet(), viewModel: GameViewModel, onSelect: (DiscipleAggregate) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:AttackWarningDialog.kt$@Composable internal fun WarDeclarationDialog( warning: AttackWarning, currentSpiritStones: Long, onAppease: () -&gt; Unit, onBecomeVassal: () -&gt; Unit, onDismiss: () -&gt; Unit, scrimEnabled: Boolean = true )</ID>
+    <ID>LongMethod:AutoBuyDialog.kt$@Composable fun AutoBuyDialog( gameData: GameData?, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:AutoBuyDialog.kt$@Composable fun AutoBuyItemSelectDialog( viewModel: GameViewModel, existingList: List&lt;AutoBuyEntry&gt;, onConfirm: (List&lt;AutoBuyEntry&gt;) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:AutoManagementDialog.kt$@Composable fun AutoManagementDialog( gameData: GameData?, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:AutoManagementDialog.kt$@Composable private fun AutoAssignSection( title: String, attrLabel: String, focused: Boolean, rootCounts: List&lt;Int&gt;, threshold: String, onFocusedToggle: () -&gt; Unit, onRootToggle: (Int) -&gt; Unit, onThresholdChange: (String) -&gt; Unit )</ID>
+    <ID>LongMethod:BattleLogDialogs.kt$@Composable internal fun BattleLogDetailDialog( log: BattleLog, onDismiss: () -&gt; Unit, scrimEnabled: Boolean = true )</ID>
+    <ID>LongMethod:BattleLogDialogs.kt$@Composable internal fun BattleLogListDialog( battleLogs: List&lt;BattleLog&gt;, yearlyReports: List&lt;YearlyReport&gt; = emptyList(), onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:BattleLogDialogs.kt$@Composable internal fun BattleLogListItem( log: BattleLog, onClick: () -&gt; Unit )</ID>
+    <ID>LongMethod:BattleLogDialogs.kt$@Composable private fun YearlyReportDetailDialog( report: YearlyReport, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:BattleResultDialog.kt$@Composable internal fun BattleResultDialog( resultData: BattleResultUIData, battleLog: BattleLog?, onConfirm: () -&gt; Unit, onViewDetail: (BattleLog) -&gt; Unit, onDismiss: () -&gt; Unit, viewModel: GameViewModel? = null, scrimEnabled: Boolean = true )</ID>
+    <ID>LongMethod:BloodRefiningPoolDialog.kt$@Composable fun BloodRefiningPoolDialog( buildingInstanceId: String, viewModel: GameViewModel, bloodRefiningViewModel: BloodRefiningViewModel, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, materials: List&lt;Material&gt;, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:BloodRefiningPoolDialog.kt$@Composable private fun MaterialSelectorDialog( bloodMaterials: List&lt;Pair&lt;BeastMaterialDatabase.BeastMaterial, Int&gt;&gt;, viewModel: GameViewModel? = null, onDismiss: () -&gt; Unit, onSelect: (BeastMaterialDatabase.BeastMaterial, Int) -&gt; Unit )</ID>
+    <ID>LongMethod:BloodRefiningViewModel.kt$BloodRefiningViewModel$fun startRefine(buildingInstanceId: String)</ID>
+    <ID>LongMethod:BuildingConstructionBar.kt$@Composable fun BuildingConstructionBar( buildingList: List&lt;Pair&lt;String, (GridBuildingData?) -&gt; Unit&gt;&gt;, placedBuildings: List&lt;GridBuildingData&gt;, buildingCosts: Map&lt;String, Long&gt;, spiritStones: Long, onSelectBuilding: (String) -&gt; Unit, modifier: Modifier = Modifier, getBuildingCount: (String) -&gt; Int = { name -&gt; placedBuildings.count { it.displayName == name } }, getBuildingMaxCount: (String) -&gt; Int = { 1 }, /** 当前宗门等级（SectLevel 常量），用于检测中级建筑等级限制 */ currentSectLevel: Int = 0, /** 等级不足时的回调，在中级建筑被点击时触发 */ onSelectBuildingLevelRequirement: ((String) -&gt; Unit)? = null )</ID>
+    <ID>LongMethod:BuildingFeatureBoot.kt$fun BuildingFeatureRegistry.registerDefaults()</ID>
+    <ID>LongMethod:BuildingsTab.kt$@Composable internal fun BuildingsTab( viewModel: GameViewModel, productionViewModel: ProductionViewModel, alchemyViewModel: AlchemyViewModel, forgeViewModel: ForgeViewModel, herbGardenViewModel: HerbGardenViewModel, spiritMineViewModel: SpiritMineViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:CloudSaveDialog.kt$@Composable fun CloudSaveDialog( saveLoadViewModel: SaveLoadViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:DailySignInDialog.kt$@Composable fun DailySignInPanel( viewModel: GameViewModel )</ID>
+    <ID>LongMethod:DailySignInDialog.kt$@OptIn(ExperimentalFoundationApi::class) @Composable private fun MilestoneRewardRow( milestone: MilestoneReward, isClaimed: Boolean, watchedKeys: Set&lt;String&gt; = emptySet(), isReached: Boolean, cardSize: Dp, cardHeight: Dp, labelSpacing: Dp, dayLabelWidth: Dp, nameFontSize: TextUnit, onLongPress: (Any) -&gt; Unit )</ID>
+    <ID>LongMethod:DailySignInDialog.kt$@OptIn(ExperimentalFoundationApi::class) @Composable private fun SignInDayCard( dayOfMonth: Int, reward: DailySignInReward, state: SignInDayState, cellWidth: Dp, cellHeight: Dp, nameFontSize: TextUnit, watchedKeys: Set&lt;String&gt; = emptySet(), modifier: Modifier = Modifier, onLongPress: (Any) -&gt; Unit = {} )</ID>
+    <ID>LongMethod:DaoCompanionManagementDialog.kt$@Composable fun DaoCompanionManagementDialog( gameData: GameData?, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:DetailActionButtons.kt$@Composable fun RelationsDialog( disciple: DiscipleAggregate, allDisciples: List&lt;DiscipleAggregate&gt;, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:DetailCultivationSection.kt$@Composable fun BasicInfoSection( disciple: DiscipleAggregate, allEquipment: List&lt;EquipmentInstance&gt; = emptyList(), allManuals: List&lt;ManualInstance&gt; = emptyList(), manualProficiencies: Map&lt;String, List&lt;ManualProficiencyData&gt;&gt; = emptyMap(), elderSlots: ElderSlots? = null, allDisciples: List&lt;DiscipleAggregate&gt; = emptyList(), sectPolicies: SectPolicies? = null, residenceSlots: List&lt;ResidenceSlot&gt; = emptyList(), placedBuildings: List&lt;GridBuildingData&gt; = emptyList(), viewModel: GameViewModel? = null, gameMonth: Int = 1, gameYear: Int = 1, gamePhase: Int = 0, gameSpeed: Int = 1 )</ID>
+    <ID>LongMethod:DetailCultivationSection.kt$@Composable fun BreakthroughDetailDialog( detail: DiscipleStatCalculator.BreakthroughBonusDetail, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:DetailCultivationSection.kt$@Composable fun HpMpBars( disciple: DiscipleAggregate, maxHpOverride: Int? = null, maxMpOverride: Int? = null, gameSpeed: Int = 1 )</ID>
+    <ID>LongMethod:DetailCultivationSection.kt$internal fun calculatePreachingBonusesForDisplay( disciple: DiscipleAggregate, elderSlots: ElderSlots?, allDisciples: List&lt;DiscipleAggregate&gt;, sectPolicies: SectPolicies? = null ): Triple&lt;Double, Double, Double&gt;</ID>
+    <ID>LongMethod:DetailEquipmentSection.kt$@Composable fun EquipmentSelectionDialog( slotType: String, allEquipment: List&lt;EquipmentInstance&gt;, equipmentStacks: List&lt;EquipmentStack&gt;, currentEquipmentId: String?, currentDiscipleId: String, discipleRealm: Int, selectedEquipmentId: String?, onSelect: (String) -&gt; Unit, onConfirm: () -&gt; Unit, onDismiss: () -&gt; Unit, viewModel: GameViewModel? = null )</ID>
+    <ID>LongMethod:DetailHeaderSection.kt$@Composable fun DetailRightPanel( disciple: DiscipleAggregate, allDisciples: List&lt;DiscipleAggregate&gt;, localDiscipleType: String, showDiscipleTypeDropdown: Boolean, onDiscipleTypeDropdownChange: (Boolean) -&gt; Unit, onLocalDiscipleTypeChange: (String) -&gt; Unit, actions: DetailActionCallbacks, viewModel: GameViewModel? )</ID>
+    <ID>LongMethod:DetailManualSection.kt$@Composable fun ManualSelectionDialog( manualStacks: List&lt;ManualStack&gt;, allManuals: List&lt;ManualInstance&gt;, currentManualIds: List&lt;String&gt;, discipleRealm: Int, maxManualSlots: Int, selectedManualId: String?, onSelect: (String) -&gt; Unit, onConfirm: () -&gt; Unit, onDismiss: () -&gt; Unit, viewModel: GameViewModel? = null )</ID>
+    <ID>LongMethod:DetailPillSection.kt$@Composable fun StorageBagDialog( items: List&lt;StorageBagItem&gt;, spiritStones: Long, disciple: DiscipleAggregate, viewModel: GameViewModel?, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:DetailPillSection.kt$@Composable private fun &lt;T&gt; RewardItemGrid( items: List&lt;T&gt;, selectedItem: RewardSelectedItem?, watchedKeys: Set&lt;String&gt; = emptySet(), onItemSelect: (RewardSelectedItem) -&gt; Unit, onViewDetail: (Any) -&gt; Unit = {} )</ID>
+    <ID>LongMethod:DetailPillSection.kt$@Composable private fun RewardAllItemsGrid( equipment: List&lt;EquipmentStack&gt;, manuals: List&lt;ManualStack&gt;, pills: List&lt;Pill&gt;, materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, seeds: List&lt;Seed&gt;, selectedItem: RewardSelectedItem?, watchedKeys: Set&lt;String&gt; = emptySet(), onItemSelect: (RewardSelectedItem) -&gt; Unit, onViewDetail: (Any) -&gt; Unit = {} )</ID>
+    <ID>LongMethod:DetailPillSection.kt$@Composable private fun RewardBottomPanel( selectedItem: RewardSelectedItem?, rewardQuantity: Int, maxQuantity: Int, isRewarding: Boolean = false, onQuantityChange: (Int) -&gt; Unit, onRewardClick: () -&gt; Unit )</ID>
+    <ID>LongMethod:DetailPillSection.kt$@Composable private fun RewardItemsDialog( disciple: DiscipleAggregate, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:DiplomacyDialog.kt$@Composable fun DiplomacyDialog( gameData: GameData?, viewModel: GameViewModel, interactionViewModel: WorldMapInteractionViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:DiplomacyDialog.kt$@Composable internal fun DiplomacySectCard( sect: WorldSect, relation: Int, gameData: GameData?, isAlly: Boolean, onOpenDiplomacyDialogue: () -&gt; Unit, onTrade: () -&gt; Unit )</ID>
+    <ID>LongMethod:DiscipleComponents.kt$@Composable fun DiscipleSlot( disciple: DiscipleAggregate?, modifier: Modifier = Modifier, borderColor: Color = GameColors.Border, showActions: Boolean = false, onSlotClick: () -&gt; Unit = {}, onEmptySlotClick: () -&gt; Unit = {}, onDismiss: (() -&gt; Unit)? = null, onSwap: (() -&gt; Unit)? = null )</ID>
+    <ID>LongMethod:DiscipleComponents.kt$@Composable fun PortraitDiscipleCard( disciple: DiscipleAggregate, isSelected: Boolean = false, isCurrent: Boolean = false, showStatus: Boolean = true, extraAttributes: List&lt;Pair&lt;String, Int&gt;&gt; = emptyList(), customAttributes: @Composable (() -&gt; Unit)? = null, actions: @Composable (() -&gt; Unit)? = null, onClick: () -&gt; Unit )</ID>
+    <ID>LongMethod:DiscipleDetailScreen.kt$@Composable fun DiscipleDetailDialog( disciple: DiscipleAggregate, allDisciples: List&lt;DiscipleAggregate&gt; = emptyList(), allEquipment: List&lt;EquipmentInstance&gt; = emptyList(), allManuals: List&lt;ManualInstance&gt; = emptyList(), manualStacks: List&lt;ManualStack&gt; = emptyList(), equipmentStacks: List&lt;EquipmentStack&gt; = emptyList(), manualProficiencies: Map&lt;String, List&lt;ManualProficiencyData&gt;&gt; = emptyMap(), viewModel: GameViewModel? = null, onDismiss: () -&gt; Unit, onNavigateToDisciple: ((DiscipleAggregate) -&gt; Unit)? = null, scrimEnabled: Boolean = true )</ID>
+    <ID>LongMethod:DiscipleDetailScreen.kt$@Composable private fun ManualReplaceDialog( availableManualStacks: List&lt;ManualStack&gt;, selectedReplaceManualId: String?, watchedKeys: Set&lt;String&gt; = emptySet(), onSelectReplaceManual: (String) -&gt; Unit, onViewReplaceDetail: (ManualStack) -&gt; Unit, onConfirmReplace: () -&gt; Unit, onDismissReplace: () -&gt; Unit )</ID>
+    <ID>LongMethod:DiscipleFilterComponents.kt$@Composable @OptIn(ExperimentalLayoutApi::class) internal fun SpiritRootAttributeFilterBar( selectedSpiritRootFilter: Set&lt;Int&gt;, selectedAttributeSort: String?, selectedRealmFilter: Set&lt;Int&gt; = emptySet(), realmFilterOptions: List&lt;Pair&lt;Int, String&gt;&gt; = emptyList(), realmCounts: Map&lt;Int, Int&gt; = emptyMap(), spiritRootExpanded: Boolean, attributeExpanded: Boolean, realmExpanded: Boolean = false, spiritRootCounts: Map&lt;Int, Int&gt;, onSpiritRootFilterSelected: (Int) -&gt; Unit, onSpiritRootFilterRemoved: (Int) -&gt; Unit, onAttributeSortSelected: (String?) -&gt; Unit, onRealmFilterSelected: (Int) -&gt; Unit = {}, onRealmFilterRemoved: (Int) -&gt; Unit = {}, onSpiritRootExpandToggle: () -&gt; Unit, onAttributeExpandToggle: () -&gt; Unit, onRealmExpandToggle: () -&gt; Unit = {}, isCompact: Boolean = false, showAllCheckboxVisible: Boolean = false, showAllEnabled: Boolean = false, onShowAllToggle: () -&gt; Unit = {} )</ID>
+    <ID>LongMethod:DiscipleManagementDialog.kt$@Composable fun DiscipleManagementDialog( gameData: GameData?, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:DiscipleSelectorDialog.kt$@Composable fun DiscipleSelectorDialog( config: DiscipleSelectorConfig, disciples: List&lt;DiscipleAggregate&gt;, onDismiss: () -&gt; Unit, onConfirm: (List&lt;DiscipleAggregate&gt;) -&gt; Unit, viewModel: GameViewModel? = null, showAllEnabled: Boolean = false, battleAndExplorationIds: Set&lt;String&gt; = emptySet(), scrimEnabled: Boolean = true )</ID>
+    <ID>LongMethod:DisciplesTab.kt$@Composable internal fun DirectDiscipleSelectionDialog( disciples: List&lt;DiscipleAggregate&gt;, requiredAttribute: Pair&lt;String, String&gt;?, elderSlots: ElderSlots, viewModel: GameViewModel, onDismiss: () -&gt; Unit, onSelect: (String) -&gt; Unit )</ID>
+    <ID>LongMethod:DisciplesTab.kt$@Composable internal fun DisciplesTab( gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, equipment: List&lt;EquipmentInstance&gt;, manuals: List&lt;ManualInstance&gt;, manualStacks: List&lt;ManualStack&gt;, equipmentStacks: List&lt;EquipmentStack&gt;, viewModel: GameViewModel )</ID>
+    <ID>LongMethod:DisciplesTab.kt$@Composable internal fun ElderDiscipleSelectionDialog( disciples: List&lt;DiscipleAggregate&gt;, currentElderId: String?, requiredAttribute: Pair&lt;String, String&gt;?, elderSlots: ElderSlots, viewModel: GameViewModel, onDismiss: () -&gt; Unit, onSelect: (String) -&gt; Unit )</ID>
+    <ID>LongMethod:ForgeDialog.kt$@Composable fun ForgeDialog( buildingInstanceId: String = "", forgeSlots: List&lt;ForgeSlot&gt;, materials: List&lt;Material&gt;, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, productionViewModel: ProductionViewModel, forgeViewModel: ForgeViewModel, colors: com.xianxia.sect.ui.theme.XianxiaColorScheme, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:ForgeDialog.kt$@Composable private fun EquipmentDetailDialog( recipe: ForgeRecipeDatabase.ForgeRecipe, materials: List&lt;Material&gt;, viewModel: GameViewModel? = null, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:ForgeDialog.kt$@Composable private fun EquipmentSelectionDialog( materials: List&lt;Material&gt;, slotIndex: Int, viewModel: GameViewModel, productionViewModel: ProductionViewModel, forgeViewModel: ForgeViewModel, onDismiss: () -&gt; Unit, onConfirmOverride: ((ForgeRecipeDatabase.ForgeRecipe) -&gt; Unit)? = null )</ID>
+    <ID>LongMethod:GameOverlayHost.kt$@Composable fun GameOverlayHost( vms: OverlayViewModels, callbacks: OverlayCallbacks )</ID>
+    <ID>LongMethod:GoldFingerOverlay.kt$@Composable internal fun GoldFingerSelectionOverlay( goldFingerState: GoldFingerState, cameraState: SectCameraState, tileSize: Int, goldenFingerBmp: ImageBitmap? )</ID>
+    <ID>LongMethod:GuideDialog.kt$@Composable fun GuideDialog( gameData: GameData, claimedRewardIds: Set&lt;Int&gt;, allTasks: List&lt;GuideTask&gt;, onClaimReward: (taskId: Int) -&gt; Unit, onDismiss: () -&gt; Unit, discipleTables: DiscipleTables? = null )</ID>
+    <ID>LongMethod:GuideDialog.kt$@Composable private fun TaskDetailColumn( selectedTask: GuideTask?, gameData: GameData, discipleTables: DiscipleTables?, modifier: Modifier = Modifier )</ID>
+    <ID>LongMethod:HeavenlyTrialBattleDialog.kt$@Composable fun HeavenlyTrialBattleDialog( levelIndex: Int, viewModel: HeavenlyTrialViewModel, gameViewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:HeavenlyTrialBattleDialog.kt$@Composable private fun EnemyInfoDetail( enemy: Combatant, gameViewModel: GameViewModel? = null )</ID>
+    <ID>LongMethod:HeavenlyTrialClearRewardDialog.kt$@Composable private fun ClearRewardRow( label: String, items: List&lt;com.xianxia.sect.core.model.ClearRewardItem&gt;, isCleared: Boolean, canClaim: Boolean, watchedKeys: Set&lt;String&gt; = emptySet(), onClaim: () -&gt; Unit )</ID>
+    <ID>LongMethod:HeavenlyTrialCombatLogic.kt$internal fun resolveAIAction( actor: Combatant, ai: BattleAI.AIAction, actorIsPlayer: Boolean, players: List&lt;Combatant&gt;, enemies: List&lt;Combatant&gt;, rng: DeterministicRng = combatRng ): Pair&lt;List&lt;Combatant&gt;, List&lt;Combatant&gt;&gt;</ID>
+    <ID>LongMethod:HeavenlyTrialCombatScreen.kt$@Composable fun HeavenlyTrialCombatScreen( viewModel: HeavenlyTrialViewModel, onFinished: (won: Boolean) -&gt; Unit )</ID>
+    <ID>LongMethod:HeavenlyTrialComponents.kt$@Composable internal fun CombatUnitCell( combatant: Combatant?, isCurrent: Boolean = false, isAllySelected: Boolean = false, isEnemySelected: Boolean = false, isShaking: Boolean = false, flightAnim: FlightAnimState = FlightAnimState(), modifier: Modifier = Modifier, onClick: () -&gt; Unit )</ID>
+    <ID>LongMethod:HeavenlyTrialDiscipleDialog.kt$@Composable fun HeavenlyTrialDiscipleDialog( viewModel: HeavenlyTrialViewModel, gameViewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:HeavenlyTrialDiscipleDialog.kt$@Composable private fun DisciplePickerDialog( aliveDisciples: List&lt;DiscipleAggregate&gt;, currentSlotDiscipleId: String?, alreadySelectedIds: Set&lt;String&gt;, gameViewModel: GameViewModel, onSelect: (DiscipleAggregate) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:HeavenlyTrialPanel.kt$@Composable fun HeavenlyTrialPanel( viewModel: HeavenlyTrialViewModel, onOpenClearRewards: () -&gt; Unit = {}, /** 是否绘制自带背景图（半屏嵌入时由宿主对话框提供背景，传 false 避免叠加） */ showBackground: Boolean = true )</ID>
+    <ID>LongMethod:ItemDetailDialog.kt$@Composable @Suppress("DEPRECATION") private fun ManualStatsContent( manual: ManualInstance, bonusMultiplier: Double, rarityColor: Color )</ID>
+    <ID>LongMethod:ItemDetailDialog.kt$@Composable fun ItemDetailDialog( item: Any, onDismiss: () -&gt; Unit, viewModel: GameViewModel? = null, extraActions: @Composable (() -&gt; Unit)? = null )</ID>
+    <ID>LongMethod:ItemDetailDialog.kt$@Composable fun LearnedManualDetailDialog( manual: ManualInstance, proficiencyData: ManualProficiencyData?, onForget: () -&gt; Unit, onDismiss: () -&gt; Unit, extraActions: @Composable (() -&gt; Unit)? = null )</ID>
+    <ID>LongMethod:ItemDetailEffects.kt$@Suppress("DEPRECATION") internal fun getManualEffects(item: ManualInstance): List&lt;String&gt;</ID>
+    <ID>LongMethod:ItemDetailEffects.kt$@Suppress("DEPRECATION") internal fun getManualStackEffects(item: ManualStack): List&lt;String&gt;</ID>
+    <ID>LongMethod:ItemDetailEffects.kt$internal fun getPillEffects(item: Pill): List&lt;String&gt;</ID>
+    <ID>LongMethod:ItemDetailOtherEffects.kt$internal fun getMerchantItemEffects(item: MerchantItem): List&lt;String&gt;</ID>
+    <ID>LongMethod:ItemDetailOtherEffects.kt$internal fun getStorageBagItemEffects(item: StorageBagItem): List&lt;String&gt;</ID>
+    <ID>LongMethod:LawEnforcementHallDialog.kt$@Composable fun LawEnforcementHallDialog( disciples: List&lt;DiscipleAggregate&gt;, gameData: GameData?, viewModel: GameViewModel, productionViewModel: ProductionViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:LawEnforcementHallDialog.kt$@Composable private fun LawDisciplesSection( lawDisciples: List&lt;DirectDiscipleSlot&gt;, disciples: List&lt;DiscipleAggregate&gt;, onDiscipleClick: (Int) -&gt; Unit, onDiscipleRemove: (Int) -&gt; Unit, onDiscipleSwap: (Int) -&gt; Unit = {} )</ID>
+    <ID>LongMethod:LevelDetailDialog.kt$@Composable fun LevelDetailDialog( level: MapItem.Level, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, onAttack: (List&lt;String?&gt;) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:LevelDetailDialog.kt$@Composable private fun LevelSlotSelectionDialog( disciples: List&lt;DiscipleAggregate&gt;, alreadySelectedIds: Set&lt;String&gt; = emptySet(), viewModel: GameViewModel, onSelect: (String) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:LibraryDialog.kt$@Composable private fun LibraryDiscipleSelectionDialog( disciples: List&lt;DiscipleAggregate&gt;, currentDiscipleId: String?, viewModel: GameViewModel, onSelect: (DiscipleAggregate) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:LoadingScreen.kt$@Composable private fun CustomGoldenProgressBar( progress: Float, modifier: Modifier = Modifier, borderColor: Color = Color(0xFFFFD700), progressColor: Color = Color(0xFFFFE55F) )</ID>
+    <ID>LongMethod:LoadingScreen.kt$@Composable private fun LoadingScreenContent( progress: Float, showProgress: Boolean, phaseText: String )</ID>
+    <ID>LongMethod:MailDialog.kt$@Composable fun MailDialog( viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:MailDialog.kt$@Composable private fun ClaimedAttachmentCard( attachment: MailAttachment, watchedKeys: Set&lt;String&gt; = emptySet() )</ID>
+    <ID>LongMethod:MailDialog.kt$@OptIn(ExperimentalLayoutApi::class) @Composable private fun MailDetailPanel( mail: MailEntity, viewModel: GameViewModel? = null, onClaim: () -&gt; Unit )</ID>
+    <ID>LongMethod:MainGameScreen.kt$@Composable fun MainGameScreen( mapPreloadData: MapPreloadData, viewModel: GameViewModel, saveLoadViewModel: SaveLoadViewModel, productionViewModel: ProductionViewModel, alchemyViewModel: AlchemyViewModel, forgeViewModel: ForgeViewModel, herbGardenViewModel: HerbGardenViewModel, spiritMineViewModel: SpiritMineViewModel, patrolTowerViewModel: PatrolTowerViewModel, bloodRefiningViewModel: BloodRefiningViewModel, worldMapInteractionViewModel: WorldMapInteractionViewModel, worldMapGarrisonViewModel: WorldMapGarrisonViewModel, battleViewModel: BattleViewModel, onLogout: () -&gt; Unit, onRestartGame: () -&gt; Unit, limitAdTracking: Boolean = true, onLimitAdTrackingChanged: (Boolean) -&gt; Unit = {}, /** 是否强制使用 Canvas 软件渲染（模拟器/Vulkan 不可用设备） */ forceSoftwareRendering: Boolean = false, /** Vulkan 初始化生命周期监听器（由 GameActivity 注入，驱动 CrashRecoveryEngine） */ vulkanInitListener: NativeSurfaceView.VulkanInitListener? = null, /** 用于后台 I/O 操作的协程调度器 */ dispatcher: CoroutineDispatcher = Dispatchers.IO )</ID>
+    <ID>LongMethod:MasterApprenticeSelectDialog.kt$@Composable fun MasterApprenticeSelectDialog( currentDisciple: DiscipleAggregate, allDisciples: List&lt;DiscipleAggregate&gt;, onDismiss: () -&gt; Unit, onMasterSelected: (DiscipleAggregate) -&gt; Unit )</ID>
+    <ID>LongMethod:MerchantDialog.kt$@Composable fun MerchantDialog( gameData: GameData?, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:MessageListContent.kt$@Composable fun MessageListContent( events: List&lt;GameEventRecord&gt;, modifier: Modifier = Modifier, scrollToBottomTrigger: Int = 0 )</ID>
+    <ID>LongMethod:MissionHallDialog.kt$@Composable fun MissionHallDialog( gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:MissionHallDialog.kt$@Composable private fun ActiveMissionCard( mission: ActiveMission, currentYear: Int, currentMonth: Int, onClick: () -&gt; Unit )</ID>
+    <ID>LongMethod:MissionHallDialog.kt$@Composable private fun ActiveMissionDetailDialog( mission: ActiveMission, disciples: List&lt;DiscipleAggregate&gt;, currentYear: Int, currentMonth: Int, onDiscipleClick: (DiscipleAggregate?) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:MissionHallDialog.kt$@Composable private fun AvailableMissionCard( mission: Mission, onClick: () -&gt; Unit )</ID>
+    <ID>LongMethod:MissionHallDialog.kt$@Composable private fun MissionDispatchDialog( mission: Mission, allDisciples: List&lt;DiscipleAggregate&gt;, busyDiscipleIds: Set&lt;String&gt;, gameData: GameData?, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:NativeSurfaceView.kt$NativeSurfaceView$override fun surfaceChanged(holder: SurfaceHolder, format: Int, w: Int, h: Int)</ID>
+    <ID>LongMethod:NativeSurfaceView.kt$NativeSurfaceView.Companion$fun buildAtlasBitmap(context: android.content.Context): android.graphics.Bitmap</ID>
+    <ID>LongMethod:NativeSurfaceView.kt$NativeSurfaceView.RenderThread$private fun renderSoftwareFrame()</ID>
+    <ID>LongMethod:OverlayDialogRouter.kt$@Composable internal fun OverlayDialogRoute( type: DialogType, vms: OverlayViewModels, callbacks: OverlayCallbacks, gameData: GameData, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:PatrolTowerDialog.kt$@Composable fun PatrolTowerDialog( buildingInstanceId: String = "", viewModel: GameViewModel, patrolTowerViewModel: PatrolTowerViewModel, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:PatrolTowerDialog.kt$@Composable private fun AttackRangeDialog( config: PatrolConfig, onSave: (PatrolConfig) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:PeakScreenComponents.kt$@Composable fun PeakDiscipleListSection( sectionTitle: String, emptyText: String, disciples: List&lt;DiscipleAggregate&gt;, maxHeightDp: Dp = 180.dp, truncateAt: Int? = 10 )</ID>
+    <ID>LongMethod:PeakScreenComponents.kt$@Composable fun PeakDiscipleSelectionDialog( title: String, disciples: List&lt;DiscipleAggregate&gt;, currentDiscipleId: String?, requirementText: String, viewModel: GameViewModel, onSelect: (DiscipleAggregate) -&gt; Unit, onDismiss: () -&gt; Unit, defaultSortAttribute: String? = null )</ID>
+    <ID>LongMethod:PlantingDialog.kt$@Composable fun PlantingDialog( seeds: List&lt;Seed&gt;, gameData: GameData, viewModel: GameViewModel, activeSectId: String, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:PlantingDialog.kt$@Composable private fun PlantingPagination( currentPage: Int, totalPages: Int, onFirstPage: () -&gt; Unit, onPreviousPage: () -&gt; Unit, onNextPage: () -&gt; Unit, onLastPage: () -&gt; Unit )</ID>
+    <ID>LongMethod:ProductionComponents.kt$@Composable fun ProductionDirectDiscipleSelectionDialog( theme: ProductionTheme, disciples: List&lt;DiscipleAggregate&gt;, elderSlots: ElderSlots, onDismiss: () -&gt; Unit, onSelect: (String) -&gt; Unit, viewModel: GameViewModel? = null, battleAndExplorationIds: Set&lt;String&gt; = emptySet(), )</ID>
+    <ID>LongMethod:ProductionComponents.kt$@Composable fun ProductionElderSelectionDialog( theme: ProductionTheme, disciples: List&lt;DiscipleAggregate&gt;, currentElderId: String?, elderSlots: ElderSlots, onDismiss: () -&gt; Unit, onSelect: (String) -&gt; Unit, viewModel: GameViewModel? = null, battleAndExplorationIds: Set&lt;String&gt; = emptySet(), )</ID>
+    <ID>LongMethod:ProductionComponents.kt$@Composable fun ProductionSlotItem( theme: ProductionTheme, productName: String?, isWorking: Boolean, isIdle: Boolean, remainingMonths: Int, index: Int, productRarity: Int = 1, totalDuration: Int = 1, isPill: Boolean = false, isHerb: Boolean = false, successRate: Double = 0.0, gamePhase: Int = 0, onCancel: (() -&gt; Unit)? = null, onReplace: (() -&gt; Unit)? = null, onClick: () -&gt; Unit )</ID>
+    <ID>LongMethod:QingyunPeakDialog.kt$@Composable fun QingyunPeakDialog( disciples: List&lt;DiscipleAggregate&gt;, gameData: GameData?, viewModel: GameViewModel, productionViewModel: ProductionViewModel, onDismiss: () -&gt; Unit, )</ID>
+    <ID>LongMethod:RecruitDialog.kt$@Composable fun RecruitDialog( recruitList: List&lt;DiscipleAggregate&gt;, gameData: GameData?, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:RecruitDialog.kt$@Composable private fun RecruitManagementDialog( gameData: GameData?, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:ReflectionCliffDialog.kt$@Composable fun ReflectionCliffDialog( disciples: List&lt;DiscipleAggregate&gt;, gameData: GameData?, onDismiss: () -&gt; Unit, onExpelDisciple: (String) -&gt; Unit = {}, onReleaseDisciple: (String) -&gt; Unit = {} )</ID>
+    <ID>LongMethod:ResidenceDialog.kt$@Composable fun ResidenceDialog( buildingInstanceId: String, viewModel: GameViewModel, disciples: List&lt;DiscipleAggregate&gt;, gameData: GameData, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:RewardCardHost.kt$@Composable private fun AnimatedRewardCard( item: RewardCardItem, cardIndex: Int, totalCards: Int, showTopDivider: Boolean = false, onAllDone: () -&gt; Unit )</ID>
+    <ID>LongMethod:SaveLoadLoadDelegate.kt$SaveLoadLoadDelegate$suspend fun loadGame(saveSlot: SaveSlot): Boolean</ID>
+    <ID>LongMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performCloudDownload()</ID>
+    <ID>LongMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performCloudLoad()</ID>
+    <ID>LongMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performLoadToSlot(saveSlot: SaveSlot, startTime: Long)</ID>
+    <ID>LongMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performLocalSaveToSlot(slot: Int, previousSlot: Int, startTime: Long)</ID>
+    <ID>LongMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performRestartGame(wasRunning: Boolean)</ID>
+    <ID>LongMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performRestartSave(slot: Int, previousSlot: Int): Boolean</ID>
+    <ID>LongMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performStartNewGame(sectName: String, slot: Int, startTime: Long)</ID>
+    <ID>LongMethod:ScoutDialog.kt$@Composable internal fun ScoutDialog( sectName: String, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, onScout: (List&lt;String&gt;) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:ScoutDialog.kt$@Composable private fun ScoutDiscipleSelectionDialog( disciples: List&lt;DiscipleAggregate&gt;, currentSlotDiscipleId: String? = null, alreadySelectedIds: Set&lt;String&gt; = emptySet(), viewModel: GameViewModel, onSelect: (DiscipleAggregate) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:SecretRealmBackpackDialog.kt$@Composable internal fun SecretRealmBackpackDialog( backpack: SecretRealmBackpack, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:SecretRealmDetailDialog.kt$@Composable fun SecretRealmDetailDialog( realm: MapItem.SecretRealm, gameData: GameData?, viewModel: SecretRealmViewModel, onStart: (memberIds: List&lt;String&gt;) -&gt; Unit, onContinue: () -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:SecretRealmExplorationScreen.kt$@Composable fun SecretRealmExplorationScreen( viewModel: SecretRealmViewModel, onExit: () -&gt; Unit, onFinished: () -&gt; Unit )</ID>
+    <ID>LongMethod:SectDiplomacyDialog.kt$@Composable internal fun SectDiplomacyDialog( sect: WorldSect, relation: Int, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, interactionViewModel: WorldMapInteractionViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:SectDiplomacyDialog.kt$@Composable private fun RightPanel( initialDialogueText: String, portraitRes: String, playerPortraitRes: String, sectName: String, isAlly: Boolean, isPlayerVassal: Boolean = false, canVassal: Boolean = true, hasGiftedThisYear: Boolean, relationLevel: SectRelationLevel, spiritStones: Long = 0, chatMessages: List&lt;ChatMessage&gt;, visibleCount: Int, isChatting: Boolean, isChatDone: Boolean, skipped: Boolean, showGiftOptions: Boolean = false, onAllianceClick: () -&gt; Unit, onDissolveClick: () -&gt; Unit, onVassalClick: () -&gt; Unit = {}, onDissolveVassalClick: () -&gt; Unit = {}, onSkipClick: () -&gt; Unit, onGiftClick: () -&gt; Unit, onGiftTierClick: (Int) -&gt; Unit, onCancelGiftClick: () -&gt; Unit, modifier: Modifier = Modifier )</ID>
+    <ID>LongMethod:SectInfoCard.kt$@Composable internal fun SectInfoCard( sectName: String, gameYear: Int, gameMonth: Int, gamePhase: Int, lowStones: Long, midStones: Long, highStones: Long, discipleCount: Int, combatPower: Long, sectLevel: Int = SectLevel.MEDIUM, showRewardBadge: Boolean = false, onSectIconClick: () -&gt; Unit = {}, onSectNameClick: () -&gt; Unit = {} )</ID>
+    <ID>LongMethod:SectLevelDetailDialog.kt$@Composable fun SectLevelDetailDialog( gameData: GameData, aliveDisciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:SectLevelRewardDialog.kt$@Composable fun SectLevelRewardDialog( level: Int, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:SectManagementDialog.kt$@Composable fun SectManagementDialog( gameData: GameData?, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:SectMapEdgeOverlay.kt$@Composable fun SectMapEdgeOverlay( cameraState: SectCameraState, worldPixelWidth: Int, worldPixelHeight: Int, modifier: Modifier = Modifier )</ID>
+    <ID>LongMethod:SectMapViewport.kt$@Composable internal fun SectMapViewport( params: SectMapViewportParams, preview: MapPreviewState, commandBus: RenderCommandBus, onViewCreated: (NativeSurfaceView) -&gt; Unit, modifier: Modifier = Modifier )</ID>
+    <ID>LongMethod:SectTradeDialog.kt$@Composable fun SectTradeDialog( sect: WorldSect?, gameData: GameData?, tradeItems: List&lt;MerchantItem&gt;, viewModel: GameViewModel, interactionViewModel: WorldMapInteractionViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:SettingsTab.kt$@Composable internal fun RedeemCodeDialog( viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:SettingsTab.kt$@Composable internal fun SaveSlotCard( slot: SaveSlot, isSelected: Boolean, onClick: () -&gt; Unit )</ID>
+    <ID>LongMethod:SettingsTab.kt$@Composable internal fun SaveSlotDialog( viewModel: GameViewModel, saveLoadViewModel: SaveLoadViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:SettingsTab.kt$@Composable internal fun SettingsTab( viewModel: GameViewModel, saveLoadViewModel: SaveLoadViewModel, onLogout: () -&gt; Unit, onDismiss: () -&gt; Unit, limitAdTracking: Boolean = true, onLimitAdTrackingChanged: (Boolean) -&gt; Unit = {} )</ID>
+    <ID>LongMethod:SettingsTab.kt$@Composable private fun ChangelogDialog(onDismiss: () -&gt; Unit)</ID>
+    <ID>LongMethod:SoftwareCanvasBackend.kt$SoftwareCanvasBackend$fun renderFrame( frame: RenderFrame, atlas: Bitmap, vpW: Int, vpH: Int ): Bitmap?</ID>
+    <ID>LongMethod:SpiritMineDialog.kt$@Composable fun SpiritMineDialog( buildingInstanceId: String = "", viewModel: GameViewModel, productionViewModel: ProductionViewModel, spiritMineViewModel: SpiritMineViewModel, onDismiss: () -&gt; Unit, spiritMineBaseOutput: Int = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER, spiritMineMiningThreshold: Int = GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD, spiritMineMiningBonusRate: Double = GameConfig.Production.SPIRIT_MINE_MINING_BONUS_RATE )</ID>
+    <ID>LongMethod:TianshuHallDialog.kt$@Composable fun TianshuHallDialog( gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, productionViewModel: ProductionViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:TianshuHallDialog.kt$@Composable private fun SectPoliciesDialog( gameData: GameData?, viewModel: GameViewModel, productionViewModel: ProductionViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:WarehouseBulkSellDialog.kt$@Composable internal fun BulkSellDialog( viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:WarehouseDetailDialog.kt$@Composable private fun SellQuantitySelector( sellQuantity: Int, maxQuantity: Int, onQuantityChange: (Int) -&gt; Unit )</ID>
+    <ID>LongMethod:WarehouseDialog.kt$@Composable fun WarehouseDialog( buildingInstanceId: String, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, productionViewModel: ProductionViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:WarehouseDiscipleSelectDialog.kt$@Composable internal fun DiscipleSelectForRewardDialog( itemName: String, itemId: String, itemType: String, itemRarity: Int, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:WarehouseTab.kt$@Composable internal fun WarehousePagination( currentPage: Int, totalPages: Int, onPreviousPage: () -&gt; Unit, onNextPage: () -&gt; Unit, onFirstPage: () -&gt; Unit, onLastPage: () -&gt; Unit )</ID>
+    <ID>LongMethod:WarehouseTab.kt$@Composable internal fun WarehouseTab( viewModel: GameViewModel, showBulkSellDialog: Boolean = false, onBulkSellDismiss: () -&gt; Unit = {}, onDismiss: () -&gt; Unit = {} )</ID>
+    <ID>LongMethod:WenDaoPeakDialog.kt$@Composable fun WenDaoPeakDialog( disciples: List&lt;DiscipleAggregate&gt;, gameData: GameData?, viewModel: GameViewModel, productionViewModel: ProductionViewModel, onDismiss: () -&gt; Unit, // ← NEW: use instead of viewModel.closeCurrentDialog() )</ID>
+    <ID>LongMethod:WorldMapDialog.kt$@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class) @Composable internal fun WorldMapDialog( worldSects: List&lt;WorldSect&gt;, mapRenderData: WorldMapRenderData, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, interactionViewModel: WorldMapInteractionViewModel, garrisonViewModel: WorldMapGarrisonViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:WorldMapScreen.kt$@Composable fun WorldMapScreen( items: List&lt;MapItem&gt;, cameraState: WorldCameraState = rememberWorldCamera( worldWidth = MapCoordinateSystem.WORLD_WIDTH, worldHeight = MapCoordinateSystem.WORLD_HEIGHT ), focusWorldX: Float? = null, focusWorldY: Float? = null, onBack: () -&gt; Unit = {}, onSectClick: (MapItem.Sect) -&gt; Unit = {}, onLevelClick: (MapItem.Level) -&gt; Unit = {}, onSecretRealmClick: (MapItem.SecretRealm) -&gt; Unit = {}, onUserInteraction: () -&gt; Unit = {}, connectionEdges: List&lt;MSTEdge&gt; = emptyList() )</ID>
+    <ID>LongMethod:WorldMapSectDetailDialog.kt$@Composable internal fun WorldMapSectDetailDialog( sect: WorldSect, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, interactionViewModel: WorldMapInteractionViewModel, garrisonViewModel: WorldMapGarrisonViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:WorldMapSectDetailDialog.kt$@Composable private fun GarrisonDiscipleSelectionDialog( disciples: List&lt;DiscipleAggregate&gt;, garrisonedIds: Set&lt;String&gt; = emptySet(), viewModel: GameViewModel, onSelect: (DiscipleAggregate) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongParameterList:AlchemyDialog.kt$( buildingInstanceId: String = "", alchemySlots: List&lt;AlchemySlot&gt;, materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, productionViewModel: ProductionViewModel, alchemyViewModel: AlchemyViewModel, colors: com.xianxia.sect.ui.theme.XianxiaColorScheme, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongParameterList:AlchemyDialog.kt$( materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, slotIndex: Int, viewModel: GameViewModel, productionViewModel: ProductionViewModel, alchemyViewModel: AlchemyViewModel, onDismiss: () -&gt; Unit, onConfirmOverride: ((PillRecipeDatabase.PillRecipe) -&gt; Unit)? = null )</ID>
+    <ID>LongParameterList:AutoAssignDelegate.kt$AutoAssignDelegate$( mineFocused: Boolean, mineRootCounts: List&lt;Int&gt;, mineThreshold: Int, alchemyFocused: Boolean, alchemyRootCounts: List&lt;Int&gt;, alchemyThreshold: Int, forgeFocused: Boolean, forgeRootCounts: List&lt;Int&gt;, forgeThreshold: Int, singleResidenceFocused: Boolean = false, singleResidenceRootCounts: List&lt;Int&gt; = emptyList(), singleResidenceThreshold: Int = 1, multiResidenceFocused: Boolean = false, multiResidenceRootCounts: List&lt;Int&gt; = emptyList(), multiResidenceThreshold: Int = 1, plantFocused: Boolean = false, plantRootCounts: List&lt;Int&gt; = emptyList(), plantThreshold: Int = 1 )</ID>
+    <ID>LongParameterList:AutoManagementDialog.kt$( title: String, attrLabel: String, focused: Boolean, rootCounts: List&lt;Int&gt;, threshold: String, onFocusedToggle: () -&gt; Unit, onRootToggle: (Int) -&gt; Unit, onThresholdChange: (String) -&gt; Unit )</ID>
+    <ID>LongParameterList:BuildingConstructionBar.kt$( buildingList: List&lt;Pair&lt;String, (GridBuildingData?) -&gt; Unit&gt;&gt;, placedBuildings: List&lt;GridBuildingData&gt;, buildingCosts: Map&lt;String, Long&gt;, spiritStones: Long, onSelectBuilding: (String) -&gt; Unit, modifier: Modifier = Modifier, getBuildingCount: (String) -&gt; Int = { name -&gt; placedBuildings.count { it.displayName == name } }, getBuildingMaxCount: (String) -&gt; Int = { 1 }, /** 当前宗门等级（SectLevel 常量），用于检测中级建筑等级限制 */ currentSectLevel: Int = 0, /** 等级不足时的回调，在中级建筑被点击时触发 */ onSelectBuildingLevelRequirement: ((String) -&gt; Unit)? = null )</ID>
+    <ID>LongParameterList:DailySignInDialog.kt$( dayOfMonth: Int, reward: DailySignInReward, state: SignInDayState, cellWidth: Dp, cellHeight: Dp, nameFontSize: TextUnit, watchedKeys: Set&lt;String&gt; = emptySet(), modifier: Modifier = Modifier, onLongPress: (Any) -&gt; Unit = {} )</ID>
+    <ID>LongParameterList:DailySignInDialog.kt$( milestone: MilestoneReward, isClaimed: Boolean, watchedKeys: Set&lt;String&gt; = emptySet(), isReached: Boolean, cardSize: Dp, cardHeight: Dp, labelSpacing: Dp, dayLabelWidth: Dp, nameFontSize: TextUnit, onLongPress: (Any) -&gt; Unit )</ID>
+    <ID>LongParameterList:DailySignInDialog.kt$( milestones: List&lt;MilestoneReward&gt;, claimedDaysCount: Int, claimedMilestones: List&lt;Int&gt;, cardSize: Dp, cardHeight: Dp, cardSpacing: Dp, labelSpacing: Dp, dayLabelWidth: Dp, nameFontSize: TextUnit, watchedKeys: Set&lt;String&gt; = emptySet(), onLongPress: (Any) -&gt; Unit )</ID>
+    <ID>LongParameterList:DailySignInDialog.kt$( signInState: SignInState, daysInMonth: Int, getRewardForWeekday: (Int) -&gt; DailySignInReward, getDayState: (Int, SignInState) -&gt; SignInDayState, getWeekdayForDay: (Int) -&gt; Int, cellWidth: Dp, cellHeight: Dp, cellSpacing: Dp, nameFontSize: TextUnit, watchedKeys: Set&lt;String&gt; = emptySet(), onLongPress: (Any) -&gt; Unit )</ID>
+    <ID>LongParameterList:DetailCultivationSection.kt$( disciple: DiscipleAggregate, allEquipment: List&lt;EquipmentInstance&gt; = emptyList(), allManuals: List&lt;ManualInstance&gt; = emptyList(), manualProficiencies: Map&lt;String, List&lt;ManualProficiencyData&gt;&gt; = emptyMap(), elderSlots: ElderSlots? = null, allDisciples: List&lt;DiscipleAggregate&gt; = emptyList(), sectPolicies: SectPolicies? = null, residenceSlots: List&lt;ResidenceSlot&gt; = emptyList(), placedBuildings: List&lt;GridBuildingData&gt; = emptyList(), viewModel: GameViewModel? = null, gameMonth: Int = 1, gameYear: Int = 1, gamePhase: Int = 0, gameSpeed: Int = 1 )</ID>
+    <ID>LongParameterList:DetailEquipmentSection.kt$( slotType: String, allEquipment: List&lt;EquipmentInstance&gt;, equipmentStacks: List&lt;EquipmentStack&gt;, currentEquipmentId: String?, currentDiscipleId: String, discipleRealm: Int, selectedEquipmentId: String?, onSelect: (String) -&gt; Unit, onConfirm: () -&gt; Unit, onDismiss: () -&gt; Unit, viewModel: GameViewModel? = null )</ID>
+    <ID>LongParameterList:DetailHeaderSection.kt$( disciple: DiscipleAggregate, allDisciples: List&lt;DiscipleAggregate&gt;, localDiscipleType: String, showDiscipleTypeDropdown: Boolean, onDiscipleTypeDropdownChange: (Boolean) -&gt; Unit, onLocalDiscipleTypeChange: (String) -&gt; Unit, actions: DetailActionCallbacks, viewModel: GameViewModel? )</ID>
+    <ID>LongParameterList:DetailManualSection.kt$( manualStacks: List&lt;ManualStack&gt;, allManuals: List&lt;ManualInstance&gt;, currentManualIds: List&lt;String&gt;, discipleRealm: Int, maxManualSlots: Int, selectedManualId: String?, onSelect: (String) -&gt; Unit, onConfirm: () -&gt; Unit, onDismiss: () -&gt; Unit, viewModel: GameViewModel? = null )</ID>
+    <ID>LongParameterList:DetailPillSection.kt$( equipment: List&lt;EquipmentStack&gt;, manuals: List&lt;ManualStack&gt;, pills: List&lt;Pill&gt;, materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, seeds: List&lt;Seed&gt;, selectedItem: RewardSelectedItem?, watchedKeys: Set&lt;String&gt; = emptySet(), onItemSelect: (RewardSelectedItem) -&gt; Unit, onViewDetail: (Any) -&gt; Unit = {} )</ID>
+    <ID>LongParameterList:DiscipleChatDialog.kt$( greetingText: String, chatMessages: List&lt;ChatMsg&gt;, visibleCount: Int, currentNode: ConversationNode?, currentEffectAnnotated: AnnotatedString, isChatDone: Boolean, onOptionClick: (ConversationOption) -&gt; Unit, modifier: Modifier = Modifier )</ID>
+    <ID>LongParameterList:DiscipleComponents.kt$( disciple: DiscipleAggregate, isSelected: Boolean = false, isCurrent: Boolean = false, showStatus: Boolean = true, extraAttributes: List&lt;Pair&lt;String, Int&gt;&gt; = emptyList(), customAttributes: @Composable (() -&gt; Unit)? = null, actions: @Composable (() -&gt; Unit)? = null, onClick: () -&gt; Unit )</ID>
+    <ID>LongParameterList:DiscipleComponents.kt$( disciple: DiscipleAggregate?, modifier: Modifier = Modifier, borderColor: Color = GameColors.Border, showActions: Boolean = false, onSlotClick: () -&gt; Unit = {}, onEmptySlotClick: () -&gt; Unit = {}, onDismiss: (() -&gt; Unit)? = null, onSwap: (() -&gt; Unit)? = null )</ID>
+    <ID>LongParameterList:DiscipleDetailScreen.kt$( disciple: DiscipleAggregate, allDisciples: List&lt;DiscipleAggregate&gt; = emptyList(), allEquipment: List&lt;EquipmentInstance&gt; = emptyList(), allManuals: List&lt;ManualInstance&gt; = emptyList(), manualStacks: List&lt;ManualStack&gt; = emptyList(), equipmentStacks: List&lt;EquipmentStack&gt; = emptyList(), manualProficiencies: Map&lt;String, List&lt;ManualProficiencyData&gt;&gt; = emptyMap(), viewModel: GameViewModel? = null, onDismiss: () -&gt; Unit, onNavigateToDisciple: ((DiscipleAggregate) -&gt; Unit)? = null, scrimEnabled: Boolean = true )</ID>
+    <ID>LongParameterList:DiscipleFilterComponents.kt$( selectedSpiritRootFilter: Set&lt;Int&gt;, selectedAttributeSort: String?, selectedRealmFilter: Set&lt;Int&gt; = emptySet(), realmFilterOptions: List&lt;Pair&lt;Int, String&gt;&gt; = emptyList(), realmCounts: Map&lt;Int, Int&gt; = emptyMap(), spiritRootExpanded: Boolean, attributeExpanded: Boolean, realmExpanded: Boolean = false, spiritRootCounts: Map&lt;Int, Int&gt;, onSpiritRootFilterSelected: (Int) -&gt; Unit, onSpiritRootFilterRemoved: (Int) -&gt; Unit, onAttributeSortSelected: (String?) -&gt; Unit, onRealmFilterSelected: (Int) -&gt; Unit = {}, onRealmFilterRemoved: (Int) -&gt; Unit = {}, onSpiritRootExpandToggle: () -&gt; Unit, onAttributeExpandToggle: () -&gt; Unit, onRealmExpandToggle: () -&gt; Unit = {}, isCompact: Boolean = false, showAllCheckboxVisible: Boolean = false, showAllEnabled: Boolean = false, onShowAllToggle: () -&gt; Unit = {} )</ID>
+    <ID>LongParameterList:DiscipleFilterUtilsTest.kt$DiscipleFilterUtilsTest$( id: String = "d1", realm: Int = 9, realmLayer: Int = 1, isFollowed: Boolean = false, spiritRootType: String = "metal", comprehension: Int = 50, intelligence: Int = 50, pillRefining: Int = 50, mining: Int = 50, morality: Int = 50 )</ID>
+    <ID>LongParameterList:DiscipleSelectorDialog.kt$( config: DiscipleSelectorConfig, disciples: List&lt;DiscipleAggregate&gt;, onDismiss: () -&gt; Unit, onConfirm: (List&lt;DiscipleAggregate&gt;) -&gt; Unit, viewModel: GameViewModel? = null, showAllEnabled: Boolean = false, battleAndExplorationIds: Set&lt;String&gt; = emptySet(), scrimEnabled: Boolean = true )</ID>
+    <ID>LongParameterList:DisciplesTab.kt$( slotName: String, slotType: String, elder: DiscipleAggregate?, directDisciples: List&lt;DirectDiscipleSlot&gt;, disciples: List&lt;DiscipleAggregate&gt;, onElderClick: () -&gt; Unit, onElderRemove: () -&gt; Unit, onElderSwap: () -&gt; Unit = {}, onDirectDiscipleClick: (Int) -&gt; Unit, onDirectDiscipleRemove: (Int) -&gt; Unit, onDirectDiscipleSwap: (Int) -&gt; Unit = {} )</ID>
+    <ID>LongParameterList:ForgeDialog.kt$( buildingInstanceId: String = "", forgeSlots: List&lt;ForgeSlot&gt;, materials: List&lt;Material&gt;, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, productionViewModel: ProductionViewModel, forgeViewModel: ForgeViewModel, colors: com.xianxia.sect.ui.theme.XianxiaColorScheme, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongParameterList:GameViewModel.kt$GameViewModel$( mineFocused: Boolean, mineRootCounts: List&lt;Int&gt;, mineThreshold: Int, alchemyFocused: Boolean, alchemyRootCounts: List&lt;Int&gt;, alchemyThreshold: Int, forgeFocused: Boolean, forgeRootCounts: List&lt;Int&gt;, forgeThreshold: Int, singleResidenceFocused: Boolean = false, singleResidenceRootCounts: List&lt;Int&gt; = emptyList(), singleResidenceThreshold: Int = 1, multiResidenceFocused: Boolean = false, multiResidenceRootCounts: List&lt;Int&gt; = emptyList(), multiResidenceThreshold: Int = 1, plantFocused: Boolean = false, plantRootCounts: List&lt;Int&gt; = emptyList(), plantThreshold: Int = 1 )</ID>
+    <ID>LongParameterList:GameViewModel.kt$GameViewModel$( private val gameEngine: GameEngine, private val gameEngineCore: GameEngineCore, @ApplicationContext private val appContext: Context, private val systemManager: SystemManager, private val buildingConfigService: BuildingConfigService, private val mailService: MailService, private val dailySignInService: DailySignInService, private val discipleFacade: DiscipleFacade, private val productionFacade: ProductionFacade, private val inventoryFacade: InventoryFacade, private val buildingFacade: BuildingFacade, private val battleFacade: BattleFacade, private val diplomacyFacade: DiplomacyFacade, private val saveFacade: SaveFacade, private val thermalMonitor: ThermalMonitor, private val dialogManager: DialogManager, private val adService: AdService, private val audioConfig: AudioConfig, private val audioEngine: AudioEngine, private val ioDispatcher: IoDispatcher )</ID>
+    <ID>LongParameterList:GoldFingerSection.kt$( startGridX: Int, startGridY: Int, endGridX: Int, endGridY: Int, buildingW: Int, buildingH: Int, existingBuildings: List&lt;GridBuildingData&gt;, worldWidthCells: Int, worldHeightCells: Int, buildableBorder: Int = 0 )</ID>
+    <ID>LongParameterList:HeavenlyTrialComponents.kt$( combatant: Combatant?, isCurrent: Boolean = false, isAllySelected: Boolean = false, isEnemySelected: Boolean = false, isShaking: Boolean = false, flightAnim: FlightAnimState = FlightAnimState(), modifier: Modifier = Modifier, onClick: () -&gt; Unit )</ID>
+    <ID>LongParameterList:HerbGardenAuraOverlay.kt$( showAura: Boolean, buildingGridX: Int, buildingGridY: Int, buildingW: Int, buildingH: Int, spiritFieldBuildings: List&lt;GridBuildingData&gt;, cameraState: SectCameraState, tileSize: Int )</ID>
+    <ID>LongParameterList:MainGameScreen.kt$( mapPreloadData: MapPreloadData, viewModel: GameViewModel, saveLoadViewModel: SaveLoadViewModel, productionViewModel: ProductionViewModel, alchemyViewModel: AlchemyViewModel, forgeViewModel: ForgeViewModel, herbGardenViewModel: HerbGardenViewModel, spiritMineViewModel: SpiritMineViewModel, patrolTowerViewModel: PatrolTowerViewModel, bloodRefiningViewModel: BloodRefiningViewModel, worldMapInteractionViewModel: WorldMapInteractionViewModel, worldMapGarrisonViewModel: WorldMapGarrisonViewModel, battleViewModel: BattleViewModel, onLogout: () -&gt; Unit, onRestartGame: () -&gt; Unit, limitAdTracking: Boolean = true, onLimitAdTrackingChanged: (Boolean) -&gt; Unit = {}, /** 是否强制使用 Canvas 软件渲染（模拟器/Vulkan 不可用设备） */ forceSoftwareRendering: Boolean = false, /** Vulkan 初始化生命周期监听器（由 GameActivity 注入，驱动 CrashRecoveryEngine） */ vulkanInitListener: NativeSurfaceView.VulkanInitListener? = null, /** 用于后台 I/O 操作的协程调度器 */ dispatcher: CoroutineDispatcher = Dispatchers.IO )</ID>
+    <ID>LongParameterList:PeakScreenComponents.kt$( title: String, disciples: List&lt;DiscipleAggregate&gt;, currentDiscipleId: String?, requirementText: String, viewModel: GameViewModel, onSelect: (DiscipleAggregate) -&gt; Unit, onDismiss: () -&gt; Unit, defaultSortAttribute: String? = null )</ID>
+    <ID>LongParameterList:PlacementConfirmButtons.kt$( snappedGridX: Int, snappedGridY: Int, buildingSize: GridSnapHelper.BuildingSize, cameraState: SectCameraState, tileSize: Int, validity: GridSnapHelper.PlacementValidity, onConfirm: () -&gt; Unit, onCancel: () -&gt; Unit )</ID>
+    <ID>LongParameterList:ProductionComponents.kt$( theme: ProductionTheme, disciples: List&lt;DiscipleAggregate&gt;, currentElderId: String?, elderSlots: ElderSlots, onDismiss: () -&gt; Unit, onSelect: (String) -&gt; Unit, viewModel: GameViewModel? = null, battleAndExplorationIds: Set&lt;String&gt; = emptySet(), )</ID>
+    <ID>LongParameterList:ProductionComponents.kt$( theme: ProductionTheme, productName: String?, isWorking: Boolean, isIdle: Boolean, remainingMonths: Int, index: Int, productRarity: Int = 1, totalDuration: Int = 1, isPill: Boolean = false, isHerb: Boolean = false, successRate: Double = 0.0, gamePhase: Int = 0, onCancel: (() -&gt; Unit)? = null, onReplace: (() -&gt; Unit)? = null, onClick: () -&gt; Unit )</ID>
+    <ID>LongParameterList:SectDiplomacyDialog.kt$( initialDialogueText: String, portraitRes: String, playerPortraitRes: String, sectName: String, isAlly: Boolean, isPlayerVassal: Boolean = false, canVassal: Boolean = true, hasGiftedThisYear: Boolean, relationLevel: SectRelationLevel, spiritStones: Long = 0, chatMessages: List&lt;ChatMessage&gt;, visibleCount: Int, isChatting: Boolean, isChatDone: Boolean, skipped: Boolean, showGiftOptions: Boolean = false, onAllianceClick: () -&gt; Unit, onDissolveClick: () -&gt; Unit, onVassalClick: () -&gt; Unit = {}, onDissolveVassalClick: () -&gt; Unit = {}, onSkipClick: () -&gt; Unit, onGiftClick: () -&gt; Unit, onGiftTierClick: (Int) -&gt; Unit, onCancelGiftClick: () -&gt; Unit, modifier: Modifier = Modifier )</ID>
+    <ID>LongParameterList:SectInfoCard.kt$( sectName: String, gameYear: Int, gameMonth: Int, gamePhase: Int, lowStones: Long, midStones: Long, highStones: Long, discipleCount: Int, combatPower: Long, sectLevel: Int = SectLevel.MEDIUM, showRewardBadge: Boolean = false, onSectIconClick: () -&gt; Unit = {}, onSectNameClick: () -&gt; Unit = {} )</ID>
+    <ID>LongParameterList:SoftwareCanvasBackend.kt$SoftwareCanvasBackend.ChunkTile$( atlas: Bitmap, tileData: IntArray, rows: Int, cols: Int, buildingArray: FloatArray?, buildingCount: Int, tileSize: Int, decorationsDisabled: Boolean, tileSrcRects: Array&lt;Rect&gt;, buildingSrcRects: Array&lt;Rect&gt;, floorTileSrcRects: Array&lt;Rect&gt; )</ID>
+    <ID>LongParameterList:SoftwareCanvasBackend.kt$SoftwareCanvasBackend.Companion$( canvas: Canvas, atlas: Bitmap, buildingArray: FloatArray, buildingCount: Int, tileSize: Int, buildingSrcRects: Array&lt;Rect&gt;, floorTileSrcRects: Array&lt;Rect&gt;, paint: Paint, reuseRect: Rect, camX: Float, camY: Float, scale: Float, vpW: Int, vpH: Int )</ID>
+    <ID>LongParameterList:SoftwareCanvasBackendTest.kt$SoftwareCanvasBackendTest$( gridX: Int, gridY: Int, width: Int, height: Int, nameIdx: Int, gridX2: Int = 0, gridY2: Int = 0, width2: Int = 0, height2: Int = 0, nameIdx2: Int = 0 )</ID>
+    <ID>LongParameterList:SpiritMineDialog.kt$( buildingInstanceId: String = "", viewModel: GameViewModel, productionViewModel: ProductionViewModel, spiritMineViewModel: SpiritMineViewModel, onDismiss: () -&gt; Unit, spiritMineBaseOutput: Int = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER, spiritMineMiningThreshold: Int = GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD, spiritMineMiningBonusRate: Double = GameConfig.Production.SPIRIT_MINE_MINING_BONUS_RATE )</ID>
+    <ID>LongParameterList:WorldMapDialog.kt$( worldSects: List&lt;WorldSect&gt;, mapRenderData: WorldMapRenderData, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, interactionViewModel: WorldMapInteractionViewModel, garrisonViewModel: WorldMapGarrisonViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongParameterList:WorldMapScreen.kt$( items: List&lt;MapItem&gt;, cameraState: WorldCameraState = rememberWorldCamera( worldWidth = MapCoordinateSystem.WORLD_WIDTH, worldHeight = MapCoordinateSystem.WORLD_HEIGHT ), focusWorldX: Float? = null, focusWorldY: Float? = null, onBack: () -&gt; Unit = {}, onSectClick: (MapItem.Sect) -&gt; Unit = {}, onLevelClick: (MapItem.Level) -&gt; Unit = {}, onSecretRealmClick: (MapItem.SecretRealm) -&gt; Unit = {}, onUserInteraction: () -&gt; Unit = {}, connectionEdges: List&lt;MSTEdge&gt; = emptyList() )</ID>
+    <ID>LoopWithTooManyJumpStatements:BagDelegate.kt$BagDelegate$while</ID>
+    <ID>LoopWithTooManyJumpStatements:DiscipleChatDialogTest.kt$DiscipleChatDialogTest$while</ID>
+    <ID>LoopWithTooManyJumpStatements:NativeSurfaceView.kt$NativeSurfaceView$while</ID>
+    <ID>LoopWithTooManyJumpStatements:NativeSurfaceView.kt$NativeSurfaceView.RenderThread$while</ID>
+    <ID>LoopWithTooManyJumpStatements:SoftwareCanvasBackend.kt$SoftwareCanvasBackend$for</ID>
+    <ID>LoopWithTooManyJumpStatements:SoftwareCanvasBackend.kt$SoftwareCanvasBackend.ChunkTile$for</ID>
+    <ID>LoopWithTooManyJumpStatements:SoftwareCanvasBackend.kt$SoftwareCanvasBackend.Companion$for</ID>
+    <ID>MatchingDeclarationName:DetailHeaderSection.kt$DetailActionCallbacks</ID>
+    <ID>MatchingDeclarationName:DiscipleFilterUtils.kt$AttributeFilterOption</ID>
+    <ID>MatchingDeclarationName:DiscipleSelectorDialog.kt$DiscipleSelectorConfig</ID>
+    <ID>MatchingDeclarationName:GoldFingerOverlay.kt$GridPlacement</ID>
+    <ID>MatchingDeclarationName:ProductionComponents.kt$ProductionTheme</ID>
+    <ID>MatchingDeclarationName:RewardDialog.kt$RewardItem</ID>
+    <ID>MaxLineLength:ActivityDialog.kt$items</ID>
+    <ID>MaxLineLength:ActivityDialog.kt$val vm = checkNotNull(trialViewModel) { "trialViewModel null in HeavenlyTrialPanel" }</ID>
+    <ID>MaxLineLength:AlchemyDialog.kt$Text(text = "${GameUtils.formatNumber(herb?.quantity ?: 0)}/$requiredQuantity", fontSize = 11.sp, color = if (hasEnough) Color(0xFF4CAF50) else Color(0xFFE74C3C))</ID>
+    <ID>MaxLineLength:AlchemyDialog.kt$Text(text = materialName, fontSize = 11.sp, color = if (hasEnough) Color.Black else Color(0xFFE74C3C))</ID>
+    <ID>MaxLineLength:AlchemyDialog.kt$if (recipe.cultivationSpeedPercent &gt; 0) add(StatLine("修炼速度", pctRange { it.cultivationSpeedPercent }))</ID>
+    <ID>MaxLineLength:AlchemyDialog.kt$modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)</ID>
+    <ID>MaxLineLength:AlchemyDialog.kt$onSlotClick = { workerDisciple?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } }</ID>
+    <ID>MaxLineLength:AlchemyDialog.kt$val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:AlchemyDialog.kt$val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:AttackDiscipleDialog.kt$modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)</ID>
+    <ID>MaxLineLength:AttackDiscipleDialog.kt$val</ID>
+    <ID>MaxLineLength:AttackDiscipleDialog.kt$val alreadySelectedIds = slots.filterNotNull().map { it.id }.filter { it != slots[currentSlotIndex]?.id }.toSet()</ID>
+    <ID>MaxLineLength:AttackDiscipleDialog.kt$val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:AutoAssignDelegate.kt$AutoAssignDelegate$multiResidenceFocused: Boolean = false</ID>
+    <ID>MaxLineLength:AutoAssignDelegate.kt$AutoAssignDelegate$singleResidenceFocused: Boolean = false</ID>
+    <ID>MaxLineLength:AutoManagementDialog.kt$alchemyRootCounts = if (count in alchemyRootCounts) alchemyRootCounts - count else alchemyRootCounts + count</ID>
+    <ID>MaxLineLength:AutoManagementDialog.kt$var multiResidenceRootCounts by remember { mutableStateOf(policies?.autoMultiResidenceRootCounts ?: emptyList&lt;Int&gt;()) }</ID>
+    <ID>MaxLineLength:AutoManagementDialog.kt$var singleResidenceRootCounts by remember { mutableStateOf(policies?.autoSingleResidenceRootCounts ?: emptyList&lt;Int&gt;()) }</ID>
+    <ID>MaxLineLength:AutoManagementDialog.kt$var singleResidenceThreshold by remember { mutableStateOf((policies?.autoSingleResidenceThreshold ?: 1).toString()) }</ID>
+    <ID>MaxLineLength:BattleLogDialogs.kt$DataText(byGrade.entries.sortedByDescending { it.key.toIntOrNull() ?: 0 }.joinToString(" ") { (g, c) -&gt; "${g}阶 ×$c" })</ID>
+    <ID>MaxLineLength:BattleLogDialogs.kt$DataText(bySrc.entries.sortedByDescending { it.value }.joinToString(" ") { (s, c) -&gt; "${equipSourceName(s)} ×$c" })</ID>
+    <ID>MaxLineLength:BattleLogDialogs.kt$DataText(bySrc.entries.sortedByDescending { it.value }.joinToString(" ") { (s, c) -&gt; "${pillSourceName(s)} ×$c" })</ID>
+    <ID>MaxLineLength:BattleLogDialogs.kt$itemsIndexed</ID>
+    <ID>MaxLineLength:BattleLogDialogs.kt$text = "$typeIcon ${action.attacker} → ${action.target}: ${action.damage}${skillText}${critText}${killText}"</ID>
+    <ID>MaxLineLength:BattleLogDialogs.kt$val byGrade = equipItems.groupBy({ it.key.substringAfter(":") }, { it.value }).mapValues { it.value.sum() }</ID>
+    <ID>MaxLineLength:BattleLogDialogs.kt$val byGrade = pillItems.groupBy({ it.key.substringAfter(":") }, { it.value }).mapValues { it.value.sum() }</ID>
+    <ID>MaxLineLength:BattleLogDialogs.kt$val bySrc = equipItems.groupBy({ it.key.substringBefore(":") }, { it.value }).mapValues { it.value.sum() }</ID>
+    <ID>MaxLineLength:BattleLogDialogs.kt$val bySrc = pillItems.groupBy({ it.key.substringBefore(":") }, { it.value }).mapValues { it.value.sum() }</ID>
+    <ID>MaxLineLength:BattleLogDialogs.kt$val discipleColor = if (discipleDelta &gt; 0) Color(0xFF4CAF50) else if (discipleDelta &lt; 0) Color(0xFFF44336) else Color.Black</ID>
+    <ID>MaxLineLength:BattleLogDialogs.kt$val stoneColor = if (stoneDelta &gt; 0) Color(0xFF4CAF50) else if (stoneDelta &lt; 0) Color(0xFFF44336) else Color.Black</ID>
+    <ID>MaxLineLength:BattleResultDialog.kt$spiritStoneGrade = if (loot.type == "spiritStones") SpiritStoneGrade.LOW else null</ID>
+    <ID>MaxLineLength:BattleResultDialog.kt$spiritStoneGrade = if (reward.type == "spiritStones") SpiritStoneGrade.LOW else null</ID>
+    <ID>MaxLineLength:BloodRefiningPoolDialog.kt$val allBattleIds = gameData?.battleTeams?.flatMap { it.slots.mapNotNull { s -&gt; s.discipleId.takeIf(String::isNotEmpty) } } ?: emptyList()</ID>
+    <ID>MaxLineLength:BloodRefiningPoolDialog.kt$val grouped = bloodMaterials.groupBy { BeastMaterialDatabase.getBloodTypeFromMaterialId(it.first.id) ?: "" }</ID>
+    <ID>MaxLineLength:BuildingConstructionBar.kt$painter = painterResource(id = com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry.findByDisplayName(name)?.drawableRes ?: R.drawable.bg_horizontal)</ID>
+    <ID>MaxLineLength:BuildingConstructionBar.kt$val meetsLevel = currentSectLevel &gt;= (BuildingFeatureRegistry.findByDisplayName(name)?.requiredSectLevel ?: 0)</ID>
+    <ID>MaxLineLength:DetailActionButtons.kt$if</ID>
+    <ID>MaxLineLength:DetailCombatSection.kt$fun</ID>
+    <ID>MaxLineLength:DetailCultivationSection.kt$com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry.residenceSpeedMultiplier(building?.displayName ?: "")</ID>
+    <ID>MaxLineLength:DetailCultivationSection.kt$val</ID>
+    <ID>MaxLineLength:DetailEquipmentSection.kt$val</ID>
+    <ID>MaxLineLength:DetailEquipmentSection.kt$}</ID>
+    <ID>MaxLineLength:DetailHeaderSection.kt$.</ID>
+    <ID>MaxLineLength:DetailManualSection.kt$val</ID>
+    <ID>MaxLineLength:DetailPillSection.kt$.</ID>
+    <ID>MaxLineLength:DetailPillSection.kt$is Pill -&gt; RewardSelectedItem(item.id, "pill", item.name, item.rarity, item.quantity, item.grade.displayName)</ID>
+    <ID>MaxLineLength:DetailPillSection.kt$viewModel.rewardItemsToDisciple(disciple.id, listOf(item.copy(quantity = rewardQuantity)))</ID>
+    <ID>MaxLineLength:DiscipleChatDialog.kt$ConversationEffect$val isNegative: Boolean get() = loyaltyDelta &lt; 0 || moralityDelta &lt; 0 || intelligenceDelta &lt; 0 || cultivationDelta &lt; 0.0</ID>
+    <ID>MaxLineLength:DiscipleChatDialog.kt$ConversationEffect$val isPositive: Boolean get() = loyaltyDelta &gt; 0 || moralityDelta &gt; 0 || intelligenceDelta &gt; 0 || cultivationDelta &gt; 0.0</ID>
+    <ID>MaxLineLength:DiscipleChatDialog.kt$Text(disciple.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black, textAlign = TextAlign.Center)</ID>
+    <ID>MaxLineLength:DiscipleChatDialog.kt$cultivationDelta = if (effect.cultivationDelta &gt; 0.0) Random.nextDouble(0.01, 0.06) else if (effect.cultivationDelta &lt; 0.0) -Random.nextDouble(0.01, 0.06) else 0.0</ID>
+    <ID>MaxLineLength:DiscipleChatDialog.kt$else</ID>
+    <ID>MaxLineLength:DiscipleChatDialog.kt$intelligenceDelta</ID>
+    <ID>MaxLineLength:DiscipleChatDialog.kt$loyaltyDelta</ID>
+    <ID>MaxLineLength:DiscipleChatDialog.kt$moralityDelta</ID>
+    <ID>MaxLineLength:DiscipleChatDialog.kt$val ending = if (outcome.endingTextVariants.isNotEmpty()) outcome.endingTextVariants.randomOne() else "多谢宗主。"</ID>
+    <ID>MaxLineLength:DiscipleDetailScreen.kt$TalentsSection(talents, disciple.statusData, onTalentClick = { selectedTalent = it })</ID>
+    <ID>MaxLineLength:DiscipleDetailScreen.kt$modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()).padding(12.dp)</ID>
+    <ID>MaxLineLength:DiscipleDetailScreen.kt$val</ID>
+    <ID>MaxLineLength:DiscipleDetailScreen.kt$val sectPolicies by viewModel?.sectPolicies?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(SectPolicies()) }</ID>
+    <ID>MaxLineLength:DiscipleDetailScreen.kt$val vmPlacedBuildings by viewModel?.placedBuildings?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(emptyList&lt;GridBuildingData&gt;()) }</ID>
+    <ID>MaxLineLength:DiscipleDetailScreen.kt$val vmResidenceSlots by viewModel?.residenceSlots?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(emptyList&lt;ResidenceSlot&gt;()) }</ID>
+    <ID>MaxLineLength:DiscipleSelectorDialog.kt$val</ID>
+    <ID>MaxLineLength:DisciplesTab.kt$filteredDisciplesBase.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, requiredAttribute?.first)</ID>
+    <ID>MaxLineLength:DisciplesTab.kt$val</ID>
+    <ID>MaxLineLength:DisciplesTab.kt$val battleIds = collectedGameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:DisciplesTab.kt$val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:DisciplesTab.kt$val explorationIds = collectedGameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:ForgeDialog.kt$Text(text = "${GameUtils.formatNumber(material?.quantity ?: 0)}/$requiredQuantity", fontSize = 11.sp, color = if (hasEnough) Color(0xFF4CAF50) else Color(0xFFE74C3C))</ID>
+    <ID>MaxLineLength:ForgeDialog.kt$Text(text = material?.name ?: materialName ?: materialId, fontSize = 11.sp, color = if (hasEnough) Color.Black else Color(0xFFE74C3C))</ID>
+    <ID>MaxLineLength:ForgeDialog.kt$if (template.critChance &gt; 0) Text(text = "暴击率 +${String.format(LocalLocale.current.platformLocale, "%.1f", template.critChance * 100)}%", fontSize = 11.sp, color = Color.Black)</ID>
+    <ID>MaxLineLength:ForgeDialog.kt$if (template.magicAttack &gt; 0) Text(text = "法术攻击 +${template.magicAttack}", fontSize = 11.sp, color = Color.Black)</ID>
+    <ID>MaxLineLength:ForgeDialog.kt$if (template.magicDefense &gt; 0) Text(text = "法术防御 +${template.magicDefense}", fontSize = 11.sp, color = Color.Black)</ID>
+    <ID>MaxLineLength:ForgeDialog.kt$if (template.physicalAttack &gt; 0) Text(text = "物理攻击 +${template.physicalAttack}", fontSize = 11.sp, color = Color.Black)</ID>
+    <ID>MaxLineLength:ForgeDialog.kt$if (template.physicalDefense &gt; 0) Text(text = "物理防御 +${template.physicalDefense}", fontSize = 11.sp, color = Color.Black)</ID>
+    <ID>MaxLineLength:ForgeDialog.kt$if (template.speed &gt; 0) Text(text = "身法 +${template.speed}", fontSize = 11.sp, color = Color.Black)</ID>
+    <ID>MaxLineLength:ForgeDialog.kt$modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)</ID>
+    <ID>MaxLineLength:ForgeDialog.kt$onSlotClick = { workerDisciple?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } }</ID>
+    <ID>MaxLineLength:ForgeDialog.kt$val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:ForgeDialog.kt$val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:ForgeDialog.kt$val materialData = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialById(materialId)</ID>
+    <ID>MaxLineLength:GameViewModel.kt$GameViewModel$)</ID>
+    <ID>MaxLineLength:GameViewModel.kt$GameViewModel$fun applyAdBreakthroughBonus(discipleId: String, bonus: Double)</ID>
+    <ID>MaxLineLength:GameViewModel.kt$GameViewModel$fun attackWorldLevel(levelId: String, discipleIds: List&lt;String?&gt;)</ID>
+    <ID>MaxLineLength:GameViewModel.kt$GameViewModel$fun claimMailAttachment(mailId: String, onResult: (ClaimResult) -&gt; Unit = {})</ID>
+    <ID>MaxLineLength:GameViewModel.kt$GameViewModel$fun confiscateStorageBagItem(discipleId: String, item: StorageBagItem)</ID>
+    <ID>MaxLineLength:GameViewModel.kt$GameViewModel$fun consumeBloodRefiningMaterial(name: String, rarity: Int, quantity: Int)</ID>
+    <ID>MaxLineLength:GameViewModel.kt$GameViewModel$fun getDayState(dayOfMonth: Int, signInState: SignInState): SignInDayState</ID>
+    <ID>MaxLineLength:GameViewModel.kt$GameViewModel$fun grantMerchantRefreshChanceFromAd()</ID>
+    <ID>MaxLineLength:GameViewModel.kt$GameViewModel$fun openBloodRefiningPoolDialog(buildingInstanceId: String = "")</ID>
+    <ID>MaxLineLength:GameViewModel.kt$GameViewModel$fun openPatrolTowerDialog(buildingInstanceId: String = "")</ID>
+    <ID>MaxLineLength:GameViewModel.kt$GameViewModel$fun replaceManual(discipleId: String, oldInstanceId: String, newStackId: String)</ID>
+    <ID>MaxLineLength:GameViewModel.kt$GameViewModel$fun toggleAutoEquipFromWarehouse(discipleId: String, enabled: Boolean)</ID>
+    <ID>MaxLineLength:GameViewModel.kt$GameViewModel$fun toggleAutoLearnFromWarehouse(discipleId: String, enabled: Boolean)</ID>
+    <ID>MaxLineLength:GameViewModel.kt$GameViewModel$multiResidenceFocused: Boolean = false</ID>
+    <ID>MaxLineLength:GameViewModel.kt$GameViewModel$operations.add(GameEngine.BulkSellOperation(item.id.toString(), "", qty, typeName.lowercase()))</ID>
+    <ID>MaxLineLength:GameViewModel.kt$GameViewModel$result.failedItemNames.takeIf { it.isNotEmpty() }?.let { "\n以下物品出售失败：${it.joinToString("、")}" }</ID>
+    <ID>MaxLineLength:GameViewModel.kt$GameViewModel$singleResidenceFocused: Boolean = false</ID>
+    <ID>MaxLineLength:GameViewModel.kt$GameViewModel$suspend fun resolveBeastAttackPayTribute(beastLevelId: String)</ID>
+    <ID>MaxLineLength:GameViewModel.kt$GameViewModel$suspend fun rewardItemsToDisciple(discipleId: String, items: List&lt;RewardSelectedItem&gt;)</ID>
+    <ID>MaxLineLength:GameViewModel.kt$GameViewModel$val signIn = SignInDelegate(gameEngine, dailySignInService, viewModelScope, sharingStarted) { showCapacityWarning(it) }</ID>
+    <ID>MaxLineLength:GameViewModelTest.kt$GameViewModelTest$coEvery { gameEngine.batchUpdateAutoAssignAndGuide(any(), capture(newPoliciesSlot), any(), any(), any()) } just runs</ID>
+    <ID>MaxLineLength:HeavenlyTrialBattleDialog.kt$Text("$buffName +${(buff.second * 100).toInt()}% 持续${buff.third}回合", fontSize = 9.sp, color = Color.Black)</ID>
+    <ID>MaxLineLength:HeavenlyTrialBattleDialog.kt$Text("${bt.displayName} +${(skill.buffValue * 100).toInt()}% 持续${skill.buffDuration}回合", fontSize = 9.sp, color = Color.Black)</ID>
+    <ID>MaxLineLength:HeavenlyTrialBattleDialog.kt$Text("${dmgType}伤害 ×${(skill.damageMultiplier * 100).toInt()}% ${skill.hits}连击 冷却${skill.cooldown}回合 消耗${skill.mpCost}灵力", fontSize = 9.sp, color = Color.Black)</ID>
+    <ID>MaxLineLength:HeavenlyTrialBattleDialog.kt$Text("${enemy.realmName}${enemy.realmLayer}层 HP:${enemy.hp}/${enemy.maxHp} MP:${enemy.mp}/${enemy.maxMp}", fontSize = 10.sp, color = Color.Black)</ID>
+    <ID>MaxLineLength:HeavenlyTrialBattleDialog.kt$Text("物攻${enemy.physicalAttack} 法攻${enemy.magicAttack} 物防${enemy.physicalDefense} 法防${enemy.magicDefense} 速度${enemy.speed}", fontSize = 10.sp, color = Color.Black)</ID>
+    <ID>MaxLineLength:HeavenlyTrialBattleDialog.kt$else</ID>
+    <ID>MaxLineLength:HeavenlyTrialBattleDialog.kt$painter = painterResource(id = SpriteResRegistry.resolve("heavenly_trial_phase1") ?: 0)</ID>
+    <ID>MaxLineLength:HeavenlyTrialBattleDialog.kt$painter = painterResource(id = SpriteResRegistry.resolve("heavenly_trial_phase2") ?: 0)</ID>
+    <ID>MaxLineLength:HeavenlyTrialCombatLogic.kt$private val combatRng get() = (combatLogicRngManager ?: error("CombatLogic RNG not initialized")).getRng(RngPartition.BATTLE)</ID>
+    <ID>MaxLineLength:HeavenlyTrialCombatScreen.kt$"${currentCombatant.name} HP:${currentCombatant.hp}/${currentCombatant.maxHp} MP:${currentCombatant.mp}/${currentCombatant.maxMp}"</ID>
+    <ID>MaxLineLength:HeavenlyTrialCombatScreen.kt$Image</ID>
+    <ID>MaxLineLength:HeavenlyTrialCombatScreen.kt$val allySelected = selectedTargetId != null &amp;&amp; isPlayer &amp;&amp; selectedIsAlly &amp;&amp; selectedTargetId == cellCombatant?.id</ID>
+    <ID>MaxLineLength:HeavenlyTrialCombatScreen.kt$val enemySelected = selectedTargetId != null &amp;&amp; !isPlayer &amp;&amp; !selectedIsAlly &amp;&amp; selectedTargetId == cellCombatant?.id</ID>
+    <ID>MaxLineLength:HeavenlyTrialDiscipleDialog.kt$val</ID>
+    <ID>MaxLineLength:HeavenlyTrialDiscipleDialog.kt$val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:HerbGardenDialog.kt$modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)</ID>
+    <ID>MaxLineLength:HerbGardenDialog.kt$val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:HerbGardenDialog.kt$val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:ItemDetailDialog.kt$"material" -&gt; com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialByName(item.name)?.description ?: ""</ID>
+    <ID>MaxLineLength:ItemDetailDialog.kt$"material" -&gt; com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialByName(item.name)?.description ?: item.description</ID>
+    <ID>MaxLineLength:ItemDetailDialog.kt$ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS -&gt; thresholds[ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS] ?: 10000.0</ID>
+    <ID>MaxLineLength:ItemDetailDialog.kt$ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS -&gt; thresholds[ManualProficiencySystem.MasteryLevel.PERFECTION] ?: 30000.0</ID>
+    <ID>MaxLineLength:ItemDetailDialog.kt$ManualProficiencySystem.MasteryLevel.NOVICE -&gt; thresholds[ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS] ?: 1000.0</ID>
+    <ID>MaxLineLength:ItemDetailDialog.kt$ManualProficiencySystem.MasteryLevel.PERFECTION -&gt; thresholds[ManualProficiencySystem.MasteryLevel.PERFECTION] ?: 30000.0</ID>
+    <ID>MaxLineLength:ItemDetailDialog.kt$ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS -&gt; thresholds[ManualProficiencySystem.MasteryLevel.GREAT_SUCCESS] ?: 10000.0</ID>
+    <ID>MaxLineLength:ItemDetailDialog.kt$ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS -&gt; thresholds[ManualProficiencySystem.MasteryLevel.SMALL_SUCCESS] ?: 1000.0</ID>
+    <ID>MaxLineLength:ItemDetailEffects.kt$if (item.cultivationSpeedPercent &gt; 0) add(" 修炼速度 +${GameUtils.formatPercent(item.cultivationSpeedPercent)}")</ID>
+    <ID>MaxLineLength:ItemDetailEffects.kt$if (item.mpRecoverMaxMpPercent &gt; 0) add(" 恢复灵力 ${GameUtils.formatPercent(item.mpRecoverMaxMpPercent)} 最大灵力")</ID>
+    <ID>MaxLineLength:ItemDetailEffects.kt$val materialName = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialById(materialId)?.name ?: materialId</ID>
+    <ID>MaxLineLength:ItemDetailOtherEffects.kt$if (effect.breakthroughChance &gt; 0) add(" 突破概率 +${GameUtils.formatPercent(effect.breakthroughChance)}")</ID>
+    <ID>MaxLineLength:ItemDetailOtherEffects.kt$if (effect.cultivationSpeedPercent &gt; 0) add(" 修炼速度 +${GameUtils.formatPercent(effect.cultivationSpeedPercent)}")</ID>
+    <ID>MaxLineLength:ItemDetailOtherEffects.kt$if (effect.cultivationSpeedPercent &gt; 0) { add(" 修炼速度 +${GameUtils.formatPercent(effect.cultivationSpeedPercent)}") }</ID>
+    <ID>MaxLineLength:ItemDetailOtherEffects.kt$if (effect.healMaxHpPercent &gt; 0) add(" 恢复生命 ${GameUtils.formatPercent(effect.healMaxHpPercent)} 最大生命")</ID>
+    <ID>MaxLineLength:ItemDetailOtherEffects.kt$if (effect.mpRecoverMaxMpPercent &gt; 0) add(" 恢复灵力 ${GameUtils.formatPercent(effect.mpRecoverMaxMpPercent)} 最大灵力")</ID>
+    <ID>MaxLineLength:ItemDetailOtherEffects.kt$if (effect.nurtureSpeedPercent &gt; 0) add(" 孕养速度 +${GameUtils.formatPercent(effect.nurtureSpeedPercent)}")</ID>
+    <ID>MaxLineLength:ItemDetailOtherEffects.kt$if (effect.skillExpSpeedPercent &gt; 0) add(" 功法熟练度速度 +${GameUtils.formatPercent(effect.skillExpSpeedPercent)}")</ID>
+    <ID>MaxLineLength:ItemDetailOtherEffects.kt$if (pillTemplate.breakthroughChance &gt; 0) add(" 突破概率 +${GameUtils.formatPercent(pillTemplate.breakthroughChance)}")</ID>
+    <ID>MaxLineLength:ItemDetailOtherEffects.kt$if (pillTemplate.critEffectAdd &gt; 0) add(" 暴击效果 +${GameUtils.formatPercent(pillTemplate.critEffectAdd)}")</ID>
+    <ID>MaxLineLength:ItemDetailOtherEffects.kt$if (pillTemplate.critRateAdd &gt; 0) add(" 暴击率 +${GameUtils.formatPercent(pillTemplate.critRateAdd)}")</ID>
+    <ID>MaxLineLength:ItemDetailOtherEffects.kt$if (pillTemplate.cultivationSpeedPercent &gt; 0) add(" 修炼速度 +${GameUtils.formatPercent(pillTemplate.cultivationSpeedPercent)}")</ID>
+    <ID>MaxLineLength:ItemDetailOtherEffects.kt$if (pillTemplate.healMaxHpPercent &gt; 0) add(" 恢复生命 ${GameUtils.formatPercent(pillTemplate.healMaxHpPercent)} 最大生命")</ID>
+    <ID>MaxLineLength:ItemDetailOtherEffects.kt$if (pillTemplate.mpRecoverMaxMpPercent &gt; 0) add(" 恢复灵力 ${GameUtils.formatPercent(pillTemplate.mpRecoverMaxMpPercent)} 最大灵力")</ID>
+    <ID>MaxLineLength:ItemDetailOtherEffects.kt$if (pillTemplate.nurtureSpeedPercent &gt; 0) add(" 孕养速度 +${GameUtils.formatPercent(pillTemplate.nurtureSpeedPercent)}")</ID>
+    <ID>MaxLineLength:ItemDetailOtherEffects.kt$if (pillTemplate.skillExpSpeedPercent &gt; 0) add(" 功法熟练度速度 +${GameUtils.formatPercent(pillTemplate.skillExpSpeedPercent)}")</ID>
+    <ID>MaxLineLength:ItemDetailOtherEffects.kt$if (pillTemplate.targetRealm &gt; 0) add(" 目标境界: ${GameConfig.Realm.getName(pillTemplate.targetRealm)}")</ID>
+    <ID>MaxLineLength:LawEnforcementHallDialog.kt$onElderClick = { lawElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } }</ID>
+    <ID>MaxLineLength:LawEnforcementHallDialog.kt$val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:LawEnforcementHallDialog.kt$val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:LevelDetailDialog.kt$UnifiedGameDialog</ID>
+    <ID>MaxLineLength:LevelDetailDialog.kt$val battleIds = stateGameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:LevelDetailDialog.kt$val dialogTitle = if (level.levelType == LevelType.CAVE &amp;&amp; level.caveName.isNotEmpty()) level.caveName else level.name</ID>
+    <ID>MaxLineLength:LevelDetailDialog.kt$val explorationIds = stateGameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:LibraryDialog.kt$onSlotClick = { disciple?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } }</ID>
+    <ID>MaxLineLength:LibraryDialog.kt$val</ID>
+    <ID>MaxLineLength:LibraryDialog.kt$val battleIds = collectedGameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:LibraryDialog.kt$val explorationIds = collectedGameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:MailDelegate.kt$MailDelegate$fun deleteAllReadAndClaimedMails()</ID>
+    <ID>MaxLineLength:MailDialog.kt$items</ID>
+    <ID>MaxLineLength:MailDialog.kt$spiritStoneGrade = if (attachment.type == "spiritStones") SpiritStoneGrade.LOW else null</ID>
+    <ID>MaxLineLength:MainGameScreen.kt$"blood_refining_pool" -&gt; { b -&gt; b?.instanceId?.let { viewModel.navigateToDialog(DialogType.BloodRefiningPool(it)) }; Unit }</ID>
+    <ID>MaxLineLength:MainGameScreen.kt$"patrol_tower" -&gt; { b -&gt; b?.instanceId?.let { viewModel.navigateToDialog(DialogType.PatrolTower(it)) }; Unit }</ID>
+    <ID>MaxLineLength:MainGameScreen.kt$"single_residence_upgraded"</ID>
+    <ID>MaxLineLength:MainGameScreen.kt$"spirit_mine" -&gt; { b -&gt; b?.instanceId?.let { viewModel.navigateToDialog(DialogType.SpiritMine(it)) }; Unit }</ID>
+    <ID>MaxLineLength:MainGameScreen.kt$"warehouse" -&gt; { b -&gt; b?.instanceId?.let { viewModel.navigateToDialog(DialogType.WarehouseBuilding(it)) }; Unit }</ID>
+    <ID>MaxLineLength:MainGameScreen.kt$&lt;no name provided&gt;$"single_residence"</ID>
+    <ID>MaxLineLength:MainGameScreen.kt$BuildingFeatureRegistry.isResidence(name) || BuildingFeatureRegistry.hasNoLimit(name) -&gt; Int.MAX_VALUE</ID>
+    <ID>MaxLineLength:MainGameScreen.kt$placingWorldY = cameraState.screenToWorldY(screenHeightPx / 2f) - size.height * tileSize / 2f</ID>
+    <ID>MaxLineLength:MainGameScreen.kt$validity = if (isGf &amp;&amp; !goldFingerState.canAfford) GridSnapHelper.PlacementValidity.OutOfBounds else placementValidity</ID>
+    <ID>MaxLineLength:MainGameScreen.kt$var goldFingerState by remember { mutableStateOf&lt;com.xianxia.sect.ui.game.sect.GoldFingerState&gt;(com.xianxia.sect.ui.game.sect.GoldFingerState()) }</ID>
+    <ID>MaxLineLength:MasterApprenticeSelectDialog.kt$val</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$"pill" -&gt; pills.filter { it.name == item.name &amp;&amp; it.rarity == item.rarity &amp;&amp; it.grade.displayName == (item.grade ?: "") }.sumOf { it.quantity }</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$Box</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$Box(Modifier.fillMaxWidth().height(2.dp).background(if (isActive) GameColors.GoldDark else Color.Gray))</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$GameButton(text = "确认出售", onClick = { onConfirm(sellQuantity) }, enabled = sellQuantity &gt; 0 &amp;&amp; maxSellable &gt; 0)</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$LazyColumn</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$PurchasePanel</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$Row</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$Text("$quantity", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = GameColors.TextPrimary, modifier = Modifier.widthIn(min = 24.dp), textAlign = TextAlign.Center)</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$Text("$sellQuantity", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = GameColors.TextPrimary, modifier = Modifier.widthIn(min = 24.dp), textAlign = TextAlign.Center)</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$Text("出售", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$Text("单价: ${GameUtils.formatNumber(item.price)} 灵石", fontSize = 10.sp, color = GameColors.TextSecondary)</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$Text("商人暂无收购需求\n请明年再来", fontSize = 12.sp, color = GameColors.TextSecondary, textAlign = TextAlign.Center)</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$Text("商人正在旅途中...\n请稍后再来", fontSize = 12.sp, color = GameColors.TextSecondary, textAlign = TextAlign.Center)</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$Text("总价: ${GameUtils.formatNumber(totalPrice)} 灵石", color = GameColors.GoldDark, fontWeight = FontWeight.Bold, fontSize = 13.sp)</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$Text("收购价格", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$Text("收购数量", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$Text("物品", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1.3f))</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$Text("该分类暂无物品", fontSize = 12.sp, color = GameColors.TextSecondary, textAlign = TextAlign.Center)</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$Text(GameUtils.formatNumber(item.price), fontSize = 11.sp, color = GameColors.GoldDark, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$Text(GameUtils.formatNumber(item.quantity), fontSize = 11.sp, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$Text(item.name, fontWeight = FontWeight.Bold, color = com.xianxia.sect.ui.theme.getRarityColor(item.rarity), fontSize = 14.sp)</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$UnifiedItemCard</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$contentAlignment = Alignment.Center</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$else -&gt; GameButton(text = "出售", onClick = { selectedAcquisitionItem = item; showSellConfirmDialog = true })</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$grade = item.grade</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$isHerb = item.type == "herb"</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$items</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$onClick = { if (item.quantity &gt; 0 &amp;&amp; warehouseQty &gt; 0) { selectedAcquisitionItem = item; showSellConfirmDialog = true } }</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$onClick = { if (selectedItem?.id == item.id) { selectedItem = null; buyQuantity = 1 } else { selectedItem = item; buyQuantity = 1 } }</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$onConfirm = { quantity -&gt; viewModel.sellToMerchant(item.id, quantity); showSellConfirmDialog = false; selectedAcquisitionItem = null }</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$onConfirm = { selectedItem?.let { viewModel.buyFromMerchant(it.id, buyQuantity); selectedItem = null; buyQuantity = 1 } }</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$quantity = item.quantity</ID>
+    <ID>MaxLineLength:MerchantDialog.kt$warehouseQty == 0 -&gt; GameButton(text = "出售", onClick = {}, enabled = false)</ID>
+    <ID>MaxLineLength:MerchantInventoryDialog.kt$Box</ID>
+    <ID>MaxLineLength:MerchantInventoryDialog.kt$Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("暂无道具", fontSize = 12.sp, color = GameColors.TextSecondary) }</ID>
+    <ID>MaxLineLength:MerchantInventoryDialog.kt$Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(emptyMessage, fontSize = 12.sp, color = GameColors.TextSecondary) }</ID>
+    <ID>MaxLineLength:MerchantInventoryDialog.kt$ListingFilter.ALL -&gt; AllItemsSelectGrid(equipment = sortedEquipment, manuals = sortedManuals, pills = sortedPills, selectedItems = selectedItems, watchedKeys = watchedKeys, viewModel = viewModel)</ID>
+    <ID>MaxLineLength:MerchantInventoryDialog.kt$ListingFilter.EQUIPMENT -&gt; InventorySelectGrid(items = sortedEquipment, selectedItems = selectedItems, emptyMessage = "暂无装备", watchedKeys = watchedKeys, viewModel = viewModel)</ID>
+    <ID>MaxLineLength:MerchantInventoryDialog.kt$ListingFilter.MANUAL -&gt; InventorySelectGrid(items = sortedManuals, selectedItems = selectedItems, emptyMessage = "暂无功法", watchedKeys = watchedKeys, viewModel = viewModel)</ID>
+    <ID>MaxLineLength:MerchantInventoryDialog.kt$ListingFilter.PILL -&gt; InventorySelectGrid(items = sortedPills, selectedItems = selectedItems, emptyMessage = "暂无丹药", watchedKeys = watchedKeys, viewModel = viewModel)</ID>
+    <ID>MaxLineLength:MerchantInventoryDialog.kt$val id = when (item) { is EquipmentStack -&gt; item.id; is ManualStack -&gt; item.id; is Pill -&gt; item.id; else -&gt; "" }</ID>
+    <ID>MaxLineLength:MerchantInventoryDialog.kt$val name = when (item) { is EquipmentStack -&gt; item.name; is ManualStack -&gt; item.name; is Pill -&gt; item.name; else -&gt; "" }</ID>
+    <ID>MaxLineLength:MerchantInventoryDialog.kt$val qty = when (item) { is EquipmentStack -&gt; item.quantity; is ManualStack -&gt; item.quantity; is Pill -&gt; item.quantity; else -&gt; 1 }</ID>
+    <ID>MaxLineLength:MerchantInventoryDialog.kt$val rar = when (item) { is EquipmentStack -&gt; item.rarity; is ManualStack -&gt; item.rarity; is Pill -&gt; item.rarity; else -&gt; 1 }</ID>
+    <ID>MaxLineLength:MerchantInventoryDialog.kt$val rarity = when (item) { is EquipmentStack -&gt; item.rarity; is ManualStack -&gt; item.rarity; is Pill -&gt; item.rarity; else -&gt; 1 }</ID>
+    <ID>MaxLineLength:MerchantInventoryDialog.kt$val sortedEquipment = remember(equipment, listedItemIds, watchedKeys) { filterAndSortItems(equipment, listedItemIds, watchedKeys) }</ID>
+    <ID>MaxLineLength:MerchantInventoryDialog.kt$val sortedManuals = remember(manuals, listedItemIds, watchedKeys) { filterAndSortItems(manuals, listedItemIds, watchedKeys) }</ID>
+    <ID>MaxLineLength:MerchantInventoryDialog.kt$val sortedPills = remember(pills, listedItemIds, watchedKeys) { filterAndSortItems(pills, listedItemIds, watchedKeys) }</ID>
+    <ID>MaxLineLength:MerchantInventoryDialog.kt$when (it) { is EquipmentStack -&gt; "eq_${it.id}"; is ManualStack -&gt; "mn_${it.id}"; is Pill -&gt; "pl_${it.id}"; else -&gt; "unk_${System.identityHashCode(it)}" }</ID>
+    <ID>MaxLineLength:MerchantInventoryDialog.kt$when (it) { is EquipmentStack -&gt; "eq_${it.id}"; is ManualStack -&gt; "mn_${it.id}"; is Pill -&gt; "pl_${it.id}_${it.quantity}"; else -&gt; "unk_${System.identityHashCode(it)}" }</ID>
+    <ID>MaxLineLength:MerchantInventoryDialog.kt$when (it) { is EquipmentStack -&gt; it.rarity; is ManualStack -&gt; it.rarity; is Pill -&gt; it.rarity; else -&gt; 1 }</ID>
+    <ID>MaxLineLength:MerchantListingDialog.kt$Box</ID>
+    <ID>MaxLineLength:MerchantListingDialog.kt$Row</ID>
+    <ID>MaxLineLength:MerchantListingDialog.kt$Text("${item.price}灵石", fontSize = 11.sp, color = GameColors.GoldDark, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)</ID>
+    <ID>MaxLineLength:MerchantListingDialog.kt$Text("×${item.quantity}", fontSize = 11.sp, color = Color.Black, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)</ID>
+    <ID>MaxLineLength:MerchantListingDialog.kt$Text("价格", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)</ID>
+    <ID>MaxLineLength:MerchantListingDialog.kt$Text("操作", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)</ID>
+    <ID>MaxLineLength:MerchantListingDialog.kt$Text("数量", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)</ID>
+    <ID>MaxLineLength:MerchantListingDialog.kt$Text("道具名称", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary, modifier = Modifier.weight(1f))</ID>
+    <ID>MaxLineLength:MerchantListingDialog.kt$contentAlignment = Alignment.Center</ID>
+    <ID>MaxLineLength:MerchantListingDialog.kt$if (index &lt; listItems.lastIndex) HorizontalDivider(thickness = 1.dp, color = Color(0xFFBDBDBD))</ID>
+    <ID>MaxLineLength:MissionHallDialog.kt$onDiscipleClick = { it?.let { d -&gt; viewModel.showDiscipleDetail(DiscipleDetailRequest(d, disciples)) } }</ID>
+    <ID>MaxLineLength:MissionHallDialog.kt$parts.add("${GameUtils.formatNumber(rewards.spiritStones)}~${GameUtils.formatNumber(rewards.spiritStonesMax)}灵石")</ID>
+    <ID>MaxLineLength:MissionHallDialog.kt$val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:MissionHallDialog.kt$val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:NativeSurfaceView.kt$NativeSurfaceView$val safeBuildingData = if (frame.buildingData != null &amp;&amp; frame.buildingData === prevBuildingData) prevBuildingData else frame.buildingData?.copyOf()</ID>
+    <ID>MaxLineLength:NativeSurfaceView.kt$NativeSurfaceView.Companion$val buildingMap = com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry.all.associate { it.displayName to it.drawableRes }</ID>
+    <ID>MaxLineLength:PatrolTowerDialog.kt$if (requireFullStatus) Text("✓", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)</ID>
+    <ID>MaxLineLength:PatrolTowerDialog.kt$val allBattleIds = gd.battleTeams.flatMap { it.slots.mapNotNull { s -&gt; s.discipleId.takeIf(String::isNotEmpty) } }</ID>
+    <ID>MaxLineLength:PatrolTowerViewModel.kt$PatrolTowerViewModel$fun slotRange(towerIndex: Int): IntRange</ID>
+    <ID>MaxLineLength:PeakScreenComponents.kt$baseDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, defaultSortAttribute)</ID>
+    <ID>MaxLineLength:PeakScreenComponents.kt$val</ID>
+    <ID>MaxLineLength:PlantingDialog.kt$.</ID>
+    <ID>MaxLineLength:PlantingDialog.kt$Text(fallbackName, fontSize = 8.sp, color = Color.Black, textAlign = TextAlign.Center)</ID>
+    <ID>MaxLineLength:PlantingDialog.kt$Text(label, fontSize = 10.sp, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)</ID>
+    <ID>MaxLineLength:PlantingDialog.kt$Text(value, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)</ID>
+    <ID>MaxLineLength:PlantingDialog.kt$interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }</ID>
+    <ID>MaxLineLength:PlantingDialog.kt$modifier</ID>
+    <ID>MaxLineLength:PlantingDialog.kt$val decInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }</ID>
+    <ID>MaxLineLength:PlantingDialog.kt$val incInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }</ID>
+    <ID>MaxLineLength:PlantingDialog.kt$val maxInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }</ID>
+    <ID>MaxLineLength:PlantingDialog.kt$val minInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }</ID>
+    <ID>MaxLineLength:ProductionComponents.kt$ProductionTheme$val directDiscipleEligibility: (DiscipleAggregate) -&gt; Boolean = { it.isAlive &amp;&amp; it.age &gt;= GameConfig.Disciple.MIN_AGE &amp;&amp; it.realmLayer &gt; 0 &amp;&amp; it.status == DiscipleStatus.IDLE }</ID>
+    <ID>MaxLineLength:ProductionComponents.kt$disciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds, additionalCheck = { it.realmLayer &gt; 0 &amp;&amp; it.age &gt;= GameConfig.Disciple.MIN_AGE })</ID>
+    <ID>MaxLineLength:ProductionComponents.kt$elderBonusInfo = ElderBonusInfo( title = "执事", requiredAttribute = "道德", effectDescription = "管理灵矿场", bonusFormula = "道德值×效率")</ID>
+    <ID>MaxLineLength:ProductionComponents.kt$sortedDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort, ATTRIBUTE_FILTER_OPTIONS.find { it.name == theme.recommendAttributeText }?.key)</ID>
+    <ID>MaxLineLength:ProductionComponents.kt$val</ID>
+    <ID>MaxLineLength:ProductionViewModel.kt$ProductionViewModel$.</ID>
+    <ID>MaxLineLength:QingyunPeakDialog.kt$onClick = { preachingElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } }</ID>
+    <ID>MaxLineLength:RenderCommandBusTest.kt$RenderCommandBusTest$val data = floatArrayOf(10f, 20f, 30f, 40f, 50f, 60f, 70f, 80f, 90f, 100f, 110f, 120f, 130f, 140f, 150f, 160f, 170f, 180f, 190f, 200f)</ID>
+    <ID>MaxLineLength:ResidenceDialog.kt$val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:ResidenceDialog.kt$val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:ResidenceDialog.kt$val feature = com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry.findByDisplayName(building.displayName)</ID>
+    <ID>MaxLineLength:ResidenceDialog.kt$val isSingleResidence = feature?.isResidence == true &amp;&amp; feature.slotGroups.any { it is com.xianxia.sect.core.engine.domain.building.SlotGroup.Residence &amp;&amp; it.slotsPerInstance == 1 }</ID>
+    <ID>MaxLineLength:SaveLoadViewModel.kt$SaveLoadViewModel$"equipment=${gameEngine.equipmentInstances.value.size}, manuals=${gameEngine.manualInstances.value.size}, "</ID>
+    <ID>MaxLineLength:SaveLoadViewModel.kt$SaveLoadViewModel$"manuals=${saveData.manualInstances.size}, elapsed=${System.currentTimeMillis() - startTime}ms"</ID>
+    <ID>MaxLineLength:SaveLoadViewModel.kt$SaveLoadViewModel$Log.d(TAG, "resumeGameLoop: Skipping startGameLoop - isGameLoaded=$isGameLoaded, isLoading=${stateStore.isLoading.value}")</ID>
+    <ID>MaxLineLength:SaveLoadViewModel.kt$SaveLoadViewModel$Log.d(TAG, "startNewGame: Game engine created new game successfully, elapsed=${System.currentTimeMillis() - startTime}ms")</ID>
+    <ID>MaxLineLength:SaveLoadViewModel.kt$SaveLoadViewModel$Log.e(TAG, "=== loadGame FAILED === timeout or null for slot ${saveSlot.slot}, elapsed=${elapsed}ms")</ID>
+    <ID>MaxLineLength:SaveLoadViewModel.kt$SaveLoadViewModel$Log.e(TAG, "=== saveGame FAILED === ${if (saveResult == null) "timeout" else "save returned failure"}")</ID>
+    <ID>MaxLineLength:SaveLoadViewModel.kt$SaveLoadViewModel$Log.e(TAG, "restartGame: boot sequence failed after restart, error=${bootResult.exceptionOrNull()?.message}")</ID>
+    <ID>MaxLineLength:SaveLoadViewModel.kt$SaveLoadViewModel$Log.i(TAG, "=== restartGame BEGIN === currentSlot=$currentSlot, previousSlot=$previousSlot, sectName=$sectName")</ID>
+    <ID>MaxLineLength:SaveLoadViewModel.kt$SaveLoadViewModel$_loadingProgress.value = PROGRESS_START + progress * (PROGRESS_COMPLETE - PROGRESS_START)</ID>
+    <ID>MaxLineLength:SaveLoadViewModel.kt$SaveLoadViewModel$gameEngine.launchOnEngine { setSaveLoadState(isSaving = false, isLoading = false, pendingSlot = null, pendingAction = null) }</ID>
+    <ID>MaxLineLength:SaveLoadViewModel.kt$SaveLoadViewModel$private val restartDelegate by lazy { SaveLoadRestartDelegate(gameEngine, gameEngineCore, persistenceFacade.storageFacade, stateStore, dispatcher = ioDispatcher.dispatcher) }</ID>
+    <ID>MaxLineLength:SaveLoadViewModel.kt$SaveLoadViewModel$try { _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e2: Exception) { Log.e(TAG, "Failed to refresh slots after OOM", e2) }</ID>
+    <ID>MaxLineLength:SaveLoadViewModel.kt$SaveLoadViewModel$try { _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e2: Exception) { Log.e(TAG, "Failed to refresh slots after save failure", e2) }</ID>
+    <ID>MaxLineLength:SaveLoadViewModel.kt$SaveLoadViewModel$try { _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.e(TAG, "Failed to refresh slots after save failure", e) }</ID>
+    <ID>MaxLineLength:ScoutDialog.kt$modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)</ID>
+    <ID>MaxLineLength:ScoutDialog.kt$val</ID>
+    <ID>MaxLineLength:ScoutDialog.kt$val alreadySelectedIds = slots.filterNotNull().map { it.id }.filter { it != slots[currentSlotIndex]?.id }.toSet()</ID>
+    <ID>MaxLineLength:ScoutDialog.kt$val battleIds = collectedGameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:ScoutDialog.kt$val explorationIds = collectedGameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:SecretRealmExplorationScreen.kt$val success = result as? com.xianxia.sect.core.engine.domain.exploration.SecretRealmChoiceResult.Success</ID>
+    <ID>MaxLineLength:SectMarker.kt$val borderWidth = if (item.isHighlighted) MapStyle.Dimensions.sectHighlightedBorderWidth else MapStyle.Dimensions.sectBorderWidth</ID>
+    <ID>MaxLineLength:SectTradeDialog.kt$Text("+", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GameColors.TextPrimary)</ID>
+    <ID>MaxLineLength:SectTradeDialog.kt$Text("-", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GameColors.TextPrimary)</ID>
+    <ID>MaxLineLength:SectTradeDialog.kt$text = "(${String.format(LocalLocale.current.platformLocale, "%.1f%%", (1 - priceMultiplier) * 100)}折扣)"</ID>
+    <ID>MaxLineLength:SectTradeDialog.kt$text = "下品:${GameUtils.formatNumber(gameData?.spiritStones ?: 0)} 中品:${GameUtils.formatNumber(gameData?.midGradeSpiritStones ?: 0)} 上品:${GameUtils.formatNumber(gameData?.highGradeSpiritStones ?: 0)}"</ID>
+    <ID>MaxLineLength:SectTradeDialog.kt$val canTrade = relationLevel in listOf(SectRelationLevel.NORMAL, SectRelationLevel.FRIENDLY, SectRelationLevel.INTIMATE)</ID>
+    <ID>MaxLineLength:SettingsTab.kt$Row</ID>
+    <ID>MaxLineLength:SettingsTab.kt$val loadEnabled = selectedSlot != null &amp;&amp; saveSlots.find { it.slot == selectedSlot }?.isEmpty == false &amp;&amp; !isBusy</ID>
+    <ID>MaxLineLength:SignInDelegate.kt$SignInDelegate$fun getDayState(dayOfMonth: Int, signInState: SignInState): SignInDayState</ID>
+    <ID>MaxLineLength:SoftwareCanvasBackend.kt$SoftwareCanvasBackend$val buildingHash = if (buildingArray === cachedBuildingData) chunkBuildingHash else (buildingArray?.contentHashCode() ?: 0).also { cachedBuildingData = buildingArray }</ID>
+    <ID>MaxLineLength:SoftwareCanvasBackend.kt$SoftwareCanvasBackend.ChunkTile$val bmp = bitmap ?: Bitmap.createBitmap(CHUNK_PIXEL, CHUNK_PIXEL, Bitmap.Config.RGB_565).also { bitmap = it }</ID>
+    <ID>MaxLineLength:SpiritMineDialog.kt$onSlotClick = { disciple?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } }</ID>
+    <ID>MaxLineLength:SpiritMineViewModel.kt$SpiritMineViewModel$allSlots[slotIndex] = allSlots[slotIndex].copy(discipleId = newDiscipleId, discipleName = newName, sectId = allSlots[slotIndex].sectId)</ID>
+    <ID>MaxLineLength:SpiritMineViewModel.kt$SpiritMineViewModel$private suspend</ID>
+    <ID>MaxLineLength:TapCloudSaveManager.kt$TapCloudSaveManager$DomainLog.w(TAG, "Cloud save file too large: ${serializedBytes.size} bytes (${actualMb}MB &gt; ${maxMb}MB)")</ID>
+    <ID>MaxLineLength:TapCloudSaveManager.kt$TapCloudSaveManager$try { JSONObject(e) } catch (ex: kotlinx.coroutines.CancellationException) { throw ex } catch (_: Exception) { null }</ID>
+    <ID>MaxLineLength:TapCloudSaveManager.kt$TapCloudSaveManager$try { api.deleteArchive(archive.uuid) } catch (ex: kotlinx.coroutines.CancellationException) { throw ex } catch (_: Exception) { }</ID>
+    <ID>MaxLineLength:TapCloudSaveManager.kt$TapCloudSaveManager.CloudSaveApi$suspend</ID>
+    <ID>MaxLineLength:TapCloudSaveManager.kt$TapCloudSaveManager.ReflectiveCloudSaveApi$DomainLog.w(TAG, "invokeGetterString failed: method=$methodName class=${archive.javaClass.simpleName}", e)</ID>
+    <ID>MaxLineLength:TapCloudSaveManager.kt$TapCloudSaveManager.ReflectiveCloudSaveApi$override</ID>
+    <ID>MaxLineLength:TapCloudSaveManager.kt$TapCloudSaveManager.TapGameSaveApi$override suspend</ID>
+    <ID>MaxLineLength:TapCloudSaveManager.kt$TapCloudSaveManager.TapGameSaveApi$override suspend fun deleteArchive(uuid: String)</ID>
+    <ID>MaxLineLength:TapCloudSaveManager.kt$TapCloudSaveManager.TapGameSaveApi$override suspend fun listAllArchives(): List&lt;ArchiveEntry&gt;</ID>
+    <ID>MaxLineLength:TianshuHallDialog.kt$onSlotClick = { alchemyElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } }</ID>
+    <ID>MaxLineLength:TianshuHallDialog.kt$onSlotClick = { forgeElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } }</ID>
+    <ID>MaxLineLength:TianshuHallDialog.kt$onSlotClick = { herbGardenElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } }</ID>
+    <ID>MaxLineLength:TianshuHallDialog.kt$onSlotClick = { recruitingElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } }</ID>
+    <ID>MaxLineLength:TianshuHallDialog.kt$onSlotClick = { viceSectMaster?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } }</ID>
+    <ID>MaxLineLength:TianshuHallDialog.kt$val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:TianshuHallDialog.kt$val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:WarehouseBulkSellDialog.kt$SellableEquipmentSection(sellableEquipment, onItemLongPress = { detailItem = it; showDetailDialog = true })</ID>
+    <ID>MaxLineLength:WarehouseBulkSellDialog.kt$SellableHerbSection(sellableHerbs, onItemLongPress = { detailItem = it; showDetailDialog = true })</ID>
+    <ID>MaxLineLength:WarehouseBulkSellDialog.kt$SellableManualSection(sellableManuals, onItemLongPress = { detailItem = it; showDetailDialog = true })</ID>
+    <ID>MaxLineLength:WarehouseBulkSellDialog.kt$SellableMaterialSection(sellableMaterials, onItemLongPress = { detailItem = it; showDetailDialog = true })</ID>
+    <ID>MaxLineLength:WarehouseBulkSellDialog.kt$SellablePillSection(sellablePills, onItemLongPress = { detailItem = it; showDetailDialog = true })</ID>
+    <ID>MaxLineLength:WarehouseBulkSellDialog.kt$SellableSeedSection(sellableSeeds, onItemLongPress = { detailItem = it; showDetailDialog = true })</ID>
+    <ID>MaxLineLength:WarehouseDiscipleSelectDialog.kt$val</ID>
+    <ID>MaxLineLength:WarehouseDiscipleSelectDialog.kt$val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:WarehouseTab.kt$onClick = { selectedItemId = if (selectedItemId == warehouseItem.id) null else warehouseItem.id }</ID>
+    <ID>MaxLineLength:WarehouseTab.kt$val</ID>
+    <ID>MaxLineLength:WenDaoPeakDialog.kt$onClick = { preachingElder?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } }</ID>
+    <ID>MaxLineLength:WorldMapInteractionViewModel.kt$WorldMapInteractionViewModel$val</ID>
+    <ID>MaxLineLength:WorldMapInteractionViewModel.kt$WorldMapInteractionViewModel$val sectTradeItems: StateFlow&lt;List&lt;MerchantItem&gt;&gt; = dialogs.map { it.tradeItems }.stateIn(viewModelScope, sharingStarted, emptyList())</ID>
+    <ID>MaxLineLength:WorldMapInteractionViewModel.kt$WorldMapInteractionViewModel$val selectedScoutSectId: StateFlow&lt;String?&gt; = dialogs.map { it.selectedScoutSectId }.stateIn(viewModelScope, sharingStarted, null)</ID>
+    <ID>MaxLineLength:WorldMapInteractionViewModel.kt$WorldMapInteractionViewModel$val selectedSectDiplomacySectId: StateFlow&lt;String?&gt; = dialogs.map { it.selectedSectDiplomacySectId }.stateIn(viewModelScope, sharingStarted, null)</ID>
+    <ID>MaxLineLength:WorldMapInteractionViewModel.kt$WorldMapInteractionViewModel$val selectedTradeSectId: StateFlow&lt;String?&gt; = dialogs.map { it.selectedTradeSectId }.stateIn(viewModelScope, sharingStarted, null)</ID>
+    <ID>MaxLineLength:WorldMapInteractionViewModel.kt$WorldMapInteractionViewModel$val showSectDiplomacyDialog: StateFlow&lt;Boolean&gt; = dialogs.map { it.showSectDiplomacy }.stateIn(viewModelScope, sharingStarted, false)</ID>
+    <ID>MaxLineLength:WorldMapInteractionViewModel.kt$WorldMapInteractionViewModel$val showSectTradeDialog: StateFlow&lt;Boolean&gt; = dialogs.map { it.showTrade }.stateIn(viewModelScope, sharingStarted, false)</ID>
+    <ID>MaxLineLength:WorldMapSectDetailDialog.kt$val</ID>
+    <ID>MaxLineLength:WorldMapSectDetailDialog.kt$val battleIds = collectedGameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MaxLineLength:WorldMapSectDetailDialog.kt$val explorationIds = collectedGameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()</ID>
+    <ID>MayBeConst:SoftwareCanvasBackend.kt$SoftwareCanvasBackend.Companion$private val CHUNK_PIXEL = CHUNK_SIZE_TILES * 32 // 1024px</ID>
+    <ID>MayBeConst:SoftwareCanvasBackend.kt$SoftwareCanvasBackend.Companion$private val NUM_CHUNKS_COL = 128 / CHUNK_SIZE_TILES // 4</ID>
+    <ID>MayBeConst:SoftwareCanvasBackend.kt$SoftwareCanvasBackend.Companion$private val NUM_CHUNKS_ROW = 128 / CHUNK_SIZE_TILES // 4</ID>
+    <ID>NestedBlockDepth:DetailCultivationSection.kt$internal fun calculatePreachingBonusesForDisplay( disciple: DiscipleAggregate, elderSlots: ElderSlots?, allDisciples: List&lt;DiscipleAggregate&gt;, sectPolicies: SectPolicies? = null ): Triple&lt;Double, Double, Double&gt;</ID>
+    <ID>NestedBlockDepth:DiscipleChatDialogTest.kt$DiscipleChatDialogTest$@Test fun `all paths reach END`()</ID>
+    <ID>NestedBlockDepth:HeavenlyTrialCombatLogic.kt$internal fun executePlayerSkill( attacker: Combatant, skill: CombatSkill, selectedTargetId: String?, selectedIsAlly: Boolean, playerTeam: List&lt;Combatant&gt;, enemyTeam: List&lt;Combatant&gt;, isDefending: Set&lt;String&gt; ): Pair&lt;List&lt;Combatant&gt;, List&lt;Combatant&gt;&gt;</ID>
+    <ID>NestedBlockDepth:HeavenlyTrialCombatLogic.kt$internal fun resolveAIAction( actor: Combatant, ai: BattleAI.AIAction, actorIsPlayer: Boolean, players: List&lt;Combatant&gt;, enemies: List&lt;Combatant&gt;, rng: DeterministicRng = combatRng ): Pair&lt;List&lt;Combatant&gt;, List&lt;Combatant&gt;&gt;</ID>
+    <ID>NestedBlockDepth:NativeSurfaceView.kt$NativeSurfaceView$override fun surfaceChanged(holder: SurfaceHolder, format: Int, w: Int, h: Int)</ID>
+    <ID>NestedBlockDepth:NativeSurfaceView.kt$NativeSurfaceView$override fun surfaceDestroyed(holder: SurfaceHolder)</ID>
+    <ID>NestedBlockDepth:NativeSurfaceView.kt$NativeSurfaceView.RenderThread$override fun run()</ID>
+    <ID>NestedBlockDepth:NativeSurfaceView.kt$NativeSurfaceView.RenderThread$private fun renderSoftwareFrame()</ID>
+    <ID>NestedBlockDepth:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performCloudLoad()</ID>
+    <ID>NestedBlockDepth:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performLocalSaveToSlot(slot: Int, previousSlot: Int, startTime: Long)</ID>
+    <ID>NestedBlockDepth:SoftwareCanvasBackend.kt$SoftwareCanvasBackend$fun renderFrame( frame: RenderFrame, atlas: Bitmap, vpW: Int, vpH: Int ): Bitmap?</ID>
+    <ID>NestedBlockDepth:SoftwareCanvasBackend.kt$SoftwareCanvasBackend.ChunkTile$fun rebuild( atlas: Bitmap, tileData: IntArray, rows: Int, cols: Int, buildingArray: FloatArray?, buildingCount: Int, tileSize: Int, decorationsDisabled: Boolean, tileSrcRects: Array&lt;Rect&gt;, buildingSrcRects: Array&lt;Rect&gt;, floorTileSrcRects: Array&lt;Rect&gt; )</ID>
+    <ID>NestedBlockDepth:SoftwareCanvasBackend.kt$SoftwareCanvasBackend.Companion$private fun drawBuildingsToCanvas( canvas: Canvas, atlas: Bitmap, buildingArray: FloatArray, buildingCount: Int, tileSize: Int, buildingSrcRects: Array&lt;Rect&gt;, floorTileSrcRects: Array&lt;Rect&gt;, paint: Paint, reuseRect: Rect, camX: Float, camY: Float, scale: Float, vpW: Int, vpH: Int )</ID>
+    <ID>NewLineAtEndOfFile:SettingsTab.kt$com.xianxia.sect.ui.game.tabs.SettingsTab.kt</ID>
+    <ID>ReturnCount:AdsDelegate.kt$AdsDelegate$fun tryMarkAdWatched(): Boolean</ID>
+    <ID>ReturnCount:BaseCameraState.kt$BaseCameraState$override fun zoom(delta: Float, focusX: Float, focusY: Float)</ID>
+    <ID>ReturnCount:BloodRefiningViewModel.kt$BloodRefiningViewModel$fun startRefine(buildingInstanceId: String)</ID>
+    <ID>ReturnCount:BuildingDelegate.kt$BuildingDelegate$private suspend fun doPlaceBuilding(name: String, gridX: Int, gridY: Int, width: Int, height: Int)</ID>
+    <ID>ReturnCount:DiscipleDelegate.kt$DiscipleDelegate$fun recruitDiscipleFromList(discipleId: String)</ID>
+    <ID>ReturnCount:MailDialog.kt$private fun formatExpireTime(expireTime: Long): String</ID>
+    <ID>ReturnCount:MainGameScreen.kt$&lt;no name provided&gt;$override fun findBuildingAt(screenX: Float, screenY: Float): Any?</ID>
+    <ID>ReturnCount:MainGameScreen.kt$&lt;no name provided&gt;$override fun onLongPress(screenX: Float, screenY: Float): LongPressResult</ID>
+    <ID>ReturnCount:NativeSurfaceView.kt$NativeSurfaceView$fun buildAtlas(context: android.content.Context): Int</ID>
+    <ID>ReturnCount:NativeSurfaceView.kt$NativeSurfaceView$override fun onTouchEvent(event: MotionEvent): Boolean</ID>
+    <ID>ReturnCount:NativeSurfaceView.kt$NativeSurfaceView$override fun surfaceChanged(holder: SurfaceHolder, format: Int, w: Int, h: Int)</ID>
+    <ID>ReturnCount:NativeSurfaceView.kt$NativeSurfaceView.RenderThread$private fun renderSoftwareFrame()</ID>
+    <ID>ReturnCount:SaveLoadLoadDelegate.kt$SaveLoadLoadDelegate$private fun canPlaceAt( b: GridBuildingData, gridW: Int, gridH: Int, occupied: Set&lt;Long&gt; ): Boolean</ID>
+    <ID>ReturnCount:SaveLoadLoadDelegate.kt$SaveLoadLoadDelegate$suspend fun loadGame(saveSlot: SaveSlot): Boolean</ID>
+    <ID>ReturnCount:SaveLoadViewModel.kt$SaveLoadViewModel$fun loadGame(saveSlot: SaveSlot)</ID>
+    <ID>ReturnCount:SaveLoadViewModel.kt$SaveLoadViewModel$fun restartGame()</ID>
+    <ID>ReturnCount:SaveLoadViewModel.kt$SaveLoadViewModel$fun saveGame(slotId: String? = null)</ID>
+    <ID>ReturnCount:SoftwareCanvasBackend.kt$SoftwareCanvasBackend$fun recordFrameTime(actualNs: Long, nowMs: Long): Int</ID>
+    <ID>ReturnCount:SoftwareCanvasBackend.kt$SoftwareCanvasBackend$fun renderFrame( frame: RenderFrame, atlas: Bitmap, vpW: Int, vpH: Int ): Bitmap?</ID>
+    <ID>ReturnCount:TapCloudSaveManager.kt$TapCloudSaveManager$private fun loadCloudSaveInfoFromLocal(): CloudSaveInfo?</ID>
+    <ID>ReturnCount:TapCloudSaveManager.kt$TapCloudSaveManager$suspend fun downloadSave(): CloudSaveResult</ID>
+    <ID>ReturnCount:TapCloudSaveManager.kt$TapCloudSaveManager$suspend fun oneTimeCleanup()</ID>
+    <ID>ReturnCount:TapCloudSaveManager.kt$TapCloudSaveManager$suspend fun uploadSave(saveData: SaveData): CloudSaveResult</ID>
+    <ID>ReturnCount:TapCloudSaveManager.kt$TapCloudSaveManager.ReflectiveCloudSaveApi$override suspend fun downloadArchive(archiveName: String): ByteArray?</ID>
+    <ID>SpreadOperator:LevelDetailDialog.kt$(*arrayOfNulls&lt;String?&gt;(8))</ID>
+    <ID>SpreadOperator:MissionHallDialog.kt$(*Array(6) { null })</ID>
+    <ID>SwallowedException:DetailCultivationSection.kt$e: Exception</ID>
+    <ID>SwallowedException:HerbGardenDialog.kt$e: Exception</ID>
+    <ID>SwallowedException:LawEnforcementHallDialog.kt$e: Exception</ID>
+    <ID>SwallowedException:LibraryDialog.kt$e: Exception</ID>
+    <ID>SwallowedException:PeakScreenComponents.kt$e: Exception</ID>
+    <ID>SwallowedException:ProductionComponents.kt$e: Exception</ID>
+    <ID>SwallowedException:ResourcePreloader.kt$ResourcePreloader$e: Exception</ID>
+    <ID>SwallowedException:SaveLoadViewModel.kt$SaveLoadViewModel$e: Exception</ID>
+    <ID>SwallowedException:SecretRealmViewModel.kt$SecretRealmViewModel$e: Exception</ID>
+    <ID>SwallowedException:SettingsTab.kt$e: Exception</ID>
+    <ID>SwallowedException:SpiritMineDialog.kt$e: Exception</ID>
+    <ID>SwallowedException:WarehouseDialog.kt$e: Exception</ID>
+    <ID>SwallowedException:WorldMapSectDetailDialog.kt$e: Exception</ID>
+    <ID>ThrowingExceptionFromFinally:SaveLoadViewModel.kt$SaveLoadViewModel$throw e</ID>
+    <ID>ThrowsCount:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performCloudLoad()</ID>
+    <ID>ThrowsCount:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performLocalSaveToSlot(slot: Int, previousSlot: Int, startTime: Long)</ID>
+    <ID>TooGenericExceptionCaught:AlchemyViewModel.kt$AlchemyViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:BaseViewModel.kt$BaseViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DetailCultivationSection.kt$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DiscipleDelegate.kt$DiscipleDelegate$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DiscipleViewModel.kt$DiscipleViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ForgeViewModel.kt$ForgeViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:GameLoopDelegate.kt$GameLoopDelegate$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:GameViewModel.kt$GameViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:HerbGardenDialog.kt$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:InventoryDelegate.kt$InventoryDelegate$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:LawEnforcementHallDialog.kt$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:LibraryDialog.kt$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:NativeSurfaceView.kt$NativeSurfaceView$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:NativeSurfaceView.kt$NativeSurfaceView$t: Throwable</ID>
+    <ID>TooGenericExceptionCaught:NativeSurfaceView.kt$NativeSurfaceView.Companion$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:NativeSurfaceView.kt$NativeSurfaceView.RenderThread$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:NavigationDelegate.kt$NavigationDelegate$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:PatrolTowerViewModel.kt$PatrolTowerViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:PeakScreenComponents.kt$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:PlantingDelegate.kt$PlantingDelegate$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ProductionComponents.kt$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ProductionViewModel.kt$ProductionViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:RedeemCodeDelegate.kt$RedeemCodeDelegate$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:ResourcePreloader.kt$ResourcePreloader$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SaveLoadLoadDelegate.kt$SaveLoadLoadDelegate$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SaveLoadRestartDelegate.kt$SaveLoadRestartDelegate$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SaveLoadViewModel.kt$SaveLoadViewModel$e2: Exception</ID>
+    <ID>TooGenericExceptionCaught:SaveLoadViewModel.kt$SaveLoadViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SecretRealmViewModel.kt$SecretRealmViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SettingsTab.kt$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SpiritMineDialog.kt$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:SpiritMineViewModel.kt$SpiritMineViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:TapCloudSaveManager.kt$TapCloudSaveManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:TapCloudSaveManager.kt$TapCloudSaveManager.ReflectiveCloudSaveApi$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:WarehouseDialog.kt$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:WorldMapGarrisonViewModel.kt$WorldMapGarrisonViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:WorldMapInteractionViewModel.kt$WorldMapInteractionViewModel$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:WorldMapSectDetailDialog.kt$e: Exception</ID>
+    <ID>TooGenericExceptionThrown:TapCloudSaveManager.kt$TapCloudSaveManager$throw RuntimeException("TapTap 云存档 SDK 不可用，请确认已安装 TapTap 并登录")</ID>
+    <ID>TooManyFunctions:BaseCameraState.kt$BaseCameraState : CameraState</ID>
+    <ID>TooManyFunctions:BattleLogDialogs.kt$com.xianxia.sect.ui.game.dialogs.BattleLogDialogs.kt</ID>
+    <ID>TooManyFunctions:BuildingDelegate.kt$BuildingDelegate</ID>
+    <ID>TooManyFunctions:DiscipleComponents.kt$com.xianxia.sect.ui.components.DiscipleComponents.kt</ID>
+    <ID>TooManyFunctions:DiscipleDelegate.kt$DiscipleDelegate</ID>
+    <ID>TooManyFunctions:DiscipleViewModel.kt$DiscipleViewModel : BaseViewModel</ID>
+    <ID>TooManyFunctions:GameViewModel.kt$GameViewModel : BaseViewModel</ID>
+    <ID>TooManyFunctions:HeavenlyTrialViewModel.kt$HeavenlyTrialViewModel : BaseViewModel</ID>
+    <ID>TooManyFunctions:InventoryDelegate.kt$InventoryDelegate</ID>
+    <ID>TooManyFunctions:ItemDetailEffects.kt$com.xianxia.sect.ui.game.components.ItemDetailEffects.kt</ID>
+    <ID>TooManyFunctions:NavigationDelegate.kt$NavigationDelegate</ID>
+    <ID>TooManyFunctions:PatrolTowerViewModel.kt$PatrolTowerViewModel : BaseViewModel</ID>
+    <ID>TooManyFunctions:ProductionViewModel.kt$ProductionViewModel : BaseViewModel</ID>
+    <ID>TooManyFunctions:SaveLoadViewModel.kt$SaveLoadViewModel : BaseViewModel</ID>
+    <ID>TooManyFunctions:SectDiplomacyDialog.kt$com.xianxia.sect.ui.game.dialogs.SectDiplomacyDialog.kt</ID>
+    <ID>TooManyFunctions:SectViewModel.kt$SectViewModel : BaseViewModel</ID>
+    <ID>TooManyFunctions:SettingsDelegate.kt$SettingsDelegate</ID>
+    <ID>TooManyFunctions:SpiritMineViewModel.kt$SpiritMineViewModel : BaseViewModel</ID>
+    <ID>TooManyFunctions:TapCloudSaveManager.kt$TapCloudSaveManager</ID>
+    <ID>TooManyFunctions:TapCloudSaveManager.kt$TapCloudSaveManager$ReflectiveCloudSaveApi : CloudSaveApi</ID>
+    <ID>TooManyFunctions:WorldMapInteractionViewModel.kt$WorldMapInteractionViewModel : BaseViewModel</ID>
+    <ID>UnusedParameter:AlchemyDialog.kt$colors: com.xianxia.sect.ui.theme.XianxiaColorScheme</ID>
+    <ID>UnusedParameter:AlchemyDialog.kt$productionViewModel: ProductionViewModel</ID>
+    <ID>UnusedParameter:AttackDiscipleDialog.kt$gameData: GameData?</ID>
+    <ID>UnusedParameter:AttackDiscipleDialog.kt$sectName: String</ID>
+    <ID>UnusedParameter:AutoBuyDialog.kt$selectedCount: Int</ID>
+    <ID>UnusedParameter:BloodRefiningPoolDialog.kt$requiredQuantity: Int</ID>
+    <ID>UnusedParameter:BloodRefiningPoolDialog.kt$selectedQuantity: Int</ID>
+    <ID>UnusedParameter:BuildingDelegate.kt$BuildingDelegate$height: Int</ID>
+    <ID>UnusedParameter:BuildingDelegate.kt$BuildingDelegate$width: Int</ID>
+    <ID>UnusedParameter:BuildingsTab.kt$alchemyViewModel: AlchemyViewModel</ID>
+    <ID>UnusedParameter:BuildingsTab.kt$forgeViewModel: ForgeViewModel</ID>
+    <ID>UnusedParameter:BuildingsTab.kt$herbGardenViewModel: HerbGardenViewModel</ID>
+    <ID>UnusedParameter:BuildingsTab.kt$onDismiss: () -&gt; Unit</ID>
+    <ID>UnusedParameter:BuildingsTab.kt$productionViewModel: ProductionViewModel</ID>
+    <ID>UnusedParameter:BuildingsTab.kt$spiritMineViewModel: SpiritMineViewModel</ID>
+    <ID>UnusedParameter:DetailActionButtons.kt$statusData: Map&lt;String, String&gt; = emptyMap()</ID>
+    <ID>UnusedParameter:DetailCultivationSection.kt$gameMonth: Int = 1</ID>
+    <ID>UnusedParameter:DetailCultivationSection.kt$gamePhase: Int = 0</ID>
+    <ID>UnusedParameter:DiplomacyDialog.kt$gameData: GameData?</ID>
+    <ID>UnusedParameter:DisciplesTab.kt$currentElderId: String?</ID>
+    <ID>UnusedParameter:DisciplesTab.kt$equipment: List&lt;EquipmentInstance&gt;</ID>
+    <ID>UnusedParameter:DisciplesTab.kt$equipmentStacks: List&lt;EquipmentStack&gt;</ID>
+    <ID>UnusedParameter:DisciplesTab.kt$gameData: GameData?</ID>
+    <ID>UnusedParameter:DisciplesTab.kt$manualStacks: List&lt;ManualStack&gt;</ID>
+    <ID>UnusedParameter:DisciplesTab.kt$manuals: List&lt;ManualInstance&gt;</ID>
+    <ID>UnusedParameter:DisciplesTab.kt$slotType: String</ID>
+    <ID>UnusedParameter:ForgeDialog.kt$colors: com.xianxia.sect.ui.theme.XianxiaColorScheme</ID>
+    <ID>UnusedParameter:ForgeDialog.kt$productionViewModel: ProductionViewModel</ID>
+    <ID>UnusedParameter:GameActionButtons.kt$buildingBarExpanded: Boolean</ID>
+    <ID>UnusedParameter:HeavenlyTrialClearRewardDialog.kt$claimableLevels: List&lt;Int&gt;</ID>
+    <ID>UnusedParameter:LibraryDialog.kt$manuals: List&lt;ManualInstance&gt;</ID>
+    <ID>UnusedParameter:LifeLogDialog.kt$discipleName: String</ID>
+    <ID>UnusedParameter:LoadingScreen.kt$progressColor: Color = Color(0xFFFFE55F)</ID>
+    <ID>UnusedParameter:MerchantDialog.kt$maxQuantity: Int</ID>
+    <ID>UnusedParameter:MessageBarExpanded.kt$onDismiss: () -&gt; Unit</ID>
+    <ID>UnusedParameter:NavigationDelegate.kt$NavigationDelegate$buildingIndex: Int = 0</ID>
+    <ID>UnusedParameter:NavigationDelegate.kt$NavigationDelegate$buildingInstanceId: String</ID>
+    <ID>UnusedParameter:NavigationDelegate.kt$NavigationDelegate$mineIndex: Int = 0</ID>
+    <ID>UnusedParameter:PlantingDialog.kt$removeQtyInput: String</ID>
+    <ID>UnusedParameter:ProductionComponents.kt$currentElderId: String?</ID>
+    <ID>UnusedParameter:ProductionComponents.kt$index: Int</ID>
+    <ID>UnusedParameter:ProductionComponents.kt$isIdle: Boolean</ID>
+    <ID>UnusedParameter:ProductionComponents.kt$theme: ProductionTheme</ID>
+    <ID>UnusedParameter:QingyunPeakDialog.kt$gameData: GameData?</ID>
+    <ID>UnusedParameter:SaveLoadRestartDelegate.kt$SaveLoadRestartDelegate$previousSlot: Int</ID>
+    <ID>UnusedParameter:SectDiplomacyDialog.kt$disciples: List&lt;DiscipleAggregate&gt;</ID>
+    <ID>UnusedParameter:SectDiplomacyDialog.kt$relationLevel: SectRelationLevel</ID>
+    <ID>UnusedParameter:SectDiplomacyDialog.kt$skipped: Boolean</ID>
+    <ID>UnusedParameter:SettingsTab.kt$viewModel: GameViewModel</ID>
+    <ID>UnusedParameter:SoftwareCanvasBackend.kt$SoftwareCanvasBackend$tileSize: Int</ID>
+    <ID>UnusedParameter:SpiritMineDialog.kt$productionViewModel: ProductionViewModel</ID>
+    <ID>UnusedParameter:SpiritMineViewModel.kt$SpiritMineViewModel$mineIndex: Int = 0</ID>
+    <ID>UnusedParameter:TianshuHallDialog.kt$viewModel: GameViewModel</ID>
+    <ID>UnusedParameter:WarehouseTab.kt$onDismiss: () -&gt; Unit = {}</ID>
+    <ID>UnusedParameter:WenDaoPeakDialog.kt$gameData: GameData?</ID>
+    <ID>UnusedParameter:WorldMapSectDetailDialog.kt$portraitRes: String</ID>
+    <ID>UnusedPrivateClass:TapCloudSaveManager.kt$TapCloudSaveManager$TapGameSaveApi : CloudSaveApi</ID>
+    <ID>UnusedPrivateMember:LawEnforcementHallDialog.kt$@Composable private fun CommonDialog( title: String, onDismiss: () -&gt; Unit, content: @Composable ColumnScope.() -&gt; Unit )</ID>
+    <ID>UnusedPrivateMember:MerchantDialog.kt$private fun getRarityName(rarity: Int): String</ID>
+    <ID>UnusedPrivateMember:TianshuHallDialog.kt$@Composable private fun SectAffairsPlaceholderDialog(onDismiss: () -&gt; Unit)</ID>
+    <ID>UnusedPrivateProperty:AdsDelegate.kt$AdsDelegate.Companion$private const val TAG = "AdsDelegate"</ID>
+    <ID>UnusedPrivateProperty:AlchemyViewModel.kt$AlchemyViewModel$private val elderManagement: ElderManagementUseCase</ID>
+    <ID>UnusedPrivateProperty:BagDelegate.kt$BagDelegate$private val scope: CoroutineScope</ID>
+    <ID>UnusedPrivateProperty:BattleLogDialogs.kt$val typeColor = when (action.type) { "skill" -&gt; Color(0xFF9C27B0) "support" -&gt; Color(0xFF4CAF50) else -&gt; Color.Black }</ID>
+    <ID>UnusedPrivateProperty:BeastAttackDelegate.kt$BeastAttackDelegate$private val scope: CoroutineScope</ID>
+    <ID>UnusedPrivateProperty:BuildingDelegate.kt$BuildingDelegate$private var _currentBuildingDelegate: Any? = null</ID>
+    <ID>UnusedPrivateProperty:BuildingsTab.kt$val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()</ID>
+    <ID>UnusedPrivateProperty:BuildingsTab.kt$val equipment by viewModel.equipmentInstances.collectAsStateWithLifecycle()</ID>
+    <ID>UnusedPrivateProperty:BuildingsTab.kt$val manuals by viewModel.manualInstances.collectAsStateWithLifecycle()</ID>
+    <ID>UnusedPrivateProperty:ForgeViewModel.kt$ForgeViewModel$private val elderManagement: ElderManagementUseCase</ID>
+    <ID>UnusedPrivateProperty:GameOverlayHost.kt$private val CachedColorScheme = XianxiaColorScheme()</ID>
+    <ID>UnusedPrivateProperty:GameOverlayHost.kt$val alchemyViewModel = vms.alchemy</ID>
+    <ID>UnusedPrivateProperty:GameOverlayHost.kt$val battleViewModel = vms.battle</ID>
+    <ID>UnusedPrivateProperty:GameOverlayHost.kt$val bloodRefiningViewModel = vms.bloodRefining</ID>
+    <ID>UnusedPrivateProperty:GameOverlayHost.kt$val forgeViewModel = vms.forge</ID>
+    <ID>UnusedPrivateProperty:GameOverlayHost.kt$val herbGardenViewModel = vms.herbGarden</ID>
+    <ID>UnusedPrivateProperty:GameOverlayHost.kt$val patrolTowerViewModel = vms.patrolTower</ID>
+    <ID>UnusedPrivateProperty:GameOverlayHost.kt$val productionViewModel = vms.production</ID>
+    <ID>UnusedPrivateProperty:GameOverlayHost.kt$val saveLoadViewModel = vms.saveLoad</ID>
+    <ID>UnusedPrivateProperty:GameOverlayHost.kt$val spiritMineViewModel = vms.spiritMine</ID>
+    <ID>UnusedPrivateProperty:GameOverlayHost.kt$val worldMapGarrisonViewModel = vms.worldMapGarrison</ID>
+    <ID>UnusedPrivateProperty:GameOverlayHost.kt$val worldMapInteractionViewModel = vms.worldMapInteraction</ID>
+    <ID>UnusedPrivateProperty:GameViewModel.kt$GameViewModel$@ApplicationContext private val appContext: Context</ID>
+    <ID>UnusedPrivateProperty:GameViewModel.kt$GameViewModel$private val battleFacade: BattleFacade</ID>
+    <ID>UnusedPrivateProperty:GameViewModel.kt$GameViewModel$private val diplomacyFacade: DiplomacyFacade</ID>
+    <ID>UnusedPrivateProperty:GameViewModel.kt$GameViewModel$private val inventoryFacade: InventoryFacade</ID>
+    <ID>UnusedPrivateProperty:GameViewModel.kt$GameViewModel$private val productionFacade: ProductionFacade</ID>
+    <ID>UnusedPrivateProperty:GameViewModel.kt$GameViewModel$private val saveFacade: SaveFacade</ID>
+    <ID>UnusedPrivateProperty:HeavenlyTrialCombatLogic.kt$val myTeam = if (actorIsPlayer) updatedPlayers else updatedEnemies</ID>
+    <ID>UnusedPrivateProperty:HeavenlyTrialCombatScreen.kt$val aliveEnemies = enemyTeam.filter { !it.isDead }</ID>
+    <ID>UnusedPrivateProperty:HeavenlyTrialComponents.kt$val context = LocalContext.current</ID>
+    <ID>UnusedPrivateProperty:HerbGardenViewModel.kt$HerbGardenViewModel$private val elderManagement: ElderManagementUseCase</ID>
+    <ID>UnusedPrivateProperty:HerbGardenViewModel.kt$HerbGardenViewModel$private val gameEngine: GameEngine</ID>
+    <ID>UnusedPrivateProperty:MainGameScreen.kt$/** * ## MainGameScreen - 主游戏界面 (Compose 重组优化版本) * * ### [H-07] 性能优化说明 * * **原始问题**: * - 在单个 Composable 中收集 30+ 个 StateFlow * - 任何 StateFlow 变化都触发整个 MainGameScreen 重组 * - 高频数据 (cultivation progress, resources) 每秒变化 10 次 (100ms tick) * - 导致每秒 5-25 次全量重组 (30+ StateFlow × 5 ticks) * * **优化策略**: * * 1. **分层收集** (Layered Collection) * - 顶层: 只收集当前 Tab 需要的核心数据 * - Dialog 层: 只在 Dialog 可见时收集其状态 * - 效果: 减少无效重组 60-80% * * 2. **高频数据限制** (High-Frequency Throttling) * - 使用 `derivedStateOf` 提取 UI 真正需要的字段 * - 使用 `collectLatest` 取消过时的更新 * - 效果: 高频数据不再触发低频组件重组 * * 3. **惰性对话框收集** (Lazy Dialog Collection) * - 对话框状态只在 Dialog 显示时才订阅 * - 使用 `remember` 缓存计算结果 * - 效果: 减少 20+ 个常驻订阅 * * **性能预期**: * - 重组次数: 从 ~100次/秒 → ~10-20次/秒 * - 帧时间: 从 16-50ms → 8-16ms * - 内存: 减少 30% (更少的状态快照) */ // 瓦片类型常量（与 GameActivity.kt 一致） private const val TILE_GROUND = 0</ID>
+    <ID>UnusedPrivateProperty:MainGameScreen.kt$private const val TILE_GRASS_LARGE = 3</ID>
+    <ID>UnusedPrivateProperty:MainGameScreen.kt$private const val TILE_GRASS_MEDIUM = 2</ID>
+    <ID>UnusedPrivateProperty:MainGameScreen.kt$private const val TILE_GRASS_SMALL = 1</ID>
+    <ID>UnusedPrivateProperty:MainGameScreen.kt$private const val TILE_TREE1 = 4</ID>
+    <ID>UnusedPrivateProperty:MainGameScreen.kt$private const val TILE_TREE2 = 5</ID>
+    <ID>UnusedPrivateProperty:MainGameScreen.kt$val decorUvMap = SpriteAtlasDef.TILE_UV_MAP</ID>
+    <ID>UnusedPrivateProperty:MainGameScreen.kt$val goldFingerAvailableStones = remember { derivedStateOf { gameData?.spiritStones ?: 0L } }</ID>
+    <ID>UnusedPrivateProperty:MainGameScreen.kt$val goldFingerBuildingCost = remember { derivedStateOf { val name = goldFingerState.buildingName if (name.isNotEmpty()) viewModel.getBuildingCost(name) else 0L } }</ID>
+    <ID>UnusedPrivateProperty:MainGameScreen.kt$var lastRenderDataSyncNs by remember { mutableLongStateOf(0L) }</ID>
+    <ID>UnusedPrivateProperty:OverlayDelegate.kt$OverlayDelegate$private val scope: CoroutineScope</ID>
+    <ID>UnusedPrivateProperty:OverlayDialogRouter.kt$val currentDialogType = type</ID>
+    <ID>UnusedPrivateProperty:PlantingDialog.kt$var isEditingQty by remember { mutableStateOf(false) }</ID>
+    <ID>UnusedPrivateProperty:PlantingDialog.kt$var isEditingRemoveQty by remember { mutableStateOf(false) }</ID>
+    <ID>UnusedPrivateProperty:ProductionViewModel.kt$ProductionViewModel$val currentGameData = gameEngine.gameDataSnapshot ?: return false</ID>
+    <ID>UnusedPrivateProperty:ProductionViewModel.kt$ProductionViewModel.Companion$private const val TAG = "ProductionViewModel"</ID>
+    <ID>UnusedPrivateProperty:SaveLoadLoadDelegate.kt$SaveLoadLoadDelegate$private val spiritStoneWallet: SpiritStoneWallet</ID>
+    <ID>UnusedPrivateProperty:SaveLoadRestartDelegate.kt$SaveLoadRestartDelegate$private val gameEngine: GameEngine</ID>
+    <ID>UnusedPrivateProperty:SaveLoadRestartDelegate.kt$SaveLoadRestartDelegate$private val gameEngineCore: GameEngineCore</ID>
+    <ID>UnusedPrivateProperty:SaveLoadSaveDelegate.kt$SaveLoadSaveDelegate$private val gameEngine: GameEngine</ID>
+    <ID>UnusedPrivateProperty:SaveLoadSaveDelegate.kt$SaveLoadSaveDelegate$private val saveLock = AtomicBoolean(false)</ID>
+    <ID>UnusedPrivateProperty:SaveLoadSaveDelegate.kt$SaveLoadSaveDelegate$private val stateStore: GameStateStore</ID>
+    <ID>UnusedPrivateProperty:SaveLoadSaveDelegate.kt$SaveLoadSaveDelegate$private val storageFacade: StorageFacade</ID>
+    <ID>UnusedPrivateProperty:SaveLoadViewModel.kt$SaveLoadViewModel$// 领域委托实例 — 按职责拆分 save/load/restart 等逻辑 private val saveDelegate by lazy { SaveLoadSaveDelegate(gameEngine, persistenceFacade.storageFacade, stateStore) }</ID>
+    <ID>UnusedPrivateProperty:SaveLoadViewModel.kt$SaveLoadViewModel$private val coroutineScopeProvider: CoroutineScopeProvider</ID>
+    <ID>UnusedPrivateProperty:SaveLoadViewModel.kt$SaveLoadViewModel$private val pauseDelegate by lazy { SaveLoadPauseDelegate(gameEngineCore, gameClock) }</ID>
+    <ID>UnusedPrivateProperty:SaveLoadViewModel.kt$SaveLoadViewModel$private val restartDelegate by lazy { SaveLoadRestartDelegate(gameEngine, gameEngineCore, persistenceFacade.storageFacade, stateStore, dispatcher = ioDispatcher.dispatcher) }</ID>
+    <ID>UnusedPrivateProperty:SectDiplomacyDialog.kt$val aiSectName = sect.name</ID>
+    <ID>UnusedPrivateProperty:SectDiplomacyDialog.kt$val context = androidx.compose.ui.platform.LocalContext.current</ID>
+    <ID>UnusedPrivateProperty:SectMapViewport.kt$val pValid = if (mb != null) preview.movingValid else preview.placementValidity</ID>
+    <ID>UnusedPrivateProperty:SectViewModel.kt$SectViewModel$val currentGameData = gameEngine.gameData.value ?: return false</ID>
+    <ID>UnusedPrivateProperty:SettingsTab.kt$val selectedSlotInfo = remember(saveSlots, selectedSlot) { saveSlots.find { it.slot == selectedSlot } }</ID>
+    <ID>UnusedPrivateProperty:SpiritMineDialog.kt$val baseOutput = slots.map { slot -&gt; if (slot.discipleId.isEmpty()) { 0L } else { val disciple = discipleMap[slot.discipleId] if (disciple != null) { val mining = DiscipleStatCalculator.getBaseStats(disciple).mining if (mining &gt; spiritMineMiningThreshold) { miningBonus += (mining - spiritMineMiningThreshold) * spiritMineMiningBonusRate } } spiritMineBaseOutput.toLong() } }.sum()</ID>
+    <ID>UnusedPrivateProperty:WorldCameraStateTest.kt$WorldCameraStateTest$/** scale=1.0 时 Y 方向可见高度 = 1920 &gt; 926 → 永远 clamp 到 0 */ private val maxCameraY = 0f</ID>
+    <ID>UnusedPrivateProperty:WorldCameraStateTest.kt$WorldCameraStateTest$val worldBeforeY = camera.screenToWorldY(focusSy)</ID>
+    <ID>UnusedPrivateProperty:WorldMapSectDetailDialog.kt$val hasGiftedThisYear = (gameData?.sectDetails?.get(sect.id)?.lastGiftYear ?: 0) == currentYear</ID>
+    <ID>VariableNaming:DailySignInDialog.kt$val calGridW_target = cardW * 7f + gap * 6f</ID>
+    <ID>VariableNaming:SaveLoadLoadDelegate.kt$SaveLoadLoadDelegate$private val TAG = "SaveLoadLoadDelegate"</ID>
+    <ID>VariableNaming:SaveLoadPauseDelegate.kt$SaveLoadPauseDelegate$private val TAG = "SaveLoadPauseDelegate"</ID>
+    <ID>VariableNaming:SaveLoadRestartDelegate.kt$SaveLoadRestartDelegate$private val TAG = "SaveLoadRestartDelegate"</ID>
+    <ID>VariableNaming:SaveLoadSaveDelegate.kt$SaveLoadSaveDelegate$private val TAG = SaveLoadViewModelConstants.TAG</ID>
+    <ID>WildcardImport:ActivityDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:ActivityDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:AlchemyDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:AlchemyDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:AlchemyDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:AlchemyDialog.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:AlchemyViewModel.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:AlchemyViewModel.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:AlchemyViewModel.kt$import kotlinx.coroutines.flow.*</ID>
+    <ID>WildcardImport:AttackDiscipleDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:AttackDiscipleDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:AttackWarningDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:AutoBuyDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:AutoBuyDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:AutoBuyDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:BagDelegate.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:BattleLogDialogs.kt$import androidx.compose.animation.*</ID>
+    <ID>WildcardImport:BattleLogDialogs.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:BattleLogDialogs.kt$import androidx.compose.material.icons.filled.*</ID>
+    <ID>WildcardImport:BattleLogDialogs.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:BattleLogDialogs.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:BattleResultDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:BattleViewModel.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:BattleViewModel.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:BattleViewModel.kt$import kotlinx.coroutines.flow.*</ID>
+    <ID>WildcardImport:BeastAttackWarningDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:BloodRefiningPoolDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:BloodRefiningPoolDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:BloodRefiningPoolDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:BloodRefiningPoolDialog.kt$import com.xianxia.sect.ui.components.*</ID>
+    <ID>WildcardImport:BloodRefiningViewModel.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:BloodRefiningViewModel.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:BuildingDelegate.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:BuildingOverflowMigrationTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:BuildingsTab.kt$import androidx.compose.animation.*</ID>
+    <ID>WildcardImport:BuildingsTab.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:BuildingsTab.kt$import androidx.compose.material.icons.filled.*</ID>
+    <ID>WildcardImport:BuildingsTab.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:BuildingsTab.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:CloudSaveDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:CloudSaveDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:DailySignInDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:DailySignInDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:DetailActionButtons.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:DetailActionButtons.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:DetailCombatSection.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:DetailCombatSection.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:DetailCultivationSection.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:DetailCultivationSection.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:DetailCultivationSection.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:DetailCultivationSection.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:DetailCultivationSectionTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:DetailEquipmentSection.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:DetailEquipmentSection.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:DetailEquipmentSection.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:DetailHeaderSection.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:DetailHeaderSection.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:DetailManualSection.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:DetailManualSection.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:DetailManualSection.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:DetailPillSection.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:DetailPillSection.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:DetailPillSection.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:DetailPillSection.kt$import com.xianxia.sect.ui.components.*</ID>
+    <ID>WildcardImport:DiplomacyDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:DiplomacyDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:DiplomacyDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:DiscipleChatDialog.kt$import androidx.compose.foundation.*</ID>
+    <ID>WildcardImport:DiscipleChatDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:DiscipleChatDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:DiscipleChatDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:DiscipleChatDialogTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:DiscipleDelegate.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:DiscipleDetailScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:DiscipleDetailScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:DiscipleDetailScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:DiscipleDetailScreen.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:DiscipleDetailScreen.kt$import com.xianxia.sect.ui.game.components.detail.*</ID>
+    <ID>WildcardImport:DiscipleFilterComponents.kt$import androidx.compose.animation.*</ID>
+    <ID>WildcardImport:DiscipleFilterComponents.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:DiscipleFilterComponents.kt$import androidx.compose.material.icons.filled.*</ID>
+    <ID>WildcardImport:DiscipleFilterComponents.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:DiscipleFilterComponents.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:DiscipleSelectorDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:DiscipleSelectorDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:DiscipleViewModel.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:DiscipleViewModel.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:DiscipleViewModel.kt$import kotlinx.coroutines.flow.*</ID>
+    <ID>WildcardImport:DisciplesTab.kt$import androidx.compose.animation.*</ID>
+    <ID>WildcardImport:DisciplesTab.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:DisciplesTab.kt$import androidx.compose.material.icons.filled.*</ID>
+    <ID>WildcardImport:DisciplesTab.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:DisciplesTab.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:EquipmentSection.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:ForgeDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:ForgeDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:ForgeDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:ForgeDialog.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:ForgeViewModel.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:ForgeViewModel.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:ForgeViewModel.kt$import kotlinx.coroutines.flow.*</ID>
+    <ID>WildcardImport:GameActionButtons.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:GameLoopDelegate.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:GameNotificationDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:GameNotificationDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:GameOverlayHost.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:GameOverlayHost.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:GameOverlayHost.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:GameOverlayHost.kt$import com.xianxia.sect.ui.game.dialogs.*</ID>
+    <ID>WildcardImport:GameViewModel.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:GameViewModel.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:GameViewModel.kt$import com.xianxia.sect.ui.game.delegate.*</ID>
+    <ID>WildcardImport:GameViewModel.kt$import kotlinx.coroutines.*</ID>
+    <ID>WildcardImport:GameViewModel.kt$import kotlinx.coroutines.flow.*</ID>
+    <ID>WildcardImport:GoldFingerBuildTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:HeavenlyTrialBattleDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:HeavenlyTrialBattleDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:HeavenlyTrialBattleResultDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:HeavenlyTrialClearRewardDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:HeavenlyTrialCombatLogicTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:HeavenlyTrialCombatScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:HeavenlyTrialCombatScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:HeavenlyTrialCombatScreen.kt$import com.xianxia.sect.ui.game.dialogs.heavenlytrial.*</ID>
+    <ID>WildcardImport:HeavenlyTrialComponents.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:HeavenlyTrialComponents.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:HeavenlyTrialDiscipleDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:HeavenlyTrialDiscipleDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:HeavenlyTrialPanel.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:HeavenlyTrialPanel.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:HerbGardenDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:HerbGardenDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:HerbGardenDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:HerbGardenViewModel.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:HerbGardenViewModel.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:HerbGardenViewModel.kt$import kotlinx.coroutines.flow.*</ID>
+    <ID>WildcardImport:HideUiToggleButton.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:InventoryDelegate.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:ItemDetailDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:ItemDetailDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:ItemDetailDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:ItemDetailDialog.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:ItemDetailEffects.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:ItemDetailOtherEffects.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:LawEnforcementHallDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:LawEnforcementHallDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:LawEnforcementHallDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:LawEnforcementHallDialog.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:LevelDetailDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:LevelDetailDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:LevelDetailDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:LibraryDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:LibraryDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:LibraryDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:LibraryDialog.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:LifeLogDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:LoadingScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:LoadingScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:MailDelegate.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:MailDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:MailDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:MainGameScreen.kt$import androidx.compose.animation.*</ID>
+    <ID>WildcardImport:MainGameScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:MainGameScreen.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:MainGameScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:MainGameScreen.kt$import com.xianxia.sect.core.touch.*</ID>
+    <ID>WildcardImport:MainGameScreen.kt$import com.xianxia.sect.ui.game.main.*</ID>
+    <ID>WildcardImport:MainGameScreen.kt$import com.xianxia.sect.ui.game.sect.*</ID>
+    <ID>WildcardImport:ManualSection.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:MasterApprenticeSelectDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:MasterApprenticeSelectDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:MaterialSection.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:MerchantDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:MerchantDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:MerchantDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:MerchantInventoryDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:MerchantInventoryDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:MerchantListingDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:MerchantListingDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:MessageBarCollapsed.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:MessageBarExpanded.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:MessageBarHost.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:MessageBarHost.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:MessageBarTabRow.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:MessageListContent.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:MessageListContent.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:MissionHallDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:MissionHallDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:MissionHallDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:MissionHallDialog.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:NavigationDelegate.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:OverlayDelegate.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:OverlayDialogRouter.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:OverlayDialogRouter.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:OverlayDialogRouter.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:OverlayDialogRouter.kt$import com.xianxia.sect.ui.game.dialogs.*</ID>
+    <ID>WildcardImport:PatrolTowerDialog.kt$import androidx.compose.foundation.*</ID>
+    <ID>WildcardImport:PatrolTowerDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:PatrolTowerDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:PatrolTowerDialog.kt$import com.xianxia.sect.ui.components.*</ID>
+    <ID>WildcardImport:PatrolTowerViewModel.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:PatrolTowerViewModel.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:PeakScreenComponents.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:PeakScreenComponents.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:PeakScreenComponents.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:PeakScreenComponents.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:PillSection.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:PlacementConfirmButtons.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:PlantingDelegate.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:PlantingDialog.kt$import androidx.compose.foundation.*</ID>
+    <ID>WildcardImport:PlantingDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:PlantingDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:PlantingDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:PlantingDialog.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:ProductionComponents.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:ProductionComponents.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:ProductionComponents.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:ProductionComponents.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:ProductionViewModel.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:ProductionViewModel.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:ProductionViewModel.kt$import kotlinx.coroutines.flow.*</ID>
+    <ID>WildcardImport:QingyunPeakDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:QingyunPeakDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:QingyunPeakDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:QingyunPeakDialog.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:RecruitDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:RecruitDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:RecruitDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:RedeemCodeDelegate.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:ReflectionCliffDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:ReflectionCliffDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:ReflectionCliffDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:ReflectionCliffDialog.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:ResidenceDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:ResidenceDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:ResidenceDialog.kt$import com.xianxia.sect.ui.components.*</ID>
+    <ID>WildcardImport:RewardCardHost.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:RewardCardHost.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:SalaryConfigDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:SalaryConfigDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:SalaryConfigDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:SaveLoadLoadDelegate.kt$import kotlinx.coroutines.*</ID>
+    <ID>WildcardImport:SaveLoadViewModel.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:SaveLoadViewModel.kt$import com.xianxia.sect.core.state.*</ID>
+    <ID>WildcardImport:SaveLoadViewModel.kt$import kotlinx.coroutines.*</ID>
+    <ID>WildcardImport:SaveLoadViewModel.kt$import kotlinx.coroutines.flow.*</ID>
+    <ID>WildcardImport:ScoutDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:ScoutDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:SecretRealmDetailDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:SecretRealmDetailDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:SecretRealmExplorationScreen.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:SecretRealmExplorationScreen.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:SectDiplomacyDialog.kt$import androidx.compose.foundation.*</ID>
+    <ID>WildcardImport:SectDiplomacyDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:SectDiplomacyDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:SectDiplomacyDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:SectInfoCard.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:SectInfoCard.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:SectLevelDetailDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:SectLevelDetailDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:SectLevelRewardDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:SectLevelRewardDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:SectMarker.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:SectTradeDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:SectTradeDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:SectTradeDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:SectViewModel.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:SectViewModel.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:SectViewModel.kt$import kotlinx.coroutines.flow.*</ID>
+    <ID>WildcardImport:SettingsDelegate.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:SettingsTab.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:SettingsTab.kt$import androidx.compose.material.icons.filled.*</ID>
+    <ID>WildcardImport:SettingsTab.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:SettingsTab.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:SignInDelegate.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:SoftwareCanvasBackend.kt$import android.graphics.*</ID>
+    <ID>WildcardImport:SoftwareCanvasBackendTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:SpiritMineDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:SpiritMineDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:SpiritMineDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:SpiritMineViewModel.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:SpiritMineViewModel.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:TianshuHallDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:TianshuHallDialog.kt$import androidx.compose.material.icons.filled.*</ID>
+    <ID>WildcardImport:TianshuHallDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:TianshuHallDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:TianshuHallDialog.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:WarehouseBulkSellDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:WarehouseBulkSellDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:WarehouseBulkSellDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:WarehouseDetailDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:WarehouseDetailDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:WarehouseDetailDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:WarehouseDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:WarehouseDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:WarehouseDialog.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:WarehouseDiscipleSelectDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:WarehouseDiscipleSelectDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:WarehouseTab.kt$import androidx.compose.animation.*</ID>
+    <ID>WildcardImport:WarehouseTab.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:WarehouseTab.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:WarehouseTab.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:WenDaoPeakDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:WenDaoPeakDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:WenDaoPeakDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:WenDaoPeakDialog.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:WorldMapDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:WorldMapDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:WorldMapGarrisonViewModel.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:WorldMapGarrisonViewModel.kt$import kotlinx.coroutines.flow.*</ID>
+    <ID>WildcardImport:WorldMapInteractionViewModel.kt$import com.xianxia.sect.core.engine.*</ID>
+    <ID>WildcardImport:WorldMapInteractionViewModel.kt$import kotlinx.coroutines.flow.*</ID>
+    <ID>WildcardImport:WorldMapSectDetailDialog.kt$import androidx.compose.foundation.layout.*</ID>
+    <ID>WildcardImport:WorldMapSectDetailDialog.kt$import androidx.compose.material3.*</ID>
+    <ID>WildcardImport:WorldMapSectDetailDialog.kt$import androidx.compose.runtime.*</ID>
+    <ID>WildcardImport:WorldMapViewModel.kt$import kotlinx.coroutines.flow.*</ID>
+  </CurrentIssues>
+</SmellBaseline>

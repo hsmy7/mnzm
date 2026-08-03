@@ -54,7 +54,18 @@ async function fixMislabeledWebp(webpPath) {
         .toFile(webpPath + '.tmp');
 
     // Replace original with proper WebP
-    fs.renameSync(webpPath + '.tmp', webpPath);
+    // 注意：libvips 在 Windows 上 toFile 写完后文件仍被进程内 mmap
+    // 缓存锁定（sharp.cache 默认开启），直接 rename 抛 EPERM——
+    // 先清理 libvips 缓存释放句柄
+    sharp.cache({ memory: 0, files: 0, items: 0 });
+    try {
+        fs.renameSync(webpPath + '.tmp', webpPath);
+    } catch (err) {
+        // 失败时清理 .tmp 残留（残留的 .tmp 在 drawable 目录
+        // 会导致 AAPT 资源打包失败）
+        fs.rmSync(webpPath + '.tmp', { force: true });
+        throw err;
+    }
 
     const newSize = (fs.statSync(webpPath).size / 1024).toFixed(0);
     const ratio = ((1 - fs.statSync(webpPath).size / (oldSize * 1024)) * 100).toFixed(1);

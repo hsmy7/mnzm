@@ -210,15 +210,6 @@ enum class SecretRealmEventType {
     REST_AREA,
     /** 发现遗迹事件（选项：直接离开 / 简单搜寻 / 仔细搜寻） */
     RUIN_EXPLORE,
-    /** 遗迹搜寻结果子事件（空无一物 / 发现秘宝，title 区分），继续前进进入衔接事件 */
-    RUIN_RESULT,
-    /** 衔接事件（结果描述 + 选择探索方向） */
-    BRIDGE
-}
-
-/** 衔接事件探索方向（三方向等价，均为推进） */
-enum class SecretRealmDirection {
-    LEFT,
-    STRAIGHT,
-    RIGHT
+    /** 遗迹搜寻结果子事件（空无一物 / 发现秘宝，title 区分） */
+    RUIN_RESULT
 }

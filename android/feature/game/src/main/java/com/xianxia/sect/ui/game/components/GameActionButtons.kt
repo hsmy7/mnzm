@@ -31,7 +31,8 @@ fun GameActionButtons(
     modifier: Modifier = Modifier
 ) {
     val mailUnreadCount by viewModel.mailUnreadCount.collectAsStateWithLifecycle()
-    val activityBadge by viewModel.anyActivityClaimable.collectAsStateWithLifecycle()
+    // 活动界面仅剩每日签到，红点只跟签到可领取状态
+    val activityBadge by viewModel.canClaimToday.collectAsStateWithLifecycle()
 
     Column(
         modifier = modifier
@@ -66,6 +67,10 @@ fun GameActionButtons(
                 spriteName = "ui_activity_button",
                 badge = if (activityBadge) 1 else 0
             ) { viewModel.navigateToDialog(DialogType.Activity) }
+            FloatingActionButton(
+                text = "历战",
+                spriteName = "ui_lizhan_button"
+            ) { viewModel.navigateToDialog(DialogType.Lizhan) }
         }
         FloatingActionButton(
             text = "弟子",

@@ -117,12 +117,34 @@ class SecretRealmEventGeneratorTest {
     }
 
     @Test
-    fun `generateBridgeEvent - 描述为结果文本前缀且三个方向选项`() {
-        val event = SecretRealmEventGenerator.generateBridgeEvent("你方悄然绕行，成功避开了妖兽的注意")
-        assertEquals(SecretRealmEventType.BRIDGE.name, event.eventType)
-        assertTrue(event.description.startsWith("你方悄然绕行，成功避开了妖兽的注意"))
-        assertTrue(event.description.contains("请选择探索方向"))
-        assertEquals(listOf("走左路", "直线前进", "走右路"), event.options.map { it.label })
+    fun `rollNextEvent - 生成的事件必为三类真实事件之一`() {
+        val event = SecretRealmEventGenerator.rollNextEvent(
+            DeterministicRng.fromSeed(BEAST_SEED), playerAvgRealm = 5
+        )
+        // 衔接事件已移除：事件流直接推进至真实事件
+        assertTrue(
+            event.eventType == SecretRealmEventType.BEAST_ENCOUNTER.name ||
+                event.eventType == SecretRealmEventType.REST_AREA.name ||
+                event.eventType == SecretRealmEventType.RUIN_EXPLORE.name
+        )
+    }
+
+    @Test
+    fun `playerAvgRealm - 存活成员平均境界且全灭取上限`() {
+        assertEquals(4, SecretRealmEventGenerator.playerAvgRealm(
+            listOf(
+                com.xianxia.sect.core.model.SecretRealmMemberState(
+                    discipleId = "1", realm = 5, currentHp = -1, maxHp = 100
+                ),
+                com.xianxia.sect.core.model.SecretRealmMemberState(
+                    discipleId = "2", realm = 4, currentHp = -1, maxHp = 100
+                )
+            )
+        ))
+        assertEquals(
+            com.xianxia.sect.core.GameConfig.SecretRealm.REALM_MAX,
+            SecretRealmEventGenerator.playerAvgRealm(emptyList())
+        )
     }
 
     @Test

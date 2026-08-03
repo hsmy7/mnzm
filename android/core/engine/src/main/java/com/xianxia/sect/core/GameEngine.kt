@@ -257,7 +257,8 @@ class GameEngine @Inject constructor(
                 cultivatorCaves = data.cultivatorCaves ?: emptyList(),
                 worldLevels = data.worldLevels ?: emptyList(),
                 connectionEdges = LevelGenerator.buildConnectionEdges(data.worldMapSects),
-                secretRealm = data.secretRealmState.takeIf { it.exists }
+                // 远古秘境已改为历战常驻活动（世界地图不再显示入口）
+                secretRealm = null
             )
         }.distinctUntilChanged()
             .stateIn(gameEngineCore.scopeForStateIn(), kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000), WorldMapRenderData())

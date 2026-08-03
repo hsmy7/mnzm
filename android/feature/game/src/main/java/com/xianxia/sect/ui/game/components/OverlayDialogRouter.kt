@@ -204,6 +204,12 @@ internal fun OverlayDialogRoute(
                 onDismiss = onDismiss
             )
         }
+        is DialogType.Lizhan -> {
+            LizhanDialog(
+                viewModel = viewModel,
+                onDismiss = onDismiss
+            )
+        }
         is DialogType.SpiritMine -> {
             SpiritMineDialog(
                 buildingInstanceId = type.buildingInstanceId,

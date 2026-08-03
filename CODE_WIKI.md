@@ -474,6 +474,10 @@ mergeDiscipleAfterSettlement(main, shadow, origin):
 
 ### 焦点分频机制
 
+> ⚠️ **已废弃（2026-07-27 惰性结算重构移除）** — `FocusDomain`/`InterfaceDomainMap` 已删除约 3500 行，
+> UI 不再驱动系统 tick。以下为移除前架构的留存记录，仅作历史参考；
+> 现行调度见 [docs/architecture.md#惰性结算引擎](docs/architecture.md)（四层结算：时间推进/每旬检查/月变/年变）。
+
 每个 `GameSystem` 声明 `focusDomain`(`FocusDomain` 枚举)：
 - **ALWAYS** — 每 tick 必执行（TimeSystem）
 - **DISCIPLES** — 弟子相关（修炼、突破、HP/MP 恢复）
@@ -1116,6 +1120,8 @@ cd android && ./gradlew.bat testDebugUnitTest \
 - DB Migration v32→v33：ALTER TABLE 新增 8 列
 
 ### 焦点域实时化
+
+> ⚠️ **已废弃** — 同"焦点分频机制"标注，FocusDomain 已随惰性结算重构移除，本段为历史记录。
 
 - **DISCIPLES Tab**: 随游戏时钟推进修炼值（`rate × phasesToSettle`）、HP/MP 恢复、buff 时效。`updateFocusedDisciple` 对焦点弟子额外推进功法熟练度 + 装备孕养
 - **BUILDINGS Tab**: 随旬推进检测生产槽位完成 + 触发自动锻造/自动炼丹

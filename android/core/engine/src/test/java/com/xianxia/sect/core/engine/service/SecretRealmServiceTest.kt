@@ -200,37 +200,47 @@ class SecretRealmServiceTest {
     // ── 刷新 ──────────────────────────────────────────────────────────
 
     @Test
-    fun `processYearlySpawn - cooldown 0 时 rng 概率通过则创建秘境`() {
-        // fixedRng 首个 nextDouble 值取决于种子；用可控序列：rng.nextDouble() 恒 < 0.008 的种子不可得，
-        // 直接验证"冷却/已存在"守卫：cooldown 未到时不刷（不依赖 rng）
+    fun `processYearlySpawn - 首次开启在第 50 年`() {
+        // 从未出现过（cooldown=0）：第 50 年首次现世
         val state = createState()
-        state.gameData = state.gameData.copy(secretRealmCooldownYear = 100)
-        service.processYearlySpawn(year = 120, state = state)
+        service.processYearlySpawn(year = 49, state = state)
         assertFalse(state.gameData.secretRealmState.exists)
+        service.processYearlySpawn(year = 50, state = state)
+        assertTrue(state.gameData.secretRealmState.exists)
+        assertEquals(50, state.gameData.secretRealmState.spawnYear)
     }
 
     @Test
-    fun `processYearlySpawn - 冷却差值不满 40 年时即使概率通过也不刷新`() {
+    fun `processYearlySpawn - 冷却差值不满 50 年时不刷新`() {
         val state = createState()
         state.gameData = state.gameData.copy(secretRealmCooldownYear = 100)
         val mockRng = mock(DeterministicRng::class.java)
-        `when`(mockRng.nextDouble()).thenReturn(0.0)  // 概率必然通过
         `when`(rngManager.getRng(RngPartition.SECRET_REALM)).thenReturn(mockRng)
         service.processYearlySpawn(year = 120, state = state)
         assertFalse(state.gameData.secretRealmState.exists)
     }
 
     @Test
-    fun `processYearlySpawn - 冷却满 40 年且概率通过时创建秘境`() {
+    fun `processYearlySpawn - 冷却差值满 50 年时创建秘境`() {
         val state = createState()
         state.gameData = state.gameData.copy(secretRealmCooldownYear = 70)
         val mockRng = mock(DeterministicRng::class.java)
-        `when`(mockRng.nextDouble()).thenReturn(0.0)  // 概率必然通过
         `when`(mockRng.nextInt(org.mockito.ArgumentMatchers.anyInt())).thenReturn(1)
         `when`(rngManager.getRng(RngPartition.SECRET_REALM)).thenReturn(mockRng)
         service.processYearlySpawn(year = 120, state = state)
         assertTrue(state.gameData.secretRealmState.exists)
         assertEquals(120, state.gameData.secretRealmState.spawnYear)
+    }
+
+    @Test
+    fun `processYearlySpawn - 冷却差值恰好 50 年时创建秘境`() {
+        val state = createState()
+        state.gameData = state.gameData.copy(secretRealmCooldownYear = 70)
+        val mockRng = mock(DeterministicRng::class.java)
+        `when`(mockRng.nextInt(org.mockito.ArgumentMatchers.anyInt())).thenReturn(1)
+        `when`(rngManager.getRng(RngPartition.SECRET_REALM)).thenReturn(mockRng)
+        service.processYearlySpawn(year = 120, state = state)
+        assertTrue(state.gameData.secretRealmState.exists)
     }
 
     @Test
@@ -306,7 +316,14 @@ class SecretRealmServiceTest {
         val session = state.gameData.secretRealmSession
         assertEquals(19, session.stamina)
         assertEquals(500L, session.backpack.spiritStones)
-        assertEquals(SecretRealmEventType.BRIDGE.name, session.currentEvent?.eventType)
+        // 衔接事件已移除：结算后直接进入下一真实事件
+        assertTrue(
+            session.currentEvent?.eventType in setOf(
+                SecretRealmEventType.BEAST_ENCOUNTER.name,
+                SecretRealmEventType.REST_AREA.name,
+                SecretRealmEventType.RUIN_EXPLORE.name
+            )
+        )
         assertFalse(result.isSessionEnded)
     }
 
@@ -427,39 +444,6 @@ class SecretRealmServiceTest {
         // 冷却年 = 当前游戏年（默认 GameData.gameYear = 1）
         assertEquals(1, state.gameData.secretRealmCooldownYear)
         assertFalse(state.gameData.secretRealmSession.isActive)
-    }
-
-    /** 构造衔接事件（选择探索方向） */
-    private fun bridgeEvent(): com.xianxia.sect.core.model.SecretRealmEventRecord =
-        com.xianxia.sect.core.model.SecretRealmEventRecord(
-            eventType = SecretRealmEventType.BRIDGE.name,
-            title = "探索方向",
-            description = "已避开妖兽，请选择探索方向",
-            options = listOf(
-                com.xianxia.sect.core.model.SecretRealmOption("走左路", ""),
-                com.xianxia.sect.core.model.SecretRealmOption("直线前进", ""),
-                com.xianxia.sect.core.model.SecretRealmOption("走右路", "")
-            )
-        )
-
-    @Test
-    fun `chooseOption - 衔接事件选择方向后生成下一妖兽事件`() {
-        val state = createState()
-        val ids = setupActiveSession(state)
-        // 直接切换到衔接事件；mock rng 首次 nextDouble()=0.9（>= 0.30 → 妖兽分支）
-        val mockRng = mock(DeterministicRng::class.java)
-        `when`(mockRng.nextDouble()).thenReturn(0.9)
-        `when`(rngManager.getRng(RngPartition.SECRET_REALM)).thenReturn(mockRng)
-        state.gameData = state.gameData.copy(
-            secretRealmSession = state.gameData.secretRealmSession.copy(
-                currentEvent = bridgeEvent()
-            )
-        )
-        val result = service.chooseOption(0, state)
-        assertTrue(result.isSuccess)
-        val session = state.gameData.secretRealmSession
-        assertEquals(SecretRealmEventType.BEAST_ENCOUNTER.name, session.currentEvent?.eventType)
-        assertEquals(19, session.stamina)
     }
 
     // ── 结束 ──────────────────────────────────────────────────────────

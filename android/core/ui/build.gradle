@@ -4,6 +4,16 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     // 2026-08-01：kover 覆盖率盲区修复——全模块纳入统计
     alias(libs.plugins.kover)
+    // 2026-08-03：detekt 覆盖盲区修复——core/ui 纳入静态检查
+    alias(libs.plugins.detekt)
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    allRules = false
+    config.setFrom(files("$rootDir/config/detekt/detekt.yml"))
+    baseline = file("$projectDir/detekt-baseline.xml")
+    parallel = true
 }
 
 android {
@@ -30,6 +40,7 @@ tasks.withType(Test).configureEach {
 
 dependencies {
     api project(':core:domain')
+    detektPlugins(project(':detekt-rules'))
 
     // AndroidX Core (WindowCompat, etc.)
     implementation libs.core.ktx

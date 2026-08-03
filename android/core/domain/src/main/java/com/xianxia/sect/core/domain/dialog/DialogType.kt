@@ -46,6 +46,9 @@ sealed interface DialogType {
     /** 活动 */
     data object Activity : DialogType
 
+    /** 历战（活动卡片轮转入口） */
+    data object Lizhan : DialogType
+
     /** 灵田种植 */
     data object Planting : DialogType
 
