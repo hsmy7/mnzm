@@ -47,61 +47,17 @@ class CombatService @Inject constructor(
     ) {
         // ── 阶段 1：只读收集（事务外） ──
         // 收集死亡弟子信息、装备/功法ID、槽位更新、幸存者HP/MP
-
-        // 悲痛期计算
-        val deadDisciples = stateStore.discipleTables.ids
-            .filter { it.toString() in deadMemberIds }
-            .map { stateStore.discipleTables.assemble(it) }
-        val griefUpdates: List<Pair<Int, Int>> = if (deadDisciples.isNotEmpty()) {
-            val currentDiscipleList = stateStore.discipleTables.assembleAll()
-            val updatedList = DiscipleStatCalculator.applyGriefToRelatives(
-                currentDiscipleList, deadDisciples, stateStore.gameData.value.gameYear
-            )
-            updatedList.mapNotNull { d ->
-                val id = d.id.toInt()
-                val griefYear = d.social.griefEndYear ?: return@mapNotNull null
-                if (stateStore.discipleTables.ids.contains(id))
-                    id to griefYear
-                else null
-            }
-        } else emptyList()
-
-        // 收集死亡弟子装备/功法ID
-        val proficiencyRemoveIds = mutableSetOf<String>()
-        val equipIdsToUnequip = mutableSetOf<String>()
-        val manualIdsToUnlearn = mutableSetOf<String>()
-        val disciplesToKill = mutableMapOf<Int, Disciple>()
-
-        deadMemberIds.forEach { memberId ->
-            val id = memberId.toIntOrNull() ?: return@forEach
-            if (!stateStore.discipleTables.ids.contains(id)) return@forEach
-            val disciple = stateStore.discipleTables.assemble(id)
-            disciplesToKill[id] = disciple
-
-            if (isOutsideSect) {
-                eventBus.emitSync(DeathEvent(disciple.id, disciple.name, "战斗阵亡"))
-                proficiencyRemoveIds.add(disciple.id)
-            } else {
-                val returnEquipIds = mutableListOf<String>()
-                disciple.equipment.weaponId?.let { returnEquipIds.add(it) }
-                disciple.equipment.armorId?.let { returnEquipIds.add(it) }
-                disciple.equipment.bootsId?.let { returnEquipIds.add(it) }
-                disciple.equipment.accessoryId?.let { returnEquipIds.add(it) }
-                disciple.equipment.storageBagItems
-                    .filter { it.itemType == "equipment_stack" || it.itemType == "equipment_instance" }
-                    .forEach { returnEquipIds.add(it.itemId) }
-                equipIdsToUnequip.addAll(returnEquipIds)
-                manualIdsToUnlearn.addAll(disciple.manualIds)
-                disciple.equipment.storageBagItems
-                    .filter { it.itemType == "manual_stack" || it.itemType == "manual_instance" }
-                    .forEach { manualIdsToUnlearn.add(it.itemId) }
-                proficiencyRemoveIds.add(disciple.id)
-            }
-        }
+        val collected = collectCasualtyData(deadMemberIds, isOutsideSect)
+        val griefUpdates = collected.griefUpdates
+        val proficiencyRemoveIds = collected.proficiencyRemoveIds
+        val equipIdsToUnequip = collected.equipIdsToUnequip
+        val manualIdsToUnlearn = collected.manualIdsToUnlearn
+        val disciplesToKill = collected.disciplesToKill
 
         // slot/HP/年份更新已移入 stateStore.update 内部（锁内读取最新状态）
 
         // ── 阶段 2：单事务原子写入 ──
+        val deadDisciples = collected.deadDisciples
         if (griefUpdates.isNotEmpty() || deadMemberIds.isNotEmpty() ||
             proficiencyRemoveIds.isNotEmpty() || equipIdsToUnequip.isNotEmpty() || manualIdsToUnlearn.isNotEmpty()) {
             stateStore.update {
@@ -205,6 +161,76 @@ class CombatService @Inject constructor(
                 }
             }
         }
+    }
+
+    /** 伤亡结算的只读收集结果（阶段 1） */
+    private data class CasualtyData(
+        val deadDisciples: List<Disciple>,
+        val griefUpdates: List<Pair<Int, Int>>,
+        val proficiencyRemoveIds: Set<String>,
+        val equipIdsToUnequip: Set<String>,
+        val manualIdsToUnlearn: Set<String>,
+        val disciplesToKill: Map<Int, Disciple>
+    )
+
+    /**
+     * 阶段 1 — 只读收集（事务外）：悲痛期、死亡弟子装备/功法 ID、死亡事件广播。
+     */
+    private fun collectCasualtyData(
+        deadMemberIds: Set<String>,
+        isOutsideSect: Boolean
+    ): CasualtyData {
+        val deadDisciples = stateStore.discipleTables.ids
+            .filter { it.toString() in deadMemberIds }
+            .map { stateStore.discipleTables.assemble(it) }
+        val griefUpdates: List<Pair<Int, Int>> = if (deadDisciples.isNotEmpty()) {
+            val currentDiscipleList = stateStore.discipleTables.assembleAll()
+            val updatedList = DiscipleStatCalculator.applyGriefToRelatives(
+                currentDiscipleList, deadDisciples, stateStore.gameData.value.gameYear
+            )
+            updatedList.mapNotNull { d ->
+                val id = d.id.toInt()
+                val griefYear = d.social.griefEndYear ?: return@mapNotNull null
+                if (stateStore.discipleTables.ids.contains(id))
+                    id to griefYear
+                else null
+            }
+        } else emptyList()
+
+        val proficiencyRemoveIds = mutableSetOf<String>()
+        val equipIdsToUnequip = mutableSetOf<String>()
+        val manualIdsToUnlearn = mutableSetOf<String>()
+        val disciplesToKill = mutableMapOf<Int, Disciple>()
+
+        deadMemberIds.forEach { memberId ->
+            val id = memberId.toIntOrNull() ?: return@forEach
+            if (!stateStore.discipleTables.ids.contains(id)) return@forEach
+            val disciple = stateStore.discipleTables.assemble(id)
+            disciplesToKill[id] = disciple
+
+            if (isOutsideSect) {
+                eventBus.emitSync(DeathEvent(disciple.id, disciple.name, "战斗阵亡"))
+                proficiencyRemoveIds.add(disciple.id)
+            } else {
+                val returnEquipIds = mutableListOf<String>()
+                disciple.equipment.weaponId?.let { returnEquipIds.add(it) }
+                disciple.equipment.armorId?.let { returnEquipIds.add(it) }
+                disciple.equipment.bootsId?.let { returnEquipIds.add(it) }
+                disciple.equipment.accessoryId?.let { returnEquipIds.add(it) }
+                disciple.equipment.storageBagItems
+                    .filter { it.itemType == "equipment_stack" || it.itemType == "equipment_instance" }
+                    .forEach { returnEquipIds.add(it.itemId) }
+                equipIdsToUnequip.addAll(returnEquipIds)
+                manualIdsToUnlearn.addAll(disciple.manualIds)
+                disciple.equipment.storageBagItems
+                    .filter { it.itemType == "manual_stack" || it.itemType == "manual_instance" }
+                    .forEach { manualIdsToUnlearn.add(it.itemId) }
+                proficiencyRemoveIds.add(disciple.id)
+            }
+        }
+        return CasualtyData(
+            deadDisciples, griefUpdates, proficiencyRemoveIds, equipIdsToUnequip, manualIdsToUnlearn, disciplesToKill
+        )
     }
 
     // 幸存者HP/MP更新数据

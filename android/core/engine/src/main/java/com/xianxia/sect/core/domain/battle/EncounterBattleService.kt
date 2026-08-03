@@ -128,6 +128,39 @@ class EncounterBattleService @Inject constructor(
             beasts = teamBCombatants,
             maxTurns = GameConfig.Battle.MAX_TURNS
         )
+        // Phase 1（PvP）：胜负判定/死亡/好感度/日志
+        val p1 = executePhase1Pvp(
+            state, pvpBattle, preparedSides, attackerA, attackerB, isPlayerVsAI, year, month, favorDedup
+        )
+        // Phase 1 胜方无幸存者则跳过 Phase 2
+        if (p1.winnerSurvivors.isEmpty()) return
+
+        // Phase 2（PvE）：胜方 vs 妖兽
+        executePhase2Pve(state, p1.winnerP1, p1.winnerSide, p1.winnerSurvivors, beast, year, month)
+    }
+
+    /** Phase 1 结算结果（胜方 + 幸存弟子 + 胜方配置） */
+    private data class Phase1Outcome(
+        val winnerP1: EncounterAttacker,
+        val winnerSurvivors: List<Disciple>,
+        val winnerSide: PreparedSide
+    )
+
+    /**
+     * Phase 1 — 遭遇战（PvP）结算：胜负判定、双方死亡处理、
+     * 好感度变更（playerVsAI 每月每宗门去重）、战斗日志。
+     */
+    private fun executePhase1Pvp(
+        state: MutableGameState,
+        pvpBattle: Battle,
+        preparedSides: Map<String, PreparedSide>,
+        attackerA: EncounterAttacker,
+        attackerB: EncounterAttacker,
+        isPlayerVsAI: Boolean,
+        year: Int,
+        month: Int,
+        favorDedup: MutableSet<String>?
+    ): Phase1Outcome {
         val pvpResult = battleSystem.executeBattle(pvpBattle)
 
         // 判定 Phase 1 胜方/败方
@@ -192,19 +225,24 @@ class EncounterBattleService @Inject constructor(
         state.battleLogs = (state.battleLogs + p1Log)
             .takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
 
-        // ═══════════════════════════════════════════════════════
-        // Phase 2 — 胜方 vs 妖兽
-        // ═══════════════════════════════════════════════════════
-
         val winnerSide = preparedSides.getValue(winnerP1.sectId)
         val winnerSurvivors = winnerSide.disciples
             .filter { it.id in winnerAliveIdsP1 }
+        return Phase1Outcome(winnerP1, winnerSurvivors, winnerSide)
+    }
 
-        if (winnerSurvivors.isEmpty()) {
-            DomainLog.w(TAG, "Phase 1 胜方 ${winnerP1.sectName} 无幸存弟子，跳过 Phase 2")
-            return
-        }
-
+    /**
+     * Phase 2 — 胜方 vs 妖兽（PvE）：妖兽战斗、死亡处理、击败标记、战斗日志。
+     */
+    private fun executePhase2Pve(
+        state: MutableGameState,
+        winnerP1: EncounterAttacker,
+        winnerSide: PreparedSide,
+        winnerSurvivors: List<Disciple>,
+        beast: WorldLevel,
+        year: Int,
+        month: Int
+    ) {
         // 构建妖兽预计算属性
         val beastPreGenStats = if (beast.beastMaxHp > 0) {
             BattleSystem.BeastPreGenStats(

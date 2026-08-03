@@ -28,6 +28,7 @@ import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.PatrolConfig
 import com.xianxia.sect.core.model.PatrolSlot
 import com.xianxia.sect.core.model.WorldLevel
+import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.registry.TalentDatabase
@@ -263,117 +264,136 @@ class PatrolBattleSystem @Inject constructor(
                 ?.take(GameConfig.AI.TEAM_SIZE) ?: return@mapNotNull null
             if (aiDisciples.isEmpty()) return@mapNotNull null
 
-            // Phase 1: 巡逻队 vs AI（PvP）
-            // 双方分别构建 Combatant → Battle(team=巡逻队, beasts=AI队伍)
-            val aiPrepared = AISectDiscipleManager.prepareDisciplesForBattle(aiDisciples)
-            val patrolCombatants = team.disciples.map { disciple ->
-                battleSystem.convertDiscipleToCombatant(
-                    disciple = disciple,
-                    equipmentMap = equipmentMap,
-                    manualMap = manualMap,
-                    manualProficiencies = allProficiencies,
-                    side = CombatantSide.DEFENDER,
-                    fullHeal = true
-                )
-            }
-            val aiCombatants = aiPrepared.disciples.map { disciple ->
-                battleSystem.convertDiscipleToCombatant(
-                    disciple = disciple,
-                    equipmentMap = aiPrepared.equipmentMap,
-                    manualMap = aiPrepared.manualMap,
-                    manualProficiencies = aiPrepared.proficiencies,
-                    side = CombatantSide.ATTACKER,
-                    fullHeal = true
-                )
-            }
-            val pvpBattle = Battle(
-                team = patrolCombatants,
-                beasts = aiCombatants,
-                maxTurns = GameConfig.Battle.MAX_TURNS
-            )
-            val pvpResult = battleSystem.executeBattle(pvpBattle)
-
-            // 收集 Phase 1 幸存者
-            val patrolSurvivors = pvpResult.battle.team.filter { !it.isDead }
-            val aiSurvivors = pvpResult.battle.beasts.filter { !it.isDead }
-            val patrolDead = pvpResult.battle.team.filter { it.isDead }.map { it.id }.toSet()
-            val aiDead = pvpResult.battle.beasts.filter { it.isDead }.map { it.id }.toSet()
-
-            // 标记 AI 阵亡
-            if (aiDead.isNotEmpty()) {
-                val updatedAi = state.gameData.aiSectDisciples[aiSectId]?.map { d ->
-                    if (d.id in aiDead) d.copy(isAlive = false, status = DiscipleStatus.DEAD) else d
-                } ?: state.gameData.aiSectDisciples[aiSectId] ?: emptyList()
-                state.gameData = state.gameData.copy(
-                    aiSectDisciples = state.gameData.aiSectDisciples + (aiSectId to updatedAi)
-                )
-            }
-
-            // Phase 2: 胜者 vs 妖兽
-            val winnerDisciples: List<com.xianxia.sect.core.model.Disciple>
-            val victory = if (pvpResult.victory) {
-                // 巡逻队胜 → 巡逻队幸存者打妖兽
-                winnerDisciples = team.disciples.filter { it.id !in patrolDead }
-                true
-            } else {
-                // AI 胜 → AI 幸存者打妖兽
-                winnerDisciples = aiDisciples.filter { it.id !in aiDead }
-                false
-            }
-
-            if (winnerDisciples.isEmpty()) {
-                // 双方全灭：记录巡逻弟子死亡 + AI 死亡（AI 已在上面记录），
-                // 妖兽未击败，返回带死亡信息的空结果让 applyResults 处理。
-                return@mapNotNull TowerBattleResult(
-                    towerIndex = team.towerIndex, target = target,
-                    victory = false, result = pvpResult,
-                    survivors = emptySet(), deadIds = patrolDead
-                )
-            }
-
-            // 构建妖兽预计算属性
-            val beastPreGenStats = if (target.beastMaxHp > 0) BattleSystem.BeastPreGenStats(
-                maxHp = target.beastMaxHp, maxMp = target.beastMaxMp,
-                physicalAttack = target.beastPhysicalAttack, magicAttack = target.beastMagicAttack,
-                physicalDefense = target.beastPhysicalDefense, magicDefense = target.beastMagicDefense,
-                speed = target.beastSpeed, realmLayer = target.realmLayer
-            ) else null
-            val beastTypeName = GameConfig.Beast.getType(
-                (target.beastType ?: 0).coerceIn(0, GameConfig.Beast.TYPES.size - 1)
-            ).name
-
-            // 构建 Phase 2 (PvE): 胜者 vs 妖兽
-            // 巡逻队胜 → 已有 equipmentMap/manualMap；AI 胜 → 需要生成模拟装备
-            val pveBattle = if (pvpResult.victory) {
-                battleSystem.createBattle(
-                    disciples = winnerDisciples,
-                    equipmentMap = equipmentMap,
-                    manualMap = manualMap,
-                    beastLevel = target.realm,
-                    beastCount = target.count,
-                    beastType = beastTypeName,
-                    manualProficiencies = allProficiencies,
-                    beastPreGenStats = beastPreGenStats
-                )
-            } else {
-                // AI 胜 → 生成 AI 弟子的模拟装备/功法
-                createAIBattle(winnerDisciples, target)
-            }
-            val pveResult = battleSystem.executeBattle(pveBattle)
-
-            val pveSurvivorIds = pveResult.battle.team.filter { !it.isDead }.map { it.id }.toSet()
-            val pveDeadIds = winnerDisciples.filter { it.id !in pveSurvivorIds }.map { it.id }.toSet()
-            val allDeadIds = patrolDead + pveDeadIds
-
-            TowerBattleResult(
-                towerIndex = team.towerIndex,
-                target = target,
-                victory = pveResult.victory,
-                result = pveResult,
-                survivors = pveSurvivorIds,
-                deadIds = allDeadIds
+            executeTeamConflict(
+                team, target, aiSectId, aiDisciples, aiSect,
+                equipmentMap, manualMap, allProficiencies, state
             )
         }
+    }
+
+    /**
+     * 单队冲突战：Phase 1 巡逻队 vs AI（PvP）+ Phase 2 胜者 vs 妖兽（PvE）。
+     * 返回 [TowerBattleResult]；双方全灭时返回带死亡信息的空结果。
+     */
+    private fun executeTeamConflict(
+        team: TowerTeam,
+        target: WorldLevel,
+        aiSectId: String,
+        aiDisciples: List<com.xianxia.sect.core.model.Disciple>,
+        aiSect: WorldSect,
+        equipmentMap: Map<String, EquipmentInstance>,
+        manualMap: Map<String, ManualInstance>,
+        allProficiencies: Map<String, Map<String, ManualProficiencyData>>,
+        state: MutableGameState
+    ): TowerBattleResult? {
+        // Phase 1: 巡逻队 vs AI（PvP）
+        // 双方分别构建 Combatant → Battle(team=巡逻队, beasts=AI队伍)
+        val aiPrepared = AISectDiscipleManager.prepareDisciplesForBattle(aiDisciples)
+        val patrolCombatants = team.disciples.map { disciple ->
+            battleSystem.convertDiscipleToCombatant(
+                disciple = disciple,
+                equipmentMap = equipmentMap,
+                manualMap = manualMap,
+                manualProficiencies = allProficiencies,
+                side = CombatantSide.DEFENDER,
+                fullHeal = true
+            )
+        }
+        val aiCombatants = aiPrepared.disciples.map { disciple ->
+            battleSystem.convertDiscipleToCombatant(
+                disciple = disciple,
+                equipmentMap = aiPrepared.equipmentMap,
+                manualMap = aiPrepared.manualMap,
+                manualProficiencies = aiPrepared.proficiencies,
+                side = CombatantSide.ATTACKER,
+                fullHeal = true
+            )
+        }
+        val pvpBattle = Battle(
+            team = patrolCombatants,
+            beasts = aiCombatants,
+            maxTurns = GameConfig.Battle.MAX_TURNS
+        )
+        val pvpResult = battleSystem.executeBattle(pvpBattle)
+
+        // 收集 Phase 1 幸存者
+        val patrolSurvivors = pvpResult.battle.team.filter { !it.isDead }
+        val aiSurvivors = pvpResult.battle.beasts.filter { !it.isDead }
+        val patrolDead = pvpResult.battle.team.filter { it.isDead }.map { it.id }.toSet()
+        val aiDead = pvpResult.battle.beasts.filter { it.isDead }.map { it.id }.toSet()
+
+        // 标记 AI 阵亡
+        if (aiDead.isNotEmpty()) {
+            val updatedAi = state.gameData.aiSectDisciples[aiSectId]?.map { d ->
+                if (d.id in aiDead) d.copy(isAlive = false, status = DiscipleStatus.DEAD) else d
+            } ?: state.gameData.aiSectDisciples[aiSectId] ?: emptyList()
+            state.gameData = state.gameData.copy(
+                aiSectDisciples = state.gameData.aiSectDisciples + (aiSectId to updatedAi)
+            )
+        }
+
+        // Phase 2: 胜者 vs 妖兽
+        val winnerDisciples: List<com.xianxia.sect.core.model.Disciple>
+        if (pvpResult.victory) {
+            // 巡逻队胜 → 巡逻队幸存者打妖兽
+            winnerDisciples = team.disciples.filter { it.id !in patrolDead }
+        } else {
+            // AI 胜 → AI 幸存者打妖兽
+            winnerDisciples = aiDisciples.filter { it.id !in aiDead }
+        }
+
+        if (winnerDisciples.isEmpty()) {
+            // 双方全灭：记录巡逻弟子死亡 + AI 死亡（AI 已在上面记录），
+            // 妖兽未击败，返回带死亡信息的空结果让 applyResults 处理。
+            return TowerBattleResult(
+                towerIndex = team.towerIndex, target = target,
+                victory = false, result = pvpResult,
+                survivors = emptySet(), deadIds = patrolDead
+            )
+        }
+
+        // 构建妖兽预计算属性
+        val beastPreGenStats = if (target.beastMaxHp > 0) BattleSystem.BeastPreGenStats(
+            maxHp = target.beastMaxHp, maxMp = target.beastMaxMp,
+            physicalAttack = target.beastPhysicalAttack, magicAttack = target.beastMagicAttack,
+            physicalDefense = target.beastPhysicalDefense, magicDefense = target.beastMagicDefense,
+            speed = target.beastSpeed, realmLayer = target.realmLayer
+        ) else null
+        val beastTypeName = GameConfig.Beast.getType(
+            (target.beastType ?: 0).coerceIn(0, GameConfig.Beast.TYPES.size - 1)
+        ).name
+
+        // 构建 Phase 2 (PvE): 胜者 vs 妖兽
+        // 巡逻队胜 → 已有 equipmentMap/manualMap；AI 胜 → 需要生成模拟装备
+        val pveBattle = if (pvpResult.victory) {
+            battleSystem.createBattle(
+                disciples = winnerDisciples,
+                equipmentMap = equipmentMap,
+                manualMap = manualMap,
+                beastLevel = target.realm,
+                beastCount = target.count,
+                beastType = beastTypeName,
+                manualProficiencies = allProficiencies,
+                beastPreGenStats = beastPreGenStats
+            )
+        } else {
+            // AI 胜 → 生成 AI 弟子的模拟装备/功法
+            createAIBattle(winnerDisciples, target)
+        }
+        val pveResult = battleSystem.executeBattle(pveBattle)
+
+        val pveSurvivorIds = pveResult.battle.team.filter { !it.isDead }.map { it.id }.toSet()
+        val pveDeadIds = winnerDisciples.filter { it.id !in pveSurvivorIds }.map { it.id }.toSet()
+        val allDeadIds = patrolDead + pveDeadIds
+
+        return TowerBattleResult(
+            towerIndex = team.towerIndex,
+            target = target,
+            victory = pveResult.victory,
+            result = pveResult,
+            survivors = pveSurvivorIds,
+            deadIds = allDeadIds
+        )
     }
 
     /**
