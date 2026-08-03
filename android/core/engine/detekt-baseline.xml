@@ -1267,6 +1267,7 @@
     <ID>TooManyFunctions:DiscipleStatusService.kt$DiscipleStatusService</ID>
     <ID>TooManyFunctions:ExplorationService.kt$ExplorationService</ID>
     <ID>TooManyFunctions:GameEngine.kt$GameEngine</ID>
+    <ID>TooManyFunctions:GameEngineBattleOps.kt$com.xianxia.sect.core.engine.GameEngineBattleOps.kt</ID>
     <ID>TooManyFunctions:GameEngineCoordination.kt$com.xianxia.sect.core.engine.GameEngineCoordination.kt</ID>
     <ID>TooManyFunctions:GameEngineCore.kt$GameEngineCore : EngineContextDispatcher</ID>
     <ID>TooManyFunctions:GameEngineDiplomacyOps.kt$com.xianxia.sect.core.engine.GameEngineDiplomacyOps.kt</ID>

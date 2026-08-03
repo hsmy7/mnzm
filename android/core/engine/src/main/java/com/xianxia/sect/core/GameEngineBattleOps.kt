@@ -169,60 +169,7 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
                         suzerainSectId = if (gameData.suzerainSectId == sectId)
                             "" else gameData.suzerainSectId
                     )
-                    spiritStoneWallet.add(this, rewards.spiritStones,
-                        SpiritStoneGrade.LOW, SpiritStoneSource.Battle)
-                    inventorySystem.withTrackingSource("battle") {
-                        rewards.equipmentStacks.forEach { item ->
-                            val r = inventorySystem.addEquipmentStack(item)
-                            when (r) {
-                                is DomainResult.Success -> {}
-                                is DomainResult.Partial -> DomainLog.w("GameEngine", "${item.name} 溢出 ${r.overflow} 个")
-                                is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${item.name} 失败: ${r.error}")
-                            }
-                        }
-                    }
-                    rewards.manualStacks.forEach { item ->
-                        val r = inventorySystem.addManualStack(item)
-                        when (r) {
-                            is DomainResult.Success -> {}
-                            is DomainResult.Partial -> DomainLog.w("GameEngine", "${item.name} 溢出 ${r.overflow} 个")
-                            is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${item.name} 失败: ${r.error}")
-                        }
-                    }
-                    inventorySystem.withTrackingSource("battle") {
-                        rewards.pills.forEach { item ->
-                            val r = inventorySystem.addPill(item)
-                            when (r) {
-                                is DomainResult.Success -> {}
-                                is DomainResult.Partial -> DomainLog.w("GameEngine", "${item.name} 溢出 ${r.overflow} 个")
-                                is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${item.name} 失败: ${r.error}")
-                            }
-                        }
-                        rewards.herbs.forEach { item ->
-                            val r = inventorySystem.addHerb(item)
-                            when (r) {
-                                is DomainResult.Success -> {}
-                                is DomainResult.Partial -> DomainLog.w("GameEngine", "${item.name} 溢出 ${r.overflow} 个")
-                                is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${item.name} 失败: ${r.error}")
-                            }
-                        }
-                    }
-                    rewards.materials.forEach { item ->
-                        val r = inventorySystem.addMaterial(item)
-                        when (r) {
-                            is DomainResult.Success -> {}
-                            is DomainResult.Partial -> DomainLog.w("GameEngine", "${item.name} 溢出 ${r.overflow} 个")
-                            is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${item.name} 失败: ${r.error}")
-                        }
-                    }
-                    rewards.seeds.forEach { item ->
-                        val r = inventorySystem.addSeed(item)
-                        when (r) {
-                            is DomainResult.Success -> {}
-                            is DomainResult.Partial -> DomainLog.w("GameEngine", "${item.name} 溢出 ${r.overflow} 个")
-                            is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${item.name} 失败: ${r.error}")
-                        }
-                    }
+                    grantWarRewardsInside(this, rewards)
                     recordGameEvent(
                         GameEventCategory.WORLD, GameEventType.SECT_OCCUPY,
                         "玩家宗门占领了${targetSect.name}"
@@ -230,60 +177,7 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
                 }
             } else {
                 stateStore.update {
-                    spiritStoneWallet.add(this, rewards.spiritStones,
-                        SpiritStoneGrade.LOW, SpiritStoneSource.Battle)
-                    inventorySystem.withTrackingSource("battle") {
-                        rewards.equipmentStacks.forEach { item ->
-                            val r = inventorySystem.addEquipmentStack(item)
-                            when (r) {
-                                is DomainResult.Success -> {}
-                                is DomainResult.Partial -> DomainLog.w("GameEngine", "${item.name} 溢出 ${r.overflow} 个")
-                                is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${item.name} 失败: ${r.error}")
-                            }
-                        }
-                    }
-                    rewards.manualStacks.forEach { item ->
-                        val r = inventorySystem.addManualStack(item)
-                        when (r) {
-                            is DomainResult.Success -> {}
-                            is DomainResult.Partial -> DomainLog.w("GameEngine", "${item.name} 溢出 ${r.overflow} 个")
-                            is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${item.name} 失败: ${r.error}")
-                        }
-                    }
-                    inventorySystem.withTrackingSource("battle") {
-                        rewards.pills.forEach { item ->
-                            val r = inventorySystem.addPill(item)
-                            when (r) {
-                                is DomainResult.Success -> {}
-                                is DomainResult.Partial -> DomainLog.w("GameEngine", "${item.name} 溢出 ${r.overflow} 个")
-                                is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${item.name} 失败: ${r.error}")
-                            }
-                        }
-                        rewards.herbs.forEach { item ->
-                            val r = inventorySystem.addHerb(item)
-                            when (r) {
-                                is DomainResult.Success -> {}
-                                is DomainResult.Partial -> DomainLog.w("GameEngine", "${item.name} 溢出 ${r.overflow} 个")
-                                is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${item.name} 失败: ${r.error}")
-                            }
-                        }
-                    }
-                    rewards.materials.forEach { item ->
-                        val r = inventorySystem.addMaterial(item)
-                        when (r) {
-                            is DomainResult.Success -> {}
-                            is DomainResult.Partial -> DomainLog.w("GameEngine", "${item.name} 溢出 ${r.overflow} 个")
-                            is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${item.name} 失败: ${r.error}")
-                        }
-                    }
-                    rewards.seeds.forEach { item ->
-                        val r = inventorySystem.addSeed(item)
-                        when (r) {
-                            is DomainResult.Success -> {}
-                            is DomainResult.Partial -> DomainLog.w("GameEngine", "${item.name} 溢出 ${r.overflow} 个")
-                            is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 ${item.name} 失败: ${r.error}")
-                        }
-                    }
+                    grantWarRewardsInside(this, rewards)
                 }
             }
             stateStore.setPendingBattleResult(BattleResultUIData(battleLogId = log.id, victory = true, teamMembers = teamMembers, rewards = warRewardsToBattleRewardItems(rewards)))
@@ -293,6 +187,46 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
         }
     }
 }
+
+    /**
+     * 发放宗门战奖励（灵石 + 装备/功法/丹药/草药/材料/种子六类）。
+     * 在调用方 stateStore.update 事务内执行，保持原子性。
+     */
+    private fun GameEngine.grantWarRewardsInside(state: MutableGameState, rewards: WarRewards) {
+        spiritStoneWallet.add(state, rewards.spiritStones,
+            SpiritStoneGrade.LOW, SpiritStoneSource.Battle)
+        inventorySystem.withTrackingSource("battle") {
+            rewards.equipmentStacks.forEach { item ->
+                grantStackResult(item.name, inventorySystem.addEquipmentStack(item))
+            }
+        }
+        rewards.manualStacks.forEach { item ->
+            grantStackResult(item.name, inventorySystem.addManualStack(item))
+        }
+        inventorySystem.withTrackingSource("battle") {
+            rewards.pills.forEach { item ->
+                grantStackResult(item.name, inventorySystem.addPill(item))
+            }
+            rewards.herbs.forEach { item ->
+                grantStackResult(item.name, inventorySystem.addHerb(item))
+            }
+        }
+        rewards.materials.forEach { item ->
+            grantStackResult(item.name, inventorySystem.addMaterial(item))
+        }
+        rewards.seeds.forEach { item ->
+            grantStackResult(item.name, inventorySystem.addSeed(item))
+        }
+    }
+
+    /** 物品入库结果统一日志（成功静默/部分溢出/失败告警） */
+    private fun GameEngine.grantStackResult(name: String, result: DomainResult<*>) {
+        when (result) {
+            is DomainResult.Success -> {}
+            is DomainResult.Partial -> DomainLog.w("GameEngine", "$name 溢出 ${result.overflow} 个")
+            is DomainResult.Failure -> DomainLog.w("GameEngine", "添加 $name 失败: ${result.error}")
+        }
+    }
 
 
     private fun GameEngine.buildBattleRewardCards(rewards: WarRewards): List<RewardCardItem> {
