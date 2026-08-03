@@ -460,22 +460,9 @@ class BattleSystem @Inject constructor(
 
             val currentCombatant = allies.find { it.id == combatant.id } ?: combatant
 
-            if (currentCombatant.hasControlEffect) {
-                val stunBuff = currentCombatant.buffs.find { it.type == BuffType.STUN || it.type == BuffType.FREEZE }
-                if (stunBuff != null) {
-                    ctx.actions.add(BattleActionData(
-                        type = "control",
-                        attacker = currentCombatant.name,
-                        attackerType = if (isTeamMember) "disciple" else if (currentCombatant.isBeast) "beast" else "disciple",
-                        target = currentCombatant.name,
-                        damage = 0,
-                        damageType = if (stunBuff.type == BuffType.STUN) "眩晕" else "冰冻",
-                        message = "${currentCombatant.name}因${stunBuff.type.displayName}无法行动！"
-                    ))
-                    updateCombatantBuffs(currentCombatant, allies, alliesIndexMap)
-                return TurnOutcome.Continue
-                }
-            }
+            // 控制效果（眩晕/冰冻）：跳过行动并结算 BUFF，回合提前结束
+            applyControlEffects(ctx, currentCombatant, isTeamMember, allies, alliesIndexMap)
+                ?.let { return it }
 
             val silenceBuff = currentCombatant.buffs.find { it.type == BuffType.SILENCE && it.remainingDuration > 0 }
             val availableSkill = selectSkill(currentCombatant, aliveEnemies, allies, silenceBuff != null)
@@ -483,86 +470,24 @@ class BattleSystem @Inject constructor(
             val isSupportSkill = availableSkill?.skillType == SkillType.SUPPORT
             val isAoeSkill = availableSkill?.isAoe == true && !isSupportSkill
 
-            val results = if (availableSkill != null) {
-                if (isSupportSkill) {
-                    // Handle "ally" scope: select a random alive ally (not caster)
-                    if (availableSkill.targetScope == "ally") {
-                        val validAllies = allies.filter { !it.isDead && it.id != currentCombatant.id }
-                        if (validAllies.isNotEmpty()) {
-                            val selectedAlly = validAllies.random()
-                            val supResult = executeSupportSkill(currentCombatant, listOf(selectedAlly), availableSkill)
-                            // Mark the single ally as the target for turn advance
-                            listOf(supResult.copy(
-                                healedIds = if (supResult.healAmount > 0) listOf(selectedAlly.id) else supResult.healedIds,
-                                teamBuffs = if (supResult.teamBuffs.isNotEmpty()) mapOf(selectedAlly.id to (supResult.teamBuffs.values.firstOrNull() ?: emptyList())) else emptyMap()
-                            ))
-                        } else {
-                            listOf(executeSupportSkill(currentCombatant, listOf(currentCombatant), availableSkill))
-                        }
-                    } else {
-                        listOf(executeSupportSkill(currentCombatant, allies.filter { !it.isDead }, availableSkill))
-                    }
-                } else if (isAoeSkill) {
-                    val dmgMod = if (isTeamMember) playerDamageModifier else 1.0
-                    aliveEnemies.map { target -> executeSkill(currentCombatant, target, availableSkill, dmgMod) }
-                } else {
-                    val target = selectTarget(currentCombatant, aliveEnemies)
-                    val dmgMod = if (isTeamMember) playerDamageModifier else 1.0
-                    listOf(executeSkill(currentCombatant, target, availableSkill, dmgMod))
-                }
-            } else {
-                val target = selectTarget(currentCombatant, aliveEnemies)
-                val dmgMod = if (isTeamMember) playerDamageModifier else 1.0
-                listOf(executeAttack(currentCombatant, target, dmgMod))
-            }
+            val results = executeSkillAction(
+                currentCombatant, aliveEnemies, allies, isTeamMember, availableSkill, isSupportSkill, isAoeSkill
+            )
 
             val result = results.first()
-            var isKill = false
-            var isInstantKill = results.any { it.isInstantKill }
-            var totalDamage = 0
+            val isInstantKill = results.any { it.isInstantKill }
 
-            val message: String = if (isInstantKill) {
-                isKill = true
-                "境界碾压，${result.target.name}被一击必杀！"
-            } else if (result.isSupport && availableSkill != null) {
-                val buffs = availableSkill.buffs
-                BattleDescriptionGenerator.generateSupportSkillDescription(
-                    caster = currentCombatant,
-                    skill = availableSkill,
-                    healAmount = result.healAmount,
-                    healType = result.healType,
-                    buffs = buffs
-                )
-            } else if (availableSkill != null) {
-                totalDamage = results.sumOf { it.damage }
-                isKill = results.any { r -> r.target.hp - r.damage <= 0 }
-                if (isAoeSkill) {
-                    BattleDescriptionGenerator.generateAoeSkillDescription(
-                        attacker = currentCombatant,
-                        skill = availableSkill,
-                        results = results,
-                        isKill = isKill
-                    )
-                } else {
-                    val singleTarget = result.target
-                    isKill = singleTarget.hp - result.damage <= 0
-                    BattleDescriptionGenerator.generateSkillDescription(
-                        attacker = currentCombatant,
-                        target = singleTarget,
-                        skill = availableSkill,
-                        result = result,
-                        isKill = isKill
-                    )
-                }
-            } else {
-                isKill = result.target.hp - result.damage <= 0
-                BattleDescriptionGenerator.generateAttackDescription(
-                    attacker = currentCombatant,
-                    target = result.target,
-                    result = result,
-                    isKill = isKill
-                )
-            }
+            val turnMessage = buildTurnMessage(
+                isInstantKill = isInstantKill,
+                result = result,
+                availableSkill = availableSkill,
+                isAoeSkill = isAoeSkill,
+                results = results,
+                currentCombatant = currentCombatant
+            )
+            val isKill = turnMessage.isKill
+            val totalDamage = turnMessage.totalDamage
+            val message = turnMessage.text
 
             ctx.actions.add(BattleActionData(
                 type = when {
@@ -583,164 +508,10 @@ class BattleSystem @Inject constructor(
             ))
 
             if (!result.isSupport) {
-                results.forEach { r ->
-                    if (r.isDodged) return@forEach
-                    val targetIndex = enemiesIndexMap[r.target.id] ?: return@forEach
-
-                    // Shield absorption
-                    val shieldResult = BattleCalculator.calculateShieldAbsorption(r.target, r.damage)
-                    val damageAfterShield = shieldResult.remainingDamage
-                    val newHp = maxOf(0, r.target.hp - damageAfterShield)
-                    if (isTeamMember) {
-                        ctx.beasts[targetIndex] = ctx.beasts[targetIndex].copy(hp = newHp)
-                        // Update shield buff if partially consumed
-                        if (shieldResult.shieldBuff != null) {
-                            val shieldBuffs = ctx.beasts[targetIndex].buffs.map { b ->
-                                if (b.type == BuffType.SHIELD && b.remainingDuration == shieldResult.shieldBuff.remainingDuration)
-                                    b.copy(value = shieldResult.remainingShield.toDouble() / ctx.beasts[targetIndex].maxHp.coerceAtLeast(1))
-                                else b
-                            }
-                            ctx.beasts[targetIndex] = ctx.beasts[targetIndex].copy(buffs = shieldBuffs)
-                        }
-                    } else {
-                        ctx.team[targetIndex] = ctx.team[targetIndex].copy(hp = newHp)
-                        if (shieldResult.shieldBuff != null) {
-                            val shieldBuffs = ctx.team[targetIndex].buffs.map { b ->
-                                if (b.type == BuffType.SHIELD && b.remainingDuration == shieldResult.shieldBuff.remainingDuration)
-                                    b.copy(value = shieldResult.remainingShield.toDouble() / ctx.team[targetIndex].maxHp.coerceAtLeast(1))
-                                else b
-                            }
-                            ctx.team[targetIndex] = ctx.team[targetIndex].copy(buffs = shieldBuffs)
-                        }
-                    }
-
-                    // Damage link: apply linked damage to the linked enemy
-                    val linkedDmg = BattleCalculator.calculateLinkedDamage(
-                        currentCombatant, r.target, r.damage, ctx.beasts, ctx.team
-                    )
-                    linkedDmg.forEach { (linkedId, linkDmg) ->
-                        val linkedInBeasts = ctx.beasts.indexOfFirst { it.id == linkedId }
-                        val linkedInTeam = ctx.team.indexOfFirst { it.id == linkedId }
-                        if (linkedInBeasts >= 0) {
-                            ctx.beasts[linkedInBeasts] = ctx.beasts[linkedInBeasts].copy(
-                                hp = maxOf(0, ctx.beasts[linkedInBeasts].hp - linkDmg)
-                            )
-                        } else if (linkedInTeam >= 0) {
-                            ctx.team[linkedInTeam] = ctx.team[linkedInTeam].copy(
-                                hp = maxOf(0, ctx.team[linkedInTeam].hp - linkDmg)
-                            )
-                        }
-                    }
-
-                    // Damage share: redistribute damage to sharers
-                    val shareDmg = BattleCalculator.calculateDamageShare(
-                        r.target.id, r.target.side, r.damage, ctx.team, ctx.beasts
-                    )
-                    shareDmg.forEach { (sharerId, shareDamage) ->
-                        val sharerInTeam = ctx.team.indexOfFirst { it.id == sharerId }
-                        val sharerInBeasts = ctx.beasts.indexOfFirst { it.id == sharerId }
-                        val shareAfterShield = BattleCalculator.calculateShieldAbsorption(
-                            if (sharerInTeam >= 0) ctx.team[sharerInTeam] else ctx.beasts[sharerInBeasts],
-                            shareDamage
-                        )
-                        if (sharerInTeam >= 0) {
-                            ctx.team[sharerInTeam] = ctx.team[sharerInTeam].copy(
-                                hp = maxOf(0, ctx.team[sharerInTeam].hp - shareAfterShield.remainingDamage)
-                            )
-                        } else if (sharerInBeasts >= 0) {
-                            ctx.beasts[sharerInBeasts] = ctx.beasts[sharerInBeasts].copy(
-                                hp = maxOf(0, ctx.beasts[sharerInBeasts].hp - shareAfterShield.remainingDamage)
-                            )
-                        }
-                    }
-
-                    val localBuffType = availableSkill?.buffType
-                    if (localBuffType != null && availableSkill.buffDuration > 0 && !isAoeSkill) {
-                        val debuff = CombatBuff(
-                            type = localBuffType,
-                            value = availableSkill.buffValue,
-                            remainingDuration = availableSkill.buffDuration,
-                            sourceRealm = currentCombatant.realm
-                        )
-                        if (isTeamMember && targetIndex < ctx.beasts.size) {
-                            ctx.beasts[targetIndex] = ctx.beasts[targetIndex].copy(
-                                buffs = ctx.beasts[targetIndex].buffs + debuff
-                            )
-                        } else if (targetIndex < ctx.team.size) {
-                            ctx.team[targetIndex] = ctx.team[targetIndex].copy(
-                                buffs = ctx.team[targetIndex].buffs + debuff
-                            )
-                        }
-                    }
-
-                    // Damage link buff application (debuff on enemy)
-                    if (availableSkill?.damageLinkPercent != null && availableSkill.damageLinkPercent > 0 && availableSkill.buffDuration > 0) {
-                        val linkDebuff = CombatBuff(
-                            type = BuffType.DAMAGE_LINK,
-                            value = availableSkill.damageLinkPercent,
-                            remainingDuration = availableSkill.buffDuration,
-                            sourceRealm = currentCombatant.realm
-                        )
-                        // Remove existing link from any other enemy (only one link at a time)
-                        val enemies = if (isTeamMember) ctx.beasts else ctx.team
-                        enemies.forEachIndexed { idx, enemy ->
-                            val hasLink = enemy.buffs.any { it.type == BuffType.DAMAGE_LINK }
-                            if (hasLink) {
-                                val cleaned = enemy.buffs.filter { it.type != BuffType.DAMAGE_LINK }
-                                if (isTeamMember && idx < ctx.beasts.size) ctx.beasts[idx] = ctx.beasts[idx].copy(buffs = cleaned)
-                                else if (idx < ctx.team.size) ctx.team[idx] = ctx.team[idx].copy(buffs = cleaned)
-                            }
-                        }
-                        // Apply new link to target
-                        if (isTeamMember && targetIndex < ctx.beasts.size) {
-                            ctx.beasts[targetIndex] = ctx.beasts[targetIndex].copy(
-                                buffs = ctx.beasts[targetIndex].buffs + linkDebuff
-                            )
-                        } else if (targetIndex < ctx.team.size) {
-                            ctx.team[targetIndex] = ctx.team[targetIndex].copy(
-                                buffs = ctx.team[targetIndex].buffs + linkDebuff
-                            )
-                        }
-                    }
-                }
-
-                if (isAoeSkill && availableSkill?.buffType != null && availableSkill.buffDuration > 0) {
-                    val aoeBuffType = availableSkill.buffType
-                    if (aoeBuffType != null) {
-                    val debuff = CombatBuff(
-                        type = aoeBuffType,
-                        value = availableSkill.buffValue,
-                        remainingDuration = availableSkill.buffDuration,
-                        sourceRealm = currentCombatant.realm
-                    )
-                    aliveEnemies.filter { !it.isDead }.forEach { enemy ->
-                        val idx = enemiesIndexMap[enemy.id] ?: return@forEach
-                        if (isTeamMember && idx < ctx.beasts.size) {
-                            ctx.beasts[idx] = ctx.beasts[idx].copy(buffs = ctx.beasts[idx].buffs + debuff)
-                        } else if (idx < ctx.team.size) {
-                            ctx.team[idx] = ctx.team[idx].copy(buffs = ctx.team[idx].buffs + debuff)
-                        }
-                    }
-                    }
-                }
-
-                // AoE shield absorption for all targets
-                if (isAoeSkill) {
-                    results.forEach { r ->
-                        if (r.isDodged) return@forEach
-                        val tIdx = enemiesIndexMap[r.target.id] ?: return@forEach
-                        val sr = BattleCalculator.calculateShieldAbsorption(r.target, r.damage)
-                        if (sr.shieldBuff != null) {
-                            val updatedHp = maxOf(0, r.target.hp - sr.remainingDamage)
-                            if (isTeamMember && tIdx < ctx.beasts.size) {
-                                ctx.beasts[tIdx] = ctx.beasts[tIdx].copy(hp = updatedHp)
-                            } else if (tIdx < ctx.team.size) {
-                                ctx.team[tIdx] = ctx.team[tIdx].copy(hp = updatedHp)
-                            }
-                        }
-                    }
-                }
-
+                applyDamageEffects(
+                    ctx, results, enemiesIndexMap, isTeamMember, currentCombatant,
+                    availableSkill, isAoeSkill, aliveEnemies
+                )
             }
 
             if (availableSkill != null) {
@@ -792,64 +563,449 @@ class BattleSystem @Inject constructor(
 
                     // Turn advance: target ally acts immediately after current combatant
                     if (result.turnAdvancePercent > 0) {
-                        val advancedId = result.healedIds.firstOrNull()
-                            ?: result.teamBuffs.keys.firstOrNull()
-                        if (advancedId != null) {
-                            val advancedAlly = allies.find { it.id == advancedId && !it.isDead }
-                            if (advancedAlly != null && advancedAlly.id != currentCombatant.id) {
-                                // Process the advanced ally's turn immediately
-                                val advAllies = if (isTeamMember) ctx.team else ctx.beasts
-                                val advEnemies = if (isTeamMember) ctx.beasts else ctx.team
-                                val advAliveEnemies = advEnemies.filter { !it.isDead }
-                                val advIdx = advAllies.indexOfFirst { it.id == advancedId }
-                                if (advIdx >= 0 && advAliveEnemies.isNotEmpty()) {
-                                    val advSkill = BattleCalculator.selectSkill(advancedAlly, advAliveEnemies, advAllies.filter { !it.isDead }, false, rng)
-                                    val advResult = if (advSkill != null) {
-                                        val advTarget = BattleCalculator.selectTarget(advancedAlly, advAliveEnemies, rng)
-                                        val advDmgMod = if (advancedAlly.side == CombatantSide.DEFENDER) playerDamageModifier else 1.0
-                                        executeSkill(advancedAlly, advTarget, advSkill, advDmgMod)
-                                    } else {
-                                        val advTarget = BattleCalculator.selectTarget(advancedAlly, advAliveEnemies, rng)
-                                        val advDmgMod = if (advancedAlly.side == CombatantSide.DEFENDER) playerDamageModifier else 1.0
-                                        executeAttack(advancedAlly, advTarget, advDmgMod)
-                                    }
-                                    val advDmg = if (advResult.isSupport) 0 else advResult.damage
-                                    ctx.actions.add(BattleActionData(
-                                        type = if (advSkill != null) "skill" else "attack",
-                                        attacker = advancedAlly.name,
-                                        attackerType = if (isTeamMember) "disciple" else "beast",
-                                        target = advResult.target.name,
-                                        damage = advDmg,
-                                        damageType = if (advResult.isPhysical) "物理" else "法术",
-                                        isCrit = advResult.isCrit,
-                                        isKill = advResult.target.hp - advDmg <= 0,
-                                        message = "${advancedAlly.name}被拉条立即行动！",
-                                        skillName = advResult.skillName
-                                    ))
-                                    if (!advResult.isSupport && !advResult.isDodged) {
-                                        val advTargetIdx = enemiesIndexMap[advResult.target.id]
-                                        if (advTargetIdx != null) {
-                                            val shieldR = BattleCalculator.calculateShieldAbsorption(advResult.target, advDmg)
-                                            if (isTeamMember && advTargetIdx < ctx.beasts.size) {
-                                                ctx.beasts[advTargetIdx] = ctx.beasts[advTargetIdx].copy(hp = maxOf(0, ctx.beasts[advTargetIdx].hp - shieldR.remainingDamage))
-                                            } else if (advTargetIdx < ctx.team.size) {
-                                                ctx.team[advTargetIdx] = ctx.team[advTargetIdx].copy(hp = maxOf(0, ctx.team[advTargetIdx].hp - shieldR.remainingDamage))
-                                            }
-                                        }
-                                    }
-                                    // Update cooldowns for advanced ally
-                                    if (advSkill != null && advIdx >= 0) {
-                                        val updatedAdv = BattleCalculator.updateCombatantCooldowns(advancedAlly, advSkill)
-                                        if (isTeamMember) ctx.team[advIdx] = updatedAdv else ctx.beasts[advIdx] = updatedAdv
-                                    }
-                                }
-                            }
-                        }
+                        processTurnAdvance(
+                            ctx, result, allies, currentCombatant, isTeamMember, enemiesIndexMap
+                        )
                     }
                 }
             } else {
                 updateCombatantBuffs(currentCombatant, allies, alliesIndexMap)
             }
+        return TurnOutcome.Continue
+    }
+
+    /**
+     * 执行当前参战者的行动：支援（单目标/全体）/ AOE 技能 / 单体技能 / 普攻四分支。
+     *
+     * @return 行动结果列表（AOE 为多目标，其余单元素）
+     */
+    private fun executeSkillAction(
+        currentCombatant: Combatant,
+        aliveEnemies: List<Combatant>,
+        allies: MutableList<Combatant>,
+        isTeamMember: Boolean,
+        availableSkill: CombatSkill?,
+        isSupportSkill: Boolean,
+        isAoeSkill: Boolean
+    ): List<AttackResult> {
+        if (availableSkill != null) {
+            if (isSupportSkill) {
+                // Handle "ally" scope: select a random alive ally (not caster)
+                if (availableSkill.targetScope == "ally") {
+                    val validAllies = allies.filter { !it.isDead && it.id != currentCombatant.id }
+                    if (validAllies.isNotEmpty()) {
+                        val selectedAlly = validAllies.random()
+                        val supResult = executeSupportSkill(currentCombatant, listOf(selectedAlly), availableSkill)
+                        // Mark the single ally as the target for turn advance
+                        return listOf(supResult.copy(
+                            healedIds = if (supResult.healAmount > 0) listOf(selectedAlly.id) else supResult.healedIds,
+                            teamBuffs = if (supResult.teamBuffs.isNotEmpty()) {
+                                mapOf(selectedAlly.id to (supResult.teamBuffs.values.firstOrNull() ?: emptyList()))
+                            } else {
+                                emptyMap()
+                            }
+                        ))
+                    }
+                    return listOf(executeSupportSkill(currentCombatant, listOf(currentCombatant), availableSkill))
+                }
+                return listOf(executeSupportSkill(currentCombatant, allies.filter { !it.isDead }, availableSkill))
+            }
+            if (isAoeSkill) {
+                val dmgMod = if (isTeamMember) playerDamageModifier else 1.0
+                return aliveEnemies.map { target -> executeSkill(currentCombatant, target, availableSkill, dmgMod) }
+            }
+            val target = selectTarget(currentCombatant, aliveEnemies)
+            val dmgMod = if (isTeamMember) playerDamageModifier else 1.0
+            return listOf(executeSkill(currentCombatant, target, availableSkill, dmgMod))
+        }
+        val target = selectTarget(currentCombatant, aliveEnemies)
+        val dmgMod = if (isTeamMember) playerDamageModifier else 1.0
+        return listOf(executeAttack(currentCombatant, target, dmgMod))
+    }
+
+    /**
+     * 应用非支援行动的全部伤害效果：护盾吸收、伤害链接、伤害分摊、
+     * 单体/AOE debuff 附加。原地修改 ctx 中 combatant 的 hp/buffs。
+     */
+    private fun applyDamageEffects(
+        ctx: TurnContext,
+        results: List<AttackResult>,
+        enemiesIndexMap: Map<String, Int>,
+        isTeamMember: Boolean,
+        currentCombatant: Combatant,
+        availableSkill: CombatSkill?,
+        isAoeSkill: Boolean,
+        aliveEnemies: List<Combatant>
+    ) {
+        results.forEach { r ->
+            if (r.isDodged) return@forEach
+            val targetIndex = enemiesIndexMap[r.target.id] ?: return@forEach
+
+            applyShieldDamageToTarget(ctx, r, targetIndex, isTeamMember)
+            applyLinkedDamage(ctx, currentCombatant, r)
+            applySharedDamage(ctx, r)
+            applySkillDebuff(ctx, targetIndex, isTeamMember, currentCombatant, availableSkill, isAoeSkill)
+            applyDamageLinkDebuff(ctx, targetIndex, isTeamMember, currentCombatant, availableSkill)
+        }
+
+        applyAoeDebuff(ctx, aliveEnemies, enemiesIndexMap, isTeamMember, currentCombatant, availableSkill, isAoeSkill)
+        applyAoeShieldAbsorption(ctx, results, enemiesIndexMap, isTeamMember, isAoeSkill)
+    }
+
+    /** 护盾吸收：扣除伤害并更新被部分消耗的护盾 BUFF 值 */
+    private fun applyShieldDamageToTarget(
+        ctx: TurnContext,
+        r: AttackResult,
+        targetIndex: Int,
+        isTeamMember: Boolean
+    ) {
+        val shieldResult = BattleCalculator.calculateShieldAbsorption(r.target, r.damage)
+        val newHp = maxOf(0, r.target.hp - shieldResult.remainingDamage)
+        if (isTeamMember) {
+            ctx.beasts[targetIndex] = ctx.beasts[targetIndex].copy(hp = newHp)
+            if (shieldResult.shieldBuff != null) {
+                val shieldBuffs = ctx.beasts[targetIndex].buffs.map { b ->
+                    if (b.type == BuffType.SHIELD && b.remainingDuration == shieldResult.shieldBuff.remainingDuration)
+                        b.copy(value = shieldResult.remainingShield.toDouble() / ctx.beasts[targetIndex].maxHp.coerceAtLeast(1))
+                    else b
+                }
+                ctx.beasts[targetIndex] = ctx.beasts[targetIndex].copy(buffs = shieldBuffs)
+            }
+        } else {
+            ctx.team[targetIndex] = ctx.team[targetIndex].copy(hp = newHp)
+            if (shieldResult.shieldBuff != null) {
+                val shieldBuffs = ctx.team[targetIndex].buffs.map { b ->
+                    if (b.type == BuffType.SHIELD && b.remainingDuration == shieldResult.shieldBuff.remainingDuration)
+                        b.copy(value = shieldResult.remainingShield.toDouble() / ctx.team[targetIndex].maxHp.coerceAtLeast(1))
+                    else b
+                }
+                ctx.team[targetIndex] = ctx.team[targetIndex].copy(buffs = shieldBuffs)
+            }
+        }
+    }
+
+    /** 伤害链接：将链接伤害分配给被链接的敌人 */
+    private fun applyLinkedDamage(ctx: TurnContext, currentCombatant: Combatant, r: AttackResult) {
+        val linkedDmg = BattleCalculator.calculateLinkedDamage(
+            currentCombatant, r.target, r.damage, ctx.beasts, ctx.team
+        )
+        linkedDmg.forEach { (linkedId, linkDmg) ->
+            val linkedInBeasts = ctx.beasts.indexOfFirst { it.id == linkedId }
+            val linkedInTeam = ctx.team.indexOfFirst { it.id == linkedId }
+            if (linkedInBeasts >= 0) {
+                ctx.beasts[linkedInBeasts] = ctx.beasts[linkedInBeasts].copy(
+                    hp = maxOf(0, ctx.beasts[linkedInBeasts].hp - linkDmg)
+                )
+            } else if (linkedInTeam >= 0) {
+                ctx.team[linkedInTeam] = ctx.team[linkedInTeam].copy(
+                    hp = maxOf(0, ctx.team[linkedInTeam].hp - linkDmg)
+                )
+            }
+        }
+    }
+
+    /** 伤害分摊：将伤害按分摊规则重分配给分担者（含各自的护盾吸收） */
+    private fun applySharedDamage(ctx: TurnContext, r: AttackResult) {
+        val shareDmg = BattleCalculator.calculateDamageShare(
+            r.target.id, r.target.side, r.damage, ctx.team, ctx.beasts
+        )
+        shareDmg.forEach { (sharerId, shareDamage) ->
+            val sharerInTeam = ctx.team.indexOfFirst { it.id == sharerId }
+            val sharerInBeasts = ctx.beasts.indexOfFirst { it.id == sharerId }
+            val shareAfterShield = BattleCalculator.calculateShieldAbsorption(
+                if (sharerInTeam >= 0) ctx.team[sharerInTeam] else ctx.beasts[sharerInBeasts],
+                shareDamage
+            )
+            if (sharerInTeam >= 0) {
+                ctx.team[sharerInTeam] = ctx.team[sharerInTeam].copy(
+                    hp = maxOf(0, ctx.team[sharerInTeam].hp - shareAfterShield.remainingDamage)
+                )
+            } else if (sharerInBeasts >= 0) {
+                ctx.beasts[sharerInBeasts] = ctx.beasts[sharerInBeasts].copy(
+                    hp = maxOf(0, ctx.beasts[sharerInBeasts].hp - shareAfterShield.remainingDamage)
+                )
+            }
+        }
+    }
+
+    /** 技能 debuff 附加（非 AOE 时对目标施加技能自带的减益 BUFF） */
+    private fun applySkillDebuff(
+        ctx: TurnContext,
+        targetIndex: Int,
+        isTeamMember: Boolean,
+        currentCombatant: Combatant,
+        availableSkill: CombatSkill?,
+        isAoeSkill: Boolean
+    ) {
+        val localBuffType = availableSkill?.buffType
+        if (localBuffType == null || availableSkill.buffDuration <= 0 || isAoeSkill) return
+        val debuff = CombatBuff(
+            type = localBuffType,
+            value = availableSkill.buffValue,
+            remainingDuration = availableSkill.buffDuration,
+            sourceRealm = currentCombatant.realm
+        )
+        if (isTeamMember && targetIndex < ctx.beasts.size) {
+            ctx.beasts[targetIndex] = ctx.beasts[targetIndex].copy(
+                buffs = ctx.beasts[targetIndex].buffs + debuff
+            )
+        } else if (targetIndex < ctx.team.size) {
+            ctx.team[targetIndex] = ctx.team[targetIndex].copy(
+                buffs = ctx.team[targetIndex].buffs + debuff
+            )
+        }
+    }
+
+    /** 伤害链接 debuff：清除旧的链接标记并给目标附加新链接（同时仅一个） */
+    private fun applyDamageLinkDebuff(
+        ctx: TurnContext,
+        targetIndex: Int,
+        isTeamMember: Boolean,
+        currentCombatant: Combatant,
+        availableSkill: CombatSkill?
+    ) {
+        if (availableSkill?.damageLinkPercent == null || availableSkill.damageLinkPercent <= 0 ||
+            availableSkill.buffDuration <= 0
+        ) return
+        val linkDebuff = CombatBuff(
+            type = BuffType.DAMAGE_LINK,
+            value = availableSkill.damageLinkPercent,
+            remainingDuration = availableSkill.buffDuration,
+            sourceRealm = currentCombatant.realm
+        )
+        val enemies = if (isTeamMember) ctx.beasts else ctx.team
+        enemies.forEachIndexed { idx, enemy ->
+            val hasLink = enemy.buffs.any { it.type == BuffType.DAMAGE_LINK }
+            if (hasLink) {
+                val cleaned = enemy.buffs.filter { it.type != BuffType.DAMAGE_LINK }
+                if (isTeamMember && idx < ctx.beasts.size) ctx.beasts[idx] = ctx.beasts[idx].copy(buffs = cleaned)
+                else if (idx < ctx.team.size) ctx.team[idx] = ctx.team[idx].copy(buffs = cleaned)
+            }
+        }
+        if (isTeamMember && targetIndex < ctx.beasts.size) {
+            ctx.beasts[targetIndex] = ctx.beasts[targetIndex].copy(
+                buffs = ctx.beasts[targetIndex].buffs + linkDebuff
+            )
+        } else if (targetIndex < ctx.team.size) {
+            ctx.team[targetIndex] = ctx.team[targetIndex].copy(
+                buffs = ctx.team[targetIndex].buffs + linkDebuff
+            )
+        }
+    }
+
+    /** AOE debuff：对全部存活敌人施加技能减益 BUFF */
+    private fun applyAoeDebuff(
+        ctx: TurnContext,
+        aliveEnemies: List<Combatant>,
+        enemiesIndexMap: Map<String, Int>,
+        isTeamMember: Boolean,
+        currentCombatant: Combatant,
+        availableSkill: CombatSkill?,
+        isAoeSkill: Boolean
+    ) {
+        if (!isAoeSkill || availableSkill?.buffType == null || availableSkill.buffDuration <= 0) return
+        val aoeBuffType = availableSkill.buffType ?: return
+        val debuff = CombatBuff(
+            type = aoeBuffType,
+            value = availableSkill.buffValue,
+            remainingDuration = availableSkill.buffDuration,
+            sourceRealm = currentCombatant.realm
+        )
+        aliveEnemies.filter { !it.isDead }.forEach { enemy ->
+            val idx = enemiesIndexMap[enemy.id] ?: return@forEach
+            if (isTeamMember && idx < ctx.beasts.size) {
+                ctx.beasts[idx] = ctx.beasts[idx].copy(buffs = ctx.beasts[idx].buffs + debuff)
+            } else if (idx < ctx.team.size) {
+                ctx.team[idx] = ctx.team[idx].copy(buffs = ctx.team[idx].buffs + debuff)
+            }
+        }
+    }
+
+    /** AOE 护盾吸收：多目标统一结算护盾 */
+    private fun applyAoeShieldAbsorption(
+        ctx: TurnContext,
+        results: List<AttackResult>,
+        enemiesIndexMap: Map<String, Int>,
+        isTeamMember: Boolean,
+        isAoeSkill: Boolean
+    ) {
+        if (!isAoeSkill) return
+        results.forEach { r ->
+            if (r.isDodged) return@forEach
+            val tIdx = enemiesIndexMap[r.target.id] ?: return@forEach
+            val sr = BattleCalculator.calculateShieldAbsorption(r.target, r.damage)
+            if (sr.shieldBuff != null) {
+                val updatedHp = maxOf(0, r.target.hp - sr.remainingDamage)
+                if (isTeamMember && tIdx < ctx.beasts.size) {
+                    ctx.beasts[tIdx] = ctx.beasts[tIdx].copy(hp = updatedHp)
+                } else if (tIdx < ctx.team.size) {
+                    ctx.team[tIdx] = ctx.team[tIdx].copy(hp = updatedHp)
+                }
+            }
+        }
+    }
+
+    private data class TurnMessage(
+        val text: String,
+        val isKill: Boolean,
+        val totalDamage: Int
+    )
+
+    /**
+     * 生成回合行动描述消息：必杀/支援/技能（AOE 与单体）/普攻四分支。
+     * 纯函数：仅依赖入参生成消息与击杀判定，不修改战斗状态。
+     */
+    private fun buildTurnMessage(
+        isInstantKill: Boolean,
+        result: AttackResult,
+        availableSkill: CombatSkill?,
+        isAoeSkill: Boolean,
+        results: List<AttackResult>,
+        currentCombatant: Combatant
+    ): TurnMessage {
+        return when {
+            isInstantKill -> TurnMessage(
+                "境界碾压，${result.target.name}被一击必杀！", isKill = true, totalDamage = 0
+            )
+            result.isSupport && availableSkill != null -> TurnMessage(
+                BattleDescriptionGenerator.generateSupportSkillDescription(
+                    caster = currentCombatant,
+                    skill = availableSkill,
+                    healAmount = result.healAmount,
+                    healType = result.healType,
+                    buffs = availableSkill.buffs
+                ),
+                isKill = false,
+                totalDamage = 0
+            )
+            availableSkill != null -> {
+                val totalDamage = results.sumOf { it.damage }
+                val isKill = results.any { r -> r.target.hp - r.damage <= 0 }
+                val text = if (isAoeSkill) {
+                    BattleDescriptionGenerator.generateAoeSkillDescription(
+                        attacker = currentCombatant,
+                        skill = availableSkill,
+                        results = results,
+                        isKill = isKill
+                    )
+                } else {
+                    val singleTarget = result.target
+                    BattleDescriptionGenerator.generateSkillDescription(
+                        attacker = currentCombatant,
+                        target = singleTarget,
+                        skill = availableSkill,
+                        result = result,
+                        isKill = singleTarget.hp - result.damage <= 0
+                    )
+                }
+                TurnMessage(text, isKill = isKill, totalDamage = totalDamage)
+            }
+            else -> TurnMessage(
+                BattleDescriptionGenerator.generateAttackDescription(
+                    attacker = currentCombatant,
+                    target = result.target,
+                    result = result,
+                    isKill = result.target.hp - result.damage <= 0
+                ),
+                isKill = result.target.hp - result.damage <= 0,
+                totalDamage = 0
+            )
+        }
+    }
+
+    /**
+     * 拉条立即行动：被拉条的友方跳过等待立即执行一次行动（技能或普攻）。
+     * 含伤害结算（护盾吸收）与冷却更新。
+     */
+    private fun processTurnAdvance(
+        ctx: TurnContext,
+        result: AttackResult,
+        allies: MutableList<Combatant>,
+        currentCombatant: Combatant,
+        isTeamMember: Boolean,
+        enemiesIndexMap: Map<String, Int>
+    ) {
+        val advancedId = result.healedIds.firstOrNull()
+            ?: result.teamBuffs.keys.firstOrNull() ?: return
+        val advancedAlly = allies.find { it.id == advancedId && !it.isDead }
+            ?: return
+        if (advancedAlly.id == currentCombatant.id) return
+
+        val advAllies = if (isTeamMember) ctx.team else ctx.beasts
+        val advEnemies = if (isTeamMember) ctx.beasts else ctx.team
+        val advAliveEnemies = advEnemies.filter { !it.isDead }
+        val advIdx = advAllies.indexOfFirst { it.id == advancedId }
+        if (advIdx < 0 || advAliveEnemies.isEmpty()) return
+
+        val advSkill = BattleCalculator.selectSkill(
+            advancedAlly, advAliveEnemies, advAllies.filter { !it.isDead }, false, rng
+        )
+        val advTarget = BattleCalculator.selectTarget(advancedAlly, advAliveEnemies, rng)
+        val advDmgMod = if (advancedAlly.side == CombatantSide.DEFENDER) playerDamageModifier else 1.0
+        val advResult = if (advSkill != null) {
+            executeSkill(advancedAlly, advTarget, advSkill, advDmgMod)
+        } else {
+            executeAttack(advancedAlly, advTarget, advDmgMod)
+        }
+        val advDmg = if (advResult.isSupport) 0 else advResult.damage
+        ctx.actions.add(BattleActionData(
+            type = if (advSkill != null) "skill" else "attack",
+            attacker = advancedAlly.name,
+            attackerType = if (isTeamMember) "disciple" else "beast",
+            target = advResult.target.name,
+            damage = advDmg,
+            damageType = if (advResult.isPhysical) "物理" else "法术",
+            isCrit = advResult.isCrit,
+            isKill = advResult.target.hp - advDmg <= 0,
+            message = "${advancedAlly.name}被拉条立即行动！",
+            skillName = advResult.skillName
+        ))
+        if (!advResult.isSupport && !advResult.isDodged) {
+            val advTargetIdx = enemiesIndexMap[advResult.target.id]
+            if (advTargetIdx != null) {
+                val shieldR = BattleCalculator.calculateShieldAbsorption(advResult.target, advDmg)
+                if (isTeamMember && advTargetIdx < ctx.beasts.size) {
+                    ctx.beasts[advTargetIdx] = ctx.beasts[advTargetIdx].copy(
+                        hp = maxOf(0, ctx.beasts[advTargetIdx].hp - shieldR.remainingDamage)
+                    )
+                } else if (advTargetIdx < ctx.team.size) {
+                    ctx.team[advTargetIdx] = ctx.team[advTargetIdx].copy(
+                        hp = maxOf(0, ctx.team[advTargetIdx].hp - shieldR.remainingDamage)
+                    )
+                }
+            }
+        }
+        if (advSkill != null && advIdx >= 0) {
+            val updatedAdv = BattleCalculator.updateCombatantCooldowns(advancedAlly, advSkill)
+            if (isTeamMember) ctx.team[advIdx] = updatedAdv else ctx.beasts[advIdx] = updatedAdv
+        }
+    }
+
+    /**
+     * 控制效果处理：眩晕/冰冻时记录控制日志、结算 BUFF，回合提前结束。
+     *
+     * @return 被控制时返回 Continue（本回合结束）；否则 null 表示继续正常行动
+     */
+    private fun applyControlEffects(
+        ctx: TurnContext,
+        currentCombatant: Combatant,
+        isTeamMember: Boolean,
+        allies: MutableList<Combatant>,
+        alliesIndexMap: Map<String, Int>
+    ): TurnOutcome? {
+        if (!currentCombatant.hasControlEffect) return null
+        val stunBuff = currentCombatant.buffs.find { it.type == BuffType.STUN || it.type == BuffType.FREEZE }
+            ?: return null
+        ctx.actions.add(BattleActionData(
+            type = "control",
+            attacker = currentCombatant.name,
+            attackerType = if (isTeamMember) "disciple" else if (currentCombatant.isBeast) "beast" else "disciple",
+            target = currentCombatant.name,
+            damage = 0,
+            damageType = if (stunBuff.type == BuffType.STUN) "眩晕" else "冰冻",
+            message = "${currentCombatant.name}因${stunBuff.type.displayName}无法行动！"
+        ))
+        updateCombatantBuffs(currentCombatant, allies, alliesIndexMap)
         return TurnOutcome.Continue
     }
 
