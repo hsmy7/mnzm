@@ -23,10 +23,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.layout.BoxWithConstraints
-import com.xianxia.sect.ui.components.DialogSystemBarGuard
+import com.xianxia.sect.ui.components.DialogMode
+import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
@@ -530,13 +530,14 @@ fun BreakthroughDetailDialog(
         if (detail.lifespanPenalty > 0) add("寿元将尽" to -detail.lifespanPenalty)
     }
 
-    Dialog(
+    UnifiedGameDialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+        title = "",
+        mode = DialogMode.Auto,
+        scrimEnabled = false,
+        showHeader = false,
+        showCloseButton = false
     ) {
-        // 隐藏 Dialog Window 的系统状态栏/导航栏
-        DialogSystemBarGuard()
-
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()

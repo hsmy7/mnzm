@@ -760,6 +760,7 @@
     <ID>TooManyFunctions:TapCloudSaveManager.kt$TapCloudSaveManager</ID>
     <ID>TooManyFunctions:TapCloudSaveManager.kt$TapCloudSaveManager$ReflectiveCloudSaveApi : CloudSaveApi</ID>
     <ID>TooManyFunctions:WorldMapInteractionViewModel.kt$WorldMapInteractionViewModel : BaseViewModel</ID>
+    <ID>UnusedImports:DetailCultivationSection.kt$import androidx.compose.ui.window.DialogProperties</ID>
     <ID>UnusedImports:DiscipleDetailScreen.kt$import androidx.compose.ui.window.Dialog</ID>
     <ID>UnusedParameter:AlchemyDialog.kt$colors: com.xianxia.sect.ui.theme.XianxiaColorScheme</ID>
     <ID>UnusedParameter:AlchemyDialog.kt$productionViewModel: ProductionViewModel</ID>
