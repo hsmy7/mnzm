@@ -175,6 +175,7 @@
     <ID>InvalidPackageDeclaration:CombatService.kt$package com.xianxia.sect.core.engine.domain.battle</ID>
     <ID>InvalidPackageDeclaration:CultivationCore.kt$package com.xianxia.sect.core.engine.service</ID>
     <ID>InvalidPackageDeclaration:CultivationEventMissionOps.kt$package com.xianxia.sect.core.engine.service</ID>
+    <ID>InvalidPackageDeclaration:CultivationEventMonthlyOps.kt$package com.xianxia.sect.core.engine.service</ID>
     <ID>InvalidPackageDeclaration:CultivationEventProcessor.kt$package com.xianxia.sect.core.engine.service</ID>
     <ID>InvalidPackageDeclaration:CultivationRateCalculator.kt$package com.xianxia.sect.core.engine.service</ID>
     <ID>InvalidPackageDeclaration:CultivationService.kt$package com.xianxia.sect.core.engine.service</ID>
@@ -550,12 +551,12 @@
     <ID>MaxLineLength:CombatService.kt$CombatService$val updatedStatus = if (currentStatus in setOf(DiscipleStatus.IN_TEAM, DiscipleStatus.GARRISONING)) DiscipleStatus.IDLE else currentStatus</ID>
     <ID>MaxLineLength:CultivationCore.kt$CultivationCore$)</ID>
     <ID>MaxLineLength:CultivationCore.kt$CultivationCore$fun isDiscipleFullHpMp(id: Int, tables: DiscipleTables): Boolean</ID>
+    <ID>MaxLineLength:CultivationEventMonthlyOps.kt$safelyRunInState("aiSectOperations") { caveExplorationProcessor.get().processAISectOperations(year, month, this) }</ID>
+    <ID>MaxLineLength:CultivationEventMonthlyOps.kt$state.safelyRunInState("aiSectOperations") { caveExplorationProcessor.get().processAISectOperations(year, month, state) }</ID>
+    <ID>MaxLineLength:CultivationEventMonthlyOps.kt$state.safelyRunInState("spiritMineProduction") { cultivationSettlement.processSpiritMineProductionMonthly(state) }</ID>
     <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$currentDisciplesList[index] = disciple.copy(status = DiscipleStatus.IDLE, combat = disciple.combat.copy(currentHp = hp, currentMp = mp))</ID>
     <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$fun</ID>
-    <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$safelyRunInState("aiSectOperations") { caveExplorationProcessor.get().processAISectOperations(year, month, this) }</ID>
     <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$state.gameData = state.gameData.copy(scoutInfo = updatedScoutInfo, worldMapSects = updatedWorldMapSects, sectDetails = updatedDetails)</ID>
-    <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$state.safelyRunInState("aiSectOperations") { caveExplorationProcessor.get().processAISectOperations(year, month, state) }</ID>
-    <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$state.safelyRunInState("spiritMineProduction") { cultivationSettlement.processSpiritMineProductionMonthly(state) }</ID>
     <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$updatedDetails[sectId] = (updatedDetails[sectId] ?: SectDetail(sectId = sectId)).copy(scoutInfo = updatedScoutInfo[sectId] ?: SectScoutInfo())</ID>
     <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$val result = processSingleAutoEquip(d, year, month, phase, tables, eqStacks, eqInstancesById, newEqInstances)</ID>
     <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$val result = processSingleAutoLearn(d, year, month, phase, tables, mnStacks, mnInstancesById, newMnInstances)</ID>
@@ -1205,6 +1206,7 @@
     <ID>TooGenericExceptionCaught:BootSequenceController.kt$BootSequenceController$e: Exception</ID>
     <ID>TooGenericExceptionCaught:BuildingConfigService.kt$BuildingConfigService$e: Exception</ID>
     <ID>TooGenericExceptionCaught:CaveExplorationProcessor.kt$CaveExplorationProcessor$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:CultivationEventMonthlyOps.kt$e: Exception</ID>
     <ID>TooGenericExceptionCaught:CultivationEventProcessor.kt$CultivationEventProcessor$e: Exception</ID>
     <ID>TooGenericExceptionCaught:ExplorationService.kt$ExplorationService$e: Exception</ID>
     <ID>TooGenericExceptionCaught:FrameMetricsMonitor.kt$FrameMetricsMonitor$e: Exception</ID>
@@ -1295,6 +1297,8 @@
     <ID>UnusedImports:CultivationEventMissionOps.kt$import com.xianxia.sect.core.util.DomainLog</ID>
     <ID>UnusedImports:CultivationEventMissionOps.kt$import com.xianxia.sect.core.util.DomainResult</ID>
     <ID>UnusedImports:CultivationEventMissionOps.kt$import com.xianxia.sect.core.wallet.SpiritStoneSource</ID>
+    <ID>UnusedImports:CultivationEventProcessor.kt$import com.xianxia.sect.core.GameConfig</ID>
+    <ID>UnusedImports:CultivationEventProcessor.kt$import com.xianxia.sect.core.engine.domain.battle.AISectGarrisonManager</ID>
     <ID>UnusedImports:CultivationEventProcessor.kt$import com.xianxia.sect.core.engine.domain.exploration.MissionSystem</ID>
     <ID>UnusedParameter:AISectAttackManager.kt$AISectAttackManager$defenderSect: WorldSect</ID>
     <ID>UnusedParameter:AISectBeastAttackProcessor.kt$AISectBeastAttackProcessor$year: Int</ID>
@@ -1309,8 +1313,8 @@
     <ID>UnusedParameter:CaveExplorationProcessor.kt$CaveExplorationProcessor$playerSectId: String</ID>
     <ID>UnusedParameter:CaveExplorationProcessor.kt$CaveExplorationProcessor$year: Int</ID>
     <ID>UnusedParameter:ChildBirthSystem.kt$ChildBirthSystem$currentYear: Int</ID>
+    <ID>UnusedParameter:CultivationEventMonthlyOps.kt$year: Int</ID>
     <ID>UnusedParameter:CultivationEventProcessor.kt$CultivationEventProcessor$success: Boolean</ID>
-    <ID>UnusedParameter:CultivationEventProcessor.kt$CultivationEventProcessor$year: Int</ID>
     <ID>UnusedParameter:CultivationSettlement.kt$CultivationSettlement$currentYear: Int</ID>
     <ID>UnusedParameter:CultivationSettlement.kt$CultivationSettlement$year: Int</ID>
     <ID>UnusedParameter:DiplomacyEventProcessor.kt$DiplomacyEventProcessor$month: Int</ID>
@@ -1386,6 +1390,7 @@
     <ID>UnusedPrivateProperty:CultivationCore.kt$CultivationCore$private val scopeProvider: CoroutineScopeProvider</ID>
     <ID>UnusedPrivateProperty:CultivationCore.kt$CultivationCore$private val stateStore: GameStateStore</ID>
     <ID>UnusedPrivateProperty:CultivationCore.kt$CultivationCore$private val thermalMonitor: ThermalMonitor</ID>
+    <ID>UnusedPrivateProperty:CultivationEventMonthlyOps.kt$val data = state.gameData</ID>
     <ID>UnusedPrivateProperty:CultivationRateCalculator.kt$CultivationRateCalculator.Companion$private const val TAG = "CultivationRateCalculator"</ID>
     <ID>UnusedPrivateProperty:CultivationService.kt$CultivationService$private val discipleService: DiscipleService</ID>
     <ID>UnusedPrivateProperty:CustomVelocityTrackerTest.kt$CustomVelocityTrackerTest$i</ID>
@@ -1531,6 +1536,7 @@
     <ID>WildcardImport:CultivationCoreRealtimeAutoPillsTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:CultivationCoreTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:CultivationEventMissionOps.kt$import com.xianxia.sect.core.model.*</ID>
+    <ID>WildcardImport:CultivationEventMonthlyOps.kt$import com.xianxia.sect.core.model.*</ID>
     <ID>WildcardImport:CultivationEventProcessor.kt$import com.xianxia.sect.core.model.*</ID>
     <ID>WildcardImport:CultivationEventProcessor.kt$import com.xianxia.sect.core.registry.*</ID>
     <ID>WildcardImport:CultivationEventProcessor.kt$import com.xianxia.sect.core.state.*</ID>
