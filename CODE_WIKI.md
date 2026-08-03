@@ -624,12 +624,8 @@ tickInternal()
 | 思过 | `reflection:<id>` | 已过年数 / totalDuration ≥ 0.8 |
 | 灵矿采矿 | （不入实时轨） | 持续收入型，无"完成"概念 |
 
-**双指纹检测**（任一变化触发微结算）：
-
-| 指纹 | 检测内容 | 文件 |
-|------|---------|------|
-| `CultivationRateFingerprint` | 住所布局、长老分配、政策、弟子境界、丹药/丧亲/功法、寿命衰减、师徒关系 | `SettlementCoordinator.kt:1266` |
-| `ProductionRateFingerprint` | 灵矿槽位、灵植阁、炼丹/炼器分配、血炼进程、任务、思过、建筑等级、生产政策 | `ProductionRateFingerprint.kt:58` |
+> ⚠️ **已废弃** — 双指纹检测（`CultivationRateFingerprint`/`ProductionRateFingerprint`/`SettlementCoordinator`）已随惰性结算重构移除（2026-07-27）。
+> 现行机制：生产系统使用 `checkpointAllProduction()` 在政策/长老变化时重算所有活跃槽位的 duration 与 completionMonth（见 CLAUDE.md 6.4）。
 
 ### 月度结算阶段（`scheduleMonthly`/`scheduleYearly`）
 
@@ -699,7 +695,6 @@ tickInternal()
 | 保留 | 原因 |
 |------|------|
 | `scheduleMonthly` / `scheduleYearly` | 公开 API 保留，SettlementScheduler 及阶段类不变 |
-| `FocusDomain.BACKGROUND` | 枚举值保留，系统仍使用 |
 | `onUserInteraction` 回调链路 | UI 层用它重置批量时钟 |
 
 ---

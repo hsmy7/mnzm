@@ -333,56 +333,6 @@ class ProductionCoordinator @Inject constructor(
         )
     }
     
-    suspend fun completeProductionAtomic(
-        buildingType: BuildingType,
-        slotIndex: Int,
-        currentYear: Int,
-        currentMonth: Int
-    ): DomainResult<ProductionOutcome> {
-        DomainLog.d(TAG, "Completing production: ${buildingType.name}[$slotIndex]")
-
-        val txResult = transactionManager.executeCompleteProduction(
-            buildingType, slotIndex, currentYear, currentMonth
-        )
-
-        if (!txResult.success) {
-            val appError = txResult.error
-                ?: AppError.Domain.Production.InvalidSlot(slotIndex = slotIndex)
-            return DomainResult.Failure(appError)
-        }
-
-        DomainLog.d(TAG, "Production completed: ${buildingType.name}[$slotIndex]")
-        return DomainResult.Success(
-            txResult.outcome
-                ?: ProductionOutcome.Failure("outcome data missing")
-        )
-    }
-
-    suspend fun completeProductionByBuildingIdAtomic(
-        buildingId: String,
-        slotIndex: Int,
-        currentYear: Int,
-        currentMonth: Int
-    ): DomainResult<ProductionOutcome> {
-        DomainLog.d(TAG, "Completing production by buildingId: $buildingId[$slotIndex]")
-
-        val txResult = transactionManager.executeCompleteProductionByBuildingId(
-            buildingId, slotIndex, currentYear, currentMonth
-        )
-
-        if (!txResult.success) {
-            val appError = txResult.error
-                ?: AppError.Domain.Production.InvalidSlot(slotIndex = slotIndex)
-            return DomainResult.Failure(appError)
-        }
-
-        DomainLog.d(TAG, "Production completed: $buildingId[$slotIndex]")
-        return DomainResult.Success(
-            txResult.outcome
-                ?: ProductionOutcome.Failure("outcome data missing")
-        )
-    }
-
     suspend fun resetSlotAtomic(
         buildingType: BuildingType,
         slotIndex: Int

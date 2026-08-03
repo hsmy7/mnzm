@@ -324,10 +324,6 @@ class DataCompressor @Inject constructor(
      * @param data 原始数据
      * @return 压缩后的数据（可能是 ZSTD 或 GZIP 格式）
      */
-    private fun compressZstd(data: ByteArray): ByteArray {
-        return compressZstdWithActualAlgo(data).first
-    }
-
     private fun compressZstdWithActualAlgo(data: ByteArray): Pair<ByteArray, CompressionAlgorithm> {
         ZstdWrapper.init()
 

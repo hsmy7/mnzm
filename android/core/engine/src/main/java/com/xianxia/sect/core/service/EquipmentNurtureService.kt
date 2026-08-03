@@ -18,27 +18,6 @@ import javax.inject.Singleton
 @GameService("EquipmentNurtureService")
 class EquipmentNurtureService @Inject constructor() {
 
-    /** 纯函数：计算单弟子装备孕养增量 */
-    fun computeNurtureDelta(
-        id: Int, tables: DiscipleTables,
-        equipmentMap: Map<String, EquipmentInstance>,
-        nurtureGainPerPhase: Double, phasesToSettle: Int,
-        resultMap: MutableMap<String, EquipmentInstance>
-    ) {
-        listOf(
-            tables.weaponIds[id], tables.armorIds[id],
-            tables.bootsIds[id], tables.accessoryIds[id]
-        ).filter { it.isNotEmpty() }.forEach { eqId ->
-            val eq = equipmentMap[eqId] ?: return@forEach
-            val result = EquipmentNurtureSystem.updateNurtureExp(
-                eq, nurtureGainPerPhase * phasesToSettle
-            )
-            if (result.equipment != eq) {
-                resultMap[eqId] = result.equipment
-            }
-        }
-    }
-
     /** 装备孕养结算：单弟子装备孕养增量写入累积映射。 */
     fun settleNurtureInPlace(
         id: Int, tables: DiscipleTables,

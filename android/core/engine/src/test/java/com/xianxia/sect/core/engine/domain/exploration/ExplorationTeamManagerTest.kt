@@ -78,7 +78,6 @@ private class FakeStore : GameStateStore {
     override val teams = MutableStateFlow(teamList)
     override val disciples = MutableStateFlow<List<Disciple>>(emptyList())
     override val gameData = MutableStateFlow(gd)
-    override val unifiedState = MutableStateFlow(UnifiedGameState())
     override val highFreqState = MutableStateFlow(GameStateStore.HighFreqState())
     override val entityState = MutableStateFlow(GameStateStore.EntityState())
     override val configState = MutableStateFlow(GameStateStore.ConfigState())
@@ -130,7 +129,6 @@ private class FakeStore : GameStateStore {
     override fun getCurrentSeeds(): List<Seed> = seeds.value
     override fun getCurrentHerbs(): List<Herb> = herbs.value
     override fun getCurrentMaterials(): List<Material> = materials.value
-    override fun setPendingNotification(notification: GameNotification) { pendingNotification.value = notification }
     override fun clearPendingNotification() { pendingNotification.value = null }
     override val notifications = MutableStateFlow<List<GameNotification>>(emptyList())
     override fun enqueueNotification(n: GameNotification) { notifications.value = notifications.value + n }

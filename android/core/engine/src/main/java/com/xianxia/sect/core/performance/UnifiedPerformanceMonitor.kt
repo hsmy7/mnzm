@@ -104,16 +104,11 @@ class UnifiedPerformanceMonitor @Inject constructor(
     fun getMetricDefinition(name: String): MetricDefinition? = metricDefinitions[name]
     fun getAllMetricDefinitions(): Map<String, MetricDefinition> = metricDefinitions.toMap()
     fun resetMetric(name: String) { metricsCollectors[name]?.reset() }
-    fun resetAllMetrics() { metricsCollectors.values.forEach { it.reset() } }
 
     fun addListener(listener: MetricsListener) { listeners.add(listener) }
     fun removeListener(listener: MetricsListener) { listeners.remove(listener) }
 
     // ── 生命周期代理（已迁移至 BackgroundTaskScheduler）──
-
-    fun startReporting(intervalMs: Long = 60_000L) {
-        DomainLog.d(TAG, "Performance reporting start (delegated to scheduler)")
-    }
 
     fun stopReporting() {
         DomainLog.d(TAG, "Performance reporting stop (delegated to scheduler)")
@@ -196,11 +191,6 @@ class UnifiedPerformanceMonitor @Inject constructor(
     }
 
     // ── 工具方法 ──
-
-    fun forceGc() {
-        DomainLog.i(TAG, "Forcing garbage collection")
-        System.gc()
-    }
 
     fun getMemoryReport(): String {
         val runtime = Runtime.getRuntime()

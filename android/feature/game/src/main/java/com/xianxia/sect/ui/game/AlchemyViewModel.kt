@@ -78,38 +78,6 @@ class AlchemyViewModel @Inject constructor(
         }
     }
 
-    fun autoAlchemyAllSlots() {
-        gameEngine.launchOnEngine {
-            try {
-                val slots = gameEngine.productionSlots.value
-                val alchemySlots = slots.filter {
-                    it.buildingType == BuildingType.ALCHEMY
-                }
-                val idleSlotIndices = alchemySlots
-                    .filter { it.status == ProductionSlotStatus.IDLE }
-                    .map { it.slotIndex }
-
-                if (idleSlotIndices.isEmpty()) {
-                    showError("没有空闲的炼丹槽位")
-                    return@launchOnEngine
-                }
-
-                var startedCount = 0
-                for (slotIndex in idleSlotIndices) {
-                    if (startBestAlchemyRecipe(slotIndex).isSuccess) startedCount++
-                }
-
-                if (startedCount > 0) {
-                    showSuccess("自动炼丹完成，已启动${startedCount}个槽位")
-                } else {
-                    showError("没有足够的草药进行炼丹")
-                }
-            } catch (e: CancellationException) { throw e }
-              catch (e: Exception) {
-                showError(e.message ?: "自动炼丹失败")
-            }
-        }
-    }
 
     private suspend fun startBestAlchemyRecipe(slotIndex: Int): DomainResult<ProductionSlot> {
         val currentHerbs = gameEngine.getCurrentHerbs()

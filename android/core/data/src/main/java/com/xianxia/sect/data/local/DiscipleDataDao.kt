@@ -95,8 +95,6 @@ interface DiscipleDao {
     @Query("DELETE FROM disciples WHERE slot_id = :slotId AND id = :id")
     suspend fun deleteById(slotId: Int, id: String)
 
-    @Query("DELETE FROM disciples WHERE slot_id = :slotId AND isAlive = 0")
-    suspend fun deleteDeadDisciples(slotId: Int): Int
 
     @Query("SELECT * FROM disciples WHERE slot_id = :slotId AND isAlive = 0")
     suspend fun getDeadBySlotSync(slotId: Int): List<Disciple>

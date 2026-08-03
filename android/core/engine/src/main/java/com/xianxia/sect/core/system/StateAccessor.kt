@@ -40,26 +40,10 @@ class StateAccessorFactory(
         fallbackGetter = { stateStore.gameData.value }
     )
 
-    fun gameDataFromUnified(): StateAccessor<GameData> = StateAccessor(
-        stateStore, scope, dispatcher,
-        stateGetter = { it?.gameData },
-        stateSetter = { s, v -> s.gameData = v },
-        fallbackGetter = { stateStore.gameData.value }
-    )
-
     fun disciples(): StateAccessor<List<Disciple>> = StateAccessor(
         stateStore, scope, dispatcher,
         stateGetter = { it?.discipleTables?.assembleAll() },
         stateSetter = { s, v -> s.discipleTables.replaceAll(v) },
-        fallbackGetter = { stateStore.disciples.value }
-    )
-
-    fun disciplesFromUnified(): StateAccessor<List<Disciple>> = StateAccessor(
-        stateStore, scope, dispatcher,
-        stateGetter = { it?.discipleTables?.assembleAll() },
-        stateSetter = { s, v ->
-            s.discipleTables.replaceAll(v)
-        },
         fallbackGetter = { stateStore.disciples.value }
     )
 
@@ -141,13 +125,6 @@ class StateAccessorFactory(
     )
 
     fun teams(): StateAccessor<List<ExplorationTeam>> = StateAccessor(
-        stateStore, scope, dispatcher,
-        stateGetter = { it?.teams },
-        stateSetter = { s, v -> s.teams = v },
-        fallbackGetter = { stateStore.teams.value }
-    )
-
-    fun teamsFromUnified(): StateAccessor<List<ExplorationTeam>> = StateAccessor(
         stateStore, scope, dispatcher,
         stateGetter = { it?.teams },
         stateSetter = { s, v -> s.teams = v },

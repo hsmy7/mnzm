@@ -247,28 +247,10 @@ object CrashRecoveryEngine {
     // ── Vulkan 崩溃专用标记（无需等待计数器，1 次即标记） ──
 
     /**
-     * 标记一次 Vulkan SIGSEGV 崩溃。
-     * 与 [recordCrash] 不同，此标记专门跟踪 Vulkan 渲染器崩溃，
-     * 一次崩溃即触发 SoftwareOnly 降级，无需积累到 SAFE_MODE_THRESHOLD。
-     */
-    fun markVulkanCrashDetected() {
-        requirePrefs().edit { putBoolean(KEY_VULKAN_CRASH_DETECTED, true) }
-        Log.e(TAG, "Vulkan crash detected — will force SOFTWARE_ONLY on next launch")
-    }
-
-    /**
      * 是否有 Vulkan 崩溃记录。
      */
     fun isVulkanCrashDetected(): Boolean {
         return requirePrefs().getBoolean(KEY_VULKAN_CRASH_DETECTED, false)
-    }
-
-    /**
-     * 清除 Vulkan 崩溃标记（版本更新或用户手动恢复后调用）。
-     */
-    fun clearVulkanCrashDetected() {
-        requirePrefs().edit { remove(KEY_VULKAN_CRASH_DETECTED) }
-        Log.d(TAG, "Vulkan crash detected flag cleared")
     }
 
 }

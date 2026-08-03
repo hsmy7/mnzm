@@ -298,12 +298,6 @@ class GameEngineCore @Inject constructor(
     private var frameCount = 0
     private var fpsAccumulator = 0f
     
-    /**
-     * @deprecated P-8：统一状态流已废弃（20Hz 锁竞争）。改用
-     *   [isPaused]/gameData/entityState/highFreqState 等窄流。
-     */
-    @Deprecated("Use dedicated narrow StateFlows instead. Will be removed.")
-    val state: StateFlow<UnifiedGameState> get() = stateStore.unifiedState
     val events: Flow<DomainEvent> get() = eventBus.events
 
     private var isInitialized = false

@@ -162,8 +162,6 @@ class GameViewModelTest {
             )
         )
 
-        // ── Stub gameEngineCore.state（isPaused Flow 链引用）──
-        every { gameEngineCore.state } returns MutableStateFlow(UnifiedGameState())
 
         // ── 禁用健康检查（GameLoopDelegate 每秒访问 mock 属性 → Kotlin 反射
         //    类加载风暴 → 测试卡死，jstack 实证 JarFile.getVersionedEntry）──

@@ -703,9 +703,6 @@ class GameViewModel @Inject constructor(
     // AdsDelegate — 广告播放控制
     fun isAdOnCooldown(): Boolean = ads.isAdOnCooldown()
     fun isDailyAdLimitReached(): Boolean = ads.isDailyAdLimitReached()
-    /** @deprecated 请使用 [tryMarkAdWatched] 替代 */
-    @Deprecated("Use tryMarkAdWatched() instead")
-    fun markAdWatched() = ads.markAdWatched()
     fun tryMarkAdWatched(): Boolean = ads.tryMarkAdWatched()
 
     /**

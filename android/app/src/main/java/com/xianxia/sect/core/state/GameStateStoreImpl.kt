@@ -22,7 +22,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
@@ -195,45 +194,6 @@ class GameStateStoreImpl @Inject constructor(
     override fun exitBatchEmissionMode() { /* no-op */ }
 
     override val warehouseFullEvent: MutableSharedFlow<String> = MutableSharedFlow<String>(extraBufferCapacity = 1)
-
-    // LEGACY: 按版本触发的批处理模式，50ms 内多次更新合并为一次
-    // 新代码应使用 highFreqState / entityState / configState 或独立 StateFlow
-    override val unifiedState: StateFlow<UnifiedGameState> = _updateVersion
-        .sample(50)
-        .map { buildUnifiedState() }
-        .stateIn(applicationScopeProvider.scope, SharingStarted.WhileSubscribed(5_000), UnifiedGameState())
-
-    private fun buildUnifiedState(): UnifiedGameState {
-        // 2026-08-01 修复：持锁一次性读取全部字段——旧实现顺序读 12+ 流，
-        // 引擎线程在两次读取之间提交新事务会产生 torn read（新旧混合快照）。
-        // 读取是 O(1) 引用赋值，锁持有时间极短，不阻塞事务吞吐。
-        return transactionLock.withLock { buildUnifiedStateLocked() }
-    }
-
-    private fun buildUnifiedStateLocked(): UnifiedGameState {
-        val gd = _gameDataFlow.value
-        return UnifiedGameState(
-            gameData = gd,
-            disciples = _disciplesFlow.value,
-            equipmentStacks = _equipmentStacksFlow.value,
-            equipmentInstances = _equipmentInstancesFlow.value,
-            manualStacks = _manualStacksFlow.value,
-            manualInstances = _manualInstancesFlow.value,
-            pills = _pillsFlow.value,
-            materials = _materialsFlow.value,
-            herbs = _herbsFlow.value,
-            seeds = _seedsFlow.value,
-            storageBags = _storageBagsFlow.value,
-            teams = _teamsFlow.value,
-            battleLogs = _battleLogsFlow.value,
-            alliances = gd.alliances,
-            isPaused = _isPaused.value,
-            isLoading = _isLoading.value,
-            isSaving = _isSaving.value,
-            pendingBattleResult = _pendingBattleResultFlow.value,
-            pendingNotification = _pendingNotificationFlow.value
-        )
-    }
 
     // 公开 StateFlow——直接来自独立 MutableStateFlow，零 .map{} 开销
     override val gameData: StateFlow<GameData> = _gameDataFlow.asStateFlow()
@@ -691,19 +651,13 @@ class GameStateStoreImpl @Inject constructor(
     override fun getCurrentMaterials(): List<Material> = _materialsFlow.value
 
     // === 通知 API ===
-    override fun setPendingNotification(notification: GameNotification) {
-        _pendingNotificationFlow.value = notification
-        _updateVersion.value++
-        _stateDirty = true
-    }
-
     override fun clearPendingNotification() {
         _pendingNotificationFlow.value = null
         _updateVersion.value++
         _stateDirty = true
     }
 
-    /** 通知队列（v3+）— 替代单值 [setPendingNotification] */
+    /** 通知队列（v3+） */
     override fun enqueueNotification(notification: GameNotification) {
         notificationQueue.offer(notification)
         if (notificationQueue.size > 200) notificationQueue.poll() // 上限 200，丢弃最旧

@@ -206,10 +206,6 @@ data class GameConfigData(
         val herdLoyaltyThreshold: Int = 50,
         val probPerPoint: Double = 0.01,
         val maxProb: Double = 0.9,
-        @Deprecated("已废弃，改用 realm-based 公式")
-        val theftMinRatio: Double = 0.01,
-        @Deprecated("已废弃，改用 realm-based 公式")
-        val theftMaxRatio: Double = 0.05,
         val baseCaptureRate: Double = 0.0,
         val intelligenceBase: Int = 50,
         val elderBonusPerPoint: Double = 0.01,
@@ -224,7 +220,6 @@ data class GameConfigData(
         val theftSpeedBase: Int = 50,
         val theftIntelligenceBonusPerPoint: Double = 0.003,
         val theftIntelligenceBase: Int = 50,
-        val theftMaxRatioOfTotal: Double = 0.10,
         val theftMinAmount: Long = 100L,
         val theftRealmPerceptionBonus: Int = 10
     )

@@ -145,34 +145,6 @@ object FavorDomain {
     }
 
     /**
-     * 计算结盟成功率。
-     *
-     * @param favor 当前好感度
-     * @return 成功概率 (0.0 - 1.0)
-     *
-     * @deprecated 改用 [IntelligentSectDecisionEngine] 的多因素加权模型，
-     * 使用 [IntelligentSectDecisionEngine.ALLIANCE_PROFILE]。
-     * 此方法仅保留为向后兼容。
-     */
-    @Deprecated(
-        "Use IntelligentSectDecisionEngine with ALLIANCE_PROFILE instead",
-        ReplaceWith(
-            "IntelligentSectDecisionEngine.calculateChance(IntelligentSectDecisionEngine.ALLIANCE_PROFILE, ...)",
-            "com.xianxia.sect.core.domain.diplomacy.IntelligentSectDecisionEngine"
-        )
-    )
-    fun calculateAllianceSuccessChance(favor: Int): Double {
-        return when {
-            favor >= 90 -> 0.90
-            favor >= 80 -> 0.75
-            favor >= 60 -> 0.60
-            favor >= 40 -> 0.45
-            favor >= 20 -> 0.25
-            else -> 0.10
-        }
-    }
-
-    /**
      * 计算宗门交易价格倍率。
      *
      * @param sectRelations 全量关系列表

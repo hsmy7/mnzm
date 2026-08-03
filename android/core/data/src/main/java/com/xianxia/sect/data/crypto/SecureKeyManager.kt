@@ -872,36 +872,6 @@ object SecureKeyManager {
         }
     }
     
-    fun forceRegenerateKey(context: Context): ByteArray {
-        synchronized(keyLock) {
-            Log.w(TAG, "Force regenerating key - existing save data will be lost")
-            
-            keyCache?.key?.fill(0)
-            keyCache = null
-            
-            try {
-                context.deleteFile(KEY_FILE_NAME)
-                context.deleteFile(BACKUP_FILE_NAME)
-                context.deleteFile(TEMP_FILE_NAME)
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to delete some key files", e)
-            }
-            
-            val keyFile = File(context.filesDir, KEY_FILE_NAME)
-            val backupFile = File(context.filesDir, BACKUP_FILE_NAME)
-            if (keyFile.exists()) keyFile.delete()
-            if (backupFile.exists()) backupFile.delete()
-            
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            prefs.edit().remove(KEY_PREF_KEY).apply()
-            
-            val newKey = generateNewKey(context, prefs, keyFile, backupFile)
-            keyCache = KeyCache(newKey, System.currentTimeMillis())
-            
-            Log.i(TAG, "Key force regeneration completed")
-            return newKey
-        }
-    }
     
     fun hasValidKey(context: Context): Boolean {
         val keyFile = File(context.filesDir, KEY_FILE_NAME)

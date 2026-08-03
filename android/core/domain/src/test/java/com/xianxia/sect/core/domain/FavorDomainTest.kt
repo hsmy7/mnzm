@@ -154,40 +154,6 @@ class FavorDomainTest {
     }
 
     // ═══════════════════════════════════════════════════════════
-    // calculateAllianceSuccessChance
-    // ═══════════════════════════════════════════════════════════
-
-    @Test
-    fun `calculateAllianceSuccessChance - favor90为90pct`() {
-        assertEquals(0.90, FavorDomain.calculateAllianceSuccessChance(90), 0.001)
-    }
-
-    @Test
-    fun `calculateAllianceSuccessChance - favor80为75pct`() {
-        assertEquals(0.75, FavorDomain.calculateAllianceSuccessChance(80), 0.001)
-    }
-
-    @Test
-    fun `calculateAllianceSuccessChance - favor60为60pct`() {
-        assertEquals(0.60, FavorDomain.calculateAllianceSuccessChance(60), 0.001)
-    }
-
-    @Test
-    fun `calculateAllianceSuccessChance - favor40为45pct`() {
-        assertEquals(0.45, FavorDomain.calculateAllianceSuccessChance(40), 0.001)
-    }
-
-    @Test
-    fun `calculateAllianceSuccessChance - favor20为25pct`() {
-        assertEquals(0.25, FavorDomain.calculateAllianceSuccessChance(20), 0.001)
-    }
-
-    @Test
-    fun `calculateAllianceSuccessChance - favor0为10pct`() {
-        assertEquals(0.10, FavorDomain.calculateAllianceSuccessChance(0), 0.001)
-    }
-
-    // ═══════════════════════════════════════════════════════════
     // calculateTradePriceMultiplier
     // ═══════════════════════════════════════════════════════════
 
@@ -209,7 +175,9 @@ class FavorDomainTest {
     @Test
     fun `calculateTradePriceMultiplier - 盟友额外折扣`() {
         val relations = listOf(SectRelation(sectId1 = "player", sectId2 = "target", favor = 80))
-        val alliances = listOf(Alliance(id = "a1", sectIds = listOf("player", "target"), startYear = 1, initiatorId = "player"))
+        val alliances = listOf(
+            Alliance(id = "a1", sectIds = listOf("player", "target"), startYear = 1, initiatorId = "player")
+        )
         val multiplier = FavorDomain.calculateTradePriceMultiplier(relations, alliances, "target", "player")
         // 0.9 * (1.0 - (80-70)*0.01) = 0.81, clamp at 0.85
         assertEquals(0.85, multiplier, 0.001)
@@ -229,7 +197,9 @@ class FavorDomainTest {
 
     @Test
     fun `updateFavor - 已有关关系时更新`() {
-        val relations = listOf(SectRelation(sectId1 = "a", sectId2 = "b", favor = 30, lastInteractionYear = 1, acquainted = true))
+        val relations = listOf(
+            SectRelation(sectId1 = "a", sectId2 = "b", favor = 30, lastInteractionYear = 1, acquainted = true)
+        )
         val result = FavorDomain.updateFavor(relations, "a", "b", 80, 5)
         assertEquals(80, result[0].favor)
         assertEquals(5, result[0].lastInteractionYear)

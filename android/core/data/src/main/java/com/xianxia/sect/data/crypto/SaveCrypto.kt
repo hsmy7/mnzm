@@ -660,15 +660,6 @@ object SaveCrypto {
      *
      * 仅清�?source=PRECOMPUTED 的条目，保留 DERIVED 条目�?
      */
-    fun clearPrecomputedKeys() {
-        val toRemove = unifiedKeyCache.filter { it.value.source == KeySource.PRECOMPUTED }
-        toRemove.forEach { (key, entry) ->
-            securelyClear(entry.key)
-            securelyClear(entry.salt)
-            unifiedKeyCache.remove(key)
-        }
-        Log.d(TAG, "Precomputed keys cleared (${toRemove.size} entries removed from unified cache)")
-    }
 
     // ==================== 工具方法（委托到 CryptoHashUtils）====================
 
@@ -842,57 +833,6 @@ object SaveCrypto {
     }
 
     // ==================== 密钥派生方法 ====================
-
-    /**
-     * 使用密码派生密钥（带缓存，v3: 统一缓存架构�?
-     *
-     * 查找顺序（单一缓存源）�?
-     * 1. 统一缓存 unifiedKeyCache（包�?PRECOMPUTED �?DERIVED 来源�?
-     * 2. 未命中则实时 Argon2id 派生
-     * 3. 派生结果存入统一缓存（source=DERIVED�?
-     *
-     * v3 重构消除了原来先�?precomputedKeys 再查 derivedKeyCache 的两阶段查找�?
-     * 减少了一�?ConcurrentHashMap.get() 开销，同时消除了状态不一致的可能�?
-     */
-    private fun deriveKey(password: String, salt: ByteArray): ByteArray {
-        val cacheKey = buildCacheKey(password, salt)
-
-        // 统一缓存查找（单次查询，无论来源�?
-        val cached = getFromUnifiedCache(cacheKey)
-        if (cached != null) {
-            Log.d(TAG, "Unified key cache hit (source=${cached.second})")
-            return cached.first
-        }
-
-        // 执行 Argon2id 派生
-        val key = deriveKeyArgon2id(password, salt)
-
-        // 存入统一缓存
-        putToUnifiedCache(cacheKey, key, salt, KeySource.DERIVED)
-
-        return key
-    }
-
-    /**
-     * 使用指定迭代次数派生密钥（支�?legacy 格式缓存，v3: 统一缓存�?
-     */
-    private fun deriveKeyWithIterations(
-        password: String,
-        salt: ByteArray,
-        iterations: Int
-    ): ByteArray {
-        val cacheKey = "${buildCacheKey(password, salt)}_$iterations"
-        val cached = getFromUnifiedCache(cacheKey)
-        if (cached != null) {
-            Log.d(TAG, "Unified key cache hit for iterations=$iterations")
-            return cached.first
-        }
-
-        val key = deriveKeyInternal(password, salt, iterations)
-        putToUnifiedCache(cacheKey, key, salt, KeySource.DERIVED)
-
-        return key
-    }
 
     /**
      * 核心 PBKDF2 密钥派生实现
@@ -1161,31 +1101,6 @@ object SaveCrypto {
         val passwordHash = sha256Hex(password.toByteArray())
         val saltHash = sha256Hex(salt)
         return "${passwordHash}_${saltHash}"
-    }
-
-    /**
-     * 从统一缓存获取派生密钥 (v3)
-     *
-     * @return Pair(密钥副本, 来源标识)，不存在或已过期则返�?null
-     */
-    private fun getFromUnifiedCache(cacheKey: String): Pair<ByteArray, KeySource>? {
-        val cached = unifiedKeyCache[cacheKey] ?: return null
-
-        // 检�?TTL 过期（使用统一�?5 分钟 TTL�?
-        val effectiveTtl = StorageConfig.DEFAULT_KEY_CACHE_DURATION_MS.coerceAtLeast(UNIFIED_CACHE_TTL_MS)
-        if (System.currentTimeMillis() - cached.createdAt > effectiveTtl) {
-            // 过期条目需要安全清�?
-            val removed = unifiedKeyCache.remove(cacheKey)
-            if (removed != null) {
-                securelyClear(removed.key)
-                securelyClear(removed.salt)
-            }
-            Log.d(TAG, "Unified cache entry expired and securely removed: ${cacheKey.take(8)}...")
-            return null
-        }
-
-        // 返回副本以确保缓存中的原始数据不被外部修�?
-        return Pair(cached.key.copyOf(), cached.source)
     }
 
     /**

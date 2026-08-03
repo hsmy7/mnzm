@@ -269,8 +269,6 @@
     <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"woodenStaff" to EquipmentDatabase.EquipmentTemplate("woodenStaff", "桃木杖", EquipmentSlot.WEAPON, 1, magicAttack = 10, critChance = 0.02, description = "百年桃木制成的法杖，法术攻击力强大", price = 3600)</ID>
     <ID>MaxLineLength:EquipmentRegistry.kt$EquipmentRegistry$"yinYangOrb" to EquipmentDatabase.EquipmentTemplate("yinYangOrb", "天玄扇", EquipmentSlot.WEAPON, 6, magicAttack = 3980, critChance = 0.18, description = "蕴含天玄道韵的至宝，攻击易暴击", price = 6000000)</ID>
     <ID>MaxLineLength:EventBusAudit.kt$EventBusAudit$errorHandling = "EventBus 层 try-catch 隔离; onEvent 内无 try-catch, cultivationService.processSpiritMineProduction() 异常会传播"</ID>
-    <ID>MaxLineLength:FavorDomainTest.kt$FavorDomainTest$val alliances = listOf(Alliance(id = "a1", sectIds = listOf("player", "target"), startYear = 1, initiatorId = "player"))</ID>
-    <ID>MaxLineLength:FavorDomainTest.kt$FavorDomainTest$val relations = listOf(SectRelation(sectId1 = "a", sectId2 = "b", favor = 30, lastInteractionYear = 1, acquainted = true))</ID>
     <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("battleAxe", "凌华刀", EquipmentSlot.WEAPON, 2, 2, "刀光凌厉如华", mapOf("tigerBlood1" to 5, "eagleClaw1" to 2), 6, 0.65)</ID>
     <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("bronzeDagger", "精铁刀", EquipmentSlot.WEAPON, 1, 1, "精铁锻造的宝刀", mapOf("tigerTooth0" to 4, "eagleClaw0" to 2), 3, 0.70)</ID>
     <ID>MaxLineLength:ForgeRecipeDatabase.kt$ForgeRecipeDatabase$ForgeRecipe("bronzePlate", "精铁甲", EquipmentSlot.ARMOR, 1, 1, "精铁铸造的铠甲", mapOf("turtleShell0" to 4, "turtleBone0" to 2), 3, 0.70)</ID>

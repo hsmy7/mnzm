@@ -80,14 +80,6 @@ interface GameStateStore : GameStateSnapshotProvider {
     val entityState: StateFlow<EntityState>
     val configState: StateFlow<ConfigState>
 
-    /**
-     * @deprecated P-8：20Hz 锁竞争采样管道已由各独立窄流替代（isPaused/isLoading/
-     *   isSaving/gameData/entityState/highFreqState 等）。新代码禁止订阅本流——
-     *   订阅会激活 WhileSubscribed 管道造成每 50ms 一次锁获取。待全部消费方清零后删除。
-     */
-    @Deprecated("Use dedicated narrow StateFlows (isPaused/isLoading/gameData/...). Will be removed.")
-    val unifiedState: StateFlow<UnifiedGameState>
-
     // === 聚合状态 ===
     val sectCombatPower: StateFlow<Long>
     val aiSectCombatPowers: StateFlow<Map<String, Long>>
@@ -108,9 +100,6 @@ interface GameStateStore : GameStateSnapshotProvider {
     fun enqueueNotification(notification: GameNotification)
     fun consumeNotification(): GameNotification?
 
-    /** @deprecated 使用 [enqueueNotification] 替代 */
-    @Deprecated("Use enqueueNotification() instead", ReplaceWith("enqueueNotification(notification)"))
-    fun setPendingNotification(notification: GameNotification)
     /** @deprecated 通知系统已改为队列，UI 侧通过 [consumeNotification] 消费 */
     @Deprecated("Notifications are now queued. Use consumeNotification() instead.")
     fun clearPendingNotification()

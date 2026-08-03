@@ -85,37 +85,6 @@ class ForgeViewModel @Inject constructor(
         }
     }
 
-    fun autoForgeAllSlots() {
-        gameEngine.launchOnEngine {
-            try {
-                val slots = gameEngine.productionSlots.value
-                val forgeSlots = slots.filter {
-                    it.buildingType == BuildingType.FORGE
-                }
-                val idleSlotIndices = forgeSlots
-                    .filter { it.status == ProductionSlotStatus.IDLE }
-                    .map { it.slotIndex }
-
-                if (idleSlotIndices.isEmpty()) {
-                    showError("没有空闲的锻造槽位")
-                    return@launchOnEngine
-                }
-
-                var startedCount = 0
-                for (slotIndex in idleSlotIndices) {
-                    if (startBestForgeRecipe(slotIndex).isSuccess) startedCount++
-                }
-
-                if (startedCount > 0) {
-                    showSuccess("自动炼器完成，已启动${startedCount}个槽位")
-                } else {
-                    showError("没有足够的材料进行锻造")
-                }
-            } catch (e: Exception) {
-                showError(e.message ?: "自动炼器失败")
-            }
-        }
-    }
 
     private suspend fun startBestForgeRecipe(slotIndex: Int): DomainResult<ProductionSlot> {
         val currentMaterials = gameEngine.getCurrentMaterials()

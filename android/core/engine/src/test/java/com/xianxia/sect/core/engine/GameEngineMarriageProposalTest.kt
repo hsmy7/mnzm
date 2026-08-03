@@ -211,7 +211,6 @@ private class MarriageProposalTestStore : GameStateStore {
     override val highFreqState = MutableStateFlow(GameStateStore.HighFreqState())
     override val entityState = MutableStateFlow(GameStateStore.EntityState())
     override val configState = MutableStateFlow(GameStateStore.ConfigState())
-    override val unifiedState = MutableStateFlow(UnifiedGameState())
     override val sectCombatPower = MutableStateFlow(0L)
     override val aiSectCombatPowers = MutableStateFlow<Map<String, Long>>(emptyMap())
     override val discipleAggregates = MutableStateFlow<List<DiscipleAggregate>>(emptyList())
@@ -243,8 +242,6 @@ private class MarriageProposalTestStore : GameStateStore {
     override fun getCurrentMaterials(): List<Material> = emptyList()
     override fun enqueueNotification(notification: GameNotification) {}
     override fun consumeNotification(): GameNotification? = null
-    @Deprecated("Use enqueueNotification() instead")
-    override fun setPendingNotification(notification: GameNotification) {}
     @Deprecated("Notifications are now queued. Use consumeNotification() instead.")
     override fun clearPendingNotification() {}
     override fun setPendingBattleResult(result: BattleResultUIData) {}

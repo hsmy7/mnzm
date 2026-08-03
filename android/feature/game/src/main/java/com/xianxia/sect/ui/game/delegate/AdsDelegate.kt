@@ -79,19 +79,6 @@ class AdsDelegate {
         return true
     }
 
-    /**
-     * 旧版标记方法，仅更新冷却时间。
-     *
-     * @deprecated 请使用 [tryMarkAdWatched] 替代，以获得原子化的上限检查。
-     *   此方法仅更新冷却，不进行每日计数（需上游自行保证）。
-     */
-    @Deprecated("Use tryMarkAdWatched() for atomic daily limit check")
-    fun markAdWatched() {
-        adCooldownUntilMs = System.currentTimeMillis() + AD_COOLDOWN_MS
-        ensureDayReset()
-        dailyCount.incrementAndGet()
-    }
-
     /** 获取今日剩余广告观看次数 */
     fun getRemainingDailyAds(): Int {
         if (AdFreeWhitelist.isCurrentUserPrivileged()) return Int.MAX_VALUE

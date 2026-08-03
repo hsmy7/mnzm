@@ -165,7 +165,6 @@ private class WatchSimpleStore : GameStateStore {
     override val lifecycleState = MutableStateFlow(GameStateStore.LifecycleState())
     override val bootPhase = MutableStateFlow(BootPhase.UNINITIALIZED)
     override val runState = MutableStateFlow(RunState.IDLE)
-    override val unifiedState = MutableStateFlow(UnifiedGameState())
     override val disciples = MutableStateFlow<List<Disciple>>(emptyList())
     override val discipleAggregates = MutableStateFlow<List<DiscipleAggregate>>(emptyList())
     override val equipmentStacks = MutableStateFlow<List<EquipmentStack>>(emptyList())
@@ -216,7 +215,6 @@ private class WatchSimpleStore : GameStateStore {
     override fun getCurrentMaterials(): List<Material> = emptyList()
     override fun enqueueNotification(notification: GameNotification) {}
     override fun consumeNotification(): GameNotification? = null
-    override fun setPendingNotification(notification: GameNotification) {}
     override fun clearPendingNotification() {}
     override fun setPendingBattleResult(result: BattleResultUIData) {}
     override fun clearPendingBattleResult() {}

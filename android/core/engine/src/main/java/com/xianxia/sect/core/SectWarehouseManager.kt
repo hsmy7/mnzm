@@ -23,18 +23,6 @@ class SectWarehouseManager @Inject constructor(
 
     var inventoryConfig: InventoryConfig = InventoryConfig.DEFAULT
 
-    fun addItemToWarehouse(
-        warehouse: SectWarehouse, item: WarehouseItem
-    ): SectWarehouse = optimizedManager.addItem(warehouse, item)
-
-    fun addItemsToWarehouse(
-        warehouse: SectWarehouse, items: List<WarehouseItem>
-    ): SectWarehouse = optimizedManager.addItems(warehouse, items)
-
-    fun addSpiritStonesToWarehouse(
-        warehouse: SectWarehouse, amount: Long
-    ): SectWarehouse = optimizedManager.addSpiritStones(warehouse, amount)
-
     fun clearWarehouse(): SectWarehouse = optimizedManager.clear()
 
     fun removeItem(
