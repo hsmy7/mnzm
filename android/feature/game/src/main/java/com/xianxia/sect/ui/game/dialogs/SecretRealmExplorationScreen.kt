@@ -4,9 +4,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Surface
@@ -43,6 +40,12 @@ import kotlinx.coroutines.delay
 
 /** 末战回放写入缓冲（ms）：引擎回调写入 combatLog 晚于会话清空，等待写回窗口再关闭界面 */
 private const val BATTLE_LOG_WRITE_GRACE_MS = 300L
+
+/** 战斗回合播放间隔（ms）：每秒 2 回合 */
+private const val BATTLE_ROUND_DELAY_MS = 500L
+
+/** 全部回合播完后切换到衔接事件前的停顿（ms） */
+private const val BATTLE_END_PAUSE_MS = 1000L
 
 /** 妖兽类型名 → 精灵图名（与 GameConfig.Beast.TYPES 显式对应，防止索引错位/新增类型误配） */
 private val beastSpriteNames = mapOf(
@@ -128,13 +131,17 @@ fun SecretRealmExplorationScreen(
     var eventLinesShown by remember { mutableStateOf(false) }
     LaunchedEffect(event) { eventLinesShown = false }
 
-    // 战斗播放推进：每秒 2 回合（500ms/回合），播完或跳过 → 清除播放态显示衔接事件
+    // 战斗播放推进：每秒 2 回合；全部回合播完停顿 1 秒再切换衔接事件（跳过则不等待）
     var playedRounds by remember(combatLog) { mutableIntStateOf(0) }
     LaunchedEffect(combatLog, skipCombat) {
         val log = combatLog ?: return@LaunchedEffect
         while (playedRounds < log.rounds.size && !skipCombat) {
-            delay(500)
+            delay(BATTLE_ROUND_DELAY_MS)
             playedRounds++
+        }
+        if (!skipCombat) {
+            // 全部回合播放完成：停顿 1 秒展示战果，再切换到衔接事件
+            delay(BATTLE_END_PAUSE_MS)
         }
         // 播放完成或跳过：结算已完成，显示衔接事件（逐行播放完成后自动弹出选项卡片）
         combatLog = null
@@ -357,7 +364,7 @@ private fun EventContent(
         onLinesShown()
     }
 
-    BoxWithConstraints(
+    Box(
         modifier = Modifier.fillMaxSize()
     ) {
         Column(
@@ -387,7 +394,9 @@ private fun EventContent(
                         text = event.description,
                         fontSize = 14.sp,
                         color = Color.Black,
-                        lineHeight = 20.sp
+                        lineHeight = 20.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
@@ -430,7 +439,8 @@ private fun combatTitleFor(optionIndex: Int, ambushSucceeded: Boolean): String =
     else -> if (ambushSucceeded) "偷袭成功" else "偷袭失败"
 }
 
-/** 战斗播放视图：场景标题 + 战斗消息栏（逐回合日志，与战斗日志弹窗显示一致；跳过按钮由外层与体力并排渲染） */
+/** 战斗播放视图：场景标题 + 战斗消息栏（逐回合日志，与战斗日志弹窗显示一致；
+ * 跳过按钮由外层与体力并排渲染；消息栏短内容居中、超长内容封顶滚动） */
 @Composable
 private fun CombatPlaybackContent(
     title: String,
@@ -452,22 +462,28 @@ private fun CombatPlaybackContent(
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(8.dp))
-        // 战斗消息栏：逐回合展示（复用战斗日志弹窗的 BattleRoundItem 显示格式）
-        val listState = rememberLazyListState()
+        // 战斗消息栏：短内容按内容高度包裹并整体居中；超长时封顶剩余高度内部滚动
+        val listState = rememberScrollState()
         val visibleRounds = log.rounds.take(playedRounds)
-        LaunchedEffect(playedRounds) {
+        LaunchedEffect(visibleRounds.size) {
             if (visibleRounds.isNotEmpty()) {
-                listState.animateScrollToItem(visibleRounds.size - 1)
+                listState.animateScrollTo(listState.maxValue)
             }
         }
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
+        Box(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            contentAlignment = Alignment.Center
         ) {
-            itemsIndexed(visibleRounds) { _, round ->
-                BattleRoundItem(round = round.toBattleLogRound())
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight(Alignment.CenterVertically)
+                    .verticalScroll(listState),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                visibleRounds.forEach { round ->
+                    BattleRoundItem(round = round.toBattleLogRound())
+                }
             }
         }
     }
@@ -554,18 +570,27 @@ private fun OptionsOverlay(
     ) {
         // 卡片高度 = 覆盖区域高度 × 65%（提前捕获，供嵌套作用域使用）
         val cardHeight = maxHeight * OPTION_CARD_HEIGHT_RATIO
+        // 卡片槽位宽 =（覆盖区宽 - 左右边距 - 卡片间距 × (n-1)）/ n（防篡改档空列表除零）
+        val slotWidth = (maxWidth - OPTION_OVERLAY_PADDING * 2 -
+            OPTION_CARD_SPACING * (maxOf(1, options.size) - 1)) / maxOf(1, options.size)
+        // 精灵图按 Fit 缩放：槽位宽高比超过图片宽高比时图形横向留白，卡片宽度
+        // 限定为图形实际绘制宽度，文字换行宽度随之限定，永不出卡片左右
+        val cardWidth = minOf(slotWidth, cardHeight * OPTION_CARD_IMG_ASPECT)
         Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = OPTION_OVERLAY_PADDING),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
+                // 卡片宽度小于槽位时整体居中分布
+                horizontalArrangement = Arrangement.spacedBy(
+                    OPTION_CARD_SPACING, Alignment.CenterHorizontally
+                )
             ) {
                 options.forEachIndexed { index, option ->
                     SecretRealmOptionCard(
                         modifier = Modifier
-                            .weight(1f)
+                            .width(cardWidth)
                             .height(cardHeight),
                         label = option.label,
                         description = option.description,
@@ -587,3 +612,12 @@ private fun OptionsOverlay(
 
 /** 选项卡片高度 = 覆盖区域高度 × 65% */
 private const val OPTION_CARD_HEIGHT_RATIO = 0.65f
+
+/** 选项卡片精灵图宽高比（secret_realm_option_card.webp = 796×1535），Fit 缩放横向留白阈值 */
+private const val OPTION_CARD_IMG_ASPECT = 796f / 1535f
+
+/** 选项覆盖层左右边距 */
+private val OPTION_OVERLAY_PADDING = 16.dp
+
+/** 选项卡片间距 */
+private val OPTION_CARD_SPACING = 2.dp
