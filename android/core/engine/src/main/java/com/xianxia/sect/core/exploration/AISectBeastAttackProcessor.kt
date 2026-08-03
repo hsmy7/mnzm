@@ -122,7 +122,11 @@ class AISectBeastAttackProcessor @Inject constructor(
             val canAttack = if (beastPower <= 0) true
             else if (aiPower <= beastPower) { recordSkipCooldown(state, sect.id, absoluteMonth); false }
             else {
-                val prob = min((aiPower.toDouble() / beastPower.toDouble() - 1.0) * 0.3 + 0.3, 0.9)
+                val prob = min(
+                    (aiPower.toDouble() / beastPower.toDouble() - 1.0) * ATTACK_PROB_BASE_MULTIPLIER +
+                        ATTACK_PROB_BASE_MULTIPLIER,
+                    ATTACK_PROB_CAP
+                )
                 if (rng.nextDouble() < prob) true
                 else { recordSkipCooldown(state, sect.id, absoluteMonth); false }
             }
@@ -136,7 +140,7 @@ class AISectBeastAttackProcessor @Inject constructor(
      */
     private fun cleanExpiredSkipCooldowns(state: MutableGameState, absoluteMonth: Int) {
         val cleaned = state.gameData.aiSectBeastSkipCooldowns.filter { (_, value) ->
-            value >= absoluteMonth - 12
+            value >= absoluteMonth - SKIP_COOLDOWN_MONTHS
         }
         if (cleaned.size < state.gameData.aiSectBeastSkipCooldowns.size) {
             state.gameData = state.gameData.copy(aiSectBeastSkipCooldowns = cleaned)
@@ -377,5 +381,14 @@ class AISectBeastAttackProcessor @Inject constructor(
             ),
             manualProficiencies = prepared.proficiencies
         )
+    }
+
+    companion object {
+        /** AI 攻妖兽概率：战力优势每多 1 倍 +30%，上限 90% */
+        private const val ATTACK_PROB_BASE_MULTIPLIER = 0.3
+        private const val ATTACK_PROB_CAP = 0.9
+
+        /** 跳过攻击的冷却期（月） */
+        private const val SKIP_COOLDOWN_MONTHS = 12
     }
 }
