@@ -12,10 +12,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import com.xianxia.sect.ui.components.DialogSystemBarGuard
+import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.SaveLoadViewModel
 import com.xianxia.sect.ui.game.CloudSaveOperationState
 import com.xianxia.sect.ui.theme.GameColors
@@ -40,11 +39,14 @@ fun CloudSaveDialog(
         saveLoadViewModel.checkCloudSave()
     }
 
-    Dialog(
+    UnifiedGameDialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+        title = "",
+        mode = DialogMode.Full,
+        scrimEnabled = false,
+        showHeader = false,
+        showCloseButton = false
     ) {
-        DialogSystemBarGuard()
         Box(
             modifier = Modifier
                 .fillMaxSize()
