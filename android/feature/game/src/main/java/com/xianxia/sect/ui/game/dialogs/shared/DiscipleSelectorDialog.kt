@@ -100,7 +100,8 @@ fun DiscipleSelectorDialog(
                 onSpiritRootExpandToggle = { filterState.spiritRootExpanded = !filterState.spiritRootExpanded },
                 onAttributeExpandToggle = { filterState.attributeExpanded = !filterState.attributeExpanded },
                 onRealmExpandToggle = { filterState.realmExpanded = !filterState.realmExpanded },
-                showAllCheckboxVisible = true,
+                // viewModel 为空时切换无意义（setShowAllAvailableDisciples 需 GameViewModel），隐藏复选框
+                showAllCheckboxVisible = viewModel != null,
                 showAllEnabled = showAllEnabled,
                 onShowAllToggle = { viewModel?.setShowAllAvailableDisciples(!showAllEnabled) }
             )

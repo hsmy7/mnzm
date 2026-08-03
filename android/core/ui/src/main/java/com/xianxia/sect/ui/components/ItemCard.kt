@@ -289,6 +289,6 @@ fun getQualityColor(quality: String?): Color {
  */
 fun PillGrade.getQualityColor(): Color = when (this) {
     PillGrade.LOW -> Color(0xFF95A5A6)
-    PillGrade.MEDIUM -> GameColors.Info
-    PillGrade.HIGH -> GameColors.Error
+    PillGrade.MEDIUM -> Color(0xFF3498DB)
+    PillGrade.HIGH -> Color(0xFFE74C3C)
 }

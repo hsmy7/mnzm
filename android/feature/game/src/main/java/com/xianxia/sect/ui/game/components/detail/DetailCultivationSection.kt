@@ -450,7 +450,7 @@ fun HpMpBars(
             ) {
                 drawRect(Color(0xFFE8E8E8))
                 drawRect(
-                    GameColors.Error,
+                    GameColors.HpBar,
                     size = Size(size.width * animatedHpProgress, size.height)
                 )
             }
@@ -484,7 +484,7 @@ fun HpMpBars(
             ) {
                 drawRect(Color(0xFFE8E8E8))
                 drawRect(
-                    GameColors.Info,
+                    GameColors.MpBar,
                     size = Size(size.width * animatedMpProgress, size.height)
                 )
             }

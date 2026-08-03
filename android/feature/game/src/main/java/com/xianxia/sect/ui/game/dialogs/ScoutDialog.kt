@@ -134,6 +134,7 @@ internal fun ScoutDialog(
             ),
             disciples = disciples,
             showAllEnabled = showAllEnabled,
+            viewModel = viewModel,
             battleAndExplorationIds = battleAndExplorationIds,
             onDismiss = {
                 showDiscipleSelection = false

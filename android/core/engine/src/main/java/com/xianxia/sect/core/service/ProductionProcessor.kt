@@ -1189,10 +1189,12 @@ class ProductionProcessor @Inject constructor(
 
         val multiAssignments = mutableMapOf<String, Pair<String, String>>()
         if (multiResEnabled && multiResBuildingIds.isNotEmpty()) {
+            // 已分配单人住所的弟子不再进入多人候选（避免同弟子占位导致多人槽位空置）
+            val singleAssignedIds = singleAssignments.values.map { it.first }.toSet()
             val multiCandidates = allCandidates.filter { d ->
                 val matchesFilter = (policies.autoMultiResidenceFocused && isDiscipleFollowed(d)) ||
                     d.spiritRoot.types.size in policies.autoMultiResidenceRootCounts
-                matchesFilter && d.comprehension >= policies.autoMultiResidenceThreshold
+                d.id !in singleAssignedIds && matchesFilter && d.comprehension >= policies.autoMultiResidenceThreshold
             }
             .sortedWith(
                 compareByDescending<Disciple> { isDiscipleFollowed(it) }

@@ -350,7 +350,8 @@ class CultivationEventProcessor @Inject constructor(
         val survivorIds = battleMembers.filter { it.isAlive }.map { it.id }.toSet()
         val deadIds = battleMembers.filter { it.id !in survivorIds }.map { it.id }.toSet()
         val disciples = stateStore.disciples.value.toMutableList()
-        var changed = false
+        // 全灭场景（survivorIds 为空）：无幸存者更新但仍需标记死亡，deadIds 非空即触发事务
+        var changed = deadIds.isNotEmpty()
         team@ for (member in battleMembers) {
             val discipleIndex = disciples.indexOfFirst { it.id == member.id }
             if (discipleIndex < 0 || member.id !in survivorIds) continue@team

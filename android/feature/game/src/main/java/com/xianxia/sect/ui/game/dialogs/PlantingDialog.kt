@@ -733,7 +733,7 @@ private fun PlantingPagination(
                 .size(28.dp)
                 .clip(RoundedCornerShape(4.dp))
                 .background(
-                    if (currentPage > 1) GameColors.Info else GameColors.DividerGray
+                    if (currentPage > 1) Color(0xFF3498DB) else GameColors.DividerGray
                 )
                 .clickableWithSound(enabled = currentPage > 1) { onFirstPage() },
             contentAlignment = Alignment.Center
@@ -749,7 +749,7 @@ private fun PlantingPagination(
                 .size(28.dp)
                 .clip(RoundedCornerShape(4.dp))
                 .background(
-                    if (currentPage > 1) GameColors.Info else GameColors.DividerGray
+                    if (currentPage > 1) Color(0xFF3498DB) else GameColors.DividerGray
                 )
                 .clickableWithSound(enabled = currentPage > 1) { onPreviousPage() },
             contentAlignment = Alignment.Center
@@ -775,7 +775,7 @@ private fun PlantingPagination(
                 .size(28.dp)
                 .clip(RoundedCornerShape(4.dp))
                 .background(
-                    if (currentPage < totalPages) GameColors.Info else GameColors.DividerGray
+                    if (currentPage < totalPages) Color(0xFF3498DB) else GameColors.DividerGray
                 )
                 .clickableWithSound(enabled = currentPage < totalPages) { onNextPage() },
             contentAlignment = Alignment.Center
@@ -791,7 +791,7 @@ private fun PlantingPagination(
                 .size(28.dp)
                 .clip(RoundedCornerShape(4.dp))
                 .background(
-                    if (currentPage < totalPages) GameColors.Info else GameColors.DividerGray
+                    if (currentPage < totalPages) Color(0xFF3498DB) else GameColors.DividerGray
                 )
                 .clickableWithSound(enabled = currentPage < totalPages) { onLastPage() },
             contentAlignment = Alignment.Center

@@ -109,7 +109,7 @@ fun ReflectionCliffDialog(
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(4.dp))
-                                            .background(GameColors.Error)
+                                            .background(Color(0xFFE74C3C))
                                             .clickable { showExpelConfirmDialog = disciple }
                                             .padding(horizontal = 8.dp, vertical = 4.dp)
                                     ) {

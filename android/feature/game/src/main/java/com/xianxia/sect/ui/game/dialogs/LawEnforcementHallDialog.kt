@@ -65,7 +65,7 @@ fun LawEnforcementHallDialog(
                 Text(
                     text = "维护宗门纪律，执行门规",
                     fontSize = 10.sp,
-                    color = GameColors.Error,
+                    color = Color(0xFFE74C3C),
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                     textAlign = TextAlign.Center
                 )
@@ -99,8 +99,8 @@ fun LawEnforcementHallDialog(
             elderTitle = "执法长老",
             elderBonusInfo = ElderBonusInfoProvider.getLawEnforcementElderInfo(),
             coreAttributeName = "智力",
-            coreAttributeColor = GameColors.Error,
-            defaultBorderColor = GameColors.Error,
+            coreAttributeColor = Color(0xFFE74C3C),
+            defaultBorderColor = Color(0xFFE74C3C),
             workingStatusColor = GameColors.Info,
             selectedHighlightColor = GameColors.Gold,
             slotLabelPrefix = "执法",
@@ -318,7 +318,7 @@ private fun LawDiscipleSlotItem(
         try {
             Color(android.graphics.Color.parseColor(spiritRootColor))
         } catch (e: Exception) {
-            GameColors.Error
+            Color(0xFFE74C3C)
         }
     } else {
         GameColors.Border

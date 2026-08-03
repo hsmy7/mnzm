@@ -1015,8 +1015,14 @@ object AISectAttackManager {
             if (target.isDead) continue
             applyAoeSingleTarget(
                 attacker, target, skill, attackerType,
-                allies, enemies, alliesIndexMap, enemiesIndexMap, roundActions
+                enemies, enemiesIndexMap, roundActions
             )
+        }
+        // 攻击者冷却/MP 结算：每次技能执行一次（无论目标走必杀/闪避/正常分支），
+        // 修复 P3C-3 拆分时冷却结算移入单目标分支导致全目标必杀/闪避时结算丢失
+        val combatantIdx = alliesIndexMap[attacker.id]
+        if (combatantIdx != null && combatantIdx < allies.size) {
+            allies[combatantIdx] = BattleCalculator.updateCombatantCooldowns(attacker, skill)
         }
     }
 
@@ -1029,9 +1035,7 @@ object AISectAttackManager {
         target: Combatant,
         skill: CombatSkill,
         attackerType: String,
-        allies: MutableList<Combatant>,
         enemies: MutableList<Combatant>,
-        alliesIndexMap: Map<String, Int>,
         enemiesIndexMap: Map<String, Int>,
         roundActions: MutableList<BattleLogAction>
     ) {
@@ -1078,11 +1082,6 @@ object AISectAttackManager {
                 target = target.name, damage = result.damage, skillName = skill.name,
                 isCrit = result.isCrit, isKill = newHp == 0
             ))
-
-        val combatantIdx = alliesIndexMap[attacker.id]
-        if (combatantIdx != null && combatantIdx < allies.size) {
-            allies[combatantIdx] = BattleCalculator.updateCombatantCooldowns(attacker, skill)
-        }
     }
 
     private fun executeSupportAction(

@@ -209,7 +209,7 @@ fun PortraitDiscipleCard(
                         }
                         if (disciple.isFollowed) FollowedTag()
                         if (isCurrent) {
-                            Text(text = "当前", fontSize = 10.sp, color = GameColors.Error)
+                            Text(text = "当前", fontSize = 10.sp, color = Color(0xFFE74C3C))
                         }
                     }
                     if (actions != null) {

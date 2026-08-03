@@ -177,7 +177,7 @@ fun DetailRightPanel(
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) { Text(if (disciple.isFollowed) "已关注" else "关注", fontSize = 10.sp, color = Color.White) }
             Box(
-                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(GameColors.Error)
+                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFFE74C3C))
                     .clickableWithSound { dismissDropdown(); actions.onShowExpelConfirm() }.padding(horizontal = 6.dp, vertical = 2.dp)
             ) { Text("驱逐", fontSize = 10.sp, color = Color.White) }
             Box(

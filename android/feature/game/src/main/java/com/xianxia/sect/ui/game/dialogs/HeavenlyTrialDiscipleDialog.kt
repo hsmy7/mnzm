@@ -109,6 +109,7 @@ fun HeavenlyTrialDiscipleDialog(
             ),
             disciples = aliveDisciples,
             showAllEnabled = showAllEnabled,
+            viewModel = gameViewModel,
             battleAndExplorationIds = battleAndExplorationIds,
             onDismiss = { showDisciplePicker = false },
             onConfirm = { selected ->

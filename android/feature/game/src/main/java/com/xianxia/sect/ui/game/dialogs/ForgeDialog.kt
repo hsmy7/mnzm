@@ -430,12 +430,12 @@ private fun EquipmentDetailDialog(
                             Text(
                                 text = material?.name ?: materialName ?: materialId,
                                 fontSize = 11.sp,
-                                color = if (hasEnough) Color.Black else GameColors.Error
+                                color = if (hasEnough) Color.Black else Color(0xFFE74C3C)
                             )
                             Text(
                                 text = "${GameUtils.formatNumber(material?.quantity ?: 0)}/$requiredQuantity",
                                 fontSize = 11.sp,
-                                color = if (hasEnough) GameColors.Success else GameColors.Error
+                                color = if (hasEnough) GameColors.Success else Color(0xFFE74C3C)
                             )
                         }
                     }

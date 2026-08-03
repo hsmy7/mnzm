@@ -91,6 +91,7 @@ fun LibraryDialog(
             ),
             disciples = disciples,
             showAllEnabled = showAllEnabled,
+            viewModel = viewModel,
             battleAndExplorationIds = battleAndExplorationIds,
             onDismiss = { showDiscipleSelection = null },
             onConfirm = { selected ->
