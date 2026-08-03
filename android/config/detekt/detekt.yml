@@ -17,6 +17,11 @@ complexity:
   LongParameterList:
     functionThreshold: 8
     constructorThreshold: 10
+  LongMethod:
+    active: true
+    threshold: 60            # 单函数体最大 60 行（CLAUDE.md 3.3）
+    # 现有违规冻结在 detekt-baseline.xml（全库 299 条），
+    # 作为超长函数拆分任务队列，拆分一个摘除一条（baseline 只缩不增）
 empty-blocks:
   EmptyCatchBlock:
     active: true             # 禁止空 catch 块
@@ -34,6 +39,16 @@ game-engine:
   RunBlockingInSuspend:
     active: true
     description: "挂起函数中的 runBlocking 检测"
+
+# ════════════════════════════════════════════
+# 自定义规则：code-quality（代码规模守卫）
+# ════════════════════════════════════════════
+code-quality:
+  FileLength:
+    active: true
+    threshold: 2000          # 单文件最大 2000 行（CLAUDE.md 3.1）
+    # 主工作树当前零违规；.worktrees/ui-layout-unification 分支
+    # 4 个超限文件（CultivationService 4227 行等）合回时被此规则拦截
 
 # ════════════════════════════════════════════
 # Q-8：测试代码 `!!` 评审规则（2026-08-02）
