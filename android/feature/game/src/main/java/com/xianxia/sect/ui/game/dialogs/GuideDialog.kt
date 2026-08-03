@@ -67,13 +67,13 @@ fun GuideDialog(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F5DC))    ) {
+            .background(Color(0xFFF6EBD5))    ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // ======== 顶部栏 ========
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFFF5F5DC))
+                    .background(Color(0xFFF6EBD5))
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
