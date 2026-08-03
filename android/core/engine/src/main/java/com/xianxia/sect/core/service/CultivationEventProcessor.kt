@@ -28,38 +28,38 @@ import javax.inject.Singleton
 @Singleton
 @GameService("CultivationEventProcessor")
 class CultivationEventProcessor @Inject constructor(
-    private val stateStore: GameStateStore,
-    private val spiritStoneWallet: SpiritStoneWallet,
-    private val inventorySystem: InventorySystem,
-    private val inventoryConfig: InventoryConfig,
-    private val scopeProvider: CoroutineScopeProvider,
-    private val discipleService: DiscipleService,
-    private val cultivationCore: CultivationCore,
-    private val breakthroughHandler: DiscipleBreakthroughHandler,
-    private val cultivationSettlement: CultivationSettlement,
-    private val battleSystem: BattleSystem,
-    private val recruitService: RecruitService,
-    private val merchantAndRecruitService: MerchantAndRecruitService,
-    private val caveExplorationProcessor: javax.inject.Provider<CaveExplorationProcessor>,
-    private val discipleLifecycleProcessor: DiscipleLifecycleProcessor,
-    private val diplomacyEventProcessor: DiplomacyEventProcessor,
-    private val equipmentManager: DiscipleEquipmentManager,
-    private val manualManager: DiscipleManualManager,
-    private val autoBuyService: AutoBuyService,
-    private val vassalService: VassalService,
-    private val disciplePurchaseService: DisciplePurchaseService,
-    private val aiSectBeastAttackProcessor: AISectBeastAttackProcessor,
-    private val lawEnforcementProcessor: LawEnforcementProcessor,
-    private val rngManager: GameRngManager,
-    private val secretRealmService: SecretRealmService,
-    private val deathHandler: DiscipleDeathHandler
+    internal val stateStore: GameStateStore,
+    internal val spiritStoneWallet: SpiritStoneWallet,
+    internal val inventorySystem: InventorySystem,
+    internal val inventoryConfig: InventoryConfig,
+    internal val scopeProvider: CoroutineScopeProvider,
+    internal val discipleService: DiscipleService,
+    internal val cultivationCore: CultivationCore,
+    internal val breakthroughHandler: DiscipleBreakthroughHandler,
+    internal val cultivationSettlement: CultivationSettlement,
+    internal val battleSystem: BattleSystem,
+    internal val recruitService: RecruitService,
+    internal val merchantAndRecruitService: MerchantAndRecruitService,
+    internal val caveExplorationProcessor: javax.inject.Provider<CaveExplorationProcessor>,
+    internal val discipleLifecycleProcessor: DiscipleLifecycleProcessor,
+    internal val diplomacyEventProcessor: DiplomacyEventProcessor,
+    internal val equipmentManager: DiscipleEquipmentManager,
+    internal val manualManager: DiscipleManualManager,
+    internal val autoBuyService: AutoBuyService,
+    internal val vassalService: VassalService,
+    internal val disciplePurchaseService: DisciplePurchaseService,
+    internal val aiSectBeastAttackProcessor: AISectBeastAttackProcessor,
+    internal val lawEnforcementProcessor: LawEnforcementProcessor,
+    internal val rngManager: GameRngManager,
+    internal val secretRealmService: SecretRealmService,
+    internal val deathHandler: DiscipleDeathHandler
 ) {
     private val scope get() = scopeProvider.scope
     companion object {
-        private const val TAG = "CultivationEventProc"
+        internal const val TAG = "CultivationEventProc"
 
         /** 招募列表刷新间隔（年）— 与启动补刷路径（checkAndRepairMerchantAndRecruit）共用差值判据 */
-        private const val RECRUIT_REFRESH_INTERVAL_YEARS = 3
+        internal const val RECRUIT_REFRESH_INTERVAL_YEARS = 3
     }
     // ── 时间推进 ──────────────────────────────────────────────────────
     fun advanceMonth(state: MutableGameState? = null) {
@@ -580,101 +580,7 @@ class CultivationEventProcessor @Inject constructor(
         }
         state.gameData = state.gameData.copy(scoutInfo = updatedScoutInfo, worldMapSects = updatedWorldMapSects, sectDetails = updatedDetails)
     }
-    // ── 任务 ──────────────────────────────────────────────────────────
-    /** 处理已完成的任务并发放奖励（内部使用 stateStore.update 重入锁，可在已有事务内调用） */
-    fun processCompletedMissionsLazy(year: Int, month: Int) {
-        // 注意：Phase 2 使用 stateStore.update 重入锁（ReentrantLock），
-        // 在外层 update 内部调用时通过锁重入机制在同一事务内生效。
-        val data = stateStore.gameData.value
-
-        // ── Phase 1: 事务外计算（仅收集奖励数据，不变更任何状态） ──
-        val (rewards, remainingActive) = collectCompletedMissionRewards(year, month, data)
-
-        // ── Phase 2: 单事务写入所有状态（物品 + 灵石 + 弟子状态 + 任务清理） ──
-        // ReentrantLock 允许嵌套 update — 内层操作同一 MutableGameState。
-        stateStore.update {
-            applyMissionRewards(rewards)
-            gameData = gameData.copy(activeMissions = remainingActive)
-        }
-        discipleService.syncAllDiscipleStatuses()
-    }
-
-    /** 已完成任务的奖励收集结果（Phase 1 只读计算） */
-    private data class MissionReward(
-        val missionId: String,
-        val spiritStones: Int,
-        val survivors: Set<String>,
-        val discipleIds: List<String>,
-        val materials: List<Material>,
-        val pills: List<Pill>,
-        val equipmentStacks: List<EquipmentStack>,
-        val manualStacks: List<ManualStack>
-    )
-
-    /**
-     * Phase 1 — 事务外计算：遍历活跃任务，收集已完成任务（含失败保留）的奖励数据。
-     */
-    private fun collectCompletedMissionRewards(
-        year: Int,
-        month: Int,
-        data: GameData
-    ): Pair<List<MissionReward>, List<ActiveMission>> {
-        val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(year, month)
-        val remainingActive = mutableListOf<ActiveMission>()
-        val rewards = mutableListOf<MissionReward>()
-
-        for (activeMission in data.activeMissions) {
-            val missionCompletionMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(
-                activeMission.startYear, activeMission.startMonth
-            ) + activeMission.duration
-            if (currentAbsoluteMonth < missionCompletionMonth) {
-                remainingActive.add(activeMission); continue
-            }
-            if (!activeMission.isComplete(year, month)) {
-                remainingActive.add(activeMission); continue
-            }
-            val missionReward = runCatching {
-                val aliveDisciples = activeMission.discipleIds.mapNotNull { did ->
-                    stateStore.disciples.value.find { it.id == did && it.isAlive }
-                }
-                if (aliveDisciples.isEmpty()) return@runCatching null
-                val equipMap = stateStore.equipmentInstances.value.associateBy { it.id }
-                val manualMap = stateStore.manualInstances.value.associateBy { it.id }
-                val proficiencies = stateStore.gameData.value.manualProficiencies.mapValues { (_, list) ->
-                    list.associateBy { it.manualId }
-                }
-                val result = MissionSystem.processMissionCompletion(
-                    activeMission, aliveDisciples, equipMap, manualMap, proficiencies, battleSystem
-                )
-                // 仅收集奖励，不再调用 inventorySystem.addXxx（统一到 Phase 2 单事务处理）
-                val survivors = if (result.combatTriggered && result.victory && result.battleResult != null) {
-                    result.battleResult.log.teamMembers.filter { it.isAlive }.map { it.id }.toSet()
-                } else emptySet()
-                MissionReward(
-                    missionId = activeMission.id,
-                    spiritStones = result.spiritStones,
-                    survivors = survivors,
-                    discipleIds = activeMission.discipleIds,
-                    materials = result.materials,
-                    pills = result.pills,
-                    equipmentStacks = result.equipmentStacks,
-                    manualStacks = result.manualStacks
-                )
-            }
-            if (missionReward.isSuccess && missionReward.getOrNull() != null) {
-                missionReward.getOrNull()?.let { rewards.add(it) }
-            } else {
-                remainingActive.add(activeMission) // 失败的任务保留到下次
-            }
-        }
-        return rewards to remainingActive
-    }
-
-    /**
-     * Phase 2 — 单事务写入：发放任务奖励（物品/灵石）并重置弟子状态。
-     * 在调用方 stateStore.update 事务内执行。
-     */
-    private fun MutableGameState.applyMissionRewards(rewards: List<MissionReward>) {
+    internal fun MutableGameState.applyMissionRewards(rewards: List<MissionReward>) {
         for (reward in rewards) {
             // 发放物品（通过重入缓冲在同一事务内生效）
             reward.materials.forEach { material ->
@@ -730,26 +636,6 @@ class CultivationEventProcessor @Inject constructor(
                 }
             }
         }
-    }
-    fun processMissionRefreshIfDue(month: Int) {
-        if (month % MissionSystem.REFRESH_INTERVAL_MONTHS != 0) return
-        processMissionRefresh()
-    }
-    fun processMissionRefreshIfDue(month: Int, state: MutableGameState) {
-        if (month % MissionSystem.REFRESH_INTERVAL_MONTHS != 0) return
-        processMissionRefresh(state)
-    }
-    fun processMissionRefresh() {
-        stateStore.update { processMissionRefresh(this) }
-    }
-    fun processMissionRefresh(state: MutableGameState) {
-        val data = state.gameData
-        val result = MissionSystem.processMonthlyRefresh(
-            data.availableMissions,
-            data.gameYear,
-            data.gameMonth
-        )
-        state.gameData = state.gameData.copy(availableMissions = result.cleanedMissions)
     }
     // ── 游戏结束 ──────────────────────────────────────────────────────
     fun checkGameOverCondition() {
