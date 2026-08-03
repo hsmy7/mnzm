@@ -39,6 +39,7 @@ import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.game.components.watchKeyOf
 import com.xianxia.sect.core.util.sortedByWatchedThenRarity
 import com.xianxia.sect.ui.theme.ButtonSizes
+import com.xianxia.sect.ui.theme.GameColors
 
 internal fun getWarehouseItemIsLocked(item: Any): Boolean = when (item) {
     is EquipmentStack -> item.isLocked
@@ -545,7 +546,7 @@ internal fun WarehousePagination(
             modifier = Modifier
                 .size(28.dp)
                 .clip(RoundedCornerShape(4.dp))
-                .background(if (currentPage > 1) Color(0xFF3498DB) else Color(0xFFCCCCCC))
+                .background(if (currentPage > 1) GameColors.Info else GameColors.DividerGray)
                 .clickableWithSound(enabled = currentPage > 1) { onFirstPage() },
             contentAlignment = Alignment.Center
         ) {
@@ -563,7 +564,7 @@ internal fun WarehousePagination(
             modifier = Modifier
                 .size(28.dp)
                 .clip(RoundedCornerShape(4.dp))
-                .background(if (currentPage > 1) Color(0xFF3498DB) else Color(0xFFCCCCCC))
+                .background(if (currentPage > 1) GameColors.Info else GameColors.DividerGray)
                 .clickableWithSound(enabled = currentPage > 1) { onPreviousPage() },
             contentAlignment = Alignment.Center
         ) {
@@ -590,7 +591,7 @@ internal fun WarehousePagination(
             modifier = Modifier
                 .size(28.dp)
                 .clip(RoundedCornerShape(4.dp))
-                .background(if (currentPage < totalPages) Color(0xFF3498DB) else Color(0xFFCCCCCC))
+                .background(if (currentPage < totalPages) GameColors.Info else GameColors.DividerGray)
                 .clickableWithSound(enabled = currentPage < totalPages) { onNextPage() },
             contentAlignment = Alignment.Center
         ) {
@@ -608,7 +609,7 @@ internal fun WarehousePagination(
             modifier = Modifier
                 .size(28.dp)
                 .clip(RoundedCornerShape(4.dp))
-                .background(if (currentPage < totalPages) Color(0xFF3498DB) else Color(0xFFCCCCCC))
+                .background(if (currentPage < totalPages) GameColors.Info else GameColors.DividerGray)
                 .clickableWithSound(enabled = currentPage < totalPages) { onLastPage() },
             contentAlignment = Alignment.Center
         ) {

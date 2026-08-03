@@ -421,7 +421,7 @@ fun LearnedManualDetailDialog(
             Text(
                 text = "已达圆满境界",
                 fontSize = 10.sp,
-                color = Color(0xFFFFD700)
+                color = GameColors.Gold
             )
         }
 
@@ -491,7 +491,7 @@ private fun ManualStatsContent(
                     text = if (key.contains("Percent")) "+$finalValue%" else "+$finalValue",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF4CAF50)
+                    color = GameColors.Success
                 )
             }
         }

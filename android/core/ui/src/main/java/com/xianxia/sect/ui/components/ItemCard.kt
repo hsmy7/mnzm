@@ -143,7 +143,7 @@ fun UnifiedItemCard(
                         text = "锁定",
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFFFD700),
+                        color = GameColors.Gold,
                         modifier = Modifier
                             .align(Alignment.TopStart)
                             .padding(start = 3.dp, top = 2.dp)
@@ -198,7 +198,7 @@ fun UnifiedItemCard(
                     .align(Alignment.TopEnd)
                     .offset(x = (-2).dp, y = 2.dp)
                     .clip(RoundedCornerShape(4.dp))
-                    .background(Color(0xFFFFD700))
+                    .background(GameColors.Gold)
                     .clickableWithSound(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -289,6 +289,6 @@ fun getQualityColor(quality: String?): Color {
  */
 fun PillGrade.getQualityColor(): Color = when (this) {
     PillGrade.LOW -> Color(0xFF95A5A6)
-    PillGrade.MEDIUM -> Color(0xFF3498DB)
-    PillGrade.HIGH -> Color(0xFFE74C3C)
+    PillGrade.MEDIUM -> GameColors.Info
+    PillGrade.HIGH -> GameColors.Error
 }

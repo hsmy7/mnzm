@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import com.xianxia.sect.core.util.GridSystem
 import com.xianxia.sect.ui.game.map.sect.SectCameraState
 import com.xianxia.sect.ui.game.sect.GoldFingerState
+import com.xianxia.sect.ui.theme.GameColors
 
 /** 网格线覆盖层所需放置参数 */
 internal data class GridPlacement(
@@ -117,7 +118,7 @@ internal fun GoldFingerSelectionOverlay(
                 gx += bW
             }
             // 2. 选区边框（4 条 2px 线）
-            val bClr = if (canAfford) Color(0xFF4CAF50) else Color(0xFFF44336)
+            val bClr = if (canAfford) GameColors.Success else GameColors.Error
             drawRect(color = bClr, topLeft = Offset(0f, 0f),
                 size = Size(selW, 2f))
             drawRect(color = bClr, topLeft = Offset(0f, selH - 2f),

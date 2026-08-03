@@ -178,7 +178,7 @@ internal fun DiplomacySectCard(
                     Text(
                         text = "盟友",
                         fontSize = 10.sp,
-                        color = Color(0xFF4CAF50),
+                        color = GameColors.Success,
                         modifier = Modifier
                             .background(
                                 Color(0xFFE8F5E9),

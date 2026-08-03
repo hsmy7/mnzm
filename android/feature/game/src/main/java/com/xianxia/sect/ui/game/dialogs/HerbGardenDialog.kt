@@ -130,7 +130,7 @@ private fun HerbGardenDirectDiscipleSection(
                 val agg = if (slot.isActive) discipleMap[slot.discipleId] else null
                 val borderColor = if (slot.isActive) {
                     try { Color(android.graphics.Color.parseColor(agg?.spiritRoot?.countColor)) }
-                    catch (e: Exception) { Color(0xFF4CAF50) }
+                    catch (e: Exception) { GameColors.Success }
                 } else {
                     GameColors.Border
                 }

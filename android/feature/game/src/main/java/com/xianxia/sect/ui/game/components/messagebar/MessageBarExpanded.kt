@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.xianxia.sect.core.model.GameEventCategory
 import com.xianxia.sect.core.model.GameEventRecord
+import com.xianxia.sect.ui.theme.GameColors
 
 /**
  * 消息栏展开态面板——占据屏幕左侧 50%，从左滑入。
@@ -37,7 +38,7 @@ fun MessageBarExpanded(
     onDismiss: () -> Unit,
     scrollToBottomTrigger: Int = 0
 ) {
-    val beige = Color(0xFFF6EBD5)
+    val beige = GameColors.ButtonBackground
     val dividerColor = Color(0xFFDCD6D0)
     val overlayColor = Color(0x0A000000)
 

@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.theme.GameColors
 
 /**
  * 弟子日志对话框。
@@ -68,7 +69,7 @@ fun LifeLogDialog(
                         HorizontalDivider(
                             modifier = Modifier.fillMaxWidth(),
                             thickness = 0.5.dp,
-                            color = Color(0xFFE0E0E0)
+                            color = GameColors.SurfaceLightGray
                         )
                     }
                 }

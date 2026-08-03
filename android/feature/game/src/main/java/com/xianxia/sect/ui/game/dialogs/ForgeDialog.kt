@@ -142,7 +142,7 @@ fun ForgeDialog(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
-                            .background(if (isAutoEnabled) Color(0xFFFFD700) else Color.Black)
+                            .background(if (isAutoEnabled) GameColors.Gold else Color.Black)
                             .clickable { forgeViewModel.toggleAuto(buildingIndex) }
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
@@ -201,10 +201,10 @@ fun ForgeDialog(
                     bonusFormula = "炼器越高，产出越高"
                 ),
                 coreAttributeName = "炼器",
-                coreAttributeColor = Color(0xFF4CAF50),
-                defaultBorderColor = Color(0xFFFF9800),
-                workingStatusColor = Color(0xFFFF9800),
-                selectedHighlightColor = Color(0xFFFF9800),
+                coreAttributeColor = GameColors.Success,
+                defaultBorderColor = GameColors.Warning,
+                workingStatusColor = GameColors.Warning,
+                selectedHighlightColor = GameColors.Warning,
                 slotLabelPrefix = "炼器槽",
                 selectionDialogTitle = "选择锻造弟子",
                 startProductionText = "确认",
@@ -427,8 +427,16 @@ private fun EquipmentDetailDialog(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(text = material?.name ?: materialName ?: materialId, fontSize = 11.sp, color = if (hasEnough) Color.Black else Color(0xFFE74C3C))
-                            Text(text = "${GameUtils.formatNumber(material?.quantity ?: 0)}/$requiredQuantity", fontSize = 11.sp, color = if (hasEnough) Color(0xFF4CAF50) else Color(0xFFE74C3C))
+                            Text(
+                                text = material?.name ?: materialName ?: materialId,
+                                fontSize = 11.sp,
+                                color = if (hasEnough) Color.Black else GameColors.Error
+                            )
+                            Text(
+                                text = "${GameUtils.formatNumber(material?.quantity ?: 0)}/$requiredQuantity",
+                                fontSize = 11.sp,
+                                color = if (hasEnough) GameColors.Success else GameColors.Error
+                            )
                         }
                     }
                 }

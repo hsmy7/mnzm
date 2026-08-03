@@ -118,7 +118,7 @@ fun BloodRefiningPoolDialog(
                         LinearProgressIndicator(
                             progress = { animFractionState.value },
                             modifier = Modifier.width(52.dp).height(4.dp),
-                            color = Color(0xFF4CAF50),
+                            color = GameColors.Success,
                             trackColor = Color(0x334CAF50),
                         )
                     }

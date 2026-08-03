@@ -42,7 +42,7 @@ private data class SlotStyle(
 )
 
 private val slotStyles = mapOf(
-    "empty" to SlotStyle(Color(0xFFDDDDDD), GameColors.CardBackground, Color(0xFFCCCCCC)),
+    "empty" to SlotStyle(Color(0xFFDDDDDD), GameColors.CardBackground, GameColors.DividerGray),
     "filled" to SlotStyle(Color(0xFF4A90E2), Color(0xFFF0F7FF), Color(0xFF4A90E2))
 )
 

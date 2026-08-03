@@ -36,6 +36,7 @@ import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
+import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
 internal fun BattleResultDialog(
@@ -47,7 +48,7 @@ internal fun BattleResultDialog(
     viewModel: GameViewModel? = null,
     scrimEnabled: Boolean = true
 ) {
-    val resultColor = if (resultData.victory) Color(0xFF4CAF50) else Color(0xFFF44336)
+    val resultColor = if (resultData.victory) GameColors.Success else GameColors.Error
     val title = if (resultData.isBeastDefense) {
         if (resultData.victory) "防守胜利" else "防守失败"
     } else {
@@ -154,7 +155,7 @@ internal fun BattleResultDialog(
                             text = "被掠夺物品",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFF44336)
+                            color = GameColors.Error
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                     }
@@ -296,7 +297,7 @@ internal fun BattleResultDialog(
             }
 
             // 底部按钮
-            HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+            HorizontalDivider(color = GameColors.SurfaceLightGray, thickness = 1.dp)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

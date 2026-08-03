@@ -28,9 +28,10 @@ import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.components.getRarityColor
+import com.xianxia.sect.ui.theme.GameColors
 
-private val PanelBg = Color(0xFFF6EBD5)
-private val DividerGray = Color(0xFFBDBDBD)
+private val PanelBg = GameColors.ButtonBackground
+private val DividerGray = GameColors.ButtonDisabled
 
 @Composable
 fun HeavenlyTrialClearRewardDialog(

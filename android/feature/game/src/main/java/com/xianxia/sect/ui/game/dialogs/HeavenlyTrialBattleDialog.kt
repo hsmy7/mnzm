@@ -115,7 +115,7 @@ fun HeavenlyTrialBattleDialog(
                                 text = if (trialState.isPhase1Cleared(levelIndex)) "已通关" else "未通关",
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (trialState.isPhase1Cleared(levelIndex)) Color(0xFF4CAF50) else Color.Red
+                                color = if (trialState.isPhase1Cleared(levelIndex)) GameColors.Success else Color.Red
                             )
                         }
                         Spacer(Modifier.height(8.dp))
@@ -144,7 +144,7 @@ fun HeavenlyTrialBattleDialog(
                                 text = if (trialState.isPhase2Cleared(levelIndex)) "已通关" else "未通关",
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (trialState.isPhase2Cleared(levelIndex)) Color(0xFF4CAF50) else Color.Red
+                                color = if (trialState.isPhase2Cleared(levelIndex)) GameColors.Success else Color.Red
                             )
                         }
                     }

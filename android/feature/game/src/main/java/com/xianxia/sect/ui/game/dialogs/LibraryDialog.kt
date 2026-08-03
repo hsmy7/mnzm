@@ -50,7 +50,7 @@ fun LibraryDialog(
             Text(
                 text = "入驻弟子功法熟练度增长速度提高50%",
                 fontSize = 10.sp,
-                color = Color(0xFF4CAF50)
+                color = GameColors.Success
             )
             
             slots.chunked(3).forEach { rowSlots ->

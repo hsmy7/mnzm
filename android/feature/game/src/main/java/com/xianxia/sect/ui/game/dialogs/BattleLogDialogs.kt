@@ -67,9 +67,9 @@ internal fun BattleLogDetailDialog(
     scrimEnabled: Boolean = true
 ) {
     val resultColor = when (log.result) {
-        BattleResult.WIN -> Color(0xFF4CAF50)
-        BattleResult.LOSE -> Color(0xFFF44336)
-        BattleResult.DRAW -> Color(0xFFFF9800)
+        BattleResult.WIN -> GameColors.Success
+        BattleResult.LOSE -> GameColors.Error
+        BattleResult.DRAW -> GameColors.Warning
     }
 
     val resultText = when (log.result) {
@@ -88,7 +88,7 @@ internal fun BattleLogDetailDialog(
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
-                HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                HorizontalDivider(color = GameColors.SurfaceLightGray, thickness = 1.dp)
 
                 LazyColumn(
                     modifier = Modifier
@@ -208,7 +208,7 @@ internal fun BattleLogDetailDialog(
                     if (log.drops.isNotEmpty()) {
                         item {
                             Spacer(modifier = Modifier.height(12.dp))
-                            HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                            HorizontalDivider(color = GameColors.SurfaceLightGray, thickness = 1.dp)
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = if (log.result == BattleResult.LOSE) "被掠夺物品" else "战利品",
@@ -230,7 +230,7 @@ internal fun BattleLogDetailDialog(
                     if (log.rounds.isNotEmpty()) {
                         item {
                             Spacer(modifier = Modifier.height(16.dp))
-                            HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+                            HorizontalDivider(color = GameColors.SurfaceLightGray, thickness = 1.dp)
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
                                 text = "战斗过程",
@@ -277,8 +277,8 @@ internal fun BattleActionItem(
     action: BattleLogAction
 ) {
     val actionColor = when {
-        action.isKill -> Color(0xFFF44336)
-        action.isCrit -> Color(0xFFFF9800)
+        action.isKill -> GameColors.Error
+        action.isCrit -> GameColors.Warning
         else -> Color.Black
     }
 
@@ -290,7 +290,7 @@ internal fun BattleActionItem(
 
     val typeColor = when (action.type) {
         "skill" -> Color(0xFF9C27B0)
-        "support" -> Color(0xFF4CAF50)
+        "support" -> GameColors.Success
         else -> Color.Black
     }
 
@@ -354,7 +354,7 @@ internal fun BattleLogListDialog(
                 }
             }
 
-            HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+            HorizontalDivider(color = GameColors.SurfaceLightGray, thickness = 1.dp)
 
             // 内容区必须用 weight(1f) 约束高度，否则内部 LazyColumn 会收到无穷高度报错
             Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -407,9 +407,9 @@ internal fun BattleLogListItem(
     onClick: () -> Unit
 ) {
     val resultColor = when (log.result) {
-        BattleResult.WIN -> Color(0xFF4CAF50)
-        BattleResult.LOSE -> Color(0xFFF44336)
-        BattleResult.DRAW -> Color(0xFFFF9800)
+        BattleResult.WIN -> GameColors.Success
+        BattleResult.LOSE -> GameColors.Error
+        BattleResult.DRAW -> GameColors.Warning
     }
 
     val resultText = when (log.result) {
@@ -514,11 +514,19 @@ private fun YearlyReportList(
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         // 弟子净变化 = 新增 - 死亡 - 脱离
                         val discipleDelta = report.newDisciples - report.deceasedDisciples - report.desertedDisciples
-                        val discipleColor = if (discipleDelta > 0) Color(0xFF4CAF50) else if (discipleDelta < 0) Color(0xFFF44336) else Color.Black
+                        val discipleColor = when {
+                            discipleDelta > 0 -> GameColors.Success
+                            discipleDelta < 0 -> GameColors.Error
+                            else -> Color.Black
+                        }
                         Text("弟子: ${formatSigned(discipleDelta)}", fontSize = 11.sp, color = discipleColor)
                         // 灵石净变化 = 收入 - 支出
                         val stoneDelta = report.totalIncome - report.totalExpenditure
-                        val stoneColor = if (stoneDelta > 0) Color(0xFF4CAF50) else if (stoneDelta < 0) Color(0xFFF44336) else Color.Black
+                        val stoneColor = when {
+                            stoneDelta > 0 -> GameColors.Success
+                            stoneDelta < 0 -> GameColors.Error
+                            else -> Color.Black
+                        }
                         Text("灵石: ${formatSigned(stoneDelta)}", fontSize = 11.sp, color = stoneColor)
                     }
                 }
@@ -559,14 +567,14 @@ private fun YearlyReportDetailDialog(
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                SummaryCard("灵石总收入", "+${report.totalIncome}", Color(0xFF4CAF50))
-                SummaryCard("灵石总支出", "-${report.totalExpenditure}", Color(0xFFF44336))
+                SummaryCard("灵石总收入", "+${report.totalIncome}", GameColors.Success)
+                SummaryCard("灵石总支出", "-${report.totalExpenditure}", GameColors.Error)
                 SummaryCard("总锻造装备", "${report.forgeCompleted}")
                 SummaryCard("总炼制丹药", "${report.alchemyCompleted}")
                 SummaryCard("总收获草药", "${report.herbsHarvested}")
-                SummaryCard("新增弟子", "+${report.newDisciples}", Color(0xFF4CAF50))
-                SummaryCard("死亡弟子", "-${report.deceasedDisciples}", Color(0xFFF44336))
-                SummaryCard("脱离弟子", "-${report.desertedDisciples}", Color(0xFFF44336))
+                SummaryCard("新增弟子", "+${report.newDisciples}", GameColors.Success)
+                SummaryCard("死亡弟子", "-${report.deceasedDisciples}", GameColors.Error)
+                SummaryCard("脱离弟子", "-${report.desertedDisciples}", GameColors.Error)
             }
 
             ReportDivider()
@@ -671,7 +679,7 @@ private fun EmptyDataText(text: String) {
 @Composable
 private fun ReportDivider() {
     Spacer(Modifier.height(8.dp))
-    HorizontalDivider(color = Color(0xFFE0E0E0), thickness = 1.dp)
+    HorizontalDivider(color = GameColors.SurfaceLightGray, thickness = 1.dp)
     Spacer(Modifier.height(8.dp))
 }
 

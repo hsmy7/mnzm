@@ -29,8 +29,9 @@ import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.GameViewModel
 import kotlinx.coroutines.delay
 import kotlin.random.Random
+import com.xianxia.sect.ui.theme.GameColors
 
-private val GOLD = Color(0xFFFFD700)
+private val GOLD = GameColors.Gold
 private val RED = Color(0xFFFF4444)
 
 data class ConversationEffect(
@@ -298,7 +299,7 @@ fun DiscipleChatDialog(
     ) {
         Row(modifier = Modifier.fillMaxSize()) {
             ChatLeftPanel(disciple = disciple, modifier = Modifier.weight(0.2f).fillMaxHeight())
-            VerticalDivider(modifier = Modifier.fillMaxHeight(), thickness = 1.dp, color = Color(0xFFBDBDBD))
+            VerticalDivider(modifier = Modifier.fillMaxHeight(), thickness = 1.dp, color = GameColors.ButtonDisabled)
             ChatRightPanel(greetingText = greetingText, chatMessages = chatMessages,
                 visibleCount = visibleCount, currentNode = currentNode,
                 currentEffectAnnotated = currentEffectAnnotated, isChatDone = isChatDone,

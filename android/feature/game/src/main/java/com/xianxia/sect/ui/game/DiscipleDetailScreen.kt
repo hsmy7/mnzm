@@ -294,7 +294,7 @@ fun DiscipleDetailDialog(
                         }
                     }
                     // Vertical divider
-                    Box(modifier = Modifier.fillMaxHeight().width(1.dp).background(Color(0xFFBDBDBD)))
+                    Box(modifier = Modifier.fillMaxHeight().width(1.dp).background(GameColors.ButtonDisabled))
                     // Right 40%: Portrait + basic info + action buttons
                     DetailRightPanel(
                         disciple = disciple,

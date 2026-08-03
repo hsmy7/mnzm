@@ -24,6 +24,7 @@ import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.ui.game.map.sect.SectCameraState
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.ui.components.clickableWithSound
+import com.xianxia.sect.ui.theme.GameColors
 
 /**
  * 建筑放置确认/取消按钮 — 固定出现在建筑上方居中，不受地图方格尺寸限制。
@@ -60,14 +61,14 @@ internal fun PlacementConfirmButtons(
         ) {
             Box(
                 modifier = Modifier.size(btnDp * 2)
-                    .background(if (canConfirm) Color(0xFF4CAF50) else Color.Black, CircleShape)
+                    .background(if (canConfirm) GameColors.Success else Color.Black, CircleShape)
                     .clickableWithSound(enabled = canConfirm) { onConfirm() },
                 contentAlignment = Alignment.Center
             ) { Text("✓", fontSize = (btnDp.value * 0.5f).sp, color = Color.Black, fontWeight = FontWeight.Bold) }
             Spacer(modifier = Modifier.width(spacerDp))
             Box(
                 modifier = Modifier.size(btnDp * 2)
-                    .background(Color(0xFFF44336), CircleShape)
+                    .background(GameColors.Error, CircleShape)
                     .clickableWithSound { onCancel() },
                 contentAlignment = Alignment.Center
             ) { Text("✗", fontSize = (btnDp.value * 0.5f).sp, color = Color.Black, fontWeight = FontWeight.Bold) }

@@ -1029,7 +1029,7 @@ private fun TapTapLoginButton(
             .height(56.dp),
         shape = RoundedCornerShape(28.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (privacyChecked) Color(0xFF00D26A) else Color(0xFFCCCCCC),
+            containerColor = if (privacyChecked) Color(0xFF00D26A) else GameColors.DividerGray,
             contentColor = Color.White
         ),
         enabled = !isLoading
@@ -1068,7 +1068,7 @@ private fun PrivacyAgreementRow(
             onCheckedChange = onCheckedChange,
             colors = CheckboxDefaults.colors(
                 checkedColor = GameColors.SpiritBlue,
-                uncheckedColor = Color(0xFFCCCCCC)
+                uncheckedColor = GameColors.DividerGray
             )
         )
         Spacer(modifier = Modifier.width(6.dp))

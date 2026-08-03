@@ -143,7 +143,7 @@ fun AlchemyDialog(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
-                            .background(if (autoEnabled) Color(0xFFFFD700) else Color.Black)
+                            .background(if (autoEnabled) GameColors.Gold else Color.Black)
                             .clickable { alchemyViewModel.toggleAuto(buildingIndex) }
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
@@ -205,8 +205,8 @@ fun AlchemyDialog(
                 coreAttributeName = "炼丹",
                 coreAttributeColor = Color(0xFF9C27B0),
                 defaultBorderColor = Color(0xFF9C27B0),
-                workingStatusColor = Color(0xFF2196F3),
-                selectedHighlightColor = Color(0xFFFFD700),
+                workingStatusColor = GameColors.Info,
+                selectedHighlightColor = GameColors.Gold,
                 slotLabelPrefix = "炼丹槽",
                 selectionDialogTitle = "选择炼丹弟子",
                 startProductionText = "确认",
@@ -465,8 +465,16 @@ private fun PillDetailDialog(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(text = materialName, fontSize = 11.sp, color = if (hasEnough) Color.Black else Color(0xFFE74C3C))
-                            Text(text = "${GameUtils.formatNumber(herb?.quantity ?: 0)}/$requiredQuantity", fontSize = 11.sp, color = if (hasEnough) Color(0xFF4CAF50) else Color(0xFFE74C3C))
+                            Text(
+                                text = materialName,
+                                fontSize = 11.sp,
+                                color = if (hasEnough) Color.Black else GameColors.Error
+                            )
+                            Text(
+                                text = "${GameUtils.formatNumber(herb?.quantity ?: 0)}/$requiredQuantity",
+                                fontSize = 11.sp,
+                                color = if (hasEnough) GameColors.Success else GameColors.Error
+                            )
                         }
                     }
                 }

@@ -34,9 +34,10 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.ui.components.SpriteResRegistry
+import com.xianxia.sect.ui.theme.GameColors
 
 /** 事件区/选择区纯色面板背景（与消息栏展开态/通关奖励面板同色） */
-internal val SecretRealmBackground = Color(0xFFF6EBD5)
+internal val SecretRealmBackground = GameColors.ButtonBackground
 
 /**
  * 探索弟子圆形头像（参考天道试炼 CombatantPortrait 圆形肖像；死亡置灰）。
@@ -57,7 +58,7 @@ internal fun SecretRealmPortrait(
             .size(sizeDp)
             .clip(CircleShape)
             .border(2.dp, if (isDead) Color(0xFF9E9E9E) else Color.Gray, CircleShape)
-            .background(if (isDead) Color(0xFFBDBDBD) else Color.White),
+            .background(if (isDead) GameColors.ButtonDisabled else Color.White),
         contentAlignment = Alignment.Center
     ) {
         Image(
@@ -85,9 +86,9 @@ internal fun SecretRealmHpBar(
     val effectiveHp = if (currentHp < 0) effectiveMax else currentHp.coerceIn(0, effectiveMax)
     val hpPercent = effectiveHp.toFloat() / effectiveMax
     val barColor = when {
-        hpPercent > 0.5f -> Color(0xFF4CAF50)
+        hpPercent > 0.5f -> GameColors.Success
         hpPercent > 0.25f -> Color(0xFFFFEB3B)
-        else -> Color(0xFFF44336)
+        else -> GameColors.Error
     }
     Box(
         modifier = Modifier
@@ -168,7 +169,7 @@ internal fun SecretRealmOptionCard(
                 .padding(bottom = 8.dp),
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
-            color = Color(0xFFF44336)
+            color = GameColors.Error
         )
     }
 }

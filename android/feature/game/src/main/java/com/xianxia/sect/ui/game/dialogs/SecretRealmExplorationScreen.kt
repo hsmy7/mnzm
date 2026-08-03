@@ -236,7 +236,7 @@ fun SecretRealmExplorationScreen(
                                         text = "体力:${stamina.coerceIn(0, GameConfig.SecretRealm.STAMINA_MAX)}",
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (stamina <= 5) Color(0xFFF44336) else Color.Black
+                                        color = if (stamina <= 5) GameColors.Error else Color.Black
                                     )
                                 }
                             }
@@ -516,13 +516,13 @@ private fun MemberColumn(member: MemberHpUi) {
             member.isDead -> Text(
                 text = "已陨落",
                 fontSize = 9.sp,
-                color = Color(0xFFF44336)
+                color = GameColors.Error
             )
             member.isDying -> Text(
                 text = "重伤濒死",
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFFF44336)
+                color = GameColors.Error
             )
             else -> SecretRealmHpBar(
                 currentHp = member.currentHp,

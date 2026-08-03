@@ -37,6 +37,7 @@ import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
+import com.xianxia.sect.ui.theme.GameColors
 
 private val CachedColorScheme = XianxiaColorScheme()
 
@@ -619,7 +620,7 @@ private fun GameOverDialog(
                 Text(
                     text = "你宗所有领地已被攻占，弟子流离失散，\n宗门就此覆灭于修仙界之中...",
                     fontSize = 14.sp,
-                    color = Color(0xFFCCCCCC),
+                    color = GameColors.DividerGray,
                     textAlign = TextAlign.Center,
                     lineHeight = 22.sp
                 )

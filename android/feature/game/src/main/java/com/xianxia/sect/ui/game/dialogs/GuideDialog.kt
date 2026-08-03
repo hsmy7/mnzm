@@ -67,13 +67,13 @@ fun GuideDialog(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF6EBD5))    ) {
+            .background(GameColors.ButtonBackground)    ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // ======== 顶部栏 ========
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFFF6EBD5))
+                    .background(GameColors.ButtonBackground)
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -286,7 +286,7 @@ private fun ConditionItem(
         horizontalArrangement = Arrangement.Center
     ) {
         val icon = if (isMet) "✓ " else "□ "
-        val textColor = if (isMet) Color(0xFF4CAF50) else Color(0xFFE53935)
+        val textColor = if (isMet) GameColors.Success else Color(0xFFE53935)
 
         Text(
             text = icon + condition.label + " " + progressText,

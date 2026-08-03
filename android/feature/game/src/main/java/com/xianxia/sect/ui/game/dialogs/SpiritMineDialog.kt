@@ -319,7 +319,7 @@ private fun SpiritMineDeaconSlotItem(
         try {
             Color(android.graphics.Color.parseColor(deaconSlot.discipleSpiritRootColor))
         } catch (e: Exception) {
-            Color(0xFF4CAF50)
+            GameColors.Success
         }
     } else {
         GameColors.Border
@@ -398,12 +398,12 @@ private fun CommonDialog(
         headerContent = headerContent,
         headerActions = {
             Column {
-                Text(text = "总产量: $totalOutput/月", fontSize = 10.sp, color = Color(0xFF4CAF50))
+                Text(text = "总产量: $totalOutput/月", fontSize = 10.sp, color = GameColors.Success)
                 if (miningBonus > 0) {
-                    Text(text = "采矿加成: +${(miningBonus * 100).toInt()}%", fontSize = 9.sp, color = Color(0xFFFF9800))
+                    Text(text = "采矿加成: +${(miningBonus * 100).toInt()}%", fontSize = 9.sp, color = GameColors.Warning)
                 }
                 if (deaconBonus > 0) {
-                    Text(text = "执事加成: +${(deaconBonus * 100).toInt()}%", fontSize = 9.sp, color = Color(0xFF2196F3))
+                    Text(text = "执事加成: +${(deaconBonus * 100).toInt()}%", fontSize = 9.sp, color = GameColors.Info)
                 }
             }
         },

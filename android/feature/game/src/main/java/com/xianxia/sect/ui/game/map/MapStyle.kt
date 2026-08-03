@@ -3,6 +3,7 @@ package com.xianxia.sect.ui.game.map
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xianxia.sect.ui.theme.GameColors
 
 object MapStyle {
     object Colors {
@@ -10,17 +11,17 @@ object MapStyle {
         val sectNormal = Color(0xFFF5E6C8)
         val sectHighlighted = Color(0xFFFF0000)
         val sectBorderNormal = Color(0xFF8B7355)
-        val sectTextPlayer = Color(0xFFFFD700)
+        val sectTextPlayer = GameColors.Gold
         val sectTextNormal = Color(0xFF3D2914)
 
         val scoutTeamBg = Color.White
-        val scoutTeamBorder = Color(0xFF2196F3)
-        val scoutTeamText = Color(0xFF2196F3)
+        val scoutTeamBorder = GameColors.Info
+        val scoutTeamText = GameColors.Info
 
         val caveText = Color.Red
 
-        val controlButtonBg = Color(0xFF4CAF50)
-        val controlButtonDisabled = Color(0xFFCCCCCC)
+        val controlButtonBg = GameColors.Success
+        val controlButtonDisabled = GameColors.DividerGray
         val controlButtonBorder = Color(0xFF6B5344)
         val controlButtonText = Color.White
         val controlButtonDisabledText = Color.Black

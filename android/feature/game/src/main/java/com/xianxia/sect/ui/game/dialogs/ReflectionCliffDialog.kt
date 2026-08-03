@@ -23,6 +23,7 @@ import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
+import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
 fun ReflectionCliffDialog(
@@ -69,7 +70,7 @@ fun ReflectionCliffDialog(
                         Text(
                             text = "监牢目前没有弟子在思过",
                             fontSize = 11.sp,
-                            color = Color(0xFFCCCCCC)
+                            color = GameColors.DividerGray
                         )
                     }
                 }
@@ -109,7 +110,7 @@ fun ReflectionCliffDialog(
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(4.dp))
-                                            .background(Color(0xFFE74C3C))
+                                            .background(GameColors.Error)
                                             .clickable { showExpelConfirmDialog = disciple }
                                             .padding(horizontal = 8.dp, vertical = 4.dp)
                                     ) {

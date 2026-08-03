@@ -95,7 +95,7 @@ private fun PeakElderSlotItem(config: PeakElderSlotConfig) {
             try {
                 Color(android.graphics.Color.parseColor(config.elder.spiritRoot.countColor))
             } catch (e: Exception) {
-                Color(0xFFE0E0E0)
+                GameColors.SurfaceLightGray
             }
         } else {
             GameColors.Border

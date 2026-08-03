@@ -60,8 +60,8 @@ fun Modifier.discipleCardBorder(
         width = 1.dp,
         brush = Brush.linearGradient(
             colors = listOf(
-                Color(0xFFE0E0E0),
-                Color(0xFFBDBDBD)
+                GameColors.SurfaceLightGray,
+                GameColors.ButtonDisabled
             )
         ),
         shape = shape
@@ -105,7 +105,7 @@ fun FollowedTag(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(3.dp))
-            .background(Color(0xFFFFD700))
+            .background(GameColors.Gold)
             .padding(horizontal = 4.dp, vertical = 1.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -136,7 +136,7 @@ fun PortraitDiscipleCard(
     actions: @Composable (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
-    val borderColor = if (isSelected) GameColors.Gold else Color(0xFFE0E0E0)
+    val borderColor = if (isSelected) GameColors.Gold else GameColors.SurfaceLightGray
     val borderWidth = if (isSelected) 2.dp else 1.dp
     val statusText = disciple.status.displayName
 
@@ -209,7 +209,7 @@ fun PortraitDiscipleCard(
                         }
                         if (disciple.isFollowed) FollowedTag()
                         if (isCurrent) {
-                            Text(text = "当前", fontSize = 10.sp, color = Color(0xFFE74C3C))
+                            Text(text = "当前", fontSize = 10.sp, color = GameColors.Error)
                         }
                     }
                     if (actions != null) {
@@ -330,7 +330,7 @@ private fun SlotContent(
                     text = "死亡",
                     fontSize = 8.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFFF44336),
+                    color = GameColors.Error,
                     maxLines = 1
                 )
             }
@@ -441,7 +441,7 @@ fun DiscipleSlot(
                                 text = "死亡",
                                 fontSize = 8.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFFF44336),
+                                color = GameColors.Error,
                                 maxLines = 1
                             )
                         }
@@ -517,9 +517,9 @@ internal fun BattleParticipantSlot(
     } ?: 0f
 
     val hpColor = when {
-        hpPercent > 0.6f -> Color(0xFF4CAF50)
-        hpPercent > 0.3f -> Color(0xFFFF9800)
-        else -> Color(0xFFF44336)
+        hpPercent > 0.6f -> GameColors.Success
+        hpPercent > 0.3f -> GameColors.Warning
+        else -> GameColors.Error
     }
 
     Column(
@@ -531,7 +531,7 @@ internal fun BattleParticipantSlot(
                     .width(52.dp)
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(Color(0xFFE0E0E0))
+                    .background(GameColors.SurfaceLightGray)
             ) {
                 Box(
                     modifier = Modifier
@@ -550,7 +550,9 @@ internal fun BattleParticipantSlot(
                 .height(88.dp)
                 .clip(RoundedCornerShape(6.dp))
                 .background(if (isAlive) Color.White else Color(0xFFEEEEEE))
-                .border(1.dp, if (isAlive) Color(0xFFE0E0E0) else Color(0xFFCCCCCC), RoundedCornerShape(6.dp)),
+                .border(
+                    1.dp, if (isAlive) GameColors.SurfaceLightGray else GameColors.DividerGray, RoundedCornerShape(6.dp)
+                ),
             contentAlignment = Alignment.Center
         ) {
             SlotContent(

@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.feature.game.R
+import com.xianxia.sect.ui.theme.GameColors
 
 /**
  * 全屏加载界面组件
@@ -159,7 +160,7 @@ private fun LoadingScreenContent(
 private fun CustomGoldenProgressBar(
     progress: Float,
     modifier: Modifier = Modifier,
-    borderColor: Color = Color(0xFFFFD700),
+    borderColor: Color = GameColors.Gold,
     progressColor: Color = Color(0xFFFFE55F)
 ) {
     Box(
@@ -196,9 +197,9 @@ private fun CustomGoldenProgressBar(
             if (progressWidth > 0) {
                 val gradient = Brush.horizontalGradient(
                     colors = listOf(
-                        Color(0xFFFFD700),
+                        GameColors.Gold,
                         Color(0xFFFFE55F),
-                        Color(0xFFFFD700)
+                        GameColors.Gold
                     ),
                     startX = barStartX,
                     endX = barStartX + progressWidth

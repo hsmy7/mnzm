@@ -66,7 +66,7 @@ fun StorageBagDialog(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xFFFF9800))
+                        .background(GameColors.Warning)
                         .clickableWithSound { showRewardDialog = true }
                         .padding(horizontal = 6.dp, vertical = 2.dp),
                     contentAlignment = Alignment.Center
@@ -81,7 +81,7 @@ fun StorageBagDialog(
                     text = "灵石:$spiritStones",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF2196F3)
+                    color = GameColors.Info
                 )
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -588,7 +588,7 @@ private fun RewardBottomPanel(
                         modifier = Modifier
                             .size(32.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(if (rewardQuantity > 1 && !isRewarding) Color(0xFF4CAF50) else GameColors.Border)
+                            .background(if (rewardQuantity > 1 && !isRewarding) GameColors.Success else GameColors.Border)
                             .clickableWithSound(enabled = rewardQuantity > 1 && !isRewarding) { onQuantityChange(rewardQuantity - 1) },
                         contentAlignment = Alignment.Center
                     ) {
@@ -610,7 +610,7 @@ private fun RewardBottomPanel(
                         modifier = Modifier
                             .size(32.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(if (rewardQuantity < maxQuantity && !isRewarding) Color(0xFF4CAF50) else GameColors.Border)
+                            .background(if (rewardQuantity < maxQuantity && !isRewarding) GameColors.Success else GameColors.Border)
                             .clickableWithSound(enabled = rewardQuantity < maxQuantity && !isRewarding) { onQuantityChange(rewardQuantity + 1) },
                         contentAlignment = Alignment.Center
                     ) {

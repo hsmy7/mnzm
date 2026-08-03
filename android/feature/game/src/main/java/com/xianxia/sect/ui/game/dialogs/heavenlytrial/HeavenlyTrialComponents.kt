@@ -115,9 +115,9 @@ internal fun CombatUnitCell(
 
                 val hpPercent = (combatant.hp.toFloat() / combatant.maxHp).coerceIn(0f, 1f)
                 val barColor = when {
-                    hpPercent > 0.5f -> Color(0xFF4CAF50)
+                    hpPercent > 0.5f -> GameColors.Success
                     hpPercent > 0.25f -> Color(0xFFFFEB3B)
-                    else -> Color(0xFFF44336)
+                    else -> GameColors.Error
                 }
                 Box(
                     modifier = Modifier

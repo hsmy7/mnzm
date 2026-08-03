@@ -82,7 +82,7 @@ private fun SellQuantitySelector(
             modifier = Modifier
                 .size(36.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(if (sellQuantity > 1) Color(0xFFE0E0E0) else Color(0xFFF5F5F5))
+                .background(if (sellQuantity > 1) GameColors.SurfaceLightGray else Color(0xFFF5F5F5))
                 .clickableWithSound(enabled = sellQuantity > 1) {
                     onQuantityChange((sellQuantity - 1).coerceAtLeast(1))
                     quantityInput = (sellQuantity - 1).coerceAtLeast(1).toString()
@@ -93,7 +93,7 @@ private fun SellQuantitySelector(
                 text = "−",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (sellQuantity > 1) Color.Black else Color(0xFFBDBDBD)
+                color = if (sellQuantity > 1) Color.Black else GameColors.ButtonDisabled
             )
         }
 
@@ -148,7 +148,7 @@ private fun SellQuantitySelector(
                 ),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = GameColors.Primary,
-                    unfocusedBorderColor = Color(0xFFCCCCCC)
+                    unfocusedBorderColor = GameColors.DividerGray
                 )
             )
         } else {
@@ -157,7 +157,7 @@ private fun SellQuantitySelector(
                     .width(80.dp)
                     .height(48.dp)
                     .clip(RoundedCornerShape(6.dp))
-                    .border(1.dp, Color(0xFFCCCCCC), RoundedCornerShape(6.dp))
+                    .border(1.dp, GameColors.DividerGray, RoundedCornerShape(6.dp))
                     .background(Color.White)
                     .clickableWithSound {
                         isEditingQuantity = true
@@ -180,7 +180,7 @@ private fun SellQuantitySelector(
             modifier = Modifier
                 .size(36.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(if (sellQuantity < maxQuantity) Color(0xFFE0E0E0) else Color(0xFFF5F5F5))
+                .background(if (sellQuantity < maxQuantity) GameColors.SurfaceLightGray else Color(0xFFF5F5F5))
                 .clickableWithSound(enabled = sellQuantity < maxQuantity) {
                     onQuantityChange((sellQuantity + 1).coerceAtMost(maxQuantity))
                     quantityInput = (sellQuantity + 1).coerceAtMost(maxQuantity).toString()
@@ -191,7 +191,7 @@ private fun SellQuantitySelector(
                 text = "+",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (sellQuantity < maxQuantity) Color.Black else Color(0xFFBDBDBD)
+                color = if (sellQuantity < maxQuantity) Color.Black else GameColors.ButtonDisabled
             )
         }
     }

@@ -204,7 +204,7 @@
     <ID>LongMethod:LevelDetailDialog.kt$@Composable fun LevelDetailDialog( level: MapItem.Level, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, onAttack: (List&lt;String?&gt;) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:LevelDetailDialog.kt$@Composable private fun LevelSlotSelectionDialog( disciples: List&lt;DiscipleAggregate&gt;, alreadySelectedIds: Set&lt;String&gt; = emptySet(), viewModel: GameViewModel, onSelect: (String) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:LibraryDialog.kt$@Composable fun LibraryDialog( manuals: List&lt;ManualInstance&gt;, disciples: List&lt;DiscipleAggregate&gt;, gameData: GameData?, viewModel: GameViewModel, productionViewModel: ProductionViewModel, onDismiss: () -&gt; Unit )</ID>
-    <ID>LongMethod:LoadingScreen.kt$@Composable private fun CustomGoldenProgressBar( progress: Float, modifier: Modifier = Modifier, borderColor: Color = Color(0xFFFFD700), progressColor: Color = Color(0xFFFFE55F) )</ID>
+    <ID>LongMethod:LoadingScreen.kt$@Composable private fun CustomGoldenProgressBar( progress: Float, modifier: Modifier = Modifier, borderColor: Color = GameColors.Gold, progressColor: Color = Color(0xFFFFE55F) )</ID>
     <ID>LongMethod:LoadingScreen.kt$@Composable private fun LoadingScreenContent( progress: Float, showProgress: Boolean, phaseText: String )</ID>
     <ID>LongMethod:MailDialog.kt$@Composable fun MailDialog( viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:MailDialog.kt$@Composable private fun ClaimedAttachmentCard( attachment: MailAttachment, watchedKeys: Set&lt;String&gt; = emptySet() )</ID>
@@ -212,6 +212,7 @@
     <ID>LongMethod:MainGameScreen.kt$@Composable fun MainGameScreen( mapPreloadData: MapPreloadData, viewModel: GameViewModel, saveLoadViewModel: SaveLoadViewModel, productionViewModel: ProductionViewModel, alchemyViewModel: AlchemyViewModel, forgeViewModel: ForgeViewModel, herbGardenViewModel: HerbGardenViewModel, spiritMineViewModel: SpiritMineViewModel, patrolTowerViewModel: PatrolTowerViewModel, bloodRefiningViewModel: BloodRefiningViewModel, worldMapInteractionViewModel: WorldMapInteractionViewModel, worldMapGarrisonViewModel: WorldMapGarrisonViewModel, battleViewModel: BattleViewModel, onLogout: () -&gt; Unit, onRestartGame: () -&gt; Unit, limitAdTracking: Boolean = true, onLimitAdTrackingChanged: (Boolean) -&gt; Unit = {}, /** 是否强制使用 Canvas 软件渲染（模拟器/Vulkan 不可用设备） */ forceSoftwareRendering: Boolean = false, /** Vulkan 初始化生命周期监听器（由 GameActivity 注入，驱动 CrashRecoveryEngine） */ vulkanInitListener: NativeSurfaceView.VulkanInitListener? = null, /** 用于后台 I/O 操作的协程调度器 */ dispatcher: CoroutineDispatcher = Dispatchers.IO )</ID>
     <ID>LongMethod:MasterApprenticeSelectDialog.kt$@Composable fun MasterApprenticeSelectDialog( currentDisciple: DiscipleAggregate, allDisciples: List&lt;DiscipleAggregate&gt;, onDismiss: () -&gt; Unit, onMasterSelected: (DiscipleAggregate) -&gt; Unit )</ID>
     <ID>LongMethod:MerchantDialog.kt$@Composable fun MerchantDialog( gameData: GameData?, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
+    <ID>LongMethod:MerchantListingDialog.kt$@Composable fun ListingManagementDialog( gameData: com.xianxia.sect.core.model.GameData?, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:MessageListContent.kt$@Composable fun MessageListContent( events: List&lt;GameEventRecord&gt;, modifier: Modifier = Modifier, scrollToBottomTrigger: Int = 0 )</ID>
     <ID>LongMethod:MissionHallDialog.kt$@Composable fun MissionHallDialog( gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:MissionHallDialog.kt$@Composable private fun ActiveMissionCard( mission: ActiveMission, currentYear: Int, currentMonth: Int, onClick: () -&gt; Unit )</ID>
@@ -330,8 +331,6 @@
     <ID>MatchingDeclarationName:ProductionComponents.kt$ProductionTheme</ID>
     <ID>MatchingDeclarationName:RewardDialog.kt$RewardItem</ID>
     <ID>MaxLineLength:ActivityDialog.kt$val vm = checkNotNull(trialViewModel) { "trialViewModel null in HeavenlyTrialPanel" }</ID>
-    <ID>MaxLineLength:AlchemyDialog.kt$Text(text = "${GameUtils.formatNumber(herb?.quantity ?: 0)}/$requiredQuantity", fontSize = 11.sp, color = if (hasEnough) Color(0xFF4CAF50) else Color(0xFFE74C3C))</ID>
-    <ID>MaxLineLength:AlchemyDialog.kt$Text(text = materialName, fontSize = 11.sp, color = if (hasEnough) Color.Black else Color(0xFFE74C3C))</ID>
     <ID>MaxLineLength:AlchemyDialog.kt$if (recipe.cultivationSpeedPercent &gt; 0) add(StatLine("修炼速度", pctRange { it.cultivationSpeedPercent }))</ID>
     <ID>MaxLineLength:AlchemyDialog.kt$modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)</ID>
     <ID>MaxLineLength:AlchemyDialog.kt$onSlotClick = { workerDisciple?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } }</ID>
@@ -356,8 +355,6 @@
     <ID>MaxLineLength:BattleLogDialogs.kt$val byGrade = pillItems.groupBy({ it.key.substringAfter(":") }, { it.value }).mapValues { it.value.sum() }</ID>
     <ID>MaxLineLength:BattleLogDialogs.kt$val bySrc = equipItems.groupBy({ it.key.substringBefore(":") }, { it.value }).mapValues { it.value.sum() }</ID>
     <ID>MaxLineLength:BattleLogDialogs.kt$val bySrc = pillItems.groupBy({ it.key.substringBefore(":") }, { it.value }).mapValues { it.value.sum() }</ID>
-    <ID>MaxLineLength:BattleLogDialogs.kt$val discipleColor = if (discipleDelta &gt; 0) Color(0xFF4CAF50) else if (discipleDelta &lt; 0) Color(0xFFF44336) else Color.Black</ID>
-    <ID>MaxLineLength:BattleLogDialogs.kt$val stoneColor = if (stoneDelta &gt; 0) Color(0xFF4CAF50) else if (stoneDelta &lt; 0) Color(0xFFF44336) else Color.Black</ID>
     <ID>MaxLineLength:BattleResultDialog.kt$spiritStoneGrade = if (loot.type == "spiritStones") SpiritStoneGrade.LOW else null</ID>
     <ID>MaxLineLength:BattleResultDialog.kt$spiritStoneGrade = if (reward.type == "spiritStones") SpiritStoneGrade.LOW else null</ID>
     <ID>MaxLineLength:BloodRefiningPoolDialog.kt$val allBattleIds = gameData?.battleTeams?.flatMap { it.slots.mapNotNull { s -&gt; s.discipleId.takeIf(String::isNotEmpty) } } ?: emptyList()</ID>
@@ -391,8 +388,6 @@
     <ID>MaxLineLength:DiscipleDetailScreen.kt$val vmPlacedBuildings by viewModel?.placedBuildings?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(emptyList&lt;GridBuildingData&gt;()) }</ID>
     <ID>MaxLineLength:DiscipleDetailScreen.kt$val vmResidenceSlots by viewModel?.residenceSlots?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(emptyList&lt;ResidenceSlot&gt;()) }</ID>
     <ID>MaxLineLength:DiscipleSelectorDialog.kt$val</ID>
-    <ID>MaxLineLength:ForgeDialog.kt$Text(text = "${GameUtils.formatNumber(material?.quantity ?: 0)}/$requiredQuantity", fontSize = 11.sp, color = if (hasEnough) Color(0xFF4CAF50) else Color(0xFFE74C3C))</ID>
-    <ID>MaxLineLength:ForgeDialog.kt$Text(text = material?.name ?: materialName ?: materialId, fontSize = 11.sp, color = if (hasEnough) Color.Black else Color(0xFFE74C3C))</ID>
     <ID>MaxLineLength:ForgeDialog.kt$if (template.critChance &gt; 0) Text(text = "暴击率 +${String.format(LocalLocale.current.platformLocale, "%.1f", template.critChance * 100)}%", fontSize = 11.sp, color = Color.Black)</ID>
     <ID>MaxLineLength:ForgeDialog.kt$if (template.magicAttack &gt; 0) Text(text = "法术攻击 +${template.magicAttack}", fontSize = 11.sp, color = Color.Black)</ID>
     <ID>MaxLineLength:ForgeDialog.kt$if (template.magicDefense &gt; 0) Text(text = "法术防御 +${template.magicDefense}", fontSize = 11.sp, color = Color.Black)</ID>
@@ -550,7 +545,6 @@
     <ID>MaxLineLength:MerchantListingDialog.kt$Text("数量", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)</ID>
     <ID>MaxLineLength:MerchantListingDialog.kt$Text("道具名称", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary, modifier = Modifier.weight(1f))</ID>
     <ID>MaxLineLength:MerchantListingDialog.kt$contentAlignment = Alignment.Center</ID>
-    <ID>MaxLineLength:MerchantListingDialog.kt$if (index &lt; listItems.lastIndex) HorizontalDivider(thickness = 1.dp, color = Color(0xFFBDBDBD))</ID>
     <ID>MaxLineLength:MissionHallDialog.kt$onDiscipleClick = { it?.let { d -&gt; viewModel.showDiscipleDetail(DiscipleDetailRequest(d, disciples)) } }</ID>
     <ID>MaxLineLength:MissionHallDialog.kt$parts.add("${GameUtils.formatNumber(rewards.spiritStones)}~${GameUtils.formatNumber(rewards.spiritStonesMax)}灵石")</ID>
     <ID>MaxLineLength:MissionHallDialog.kt$val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()</ID>
@@ -825,7 +819,7 @@
     <ID>UnusedPrivateProperty:AdsDelegate.kt$AdsDelegate.Companion$private const val TAG = "AdsDelegate"</ID>
     <ID>UnusedPrivateProperty:AlchemyViewModel.kt$AlchemyViewModel$private val elderManagement: ElderManagementUseCase</ID>
     <ID>UnusedPrivateProperty:BagDelegate.kt$BagDelegate$private val scope: CoroutineScope</ID>
-    <ID>UnusedPrivateProperty:BattleLogDialogs.kt$val typeColor = when (action.type) { "skill" -&gt; Color(0xFF9C27B0) "support" -&gt; Color(0xFF4CAF50) else -&gt; Color.Black }</ID>
+    <ID>UnusedPrivateProperty:BattleLogDialogs.kt$val typeColor = when (action.type) { "skill" -&gt; Color(0xFF9C27B0) "support" -&gt; GameColors.Success else -&gt; Color.Black }</ID>
     <ID>UnusedPrivateProperty:BeastAttackDelegate.kt$BeastAttackDelegate$private val scope: CoroutineScope</ID>
     <ID>UnusedPrivateProperty:BuildingDelegate.kt$BuildingDelegate$private var _currentBuildingDelegate: Any? = null</ID>
     <ID>UnusedPrivateProperty:BuildingsTab.kt$val disciples by viewModel.discipleAggregates.collectAsStateWithLifecycle()</ID>

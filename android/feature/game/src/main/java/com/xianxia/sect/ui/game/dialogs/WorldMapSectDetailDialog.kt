@@ -112,7 +112,7 @@ internal fun WorldMapSectDetailDialog(
                     Text(
                         text = "盟友",
                         fontSize = 10.sp,
-                        color = Color(0xFF4CAF50),
+                        color = GameColors.Success,
                         modifier = Modifier
                             .background(
                                 Color(0xFFE8F5E9),
@@ -187,9 +187,9 @@ internal fun WorldMapSectDetailDialog(
                         val count = if (isScouted) scoutInfo.disciples[realmIndex] ?: 0 else 0
                         val displayText = if (isScouted) "$count" else "?"
                         val textColor = if (isScouted) {
-                            if (count > 0) Color(0xFF4CAF50) else Color.Black
+                            if (count > 0) GameColors.Success else Color.Black
                         } else {
-                            Color(0xFFFF9800)
+                            GameColors.Warning
                         }
                         Row(
                             modifier = Modifier.weight(1f),
@@ -222,9 +222,9 @@ internal fun WorldMapSectDetailDialog(
                         val count = if (isScouted) scoutInfo.disciples[realmIndex] ?: 0 else 0
                         val displayText = if (isScouted) "$count" else "?"
                         val textColor = if (isScouted) {
-                            if (count > 0) Color(0xFF4CAF50) else Color.Black
+                            if (count > 0) GameColors.Success else Color.Black
                         } else {
-                            Color(0xFFFF9800)
+                            GameColors.Warning
                         }
                         Row(
                             modifier = Modifier.weight(1f),

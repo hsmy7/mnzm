@@ -66,8 +66,8 @@ val ALCHEMY_THEME = ProductionTheme(
     coreAttributeName = "炼丹",
     coreAttributeColor = Color(0xFF9C27B0),
     defaultBorderColor = Color(0xFF9C27B0),
-    workingStatusColor = Color(0xFF2196F3),
-    selectedHighlightColor = Color(0xFFFFD700),
+    workingStatusColor = GameColors.Info,
+    selectedHighlightColor = GameColors.Gold,
     slotLabelPrefix = "炼丹槽",
     selectionDialogTitle = "选择丹药",
     startProductionText = "确认炼制",
@@ -90,10 +90,10 @@ val FORGE_THEME = ProductionTheme(
     elderTitle = "天工长老",
     elderBonusInfo = ElderBonusInfoProvider.getForgeElderInfo(),
     coreAttributeName = "炼器",
-    coreAttributeColor = Color(0xFF4CAF50),
-    defaultBorderColor = Color(0xFFFF9800),
-    workingStatusColor = Color(0xFFFF9800),
-    selectedHighlightColor = Color(0xFFFF9800),
+    coreAttributeColor = GameColors.Success,
+    defaultBorderColor = GameColors.Warning,
+    workingStatusColor = GameColors.Warning,
+    selectedHighlightColor = GameColors.Warning,
     slotLabelPrefix = "炼器槽",
     selectionDialogTitle = "选择装备",
     startProductionText = "确认锻造",
@@ -118,8 +118,8 @@ val HERB_GARDEN_THEME = ProductionTheme(
     coreAttributeName = "灵植",
     coreAttributeColor = Color(0xFF27AE60),
     defaultBorderColor = Color(0xFF27AE60),
-    workingStatusColor = Color(0xFF2196F3),
-    selectedHighlightColor = Color(0xFFFFD700),
+    workingStatusColor = GameColors.Info,
+    selectedHighlightColor = GameColors.Gold,
     slotLabelPrefix = "种植槽",
     selectionDialogTitle = "选择种子",
     startProductionText = "确认种植",
@@ -145,8 +145,8 @@ val SPIRIT_MINE_THEME = ProductionTheme(
     coreAttributeName = "采矿",
     coreAttributeColor = Color(0xFF795548),
     defaultBorderColor = Color(0xFF795548),
-    workingStatusColor = Color(0xFF2196F3),
-    selectedHighlightColor = Color(0xFFFFD700),
+    workingStatusColor = GameColors.Info,
+    selectedHighlightColor = GameColors.Gold,
     slotLabelPrefix = "采矿",
     selectionDialogTitle = "",
     startProductionText = "",
@@ -270,7 +270,7 @@ fun ProductionSlotItem(
                     .width(60.dp)
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp)),
-                color = Color(0xFF4CAF50),
+                color = GameColors.Success,
                 trackColor = GameColors.Border
             )
             Spacer(modifier = Modifier.height(4.dp))
@@ -371,7 +371,7 @@ fun ProductionElderSelectionDialog(
         mode = DialogMode.Half,
         scrollableContent = false,
         headerActions = {
-            Text("推荐${theme.recommendAttributeText}", fontSize = 10.sp, color = Color(0xFF4CAF50))
+            Text("推荐${theme.recommendAttributeText}", fontSize = 10.sp, color = GameColors.Success)
         },
         headerContent = {
             SpiritRootAttributeFilterBar(
@@ -482,7 +482,7 @@ fun ProductionDirectDiscipleSelectionDialog(
         mode = DialogMode.Half,
         scrollableContent = false,
         headerActions = {
-            Text("推荐${theme.recommendAttributeText}", fontSize = 10.sp, color = Color(0xFF4CAF50))
+            Text("推荐${theme.recommendAttributeText}", fontSize = 10.sp, color = GameColors.Success)
         },
         headerContent = {
             SpiritRootAttributeFilterBar(

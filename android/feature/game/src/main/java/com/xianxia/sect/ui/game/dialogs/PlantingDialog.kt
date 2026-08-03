@@ -308,7 +308,7 @@ fun PlantingDialog(
                     modifier = Modifier
                         .width(1.dp)
                         .fillMaxHeight()
-                        .background(Color(0xFFBDBDBD))
+                        .background(GameColors.ButtonDisabled)
                 )
 
                 // ═════════════════ 右侧：种子卡片列表 ════════════
@@ -341,7 +341,7 @@ fun PlantingDialog(
                             }
                         }
                         Spacer(modifier = Modifier.height(6.dp))
-                        HorizontalDivider(thickness = 1.dp, color = Color(0xFFBDBDBD))
+                        HorizontalDivider(thickness = 1.dp, color = GameColors.ButtonDisabled)
                         Spacer(modifier = Modifier.height(6.dp))
                     }
 
@@ -426,8 +426,8 @@ fun PlantingDialog(
                                                 Box(
                                                     modifier = Modifier.size(60.dp)
                                                         .clip(RoundedCornerShape(4.dp))
-                                                        .background(Color(0xFFE0E0E0))
-                                                        .border(1.dp, Color(0xFFBDBDBD), RoundedCornerShape(4.dp))
+                                                        .background(GameColors.SurfaceLightGray)
+                                                        .border(1.dp, GameColors.ButtonDisabled, RoundedCornerShape(4.dp))
                                                         .combinedClickable(
                                                             onClick = {},
                                                             onLongClick = {
@@ -475,7 +475,7 @@ fun PlantingDialog(
                     if (spiritFields.isNotEmpty()) {
                         HorizontalDivider(
                             thickness = 1.dp,
-                            color = Color(0xFFBDBDBD)
+                            color = GameColors.ButtonDisabled
                         )
                         val minInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
                         val decInteraction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
@@ -733,7 +733,7 @@ private fun PlantingPagination(
                 .size(28.dp)
                 .clip(RoundedCornerShape(4.dp))
                 .background(
-                    if (currentPage > 1) Color(0xFF3498DB) else Color(0xFFCCCCCC)
+                    if (currentPage > 1) GameColors.Info else GameColors.DividerGray
                 )
                 .clickableWithSound(enabled = currentPage > 1) { onFirstPage() },
             contentAlignment = Alignment.Center
@@ -749,7 +749,7 @@ private fun PlantingPagination(
                 .size(28.dp)
                 .clip(RoundedCornerShape(4.dp))
                 .background(
-                    if (currentPage > 1) Color(0xFF3498DB) else Color(0xFFCCCCCC)
+                    if (currentPage > 1) GameColors.Info else GameColors.DividerGray
                 )
                 .clickableWithSound(enabled = currentPage > 1) { onPreviousPage() },
             contentAlignment = Alignment.Center
@@ -775,7 +775,7 @@ private fun PlantingPagination(
                 .size(28.dp)
                 .clip(RoundedCornerShape(4.dp))
                 .background(
-                    if (currentPage < totalPages) Color(0xFF3498DB) else Color(0xFFCCCCCC)
+                    if (currentPage < totalPages) GameColors.Info else GameColors.DividerGray
                 )
                 .clickableWithSound(enabled = currentPage < totalPages) { onNextPage() },
             contentAlignment = Alignment.Center
@@ -791,7 +791,7 @@ private fun PlantingPagination(
                 .size(28.dp)
                 .clip(RoundedCornerShape(4.dp))
                 .background(
-                    if (currentPage < totalPages) Color(0xFF3498DB) else Color(0xFFCCCCCC)
+                    if (currentPage < totalPages) GameColors.Info else GameColors.DividerGray
                 )
                 .clickableWithSound(enabled = currentPage < totalPages) { onLastPage() },
             contentAlignment = Alignment.Center

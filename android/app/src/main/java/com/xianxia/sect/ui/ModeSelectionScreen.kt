@@ -48,6 +48,7 @@ import com.xianxia.sect.ui.components.clickableWithSound
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.xianxia.sect.ui.theme.GameColors
 
 private const val TAG = "ModeSelectionScreen"
 
@@ -213,7 +214,7 @@ private fun UserAvatarHeader(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFCCCCCC)),
+                    .background(GameColors.DividerGray),
                 contentAlignment = Alignment.Center
             ) {
                 Text(

@@ -36,6 +36,7 @@ import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.theme.GameColors
 
 internal fun calculatePreachingBonusesForDisplay(
     disciple: DiscipleAggregate,
@@ -349,7 +350,7 @@ fun BasicInfoSection(
                     ) {
                         drawRect(Color(0xFFE8E8E8))
                         drawRect(
-                            Color(0xFF4CAF50),
+                            GameColors.Success,
                             size = Size(size.width * animatedCultivationProgress, size.height)
                         )
                     }
@@ -365,7 +366,7 @@ fun BasicInfoSection(
                     Text(
                         text = "${String.format(LocalLocale.current.platformLocale, "%.1f", cultivationSpeed)}/旬",
                         fontSize = 10.sp,
-                        color = Color(0xFF4CAF50)
+                        color = GameColors.Success
                     )
                 }
             } else {
@@ -449,7 +450,7 @@ fun HpMpBars(
             ) {
                 drawRect(Color(0xFFE8E8E8))
                 drawRect(
-                    Color(0xFFE74C3C),
+                    GameColors.Error,
                     size = Size(size.width * animatedHpProgress, size.height)
                 )
             }
@@ -483,7 +484,7 @@ fun HpMpBars(
             ) {
                 drawRect(Color(0xFFE8E8E8))
                 drawRect(
-                    Color(0xFF3498DB),
+                    GameColors.Info,
                     size = Size(size.width * animatedMpProgress, size.height)
                 )
             }
@@ -594,7 +595,7 @@ fun BreakthroughDetailDialog(
                                         text = "${if (value >= 0) "+" else ""}${GameUtils.formatPercent(value)}",
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (value >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                                        color = if (value >= 0) GameColors.Success else GameColors.Error
                                     )
                                 }
                             }

@@ -99,6 +99,12 @@ object GameColors {
     val ButtonBorder = Color(0xFFC4A484)
     val SelectedBorder = Color(0xFFFFD700)
 
+    /** 浅灰表面（0xFFE0E0E0 统一入口） */
+    val SurfaceLightGray = Color(0xFFE0E0E0)
+
+    /** 分隔线灰（0xFFCCCCCC 统一入口） */
+    val DividerGray = Color(0xFFCCCCCC)
+
     val TapTapGreen = Color(0xFF00D26A)
 
     fun getRarityColor(rarity: Int): Color = when (rarity) {

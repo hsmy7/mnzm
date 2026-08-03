@@ -23,6 +23,7 @@ import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import kotlinx.coroutines.launch
+import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
 fun WarehouseDialog(
@@ -74,10 +75,10 @@ fun WarehouseDialog(
                 try {
                     Color(android.graphics.Color.parseColor(garrisonDisciple.spiritRoot.countColor))
                 } catch (e: Exception) {
-                    Color(0xFF4CAF50)
+                    GameColors.Success
                 }
             } else {
-                Color(0xFFE0E0E0)
+                GameColors.SurfaceLightGray
             }
 
             DiscipleSlot(

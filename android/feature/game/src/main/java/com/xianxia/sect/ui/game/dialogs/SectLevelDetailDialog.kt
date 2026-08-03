@@ -274,7 +274,7 @@ private fun ConditionRow(condition: UpgradeConditionState) {
                     text = "✓",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF4CAF50)
+                    color = GameColors.Success
                 )
             }
         }

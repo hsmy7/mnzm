@@ -125,25 +125,25 @@ fun SectTradeDialog(
                         Text(
                             text = "(盟友)",
                             fontSize = 10.sp,
-                            color = Color(0xFF4CAF50),
+                            color = GameColors.Success,
                             fontWeight = FontWeight.Bold
                         )
                         Text(
                             text = "(${String.format(LocalLocale.current.platformLocale, "%.1f%%", (1 - priceMultiplier) * 100)}折扣)",
                             fontSize = 10.sp,
-                            color = Color(0xFF4CAF50)
+                            color = GameColors.Success
                         )
                     } else if (relation >= 70) {
                         Text(
                             text = "(${String.format(LocalLocale.current.platformLocale, "%.1f%%", (1 - priceMultiplier) * 100)}折扣)",
                             fontSize = 10.sp,
-                            color = Color(0xFF4CAF50)
+                            color = GameColors.Success
                         )
                     } else if (!canTrade) {
                         Text(
                             text = "(关系不足，无法交易)",
                             fontSize = 10.sp,
-                            color = Color(0xFFF44336)
+                            color = GameColors.Error
                         )
                     }
                 }
@@ -369,7 +369,7 @@ fun SectTradeDialog(
                                     text = "好感度不足",
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFFF9800)
+                                    color = GameColors.Warning
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
                                 if (!canTrade) {
@@ -382,7 +382,7 @@ fun SectTradeDialog(
                                     Text(
                                         text = "需要好感度达到40（普通关系）才能解锁交易",
                                         fontSize = 12.sp,
-                                        color = Color(0xFFBDBDBD),
+                                        color = GameColors.ButtonDisabled,
                                         textAlign = TextAlign.Center
                                     )
                                 } else {
@@ -402,7 +402,7 @@ fun SectTradeDialog(
                                     Text(
                                         text = "需要好感度达到${requiredFavorLevel(lockedItemRarity)}才能购买此品阶物品",
                                         fontSize = 12.sp,
-                                        color = Color(0xFFBDBDBD),
+                                        color = GameColors.ButtonDisabled,
                                         textAlign = TextAlign.Center
                                     )
                                 }
@@ -411,7 +411,7 @@ fun SectTradeDialog(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(8.dp))
                                         .clickable { showRelationWarning = false },
-                                    color = Color(0xFF4CAF50)
+                                    color = GameColors.Success
                                 ) {
                                     Text(
                                         text = "我知道了",

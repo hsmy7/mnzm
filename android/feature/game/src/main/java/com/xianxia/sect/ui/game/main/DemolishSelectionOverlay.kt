@@ -20,13 +20,14 @@ import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.util.GridSnapHelper
 import com.xianxia.sect.ui.game.map.sect.SectCameraState
+import com.xianxia.sect.ui.theme.GameColors
 
 /** 未选中占地范围：半透明绿色（与放置预览一致） */
 private val UNSELECTED_COLOR = Color(0x664CAF50)
 /** 选中占地范围：半透明红色 */
 private val SELECTED_COLOR = Color(0x66F44336)
 /** 选中建筑边框：不透明红色 */
-private val SELECTED_BORDER_COLOR = Color(0xFFF44336)
+private val SELECTED_BORDER_COLOR = GameColors.Error
 /** 绿→红过渡时长（毫秒） */
 private const val SELECTION_ANIM_MS = 180
 /** 选中边框厚度（像素） */

@@ -17,6 +17,7 @@ import com.xianxia.sect.ui.components.*
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
+import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
 fun ResidenceDialog(
@@ -71,7 +72,7 @@ fun ResidenceDialog(
                     Text(
                         text = "+${bonusParts[1]}",
                         fontSize = 12.sp,
-                        color = Color(0xFF4CAF50),
+                        color = GameColors.Success,
                         fontWeight = FontWeight.Bold
                     )
                 }

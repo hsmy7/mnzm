@@ -34,7 +34,7 @@ import com.xianxia.sect.ui.game.HeavenlyTrialViewModel
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.components.clickableWithSound
 
-private val PanelBg = Color(0xFFF6EBD5)
+private val PanelBg = GameColors.ButtonBackground
 
 @Composable
 fun ActivityDialog(
@@ -180,7 +180,7 @@ fun ActivityDialog(
                             modifier = Modifier
                                 .width(1.dp)
                                 .fillMaxHeight()
-                                .background(Color(0xFFBDBDBD))
+                                .background(GameColors.ButtonDisabled)
                         )
 
                         Column(

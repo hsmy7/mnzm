@@ -185,7 +185,7 @@ private fun ActiveMissionCard(
                     Text(
                         text = "执行中",
                         fontSize = 10.sp,
-                        color = Color(0xFF2196F3),
+                        color = GameColors.Info,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -202,8 +202,8 @@ private fun ActiveMissionCard(
                     .fillMaxWidth()
                     .height(4.dp)
                     .clip(RoundedCornerShape(2.dp)),
-                color = Color(0xFF2196F3),
-                trackColor = Color(0xFFE0E0E0)
+                color = GameColors.Info,
+                trackColor = GameColors.SurfaceLightGray
             )
 
             Row(
@@ -366,8 +366,8 @@ private fun ActiveMissionDetailDialog(
                             .fillMaxWidth()
                             .height(8.dp)
                             .clip(RoundedCornerShape(4.dp)),
-                        color = Color(0xFF4CAF50),
-                        trackColor = Color(0xFFE0E0E0)
+                        color = GameColors.Success,
+                        trackColor = GameColors.SurfaceLightGray
                     )
 
                     Row(
@@ -459,16 +459,16 @@ private fun MissionDiscipleSlot(
     ) {
         // HP bar above slot, width matches slot
         val hpColor = when {
-            hpRatio > 0.6f -> Color(0xFF4CAF50)
-            hpRatio > 0.3f -> Color(0xFFFF9800)
-            else -> Color(0xFFF44336)
+            hpRatio > 0.6f -> GameColors.Success
+            hpRatio > 0.3f -> GameColors.Warning
+            else -> GameColors.Error
         }
         Box(
             modifier = Modifier
                 .width(52.dp)
                 .height(6.dp)
                 .clip(RoundedCornerShape(3.dp))
-                .background(Color(0xFFE0E0E0))
+                .background(GameColors.SurfaceLightGray)
         ) {
             Box(
                 modifier = Modifier
@@ -520,10 +520,10 @@ private fun formatSpiritStoneReward(rewards: MissionRewardConfig): String {
 
 private fun getDifficultyColor(difficulty: MissionDifficulty): Color {
     return when (difficulty) {
-        MissionDifficulty.SIMPLE -> Color(0xFF4CAF50)
-        MissionDifficulty.NORMAL -> Color(0xFF2196F3)
-        MissionDifficulty.HARD -> Color(0xFFFF9800)
-        MissionDifficulty.FORBIDDEN -> Color(0xFFF44336)
+        MissionDifficulty.SIMPLE -> GameColors.Success
+        MissionDifficulty.NORMAL -> GameColors.Info
+        MissionDifficulty.HARD -> GameColors.Warning
+        MissionDifficulty.FORBIDDEN -> GameColors.Error
     }
 }
 

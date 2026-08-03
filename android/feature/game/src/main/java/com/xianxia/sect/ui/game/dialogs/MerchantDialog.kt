@@ -229,7 +229,7 @@ fun MerchantDialog(
                                 Text("收购价格", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
                                 Text("出售", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
                             }
-                            HorizontalDivider(thickness = 1.dp, color = Color(0xFFBDBDBD))
+                            HorizontalDivider(thickness = 1.dp, color = GameColors.ButtonDisabled)
                             LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 items(sortedAcquisitionItems, key = { it.id }, contentType = { "merchant_item" }) { item ->
                                     val warehouseQty = getWarehouseQuantity(item)

@@ -84,7 +84,7 @@ fun ListingManagementDialog(
                             Text("价格", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)
                             Text("操作", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = GameColors.TextSecondary, modifier = Modifier.width(60.dp), textAlign = TextAlign.Center)
                         }
-                        HorizontalDivider(thickness = 1.dp, color = Color(0xFFBDBDBD))
+                        HorizontalDivider(thickness = 1.dp, color = GameColors.ButtonDisabled)
                         LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
                             itemsIndexed(listItems, key = { _, item -> item.id }) { index, item ->
                                 Column {
@@ -95,7 +95,9 @@ fun ListingManagementDialog(
                                         ),
                                         onDelist = { viewModel.removePlayerListedItem(item.id) }
                                     )
-                                    if (index < listItems.lastIndex) HorizontalDivider(thickness = 1.dp, color = Color(0xFFBDBDBD))
+                                    if (index < listItems.lastIndex) {
+                                        HorizontalDivider(thickness = 1.dp, color = GameColors.ButtonDisabled)
+                                    }
                                 }
                             }
                         }

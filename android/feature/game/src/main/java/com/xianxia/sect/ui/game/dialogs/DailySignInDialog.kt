@@ -382,7 +382,7 @@ private fun SignInDayCard(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = when {
-                            isClaimed -> Color(0xFF4CAF50)
+                            isClaimed -> GameColors.Success
                             isMissed -> GameColors.Error
                             else -> Color.White
                         }
@@ -543,7 +543,7 @@ private fun MilestoneRewardRow(
                         text = "已领",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF4CAF50)
+                        color = GameColors.Success
                     )
                 }
             }

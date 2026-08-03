@@ -51,7 +51,7 @@ import com.xianxia.sect.ui.theme.GameColors
 import kotlinx.serialization.json.Json
 import com.xianxia.sect.ui.components.clickableWithSound
 
-private val PanelBg = Color(0xFFF6EBD5)
+private val PanelBg = GameColors.ButtonBackground
 private val mailJson = Json { ignoreUnknownKeys = true; coerceInputValues = true }
 
 @Composable
@@ -164,7 +164,7 @@ fun MailDialog(
                         modifier = Modifier
                             .width(1.dp)
                             .fillMaxHeight()
-                            .background(Color(0xFFBDBDBD))
+                            .background(GameColors.ButtonDisabled)
                     )
 
                     Column(
@@ -339,7 +339,7 @@ private fun MailDetailPanel(
             Text("发件人: ${mail.senderName}", fontSize = 10.sp, color = Color.Gray)
         }
 
-        HorizontalDivider(thickness = 1.dp, color = Color(0xFFBDBDBD))
+        HorizontalDivider(thickness = 1.dp, color = GameColors.ButtonDisabled)
 
         // 内容 + 附件合并区
         Column(
@@ -401,7 +401,7 @@ private fun MailDetailPanel(
 
         // 按钮区 — 领取后不再显示
         if (mail.hasAttachment && !mail.attachmentClaimed) {
-            HorizontalDivider(thickness = 1.dp, color = Color(0xFFBDBDBD))
+            HorizontalDivider(thickness = 1.dp, color = GameColors.ButtonDisabled)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -472,7 +472,7 @@ private fun ClaimedAttachmentCard(
                     text = "已领",
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF4CAF50)
+                    color = GameColors.Success
                 )
                 // 数量角标（与 UnifiedItemCard 一致：右下角白字）
                 Text(

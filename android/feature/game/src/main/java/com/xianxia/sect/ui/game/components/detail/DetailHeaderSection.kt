@@ -24,6 +24,7 @@ import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.LocalDismissDropdown
 import com.xianxia.sect.ui.components.clickableWithSound
+import com.xianxia.sect.ui.theme.GameColors
 
 /**
  * 弟子详情右侧面板的操作按钮回调集合。
@@ -162,25 +163,25 @@ fun DetailRightPanel(
                 }
             }
             Box(
-                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF4CAF50))
+                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(GameColors.Success)
                     .clickableWithSound { dismissDropdown(); actions.onShowRelations() }.padding(horizontal = 6.dp, vertical = 2.dp)
             ) { Text("关系", fontSize = 10.sp, color = Color.White) }
             Box(
-                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF2196F3))
+                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(GameColors.Info)
                     .clickableWithSound { dismissDropdown(); actions.onShowStorageBag() }.padding(horizontal = 6.dp, vertical = 2.dp)
             ) { Text("储物袋", fontSize = 10.sp, color = Color.White) }
             Box(
                 modifier = Modifier.clip(RoundedCornerShape(4.dp))
-                    .background(if (disciple.isFollowed) Color(0xFFFFD700) else Color.Black)
+                    .background(if (disciple.isFollowed) GameColors.Gold else Color.Black)
                     .clickableWithSound { dismissDropdown(); viewModel?.toggleFollowDisciple(disciple.id) }
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) { Text(if (disciple.isFollowed) "已关注" else "关注", fontSize = 10.sp, color = Color.White) }
             Box(
-                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFFE74C3C))
+                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(GameColors.Error)
                     .clickableWithSound { dismissDropdown(); actions.onShowExpelConfirm() }.padding(horizontal = 6.dp, vertical = 2.dp)
             ) { Text("驱逐", fontSize = 10.sp, color = Color.White) }
             Box(
-                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFFFF9800))
+                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(GameColors.Warning)
                     .clickableWithSound { dismissDropdown(); actions.onShowChat() }.padding(horizontal = 6.dp, vertical = 2.dp)
             ) { Text("交谈", fontSize = 10.sp, color = Color.White) }
             Box(
