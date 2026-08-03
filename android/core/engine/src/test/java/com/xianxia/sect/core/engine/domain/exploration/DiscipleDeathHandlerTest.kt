@@ -81,4 +81,52 @@ class DiscipleDeathHandlerTest {
         assertEquals(5, tables.deathYears[1])
         assertEquals(10, tables.deathYears[2])
     }
+
+    // ══════════════════════════════════════════════════════════════════
+    // backfillDeathYears — 列表 copy 模式补写（replaceAll 清空列后恢复）
+    // ══════════════════════════════════════════════════════════════════
+
+    private fun makeDeadDisciple(id: Int): com.xianxia.sect.core.model.Disciple {
+        return com.xianxia.sect.core.model.Disciple(
+            id = id.toString(),
+            name = "弟子$id",
+            isAlive = false,
+            status = com.xianxia.sect.core.model.DiscipleStatus.DEAD
+        )
+    }
+
+    @Test
+    fun `backfillDeathYears writes year for dead disciples`() {
+        ensureId(1)
+        handler.backfillDeathYears(tables, listOf(makeDeadDisciple(1)), 10)
+        assertEquals(10, tables.deathYears[1])
+    }
+
+    @Test
+    fun `backfillDeathYears skips alive disciples`() {
+        ensureId(1)
+        val alive = com.xianxia.sect.core.model.Disciple(
+            id = "1", name = "存活", isAlive = true, status = com.xianxia.sect.core.model.DiscipleStatus.IDLE
+        )
+        handler.backfillDeathYears(tables, listOf(alive), 10)
+        assertFalse(tables.deathYears.contains(1))
+    }
+
+    @Test
+    fun `backfillDeathYears does not overwrite existing deathYear`() {
+        ensureId(1)
+        tables.deathYears[1] = 5
+        handler.backfillDeathYears(tables, listOf(makeDeadDisciple(1)), 10)
+        assertEquals(5, tables.deathYears[1])
+    }
+
+    @Test
+    fun `backfillDeathYears skips unparseable ids`() {
+        val bad = com.xianxia.sect.core.model.Disciple(
+            id = "not_a_number", name = "坏ID", isAlive = false,
+            status = com.xianxia.sect.core.model.DiscipleStatus.DEAD
+        )
+        handler.backfillDeathYears(tables, listOf(bad), 10)
+        assertFalse(tables.deathYears.contains(999))
+    }
 }

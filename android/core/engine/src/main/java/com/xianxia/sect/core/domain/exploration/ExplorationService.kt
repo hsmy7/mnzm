@@ -9,6 +9,7 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.exploration.BeastAttackDetector
+import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import com.xianxia.sect.core.exploration.ExplorationTeamManager
 import com.xianxia.sect.core.exploration.LootCalculator
 import com.xianxia.sect.core.exploration.PatrolBattleSystem
@@ -55,7 +56,8 @@ class ExplorationService @Inject constructor(
     private val lootCalculator: LootCalculator,
     private val explorationTeamManager: ExplorationTeamManager,
     private val rngManager: GameRngManager,
-    private val encounterBattleService: EncounterBattleService
+    private val encounterBattleService: EncounterBattleService,
+    private val deathHandler: DiscipleDeathHandler
 ) {
     /** 妖兽防守战斗结果弹窗缓存（resolveBeastFightInternal 写，UI 层读） */
     companion object {
@@ -653,15 +655,8 @@ class ExplorationService @Inject constructor(
         disciples: List<Disciple>
     ) {
         discipleTables.replaceAll(disciples)
-        disciples.filter { !it.isAlive }.forEach {
-            val idInt = it.id.toIntOrNull()
-            if (idInt != null &&
-                !discipleTables.deathYears.contains(idInt)
-            ) {
-                discipleTables.deathYears[idInt] =
-                    gameData.gameYear
-            }
-        }
+        // 死亡年份由 DiscipleDeathHandler 统一补写（replaceAll 已清空列写入）
+        deathHandler.backfillDeathYears(discipleTables, disciples, gameData.gameYear)
     }
 
     // ── 掠夺计算已迁移到 LootCalculator ─────────────────────────────────────

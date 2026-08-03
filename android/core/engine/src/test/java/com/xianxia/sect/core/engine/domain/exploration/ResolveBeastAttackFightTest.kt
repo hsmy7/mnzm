@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.domain.exploration
 
 import com.xianxia.sect.core.exploration.BeastAttackDetector
+import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import com.xianxia.sect.core.exploration.LootCalculator
 import com.xianxia.sect.core.exploration.PatrolBattleSystem
 import com.xianxia.sect.core.exploration.WorldLevelManager
@@ -89,7 +90,8 @@ class ResolveBeastAttackFightTest {
             encounterBattleService = encounterBattleService,
             cultivationService = cultivationService,
             spiritStoneWallet = spiritStoneWallet,
-            explorationTeamManager = explorationTeamManager
+            explorationTeamManager = explorationTeamManager,
+            deathHandler = mock(DiscipleDeathHandler::class.java)
         )
     }
 

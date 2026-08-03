@@ -30,6 +30,7 @@ import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.engine.LazyEvaluationDispatcher
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import javax.inject.Inject
@@ -73,7 +74,8 @@ class CaveExplorationProcessor @Inject constructor(
     private val sectWarehouseManager: SectWarehouseManager,
     private val cultivationService: CultivationService,
     private val spiritStoneWallet: SpiritStoneWallet,
-    private val rngManager: GameRngManager
+    private val rngManager: GameRngManager,
+    private val deathHandler: DiscipleDeathHandler
 ) {
     private val scope get() = scopeProvider.scope
     private val rng get() = rngManager.getRng(RngPartition.EXPLORATION)
@@ -637,30 +639,23 @@ class CaveExplorationProcessor @Inject constructor(
         ) return
         val current = tables.assembleAll()
         val updated = current.map { d ->
-            when {
-                d.id in result.deadDefenderIds -> d.copy(
-                    isAlive = false, status = DiscipleStatus.DEAD
-                )
-                else -> {
-                    val hp = result.defenderSurvivorHpMap[d.id]
-                    val mp = result.defenderSurvivorMpMap[d.id]
-                    if (hp != null && mp != null) d.copy(
-                        combat = d.combat.copy(
-                            currentHp = hp.coerceIn(0, d.maxHp),
-                            currentMp = mp.coerceIn(0, d.maxMp)
-                        )
-                    ) else d
-                }
+            if (d.id in result.deadDefenderIds) {
+                // 死亡标记由 DiscipleDeathHandler 统一写入列（见下方 markAllDead）
+                d
+            } else {
+                val hp = result.defenderSurvivorHpMap[d.id]
+                val mp = result.defenderSurvivorMpMap[d.id]
+                if (hp != null && mp != null) d.copy(
+                    combat = d.combat.copy(
+                        currentHp = hp.coerceIn(0, d.maxHp),
+                        currentMp = mp.coerceIn(0, d.maxMp)
+                    )
+                ) else d
             }
         }
         tables.replaceAll(updated)
-        // 为阵亡弟子补充 deathYears
-        updated.filter { !it.isAlive }.forEach {
-            val idInt = it.id.toIntOrNull()
-            if (idInt != null && !tables.deathYears.contains(idInt)) {
-                tables.deathYears[idInt] = gameYear
-            }
-        }
+        // 死亡标记 + deathYears 统一由 DiscipleDeathHandler 写入列
+        deathHandler.markAllDead(tables, result.deadDefenderIds.toSet(), gameYear)
     }
 
     private fun buildGarrSlots(
@@ -836,13 +831,10 @@ class CaveExplorationProcessor @Inject constructor(
                 } else disciple
             }
             discipleTables.replaceAll(newList)
-            val caveYear = stateStore.gameData.value.gameYear
-            newList.filter { !it.isAlive }.forEach {
-                val idInt = it.id.toIntOrNull()
-                if (idInt != null && !discipleTables.deathYears.contains(idInt)) {
-                    discipleTables.deathYears[idInt] = caveYear
-                }
-            }
+            // 死亡年份由 DiscipleDeathHandler 统一补写（replaceAll 已清空列写入）
+            deathHandler.backfillDeathYears(
+                discipleTables, newList, stateStore.gameData.value.gameYear
+            )
         }
         return deadDisciples
     }
@@ -1237,13 +1229,10 @@ class CaveExplorationProcessor @Inject constructor(
                 ) else d
             }
         }
-        // 为阵亡弟子补充 deathYears
-        newDisciples.filter { !it.isAlive }.forEach {
-            val idInt = it.id.toIntOrNull()
-            if (idInt != null && !state.discipleTables.deathYears.contains(idInt)) {
-                state.discipleTables.deathYears[idInt] = state.gameData.gameYear
-            }
-        }
+        // 死亡年份由 DiscipleDeathHandler 统一补写（replaceAll 已清空列写入）
+        deathHandler.backfillDeathYears(
+            state.discipleTables, newDisciples, state.gameData.gameYear
+        )
         return newDisciples
     }
 

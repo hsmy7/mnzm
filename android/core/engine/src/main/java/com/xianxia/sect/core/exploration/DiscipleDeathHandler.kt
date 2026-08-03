@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.exploration
 
+import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.util.DomainLog
@@ -44,6 +45,22 @@ class DiscipleDeathHandler @Inject constructor() {
         for (id in deadIds) {
             val idInt = id.toIntOrNull() ?: continue
             markDead(tables, idInt, deathYear)
+        }
+    }
+
+    /**
+     * 列表 copy 模式补写 deathYears（replaceAll 会清空列写入）。
+     *
+     * "assembleAll → map 标记 → replaceAll → 补 deathYears" 流水线中，
+     * replaceAll 会覆盖 [markDead]/[handleDiscipleDeath] 写入的列，
+     * 此方法在 replaceAll 之后统一恢复 deathYears。
+     */
+    fun backfillDeathYears(tables: DiscipleTables, disciples: List<Disciple>, deathYear: Int) {
+        disciples.filter { !it.isAlive }.forEach {
+            val idInt = it.id.toIntOrNull()
+            if (idInt != null && !tables.deathYears.contains(idInt)) {
+                tables.deathYears[idInt] = deathYear
+            }
         }
     }
 

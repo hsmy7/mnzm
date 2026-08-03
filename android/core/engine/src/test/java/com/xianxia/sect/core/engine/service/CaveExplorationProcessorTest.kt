@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine.service
 import com.xianxia.sect.core.engine.SectWarehouseManager
 import com.xianxia.sect.core.engine.domain.battle.AttackWarningService
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
+import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
@@ -164,7 +165,8 @@ class CaveExplorationProcessorTest {
             sectWarehouseManager = mock(SectWarehouseManager::class.java),
             cultivationService = mock(CultivationService::class.java),
             spiritStoneWallet = mock(SpiritStoneWallet::class.java),
-            rngManager = mock(GameRngManager::class.java)
+            rngManager = mock(GameRngManager::class.java),
+            deathHandler = mock(DiscipleDeathHandler::class.java)
         )
     }
 

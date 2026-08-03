@@ -1,9 +1,19 @@
 package com.xianxia.sect.core.engine.service
 
-import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.engine.domain.battle.BattleMemberData
 import com.xianxia.sect.core.engine.domain.exploration.MissionSystem
+import com.xianxia.sect.core.exploration.DiscipleDeathHandler
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.state.DiscipleTables
+import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.MutableGameState
 import org.junit.Assert.*
 import org.junit.Test
+import org.mockito.kotlin.any
+import org.mockito.kotlin.eq
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 
 /**
  * CultivationEventProcessor 自动装备/学习相关单元测试。
@@ -15,6 +25,92 @@ import org.junit.Test
  * 和 DiscipleBreakthroughHandler 中存在，逻辑一致。
  */
 class CultivationEventProcessorTest {
+
+    // ═══════════════════════════════════════════════════════════════
+    // updateDiscipleHpMpAfterBattle — 死亡标记收敛回归（P2A）
+    // 重构后：幸存者更新 HP/MP，死亡标记统一走 DiscipleDeathHandler
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `updateDiscipleHpMpAfterBattle - 幸存者更新HP MP 阵亡者走markAllDead`() {
+        val stateStore = mock<GameStateStore>()
+        val deathHandler = mock<DiscipleDeathHandler>()
+        val processor = createProcessorWith(stateStore, deathHandler)
+
+        val survivor = Disciple(id = "1", name = "幸存", isAlive = true)
+        val fallen = Disciple(id = "2", name = "阵亡", isAlive = true)
+        whenever(stateStore.disciples).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(listOf(survivor, fallen)))
+        whenever(stateStore.gameData).thenReturn(
+            kotlinx.coroutines.flow.MutableStateFlow(com.xianxia.sect.core.model.GameData(gameYear = 30))
+        )
+
+        // mock update 执行 lambda（真实 MutableGameState 传入）
+        val tables = DiscipleTables().apply { writeAllowed = true }
+        val state = MutableGameState(
+            gameData = com.xianxia.sect.core.model.GameData(gameYear = 30),
+            discipleTables = tables,
+            equipmentStacks = com.xianxia.sect.core.state.EntityStore(),
+            equipmentInstances = com.xianxia.sect.core.state.EntityStore(),
+            manualStacks = com.xianxia.sect.core.state.EntityStore(),
+            manualInstances = com.xianxia.sect.core.state.EntityStore(),
+            pills = com.xianxia.sect.core.state.EntityStore(),
+            materials = com.xianxia.sect.core.state.EntityStore(),
+            herbs = com.xianxia.sect.core.state.EntityStore(),
+            seeds = com.xianxia.sect.core.state.EntityStore(),
+            storageBags = com.xianxia.sect.core.state.EntityStore(),
+            teams = emptyList(),
+            battleLogs = emptyList(),
+            isPaused = false, isLoading = false, isSaving = false
+        )
+        whenever(stateStore.update(any())).thenAnswer { inv ->
+            inv.getArgument<MutableGameState.() -> Unit>(0).invoke(state)
+        }
+
+        processor.updateDiscipleHpMpAfterBattle(
+            listOf(
+                BattleMemberData(id = "1", isAlive = true, hp = 80, maxHp = 100, mp = 60, maxMp = 100),
+                BattleMemberData(id = "2", isAlive = false, hp = 0, maxHp = 100, mp = 0, maxMp = 100)
+            )
+        )
+
+        // 阵亡者由 DiscipleDeathHandler 统一标记（死亡 + deathYear 一并写入）
+        verify(deathHandler).markAllDead(eq(tables), eq(setOf("2")), eq(30))
+        // 幸存者不受 markAllDead 影响
+        assertEquals(1, tables.isAlive[1])
+    }
+
+    private fun createProcessorWith(
+        stateStore: GameStateStore,
+        deathHandler: DiscipleDeathHandler
+    ): CultivationEventProcessor {
+        return CultivationEventProcessor(
+            stateStore = stateStore,
+            spiritStoneWallet = mock(),
+            inventorySystem = mock(),
+            inventoryConfig = mock(),
+            scopeProvider = mock(),
+            discipleService = mock(),
+            cultivationCore = mock(),
+            breakthroughHandler = mock(),
+            cultivationSettlement = mock(),
+            battleSystem = mock(),
+            recruitService = mock(),
+            merchantAndRecruitService = mock(),
+            caveExplorationProcessor = mock(),
+            discipleLifecycleProcessor = mock(),
+            diplomacyEventProcessor = mock(),
+            equipmentManager = mock(),
+            manualManager = mock(),
+            autoBuyService = mock(),
+            vassalService = mock(),
+            disciplePurchaseService = mock(),
+            aiSectBeastAttackProcessor = mock(),
+            lawEnforcementProcessor = mock(),
+            rngManager = mock(),
+            secretRealmService = mock(),
+            deathHandler = deathHandler
+        )
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // qualifiesForSectAutoPublic — Disciple 字段访问验证

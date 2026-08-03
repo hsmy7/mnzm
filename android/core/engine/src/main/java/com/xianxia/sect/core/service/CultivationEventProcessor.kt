@@ -22,6 +22,7 @@ import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.domain.diplomacy.VassalService
 import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
+import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import javax.inject.Inject
 import javax.inject.Singleton
 @Singleton
@@ -50,7 +51,8 @@ class CultivationEventProcessor @Inject constructor(
     private val aiSectBeastAttackProcessor: AISectBeastAttackProcessor,
     private val lawEnforcementProcessor: LawEnforcementProcessor,
     private val rngManager: GameRngManager,
-    private val secretRealmService: SecretRealmService
+    private val secretRealmService: SecretRealmService,
+    private val deathHandler: DiscipleDeathHandler
 ) {
     private val scope get() = scopeProvider.scope
     companion object {
@@ -475,31 +477,23 @@ class CultivationEventProcessor @Inject constructor(
     // ── 战斗/探索辅助 ──────────────────────────────────────────────────
     fun updateDiscipleHpMpAfterBattle(battleMembers: List<BattleMemberData>) {
         val survivorIds = battleMembers.filter { it.isAlive }.map { it.id }.toSet()
+        val deadIds = battleMembers.filter { it.id !in survivorIds }.map { it.id }.toSet()
         val disciples = stateStore.disciples.value.toMutableList()
         var changed = false
         team@ for (member in battleMembers) {
             val discipleIndex = disciples.indexOfFirst { it.id == member.id }
-            if (discipleIndex < 0) continue@team
+            if (discipleIndex < 0 || member.id !in survivorIds) continue@team
             val disciple = disciples[discipleIndex]
-            if (!survivorIds.contains(member.id)) {
-                disciples[discipleIndex] = disciple.copy(isAlive = false, status = DiscipleStatus.DEAD)
-                changed = true
-            } else {
-                val hp = member.hp.coerceAtMost(member.maxHp)
-                val mp = member.mp.coerceAtMost(member.maxMp)
-                disciples[discipleIndex] = disciple.copy(combat = disciple.combat.copy(currentHp = hp, currentMp = mp))
-                changed = true
-            }
+            val hp = member.hp.coerceAtMost(member.maxHp)
+            val mp = member.mp.coerceAtMost(member.maxMp)
+            disciples[discipleIndex] = disciple.copy(combat = disciple.combat.copy(currentHp = hp, currentMp = mp))
+            changed = true
         }
         if (changed) {
             stateStore.update {
                 discipleTables.replaceAll(disciples)
-                // 为阵亡弟子补充 deathYears（replaceAll 已清空，单独恢复）
-                val battleYear = stateStore.gameData.value.gameYear
-                disciples.filter { !it.isAlive }.forEach {
-                    val idInt = it.id.toIntOrNull()
-                    if (idInt != null) discipleTables.deathYears[idInt] = battleYear
-                }
+                // 死亡标记 + deathYears 统一由 DiscipleDeathHandler 写入列
+                deathHandler.markAllDead(discipleTables, deadIds, stateStore.gameData.value.gameYear)
             }
         }
     }
@@ -522,14 +516,11 @@ class CultivationEventProcessor @Inject constructor(
         }
         stateStore.update {
             discipleTables.replaceAll(currentDisciplesList)
-            // handleDiscipleDeath 已设置 deathYears 但被 replaceAll 清空，单独恢复
-            val explorationYear = stateStore.gameData.value.gameYear
-            currentDisciplesList.filter { !it.isAlive }.forEach {
-                val idInt = it.id.toIntOrNull()
-                if (idInt != null && !discipleTables.deathYears.contains(idInt)) {
-                    discipleTables.deathYears[idInt] = explorationYear
-                }
-            }
+            // handleDiscipleDeath 已设置 deathYears 但被 replaceAll 清空，
+            // 由 DiscipleDeathHandler 统一补写
+            deathHandler.backfillDeathYears(
+                discipleTables, currentDisciplesList, stateStore.gameData.value.gameYear
+            )
         }
     }
     // ── 侦察/外交 ──────────────────────────────────────────────────────
