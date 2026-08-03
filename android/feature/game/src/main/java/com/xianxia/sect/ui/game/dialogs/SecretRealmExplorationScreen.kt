@@ -124,7 +124,9 @@ fun SecretRealmExplorationScreen(
     val memberUis = remember(session, disciples) {
         session?.members?.map { ms -> ms.toMemberHpUi(disciples) } ?: emptyList()
     }
-    val event = session?.currentEvent
+    // 篡改档防御：会话不活跃（members 为空）时即使 currentEvent 非空也不渲染幻影事件，
+    // 引擎 validateChoice 已拒绝选择（对抗性审查 C-L1）；"结束探索"按钮仍可用防软锁
+    val event = session?.takeIf { it.isActive }?.currentEvent
     val stamina = session?.stamina ?: 0
 
     // 当前事件逐行播放完成标记：新事件重置；收起卡片重新查看事件时直接全量显示（不重复播放）
@@ -387,7 +389,11 @@ private fun EventContent(
             }
             // 第 2 行：内容块（妖兽事件 = 精灵图+境界视为一行；其他 = 描述）
             if (visibleLines >= 2) {
-                if (event.params.beastTypeName.isNotEmpty()) {
+                // 篡改档防御：仅妖兽事件类型渲染精灵图分支——方向事件等被篡改 params
+                // 时不再伪造妖兽遭遇展示（对抗性审查 C-L2）
+                if (event.eventType == com.xianxia.sect.core.model.SecretRealmEventType.BEAST_ENCOUNTER.name &&
+                    event.params.beastTypeName.isNotEmpty()
+                ) {
                     BeastEventContent(event = event)
                 } else {
                     Spacer(modifier = Modifier.height(8.dp))

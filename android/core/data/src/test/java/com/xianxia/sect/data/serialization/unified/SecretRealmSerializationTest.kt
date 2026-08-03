@@ -216,6 +216,35 @@ class SecretRealmSerializationTest {
         assertEquals("equipment", resultEvent.params.itemRewards.first().type)
     }
 
+    @Test
+    fun `direction event round-trips options and stamina cost`() {
+        val session = SecretRealmExplorationSession(
+            secretRealmId = "realm_3",
+            members = listOf(
+                SecretRealmMemberState(discipleId = "1", name = "张三", currentHp = -1)
+            ),
+            stamina = 12,
+            currentEvent = SecretRealmEventRecord(
+                eventType = SecretRealmEventType.DIRECTION_CHOICE.name,
+                title = "探索方向",
+                description = "你方击退了1只虎妖，请选择探索方向",
+                options = listOf(
+                    SecretRealmOption("向左走", ""),
+                    SecretRealmOption("走中间", ""),
+                    SecretRealmOption("向右走", "")
+                )
+            )
+        )
+        val restored = roundTrip(session)
+        val event = restored.currentEvent ?: return
+        assertEquals(SecretRealmEventType.DIRECTION_CHOICE.name, event.eventType)
+        assertEquals("探索方向", event.title)
+        assertEquals("你方击退了1只虎妖，请选择探索方向", event.description)
+        assertEquals(listOf("向左走", "走中间", "向右走"), event.options.map { it.label })
+        // 方向选项默认体力消耗 1 往返保持（@EncodeDefault(ALWAYS) 守卫）
+        assertTrue(event.options.all { it.staminaCost == 1 })
+    }
+
     /** 秘境会话 → SaveData → 往返 → 恢复会话 */
     private fun roundTrip(session: SecretRealmExplorationSession): SecretRealmExplorationSession {
         val save = SaveData(

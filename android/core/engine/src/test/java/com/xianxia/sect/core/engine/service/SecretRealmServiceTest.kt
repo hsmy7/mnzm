@@ -299,7 +299,7 @@ class SecretRealmServiceTest {
         val history = state.gameData.secretRealmSession.eventHistory
         assertEquals(1, history.size)
         assertEquals(1, history.last().chosenOptionIndex)
-        // 新事件（衔接）未标记，可继续选择
+        // 新事件（探索方向）未标记，可继续选择
         val next = state.gameData.secretRealmSession.currentEvent
         assertEquals(-1, next?.chosenOptionIndex)
     }
@@ -316,15 +316,29 @@ class SecretRealmServiceTest {
         val session = state.gameData.secretRealmSession
         assertEquals(19, session.stamina)
         assertEquals(500L, session.backpack.spiritStones)
-        // 衔接事件已移除：结算后直接进入下一真实事件
+        // 战斗结算后进入探索方向事件（结束选项），描述含战斗结果文本
+        assertEquals(SecretRealmEventType.DIRECTION_CHOICE.name, session.currentEvent?.eventType)
+        assertEquals("探索方向", session.currentEvent?.title)
+        assertTrue(session.currentEvent?.description?.contains("战斗结束") == true)
+        assertTrue(session.currentEvent?.description?.contains("请选择探索方向") == true)
+        assertEquals(
+            listOf("向左走", "走中间", "向右走"),
+            session.currentEvent?.options?.map { it.label }
+        )
+        assertFalse(result.isSessionEnded)
+        // 选择方向（扣 1 体力）后进入下一真实事件
+        val directionResult = service.chooseOption(0, state)
+        assertTrue(directionResult.isSuccess)
+        val afterDirection = state.gameData.secretRealmSession
         assertTrue(
-            session.currentEvent?.eventType in setOf(
+            afterDirection.currentEvent?.eventType in setOf(
                 SecretRealmEventType.BEAST_ENCOUNTER.name,
                 SecretRealmEventType.REST_AREA.name,
                 SecretRealmEventType.RUIN_EXPLORE.name
             )
         )
-        assertFalse(result.isSessionEnded)
+        assertEquals(18, afterDirection.stamina)
+        assertTrue(afterDirection.resultMessage.contains("左路"))
     }
 
     @Test

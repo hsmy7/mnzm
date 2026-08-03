@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine.domain.exploration
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.SecretRealmBackpack
+import com.xianxia.sect.core.model.SecretRealmEventParams
 import com.xianxia.sect.core.model.SecretRealmEventRecord
 import com.xianxia.sect.core.model.SecretRealmExplorationSession
 import com.xianxia.sect.core.model.SecretRealmRewardItem
@@ -29,14 +30,14 @@ internal object SecretRealmRuinsResolver {
         rng: DeterministicRng
     ): SecretRealmBeastChoiceResolution {
         if (optionIndex == 0) {
-            return bridgeResolution("你方决定离开遗迹，继续探索", session, rng)
+            return directionResolution("你方决定离开遗迹，继续探索", session)
         }
         return resolveRuinsSearch(optionIndex, session, rng)
     }
 
     /**
      * 遗迹搜寻结算：RUINS_TREASURE_CHANCE 概率发现秘宝（描述符生成 → 实例化入背包），
-     * 否则空无一物。结果以 RUIN_RESULT 子事件呈现（选项"继续前进"进入衔接事件）。
+     * 否则空无一物。结果文本直接进入探索方向事件（秘宝明细含在结算文本中）。
      *
      * RNG 消费顺序（确定性关键，顺序固定）：1×nextDouble(秘宝判定) → 秘宝路径
      * 1×nextInt(数量) → 每件 3×nextInt（类型/品阶/模板选取）。
@@ -73,38 +74,34 @@ internal object SecretRealmRuinsResolver {
         val itemText = rewards.joinToString("、") {
             it.name + if (it.quantity > 1) "×${it.quantity}" else ""
         }
-        val nextEvent = SecretRealmEventGenerator.generateRuinsResultEvent(
-            title = "发现秘宝",
-            description = "发现物品：$itemText",
-            itemRewards = rewards
-        )
+        val resultText = "你方在遗迹中发现了宝物！获得：$itemText"
         return SecretRealmBeastChoiceResolution(
-            resultText = "你方在遗迹中发现了宝物！",
+            resultText = resultText,
             members = session.members,
             backpack = newBackpack,
-            params = nextEvent.params,
-            nextEvent = nextEvent
+            // 秘宝描述符入 params：chooseOption 写 eventHistory 时保留（行为与原 RUIN_RESULT 一致）
+            params = SecretRealmEventParams(itemRewards = rewards),
+            nextEvent = SecretRealmEventGenerator.generateDirectionEvent(resultText)
         )
     }
 
     /** 空无一物结算载体（未发现秘宝 / 数据空洞降级共用；携带会话背包防清空） */
     private fun emptyRuinsResolution(
         session: SecretRealmExplorationSession
-    ): SecretRealmBeastChoiceResolution = SecretRealmBeastChoiceResolution(
-        resultText = "你方在遗迹中搜寻一番，空无一物",
-        members = session.members,
-        backpack = session.backpack,
-        nextEvent = SecretRealmEventGenerator.generateRuinsResultEvent(
-            title = "空无一物",
-            description = "这里什么都没有"
+    ): SecretRealmBeastChoiceResolution {
+        val resultText = "你方在遗迹中搜寻一番，空无一物"
+        return SecretRealmBeastChoiceResolution(
+            resultText = resultText,
+            members = session.members,
+            backpack = session.backpack,
+            nextEvent = SecretRealmEventGenerator.generateDirectionEvent(resultText)
         )
-    )
+    }
 
-    /** 遗迹结果子事件：唯一选项"继续前进" → 下一事件（按有无奖励区分文案，防篡改档 title 不一致） */
+    /** 旧档兼容路径：RUIN_RESULT 唯一选项"继续前进" → 探索方向事件（按有无奖励区分文案，防篡改档 title 不一致） */
     fun resolveRuinsResult(
         session: SecretRealmExplorationSession,
-        event: SecretRealmEventRecord,
-        rng: DeterministicRng
+        event: SecretRealmEventRecord
     ): SecretRealmBeastChoiceResolution {
         val resultText = if (event.params.itemRewards.isEmpty()) {
             "遗迹中空无一物，你方继续前行"
@@ -114,7 +111,7 @@ internal object SecretRealmRuinsResolver {
         // 保留 event.params（itemRewards 秘宝描述符）——chooseOption 写入 eventHistory 时
         // 用 resolution.params 覆盖 markedEvent.params，若不携带则历史中秘宝明细丢失
         // （与 BEAST_ENCOUNTER 历史保留掉落描述符行为一致，对抗性审查发现）
-        return bridgeResolution(resultText, session, rng).copy(params = event.params)
+        return directionResolution(resultText, session).copy(params = event.params)
     }
 
     /**
@@ -204,16 +201,13 @@ internal object SecretRealmRuinsResolver {
     } ?: backpack
 }
 
-/** 无战斗分支结算载体（成员不变，携带会话背包防 chooseOption 空覆盖；结算后直接进入下一事件） */
-private fun bridgeResolution(
+/** 无战斗分支结算载体（成员不变，携带会话背包防 chooseOption 空覆盖；结算后进入探索方向事件） */
+private fun directionResolution(
     resultText: String,
-    session: SecretRealmExplorationSession,
-    rng: DeterministicRng
+    session: SecretRealmExplorationSession
 ): SecretRealmBeastChoiceResolution = SecretRealmBeastChoiceResolution(
     resultText = resultText,
     members = session.members,
     backpack = session.backpack,
-    nextEvent = SecretRealmEventGenerator.rollNextEvent(
-        rng, SecretRealmEventGenerator.playerAvgRealm(session.members)
-    )
+    nextEvent = SecretRealmEventGenerator.generateDirectionEvent(resultText)
 )

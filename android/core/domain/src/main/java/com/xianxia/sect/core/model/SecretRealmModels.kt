@@ -50,7 +50,7 @@ data class SecretRealmExplorationSession(
     @ProtoNumber(7) val startYear: Int = 1,
     @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(8) val startMonth: Int = 1,
-    /** 上个事件的结果描述（衔接事件前缀） */
+    /** 上个事件结算的结果描述（成为方向事件描述前缀） */
     @ProtoNumber(9) val resultMessage: String = ""
 ) {
     /** 会话是否有活跃探索（运行时推导，不序列化） */
@@ -85,7 +85,7 @@ data class SecretRealmMemberState(
 @Serializable
 @Immutable
 data class SecretRealmEventRecord(
-    /** SecretRealmEventType.name：BEAST_ENCOUNTER / REST_AREA / RUIN_EXPLORE / RUIN_RESULT / BRIDGE */
+    /** SecretRealmEventType.name：BEAST_ENCOUNTER / REST_AREA / RUIN_EXPLORE / RUIN_RESULT（旧档兼容）/ DIRECTION_CHOICE */
     @ProtoNumber(1) val eventType: String = "",
     @ProtoNumber(2) val title: String = "",
     @ProtoNumber(3) val description: String = "",
@@ -93,7 +93,7 @@ data class SecretRealmEventRecord(
     /** 已选择选项下标，-1 = 未选择（进行中） */
     @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     @ProtoNumber(5) val chosenOptionIndex: Int = -1,
-    /** 选择后的反馈文本（成为衔接事件前缀） */
+    /** 选择后的反馈文本（结算结果，方向事件描述以此开头） */
     @ProtoNumber(6) val resultText: String = "",
     @ProtoNumber(7) val params: SecretRealmEventParams = SecretRealmEventParams(),
     @ProtoNumber(8) val absoluteMonth: Int = 0
@@ -210,6 +210,8 @@ enum class SecretRealmEventType {
     REST_AREA,
     /** 发现遗迹事件（选项：直接离开 / 简单搜寻 / 仔细搜寻） */
     RUIN_EXPLORE,
-    /** 遗迹搜寻结果子事件（空无一物 / 发现秘宝，title 区分） */
-    RUIN_RESULT
+    /** 仅旧档兼容：历史存档中的遗迹结果子事件，新流程不再生成（结算文本直接进入方向事件） */
+    RUIN_RESULT,
+    /** 探索方向事件（结束选项）：事件结算后固定弹出（向左走 / 走中间 / 向右走），选择后进入下一真实事件 */
+    DIRECTION_CHOICE
 }

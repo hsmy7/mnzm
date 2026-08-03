@@ -2,7 +2,6 @@ package com.xianxia.sect.core.engine.domain.exploration
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.SecretRealmEventType
-import com.xianxia.sect.core.model.SecretRealmRewardItem
 import com.xianxia.sect.core.util.DeterministicRng
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -121,7 +120,7 @@ class SecretRealmEventGeneratorTest {
         val event = SecretRealmEventGenerator.rollNextEvent(
             DeterministicRng.fromSeed(BEAST_SEED), playerAvgRealm = 5
         )
-        // 衔接事件已移除：事件流直接推进至真实事件
+        // 方向选择后的 rollNextEvent 只产出真实事件（方向事件不经此处生成）
         assertTrue(
             event.eventType == SecretRealmEventType.BEAST_ENCOUNTER.name ||
                 event.eventType == SecretRealmEventType.REST_AREA.name ||
@@ -174,32 +173,26 @@ class SecretRealmEventGeneratorTest {
     }
 
     @Test
-    fun `generateRuinsResultEvent - 空无一物子事件正确`() {
-        val event = SecretRealmEventGenerator.generateRuinsResultEvent(
-            title = "空无一物",
-            description = "这里什么都没有"
-        )
-        assertEquals(SecretRealmEventType.RUIN_RESULT.name, event.eventType)
-        assertEquals("空无一物", event.title)
-        assertEquals("这里什么都没有", event.description)
-        assertEquals(listOf("继续前进"), event.options.map { it.label })
+    fun `generateDirectionEvent - 标题描述选项与体力消耗正确`() {
+        val event = SecretRealmEventGenerator.generateDirectionEvent("战斗结束！你方击退了1只虎妖")
+        assertEquals(SecretRealmEventType.DIRECTION_CHOICE.name, event.eventType)
+        assertEquals("探索方向", event.title)
+        assertEquals("战斗结束！你方击退了1只虎妖，请选择探索方向", event.description)
+        assertEquals(listOf("向左走", "走中间", "向右走"), event.options.map { it.label })
+        // 三个方向选项均消耗 1 体力（与事件选项一致）
+        assertTrue(event.options.all { it.staminaCost == 1 })
+        // params 妖兽字段为空 → UI 走描述分支而非妖兽精灵图分支
+        assertTrue(event.params.beastTypeName.isEmpty())
         assertTrue(event.params.itemRewards.isEmpty())
     }
 
     @Test
-    fun `generateRuinsResultEvent - 秘宝子事件携带奖励描述`() {
-        val rewards = listOf(
-            SecretRealmRewardItem(type = "equipment", itemId = "e1", name = "青锋剑", rarity = 2),
-            SecretRealmRewardItem(type = "pill", itemId = "p1", name = "聚灵丹", rarity = 3)
-        )
-        val event = SecretRealmEventGenerator.generateRuinsResultEvent(
-            title = "发现秘宝",
-            description = "发现物品：青锋剑、聚灵丹",
-            itemRewards = rewards
-        )
-        assertEquals(2, event.params.itemRewards.size)
-        assertEquals("equipment", event.params.itemRewards[0].type)
-        assertEquals("聚灵丹", event.params.itemRewards[1].name)
+    fun `generateDirectionEvent - 空结果文本不产生前导逗号`() {
+        val event = SecretRealmEventGenerator.generateDirectionEvent("")
+        assertEquals("请选择探索方向", event.description)
+        // 空白串同样防御
+        val blank = SecretRealmEventGenerator.generateDirectionEvent("   ")
+        assertEquals("请选择探索方向", blank.description)
     }
 
     @Test

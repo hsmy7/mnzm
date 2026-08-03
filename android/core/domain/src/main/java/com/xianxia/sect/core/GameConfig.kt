@@ -942,8 +942,8 @@ object GameConfig {
         const val AMBUSH_BEAST_HP_REDUCTION = 0.10         // 偷袭成功：妖兽初始血量 -10%
         const val FLEE_DETECT_CHANCE = 0.30                // 选择"远离"被妖兽发现的概率
         const val AMBUSH_DETECT_CHANCE = 0.50              // 选择"偷袭"被妖兽发现的概率
-        const val REST_AREA_CHANCE = 0.30                  // 衔接方向选择后出现空地事件的概率
-        const val RUINS_CHANCE = 0.20                      // 衔接方向选择后出现发现遗迹事件的概率
+        const val REST_AREA_CHANCE = 0.30                  // 方向选择后出现空地事件的概率
+        const val RUINS_CHANCE = 0.20                      // 方向选择后出现发现遗迹事件的概率
         const val RUINS_TREASURE_CHANCE = 0.50             // 搜寻遗迹后获得秘宝（而非空无一物）的概率
         const val SIMPLE_SEARCH_COUNT_MIN = 1              // 简单搜寻获得物品数量下限
         const val SIMPLE_SEARCH_COUNT_MAX = 5              // 简单搜寻获得物品数量上限

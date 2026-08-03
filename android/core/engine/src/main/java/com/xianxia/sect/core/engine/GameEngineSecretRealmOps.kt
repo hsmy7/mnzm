@@ -172,8 +172,9 @@ suspend fun GameEngine.chooseSecretRealmOption(
  * 主动结束探索：结算背包 → 秘境消失 + 冷却 → 释放队伍成员占用。
  */
 suspend fun GameEngine.endSecretRealmExploration() = engineContextDispatcher.withEngineContext {
+    // 释放全部成员 gate（含陨落成员——与自动结束路径 releasedMemberIds 一致，
+    // 防战斗死亡弟子 gate 残留；对抗性审查 B-L4）
     val memberIds = stateStore.gameDataSnapshot.secretRealmSession.members
-        .filter { !it.isDead }
         .map { it.discipleId }
     stateStore.update {
         secretRealmService.endSession(this, SecretRealmEndReason.EXPLORER_END)

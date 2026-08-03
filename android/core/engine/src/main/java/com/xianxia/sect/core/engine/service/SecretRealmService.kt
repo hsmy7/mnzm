@@ -200,8 +200,8 @@ class SecretRealmService @Inject constructor(
     // ── 选择选项 ──────────────────────────────────────────────────────
 
     /**
-     * 玩家选择事件选项：扣体力 → 结算效果（战斗/远离/方向）→ 生成下一事件。
-     * 体力耗尽或队伍全灭时自动结束探索。
+     * 玩家选择事件选项：扣体力 → 结算效果（战斗/远离/搜寻/休整）→ 进入探索方向事件；
+     * 选择方向后生成下一真实事件。体力耗尽或队伍全灭时自动结束探索。
      */
     @Suppress("ReturnCount")
     fun chooseOption(optionIndex: Int, state: MutableGameState): SecretRealmChoiceResult {
@@ -216,16 +216,18 @@ class SecretRealmService @Inject constructor(
         val rng = rngManager.getRng(RngPartition.SECRET_REALM)
         val newStamina = calculateNewStamina(session, activeEvent, optionIndex)
         val markedEvent = activeEvent.copy(chosenOptionIndex = optionIndex)
-        // 篡改档非法 eventType 回退战斗分支（getOrDefault 兜底）
+        // 篡改档非法 eventType / 旧档 BRIDGE 回退方向事件分支（getOrDefault 兜底，无战斗更安全）
         val resolution = when (resolveEventType(activeEvent.eventType)) {
             SecretRealmEventType.BEAST_ENCOUNTER ->
                 resolveBeastEncounter(optionIndex, state, session, activeEvent, rng)
             SecretRealmEventType.REST_AREA ->
-                resolveRestArea(optionIndex, state, session, rng)
+                resolveRestArea(optionIndex, state, session)
             SecretRealmEventType.RUIN_EXPLORE ->
                 SecretRealmRuinsResolver.resolveRuinsExplore(optionIndex, session, rng)
             SecretRealmEventType.RUIN_RESULT ->
-                SecretRealmRuinsResolver.resolveRuinsResult(session, activeEvent, rng)
+                SecretRealmRuinsResolver.resolveRuinsResult(session, activeEvent)
+            SecretRealmEventType.DIRECTION_CHOICE ->
+                resolveDirectionChoice(optionIndex, session, rng)
         }
 
         val allDead = resolution.members.isNotEmpty() && resolution.members.all { it.isDead }
@@ -279,10 +281,10 @@ class SecretRealmService @Inject constructor(
         ambushSucceeded = resolution.params.ambushSucceeded
     )
 
-    /** 事件类型字符串解析（篡改档非法值回退战斗分支） */
+    /** 事件类型字符串解析（篡改档非法值 / 旧档 BRIDGE 回退方向事件分支） */
     private fun resolveEventType(eventType: String): SecretRealmEventType =
         runCatching { SecretRealmEventType.valueOf(eventType) }
-            .getOrDefault(SecretRealmEventType.BEAST_ENCOUNTER)
+            .getOrDefault(SecretRealmEventType.DIRECTION_CHOICE)
 
     /**
      * 计算选择选项后的体力：按选项自身体力消耗扣除（默认 1）。
@@ -324,6 +326,17 @@ class SecretRealmService @Inject constructor(
         if (optionIndex !in event.options.indices) {
             return SecretRealmChoiceResult.Error(message = "无效的选项")
         }
+        // 篡改档防御：体力已耗尽时拒绝结算，防 0 体力白嫖事件收益（对抗性审查 M1）
+        if (session.stamina <= 0) {
+            return SecretRealmChoiceResult.Error(message = "体力已耗尽，探索结束")
+        }
+        // 篡改档防御：体力不足所选选项消耗时拒绝——防"仔细搜寻"等高费选项在体力不足时
+        // 按低费扣费全额结算，违背"所见即所扣"承诺（对抗性审查 M2）
+        val optionCost = event.options.getOrNull(optionIndex)?.staminaCost
+            ?: GameConfig.SecretRealm.STAMINA_COST_PER_CHOICE
+        if (session.stamina < optionCost) {
+            return SecretRealmChoiceResult.Error(message = "体力不足，无法选择该选项")
+        }
         return null
     }
 
@@ -340,15 +353,15 @@ class SecretRealmService @Inject constructor(
             0 -> {
                 val detected = rng.nextDouble() < GameConfig.SecretRealm.FLEE_DETECT_CHANCE
                 if (detected) {
-                    toResolution(runBeastBattle(state, session, event.params, rng), rng)
+                    toResolution(runBeastBattle(state, session, event.params, rng))
                 } else {
-                    bridgeResolution(
-                        "你方悄然绕行，成功避开了妖兽的注意", session, rng
+                    directionResolution(
+                        "你方悄然绕行，成功避开了妖兽的注意", session
                     )
                 }
             }
             // ② 发起战斗
-            1 -> toResolution(runBeastBattle(state, session, event.params, rng), rng)
+            1 -> toResolution(runBeastBattle(state, session, event.params, rng))
             // ③ 尝试偷袭：50% 成功（妖兽血量 -10%）；失败被察觉
             else -> {
                 val ambushSucceeded =
@@ -357,8 +370,7 @@ class SecretRealmService @Inject constructor(
                     runBeastBattle(
                         state, session,
                         event.params.copy(ambushSucceeded = ambushSucceeded), rng
-                    ),
-                    rng
+                    )
                 )
             }
         }
@@ -368,8 +380,7 @@ class SecretRealmService @Inject constructor(
     private fun resolveRestArea(
         optionIndex: Int,
         state: MutableGameState,
-        session: SecretRealmExplorationSession,
-        rng: DeterministicRng
+        session: SecretRealmExplorationSession
     ): SecretRealmBeastChoiceResolution {
         if (optionIndex == 0) {
             val (newMembers, resultText) = applyRestRecovery(state, session)
@@ -378,13 +389,40 @@ class SecretRealmService @Inject constructor(
                 members = newMembers,
                 // 携带会话背包（休整不改变背包，防 chooseOption 空覆盖——对抗性审查发现）
                 backpack = session.backpack,
-                // 结算后直接进入下一事件（衔接事件已移除）
-                nextEvent = SecretRealmEventGenerator.rollNextEvent(
-                    rng, SecretRealmEventGenerator.playerAvgRealm(session.members)
-                )
+                // 休整结算后进入探索方向事件
+                nextEvent = SecretRealmEventGenerator.generateDirectionEvent(resultText)
             )
         }
-        return bridgeResolution("你方不做停留，继续探索", session, rng)
+        return directionResolution("你方不做停留，继续探索", session)
+    }
+
+    /**
+     * 方向事件分支（结束选项）：按选项索引取方向名 → 结算文本 → 消费一次 RNG 生成下一真实事件。
+     *
+     * 方向纯过渡：不触碰任何概率配置，rollNextEvent 三分段（30% 空地 / 20% 遗迹 / 妖兽）不变。
+     * RNG 消费时机与旧 BRIDGE 一致（方向选择时才消费 nextDouble），读档重放序列不变。
+     */
+    private fun resolveDirectionChoice(
+        optionIndex: Int,
+        session: SecretRealmExplorationSession,
+        rng: DeterministicRng
+    ): SecretRealmBeastChoiceResolution {
+        val directionName = when (optionIndex) {
+            0 -> "左路"
+            1 -> "中路"
+            // 篡改档防御：超出 0/1/2 的选项一律按右路处理
+            else -> "右路"
+        }
+        val resultText = "你方沿${directionName}继续前行"
+        return SecretRealmBeastChoiceResolution(
+            resultText = resultText,
+            members = session.members,
+            // 携带会话背包（方向选择不改变背包，防 chooseOption 空覆盖——对抗性审查发现）
+            backpack = session.backpack,
+            nextEvent = SecretRealmEventGenerator.rollNextEvent(
+                rng, SecretRealmEventGenerator.playerAvgRealm(session.members)
+            )
+        )
     }
 
     /**
@@ -394,7 +432,7 @@ class SecretRealmService @Inject constructor(
      * 口径说明：上限取成员战斗口径 maxHp（战斗写回维护，含装备/功法加成），旧档 0 回退基础装配值；
      * 上限不低于当前血量，防止装备加成导致"恢复反而降血"（对抗性审查）。
      *
-     * @return 恢复后的成员列表 + 结果描述（成为衔接事件前缀）
+     * @return 恢复后的成员列表 + 结果描述（成为方向事件描述前缀）
      */
     private fun applyRestRecovery(
         state: MutableGameState,
@@ -430,10 +468,9 @@ class SecretRealmService @Inject constructor(
         return newMembers to "你方原地休整，全队恢复生命状态"
     }
 
-    /** 战斗结果 → 分支结算载体（结算后直接进入下一事件） */
+    /** 战斗结果 → 分支结算载体（结算后进入探索方向事件，resultText 成为方向事件描述前缀） */
     private fun toResolution(
-        outcome: SecretRealmBattleOutcome,
-        rng: DeterministicRng
+        outcome: SecretRealmBattleOutcome
     ): SecretRealmBeastChoiceResolution = SecretRealmBeastChoiceResolution(
         resultText = outcome.resultText,
         enteredCombat = true,
@@ -443,23 +480,18 @@ class SecretRealmService @Inject constructor(
         members = outcome.members,
         deadIds = outcome.deadIds,
         params = outcome.params,
-        nextEvent = SecretRealmEventGenerator.rollNextEvent(
-            rng, SecretRealmEventGenerator.playerAvgRealm(outcome.members)
-        )
+        nextEvent = SecretRealmEventGenerator.generateDirectionEvent(outcome.resultText)
     )
 
-    /** 无战斗分支结算载体（成员不变，携带会话背包防清空——对抗性审查发现） */
-    private fun bridgeResolution(
+    /** 无战斗分支结算载体（成员不变，携带会话背包防清空——对抗性审查发现；结算后进入探索方向事件） */
+    private fun directionResolution(
         resultText: String,
-        session: SecretRealmExplorationSession,
-        rng: DeterministicRng
+        session: SecretRealmExplorationSession
     ): SecretRealmBeastChoiceResolution = SecretRealmBeastChoiceResolution(
         resultText = resultText,
         members = session.members,
         backpack = session.backpack,
-        nextEvent = SecretRealmEventGenerator.rollNextEvent(
-            rng, SecretRealmEventGenerator.playerAvgRealm(session.members)
-        )
+        nextEvent = SecretRealmEventGenerator.generateDirectionEvent(resultText)
     )
 
     // ── 战斗执行（事务内） ────────────────────────────────────────────
@@ -470,18 +502,27 @@ class SecretRealmService @Inject constructor(
         eventParams: SecretRealmEventParams,
         rng: DeterministicRng
     ): SecretRealmBattleOutcome {
-        val result = buildAndExecuteBattle(state, session, eventParams, rng)
+        // 篡改档防御：妖兽数量 clamp 到配置范围——buildAndExecuteBattle 已 clamp 战斗构建，
+        // 但 rollBeastLoot 的 repeat(beastCount*2) 与战斗日志文本仍用原始值，
+        // Int.MAX 会溢出负数崩溃 / 上亿次循环卡死引擎线程（对抗性审查 M3）
+        val safeParams = eventParams.copy(
+            beastCount = eventParams.beastCount.coerceIn(
+                GameConfig.SecretRealm.BEAST_COUNT_MIN,
+                GameConfig.SecretRealm.BEAST_COUNT_MAX
+            )
+        )
+        val result = buildAndExecuteBattle(state, session, safeParams, rng)
             ?: return SecretRealmBattleOutcome(
                 victory = false, log = null, backpack = session.backpack,
-                members = session.members, deadIds = emptySet(), params = eventParams,
+                members = session.members, deadIds = emptySet(), params = safeParams,
                 resultText = "队伍已无战力，战斗不战而败"
             )
 
         val year = state.gameData.gameYear
         val (newMembers, deadIds) = writeBackBattleMembers(state, session, result, year)
-        val beastName = recordBattleLog(state, result, eventParams, session, newMembers)
+        val beastName = recordBattleLog(state, result, safeParams, session, newMembers)
         val (backpack, params, resultText) = settleBattleRewards(
-            session.backpack, eventParams, result, rng, beastName
+            session.backpack, safeParams, result, rng, beastName
         )
 
         return SecretRealmBattleOutcome(
@@ -737,27 +778,29 @@ class SecretRealmService @Inject constructor(
         }
         if (backpack.totalItemCount == 0) return
         inventorySystem.withTrackingSource("secret_realm") {
-            backpack.equipment.forEach { item ->
+            // 篡改档防御：非正数量物品在调用 addXxx 前过滤——addXxx 对非法数量行为未定义，
+            // 抛异常会导致 endSession 回滚 → 方向选择重试吞 RNG 的软锁（对抗性审查 B-L2）
+            backpack.equipment.filter { it.quantity > 0 }.forEach { item ->
                 settleItem(item.name, item.rarity, "equipment", item.quantity,
                     inventorySystem.addEquipmentStack(item))
             }
-            backpack.manuals.forEach { item ->
+            backpack.manuals.filter { it.quantity > 0 }.forEach { item ->
                 settleItem(item.name, item.rarity, "manual", item.quantity,
                     inventorySystem.addManualStack(item))
             }
-            backpack.pills.forEach { item ->
+            backpack.pills.filter { it.quantity > 0 }.forEach { item ->
                 settleItem(item.name, item.rarity, "pill", item.quantity,
                     inventorySystem.addPill(item))
             }
-            backpack.materials.forEach { item ->
+            backpack.materials.filter { it.quantity > 0 }.forEach { item ->
                 settleItem(item.name, item.rarity, "material", item.quantity,
                     inventorySystem.addMaterial(item))
             }
-            backpack.herbs.forEach { item ->
+            backpack.herbs.filter { it.quantity > 0 }.forEach { item ->
                 settleItem(item.name, item.rarity, "herb", item.quantity,
                     inventorySystem.addHerb(item))
             }
-            backpack.seeds.forEach { item ->
+            backpack.seeds.filter { it.quantity > 0 }.forEach { item ->
                 settleItem(item.name, item.rarity, "seed", item.quantity,
                     inventorySystem.addSeed(item))
             }

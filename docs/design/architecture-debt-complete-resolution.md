@@ -35,6 +35,7 @@
 | H | HP/MP 恢复全量遍历未改用单弟子 API | `architecture-debt.md` 远期优化 | 🟢 低 | 后续优化 |
 | I | `discipleAggregates` 全量投影可优化为增量 | `architecture-debt.md` 远期优化 | 🟢 低 | 需要时做 |
 | J | `!!` 操作符全库清理 | `architecture-debt.md` 远期优化 | 🟢 低 | 持续规范改进 |
+| K | `DeterministicRng` 非事务性：分区 RNG 在 `stateStore.update` 事务缓冲内即时前进，状态回滚时 RNG 不回滚（结算中途异常 → 同输入不同输出，读档重放确定性被打破） | 对抗性审查 2026-08-03（远古秘境结束选项，B-M1） | 🟡 中 | **待完成**：需 RNG 快照/回滚机制（见第 3 阶段 3.5） |
 
 ### 1.2 已排除项
 
@@ -598,3 +599,4 @@ grep -rn '!!' android/ --include='*.kt' | grep -v '/test/' | grep -v '/build/' |
 | 3.2 | HP/MP 恢复统一 | `CultivationCore.kt` |
 | 3.3 | 增量投影 | `GameStateStoreImpl.kt` |
 | 3.4 | `!!` 清理 | 全库 |
+| 3.5 | RNG 事务性（快照/回滚）：事务提交前缓存各分区 RNG 状态，异常回滚时恢复——需评估全链路 RNG 消费点与存档 `rngStates` 导出的耦合（K 项） | `DeterministicRng.kt` + `GameRngManager.kt` |

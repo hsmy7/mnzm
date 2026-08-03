@@ -81,7 +81,7 @@ internal data class SecretRealmBattleOutcome(
 /**
  * 远古秘境事件生成器——纯函数（注入 SECRET_REALM 分区 PRNG）。
  *
- * 事件流：遭遇妖兽事件 →（选择结算）→ 30% 概率空地事件 /
+ * 事件流：遭遇妖兽事件 →（选择结算）→ 探索方向事件 →（选择方向）→ 30% 概率空地事件 /
  * 20% 概率发现遗迹事件 / 妖兽事件 →（选择结算）→ …
  */
 object SecretRealmEventGenerator {
@@ -150,7 +150,7 @@ object SecretRealmEventGenerator {
      * 生成"平坦空地"事件（内容无随机性，无需 rng）。
      *
      * 选项 0：原地休整（所有弟子恢复 40% 最大生命，含重伤濒死）；
-     * 选项 1：继续前进。两项均进入衔接事件。
+     * 选项 1：继续前进。两项结算后均进入探索方向事件。
      */
     fun generateRestAreaEvent(): SecretRealmEventRecord = SecretRealmEventRecord(
         eventType = SecretRealmEventType.REST_AREA.name,
@@ -163,7 +163,7 @@ object SecretRealmEventGenerator {
     )
 
     /**
-     * 衔接方向选择后的下一事件分派：一次 nextDouble() 分段判定——
+     * 方向选择后的下一事件分派：一次 nextDouble() 分段判定——
      * < REST_AREA_CHANCE 空地事件；[REST_AREA_CHANCE, REST_AREA_CHANCE + RUINS_CHANCE) 发现遗迹；
      * 其余妖兽事件。仍只消费一次 nextDouble()（RNG 消费次数与旧版一致，读档确定性不变）。
      *
@@ -188,7 +188,7 @@ object SecretRealmEventGenerator {
      *
      * 选项 0：直接离开（扣 1 体力）；选项 1：简单搜寻（扣 1 体力）；
      * 选项 2：仔细搜寻（扣 [GameConfig.SecretRealm.CAREFUL_SEARCH_STAMINA_COST] 体力）。
-     * 搜寻结果（空无一物 / 发现秘宝）为独立的 [SecretRealmEventType.RUIN_RESULT] 子事件。
+     * 搜寻结果（空无一物 / 发现秘宝）直接以结算文本进入探索方向事件。
      */
     fun generateRuinsEvent(): SecretRealmEventRecord = SecretRealmEventRecord(
         eventType = SecretRealmEventType.RUIN_EXPLORE.name,
@@ -206,24 +206,33 @@ object SecretRealmEventGenerator {
     )
 
     /**
-     * 生成遗迹搜寻结果子事件（空无一物 / 发现秘宝共用 RUIN_RESULT，title/description 区分）。
+     * 生成"探索方向"事件（结束选项）——每个事件结算后固定弹出，选择方向进入下一真实事件。
      *
-     * @param title 子事件标题（"空无一物" / "发现秘宝"）
-     * @param description 子事件描述（发现秘宝时列出所获物品）
-     * @param itemRewards 秘宝奖励描述符（发现秘宝时非空；空无一物时为空）
-     * @return 结果子事件记录（唯一选项"继续前进"进入衔接事件）
+     * 无随机参数、不消费 RNG；下一事件在玩家选择方向时由 resolveDirectionChoice
+     * 消费一次 nextDouble() 生成（RNG 消费时机与旧 BRIDGE 一致，读档重放序列不变）。
+     *
+     * @param resultText 上个事件结算的结果文本（成为方向事件描述前缀，如战斗/搜寻/休整结果）
+     * @return 方向事件记录（三个方向选项，各消耗 1 体力）
      */
-    fun generateRuinsResultEvent(
-        title: String,
-        description: String,
-        itemRewards: List<SecretRealmRewardItem> = emptyList()
-    ): SecretRealmEventRecord = SecretRealmEventRecord(
-        eventType = SecretRealmEventType.RUIN_RESULT.name,
-        title = title,
-        description = description,
-        options = listOf(SecretRealmOption("继续前进", "")),
-        params = SecretRealmEventParams(itemRewards = itemRewards)
-    )
+    fun generateDirectionEvent(resultText: String): SecretRealmEventRecord {
+        // 空结果文本防御：正常流程 resultText 恒非空（战斗/搜寻/休整字面量文案），
+        // 篡改档空串时不产生" ，请选择探索方向"前导逗号（对抗性审查 L2）
+        val description = if (resultText.isBlank()) {
+            "请选择探索方向"
+        } else {
+            "$resultText，请选择探索方向"
+        }
+        return SecretRealmEventRecord(
+            eventType = SecretRealmEventType.DIRECTION_CHOICE.name,
+            title = "探索方向",
+            description = description,
+            options = listOf(
+                SecretRealmOption("向左走", ""),
+                SecretRealmOption("走中间", ""),
+                SecretRealmOption("向右走", "")
+            )
+        )
+    }
 
     /**
      * 秘宝可出物品类型（装备/功法/丹药/材料/草药/种子六类；索引式选取，RNG 消费确定）。

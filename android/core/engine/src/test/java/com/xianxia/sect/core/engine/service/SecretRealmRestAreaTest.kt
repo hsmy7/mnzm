@@ -35,8 +35,8 @@ import org.robolectric.RobolectricTestRunner
 /**
  * 远古秘境"平坦空地"事件测试——独立类（避免 SecretRealmServiceTest 超 detekt LargeClass 阈值）。
  *
- * 覆盖：衔接方向后 30% 概率生成空地事件、原地休整恢复（濒死/半血/满血/死亡/幽灵成员）、
- * 继续前进成员不变、休整不进入战斗、非法 eventType 回退衔接分支。
+ * 覆盖：选择方向后 30% 概率生成空地事件、原地休整恢复（濒死/半血/满血/死亡/幽灵成员）、
+ * 继续前进成员不变、休整不进入战斗、非法 eventType 回退方向事件分支。
  */
 @RunWith(RobolectricTestRunner::class)
 class SecretRealmRestAreaTest {
@@ -205,7 +205,7 @@ class SecretRealmRestAreaTest {
     // ── 空地事件 ──────────────────────────────────────────────────────
 
     @Test
-    fun `chooseOption - 空地休整后进入下一事件且体力扣减`() {
+    fun `chooseOption - 空地休整后进入探索方向事件且体力扣减`() {
         val state = createState()
         setupActiveSession(state)
         state.gameData = state.gameData.copy(
@@ -216,16 +216,28 @@ class SecretRealmRestAreaTest {
         val result = service.chooseOption(0, state)
         assertTrue(result.isSuccess)
         val session = state.gameData.secretRealmSession
-        // 衔接事件已移除：结算后直接进入下一真实事件
+        // 休整结算后进入探索方向事件（结束选项）
+        assertEquals(SecretRealmEventType.DIRECTION_CHOICE.name, session.currentEvent?.eventType)
+        assertEquals("探索方向", session.currentEvent?.title)
+        assertEquals(
+            listOf("向左走", "走中间", "向右走"),
+            session.currentEvent?.options?.map { it.label }
+        )
+        assertTrue(session.currentEvent?.description?.contains("请选择探索方向") == true)
+        assertEquals(19, session.stamina)
+        assertTrue(session.resultMessage.isNotEmpty())
+        // 选择方向（扣 1 体力）后进入下一真实事件
+        val directionResult = service.chooseOption(0, state)
+        assertTrue(directionResult.isSuccess)
+        val afterDirection = state.gameData.secretRealmSession
         assertTrue(
-            session.currentEvent?.eventType in setOf(
+            afterDirection.currentEvent?.eventType in setOf(
                 SecretRealmEventType.BEAST_ENCOUNTER.name,
                 SecretRealmEventType.REST_AREA.name,
                 SecretRealmEventType.RUIN_EXPLORE.name
             )
         )
-        assertEquals(19, session.stamina)
-        assertTrue(session.resultMessage.isNotEmpty())
+        assertEquals(18, afterDirection.stamina)
     }
 
     @Test
@@ -261,13 +273,10 @@ class SecretRealmRestAreaTest {
         assertEquals(-1, members[2].currentHp)
         // 4 号死亡：不恢复
         assertTrue(members[3].isDead)
-        // 衔接事件已移除：下一事件为三类真实事件之一
-        assertTrue(
-            state.gameData.secretRealmSession.currentEvent?.eventType in setOf(
-                SecretRealmEventType.BEAST_ENCOUNTER.name,
-                SecretRealmEventType.REST_AREA.name,
-                SecretRealmEventType.RUIN_EXPLORE.name
-            )
+        // 休整结算后进入探索方向事件
+        assertEquals(
+            SecretRealmEventType.DIRECTION_CHOICE.name,
+            state.gameData.secretRealmSession.currentEvent?.eventType
         )
     }
 
@@ -292,7 +301,7 @@ class SecretRealmRestAreaTest {
     }
 
     @Test
-    fun `chooseOption - 空地继续前进成员不变并进入下一真实事件`() {
+    fun `chooseOption - 空地继续前进成员不变并进入探索方向事件`() {
         val state = createState()
         setupActiveSession(state)
         // 1 号濒死：继续前进不触发任何恢复
@@ -310,14 +319,9 @@ class SecretRealmRestAreaTest {
         val members = session.members
         assertEquals(1, members[0].currentHp)
         assertTrue(members[0].isDying)
-        // 衔接事件已移除：结算后直接进入下一真实事件
-        assertTrue(
-            session.currentEvent?.eventType in setOf(
-                SecretRealmEventType.BEAST_ENCOUNTER.name,
-                SecretRealmEventType.REST_AREA.name,
-                SecretRealmEventType.RUIN_EXPLORE.name
-            )
-        )
+        // 继续前进结算后进入探索方向事件
+        assertEquals(SecretRealmEventType.DIRECTION_CHOICE.name, session.currentEvent?.eventType)
+        assertEquals("你方不做停留，继续探索，请选择探索方向", session.currentEvent?.description)
         assertEquals(19, session.stamina)
     }
 
@@ -465,7 +469,7 @@ class SecretRealmRestAreaTest {
     }
 
     @Test
-    fun `chooseOption - 非法事件类型回退战斗分支`() {
+    fun `chooseOption - 非法事件类型回退方向事件分支`() {
         val state = createState()
         setupActiveSession(state)
         val mockRng = mock(DeterministicRng::class.java)
@@ -478,10 +482,14 @@ class SecretRealmRestAreaTest {
         )
         val result = service.chooseOption(0, state)
         assertTrue(result.isSuccess)
-        // 回退战斗分支（远离成功）：下一事件为妖兽事件
+        val session = state.gameData.secretRealmSession
+        // 回退方向事件分支：HACKED 事件按方向事件语义直接结算——
+        // 消费一次 nextDouble（=0.9 → 妖兽分支），扣 1 体力，结果文本含方向名
+        assertEquals(19, session.stamina)
+        assertTrue(session.resultMessage.contains("左路"))
         assertEquals(
             SecretRealmEventType.BEAST_ENCOUNTER.name,
-            state.gameData.secretRealmSession.currentEvent?.eventType
+            session.currentEvent?.eventType
         )
     }
 }

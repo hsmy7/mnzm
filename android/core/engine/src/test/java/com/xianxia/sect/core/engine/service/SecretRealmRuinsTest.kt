@@ -37,7 +37,7 @@ import org.robolectric.RobolectricTestRunner
  * 远古秘境"发现遗迹"事件测试——独立类（避免 SecretRealmServiceTest 超 detekt LargeClass 阈值）。
  *
  * 覆盖：直接离开/简单搜寻/仔细搜寻（含扣 2 体力）、50% 空无一物 / 发现秘宝（1~5 件灵品~宝品、
- * 2~7 件灵品~玄品）、秘宝入背包、子事件继续前进、体力耗尽自动结束秘宝不丢、
+ * 2~7 件灵品~玄品）、秘宝入背包、旧档结果子事件兼容、方向选择体力耗尽自动结束秘宝不丢、
  * 篡改档 staminaCost clamp、同种子同动作序列确定性。
  */
 @RunWith(RobolectricTestRunner::class)
@@ -170,28 +170,38 @@ class SecretRealmRuinsTest {
     // ── 发现遗迹事件 ──────────────────────────────────────────────────
 
     @Test
-    fun `chooseOption - 发现遗迹直接离开扣 1 体力进入下一真实事件`() {
+    fun `chooseOption - 发现遗迹直接离开扣 1 体力进入探索方向事件`() {
         val state = createState()
         setupSession(state, ruinsEvent())
         val result = service.chooseOption(0, state)
         assertTrue(result.isSuccess)
         val session = state.gameData.secretRealmSession
         assertEquals(19, session.stamina)
-        // 衔接事件已移除：结算后直接进入下一真实事件
+        // 离开结算后进入探索方向事件（结束选项）
+        assertEquals(SecretRealmEventType.DIRECTION_CHOICE.name, session.currentEvent?.eventType)
+        assertEquals("探索方向", session.currentEvent?.title)
+        assertTrue(session.currentEvent?.description?.contains("离开遗迹") == true)
+        assertTrue(session.currentEvent?.description?.contains("请选择探索方向") == true)
+        assertEquals(listOf("向左走", "走中间", "向右走"), session.currentEvent?.options?.map { it.label })
+        assertTrue(session.resultMessage.contains("离开遗迹"))
+        // 未搜寻，背包无变化
+        assertEquals(0, session.backpack.totalItemCount)
+        // 选择方向（扣 1 体力）后进入下一真实事件
+        val directionResult = service.chooseOption(0, state)
+        assertTrue(directionResult.isSuccess)
+        val afterDirection = state.gameData.secretRealmSession
         assertTrue(
-            session.currentEvent?.eventType in setOf(
+            afterDirection.currentEvent?.eventType in setOf(
                 SecretRealmEventType.BEAST_ENCOUNTER.name,
                 SecretRealmEventType.REST_AREA.name,
                 SecretRealmEventType.RUIN_EXPLORE.name
             )
         )
-        assertTrue(session.resultMessage.contains("离开遗迹"))
-        // 未搜寻，背包无变化
-        assertEquals(0, session.backpack.totalItemCount)
+        assertEquals(18, afterDirection.stamina)
     }
 
     @Test
-    fun `chooseOption - 简单搜寻空无一物进入子事件且背包保留`() {
+    fun `chooseOption - 简单搜寻空无一物进入探索方向事件且背包保留`() {
         val state = createState()
         setupSession(state, ruinsEvent(), backpack = presetBackpack())
         val mockRng = mock(DeterministicRng::class.java)
@@ -201,10 +211,12 @@ class SecretRealmRuinsTest {
         assertTrue(result.isSuccess)
         val session = state.gameData.secretRealmSession
         assertEquals(19, session.stamina)
-        assertEquals(SecretRealmEventType.RUIN_RESULT.name, session.currentEvent?.eventType)
-        assertEquals("空无一物", session.currentEvent?.title)
-        assertEquals("这里什么都没有", session.currentEvent?.description)
-        assertEquals(listOf("继续前进"), session.currentEvent?.options?.map { it.label })
+        // 空无一物结果文本直接进入探索方向事件
+        assertEquals(SecretRealmEventType.DIRECTION_CHOICE.name, session.currentEvent?.eventType)
+        assertEquals("探索方向", session.currentEvent?.title)
+        assertTrue(session.currentEvent?.description?.contains("空无一物") == true)
+        assertTrue(session.currentEvent?.description?.contains("请选择探索方向") == true)
+        assertEquals(listOf("向左走", "走中间", "向右走"), session.currentEvent?.options?.map { it.label })
         // 搜寻不改变背包：预置的灵石/材料/种子全部保留（对抗性审查：空 resolution 覆盖）
         assertEquals(100L, session.backpack.spiritStones)
         assertEquals(2, session.backpack.totalItemCount)
@@ -213,7 +225,7 @@ class SecretRealmRuinsTest {
     }
 
     @Test
-    fun `chooseOption - 简单搜寻发现秘宝物品入背包`() {
+    fun `chooseOption - 简单搜寻发现秘宝物品入背包并进入探索方向事件`() {
         val state = createState()
         setupSession(state, ruinsEvent())
         val mockRng = mock(DeterministicRng::class.java)
@@ -226,10 +238,12 @@ class SecretRealmRuinsTest {
         // 1 件装备（nextInt 全 0：count=1、type=equipment、rarity=灵品、首件模板）
         assertEquals(1, session.backpack.equipment.size)
         assertTrue(session.backpack.equipment[0].name.isNotEmpty())
-        assertEquals(SecretRealmEventType.RUIN_RESULT.name, session.currentEvent?.eventType)
-        assertEquals("发现秘宝", session.currentEvent?.title)
-        assertTrue(session.currentEvent?.description?.startsWith("发现物品：") == true)
-        assertEquals(1, session.currentEvent?.params?.itemRewards?.size)
+        // 结果文本含物品明细进入探索方向事件
+        assertEquals(SecretRealmEventType.DIRECTION_CHOICE.name, session.currentEvent?.eventType)
+        assertTrue(session.currentEvent?.description?.contains("获得") == true)
+        assertTrue(session.currentEvent?.description?.contains("请选择探索方向") == true)
+        // 秘宝描述符入 eventHistory（chooseOption 用 resolution.params 覆盖已选事件 params）
+        assertEquals(1, session.eventHistory.last().params.itemRewards.size)
     }
 
     @Test
@@ -246,11 +260,11 @@ class SecretRealmRuinsTest {
         assertEquals(18, session.stamina)
         // nextInt 全 0：countRoll=0 → count=2 件装备
         assertEquals(2, session.backpack.equipment.size)
-        assertEquals(2, session.currentEvent?.params?.itemRewards?.size)
+        assertEquals(2, session.eventHistory.last().params.itemRewards.size)
     }
 
     @Test
-    fun `chooseOption - 秘宝子事件继续前进进入衔接事件且背包保留`() {
+    fun `chooseOption - 旧档秘宝子事件继续前进进入探索方向事件且背包保留`() {
         val state = createState()
         setupSession(
             state,
@@ -267,13 +281,9 @@ class SecretRealmRuinsTest {
         val result = service.chooseOption(0, state)
         assertTrue(result.isSuccess)
         val session = state.gameData.secretRealmSession
-        assertTrue(
-            session.currentEvent?.eventType in setOf(
-                SecretRealmEventType.BEAST_ENCOUNTER.name,
-                SecretRealmEventType.REST_AREA.name,
-                SecretRealmEventType.RUIN_EXPLORE.name
-            )
-        )
+        // 旧档 RUIN_RESULT"继续前进"→ 探索方向事件
+        assertEquals(SecretRealmEventType.DIRECTION_CHOICE.name, session.currentEvent?.eventType)
+        assertTrue(session.currentEvent?.description?.contains("携秘宝") == true)
         assertTrue(session.resultMessage.contains("携秘宝"))
         // 子事件选项同样扣 1 体力
         assertEquals(19, session.stamina)
@@ -282,31 +292,55 @@ class SecretRealmRuinsTest {
         assertEquals(100L, session.backpack.spiritStones)
         assertEquals(2, session.backpack.totalItemCount)
         assertEquals(1, session.backpack.seeds.size)
-    }
-
-    @Test
-    fun `chooseOption - 空无一物子事件继续前进进入下一真实事件且背包保留`() {
-        val state = createState()
-        setupSession(state, ruinsResultEvent(title = "空无一物"), backpack = presetBackpack())
-        val result = service.chooseOption(0, state)
-        assertTrue(result.isSuccess)
-        val session = state.gameData.secretRealmSession
+        // 选择方向（扣 1 体力）后进入下一真实事件
+        val directionResult = service.chooseOption(0, state)
+        assertTrue(directionResult.isSuccess)
+        val afterDirection = state.gameData.secretRealmSession
         assertTrue(
-            session.currentEvent?.eventType in setOf(
+            afterDirection.currentEvent?.eventType in setOf(
                 SecretRealmEventType.BEAST_ENCOUNTER.name,
                 SecretRealmEventType.REST_AREA.name,
                 SecretRealmEventType.RUIN_EXPLORE.name
             )
         )
+        assertEquals(18, afterDirection.stamina)
+    }
+
+    @Test
+    fun `chooseOption - 旧档空无一物子事件继续前进进入探索方向事件且背包保留`() {
+        val state = createState()
+        setupSession(state, ruinsResultEvent(title = "空无一物"), backpack = presetBackpack())
+        val result = service.chooseOption(0, state)
+        assertTrue(result.isSuccess)
+        val session = state.gameData.secretRealmSession
+        assertEquals(SecretRealmEventType.DIRECTION_CHOICE.name, session.currentEvent?.eventType)
+        assertTrue(session.currentEvent?.description?.contains("空无一物") == true)
         assertTrue(session.resultMessage.contains("空无一物"))
         assertEquals(100L, session.backpack.spiritStones)
         assertEquals(2, session.backpack.totalItemCount)
     }
 
     @Test
-    fun `chooseOption - 体力 1 选仔细搜寻自动结束且秘宝已入背包结算`() {
+    fun `chooseOption - 体力不足时仔细搜寻被拒绝且不扣体力`() {
         val state = createState()
         setupSession(state, ruinsEvent(), stamina = 1)
+        val mockRng = mock(DeterministicRng::class.java)
+        stubTreasureRng(mockRng)
+        `when`(rngManager.getRng(RngPartition.SECRET_REALM)).thenReturn(mockRng)
+        val result = service.chooseOption(2, state)
+        // 体力 1 < 仔细搜寻消耗 2 → 拒绝（防高费选项按低费扣费全额结算，对抗性审查 M2）
+        assertTrue(result is SecretRealmChoiceResult.Error)
+        assertEquals(1, state.gameData.secretRealmSession.stamina)
+        assertTrue(state.gameData.secretRealmSession.isActive)
+        // 未进入结算：RNG 未消费、秘宝未入背包
+        verify(mockRng, never()).nextInt(anyInt())
+        verify(inventorySystem, never()).addEquipmentStack(any())
+    }
+
+    @Test
+    fun `chooseOption - 方向选择体力耗尽自动结束且秘宝不丢`() {
+        val state = createState()
+        setupSession(state, ruinsEvent(), stamina = 2)
         val mockRng = mock(DeterministicRng::class.java)
         stubTreasureRng(mockRng)
         `when`(rngManager.getRng(RngPartition.SECRET_REALM)).thenReturn(mockRng)
@@ -314,12 +348,20 @@ class SecretRealmRuinsTest {
         whenever(inventorySystem.addEquipmentStack(any())).thenAnswer { inv ->
             DomainResult.Success(inv.getArgument<com.xianxia.sect.core.model.EquipmentStack>(0))
         }
-        val result = service.chooseOption(2, state)
-        // 1 - 2 → clamp 0 → 体力耗尽自动结束
+        // 简单搜寻（扣 1）→ 秘宝入背包 → 体力 1 → 探索方向事件
+        val result = service.chooseOption(1, state)
         assertTrue(result.isSuccess)
-        assertTrue((result as SecretRealmChoiceResult.Success).sessionEnded)
+        assertFalse((result as SecretRealmChoiceResult.Success).sessionEnded)
+        val session = state.gameData.secretRealmSession
+        assertEquals(1, session.stamina)
+        assertEquals(SecretRealmEventType.DIRECTION_CHOICE.name, session.currentEvent?.eventType)
+        assertEquals(1, session.backpack.equipment.size)
+        // 选择方向（扣最后 1 体力）→ 体力耗尽自动结束
+        val directionResult = service.chooseOption(0, state)
+        assertTrue(directionResult.isSuccess)
+        assertTrue((directionResult as SecretRealmChoiceResult.Success).sessionEnded)
         assertFalse(state.gameData.secretRealmSession.isActive)
-        // 秘宝先入背包再结束：结算调用 addEquipmentStack（nextInt 全 0 → 2 件装备，秘宝不丢）
+        // 秘宝已入背包并经 endSession 结算入宗门仓库（方向选择不丢秘宝）
         verify(inventorySystem, atLeastOnce()).addEquipmentStack(any())
     }
 
@@ -349,7 +391,7 @@ class SecretRealmRuinsTest {
     }
 
     @Test
-    fun `chooseOption - 选项体力消耗篡改为超大值按整管扣并正常结束不为负`() {
+    fun `chooseOption - 选项体力消耗篡改为超大值时被拒绝`() {
         val state = createState()
         setupSession(
             state,
@@ -365,11 +407,21 @@ class SecretRealmRuinsTest {
         stubEmptyRng(mockRng)
         `when`(rngManager.getRng(RngPartition.SECRET_REALM)).thenReturn(mockRng)
         val result = service.chooseOption(2, state)
-        // 超大值 clamp 到 20：20 - 20 = 0 → EXHAUSTED 自动结束
-        assertTrue(result.isSuccess)
-        assertTrue((result as SecretRealmChoiceResult.Success).sessionEnded)
-        assertTrue(state.gameData.secretRealmSession.stamina >= 0)
-        assertEquals(20, state.gameData.secretRealmSession.stamina.coerceAtMost(20))
+        // 体力 20 < 篡改 999999 → 拒绝（比"扣整管体力"更防御：不扣费、不触发结算）
+        assertTrue(result is SecretRealmChoiceResult.Error)
+        assertEquals(20, state.gameData.secretRealmSession.stamina)
+        assertTrue(state.gameData.secretRealmSession.isActive)
+    }
+
+    @Test
+    fun `chooseOption - 体力为零时拒绝结算`() {
+        val state = createState()
+        setupSession(state, ruinsEvent(), stamina = 0)
+        val result = service.chooseOption(1, state)
+        // 篡改档 0 体力：拒绝结算，防 0 体力白嫖事件收益（对抗性审查 M1）
+        assertTrue(result is SecretRealmChoiceResult.Error)
+        assertEquals(0, state.gameData.secretRealmSession.stamina)
+        assertTrue(state.gameData.secretRealmSession.isActive)
     }
 
     @Test
@@ -385,9 +437,12 @@ class SecretRealmRuinsTest {
         stubEmptyRng(mockRng)
         `when`(rngManager.getRng(RngPartition.SECRET_REALM)).thenReturn(mockRng)
         val result = service.chooseOption(3, state)
-        // 界内多选项按仔细搜寻处理（>= 2 视为仔细搜寻），不崩溃
+        // 界内多选项按仔细搜寻处理（>= 2 视为仔细搜寻），空无一物结果进入探索方向事件，不崩溃
         assertTrue(result.isSuccess)
-        assertEquals(SecretRealmEventType.RUIN_RESULT.name, state.gameData.secretRealmSession.currentEvent?.eventType)
+        assertEquals(
+            SecretRealmEventType.DIRECTION_CHOICE.name,
+            state.gameData.secretRealmSession.currentEvent?.eventType
+        )
     }
 
     @Test
@@ -396,14 +451,11 @@ class SecretRealmRuinsTest {
         // title 为"发现秘宝"但 itemRewards 为空（篡改档 title 与数据不一致）
         setupSession(state, ruinsResultEvent(title = "发现秘宝"))
         val result = service.chooseOption(0, state)
-        // 文案判定用 itemRewards 不依赖 title，走空文案分支，无异常
+        // 文案判定用 itemRewards 不依赖 title，走空文案分支 → 探索方向事件，无异常
         assertTrue(result.isSuccess)
-        assertTrue(
-            state.gameData.secretRealmSession.currentEvent?.eventType in setOf(
-                SecretRealmEventType.BEAST_ENCOUNTER.name,
-                SecretRealmEventType.REST_AREA.name,
-                SecretRealmEventType.RUIN_EXPLORE.name
-            )
+        assertEquals(
+            SecretRealmEventType.DIRECTION_CHOICE.name,
+            state.gameData.secretRealmSession.currentEvent?.eventType
         )
     }
 
@@ -418,7 +470,7 @@ class SecretRealmRuinsTest {
         assertEquals(first.second, second.second)
     }
 
-    /** 跑固定动作序列：遗迹简单搜寻 → 结果子事件继续前进 → 衔接事件，返回最终状态 */
+    /** 跑固定动作序列：遗迹简单搜寻 → 探索方向事件选方向 → 下一真实事件，返回最终状态 */
     private fun runRuinsFlow(seed: Long): Pair<SecretRealmEventRecord?, Map<String, Int>> {
         val rngMgr = mock(GameRngManager::class.java)
         `when`(rngMgr.getRng(RngPartition.SECRET_REALM)).thenReturn(DeterministicRng.fromSeed(seed))
@@ -432,7 +484,7 @@ class SecretRealmRuinsTest {
         setupSession(state, ruinsEvent())
         s.chooseOption(1, state)
         if (state.gameData.secretRealmSession.currentEvent?.eventType ==
-            SecretRealmEventType.RUIN_RESULT.name
+            SecretRealmEventType.DIRECTION_CHOICE.name
         ) {
             s.chooseOption(0, state)
         }
