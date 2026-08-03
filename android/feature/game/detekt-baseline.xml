@@ -263,6 +263,7 @@
     <ID>LongMethod:SettingsTab.kt$@Composable internal fun SaveSlotDialog( viewModel: GameViewModel, saveLoadViewModel: SaveLoadViewModel, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:SettingsTab.kt$@Composable internal fun SettingsTab( viewModel: GameViewModel, saveLoadViewModel: SaveLoadViewModel, onLogout: () -&gt; Unit, onDismiss: () -&gt; Unit, limitAdTracking: Boolean = true, onLimitAdTrackingChanged: (Boolean) -&gt; Unit = {} )</ID>
     <ID>LongMethod:SettingsTab.kt$@Composable private fun ChangelogDialog(onDismiss: () -&gt; Unit)</ID>
+    <ID>LongMethod:SettingsTab.kt$@Composable private fun TimeSpeedControlItem( saveLoadViewModel: SaveLoadViewModel, timeSpeed: Int )</ID>
     <ID>LongMethod:SoftwareCanvasBackend.kt$SoftwareCanvasBackend$fun renderFrame( frame: RenderFrame, atlas: Bitmap, vpW: Int, vpH: Int ): Bitmap?</ID>
     <ID>LongMethod:SpiritMineDialog.kt$@Composable fun SpiritMineDialog( buildingInstanceId: String = "", viewModel: GameViewModel, productionViewModel: ProductionViewModel, spiritMineViewModel: SpiritMineViewModel, onDismiss: () -&gt; Unit, spiritMineBaseOutput: Int = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER, spiritMineMiningThreshold: Int = GameConfig.Production.SPIRIT_MINE_MINING_THRESHOLD, spiritMineMiningBonusRate: Double = GameConfig.Production.SPIRIT_MINE_MINING_BONUS_RATE )</ID>
     <ID>LongMethod:TianshuHallDialog.kt$@Composable fun TianshuHallDialog( gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, productionViewModel: ProductionViewModel, onDismiss: () -&gt; Unit )</ID>
@@ -814,7 +815,6 @@
     <ID>UnusedParameter:WenDaoPeakDialog.kt$gameData: GameData?</ID>
     <ID>UnusedParameter:WorldMapSectDetailDialog.kt$portraitRes: String</ID>
     <ID>UnusedPrivateClass:TapCloudSaveManager.kt$TapCloudSaveManager$TapGameSaveApi : CloudSaveApi</ID>
-    <ID>UnusedPrivateMember:LawEnforcementHallDialog.kt$@Composable private fun CommonDialog( title: String, onDismiss: () -&gt; Unit, content: @Composable ColumnScope.() -&gt; Unit )</ID>
     <ID>UnusedPrivateMember:MerchantDialog.kt$private fun getRarityName(rarity: Int): String</ID>
     <ID>UnusedPrivateProperty:AdsDelegate.kt$AdsDelegate.Companion$private const val TAG = "AdsDelegate"</ID>
     <ID>UnusedPrivateProperty:AlchemyViewModel.kt$AlchemyViewModel$private val elderManagement: ElderManagementUseCase</ID>
