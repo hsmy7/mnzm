@@ -288,111 +288,6 @@ class CultivationEventProcessor @Inject constructor(
         newMnInstances.forEach { state.manualInstances.add(it) }
     }
     // ── 战斗/探索辅助 ──────────────────────────────────────────────────
-    fun updateDiscipleHpMpAfterBattle(battleMembers: List<BattleMemberData>) {
-        val survivorIds = battleMembers.filter { it.isAlive }.map { it.id }.toSet()
-        val deadIds = battleMembers.filter { it.id !in survivorIds }.map { it.id }.toSet()
-        val disciples = stateStore.disciples.value.toMutableList()
-        var changed = false
-        team@ for (member in battleMembers) {
-            val discipleIndex = disciples.indexOfFirst { it.id == member.id }
-            if (discipleIndex < 0 || member.id !in survivorIds) continue@team
-            val disciple = disciples[discipleIndex]
-            val hp = member.hp.coerceAtMost(member.maxHp)
-            val mp = member.mp.coerceAtMost(member.maxMp)
-            disciples[discipleIndex] = disciple.copy(combat = disciple.combat.copy(currentHp = hp, currentMp = mp))
-            changed = true
-        }
-        if (changed) {
-            stateStore.update {
-                discipleTables.replaceAll(disciples)
-                // 死亡标记 + deathYears 统一由 DiscipleDeathHandler 写入列
-                deathHandler.markAllDead(discipleTables, deadIds, stateStore.gameData.value.gameYear)
-            }
-        }
-    }
-    fun completeExploration(team: ExplorationTeam, success: Boolean, survivorIds: List<String>, survivorHpMap: Map<String, Int> = emptyMap(), survivorMpMap: Map<String, Int> = emptyMap()) {
-        val currentDisciplesList = stateStore.disciples.value.toMutableList()
-        team.memberIds.forEach { memberId ->
-            val index = currentDisciplesList.indexOfFirst { it.id == memberId }
-            if (index >= 0) {
-                val disciple = currentDisciplesList[index]
-                val shouldKeepAlive = disciple.isAlive && survivorIds.contains(memberId)
-                if (shouldKeepAlive) {
-                    val hp = survivorHpMap[memberId] ?: disciple.combat.currentHp
-                    val mp = survivorMpMap[memberId] ?: disciple.combat.currentMp
-                    currentDisciplesList[index] = disciple.copy(status = DiscipleStatus.IDLE, combat = disciple.combat.copy(currentHp = hp, currentMp = mp))
-                } else {
-                    discipleLifecycleProcessor.handleDiscipleDeath(disciple, isOutsideSect = true)
-                    currentDisciplesList[index] = disciple.copy(isAlive = false, status = DiscipleStatus.DEAD)
-                }
-            }
-        }
-        stateStore.update {
-            discipleTables.replaceAll(currentDisciplesList)
-            // handleDiscipleDeath 已设置 deathYears 但被 replaceAll 清空，
-            // 由 DiscipleDeathHandler 统一补写
-            deathHandler.backfillDeathYears(
-                discipleTables, currentDisciplesList, stateStore.gameData.value.gameYear
-            )
-        }
-    }
-    // ── 侦察/外交 ──────────────────────────────────────────────────────
-    fun processScoutInfoExpiryLazy(year: Int, month: Int) {
-        val data = stateStore.gameData.value
-        val hasExpired = data.scoutInfo.any { (_, info) ->
-            year > info.expiryYear || (year == info.expiryYear && month > info.expiryMonth)
-        }
-        if (!hasExpired) return
-        processScoutInfoExpiry(year, month)
-    }
-    fun processScoutInfoExpiryLazy(year: Int, month: Int, state: MutableGameState) {
-        val data = state.gameData
-        val hasExpired = data.scoutInfo.any { (_, info) ->
-            year > info.expiryYear || (year == info.expiryYear && month > info.expiryMonth)
-        }
-        if (!hasExpired) return
-        processScoutInfoExpiry(year, month, state)
-    }
-    fun processScoutInfoExpiry(year: Int, month: Int) {
-        val data = stateStore.gameData.value
-        var hasExpired = false
-        val updatedScoutInfo = data.scoutInfo.filter { (_, info) ->
-            val isExpired = year > info.expiryYear ||
-                (year == info.expiryYear && month > info.expiryMonth)
-            if (isExpired) hasExpired = true
-            !isExpired
-        }
-        if (hasExpired) {
-            stateStore.update { applyScoutInfoExpiry(this, year, month) }
-        }
-    }
-    fun processScoutInfoExpiry(year: Int, month: Int, state: MutableGameState) {
-        applyScoutInfoExpiry(state, year, month)
-    }
-    private fun applyScoutInfoExpiry(state: MutableGameState, year: Int, month: Int) {
-        val data = state.gameData
-        val updatedScoutInfo = data.scoutInfo.filter { (_, info) ->
-            !(year > info.expiryYear || (year == info.expiryYear && month > info.expiryMonth))
-        }
-        val hasExpired = updatedScoutInfo.size < data.scoutInfo.size
-        if (!hasExpired) return
-        val updatedWorldMapSects = data.worldMapSects.map { sect ->
-            val sectScoutInfo = updatedScoutInfo[sect.id]
-            if (sectScoutInfo == null && data.sectDetails[sect.id]?.scoutInfo?.sectId?.isNotEmpty() == true) {
-                sect.copy(isKnown = false)
-            } else sect
-        }
-        val updatedDetails = data.sectDetails.toMutableMap()
-        updatedScoutInfo.forEach { (sectId, _) ->
-            updatedDetails[sectId] = (updatedDetails[sectId] ?: SectDetail(sectId = sectId)).copy(scoutInfo = updatedScoutInfo[sectId] ?: SectScoutInfo())
-        }
-        data.sectDetails.forEach { (sectId, detail) ->
-            if (updatedScoutInfo[sectId] == null && detail.scoutInfo.sectId.isNotEmpty()) {
-                updatedDetails[sectId] = detail.copy(scoutInfo = SectScoutInfo())
-            }
-        }
-        state.gameData = state.gameData.copy(scoutInfo = updatedScoutInfo, worldMapSects = updatedWorldMapSects, sectDetails = updatedDetails)
-    }
     internal fun MutableGameState.applyMissionRewards(rewards: List<MissionReward>) {
         for (reward in rewards) {
             // 发放物品（通过重入缓冲在同一事务内生效）
@@ -448,6 +343,55 @@ class CultivationEventProcessor @Inject constructor(
                     dTables.soulPowers[tid] = dTables.soulPowers.getOrDefault(tid, 0) + 1
                 }
             }
+        }
+    }
+
+    fun updateDiscipleHpMpAfterBattle(battleMembers: List<BattleMemberData>) {
+        val survivorIds = battleMembers.filter { it.isAlive }.map { it.id }.toSet()
+        val deadIds = battleMembers.filter { it.id !in survivorIds }.map { it.id }.toSet()
+        val disciples = stateStore.disciples.value.toMutableList()
+        var changed = false
+        team@ for (member in battleMembers) {
+            val discipleIndex = disciples.indexOfFirst { it.id == member.id }
+            if (discipleIndex < 0 || member.id !in survivorIds) continue@team
+            val disciple = disciples[discipleIndex]
+            val hp = member.hp.coerceAtMost(member.maxHp)
+            val mp = member.mp.coerceAtMost(member.maxMp)
+            disciples[discipleIndex] = disciple.copy(combat = disciple.combat.copy(currentHp = hp, currentMp = mp))
+            changed = true
+        }
+        if (changed) {
+            stateStore.update {
+                discipleTables.replaceAll(disciples)
+                // 死亡标记 + deathYears 统一由 DiscipleDeathHandler 写入列
+                deathHandler.markAllDead(discipleTables, deadIds, stateStore.gameData.value.gameYear)
+            }
+        }
+    }
+    fun completeExploration(team: ExplorationTeam, success: Boolean, survivorIds: List<String>, survivorHpMap: Map<String, Int> = emptyMap(), survivorMpMap: Map<String, Int> = emptyMap()) {
+        val currentDisciplesList = stateStore.disciples.value.toMutableList()
+        team.memberIds.forEach { memberId ->
+            val index = currentDisciplesList.indexOfFirst { it.id == memberId }
+            if (index >= 0) {
+                val disciple = currentDisciplesList[index]
+                val shouldKeepAlive = disciple.isAlive && survivorIds.contains(memberId)
+                if (shouldKeepAlive) {
+                    val hp = survivorHpMap[memberId] ?: disciple.combat.currentHp
+                    val mp = survivorMpMap[memberId] ?: disciple.combat.currentMp
+                    currentDisciplesList[index] = disciple.copy(status = DiscipleStatus.IDLE, combat = disciple.combat.copy(currentHp = hp, currentMp = mp))
+                } else {
+                    discipleLifecycleProcessor.handleDiscipleDeath(disciple, isOutsideSect = true)
+                    currentDisciplesList[index] = disciple.copy(isAlive = false, status = DiscipleStatus.DEAD)
+                }
+            }
+        }
+        stateStore.update {
+            discipleTables.replaceAll(currentDisciplesList)
+            // handleDiscipleDeath 已设置 deathYears 但被 replaceAll 清空，
+            // 由 DiscipleDeathHandler 统一补写
+            deathHandler.backfillDeathYears(
+                discipleTables, currentDisciplesList, stateStore.gameData.value.gameYear
+            )
         }
     }
     // ── 游戏结束 ──────────────────────────────────────────────────────

@@ -174,6 +174,7 @@
     <ID>InvalidPackageDeclaration:ChildBirthSystem.kt$package com.xianxia.sect.core.engine.system</ID>
     <ID>InvalidPackageDeclaration:CombatService.kt$package com.xianxia.sect.core.engine.domain.battle</ID>
     <ID>InvalidPackageDeclaration:CultivationCore.kt$package com.xianxia.sect.core.engine.service</ID>
+    <ID>InvalidPackageDeclaration:CultivationEventDiplomacyOps.kt$package com.xianxia.sect.core.engine.service</ID>
     <ID>InvalidPackageDeclaration:CultivationEventMissionOps.kt$package com.xianxia.sect.core.engine.service</ID>
     <ID>InvalidPackageDeclaration:CultivationEventMonthlyOps.kt$package com.xianxia.sect.core.engine.service</ID>
     <ID>InvalidPackageDeclaration:CultivationEventProcessor.kt$package com.xianxia.sect.core.engine.service</ID>
@@ -551,13 +552,13 @@
     <ID>MaxLineLength:CombatService.kt$CombatService$val updatedStatus = if (currentStatus in setOf(DiscipleStatus.IN_TEAM, DiscipleStatus.GARRISONING)) DiscipleStatus.IDLE else currentStatus</ID>
     <ID>MaxLineLength:CultivationCore.kt$CultivationCore$)</ID>
     <ID>MaxLineLength:CultivationCore.kt$CultivationCore$fun isDiscipleFullHpMp(id: Int, tables: DiscipleTables): Boolean</ID>
+    <ID>MaxLineLength:CultivationEventDiplomacyOps.kt$state.gameData = state.gameData.copy(scoutInfo = updatedScoutInfo, worldMapSects = updatedWorldMapSects, sectDetails = updatedDetails)</ID>
+    <ID>MaxLineLength:CultivationEventDiplomacyOps.kt$updatedDetails[sectId] = (updatedDetails[sectId] ?: SectDetail(sectId = sectId)).copy(scoutInfo = updatedScoutInfo[sectId] ?: SectScoutInfo())</ID>
     <ID>MaxLineLength:CultivationEventMonthlyOps.kt$safelyRunInState("aiSectOperations") { caveExplorationProcessor.get().processAISectOperations(year, month, this) }</ID>
     <ID>MaxLineLength:CultivationEventMonthlyOps.kt$state.safelyRunInState("aiSectOperations") { caveExplorationProcessor.get().processAISectOperations(year, month, state) }</ID>
     <ID>MaxLineLength:CultivationEventMonthlyOps.kt$state.safelyRunInState("spiritMineProduction") { cultivationSettlement.processSpiritMineProductionMonthly(state) }</ID>
     <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$currentDisciplesList[index] = disciple.copy(status = DiscipleStatus.IDLE, combat = disciple.combat.copy(currentHp = hp, currentMp = mp))</ID>
     <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$fun</ID>
-    <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$state.gameData = state.gameData.copy(scoutInfo = updatedScoutInfo, worldMapSects = updatedWorldMapSects, sectDetails = updatedDetails)</ID>
-    <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$updatedDetails[sectId] = (updatedDetails[sectId] ?: SectDetail(sectId = sectId)).copy(scoutInfo = updatedScoutInfo[sectId] ?: SectScoutInfo())</ID>
     <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$val result = processSingleAutoEquip(d, year, month, phase, tables, eqStacks, eqInstancesById, newEqInstances)</ID>
     <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$val result = processSingleAutoLearn(d, year, month, phase, tables, mnStacks, mnInstancesById, newMnInstances)</ID>
     <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$writeAutoWarehouseResults(state, tables, updatedDisciples, bagEqIds, bagMnIds, eqStacks, mnStacks, newEqInstances, newMnInstances)</ID>
@@ -1293,6 +1294,9 @@
     <ID>TooManyFunctions:TouchEngineCallbacks.kt$TouchEngineCallbacks</ID>
     <ID>TooManyFunctions:UnifiedPerformanceMonitor.kt$UnifiedPerformanceMonitor</ID>
     <ID>TooManyFunctions:VassalService.kt$VassalService</ID>
+    <ID>UnusedImports:CultivationEventDiplomacyOps.kt$import com.xianxia.sect.core.engine.system.InventorySystem</ID>
+    <ID>UnusedImports:CultivationEventDiplomacyOps.kt$import com.xianxia.sect.core.util.DomainLog</ID>
+    <ID>UnusedImports:CultivationEventDiplomacyOps.kt$import com.xianxia.sect.core.util.DomainResult</ID>
     <ID>UnusedImports:CultivationEventMissionOps.kt$import com.xianxia.sect.core.model.SpiritStoneGrade</ID>
     <ID>UnusedImports:CultivationEventMissionOps.kt$import com.xianxia.sect.core.util.DomainLog</ID>
     <ID>UnusedImports:CultivationEventMissionOps.kt$import com.xianxia.sect.core.util.DomainResult</ID>
@@ -1535,6 +1539,7 @@
     <ID>WildcardImport:CultivationCoreRealtimeAutoPillsTest.kt$import com.xianxia.sect.core.model.*</ID>
     <ID>WildcardImport:CultivationCoreRealtimeAutoPillsTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:CultivationCoreTest.kt$import org.junit.Assert.*</ID>
+    <ID>WildcardImport:CultivationEventDiplomacyOps.kt$import com.xianxia.sect.core.model.*</ID>
     <ID>WildcardImport:CultivationEventMissionOps.kt$import com.xianxia.sect.core.model.*</ID>
     <ID>WildcardImport:CultivationEventMonthlyOps.kt$import com.xianxia.sect.core.model.*</ID>
     <ID>WildcardImport:CultivationEventProcessor.kt$import com.xianxia.sect.core.model.*</ID>
