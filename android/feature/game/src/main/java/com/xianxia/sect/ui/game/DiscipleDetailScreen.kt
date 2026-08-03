@@ -44,9 +44,11 @@ import com.xianxia.sect.ui.components.AffixDetailDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.components.DialogSystemBarGuard
 import com.xianxia.sect.ui.components.DialogFocusGuard
-import com.xianxia.sect.feature.game.R
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.xianxia.sect.ui.components.DialogMode
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.ui.game.components.detail.*
 import com.xianxia.sect.ui.game.dialogs.DiscipleChatDialog
 import com.xianxia.sect.ui.game.dialogs.shared.RenameDiscipleDialog
@@ -163,25 +165,16 @@ fun DiscipleDetailDialog(
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("信息", "属性", "装备", "功法")
 
-    Dialog(
+    UnifiedGameDialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false,
-            dismissOnBackPress = false,
-            dismissOnClickOutside = false
-        )
+        title = "",
+        mode = DialogMode.Full,
+        dismissOnBackPress = false,
+        dismissOnClickOutside = false,
+        scrimEnabled = scrimEnabled,
+        showHeader = false,
+        showCloseButton = false
     ) {
-        DialogSystemBarGuard()
-        DialogFocusGuard()
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .then(
-                    if (scrimEnabled) Modifier.background(Color(0x99000000))
-                    else Modifier
-                )
-        ) {
             key(disciple.id) {
             BackHandler(onBack = onDismiss)
 
@@ -324,6 +317,8 @@ fun DiscipleDetailDialog(
             }
         }
     } // CompositionLocalProvider
+        }
+    }
 
     if (showRelationsDialog) {
         RelationsDialog(
@@ -594,9 +589,6 @@ fun DiscipleDetailDialog(
             viewModel = viewModel,
             onDismiss = { showChatDialog = false }
         )
-    }
-    }
-        }
     }
 }
 
