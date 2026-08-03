@@ -35,8 +35,8 @@ import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.ui.components.SpriteResRegistry
 
-/** 事件区/选择区纯色面板背景（与消息栏展开态背景一致） */
-internal val SecretRealmBackground = Color(0xFFF5F5DC)
+/** 事件区/选择区纯色面板背景（与消息栏展开态/通关奖励面板同色） */
+internal val SecretRealmBackground = Color(0xFFF6EBD5)
 
 /**
  * 探索弟子圆形头像（参考天道试炼 CombatantPortrait 圆形肖像；死亡置灰）。

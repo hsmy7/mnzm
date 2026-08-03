@@ -37,7 +37,7 @@ fun MessageBarExpanded(
     onDismiss: () -> Unit,
     scrollToBottomTrigger: Int = 0
 ) {
-    val beige = Color(0xFFF5F5DC)
+    val beige = Color(0xFFF6EBD5)
     val dividerColor = Color(0xFFDCD6D0)
     val overlayColor = Color(0x0A000000)
 
