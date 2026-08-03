@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.engine.service
 
-import com.xianxia.sect.core.engine.annotation.GameService
 
 /**
  * 广告服务接口 — 激励视频广告的统一入口。

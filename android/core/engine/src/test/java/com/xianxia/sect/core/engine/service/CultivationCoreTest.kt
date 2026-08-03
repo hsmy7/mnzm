@@ -16,7 +16,6 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
-import com.xianxia.sect.core.model.PillEffects
 import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.perf.ThermalMonitor

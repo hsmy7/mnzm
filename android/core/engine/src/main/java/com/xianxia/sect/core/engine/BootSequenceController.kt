@@ -4,7 +4,6 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSnapshotCache
-import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.state.BootPhase

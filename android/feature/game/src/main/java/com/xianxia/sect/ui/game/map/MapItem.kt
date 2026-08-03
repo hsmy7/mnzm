@@ -1,6 +1,5 @@
 package com.xianxia.sect.ui.game.map
 
-import androidx.compose.ui.graphics.Color
 
 sealed interface MapItem {
     val id: String

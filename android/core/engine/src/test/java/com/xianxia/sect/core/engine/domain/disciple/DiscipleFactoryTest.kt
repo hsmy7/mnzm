@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
-import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.SocialData
 import com.xianxia.sect.core.util.NameService
 import org.junit.Assert.*

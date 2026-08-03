@@ -3,7 +3,6 @@ package com.xianxia.sect.data.local
 import androidx.room.TypeConverter
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.data.serialization.NullSafeProtoBuf
-import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.nullable
 
 /**

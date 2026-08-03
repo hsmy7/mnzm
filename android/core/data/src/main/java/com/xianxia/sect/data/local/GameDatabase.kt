@@ -7,7 +7,6 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
-import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 import com.xianxia.sect.core.model.*
@@ -20,7 +19,6 @@ import com.xianxia.sect.data.archive.ArchivedBattleLogDao
 import com.xianxia.sect.data.archive.ArchivedDiscipleDao
 import java.io.File
 import java.io.FileOutputStream
-import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong

@@ -4,12 +4,10 @@ import android.util.Log
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.state.*
-import com.xianxia.sect.core.util.SectMapTileGenerator
 import com.xianxia.sect.taptap.TapCloudSaveManager
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.serialization.unified.SaveDataReconciler

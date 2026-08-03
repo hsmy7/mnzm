@@ -7,7 +7,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Seed

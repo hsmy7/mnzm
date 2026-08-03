@@ -1,6 +1,5 @@
 package com.xianxia.sect.data.engine
 
-import android.util.Log
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton

@@ -1,26 +1,19 @@
 package com.xianxia.sect.ui.game.dialogs
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.DiscipleSlot
@@ -32,7 +25,6 @@ import com.xianxia.sect.ui.game.SecretRealmViewModel
 import com.xianxia.sect.ui.game.filterByDiscipleStatus
 import com.xianxia.sect.ui.game.map.MapItem
 import com.xianxia.sect.ui.theme.ButtonSizes
-import com.xianxia.sect.ui.theme.GameColors
 
 /** 远古秘境详情描述文案 */
 private const val SECRET_REALM_DESCRIPTION =

@@ -9,7 +9,6 @@ import kotlinx.serialization.EncodeDefault
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.reflect.KClass
-import kotlin.reflect.KProperty
 import kotlin.reflect.KType
 import kotlin.reflect.full.memberProperties
 import kotlin.reflect.jvm.isAccessible

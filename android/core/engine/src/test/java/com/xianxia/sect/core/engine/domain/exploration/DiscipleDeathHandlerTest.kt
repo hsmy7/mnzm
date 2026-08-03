@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine.domain.exploration
 
 import com.xianxia.sect.core.exploration.DiscipleDeathHandler
-import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.WriteGuardRule
 import org.junit.Assert.*

@@ -9,7 +9,6 @@ import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.engine.BuildConfig
 import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.RedeemCodeManager

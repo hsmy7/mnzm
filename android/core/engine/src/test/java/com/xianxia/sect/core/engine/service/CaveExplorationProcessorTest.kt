@@ -4,7 +4,6 @@ import com.xianxia.sect.core.engine.SectWarehouseManager
 import com.xianxia.sect.core.engine.domain.battle.AttackWarningService
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.system.InventorySystem
-import com.xianxia.sect.core.model.BattleLogEnemy
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.WorldSect

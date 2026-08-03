@@ -1,6 +1,5 @@
 package com.xianxia.sect.core
 
-import com.xianxia.sect.core.config.FavorConfig
 import com.xianxia.sect.core.config.GameConfigData
 import com.xianxia.sect.core.domain.BuildConfig
 import com.xianxia.sect.core.util.DomainLog

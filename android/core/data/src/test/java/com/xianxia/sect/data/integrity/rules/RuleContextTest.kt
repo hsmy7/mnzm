@@ -4,7 +4,6 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.data.model.SaveData
 import org.junit.After
 import org.junit.Assert.*
-import org.junit.Before
 import org.junit.Test
 
 class RuleContextTest {

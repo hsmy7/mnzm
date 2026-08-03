@@ -1,20 +1,14 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
-import com.xianxia.sect.core.engine.annotation.GameService
 import kotlinx.coroutines.flow.StateFlow
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.AppError
-import com.xianxia.sect.core.util.CoroutineScopeProvider
-import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.util.GameRngManager
-import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.RngPartition
-import com.xianxia.sect.core.util.SpiritRootGenerator
-import com.xianxia.sect.core.util.asKotlinRandom
 import javax.inject.Inject
 import javax.inject.Singleton
 

@@ -7,7 +7,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
@@ -22,7 +21,6 @@ import androidx.compose.runtime.*
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.activity.enableEdgeToEdge
 import androidx.core.content.edit
@@ -35,7 +33,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
 import com.xianxia.sect.R
-import com.xianxia.sect.XianxiaApplication
 import com.xianxia.sect.core.CrashHandler
 import com.xianxia.sect.core.CrashRecoveryEngine
 import com.xianxia.sect.core.VulkanPolicy
@@ -52,7 +49,6 @@ import com.xianxia.sect.data.crypto.UiKeyRecoveryCallback
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.SessionManager
 import com.xianxia.sect.ui.MainActivity
-import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.game.sect.NativeSurfaceView
 import com.xianxia.sect.ui.theme.XianxiaTheme
@@ -71,7 +67,6 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.taptap.AdServiceImpl
 import com.xianxia.sect.core.nativebridge.NativeBridge
 import com.xianxia.sect.core.engine.di.IoDispatcher
-import kotlinx.coroutines.CoroutineDispatcher
 import android.view.ActionMode
 import android.view.View
 import android.view.Window

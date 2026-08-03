@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.config
 
-import com.xianxia.sect.core.config.GiftConfig
 import org.junit.Assert.*
 import org.junit.Test
 

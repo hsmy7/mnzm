@@ -6,7 +6,6 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.usecase.ElderManagementUseCase
 import com.xianxia.sect.core.usecase.SectPolicyToggleUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject

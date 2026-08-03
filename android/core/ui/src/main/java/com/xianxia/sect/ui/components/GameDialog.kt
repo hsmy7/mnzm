@@ -4,7 +4,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.Image
@@ -39,7 +38,6 @@ import com.xianxia.sect.core.ui.R
 import com.xianxia.sect.ui.theme.AppTypography
 import com.xianxia.sect.ui.theme.CornerRadius
 import com.xianxia.sect.ui.theme.Spacing
-import com.xianxia.sect.ui.components.clickableWithSound
 
 enum class DialogMode { Half, Full, Auto }
 

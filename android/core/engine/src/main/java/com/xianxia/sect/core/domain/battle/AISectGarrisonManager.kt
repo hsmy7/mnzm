@@ -3,7 +3,6 @@ package com.xianxia.sect.core.engine.domain.battle
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GarrisonSlot
-import com.xianxia.sect.core.model.WorldSect
 
 /**
  * AI 驻军管理：每月填充空槽 + 每年全量轮换。

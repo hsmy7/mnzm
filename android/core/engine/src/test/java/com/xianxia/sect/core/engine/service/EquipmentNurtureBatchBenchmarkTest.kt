@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.engine.service
 
-import com.xianxia.sect.core.engine.EquipmentNurtureSystem
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleEquipmentManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleManualManager
 import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager

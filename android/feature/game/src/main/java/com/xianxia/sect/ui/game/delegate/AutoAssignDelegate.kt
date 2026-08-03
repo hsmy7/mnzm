@@ -2,7 +2,6 @@ package com.xianxia.sect.ui.game.delegate
 
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.batchUpdateAutoAssignAndGuide
-import com.xianxia.sect.core.engine.incrementGuideCounter
 import com.xianxia.sect.core.engine.updateGameData
 
 /**

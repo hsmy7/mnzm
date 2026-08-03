@@ -3,7 +3,6 @@ package com.xianxia.sect.ui.components
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -19,7 +18,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -27,7 +25,6 @@ import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.model.PillGrade
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.theme.GameColors
-import com.xianxia.sect.ui.components.clickableWithSound
 
 val LocalItemSpriteCache = staticCompositionLocalOf<Map<Int, ImageBitmap>> { emptyMap() }
 

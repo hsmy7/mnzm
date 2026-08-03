@@ -1,37 +1,22 @@
 package com.xianxia.sect.ui.game.components
 
-import androidx.activity.compose.BackHandler
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.currentStateAsState
 import kotlinx.coroutines.launch
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
-import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.model.BattleLog
-import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
 import com.xianxia.sect.core.model.WarningStage
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.ui.game.AlchemyViewModel
-import com.xianxia.sect.ui.game.ActivityViewModel
 import com.xianxia.sect.ui.game.BattleViewModel
 import com.xianxia.sect.ui.game.BloodRefiningViewModel
 import com.xianxia.sect.ui.game.DiscipleDetailDialog
@@ -46,25 +31,11 @@ import com.xianxia.sect.ui.game.TopOverlay
 import com.xianxia.sect.ui.game.WorldMapInteractionViewModel
 import com.xianxia.sect.ui.game.WorldMapGarrisonViewModel
 import com.xianxia.sect.ui.game.dialogs.*
-import com.xianxia.sect.ui.game.tabs.BuildingsTab
-import com.xianxia.sect.ui.game.tabs.DisciplesTab
-import com.xianxia.sect.ui.game.tabs.SettingsTab
-import com.xianxia.sect.ui.game.tabs.WarehouseTab
-import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.SectLevel
-import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
-import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
-import com.xianxia.sect.ui.components.CloseButton
-import com.xianxia.sect.ui.components.DialogMode
-import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.RewardDisplayDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
-import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.canRenderDialogs
 import com.xianxia.sect.core.domain.dialog.DialogType
-import com.xianxia.sect.core.model.guide.GuideTaskRegistry
-import com.xianxia.sect.ui.game.dialogs.GuideDialog
 
 private val CachedColorScheme = XianxiaColorScheme()
 

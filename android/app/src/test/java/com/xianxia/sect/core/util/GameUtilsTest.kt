@@ -3,7 +3,6 @@ package com.xianxia.sect.core.util
 import com.xianxia.sect.core.model.Alliance
 import com.xianxia.sect.core.model.SectRelation
 import com.xianxia.sect.core.model.SectRelationLevel
-import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.domain.FavorDomain
 import org.junit.Assert.*
 import org.junit.Test

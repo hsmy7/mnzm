@@ -19,7 +19,6 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 // import com.huawei.agconnect.crash.AGConnectCrash  // 待 AGC Crash SDK 依赖就绪后启用
-import com.xianxia.sect.core.util.DeviceCompatibilityHelper
 import javax.inject.Inject
 import javax.inject.Singleton
 

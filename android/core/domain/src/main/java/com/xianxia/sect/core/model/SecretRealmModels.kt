@@ -6,7 +6,6 @@ import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlinx.serialization.protobuf.ProtoNumber
-import kotlinx.serialization.protobuf.ProtoPacked
 
 // SecretRealmModels.kt — 远古秘境玩法模型（地图实例/探索会话/事件/背包/AI 队伍）
 

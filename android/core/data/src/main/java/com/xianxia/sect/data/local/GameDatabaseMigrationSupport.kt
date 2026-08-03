@@ -4,7 +4,6 @@ package com.xianxia.sect.data.local
 import android.util.Log
 import androidx.sqlite.db.SupportSQLiteDatabase
 import java.util.Locale
-import java.util.concurrent.atomic.AtomicInteger
 
 /** Migration 文件共用的日志 TAG（各文件独立声明，避免 top-level 冲突） */
 private const val TAG = "GameDatabase"

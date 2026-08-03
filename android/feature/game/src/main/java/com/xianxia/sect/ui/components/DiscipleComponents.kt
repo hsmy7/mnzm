@@ -33,13 +33,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.feature.game.R
-import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.ElderSlotType
 import com.xianxia.sect.core.model.Talent
 import com.xianxia.sect.core.model.Physique
 import com.xianxia.sect.core.model.Affix
-import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors

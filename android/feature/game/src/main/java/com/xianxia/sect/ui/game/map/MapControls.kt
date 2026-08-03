@@ -1,6 +1,5 @@
 package com.xianxia.sect.ui.game.map
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable

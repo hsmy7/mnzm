@@ -10,7 +10,6 @@ import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.EnemyType
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Mission
-import com.xianxia.sect.core.model.MissionDifficulty
 import com.xianxia.sect.core.model.MissionRewardConfig
 import com.xianxia.sect.core.model.MissionTemplate
 import com.xianxia.sect.core.model.MissionType

@@ -3,14 +3,10 @@ package com.xianxia.sect.core.util
 import android.app.ActivityManager
 import android.content.Context
 import android.os.Debug
-import android.os.Process
 import android.util.Log
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date

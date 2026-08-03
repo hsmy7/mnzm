@@ -5,7 +5,6 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService
 import com.xianxia.sect.core.event.DeathEvent
 import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.event.ExplorationCompletedEvent
-import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.ExplorationStatus
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.DomainLog

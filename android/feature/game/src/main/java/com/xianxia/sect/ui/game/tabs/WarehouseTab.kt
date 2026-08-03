@@ -1,10 +1,8 @@
 package com.xianxia.sect.ui.game.tabs
 
 import androidx.compose.animation.*
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 
@@ -21,7 +19,6 @@ import androidx.compose.ui.res.painterResource
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.ui.components.clickableWithSound
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -30,7 +27,6 @@ import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.Pill
-import com.xianxia.sect.core.model.BattleRewardItem
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.model.StorageBag
@@ -43,7 +39,6 @@ import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.game.components.watchKeyOf
 import com.xianxia.sect.core.util.sortedByWatchedThenRarity
 import com.xianxia.sect.ui.theme.ButtonSizes
-import com.xianxia.sect.ui.theme.GameColors
 
 internal fun getWarehouseItemIsLocked(item: Any): Boolean = when (item) {
     is EquipmentStack -> item.isLocked

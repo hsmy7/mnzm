@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.domain.favor
 
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.GiftConfig
 import com.xianxia.sect.core.config.SectResponseTexts
 import com.xianxia.sect.core.domain.FavorDomain

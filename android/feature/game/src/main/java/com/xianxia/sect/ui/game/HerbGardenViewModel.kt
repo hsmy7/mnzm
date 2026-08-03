@@ -1,12 +1,10 @@
 package com.xianxia.sect.ui.game
 
-import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.usecase.ElderManagementUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel

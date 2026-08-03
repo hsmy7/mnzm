@@ -11,7 +11,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -22,7 +21,6 @@ import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedGameDialog
-import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.applyFilters
@@ -31,7 +29,6 @@ import com.xianxia.sect.ui.game.filterByDiscipleStatus
 import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.game.REALM_FILTER_OPTIONS
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.CancellationException
 
 @Composable
 internal fun ScoutDialog(

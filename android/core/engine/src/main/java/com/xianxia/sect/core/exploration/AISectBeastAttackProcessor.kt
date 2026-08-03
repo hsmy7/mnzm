@@ -3,7 +3,6 @@ package com.xianxia.sect.core.exploration
 import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.SectCombatPowerCalculator
-import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
 import com.xianxia.sect.core.engine.domain.battle.Battle
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult

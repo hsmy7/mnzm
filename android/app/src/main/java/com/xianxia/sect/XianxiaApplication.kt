@@ -2,26 +2,20 @@ package com.xianxia.sect
 
 import android.app.Application
 import android.content.ComponentCallbacks2
-import android.content.res.Configuration
 import android.util.Log
-import androidx.core.content.edit
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.core.util.GameMonitorManager
 import com.xianxia.sect.core.model.DiscipleStatsProvider
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.model.DiscipleStats
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.util.VivoGCJITOptimizer
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.ui.game.building.registerDefaults
 // import com.huawei.agconnect.crash.AGConnectCrash  // 待 AGC Crash SDK 依赖就绪后启用
 import com.xianxia.sect.data.ChangelogData
-import com.xianxia.sect.ui.components.SpriteCategory
-import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.ui.util.FontPreloader
 import com.xianxia.sect.core.util.DeviceCompatibilityHelper
 import com.xianxia.sect.core.util.ManufacturerAdapter
@@ -34,9 +28,6 @@ import com.tencent.mmkv.MMKV
 import com.getkeepsafe.relinker.ReLinker
 import com.tencent.bugly.crashreport.CrashReport
 import dagger.hilt.android.HiltAndroidApp
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors

@@ -12,7 +12,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -32,15 +31,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.data.ChangelogData
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.model.RedeemResult
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.ui.components.CloseButton
-import com.xianxia.sect.ui.components.DiscipleAttrText
 import com.xianxia.sect.ui.components.CircularCheckbox
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.InlineStandardPromptDialog

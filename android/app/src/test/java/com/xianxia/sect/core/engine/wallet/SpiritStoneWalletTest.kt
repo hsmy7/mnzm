@@ -5,7 +5,6 @@ import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.model.SpiritStoneExchange
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.GameStateStoreImpl
-import com.xianxia.sect.core.wallet.BatchResult
 import com.xianxia.sect.core.wallet.DeductResult
 import com.xianxia.sect.core.wallet.SpiritStoneLedger
 import com.xianxia.sect.core.wallet.SpiritStoneOperation

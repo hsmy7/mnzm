@@ -1,14 +1,9 @@
 package com.xianxia.sect.ui.game.dialogs
 
-import android.content.Context
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,32 +14,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.engine.domain.battle.ActionType
-import com.xianxia.sect.core.engine.domain.battle.BattleAI
-import com.xianxia.sect.core.engine.domain.battle.Combatant
-import com.xianxia.sect.core.util.BattleCalculator
-import com.xianxia.sect.core.util.PortraitPool
 import com.xianxia.sect.ui.components.SpriteResRegistry
-import com.xianxia.sect.ui.components.beastSpriteRes
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.game.HeavenlyTrialViewModel
 import com.xianxia.sect.ui.theme.GameColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 import com.xianxia.sect.ui.game.dialogs.heavenlytrial.*
 import com.xianxia.sect.ui.components.clickableWithSound
 

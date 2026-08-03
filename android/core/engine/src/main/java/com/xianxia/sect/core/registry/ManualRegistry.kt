@@ -2,7 +2,6 @@ package com.xianxia.sect.core.registry
 
 import android.content.Context
 import com.xianxia.sect.core.util.DomainLog
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.ManualStack
 import com.xianxia.sect.core.model.ManualType
 

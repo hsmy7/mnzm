@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.state
 
-import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.Herb

@@ -6,12 +6,9 @@ import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.domain.favor.GiftResult
 import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.model.WorldMapDialogState
-import com.xianxia.sect.core.model.WorldMapDialogType
-import com.xianxia.sect.core.util.DomainLog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel

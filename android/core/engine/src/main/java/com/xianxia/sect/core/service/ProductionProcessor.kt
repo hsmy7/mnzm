@@ -18,7 +18,6 @@ import com.xianxia.sect.core.engine.domain.building.buildingFeatureDisplayNames
 import com.xianxia.sect.core.engine.domain.building.SlotGroup
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.repository.ProductionSlotRepository
-import com.xianxia.sect.core.repository.SlotUpdate
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.system.computeMaxSlots
 import com.xianxia.sect.core.util.AppError

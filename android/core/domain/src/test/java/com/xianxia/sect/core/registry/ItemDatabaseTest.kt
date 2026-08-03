@@ -1,8 +1,6 @@
 package com.xianxia.sect.core.registry
 
 import com.xianxia.sect.core.model.MaterialCategory
-import com.xianxia.sect.core.model.PillCategory
-import com.xianxia.sect.core.model.PillGrade
 import org.junit.Assert.*
 import org.junit.Test
 

@@ -2,7 +2,6 @@ package com.xianxia.sect.data.memory
 
 import android.app.ActivityManager
 import android.content.Context
-import android.os.Build
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.xianxia.sect.core.util.MemoryFormatUtil

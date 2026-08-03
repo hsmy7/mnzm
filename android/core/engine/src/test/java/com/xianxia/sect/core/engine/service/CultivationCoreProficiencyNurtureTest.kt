@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.engine.service
 
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleEquipmentManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleManualManager

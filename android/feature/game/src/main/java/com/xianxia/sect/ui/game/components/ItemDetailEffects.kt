@@ -3,10 +3,8 @@ package com.xianxia.sect.ui.game.components
 import com.xianxia.sect.ui.components.getRarityName
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
-import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.util.GameUtils

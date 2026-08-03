@@ -6,11 +6,8 @@ import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.HealType
 import com.xianxia.sect.core.SkillType
-import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
-import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.CombatSkill
-import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.AISectPersonality
 import com.xianxia.sect.core.model.BattleLogAction
@@ -20,7 +17,6 @@ import com.xianxia.sect.core.model.BattleLogMember
 import com.xianxia.sect.core.model.BattleLogRound
 import com.xianxia.sect.core.model.Disciple
 
-import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.WorldSect
@@ -34,7 +30,6 @@ import com.xianxia.sect.core.model.SectBattleType
 import com.xianxia.sect.core.util.BattleCalculator
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
-import android.util.Log
 // top-level fun 提取到 aiattack/ 子目录（同包内可直接访问）
 
 /** AI 宗门攻击系统的 RNG 管理器（由 GameEngine 初始化时注入） */

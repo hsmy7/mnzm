@@ -18,7 +18,6 @@ import com.xianxia.sect.ui.components.DialogSystemBarGuard
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.game.SaveLoadViewModel
 import com.xianxia.sect.ui.game.CloudSaveOperationState
-import com.xianxia.sect.ui.theme.GameColors
 
 /**
  * 云存档对话框。

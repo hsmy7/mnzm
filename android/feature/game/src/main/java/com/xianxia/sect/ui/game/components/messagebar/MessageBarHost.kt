@@ -9,11 +9,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.activity.compose.BackHandler
 import com.xianxia.sect.core.model.GameEventCategory
 import com.xianxia.sect.core.model.GameEventRecord
-import kotlinx.coroutines.launch
 
 /**
  * 消息栏宿主——管理展开/收起状态、标签选择、与 hideUi 联动。

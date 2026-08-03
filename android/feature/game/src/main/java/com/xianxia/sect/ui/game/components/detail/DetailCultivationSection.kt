@@ -3,7 +3,6 @@ package com.xianxia.sect.ui.game.components.detail
 import com.xianxia.sect.ui.components.rememberChasingProgress
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -30,17 +29,13 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import com.xianxia.sect.ui.components.DialogSystemBarGuard
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.GameUtils
 
 import com.xianxia.sect.ui.components.CloseButton
-import com.xianxia.sect.ui.components.DiscipleAttrText
-import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.game.GameViewModel
-import java.util.Locale
 
 internal fun calculatePreachingBonusesForDisplay(
     disciple: DiscipleAggregate,

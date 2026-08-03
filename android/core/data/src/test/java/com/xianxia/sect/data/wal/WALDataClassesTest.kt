@@ -2,7 +2,6 @@ package com.xianxia.sect.data.wal
 
 import org.junit.Assert.*
 import org.junit.Test
-import java.util.concurrent.atomic.AtomicReference
 
 class WALDataClassesTest {
 

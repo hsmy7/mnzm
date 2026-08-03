@@ -2,7 +2,6 @@ package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.engine.domain.exploration.MissionSystem
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.Mission
 import com.xianxia.sect.core.model.MissionDifficulty
 import com.xianxia.sect.core.model.MissionTemplate

@@ -2,7 +2,6 @@ package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentSlot
 
 object EquipmentNurtureSystem {
 

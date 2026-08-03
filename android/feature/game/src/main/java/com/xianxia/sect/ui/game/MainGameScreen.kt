@@ -2,10 +2,8 @@ package com.xianxia.sect.ui.game
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -13,12 +11,10 @@ import com.xianxia.sect.core.util.BuildingSpatialIndex
 import com.xianxia.sect.ui.game.components.messagebar.MessageBarHost
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.runtime.CompositionLocalProvider
@@ -35,38 +31,25 @@ import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.ui.components.GameButton
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.activity.compose.BackHandler
 import com.xianxia.sect.core.domain.dialog.DialogType
-import com.xianxia.sect.ui.navigation.GameRoute
 import com.xianxia.sect.ui.navigation.toDialogType
 
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.engine.GameEngineCore
-import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.GamePhase
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.MapPreloadData
-import com.xianxia.sect.core.model.SpiritFieldPlant
 import com.xianxia.sect.core.util.GridSnapHelper
-import com.xianxia.sect.core.util.GameUtils
-import com.xianxia.sect.ui.game.map.sect.SectCameraState
 import com.xianxia.sect.ui.game.map.sect.rememberSectCamera
 import com.xianxia.sect.core.util.GridSystem
 
-import androidx.compose.ui.viewinterop.AndroidView
-import com.xianxia.sect.core.nativebridge.NativeBridge
 import com.xianxia.sect.ui.game.sect.NativeSurfaceView
 import com.xianxia.sect.ui.game.sect.NativeRenderConfig
-import com.xianxia.sect.ui.game.sect.RenderFrame
 import com.xianxia.sect.ui.game.components.GameActionButtons
 import com.xianxia.sect.ui.game.components.LeftSideButtons
 import com.xianxia.sect.ui.game.components.GameOverlayHost
 import com.xianxia.sect.ui.game.components.OverlayViewModels
 import com.xianxia.sect.ui.game.components.OverlayCallbacks
-import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.ui.game.building.BuildingConstructionBar
 import com.xianxia.sect.ui.game.sect.*
@@ -74,7 +57,6 @@ import com.xianxia.sect.ui.game.main.*
 import com.xianxia.sect.core.touch.*
 import com.xianxia.sect.core.render.SpriteAtlasDef
 import com.xianxia.sect.core.animation.CameraAnimator
-import kotlinx.coroutines.CoroutineScope
 import androidx.compose.runtime.mutableIntStateOf
 
 

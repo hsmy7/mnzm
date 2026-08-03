@@ -2,7 +2,6 @@ package com.xianxia.sect.core.engine.domain.battle
 
 import com.xianxia.sect.core.BuffType
 import com.xianxia.sect.core.CombatantSide
-import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.HealType
 import com.xianxia.sect.core.model.CombatSkill

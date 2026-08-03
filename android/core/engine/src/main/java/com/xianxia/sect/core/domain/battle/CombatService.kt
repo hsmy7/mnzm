@@ -1,16 +1,13 @@
 package com.xianxia.sect.core.engine.domain.battle
 
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.engine.domain.exploration.CaveExplorationSystem
 import com.xianxia.sect.core.event.DeathEvent
 import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.util.DomainLog
 import javax.inject.Inject
 import javax.inject.Singleton
 

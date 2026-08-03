@@ -1,6 +1,5 @@
 package com.xianxia.sect.data.concurrent
 
-import com.xianxia.sect.data.StorageConstants
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before

@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.performance
 
-import android.graphics.BitmapFactory
 import com.xianxia.sect.core.concurrent.DeviceCapabilityProfiler
 import com.xianxia.sect.core.concurrent.ThermalController
 

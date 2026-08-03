@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.registry.PillRecipeDatabase
-import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.model.Herb
 import org.junit.Assert.*
 import org.junit.Test

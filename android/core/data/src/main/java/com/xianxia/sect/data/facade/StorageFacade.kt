@@ -2,7 +2,6 @@ package com.xianxia.sect.data.facade
 
 import android.content.Context
 import android.util.Log
-import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.concurrent.SlotLockManager
 import com.xianxia.sect.data.engine.StorageEngine
 import com.xianxia.sect.data.model.SaveData

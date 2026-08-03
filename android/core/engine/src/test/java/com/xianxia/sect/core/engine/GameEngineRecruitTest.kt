@@ -4,7 +4,6 @@ import com.xianxia.sect.core.engine.service.RecruitService
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.RecruitIntegrity
-import com.xianxia.sect.core.model.UsageTracking
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.MutableGameState

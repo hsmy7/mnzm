@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.registry
 
-import com.xianxia.sect.core.model.EquipmentSlot
 import org.junit.Assert.*
 import org.junit.Test
 

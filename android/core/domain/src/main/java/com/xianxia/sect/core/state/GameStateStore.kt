@@ -3,7 +3,6 @@ package com.xianxia.sect.core.state
 import androidx.compose.runtime.Immutable
 import com.xianxia.sect.core.model.*
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**

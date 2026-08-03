@@ -2,17 +2,8 @@ package com.xianxia.sect.core.model
 
 import androidx.annotation.Keep
 import androidx.compose.runtime.Immutable
-import androidx.room.ColumnInfo
-import androidx.room.Entity
-import androidx.room.Ignore
-import androidx.room.Index
-import com.xianxia.sect.core.GameConfig
-import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.Transient
 import kotlinx.serialization.protobuf.ProtoNumber
-import kotlinx.serialization.protobuf.ProtoPacked
-import com.xianxia.sect.core.model.production.ProductionSlot
 
 // GameDataWorldModels.kt — 世界地图/宗门/仓库/探索（P-2 从 GameData.kt 拆分，同包模型，序列化字段不变）
 

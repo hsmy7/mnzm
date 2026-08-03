@@ -3,7 +3,6 @@ package com.xianxia.sect.core.thermal
 import android.content.Context
 import android.os.Build
 import android.os.PowerManager
-import android.util.Log
 import androidx.annotation.RequiresApi
 import com.xianxia.sect.core.util.DomainLog
 import dagger.hilt.android.qualifiers.ApplicationContext

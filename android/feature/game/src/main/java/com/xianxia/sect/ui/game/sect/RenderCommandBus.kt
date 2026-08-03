@@ -1,6 +1,5 @@
 package com.xianxia.sect.ui.game.sect
 
-import com.xianxia.sect.core.render.RenderMetrics
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**

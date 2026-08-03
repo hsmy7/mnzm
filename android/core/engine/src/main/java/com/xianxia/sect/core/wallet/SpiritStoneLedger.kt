@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.wallet
 
-import com.xianxia.sect.core.util.DomainLog
 import javax.inject.Inject
 import javax.inject.Singleton
 

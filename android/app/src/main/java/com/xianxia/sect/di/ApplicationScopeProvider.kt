@@ -2,8 +2,6 @@ package com.xianxia.sect.di
 
 import android.util.Log
 import com.xianxia.sect.core.util.CoroutineScopeProvider
-import com.xianxia.sect.core.util.DomainLog
-import android.os.Process
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

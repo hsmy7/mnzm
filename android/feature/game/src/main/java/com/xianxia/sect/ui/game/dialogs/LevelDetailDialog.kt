@@ -1,31 +1,21 @@
 package com.xianxia.sect.ui.game.dialogs
 
 import com.xianxia.sect.core.util.GameUtils
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import com.xianxia.sect.core.engine.SectCombatPowerCalculator
 import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.core.GameConfig
@@ -37,22 +27,16 @@ import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.DiscipleSlot
-import com.xianxia.sect.ui.game.AttributeFilterOption
-import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.GameViewModel
-import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.applyFilters
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.filterByDiscipleStatus
-import com.xianxia.sect.ui.game.getAttributeValue
 import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.game.REALM_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.map.MapItem
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.CancellationException
 import com.xianxia.sect.ui.theme.ButtonSizes
-import com.xianxia.sect.ui.theme.GameColors
 
 private val beastNames =
     listOf("tiger", "wolf", "snake", "bear", "eagle", "fox", "dragon", "turtle")

@@ -7,7 +7,6 @@ import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.StackKeys
 import com.xianxia.sect.core.state.StackableItemStore
-import com.xianxia.sect.core.util.AppError
 
 object StorageBagUtils {
 

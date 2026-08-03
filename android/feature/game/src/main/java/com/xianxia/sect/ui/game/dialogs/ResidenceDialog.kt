@@ -1,10 +1,7 @@
 package com.xianxia.sect.ui.game.dialogs
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import kotlinx.coroutines.launch
@@ -15,10 +12,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.ui.game.filterByDiscipleStatus
-import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.ui.components.*
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig

@@ -6,7 +6,6 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
-import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.BuildingTypeAsStringSerializer
 import com.xianxia.sect.core.model.NullableStringAsEmptySerializer
 import com.xianxia.sect.core.model.ProductionSlotStatusAsStringSerializer

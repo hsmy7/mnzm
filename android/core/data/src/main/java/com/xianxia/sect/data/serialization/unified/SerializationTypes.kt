@@ -1,7 +1,6 @@
 package com.xianxia.sect.data.serialization.unified
 
 import android.util.Log
-import kotlinx.serialization.ExperimentalSerializationApi
 
 object SerializationConstants {
     const val MAGIC_HEADER: Short = 0x5853

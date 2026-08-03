@@ -2,7 +2,6 @@ package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -21,7 +20,6 @@ import com.xianxia.sect.core.config.HeavenlyTrialConfig
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.game.HeavenlyTrialViewModel
 import com.xianxia.sect.ui.theme.ButtonSizes
-import com.xianxia.sect.ui.theme.GameColors
 import androidx.compose.foundation.shape.CircleShape
 import com.xianxia.sect.ui.components.clickableWithSound
 import kotlinx.coroutines.launch

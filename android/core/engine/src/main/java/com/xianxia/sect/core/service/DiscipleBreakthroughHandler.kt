@@ -9,14 +9,12 @@ import com.xianxia.sect.core.state.recordGameEvent
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.disciple.*
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.coroutines.launch
 
 @Singleton
 @GameService("DiscipleBreakthroughHandler")

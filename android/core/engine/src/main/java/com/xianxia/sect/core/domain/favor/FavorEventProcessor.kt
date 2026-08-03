@@ -1,12 +1,9 @@
 package com.xianxia.sect.core.domain.favor
 
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.domain.FavorDomain
-import com.xianxia.sect.core.model.SectRelation
 import com.xianxia.sect.core.engine.service.CultivationSharedState
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.CoroutineScopeProvider
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 

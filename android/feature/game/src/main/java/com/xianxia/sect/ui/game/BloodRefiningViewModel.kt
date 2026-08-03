@@ -1,6 +1,5 @@
 ﻿package com.xianxia.sect.ui.game
 
-import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.*
@@ -11,7 +10,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class BloodRefiningUiState(

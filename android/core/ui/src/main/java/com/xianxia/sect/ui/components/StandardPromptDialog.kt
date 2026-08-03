@@ -1,17 +1,14 @@
 package com.xianxia.sect.ui.components
 
 import android.app.Activity
-import android.os.Build
 import android.util.Log
 import android.view.View
-import android.view.Window
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,7 +46,6 @@ import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowInsetsCompat
 import com.xianxia.sect.core.ui.R
 import androidx.core.view.WindowInsetsControllerCompat
-import com.xianxia.sect.ui.components.clickableWithSound
 
 /**
  * 在 Composable 挂载期间将目标窗口的 softInputMode 临时切换为 [mode]，

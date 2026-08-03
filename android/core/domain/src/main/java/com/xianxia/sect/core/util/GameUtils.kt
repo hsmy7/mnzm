@@ -1,8 +1,5 @@
 package com.xianxia.sect.core.util
 
-import com.xianxia.sect.core.model.WorldSect
-import com.xianxia.sect.core.model.SectRelation
-import com.xianxia.sect.core.model.Alliance
 import java.util.Locale
 import kotlin.math.ceil
 import kotlin.random.Random

@@ -3,7 +3,6 @@ package com.xianxia.sect.core.engine
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
-import com.xianxia.sect.core.engine.service.FormulaService
 import com.xianxia.sect.core.util.DomainResult
 
 suspend fun GameEngine.startAlchemy(slotIndex: Int, recipeId: String): DomainResult<ProductionSlot> = buildingFacade.startAlchemy(slotIndex, recipeId)

@@ -1,14 +1,11 @@
 package com.xianxia.sect.ui.game.dialogs
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,28 +14,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.watchKey
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.components.WatchItemButton
-import com.xianxia.sect.ui.components.DialogDefaults
 import com.xianxia.sect.ui.components.ElderBonusInfo
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.SmallScreenDialog
-import com.xianxia.sect.ui.components.getQualityColor
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.ItemCardData
@@ -52,12 +41,8 @@ import com.xianxia.sect.ui.game.ProductionSlotItem
 import com.xianxia.sect.ui.game.ProductionTheme
 import com.xianxia.sect.ui.game.ProductionElderSelectionDialog
 import com.xianxia.sect.ui.game.ProductionCommonDialog
-import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
-import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
-import com.xianxia.sect.ui.game.filterByDiscipleStatus
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.CancellationException
 import java.util.Locale
 
 @Composable

@@ -1,18 +1,13 @@
 package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.data.GameStateRepository
-import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import org.mockito.Mockito.mock
 
 /**
  * 组件表集成调试测试

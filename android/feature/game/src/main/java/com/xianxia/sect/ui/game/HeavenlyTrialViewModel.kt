@@ -13,13 +13,11 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.HeavenlyTrialSaveData
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.RewardCardItem
-import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.ui.game.dialogs.heavenlytrial.combatLogicRngManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map

@@ -1,8 +1,6 @@
 package com.xianxia.sect.core.engine.domain.exploration
 
 import com.xianxia.sect.core.model.CaveStatus
-import com.xianxia.sect.core.model.CultivatorCave
-import com.xianxia.sect.core.model.WorldSect
 import org.junit.Assert.*
 import org.junit.Test
 

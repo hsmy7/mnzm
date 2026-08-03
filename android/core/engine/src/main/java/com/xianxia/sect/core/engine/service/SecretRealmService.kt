@@ -2,7 +2,6 @@ package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.annotation.GameService
-import com.xianxia.sect.core.engine.domain.battle.BattleLogData
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
 import com.xianxia.sect.core.engine.domain.exploration.SecretRealmBattleHelper

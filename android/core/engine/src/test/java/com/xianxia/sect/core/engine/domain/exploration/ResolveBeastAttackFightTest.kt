@@ -1,21 +1,16 @@
 package com.xianxia.sect.core.engine.domain.exploration
 
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.exploration.BeastAttackDetector
 import com.xianxia.sect.core.exploration.LootCalculator
 import com.xianxia.sect.core.exploration.PatrolBattleSystem
 import com.xianxia.sect.core.exploration.WorldLevelManager
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.state.BattleResultUIData
-import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.DiscipleTables
-import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
 import com.xianxia.sect.core.engine.domain.battle.Battle
-import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.domain.battle.EncounterBattleService
@@ -30,7 +25,6 @@ import org.junit.Rule
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
 import org.mockito.kotlin.any
-import org.mockito.kotlin.eq
 
 class ResolveBeastAttackFightTest {
 

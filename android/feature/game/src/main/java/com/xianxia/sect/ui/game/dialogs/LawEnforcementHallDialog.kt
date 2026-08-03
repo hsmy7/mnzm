@@ -1,14 +1,8 @@
 package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -29,18 +23,11 @@ import com.xianxia.sect.ui.game.ProductionTheme
 import com.xianxia.sect.ui.game.ProductionElderSelectionDialog
 import com.xianxia.sect.ui.game.ProductionDirectDiscipleSelectionDialog
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
-import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
-import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
-import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
-import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
-import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.DiscipleSlot
-import com.xianxia.sect.core.util.isFollowed
-import com.xianxia.sect.core.util.sortedByFollowAndRealm
 
 @Composable
 fun LawEnforcementHallDialog(

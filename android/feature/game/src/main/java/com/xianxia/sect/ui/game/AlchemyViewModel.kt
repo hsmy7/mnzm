@@ -10,7 +10,6 @@ import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.usecase.ElderManagementUseCase
 import com.xianxia.sect.core.util.AppError
-import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException

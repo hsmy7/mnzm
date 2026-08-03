@@ -8,8 +8,6 @@ import com.xianxia.sect.core.engine.system.building.PlantingSystem
 import com.xianxia.sect.core.engine.service.*
 import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.event.EventBusPort
-import com.xianxia.sect.di.MailRepositoryImpl
-import com.xianxia.sect.di.SaveStorageImpl
 import com.xianxia.sect.core.util.AnalyticsTracker
 import com.xianxia.sect.core.util.BackgroundTaskScheduler
 import com.xianxia.sect.core.util.CoroutineScopeProvider
@@ -18,7 +16,6 @@ import com.xianxia.sect.core.util.GCOptimizerProvider
 import com.xianxia.sect.core.util.HttpClientProvider
 import com.xianxia.sect.core.util.MemoryMonitor
 import com.xianxia.sect.core.util.MemoryMonitorProvider
-import com.xianxia.sect.di.ApplicationScopeProvider
 import com.xianxia.sect.core.config.ConfigLoader
 import com.xianxia.sect.network.SecureHttpClient
 import com.xianxia.sect.taptap.TapDBManager

@@ -2,9 +2,6 @@ package com.xianxia.sect.core.engine.service
 
 import android.app.Application
 import com.xianxia.sect.core.config.InventoryConfig
-import com.xianxia.sect.core.engine.domain.battle.BattleSystem
-import com.xianxia.sect.core.engine.domain.disciple.DiscipleService
-import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.model.*

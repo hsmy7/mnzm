@@ -3,7 +3,6 @@ package com.xianxia.sect.core.engine
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.exploration.SecretRealmChoiceResult
 import com.xianxia.sect.core.engine.domain.exploration.SecretRealmEndReason
-import com.xianxia.sect.core.engine.service.SecretRealmService
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.SlotCategory

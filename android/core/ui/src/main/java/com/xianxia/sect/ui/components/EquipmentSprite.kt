@@ -1,6 +1,5 @@
 package com.xianxia.sect.ui.components
 
-import androidx.annotation.DrawableRes
 import com.xianxia.sect.core.model.SpiritStoneGrade
 
 /**

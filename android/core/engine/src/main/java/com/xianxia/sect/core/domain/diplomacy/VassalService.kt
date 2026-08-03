@@ -4,8 +4,6 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.VassalConfig
 import com.xianxia.sect.core.engine.SectCombatPowerCalculator
 import com.xianxia.sect.core.engine.annotation.GameService
-import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
-import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.SectBattleType
 import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.model.GameEventCategory
@@ -25,7 +23,6 @@ import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import kotlin.math.max
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
-import com.xianxia.sect.core.model.AISectPersonality
 import com.xianxia.sect.core.model.SectRelationLevel
 import javax.inject.Inject
 import javax.inject.Singleton

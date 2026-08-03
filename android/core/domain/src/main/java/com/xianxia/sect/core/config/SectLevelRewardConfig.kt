@@ -2,7 +2,6 @@ package com.xianxia.sect.core.config
 
 import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.model.RewardCardItem
-import java.util.UUID
 
 /**
  * ## SectLevelRewardConfig — 宗门等级奖励与升级条件配置

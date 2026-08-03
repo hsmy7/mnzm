@@ -1,6 +1,5 @@
 package com.xianxia.sect.ui.game
 
-import org.junit.Test
 
 /**
  * SaveLoadViewModel 读档流程纯逻辑测试。

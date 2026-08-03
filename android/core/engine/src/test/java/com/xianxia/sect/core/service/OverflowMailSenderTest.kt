@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.model.MailAttachment
-import com.xianxia.sect.core.model.MailEntity
 import com.xianxia.sect.core.overflow.OverflowMailDraft
 import com.xianxia.sect.core.repository.MailRepository
 import com.xianxia.sect.core.state.GameStateStore

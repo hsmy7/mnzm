@@ -11,7 +11,6 @@ import org.junit.runner.RunWith
 import org.junit.Rule
 import org.mockito.Mockito
 import org.mockito.Mockito.mock
-import org.mockito.kotlin.any
 import org.robolectric.RobolectricTestRunner
 
 /**

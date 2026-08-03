@@ -1,16 +1,11 @@
 package com.xianxia.sect.ui.game
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
@@ -21,26 +16,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfo
-import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.DialogDefaults
-import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.DiscipleSlot
-import com.xianxia.sect.core.util.isFollowed
-import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
-import com.xianxia.sect.ui.game.filterByDiscipleStatus
-import com.xianxia.sect.ui.game.REALM_FILTER_OPTIONS
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.CancellationException
 
 data class PeakElderSlotConfig(
     val title: String,

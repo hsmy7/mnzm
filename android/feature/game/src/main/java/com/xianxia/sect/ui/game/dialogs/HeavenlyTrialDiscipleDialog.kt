@@ -20,18 +20,15 @@ import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedGameDialog
-import com.xianxia.sect.ui.game.ATTRIBUTE_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.HeavenlyTrialViewModel
-import com.xianxia.sect.ui.game.SPIRIT_ROOT_FILTER_OPTIONS
 import com.xianxia.sect.ui.game.applyFilters
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.filterByDiscipleStatus
 import com.xianxia.sect.ui.game.getSpiritRootCount
 import com.xianxia.sect.ui.game.REALM_FILTER_OPTIONS
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.CancellationException
 
 @Composable
 fun HeavenlyTrialDiscipleDialog(

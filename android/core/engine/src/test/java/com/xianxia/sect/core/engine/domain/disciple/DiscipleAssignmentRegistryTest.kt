@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
-import com.xianxia.sect.core.model.SlotAssignment
 import com.xianxia.sect.core.model.SlotCategory
 import com.xianxia.sect.core.model.SlotRef
 import org.junit.Assert.*

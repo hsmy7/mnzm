@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.engine
 
-import com.xianxia.sect.core.model.SectRelation
 import com.xianxia.sect.core.model.WorldSect
 import org.junit.Assert.*
 import org.junit.Test

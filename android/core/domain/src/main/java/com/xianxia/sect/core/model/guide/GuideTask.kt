@@ -1,11 +1,7 @@
 package com.xianxia.sect.core.model.guide
 
 import com.xianxia.sect.core.model.DirectDiscipleSlot
-import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.GridBuildingData
-import com.xianxia.sect.core.model.production.BuildingType
-import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.state.DiscipleTables
 
 // ==================== 条件类型 ====================

@@ -3,7 +3,6 @@ package com.xianxia.sect.core.engine.domain.battle
 import com.xianxia.sect.core.BuffType
 import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.HealType
-import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.util.DeterministicRng
 

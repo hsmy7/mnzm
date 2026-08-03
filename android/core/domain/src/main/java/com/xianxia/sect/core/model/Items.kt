@@ -6,14 +6,12 @@ import androidx.room.ColumnInfo
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.Index
-import androidx.room.PrimaryKey
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.BuffType
 import com.xianxia.sect.core.DamageType
 import com.xianxia.sect.core.HealType
 import com.xianxia.sect.core.SkillType
-import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.util.StackableItem
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber

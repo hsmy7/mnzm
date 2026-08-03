@@ -3,7 +3,6 @@ package com.xianxia.sect.ui.game.dialogs
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -19,8 +18,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.feature.game.R
-import com.xianxia.sect.core.model.BloodRefinementProgress
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Material
@@ -36,7 +33,6 @@ import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.components.rememberChasingProgress
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.CancellationException
 import com.xianxia.sect.ui.components.clickableWithSound
 
 @Composable

@@ -4,8 +4,6 @@ import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.guide.GuideTask
 import com.xianxia.sect.core.model.guide.GuideTaskRegistry
 import com.xianxia.sect.core.state.DiscipleTables
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * 新手引导任务委托 — 数据提供与状态检测。

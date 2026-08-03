@@ -2,12 +2,7 @@ package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.HasId
-import com.xianxia.sect.core.util.StackableItem
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**

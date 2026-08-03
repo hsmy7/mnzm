@@ -21,7 +21,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
-import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.core.model.guide.GuideTaskRegistry
@@ -33,7 +32,6 @@ import com.xianxia.sect.ui.game.tabs.BuildingsTab
 import com.xianxia.sect.ui.game.tabs.DisciplesTab
 import com.xianxia.sect.ui.game.tabs.SettingsTab
 import com.xianxia.sect.ui.game.tabs.WarehouseTab
-import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.StandardPromptDialog

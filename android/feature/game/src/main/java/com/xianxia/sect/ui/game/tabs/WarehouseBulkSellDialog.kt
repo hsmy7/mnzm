@@ -12,14 +12,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ManualStack
-import com.xianxia.sect.core.model.Pill
-import com.xianxia.sect.core.model.Material
-import com.xianxia.sect.core.model.Herb
-import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.util.GameUtils
-import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.GridRow

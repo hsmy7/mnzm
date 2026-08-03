@@ -1,9 +1,7 @@
 package com.xianxia.sect.data.serialization.backwardcompat
 
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.*
 import kotlinx.serialization.*
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.protobuf.ProtoNumber
 import kotlinx.serialization.protobuf.ProtoPacked
 

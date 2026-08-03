@@ -4,7 +4,6 @@ import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.model.ClearRewardItem
 import com.xianxia.sect.core.model.HeavenlyTrialClearReward
 import com.xianxia.sect.core.model.StorageBag
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 

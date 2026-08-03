@@ -4,9 +4,6 @@ import android.util.Log
 import com.xianxia.sect.di.ApplicationScopeProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.Locale
 import java.util.concurrent.CopyOnWriteArrayList

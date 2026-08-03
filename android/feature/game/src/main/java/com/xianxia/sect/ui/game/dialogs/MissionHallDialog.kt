@@ -1,7 +1,6 @@
 package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -22,17 +21,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.engine.domain.exploration.MissionSystem
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
-import com.xianxia.sect.ui.components.CloseButton
-import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.core.util.GameUtils
-import com.xianxia.sect.core.util.isFollowed
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.game.GameViewModel

@@ -1,7 +1,5 @@
 package com.xianxia.sect.core.engine
 
-import com.xianxia.sect.core.model.RedeemCode
-import com.xianxia.sect.core.model.RedeemRewardType
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test

@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.engine.domain.battle
 
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.wallet.SpiritStoneWallet

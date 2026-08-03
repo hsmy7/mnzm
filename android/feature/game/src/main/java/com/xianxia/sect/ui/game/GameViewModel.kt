@@ -1,10 +1,8 @@
 package com.xianxia.sect.ui.game
 
-import android.content.ComponentCallbacks2
 import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -30,7 +28,6 @@ import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.engine.service.DailySignInService
 import com.xianxia.sect.core.engine.service.ClaimResult
 import com.xianxia.sect.core.engine.service.HighFrequencyData
-import com.xianxia.sect.ui.game.buildBuildingDataArray
 import com.xianxia.sect.ui.game.sect.RenderCommandBus
 import com.xianxia.sect.core.util.GridSnapHelper
 import com.xianxia.sect.core.engine.system.SystemManager

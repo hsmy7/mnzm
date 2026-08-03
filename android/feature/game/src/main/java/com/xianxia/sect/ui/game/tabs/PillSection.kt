@@ -7,7 +7,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.ui.components.GridRow
 import com.xianxia.sect.ui.components.ItemCardData

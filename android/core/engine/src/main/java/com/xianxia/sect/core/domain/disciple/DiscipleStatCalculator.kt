@@ -9,7 +9,6 @@ import com.xianxia.sect.core.registry.PhysiqueEffects
 import com.xianxia.sect.core.registry.AffixCombatEffects
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.BloodRefinementPctTotal
-import com.xianxia.sect.core.model.BloodRefinementProgress
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStats

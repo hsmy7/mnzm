@@ -2,7 +2,6 @@ package com.xianxia.sect.core.util
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import kotlin.math.ceil
 
 class ZoneCalculatorTest {
 

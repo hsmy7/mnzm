@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.dialog
 
 import com.xianxia.sect.core.domain.dialog.DialogType
-import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue

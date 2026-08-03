@@ -14,7 +14,6 @@ import com.xianxia.sect.core.touch.SectMapTouchEngine
 import com.xianxia.sect.core.touch.TouchAction
 import com.xianxia.sect.core.touch.TouchData
 import java.util.concurrent.atomic.AtomicBoolean
-import com.xianxia.sect.ui.game.sect.RenderCommandBus
 
 /**
  * NativeSurfaceView — 承载地图渲染的表面，支持 Vulkan 原生渲染和 Canvas 软件渲染双模式。

@@ -1,6 +1,5 @@
 package com.xianxia.sect.ui.game.main
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
@@ -8,7 +7,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.unit.dp
 import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.ui.components.clickableWithSound
 

@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -14,7 +13,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.rememberScrollState
@@ -22,12 +20,9 @@ import androidx.compose.foundation.verticalScroll
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.ButtonSizes
-import com.xianxia.sect.ui.components.FollowedTag
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
-import com.xianxia.sect.core.util.isFollowed
-import com.xianxia.sect.ui.theme.GameColors
 
 @Composable
 fun ReflectionCliffDialog(
