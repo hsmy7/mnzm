@@ -612,44 +612,22 @@ class ProductionProcessor @Inject constructor(
         idleDisciples.removeAll { it.id in allAssignments.values.map { it.first }.toSet() }
 
         // ── 生产槽位候选预计算（按优先级逐级筛选，候选从 idleDisciples 移除） ──
-        val herbCandidates = if (policies.autoPlantFocused || policies.autoPlantRootCounts.isNotEmpty()) {
-            val sorted = precomputeCandidates(
-                idleDisciples,
-                policies.autoPlantFocused, policies.autoPlantRootCounts,
-                policies.autoPlantThreshold
-            ) { it.spiritPlanting }
-            // 从池中移除已选中弟子
-            sorted.forEach { idleDisciples.remove(it) }
-            sorted
-        } else emptyList()
-
-        val mineCandidates = if (policies.autoMineFocused || policies.autoMineRootCounts.isNotEmpty()) {
-            val sorted = precomputeCandidates(
-                idleDisciples,
-                policies.autoMineFocused, policies.autoMineRootCounts,
-                policies.autoMineThreshold
-            ) { it.mining }
-            sorted.forEach { idleDisciples.remove(it) }
-            sorted
-        } else emptyList()
-
-        val alchemyCandidates = if (policies.autoAlchemyFocused || policies.autoAlchemyRootCounts.isNotEmpty()) {
-            val sorted = precomputeCandidates(
-                idleDisciples,
-                policies.autoAlchemyFocused, policies.autoAlchemyRootCounts,
-                policies.autoAlchemyThreshold
-            ) { it.pillRefining }
-            sorted.forEach { idleDisciples.remove(it) }
-            sorted
-        } else emptyList()
-
-        val forgeCandidates = if (policies.autoForgeFocused || policies.autoForgeRootCounts.isNotEmpty()) {
-            precomputeCandidates(
-                idleDisciples,
-                policies.autoForgeFocused, policies.autoForgeRootCounts,
-                policies.autoForgeThreshold
-            ) { it.artifactRefining }
-        } else emptyList()
+        val herbCandidates = takeCandidates(
+            idleDisciples, policies.autoPlantFocused, policies.autoPlantRootCounts,
+            policies.autoPlantThreshold
+        ) { it.spiritPlanting }
+        val mineCandidates = takeCandidates(
+            idleDisciples, policies.autoMineFocused, policies.autoMineRootCounts,
+            policies.autoMineThreshold
+        ) { it.mining }
+        val alchemyCandidates = takeCandidates(
+            idleDisciples, policies.autoAlchemyFocused, policies.autoAlchemyRootCounts,
+            policies.autoAlchemyThreshold
+        ) { it.pillRefining }
+        val forgeCandidates = takeCandidates(
+            idleDisciples, policies.autoForgeFocused, policies.autoForgeRootCounts,
+            policies.autoForgeThreshold
+        ) { it.artifactRefining }
 
         // ══════════════════════════════════════════════════════════════════
         // 单次原子写入（所有 5 步骤在同一事务内完成，由调用方 stateStore.update 包裹）
@@ -657,6 +635,23 @@ class ProductionProcessor @Inject constructor(
         if (allAssignments.isEmpty() && herbCandidates.isEmpty() && mineCandidates.isEmpty()
             && alchemyCandidates.isEmpty() && forgeCandidates.isEmpty()) return
 
+        applyAutoAssignments(
+            state, allAssignments, herbCandidates, mineCandidates, alchemyCandidates, forgeCandidates
+        )
+    }
+
+    /**
+     * 自动分配原子写入：住所 + 灵植/灵矿/炼丹/锻造 5 步（预计算候选迭代器分配）。
+     * 在调用方 stateStore.update 事务内执行。
+     */
+    private fun applyAutoAssignments(
+        state: MutableGameState,
+        allAssignments: Map<String, Pair<String, String>>,
+        herbCandidates: List<Disciple>,
+        mineCandidates: List<Disciple>,
+        alchemyCandidates: List<Disciple>,
+        forgeCandidates: List<Disciple>
+    ) {
         val herbIter = herbCandidates.iterator()
         val mineIter = mineCandidates.iterator()
         val alchemyIter = alchemyCandidates.iterator()
@@ -1214,6 +1209,23 @@ class ProductionProcessor @Inject constructor(
             }
         }
         return singleAssignments + multiAssignments
+    }
+
+    /**
+     * 生产槽位候选提取：预排序候选弟子并从池中移除（按优先级逐级筛选）。
+     * 政策未启用时返回空列表。
+     */
+    private fun takeCandidates(
+        pool: MutableList<Disciple>,
+        focused: Boolean,
+        rootCounts: List<Int>,
+        threshold: Int,
+        attr: (Disciple) -> Int
+    ): List<Disciple> {
+        if (!focused && rootCounts.isEmpty()) return emptyList()
+        val sorted = precomputeCandidates(pool, focused, rootCounts, threshold, attr)
+        sorted.forEach { pool.remove(it) }
+        return sorted
     }
 
     /**

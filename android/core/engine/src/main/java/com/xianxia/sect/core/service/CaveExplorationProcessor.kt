@@ -523,48 +523,16 @@ class CaveExplorationProcessor @Inject constructor(
                     )
                 }
 
-                // 过滤阵亡弟子
-                val attackerDisc = currentGameData
-                    .aiSectDisciples[result.attackerSectId]
-                    ?: emptyList()
-                val updatedAttacker = attackerDisc
+                // 过滤阵亡弟子（攻击者/防守者/占领者 + 驻军清理）
+                val updatedAttacker = (currentGameData.aiSectDisciples[result.attackerSectId] ?: emptyList())
                     .filter { it.id !in result.deadAttackerIds }
-
-                // 被AI占领宗门：防守方驻军来自占领者池，死亡应从占领者池移除
                 val isAiOccupied = defenderSect != null &&
                     defenderSect.occupierSectId.isNotEmpty() &&
                     !isPlayerOccupied
                 val occupierId = defenderSect?.occupierSectId ?: ""
-                val (updatedDefender, updatedOccupier, updatedSects) =
-                    if (isAiOccupied && result.deadDefenderIds.isNotEmpty()) {
-                        val occupierDisc = currentGameData
-                            .aiSectDisciples[occupierId]
-                            ?: emptyList()
-                        val filteredOccupier = occupierDisc
-                            .filter { it.id !in result.deadDefenderIds }
-                        val clearedGarrisonSects = gameData.worldMapSects.map { s ->
-                            if (s.id == result.defenderSectId) s.copy(
-                                garrisonSlots = s.garrisonSlots.map { slot ->
-                                    if (slot.discipleId in result.deadDefenderIds)
-                                        GarrisonSlot(index = slot.index) else slot
-                                }
-                            ) else s
-                        }
-                        Triple(
-                            currentGameData.aiSectDisciples[result.defenderSectId] ?: emptyList(),
-                            filteredOccupier,
-                            clearedGarrisonSects
-                        )
-                    } else {
-                        val defenderDisc = currentGameData
-                            .aiSectDisciples[result.defenderSectId]
-                            ?: emptyList()
-                        Triple(
-                            defenderDisc.filter { it.id !in result.deadDefenderIds },
-                            null,
-                            gameData.worldMapSects
-                        )
-                    }
+                val (updatedDefender, updatedOccupier, updatedSects) = computeCasualtyUpdates(
+                    currentGameData, result, isAiOccupied, occupierId
+                )
 
                 var updatedData = gameData.copy(
                     aiSectDisciples = gameData.aiSectDisciples
@@ -577,19 +545,9 @@ class CaveExplorationProcessor @Inject constructor(
                             }
                         },
                     worldMapSects = updatedSects,
-                    sectRelations = gameData.sectRelations.map { r ->
-                        val relevant =
-                            (r.sectId1 == result.attackerSectId &&
-                                r.sectId2 == result.defenderSectId) ||
-                                (r.sectId1 == result.defenderSectId &&
-                                    r.sectId2 == result.attackerSectId)
-                        if (relevant) r.copy(
-                            favor = (r.favor - 10).coerceIn(
-                                com.xianxia.sect.core.config.FavorConfig.MIN_FAVOR,
-                                com.xianxia.sect.core.config.FavorConfig.MAX_FAVOR
-                            )
-                        ) else r
-                    }
+                    sectRelations = applyAIAttackFavorPenalty(
+                        gameData.sectRelations, result
+                    )
                 )
 
                 // 占领处理
@@ -599,6 +557,67 @@ class CaveExplorationProcessor @Inject constructor(
 
                 gameData = updatedData
             }
+    }
+
+    /** AI 攻防双方好感惩罚（-10，夹取在允许范围） */
+    private fun applyAIAttackFavorPenalty(
+        sectRelations: List<SectRelation>,
+        result: AISectAttackManager.AIAttackResult
+    ): List<SectRelation> {
+        return sectRelations.map { r ->
+            val relevant =
+                (r.sectId1 == result.attackerSectId &&
+                    r.sectId2 == result.defenderSectId) ||
+                    (r.sectId1 == result.defenderSectId &&
+                        r.sectId2 == result.attackerSectId)
+            if (relevant) r.copy(
+                favor = (r.favor - 10).coerceIn(
+                    com.xianxia.sect.core.config.FavorConfig.MIN_FAVOR,
+                    com.xianxia.sect.core.config.FavorConfig.MAX_FAVOR
+                )
+            ) else r
+        }
+    }
+
+    /**
+     * 阵亡过滤：按防守方是否被 AI/玩家占领分流——被 AI 占领时死亡从占领者池移除
+     * 并清理驻军槽位；否则仅从防守方弟子池过滤。
+     * 返回 (更新后防守者, 更新后占领者或 null, 更新后宗门列表)。
+     */
+    private fun computeCasualtyUpdates(
+        currentGameData: GameData,
+        result: AISectAttackManager.AIAttackResult,
+        isAiOccupied: Boolean,
+        occupierId: String
+    ): Triple<List<Disciple>, List<Disciple>?, List<WorldSect>> {
+        if (isAiOccupied && result.deadDefenderIds.isNotEmpty()) {
+            val occupierDisc = currentGameData
+                .aiSectDisciples[occupierId]
+                ?: emptyList()
+            val filteredOccupier = occupierDisc
+                .filter { it.id !in result.deadDefenderIds }
+            val clearedGarrisonSects = currentGameData.worldMapSects.map { s ->
+                if (s.id == result.defenderSectId) s.copy(
+                    garrisonSlots = s.garrisonSlots.map { slot ->
+                        if (slot.discipleId in result.deadDefenderIds)
+                            GarrisonSlot(index = slot.index) else slot
+                    }
+                ) else s
+            }
+            return Triple(
+                currentGameData.aiSectDisciples[result.defenderSectId] ?: emptyList(),
+                filteredOccupier,
+                clearedGarrisonSects
+            )
+        }
+        val defenderDisc = currentGameData
+            .aiSectDisciples[result.defenderSectId]
+            ?: emptyList()
+        return Triple(
+            defenderDisc.filter { it.id !in result.deadDefenderIds },
+            null,
+            currentGameData.worldMapSects
+        )
     }
 
     /**

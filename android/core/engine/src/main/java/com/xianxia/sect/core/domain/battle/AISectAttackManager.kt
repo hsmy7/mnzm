@@ -872,6 +872,25 @@ object AISectAttackManager {
             return
         }
 
+        applyNormalAttackDamage(
+            attacker, target, result, allies, enemies, alliesIndexMap, enemiesIndexMap, roundActions
+        )
+    }
+
+    /**
+     * 普攻伤害应用：扣除目标 HP、刷新攻击者 BUFF、记录行动日志。
+     * 从 executeNormalAttackAction 提取（正常伤害分支）。
+     */
+    private fun applyNormalAttackDamage(
+        attacker: Combatant,
+        target: Combatant,
+        result: BattleCalculator.DamageResult,
+        allies: MutableList<Combatant>,
+        enemies: MutableList<Combatant>,
+        alliesIndexMap: Map<String, Int>,
+        enemiesIndexMap: Map<String, Int>,
+        roundActions: MutableList<BattleLogAction>
+    ) {
         val newHp = maxOf(0, target.hp - result.damage)
         val targetIdx = enemiesIndexMap[target.id]
         if (targetIdx != null && targetIdx < enemies.size) {
@@ -935,6 +954,26 @@ object AISectAttackManager {
             return
         }
 
+        applySingleSkillDamage(
+            attacker, target, skill, result, allies, enemies, alliesIndexMap, enemiesIndexMap, roundActions
+        )
+    }
+
+    /**
+     * 单体技能伤害应用：扣除目标 HP、附加技能 debuff、刷新攻击者冷却、记录日志。
+     * 从 executeSingleAttackAction 提取（正常伤害分支）。
+     */
+    private fun applySingleSkillDamage(
+        attacker: Combatant,
+        target: Combatant,
+        skill: CombatSkill,
+        result: BattleCalculator.DamageResult,
+        allies: MutableList<Combatant>,
+        enemies: MutableList<Combatant>,
+        alliesIndexMap: Map<String, Int>,
+        enemiesIndexMap: Map<String, Int>,
+        roundActions: MutableList<BattleLogAction>
+    ) {
         val newHp = maxOf(0, target.hp - result.damage)
         val targetIdx = enemiesIndexMap[target.id]
         if (targetIdx != null && targetIdx < enemies.size) {
@@ -974,11 +1013,32 @@ object AISectAttackManager {
         val attackerType = if (attacker.side == CombatantSide.ATTACKER) "attacker" else "defender"
         for (target in targets) {
             if (target.isDead) continue
-
-            val result = BattleCalculator.calculateCombatantDamage(
-                attacker, target, skill, rng = aisRng, enableInstantKill = true
+            applyAoeSingleTarget(
+                attacker, target, skill, attackerType,
+                allies, enemies, alliesIndexMap, enemiesIndexMap, roundActions
             )
-            if (result.isInstantKill) {
+        }
+    }
+
+    /**
+     * AOE 单目标伤害应用：必杀/闪避/正常三分支（含技能 debuff 附加）。
+     * 从 executeAoeAttackAction 循环体提取。
+     */
+    private fun applyAoeSingleTarget(
+        attacker: Combatant,
+        target: Combatant,
+        skill: CombatSkill,
+        attackerType: String,
+        allies: MutableList<Combatant>,
+        enemies: MutableList<Combatant>,
+        alliesIndexMap: Map<String, Int>,
+        enemiesIndexMap: Map<String, Int>,
+        roundActions: MutableList<BattleLogAction>
+    ) {
+        val result = BattleCalculator.calculateCombatantDamage(
+            attacker, target, skill, rng = aisRng, enableInstantKill = true
+        )
+        if (result.isInstantKill) {
                 val targetIdx = enemiesIndexMap[target.id]
                 if (targetIdx != null && targetIdx < enemies.size) {
                     enemies[targetIdx] = enemies[targetIdx].copy(hp = 0)
@@ -988,7 +1048,7 @@ object AISectAttackManager {
                     target = target.name, damage = target.maxHp, skillName = skill.name,
                     isKill = true, message = "${attacker.name} 以 ${skill.name} 境界压制斩杀 ${target.name}"
                 ))
-                continue
+                return
             }
 
             if (result.isDodged) {
@@ -997,7 +1057,7 @@ object AISectAttackManager {
                     target = target.name, damage = 0, skillName = skill.name,
                     message = "${target.name} 闪避了 ${attacker.name} 的 ${skill.name}"
                 ))
-                continue
+                return
             }
 
             val newHp = maxOf(0, target.hp - result.damage)
@@ -1018,7 +1078,6 @@ object AISectAttackManager {
                 target = target.name, damage = result.damage, skillName = skill.name,
                 isCrit = result.isCrit, isKill = newHp == 0
             ))
-        }
 
         val combatantIdx = alliesIndexMap[attacker.id]
         if (combatantIdx != null && combatantIdx < allies.size) {
