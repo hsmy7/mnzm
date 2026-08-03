@@ -167,72 +167,7 @@ internal fun SettingsTab(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                Text(
-                    text = "时间流速",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                val isPaused by saveLoadViewModel.isPaused.collectAsStateWithLifecycle()
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    val pauseAlpha = if (isPaused) 1f else 0.5f
-                    val btnSize = ButtonSizes.StandardHeight + 6.dp
-                    Box(
-                        modifier = Modifier
-                            .size(btnSize)
-                            .alpha(pauseAlpha)
-                            .clip(CircleShape)
-                            .clickable { saveLoadViewModel.togglePause() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isPaused) {
-                            Image(
-                                painter = painterResource(id = R.drawable.ui_play_button),
-                                contentDescription = "继续",
-                                modifier = Modifier.matchParentSize(),
-                                contentScale = ContentScale.FillBounds
-                            )
-                        } else {
-                            Image(
-                                painter = painterResource(id = R.drawable.ui_pause_button),
-                                contentDescription = "暂停",
-                                modifier = Modifier.matchParentSize(),
-                                contentScale = ContentScale.FillBounds
-                            )
-                        }
-                    }
-
-                    listOf(1, 2).forEach { speed ->
-                        val speedAlpha = if (timeSpeed == speed && !isPaused) 1f else 0.5f
-                        Box(
-                            modifier = Modifier
-                                .width(ButtonSizes.StandardWidth)
-                                .height(ButtonSizes.StandardHeight)
-                                .alpha(speedAlpha)
-                                .clip(RoundedCornerShape(4.dp))
-                                .clickable { saveLoadViewModel.setTimeSpeed(speed) },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.ui_button),
-                                contentDescription = null,
-                                modifier = Modifier.matchParentSize(),
-                                contentScale = ContentScale.FillBounds
-                            )
-                            Text(
-                                text = "${speed}倍速",
-                                fontSize = 12.sp,
-                                color = Color.Black
-                            )
-                        }
-                    }
-                }
+                TimeSpeedControlItem(saveLoadViewModel, timeSpeed)
             }
 
             item {
@@ -778,6 +713,80 @@ internal fun SettingsTab(
         }
         }
     }
+    }
+}
+
+/** 时间流速控制（暂停/继续 + 1/2 倍速切换），从 SettingsTab 主体抽出的独立 item */
+@Composable
+private fun TimeSpeedControlItem(
+    saveLoadViewModel: SaveLoadViewModel,
+    timeSpeed: Int
+) {
+    Text(
+        text = "时间流速",
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Bold,
+        color = Color.Black
+    )
+    Spacer(modifier = Modifier.height(8.dp))
+
+    val isPaused by saveLoadViewModel.isPaused.collectAsStateWithLifecycle()
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        val pauseAlpha = if (isPaused) 1f else 0.5f
+        val btnSize = ButtonSizes.StandardHeight + 6.dp
+        Box(
+            modifier = Modifier
+                .size(btnSize)
+                .alpha(pauseAlpha)
+                .clip(CircleShape)
+                .clickable { saveLoadViewModel.togglePause() },
+            contentAlignment = Alignment.Center
+        ) {
+            if (isPaused) {
+                Image(
+                    painter = painterResource(id = R.drawable.ui_play_button),
+                    contentDescription = "继续",
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.FillBounds
+                )
+            } else {
+                Image(
+                    painter = painterResource(id = R.drawable.ui_pause_button),
+                    contentDescription = "暂停",
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.FillBounds
+                )
+            }
+        }
+
+        listOf(1, 2).forEach { speed ->
+            val speedAlpha = if (timeSpeed == speed && !isPaused) 1f else 0.5f
+            Box(
+                modifier = Modifier
+                    .width(ButtonSizes.StandardWidth)
+                    .height(ButtonSizes.StandardHeight)
+                    .alpha(speedAlpha)
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable { saveLoadViewModel.setTimeSpeed(speed) },
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.ui_button),
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.FillBounds
+                )
+                Text(
+                    text = "${speed}倍速",
+                    fontSize = 12.sp,
+                    color = Color.Black
+                )
+            }
+        }
     }
 }
 
