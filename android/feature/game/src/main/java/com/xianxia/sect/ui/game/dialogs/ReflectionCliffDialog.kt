@@ -15,8 +15,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.ButtonSizes
@@ -24,6 +22,7 @@ import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.ui.game.dialogs.shared.ScrollableInfoDialog
 
 @Composable
 fun ReflectionCliffDialog(
@@ -36,7 +35,7 @@ fun ReflectionCliffDialog(
     val reflectingDisciples = disciples.filter { it.status == DiscipleStatus.REFLECTING }
     var showExpelConfirmDialog by remember { mutableStateOf<DiscipleAggregate?>(null) }
 
-    CommonDialog(
+    ScrollableInfoDialog(
         title = "监牢",
         onDismiss = onDismiss
     ) {
@@ -160,23 +159,3 @@ fun ReflectionCliffDialog(
     }
 }
 
-@Composable
-private fun CommonDialog(
-    title: String,
-    onDismiss: () -> Unit,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = title,
-        mode = DialogMode.Half,
-        scrollableContent = false,
-        content = {
-            Column(
-                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
-            ) {
-                content()
-            }
-        }
-    )
-}

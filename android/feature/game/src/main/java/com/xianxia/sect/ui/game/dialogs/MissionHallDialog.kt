@@ -35,6 +35,7 @@ import com.xianxia.sect.ui.components.rememberChasingProgress
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.game.filterByDiscipleStatus
+import com.xianxia.sect.ui.game.dialogs.shared.ScrollableInfoDialog
 
 @Composable
 fun MissionHallDialog(
@@ -57,7 +58,7 @@ fun MissionHallDialog(
         activeMissions.flatMap { it.discipleIds }.toSet()
     }
 
-    CommonDialog(
+    ScrollableInfoDialog(
         title = "任务阁",
         onDismiss = onDismiss
     ) {
@@ -731,22 +732,3 @@ private fun MissionDispatchDialog(
 
 }
 
-@Composable
-private fun CommonDialog(
-    title: String,
-    onDismiss: () -> Unit,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = title,
-        mode = DialogMode.Half,
-        scrollableContent = false
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
-        ) {
-            content()
-        }
-    }
-}

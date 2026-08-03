@@ -347,23 +347,3 @@ private fun LawDiscipleSlotItem(
     }
 }
 
-@Composable
-private fun CommonDialog(
-    title: String,
-    onDismiss: () -> Unit,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = title,
-        mode = DialogMode.Half,
-        scrollableContent = false,
-        content = {
-            Column(
-                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
-            ) {
-                content()
-            }
-        }
-    )
-}

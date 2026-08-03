@@ -1,8 +1,6 @@
 package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -12,8 +10,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.model.*
-import com.xianxia.sect.ui.components.UnifiedGameDialog
-import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.GameViewModel
@@ -21,6 +17,7 @@ import com.xianxia.sect.ui.game.ProductionViewModel
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
+import com.xianxia.sect.ui.game.dialogs.shared.ScrollableInfoDialog
 
 @Composable
 fun LibraryDialog(
@@ -39,7 +36,7 @@ fun LibraryDialog(
     }
     val discipleMap = disciples.associateBy { it.id }
 
-    CommonDialog(
+    ScrollableInfoDialog(
         title = "藏经阁",
         onDismiss = onDismiss
     ) {
@@ -150,25 +147,3 @@ private fun LibrarySlotItem(
     }
 }
 
-@Composable
-private fun CommonDialog(
-    title: String,
-    onDismiss: () -> Unit,
-    headerContent: @Composable (() -> Unit)? = null,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = title,
-        mode = DialogMode.Half,
-        scrollableContent = false,
-        headerContent = headerContent,
-        content = {
-            Column(
-                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)
-            ) {
-                content()
-            }
-        }
-    )
-}
