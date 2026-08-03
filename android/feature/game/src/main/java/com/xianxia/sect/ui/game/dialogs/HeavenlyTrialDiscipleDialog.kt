@@ -1,34 +1,21 @@
 package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.util.sortedByFollowAndRealm
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.components.GameButton
-import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.HeavenlyTrialViewModel
-import com.xianxia.sect.ui.game.applyFilters
-import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
-import com.xianxia.sect.ui.game.filterByDiscipleStatus
-import com.xianxia.sect.ui.game.getSpiritRootCount
-import com.xianxia.sect.ui.game.REALM_FILTER_OPTIONS
-import kotlinx.coroutines.launch
+import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
+import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 
 @Composable
 fun HeavenlyTrialDiscipleDialog(
@@ -96,127 +83,44 @@ fun HeavenlyTrialDiscipleDialog(
 
     // 选择弟子子界面（带境界筛选）
     if (showDisciplePicker) {
-        DisciplePickerDialog(
-            aliveDisciples = aliveDisciples,
-            currentSlotDiscipleId = selectedDisciples[pickerSlotIndex]?.id,
-            alreadySelectedIds = selectedDisciples
-                .filterIndexed { idx, d -> idx != pickerSlotIndex && d != null }
-                .mapNotNull { it?.id }
-                .toSet(),
-            gameViewModel = gameViewModel,
-            onSelect = { disciple ->
-                selectedDisciples[pickerSlotIndex] = disciple
-                showDisciplePicker = false
-            },
-            onDismiss = { showDisciplePicker = false }
+        val currentSlotDiscipleId = selectedDisciples[pickerSlotIndex]?.id
+        val alreadySelectedIds = selectedDisciples
+            .filterIndexed { idx, d -> idx != pickerSlotIndex && d != null }
+            .mapNotNull { it?.id }
+            .toSet()
+        val collectedGameData by gameViewModel.gameData.collectAsState()
+        val showAllEnabled = collectedGameData.showAllAvailableDisciples
+        val battleAndExplorationIds = remember(collectedGameData) {
+            val battleIds = collectedGameData.battleTeams.flatMap { it.slots.map { it.discipleId } }
+                .filter { it.isNotEmpty() }.toSet()
+            val explorationIds = collectedGameData.caveExplorationTeams.flatMap { it.memberIds }
+                .filter { it.isNotEmpty() }.toSet()
+            battleIds + explorationIds
+        }
+        DiscipleSelectorDialog(
+            config = DiscipleSelectorConfig(
+                title = "选择弟子",
+                emptyMessage = "暂无空闲弟子",
+                currentId = currentSlotDiscipleId,
+                additionalCheck = { d ->
+                    d.realmLayer > 0 && (d.id == currentSlotDiscipleId || d.id !in alreadySelectedIds)
+                },
+                alwaysIncludeCurrentId = true
+            ),
+            disciples = aliveDisciples,
+            showAllEnabled = showAllEnabled,
+            battleAndExplorationIds = battleAndExplorationIds,
+            onDismiss = { showDisciplePicker = false },
+            onConfirm = { selected ->
+                selected.firstOrNull()?.let { disciple ->
+                    if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
+                        gameViewModel.releaseDiscipleForReassignment(disciple.id)
+                    }
+                    selectedDisciples[pickerSlotIndex] = disciple
+                    showDisciplePicker = false
+                }
+            }
         )
     }
 }
 
-@Composable
-private fun DisciplePickerDialog(
-    aliveDisciples: List<DiscipleAggregate>,
-    currentSlotDiscipleId: String?,
-    alreadySelectedIds: Set<String>,
-    gameViewModel: GameViewModel,
-    onSelect: (DiscipleAggregate) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var selectedRealmFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedSpiritRootFilter by remember { mutableStateOf<Set<Int>>(emptySet()) }
-    var selectedAttributeSort by remember { mutableStateOf<String?>(null) }
-    var spiritRootExpanded by remember { mutableStateOf(false) }
-    var attributeExpanded by remember { mutableStateOf(false) }
-    var realmExpanded by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
-    val gameData by gameViewModel.gameData.collectAsState()
-    val showAllEnabled = gameData.showAllAvailableDisciples
-
-    val battleAndExplorationIds = remember(gameData) {
-        val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()
-        val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()
-        battleIds + explorationIds
-    }
-
-    val availableDisciples = remember(aliveDisciples, alreadySelectedIds, showAllEnabled, battleAndExplorationIds) {
-        aliveDisciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds, additionalCheck = { d ->
-            d.realmLayer > 0 && (d.id == currentSlotDiscipleId || d.id !in alreadySelectedIds)
-        }).sortedByFollowAndRealm()
-    }
-
-    val realmCounts = remember(availableDisciples) {
-        availableDisciples.groupingBy { it.realm }.eachCount()
-    }
-
-    val spiritRootCounts = remember(availableDisciples) {
-        availableDisciples.groupingBy { it.getSpiritRootCount() }.eachCount()
-    }
-
-    val filteredDisciples = remember(availableDisciples, selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort) {
-        availableDisciples.applyFilters(selectedRealmFilter, selectedSpiritRootFilter, selectedAttributeSort)
-    }
-
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = "选择弟子",
-        mode = DialogMode.Half,
-        scrollableContent = false,
-        headerContent = {
-            SpiritRootAttributeFilterBar(
-                selectedSpiritRootFilter = selectedSpiritRootFilter,
-                selectedAttributeSort = selectedAttributeSort,
-                selectedRealmFilter = selectedRealmFilter,
-                realmFilterOptions = REALM_FILTER_OPTIONS,
-                realmCounts = realmCounts,
-                spiritRootExpanded = spiritRootExpanded,
-                attributeExpanded = attributeExpanded,
-                realmExpanded = realmExpanded,
-                spiritRootCounts = spiritRootCounts,
-                onSpiritRootFilterSelected = { selectedSpiritRootFilter = selectedSpiritRootFilter + it },
-                onSpiritRootFilterRemoved = { selectedSpiritRootFilter = selectedSpiritRootFilter - it },
-                onAttributeSortSelected = { selectedAttributeSort = it },
-                onRealmFilterSelected = { selectedRealmFilter = selectedRealmFilter + it },
-                onRealmFilterRemoved = { selectedRealmFilter = selectedRealmFilter - it },
-                onSpiritRootExpandToggle = { spiritRootExpanded = !spiritRootExpanded },
-                onAttributeExpandToggle = { attributeExpanded = !attributeExpanded },
-                onRealmExpandToggle = { realmExpanded = !realmExpanded },
-                isCompact = true,
-                showAllCheckboxVisible = true,
-                showAllEnabled = showAllEnabled,
-                onShowAllToggle = { gameViewModel.setShowAllAvailableDisciples(!showAllEnabled) }
-            )
-        }
-    ) {
-        if (availableDisciples.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("暂无空闲弟子", fontSize = 12.sp, color = Color.Black)
-            }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                items(filteredDisciples, key = { it.id }, contentType = { "disciple" }) { disciple ->
-                    PortraitDiscipleCard(
-                        disciple = disciple,
-                        isSelected = disciple.id == currentSlotDiscipleId,
-                        onClick = {
-                            scope.launch {
-                                if (showAllEnabled && disciple.status != DiscipleStatus.IDLE) {
-                                    gameViewModel.releaseDiscipleForReassignment(disciple.id)
-                                }
-                                onSelect(disciple)
-                            }
-                        }
-                    )
-                }
-            }
-        }
-    }
-}

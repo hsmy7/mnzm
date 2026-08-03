@@ -87,6 +87,7 @@
     <ID>CyclomaticComplexMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performCloudDownload()</ID>
     <ID>CyclomaticComplexMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performCloudLoad()</ID>
     <ID>CyclomaticComplexMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performLocalSaveToSlot(slot: Int, previousSlot: Int, startTime: Long)</ID>
+    <ID>CyclomaticComplexMethod:ScoutDialog.kt$@Composable internal fun ScoutDialog( sectName: String, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, onScout: (List&lt;String&gt;) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
     <ID>CyclomaticComplexMethod:SecretRealmDetailDialog.kt$@Composable fun SecretRealmDetailDialog( realm: MapItem.SecretRealm, gameData: GameData?, viewModel: SecretRealmViewModel, onStart: (memberIds: List&lt;String&gt;) -&gt; Unit, onContinue: () -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
     <ID>CyclomaticComplexMethod:SecretRealmExplorationScreen.kt$@Composable fun SecretRealmExplorationScreen( viewModel: SecretRealmViewModel, onExit: () -&gt; Unit, onFinished: () -&gt; Unit )</ID>
     <ID>CyclomaticComplexMethod:SectDiplomacyDialog.kt$@Composable internal fun SectDiplomacyDialog( sect: WorldSect, relation: Int, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, interactionViewModel: WorldMapInteractionViewModel, onDismiss: () -&gt; Unit )</ID>
@@ -189,7 +190,6 @@
     <ID>LongMethod:HeavenlyTrialCombatScreen.kt$@Composable fun HeavenlyTrialCombatScreen( viewModel: HeavenlyTrialViewModel, onFinished: (won: Boolean) -&gt; Unit )</ID>
     <ID>LongMethod:HeavenlyTrialComponents.kt$@Composable internal fun CombatUnitCell( combatant: Combatant?, isCurrent: Boolean = false, isAllySelected: Boolean = false, isEnemySelected: Boolean = false, isShaking: Boolean = false, flightAnim: FlightAnimState = FlightAnimState(), modifier: Modifier = Modifier, onClick: () -&gt; Unit )</ID>
     <ID>LongMethod:HeavenlyTrialDiscipleDialog.kt$@Composable fun HeavenlyTrialDiscipleDialog( viewModel: HeavenlyTrialViewModel, gameViewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
-    <ID>LongMethod:HeavenlyTrialDiscipleDialog.kt$@Composable private fun DisciplePickerDialog( aliveDisciples: List&lt;DiscipleAggregate&gt;, currentSlotDiscipleId: String?, alreadySelectedIds: Set&lt;String&gt;, gameViewModel: GameViewModel, onSelect: (DiscipleAggregate) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:HeavenlyTrialPanel.kt$@Composable fun HeavenlyTrialPanel( viewModel: HeavenlyTrialViewModel, onOpenClearRewards: () -&gt; Unit = {}, /** 是否绘制自带背景图（半屏嵌入时由宿主对话框提供背景，传 false 避免叠加） */ showBackground: Boolean = true )</ID>
     <ID>LongMethod:ItemDetailDialog.kt$@Composable @Suppress("DEPRECATION") private fun ManualStatsContent( manual: ManualInstance, bonusMultiplier: Double, rarityColor: Color )</ID>
     <ID>LongMethod:ItemDetailDialog.kt$@Composable fun ItemDetailDialog( item: Any, onDismiss: () -&gt; Unit, viewModel: GameViewModel? = null, extraActions: @Composable (() -&gt; Unit)? = null )</ID>
@@ -245,7 +245,6 @@
     <ID>LongMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performRestartSave(slot: Int, previousSlot: Int): Boolean</ID>
     <ID>LongMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performStartNewGame(sectName: String, slot: Int, startTime: Long)</ID>
     <ID>LongMethod:ScoutDialog.kt$@Composable internal fun ScoutDialog( sectName: String, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, onScout: (List&lt;String&gt;) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
-    <ID>LongMethod:ScoutDialog.kt$@Composable private fun ScoutDiscipleSelectionDialog( disciples: List&lt;DiscipleAggregate&gt;, currentSlotDiscipleId: String? = null, alreadySelectedIds: Set&lt;String&gt; = emptySet(), viewModel: GameViewModel, onSelect: (DiscipleAggregate) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:SecretRealmBackpackDialog.kt$@Composable internal fun SecretRealmBackpackDialog( backpack: SecretRealmBackpack, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:SecretRealmDetailDialog.kt$@Composable fun SecretRealmDetailDialog( realm: MapItem.SecretRealm, gameData: GameData?, viewModel: SecretRealmViewModel, onStart: (memberIds: List&lt;String&gt;) -&gt; Unit, onContinue: () -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:SecretRealmExplorationScreen.kt$@Composable fun SecretRealmExplorationScreen( viewModel: SecretRealmViewModel, onExit: () -&gt; Unit, onFinished: () -&gt; Unit )</ID>
@@ -277,7 +276,6 @@
     <ID>LongMethod:WorldMapDialog.kt$@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class) @Composable internal fun WorldMapDialog( worldSects: List&lt;WorldSect&gt;, mapRenderData: WorldMapRenderData, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, interactionViewModel: WorldMapInteractionViewModel, garrisonViewModel: WorldMapGarrisonViewModel, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:WorldMapScreen.kt$@Composable fun WorldMapScreen( items: List&lt;MapItem&gt;, cameraState: WorldCameraState = rememberWorldCamera( worldWidth = MapCoordinateSystem.WORLD_WIDTH, worldHeight = MapCoordinateSystem.WORLD_HEIGHT ), focusWorldX: Float? = null, focusWorldY: Float? = null, onBack: () -&gt; Unit = {}, onSectClick: (MapItem.Sect) -&gt; Unit = {}, onLevelClick: (MapItem.Level) -&gt; Unit = {}, onSecretRealmClick: (MapItem.SecretRealm) -&gt; Unit = {}, onUserInteraction: () -&gt; Unit = {}, connectionEdges: List&lt;MSTEdge&gt; = emptyList() )</ID>
     <ID>LongMethod:WorldMapSectDetailDialog.kt$@Composable internal fun WorldMapSectDetailDialog( sect: WorldSect, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, interactionViewModel: WorldMapInteractionViewModel, garrisonViewModel: WorldMapGarrisonViewModel, onDismiss: () -&gt; Unit )</ID>
-    <ID>LongMethod:WorldMapSectDetailDialog.kt$@Composable private fun GarrisonDiscipleSelectionDialog( disciples: List&lt;DiscipleAggregate&gt;, garrisonedIds: Set&lt;String&gt; = emptySet(), viewModel: GameViewModel, onSelect: (DiscipleAggregate) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
     <ID>LongParameterList:AlchemyDialog.kt$( buildingInstanceId: String = "", alchemySlots: List&lt;AlchemySlot&gt;, materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, productionViewModel: ProductionViewModel, alchemyViewModel: AlchemyViewModel, colors: com.xianxia.sect.ui.theme.XianxiaColorScheme, onDismiss: () -&gt; Unit )</ID>
     <ID>LongParameterList:AlchemyDialog.kt$( materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, slotIndex: Int, viewModel: GameViewModel, productionViewModel: ProductionViewModel, alchemyViewModel: AlchemyViewModel, onDismiss: () -&gt; Unit, onConfirmOverride: ((PillRecipeDatabase.PillRecipe) -&gt; Unit)? = null )</ID>
     <ID>LongParameterList:AutoAssignDelegate.kt$AutoAssignDelegate$( mineFocused: Boolean, mineRootCounts: List&lt;Int&gt;, mineThreshold: Int, alchemyFocused: Boolean, alchemyRootCounts: List&lt;Int&gt;, alchemyThreshold: Int, forgeFocused: Boolean, forgeRootCounts: List&lt;Int&gt;, forgeThreshold: Int, singleResidenceFocused: Boolean = false, singleResidenceRootCounts: List&lt;Int&gt; = emptyList(), singleResidenceThreshold: Int = 1, multiResidenceFocused: Boolean = false, multiResidenceRootCounts: List&lt;Int&gt; = emptyList(), multiResidenceThreshold: Int = 1, plantFocused: Boolean = false, plantRootCounts: List&lt;Int&gt; = emptyList(), plantThreshold: Int = 1 )</ID>
@@ -440,8 +438,6 @@
     <ID>MaxLineLength:HeavenlyTrialCombatScreen.kt$Image</ID>
     <ID>MaxLineLength:HeavenlyTrialCombatScreen.kt$val allySelected = selectedTargetId != null &amp;&amp; isPlayer &amp;&amp; selectedIsAlly &amp;&amp; selectedTargetId == cellCombatant?.id</ID>
     <ID>MaxLineLength:HeavenlyTrialCombatScreen.kt$val enemySelected = selectedTargetId != null &amp;&amp; !isPlayer &amp;&amp; !selectedIsAlly &amp;&amp; selectedTargetId == cellCombatant?.id</ID>
-    <ID>MaxLineLength:HeavenlyTrialDiscipleDialog.kt$val</ID>
-    <ID>MaxLineLength:HeavenlyTrialDiscipleDialog.kt$val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()</ID>
     <ID>MaxLineLength:HerbGardenDialog.kt$modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)</ID>
     <ID>MaxLineLength:HerbGardenDialog.kt$val battleIds = gameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()</ID>
     <ID>MaxLineLength:HerbGardenDialog.kt$val explorationIds = gameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()</ID>
@@ -603,10 +599,7 @@
     <ID>MaxLineLength:SaveLoadViewModel.kt$SaveLoadViewModel$try { _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e2: Exception) { Log.e(TAG, "Failed to refresh slots after save failure", e2) }</ID>
     <ID>MaxLineLength:SaveLoadViewModel.kt$SaveLoadViewModel$try { _saveSlots.value = persistenceFacade.storageFacade.getSaveSlotsSuspend() } catch (e: CancellationException) { throw e } catch (e: Exception) { Log.e(TAG, "Failed to refresh slots after save failure", e) }</ID>
     <ID>MaxLineLength:ScoutDialog.kt$modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)</ID>
-    <ID>MaxLineLength:ScoutDialog.kt$val</ID>
     <ID>MaxLineLength:ScoutDialog.kt$val alreadySelectedIds = slots.filterNotNull().map { it.id }.filter { it != slots[currentSlotIndex]?.id }.toSet()</ID>
-    <ID>MaxLineLength:ScoutDialog.kt$val battleIds = collectedGameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()</ID>
-    <ID>MaxLineLength:ScoutDialog.kt$val explorationIds = collectedGameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()</ID>
     <ID>MaxLineLength:SecretRealmExplorationScreen.kt$val success = result as? com.xianxia.sect.core.engine.domain.exploration.SecretRealmChoiceResult.Success</ID>
     <ID>MaxLineLength:SectMarker.kt$val borderWidth = if (item.isHighlighted) MapStyle.Dimensions.sectHighlightedBorderWidth else MapStyle.Dimensions.sectBorderWidth</ID>
     <ID>MaxLineLength:SectTradeDialog.kt$Text("+", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GameColors.TextPrimary)</ID>
@@ -656,9 +649,6 @@
     <ID>MaxLineLength:WorldMapInteractionViewModel.kt$WorldMapInteractionViewModel$val selectedTradeSectId: StateFlow&lt;String?&gt; = dialogs.map { it.selectedTradeSectId }.stateIn(viewModelScope, sharingStarted, null)</ID>
     <ID>MaxLineLength:WorldMapInteractionViewModel.kt$WorldMapInteractionViewModel$val showSectDiplomacyDialog: StateFlow&lt;Boolean&gt; = dialogs.map { it.showSectDiplomacy }.stateIn(viewModelScope, sharingStarted, false)</ID>
     <ID>MaxLineLength:WorldMapInteractionViewModel.kt$WorldMapInteractionViewModel$val showSectTradeDialog: StateFlow&lt;Boolean&gt; = dialogs.map { it.showTrade }.stateIn(viewModelScope, sharingStarted, false)</ID>
-    <ID>MaxLineLength:WorldMapSectDetailDialog.kt$val</ID>
-    <ID>MaxLineLength:WorldMapSectDetailDialog.kt$val battleIds = collectedGameData.battleTeams.flatMap { it.slots.map { it.discipleId } }.filter { it.isNotEmpty() }.toSet()</ID>
-    <ID>MaxLineLength:WorldMapSectDetailDialog.kt$val explorationIds = collectedGameData.caveExplorationTeams.flatMap { it.memberIds }.filter { it.isNotEmpty() }.toSet()</ID>
     <ID>MayBeConst:SoftwareCanvasBackend.kt$SoftwareCanvasBackend.Companion$private val CHUNK_PIXEL = CHUNK_SIZE_TILES * 32 // 1024px</ID>
     <ID>MayBeConst:SoftwareCanvasBackend.kt$SoftwareCanvasBackend.Companion$private val NUM_CHUNKS_COL = 128 / CHUNK_SIZE_TILES // 4</ID>
     <ID>MayBeConst:SoftwareCanvasBackend.kt$SoftwareCanvasBackend.Companion$private val NUM_CHUNKS_ROW = 128 / CHUNK_SIZE_TILES // 4</ID>

@@ -1,9 +1,6 @@
 package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -13,16 +10,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.components.GameButton
-import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.SecretRealmViewModel
-import com.xianxia.sect.ui.game.filterByDiscipleStatus
+import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
+import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.game.map.MapItem
 import com.xianxia.sect.ui.theme.ButtonSizes
 
@@ -205,78 +201,43 @@ fun SecretRealmDetailDialog(
 
     // ===== 弟子选择弹窗 =====
     if (showDiscipleSelection && targetSlotIndex in 0..3) {
-        SecretRealmDiscipleSelectionDialog(
-            disciples = disciples,
-            gameData = gameData,
-            alreadySelectedIds = slots.filterNotNull().toSet(),
-            onSelect = { id ->
-                if (targetSlotIndex in 0..3) {
-                    slots = slots.toMutableList().apply { this[targetSlotIndex] = id }
+        val alreadySelectedIds = slots.filterNotNull().toSet()
+        val showAllEnabled = gameData?.showAllAvailableDisciples == true
+        val battleAndExplorationIds = remember(gameData) {
+            val battleIds = gameData?.battleTeams?.flatMap { it.slots.map { slot -> slot.discipleId } }
+                ?.filter { it.isNotEmpty() }?.toSet() ?: emptySet()
+            val explorationIds = gameData?.caveExplorationTeams?.flatMap { it.memberIds }
+                ?.filter { it.isNotEmpty() }?.toSet() ?: emptySet()
+            val secretRealmIds = gameData?.secretRealmSession?.members
+                ?.map { it.discipleId }?.toSet() ?: emptySet()
+            battleIds + explorationIds + secretRealmIds
+        }
+        DiscipleSelectorDialog(
+            config = DiscipleSelectorConfig(
+                title = "选择弟子",
+                emptyMessage = "暂无空闲弟子",
+                additionalCheck = { d ->
+                    d.realmLayer > 0 && d.age >= 5 && d.id !in alreadySelectedIds
                 }
-                showDiscipleSelection = false
-                targetSlotIndex = -1
-            },
+            ),
+            disciples = disciples,
+            showAllEnabled = showAllEnabled,
+            battleAndExplorationIds = battleAndExplorationIds,
             onDismiss = {
                 showDiscipleSelection = false
                 targetSlotIndex = -1
+            },
+            onConfirm = { selected ->
+                selected.firstOrNull()?.let { disciple ->
+                    if (targetSlotIndex in 0..3) {
+                        slots = slots.toMutableList().apply { this[targetSlotIndex] = disciple.id }
+                    }
+                    showDiscipleSelection = false
+                    targetSlotIndex = -1
+                }
             }
         )
     }
 }
 
 /** 秘境队伍弟子选择（过滤空闲/未被占用/秘境成员） */
-@Composable
-private fun SecretRealmDiscipleSelectionDialog(
-    disciples: List<DiscipleAggregate>,
-    gameData: GameData?,
-    alreadySelectedIds: Set<String>,
-    onSelect: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    val showAllEnabled = gameData?.showAllAvailableDisciples == true
-    val battleAndExplorationIds = remember(gameData) {
-        val battleIds = gameData?.battleTeams?.flatMap { it.slots.map { slot -> slot.discipleId } }
-            ?.filter { it.isNotEmpty() }?.toSet() ?: emptySet()
-        val explorationIds = gameData?.caveExplorationTeams?.flatMap { it.memberIds }
-            ?.filter { it.isNotEmpty() }?.toSet() ?: emptySet()
-        val secretRealmIds = gameData?.secretRealmSession?.members
-            ?.map { it.discipleId }?.toSet() ?: emptySet()
-        battleIds + explorationIds + secretRealmIds
-    }
-
-    val idleDisciples = remember(disciples, alreadySelectedIds, showAllEnabled, battleAndExplorationIds) {
-        disciples.filterByDiscipleStatus(showAllEnabled, battleAndExplorationIds) { d ->
-            d.realmLayer > 0 && d.age >= 5 && d.id !in alreadySelectedIds
-        }
-    }
-
-    UnifiedGameDialog(
-        onDismissRequest = onDismiss,
-        title = "选择弟子",
-        mode = DialogMode.Half,
-        scrollableContent = false
-    ) {
-        if (idleDisciples.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(text = "暂无空闲弟子", fontSize = 12.sp, color = Color.Black)
-            }
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(idleDisciples, key = { it.id }) { disciple ->
-                    PortraitDiscipleCard(
-                        disciple = disciple,
-                        onClick = { onSelect(disciple.id) }
-                    )
-                }
-            }
-        }
-    }
-}
