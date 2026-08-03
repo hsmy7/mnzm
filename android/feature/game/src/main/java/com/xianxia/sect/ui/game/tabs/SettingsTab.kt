@@ -171,166 +171,24 @@ internal fun SettingsTab(
             }
 
             item {
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Column {
-                        Text(
-                            text = "音乐",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        CircularCheckbox(
-                            checked = gameData.musicEnabled,
-                            onToggle = { viewModel.setMusicEnabled(!gameData.musicEnabled) }
-                        )
-                    }
-                    Column {
-                        Text(
-                            text = "音效",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        CircularCheckbox(
-                            checked = gameData.soundEnabled,
-                            onToggle = { viewModel.setSoundEnabled(!gameData.soundEnabled) }
-                        )
-                    }
-                }
+                AudioToggleItem(
+                    musicEnabled = gameData.musicEnabled,
+                    soundEnabled = gameData.soundEnabled,
+                    onMusicToggle = { viewModel.setMusicEnabled(!gameData.musicEnabled) },
+                    onSoundToggle = { viewModel.setSoundEnabled(!gameData.soundEnabled) }
+                )
+            }
+
+            item {
+                SettingsDialogButtonsItem(
+                    onSalaryClick = { showSalaryConfigDialog = true },
+                    onSaveSlotClick = { showSaveSlotDialog = true }
+                )
             }
 
             item {
                 Spacer(modifier = Modifier.height(4.dp))
-                BoxWithConstraints {
-                    val spacing = 16.dp
-                    val columns = when {
-                        maxWidth >= 480.dp -> 2
-                        else -> 1
-                    }
-                    val itemModifier = if (columns <= 1) {
-                        Modifier.fillMaxWidth()
-                    } else {
-                        val w = (maxWidth - spacing * (columns - 1)) / columns
-                        Modifier.width(w)
-                    }
-
-                    @Composable
-                    fun Item1() {
-                        Column(modifier = itemModifier) {
-                            Text(
-                                text = "年俸设置",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Box(
-                                modifier = Modifier
-                                    .width(ButtonSizes.StandardWidth)
-                                    .height(ButtonSizes.StandardHeight)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .clickableWithSound { showSalaryConfigDialog = true },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.ui_button),
-                                    contentDescription = null,
-                                    modifier = Modifier.matchParentSize(),
-                                    contentScale = ContentScale.FillBounds
-                                )
-                                Text(
-                                    text = "配置年俸",
-                                    fontSize = 12.sp,
-                                    color = Color.Black
-                                )
-                            }
-                        }
-                    }
-
-                    @Composable
-                    fun Item2() {
-                        Column(modifier = itemModifier) {
-                            Text(
-                                text = "存档管理",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Box(
-                                modifier = Modifier
-                                    .width(ButtonSizes.StandardWidth)
-                                    .height(ButtonSizes.StandardHeight)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .clickableWithSound { showSaveSlotDialog = true },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.ui_button),
-                                    contentDescription = null,
-                                    modifier = Modifier.matchParentSize(),
-                                    contentScale = ContentScale.FillBounds
-                                )
-                                Text(
-                                    text = "查看存档",
-                                    fontSize = 12.sp,
-                                    color = Color.Black
-                                )
-                            }
-                        }
-                    }
-
-                    if (columns <= 1) {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(spacing)
-                        ) {
-                            Item1()
-                            Item2()
-
-                        }
-                    } else {
-                        val rowSpacing = Arrangement.spacedBy(spacing)
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = rowSpacing,
-                            verticalArrangement = rowSpacing
-                        ) {
-                            Item1()
-                            Item2()
-
-                        }
-                    }
-                }
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(4.dp))
-                Box(
-                    modifier = Modifier
-                        .width(ButtonSizes.StandardWidth)
-                        .height(ButtonSizes.StandardHeight)
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickableWithSound { showOtherSettingsDialog = true },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ui_button),
-                        contentDescription = null,
-                        modifier = Modifier.matchParentSize(),
-                        contentScale = ContentScale.FillBounds
-                    )
-                    Text(
-                        text = "其他设置",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
+                SettingsActionButton("其他设置", withSound = true) { showOtherSettingsDialog = true }
             }
 
             item {
@@ -339,66 +197,9 @@ internal fun SettingsTab(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .width(ButtonSizes.StandardWidth)
-                            .height(ButtonSizes.StandardHeight)
-                            .clip(RoundedCornerShape(4.dp))
-                            .clickableWithSound { showResetDisciplesConfirmDialog = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ui_button),
-                            contentDescription = null,
-                            modifier = Modifier.matchParentSize(),
-                            contentScale = ContentScale.FillBounds
-                        )
-                        Text(
-                            text = "重置状态",
-                            fontSize = 12.sp,
-                            color = Color.Black
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .width(ButtonSizes.StandardWidth)
-                            .height(ButtonSizes.StandardHeight)
-                            .clip(RoundedCornerShape(4.dp))
-                            .clickable { showRestartConfirmDialog = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ui_button),
-                            contentDescription = null,
-                            modifier = Modifier.matchParentSize(),
-                            contentScale = ContentScale.FillBounds
-                        )
-                        Text(
-                            text = "重新开始",
-                            fontSize = 12.sp,
-                            color = Color.Black
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .width(ButtonSizes.StandardWidth)
-                            .height(ButtonSizes.StandardHeight)
-                            .clip(RoundedCornerShape(4.dp))
-                            .clickable { showExitConfirmDialog = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ui_button),
-                            contentDescription = null,
-                            modifier = Modifier.matchParentSize(),
-                            contentScale = ContentScale.FillBounds
-                        )
-                        Text(
-                            text = "退出游戏",
-                            fontSize = 12.sp,
-                            color = Color.Black
-                        )
-                    }
+                    SettingsActionButton("重置状态", withSound = true) { showResetDisciplesConfirmDialog = true }
+                    SettingsActionButton("重新开始", withSound = false) { showRestartConfirmDialog = true }
+                    SettingsActionButton("退出游戏", withSound = false) { showExitConfirmDialog = true }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
@@ -713,6 +514,184 @@ internal fun SettingsTab(
         }
         }
     }
+    }
+}
+
+/** 年俸设置 + 存档管理对话框触发按钮（响应式 1/2 列），从 SettingsTab 主体抽出 */
+@Composable
+private fun SettingsDialogButtonsItem(
+    onSalaryClick: () -> Unit,
+    onSaveSlotClick: () -> Unit
+) {
+    Spacer(modifier = Modifier.height(4.dp))
+    BoxWithConstraints {
+        val spacing = 16.dp
+        val columns = when {
+            maxWidth >= 480.dp -> 2
+            else -> 1
+        }
+        val itemModifier = if (columns <= 1) {
+            Modifier.fillMaxWidth()
+        } else {
+            val w = (maxWidth - spacing * (columns - 1)) / columns
+            Modifier.width(w)
+        }
+
+        @Composable
+        fun Item1() {
+            Column(modifier = itemModifier) {
+                Text(
+                    text = "年俸设置",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .width(ButtonSizes.StandardWidth)
+                        .height(ButtonSizes.StandardHeight)
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickableWithSound(onClick = onSalaryClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ui_button),
+                        contentDescription = null,
+                        modifier = Modifier.matchParentSize(),
+                        contentScale = ContentScale.FillBounds
+                    )
+                    Text(
+                        text = "年俸",
+                        fontSize = 12.sp,
+                        color = Color.Black
+                    )
+                }
+            }
+        }
+
+        @Composable
+        fun Item2() {
+            Column(modifier = itemModifier) {
+                Text(
+                    text = "存档管理",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier
+                        .width(ButtonSizes.StandardWidth)
+                        .height(ButtonSizes.StandardHeight)
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickableWithSound(onClick = onSaveSlotClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.ui_button),
+                        contentDescription = null,
+                        modifier = Modifier.matchParentSize(),
+                        contentScale = ContentScale.FillBounds
+                    )
+                    Text(
+                        text = "查看存档",
+                        fontSize = 12.sp,
+                        color = Color.Black
+                    )
+                }
+            }
+        }
+
+        if (columns <= 1) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(spacing)
+            ) {
+                Item1()
+                Item2()
+            }
+        } else {
+            val rowSpacing = Arrangement.spacedBy(spacing)
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = rowSpacing,
+                verticalArrangement = rowSpacing
+            ) {
+                Item1()
+                Item2()
+            }
+        }
+    }
+}
+
+/** 音乐/音效开关（双列复选框），从 SettingsTab 主体抽出 */
+@Composable
+private fun AudioToggleItem(
+    musicEnabled: Boolean,
+    soundEnabled: Boolean,
+    onMusicToggle: () -> Unit,
+    onSoundToggle: () -> Unit
+) {
+    Spacer(modifier = Modifier.height(4.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Column {
+            Text(
+                text = "音乐",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            CircularCheckbox(
+                checked = musicEnabled,
+                onToggle = onMusicToggle
+            )
+        }
+        Column {
+            Text(
+                text = "音效",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            CircularCheckbox(
+                checked = soundEnabled,
+                onToggle = onSoundToggle
+            )
+        }
+    }
+}
+
+/** 设置操作按钮（标准尺寸 + 背景图 + 文本），消除 3 处重复模式 */
+@Composable
+private fun SettingsActionButton(
+    label: String,
+    withSound: Boolean,
+    onClick: () -> Unit
+) {
+    val modifier = Modifier
+        .width(ButtonSizes.StandardWidth)
+        .height(ButtonSizes.StandardHeight)
+        .clip(RoundedCornerShape(4.dp))
+    Box(
+        modifier = if (withSound) modifier.clickableWithSound(onClick = onClick) else modifier.clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.ui_button),
+            contentDescription = null,
+            modifier = Modifier.matchParentSize(),
+            contentScale = ContentScale.FillBounds
+        )
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = Color.Black
+        )
     }
 }
 
