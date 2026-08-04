@@ -12,6 +12,7 @@ import com.xianxia.sect.taptap.TapCloudSaveManager
 import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.integrity.IntegrityResult
 import com.xianxia.sect.data.integrity.SaveValidator
+import com.xianxia.sect.data.migration.MigrationResult
 import com.xianxia.sect.data.migration.SaveDataVersionMigrator
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.serialization.unified.SaveDataReconciler
@@ -197,6 +198,14 @@ class SaveLoadViewModel @Inject constructor(
                   catch (e2: Exception) {
                     Log.e(TAG, "Retry loading save slots also failed", e2)
                 }
+            }
+        }
+
+        // T12（2026-08-05）：看门狗病理复位事件 → 用户可见错误提示
+        // （此前 isSaving/isLoading 卡死被看门狗复位时静默失败，无任何反馈）
+        viewModelScope.launch {
+            gameEngineCore.stuckResetEvents.collect { message ->
+                showError(message)
             }
         }
 
@@ -833,7 +842,7 @@ class SaveLoadViewModel @Inject constructor(
             // C-8：本地保存流程提取（行为逐行一致）
             val previousSlot = persistenceFacade.storageFacade.getCurrentSlot()
             performLocalSaveToSlot(slot, previousSlot, startTime)
-        }
+        }.also { gameEngineCore.registerActiveLoadJob(it) } // T14（2026-08-05）：保存协程注册，看门狗可取消复位
     }
 
     /**
@@ -923,6 +932,8 @@ class SaveLoadViewModel @Inject constructor(
                     _pendingSlot.value = null
                     _pendingAction.value = null
                 }
+                // T14（2026-08-05）：清除注册引用（与 performLoadToSlot/performRestartGame 模式一致）
+                gameEngineCore.clearActiveLoadJob()
             }
     }
 
@@ -998,6 +1009,12 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     fun restartGame() {
+        // T16（2026-08-05）：boot 失败（runState=IDLE）后内存残留新档数据，
+        // 若此入口可达会用残留数据覆写磁盘——防御性守卫（与 loadGame 同模式）
+        if (!isGameLoaded) {
+            Log.w(TAG, "Game not loaded, ignoring restartGame request")
+            return
+        }
         if (!saveLock.compareAndSet(false, true)) {
             Log.w(TAG, "Already saving, ignoring restartGame request")
             return
@@ -1404,7 +1421,13 @@ class SaveLoadViewModel @Inject constructor(
         // 云档管线统一（2026-08-04 修复）：与本地读档同语义——
         // 版本迁移 → 完整性校验（损坏拒绝/可修复继续）→ 堆叠重建。
         // 原实现直接落盘+读档，旧云档缺字段静默取默认值、修炼值未缩放
-        var processed = SaveDataVersionMigrator.migrate(saveData)
+        val migration = SaveDataVersionMigrator.migrate(saveData)
+        if (migration is MigrationResult.Rejected) {
+            // T10（2026-08-04）：saveVersion 越界（负数/伪造高版本）显式拒绝
+            showError("云存档版本异常：${migration.reason}")
+            return
+        }
+        var processed = (migration as MigrationResult.Migrated).data
         val validation = SaveValidator.validate(processed)
         when (validation) {
             is IntegrityResult.Corrupted -> {
@@ -1472,7 +1495,14 @@ class SaveLoadViewModel @Inject constructor(
         // 云档管线统一（2026-08-04 修复）：与本地读档同语义——
         // 版本迁移 → 完整性校验（损坏拒绝/可修复继续）→ 堆叠重建。
         // 原实现绕过 saveVersion 迁移，旧云档修炼值未缩放
-        var processed = SaveDataVersionMigrator.migrate(saveData)
+        val migration = SaveDataVersionMigrator.migrate(saveData)
+        if (migration is MigrationResult.Rejected) {
+            // T10（2026-08-04）：saveVersion 越界（负数/伪造高版本）显式拒绝
+            _cloudSaveOperationState.value =
+                CloudSaveOperationState.Error("云存档版本异常：${migration.reason}")
+            return
+        }
+        var processed = (migration as MigrationResult.Migrated).data
         val validation = SaveValidator.validate(processed)
         when (validation) {
             is IntegrityResult.Corrupted -> {

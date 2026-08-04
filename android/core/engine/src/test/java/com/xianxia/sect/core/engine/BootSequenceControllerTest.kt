@@ -60,6 +60,13 @@ class BootSequenceControllerTest {
         // CultivationService: ensureGameDataIntegrity → checkAndRepairMerchantAndRecruit 会调用
         whenever(gameEngine.cultivationService).thenReturn(mock())
 
+        // T15（2026-08-05）：recoverWithPartialData 补守卫需访问 productionCoordinator.repository
+        val productionCoordinator = mock<com.xianxia.sect.core.engine.domain.production.ProductionCoordinator>()
+        whenever(gameEngine.productionCoordinator).thenReturn(productionCoordinator)
+        val slotRepository = mock<com.xianxia.sect.core.repository.ProductionSlotRepository>()
+        whenever(productionCoordinator.repository).thenReturn(slotRepository)
+        whenever(slotRepository.getSlots()).thenReturn(emptyList())
+
         // DiscipleSnapshotCache
         doNothing().whenever(discipleSnapshotCache).prewarm(any())
 
@@ -284,6 +291,74 @@ class BootSequenceControllerTest {
         verify(gameEngineCore).stopGameLoop()
         assertEquals("runState 应复位为 IDLE", RunState.IDLE, stateStore.runState.value)
         assertEquals("bootPhase 应复位为 UNINITIALIZED", BootPhase.UNINITIALIZED, stateStore.bootPhase.value)
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // T15（2026-08-05）：recoverWithPartialData 补完整性守卫
+    // ──────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `recover - guards run before map generation`() = runTest {
+        stateStore.runState.value = RunState.IDLE
+        stateStore.bootPhase.value = BootPhase.UNINITIALIZED
+        gameDataFlow.value = GameData(sectName = "青云宗")
+        disciplesFlow.value = listOf(Disciple())
+
+        val result = controller.boot(
+            slot = 1,
+            onPreloadResources = { throw RuntimeException("preload failure") },
+            onSuccess = {},
+            onError = {}
+        )
+        assertTrue("recover 应成功", result.isSuccess)
+
+        // 守卫第一环 prewarm 必须执行（成员方法可验证；ensureHeavyDataLoaded 等为
+        // 顶层扩展函数无法 Mockito verify——守卫失败会 abort recovery，成功即守卫链通过）
+        verify(discipleSnapshotCache).prewarm(any())
+    }
+
+    @Test
+    fun `recover - guard failure aborts recovery and returns failure`() = runTest {
+        stateStore.runState.value = RunState.IDLE
+        stateStore.bootPhase.value = BootPhase.UNINITIALIZED
+        gameDataFlow.value = GameData(sectName = "青云宗")
+        disciplesFlow.value = listOf(Disciple())
+
+        // 守卫第一环 prewarm 抛异常 → 守卫 catch → 放弃恢复走 onError
+        doThrow(RuntimeException("guard failure")).whenever(discipleSnapshotCache).prewarm(any())
+        // 失败清理会检查循环状态
+        whenever(gameEngineCore.isGameLoopRunning).thenReturn(true)
+
+        var onErrorCalled = false
+        val result = controller.boot(
+            slot = 1,
+            onPreloadResources = { throw RuntimeException("preload failure") },
+            onSuccess = {},
+            onError = { onErrorCalled = true }
+        )
+
+        assertFalse("守卫失败应放弃恢复", result.isSuccess)
+        assertTrue("onError 应被调用", onErrorCalled)
+        assertEquals("runState 保持 IDLE", RunState.IDLE, stateStore.runState.value)
+        assertEquals("bootPhase 保持 UNINITIALIZED", BootPhase.UNINITIALIZED, stateStore.bootPhase.value)
+    }
+
+    @Test
+    fun `recover - empty sectName still returns false without guards`() = runTest {
+        stateStore.runState.value = RunState.IDLE
+        stateStore.bootPhase.value = BootPhase.UNINITIALIZED
+        gameDataFlow.value = GameData(sectName = "")
+        disciplesFlow.value = listOf(Disciple())
+
+        // 判据失败：不触发守卫（回归守卫——恢复前置条件未满足时不可启动守卫流程）
+        val result = controller.boot(
+            slot = 1,
+            onPreloadResources = { throw RuntimeException("preload failure") },
+            onSuccess = {},
+            onError = {}
+        )
+        assertFalse("空 sectName 不应恢复", result.isSuccess)
+        verify(gameEngine, never()).ensureHeavyDataLoaded()
     }
 }
 

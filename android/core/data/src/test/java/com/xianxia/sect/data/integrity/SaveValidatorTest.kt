@@ -215,12 +215,14 @@ class SaveValidatorTest {
     }
 
     @Test
-    fun `validate - immortal realm cultivation not capped`() {
-        // 仙人 (realm=0): maxCultivation = Double.MAX_VALUE, 不截断
+    fun `validate - immortal realm cultivation capped at absolute cap`() {
+        // T7（2026-08-04）：仙人 (realm=0) 修为改用绝对上限 1e9 钳制
+        // （原 Double.MAX_VALUE 不限制，恶意云档可携带巨大修为穿透）
         val disciple = makeDisciple(realm = 0, realmLayer = 1, cultivation = 1e12)
         val data = minimalValidSaveData().copy(disciples = listOf(disciple))
         val result = SaveValidator.validate(data)
-        assertTrue("预期 Passed（仙人修为不限制），实际得到 $result", result is IntegrityResult.Passed)
+        assertTrue("预期 Repaired（仙人修为钳制 1e9），实际得到 $result", result is IntegrityResult.Repaired)
+        assertEquals(1e9, (result as IntegrityResult.Repaired).data.disciples.first().cultivation, 0.001)
     }
 
     // ── 5. Equipment orphan refs ─────────────────────────────

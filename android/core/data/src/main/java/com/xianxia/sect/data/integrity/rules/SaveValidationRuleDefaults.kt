@@ -6,6 +6,7 @@ package com.xianxia.sect.data.integrity.rules
 fun SaveValidationRuleRegistry.registerDefaults() {
     registerAll(
         listOf(
+            NumericSanitizeRule,         // order=0（最先执行，NaN/负值消毒防穿透 cap 规则）
             SectNameRule,              // order=1
             GameDateRule,              // order=2
             DiscipleAgePositiveRule,   // order=3
@@ -26,6 +27,8 @@ fun SaveValidationRuleRegistry.registerDefaults() {
             ItemRefConsistencyRule,    // order=18
             EntityCountBoundsRule,     // order=19
             RecruitListCleanupRule,    // order=20
+            BattleLogRefRule,          // order=21（battleLogs 条目结构校验）
+            ManualTalentRefRule,       // order=22（manualIds/talentIds 悬空引用清理）
         )
     )
 }

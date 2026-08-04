@@ -3,45 +3,54 @@ package com.xianxia.sect.data.result
 sealed class StorageResult<out T> {
     data class Success<T>(val data: T) : StorageResult<T>()
     data class Failure(val error: StorageError, val message: String = "", val cause: Throwable? = null) : StorageResult<Nothing>()
-    
+
+    /**
+     * 操作部分完成（T9，2026-08-05）：主流程成功，附属步骤（如备份写入）被跳过。
+     * 非失败、非成功——调用方应如实记录跳过原因，不得谎报成功。
+     */
+    data class Skipped(val message: String) : StorageResult<Nothing>()
+
     val isSuccess: Boolean get() = this is Success
     val isFailure: Boolean get() = this is Failure
-    
+    val isSkipped: Boolean get() = this is Skipped
+
     fun getOrNull(): T? = (this as? Success)?.data
     fun getOrThrow(): T = when (this) {
         is Success -> data
         is Failure -> throw StorageException(error, message, cause)
+        is Skipped -> throw StorageException(StorageError.BACKUP_FAILED, message)
     }
-    
+
     fun getOrDefault(default: @UnsafeVariance T): T = when (this) {
         is Success -> data
-        is Failure -> default
+        is Failure, is Skipped -> default
     }
-    
+
     inline fun <R> map(transform: (T) -> R): StorageResult<R> = when (this) {
         is Success -> Success(transform(data))
-        is Failure -> this
+        is Failure, is Skipped -> this
     }
-    
+
     inline fun <R> flatMap(transform: (T) -> StorageResult<R>): StorageResult<R> = when (this) {
         is Success -> transform(data)
-        is Failure -> this
+        is Failure, is Skipped -> this
     }
-    
+
     inline fun onSuccess(action: (T) -> Unit): StorageResult<T> {
         if (this is Success) action(data)
         return this
     }
-    
+
     inline fun onFailure(action: (StorageError, String) -> Unit): StorageResult<T> {
         if (this is Failure) action(error, message)
         return this
     }
-    
+
     companion object {
         fun <T> success(data: T): StorageResult<T> = Success(data)
-        fun failure(error: StorageError, message: String = "", cause: Throwable? = null): StorageResult<Nothing> = 
+        fun failure(error: StorageError, message: String = "", cause: Throwable? = null): StorageResult<Nothing> =
             Failure(error, message, cause)
+        fun skipped(message: String): StorageResult<Nothing> = Skipped(message)
     }
 }
 

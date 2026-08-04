@@ -382,7 +382,7 @@ RunState（运行时状态 — 可循环回退）
 | T1 | 混合 0/非 0 sequenceId 回填破坏单调递增 | ⏸️ 记录 | 旧档 `[0,0,5]` 回填为 `[6,7,5]`——靠前 0 序号条目拿到比靠后非零条目更大的序号。当前唯一消费者是 LazyColumn key（无排序依赖），无即时后果；任何未来按 sequenceId 排序/取"最新"的消费方会读错顺序。修复方案：回填时对非 0 序号也做整体重编号（一次性 O(N)） |
 | T2 | restart 与 load 无互斥 | ⏸️ 记录 | `restartGame` 不设 isLoading、不查 loadLock；`loadGame` 不查 `_isRestarting`/saveLock。重启期间读档可双 boot 竞态（`bootInProgress` CAS 使第二次失败 + loadFromSnapshot 覆写已重置的新世界）。修复需在两者之间加互斥标志（改动涉及 SaveLoadViewModel 全流程，预存设计缺口） |
 | T3 | 组装任务与 load 原地清表并发 | ⏸️ 记录 | 组装任务 T0 通过 gen 检查后与 load 的 `clear()+insert()` 并发遍历同一 `_discipleTables`（可能产出半截列表瞬时写回）；load 自身任务 T1（FIFO 后置）兜底最终一致。gen 检查为单点入口设计，中间窗口无法完全消除；观察窗口内 UI 闪旧/错数据（丢弟子外观、陈尸闪现） |
-| T4 | changedIdTracker MAX_SAFE_CAPACITY 守卫缺口 | ⏸️ 记录 | crafted 存档含 id ≥ 10_000_000 的弟子 + 同事务其他弟子有修改时，大 id 弟子被 `record(id)` 静默拒绝但 changedIds 非空 → 走增量路径 → 快照保留其陈旧数据。注释声称"全量兜底"仅在 changedIds 完全为空时成立。修复：容量拒绝时强制整体退化全量组装 |
+| T4 | changedIdTracker MAX_SAFE_CAPACITY 守卫缺口 | ✅ 已修复 | crafted 存档含 id ≥ 10_000_000 的弟子 + 同事务其他弟子有修改时，大 id 弟子被 `record(id)` 静默拒绝但 changedIds 非空 → 走增量路径 → 快照保留其陈旧数据。注释声称"全量兜底"仅在 changedIds 完全为空时成立。修复：容量拒绝时强制整体退化全量组装 |
 | T5 | 双保存竞态（isSaving 标志跨协程覆写） | ✅ 部分修复 | `saveGame` 已加 isSaving 守卫（快速连点第二次被拒绝）；仍存在的窗口：首次保存进行中再次触发（守卫生效），修复后残余风险低 |
 | T6 | RedeemCodeManager 服务端 config 校验 | ✅ 已修复 | minAge>maxAge 崩溃、quantity 负数吞码、spiritRootCount≤0 空灵根——已加 coerce 兜底；服务端侧建议同步校验（防御纵深） |
 | P12 | 外交宗门交易扣款后 add 失败灵石已扣物品丢失 | ✅ 已修复 | 购买前容量预检拒绝购买 + Partial 溢出自动转邮件 |
@@ -543,17 +543,17 @@ SaveValidator.validate(SaveData)
 
 > 存档恢复链路根治（SaveFileManager 接线/迁移恢复谓词/云读档管线/isLoading 兜底）经 3 个对抗性审查代理审查，
 > **本次引入的 2 项回归（-wal 误删、云并发分歧）与 4 项高危缺口（槽位覆盖/降级崩溃/恢复死循环/OOM）已修复**；
-> 以下为**预存问题或设计权衡**，需人工决策后处理：
+> 以下为**预存问题或设计权衡**，需人工决策后处理（T7~T16 已于 2026-08-05 全量修复，详见 CHANGELOG.md 4.00.87 条目）：
 
 | # | 待办 | 现状 | 说明 |
 |---|------|------|------|
-| T7 | SaveValidator 校验覆盖缺口 | ⏸️ 记录 | 云档可穿透校验进入游戏：battleLogs 悬空引用（无规则检查）、realm=0 弟子 + 巨大 cultivation（CultivationCapRule 对 realm≤0 返回 Double.MAX_VALUE 不截断）、负修炼值（只封上限）、超大实体列表（EntityCountBoundsRule 返回 Repaired 但数据原样未改——"伪修复"）、manualIds/talentIds 非空字符串悬空引用。修复：扩展规则（battleLogs 引用检查、realm≤0 截断、负值下限、实体列表真正截断、saveVersion 内容校验） |
-| T8 | 备份文件 CRC32/CRC32C 跨 API 不一致 | ⏸️ 记录 | SaveFileManager 按 `Build.VERSION.SDK_INT >= 34` 选 CRC32C/CRC32——API<34 设备写入的 .sav/.bak 换机迁移到 API≥34 设备后全部判为损坏。修复：写入时记录 CRC 算法标识或统一 CRC32 |
-| T9 | 备份超 100MB 跳过写入谎报成功 | ⏸️ 记录 | `atomicWrite` 超限返回 success（不阻断主保存）→ 监控记录 backupSuccess 但实际无备份文件。修复：返回专门状态（如 BACKUP_SKIPPED_OVERSIZE） |
-| T10 | 云档 saveVersion 无边界校验 | ⏸️ 记录 | `SaveDataVersionMigrator.migrate` 对 `saveVersion >= 2` 直接返回——Int.MAX 伪造版本绕过 v0→1 缩放；负值（-5）按 v0 迁移（数据为 v0 形态时正确，但已缩放数据被二次缩放）。修复：负数显式拒绝、内容校验（修炼值合理性） |
-| T11 | 修炼值 NaN/Infinity 穿透 | ⏸️ 记录 | 恶意云档 sectCultivation=NaN → NaN/10 传播，CultivationCapRule 对 NaN 比较为 false 不截断；Infinity → toLong() 饱和 Long.MAX。修复：迁移入口 isFinite() 校验 |
-| T12 | 60s 病理兜底 vs 友好超时竞态 | ⏸️ 记录 | `performLoadToSlot` 友好超时（60s，GC 偏移后更晚）与看门狗 60s 兜底竞态——storage 阶段 60-65s 时看门狗抢先取消 loadJob，取消路径不弹错误（静默失败）。触发需低端机+大档+慢闪存。修复：看门狗取消路径补错误反馈或调整阈值 |
-| T13 | boot 失败弹窗无"返回主菜单" | ⏸️ 记录 | 地图生成失败弹窗只有"确定"，关闭后主菜单路径永驻加载页（LoadingScreen 无按钮），唯一出口是系统返回键。修复：弹窗补"返回主菜单"按钮 |
-| T14 | saveGame 协程不注册 activeLoadJob | ⏸️ 记录 | `forceResetStuckStates` 只取消 loadJob——isSaving 卡住 60s 时标志被清但保存协程仍在后台写（UI 提前显示可操作）。SlotLockManager 串行化兜底，torn 风险低；慢保存（10 万弟子）可触发。修复：save 协程也注册或标志复位前等待 |
-| T15 | recoverWithPartialData 跳过完整性守卫 | ⏸️ 记录 | boot 在 Step 5 前异常时 recover 只查 sectName+disciples 非空即进游戏，跳过 ensureHeavyDataLoaded/ensureGameDataIntegrity/assignmentGate 重建——半初始化状态进入 PLAYING。修复：recover 前补守卫调用 |
-| T16 | restartGame 缺 isGameLoaded 守卫 | ⏸️ 记录 | boot 失败（runState=IDLE）后若 restartGame 入口可达，会用内存残留的新档数据覆写磁盘。当前入口仅在游戏内 UI（boot 失败时不可达），防御性补守卫成本低 |
+| T7 | SaveValidator 校验覆盖缺口 | ✅ 已修复 | 云档可穿透校验进入游戏：battleLogs 悬空引用（无规则检查）、realm=0 弟子 + 巨大 cultivation（CultivationCapRule 对 realm≤0 返回 Double.MAX_VALUE 不截断）、负修炼值（只封上限）、超大实体列表（EntityCountBoundsRule 返回 Repaired 但数据原样未改——"伪修复"）、manualIds/talentIds 非空字符串悬空引用。修复：扩展规则（battleLogs 引用检查、realm≤0 截断、负值下限、实体列表真正截断、saveVersion 内容校验） |
+| T8 | 备份文件 CRC32/CRC32C 跨 API 不一致 | ✅ 已修复 | SaveFileManager 按 `Build.VERSION.SDK_INT >= 34` 选 CRC32C/CRC32——API<34 设备写入的 .sav/.bak 换机迁移到 API≥34 设备后全部判为损坏。修复：写入时记录 CRC 算法标识或统一 CRC32 |
+| T9 | 备份超 100MB 跳过写入谎报成功 | ✅ 已修复 | `atomicWrite` 超限返回 success（不阻断主保存）→ 监控记录 backupSuccess 但实际无备份文件。修复：返回专门状态（如 BACKUP_SKIPPED_OVERSIZE） |
+| T10 | 云档 saveVersion 无边界校验 | ✅ 已修复 | `SaveDataVersionMigrator.migrate` 对 `saveVersion >= 2` 直接返回——Int.MAX 伪造版本绕过 v0→1 缩放；负值（-5）按 v0 迁移（数据为 v0 形态时正确，但已缩放数据被二次缩放）。修复：负数显式拒绝、内容校验（修炼值合理性） |
+| T11 | 修炼值 NaN/Infinity 穿透 | ✅ 已修复 | 恶意云档 sectCultivation=NaN → NaN/10 传播，CultivationCapRule 对 NaN 比较为 false 不截断；Infinity → toLong() 饱和 Long.MAX。修复：迁移入口 isFinite() 校验 |
+| T12 | 60s 病理兜底 vs 友好超时竞态 | ✅ 已修复 | `performLoadToSlot` 友好超时（60s，GC 偏移后更晚）与看门狗 60s 兜底竞态——storage 阶段 60-65s 时看门狗抢先取消 loadJob，取消路径不弹错误（静默失败）。触发需低端机+大档+慢闪存。修复：看门狗取消路径补错误反馈或调整阈值 |
+| T13 | boot 失败弹窗无"返回主菜单" | ✅ 已修复 | 地图生成失败弹窗只有"确定"，关闭后主菜单路径永驻加载页（LoadingScreen 无按钮），唯一出口是系统返回键。修复：弹窗补"返回主菜单"按钮 |
+| T14 | saveGame 协程不注册 activeLoadJob | ✅ 已修复 | `forceResetStuckStates` 只取消 loadJob——isSaving 卡住 60s 时标志被清但保存协程仍在后台写（UI 提前显示可操作）。SlotLockManager 串行化兜底，torn 风险低；慢保存（10 万弟子）可触发。修复：save 协程也注册或标志复位前等待 |
+| T15 | recoverWithPartialData 跳过完整性守卫 | ✅ 已修复 | boot 在 Step 5 前异常时 recover 只查 sectName+disciples 非空即进游戏，跳过 ensureHeavyDataLoaded/ensureGameDataIntegrity/assignmentGate 重建——半初始化状态进入 PLAYING。修复：recover 前补守卫调用 |
+| T16 | restartGame 缺 isGameLoaded 守卫 | ✅ 已修复 | boot 失败（runState=IDLE）后若 restartGame 入口可达，会用内存残留的新档数据覆写磁盘。当前入口仅在游戏内 UI（boot 失败时不可达），防御性补守卫成本低 |

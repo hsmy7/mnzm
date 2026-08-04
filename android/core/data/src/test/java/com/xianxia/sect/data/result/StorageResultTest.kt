@@ -20,6 +20,48 @@ class StorageResultTest {
     }
 
     @Test
+    fun `Skipped - isSkipped true and not success or failure`() {
+        // T9（2026-08-05）：Skipped 表示部分完成（主流程成功、附属步骤被跳过）
+        val result: StorageResult<String> = StorageResult.skipped("备份超限跳过")
+        assertTrue(result.isSkipped)
+        assertFalse(result.isSuccess)
+        assertFalse(result.isFailure)
+    }
+
+    @Test
+    fun `Skipped - getOrNull returns null and getOrDefault returns default`() {
+        val result: StorageResult<Int> = StorageResult.skipped("skip")
+        assertNull(result.getOrNull())
+        assertEquals(42, result.getOrDefault(42))
+    }
+
+    @Test(expected = StorageException::class)
+    fun `Skipped - getOrThrow throws StorageException`() {
+        val result: StorageResult<String> = StorageResult.skipped("skip")
+        result.getOrThrow()
+    }
+
+    @Test
+    fun `Skipped - map and flatMap pass through`() {
+        val skipped: StorageResult<Int> = StorageResult.skipped("skip")
+        val mapped = skipped.map { it * 2 }
+        assertTrue(mapped is StorageResult.Skipped)
+        val flat = skipped.flatMap { StorageResult.success(1) }
+        assertTrue(flat is StorageResult.Skipped)
+    }
+
+    @Test
+    fun `Skipped - onSuccess and onFailure do not trigger`() {
+        var successCalled = false
+        var failureCalled = false
+        val result: StorageResult<String> = StorageResult.skipped("skip")
+        result.onSuccess { successCalled = true }
+        result.onFailure { _, _ -> failureCalled = true }
+        assertFalse(successCalled)
+        assertFalse(failureCalled)
+    }
+
+    @Test
     fun `Success - getOrNull returns data`() {
         val result: StorageResult<Int> = StorageResult.success(42)
         assertEquals(42, result.getOrNull())

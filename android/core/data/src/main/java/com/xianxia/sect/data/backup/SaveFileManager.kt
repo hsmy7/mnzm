@@ -32,11 +32,15 @@ import javax.inject.Singleton
  * 文件头格式（.sav / .bak 共用，16 字节定长头）：
  * Offset  Size  Field
  *   0      4    Magic: 0x58 0x53 0x42 0x4B ("XSBK")
- *   4      2    Format version (major=0x01, minor=0x00 → 0x0100)
- *   6      4    CRC32C of payload (bytes 12..end)
- *  10      2    Flags (bit 0: lz4-compressed payload)
+ *   4      2    Format version (major=0x01, minor=0x01 → 0x0101，自 0x0101 起字节 11 记录 CRC 算法)
+ *   6      4    CRC of payload (bytes 12..end，算法见字节 11；0x0100 旧格式无标识)
+ *  10      2    Flags (bit 0: lz4-compressed payload) + CRC 算法标识（0x0101 起：0=CRC32, 1=CRC32C）
  *  12      4    Uncompressed payload length (uint32, big-endian)
  *  16      N    Payload (SerializationModule.serializeAndCompressSaveData 输出)
+ *
+ * 格式版本 0x0101（T8，2026-08-05）：API<34 设备写 CRC32、API≥34 写 CRC32C，
+ * 旧格式（0x0100）无算法标识，跨 API 换机全部判损坏。0x0101 起字节 11 记录算法，
+ * 读取按标识精确校验；旧格式文件通过双算法探测兼容读取。
  */
 @Singleton
 class SaveFileManager @Inject constructor(
@@ -54,8 +58,17 @@ class SaveFileManager @Inject constructor(
         /** 标记位：LZ4 压缩 */
         private const val FLAG_COMPRESSED = 0x01
 
-        /** 格式版本 (major << 8 | minor) */
-        private const val FORMAT_VERSION = 0x0100
+        /** CRC 算法标识：0=CRC32 */
+        private const val CRC_ALGO_CRC32 = 0
+
+        /** CRC 算法标识：1=CRC32C */
+        private const val CRC_ALGO_CRC32C = 1
+
+        /** 格式版本 (major << 8 | minor)——0x0101 起字节 11 携带 CRC 算法标识 */
+        private const val FORMAT_VERSION = 0x0101
+
+        /** 首个携带算法标识的格式版本（旧版 0x0100 无标识，按 SDK 旧行为+双算法探测） */
+        private const val FORMAT_VERSION_WITH_CRC_ALGO = 0x0101
 
         /** 最大备份保留天数 */
         private const val MAX_BACKUP_AGE_DAYS = 7
@@ -91,12 +104,15 @@ class SaveFileManager @Inject constructor(
     /**
      * 原子写入存档数据。
      *
-     * 流程：
+     * 流程（T9 2026-08-05 修复：主保存无条件执行，超限只跳过备份）：
      * 1. 序列化 payload → 写入 .tmp 文件 (FileOutputStream)
      * 2. fsync 强制刷盘
-     * 3. 重命名 .tmp → .sav（同一文件系统上的原子操作）
-     * 4. 复制 .sav → .bak（保留历史快照）
-     * 5. 删除 .tmp（清理）
+     * 3. 重命名 .tmp → .sav（同一文件系统上的原子操作）——**主保存必执行**
+     * 4. payload 超 100MB → 跳过 .bak 写入，返回 [StorageResult.Skipped]（不再谎报成功）
+     * 5. 复制 .sav → .bak（保留历史快照）
+     * 6. 删除 .tmp（清理）
+     *
+     * 修复前缺陷：超限检查位于写 .sav 之前，超限时主保存+备份一并跳过且返回 success。
      */
     fun atomicWrite(slot: Int, saveData: SaveData): StorageResult<Unit> {
         ensureInitialized()
@@ -112,16 +128,10 @@ class SaveFileManager @Inject constructor(
             // 1. 序列化
             val payload = saveSerializer.serializeAndCompressSaveData(saveData)
 
-            // 2. 检查备份文件大小限制
-            if (payload.size > MAX_BACKUP_SIZE_MB * 1024 * 1024) {
-                Log.w(TAG, "存档数据过大 (${payload.size / 1024 / 1024}MB)，跳过备份写入")
-                return StorageResult.success(Unit) // 不阻断主保存
-            }
-
-            // 3. 写入 .tmp（write-tmp）
+            // 2. 写入 .tmp（write-tmp）
             writeFileAtomic(tmpFile, payload)
 
-            // 4. 重命名 .tmp → .sav（原子交换）
+            // 3. 重命名 .tmp → .sav（原子交换）——主保存无条件执行
             if (savFile.exists()) {
                 savFile.delete()
             }
@@ -130,6 +140,14 @@ class SaveFileManager @Inject constructor(
                 return StorageResult.failure(
                     StorageError.IO_ERROR,
                     "重命名 .tmp → .sav 失败 slot=$slot"
+                )
+            }
+
+            // 4. 检查备份文件大小限制（主保存已成功，跳过备份不阻断）
+            if (payload.size > MAX_BACKUP_SIZE_MB * 1024 * 1024) {
+                Log.w(TAG, "存档数据过大 (${payload.size / 1024 / 1024}MB)，跳过备份写入（主保存已成功）")
+                return StorageResult.skipped(
+                    "备份因超过 ${MAX_BACKUP_SIZE_MB}MB 上限被跳过（主保存成功，非阻断）"
                 )
             }
 
@@ -335,9 +353,13 @@ class SaveFileManager @Inject constructor(
         }
     }
 
-    /** 构建文件头 */
+    /** 构建文件头（0x0101：字节 11 记录 CRC 算法标识，T8 2026-08-05） */
     private fun buildHeader(payload: ByteArray): ByteArray {
-        val crc32c = computeCrc32c(payload)
+        val (crc, algo) = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            computeCrc32c(payload) to CRC_ALGO_CRC32C
+        } else {
+            computeCrc32(payload) to CRC_ALGO_CRC32
+        }
         val header = ByteArray(HEADER_SIZE)
 
         // Magic
@@ -345,14 +367,15 @@ class SaveFileManager @Inject constructor(
         // Format version (big-endian)
         header[4] = ((FORMAT_VERSION shr 8) and 0xFF).toByte()
         header[5] = (FORMAT_VERSION and 0xFF).toByte()
-        // CRC32C (big-endian)
-        header[6] = ((crc32c shr 24) and 0xFF).toByte()
-        header[7] = ((crc32c shr 16) and 0xFF).toByte()
-        header[8] = ((crc32c shr 8) and 0xFF).toByte()
-        header[9] = (crc32c and 0xFF).toByte()
+        // CRC (big-endian)
+        header[6] = ((crc shr 24) and 0xFF).toByte()
+        header[7] = ((crc shr 16) and 0xFF).toByte()
+        header[8] = ((crc shr 8) and 0xFF).toByte()
+        header[9] = (crc and 0xFF).toByte()
         // Flags: LZ4 compressed
         header[10] = FLAG_COMPRESSED.toByte()
-        header[11] = 0
+        // T8: CRC 算法标识（原保留位；0x0101 起有效，0=CRC32, 1=CRC32C）
+        header[11] = algo.toByte()
         // Uncompressed length (big-endian) — 当前 payload 已压缩，存原始长度
         val len = payload.size
         header[12] = ((len shr 24) and 0xFF).toByte()
@@ -364,7 +387,7 @@ class SaveFileManager @Inject constructor(
     }
 
     /**
-     * 读取文件并校验 CRC32C。
+     * 读取文件并校验 CRC。
      * @return payload（不含文件头），校验失败返回 null
      */
     private fun readAndVerify(file: File): ByteArray? {
@@ -383,7 +406,12 @@ class SaveFileManager @Inject constructor(
                 }
             }
 
-            // 读取 CRC32C（大端序）
+            // 格式版本（大端序）
+            val formatVersion = ((bytes[4].toInt() and 0xFF) shl 8) or (bytes[5].toInt() and 0xFF)
+            // CRC 算法标识（字节 11，仅 0x0101+ 有效；旧格式该字节为保留位 0）
+            val algoByte = bytes[11].toInt() and 0xFF
+
+            // 读取 CRC（大端序）
             val storedCrc = ((bytes[6].toInt() and 0xFF) shl 24) or
                     ((bytes[7].toInt() and 0xFF) shl 16) or
                     ((bytes[8].toInt() and 0xFF) shl 8) or
@@ -392,10 +420,9 @@ class SaveFileManager @Inject constructor(
             // 提取 payload
             val payload = bytes.copyOfRange(HEADER_SIZE, bytes.size)
 
-            // 校验 CRC32C
-            val actualCrc = computeCrc32c(payload)
-            if (storedCrc != actualCrc) {
-                Log.w(TAG, "CRC32C 不匹配: ${file.name} (stored=$storedCrc, actual=$actualCrc)")
+            // 校验 CRC（T8：0x0101 按标识精确校验；0x0100 旧格式双算法探测）
+            if (!verifyCrc(storedCrc, payload, formatVersion, algoByte)) {
+                Log.w(TAG, "CRC 不匹配: ${file.name} (stored=$storedCrc, version=${formatVersion.toString(16)})")
                 return null
             }
 
@@ -407,10 +434,38 @@ class SaveFileManager @Inject constructor(
     }
 
     /**
+     * CRC 校验（T8 2026-08-05）。
+     * - 0x0101+：按文件头记录的算法标识精确校验；未知标识判损坏
+     * - 0x0100（旧格式）：无算法标识 → 双算法探测（API≥34 试 CRC32C 与 CRC32，
+     *   API<34 只试 CRC32）——修复 API<34 写入的备份换机到 API≥34 全判损坏的问题
+     */
+    private fun verifyCrc(stored: Int, payload: ByteArray, formatVersion: Int, algoByte: Int): Boolean {
+        if (formatVersion >= FORMAT_VERSION_WITH_CRC_ALGO) {
+            return when (algoByte) {
+                CRC_ALGO_CRC32 -> stored == computeCrc32(payload)
+                CRC_ALGO_CRC32C -> stored == computeCrc32c(payload)
+                else -> false
+            }
+        }
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            stored == computeCrc32c(payload) || stored == computeCrc32(payload)
+        } else {
+            stored == computeCrc32(payload)
+        }
+    }
+
+    /** 计算 CRC32 校验和（跨 API 一致） */
+    private fun computeCrc32(data: ByteArray): Int {
+        val crc = CRC32()
+        crc.update(data)
+        return crc.value.toInt()
+    }
+
+    /**
      * 计算 CRC32C 校验和。
      * API 34+ 使用 java.util.zip.CRC32C（API 34 才引入），
      * 更低版本回退到 java.util.zip.CRC32。
-     * 同设备写入/读取走同一分支，校验自洽。
+     * 0x0101 格式由文件头算法标识保证跨 API 一致性，不再依赖同设备自洽。
      */
     private fun computeCrc32c(data: ByteArray): Int {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {

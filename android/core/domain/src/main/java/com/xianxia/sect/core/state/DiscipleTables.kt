@@ -316,23 +316,55 @@ class DiscipleTables {
         // 2026-08-01：mutableSetOf → java.util.BitSet（每旬 D 次列写热路径零装箱，
         // 单字更新；consume 用 nextSetBit 构造，天然升序供增量归并使用）
         private val changedBits = java.util.BitSet()
+
+        /** 容量拒绝标志（T4 2026-08-05）：record 因 id 超上限被拒时置位 */
+        private var rejectedRecord = false
+
         private val lock = Any()
 
         /**
          * 记录某弟子 ID 被修改。
          * 2026-08-01 对抗性审查修复：BitSet 内存与最大 id 成正比——crafted 存档
-         * id=2^30 时 set() 分配 ~128MB 可 OOM。超出安全上限的 id 拒绝记录
-         * （增量组装退化为全量兜底，正确性不受影响）。
+         * id=2^30 时 set() 分配 ~128MB 可 OOM。超出安全上限的 id 拒绝记录。
+         * T4（2026-08-05）：容量拒绝置 [rejectedRecord] 标志——消费方读到后强制
+         * 全量组装（旧实现仅 changedIds 完全为空时才全量，被拒大 id 弟子残留陈旧快照）。
          */
         fun record(id: Int) {
             synchronized(lock) {
-                if (id < 0 || id >= MAX_SAFE_CAPACITY) return
+                if (id < 0) return
+                if (id >= MAX_SAFE_CAPACITY) {
+                    rejectedRecord = true
+                    return
+                }
                 changedBits.set(id)
             }
         }
 
         /** 记录多个弟子 ID 被修改（如批量写入场景） */
-        fun recordAll(ids: Collection<Int>) { synchronized(lock) { ids.forEach { if (it >= 0 && it < MAX_SAFE_CAPACITY) changedBits.set(it) } } }
+        fun recordAll(ids: Collection<Int>) {
+            synchronized(lock) {
+                ids.forEach {
+                    if (it < 0) return@forEach
+                    if (it >= MAX_SAFE_CAPACITY) rejectedRecord = true else changedBits.set(it)
+                }
+            }
+        }
+
+        /**
+         * 消费并清除强制全量组装标志（T4 2026-08-05）。
+         * 由 GameStateStoreImpl.dispatchAssemble 在消费 changedIds 的同位置读取，
+         * 二者由同一 [lock] 保证原子性。
+         */
+        fun consumeRejectedRecord(): Boolean = synchronized(lock) {
+            val flag = rejectedRecord
+            rejectedRecord = false
+            flag
+        }
+
+        /** 测试专用：模拟一次容量拒绝（避免测试构造 10M 级 id 的巨内存开销） */
+        fun markRejectedForTest() {
+            synchronized(lock) { rejectedRecord = true }
+        }
 
         /**
          * 消费并清除已修改的 ID 集合。

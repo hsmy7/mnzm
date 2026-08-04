@@ -171,10 +171,13 @@ class GameEngineCore @Inject constructor(
         private const val TICK_INTERVAL_MS = 100L
         private const val MIN_TICK_DELAY_MS = 16L
         private const val TICK_WARNING_THRESHOLD_MS = 100f
-        // isSaving/isLoading 病理级死锁最终兜底超时（60s）。
+        // isSaving/isLoading 病理级死锁最终兜底超时（90s，T12 2026-08-05）。
         // 历史教训：10s 会把低端机正常慢保存（>3-5s）误判为卡死并打断，导致反复冻结。
         // 正常保存的豁免由 GameTimeProgressMonitor（lastLoopActivityMs 判据）承担。
-        private const val SAVE_LOAD_STUCK_TIMEOUT_MS = 60_000L
+        // T12：60s 时友好超时（performLoadToSlot withTimeoutOrNull(60s)）与看门狗竞态——
+        // 低端机+大档时看门狗抢先取消 loadJob 且取消路径静默失败。阈值提升至 90s 使
+        // 友好超时（读档 60s / 保存 35s）先触发并复位标志，看门狗只拦截真正病理卡死。
+        private const val SAVE_LOAD_STUCK_TIMEOUT_MS = 90_000L
         private const val ADAPTIVE_MAX_INTERVAL_MS = 1000L
         private const val TICK_TIME_BUDGET_MS = 50L
         // ★ 帧驱动 Accumulator 常量
@@ -328,6 +331,14 @@ class GameEngineCore @Inject constructor(
     /** 当前正在运行的加载协程 Job，用于看门狗强制取消 */
     @Volatile
     private var activeLoadJob: Job? = null
+
+    /**
+     * 看门狗病理复位事件通道（T12 2026-08-05）。
+     * forceResetStuckStates 被看门狗触发（非 onCleared 正常清理）时发出用户可见事件，
+     * SaveLoadViewModel 收集后弹错误提示——此前取消路径静默失败。
+     */
+    private val _stuckResetEvents = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    val stuckResetEvents: SharedFlow<String> = _stuckResetEvents.asSharedFlow()
 
     /** 独立看门狗 Job — 运行在 Dispatchers.Default 上，监控游戏线程是否卡死 */
     private var watchdogJob: Job? = null
@@ -1176,9 +1187,14 @@ class GameEngineCore @Inject constructor(
     /**
      * 看门狗：检测 isSaving/isLoading 是否卡住超时，如果超时则强制重置。
      * 在 tickInternal() 每次跳过 tick 时调用。
+     * internal（T12 2026-08-05）：供 core/engine 测试驱动超时路径。
      */
-    private fun checkAndResetStuckStates(isSaving: Boolean, isLoading: Boolean) {
-        val now = System.currentTimeMillis()
+    internal fun checkAndResetStuckStates(
+        isSaving: Boolean,
+        isLoading: Boolean,
+        nowMs: Long = System.currentTimeMillis()
+    ) {
+        val now = nowMs
 
         // 跟踪 isSaving 变为 true 的时间
         if (isSaving) {
@@ -1186,7 +1202,7 @@ class GameEngineCore @Inject constructor(
                 savingStartTime = now
             } else if (now - savingStartTime > SAVE_LOAD_STUCK_TIMEOUT_MS) {
                 DomainLog.e(TAG, "isSaving has been true for ${now - savingStartTime}ms, force resetting")
-                forceResetStuckStates()
+                watchdogForceResetStuckStates("保存操作超时(${SAVE_LOAD_STUCK_TIMEOUT_MS / 1000}s)，已自动复位，请重试")
             }
         } else {
             savingStartTime = 0L
@@ -1198,11 +1214,20 @@ class GameEngineCore @Inject constructor(
                 loadingStartTime = now
             } else if (now - loadingStartTime > SAVE_LOAD_STUCK_TIMEOUT_MS) {
                 DomainLog.e(TAG, "isLoading has been true for ${now - loadingStartTime}ms, force resetting")
-                forceResetStuckStates()
+                watchdogForceResetStuckStates("读档操作超时(${SAVE_LOAD_STUCK_TIMEOUT_MS / 1000}s)，已自动复位，请重试")
             }
         } else {
             loadingStartTime = 0L
         }
+    }
+
+    /**
+     * 看门狗专用复位（T12 2026-08-05）：先发用户可见事件再复位。
+     * [forceResetStuckStates] 保持静默——onCleared 正常清理路径不可弹窗。
+     */
+    private fun watchdogForceResetStuckStates(reason: String) {
+        _stuckResetEvents.tryEmit(reason)
+        forceResetStuckStates()
     }
 
     /**

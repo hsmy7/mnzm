@@ -1045,9 +1045,12 @@ class GameStateStoreImpl @Inject constructor(
         // 捕获提交时代的版本号：load/reset 会递增版本号作废排队中的陈旧组装任务
         val gen = discipleVersion.get()
         val changedIds = _discipleTables.changedIdTracker.consumeChangedIds()
+        // T4（2026-08-05）：容量拒绝标志——大 id 弟子未被 changedIds 记录，
+        // 增量组装会保留其陈旧快照数据；置位时强制走全量兜底分支
+        val forceFullAssemble = _discipleTables.changedIdTracker.consumeRejectedRecord()
         // P-3：本事务脏列索引（update 提交处捕获，patch 组装按组复用子对象引用）
         val dirtyColumns = lastDirtyColumns
-        if (changedIds.isNotEmpty()) {
+        if (changedIds.isNotEmpty() && !forceFullAssemble) {
             applicationScopeProvider.scope.launch(assembleDispatcher) {
                 if (discipleVersion.get() != gen) return@launch
                 val prevSnapshot = _disciplesFlow.value

@@ -91,6 +91,9 @@ data class StorageUsage(
 
 fun <T> com.xianxia.sect.data.result.StorageResult<T>.toUnifiedResult(): SaveResult<T> = when (this) {
     is com.xianxia.sect.data.result.StorageResult.Success -> SaveResult.success(data)
+    is com.xianxia.sect.data.result.StorageResult.Skipped -> SaveResult.failure(
+        SaveError.SAVE_FAILED, message
+    )
     is com.xianxia.sect.data.result.StorageResult.Failure -> SaveResult.failure(
         when (error) {
             com.xianxia.sect.data.result.StorageError.INVALID_SLOT -> SaveError.INVALID_SLOT

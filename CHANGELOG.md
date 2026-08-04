@@ -142,6 +142,21 @@
 - **试炼敌人技能倍率按熟练度调整** — 与属性加成（NOVICE ×1.5）同源，消除同一敌人"属性 1.5 倍、技能裸奔"的矛盾
 - **AOE 日志求和防溢出** — Long 求和防多段×多目标溢出为负
 
+### 修复（2026-08-05 存档恢复链路对抗性审查遗留 T7~T16 + 并发 T4 全量修复）
+
+- **T7/T11：SaveValidator 规则引擎覆盖缺口** — 新增 `NumericSanitizeRule`（order=0 最先执行：NaN/±Infinity/负修炼值重置 0，覆盖弟子/招募列表/AI 宗门弟子/pillEffects 全数值字段，未变化保持原引用不误报）；`CultivationCapRule` 对 realm≤0（仙人）改用绝对上限 1e9 钳制（原 `Double.MAX_VALUE` 不截断，恶意云档可携带巨大修为穿透）；`EntityCountBoundsRule` 新增硬上限**真截断**（battleLogs 5000 按时间戳保留最新 / 装备功法堆叠 50000 截断并清理弟子悬空引用 / 弟子 10 万判损坏）——修复"返回 Repaired 但数据原样"的伪修复；新增 `BattleLogRefRule`（条目结构校验：非法日期/负回合/负伤亡/空条目清理）、`ManualTalentRefRule`（manualIds 存档作用域 + talentIds 注册表悬空引用清理）；注册表 20→23 条规则
+- **T8：备份文件 CRC 跨 API 不一致** — 文件头格式升 0x0101，字节 11（原保留位）记录 CRC 算法标识（0=CRC32/1=CRC32C）；读取按标识精确校验，**旧 0x0100 文件双算法探测兼容**——API<34 设备写入的备份换机到 API≥34 设备不再全部判损坏（修复前唯一出口是丢档走 .bak 链）
+- **T9：备份超 100MB 谎报成功（且主保存也被跳过）** — 核查确认超限 early-return 位于写主 .sav 之前（比文档登记更严重：主保存+备份一并跳过且返回 success）。`atomicWrite` 重构：主 .sav 无条件执行，超限只跳过 .bak 并返回新 `StorageResult.Skipped` 分支；`StorageFacade.toUnifiedResult` 穷尽 when 编译收口；`StorageEngine.handleSaveResult` 改显式三分支 + `StorageMetrics.recordBackupSkippedOversize()`
+- **T10：云档 saveVersion 无边界校验** — `SaveDataVersionMigrator.migrate` 返回类型改 sealed `MigrationResult`（Migrated/Rejected）；负数（二次缩放风险）与高于当前版本（Int.MAX 伪造绕过缩放）显式拒绝——本地读档走备份恢复、云读档弹明确错误；3 个生产调用点 + 全部测试适配（编译期强制）
+- **T12：60s 病理兜底 vs 友好超时竞态** — 看门狗 `SAVE_LOAD_STUCK_TIMEOUT_MS` 60s→90s（友好超时 60s 先触发并复位标志，看门狗只拦截真正病理卡死）；新增 `stuckResetEvents` 事件通道，看门狗病理复位**发用户可见事件**（原取消路径静默失败）；`forceResetStuckStates` 保持静默（onCleared 正常清理不可弹窗）；`checkAndResetStuckStates` 改 internal + nowMs 注入测试 seam
+- **T13：boot 失败弹窗补"返回主菜单"** — GameActivity 错误弹窗 customButtons（`isGameLoaded=false` 时显示"返回主菜单"+确定，加载成功时与旧行为逐像素一致）；`buildMainMenuIntent` 独立顶层函数（复用 onLogout 的 MainActivity 重建模式，不清 session）；LoadingScreen 永驻加载页唯一出口（系统返回键）问题消除
+- **T14：saveGame 协程不注册 activeLoadJob** — 保存协程 `.also { registerActiveLoadJob(it) }` + `performLocalSaveToSlot` finally 清除（与 loadGame/startNewGame/restartGame 同模式）；`saveToCloudViaSlot` 故意不注册（网络等待被看门狗中途取消会造成半上传状态）
+- **T15：recoverWithPartialData 跳过完整性守卫** — 恢复前补齐主路径 Step 5/6/6.5 守卫（prewarm→ensureHeavyDataLoaded→ensureGameDataIntegrity→assignmentGate.rebuildFromGameData→consolidateStacks，调用顺序逐字一致）；守卫失败放弃恢复走既有 onError——半初始化状态不再进入 PLAYING
+- **T16：restartGame 缺 isGameLoaded 守卫** — 入口最前补守卫（与 loadGame 同模式），boot 失败（runState=IDLE）后内存残留新档数据不再可能覆写磁盘
+- **T4：changedIdTracker MAX_SAFE_CAPACITY 守卫缺口** — `record`/`recordAll` 容量拒绝置 `rejectedRecord` 标志 + `consumeRejectedRecord()` 消费；`dispatchAssemble` 读到标志强制走全量组装——crafted 存档大 id 弟子不再残留陈旧快照（原实现仅 changedIds 完全为空时才全量）；`markRejectedForTest` 测试 seam（对齐 forceFullCopy 既有模式）
+
+**测试**：新增 8 个测试文件（NumericSanitizeRuleTest/BattleLogRefRuleTest/ManualTalentRefRuleTest/EntityCountBoundsRuleTest/GameEngineCoreStuckResetTest/GameActivityBackNavTest/GameStateStoreForceFullAssembleTest/SaveFileManagerSdk33Test）+ 6 个既有测试类扩展（SaveDataVersionMigratorTest 全适配/SaveFileManagerTest/SaveFileManagerSdk33Test/StorageResultTest/CultivationCapRuleTest/SaveValidatorTest/DiscipleTablesChangedIdTest/BootSequenceControllerTest/SaveLoadViewModelLoadTest）；core:data 全量 + core:engine 目标 + app 目标测试通过
+
 ## [4.0.85] - 2026-08-02
 
 ### 新增（2026-08-02 一键拆除建筑）

@@ -1,5 +1,6 @@
 package com.xianxia.sect.data.backup
 
+import com.xianxia.sect.data.result.StorageResult
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Rule
@@ -24,6 +25,12 @@ import java.util.zip.CRC32C
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class SaveFileManagerTest {
+
+    /** 与 SaveFileManager 的 MAX_BACKUP_SIZE_MB 对齐（测试超限场景） */
+    private companion object {
+        const val MAX_BACKUP_SIZE_MB = 100
+        const val MAX_BACKUP_SIZE_BYTES = MAX_BACKUP_SIZE_MB * 1024 * 1024
+    }
 
     @get:Rule
     val tempFolder = TemporaryFolder()
@@ -199,6 +206,96 @@ class SaveFileManagerTest {
         assertThrows(IllegalStateException::class.java) { uninitialized.atomicWrite(1, mockSaveData()) }
     }
 
+    // ============================================================
+    // T8（2026-08-05）：CRC 算法跨 API 一致性
+    // ============================================================
+
+    @Test
+    fun `legacy 0x0100 header with CRC32 read on sdk 34 passes`() {
+        // 根因场景：API<34 设备（旧 App 写 CRC32）换机到 API≥34 设备，
+        // 旧格式无算法标识 → 双算法探测（CRC32 命中）
+        val slot = 2
+        val payload = "legacy-crc32-payload".encodeToByteArray()
+        val file = getSavFile(slot)
+        file.parentFile?.mkdirs()
+        file.writeBytes(buildLegacyHeader(payload, useCrc32c = false) + payload)
+
+        val result = manager.readWithFallback(slot)
+        assertEquals(BackupStatus.SUCCESS, result.status)
+        assertArrayEquals(payload, result.payload)
+    }
+
+    @Test
+    fun `legacy 0x0100 header with CRC32C read on sdk 34 passes`() {
+        // 同设备旧格式（API≥34 写 CRC32C）兼容
+        val slot = 3
+        val payload = "legacy-crc32c-payload".encodeToByteArray()
+        val file = getSavFile(slot)
+        file.parentFile?.mkdirs()
+        file.writeBytes(buildLegacyHeader(payload, useCrc32c = true) + payload)
+
+        val result = manager.readWithFallback(slot)
+        assertEquals(BackupStatus.SUCCESS, result.status)
+        assertArrayEquals(payload, result.payload)
+    }
+
+    @Test
+    fun `new format with unknown algorithm byte rejected`() {
+        // 0x0101 + 未知算法标识 → 判损坏（安全侧）
+        val slot = 4
+        val payload = "bad-algo".encodeToByteArray()
+        val file = getSavFile(slot)
+        file.parentFile?.mkdirs()
+        val header = buildValidHeader(payload)
+        header[4] = 0x01; header[5] = 0x01 // 升级为 0x0101
+        header[11] = 0x02 // 未知算法标识
+        file.writeBytes(header + payload)
+
+        val result = manager.readWithFallback(slot)
+        assertEquals(BackupStatus.CORRUPTED, result.status)
+    }
+
+    @Test
+    fun `new format roundtrip write then read succeeds`() {
+        // 0x0101 写入（sdk 34 → CRC32C + 算法标识）→ 读取精确校验通过
+        val slot = 5
+        val writeResult = manager.atomicWrite(slot, mockSaveData())
+        assertTrue(writeResult is StorageResult.Success)
+
+        val read = manager.readWithFallback(slot)
+        assertEquals(BackupStatus.SUCCESS, read.status)
+    }
+
+    // ============================================================
+    // T9（2026-08-05）：超限跳过备份但主保存必写
+    // ============================================================
+
+    @Test
+    fun `oversized payload writes main sav and returns Skipped`() {
+        // 修复前：超限时主保存+备份一并跳过且返回 success（静默丢档）
+        // 修复后：主保存必执行，备份跳过并如实返回 Skipped
+        val slot = 0
+        val bigManager = SaveFileManager(
+            saveSerializer = SaveSerializer { data -> ByteArray(MAX_BACKUP_SIZE_BYTES + 1) }
+        ).also { it.initialize(tempFolder.root) }
+
+        val result = bigManager.atomicWrite(slot, mockSaveData())
+
+        assertTrue("应返回 Skipped，实际 $result", result is StorageResult.Skipped)
+        assertTrue("主 .sav 必须存在", getSavFile(slot).exists())
+        assertFalse("备份 .bak 不写入", getBakFile(slot).exists())
+    }
+
+    @Test
+    fun `normal size write returns Success and writes both files`() {
+        val slot = 6
+        val result = manager.atomicWrite(slot, mockSaveData())
+
+        assertTrue("应返回 Success，实际 $result", result is StorageResult.Success)
+        assertTrue("主 .sav 存在", getSavFile(slot).exists())
+        assertTrue("备份 .bak 存在", getBakFile(slot).exists())
+    }
+
     private fun mockSaveData(): com.xianxia.sect.data.model.SaveData {
         return com.xianxia.sect.data.model.SaveData(
             version = "test",
@@ -259,6 +356,23 @@ class SaveFileManagerTest {
         header[15] = (len and 0xFF).toByte()
 
         return header
+    }
+
+    /** 构造旧格式（0x0100）文件头，可选 CRC32/CRC32C（旧 App 按 SDK 分支写入） */
+    private fun buildLegacyHeader(payload: ByteArray, useCrc32c: Boolean): ByteArray {
+        val crc = if (useCrc32c) computeCrc32c(payload) else computeCrc32(payload)
+        val header = buildValidHeader(payload)
+        header[6] = ((crc shr 24) and 0xFF).toByte()
+        header[7] = ((crc shr 16) and 0xFF).toByte()
+        header[8] = ((crc shr 8) and 0xFF).toByte()
+        header[9] = (crc and 0xFF).toByte()
+        return header
+    }
+
+    private fun computeCrc32(data: ByteArray): Int {
+        val crc = java.util.zip.CRC32()
+        crc.update(data)
+        return crc.value.toInt()
     }
 
     private fun computeCrc32c(data: ByteArray): Int {

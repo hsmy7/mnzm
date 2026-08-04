@@ -24,7 +24,9 @@ import io.mockk.mockk
 import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkAll
+import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -93,6 +95,9 @@ class SaveLoadViewModelLoadTest {
             SaveResult.failure(SaveError.SLOT_EMPTY, "no current save")
         every { stateStore.isLoading } returns MutableStateFlow(false)
         every { stateStore.runState } returns MutableStateFlow(RunState.IDLE)
+        // T12（2026-08-05）：init 会收集 stuckResetEvents——stub 为真实 SharedFlow
+        // （collect 是扩展函数，relaxed mock 的 SharedFlow 会抛 KotlinNothingValueException）
+        every { gameEngineCore.stuckResetEvents } returns MutableSharedFlow()
 
         viewModel = SaveLoadViewModel(
             gameEngine = gameEngine,
@@ -122,6 +127,48 @@ class SaveLoadViewModelLoadTest {
             seeds = emptyList(),
             teams = emptyList()
         )
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // T14（2026-08-05）：saveGame 协程注册 activeLoadJob
+    // ──────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `saveGame registers active load job on game engine core`() = runTest(testDispatcher) {
+        // saveGame 有 isGameLoaded 守卫（runState 须 PLAYING）与 isSaving 守卫
+        every { stateStore.runState } returns MutableStateFlow(RunState.PLAYING)
+        every { stateStore.isSaving } returns MutableStateFlow(false)
+        every { stateStore.isLoading } returns MutableStateFlow(false)
+
+        viewModel.saveGame("1")
+        advanceUntilIdle()
+
+        // T14：保存协程必须注册（看门狗可取消复位），与 loadGame/startNewGame/restartGame 同模式
+        coVerify { gameEngineCore.registerActiveLoadJob(any()) }
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // T16（2026-08-05）：restartGame 缺 isGameLoaded 守卫
+    // ──────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `restartGame when game not loaded is ignored`() = runTest(testDispatcher) {
+        // 默认 runState=IDLE → isGameLoaded=false → T16 守卫立即返回
+        every { stateStore.isSaving } returns MutableStateFlow(false)
+        every { stateStore.isLoading } returns MutableStateFlow(false)
+
+        viewModel.restartGame()
+        advanceUntilIdle()
+
+        // 未加载时不得启动重启协程（saveLock 未被占用）
+        verify(exactly = 0) { gameEngineCore.registerActiveLoadJob(any()) }
+
+        // 守卫不占用 saveLock：进入 PLAYING 后重启可正常执行
+        every { stateStore.runState } returns MutableStateFlow(RunState.PLAYING)
+        viewModel.restartGame()
+        advanceUntilIdle()
+
+        coVerify { gameEngineCore.registerActiveLoadJob(any()) }
     }
 
     // ──────────────────────────────────────────────────────────────────

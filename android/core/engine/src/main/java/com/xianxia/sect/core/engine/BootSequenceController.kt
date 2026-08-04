@@ -363,6 +363,30 @@ class BootSequenceController @Inject constructor(
             return false
         }
         DomainLog.w(TAG, "boot: recovering with partial data (sect=${partialGameData.sectName})")
+
+        // T15（2026-08-05）：恢复前补齐主路径 Step 5/6/6.5 完整性守卫——
+        // 半初始化状态（重数据未加载/Gate 未重建）禁止进入 PLAYING。
+        // 守卫失败则放弃恢复，走既有 onError 流程（比半初始化进游戏安全）。
+        try {
+            discipleSnapshotCache.prewarm(gameEngine.discipleTables)
+            gameEngine.ensureHeavyDataLoaded()
+            gameEngine.ensureGameDataIntegrity()
+            gameEngine.assignmentGate.rebuildFromGameData(
+                gameData = gameEngine.gameDataSnapshot,
+                productionSlots = try {
+                    gameEngine.productionCoordinator.repository.getSlots()
+                } catch (_: Exception) {
+                    emptyList()
+                }
+            )
+            gameEngine.consolidateStacks()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DomainLog.e(TAG, "boot: partial recovery guards failed, aborting recovery", e)
+            return false
+        }
+
         val mapData = try {
             generateMapDataSafely()
         } catch (e: CancellationException) {

@@ -18,6 +18,7 @@ import com.xianxia.sect.data.incremental.ChangeLogOperation
 import com.xianxia.sect.data.local.GameHeavyDataDao
 import com.xianxia.sect.data.local.ProtobufConverters
 import com.xianxia.sect.data.local.SaveSlotMetadata
+import com.xianxia.sect.data.migration.MigrationResult
 import com.xianxia.sect.data.migration.SaveDataVersionMigrator
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
@@ -239,8 +240,15 @@ class StorageEngine @Inject constructor(
                 _progress.value = EngineProgress(EngineProgress.Stage.VALIDATING, 0.15f, "Writing backup")
                 try {
                     val br = saveFileManager.atomicWrite(slot, dataWithTimestamp)
-                    if (br.isSuccess) infra.storageMetrics.recordBackupSuccess()
-                    else infra.storageMetrics.recordBackupFailure()
+                    when (br) {
+                        is StorageResult.Success -> infra.storageMetrics.recordBackupSuccess()
+                        is StorageResult.Skipped -> {
+                            // T9（2026-08-05）：备份超限跳过——主保存已成功，如实记录跳过不谎报成功
+                            Log.w(TAG, "备份被跳过 slot=$slot: ${br.message}（主保存成功，非阻断）")
+                            infra.storageMetrics.recordBackupSkippedOversize()
+                        }
+                        is StorageResult.Failure -> infra.storageMetrics.recordBackupFailure()
+                    }
                 } catch (e: Exception) {
                     Log.w(TAG, "备份异常 slot=$slot (非阻断)", e)
                     infra.storageMetrics.recordBackupFailure()
@@ -984,6 +992,20 @@ class StorageEngine @Inject constructor(
         }
     }
 
+    /**
+     * 迁移存档并返回数据；版本号非法（[MigrationResult.Rejected]，T10 2026-08-04）
+     * 时记录并返回 null，由调用方走备份恢复分支。
+     */
+    private fun migrateOrNull(saveData: SaveData, slot: Int): SaveData? {
+        return when (val migration = SaveDataVersionMigrator.migrate(saveData)) {
+            is MigrationResult.Migrated -> migration.data
+            is MigrationResult.Rejected -> {
+                Log.e(TAG, "存档迁移拒绝 slot=$slot: ${migration.reason}")
+                null
+            }
+        }
+    }
+
     private suspend fun loadFromDatabaseInternal(slot: Int, loadHeavyData: Boolean = false): SaveData? {
         val gameData = core.database.gameDataDao().getGameDataSync(slot) ?: return null
 
@@ -995,7 +1017,8 @@ class StorageEngine @Inject constructor(
             val merged = core.database.withTransaction { mergeHeavyData(gameData, slot) }
             val saveData = buildSaveDataFromDatabase(slot, merged)
             if (saveData != null) {
-                val migrated = SaveDataVersionMigrator.migrate(saveData)
+                val migrated = migrateOrNull(saveData, slot)
+                    ?: return null // 版本号非法 → 返回 null 走 load() 备份恢复分支
                 if (!validateSaveData(migrated)) {
                     Log.w(TAG, "Save data validation failed for slot $slot after heavy data merge")
                 }
@@ -1006,7 +1029,8 @@ class StorageEngine @Inject constructor(
 
         val saveData = buildSaveDataFromDatabase(slot, gameData)
         if (saveData != null) {
-            val migrated = SaveDataVersionMigrator.migrate(saveData)
+            val migrated = migrateOrNull(saveData, slot)
+                ?: return null // 版本号非法 → 返回 null 走 load() 备份恢复分支
             if (!validateSaveData(migrated)) {
                 Log.w(TAG, "Save data validation failed for slot $slot: gameYear=${gameData.gameYear}, gameMonth=${gameData.gameMonth}, sectName='${gameData.sectName}'")
             }

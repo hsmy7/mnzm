@@ -7,6 +7,7 @@ import com.xianxia.sect.core.model.SectRelation
 import com.xianxia.sect.data.model.SaveData
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.ceil
 
@@ -16,6 +17,9 @@ import kotlin.math.ceil
  * 2026-08-04 云读档管线统一：迁移逻辑从 StorageEngine 提取为公共 Migrator，
  * 本地读档与云存档加载共用。本测试对齐旧实现（StorageEngine.migrateSaveDataIfNeeded）
  * 行为逐项，防止提取过程改变迁移语义。
+ *
+ * 2026-08-05 T10：migrate 返回类型改为 [MigrationResult]，新增版本号边界用例
+ * （负数/伪造高版本拒绝）。
  */
 class SaveDataVersionMigratorTest {
 
@@ -51,7 +55,9 @@ class SaveDataVersionMigratorTest {
             Disciple(cultivation = 400.0, combat = CombatAttributes(totalCultivation = 401L))
         )
 
-        val migrated = SaveDataVersionMigrator.migrate(baseSaveData(gd, disciples))
+        val result = SaveDataVersionMigrator.migrate(baseSaveData(gd, disciples))
+        assertTrue(result is MigrationResult.Migrated)
+        val migrated = (result as MigrationResult.Migrated).data
 
         assertEquals("v0 应一次迁移到 v2", SaveDataVersionMigrator.CURRENT_SAVE_VERSION, migrated.gameData.saveVersion)
         assertEquals("宗门修炼值缩放 1/10", 10.0, migrated.gameData.sectCultivation, 0.001)
@@ -75,7 +81,9 @@ class SaveDataVersionMigratorTest {
             Disciple(cultivation = 80.0, combat = CombatAttributes(totalCultivation = 81L))
         )
 
-        val migrated = SaveDataVersionMigrator.migrate(baseSaveData(gd, disciples))
+        val result = SaveDataVersionMigrator.migrate(baseSaveData(gd, disciples))
+        assertTrue(result is MigrationResult.Migrated)
+        val migrated = (result as MigrationResult.Migrated).data
 
         assertEquals("v1 迁移到 v2", SaveDataVersionMigrator.CURRENT_SAVE_VERSION, migrated.gameData.saveVersion)
         assertEquals("v1 不缩放宗门修炼值", 50.0, migrated.gameData.sectCultivation, 0.001)
@@ -94,8 +102,32 @@ class SaveDataVersionMigratorTest {
         )
         val saveData = baseSaveData(gd)
 
-        val migrated = SaveDataVersionMigrator.migrate(saveData)
+        val result = SaveDataVersionMigrator.migrate(saveData)
+        assertTrue(result is MigrationResult.Migrated)
+        assertSame("v2 原样返回同一实例", saveData, (result as MigrationResult.Migrated).data)
+    }
 
-        assertSame("v2 原样返回同一实例", saveData, migrated)
+    @Test
+    fun `migrate - negative saveVersion rejected`() {
+        // T10：负数按 v0 迁移会二次缩放已缩放数据，显式拒绝
+        val gd = GameData(sectName = "测试宗", saveVersion = -5, sectCultivation = 50.0)
+        val result = SaveDataVersionMigrator.migrate(baseSaveData(gd))
+        assertTrue(result is MigrationResult.Rejected)
+        assertTrue((result as MigrationResult.Rejected).reason.contains("负数"))
+    }
+
+    @Test
+    fun `migrate - Int MAX saveVersion rejected`() {
+        // T10：伪造高版本原样返回会绕过 v0→1 缩放
+        val gd = GameData(sectName = "测试宗", saveVersion = Int.MAX_VALUE, sectCultivation = 50.0)
+        val result = SaveDataVersionMigrator.migrate(baseSaveData(gd))
+        assertTrue(result is MigrationResult.Rejected)
+    }
+
+    @Test
+    fun `migrate - saveVersion above current rejected`() {
+        val gd = GameData(sectName = "测试宗", saveVersion = 3, sectCultivation = 50.0)
+        val result = SaveDataVersionMigrator.migrate(baseSaveData(gd))
+        assertTrue(result is MigrationResult.Rejected)
     }
 }

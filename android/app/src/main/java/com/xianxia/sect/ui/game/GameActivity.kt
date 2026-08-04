@@ -21,7 +21,9 @@ import androidx.compose.runtime.*
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.annotation.VisibleForTesting
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.activity.enableEdgeToEdge
 import androidx.core.content.edit
 import androidx.core.graphics.drawable.toDrawable
@@ -49,6 +51,7 @@ import com.xianxia.sect.data.crypto.UiKeyRecoveryCallback
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.SessionManager
 import com.xianxia.sect.ui.MainActivity
+import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.game.sect.NativeSurfaceView
 import com.xianxia.sect.ui.theme.XianxiaTheme
@@ -394,11 +397,30 @@ class GameActivity : ComponentActivity() {
                     val activityLifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
                     if (activityLifecycleState.isAtLeast(Lifecycle.State.STARTED)) {
                         errorMessage?.let { error ->
+                            // T13（2026-08-05）：boot 失败（isGameLoaded=false）时补"返回主菜单"按钮——
+                            // 此前仅"确定"，LoadingScreen 无按钮，唯一出口是系统返回键
                             StandardPromptDialog(
                                 onDismissRequest = { errorMessage = null },
                                 title = "提示",
                                 text = error,
-                                confirmLabel = "确定"
+                                customButtons = {
+                                    if (!saveLoadViewModel.isGameLoaded) {
+                                        GameButton(
+                                            text = "返回主菜单",
+                                            onClick = {
+                                                errorMessage = null
+                                                navigateBackToMainMenu()
+                                            },
+                                            buttonBackgroundRes = R.drawable.ui_button
+                                        )
+                                        Spacer(modifier = Modifier.width(16.dp))
+                                    }
+                                    GameButton(
+                                        text = "确定",
+                                        onClick = { errorMessage = null },
+                                        buttonBackgroundRes = R.drawable.ui_button
+                                    )
+                                }
                             )
                         }
                     }
@@ -408,6 +430,16 @@ class GameActivity : ComponentActivity() {
         }
 
     /** P-2：渲染安全模式检测——super.onCreate() 前切换主题使 hardwareAccelerated 生效。 */
+    /**
+     * T13（2026-08-05）：boot 失败弹窗"返回主菜单"——复用 onLogout 的
+     * MainActivity 重建模式（不清 session，仅清 Activity 栈）。
+     */
+    private fun navigateBackToMainMenu() {
+        val intent = buildMainMenuIntent(this)
+        startActivity(intent)
+        finish()
+    }
+
     private fun applySafeModeThemeIfNeeded() {
         // CrashRecoveryEngine + VulkanPolicy 在 Application.onCreate 中已初始化，
         // 此处直接读取缓存的决策，无需 Context
@@ -830,5 +862,20 @@ class GameActivity : ComponentActivity() {
         } catch (e: Exception) {
             Log.w(TAG, "Failed to request exact alarm permission: ${e.message}")
         }
+    }
+}
+
+/**
+ * T13（2026-08-05）：构造返回主菜单的 Intent。
+ * 独立顶层函数供单元测试（GameActivity 为 Hilt 入口不便实例化）。
+ * 复用 onLogout 的 MainActivity 重建模式：清 Activity 栈但不影响 session。
+ *
+ * @param context 启动上下文（Activity）
+ * @return 带 NEW_TASK|CLEAR_TASK flags 的 MainActivity Intent
+ */
+@VisibleForTesting
+internal fun buildMainMenuIntent(context: Context): Intent {
+    return Intent(context, MainActivity::class.java).apply {
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
     }
 }

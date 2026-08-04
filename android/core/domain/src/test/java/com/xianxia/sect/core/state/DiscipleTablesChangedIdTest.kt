@@ -142,4 +142,43 @@ class DiscipleTablesChangedIdTest {
         val merged = tables.assembleAllIncremental(prev, changed)
         assertEquals("移除的弟子不应残留", listOf(21), merged.map { it.id.toInt() })
     }
+
+    // ════════════════════════════════════════════════════════════
+    // T4（2026-08-05）：容量拒绝 → 强制全量组装标志
+    // ════════════════════════════════════════════════════════════
+
+    @Test
+    fun `record over MAX_SAFE_CAPACITY sets force flag`() {
+        tables.changedIdTracker.record(MAX_SAFE_CAPACITY)
+        assertTrue("超限 id 应置强制全量标志", tables.changedIdTracker.consumeRejectedRecord())
+    }
+
+    @Test
+    fun `record normal id does not set flag`() {
+        tables.changedIdTracker.record(42)
+        assertTrue("正常 id 不应置强制全量标志", !tables.changedIdTracker.consumeRejectedRecord())
+    }
+
+    @Test
+    fun `consumeRejectedRecord clears flag`() {
+        tables.changedIdTracker.markRejectedForTest()
+        assertTrue(tables.changedIdTracker.consumeRejectedRecord())
+        // 二次消费返回 false（标志已清除）
+        assertTrue("标志消费后应清除", !tables.changedIdTracker.consumeRejectedRecord())
+    }
+
+    @Test
+    fun `recordAll with oversized id sets flag while valid ids still recorded`() {
+        tables.changedIdTracker.recordAll(listOf(7, MAX_SAFE_CAPACITY, 8))
+        val changed = tables.changedIdTracker.consumeChangedIds()
+        assertEquals("合法 id 仍被记录", setOf(7, 8), changed)
+        assertTrue("超限 id 应置强制全量标志", tables.changedIdTracker.consumeRejectedRecord())
+    }
+
+    @Test
+    fun `negative id ignored without flag`() {
+        tables.changedIdTracker.record(-1)
+        tables.changedIdTracker.recordAll(listOf(-5))
+        assertTrue("负 id 不应置强制全量标志", !tables.changedIdTracker.consumeRejectedRecord())
+    }
 }

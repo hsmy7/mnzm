@@ -18,6 +18,9 @@ class StorageMetrics @Inject constructor() {
     private val backupFailureCount = AtomicLong(0)
     private val backupRestoreCount = AtomicLong(0)
 
+    /** 备份因超限被跳过次数（T9 2026-08-05） */
+    private val backupSkippedOversizeCount = AtomicLong(0)
+
     fun recordSave() {
         saveCount.incrementAndGet()
     }
@@ -40,6 +43,11 @@ class StorageMetrics @Inject constructor() {
 
     fun recordBackupFailure() {
         backupFailureCount.incrementAndGet()
+    }
+
+    /** 记录备份因超限被跳过（T9：主保存成功但备份未写入，不谎报成功） */
+    fun recordBackupSkippedOversize() {
+        backupSkippedOversizeCount.incrementAndGet()
     }
 
     fun recordBackupRestore() {

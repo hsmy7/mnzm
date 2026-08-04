@@ -7,16 +7,27 @@ import com.xianxia.sect.data.model.SaveData
  * 检查所有弟子的 cultivation 是否超过境界上限。
  * 超过则截断至对应境界和层数的最大修为值。
  *
- * 仙人境界（realm <= 0）不限制修为。
+ * 仙人境界（realm <= 0）使用绝对上限钳制（2026-08-04 T7）：
+ * 原实现不限制（Double.MAX_VALUE），恶意云档可携带 realm=0 + 巨大 cultivation 穿透。
  */
 object CultivationCapRule : SaveValidationRule {
     override val id = "cultivation_cap"
     override val order = 5
 
+    /**
+     * 仙人境界（realm<=0）修为绝对上限。
+     * 渡劫 9 层最大值约 3.6e6，1e9 提供约 270 倍余量，正常游戏无法触及。
+     */
+    private const val IMMORTAL_REALM_CULTIVATION_CAP = 1e9
+
     override fun execute(data: SaveData, context: RuleContext): RuleOutcome {
         val repairs = mutableListOf<String>()
         val disciples = data.disciples.map { d ->
-            val maxCult = computeMaxCultivation(d.realm, d.realmLayer)
+            val maxCult = if (d.realm <= 0) {
+                IMMORTAL_REALM_CULTIVATION_CAP
+            } else {
+                computeMaxCultivation(d.realm, d.realmLayer)
+            }
             if (d.cultivation > maxCult) {
                 repairs.add(
                     "弟子[${d.name.ifBlank { "ID=${d.id}" }}] " +

@@ -42,8 +42,19 @@ class CultivationCapRuleTest {
     }
 
     @Test
-    fun `immortal realm cultivation not capped`() {
+    fun `immortal realm cultivation capped at absolute cap`() {
+        // T7（2026-08-04）：realm<=0 不再不限制，改用绝对上限 1e9 钳制
+        // （原实现 Double.MAX_VALUE，恶意云档可携带巨大 cultivation 穿透）
         val d = makeDisciple(realm = 0, realmLayer = 1, cultivation = 1e12)
+        val data = saveData(disciples = listOf(d))
+        val result = SaveValidator.validate(data)
+        assertTrue(result is IntegrityResult.Repaired)
+        assertEquals(1e9, (result as IntegrityResult.Repaired).data.disciples.first().cultivation, 0.001)
+    }
+
+    @Test
+    fun `immortal realm cultivation below cap passes`() {
+        val d = makeDisciple(realm = 0, realmLayer = 1, cultivation = 1e6)
         val data = saveData(disciples = listOf(d))
         assertEquals(IntegrityResult.Passed, SaveValidator.validate(data))
     }
