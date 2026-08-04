@@ -168,7 +168,7 @@ class SecretRealmDefenseTest {
     private fun stubBattle(result: BattleSystemResult) {
         whenever(battleSystem.createBattle(any(), any(), any(), any(), any(), any(), any(), any()))
             .thenReturn(result.battle)
-        whenever(battleSystem.executeBattleWithTimeout(any(), any())).thenReturn(result)
+        whenever(battleSystem.executeBattleWithTimeout(any(), any(), any())).thenReturn(result)
     }
 
     // ── 方向事件对抗性审查防御 ────────────────────────────────────────

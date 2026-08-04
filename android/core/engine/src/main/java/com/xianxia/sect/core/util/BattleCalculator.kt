@@ -15,7 +15,9 @@ import com.xianxia.sect.core.engine.domain.battle.Combatant
  *
  * 遵循"乘区内加算、乘区间乘算"原则。
  * 各乘区含义：
- * - attackBuffs：攻防 Buff 对攻击力的影响（同类加算）
+ * - attackBuffs：攻防 Buff 对攻击力的影响（同类加算；由调用方按攻击类型注入 physical/magic 桶）
+ * - physicalAttackBuffs / magicAttackBuffs：物理/魔法攻击 Buff 分桶（原合并加算会
+ *   导致物理加成误加到魔法攻击上）
  * - damageAmplification：增伤乘区（DAMAGE_BOOST 等）
  * - damageReduction：减伤乘区（DAMAGE_REDUCTION 等）
  *
@@ -33,6 +35,9 @@ import com.xianxia.sect.core.engine.domain.battle.Combatant
  */
 data class DamageZones(
     val attackBuffs: Double = 0.0,
+    // 物理/魔法攻击 Buff 分桶（buildDamageZones 填充；调用方按攻击类型注入 attackBuffs）
+    val physicalAttackBuffs: Double = 0.0,
+    val magicAttackBuffs: Double = 0.0,
     val damageAmplification: Double = 0.0,
     val damageReduction: Double = 0.0,
     // 体质独立乘算因子（与 buff 乘区分开）
@@ -89,11 +94,18 @@ object BattleCalculator {
      * @param extraAmplification 外部额外增伤（如政策加成），直接加到 damageAmplification 乘区
      */
     fun buildDamageZones(attacker: Combatant, defender: Combatant? = null, extraAmplification: Double = 0.0): DamageZones {
-        val atkBoost = attacker.buffs
-            .filter { it.type == BuffType.PHYSICAL_ATTACK_BOOST || it.type == BuffType.MAGIC_ATTACK_BOOST }
+        // 物理/魔法攻击 Buff 分桶求和：避免物理加成误加到魔法攻击
+        val physBoost = attacker.buffs
+            .filter { it.type == BuffType.PHYSICAL_ATTACK_BOOST }
             .sumOf { it.value }
-        val atkReduce = attacker.buffs
-            .filter { it.type == BuffType.PHYSICAL_ATTACK_REDUCE || it.type == BuffType.MAGIC_ATTACK_REDUCE }
+        val physReduce = attacker.buffs
+            .filter { it.type == BuffType.PHYSICAL_ATTACK_REDUCE }
+            .sumOf { it.value }
+        val magBoost = attacker.buffs
+            .filter { it.type == BuffType.MAGIC_ATTACK_BOOST }
+            .sumOf { it.value }
+        val magReduce = attacker.buffs
+            .filter { it.type == BuffType.MAGIC_ATTACK_REDUCE }
             .sumOf { it.value }
         val dmgBoost = attacker.buffs
             .filter { it.type == BuffType.DAMAGE_BOOST }
@@ -103,7 +115,10 @@ object BattleCalculator {
             ?.sumOf { it.value } ?: 0.0
 
         return DamageZones(
-            attackBuffs = atkBoost - atkReduce,
+            // attackBuffs 由调用方（calculateCombatantDamage/estimateDamage）按攻击类型注入对应分桶
+            attackBuffs = 0.0,
+            physicalAttackBuffs = physBoost - physReduce,
+            magicAttackBuffs = magBoost - magReduce,
             damageAmplification = dmgBoost + extraAmplification,
             damageReduction = dmgReduce,
             // 体质独立乘算因子：进攻方提供伤害加成/暴伤，防守方提供减伤/防御
@@ -369,21 +384,30 @@ object BattleCalculator {
         val realmGapMultiplier = calculateRealmGapMultiplier(attacker.realm, defender.realm)
         val variance = calculateDamageVariance(rng)
 
-        val damageZones = zones ?: buildDamageZones(attacker, defender)
+        val baseZones = zones ?: buildDamageZones(attacker, defender)
+        // 攻击 Buff 按攻击类型注入分桶（物理/魔法互不干扰）
+        val damageZones = baseZones.copy(
+            attackBuffs = baseZones.attackBuffs +
+                (if (isPhysical) baseZones.physicalAttackBuffs else baseZones.magicAttackBuffs),
+            // damageModifier 相当于一个额外的全局增伤/减伤乘区
+            damageAmplification = baseZones.damageAmplification + (damageModifier - 1.0)
+        )
 
-        val finalDamage = calculateFinalDamage(
+        // 多段技能总伤害 = 单段伤害 × 段数（与 estimateDamage 的 AI 估算一致）。
+        // 对抗性审查修复：hits 篡改为 0/负值时钳制为 1（否则 0 伤害/负伤害回血），
+        // Long 乘法防 Int 溢出回绕（单段伤害 × 段数超过 Int.MAX 时钳制到 Int.MAX）
+        val safeHits = (skill?.hits ?: 1).coerceAtLeast(1)
+        val finalDamage = (calculateFinalDamage(
             rawAttack = attack,
             defense = defense,
             skillMultiplier = skillMultiplier,
             realmGapMultiplier = realmGapMultiplier,
-            zones = damageZones.copy(
-                // damageModifier 相当于一个额外的全局增伤/减伤乘区
-                damageAmplification =
-                    damageZones.damageAmplification + (damageModifier - 1.0)
-            ),
+            zones = damageZones,
             isCrit = isCrit,
             variance = variance
-        )
+        ).toLong() * safeHits)
+            .coerceIn(GameConfig.Battle.MIN_DAMAGE.toLong(), Int.MAX_VALUE.toLong())
+            .toInt()
 
         return DamageResult(
             damage = finalDamage,
@@ -416,7 +440,12 @@ object BattleCalculator {
         val realmGap = calculateRealmGapMultiplier(
             attacker.realm, defender.realm
         )
-        val damageZones = zones ?: buildDamageZones(attacker, defender)
+        // 攻击 Buff 按攻击类型注入分桶（与 calculateCombatantDamage 实际伤害一致）
+        val baseZones = zones ?: buildDamageZones(attacker, defender)
+        val damageZones = baseZones.copy(
+            attackBuffs = baseZones.attackBuffs +
+                (if (isPhysical) baseZones.physicalAttackBuffs else baseZones.magicAttackBuffs)
+        )
 
         // 期望暴击：体质暴伤与词条暴伤均为独立乘算因子，仅暴击时生效
         // avgCritMult = (1 - p) × 1.0 + p × (1 + 基础暴伤) × (1 + 体质暴伤加成) × (1 + 词条暴伤加成)
@@ -679,9 +708,10 @@ object BattleCalculator {
 
     fun checkInstantKill(attackerRealm: Int, defenderRealm: Int, attackerLayer: Int, defenderLayer: Int): Boolean {
         val MAX_MINOR_LAYERS = 9
-        // 总小层差距 = 大境界差×9 - 层数差（防御方层数越高越强，差距缩小）
-        val gap = (defenderRealm - attackerRealm) * MAX_MINOR_LAYERS -
-            (defenderLayer - attackerLayer)
+        // 总小层差距 = 大境界差×9 + 层数差（攻击方层数越高越强，差距增大；防御方层数越高越强，差距缩小）
+        // 境界压制：攻击方比防御方高 1+ 大境界（层数微调）时触发斩杀
+        val gap = (attackerRealm - defenderRealm) * MAX_MINOR_LAYERS +
+            (attackerLayer - defenderLayer)
         return gap > MAX_MINOR_LAYERS
     }
 
@@ -695,10 +725,14 @@ object BattleCalculator {
             .maxByOrNull { it.value }
             ?: return ShieldResult(0, incomingDamage)
 
-        val shieldValue = (defender.maxHp * shieldBuff.value).toInt()
+        // 对抗性审查修复：护盾 value 语义为最大生命比例（0~1），篡改负值会让
+        // absorbed 为负 → 伤害放大；+Infinity → 无限护盾；NaN.toInt()=0 已天然安全。
+        // 钳制到 [0,1] 防御存档篡改
+        val safeValue = shieldBuff.value.coerceIn(0.0, 1.0)
+        val shieldValue = (defender.maxHp * safeValue).toInt().coerceAtLeast(0)
         val absorbed = minOf(shieldValue, incomingDamage)
         val remaining = incomingDamage - absorbed
-        val newShieldValue = shieldValue - absorbed
+        val newShieldValue = (shieldValue - absorbed).coerceAtLeast(0)
 
         return ShieldResult(
             absorbed = absorbed,

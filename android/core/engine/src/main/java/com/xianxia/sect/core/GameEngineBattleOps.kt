@@ -336,10 +336,9 @@ suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List<Strin
             realmLayer = level.realmLayer
         ) else null
         val battle = battleSystem.createBattle(disciples = combatDisciples, equipmentMap = equipmentMap, manualMap = manualMap, beastLevel = level.realm, beastCount = level.count, beastType = beastTypeName, manualProficiencies = allProficiencies, beastPreGenStats = beastPreGenStats)
-        // 严苛训练政策：玩家弟子伤害+5%
-        battleSystem.playerDamageModifier = if (data.sectPolicies.strictTraining) 1.0 + GameConfig.PolicyConfig.STRICT_TRAINING_DAMAGE else 1.0
-        val result = battleSystem.executeBattle(battle)
-        battleSystem.playerDamageModifier = 1.0  // 重置
+        // 严苛训练政策：玩家弟子伤害+5%（参数透传，替代原 @Volatile 单例字段）
+        val playerDamageModifier = if (data.sectPolicies.strictTraining) 1.0 + GameConfig.PolicyConfig.STRICT_TRAINING_DAMAGE else 1.0
+        val result = battleSystem.executeBattle(battle, playerDamageModifier)
         val hpMap = result.battle.team.associate { it.id to (it.hp to it.mp) }
         val survivorIds = result.battle.team.filter { !it.isDead }.map { it.id }.toSet()
         stateStore.update {
@@ -481,10 +480,9 @@ suspend fun GameEngine.scoutSect(sectId: String, memberIds: List<String>) {
         }
         val aiCombatants = aiDefenders.map { d -> AISectAttackManager.convertToCombatant(d, CombatantSide.ATTACKER) }
         val battle = Battle(team = playerCombatants, beasts = aiCombatants, turn = 0, isFinished = false, winner = null, maxTurns = Int.MAX_VALUE)
-        // 严苛训练政策：玩家弟子伤害+5%
-        battleSystem.playerDamageModifier = if (data.sectPolicies.strictTraining) 1.0 + GameConfig.PolicyConfig.STRICT_TRAINING_DAMAGE else 1.0
-        val result = battleSystem.executeBattle(battle)
-        battleSystem.playerDamageModifier = 1.0  // 重置
+        // 严苛训练政策：玩家弟子伤害+5%（参数透传）
+        val playerDamageModifier = if (data.sectPolicies.strictTraining) 1.0 + GameConfig.PolicyConfig.STRICT_TRAINING_DAMAGE else 1.0
+        val result = battleSystem.executeBattle(battle, playerDamageModifier)
         val hpMap = result.battle.team.associate { it.id to (it.hp to it.mp) }
         val survivorIds = result.battle.team.filter { !it.isDead }.map { it.id }.toSet()
         stateStore.update {

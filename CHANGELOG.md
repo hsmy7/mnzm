@@ -109,6 +109,24 @@
   - **CLAUDE.md 审查清单新增 9 条扩展方向检查项** + 设计方案规则新增原则 6（扩展方向对标）；`docs/architecture.md` 新增扩展性架构预留章节（含 iOS 迁移预留）；`docs/knowledge-base.md` 新增扩展性现状盘点章节（经济基线表 + iOS 可移植性基线）
   - **新增玩法 UI 组件复用规范** — 新玩法界面必须优先复用游戏内已有组件（GameButton/UnifiedGameDialog/ItemCard/SpriteImage 等 18 项清单写入 `rules/expansion-playbook.md`），禁止自建重复组件；CLAUDE.md 审查清单同步新增检查项
 
+### 修复（2026-08-04 战斗系统全面核查修复——第一手源码验证 9 项正确性 Bug）
+
+- **修复：境界压制斩杀方向反转** — `checkInstantKill` 公式此前为 `(defenderRealm - attackerRealm)×9 - 层差`，方向相反：目标（防守方）境界比攻击者高 ~2 大境界时反而触发"境界压制斩杀"（弱者秒杀强者），而高境界秒低境界的预期场景永不触发。已改为 `(attackerRealm - defenderRealm)×9 + 层差`，注释与代码语义一致；两引擎（BattleSystem/AISectAttackManager/天道试炼）共享入口自动生效，补 6 个方向守卫测试
+- **修复：多段技能（连击）实际伤害未乘段数** — `calculateCombatantDamage` 正常伤害分支不乘 `skill.hits`（hits 仅进战报"（N连击）"文案），而 AI 决策用 `estimateDamage` 乘段数——实际伤害只有设计值的一半/三分之一，AI 永远高估连击技能。配置证据：虎妖 0.9×2、狼妖 0.6×3，倍率×段数恒等于单发 1.8。已修复为实际伤害 ×hits，与 AI 估算对齐
+- **修复：敌方支援治疗完全无效** — BattleSystem 治疗写入硬编码 `ctx.team`，蛇妖"蜕皮新生"（25% 自疗）等妖兽治疗静默丢失；已按 `isTeamMember` 分写 team/beasts（与 buff 分支一致），AI 引擎治疗路径本就正确无需改
+- **修复：AI 宗门弟子功法技能被剥光属性** — `AISectAttackManager.buildCombatSkills` 手写 CombatSkill 仅传 7 个字段，丢失 skillType（默认 ATTACK，支援功法变普攻）、isAoe、buff/heal/shield/控制/拉条全部属性；改走 `toCombatSkill()` 全字段保留，宗门战（玩家攻 AI/AI 攻 AI/AI 攻玩家）中敌方功法完整生效
+- **修复：同回合被击杀单位仍出手** — BattleSystem 用回合开始快照判死，被杀单位（ctx 中 hp=0）仍以满属性出手一次；改以 ctx 当前状态判死（与 executeUnifiedAIBattle 行为一致），被杀单位不再反击
+- **修复：ally 作用域支援技能用 kotlin 默认 Random 选队友** — 违反确定性 RNG 分区纪律，改走 BATTLE 分区 PRNG，同种子战报可复现
+- **修复：pendingAiAction 类级可变字段** — @Singleton 并发隐患（selectSkill→selectTarget 配对临时状态），改局部传递
+- **修复：物理/魔法攻击 Buff 合并加算** — buildDamageZones 把 PHYSICAL/MAGIC_ATTACK_BOOST 合并同一乘区（物理加成也加成魔法攻击），改按攻击类型分桶注入
+- **修复：敌人弟子功法属性加成缺失** — EnemyGenerator/天道试炼敌人此前只有功法技能、无功法属性加成（stats × 熟练度），与 07-20"统一玩家公式"宣称不符；已补齐（含功法暴击），副本散修/试炼敌人强度回归完整公式
+- **架构：双引擎伤害应用层共享** — 新增 `BattleDamageApplier`（护盾吸收含余量写回/伤害分摊/伤害链接），BattleSystem 与宗门战引擎共用；宗门战此前完全无护盾/分摊/链接（直接扣血），现与主战斗语义一致；分摊伤害的护盾余量写回顺带修正（此前护盾对分摊伤害"免疫"不扣余量）
+- **架构：playerDamageModifier 参数透传** — 删除 @Volatile 单例字段（设置-执行-重置模式异常中断会污染后续战斗），改 executeBattle 参数透传；detekt-baseline 同步删除孤儿条目
+- **性能：AI 宗门战超时保护** — 每旬大量 AI 宗门战在游戏线程执行，此前仅 200 回合上限无超时；新增 5000ms 超时（与 BattleSystem 对齐），拉锯战不再卡主线程
+- **性能：删除 AOE 护盾重复幂等计算** — applyAoeShieldAbsorption 与单目标护盾结算对同一快照重复计算，删除（行为不变）
+- **重构：EnemyGenerator.generateHumanEnemy 拆分** — 装备生成/功法生成提取为子函数（RNG 调用序不变）；剩余 God Method（processBattleCasualties/attackSect 等 10 处）列为后续持续拆分项
+- **测试基建修复** — 发现 BattleSystemTest 既有 22 个测试为假阳性：未注入 DiscipleStatsProvider，弟子属性全 0（maxHp=0 → 战斗 0 回合即结束，RNG 从未使用）。已注入真实实现 + 真实 GameRngManager，现有测试真实执行回合；新增 14 个战斗回归测试（斩杀方向/连击/敌方治疗/死亡不出手/RNG 确定性/技能完整/护盾分摊链接/伤害倍率/敌人功法加成），引擎模块全量 1587 测试通过
+
 ## [4.0.85] - 2026-08-02
 
 ### 新增（2026-08-02 一键拆除建筑）

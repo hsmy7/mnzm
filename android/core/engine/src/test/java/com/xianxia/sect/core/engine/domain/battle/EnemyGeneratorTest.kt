@@ -20,6 +20,41 @@ class EnemyGeneratorTest {
         enemyGenRngManager = null
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // 2026-08-04 战斗核查修复回归（G10 敌人功法属性加成）
+    // ═══════════════════════════════════════════════════════════════
+
+    private fun manualInstance(
+        hp: Int = 0, physicalAttack: Int = 0, critRatePercent: Int = 0
+    ) = com.xianxia.sect.core.model.ManualInstance(
+        name = "功法", rarity = 3, description = "", type = com.xianxia.sect.core.model.ManualType.ATTACK,
+        stats = mapOf(
+            "hp" to hp,
+            "maxHp" to hp,
+            "physicalAttack" to physicalAttack,
+            "critRate" to critRatePercent
+        ),
+        skillName = "斩", skillDescription = "",
+        skillType = "attack", skillDamageType = "physical",
+        skillHits = 1, skillDamageMultiplier = 1.0, skillCooldown = 2, skillMpCost = 10,
+        skillHealPercent = 0.0, skillHealType = "hp", skillBuffType = null,
+        skillBuffValue = 0.0, skillBuffDuration = 0, skillBuffsJson = "",
+        skillIsAoe = false, skillTargetScope = "enemy", minRealm = 9
+    )
+
+    @Test
+    fun `ManualStatsAccumulator - 功法属性按熟练度加成与玩家公式一致`() {
+        val acc = EnemyGenerator.ManualStatsAccumulator()
+        // NOVICE(0) bonus=1.5：hp 100→150、攻击 50→75、暴击 10%→15%
+        acc.add(manualInstance(hp = 100, physicalAttack = 50, critRatePercent = 10), masteryLevel = 0)
+        assertEquals(150, acc.hp)
+        assertEquals(75, acc.physicalAttack)
+        assertEquals(0.15, acc.critChance, 1e-9)
+        // 小成(1) bonus=2.0：hp 100→200
+        acc.add(manualInstance(hp = 100), masteryLevel = 1)
+        assertEquals(350, acc.hp)
+    }
+
     // ---- HumanEnemyData ----
 
     @Test

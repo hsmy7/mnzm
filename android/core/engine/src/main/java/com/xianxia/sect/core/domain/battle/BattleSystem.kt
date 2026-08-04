@@ -23,10 +23,6 @@ class BattleSystem @Inject constructor(
 ) {
     private val rng get() = rngManager.getRng(RngPartition.BATTLE)
 
-    /** 临时伤害倍率（由外部在 executeBattle 前设置，如严苛训练+5%等政策加成） */
-    @Volatile
-    var playerDamageModifier: Double = 1.0
-
     /**
      * 预计算妖兽属性。
      * 在 LevelGenerator 生成妖兽时已完成含随机方差的属性计算，
@@ -259,11 +255,19 @@ class BattleSystem @Inject constructor(
         )
     }
 
-    fun executeBattle(battle: Battle): BattleSystemResult {
-        return executeBattleWithTimeout(battle, GameConfig.Battle.MAX_BATTLE_DURATION_MS)
+    /**
+     * @param playerDamageModifier 玩家阵营伤害倍率（如严苛训练政策 +5%；默认 1.0）。
+     * 参数透传替代原 @Volatile 单例字段（设置-执行-重置模式在异常中断时会污染后续战斗）。
+     */
+    fun executeBattle(battle: Battle, playerDamageModifier: Double = 1.0): BattleSystemResult {
+        return executeBattleWithTimeout(battle, GameConfig.Battle.MAX_BATTLE_DURATION_MS, playerDamageModifier)
     }
 
-    fun executeBattleWithTimeout(battle: Battle, timeoutMs: Long = GameConfig.Battle.MAX_BATTLE_DURATION_MS): BattleSystemResult {
+    fun executeBattleWithTimeout(
+        battle: Battle,
+        timeoutMs: Long = GameConfig.Battle.MAX_BATTLE_DURATION_MS,
+        playerDamageModifier: Double = 1.0
+    ): BattleSystemResult {
         val startTime = System.currentTimeMillis()
         var currentBattle = battle
         val rounds = mutableListOf<BattleRoundData>()
@@ -309,7 +313,7 @@ class BattleSystem @Inject constructor(
                 DomainLog.w("BattleSystem", "Battle taking long: ${elapsed}ms, turn ${currentBattle.turn}/${currentBattle.maxTurns}")
             }
 
-            val turnResult = executeTurnWithLog(currentBattle)
+            val turnResult = executeTurnWithLog(currentBattle, playerDamageModifier)
             currentBattle = turnResult.first
             if (turnResult.second.actions.isNotEmpty()) {
                 rounds.add(turnResult.second)
@@ -381,7 +385,7 @@ class BattleSystem @Inject constructor(
         )
     }
 
-    private fun executeTurnWithLog(battle: Battle): Pair<Battle, BattleRoundData> {
+    private fun executeTurnWithLog(battle: Battle, playerDamageModifier: Double): Pair<Battle, BattleRoundData> {
         val allCombatants = (battle.team + battle.beasts)
             .filter { !it.isDead }
             .sortedByDescending { it.effectiveSpeed }
@@ -396,7 +400,7 @@ class BattleSystem @Inject constructor(
 
         for (combatant in allCombatants) {
             if (combatant.isDead) continue
-            val outcome = executeCombatantTurn(ctx, combatant)
+            val outcome = executeCombatantTurn(ctx, combatant, playerDamageModifier)
             if (outcome is TurnOutcome.EndBattle) {
                 return Pair(
                     battle.copy(team = ctx.team, beasts = ctx.beasts, isFinished = true),
@@ -443,7 +447,11 @@ class BattleSystem @Inject constructor(
      * @param combatant 当前行动的参战者（按速度排序遍历）
      * @return Continue 继续回合；EndBattle 敌方全灭提前结束
      */
-    private fun executeCombatantTurn(ctx: TurnContext, combatant: Combatant): TurnOutcome {
+    private fun executeCombatantTurn(
+        ctx: TurnContext,
+        combatant: Combatant,
+        playerDamageModifier: Double
+    ): TurnOutcome {
 
             if (combatant.isDead) return TurnOutcome.Continue
 
@@ -458,20 +466,24 @@ class BattleSystem @Inject constructor(
                 return TurnOutcome.EndBattle
             }
 
-            val currentCombatant = allies.find { it.id == combatant.id } ?: combatant
+            // 以 ctx 当前状态判死：回合内被击杀的单位（快照仍存活）不得继续出手
+            val currentCombatant = allies.firstOrNull { it.id == combatant.id } ?: combatant
+            if (currentCombatant.isDead) return TurnOutcome.Continue
 
             // 控制效果（眩晕/冰冻）：跳过行动并结算 BUFF，回合提前结束
             applyControlEffects(ctx, currentCombatant, isTeamMember, allies, alliesIndexMap)
                 ?.let { return it }
 
             val silenceBuff = currentCombatant.buffs.find { it.type == BuffType.SILENCE && it.remainingDuration > 0 }
-            val availableSkill = selectSkill(currentCombatant, aliveEnemies, allies, silenceBuff != null)
+            val skillDecision = selectSkill(currentCombatant, aliveEnemies, allies, silenceBuff != null)
+            val availableSkill = skillDecision.skill
 
             val isSupportSkill = availableSkill?.skillType == SkillType.SUPPORT
             val isAoeSkill = availableSkill?.isAoe == true && !isSupportSkill
 
             val results = executeSkillAction(
-                currentCombatant, aliveEnemies, allies, isTeamMember, availableSkill, isSupportSkill, isAoeSkill
+                currentCombatant, aliveEnemies, allies, isTeamMember, availableSkill, isSupportSkill, isAoeSkill,
+                skillDecision.action, playerDamageModifier
             )
 
             val result = results.first()
@@ -528,18 +540,20 @@ class BattleSystem @Inject constructor(
 
                 if (isSupportSkill) {
                     if (result.healedIds.isNotEmpty()) {
+                        // 治疗按 allies 定位、按 isTeamMember 分写（修复：原硬编码 ctx.team 致敌方治疗无效）
                         result.healedIds.forEach { healedId ->
-                            val healedIndex = ctx.team.indexOfFirst { it.id == healedId }
+                            val healedIndex = allies.indexOfFirst { it.id == healedId }
                             if (healedIndex >= 0) {
-                                val healed = ctx.team[healedIndex]
-                                if (result.healType == HealType.MP) {
-                                    ctx.team[healedIndex] = healed.copy(
-                                        mp = minOf(healed.mp + result.healAmount, healed.maxMp)
-                                    )
+                                val healed = allies[healedIndex]
+                                val updated = if (result.healType == HealType.MP) {
+                                    healed.copy(mp = minOf(healed.mp + result.healAmount, healed.maxMp))
                                 } else {
-                                    ctx.team[healedIndex] = healed.copy(
-                                        hp = minOf(healed.hp + result.healAmount, healed.maxHp)
-                                    )
+                                    healed.copy(hp = minOf(healed.hp + result.healAmount, healed.maxHp))
+                                }
+                                if (isTeamMember) {
+                                    ctx.team[healedIndex] = updated
+                                } else {
+                                    ctx.beasts[healedIndex] = updated
                                 }
                             }
                         }
@@ -564,7 +578,8 @@ class BattleSystem @Inject constructor(
                     // Turn advance: target ally acts immediately after current combatant
                     if (result.turnAdvancePercent > 0) {
                         processTurnAdvance(
-                            ctx, result, allies, currentCombatant, isTeamMember, enemiesIndexMap
+                            ctx, result, allies, currentCombatant, isTeamMember, enemiesIndexMap,
+                            playerDamageModifier
                         )
                     }
                 }
@@ -586,7 +601,9 @@ class BattleSystem @Inject constructor(
         isTeamMember: Boolean,
         availableSkill: CombatSkill?,
         isSupportSkill: Boolean,
-        isAoeSkill: Boolean
+        isAoeSkill: Boolean,
+        aiAction: BattleAI.AIAction?,
+        playerDamageModifier: Double
     ): List<AttackResult> {
         if (availableSkill != null) {
             if (isSupportSkill) {
@@ -594,7 +611,7 @@ class BattleSystem @Inject constructor(
                 if (availableSkill.targetScope == "ally") {
                     val validAllies = allies.filter { !it.isDead && it.id != currentCombatant.id }
                     if (validAllies.isNotEmpty()) {
-                        val selectedAlly = validAllies.random()
+                        val selectedAlly = validAllies[rng.nextInt(validAllies.size)]
                         val supResult = executeSupportSkill(currentCombatant, listOf(selectedAlly), availableSkill)
                         // Mark the single ally as the target for turn advance
                         return listOf(supResult.copy(
@@ -614,11 +631,11 @@ class BattleSystem @Inject constructor(
                 val dmgMod = if (isTeamMember) playerDamageModifier else 1.0
                 return aliveEnemies.map { target -> executeSkill(currentCombatant, target, availableSkill, dmgMod) }
             }
-            val target = selectTarget(currentCombatant, aliveEnemies)
+            val target = selectTarget(currentCombatant, aliveEnemies, aiAction)
             val dmgMod = if (isTeamMember) playerDamageModifier else 1.0
             return listOf(executeSkill(currentCombatant, target, availableSkill, dmgMod))
         }
-        val target = selectTarget(currentCombatant, aliveEnemies)
+        val target = selectTarget(currentCombatant, aliveEnemies, aiAction)
         val dmgMod = if (isTeamMember) playerDamageModifier else 1.0
         return listOf(executeAttack(currentCombatant, target, dmgMod))
     }
@@ -626,6 +643,8 @@ class BattleSystem @Inject constructor(
     /**
      * 应用非支援行动的全部伤害效果：护盾吸收、伤害链接、伤害分摊、
      * 单体/AOE debuff 附加。原地修改 ctx 中 combatant 的 hp/buffs。
+     *
+     * 护盾/链接/分摊经共享应用层 [BattleDamageApplier]（与宗门战引擎语义一致）。
      */
     private fun applyDamageEffects(
         ctx: TurnContext,
@@ -640,91 +659,47 @@ class BattleSystem @Inject constructor(
         results.forEach { r ->
             if (r.isDodged) return@forEach
             val targetIndex = enemiesIndexMap[r.target.id] ?: return@forEach
+            val currentTarget = if (isTeamMember) ctx.beasts[targetIndex] else ctx.team[targetIndex]
 
-            applyShieldDamageToTarget(ctx, r, targetIndex, isTeamMember)
-            applyLinkedDamage(ctx, currentCombatant, r)
-            applySharedDamage(ctx, r)
+            if (r.isInstantKill) {
+                // 对抗性审查修复：斩杀（境界压制必杀）无视护盾直接击杀——
+                // 与 AI 引擎（AISectAttackManager 斩杀分支直接 hp=0）语义一致，
+                // 避免"战报显示必杀、实际护盾吸收后残血存活"的谎报矛盾
+                if (isTeamMember) {
+                    ctx.beasts[targetIndex] = currentTarget.copy(hp = 0)
+                } else {
+                    ctx.team[targetIndex] = currentTarget.copy(hp = 0)
+                }
+                return@forEach
+            }
+
+            // 护盾吸收 + 扣血 + 护盾余量写回
+            if (isTeamMember) {
+                ctx.beasts[targetIndex] = BattleDamageApplier.applyDamageToTarget(currentTarget, r.damage)
+            } else {
+                ctx.team[targetIndex] = BattleDamageApplier.applyDamageToTarget(currentTarget, r.damage)
+            }
+            // 伤害链接 / 伤害分摊（按更新映射写回）
+            BattleDamageApplier.applyLinkedDamage(currentCombatant, currentTarget, r.damage, ctx.team, ctx.beasts)
+                .forEach { (id, updated) -> writeBack(ctx, id, updated) }
+            BattleDamageApplier.applySharedDamage(currentTarget, r.damage, ctx.team, ctx.beasts)
+                .forEach { (id, updated) -> writeBack(ctx, id, updated) }
+
             applySkillDebuff(ctx, targetIndex, isTeamMember, currentCombatant, availableSkill, isAoeSkill)
             applyDamageLinkDebuff(ctx, targetIndex, isTeamMember, currentCombatant, availableSkill)
         }
 
         applyAoeDebuff(ctx, aliveEnemies, enemiesIndexMap, isTeamMember, currentCombatant, availableSkill, isAoeSkill)
-        applyAoeShieldAbsorption(ctx, results, enemiesIndexMap, isTeamMember, isAoeSkill)
     }
 
-    /** 护盾吸收：扣除伤害并更新被部分消耗的护盾 BUFF 值 */
-    private fun applyShieldDamageToTarget(
-        ctx: TurnContext,
-        r: AttackResult,
-        targetIndex: Int,
-        isTeamMember: Boolean
-    ) {
-        val shieldResult = BattleCalculator.calculateShieldAbsorption(r.target, r.damage)
-        val newHp = maxOf(0, r.target.hp - shieldResult.remainingDamage)
-        if (isTeamMember) {
-            ctx.beasts[targetIndex] = ctx.beasts[targetIndex].copy(hp = newHp)
-            if (shieldResult.shieldBuff != null) {
-                val shieldBuffs = ctx.beasts[targetIndex].buffs.map { b ->
-                    if (b.type == BuffType.SHIELD && b.remainingDuration == shieldResult.shieldBuff.remainingDuration)
-                        b.copy(value = shieldResult.remainingShield.toDouble() / ctx.beasts[targetIndex].maxHp.coerceAtLeast(1))
-                    else b
-                }
-                ctx.beasts[targetIndex] = ctx.beasts[targetIndex].copy(buffs = shieldBuffs)
-            }
+    /** 按 id 将更新后的 Combatant 写回 ctx 列表 */
+    private fun writeBack(ctx: TurnContext, id: String, updated: Combatant) {
+        val idxInTeam = ctx.team.indexOfFirst { it.id == id }
+        if (idxInTeam >= 0) {
+            ctx.team[idxInTeam] = updated
         } else {
-            ctx.team[targetIndex] = ctx.team[targetIndex].copy(hp = newHp)
-            if (shieldResult.shieldBuff != null) {
-                val shieldBuffs = ctx.team[targetIndex].buffs.map { b ->
-                    if (b.type == BuffType.SHIELD && b.remainingDuration == shieldResult.shieldBuff.remainingDuration)
-                        b.copy(value = shieldResult.remainingShield.toDouble() / ctx.team[targetIndex].maxHp.coerceAtLeast(1))
-                    else b
-                }
-                ctx.team[targetIndex] = ctx.team[targetIndex].copy(buffs = shieldBuffs)
-            }
-        }
-    }
-
-    /** 伤害链接：将链接伤害分配给被链接的敌人 */
-    private fun applyLinkedDamage(ctx: TurnContext, currentCombatant: Combatant, r: AttackResult) {
-        val linkedDmg = BattleCalculator.calculateLinkedDamage(
-            currentCombatant, r.target, r.damage, ctx.beasts, ctx.team
-        )
-        linkedDmg.forEach { (linkedId, linkDmg) ->
-            val linkedInBeasts = ctx.beasts.indexOfFirst { it.id == linkedId }
-            val linkedInTeam = ctx.team.indexOfFirst { it.id == linkedId }
-            if (linkedInBeasts >= 0) {
-                ctx.beasts[linkedInBeasts] = ctx.beasts[linkedInBeasts].copy(
-                    hp = maxOf(0, ctx.beasts[linkedInBeasts].hp - linkDmg)
-                )
-            } else if (linkedInTeam >= 0) {
-                ctx.team[linkedInTeam] = ctx.team[linkedInTeam].copy(
-                    hp = maxOf(0, ctx.team[linkedInTeam].hp - linkDmg)
-                )
-            }
-        }
-    }
-
-    /** 伤害分摊：将伤害按分摊规则重分配给分担者（含各自的护盾吸收） */
-    private fun applySharedDamage(ctx: TurnContext, r: AttackResult) {
-        val shareDmg = BattleCalculator.calculateDamageShare(
-            r.target.id, r.target.side, r.damage, ctx.team, ctx.beasts
-        )
-        shareDmg.forEach { (sharerId, shareDamage) ->
-            val sharerInTeam = ctx.team.indexOfFirst { it.id == sharerId }
-            val sharerInBeasts = ctx.beasts.indexOfFirst { it.id == sharerId }
-            val shareAfterShield = BattleCalculator.calculateShieldAbsorption(
-                if (sharerInTeam >= 0) ctx.team[sharerInTeam] else ctx.beasts[sharerInBeasts],
-                shareDamage
-            )
-            if (sharerInTeam >= 0) {
-                ctx.team[sharerInTeam] = ctx.team[sharerInTeam].copy(
-                    hp = maxOf(0, ctx.team[sharerInTeam].hp - shareAfterShield.remainingDamage)
-                )
-            } else if (sharerInBeasts >= 0) {
-                ctx.beasts[sharerInBeasts] = ctx.beasts[sharerInBeasts].copy(
-                    hp = maxOf(0, ctx.beasts[sharerInBeasts].hp - shareAfterShield.remainingDamage)
-                )
-            }
+            val idxInBeasts = ctx.beasts.indexOfFirst { it.id == id }
+            if (idxInBeasts >= 0) ctx.beasts[idxInBeasts] = updated
         }
     }
 
@@ -821,30 +796,6 @@ class BattleSystem @Inject constructor(
         }
     }
 
-    /** AOE 护盾吸收：多目标统一结算护盾 */
-    private fun applyAoeShieldAbsorption(
-        ctx: TurnContext,
-        results: List<AttackResult>,
-        enemiesIndexMap: Map<String, Int>,
-        isTeamMember: Boolean,
-        isAoeSkill: Boolean
-    ) {
-        if (!isAoeSkill) return
-        results.forEach { r ->
-            if (r.isDodged) return@forEach
-            val tIdx = enemiesIndexMap[r.target.id] ?: return@forEach
-            val sr = BattleCalculator.calculateShieldAbsorption(r.target, r.damage)
-            if (sr.shieldBuff != null) {
-                val updatedHp = maxOf(0, r.target.hp - sr.remainingDamage)
-                if (isTeamMember && tIdx < ctx.beasts.size) {
-                    ctx.beasts[tIdx] = ctx.beasts[tIdx].copy(hp = updatedHp)
-                } else if (tIdx < ctx.team.size) {
-                    ctx.team[tIdx] = ctx.team[tIdx].copy(hp = updatedHp)
-                }
-            }
-        }
-    }
-
     private data class TurnMessage(
         val text: String,
         val isKill: Boolean,
@@ -879,7 +830,9 @@ class BattleSystem @Inject constructor(
                 totalDamage = 0
             )
             availableSkill != null -> {
-                val totalDamage = results.sumOf { it.damage }
+                // Long 求和防多段×多目标溢出为负（对抗性审查）
+                val totalDamage = results.sumOf { it.damage.toLong() }
+                    .coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong()).toInt()
                 val isKill = results.any { r -> r.target.hp - r.damage <= 0 }
                 val text = if (isAoeSkill) {
                     BattleDescriptionGenerator.generateAoeSkillDescription(
@@ -923,7 +876,8 @@ class BattleSystem @Inject constructor(
         allies: MutableList<Combatant>,
         currentCombatant: Combatant,
         isTeamMember: Boolean,
-        enemiesIndexMap: Map<String, Int>
+        enemiesIndexMap: Map<String, Int>,
+        playerDamageModifier: Double
     ) {
         val advancedId = result.healedIds.firstOrNull()
             ?: result.teamBuffs.keys.firstOrNull() ?: return
@@ -963,15 +917,12 @@ class BattleSystem @Inject constructor(
         if (!advResult.isSupport && !advResult.isDodged) {
             val advTargetIdx = enemiesIndexMap[advResult.target.id]
             if (advTargetIdx != null) {
-                val shieldR = BattleCalculator.calculateShieldAbsorption(advResult.target, advDmg)
+                val currentTarget = if (isTeamMember) ctx.beasts[advTargetIdx] else ctx.team[advTargetIdx]
+                val updated = BattleDamageApplier.applyDamageToTarget(currentTarget, advDmg)
                 if (isTeamMember && advTargetIdx < ctx.beasts.size) {
-                    ctx.beasts[advTargetIdx] = ctx.beasts[advTargetIdx].copy(
-                        hp = maxOf(0, ctx.beasts[advTargetIdx].hp - shieldR.remainingDamage)
-                    )
+                    ctx.beasts[advTargetIdx] = updated
                 } else if (advTargetIdx < ctx.team.size) {
-                    ctx.team[advTargetIdx] = ctx.team[advTargetIdx].copy(
-                        hp = maxOf(0, ctx.team[advTargetIdx].hp - shieldR.remainingDamage)
-                    )
+                    ctx.team[advTargetIdx] = updated
                 }
             }
         }
@@ -1103,31 +1054,25 @@ class BattleSystem @Inject constructor(
         return BattleCalculator.calculateRealmGapMultiplier(attackerRealm, defenderRealm)
     }
 
-    // 临时保存 BattleAI 决策结果，供 selectSkill → selectTarget 配对使用
-    private var pendingAiAction: BattleAI.AIAction? = null
+    /** 技能决策结果：技能 + 配对的 AI 目标（局部传递，替代原类级 pendingAiAction） */
+    private data class SkillDecision(
+        val skill: CombatSkill?,
+        val action: BattleAI.AIAction?
+    )
 
     private fun selectSkill(
         combatant: Combatant,
         enemies: List<Combatant>,
         allies: List<Combatant>,
         isSilenced: Boolean
-    ): CombatSkill? {
-        if (isSilenced) {
-            pendingAiAction = null
-            return null
-        }
+    ): SkillDecision {
+        if (isSilenced) return SkillDecision(null, null)
         val action = BattleAI.decideAction(combatant, allies, enemies, rng)
-        pendingAiAction = action
-        return action.skill
+        return SkillDecision(action.skill, action)
     }
 
-    private fun selectTarget(attacker: Combatant, targets: List<Combatant>): Combatant {
-        val action = pendingAiAction
-        if (action != null && action.target != null) {
-            pendingAiAction = null
-            return action.target
-        }
-        pendingAiAction = null
+    private fun selectTarget(attacker: Combatant, targets: List<Combatant>, aiAction: BattleAI.AIAction?): Combatant {
+        if (aiAction?.target != null) return aiAction.target
         return BattleAI.selectAttackTarget(attacker, targets, null, rng)
             ?: targets.first()
     }

@@ -50,6 +50,32 @@ object EnemyGenerator {
         val minRarity = GameConfig.Realm.getMaxRarity(realm)
         val maxRarity = (minRarity + 1).coerceAtMost(6)
 
+        // 装备生成（W3 拆分，RNG 调用序与内联时完全一致）
+        val (equipmentInstances, equipmentStatsAccumulator) = generateEquipmentForEnemy(minRarity, maxRarity)
+        // 功法生成（W3 拆分，含技能倍率调整与属性累加）
+        val (manualInstances, manualSkills, manualStatsAccumulator) = generateManualsForEnemy(minRarity, maxRarity)
+
+        val combatant = createHumanCombatant(
+            index = index,
+            realm = realm,
+            realmLayer = realmLayer,
+            equipmentStats = equipmentStatsAccumulator,
+            manualStats = manualStatsAccumulator,
+            skills = manualSkills
+        )
+
+        return HumanEnemyData(
+            combatant = combatant,
+            equipmentInstances = equipmentInstances,
+            manualInstances = manualInstances
+        )
+    }
+
+    /**
+     * 随机装备生成（W3 从 generateHumanEnemy 提取，逐行搬移 RNG 调用序不变）。
+     * @return (装备实例列表, 装备属性累加器)
+     */
+    private fun generateEquipmentForEnemy(minRarity: Int, maxRarity: Int): Pair<List<EquipmentInstance>, EquipmentStatsAccumulator> {
         val equipmentSlots = listOf(
             EquipmentSlot.WEAPON, EquipmentSlot.ARMOR,
             EquipmentSlot.BOOTS, EquipmentSlot.ACCESSORY
@@ -73,10 +99,20 @@ object EnemyGenerator {
             equipmentStatsAccumulator.add(instance.getFinalStats())
             equipmentStatsAccumulator.addCrit(instance.critChance)
         }
+        return Pair(equipmentInstances, equipmentStatsAccumulator)
+    }
 
+    /**
+     * 随机功法生成（W3 从 generateHumanEnemy 提取，逐行搬移 RNG 调用序不变）。
+     * 含技能倍率调整（熟练度）与功法属性累加（与玩家 computeFinalStats 一致——
+     * 修复 07-20"统一玩家公式"只统一基础属性、敌人缺功法属性加成的问题）。
+     * @return (功法实例列表, 战斗技能列表, 功法属性累加器)
+     */
+    private fun generateManualsForEnemy(minRarity: Int, maxRarity: Int): Triple<List<ManualInstance>, List<CombatSkill>, ManualStatsAccumulator> {
         val manualCount = enemyRng.nextInt(6)
         val manualInstances = mutableListOf<ManualInstance>()
         val manualSkills = mutableListOf<CombatSkill>()
+        val manualStatsAccumulator = ManualStatsAccumulator()
         var hasMindManual = false
 
         for (i in 0 until manualCount) {
@@ -97,6 +133,7 @@ object EnemyGenerator {
             val masteryLevel = enemyRng.nextInt(4)
             val instance = stackToInstance(stack)
             manualInstances.add(instance)
+            manualStatsAccumulator.add(instance, masteryLevel)
 
             val skill = instance.skill
             if (skill != null) {
@@ -109,20 +146,7 @@ object EnemyGenerator {
                 )
             }
         }
-
-        val combatant = createHumanCombatant(
-            index = index,
-            realm = realm,
-            realmLayer = realmLayer,
-            equipmentStats = equipmentStatsAccumulator,
-            skills = manualSkills
-        )
-
-        return HumanEnemyData(
-            combatant = combatant,
-            equipmentInstances = equipmentInstances,
-            manualInstances = manualInstances
-        )
+        return Triple(manualInstances, manualSkills, manualStatsAccumulator)
     }
 
     private fun createHumanCombatant(
@@ -130,22 +154,24 @@ object EnemyGenerator {
         realm: Int,
         realmLayer: Int,
         equipmentStats: EquipmentStatsAccumulator,
+        manualStats: ManualStatsAccumulator,
         skills: List<CombatSkill>
     ): Combatant {
-        // 使用与玩家弟子相同的属性公式：境界基础值 × (1 + 方差) × 层数倍率 + 装备加成
+        // 使用与玩家弟子相同的属性公式：境界基础值 × (1 + 方差) × 层数倍率
+        // + 装备加成 + 功法属性加成（stats × 熟练度 bonus，与 computeFinalStats 一致）
         // 方差 ±30%，与 DiscipleStatCalculator.computeBaseStats 的 hpVariance 等一致
         val realmConfig = GameConfig.Realm.get(realm)
         val layerMult = 1.0 + (realmLayer - 1) * 0.1
 
         fun rngVar(): Double = 1.0 + (enemyRng.nextInt(61) - 30) / 100.0
 
-        val hp = (realmConfig.baseHp * rngVar() * layerMult).toInt() + equipmentStats.hp
-        val mp = (realmConfig.baseMp * rngVar() * layerMult).toInt() + equipmentStats.mp
-        val physicalAttack = (realmConfig.basePhysicalAttack * rngVar() * layerMult).toInt() + equipmentStats.physicalAttack
-        val magicAttack = (realmConfig.baseMagicAttack * rngVar() * layerMult).toInt() + equipmentStats.magicAttack
-        val physicalDefense = (realmConfig.basePhysicalDefense * rngVar() * layerMult).toInt() + equipmentStats.physicalDefense
-        val magicDefense = (realmConfig.baseMagicDefense * rngVar() * layerMult).toInt() + equipmentStats.magicDefense
-        val speed = (realmConfig.baseSpeed * rngVar() * layerMult).toInt() + equipmentStats.speed
+        val hp = (realmConfig.baseHp * rngVar() * layerMult).toInt() + equipmentStats.hp + manualStats.hp
+        val mp = (realmConfig.baseMp * rngVar() * layerMult).toInt() + equipmentStats.mp + manualStats.mp
+        val physicalAttack = (realmConfig.basePhysicalAttack * rngVar() * layerMult).toInt() + equipmentStats.physicalAttack + manualStats.physicalAttack
+        val magicAttack = (realmConfig.baseMagicAttack * rngVar() * layerMult).toInt() + equipmentStats.magicAttack + manualStats.magicAttack
+        val physicalDefense = (realmConfig.basePhysicalDefense * rngVar() * layerMult).toInt() + equipmentStats.physicalDefense + manualStats.physicalDefense
+        val magicDefense = (realmConfig.baseMagicDefense * rngVar() * layerMult).toInt() + equipmentStats.magicDefense + manualStats.magicDefense
+        val speed = (realmConfig.baseSpeed * rngVar() * layerMult).toInt() + equipmentStats.speed + manualStats.speed
 
         val elements = listOf("metal", "wood", "water", "fire", "earth")
         val element = elements[enemyRng.nextInt(5)]
@@ -165,7 +191,8 @@ object EnemyGenerator {
             physicalDefense = physicalDefense,
             magicDefense = magicDefense,
             speed = speed,
-            critRate = 0.05 + realm * 0.01 + equipmentStats.critChance,
+            // 基础暴击(与玩家 BASE_CRIT_RATE 一致) + 境界暴击 + 装备 + 功法暴击
+            critRate = 0.05 + realm * 0.01 + equipmentStats.critChance + manualStats.critChance,
             skills = if (skills.isNotEmpty()) skills else listOf(createDefaultAttackSkill()),
             realm = realm,
             realmName = GameConfig.Realm.getName(realm),
@@ -227,6 +254,46 @@ object EnemyGenerator {
             skillTargetScope = stack.skillTargetScope,
             minRealm = stack.minRealm
         )
+    }
+
+    /**
+     * 功法属性累加器（2026-08-04 补齐敌人功法加成）。
+     *
+     * 与 DiscipleStatCalculator.computeFinalStats 的功法逻辑逐字一致：
+     * hp 取 stats["hp"] ?: stats["maxHp"]，各属性 × 熟练度 bonus（NOVICE=1.5 起），
+     * critRate 为百分比值 ÷ 100。
+     */
+    internal class ManualStatsAccumulator {
+        var hp: Int = 0
+            private set
+        var mp: Int = 0
+            private set
+        var physicalAttack: Int = 0
+            private set
+        var magicAttack: Int = 0
+            private set
+        var physicalDefense: Int = 0
+            private set
+        var magicDefense: Int = 0
+            private set
+        var speed: Int = 0
+            private set
+        var critChance: Double = 0.0
+            private set
+
+        fun add(manual: ManualInstance, masteryLevel: Int) {
+            val masteryBonus = ManualProficiencySystem.MasteryLevel.fromLevel(masteryLevel).bonus
+            val hpValue = manual.stats["hp"] ?: manual.stats["maxHp"] ?: 0
+            val mpValue = manual.stats["mp"] ?: manual.stats["maxMp"] ?: 0
+            hp += (hpValue * masteryBonus).toInt()
+            mp += (mpValue * masteryBonus).toInt()
+            physicalAttack += ((manual.stats["physicalAttack"] ?: 0) * masteryBonus).toInt()
+            magicAttack += ((manual.stats["magicAttack"] ?: 0) * masteryBonus).toInt()
+            physicalDefense += ((manual.stats["physicalDefense"] ?: 0) * masteryBonus).toInt()
+            magicDefense += ((manual.stats["magicDefense"] ?: 0) * masteryBonus).toInt()
+            speed += ((manual.stats["speed"] ?: 0) * masteryBonus).toInt()
+            critChance += ((manual.stats["critRate"] ?: 0) * masteryBonus) / 100.0
+        }
     }
 
     private class EquipmentStatsAccumulator {

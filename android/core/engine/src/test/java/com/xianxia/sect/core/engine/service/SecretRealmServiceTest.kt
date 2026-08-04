@@ -176,7 +176,7 @@ class SecretRealmServiceTest {
     private fun stubBattle(result: BattleSystemResult) {
         whenever(battleSystem.createBattle(any(), any(), any(), any(), any(), any(), any(), any()))
             .thenReturn(result.battle)
-        whenever(battleSystem.executeBattleWithTimeout(any(), any())).thenReturn(result)
+        whenever(battleSystem.executeBattleWithTimeout(any(), any(), any())).thenReturn(result)
     }
 
     /** 全员阵亡的战斗结果（全灭场景） */

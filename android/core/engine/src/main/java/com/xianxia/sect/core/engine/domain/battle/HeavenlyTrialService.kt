@@ -167,6 +167,7 @@ class HeavenlyTrialService @Inject constructor(
         }
 
         // 使用与玩家弟子相同的属性公式：境界基础值 × (1 + 方差) × 层数倍率
+        // + 装备加成 + 功法属性加成（stats × 熟练度 bonus，与 computeFinalStats 一致）
         // 方差 ±30%，与 DiscipleStatCalculator.computeBaseStats 的 variance 一致
         val realmConfig = GameConfig.Realm.get(def.realm)
         val layerMult = 1.0 + (def.realmLayer - 1) * 0.1
@@ -174,12 +175,13 @@ class HeavenlyTrialService @Inject constructor(
         fun rngVar(): Double = 1.0 + (rng.nextInt(61) - 30) / 100.0
 
         var baseHp = (realmConfig.baseHp * rngVar() * layerMult).toInt()
-        val baseMp = (realmConfig.baseMp * rngVar() * layerMult).toInt()
+        var baseMp = (realmConfig.baseMp * rngVar() * layerMult).toInt()
         var basePhysAtk = (realmConfig.basePhysicalAttack * rngVar() * layerMult).toInt()
         var baseMagAtk = (realmConfig.baseMagicAttack * rngVar() * layerMult).toInt()
         var basePhysDef = (realmConfig.basePhysicalDefense * rngVar() * layerMult).toInt()
         var baseMagDef = (realmConfig.baseMagicDefense * rngVar() * layerMult).toInt()
         var baseSpeed = (realmConfig.baseSpeed * rngVar() * layerMult).toInt()
+        var manualCritChance = 0.0
 
         // 应用装备属性加成（修复：之前只选取装备名称用于显示，未将属性计入 Combatant）
         fun applyEquipStats(name: String) {
@@ -197,7 +199,31 @@ class HeavenlyTrialService @Inject constructor(
         boots?.name?.let { applyEquipStats(it) }
         accessory?.name?.let { applyEquipStats(it) }
 
-        val skills = selected.map { it.toCombatSkill() }
+        // 功法属性加成（2026-08-04 补齐：敌人此前只有功法技能、无功法属性。
+        // 试炼敌人默认熟练度 0 → NOVICE 1.5 倍，与玩家"刚学功法"一致）
+        val masteryBonus = com.xianxia.sect.core.engine.ManualProficiencySystem.MasteryLevel.fromLevel(0).bonus
+        for (manual in selected) {
+            val hpValue = manual.stats["hp"] ?: manual.stats["maxHp"] ?: 0
+            val mpValue = manual.stats["mp"] ?: manual.stats["maxMp"] ?: 0
+            baseHp += (hpValue * masteryBonus).toInt()
+            baseMp += (mpValue * masteryBonus).toInt()
+            basePhysAtk += ((manual.stats["physicalAttack"] ?: 0) * masteryBonus).toInt()
+            baseMagAtk += ((manual.stats["magicAttack"] ?: 0) * masteryBonus).toInt()
+            basePhysDef += ((manual.stats["physicalDefense"] ?: 0) * masteryBonus).toInt()
+            baseMagDef += ((manual.stats["magicDefense"] ?: 0) * masteryBonus).toInt()
+            baseSpeed += ((manual.stats["speed"] ?: 0) * masteryBonus).toInt()
+            manualCritChance += ((manual.stats["critRate"] ?: 0) * masteryBonus) / 100.0
+        }
+
+        // 技能倍率按熟练度 0（NOVICE ×1.5）调整——与上方功法属性加成同源，
+        // 与 EnemyGenerator（按 mastery 0-3 调倍率）和玩家公式一致
+        // （对抗性审查：此前属性 ×1.5 而技能倍率裸奔，同一敌人自相矛盾）
+        val skills = selected.map { manual ->
+            manual.copy(
+                skillDamageMultiplier = com.xianxia.sect.core.engine.ManualProficiencySystem
+                    .calculateSkillDamageMultiplier(manual.skillDamageMultiplier, 0)
+            ).toCombatSkill()
+        }
 
         return Combatant(
             id = "trial_disciple_${levelIndex}_${index}",
@@ -212,7 +238,7 @@ class HeavenlyTrialService @Inject constructor(
             physicalDefense = basePhysDef,
             magicDefense = baseMagDef,
             speed = baseSpeed,
-            critRate = 0.05 + def.realm * 0.02,
+            critRate = 0.05 + def.realm * 0.02 + manualCritChance,
             skills = skills,
             realm = def.realm,
             realmName = GameConfig.Realm.getName(def.realm),

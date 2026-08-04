@@ -38,7 +38,7 @@ class PatrolBattleSystemTest {
         runBlocking { `when`(inventorySystem.addMaterial(any())).thenReturn(DomainResult.Success(Material())) }
         `when`(battleSystem.createBattle(any(), any(), any(), any(), any(), any(), any(), any()))
             .thenReturn(Battle(team = emptyList(), beasts = emptyList()))
-        `when`(battleSystem.executeBattle(any())).thenReturn(BattleSystemResult(
+        `when`(battleSystem.executeBattle(any(), any())).thenReturn(BattleSystemResult(
             battle = Battle(team = emptyList(), beasts = emptyList()),
             victory = true, rewards = mapOf("spiritStones" to 100), turnCount = 1))
         val encounterBattleService = mock(com.xianxia.sect.core.domain.battle.EncounterBattleService::class.java)

@@ -51,7 +51,7 @@ class ResolveBeastAttackFightTest {
 
         `when`(battleSystem.createBattle(any(), any(), any(), any(), any(), any(), any(), any()))
             .thenReturn(Battle(team = emptyList(), beasts = emptyList()))
-        `when`(battleSystem.executeBattle(any())).thenReturn(
+        `when`(battleSystem.executeBattle(any(), any())).thenReturn(
             BattleSystemResult(battle = Battle(team = emptyList(), beasts = emptyList()),
                 victory = true, rewards = emptyMap(), turnCount = 1)
         )

@@ -859,6 +859,8 @@ object GameConfig {
         const val POWER_RATIO_THRESHOLD = 0.8
         const val TEAM_SIZE = 10
         const val MAX_BATTLE_TURNS = 200
+        /** AI 宗门战最长执行时长（毫秒），与 Battle.MAX_BATTLE_DURATION_MS 对齐防卡游戏线程 */
+        const val MAX_AI_BATTLE_DURATION_MS = 5000L
     }
     
     object SectMap {
