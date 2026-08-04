@@ -356,6 +356,16 @@ com.taptap.sdk.cloudsave.ArchiveMetadata  ← Builder 模式：setName/setSummar
 com.taptap.sdk.cloudsave.ArchiveData      ← getUuid/getFileId/getName/getSummary/getExtra/getSaveSize/getModifiedTime
 ```
 
+### 云读档管线（2026-08-04 统一，与本地读档同语义）
+
+下载的云存档写入本地前依次执行：
+
+1. **版本迁移** `SaveDataVersionMigrator.migrate` — saveVersion 顺序迁移（v0→1 修炼值缩放、v1→2 外交关系升级）。本地读档（`StorageEngine.loadFromDatabaseInternal`）与云存档加载共用同一迁移器（从 StorageEngine 提取），旧云档不再跳过迁移
+2. **完整性校验** `SaveValidator.validate` — 损坏（Corrupted）拒绝加载并提示；可修复（Repaired）自动修复后继续
+3. **堆叠重建** `SaveDataReconciler.reconcileStacks` — 旧格式云档无堆叠数据时从实例重建
+
+写入本地失败（低内存/编码失败）**必须中止并明确提示**，不再静默继续读档误读旧数据。游戏内下载（`performCloudDownload`）同样经过上述管线并**持久化到本地 DB**（重启不再丢失），且与加载流程重叠时拒绝执行（isLoading 保护）。
+
 ### 已知待修复问题
 
 云存档模块的各项问题已在 2026-07-25~28 期间处理完毕（并发锁、下载备份、静默降级、跨版本兼容、shuffled PRNG 迁移等），详见 CHANGELOG.md。

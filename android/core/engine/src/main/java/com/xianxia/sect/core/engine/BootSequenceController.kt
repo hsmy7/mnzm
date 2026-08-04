@@ -47,6 +47,9 @@ class BootSequenceController @Inject constructor(
 ) {
     companion object {
         private const val TAG = "BootSequence"
+
+        /** 地图预加载生成重试次数（含首次尝试，共 2 次） */
+        private const val MAP_GENERATE_RETRY_COUNT = 2
     }
 
     /** 重入保护：防止 boot() 被并发调用 */
@@ -149,18 +152,18 @@ class BootSequenceController @Inject constructor(
 
             // ── Step 7: 生成地图瓦片数据 ──
             onProgress(0.80f)
-            val mapData = try {
-                generateMapPreloadData().also { onMapReady(it) }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                DomainLog.e(TAG, "boot: map preload failed (non-fatal)", e)
-                null
+            val mapData = generateMapDataSafely()
+            if (mapData == null) {
+                // 2026-08-04 修复：地图生成失败 = 硬失败——原实现静默继续推进到
+                // BOOT_COMPLETE + setPlaying，但 onMapReady 从未调用 → UI 侧
+                // mapPreloadData 为 null → 永久 LoadingScreen（"读档成功但无法游玩"）
+                DomainLog.e(TAG, "boot: map generation failed, aborting boot")
+                cleanupAfterBootFailure()
+                onError("地图数据生成失败，请重新进入")
+                return Result.failure(IllegalStateException("Map generation failed"))
             }
-
-            if (mapData != null) {
-                stateStore.advanceBootPhase() // → MAP_READY
-            }
+            onMapReady(mapData)
+            stateStore.advanceBootPhase() // → MAP_READY
 
             // ── Step 8: 确保到达 BOOT_COMPLETE ──
             while (stateStore.bootPhase.value < BootPhase.BOOT_COMPLETE) {
@@ -187,7 +190,7 @@ class BootSequenceController @Inject constructor(
             DomainLog.e(TAG, "boot FAILED: ${e.message}", e)
 
             if (!gameStarted) {
-                val recovered = recoverWithPartialData()
+                val recovered = recoverWithPartialData(onMapReady)
                 if (recovered) {
                     DomainLog.w(TAG, "boot: recovered with partial data, continuing as success")
                     gameStarted = true
@@ -195,6 +198,10 @@ class BootSequenceController @Inject constructor(
                     onSuccess()
                     return Result.success(Unit)
                 }
+                // 2026-08-04 修复：恢复失败时清理状态——原实现直接 onError，
+                // 若异常发生在循环启动后，游戏循环仍在跑（时间推进但 boot 失败），
+                // 状态不一致（点击按钮无效 / 界面与状态脱节）
+                cleanupAfterBootFailure()
             }
 
             onError(e.message ?: "启动失败")
@@ -212,6 +219,38 @@ class BootSequenceController @Inject constructor(
     private fun stopGameLoop() {
         gameEngineCore.stopGameLoop()
         DomainLog.d(TAG, "Game loop stopped")
+    }
+
+    /**
+     * 安全生成地图预加载数据（带一次重试）。
+     * 生成失败由调用方决定语义（主路径硬失败 / 恢复路径放弃恢复）。
+     *
+     * @return 地图预加载数据；重试后仍失败返回 null
+     */
+    private suspend fun generateMapDataSafely(): MapPreloadData? {
+        var attempts = 0
+        while (attempts < MAP_GENERATE_RETRY_COUNT) {
+            attempts++
+            try {
+                return generateMapPreloadData()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                DomainLog.e(TAG, "boot: map preload failed (attempt $attempts/$MAP_GENERATE_RETRY_COUNT)", e)
+            }
+        }
+        return null
+    }
+
+    /** boot 失败后的状态清理：停循环 + 复位生命周期（与取消清理同语义）。 */
+    private fun cleanupAfterBootFailure() {
+        if (gameEngineCore.isGameLoopRunning) {
+            gameEngineCore.stopGameLoop()
+        }
+        stateStore.resetBootPhase()
+        if (stateStore.runState.value != RunState.IDLE) {
+            stateStore.setIdle()
+        }
     }
 
     private suspend fun generateMapPreloadData(): MapPreloadData {
@@ -317,25 +356,36 @@ class BootSequenceController @Inject constructor(
         }
     }
 
-    private fun recoverWithPartialData(): Boolean {
+    @Suppress("ReturnCount") // 恢复路径多失败守卫，多 return 为守卫风格
+    private suspend fun recoverWithPartialData(onMapReady: (MapPreloadData) -> Unit): Boolean {
         val partialGameData = gameEngine.gameData.value
-        if (partialGameData.sectName.isNotEmpty() && gameEngine.disciples.value.isNotEmpty()) {
-            DomainLog.w(TAG, "boot: recovering with partial data (sect=${partialGameData.sectName})")
-            try {
-                startGameLoop()
-                stateStore.resetBootPhase()
-                while (stateStore.bootPhase.value < BootPhase.BOOT_COMPLETE) {
-                    stateStore.advanceBootPhase()
-                }
-                stateStore.setPlaying()
-                DomainLog.w(TAG, "boot: recovered with partial data")
-                return true
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                DomainLog.e(TAG, "boot: partial data recovery failed", e)
-            }
+        if (partialGameData.sectName.isEmpty() || gameEngine.disciples.value.isEmpty()) {
+            return false
         }
-        return false
+        DomainLog.w(TAG, "boot: recovering with partial data (sect=${partialGameData.sectName})")
+        val mapData = try {
+            generateMapDataSafely()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DomainLog.e(TAG, "boot: partial data recovery failed", e)
+            return false
+        }
+        if (mapData == null) {
+            // 地图生成失败 → 放弃恢复（循环尚未启动，无需 stopGameLoop）
+            DomainLog.e(TAG, "boot: partial recovery aborted (map generation failed)")
+            return false
+        }
+        // 2026-08-04 修复：恢复路径必须先产出地图数据并回调 onMapReady——
+        // 原实现不回调，UI 侧 mapPreloadData 为 null → 永久 LoadingScreen
+        onMapReady(mapData)
+        startGameLoop()
+        stateStore.resetBootPhase()
+        while (stateStore.bootPhase.value < BootPhase.BOOT_COMPLETE) {
+            stateStore.advanceBootPhase()
+        }
+        stateStore.setPlaying()
+        DomainLog.w(TAG, "boot: recovered with partial data")
+        return true
     }
 }

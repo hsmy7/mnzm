@@ -1,5 +1,6 @@
 package com.xianxia.sect.data.local
 
+
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
@@ -23,7 +24,61 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 
+/** 文件级日志 TAG（迁移前备份恢复顶层辅助函数共用，2026-08-04 拆分） */
+private const val TAG = "GameDatabase"
+
+/** 恢复尝试 marker 文件名——恢复后迁移崩溃时防止"恢复→崩溃"死循环（2026-08-04 对抗性审查 C1） */
+private const val RESTORE_ATTEMPT_MARKER = ".restore_attempted"
+private const val RESTORE_ATTEMPT_MARKER_CONTENT = "1"
+
+/** 迁移前备份文件大小上限（200MB，防恶意/损坏超大备份占满磁盘） */
+private const val MAX_BACKUP_FILE_SIZE_BYTES = 200L * 1024 * 1024
+
+/** 迁移前备份 game_data 行数上限（每槽一行，正常 ≤ 7；上限 64 防恶意行数膨胀） */
+private const val MAX_BACKUP_GAME_DATA_ROWS = 64
+
+
 object GameDatabaseConfig {
+    /**
+     * 数据库 schema 版本号——@Database(version) 与迁移前备份判据统一引用此常量，
+     * 禁止任何位置硬编码版本号（2026-08-04 修复：原 backupDatabaseForMigration
+     * 硬编码 38 与 v39 脱节，导致 v38 用户升级 v39 不触发迁移前备份）。
+     * 升级数据库版本时必须同步递增此常量并注册 MIGRATION_(N-1)_N。
+     */
+    const val DATABASE_VERSION = 39
+
+    /**
+     * 判定是否应从迁移前备份恢复（纯逻辑，无 I/O——独立测试覆盖）。
+     *
+     * 2026-08-04 修复：新增「迁移待完成」分支——迁移崩溃（MigrationNotFoundException）
+     * 后 DB 行数仍 > 0，原实现直接跳过恢复，导致每次启动重复迁移崩溃且
+     * pre_migrate_backup 永不使用。
+     *
+     * @param currentRowCount 当前数据库 game_data 行数（-1 = 读取失败/库打不开）
+     * @param currentVersion 当前数据库 user_version（-1 = 读取失败）
+     * @param backupVersion 迁移前备份的 user_version
+     * @return true = 应恢复；false = 跳过
+     */
+    @Suppress("ReturnCount") // 恢复判定多分支守卫，多 return 为守卫风格
+    fun shouldRestoreFromBackup(
+        currentRowCount: Int,
+        currentVersion: Int,
+        backupVersion: Int
+    ): Boolean {
+        // 当前库打不开/表缺失（-1）或空库（destructive fallback 后）→ 恢复
+        if (currentRowCount <= 0) return true
+        // 降级场景（2026-08-04 对抗性审查修复）：当前库版本高于 App 支持的版本
+        // （高版本 App 数据回退到低版本 App）→ Room 无法降级打开必然崩溃——
+        // 用迁移前备份（旧版本、迁移链可达）恢复
+        if (currentVersion > DATABASE_VERSION &&
+            backupVersion in 2..DATABASE_VERSION && backupVersion < currentVersion
+        ) {
+            return true
+        }
+        // 有数据但迁移待完成（备份创建后迁移从未完成）→ 恢复
+        return currentVersion < DATABASE_VERSION && backupVersion == currentVersion
+    }
+
     const val MEMORY_CACHE_SIZE = 64 * 1024 * 1024
     const val DISK_CACHE_SIZE = 100 * 1024 * 1024
     const val WRITE_BATCH_SIZE = 100
@@ -72,7 +127,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = 39  // v39: MIGRATION_38_39 删除弟子级自动开关死列（no-op 保留旧列）
+    version = GameDatabaseConfig.DATABASE_VERSION  // v39: MIGRATION_38_39 删除弟子级自动开关死列（no-op 保留旧列）
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)
@@ -262,6 +317,12 @@ abstract class GameDatabase : RoomDatabase() {
         private const val TAG = "GameDatabase"
         private const val UNIFIED_DB_NAME = "xianxia_sect.db"
 
+        private const val RESTORE_ATTEMPT_MARKER_CONTENT = "1"
+
+        /** 迁移前备份文件大小上限（200MB，防恶意/损坏超大备份占满磁盘） */
+
+        /** 迁移前备份 game_data 行数上限（每槽一行，正常 ≤ 7；上限 64 防恶意行数膨胀） */
+
         private val threadCounter = AtomicInteger(0)
 
         /**
@@ -292,7 +353,7 @@ abstract class GameDatabase : RoomDatabase() {
                 return
             }
 
-            val targetVersion = 38  // @Database(version = 38)
+            val targetVersion = GameDatabaseConfig.DATABASE_VERSION
             if (currentVersion >= targetVersion) {
                 Log.d(TAG, "数据库已是最新版本 (v$currentVersion)，无需备份")
                 return
@@ -500,6 +561,19 @@ abstract class GameDatabase : RoomDatabase() {
                 Log.wtf(TAG, "数据库异常: integrity_ok=$integrityOk, has_data=$hasData, " +
                     "数据将由 StorageEngine 从 SaveFileManager 备份恢复")
             }
+
+            // Step 4: 迁移成功（版本达到最新）后清理恢复 marker 与迁移前备份
+            //（2026-08-04 对抗性审查修复 C1：恢复后迁移成功即完成备份使命——
+            // 删除可防止旧备份在未来误覆盖新数据；正常玩家无 marker/备份，删除无副作用）
+            try {
+                if (db.version >= GameDatabaseConfig.DATABASE_VERSION) {
+                    val dbFile = context.getDatabasePath(UNIFIED_DB_NAME)
+                    File(dbFile.absolutePath + RESTORE_ATTEMPT_MARKER).delete()
+                    File(dbFile.absolutePath + ".pre_migrate_backup").delete()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "清理恢复 marker/迁移前备份失败", e)
+            }
         }
 
         /**
@@ -514,72 +588,69 @@ abstract class GameDatabase : RoomDatabase() {
         fun restoreFromBackupIfNeeded(context: Context): Boolean {
             val dbFile = context.getDatabasePath(UNIFIED_DB_NAME)
             val backupFile = File(dbFile.absolutePath + ".pre_migrate_backup")
+            val markerFile = File(dbFile.absolutePath + RESTORE_ATTEMPT_MARKER)
             if (!dbFile.exists() || !backupFile.exists()) return false
 
-            // 验证备份文件可用
-            var backupOk = false
-            var backupRowCount = -1
-            try {
-                SQLiteDatabase.openDatabase(backupFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY).use { bdb ->
-                    val cursor = bdb.rawQuery("PRAGMA integrity_check", null)
-                    backupOk = cursor.moveToFirst() && cursor.getString(0) == "ok"
-                    cursor.close()
-                    if (backupOk) {
-                        try {
-                            val rc = bdb.rawQuery("SELECT COUNT(*) FROM game_data", null)
-                            if (rc.moveToFirst()) backupRowCount = rc.getInt(0)
-                            rc.close()
-                        } catch (_: Exception) { }
-                    }
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "备份文件验证失败: ${backupFile.absolutePath}", e)
-            }
-
-            if (!backupOk) {
+            // 验证备份文件可用（含大小/行数上限检查）
+            val backup = readBackupInfo(backupFile)
+            if (!backup.ok) {
                 Log.w(TAG, "备份文件 integrity_check 失败，不可用于恢复")
                 return false
             }
 
-            // 读取当前数据库 game_data 行数
-            var currentRowCount = -1
-            try {
-                SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY).use { cdb ->
-                    try {
-                        val rc = cdb.rawQuery("SELECT COUNT(*) FROM game_data", null)
-                        if (rc.moveToFirst()) currentRowCount = rc.getInt(0)
-                        rc.close()
-                    } catch (_: Exception) { }
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "当前数据库无法打开，将直接使用备份覆盖", e)
-            }
+            // 读取当前数据库版本号与 game_data 行数
+            val current = readCurrentDbInfo(dbFile)
 
-            // 当前数据库有数据且 integrity 正常时跳过恢复
-            if (currentRowCount > 0) {
-                Log.d(TAG, "当前数据库有数据 ($currentRowCount 行)，跳过备份恢复")
+            // 跳过恢复判定（2026-08-04 修复：新增"迁移待完成"分支——迁移崩溃后
+            // DB 行数仍 > 0，原实现直接跳过导致每次启动重复崩溃；判定提取为
+            // GameDatabaseConfig.shouldRestoreFromBackup 纯函数便于单元测试）
+            if (!GameDatabaseConfig.shouldRestoreFromBackup(
+                    current.rowCount, current.version, backup.version
+                )
+            ) {
+                Log.d(TAG, "当前数据库有数据 (${current.rowCount} 行)，跳过备份恢复")
                 return false
+            }
+            // 2026-08-04 对抗性审查修复（C1）：恢复-迁移崩溃死循环防护——
+            // 上次恢复后迁移仍未完成（marker 存在）→ 跳过重复恢复（避免
+            // "恢复→迁移崩溃→再恢复"无限循环），让 Room 直接尝试迁移并崩溃
+            // 报错（行为可预期，等待修复版本）
+            if (markerFile.exists()) {
+                Log.w(TAG, "检测到上次恢复后迁移仍未完成，跳过重复恢复（防止死循环）")
+                return false
+            }
+            if (current.version < GameDatabaseConfig.DATABASE_VERSION &&
+                backup.version == current.version
+            ) {
+                Log.w(TAG, "检测到迁移未完成 (v${current.version} → v" +
+                    "${GameDatabaseConfig.DATABASE_VERSION})，从迁移前备份恢复")
             }
 
             // 执行恢复：用备份文件覆盖当前数据库
-            try {
-                backupFile.inputStream().use { input ->
-                    // 先写入 .tmp 防止覆盖过程中崩溃损坏原文件
-                    val tmpFile = File(dbFile.absolutePath + ".restore_tmp")
-                    tmpFile.outputStream().use { output -> input.copyTo(output) }
-                    // fsync 确保写完
-                    FileOutputStream(tmpFile, true).use { fos -> fos.fd.sync() }
-                    // 覆盖原文件
-                    tmpFile.renameTo(dbFile)
+            return try {
+                // 2026-08-04 对抗性审查修复（C2）：-wal/-shm 清理移到"确定要恢复"
+                // 之后——原实现无条件删除（只要备份存在），正常玩家的崩溃会话
+                // 未 checkpoint 进度会被误删。此处删除是恢复语义所需（覆盖后
+                // 若残留旧 -wal，SQLite 会将其重放到恢复后的文件上污染结果）
+                File(dbFile.absolutePath + "-wal").delete()
+                File(dbFile.absolutePath + "-shm").delete()
+                performFileRestore(dbFile, backupFile)
+                // 创建恢复 marker：迁移成功后由 verifyAndRecoverDatabase 清理
+                try {
+                    markerFile.writeText(RESTORE_ATTEMPT_MARKER_CONTENT)
+                } catch (e: Exception) {
+                    Log.w(TAG, "创建恢复 marker 失败", e)
                 }
-                Log.w(TAG, "数据库已从备份恢复 (backup_rows=$backupRowCount, " +
+                Log.w(TAG, "数据库已从备份恢复 (backup_rows=${backup.rowCount}, " +
                     "backup=${backupFile.absolutePath})")
-                return true
+                true
             } catch (e: Exception) {
                 Log.e(TAG, "从备份恢复数据库失败", e)
-                return false
+                false
             }
         }
+
+        /** 备份文件验证结果 */
 
         private fun executeSafely(db: SupportSQLiteDatabase, pragma: String) {
             try {
@@ -591,3 +662,117 @@ abstract class GameDatabase : RoomDatabase() {
     }
 }
 
+
+
+
+// ==================== 迁移前备份恢复辅助（文件顶层私有，2026-08-04 拆分） ====================
+
+/** 备份文件验证结果 */
+private data class BackupValidation(val ok: Boolean, val rowCount: Int, val version: Int)
+
+/** 当前数据库信息 */
+private data class CurrentDbInfo(val rowCount: Int, val version: Int)
+
+/** 读取数据库的 user_version（读取失败返回 -1） */
+@Suppress("TooGenericExceptionCaught")
+private fun readUserVersion(db: SQLiteDatabase): Int {
+    return try {
+        val vc = db.rawQuery("PRAGMA user_version", null)
+        val v = if (vc.moveToFirst()) vc.getInt(0) else -1
+        vc.close()
+        v
+    } catch (_: Exception) {
+        -1
+    }
+}
+
+/** 读取数据库 game_data 表行数（读取失败返回 -1） */
+@Suppress("TooGenericExceptionCaught")
+private fun readGameDataRowCount(db: SQLiteDatabase): Int {
+    return try {
+        val rc = db.rawQuery("SELECT COUNT(*) FROM game_data", null)
+        val n = if (rc.moveToFirst()) rc.getInt(0) else -1
+        rc.close()
+        n
+    } catch (_: Exception) {
+        -1
+    }
+}
+
+/** 验证迁移前备份文件可用性（integrity_check + user_version + game_data 行数 + 大小/行数上限） */
+@Suppress("ReturnCount", "TooGenericExceptionCaught") // 备份多失败守卫，多 return 为守卫风格
+private fun readBackupInfo(backupFile: File): BackupValidation {
+    // 2026-08-04 对抗性审查修复（C3）：文件大小上限——恶意/损坏超大备份会占满磁盘
+    if (backupFile.length() > MAX_BACKUP_FILE_SIZE_BYTES) {
+        Log.w(TAG, "备份文件过大 (${backupFile.length() / 1024 / 1024}MB)，视为无效")
+        return BackupValidation(false, -1, -1)
+    }
+    var ok = false
+    try {
+        SQLiteDatabase.openDatabase(backupFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY).use { bdb ->
+            val cursor = bdb.rawQuery("PRAGMA integrity_check", null)
+            ok = cursor.moveToFirst() && cursor.getString(0) == "ok"
+            cursor.close()
+        }
+    } catch (e: Exception) {
+        Log.e(TAG, "备份文件验证失败: ${backupFile.absolutePath}", e)
+    }
+    if (!ok) return BackupValidation(false, -1, -1)
+    val rowCount = try {
+        SQLiteDatabase.openDatabase(backupFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY).use { bdb ->
+            readGameDataRowCount(bdb)
+        }
+    } catch (e: Exception) {
+        Log.e(TAG, "备份文件行数读取失败: ${backupFile.absolutePath}", e)
+        -1
+    }
+    // 2026-08-04 对抗性审查修复（C3）：game_data 行数上限（正常每槽一行 ≤ 7）
+    if (rowCount > MAX_BACKUP_GAME_DATA_ROWS) {
+        Log.w(TAG, "备份 game_data 行数异常 ($rowCount)，视为无效")
+        return BackupValidation(false, -1, -1)
+    }
+    val version = try {
+        SQLiteDatabase.openDatabase(backupFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY).use { bdb ->
+            readUserVersion(bdb)
+        }
+    } catch (e: Exception) {
+        Log.e(TAG, "备份文件版本读取失败: ${backupFile.absolutePath}", e)
+        -1
+    }
+    return BackupValidation(ok, rowCount, version)
+}
+
+/** 读取当前数据库版本号与 game_data 行数（读取失败返回 -1） */
+@Suppress("TooGenericExceptionCaught")
+private fun readCurrentDbInfo(dbFile: File): CurrentDbInfo {
+    val rowCount = try {
+        SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY).use { cdb ->
+            readGameDataRowCount(cdb)
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "当前数据库无法打开，将直接使用备份覆盖", e)
+        -1
+    }
+    val version = try {
+        SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READONLY).use { cdb ->
+            readUserVersion(cdb)
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "当前数据库版本读取失败", e)
+        -1
+    }
+    return CurrentDbInfo(rowCount, version)
+}
+
+/** 用备份文件覆盖当前数据库（tmp 写入 + fsync + rename 原子替换） */
+private fun performFileRestore(dbFile: File, backupFile: File) {
+    backupFile.inputStream().use { input ->
+        // 先写入 .tmp 防止覆盖过程中崩溃损坏原文件
+        val tmpFile = File(dbFile.absolutePath + ".restore_tmp")
+        tmpFile.outputStream().use { output -> input.copyTo(output) }
+        // fsync 确保写完
+        FileOutputStream(tmpFile, true).use { fos -> fos.fd.sync() }
+        // 覆盖原文件
+        tmpFile.renameTo(dbFile)
+    }
+}

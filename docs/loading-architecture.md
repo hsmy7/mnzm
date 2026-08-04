@@ -23,7 +23,11 @@
                          （20 条规则：引用完整性/幽灵清理/负数截断等，自动修复）
 第 6 步  分配门重建      DiscipleAssignmentGate.rebuildFromGameData（11 槽位注册表）
 第 7 步  游戏循环启动    startGameLoop（GameEngineCore）
-第 8 步  地图生成        SectMapTileGenerator（withContext(Dispatchers.Default) 单任务）
+第 8 步  地图生成        SectMapTileGenerator（withContext(Dispatchers.Default) 单任务，
+                          2026-08-04 起失败即硬失败：停止循环 + 复位生命周期 +
+                          提示"地图数据生成失败，请重新进入"，不再静默半成功
+                          导致卡加载界面；recoverWithPartialData 恢复路径同样
+                          先产出地图数据（onMapReady 回调）再进入游戏）
 ```
 
 ### 并行点（实际存在的并发）

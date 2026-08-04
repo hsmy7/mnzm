@@ -159,6 +159,7 @@ class BootSequenceControllerTest {
 
         var onSuccessCalled = false
         var onErrorCalled = false
+        var capturedMap: MapPreloadData? = null
 
         // onPreloadResources 抛异常 → 触发 catch → recoverWithPartialData → 成功恢复
         val result = controller.boot(
@@ -167,12 +168,17 @@ class BootSequenceControllerTest {
             onSuccess = { onSuccessCalled = true },
             onError = { msg ->
                 onErrorCalled = true
-            }
+            },
+            onMapReady = { capturedMap = it }
         )
 
         assertTrue("boot should succeed via recovery", result.isSuccess)
         assertTrue("onSuccess callback should be called", onSuccessCalled)
         assertFalse("onError should not be called", onErrorCalled)
+
+        // 2026-08-04 修复断言：recover 路径必须调用 onMapReady——
+        // 否则 UI 侧 mapPreloadData 为 null → 永久 LoadingScreen
+        assertNotNull("recover 路径应调用 onMapReady", capturedMap)
 
         // 恢复应设置 bootPhase=BOOT_COMPLETE, runState=PLAYING
         assertEquals(
@@ -242,6 +248,42 @@ class BootSequenceControllerTest {
             assertEquals("tileSize should match GameConfig value", 32, data.tileSize)
             assertTrue("flatTileData should be non-empty", data.flatTileData.isNotEmpty())
         }
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // Test 6: 地图生成失败 → boot 硬失败（不再静默半成功）
+    // ──────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `boot - map generation failure - returns failure and does not call onSuccess`() = runTest {
+        stateStore.runState.value = RunState.IDLE
+        stateStore.bootPhase.value = BootPhase.UNINITIALIZED
+
+        // 2026-08-04 修复断言：地图生成失败必须硬失败（stopGameLoop + onError），
+        // 原实现静默推进到 BOOT_COMPLETE 但 onMapReady 未调用 → 永久 LoadingScreen
+        val failingFlow = mock<StateFlow<GameData>>()
+        whenever(failingFlow.value).thenThrow(RuntimeException("map seed unavailable"))
+        whenever(gameEngine.gameData).thenReturn(failingFlow)
+        // cleanupAfterBootFailure 会检查 isGameLoopRunning 决定是否停循环
+        whenever(gameEngineCore.isGameLoopRunning).thenReturn(true)
+
+        var onSuccessCalled = false
+        var onErrorCalled = false
+
+        val result = controller.boot(
+            slot = 1,
+            onSuccess = { onSuccessCalled = true },
+            onError = { onErrorCalled = true }
+        )
+
+        assertFalse("boot should fail when map generation fails", result.isSuccess)
+        assertFalse("onSuccess should NOT be called", onSuccessCalled)
+        assertTrue("onError should be called", onErrorCalled)
+
+        // 失败后清理：停循环 + 生命周期复位
+        verify(gameEngineCore).stopGameLoop()
+        assertEquals("runState 应复位为 IDLE", RunState.IDLE, stateStore.runState.value)
+        assertEquals("bootPhase 应复位为 UNINITIALIZED", BootPhase.UNINITIALIZED, stateStore.bootPhase.value)
     }
 }
 

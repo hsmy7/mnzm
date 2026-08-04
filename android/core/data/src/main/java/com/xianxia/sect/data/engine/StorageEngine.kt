@@ -18,6 +18,7 @@ import com.xianxia.sect.data.incremental.ChangeLogOperation
 import com.xianxia.sect.data.local.GameHeavyDataDao
 import com.xianxia.sect.data.local.ProtobufConverters
 import com.xianxia.sect.data.local.SaveSlotMetadata
+import com.xianxia.sect.data.migration.SaveDataVersionMigrator
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.data.result.StorageError
@@ -362,14 +363,16 @@ class StorageEngine @Inject constructor(
         slot: Int
     ): StorageResult<SaveData>? {
         _progress.value = EngineProgress(EngineProgress.Stage.VALIDATING, 0.5f, "尝试从备份恢复...")
-        val readResult = saveFileManager.readWithFallback(slot)
-        if (readResult.status != com.xianxia.sect.data.backup.BackupStatus.SUCCESS &&
-            readResult.status != com.xianxia.sect.data.backup.BackupStatus.RECOVERED
-        ) {
-            Log.w(TAG, "备份文件不存在或损坏 slot=$slot")
-            return null
-        }
         try {
+            // readWithFallback 必须在 try 内：SaveFileManager 未初始化时抛
+            // IllegalStateException，未初始化应降级为"无数据"而非上抛成 LOAD_FAILED
+            val readResult = saveFileManager.readWithFallback(slot)
+            if (readResult.status != com.xianxia.sect.data.backup.BackupStatus.SUCCESS &&
+                readResult.status != com.xianxia.sect.data.backup.BackupStatus.RECOVERED
+            ) {
+                Log.w(TAG, "备份文件不存在或损坏 slot=$slot")
+                return null
+            }
             var restoredData = serializationModule.deserializeSaveData(
                 readResult.payload ?: return StorageResult.failure(
                     StorageError.SLOT_CORRUPTED, "备份恢复失败：payload 为空 (slot=$slot)"
@@ -411,7 +414,7 @@ class StorageEngine @Inject constructor(
             _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (backup)")
             return StorageResult.success(restoredData)
         } catch (e: Exception) {
-            Log.e(TAG, "备份反序列化失败 slot=$slot", e)
+            Log.e(TAG, "备份读取/反序列化失败 slot=$slot", e)
             return null
         }
     }
@@ -992,7 +995,7 @@ class StorageEngine @Inject constructor(
             val merged = core.database.withTransaction { mergeHeavyData(gameData, slot) }
             val saveData = buildSaveDataFromDatabase(slot, merged)
             if (saveData != null) {
-                val migrated = migrateSaveDataIfNeeded(saveData)
+                val migrated = SaveDataVersionMigrator.migrate(saveData)
                 if (!validateSaveData(migrated)) {
                     Log.w(TAG, "Save data validation failed for slot $slot after heavy data merge")
                 }
@@ -1003,82 +1006,13 @@ class StorageEngine @Inject constructor(
 
         val saveData = buildSaveDataFromDatabase(slot, gameData)
         if (saveData != null) {
-            val migrated = migrateSaveDataIfNeeded(saveData)
+            val migrated = SaveDataVersionMigrator.migrate(saveData)
             if (!validateSaveData(migrated)) {
                 Log.w(TAG, "Save data validation failed for slot $slot: gameYear=${gameData.gameYear}, gameMonth=${gameData.gameMonth}, sectName='${gameData.sectName}'")
             }
             return migrated
         }
         return saveData
-    }
-
-    /**
-     * 顺序迁移旧版存档数据至当前版本。
-     *
-     * v0→1 (v4.0.13): 修炼基础值等比缩小为 1/10。
-     * v1→2: 将所有 sectRelations 的 acquainted 设为 true。
-     */
-    private fun migrateSaveDataIfNeeded(saveData: SaveData): SaveData {
-        val gd = saveData.gameData
-        if (gd.saveVersion >= 2) return saveData
-
-        var currentGd = gd
-        var currentDisciples = saveData.disciples
-
-        // ── Migration v0→1: cultivation scaling ──
-        if (currentGd.saveVersion < 1) {
-            val scaleFactor = 10.0
-            Log.i(
-                TAG,
-                "Migrating save data v0→1: scaling cultivation by 1/$scaleFactor (slot ${gd.slotId})"
-            )
-
-            currentGd = currentGd.copy(
-                sectCultivation = currentGd.sectCultivation / scaleFactor,
-                saveVersion = 1,
-                recruitList = currentGd.recruitList.map { d -> d.scaleCultivation(scaleFactor) },
-                aiSectDisciples = currentGd.aiSectDisciples.mapValues { (_, list) ->
-                    list.map { d -> d.scaleCultivation(scaleFactor) }
-                }
-            )
-            currentDisciples = currentDisciples.map { it.scaleCultivation(scaleFactor) }
-
-            Log.i(TAG, "Migration v0→1 complete: ${currentDisciples.size} disciples scaled")
-        }
-
-        // ── Migration v1→2: set all sectRelations to acquainted ──
-        if (currentGd.saveVersion < 2) {
-            Log.i(
-                TAG,
-                "Migrating save data v1→2: setting all sectRelations acquainted (slot ${gd.slotId})"
-            )
-
-            currentGd = currentGd.copy(
-                saveVersion = 2,
-                sectRelations = currentGd.sectRelations.map { it.copy(acquainted = true) }
-            )
-
-            Log.i(TAG, "Migration v1→2 complete: ${currentGd.sectRelations.size} relations updated")
-        }
-
-        return saveData.copy(
-            gameData = currentGd,
-            disciples = currentDisciples
-        )
-    }
-
-    /**
-     * 将弟子的修炼值和战力值同步缩放（向上取整，宁可多不可少）。
-     */
-    private fun Disciple.scaleCultivation(factor: Double): Disciple {
-        return this.copy(
-            cultivation = this.cultivation / factor,
-            combat = this.combat.copy(
-                totalCultivation = kotlin.math.ceil(
-                    this.combat.totalCultivation / factor
-                ).toLong()
-            )
-        )
     }
 
     /**

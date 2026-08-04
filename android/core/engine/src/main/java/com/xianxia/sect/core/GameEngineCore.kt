@@ -449,6 +449,16 @@ class GameEngineCore @Inject constructor(
                             // 暂停期间也刷新进度快照（flags 实时化）——
                             // 否则快照过期，看门狗无法判定秘境锁残留/用户暂停豁免
                             sampleProgressSnapshot()
+                            // 激活 60s 病理兜底（2026-08-04 修复）：原实现 continue 绕过
+                            // skipTickIfNeeded → checkAndResetStuckStates 从未执行。
+                            // isLoading 卡死时看门狗对其豁免且循环心跳持续跳动 →
+                            // 时间永久冻结、tick 驱动按钮全部无效且永不自愈。
+                            // checkAndResetStuckStates 为非挂起纯函数，仅复位
+                            // isSaving/isLoading 标志 + 取消加载 Job，不触碰 isPaused。
+                            checkAndResetStuckStates(
+                                isSaving = stateStore.isSaving.value,
+                                isLoading = stateStore.isLoading.value
+                            )
                             gameClock.consumeDeadTime()
                             delay(50)
                             accumulatorNs = 0L

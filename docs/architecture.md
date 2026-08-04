@@ -447,3 +447,22 @@ SaveValidator.validate(SaveData)
 - `core/ui` 5 处平台 Dialog：组件库基础设施（UnifiedGameDialog/StandardPromptDialog/SmallScreenDialog 本体），不能自我迁移
 - `clearPendingNotification`：`_pendingNotificationFlow` 仍有 GameOverlayHost UI 消费者，通知系统迁移完成前保留
 - `ui-layout-unification` 分支 4 个超限文件：分支已删除/合并，无合回风险（FileLengthRule 仍是通用门槛）
+
+## 待完成项（2026-08-04 存档恢复链路对抗性审查遗留）
+
+> 存档恢复链路根治（SaveFileManager 接线/迁移恢复谓词/云读档管线/isLoading 兜底）经 3 个对抗性审查代理审查，
+> **本次引入的 2 项回归（-wal 误删、云并发分歧）与 4 项高危缺口（槽位覆盖/降级崩溃/恢复死循环/OOM）已修复**；
+> 以下为**预存问题或设计权衡**，需人工决策后处理：
+
+| # | 待办 | 现状 | 说明 |
+|---|------|------|------|
+| T7 | SaveValidator 校验覆盖缺口 | ⏸️ 记录 | 云档可穿透校验进入游戏：battleLogs 悬空引用（无规则检查）、realm=0 弟子 + 巨大 cultivation（CultivationCapRule 对 realm≤0 返回 Double.MAX_VALUE 不截断）、负修炼值（只封上限）、超大实体列表（EntityCountBoundsRule 返回 Repaired 但数据原样未改——"伪修复"）、manualIds/talentIds 非空字符串悬空引用。修复：扩展规则（battleLogs 引用检查、realm≤0 截断、负值下限、实体列表真正截断、saveVersion 内容校验） |
+| T8 | 备份文件 CRC32/CRC32C 跨 API 不一致 | ⏸️ 记录 | SaveFileManager 按 `Build.VERSION.SDK_INT >= 34` 选 CRC32C/CRC32——API<34 设备写入的 .sav/.bak 换机迁移到 API≥34 设备后全部判为损坏。修复：写入时记录 CRC 算法标识或统一 CRC32 |
+| T9 | 备份超 100MB 跳过写入谎报成功 | ⏸️ 记录 | `atomicWrite` 超限返回 success（不阻断主保存）→ 监控记录 backupSuccess 但实际无备份文件。修复：返回专门状态（如 BACKUP_SKIPPED_OVERSIZE） |
+| T10 | 云档 saveVersion 无边界校验 | ⏸️ 记录 | `SaveDataVersionMigrator.migrate` 对 `saveVersion >= 2` 直接返回——Int.MAX 伪造版本绕过 v0→1 缩放；负值（-5）按 v0 迁移（数据为 v0 形态时正确，但已缩放数据被二次缩放）。修复：负数显式拒绝、内容校验（修炼值合理性） |
+| T11 | 修炼值 NaN/Infinity 穿透 | ⏸️ 记录 | 恶意云档 sectCultivation=NaN → NaN/10 传播，CultivationCapRule 对 NaN 比较为 false 不截断；Infinity → toLong() 饱和 Long.MAX。修复：迁移入口 isFinite() 校验 |
+| T12 | 60s 病理兜底 vs 友好超时竞态 | ⏸️ 记录 | `performLoadToSlot` 友好超时（60s，GC 偏移后更晚）与看门狗 60s 兜底竞态——storage 阶段 60-65s 时看门狗抢先取消 loadJob，取消路径不弹错误（静默失败）。触发需低端机+大档+慢闪存。修复：看门狗取消路径补错误反馈或调整阈值 |
+| T13 | boot 失败弹窗无"返回主菜单" | ⏸️ 记录 | 地图生成失败弹窗只有"确定"，关闭后主菜单路径永驻加载页（LoadingScreen 无按钮），唯一出口是系统返回键。修复：弹窗补"返回主菜单"按钮 |
+| T14 | saveGame 协程不注册 activeLoadJob | ⏸️ 记录 | `forceResetStuckStates` 只取消 loadJob——isSaving 卡住 60s 时标志被清但保存协程仍在后台写（UI 提前显示可操作）。SlotLockManager 串行化兜底，torn 风险低；慢保存（10 万弟子）可触发。修复：save 协程也注册或标志复位前等待 |
+| T15 | recoverWithPartialData 跳过完整性守卫 | ⏸️ 记录 | boot 在 Step 5 前异常时 recover 只查 sectName+disciples 非空即进游戏，跳过 ensureHeavyDataLoaded/ensureGameDataIntegrity/assignmentGate 重建——半初始化状态进入 PLAYING。修复：recover 前补守卫调用 |
+| T16 | restartGame 缺 isGameLoaded 守卫 | ⏸️ 记录 | boot 失败（runState=IDLE）后若 restartGame 入口可达，会用内存残留的新档数据覆写磁盘。当前入口仅在游戏内 UI（boot 失败时不可达），防御性补守卫成本低 |

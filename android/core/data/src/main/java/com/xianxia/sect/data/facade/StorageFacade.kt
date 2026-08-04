@@ -2,6 +2,7 @@ package com.xianxia.sect.data.facade
 
 import android.content.Context
 import android.util.Log
+import com.xianxia.sect.data.backup.SaveFileManager
 import com.xianxia.sect.data.concurrent.SlotLockManager
 import com.xianxia.sect.data.engine.StorageEngine
 import com.xianxia.sect.data.model.SaveData
@@ -120,7 +121,8 @@ fun <T> com.xianxia.sect.data.result.StorageResult<T>.toUnifiedResult(): SaveRes
 class StorageFacade @Inject constructor(
     @ApplicationContext private val context: Context,
     private val engine: StorageEngine,
-    private val lockManager: SlotLockManager
+    private val lockManager: SlotLockManager,
+    private val saveFileManager: SaveFileManager
 ) {
     companion object {
         private const val TAG = "StorageFacade"
@@ -153,6 +155,9 @@ class StorageFacade @Inject constructor(
             _progress.value = FacadeSaveProgress(FacadeSaveProgress.Stage.INITIALIZING, 0.1f, "Initializing storage")
 
             engine.startMaintenance()
+            // 接线 SaveFileManager 双缓冲备份（.sav/.bak）——此前从未初始化，
+            // 所有备份写入/恢复路径为死代码（2026-08-04 存档恢复链路修复）
+            saveFileManager.initialize(context.filesDir)
 
             // Database integrity check: verify the database can be read.
             // If Room schema validation fails (e.g., FK mismatch on orphaned sub-tables),
@@ -267,6 +272,7 @@ class StorageFacade @Inject constructor(
 
     suspend fun delete(slot: Int): SaveResult<Unit> {
         return try {
+            ensureInitialized()
             val result = engine.delete(slot)
             if (result.isSuccess) {
                 deleteCount.incrementAndGet()

@@ -174,6 +174,52 @@ class SaveFileManagerTest {
         assertEquals("无文件时返回 CORRUPTED", BackupStatus.CORRUPTED, result.status)
     }
 
+    @Test
+    fun `initialize is idempotent - repeated calls do not throw`() {
+        // 2026-08-04 接线修复：StorageFacade.initialize 可能重复调用
+        manager.initialize(tempFolder.root)
+
+        assertTrue("重复初始化后备份目录仍存在", File(tempFolder.root, "saves").exists())
+
+        // 重复初始化后文件操作仍正常（slot 须在 0..DEFAULT_MAX_SLOTS 内）
+        val slot = 5
+        writeValidSavFile(slot, "after-reinit".encodeToByteArray())
+        val result = manager.readWithFallback(slot)
+        assertEquals("重复初始化后文件操作正常", BackupStatus.SUCCESS, result.status)
+    }
+
+    @Test
+    fun `uninitialized manager throws IllegalStateException on file operations`() {
+        // 守卫语义保留：未初始化时文件操作必须显式失败（而非静默写错位置）
+        val uninitialized = SaveFileManager(
+            saveSerializer = SaveSerializer { data -> data.gameData.sectName.encodeToByteArray() }
+        )
+
+        assertThrows(IllegalStateException::class.java) { uninitialized.readWithFallback(1) }
+        assertThrows(IllegalStateException::class.java) { uninitialized.atomicWrite(1, mockSaveData()) }
+    }
+
+    private fun mockSaveData(): com.xianxia.sect.data.model.SaveData {
+        return com.xianxia.sect.data.model.SaveData(
+            version = "test",
+            gameData = com.xianxia.sect.core.model.GameData(sectName = "测试宗"),
+            disciples = emptyList(),
+            equipmentStacks = emptyList(),
+            equipmentInstances = emptyList(),
+            manualStacks = emptyList(),
+            manualInstances = emptyList(),
+            pills = emptyList(),
+            materials = emptyList(),
+            herbs = emptyList(),
+            seeds = emptyList(),
+            storageBags = emptyList(),
+            teams = emptyList(),
+            battleLogs = emptyList(),
+            alliances = emptyList(),
+            productionSlots = emptyList()
+        )
+    }
+
     // ============================================================
     // 辅助方法：直接构造合法备份文件
     // ============================================================

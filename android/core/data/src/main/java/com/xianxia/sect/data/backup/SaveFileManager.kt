@@ -69,9 +69,14 @@ class SaveFileManager @Inject constructor(
 
     /**
      * 初始化备份目录。必须在首次调用任何文件操作前调用。
-     * 由 StorageEngine/Facade 在启动时调用。
+     * 由 [StorageFacade.initialize] 在启动时调用（2026-08-04 接线修复——
+     * 此前无调用点，备份写入/恢复整体为死代码）。幂等：重复调用直接返回。
      */
     fun initialize(baseDir: File) {
+        if (::backupDir.isInitialized) {
+            Log.d(TAG, "SaveFileManager 已初始化，跳过重复初始化")
+            return
+        }
         backupDir = File(baseDir, StorageConstants.BACKUP_DIR_NAME)
         if (!backupDir.exists()) {
             backupDir.mkdirs()

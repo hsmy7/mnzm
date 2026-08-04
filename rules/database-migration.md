@@ -25,12 +25,19 @@
    - 将旧字段标记为 `@Ignore` → **需要 Migration 删除列**，或保留旧字段在 Entity 中
    - **从 Entity 移除字段（不管是否 @Ignore）→ 必须 Migration 处理旧列**
 
-4. **fallbackToDestructiveMigration**：
-   - 当前覆盖：ALL versions (1-19)，当迁移链断裂时 Room 重建数据库
+4. **版本号唯一来源**：`@Database(version = N)` 必须引用 `GameDatabaseConfig.DATABASE_VERSION` 常量（2026-08-04 起），禁止在 `backupDatabaseForMigration` 等位置硬编码版本号——历史教训：硬编码 38 与 v39 脱节导致 v38 用户升级 v39 不触发迁移前备份。升级数据库版本时同步递增此常量
+
+5. **fallbackToDestructiveMigration**：
+   - 当前实现：`fallbackToDestructiveMigrationFrom(1)`——v1 及更低版本毁灭重建；**v2+ 禁止毁灭回退**（迁移链断裂时崩溃而非删数据，由迁移前备份恢复兜底）
    - 此机制**仅作安全网**，不应依赖它处理日常变更
    - 每次 schema 变更仍需编写显式 Migration
 
-5. **测试路径**：确认从近3个大版本升级时，迁移能成功执行且数据完整
+6. **迁移崩溃自恢复（2026-08-04 起三层防御）**：
+   - **迁移前备份**：`GameDatabase.create()` 在 Room 构建前自动执行 `backupDatabaseForMigration`（WAL checkpoint 后文件复制为 `xianxia_sect.db.pre_migrate_backup`）
+   - **启动验证恢复**：`restoreFromBackupIfNeeded` 在 Room 构建前检查——当前库打不开 / 无数据 / **迁移待完成**（user_version 低于 `DATABASE_VERSION` 且备份同版本）时用备份覆盖恢复；恢复前先清理残留 `-wal/-shm`
+   - **迁移链完整性守卫**：`RoomMigrationTest` 的"full migration from v2 to v39"全链测试 + 迁移注册守卫——任何一步缺失即测试失败，防止跨版本升级崩溃复发
+
+7. **测试路径**：确认从近3个大版本升级时，迁移能成功执行且数据完整
 
 ## 反面案例（已发生多次）
 
