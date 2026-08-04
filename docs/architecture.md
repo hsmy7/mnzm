@@ -333,46 +333,6 @@ RunState（运行时状态 — 可循环回退）
 
 `discipleAggregates`（sample 200）+ `sectCombatPower`（sample 300）两条独立全量扫描链合并为单一 `DerivedAggregation` 派生链（sample 100 + 专用单线程调度器 + 指纹缓存）。语义保持：aggregates 覆盖全部弟子（含死亡），combatPower 仅累计存活。纯 UI 事务不触发重扫。
 
-### 待完成项（预存缺陷，2026-08-01 对抗性审查发现）
-
-| 待办 | 现状 | 说明 |
-|------|------|------|
-| GameViewModelTest 18 个失败 | ✅ 已修复 | **原诊断有误**：失败根因不是 mockkStatic/Kotlin 2.2 兼容（测试 XML 证据：18 个失败全为异步路径、21 个通过全为同步路径），而是 relaxed mock 上 `launchOnEngine` 返回 mock Job、lambda 永不执行。2026-08-01 修复：捕获 lambda 到 engineBlocks 列表 + 测试内显式执行 + IoDispatcher 注入 TestDispatcher + 建筑注册表/宗门等级 stub。39/39 通过 |
-| 全量测试必须 `--max-workers=1` 串行 | ✅ 已修复 | CI 全部 gradle 命令加 `--max-workers=1` + `-Pkotlin.incremental=false`；各模块显式 `maxParallelForks = 1`（共享静态状态跨类污染）。**2026-08-04 起本地同样强制串行**（用户确认并行会出错），所有测试命令必须带 `--max-workers=1` |
-| Mutable 列值对象共享（F4） | ✅ 已修复 | 13 张 Mutable 列改为 O(1) 浅共享（全库审计无原地修改）；`mutableValueGuardEnabled`（Debug/CI 开）unmodifiable 包装——未来原地修改立即抛异常。隔离测试 5 项覆盖 |
-| 半幽灵防御不一致（F3） | ✅ 已修复 | assembleAll/assembleAllIncremental/deepCopy 统一三表判据 `isCompleteId`（isAlive+names+realms）；空名防御保持 assembleAll 独有（有意差异，有注释）；`DiscipleTablesGhostDefenseTest` 固化 4 类幽灵行为与 `deepCopy().assembleAll()==assembleAll()` 不变量 |
-| CI 从未跑过 testReleaseUnitTest 全量 | ✅ 已就绪 | CI 全量测试为硬性门槛（`.github/workflows/ci.yml` L42 `testReleaseUnitTest`，已移除 `\|\| true`）+ 全部命令 `--max-workers=1`；`gradle.properties` 的 Windows 硬编码路径已移除（此前 ubuntu CI 守护进程启动即失败） |
-
-### 待完成项（2026-08-01 第二轮对抗性审查遗留，LOW 级）
-
-| 待办 | 现状 | 说明 |
-|------|------|------|
-| `_ids` 注释与实现不符 | ✅ 已修复 | 注释如实化：`mutableListOf` + 写点 `synchronized(_ids)` 互斥 + 读侧暴露可变引用约定；删除 CopyOnWriteArrayList/读写锁/`[idsLock]` 悬空引用 |
-| `MAX_CATCHUP_MS` 死常量 | ✅ 已修复 | 常量与 `coerceAtMost` 裁剪已删除（行为等价：无论裁剪与否 `MAX_PHASES_PER_TICK` 按速度缩放的上限必然截断）；追补上限统一由 `MAX_PHASES_PER_TICK` 承担 |
-| XianxiaApplication 后台执行器不 shutdown | ✅ 已修复 | 执行器提升为类字段，`onTerminate` 中幂等 shutdown（null 检查天然防重入） |
-| Bugly mapping 上传任务恒空 | ✅ 已修复 | 改读 `apiProperties`（与 BuildConfig 同源）；`BUGLY_APP_ID/KEY` 缺失时明确 `logger.warn` 并跳过上传，不再静默用空 ID 请求 |
-| 时序依赖测试抖动风险 | ✅ 已修复 | 新建共享 `TestPolling.awaitCondition` 轮询目标状态（5s 超时 + 20ms 间隔 + 失败带实际状态）；3 个测试文件 12 处固定等待全部替换 |
-| generateFootprintHeader 正则未锚定 | ✅ 已修复 | 行级锚定 `FOOTPRINT_BY_NAME_INDEX` 声明块（干扰行验证不被捕获）；新增 FOOTPRINT 条目数 == BUILDING_NAMES 条目数守卫，失配即抛 GradleException |
-| SaveDataReconcilerTest "缺字段"测试名不符 | ✅ 已修复 | 原测试重命名为"显式编码 false 触发重建"；新增真实缺失字段测试（TLV 剥离 field 55 构造旧二进制），缺失字段解码路径被真实覆盖 |
-| onCleared 异步窗口期 | ✅ 已收尾 | 风险保持"已接受"（boot 序列 `isGameLoaded` 兜底）；catch 空块补 `Log.w` + `CancellationException` 重新抛出 |
-| DeathEvent 无消费方 | ✅ 已确认安全 | `startListening` 空 collect 删除后，EventBus 自身 `startProcessing()` 是 Channel 唯一消费者（Channel 256 + trySend 丢弃不阻塞），背压无依赖 |
-
-### 待完成项（仓库容量溢出专项，2026-08-01 对抗性审查发现，已由"容量不足提示框 + 溢出转邮件"方案处理）
-
-| # | 待办 | 现状 | 说明 |
-|---|------|------|------|
-| P1 | 兑换码容量不足无提示，UI 显示"兑换成功"但物品未入账 | ✅ 已修复 | `RedeemResult` 加 `capacityInsufficient` 字段，失败时路由统一容量提示框 |
-| P2 | 宗门等级领取静默关闭对话框，无容量反馈 | ✅ 已修复 | `SectLevelClaimResult` 新增 `CapacityInsufficient` 分支，路由统一提示框 |
-| P3 | 引导任务奖励无 UI 提示 | ✅ 已修复 | `claimGuideReward` 返回 sealed `GuideClaimResult`，GameViewModel 路由提示 |
-| P4 | 天劫容量不足走全局"错误"标题 | ✅ 已修复 | 改走统一 `showCapacityWarning` 通道 |
-| P5 | 储物袋开启静默丢弃溢出物品（袋已消耗） | ✅ 已修复 | openStorageBag 迁移 addXxx，溢出自动转邮件 + 通知 |
-| P6 | 灵田自动收获静默丢弃（仅日志） | ✅ 已修复 | addHarvestedHerbsToState 迁移 addHerb，溢出自动转邮件 |
-| P7 | AutoBuyService 预检通过后仍可 Partial 静默丢弃 | ✅ 已修复 | addToWarehouse 迁移 addXxx，溢出自动转邮件 |
-| P8 | 商人购买灵石已扣物品丢失 | ✅ 已修复 | buyMerchantItem 迁移 addXxx；Partial 视为发放成功（溢出转邮件，灵石照扣） |
-| P9 | 多处战斗奖励无 withTrackingSource（来源为 unknown） | ✅ 已修复 | 妖兽战/洞穴战/妖兽侵袭/巡视塔/任务路径补 source 包裹 |
-| P10 | 洞府探索 grantManualReward 用 isSuccess 误判 Partial 为成功 | ✅ 已修复 | 改用穷尽 when（Partial 计溢出，统一机制接管） |
-| P11 | warehouseFullEvent 只带 Unit 无法区分拒绝/转邮件 | ✅ 已修复 | 类型升级为 `MutableSharedFlow<String>` 携带文案 |
-
 ### 待完成项（2026-08-02 综合优化对抗性审查遗留，预存问题/设计决策）
 
 本次综合优化（性能批量改造/状态管道重构/代码精简）经 3 个对抗性审查代理（边界狂魔/状态破坏者/数据篡改者）审查，**新增引入的 15 项问题已全部修复**（见提交说明）；以下为**预存问题或设计权衡**，需人工决策后处理：
@@ -382,10 +342,6 @@ RunState（运行时状态 — 可循环回退）
 | T1 | 混合 0/非 0 sequenceId 回填破坏单调递增 | ⏸️ 记录 | 旧档 `[0,0,5]` 回填为 `[6,7,5]`——靠前 0 序号条目拿到比靠后非零条目更大的序号。当前唯一消费者是 LazyColumn key（无排序依赖），无即时后果；任何未来按 sequenceId 排序/取"最新"的消费方会读错顺序。修复方案：回填时对非 0 序号也做整体重编号（一次性 O(N)） |
 | T2 | restart 与 load 无互斥 | ⏸️ 记录 | `restartGame` 不设 isLoading、不查 loadLock；`loadGame` 不查 `_isRestarting`/saveLock。重启期间读档可双 boot 竞态（`bootInProgress` CAS 使第二次失败 + loadFromSnapshot 覆写已重置的新世界）。修复需在两者之间加互斥标志（改动涉及 SaveLoadViewModel 全流程，预存设计缺口） |
 | T3 | 组装任务与 load 原地清表并发 | ⏸️ 记录 | 组装任务 T0 通过 gen 检查后与 load 的 `clear()+insert()` 并发遍历同一 `_discipleTables`（可能产出半截列表瞬时写回）；load 自身任务 T1（FIFO 后置）兜底最终一致。gen 检查为单点入口设计，中间窗口无法完全消除；观察窗口内 UI 闪旧/错数据（丢弟子外观、陈尸闪现） |
-| T4 | changedIdTracker MAX_SAFE_CAPACITY 守卫缺口 | ✅ 已修复 | crafted 存档含 id ≥ 10_000_000 的弟子 + 同事务其他弟子有修改时，大 id 弟子被 `record(id)` 静默拒绝但 changedIds 非空 → 走增量路径 → 快照保留其陈旧数据。注释声称"全量兜底"仅在 changedIds 完全为空时成立。修复：容量拒绝时强制整体退化全量组装 |
-| T5 | 双保存竞态（isSaving 标志跨协程覆写） | ✅ 部分修复 | `saveGame` 已加 isSaving 守卫（快速连点第二次被拒绝）；仍存在的窗口：首次保存进行中再次触发（守卫生效），修复后残余风险低 |
-| T6 | RedeemCodeManager 服务端 config 校验 | ✅ 已修复 | minAge>maxAge 崩溃、quantity 负数吞码、spiritRootCount≤0 空灵根——已加 coerce 兜底；服务端侧建议同步校验（防御纵深） |
-| P12 | 外交宗门交易扣款后 add 失败灵石已扣物品丢失 | ✅ 已修复 | 购买前容量预检拒绝购买 + Partial 溢出自动转邮件 |
 
 ---
 
@@ -539,21 +495,25 @@ SaveValidator.validate(SaveData)
 | T-C4 | 超长 buffs 列表性能 | ⏸️ 记录 | buildDamageZones 每次攻击多次 filter 遍历，buffs 篡改为十万级时游戏线程卡顿（存档篡改场景） |
 | T-C5 | 超长弟子名日志开销 | ⏸️ 记录 | 玩家输入弟子名无长度限制，MB 级名字只带来战报内存/日志开销（非本次引入） |
 
-## 待完成项（2026-08-04 存档恢复链路对抗性审查遗留）
+## 待完成项（2026-08-05 存档链路对抗性审查发现，预存问题）
 
-> 存档恢复链路根治（SaveFileManager 接线/迁移恢复谓词/云读档管线/isLoading 兜底）经 3 个对抗性审查代理审查，
-> **本次引入的 2 项回归（-wal 误删、云并发分歧）与 4 项高危缺口（槽位覆盖/降级崩溃/恢复死循环/OOM）已修复**；
-> 以下为**预存问题或设计权衡**，需人工决策后处理（T7~T16 已于 2026-08-05 全量修复，详见 CHANGELOG.md 4.00.87 条目）：
+> 存档链路修复（T7~T16 + T4）经 3 个对抗性审查代理（边界狂魔/状态破坏者/数据篡改者）审查，
+> **本次引入的 6 项缺陷已全部修复**（见 CHANGELOG.md 4.00.87 对抗性审查整改小节）；
+> 以下为**预存问题或既有设计权衡**，按优先级排序，需人工决策后处理：
 
-| # | 待办 | 现状 | 说明 |
-|---|------|------|------|
-| T7 | SaveValidator 校验覆盖缺口 | ✅ 已修复 | 云档可穿透校验进入游戏：battleLogs 悬空引用（无规则检查）、realm=0 弟子 + 巨大 cultivation（CultivationCapRule 对 realm≤0 返回 Double.MAX_VALUE 不截断）、负修炼值（只封上限）、超大实体列表（EntityCountBoundsRule 返回 Repaired 但数据原样未改——"伪修复"）、manualIds/talentIds 非空字符串悬空引用。修复：扩展规则（battleLogs 引用检查、realm≤0 截断、负值下限、实体列表真正截断、saveVersion 内容校验） |
-| T8 | 备份文件 CRC32/CRC32C 跨 API 不一致 | ✅ 已修复 | SaveFileManager 按 `Build.VERSION.SDK_INT >= 34` 选 CRC32C/CRC32——API<34 设备写入的 .sav/.bak 换机迁移到 API≥34 设备后全部判为损坏。修复：写入时记录 CRC 算法标识或统一 CRC32 |
-| T9 | 备份超 100MB 跳过写入谎报成功 | ✅ 已修复 | `atomicWrite` 超限返回 success（不阻断主保存）→ 监控记录 backupSuccess 但实际无备份文件。修复：返回专门状态（如 BACKUP_SKIPPED_OVERSIZE） |
-| T10 | 云档 saveVersion 无边界校验 | ✅ 已修复 | `SaveDataVersionMigrator.migrate` 对 `saveVersion >= 2` 直接返回——Int.MAX 伪造版本绕过 v0→1 缩放；负值（-5）按 v0 迁移（数据为 v0 形态时正确，但已缩放数据被二次缩放）。修复：负数显式拒绝、内容校验（修炼值合理性） |
-| T11 | 修炼值 NaN/Infinity 穿透 | ✅ 已修复 | 恶意云档 sectCultivation=NaN → NaN/10 传播，CultivationCapRule 对 NaN 比较为 false 不截断；Infinity → toLong() 饱和 Long.MAX。修复：迁移入口 isFinite() 校验 |
-| T12 | 60s 病理兜底 vs 友好超时竞态 | ✅ 已修复 | `performLoadToSlot` 友好超时（60s，GC 偏移后更晚）与看门狗 60s 兜底竞态——storage 阶段 60-65s 时看门狗抢先取消 loadJob，取消路径不弹错误（静默失败）。触发需低端机+大档+慢闪存。修复：看门狗取消路径补错误反馈或调整阈值 |
-| T13 | boot 失败弹窗无"返回主菜单" | ✅ 已修复 | 地图生成失败弹窗只有"确定"，关闭后主菜单路径永驻加载页（LoadingScreen 无按钮），唯一出口是系统返回键。修复：弹窗补"返回主菜单"按钮 |
-| T14 | saveGame 协程不注册 activeLoadJob | ✅ 已修复 | `forceResetStuckStates` 只取消 loadJob——isSaving 卡住 60s 时标志被清但保存协程仍在后台写（UI 提前显示可操作）。SlotLockManager 串行化兜底，torn 风险低；慢保存（10 万弟子）可触发。修复：save 协程也注册或标志复位前等待 |
-| T15 | recoverWithPartialData 跳过完整性守卫 | ✅ 已修复 | boot 在 Step 5 前异常时 recover 只查 sectName+disciples 非空即进游戏，跳过 ensureHeavyDataLoaded/ensureGameDataIntegrity/assignmentGate 重建——半初始化状态进入 PLAYING。修复：recover 前补守卫调用 |
-| T16 | restartGame 缺 isGameLoaded 守卫 | ✅ 已修复 | boot 失败（runState=IDLE）后若 restartGame 入口可达，会用内存残留的新档数据覆写磁盘。当前入口仅在游戏内 UI（boot 失败时不可达），防御性补守卫成本低 |
+| # | 严重度 | 待办 | 现状 | 说明 |
+|---|--------|------|------|------|
+| C1 | 严重 | 主菜单云读档自阻塞 | ⏸️ 记录 | `loadFromCloudSave` 持有 `cloudDownloadLock` 期间 Success 分支调 `loadGame`（SaveLoadViewModel L766→L1477→L718），被 loadGame 第一道守卫 `cloudDownloadLock.get()`（L532）拒绝——云档已写本地但内存加载永不执行，功能必失败。修复：`handleCloudLoadSuccess` 调 `loadGameFromSlot` 前释放锁或 loadGame 对该路径豁免 |
+| C2 | 中等 | loadGameFromSlot(0) 自阻塞 | ⏸️ 记录 | `loadGameFromSlot(0)`（L691）先 `setSaveLoadState(isLoading=true)`（同步生效）再调 `downloadFromCloudSave`（L1339 isLoading 守卫恒 true 拒绝）——SettingsTab 云槽位读取必失败（CloudSaveDialog 直调不受影响故日常路径掩盖）。修复：下载前置 isLoading 或复用 CloudSaveDialog 路径 |
+| C3 | 中等 | crafted 大 id 弟子 OOM 崩溃 | ⏸️ 记录 | `id=9,999,999`（恰低于 MAX_SAFE_CAPACITY=10M）单弟子触发 ~60 张平铺表扩容至 1000 万容量（≈10GB+）→ OutOfMemoryError（Error 非 Exception，`loadFromSnapshot` catch 接不住）→ 进程崩溃且重试即崩溃循环。修复：MAX_SAFE_CAPACITY 降至 ~100 万或 OOM 纳入 load 失败处理 |
+| C4 | 中等 | 操作 finally 无主清理（restart 窗口误杀） | ⏸️ 记录 | `registerActiveLoadJob` 无条件 cancel 旧 job（原子性已修，见整改 6）：restart 的 `stopGameLoopAndWait` 窗口内（saveLock 已持有、isSaving 未置）点保存 → saveGame 通过守卫注册 → 取消 restart 协程；被取消操作 finally 无条件 `clearActiveLoadJob`+清标志会抹掉在途操作状态（S12 torn 回归风险）。修复：finally 只在 `activeLoadJob === 自己` 时清理 |
+| C5 | 轻微 | saveGame 双 tap 异步窗口 | ⏸️ 记录 | isSaving 由协程内异步设置，两次快速 tap 在协程启动前均可通过守卫 → job2 注册取消 job1（磁盘已写但 currentSlot 回滚不一致 + 双提示）。危害有限（atomicWrite+Room 事务保证不 torn） |
+| C6 | 轻微 | 备份修复失败不反馈 | ⏸️ 记录 | `readWithFallback` 中 `bakFile.copyTo(savFile)` 失败仅 Log.w 仍返回 RECOVERED——.sav 保持损坏反复回退，调用方无法感知。修复：修复失败反映到结果状态 |
+| C7 | 轻微 | 文件格式版本不校验 | ⏸️ 记录 | `readAndVerify` 只判 `formatVersion >= 0x0101`，0xFFFF/任意未来版本按当前格式解析（当前无实际危害，格式演进后旧 App 静默误解析新文件）。修复：非 0x0100/0x0101 判损坏 |
+| C8 | 轻微 | ensureRegistered 与注册表全局状态耦合 | ⏸️ 记录 | `SaveValidator.registered` 首次 validate 后恒 true，`SaveValidationRuleRegistry.clear()`（测试 @After 常用）不重置——instrumented 场景 clear 后 validate 以空规则运行全部 Passed（生产路径不受影响）。修复：`size == 0` 时重新注册 |
+| C9 | 轻微 | AI 宗门弟子修炼值量级不封顶 | ⏸️ 记录 | `NumericSanitizeRule` 对 aiSectDisciples 只做 NaN/负值消毒不封顶，1e308 有限值通过（AI 战力走 base stats 不受影响，后续计算路径引用会放大） |
+| C10 | 轻微 | 堆叠截断后储物袋悬空引用 | ⏸️ 记录 | `EntityCountBoundsRule` 截断装备/功法堆叠后 `storageBagItems` 中的 itemId 未清理（只清 4 槽位 + manualIds）；`fixStorageBagReferences` 在 buildSaveDataFromDatabase 时基于未截断堆叠先跑。UI 查无此堆叠时空显示 |
+| C11 | 轻微 | delete-then-rename 崩溃窗口 | ⏸️ 记录 | `atomicWrite` 中 `savFile.delete()` 与 `renameTo` 之间进程崩溃 → .sav 缺失走 .bak（损失仅最新一次保存，有备份兜底） |
+| C12 | 轻微 | ensureHeavyDataLoaded 空操作标记 | ⏸️ 记录 | 实现为 `if (heavyDataLoaded) return; heavyDataLoaded = true`——从不加载/检查数据，recoverWithPartialData 中该"守卫"是装饰性的（真实保护由不短路的 ensureGameDataIntegrity 承担）。若未来把真实加载逻辑放进此函数并依赖短路即成漏洞。修复：短路前置 `worldMapSects.isNotEmpty()` 校验或删除空调用 |
+| C13 | 轻微 | BattleLogRefRule 次要字段未校验 | ⏸️ 记录 | 未校验 `beastsDefeated` 负数等次要字段（当前仅 year/month/turns/teamCasualties/空条目） |
+
