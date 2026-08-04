@@ -267,6 +267,11 @@ class StorageEngine @Inject constructor(
                 if (rr.status == com.xianxia.sect.data.backup.BackupStatus.SUCCESS ||
                     rr.status == com.xianxia.sect.data.backup.BackupStatus.RECOVERED) {
                     Log.w(TAG, "从备份恢复数据成功 slot=$slot")
+                    // C6 感知（2026-08-05）：.sav 修复失败——.sav 保持损坏持续回退，
+                    // 数据可用（payload 有效），下次成功保存自愈，此处如实记录
+                    if (rr.repairFailed) {
+                        Log.e(TAG, "slot=$slot 的 .sav 修复失败（copyTo 失败），将持续回退 .bak 直至下次成功保存")
+                    }
                 }
             } catch (e2: Exception) {
                 Log.e(TAG, "备份恢复也失败 slot=$slot", e2)
@@ -306,6 +311,13 @@ class StorageEngine @Inject constructor(
                 Log.e(TAG, "Load failed for slot $slot", e)
                 _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
                 StorageResult.failure(StorageError.LOAD_FAILED, e.message ?: "Load failed", e)
+            } catch (e: OutOfMemoryError) {
+                // C3-c（2026-08-05）：OOM 是 Error 非 Exception，原 catch 接不住——
+                // crafted 大 id 弟子扩容平铺表直接崩溃且重试即崩溃循环。
+                // 不尝试 restoreFromBackup：备份与主档同源同尺寸，恢复必然再 OOM（OOM 循环）
+                Log.e(TAG, "Load OOM for slot $slot（跳过备份恢复——备份同尺寸必再 OOM）", e)
+                _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, "内存不足，读档失败")
+                StorageResult.failure(StorageError.LOAD_FAILED, "内存不足，读档失败", e)
             }
         }
     }
@@ -387,6 +399,10 @@ class StorageEngine @Inject constructor(
                 )
             )
             Log.w(TAG, "备份恢复成功 (slot=$slot) 来源=${readResult.source}")
+            // C6 感知（2026-08-05）：.sav 修复失败如实记录（数据有效，继续恢复流程）
+            if (readResult.repairFailed) {
+                Log.e(TAG, "slot=$slot 的 .sav 修复失败（copyTo 失败），将持续回退 .bak 直至下次成功保存")
+            }
 
             // ★ 备份恢复后二次验证：防止备份本身存在数据问题
             val reValidation = CorruptedResultHandler.validateRestoredData(slot, restoredData)

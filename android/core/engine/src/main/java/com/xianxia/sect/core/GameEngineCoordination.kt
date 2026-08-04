@@ -76,10 +76,18 @@ suspend fun GameEngine.initializeNewGameSuspend(gameData: GameData) {
 
 suspend fun GameEngine.ensureHeavyDataLoaded() {
     if (heavyDataLoaded) return
-    val slot = stateStore.gameDataSnapshot.currentSlot
-    heavyDataLoaded = true
-    val currentSects = stateStore.gameDataSnapshot.worldMapSects
-    DomainLog.d("GameEngine", "ensureHeavyDataLoaded: 完成 slot=$slot worldMapSects=${currentSects.size}")
+    val snapshot = stateStore.gameDataSnapshot
+    if (snapshot.worldMapSects.isNotEmpty()) {
+        heavyDataLoaded = true
+        DomainLog.d(
+            "GameEngine",
+            "ensureHeavyDataLoaded: 完成 slot=${snapshot.currentSlot} worldMapSects=${snapshot.worldMapSects.size}"
+        )
+    } else {
+        // C12 修复（2026-08-05）：数据缺失时不标记完成——原实现为空操作守卫，
+        // 从不检查数据；空时保持 false，后续调用重试，由相邻 ensureGameDataIntegrity 重生
+        DomainLog.w("GameEngine", "ensureHeavyDataLoaded: worldMapSects 为空，不标记完成（由 ensureGameDataIntegrity 重生）")
+    }
 }
 
 // ════════════════════════════════════════════════════════════════════════

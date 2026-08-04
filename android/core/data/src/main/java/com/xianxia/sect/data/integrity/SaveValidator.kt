@@ -44,9 +44,6 @@ sealed interface IntegrityResult {
  */
 object SaveValidator {
 
-    @Volatile
-    private var registered = false
-
     private val lock = Any()
 
     /**
@@ -101,15 +98,15 @@ object SaveValidator {
 
     /**
      * 确保默认规则已注册。
-     * 在首次调用 [validate] 时惰性初始化。
+     * C8 修复：以注册表实际规模为唯一依据（原 `registered` 标志首次置位后恒 true，
+     * 测试 `SaveValidationRuleRegistry.clear()` 后 validate 会以空规则运行全部 Passed）。
      * 测试可以通过 [SaveValidationRuleRegistry.clear] + [SaveValidationRuleRegistry.register] 覆盖。
      */
     private fun ensureRegistered() {
-        if (!registered) {
+        if (SaveValidationRuleRegistry.size == 0) {
             synchronized(lock) {
-                if (!registered) {
+                if (SaveValidationRuleRegistry.size == 0) {
                     SaveValidationRuleRegistry.registerDefaults()
-                    registered = true
                     Log.d(TAG, "规则引擎已初始化: ${SaveValidationRuleRegistry.size} 条规则")
                 }
             }

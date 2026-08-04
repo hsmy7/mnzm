@@ -237,6 +237,25 @@ class SaveLoadViewModel @Inject constructor(
         gameEngine.launchOnEngine { setSaveLoadState(isSaving = false, isLoading = false, pendingSlot = null, pendingAction = null) }
     }
 
+    /**
+     * C4（2026-08-05）：finally 归属化复位——clearActiveLoadJob 归属判定与标志复位原子化。
+     * 被新操作取代的协程（owned=false）不复位标志、不清理注册，避免旧协程 finally
+     * 抹掉新操作的在途状态；S1 语义保留（NonCancellable 保证取消路径复位）。
+     */
+    private suspend fun resetOwnedLoadState(job: Job, operation: String) {
+        val owned = gameEngineCore.clearActiveLoadJob(job)
+        if (!owned) return
+        try {
+            withContext(NonCancellable) {
+                gameEngine.setSaveLoadFlags(false, false)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "$operation: Failed to reset save/load state in finally block", e)
+            _pendingSlot.value = null
+            _pendingAction.value = null
+        }
+    }
+
     fun resetSaveLoadState() {
         gameEngine.launchOnEngine {
             // Q-1：收敛到引擎原子入口（单事务设置两标志）
@@ -358,17 +377,21 @@ class SaveLoadViewModel @Inject constructor(
         Log.i(TAG, "=== startNewGame BEGIN === sectName=$sectName, slot=$slot")
         val startTime = System.currentTimeMillis()
 
-        viewModelScope.launch(ioDispatcher.dispatcher) {
+        // C4（2026-08-05）：lateinit 捕获 job 传入 perform*——finally 归属清理需要身份；
+        // 协程体运行前 lateinit 已赋值（launch 的协程体在注册之后才开始执行），安全
+        lateinit var job: Job
+        job = viewModelScope.launch(ioDispatcher.dispatcher) {
             // C-8：新游戏主流程提取（行为逐行一致）
-            performStartNewGame(sectName, slot, startTime)
-        }.also { gameEngineCore.registerActiveLoadJob(it) }
+            performStartNewGame(sectName, slot, startTime, job)
+        }
+        gameEngineCore.registerActiveLoadJob(job)
     }
 
     /**
      * C-8：新游戏主流程（startNewGame 协程体提取）。
      * 创建新游戏 → RNG 播种 → 首存（失败重试一次）→ BootSequenceController 启动。
      */
-    private suspend fun performStartNewGame(sectName: String, slot: Int, startTime: Long) {
+    private suspend fun performStartNewGame(sectName: String, slot: Int, startTime: Long, job: Job) {
             var needSlotRefresh = false
             var gameStarted = false
             try {
@@ -441,16 +464,8 @@ class SaveLoadViewModel @Inject constructor(
                 showError(e.message ?: "开始新游戏失败")
             } finally {
                 // S1 修复：NonCancellable 保证取消路径复位（详见 performLoadToSlot finally 注释）
-                try {
-                    withContext(NonCancellable) {
-                        gameEngine.setSaveLoadFlags(false, false)
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "startNewGame: Failed to reset loading state in finally block", e)
-                    _pendingSlot.value = null
-                    _pendingAction.value = null
-                }
-                gameEngineCore.clearActiveLoadJob()
+                // C4（2026-08-05）：归属化复位（被取代的协程不复位标志/不清理）
+                resetOwnedLoadState(job, "startNewGame")
                 if (!gameStarted) {
                     _loadingProgress.value = PROGRESS_START
                 }
@@ -525,13 +540,28 @@ class SaveLoadViewModel @Inject constructor(
         }
     }
 
-    fun loadGame(saveSlot: SaveSlot) {
+    fun loadGame(saveSlot: SaveSlot) = loadGameInternal(saveSlot, fromCloudLoad = false)
+
+    /**
+     * C1 修复（2026-08-05）：读档内部入口——[fromCloudLoad]=true 时仅绕过
+     * `cloudDownloadLock` 守卫（云读档路径已持有该锁，云档已落盘后加载内存；
+     * 其余守卫照常，绕过入口仅内部可达）。
+     */
+    @Suppress("ReturnCount") // 读档多守卫（云锁/重启/加载/保存/loadLock/内存），多 return 为守卫风格
+    private fun loadGameInternal(saveSlot: SaveSlot, fromCloudLoad: Boolean) {
         // 2026-08-04 对抗性审查修复（B3）：云存档操作进行中禁止本地读档——
         // 原实现不查 cloudDownloadLock，云读档下载期间点本地档会与云下载
         // 并发写 DB/内存，导致"内存=本地档、DB=云档"静默分歧
-        if (cloudDownloadLock.get()) {
+        if (!fromCloudLoad && cloudDownloadLock.get()) {
             Log.w(TAG, "Cloud save operation in progress, ignoring loadGame request")
             showError("云存档操作进行中，请稍后读档")
+            return
+        }
+        // C4 配套（2026-08-05）：restart 的 stopGameLoopAndWait 窗口内读档被立即拒绝——
+        // 否则读档注册会取消 restart 协程（游戏循环停在已停止状态）
+        if (_isRestarting.value) {
+            Log.w(TAG, "Restarting, ignoring loadGame request")
+            showError("游戏重置中，请稍后读档")
             return
         }
         if (stateStore.isLoading.value) {
@@ -559,17 +589,20 @@ class SaveLoadViewModel @Inject constructor(
             "year=${saveSlot.gameYear}, month=${saveSlot.gameMonth}")
         val startTime = System.currentTimeMillis()
 
-        viewModelScope.launch(ioDispatcher.dispatcher) {
+        // C4（2026-08-05）：lateinit 捕获 job 传入 perform*（归属清理需要身份）
+        lateinit var job: Job
+        job = viewModelScope.launch(ioDispatcher.dispatcher) {
             // C-8：读档主流程提取（行为逐行一致）
-            performLoadToSlot(saveSlot, startTime)
-        }.also { gameEngineCore.registerActiveLoadJob(it) }
+            performLoadToSlot(saveSlot, startTime, job)
+        }
+        gameEngineCore.registerActiveLoadJob(job)
     }
 
     /**
      * C-8：读档主流程（loadGame 协程体提取）。
      * 读取存档 → 引擎加载 → RNG 恢复 → BootSequenceController 启动。
      */
-    private suspend fun performLoadToSlot(saveSlot: SaveSlot, startTime: Long) {
+    private suspend fun performLoadToSlot(saveSlot: SaveSlot, startTime: Long, job: Job) {
             try {
                 setSaveLoadState(isLoading = true, pendingSlot = saveSlot.slot, pendingAction = "load")
 
@@ -668,36 +701,37 @@ class SaveLoadViewModel @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "=== loadGame FAILED === error=${e.message}", e)
                 showError("加载游戏失败: ${e.message}")
+            } catch (e: OutOfMemoryError) {
+                // C3-c（2026-08-05）：OOM 是 Error 非 Exception——crafted 大 id 弟子
+                // 扩容平铺表直接崩溃。统一走用户可感知的失败提示，finally 复位不受影响
+                Log.e(TAG, "=== loadGame FAILED === OutOfMemoryError: ${e.message}", e)
+                showError("内存不足，读档失败。请关闭其他应用后重试。")
             } finally {
                 // S1 修复：finally 复位必须用 NonCancellable——setSaveLoadFlags 是挂起函数，
                 // 看门狗取消协程后挂起调用立即抛 CancellationException 截断 finally，
                 // 导致 loadLock 泄漏（读档永久拒绝）与 isSaving/isLoading 永不复位。
-                try {
-                    withContext(NonCancellable) {
-                        gameEngine.setSaveLoadFlags(false, false)
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "loadGame: Failed to reset loading state in finally block", e)
-                    _pendingSlot.value = null
-                    _pendingAction.value = null
-                }
+                // C4（2026-08-05）：归属化复位（被取代的协程不复位标志）；loadLock 为操作私有无条件释放
+                resetOwnedLoadState(job, "loadGame")
                 loadLock.set(false)
-                gameEngineCore.clearActiveLoadJob()
             }
     }
 
-    fun loadGameFromSlot(slot: Int) {
+    fun loadGameFromSlot(slot: Int, fromCloudLoad: Boolean = false) {
         // slot 0 = 从云端下载（带 saveLoadState 管理 + 结果反馈）
         if (slot == 0) {
             viewModelScope.launch(ioDispatcher.dispatcher) {
                 resetCloudSaveOperationState()
-                setSaveLoadState(isLoading = true, pendingSlot = 0, pendingAction = "load")
                 try {
                     downloadFromCloudSave()
                     // 等待云端操作完成（Downloading → Success/Error）
                     _cloudSaveOperationState.first {
                         it is CloudSaveOperationState.Success || it is CloudSaveOperationState.Error
                     }
+                    // C2 修复（2026-08-05）：isLoading 占位移到下载完成之后——
+                    // 原实现在下载前置位，被 downloadFromCloudSave 自身的 isLoading 守卫
+                    // （L1339）恒真拒绝，SettingsTab 云槽位读取必失败。
+                    // 下载期互斥由 cloudDownloadLock 承担（loadGame/saveGame 入口均查）
+                    setSaveLoadState(isLoading = true, pendingSlot = 0, pendingAction = "load")
                     when (val state = _cloudSaveOperationState.value) {
                         is CloudSaveOperationState.Success -> showSuccess(state.message)
                         is CloudSaveOperationState.Error -> showError(state.message)
@@ -715,7 +749,7 @@ class SaveLoadViewModel @Inject constructor(
         // 从已缓存的存档元数据中查找 SaveSlot，兜底构造最小 SaveSlot
         val saveSlot = _saveSlots.value.find { it.slot == slot }
             ?: SaveSlot(slot, "", 0L, 1, 1, "", 0, 0L)
-        loadGame(saveSlot)
+        loadGameInternal(saveSlot, fromCloudLoad)
     }
 
     /**
@@ -815,6 +849,14 @@ class SaveLoadViewModel @Inject constructor(
             return
         }
 
+        // C4 配套（2026-08-05）：restart 的 stopGameLoopAndWait 窗口内保存被立即拒绝——
+        // 否则保存注册会取消 restart 协程（isSaving 未置时守卫通过，restart 被杀）
+        if (_isRestarting.value) {
+            Log.w(TAG, "Restarting, ignoring saveGame request")
+            showError("游戏重置中，请稍后保存")
+            return
+        }
+
         // S12 修复（对抗性审查）：isSaving 守卫——原无此检查，快速连点两次保存时
         // 后一次会覆写前一次的 isSaving 标志（保存 B 期间 tick 恢复 → torn 存档）
         if (stateStore.isSaving.value) {
@@ -835,21 +877,31 @@ class SaveLoadViewModel @Inject constructor(
             return
         }
 
+        // C5 修复（2026-08-05）：isSaving 同步占位——关闭双 tap 窗口
+        // （原实现 L820 检查通过后到协程内异步置位之间存在窗口，第二发可穿过守卫
+        // 注册取消第一发）；协程内 setSaveLoadState(isSaving=true) 为幂等重设
+        stateStore.setSavingDirect(true)
+        _pendingSlot.value = slot
+        _pendingAction.value = "save"
+
         Log.i(TAG, "=== saveGame BEGIN === slot=$slot, slotId=$slotId")
         val startTime = System.currentTimeMillis()
 
-        viewModelScope.launch(ioDispatcher.dispatcher) {
+        // C4（2026-08-05）：lateinit 捕获 job 传入 perform*（归属清理需要身份）
+        lateinit var job: Job
+        job = viewModelScope.launch(ioDispatcher.dispatcher) {
             // C-8：本地保存流程提取（行为逐行一致）
             val previousSlot = persistenceFacade.storageFacade.getCurrentSlot()
-            performLocalSaveToSlot(slot, previousSlot, startTime)
-        }.also { gameEngineCore.registerActiveLoadJob(it) } // T14（2026-08-05）：保存协程注册，看门狗可取消复位
+            performLocalSaveToSlot(slot, previousSlot, startTime, job)
+        }
+        gameEngineCore.registerActiveLoadJob(job) // T14（2026-08-05）：保存协程注册，看门狗可取消复位
     }
 
     /**
      * C-8：本地保存主流程（saveGame 协程体提取）。
      * 快照 → 校验 → 保存 → 结果反馈 → 失败回滚 currentSlot。
      */
-    private suspend fun performLocalSaveToSlot(slot: Int, previousSlot: Int, startTime: Long) {
+    private suspend fun performLocalSaveToSlot(slot: Int, previousSlot: Int, startTime: Long, job: Job) {
             setSaveLoadState(isSaving = true, pendingSlot = slot, pendingAction = "save")
 
             try {
@@ -923,17 +975,8 @@ class SaveLoadViewModel @Inject constructor(
                 }
             } finally {
                 // S1 修复：NonCancellable 保证取消路径复位（详见 performLoadToSlot finally 注释）
-                try {
-                    withContext(NonCancellable) {
-                        gameEngine.setSaveLoadFlags(false, false)
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "saveGame: Failed to reset saving state in finally block", e)
-                    _pendingSlot.value = null
-                    _pendingAction.value = null
-                }
-                // T14（2026-08-05）：清除注册引用（与 performLoadToSlot/performRestartGame 模式一致）
-                gameEngineCore.clearActiveLoadJob()
+                // C4（2026-08-05）：归属化复位（被取代的协程不复位标志）
+                resetOwnedLoadState(job, "saveGame")
             }
     }
 
@@ -1033,17 +1076,20 @@ class SaveLoadViewModel @Inject constructor(
             return
         }
 
-        viewModelScope.launch(ioDispatcher.dispatcher) {
+        // C4（2026-08-05）：lateinit 捕获 job 传入 perform*（归属清理需要身份）
+        lateinit var job: Job
+        job = viewModelScope.launch(ioDispatcher.dispatcher) {
             // C-8：重启主流程提取（行为逐行一致）
-            performRestartGame(wasRunning = _isTimeRunning.value)
-        }.also { gameEngineCore.registerActiveLoadJob(it) }
+            performRestartGame(wasRunning = _isTimeRunning.value, job = job)
+        }
+        gameEngineCore.registerActiveLoadJob(job)
     }
 
     /**
      * C-8：重启主流程（restartGame 协程体提取）。
      * 停止循环 → 重置引擎 → RNG 重新播种 → 重启存档 → BootSequenceController 启动。
      */
-    private suspend fun performRestartGame(wasRunning: Boolean) {
+    private suspend fun performRestartGame(wasRunning: Boolean, job: Job) {
             var previousSlot = 1
             try {
                 _isRestarting.value = true
@@ -1127,6 +1173,10 @@ class SaveLoadViewModel @Inject constructor(
                 setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
             } finally {
                 _isRestarting.value = false
+                // C4 修复（2026-08-05）：restart 补上归属化清理 + 标志复位——
+                // 原实现漏调 clearActiveLoadJob，且取消路径（isSaving=true 后
+                // CancellationException）不复位标志导致 isSaving 泄漏
+                resetOwnedLoadState(job, "restartGame")
                 saveLock.set(false)
                 // 兜底：若 boot() 未执行（提前 return），则仅记录日志
                 // BootSequenceController.boot() 在内部已处理游戏循环恢复
@@ -1474,7 +1524,10 @@ class SaveLoadViewModel @Inject constructor(
         }
 
         // 走正常读档流程（BootSequenceController.boot + 资源预加载）
-        loadGameFromSlot(slot)
+        // C1 修复（2026-08-05）：fromCloudLoad=true 绕过 loadGameInternal 的
+        // cloudDownloadLock 守卫——本路径仍持有该锁（performCloudLoad 全程持有），
+        // 原实现被守卫拒绝：云档已落盘但内存加载永不执行，主菜单云读档必失败
+        loadGameFromSlot(slot, fromCloudLoad = true)
     }
 
     /** 云下载 Success 分支：管线 → 落盘 → 内存加载 → boot（2026-08-04 提取，控制主函数复杂度） */

@@ -26,6 +26,9 @@ object BattleLogRefRule : SaveValidationRule {
     /** 单条日志队伍伤亡数上限 */
     private const val MAX_TEAM_CASUALTIES = 100
 
+    /** 单条日志击杀妖兽数上限（C13，2026-08-05：对齐 MAX_TEAM_CASUALTIES） */
+    private const val MAX_BEASTS_DEFEATED = 100
+
     override fun execute(data: SaveData, context: RuleContext): RuleOutcome {
         val kept = data.battleLogs.filter { it.isStructurallyValid() }
         if (kept.size == data.battleLogs.size) return RuleOutcome.Passed
@@ -33,7 +36,7 @@ object BattleLogRefRule : SaveValidationRule {
         val removedCount = data.battleLogs.size - kept.size
         return RuleOutcome.Repaired(
             data.copy(battleLogs = kept),
-            listOf("清理 $removedCount 条结构非法战斗日志（负回合/负伤亡/非法日期/空条目）")
+            listOf("清理 $removedCount 条结构非法战斗日志（负回合/负伤亡/负击杀/非法日期/空条目）")
         )
     }
 
@@ -42,8 +45,9 @@ object BattleLogRefRule : SaveValidationRule {
         val dateValid = year >= 1 && month in 1..12
         val turnsValid = turns in 0..MAX_BATTLE_TURNS
         val casualtiesValid = teamCasualties in 0..MAX_TEAM_CASUALTIES
+        val beastsValid = beastsDefeated in 0..MAX_BEASTS_DEFEATED
         val blankStub = attackerName.isBlank() && defenderName.isBlank() && details.isBlank() &&
             teamMembers.isEmpty() && enemies.isEmpty()
-        return dateValid && turnsValid && casualtiesValid && !blankStub
+        return dateValid && turnsValid && casualtiesValid && beastsValid && !blankStub
     }
 }

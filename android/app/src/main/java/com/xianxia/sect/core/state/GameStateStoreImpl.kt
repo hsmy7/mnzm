@@ -1193,6 +1193,18 @@ class GameStateStoreImpl @Inject constructor(
             } catch (e: Exception) {
                 rollbackLoad(baseline, e)
                 throw e
+            } catch (e: OutOfMemoryError) {
+                // C3-c（2026-08-05）：OOM 是 Error 非 Exception，原 catch 接不住——
+                // crafted 大 id 弟子扩容千万级平铺表（≈7GB）直接崩溃且重试即崩溃循环。
+                // 状态已撕裂必须先回滚（内存耗尽时尽力而为），再转 IllegalStateException
+                // 使外层统一走失败处理（StorageEngine / performLoadToSlot）
+                try {
+                    rollbackLoad(baseline, IllegalStateException("读档内存不足", e))
+                } catch (@Suppress("TooGenericExceptionCaught") rollbackFailure: Exception) {
+                    // 内存耗尽时回滚失败类型不可预期（赋值/扩容均可能抛），必须全吞尽力而为
+                    DomainLog.e(TAG, "OOM 回滚失败（内存已耗尽）", rollbackFailure)
+                }
+                throw IllegalStateException("读档内存不足，存档可能异常过大", e)
             } finally {
                 _discipleTables.writeAllowed = false
             }
@@ -1254,9 +1266,12 @@ class GameStateStoreImpl @Inject constructor(
      * P-9：旧档事件 [GameEventRecord.sequenceId] 一次性回填。
      *
      * 旧档（v4.0.83 之前）全部 sequenceId=0，消息列表头部 takeLast 移除后
-     * 全部 key 位移导致整列表重建；加载后按列表序回填 1..N（已有非 0 序号时
-     * 从 max+1 继续，保证新旧事件序号单调递增）。无 0 序号时零成本返回原对象。
+     * 全部 key 位移导致整列表重建；加载后按列表序回填 1..N。无 0 序号时零成本返回原对象。
      * O(N) 一次（列表上限 200 条）。
+     *
+     * T1 修复（2026-08-05）：存在任一 0 序号时**整体重编号 1..N（列表序）**——
+     * 原实现只重编号 0 条目（[0,0,5] → [6,7,5]），靠前 0 序号拿到比靠后非零条目
+     * 更大的序号，破坏"序号随列表位置递增"的稳定 key 语义。
      *
      * @param gameData 待加载的游戏数据
      * @return 回填后的 GameData（无变化时返回原引用）
@@ -1264,9 +1279,8 @@ class GameStateStoreImpl @Inject constructor(
     private fun backfillEventSequenceIds(gameData: GameData): GameData {
         val records = gameData.gameEventRecords
         if (records.none { it.sequenceId == 0L }) return gameData
-        var next = (records.maxOfOrNull { it.sequenceId } ?: 0L) + 1
-        val backfilled = records.map { record ->
-            if (record.sequenceId == 0L) record.copy(sequenceId = next++) else record
+        val backfilled = records.mapIndexed { index, record ->
+            record.copy(sequenceId = (index + 1).toLong())
         }
         return gameData.copy(gameEventRecords = backfilled)
     }

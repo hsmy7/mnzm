@@ -2,8 +2,17 @@ package com.xianxia.sect.core.state
 
 import android.util.SparseArray
 
-/** 组件表 ID 安全上限（游戏弟子规模远小于此，防篡改存档的溢出 OOM） */
-internal const val MAX_SAFE_CAPACITY = 10_000_000
+/**
+ * 组件表 ID 安全上限（C3 修复，2026-08-05：10M → 1M）。
+ *
+ * 平铺表（Int/DoubleFlatArray）按 id 稠密扩容，上限即最坏内存：
+ * 60 表 × 3 数组 × 4B × N —— 10M 时 ≈ 7GB 直接 OOM 崩溃（Error 非 Exception，
+ * load 接不住且重试即崩溃循环）。1M 时 ≈ 720MB 仍偏高，因此另有
+ * [com.xianxia.sect.data.integrity.rules.DiscipleIdBoundsRule]（order=1，
+ * 上限 200K）在验证层前置拦截，本常量只是第二道防线。
+ * 游戏弟子规模远小于此。
+ */
+internal const val MAX_SAFE_CAPACITY = 1_000_000
 
 /**
  * 线程安全由 GameStateStoreImpl.transactionLock（ReentrantLock）保证，

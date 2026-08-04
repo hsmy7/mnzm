@@ -557,4 +557,25 @@ class SaveValidatorTest {
         assertEquals(1, repaired.details.size)
         assertTrue(repaired.details.first().contains("幽灵弟子"))
     }
+
+    // ── 11. C8：注册表 clear 后自动重新注册 ──────────────────────
+
+    @Test
+    fun `validate - registry cleared then validate - re-registers defaults`() {
+        // C8 修复：原 registered 标志首次置位后恒 true，clear 后 validate 以空规则
+        // 运行全部 Passed（空规则掩盖损坏）——修复后按注册表规模判定，clear 自动重注册
+        val validData = minimalValidSaveData()
+        assertTrue(SaveValidator.validate(validData) is IntegrityResult.Passed)
+
+        com.xianxia.sect.data.integrity.rules.SaveValidationRuleRegistry.clear()
+        assertEquals("clear 后注册表为空", 0, com.xianxia.sect.data.integrity.rules.SaveValidationRuleRegistry.size)
+
+        // 再次 validate 必须重新注册默认规则——用损坏数据验证规则确实在跑
+        val corrupted = minimalValidSaveData().copy(
+            disciples = listOf(makeDisciple(id = "d-bad", cultivation = -5.0))
+        )
+        val result = SaveValidator.validate(corrupted)
+        assertTrue("clear 后 validate 应重新注册并检测损坏，实际 $result", result is IntegrityResult.Repaired)
+        assertTrue("注册表已重填默认规则", com.xianxia.sect.data.integrity.rules.SaveValidationRuleRegistry.size > 0)
+    }
 }

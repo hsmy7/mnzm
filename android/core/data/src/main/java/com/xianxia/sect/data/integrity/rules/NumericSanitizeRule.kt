@@ -24,15 +24,26 @@ object NumericSanitizeRule : SaveValidationRule {
     /** 非有限值/负值重置的安全默认值 */
     private const val SANITIZED_DEFAULT = 0.0
 
+    /**
+     * 修炼值类字段上限（C9，2026-08-05）：对齐 [CultivationCapRule] 仙人绝对上限
+     * IMMORTAL_REALM_CULTIVATION_CAP=1e9（该常量 private 不复用，仅对齐）。
+     * 正常长局修炼值远低于 1e9，无误伤。
+     */
+    private const val MAX_CULTIVATION = 1e9
+
+    /** 乘区类字段上限（速度/丹药加成：真实值为小倍数/百分比，1000 倍远超任何正常存档） */
+    private const val MAX_MULTIPLIER = 1_000.0
+
     override fun execute(data: SaveData, context: RuleContext): RuleOutcome {
         val repairs = mutableListOf<String>()
         val fixedDisciples = data.disciples.map { sanitizeDisciple(it, repairs) }
 
         // ── gameData 域：sectCultivation + 招募列表 + AI 宗门弟子 ──
         var sectCultivation = data.gameData.sectCultivation
-        if (!sectCultivation.isFinite() || sectCultivation < 0.0) {
-            repairs.add("宗门修为 sectCultivation=$sectCultivation 非有限或为负，已重置为 0")
-            sectCultivation = SANITIZED_DEFAULT
+        val sanitizedSectCultivation = sectCultivation.sanitize(MAX_CULTIVATION)
+        if (sanitizedSectCultivation != sectCultivation) {
+            repairs.add("宗门修为 sectCultivation=$sectCultivation 非法（非有限/负值/超上限），已重置为 $sanitizedSectCultivation")
+            sectCultivation = sanitizedSectCultivation
         }
         // 对抗性审查（2026-08-05）：招募列表/AI 宗门弟子必须**全字段**消毒——
         // 原实现只查 cultivation，NaN checkpoint/pill 经招募全字段拷贝进入组件表
@@ -79,19 +90,22 @@ object NumericSanitizeRule : SaveValidationRule {
         var cultivation = d.cultivation
         var checkpoint = d.cultivationCheckpoint
         var speedBonus = d.cultivationSpeedBonus
-        if (cultivation.isInvalid()) {
-            repairs.add("$label.cultivation=$cultivation 非有限或为负，已重置")
-            cultivation = SANITIZED_DEFAULT
+        val newCultivation = cultivation.sanitize(MAX_CULTIVATION)
+        if (newCultivation != cultivation) {
+            repairs.add("$label.cultivation=$cultivation 非法（非有限/负值/超上限），已重置为 $newCultivation")
+            cultivation = newCultivation
             modified = true
         }
-        if (checkpoint.isInvalid()) {
-            repairs.add("$label.cultivationCheckpoint=$checkpoint 非有限或为负，已重置")
-            checkpoint = SANITIZED_DEFAULT
+        val newCheckpoint = checkpoint.sanitize(MAX_CULTIVATION)
+        if (newCheckpoint != checkpoint) {
+            repairs.add("$label.cultivationCheckpoint=$checkpoint 非法（非有限/负值/超上限），已重置为 $newCheckpoint")
+            checkpoint = newCheckpoint
             modified = true
         }
-        if (speedBonus.isInvalid()) {
-            repairs.add("$label.cultivationSpeedBonus=$speedBonus 非有限或为负，已重置")
-            speedBonus = SANITIZED_DEFAULT
+        val newSpeedBonus = speedBonus.sanitize(MAX_MULTIPLIER)
+        if (newSpeedBonus != speedBonus) {
+            repairs.add("$label.cultivationSpeedBonus=$speedBonus 非法（非有限/负值/超上限），已重置为 $newSpeedBonus")
+            speedBonus = newSpeedBonus
             modified = true
         }
 
@@ -103,14 +117,14 @@ object NumericSanitizeRule : SaveValidationRule {
             pill.pillSkillExpSpeedBonus,
             pill.pillNurtureSpeedBonus
         )
-        if (pillFields.any { it.isInvalid() }) {
-            repairs.add("$label.pillEffects 含非有限或负值加成，已重置")
+        if (pillFields.any { it.isInvalid(MAX_MULTIPLIER) }) {
+            repairs.add("$label.pillEffects 含非法加成（非有限/负值/超上限），已重置")
             pill = pill.copy(
-                pillCritRateBonus = pill.pillCritRateBonus.sanitize(),
-                pillCritEffectBonus = pill.pillCritEffectBonus.sanitize(),
-                pillCultivationSpeedBonus = pill.pillCultivationSpeedBonus.sanitize(),
-                pillSkillExpSpeedBonus = pill.pillSkillExpSpeedBonus.sanitize(),
-                pillNurtureSpeedBonus = pill.pillNurtureSpeedBonus.sanitize()
+                pillCritRateBonus = pill.pillCritRateBonus.sanitize(MAX_MULTIPLIER),
+                pillCritEffectBonus = pill.pillCritEffectBonus.sanitize(MAX_MULTIPLIER),
+                pillCultivationSpeedBonus = pill.pillCultivationSpeedBonus.sanitize(MAX_MULTIPLIER),
+                pillSkillExpSpeedBonus = pill.pillSkillExpSpeedBonus.sanitize(MAX_MULTIPLIER),
+                pillNurtureSpeedBonus = pill.pillNurtureSpeedBonus.sanitize(MAX_MULTIPLIER)
             )
             modified = true
         }
@@ -127,8 +141,8 @@ object NumericSanitizeRule : SaveValidationRule {
         }
     }
 
-    /** 非有限或负值判定 */
-    private fun Double.isInvalid(): Boolean = !isFinite() || this < 0.0
+    /** 非法判定：非有限、负值或超上限（C9：有限值 1e308 不再放行） */
+    private fun Double.isInvalid(cap: Double): Boolean = !isFinite() || this < 0.0 || this > cap
 
     /** 全数值字段合法性判定（与 [sanitizeDisciple] 覆盖范围一致） */
     private fun Disciple.hasInvalidNumericFields(): Boolean {
@@ -140,10 +154,14 @@ object NumericSanitizeRule : SaveValidationRule {
             pill.pillSkillExpSpeedBonus,
             pill.pillNurtureSpeedBonus
         )
-        return cultivation.isInvalid() || cultivationCheckpoint.isInvalid() ||
-            cultivationSpeedBonus.isInvalid() || pillFields.any { it.isInvalid() }
+        return cultivation.isInvalid(MAX_CULTIVATION) || cultivationCheckpoint.isInvalid(MAX_CULTIVATION) ||
+            cultivationSpeedBonus.isInvalid(MAX_MULTIPLIER) || pillFields.any { it.isInvalid(MAX_MULTIPLIER) }
     }
 
-    /** 消毒为安全默认值 */
-    private fun Double.sanitize(): Double = if (isInvalid()) SANITIZED_DEFAULT else this
+    /** 消毒为安全值：非有限/负值重置 0，超上限钳制到 cap（C9：钳制而非仅清零） */
+    private fun Double.sanitize(cap: Double): Double = when {
+        !isFinite() || this < 0.0 -> SANITIZED_DEFAULT
+        this > cap -> cap
+        else -> this
+    }
 }

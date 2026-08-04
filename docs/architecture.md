@@ -339,8 +339,8 @@ RunState（运行时状态 — 可循环回退）
 
 | # | 待办 | 现状 | 说明 |
 |---|------|------|------|
-| T1 | 混合 0/非 0 sequenceId 回填破坏单调递增 | ⏸️ 记录 | 旧档 `[0,0,5]` 回填为 `[6,7,5]`——靠前 0 序号条目拿到比靠后非零条目更大的序号。当前唯一消费者是 LazyColumn key（无排序依赖），无即时后果；任何未来按 sequenceId 排序/取"最新"的消费方会读错顺序。修复方案：回填时对非 0 序号也做整体重编号（一次性 O(N)） |
-| T2 | restart 与 load 无互斥 | ⏸️ 记录 | `restartGame` 不设 isLoading、不查 loadLock；`loadGame` 不查 `_isRestarting`/saveLock。重启期间读档可双 boot 竞态（`bootInProgress` CAS 使第二次失败 + loadFromSnapshot 覆写已重置的新世界）。修复需在两者之间加互斥标志（改动涉及 SaveLoadViewModel 全流程，预存设计缺口） |
+| T1 | 混合 0/非 0 sequenceId 回填破坏单调递增 | ✅ 已修复（2026-08-05） | 旧档 `[0,0,5]` 回填为 `[6,7,5]`——靠前 0 序号条目拿到比靠后非零条目更大的序号。修复：存在任一 0 序号时整体重编号 1..N（列表序，一次性 O(N)），`StateRevertRegressionTest` 断言同步更新 |
+| T2 | restart 与 load 无互斥 | ⏸️ 记录（部分闭合） | `restartGame` 不设 isLoading、不查 loadLock；`loadGame` 不查 `_isRestarting`/saveLock。重启期间读档可双 boot 竞态。**C4 配套（2026-08-05）已部分闭合**：`loadGame`/`saveGame` 新增 `_isRestarting` 守卫，restart 窗口内读写被立即拒绝（不再误杀 restart 协程）；`restartGame` 查 `loadLock` 的完整互斥仍待专项 |
 | T3 | 组装任务与 load 原地清表并发 | ⏸️ 记录 | 组装任务 T0 通过 gen 检查后与 load 的 `clear()+insert()` 并发遍历同一 `_discipleTables`（可能产出半截列表瞬时写回）；load 自身任务 T1（FIFO 后置）兜底最终一致。gen 检查为单点入口设计，中间窗口无法完全消除；观察窗口内 UI 闪旧/错数据（丢弟子外观、陈尸闪现） |
 
 ---
@@ -367,7 +367,8 @@ SaveValidator.validate(SaveData)
   ├─ RuleContext 预计算 (equipmentIds, buildingIds, removedDiscipleIds)
   │
   ├─ 遍历 SaveValidationRuleRegistry.all (按 order 排序)
-  │   ├─ [order=1]  SectNameRule           sectName 非空
+  │   ├─ [order=1]  DiscipleIdBoundsRule  弟子 ID 越界（>200K/负值）判损坏（C3-b，防大 id 扩容 OOM）
+  ├─ [order=1]  SectNameRule           sectName 非空
   │   ├─ [order=2]  GameDateRule           year/month 范围
   │   ├─ [order=3]  DiscipleAgePositiveRule age >= 0
   │   ├─ [order=4]  GamePhaseRangeRule     phase 范围 [0,2]
@@ -481,7 +482,7 @@ SaveValidator.validate(SaveData)
 
 | 项 | 位置 | 现状 | 说明 |
 |---|---|---|---|
-| W4 AISectAttackManager object → class | `core/engine/.../domain/battle/AISectAttackManager.kt` | object + 文件级 `aisRngManager` var 注入 | 与 EnemyGenerator 同模式（注入点在 GameEngine 初始化必然执行，error() 为防御兜底）；object→class 构造注入波及全部调用点，待专项重构 |
+| W4 AISectAttackManager object → class | `core/engine/.../domain/battle/AISectAttackManager.kt` | **维持现状（2026-08-05 决策）** | 登记描述更正：探索确认 EnemyGenerator **同样未被 class 化**（与 AISectAttackManager 同为 object + 文件级 RNG var 注入模式，"它已改造"不实）。两处注入点均在 GameEngine 初始化必然执行、error() 为防御兜底，非缺陷；object→class 构造注入波及 20+ 调用点收益不明确，维持现状并记录在案 |
 | AI 引擎 turnAdvance（拉条）移植 | `core/engine/.../domain/battle/AISectAttackManager.kt` | 无 processTurnAdvance 实现 | 鹰妖"天翔一闪"等拉条技能在宗门战无效（主引擎 BattleSystem 已实现）；为稀有技能特性，移植需完整实现（行动记录/冷却/伤害结算） |
 | C4 战报保留策略 | `core/data` 战报持久化 | BattleLog rounds/actions 全量入库无保留策略 | 长期 DB 增长问题；当前无性能数据支撑（无 Bugly 反馈/无热点证据），待有数据时设计保留窗口/摘要策略 |
 
@@ -499,21 +500,22 @@ SaveValidator.validate(SaveData)
 
 > 存档链路修复（T7~T16 + T4）经 3 个对抗性审查代理（边界狂魔/状态破坏者/数据篡改者）审查，
 > **本次引入的 6 项缺陷已全部修复**（见 CHANGELOG.md 4.00.87 对抗性审查整改小节）；
-> 以下为**预存问题或既有设计权衡**，按优先级排序，需人工决策后处理：
+> 以下为**预存问题或既有设计权衡**，按优先级排序，需人工决策后处理。
+> **第一批实施（2026-08-05）：C1~C13 全部修复**，每行"说明"末尾附修复摘要：
 
 | # | 严重度 | 待办 | 现状 | 说明 |
 |---|--------|------|------|------|
-| C1 | 严重 | 主菜单云读档自阻塞 | ⏸️ 记录 | `loadFromCloudSave` 持有 `cloudDownloadLock` 期间 Success 分支调 `loadGame`（SaveLoadViewModel L766→L1477→L718），被 loadGame 第一道守卫 `cloudDownloadLock.get()`（L532）拒绝——云档已写本地但内存加载永不执行，功能必失败。修复：`handleCloudLoadSuccess` 调 `loadGameFromSlot` 前释放锁或 loadGame 对该路径豁免 |
-| C2 | 中等 | loadGameFromSlot(0) 自阻塞 | ⏸️ 记录 | `loadGameFromSlot(0)`（L691）先 `setSaveLoadState(isLoading=true)`（同步生效）再调 `downloadFromCloudSave`（L1339 isLoading 守卫恒 true 拒绝）——SettingsTab 云槽位读取必失败（CloudSaveDialog 直调不受影响故日常路径掩盖）。修复：下载前置 isLoading 或复用 CloudSaveDialog 路径 |
-| C3 | 中等 | crafted 大 id 弟子 OOM 崩溃 | ⏸️ 记录 | `id=9,999,999`（恰低于 MAX_SAFE_CAPACITY=10M）单弟子触发 ~60 张平铺表扩容至 1000 万容量（≈10GB+）→ OutOfMemoryError（Error 非 Exception，`loadFromSnapshot` catch 接不住）→ 进程崩溃且重试即崩溃循环。修复：MAX_SAFE_CAPACITY 降至 ~100 万或 OOM 纳入 load 失败处理 |
-| C4 | 中等 | 操作 finally 无主清理（restart 窗口误杀） | ⏸️ 记录 | `registerActiveLoadJob` 无条件 cancel 旧 job（原子性已修，见整改 6）：restart 的 `stopGameLoopAndWait` 窗口内（saveLock 已持有、isSaving 未置）点保存 → saveGame 通过守卫注册 → 取消 restart 协程；被取消操作 finally 无条件 `clearActiveLoadJob`+清标志会抹掉在途操作状态（S12 torn 回归风险）。修复：finally 只在 `activeLoadJob === 自己` 时清理 |
-| C5 | 轻微 | saveGame 双 tap 异步窗口 | ⏸️ 记录 | isSaving 由协程内异步设置，两次快速 tap 在协程启动前均可通过守卫 → job2 注册取消 job1（磁盘已写但 currentSlot 回滚不一致 + 双提示）。危害有限（atomicWrite+Room 事务保证不 torn） |
-| C6 | 轻微 | 备份修复失败不反馈 | ⏸️ 记录 | `readWithFallback` 中 `bakFile.copyTo(savFile)` 失败仅 Log.w 仍返回 RECOVERED——.sav 保持损坏反复回退，调用方无法感知。修复：修复失败反映到结果状态 |
-| C7 | 轻微 | 文件格式版本不校验 | ⏸️ 记录 | `readAndVerify` 只判 `formatVersion >= 0x0101`，0xFFFF/任意未来版本按当前格式解析（当前无实际危害，格式演进后旧 App 静默误解析新文件）。修复：非 0x0100/0x0101 判损坏 |
-| C8 | 轻微 | ensureRegistered 与注册表全局状态耦合 | ⏸️ 记录 | `SaveValidator.registered` 首次 validate 后恒 true，`SaveValidationRuleRegistry.clear()`（测试 @After 常用）不重置——instrumented 场景 clear 后 validate 以空规则运行全部 Passed（生产路径不受影响）。修复：`size == 0` 时重新注册 |
-| C9 | 轻微 | AI 宗门弟子修炼值量级不封顶 | ⏸️ 记录 | `NumericSanitizeRule` 对 aiSectDisciples 只做 NaN/负值消毒不封顶，1e308 有限值通过（AI 战力走 base stats 不受影响，后续计算路径引用会放大） |
-| C10 | 轻微 | 堆叠截断后储物袋悬空引用 | ⏸️ 记录 | `EntityCountBoundsRule` 截断装备/功法堆叠后 `storageBagItems` 中的 itemId 未清理（只清 4 槽位 + manualIds）；`fixStorageBagReferences` 在 buildSaveDataFromDatabase 时基于未截断堆叠先跑。UI 查无此堆叠时空显示 |
-| C11 | 轻微 | delete-then-rename 崩溃窗口 | ⏸️ 记录 | `atomicWrite` 中 `savFile.delete()` 与 `renameTo` 之间进程崩溃 → .sav 缺失走 .bak（损失仅最新一次保存，有备份兜底） |
-| C12 | 轻微 | ensureHeavyDataLoaded 空操作标记 | ⏸️ 记录 | 实现为 `if (heavyDataLoaded) return; heavyDataLoaded = true`——从不加载/检查数据，recoverWithPartialData 中该"守卫"是装饰性的（真实保护由不短路的 ensureGameDataIntegrity 承担）。若未来把真实加载逻辑放进此函数并依赖短路即成漏洞。修复：短路前置 `worldMapSects.isNotEmpty()` 校验或删除空调用 |
-| C13 | 轻微 | BattleLogRefRule 次要字段未校验 | ⏸️ 记录 | 未校验 `beastsDefeated` 负数等次要字段（当前仅 year/month/turns/teamCasualties/空条目） |
+| C1 | 严重 | 主菜单云读档自阻塞 | ✅ 已修复 | `loadFromCloudSave` 持有 `cloudDownloadLock` 期间 Success 分支调 `loadGame`（SaveLoadViewModel L766→L1477→L718），被 loadGame 第一道守卫 `cloudDownloadLock.get()`（L532）拒绝——云档已写本地但内存加载永不执行，功能必失败。修复：`loadGame` 拆 `loadGameInternal(saveSlot, fromCloudLoad)`，仅内部 `fromCloudLoad=true`（handleCloudLoadSuccess 透传）绕过该守卫，其余守卫与锁全程持有不变（不用"释放锁"方案——释放后存在新云下载插入窗口） |
+| C2 | 中等 | loadGameFromSlot(0) 自阻塞 | ✅ 已修复 | `loadGameFromSlot(0)`（L691）先 `setSaveLoadState(isLoading=true)`（同步生效）再调 `downloadFromCloudSave`（L1339 isLoading 守卫恒 true 拒绝）——SettingsTab 云槽位读取必失败。修复：isLoading 占位移到下载完成（`first{Success\|Error}` 返回）之后；下载期互斥由 cloudDownloadLock 承担（loadGame/saveGame 入口均查，外部读档中拒绝下载的守卫语义不变） |
+| C3 | 中等 | crafted 大 id 弟子 OOM 崩溃 | ✅ 已修复 | `id=9,999,999`（恰低于 MAX_SAFE_CAPACITY=10M）单弟子触发 ~60 张平铺表扩容至 1000 万容量（≈7GB）→ OutOfMemoryError 崩溃循环。三层修复：(a) MAX_SAFE_CAPACITY 降至 1M；(b) 新规则 `DiscipleIdBoundsRule`（order=1，上限 200K）验证层前置拦截判损坏走备份恢复（根治）；(c) load 链路三层 OOM 捕获（loadFromSnapshot 尽力回滚转 RuntimeException / StorageEngine.load 返回 failure 且不试备份恢复——备份同尺寸必再 OOM / performLoadToSlot showError） |
+| C4 | 中等 | 操作 finally 无主清理（restart 窗口误杀） | ✅ 已修复 | `registerActiveLoadJob` 无条件 cancel 旧 job；被取消操作 finally 无条件 `clearActiveLoadJob`+清标志抹掉在途状态。修复：`clearActiveLoadJob(job): Boolean` 归属判定+清理原子二合一（仅 `=== job` 置 null），四个 perform* finally 按 `owned` 决定是否复位标志；`performRestartGame` 补上归属化清理+复位（原漏调 clearActiveLoadJob 且取消路径 isSaving 泄漏）；`saveGame`/`loadGame` 新增 `_isRestarting` 守卫闭合触发根因 |
+| C5 | 轻微 | saveGame 双 tap 异步窗口 | ✅ 已修复 | isSaving 由协程内异步设置，两次快速 tap 在协程启动前均可通过守卫。修复：`canPerformSaveOperation` 通过后 launch 前同步 `stateStore.setSavingDirect(true)`+pending 占位（协程内 setSaveLoadState 幂等保留），双 tap 第二发被同步占位拒绝 |
+| C6 | 轻微 | 备份修复失败不反馈 | ✅ 已修复 | `readWithFallback` 中 `bakFile.copyTo(savFile)` 失败仅 Log.w 仍返回 RECOVERED。修复：`BackupReadResult` 新增 `repairFailed: Boolean = false`，copyTo 失败置位 + Log.e；StorageEngine 两处调用方（保存失败恢复/restoreFromBackup）感知记录（数据仍可用，下次成功保存自愈） |
+| C7 | 轻微 | 文件格式版本不校验 | ✅ 已修复 | `readAndVerify` 只判 `formatVersion >= 0x0101`。修复：版本白名单 `{0x0100, 0x0101}`（新增 FORMAT_VERSION_LEGACY 常量），未知版本判损坏 |
+| C8 | 轻微 | ensureRegistered 与注册表全局状态耦合 | ✅ 已修复 | `SaveValidator.registered` 首次 validate 后恒 true。修复：删除该标志，`ensureRegistered` 改查 `SaveValidationRuleRegistry.size == 0`（双层检查，CopyOnWriteArrayList.size 原子读），clear 后 validate 自动重注册 |
+| C9 | 轻微 | AI 宗门弟子修炼值量级不封顶 | ✅ 已修复 | `NumericSanitizeRule` 只做 NaN/负值消毒。修复：新增 `MAX_CULTIVATION=1e9`（对齐 CultivationCapRule）与 `MAX_MULTIPLIER=1000`，`sanitize()` 改钳制（非有限/负值重置 0，超上限 coerceAtMost）；`hasInvalidNumericFields` 同步纳入超上限判定 |
+| C10 | 轻微 | 堆叠截断后储物袋悬空引用 | ✅ 已修复 | `EntityCountBoundsRule.clearDanglingStackRefs` 只清 4 槽位+manualIds。修复：追加 `storageBagItems.filter { itemId in 被移除堆叠集合 }` 从 EquipmentSet 重建剔除（DB 路径 StorageBagFixer 先归位→本规则后清理，顺序正确；云路径按 id 过滤同样成立） |
+| C11 | 轻微 | delete-then-rename 崩溃窗口 | ✅ 已修复 | `atomicWrite` 中 delete 与 renameTo 之间进程崩溃 → .sav 缺失。修复：先试无 delete 的 rename 原子覆盖（Linux/Android rename() 原子替换目标），失败回退 delete+rename（兼容 FAT32 等不支持覆盖的存储）；.bak 失败非阻断不动 |
+| C12 | 轻微 | ensureHeavyDataLoaded 空操作标记 | ✅ 已修复 | 实现为 `if (heavyDataLoaded) return; heavyDataLoaded = true` 空操作。修复：短路前置 `worldMapSects.isNotEmpty()` 校验——空时保持未完成（Log.w），后续调用重试，由相邻 ensureGameDataIntegrity 重生；函数保留（BootSequenceControllerTest 有 verify 引用） |
+| C13 | 轻微 | BattleLogRefRule 次要字段未校验 | ✅ 已修复 | 未校验 `beastsDefeated` 等次要字段。修复：`isStructurallyValid` 增加 `beastsDefeated in 0..100`（MAX_BEASTS_DEFEATED，对齐 MAX_TEAM_CASUALTIES），超限/负值条目清理 |
 

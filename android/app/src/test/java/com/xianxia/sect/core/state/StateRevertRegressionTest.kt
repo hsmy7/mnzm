@@ -111,10 +111,43 @@ class StateRevertRegressionTest {
         )
         val records = store.gameDataSnapshot.gameEventRecords
         org.junit.Assert.assertEquals("3 条事件保留", 3, records.size)
-        // 回填：0 序号从 max+1 继续（5 → 6/7），保证单调递增
-        org.junit.Assert.assertEquals("事件A 回填为 6", 6L, records[0].sequenceId)
-        org.junit.Assert.assertEquals("事件B 回填为 7", 7L, records[1].sequenceId)
-        org.junit.Assert.assertEquals("事件C 保留 5", 5L, records[2].sequenceId)
+        // T1 修复（2026-08-05）：存在任一 0 序号时整体重编号 1..N（列表序）——
+        // 原实现 [0,0,5] → [6,7,5] 破坏单调递增，现 [0,0,5] → [1,2,3]
+        org.junit.Assert.assertEquals("事件A 重编号为 1", 1L, records[0].sequenceId)
+        org.junit.Assert.assertEquals("事件B 重编号为 2", 2L, records[1].sequenceId)
+        org.junit.Assert.assertEquals("事件C 重编号为 3", 3L, records[2].sequenceId)
+    }
+
+    @Test
+    fun `事件 sequenceId 全非 0 时零成本不动`() = runBlocking {
+        // T1 补充守卫：无 0 序号时不做任何重编号（返回原引用）
+        val store = GameStateStoreImpl(
+            ApplicationScopeProvider(), Mockito.mock(GameStateRepository::class.java)
+        )
+        store.unsafeAllowMainThreadUpdateForTest = true
+        val records = listOf(
+            com.xianxia.sect.core.model.GameEventRecord(
+                eventType = "desertion", summary = "事件A", sequenceId = 3L
+            ),
+            com.xianxia.sect.core.model.GameEventRecord(
+                eventType = "death", summary = "事件B", sequenceId = 5L
+            )
+        )
+        store.loadFromSnapshot(
+            gameData = GameData(
+                sectName = "新档",
+                gameEventRecords = records
+            ),
+            disciples = emptyList(),
+            equipmentStacks = emptyList(), equipmentInstances = emptyList(),
+            manualStacks = emptyList(), manualInstances = emptyList(),
+            pills = emptyList(), materials = emptyList(),
+            herbs = emptyList(), seeds = emptyList(), storageBags = emptyList(),
+            teams = emptyList(), battleLogs = emptyList(),
+            isPaused = false, isLoading = false, isSaving = false
+        )
+        val loaded = store.gameDataSnapshot.gameEventRecords
+        org.junit.Assert.assertEquals("序号原样保留", listOf(3L, 5L), loaded.map { it.sequenceId })
     }
 
     @Test

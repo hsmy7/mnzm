@@ -256,6 +256,22 @@ class SaveFileManagerTest {
     }
 
     @Test
+    fun `unknown future format version rejected`() {
+        // C7 修复：任意未来版本（0xFFFF）即使 CRC 正确也必须判损坏，
+        // 防止格式演进后旧 App 按当前格式静默误解析新文件
+        val slot = 10
+        val payload = "future-format".encodeToByteArray()
+        val file = getSavFile(slot)
+        file.parentFile?.mkdirs()
+        val header = buildValidHeader(payload)
+        header[4] = 0xFF.toByte(); header[5] = 0xFF.toByte() // 未来版本 0xFFFF（CRC 仍正确）
+        file.writeBytes(header + payload)
+
+        val result = manager.readWithFallback(slot)
+        assertEquals(BackupStatus.CORRUPTED, result.status)
+    }
+
+    @Test
     fun `new format roundtrip write then read succeeds`() {
         // 0x0101 写入（sdk 34 → CRC32C + 算法标识）→ 读取精确校验通过
         val slot = 5
@@ -294,6 +310,77 @@ class SaveFileManagerTest {
         assertTrue("应返回 Success，实际 $result", result is StorageResult.Success)
         assertTrue("主 .sav 存在", getSavFile(slot).exists())
         assertTrue("备份 .bak 存在", getBakFile(slot).exists())
+    }
+
+    // ============================================================
+    // C11（2026-08-05）：rename 原子覆盖优先，消除 delete-rename 崩溃窗口
+    // ============================================================
+
+    @Test
+    fun `atomicWrite overwrites existing sav without delete window`() {
+        // C11 修复前：先 delete() 再 renameTo——两者之间崩溃 → .sav 缺失走 .bak
+        // 修复后：先试无 delete 的 rename 原子覆盖，.sav 全程存在
+        val slot = 2
+        manager.atomicWrite(slot, mockSaveData())
+        val firstRead = manager.readWithFallback(slot)
+        assertEquals("首次写入 SUCCESS", BackupStatus.SUCCESS, firstRead.status)
+
+        // 覆盖写入（已有 .sav 的场景）
+        val overwriteManager = SaveFileManager(
+            saveSerializer = SaveSerializer { data -> "第二版:${data.gameData.sectName}".encodeToByteArray() }
+        ).also { it.initialize(tempFolder.root) }
+        val second = overwriteManager.atomicWrite(slot, mockSaveData())
+        assertTrue("覆盖写入应 Success，实际 $second", second is StorageResult.Success)
+
+        val reread = overwriteManager.readWithFallback(slot)
+        assertEquals("覆盖后读取 SUCCESS", BackupStatus.SUCCESS, reread.status)
+        assertArrayEquals("读取到第二版内容", "第二版:测试宗".encodeToByteArray(), reread.payload)
+    }
+
+    // ============================================================
+    // C6（2026-08-05）：备份修复失败如实反馈
+    // ============================================================
+
+    @Test
+    fun `backup recovered but sav repair failure signaled`() {
+        val slot = 3
+        val bakPayload = "backup-payload".encodeToByteArray()
+        writeValidBakFile(slot, bakPayload)
+
+        // .sav 损坏
+        val savFile = getSavFile(slot)
+        savFile.parentFile?.mkdirs()
+        savFile.writeBytes(byteArrayOf(0, 0, 0, 0))
+
+        // copyTo 修复失败路径：把 .sav 路径换成**非空目录**（copyTo overwrite 先 delete 必失败）
+        savFile.delete()
+        savFile.mkdirs()
+        File(savFile, "blocker").writeBytes(byteArrayOf(1))
+
+        val result = manager.readWithFallback(slot)
+        assertEquals("RECOVERED 状态", BackupStatus.RECOVERED, result.status)
+        assertArrayEquals("payload 为 bak 数据", bakPayload, result.payload)
+        assertTrue("修复失败必须如实标记", result.repairFailed)
+    }
+
+    @Test
+    fun `backup recovered with successful repair - repairFailed false`() {
+        val slot = 4
+        val bakPayload = "repairable-payload".encodeToByteArray()
+        writeValidSavFile(slot, "corrupted-old".encodeToByteArray())
+        writeValidBakFile(slot, bakPayload)
+        // 破坏 .sav 但保留可覆盖路径（copyTo 能成功）
+        val savFile = getSavFile(slot)
+        val corrupted = savFile.readBytes()
+        corrupted[16] = (corrupted[16].toInt() xor 0xFF).toByte()
+        savFile.writeBytes(corrupted)
+
+        val result = manager.readWithFallback(slot)
+        assertEquals("RECOVERED 状态", BackupStatus.RECOVERED, result.status)
+        assertFalse("修复成功 repairFailed 应为 false", result.repairFailed)
+        // .sav 已被 .bak 覆盖修复
+        val reread = manager.readWithFallback(slot)
+        assertEquals("修复后 .sav 可直读", BackupStatus.SUCCESS, reread.status)
     }
 
     private fun mockSaveData(): com.xianxia.sect.data.model.SaveData {

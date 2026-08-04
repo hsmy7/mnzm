@@ -6,6 +6,7 @@ import com.xianxia.sect.core.model.EquipmentSet
 import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.data.integrity.IntegrityResult
 import com.xianxia.sect.data.integrity.SaveValidator
 import com.xianxia.sect.data.model.SaveData
@@ -101,6 +102,49 @@ class EntityCountBoundsRuleTest {
         val result = SaveValidator.validate(data)
         assertTrue(result is IntegrityResult.Repaired)
         assertEquals("eq-5000", (result as IntegrityResult.Repaired).data.disciples.first().equipment.weaponId)
+    }
+
+    // ── C10（2026-08-05）：截断后储物袋悬空引用清理 ──
+
+    @Test
+    fun `truncated stacks removed from storageBagItems`() {
+        // C10 根因：截断堆叠后 storageBagItems 中指向已删除堆叠的 itemId 原样保留
+        val stacks = (0 until 50_001).map { EquipmentStack(id = "eq-$it", name = "剑") }
+        val d = makeDisciple(
+            equipment = EquipmentSet(
+                storageBagItems = listOf(
+                    StorageBagItem("eq-50000", "equipment", "被截断剑", 1),
+                    StorageBagItem("eq-1", "equipment", "存活堆叠", 1),
+                    StorageBagItem("inst-keep", "equipment_instance", "实例", 1)
+                )
+            )
+        )
+        val data = saveData(equipmentStacks = stacks, disciples = listOf(d))
+        val result = SaveValidator.validate(data)
+        assertTrue(result is IntegrityResult.Repaired)
+        val keptItems = (result as IntegrityResult.Repaired).data.disciples.first().equipment.storageBagItems
+        val keptIds = keptItems.map { it.itemId }
+        // 被截断堆叠 eq-50000 的条目被移除；存活堆叠 eq-1 与实例 inst-keep 保留
+        assertEquals(listOf("eq-1", "inst-keep"), keptIds)
+    }
+
+    @Test
+    fun `truncated manual stacks removed from storageBagItems`() {
+        val stacks = (0 until 50_001).map { ManualStack(id = "manual-$it", name = "心法") }
+        val d = makeDisciple(
+            equipment = EquipmentSet(
+                storageBagItems = listOf(
+                    StorageBagItem("manual-50000", "manual", "被截断功法", 1),
+                    StorageBagItem("manual-3", "manual", "存活功法", 1)
+                )
+            )
+        )
+        val data = saveData(manualStacks = stacks, disciples = listOf(d))
+        val result = SaveValidator.validate(data)
+        assertTrue(result is IntegrityResult.Repaired)
+        val keptIds = (result as IntegrityResult.Repaired).data.disciples.first()
+            .equipment.storageBagItems.map { it.itemId }
+        assertEquals(listOf("manual-3"), keptIds)
     }
 
     private fun makeDisciple(

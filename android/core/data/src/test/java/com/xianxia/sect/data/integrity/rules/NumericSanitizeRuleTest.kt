@@ -211,6 +211,66 @@ class NumericSanitizeRuleTest {
         )
     }
 
+    // ── C9（2026-08-05）：有限但超上限的数值钳制（1e308 不再放行） ──
+
+    @Test
+    fun `huge finite cultivation clamped to max`() {
+        // C9 根因：1e308 是有限非负值，原实现直接放行 → 后续 toLong 饱和/乘区放大
+        val d = makeDisciple(cultivation = 1e308)
+        val data = saveData(disciples = listOf(d))
+        val result = SaveValidator.validate(data)
+        assertTrue("超上限修炼值应被修复，实际 $result", result is IntegrityResult.Repaired)
+        assertEquals(1e9, (result as IntegrityResult.Repaired).data.disciples.first().cultivation, 0.001)
+    }
+
+    @Test
+    fun `huge finite speed bonus clamped to max multiplier`() {
+        val d = makeDisciple(speedBonus = 1e10)
+        val data = saveData(disciples = listOf(d))
+        val result = SaveValidator.validate(data)
+        assertTrue("超上限速度加成应被修复，实际 $result", result is IntegrityResult.Repaired)
+        assertEquals(1000.0, (result as IntegrityResult.Repaired).data.disciples.first().cultivationSpeedBonus, 0.001)
+    }
+
+    @Test
+    fun `huge finite cultivation in ai sect disciples clamped`() {
+        // C9 根因场景：aiSectDisciples 1e308 通过原 isInvalid（finite 且非负）
+        val data = saveData(
+            gameData = GameData(
+                sectName = "宗", gameYear = 1, gameMonth = 1,
+                aiSectDisciples = mapOf(
+                    "sect-a" to listOf(makeDisciple(id = "a-1", cultivation = 1e308))
+                )
+            )
+        )
+        val result = SaveValidator.validate(data)
+        assertTrue("AI 宗门超上限修炼值应被修复，实际 $result", result is IntegrityResult.Repaired)
+        assertEquals(
+            1e9,
+            (result as IntegrityResult.Repaired).data.gameData.aiSectDisciples.getValue("sect-a")
+                .first().cultivation,
+            0.001
+        )
+    }
+
+    @Test
+    fun `huge finite sect cultivation clamped`() {
+        val data = saveData(
+            gameData = GameData(sectName = "宗", gameYear = 1, gameMonth = 1, sectCultivation = 1e308)
+        )
+        val result = SaveValidator.validate(data)
+        assertTrue("超上限宗门修为应被修复，实际 $result", result is IntegrityResult.Repaired)
+        assertEquals(1e9, (result as IntegrityResult.Repaired).data.gameData.sectCultivation, 0.001)
+    }
+
+    @Test
+    fun `values within caps pass unchanged`() {
+        // 正常长局修炼值（亿级）与加成（小倍数）不误伤
+        val d = makeDisciple(cultivation = 8e8, checkpoint = 7e8, speedBonus = 500.0)
+        val data = saveData(disciples = listOf(d))
+        assertEquals(IntegrityResult.Passed, SaveValidator.validate(data))
+    }
+
     private fun makeDisciple(
         id: String = "d-1",
         name: String = "甲",

@@ -106,16 +106,42 @@ class BattleLogRefRuleTest {
         assertEquals(listOf("b-ok1", "b-ok2"), kept.map { it.id })
     }
 
+    // ── C13（2026-08-05）：beastsDefeated 次要字段校验 ───────────
+
+    @Test
+    fun `negative beastsDefeated log removed`() {
+        val data = saveData(battleLogs = listOf(validLog(id = "b-1", beastsDefeated = -1)))
+        val result = SaveValidator.validate(data)
+        assertTrue("负击杀数应判非法，实际 $result", result is IntegrityResult.Repaired)
+        assertTrue((result as IntegrityResult.Repaired).data.battleLogs.isEmpty())
+    }
+
+    @Test
+    fun `oversized beastsDefeated log removed`() {
+        val data = saveData(battleLogs = listOf(validLog(id = "b-1", beastsDefeated = 500)))
+        val result = SaveValidator.validate(data)
+        assertTrue("超限击杀数应判非法，实际 $result", result is IntegrityResult.Repaired)
+        assertTrue((result as IntegrityResult.Repaired).data.battleLogs.isEmpty())
+    }
+
+    @Test
+    fun `normal beastsDefeated log kept`() {
+        val data = saveData(battleLogs = listOf(validLog(id = "b-1", beastsDefeated = 50)))
+        val result = SaveValidator.validate(data)
+        assertEquals("正常击杀数应通过，实际 $result", IntegrityResult.Passed, result)
+    }
+
     private fun validLog(
         id: String = "b-1",
         year: Int = 3,
         month: Int = 3,
         turns: Int = 2,
-        teamCasualties: Int = 0
+        teamCasualties: Int = 0,
+        beastsDefeated: Int = 0
     ) = BattleLog(
         id = id, year = year, month = month, turns = turns,
-        teamCasualties = teamCasualties, attackerName = "甲", defenderName = "乙",
-        details = "战报"
+        teamCasualties = teamCasualties, beastsDefeated = beastsDefeated,
+        attackerName = "甲", defenderName = "乙", details = "战报"
     )
 
     private fun saveData(battleLogs: List<BattleLog>) = SaveData(

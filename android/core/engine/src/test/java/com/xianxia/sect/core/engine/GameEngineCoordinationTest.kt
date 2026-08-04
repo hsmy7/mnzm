@@ -53,6 +53,41 @@ class GameEngineCoordinationTest {
     }
 
     @Test
+    fun `ensureHeavyDataLoaded - worldMapSects 非空时标记完成`() = runBlocking {
+        // C12 修复（2026-08-05）：原实现为空操作守卫（从不检查数据），
+        // 现短路前置 worldMapSects 非空校验
+        val env = EngineTestEnv()
+        env.store.gameDataValue = GameData().copy(
+            sectName = "青云宗",
+            worldMapSects = listOf(WorldSect(
+                id = "player_sect", name = "青云宗",
+                x = 849f, y = 463f, isPlayerSect = true,
+                level = 3, discovered = true, relation = 100
+            ))
+        )
+
+        env.engine.ensureHeavyDataLoaded()
+
+        assertTrue("worldMapSects 非空应标记 heavyDataLoaded",
+            env.engine.heavyDataLoaded)
+    }
+
+    @Test
+    fun `ensureHeavyDataLoaded - worldMapSects 为空时不标记完成`() = runBlocking {
+        // C12：数据缺失时不标记完成——后续调用重试，由 ensureGameDataIntegrity 重生
+        val env = EngineTestEnv()
+        env.store.gameDataValue = GameData().copy(
+            sectName = "青云宗",
+            worldMapSects = emptyList()
+        )
+
+        env.engine.ensureHeavyDataLoaded()
+
+        org.junit.Assert.assertFalse("worldMapSects 为空应保持未完成",
+            env.engine.heavyDataLoaded)
+    }
+
+    @Test
     fun `ensureGameDataIntegrity - sectName 空时不崩溃`() = runBlocking {
         val env = EngineTestEnv()
         env.store.gameDataValue = GameData().copy(

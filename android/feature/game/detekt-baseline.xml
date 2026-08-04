@@ -86,7 +86,7 @@
     <ID>CyclomaticComplexMethod:ResidenceDialog.kt$@Composable fun ResidenceDialog( buildingInstanceId: String, viewModel: GameViewModel, disciples: List&lt;DiscipleAggregate&gt;, gameData: GameData, onDismiss: () -&gt; Unit )</ID>
     <ID>CyclomaticComplexMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performCloudDownload()</ID>
     <ID>CyclomaticComplexMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performCloudLoad()</ID>
-    <ID>CyclomaticComplexMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performLocalSaveToSlot(slot: Int, previousSlot: Int, startTime: Long)</ID>
+    <ID>CyclomaticComplexMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performLocalSaveToSlot(slot: Int, previousSlot: Int, startTime: Long, job: Job)</ID>
     <ID>CyclomaticComplexMethod:ScoutDialog.kt$@Composable internal fun ScoutDialog( sectName: String, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, onScout: (List&lt;String&gt;) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
     <ID>CyclomaticComplexMethod:SecretRealmDetailDialog.kt$@Composable fun SecretRealmDetailDialog( realm: MapItem.SecretRealm, gameData: GameData?, viewModel: SecretRealmViewModel, onStart: (memberIds: List&lt;String&gt;) -&gt; Unit, onContinue: () -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
     <ID>CyclomaticComplexMethod:SecretRealmExplorationScreen.kt$@Composable fun SecretRealmExplorationScreen( viewModel: SecretRealmViewModel, onExit: () -&gt; Unit, onFinished: () -&gt; Unit )</ID>
@@ -239,11 +239,11 @@
     <ID>LongMethod:SaveLoadLoadDelegate.kt$SaveLoadLoadDelegate$suspend fun loadGame(saveSlot: SaveSlot): Boolean</ID>
     <ID>LongMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performCloudDownload()</ID>
     <ID>LongMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performCloudLoad()</ID>
-    <ID>LongMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performLoadToSlot(saveSlot: SaveSlot, startTime: Long)</ID>
-    <ID>LongMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performLocalSaveToSlot(slot: Int, previousSlot: Int, startTime: Long)</ID>
-    <ID>LongMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performRestartGame(wasRunning: Boolean)</ID>
+    <ID>LongMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performLoadToSlot(saveSlot: SaveSlot, startTime: Long, job: Job)</ID>
+    <ID>LongMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performLocalSaveToSlot(slot: Int, previousSlot: Int, startTime: Long, job: Job)</ID>
+    <ID>LongMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performRestartGame(wasRunning: Boolean, job: Job)</ID>
     <ID>LongMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performRestartSave(slot: Int, previousSlot: Int): Boolean</ID>
-    <ID>LongMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performStartNewGame(sectName: String, slot: Int, startTime: Long)</ID>
+    <ID>LongMethod:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performStartNewGame(sectName: String, slot: Int, startTime: Long, job: Job)</ID>
     <ID>LongMethod:ScoutDialog.kt$@Composable internal fun ScoutDialog( sectName: String, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, onScout: (List&lt;String&gt;) -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:SecretRealmBackpackDialog.kt$@Composable internal fun SecretRealmBackpackDialog( backpack: SecretRealmBackpack, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:SecretRealmDetailDialog.kt$@Composable fun SecretRealmDetailDialog( realm: MapItem.SecretRealm, gameData: GameData?, viewModel: SecretRealmViewModel, onStart: (memberIds: List&lt;String&gt;) -&gt; Unit, onContinue: () -&gt; Unit, onDismiss: () -&gt; Unit )</ID>
@@ -656,7 +656,7 @@
     <ID>NestedBlockDepth:NativeSurfaceView.kt$NativeSurfaceView.RenderThread$override fun run()</ID>
     <ID>NestedBlockDepth:NativeSurfaceView.kt$NativeSurfaceView.RenderThread$private fun renderSoftwareFrame()</ID>
     <ID>NestedBlockDepth:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performCloudLoad()</ID>
-    <ID>NestedBlockDepth:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performLocalSaveToSlot(slot: Int, previousSlot: Int, startTime: Long)</ID>
+    <ID>NestedBlockDepth:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performLocalSaveToSlot(slot: Int, previousSlot: Int, startTime: Long, job: Job)</ID>
     <ID>NestedBlockDepth:SoftwareCanvasBackend.kt$SoftwareCanvasBackend$fun renderFrame( frame: RenderFrame, atlas: Bitmap, vpW: Int, vpH: Int ): Bitmap?</ID>
     <ID>NestedBlockDepth:SoftwareCanvasBackend.kt$SoftwareCanvasBackend.ChunkTile$fun rebuild( atlas: Bitmap, tileData: IntArray, rows: Int, cols: Int, buildingArray: FloatArray?, buildingCount: Int, tileSize: Int, decorationsDisabled: Boolean, tileSrcRects: Array&lt;Rect&gt;, buildingSrcRects: Array&lt;Rect&gt;, floorTileSrcRects: Array&lt;Rect&gt; )</ID>
     <ID>NestedBlockDepth:SoftwareCanvasBackend.kt$SoftwareCanvasBackend.Companion$private fun drawBuildingsToCanvas( canvas: Canvas, atlas: Bitmap, buildingArray: FloatArray, buildingCount: Int, tileSize: Int, buildingSrcRects: Array&lt;Rect&gt;, floorTileSrcRects: Array&lt;Rect&gt;, paint: Paint, reuseRect: Rect, camX: Float, camY: Float, scale: Float, vpW: Int, vpH: Int )</ID>
@@ -701,7 +701,7 @@
     <ID>SwallowedException:WorldMapSectDetailDialog.kt$e: Exception</ID>
     <ID>ThrowingExceptionFromFinally:SaveLoadViewModel.kt$SaveLoadViewModel$throw e</ID>
     <ID>ThrowsCount:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performCloudLoad()</ID>
-    <ID>ThrowsCount:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performLocalSaveToSlot(slot: Int, previousSlot: Int, startTime: Long)</ID>
+    <ID>ThrowsCount:SaveLoadViewModel.kt$SaveLoadViewModel$private suspend fun performLocalSaveToSlot(slot: Int, previousSlot: Int, startTime: Long, job: Job)</ID>
     <ID>TooGenericExceptionCaught:AlchemyViewModel.kt$AlchemyViewModel$e: Exception</ID>
     <ID>TooGenericExceptionCaught:BaseViewModel.kt$BaseViewModel$e: Exception</ID>
     <ID>TooGenericExceptionCaught:DetailCultivationSection.kt$e: Exception</ID>

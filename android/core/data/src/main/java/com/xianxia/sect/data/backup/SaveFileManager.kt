@@ -66,6 +66,9 @@ class SaveFileManager @Inject constructor(
         /** 格式版本 (major << 8 | minor)——0x0101 起字节 11 携带 CRC 算法标识 */
         private const val FORMAT_VERSION = 0x0101
 
+        /** 旧格式版本（0x0100，无 CRC 算法标识） */
+        private const val FORMAT_VERSION_LEGACY = 0x0100
+
         /** 首个携带算法标识的格式版本（旧版 0x0100 无标识，按 SDK 旧行为+双算法探测） */
         private const val FORMAT_VERSION_WITH_CRC_ALGO = 0x0101
 
@@ -131,15 +134,20 @@ class SaveFileManager @Inject constructor(
             writeFileAtomic(tmpFile, payload)
 
             // 3. 重命名 .tmp → .sav（原子交换）——主保存无条件执行
-            if (savFile.exists()) {
-                savFile.delete()
-            }
+            // C11 修复（2026-08-05）：先试无 delete 的 rename 原子覆盖（Linux/Android
+            // rename() 原子替换目标），消除 delete 与 renameTo 之间进程崩溃 → .sav 缺失窗口；
+            // 失败回退 delete+rename，兼容 renameTo 遇已存在目标失败的存储（如 FAT32/exFAT）
             if (!tmpFile.renameTo(savFile)) {
-                tmpFile.delete()
-                return StorageResult.failure(
-                    StorageError.IO_ERROR,
-                    "重命名 .tmp → .sav 失败 slot=$slot"
-                )
+                if (savFile.exists()) {
+                    savFile.delete()
+                }
+                if (!tmpFile.renameTo(savFile)) {
+                    tmpFile.delete()
+                    return StorageResult.failure(
+                        StorageError.IO_ERROR,
+                        "重命名 .tmp → .sav 失败 slot=$slot"
+                    )
+                }
             }
 
             // 4. 检查备份文件大小限制（主保存已成功，跳过备份不阻断）
@@ -207,12 +215,16 @@ class SaveFileManager @Inject constructor(
             if (bakPayload != null) {
                 Log.w(TAG, ".bak 恢复成功 slot=$slot")
                 // 恢复后修复 .sav（用 .bak 覆盖 .sav）
+                // C6 修复：修复失败必须如实反映（原实现仅 Log.w 仍返回 RECOVERED，
+                // .sav 保持损坏反复回退，调用方无法感知）
+                var repairFailed = false
                 try {
                     bakFile.copyTo(savFile, overwrite = true)
                 } catch (e: Exception) {
-                    Log.w(TAG, "修复 .sav 失败 slot=$slot", e)
+                    repairFailed = true
+                    Log.e(TAG, "修复 .sav 失败 slot=$slot——将持续回退 .bak 直至下次成功保存", e)
                 }
-                return BackupReadResult(BackupStatus.RECOVERED, bakPayload, "bak")
+                return BackupReadResult(BackupStatus.RECOVERED, bakPayload, "bak", repairFailed)
             }
             Log.e(TAG, ".bak 也损坏 slot=$slot")
         }
@@ -406,6 +418,11 @@ class SaveFileManager @Inject constructor(
 
             // 格式版本（大端序）
             val formatVersion = ((bytes[4].toInt() and 0xFF) shl 8) or (bytes[5].toInt() and 0xFF)
+            // C7 修复：仅接受已知格式版本——任意未来版本若 CRC 碰巧正确会按当前格式静默误解析
+            if (formatVersion != FORMAT_VERSION_LEGACY && formatVersion != FORMAT_VERSION) {
+                Log.w(TAG, "未知格式版本判损坏: ${file.name} (0x${formatVersion.toString(16)})")
+                return null
+            }
             // CRC 算法标识（字节 11，仅 0x0101+ 有效；旧格式该字节为保留位 0）
             val algoByte = bytes[11].toInt() and 0xFF
 
@@ -492,11 +509,16 @@ class SaveFileManager @Inject constructor(
 // 数据类
 // ============================================================
 
-/** 带恢复来源的读取结果 */
+/**
+ * 带恢复来源的读取结果。
+ * @param repairFailed C6（2026-08-05）：RECOVERED 时 .bak→.sav 修复是否失败
+ *   （true 表示 .sav 保持损坏、后续读取将持续回退 .bak，直至下次成功保存重写）
+ */
 data class BackupReadResult(
     val status: BackupStatus,
     val payload: ByteArray?,
-    val source: String  // "sav" | "bak" | "none"
+    val source: String,  // "sav" | "bak" | "none"
+    val repairFailed: Boolean = false
 )
 
 /** 读取状态 */

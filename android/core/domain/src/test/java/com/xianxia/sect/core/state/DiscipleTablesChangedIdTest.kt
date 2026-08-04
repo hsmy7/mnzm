@@ -5,6 +5,7 @@ import org.robolectric.RobolectricTestRunner
 
 import com.xianxia.sect.core.model.Disciple
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -180,5 +181,20 @@ class DiscipleTablesChangedIdTest {
         tables.changedIdTracker.record(-1)
         tables.changedIdTracker.recordAll(listOf(-5))
         assertTrue("负 id 不应置强制全量标志", !tables.changedIdTracker.consumeRejectedRecord())
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // C3（2026-08-05）：MAX_SAFE_CAPACITY 降至 1M 的边界守卫
+    // ════════════════════════════════════════════════════════════
+
+    @Test
+    fun `insert with id at MAX_SAFE_CAPACITY rejected`() {
+        // C3-a：常量 10M→1M 后，1M 起 require 拒绝（原 10M 恰在限制内，id=9,999,999 触发
+        // ~60 张平铺表千万级扩容 ≈ 7GB OOM 崩溃且重试即崩溃循环）。
+        // 注意：不能测"上限内大 id 可插入"——999,999 仍触发 ~720MB 扩容，JVM 测试 OOM 风险，
+        // 正常小 id 插入路径已由本文件其他用例覆盖
+        assertThrows(IllegalArgumentException::class.java) {
+            tables.insert(com.xianxia.sect.core.model.Disciple(id = MAX_SAFE_CAPACITY.toString(), name = "crafted"))
+        }
     }
 }

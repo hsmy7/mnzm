@@ -178,6 +178,23 @@
 - **清理已完成项** — 架构文档 4 个全量完成的待办段落移除（2026-08-01 两批对抗性审查遗留、仓库容量溢出专项 P1-P11、存档恢复链路 T7~T16）；综合优化遗留段清理已完成的 T4/T5/T6/P12（保留记录中的 T1/T2/T3）
 - **新增待办登记** — 对抗性审查发现的预存问题登记为 C1~C13（严重 1：主菜单云读档自阻塞；中等 3：云槽位读取自阻塞/大 id OOM/操作 finally 无主清理；轻微 9 项），按优先级排序待人工决策
 
+### 加固（2026-08-05 存档链路缺陷修复第一批实施 C1~C13 + T1，14 项全量）
+
+- **修复：主菜单云读档必失败（严重）** — `loadFromCloudSave` 全程持有 `cloudDownloadLock` 期间调 `loadGame` 被自身守卫拒绝——云档已写本地但内存加载永不执行；现拆内部入口 `loadGameInternal(fromCloudLoad)` 仅云路径绕过该守卫（其余守卫与锁全程持有不变），主菜单云读档恢复可用
+- **修复：设置页云槽位读取必失败** — `loadGameFromSlot(0)` 先置 isLoading 再调下载被自身守卫拒绝；isLoading 占位移到下载完成之后（互斥由 cloudDownloadLock 承担，外部读档中拒绝下载语义不变）
+- **修复：crafted 大 id 弟子 OOM 崩溃循环** — 三层防御：`MAX_SAFE_CAPACITY` 10M→1M；新验证规则 `DiscipleIdBoundsRule`（order=1，id>200K/负值判损坏走备份恢复，根治）；load 链路三层 `OutOfMemoryError` 捕获（原 Error 非 Exception 直接崩溃且重试即崩）
+- **修复：操作 finally 无主清理** — `clearActiveLoadJob(job)` 归属判定+清理原子化，被新操作取代的旧协程不再抹掉新操作在途状态；restart 补上缺失的清理与标志复位；saveGame/loadGame 新增 `_isRestarting` 守卫闭合 restart 窗口误杀根因
+- **修复：saveGame 双 tap 窗口** — isSaving 入口同步占位（原协程内异步设置存在双 tap 穿透窗口）
+- **修复：备份修复失败不反馈** — `BackupReadResult.repairFailed` 字段如实反映 .sav 修复失败（原仅 Log.w 仍报 RECOVERED，损坏文件反复回退）
+- **修复：文件格式版本不校验** — 非 0x0100/0x0101 未来版本判损坏（原 0xFFFF 若 CRC 正确按当前格式静默误解析）
+- **修复：注册表 clear 后校验失效** — `ensureRegistered` 改按注册表实际规模判定（原标志首置后恒 true，测试 clear 后空规则全 Passed）
+- **修复：AI 宗门弟子修炼值量级不封顶** — 数值消毒增加上限钳制（修为 1e9 对齐仙人 cap，乘区 1000），1e308 有限值不再放行
+- **修复：堆叠截断后储物袋悬空引用** — 截断清理扩展到 `storageBagItems`（原只清装备四槽+manualIds，UI 查无此堆叠时空显示）
+- **修复：delete-then-rename 崩溃窗口** — rename 原子覆盖优先（Linux/Android rename() 替换目标），失败回退 delete+rename 兼容 FAT32
+- **修复：ensureHeavyDataLoaded 空操作守卫** — 短路前置 worldMapSects 非空校验（原从不检查数据，空数据仍标记完成）
+- **修复：战报击杀数未校验** — BattleLogRefRule 增加 beastsDefeated 范围校验（负值/超限条目清理）
+- **修复：事件序号回填破坏单调递增** — 存在任一 0 序号时整体重编号 1..N（原 `[0,0,5]→[6,7,5]` 破坏稳定 key 语义）
+
 ## [4.0.85] - 2026-08-02
 
 ### 新增（2026-08-02 一键拆除建筑）

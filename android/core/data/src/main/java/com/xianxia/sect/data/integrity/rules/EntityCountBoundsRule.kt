@@ -108,7 +108,7 @@ object EntityCountBoundsRule : SaveValidationRule {
         )
     }
 
-    /** 清理弟子对已截断堆叠的悬空引用（装备四槽 + manualIds） */
+    /** 清理弟子对已截断堆叠的悬空引用（装备四槽 + manualIds + 储物袋条目，C10） */
     private fun clearDanglingStackRefs(
         d: Disciple,
         removedEquipmentIds: Set<String>,
@@ -118,7 +118,12 @@ object EntityCountBoundsRule : SaveValidationRule {
         val eq = d.equipment
         val removedEquipped = eq.equippedItemIds.filter { it in removedEquipmentIds }
         val removedManuals = d.manualIds.filter { it in removedManualIds }
-        if (removedEquipped.isEmpty() && removedManuals.isEmpty()) return d
+        // C10 修复（2026-08-05）：储物袋条目指向被截断堆叠时同样悬空——
+        // 原实现只清装备四槽 + manualIds，storageBagItems 原样保留，UI 查无此堆叠时空显示
+        val removedBagItems = eq.storageBagItems.filter {
+            it.itemId in removedEquipmentIds || it.itemId in removedManualIds
+        }
+        if (removedEquipped.isEmpty() && removedManuals.isEmpty() && removedBagItems.isEmpty()) return d
 
         val newEq = EquipmentSet(
             weaponId = eq.weaponId.takeUnless { it in removedEquipmentIds }.orEmpty(),
@@ -129,13 +134,13 @@ object EntityCountBoundsRule : SaveValidationRule {
             armorNurture = eq.armorNurture,
             bootsNurture = eq.bootsNurture,
             accessoryNurture = eq.accessoryNurture,
-            storageBagItems = eq.storageBagItems,
+            storageBagItems = eq.storageBagItems - removedBagItems.toSet(),
             storageBagSpiritStones = eq.storageBagSpiritStones,
             spiritStones = eq.spiritStones
         )
         details.add(
             "弟子[${d.name.ifBlank { "ID=${d.id}" }}] 存在指向已截断堆叠的悬空引用" +
-                "（装备 ${removedEquipped.size} 件 / 功法 ${removedManuals.size} 本），已清除"
+                "（装备 ${removedEquipped.size} 件 / 功法 ${removedManuals.size} 本 / 储物袋 ${removedBagItems.size} 条），已清除"
         )
         return d.copy(equipment = newEq, manualIds = d.manualIds - removedManualIds.toSet())
     }

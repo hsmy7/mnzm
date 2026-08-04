@@ -7,6 +7,7 @@ fun SaveValidationRuleRegistry.registerDefaults() {
     registerAll(
         listOf(
             NumericSanitizeRule,         // order=0（最先执行，NaN/负值消毒防穿透 cap 规则）
+            DiscipleIdBoundsRule,      // order=1（C3-b：大 id 弟子扩容 OOM 前置拦截）
             SectNameRule,              // order=1
             GameDateRule,              // order=2
             DiscipleAgePositiveRule,   // order=3

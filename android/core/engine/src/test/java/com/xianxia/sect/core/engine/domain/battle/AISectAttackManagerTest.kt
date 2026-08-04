@@ -1,7 +1,5 @@
 package com.xianxia.sect.core.engine.domain.battle
 
-import com.xianxia.sect.core.DamageType
-import com.xianxia.sect.core.HealType
 import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.Disciple
@@ -306,7 +304,7 @@ class AISectAttackManagerTest {
     // 2026-08-04 战斗核查修复回归（G4 AI 弟子技能完整化）
     // ═══════════════════════════════════════════════════════════════
 
-    private fun healManual(id: String, name: String = "回春术") = ManualInstance(
+    private fun healManual(name: String = "回春术") = ManualInstance(
         name = name, rarity = 3, description = "", type = ManualType.SUPPORT,
         stats = emptyMap(), skillName = name, skillDescription = "",
         skillType = "support", skillDamageType = "physical",
@@ -316,7 +314,7 @@ class AISectAttackManagerTest {
         skillIsAoe = false, skillTargetScope = "team", minRealm = 9
     )
 
-    private fun aoeManual(id: String, name: String = "横扫") = ManualInstance(
+    private fun aoeManual(name: String = "横扫") = ManualInstance(
         name = name, rarity = 3, description = "", type = ManualType.ATTACK,
         stats = emptyMap(), skillName = name, skillDescription = "",
         skillType = "attack", skillDamageType = "physical",
@@ -330,7 +328,7 @@ class AISectAttackManagerTest {
     fun `buildCombatSkills - 支援功法保留skillType与治疗字段`() {
         // G4 回归：原实现手写 CombatSkill 仅传 7 字段，支援功法被默认成 ATTACK 普攻
         val skills = AISectAttackManager.buildCombatSkills(
-            mapOf("m1" to healManual("m1"), "m2" to aoeManual("m2")),
+            mapOf("m1" to healManual(), "m2" to aoeManual()),
             emptyMap()
         )
         val heal = skills.first { it.name == "回春术" }

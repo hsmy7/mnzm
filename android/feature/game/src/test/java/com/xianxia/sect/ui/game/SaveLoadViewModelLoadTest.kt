@@ -25,6 +25,7 @@ import io.mockk.mockkStatic
 import io.mockk.slot
 import io.mockk.unmockkAll
 import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -267,5 +268,128 @@ class SaveLoadViewModelLoadTest {
             "save 失败应返回 Error 状态，实际: $state",
             state is CloudSaveOperationState.Error
         )
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // C1（2026-08-05）：主菜单云读档自阻塞——loadGameFromSlot 透传 fromCloudLoad
+    // ──────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `performCloudLoad - success path proceeds to loadGame`() = runTest(testDispatcher) {
+        // C1 修复前：handleCloudLoadSuccess 调 loadGameFromSlot → loadGame 的
+        // cloudDownloadLock 守卫拒绝（performCloudLoad 全程持锁）→ 云档已落盘但
+        // 内存加载永不执行（主菜单云读档必失败）。修复后 fromCloudLoad=true 绕过。
+        coEvery { tapCloudSaveManager.downloadSave() } returns
+            TapCloudSaveManager.CloudSaveResult.Success(
+                cloudSaveData(GameData(sectName = "青云宗", saveVersion = 2, currentSlot = 1))
+            )
+        coEvery { storageFacade.save(any(), any()) } returns
+            SaveResult.Success(Unit)
+        coEvery { storageFacade.getSaveSlotsSuspend() } returns emptyList()
+        // setSaveLoadState(isLoading=true) 评估 isSaving.value——relaxed mock 返回 Object 必崩
+        every { stateStore.isSaving } returns MutableStateFlow(false)
+
+        viewModel.loadFromCloudSave()
+        advanceUntilIdle()
+
+        // 走到读档流程：loadGame 的 launch 已注册 activeLoadJob
+        coVerify { gameEngineCore.registerActiveLoadJob(any()) }
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // C2（2026-08-05）：loadGameFromSlot(0) 自链下载自阻塞
+    // ──────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `loadGameFromSlot(0) - self-chain download proceeds`() = runTest(testDispatcher) {
+        // C2 修复前：先 setSaveLoadState(isLoading=true) 再调 downloadFromCloudSave，
+        // 被其自身 isLoading 守卫（L1339）恒真拒绝——SettingsTab 云槽位读取必失败
+        coEvery { tapCloudSaveManager.downloadSave() } returns
+            TapCloudSaveManager.CloudSaveResult.Success(
+                cloudSaveData(GameData(sectName = "青云宗", saveVersion = 2))
+            )
+        // save 失败注入避免深链（下载本身是否执行才是断言目标）
+        coEvery { storageFacade.save(any(), any()) } returns
+            SaveResult.failure(SaveError.SAVE_FAILED, "injected failure")
+        // setSaveLoadState(isLoading=true) 评估 isSaving.value——relaxed mock 返回 Object 必崩
+        every { stateStore.isSaving } returns MutableStateFlow(false)
+
+        viewModel.loadGameFromSlot(0)
+        advanceUntilIdle()
+
+        // 下载必须实际执行（修复前 0 次）
+        coVerify(exactly = 1) { tapCloudSaveManager.downloadSave() }
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // C4（2026-08-05）：restart 窗口内 saveGame/loadGame 被 _isRestarting 守卫拒绝
+    // ──────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `saveGame rejected while restart in progress`() = runTest(testDispatcher) {
+        // C4 配套守卫：restart 的 stopGameLoopAndWait 窗口内（saveLock 已持有、
+        // isSaving 未置）点保存——修复前 saveGame 通过守卫注册并取消 restart 协程
+        val gate = CompletableDeferred<Boolean>()
+        coEvery { gameEngineCore.stopGameLoopAndWait(any()) } coAnswers { gate.await() }
+        every { gameEngineCore.isGameLoopRunning } returns true
+        every { stateStore.isSaving } returns MutableStateFlow(false)
+        every { stateStore.isLoading } returns MutableStateFlow(false)
+        every { stateStore.runState } returns MutableStateFlow(RunState.PLAYING)
+        viewModel.resumeFromBackground()  // _isTimeRunning=true → restart 走 stopGameLoopAndWait 分支
+
+        viewModel.restartGame()
+        advanceUntilIdle()  // restart 协程执行到 stopGameLoopAndWait 挂起（_isRestarting=true）
+        viewModel.saveGame("1")
+        advanceUntilIdle()
+
+        // 仅 restart 注册 1 次；saveGame 被 _isRestarting 守卫拒绝（不再误杀 restart）
+        coVerify(exactly = 1) { gameEngineCore.registerActiveLoadJob(any()) }
+        // restart 协程未被取消：释放门闩后仍能继续走完
+        gate.complete(true)
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun `loadGame rejected while restart in progress`() = runTest(testDispatcher) {
+        val gate = CompletableDeferred<Boolean>()
+        coEvery { gameEngineCore.stopGameLoopAndWait(any()) } coAnswers { gate.await() }
+        every { gameEngineCore.isGameLoopRunning } returns true
+        every { stateStore.isSaving } returns MutableStateFlow(false)
+        every { stateStore.isLoading } returns MutableStateFlow(false)
+        every { stateStore.runState } returns MutableStateFlow(RunState.PLAYING)
+        viewModel.resumeFromBackground()
+
+        viewModel.restartGame()
+        advanceUntilIdle()
+        viewModel.loadGame(com.xianxia.sect.data.model.SaveSlot(1, "", 0L, 1, 1, "", 0, 0L))
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { gameEngineCore.registerActiveLoadJob(any()) }
+        gate.complete(true)
+        advanceUntilIdle()
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // C5（2026-08-05）：saveGame 双 tap 窗口——isSaving 同步占位
+    // ──────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `saveGame second tap rejected while first save in flight`() = runTest(testDispatcher) {
+        // C5 修复前：isSaving 由协程内异步设置，两次快速 tap 在协程启动前均可通过守卫
+        // → job2 注册取消 job1（磁盘已写但 currentSlot 回滚不一致）。修复后入口同步置位。
+        val isSavingFlow = MutableStateFlow(false)
+        every { stateStore.isSaving } returns isSavingFlow
+        every { stateStore.setSavingDirect(any()) } answers {
+            isSavingFlow.value = args[0] as Boolean
+        }
+        every { stateStore.isLoading } returns MutableStateFlow(false)
+        every { stateStore.runState } returns MutableStateFlow(RunState.PLAYING)
+
+        viewModel.saveGame("1")
+        viewModel.saveGame("1")
+        advanceUntilIdle()
+
+        // 仅第一次 tap 通过守卫注册；第二次被同步占位的 isSaving 拒绝
+        coVerify(exactly = 1) { gameEngineCore.registerActiveLoadJob(any()) }
     }
 }

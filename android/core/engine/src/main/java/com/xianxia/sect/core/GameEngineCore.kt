@@ -1243,15 +1243,28 @@ class GameEngineCore @Inject constructor(
      */
     fun registerActiveLoadJob(job: Job) {
         synchronized(activeLoadJobLock) {
+            if (activeLoadJob === job) return  // C4：防自注册自杀
             activeLoadJob?.cancel()
             activeLoadJob = job
         }
     }
 
-    /** 清除加载协程 Job 引用（协程正常结束时调用） */
-    fun clearActiveLoadJob() {
-        synchronized(activeLoadJobLock) {
+    /**
+     * 清除加载协程 Job 引用（协程正常结束时调用）。
+     * C4 修复（2026-08-05）：归属判定 + 清理原子完成——仅当 [activeLoadJob] === job
+     * 时置 null 并返回 true；被新操作取代的旧 job（owned=false）不清理，
+     * 避免旧协程 finally 抹掉新操作的在途状态与看门狗监管。
+     * 看门狗 [forceResetStuckStates] 为全能路径，不受归属约束。
+     *
+     * @param job 发起清理的协程 Job
+     * @return 是否归本 job（true 表示本次清理生效）
+     */
+    fun clearActiveLoadJob(job: Job): Boolean = synchronized(activeLoadJobLock) {
+        if (activeLoadJob === job) {
             activeLoadJob = null
+            true
+        } else {
+            false
         }
     }
 
