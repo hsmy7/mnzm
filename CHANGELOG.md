@@ -109,7 +109,10 @@
   - **CLAUDE.md 审查清单新增 9 条扩展方向检查项** + 设计方案规则新增原则 6（扩展方向对标）；`docs/architecture.md` 新增扩展性架构预留章节（含 iOS 迁移预留）；`docs/knowledge-base.md` 新增扩展性现状盘点章节（经济基线表 + iOS 可移植性基线）
   - **新增玩法 UI 组件复用规范** — 新玩法界面必须优先复用游戏内已有组件（GameButton/UnifiedGameDialog/ItemCard/SpriteImage 等 18 项清单写入 `rules/expansion-playbook.md`），禁止自建重复组件；CLAUDE.md 审查清单同步新增检查项
 
-### 修复（2026-08-04 战斗系统全面核查修复——第一手源码验证 9 项正确性 Bug）
+
+## [4.00.87] - 2026-08-04
+
+### 修复（2026-08-04 战斗系统全面核查修复——第一手源码验证 9 项正确性 Bug + 对抗性审查整改）
 
 - **修复：境界压制斩杀方向反转** — `checkInstantKill` 公式此前为 `(defenderRealm - attackerRealm)×9 - 层差`，方向相反：目标（防守方）境界比攻击者高 ~2 大境界时反而触发"境界压制斩杀"（弱者秒杀强者），而高境界秒低境界的预期场景永不触发。已改为 `(attackerRealm - defenderRealm)×9 + 层差`，注释与代码语义一致；两引擎（BattleSystem/AISectAttackManager/天道试炼）共享入口自动生效，补 6 个方向守卫测试
 - **修复：多段技能（连击）实际伤害未乘段数** — `calculateCombatantDamage` 正常伤害分支不乘 `skill.hits`（hits 仅进战报"（N连击）"文案），而 AI 决策用 `estimateDamage` 乘段数——实际伤害只有设计值的一半/三分之一，AI 永远高估连击技能。配置证据：虎妖 0.9×2、狼妖 0.6×3，倍率×段数恒等于单发 1.8。已修复为实际伤害 ×hits，与 AI 估算对齐
@@ -126,6 +129,18 @@
 - **性能：删除 AOE 护盾重复幂等计算** — applyAoeShieldAbsorption 与单目标护盾结算对同一快照重复计算，删除（行为不变）
 - **重构：EnemyGenerator.generateHumanEnemy 拆分** — 装备生成/功法生成提取为子函数（RNG 调用序不变）；剩余 God Method（processBattleCasualties/attackSect 等 10 处）列为后续持续拆分项
 - **测试基建修复** — 发现 BattleSystemTest 既有 22 个测试为假阳性：未注入 DiscipleStatsProvider，弟子属性全 0（maxHp=0 → 战斗 0 回合即结束，RNG 从未使用）。已注入真实实现 + 真实 GameRngManager，现有测试真实执行回合；新增 14 个战斗回归测试（斩杀方向/连击/敌方治疗/死亡不出手/RNG 确定性/技能完整/护盾分摊链接/伤害倍率/敌人功法加成），引擎模块全量 1587 测试通过
+
+### 对抗性审查整改（3 个恶意角色代理 42 项发现，交叉验证后 12 项修复）
+
+- **连击段数钳制** — hits 篡改为 0/负值时钳制为 1（否则 0 伤害/负伤害回血），Long 乘法防 Int 溢出回绕
+- **护盾数值防御** — 护盾 value 语义为最大生命比例（0~1），钳制 [0,1] 防存档篡改（负值放大伤害、±Infinity 异常）；余量写回按 value 匹配（同剩余时长多护盾不再串扰）
+- **必杀无视护盾** — 斩杀（境界压制必杀）直接击杀，两引擎语义统一，消除"战报显示必杀、实际残血存活"的谎报
+- **AI 引擎 ally 作用域支援修复** — BattleCalculator 对 "ally" 返回空列表，AI 引擎此前空放（治疗/护盾全失效），现按 aisRng 选队友
+- **AI 引擎 DAMAGE_LINK 补附加** — G4 全字段保留后链接效果在宗门战恒为零，补链接 debuff 附加（与主引擎一致）
+- **AI 引擎 pendingAiAction 收敛** — 与主引擎 G7 同模式改局部传递（object 单例类级可变字段消除）
+- **AI 引擎超时语义对齐** — 超时后按存活数判胜负（与 BattleSystem 一致），僵局战不再一律 DRAW 使攻击方无损失
+- **试炼敌人技能倍率按熟练度调整** — 与属性加成（NOVICE ×1.5）同源，消除同一敌人"属性 1.5 倍、技能裸奔"的矛盾
+- **AOE 日志求和防溢出** — Long 求和防多段×多目标溢出为负
 
 ## [4.0.85] - 2026-08-02
 

@@ -498,6 +498,47 @@ SaveValidator.validate(SaveData)
 - `clearPendingNotification`：`_pendingNotificationFlow` 仍有 GameOverlayHost UI 消费者，通知系统迁移完成前保留
 - `ui-layout-unification` 分支 4 个超限文件：分支已删除/合并，无合回风险（FileLengthRule 仍是通用门槛）
 
+## 待完成项（2026-08-04 战斗系统全面核查修复遗留）
+
+> 战斗系统全面核查修复（commit 239d13de：9 项正确性 Bug + 双引擎收敛 + 对抗性审查 12 项整改）已完成。
+> 以下为本次未完成项与对抗性审查确认的预存低危项，按优先级排序，完成标准以"≤60 行函数 / 构造依赖 ≤7"等量化指标为准。
+
+### 函数级（God Method 剩余拆分，每批 1 个方法 + 现有测试回归，RNG 调用序不变）
+
+| 项 | 位置 | 现状 | 目标 |
+|---|---|---|---|
+| processBattleCasualties | `core/engine/.../domain/battle/CombatService.kt` L42-178 | 136 行 | ≤60 行（按死亡/复活分支提取） |
+| attackSect | `core/engine/.../GameEngineBattleOps.kt` L35-195 | 160 行 | ≤60 行（提取胜负结算/奖励/关系变更） |
+| attackWorldLevel | 同文件 L301-445 | 144 行 | ≤60 行 |
+| scoutSect | 同文件 L446-540 | 94 行 | ≤60 行（纯提取优先） |
+| executeTeamConflict | `core/engine/.../exploration/PatrolBattleSystem.kt` L279-403 | 124 行 | ≤60 行（提取胜负分支） |
+| distributeRewardItems | `core/engine/.../engine/domain/battle/HeavenlyTrialService.kt` L363-488 | 125 行 | ≤60 行（提取掉落/邮件逻辑） |
+| EncounterBattleService 各函数 | `core/engine/.../domain/battle/EncounterBattleService.kt` | 各 79-109 行 | ≤60 行（提取伤害应用/战报组装） |
+| executeAIEncounterBattle | `core/engine/.../exploration/AISectBeastAttackProcessor.kt` L191-275 | 84 行 | ≤60 行 |
+| resolveBeastAttackFight | `core/engine/.../service/ExplorationService.kt` L169-261 | 92 行 | ≤60 行 |
+| resolveDefendersAndBattle / decidePlayerAttack | `core/engine/.../domain/battle/AISectAttackManager.kt` L160-248/L419-501 | 88/82 行 | ≤60 行（提取防守选择/攻击决策） |
+| executeSupportSkill | `core/engine/.../util/BattleCalculator.kt` L563-654 | 91 行 | ≤60 行（提取治疗/护盾/buff 分发） |
+
+> 注：EnemyGenerator.generateHumanEnemy 已于本次拆分完成（装备/功法生成提取子函数，RNG 调用序不变）。
+
+### 架构级（未完成）
+
+| 项 | 位置 | 现状 | 说明 |
+|---|---|---|---|
+| W4 AISectAttackManager object → class | `core/engine/.../domain/battle/AISectAttackManager.kt` | object + 文件级 `aisRngManager` var 注入 | 与 EnemyGenerator 同模式（注入点在 GameEngine 初始化必然执行，error() 为防御兜底）；object→class 构造注入波及全部调用点，待专项重构 |
+| AI 引擎 turnAdvance（拉条）移植 | `core/engine/.../domain/battle/AISectAttackManager.kt` | 无 processTurnAdvance 实现 | 鹰妖"天翔一闪"等拉条技能在宗门战无效（主引擎 BattleSystem 已实现）；为稀有技能特性，移植需完整实现（行动记录/冷却/伤害结算） |
+| C4 战报保留策略 | `core/data` 战报持久化 | BattleLog rounds/actions 全量入库无保留策略 | 长期 DB 增长问题；当前无性能数据支撑（无 Bugly 反馈/无热点证据），待有数据时设计保留窗口/摘要策略 |
+
+### 对抗性审查确认的预存低危（记录在案）
+
+| # | 待办 | 现状 | 说明 |
+|---|---|---|---|
+| T-C1 | estimateDamage 不含 damageModifier | ⏸️ 记录 | 严苛训练 +5% 时 AI 决策估算略低于实际（预存接口未随 W1 扩展）；轻微一致性偏差 |
+| T-C2 | 斩杀分支 maxHp=0/负边界 | ⏸️ 记录 | 斩杀伤害 = defender.maxHp，maxHp=0 时伤害 0、为负时负伤害；需配合存档篡改才可达（hp≤0 目标战斗前已过滤），低危 |
+| T-C3 | EnemyGenerator nextInt 配置依赖 | ⏸️ 记录 | `nextInt(realmMax + 1 - realmMin)` 依赖配置 `enemyRealmMin ≤ enemyRealmMax`（当前 MissionDifficulty 全部满足）；配置反转即 IllegalArgumentException，预存数据依赖 |
+| T-C4 | 超长 buffs 列表性能 | ⏸️ 记录 | buildDamageZones 每次攻击多次 filter 遍历，buffs 篡改为十万级时游戏线程卡顿（存档篡改场景） |
+| T-C5 | 超长弟子名日志开销 | ⏸️ 记录 | 玩家输入弟子名无长度限制，MB 级名字只带来战报内存/日志开销（非本次引入） |
+
 ## 待完成项（2026-08-04 存档恢复链路对抗性审查遗留）
 
 > 存档恢复链路根治（SaveFileManager 接线/迁移恢复谓词/云读档管线/isLoading 兜底）经 3 个对抗性审查代理审查，
