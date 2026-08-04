@@ -83,3 +83,21 @@ suspend fun GameEngine.sendWhitelistBonus(slotId: Int) {
         DomainLog.i(TAG, "白名单福利跳过注入（slotId=$slotId）")
     }
 }
+
+/**
+ * 向指定存档注入单用户专属运营福利邮件（2026-09-04 截止，每档一次）。
+ *
+ * 用户判定与幂等保护均在
+ * [com.xianxia.sect.core.engine.service.MailService.injectExclusiveBonus]
+ * 内部完成（目标 unionId + mailRecords + Room DB 三重防护）。
+ *
+ * @param slotId 目标存档槽位
+ */
+suspend fun GameEngine.sendExclusiveBonus(slotId: Int) {
+    val injected = mailService.injectExclusiveBonus(slotId)
+    if (injected) {
+        DomainLog.i(TAG, "专属福利已注入 slot=$slotId")
+    } else {
+        DomainLog.i(TAG, "专属福利跳过注入（slotId=$slotId）")
+    }
+}

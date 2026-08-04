@@ -436,7 +436,7 @@ fun `all SlotCategory values are covered by scanAndRegister`() {
 
 **12.4 🔴 功能变更必须更新 Changelog** — 功能完成后同步更新两个文件，变更从玩家视角用中文描述：
 
-- **游戏内**: `android/app/src/main/java/com/xianxia/sect/core/ChangelogData.kt` — 追加 `ChangelogEntry`
+- **游戏内**: `android/app/src/main/assets/changelog_entries.json` — 在当前版本条目的 `changes` 数组末尾追加一行（由 `core/data/.../ChangelogData.kt` 解析，设置界面"更新日志"弹窗展示）
 - **外部**: `CHANGELOG.md`（项目根目录）— 追加到**当前版本**段落内，不强制递增版本号
 
 **版本号变更规则：**

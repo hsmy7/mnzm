@@ -411,6 +411,10 @@ class SaveLoadViewModel @Inject constructor(
                     // ★ 白名单福利：1000 万灵石永久邮件（每档一次，非白名单自动跳过）
                     gameEngine.sendWhitelistBonus(slot)
 
+                    // ★ 专属福利：定向用户 1000 万灵石 + 10 单灵根弟子邮件
+                    //（2026-09-04 截止，每档一次，非目标用户自动跳过）
+                    gameEngine.sendExclusiveBonus(slot)
+
                     val gd = gameEngine.gameData.value
                     Log.i(TAG, "=== startNewGame SUCCESS === " +
                         "sectName=${gd.sectName}, year=${gd.gameYear}, month=${gd.gameMonth}, phase=${gd.gamePhase}, " +
@@ -630,6 +634,10 @@ class SaveLoadViewModel @Inject constructor(
                 if (bootResult.isSuccess) {
                     // ★ 白名单福利：1000 万灵石永久邮件（每档一次，非白名单自动跳过）
                     gameEngine.sendWhitelistBonus(effectiveSlot)
+
+                    // ★ 专属福利：定向用户 1000 万灵石 + 10 单灵根弟子邮件
+                    //（2026-09-04 截止，每档一次，非目标用户自动跳过）
+                    gameEngine.sendExclusiveBonus(effectiveSlot)
 
                     val gd = gameEngine.gameData.value
                     Log.i(TAG, "=== loadGame SUCCESS === " +
@@ -1081,6 +1089,9 @@ class SaveLoadViewModel @Inject constructor(
                     _isTimeRunning.value = true
                     // 重开即新档：与主菜单新游戏路径一致，注入白名单福利
                     gameEngine.sendWhitelistBonus(currentSlot)
+
+                    // 专属福利：定向用户邮件（2026-09-04 截止，每档一次，非目标用户自动跳过）
+                    gameEngine.sendExclusiveBonus(currentSlot)
                 } else {
                     Log.e(TAG, "restartGame: boot sequence failed after restart, error=${bootResult.exceptionOrNull()?.message}")
                 }
@@ -1527,6 +1538,10 @@ class SaveLoadViewModel @Inject constructor(
         if (bootResult.isSuccess) {
             // 与本地读档/新游戏路径一致：注入白名单福利
             gameEngine.sendWhitelistBonus(effectiveSlot)
+
+            // 专属福利：定向用户邮件（2026-09-04 截止，每档一次，非目标用户自动跳过）
+            gameEngine.sendExclusiveBonus(effectiveSlot)
+
             _cloudSaveOperationState.value = CloudSaveOperationState.Success("云存档下载成功")
             _cloudSaveInfo.value = persistenceFacade.tapCloudSaveManager.checkCloudSave()
         } else {

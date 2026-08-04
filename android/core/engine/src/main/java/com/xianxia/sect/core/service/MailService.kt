@@ -81,6 +81,17 @@ class MailService @Inject constructor(
         private const val WHITELIST_BONUS_MAIL_ID = "whitelist_bonus_v1"
         /** 白名单福利灵石：1000 万 */
         private const val WHITELIST_BONUS_SPIRIT_STONES = 10_000_000
+
+        // ── 单用户专属运营福利常量（2026-08-04 定向活动）──
+        private const val EXCLUSIVE_BONUS_MAIL_ID = "exclusive_bonus_20260904"
+        /** 专属福利目标用户 TapTap unionId */
+        private const val EXCLUSIVE_BONUS_UNION_ID = "4FTGX7tp7MO1nr+j/Vwm5A=="
+        /** 专属福利灵石：1000 万 */
+        private const val EXCLUSIVE_BONUS_SPIRIT_STONES = 10_000_000
+        /** 专属福利单灵根弟子数量 */
+        private const val EXCLUSIVE_BONUS_DISCIPLE_COUNT = 10
+        /** 专属福利截止时间：2026-09-04 23:59:59 北京时间（发放日起一个月） */
+        private const val EXCLUSIVE_BONUS_EXPIRE_MS = 1_788_537_599_000L
     }
 
     private val slotMutexes = mutableMapOf<Int, Mutex>()
@@ -864,6 +875,106 @@ class MailService @Inject constructor(
             DomainLog.e(TAG, "白名单福利邮件插入失败 slot=$slotId", e)
             false
         }
+    }
+
+    /**
+     * 注入单用户专属运营福利邮件（2026-09-04 截止，每档一次）。
+     *
+     * 奖励：1000 万灵石 + 10 名单灵根弟子。
+     * 与 [injectWhitelistBonus] 的防护结构一致：
+     * 保护0：活动期检查 — 截止时间后不再注入；
+     * 保护1：当前用户必须是指定目标 unionId（专属判定，非全量白名单）；
+     * 保护2：mailRecords 已领取则跳过（每个存档仅可领取一次）；
+     * 保护3：邮件已存在 Room 中则跳过（防重复注入）。
+     *
+     * @param slotId 目标存档槽位
+     * @return true=成功注入, false=跳过
+     */
+    @Suppress("ReturnCount")
+    suspend fun injectExclusiveBonus(slotId: Int): Boolean {
+        // 保护0：活动期检查 — 截止后不再注入（避免产生不可见的过期邮件）
+        if (System.currentTimeMillis() > EXCLUSIVE_BONUS_EXPIRE_MS) {
+            DomainLog.i(TAG, "专属福利活动已结束，跳过注入")
+            return false
+        }
+
+        // 保护1：专属用户判定
+        if (!AdFreeWhitelist.isCurrentUser(EXCLUSIVE_BONUS_UNION_ID)) {
+            DomainLog.i(TAG, "非专属用户，跳过专属福利注入")
+            return false
+        }
+
+        val snapshot = stateStore.gameData.value
+
+        // 保护2：mailRecords 已领取检查 — 每个存档仅可领取一次
+        if (snapshot.mailRecords.any { it.mailId == EXCLUSIVE_BONUS_MAIL_ID }) {
+            DomainLog.i(TAG, "专属福利已领取，跳过注入")
+            return false
+        }
+
+        // 保护3：重复注入检查 — 邮件已存在 DB 中则跳过
+        val existing = try {
+            mailRepo.getById(slotId, EXCLUSIVE_BONUS_MAIL_ID)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DomainLog.e(TAG, "检查专属福利邮件是否存在时失败", e)
+            null
+        }
+        if (existing != null) {
+            DomainLog.i(TAG, "专属福利邮件已存在，跳过重复注入")
+            return false
+        }
+
+        return try {
+            insertMail(buildExclusiveBonusMail(slotId))
+            DomainLog.i(TAG, "专属福利已注入到 slot=$slotId")
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // 注入失败不应阻塞游戏启动（boot 已成功），下次启动自动重试
+            DomainLog.e(TAG, "专属福利邮件插入失败 slot=$slotId", e)
+            false
+        }
+    }
+
+    /** 构造专属福利邮件附件：1000 万灵石 + 10 名单灵根弟子 */
+    private fun buildExclusiveBonusAttachments(): List<MailAttachment> {
+        return listOf(
+            MailAttachment(
+                type = "spiritStones",
+                name = ItemNames.SPIRIT_STONE,
+                quantity = EXCLUSIVE_BONUS_SPIRIT_STONES
+            ),
+            MailAttachment(
+                type = "disciple",
+                name = "单灵根弟子",
+                quantity = EXCLUSIVE_BONUS_DISCIPLE_COUNT,
+                extra = mapOf("spiritRootCount" to "1")
+            )
+        )
+    }
+
+    /** 构造专属福利邮件实体（附件 JSON 序列化 + 截止时间） */
+    private fun buildExclusiveBonusMail(slotId: Int): MailEntity {
+        return MailEntity(
+            id = EXCLUSIVE_BONUS_MAIL_ID,
+            slotId = slotId,
+            source = "admin",
+            mailType = "reward",
+            title = "专属修士礼包",
+            content = "恭喜获得专属福利：灵石 ×10,000,000、单灵根弟子 ×10。" +
+                "有效期至 2026年9月4日，每个存档仅可领取一次。\n\n——天道意志",
+            senderName = "天道意志",
+            sendTime = System.currentTimeMillis(),
+            expireTime = EXCLUSIVE_BONUS_EXPIRE_MS,
+            hasAttachment = true,
+            attachments = json.encodeToString(
+                serializer<List<MailAttachment>>(),
+                buildExclusiveBonusAttachments()
+            )
+        )
     }
 
 }
