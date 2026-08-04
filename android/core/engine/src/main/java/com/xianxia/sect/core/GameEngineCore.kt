@@ -15,6 +15,9 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
 import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.core.engine.monitor.GameTimeProgressMonitor
+import com.xianxia.sect.core.engine.monitor.GameTimeProgressSnapshot
+import com.xianxia.sect.core.engine.monitor.StallVerdict
 import kotlinx.coroutines.*
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.*
@@ -49,6 +52,7 @@ import javax.inject.Singleton
  * UI 层订阅 unifiedState 即可获得最新状态，无需手动同步。
  */
 @Singleton
+@Suppress("LongParameterList") // 引擎核心 13 个真实依赖（含 EngineCrashReporter 端口），原 12 参数已 baseline 豁免
 class GameEngineCore @Inject constructor(
 
     private val stateStore: GameStateStore,
@@ -62,7 +66,9 @@ class GameEngineCore @Inject constructor(
     private val gameClock: GameTimeClock,
     private val thermalController: ThermalController,
     private val thermalMonitor: com.xianxia.sect.core.perf.ThermalMonitor,
-    private val spiritStoneWallet: SpiritStoneWallet
+    private val spiritStoneWallet: SpiritStoneWallet,
+    /** 引擎异常上报端口（app 层提供 Bugly 实现；默认 Noop 供测试/无基建场景） */
+    private val engineCrashReporter: EngineCrashReporter = NoopEngineCrashReporter
 ) : EngineContextDispatcher {
 
     /**
@@ -163,7 +169,10 @@ class GameEngineCore @Inject constructor(
         private const val TICK_INTERVAL_MS = 100L
         private const val MIN_TICK_DELAY_MS = 16L
         private const val TICK_WARNING_THRESHOLD_MS = 100f
-        private const val STUCK_STATE_TIMEOUT_MS = 10_000L  // 从30s降至10s，更快恢复
+        // isSaving/isLoading 病理级死锁最终兜底超时（60s）。
+        // 历史教训：10s 会把低端机正常慢保存（>3-5s）误判为卡死并打断，导致反复冻结。
+        // 正常保存的豁免由 GameTimeProgressMonitor（lastLoopActivityMs 判据）承担。
+        private const val SAVE_LOAD_STUCK_TIMEOUT_MS = 60_000L
         private const val ADAPTIVE_MAX_INTERVAL_MS = 1000L
         private const val TICK_TIME_BUDGET_MS = 50L
         // ★ 帧驱动 Accumulator 常量
@@ -206,6 +215,12 @@ class GameEngineCore @Inject constructor(
 
         /** 看门狗指数退避上限（毫秒） */
         internal const val WATCHDOG_MAX_BACKOFF_MS = 30_000L
+
+        /** 秘境暂停租约续约间隔（UI 探索界面每 15s 续约一次，引擎与 UI 契约） */
+        const val SECRET_REALM_RENEW_INTERVAL_MS = 15_000L
+
+        /** 看门狗恢复动作最小间隔：防止 OEM 反复挂起时雪崩式换线程（与 Alarm 限频一致） */
+        internal const val MIN_WATCHDOG_RECOVERY_INTERVAL_MS = 60_000L
 
         /**
          * 计算看门狗指数退避的下一个间隔。
@@ -261,10 +276,6 @@ class GameEngineCore @Inject constructor(
     private var consecutiveNormalTicks = 0
     private var lastActualElapsedMs = 0L
 
-    // 后台停止时保存状态
-    @Volatile
-    private var wasRunningBeforeBackground = false
-    
     private val engineExceptionHandler = CoroutineExceptionHandler { _, throwable ->
         if (throwable !is CancellationException) {
             DomainLog.e(TAG, "Unhandled exception in engine coroutine", throwable)
@@ -322,6 +333,31 @@ class GameEngineCore @Inject constructor(
 
     /** 看门狗连续失败次数达到此阈值后使用更长间隔，避免 OEM 永久挂起时频繁重启 */
     private val watchdogDegradedThreshold = 10
+
+    // ── 游戏时间推进监控（第一类监控：看门狗统一判据） ──
+
+    /** 停滞判定器（纯函数组件，三层看门狗共享同一判定出口） */
+    private val gameTimeProgressMonitor = GameTimeProgressMonitor()
+
+    /** 游戏循环体最近活动墙钟（每次迭代更新，含暂停/保存跳过路径） */
+    @Volatile
+    private var lastLoopActivityMs: Long = 0L
+
+    /** 上次 tick 实际耗时（异常上报上下文用） */
+    @Volatile
+    private var lastTickDurationMs: Long = 0L
+
+    /** 引擎循环最近一次真实 tick 的进度快照（假运行时也更新） */
+    @Volatile
+    private var lastProgressSnapshot: GameTimeProgressSnapshot? = null
+
+    /** 秘境暂停租约最后续约墙钟（renewSecretRealmPauseLease 刷新） */
+    @Volatile
+    private var secretRealmPauseRenewedAtMs: Long = 0L
+
+    /** 看门狗上次恢复动作墙钟（60s 限频） */
+    @Volatile
+    private var lastWatchdogRecoveryMs: Long = 0L
 
     fun initialize() {
         if (isInitialized) {
@@ -385,6 +421,10 @@ class GameEngineCore @Inject constructor(
             try {
                 while (isActive) {
                     try {
+                        // 循环活动心跳：每次迭代更新（含暂停分支与 skip 路径），
+                        // 供看门狗区分"正常慢保存/暂停"与"循环停滞/引擎死亡"
+                        lastLoopActivityMs = gameClock.nowMs()
+
                         // Step 1: 计算 deltaTime
                         val nowNs = System.nanoTime()
                         var deltaNs = nowNs - lastFrameTimeNs
@@ -393,6 +433,9 @@ class GameEngineCore @Inject constructor(
 
                         // Step 2: 暂停/加载时不积累
                         if (stateStore.isPaused.value || stateStore.isLoading.value) {
+                            // 暂停期间也刷新进度快照（flags 实时化）——
+                            // 否则快照过期，看门狗无法判定秘境锁残留/用户暂停豁免
+                            sampleProgressSnapshot()
                             gameClock.consumeDeadTime()
                             delay(50)
                             accumulatorNs = 0L
@@ -435,11 +478,39 @@ class GameEngineCore @Inject constructor(
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Exception) {
-                        val crashYear = stateStore.gameDataSnapshot.gameYear
-                        val crashMonth = stateStore.gameDataSnapshot.gameMonth
+                        // 第一性原理：catch 块自身必须永不抛异常——任何状态读取失败
+                        // 都不能杀死游戏循环（测试曾复现：catch 内读 isPaused 抛异常 → 协程死亡）
+                        @Suppress("TooGenericExceptionCaught") // 防御性兜底：状态读取异常类型不可预期
+                        val crashContext = try {
+                            val gd = stateStore.gameDataSnapshot
+                            mapOf(
+                                "year" to gd.gameYear.toString(),
+                                "month" to gd.gameMonth.toString(),
+                                "phase" to gd.gamePhase.toString(),
+                                "tickCount" to _tickCount.value.toString(),
+                                "scene" to currentScene.name,
+                                "isPaused" to stateStore.isPaused.value.toString(),
+                                "isSaving" to stateStore.isSaving.value.toString(),
+                                "isLoading" to stateStore.isLoading.value.toString(),
+                                "speed" to gameClock.speed.toString(),
+                                "lastTickMs" to lastTickDurationMs.toString(),
+                                "watchdogAttempts" to watchdogRecoveryAttempts.toString(),
+                                "oem" to OemPowerProfileProvider.currentManufacturer.name
+                            )
+                        } catch (contextFailure: Exception) {
+                            mapOf("contextError" to (contextFailure.message ?: "unknown"))
+                        }
                         DomainLog.e(TAG,
-                            "Game loop tick crashed: year=$crashYear month=$crashMonth " +
+                            "Game loop tick crashed: year=${crashContext["year"] ?: "?"} " +
                             "tickCount=${_tickCount.value} scene=${currentScene}", e)
+                        // 异常归因上报：让下次回归有证据可循（历史多次"吞异常+重启"修复无归因）
+                        // 上报失败必须被吞——上报通道异常不得杀死游戏循环
+                        @Suppress("TooGenericExceptionCaught") // 上报通道失败类型不可预期，必须全吞
+                        try {
+                            engineCrashReporter.postCatchedException(e, crashContext)
+                        } catch (reportFailure: Exception) {
+                            DomainLog.w(TAG, "Crash reporter failed", reportFailure)
+                        }
                         gameClock.consumeDeadTime()
                         accumulatorNs = 0L
                     }
@@ -521,45 +592,38 @@ class GameEngineCore @Inject constructor(
         watchdogJob = CoroutineScope(
             WATCHDOG_DISPATCHER + SupervisorJob() + watchdogExceptionHandler
         ).launch {
-            var lastTickCount = _tickCount.value
             // 当前退避间隔：失败后翻倍递增（如 3s→6s→12s→24s→30s 上限），成功后重置为初始间隔
             var currentBackoffMs = effectiveBaseMs
             while (isActive) {
                 try {
                 delay(currentBackoffMs)
-                val currentTickCount = _tickCount.value
-                val loopActive = gameLoopJob?.isActive == true
-                if (currentTickCount == lastTickCount && !stateStore.isPaused.value) {
-                    watchdogRecoveryAttempts++
-                    if (!loopActive && watchdogRecoveryAttempts <= 3) {
-                        DomainLog.w(TAG,
-                            "Watchdog: game loop is dead (isActive=false), recovering")
+                when (val verdict = progressVerdict()) {
+                    StallVerdict.Healthy, StallVerdict.PausedByOwner -> {
+                        // 引擎健康 / 暂停有主（用户主动暂停或秘境租约有效）：重置失败计数
+                        watchdogRecoveryAttempts = 0
+                        currentBackoffMs = computeWatchdogBackoff(
+                            currentBackoffMs, baseIntervalMs, hasRecovered = true
+                        )
                     }
-                    val atMaxBackoff = currentBackoffMs >= WATCHDOG_MAX_BACKOFF_MS
-                    val shouldLog = !atMaxBackoff ||
-                        watchdogRecoveryAttempts % 10 == 0
-                    if (shouldLog) {
-                        DomainLog.w(TAG,
-                            "Watchdog: no tick progress in ${currentBackoffMs / 1000}s " +
-                            "(attempt $watchdogRecoveryAttempts" +
-                            if (degradedMode) ", degraded" else "" +
-                            ")")
+                    StallVerdict.LoopStalled, StallVerdict.FakeRunDetected,
+                    StallVerdict.StalePauseDetected -> {
+                        watchdogRecoveryAttempts++
+                        val atMaxBackoff = currentBackoffMs >= WATCHDOG_MAX_BACKOFF_MS
+                        val shouldLog = !atMaxBackoff || watchdogRecoveryAttempts % 10 == 0
+                        if (shouldLog) {
+                            DomainLog.w(TAG,
+                                "Watchdog: verdict=$verdict no progress in " +
+                                "${currentBackoffMs / 1000}s " +
+                                "(attempt $watchdogRecoveryAttempts" +
+                                if (degradedMode) ", degraded" else "" +
+                                ")")
+                        }
+                        handleWatchdogVerdict(verdict)
+                        currentBackoffMs = computeWatchdogBackoff(
+                            currentBackoffMs, effectiveBaseMs, hasRecovered = false
+                        )
                     }
-                    restartGameLoopInternal()
-                    currentBackoffMs = computeWatchdogBackoff(
-                        currentBackoffMs, effectiveBaseMs, hasRecovered = false
-                    )
-                } else if (currentTickCount != lastTickCount) {
-                    watchdogRecoveryAttempts = 0
-                    currentBackoffMs = computeWatchdogBackoff(
-                        currentBackoffMs, baseIntervalMs, hasRecovered = true
-                    )
-                } else if (loopActive && stateStore.isPaused.value) {
-                    // 游戏暂停中 tick 不推进，不触发重启，仅刷新基准计数
-                    lastTickCount = currentTickCount
-                    continue
                 }
-                lastTickCount = currentTickCount
                 } catch (e: CancellationException) { throw e }
                 catch (e: Exception) {
                     DomainLog.e(TAG, "Watchdog: loop error, continuing", e)
@@ -570,45 +634,103 @@ class GameEngineCore @Inject constructor(
     }
 
     /**
-     * 内部重启游戏循环（不改变 paused 等外部状态）。
-     * 在看门狗检测到卡死时调用。
+     * 游戏时间推进判定 — 三层看门狗（引擎内/主线程 HealthCheck/Alarm）统一出口。
      *
-     * ## 看门狗自重启调用链
-     * 本方法从 [startWatchdog] 的看门狗协程内调用，会触发以下链式调用：
-     * `restartGameLoopInternal()` → [startGameLoop]() → [startWatchdog]()
-     * → [stopWatchdog]() 取消当前看门狗 Job。
-     *
-     * 由于 Kotlin 协程取消是协作式的（仅在挂起点生效），当前看门狗协程
-     * 在本方法返回后才会在下一个 `delay()` 处响应取消，因此重启流程
-     * 可以完整执行完毕，不会出现"取消导致重启半途中断"的问题。
+     * 判据为"tickCount + totalPhases + accumulatedGameMs"三元组（由
+     * [GameTimeProgressMonitor] 纯函数判定），覆盖历史失明的两类冻结形态：
+     * isPaused 卡死（StalePauseDetected）与 speed=0 假运行（FakeRunDetected）。
      */
-    private fun restartGameLoopInternal() {
-        DomainLog.w(TAG, "Watchdog: restarting game loop")
-        // 取消当前循环
-        gameLoopJob?.cancel()
-        gameLoopJob = null
-        // 重置可能卡住的状态
-        forceResetStuckStates()
-        // 消耗死区时间，防止重启后时间跳变
-        gameClock.consumeDeadTime()
-        // 重新设置 paused 为 false（如果之前被错误地卡在 true）
-        stateStore.setPausedDirect(false)
-        // 保存看门狗累计失败计数（startGameLoop 会将其重置为 0，
-        // 但看门狗自恢复时应保留降级模式状态）
-        val savedWatchdogAttempts = watchdogRecoveryAttempts
-        // 重启循环
-        startGameLoop()
-        // 恢复看门狗计数，使降级模式在下次看门狗启动时得以保持
-        watchdogRecoveryAttempts = savedWatchdogAttempts
+    fun progressVerdict(): StallVerdict {
+        val snapshot = lastProgressSnapshot
+            ?: sampleProgressSnapshot()  // 循环从未 tick：flags-only 快照（暂停租约等仍可判定）
+        val current = snapshot.copy(
+            loopActive = gameLoopJob?.isActive == true,
+            isPaused = stateStore.isPaused.value,
+            isSaving = stateStore.isSaving.value,
+            isLoading = stateStore.isLoading.value,
+            secretRealmPauseLock = secretRealmPauseLock,
+            secretRealmPauseRenewedAtMs = secretRealmPauseRenewedAtMs,
+            loopActiveAtMs = lastLoopActivityMs,
+            recordedAtMs = gameClock.nowMs()
+        )
+        return gameTimeProgressMonitor.evaluate(current)
     }
 
     /**
-     * 从 UI 层（主线程）调用的游戏循环恢复。
-     * 包装 [restartGameLoopInternal] 以允许从 GameViewModel 访问。
+     * 采样进度快照：看门狗统一判据输入（tickCount + totalPhases + accumulatedGameMs + flags）。
+     * 循环体每次迭代（含暂停/加载分支）调用，保证快照新鲜。
      */
-    fun forceRestartGameLoop() {
-        DomainLog.w(TAG, "External force restart requested")
-        restartGameLoopInternal()
+    private fun sampleProgressSnapshot(): GameTimeProgressSnapshot {
+        val snapshot = GameTimeProgressSnapshot(
+            tickCount = _tickCount.value,
+            totalPhases = systemManager.getSystem(TimeSystem::class)?.getTotalPhases()?.toLong() ?: 0L,
+            accumulatedGameMs = gameClock.accumulatedGameMs,
+            loopActive = gameLoopJob?.isActive == true,
+            isPaused = stateStore.isPaused.value,
+            isSaving = stateStore.isSaving.value,
+            isLoading = stateStore.isLoading.value,
+            speed = gameClock.speed,
+            secretRealmPauseLock = secretRealmPauseLock,
+            secretRealmPauseRenewedAtMs = secretRealmPauseRenewedAtMs,
+            loopActiveAtMs = lastLoopActivityMs,
+            recordedAtMs = gameClock.nowMs()
+        )
+        lastProgressSnapshot = snapshot
+        return snapshot
+    }
+
+    /**
+     * 看门狗自愈动作 — 引擎内看门狗与 Alarm 兜底共享的单一入口。
+     *
+     * @param verdict [progressVerdict] 的判定结果（仅需处理非健康/非豁免判定）
+     */
+    fun handleWatchdogVerdict(verdict: StallVerdict) {
+        when (verdict) {
+            StallVerdict.Healthy, StallVerdict.PausedByOwner -> Unit
+            StallVerdict.FakeRunDetected -> {
+                if (gameClock.speed == 0) {
+                    // speed=0 假运行：时钟暂停但循环健康，直接恢复 1x（不动线程）
+                    DomainLog.w(TAG,
+                        "Watchdog: fake run detected (speed=0), restoring speed to 1x")
+                    gameClock.setSpeed(1)
+                    gameClock.consumeDeadTime()
+                } else {
+                    // speed>0 但世界时间冻结：时钟异常，走换线程恢复
+                    DomainLog.w(TAG,
+                        "Watchdog: fake run detected (time frozen at speed=${gameClock.speed}), " +
+                        "recovering with new thread")
+                    performWatchdogRecovery()
+                }
+            }
+            StallVerdict.StalePauseDetected -> {
+                // 秘境暂停锁残留（界面已销毁但 exitExploration 丢失）→ 自愈
+                val staleSeconds = (gameClock.nowMs() - secretRealmPauseRenewedAtMs) / 1000
+                DomainLog.w(TAG,
+                    "Watchdog: stale secret-realm pause detected ($staleSeconds" +
+                    "s without renewal), self-healing")
+                secretRealmPauseLock = false
+                secretRealmPauseRenewedAtMs = 0L
+                stateStore.setPausedDirect(false)
+                if (!isGameLoopRunning) startGameLoop()
+            }
+            StallVerdict.LoopStalled -> performWatchdogRecovery()
+        }
+    }
+
+    /**
+     * 看门狗恢复动作（换全新线程），带 60s 限频防雪崩。
+     * 仅看门狗触发路径经由此限频；外部显式调用（onResume/主线程 HealthCheck/Alarm）
+     * 直接调 [emergencyRestartGameLoop] 不受限。
+     */
+    private fun performWatchdogRecovery() {
+        val now = gameClock.nowMs()
+        if (now - lastWatchdogRecoveryMs < MIN_WATCHDOG_RECOVERY_INTERVAL_MS) {
+            DomainLog.w(TAG,
+                "Watchdog recovery throttled (interval=${MIN_WATCHDOG_RECOVERY_INTERVAL_MS}ms)")
+            return
+        }
+        lastWatchdogRecoveryMs = now
+        emergencyRestartGameLoop()
     }
 
     /**
@@ -641,9 +763,11 @@ class GameEngineCore @Inject constructor(
     /**
      * 紧急重启游戏循环——创建全新调度器线程，绕过 OEM 线程挂起。
      *
-     * 与 [restartGameLoopInternal] 不同，此方法从主线程调用，
-     * 创建一个全新的 GAME_DISPATCHER（新线程），确保不被
-     * HyperOS 等 OEM 电源管理挂起的旧线程影响。
+     * 全恢复路径统一入口（引擎看门狗/主线程 HealthCheck/Alarm 兜底均调用）：
+     * 创建一个全新的 GAME_DISPATCHER（新线程），确保不被 HyperOS 等
+     * OEM 电源管理挂起的旧线程影响。可从任意线程调用（内部经协程协作式
+     * 取消，重启流程可完整执行；看门狗触发路径经 [performWatchdogRecovery]
+     * 60s 限频）。
      */
     fun emergencyRestartGameLoop() {
         if (isEmergencyRestarting) {
@@ -713,11 +837,17 @@ class GameEngineCore @Inject constructor(
     /**
      * 秘境探索暂停：若当前未暂停则暂停游戏时间并记录锁（退出探索时恢复）。
      * 用户在探索前手动暂停的场景不抢占。
+     *
+     * 同时记录暂停租约续约时间戳：UI 探索界面每 [SECRET_REALM_RENEW_INTERVAL_MS]
+     * 调用 [renewSecretRealmPauseLease] 续约；续约中断超过
+     * [GameTimeProgressMonitor.STALE_PAUSE_TTL_MS] 视为界面已销毁（onDispose 丢失），
+     * 由看门狗以 StalePauseDetected 自愈。
      */
     fun pauseForSecretRealm() {
         if (!stateStore.isPaused.value) {
             stateStore.setPausedDirect(true)
             secretRealmPauseLock = true
+            secretRealmPauseRenewedAtMs = gameClock.nowMs()
         }
     }
 
@@ -726,6 +856,7 @@ class GameEngineCore @Inject constructor(
         if (secretRealmPauseLock) {
             stateStore.setPausedDirect(false)
             secretRealmPauseLock = false
+            secretRealmPauseRenewedAtMs = 0L
             // 自检：若游戏循环未运行则重启（防御探索期间后台恢复等路径导致循环丢失，
             // 不依赖 GameForegroundService 的隐式重启——代码质量审查问题 6）
             if (!isGameLoopRunning) {
@@ -734,14 +865,22 @@ class GameEngineCore @Inject constructor(
         }
     }
 
+    /**
+     * 续约秘境暂停租约：由 UI 探索界面每 [SECRET_REALM_RENEW_INTERVAL_MS] 调用，
+     * 证明"秘境界面仍打开中"（暂停由 UI 持有）。
+     * 续约中断超过 [GameTimeProgressMonitor.STALE_PAUSE_TTL_MS] 后，
+     * 看门狗判定锁残留并自愈，消除 Activity 重建导致 exitExploration 丢失的永久冻结路径。
+     */
+    fun renewSecretRealmPauseLease() {
+        secretRealmPauseRenewedAtMs = gameClock.nowMs()
+    }
+
     fun pauseForBackground() {
-        if (isGameLoopRunning) {
-            wasRunningBeforeBackground = true
-            stopGameLoop()
-            DomainLog.i(TAG, "Game loop stopped for background")
-        } else {
-            wasRunningBeforeBackground = false
-        }
+        // 记录用户暂停状态（stopGameLoop 之前）——恢复时必须区分：
+        // 后台暂停（引擎自置，恢复清除） vs 用户/秘境暂停（恢复保留）
+        wasUserPausedBeforeBackground = stateStore.isPaused.value
+        stopGameLoop()
+        DomainLog.i(TAG, "Game loop stopped for background")
         engineScope.launch {
             cultivationService.resetHighFrequencyData()
         }
@@ -749,17 +888,25 @@ class GameEngineCore @Inject constructor(
     }
 
     fun resumeFromBackground() {
-        // 远古秘境探索界面打开期间：暂停由秘境持有（secretRealmPauseLock），
-        // 回前台必须保持暂停（对抗性审查 S4：此前无条件恢复导致探索期间月变/年变发生）
-        if (secretRealmPauseLock) {
-            clearBackgroundPauseFlag()
-            return
-        }
-        if (_wasPausedByBackground && wasRunningBeforeBackground) {
-            stateStore.setPausedDirect(false)
+        // 无论 secretRealmPauseLock 状态如何，循环因后台被停一律重启。
+        // 重启后：isPaused 仍为 true → 循环进暂停分支（consumeDeadTime + delay(50)），
+        // 时间不推进、无月变/年变 —— 保持 S4 语义（秘境界面打开期间不发生月变），
+        // 待 exitExploration → resumeFromSecretRealm 恢复正常推进。
+        // 历史修复（对抗性审查 S4 结论）在此的"提前 return"正是锁残留 → 永久冻结的根源：
+        // onDispose 丢失（Activity 重建）时 exitExploration 永不调用，锁卡 true。
+        if (_wasPausedByBackground && !isGameLoopRunning) {
             startGameLoop()
-            DomainLog.i(TAG, "Game loop resumed from background")
+            // ⚠️ startGameLoop 内部无条件 setPausedDirect(false)，会清掉用户/秘境暂停。
+            // 区分暂停来源：
+            // - 用户暂停（后台前已暂停，非引擎自置）→ 保留（后台往返不得清掉用户暂停语义）
+            // - 秘境锁（pauseForSecretRealm 持有）→ 保留（探索期间时间推进 → S4 回归）
+            // - 仅后台暂停（引擎 stopGameLoop 自置）→ 清除（正常恢复时间推进）
+            if (wasUserPausedBeforeBackground || secretRealmPauseLock) {
+                stateStore.setPausedDirect(true)
+            }
+            DomainLog.i(TAG, "Game loop restarted from background (pause preserved)")
         }
+        wasUserPausedBeforeBackground = false
         clearBackgroundPauseFlag()
     }
 
@@ -767,8 +914,13 @@ class GameEngineCore @Inject constructor(
     private var _wasPausedByBackground = false
     val wasPausedByBackground: Boolean get() = _wasPausedByBackground
 
+    /** 后台前用户是否已主动暂停（pauseForBackground 记录，恢复时决定是否保留暂停） */
+    @Volatile
+    private var wasUserPausedBeforeBackground = false
+
     fun clearBackgroundPauseFlag() {
         _wasPausedByBackground = false
+        wasUserPausedBeforeBackground = false
     }
 
     /**
@@ -805,8 +957,11 @@ class GameEngineCore @Inject constructor(
     private suspend fun tickInternal() {
         if (skipTickIfNeeded()) return
         _tickCount.value++
+        val tickStartNanos = System.nanoTime()
         val tickStartDiagnostic = if (OemPowerProfileProvider.currentManufacturer == OemManufacturer.XIAOMI)
             System.currentTimeMillis() else 0L
+        // 进度快照采样：看门狗统一判据输入（tickCount + totalPhases + accumulatedGameMs）
+        sampleProgressSnapshot()
         val tickResult = gameClock.tick(isSettlementPending = false)
         thermalController.checkAndAdjust(_fps.value)
         val tickFlags = processTickPhases(tickResult.phasesToAdvance)
@@ -818,6 +973,7 @@ class GameEngineCore @Inject constructor(
         for (result in patrolResults) {
             stateStore.setPendingBattleResult(result)
         }
+        lastTickDurationMs = (System.nanoTime() - tickStartNanos) / 1_000_000
         if (tickStartDiagnostic > 0) {
             val tickDuration = System.currentTimeMillis() - tickStartDiagnostic
             if (tickDuration > TICK_TIME_BUDGET_MS) {
@@ -988,7 +1144,7 @@ class GameEngineCore @Inject constructor(
         if (isSaving) {
             if (savingStartTime == 0L) {
                 savingStartTime = now
-            } else if (now - savingStartTime > STUCK_STATE_TIMEOUT_MS) {
+            } else if (now - savingStartTime > SAVE_LOAD_STUCK_TIMEOUT_MS) {
                 DomainLog.e(TAG, "isSaving has been true for ${now - savingStartTime}ms, force resetting")
                 forceResetStuckStates()
             }
@@ -1000,7 +1156,7 @@ class GameEngineCore @Inject constructor(
         if (isLoading) {
             if (loadingStartTime == 0L) {
                 loadingStartTime = now
-            } else if (now - loadingStartTime > STUCK_STATE_TIMEOUT_MS) {
+            } else if (now - loadingStartTime > SAVE_LOAD_STUCK_TIMEOUT_MS) {
                 DomainLog.e(TAG, "isLoading has been true for ${now - loadingStartTime}ms, force resetting")
                 forceResetStuckStates()
             }

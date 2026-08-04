@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.domain.battle.BattleLogData
 import com.xianxia.sect.core.engine.domain.battle.BattleRoundData
 import com.xianxia.sect.core.model.BattleLogAction
@@ -99,6 +100,15 @@ fun SecretRealmExplorationScreen(
     LaunchedEffect(Unit) { viewModel.enterExploration() }
     DisposableEffect(Unit) {
         onDispose { viewModel.exitExploration() }
+    }
+    // 秘境暂停租约续约：composition 存活期间每 15s 续约一次，证明界面仍打开中。
+    // 续约中断超过 45s 后引擎看门狗判定锁残留并自愈——消除 Activity 重建时
+    // onDispose 丢失导致 exitExploration 永不调用、时间永久冻结的路径
+    LaunchedEffect(Unit) {
+        while (true) {
+            viewModel.renewSecretRealmPauseLease()
+            delay(GameEngineCore.SECRET_REALM_RENEW_INTERVAL_MS)
+        }
     }
 
     // 探索会话结束（主动结束/体力耗尽/全灭）→ 通知宿主关闭

@@ -223,4 +223,45 @@ class GameTimeClockTest {
         val next = simulateTick(1000L)
         assertEquals(1, next.phasesToAdvance)
     }
+
+    // 20. accumulatedGameMs 暴露：speed>0 时单调增长（进度监控快照输入）
+    @Test
+    fun accumulatedGameMs_growsWhileRunning() {
+        clock.start()
+        assertEquals(0L, clock.accumulatedGameMs)
+
+        simulateTick(500L)
+        assertEquals(500L, clock.accumulatedGameMs)
+
+        simulateTick(500L)
+        assertEquals(1000L, clock.accumulatedGameMs)
+    }
+
+    // 21. accumulatedGameMs：speed=0 时不增长（假运行检测的输入之一）
+    @Test
+    fun accumulatedGameMs_frozenAtSpeedZero() {
+        clock.setSpeed(0)
+        clock.start()
+        simulateTick(5000L)
+        assertEquals(0L, clock.accumulatedGameMs)
+    }
+
+    // 22. accumulatedGameMs：旬消费后回绕（相位推进时归零重累积）
+    @Test
+    fun accumulatedGameMs_wrapsAfterPhaseConsumption() {
+        clock.start()
+        simulateTick(2000L)  // 恰好 1 旬：2000ms 全被消费
+        assertEquals(0L, clock.accumulatedGameMs)
+
+        simulateTick(3000L)  // 1 旬 + 余 1000ms
+        assertEquals(1000L, clock.accumulatedGameMs)
+    }
+
+    // 23. nowMs 暴露单调时钟（租约与快照时间基准）
+    @Test
+    fun nowMs_tracksTimeSource() {
+        val before = clock.nowMs()
+        fakeTime.advanceBy(1234L)
+        assertEquals(before + 1234L, clock.nowMs())
+    }
 }

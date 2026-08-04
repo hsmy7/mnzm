@@ -2,6 +2,7 @@ package com.xianxia.sect.core.util
 
 import android.app.AlarmManager
 import android.content.Context
+import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.*
 import org.junit.Test
@@ -101,5 +102,26 @@ class AlarmWatchdogReceiverTest {
             "com.xianxia.sect.action.START",
             GameForegroundService.ACTION_START
         )
+    }
+
+    // ── onReceive 安全路径 ──
+
+    @Test
+    fun `onReceive - wrong action is ignored`() {
+        val receiver = AlarmWatchdogReceiver()
+        val intent = Intent(context, AlarmWatchdogReceiver::class.java)
+            .setAction("com.xianxia.sect.action.UNRELATED")
+        // 不应抛异常、不应崩溃
+        receiver.onReceive(context, intent)
+    }
+
+    @Test
+    fun `onReceive - cannot obtain engine core safely schedules next alarm`() {
+        // 测试环境无 Hilt 图：EntryPointAccessors 获取 GameEngineCore 失败 →
+        // 记录日志并链式调度下一次闹钟（不崩溃、不静默死掉）
+        val receiver = AlarmWatchdogReceiver()
+        val intent = Intent(context, AlarmWatchdogReceiver::class.java)
+            .setAction(AlarmWatchdogReceiver.ACTION_ALARM_WATCHDOG)
+        receiver.onReceive(context, intent)
     }
 }

@@ -85,24 +85,28 @@ class GameTimeClock @Inject constructor(
             if (speed == 0) return 0f
             val denom = msPerPhase.toFloat()
             if (denom <= 0f) return 0f
-            return (accumulatedGameMs.toFloat() / denom).coerceIn(0f, 1f)
+            return (accumulatedGameMsInternal.toFloat() / denom).coerceIn(0f, 1f)
         }
 
     /** 当前旬剩余毫秒数（UI 倒计时用） */
     val remainingPhaseMs: Long
-        get() = maxOf(0L, msPerPhase - accumulatedGameMs)
+        get() = maxOf(0L, msPerPhase - accumulatedGameMsInternal)
 
     // ── 内部状态 ──
 
-    private var accumulatedGameMs: Long = 0L
+    private var accumulatedGameMsInternal: Long = 0L
     private var lastWallMs: Long = 0L
+
+    /** 当旬已累积的游戏时间毫秒数（进度监控快照输入，speed>0 时单调增长） */
+    val accumulatedGameMs: Long
+        get() = accumulatedGameMsInternal
 
     // ── 公开方法 ──
 
     /** 启动/重置时钟。游戏循环开始时调用。 */
     fun start() {
         lastWallMs = timeSource.elapsedRealtime()
-        accumulatedGameMs = 0L
+        accumulatedGameMsInternal = 0L
     }
 
     /**
@@ -113,12 +117,18 @@ class GameTimeClock @Inject constructor(
         val now = timeSource.elapsedRealtime()
         // 先结算从上次取样到此刻的累积量（用旧速度）
         if (speed > 0) {
-            accumulatedGameMs += (now - lastWallMs) * speed
+            accumulatedGameMsInternal += (now - lastWallMs) * speed
         }
         lastWallMs = now
         speed = newSpeed.coerceIn(0, 2)
         _speedFlow.value = speed
     }
+
+    /**
+     * 当前墙钟毫秒（单调时钟）。
+     * 供暂停租约、进度监控快照等外部时间基准使用（与内部累积同一时钟源）。
+     */
+    fun nowMs(): Long = timeSource.elapsedRealtime()
 
     /**
      * 每 tick 调用一次（由 frame-driven 游戏循环驱动，~100ms 间隔，accumulator 模式）。
@@ -135,10 +145,10 @@ class GameTimeClock @Inject constructor(
         val realDelta = rawDelta
 
         if (speed > 0) {
-            accumulatedGameMs += realDelta * speed
+            accumulatedGameMsInternal += realDelta * speed
         }
 
-        var phases = (accumulatedGameMs / msPerPhase).toInt()
+        var phases = (accumulatedGameMsInternal / msPerPhase).toInt()
 
         // 2026-08-01 修复：单 tick 追补上限（1x=3 旬、2x=6 旬）——OEM 挂起/
         // 看门狗重启时单帧连续执行数十个完整事务、看门狗与业务互搏。
@@ -150,9 +160,9 @@ class GameTimeClock @Inject constructor(
         if (phases > phaseCap) {
             Log.w(TAG, "tick catch-up capped at $phaseCap phases, dropped ${phases - phaseCap}")
             phases = phaseCap
-            accumulatedGameMs = 0L
+            accumulatedGameMsInternal = 0L
         } else if (phases > 0) {
-            accumulatedGameMs -= phases.toLong() * msPerPhase
+            accumulatedGameMsInternal -= phases.toLong() * msPerPhase
         }
         return TickResult(phases, isSettlementPending)
     }
@@ -173,7 +183,7 @@ class GameTimeClock @Inject constructor(
      * 用于下旬结算等待时：时间已过但不应推进。
      */
     fun forceConsumeOnePhase() {
-        accumulatedGameMs = maxOf(0L, accumulatedGameMs - msPerPhase)
+        accumulatedGameMsInternal = maxOf(0L, accumulatedGameMsInternal - msPerPhase)
     }
 
     // ── 类型 ──

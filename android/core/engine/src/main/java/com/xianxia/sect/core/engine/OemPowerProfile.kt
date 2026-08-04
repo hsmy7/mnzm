@@ -76,8 +76,15 @@ object OemPowerProfileProvider {
         OemManufacturer.OTHER to OemPowerTier.LIGHT,
     )
 
-    /** 当前设备厂商（从 Build 识别，仅计算一次） */
-    val currentManufacturer: OemManufacturer by lazy { detect() }
+    /** 测试注入：覆盖厂商检测（纯 JVM 下 Build.MANUFACTURER 为 null，检测不可用） */
+    @Volatile
+    internal var manufacturerOverride: OemManufacturer? = null
+
+    /** 当前设备厂商（从 Build 识别，仅计算一次；测试可经 [manufacturerOverride] 覆盖） */
+    val currentManufacturer: OemManufacturer
+        get() = manufacturerOverride ?: detectedManufacturer
+
+    private val detectedManufacturer by lazy { detect() }
 
     /** 当前设备的电源管理配置 */
     val current: OemPowerProfile by lazy {
@@ -86,8 +93,9 @@ object OemPowerProfileProvider {
     }
 
     private fun detect(): OemManufacturer {
-        val m = Build.MANUFACTURER.lowercase()
-        val b = Build.BRAND.lowercase()
+        // null 防御：纯 JVM/极端 ROM 下 Build.MANUFACTURER 可能为 null
+        val m = Build.MANUFACTURER?.lowercase() ?: ""
+        val b = Build.BRAND?.lowercase() ?: ""
         return when {
             listOf(m, b).any { it.contains("huawei") } -> OemManufacturer.HUAWEI
             listOf(m, b).any { it.contains("honor") } -> OemManufacturer.HONOR

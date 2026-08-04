@@ -4,6 +4,7 @@ import android.content.ComponentCallbacks2
 import android.util.Log
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.engine.GameEngineCore
+import com.xianxia.sect.core.engine.monitor.StallVerdict
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.util.DomainLog
 import kotlinx.coroutines.CancellationException
@@ -64,22 +65,25 @@ class GameLoopDelegate(
     private fun launchMainThreadHealthCheck() {
         if (!healthCheckEnabled) return  // 测试环境禁用（mock 反射卡死，见 companion）
         scope.launch(Dispatchers.Main) {
-            var lastTick = 0L
             var stallCount = 0
             while (isActive) {
                 delay(1000)
                 try {
-                    val currentTick = gameEngineCore.tickCount.value
-                    if (gameEngineCore.isPausedDirect) { stallCount = 0; lastTick = currentTick; continue }
-                    if (currentTick == lastTick) {
-                        stallCount++
-                        if (stallCount >= 3) {
-                            Log.w(TAG, "HealthCheck: game loop stalled, emergency restarting")
-                            withContext(Dispatchers.Default) { gameEngineCore.emergencyRestartGameLoop() }
-                            stallCount = 0
+                    // 统一判据：tickCount + 世界时间 + 暂停租约（GameEngineCore.progressVerdict）。
+                    // PausedByOwner（用户主动暂停/秘境租约有效）豁免——用户暂停永不自动恢复
+                    val verdict = gameEngineCore.progressVerdict()
+                    if (verdict == StallVerdict.Healthy || verdict == StallVerdict.PausedByOwner) {
+                        stallCount = 0
+                        continue
+                    }
+                    stallCount++
+                    if (stallCount >= 3) {
+                        Log.w(TAG, "HealthCheck: game loop stalled (verdict=$verdict), emergency restarting")
+                        withContext(Dispatchers.Default) {
+                            gameEngineCore.handleWatchdogVerdict(verdict)
                         }
-                    } else { stallCount = 0 }
-                    lastTick = currentTick
+                        stallCount = 0
+                    }
                 } catch (e: CancellationException) { throw e }
                   catch (e: Exception) { DomainLog.e(TAG, "HealthCheck: error", e) }
             }

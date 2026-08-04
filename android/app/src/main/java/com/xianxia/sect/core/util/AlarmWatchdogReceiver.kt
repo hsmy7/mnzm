@@ -10,6 +10,7 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.xianxia.sect.core.engine.GameEngineCore
+import com.xianxia.sect.core.engine.monitor.StallVerdict
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -25,11 +26,11 @@ import dagger.hilt.components.SingletonComponent
  * ## 工作机制
  * - [scheduleAlarm] 调度下一次精确闹钟（[ALARM_INTERVAL_MS] 后）
  * - 闹钟触发 → [onReceive] 通过 Hilt EntryPoint 获取 [GameEngineCore] 实例，
- *   检查 [GameEngineCore.tickCount] 是否停滞
- * - 若停滞且 [GameEngineCore.isGameLoopRunning] 为 true（循环应运行但未推进），
- *   直调 [GameEngineCore.forceRestartGameLoop] 重启游戏循环
- *   （限频每 60 秒一次，防止 Doze 退出时雪崩式恢复）
- * - 直调失败时降级为启动 [GameForegroundService] 兜底
+ *   检查 [GameEngineCore.progressVerdict]（tickCount + 世界时间 + 暂停租约统一判据）
+ * - 非健康/非豁免判定（LoopStalled / FakeRunDetected / StalePauseDetected）→
+ *   调 [GameEngineCore.handleWatchdogVerdict] 自愈（限频每 60 秒一次，
+ *   防止 Doze 退出时雪崩式恢复；用户主动暂停 = PausedByOwner 永不恢复）
+ * - 自愈失败时降级为启动 [GameForegroundService] 兜底
  * - 无论是否触发恢复，都重新调度下一次闹钟（链式调度）
  *
  * ## 为何不用 setRepeating
@@ -43,9 +44,8 @@ import dagger.hilt.components.SingletonComponent
  * [EntryPointAccessors.fromApplication] 通过 [GameEngineEntryPoint]
  * 从 Application 的 SingletonComponent 获取 @Singleton 实例，绕过该限制。
  *
- * 不直接调用 [GameEngineCore.restartGameLoopInternal]（该方法为 private），
- * 而是通过 [GameEngineCore.forceRestartGameLoop]（公有方法、线程安全）
- * 直调引擎核心重启游戏循环，绕开 Service 生命周期。
+ * 通过 [GameEngineCore.handleWatchdogVerdict]（公有方法、线程安全）直调
+ * 引擎核心自愈（含换新线程重启），绕开 Service 生命周期。
  * 调取失败时降级为启动 [GameForegroundService] 兜底。
  *
  * 参考：
@@ -65,10 +65,6 @@ class AlarmWatchdogReceiver : BroadcastReceiver() {
 
         /** PendingIntent 请求码（0x7E02 = Watchdog 看门狗编号） */
         const val REQUEST_CODE = 0x7E02
-
-        /** 上次检查时的 tickCount，用于检测停滞（-1L 表示尚未采样过） */
-        @Volatile
-        private var lastTickCount: Long = -1L
 
         /** 恢复动作最小间隔（ms）：60 秒内不重复恢复，防止 Doze 退出时雪崩式恢复 */
         private const val MIN_RECOVERY_INTERVAL_MS = 60_000L
@@ -170,58 +166,41 @@ class AlarmWatchdogReceiver : BroadcastReceiver() {
         }
 
         val now = System.currentTimeMillis()
-        val currentTickCount = gameEngineCore.tickCount.value
+        val verdict = gameEngineCore.progressVerdict()
 
-        // Tick 停滞 → 尝试恢复（限频 60s，防止 Doze 退出时频繁调用）
-        // ⚠️ 游戏暂停时 tickCount 不递增但 isGameLoopRunning 仍为 true，
-        // 跳过恢复——forceRestartGameLoop 会清除暂停状态，破坏用户暂停操作
-        if (currentTickCount == lastTickCount && gameEngineCore.isGameLoopRunning
-            && !gameEngineCore.isPausedDirect) {
+        // 非健康/非豁免判定 → 尝试自愈（限频 60s，防止 Doze 退出时频繁调用）
+        // 用户主动暂停 = PausedByOwner（永不自动恢复，a63338f3 教训固化）
+        val needsRecovery = verdict != StallVerdict.Healthy &&
+            verdict != StallVerdict.PausedByOwner
+        if (needsRecovery) {
             if ((now - lastRecoveryTimeMs) >= MIN_RECOVERY_INTERVAL_MS) {
                 lastRecoveryTimeMs = now
-                Log.w(TAG, "Tick stalled, force restarting game loop (engine core)")
-                forceRestartGameLoop(appContext)
+                Log.w(TAG, "Watchdog verdict=$verdict, self-healing (engine core)")
+                try {
+                    gameEngineCore.handleWatchdogVerdict(verdict)
+                } catch (e: Exception) {
+                    Log.e(TAG, "handleWatchdogVerdict failed, falling back to startForegroundService", e)
+                    startFallbackService(appContext)
+                }
             } else {
-                Log.d(TAG, "Tick stalled but recovery throttled (interval=${MIN_RECOVERY_INTERVAL_MS}ms)")
+                Log.d(TAG, "Watchdog verdict=$verdict but recovery throttled (interval=${MIN_RECOVERY_INTERVAL_MS}ms)")
             }
         }
 
-        lastTickCount = currentTickCount
         // 链式调度下一次闹钟
         scheduleAlarm(context)
     }
 
     /**
-     * 通过 [GameEngineCore] 直接强制重启游戏循环。
-     *
-     * 替代启动 [GameForegroundService] 的路径——绕开 Service 生命周期，
-     * 避免 [Service.startForeground] 的同步 Binder 调用在 system_server
-     * 高负载时触发 "executing service" ANR。
-     *
-     * 通过 Hilt EntryPoint 获取 [GameEngineCore] 实例后直调
-     * [GameEngineCore.forceRestartGameLoop]，该方法是公有的、
-     * 线程安全的、可被外部调用的。
-     *
-     * 调用失败时降级为启动 [GameForegroundService] 兜底。
+     * 降级兜底：启动 [GameForegroundService]（handleWatchdogVerdict 直调失败时）。
      */
-    private fun forceRestartGameLoop(context: Context) {
-        try {
-            val engine = EntryPointAccessors.fromApplication(
-                context,
-                GameEngineEntryPoint::class.java
-            ).gameEngineCore()
-            engine.forceRestartGameLoop()
-            Log.i(TAG, "Game loop forcefully restarted via engine core")
-        } catch (e: Exception) {
-            Log.e(TAG, "forceRestartGameLoop failed, falling back to startForegroundService", e)
-            // 降级：启动 GameForegroundService 兜底
-            val intent = Intent(context, GameForegroundService::class.java)
-                .setAction(GameForegroundService.ACTION_START)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                ContextCompat.startForegroundService(context, intent)
-            } else {
-                context.startService(intent)
-            }
+    private fun startFallbackService(context: Context) {
+        val intent = Intent(context, GameForegroundService::class.java)
+            .setAction(GameForegroundService.ACTION_START)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            ContextCompat.startForegroundService(context, intent)
+        } else {
+            context.startService(intent)
         }
     }
 }

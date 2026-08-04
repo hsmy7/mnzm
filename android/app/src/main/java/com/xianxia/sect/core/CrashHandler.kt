@@ -165,6 +165,27 @@ class CrashHandler @Inject constructor(
 
 
     /**
+     * 记录被捕获异常到本地崩溃日志（供引擎循环异常等非崩溃路径归因）。
+     *
+     * 与 [uncaughtException] 的区别：不触发崩溃状态标记/上报通道，仅落盘，
+     * 作为 Bugly 不可用时的兜底（引擎模块异常归因端口 EngineCrashReporter 的回退）。
+     *
+     * @param throwable 被捕获的异常
+     * @param context 结构化上下文（年/月/旬/tickCount 等，写入日志头部）
+     */
+    fun recordCaughtException(throwable: Throwable, context: Map<String, String> = emptyMap()) {
+        val stackTrace = buildString {
+            if (context.isNotEmpty()) {
+                append("Context: ")
+                append(context.entries.joinToString(", ") { "${it.key}=${it.value}" })
+                append("\n\n")
+            }
+            append(throwable.stackTraceToString())
+        }
+        writeCrashLogToFile(Thread.currentThread(), throwable, stackTrace)
+    }
+
+    /**
      * 将崩溃日志写入文件
      *
      * @param stackTrace 预计算的堆栈跟踪字符串（避免在崩溃处理中调用 printStackTrace）

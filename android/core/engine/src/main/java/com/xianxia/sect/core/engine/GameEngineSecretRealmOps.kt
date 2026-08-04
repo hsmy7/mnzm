@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.engine.monitor.GameTimeProgressMonitor
 import com.xianxia.sect.core.engine.domain.exploration.SecretRealmChoiceResult
 import com.xianxia.sect.core.engine.domain.exploration.SecretRealmEndReason
 import com.xianxia.sect.core.model.Disciple
@@ -202,4 +203,13 @@ suspend fun GameEngine.pauseForSecretRealm() = engineContextDispatcher.withEngin
  */
 suspend fun GameEngine.resumeFromSecretRealm() = engineContextDispatcher.withEngineContext {
     gameEngineCore.resumeFromSecretRealm()
+}
+
+/**
+ * 续约秘境暂停租约：由探索界面每 [GameEngineCore.SECRET_REALM_RENEW_INTERVAL_MS]
+ * 调用一次，证明界面仍打开中。续约中断超过 [GameTimeProgressMonitor.STALE_PAUSE_TTL_MS]
+ * 后看门狗判定锁残留并自愈（消除 Activity 重建导致 exitExploration 丢失的永久冻结路径）。
+ */
+suspend fun GameEngine.renewSecretRealmPauseLease() = engineContextDispatcher.withEngineContext {
+    gameEngineCore.renewSecretRealmPauseLease()
 }

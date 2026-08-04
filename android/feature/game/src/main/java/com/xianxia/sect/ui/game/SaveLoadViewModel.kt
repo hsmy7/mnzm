@@ -1485,7 +1485,10 @@ class SaveLoadViewModel @Inject constructor(
     val isPaused: StateFlow<Boolean> = gameEngineCore.isPaused
 
     fun setTimeSpeed(speed: Int) {
-        val clamped = speed.coerceIn(0, 2)
+        // UI 只有 1x/2x：封死 0（speed=0 会产生"tick 在跑但时间不动"的假运行，
+        // 所有看门狗失明）。GameTimeClock 保留 0 内部语义（旧档/测试兼容），
+        // 任何残留 0 由看门狗 FakeRunDetected 兜底自愈。
+        val clamped = speed.coerceIn(1, 2)
         _timeScale.value = clamped  // UI 即时反馈
         gameClock.setSpeed(clamped)
         if (gameEngineCore.isPausedDirect) {

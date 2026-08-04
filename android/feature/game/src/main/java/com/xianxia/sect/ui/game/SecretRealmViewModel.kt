@@ -7,6 +7,7 @@ import com.xianxia.sect.core.engine.chooseSecretRealmOption
 import com.xianxia.sect.core.engine.continueSecretRealmExploration
 import com.xianxia.sect.core.engine.endSecretRealmExploration
 import com.xianxia.sect.core.engine.pauseForSecretRealm
+import com.xianxia.sect.core.engine.renewSecretRealmPauseLease
 import com.xianxia.sect.core.engine.resumeFromSecretRealm
 import com.xianxia.sect.core.engine.domain.exploration.SecretRealmChoiceResult
 import com.xianxia.sect.core.engine.startSecretRealmExploration
@@ -92,6 +93,15 @@ class SecretRealmViewModel @Inject constructor(
     /** 退出探索界面（暂存退出/结束）：恢复游戏时间 */
     fun exitExploration() {
         gameEngine.launchOnEngine { gameEngine.resumeFromSecretRealm() }
+    }
+
+    /**
+     * 续约秘境暂停租约：探索界面 composition 存活期间每 15s 调用一次，
+     * 证明"界面仍打开中"。续约中断超过 45s 后看门狗判定锁残留并自愈
+     * （消除 Activity 重建导致 exitExploration 丢失的永久冻结路径）。
+     */
+    fun renewSecretRealmPauseLease() {
+        gameEngine.launchOnEngine { gameEngine.renewSecretRealmPauseLease() }
     }
 
     /** 选择事件选项（返回战斗播放数据等） */
