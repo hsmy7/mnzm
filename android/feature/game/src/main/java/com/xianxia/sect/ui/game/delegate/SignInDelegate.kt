@@ -72,5 +72,8 @@ class SignInDelegate(
         }
     }
 
-    fun enqueueRewardCards(cards: List<RewardCardItem>) { dailySignInService.enqueueSignInCards(cards) }
+    fun enqueueRewardCards(cards: List<RewardCardItem>) {
+        // 引擎写操作派发到引擎线程（对齐 claimDailySignIn / enqueueBattleRewardCards 模式）
+        gameEngine.launchOnEngine { dailySignInService.enqueueSignInCards(cards) }
+    }
 }

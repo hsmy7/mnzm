@@ -49,9 +49,11 @@ class BagDelegate(
 
     fun enqueueBagRewardCards() {
         if (pendingBagCards.isNotEmpty()) {
-            dailySignInService.enqueueSignInCards(pendingBagCards)
+            val cards = pendingBagCards
             pendingBagCards = emptyList()
             _bagRewardCards.value = emptyList()
+            // 引擎写操作派发到引擎线程（对齐 enqueueBattleRewardCards 模式），先清本地状态再异步入队
+            gameEngine.launchOnEngine { dailySignInService.enqueueSignInCards(cards) }
         }
     }
 }

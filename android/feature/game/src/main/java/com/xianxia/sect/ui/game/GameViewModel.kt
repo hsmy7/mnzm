@@ -533,7 +533,10 @@ class GameViewModel @Inject constructor(
     fun apprenticeToMaster(discipleId: String, masterId: String) = disciple.apprenticeToMaster(discipleId, masterId)
     fun renameDisciple(discipleId: String, newName: String) = disciple.renameDisciple(discipleId, newName)
     fun getLifeEvents(discipleId: String): List<String> = discipleFacade.getLifeEvents(discipleId)
-    fun initializeLifeEvents(discipleId: String) = discipleFacade.initializeLifeEvents(discipleId)
+    fun initializeLifeEvents(discipleId: String) {
+        // 写操作必须派发到引擎线程（对齐 enterSect 模式），否则主线程直调 stateStore.update 触发架构违规守卫
+        gameEngine.launchOnEngine { discipleFacade.initializeLifeEvents(discipleId) }
+    }
 
     fun clearNotification() {
         gameEngine.consumeNotification()
