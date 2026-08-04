@@ -285,10 +285,6 @@ class DiscipleDelegate(
         recruitDiscipleFromList(disciple.id)
     }
 
-    suspend fun releaseTheftDisciple(discipleId: String): Int {
-        return gameEngine.releaseTheftDisciple(discipleId)
-    }
-
     fun releaseReflectionDisciple(discipleId: String) {
         gameEngine.launchOnEngine { gameEngine.releaseReflectionDisciple(discipleId) }
     }

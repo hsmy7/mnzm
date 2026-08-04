@@ -50,7 +50,7 @@ object EventBusAudit {
             eventType = "battle_completed (BattleCompletedEvent, 仅 victory)",
             threading = "applicationScope.launch — 非主线程，Dispatchers.Default 继承",
             backpressure = "无背压控制: scope.launch 即发即弃，高频率战斗可堆积协程",
-            errorHandling = "EventBus.notifySubscribers 内 try-catch 隔离; onEvent 内部无 try-catch, StateAccessor 写入失败会抛出",
+            errorHandling = "EventBus.notifySubscribers 内 try-catch 隔离; onEvent 内部无 try-catch, 状态写入失败会抛出",
             riskLevel = "MEDIUM",
             notes = "onEvent 内 scope.launch 异步写入状态，与外部方法(如 giftSpiritStones)存在竞态; " +
                     "init{} 中订阅，无 unsubscribe 逻辑(单例无生命周期问题); " +

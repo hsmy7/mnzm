@@ -15,8 +15,6 @@ suspend fun GameEngine.resetAllDisciplesStatus() = discipleFacade.resetAllDiscip
 fun GameEngine.recruitDisciple(): Disciple = discipleFacade.recruitDisciple()
 suspend fun GameEngine.expelDisciple(discipleId: String): DomainResult<Unit> = discipleFacade.expelDisciple(discipleId)
 suspend fun GameEngine.apprenticeToMaster(discipleId: String, masterId: String): DomainResult<Unit> = discipleFacade.apprenticeToMaster(discipleId, masterId)
-suspend fun GameEngine.releaseTheftDisciple(discipleId: String): Int =
-    engineContextDispatcher.withEngineContext { discipleFacade.releaseTheftDisciple(discipleId) }
 suspend fun GameEngine.releaseReflectionDisciple(discipleId: String) = discipleFacade.releaseReflectionDisciple(discipleId)
 fun GameEngine.clearPendingNotification() = discipleFacade.clearPendingNotification()
 suspend fun GameEngine.equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit> = discipleFacade.equipEquipment(discipleId, equipmentId)

@@ -92,24 +92,6 @@ class DiscipleFacadeImpl @Inject constructor(
 
     override fun apprenticeToMaster(discipleId: String, masterId: String): DomainResult<Unit> = discipleService.apprenticeToMaster(discipleId, masterId)
 
-    override fun releaseTheftDisciple(discipleId: String): Int {
-        val loyaltyChange = (1..10).random()
-        stateStore.update {
-            val id = discipleId.toIntOrNull() ?: return@update
-            if (!discipleTables.ids.contains(id)) return@update
-            if (discipleTables.isAlive[id] != 1) return@update
-            val existingData = discipleTables.statusData[id]
-            discipleTables.statusData[id] = existingData - setOf("reflectionStartYear", "reflectionEndYear")
-            // 清除受保护状态标记，使 deriveDiscipleStatus 可以重新推导
-            discipleTables.statuses[id] = DiscipleStatus.IDLE
-            val disciple = discipleTables.assemble(id)
-            val baseStats = DiscipleStatCalculator.getBaseStats(disciple)
-            discipleTables.loyalties[id] = (baseStats.loyalty + loyaltyChange).coerceAtLeast(0)
-        }
-        discipleService.syncSingleDiscipleStatus(discipleId)
-        return loyaltyChange
-    }
-
     override fun releaseReflectionDisciple(discipleId: String) {
         stateStore.update {
             val id = discipleId.toIntOrNull() ?: return@update

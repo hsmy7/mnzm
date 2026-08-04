@@ -547,7 +547,6 @@ class GameViewModel @Inject constructor(
 
     fun enterSect(sectId: String) { gameEngine.launchOnEngine { gameEngine.enterSect(sectId) } }
 
-    suspend fun releaseTheftDisciple(discipleId: String): Int = disciple.releaseTheftDisciple(discipleId)
     fun toggleFollowDisciple(discipleId: String) = disciple.toggleFollowDisciple(discipleId)
     fun applyAdBreakthroughBonus(discipleId: String, bonus: Double) = disciple.applyAdBreakthroughBonus(discipleId, bonus)
     fun changeDiscipleType(discipleId: String, newType: String) = disciple.changeDiscipleType(discipleId, newType)

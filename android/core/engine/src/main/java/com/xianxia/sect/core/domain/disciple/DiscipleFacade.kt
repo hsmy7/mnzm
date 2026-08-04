@@ -24,7 +24,6 @@ interface DiscipleFacade {
     fun recruitDisciple(): Disciple
     fun expelDisciple(discipleId: String): DomainResult<Unit>
     fun apprenticeToMaster(discipleId: String, masterId: String): DomainResult<Unit>
-    fun releaseTheftDisciple(discipleId: String): Int
     fun releaseReflectionDisciple(discipleId: String)
     fun equipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit>
     fun unequipEquipment(discipleId: String, equipmentId: String): DomainResult<Unit>
