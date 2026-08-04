@@ -50,6 +50,7 @@ fun nextEventSequenceId(records: List<GameEventRecord>): Long {
 /** 游戏事件类型常量——统一管理，避免散落的字符串字面量 */
 object GameEventType {
     const val DESERTION = "desertion"
+    const val DESERTION_CAUGHT = "desertion_caught"
     const val THEFT_CAUGHT = "theft_caught"
     const val WAREHOUSE_THEFT = "warehouse_theft"
     const val THEFT_DESERTION = "theft_desertion"

@@ -89,6 +89,13 @@ class DiscipleSlotCleanup @Inject constructor(
             } else sect
         }
 
+        // 生产槽位（炼丹/锻造/灵植工人）——与槽位清理统一覆盖，防止弟子卸任/死亡/叛逃后槽位残留
+        val updatedProductionSlots = data.productionSlots.map {
+            if (it.assignedDiscipleId == discipleId)
+                it.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+            else it
+        }
+
         return data.copy(
             spiritMineSlots = updatedSpiritMineSlots,
             librarySlots = updatedLibrarySlots,
@@ -98,7 +105,8 @@ class DiscipleSlotCleanup @Inject constructor(
             patrolSlots = updatedPatrolSlots,
             warehouseGarrisons = updatedWarehouseGarrisons,
             battleTeams = updatedBattleTeams,
-            worldMapSects = updatedWorldMapSects
+            worldMapSects = updatedWorldMapSects,
+            productionSlots = updatedProductionSlots
         )
     }
 

@@ -223,11 +223,22 @@ suspend fun GameEngine.assignPatrolAtomic(
     }
     try {
         discipleFacade.syncSingleDiscipleStatus(discipleId)
+        syncReleasedOccupant(occupantReleased, occupantId)
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
         DomainLog.w("GameEngine", "assignPatrol: syncSingleDiscipleStatus 失败", e)
     }
+    }
+}
+
+/**
+ * 更换巡视队员后同步旧 occupant 状态。
+ * 回归：此前从不 sync，旧弟子 statuses 残留 PATROLLING 从选择弹窗消失。
+ */
+private fun GameEngine.syncReleasedOccupant(occupantReleased: Boolean, occupantId: String) {
+    if (occupantReleased && occupantId.isNotEmpty()) {
+        discipleFacade.syncSingleDiscipleStatus(occupantId)
     }
 }
 

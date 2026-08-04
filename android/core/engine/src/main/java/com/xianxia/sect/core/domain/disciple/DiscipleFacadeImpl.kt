@@ -758,12 +758,15 @@ class DiscipleFacadeImpl @Inject constructor(
             )
 
             // 释放旧槽位（自动移除前职务，允许弟子担任新职务）
+            var oldOccupantId = ""
             stateStore.update {
                 val id = discipleId.toIntOrNull()
                 if (id != null && id in discipleTables.ids) {
                     gameData = discipleSlotCleanup.clearAllSlots(gameData, discipleId)
                 }
                 val slots = gameData.librarySlots.toMutableList()
+                // 覆写前捕获旧 occupant（槽位扩容前的原始列表）
+                oldOccupantId = slots.getOrNull(slotIndex)?.discipleId.orEmpty()
                 while (slots.size <= slotIndex) {
                     slots.add(LibrarySlot(index = slots.size))
                 }
@@ -775,6 +778,12 @@ class DiscipleFacadeImpl @Inject constructor(
                 gameData = gameData.copy(librarySlots = slots)
             }
             assignmentGate.confirmAssign(discipleId, targetSlot)
+            // 换人后释放并同步旧 occupant（回归：此前从不 release/sync，
+            // 旧弟子 gate 注册残留 + 状态残留 STUDYING 从选择弹窗消失）
+            if (oldOccupantId.isNotEmpty() && oldOccupantId != discipleId) {
+                assignmentGate.release(oldOccupantId)
+                discipleService.syncSingleDiscipleStatus(oldOccupantId)
+            }
             discipleService.syncSingleDiscipleStatus(discipleId)
         }
     }

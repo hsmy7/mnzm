@@ -48,6 +48,14 @@ class LawEnforcementProcessor @Inject constructor(
 ) {
     companion object {
         private const val TAG = "LawEnforcementProc"
+
+        /** 叛逃免疫状态：战斗/任务/血炼/思过中的弟子不参与叛逃判定（其余状态均随时可叛逃） */
+        private val DESERTION_IMMUNE_STATUSES = setOf(
+            DiscipleStatus.ON_MISSION,   // 任务中
+            DiscipleStatus.REFLECTING,   // 思过中
+            DiscipleStatus.REFINING,     // 血炼中
+            DiscipleStatus.IN_TEAM       // 队伍中（探索/战斗中）
+        )
     }
 
     // ══════════════════════════════════════════════════════════════════
@@ -633,7 +641,7 @@ class LawEnforcementProcessor @Inject constructor(
     private fun findAtRiskDiscipleIds(currentMonthValue: Int, threshold: Int, protectionMonths: Int, tables: DiscipleTables): List<Int> {
         return tables.ids.filter { id ->
             tables.isAlive.getOrDefault(id, 0) == 1 &&
-                tables.statuses.getOrDefault(id, DiscipleStatus.IDLE) == DiscipleStatus.IDLE &&
+                tables.statuses.getOrDefault(id, DiscipleStatus.IDLE) !in DESERTION_IMMUNE_STATUSES &&
                 tables.loyalties.getOrDefault(id, 0) < threshold &&
                 (currentMonthValue - tables.recruitedMonths.getOrDefault(id, 0)) >= protectionMonths
         }
@@ -679,6 +687,8 @@ class LawEnforcementProcessor @Inject constructor(
             gameData = gameData.copy(
                 guideCounters = gameData.guideCounters + (GuideCounterKeys.DISCIPLE_IMPRISONED to prev + 1)
             )
+            recordGameEvent(GameEventCategory.SECT, GameEventType.DESERTION_CAUGHT,
+                "${d.name}企图叛逃，被执法堂捕获思过", id.toString(), d.name)
         }
     }
 
@@ -742,6 +752,9 @@ class LawEnforcementProcessor @Inject constructor(
                 gameData = gameData.copy(
                     annualDesertedDisciples = gameData.annualDesertedDisciples + 1
                 )
+                // 消息栏事件：脱离宗门必须可见（此前缺失导致玩家误以为弟子无故消失）
+                recordGameEvent(GameEventCategory.SECT, GameEventType.DESERTION,
+                    "${snapshot.name}脱离宗门", id.toString(), snapshot.name)
             }
         }
     }

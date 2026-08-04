@@ -79,7 +79,7 @@ class SlotCategoryCoverageTest {
             SlotCategory.BATTLE_TEAM,         // battleTeams.map
             SlotCategory.GARRISON_SLOT,       // worldMapSects.map
             SlotCategory.BLOOD_REFINEMENT,    // activeBloodRefinements
-            SlotCategory.PRODUCTION_SLOT,     // 独立 Repository 清理
+            SlotCategory.PRODUCTION_SLOT,     // productionSlots.map（clearAllSlotsDataOnly 直接清理）
         )
 
         // 同 scanAndRegister 的理由

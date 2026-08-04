@@ -1,6 +1,8 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.production.BuildingType
+import com.xianxia.sect.core.model.production.ProductionSlot
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -237,5 +239,43 @@ class DiscipleSlotCleanupTest {
         assertNotNull(resultAiSect)
         // Non-player sects should not be modified
         assertEquals(testDiscipleId, resultAiSect!!.garrisonSlots[0].discipleId)
+    }
+
+    // ---- 生产槽位（炼丹/锻造/灵植工人）----
+
+    @Test
+    fun clearAllSlots_clearsProductionSlots() {
+        val data = createGameDataWithDiscipleInSlots(testDiscipleId).copy(
+            productionSlots = listOf(
+                ProductionSlot(id = "p1", slotIndex = 0, buildingType = BuildingType.ALCHEMY,
+                    assignedDiscipleId = testDiscipleId, assignedDiscipleName = "Test"),
+                ProductionSlot(id = "p2", slotIndex = 0, buildingType = BuildingType.FORGE,
+                    assignedDiscipleId = testDiscipleId, assignedDiscipleName = "Test"),
+                ProductionSlot(id = "p3", slotIndex = 0, buildingType = BuildingType.HERB_GARDEN,
+                    assignedDiscipleId = testDiscipleId, assignedDiscipleName = "Test")
+            )
+        )
+        val result = cleanup.clearAllSlots(data, testDiscipleId)
+        for (slot in result.productionSlots) {
+            assertNull("生产槽应清空弟子: ${slot.id}", slot.assignedDiscipleId)
+            assertEquals("生产槽应清空弟子名", "", slot.assignedDiscipleName)
+        }
+    }
+
+    @Test
+    fun clearAllSlots_doesNotAffectOtherDisciplesProductionSlots() {
+        val otherId = "other_disciple"
+        val data = createGameDataWithDiscipleInSlots(testDiscipleId).copy(
+            productionSlots = listOf(
+                ProductionSlot(id = "p1", slotIndex = 0, buildingType = BuildingType.ALCHEMY,
+                    assignedDiscipleId = testDiscipleId, assignedDiscipleName = "Test"),
+                ProductionSlot(id = "p2", slotIndex = 1, buildingType = BuildingType.ALCHEMY,
+                    assignedDiscipleId = otherId, assignedDiscipleName = "Other")
+            )
+        )
+        val result = cleanup.clearAllSlots(data, testDiscipleId)
+        val otherSlot = result.productionSlots.find { it.id == "p2" }
+        assertNotNull(otherSlot)
+        assertEquals(otherId, otherSlot!!.assignedDiscipleId)
     }
 }

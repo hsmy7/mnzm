@@ -15,6 +15,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 import org.robolectric.RobolectricTestRunner
 
 /**
@@ -29,6 +31,7 @@ class GameEngineAtomicAssignTest {
     private lateinit var store: FakeAtomicStateStore
     private lateinit var gate: DiscipleAssignmentGate
     private lateinit var engine: GameEngine
+    private lateinit var discipleFacade: com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
 
     private val DISCIPLE_A = "1"
     private val DISCIPLE_B = "2"
@@ -80,6 +83,7 @@ class GameEngineAtomicAssignTest {
         }
 
         // 使用 mock() 创建 GameEngine，31 个构造参数中仅 stateStore + assignmentGate 为真实实现
+        discipleFacade = mock()
         engine = GameEngine(
             gameEngineCore = mock(),
             engineContextDispatcher = FakeEngineContextDispatcher(),
@@ -102,7 +106,7 @@ class GameEngineAtomicAssignTest {
             autoBuyService = mock(),
             heavyDataPort = mock(),
             heavyDataDecoder = mock(),
-            discipleFacade = mock(),
+            discipleFacade = discipleFacade,
             battleFacade = mock(),
             buildingFacade = mock(),
             inventoryFacade = mock(),
@@ -209,6 +213,25 @@ class GameEngineAtomicAssignTest {
         val result = engine.assignPatrolAtomic(DISCIPLE_A, towerIndex = 0, slotOffset = 0, slotsPerTower = 2)
         assertTrue("便利重载应成功", result.isSuccess)
         assertEquals("槽位 0 应写入弟子 A", DISCIPLE_A, store.latestGameData.patrolSlots[0].discipleId)
+    }
+
+    @Test
+    fun `assignPatrolAtomic 更换时同步旧 occupant 状态`() = runTest {
+        // A 在槽 0，B 在槽 1
+        engine.assignPatrolAtomic(DISCIPLE_A, globalIndex = 0)
+        engine.assignPatrolAtomic(DISCIPLE_B, globalIndex = 1)
+
+        // 更换：B 顶替 A 的槽位 0
+        val result = engine.assignPatrolAtomic(DISCIPLE_B, globalIndex = 0)
+
+        assertTrue("更换应成功", result.isSuccess)
+        assertEquals("槽位 0 应为弟子 B", DISCIPLE_B, store.latestGameData.patrolSlots[0].discipleId)
+        assertTrue("新弟子 gate 应注册", gate.isAssigned(DISCIPLE_B))
+        assertFalse("旧弟子 gate 应释放", gate.isAssigned(DISCIPLE_A))
+        // 回归守卫：旧 occupant 必须被同步状态（修复前从不 sync，
+        // statuses 残留 PATROLLING 从选择弹窗消失）。A 的 sync 调用 = 第 1 次分配(新弟子) + 本次更换(旧 occupant) = 2 次
+        verify(discipleFacade, times(2)).syncSingleDiscipleStatus(DISCIPLE_A)
+        verify(discipleFacade, times(2)).syncSingleDiscipleStatus(DISCIPLE_B)
     }
 
     // ── 巡视楼移除 ──
