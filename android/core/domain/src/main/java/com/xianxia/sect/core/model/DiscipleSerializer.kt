@@ -24,7 +24,6 @@ import kotlinx.serialization.protobuf.ProtoNumber
  *
  * ## 处理说明
  * - `cultivationCheckpoint`：域模型为 Double，序列化为 Long（与旧格式兼容）
- * - autoEquipFromWarehouse：新增 ProtoNumber(103)，旧格式遗漏的字段
  * - @Ignore 字段（lifeEvents, 运行时 Set 字段）不序列化
  * - slotId 不序列化（Room 复合主键，非游戏字段）
  */
@@ -60,7 +59,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
             cultivationSpeedBonus = value.cultivationSpeedBonus,
             cultivationSpeedDuration = value.cultivationSpeedDuration,
             discipleType = value.discipleType,
-            autoLearnFromWarehouse = value.autoLearnFromWarehouse,
             soulPower = value.soulPower,
             cultivationCompletionMonth = value.cultivationCompletionMonth,
             cultivationCompletionPhase = value.cultivationCompletionPhase,
@@ -116,7 +114,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
             armorNurture = value.equipment.armorNurture,
             bootsNurture = value.equipment.bootsNurture,
             accessoryNurture = value.equipment.accessoryNurture,
-            autoEquipFromWarehouse = value.equipment.autoEquipFromWarehouse,
             storageBagItems = value.equipment.storageBagItems,
             storageBagSpiritStones = value.equipment.storageBagSpiritStones,
             spiritStones = value.equipment.spiritStones,
@@ -186,7 +183,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
             cultivationSpeedBonus = surrogate.cultivationSpeedBonus,
             cultivationSpeedDuration = surrogate.cultivationSpeedDuration,
             discipleType = surrogate.discipleType,
-            autoLearnFromWarehouse = surrogate.autoLearnFromWarehouse,
             soulPower = surrogate.soulPower,
             cultivationCompletionMonth = surrogate.cultivationCompletionMonth,
             cultivationCompletionPhase = surrogate.cultivationCompletionPhase,
@@ -247,7 +243,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
                 armorNurture = surrogate.armorNurture,
                 bootsNurture = surrogate.bootsNurture,
                 accessoryNurture = surrogate.accessoryNurture,
-                autoEquipFromWarehouse = surrogate.autoEquipFromWarehouse,
                 storageBagItems = surrogate.storageBagItems,
                 storageBagSpiritStones = surrogate.storageBagSpiritStones,
                 spiritStones = surrogate.spiritStones,
@@ -331,7 +326,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
         @ProtoNumber(34) val cultivationSpeedBonus: Double = 0.0,
         @ProtoNumber(35) val cultivationSpeedDuration: Int = 0,
         @ProtoNumber(74) val discipleType: String = "outer",
-        @ProtoNumber(92) val autoLearnFromWarehouse: Boolean = false,
         @ProtoNumber(29) val soulPower: Int = 0,
         @ProtoNumber(94) val cultivationCompletionMonth: Int = 0,
         @ProtoNumber(95) val cultivationCompletionPhase: Int = 1,
@@ -387,7 +381,6 @@ object DiscipleSerializer : KSerializer<Disciple> {
         @ProtoNumber(25) val armorNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
         @ProtoNumber(26) val bootsNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
         @ProtoNumber(27) val accessoryNurture: EquipmentNurtureData = EquipmentNurtureData("", 0),
-        @ProtoNumber(103) val autoEquipFromWarehouse: Boolean = false,
         @ProtoNumber(30) val storageBagItems: List<StorageBagItem> = emptyList(),
         @ProtoNumber(31) val storageBagSpiritStones: Long = 0,
         @ProtoNumber(28) val spiritStones: Int = 0,

@@ -607,19 +607,16 @@ suspend fun GameEngine.unequipItem(discipleId: String, slot: EquipmentSlot): Dom
     val equipId = when (slot) { EquipmentSlot.WEAPON -> disciple.equipment.weaponId; EquipmentSlot.ARMOR -> disciple.equipment.armorId; EquipmentSlot.BOOTS -> disciple.equipment.bootsId; EquipmentSlot.ACCESSORY -> disciple.equipment.accessoryId }
     if (equipId.isEmpty()) return null
     val result = discipleService.unequipEquipment(discipleId, equipId)
-    cultivationService.markAutoEquipDirty(discipleId)
     return result
 }
 
 suspend fun GameEngine.unequipItemById(discipleId: String, equipmentId: String): DomainResult<Unit> {
     val result = discipleService.unequipEquipment(discipleId, equipmentId)
-    cultivationService.markAutoEquipDirty(discipleId)
     return result
 }
 
 suspend fun GameEngine.forgetManual(discipleId: String, instanceId: String) {
     return engineContextDispatcher.withEngineContext {
-        cultivationService.markAutoLearnDirty(discipleId)
         stateStore.update {
             val instance = manualInstances.get(instanceId) ?: return@update
             val id = discipleId.toInt()

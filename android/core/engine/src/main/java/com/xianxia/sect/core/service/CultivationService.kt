@@ -45,9 +45,6 @@ class CultivationService @Inject constructor(
 
     private val _highFrequencyData get() = sharedState.highFrequencyData
 
-    fun markAutoEquipDirty(discipleId: String) { sharedState.autoEquipDirty.add(discipleId) }
-    fun markAutoLearnDirty(discipleId: String) { sharedState.autoLearnDirty.add(discipleId) }
-
     var cachedCultivationRates: Map<String, Double>
         get() = sharedState.cachedCultivationRates
         set(value) { sharedState.cachedCultivationRates = value }

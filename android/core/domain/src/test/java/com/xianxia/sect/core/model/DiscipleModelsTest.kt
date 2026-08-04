@@ -251,7 +251,6 @@ class DiscipleModelsTest {
         assertEquals("", set.accessoryId)
         assertFalse(set.hasEquippedItems)
         assertEquals(emptyList<String>(), set.equippedItemIds)
-        assertFalse(set.autoEquipFromWarehouse)
         assertEquals(emptyList<StorageBagItem>(), set.storageBagItems)
         assertEquals(0L, set.storageBagSpiritStones)
         assertEquals(0, set.spiritStones)
@@ -423,7 +422,6 @@ class DiscipleModelsTest {
         assertEquals(0L, equip.storageBagSpiritStones)
         assertEquals(0, equip.spiritStones)
         assertEquals(0, equip.soulPower)
-        assertFalse(equip.autoEquipFromWarehouse)
     }
 
     @Test
@@ -475,7 +473,6 @@ class DiscipleModelsTest {
         assertEquals(emptyList<String>(), ext.usedExtendLifePillIds)
         assertFalse(ext.hasReviveEffect)
         assertFalse(ext.hasClearAllEffect)
-        assertFalse(ext.autoLearnFromWarehouse)
     }
 
     @Test

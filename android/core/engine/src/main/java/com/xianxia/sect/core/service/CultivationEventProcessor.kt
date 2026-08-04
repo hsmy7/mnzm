@@ -147,17 +147,19 @@ class CultivationEventProcessor @Inject constructor(
             }
         }
 
-        // Phase 2: 列级预过滤后只 assemble 储物袋有匹配物品的弟子
+        // Phase 2: 列级直读资格预判后只 assemble 合格弟子（性能优化意图保留）
+        // 注意：候选物品来自宗门仓库而非弟子背包——按背包内容过滤会误删全部
+        // 空背包弟子（860bd2a4 引入的回归，天枢殿自动学习/装备因此失效）。
         // 远古秘境：探索中弟子不自动装备/学习（状态冻结语义，与修炼/服药跳过一致）
         val secretRealmMemberIds = gameData.secretRealmMemberIds()
         val updatedDisciples = tables.ids.filter { tables.isAlive[it] == 1 }
             .filter { id -> id !in secretRealmMemberIds }
             .filter { id ->
-                val bags = tables.storageBagItems.getOrDefault(id, emptyList())
-                bags.any { item ->
-                    (item.itemType == "equipment_stack" && hasAutoEquip) ||
-                    (item.itemType == "manual_stack" && hasAutoLearn)
-                }
+                qualifiesForSectAutoById(
+                    id, tables,
+                    equipFocused, equipRootCounts,
+                    learnFocused, learnRootCounts
+                )
             }
             .mapNotNull { tables.assemble(it)?.takeIf { d -> d.isAlive } }
             .toMutableList()
@@ -189,6 +191,36 @@ class CultivationEventProcessor @Inject constructor(
             }
         }
         writeAutoWarehouseResults(state, tables, updatedDisciples, bagEqIds, bagMnIds, eqStacks, mnStacks, newEqInstances, newMnInstances)
+    }
+
+    /**
+     * 列级直读资格预判（不 assemble）。语义与 [qualifiesForSectAutoPublic] 完全一致：
+     * equip/learn 分别判定、或语义；focused 分支优先于灵根数分支。
+     * 只依赖两列：statusData["followed"]、spiritRootTypes 灵根数（缺列兜底 "metal"，与 assemble 一致）。
+     */
+    private fun qualifiesForSectAutoById(
+        id: Int, tables: DiscipleTables,
+        equipFocused: Boolean, equipRootCounts: Set<Int>,
+        learnFocused: Boolean, learnRootCounts: Set<Int>
+    ): Boolean {
+        val equipOk = (equipFocused || equipRootCounts.isNotEmpty()) &&
+            qualifiesByColumns(id, tables, equipFocused, equipRootCounts)
+        val learnOk = (learnFocused || learnRootCounts.isNotEmpty()) &&
+            qualifiesByColumns(id, tables, learnFocused, learnRootCounts)
+        return equipOk || learnOk
+    }
+
+    /**
+     * 单侧资格列级判定，与 [qualifiesForSectAutoPublic] 逐分支对齐：
+     * focused 分支优先于 rootCounts 分支；focused 判定失败时回退灵根数判定
+     * （开关全关时 rootCounts 为空集，in 判定恒为 false，等价于原早退分支）。
+     */
+    private fun qualifiesByColumns(
+        id: Int, tables: DiscipleTables, focused: Boolean, rootCounts: Set<Int>
+    ): Boolean {
+        if (focused && tables.statusData.getOrNull(id)?.get("followed") == "true") return true
+        val rootCount = (tables.spiritRootTypes.getOrNull(id) ?: "metal").split(",").size
+        return rootCount in rootCounts
     }
 
     /**

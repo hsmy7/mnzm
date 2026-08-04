@@ -66,6 +66,7 @@ class RoomMigrationTest {
         private val M35_36 = MIGRATION_35_36
         private val M36_37 = MIGRATION_36_37
         private val M37_38 = MIGRATION_37_38
+        private val M38_39 = MIGRATION_38_39
     }
 
     // ==================== 单个迁移步骤测试 ====================
@@ -91,6 +92,33 @@ class RoomMigrationTest {
         testSingleMigration(
             "m_37_38_ai", 37, 38, listOf(M37_38), "game_data", "secret_realm_ai_teams"
         )
+    }
+
+    @Test
+    fun `MIGRATION_38_TO_39 no-op retains legacy columns`() {
+        // 弟子级 autoLearnFromWarehouse/autoEquipFromWarehouse 死开关列删除采用 no-op 保留策略
+        // （项目规范 7.2 禁止 DROP COLUMN）：迁移不崩溃、数据完整、旧列保留。
+        testSingleMigration(
+            "m_38_39", 38, 39, listOf(M38_39), "disciples", "name"
+        )
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dbName = "m_38_39_legacy"
+        context.deleteDatabase(dbName)
+        try {
+            val db = createDatabaseFromSchema(context, dbName, 38)
+            applyMigrationsSequentially(db, listOf(M38_39))
+            assertTrue(
+                "no-op 迁移应保留旧列 autoLearnFromWarehouse",
+                columnExists(db, "disciples", "autoLearnFromWarehouse")
+            )
+            assertTrue(
+                "no-op 迁移应保留旧列 autoEquipFromWarehouse",
+                columnExists(db, "disciples", "autoEquipFromWarehouse")
+            )
+            db.close()
+        } finally {
+            context.deleteDatabase(dbName)
+        }
     }
 
     @Test

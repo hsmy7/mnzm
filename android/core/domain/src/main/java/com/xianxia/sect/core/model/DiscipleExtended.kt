@@ -34,8 +34,7 @@ data class DiscipleExtended(
     var usedFunctionalPillTypes: List<String> = emptyList(),
     var usedExtendLifePillIds: List<String> = emptyList(),
     var hasReviveEffect: Boolean = false,
-    var hasClearAllEffect: Boolean = false,
-    var autoLearnFromWarehouse: Boolean = false
+    var hasClearAllEffect: Boolean = false
 ) {
     val hasPartner: Boolean get() = partnerId != null
     
@@ -63,8 +62,7 @@ data class DiscipleExtended(
                 usedFunctionalPillTypes = disciple.usage.usedFunctionalPillTypes,
                 usedExtendLifePillIds = disciple.usage.usedExtendLifePillIds,
                 hasReviveEffect = disciple.usage.hasReviveEffect,
-                hasClearAllEffect = disciple.usage.hasClearAllEffect,
-                autoLearnFromWarehouse = disciple.autoLearnFromWarehouse
+                hasClearAllEffect = disciple.usage.hasClearAllEffect
             )
         }
     }

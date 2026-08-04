@@ -548,8 +548,6 @@ class GameViewModel @Inject constructor(
     fun toggleFollowDisciple(discipleId: String) = disciple.toggleFollowDisciple(discipleId)
     fun applyAdBreakthroughBonus(discipleId: String, bonus: Double) = disciple.applyAdBreakthroughBonus(discipleId, bonus)
     fun changeDiscipleType(discipleId: String, newType: String) = disciple.changeDiscipleType(discipleId, newType)
-    fun toggleAutoEquipFromWarehouse(discipleId: String, enabled: Boolean) = disciple.toggleAutoEquipFromWarehouse(discipleId, enabled)
-    fun toggleAutoLearnFromWarehouse(discipleId: String, enabled: Boolean) = disciple.toggleAutoLearnFromWarehouse(discipleId, enabled)
     suspend fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>) = disciple.rewardItemsToDisciple(discipleId, items)
     fun recruitAllDisciples() = disciple.recruitAllDisciples()
     fun rejectDiscipleFromList(discipleId: String) = disciple.rejectDiscipleFromList(discipleId)

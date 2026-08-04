@@ -109,10 +109,6 @@ class DiscipleTables {
     val cultivationCheckpoints = DoubleComponentTable()  // id → checkpoint cultivation
     val cultivationCheckpointGameMonths = IntComponentTable()  // id → checkpoint gameMonth
 
-    // === 自动行为 ===
-    val autoLearnFromWarehouse = IntComponentTable()   // id → 0/1
-    val autoEquipFromWarehouse = IntComponentTable()   // id → 0/1
-
     // === 列表类型（ComponentTable<List<T>>） ===
     val manualIds = ComponentTable<List<String>>()        // id → [manualId1, ...]
     val talentIds = ComponentTable<List<String>>()        // id → [talentId1, ...]
@@ -421,7 +417,6 @@ class DiscipleTables {
             "armorNurtures" to AssembleGroup.EQUIPMENT,
             "bootsNurtures" to AssembleGroup.EQUIPMENT,
             "accessoryNurtures" to AssembleGroup.EQUIPMENT,
-            "autoEquipFromWarehouse" to AssembleGroup.EQUIPMENT,
             "storageBagItems" to AssembleGroup.EQUIPMENT,
             "storageBagSpiritStones" to AssembleGroup.EQUIPMENT,
             "discipleSpiritStones" to AssembleGroup.EQUIPMENT,
@@ -482,8 +477,6 @@ class DiscipleTables {
         IntTableRef(deathYears, DiscipleTables::deathYears, "deathYears"),
         IntTableRef(soulPowers, DiscipleTables::soulPowers, "soulPowers"),
         IntTableRef(cultivationSpeedDurations, DiscipleTables::cultivationSpeedDurations, "cultivationSpeedDurations"),
-        IntTableRef(autoLearnFromWarehouse, DiscipleTables::autoLearnFromWarehouse, "autoLearnFromWarehouse"),
-        IntTableRef(autoEquipFromWarehouse, DiscipleTables::autoEquipFromWarehouse, "autoEquipFromWarehouse"),
         IntTableRef(baseHps, DiscipleTables::baseHps, "baseHps"),
         IntTableRef(baseMps, DiscipleTables::baseMps, "baseMps"),
         IntTableRef(basePhysicalAttacks, DiscipleTables::basePhysicalAttacks, "basePhysicalAttacks"),
@@ -750,10 +743,6 @@ class DiscipleTables {
         cultivationSpeedBonuses[id] = disciple.cultivationSpeedBonus
         cultivationSpeedDurations[id] = disciple.cultivationSpeedDuration
 
-        // 自动行为
-        autoLearnFromWarehouse[id] = if (disciple.autoLearnFromWarehouse) 1 else 0
-        autoEquipFromWarehouse[id] = if (disciple.equipment.autoEquipFromWarehouse) 1 else 0
-
         // 列表/映射
         manualIds[id] = disciple.manualIds; talentIds[id] = disciple.talentIds
         physiqueIds[id] = disciple.physiqueIds; affixIds[id] = disciple.affixIds
@@ -901,7 +890,6 @@ class DiscipleTables {
             cultivationSpeedBonus = cultivationSpeedBonuses.getOrDefault(id, 0.0),
             cultivationSpeedDuration = cultivationSpeedDurations.getOrDefault(id, 0),
             discipleType = discipleTypes.getOrNull(id) ?: "outer",
-            autoLearnFromWarehouse = autoLearnFromWarehouse.getOrDefault(id, 0) == 1,
             soulPower = soulPowers.getOrDefault(id, 0),
             cultivationCompletionMonth = cultivationCompletionMonths.getOrDefault(id, 0),
             cultivationCompletionPhase = cultivationCompletionPhases.getOrDefault(id, 1),
@@ -967,7 +955,6 @@ class DiscipleTables {
         armorNurture = armorNurtures.getOrNull(id) ?: EquipmentNurtureData(equipmentId = "", rarity = 0),
         bootsNurture = bootsNurtures.getOrNull(id) ?: EquipmentNurtureData(equipmentId = "", rarity = 0),
         accessoryNurture = accessoryNurtures.getOrNull(id) ?: EquipmentNurtureData(equipmentId = "", rarity = 0),
-        autoEquipFromWarehouse = autoEquipFromWarehouse.getOrDefault(id, 0) == 1,
         storageBagItems = storageBagItems.getOrNull(id) ?: emptyList(),
         storageBagSpiritStones = storageBagSpiritStones.getOrNull(id) ?: 0L,
         spiritStones = discipleSpiritStones.getOrDefault(id, 0)

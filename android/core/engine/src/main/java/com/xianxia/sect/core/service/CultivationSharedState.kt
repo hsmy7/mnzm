@@ -24,9 +24,6 @@ class CultivationSharedState @Inject constructor() {
         _highFrequencyData.update { transform(it) }
     }
 
-    val autoEquipDirty = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
-    val autoLearnDirty = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
-
     @Volatile var cachedCultivationRates: Map<String, Double> = emptyMap()
     @Volatile var cachedNurtureRates: Map<String, Double> = emptyMap()
     @Volatile var cachedProficiencyRates: Map<String, Map<String, Double>> = emptyMap()

@@ -67,22 +67,6 @@ class DiscipleDelegate(
         }
     }
 
-    fun toggleAutoEquipFromWarehouse(discipleId: String, enabled: Boolean) {
-        gameEngine.launchOnEngine {
-            gameEngine.updateDisciple(discipleId) { disciple ->
-                disciple.copy(equipment = disciple.equipment.copy(autoEquipFromWarehouse = enabled))
-            }
-        }
-    }
-
-    fun toggleAutoLearnFromWarehouse(discipleId: String, enabled: Boolean) {
-        gameEngine.launchOnEngine {
-            gameEngine.updateDisciple(discipleId) { disciple ->
-                disciple.copy(autoLearnFromWarehouse = enabled)
-            }
-        }
-    }
-
     suspend fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>) {
         withContext(dispatcher) {
             gameEngine.rewardItemsToDisciple(discipleId, items)

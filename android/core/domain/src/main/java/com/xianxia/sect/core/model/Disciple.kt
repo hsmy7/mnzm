@@ -104,8 +104,6 @@ data class Disciple(
 
     var discipleType: String = "outer",
 
-    var autoLearnFromWarehouse: Boolean = false,
-
     var soulPower: Int = 0,
 
     @ColumnInfo(defaultValue = "0")
@@ -517,11 +515,13 @@ data class StorageBagItem(
     @ProtoNumber(5) val quantity: Int = 1,
     @ProtoNumber(6) val obtainedYear: Int = 1,
     @ProtoNumber(7) val obtainedMonth: Int = 1,
-    @kotlinx.serialization.Transient val effect: ItemEffect? = null,
-    @kotlinx.serialization.Transient val grade: String? = null,
-    @kotlinx.serialization.Transient val forgetYear: Int? = null,
-    @kotlinx.serialization.Transient val forgetMonth: Int? = null,
-    @kotlinx.serialization.Transient val forgetPhase: Int? = null
+    // 2026-08-04 修复：此前 5 个字段 @Transient 不持久化，读档后储物袋丹药效果/品级/遗忘冷却全部丢失，
+    // 导致自动服药失效、丹药详情空显示。编号 8-12 与旧格式 SerializableStorageBagItem 完全一致。
+    @ProtoNumber(8) val effect: ItemEffect? = null,
+    @ProtoNumber(9) val grade: String? = null,
+    @ProtoNumber(10) val forgetYear: Int? = null,
+    @ProtoNumber(11) val forgetMonth: Int? = null,
+    @ProtoNumber(12) val forgetPhase: Int? = null
 ) {
     val color: String get() = GameConfig.Rarity.getColor(rarity)
     val rarityName: String get() = GameConfig.Rarity.getName(rarity)

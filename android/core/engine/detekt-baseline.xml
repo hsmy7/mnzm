@@ -58,9 +58,7 @@
     <ID>CyclomaticComplexMethod:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$private fun learnManual(discipleId: String, stackId: String)</ID>
     <ID>CyclomaticComplexMethod:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$private fun rewardEquipment(discipleId: String, item: RewardSelectedItem)</ID>
     <ID>CyclomaticComplexMethod:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$private fun rewardManual(discipleId: String, item: RewardSelectedItem)</ID>
-    <ID>CyclomaticComplexMethod:DiscipleManualManager.kt$DiscipleManualManager$fun processAutoLearn( disciple: Disciple, manualStacks: List&lt;ManualStack&gt;, manualInstances: Map&lt;String, ManualInstance&gt;, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStack: Int = MAX_MANUAL_STACK, instantMessage: Boolean = false ): ManualLearnResult</ID>
     <ID>CyclomaticComplexMethod:DiscipleManualManager.kt$DiscipleManualManager$fun processAutoLearnFromWarehouse( disciple: Disciple, warehouseStacks: List&lt;ManualStack&gt;, manualInstances: Map&lt;String, ManualInstance&gt;, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStack: Int = MAX_MANUAL_STACK ): ManualLearnResult</ID>
-    <ID>CyclomaticComplexMethod:DiscipleManualManager.kt$DiscipleManualManager$private fun tryReplaceManual( disciple: Disciple, stack: ManualStack, existingInstanceId: String, manualInstances: Map&lt;String, ManualInstance&gt;, manualStacks: List&lt;ManualStack&gt;, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStack: Int, instantMessage: Boolean ): ManualLearnResult</ID>
     <ID>CyclomaticComplexMethod:DiscipleMasterApprenticeService.kt$DiscipleMasterApprenticeService$fun apprenticeToMaster(discipleId: String, masterId: String): DomainResult&lt;Unit&gt;</ID>
     <ID>CyclomaticComplexMethod:DisciplePurchaseService.kt$DisciplePurchaseService$private fun MutableGameState.hasWarehouseStock(item: MerchantItem): Boolean</ID>
     <ID>CyclomaticComplexMethod:DiscipleSlotCleanup.kt$DiscipleSlotCleanup$private fun clearElderSlots(slots: ElderSlots, discipleId: String): ElderSlots</ID>
@@ -328,7 +326,6 @@
     <ID>LongMethod:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$private fun MutableGameState.applyPillEffectsToDisciple(id: Int, pill: Pill)</ID>
     <ID>LongMethod:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$private fun rewardEquipment(discipleId: String, item: RewardSelectedItem)</ID>
     <ID>LongMethod:DiscipleFactory.kt$DiscipleFactory$fun create(seed: DiscipleSeed): Disciple</ID>
-    <ID>LongMethod:DiscipleManualManager.kt$DiscipleManualManager$fun processAutoLearn( disciple: Disciple, manualStacks: List&lt;ManualStack&gt;, manualInstances: Map&lt;String, ManualInstance&gt;, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStack: Int = MAX_MANUAL_STACK, instantMessage: Boolean = false ): ManualLearnResult</ID>
     <ID>LongMethod:DiscipleServiceCrudTest.kt$DiscipleServiceCrudTest$@Before fun setUp()</ID>
     <ID>LongMethod:DiscipleSlotManager.kt$DiscipleSlotManager$suspend fun resetAllDisciplesStatus()</ID>
     <ID>LongMethod:DiscipleStatusService.kt$DiscipleStatusService$private fun MutableGameState.clearSlotsForReset(): Set&lt;String&gt;</ID>
@@ -1014,7 +1011,6 @@
     <ID>NestedBlockDepth:CultivationService.kt$CultivationService$fun recoverHpMpForCombatDisciples(state: MutableGameState)</ID>
     <ID>NestedBlockDepth:CultivationSettlement.kt$CultivationSettlement$fun processPolicyMonthlyEffects(state: MutableGameState)</ID>
     <ID>NestedBlockDepth:CultivationSettlement.kt$CultivationSettlement$private fun buildSpiritMineZones(data: GameData, tables: DiscipleTables): SpiritMineZones</ID>
-    <ID>NestedBlockDepth:DiscipleManualManager.kt$DiscipleManualManager$fun processAutoLearn( disciple: Disciple, manualStacks: List&lt;ManualStack&gt;, manualInstances: Map&lt;String, ManualInstance&gt;, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStack: Int = MAX_MANUAL_STACK, instantMessage: Boolean = false ): ManualLearnResult</ID>
     <ID>NestedBlockDepth:DiscipleStatCalculator.kt$DiscipleStatCalculator$fun computeGriefEndYearMap( disciples: List&lt;Disciple&gt;, deceasedList: List&lt;Disciple&gt;, currentYear: Int ): Map&lt;Int, Int&gt;</ID>
     <ID>NestedBlockDepth:GameEngineCoordination.kt$fun GameEngine.validateAndFixSpiritMineData()</ID>
     <ID>NestedBlockDepth:GameEngineCoordination.kt$private fun migratePatrolSlotsIfNeeded(gameData: GameData, disciples: List&lt;Disciple&gt;): Pair&lt;GameData, List&lt;Disciple&gt;&gt;</ID>
@@ -1091,13 +1087,11 @@
     <ID>ReturnCount:DiplomacyService.kt$DiplomacyService$suspend fun requestAllianceSimple(sectId: String): Boolean</ID>
     <ID>ReturnCount:DiscipleAssignmentRegistry.kt$DiscipleAssignmentRegistry$fun tryRegister(discipleId: String, targetSlot: SlotRef): SlotAssignment?</ID>
     <ID>ReturnCount:DiscipleBreakthroughHandler.kt$DiscipleBreakthroughHandler$private fun attemptAutoPill(d: Disciple, pillTargetRealm: Int, state: MutableGameState, data: GameData): Pair&lt;Double, Disciple?&gt;</ID>
-    <ID>ReturnCount:DiscipleEquipmentManager.kt$DiscipleEquipmentManager$private fun processSlot( disciple: Disciple, config: SlotConfig, equipmentStacks: List&lt;EquipmentStack&gt;, equipmentInstances: Map&lt;String, EquipmentInstance&gt;, bagStackRefs: List&lt;StorageBagItem&gt;, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStack: Int, instantMessage: Boolean ): EquipmentProcessResult</ID>
     <ID>ReturnCount:DiscipleEquipmentService.kt$DiscipleEquipmentService$private fun MutableGameState.unequipEquipmentLogic(discipleId: String, equipmentId: String): Boolean</ID>
     <ID>ReturnCount:DiscipleFacadeImplRecruitTest.kt$DiscipleFacadeImplRecruitTest$private fun executeRecruitFlow( recruitId: String, state: MutableGameState ): String</ID>
     <ID>ReturnCount:DiscipleLifecycleManager.kt$DiscipleLifecycleManager$fun getDiscipleStatus(discipleId: String): DiscipleStatus</ID>
     <ID>ReturnCount:DiscipleManualManager.kt$DiscipleManualManager$fun canLearn(disciple: Disciple, instance: ManualInstance, manualInstances: Map&lt;String, ManualInstance&gt;): Boolean</ID>
     <ID>ReturnCount:DiscipleManualManager.kt$DiscipleManualManager$fun canLearn(disciple: Disciple, stack: ManualStack, manualInstances: Map&lt;String, ManualInstance&gt;): Boolean</ID>
-    <ID>ReturnCount:DiscipleManualManager.kt$DiscipleManualManager$fun processAutoLearn( disciple: Disciple, manualStacks: List&lt;ManualStack&gt;, manualInstances: Map&lt;String, ManualInstance&gt;, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStack: Int = MAX_MANUAL_STACK, instantMessage: Boolean = false ): ManualLearnResult</ID>
     <ID>ReturnCount:DiscipleManualManager.kt$DiscipleManualManager$fun processAutoLearnFromWarehouse( disciple: Disciple, warehouseStacks: List&lt;ManualStack&gt;, manualInstances: Map&lt;String, ManualInstance&gt;, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStack: Int = MAX_MANUAL_STACK ): ManualLearnResult</ID>
     <ID>ReturnCount:DisciplePillManager.kt$DisciplePillManager$fun canUsePill(disciple: Disciple, pillItem: StorageBagItem): PillUseCheck</ID>
     <ID>ReturnCount:DisciplePillManager.kt$DisciplePillManager$fun processAutoUsePills( disciple: Disciple, gameYear: Int, gameMonth: Int, gamePhase: Int, instantMessage: Boolean = false ): PillUseResult</ID>

@@ -62,7 +62,6 @@ class DiscipleMergeCoverageTest {
         "portraitRes",
         "talentIds", "physiqueIds", "affixIds",
         "manualMasteries",
-        "autoLearnFromWarehouse",
         "soulPower",
         "cultivationCompletionMonth", "cultivationCompletionPhase",
         "manualCompletionMonth", "manualCompletionPhase",
