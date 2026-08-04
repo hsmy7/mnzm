@@ -25,7 +25,7 @@ import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.anyBoolean
 import org.mockito.Mockito.doAnswer
-import org.mockito.Mockito.inOrder
+import org.mockito.Mockito.atLeastOnce
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
@@ -84,11 +84,8 @@ class GameEngineCoreResumeTest {
         assertTrue("loop must restart despite pause lock", core.isGameLoopRunning)
         assertTrue("pause must be preserved (S4: no month/year change during exploration)", pausedFlow.value)
 
-        // 调用序列验证：startGameLoop 内 setPausedDirect(false) → 锁下补 setPausedDirect(true)
-        inOrder(stateStore).also { order ->
-            order.verify(stateStore).setPausedDirect(false)
-            order.verify(stateStore).setPausedDirect(true)
-        }
+        // F4：startGameLoop 内按暂停来源保留（pauseForSecretRealm/stopGameLoop/startGameLoop 均置 true）
+        verify(stateStore, atLeastOnce()).setPausedDirect(true)
     }
 
     @Test
@@ -100,6 +97,23 @@ class GameEngineCoreResumeTest {
 
         assertTrue("loop must restart", core.isGameLoopRunning)
         assertFalse("no lock: pause must be released", pausedFlow.value)
+    }
+
+    @Test
+    fun `pauseForBackground - secret realm pause is not recorded as user pause (F1)`() = runTest {
+        // F1 回归：秘境暂停（锁持有）不记入 wasUserPausedBeforeBackground——
+        // 否则后台销毁 Activity（exitExploration 清锁）后恢复会保留"无主暂停"
+        core.pauseForSecretRealm()
+        assertTrue(core.secretRealmPauseLock)
+        // 模拟后台期间 Activity 销毁：exitExploration 清锁
+        core.resumeFromSecretRealm()
+
+        core.pauseForBackground()
+        core.resumeFromBackground()
+
+        // 锁已清且用户从未暂停 → 恢复后时间正常推进（无粘滞暂停）
+        assertFalse("no sticky pause after background round-trip", pausedFlow.value)
+        assertTrue(core.isGameLoopRunning)
     }
 
     @Test
@@ -158,7 +172,7 @@ class GameEngineCoreResumeTest {
     }
 
     @Test
-    fun `handleWatchdogVerdict - stale pause self-heals lock and resumes`() = runTest {
+    fun `handleWatchdogVerdict - stale pause self-heals lock without force restart (V5)`() = runTest {
         core.pauseForSecretRealm()
         fakeTime.now += 60_000L
         assertEquals(StallVerdict.StalePauseDetected, core.progressVerdict())
@@ -167,7 +181,8 @@ class GameEngineCoreResumeTest {
 
         assertFalse("lock must be cleared", core.secretRealmPauseLock)
         assertFalse("pause must be released", pausedFlow.value)
-        assertTrue("loop must be running", core.isGameLoopRunning)
+        // V5：不主动启动循环——后台场景避免后台推进时间；回前台 resumeFromBackground 重启
+        assertFalse("self-heal must not force-start loop", core.isGameLoopRunning)
     }
 
     @Test

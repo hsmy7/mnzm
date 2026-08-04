@@ -146,6 +146,7 @@ class AlarmWatchdogReceiver : BroadcastReceiver() {
         fun gameEngineCore(): GameEngineCore
     }
 
+    @Suppress("ReturnCount") // 广播接收器多早退分支（动作过滤/判据失败/链式调度），每分支职责独立
     override fun onReceive(context: Context, intent: Intent?) {
         if (intent?.action != ACTION_ALARM_WATCHDOG) {
             return
@@ -166,13 +167,19 @@ class AlarmWatchdogReceiver : BroadcastReceiver() {
         }
 
         val now = System.currentTimeMillis()
-        val verdict = gameEngineCore.progressVerdict()
+        // V4：判据读取必须防护——引擎异常（如 TimeSystem 缺失）时 progressVerdict
+        // 可能抛异常，BroadcastReceiver 无防护会拖死应用进程（变成崩溃源而非兜底）
+        val verdict = try {
+            gameEngineCore.progressVerdict()
+        } catch (e: Exception) {
+            Log.e(TAG, "progressVerdict failed, scheduling next alarm", e)
+            scheduleAlarm(context)
+            return
+        }
 
         // 非健康/非豁免判定 → 尝试自愈（限频 60s，防止 Doze 退出时频繁调用）
         // 用户主动暂停 = PausedByOwner（永不自动恢复，a63338f3 教训固化）
-        val needsRecovery = verdict != StallVerdict.Healthy &&
-            verdict != StallVerdict.PausedByOwner
-        if (needsRecovery) {
+        if (needsRecovery(verdict)) {
             if ((now - lastRecoveryTimeMs) >= MIN_RECOVERY_INTERVAL_MS) {
                 lastRecoveryTimeMs = now
                 Log.w(TAG, "Watchdog verdict=$verdict, self-healing (engine core)")
@@ -190,6 +197,15 @@ class AlarmWatchdogReceiver : BroadcastReceiver() {
         // 链式调度下一次闹钟
         scheduleAlarm(context)
     }
+
+    /**
+     * 判定是否需要自愈：非健康且非用户暂停豁免。
+     *
+     * 判据消费的唯一入口（onReceive 使用），独立可测——
+     * 用户主动暂停（PausedByOwner）永不自动恢复（a63338f3 教训固化）。
+     */
+    internal fun needsRecovery(verdict: StallVerdict): Boolean =
+        verdict != StallVerdict.Healthy && verdict != StallVerdict.PausedByOwner
 
     /**
      * 降级兜底：启动 [GameForegroundService]（handleWatchdogVerdict 直调失败时）。

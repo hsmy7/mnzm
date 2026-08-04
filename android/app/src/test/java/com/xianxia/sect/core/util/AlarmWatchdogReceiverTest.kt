@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
+import com.xianxia.sect.core.engine.monitor.StallVerdict
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -123,5 +124,22 @@ class AlarmWatchdogReceiverTest {
         val intent = Intent(context, AlarmWatchdogReceiver::class.java)
             .setAction(AlarmWatchdogReceiver.ACTION_ALARM_WATCHDOG)
         receiver.onReceive(context, intent)
+    }
+
+    // ── 判据消费（needsRecovery 纯函数，onReceive 唯一判据出口）──
+
+    @Test
+    fun `needsRecovery - abnormal verdicts require self-healing`() {
+        val receiver = AlarmWatchdogReceiver()
+        assertTrue(receiver.needsRecovery(StallVerdict.LoopStalled))
+        assertTrue(receiver.needsRecovery(StallVerdict.FakeRunDetected))
+        assertTrue(receiver.needsRecovery(StallVerdict.StalePauseDetected))
+    }
+
+    @Test
+    fun `needsRecovery - paused by owner never recovers (a63338f3)`() {
+        val receiver = AlarmWatchdogReceiver()
+        assertFalse(receiver.needsRecovery(StallVerdict.PausedByOwner))
+        assertFalse(receiver.needsRecovery(StallVerdict.Healthy))
     }
 }

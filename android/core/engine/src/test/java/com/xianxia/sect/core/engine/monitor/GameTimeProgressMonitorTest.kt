@@ -153,7 +153,8 @@ class GameTimeProgressMonitorTest {
         // 租约 20s 前续约，仍有效（<45s TTL）
         val verdict = monitor.evaluate(
             snapshot(isPaused = true, secretRealmPauseLock = true,
-                secretRealmPauseRenewedAtMs = renewedAtMs, recordedAtMs = renewedAtMs + 20_000L)
+                secretRealmPauseRenewedAtMs = renewedAtMs,
+                loopActiveAtMs = renewedAtMs + 20_000L, recordedAtMs = renewedAtMs + 20_000L)
         )
         assertEquals(StallVerdict.PausedByOwner, verdict)
     }
@@ -163,10 +164,11 @@ class GameTimeProgressMonitorTest {
         val monitor = GameTimeProgressMonitor()
         val renewedAtMs = 10_000L
         monitor.evaluate(snapshot(recordedAtMs = 5_000L))
-        // 租约 60s 前续约，已过期（>45s TTL）
+        // 租约 60s 前续约，已过期（>45s TTL）；循环心跳新鲜 → 自愈而非停滞
         val verdict = monitor.evaluate(
             snapshot(isPaused = true, secretRealmPauseLock = true,
-                secretRealmPauseRenewedAtMs = renewedAtMs, recordedAtMs = renewedAtMs + 60_000L)
+                secretRealmPauseRenewedAtMs = renewedAtMs,
+                loopActiveAtMs = renewedAtMs + 60_000L, recordedAtMs = renewedAtMs + 60_000L)
         )
         assertEquals(StallVerdict.StalePauseDetected, verdict)
     }
@@ -178,7 +180,8 @@ class GameTimeProgressMonitorTest {
         monitor.evaluate(snapshot(recordedAtMs = 5_000L))
         val verdict = monitor.evaluate(
             snapshot(isPaused = true, secretRealmPauseLock = true,
-                secretRealmPauseRenewedAtMs = 0L, recordedAtMs = 50_000L)
+                secretRealmPauseRenewedAtMs = 0L,
+                loopActiveAtMs = 50_000L, recordedAtMs = 50_000L)
         )
         assertEquals(StallVerdict.StalePauseDetected, verdict)
     }
@@ -256,5 +259,81 @@ class GameTimeProgressMonitorTest {
         )
         assertEquals(StallVerdict.FakeRunDetected, verdict)
         assertTrue("window parameter applied", verdict is StallVerdict.FakeRunDetected)
+    }
+
+    // ── 对抗性审查修复回归用例（2026-08-04）──
+
+    @Test
+    fun `evaluate - S5 frozen world with oscillating accumulatedMs still detected`() {
+        // 持续抛异常的世界冻结：totalPhases 冻结但 accumulatedGameMs 0→2000→0 振荡
+        // （旧 OR 判据被振荡绕过 → 永久 Healthy；新判据 totalPhases 主导 → 仍可检测）
+        val monitor = GameTimeProgressMonitor()
+        monitor.evaluate(snapshot(tickCount = 10, totalPhases = 100, accumulatedGameMs = 0, recordedAtMs = 1_000L))
+        monitor.evaluate(snapshot(tickCount = 30, totalPhases = 100, accumulatedGameMs = 2000, recordedAtMs = 10_000L))
+        // 振荡方向翻转（累积被扣减回 0）——旧判据会误判"推进"
+        val oscillating = monitor.evaluate(
+            snapshot(tickCount = 50, totalPhases = 100, accumulatedGameMs = 0, recordedAtMs = 20_000L)
+        )
+        assertEquals(StallVerdict.Healthy, oscillating) // 90s 窗口内仍容忍
+        val beyondWindow = monitor.evaluate(
+            snapshot(tickCount = 200, totalPhases = 100, accumulatedGameMs = 2000, recordedAtMs = 200_000L)
+        )
+        assertEquals(StallVerdict.FakeRunDetected, beyondWindow)
+    }
+
+    @Test
+    fun `evaluate - S4 tick stalled but loop heartbeats fresh returns Healthy`() {
+        // 刚恢复/超长单 tick 窗口：tickCount 暂不递增但循环体心跳新鲜 → 不误判
+        val monitor = GameTimeProgressMonitor()
+        monitor.evaluate(snapshot(tickCount = 10, loopActiveAtMs = 1_000L, recordedAtMs = 1_000L))
+        val verdict = monitor.evaluate(
+            snapshot(tickCount = 10, loopActiveAtMs = 4_000L, recordedAtMs = 5_000L)
+        )
+        assertEquals(StallVerdict.Healthy, verdict)
+    }
+
+    @Test
+    fun `evaluate - V1 tick stalled and heartbeats stale returns LoopStalled`() {
+        // OEM 挂起：tickCount 与心跳双双停滞 → 判停滞
+        val monitor = GameTimeProgressMonitor()
+        monitor.evaluate(snapshot(tickCount = 10, loopActiveAtMs = 1_000L, recordedAtMs = 1_000L))
+        val verdict = monitor.evaluate(
+            snapshot(tickCount = 10, loopActiveAtMs = 1_000L, recordedAtMs = 30_000L)
+        )
+        assertEquals(StallVerdict.LoopStalled, verdict)
+    }
+
+    @Test
+    fun `evaluate - S1 saving with loop intentionally stopped and paused returns Healthy`() {
+        // restartGame/后台窗口：stopGameLoop（isPaused=true + 循环停）+ isSaving → 豁免
+        // （交给 SAVE_LOAD_STUCK_TIMEOUT_MS 60s 兜底，不打断合法慢保存）
+        val monitor = GameTimeProgressMonitor()
+        monitor.evaluate(snapshot(loopActiveAtMs = 1_000L, recordedAtMs = 1_000L))
+        val verdict = monitor.evaluate(
+            snapshot(tickCount = 11, isSaving = true, loopActive = false, isPaused = true,
+                loopActiveAtMs = 1_000L, recordedAtMs = 30_000L)
+        )
+        assertEquals(StallVerdict.Healthy, verdict)
+    }
+
+    @Test
+    fun `evaluate - V6 speed zero detected on first evaluation`() {
+        // 首调即判 speed=0（不延迟一个评估周期）
+        val monitor = GameTimeProgressMonitor()
+        val verdict = monitor.evaluate(snapshot(speed = 0, recordedAtMs = 1_000L))
+        assertEquals(StallVerdict.FakeRunDetected, verdict)
+    }
+
+    @Test
+    fun `evaluate - F2 lease expired with stalled loop returns LoopStalled first`() {
+        // 引擎被挂起（续约 dispatch 排队不执行）→ 租约过期但循环也停滞：
+        // 优先判 LoopStalled 走换线程恢复（避免清锁后新循环在探索界面下推进时间）
+        val monitor = GameTimeProgressMonitor()
+        monitor.evaluate(snapshot(loopActiveAtMs = 1_000L, recordedAtMs = 1_000L))
+        val verdict = monitor.evaluate(
+            snapshot(isPaused = true, secretRealmPauseLock = true,
+                secretRealmPauseRenewedAtMs = 1_000L, loopActiveAtMs = 1_000L, recordedAtMs = 60_000L)
+        )
+        assertEquals(StallVerdict.LoopStalled, verdict)
     }
 }

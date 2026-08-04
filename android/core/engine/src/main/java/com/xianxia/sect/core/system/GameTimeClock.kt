@@ -94,6 +94,9 @@ class GameTimeClock @Inject constructor(
 
     // ── 内部状态 ──
 
+    /** @Volatile（S3）：引擎线程 tick()/setSpeed() 与看门狗自愈 setSpeed(1) 跨线程 +=，
+     *  非 volatile 在 32 位设备上 Long 撕裂读 + 丢失更新（±一旬级） */
+    @Volatile
     private var accumulatedGameMsInternal: Long = 0L
     private var lastWallMs: Long = 0L
 
