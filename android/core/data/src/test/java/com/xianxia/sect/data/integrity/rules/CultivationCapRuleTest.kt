@@ -60,6 +60,28 @@ class CultivationCapRuleTest {
     }
 
     @Test
+    fun `oversized realm layer cannot bypass cap`() {
+        // 对抗性审查整改（2026-08-05）：realmLayer=Int.MAX_VALUE 原会放大 cap 至 4.65e10，
+        // 钳制到合法层数后 4e10 修为必须被截断到真实境界上限量级
+        val d = makeDisciple(realm = 9, realmLayer = Int.MAX_VALUE, cultivation = 4e10)
+        val data = saveData(disciples = listOf(d))
+        val result = SaveValidator.validate(data)
+        assertTrue(result is IntegrityResult.Repaired)
+        val capped = (result as IntegrityResult.Repaired).data.disciples.first().cultivation
+        // 与 computeMaxCultivation(9, 钳制后层数) 一致（realm=9 maxLayers 非 1，值在百量级）
+        assertTrue("应截断到合法境界上限量级，实际 $capped", capped in 1.0..1000.0)
+    }
+
+    @Test
+    fun `negative realm layer cannot inject negative cultivation`() {
+        // 对抗性审查整改（2026-08-05）：realmLayer=-10 原会算出负 cap，
+        // cultivation=0 被"截断"成负修为——钳制后 0 修为不被误伤
+        val d = makeDisciple(realm = 9, realmLayer = -10, cultivation = 0.0)
+        val data = saveData(disciples = listOf(d))
+        assertEquals(IntegrityResult.Passed, SaveValidator.validate(data))
+    }
+
+    @Test
     fun `cultivation at exact boundary passes`() {
         val d = makeDisciple(realm = 9, realmLayer = 1, cultivation = 65.0)
         val data = saveData(disciples = listOf(d))

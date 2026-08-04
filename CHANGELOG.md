@@ -157,6 +157,22 @@
 
 **测试**：新增 8 个测试文件（NumericSanitizeRuleTest/BattleLogRefRuleTest/ManualTalentRefRuleTest/EntityCountBoundsRuleTest/GameEngineCoreStuckResetTest/GameActivityBackNavTest/GameStateStoreForceFullAssembleTest/SaveFileManagerSdk33Test）+ 6 个既有测试类扩展（SaveDataVersionMigratorTest 全适配/SaveFileManagerTest/SaveFileManagerSdk33Test/StorageResultTest/CultivationCapRuleTest/SaveValidatorTest/DiscipleTablesChangedIdTest/BootSequenceControllerTest/SaveLoadViewModelLoadTest）；core:data 全量 + core:engine 目标 + app 目标测试通过
 
+### 对抗性审查整改（3 个恶意角色代理：边界狂魔/状态破坏者/数据篡改者，2026-08-05）
+
+**本次引入缺陷修复（5 项）：**
+- **CultivationCapRule realmLayer 钳制** — crafted 存档 realmLayer=Int.MAX_VALUE 原会放大 cap 至 4.65e10（绕过 1e9 封顶），负层数注入负 cap 使 0 修为被截成负数；cap 计算前 `coerceIn(1, maxLayers)`
+- **NumericSanitizeRule 招募/AI 弟子全字段消毒** — 原只消毒 cultivation，NaN checkpoint/speedBonus/pill 经招募全字段拷贝进入组件表（招募条目永久不被修复）；改走与主弟子相同的全字段 sanitizeDisciple
+- **SaveFileManager CRC32C 自实现根治** — java.util.zip.CRC32C 仅 API 34+ 存在，原 API<34 回退 CRC32 导致"API≥34 写入文件在 API<34 设备必判损坏"（反向换机数据丢失）；新增纯 Java 查表 CRC32C（Castagnoli 0x82F63B78，与 JDK 输出一致），0x0101 恒写 CRC32C + algo 标识，旧 0x0100 双算法探测全 API 统一
+- **checkAndResetStuckStates nowMs 防御** — nowMs<=0 会静默失效（savingStartTime==0 判据恒真）或立即误触发（负值），防御性回退真实时钟
+- **stuckResetEvents replay=1** — replay=0 时 VM 空窗期（主菜单/未创建）病理复位事件 tryEmit 直接丢弃，"不再静默"承诺失效
+- **activeLoadJob 读-改-写加锁原子化** — 注册/清除/看门狗复位三处 synchronized 同一锁，消除"陈旧 cancel 误杀新注册"与"=null 使在途操作脱离监管"的交错窗口
+
+**预存问题（非本次引入，如实登记）：**
+- [严重] 主菜单云读档自阻塞——loadFromCloudSave 持有 cloudDownloadLock 期间调 loadGame 被自身守卫拒绝（2026-08-04 B3 引入，功能必失败）
+- [中等] loadGameFromSlot(0) 先置 isLoading 再 downloadFromCloudSave 恒被拒（设置页云槽位读取失败）
+- [中等] crafted id=9,999,999 弟子触发全表级超大数组分配 OOM（Error 不可捕获，MAX_SAFE_CAPACITY=10M 设高）
+- 轻微项：saveGame 双 tap 异步窗口、bak 修复失败不反馈、文件格式版本不校验、ensureRegistered 与注册表全局状态耦合等——均记录在案待后续
+
 ## [4.0.85] - 2026-08-02
 
 ### 新增（2026-08-02 一键拆除建筑）

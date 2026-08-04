@@ -60,12 +60,12 @@ class BootSequenceControllerTest {
         // CultivationService: ensureGameDataIntegrity → checkAndRepairMerchantAndRecruit 会调用
         whenever(gameEngine.cultivationService).thenReturn(mock())
 
-        // T15（2026-08-05）：recoverWithPartialData 补守卫需访问 productionCoordinator.repository
-        val productionCoordinator = mock<com.xianxia.sect.core.engine.domain.production.ProductionCoordinator>()
-        whenever(gameEngine.productionCoordinator).thenReturn(productionCoordinator)
-        val slotRepository = mock<com.xianxia.sect.core.repository.ProductionSlotRepository>()
-        whenever(productionCoordinator.repository).thenReturn(slotRepository)
-        whenever(slotRepository.getSlots()).thenReturn(emptyList())
+        // T15（2026-08-05）：recoverWithPartialData 补守卫需访问 productionCoordinator.repository。
+        // 注意：不 stub getSlots()——ProductionSlotRepository 的属性 `val slots` 编译为同名 JVM
+        // getter（返回 StateFlow），与函数 getSlots()（返回 List）同名，Mockito 按名匹配到
+        // StateFlow 版本抛 WrongTypeOfReturnValue；BootSequenceController 调用有 try-catch 兜底，
+        // mock 默认 null 会被 catch 转为 emptyList，无需 stub。
+        whenever(gameEngine.productionCoordinator).thenReturn(mock())
 
         // DiscipleSnapshotCache
         doNothing().whenever(discipleSnapshotCache).prewarm(any())

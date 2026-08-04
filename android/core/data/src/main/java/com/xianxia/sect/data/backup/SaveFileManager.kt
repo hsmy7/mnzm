@@ -1,6 +1,5 @@
 package com.xianxia.sect.data.backup
 
-import android.os.Build
 import android.util.Log
 import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.model.SaveData
@@ -8,7 +7,6 @@ import com.xianxia.sect.data.result.StorageError
 import com.xianxia.sect.data.result.StorageResult
 import java.io.File
 import java.io.FileOutputStream
-import java.util.zip.CRC32C
 import java.util.zip.CRC32
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -38,9 +36,10 @@ import javax.inject.Singleton
  *  12      4    Uncompressed payload length (uint32, big-endian)
  *  16      N    Payload (SerializationModule.serializeAndCompressSaveData 输出)
  *
- * 格式版本 0x0101（T8，2026-08-05）：API<34 设备写 CRC32、API≥34 写 CRC32C，
- * 旧格式（0x0100）无算法标识，跨 API 换机全部判损坏。0x0101 起字节 11 记录算法，
- * 读取按标识精确校验；旧格式文件通过双算法探测兼容读取。
+ * 格式版本 0x0101（T8，2026-08-05）：字节 11 记录 CRC 算法，读取按标识精确校验；
+ * 旧格式（0x0100）无算法标识，通过双算法探测兼容读取——修复旧版跨 API 换机全判损坏。
+ * 0x0101 恒写 CRC32C（自实现查表，全 API 一致，2026-08-05 对抗性审查整改）——
+ * 原按 SDK 分支写 CRC32/CRC32C 时，API≥34 写入的文件在 API<34 设备必判损坏（反向换机丢数据）。
  */
 @Singleton
 class SaveFileManager @Inject constructor(
@@ -355,11 +354,10 @@ class SaveFileManager @Inject constructor(
 
     /** 构建文件头（0x0101：字节 11 记录 CRC 算法标识，T8 2026-08-05） */
     private fun buildHeader(payload: ByteArray): ByteArray {
-        val (crc, algo) = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            computeCrc32c(payload) to CRC_ALGO_CRC32C
-        } else {
-            computeCrc32(payload) to CRC_ALGO_CRC32
-        }
+        // 对抗性审查整改（2026-08-05）：恒写 CRC32C（自实现全 API 可用）——
+        // 原按 SDK 分支写 CRC32/CRC32C，API≥34 写 CRC32C 的文件在 API<34 设备
+        // 无 CRC32C 实现必判损坏（反向换机数据丢失）。恒 CRC32C + algo 标识双向一致。
+        val crc = computeCrc32c(payload)
         val header = ByteArray(HEADER_SIZE)
 
         // Magic
@@ -374,8 +372,8 @@ class SaveFileManager @Inject constructor(
         header[9] = (crc and 0xFF).toByte()
         // Flags: LZ4 compressed
         header[10] = FLAG_COMPRESSED.toByte()
-        // T8: CRC 算法标识（原保留位；0x0101 起有效，0=CRC32, 1=CRC32C）
-        header[11] = algo.toByte()
+        // T8: CRC 算法标识（原保留位；0x0101 起有效，0=CRC32, 1=CRC32C）——恒 CRC32C
+        header[11] = CRC_ALGO_CRC32C.toByte()
         // Uncompressed length (big-endian) — 当前 payload 已压缩，存原始长度
         val len = payload.size
         header[12] = ((len shr 24) and 0xFF).toByte()
@@ -434,10 +432,10 @@ class SaveFileManager @Inject constructor(
     }
 
     /**
-     * CRC 校验（T8 2026-08-05）。
+     * CRC 校验（T8 2026-08-05 + 对抗性审查整改 2026-08-05）。
      * - 0x0101+：按文件头记录的算法标识精确校验；未知标识判损坏
-     * - 0x0100（旧格式）：无算法标识 → 双算法探测（API≥34 试 CRC32C 与 CRC32，
-     *   API<34 只试 CRC32）——修复 API<34 写入的备份换机到 API≥34 全判损坏的问题
+     * - 0x0100（旧格式）：无算法标识 → 双算法探测（CRC32C 自实现全 API 可算，无 SDK 分支）
+     *   ——修复 API<34 写入的备份换机到 API≥34 全判损坏的问题
      */
     private fun verifyCrc(stored: Int, payload: ByteArray, formatVersion: Int, algoByte: Int): Boolean {
         if (formatVersion >= FORMAT_VERSION_WITH_CRC_ALGO) {
@@ -447,11 +445,7 @@ class SaveFileManager @Inject constructor(
                 else -> false
             }
         }
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            stored == computeCrc32c(payload) || stored == computeCrc32(payload)
-        } else {
-            stored == computeCrc32(payload)
-        }
+        return stored == computeCrc32c(payload) || stored == computeCrc32(payload)
     }
 
     /** 计算 CRC32 校验和（跨 API 一致） */
@@ -461,21 +455,35 @@ class SaveFileManager @Inject constructor(
         return crc.value.toInt()
     }
 
+    /** 计算 CRC32C 校验和（自实现，全 API 一致——对抗性审查整改 2026-08-05） */
+    private fun computeCrc32c(data: ByteArray): Int = Crc32c.update(data)
+
     /**
-     * 计算 CRC32C 校验和。
-     * API 34+ 使用 java.util.zip.CRC32C（API 34 才引入），
-     * 更低版本回退到 java.util.zip.CRC32。
-     * 0x0101 格式由文件头算法标识保证跨 API 一致性，不再依赖同设备自洽。
+     * 自实现 CRC32C（Castagnoli 多项式，reflected 0x82F63B78）。
+     *
+     * 2026-08-05 对抗性审查整改：java.util.zip.CRC32C 仅 API 34+ 存在，API<34 回退 CRC32
+     * 导致"API≥34 写入的文件在 API<34 设备必判损坏"（反向换机数据丢失）。
+     * 纯 Java 查表实现与 java.util.zip.CRC32C 输出一致（Castagnoli 标准），全 API 可用。
      */
-    private fun computeCrc32c(data: ByteArray): Int {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            val crc = CRC32C()
-            crc.update(data)
-            crc.value.toInt()
-        } else {
-            val crc = CRC32()
-            crc.update(data)
-            crc.value.toInt()
+    private object Crc32c {
+        private val TABLE = IntArray(256).also { table ->
+            val reflectedPoly = 0x82F63B78.toInt() // > Int.MAX 的字面量需显式转换
+            for (i in 0..255) {
+                var crc = i
+                repeat(8) {
+                    crc = if (crc and 1 != 0) (crc ushr 1) xor reflectedPoly else crc ushr 1
+                }
+                table[i] = crc
+            }
+        }
+
+        /** 计算字节数组的 CRC32C 校验值（与 java.util.zip.CRC32C 输出一致） */
+        fun update(data: ByteArray): Int {
+            var crc = -1
+            for (b in data) {
+                crc = (crc ushr 8) xor TABLE[(crc xor b.toInt()) and 0xFF]
+            }
+            return crc.inv()
         }
     }
 }

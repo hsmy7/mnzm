@@ -20,13 +20,22 @@ object CultivationCapRule : SaveValidationRule {
      */
     private const val IMMORTAL_REALM_CULTIVATION_CAP = 1e9
 
+    /** realmLayer 合法最小层数（钳制 crafted 存档的负层数） */
+    private const val MIN_REALM_LAYER = 1
+
     override fun execute(data: SaveData, context: RuleContext): RuleOutcome {
         val repairs = mutableListOf<String>()
         val disciples = data.disciples.map { d ->
             val maxCult = if (d.realm <= 0) {
                 IMMORTAL_REALM_CULTIVATION_CAP
             } else {
-                computeMaxCultivation(d.realm, d.realmLayer)
+                // 对抗性审查（2026-08-05）：realmLayer 未钳制会被 crafted 存档
+                // 放大 cap（Int.MAX_VALUE → 4.65e10）或注入负 cap（负层数 → 负修为）
+                val safeLayer = d.realmLayer.coerceIn(
+                    MIN_REALM_LAYER,
+                    GameConfig.Realm.get(d.realm).maxLayers
+                )
+                computeMaxCultivation(d.realm, safeLayer)
             }
             if (d.cultivation > maxCult) {
                 repairs.add(

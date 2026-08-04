@@ -34,16 +34,18 @@ object NumericSanitizeRule : SaveValidationRule {
             repairs.add("宗门修为 sectCultivation=$sectCultivation 非有限或为负，已重置为 0")
             sectCultivation = SANITIZED_DEFAULT
         }
+        // 对抗性审查（2026-08-05）：招募列表/AI 宗门弟子必须**全字段**消毒——
+        // 原实现只查 cultivation，NaN checkpoint/pill 经招募全字段拷贝进入组件表
         var fixedRecruit: List<Disciple>? = null
-        if (data.gameData.recruitList.any { it.cultivation.isInvalid() }) {
-            fixedRecruit = data.gameData.recruitList.map { sanitizeCultivationOnly(it, repairs, "招募列表") }
+        if (data.gameData.recruitList.any { it.hasInvalidNumericFields() }) {
+            fixedRecruit = data.gameData.recruitList.map { sanitizeDisciple(it, repairs, "招募列表 ") }
         }
         var fixedAiSects: Map<String, List<Disciple>>? = null
         if (data.gameData.aiSectDisciples.values.any { list ->
-                list.any { it.cultivation.isInvalid() }
+                list.any { it.hasInvalidNumericFields() }
             }) {
             fixedAiSects = data.gameData.aiSectDisciples.mapValues { (sect, list) ->
-                list.map { sanitizeCultivationOnly(it, repairs, "AI宗门[$sect]") }
+                list.map { sanitizeDisciple(it, repairs, "AI宗门[$sect] ") }
             }
         }
 
@@ -69,9 +71,9 @@ object NumericSanitizeRule : SaveValidationRule {
         }
     }
 
-    /** 弟子三维修炼值 + 丹药 5 项 Double 加成消毒 */
-    private fun sanitizeDisciple(d: Disciple, repairs: MutableList<String>): Disciple {
-        val label = "弟子[${d.name.ifBlank { "ID=${d.id}" }}]"
+    /** 弟子三维修炼值 + 丹药 5 项 Double 加成消毒（scope 用于区分招募/AI 宗门来源） */
+    private fun sanitizeDisciple(d: Disciple, repairs: MutableList<String>, scope: String = ""): Disciple {
+        val label = "${scope}弟子[${d.name.ifBlank { "ID=${d.id}" }}]"
         var modified = false
 
         var cultivation = d.cultivation
@@ -125,19 +127,22 @@ object NumericSanitizeRule : SaveValidationRule {
         }
     }
 
-    /** 招募列表/AI 宗门弟子仅消毒 cultivation（v0→1 缩放链同一对象族） */
-    private fun sanitizeCultivationOnly(
-        d: Disciple,
-        repairs: MutableList<String>,
-        scope: String
-    ): Disciple {
-        if (!d.cultivation.isInvalid()) return d
-        repairs.add("$scope 弟子[${d.name.ifBlank { "ID=${d.id}" }}].cultivation=${d.cultivation} 非有限或为负，已重置")
-        return d.copy(cultivation = SANITIZED_DEFAULT)
-    }
-
     /** 非有限或负值判定 */
     private fun Double.isInvalid(): Boolean = !isFinite() || this < 0.0
+
+    /** 全数值字段合法性判定（与 [sanitizeDisciple] 覆盖范围一致） */
+    private fun Disciple.hasInvalidNumericFields(): Boolean {
+        val pill = pillEffects
+        val pillFields = listOf(
+            pill.pillCritRateBonus,
+            pill.pillCritEffectBonus,
+            pill.pillCultivationSpeedBonus,
+            pill.pillSkillExpSpeedBonus,
+            pill.pillNurtureSpeedBonus
+        )
+        return cultivation.isInvalid() || cultivationCheckpoint.isInvalid() ||
+            cultivationSpeedBonus.isInvalid() || pillFields.any { it.isInvalid() }
+    }
 
     /** 消毒为安全默认值 */
     private fun Double.sanitize(): Double = if (isInvalid()) SANITIZED_DEFAULT else this

@@ -336,8 +336,10 @@ class GameEngineCore @Inject constructor(
      * 看门狗病理复位事件通道（T12 2026-08-05）。
      * forceResetStuckStates 被看门狗触发（非 onCleared 正常清理）时发出用户可见事件，
      * SaveLoadViewModel 收集后弹错误提示——此前取消路径静默失败。
+     * replay=1（对抗性审查整改 2026-08-05）：VM 空窗期（主菜单/未创建）的复位事件
+     * 不丢失——replay=0 时无订阅者 tryEmit 直接丢弃，"不再静默"承诺在空窗期失效。
      */
-    private val _stuckResetEvents = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    private val _stuckResetEvents = MutableSharedFlow<String>(replay = 1, extraBufferCapacity = 8)
     val stuckResetEvents: SharedFlow<String> = _stuckResetEvents.asSharedFlow()
 
     /** 独立看门狗 Job — 运行在 Dispatchers.Default 上，监控游戏线程是否卡死 */
@@ -1194,7 +1196,9 @@ class GameEngineCore @Inject constructor(
         isLoading: Boolean,
         nowMs: Long = System.currentTimeMillis()
     ) {
-        val now = nowMs
+        // 对抗性审查整改（2026-08-05）：nowMs<=0 会静默失效（savingStartTime==0 判据恒真）
+        // 或立即误触发（负值减出超大间隔）——防御性回退真实时钟
+        val now = if (nowMs > 0) nowMs else System.currentTimeMillis()
 
         // 跟踪 isSaving 变为 true 的时间
         if (isSaving) {
@@ -1233,16 +1237,26 @@ class GameEngineCore @Inject constructor(
     /**
      * 注册当前正在运行的加载协程 Job，供看门狗强制取消。
      * 在 finally 块中应调用 [clearActiveLoadJob] 清除引用。
+     *
+     * 对抗性审查整改（2026-08-05）：读-改-写加锁原子化——主线程注册与看门狗线程
+     * 复位交错时，陈旧 cancel 会误杀新注册操作、`= null` 会使在途操作脱离看门狗监管。
      */
     fun registerActiveLoadJob(job: Job) {
-        activeLoadJob?.cancel()
-        activeLoadJob = job
+        synchronized(activeLoadJobLock) {
+            activeLoadJob?.cancel()
+            activeLoadJob = job
+        }
     }
 
     /** 清除加载协程 Job 引用（协程正常结束时调用） */
     fun clearActiveLoadJob() {
-        activeLoadJob = null
+        synchronized(activeLoadJobLock) {
+            activeLoadJob = null
+        }
     }
+
+    /** activeLoadJob 互斥锁（注册/清除/看门狗复位三处共享） */
+    private val activeLoadJobLock = Any()
 
     /**
      * 强制重置 isSaving 和 isLoading 为 false。
@@ -1251,8 +1265,10 @@ class GameEngineCore @Inject constructor(
      */
     fun forceResetStuckStates() {
         DomainLog.w(TAG, "Force resetting stuck states: isSaving and isLoading -> false, cancelling active jobs")
-        activeLoadJob?.cancel()
-        activeLoadJob = null
+        synchronized(activeLoadJobLock) {
+            activeLoadJob?.cancel()
+            activeLoadJob = null
+        }
         stateStore.setSavingDirect(false)
         stateStore.setLoadingDirect(false)
         savingStartTime = 0L

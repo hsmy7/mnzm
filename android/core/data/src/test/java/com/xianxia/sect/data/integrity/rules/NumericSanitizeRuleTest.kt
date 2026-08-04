@@ -168,6 +168,49 @@ class NumericSanitizeRuleTest {
         )
     }
 
+    @Test
+    fun `NaN checkpoint in recruit list sanitized`() {
+        // 对抗性审查整改（2026-08-05）：招募列表弟子必须全字段消毒——
+        // 原实现只查 cultivation，NaN checkpoint 经招募全字段拷贝进入组件表
+        val data = saveData(
+            gameData = GameData(
+                sectName = "宗", gameYear = 1, gameMonth = 1,
+                recruitList = listOf(
+                    makeDisciple(id = "r-1", cultivation = 100.0, checkpoint = Double.NaN)
+                )
+            )
+        )
+        val result = SaveValidator.validate(data)
+        assertTrue(result is IntegrityResult.Repaired)
+        val fixed = (result as IntegrityResult.Repaired).data.gameData.recruitList.first()
+        assertEquals(0.0, fixed.cultivationCheckpoint, 0.001)
+        // 合法值不被误伤
+        assertEquals(100.0, fixed.cultivation, 0.001)
+    }
+
+    @Test
+    fun `NaN pill bonus in ai sect disciples sanitized`() {
+        // 对抗性审查整改（2026-08-05）：AI 宗门弟子同样全字段消毒
+        val data = saveData(
+            gameData = GameData(
+                sectName = "宗", gameYear = 1, gameMonth = 1,
+                aiSectDisciples = mapOf(
+                    "sect-a" to listOf(
+                        makeDisciple(id = "a-1", pill = PillEffects(pillCritRateBonus = Double.NaN))
+                    )
+                )
+            )
+        )
+        val result = SaveValidator.validate(data)
+        assertTrue(result is IntegrityResult.Repaired)
+        assertEquals(
+            0.0,
+            (result as IntegrityResult.Repaired).data.gameData.aiSectDisciples.getValue("sect-a")
+                .first().pillEffects.pillCritRateBonus,
+            0.001
+        )
+    }
+
     private fun makeDisciple(
         id: String = "d-1",
         name: String = "甲",
