@@ -261,6 +261,56 @@ RunState（运行时状态 — 可循环回退）
 
 ---
 
+## 扩展性架构预留（2026-08-04 起）
+
+> 本节点明未来扩展（商业化/社交/数据/离线收益/iOS）的架构预留点与现状基线。事实基线见 `docs/knowledge-base.md#扩展性现状盘点`；接入约束见各 rules/*.md 扩展规范（expansion-playbook / commercialization / social-system / data-analytics / economy-design / code-quality）。
+
+### 1. RemoteConfig 远程配置
+
+- **现状**：`RemoteConfigProvider`（core/domain 接口）+ `HttpRemoteConfigProvider`（core/engine 实现，10s 超时）已存在但**未绑定**——`CoreModule.kt:156-158` 处于注释状态，`ConfigLoader(assetReader)` 纯本地
+- **激活前置**：先补服务端能力（JSON 托管端点/版本管理/下发策略）→ 再改 `CoreModule` 绑定；每个配置项必须带本地默认值兜底（配置缺失不崩溃）
+- **约束**：`rules/commercialization.md` 第 4 节（Key 命名 `模块.配置名`、版本化、A/B 分组）
+
+### 2. 商业化接入点
+
+- 广告：`AdService`（接口，core/engine）→ `AdServiceImpl`（app 层，白名单守卫）→ `RewardVideoAdManager`（TapTap SDK）；新 AdPurpose 引擎层枚举注册 + `watchAd()` 统一入口（knowledge-base 白名单章节）
+- IAP/月卡/战令：**0 现有代码**，接入约束见 `rules/commercialization.md` 第 2 节（购买校验/领取窗口/战令设计）
+- 运营活动：`LizhanDialog` 历战卡片轮转（卡片注册 + 时间窗三态）；运营邮件 `BuiltinMailConfig` 客户端内置 → 未来 RemoteConfig 推送
+
+### 3. 埋点接入点（建议方案，未实现）
+
+- **推荐独立通道**：新建 `AnalyticsService`（接口，core/engine）→ `AnalyticsServiceImpl`（app 层）+ 异步批量上报队列——**不复用 GameEventBus**（EventBus 是游戏内事件审计，语义不同；埋点带 PII 风险需独立隔离）
+- 事件字典登记 `docs/knowledge-base.md`；约束见 `rules/data-analytics.md`
+
+### 4. 离线收益引擎接入点
+
+- **现状基线**：后台纯暂停，无放置产出（`GameEngineCore.kt` 后台暂停逻辑）——**不改基线**
+- 接入点：收益结算挂 L0 时间推进（惰性结算引擎四层中的时间推进层），禁止另起结算循环；12h 挂机收益上限强制每日 2 次回访
+- 约束：`rules/expansion-playbook.md` 离线收益预留 + `rules/economy-design.md` 第 4 节（收益数学）
+
+### 5. 社交隔离层
+
+- 社交/排行独立模块（Service/Store 隔离层），**禁止修改 `engine/domain/diplomacy/` 既有 AI 外交代码**
+- 客户端不可信前提：服务端排行数据必须签名/防重放
+- 约束：`rules/social-system.md`
+
+### 6. iOS 迁移预留（游戏未来做 iOS 端）
+
+| 技术栈 | Android 现状 | iOS 迁移方案 | 风险 |
+|--------|-------------|-------------|------|
+| core:domain / core:engine | 零 Android 依赖（基线 ✅） | KMP 直接复用 | 低 |
+| C++ 渲染引擎 | Vulkan（Android 独占）+ JNI | Metal 或软件渲染（`SoftwareCanvasBackend` 纯软渲染可跨平台）；JNI → 平台桥 | 中 |
+| Compose UI | Jetpack Compose（Android 独占） | Compose Multiplatform 或重写 | 高（评估点） |
+| Room | Room 2.6.1 | SQLDelight / 原生 SQLite | 中（迁移风险点，新数据层组件优先跨平台选型） |
+| Hilt DI | Hilt 2.56 | Koin / 手写 DI | 中 |
+| DataStore | DataStore（Android 独占） | MMKV（已跨平台）替代 | 低 |
+| 网络 | Retrofit + OkHttp + Gson | Ktor 或接口抽象 | 低（已走接口） |
+| 平台 SDK | TapTap（登录/云存档/广告）+ Bugly | TapTap iOS SDK；Bugly → 对应崩溃上报 | 中 |
+
+**迁移前置原则**（约束新代码）：core 层禁 Android 独占 API、平台能力接口抽象（`RemoteConfigProvider`/`AdService` 模式）、新平台依赖方案中给 iOS 对等实现——详见 `rules/code-quality.md` 第 1.5 节。
+
+---
+
 ## 状态层快照隔离：列级 Copy-on-Write（v4.0.82+）
 
 `DiscipleTables.deepCopy` 从"每次 update 全量深拷贝约 100 张组件表"重构为**列级 COW 快照隔离**：
@@ -288,7 +338,7 @@ RunState（运行时状态 — 可循环回退）
 | 待办 | 现状 | 说明 |
 |------|------|------|
 | GameViewModelTest 18 个失败 | ✅ 已修复 | **原诊断有误**：失败根因不是 mockkStatic/Kotlin 2.2 兼容（测试 XML 证据：18 个失败全为异步路径、21 个通过全为同步路径），而是 relaxed mock 上 `launchOnEngine` 返回 mock Job、lambda 永不执行。2026-08-01 修复：捕获 lambda 到 engineBlocks 列表 + 测试内显式执行 + IoDispatcher 注入 TestDispatcher + 建筑注册表/宗门等级 stub。39/39 通过 |
-| 全量测试必须 `--max-workers=1` 串行 | ✅ 已修复 | CI 全部 gradle 命令加 `--max-workers=1` + `-Pkotlin.incremental=false`；各模块显式 `maxParallelForks = 1`（共享静态状态跨类污染）。本地保留并行 |
+| 全量测试必须 `--max-workers=1` 串行 | ✅ 已修复 | CI 全部 gradle 命令加 `--max-workers=1` + `-Pkotlin.incremental=false`；各模块显式 `maxParallelForks = 1`（共享静态状态跨类污染）。**2026-08-04 起本地同样强制串行**（用户确认并行会出错），所有测试命令必须带 `--max-workers=1` |
 | Mutable 列值对象共享（F4） | ✅ 已修复 | 13 张 Mutable 列改为 O(1) 浅共享（全库审计无原地修改）；`mutableValueGuardEnabled`（Debug/CI 开）unmodifiable 包装——未来原地修改立即抛异常。隔离测试 5 项覆盖 |
 | 半幽灵防御不一致（F3） | ✅ 已修复 | assembleAll/assembleAllIncremental/deepCopy 统一三表判据 `isCompleteId`（isAlive+names+realms）；空名防御保持 assembleAll 独有（有意差异，有注释）；`DiscipleTablesGhostDefenseTest` 固化 4 类幽灵行为与 `deepCopy().assembleAll()==assembleAll()` 不变量 |
 | CI 从未跑过 testReleaseUnitTest 全量 | ✅ 已就绪 | CI 全量测试为硬性门槛（`.github/workflows/ci.yml` L42 `testReleaseUnitTest`，已移除 `\|\| true`）+ 全部命令 `--max-workers=1`；`gradle.properties` 的 Windows 硬编码路径已移除（此前 ubuntu CI 守护进程启动即失败） |

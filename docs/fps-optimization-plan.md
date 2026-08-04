@@ -486,6 +486,6 @@ android.enableR8.fullMode=true
 
 > **用户确认后开始 Phase 1 实施。** 每个 Phase 实施前后执行：
 > 1. `./gradlew.bat compileReleaseKotlin` — 编译检查
-> 2. `./gradlew.bat test` — 单元测试
+> 2. `./gradlew.bat test --max-workers=1` — 单元测试（必须串行）
 > 3. `./gradlew.bat lintRelease` — 静态分析
 > 4. 真机 Profiler 对比帧率数据

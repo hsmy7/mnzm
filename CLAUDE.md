@@ -38,11 +38,11 @@ cd android && ./gradlew.bat assembleRelease
 # Build debug APK
 cd android && ./gradlew.bat assembleDebug
 
-# Run all unit tests (Robolectric + JUnit)
-cd android && ./gradlew.bat test
+# Run all unit tests (Robolectric + JUnit) — 必须串行（--max-workers=1），并行会因共享静态状态跨类污染出错
+cd android && ./gradlew.bat test --max-workers=1
 
-# Run a single test class
-cd android && ./gradlew.bat test --tests "com.xianxia.sect.core.engine.BattleSystemTest"
+# Run a single test class — 同样串行
+cd android && ./gradlew.bat test --tests "com.xianxia.sect.core.engine.BattleSystemTest" --max-workers=1
 
 # Lint
 cd android && ./gradlew.bat lintRelease
@@ -54,14 +54,14 @@ cd android && ./gradlew.bat clean
 Tests live in `android/app/src/test/` and module-level `src/test/` dirs. They use JUnit 4, Mockito, Robolectric, and `kotlinx-coroutines-test`. Robolectric tests need `includeAndroidResources = true`.
 
 ```bash
-# Code coverage (Kover)
-cd android && ./gradlew.bat koverHtmlReport
+# Code coverage (Kover) — 与测试同参数，保持串行一致
+cd android && ./gradlew.bat koverHtmlReport --max-workers=1
 
 # Static analysis
 cd android && ./gradlew.bat detekt
 
-# Full CI check (compile + test + detekt + coverage + RNG audit)
-cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest detekt koverHtmlReport && cd .. && grep -rn "import kotlin.random.Random" android/core/engine/src/main/java/ && (echo "ERROR: kotlin.random.Random found in engine module! Use GameRngManager.getRng() instead."; exit 1) || echo "✅ RNG check passed: no kotlin.random.Random in engine module"
+# Full CI check (compile + test + detekt + coverage + RNG audit) — 测试必须串行
+cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest --max-workers=1 detekt koverHtmlReport && cd .. && grep -rn "import kotlin.random.Random" android/core/engine/src/main/java/ && (echo "ERROR: kotlin.random.Random found in engine module! Use GameRngManager.getRng() instead."; exit 1) || echo "✅ RNG check passed: no kotlin.random.Random in engine module"
 ```
 
 ## 架构文档
@@ -74,6 +74,7 @@ cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest detekt kove
 - **双线程模型 + Watchdog** — `ReentrantLock` 串行化、全链路非挂起化、deepCopy 快照隔离
 - **乘区法公式架构** — 8 个系统统一乘区法（修炼/战斗/突破/生产等）
 - **BootPhase/RunState 双层生命周期** — 启动单向推进、运行时可循环回退
+- **扩展性架构预留** — RemoteConfig 未绑定状态与激活前置、商业化接入点、离线收益引擎接入点、社交隔离层、iOS 迁移预留（KMP/Compose Multiplatform/Room→SQLDelight/Vulkan→Metal 评估）
 - **关键源码目录** — Core/Data/UI/UseCase 模块路径
 
 ## 知识库
@@ -91,6 +92,7 @@ cd android && ./gradlew.bat compileReleaseKotlin testReleaseUnitTest detekt kove
 - **邮件与奖励系统** — Saga 补偿模式、Stable IDs
 - **导航模式** — MainTab + Dialog 无 NavHost
 - **Android SDK / Encoding** — compileSdk 35, minSdk 24, UTF-8 强制编码
+- **扩展性现状盘点（2026-08-04）** — 商业化/社交/数据/留存现状 + 经济基线表（灵石源与汇）+ iOS 可移植性基线——rules/*.md 扩展规范的事实基线，功能扩展后必须同步更新
 
 ## ViewModel Conventions
 
@@ -434,15 +436,19 @@ fun `all SlotCategory values are covered by scanAndRegister`() {
 
 **12.3 🟢 同步 `CODE_WIKI.md`** — 新增模块/模式后更新架构文档。
 
-**12.4 🔴 功能变更必须更新 Changelog** — 功能完成后同步更新两个文件，变更从玩家视角用中文描述：
+**12.4 🔴 功能变更必须更新 Changelog** — 功能完成后**两个更新日志必须一起更新**（漏一个视为任务未完成）：
 
-- **游戏内**: `android/app/src/main/assets/changelog_entries.json` — 在当前版本条目的 `changes` 数组末尾追加一行（由 `core/data/.../ChangelogData.kt` 解析，设置界面"更新日志"弹窗展示）
-- **外部**: `CHANGELOG.md`（项目根目录）— 追加到**当前版本**段落内，不强制递增版本号
+- **游戏内**（`android/app/src/main/assets/changelog_entries.json`）— 在当前版本条目的 `changes` 数组末尾追加一行（由 `core/data/.../ChangelogData.kt` 解析，设置界面"更新日志"弹窗展示）。**给玩家看**，描述必须满足：
+  - **通俗易懂、无专业术语**（不出现"迁移""Entity""PRNG"等技术词）
+  - **不泄露数值细节**（不写具体概率/数值/倍率/消耗，如"突破概率提升 2%"❌ 写"突破更容易成功"✅）
+  - **只能粗略描述**（"修复了若干问题"级粒度，不做内部实现说明）
+- **外部**: `CHANGELOG.md`（项目根目录）— 追加到**当前版本**段落内，不强制递增版本号；给开发者看，可写技术细节
 
-**版本号变更规则：**
+**更新日志条目规则：**
+- **不得按日期分割为多个相同版本条目** — 同日/同版本多批次发布，一律合并到**同一条目**的 `changes` 数组末尾追加，禁止新建同版本号的第二条目（版本条目的 `date` 取该版本首次发布日）
 - 普通改动写入当前版本条目，不递增 `versionCode`/`versionName`
 - **禁止擅自更新版本号**，由用户判断和指令
-- 需要在 `build.gradle` 中更新版本号的场景（发布新版本、重大功能完成、存档兼容性变更等）由用户决定
+- 需要在 `version.properties` 中更新版本号的场景（发布新版本、重大功能完成、存档兼容性变更等）由用户决定
 
 ---
 
@@ -495,6 +501,23 @@ fun `all SlotCategory values are covered by scanAndRegister`() {
 | 🔴 | 新增广告类型（`AdPurpose` 枚举值）已在 ViewModel 中通过 `adService.watchAd()` 统一入口调用，白名单守卫由 `AdServiceImpl` 自动继承。详见 `docs/knowledge-base.md#免广告特权白名单` |
 | 🔴 | 新增物品发放路径须判定**溢出语义类别**：**凭据类**（玩家可重试的领取/获得——签到/兑换码/宗门等级/引导/邮件领取/没收/卸装）必须包裹 `withOverflowMailSuppressed`（溢出不转邮件，失败保留凭据重试补齐）；**发放类**（自动入库——战斗/探索/灵田/生产/商人/AutoBuy/储物袋开启）不包裹（溢出自动转邮件）——选错类别会导致物品重复发放或丢失（对抗性审查 C1/C2/C3/H1/H2 教训） |
 
+**扩展方向（2026-08 新增，为未来扩展做准备）：**
+
+| 严重度 | 检查项 | 引用 |
+|--------|--------|------|
+| 🔴 | 新增代码已遵循 `rules/code-quality.md`（命名规范/坏味道清单/设计原则/可测试性/扩展友好性/量化指标） | code-quality.md |
+| 🔴 | 新增代码已检查 iOS 跨平台可移植性（core 层无 Android 独占 API、平台能力走接口抽象、新平台依赖有 iOS 对等方案——游戏未来做 iOS 端） | code-quality.md 跨平台章节 |
+| 🔴 | 新增玩法系统已遵循 `rules/expansion-playbook.md` 全流程（引擎注册/惰性结算层级/EventBus/RNG 分区/DialogType/Migration/存档兼容/进度锚定游戏时间/引导接入/配置开关/守卫测试） | expansion-playbook.md |
+| 🔴 | 新增玩法 UI 已优先复用现有组件（`GameButton`/`UnifiedGameDialog`/`ItemCard`/`SpriteImage`/`CircularCheckbox` 等，组件清单见 `rules/expansion-playbook.md` UI 组件复用优先），禁止自建重复组件；确需新建的通用组件放 core/ui 并登记回清单 | expansion-playbook.md UI 组件复用优先 |
+| 🔴 | 新增货币/经济资源已遵循 `rules/economy-design.md`（必要性论证/持有上限/源汇闭环/通胀防控/奖励价值审计） | economy-design.md |
+| 🔴 | 新增付费点位（广告/IAP/月卡/战令/活动）已遵循 `rules/commercialization.md`（冷却或领取窗口/慷慨原则/隐私合规双入口） | commercialization.md |
+| 🔴 | 新增运营活动（历战卡片/运营邮件/RemoteConfig 配置）已遵循 `rules/commercialization.md`（配置化/时间窗三态/本地默认值兜底） | commercialization.md |
+| 🔴 | 新增排行榜/社交功能已遵循 `rules/social-system.md`（异步社交/好友榜优先/分层奖励/数据合规/不污染 AI 外交路径） | social-system.md |
+| 🔴 | 新增埋点事件已遵循 `rules/data-analytics.md`（无 PII/非阻塞/事件字典登记） | data-analytics.md |
+| 🟡 | 新增功能模块具备配置化启停开关 | 设计方案原则 2 |
+
+> 归并说明：以上扩展方向条目为**设计级**（全流程遵循）；现有广告 watchAd 统一入口（代码级）、渲染双路径/Vulkan 降级/Build.SOC_API 守卫（代码级）等条目保留不动，两者层级不同不重复。
+
 **13.4 🔴 detekt 配置** (`android/config/detekt/detekt.yml`)：
 ```yaml
 style:
@@ -531,6 +554,10 @@ empty-blocks:
 
 **3. 🔴 全局视角** — 设计方案必须覆盖变更波及的所有子系统：UI（跨屏适配+输入法避让+对话框栈）、存储（Migration+向前兼容+向后兼容）、渲染（Vulkan + Canvas 双路径验证）、测试（单元测试+集成测试+对抗性审查）、后续平台扩展（iOS 接入点预留）。方案中必须包含**"影响范围清单"**（格式：`文件路径 — 变更类型 — 变更说明`），遗漏视为方案不完整。同时需检查变更是否与进行中或规划中的其他功能存在冲突，必要时协调优先级。
 
+影响范围清单追加两个检查项：
+- **经济影响**（`经济` 标签）：涉及货币/奖励发放的方案必须列"源与汇"分析（产出源 + 消耗汇闭环，见 `rules/economy-design.md`）
+- **iOS 影响**（`iOS` 标签）：涉及平台能力（时间/存储/网络/加密/通知/支付/广告/分享）的方案必须列 Android/iOS 对等实现分析（见 `rules/code-quality.md` 跨平台章节）
+
 **4. 🔴 低高端设备兼容设计** — 所有涉及渲染、UI 框架、原生库加载的功能变更，必须预先评估在低端/老旧设备上的兼容性。具体要求：
 
 - **渲染管线双路径** — 任何渲染特性变更必须同时验证 Vulkan 和 Canvas（软件渲染）两套路径，确保低端 GPU（Mali-G5x/6x、PowerVR、Adreno 6xx 等）在 Vulkan 驱动缺陷下可用软件渲染降级
@@ -538,6 +565,7 @@ empty-blocks:
 - **所有 Activity 入口统一检查** — `MainActivity` 和 `GameActivity` 等所有 Activity 的 `onCreate()` 必须在 `super.onCreate()` 前检查 `VulkanPolicy.isAccelerationDisabled()` 并切换主题。仅保护一个 Activity 会导致启动阶段崩溃
 - **API 级别守卫** — 所有 `Build.SOC_MANUFACTURER`（API 31+）、`Build.SOC_MODEL`（API 31+）等新增 API 字段必须在访问前用 `Build.VERSION.SDK_INT >= 31` 守卫，禁止在 `Application.onCreate()` 等启动阶段无保护访问，否则低 API 设备触发 `NoSuchFieldError` 直接闪退
 - **GPU 黑名单对齐行业标准** — 参考 Unity Vulkan Device Filtering（Mali GPU Vulkan API<1.0.61 自动降级）、Flutter Impeller（自动检测 MTK SoC 回退 OpenGL ES）、Chromium（Mali-G57 全面禁用 Vulkan）等行业标杆，持续更新已知问题 GPU/SoC 列表。新增黑名单条目需附带 Bugly 崩溃数据或行业报告引用
+- **iOS 侧对等要求（2026-08-04 起，游戏未来做 iOS 端）** — 渲染特性变更必须给出 iOS 侧对等实现方案（Metal 或软件渲染等价路径，参照 `SoftwareCanvasBackend`）；iOS 无 Vulkan/HWUI 问题，但需评估 Metal 驱动兼容性与 A8 及以下老机型。跨平台可移植性约束详见 `rules/code-quality.md` 第 1.5 节
 
 **5. 🔴 隐私合规与隐私政策同步更新** — 设计方案涉及以下变更时，必须同步评估和更新隐私政策：
 - 新增或变更第三方 SDK（含 SDK 版本升级、初始化时机变化、数据收集范围变化）
@@ -552,6 +580,16 @@ empty-blocks:
 2. **网站版隐私政策**（`docs/index.html`，发布在 `https://hsmy7.github.io/mnzm/`）— 更新网页内容
 
 变更说明需记录在方案文档的"影响范围清单"中，标注 `隐私合规` 标签。
+
+**6. 🔴 扩展方向对标（2026-08-04 起）** — 设计玩法/商业化/社交/数据类新功能时，deep-research 调研必须覆盖对应方向主题（专项调研每方向 ≥5 条 S/A 级来源），不得只做通用玩法调研：
+
+| 功能方向 | 必调研主题 | 参考规则文件 |
+|---------|-----------|-------------|
+| 新玩法系统 | 叙事事件设计（RimWorld/鬼谷八荒）、放置经济、FTUE、多进度系统错峰 | rules/expansion-playbook.md |
+| 商业化 | 货币化/ARPU/LTV 对标、战令/月卡设计、LiveOps 活动运营、慷慨原则 | rules/commercialization.md |
+| 社交/排行 | 异步社交、排行榜分层奖励、赛季重置、社交合规 | rules/social-system.md |
+| 数据运营 | 留存漏斗基准（D1/D7/D30）、埋点规范、A/B 测试 | rules/data-analytics.md |
+| 经济扩展 | 源与汇、通胀防控、新货币引入、奖励价值审计 | rules/economy-design.md |
 
 **方案必须是可长期维护的成熟方案，禁止分阶段/渐进式交付。** 设计方案应当一次性完整覆盖所有影响点（包括 UI、存储、测试、旧数据兼容），不允许遗留"后续优化"。方案本身即为最终态，执行者照单实施即可，不应需要自行补充或二次设计。
 
@@ -589,8 +627,10 @@ empty-blocks:
 
 ## Version Release
 
-When releasing, update in `android/app/build.gradle`:
+When releasing, update `version.properties` (project root, single source of truth):
 - `versionCode` — increment by 1
-- `versionName` — three-segment format `x.x.xx` (two-digit last segment, zero-padded). E.g., `2.6.09` → `2.6.10`, `2.6.99` → `2.7.00`. Never `2.6.1` (missing zero-pad).
+- `versionName` — format `X.XX.XX` (one-digit major + two-digit minor + two-digit build, zero-padded). E.g., `4.00.86` → `4.00.87`, `4.00.99` → `4.01.00`, `4.99.99` → `5.00.00`. Never `4.0.86` (missing zero-pad in minor segment).
+
+Tests must run serially: `./gradlew.bat test --max-workers=1` (parallel runs fail due to shared static state across classes).
 
 See `rules/version-release.md` for the full release checklist.

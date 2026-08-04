@@ -20,6 +20,7 @@
 | 小屏界面 (50%W × 55%H) | `SmallScreenDialog` | 使用平台 `Dialog`，自带系统遮罩，无需手动添加 |
 | 通用全屏覆盖层 | `GameFullDialog`（已废弃） | 已内置 |
 | 内联覆盖层（SettingsTab 子对话框） | 内联 Box overlay | 无遮罩（SettingsTab 本身已是全屏覆盖层，不需要额外遮罩） |
+| 活动/排行/社交全屏界面（2026-08-04 起扩展） | `UnifiedGameDialog(mode = Full/Half)` | 已内置遮罩，禁止手写遮罩叠加（参照 `rules/new-dialog-checklist.md` 活动/排行/社交分组） |
 
 ## 规则
 

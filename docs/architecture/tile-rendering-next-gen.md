@@ -549,12 +549,12 @@ cd android
 | 移动建筑 | 建筑跟随手指移动 | 长按建筑进入移动 |
 | 金手指功能 | 框选区域正确 | 进入金手指模式 |
 | 内存 | 无渐进式增长（纹理/Buffer 无泄漏） | Android Studio Profiler |
-| 单位测试 | 通过 | `./gradlew.bat test` |
+| 单位测试 | 通过 | `./gradlew.bat test --max-workers=1` |
 | 旋转屏幕 | Surface 重建后渲染恢复正常 | 旋转手机 |
 
 ### 回归测试
 ```bash
-./gradlew.bat testReleaseUnitTest       # 单元测试
+./gradlew.bat testReleaseUnitTest --max-workers=1   # 单元测试（必须串行）
 ```
 
 ---

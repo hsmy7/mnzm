@@ -1055,8 +1055,9 @@ BuiltinActivityConfig → ActivityViewModel.activities (StateFlow)
 | `GameDataSettlementCoverageTest` | **编译期安全网**：GameData 每个字段必须有 `@SettlementStrategy` 注解 | 1 |
 
 ```bash
-cd android && ./gradlew.bat test                              # 全部测试 (~930)
-cd android && ./gradlew.bat testDebugUnitTest \
+# 测试必须串行（--max-workers=1），并行会因共享静态状态跨类污染出错（2026-08-04 起强制）
+cd android && ./gradlew.bat test --max-workers=1              # 全部测试 (~930)
+cd android && ./gradlew.bat testDebugUnitTest --max-workers=1 \
     --tests "com.xianxia.sect.core.state.*"                    # 状态层测试
 ```
 

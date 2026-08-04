@@ -160,6 +160,8 @@ backgroundRes("bg_horizontal")  // → Int?
 - [ ] 源 PNG 文件已删除（不提交到仓库）
 - [ ] 编译通过：`cd android && ./gradlew.bat compileReleaseKotlin`
 
+**活动/排行/社交扩展资源（2026-08-04 起）：** 活动卡片、排行榜、社交界面新增的静态资源同样强制走上述全部流程（WebP + 双模块 + 注册 + SpriteImage）。动态生成内容（排行榜头像占位、玩家生成分享图）**优先代码绘制**（Compose Canvas/形状），确需图片时走 `PORTRAIT` 分类或新增 `SpriteCategory`（需评估预加载优先级：首屏可见 → priority ≤ 1）。
+
 ---
 
 ## 4. 自动化范围说明

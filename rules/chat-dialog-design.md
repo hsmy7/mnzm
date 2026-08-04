@@ -62,3 +62,5 @@ UnifiedGameDialog
 - ✅ `SectDiplomacyDialog.kt` — 外交聊天（标准实现）
 - ✅ `DiscipleChatDialog.kt` — 弟子交谈（重构后遵循此标准）
 - ❌ 禁止手写 `Box(fillMaxSize) + CloseButton(align=TopEnd) + Row(fillMaxSize)` 模式
+
+**社交扩展（2026-08-04 起）：** 未来好友私聊/异步消息界面同样必须沿用 `UnifiedGameDialog(mode = Full)` 容器，禁止手写 `Box + CloseButton` 堆叠；异步消息的输入区/发送按钮遵循上述层级结构。

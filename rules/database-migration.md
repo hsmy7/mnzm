@@ -93,3 +93,36 @@ CREATE INDEX IF NOT EXISTS index_disciple_compact_slot_id_isAlive ON disciple_co
 - `DiscipleCompact.kt`：新增 Room Entity
 - `Daos.kt`：新增 `DiscipleCompactDao`
 - Schema JSON：`android/app/schemas/.../27.json`
+
+---
+
+## 新玩法系统建表规范（2026-08-04 起）
+
+新增玩法系统（秘境/试炼/活动/排行榜等）需要持久化时，除遵守上述通用规则外，还必须：
+
+1. **新表同样走完整迁移链**：`@Database(version)` 递增 + `MIGRATION_N_M` + `build()` 注册 + **schema JSON 提交**（`android/app/schemas/`，参照 v26→v27 `DiscipleCompact` 完整案例）。禁止"先不加迁移，等上线后再补"——迁移缺失的存档损坏是不可逆的
+2. **新列一律带 DEFAULT 零值**（`DEFAULT 0` / `DEFAULT ''` / `DEFAULT 1` 布尔）：保证迁移幂等与旧行兼容，参照 `columnExists()` 幂等辅助模式（MIGRATION_1_26 先例）
+3. **存储选型标准**（防止每旬热点膨胀）：
+   - **热路径高频更新**（每旬结算读写）→ EntityStore 列式（Component Table 模式，参照 `DiscipleTables`）
+   - **低频独立生命周期**（一次性进度/活动状态）→ Row Entity（`DiscipleCompact` 模式）
+   - 禁止新玩法默认堆 Row 表导致每旬热点膨胀（参照架构文档"每旬热点削减"原则）
+4. **多张新表时评估合并迁移**：新表数量多或要跨大量版本时使用合并迁移（`MIGRATION_1_26` 模式），控制冷启动开销
+5. **新玩法实体变更后必须同步**：SaveValidator 规则注册（`SaveValidationRuleRegistry.registerDefaults()` 加一行）——新实体的完整性校验规则与建表同步落地
+
+## ProtoBuf 序列化字段预留（2026-08-04 起）
+
+云存档/备份使用 ProtoBuf 序列化（`SaveData`），字段编号管理规则：
+
+1. **新字段从预留段编号**：预留段（如 1000+）优先，避免与历史字段冲突；编号一旦发布**禁止复用**（删除的字段用 `reserved` 声明，防止旧存档字段编号错位）
+2. **非零默认值必须 `@EncodeDefault(EncodeDefault.Mode.ALWAYS)`**：字段默认值不是该类型零值（`0`/`""`/`false`/`emptyList()`）时，`encodeDefaults = false` 下该字段不会被写入二进制，导致存档数据丢失（CLAUDE.md 13.3 已有条目，此处为设计期用法）
+3. **ProtoBuf 仅 `List`，禁止 `Set`/`Map`**（CLAUDE.md 7.3）：需要去重语义在业务层 `.toSet()` 转换，忽略会导致序列化静默失败、存档变空
+4. **新增持久化字段先评估双路径**：Room 列 + ProtoBuf 字段必须同步变更（Room 表与 `SaveData` 是两套存储，遗漏任一侧会导致云存档与本地存档数据不一致——参照 2026-08-01 堆叠字段 `@Transient` 导致备份/云恢复清空仓库的教训）
+
+## 经济/货币字段变更流程（2026-08-04 起）
+
+涉及货币（灵石及未来新货币）/经济资源的字段变更：
+
+1. **货币字段变更同走完整 Migration**（本文件全部规则适用），禁止"先改代码后补迁移"
+2. **新货币上线前必须过 `rules/economy-design.md` 审计**：持有上限 + 源汇闭环 + 通胀防控（本规则只约束存储层，经济设计审计见 economy-design.md）
+3. **发放/消耗入口必须注册进"来源字典"**：新增灵石/货币发放或消耗代码必须包裹 `withTrackingSource("来源名")`（来源名加入 `OverflowMailSender.SOURCE_DISPLAY_NAMES` 映射），确保年度报告（`YearlyReport`）与经济基线表（`docs/knowledge-base.md` 扩展性现状盘点）可审计
+4. **溢出语义类别判定**：凭据类（可重试领取）包 `withOverflowMailSuppressed`，发放类（自动入库）自动转邮件——选错类别会导致货币重复发放或丢失（CLAUDE.md 13.3 已有条目，此处为设计期流程）

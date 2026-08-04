@@ -26,6 +26,7 @@
 - [Navigation Pattern](#navigation-pattern)
 - [Android SDK / Encoding](#android-sdk--encoding)
 - [免广告特权白名单](#免广告特权白名单)
+- [扩展性现状盘点（2026-08-04）](#扩展性现状盘点)
 
 ---
 
@@ -560,3 +561,91 @@ fun watchAdForNewFeature() {
 - **添加用户**：在 `GameConfig.Whitelist.AD_FREE_UNION_IDS` 的 `setOf(...)` 中添加 unionId
 - **初始化时机**：`GameActivity.onCreate()` → `AdFreeWhitelist.initialize(sessionManager.unionId)`
 - **管理维护**：手动硬编码维护，无需运行时更改
+
+---
+
+## 扩展性现状盘点
+
+> **本文是 rules/*.md 扩展规范的唯一事实基线**（2026-08-04，对应 v4.00.86）。每个事实点附代码路径，可 grep 复核。**功能扩展落地后必须同步更新本表**，防止规则与代码事实漂移（本项目迭代极快，v4.0.84~4.0.86 三天内多次玩法发布）。
+
+### 商业化现状
+
+| 维度 | 现状 | 代码位置 |
+|------|------|---------|
+| 激励视频广告位 | 仅 2 个：`BREAKTHROUGH_BONUS`（突破奖励）/ `MERCHANT_REFRESH`（商人刷新） | `AdPurpose` 枚举：`core/engine/.../service/AdService.kt` |
+| 广告调用链 | `AdService`（接口）→ `AdServiceImpl`（app 层，白名单守卫集中检查）→ `RewardVideoAdManager`（TapTap SDK 封装，冷却+每日次数限制） | `:app/.../taptap/AdServiceImpl.kt`、`AdsDelegate.kt` |
+| IAP/内购 | **0 个付费点**（无月卡/战令/礼包/直购） | 无代码 |
+| 运营邮件 | 全部客户端内置 `BuiltinMailConfig`（节日 14 天限时/`minVersion` 门槛/白名单专属/QQ 群引导）；管理员可经 `GameEngineAdminOps` 注入补偿邮件 | `core/engine/.../config/BuiltinMailConfig.kt` |
+| 远程配置 | **未绑定**：`CoreModule.kt:157` 的 `HttpRemoteConfigProvider` 处于注释状态，`ConfigLoader(assetReader)` 无远程；接口 `RemoteConfigProvider`（core/domain）+ 实现 `HttpRemoteConfigProvider`（core/engine，10s 超时）已存在 | `:app/.../di/CoreModule.kt:156-158`、`core/domain/.../config/RemoteConfigProvider.kt` |
+| 免广告白名单 | `AdFreeWhitelist` + `GameConfig.Whitelist.AD_FREE_UNION_IDS`（硬编码）+ 专属福利邮件 | 见"免广告特权白名单"章节 |
+| 更新日志 | 游戏内 `android/app/src/main/assets/changelog_entries.json`（本地 asset，`core/data/.../ChangelogData.kt` 解析） | `ChangelogData.kt:39` |
+| 广告冷却 | 全局 60 秒，奖励验证后计冷却，状态存 GameViewModel | `rules/ad-cooldown.md` |
+| 合规 | `ComplianceManager`（隐私同意、OAID 广告追踪限制开关）；游戏内隐私政策 `PrivacyConsentScreen.kt` + 网站版 `docs/index.html` | — |
+
+### 社交现状
+
+| 维度 | 现状 | 代码位置 |
+|------|------|---------|
+| 玩家社交 | **无好友/聊天/排行/分享** | 无代码 |
+| 世界外交 | 纯 AI 模拟：宗门好感度/送礼/结盟/附庸契约/交易/进攻警告/AI 宗门间结盟/跨宗道侣配对 | `engine/domain/diplomacy/`、`GameEngineDiplomacyOps.kt` |
+| 玩家反馈渠道 | 无（无服务器通道） | — |
+
+### 数据现状
+
+| 维度 | 现状 | 代码位置 |
+|------|------|---------|
+| 事件埋点 | **无**（无 D1/D7/D30 漏斗、无关键事件采集） | 无代码 |
+| A/B 测试 | **无** | 无代码 |
+| 远程统计 | TapTap SDK 自带上报（登录/合规/分析），未做游戏内事件埋点 | `:app/.../taptap/` |
+
+### 留存手段清单
+
+| 手段 | 现状 | 代码位置 |
+|------|------|---------|
+| 每日签到 | 7 日周循环 + 7/14/21/28 天里程碑奖励（**唯一每日驱动**） | `service/DailySignInService.kt`、`dialogs/DailySignInDialog.kt` |
+| 存档 | 手动存档（5 槽位）+ TapTap 云存档（slot 0 入口）；退出自动保存；**自动存档已移除** | `TapCloudSaveManager.kt`、`SaveLoadSaveDelegate` |
+| 活动入口 | "历战"卡片轮转（`LizhanDialog`：天道试炼/远古秘境已迁入）+ 活动界面（仅剩签到） | `dialogs/LizhanDialog.kt`、`ActivityDialog.kt` |
+| 新手引导 | `GuideTask` 25 任务（12 种条件类型），计数器 12 处接入点 | `model/guide/`、`GameEngineGuideOps.kt` |
+| 推送通知 | **无** | 无代码 |
+| 离线收益 | **无**（后台纯暂停，无放置产出） | `GameEngineCore.kt`（后台暂停逻辑） |
+| 回归奖励 | 无专用回归机制（仅白名单/节日邮件） | — |
+| 游戏时间流速 | 6 现实秒 = 1 游戏月（1 年 = 72 秒） | `GameEngineCore.kt` 循环常量 |
+
+### 经济基线表（灵石源与汇初版）
+
+> 用途：`rules/economy-design.md` 的审计基线。**每新增产出/消耗入口必须登记到本表**。数值档位见 `GameConfig.kt` 常量族（`THEFT_*`、`SALARY_*`、`SECT_LEVEL_*` 等）。
+
+| 方向 | 入口 | 说明 | 代码位置 |
+|------|------|------|---------|
+| **产（源）** | 灵矿场 | 槽位数×产出率×时间戳差分，政策/长老影响 | `SpiritMineService`、`GameConfig` |
+| 产（源） | 战斗掠夺 | 世界地图妖兽/洞府/秘境战利品 | `LootCalculator`、`BattleSystem` |
+| 产（源） | 任务奖励 | 4 难度任务结算 | `CultivationEventMissionOps.kt` |
+| 产（源） | 宗门交易/商人 | 出售物品/灵石商品 | `SectTradeDialog`、`MerchantAndRecruitService.kt` |
+| 产（源） | 运营发放 | 每日签到/兑换码/节日邮件/白名单 1000 万灵石邮件 | `DailySignInService`、`RedeemCodeService`、`BuiltinMailConfig` |
+| 产（源） | 市场反馈 | 年度报告（`YearlyReport` 按来源拆分） | `BattleLogDialogs.kt` 的 `YearlyReportList` |
+| **耗（汇）** | 建造/拆除 | 建造扣灵石、一键拆除返还 50% | `PlaceBuildingUseCase.kt`、`GameEngineBuildingOps.kt` |
+| 耗（汇） | 生产投入 | 炼丹/锻造/种植/血炼材料 | `ProductionProcessor`、`AlchemySystem` |
+| 耗（汇） | 突破/功法 | 突破消耗、藏经阁 | `DiscipleBreakthroughHandler`、`ManualDatabase` |
+| 耗（汇） | 外交送礼 | 灵石档位 + 年份限制 | `GameEngineDiplomacyOps.kt`、`FavorConfig` |
+| 耗（汇） | 月薪发放 | `SalaryConfig` 可配置 | `SalaryConfigDialog`、`CultivationEventProcessor` |
+| 耗（汇） | 偷盗损失 | 道德<30 弟子偷盗（≤宗门 10%、年上限 3 次） | `GameEngineBattleOps.kt`、`GameConfig.THEFT_*` |
+
+### iOS 跨平台可移植性基线
+
+> 用途：`rules/code-quality.md` 跨平台章节的"现有基线"。游戏未来要做 iOS 端，本表记录当前已跨平台与 Android 独占的技术栈。
+
+| 技术栈 | 现状 | iOS 可移植性 |
+|--------|------|-------------|
+| `:core:domain` | 零 Android 依赖（javax.inject + coroutines + kotlinx.serialization + room-common 注解） | ✅ 可移植（KMP 友好） |
+| `:core:engine` | 纯 Kotlin + C++ 渲染（JNI） | ⚠️ C++ 部分可移植（Android 用 Vulkan，iOS 用软件渲染或 Metal）；JNI 需替换 |
+| Compose UI（feature:game/app） | Jetpack Compose（Android 独占） | ⚠️ 需 Compose Multiplatform 或重写 |
+| Room（core:data） | Room 2.6.1 | ⚠️ iOS 需 SQLDelight/原生 SQLite（迁移风险点） |
+| Hilt DI | Hilt 2.56 | ⚠️ iOS 需 Koin/手写 DI |
+| 渲染 | Vulkan（C++）+ `SoftwareCanvasBackend` 软件渲染双路径 | ✅ 软件渲染路径可跨平台；Vulkan 为 Android 独占（iOS 用 Metal 或软件渲染） |
+| 序列化 | ProtoBuf + kotlinx.serialization + CBOR | ✅ 跨平台一致 |
+| 存储 | MMKV（跨平台）+ DataStore（Android 独占）+ LZ4/Zstd | ⚠️ DataStore 需替换（MMKV 可用） |
+| 网络 | Retrofit + OkHttp + Gson（**注意：项目其余处用 kotlinx.serialization，此处为遗留**） | ⚠️ iOS 需 Ktor 或保持接口抽象 |
+| 平台 SDK | TapTap（登录/云存档/广告）、Bugly | ⚠️ iOS 需平台 SDK 对等实现（TapTap 有 iOS SDK） |
+| API 守卫 | `Build.VERSION.SDK_INT` / `Build.SOC_*` 守卫模式 | ✅ 模式本身正确（Android 专用，iOS 无需） |
+
+**规则：** 新增平台能力（时间/存储/网络/加密/通知/支付/广告/分享）一律接口抽象 + 平台实现（参照 `RemoteConfigProvider` / `AdService` 既有模式），禁止在 core 层直接使用 Android 独占 API。

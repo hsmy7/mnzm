@@ -24,6 +24,12 @@ complexity:
     threshold: 60            # 单函数体最大 60 行（CLAUDE.md 3.3）
     # 现有违规冻结在 detekt-baseline.xml（全库 299 条），
     # 作为超长函数拆分任务队列，拆分一个摘除一条（baseline 只缩不增）
+  CyclomaticComplexMethod:
+    active: true
+    threshold: 15            # 单函数圈复杂度最大 15（rules/code-quality.md 量化指标，2026-08-04）
+    # 默认即激活；现有超限已冻结在 detekt-baseline.xml（engine 114 条 / app 7 条），
+    # 新代码圈复杂度超 15 必须拆分，禁止加入 baseline（baseline 只缩不增）
+    # 注：detekt 1.23+ 中 ComplexMethod 已更名为 CyclomaticComplexMethod（区分圈/认知复杂度）
 empty-blocks:
   EmptyCatchBlock:
     active: true             # 禁止空 catch 块

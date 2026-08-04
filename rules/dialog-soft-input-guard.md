@@ -58,6 +58,8 @@ fun DialogSoftInputGuard(
      → 🔴 必须在 Composable composition 顶部显式调用 DialogSoftInputGuard()
 ```
 
+**社交扩展（2026-08-04 起）：** 未来社交/排行界面的搜索框、好友备注输入框同样按此法则判断——放入上述自带保护容器内则无需处理，自定义容器必须显式调用 `DialogSoftInputGuard()`。
+
 ## 违规后果
 
 - 无保护的自定义 Dialog + 输入框在 Xiaomi HyperOS 设备上会触发键盘频闪
