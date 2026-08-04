@@ -127,7 +127,7 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = GameDatabaseConfig.DATABASE_VERSION  // v39: MIGRATION_38_39 删除弟子级自动开关死列（no-op 保留旧列）
+    version = GameDatabaseConfig.DATABASE_VERSION  // v39: MIGRATION_38_39 删除弟子级自动开关死列（create-copy-drop-rename 重建）
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)

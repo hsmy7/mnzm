@@ -1,6 +1,7 @@
 package com.xianxia.sect.data.local
 
 import android.database.sqlite.SQLiteDatabase
+import androidx.room.Room
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
@@ -16,8 +17,12 @@ import java.io.File
 /**
  * Room 数据库迁移测试。
  *
- * 使用 v2 schema JSON 创建初始数据库，直接执行每个 Migration 的 migrate 函数，
+ * 使用 schema JSON 创建初始数据库，直接执行每个 Migration 的 migrate 函数，
  * 验证新列添加正确、列删除正确，且不崩溃。
+ *
+ * 2026-08-04 补充：直接执行 migrate() 不会触发 Room 的迁移后校验（onValidateSchema），
+ * 陈旧列/缺索引类缺陷（如 v39 no-op 迁移崩溃）漏网——新增 `passes real Room schema validation`
+ * 系列测试，通过 Room.databaseBuilder 真实打开库强制校验。
  */
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
@@ -67,6 +72,95 @@ class RoomMigrationTest {
         private val M36_37 = MIGRATION_36_37
         private val M37_38 = MIGRATION_37_38
         private val M38_39 = MIGRATION_38_39
+
+        // v38 种子行（含被删除的 auto 开关列；列清单来自 38.json，仅用于迁移重建测试）
+        private val SEED_DISCIPLES_V38 = """
+            INSERT INTO disciples (
+                    id, slot_id, name, surname,
+                    realm, realmLayer, cultivation, cultivationCheckpoint,
+                    cultivationCheckpointGameMonth, spiritRootType, age, lifespan,
+                    isAlive, gender, portraitRes, manualIds,
+                    talentIds, physiqueIds, affixIds, manualMasteries,
+                    status, statusData, cultivationSpeedBonus, cultivationSpeedDuration,
+                    discipleType, autoLearnFromWarehouse, soulPower, cultivationCompletionMonth,
+                    cultivationCompletionPhase, manualCompletionMonth, manualCompletionPhase, equipmentNurturingCompletionMonth,
+                    equipmentNurturingCompletionPhase, baseHp, baseMp, basePhysicalAttack,
+                    baseMagicAttack, basePhysicalDefense, baseMagicDefense, baseSpeed,
+                    hpVariance, mpVariance, physicalAttackVariance, magicAttackVariance,
+                    physicalDefenseVariance, magicDefenseVariance, speedVariance, totalCultivation,
+                    breakthroughCount, breakthroughFailCount, currentHp, currentMp,
+                    pillPhysicalAttackBonus, pillMagicAttackBonus, pillPhysicalDefenseBonus, pillMagicDefenseBonus,
+                    pillHpBonus, pillMpBonus, pillSpeedBonus, pillCritRateBonus,
+                    pillCritEffectBonus, pillCultivationSpeedBonus, pillSkillExpSpeedBonus, pillNurtureSpeedBonus,
+                    pillEffectDuration, activePillCategory, weaponId, armorId,
+                    bootsId, accessoryId, weaponNurture, armorNurture,
+                    bootsNurture, accessoryNurture, autoEquipFromWarehouse, storageBagItems,
+                    storageBagSpiritStones, spiritStones, social_partnerId, social_partnerSectId,
+                    social_parentId1, social_parentId2, social_lastChildYear, social_childBirthMonth,
+                    social_griefEndYear, social_masterId, intelligence, charm,
+                    loyalty, comprehension, artifactRefining, pillRefining,
+                    spiritPlanting, mining, teaching, morality,
+                    salaryPaidCount, salaryMissedCount, usage_usedFunctionalPillTypes, usage_usedExtendLifePillIds,
+                    usage_recruitedMonth, usage_hasReviveEffect, usage_hasClearAllEffect
+                ) VALUES (
+                    'd1', 1, '测试弟子', '',
+                    0, 0, 0.0, 0.0,
+                    0, '', 0, 0,
+                    0, '', '', '',
+                    '', '', '', '',
+                    '', '', 0.0, 0,
+                    '', 0, 0, 0,
+                    0, 0, 0, 0,
+                    0, 0, 0, 0,
+                    0, 0, 0, 0,
+                    0, 0, 0, 0,
+                    0, 0, 0, 0,
+                    0, 0, 0, 0,
+                    0, 0, 0, 0,
+                    0, 0, 0, 0.0,
+                    0.0, 0.0, 0.0, 0.0,
+                    0, '', '', '',
+                    '', '', '', '',
+                    '', '', 0, '',
+                    0, 0, '', '',
+                    '', '', 0, 0,
+                    0, '', 0, 0,
+                    0, 0, 0, 0,
+                    0, 0, 0, 0,
+                    0, 0, '', '',
+                    0, 0, 0
+                )
+        """.trimIndent()
+        private val SEED_DISCIPLES_EXTENDED_V38 = """
+            INSERT INTO disciples_extended (
+                    discipleId, slot_id, manualIds, talentIds,
+                    physiqueIds, affixIds, manualMasteries, statusData,
+                    cultivationSpeedBonus, cultivationSpeedDuration, pillCultivationSpeedBonus, pillEffectDuration,
+                    partnerId, partnerSectId, parentId1, parentId2,
+                    lastChildYear, griefEndYear, masterId, usedFunctionalPillTypes,
+                    usedExtendLifePillIds, hasReviveEffect, hasClearAllEffect, autoLearnFromWarehouse
+                ) VALUES (
+                    'd1', 1, 'EXT_MARKER', '',
+                    '', '', '', '',
+                    0.0, 0, 0.0, 0,
+                    '', '', '', '',
+                    0, 0, '', '',
+                    '', 0, 0, 0
+                )
+        """.trimIndent()
+        private val SEED_DISCIPLES_EQUIPMENT_V38 = """
+            INSERT INTO disciples_equipment (
+                    discipleId, slot_id, weaponId, armorId,
+                    bootsId, accessoryId, weaponNurture, armorNurture,
+                    bootsNurture, accessoryNurture, storageBagItems, storageBagSpiritStones,
+                    spiritStones, soulPower, autoEquipFromWarehouse
+                ) VALUES (
+                    'd1', 1, 'EQ_MARKER', '',
+                    '', '', '', '',
+                    '', '', '', 0,
+                    0, 0, 0
+                )
+        """.trimIndent()
     }
 
     // ==================== 单个迁移步骤测试 ====================
@@ -95,27 +189,114 @@ class RoomMigrationTest {
     }
 
     @Test
-    fun `MIGRATION_38_TO_39 no-op retains legacy columns`() {
-        // 弟子级 autoLearnFromWarehouse/autoEquipFromWarehouse 死开关列删除采用 no-op 保留策略
-        // （项目规范 7.2 禁止 DROP COLUMN）：迁移不崩溃、数据完整、旧列保留。
-        testSingleMigration(
-            "m_38_39", 38, 39, listOf(M38_39), "disciples", "name"
-        )
+    fun `MIGRATION_38_TO_39 rebuild drops dead columns and preserves data`() {
+        // 弟子级 autoLearnFromWarehouse/autoEquipFromWarehouse 死开关列删除采用
+        // create-copy-drop-rename 重建（SQLite < 3.35 不支持 DROP COLUMN，参照 MIGRATION_30_31）。
+        // 2026-08-04 修复：原 no-op 保留旧列版本在 Room 2.7 迁移后校验（列全等比较）崩溃。
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val dbName = "m_38_39_legacy"
+        val dbName = "m_38_39_rebuild"
         context.deleteDatabase(dbName)
         try {
             val db = createDatabaseFromSchema(context, dbName, 38)
+            // v38 种子行（含被删除的 auto 开关列）
+            db.execSQL(SEED_DISCIPLES_V38)
+            db.execSQL(SEED_DISCIPLES_EXTENDED_V38)
+            db.execSQL(SEED_DISCIPLES_EQUIPMENT_V38)
             applyMigrationsSequentially(db, listOf(M38_39))
-            assertTrue(
-                "no-op 迁移应保留旧列 autoLearnFromWarehouse",
-                columnExists(db, "disciples", "autoLearnFromWarehouse")
-            )
-            assertTrue(
-                "no-op 迁移应保留旧列 autoEquipFromWarehouse",
-                columnExists(db, "disciples", "autoEquipFromWarehouse")
-            )
+
+            // 死列已删除
+            assertFalse("disciples.autoLearnFromWarehouse should be dropped",
+                columnExists(db, "disciples", "autoLearnFromWarehouse"))
+            assertFalse("disciples.autoEquipFromWarehouse should be dropped",
+                columnExists(db, "disciples", "autoEquipFromWarehouse"))
+            assertFalse("disciples_extended.autoLearnFromWarehouse should be dropped",
+                columnExists(db, "disciples_extended", "autoLearnFromWarehouse"))
+            assertFalse("disciples_equipment.autoEquipFromWarehouse should be dropped",
+                columnExists(db, "disciples_equipment", "autoEquipFromWarehouse"))
+
+            // 数据保留
+            assertEquals("弟子数据应在重建后保留", "测试弟子",
+                queryString(db, "SELECT name FROM disciples WHERE id = 'd1'"))
+            assertEquals("扩展表数据应在重建后保留", "EXT_MARKER",
+                queryString(db, "SELECT manualIds FROM disciples_extended WHERE discipleId = 'd1'"))
+            assertEquals("装备表数据应在重建后保留", "EQ_MARKER",
+                queryString(db, "SELECT weaponId FROM disciples_equipment WHERE discipleId = 'd1'"))
+
+            // RENAME 丢失的 7 个索引必须重建（Room 2.7 迁移后校验会检查索引）
+            assertTrue("index_disciples_name should be recreated",
+                indexExists(db, "disciples", "index_disciples_name"))
+            assertTrue("index_disciples_realm_realmLayer should be recreated",
+                indexExists(db, "disciples", "index_disciples_realm_realmLayer"))
+            assertTrue("index_disciples_isAlive_realm should be recreated",
+                indexExists(db, "disciples", "index_disciples_isAlive_realm"))
+            assertTrue("index_disciples_isAlive_status should be recreated",
+                indexExists(db, "disciples", "index_disciples_isAlive_status"))
+            assertTrue("index_disciples_discipleType should be recreated",
+                indexExists(db, "disciples", "index_disciples_discipleType"))
+            assertTrue("index_disciples_loyalty should be recreated",
+                indexExists(db, "disciples", "index_disciples_loyalty"))
+            assertTrue("index_disciples_age should be recreated",
+                indexExists(db, "disciples", "index_disciples_age"))
+
             db.close()
+        } finally {
+            context.deleteDatabase(dbName)
+        }
+    }
+
+    /**
+     * 真实 Room 校验测试：用 Room.databaseBuilder 打开 v38 库升级到 v39，
+     * 触发 RoomOpenHelper.onUpgrade → onValidateSchema（迁移后强制校验）。
+     *
+     * 2026-08-04 回归防线：原 no-op 保留旧列迁移在此抛
+     * "Migration didn't properly handle: disciples"（Room 2.7.0 TableInfo 列全等比较），
+     * 而旧的迁移测试直接执行 migrate() SQL、从不通过 Room 打开库，无法发现该崩溃。
+     */
+    @Test
+    fun `MIGRATION_38_TO_39 passes real Room schema validation`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dbName = "m_38_39_room_validate"
+        context.deleteDatabase(dbName)
+        try {
+            createDatabaseFromSchema(context, dbName, 38).close()
+            val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
+                .addMigrations(M38_39)
+                .build()
+            db.openHelper.writableDatabase
+            db.close()
+        } finally {
+            context.deleteDatabase(dbName)
+        }
+    }
+
+    /**
+     * 全链真实 Room 校验：v11 库一次性升级到 v39，触发 onValidateSchema 对全部表
+     * 做列/索引/外键全等校验——任何历史迁移的陈旧列/缺索引都会在此暴露。
+     *
+     * 起点选择 v11 而非 v2：仓库提交的 2.json 是陈旧导出（917416ce 时版本已 11，
+     * 2.json 为旧时代拷贝，manual_stacks 仅 26 列），与真实 v2 时代实体（skill 系
+     * 列自 5df5bc99 起一直存在，31 列）不符，作为校验起点会产生假阳性。
+     * 11.json 与 v11 实体同步导出，可信。v2→v11 段仅含带 columnExists 守卫的
+     * game_data ALTER，风险由下方数据保真测试覆盖。
+     */
+    @Test
+    fun `full migration v11 to v39 passes real Room schema validation`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dbName = "full_migrate_v39_room_validate"
+        context.deleteDatabase(dbName)
+        try {
+            createDatabaseFromSchema(context, dbName, 11).close()
+            val roomDb = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
+                .addMigrations(
+                    M11_12, M12_13, M13_14, M14_15, M15_16,
+                    M16_17, M17_18, M18_19, M19_20, M20_21, M21_22,
+                    M22_23, M23_24, M24_25, M25_26, M26_27, M27_28,
+                    M28_29, M29_30, M30_31, M31_32, M32_33, M33_34, M34_35, M35_36,
+                    M36_37, M37_38, M38_39
+                )
+                .build()
+            roomDb.openHelper.writableDatabase
+            roomDb.close()
         } finally {
             context.deleteDatabase(dbName)
         }
@@ -985,6 +1166,15 @@ class RoomMigrationTest {
                 if (name == column) return@use true
             }
             false
+        }
+    }
+
+    /** 查询单列字符串结果（首行首列；无行返回空串） */
+    private fun queryString(db: SupportSQLiteDatabase, sql: String): String {
+        return db.query(sql, emptyArray()).use { cursor ->
+            var result = ""
+            if (cursor.moveToFirst()) result = cursor.getString(0)
+            result
         }
     }
 
