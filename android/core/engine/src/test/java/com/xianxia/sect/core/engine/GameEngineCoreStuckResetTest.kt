@@ -22,7 +22,6 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.TimeoutCancellationException
 import org.junit.After
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -47,8 +46,8 @@ class GameEngineCoreStuckResetTest {
     private lateinit var core: GameEngineCore
     private lateinit var stateStore: GameStateStore
 
-    private val T0 = 1_000_000L
-    private val TIMEOUT_MS = 90_000L
+    private val initialTimeMs = 1_000_000L
+    private val stuckTimeoutMs = 90_000L
 
     @Before
     fun setUp() {
@@ -67,8 +66,8 @@ class GameEngineCoreStuckResetTest {
     fun `saving stuck over threshold emits event and resets flags`() = runTest {
         val (event, _) = collectFirstEvent()
 
-        core.checkAndResetStuckStates(isSaving = true, isLoading = false, nowMs = T0)
-        core.checkAndResetStuckStates(isSaving = true, isLoading = false, nowMs = T0 + TIMEOUT_MS + 1)
+        core.checkAndResetStuckStates(isSaving = true, isLoading = false, nowMs = initialTimeMs)
+        core.checkAndResetStuckStates(isSaving = true, isLoading = false, nowMs = initialTimeMs + stuckTimeoutMs + 1)
 
         assertTrue("事件应说明保存超时，实际: ${event.await()}", event.await().contains("保存操作超时"))
         verify(stateStore).setSavingDirect(false)
@@ -79,8 +78,8 @@ class GameEngineCoreStuckResetTest {
     fun `loading stuck over threshold emits event`() = runTest {
         val (event, _) = collectFirstEvent()
 
-        core.checkAndResetStuckStates(isSaving = false, isLoading = true, nowMs = T0)
-        core.checkAndResetStuckStates(isSaving = false, isLoading = true, nowMs = T0 + TIMEOUT_MS + 1)
+        core.checkAndResetStuckStates(isSaving = false, isLoading = true, nowMs = initialTimeMs)
+        core.checkAndResetStuckStates(isSaving = false, isLoading = true, nowMs = initialTimeMs + stuckTimeoutMs + 1)
 
         assertTrue("事件应说明读档超时，实际: ${event.await()}", event.await().contains("读档操作超时"))
     }
@@ -89,10 +88,10 @@ class GameEngineCoreStuckResetTest {
     fun `flag released before threshold emits no event`() = runTest {
         val (event, collector) = collectFirstEvent()
 
-        core.checkAndResetStuckStates(isSaving = true, isLoading = false, nowMs = T0)
+        core.checkAndResetStuckStates(isSaving = true, isLoading = false, nowMs = initialTimeMs)
         // 标志释放（isSaving=false 重置起始时间）
-        core.checkAndResetStuckStates(isSaving = false, isLoading = false, nowMs = T0 + 10_000)
-        core.checkAndResetStuckStates(isSaving = true, isLoading = false, nowMs = T0 + 20_000)
+        core.checkAndResetStuckStates(isSaving = false, isLoading = false, nowMs = initialTimeMs + 10_000)
+        core.checkAndResetStuckStates(isSaving = true, isLoading = false, nowMs = initialTimeMs + 20_000)
 
         assertNoEventEmitted(event)
         collector.cancel()
@@ -113,16 +112,16 @@ class GameEngineCoreStuckResetTest {
         val job = mock(kotlinx.coroutines.Job::class.java)
         core.registerActiveLoadJob(job)
 
-        core.checkAndResetStuckStates(isSaving = true, isLoading = false, nowMs = T0)
-        core.checkAndResetStuckStates(isSaving = true, isLoading = false, nowMs = T0 + TIMEOUT_MS + 1)
+        core.checkAndResetStuckStates(isSaving = true, isLoading = false, nowMs = initialTimeMs)
+        core.checkAndResetStuckStates(isSaving = true, isLoading = false, nowMs = initialTimeMs + stuckTimeoutMs + 1)
 
         verify(job).cancel()
     }
 
     @Test
     fun `below threshold keeps saving flag untouched`() {
-        core.checkAndResetStuckStates(isSaving = true, isLoading = false, nowMs = T0)
-        core.checkAndResetStuckStates(isSaving = true, isLoading = false, nowMs = T0 + TIMEOUT_MS - 1)
+        core.checkAndResetStuckStates(isSaving = true, isLoading = false, nowMs = initialTimeMs)
+        core.checkAndResetStuckStates(isSaving = true, isLoading = false, nowMs = initialTimeMs + stuckTimeoutMs - 1)
 
         verify(stateStore, never()).setSavingDirect(false)
     }
@@ -148,6 +147,7 @@ class GameEngineCoreStuckResetTest {
     }
 
     /** 断言事件通道在超时窗口内无事件 */
+    @Suppress("SwallowedException") // 测试断言：超时取消即"无事件"预期达成，异常本身无需记录
     private suspend fun assertNoEventEmitted(event: CompletableDeferred<String>) {
         val emitted = try {
             withTimeout(100) { event.await() }

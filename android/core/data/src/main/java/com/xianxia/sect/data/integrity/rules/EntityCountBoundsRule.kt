@@ -37,6 +37,7 @@ object EntityCountBoundsRule : SaveValidationRule {
     /** 战斗日志硬上限（与 DataArchiver 保留最新语义一致） */
     private const val BATTLE_LOG_HARD_CAP = 5000
 
+    @Suppress("ReturnCount") // 守卫风格：硬上限判损坏早退 + 截断分支，多 return 为守卫
     override fun execute(data: SaveData, context: RuleContext): RuleOutcome {
         if (data.disciples.size > DISCIPLE_HARD_CAP) {
             return RuleOutcome.Corrupted(

@@ -90,7 +90,9 @@ class NumericSanitizeRuleTest {
 
     @Test
     fun `NaN sect cultivation reset to zero`() {
-        val data = saveData(gameData = GameData(sectName = "宗", gameYear = 1, gameMonth = 1, sectCultivation = Double.NaN))
+        val data = saveData(
+            gameData = GameData(sectName = "宗", gameYear = 1, gameMonth = 1, sectCultivation = Double.NaN)
+        )
         val result = SaveValidator.validate(data)
         assertTrue(result is IntegrityResult.Repaired)
         assertEquals(0.0, (result as IntegrityResult.Repaired).data.gameData.sectCultivation, 0.001)
@@ -118,7 +120,9 @@ class NumericSanitizeRuleTest {
         val data = saveData(
             gameData = GameData(
                 sectName = "宗", gameYear = 1, gameMonth = 1,
-                aiSectDisciples = mapOf("sect-a" to listOf(makeDisciple(id = "a-1", cultivation = Double.POSITIVE_INFINITY)))
+                aiSectDisciples = mapOf(
+                    "sect-a" to listOf(makeDisciple(id = "a-1", cultivation = Double.POSITIVE_INFINITY))
+                )
             )
         )
         val result = SaveValidator.validate(data)
@@ -157,7 +161,11 @@ class NumericSanitizeRuleTest {
         val data = saveData(disciples = listOf(d))
         val result = SaveValidator.validate(data)
         assertTrue(result is IntegrityResult.Repaired)
-        assertEquals(0.0, (result as IntegrityResult.Repaired).data.disciples.first().pillEffects.pillNurtureSpeedBonus, 0.001)
+        assertEquals(
+            0.0,
+            (result as IntegrityResult.Repaired).data.disciples.first().pillEffects.pillNurtureSpeedBonus,
+            0.001
+        )
     }
 
     private fun makeDisciple(

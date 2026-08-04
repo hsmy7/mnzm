@@ -28,7 +28,10 @@ class BattleLogRefRuleTest {
     fun `valid logs pass`() {
         val data = saveData(
             battleLogs = listOf(
-                BattleLog(id = "b-1", year = 5, month = 6, turns = 3, teamCasualties = 1, attackerName = "甲", defenderName = "乙"),
+                BattleLog(
+                    id = "b-1", year = 5, month = 6, turns = 3,
+                    teamCasualties = 1, attackerName = "甲", defenderName = "乙"
+                ),
                 BattleLog(id = "b-2", year = 1, month = 12, turns = 0, teamCasualties = 0, details = "巡山")
             )
         )

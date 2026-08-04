@@ -39,11 +39,11 @@ object BattleLogRefRule : SaveValidationRule {
 
     /** 条目结构合法性判定 */
     private fun BattleLog.isStructurallyValid(): Boolean {
-        if (year < 1 || month !in 1..12) return false
-        if (turns < 0 || turns > MAX_BATTLE_TURNS) return false
-        if (teamCasualties < 0 || teamCasualties > MAX_TEAM_CASUALTIES) return false
+        val dateValid = year >= 1 && month in 1..12
+        val turnsValid = turns in 0..MAX_BATTLE_TURNS
+        val casualtiesValid = teamCasualties in 0..MAX_TEAM_CASUALTIES
         val blankStub = attackerName.isBlank() && defenderName.isBlank() && details.isBlank() &&
             teamMembers.isEmpty() && enemies.isEmpty()
-        return !blankStub
+        return dateValid && turnsValid && casualtiesValid && !blankStub
     }
 }

@@ -34,6 +34,7 @@ object SaveDataVersionMigrator {
      * @param saveData 待迁移存档
      * @return 迁移结果：[MigrationResult.Migrated] 数据可信；[MigrationResult.Rejected] 版本号非法，调用方必须中止加载
      */
+    @Suppress("ReturnCount") // 版本边界守卫多早退，拒绝路径为守卫风格
     fun migrate(saveData: SaveData): MigrationResult {
         val gd = saveData.gameData
         if (gd.saveVersion < 0) {
