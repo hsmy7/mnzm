@@ -3,23 +3,33 @@ package com.xianxia.sect.core.engine.domain.disciple
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.model.SlotCategory
+import java.io.File
 import org.junit.Assert.*
 import org.junit.Test
 
 /**
  * 自动守卫：新增 [SlotCategory] 枚举值时，若忘记同步更新相关函数，测试将失败。
  *
- * ## 新增槽位系统的必改清单
+ * ## 新增槽位系统的必改清单（2026-08-05 多槽位互斥根治后扩充为 8 处）
  *
  * 当你在 [SlotCategory] 添加了新的枚举值，测试会在此文件中报错。
- * 请同步更新以下 4 处：
+ * 请同步更新：
  *
  * 1. [DiscipleAssignmentGate.scanAndRegister] — 读档重建时扫描新系统
- * 2. [DiscipleSlotCleanup.clearAllSlots] — 死亡/释放时清理新系统
+ * 2. [DiscipleSlotCleanup.clearAllSlots] — 死亡/释放/换岗时清理新系统
  *    - 注意：住所 (RESIDENCE_SLOT) 是条件清理，仅 `includeResidence=true` 时清理，
  *      工作分配路径不会清理住所。如果新增的槽位也类似"被动不互斥"，请同步处理。
- * 3. 分配入口 — 调用 `releaseDiscipleFromAllSlotsAtomic` + `confirmAssign`
- * 4. 本测试文件 — 将新 [SlotCategory] 加入下方对应的检查集合
+ * 3. 分配入口 — 事务内 `clearAllSlotsDataOnly`（防双槽位）+ 事务外
+ *    `releaseDiscipleFromAllSlotsAtomic`/`confirmAssign` + 旧 occupant release/sync
+ *    （参照 assignPatrolAtomic 的 pendingReleases 模式；清单式守卫会检查新入口文件）
+ * 4. 本测试文件 — 将新 [SlotCategory] 加入下方对应的检查集合；若分配入口在新文件，
+ *    加入清单式守卫的 entriesRequiringCleanup
+ * 5. [DiscipleStatusService.buildSlotFlagsFor] + SlotFlags — 若槽位影响弟子状态推导，
+ *    加标志并排入 deriveDiscipleStatus 优先级（有既有单测模式可仿照）
+ * 6. [DiscipleStatusService.clearSlotsForReset] — 重置所有弟子时清理（若槽位持久化在 GameData）
+ * 7. [com.xianxia.sect.core.engine.GameEngineSelfHealOps] — 读档双槽位自愈的
+ *    collectSlotWinners 扫描 + rewriteWinnerInGameData 按赢家重写
+ * 8. 若新槽位与工作共存（住所式被动不互斥）— 在下方 intentionalExcluded 显式声明并注释理由
  */
 class SlotCategoryCoverageTest {
 
@@ -121,5 +131,60 @@ class SlotCategoryCoverageTest {
         // includeResidence=true：住所清理
         val resultWithRes = cleanup.clearAllSlots(data, discipleId, includeResidence = true)
         assertEquals("includeResidence=true 应清住所", "", resultWithRes.residenceSlots[0].discipleId)
+    }
+
+    /**
+     * 清单式守卫：所有已知"任命弟子到槽位"的分配入口文件必须引用槽位清理调用。
+     *
+     * 背景：双槽位 Bug 的根因是多个分配入口写槽位前不做清理（Gate 只登记不阻止）。
+     * 新增分配入口时必须接入清理（clearAllSlotsDataOnly / clearAllSlots /
+     * releaseDiscipleFromAllSlotsAtomic / releaseDiscipleToIdleInside），
+     * 否则本测试失败并列出缺清理的文件。
+     *
+     * 住所（RESIDENCE_SLOT）与工作共存是有意设计，不在清单内；
+     * 战后自动填 garrison（occupySectRewards）非玩家任命入口，不在清单内。
+     */
+    @Test
+    fun `all known assignment entries reference slot cleanup`() {
+        val entriesRequiringCleanup = listOf(
+            "com/xianxia/sect/core/GameEngineAtomicAssign.kt",          // 巡逻 3 入口
+            "com/xianxia/sect/core/GameEngineCoordination.kt",           // 任务/血炼
+            "com/xianxia/sect/core/engine/GameEngineSecretRealmOps.kt",  // 秘境出发
+            "com/xianxia/sect/core/GameEngineBattleOps.kt",              // 世界驻守
+            "com/xianxia/sect/core/engine/GameEngineWarehouseOps.kt",    // 仓库驻守
+            "com/xianxia/sect/core/domain/disciple/DiscipleFacadeImpl.kt", // 亲传/藏经阁
+            "com/xianxia/sect/core/domain/building/BuildingFacadeImpl.kt", // 生产槽新 API
+            "com/xianxia/sect/core/domain/building/BuildingService.kt"     // 生产槽旧 API
+        )
+        val cleanupMarkers = listOf(
+            "clearAllSlotsDataOnly", "clearAllSlots(", "releaseDiscipleFromAllSlotsAtomic",
+            "releaseDiscipleToIdleInside"
+        )
+
+        val missing = entriesRequiringCleanup.filter { entry ->
+            val file = File(ENGINE_SRC_MAIN_DIR, entry)
+            assertTrue("源码文件不存在: $entry", file.exists())
+            val content = file.readText()
+            cleanupMarkers.none { it in content }
+        }
+        assertTrue(
+            """
+            |以下分配入口未引用任何槽位清理调用
+            |（新增/修改分配入口必须接入清理，防双槽位）：
+            |  $missing
+            |
+            |操作指引：
+            |  1. 在写槽位的事务内调用 clearAllSlotsDataOnly（引擎层）/ clearAllSlots（Facade 层）
+            |  2. 或调用 releaseDiscipleFromAllSlotsAtomic / releaseDiscipleToIdleInside
+            |  3. 事务成功后释放/登记 gate（参照 assignPatrolAtomic 的 pendingReleases 模式）
+            |  4. 若故意不互斥（如住所）→ 不要加入本清单，并在类注释说明理由
+            """.trimMargin(),
+            missing.isEmpty()
+        )
+    }
+
+    companion object {
+        /** Gradle 测试工作目录 = 模块根目录（core/engine/） */
+        private val ENGINE_SRC_MAIN_DIR = File("src/main/java")
     }
 }

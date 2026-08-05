@@ -17,7 +17,6 @@ import com.xianxia.sect.core.model.BattleLogMember
 import com.xianxia.sect.core.model.BattleLogRound
 import com.xianxia.sect.core.model.BattleResult
 import com.xianxia.sect.core.model.BattleType
-import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GameEventCategory
 import com.xianxia.sect.core.model.GameEventType
@@ -163,10 +162,13 @@ class SecretRealmService @Inject constructor(
         if (selected.size != GameConfig.SecretRealm.TEAM_SIZE) {
             return DomainResult.Failure(AppError.Domain.GameState.NotFound("弟子不存在"))
         }
-        val invalid = selected.firstOrNull { !it.isAlive || it.status != DiscipleStatus.IDLE }
-        if (invalid != null) {
+        // 存活校验（死亡弟子不可出发）。状态 IDLE 校验已移除：换岗语义下引擎入口
+        // （startSecretRealmExploration）先于此处校验通过后执行 releaseDiscipleToIdleInside
+        // 清空岗位再出发，校验在清理前会错误拒绝在岗弟子（原校验已因清理前置成为死代码）
+        val dead = selected.firstOrNull { !it.isAlive }
+        if (dead != null) {
             return DomainResult.Failure(
-                AppError.Domain.Validation.InvalidInput("弟子「${invalid.name}」当前无法参战")
+                AppError.Domain.Validation.InvalidInput("弟子「${dead.name}」已死亡")
             )
         }
 

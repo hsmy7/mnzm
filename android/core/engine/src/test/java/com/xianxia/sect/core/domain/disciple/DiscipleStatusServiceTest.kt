@@ -1,7 +1,10 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.WarehouseGarrisonSlot
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -140,6 +143,41 @@ class DiscipleStatusServiceTest {
                 isAlive = true,
                 currentStatus = DiscipleStatus.IDLE,
                 slotFlags = DiscipleStatusService.SlotFlags(inGarrison = true)
+            )
+        )
+    }
+
+    // ==================== 仓库驻守推导（buildSlotFlagsFor 缺口修复） ====================
+
+    @Test
+    fun `buildSlotFlagsFor - warehouse garrison disciple inGarrison is true`() {
+        val flags = DiscipleStatusService.buildSlotFlagsFor(
+            discipleId = "1",
+            data = GameData(
+                warehouseGarrisons = listOf(
+                    WarehouseGarrisonSlot("wh1", "1", "弟子A", "sect")
+                )
+            )
+        )
+        assertTrue("仓库驻守弟子应推导 inGarrison=true", flags.inGarrison)
+    }
+
+    @Test
+    fun `buildSlotFlagsFor - warehouse garrison derives GARRISONING`() {
+        val flags = DiscipleStatusService.buildSlotFlagsFor(
+            discipleId = "1",
+            data = GameData(
+                warehouseGarrisons = listOf(
+                    WarehouseGarrisonSlot("wh1", "1", "弟子A", "sect")
+                )
+            )
+        )
+        assertEquals(
+            DiscipleStatus.GARRISONING,
+            DiscipleStatusService.deriveDiscipleStatus(
+                isAlive = true,
+                currentStatus = DiscipleStatus.IDLE,
+                slotFlags = flags
             )
         )
     }

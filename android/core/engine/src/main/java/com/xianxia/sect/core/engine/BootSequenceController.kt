@@ -142,6 +142,10 @@ class BootSequenceController @Inject constructor(
                 }
             )
 
+            // ── Step 6.3: 双槽位自愈（旧档"同一弟子多槽位"残留清理）──
+            // 清理后 gate 二次重建，健康存档零副作用
+            gameEngine.healDuplicateSlotAssignments()
+
             // ── Step 6.5: 仓库堆叠整理（修复旧档散落问题）──
             gameEngine.consolidateStacks()
 

@@ -121,6 +121,9 @@ class DiscipleSlotCleanup @Inject constructor(
         if (updated.preachingElder == discipleId) updated = updated.copy(preachingElder = "")
         if (updated.lawEnforcementElder == discipleId) updated = updated.copy(lawEnforcementElder = "")
         if (updated.innerElder == discipleId) updated = updated.copy(innerElder = "")
+        // 回归：纳徒长老此前漏清——双槽位可经此槽残留（gate 扫描覆盖 10 个长老字段，
+        // 清理清单必须与之一一对应）
+        if (updated.recruitingElder == discipleId) updated = updated.copy(recruitingElder = "")
         if (updated.qingyunPreachingElder == discipleId) updated = updated.copy(qingyunPreachingElder = "")
 
         updated = updated.copy(

@@ -30,7 +30,14 @@ suspend fun GameEngine.startSecretRealmExploration(
 ): DomainResult<Unit> = engineContextDispatcher.withEngineContext {
     val result: DomainResult<Unit> = try {
         stateStore.updateAndReturn {
-            secretRealmService.startSession(memberIds, this)
+            // 先校验再清理：startSession 校验失败返回 Failure（不抛异常），若先清理
+            // 则事务照常提交——队员岗位已被清空但 gate 未清（回归：C1 失败路径销毁分配）。
+            // 校验通过后换岗清理（出发即换岗——防止同一弟子同时出现在岗位与秘境队伍）
+            val sessionResult = secretRealmService.startSession(memberIds, this)
+            if (sessionResult is DomainResult.Success) {
+                memberIds.forEach { releaseDiscipleToIdleInside(this, it) }
+            }
+            sessionResult
         }
     } catch (e: CancellationException) {
         throw e
@@ -43,6 +50,11 @@ suspend fun GameEngine.startSecretRealmExploration(
         DomainResult.Failure(AppError.Domain.GameLoop.Unknown("出发远古秘境失败"))
     }
     if (result is DomainResult.Success) {
+        // 前置清理已释放旧注册（releaseDiscipleToIdleInside 不碰 gate），先清再登记，
+        // 防多槽位 gate 残留
+        memberIds.forEach { assignmentGate.release(it) }
+        // 双存储同步：清 Room 生产槽 Repository
+        memberIds.forEach { clearDiscipleFromProductionRepository(it) }
         // 队伍成员占用（复用 EXPLORATION_TEAM 槽位，非持久化，读档后由会话重建）
         memberIds.forEach { id ->
             assignmentGate.confirmAssign(

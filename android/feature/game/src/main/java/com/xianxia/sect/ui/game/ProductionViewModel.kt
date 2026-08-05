@@ -47,26 +47,17 @@ class ProductionViewModel @Inject constructor(
     fun removeDirectDisciple(elderSlotType: String, slotIndex: Int) =
         launchElderAction({ elderManagement.removeDirectDisciple(elderSlotType, slotIndex) }, "卸任失败")
 
-    suspend fun assignWarehouseGarrison(
+    fun assignWarehouseGarrison(
         buildingInstanceId: String,
         discipleId: String,
         discipleName: String,
         sectId: String
     ) {
-        gameEngine.updateGameDataAndSync { data ->
-            val existing = data.warehouseGarrisons.toMutableList()
-            existing.removeAll { it.buildingInstanceId == buildingInstanceId }
-            existing.add(WarehouseGarrisonSlot(
-                buildingInstanceId, discipleId, discipleName, sectId
-            ))
-            data.copy(warehouseGarrisons = existing)
-        }
-        val slotRef = SlotRef(
-            category = SlotCategory.WAREHOUSE_GARRISON,
-            slotType = buildingInstanceId,
-            slotId = "warehouse_$buildingInstanceId"
+        // 统一走引擎原子方法：事务内清理旧槽位 + gate 登记，防同一弟子多槽位
+        // （回归：此前 ViewModel 直写 GameData，无互斥清理）
+        gameEngine.assignWarehouseGarrisonAtomic(
+            buildingInstanceId, discipleId, discipleName, sectId
         )
-        gameEngine.confirmAssignDisciple(discipleId, slotRef)
     }
 
     suspend fun removeWarehouseGarrison(buildingInstanceId: String) {

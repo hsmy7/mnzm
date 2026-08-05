@@ -59,7 +59,7 @@ class BuildingService @Inject constructor(
         // （如 "alchemy"/"forge"），非实例标识。
         // 多个同类型建筑实例共享同一 buildingId，
         // 导致排他检查失效。
-        // 已迁移到 DiscipleAssignmentGate
+        // 已迁移到 DiscipleAssignmentGate（见下方事务内清理）
         val targetSlot = SlotRef(
             category = SlotCategory.PRODUCTION_SLOT,
             slotType = "$buildingId:$slotIndex",
@@ -73,14 +73,40 @@ class BuildingService @Inject constructor(
             return
         }
 
+        // 旧 occupant：补 gate.release（回归：此前只置 IDLE 不释放，注册表残留
+        // 导致旧弟子从可用列表"消失"）
         existingSlot?.assignedDiscipleId?.let { oldDiscipleId ->
-            updateDiscipleStatus(oldDiscipleId, DiscipleStatus.IDLE)
+            if (oldDiscipleId.isNotEmpty() && oldDiscipleId != discipleId) {
+                assignmentGate.release(oldDiscipleId)
+                updateDiscipleStatus(oldDiscipleId, DiscipleStatus.IDLE)
+            }
+        }
+
+        // 事务内清理 GameData 全部槽位 + 同步 GameData.productionSlots 镜像
+        // （回归：此前无任何清理——注释声称已迁移 Gate 但实际没有互斥检查，
+        // 同一弟子可同时占多个炼丹/锻造槽，也可与巡逻/长老并存）
+        stateStore.update {
+            gameData = com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup(assignmentGate)
+                .clearAllSlotsDataOnly(gameData, discipleId)
+            gameData = gameData.copy(
+                productionSlots = gameData.productionSlots.map { slot ->
+                    when {
+                        slot.buildingId == buildingId && slot.slotIndex == slotIndex ->
+                            slot.copy(assignedDiscipleId = discipleId, assignedDiscipleName = discipleName)
+                        slot.assignedDiscipleId == discipleId ->
+                            slot.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                        else -> slot
+                    }
+                }
+            )
         }
 
         assignDiscipleToSlot(
             buildingId, slotIndex, discipleId,
             discipleName, existingSlot
         )
+        // 清旧注册再登记新分配（未注册时 release 为空操作，安全）
+        assignmentGate.release(discipleId)
         assignmentGate.confirmAssign(discipleId, targetSlot)
     }
 

@@ -3,6 +3,7 @@ import com.xianxia.sect.core.util.ItemNames
 
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.engine.domain.battle.AIBattleResult
 import com.xianxia.sect.core.engine.domain.battle.AIBattleWinner
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
@@ -18,6 +19,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.DomainLog
+import kotlin.coroutines.cancellation.CancellationException
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.wallet.SpiritStoneSource
@@ -398,16 +400,12 @@ private fun warRewardsToBattleRewardItems(rewards: WarRewards): List<BattleRewar
 
 suspend fun GameEngine.assignGarrisonDisciple(sectId: String, slotIndex: Int, discipleId: String) {
     return engineContextDispatcher.withEngineContext {
-        val data = stateStore.gameDataSnapshot
-        val disciple = stateStore.discipleTables.assemble(discipleId.toInt()).takeIf { it.isAlive } ?: return@withEngineContext
-        val targetSect = data.worldMapSects.find { it.id == sectId } ?: return@withEngineContext
-        if (targetSect.garrisonSlots.any { it.discipleId == discipleId }) return@withEngineContext
-        stateStore.update {
-            gameData = gameData.copy(worldMapSects = gameData.worldMapSects.map { sect ->
-                if (sect.id == sectId) sect.copy(garrisonSlots = sect.garrisonSlots.map { slot ->
-                    if (slot.index == slotIndex) GarrisonSlot(index = slotIndex, discipleId = disciple.id, discipleName = disciple.name, discipleRealm = disciple.realmName, discipleSpiritRootColor = disciple.spiritRoot.countColor, portraitRes = disciple.portraitRes) else slot
-                }) else sect
-            })
+        val (written, oldOccupantId) = assignGarrisonDiscipleInside(sectId, slotIndex, discipleId)
+        if (!written) return@withEngineContext
+        // 事务成功后才操作 gate（失败回滚时不触碰注册表）
+        assignmentGate.release(discipleId)
+        if (oldOccupantId != discipleId) {
+            assignmentGate.release(oldOccupantId)
         }
         val slotRef = SlotRef(
             category = SlotCategory.GARRISON_SLOT,
@@ -415,7 +413,64 @@ suspend fun GameEngine.assignGarrisonDisciple(sectId: String, slotIndex: Int, di
             slotId = "garrison_${sectId}_${slotIndex}"
         )
         assignmentGate.confirmAssign(discipleId, slotRef)
+        // 双存储同步：清 Room 生产槽 Repository
+        clearDiscipleFromProductionRepository(discipleId)
+        // 同步新弟子与旧 occupant 状态（回归：此前从不 sync，状态残留影响选择弹窗）
+        @Suppress("TooGenericExceptionCaught")
+        try {
+            discipleFacade.syncSingleDiscipleStatus(discipleId)
+            if (oldOccupantId != discipleId) {
+                discipleFacade.syncSingleDiscipleStatus(oldOccupantId)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DomainLog.w("GameEngine", "assignGarrison: syncSingleDiscipleStatus 失败", e)
+        }
     }
+}
+
+/**
+ * 驻守分配事务体：校验 → 清理新弟子全部槽位 → 写入目标槽。
+ *
+ * @return (是否成功写入, 目标槽旧 occupant 弟子 ID)
+ */
+private suspend fun GameEngine.assignGarrisonDiscipleInside(
+    sectId: String,
+    slotIndex: Int,
+    discipleId: String
+): Pair<Boolean, String> {
+    var oldOccupantId = ""
+    var written = false
+    stateStore.update {
+        val id = discipleId.toIntOrNull()
+        require(id != null && id in discipleTables.ids) { "弟子不存在: $discipleId" }
+        require(discipleTables.isAlive[id] != 0) { "弟子已死亡: $discipleId" }
+        val targetSect = gameData.worldMapSects.find { it.id == sectId } ?: return@update
+        if (targetSect.garrisonSlots.any { it.discipleId == discipleId }) return@update
+        // 覆写前捕获目标槽旧 occupant（事务内读取，避免快照竞态）
+        oldOccupantId = targetSect.garrisonSlots
+            .find { it.index == slotIndex }?.discipleId.orEmpty()
+        // 清理新弟子全部槽位（含跨 sect 旧驻守），防同一弟子多槽位（回归：此前
+        // 只查同 sect 重复，勾选"显示所有弟子"可从巡逻/长老等岗位直接拉入驻守）
+        gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlotsDataOnly(gameData, discipleId)
+        val aggregate = discipleTables.assemble(id)
+        val name = aggregate?.name ?: ""
+        val realm = aggregate?.realmName ?: ""
+        val portrait = aggregate?.portraitRes ?: ""
+        val rootColor = aggregate?.spiritRoot?.countColor ?: ""
+        gameData = gameData.copy(worldMapSects = gameData.worldMapSects.map { sect ->
+            if (sect.id == sectId) sect.copy(garrisonSlots = sect.garrisonSlots.map { slot ->
+                if (slot.index == slotIndex) GarrisonSlot(
+                    index = slotIndex, discipleId = discipleId, discipleName = name,
+                    discipleRealm = realm, discipleSpiritRootColor = rootColor,
+                    portraitRes = portrait
+                ) else slot
+            }) else sect
+        })
+        written = true
+    }
+    return written to oldOccupantId
 }
 
 suspend fun GameEngine.removeGarrisonDisciple(sectId: String, slotIndex: Int) {

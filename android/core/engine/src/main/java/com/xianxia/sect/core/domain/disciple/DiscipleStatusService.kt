@@ -105,6 +105,10 @@ class DiscipleStatusService @Inject constructor(
 
             val inGarrison =
                 playerSect?.garrisonSlots?.any { it.discipleId == discipleId } == true
+                // 与 buildGarrisonIds 对齐：仓库驻守同样视为驻守，防止被推导为 IDLE
+                // 而从"显示所有弟子"弹窗被误选（回归：此前只查宗门驻守，仓库驻守
+                // 弟子显示为可用，可在不释放的情况下被再分配）
+                || data.warehouseGarrisons.any { it.discipleId == discipleId }
             val inTeam = data.battleTeams
                 .any { t -> t.slots.any { it.discipleId == discipleId } }
                 || inExploration || inCaveExploration || inSecretRealm
@@ -459,6 +463,26 @@ class DiscipleStatusService @Inject constructor(
                 )
             } else team
         }
+        // 回归：重置漏清巡逻/仓库驻守/战斗队伍/生产槽，重置后派生状态把残留弟子
+        // 重新推导回非 IDLE，与"重置为 IDLE"语义冲突（与 DiscipleSlotCleanup 对齐）
+        val clearedPatrolSlots = gameData.patrolSlots.map {
+            if (it.discipleId.isNotEmpty() && it.discipleId !in ids)
+                it.copy(discipleId = "", discipleName = "") else it
+        }
+        val clearedWarehouseGarrisons = gameData.warehouseGarrisons.map {
+            if (it.discipleId.isNotEmpty() && it.discipleId !in ids)
+                it.copy(discipleId = "", discipleName = "") else it
+        }
+        val clearedBattleTeams = gameData.battleTeams.map { team ->
+            team.copy(slots = team.slots.map { slot ->
+                if (slot.discipleId.isNotEmpty() && slot.discipleId !in ids)
+                    slot.copy(discipleId = "", discipleName = "", isAlive = true) else slot
+            })
+        }
+        val clearedProductionSlots = gameData.productionSlots.map {
+            if (!it.assignedDiscipleId.isNullOrEmpty() && it.assignedDiscipleId !in ids)
+                it.copy(assignedDiscipleId = null, assignedDiscipleName = "") else it
+        }
 
         gameData = gameData.copy(
             spiritMineSlots = clearedSpiritMineSlots,
@@ -466,7 +490,11 @@ class DiscipleStatusService @Inject constructor(
             elderSlots = clearedElderSlots,
             worldMapSects = clearedGarrisonSects,
             caveExplorationTeams = clearedCaveTeams,
-            activeMissions = clearedActiveMissions
+            activeMissions = clearedActiveMissions,
+            patrolSlots = clearedPatrolSlots,
+            warehouseGarrisons = clearedWarehouseGarrisons,
+            battleTeams = clearedBattleTeams,
+            productionSlots = clearedProductionSlots
         )
         teams = updatedTeams
 
@@ -508,6 +536,9 @@ class DiscipleStatusService @Inject constructor(
             updated = updated.copy(lawEnforcementElder = "")
         if (updated.innerElder.isNotEmpty() && updated.innerElder !in protectedIds)
             updated = updated.copy(innerElder = "")
+        // 回归：纳徒长老此前漏清（与 DiscipleSlotCleanup.clearElderSlots 对齐）
+        if (updated.recruitingElder.isNotEmpty() && updated.recruitingElder !in protectedIds)
+            updated = updated.copy(recruitingElder = "")
         if (updated.qingyunPreachingElder.isNotEmpty() && updated.qingyunPreachingElder !in protectedIds)
             updated = updated.copy(qingyunPreachingElder = "")
 

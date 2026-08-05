@@ -7,6 +7,7 @@ import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.exploration.MissionSystem
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
@@ -851,10 +852,23 @@ fun GameEngine.updateYearlySalary(newSalary: Map<Int, Int>) { updateGameDataSync
 // ── Cross-domain: Missions ──────────────────────────────────────────
 
 fun GameEngine.startMission(mission: Mission, selectedDisciples: List<Disciple>) {
-    val data = stateStore.gameDataSnapshot
-    val activeMission = MissionSystem.createActiveMission(mission, selectedDisciples, data.gameYear, data.gameMonth)
-    updateGameDataSync { it.copy(activeMissions = it.activeMissions + activeMission) }
-    selectedDisciples.forEach { disciple -> gameEngineCore.launchInScope { updateDiscipleStatus(disciple.id, DiscipleStatus.ON_MISSION) } }
+    gameEngineCore.launchInScope {
+        val discipleIds = selectedDisciples.map { it.id }
+        stateStore.update {
+            // 前置清理：派遣即换岗——释放每个队员在全部槽位的旧引用（保留住所），
+            // 防止同一弟子同时出现在岗位与任务中（回归：此前不清理，任务完成后
+            // status 强制 IDLE 而岗位槽位残留，导致状态/槽位永久不一致）
+            discipleIds.forEach { releaseDiscipleToIdleInside(this, it) }
+            val activeMission = MissionSystem.createActiveMission(
+                mission, selectedDisciples, gameData.gameYear, gameData.gameMonth
+            )
+            gameData = gameData.copy(activeMissions = gameData.activeMissions + activeMission)
+        }
+        discipleIds.forEach { assignmentGate.release(it) }
+        // 双存储同步：清 Room 生产槽 Repository
+        discipleIds.forEach { clearDiscipleFromProductionRepository(it) }
+        discipleFacade.syncAllDiscipleStatuses()
+    }
 }
 
 suspend fun GameEngine.checkAndProcessCompletedMissions(): List<String> {
@@ -1172,8 +1186,17 @@ suspend fun GameEngine.startBloodRefinementAtomic(
             stateStore.update {
                 checkStones(requiredSpiritStones)
                 consumeMaterial(materialName, materialRarity, materialCount)
+                // 清理该弟子在全部槽位的旧引用（防同一弟子多槽位；血炼池内部排他
+                // 保留在 commitBloodRefinement 内）。checkStones/consumeMaterial 抛错时
+                // 事务整体回滚，清理副作用不残留
+                gameData = DiscipleSlotCleanup(assignmentGate)
+                    .clearAllSlotsDataOnly(gameData, progress.discipleId)
                 commitBloodRefinement(buildingInstanceId, requiredSpiritStones, progress)
             }
+            // 防御：清理旧 gate 注册（confirmAssign 由调用方在成功后登记，此处消除窗口期）
+            assignmentGate.release(progress.discipleId)
+            // 双存储同步：清 Room 生产槽 Repository
+            clearDiscipleFromProductionRepository(progress.discipleId)
             return@withEngineContext BloodRefinementStartResult.Success
         } catch (e: CancellationException) {
             throw e

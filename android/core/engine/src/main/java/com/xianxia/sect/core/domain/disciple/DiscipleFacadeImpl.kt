@@ -614,7 +614,32 @@ class DiscipleFacadeImpl @Inject constructor(
         discipleSpiritRootColor: String
     ) {
         gameEngineCore.launchInScope {
+            // 释放旧槽位（自动移除前职务，允许弟子担任新职务）
+            var oldOccupantId = ""
             stateStore.update {
+                val id = discipleId.toIntOrNull()
+                if (id != null && id in discipleTables.ids) {
+                    gameData = discipleSlotCleanup.clearAllSlots(gameData, discipleId)
+                }
+                // 覆写前捕获目标槽旧 occupant（槽位扩容前的原始列表）
+                val slots = gameData.elderSlots
+                oldOccupantId = when (elderSlotType) {
+                    SLOT_TYPE_HERB_GARDEN ->
+                        slots.herbGardenDisciples.getOrNull(slotIndex)?.discipleId.orEmpty()
+                    SLOT_TYPE_ALCHEMY ->
+                        slots.alchemyDisciples.getOrNull(slotIndex)?.discipleId.orEmpty()
+                    SLOT_TYPE_FORGE ->
+                        slots.forgeDisciples.getOrNull(slotIndex)?.discipleId.orEmpty()
+                    SLOT_TYPE_PREACHING ->
+                        slots.preachingMasters.getOrNull(slotIndex)?.discipleId.orEmpty()
+                    SLOT_TYPE_LAW_ENFORCEMENT ->
+                        slots.lawEnforcementDisciples.getOrNull(slotIndex)?.discipleId.orEmpty()
+                    SLOT_TYPE_QINGYUN ->
+                        slots.qingyunPreachingMasters.getOrNull(slotIndex)?.discipleId.orEmpty()
+                    SLOT_TYPE_SPIRIT_MINE_DEACON ->
+                        slots.spiritMineDeaconDisciples.getOrNull(slotIndex)?.discipleId.orEmpty()
+                    else -> ""
+                }
                 val newSlot = DirectDiscipleSlot(
                     index = slotIndex,
                     discipleId = discipleId,
@@ -623,7 +648,6 @@ class DiscipleFacadeImpl @Inject constructor(
                     discipleSpiritRootColor = discipleSpiritRootColor,
                     sectId = gameData.activeSectId
                 )
-                val slots = gameData.elderSlots
                 val updatedSlots = when (elderSlotType) {
                     SLOT_TYPE_HERB_GARDEN -> {
                         val list = slots.herbGardenDisciples.toMutableList()
@@ -677,6 +701,12 @@ class DiscipleFacadeImpl @Inject constructor(
                 slotId = "elder_${elderSlotType}_$slotIndex"
             )
             assignmentGate.confirmAssign(discipleId, slotRef)
+            // 换人后释放并同步旧 occupant（回归：此前从不 release/sync，
+            // 旧弟子 gate 注册残留 + 状态残留从选择弹窗消失）
+            if (oldOccupantId.isNotEmpty() && oldOccupantId != discipleId) {
+                assignmentGate.release(oldOccupantId)
+                discipleService.syncSingleDiscipleStatus(oldOccupantId)
+            }
             discipleService.syncSingleDiscipleStatus(discipleId)
         }
     }

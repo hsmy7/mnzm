@@ -156,6 +156,9 @@ class SpiritMineViewModel @Inject constructor(
 
                     if (oldDiscipleId.isNotEmpty()) {
                         gameEngine.updateDiscipleStatus(oldDiscipleId, DiscipleStatus.IDLE)
+                        // 回归：被更换的旧矿工 gate 注册残留，从可用列表"消失"
+                        gameEngine.releaseDiscipleAssignment(oldDiscipleId)
+                        gameEngine.syncSingleDiscipleStatus(oldDiscipleId)
                     }
                     gameEngine.confirmAssignDisciple(newDiscipleId, targetSlot)
                     gameEngine.updateDiscipleStatus(newDiscipleId, DiscipleStatus.MINING)

@@ -5,6 +5,7 @@ import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
+import com.xianxia.sect.core.state.MutableGameState
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -220,6 +221,8 @@ suspend fun GameEngine.assignPatrolAtomic(
             discipleId,
             SlotRef(SlotCategory.PATROL_SLOT, "patrol", "patrol_$globalIndex")
         )
+        // 双存储同步：清 Room 生产槽 Repository（存档/结算以 Repository 为准）
+        clearDiscipleFromProductionRepository(discipleId)
     }
     try {
         discipleFacade.syncSingleDiscipleStatus(discipleId)
@@ -396,6 +399,9 @@ suspend fun GameEngine.swapPatrolAtomic(
             fromDid, SlotRef(SlotCategory.PATROL_SLOT, "patrol", "patrol_$toGlobalIndex")
         )
     }
+    // 双存储同步：清 Room 生产槽 Repository
+    if (fromDid.isNotEmpty()) clearDiscipleFromProductionRepository(fromDid)
+    if (toDid.isNotEmpty()) clearDiscipleFromProductionRepository(toDid)
     try {
         discipleFacade.syncAllDiscipleStatuses()
     } catch (e: CancellationException) {
@@ -552,6 +558,8 @@ suspend fun GameEngine.autoAssignPatrolAtomic(
     for ((did, slotRef) in pendingConfirms) {
         assignmentGate.confirmAssign(did, slotRef)
     }
+    // 双存储同步：清 Room 生产槽 Repository（新分配的弟子可能曾为生产工人）
+    pendingConfirms.map { it.first }.forEach { clearDiscipleFromProductionRepository(it) }
     try {
         discipleFacade.syncAllDiscipleStatuses()
     } catch (e: CancellationException) {
@@ -559,6 +567,61 @@ suspend fun GameEngine.autoAssignPatrolAtomic(
     } catch (e: Exception) {
         DomainLog.w("GameEngine", "autoAssignPatrol: syncAllDiscipleStatuses 失败", e)
     }
+    }
+}
+
+/**
+ * 清理弟子在 Room 生产槽 Repository 中的占用（fire-and-forget，引擎线程串行安全）。
+ *
+ * GameData.productionSlots 只是镜像——存档序列化/生产结算/gate 重建均以 Repository
+ * 为准（SaveFacadeImpl/BootSequenceController/自愈）。各分配入口事务内只清镜像，
+ * 事务成功后必须同步清 Repository，否则双槽位可经生产槽复活（回归：H2 审查发现）。
+ */
+internal fun GameEngine.clearDiscipleFromProductionRepository(discipleId: String) {
+    gameEngineCore.launchInScope {
+        try {
+            productionCoordinator.repository.getSlots()
+                .filter { it.assignedDiscipleId == discipleId }
+                .forEach { slot ->
+                    productionCoordinator.repository.updateSlot(
+                        slot.buildingType, slot.slotIndex
+                    ) { s -> s.copy(assignedDiscipleId = null, assignedDiscipleName = "") }
+                }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DomainLog.w("GameEngine", "clearDiscipleFromProductionRepository 失败 id=$discipleId", e)
+        }
+    }
+}
+
+/**
+ * 事务内"释放弟子至 IDLE"：清理 GameData 全部槽位引用 + 状态重置。
+ *
+ * 语义与 [com.xianxia.sect.core.engine.GameEngineDiscipleOps.releaseDiscipleFromAllSlotsAtomic] 一致
+ * （REFINING 视为放弃血炼不返还材料；REFLECTING 视为手动释放思过），但**仅操作 GameData**，
+ * gate 操作由调用方在事务成功后执行（pendingReleases 模式），事务失败时整体回滚、gate 不被触碰。
+ * 住所与工作共存是有意设计，不清理住所槽位（clearAllSlotsDataOnly 默认 includeResidence=false）。
+ * 供 `stateStore.update { releaseDiscipleToIdleInside(this, it) }` 使用。
+ */
+internal fun GameEngine.releaseDiscipleToIdleInside(
+    state: MutableGameState,
+    discipleId: String
+) {
+    val id = discipleId.toIntOrNull() ?: return
+    if (id !in state.discipleTables.ids) return
+    state.gameData = DiscipleSlotCleanup(assignmentGate).clearAllSlotsDataOnly(state.gameData, discipleId)
+    when (state.discipleTables.statuses[id]) {
+        DiscipleStatus.REFLECTING -> {
+            val existingData = state.discipleTables.statusData[id]
+            state.discipleTables.statusData[id] = existingData - setOf("reflectionStartYear", "reflectionEndYear")
+            state.discipleTables.statuses[id] = DiscipleStatus.IDLE
+        }
+        DiscipleStatus.REFINING -> {
+            state.discipleTables.statusData[id] = state.discipleTables.statusData[id] - "buildingId"
+            state.discipleTables.statuses[id] = DiscipleStatus.IDLE
+        }
+        else -> state.discipleTables.statuses[id] = DiscipleStatus.IDLE
     }
 }
 

@@ -14,6 +14,7 @@ import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import kotlinx.coroutines.withContext
@@ -170,31 +171,42 @@ class BuildingFacadeImpl @Inject constructor(
                 slotId = "production_${buildingType}_${slotIndex}"
             )
 
-            // 若目标槽位已有弟子，先释放并恢复为空闲状态
+            // 若目标槽位已有弟子，先释放其 gate 注册（状态 sync 在事务完成后执行，
+            // 此处 GameData 仍含旧槽位，sync 会推导出旧状态造成残留）
             val existingSlot = productionCoordinator.repository.getSlotByIndex(buildingType, slotIndex)
             existingSlot?.assignedDiscipleId?.let { oldDiscipleId ->
                 if (oldDiscipleId.isNotEmpty() && oldDiscipleId != discipleId) {
                     assignmentGate.release(oldDiscipleId)
-                    updateDiscipleStatus(oldDiscipleId, DiscipleStatus.IDLE)
                 }
             }
 
-            // 若该弟子已被分配到其他槽位（门卫注册表中有记录），先释放旧分配
-            if (assignmentGate.isAssigned(discipleId)) {
-                withContext(ioDispatcher.dispatcher) {
-                    productionCoordinator.repository.getSlots()
-                        .filter { it.assignedDiscipleId == discipleId }
-                        .forEach { slot ->
-                            productionCoordinator.repository.updateSlot(slot.buildingType, slot.slotIndex) { s ->
-                                s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
-                            }
+            // 事务内清理 GameData 全部槽位（回归：此前只清 Repository 生产槽，
+            // 巡逻/长老/藏经阁等槽位残留导致同一弟子多槽位），并同步 GameData.productionSlots 镜像
+            stateStore.update {
+                gameData = DiscipleSlotCleanup(assignmentGate)
+                    .clearAllSlotsDataOnly(gameData, discipleId)
+                gameData = gameData.copy(
+                    productionSlots = gameData.productionSlots.map { slot ->
+                        when {
+                            slot.buildingType == buildingType && slot.slotIndex == slotIndex ->
+                                slot.copy(assignedDiscipleId = discipleId, assignedDiscipleName = discipleName)
+                            slot.assignedDiscipleId == discipleId ->
+                                slot.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                            else -> slot
                         }
-                }
-                assignmentGate.release(discipleId)
-                updateDiscipleStatus(discipleId, DiscipleStatus.IDLE)
+                    }
+                )
             }
 
+            // Repository 路径：无条件清该弟子在其他生产槽的占用（不依赖 gate 判定），再写目标槽
             withContext(ioDispatcher.dispatcher) {
+                productionCoordinator.repository.getSlots()
+                    .filter { it.assignedDiscipleId == discipleId }
+                    .forEach { slot ->
+                        productionCoordinator.repository.updateSlot(slot.buildingType, slot.slotIndex) { s ->
+                            s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                        }
+                    }
                 productionCoordinator.repository.updateSlot(buildingType, slotIndex) { slot ->
                     slot.copy(
                         assignedDiscipleId = discipleId,
@@ -203,7 +215,15 @@ class BuildingFacadeImpl @Inject constructor(
                 }
             }
 
+            // 清旧注册再登记新分配（未注册时 release 为空操作，安全）
+            assignmentGate.release(discipleId)
             assignmentGate.confirmAssign(discipleId, targetSlot)
+            // 旧 occupant 状态在事务完成后同步（推导式，此时 GameData 已清旧槽位）
+            existingSlot?.assignedDiscipleId?.let { oldDiscipleId ->
+                if (oldDiscipleId.isNotEmpty() && oldDiscipleId != discipleId) {
+                    discipleStatusService.syncSingleDiscipleStatus(oldDiscipleId)
+                }
+            }
         }
     }
 

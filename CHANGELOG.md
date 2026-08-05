@@ -273,6 +273,19 @@
 - **影响面** — 全部战斗路径（BattleSystem/AISectAttackManager/HeavenlyTrialCombatLogic）统一修正：高境界弟子打低境界目标恢复秒杀（无视护盾），低境界敌人不再反向秒杀玩家高境界弟子
 - **验证** — core:engine（BattleCalculatorCoverageTest/BattleSystemTest）+ app（BattleCalculatorTest）定点全绿 + 全量测试串行回归 0 失败 + detekt（core:domain/core:engine）通过
 
+### 修复（2026-08-05 弟子多槽位互斥根治）
+
+- **根因** — `DiscipleAssignmentGate` 只是"弟子→槽位"登记表（`registerOrUpdate` 无条件覆盖，文档明确"Gate 不阻止分配"），互斥完全依赖各分配入口写槽位前清理旧槽位；但 **8 个分配入口缺失/不完整**，勾选"显示所有弟子"（`filterByDiscipleStatus` showAll 模式露出全部在岗弟子）后可将在岗弟子直接任命到新岗位，旧槽位残留 → 同一弟子同时出现在多个槽位
+- **8 入口全量修复** — ① 亲传弟子七类槽 `assignDirectDisciple`（DiscipleFacadeImpl，事务内 `clearAllSlots` + 旧 occupant release/sync）；② 任务派遣 `startMission`（事务内 `releaseDiscipleToIdleInside` 全员换岗 + gate 清理，删除 fire-and-forget 状态硬写；任务完成不再产生状态/槽位不一致——**用户确认换岗语义**，未接通 IDLE 校验，与"显示所有弟子"自动换岗设计一致）；③ 秘境出发 `startSecretRealmExploration`（事务内释放 4 成员 + 事务外 gate 先清后登记）；④ 世界驻守 `assignGarrisonDisciple`（事务内清理 + 旧 occupant release/sync + 补 syncSingleDiscipleStatus——此前从不 sync）；⑤ 仓库驻守新增 `GameEngineWarehouseOps.assignWarehouseGarrisonAtomic`（ProductionViewModel 删除直写 GameData 路径，委托引擎原子方法）；⑥ 血炼 `startBloodRefinementAtomic`（事务内清理 + Success 后 gate 防御 release，失败整体回滚不残留）；⑦ 生产槽新 API `assignDiscipleToProductionSlot`（事务内清 GameData 全部槽位 + GameData.productionSlots 镜像同步——闭合两套存储分歧 + repo 无条件清旧生产槽 + 硬写状态改推导式）；⑧ 生产槽旧 API `assignDiscipleToBuilding`（事务内清理 + 旧 occupant gate.release + 镜像同步）
+- **共享 helper** — `GameEngine.releaseDiscipleToIdleInside(state, discipleId)`（事务内：clearAllSlotsDataOnly + 按状态重置，REFINING 视为放弃血炼不返还材料，与 UI `releaseDiscipleForReassignment` 契约一致）
+- **stale entry 修复** — 被顶替者 gate 残留 5 处：`assignDirectDisciple` 同槽顶替、`assignGarrisonDisciple`/`assignWarehouseGarrisonAtomic` 旧驻守、`BuildingService` 旧工人、`ElderManagementUseCase.assignElder` 被顶替长老 + 被清空亲传列表、`SpiritMineViewModel.swapSpiritMineDisciple` 旧矿工（release + sync，防从可用列表"消失"）
+- **状态推导缺口修复** — `DiscipleStatusService.buildSlotFlagsFor` inGarrison 补 `warehouseGarrisons`（与 `buildGarrisonIds` 对齐，此前仓库驻守弟子推导为 IDLE 被 UI 显示可用）；`clearSlotsForReset` 补清 patrolSlots/warehouseGarrisons/battleTeams/productionSlots 4 组（重置语义与推导对齐）
+- **读档自愈（用户确认）** — 新增 `GameEngine.healDuplicateSlotAssignments`（GameEngineSelfHealOps）：按 scanAndRegister 顺序扫描双槽位弟子 → 清全部槽位（含住所）→ 按赢家重写回 GameData（血炼赢家缓存进度防灵石/材料损失）→ gate 二次 rebuild；BootSequenceController Step 6.3 挂接，健康存档零副作用；mock 场景入口 try-catch 防御不影响启动
+- **守卫测试 6 件套** — `GameEngineDualSlotGuardTest` 9 用例（驻守/任务/秘境/血炼/仓库/自愈 + 血炼失败回滚不残留 + occupySectRewards 决策留痕注释）、`DiscipleFacadeAssignDirectDiscipleTest` 3 用例、`BuildingFacadeImplAssignProductionSlotTest` 4 用例（真实 ProductionSlotRepository 绕开 Mockito getSlots 同名坑）、`DiscipleStatusServiceTest` 增补 2 用例（仓库驻守推导 GARRISONING）、`SlotCategoryCoverageTest` 新增清单式守卫（全部已知分配入口文件必须引用清理调用）；`FakeAtomicStateStore` 抽取共享（原 GameEngineAtomicAssignTest 私有副本）
+- **途中发现** — `MissionSystem.validateDisciplesForMission`（要求全员 IDLE）全项目无调用方，因换岗语义不接线（引擎清理后冗余）；生产槽 GameData/Repository 两套存储既存分歧已顺带闭合
+- **对抗性审查整改（审查 agent 发现 C1/H1/H2/H3/M1/M2/M4 全修复）** — ① 秘境出发失败路径销毁岗位分配（startSession 返回 Failure 不抛异常、事务照常提交——先校验后清理，移除已成死代码的 IDLE 校验，改存活校验）；② 自愈误清住所（includeResidence 改 false，住所共存设计）；③ 生产槽 Repository 双存储同步（8 个引擎入口事务外 `clearDiscipleFromProductionRepository`——存档/结算/gate 重建以 Repository 为准，防双槽位经生产槽复活）；④ `clearElderSlots`/`clearAllDisciplesFromElderSlots` 补 `recruitingElder`（预存缺口——双槽位可经纳徒长老槽残留）；⑤ `assignElder` 只释放实际清空的那类亲传列表（此前误释全部 7 类仍在岗弟子）；⑥ 生产槽旧 occupant sync 移事务后（消除状态残留）；⑦ 自愈扫描秘境成员（秘境优先为赢家，保留秘境清岗位）
+- **验证** — compileReleaseKotlin + 全量测试串行（1941 engine 用例 0 失败，含新增 C1 失败回滚/住所保留/秘境并存/recruitingElder 4 个守卫用例）+ detekt 全绿
+
 ## [4.0.85] - 2026-08-02
 
 ### 新增（2026-08-02 一键拆除建筑）
