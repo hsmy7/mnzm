@@ -319,6 +319,41 @@ private fun PrivacySummaryContent(
             }
     )
 
+    val leaderboardAnnotatedString = buildAnnotatedString {
+        withStyle(ParagraphStyle(lineHeight = 19.sp)) {
+            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)) {
+                append("TapTap 排行榜模块（v4.10.5）")
+            }
+            append("\n")
+            withStyle(bodyStyle) {
+                append(
+                    "TapTap SDK 的组成部分，仅在您同意本隐私政策并登录 TapTap 后使用，" +
+                        "用于玩家间宗门战斗力排行榜功能。可能收集：TapTap账户标识、游戏成绩（宗门战斗力）。"
+                )
+            }
+            append("\n")
+            pushStringAnnotation(tag = "URL", annotation = TAPTAP_SDK_PRIVACY_URL)
+            withStyle(linkStyle) { append("TapTap SDK隐私政策 >") }
+            pop()
+        }
+    }
+    Text(
+        text = leaderboardAnnotatedString,
+        modifier = Modifier
+            .padding(bottom = 4.dp, start = 8.dp)
+            .pointerInput(leaderboardAnnotatedString) {
+                detectTapGestures { offset ->
+                    leaderboardAnnotatedString
+                        .getStringAnnotations(
+                            tag = "URL",
+                            start = offset.x.toInt(),
+                            end = offset.x.toInt()
+                        )
+                        .firstOrNull()?.let { onTapTapSdkLinkClick() }
+                }
+            }
+    )
+
     val mmkvAnnotatedString = buildAnnotatedString {
         withStyle(ParagraphStyle(lineHeight = 19.sp)) {
             withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)) { append("MMKV（腾讯）") }
@@ -373,7 +408,7 @@ private fun PrivacySummaryContent(
     )
 
     listOf(
-        "提供游戏核心功能：存档管理、TapTap登录、防沉迷合规",
+        "提供游戏核心功能：存档管理、TapTap登录、防沉迷合规、玩家排行榜",
         "广告变现：通过激励视频广告为玩家提供游戏内奖励",
         "保障本地数据安全：加密密钥派生、通信请求签名",
         "数据保护：所有存档数据加密存储在设备本地",

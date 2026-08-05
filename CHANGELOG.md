@@ -210,6 +210,18 @@
 - **修复：战报击杀数未校验** — BattleLogRefRule 增加 beastsDefeated 范围校验（负值/超限条目清理）
 - **修复：事件序号回填破坏单调递增** — 存在任一 0 序号时整体重编号 1..N（原 `[0,0,5]→[6,7,5]` 破坏稳定 key 语义）
 
+### 新增（2026-08-05 TapTap 排行榜——双标签宗门战斗力排行榜）
+
+- **排行榜入口** — 主界面右上角新增"排行"悬浮按钮（第二行末尾，避免第一行 7 按钮在 320dp 老屏溢出），打开排行榜对话框
+- **天下宗门榜（本地）** — 玩家宗门与全部已发现 AI 宗门按战斗力降序实时排名（数据派生自 `sectCombatPower` + `aiSectCombatPowers` + `worldMapSects` join，玩家行高亮「我」标记；同战力按名称升序保证确定性）
+- **玩家排行榜（云端）** — 接入 TapTap 排行榜 SDK `tap-leaderboard-androidx:4.10.5`（与现有 TapTap SDK 4.10.5 同族，无需 LeanCloud/TDSUser）；排行榜 ID `fqrr4yx4ggmx8r504l`（用户开发者中心创建，降序 + 保留最高分）；展示榜单第一页 + "我的排名"卡片（昵称/名次/战力），未登录引导登录、错误重试、空榜提示四态齐全
+- **上报节流** — 打开玩家排行 Tab 时上报 + 每日首次进游戏静默上报；纯函数 `LeaderboardUploadPolicy`（从未上报/跨天/战力变化任一即上报）；上报成功记 SharedPreferences 日期+战力，失败次日重试不阻塞游戏
+- **登录桥接** — 新增 `TapTapLoginBridge` 接口（feature:game 定义）+ app 模块 `TapTapLoginBridgeImpl`（Hilt BridgeBindingsModule 绑定），复用 TapTapAuthManager 登录链路；排行榜内"去登录"按钮经 Compose LocalContext 取 Activity 拉起授权
+- **SDK 签名验证** — 反编译 tap-leaderboard-androidx:4.10.5 验证全部 API 签名（`submitScores`/`loadLeaderboardScores`/`loadCurrentPlayerLeaderboardScore`，回调 `ITapTapLeaderboardResponseCallback`，错误码 500000/500001/500102 等），签名适配收敛于 `TapTapLeaderboardApi` 单文件
+- **错误码映射** — 500102 未登录 → 登录引导；500001 排行榜不存在 / 500000 周期结束 / 其余 → 可展示错误文案；全部 SDK 调用 try/catch 兜底，业务永不因 SDK 崩溃（与 TapCloudSaveManager 同策略）
+- **测试** — 新增 4 个测试类（LocalLeaderboardComposerTest 8 例 / LeaderboardUploadPolicyTest 7 例 / LeaderboardManagerTest 14 例 / LeaderboardViewModelTest 11 例），GameViewModelTest 与 DialogTypeRenderCoverageTest 同步维护
+- **隐私合规** — PrivacyConsentScreen 与 docs/index.html 新增 TapTap 排行榜模块（tap-leaderboard-androidx）SDK 声明；游戏内更新日志同步新增排行榜条目
+
 ## [4.0.85] - 2026-08-02
 
 ### 新增（2026-08-02 一键拆除建筑）

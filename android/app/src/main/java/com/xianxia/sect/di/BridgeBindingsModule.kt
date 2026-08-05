@@ -4,6 +4,10 @@ import com.xianxia.sect.core.engine.service.AdService
 import com.xianxia.sect.core.repository.*
 import com.xianxia.sect.data.local.*
 import com.xianxia.sect.taptap.AdServiceImpl
+import com.xianxia.sect.taptap.LeaderboardCloudApi
+import com.xianxia.sect.taptap.TapTapLeaderboardApi
+import com.xianxia.sect.taptap.TapTapLoginBridge
+import com.xianxia.sect.taptap.TapTapLoginBridgeImpl
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -43,4 +47,12 @@ object BridgeBindingsModule {
     // Service bindings
     @Provides @Singleton
     fun provideAdService(impl: AdServiceImpl): AdService = impl
+
+    // TapTap 登录桥（排行榜云端功能使用）
+    @Provides @Singleton
+    fun provideTapTapLoginBridge(impl: TapTapLoginBridgeImpl): TapTapLoginBridge = impl
+
+    // 排行榜云端 API（tap-leaderboard SDK 实现）
+    @Provides @Singleton
+    fun provideLeaderboardCloudApi(impl: TapTapLeaderboardApi): LeaderboardCloudApi = impl
 }

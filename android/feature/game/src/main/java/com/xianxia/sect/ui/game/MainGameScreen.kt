@@ -18,6 +18,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.xianxia.sect.ui.game.leaderboard.LeaderboardViewModel
 import androidx.compose.ui.graphics.Color
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.asImageBitmap
@@ -318,6 +320,13 @@ fun MainGameScreen(
                 demolishSelectedIds = emptySet()
             }
         }
+    }
+
+    // 每日首次进游戏静默上报排行榜战力（节流+未登录自动跳过，不阻塞启动；
+    // 打开排行榜界面时另有上报入口）。LeaderboardViewModel 与排行榜对话框共用同一实例。
+    val leaderboardViewModel = hiltViewModel<LeaderboardViewModel>()
+    LaunchedEffect(Unit) {
+        leaderboardViewModel.reportDailyIfDue()
     }
 
     // 相机视口更新 + 初始居中（只执行一次）

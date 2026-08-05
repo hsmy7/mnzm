@@ -19,12 +19,14 @@ import com.xianxia.sect.ui.game.dialogs.ActivityDialog
 import com.xianxia.sect.ui.game.dialogs.BattleLogListDialog
 import com.xianxia.sect.ui.game.dialogs.DiplomacyDialog
 import com.xianxia.sect.ui.game.dialogs.GuideDialog
+import com.xianxia.sect.ui.game.dialogs.LeaderboardDialog
 import com.xianxia.sect.ui.game.dialogs.LizhanDialog
 import com.xianxia.sect.ui.game.dialogs.MailDialog
 import com.xianxia.sect.ui.game.dialogs.MerchantDialog
 import com.xianxia.sect.ui.game.dialogs.PlantingDialog
 import com.xianxia.sect.ui.game.dialogs.RecruitDialog
 import com.xianxia.sect.ui.game.dialogs.WorldMapDialog
+import com.xianxia.sect.ui.game.leaderboard.LeaderboardViewModel
 
 /**
  * 玩法/系统功能类对话框路由（E1 拆分：Recruit/Guide/Diplomacy/Planting/Merchant/
@@ -48,6 +50,7 @@ internal fun DialogType.renderFeatureRoutes(
         DialogType.Mail -> renderMail(viewModel, onDismiss)
         DialogType.Activity -> renderActivity(viewModel, onDismiss)
         DialogType.Lizhan -> renderLizhan(viewModel, onDismiss)
+        DialogType.Leaderboard -> renderLeaderboard(onDismiss)
         else -> Unit
     }
 }
@@ -170,6 +173,15 @@ private fun renderActivity(viewModel: GameViewModel, onDismiss: () -> Unit) {
 private fun renderLizhan(viewModel: GameViewModel, onDismiss: () -> Unit) {
     LizhanDialog(
         viewModel = viewModel,
+        onDismiss = onDismiss
+    )
+}
+
+@Composable
+private fun renderLeaderboard(onDismiss: () -> Unit) {
+    val leaderboardViewModel = hiltViewModel<LeaderboardViewModel>()
+    LeaderboardDialog(
+        viewModel = leaderboardViewModel,
         onDismiss = onDismiss
     )
 }

@@ -49,6 +49,9 @@ sealed interface DialogType {
     /** 历战（活动卡片轮转入口） */
     data object Lizhan : DialogType
 
+    /** 排行榜（双标签：天下宗门本地榜 + 玩家排行云端榜） */
+    data object Leaderboard : DialogType
+
     /** 灵田种植 */
     data object Planting : DialogType
 

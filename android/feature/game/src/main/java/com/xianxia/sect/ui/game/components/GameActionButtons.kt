@@ -82,6 +82,11 @@ fun GameActionButtons(
             text = "种植",
             spriteName = "ui_planting_button"
         ) { viewModel.navigateToDialog(DialogType.Planting) }
+        // 排行榜入口（放第二行末尾避免第一行 7 按钮在 320dp 老屏溢出）
+        FloatingActionButton(
+            text = "排行",
+            spriteName = "ui_lizhan_button"
+        ) { viewModel.navigateToDialog(DialogType.Leaderboard) }
     }
 }
 
