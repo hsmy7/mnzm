@@ -161,6 +161,15 @@ class StorageFacade @Inject constructor(
             // 接线 SaveFileManager 双缓冲备份（.sav/.bak）——此前从未初始化，
             // 所有备份写入/恢复路径为死代码（2026-08-04 存档恢复链路修复）
             saveFileManager.initialize(context.filesDir)
+            // D21（2026-08-05）：启动时清理崩溃遗留 .tmp 文件（此前无生产调用点，
+            // 每次写中途崩溃残留一个 .tmp 累积占盘）+ 清理孤儿 .bak（修正语义后
+            // .sav 永不清——它是 DB 损坏时的恢复点）
+            try {
+                saveFileManager.cleanupOrphanedTmp()
+                saveFileManager.cleanExpiredBackups()
+            } catch (e: Exception) {
+                Log.w(TAG, "启动清理备份目录失败（非阻断）", e)
+            }
 
             // Database integrity check: verify the database can be read.
             // If Room schema validation fails (e.g., FK mismatch on orphaned sub-tables),

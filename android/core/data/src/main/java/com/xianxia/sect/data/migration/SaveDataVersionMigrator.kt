@@ -19,8 +19,20 @@ import com.xianxia.sect.data.model.SaveData
 object SaveDataVersionMigrator {
     private const val TAG = "SaveDataVersionMigrator"
 
-    /** 当前存档数据版本号（迁移链终点） */
-    const val CURRENT_SAVE_VERSION = 2
+    /** 当前存档数据版本号（迁移链终点），与 domain 层 [SaveVersion] 保持一致 */
+    const val CURRENT_SAVE_VERSION = com.xianxia.sect.core.model.SaveVersion.CURRENT
+
+    /**
+     * v4.0.13（2026-06-20）发布时刻——v0→1 ÷10 缩放迁移的引入版本。
+     *
+     * 用于识别"误标新档"：v4.0.13 之后创建的新档本应使用新基准数值
+     * （无需缩放），但 [com.xianxia.sect.core.state.GameEngineCoordination]
+     * 的 createNewGame/restartGameInternal 长期未盖章 saveVersion，
+     * 新档恒以 0 落库，首次读档被 v0→1 误 ÷10（2026-08-05 修复前缺陷）。
+     * 以 lastSaveTime 与该时刻比较可区分"v4.0.13 前真旧档"（需缩放）与
+     * "v4.0.13 后误标新档"（不缩放）。
+     */
+    const val V4_0_13_RELEASE_EPOCH_MS = 1781913600000L
 
     /**
      * 顺序迁移旧版存档数据至当前版本；已是当前版本（saveVersion >= [CURRENT_SAVE_VERSION]）
@@ -54,22 +66,33 @@ object SaveDataVersionMigrator {
         // ── Migration v0→1: cultivation scaling ──
         if (currentGd.saveVersion < 1) {
             val scaleFactor = 10.0
-            Log.i(
-                TAG,
-                "Migrating save data v0→1: scaling cultivation by 1/$scaleFactor (slot ${gd.slotId})"
-            )
-
-            currentGd = currentGd.copy(
-                sectCultivation = currentGd.sectCultivation / scaleFactor,
-                saveVersion = 1,
-                recruitList = currentGd.recruitList.map { d -> d.scaleCultivation(scaleFactor) },
-                aiSectDisciples = currentGd.aiSectDisciples.mapValues { (_, list) ->
-                    list.map { d -> d.scaleCultivation(scaleFactor) }
-                }
-            )
-            currentDisciples = currentDisciples.map { it.scaleCultivation(scaleFactor) }
-
-            Log.i(TAG, "Migration v0→1 complete: ${currentDisciples.size} disciples scaled")
+            // 2026-08-05 修复：v4.0.13 后创建的新档长期未盖章 saveVersion，
+            // 被 v0→1 误 ÷10（系统性损失 90% 修炼进度）。按 lastSaveTime
+            // 时间边界区分真旧档（需缩放）与误标新档（不缩放），单向安全：
+            // 宁可保留偏大数值，不可再损 90%。
+            if (isLikelyMislabeledNewSave(currentGd)) {
+                Log.w(
+                    TAG,
+                    "saveVersion=0 但 lastSaveTime=${currentGd.lastSaveTime} " +
+                        "≥ v4.0.13 发布时刻，判定为误标新档，跳过 ÷10 缩放 " +
+                        "(slot ${gd.slotId})"
+                )
+            } else {
+                Log.i(
+                    TAG,
+                    "Migrating save data v0→1: scaling cultivation by 1/$scaleFactor (slot ${gd.slotId})"
+                )
+                currentGd = currentGd.copy(
+                    sectCultivation = currentGd.sectCultivation / scaleFactor,
+                    recruitList = currentGd.recruitList.map { d -> d.scaleCultivation(scaleFactor) },
+                    aiSectDisciples = currentGd.aiSectDisciples.mapValues { (_, list) ->
+                        list.map { d -> d.scaleCultivation(scaleFactor) }
+                    }
+                )
+                currentDisciples = currentDisciples.map { it.scaleCultivation(scaleFactor) }
+                Log.i(TAG, "Migration v0→1 complete: ${currentDisciples.size} disciples scaled")
+            }
+            currentGd = currentGd.copy(saveVersion = 1)
         }
 
         // ── Migration v1→2: set all sectRelations to acquainted ──
@@ -93,6 +116,23 @@ object SaveDataVersionMigrator {
                 disciples = currentDisciples
             )
         )
+    }
+
+    /**
+     * 判定 saveVersion=0 的存档是否为"误标新档"——v4.0.13 之后创建、
+     * 以新基准数值运行、因盖章缺失被误标为旧版本的新档。
+     *
+     * 判定规则（单向安全：宁可保留偏大数值，不可误缩放损失 90%）：
+     * - lastSaveTime == 0（远古/从未保存/损坏档）→ 判定为误标（不缩放）
+     * - lastSaveTime >= [V4_0_13_RELEASE_EPOCH_MS]（v4.0.13 发布后保存过）
+     *   → 判定为误标（不缩放）
+     * - 其余（v4.0.13 发布前保存）→ 真旧档，需执行 ÷10 缩放
+     *
+     * @param gameData 待判定的存档数据（saveVersion 必须为 0）
+     */
+    fun isLikelyMislabeledNewSave(gameData: com.xianxia.sect.core.model.GameData): Boolean {
+        if (gameData.lastSaveTime == 0L) return true
+        return gameData.lastSaveTime >= V4_0_13_RELEASE_EPOCH_MS
     }
 
     /**

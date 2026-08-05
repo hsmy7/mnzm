@@ -36,10 +36,12 @@ class SaveDataVersionMigratorTest {
     }
 
     @Test
-    fun `migrate - saveVersion 0 - scales cultivation to one tenth and advances to v2`() {
+    fun `migrate - saveVersion 0 before v4_0_13 - scales cultivation to one tenth and advances to v2`() {
         val gd = GameData(
             sectName = "测试宗",
             saveVersion = 0,
+            // 真旧档：v4.0.13 发布前保存过 → 需 ÷10 缩放
+            lastSaveTime = SaveDataVersionMigrator.V4_0_13_RELEASE_EPOCH_MS - 1,
             sectCultivation = 100.0,
             recruitList = listOf(
                 Disciple(cultivation = 200.0, combat = CombatAttributes(totalCultivation = 201L))
@@ -67,6 +69,48 @@ class SaveDataVersionMigratorTest {
         assertEquals("招募列表战力向上取整", ceil(201.0 / 10).toLong(), migrated.gameData.recruitList[0].combat.totalCultivation)
         assertEquals("AI 弟子修炼值缩放", 30.0, migrated.gameData.aiSectDisciples["sect1"]!![0].cultivation, 0.001)
         assertEquals("sectRelations 升级为 acquainted", true, migrated.gameData.sectRelations[0].acquainted)
+    }
+
+    @Test
+    fun `migrate - saveVersion 0 after v4_0_13 - mislabeled new save not scaled`() {
+        // A1 修复（2026-08-05）：v4.0.13 后创建的新档未盖章（saveVersion=0），
+        // 按 lastSaveTime 时间边界判定为误标新档——不 ÷10，仅盖章 + v1→2
+        val gd = GameData(
+            sectName = "测试宗",
+            saveVersion = 0,
+            lastSaveTime = SaveDataVersionMigrator.V4_0_13_RELEASE_EPOCH_MS + 86400000L,
+            sectCultivation = 100.0,
+            recruitList = listOf(
+                Disciple(cultivation = 200.0, combat = CombatAttributes(totalCultivation = 201L))
+            ),
+            sectRelations = listOf(SectRelation(sectId1 = "a", sectId2 = "b", acquainted = false))
+        )
+        val disciples = listOf(
+            Disciple(cultivation = 400.0, combat = CombatAttributes(totalCultivation = 401L))
+        )
+
+        val result = SaveDataVersionMigrator.migrate(baseSaveData(gd, disciples))
+        assertTrue(result is MigrationResult.Migrated)
+        val migrated = (result as MigrationResult.Migrated).data
+
+        assertEquals("迁移到 v2", SaveDataVersionMigrator.CURRENT_SAVE_VERSION, migrated.gameData.saveVersion)
+        assertEquals("误标新档不缩放宗门修炼值", 100.0, migrated.gameData.sectCultivation, 0.001)
+        assertEquals("误标新档不缩放弟子修炼值", 400.0, migrated.disciples[0].cultivation, 0.001)
+        assertEquals("误标新档不改战力", 401L, migrated.disciples[0].combat.totalCultivation)
+        assertEquals("误标新档不缩放招募列表", 200.0, migrated.gameData.recruitList[0].cultivation, 0.001)
+        assertEquals("sectRelations 仍升级为 acquainted", true, migrated.gameData.sectRelations[0].acquainted)
+    }
+
+    @Test
+    fun `migrate - saveVersion 0 lastSaveTime 0 - conservative no scaling`() {
+        // A1 修复：lastSaveTime=0（远古/从未保存/损坏档）保守判定为误标——
+        // 单向安全：宁可保留偏大数值，不可误缩放损失 90%
+        val gd = GameData(sectName = "测试宗", saveVersion = 0, sectCultivation = 50.0)
+        val result = SaveDataVersionMigrator.migrate(baseSaveData(gd))
+        assertTrue(result is MigrationResult.Migrated)
+        val migrated = (result as MigrationResult.Migrated).data
+        assertEquals("迁移到 v2", SaveDataVersionMigrator.CURRENT_SAVE_VERSION, migrated.gameData.saveVersion)
+        assertEquals("lastSaveTime=0 不缩放", 50.0, migrated.gameData.sectCultivation, 0.001)
     }
 
     @Test

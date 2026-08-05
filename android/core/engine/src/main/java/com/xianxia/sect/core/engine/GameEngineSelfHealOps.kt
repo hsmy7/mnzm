@@ -28,9 +28,9 @@ private const val SECRET_REALM_SLOT_TYPE = "secret_realm"
  * rebuildFromGameData 之后调用，随后二次 rebuild 使注册表与自愈后数据一致。
  */
 @Suppress("TooGenericExceptionCaught")
-fun GameEngine.healDuplicateSlotAssignments() {
+fun GameEngine.healDuplicateSlotAssignments(): kotlinx.coroutines.Job? {
     try {
-        gameEngineCore.launchInScope {
+        return gameEngineCore.launchInScope {
             try {
                 val winners = mutableMapOf<String, SlotWinner>()
                 val counts = mutableMapOf<String, Int>()
@@ -80,6 +80,7 @@ fun GameEngine.healDuplicateSlotAssignments() {
         // 防御：BootSequenceController 在 mock GameEngine 上调用时 gameEngineCore 为 null，
         // 自愈不应影响启动流程
         DomainLog.e("GameEngine", "healDuplicateSlotAssignments 入口失败", e)
+        return null
     }
 }
 
@@ -271,7 +272,9 @@ private fun rewriteBattleTeamWinner(data: GameData, winner: SlotWinner, name: St
             if (team.id == winner.slotType) {
                 team.copy(slots = team.slots.map { slot ->
                     if (slot.index == winner.slotIndex) {
-                        slot.copy(discipleId = winner.discipleId, discipleName = name, isAlive = true)
+                        // D23（2026-08-05）：不再强制 isAlive=true——赢家若是
+                        // 已死弟子，此前会被"复活"进战斗队伍槽位
+                        slot.copy(discipleId = winner.discipleId, discipleName = name)
                     } else slot
                 })
             } else team

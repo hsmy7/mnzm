@@ -407,7 +407,6 @@ class MainActivity : ComponentActivity() {
     internal fun showSaveSelectScreen(mode: SaveSelectMode = SaveSelectMode.LOAD_SAVE) {
         lifecycleScope.launch {
             val saveSlots = loadSaveSlotsForSelect()
-            migrateLegacyAutoSave(saveSlots)
             val cloudInfo = queryCloudSaveInfo()
             renderSaveSelectScreen(mode, saveSlots, cloudInfo)
         }
@@ -507,29 +506,6 @@ class MainActivity : ComponentActivity() {
                 tapCloudSaveManager.checkCloudSave()
             } catch (_: Exception) {
                 null
-            }
-        }
-    }
-
-    /** 迁移旧自动存档数据（slot 0）到第一个空槽位 */
-    private suspend fun migrateLegacyAutoSave(saveSlots: List<SaveSlot>) {
-        withContext(ioDispatcher.dispatcher) {
-            try {
-                val legacyData = storageFacade.load(0).getOrNull()
-                if (legacyData != null) {
-                    // 找第一个空槽
-                    val emptySlot = saveSlots.firstOrNull { it.isEmpty }?.slot
-                    if (emptySlot != null) {
-                        storageFacade.setCurrentSlot(emptySlot)
-                        storageFacade.save(emptySlot, legacyData)
-                        storageFacade.forceDeleteSlotData(0)
-                        Log.i(TAG, "Migrated legacy auto-save data to slot $emptySlot")
-                    } else {
-                        Log.w(TAG, "No empty slot found, keeping legacy auto-save in slot 0")
-                    }
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "Legacy auto-save migration failed", e)
             }
         }
     }

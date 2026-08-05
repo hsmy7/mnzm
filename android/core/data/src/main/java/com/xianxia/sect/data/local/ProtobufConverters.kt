@@ -460,7 +460,7 @@ object ProtobufConverters {
         val serializer = ListSerializer(Disciple.serializer())
         val result = mutableListOf<Disciple>()
         val relevant = rows.filter { it.dataKey.startsWith("$keyPrefix/") }
-            .sortedBy { it.dataKey }
+            .sortedBy { chunkIndexOrMax(it.dataKey, keyPrefix) }
         for (row in relevant) {
             result.addAll(decodeFromBlobInternal(serializer, row.dataValue) { emptyList() })
         }
@@ -491,11 +491,24 @@ object ProtobufConverters {
         val serializer = ListSerializer(WorldSect.serializer())
         val result = mutableListOf<WorldSect>()
         val relevant = rows.filter { it.dataKey.startsWith("$keyPrefix/") }
-            .sortedBy { it.dataKey }
+            .sortedBy { chunkIndexOrMax(it.dataKey, keyPrefix) }
         for (row in relevant) {
             result.addAll(decodeFromBlobInternal(serializer, row.dataValue) { emptyList() })
         }
         return result
+    }
+
+    /**
+     * 从分块 key 解析数值序号，用于分块排序。
+     *
+     * 2026-08-05 修复（A2）：此前按 dataKey 字典序排序——"recruitList/10" <
+     * "recruitList/2"，超过 10 块（recruitList >1000 / worldMapSects >500）时
+     * 块序错乱、静默乱序。现按数值序号排序：非数值后缀（溢出分块
+     * `_overflow`/残留脏 key）排最后，保证解析失败不崩溃且旧 key 格式兼容。
+     */
+    private fun chunkIndexOrMax(dataKey: String, keyPrefix: String): Int {
+        val id = GameHeavyData.parseChunkKey(dataKey, keyPrefix) ?: return Int.MAX_VALUE
+        return id.toIntOrNull() ?: Int.MAX_VALUE
     }
 
     // ═══════════════════════════════════════════════════════════

@@ -274,7 +274,14 @@ class SaveFileManager @Inject constructor(
         }
     }
 
-    /** 清理过期备份文件（超过保留天数） */
+    /**
+     * 清理孤儿备份文件（D21，2026-08-05 语义修正）。
+     *
+     * 原实现删除"超过保留期"的所有 .sav/.bak——长期未开游戏的玩家 .sav
+     * 恢复点被删（DB 损坏时失去唯一恢复能力，7 天不玩即丢档）。修正为只清理：
+     * - 超过保留期的孤儿 .bak（对应 .sav 已不存在——主档已丢的废弃备份）
+     * .sav 本身永不清理（它是 DB 损坏时的恢复点）
+     */
     fun cleanExpiredBackups() {
         ensureInitialized()
         val now = System.currentTimeMillis()
@@ -282,12 +289,15 @@ class SaveFileManager @Inject constructor(
         val files = backupDir.listFiles() ?: return
         var cleanedCount = 0
         for (file in files) {
-            if ((file.name.endsWith(".bak") || file.name.endsWith(".sav")) && file.lastModified() < cutoff) {
-                if (file.delete()) cleanedCount++ else Log.w(TAG, "删除过期 .bak 失败: ${file.name}")
+            val isOrphanBak = file.name.endsWith(".bak") &&
+                file.lastModified() < cutoff &&
+                !File(file.absolutePath.removeSuffix(".bak") + ".sav").exists()
+            if (isOrphanBak) {
+                if (file.delete()) cleanedCount++ else Log.w(TAG, "删除孤儿 .bak 失败: ${file.name}")
             }
         }
         if (cleanedCount > 0) {
-            Log.i(TAG, "清理了 $cleanedCount 个过期 .bak 文件")
+            Log.i(TAG, "清理了 $cleanedCount 个孤儿 .bak 文件")
         }
     }
 
@@ -298,6 +308,40 @@ class SaveFileManager @Inject constructor(
         getBakFile(slot).delete()
         getTmpFile(slot).delete()
     }
+
+    // ═══════════════════════════════════════════════════════════
+    // A5（2026-08-05）：槽位删除 tombstone——跨 DB/文件原子删除
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * 标记槽位已删除（写 tombstone 文件）。
+     *
+     * A5：delete() 跨 DB 与 .sav/.bak 非原子——DB 删除提交后、文件删除前崩溃
+     * 会留下"DB 空、文件在"的窗口，下次 load 从备份复活已删存档。tombstone
+     * 使两个崩溃窗口都收敛为"已删"语义：load 见到 tombstone 即返回空档。
+     */
+    fun markSlotDeleted(slot: Int) {
+        ensureInitialized()
+        try {
+            getTombstoneFile(slot).writeText(System.currentTimeMillis().toString())
+        } catch (e: Exception) {
+            Log.w(TAG, "写删除 tombstone 失败 slot=$slot", e)
+        }
+    }
+
+    /** 槽位是否处于"已删除"状态（tombstone 存在） */
+    fun isSlotDeleted(slot: Int): Boolean {
+        if (!::backupDir.isInitialized) return false
+        return getTombstoneFile(slot).exists()
+    }
+
+    /** 清除删除 tombstone（删除流程完整完成后调用） */
+    fun clearSlotDeleted(slot: Int) {
+        if (!::backupDir.isInitialized) return
+        getTombstoneFile(slot).delete()
+    }
+
+    private fun getTombstoneFile(slot: Int): File = File(backupDir, "slot_${slot}.deleted")
 
     // ============================================================
     // 信息查询

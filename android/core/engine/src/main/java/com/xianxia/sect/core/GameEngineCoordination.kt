@@ -154,15 +154,30 @@ private suspend fun GameEngine.regenerateAllWorldSects(sectName: String) {
     DomainLog.w("ensureGameDataIntegrity",
         "从 FixedSectPositions 重生 worldMapSects (sectName=$sectName)")
     val generationResult = WorldMapGenerator.generateWorldSects(sectName)
-    val sectRelations = WorldMapGenerator.initializeSectRelations(generationResult.sects)
+    val newRelations = WorldMapGenerator.initializeSectRelations(generationResult.sects)
     stateStore.update {
+        // D26（2026-08-05）合并式重生：sectRelations 按 sectId 合并保留存量——
+        // 此前整体替换重置外交关系（结盟/附庸/敌对清空）；重生触发原因若是
+        // 重型数据写入中断（非真损坏），玩家外交进度被静默抹除。新宗门 id
+        // 无旧关系，用初始关系补齐
+        val oldByKey = gameData.sectRelations.associateBy { relationKey(it) }
+        val mergedRelations = newRelations.map { newRel ->
+            oldByKey[relationKey(newRel)] ?: newRel
+        }
         gameData = gameData.copy(
             worldMapSects = generationResult.sects,
-            sectRelations = sectRelations,
+            sectRelations = mergedRelations,
             aiSectDisciples = if (gameData.aiSectDisciples.isEmpty())
                 generationResult.aiSectDisciples else gameData.aiSectDisciples
         )
     }
+}
+
+/** D26：SectRelation 键（按 sectId1/sectId2 无序组合——关系是双向的） */
+private fun relationKey(rel: com.xianxia.sect.core.model.SectRelation): String {
+    val a = rel.sectId1
+    val b = rel.sectId2
+    return if (a <= b) "$a|$b" else "$b|$a"
 }
 
 private suspend fun GameEngine.checkAndRepairAiSectDisciples() {
@@ -405,6 +420,9 @@ suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
                 slotId = currentSlot,
                 currentSlot = currentSlot,
                 mapSeed = mapSeed,
+                // 2026-08-05 修复：新档必须盖章当前存档版本——此前不盖章，
+                // 新档恒以 saveVersion=0 落库，首次读档被 v0→1 迁移误 ÷10
+                saveVersion = SaveVersion.CURRENT,
                 placedBuildings = listOf(initialMine),
                 spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") },
                 spiritMineLastSettledMonth = 1 * 12 + 1,  // gameYear=1, gameMonth=1
@@ -448,6 +466,8 @@ private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot
                     slotId = currentSlot,
                     currentSlot = currentSlot,
                     mapSeed = mapSeed,
+                    // 2026-08-05 修复：新档盖章当前存档版本（同 createNewGame）
+                    saveVersion = SaveVersion.CURRENT,
                     placedBuildings = listOf(initialMine),
                     spiritMineSlots = (0..2).map { SpiritMineSlot(index = it, sectId = "") },
                 spiritMineLastSettledMonth = 1 * 12 + 1,  // gameYear=1, gameMonth=1
@@ -469,7 +489,13 @@ private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot
             // after startGameLoop() succeeds
             try { mailService.resetAndInitSlot(currentSlot) } catch (e: Exception) { DomainLog.e("GameEngine", "Failed to init mail for restarted game slot $currentSlot", e) }
         } else {
-            stateStore.update { gameData = GameData().copy(currentSlot = currentSlot, mapSeed = mapSeed) }
+            stateStore.update {
+                gameData = GameData().copy(
+                    currentSlot = currentSlot,
+                    mapSeed = mapSeed,
+                    saveVersion = SaveVersion.CURRENT
+                )
+            }
         }
     }
 }

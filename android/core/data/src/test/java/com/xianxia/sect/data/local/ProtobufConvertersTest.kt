@@ -1,6 +1,8 @@
 package com.xianxia.sect.data.local
 
+import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameHeavyData
+import kotlinx.coroutines.test.runTest
 import net.jpountz.lz4.LZ4Factory
 import org.junit.Assert.*
 import org.junit.Test
@@ -173,5 +175,69 @@ class ProtobufConvertersTest {
         // 无论如何不能 OOM
         assertTrue("non-LZ4 data with 0x01 prefix should not OOM",
             result["k"].isNullOrEmpty())
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // A2（2026-08-05）：重型分块数值排序——超过 10 块时字典序错乱
+    // ═══════════════════════════════════════════════════════════
+
+    @Test
+    fun `decodeDiscipleListFromRows - 11 chunks reversed order - decodes in index order`() = runTest {
+        // 11 块（index 0..10）模拟 recruitList >1000 条：旧实现按字典序排序，
+        // "recruitList/10" < "recruitList/2" 导致块序错乱
+        val disciples = (0 until 110).map { Disciple(name = "d$it", cultivation = it.toDouble()) }
+        val rows = mutableListOf<GameHeavyData>()
+        ProtobufConverters.encodeDiscipleListIncremental(
+            disciples, 1, "test/recruitList"
+        ) { rows.addAll(it) }
+
+        // 反转块顺序模拟 DB 无序返回 + 字典序陷阱
+        val decoded = ProtobufConverters.decodeDiscipleListFromRows(
+            rows.reversed(), "test/recruitList"
+        )
+
+        assertEquals("110 名弟子全部解码", 110, decoded.size)
+        assertEquals("首块仍为 index 0", "d0", decoded.first().name)
+        assertEquals("末块为 index 10（字典序陷阱下此断言失败）", "d109", decoded.last().name)
+        assertEquals("块内顺序保持", "d99", decoded[99].name)
+    }
+
+    @Test
+    fun `decodeDiscipleListFromRows - non numeric suffix keys sort last and do not crash`() = runTest {
+        val disciples = (0 until 5).map { Disciple(name = "d$it", cultivation = it.toDouble()) }
+        val rows = mutableListOf<GameHeavyData>()
+        ProtobufConverters.encodeDiscipleListIncremental(
+            disciples, 1, "test/recruitList"
+        ) { rows.addAll(it) }
+        // 残留脏 key（非数值后缀，如溢出分块）不崩溃、不参与排序破坏
+        rows.add(
+            GameHeavyData(
+                slotId = 1,
+                dataKey = "test/recruitList/1_overflow",
+                dataValue = ByteArray(0)
+            )
+        )
+
+        val decoded = ProtobufConverters.decodeDiscipleListFromRows(rows, "test/recruitList")
+
+        assertEquals("合法块全部解码", 5, decoded.size)
+        assertEquals("脏 key 不影响顺序", "d0", decoded.first().name)
+    }
+
+    @Test
+    fun `decodeWorldSectListFromRows - 11 chunks - decodes in index order`() = runTest {
+        val sects = (0 until 550).map { com.xianxia.sect.core.model.WorldSect(id = "s$it") }
+        val rows = mutableListOf<GameHeavyData>()
+        ProtobufConverters.encodeWorldSectListIncremental(
+            sects, 1, "test/worldMapSects"
+        ) { rows.addAll(it) }
+
+        val decoded = ProtobufConverters.decodeWorldSectListFromRows(
+            rows.reversed(), "test/worldMapSects"
+        )
+
+        assertEquals("550 个宗门全部解码", 550, decoded.size)
+        assertEquals("首块为 index 0", "s0", decoded.first().id)
+        assertEquals("末块为 index 10", "s549", decoded.last().id)
     }
 }

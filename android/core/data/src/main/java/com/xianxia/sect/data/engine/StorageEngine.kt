@@ -38,6 +38,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
 import androidx.compose.runtime.Immutable
 import androidx.room.withTransaction
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -136,6 +137,14 @@ class StorageEngine @Inject constructor(
 
         return core.lockManager.withWriteLockLight(slot) {
             try {
+                // D20（2026-08-05）：熔断器接入主链路——此前仅修剪任务接入，
+                // 保存/读取无保护；连续失败（5 次）时熔断 30s 防雪崩重试
+                if (!infra.circuitBreaker.allowRequest("save")) {
+                    Log.w(TAG, "保存熔断中（存储连续失败），拒绝本次保存 slot=$slot")
+                    return@withWriteLockLight StorageResult.failure(
+                        StorageError.SAVE_FAILED, "保存熔断中（存储连续失败），请稍后重试"
+                    )
+                }
                 val startTime = System.currentTimeMillis()
 
                 // P-2 拆分：保存前校验 + 清理 + 时间戳
@@ -149,6 +158,18 @@ class StorageEngine @Inject constructor(
 
                 // P-2 拆分：结果处理（备份/缓存/变更日志/失败恢复）
                 handleSaveResult(slot, result, dataWithTimestamp)
+
+                // D20：保存结果反馈熔断器（成功重置计数，失败累计）
+                if (result.isSuccess) {
+                    infra.circuitBreaker.recordSuccess("save")
+                    // 对抗性审查修复（2026-08-06）：保存成功后清除删除 tombstone——
+                    // 删除中途崩溃残留的 tombstone 若不清除，会永久背负在新档上：
+                    // 日后 DB 损坏时 restoreFromBackup 见 tombstone 拒绝恢复，
+                    // clearSlotDataQuietly 还会删掉新档的唯一 .sav/.bak 恢复源
+                    saveFileManager.clearSlotDeleted(slot)
+                } else {
+                    infra.circuitBreaker.recordFailure("save")
+                }
 
                 result.map { stats ->
                     val elapsed = System.currentTimeMillis() - startTime
@@ -203,7 +224,19 @@ class StorageEngine @Inject constructor(
         _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.1f, "Saving core data")
 
         val cleanedData = cleanSaveDataWithArchive(effectiveData)
-        return cleanedData.copy(timestamp = System.currentTimeMillis())
+        // 2026-08-05 修复（A1 第二层防御）：保存前统一盖章当前存档版本——
+        // 引擎创建新档已盖章，此处兜底一切遗漏路径（重启/迁移残留/外部构造），
+        // 保证写库的存档恒为当前数据版本，读档不会触发旧版本迁移
+        val stamped = if (cleanedData.gameData.saveVersion < SaveDataVersionMigrator.CURRENT_SAVE_VERSION) {
+            cleanedData.copy(
+                gameData = cleanedData.gameData.copy(
+                    saveVersion = SaveDataVersionMigrator.CURRENT_SAVE_VERSION
+                )
+            )
+        } else {
+            cleanedData
+        }
+        return stamped.copy(timestamp = System.currentTimeMillis())
     }
 
     /** P-2：全量事务保存 + 重试（内存守卫已前置；OOM 类失败直接终止重试）。 */
@@ -286,29 +319,56 @@ class StorageEngine @Inject constructor(
 
         return core.lockManager.withReadLockLight(slot) {
             try {
+                // D20（2026-08-05）：熔断器接入读取入口（连续 8 次失败熔断 15s）
+                if (!infra.circuitBreaker.allowRequest("load")) {
+                    Log.w(TAG, "读档熔断中（存储连续失败），拒绝本次读取 slot=$slot")
+                    return@withReadLockLight StorageResult.failure(
+                        StorageError.LOAD_FAILED, "读档熔断中（存储连续失败），请稍后重试"
+                    )
+                }
                 // P-2 拆分：缓存命中优先
-                tryCacheLoad(slot)?.let { return@withReadLockLight StorageResult.success(it) }
+                tryCacheLoad(slot)?.let {
+                    infra.circuitBreaker.recordSuccess("load")
+                    return@withReadLockLight StorageResult.success(it)
+                }
 
                 infra.storageMetrics.recordCacheMiss()
                 _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.2f, "Loading from database")
                 val dbData = loadFromDatabase(slot)
 
                 if (dbData != null) {
+                    // 对抗性审查修复（2026-08-06）：DB 命中路径也查删除 tombstone——
+                    // delete() 在"tombstone 已写、DB 事务未提交"窗口崩溃时 DB 数据完整，
+                    // 原实现走 DB 路径直接返回旧数据（已删存档复活），与文件残留窗口
+                    // 的"已删"语义不一致
+                    if (saveFileManager.isSlotDeleted(slot)) {
+                        Log.w(TAG, "槽位 $slot 存在删除 tombstone 但 DB 有数据（删除中断），清理为已删")
+                        clearSlotDataQuietly(slot)
+                        return@withReadLockLight StorageResult.failure(
+                            StorageError.SLOT_EMPTY, "该槽位存档已删除"
+                        )
+                    }
                     infra.storageMetrics.recordLoad()
                     clearCacheForSlot(slot)
                     // P-2 拆分：完整性校验 + 损坏备份恢复
-                    return@withReadLockLight validateDbData(slot, dbData)
+                    val validated = validateDbData(slot, dbData)
+                    if (validated.isSuccess) infra.circuitBreaker.recordSuccess("load")
+                    return@withReadLockLight validated
                 }
 
                 // ── 数据库无数据时尝试从备份文件恢复 ──
                 val restored = restoreFromBackup(slot)
-                if (restored != null) return@withReadLockLight restored
+                if (restored != null) {
+                    infra.circuitBreaker.recordSuccess("load")
+                    return@withReadLockLight restored
+                }
                 _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, "No data found")
                 StorageResult.failure(StorageError.SLOT_EMPTY, "No data in slot $slot")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Load failed for slot $slot", e)
+                infra.circuitBreaker.recordFailure("load")
                 _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, e.message ?: "Unknown error")
                 StorageResult.failure(StorageError.LOAD_FAILED, e.message ?: "Load failed", e)
             } catch (e: OutOfMemoryError) {
@@ -316,6 +376,7 @@ class StorageEngine @Inject constructor(
                 // crafted 大 id 弟子扩容平铺表直接崩溃且重试即崩溃循环。
                 // 不尝试 restoreFromBackup：备份与主档同源同尺寸，恢复必然再 OOM（OOM 循环）
                 Log.e(TAG, "Load OOM for slot $slot（跳过备份恢复——备份同尺寸必再 OOM）", e)
+                infra.circuitBreaker.recordFailure("load")
                 _progress.value = EngineProgress(EngineProgress.Stage.FAILED, 0f, "内存不足，读档失败")
                 StorageResult.failure(StorageError.LOAD_FAILED, "内存不足，读档失败", e)
             }
@@ -323,14 +384,24 @@ class StorageEngine @Inject constructor(
     }
 
     /** P-2：缓存命中尝试（命中时记录指标与进度，返回数据；未命中返回 null）。 */
+    @Suppress("ReturnCount") // 管线多级校验（迁移/基础校验/规则校验）早退，守卫风格
     private suspend fun tryCacheLoad(slot: Int): SaveData? {
         _progress.value = EngineProgress(EngineProgress.Stage.SAVING_CORE, 0.1f, "Loading from cache")
         val cachedData = loadFromCache(slot) ?: return null
+        // C15（2026-08-05）：缓存命中同样过迁移+校验管线——此前直接返回跳过
+        // migrateOrNull/SaveValidator（缓存内容来自保存路径，多数已处理，但防
+        // 保存路径写入未盖章数据的窗口）；Rejected/Corrupted 视为未命中回落 DB
+        val migrated = migrateOrNull(cachedData, slot) ?: return null
+        if (!validateSaveData(migrated)) return null
+        val integrity = SaveValidator.validate(migrated)
+        if (integrity is IntegrityResult.Corrupted) return null
+        val data = if (integrity is IntegrityResult.Repaired) integrity.data else migrated
+
         infra.storageMetrics.recordCacheHit()
         infra.storageMetrics.recordLoad()
         Log.d(TAG, "Cache hit for slot $slot")
         _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (cache)")
-        return cachedData
+        return data
     }
 
     /**
@@ -384,6 +455,13 @@ class StorageEngine @Inject constructor(
     ): StorageResult<SaveData>? {
         _progress.value = EngineProgress(EngineProgress.Stage.VALIDATING, 0.5f, "尝试从备份恢复...")
         try {
+            // A5（2026-08-05）：删除 tombstone 守卫——删除流程中途崩溃时
+            //（DB 已删/未删 + 文件残留），不复活已删存档；顺带清理残留数据
+            if (saveFileManager.isSlotDeleted(slot)) {
+                Log.w(TAG, "槽位 $slot 存在删除 tombstone，不执行备份恢复（已删存档）")
+                clearSlotDataQuietly(slot)
+                return null
+            }
             // readWithFallback 必须在 try 内：SaveFileManager 未初始化时抛
             // IllegalStateException，未初始化应降级为"无数据"而非上抛成 LOAD_FAILED
             val readResult = saveFileManager.readWithFallback(slot)
@@ -404,22 +482,29 @@ class StorageEngine @Inject constructor(
                 Log.e(TAG, "slot=$slot 的 .sav 修复失败（copyTo 失败），将持续回退 .bak 直至下次成功保存")
             }
 
-            // ★ 备份恢复后二次验证：防止备份本身存在数据问题
-            val reValidation = CorruptedResultHandler.validateRestoredData(slot, restoredData)
-            if (reValidation is IntegrityResult.Repaired) {
-                Log.w(TAG, "备份恢复数据二次修复 ${reValidation.details.size} 项 (slot=$slot)")
-                restoredData = reValidation.data
-            } else if (reValidation is IntegrityResult.Corrupted) {
-                Log.e(TAG, "备份恢复数据二次验证无法修复 (slot=$slot)")
-                return StorageResult.failure(
+            // C11 修复（2026-08-05）：备份恢复路径此前跳过版本迁移——旧版 .sav
+            // （saveVersion 0/1）恢复后以未迁移语义运行，与主档加载路径语义不一致。
+            // 现与 loadFromDatabaseInternal 对齐：Rejected（版本号非法）→ 恢复失败
+            restoredData = migrateRestoredData(restoredData, slot)
+                ?: return StorageResult.failure(
                     StorageError.SLOT_CORRUPTED,
-                    "备份恢复数据二次验证无法修复 (slot=$slot): ${reValidation.details.joinToString("; ")}"
+                    "备份恢复版本迁移拒绝 (slot=$slot)"
                 )
-            }
+
+            // ★ 备份恢复后二次验证：防止备份本身存在数据问题
+            restoredData = revalidateRestoredData(slot, restoredData)
+                ?: return StorageResult.failure(
+                    StorageError.SLOT_CORRUPTED,
+                    "备份恢复数据二次验证无法修复 (slot=$slot)"
+                )
 
             infra.storageMetrics.recordBackupRestore()
             // 旧格式备份无堆叠数据：从实例重建兜底（2026-08-01 堆叠序列化缺陷修复）
             restoredData = SaveDataReconciler.reconcileStacks(restoredData)
+            // C14（2026-08-05）：恢复前隔离当前数据库——.sav 整体覆写 DB 不可逆，
+            // 校验器误判（规则 bug 曾真实发生）时较新的 DB 数据被旧备份覆盖无保留；
+            // 隔离快照供排查/手动恢复，维护任务按保留期清理
+            quarantineCurrentDatabase()
             // 2026-08-01 对抗性审查修复：检查保存结果——低内存/编码失败时
             // 不再静默"报成功"（旧实现忽略结果，DB 未写但 load 返回 success）
             // S11 修复（对抗性审查）：写库失败必须返回失败——否则 load 报成功、
@@ -453,6 +538,10 @@ class StorageEngine @Inject constructor(
         return core.lockManager.withWriteLockLight(slot) {
             try {
                 clearCacheForSlot(slot)
+
+                // A5（2026-08-05）：先写删除 tombstone——DB 事务与文件删除之间
+                // 崩溃时，load 见 tombstone 即返回空档，不会从残留 .sav 复活已删存档
+                saveFileManager.markSlotDeleted(slot)
 
                 core.database.withTransaction {
                     core.database.gameDataDao().deleteAll(slot)
@@ -489,6 +578,8 @@ class StorageEngine @Inject constructor(
 
                 clearCacheForSlot(slot)
                 saveFileManager.deleteSlot(slot)
+                // 删除流程完整完成后清除 tombstone（下一次 load 正常返回空档）
+                saveFileManager.clearSlotDeleted(slot)
 
                 Log.i(TAG, "Deleted all data for slot $slot")
                 StorageResult.success(Unit)
@@ -1175,13 +1266,11 @@ class StorageEngine @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.w(TAG, "Heavy data key '$key' exceeds CursorWindow limit, will be regenerated on next save", e)
-                // 删除超大行，下次保存时会分块重写
-                try { core.database.gameHeavyDataDao().deleteByKey(slot, key) } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Log.w(TAG, "Failed to delete oversized heavy data key '$key'", e)
-                }
+                // D26（2026-08-05）：超大行改"跳过不删"——删除会静默丢失数据：
+                // sectDetails/exploredSects/scoutInfo 等无再生源（ensureGameDataIntegrity
+                // 仅告警不重生），删除后该数据永久消失。跳过保持 DB 原样，仅本次
+                // 读档缺失该 key（下次保存若仍超限，由分块编码防复发）
+                Log.w(TAG, "Heavy data key '$key' exceeds CursorWindow limit, skipping (kept in DB)", e)
             }
         }
         return result
@@ -1271,6 +1360,86 @@ class StorageEngine @Inject constructor(
             core.cache.remove(cacheKey)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to clear cache for slot $slot", e)
+        }
+    }
+
+    /**
+     * A5：静默清理槽位残留数据（tombstone 命中时调用）——删除中途崩溃可能
+     * 留下部分 DB 行与 .sav/.bak 文件，使其不干扰后续正常创建新档。
+     */
+    private suspend fun clearSlotDataQuietly(slot: Int) {
+        try {
+            core.database.withTransaction {
+                core.database.gameDataDao().deleteAll(slot)
+                core.database.discipleDao().deleteAll(slot)
+            }
+            saveFileManager.deleteSlot(slot)
+            saveFileManager.clearSlotDeleted(slot)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "tombstone 清理残留数据失败 slot=$slot（非阻断）", e)
+        }
+    }
+
+    /**
+     * 备份恢复后二次验证（防止备份本身存在数据问题）。
+     *
+     * @return 验证后数据（Repaired 用修复后数据）；Corrupted 不可修复返回 null
+     */
+    @Suppress("ReturnCount") // 校验结果三态分派（Passed/Repaired/Corrupted），守卫风格
+    private fun revalidateRestoredData(slot: Int, restoredData: SaveData): SaveData? {
+        val reValidation = CorruptedResultHandler.validateRestoredData(slot, restoredData)
+        if (reValidation is IntegrityResult.Repaired) {
+            Log.w(TAG, "备份恢复数据二次修复 ${reValidation.details.size} 项 (slot=$slot)")
+            return reValidation.data
+        }
+        if (reValidation is IntegrityResult.Corrupted) {
+            Log.e(TAG, "备份恢复数据二次验证无法修复 (slot=$slot)")
+            return null
+        }
+        return restoredData
+    }
+
+    /**
+     * C11（2026-08-05）：备份恢复数据的版本迁移。
+     *
+     * @return 迁移后数据；版本号非法（[MigrationResult.Rejected]）返回 null
+     */
+    private fun migrateRestoredData(restoredData: SaveData, slot: Int): SaveData? {
+        val migration = SaveDataVersionMigrator.migrate(restoredData)
+        if (migration is MigrationResult.Rejected) {
+            Log.e(TAG, "备份恢复版本迁移拒绝 slot=$slot: ${migration.reason}")
+            return null
+        }
+        return (migration as MigrationResult.Migrated).data
+    }
+
+    /**
+     * C14（2026-08-05）：恢复前隔离当前数据库快照（`.quarantine.{timestamp}`）。
+     *
+     * .sav/.bak 备份整体覆写 DB 前保留当前库——校验器误判损坏（规则 bug
+     * 曾真实发生）时，较新的 DB 数据被旧备份覆盖不可逆；隔离文件供排查与
+     * 手动恢复。失败非阻断（恢复主流程不因隔离失败中止）。
+     */
+    private fun quarantineCurrentDatabase() {
+        try {
+            val dbPath = core.database.openHelper.writableDatabase.path
+            if (dbPath.isNullOrEmpty()) {
+                Log.w(TAG, "无法获取数据库路径，跳过隔离")
+                return
+            }
+            val dbFile = File(dbPath)
+            if (!dbFile.exists()) return
+            val quarantine = File(dbPath + ".quarantine." + System.currentTimeMillis())
+            dbFile.inputStream().use { input ->
+                quarantine.outputStream().use { output -> input.copyTo(output) }
+            }
+            Log.w(TAG, "恢复前已隔离当前数据库: ${quarantine.name}")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "恢复前隔离当前数据库失败（非阻断）", e)
         }
     }
 

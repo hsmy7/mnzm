@@ -18,6 +18,19 @@ data class SaveLoadState(
 }
 
 /**
+ * A6（2026-08-05）：主菜单云读档覆盖确认请求。
+ *
+ * 云读档目标槽位已有本地存档时不静默覆盖——展示确认框，玩家确认后才
+ * 落盘+读档（拒绝则中止，本地存档原样保留）。
+ */
+data class CloudOverwriteRequest(
+    val slot: Int,
+    val cloudYear: Int,
+    val cloudMonth: Int,
+    val cloudSectName: String
+)
+
+/**
  * SaveLoadViewModel 使用的加载进度常量与运行配置常量
  */
 object SaveLoadViewModelConstants {

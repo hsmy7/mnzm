@@ -6,7 +6,9 @@ import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.data.model.SaveData
 import com.xianxia.sect.data.serialization.unified.SerializationModule
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeout
 import java.io.File
 import java.lang.reflect.Proxy
 import javax.inject.Inject
@@ -56,7 +58,41 @@ class TapCloudSaveManager @Inject constructor(
         private const val KEY_CLOUD_SAVE_INFO = "cloud_save_info"
         /** 是否已执行过一次性的孤立存档清理 */
         private const val KEY_CLEANUP_DONE = "cleanup_done"
+
+        /** B6（2026-08-05）：TapTap SDK 回调超时上限（ms）——回调永不触发时
+         *  协程永久挂起 + cloudOpLock 永久占用，云功能直到重启才恢复 */
+        private const val CLOUD_OP_TIMEOUT_MS = 15_000L
+
+        /**
+         * 版本号字符串比较（点分段数值比较，"4.0.9" < "4.0.13"）。
+         *
+         * A4（2026-08-05）：云跨版本仲裁——下载前用 extra JSON 的 version
+         * 字段先仲裁，云端版本高于当前 App 时返回 [CloudSaveResult.VersionMismatch]
+         * 明确提示（此前 VersionMismatch 无任何构造点，是死代码）。
+         *
+         * @return 负数 cloud < current；0 相等；正数 cloud > current
+         */
+        fun compareVersions(cloud: String, current: String): Int {
+            // 对抗性审查修复（2026-08-06）：trim——"4.0.89 "尾随空格会使
+            // "89 ".toIntOrNull() 为 null → 归一化为 0，高版本仲裁被绕过
+            val cloudParts = cloud.trim().split(".").map { it.toIntOrNull() ?: 0 }
+            val currentParts = current.trim().split(".").map { it.toIntOrNull() ?: 0 }
+            val maxLen = maxOf(cloudParts.size, currentParts.size)
+            for (i in 0 until maxLen) {
+                val c = cloudParts.getOrElse(i) { 0 }
+                val cur = currentParts.getOrElse(i) { 0 }
+                if (c != cur) return c.compareTo(cur)
+            }
+            return 0
+        }
     }
+
+/**
+ * B6（2026-08-05）：云存档操作超时异常（普通 Exception 而非
+ * TimeoutCancellationException）——由 withTimeout 超时抛出，被上层
+ * catch (e: Exception) 转为 NetworkError；真正的协程取消不受影响。
+ */
+class CloudSaveOperationTimeoutException(message: String) : Exception(message)
 
     /** 持久化缓存：云端存档的 UUID，用于更新而非创建 */
     private val prefs by lazy {
@@ -185,6 +221,7 @@ class TapCloudSaveManager @Inject constructor(
      * 4. 反序列化为 SaveData
      * 5. 清理临时文件
      */
+    @Suppress("NestedBlockDepth", "ReturnCount") // 下载多阶段守卫（锁/仲裁/临时文件/反序列化），多 return 为守卫风格
     suspend fun downloadSave(): CloudSaveResult {
         if (!cloudOpLock.compareAndSet(false, true)) {
             DomainLog.w(TAG, "Cloud save operation already in progress, rejecting concurrent download")
@@ -192,6 +229,11 @@ class TapCloudSaveManager @Inject constructor(
         }
         try {
             DomainLog.d(TAG, "Starting cloud save download...")
+
+            // A4（2026-08-05）：下载前版本仲裁——云档 extra JSON 含上传时版本号，
+            // 云端版本高于当前 App 时直接拒绝，提示"版本不兼容"而非"存档数据异常"
+            val preArbitration = arbitrateCloudVersion()
+            if (preArbitration != null) return preArbitration
 
             val tempFile = File(context.cacheDir, CLOUD_SAVE_FILE_NAME)
             try {
@@ -220,8 +262,13 @@ class TapCloudSaveManager @Inject constructor(
                 // 4. 反序列化 ByteArray → SaveData
                 val saveData = try {
                     serializationModule.deserializeSaveData(bytes)
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     DomainLog.e(TAG, "Deserialization failed during cloud download", e)
+                    // A4：解码失败兜底仲裁——查一次云信息，若云端版本更高则改写为
+                    // 版本不兼容而非笼统的"存档数据异常"
+                    arbitrateCloudVersion()?.let { return it }
                     return CloudSaveResult.SerializationError(e.message ?: "反序列化失败")
                 }
 
@@ -239,6 +286,28 @@ class TapCloudSaveManager @Inject constructor(
         } finally {
             cloudOpLock.set(false)
         }
+    }
+
+    /**
+     * A4（2026-08-05）：云跨版本仲裁——查询云端 extra JSON 的 version 字段，
+     * 云端版本高于当前 App 时返回 [CloudSaveResult.VersionMismatch]。
+     *
+     * @return 版本不兼容结果；云端版本可接受/查询失败时返回 null（继续下载）
+     */
+    @Suppress("ReturnCount") // 查询失败/无版本/版本可接受多早退，守卫风格
+    private suspend fun arbitrateCloudVersion(): CloudSaveResult? {
+        val cloudInfo = performTapTapQuery() ?: return null
+        val cloudVersion = cloudInfo.extra?.let { e ->
+            try {
+                JSONObject(e).optString("version", "")
+            } catch (ex: kotlinx.coroutines.CancellationException) { throw ex }
+            catch (_: Exception) { "" }
+        } ?: ""
+        if (cloudVersion.isNotBlank() && compareVersions(cloudVersion, GameConfig.Game.VERSION) > 0) {
+            DomainLog.w(TAG, "云存档版本 $cloudVersion 高于当前 ${GameConfig.Game.VERSION}，拒绝下载")
+            return CloudSaveResult.VersionMismatch(cloudVersion, GameConfig.Game.VERSION)
+        }
+        return null
     }
 
     /**
@@ -435,9 +504,13 @@ class TapCloudSaveManager @Inject constructor(
     // ── 云端孤立存档清理 ──
 
     /**
-     * 一次性清理云端孤立存档。
-     * 老玩家第一次上传前清理旧版本残留的存档，新玩家跳过。
-     * 删除非 "mnzm_cloud_save" 名称的所有存档，然后建立新存档。
+     * 一次性云端存档检查（历史遗留"孤立存档清理"）。
+     *
+     * B9（2026-08-05）修复：原实现删除所有非 "mnzm_cloud_save" 命名的存档——
+     * 多设备场景下未知名字的存档可能是其他设备/其他命名版本的有效存档，
+     * 删除不可逆（且删除失败被吞但 KEY_CLEANUP_DONE 照常置位，孤儿永久残留）。
+     * 现改为：不删除任何未知命名的存档（保留数据），仅记录审计日志；
+     * 清除缓存的 UUID 后完成一次性任务。
      */
     suspend fun oneTimeCleanup() {
         if (prefs.getBoolean(KEY_CLEANUP_DONE, false)) return
@@ -445,14 +518,13 @@ class TapCloudSaveManager @Inject constructor(
         val api = CloudSaveApiReflector.resolve() ?: return
         try {
             val allArchives = api.listAllArchives()
-            val toDelete = allArchives.filter { it.name != CLOUD_SAVE_ARCHIVE_NAME }
-            if (toDelete.isEmpty()) {
-                prefs.edit().putBoolean(KEY_CLEANUP_DONE, true).apply()
-                return
-            }
-            DomainLog.i(TAG, "oneTimeCleanup: deleting ${toDelete.size} orphan archives")
-            for (archive in toDelete) {
-                try { api.deleteArchive(archive.uuid) } catch (ex: kotlinx.coroutines.CancellationException) { throw ex } catch (_: Exception) { }
+            val others = allArchives.filter { it.name != CLOUD_SAVE_ARCHIVE_NAME }
+            if (others.isNotEmpty()) {
+                DomainLog.i(
+                    TAG,
+                    "oneTimeCleanup: 发现 ${others.size} 个非当前命名存档，保留并记录: " +
+                        others.joinToString { "${it.name}(${it.uuid.take(8)})" }
+                )
             }
             clearCachedArchiveUuid()
             prefs.edit().putBoolean(KEY_CLEANUP_DONE, true).apply()
@@ -647,6 +719,24 @@ class TapCloudSaveManager @Inject constructor(
         /** 返回可为 null 的回调桥接 */
         @Suppress("UNCHECKED_CAST")
         private suspend fun <T> suspendCallbackNullable(
+            callbackClass: Class<*>,
+            invoke: (callback: Any) -> Unit
+        ): T? = try {
+            // B6（2026-08-05）：SDK 回调无超时——回调永不触发时协程永久挂起 +
+            // cloudOpLock 永久占用，云功能直到重启 App 都失效；15s 超时转普通
+            // 异常由上层 catch 转 NetworkError（e.cause == null 才是超时——
+            // 协程取消导致的 TimeoutCancellationException 须重抛保持结构化并发）
+            withTimeout(CLOUD_OP_TIMEOUT_MS) {
+                suspendCallbackCoroutine(callbackClass, invoke)
+            }
+        } catch (e: TimeoutCancellationException) {
+            if (e.cause == null) {
+                throw CloudSaveOperationTimeoutException("云存档操作超时")
+            }
+            throw e
+        }
+
+        private suspend fun <T> suspendCallbackCoroutine(
             callbackClass: Class<*>,
             invoke: (callback: Any) -> Unit
         ): T? = suspendCancellableCoroutine { continuation ->

@@ -45,7 +45,7 @@ object GameDatabaseConfig {
      * 硬编码 38 与 v39 脱节，导致 v38 用户升级 v39 不触发迁移前备份）。
      * 升级数据库版本时必须同步递增此常量并注册 MIGRATION_(N-1)_N。
      */
-    const val DATABASE_VERSION = 39
+    const val DATABASE_VERSION = 40
 
     /**
      * 判定是否应从迁移前备份恢复（纯逻辑，无 I/O——独立测试覆盖）。
@@ -127,7 +127,9 @@ object GameDatabaseConfig {
         SectPolicyState::class,
         DiscipleCompact::class
     ],
-    version = GameDatabaseConfig.DATABASE_VERSION  // v39: MIGRATION_38_39 删除弟子级自动开关死列（create-copy-drop-rename 重建）
+    // v40: MIGRATION_39_40 game_data 新增战斗队伍持久化三列
+    //（battle_teams/used_team_numbers/battle_teams_initialized）
+    version = GameDatabaseConfig.DATABASE_VERSION
 )
 
 @TypeConverters(ProtobufConverters::class, EnumConverters::class, CollectionConverters::class, JsonConverters::class)
@@ -313,6 +315,8 @@ abstract class GameDatabase : RoomDatabase() {
         val lastCheckpointTime: Long = 0L
     )
 
+    // 12 个伴生函数（含 2026-08-05 findVersionedBackup），阈值 12 内
+    @Suppress("TooManyFunctions") // 数据库工厂/备份/恢复/维护聚合，内聚单一职责
     companion object {
         private const val TAG = "GameDatabase"
         private const val UNIFIED_DB_NAME = "xianxia_sect.db"
@@ -364,7 +368,10 @@ abstract class GameDatabase : RoomDatabase() {
                 return
             }
 
-            val backupFile = File(dbFile.absolutePath + ".pre_migrate_backup")
+            // C13（2026-08-05）：备份版本化命名 `{db}.pre_migrate_backup.v{currentVersion}`
+            // ——迁移成功后不再删除备份（v4.0.89 之前删除导致"高版本升后降回旧版 App"
+            // 无备份可恢复、启动必崩溃）；多版本保留供降级恢复与维护清理
+            val backupFile = File(dbFile.absolutePath + ".pre_migrate_backup.v$currentVersion")
             try {
                 // WAL 模式下先 checkpoint 确保数据一致性
                 SQLiteDatabase.openDatabase(dbFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
@@ -405,7 +412,7 @@ abstract class GameDatabase : RoomDatabase() {
                         Thread(r, "GameDB-Txn")
                     }
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database created")
@@ -562,17 +569,16 @@ abstract class GameDatabase : RoomDatabase() {
                     "数据将由 StorageEngine 从 SaveFileManager 备份恢复")
             }
 
-            // Step 4: 迁移成功（版本达到最新）后清理恢复 marker 与迁移前备份
-            //（2026-08-04 对抗性审查修复 C1：恢复后迁移成功即完成备份使命——
-            // 删除可防止旧备份在未来误覆盖新数据；正常玩家无 marker/备份，删除无副作用）
+            // Step 4: 迁移成功（版本达到最新）后清理恢复 marker；
+            // C13（2026-08-05）：不再删除迁移前备份——多版本备份保留供降级恢复
+            //（高版本 App 升后降回旧版时仍需旧版本备份），由维护任务按保留期清理
             try {
                 if (db.version >= GameDatabaseConfig.DATABASE_VERSION) {
                     val dbFile = context.getDatabasePath(UNIFIED_DB_NAME)
                     File(dbFile.absolutePath + RESTORE_ATTEMPT_MARKER).delete()
-                    File(dbFile.absolutePath + ".pre_migrate_backup").delete()
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "清理恢复 marker/迁移前备份失败", e)
+                Log.w(TAG, "清理恢复 marker 失败", e)
             }
         }
 
@@ -587,9 +593,9 @@ abstract class GameDatabase : RoomDatabase() {
          */
         fun restoreFromBackupIfNeeded(context: Context): Boolean {
             val dbFile = context.getDatabasePath(UNIFIED_DB_NAME)
-            val backupFile = File(dbFile.absolutePath + ".pre_migrate_backup")
+            val backupFile = findVersionedBackup(dbFile) ?: return false
             val markerFile = File(dbFile.absolutePath + RESTORE_ATTEMPT_MARKER)
-            if (!dbFile.exists() || !backupFile.exists()) return false
+            if (!dbFile.exists()) return false
 
             // 验证备份文件可用（含大小/行数上限检查）
             val backup = readBackupInfo(backupFile)
@@ -634,7 +640,14 @@ abstract class GameDatabase : RoomDatabase() {
                 // 若残留旧 -wal，SQLite 会将其重放到恢复后的文件上污染结果）
                 File(dbFile.absolutePath + "-wal").delete()
                 File(dbFile.absolutePath + "-shm").delete()
-                performFileRestore(dbFile, backupFile)
+                // C12（2026-08-05）：renameTo 失败时 performFileRestore 内部回退
+                // copyTo 覆盖；仍失败返回 false——不得报"恢复成功"且不得写 marker
+                //（原实现不检查 rename 返回值：恢复失败却报成功 + marker 已写，
+                // 下次启动 marker 阻断恢复路径永久锁死）
+                if (!performFileRestore(dbFile, backupFile)) {
+                    Log.e(TAG, "文件覆盖失败，未执行恢复 (backup=${backupFile.absolutePath})")
+                    return false
+                }
                 // 创建恢复 marker：迁移成功后由 verifyAndRecoverDatabase 清理
                 try {
                     markerFile.writeText(RESTORE_ATTEMPT_MARKER_CONTENT)
@@ -648,6 +661,22 @@ abstract class GameDatabase : RoomDatabase() {
                 Log.e(TAG, "从备份恢复数据库失败", e)
                 false
             }
+        }
+
+        /**
+         * 扫描可用的迁移前备份文件。
+         *
+         * C13（2026-08-05）：备份版本化命名 `{db}.pre_migrate_backup.v{N}`，
+         * 选择最高可用版本（N ∈ 2..DATABASE_VERSION-1）——降级场景（高版本
+         * App 回退）需要比当前库版本低的备份；同时兼容旧的无版本后缀备份
+         * （`.pre_migrate_backup`，v4.0.89 之前命名）。
+         */
+        private fun findVersionedBackup(dbFile: File): File? {
+            val legacy = File(dbFile.absolutePath + ".pre_migrate_backup")
+            val versioned = (2 until GameDatabaseConfig.DATABASE_VERSION).mapNotNull { v ->
+                File(dbFile.absolutePath + ".pre_migrate_backup.v$v").takeIf { it.exists() }
+            }.maxByOrNull { it.name.substringAfterLast(".v").toIntOrNull() ?: -1 }
+            return versioned ?: legacy.takeIf { it.exists() }
         }
 
         /** 备份文件验证结果 */
@@ -765,14 +794,35 @@ private fun readCurrentDbInfo(dbFile: File): CurrentDbInfo {
 }
 
 /** 用备份文件覆盖当前数据库（tmp 写入 + fsync + rename 原子替换） */
-private fun performFileRestore(dbFile: File, backupFile: File) {
-    backupFile.inputStream().use { input ->
-        // 先写入 .tmp 防止覆盖过程中崩溃损坏原文件
-        val tmpFile = File(dbFile.absolutePath + ".restore_tmp")
-        tmpFile.outputStream().use { output -> input.copyTo(output) }
-        // fsync 确保写完
-        FileOutputStream(tmpFile, true).use { fos -> fos.fd.sync() }
-        // 覆盖原文件
-        tmpFile.renameTo(dbFile)
+/**
+ * 用备份文件覆盖当前数据库文件。
+ *
+ * C12（2026-08-05）：renameTo 返回值此前不检查——失败时调用方仍报"恢复成功"
+ * 且写恢复 marker，下次启动 marker 阻断恢复路径永久锁死。现：
+ * 1. renameTo 失败 → 回退 copyTo(overwrite=true) + 删除原文件（兼容不支持
+ *    原子覆盖的文件系统）
+ * 2. 仍失败 → 清理 .restore_tmp 并返回 false，调用方不写 marker
+ *
+ * @return true 覆盖成功；false 覆盖失败（调用方不得标记恢复完成）
+ */
+@Suppress("ReturnCount", "TooGenericExceptionCaught") // 覆盖结果守卫风格；文件 IO 异常面广
+private fun performFileRestore(dbFile: File, backupFile: File): Boolean {
+    val tmpFile = File(dbFile.absolutePath + ".restore_tmp")
+    try {
+        backupFile.inputStream().use { input ->
+            // 先写入 .tmp 防止覆盖过程中崩溃损坏原文件
+            tmpFile.outputStream().use { output -> input.copyTo(output) }
+            // fsync 确保写完
+            FileOutputStream(tmpFile, true).use { fos -> fos.fd.sync() }
+        }
+        // 覆盖原文件：优先原子 rename，失败回退流拷贝
+        if (tmpFile.renameTo(dbFile)) return true
+        tmpFile.copyTo(dbFile, overwrite = true)
+        if (!tmpFile.delete()) Log.w("GameDatabase", "覆盖回退后清理 .restore_tmp 失败")
+        return true
+    } catch (e: Exception) {
+        Log.e("GameDatabase", "performFileRestore 失败", e)
+        tmpFile.delete()
+        return false
     }
 }

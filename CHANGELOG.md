@@ -1,5 +1,27 @@
 ## [4.00.89] - 2026-08-05
 
+### 修复（2026-08-06 存档系统深入审查根治——27 项缺陷全量实施）
+
+- **A1 新档 saveVersion 盖章 + 存量启发式** — createNewGame/restartGameInternal 与 StorageEngine.validateAndPrepareData 统一盖章 `SaveVersion.CURRENT`（domain 新增权威常量，engine/data 共用）；SaveDataVersionMigrator v0→1 迁移前按 lastSaveTime ≥ v4.0.13 发布时刻判定"误标新档"跳过 ÷10（单向安全：宁可偏大不可再损）。修复所有新档首次读档修炼值 ÷10 的系统性进度损失
+- **A2 重型分块数值排序** — ProtobufConverters 分块解码 `sortedBy { dataKey }` 字典序 → 数值解析排序（chunkIndexOrMax）：recruitList >1000 条 / worldMapSects >500 个时块序错乱静默乱序修复，兼容旧 key 与溢出块
+- **A3 battleTeams/usedTeamNumbers 持久化** — 去 @Ignore/@Transient，Room 列 + proto 字段（@ProtoNumber 216/217/218 + @EncodeDefault ALWAYS）；新增 battleTeamsInitialized 区分旧档/清空；MIGRATION_39_40（DATABASE_VERSION 40，真实 Room 校验测试）；读档不再清空出战队伍（注：确认 battleTeams 无创建入口为遗留读取型，持久化为防御性基建）
+- **A4 云跨版本仲裁** — compareVersions 纯函数 + downloadSave 下载前 extra JSON version 仲裁 + 解码失败兜底改写 VersionMismatch（此前 VersionMismatch 为死代码）；实证 kotlinx.serialization ProtoBuf 跳过未知字段号（"严格模式崩溃"前提不成立，测试固化行为）
+- **A5 删除 tombstone 原子化** — markSlotDeleted/isSlotDeleted/clearSlotDeleted：delete() 先写 tombstone → DB 事务 → 删文件 → 清 tombstone；restoreFromBackup 入口 tombstone 守卫 + 残留清理——删除中途崩溃不再复活已删存档
+- **A6 云读档覆盖确认（用户实报）** — handleCloudLoadSuccess 目标槽位改 getCurrentSlot()（忽略云档 currentSlot 来源元数据，与游戏内云下载路径对齐）；目标槽位非空 → 挂起等待玩家确认覆盖（StandardPromptDialog 双按钮，GameOverlayHost 渲染）；4 个新测试覆盖
+- **B6 云回调超时** — suspendCallback 内层 withTimeout(15s)（e.cause==null 才转超时异常，协程取消保持重抛），回调永不触发不再永久挂起 + cloudOpLock 永久占用
+- **B7 校验和强制** — SerializationModule 拒绝 checksumValid=false 的解码结果（hasChecksum=false 旧帧保留兼容）
+- **B8 云路径槽位语义统一** — reconcileCloudSlot（slotId+currentSlot 同时修正，防 loadFromSnapshot setActiveSlot(0)）+ loadData 后 AISectDiscipleManager.initForSlot 播种（与本地路径一致）
+- **B9 oneTimeCleanup 保留未知命名** — 不再删除非当前命名的云端存档（多设备误删风险），改记录审计日志；删除失败吞掉+flag 照常置位问题消除
+- **B10 上传校验** — performCloudUpload 上传前 SaveDataVersionMigrator + SaveValidator（损坏拒绝/可修复上传修复后数据）
+- **C11 备份恢复插入版本迁移** — restoreFromBackup 反序列化后执行 SaveDataVersionMigrator（Rejected 中止恢复），与主档加载路径语义一致
+- **C12 performFileRestore rename 检查** — renameTo 失败回退 copyTo + 失败不写恢复 marker（原"报成功+marker 锁死恢复路径"根治）
+- **C13 迁移前备份版本化** — `{db}.pre_migrate_backup.v{N}` 多版本保留 + findVersionedBackup 最高可用选择 + 旧格式兼容；迁移成功不再删备份（降级回退可恢复）
+- **C14 恢复前隔离当前库** — restoreFromBackup 写库前复制 `{db}.quarantine.{timestamp}`（校验器误判时数据可找回）
+- **C15 缓存命中过校验管线** — tryCacheLoad 命中后执行 migrate+validate（Rejected/Corrupted 回落 DB）
+- **D16-D26 死代码清理与防御接线** — 删除 SaveLoadRestartDelegate（接线即清档陷阱）/BackupStrategy/StorageValidator（含测试与 baseline）/KeyRotationManager/AppModule 绑定/migrateLegacyAutoSave（slot 0 恒 INVALID_SLOT 死代码）；接线：StorageCircuitBreaker save/load 主链路（save 阈值 5/30s、load 8/15s）、cleanupOrphanedTmp+cleanExpiredBackups 启动清理（语义修正：.sav 永不清、只删孤儿 .bak）、healDuplicateSlotAssignments 返回 Job boot 等待 + rewriteBattleTeamWinner 去强制复活（activeMissions 扫描放弃：SlotCategory 无 MISSION 枚举值且任务/岗位并存语义需产品确认）、DataPruningScheduler/DataArchiveScheduler 槽位锁互斥（经 StorageCoreFacade.lockManager 注入，规避 data 模块 Hilt KSP 解析限制）、WAL recover 超 30 天未完成事务跳过注册、worldMapSects 重生合并式保留 sectRelations + loadHeavyDataSafe 超限行改跳过不删（无再生源数据不静默丢失）
+- **对抗性审查** — 3 角色代理审查发现全部核验实施；A1/A4 基于源码实证修正代理前提（saveVersion 盖章缺失确证、ProtoBuf 未知字段跳过实证）
+- **验证** — 定点测试（SaveDataVersionMigrator/ProtobufConverters/RoomMigration/SaveLoadViewModelLoad/TapCloudSaveManager/SaveFileManager/SerializationDirect）+ 全量串行回归
+
 ### 优化（2026-08-05 引擎确定性加固 + 性能优化）
 
 - **RNG 事务快照/恢复（K 项根治）** — 结算事务（突破/叛逃/生育/生产判定）在 stateStore.update 内消费分区 RNG；事务异常时 COW 缓冲丢弃（状态回滚）但 RNG 已前进 → 随机序列永久分叉、读档重放不可复现（游戏循环捕获异常后继续运行，分叉被持久化）。修复：domain 新增 `RngSnapshotPort` 事务钩子接口（零平台依赖）+ app 装配 GameRngManager 适配 + Hilt 绑定；`update()` 事务失败恢复 8 分区快照（8×Long，CancellationException 重抛不恢复，含 OOM 路径）；`loadFromSnapshot` 状态 + RNG 锁内原子切换（原 SaveLoadViewModel 的 restoreStates 在 loadData 之后，load 成功但其后失败会错过恢复）；`rollbackLoad` 同步恢复。`TransactionRngRollbackTest` 6 场景守卫（重试对拍/嵌套不重复快照/读档失败保持/读档成功切换/取消穿透/成功不恢复）

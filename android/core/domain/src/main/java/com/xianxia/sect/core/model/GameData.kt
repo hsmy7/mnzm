@@ -440,16 +440,29 @@ data class GameData(
     @kotlinx.serialization.Transient
     var battleTeam: BattleTeam? = null,
 
-    @Ignore
-    @kotlinx.serialization.Transient
+    // 2026-08-05 A3 修复：battleTeams/usedTeamNumbers 原为 @Ignore+@Transient
+    // 不落盘——读档后出战队伍全清、DiscipleStatusService"在队中"判定失效；
+    // 现持久化（Room 列 + proto 字段），旧档由 battleTeamsInitialized 区分
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    @ProtoNumber(216)
+    @ColumnInfo(name = "battle_teams", defaultValue = "")
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var battleTeams: List<BattleTeam> = emptyList(),
 
     // 已使用的队伍编号（用于解散后编号复用）
-    @Ignore
-    @kotlinx.serialization.Transient
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    @ProtoNumber(217)
+    @ColumnInfo(name = "used_team_numbers", defaultValue = "")
     @SettlementStrategy(Strategy.PRESERVE_OLD)
     var usedTeamNumbers: List<Int> = emptyList(),
+
+    // 队伍配置是否已初始化——false=旧档（读档走默认队伍初始化），
+    // true+空列表=玩家明确清空全部队伍（不再重复初始化）
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    @ProtoNumber(218)
+    @ColumnInfo(name = "battle_teams_initialized", defaultValue = "0")
+    @SettlementStrategy(Strategy.PRESERVE_OLD)
+    var battleTeamsInitialized: Boolean = false,
 
     // AI战斗队伍
     @kotlinx.serialization.Transient

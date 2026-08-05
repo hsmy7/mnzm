@@ -287,6 +287,27 @@ object CollectionConverters {
     fun toAIBattleTeamList(value: String): List<AIBattleTeam> =
         ProtobufConverters.decodeFromBase64(ListSerializer(AIBattleTeam.serializer()), value) { emptyList() }
 
+    // 2026-08-05 A3：battleTeams/usedTeamNumbers 持久化所需的列表转换器
+    @TypeConverter
+    @JvmStatic
+    fun fromBattleTeamList(value: List<BattleTeam>): String =
+        ProtobufConverters.encodeToBase64(ListSerializer(BattleTeam.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toBattleTeamList(value: String): List<BattleTeam> =
+        ProtobufConverters.decodeFromBase64(ListSerializer(BattleTeam.serializer()), value) { emptyList() }
+
+    @TypeConverter
+    @JvmStatic
+    fun fromIntList(value: List<Int>): String =
+        ProtobufConverters.encodeToBase64(ListSerializer(Int.serializer()), value)
+
+    @TypeConverter
+    @JvmStatic
+    fun toIntList(value: String): List<Int> =
+        ProtobufConverters.decodeFromBase64(ListSerializer(Int.serializer()), value) { emptyList() }
+
     @TypeConverter
     @JvmStatic
     fun fromAlchemySlotList(value: List<AlchemySlot>): String =

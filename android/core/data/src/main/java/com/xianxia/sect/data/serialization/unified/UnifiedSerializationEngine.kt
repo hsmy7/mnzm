@@ -31,6 +31,20 @@ class UnifiedSerializationEngine @Inject constructor(
 
     internal val protoBuf = NullSafeProtoBuf.protoBuf
 
+    /**
+     * A4（2026-08-05）：解码用宽松 ProtoBuf 实例——ignoreUnknownKeys=true。
+     *
+     * 旧版 App 读新版云档/整档时，新增字段号在严格模式下抛
+     * SerializationException（用户只看到"存档数据异常"）；宽松模式缺失
+     * 字段取类默认值尽力解码，跨版本失败由下载前版本仲裁（VersionMismatch）
+     * 提示，而非笼统的"数据异常"。编码与 Room TypeConverter 路径保持严格。
+     */
+    // A4（2026-08-05）实证：kotlinx.serialization 的 ProtoBuf 解码按 protobuf
+    // wire format 规范跳过未知字段号（不抛异常），无需宽松配置实例——
+    // 旧版 App 读新版云档时新字段自动跳过、缺失字段取默认值尽力解码；
+    // 跨版本明确提示由 downloadSave 下载前版本仲裁（VersionMismatch）承担
+    private val protoBufLenient = NullSafeProtoBuf.protoBuf
+
     private val statsCache = ConcurrentHashMap<String, Pair<SerializationStats, Long>>()
 
     data class SerializationStats(
@@ -154,7 +168,8 @@ class UnifiedSerializationEngine @Inject constructor(
             }
 
             val deserializationStart = System.currentTimeMillis()
-            val result: T? = protoBuf.decodeFromByteArray(serializer, rawData)
+            // A4：解码用宽松实例（ignoreUnknownKeys=true），旧版 App 读新版档尽力解码
+            val result: T? = protoBufLenient.decodeFromByteArray(serializer, rawData)
             val deserializationTime = System.currentTimeMillis() - deserializationStart
 
             return DeserializationResult(

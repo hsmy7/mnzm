@@ -106,4 +106,40 @@ class TapCloudSaveManagerTest {
         )
         assertEquals(7, results.size)
     }
+
+    // ──────────────────────────────────────────────────────────────────
+    // A4（2026-08-05）：版本比较仲裁
+    // ──────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `compareVersions - same version equals zero`() {
+        assertEquals(0, TapCloudSaveManager.compareVersions("4.00.89", "4.00.89"))
+    }
+
+    @Test
+    fun `compareVersions - numeric segment comparison handles zero padding`() {
+        // 点分段数值比较："4.0.9" < "4.0.13"（字符串比较会错误判反）
+        assertTrue(TapCloudSaveManager.compareVersions("4.0.9", "4.0.13") < 0)
+        assertTrue(TapCloudSaveManager.compareVersions("4.0.13", "4.0.9") > 0)
+    }
+
+    @Test
+    fun `compareVersions - minor and major differences`() {
+        assertTrue(TapCloudSaveManager.compareVersions("4.0.89", "4.1.0") < 0)
+        assertTrue(TapCloudSaveManager.compareVersions("5.0.0", "4.99.99") > 0)
+    }
+
+    @Test
+    fun `compareVersions - shorter segment treated as zero padded`() {
+        assertTrue(TapCloudSaveManager.compareVersions("4.0.9", "4.0") > 0)
+        assertTrue(TapCloudSaveManager.compareVersions("4", "4.0.0") == 0)
+    }
+
+    @Test
+    fun `compareVersions - trailing whitespace trimmed before comparison`() {
+        // 对抗性审查修复（2026-08-06）："4.0.89 "尾随空格此前使 "89 ".toIntOrNull()
+        // 为 null → 归一化为 0 → 高版本仲裁被绕过
+        assertTrue(TapCloudSaveManager.compareVersions("4.0.89 ", "4.0.88") > 0)
+        assertTrue(TapCloudSaveManager.compareVersions(" 4.0.9 ", "4.0.13") < 0)
+    }
 }

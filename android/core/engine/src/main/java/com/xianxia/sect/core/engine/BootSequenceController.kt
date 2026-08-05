@@ -66,7 +66,11 @@ class BootSequenceController @Inject constructor(
      * @param onSuccess 启动成功回调
      * @param onError 启动失败回调
      */
-    @Suppress("LongParameterList")
+    // 启动编排大函数（多阶段/多守卫/多回调），既有结构保持
+    @Suppress(
+        "LongParameterList", "LongMethod", "CyclomaticComplexMethod", "ReturnCount",
+        "TooGenericExceptionCaught" // 自愈隔离 catch 需捕获 Error 类
+    )
     suspend fun boot(
         slot: Int,
         onPreloadResources: suspend () -> Unit = {},
@@ -144,7 +148,20 @@ class BootSequenceController @Inject constructor(
 
             // ── Step 6.3: 双槽位自愈（旧档"同一弟子多槽位"残留清理）──
             // 清理后 gate 二次重建，健康存档零副作用
-            gameEngine.healDuplicateSlotAssignments()
+            // D23（2026-08-05）：boot 等待自愈完成——此前 fire-and-forget，
+            // Step 7 startGameLoop 可能先于自愈执行，窗口期内 assignmentGate
+            // 仍是含重复注册的旧状态
+            // 对抗性审查修复（2026-08-06）：join 失败（Error 类，如 OOM/栈溢出）
+            // 不得传播进 boot——自愈是尽力而为的清理步骤，不决定读档成败
+            try {
+                gameEngine.healDuplicateSlotAssignments()?.join()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                // 对抗性审查修复：自愈是尽力而为的清理步骤，Error 类（OOM/栈溢出）
+                // 也不阻断启动——join 传播的失败在此隔离
+                DomainLog.e(TAG, "双槽位自愈失败（不阻断启动）", e)
+            }
 
             // ── Step 6.5: 仓库堆叠整理（修复旧档散落问题）──
             gameEngine.consolidateStacks()

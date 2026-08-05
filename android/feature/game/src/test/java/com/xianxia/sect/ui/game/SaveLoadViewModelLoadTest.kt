@@ -288,6 +288,9 @@ class SaveLoadViewModelLoadTest {
         coEvery { storageFacade.save(any(), any()) } returns
             SaveResult.Success(Unit)
         coEvery { storageFacade.getSaveSlotsSuspend() } returns emptyList()
+        // A6：目标槽位 = getCurrentSlot()（relaxed mock 返回 0 会走向非法槽位）
+        every { storageFacade.getCurrentSlot() } returns 1
+        coEvery { storageFacade.hasSaveSuspend(1) } returns false
         // setSaveLoadState(isLoading=true) 评估 isSaving.value——relaxed mock 返回 Object 必崩
         every { stateStore.isSaving } returns MutableStateFlow(false)
 
@@ -296,6 +299,120 @@ class SaveLoadViewModelLoadTest {
 
         // 走到读档流程：loadGame 的 launch 已注册 activeLoadJob
         coVerify { gameEngineCore.registerActiveLoadJob(any()) }
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // A6（2026-08-05）：云读档目标槽位 = 当前槽位（忽略云档 currentSlot 元数据）
+    // ──────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `cloud load ignores cloud currentSlot metadata and uses current slot`() = runTest(testDispatcher) {
+        // 用户实报场景：云档 currentSlot=2（上传时在槽位 2），当前槽位=1——
+        // 修复前云档被写入槽位 2 静默覆盖本地存档 b
+        coEvery { tapCloudSaveManager.downloadSave() } returns
+            TapCloudSaveManager.CloudSaveResult.Success(
+                cloudSaveData(GameData(sectName = "云宗", saveVersion = 2, currentSlot = 2))
+            )
+        every { storageFacade.getCurrentSlot() } returns 1
+        coEvery { storageFacade.hasSaveSuspend(1) } returns false
+        coEvery { storageFacade.save(any(), any()) } returns
+            SaveResult.Success(Unit)
+        coEvery { storageFacade.getSaveSlotsSuspend() } returns emptyList()
+        every { stateStore.isSaving } returns MutableStateFlow(false)
+
+        viewModel.loadFromCloudSave()
+        advanceUntilIdle()
+
+        // 目标槽位 = 1（当前槽位），云档 currentSlot=2 仅作来源元数据被忽略
+        coVerify(exactly = 1) { storageFacade.setCurrentSlot(1) }
+        coVerify(exactly = 1) { storageFacade.save(1, any()) }
+        coVerify(exactly = 0) { storageFacade.save(2, any()) }
+    }
+
+    @Test
+    fun `cloud load saves data with slotId corrected to target slot`() = runTest(testDispatcher) {
+        // 对抗性审查修复（2026-08-06）：主菜单云读档落盘前必须修正 slotId——
+        // 云档 slotId 为 @Transient 恒 0，直接 save 会把 slotId=0 写入缓存，
+        // 随后 loadGameFromSlot 缓存命中读回时 setActiveSlot(0) 仓库脏写错槽
+        coEvery { tapCloudSaveManager.downloadSave() } returns
+            TapCloudSaveManager.CloudSaveResult.Success(
+                cloudSaveData(GameData(sectName = "云宗", saveVersion = 2))
+            )
+        every { storageFacade.getCurrentSlot() } returns 1
+        coEvery { storageFacade.hasSaveSuspend(1) } returns false
+        val savedData = slot<SaveData>()
+        coEvery { storageFacade.save(any(), capture(savedData)) } returns
+            SaveResult.Success(Unit)
+        coEvery { storageFacade.getSaveSlotsSuspend() } returns emptyList()
+        every { stateStore.isSaving } returns MutableStateFlow(false)
+
+        viewModel.loadFromCloudSave()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { storageFacade.save(1, any()) }
+        assertEquals("落盘数据 slotId 修正为目标槽位", 1, savedData.captured.gameData.slotId)
+        assertEquals("落盘数据 currentSlot 修正为目标槽位", 1, savedData.captured.gameData.currentSlot)
+    }
+
+    @Test
+    fun `cloud load waits for player confirmation when target slot has local save`() = runTest(testDispatcher) {
+        coEvery { tapCloudSaveManager.downloadSave() } returns
+            TapCloudSaveManager.CloudSaveResult.Success(
+                cloudSaveData(GameData(sectName = "云宗", saveVersion = 2, currentSlot = 2))
+            )
+        every { storageFacade.getCurrentSlot() } returns 1
+        // 目标槽位 1 已有本地存档 → 挂起等待确认
+        coEvery { storageFacade.hasSaveSuspend(1) } returns true
+        coEvery { storageFacade.save(any(), any()) } returns
+            SaveResult.Success(Unit)
+        every { stateStore.isSaving } returns MutableStateFlow(false)
+
+        viewModel.loadFromCloudSave()
+        advanceUntilIdle()
+
+        // 确认请求已发出，未确认前不落盘
+        assertTrue("覆盖确认请求应已发出", viewModel.cloudOverwriteRequest.value != null)
+        coVerify(exactly = 0) { storageFacade.save(any(), any()) }
+
+        // 玩家确认 → 继续落盘
+        viewModel.confirmCloudOverwrite()
+        advanceUntilIdle()
+        coVerify(exactly = 1) { storageFacade.save(1, any()) }
+    }
+
+    @Test
+    fun `cloud load aborts when player rejects overwrite`() = runTest(testDispatcher) {
+        coEvery { tapCloudSaveManager.downloadSave() } returns
+            TapCloudSaveManager.CloudSaveResult.Success(
+                cloudSaveData(GameData(sectName = "云宗", saveVersion = 2))
+            )
+        every { storageFacade.getCurrentSlot() } returns 1
+        coEvery { storageFacade.hasSaveSuspend(1) } returns true
+        every { stateStore.isSaving } returns MutableStateFlow(false)
+
+        viewModel.loadFromCloudSave()
+        advanceUntilIdle()
+
+        viewModel.cancelCloudOverwrite()
+        advanceUntilIdle()
+
+        // 拒绝后不落盘、不读档（本地存档原样保留）
+        coVerify(exactly = 0) { storageFacade.save(any(), any()) }
+        coVerify(exactly = 0) { gameEngineCore.registerActiveLoadJob(any()) }
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // B8（2026-08-05）：云下载内存加载 slotId/currentSlot 同时修正
+    // ──────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `reconcileCloudSlot fixes both slotId and currentSlot to target slot`() = runTest(testDispatcher) {
+        val reconciled = cloudSaveData(GameData(sectName = "云宗", saveVersion = 2, currentSlot = 2))
+        val resolved = viewModel.reconcileCloudSlot(reconciled, 3)
+        // 云档 slotId 为 @Transient 恒 0——必须修正为 3，否则 loadFromSnapshot
+        // 内 setActiveSlot(gameData.slotId) 拿到 0 导致 repository 脏写错槽
+        assertEquals("slotId 修正为目标槽位", 3, resolved.slotId)
+        assertEquals("currentSlot 修正为目标槽位", 3, resolved.currentSlot)
     }
 
     // ──────────────────────────────────────────────────────────────────

@@ -42,6 +42,7 @@ data class PruningStats(
 class DataPruningScheduler @Inject constructor(
     private val database: GameDatabase,
     private val circuitBreaker: StorageCircuitBreaker,
+    private val core: StorageCoreFacade,
     private val scopeProvider: CoroutineScopeProvider
 ) {
     private val config = PruningConfig()
@@ -116,7 +117,11 @@ class DataPruningScheduler @Inject constructor(
 
             for (slotId in config.slotIds) {
                 try {
-                    database.battleLogDao().deleteOld(slotId, battleLogCutoff)
+                    // D24（2026-08-05）：修剪与保存互斥——此前无槽位锁，保存事务
+                    // 全量重写 battleLogs 与修剪删除交叉，主表/归档表数据漂移
+                    core.lockManager.withWriteLockLight(slotId) {
+                        database.battleLogDao().deleteOld(slotId, battleLogCutoff)
+                    }
                     totalLogsDeleted++
                 } catch (e: Exception) {
                     Log.d(TAG, "Battle log pruning for slot $slotId: ${e.message}")

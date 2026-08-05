@@ -62,6 +62,10 @@ class FunctionalWAL @Inject constructor(
 
         /** 最小完整条目大小 (头部 + 校验和，无 data) */
         private const val ENTRY_MIN_SIZE = ENTRY_HEADER_SIZE + CHECKSUM_SIZE
+
+        /** D25（2026-08-05）：恢复注册的未完成事务保留期（30 天）——超期条目
+         *  不再登记，防止 WAL 文件随崩溃次数单调增长 */
+        private const val RECOVERED_TXN_RETENTION_MS = 30L * 24 * 60 * 60 * 1000
     }
 
     /** 解析后的 WAL 条目 */
@@ -644,6 +648,17 @@ class FunctionalWAL @Inject constructor(
 
                 for ((txnId, info) in uncommitted) {
                     val slot = info.slotId
+
+                    // D25（2026-08-05）：超保留期的未完成事务不注册——崩溃遗留的
+                    // BEGIN 条目此前永久登记（无任何代码 abort/commit 它们），
+                    // checkpoint 保留其条目、WAL 文件随崩溃次数单调增长
+                    if (info.timestamp > 0L &&
+                        System.currentTimeMillis() - info.timestamp > RECOVERED_TXN_RETENTION_MS
+                    ) {
+                        Log.w(TAG, "跳过超保留期未完成事务 $txnId (slot=$slot, " +
+                            "age=${(System.currentTimeMillis() - info.timestamp) / 86_400_000L} 天)")
+                        continue
+                    }
 
                     // 将未完成事务注册到活跃事务表（快照能力已移除 2026-08-01，
                     // 恢复依赖 Room WAL 事务原子性 + .sav 备份，未完成事务仅登记供监控）

@@ -23,15 +23,18 @@ data class LockStats(
  * - 调用方必须在协程上下文中调用（viewModelScope、lifecycleScope 等）
  */
 class SlotLockManager(
-    private val maxSlots: Int = 6
+    private val maxSlots: Int = DEFAULT_MAX_SLOTS
 ) {
     companion object {
         private const val TAG = "SlotLockManager"
+
+        /** 默认槽位数上限（与生产配置一致） */
+        const val DEFAULT_MAX_SLOTS = 6
     }
 
     private val mutexes: Array<Mutex> =
         Array(maxSlots + 2) { Mutex() }
-    
+
     private val globalMutex = Mutex()
 
     private val acquisitionCount = ConcurrentHashMap<Int, Long>()

@@ -76,10 +76,17 @@ class SerializationModule @Inject constructor(
                 context,
                 serializer()
             )
-            if (result.isSuccess && result.data != null) {
+            // B7（2026-08-05）：校验和不匹配（传输/存储中字节被篡改但 protobuf
+            // 恰好仍可解码）必须拒绝——此前仅 Log.w 后照常返回数据，语义损坏的
+            // 存档被静默加载。hasChecksum=false 的旧格式帧仍可解码（兼容）
+            if (result.isSuccess && result.data != null && result.checksumValid) {
                 result.data
             } else {
-                Log.w(TAG, "Protobuf deserialization returned invalid result, checksum valid: ${result.checksumValid}")
+                Log.w(
+                    TAG,
+                    "Protobuf deserialization rejected: success=${result.isSuccess}, " +
+                        "checksumValid=${result.checksumValid}"
+                )
                 null
             }
         } catch (e: Exception) {

@@ -7,13 +7,11 @@ import com.xianxia.sect.data.compression.DataCompressor
 import com.xianxia.sect.data.concurrent.SlotLockManager
 import com.xianxia.sect.data.config.SaveLimitsConfig
 import com.xianxia.sect.data.config.StorageConfig
-import com.xianxia.sect.data.crypto.KeyRotationManager
 import com.xianxia.sect.data.engine.StorageCoreFacade
 import com.xianxia.sect.data.engine.StorageEngine
 import com.xianxia.sect.data.engine.StorageInfraFacade
 import com.xianxia.sect.data.engine.StorageMaintenanceFacade
 
-import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.memory.DynamicMemoryManager
 
 import com.xianxia.sect.data.serialization.unified.SerializationModule
@@ -33,7 +31,7 @@ object StorageModule {
     @Provides
     @Singleton
     fun provideSlotLockManager(): SlotLockManager {
-        return SlotLockManager(maxSlots = 6)
+        return SlotLockManager()
     }
 
     @Provides
@@ -131,15 +129,6 @@ object StorageModule {
         return SaveSerializer { saveData ->
             serializationModule.serializeAndCompressSaveData(saveData)
         }
-    }
-
-    @Provides
-    @Singleton
-    fun provideKeyRotationManager(
-        @ApplicationContext context: Context,
-        storageFacade: StorageFacade
-    ): KeyRotationManager {
-        return KeyRotationManager(context, storageFacade)
     }
 
 }

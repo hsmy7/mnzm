@@ -318,6 +318,24 @@ fun GameOverlayHost(
         )
     }
 
+    // A6（2026-08-05）：云读档覆盖确认——目标槽位已有本地存档时不静默覆盖
+    val cloudOverwrite by saveLoadViewModel.cloudOverwriteRequest.collectAsStateWithLifecycle()
+    if (dialogRenderable && cloudOverwrite != null) {
+        StandardPromptDialog(
+            onDismissRequest = { saveLoadViewModel.cancelCloudOverwrite() },
+            title = "覆盖本地存档？",
+            text = "云端存档（第${cloudOverwrite!!.cloudYear}年${cloudOverwrite!!.cloudMonth}月 " +
+                "${cloudOverwrite!!.cloudSectName}）将写入槽位 ${cloudOverwrite!!.slot}，" +
+                "该槽位的本地存档将被覆盖。\n\n确定要覆盖吗？",
+            confirmLabel = "覆盖并继续",
+            onConfirm = { saveLoadViewModel.confirmCloudOverwrite() },
+            dismissLabel = "取消",
+            onDismiss = { saveLoadViewModel.cancelCloudOverwrite() },
+            dismissOnClickOutside = false,
+            scrimEnabled = false
+        )
+    }
+
     if (dialogRenderable && pendingNotification != null) {
         pendingNotification?.let { notification ->
             when (notification) {

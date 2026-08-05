@@ -470,4 +470,57 @@ class SaveFileManagerTest {
 
     private fun getSavFile(slot: Int) = File(tempFolder.root, "saves/slot_${slot}.sav")
     private fun getBakFile(slot: Int) = File(tempFolder.root, "saves/slot_${slot}.bak")
+
+    // ═══════════════════════════════════════════════════════════
+    // A5（2026-08-05）：删除 tombstone——跨 DB/文件原子删除守卫
+    // ═══════════════════════════════════════════════════════════
+
+    @Test
+    fun `tombstone - mark makes slot deleted and clear restores`() {
+        val slot = 1
+        assertFalse("初始无 tombstone", manager.isSlotDeleted(slot))
+
+        manager.markSlotDeleted(slot)
+        assertTrue("标记后判定已删", manager.isSlotDeleted(slot))
+
+        manager.clearSlotDeleted(slot)
+        assertFalse("清除后不再判定已删", manager.isSlotDeleted(slot))
+    }
+
+    @Test
+    fun `tombstone - deleteSlot removes sav bak and tombstone`() {
+        val slot = 1
+        writeValidSavFile(slot, "payload".encodeToByteArray())
+        manager.markSlotDeleted(slot)
+        assertTrue("标记后 sav 存在", getSavFile(slot).exists())
+
+        manager.deleteSlot(slot)
+        manager.clearSlotDeleted(slot)
+
+        assertFalse("sav 已删", getSavFile(slot).exists())
+        assertFalse("tombstone 已清", manager.isSlotDeleted(slot))
+    }
+
+    @Test
+    fun `tombstone - uninitialized manager isSlotDeleted returns false without throwing`() {
+        val uninitialized = SaveFileManager(saveSerializer = SaveSerializer { data ->
+            data.gameData.sectName.encodeToByteArray()
+        })
+        // 未初始化时不抛异常（读路径守卫：备份恢复前查询 tombstone 必须安全）
+        assertFalse("未初始化返回 false", uninitialized.isSlotDeleted(1))
+    }
+
+    @Test
+    fun `tombstone - clearSlotDeleted is idempotent when already cleared`() {
+        // 对抗性审查修复（2026-08-06）：save 成功后无条件清除 tombstone——
+        // 无残留时清除必须无副作用（幂等）
+        val slot = 1
+        manager.clearSlotDeleted(slot)
+        assertFalse("无 tombstone 时清除无副作用", manager.isSlotDeleted(slot))
+
+        manager.markSlotDeleted(slot)
+        manager.clearSlotDeleted(slot)
+        manager.clearSlotDeleted(slot)
+        assertFalse("重复清除幂等", manager.isSlotDeleted(slot))
+    }
 }

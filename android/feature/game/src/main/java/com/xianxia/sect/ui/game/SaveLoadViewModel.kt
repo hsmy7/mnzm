@@ -9,7 +9,6 @@ import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.taptap.TapCloudSaveManager
-import com.xianxia.sect.data.StorageConstants
 import com.xianxia.sect.data.integrity.IntegrityResult
 import com.xianxia.sect.data.integrity.SaveValidator
 import com.xianxia.sect.data.migration.MigrationResult
@@ -23,7 +22,6 @@ import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.ui.components.AtlasResult
 import com.xianxia.sect.ui.game.saveload.SaveLoadLoadDelegate
 import com.xianxia.sect.ui.game.saveload.SaveLoadPauseDelegate
-import com.xianxia.sect.ui.game.saveload.SaveLoadRestartDelegate
 import com.xianxia.sect.ui.game.saveload.SaveLoadSaveDelegate
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.ui.game.saveload.PersistenceFacade
@@ -51,7 +49,6 @@ class SaveLoadViewModel @Inject constructor(
         SaveLoadLoadDelegate(gameEngine, gameEngineCore, persistenceFacade.storageFacade, stateStore,
             persistenceFacade.buildingConfigService, persistenceFacade.spiritStoneWallet)
     }
-    private val restartDelegate by lazy { SaveLoadRestartDelegate(gameEngine, gameEngineCore, persistenceFacade.storageFacade, stateStore, dispatcher = ioDispatcher.dispatcher) }
     private val pauseDelegate by lazy { SaveLoadPauseDelegate(gameEngineCore, gameClock) }
 
     companion object {
@@ -152,6 +149,32 @@ class SaveLoadViewModel @Inject constructor(
 
     private val _cloudSaveOperationState = MutableStateFlow<CloudSaveOperationState>(CloudSaveOperationState.Idle)
     val cloudSaveOperationState: StateFlow<CloudSaveOperationState> = _cloudSaveOperationState.asStateFlow()
+
+    // ── A6（2026-08-05）：主菜单云读档覆盖确认 ──
+    // 目标槽位已有本地存档时不静默覆盖，挂起等待玩家确认
+    private val _cloudOverwriteRequest = MutableStateFlow<CloudOverwriteRequest?>(null)
+    val cloudOverwriteRequest: StateFlow<CloudOverwriteRequest?> = _cloudOverwriteRequest.asStateFlow()
+    // 对抗性审查修复（2026-08-06）：@Volatile——IO 线程写入、主线程读取，
+    // 普通字段存在极窄窗口读到陈旧 null 导致确认 tap 丢失、挂起永久
+    @Volatile
+    private var cloudOverwriteContinuation: kotlinx.coroutines.CancellableContinuation<Boolean>? = null
+    private var pendingCloudLoadData: SaveData? = null
+    private var pendingCloudLoadSlot: Int = 0
+
+    /** 玩家确认覆盖目标槽位后继续云读档 */
+    fun confirmCloudOverwrite() {
+        _cloudOverwriteRequest.value = null
+        cloudOverwriteContinuation?.resume(true, null)
+        cloudOverwriteContinuation = null
+    }
+
+    /** 玩家拒绝覆盖，中止云读档（不落盘不读档） */
+    fun cancelCloudOverwrite() {
+        _cloudOverwriteRequest.value = null
+        cloudOverwriteContinuation?.resume(false, null)
+        cloudOverwriteContinuation = null
+        pendingCloudLoadData = null
+    }
 
     fun isCloudSaveAvailable(): Boolean = persistenceFacade.sessionManager.isLoggedIn
 
@@ -1344,6 +1367,8 @@ class SaveLoadViewModel @Inject constructor(
     }
 
     /** C-8：云上传主流程（uploadToCloudSave 协程体提取）。 */
+    // RethrowCaughtException 与项目规范 8.1 冲突（CancellationException 必须重抛），压制
+    @Suppress("CyclomaticComplexMethod", "RethrowCaughtException")
     private suspend fun performCloudUpload() {
             if (!isCloudSaveAvailable()) {
                 _cloudSaveOperationState.value = CloudSaveOperationState.Error("请先登录TapTap账号")
@@ -1356,7 +1381,13 @@ class SaveLoadViewModel @Inject constructor(
                 val snapshot = gameEngine.getStateSnapshot()
                 val saveData = createSaveDataFromSnapshot(snapshot)
 
-                val result = persistenceFacade.tapCloudSaveManager.uploadSave(saveData)
+                // B10（2026-08-05）：上传前校验——此前绕过 SaveValidator/版本迁移，
+                // 损坏数据或旧版本语义的数据直接上传云端；现与本地保存/读档管线
+                // 对齐：损坏拒绝、可修复用修复后数据、版本迁移到当前
+                val uploadData = validateForUpload(saveData)
+                    ?: return
+
+                val result = persistenceFacade.tapCloudSaveManager.uploadSave(uploadData)
 
                 _cloudSaveOperationState.value = when (result) {
                     is TapCloudSaveManager.CloudSaveResult.Success -> {
@@ -1396,10 +1427,42 @@ class SaveLoadViewModel @Inject constructor(
                     is TapCloudSaveManager.CloudSaveResult.UnknownError ->
                         CloudSaveOperationState.Error("未知错误: ${result.message}")
                 }
-            } catch (e: CancellationException) { throw e }
-              catch (e: Exception) {
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
                 _cloudSaveOperationState.value = CloudSaveOperationState.Error("上传失败: ${e.message}")
             }
+    }
+
+    /**
+     * B10（2026-08-05）：上传前校验与版本迁移。
+     *
+     * @return 可上传的数据（迁移+校验通过，可修复时用修复后数据）；失败置错误
+     * 状态并返回 null
+     */
+    @Suppress("ReturnCount") // 版本/校验多失败守卫，多 return 为守卫风格
+    private fun validateForUpload(saveData: SaveData): SaveData? {
+        val migration = SaveDataVersionMigrator.migrate(saveData)
+        if (migration is MigrationResult.Rejected) {
+            _cloudSaveOperationState.value =
+                CloudSaveOperationState.Error("存档版本异常，无法上传: ${migration.reason}")
+            return null
+        }
+        var uploadData = (migration as MigrationResult.Migrated).data
+        val validation = SaveValidator.validate(uploadData)
+        when (validation) {
+            is IntegrityResult.Corrupted -> {
+                _cloudSaveOperationState.value =
+                    CloudSaveOperationState.Error("存档数据损坏，无法上传")
+                return null
+            }
+            is IntegrityResult.Repaired -> {
+                Log.w(TAG, "上传前完整性修复 ${validation.details.size} 项")
+                uploadData = validation.data
+            }
+            is IntegrityResult.Passed -> {}
+        }
+        return uploadData
     }
 
     fun downloadFromCloudSave() {
@@ -1515,24 +1578,28 @@ class SaveLoadViewModel @Inject constructor(
         }
         processed = SaveDataReconciler.reconcileStacks(processed)
 
-        // 从云存档数据中提取 slot，写入本地
-        // 2026-08-04 对抗性审查修复（A15）：currentSlot 越界（0/负值/超大——老版本
-        // 云档 currentSlot=0 是常见场景）不再折叠到槽位 1 覆盖玩家存档，改用当前槽位
-        val rawSlot = processed.gameData.currentSlot
-        val slot = if (rawSlot in 1..StorageConstants.DEFAULT_MAX_SLOTS) {
-            rawSlot
-        } else {
-            Log.w(TAG, "云存档 currentSlot=$rawSlot 越界，使用当前槽位")
-            persistenceFacade.storageFacade.getCurrentSlot()
-        }
+        // A6 修复（2026-08-05 用户实报）：云读档覆盖本地存档——原实现把云档
+        // gameData.currentSlot（= 上传时的游戏槽位，纯来源元数据）当作目标写入
+        // 槽位，∈1..6 时直接采用：玩家在槽位 2 上传云档后，主菜单点"云存档"
+        // 读档会静默覆盖槽位 2 的本地存档 b。现目标槽位统一为当前槽位
+        //（与游戏内云下载路径语义一致），彻底忽略云档来源元数据。
+        val slot = persistenceFacade.storageFacade.getCurrentSlot()
         persistenceFacade.storageFacade.setCurrentSlot(slot)
+
+        // A6：目标槽位已有本地存档 → 挂起等待玩家确认覆盖（不静默覆盖）
+        if (!awaitOverwriteConfirmation(processed, slot)) return
 
         // 下载覆盖前备份当前存档（触发 StorageEngine SaveFileManager 原子写入创建 .bak 快照）
         backupCurrentSlotBeforeCloudLoad(slot)
 
+        // 对抗性审查修复（2026-08-06）：落盘前修正 slotId——云档 slotId 为
+        // @Transient 恒 0，直接 save 会把 slotId=0 写入缓存，随后 loadGameFromSlot
+        // 经缓存命中读回时 loadFromSnapshot 内 setActiveSlot(0) 使仓库脏写错槽
+        val slotAdjusted = processed.copy(gameData = reconcileCloudSlot(processed, slot))
+
         // 2026-08-04 修复：检查写入结果——原实现忽略结果，写库失败后
         // 继续读档会读到旧数据（或报"存档为空"），玩家误以为云档已加载
-        val saveResult = persistenceFacade.storageFacade.save(slot, processed)
+        val saveResult = persistenceFacade.storageFacade.save(slot, slotAdjusted)
         if (saveResult.isFailure) {
             showError("云存档写入本地失败，请重试")
             return
@@ -1551,6 +1618,44 @@ class SaveLoadViewModel @Inject constructor(
         // cloudDownloadLock 守卫——本路径仍持有该锁（performCloudLoad 全程持有），
         // 原实现被守卫拒绝：云档已落盘但内存加载永不执行，主菜单云读档必失败
         loadGameFromSlot(slot, fromCloudLoad = true)
+    }
+
+    /**
+     * A6（2026-08-05）：云读档覆盖确认——目标槽位已有本地存档时挂起等待
+     * 玩家确认（[confirmCloudOverwrite]/[cancelCloudOverwrite] 恢复）。
+     *
+     * @return true 继续落盘；false 玩家拒绝（中止云读档）
+     */
+    @Suppress("ReturnCount") // 无本地存档早退 + 确认结果分派，守卫风格
+    private suspend fun awaitOverwriteConfirmation(processed: SaveData, slot: Int): Boolean {
+        if (!persistenceFacade.storageFacade.hasSaveSuspend(slot)) return true
+        Log.w(TAG, "云读档目标槽位 $slot 已有本地存档，等待玩家确认覆盖")
+        pendingCloudLoadData = processed
+        pendingCloudLoadSlot = slot
+        _cloudOverwriteRequest.value = CloudOverwriteRequest(
+            slot = slot,
+            cloudYear = processed.gameData.gameYear,
+            cloudMonth = processed.gameData.gameMonth,
+            cloudSectName = processed.gameData.sectName
+        )
+        val confirmed = suspendCancellableCoroutine<Boolean> { cont ->
+            cloudOverwriteContinuation = cont
+            // 对抗性审查修复（2026-08-06）：协程取消（ViewModel 销毁/看门狗）时
+            // 清理挂起引用——不清理则残留 continuation 引用，且 _cloudOverwriteRequest
+            // 停留在弹出状态；取消会从挂起点抛 CancellationException 使
+            // performCloudLoad 的 finally 正常释放 cloudDownloadLock
+            cont.invokeOnCancellation {
+                if (cloudOverwriteContinuation === cont) cloudOverwriteContinuation = null
+            }
+        }
+        _cloudOverwriteRequest.value = null
+        if (!confirmed) {
+            Log.i(TAG, "玩家拒绝覆盖槽位 $slot，云读档中止")
+            pendingCloudLoadData = null
+            return false
+        }
+        Log.i(TAG, "玩家确认覆盖槽位 $slot，继续云读档")
+        return true
     }
 
     /** 云下载 Success 分支：管线 → 落盘 → 内存加载 → boot（2026-08-04 提取，控制主函数复杂度） */
@@ -1614,8 +1719,12 @@ class SaveLoadViewModel @Inject constructor(
 
     /** 云下载后的内存加载 + boot（2026-08-04 提取，控制 handleCloudDownloadSuccess 行数） */
     private suspend fun applyCloudSaveToEngine(reconciled: SaveData, effectiveSlot: Int) {
+        // B8 修复（2026-08-05）：云档 slotId 为 @Transient 恒 0——只修 currentSlot
+        // 会让 loadFromSnapshot 内 repository.setActiveSlot(gameData.slotId) 拿到 0，
+        // 后续 repository 脏写指向错误槽位；slotId/currentSlot 必须同时修正
+        val resolvedGameData = reconcileCloudSlot(reconciled, effectiveSlot)
         gameEngine.loadData(
-            gameData = reconciled.gameData.copy(currentSlot = effectiveSlot),
+            gameData = resolvedGameData,
             disciples = reconciled.disciples,
             equipmentStacks = reconciled.equipmentStacks,
             equipmentInstances = reconciled.equipmentInstances,
@@ -1631,6 +1740,12 @@ class SaveLoadViewModel @Inject constructor(
             alliances = reconciled.alliances,
             productionSlots = reconciled.productionSlots
         )
+
+        // B8：与本地读档路径（performLoadToSlot）一致——基于地图种子播种 AI
+        // 宗门 RNG（确定性），此前云下载路径缺失导致 AI 弟子/宗门行为未按
+        // 地图种子确定性生成
+        val loadedGd = gameEngine.gameData.value
+        AISectDiscipleManager.initForSlot(loadedGd.mapSeed.toLong())
 
         val bootResult = persistenceFacade.bootSequenceController.boot(
             slot = effectiveSlot,
@@ -1660,6 +1775,20 @@ class SaveLoadViewModel @Inject constructor(
 
     fun resetCloudSaveOperationState() {
         _cloudSaveOperationState.value = CloudSaveOperationState.Idle
+    }
+
+    /**
+     * B8（2026-08-05）：云档槽位解析——slotId 与 currentSlot 同时修正为目标槽位。
+     *
+     * 云档 gameData.slotId 为 @Transient 恒 0、currentSlot 是上传时来源槽位
+     *（与目标槽位无关）；loadFromSnapshot 内部用 gameData.slotId 设置仓库
+     * 活跃槽位，只修 currentSlot 会导致 repository 脏写指向槽位 0。
+     */
+    internal fun reconcileCloudSlot(reconciled: SaveData, effectiveSlot: Int): com.xianxia.sect.core.model.GameData {
+        return reconciled.gameData.copy(
+            currentSlot = effectiveSlot,
+            slotId = effectiveSlot
+        )
     }
 
     private suspend fun createSaveDataFromSnapshot(snapshot: com.xianxia.sect.core.engine.GameStateSnapshot): SaveData {

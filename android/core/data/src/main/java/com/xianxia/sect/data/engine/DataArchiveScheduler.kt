@@ -35,6 +35,7 @@ data class ArchiveOperationResult(
 @Singleton
 class DataArchiveScheduler @Inject constructor(
     private val database: GameDatabase,
+    private val core: StorageCoreFacade,
     private val scopeProvider: CoroutineScopeProvider
 ) {
     private val config = ArchiveConfig()
@@ -88,11 +89,15 @@ class DataArchiveScheduler @Inject constructor(
 
         for (slotId in config.slotIds) {
             try {
-                val logsResult = archiveBattleLogs(slotId)
-                battleLogsArchived += logsResult
+                // D24（2026-08-05）：归档与保存互斥——保存事务全量重写 battleLogs/
+                // disciples 与归档读删交叉时，主表/归档表数据漂移
+                core.lockManager.withWriteLockLight(slotId) {
+                    val logsResult = archiveBattleLogs(slotId)
+                    battleLogsArchived += logsResult
 
-                val disciplesResult = archiveDeadDisciples(slotId)
-                disciplesArchived += disciplesResult
+                    val disciplesResult = archiveDeadDisciples(slotId)
+                    disciplesArchived += disciplesResult
+                }
             } catch (e: Exception) {
                 Log.w(TAG, "Archive for slot $slotId failed: ${e.message}")
             }

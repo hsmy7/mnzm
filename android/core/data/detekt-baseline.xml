@@ -244,10 +244,6 @@
     <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark.BenchmarkResult$appendLine(" Min: ${minMs}ms | P50: ${p50Ms}ms | P95: ${p95Ms}ms | P99: ${p99Ms}ms | Max: ${maxMs}ms")</ID>
     <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark.BenchmarkResult$appendLine(" Total: ${totalMs}ms | Avg: ${"%.2f".format(avgMs)}ms | Ops/s: ${"%.0f".format(opsPerSecond)}")</ID>
     <ID>MaxLineLength:StorageSystemBenchmark.kt$StorageSystemBenchmark.DataScale$enum</ID>
-    <ID>MaxLineLength:StorageValidator.kt$StorageValidator$context = mapOf("required" to requiredBytes, "available" to freeSpace, "directory" to directory.absolutePath)</ID>
-    <ID>MaxLineLength:StorageValidator.kt$StorageValidator$fun</ID>
-    <ID>MaxLineLength:StorageValidator.kt$StorageValidator$private</ID>
-    <ID>MaxLineLength:StorageValidator.kt$StorageValidator.ValidationResult.Companion$fun</ID>
     <ID>MayBeConst:DynamicMemoryManager.kt$DynamicMemoryManager.Companion$/** RAM 分级阈值（字节） */ private val TIER_LOW_MAX = 4L * 1024 * 1024 * 1024 // 4 GB</ID>
     <ID>MayBeConst:DynamicMemoryManager.kt$DynamicMemoryManager.Companion$private val TIER_HIGH_MAX = 8L * 1024 * 1024 * 1024 // 8 GB</ID>
     <ID>MayBeConst:DynamicMemoryManager.kt$DynamicMemoryManager.Companion$private val TIER_MEDIUM_MAX = 6L * 1024 * 1024 * 1024 // 6 GB</ID>
@@ -267,7 +263,6 @@
     <ID>NestedBlockDepth:SecureKeyManager.kt$SecureKeyManager$private fun writeKeyFileAtomically( context: Context, keyFile: File, backupFile: File, encryptedKey: ByteArray )</ID>
     <ID>NestedBlockDepth:StorageEngine.kt$StorageEngine$private suspend fun performFullTransactionSave(slot: Int, data: SaveData): StorageResult&lt;SaveOperationStats&gt;</ID>
     <ID>NestedBlockDepth:StorageFacade.kt$StorageFacade$suspend fun getStorageUsageSuspend(): StorageUsage</ID>
-    <ID>NestedBlockDepth:StorageValidator.kt$StorageValidator.RuleEngine$fun validate(data: SaveData): ValidationResult</ID>
     <ID>NewLineAtEndOfFile:CryptoModule.kt$com.xianxia.sect.data.crypto.CryptoModule.kt</ID>
     <ID>ReturnCount:BackupStrategy.kt$BackupStrategy$fun parseBackupFileName(fileName: String): ParsedBackupName?</ID>
     <ID>ReturnCount:BackupStrategy.kt$BackupStrategy$fun suggestImportance( type: BackupType, context: Map&lt;String, Any&gt;? = null ): BackupImportance</ID>
@@ -312,8 +307,6 @@
     <ID>ReturnCount:StorageEngine.kt$StorageEngine$private suspend fun performFullTransactionSave(slot: Int, data: SaveData): StorageResult&lt;SaveOperationStats&gt;</ID>
     <ID>ReturnCount:StorageEngine.kt$StorageEngine$suspend fun getSlotMetadata(slot: Int): SlotMetadata?</ID>
     <ID>ReturnCount:StorageFacade.kt$StorageFacade$suspend fun initialize(): SaveResult&lt;Unit&gt;</ID>
-    <ID>ReturnCount:StorageValidator.kt$StorageValidator$@Suppress("DEPRECATION") private fun verifySignatureFormat(payload: SignedPayload, key: ByteArray): CryptoVerificationResult</ID>
-    <ID>ReturnCount:StorageValidator.kt$StorageValidator$fun validateBeforeLoad(slot: Int, maxSlots: Int, saveFile: File): ValidationResult</ID>
     <ID>ReturnCount:UnifiedSerializationEngine.kt$UnifiedSerializationEngine$@OptIn(ExperimentalSerializationApi::class) fun &lt;T&gt; deserialize( data: ByteArray, context: SerializationContext = SerializationContext(), serializer: KSerializer&lt;T&gt; ): DeserializationResult&lt;T&gt;</ID>
     <ID>SwallowedException:ChangeLogPersistence.kt$ChangeLogPersistence$e: Exception</ID>
     <ID>SwallowedException:CryptoModule.kt$IntegrityValidator$e: Exception</ID>
@@ -377,12 +370,9 @@
     <ID>TooGenericExceptionCaught:StorageEngine.kt$StorageEngine$e2: Exception</ID>
     <ID>TooGenericExceptionCaught:StorageEngine.kt$StorageEngine$e: Exception</ID>
     <ID>TooGenericExceptionCaught:StorageFacade.kt$StorageFacade$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:StorageValidator.kt$StorageValidator$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:StorageValidator.kt$StorageValidator.RuleEngine$e: Exception</ID>
     <ID>TooGenericExceptionCaught:UiKeyRecoveryCallback.kt$UiKeyRecoveryCallback$e: Exception</ID>
     <ID>TooGenericExceptionCaught:UnifiedSerializationEngine.kt$UnifiedSerializationEngine$e: Exception</ID>
     <ID>TooGenericExceptionThrown:StorageEngine.kt$StorageEngine$throw RuntimeException("Failed to query save slot $slot: ${e.message}", e)</ID>
-    <ID>TooGenericExceptionThrown:StorageValidatorTest.kt$StorageValidatorTest.&lt;no name provided&gt;$throw RuntimeException("test failure")</ID>
     <ID>TooManyFunctions:BattleLogDao.kt$BattleLogDao</ID>
     <ID>TooManyFunctions:CacheKey.kt$CacheKey$Companion</ID>
     <ID>TooManyFunctions:CacheLayer.kt$CacheLayer</ID>
@@ -428,7 +418,6 @@
     <ID>TooManyFunctions:SlotLockManager.kt$SlotLockManager</ID>
     <ID>TooManyFunctions:StorageEngine.kt$StorageEngine</ID>
     <ID>TooManyFunctions:StorageFacade.kt$StorageFacade</ID>
-    <ID>TooManyFunctions:StorageValidator.kt$StorageValidator</ID>
     <ID>TooManyFunctions:UnifiedSerializationEngine.kt$UnifiedSerializationEngine</ID>
     <ID>TooManyFunctions:WALProvider.kt$WALProvider</ID>
     <ID>TooManyFunctions:WorldRepository.kt$WorldRepositoryImpl : WorldRepository</ID>
@@ -441,7 +430,6 @@
     <ID>UnusedParameter:RoomMigrationTest.kt$RoomMigrationTest$toVersion: Int</ID>
     <ID>UnusedParameter:StorageEngine.kt$StorageEngine$data: SaveData</ID>
     <ID>UnusedParameter:StorageEngine.kt$StorageEngine$priority: SavePriority = SavePriority.NORMAL</ID>
-    <ID>UnusedParameter:StorageValidator.kt$StorageValidator$key: ByteArray</ID>
     <ID>UnusedParameter:UnifiedSerializationEngine.kt$UnifiedSerializationEngine$dataSize: Int</ID>
     <ID>UnusedPrivateMember:DataCompressor.kt$DataCompressor$private fun compressZstd(data: ByteArray): ByteArray</ID>
     <ID>UnusedPrivateMember:DynamicMemoryManager.kt$DynamicMemoryManager$private fun notifyPressureChanged(snapshot: MemorySnapshot)</ID>
@@ -586,7 +574,6 @@
     <ID>WildcardImport:StorageResultTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:StorageSystemBenchmark.kt$import com.xianxia.sect.data.serialization.unified.*</ID>
     <ID>WildcardImport:StorageSystemBenchmark.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:StorageValidatorTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:WALDataClassesTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:WorldMapStateDao.kt$import androidx.room.*</ID>
   </CurrentIssues>
