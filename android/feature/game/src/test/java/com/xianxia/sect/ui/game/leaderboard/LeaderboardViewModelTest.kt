@@ -12,6 +12,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
@@ -84,6 +85,34 @@ class LeaderboardViewModelTest {
         val entries = vm.localEntries.drop(1).first()
 
         assertEquals(listOf("青云宗", "太玄门"), entries.map { it.name })
+    }
+
+    // ── 世界加载状态（主菜单入口判断）──
+    // 注意：isWorldLoaded 的 stateIn 初始值与上游可能同值（false），StateFlow 去重后
+    // drop(1) 等不到第二发射；用显式订阅 + advanceUntilIdle 后读 value（collect 建立订阅
+    // 触发 WhileSubscribed 启动上游，GameViewModelTest 同模式）。
+
+    @Test
+    fun `isWorldLoaded - 跟随 worldMapSects 变化（主菜单空档 false → 游戏内非空 true）`() = runTest {
+        val vm = LeaderboardViewModel(gameEngine, leaderboardManager, loginBridge)
+        val job = launch { vm.isWorldLoaded.collect { } }
+        advanceUntilIdle()
+        // 初始 setUp：worldMapSects 含太玄门 → true
+        assertTrue(vm.isWorldLoaded.value)
+
+        // 模拟主菜单上下文（无存档）：worldMapSects 清空 → false
+        gameData.value = GameData(sectName = "青云宗", worldMapSects = emptyList())
+        advanceUntilIdle()
+        assertTrue(!vm.isWorldLoaded.value)
+
+        // 恢复非空 → true
+        gameData.value = GameData(
+            sectName = "青云宗",
+            worldMapSects = listOf(WorldSect(id = "a", name = "太玄门"))
+        )
+        advanceUntilIdle()
+        assertTrue(vm.isWorldLoaded.value)
+        job.cancel()
     }
 
     // ── Tab 切换 ──

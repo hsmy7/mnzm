@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,14 +49,24 @@ private val TabActiveBg = Color(0x0A000000)
  * 排行榜对话框：双标签（天下宗门本地榜 / 玩家排行云端榜）。
  *
  * 本地榜即时渲染；云端榜四态（加载/未登录引导/错误重试/成功+我的排名）。
+ * [initialTab] 用于主菜单（模式选择界面）入口：无存档上下文时默认落在玩家排行。
  */
 @Composable
 fun LeaderboardDialog(
     viewModel: LeaderboardViewModel,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    initialTab: LeaderboardViewModel.LeaderboardTab = LeaderboardViewModel.LeaderboardTab.LOCAL
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val localEntries by viewModel.localEntries.collectAsStateWithLifecycle()
+    val isWorldLoaded by viewModel.isWorldLoaded.collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) {
+        when (initialTab) {
+            LeaderboardViewModel.LeaderboardTab.LOCAL -> viewModel.selectLocalTab()
+            LeaderboardViewModel.LeaderboardTab.CLOUD -> viewModel.selectCloudTab()
+        }
+    }
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
@@ -70,7 +81,10 @@ fun LeaderboardDialog(
                 onSelectCloud = viewModel::selectCloudTab
             )
             when (uiState.selectedTab) {
-                LeaderboardViewModel.LeaderboardTab.LOCAL -> LocalLeaderboardList(localEntries)
+                LeaderboardViewModel.LeaderboardTab.LOCAL ->
+                    if (isWorldLoaded) LocalLeaderboardList(localEntries)
+                    else CenteredHint("进入游戏后可查看天下宗门战力排行")
+
                 LeaderboardViewModel.LeaderboardTab.CLOUD -> CloudLeaderboardContent(
                     state = uiState.cloudState,
                     viewModel = viewModel
@@ -131,7 +145,7 @@ private fun LeaderboardTabItem(
     )
 }
 
-/** 本地榜列表（天下宗门，战力降序） */
+/** 本地榜列表（天下宗门，战力降序）——参赛者为宗门，表头第二列"宗门" */
 @Composable
 private fun LocalLeaderboardList(entries: List<LocalLeaderboardEntry>) {
     Column(
@@ -140,7 +154,7 @@ private fun LocalLeaderboardList(entries: List<LocalLeaderboardEntry>) {
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp)
     ) {
-        LeaderboardHeaderRow()
+        LeaderboardHeaderRow(nameLabel = "宗门")
         entries.forEachIndexed { index, entry ->
             LeaderboardRow(
                 rank = index + 1,
@@ -256,7 +270,7 @@ private fun CloudLeaderboardList(
             MyRankingCard(my)
             Spacer(modifier = Modifier.height(8.dp))
         }
-        LeaderboardHeaderRow()
+        LeaderboardHeaderRow(nameLabel = "玩家")
         state.entries.forEach { entry ->
             LeaderboardRow(
                 rank = entry.rank,
@@ -303,14 +317,14 @@ private fun MyRankingCard(my: LeaderboardEntry) {
     }
 }
 
-/** 表头行：名次 | 宗门/玩家 | 战力 */
+/** 表头行：名次 | [nameLabel]（天下宗门榜为"宗门"，玩家排行榜为"玩家"）| 战力 */
 @Composable
-private fun LeaderboardHeaderRow() {
+private fun LeaderboardHeaderRow(nameLabel: String) {
     LeaderboardRow(
         rank = 0,
         name = "名次",
         power = 0L,
-        nameSuffix = "玩家",
+        nameSuffix = nameLabel,
         highlight = false,
         header = true
     )

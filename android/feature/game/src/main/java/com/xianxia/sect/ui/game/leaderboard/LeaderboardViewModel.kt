@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -69,6 +71,15 @@ class LeaderboardViewModel @Inject constructor(
             worldSects = data.worldMapSects
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**
+     * 世界宗门是否已加载（主菜单等无存档上下文为 false）。
+     * 主菜单入口（initialTab = CLOUD）打开排行榜时，天下宗门 Tab 展示引导提示而非空榜。
+     */
+    val isWorldLoaded: StateFlow<Boolean> = gameEngine.gameData
+        .map { it.worldMapSects.isNotEmpty() }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     private val _uiState = MutableStateFlow(LeaderboardUiState())
     val uiState: StateFlow<LeaderboardUiState> = _uiState.asStateFlow()

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -40,11 +41,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.bumptech.glide.Glide
 import com.xianxia.sect.R
 import com.xianxia.sect.ui.components.AudioToggleRow
 import com.xianxia.sect.ui.components.SmallScreenDialog
 import com.xianxia.sect.ui.components.clickableWithSound
+import com.xianxia.sect.ui.game.dialogs.LeaderboardDialog
+import com.xianxia.sect.ui.game.leaderboard.LeaderboardViewModel
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -73,6 +77,7 @@ fun ModeSelectionScreen(
     onMusicToggle: (Boolean) -> Unit = {}
 ) {
     var showUserInfo by remember { mutableStateOf(false) }
+    var showLeaderboard by remember { mutableStateOf(false) }
     val avatarBitmap = rememberAvatarBitmap(avatarUrl)
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -104,7 +109,8 @@ fun ModeSelectionScreen(
                 UserAvatarHeader(
                     userName = userName,
                     avatarBitmap = avatarBitmap,
-                    onClick = { showUserInfo = true }
+                    onClick = { showUserInfo = true },
+                    onOpenLeaderboard = { showLeaderboard = true }
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 AudioToggleRow(
@@ -131,7 +137,23 @@ fun ModeSelectionScreen(
                 onDismiss = { showUserInfo = false }
             )
         }
+
+        // 排行榜覆层（主菜单无存档上下文，默认落在玩家排行标签）
+        if (showLeaderboard) {
+            LeaderboardDialogOverlay(onDismiss = { showLeaderboard = false })
+        }
     }
+}
+
+/** 排行榜对话框覆层（主菜单入口专用：默认落在玩家排行标签，天下宗门 Tab 显示引导提示） */
+@Composable
+private fun LeaderboardDialogOverlay(onDismiss: () -> Unit) {
+    val leaderboardViewModel = hiltViewModel<LeaderboardViewModel>()
+    LeaderboardDialog(
+        viewModel = leaderboardViewModel,
+        onDismiss = onDismiss,
+        initialTab = LeaderboardViewModel.LeaderboardTab.CLOUD
+    )
 }
 
 /** 用户信息小屏对话框 */
@@ -181,50 +203,79 @@ private fun UserInfoDialog(
 private fun UserAvatarHeader(
     userName: String,
     avatarBitmap: Bitmap?,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onOpenLeaderboard: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 16.dp, end = 16.dp)
-            .clickableWithSound { onClick() },
+            .padding(top = 16.dp, end = 16.dp),
         horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = userName,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color.Black,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        if (avatarBitmap != null) {
-            Image(
-                bitmap = avatarBitmap.asImageBitmap(),
-                contentDescription = "用户头像",
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape),
-                contentScale = ContentScale.Crop
+        // 排行榜按钮（用户名左侧）
+        LeaderboardEntryButton(onClick = onOpenLeaderboard)
+        Spacer(modifier = Modifier.width(10.dp))
+        // 用户名 + 头像区域整体可点击（查看用户信息）
+        Row(
+            modifier = Modifier.clickableWithSound { onClick() },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = userName,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color.Black,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-        } else {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(GameColors.DividerGray),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = userName.take(1).ifEmpty { "?" },
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
+            Spacer(modifier = Modifier.width(8.dp))
+            if (avatarBitmap != null) {
+                Image(
+                    bitmap = avatarBitmap.asImageBitmap(),
+                    contentDescription = "用户头像",
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
                 )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(GameColors.DividerGray),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = userName.take(1).ifEmpty { "?" },
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
             }
         }
+    }
+}
+
+/** 主菜单排行榜入口按钮（浅底圆角小按钮，与右上角信息区协调） */
+@Composable
+private fun LeaderboardEntryButton(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0x1A000000))
+            .clickableWithSound { onClick() }
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "排行",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            color = Color.Black
+        )
     }
 }
 

@@ -222,6 +222,13 @@
 - **测试** — 新增 4 个测试类（LocalLeaderboardComposerTest 8 例 / LeaderboardUploadPolicyTest 7 例 / LeaderboardManagerTest 14 例 / LeaderboardViewModelTest 11 例），GameViewModelTest 与 DialogTypeRenderCoverageTest 同步维护
 - **隐私合规** — PrivacyConsentScreen 与 docs/index.html 新增 TapTap 排行榜模块（tap-leaderboard-androidx）SDK 声明；游戏内更新日志同步新增排行榜条目
 
+### 优化（2026-08-05 排行榜入口与表头完善）
+
+- **天下宗门榜表头"玩家"→"宗门"** — 本地榜参赛者为宗门（玩家宗门 + AI 宗门），表头第二列语义修正；云端榜（玩家排行）表头保持"玩家"，两榜表头参数化分离
+- **模式选择界面排行榜入口** — 选存档前的主菜单右上角（用户名称左侧）新增"排行"按钮，打开排行榜对话框并默认落在"玩家排行"标签（主菜单无存档上下文，可提前查看全服战力排行）；天下宗门 Tab 在主菜单显示"进入游戏后可查看"引导提示（`isWorldLoaded` 派生判断），进游戏后自动恢复完整榜单
+- **LeaderboardDialog 支持 initialTab** — 对话框新增初始标签参数（默认 LOCAL，游戏内行为不变；主菜单传 CLOUD）
+- **测试** — LeaderboardViewModelTest 新增 isWorldLoaded 派生跟随变化用例；全量测试 + lintRelease + detekt（新代码违规清零）全绿
+
 ## [4.0.85] - 2026-08-02
 
 ### 新增（2026-08-02 一键拆除建筑）
