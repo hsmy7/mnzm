@@ -470,3 +470,5 @@ C1~C13（云读档自阻塞/loadGameFromSlot 自阻塞/大 id OOM/restart 窗口
 | P-14 | GameStateStoreLoadRaceTest/RollbackTest 偶发 flaky | `app/src/test` | 非本次引入：全量测试首轮偶发失败，单独重跑通过；建议后续定位共享静态状态跨类污染 |
 | P-15 | AISectBattleProcessor 迁移无直接单测 | `AISectBattleProcessor.kt` | AI 攻防域（processAISectOperations/processPlayerDefenseBattles/processAIVsAIBattles 等）无直接单元测试，迁移完整性靠编译+全量测试间接保障；建议补迁移守卫测试 |
 | P-16 | UI 迁移真机冒烟 | SettingsTab/DiscipleDetailScreen/OverlayDialogRouter | 无设备环境未验证；建议发布前真机检查 4 个迁移弹窗（其他设置/年俸/存档管理/更新日志）与 34 分支路由 |
+| P-17 | GameViewModel 构造 20 参数超规（LongParameterList baseline 豁免） | `feature/game/.../GameViewModel.kt` | 2026-08-05 排行榜接入核查确认：20 构造依赖超 CLAUDE.md 3.6 阈值（>10），baseline 豁免掩盖；拆分为 Facade/Delegate 分组（参照 3.4 规范），拆分时保持 baseline 只缩不增。排行榜接入刻意未加重该债务：每日静默上报挂在 MainGameScreen + LeaderboardViewModel（独立 VM），而非 GameViewModel 构造注入 |
+| P-18 | 排行榜 rank 0/1 起始语义真机验证 | `feature/game/.../taptap/TapTapLeaderboardApi.kt` | 2026-08-05 接入时反编译 SDK 无法确认服务端 rank 语义，已做 0→1 归一化兜底（rank<1 显示 1）；真机观察首名是否显示"#1"，若服务端本就 1 起始需移除归一化避免次名重复显示 |

@@ -228,6 +228,7 @@
 - **模式选择界面排行榜入口** — 选存档前的主菜单右上角（用户名称左侧）新增"排行"按钮，打开排行榜对话框并默认落在"玩家排行"标签（主菜单无存档上下文，可提前查看全服战力排行）；天下宗门 Tab 在主菜单显示"进入游戏后可查看"引导提示（`isWorldLoaded` 派生判断），进游戏后自动恢复完整榜单
 - **LeaderboardDialog 支持 initialTab** — 对话框新增初始标签参数（默认 LOCAL，游戏内行为不变；主菜单传 CLOUD）
 - **测试** — LeaderboardViewModelTest 新增 isWorldLoaded 派生跟随变化用例；全量测试 + lintRelease + detekt（新代码违规清零）全绿
+- **文档** — 架构文档预存问题登记表补充 P-17（GameViewModel 构造 20 参数超规，baseline 豁免技术债）与 P-18（排行榜 rank 起始语义真机验证）；本次确认的 core:engine detekt 预存违规经核对全部已在 P-02~P-13 登记，无需重复
 
 ## [4.0.85] - 2026-08-02
 
