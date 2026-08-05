@@ -19,7 +19,10 @@ import org.robolectric.annotation.Config
  * （assemble 任务版本检查通过后、load 锁内替换表 → 陈旧任务 publish 旧列表）
  * 300 轮压力实证 0 失败；H3（statsProvider 静态污染）经枚举排除；最可能根因
  * 为 H2（TestPolling 5s 超时在慢 CI 上不足，已提升至 15s）。
- * 本测试保留 30 轮交替压力作为竞态回归防护。
+ * 2026-08-05 追加：H1 理论窗口已加固（dispatchAssemble 增量/全量分支 + load
+ * 投递 3 处 publish 前二次版本检查），本测试 30 轮交替压力作为竞态回归防护。
+ * 二次检查本身无法时序注入单测（需在 assemble 执行中递增版本号），由本压力
+ * 守卫 + 全量回归兜底。
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])

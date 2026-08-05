@@ -1063,6 +1063,10 @@ class GameStateStoreImpl @Inject constructor(
                 } else {
                     _discipleTables.assembleAllIncremental(prevSnapshot, changedIds)
                 }
+                // P-14 H1 加固（2026-08-05）：publish 前二次版本检查——首次检查通过后、
+                // assemble 执行期间若 load/reset 已锁内替换表并递增版本，陈旧结果必须丢弃，
+                // 不得用旧 changedIds 组装出的部分结果覆盖加载列表
+                if (discipleVersion.get() != gen) return@launch
                 _disciplesFlow.value = list
                 // P-5：聚合与组装对齐（单线程串行，无竞争；组装完成即聚合新鲜）
                 updateAggregates(list, gen)
@@ -1072,6 +1076,8 @@ class GameStateStoreImpl @Inject constructor(
             applicationScopeProvider.scope.launch(assembleDispatcher) {
                 if (discipleVersion.get() != gen) return@launch
                 val list = _discipleTables.assembleAll()
+                // P-14 H1 加固（2026-08-05）：同增量分支——assemble 期间版本变化则丢弃
+                if (discipleVersion.get() != gen) return@launch
                 _disciplesFlow.value = list
                 updateAggregates(list, gen)
             }
@@ -1216,6 +1222,9 @@ class GameStateStoreImpl @Inject constructor(
         applicationScopeProvider.scope.launch(assembleDispatcher) {
             if (discipleVersion.get() != gen) return@launch
             val list = _discipleTables.assembleAll()
+            // P-14 H1 加固（2026-08-05）：publish 前二次版本检查——load 投递后、
+            // 执行前若又有新 load 递增版本，本任务结果同样丢弃（保队列内后入者胜）
+            if (discipleVersion.get() != gen) return@launch
             _disciplesFlow.value = list
             // P-5：load 后聚合同步新鲜（getter 代际校验兜底窗口收敛到协程执行完成）
             updateAggregates(list, gen)
