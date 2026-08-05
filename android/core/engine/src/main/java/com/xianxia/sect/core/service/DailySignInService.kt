@@ -175,22 +175,23 @@ class DailySignInService @Inject constructor(
                     )
                 )
                 if (milestoneError != null) {
+                    // F3 对抗性审查修复：此前已发放的里程碑已在循环内立即记账，
+                    // 重试从失败的里程碑继续——已发放的不再重复领取
                     return ClaimDailyResult.CapacityInsufficient(milestoneError)
                 }
                 newClaimedMilestones.add(milestone.day)
                 earnedMilestones.add(milestone)
                 allCards.addAll(milestoneCards)
-            }
-        }
-
-        // 更新已领取的里程碑
-        if (earnedMilestones.isNotEmpty()) {
-            stateStore.update {
-                gameData = gameData.copy(
-                    signInState = gameData.signInState.copy(
-                        claimedMilestones = newClaimedMilestones
+                // F3：每个里程碑发放成功后立即记账（独立事务）——部分成功时
+                // 凭据语义成立（原实现全部成功后一次性记账，中途失败则重试时
+                // 已发放的里程碑重复领取）
+                stateStore.update {
+                    gameData = gameData.copy(
+                        signInState = gameData.signInState.copy(
+                            claimedMilestones = newClaimedMilestones.toList()
+                        )
                     )
-                )
+                }
             }
         }
 
@@ -214,7 +215,6 @@ class DailySignInService @Inject constructor(
     ): Pair<String?, List<RewardCardItem>> {
         var capacityError: String? = null
         val generatedCards = mutableListOf<RewardCardItem>()
-        val onFailure: (String) -> Unit = { msg -> capacityError = msg }
 
         // 灵石通过 SpiritStoneWallet 独立发放（不与其他物品在同一个事务中）
         if (reward.type == "spiritStones") {
@@ -232,32 +232,36 @@ class DailySignInService @Inject constructor(
             return Pair(capacityError, generatedCards)
         }
 
-        stateStore.update {
-            inventorySystem.withOverflowMailSuppressed {
-            inventorySystem.withTrackingSource("sign_in") {
-                try {
+        try {
+            stateStore.update {
+                inventorySystem.withOverflowMailSuppressed {
+                inventorySystem.withTrackingSource("sign_in") {
                     when (reward.type) {
                         "beastMaterial" ->
-                            generatedCards.addAll(distributeBeastMaterialReward(reward, onFailure))
+                            generatedCards.addAll(distributeBeastMaterialReward(reward))
                         "pill" ->
-                            generatedCards.addAll(distributePillReward(reward, onFailure))
+                            generatedCards.addAll(distributePillReward(reward))
                         "randomMaterial" ->
-                            generatedCards.addAll(distributeRandomMaterialReward(reward, onFailure))
+                            generatedCards.addAll(distributeRandomMaterialReward(reward))
                         "randomSeed" ->
-                            generatedCards.addAll(distributeRandomSeedReward(reward, onFailure))
+                            generatedCards.addAll(distributeRandomSeedReward(reward))
                         "randomPill" ->
-                            generatedCards.addAll(distributeRandomPillReward(reward, onFailure))
+                            generatedCards.addAll(distributeRandomPillReward(reward))
                         "randomHerb" ->
-                            generatedCards.addAll(distributeRandomHerbReward(reward, onFailure))
+                            generatedCards.addAll(distributeRandomHerbReward(reward))
                         "storageBag" ->
-                            generatedCards.addAll(distributeStorageBagReward(reward, onFailure))
+                            generatedCards.addAll(distributeStorageBagReward(reward))
                     }
-                } catch (e: IllegalStateException) {
-                    // Partial 溢出 → 事务回滚（物品/claimedDays 均未写），转容量提示
-                    capacityError = e.message ?: "仓库空间不足，请清理后再领取"
                 }
             }
-        }
+            }
+        } catch (e: IllegalStateException) {
+            // P-21 修复：catch 必须在 update lambda 之外——Partial 溢出时异常穿透
+            // stateStore.update → 整个事务回滚（claimedDays 未写 + 物品未入仓 +
+            // P0-1 RNG 同步恢复）。旧实现在 lambda 内 catch，事务照常提交，
+            // 部分物品已入仓却返回容量错误 → 玩家重试导致重复领取。
+            // 凭据类发放语义：溢出不转邮件，失败保留凭据，重试补齐。
+            capacityError = e.message ?: "仓库空间不足，请清理后再领取"
         }
         return Pair(capacityError, generatedCards)
     }
@@ -265,10 +269,9 @@ class DailySignInService @Inject constructor(
     /** 妖兽材料奖励：委托 addMaterial 合并，返回奖励卡片 */
     private fun MutableGameState.distributeBeastMaterialReward(
         reward: DailySignInReward,
-        onFailure: (String) -> Unit
     ): List<RewardCardItem> {
         val mat = buildBeastMaterial(reward)
-        handleResult(inventorySystem.addMaterial(mat), "材料「${mat.name}」", onFailure)
+        handleResult(inventorySystem.addMaterial(mat), "材料「${mat.name}」")
         return listOf(RewardCardItem(
             itemName = mat.name, itemType = "material",
             rarity = mat.rarity, quantity = reward.quantity
@@ -278,7 +281,6 @@ class DailySignInService @Inject constructor(
     /** 指定丹药奖励：按模板或随机生成，委托 addPill 合并，返回奖励卡片 */
     private fun MutableGameState.distributePillReward(
         reward: DailySignInReward,
-        onFailure: (String) -> Unit
     ): List<RewardCardItem> {
         val qty = reward.quantity.coerceAtLeast(1)
         val template = ItemDatabase.getPillByName(reward.itemName)
@@ -291,7 +293,7 @@ class DailySignInService @Inject constructor(
                 maxRarity = reward.rarity
             ).copy(quantity = qty)
         }
-        handleResult(inventorySystem.addPill(pill), "丹药「${pill.name}」", onFailure)
+        handleResult(inventorySystem.addPill(pill), "丹药「${pill.name}」")
         return listOf(RewardCardItem(
             itemName = pill.name, itemType = "pill",
             rarity = pill.rarity, quantity = qty
@@ -301,7 +303,6 @@ class DailySignInService @Inject constructor(
     /** 随机材料奖励：逐件生成并委托 addMaterial 合并，返回合并后的卡片 */
     private fun MutableGameState.distributeRandomMaterialReward(
         reward: DailySignInReward,
-        onFailure: (String) -> Unit
     ): List<RewardCardItem> {
         val qty = reward.quantity.coerceAtLeast(1)
         val generated = mutableListOf<RewardCardItem>()
@@ -309,7 +310,7 @@ class DailySignInService @Inject constructor(
             val mat = ItemDatabase.generateRandomMaterial(minRarity = 1, maxRarity = 1).copy(
                 id = java.util.UUID.randomUUID().toString(), quantity = 1
             )
-            handleResult(inventorySystem.addMaterial(mat), "材料「${mat.name}」", onFailure)
+            handleResult(inventorySystem.addMaterial(mat), "材料「${mat.name}」")
             generated.add(RewardCardItem(
                 itemName = mat.name, itemType = "material",
                 rarity = mat.rarity, quantity = 1
@@ -322,7 +323,6 @@ class DailySignInService @Inject constructor(
     /** 随机种子奖励：逐件生成并委托 addSeed 合并，返回合并后的卡片 */
     private fun MutableGameState.distributeRandomSeedReward(
         reward: DailySignInReward,
-        onFailure: (String) -> Unit
     ): List<RewardCardItem> {
         val qty = reward.quantity.coerceAtLeast(1)
         val generated = mutableListOf<RewardCardItem>()
@@ -339,7 +339,7 @@ class DailySignInService @Inject constructor(
                 yield = template.yield,
                 quantity = 1
             )
-            handleResult(inventorySystem.addSeed(seed), "种子「${seed.name}」", onFailure)
+            handleResult(inventorySystem.addSeed(seed), "种子「${seed.name}」")
             generated.add(RewardCardItem(
                 itemName = seed.name, itemType = "seed",
                 rarity = seed.rarity, quantity = 1
@@ -351,7 +351,6 @@ class DailySignInService @Inject constructor(
     /** 随机丹药奖励：逐件生成并委托 addPill 合并，返回合并后的卡片 */
     private fun MutableGameState.distributeRandomPillReward(
         reward: DailySignInReward,
-        onFailure: (String) -> Unit
     ): List<RewardCardItem> {
         val qty = reward.quantity.coerceAtLeast(1)
         val generated = mutableListOf<RewardCardItem>()
@@ -359,7 +358,7 @@ class DailySignInService @Inject constructor(
             val pill = ItemDatabase.generateRandomPill(minRarity = 1, maxRarity = 1).copy(
                 id = java.util.UUID.randomUUID().toString(), quantity = 1
             )
-            handleResult(inventorySystem.addPill(pill), "丹药「${pill.name}」", onFailure)
+            handleResult(inventorySystem.addPill(pill), "丹药「${pill.name}」")
             generated.add(RewardCardItem(
                 itemName = pill.name, itemType = "pill",
                 rarity = pill.rarity, quantity = 1
@@ -371,7 +370,6 @@ class DailySignInService @Inject constructor(
     /** 随机草药奖励：逐件生成并委托 addHerb 合并，返回合并后的卡片 */
     private fun MutableGameState.distributeRandomHerbReward(
         reward: DailySignInReward,
-        onFailure: (String) -> Unit
     ): List<RewardCardItem> {
         val qty = reward.quantity.coerceAtLeast(1)
         val generated = mutableListOf<RewardCardItem>()
@@ -386,7 +384,7 @@ class DailySignInService @Inject constructor(
                 category = template.category,
                 quantity = 1
             )
-            handleResult(inventorySystem.addHerb(herb), "草药「${herb.name}」", onFailure)
+            handleResult(inventorySystem.addHerb(herb), "草药「${herb.name}」")
             generated.add(RewardCardItem(
                 itemName = herb.name, itemType = "herb",
                 rarity = herb.rarity, quantity = 1
@@ -398,7 +396,6 @@ class DailySignInService @Inject constructor(
     /** 储物袋奖励：委托 addStorageBag 合并，返回奖励卡片 */
     private fun MutableGameState.distributeStorageBagReward(
         reward: DailySignInReward,
-        onFailure: (String) -> Unit
     ): List<RewardCardItem> {
         val qty = reward.quantity.coerceAtLeast(1)
         val rarity = reward.rarity.coerceIn(1, 6)
@@ -413,7 +410,7 @@ class DailySignInService @Inject constructor(
                 )
             ),
             "储物袋"
-        ) { msg -> onFailure(msg) }
+        )
         return listOf(RewardCardItem(
             itemName = bagName, itemType = "storageBag",
             rarity = rarity, quantity = qty
@@ -443,7 +440,7 @@ class DailySignInService @Inject constructor(
         )
     }
 
-    /** 记录 addXxx 三态结果；Failure 时通过 onFailure 上报错误消息 */
+    /** 记录 addXxx 三态结果；Partial/Failure 均抛异常穿透事务整体回滚（C6 修复） */
     /**
      * 记录 addXxx 三态结果。
      *
@@ -451,11 +448,14 @@ class DailySignInService @Inject constructor(
      * （物品未入仓、claimedDays 未写），签到拒绝并提示容量不足；玩家清理后
      * 重试全量发放，溢出部分不丢失、不重复（凭据类路径语义，与 MailService 一致）。
      */
-    private fun handleResult(result: DomainResult<*>, label: String, onFailure: (String) -> Unit) {
+    private fun handleResult(result: DomainResult<*>, label: String) {
         when (result) {
             is DomainResult.Success -> { /* 正常发放 */ }
-            is DomainResult.Partial -> throw IllegalStateException("$label 仓库空间不足，溢出 ${result.overflow} 个")
-            is DomainResult.Failure -> onFailure("$label 仓库空间不足，请清理后再领取")
+            is DomainResult.Partial -> error("$label 仓库空间不足，溢出 ${result.overflow} 个")
+            // C6 对抗性审查修复：Failure（零入仓）同样抛异常穿透事务——
+            // 原实现仅提示不抛，循环发放中前面已入仓的件随事务提交，
+            // 凭据（claimedDays）未写 → 重试重复发放
+            is DomainResult.Failure -> error("$label 仓库空间不足，请清理后再领取")
         }
     }
 

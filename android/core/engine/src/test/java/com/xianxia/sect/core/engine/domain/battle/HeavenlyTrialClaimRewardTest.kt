@@ -34,7 +34,6 @@ import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.PendingBeastAttack
 import com.xianxia.sect.core.state.PendingMarriageProposal
 import com.xianxia.sect.core.state.RunState
-import com.xianxia.sect.core.util.GameRngManager
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -107,7 +106,6 @@ class HeavenlyTrialClaimRewardTest {
             stateStore = store,
             inventoryConfig = inventoryConfig,
             spiritStoneWallet = mock(),
-            rngManager = GameRngManager(),
             inventorySystem = inventorySystem
         )
     }

@@ -426,13 +426,15 @@ SaveValidator.validate(SaveData)
 | P-16 | UI 迁移真机冒烟 | SettingsTab/DiscipleDetailScreen/OverlayDialogRouter | 发布前检查 4 个迁移弹窗（其他设置/年俸/存档管理/更新日志）逐一打开关闭 + OverlayDialogRouter 34 分支逐项打开一次；判定：无崩溃/白屏/交互完整/叠层路由正常 |
 | P-18 | 排行榜 rank 0/1 起始语义 | `feature/game/.../taptap/TapTapLeaderboardApi.kt` | 已做 0→1 归一化兜底（rank<1 显示 1）。真机观察：首名显示 #1 且次名重复 #1 → 服务端 1 起始，移除归一化；次名 #2 → 保留现状。抓原始 rank 与显示值对照 ≥3 次 |
 
-### 途中发现待办（2026-08-05 天道试炼奖励修复时登记，详见 CHANGELOG 4.00.88 修复小节）
+### 途中发现待办（2026-08-05 引擎确定性加固时登记，详见 CHANGELOG 4.00.89）
 
-> 本次修复（试炼奖励统一 InventorySystem 入口）调查中发现以下遗留问题，均不属同一 bug 类、改动面独立，另行处理。
+> 本次实施（RNG 事务快照/UI RNG 治理/奖励统一入口/事务合并/缓存）后对抗性审查登记的未修项。P-19/P-20/P-21 已随本次实施完成（奖励收编 InventorySystem + 守卫补漏 + 签到 catch 移出事务）。
 
 | # | 项 | 位置 | 现状与处理指引 |
 |---|---|---|---|
-| P-19 | 弟子奖励发放手写合并路径（绕统一入口） | `core/engine/.../domain/disciple/DiscipleFacadeImpl.kt` rewardEquipment/rewardManual（:319-343/:375-383）+ `core/domain/.../util/StorageBagUtils.kt` increaseItemQuantity（:45-55） | 弟子储物袋**转移**语义（仓库扣减→袋内堆叠合并），物品对玩家可见非不可见 bug，但绕过 InventorySystem：无来源追踪、`coerceAtMost` 截断溢出静默丢失。待单独评估是否收编进 InventorySystem |
-| P-20 | 守卫测试不扫描 domain 模块 | `core/engine/src/test/.../InventoryAddPathGuardTest.kt`（扫描范围仅 engine src/main/java） | `StorageBagUtils.mergeEquipmentStackToWarehouse/mergeManualStackToWarehouse`（:95-147）手写 `StackableItemStore(` 在扫描范围外。待评估将 domain 模块纳入扫描或收编 |
-| P-21 | DailySignInService"事务回滚"注释与实际不符 | `core/engine/.../service/DailySignInService.kt` distributeReward（:255-258） | catch 在 `stateStore.update` lambda **内**，异常被捕获后事务正常提交，Partial 部分物品实际入仓（与注释"物品/claimedDays 均未写"不符）；对照 GameEngineSectLevelOps 已验证的"catch 在外"模式，待核查签到溢出行为并统一 |
+| D-01 | 溢出邮件非事务化（300ms 内存队列） | `core/engine/.../service/OverflowMailSender.kt`（pendingDrafts 异步防抖队列） | 草稿入内存队列与源事务无关联：场景 A 崩溃丢草稿（物品丢失）、场景 B 事务回滚后邮件照发（物品复制）。全局机制（战斗/探索/灵田溢出均依赖），修复需草稿带事务世代号或同步写库——影响面大，另行立项 |
+| D-02 | 里程碑失败后无法重试（预存） | `core/engine/.../service/DailySignInService.kt` claimDailySignIn 里程碑循环 | claimedDays 先提交 → 里程碑容量不足 return → 重试被 AlreadyClaimed 挡住 → 失败的里程碑物品永久丢失。F3 已把"已发放里程碑"改为循环内立即记账（防重复），但入口问题未解决——完整修复 = 签到整体原子化（每日+里程碑单事务），架构级重构 |
+| D-03 | 放背包失败转邮件（体验） | `core/engine/.../domain/disciple/DiscipleFacadeImpl.kt` rewardEquipment/rewardManual 放背包路径 | 仓库满时"放背包"→ Failure → 物品转入溢出邮件（数量守恒不丢失），但玩家感知"背包没进、仓库在减"。修复需"失败保留原处"语义（抑制邮件 + 回滚扣减），与全局溢出语义需权衡 |
+| D-04 | 试炼敌人属性从随机变固定（C1 行为变化） | `core/engine/.../domain/battle/HeavenlyTrialService.kt` enemySeed | 敌人生成改确定性派生种子后：同一关卡敌人属性恒定（预览=战斗一致、零全局 RNG 污染）。产品侧确认可接受（固定挑战）；如需随机化，改为进入战斗时取种子本地生成 |
+| D-05 | `GameEngineDiplomacyOps.interactWithSect` 未实现存根 | `core/engine/.../GameEngineDiplomacyOps.kt:70` | 仅打日志"尚未实现"，全仓库无调用方（detekt-baseline 引用）。死代码，建议删除或实现外交交互 |
 

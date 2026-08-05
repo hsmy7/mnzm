@@ -1058,18 +1058,32 @@ class GameEngineCore @Inject constructor(
         // 新调用点绕过时钟直接调用（防止单帧连续执行数十个完整事务卡死）
         val capped = phasesToAdvance.coerceAtMost(GameTimeClock.MAX_PHASES_PER_TICK)
         var flags = 0
-        for (phaseIndex in 1..capped) {
+        // P1-A（G 项）：掉帧追旬场景 N 次独立事务 → 1 次合并事务。
+        // 省去 N-1 次 COW deepCopy + 锁竞争 + dispatchAssemble；配合 P0-1 的
+        // RNG 事务快照/恢复，任一句异常整批回滚（状态 + RNG 同步恢复），
+        // 与逐句独立事务的确定性语义逐位一致（有确定性对照守卫测试）。
+        try {
             stateStore.update {
-                // ★ 必须在 onPhaseTick 前捕获 prevMonth/prevYear，
-                // 否则 onPhaseTick 已修改 gameMonth/gameYear，后续比较永远相等。
-                val prevMonth = this.gameData.gameMonth
-                val prevYear = this.gameData.gameYear
-                systemManager.getSystem(TimeSystem::class)
-                    .onPhaseTick(this, phasesToSettle = 1)
-                checkBreakthroughsAndPills(this)
-                if (this.gameData.gameMonth != prevMonth) flags = flags or FLAG_MONTH_CHANGED
-                if (this.gameData.gameYear != prevYear) flags = flags or FLAG_YEAR_CHANGED
+                for (phaseIndex in 1..capped) {
+                    // ★ 必须在 onPhaseTick 前捕获 prevMonth/prevYear，
+                    // 否则 onPhaseTick 已修改 gameMonth/gameYear，后续比较永远相等。
+                    val prevMonth = this.gameData.gameMonth
+                    val prevYear = this.gameData.gameYear
+                    systemManager.getSystem(TimeSystem::class)
+                        .onPhaseTick(this, phasesToSettle = 1)
+                    checkBreakthroughsAndPills(this)
+                    if (this.gameData.gameMonth != prevMonth) flags = flags or FLAG_MONTH_CHANGED
+                    if (this.gameData.gameYear != prevYear) flags = flags or FLAG_YEAR_CHANGED
+                }
             }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // F2 对抗性审查修复：合并事务整批回滚——状态时间回退 N 旬，
+            // 但时钟已按墙钟消费 N 旬（累积消费模式无自动追补）；
+            // 归还未落地旬数，保持状态时间与墙钟一致（否则永久落后）
+            gameClock.refundPhases(capped)
+            throw e
         }
         return flags
     }

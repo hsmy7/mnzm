@@ -15,7 +15,7 @@ import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
-import com.xianxia.sect.ui.game.dialogs.heavenlytrial.combatLogicRngManager
+import com.xianxia.sect.ui.game.dialogs.heavenlytrial.beginCombat
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,12 +31,6 @@ class HeavenlyTrialViewModel @Inject constructor(
     val trialService: HeavenlyTrialService,
     private val rngManager: GameRngManager
 ) : BaseViewModel() {
-    /** 天道试炼战斗 RNG（BATTLE 分区） */
-    val battleRng get() = rngManager.getRng(RngPartition.BATTLE)
-
-    init {
-        combatLogicRngManager = rngManager
-    }
 
     private val _currentScreen = MutableStateFlow<Screen>(Screen.Panel)
     val currentScreen: StateFlow<Screen> = _currentScreen.asStateFlow()
@@ -88,6 +82,9 @@ class HeavenlyTrialViewModel @Inject constructor(
     }
 
     fun startCombat(disciples: List<DiscipleAggregate>) {
+        // UI 模拟专用本地 PRNG：仅此一次消费全局 BATTLE 分区种子，
+        // 战斗全程模拟（动画逐回合 + 即时结算）使用本地实例，不污染全局确定性序列
+        beginCombat(rngManager.getRng(RngPartition.BATTLE).nextLong())
         val enemies = trialService.getEnemiesForPhase(selectedLevelIndex, selectedPhaseIndex)
         val equipMap = gameEngine.equipmentInstances.value.associateBy { it.id }
         val manualMap = gameEngine.manualInstances.value.associateBy { it.id }

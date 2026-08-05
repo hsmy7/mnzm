@@ -408,10 +408,10 @@ class SaveLoadViewModel @Inject constructor(
                 gameEngine.createNewGame(sectName, slot)
                 Log.d(TAG, "startNewGame: Game engine created new game successfully, elapsed=${System.currentTimeMillis() - startTime}ms")
 
-                // 初始化 RNG 系统种子（新世界使用 mapSeed 确保确定性随机序列）
-                persistenceFacade.gameRngManager.initSystemSeed(gameEngine.gameData.value.mapSeed.toLong())
-                AISectDiscipleManager.initForSlot(gameEngine.gameData.value.mapSeed.toLong())
-                Log.d(TAG, "startNewGame: GameRngManager initialized with mapSeed=${gameEngine.gameData.value.mapSeed}")
+                // RNG 播种已收敛到 GameEngine.createNewGame 内部（引擎线程）：
+                // initSystemSeed（8 分区）与 AISectDiscipleManager.initForSlot 均在引擎侧完成，
+                // 避免 UI 协程与引擎线程 RNG 消费/播种并发竞争（P0-1b）
+                Log.d(TAG, "startNewGame: RNG seeded with mapSeed=${gameEngine.gameData.value.mapSeed}")
 
                 persistenceFacade.storageFacade.setCurrentSlot(slot)
                 Log.d(TAG, "Active slot set to $slot")
@@ -654,12 +654,9 @@ class SaveLoadViewModel @Inject constructor(
                     productionSlots = saveData.productionSlots
                 )
 
-                // 恢复 RNG 分区状态，确保读档后随机序列连续性
+                // RNG 分区恢复已收敛到 GameStateStoreImpl.loadFromSnapshot 锁内
+                // （状态 + RNG 原子切换，P0-1），此处不再重复 restoreStates
                 val loadedGd = gameEngine.gameData.value
-                if (loadedGd.rngStates.isNotEmpty()) {
-                    persistenceFacade.gameRngManager.restoreStates(loadedGd.rngStates)
-                    Log.d(TAG, "loadGame: Restored ${loadedGd.rngStates.size} RNG partition states")
-                }
                 // 初始化 AI 宗门 RNG（基于地图种子确保确定性）
                 AISectDiscipleManager.initForSlot(loadedGd.mapSeed.toLong())
 

@@ -16,8 +16,15 @@ interface ItemAdder {
     fun addHerb(item: Herb): DomainResult<Herb>
     fun addSeed(item: Seed): DomainResult<Seed>
 
-    fun addEquipmentStack(item: EquipmentStack): DomainResult<EquipmentStack>
+    fun addEquipmentStack(
+        item: EquipmentStack,
+        excludeStackId: String? = null
+    ): DomainResult<EquipmentStack>
     fun addEquipmentInstance(item: EquipmentInstance): DomainResult<EquipmentInstance>
-    fun addManualStack(item: ManualStack, merge: Boolean = true): DomainResult<ManualStack>
+    fun addManualStack(
+        item: ManualStack,
+        merge: Boolean = true,
+        excludeStackId: String? = null
+    ): DomainResult<ManualStack>
     fun addManualInstance(item: ManualInstance): DomainResult<ManualInstance>
 }

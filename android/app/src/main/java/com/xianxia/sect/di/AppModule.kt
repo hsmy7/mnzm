@@ -16,6 +16,8 @@ import com.xianxia.sect.data.incremental.ChangeLogPersistence
 import com.xianxia.sect.data.incremental.ChangeLogDao
 import com.xianxia.sect.core.dialog.DialogManagerImpl
 import com.xianxia.sect.core.domain.dialog.DialogManager
+import com.xianxia.sect.core.state.GameRngSnapshotPort
+import com.xianxia.sect.core.state.RngSnapshotPort
 
 import dagger.Module
 import dagger.Provides
@@ -214,4 +216,14 @@ object AppModule {
     @Provides
     @Singleton
     fun provideDialogManager(impl: DialogManagerImpl): DialogManager = impl
+
+    // ==================== RNG 事务钩子（P0-1 确定性加固） ====================
+
+    /**
+     * RNG 事务钩子：事务失败回滚时同步回滚 8 分区 PRNG 状态，
+     * 保证读档重放确定性（K 项根治）。
+     */
+    @Provides
+    @Singleton
+    fun provideRngSnapshotPort(port: GameRngSnapshotPort): RngSnapshotPort = port
 }

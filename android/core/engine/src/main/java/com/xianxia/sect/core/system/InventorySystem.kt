@@ -308,21 +308,38 @@ class InventorySystem @Inject constructor(
         return DomainResult.Success(Unit)
     }
 
-    override fun addEquipmentStack(item: EquipmentStack): DomainResult<EquipmentStack> {
+    /**
+     * 添加装备堆叠（合并 + 溢出转邮件 + 年度来源追踪）。
+     *
+     * @param item 待添加的装备堆叠
+     * @param excludeStackId 排除的堆叠 id（F1 对抗性审查修复：放背包路径刚扣减
+     *   源堆叠 1 份后调用本方法，若合并回源堆叠则数量净 0 但背包引用 +1，
+     *   可无限刷引用并经储物袋回收洗白为真实堆叠——排除后合并到其他同键
+     *   堆叠或新建，与旧手写实现的有界语义一致）
+     */
+    override fun addEquipmentStack(
+        item: EquipmentStack,
+        excludeStackId: String?
+    ): DomainResult<EquipmentStack> {
         val validation = validateStackableItem(item.name, item.rarity, item.quantity)
         if (validation is DomainResult.Failure) return validation
 
         return stateStore.updateAndReturn {
             val otherTypes = manualStacks.size + pills.size + materials.size + herbs.size + seeds.size
+            val allStacks = equipmentStacks.all()
+            val excluded = excludeStackId?.let { id -> allStacks.find { it.id == id } }
+            val candidates = if (excluded != null) allStacks - excluded else allStacks
             val store = StackableItemStore(
-                initialItems = equipmentStacks.all(),
+                initialItems = candidates,
                 stackKeyOf = StackKeys::equipment,
                 maxStack = getMaxStackForType("equipment_stack"),
                 maxSlots = { computeMaxSlots() - otherTypes },
                 notFound = { AppError.Domain.Inventory.NotFound(it) }
             )
             val result = store.add(item)
-            equipmentStacks.replaceAll(store.all())
+            // 排除的堆叠放回列表尾部（放背包路径：源堆叠保持扣减后的状态）
+            val finalStacks = if (excluded != null) store.all() + excluded else store.all()
+            equipmentStacks.replaceAll(finalStacks)
             when (result) {
                 is DomainResult.Success -> {
                     val srcKey = "$trackingSource:${item.rarity}"
@@ -358,21 +375,37 @@ class InventorySystem @Inject constructor(
         }
     }
 
-    override fun addManualStack(item: ManualStack, merge: Boolean): DomainResult<ManualStack> {
+    /**
+     * 添加功法堆叠（合并 + 溢出转邮件 + 年度来源追踪）。
+     *
+     * @param item 待添加的功法堆叠
+     * @param merge 是否尝试合并（默认 true）
+     * @param excludeStackId 排除的堆叠 id（F1 对抗性审查修复，语义同
+     *   [addEquipmentStack]——放背包路径须排除刚扣减的源堆叠，防刷引用）
+     */
+    override fun addManualStack(
+        item: ManualStack,
+        merge: Boolean,
+        excludeStackId: String?
+    ): DomainResult<ManualStack> {
         val validation = validateStackableItem(item.name, item.rarity, item.quantity)
         if (validation is DomainResult.Failure) return validation
 
         return stateStore.updateAndReturn {
             val otherTypes = equipmentStacks.size + pills.size + materials.size + herbs.size + seeds.size
+            val allStacks = manualStacks.all()
+            val excluded = excludeStackId?.let { id -> allStacks.find { it.id == id } }
+            val candidates = if (excluded != null) allStacks - excluded else allStacks
             val store = StackableItemStore(
-                initialItems = manualStacks.all(),
+                initialItems = candidates,
                 stackKeyOf = StackKeys::manual,
                 maxStack = getMaxStackForType("manual_stack"),
                 maxSlots = { computeMaxSlots() - otherTypes },
                 notFound = { AppError.Domain.Inventory.NotFound(it) }
             )
             val result = store.add(item, merge = merge)
-            manualStacks.replaceAll(store.all())
+            val finalStacks = if (excluded != null) store.all() + excluded else store.all()
+            manualStacks.replaceAll(finalStacks)
             handleOverflowResult(result, "manual", item)
             result
         }
@@ -406,6 +439,80 @@ class InventorySystem @Inject constructor(
             val result = store.add(item)
             equipmentStacks.replaceAll(store.all())
             handleOverflowResult(result, "equipment", item)
+            result
+        }
+    }
+
+    /**
+     * 卸装/换装路径：装备实例转回仓库堆叠并移除实例（P-20 从 domain StorageBagUtils 迁入）。
+     *
+     * 修复了原 domain 实现的三个缺陷：
+     * 1. `maxSlots = { candidates.size + 1 }` 绕过仓库总容量 → 改为真实容量
+     *    `computeMaxSlots() - otherTypes`（卸装也受仓库容量约束，溢出转邮件）
+     * 2. Partial 被当作成功 → 溢出经 [handleOverflowResult] 转邮件（不丢玩家物品）
+     * 3. 无来源追踪 → 年度报告可归因（调用方自行包裹 [withTrackingSource]）
+     *
+     * @param instance 待转回堆叠的装备实例
+     * @param excludeStackId 排除的堆叠 id（背包引用指向的堆叠，防合并到自身后引用错位）
+     */
+    fun addEquipmentInstanceToBag(
+        instance: EquipmentInstance,
+        excludeStackId: String? = null
+    ): DomainResult<EquipmentStack> {
+        return stateStore.updateAndReturn {
+            val allStacks = equipmentStacks.all()
+            val excluded = excludeStackId?.let { id -> allStacks.find { it.id == id } }
+            val candidates = if (excluded != null) allStacks - excluded else allStacks
+            val store = StackableItemStore(
+                initialItems = candidates,
+                stackKeyOf = StackKeys::equipment,
+                maxStack = getMaxStackForType("equipment_stack"),
+                maxSlots = {
+                    computeMaxSlots() - (manualStacks.size + pills.size + materials.size + herbs.size + seeds.size)
+                },
+                notFound = { AppError.Domain.Inventory.NotFound(it) }
+            )
+            val item = instance.toStack(quantity = 1)
+            val result = store.add(item)
+            // 排除的堆叠放回列表尾部（保持背包引用指向的源堆叠不被扣减）
+            val finalStacks = if (excluded != null) store.all() + excluded else store.all()
+            equipmentStacks.replaceAll(finalStacks)
+            equipmentInstances = equipmentInstances.filter { it.id != instance.id }
+            handleOverflowResult(result, "equipment", item)
+            result
+        }
+    }
+
+    /**
+     * 卸功法路径：功法实例转回仓库堆叠并移除实例（P-20 从 domain StorageBagUtils 迁入）。
+     * 语义与 [addEquipmentInstanceToBag] 一致。
+     *
+     * @param instance 待转回堆叠的功法实例
+     * @param excludeStackId 排除的堆叠 id（背包引用指向的堆叠）
+     */
+    fun addManualInstanceToBag(
+        instance: ManualInstance,
+        excludeStackId: String? = null
+    ): DomainResult<ManualStack> {
+        return stateStore.updateAndReturn {
+            val allStacks = manualStacks.all()
+            val excluded = excludeStackId?.let { id -> allStacks.find { it.id == id } }
+            val candidates = if (excluded != null) allStacks - excluded else allStacks
+            val store = StackableItemStore(
+                initialItems = candidates,
+                stackKeyOf = StackKeys::manual,
+                maxStack = getMaxStackForType("manual_stack"),
+                maxSlots = {
+                    computeMaxSlots() - (equipmentStacks.size + pills.size + materials.size + herbs.size + seeds.size)
+                },
+                notFound = { AppError.Domain.Inventory.NotFound(it) }
+            )
+            val item = instance.toStack(quantity = 1)
+            val result = store.add(item)
+            val finalStacks = if (excluded != null) store.all() + excluded else store.all()
+            manualStacks.replaceAll(finalStacks)
+            manualInstances = manualInstances.filter { it.id != instance.id }
+            handleOverflowResult(result, "manual", item)
             result
         }
     }

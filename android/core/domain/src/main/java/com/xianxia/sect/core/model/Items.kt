@@ -211,7 +211,9 @@ data class EquipmentInstance(
         return (1.0 + totalBonus).coerceAtMost(4.0)
     }
 
-    fun getFinalStats(): EquipmentStats {
+    fun getFinalStats(): EquipmentStats = cachedFinalStats(this)
+
+    private fun computeFinalStats(): EquipmentStats {
         val mult = totalMultiplier
         return EquipmentStats(
             physicalAttack = (physicalAttack * mult).toInt(),
@@ -222,6 +224,32 @@ data class EquipmentInstance(
             hp = (hp * mult).toInt(),
             mp = (mp * mult).toInt()
         )
+    }
+
+    companion object {
+        /**
+         * C2（P1-C）：装备最终属性缓存。
+         *
+         * 键语义：EquipmentInstance 是不可变 COW data class（全字段不可变，
+         * 唯一 var slotId 实际均经 copy 创建新实例）——内容即版本，值语义键
+         * （data class equals/hashCode）使"同内容不同实例"共享缓存且永不需要
+         * 失效逻辑（引用即指纹，对标 COW 架构的既有 disciplePowerCache 模式）。
+         * 纯函数结果缓存：幂等，跨测试/跨线程（ConcurrentHashMap）安全。
+         * 容量护栏：装备实例变更次数无界增长时清空重建（触发罕见，摊还 O(1)）。
+         */
+        private const val FINAL_STATS_CACHE_LIMIT = 4096
+        private val finalStatsCache =
+            java.util.concurrent.ConcurrentHashMap<EquipmentInstance, EquipmentStats>()
+
+        private fun cachedFinalStats(instance: EquipmentInstance): EquipmentStats {
+            finalStatsCache[instance]?.let { return it }
+            val stats = instance.computeFinalStats()
+            if (finalStatsCache.size >= FINAL_STATS_CACHE_LIMIT) {
+                finalStatsCache.clear()
+            }
+            finalStatsCache[instance] = stats
+            return stats
+        }
     }
 
     val totalStatsDescription: String

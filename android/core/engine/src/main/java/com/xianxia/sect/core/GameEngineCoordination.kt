@@ -14,8 +14,6 @@ import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.util.addManualInstanceToDiscipleBag
-import com.xianxia.sect.core.util.manualBagStackIds
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainResult
@@ -393,6 +391,10 @@ suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
         // 必须使用已播种的确定性流，否则 fallback RNG 每次新建实例导致初始弟子全员克隆
         val mapSeed = GameRandom.nextInt(Int.MAX_VALUE)
         AISectDiscipleManager.initForSlot(mapSeed.toLong())
+        // 引擎线程播种 8 分区 RNG（P0-1b：原在 SaveLoadViewModel 的 UI 协程中执行，
+        // 与引擎线程 RNG 消费并发竞争；收敛到引擎线程同步完成，
+        // 确保世界生成期的 GameRngManager 消费已确定性播种）
+        gameRngManager.initSystemSeed(mapSeed.toLong())
         // 1. 先初始化世界和游戏状态（邮件依赖 gameData 就绪）
         initializeWorldAndServices(sectName, currentSlot)
         val gridCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
@@ -648,10 +650,12 @@ suspend fun GameEngine.forgetManual(discipleId: String, instanceId: String) {
             val id = discipleId.toInt()
             if (id !in discipleTables.ids) return@update
             val currentDisciple = discipleTables.assemble(id)
-            val bagStackIds = currentDisciple.manualBagStackIds()
-            val result = addManualInstanceToDiscipleBag(disciple = currentDisciple, instance = instance, bagStackIds = bagStackIds, gameYear = gameData.gameYear, gameMonth = gameData.gameMonth, gamePhase = gameData.gamePhase, maxStackSize = inventoryConfig.getMaxStackSize("manual_stack"))
+            // P-20：卸功法实例→堆叠统一走 InventorySystem（真实容量 + 溢出转邮件）
+            inventorySystem.withTrackingSource("disciple_unequip") {
+                inventorySystem.addManualInstanceToBag(instance = instance)
+            }
             val updatedManualIds = currentDisciple.manualIds.filter { mid -> mid != instanceId }
-            val updatedDisciple = result.updatedDisciple.copy(manualIds = updatedManualIds)
+            val updatedDisciple = currentDisciple.copy(manualIds = updatedManualIds)
             discipleTables.remove(id)
             discipleTables.insert(updatedDisciple)
             val updatedProficiencies = gameData.manualProficiencies.toMutableMap()
@@ -678,8 +682,10 @@ suspend fun GameEngine.replaceManual(discipleId: String, oldInstanceId: String, 
             if (blocked) return@update
             val hasSameName = disciple.manualIds.filter { it != oldInstanceId }.any { mid -> manualInstances.get(mid)?.name == newStack.name }
             if (hasSameName) return@update
-            val bagStackIds = disciple.manualBagStackIds()
-            val result = addManualInstanceToDiscipleBag(disciple = disciple, instance = oldInstance, bagStackIds = bagStackIds, gameYear = gameData.gameYear, gameMonth = gameData.gameMonth, gamePhase = gameData.gamePhase, maxStackSize = inventoryConfig.getMaxStackSize("manual_stack"))
+            // P-20：替换功法时旧实例→堆叠统一走 InventorySystem（真实容量 + 溢出转邮件）
+            inventorySystem.withTrackingSource("disciple_unequip") {
+                inventorySystem.addManualInstanceToBag(instance = oldInstance)
+            }
             val currentNewStack = manualStacks.get(newStackId) ?: return@update
             val newQty = currentNewStack.quantity - 1
             if (newQty <= 0) manualStacks.remove(newStackId) else manualStacks.update(newStackId) { it.copy(quantity = newQty) }
@@ -691,7 +697,7 @@ suspend fun GameEngine.replaceManual(discipleId: String, oldInstanceId: String, 
                 if (filtered.isEmpty()) updatedProficiencies.remove(discipleId) else updatedProficiencies[discipleId] = filtered
             }
             val updatedManualIds = (disciple.manualIds.filter { mid -> mid != oldInstanceId }) + newInstance.id
-            val updatedDisciple = result.updatedDisciple.copy(manualIds = updatedManualIds)
+            val updatedDisciple = disciple.copy(manualIds = updatedManualIds)
             discipleTables.remove(id)
             discipleTables.insert(updatedDisciple)
 

@@ -45,8 +45,14 @@ fun HeavenlyTrialBattleDialog(
 ) {
     val config = remember(levelIndex) { HeavenlyTrialConfig.getLevel(levelIndex) }
 
-    val phase1Enemies = viewModel.trialService.getEnemiesForPhase(levelIndex, 0)
-    val phase2Enemies = viewModel.trialService.getEnemiesForPhase(levelIndex, 1)
+    // C1 对抗性审查修复：remember 包裹——预览敌人生成（固定种子，不消费全局 RNG）
+    // 只执行一次，重组不重复生成（属性稳定 + 零性能浪费）
+    val phase1Enemies = remember(levelIndex) {
+        viewModel.trialService.getEnemiesForPhase(levelIndex, 0)
+    }
+    val phase2Enemies = remember(levelIndex) {
+        viewModel.trialService.getEnemiesForPhase(levelIndex, 1)
+    }
 
     var selectedPhaseIndex by remember { mutableStateOf(0) }
     var selectedEnemyIndex by remember { mutableStateOf(0) }

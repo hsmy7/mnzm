@@ -26,7 +26,6 @@ class HeavenlyTrialServiceTest {
             stateStore = mock(GameStateStore::class.java),
             inventoryConfig = mock(InventoryConfig::class.java),
             spiritStoneWallet = mock(SpiritStoneWallet::class.java),
-            rngManager = rngManager,
             inventorySystem = mock(com.xianxia.sect.core.engine.system.InventorySystem::class.java)
         )
         // 预充功法数据（使用空数据+一个备用功法避免 NPE）
@@ -111,18 +110,19 @@ class HeavenlyTrialServiceTest {
     }
 
     @Test
-    fun `buildDiscipleEnemy - different variance produces different stats`() {
+    fun `buildDiscipleEnemy - deterministic seed produces stable stats`() {
         val def = TrialEnemyDef(
             name = "试炼敌人",
             realm = 5,
             realmLayer = 5
         )
-        // 多次生成验证方差
+        // C1 修复：试炼敌人生成改确定性派生种子（不再消费全局 ENEMY_GEN）——
+        // 同一关卡的同一敌人属性恒定（预览 = 战斗，且零全局 RNG 污染）
         val stats = (1..20).map {
             service.buildDiscipleEnemy(levelIndex = 0, def = def, index = 0)
         }
         val hps = stats.map { it.hp }
-        assertTrue("HP should vary with variance (min=${hps.min()}, max=${hps.max()})",
-            hps.max() > hps.min() * 1.15)
+        assertTrue("同敌人应属性恒定（确定性种子）",
+            hps.max() == hps.min())
     }
 }

@@ -131,22 +131,6 @@ class StorageBagUtilsTest {
     }
 
     @Test
-    fun increaseItemQuantity_respectsMaxStack() {
-        val items = listOf(createItem(itemId = "i1", itemType = "pill", quantity = 8))
-        val newItem = createItem(itemId = "i1", itemType = "pill", quantity = 5)
-        val result = StorageBagUtils.increaseItemQuantity(items, newItem, maxStack = 10)
-        assertEquals(10, result[0].quantity)
-    }
-
-    @Test
-    fun increaseItemQuantity_newItem_respectsMaxStack() {
-        val items = emptyList<StorageBagItem>()
-        val newItem = createItem(itemId = "i1", itemType = "pill", quantity = 20)
-        val result = StorageBagUtils.increaseItemQuantity(items, newItem, maxStack = 10)
-        assertEquals(10, result[0].quantity)
-    }
-
-    @Test
     fun increaseItemQuantity_differentItemType_doesNotStack() {
         val items = listOf(createItem(itemId = "i1", itemType = "pill", quantity = 3))
         val newItem = createItem(itemId = "i1", itemType = "herb", quantity = 2)

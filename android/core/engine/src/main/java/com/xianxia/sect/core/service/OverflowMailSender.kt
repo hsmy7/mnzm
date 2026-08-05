@@ -79,6 +79,8 @@ class OverflowMailSender @Inject constructor(
             "redeem" to "兑换码",
             "mail" to "邮件",
             "sign_in" to "签到",
+            "disciple_reward" to "弟子奖励",
+            "disciple_unequip" to "弟子卸装",
             "trial" to "天道试炼",
             "sect_level" to "宗门等级",
             "sect_trade" to "宗门贸易",

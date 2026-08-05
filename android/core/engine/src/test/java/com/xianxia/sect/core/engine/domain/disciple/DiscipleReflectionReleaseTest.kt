@@ -106,7 +106,7 @@ class DiscipleReflectionReleaseTest {
         )
         val equipmentService = DiscipleEquipmentService(
             stateStore = mockStore,
-            inventoryConfig = mock(),
+            inventoryConfig = mock(com.xianxia.sect.core.config.InventoryConfig::class.java),
             inventorySystem = mock(com.xianxia.sect.core.engine.system.InventorySystem::class.java)
         )
         val masterService = DiscipleMasterApprenticeService(
@@ -149,7 +149,6 @@ class DiscipleReflectionReleaseTest {
             cultivationService = cultivationService,
             gameEngineCore = mock(),
             inventorySystem = mock(),
-            inventoryConfig = mock(),
             pillManager = mock(),
             assignmentGate = mock(),
             discipleSlotCleanup = mock(),

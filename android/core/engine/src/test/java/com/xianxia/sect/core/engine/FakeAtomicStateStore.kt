@@ -156,11 +156,48 @@ internal class FakeAtomicStateStore : GameStateStore {
     var latestGameData: GameData = GameData()
         private set
 
+    /** 嵌套事务深度——模拟真实 store 的 writeAllowed 生命周期（重入安全） */
+    private var writeDepth = 0
+
     override fun update(block: MutableGameState.() -> Unit) {
         val m = newMutable()
-        block(m)
+        if (writeDepth++ == 0) m.discipleTables.writeAllowed = true
+        try {
+            block(m)
+        } finally {
+            if (--writeDepth == 0) m.discipleTables.writeAllowed = false
+        }
+        syncFlows(m)
+    }
+
+    override fun <R> updateAndReturn(block: MutableGameState.() -> R): R {
+        val m = newMutable()
+        if (writeDepth++ == 0) m.discipleTables.writeAllowed = true
+        val result = try {
+            block(m)
+        } finally {
+            if (--writeDepth == 0) m.discipleTables.writeAllowed = false
+        }
+        syncFlows(m)
+        return result
+    }
+
+    /**
+     * 将事务缓冲写回全部 StateFlow（P-20 增强：物品实体跨事务持久化——
+     * 原实现只同步 gameData/teams，InventorySystem 等物品仓库路径的修改会丢失）。
+     */
+    private fun syncFlows(m: MutableGameState) {
         _gameData.value = m.gameData
         latestGameData = m.gameData
+        equipmentStacks.value = m.equipmentStacks.all()
+        equipmentInstances.value = m.equipmentInstances.all()
+        manualStacks.value = m.manualStacks.all()
+        manualInstances.value = m.manualInstances.all()
+        pills.value = m.pills.all()
+        materials.value = m.materials.all()
+        herbs.value = m.herbs.all()
+        seeds.value = m.seeds.all()
+        storageBags.value = m.storageBags.all()
         teams.value = m.teams
         battleLogs.value = m.battleLogs
         isPaused.value = m.isPaused
@@ -168,34 +205,24 @@ internal class FakeAtomicStateStore : GameStateStore {
         isSaving.value = m.isSaving
     }
 
-    override fun <R> updateAndReturn(block: MutableGameState.() -> R): R {
-        val m = newMutable()
-        val result = block(m)
-        _gameData.value = m.gameData
-        latestGameData = m.gameData
-        teams.value = m.teams; battleLogs.value = m.battleLogs
-        isPaused.value = m.isPaused; isLoading.value = m.isLoading; isSaving.value = m.isSaving
-        return result
-    }
-
     override fun modifyState(block: MutableGameState.() -> Unit) { update(block) }
     override fun enterBatchEmissionMode() {}
     override fun exitBatchEmissionMode() {}
     override fun takeAtomicSnapshot(): GameStateStore.GameSnapshot = GameStateStore.GameSnapshot()
 
-    /** 使用持久化 DiscipleTables 实例，确保跨 update 调用持久化 */
+    /** 使用持久化 DiscipleTables 实例 + 物品实体从 flow 值初始化，确保跨 update 持久化 */
     private fun newMutable() = MutableGameState(
         gameData = _gameData.value,
         discipleTables = persistentDiscipleTables,
-        equipmentStacks = EntityStore(),
-        equipmentInstances = EntityStore(),
-        manualStacks = EntityStore(),
-        manualInstances = EntityStore(),
-        pills = EntityStore(),
+        equipmentStacks = EntityStore(equipmentStacks.value),
+        equipmentInstances = EntityStore(equipmentInstances.value),
+        manualStacks = EntityStore(manualStacks.value),
+        manualInstances = EntityStore(manualInstances.value),
+        pills = EntityStore(pills.value),
         materials = persistentMaterials,
-        herbs = EntityStore(),
-        seeds = EntityStore(),
-        storageBags = EntityStore(),
+        herbs = EntityStore(herbs.value),
+        seeds = EntityStore(seeds.value),
+        storageBags = EntityStore(storageBags.value),
         teams = teams.value,
         battleLogs = battleLogs.value,
         isPaused = isPaused.value,

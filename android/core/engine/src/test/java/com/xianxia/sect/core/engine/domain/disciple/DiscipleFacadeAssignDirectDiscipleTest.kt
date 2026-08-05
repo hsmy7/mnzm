@@ -2,7 +2,6 @@
 
 package com.xianxia.sect.core.engine.domain.disciple
 
-import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.service.LawEnforcementProcessor
@@ -87,7 +86,6 @@ class DiscipleFacadeAssignDirectDiscipleTest {
             cultivationService = mock(),
             gameEngineCore = mockCore,
             inventorySystem = mock<InventorySystem>(),
-            inventoryConfig = mock<InventoryConfig>(),
             pillManager = mock(),
             assignmentGate = gate,
             discipleSlotCleanup = DiscipleSlotCleanup(gate),

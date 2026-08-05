@@ -2,7 +2,6 @@ package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.LawEnforcementProcessor
@@ -11,10 +10,6 @@ import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.util.DomainResult
-import com.xianxia.sect.core.util.addEquipmentInstanceToDiscipleBag
-import com.xianxia.sect.core.util.addManualInstanceToDiscipleBag
-import com.xianxia.sect.core.util.equipmentBagStackIds
-import com.xianxia.sect.core.util.manualBagStackIds
 import com.xianxia.sect.core.util.StorageBagUtils
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -30,7 +25,6 @@ class DiscipleFacadeImpl @Inject constructor(
     private val cultivationService: CultivationService,
     private val gameEngineCore: GameEngineCore,
     private val inventorySystem: InventorySystem,
-    private val inventoryConfig: InventoryConfig,
     private val pillManager: DisciplePillManager,
     private val assignmentGate: DiscipleAssignmentGate,
     private val discipleSlotCleanup: DiscipleSlotCleanup,
@@ -40,6 +34,12 @@ class DiscipleFacadeImpl @Inject constructor(
     companion object {
         private const val TAG = "DiscipleFacadeImpl"
         private const val MAX_NAME_DISPLAY_LEN = 30
+
+        /** 弟子奖励发放来源（P-19 收编入 InventorySystem 后用于年度报告/溢出邮件） */
+        private const val SOURCE_DISCIPLE_REWARD = "disciple_reward"
+
+        /** 卸装/卸功法来源（P-20 迁移后用于溢出邮件归因） */
+        private const val SOURCE_DISCIPLE_UNEQUIP = "disciple_unequip"
     }
 
     override val disciples: StateFlow<List<Disciple>> get() = stateStore.disciples
@@ -275,17 +275,15 @@ class DiscipleFacadeImpl @Inject constructor(
                     val oldInstance = equipmentInstances.get(oldEquipId)
                     if (oldInstance != null) {
                         val updatedDisciple = discipleTables.assemble(id)
-                        val bagStackIds = updatedDisciple.equipmentBagStackIds()
-                        val result = addEquipmentInstanceToDiscipleBag(
-                            disciple = updatedDisciple, instance = oldInstance,
-                            bagStackIds = bagStackIds, excludeStackId = stack.id,
-                            gameYear = gameData.gameYear, gameMonth = gameData.gameMonth,
-                            gamePhase = gameData.gamePhase,
-                            maxStackSize = inventoryConfig.getMaxStackSize(ITEM_TYPE_EQUIPMENT_STACK)
-                        )
-                        discipleTables.storageBagItems[id] = result.updatedDisciple.equipment.storageBagItems
-                        discipleTables.storageBagSpiritStones[id] = result.updatedDisciple.equipment.storageBagSpiritStones
-                        discipleTables.discipleSpiritStones[id] = result.updatedDisciple.equipment.spiritStones
+                        // P-20：卸装实例→堆叠统一走 InventorySystem（真实容量 + 溢出转邮件）
+                        inventorySystem.withTrackingSource(SOURCE_DISCIPLE_UNEQUIP) {
+                            inventorySystem.addEquipmentInstanceToBag(
+                                instance = oldInstance, excludeStackId = stack.id
+                            )
+                        }
+                        discipleTables.storageBagItems[id] = updatedDisciple.equipment.storageBagItems
+                        discipleTables.storageBagSpiritStones[id] = updatedDisciple.equipment.storageBagSpiritStones
+                        discipleTables.discipleSpiritStones[id] = updatedDisciple.equipment.spiritStones
                     }
                     when (slot) {
                         EquipmentSlot.WEAPON -> discipleTables.weaponIds[id] = ""
@@ -315,21 +313,18 @@ class DiscipleFacadeImpl @Inject constructor(
                 } else {
                     equipmentStacks.remove(item.id)
                 }
-                val currentDisciple = discipleTables.assemble(id)
-                val bagStackIds = currentDisciple.equipmentBagStackIds()
-                val existingBagStack = equipmentStacks.all().find {
-                    it.name == stack.name && it.rarity == stack.rarity && it.slot == stack.slot
-                        && it.id != item.id && it.id in bagStackIds
-                        && it.quantity < inventoryConfig.getMaxStackSize(ITEM_TYPE_EQUIPMENT_STACK)
+                // P-19 收编：放背包统一走 InventorySystem.addEquipmentStack——
+                // StackableItemStore 自动合并同键堆叠 + 来源追踪 + 溢出转邮件（自动发放类）。
+                // F1 对抗性审查修复：排除刚扣减的源堆叠（excludeStackId），
+                // 否则合并回源堆叠 → 数量净 0 但背包引用 +1 → 可无限刷引用并经回收洗白。
+                val newStack = stack.copy(id = java.util.UUID.randomUUID().toString(), quantity = 1)
+                val addResult = inventorySystem.withTrackingSource(SOURCE_DISCIPLE_REWARD) {
+                    inventorySystem.addEquipmentStack(newStack, excludeStackId = item.id)
                 }
-                val bagStackId: String
-                if (existingBagStack != null) {
-                    equipmentStacks.update(existingBagStack.id) { it.copy(quantity = it.quantity + 1) }
-                    bagStackId = existingBagStack.id
-                } else {
-                    val newStack = stack.copy(id = java.util.UUID.randomUUID().toString(), quantity = 1)
-                    equipmentStacks.add(newStack)
-                    bagStackId = newStack.id
+                val bagStackId: String = when (addResult) {
+                    is DomainResult.Success -> addResult.data.id
+                    is DomainResult.Partial -> addResult.data.id // 溢出已转邮件，部分入仓
+                    is DomainResult.Failure -> return@update       // 仓库满：溢出已转邮件
                 }
                 discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
                     discipleTables.storageBagItems[id],
@@ -337,8 +332,7 @@ class DiscipleFacadeImpl @Inject constructor(
                         name = stack.name, rarity = stack.rarity, quantity = 1,
                         obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
                         forgetYear = gameData.gameYear, forgetMonth = gameData.gameMonth,
-                        forgetPhase = gameData.gamePhase),
-                    inventoryConfig.getMaxStackSize(ITEM_TYPE_EQUIPMENT_STACK)
+                        forgetPhase = gameData.gamePhase)
                 )
             }
         }
@@ -365,21 +359,16 @@ class DiscipleFacadeImpl @Inject constructor(
             } else {
                 if (stack.quantity <= 1) manualStacks.remove(item.id)
                 else manualStacks.update(item.id) { it.copy(quantity = stack.quantity - 1) }
-                val currentDisciple = discipleTables.assemble(id)
-                val bagStackIds = currentDisciple.manualBagStackIds()
-                val existingBagStack = manualStacks.all().find {
-                    it.name == stack.name && it.rarity == stack.rarity && it.type == stack.type
-                        && it.id != item.id && it.id in bagStackIds
-                        && it.quantity < inventoryConfig.getMaxStackSize(ITEM_TYPE_MANUAL_STACK)
+                // P-19 收编：放背包统一走 InventorySystem.addManualStack（同 rewardEquipment）
+                // F1 对抗性审查修复：排除刚扣减的源堆叠（excludeStackId），防刷引用
+                val newStack = stack.copy(id = java.util.UUID.randomUUID().toString(), quantity = 1)
+                val addResult = inventorySystem.withTrackingSource(SOURCE_DISCIPLE_REWARD) {
+                    inventorySystem.addManualStack(newStack, merge = true, excludeStackId = item.id)
                 }
-                val storageItemId: String
-                if (existingBagStack != null) {
-                    manualStacks.update(existingBagStack.id) { it.copy(quantity = it.quantity + 1) }
-                    storageItemId = existingBagStack.id
-                } else {
-                    val newStack = stack.copy(id = java.util.UUID.randomUUID().toString(), quantity = 1)
-                    manualStacks.add(newStack)
-                    storageItemId = newStack.id
+                val storageItemId: String = when (addResult) {
+                    is DomainResult.Success -> addResult.data.id
+                    is DomainResult.Partial -> addResult.data.id // 溢出已转邮件，部分入仓
+                    is DomainResult.Failure -> return@update       // 仓库满：溢出已转邮件
                 }
                 discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
                     discipleTables.storageBagItems[id],
@@ -387,8 +376,7 @@ class DiscipleFacadeImpl @Inject constructor(
                         name = stack.name, rarity = stack.rarity, quantity = 1,
                         obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
                         forgetYear = gameData.gameYear, forgetMonth = gameData.gameMonth,
-                        forgetPhase = gameData.gamePhase),
-                    inventoryConfig.getMaxStackSize(ITEM_TYPE_MANUAL_STACK)
+                        forgetPhase = gameData.gamePhase)
                 )
             }
         }
@@ -536,7 +524,7 @@ class DiscipleFacadeImpl @Inject constructor(
                 applyPillEffectsToDisciple(id, pill)
             } else {
                 discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
-                    discipleTables.storageBagItems[id], pillItem, inventoryConfig.getMaxStackSize(ITEM_TYPE_PILL))
+                    discipleTables.storageBagItems[id], pillItem)
             }
         }
     }
@@ -553,8 +541,8 @@ class DiscipleFacadeImpl @Inject constructor(
                     discipleTables.storageBagItems[id],
                     StorageBagItem(itemId = item.id, itemType = ITEM_TYPE_MATERIAL, name = item.name,
                         rarity = item.rarity, quantity = quantity,
-                        obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth),
-                    inventoryConfig.getMaxStackSize(ITEM_TYPE_MATERIAL))
+                        obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth)
+                )
             }
         }
     }
@@ -571,8 +559,8 @@ class DiscipleFacadeImpl @Inject constructor(
                     discipleTables.storageBagItems[id],
                     StorageBagItem(itemId = item.id, itemType = ITEM_TYPE_HERB, name = item.name,
                         rarity = item.rarity, quantity = quantity,
-                        obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth),
-                    inventoryConfig.getMaxStackSize(ITEM_TYPE_HERB))
+                        obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth)
+                )
             }
         }
     }
@@ -589,8 +577,8 @@ class DiscipleFacadeImpl @Inject constructor(
                     discipleTables.storageBagItems[id],
                     StorageBagItem(itemId = item.id, itemType = ITEM_TYPE_SEED, name = item.name,
                         rarity = item.rarity, quantity = quantity,
-                        obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth),
-                    inventoryConfig.getMaxStackSize(ITEM_TYPE_SEED))
+                        obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth)
+                )
             }
         }
     }
@@ -936,23 +924,17 @@ class DiscipleFacadeImpl @Inject constructor(
             val id = discipleId.toIntOrNull() ?: return@update
             if (!discipleTables.ids.contains(id)) return@update
             val currentDisciple = discipleTables.assemble(id)
-            val bagStackIds = currentDisciple.manualBagStackIds()
 
-            val result = addManualInstanceToDiscipleBag(
-                disciple = currentDisciple,
-                instance = instance,
-                bagStackIds = bagStackIds,
-                gameYear = gameData.gameYear,
-                gameMonth = gameData.gameMonth,
-                gamePhase = gameData.gamePhase,
-                maxStackSize = inventoryConfig.getMaxStackSize(ITEM_TYPE_MANUAL_STACK)
-            )
+            // P-20：卸功法实例→堆叠统一走 InventorySystem（真实容量 + 溢出转邮件）
+            inventorySystem.withTrackingSource(SOURCE_DISCIPLE_UNEQUIP) {
+                inventorySystem.addManualInstanceToBag(instance = instance)
+            }
 
-            // Write back updated fields from result.updatedDisciple
-            discipleTables.storageBagItems[id] = result.updatedDisciple.equipment.storageBagItems
-            discipleTables.storageBagSpiritStones[id] = result.updatedDisciple.equipment.storageBagSpiritStones
-            discipleTables.discipleSpiritStones[id] = result.updatedDisciple.equipment.spiritStones
-            discipleTables.manualIds[id] = result.updatedDisciple.manualIds
+            // Write back updated fields（迁移后返回原样 disciple，保持原写回语义）
+            discipleTables.storageBagItems[id] = currentDisciple.equipment.storageBagItems
+            discipleTables.storageBagSpiritStones[id] = currentDisciple.equipment.storageBagSpiritStones
+            discipleTables.discipleSpiritStones[id] = currentDisciple.equipment.spiritStones
+            discipleTables.manualIds[id] = currentDisciple.manualIds
             manualInstances.remove(instanceId)
         }
     }

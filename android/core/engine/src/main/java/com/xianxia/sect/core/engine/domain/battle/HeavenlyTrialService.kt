@@ -33,8 +33,6 @@ import javax.inject.Singleton
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
-import com.xianxia.sect.core.util.GameRngManager
-import com.xianxia.sect.core.util.RngPartition
 import java.util.Locale
 
 enum class ActionType { ATTACK, BUFF_ALLY, BUFF_SELF, NORMAL_ATTACK, NONE }
@@ -51,7 +49,6 @@ class HeavenlyTrialService @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventoryConfig: InventoryConfig,
     private val spiritStoneWallet: SpiritStoneWallet,
-    private val rngManager: GameRngManager,
     private val inventorySystem: InventorySystem
 ) {
 
@@ -130,8 +127,13 @@ class HeavenlyTrialService @Inject constructor(
         // + 装备加成 + 功法属性加成（stats × 熟练度 bonus，与 computeFinalStats 一致）
         // 方差 ±30%，与 DiscipleStatCalculator.computeBaseStats 的 variance 一致
         val layerMult = 1.0 + (def.realmLayer - 1) * 0.1
+        // C1 对抗性审查修复：试炼敌人生成改确定性派生种子（关卡定义 + 敌人名），
+        // 不再消费全局 ENEMY_GEN 分区——UI 线程调用（CombatScreen/BattleDialog）
+        // 会推进引擎侧探索敌人生成序列，破坏读档重放；固定种子同时保证
+        // 预览（BattleDialog）与战斗（startCombat）敌人属性一致
+        val enemyRng = DeterministicRng(enemySeed(levelIndex, def, index))
         val stats = buildTrialBaseStats(
-            def, layerMult, rngManager.getRng(RngPartition.ENEMY_GEN), selected, equipment
+            def, layerMult, enemyRng, selected, equipment
         )
 
         return Combatant(
@@ -324,6 +326,14 @@ class HeavenlyTrialService @Inject constructor(
         else -> 1
     }
 
+    /**
+     * 试炼敌人确定性种子（C1 修复）：由关卡定义 + 敌人名派生——
+     * 同一关卡的同一敌人属性恒定（预览 = 战斗），且不消费全局 ENEMY_GEN。
+     * hashCode 碰撞仅导致属性略同，无正确性问题。
+     */
+    private fun enemySeed(levelIndex: Int, def: TrialEnemyDef, index: Int): Long =
+        def.name.hashCode().toLong() * 31L + levelIndex.toLong() * 7L + index
+
     fun getEnemiesForPhase(levelIndex: Int, phaseIndex: Int): List<Combatant> {
         val config = HeavenlyTrialConfig.getLevel(levelIndex) ?: return emptyList()
         val defs = if (phaseIndex == 0) config.phase1Enemies else config.phase2Enemies
@@ -339,14 +349,23 @@ class HeavenlyTrialService @Inject constructor(
      * 敌方 AI 决策 —— 委托到统一 [BattleAI.decideAction]。
      * 所有敌人（天道试炼、妖兽、AI 弟子等）共用同一套 8 层级联 AI。
      */
+    /**
+     * 敌方 AI 决策 —— 委托到统一 [BattleAI.decideAction]。
+     * 所有敌人（天道试炼、妖兽、AI 弟子等）共用同一套 8 层级联 AI。
+     *
+     * @param rng C2 对抗性审查修复：调用方（UI 战斗模拟）必须传本地 PRNG
+     *   （currentCombatRng）——原实现在 UI 线程消费全局 BATTLE 分区，
+     *   敌方行动数百次消费使引擎侧战斗序列不可重放；引擎侧调用方
+     *   （BattleSystem 等）传引擎线程的 BATTLE 分区实例
+     */
     fun executeEnemyAction(
         attacker: Combatant,
         playerTeam: List<Combatant>,
-        allyTeam: List<Combatant> = emptyList()
+        allyTeam: List<Combatant> = emptyList(),
+        rng: DeterministicRng
     ): EnemyAction {
         val aiAction = BattleAI.decideAction(
-            attacker, allyTeam, playerTeam,
-            rngManager.getRng(RngPartition.BATTLE)
+            attacker, allyTeam, playerTeam, rng
         )
         return convertToEnemyAction(aiAction)
     }

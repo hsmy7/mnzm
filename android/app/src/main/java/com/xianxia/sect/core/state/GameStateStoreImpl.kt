@@ -36,7 +36,13 @@ import javax.inject.Singleton
 @Singleton
 class GameStateStoreImpl @Inject constructor(
     private val applicationScopeProvider: ApplicationScopeProvider,
-    private val repository: GameStateRepository
+    private val repository: GameStateRepository,
+    /**
+     * RNG 事务钩子（P0-1 K 项根治）：事务失败回滚时同步回滚分区 PRNG 状态。
+     * 默认 [NoopRngSnapshotPort] 供非注入测试环境使用；Hilt 注入真实实现
+     * （App 层委托 GameRngManager）。
+     */
+    private val rngSnapshotPort: RngSnapshotPort = NoopRngSnapshotPort
 ) : GameStateStore {
 
     /**
@@ -800,7 +806,7 @@ class GameStateStoreImpl @Inject constructor(
                 initReusableState(baseline)
                 val notificationBeforeBlock = reusableMutableState.pendingNotification
                 val proposalsBeforeBlock = reusableMutableState.pendingMarriageProposals
-                reusableMutableState.block()
+                executeBlockWithRngGuard(block)
                 // ★ 冻结 EntityStore 快照，确保 items 引用正确反映变化
                 freezeStores()
                 val flags = resolveCommitFlags(
@@ -874,6 +880,50 @@ class GameStateStoreImpl @Inject constructor(
             dispatchAssemble()
         }
 
+    }
+
+    /**
+     * 事务块执行 + RNG 快照/回滚（P0-1 K 项根治）。
+     *
+     * 事务失败（block 抛异常）时 COW 缓冲被丢弃（状态回滚），但事务内消费的
+     * 分区 PRNG 已前进——若不恢复，状态与随机序列永久分叉，读档重放不可复现
+     * （游戏循环捕获异常后继续运行，分叉会被持久化）。
+     *
+     * 处理：block 前快照全部 8 分区状态（8×Long，成本可忽略），异常时恢复后
+     * 原样抛出。CancellationException 直接重抛且不触发恢复（协程取消非事务
+     * 失败）；恢复失败不掩盖原始异常（记录日志后继续抛出）。
+     */
+    @Suppress("ThrowsCount") // 事务失败/取消/OOM 三条路径各自原样抛出（必须显式）
+    private fun executeBlockWithRngGuard(block: MutableGameState.() -> Unit) {
+        val rngBaseline = rngSnapshotPort.snapshot()
+        try {
+            reusableMutableState.block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            // 事务失败类型不可预期（结算逻辑任意异常均须恢复 RNG），必须全捕获
+            try {
+                rngSnapshotPort.restore(rngBaseline)
+            } catch (@Suppress("TooGenericExceptionCaught") restoreFailure: Exception) {
+                // 恢复失败类型不可预期（委托 GameRngManager），全捕获仅记录日志
+                DomainLog.e(
+                    TAG,
+                    "RNG 回滚失败，确定性已破坏（事务异常将按原样抛出）",
+                    restoreFailure
+                )
+            }
+            throw e
+        } catch (e: OutOfMemoryError) {
+            // F7 对抗性审查修复：OOM 是 Error 非 Exception——COW 缓冲丢弃（状态回滚）
+            // 但 RNG 已前进。与 loadFromSnapshot 的 OOM 处理对称，尽力恢复 RNG
+            //（8×Long 赋值成本可忽略，内存耗尽时亦应尝试），再原样抛出
+            try {
+                rngSnapshotPort.restore(rngBaseline)
+            } catch (@Suppress("TooGenericExceptionCaught") restoreFailure: Exception) {
+                DomainLog.e(TAG, "OOM 回滚时 RNG 恢复失败，确定性已破坏", restoreFailure)
+            }
+            throw e
+        }
     }
 
     /** 捕获事务起始时全部 StateFlow 快照（字段变化检测基准）。 */
@@ -1132,6 +1182,9 @@ class GameStateStoreImpl @Inject constructor(
         isSaving: Boolean
     ) {
         transactionLock.withLock {
+            // P0-1：读档前快照 RNG 状态——loadFromSnapshot 失败回滚（rollbackLoad）
+            // 时同步恢复，保证状态与随机序列一致（状态/RNG 错配的确定性修复）
+            val rngBaseline = rngSnapshotPort.snapshot()
             // 2026-08-01 修复：版本号递增必须**最先**执行（clear 之前）——
             // 排队中的增量组装若在 load 获取锁前通过 gen 检查，会与 clear+insert 并发
             discipleVersion.incrementAndGet()
@@ -1194,10 +1247,16 @@ class GameStateStoreImpl @Inject constructor(
                 _updateVersion.value++
                 _stateDirty = false
                 _discipleDirty = false
+                // P0-1：状态 + RNG 锁内原子切换——读档成功后用存档内的 rngStates
+                // 覆盖当前 PRNG 状态（原在 SaveLoadViewModel 的 UI 协程中 restoreStates，
+                // 位置在 loadData 之后：load 成功但其后失败会错过恢复 → 状态/RNG 错配）
+                if (gameData.rngStates.isNotEmpty()) {
+                    rngSnapshotPort.restore(gameData.rngStates)
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                rollbackLoad(baseline, e)
+                rollbackLoad(baseline, e, rngBaseline)
                 throw e
             } catch (e: OutOfMemoryError) {
                 // C3-c（2026-08-05）：OOM 是 Error 非 Exception，原 catch 接不住——
@@ -1205,7 +1264,7 @@ class GameStateStoreImpl @Inject constructor(
                 // 状态已撕裂必须先回滚（内存耗尽时尽力而为），再转 IllegalStateException
                 // 使外层统一走失败处理（StorageEngine / performLoadToSlot）
                 try {
-                    rollbackLoad(baseline, IllegalStateException("读档内存不足", e))
+                    rollbackLoad(baseline, IllegalStateException("读档内存不足", e), rngBaseline)
                 } catch (@Suppress("TooGenericExceptionCaught") rollbackFailure: Exception) {
                     // 内存耗尽时回滚失败类型不可预期（赋值/扩容均可能抛），必须全吞尽力而为
                     DomainLog.e(TAG, "OOM 回滚失败（内存已耗尽）", rollbackFailure)
@@ -1241,8 +1300,15 @@ class GameStateStoreImpl @Inject constructor(
      * @param baseline 事务前快照（LoadBaseline）
      * @param e 触发回滚的异常（仅用于日志）
      */
-    private fun rollbackLoad(baseline: LoadBaseline, e: Exception) {
+    private fun rollbackLoad(baseline: LoadBaseline, e: Exception, rngBaseline: Map<Int, Long>) {
         DomainLog.e(TAG, "loadFromSnapshot 失败，执行回滚: ${e.message}", e)
+        // P0-1：读档失败回滚时同步恢复 RNG 到读档前状态（与状态回滚一致）
+        try {
+            rngSnapshotPort.restore(rngBaseline)
+        } catch (@Suppress("TooGenericExceptionCaught") restoreFailure: Exception) {
+            // 恢复失败类型不可预期（委托 GameRngManager），全捕获仅记录日志
+            DomainLog.e(TAG, "读档回滚时 RNG 恢复失败，确定性已破坏", restoreFailure)
+        }
         _gameDataFlow.value = baseline.gameData
         _disciplesFlow.value = baseline.disciples
         // P-5：回滚路径同步恢复聚合（load 开头已清空缓存）

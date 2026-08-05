@@ -27,10 +27,11 @@ class InventoryAddPathGuardTest {
 
     /**
      * 反模式 1：溢出用 coerceAtMost 截断丢弃（应改走 StackableItemStore 的 Partial 语义）。
-     * 覆盖 `inventoryConfig.getMaxStackSize` / `config.getMaxStackSize` / 本地 maxStack 变量别名。
+     * 覆盖 `inventoryConfig.getMaxStackSize` / `config.getMaxStackSize` / 本地 maxStack 变量别名
+     *（P-20 补漏：StorageBagUtils 手写路径曾用 `coerceAtMost(maxStack)`，`stackSize` 后缀匹配不到）。
      */
     private val truncationPattern = Regex(
-        "coerceAtMost\\s*\\(\\s*(?:\\w+\\.)*\\w*[sS]tackSize\\s*\\)"
+        "coerceAtMost\\s*\\(\\s*(?:\\w+\\.)*\\w*(?:[sS]tackSize|[sS]tack)\\s*\\)"
     )
 
     /**
@@ -118,7 +119,9 @@ class InventoryAddPathGuardTest {
 
     @Test
     fun `no overflow truncation via coerceAtMost in any add path`() {
-        val files = sourceFiles()
+        // 排除遗留离线仓库路径（allowedFiles——SectWarehouse/WarehouseItem 主流程未使用，
+        // 自带堆叠实现，见守卫文档；其 coerceAtMost(maxStack) 为白名单内合理实现）
+        val files = sourceFiles().filter { relativePath(it) !in allowedFiles }
         val matches = matchesIn(files, truncationPattern)
         assertEquals(
             "发现 ${matches.size} 处溢出截断（coerceAtMost + getMaxStackSize）：\n" +

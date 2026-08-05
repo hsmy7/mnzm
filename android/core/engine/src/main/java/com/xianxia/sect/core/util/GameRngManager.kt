@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.util
 
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -18,15 +19,19 @@ class GameRngManager @Inject constructor() {
     @Volatile
     private var systemSeed: Long = System.currentTimeMillis()
 
-    private val rngMap = RngPartition.values().associate { partition ->
-        partition to DeterministicRng.fromSeed(partition.id.toLong() + systemSeed)
-    }.toMutableMap()
+    // F6 对抗性审查加固：ConcurrentHashMap——initSystemSeed 的结构修改
+    //（替换分区实例）与引擎线程 getRng/exportStates 的并发读无锁安全
+    private val rngMap = ConcurrentHashMap<RngPartition, DeterministicRng>().apply {
+        RngPartition.values().forEach { partition ->
+            put(partition, DeterministicRng.fromSeed(partition.id.toLong() + systemSeed))
+        }
+    }
 
     /** 初始化系统种子（创建新世界时调用） */
     fun initSystemSeed(seed: Long) {
         systemSeed = seed
-        rngMap.forEach { (partition, _) ->
-            rngMap[partition] = DeterministicRng.fromSeed(seed + partition.id)
+        rngMap.replaceAll { partition, _ ->
+            DeterministicRng.fromSeed(seed + partition.id)
         }
     }
 

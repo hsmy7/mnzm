@@ -5,6 +5,7 @@ import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.HighFrequencyData
 import com.xianxia.sect.core.engine.system.InventorySystem
+import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
@@ -148,7 +149,7 @@ class DiscipleLibrarySlotSwapTest {
         )
         val equipmentService = DiscipleEquipmentService(
             stateStore = mockStore,
-            inventoryConfig = mock(),
+            inventoryConfig = mock(InventoryConfig::class.java),
             inventorySystem = mock(InventorySystem::class.java)
         )
         val masterService = DiscipleMasterApprenticeService(
@@ -190,7 +191,6 @@ class DiscipleLibrarySlotSwapTest {
             cultivationService = cultivationService,
             gameEngineCore = gameEngineCore,
             inventorySystem = mock(),
-            inventoryConfig = mock(),
             pillManager = mock(),
             assignmentGate = gate,
             discipleSlotCleanup = DiscipleSlotCleanup(gate),

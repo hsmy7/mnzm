@@ -189,6 +189,21 @@ class GameTimeClock @Inject constructor(
         accumulatedGameMsInternal = maxOf(0L, accumulatedGameMsInternal - msPerPhase)
     }
 
+    /**
+     * 归还已消费的旬数到累积（P1-A F2 对抗性审查修复）。
+     *
+     * 多旬合并事务（processTickPhases）异常时整批回滚——状态时间回退 N 旬，
+     * 但 [tick] 已按墙钟消费 N 旬（累积被扣减）。不归还则状态时间永久落后
+     * 墙钟（累积消费模式无自动追补），月度事件/生产结算错位。本方法把
+     * 未落地的旬数加回累积，下次 tick 自然重新推进。
+     *
+     * @param count 需归还的旬数（整批回滚时 = 本次尝试的全部旬数）
+     */
+    fun refundPhases(count: Int) {
+        if (count <= 0) return
+        accumulatedGameMsInternal += count.toLong() * msPerPhase
+    }
+
     // ── 类型 ──
 
     data class TickResult(

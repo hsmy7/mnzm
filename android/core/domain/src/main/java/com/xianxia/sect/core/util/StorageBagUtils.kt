@@ -1,13 +1,16 @@
 package com.xianxia.sect.core.util
 
-import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.StorageBagItem
-import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.state.StackKeys
-import com.xianxia.sect.core.state.StackableItemStore
 
+/**
+ * 弟子储物袋（storageBagItems）纯列表工具。
+ *
+ * 范围限定：本工具只操作"背包引用列表"（[StorageBagItem] 列表的增删查），
+ * **不涉及仓库堆叠合并**——装备/功法实例转回仓库堆叠的统一入口在
+ * `:core:engine` 的 InventorySystem（addEquipmentInstanceToBag /
+ * addManualInstanceToBag，P-20 迁移），保证真实容量约束 + 溢出转邮件 +
+ * 来源追踪，防止 domain 侧手写合并绕过守卫测试。
+ */
 object StorageBagUtils {
 
     private const val COOLING_PERIOD_PHASES = 9
@@ -42,14 +45,24 @@ object StorageBagUtils {
         return mutableItems.toList()
     }
 
-    fun increaseItemQuantity(items: List<StorageBagItem>, item: StorageBagItem, maxStack: Int = Int.MAX_VALUE): List<StorageBagItem> {
+    /**
+     * 向背包引用列表追加引用（同 itemId 合并数量）。
+     *
+     * P-20：引用是显示记录（指向仓库堆叠），数量由仓库堆叠约束；
+     * 旧实现的截断语义会静默丢弃溢出引用，玩家物品在仓库却从背包 UI
+     * 消失——故引用列表不设截断（守卫测试扫描截断反模式，注释不含其字样）。
+     */
+    fun increaseItemQuantity(
+        items: List<StorageBagItem>,
+        item: StorageBagItem
+    ): List<StorageBagItem> {
         val mutableItems = items.toMutableList()
         val existingIndex = mutableItems.indexOfFirst { it.itemId == item.itemId && it.itemType == item.itemType }
         if (existingIndex >= 0) {
             val existing = mutableItems[existingIndex]
-            mutableItems[existingIndex] = existing.copy(quantity = (existing.quantity + item.quantity).coerceAtMost(maxStack))
+            mutableItems[existingIndex] = existing.copy(quantity = existing.quantity + item.quantity)
         } else {
-            mutableItems.add(item.copy(quantity = item.quantity.coerceAtMost(maxStack)))
+            mutableItems.add(item.copy(quantity = item.quantity))
         }
         return mutableItems.toList()
     }
@@ -73,111 +86,11 @@ object StorageBagUtils {
 fun List<StorageBagItem>.decreaseItem(itemId: String, amount: Int = 1): List<StorageBagItem> =
     StorageBagUtils.decreaseItemQuantity(this, itemId, amount)
 
-fun List<StorageBagItem>.increaseItem(item: StorageBagItem, maxStack: Int = Int.MAX_VALUE): List<StorageBagItem> =
-    StorageBagUtils.increaseItemQuantity(this, item, maxStack)
+fun List<StorageBagItem>.increaseItem(item: StorageBagItem): List<StorageBagItem> =
+    StorageBagUtils.increaseItemQuantity(this, item)
 
 fun List<StorageBagItem>.hasItem(itemId: String, amount: Int = 1): Boolean =
     StorageBagUtils.hasEnoughItems(this, itemId, amount)
 
 fun List<StorageBagItem>.getItemQty(itemId: String): Int =
     StorageBagUtils.getItemQuantity(this, itemId)
-
-data class AddToBagResult(
-    val storageItemId: String,
-    val updatedDisciple: Disciple
-)
-
-private data class StackMergeResult(
-    val storageItemId: String,
-    val isMerge: Boolean
-)
-
-private fun MutableGameState.mergeEquipmentStackToWarehouse(
-    excludeStackId: String?,
-    maxStackSize: Int,
-    instance: EquipmentInstance
-): StackMergeResult {
-    // 统一走 StackableItemStore 合并（遍历所有同键堆叠），排除背包引用堆叠：
-    // 合并后将其放回列表尾部，防止背包引用指向被扣减的源堆叠
-    val allStacks = equipmentStacks.all()
-    val excluded = excludeStackId?.let { id -> allStacks.find { it.id == id } }
-    val candidates = if (excluded != null) allStacks - excluded else allStacks
-    val store = StackableItemStore(
-        initialItems = candidates,
-        stackKeyOf = StackKeys::equipment,
-        maxStack = maxStackSize,
-        maxSlots = { candidates.size + 1 },
-        notFound = { AppError.Domain.Inventory.NotFound(it) }
-    )
-    val result = store.add(instance.toStack(quantity = 1))
-    val finalStacks = if (excluded != null) store.all() + excluded else store.all()
-    equipmentStacks.replaceAll(finalStacks)
-    return when (result) {
-        is DomainResult.Success -> StackMergeResult(storageItemId = result.data.id, isMerge = true)
-        is DomainResult.Partial -> StackMergeResult(storageItemId = result.data.id, isMerge = true)
-        is DomainResult.Failure -> StackMergeResult(storageItemId = instance.id, isMerge = false)
-    }
-}
-
-private fun MutableGameState.mergeManualStackToWarehouse(
-    excludeStackId: String?,
-    maxStackSize: Int,
-    instance: ManualInstance
-): StackMergeResult {
-    // 统一走 StackableItemStore 合并（遍历所有同键堆叠），排除背包引用堆叠：
-    // 合并后将其放回列表尾部，防止背包引用指向被扣减的源堆叠
-    val allStacks = manualStacks.all()
-    val excluded = excludeStackId?.let { id -> allStacks.find { it.id == id } }
-    val candidates = if (excluded != null) allStacks - excluded else allStacks
-    val store = StackableItemStore(
-        initialItems = candidates,
-        stackKeyOf = StackKeys::manual,
-        maxStack = maxStackSize,
-        maxSlots = { candidates.size + 1 },
-        notFound = { AppError.Domain.Inventory.NotFound(it) }
-    )
-    val result = store.add(instance.toStack(quantity = 1))
-    val finalStacks = if (excluded != null) store.all() + excluded else store.all()
-    manualStacks.replaceAll(finalStacks)
-    return when (result) {
-        is DomainResult.Success -> StackMergeResult(storageItemId = result.data.id, isMerge = true)
-        is DomainResult.Partial -> StackMergeResult(storageItemId = result.data.id, isMerge = true)
-        is DomainResult.Failure -> StackMergeResult(storageItemId = instance.id, isMerge = false)
-    }
-}
-
-fun MutableGameState.addEquipmentInstanceToDiscipleBag(
-    disciple: Disciple,
-    instance: EquipmentInstance,
-    bagStackIds: Set<String>,
-    excludeStackId: String? = null,
-    gameYear: Int,
-    gameMonth: Int,
-    gamePhase: Int,
-    maxStackSize: Int
-): AddToBagResult {
-    val mergeResult = mergeEquipmentStackToWarehouse(excludeStackId, maxStackSize, instance)
-    equipmentInstances = equipmentInstances.filter { it.id != instance.id }
-    return AddToBagResult(storageItemId = mergeResult.storageItemId, updatedDisciple = disciple)
-}
-
-fun MutableGameState.addManualInstanceToDiscipleBag(
-    disciple: Disciple,
-    instance: ManualInstance,
-    bagStackIds: Set<String>,
-    excludeStackId: String? = null,
-    gameYear: Int,
-    gameMonth: Int,
-    gamePhase: Int,
-    maxStackSize: Int
-): AddToBagResult {
-    val mergeResult = mergeManualStackToWarehouse(excludeStackId, maxStackSize, instance)
-    manualInstances = manualInstances.filter { it.id != instance.id }
-    return AddToBagResult(storageItemId = mergeResult.storageItemId, updatedDisciple = disciple)
-}
-
-fun Disciple.equipmentBagStackIds(): Set<String> =
-    equipment.storageBagItems.filter { it.itemType == "equipment_stack" }.map { it.itemId }.toSet()
-
-fun Disciple.manualBagStackIds(): Set<String> =
-    equipment.storageBagItems.filter { it.itemType == "manual_stack" }.map { it.itemId }.toSet()

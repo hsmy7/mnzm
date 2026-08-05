@@ -99,6 +99,11 @@ class StackableItemStore<T>(
         if (item.quantity <= 0) {
             return DomainResult.Failure(AppError.Domain.Inventory.InvalidQuantity(item.quantity))
         }
+        // 守卫（E5 对抗性审查）：maxStack<=0 时分块 `minOf(remaining, maxStack)` 产生
+        // 空/负数量堆叠直到槽满（内存垃圾），语义上无法合并也无法分块 → 直接失败
+        if (maxStack <= 0) {
+            return DomainResult.Failure(AppError.Domain.Inventory.InvalidQuantity(item.quantity))
+        }
         val key = stackKeyOf(item)
         var remaining = item.quantity
         var mergedAny = false

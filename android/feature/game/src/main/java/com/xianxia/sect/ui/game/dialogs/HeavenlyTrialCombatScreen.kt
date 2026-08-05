@@ -143,7 +143,10 @@ fun HeavenlyTrialCombatScreen(
                 val action = viewModel.trialService.executeEnemyAction(
                     attacker = enemy,
                     playerTeam = playerTeam,   // 最新血量
-                    allyTeam = enemyTeam.filter { it.id != enemy.id }
+                    allyTeam = enemyTeam.filter { it.id != enemy.id },
+                    // C2 对抗性审查修复：敌方 AI 决策走当前战斗的本地 PRNG——
+                    // 原实现 UI 线程消费全局 BATTLE 分区，数百次消费使引擎侧战斗序列不可重放
+                    rng = currentCombatRng()
                 )
                 val skill = action.skill
                 val target = action.target
@@ -670,7 +673,7 @@ fun HeavenlyTrialCombatScreen(
                                                             }
                                                         else enemyTeam
                                                             .filter { !it.isDead }
-                                                            .randomOrNull()
+                                                            .randomOrNull(currentCombatRng())
                                                         if (target != null) {
                                                             val result = computeSkillDamage(
                                                                 currentCombatant, target,
@@ -751,7 +754,7 @@ fun HeavenlyTrialCombatScreen(
                                                 }
                                             else enemyTeam
                                                 .filter { !it.isDead }
-                                                .randomOrNull()
+                                                .randomOrNull(currentCombatRng())
                                             if (target != null) {
                                                 val result = computeNormalAttackDamage(
                                                     currentCombatant, target,

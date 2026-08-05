@@ -9,12 +9,40 @@ import com.xianxia.sect.core.engine.domain.battle.CombatBuff
 import com.xianxia.sect.core.engine.domain.battle.Combatant
 import com.xianxia.sect.core.util.BattleCalculator
 import com.xianxia.sect.core.util.DeterministicRng
-import com.xianxia.sect.core.util.GameRngManager
-import com.xianxia.sect.core.util.RngPartition
 
-/** 天道试炼战斗逻辑的 RNG（由 HeavenlyTrialViewModel 初始化时注入） */
-var combatLogicRngManager: GameRngManager? = null
-private val combatRng get() = (combatLogicRngManager ?: error("CombatLogic RNG not initialized")).getRng(RngPartition.BATTLE)
+/**
+ * 当前战斗专用的本地 PRNG（由 [beginCombat] 在进入战斗时从全局 BATTLE 分区取种子创建）。
+ *
+ * 确定性设计（对标 Brogue 玩法/装饰 RNG 分离）：UI 战斗模拟是展示型消费，
+ * 不得推进全局 BATTLE 分区——否则模拟次数变化会污染引擎侧战斗序列，
+ * 破坏读档重放确定性（装饰 RNG 破坏全局状态的行业教训）。
+ * 每次进入战斗仅从全局分区消费 1 次种子，此后模拟完全本地化。
+ */
+private var combatRngLocal: DeterministicRng? = null
+private val combatRng get() = combatRngLocal ?: error("CombatLogic RNG not initialized（须先调用 beginCombat）")
+
+/**
+ * 开始一场新的试炼战斗：从全局 BATTLE 分区取种子创建本地 PRNG。
+ * 调用方（ViewModel.startCombat，UI 线程）负责从 [com.xianxia.sect.core.util.GameRngManager]
+ * 取种子——单次消费为 [DeterministicRng.nextLong] 的 @Synchronized 原子操作，线程安全。
+ */
+internal fun beginCombat(seed: Long) {
+    combatRngLocal = DeterministicRng(seed)
+}
+
+/**
+ * 当前战斗的本地 PRNG（供 CombatScreen 的确定性随机选择使用）。
+ * 仅在 beginCombat 之后调用（CombatScreen 只在战斗界面执行）。
+ */
+internal fun currentCombatRng(): DeterministicRng = combatRng
+
+/**
+ * 确定性随机选择（A3 对抗性审查修复）：替代 `kotlin.random.Random.randomOrNull`——
+ * UI 模拟的目标选择必须走本地 PRNG（当前战斗的 [combatRng]），
+ * 与即时结算路径同基准、可重放，不引入非确定性随机源。
+ */
+internal fun <T> List<T>.randomOrNull(rng: DeterministicRng): T? =
+    if (isEmpty()) null else this[rng.nextInt(size)]
 
 /**
  * 普攻伤害计算（带防御减伤）。
@@ -76,6 +104,8 @@ internal fun applySkillDamage(
 /**
  * 玩家施放技能，返回更新后的双方队伍。
  */
+@Suppress("LongParameterList", "CyclomaticComplexMethod", "NestedBlockDepth")
+// 预存 UI 战斗编排复杂度（参数 7→8 因 A3 修复加 rng），非本次引入
 internal fun executePlayerSkill(
     attacker: Combatant,
     skill: CombatSkill,
@@ -83,7 +113,8 @@ internal fun executePlayerSkill(
     selectedIsAlly: Boolean,
     playerTeam: List<Combatant>,
     enemyTeam: List<Combatant>,
-    isDefending: Set<String>
+    isDefending: Set<String>,
+    rng: DeterministicRng = combatRng
 ): Pair<List<Combatant>, List<Combatant>> {
     var updatedPlayers = playerTeam.toMutableList()
     var updatedEnemies = enemyTeam.toMutableList()
@@ -106,7 +137,7 @@ internal fun executePlayerSkill(
         if (isAttackSkill) {
             val target = if (!selectedIsAlly && selectedTargetId != null)
                 updatedEnemies.find { it.id == selectedTargetId }
-            else updatedEnemies.filter { !it.isDead }.randomOrNull()
+            else updatedEnemies.filter { !it.isDead }.randomOrNull(rng)
             if (target != null) {
                 val updated = applySkillDamage(attacker, target, skill, false)
                 updatedEnemies = updatedEnemies.map {
@@ -120,7 +151,7 @@ internal fun executePlayerSkill(
             } else {
                 val target = if (selectedIsAlly && selectedTargetId != null)
                     updatedPlayers.find { it.id == selectedTargetId }
-                else updatedPlayers.filter { !it.isDead }.randomOrNull()
+                else updatedPlayers.filter { !it.isDead }.randomOrNull(rng)
                 if (target != null) {
                     val updated = applyBuffToTarget(target, skill)
                     updatedPlayers = updatedPlayers.map {

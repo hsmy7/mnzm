@@ -41,8 +41,11 @@ class DiscipleTablesAssembleBenchmarkTest {
 
     /** 预热 3 轮取中位数（消除 JIT/类加载冷启动影响） */
     private fun measure(iterations: Int, block: () -> Unit): Long {
-        repeat(3) { block() }  // warmup
+        // P1-B B1：assembleAll 事务内缓存会让第 2+ 次调用 O(1) 命中——
+        // benchmark 测"真实全量耗时"须在每次测量前显式失效缓存
+        repeat(3) { tables.invalidateAssembleCache(); block() }  // warmup
         val times = (1..iterations).map {
+            tables.invalidateAssembleCache()
             val start = System.nanoTime()
             block()
             System.nanoTime() - start

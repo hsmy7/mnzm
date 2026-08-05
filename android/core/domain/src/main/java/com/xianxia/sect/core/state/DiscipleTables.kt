@@ -66,8 +66,27 @@ class DiscipleTables {
      */
     @Volatile var writeAllowed: Boolean = false
 
-    /** 写方法入口守卫 */
+    /**
+     * 事务内组装缓存（P1-B B1）：同事务多次 [assembleAll] 只组装一次。
+     * 每次 update 的 COW deepCopy 新建表实例 → 每事务自动复位；任何写操作
+     * （列写/insert/remove/clear/markDead，均经本守卫）使缓存失效。
+     * @Volatile：锁外 dispatchAssemble 也可能读取（读"最近提交表"语义一致）。
+     */
+    @Volatile
+    private var txAssembled: List<Disciple>? = null
+
+    /**
+     * 显式失效事务内组装缓存（P1-B B1）。
+     * 正常路径由写操作经 [requireWriteAccess] 自动失效；本方法供
+     * benchmark 测量"真实全量组装耗时"与特殊绕过场景使用。
+     */
+    internal fun invalidateAssembleCache() {
+        txAssembled = null
+    }
+
+    /** 写方法入口守卫（同时使事务内组装缓存失效——失效必须无条件执行） */
     private fun requireWriteAccess() {
+        txAssembled = null
         if (!writeGuardEnabled) return
         require(writeAllowed) {
             "Direct write to DiscipleTables outside stateStore.update{} " +
@@ -1037,6 +1056,9 @@ class DiscipleTables {
      *  isAlive.contains(id) 校验确保 ID 经过了 writeAllFields 全表写入，
      * 防止仅 names 表有条目的半幽灵逃逸到 UI/存档。 */
     fun assembleAll(): List<Disciple> {
+        // P1-B B1：事务内组装缓存命中——同事务多次 assembleAll 只组装一次
+        //（战斗流程 4 次全量 → 1 次 + 3 次 O(1) 命中；写操作经 requireWriteAccess 失效）
+        txAssembled?.let { return it }
         val result = ids.distinct().mapNotNull { id ->
             try {
                 // 全幽灵防御：isAlive + names + realms 任一缺失说明 ID 未完整写入
@@ -1063,6 +1085,7 @@ class DiscipleTables {
                 null
             }
         }
+        txAssembled = result
         return result
     }
 

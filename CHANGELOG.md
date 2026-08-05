@@ -1,3 +1,19 @@
+## [4.00.89] - 2026-08-05
+
+### 优化（2026-08-05 引擎确定性加固 + 性能优化）
+
+- **RNG 事务快照/恢复（K 项根治）** — 结算事务（突破/叛逃/生育/生产判定）在 stateStore.update 内消费分区 RNG；事务异常时 COW 缓冲丢弃（状态回滚）但 RNG 已前进 → 随机序列永久分叉、读档重放不可复现（游戏循环捕获异常后继续运行，分叉被持久化）。修复：domain 新增 `RngSnapshotPort` 事务钩子接口（零平台依赖）+ app 装配 GameRngManager 适配 + Hilt 绑定；`update()` 事务失败恢复 8 分区快照（8×Long，CancellationException 重抛不恢复，含 OOM 路径）；`loadFromSnapshot` 状态 + RNG 锁内原子切换（原 SaveLoadViewModel 的 restoreStates 在 loadData 之后，load 成功但其后失败会错过恢复）；`rollbackLoad` 同步恢复。`TransactionRngRollbackTest` 6 场景守卫（重试对拍/嵌套不重复快照/读档失败保持/读档成功切换/取消穿透/成功不恢复）
+- **主线程 RNG 消费治理（P0-1b，含 C1/C2 盲区修复）** — 天道试炼战斗模拟（UI 线程）此前直接消费全局 BATTLE/ENEMY_GEN 分区——模拟次数/时机变化使引擎侧（AI 宗门进攻/探索/战斗结算）随机序列分叉（行业教训：装饰性 RNG 调用破坏全局状态的灾难案例）。修复：`beginCombat` 进入战斗时单次取种子创建本地 PRNG，模拟完全本地化；敌方 AI 决策 `executeEnemyAction` 加 rng 参数（UI 传本地 PRNG）；**试炼敌人生成改确定性派生种子**（enemySeed = 关卡定义 + 敌人名哈希，不再消费全局 ENEMY_GEN，预览 = 战斗属性一致）；`initSystemSeed` 收敛到 createNewGame 引擎线程；`RngConsumptionGuardTest` 守卫 UI 侧禁批量消费（白名单单文件单次取种子）
+- **奖励发放统一入口（P-19/P-20/P-21 全量实施）** — ① P-21：签到 `distributeReward` 的 catch 移出事务（原 Partial 部分物品实际入仓却返回容量错误 → 重试重复领取；现异常穿透整体回滚，凭据保留可重试补齐）+ handleResult Partial/Failure 均穿透（C6：循环发放部分成功后 Failure 重复发放修复）+ 里程碑循环内立即记账（F3：已发放里程碑不重复领）；② P-19：弟子奖励放背包手写"find 同键堆叠 + quantity+1"路径收编 `InventorySystem.addEquipmentStack/addManualStack` + `withTrackingSource("disciple_reward")`；**F1 严重修复**：addXxx 加 `excludeStackId` 参数（放背包扣减后不合并回源堆叠——原收编引入"数量净 0 但背包引用无限增长 → 回收洗白刷装备"漏洞，2 个守卫用例）；③ P-20：卸装/换装实例→堆叠 4 函数迁移 `InventorySystem.addEquipmentInstanceToBag/addManualInstanceToBag`——`maxSlots = candidates.size+1` 绕过总容量改真实容量、Partial 溢出转邮件、excludeStackId 尾部保留、来源 disciple_unequip；④ 背包引用列表去截断（溢出引用静默丢失）；⑤ 守卫补漏：`truncationPattern` 补 `maxStack` 变体 + 新增 domain 模块守卫；⑥ E5：StackableItemStore `maxStack<=0` 死循环守卫
+- **结算事务合并（G 项）** — `processTickPhases` 掉帧追旬 N 次独立 update → 单事务内多旬循环（省 N-1 次 COW deepCopy + 锁竞争）；配合 P0-1 异常整批回滚 + **F2 修复**（`GameTimeClock.refundPhases` 异常时回补时钟——合并回滚后状态时间落后墙钟需归还累积，防永久落后）；`SettlementTransactionMergeTest` 确定性对照守卫；`checkpointAllProduction` 因 suspend 限制保持事务外（罕见路径）
+- **assembleAll 事务内 memoize（I 项部分落地）** — `DiscipleTables.txAssembled` 缓存：同事务多次 assembleAll 只组装一次（战斗流程 4 次全量 → 1 次 + 3 次 O(1) 命中），写操作经 `requireWriteAccess` 统一失效（COW deepCopy 每事务自动复位）；benchmark 测量前显式失效（`invalidateAssembleCache`）
+- **装备属性缓存（C2）** — `EquipmentInstance.getFinalStats` 值语义缓存（不可变 COW 实例内容即版本，data class equals/hashCode 键零失效逻辑，ConcurrentHashMap 线程安全，4096 容量护栏）：属性计算链内层热点 O(1) 命中；`EquipmentFinalStatsCacheTest` 4 用例
+- **GameRngManager 并发加固（F6）** — rngMap 改 ConcurrentHashMap + replaceAll（initSystemSeed 结构修改与 getRng/exportStates 并发读无锁安全）
+- **B2 决策记录** — 服务层跨事务增量组装（update 入口 await 不变量）评估后不做：B1 已覆盖同事务重复组装（主要收益），跨事务增量已由 store 层 dispatchAssemble（changedIdTracker + 双指针归并）承担，await 不变量触及核心并发且收益有限
+- **途中发现处理** — `FakeAtomicStateStore` 物品实体不跨事务持久化 + 写权限未模拟——测试基建缺陷已增强（flow 初始化 + syncFlows 写回 + writeDepth 重入计数）；`GameEngineDiplomacyOps.interactWithSect` 未实现存根登记（D-05）
+- **对抗性审查（边界/状态/数据三角色 agent，17 项发现）** — 修复 8 项（F1 刷装备严重 / F2 时钟落后 / F3 里程碑记账 / C1 敌人生成 / C2 敌方 AI / C6 签到 Failure / F6 RNG 并发 / F7 OOM 恢复）；登记 9 项至 architecture.md 待完成项（D-01~D-05 等，溢出邮件非事务化 / 里程碑失败入口 / 放背包失败体验等）
+- **验证** — compileReleaseKotlin + detekt 全模块违规清零 + 全量测试串行（--max-workers=1）回归 0 失败 + lintRelease 通过
+
 ## [4.00.86] - 2026-08-03
 
 ### 代码质量（2026-08-05 架构文档待完成项全量实施）
