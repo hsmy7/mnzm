@@ -20,6 +20,7 @@
 - **C15 缓存命中过校验管线** — tryCacheLoad 命中后执行 migrate+validate（Rejected/Corrupted 回落 DB）
 - **D16-D26 死代码清理与防御接线** — 删除 SaveLoadRestartDelegate（接线即清档陷阱）/BackupStrategy/StorageValidator（含测试与 baseline）/KeyRotationManager/AppModule 绑定/migrateLegacyAutoSave（slot 0 恒 INVALID_SLOT 死代码）；接线：StorageCircuitBreaker save/load 主链路（save 阈值 5/30s、load 8/15s）、cleanupOrphanedTmp+cleanExpiredBackups 启动清理（语义修正：.sav 永不清、只删孤儿 .bak）、healDuplicateSlotAssignments 返回 Job boot 等待 + rewriteBattleTeamWinner 去强制复活（activeMissions 扫描放弃：SlotCategory 无 MISSION 枚举值且任务/岗位并存语义需产品确认）、DataPruningScheduler/DataArchiveScheduler 槽位锁互斥（经 StorageCoreFacade.lockManager 注入，规避 data 模块 Hilt KSP 解析限制）、WAL recover 超 30 天未完成事务跳过注册、worldMapSects 重生合并式保留 sectRelations + loadHeavyDataSafe 超限行改跳过不删（无再生源数据不静默丢失）
 - **对抗性审查** — 3 角色代理审查发现全部核验实施；A1/A4 基于源码实证修正代理前提（saveVersion 盖章缺失确证、ProtoBuf 未知字段跳过实证）
+- **存量数据警示（如实登记）** — 此前版本（4.00.89 之前）云读档覆盖本地存档缺陷**已造成的数据损失无法恢复**：被覆盖槽位的 DB/.sav/.bak 三处均被云档整体覆写（.bak 为同 payload 双份副本、非历史快照），无任何残留副本；新版本亦无法检测哪些槽位曾被覆盖（存档无覆盖事件标记）。受影响玩家仅可通过：此前上传的云档版本 / 其他设备旧档 / 系统级备份找回。新版本已通过目标槽位修正 + 覆盖确认框防止新损失
 - **验证** — 定点测试（SaveDataVersionMigrator/ProtobufConverters/RoomMigration/SaveLoadViewModelLoad/TapCloudSaveManager/SaveFileManager/SerializationDirect）+ 全量串行回归
 
 ### 优化（2026-08-05 引擎确定性加固 + 性能优化）
