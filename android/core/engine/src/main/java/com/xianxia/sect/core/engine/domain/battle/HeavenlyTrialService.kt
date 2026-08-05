@@ -31,6 +31,7 @@ import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import java.util.Locale
@@ -120,136 +121,198 @@ class HeavenlyTrialService @Inject constructor(
     }
 
     fun buildDiscipleEnemy(levelIndex: Int, def: TrialEnemyDef, index: Int): Combatant {
-        // 功法：优先用固定 manualIds → 按角色精选 → 随机
-        val selected = if (def.manualIds.isNotEmpty()) {
-            val resolved = def.manualIds.mapNotNull { ManualDatabase.allManuals[it] }
-            resolved.ifEmpty {
-                val allManuals = ManualDatabase.allManuals.values.toList()
-                val eligible = allManuals
-                    .filter { it.minRealm <= def.realm }
-                    .sortedByDescending { it.rarity }
-                if (def.role.isNotEmpty()) selectManualsForRole(eligible, def.role, def.realm)
-                else selectManuals(eligible, levelIndex, def.realm)
-            }
-        } else if (def.role.isNotEmpty()) {
-            val allManuals = ManualDatabase.allManuals.values.toList()
-            val eligible = allManuals
-                .filter { it.minRealm <= def.realm }
-                .sortedByDescending { it.rarity }
-            selectManualsForRole(eligible, def.role, def.realm)
-        } else {
-            val allManuals = ManualDatabase.allManuals.values.toList()
-            val eligible = allManuals
-                .filter { it.minRealm <= def.realm }
-                .sortedByDescending { it.rarity }
-            selectManuals(eligible, levelIndex, def.realm)
-        }
-
-        // 装备：优先使用固定 equipmentIds，否则取境界最高品阶
-        val weapon: ForgeRecipeDatabase.ForgeRecipe?
-        val armor: ForgeRecipeDatabase.ForgeRecipe?
-        val boots: ForgeRecipeDatabase.ForgeRecipe?
-        val accessory: ForgeRecipeDatabase.ForgeRecipe?
-        if (def.equipmentIds.isNotEmpty()) {
-            val eqRecipes = def.equipmentIds.mapNotNull { ForgeRecipeDatabase.getRecipeById(it) }
-            weapon = eqRecipes.find { it.type == EquipmentSlot.WEAPON }
-            armor = eqRecipes.find { it.type == EquipmentSlot.ARMOR }
-            boots = eqRecipes.find { it.type == EquipmentSlot.BOOTS }
-            accessory = eqRecipes.find { it.type == EquipmentSlot.ACCESSORY }
-        } else {
-            val allEquipment = ForgeRecipeDatabase.getAllRecipes()
-            val maxTier = getMaxTierForRealm(def.realm)
-            val eligibleEquip = allEquipment.filter { it.tier <= maxTier }
-                .sortedByDescending { it.rarity }
-            weapon = eligibleEquip.find { it.type == EquipmentSlot.WEAPON }
-            armor = eligibleEquip.find { it.type == EquipmentSlot.ARMOR }
-            boots = eligibleEquip.find { it.type == EquipmentSlot.BOOTS }
-            accessory = eligibleEquip.find { it.type == EquipmentSlot.ACCESSORY }
-        }
+        val selected = selectTrialManuals(def, levelIndex)
+        val equipment = selectTrialEquipment(def)
 
         // 使用与玩家弟子相同的属性公式：境界基础值 × (1 + 方差) × 层数倍率
         // + 装备加成 + 功法属性加成（stats × 熟练度 bonus，与 computeFinalStats 一致）
         // 方差 ±30%，与 DiscipleStatCalculator.computeBaseStats 的 variance 一致
-        val realmConfig = GameConfig.Realm.get(def.realm)
         val layerMult = 1.0 + (def.realmLayer - 1) * 0.1
-        val rng = rngManager.getRng(RngPartition.ENEMY_GEN)
-        fun rngVar(): Double = 1.0 + (rng.nextInt(61) - 30) / 100.0
-
-        var baseHp = (realmConfig.baseHp * rngVar() * layerMult).toInt()
-        var baseMp = (realmConfig.baseMp * rngVar() * layerMult).toInt()
-        var basePhysAtk = (realmConfig.basePhysicalAttack * rngVar() * layerMult).toInt()
-        var baseMagAtk = (realmConfig.baseMagicAttack * rngVar() * layerMult).toInt()
-        var basePhysDef = (realmConfig.basePhysicalDefense * rngVar() * layerMult).toInt()
-        var baseMagDef = (realmConfig.baseMagicDefense * rngVar() * layerMult).toInt()
-        var baseSpeed = (realmConfig.baseSpeed * rngVar() * layerMult).toInt()
-        var manualCritChance = 0.0
-
-        // 应用装备属性加成（修复：之前只选取装备名称用于显示，未将属性计入 Combatant）
-        fun applyEquipStats(name: String) {
-            EquipmentDatabase.getTemplateByName(name)?.let { t ->
-                basePhysAtk += t.physicalAttack
-                baseMagAtk += t.magicAttack
-                basePhysDef += t.physicalDefense
-                baseMagDef += t.magicDefense
-                baseSpeed += t.speed
-                baseHp += t.hp
-            }
-        }
-        weapon?.name?.let { applyEquipStats(it) }
-        armor?.name?.let { applyEquipStats(it) }
-        boots?.name?.let { applyEquipStats(it) }
-        accessory?.name?.let { applyEquipStats(it) }
-
-        // 功法属性加成（2026-08-04 补齐：敌人此前只有功法技能、无功法属性。
-        // 试炼敌人默认熟练度 0 → NOVICE 1.5 倍，与玩家"刚学功法"一致）
-        val masteryBonus = com.xianxia.sect.core.engine.ManualProficiencySystem.MasteryLevel.fromLevel(0).bonus
-        for (manual in selected) {
-            val hpValue = manual.stats["hp"] ?: manual.stats["maxHp"] ?: 0
-            val mpValue = manual.stats["mp"] ?: manual.stats["maxMp"] ?: 0
-            baseHp += (hpValue * masteryBonus).toInt()
-            baseMp += (mpValue * masteryBonus).toInt()
-            basePhysAtk += ((manual.stats["physicalAttack"] ?: 0) * masteryBonus).toInt()
-            baseMagAtk += ((manual.stats["magicAttack"] ?: 0) * masteryBonus).toInt()
-            basePhysDef += ((manual.stats["physicalDefense"] ?: 0) * masteryBonus).toInt()
-            baseMagDef += ((manual.stats["magicDefense"] ?: 0) * masteryBonus).toInt()
-            baseSpeed += ((manual.stats["speed"] ?: 0) * masteryBonus).toInt()
-            manualCritChance += ((manual.stats["critRate"] ?: 0) * masteryBonus) / 100.0
-        }
-
-        // 技能倍率按熟练度 0（NOVICE ×1.5）调整——与上方功法属性加成同源，
-        // 与 EnemyGenerator（按 mastery 0-3 调倍率）和玩家公式一致
-        // （对抗性审查：此前属性 ×1.5 而技能倍率裸奔，同一敌人自相矛盾）
-        val skills = selected.map { manual ->
-            manual.copy(
-                skillDamageMultiplier = com.xianxia.sect.core.engine.ManualProficiencySystem
-                    .calculateSkillDamageMultiplier(manual.skillDamageMultiplier, 0)
-            ).toCombatSkill()
-        }
+        val stats = buildTrialBaseStats(
+            def, layerMult, rngManager.getRng(RngPartition.ENEMY_GEN), selected, equipment
+        )
 
         return Combatant(
             id = "trial_disciple_${levelIndex}_${index}",
             name = def.name,
             side = CombatantSide.ATTACKER,
-            hp = baseHp,
-            maxHp = baseHp,
-            mp = baseMp,
-            maxMp = baseMp,
-            physicalAttack = basePhysAtk,
-            magicAttack = baseMagAtk,
-            physicalDefense = basePhysDef,
-            magicDefense = baseMagDef,
-            speed = baseSpeed,
-            critRate = 0.05 + def.realm * 0.02 + manualCritChance,
-            skills = skills,
+            hp = stats.hp,
+            maxHp = stats.hp,
+            mp = stats.mp,
+            maxMp = stats.mp,
+            physicalAttack = stats.physAtk,
+            magicAttack = stats.magAtk,
+            physicalDefense = stats.physDef,
+            magicDefense = stats.magDef,
+            speed = stats.speed,
+            critRate = 0.05 + def.realm * 0.02 + stats.critChance,
+            skills = buildTrialSkills(selected),
             realm = def.realm,
             realmName = GameConfig.Realm.getName(def.realm),
             realmLayer = def.realmLayer,
-            weaponName = weapon?.name,
-            armorName = armor?.name,
-            bootsName = boots?.name,
-            accessoryName = accessory?.name,
+            weaponName = equipment.weapon?.name,
+            armorName = equipment.armor?.name,
+            bootsName = equipment.boots?.name,
+            accessoryName = equipment.accessory?.name,
             isBeast = false
         )
+    }
+
+    private data class TrialEquipmentSelection(
+        val weapon: ForgeRecipeDatabase.ForgeRecipe?,
+        val armor: ForgeRecipeDatabase.ForgeRecipe?,
+        val boots: ForgeRecipeDatabase.ForgeRecipe?,
+        val accessory: ForgeRecipeDatabase.ForgeRecipe?
+    )
+
+    private data class TrialBaseStats(
+        val hp: Int,
+        val mp: Int,
+        val physAtk: Int,
+        val magAtk: Int,
+        val physDef: Int,
+        val magDef: Int,
+        val speed: Int,
+        val critChance: Double
+    )
+
+    /** 试炼功法选取（buildDiscipleEnemy 提取）：固定 manualIds → 角色精选 → 随机 */
+    private fun selectTrialManuals(def: TrialEnemyDef, levelIndex: Int): List<ManualDatabase.ManualTemplate> {
+        // 功法：优先用固定 manualIds → 按角色精选 → 随机
+        if (def.manualIds.isNotEmpty()) {
+            val resolved = def.manualIds.mapNotNull { ManualDatabase.allManuals[it] }
+            if (resolved.isNotEmpty()) return resolved
+        }
+        val eligible = ManualDatabase.allManuals.values
+            .filter { it.minRealm <= def.realm }
+            .sortedByDescending { it.rarity }
+        return if (def.role.isNotEmpty()) selectManualsForRole(eligible, def.role, def.realm)
+        else selectManuals(eligible, levelIndex, def.realm)
+    }
+
+    /** 试炼装备选取（buildDiscipleEnemy 提取）：固定 equipmentIds，否则境界最高品阶 */
+    private fun selectTrialEquipment(def: TrialEnemyDef): TrialEquipmentSelection {
+        if (def.equipmentIds.isNotEmpty()) {
+            val eqRecipes = def.equipmentIds.mapNotNull { ForgeRecipeDatabase.getRecipeById(it) }
+            return TrialEquipmentSelection(
+                weapon = eqRecipes.find { it.type == EquipmentSlot.WEAPON },
+                armor = eqRecipes.find { it.type == EquipmentSlot.ARMOR },
+                boots = eqRecipes.find { it.type == EquipmentSlot.BOOTS },
+                accessory = eqRecipes.find { it.type == EquipmentSlot.ACCESSORY }
+            )
+        }
+        val eligibleEquip = ForgeRecipeDatabase.getAllRecipes()
+            .filter { it.tier <= getMaxTierForRealm(def.realm) }
+            .sortedByDescending { it.rarity }
+        return TrialEquipmentSelection(
+            weapon = eligibleEquip.find { it.type == EquipmentSlot.WEAPON },
+            armor = eligibleEquip.find { it.type == EquipmentSlot.ARMOR },
+            boots = eligibleEquip.find { it.type == EquipmentSlot.BOOTS },
+            accessory = eligibleEquip.find { it.type == EquipmentSlot.ACCESSORY }
+        )
+    }
+
+    private data class StatBonus(
+        val hp: Int = 0, val mp: Int = 0,
+        val physAtk: Int = 0, val magAtk: Int = 0,
+        val physDef: Int = 0, val magDef: Int = 0,
+        val speed: Int = 0, val critChance: Double = 0.0
+    )
+
+    /** 试炼敌人基础属性（buildDiscipleEnemy 提取）：7 次 rngVar 抽数顺序保持，装备+功法加成随后 */
+    private fun buildTrialBaseStats(
+        def: TrialEnemyDef,
+        layerMult: Double,
+        rng: DeterministicRng,
+        selected: List<ManualDatabase.ManualTemplate>,
+        equipment: TrialEquipmentSelection
+    ): TrialBaseStats {
+        val realmConfig = GameConfig.Realm.get(def.realm)
+        fun rngVar(): Double = 1.0 + (rng.nextInt(61) - 30) / 100.0
+
+        val baseHp = (realmConfig.baseHp * rngVar() * layerMult).toInt()
+        val baseMp = (realmConfig.baseMp * rngVar() * layerMult).toInt()
+        val basePhysAtk = (realmConfig.basePhysicalAttack * rngVar() * layerMult).toInt()
+        val baseMagAtk = (realmConfig.baseMagicAttack * rngVar() * layerMult).toInt()
+        val basePhysDef = (realmConfig.basePhysicalDefense * rngVar() * layerMult).toInt()
+        val baseMagDef = (realmConfig.baseMagicDefense * rngVar() * layerMult).toInt()
+        val baseSpeed = (realmConfig.baseSpeed * rngVar() * layerMult).toInt()
+
+        val equipBonus = sumEquipStatBonuses(equipment)
+        val manualBonus = sumManualStatBonuses(selected)
+
+        return TrialBaseStats(
+            hp = baseHp + equipBonus.hp + manualBonus.hp,
+            mp = baseMp + equipBonus.mp + manualBonus.mp,
+            physAtk = basePhysAtk + equipBonus.physAtk + manualBonus.physAtk,
+            magAtk = baseMagAtk + equipBonus.magAtk + manualBonus.magAtk,
+            physDef = basePhysDef + equipBonus.physDef + manualBonus.physDef,
+            magDef = baseMagDef + equipBonus.magDef + manualBonus.magDef,
+            speed = baseSpeed + equipBonus.speed + manualBonus.speed,
+            critChance = manualBonus.critChance
+        )
+    }
+
+    /** 装备属性加成汇总（buildTrialBaseStats 提取）：weapon → armor → boots → accessory 顺序保持 */
+    private fun sumEquipStatBonuses(equipment: TrialEquipmentSelection): StatBonus {
+        var hp = 0; var physAtk = 0; var magAtk = 0
+        var physDef = 0; var magDef = 0; var speed = 0
+        val equipNames = listOfNotNull(
+            equipment.weapon?.name, equipment.armor?.name,
+            equipment.boots?.name, equipment.accessory?.name
+        )
+        // 应用装备属性加成（修复：之前只选取装备名称用于显示，未将属性计入 Combatant）
+        for (name in equipNames) {
+            EquipmentDatabase.getTemplateByName(name)?.let { t ->
+                physAtk += t.physicalAttack
+                magAtk += t.magicAttack
+                physDef += t.physicalDefense
+                magDef += t.magicDefense
+                speed += t.speed
+                hp += t.hp
+            }
+        }
+        return StatBonus(hp = hp, physAtk = physAtk, magAtk = magAtk, physDef = physDef, magDef = magDef, speed = speed)
+    }
+
+    /** 功法属性加成汇总（buildTrialBaseStats 提取）：
+     * 默认熟练度 0 → NOVICE 1.5 倍，与玩家"刚学功法"一致 */
+    private fun sumManualStatBonuses(selected: List<ManualDatabase.ManualTemplate>): StatBonus {
+        var hp = 0; var mp = 0
+        var physAtk = 0; var magAtk = 0
+        var physDef = 0; var magDef = 0
+        var speed = 0; var critChance = 0.0
+        val masteryBonus = com.xianxia.sect.core.engine.ManualProficiencySystem.MasteryLevel.fromLevel(0).bonus
+        // 功法属性加成（2026-08-04 补齐：敌人此前只有功法技能、无功法属性）
+        for (manual in selected) {
+            val hpValue = manual.stats["hp"] ?: manual.stats["maxHp"] ?: 0
+            val mpValue = manual.stats["mp"] ?: manual.stats["maxMp"] ?: 0
+            hp += (hpValue * masteryBonus).toInt()
+            mp += (mpValue * masteryBonus).toInt()
+            physAtk += ((manual.stats["physicalAttack"] ?: 0) * masteryBonus).toInt()
+            magAtk += ((manual.stats["magicAttack"] ?: 0) * masteryBonus).toInt()
+            physDef += ((manual.stats["physicalDefense"] ?: 0) * masteryBonus).toInt()
+            magDef += ((manual.stats["magicDefense"] ?: 0) * masteryBonus).toInt()
+            speed += ((manual.stats["speed"] ?: 0) * masteryBonus).toInt()
+            critChance += ((manual.stats["critRate"] ?: 0) * masteryBonus) / 100.0
+        }
+        return StatBonus(
+            hp = hp, mp = mp, physAtk = physAtk, magAtk = magAtk,
+            physDef = physDef, magDef = magDef, speed = speed, critChance = critChance
+        )
+    }
+
+    /** 试炼敌人技能（buildDiscipleEnemy 提取）：熟练度 0（NOVICE ×1.5）倍率调整 */
+    private fun buildTrialSkills(selected: List<ManualDatabase.ManualTemplate>): List<CombatSkill> {
+        // 技能倍率按熟练度 0（NOVICE ×1.5）调整——与上方功法属性加成同源，
+        // 与 EnemyGenerator（按 mastery 0-3 调倍率）和玩家公式一致
+        // （对抗性审查：此前属性 ×1.5 而技能倍率裸奔，同一敌人自相矛盾）
+        return selected.map { manual ->
+            manual.copy(
+                skillDamageMultiplier = com.xianxia.sect.core.engine.ManualProficiencySystem
+                    .calculateSkillDamageMultiplier(manual.skillDamageMultiplier, 0)
+            ).toCombatSkill()
+        }
     }
 
     private fun getMaxTierForRealm(realm: Int): Int = when (realm) {

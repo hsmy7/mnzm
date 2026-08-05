@@ -1,43 +1,24 @@
 package com.xianxia.sect.ui.game
 
-import android.content.Context
 import android.util.Log
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
-import com.xianxia.sect.core.domain.dialog.DialogManager
 import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.core.SectLevel
-import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.*
-import com.xianxia.sect.core.engine.di.IoDispatcher
-import com.xianxia.sect.core.engine.domain.building.BuildingFacade
-import com.xianxia.sect.core.engine.domain.battle.BattleFacade
-import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyFacade
-import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
-import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
-import com.xianxia.sect.core.engine.domain.production.ProductionFacade
-import com.xianxia.sect.core.engine.domain.save.SaveFacade
-import com.xianxia.sect.core.engine.service.AdService
 import com.xianxia.sect.core.engine.service.AdPurpose
-import com.xianxia.sect.core.engine.service.MailService
-import com.xianxia.sect.core.engine.service.DailySignInService
 import com.xianxia.sect.core.engine.service.ClaimResult
 import com.xianxia.sect.core.engine.service.HighFrequencyData
 import com.xianxia.sect.ui.game.sect.RenderCommandBus
 import com.xianxia.sect.core.util.GridSnapHelper
-import com.xianxia.sect.core.engine.system.SystemManager
-import com.xianxia.sect.core.audio.AudioConfig
-import com.xianxia.sect.core.audio.AudioEngine
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
-import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.perf.ThermalState
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.state.BattleResultUIData
@@ -55,59 +36,52 @@ import javax.inject.Inject
 @HiltViewModel
 class GameViewModel @Inject constructor(
     private val gameEngine: GameEngine,
-    private val gameEngineCore: GameEngineCore,
-    @ApplicationContext private val appContext: Context,
-    private val systemManager: SystemManager,
-    private val buildingConfigService: BuildingConfigService,
-    private val mailService: MailService,
-    private val dailySignInService: DailySignInService,
-    private val discipleFacade: DiscipleFacade,
-    private val productionFacade: ProductionFacade,
-    private val inventoryFacade: InventoryFacade,
-    private val buildingFacade: BuildingFacade,
-    private val battleFacade: BattleFacade,
-    private val diplomacyFacade: DiplomacyFacade,
-    private val saveFacade: SaveFacade,
-    private val thermalMonitor: ThermalMonitor,
-    private val dialogManager: DialogManager,
-    private val adService: AdService,
-    private val audioConfig: AudioConfig,
-    private val audioEngine: AudioEngine,
-    private val ioDispatcher: IoDispatcher
+    private val audioServices: GameVmAudioServices,
+    private val coreServices: GameVmCoreServices,
+    private val uiServices: GameVmUiServices,
+    private val delegateServices: GameVmDelegateServices
 ) : BaseViewModel() {
 
     // ── 新提取的领域委托 ──
 
     val ads = AdsDelegate()
     val overlays = OverlayDelegate(gameEngine, viewModelScope)
-    val bag = BagDelegate(gameEngine, dailySignInService, viewModelScope, dispatcher = ioDispatcher.dispatcher)
+    val bag = BagDelegate(
+        gameEngine, delegateServices.dailySignInService, viewModelScope,
+        dispatcher = delegateServices.ioDispatcher.dispatcher
+    )
     val redeem = RedeemCodeDelegate(
         gameEngine, ::showSuccess, ::showError,
         onCapacityWarning = { msg -> showCapacityWarning(msg) }
     )
-    val mail = MailDelegate(gameEngine, mailService, dailySignInService, ::showError)
-    val signIn = SignInDelegate(gameEngine, dailySignInService, viewModelScope, sharingStarted) { showCapacityWarning(it) }
-    val gameLoop = GameLoopDelegate(gameEngine, gameEngineCore, systemManager, viewModelScope, ::showError)
-    val settings = SettingsDelegate(gameEngine, discipleFacade, audioConfig)
+    val mail = MailDelegate(gameEngine, delegateServices.mailService, delegateServices.dailySignInService, ::showError)
+    val signIn = SignInDelegate(
+        gameEngine, delegateServices.dailySignInService, viewModelScope, sharingStarted
+    ) { showCapacityWarning(it) }
+    val gameLoop = GameLoopDelegate(
+        gameEngine, coreServices.gameEngineCore, coreServices.systemManager, viewModelScope, ::showError
+    )
+    val settings = SettingsDelegate(gameEngine, delegateServices.discipleFacade, audioServices.audioConfig)
 
     // ── 既有领域委托 ──
 
     val planting = PlantingDelegate(gameEngine)
-    val disciple = DiscipleDelegate(gameEngine, dispatcher = ioDispatcher.dispatcher)
+    val disciple = DiscipleDelegate(gameEngine, dispatcher = delegateServices.ioDispatcher.dispatcher)
     val navigation = NavigationDelegate(
-        gameEngine, gameEngineCore,
+        gameEngine, coreServices.gameEngineCore,
         onNavigate = { _navigationEvents.trySend(it) }
     )
     val inventory = InventoryDelegate(gameEngine)
     val beastAttack = BeastAttackDelegate(
-        gameEngine, viewModelScope, dispatcher = ioDispatcher.dispatcher,
+        gameEngine, viewModelScope, dispatcher = delegateServices.ioDispatcher.dispatcher,
         onMessage = { message, isError ->
             if (isError) showError(message) else showSuccess(message)
         }
     )
     val warnings = WarningDelegate(gameEngine, viewModelScope)
     val buildingDelegate = BuildingDelegate(
-        gameEngine, buildingFacade, buildingConfigService, dispatcher = ioDispatcher.dispatcher,
+        gameEngine, delegateServices.buildingFacade, delegateServices.buildingConfigService,
+        dispatcher = delegateServices.ioDispatcher.dispatcher,
         onDemolishSuccess = { msg -> showSuccess(msg) }
     )
     val sectDelegate = SectDelegate(
@@ -152,20 +126,20 @@ class GameViewModel @Inject constructor(
 
     private val _dialogOpenTrigger = MutableSharedFlow<Unit>(replay = 0)
 
-    val currentDialogType: StateFlow<DialogType> = dialogManager.currentDialog
+    val currentDialogType: StateFlow<DialogType> = uiServices.dialogManager.currentDialog
         .map { entry -> entry?.type ?: DialogType.None }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DialogType.None)
 
     fun navigateToDialog(type: DialogType) {
         if (type is DialogType.None) return
         gameEngine.setActiveDialog(type.domainKey)
-        dialogManager.open(type)
+        uiServices.dialogManager.open(type)
         _dialogOpenTrigger.tryEmit(Unit)
     }
 
     fun onUserInteraction() { gameEngine.notifyUserInteraction() }
 
-    val renderFrameRate: StateFlow<Int> = gameEngineCore.renderFrameRate
+    val renderFrameRate: StateFlow<Int> = coreServices.gameEngineCore.renderFrameRate
 
     // ── 渲染命令总线（建筑数据直达推送，绕过 Compose 帧率门控） ──
 
@@ -181,7 +155,7 @@ class GameViewModel @Inject constructor(
         }
     }
 
-    fun setGameScene(scene: GameEngineCore.GameScene) { gameEngineCore.onSceneChanged(scene) }
+    fun setGameScene(scene: GameEngineCore.GameScene) { coreServices.gameEngineCore.onSceneChanged(scene) }
 
     init {
         // 建筑数据直达推送（绕过 Compose 反应式管线 + 帧率门控）
@@ -200,7 +174,7 @@ class GameViewModel @Inject constructor(
 
     fun dismissDialog() {
         gameEngine.setActiveDialog(null)
-        dialogManager.close()
+        uiServices.dialogManager.close()
         _dialogOpenTrigger.tryEmit(Unit)
     }
 
@@ -278,7 +252,7 @@ class GameViewModel @Inject constructor(
         gameEngine.launchOnEngine {
             val cards = gameEngine.pendingBattleRewardCards.value
             if (cards.isNotEmpty()) {
-                dailySignInService.enqueueSignInCards(cards)
+                delegateServices.dailySignInService.enqueueSignInCards(cards)
                 gameEngine.clearPendingBattleRewardCards()
             }
         }
@@ -344,7 +318,7 @@ class GameViewModel @Inject constructor(
     )
     val gameScreenState: StateFlow<GameScreenAggState> = combine(
         // P-8：unifiedState（20Hz 锁竞争）→ isPaused 窄流直连
-        gameEngine.gameData, highFreqState, configState, gameEngineCore.isPaused
+        gameEngine.gameData, highFreqState, configState, coreServices.gameEngineCore.isPaused
     ) { gd, hf, cfg, paused -> GameScreenAggState(gd, hf, cfg, paused) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000),
             GameScreenAggState(GameData(), GameStateStore.HighFreqState(), GameStateStore.ConfigState(), true))
@@ -359,7 +333,7 @@ class GameViewModel @Inject constructor(
         .map { aggregates -> aggregates.distinctBy { it.id } }
         .stateIn(viewModelScope, sharingStarted, emptyList())
     val sectCombatPower: StateFlow<Long> get() = gameEngine.sectCombatPower
-    val thermalState: StateFlow<ThermalState> = thermalMonitor.thermalState
+    val thermalState: StateFlow<ThermalState> = coreServices.thermalMonitor.thermalState
     val aiSectCombatPowers: StateFlow<Map<String, Long>> get() = gameEngine.aiSectCombatPowers
     val disciples: StateFlow<List<DiscipleAggregate>> = discipleAggregates
 
@@ -508,7 +482,7 @@ class GameViewModel @Inject constructor(
 
     // S6 修复（对抗性审查）：P-8 漏迁——原走 50ms 采样废弃流 unifiedState，
     // 与 togglePause 直读混用导致快速双击被吞；改用 isPaused 窄流（零采样延迟）
-    val isPaused: StateFlow<Boolean> = gameEngineCore.isPaused
+    val isPaused: StateFlow<Boolean> = coreServices.gameEngineCore.isPaused
 
     val gameEventRecords: StateFlow<List<GameEventRecord>> = gameEngine.gameData
         .map { it.gameEventRecords }.distinctUntilChanged()
@@ -532,15 +506,15 @@ class GameViewModel @Inject constructor(
     fun releaseReflectionDisciple(discipleId: String) = disciple.releaseReflectionDisciple(discipleId)
     fun apprenticeToMaster(discipleId: String, masterId: String) = disciple.apprenticeToMaster(discipleId, masterId)
     fun renameDisciple(discipleId: String, newName: String) = disciple.renameDisciple(discipleId, newName)
-    fun getLifeEvents(discipleId: String): List<String> = discipleFacade.getLifeEvents(discipleId)
+    fun getLifeEvents(discipleId: String): List<String> = delegateServices.discipleFacade.getLifeEvents(discipleId)
     fun initializeLifeEvents(discipleId: String) {
         // 写操作必须派发到引擎线程（对齐 enterSect 模式），否则主线程直调 stateStore.update 触发架构违规守卫
-        gameEngine.launchOnEngine { discipleFacade.initializeLifeEvents(discipleId) }
+        gameEngine.launchOnEngine { delegateServices.discipleFacade.initializeLifeEvents(discipleId) }
     }
 
     fun clearNotification() {
         gameEngine.consumeNotification()
-        discipleFacade.clearPendingNotification()
+        delegateServices.discipleFacade.clearPendingNotification()
     }
 
     fun clearRewardCardQueue(count: Int = Int.MAX_VALUE) { gameEngine.clearRewardCardQueue(count) }
@@ -711,7 +685,7 @@ class GameViewModel @Inject constructor(
      */
     fun watchAdForBreakthroughBonus(discipleId: String) {
         if (isDailyAdLimitReached()) return
-        adService.watchAd(AdPurpose.BREAKTHROUGH_BONUS) {
+        uiServices.adService.watchAd(AdPurpose.BREAKTHROUGH_BONUS) {
             if (tryMarkAdWatched()) {
                 applyAdBreakthroughBonus(discipleId, AD_BONUS_PER_AD)
             }
@@ -724,7 +698,7 @@ class GameViewModel @Inject constructor(
      */
     fun watchAdForMerchantRefresh() {
         if (isDailyAdLimitReached()) return
-        adService.watchAd(AdPurpose.MERCHANT_REFRESH) {
+        uiServices.adService.watchAd(AdPurpose.MERCHANT_REFRESH) {
             if (tryMarkAdWatched()) {
                 grantMerchantRefreshChanceFromAd()
             }
@@ -797,7 +771,7 @@ class GameViewModel @Inject constructor(
     }
     fun setMusicEnabled(enabled: Boolean) {
         settings.setMusicEnabled(enabled)
-        audioEngine.onSettingsChanged()
+        audioServices.audioEngine.onSettingsChanged()
     }
     fun setAutoSellMidGradeForPurchase(enabled: Boolean) = settings.setAutoSellMidGradeForPurchase(enabled)
     fun setAutoSellHighGradeForPurchase(enabled: Boolean) = settings.setAutoSellHighGradeForPurchase(enabled)
@@ -845,7 +819,7 @@ class GameViewModel @Inject constructor(
 
     override fun onCleared() {
         Log.i(TAG, "GameViewModel cleared, stopping game loop and releasing resources")
-        dialogManager.close()
+        uiServices.dialogManager.close()
         gameEngine.setActiveDialog(null)
         gameLoop.clearResources()
         super.onCleared()

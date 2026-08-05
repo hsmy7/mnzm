@@ -347,39 +347,73 @@ object BattleCalculator {
         enableInstantKill: Boolean = false,
         rng: DeterministicRng
     ): DamageResult {
-        // 斩杀前置检查：触发斩杀则跳过所有伤害计算，直接返回满血伤害
-        if (enableInstantKill && checkInstantKill(attacker.realm, defender.realm, attacker.realmLayer, defender.realmLayer)) {
-            val isPhysical = if (skill != null) skill.damageType == DamageType.PHYSICAL
-                else attacker.physicalAttack >= attacker.magicAttack
-            return DamageResult(
-                // T-C2（2026-08-05）：maxHp 篡改为 0/负时钳制为 0，避免负伤害显示
-                damage = defender.maxHp.coerceAtLeast(0),
-                isCrit = false,
-                isPhysical = isPhysical,
-                isDodged = false,
-                skillName = skill?.name,
-                hits = skill?.hits ?: 1,
-                isInstantKill = true
-            )
-        }
-
         val isSkillAttack = skill != null
+        return tryInstantKill(attacker, defender, skill, enableInstantKill)
+            ?: tryDodge(attacker, defender, skill, isSkillAttack, rng)
+            ?: computeDamagePipeline(attacker, defender, skill, damageModifier, zones, isSkillAttack, rng)
+    }
+
+    /** 斩杀前置检查（calculateCombatantDamage 提取）：触发斩杀跳过全部伤害计算，无 RNG 消耗 */
+    private fun tryInstantKill(
+        attacker: Combatant,
+        defender: Combatant,
+        skill: CombatSkill?,
+        enableInstantKill: Boolean
+    ): DamageResult? {
+        if (!enableInstantKill || !checkInstantKill(attacker.realm, defender.realm, attacker.realmLayer, defender.realmLayer)) {
+            return null
+        }
+        val isPhysical = if (skill != null) skill.damageType == DamageType.PHYSICAL
+            else attacker.physicalAttack >= attacker.magicAttack
+        return DamageResult(
+            // T-C2（2026-08-05）：maxHp 篡改为 0/负时钳制为 0，避免负伤害显示
+            damage = defender.maxHp.coerceAtLeast(0),
+            isCrit = false,
+            isPhysical = isPhysical,
+            isDodged = false,
+            skillName = skill?.name,
+            hits = skill?.hits ?: 1,
+            isInstantKill = true
+        )
+    }
+
+    /** 闪避判定（calculateCombatantDamage 提取）：抽数位置保持（斩杀检查之后、暴击之前） */
+    private fun tryDodge(
+        attacker: Combatant,
+        defender: Combatant,
+        skill: CombatSkill?,
+        isSkillAttack: Boolean,
+        rng: DeterministicRng
+    ): DamageResult? {
         val dodgeModifier = if (isSkillAttack) 0.3 else 0.5
-        val maxDodgeChance = if (isSkillAttack) GameConfig.Battle.MAX_SKILL_DODGE_CHANCE else GameConfig.Battle.MAX_DODGE_CHANCE
+        val maxDodgeChance = if (isSkillAttack) GameConfig.Battle.MAX_SKILL_DODGE_CHANCE
+        else GameConfig.Battle.MAX_DODGE_CHANCE
         val dodgeChance = calculateCombatantDodgeChance(attacker, defender, dodgeModifier, maxDodgeChance)
 
-        if (rng.nextDouble() < dodgeChance) {
-            return DamageResult(
-                damage = 0,
-                isCrit = false,
-                isPhysical = if (isSkillAttack) skill?.damageType == DamageType.PHYSICAL ?: true else attacker.physicalAttack >= attacker.magicAttack,
-                isDodged = true,
-                skillName = skill?.name,
-                hits = skill?.hits ?: 1
-            )
-        }
+        if (rng.nextDouble() >= dodgeChance) return null
+        return DamageResult(
+            damage = 0,
+            isCrit = false,
+            isPhysical = if (isSkillAttack) skill?.damageType == DamageType.PHYSICAL ?: true
+            else attacker.physicalAttack >= attacker.magicAttack,
+            isDodged = true,
+            skillName = skill?.name,
+            hits = skill?.hits ?: 1
+        )
+    }
 
-        val isPhysical = if (isSkillAttack) skill?.damageType == DamageType.PHYSICAL ?: true else attacker.physicalAttack >= attacker.magicAttack
+    /** 正常伤害管线（calculateCombatantDamage 提取）：暴击抽数 → 波动抽数 → 分桶注入 → 段数钳制 */
+    private fun computeDamagePipeline(
+        attacker: Combatant,
+        defender: Combatant,
+        skill: CombatSkill?,
+        damageModifier: Double,
+        zones: DamageZones?,
+        isSkillAttack: Boolean,
+        rng: DeterministicRng
+    ): DamageResult {
+        val isPhysical = if (isSkillAttack) skill?.damageType == DamageType.PHYSICAL ?: true
+        else attacker.physicalAttack >= attacker.magicAttack
         val attack = if (isPhysical) attacker.physicalAttack else attacker.magicAttack
         val defense = if (isPhysical) defender.effectivePhysicalDefense else defender.effectiveMagicDefense
 

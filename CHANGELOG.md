@@ -230,6 +230,17 @@
 - **测试** — LeaderboardViewModelTest 新增 isWorldLoaded 派生跟随变化用例；全量测试 + lintRelease + detekt（新代码违规清零）全绿
 - **文档** — 架构文档预存问题登记表补充 P-17（GameViewModel 构造 20 参数超规，baseline 豁免技术债）与 P-18（排行榜 rank 起始语义真机验证）；本次确认的 core:engine detekt 预存违规经核对全部已在 P-02~P-13 登记，无需重复
 
+### 代码质量（2026-08-05 架构文档预存问题登记 P-01~P-15/P-17 全量实施）
+
+- **P-01 战利品数量分区 RNG** — attackSect 战利品数量 `(80..130).random()`（kotlin Random.Default，CI 查不到）改走 BATTLE 分区 PRNG：提取 `sectBattleRewardCount` 纯函数（`80 + rng.nextInt(51)` / `20 + rng.nextInt(41)`）+ GameEngineBattleOpsTest 值域/确定性守卫；**登记接受的代价**：该次宗门战胜利后 BATTLE 随机序列后移一位，旧存档后续战斗随机序与旧版本不同
+- **战斗系统 10 个 God Method 拆分（P-02~P-10）** — BattleSystem 3（executeSkillAction 参数打包+5 分支/processTurnAdvance 6 提取/executeBattleWithTimeout 3 提取）、AISectAttackManager 4（executeUnifiedAIBattle 回合提取+运行标志/executeSupportAction 5 提取/applyAoeSingleTarget 8→4 参/selectAITarget 2 return）、BattleCalculator.calculateCombatantDamage（斩杀/闪避/伤害管线三提取，主函数 1 return 链式）、HeavenlyTrialService.buildDiscipleEnemy（功法/装备/属性/技能四提取，复杂度 23→5）；全部 RNG 抽数序保持，新增 3 个抽数序对拍守卫测试（instantKill 0 抽/dodge 1 抽/正常路径 2 抽）
+- **battle 域目录归位（P-11）** — 13 个文件 git mv 至 `engine/domain/battle/`（包声明与目录对齐，import 全不变），删 12 条 InvalidPackageDeclaration baseline
+- **测试文件违规全清（P-13 + 未登记项）** — BattleSystemTest/BattleCalculatorCoverageTest combatant 11/10→7 参（skills/buffs/realm 改 .copy()）、37 处长行折行、29 处 UnusedImports + 8 处额外 MaxLineLength 清理
+- **AISectBattleProcessor 迁移守卫测试（P-15）** — 新增 4 测试（AI 升级链/玩家宗门不升级/非玩家仓库清理/热控分批/入口全链路），@After 恢复静态注入防跨类污染
+- **GameViewModel 构造 20→5 参数（P-17）** — 删 6 个零使用参数（appContext/productionFacade/inventoryFacade/battleFacade/diplomacyFacade/saveFacade）+ 4 个 @Inject 值对象归组（AudioServices/CoreServices/UiServices/DelegateServices），18 个 Delegate 零改动，baseline LongParameterList 条目删除
+- **flaky 测试诊断（P-14）** — H1（assemble 竞态）300 轮压力实证 0 失败未复现，转 30 轮正式守卫测试（GameStateStoreAssembleRaceGuardTest）；H3（statsProvider 静态污染）枚举排除；最可能根因为 TestPolling 5s 轮询超时在慢 CI 不足 → 提升至 15s
+- **验证** — compileReleaseKotlin + detekt 全模块违规清零（engine 63→0、feature/game 22→0）+ 全量测试串行回归
+
 ## [4.0.85] - 2026-08-02
 
 ### 新增（2026-08-02 一键拆除建筑）

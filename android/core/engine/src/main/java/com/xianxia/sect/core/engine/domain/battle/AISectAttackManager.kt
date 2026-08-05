@@ -27,6 +27,7 @@ import com.xianxia.sect.core.domain.FavorDomain
 import com.xianxia.sect.core.engine.domain.diplomacy.IntelligentSectDecisionEngine
 import com.xianxia.sect.core.model.SectBattleType
 import com.xianxia.sect.core.util.BattleCalculator
+import com.xianxia.sect.core.util.BattleCalculator.SupportResult
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 // top-level fun 提取到 aiattack/ 子目录（同包内可直接访问）
@@ -82,15 +83,17 @@ object AISectAttackManager {
                 sect.id != attacker.id && sect.occupierSectId != attacker.id
             }
 
-            for (defender in allTargets) {
+            // 每个攻击者每月至多一次攻击：跳过已处理目标，首个可攻击目标即停
+            var attack: AIAttackResult? = null
+            val targets = allTargets.iterator()
+            while (attack == null && targets.hasNext()) {
+                val defender = targets.next()
                 if (results.any { it.defenderSectId == defender.id || it.attackerSectId == attacker.id }) continue
-                val attack = tryDecideAttack(
+                attack = tryDecideAttack(
                     attacker, defender, gameData, aiDisciplesMap, availableAttackers, playerOccupiedDefendersMap
-                ) ?: continue
-                results.add(attack)
-                // One attack per attacker per month
-                break
+                )
             }
+            attack?.let { results.add(it) }
         }
 
         return results
@@ -463,9 +466,8 @@ object AISectAttackManager {
 
         for (attacker in gameData.worldMapSects.filter { !it.isPlayerSect }) {
             val aliveAttackers = passesAttackerGates(gameData, attacker, nowMonth, aiDisciplesMap)
-                ?: continue
-            val powerRatio = computePowerRatio(aliveAttackers, aiDisciplesMap, playerSectId)
-                ?: continue
+            val powerRatio = aliveAttackers?.let { computePowerRatio(it, aiDisciplesMap, playerSectId) }
+            if (aliveAttackers == null || powerRatio == null) continue
             val attackChance = computeAttackChance(gameData, attacker, playerSectId, powerRatio)
 
             if (aisRng.nextDouble() < attackChance) {
@@ -817,7 +819,9 @@ object AISectAttackManager {
         }
 
         val silenceBuff = currentCombatant.buffs.find { it.type == BuffType.SILENCE && it.remainingDuration > 0 }
-        val skillDecision = selectAISkill(currentCombatant, aliveEnemies, allies.filter { !it.isDead }, silenceBuff != null)
+        val skillDecision = selectAISkill(
+            currentCombatant, aliveEnemies, allies.filter { !it.isDead }, silenceBuff != null
+        )
         val availableSkill = skillDecision.skill
 
         val isSupportSkill = availableSkill?.skillType == SkillType.SUPPORT
@@ -844,56 +848,96 @@ object AISectAttackManager {
         var currentDefenders = defenders.toMutableList()
         var turn = 0
         var timedOut = false
+        var ended = false
         val rounds = mutableListOf<BattleLogRound>()
         val startTime = System.currentTimeMillis()
 
-        while (turn < GameConfig.AI.MAX_BATTLE_TURNS) {
-            // 超时保护（对齐 BattleSystem 5000ms）：每旬大量 AI 宗门战在游戏线程执行，
-            // 拉锯战（高防低攻）不得无限占用主线程
-            if (System.currentTimeMillis() - startTime > GameConfig.AI.MAX_AI_BATTLE_DURATION_MS) {
+        while (turn < GameConfig.AI.MAX_BATTLE_TURNS && !timedOut && !ended) {
+            val outcome = executeAiRound(currentAttackers, currentDefenders, startTime, turn + 1)
+            if (outcome.timedOut) {
                 timedOut = true
-                break
+            } else {
+                currentAttackers = outcome.attackers.toMutableList()
+                currentDefenders = outcome.defenders.toMutableList()
+                rounds.add(outcome.round)
+                turn++
+                ended = outcome.ended
             }
-            val roundActions = mutableListOf<BattleLogAction>()
-            val allCombatants = (currentAttackers + currentDefenders)
-                .filter { !it.isDead }
-                .sortedByDescending { it.effectiveSpeed }
-
-            for (combatant in allCombatants) {
-                if (combatant.isDead) continue
-                executeAiCombatantTurn(
-                    currentAttackers, currentDefenders, combatant, roundActions
-                )
-                currentAttackers = currentAttackers.filter { !it.isDead }.toMutableList()
-                currentDefenders = currentDefenders.filter { !it.isDead }.toMutableList()
-            }
-
-            processDotEffects(currentAttackers, currentDefenders)
-
-            rounds.add(BattleLogRound(roundNumber = turn + 1, actions = roundActions.toList()))
-            turn++
-
-            if (currentAttackers.isEmpty() || currentDefenders.isEmpty()) break
-        }
-
-        val winner = when {
-            currentDefenders.isEmpty() -> AIBattleWinner.ATTACKER
-            currentAttackers.isEmpty() -> AIBattleWinner.DEFENDER
-            // 对抗性审查：超时后按存活数多者胜（与 BattleSystem 超时语义对齐），
-            // 避免僵局战一律 DRAW 使攻击方无损失（玩家高防驻军=免伤屏障）
-            timedOut && currentAttackers.size != currentDefenders.size ->
-                if (currentAttackers.size > currentDefenders.size) AIBattleWinner.ATTACKER
-                else AIBattleWinner.DEFENDER
-            else -> AIBattleWinner.DRAW
         }
 
         return UnifiedAIBattleResult(
             attackers = currentAttackers,
             defenders = currentDefenders,
-            winner = winner,
+            winner = resolveAiWinner(currentAttackers, currentDefenders, timedOut),
             turns = turn,
             rounds = rounds
         )
+    }
+
+    private data class AiBattleRoundOutcome(
+        val timedOut: Boolean,
+        val ended: Boolean,
+        val attackers: List<Combatant>,
+        val defenders: List<Combatant>,
+        val round: BattleLogRound
+    )
+
+    /** AI 宗门战单回合（executeUnifiedAIBattle 提取）：保留快照后击杀的 isDead 运行时守卫 */
+    private fun executeAiRound(
+        currentAttackers: MutableList<Combatant>,
+        currentDefenders: MutableList<Combatant>,
+        startTime: Long,
+        roundNumber: Int
+    ): AiBattleRoundOutcome {
+        // 超时保护（对齐 BattleSystem 5000ms）：每旬大量 AI 宗门战在游戏线程执行，
+        // 拉锯战（高防低攻）不得无限占用主线程
+        if (System.currentTimeMillis() - startTime > GameConfig.AI.MAX_AI_BATTLE_DURATION_MS) {
+            return AiBattleRoundOutcome(
+                timedOut = true, ended = false, attackers = currentAttackers,
+                defenders = currentDefenders, round = BattleLogRound(roundNumber, emptyList())
+            )
+        }
+        var attackers = currentAttackers
+        var defenders = currentDefenders
+        val roundActions = mutableListOf<BattleLogAction>()
+        val allCombatants = (attackers + defenders)
+            .filter { !it.isDead }
+            .sortedByDescending { it.effectiveSpeed }
+
+        for (combatant in allCombatants) {
+            if (combatant.isDead) continue
+            executeAiCombatantTurn(
+                attackers, defenders, combatant, roundActions
+            )
+            attackers = attackers.filter { !it.isDead }.toMutableList()
+            defenders = defenders.filter { !it.isDead }.toMutableList()
+        }
+
+        processDotEffects(attackers, defenders)
+
+        return AiBattleRoundOutcome(
+            timedOut = false,
+            ended = attackers.isEmpty() || defenders.isEmpty(),
+            attackers = attackers,
+            defenders = defenders,
+            round = BattleLogRound(roundNumber = roundNumber, actions = roundActions.toList())
+        )
+    }
+
+    /** AI 宗门战胜者判定（executeUnifiedAIBattle 提取） */
+    private fun resolveAiWinner(
+        currentAttackers: List<Combatant>,
+        currentDefenders: List<Combatant>,
+        timedOut: Boolean
+    ): AIBattleWinner = when {
+        currentDefenders.isEmpty() -> AIBattleWinner.ATTACKER
+        currentAttackers.isEmpty() -> AIBattleWinner.DEFENDER
+        // 对抗性审查：超时后按存活数多者胜（与 BattleSystem 超时语义对齐），
+        // 避免僵局战一律 DRAW 使攻击方无损失（玩家高防驻军=免伤屏障）
+        timedOut && currentAttackers.size != currentDefenders.size ->
+            if (currentAttackers.size > currentDefenders.size) AIBattleWinner.ATTACKER
+            else AIBattleWinner.DEFENDER
+        else -> AIBattleWinner.DRAW
     }
 
     private fun executeNormalAttackAction(
@@ -1094,8 +1138,8 @@ object AISectAttackManager {
         for (target in targets) {
             if (target.isDead) continue
             applyAoeSingleTarget(
-                attacker, target, skill, attackerType,
-                allies, enemies, enemiesIndexMap, roundActions
+                attacker, target, skill,
+                AoeWriteBackContext(allies, enemies, enemiesIndexMap, roundActions)
             )
         }
         // 攻击者冷却/MP 结算：每次技能执行一次（无论目标走必杀/闪避/正常分支），
@@ -1110,25 +1154,29 @@ object AISectAttackManager {
      * AOE 单目标伤害应用：必杀/闪避/正常三分支（含技能 debuff 附加）。
      * 从 executeAoeAttackAction 循环体提取。
      */
+    private data class AoeWriteBackContext(
+        val allies: MutableList<Combatant>,
+        val enemies: MutableList<Combatant>,
+        val enemiesIndexMap: Map<String, Int>,
+        val roundActions: MutableList<BattleLogAction>
+    )
+
     private fun applyAoeSingleTarget(
         attacker: Combatant,
         target: Combatant,
         skill: CombatSkill,
-        attackerType: String,
-        allies: MutableList<Combatant>,
-        enemies: MutableList<Combatant>,
-        enemiesIndexMap: Map<String, Int>,
-        roundActions: MutableList<BattleLogAction>
+        ctx: AoeWriteBackContext
     ) {
         val result = BattleCalculator.calculateCombatantDamage(
             attacker, target, skill, rng = aisRng, enableInstantKill = true
         )
+        val attackerType = if (attacker.side == CombatantSide.ATTACKER) "attacker" else "defender"
         if (result.isInstantKill) {
-                val targetIdx = enemiesIndexMap[target.id]
-                if (targetIdx != null && targetIdx < enemies.size) {
-                    enemies[targetIdx] = enemies[targetIdx].copy(hp = 0)
+                val targetIdx = ctx.enemiesIndexMap[target.id]
+                if (targetIdx != null && targetIdx < ctx.enemies.size) {
+                    ctx.enemies[targetIdx] = ctx.enemies[targetIdx].copy(hp = 0)
                 }
-                roundActions.add(BattleLogAction(
+                ctx.roundActions.add(BattleLogAction(
                     type = "skill", attacker = attacker.name, attackerType = attackerType,
                     target = target.name, damage = target.maxHp, skillName = skill.name,
                     isKill = true, message = "${attacker.name} 以 ${skill.name} 境界压制斩杀 ${target.name}"
@@ -1137,7 +1185,7 @@ object AISectAttackManager {
             }
 
             if (result.isDodged) {
-                roundActions.add(BattleLogAction(
+                ctx.roundActions.add(BattleLogAction(
                     type = "skill", attacker = attacker.name, attackerType = attackerType,
                     target = target.name, damage = 0, skillName = skill.name,
                     message = "${target.name} 闪避了 ${attacker.name} 的 ${skill.name}"
@@ -1146,10 +1194,10 @@ object AISectAttackManager {
             }
 
             var newHp = target.hp
-            val targetIdx = enemiesIndexMap[target.id]
-            if (targetIdx != null && targetIdx < enemies.size) {
+            val targetIdx = ctx.enemiesIndexMap[target.id]
+            if (targetIdx != null && targetIdx < ctx.enemies.size) {
                 // 护盾吸收 + 扣血（共享应用层）
-                var updatedTarget = BattleDamageApplier.applyDamageToTarget(enemies[targetIdx], result.damage)
+                var updatedTarget = BattleDamageApplier.applyDamageToTarget(ctx.enemies[targetIdx], result.damage)
                 newHp = updatedTarget.hp
 
                 val localBuffType = skill.buffType
@@ -1160,11 +1208,11 @@ object AISectAttackManager {
                 // 伤害链接 debuff（与主引擎一致）
                 updatedTarget = applyLinkDebuff(attacker, updatedTarget, skill)
 
-                enemies[targetIdx] = updatedTarget
+                ctx.enemies[targetIdx] = updatedTarget
                 // 伤害分摊/链接
-                applyShareAndLink(attacker, updatedTarget, result.damage, allies, enemies)
+                applyShareAndLink(attacker, updatedTarget, result.damage, ctx.allies, ctx.enemies)
             }
-            roundActions.add(BattleLogAction(
+            ctx.roundActions.add(BattleLogAction(
                 type = "skill", attacker = attacker.name, attackerType = attackerType,
                 target = target.name, damage = result.damage, skillName = skill.name,
                 isCrit = result.isCrit, isKill = newHp == 0
@@ -1179,51 +1227,86 @@ object AISectAttackManager {
         alliesIndexMap: Map<String, Int>,
         roundActions: MutableList<BattleLogAction>
     ) {
+        val supportAllies = resolveSupportTargets(caster, allies, skill)
+        val supportResult = BattleCalculator.executeSupportSkill(caster, supportAllies, skill)
+        applySupportHealing(supportResult, alliesList, alliesIndexMap, skill)
+        applySupportTeamBuffs(supportResult, alliesList, alliesIndexMap)
+        updateSupportCooldown(caster, alliesList, alliesIndexMap, skill)
+        roundActions.add(buildSupportActionLog(caster, allies, supportResult, skill))
+    }
+
+    /** 支援目标解析（executeSupportAction 提取）：保留 aisRng 抽数位置 */
+    private fun resolveSupportTargets(caster: Combatant, allies: List<Combatant>, skill: CombatSkill): List<Combatant> {
         // 对抗性审查修复：ally 作用域由调用方解析（BattleCalculator 对 "ally" 返回空列表）——
         // 此前传全部存活盟友导致 ally 技能对所有人生效/或对空列表空放
-        val supportAllies = if (skill.targetScope == "ally") {
-            val valid = allies.filter { !it.isDead && it.id != caster.id }
-            if (valid.isNotEmpty()) listOf(valid[aisRng.nextInt(valid.size)]) else emptyList()
-        } else {
-            allies
-        }
-        val supportResult = BattleCalculator.executeSupportSkill(caster, supportAllies, skill)
+        if (skill.targetScope != "ally") return allies
+        val valid = allies.filter { !it.isDead && it.id != caster.id }
+        return if (valid.isNotEmpty()) listOf(valid[aisRng.nextInt(valid.size)]) else emptyList()
+    }
 
-        if (supportResult.healAmount > 0) {
-            supportResult.healedIds.forEach { healedId ->
-                val idx = alliesIndexMap[healedId]
-                if (idx != null && idx < alliesList.size) {
-                    if (skill.healType == HealType.MP) {
-                        alliesList[idx] = alliesList[idx].copy(mp = minOf(alliesList[idx].mp + supportResult.healAmount, alliesList[idx].maxMp))
-                    } else {
-                        alliesList[idx] = alliesList[idx].copy(hp = minOf(alliesList[idx].hp + supportResult.healAmount, alliesList[idx].maxHp))
-                    }
+    /** 支援治疗写回（executeSupportAction 提取） */
+    private fun applySupportHealing(
+        supportResult: SupportResult,
+        alliesList: MutableList<Combatant>,
+        alliesIndexMap: Map<String, Int>,
+        skill: CombatSkill
+    ) {
+        if (supportResult.healAmount <= 0) return
+        supportResult.healedIds.forEach { healedId ->
+            val idx = alliesIndexMap[healedId]
+            if (idx != null && idx < alliesList.size) {
+                if (skill.healType == HealType.MP) {
+                    alliesList[idx] = alliesList[idx].copy(mp = minOf(alliesList[idx].mp + supportResult.healAmount, alliesList[idx].maxMp))
+                } else {
+                    alliesList[idx] = alliesList[idx].copy(hp = minOf(alliesList[idx].hp + supportResult.healAmount, alliesList[idx].maxHp))
                 }
             }
         }
+    }
 
+    /** 支援团队 BUFF 写回（executeSupportAction 提取） */
+    private fun applySupportTeamBuffs(
+        supportResult: SupportResult,
+        alliesList: MutableList<Combatant>,
+        alliesIndexMap: Map<String, Int>
+    ) {
         supportResult.teamBuffs.forEach { (memberId, buffs) ->
             val idx = alliesIndexMap[memberId]
             if (idx != null && idx < alliesList.size) {
                 alliesList[idx] = alliesList[idx].copy(buffs = alliesList[idx].buffs + buffs)
             }
         }
+    }
 
+    /** 支援施放者冷却更新（executeSupportAction 提取） */
+    private fun updateSupportCooldown(
+        caster: Combatant,
+        alliesList: MutableList<Combatant>,
+        alliesIndexMap: Map<String, Int>,
+        skill: CombatSkill
+    ) {
         val combatantIdx = alliesIndexMap[caster.id]
         if (combatantIdx != null && combatantIdx < alliesList.size) {
             alliesList[combatantIdx] = BattleCalculator.updateCombatantCooldowns(caster, skill)
         }
-        roundActions.add(BattleLogAction(
-            type = "support", attacker = caster.name,
-            attackerType = if (caster.side == CombatantSide.ATTACKER) "attacker" else "defender",
-            target = allies.joinToString("、") { it.name }, damage = supportResult.healAmount,
-            skillName = skill.name,
-            message = "${caster.name} 施展 ${skill.name}" +
-                if (supportResult.healAmount > 0) "，恢复 ${supportResult.healedIds.size} 名友方 ${supportResult.healAmount}"
-                else if (supportResult.teamBuffs.isNotEmpty()) "，强化 ${supportResult.teamBuffs.size} 名友方"
-                else ""
-        ))
     }
+
+    /** 支援行动日志（executeSupportAction 提取） */
+    private fun buildSupportActionLog(
+        caster: Combatant,
+        allies: List<Combatant>,
+        supportResult: SupportResult,
+        skill: CombatSkill
+    ): BattleLogAction = BattleLogAction(
+        type = "support", attacker = caster.name,
+        attackerType = if (caster.side == CombatantSide.ATTACKER) "attacker" else "defender",
+        target = allies.joinToString("、") { it.name }, damage = supportResult.healAmount,
+        skillName = skill.name,
+        message = "${caster.name} 施展 ${skill.name}" +
+            if (supportResult.healAmount > 0) "，恢复 ${supportResult.healedIds.size} 名友方 ${supportResult.healAmount}"
+            else if (supportResult.teamBuffs.isNotEmpty()) "，强化 ${supportResult.teamBuffs.size} 名友方"
+            else ""
+    )
 
     /**
      * 伤害链接 debuff 附加（与主引擎 applyDamageLinkDebuff 语义一致）：
@@ -1313,11 +1396,15 @@ object AISectAttackManager {
         return AiSkillDecision(action.skill, action)
     }
 
-    private fun selectAITarget(attacker: Combatant, targets: List<Combatant>, aiAction: BattleAI.AIAction?): Combatant {
+    private fun selectAITarget(
+        attacker: Combatant,
+        targets: List<Combatant>,
+        aiAction: BattleAI.AIAction?
+    ): Combatant {
         val aliveTargets = targets.filter { !it.isDead }
         if (aliveTargets.isEmpty()) return targets.first()
-        if (aiAction?.target != null) return aiAction.target
-        return BattleAI.selectAttackTarget(attacker, aliveTargets, null, aisRng)
+        return aiAction?.target
+            ?: BattleAI.selectAttackTarget(attacker, aliveTargets, null, aisRng)
             ?: aliveTargets.first()
     }
 

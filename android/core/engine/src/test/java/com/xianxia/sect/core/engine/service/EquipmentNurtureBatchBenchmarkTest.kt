@@ -1,11 +1,6 @@
 package com.xianxia.sect.core.engine.service
 
-import com.xianxia.sect.core.engine.domain.disciple.DiscipleEquipmentManager
-import com.xianxia.sect.core.engine.domain.disciple.DiscipleManualManager
 import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
-import com.xianxia.sect.core.config.InventoryConfig
-import com.xianxia.sect.core.perf.ThermalMonitor
-import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
@@ -14,7 +9,6 @@ import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.util.CoroutineScopeProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertTrue
 import org.junit.Before

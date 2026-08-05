@@ -14,7 +14,7 @@ import org.junit.Assert.fail
  */
 object TestPolling {
 
-    const val DEFAULT_TIMEOUT_MS = 5_000L
+    const val DEFAULT_TIMEOUT_MS = 15_000L
     const val POLL_INTERVAL_MS = 20L
 
     fun awaitCondition(

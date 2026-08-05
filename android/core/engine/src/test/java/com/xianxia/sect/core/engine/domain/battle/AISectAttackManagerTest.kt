@@ -27,7 +27,8 @@ class AISectAttackManagerTest {
             override fun getBaseStats(disciple: Disciple) = DiscipleStatCalculator.getBaseStats(disciple)
             override fun getBaseStats(aggregate: DiscipleAggregate) = DiscipleStatCalculator.getBaseStats(aggregate)
             override fun getTalentEffects(disciple: Disciple) = DiscipleStatCalculator.getTalentEffects(disciple)
-            override fun getTalentEffects(aggregate: DiscipleAggregate) = DiscipleStatCalculator.getTalentEffects(aggregate)
+            override fun getTalentEffects(aggregate: DiscipleAggregate) =
+                DiscipleStatCalculator.getTalentEffects(aggregate)
             override fun getStatsWithEquipment(
                 disciple: Disciple, equipments: Map<String, EquipmentInstance>
             ) = DiscipleStatCalculator.getStatsWithEquipment(disciple, equipments)

@@ -113,17 +113,14 @@ class BattleSystemTest {
         side: CombatantSide,
         hp: Int, maxHp: Int,
         physAtk: Int = 100, physDef: Int = 50,
-        speed: Int = 100,
-        skills: List<CombatSkill> = emptyList(),
-        buffs: List<CombatBuff> = emptyList(),
-        realm: Int = 5, realmLayer: Int = 1
+        speed: Int = 100
     ) = Combatant(
         id = id, name = id, side = side,
         hp = hp, maxHp = maxHp, mp = 500, maxMp = 500,
         physicalAttack = physAtk, magicAttack = physAtk,
         physicalDefense = physDef, magicDefense = physDef,
         speed = speed, critRate = 0.0,
-        skills = skills, buffs = buffs, realm = realm, realmLayer = realmLayer
+        skills = emptyList(), buffs = emptyList(), realm = 5, realmLayer = 1
     )
 
     private fun battleSystem(seed: Long): BattleSystem {
@@ -142,12 +139,14 @@ class BattleSystemTest {
             mpCost = 25, cooldown = 5, healPercent = 0.25,
             healType = HealType.HP, targetScope = "self"
         )
-        val disciple = combatant("d1", CombatantSide.DEFENDER, hp = 1000, maxHp = 1000, physAtk = 100, physDef = 50, speed = 100)
+        val disciple = combatant(
+            "d1", CombatantSide.DEFENDER, hp = 1000, maxHp = 1000,
+            physAtk = 100, physDef = 50, speed = 100
+        )
         val snake = combatant(
             "snake", CombatantSide.ATTACKER,
-            hp = 400, maxHp = 4000, physAtk = 200, physDef = 50, speed = 10,
-            skills = listOf(healSkill)
-        )
+            hp = 400, maxHp = 4000, physAtk = 200, physDef = 50, speed = 10
+        ).copy(skills = listOf(healSkill))
         // 固定种子寻找治疗触发路径（Tier 2 保命 90% 概率），并验证治疗实际恢复 HP
         var healed: BattleSystemResult? = null
         for (seed in 1L..40L) {
@@ -175,9 +174,18 @@ class BattleSystemTest {
     fun `executeBattle - 回合内被击杀单位_不再出手`() {
         // G5 回归：回合内被击杀的单位（快照仍存活）不得继续出手。
         // 构造：弟子（speed 300）首回合秒杀妖兽 A（speed 200），妖兽 B（speed 100）正常行动。
-        val disciple = combatant("d1", CombatantSide.DEFENDER, hp = 5000, maxHp = 5000, physAtk = 100000, physDef = 50, speed = 300)
-        val beastA = combatant("beastA", CombatantSide.ATTACKER, hp = 500, maxHp = 500, physAtk = 10, physDef = 10, speed = 200)
-        val beastB = combatant("beastB", CombatantSide.ATTACKER, hp = 500, maxHp = 500, physAtk = 10, physDef = 10, speed = 100)
+        val disciple = combatant(
+            "d1", CombatantSide.DEFENDER, hp = 5000, maxHp = 5000,
+            physAtk = 100000, physDef = 50, speed = 300
+        )
+        val beastA = combatant(
+            "beastA", CombatantSide.ATTACKER, hp = 500, maxHp = 500,
+            physAtk = 10, physDef = 10, speed = 200
+        )
+        val beastB = combatant(
+            "beastB", CombatantSide.ATTACKER, hp = 500, maxHp = 500,
+            physAtk = 10, physDef = 10, speed = 100
+        )
         var result: BattleSystemResult? = null
         for (seed in 1L..40L) {
             val battle = Battle(team = listOf(disciple), beasts = listOf(beastA, beastB))
@@ -200,11 +208,13 @@ class BattleSystemTest {
         // 战报显示必杀时目标必须死亡（此前护盾吸收后残血存活，战报谎报）
         val disciple = combatant(
             "d1", CombatantSide.DEFENDER, hp = 5000, maxHp = 5000,
-            physAtk = 100000, physDef = 50, speed = 300, realm = 8
-        )
+            physAtk = 100000, physDef = 50, speed = 300
+        ).copy(realm = 8)
         val beast = combatant(
             "b1", CombatantSide.ATTACKER, hp = 1000, maxHp = 1000,
-            physAtk = 10, physDef = 10, speed = 100, realm = 2,
+            physAtk = 10, physDef = 10, speed = 100
+        ).copy(
+            realm = 2,
             buffs = listOf(CombatBuff(type = BuffType.SHIELD, value = 0.9, remainingDuration = 3))
         )
         // 弟子 realm 8（高境界）斩杀 realm 2 妖兽（方向修复后触发）；妖兽带 90% 护盾
@@ -222,8 +232,14 @@ class BattleSystemTest {
     @Test
     fun `executeBattle - 传入伤害倍率_玩家伤害按倍率计算`() {
         // W1 回归：playerDamageModifier 参数透传（原 @Volatile 单例字段设置-执行-重置）
-        val disciple = combatant("d1", CombatantSide.DEFENDER, hp = 5000, maxHp = 5000, physAtk = 100000, physDef = 50, speed = 300)
-        val beast = combatant("b1", CombatantSide.ATTACKER, hp = 5000, maxHp = 5000, physAtk = 10, physDef = 10, speed = 100)
+        val disciple = combatant(
+            "d1", CombatantSide.DEFENDER, hp = 5000, maxHp = 5000,
+            physAtk = 100000, physDef = 50, speed = 300
+        )
+        val beast = combatant(
+            "b1", CombatantSide.ATTACKER, hp = 5000, maxHp = 5000,
+            physAtk = 10, physDef = 10, speed = 100
+        )
         val battle = Battle(team = listOf(disciple), beasts = listOf(beast))
 
         val r1 = battleSystem(42L).executeBattle(battle, playerDamageModifier = 1.0)
@@ -243,14 +259,24 @@ class BattleSystemTest {
             mpCost = 30, cooldown = 2, healPercent = 0.3,
             healType = HealType.HP, targetScope = "ally"
         )
-        val healer = combatant("healer", CombatantSide.DEFENDER, hp = 1000, maxHp = 1000, physAtk = 100, physDef = 50, speed = 200, skills = listOf(healAllySkill))
-        val tank = combatant("tank", CombatantSide.DEFENDER, hp = 800, maxHp = 1000, physAtk = 100, physDef = 50, speed = 100)
-        val beast = combatant("beast", CombatantSide.ATTACKER, hp = 3000, maxHp = 3000, physAtk = 150, physDef = 50, speed = 50)
+        val healer = combatant(
+            "healer", CombatantSide.DEFENDER, hp = 1000, maxHp = 1000,
+            physAtk = 100, physDef = 50, speed = 200
+        ).copy(skills = listOf(healAllySkill))
+        val tank = combatant(
+            "tank", CombatantSide.DEFENDER, hp = 800, maxHp = 1000,
+            physAtk = 100, physDef = 50, speed = 100
+        )
+        val beast = combatant(
+            "beast", CombatantSide.ATTACKER, hp = 3000, maxHp = 3000,
+            physAtk = 150, physDef = 50, speed = 50
+        )
         val battle = Battle(team = listOf(healer, tank), beasts = listOf(beast))
 
         fun run(seed: Long): List<String> {
             val result = battleSystem(seed).executeBattle(battle)
-            return result.log.rounds.flatMap { it.actions }.map { "${it.attacker}:${it.type}:${it.target}:${it.damage}" }
+            return result.log.rounds.flatMap { it.actions }
+                .map { "${it.attacker}:${it.type}:${it.target}:${it.damage}" }
         }
         val first = run(1234L)
         val second = run(1234L)

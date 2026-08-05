@@ -23,11 +23,8 @@
     <ID>CyclomaticComplexMethod:BattleAI.kt$BattleAI$fun decideAction( unit: Combatant, allies: List&lt;Combatant&gt;, enemies: List&lt;Combatant&gt;, rng: DeterministicRng, playerDamageModifier: Double = 1.0 ): AIAction</ID>
     <ID>CyclomaticComplexMethod:BattleAI.kt$BattleAI$private fun findAllySupport( unit: Combatant, allies: List&lt;Combatant&gt;, supportSkills: List&lt;CombatSkill&gt; ): AIAction?</ID>
     <ID>CyclomaticComplexMethod:BattleAI.kt$BattleAI$private fun findSelfPreservation( unit: Combatant, supportSkills: List&lt;CombatSkill&gt; ): AIAction?</ID>
-    <ID>CyclomaticComplexMethod:BattleCalculator.kt$BattleCalculator$fun calculateCombatantDamage( attacker: Combatant, defender: Combatant, skill: CombatSkill? = null, damageModifier: Double = 1.0, zones: DamageZones? = null, enableInstantKill: Boolean = false, rng: DeterministicRng ): DamageResult</ID>
     <ID>CyclomaticComplexMethod:BattleCalculator.kt$BattleCalculator$fun executeSupportSkill( caster: Combatant, allies: List&lt;Combatant&gt;, skill: CombatSkill, allCombatants: List&lt;Combatant&gt; = emptyList() ): SupportResult</ID>
     <ID>CyclomaticComplexMethod:BattleCalculator.kt$BattleCalculator$fun selectSkill( combatant: Combatant, enemies: List&lt;Combatant&gt;, allies: List&lt;Combatant&gt;, isSilenced: Boolean, rng: DeterministicRng ): CombatSkill?</ID>
-    <ID>CyclomaticComplexMethod:BattleSystem.kt$BattleSystem$fun executeBattleWithTimeout(battle: Battle, timeoutMs: Long = GameConfig.Battle.MAX_BATTLE_DURATION_MS): BattleSystemResult</ID>
-    <ID>CyclomaticComplexMethod:BattleSystem.kt$BattleSystem$private fun processTurnAdvance( ctx: TurnContext, result: AttackResult, allies: MutableList&lt;Combatant&gt;, currentCombatant: Combatant, isTeamMember: Boolean, enemiesIndexMap: Map&lt;String, Int&gt; )</ID>
     <ID>CyclomaticComplexMethod:BeastAttackDetector.kt$BeastAttackDetector$fun detectAttacks(gd: GameData): List&lt;PendingBeastAttack&gt;</ID>
     <ID>CyclomaticComplexMethod:BootSequenceController.kt$BootSequenceController$@Suppress("LongParameterList") suspend fun boot( slot: Int, onPreloadResources: suspend () -&gt; Unit = {}, onProgress: (Float) -&gt; Unit = {}, onPhase: (String) -&gt; Unit = {}, onMapReady: (MapPreloadData) -&gt; Unit = {}, onSuccess: () -&gt; Unit = {}, onError: (String) -&gt; Unit = {} ): Result&lt;Unit&gt;</ID>
     <ID>CyclomaticComplexMethod:BuildingService.kt$BuildingService$private suspend fun completeBuildingTaskFromProductionSlot( slot: ProductionSlot )</ID>
@@ -145,21 +142,11 @@
     <ID>FunctionNaming:DiscipleService.kt$DiscipleService$private fun _isInCaveExploration(discipleId: String): Boolean</ID>
     <ID>FunctionNaming:DiscipleService.kt$DiscipleService$private fun _isInExploration(discipleId: String): Boolean</ID>
     <ID>FunctionOnlyReturningConstant:FormulaService.kt$FormulaService$private fun getSuccessRateManualBonus(disciple: Disciple, buildingId: String): Double</ID>
-    <ID>InvalidPackageDeclaration:AISectAttackManager.kt$package com.xianxia.sect.core.engine.domain.battle</ID>
-    <ID>InvalidPackageDeclaration:AISectAttackModels.kt$package com.xianxia.sect.core.engine.domain.battle</ID>
     <ID>InvalidPackageDeclaration:AISectDiscipleManager.kt$package com.xianxia.sect.core.engine.domain.diplomacy</ID>
-    <ID>InvalidPackageDeclaration:AISectGarrisonManager.kt$package com.xianxia.sect.core.engine.domain.battle</ID>
-    <ID>InvalidPackageDeclaration:AISectTeamComposer.kt$package com.xianxia.sect.core.engine.domain.battle</ID>
     <ID>InvalidPackageDeclaration:AlchemySystem.kt$package com.xianxia.sect.core.engine.system.building</ID>
-    <ID>InvalidPackageDeclaration:AttackWarningService.kt$package com.xianxia.sect.core.engine.domain.battle</ID>
     <ID>InvalidPackageDeclaration:AutoBuyService.kt$package com.xianxia.sect.core.engine.service</ID>
     <ID>InvalidPackageDeclaration:AutoPillService.kt$package com.xianxia.sect.core.engine.service</ID>
-    <ID>InvalidPackageDeclaration:BattleDescriptionGenerator.kt$package com.xianxia.sect.core.engine.domain.battle</ID>
-    <ID>InvalidPackageDeclaration:BattleFacade.kt$package com.xianxia.sect.core.engine.domain.battle</ID>
-    <ID>InvalidPackageDeclaration:BattleFacadeImpl.kt$package com.xianxia.sect.core.engine.domain.battle</ID>
-    <ID>InvalidPackageDeclaration:BattleModels.kt$package com.xianxia.sect.core.engine.domain.battle</ID>
     <ID>InvalidPackageDeclaration:BattleSettlementService.kt$package com.xianxia.sect.core.engine.service</ID>
-    <ID>InvalidPackageDeclaration:BattleSystem.kt$package com.xianxia.sect.core.engine.domain.battle</ID>
     <ID>InvalidPackageDeclaration:BuildingFacade.kt$package com.xianxia.sect.core.engine.domain.building</ID>
     <ID>InvalidPackageDeclaration:BuildingFacadeImpl.kt$package com.xianxia.sect.core.engine.domain.building</ID>
     <ID>InvalidPackageDeclaration:BuildingFeature.kt$package com.xianxia.sect.core.engine.domain.building</ID>
@@ -169,7 +156,6 @@
     <ID>InvalidPackageDeclaration:CaveExplorationSystem.kt$package com.xianxia.sect.core.engine.domain.exploration</ID>
     <ID>InvalidPackageDeclaration:CaveGenerator.kt$package com.xianxia.sect.core.engine.domain.exploration</ID>
     <ID>InvalidPackageDeclaration:ChildBirthSystem.kt$package com.xianxia.sect.core.engine.system</ID>
-    <ID>InvalidPackageDeclaration:CombatService.kt$package com.xianxia.sect.core.engine.domain.battle</ID>
     <ID>InvalidPackageDeclaration:CultivationCore.kt$package com.xianxia.sect.core.engine.service</ID>
     <ID>InvalidPackageDeclaration:CultivationEventDiplomacyOps.kt$package com.xianxia.sect.core.engine.service</ID>
     <ID>InvalidPackageDeclaration:CultivationEventMissionOps.kt$package com.xianxia.sect.core.engine.service</ID>
@@ -209,7 +195,6 @@
     <ID>InvalidPackageDeclaration:DiscipleStatCalculator.kt$package com.xianxia.sect.core.engine.domain.disciple</ID>
     <ID>InvalidPackageDeclaration:DiscipleStatusService.kt$package com.xianxia.sect.core.engine.domain.disciple</ID>
     <ID>InvalidPackageDeclaration:DiscipleStatusServiceTest.kt$package com.xianxia.sect.core.engine.domain.disciple</ID>
-    <ID>InvalidPackageDeclaration:EnemyGenerator.kt$package com.xianxia.sect.core.engine.domain.battle</ID>
     <ID>InvalidPackageDeclaration:EquipmentNurtureService.kt$package com.xianxia.sect.core.engine.service</ID>
     <ID>InvalidPackageDeclaration:EquipmentNurtureSystem.kt$package com.xianxia.sect.core.engine</ID>
     <ID>InvalidPackageDeclaration:ExplorationService.kt$package com.xianxia.sect.core.engine.domain.exploration</ID>
@@ -299,7 +284,6 @@
     <ID>LongMethod:AISectTeamComposer.kt$internal fun generateWarRewards(sectLevel: Int, itemCount: Int): WarRewards</ID>
     <ID>LongMethod:BattleAI.kt$BattleAI$fun decideAction( unit: Combatant, allies: List&lt;Combatant&gt;, enemies: List&lt;Combatant&gt;, rng: DeterministicRng, playerDamageModifier: Double = 1.0 ): AIAction</ID>
     <ID>LongMethod:BattleCalculator.kt$BattleCalculator$fun executeSupportSkill( caster: Combatant, allies: List&lt;Combatant&gt;, skill: CombatSkill, allCombatants: List&lt;Combatant&gt; = emptyList() ): SupportResult</ID>
-    <ID>LongMethod:BattleSystem.kt$BattleSystem$fun executeBattleWithTimeout(battle: Battle, timeoutMs: Long = GameConfig.Battle.MAX_BATTLE_DURATION_MS): BattleSystemResult</ID>
     <ID>LongMethod:BattleSystem.kt$BattleSystem$private fun createBeast( beastRealm: Int, index: Int, beastType: String? = null, preGenStats: BeastPreGenStats? = null ): Combatant</ID>
     <ID>LongMethod:BootSequenceController.kt$BootSequenceController$@Suppress("LongParameterList") suspend fun boot( slot: Int, onPreloadResources: suspend () -&gt; Unit = {}, onProgress: (Float) -&gt; Unit = {}, onPhase: (String) -&gt; Unit = {}, onMapReady: (MapPreloadData) -&gt; Unit = {}, onSuccess: () -&gt; Unit = {}, onError: (String) -&gt; Unit = {} ): Result&lt;Unit&gt;</ID>
     <ID>LongMethod:BuildingConfigService.kt$BuildingConfigService$private fun createDefaultConfig(): BuildingsConfig</ID>
@@ -331,7 +315,6 @@
     <ID>LongMethod:ElderManagementUseCase.kt$ElderManagementUseCase$suspend fun assignElder(slotType: ElderSlotType, discipleId: String): ElderResult</ID>
     <ID>LongMethod:EncounterBattleService.kt$EncounterBattleService$private fun buildPhase1Log( attackerA: EncounterAttacker, attackerB: EncounterAttacker, pvpResult: BattleSystemResult, winnerP1: EncounterAttacker, year: Int, month: Int, loserDeadIds: Set&lt;String&gt; ): BattleLog</ID>
     <ID>LongMethod:EncounterBattleService.kt$EncounterBattleService$private fun buildPhase2Log( winner: EncounterAttacker, beast: WorldLevel, pveResult: BattleSystemResult, year: Int, month: Int, p2DeadIds: Set&lt;String&gt; ): BattleLog</ID>
-    <ID>LongMethod:EnemyGenerator.kt$EnemyGenerator$private fun generateHumanEnemy( index: Int, realmMin: Int, realmMax: Int ): HumanEnemyData</ID>
     <ID>LongMethod:ExplorationService.kt$ExplorationService$suspend fun resolveBeastAttackFight( beastLevelId: String, manualDefenders: List&lt;Disciple&gt;? = null ): Boolean</ID>
     <ID>LongMethod:GameEngineAtomicAssign.kt$suspend fun GameEngine.assignPatrolAtomic( discipleId: String, globalIndex: Int ): DomainResult&lt;Unit&gt;</ID>
     <ID>LongMethod:GameEngineAtomicAssign.kt$suspend fun GameEngine.assignToResidenceAtomic( buildingInstanceId: String, slotIndex: Int, discipleId: String ): DomainResult&lt;Unit&gt;</ID>
@@ -350,7 +333,6 @@
     <ID>LongMethod:GameEngineSectLevelOps.kt$suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult</ID>
     <ID>LongMethod:GiftService.kt$GiftService$suspend fun giftSpiritStones( sectId: String, tier: Int, bypassYearLimit: Boolean = false ): GiftResult</ID>
     <ID>LongMethod:HeavenlyTrialService.kt$HeavenlyTrialService$fun buildBeastEnemy(levelIndex: Int, def: TrialEnemyDef, index: Int): Combatant</ID>
-    <ID>LongMethod:HeavenlyTrialService.kt$HeavenlyTrialService$fun buildDiscipleEnemy(levelIndex: Int, def: TrialEnemyDef, index: Int): Combatant</ID>
     <ID>LongMethod:HeavenlyTrialService.kt$HeavenlyTrialService$private fun MutableGameState.distributeRewardItems( reward: HeavenlyTrialClearReward, inventoryConfig: InventoryConfig, generatedCards: MutableList&lt;RewardCardItem&gt; )</ID>
     <ID>LongMethod:InventoryFacadeImpl.kt$InventoryFacadeImpl$override suspend fun buyMerchantItem(itemId: String, quantity: Int)</ID>
     <ID>LongMethod:InventoryFacadeImpl.kt$InventoryFacadeImpl$override suspend fun confiscateStorageBagItem(discipleId: String, item: StorageBagItem)</ID>
@@ -377,7 +359,6 @@
     <ID>LongMethod:VassalService.kt$VassalService$suspend fun requestVassalContract(sectId: String): Boolean</ID>
     <ID>LongParameterList:AISectAttackManager.kt$AISectAttackManager$( attacker: Combatant, target: Combatant, result: BattleCalculator.DamageResult, allies: MutableList&lt;Combatant&gt;, enemies: MutableList&lt;Combatant&gt;, alliesIndexMap: Map&lt;String, Int&gt;, enemiesIndexMap: Map&lt;String, Int&gt;, roundActions: MutableList&lt;BattleLogAction&gt; )</ID>
     <ID>LongParameterList:AISectAttackManager.kt$AISectAttackManager$( attacker: Combatant, target: Combatant, skill: CombatSkill, allies: MutableList&lt;Combatant&gt;, enemies: MutableList&lt;Combatant&gt;, alliesIndexMap: Map&lt;String, Int&gt;, enemiesIndexMap: Map&lt;String, Int&gt;, roundActions: MutableList&lt;BattleLogAction&gt; )</ID>
-    <ID>LongParameterList:AISectAttackManager.kt$AISectAttackManager$( attacker: Combatant, target: Combatant, skill: CombatSkill, attackerType: String, allies: MutableList&lt;Combatant&gt;, enemies: MutableList&lt;Combatant&gt;, alliesIndexMap: Map&lt;String, Int&gt;, enemiesIndexMap: Map&lt;String, Int&gt;, roundActions: MutableList&lt;BattleLogAction&gt; )</ID>
     <ID>LongParameterList:AISectAttackManager.kt$AISectAttackManager$( attacker: Combatant, target: Combatant, skill: CombatSkill, result: BattleCalculator.DamageResult, allies: MutableList&lt;Combatant&gt;, enemies: MutableList&lt;Combatant&gt;, alliesIndexMap: Map&lt;String, Int&gt;, enemiesIndexMap: Map&lt;String, Int&gt;, roundActions: MutableList&lt;BattleLogAction&gt; )</ID>
     <ID>LongParameterList:AISectAttackManager.kt$AISectAttackManager$( attacker: Combatant, targets: List&lt;Combatant&gt;, skill: CombatSkill, allies: MutableList&lt;Combatant&gt;, enemies: MutableList&lt;Combatant&gt;, alliesIndexMap: Map&lt;String, Int&gt;, enemiesIndexMap: Map&lt;String, Int&gt;, roundActions: MutableList&lt;BattleLogAction&gt; )</ID>
     <ID>LongParameterList:BattleAITest.kt$BattleAITest$( id: String = "u1", hp: Int = 800, maxHp: Int = 1000, mp: Int = 500, maxMp: Int = 500, physAtk: Int = 100, magAtk: Int = 80, physDef: Int = 60, magDef: Int = 50, speed: Int = 100, skills: List&lt;CombatSkill&gt; = emptyList(), buffs: List&lt;CombatBuff&gt; = emptyList(), side: CombatantSide = CombatantSide.DEFENDER )</ID>
@@ -435,7 +416,6 @@
     <ID>LongParameterList:SaveService.kt$SaveService$( loadedGameData: GameData, disciples: List&lt;Disciple&gt;, equipmentStacks: List&lt;EquipmentStack&gt;, equipmentInstances: List&lt;EquipmentInstance&gt;, manualStacks: List&lt;ManualStack&gt;, manualInstances: List&lt;ManualInstance&gt;, pills: List&lt;Pill&gt;, materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, seeds: List&lt;Seed&gt;, battleLogs: List&lt;BattleLog&gt;, teams: List&lt;ExplorationTeam&gt; )</ID>
     <ID>LongParameterList:SpiritStoneWallet.kt$SpiritStoneWallet$( state: MutableGameState, delta: Long, grade: SpiritStoneGrade, balanceBefore: Long, balanceAfter: Long, reason: String, source: String, metadata: Map&lt;String, String&gt; )</ID>
     <ID>LongParameterList:VassalService.kt$VassalService$( contract: VassalContract, data: com.xianxia.sect.core.model.GameData, playerPower: Double, playerSect: com.xianxia.sect.core.model.WorldSect, conquests: Int, losses: Int, battleWins: Int, battleLosses: Int )</ID>
-    <ID>LoopWithTooManyJumpStatements:AISectAttackManager.kt$AISectAttackManager$for</ID>
     <ID>LoopWithTooManyJumpStatements:AISectBeastAttackProcessor.kt$AISectBeastAttackProcessor$for</ID>
     <ID>LoopWithTooManyJumpStatements:AISectGarrisonManager.kt$AISectGarrisonManager$for</ID>
     <ID>LoopWithTooManyJumpStatements:AndroidThermalReader.kt$AndroidThermalReader$for</ID>
@@ -496,9 +476,6 @@
     <ID>MaxLineLength:AutoBuyService.kt$AutoBuyService$val deductResult = spiritStoneWallet.deduct(state, cost, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)</ID>
     <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$fun</ID>
     <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$if</ID>
-    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$isPhysical = if (isSkillAttack) skill?.damageType == DamageType.PHYSICAL ?: true else attacker.physicalAttack &gt;= attacker.magicAttack</ID>
-    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val isPhysical = if (isSkillAttack) skill?.damageType == DamageType.PHYSICAL ?: true else attacker.physicalAttack &gt;= attacker.magicAttack</ID>
-    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val maxDodgeChance = if (isSkillAttack) GameConfig.Battle.MAX_SKILL_DODGE_CHANCE else GameConfig.Battle.MAX_DODGE_CHANCE</ID>
     <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val variancePercent = rng.nextDouble() * GameConfig.Battle.DAMAGE_VARIANCE_PERCENT * 2 - GameConfig.Battle.DAMAGE_VARIANCE_PERCENT</ID>
     <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator.BattleCalculatorWithRng$BattleCalculator.calculateCombatantDamage(attacker, defender, skill, damageModifier, zones, enableInstantKill, rng)</ID>
     <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator.BattleCalculatorWithRng$BattleCalculator.calculateDamage(attacker, defender, skillDamageMultiplier, isPhysicalAttack, skillName, skillHits, dodgeChanceModifier, zones, rng)</ID>
@@ -636,9 +613,6 @@
     <ID>MaxLineLength:DiscipleStatCalculatorTest.kt$DiscipleStatCalculatorTest$val master = createDisciple(discipleType = "inner", realm = 9).let { it.copy(skills = it.skills.copy(teaching = 60)) }</ID>
     <ID>MaxLineLength:DiscipleStatCalculatorTest.kt$DiscipleStatCalculatorTest$val master = createDisciple(discipleType = "inner", realm = 9).let { it.copy(skills = it.skills.copy(teaching = 70)) }</ID>
     <ID>MaxLineLength:DiscipleStatCalculatorTest.kt$DiscipleStatCalculatorTest$val master = createDisciple(discipleType = "inner", realm = 9).let { it.copy(skills = it.skills.copy(teaching = 85)) }</ID>
-    <ID>MaxLineLength:EnemyGenerator.kt$EnemyGenerator$val physicalAttack = (realmConfig.basePhysicalAttack * rngVar() * layerMult).toInt() + equipmentStats.physicalAttack</ID>
-    <ID>MaxLineLength:EnemyGenerator.kt$EnemyGenerator$val physicalDefense = (realmConfig.basePhysicalDefense * rngVar() * layerMult).toInt() + equipmentStats.physicalDefense</ID>
-    <ID>MaxLineLength:EnemyGenerator.kt$private val enemyRng get(): DeterministicRng = (enemyGenRngManager ?: error("EnemyGenerator RNG not initialized")).getRng(RngPartition.ENEMY_GEN)</ID>
     <ID>MaxLineLength:EquipmentNurtureSystemTest.kt$EquipmentNurtureSystemTest$EquipmentNurtureSystem.getMaxNurtureLevel(rarity) &lt; EquipmentNurtureSystem.getMaxNurtureLevel(rarity + 1)</ID>
     <ID>MaxLineLength:ExplorationService.kt$ExplorationService$val addR = inventorySystem.withTrackingSource("beast_raid") { inventorySystem.addMaterial(material) }</ID>
     <ID>MaxLineLength:ExplorationTeamManagerTest.kt$FakeStore$override fun removePendingBeastAttack(beastLevelId: String)</ID>
@@ -999,8 +973,6 @@
     <ID>MaxLineLength:WarehouseModelsTest.kt$WarehouseModelsTest$val second = WarehousePage(items = emptyList(), pageIndex = 1, pageSize = 10, totalItems = 0, totalPages = 1, hasMore = false)</ID>
     <ID>MaxLineLength:WorldMapGenerator.kt$WorldMapGenerator$name = chars[rng.nextInt(chars.size)] + chars[rng.nextInt(chars.size)] + suffixes[rng.nextInt(suffixes.size)]</ID>
     <ID>MayBeConst:RedeemCodeManager.kt$RedeemCodeManager$private val TAG = "RedeemCodeManager"</ID>
-    <ID>NestedBlockDepth:AISectAttackManager.kt$AISectAttackManager$private fun executeSupportAction( caster: Combatant, allies: List&lt;Combatant&gt;, skill: CombatSkill, alliesList: MutableList&lt;Combatant&gt;, alliesIndexMap: Map&lt;String, Int&gt;, roundActions: MutableList&lt;BattleLogAction&gt; )</ID>
-    <ID>NestedBlockDepth:BattleSystem.kt$BattleSystem$private fun executeSkillAction( currentCombatant: Combatant, aliveEnemies: List&lt;Combatant&gt;, allies: MutableList&lt;Combatant&gt;, isTeamMember: Boolean, availableSkill: CombatSkill?, isSupportSkill: Boolean, isAoeSkill: Boolean ): List&lt;AttackResult&gt;</ID>
     <ID>NestedBlockDepth:CultivationCore.kt$CultivationCore$fun processManualProficiencyPerPhase(state: MutableGameState)</ID>
     <ID>NestedBlockDepth:CultivationCore.kt$CultivationCore$fun processManualProficiencySingle( state: MutableGameState, id: Int, manualInstanceMap: Map&lt;String, ManualInstance&gt;? = null, pendingProficiencies: MutableMap&lt;String, List&lt;ManualProficiencyData&gt;?&gt;? = null, libraryDiscipleIds: Set&lt;String&gt;? = null )</ID>
     <ID>NestedBlockDepth:CultivationEventProcessor.kt$CultivationEventProcessor$private fun writeAutoWarehouseResults( state: MutableGameState, tables: DiscipleTables, updatedDisciples: List&lt;Disciple&gt;, bagEqIds: Set&lt;String&gt;, bagMnIds: Set&lt;String&gt;, eqStacks: List&lt;EquipmentStack&gt;, mnStacks: List&lt;ManualStack&gt;, newEqInstances: List&lt;EquipmentInstance&gt;, newMnInstances: List&lt;ManualInstance&gt; )</ID>
@@ -1033,7 +1005,6 @@
     <ID>ReturnCount:AISectAttackManager.kt$AISectAttackManager$fun executePlayerAttack( gameData: GameData, attackerSectId: String, playerDefenseTeam: List&lt;Combatant&gt; ): AIAttackResult?</ID>
     <ID>ReturnCount:AISectAttackManager.kt$AISectAttackManager$fun tryAttackTarget( attacker: WorldSect, defender: WorldSect, gameData: GameData, aiDisciplesMap: Map&lt;String, List&lt;Disciple&gt;&gt;, playerOccupiedDefendersMap: Map&lt;String, PlayerOccupiedDefenseInfo&gt; = emptyMap() ): AIAttackResult?</ID>
     <ID>ReturnCount:AISectAttackManager.kt$AISectAttackManager$private fun executeAiCombatantTurn( currentAttackers: MutableList&lt;Combatant&gt;, currentDefenders: MutableList&lt;Combatant&gt;, combatant: Combatant, roundActions: MutableList&lt;BattleLogAction&gt; )</ID>
-    <ID>ReturnCount:AISectAttackManager.kt$AISectAttackManager$private fun selectAITarget(attacker: Combatant, targets: List&lt;Combatant&gt;): Combatant</ID>
     <ID>ReturnCount:AISectAttackManager.kt$AISectAttackManager$private fun tryDecideAttack( attacker: WorldSect, defender: WorldSect, gameData: GameData, aiDisciplesMap: Map&lt;String, List&lt;Disciple&gt;&gt;, availableAttackers: List&lt;Disciple&gt;, playerOccupiedDefendersMap: Map&lt;String, PlayerOccupiedDefenseInfo&gt; ): AIAttackResult?</ID>
     <ID>ReturnCount:AISectBeastAttackProcessor.kt$AISectBeastAttackProcessor$private fun executeAIEncounterBattle( state: MutableGameState, sectA: WorldSect, sectB: WorldSect, beast: WorldLevel, year: Int )</ID>
     <ID>ReturnCount:AISectGarrisonManager.kt$AISectGarrisonManager$fun fillEmptyGarrisonSlots(gameData: GameData): GameData</ID>
@@ -1052,12 +1023,9 @@
     <ID>ReturnCount:BattleAI.kt$BattleAI$private fun findControlAction( unit: Combatant, enemies: List&lt;Combatant&gt;, skills: List&lt;CombatSkill&gt; ): AIAction?</ID>
     <ID>ReturnCount:BattleAI.kt$BattleAI$private fun findExecuteTarget( attacker: Combatant, enemies: List&lt;Combatant&gt;, attackSkills: List&lt;CombatSkill&gt;, playerDamageModifier: Double ): AIAction?</ID>
     <ID>ReturnCount:BattleAI.kt$BattleAI$private fun findSelfPreservation( unit: Combatant, supportSkills: List&lt;CombatSkill&gt; ): AIAction?</ID>
-    <ID>ReturnCount:BattleCalculator.kt$BattleCalculator$fun calculateCombatantDamage( attacker: Combatant, defender: Combatant, skill: CombatSkill? = null, damageModifier: Double = 1.0, zones: DamageZones? = null, enableInstantKill: Boolean = false, rng: DeterministicRng ): DamageResult</ID>
     <ID>ReturnCount:BattleCalculator.kt$BattleCalculator$fun selectSkill( combatant: Combatant, enemies: List&lt;Combatant&gt;, allies: List&lt;Combatant&gt;, isSilenced: Boolean, rng: DeterministicRng ): CombatSkill?</ID>
     <ID>ReturnCount:BattleCalculator.kt$BattleCalculator$fun selectTarget(attacker: Combatant, targets: List&lt;Combatant&gt;, rng: DeterministicRng): Combatant</ID>
     <ID>ReturnCount:BattleSystem.kt$BattleSystem$private fun applyControlEffects( ctx: TurnContext, currentCombatant: Combatant, isTeamMember: Boolean, allies: MutableList&lt;Combatant&gt;, alliesIndexMap: Map&lt;String, Int&gt; ): TurnOutcome?</ID>
-    <ID>ReturnCount:BattleSystem.kt$BattleSystem$private fun executeSkillAction( currentCombatant: Combatant, aliveEnemies: List&lt;Combatant&gt;, allies: MutableList&lt;Combatant&gt;, isTeamMember: Boolean, availableSkill: CombatSkill?, isSupportSkill: Boolean, isAoeSkill: Boolean ): List&lt;AttackResult&gt;</ID>
-    <ID>ReturnCount:BattleSystem.kt$BattleSystem$private fun processTurnAdvance( ctx: TurnContext, result: AttackResult, allies: MutableList&lt;Combatant&gt;, currentCombatant: Combatant, isTeamMember: Boolean, enemiesIndexMap: Map&lt;String, Int&gt; )</ID>
     <ID>ReturnCount:BootSequenceController.kt$BootSequenceController$@Suppress("LongParameterList") suspend fun boot( slot: Int, onPreloadResources: suspend () -&gt; Unit = {}, onProgress: (Float) -&gt; Unit = {}, onPhase: (String) -&gt; Unit = {}, onMapReady: (MapPreloadData) -&gt; Unit = {}, onSuccess: () -&gt; Unit = {}, onError: (String) -&gt; Unit = {} ): Result&lt;Unit&gt;</ID>
     <ID>ReturnCount:BuildingFacadeImpl.kt$BuildingFacadeImpl$override suspend fun plantOnSpiritFields(instanceIds: List&lt;String&gt;, seedId: String, sectId: String)</ID>
     <ID>ReturnCount:BuildingFeatureRegistry.kt$BuildingFeatureRegistry$fun residenceSpeedMultiplier(name: String): Double</ID>

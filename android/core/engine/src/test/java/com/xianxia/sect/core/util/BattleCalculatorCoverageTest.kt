@@ -29,32 +29,54 @@ class BattleCalculatorCoverageTest {
     @Test
     fun `checkInstantKill - attacker 2 realms higher returns true`() {
         // 高境界压制低境界（大境界差 2 > 1 触发）
-        assertTrue(BattleCalculator.checkInstantKill(attackerRealm = 2, defenderRealm = 0, attackerLayer = 1, defenderLayer = 1))
+        assertTrue(
+            BattleCalculator.checkInstantKill(
+                attackerRealm = 2, defenderRealm = 0, attackerLayer = 1, defenderLayer = 1
+            )
+        )
     }
 
     @Test
     fun `checkInstantKill - defender 2 realms higher returns false`() {
         // 低境界攻击高境界不得触发斩杀（原公式方向反转守卫）
-        assertFalse(BattleCalculator.checkInstantKill(attackerRealm = 0, defenderRealm = 2, attackerLayer = 1, defenderLayer = 1))
+        assertFalse(
+            BattleCalculator.checkInstantKill(
+                attackerRealm = 0, defenderRealm = 2, attackerLayer = 1, defenderLayer = 1
+            )
+        )
     }
 
     @Test
     fun `checkInstantKill - same realm any layer gap does not trigger`() {
         // 同境界最大层差 8（层 1..9）：总小层差 ≤ 8，永不触发
-        assertFalse(BattleCalculator.checkInstantKill(attackerRealm = 3, defenderRealm = 3, attackerLayer = 9, defenderLayer = 1))
-        assertFalse(BattleCalculator.checkInstantKill(attackerRealm = 3, defenderRealm = 3, attackerLayer = 9, defenderLayer = 0))
+        assertFalse(
+            BattleCalculator.checkInstantKill(
+                attackerRealm = 3, defenderRealm = 3, attackerLayer = 9, defenderLayer = 1
+            )
+        )
+        assertFalse(
+            BattleCalculator.checkInstantKill(
+                attackerRealm = 3, defenderRealm = 3, attackerLayer = 9, defenderLayer = 0
+            )
+        )
     }
 
     @Test
     fun `checkInstantKill - attacker higher with lower layer still triggers across 2 realms`() {
         // 攻击方高 2 大境界但层数低：总小层差 = 18 - 8 = 10 > 9
-        assertTrue(BattleCalculator.checkInstantKill(attackerRealm = 4, defenderRealm = 2, attackerLayer = 1, defenderLayer = 9))
+        assertTrue(
+            BattleCalculator.checkInstantKill(
+                attackerRealm = 4, defenderRealm = 2, attackerLayer = 1, defenderLayer = 9
+            )
+        )
     }
 
     @Test
     fun `calculateCombatantDamage - target realm higher than attacker does not instant kill`() {
         val attacker = combatant(id = "weak_attacker", realm = 0, realmLayer = 1, physAtk = 500)
-        val defender = combatant(id = "strong_defender", realm = 2, realmLayer = 1, hp = 1000, maxHp = 1000, physDef = 10)
+        val defender = combatant(
+            id = "strong_defender", realm = 2, realmLayer = 1, hp = 1000, maxHp = 1000, physDef = 10
+        )
         val result = BattleCalculator.calculateCombatantDamage(
             attacker, defender, null, rng = freshRng(), enableInstantKill = true
         )
@@ -115,14 +137,14 @@ class BattleCalculatorCoverageTest {
     fun `calculateShieldAbsorption - negative shield value does not amplify damage`() {
         // 对抗性审查：护盾 value 篡改为负值时不得放大伤害
         val defender = combatant(
-            id = "defender", hp = 800, maxHp = 1000,
-            buffs = listOf(CombatBuff(type = BuffType.SHIELD, value = -0.5, remainingDuration = 3))
-        )
+            id = "defender", hp = 800, maxHp = 1000
+        ).copy(buffs = listOf(CombatBuff(type = BuffType.SHIELD, value = -0.5, remainingDuration = 3)))
         val result = BattleCalculator.calculateShieldAbsorption(defender, 100)
         assertEquals("负护盾不吸收", 0, result.absorbed)
         assertEquals("伤害保持原值不被放大", 100, result.remainingDamage)
         val infinity = combatant(
-            id = "defender2", hp = 800, maxHp = 1000,
+            id = "defender2", hp = 800, maxHp = 1000
+        ).copy(
             buffs = listOf(CombatBuff(type = BuffType.SHIELD, value = Double.POSITIVE_INFINITY, remainingDuration = 3))
         )
         val infResult = BattleCalculator.calculateShieldAbsorption(infinity, 100)
@@ -144,8 +166,7 @@ class BattleCalculatorCoverageTest {
 
     @Test
     fun `buildDamageZones - physical attack buff only in physical bucket`() {
-        val attacker = combatant(
-            id = "attacker",
+        val attacker = combatant(id = "attacker").copy(
             buffs = listOf(CombatBuff(type = BuffType.PHYSICAL_ATTACK_BOOST, value = 0.5, remainingDuration = 3))
         )
         val zones = BattleCalculator.buildDamageZones(attacker)
@@ -156,16 +177,18 @@ class BattleCalculatorCoverageTest {
     @Test
     fun `calculateCombatantDamage - physical buff does not boost magic skill damage`() {
         val attacker = combatant(
-            id = "attacker", physAtk = 300, magAtk = 300,
+            id = "attacker", physAtk = 300
+        ).copy(
+            magicAttack = 300,
             buffs = listOf(CombatBuff(type = BuffType.PHYSICAL_ATTACK_BOOST, value = 1.0, remainingDuration = 3))
         )
-        val defender = combatant(id = "defender", hp = 5000, maxHp = 5000, magDef = 100)
+        val defender = combatant(id = "defender", hp = 5000, maxHp = 5000).copy(magicDefense = 100)
 
         val withBuff = BattleCalculator.calculateCombatantDamage(
             attacker, defender, skill(dmgType = DamageType.MAGIC), rng = freshRng()
         )
         val withoutBuff = BattleCalculator.calculateCombatantDamage(
-            combatant(id = "attacker", physAtk = 300, magAtk = 300),
+            combatant(id = "attacker", physAtk = 300).copy(magicAttack = 300),
             defender, skill(dmgType = DamageType.MAGIC), rng = freshRng()
         )
         // 物理攻击 +100% 不应影响魔法技能伤害（同一 RNG 序列）
@@ -177,17 +200,15 @@ class BattleCalculatorCoverageTest {
     private fun combatant(
         id: String = "u1",
         hp: Int = 800, maxHp: Int = 1000,
-        physAtk: Int = 100, magAtk: Int = 80,
-        physDef: Int = 60, magDef: Int = 50,
-        realm: Int = 3, realmLayer: Int = 1,
-        buffs: List<CombatBuff> = emptyList()
+        physAtk: Int = 100, physDef: Int = 60,
+        realm: Int = 3, realmLayer: Int = 1
     ) = Combatant(
         id = id, name = id, side = CombatantSide.DEFENDER,
         hp = hp, maxHp = maxHp, mp = 500, maxMp = 500,
-        physicalAttack = physAtk, magicAttack = magAtk,
-        physicalDefense = physDef, magicDefense = magDef,
+        physicalAttack = physAtk, magicAttack = 80,
+        physicalDefense = physDef, magicDefense = 50,
         speed = 100, critRate = 0.0,
-        skills = emptyList(), buffs = buffs,
+        skills = emptyList(), buffs = emptyList(),
         realm = realm, realmLayer = realmLayer
     )
 
@@ -247,8 +268,7 @@ class BattleCalculatorCoverageTest {
     @Test
     fun `buildDamageZones - single pass bucketing equals filtered reference implementation`() {
         // 混合 Buff 列表（含无关类型）：单次 when 分桶与旧 filter+sumOf 逐位一致
-        val attacker = combatant(
-            id = "attacker",
+        val attacker = combatant(id = "attacker").copy(
             buffs = listOf(
                 CombatBuff(type = BuffType.PHYSICAL_ATTACK_BOOST, value = 0.5, remainingDuration = 3),
                 CombatBuff(type = BuffType.MAGIC_ATTACK_BOOST, value = 0.2, remainingDuration = 3),
@@ -259,8 +279,7 @@ class BattleCalculatorCoverageTest {
                 CombatBuff(type = BuffType.PHYSICAL_ATTACK_BOOST, value = 0.25, remainingDuration = 3)
             )
         )
-        val defender = combatant(
-            id = "defender",
+        val defender = combatant(id = "defender").copy(
             buffs = listOf(
                 CombatBuff(type = BuffType.DAMAGE_REDUCTION, value = 0.3, remainingDuration = 3),
                 CombatBuff(type = BuffType.SPEED_BOOST, value = 1.0, remainingDuration = 3)
@@ -280,5 +299,69 @@ class BattleCalculatorCoverageTest {
         assertEquals(refMagBoost - refMagReduce, zones.magicAttackBuffs, 1e-9)
         assertEquals(refDmgBoost, zones.damageAmplification, 1e-9)
         assertEquals(refDmgReduce, zones.damageReduction, 1e-9)
+    }
+
+    // ---- B4: calculateCombatantDamage 拆分后 RNG 抽数序守卫（对拍）----
+
+    @Test
+    fun `calculateCombatantDamage - instant kill path consumes zero rng draws`() {
+        val attacker = combatant(id = "kill_attacker", realm = 3, realmLayer = 1, physAtk = 500)
+        val defender = combatant(id = "kill_defender", realm = 1, realmLayer = 1, hp = 800, maxHp = 1000, physDef = 500)
+
+        val rngBeforeKill = DeterministicRng.fromSeed(42L)
+        val rngAfterKill = DeterministicRng.fromSeed(42L)
+        val killResult = BattleCalculator.calculateCombatantDamage(
+            attacker, defender, null, rng = rngBeforeKill, enableInstantKill = true
+        )
+        val drawAfterKill = rngBeforeKill.nextDouble()
+        val drawRef = rngAfterKill.nextDouble()
+
+        assertTrue("高境界攻击低境界应触发斩杀", killResult.isInstantKill)
+        assertEquals("斩杀路径不得消耗任何 RNG 抽数（抽数序列不得前移）", drawRef, drawAfterKill, 0.0)
+    }
+
+    @Test
+    fun `calculateCombatantDamage - dodge path consumes exactly one rng draw`() {
+        // 攻速差极大 → dodgeChance 封顶（0.49），必存在闪避种子
+        val attacker = combatant(id = "fast_attacker", physAtk = 500).copy(speed = 10000)
+        val defender = combatant(id = "slow_defender", hp = 500, maxHp = 500, physDef = 0)
+        val dodgingSeed = (1..200).first { seed ->
+            BattleCalculator.calculateCombatantDamage(
+                attacker, defender, null, rng = DeterministicRng.fromSeed(seed.toLong())
+            ).isDodged
+        }
+
+        val rngAfterDodge = DeterministicRng.fromSeed(dodgingSeed.toLong())
+        val dodged = BattleCalculator.calculateCombatantDamage(attacker, defender, null, rng = rngAfterDodge)
+        val drawAfterDodge = rngAfterDodge.nextDouble()
+        val rngRef = DeterministicRng.fromSeed(dodgingSeed.toLong())
+        rngRef.nextDouble() // 模拟正式调用的闪避判定抽数
+        val drawRef2 = rngRef.nextDouble()
+
+        assertTrue("种子 $dodgingSeed 应触发闪避", dodged.isDodged)
+        assertEquals(0, dodged.damage)
+        assertFalse(dodged.isCrit)
+        assertEquals("闪避路径应恰好消耗 1 个抽数（dodge 判定）", drawRef2, drawAfterDodge, 0.0)
+    }
+
+    @Test
+    fun `calculateCombatantDamage - normal path consumes three draws in dodge then crit then variance order`() {
+        // 攻速相等 → dodgeChance = 0，恒走正常管线
+        // 注意：dodge 判定本身恒消耗 1 抽（rng.nextDouble() < dodgeChance 无条件调用）
+        val attacker = combatant(id = "normal_attacker", physAtk = 500)
+        val defender = combatant(id = "normal_defender", hp = 500, maxHp = 500, physDef = 100)
+
+        val rngAfterDamage = DeterministicRng.fromSeed(42L)
+        val result = BattleCalculator.calculateCombatantDamage(attacker, defender, null, rng = rngAfterDamage)
+        val drawAfterDamage = rngAfterDamage.nextDouble()
+        val rngRef = DeterministicRng.fromSeed(42L)
+        rngRef.nextDouble() // dodge 判定
+        rngRef.nextDouble() // crit
+        rngRef.nextDouble() // variance
+        val drawRef4 = rngRef.nextDouble()
+
+        assertFalse(result.isDodged)
+        assertTrue(result.damage > 0)
+        assertEquals("正常路径应恰好消耗 3 个抽数（闪避判定 → 暴击 → 波动）", drawRef4, drawAfterDamage, 0.0)
     }
 }

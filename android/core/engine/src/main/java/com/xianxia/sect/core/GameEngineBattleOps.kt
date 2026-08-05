@@ -16,9 +16,22 @@ import com.xianxia.sect.core.engine.domain.exploration.LevelGenerator
 import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.registry.TalentDatabase
+import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
+import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.wallet.SpiritStoneSource
+
+// ── 宗门战战利品数量（P-01 分区 RNG 迁移，原 kotlin.random Iterable.random）──
+
+/** 宗门战胜利战利品数量：攻占 80~130，击溃 20~60（分区 RNG，可存档复现） */
+internal fun sectBattleRewardCount(canOccupy: Boolean, rng: DeterministicRng): Int {
+    val range = if (canOccupy) SECT_BATTLE_OCCUPY_REWARD_COUNT else SECT_BATTLE_ROUT_REWARD_COUNT
+    return range.first + rng.nextInt(range.last - range.first + 1)
+}
+
+private val SECT_BATTLE_OCCUPY_REWARD_COUNT = 80..130
+private val SECT_BATTLE_ROUT_REWARD_COUNT = 20..60
 
 // ── Battle facade delegates ─────────────────────────────────────────
 
@@ -185,7 +198,9 @@ private fun GameEngine.buildSectBattleLog(
     // 预计算战利品（用于日志 drops 显示）
     var warRewards: WarRewards? = null
     if (battleResult.winner == AIBattleWinner.ATTACKER) {
-        val rewardCount = if (battleResult.canOccupy) (80..130).random() else (20..60).random()
+        val rewardCount = sectBattleRewardCount(
+            battleResult.canOccupy, gameRngManager.getRng(RngPartition.BATTLE)
+        )
         warRewards = generateWarRewards(targetSect.level, rewardCount)
     }
 

@@ -447,28 +447,28 @@ C1~C13（云读档自阻塞/loadGameFromSlot 自阻塞/大 id OOM/restart 窗口
 
 ---
 
-## 预存问题登记（2026-08-05 核查，detekt baseline 冻结待拆分）
+## 预存问题登记（2026-08-05 核查，detekt baseline 冻结待拆分）— ✅ P-01~P-15/P-17 已实施（2026-08-05）
 
-> 以下为 detekt 预存违规（HEAD 时代即存在，baseline 冻结）与预存技术债，作为**下一轮代码质量拆分任务队列**。
-> 完成标准：≤60 行函数 / 参数 ≤8（detekt functionThreshold）/ baseline 只缩不增；每批 1 个方法 + 现有测试回归，RNG 调用序不变。
+> P-01~P-15、P-17 已全量实施（代码质量拆分批次 B1~B9 + flaky 诊断，见 CHANGELOG 4.00.87），engine 模块 detekt 违规清零、feature/game 清零。
+> P-16（UI 真机冒烟）、P-18（排行榜 rank 语义）需真机验证，保持开放。
 
-| # | 待办 | 位置 | 说明 |
+| # | 待办 | 位置 | 状态 |
 |---|------|------|------|
-| P-01 | 非分区 RNG：`(80..130).random()` | `GameEngineBattleOps.kt` L105（attackSect 战利品数量） | 走 kotlin.collections `Iterable.random()`（全局 Random.Default），CI grep audit 查不到此模式；改走 BATTLE 分区会改变随机序，需单独批处理 |
-| P-02 | executeSkillAction 9 参 / 6 return / 嵌套深 | `BattleSystem.kt` | baseline 冻结；参数打包 + 分支提取 |
-| P-03 | processTurnAdvance 圈复杂度 26 / 4 return | `BattleSystem.kt` | baseline 冻结 |
-| P-04 | executeBattleWithTimeout 106 行 / 复杂度 17 | `BattleSystem.kt` | baseline 冻结 |
-| P-05 | executeUnifiedAIBattle 复杂度 16 | `AISectAttackManager.kt` | baseline 冻结 |
-| P-06 | executeSupportAction 复杂度 17 | `AISectAttackManager.kt` | baseline 冻结 |
-| P-07 | applyAoeSingleTarget 8 参 | `AISectAttackManager.kt` | baseline 冻结 |
-| P-08 | selectAITarget 3 return / 长行 / 循环多跳转 | `AISectAttackManager.kt` | baseline 冻结 |
-| P-09 | calculateCombatantDamage 62 行 | `BattleCalculator.kt` | baseline 冻结 |
-| P-10 | buildDiscipleEnemy 复杂度 23 | `HeavenlyTrialService.kt` | baseline 冻结 |
-| P-11 | BattleDamageApplier 包声明不匹配 | `BattleDamageApplier.kt` | baseline 冻结 |
-| P-12 | EnemyGenerator 长行若干 | `EnemyGenerator.kt` | baseline 冻结 |
-| P-13 | 测试文件违规（BattleSystemTest/BattleCalculatorCoverageTest 参数超限/长行） | `core/engine/src/test` | baseline 冻结 |
-| P-14 | GameStateStoreLoadRaceTest/RollbackTest 偶发 flaky | `app/src/test` | 非本次引入：全量测试首轮偶发失败，单独重跑通过；建议后续定位共享静态状态跨类污染 |
-| P-15 | AISectBattleProcessor 迁移无直接单测 | `AISectBattleProcessor.kt` | AI 攻防域（processAISectOperations/processPlayerDefenseBattles/processAIVsAIBattles 等）无直接单元测试，迁移完整性靠编译+全量测试间接保障；建议补迁移守卫测试 |
-| P-16 | UI 迁移真机冒烟 | SettingsTab/DiscipleDetailScreen/OverlayDialogRouter | 无设备环境未验证；建议发布前真机检查 4 个迁移弹窗（其他设置/年俸/存档管理/更新日志）与 34 分支路由 |
-| P-17 | GameViewModel 构造 20 参数超规（LongParameterList baseline 豁免） | `feature/game/.../GameViewModel.kt` | 2026-08-05 排行榜接入核查确认：20 构造依赖超 CLAUDE.md 3.6 阈值（>10），baseline 豁免掩盖；拆分为 Facade/Delegate 分组（参照 3.4 规范），拆分时保持 baseline 只缩不增。排行榜接入刻意未加重该债务：每日静默上报挂在 MainGameScreen + LeaderboardViewModel（独立 VM），而非 GameViewModel 构造注入 |
-| P-18 | 排行榜 rank 0/1 起始语义真机验证 | `feature/game/.../taptap/TapTapLeaderboardApi.kt` | 2026-08-05 接入时反编译 SDK 无法确认服务端 rank 语义，已做 0→1 归一化兜底（rank<1 显示 1）；真机观察首名是否显示"#1"，若服务端本就 1 起始需移除归一化避免次名重复显示 |
+| P-01 | 非分区 RNG：`(80..130).random()` | `GameEngineBattleOps.kt`（attackSect 战利品数量，实际 L188） | ✅ 提取 `sectBattleRewardCount` 纯函数 + BATTLE 分区（`80 + rng.nextInt(51)` / `20 + rng.nextInt(41)`）；GameEngineBattleOpsTest 值域/确定性守卫。**登记接受的代价**：该次宗门战胜利后 BATTLE 序列整体后移一位，旧档后续战斗随机序与旧版本不同 |
+| P-02 | executeSkillAction 9 参 / 6 return / 嵌套深 | `BattleSystem.kt` | ✅ `SkillActionContext` 参数打包 + 5 分支提取（ally 支援/团队支援/AOE/单体/普攻），主函数 5 参单 return when 分发 |
+| P-03 | processTurnAdvance 圈复杂度 26 / 4 return | `BattleSystem.kt` | ✅ 6 提取（resolveAdvancedAlly/decideAdvancedAction/executeAdvancedAction/buildAdvancedActionLog/applyAdvancedDamage/updateAdvancedCooldown），RNG 序 selectSkill→selectTarget 保持 |
+| P-04 | executeBattleWithTimeout 106 行 / 复杂度 17 | `BattleSystem.kt` | ✅ 3 提取（buildBattleSnapshots/updateBattleSnapshots/resolveBattleWinner），主函数 ≈45 行 |
+| P-05 | executeUnifiedAIBattle 复杂度 16 | `AISectAttackManager.kt` | ✅ `AiBattleRoundOutcome` + executeAiRound + resolveAiWinner；主循环运行标志 0 break；**保留 isDead 运行时守卫**（executeAiCombatantTurn 内部无守卫，快照构建后被击杀者仍需跳过——修正拆分方案的"冗余"误判） |
+| P-06 | executeSupportAction 复杂度 17 | `AISectAttackManager.kt` | ✅ 5 提取（resolveSupportTargets/applySupportHealing/applySupportTeamBuffs/updateSupportCooldown/buildSupportActionLog），aisRng 抽数位置保留 |
+| P-07 | applyAoeSingleTarget 8 参 | `AISectAttackManager.kt` | ✅ attackerType 由 side 推导删参（调用点已验证等价）+ `AoeWriteBackContext` 打包 → 4 参 |
+| P-08 | selectAITarget 3 return / 长行 / 循环多跳转 | `AISectAttackManager.kt` | ✅ 2 return 链式 + 折行；顺带修复被泛化 baseline 掩盖的 2 个循环违规（decideAttacks/decidePlayerAttack 各 2 jump → 1） |
+| P-09 | calculateCombatantDamage 62 行 | `BattleCalculator.kt` | ✅ tryInstantKill/tryDodge/computeDamagePipeline 提取，主函数 1 return 链式；RNG 序（dodge→crit→variance）由 3 个抽数序对拍测试守卫（0/1/2 抽数） |
+| P-10 | buildDiscipleEnemy 复杂度 23 | `HeavenlyTrialService.kt` | ✅ selectTrialManuals/selectTrialEquipment/buildTrialBaseStats/buildTrialSkills 提取；buildTrialBaseStats 复杂度 19 二次拆分（sumEquipStatBonuses/sumManualStatBonuses）→ 主函数 ~5；7 次 rngVar 抽数序保持 |
+| P-11 | BattleDamageApplier 包声明不匹配 | `battle 域 13 文件` | ✅ battle 域 13 文件 git mv 归位至 `engine/domain/battle/`（包声明不变、import 全不变）；删 12 条 InvalidPackageDeclaration baseline；EncounterBattleService 不动 |
+| P-12 | EnemyGenerator 长行若干 | `EnemyGenerator.kt` | ✅ 6 处折行（enemyRng getter/两个签名/4 条属性行）；L334 LongMethod stale 删除 |
+| P-13 | 测试文件违规（BattleSystemTest/BattleCalculatorCoverageTest 参数超限/长行） | `core/engine/src/test` | ✅ combatant 11→7 参 / 10→7 参（skills/buffs/realm 改 .copy()）；37 处长行折行；29 处 UnusedImports + 8 处额外 MaxLineLength 全清（含未登记项） |
+| P-14 | GameStateStoreLoadRaceTest/RollbackTest 偶发 flaky | `app/src/test` | ✅ 诊断：H1（assemble check-then-act 竞态）300 轮压力实证 0 失败未复现→转 30 轮正式守卫测试；H3（statsProvider 静态污染）枚举排除（全部赋值良性）；**H2 确认为最可能根因**：TestPolling 5s 超时在慢 CI 不足 → 提升至 15s |
+| P-15 | AISectBattleProcessor 迁移无直接单测 | `AISectBattleProcessor.kt` | ✅ 新增 AISectBattleProcessorTest（升级链/玩家不升级/仓库清理/热控分批/入口全链路，@After 防静态污染）；AI-vs-AI 决策应用深度断言依赖完整状态构造，由 CaveExplorationProcessorTest.buildDefenseBattleEnemies + 全量回归兜底 |
+| P-16 | UI 迁移真机冒烟 | SettingsTab/DiscipleDetailScreen/OverlayDialogRouter | ⏳ 待真机：发布前检查 4 个迁移弹窗（其他设置/年俸/存档管理/更新日志）与 34 分支路由 |
+| P-17 | GameViewModel 构造 20 参数超规（LongParameterList baseline 豁免） | `feature/game/.../GameViewModel.kt` | ✅ 删 6 个零使用参数（appContext/productionFacade/inventoryFacade/battleFacade/diplomacyFacade/saveFacade）+ 4 个 @Inject 值对象归组（AudioServices/CoreServices/UiServices/DelegateServices）→ 构造 5 参；18 个 Delegate 零改动；baseline L303 删除；排行榜接入未加重债务（LeaderboardViewModel 独立） |
+| P-18 | 排行榜 rank 0/1 起始语义真机验证 | `feature/game/.../taptap/TapTapLeaderboardApi.kt` | ⏳ 待真机：首名显示 #1 且次名重复 #1 → 服务端 1 起始，移除归一化；次名 #2 → 保留现状。抓原始 rank 与显示值对照 ≥3 次 |

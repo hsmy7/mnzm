@@ -1,6 +1,5 @@
 package com.xianxia.sect.ui.game
 
-import android.content.Context
 import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.config.BuildingConfigModel
 import com.xianxia.sect.core.config.BuildingConfigService
@@ -14,14 +13,9 @@ import com.xianxia.sect.core.engine.setFocusedDiscipleId
 import com.xianxia.sect.core.engine.updateGameData
 import com.xianxia.sect.core.engine.updateDisciple
 import com.xianxia.sect.core.engine.batchUpdateAutoAssignAndGuide
-import com.xianxia.sect.core.engine.domain.battle.BattleFacade
 import com.xianxia.sect.core.engine.domain.building.BuildingFacade
-import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyFacade
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
-import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
-import com.xianxia.sect.core.engine.domain.production.ProductionFacade
-import com.xianxia.sect.core.engine.domain.save.SaveFacade
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.core.engine.service.DailySignInService
 import com.xianxia.sect.core.engine.service.MailService
@@ -95,21 +89,15 @@ import org.junit.Test
  */
 class GameViewModelTest {
 
-    // ── 16 个注入依赖的 MockK mock ──────────────────────────────────
+    // ── 13 个注入依赖的 MockK mock（GameVmServices 归组后按值对象注入）──
     private val gameEngine: GameEngine = mockk(relaxed = true)
     private val gameEngineCore: GameEngineCore = mockk(relaxed = true)
-    private val appContext: Context = mockk(relaxed = true)
     private val systemManager: SystemManager = mockk(relaxed = true)
     private val buildingConfigService: BuildingConfigService = mockk(relaxed = true)
     private val mailService: MailService = mockk(relaxed = true)
     private val dailySignInService: DailySignInService = mockk(relaxed = true)
     private val discipleFacade: DiscipleFacade = mockk(relaxed = true)
-    private val productionFacade: ProductionFacade = mockk(relaxed = true)
-    private val inventoryFacade: InventoryFacade = mockk(relaxed = true)
     private val buildingFacade: BuildingFacade = mockk(relaxed = true)
-    private val battleFacade: BattleFacade = mockk(relaxed = true)
-    private val diplomacyFacade: DiplomacyFacade = mockk(relaxed = true)
-    private val saveFacade: SaveFacade = mockk(relaxed = true)
     private val thermalMonitor: ThermalMonitor = mockk(relaxed = true)
     private val dialogManager: com.xianxia.sect.core.domain.dialog.DialogManager = mockk(relaxed = true)
     private val adService: AdService = mockk(relaxed = true)
@@ -194,15 +182,17 @@ class GameViewModelTest {
 
 
         viewModel = GameViewModel(
-            gameEngine, gameEngineCore, appContext, systemManager,
-            buildingConfigService, mailService,
-            dailySignInService, discipleFacade, productionFacade,
-            inventoryFacade, buildingFacade, battleFacade,
-            diplomacyFacade, saveFacade, thermalMonitor,
-            dialogManager, adService, audioConfig, audioEngine,
-            // 2026-08-01：注入 TestDispatcher 替代真实 Dispatchers.IO
-            //（旧代码用真实 IO 线程，runTest 的 advanceUntilIdle 等待不到）
-            ioDispatcher = IoDispatcher(testDispatcher)
+            gameEngine,
+            GameVmAudioServices(audioConfig, audioEngine),
+            GameVmCoreServices(gameEngineCore, systemManager, thermalMonitor),
+            GameVmUiServices(dialogManager, adService),
+            GameVmDelegateServices(
+                dailySignInService, mailService, buildingConfigService,
+                buildingFacade, discipleFacade,
+                // 2026-08-01：注入 TestDispatcher 替代真实 Dispatchers.IO
+                //（旧代码用真实 IO 线程，runTest 的 advanceUntilIdle 等待不到）
+                IoDispatcher(testDispatcher)
+            )
         )
     }
 

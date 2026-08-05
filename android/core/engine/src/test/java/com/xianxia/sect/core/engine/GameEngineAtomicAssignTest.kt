@@ -95,7 +95,8 @@ class GameEngineAtomicAssignTest {
 
         // D1：构造时 highFrequencyData/productionSlots 经 Facade 访问器求值——stub 链防 NPE
         val mockProductionFacade = mock<ProductionFacade>()
-        org.mockito.kotlin.whenever(mockProductionFacade.productionSlots).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(emptyList()))
+        org.mockito.kotlin.whenever(mockProductionFacade.productionSlots)
+            .thenReturn(kotlinx.coroutines.flow.MutableStateFlow(emptyList()))
         val mockCultivationFacade = mock<CultivationFacade>()
         org.mockito.kotlin.whenever(mockCultivationFacade.cultivationService).thenReturn(mock())
         org.mockito.kotlin.whenever(mockCultivationFacade.discipleService).thenReturn(mock())

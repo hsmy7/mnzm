@@ -19,7 +19,8 @@ import com.xianxia.sect.core.util.DeterministicRng
 
 /** EnemyGenerator 的 RNG 管理器（由 GameEngine 初始化时注入） */
 var enemyGenRngManager: GameRngManager? = null
-private val enemyRng get(): DeterministicRng = (enemyGenRngManager ?: error("EnemyGenerator RNG not initialized")).getRng(RngPartition.ENEMY_GEN)
+private val enemyRng get(): DeterministicRng = (enemyGenRngManager ?: error("EnemyGenerator RNG not initialized"))
+    .getRng(RngPartition.ENEMY_GEN)
 
 object EnemyGenerator {
 
@@ -77,7 +78,9 @@ object EnemyGenerator {
      * 随机装备生成（W3 从 generateHumanEnemy 提取，逐行搬移 RNG 调用序不变）。
      * @return (装备实例列表, 装备属性累加器)
      */
-    private fun generateEquipmentForEnemy(minRarity: Int, maxRarity: Int): Pair<List<EquipmentInstance>, EquipmentStatsAccumulator> {
+    private fun generateEquipmentForEnemy(
+        minRarity: Int, maxRarity: Int
+    ): Pair<List<EquipmentInstance>, EquipmentStatsAccumulator> {
         val equipmentSlots = listOf(
             EquipmentSlot.WEAPON, EquipmentSlot.ARMOR,
             EquipmentSlot.BOOTS, EquipmentSlot.ACCESSORY
@@ -110,7 +113,9 @@ object EnemyGenerator {
      * 修复 07-20"统一玩家公式"只统一基础属性、敌人缺功法属性加成的问题）。
      * @return (功法实例列表, 战斗技能列表, 功法属性累加器)
      */
-    private fun generateManualsForEnemy(minRarity: Int, maxRarity: Int): Triple<List<ManualInstance>, List<CombatSkill>, ManualStatsAccumulator> {
+    private fun generateManualsForEnemy(
+        minRarity: Int, maxRarity: Int
+    ): Triple<List<ManualInstance>, List<CombatSkill>, ManualStatsAccumulator> {
         val manualCount = enemyRng.nextInt(6)
         val manualInstances = mutableListOf<ManualInstance>()
         val manualSkills = mutableListOf<CombatSkill>()
@@ -169,10 +174,14 @@ object EnemyGenerator {
 
         val hp = (realmConfig.baseHp * rngVar() * layerMult).toInt() + equipmentStats.hp + manualStats.hp
         val mp = (realmConfig.baseMp * rngVar() * layerMult).toInt() + equipmentStats.mp + manualStats.mp
-        val physicalAttack = (realmConfig.basePhysicalAttack * rngVar() * layerMult).toInt() + equipmentStats.physicalAttack + manualStats.physicalAttack
-        val magicAttack = (realmConfig.baseMagicAttack * rngVar() * layerMult).toInt() + equipmentStats.magicAttack + manualStats.magicAttack
-        val physicalDefense = (realmConfig.basePhysicalDefense * rngVar() * layerMult).toInt() + equipmentStats.physicalDefense + manualStats.physicalDefense
-        val magicDefense = (realmConfig.baseMagicDefense * rngVar() * layerMult).toInt() + equipmentStats.magicDefense + manualStats.magicDefense
+        val physicalAttack = (realmConfig.basePhysicalAttack * rngVar() * layerMult).toInt() +
+            equipmentStats.physicalAttack + manualStats.physicalAttack
+        val magicAttack = (realmConfig.baseMagicAttack * rngVar() * layerMult).toInt() +
+            equipmentStats.magicAttack + manualStats.magicAttack
+        val physicalDefense = (realmConfig.basePhysicalDefense * rngVar() * layerMult).toInt() +
+            equipmentStats.physicalDefense + manualStats.physicalDefense
+        val magicDefense = (realmConfig.baseMagicDefense * rngVar() * layerMult).toInt() +
+            equipmentStats.magicDefense + manualStats.magicDefense
         val speed = (realmConfig.baseSpeed * rngVar() * layerMult).toInt() + equipmentStats.speed + manualStats.speed
 
         val elements = listOf("metal", "wood", "water", "fire", "earth")

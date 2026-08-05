@@ -1,21 +1,16 @@
 package com.xianxia.sect.core.engine.service
 
-import com.xianxia.sect.core.engine.SectWarehouseManager
-import com.xianxia.sect.core.engine.domain.battle.AttackWarningService
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.WorldSect
-import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.AnalyticsTracker
-import com.xianxia.sect.core.util.CoroutineScopeProvider
-import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import org.junit.Assert.*
 import org.junit.Test

@@ -80,7 +80,9 @@ class BattleDamageApplierTest {
             CombatBuff(BuffType.DAMAGE_SHARE, value = 0.3, remainingDuration = 2)
         ))
         // 伤害 500 → 分担 30% = 150
-        val updated = BattleDamageApplier.applySharedDamage(target, 500, team = listOf(target, sharer), beasts = emptyList())
+        val updated = BattleDamageApplier.applySharedDamage(
+            target, 500, team = listOf(target, sharer), beasts = emptyList()
+        )
         assertEquals(750, updated.getValue("s").hp)
     }
 
