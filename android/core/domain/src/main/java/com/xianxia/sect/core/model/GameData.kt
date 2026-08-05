@@ -258,6 +258,11 @@ data class GameData(
     @ProtoNumber(25)
     @SettlementStrategy(Strategy.USE_SHADOW)
     var lastRecruitYear: Int = 0,
+    // AI 宗门弟子周期性招募上次触发年份（差值判据；0=从未触发，老档升级后自愈）
+    @ProtoNumber(219)
+    @ColumnInfo(name = "last_ai_sect_recruit_year", defaultValue = "0")
+    @SettlementStrategy(Strategy.USE_SHADOW)
+    var lastAiSectRecruitYear: Int = 0,
 
     // 世界关卡（妖兽+洞府统一池子）
     @ProtoNumber(140)

@@ -20,6 +20,11 @@ import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.asKotlinRandom
 import kotlin.math.roundToInt
 
+/** AI 宗门周期性招募每周期人数下限（含） */
+private const val SECT_RECRUIT_MIN_COUNT = 1
+/** AI 宗门周期性招募每周期人数上限（含） */
+private const val SECT_RECRUIT_MAX_COUNT = 5
+
 object AISectDiscipleManager {
     /**
      * AI RNG — 初始化时由 [initForSlot] 传入存档的系统种子进行确定性播种。
@@ -529,6 +534,9 @@ object AISectDiscipleManager {
         return truncateToLimit(existingDisciples + newDisciples)
     }
 
+    // 注：recruitYearlyDisciples 当前无调用方（预留）。周期性招募由年变事件经
+    // runSectRecruitmentIfDue 差值判据每 3 年触发一次，本函数自动继承同一数量范围。
+
     /**
      * 按战力降序截断至 [PlantSlotData.MAX_AI_DISCIPLES_PER_SECT]，供年度招募路径复用，
      * 防止 AI 宗门弟子池无界累积。
@@ -542,7 +550,9 @@ object AISectDiscipleManager {
         }
 
     /**
-     * 仅生成年度新弟子列表（不合并现有弟子），供占领路由使用
+     * 仅生成周期性招募新弟子列表（不合并现有弟子），供占领路由使用。
+     * 由年变事件每 3 年（AI_SECT_RECRUIT_INTERVAL_YEARS，差值判据）触发一次，
+     * 每批 [SECT_RECRUIT_MIN_COUNT]~[SECT_RECRUIT_MAX_COUNT] 名炼气弟子。
      *
      * @param sectLevel 宗门等级（决定新弟子装备/功法数量）
      */
@@ -553,7 +563,7 @@ object AISectDiscipleManager {
     ): List<Disciple> {
         val newDisciples = mutableListOf<Disciple>()
         val usedNames = existingDisciples.map { it.name }.toMutableSet()
-        repeat(rng.nextInt(7)) {
+        repeat(SECT_RECRUIT_MIN_COUNT + rng.nextInt(SECT_RECRUIT_MAX_COUNT)) {
             val disciple = generateQiRefiningDisciple(sectName, usedNames, sectLevel)
             newDisciples.add(disciple)
             usedNames.add(disciple.name)

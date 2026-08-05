@@ -404,6 +404,50 @@ class AISectDiscipleManagerTest {
         assertEquals("应返回原弟子列表", listOf(disciple), r1.disciples)
     }
 
+    // ── 周期性招募：数量范围 + 灵根分布 ──
+
+    @Test
+    fun `generateYearlyRecruits - 每周期招募1到5名`() {
+        // 2026-08-06 需求：AI 宗门弟子生成从每年 0~6 改为每 3 年 1~5
+        AISectDiscipleManager.initForSlot(20260806L)
+        ManualDatabase.initializeWithManuals(testManuals())
+        val existing = listOf(makeGearDisciple())
+        repeat(200) { i ->
+            val recruits = AISectDiscipleManager.generateYearlyRecruits("测试宗$i", existing, SectLevel.SMALL)
+            assertTrue(
+                "第 $i 次招募数 ${recruits.size} 应在 1..5",
+                recruits.size in 1..5
+            )
+            recruits.forEach { recruit ->
+                assertTrue("招募弟子 ${recruit.name} 应默认炼气境界", recruit.realm == 9)
+            }
+        }
+    }
+
+    @Test
+    fun `generateRandomDisciple - AI弟子灵根根数分布与COUNT_WEIGHTS一致`() {
+        // 守卫测试：AI 宗门弟子灵根生成与玩家宗门共用 SpiritRootGenerator + COUNT_WEIGHTS 概率表。
+        // 若未来 AI 侧引入独立概率逻辑，本用例以确定性 RNG 大样本统计直接失败。
+        AISectDiscipleManager.initForSlot(20260806L)
+        ManualDatabase.initializeWithManuals(testManuals())
+        val counts = mutableMapOf(1 to 0, 2 to 0, 3 to 0, 4 to 0, 5 to 0)
+        val sampleCount = 10000
+        repeat(sampleCount) {
+            val disciple = AISectDiscipleManager.generateRandomDisciple("测试宗", 9)
+            val rootCount = disciple.spiritRootType.split(",").size
+            assertTrue("灵根数 $rootCount 应在 1..5（实际值=${disciple.spiritRootType}）", rootCount in 1..5)
+            counts[rootCount] = (counts[rootCount] ?: 0) + 1
+        }
+        val tolerance = 0.04
+        for ((rootCount, weight) in GameConfig.SpiritRoot.COUNT_WEIGHTS) {
+            val ratio = counts[rootCount]!!.toDouble() / sampleCount
+            assertTrue(
+                "AI弟子灵根 $rootCount 根比例 $ratio 偏离配置权重 $weight 超过容差 $tolerance",
+                kotlin.math.abs(ratio - weight) <= tolerance
+            )
+        }
+    }
+
     // ── 辅助 ──
 
     /** 注入测试功法库：每品阶 4 攻 4 防 1 心法（覆盖大型/顶级宗门 6 本功法需求） */

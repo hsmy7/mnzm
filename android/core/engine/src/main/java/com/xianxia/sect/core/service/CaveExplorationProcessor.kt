@@ -210,10 +210,9 @@ class CaveExplorationProcessor @Inject constructor(
         aiSectBattleProcessor.processAISectOperations(year, month, state)
 
     /**
-     * AI 弟子热控分批：根据手机发热程度决定结算间隔。
-     * - 常温 → 每月结算
-     * - 发热(shouldReduceWorkload) → 每 6 月结算一次
-     * - 发热严重(shouldEmergencySave) → 每 12 月结算一次
+     * AI 宗门弟子周期性招募结算：为每个非玩家宗门生成一批新弟子并按占领路由分发。
+     * 在年变单事务内评估，实际由 runSectRecruitmentIfDue 差值判据每 3 年触发一次
+     * （非招募年不调用本函数）；批次数量见 AISectDiscipleManager.generateYearlyRecruits。
      */
     fun processSectDisciplesYearlyRecruitment(year: Int, state: MutableGameState) {
         val data = state.gameData

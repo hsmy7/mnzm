@@ -37,9 +37,14 @@ class DeterministicRng(
     fun nextInt(): Int {
         val oldState = state
         state = oldState * MULTIPLIER + increment
-        val xorShifted = ((oldState ushr 18) xor oldState) ushr 27
-        val rot = oldState ushr 59
-        return ((xorShifted ushr rot.toInt()) or (xorShifted shl ((-rot.toInt()) and 31))).toInt()
+        // 标准 PCG-XSH-RR 64→32：xorshifted 必须截断为 32 位后再做 32 位循环旋转。
+        // 原实现在 64 位域旋转、最后才 toInt() 截断——xorshifted 实际含 37 位熵，
+        // 当旋转位移 <5 时第 32-36 位熵被卷入低 32 位，输出分布系统性偏向高值
+        // （实证 2e6 样本：P(>=0.6)=44.3% 而非 40%，负值 53.1% 而非 50%），
+        // 导致全游戏随机概率（灵根/突破/战斗等）偏离配置值。
+        val xorshifted = (((oldState ushr 18) xor oldState) ushr 27).toInt()
+        val rot = (oldState ushr 59).toInt()
+        return (xorshifted ushr rot) or (xorshifted shl ((-rot) and 31))
     }
 
     /** [0, bound) 范围随机整数 */

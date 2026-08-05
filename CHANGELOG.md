@@ -1,5 +1,12 @@
 ## [4.00.89] - 2026-08-05
 
+### 调整（2026-08-06 AI 宗门弟子招募节奏）
+
+- **AI 宗门弟子生成改三年一度（1~5 名/批）** — 年变 `processYearlyEvents` 的 sectYearlyRecruitment 块改用差值判据（新增 GameData 字段 `lastAiSectRecruitYear`：@ProtoNumber(219) + Room 列 `last_ai_sect_recruit_year` DEFAULT 0，MIGRATION_40_41，DATABASE_VERSION 40→41）：每 3 年触发一次（老档相位漂移自愈、失败次年自动重试，与 refreshRecruitList 同款语义）；批次数量 `rng.nextInt(7)`（0~6）→ `SECT_RECRUIT_MIN_COUNT + rng.nextInt(SECT_RECRUIT_MAX_COUNT)`（1~5 命名常量）；AI 宗门年均弟子增速降至约 1/3（期望 3 名/年 → 3 名/3 年，既定设计意图）
+- **灵根概率一致性核查（结论：已一致）** — AI 弟子与玩家弟子灵根生成共用 `SpiritRootGenerator.generate` + `GameConfig.SpiritRoot.COUNT_WEIGHTS`（1根1%/2根3%/3根26%/4根30%/5根40%，元素等权重洗牌），仅 RNG 来源不同（AI 自持 DeterministicRng vs 玩家 SYSTEM 分区），概率分布相同；新增守卫测试（N=10000 确定性 RNG 统计 + 容差 0.04）锁定 AI 侧分布与 COUNT_WEIGHTS 一致，防止未来引入独立概率表漂移
+- **测试** — 新增 `CultivationEventMonthlyOpsTest`（差值判据 5 用例：老档自愈/未满不触发/满间隔触发/失败重试/buffer 写回不覆盖）+ `AISectDiscipleManagerTest` 数量范围（200 次断言 1..5）与灵根分布守卫 + `RoomMigrationTest` M40_41 真实 Room schema 校验、列默认值、全链 v11→v41
+- **验证** — compileReleaseKotlin + 定点测试（AISectDiscipleManagerTest / CultivationEventMonthlyOpsTest / RoomMigrationTest / ProtoNumberCoverageTest）+ 全量串行回归（--max-workers=1）
+
 ### 修复（2026-08-06 存档系统深入审查根治——27 项缺陷全量实施）
 
 - **A1 新档 saveVersion 盖章 + 存量启发式** — createNewGame/restartGameInternal 与 StorageEngine.validateAndPrepareData 统一盖章 `SaveVersion.CURRENT`（domain 新增权威常量，engine/data 共用）；SaveDataVersionMigrator v0→1 迁移前按 lastSaveTime ≥ v4.0.13 发布时刻判定"误标新档"跳过 ÷10（单向安全：宁可偏大不可再损）。修复所有新档首次读档修炼值 ÷10 的系统性进度损失

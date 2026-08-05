@@ -20,6 +20,22 @@ internal fun MutableGameState.safelyRunInState(name: String, block: MutableGameS
     }
 
     /**
+     * AI 宗门弟子周期性招募（每 [CultivationEventProcessor.AI_SECT_RECRUIT_INTERVAL_YEARS] 年）。
+     *
+     * 差值判据（非模运算）：老存档/跨版本相位漂移自愈；招募失败时 lastAiSectRecruitYear
+     * 不更新，次年自动重试（与 refreshRecruitList 同款语义，见 RecruitService.refreshRecruitList）。
+     *
+     * 基于事务 buffer 写回：先执行 [recruitment]（其内部会写 aiSectDisciples/recruitList），
+     * 后写 lastAiSectRecruitYear，保留同事务前序事件对 buffer 的修改，无覆盖。
+     */
+    internal fun MutableGameState.runSectRecruitmentIfDue(year: Int, recruitment: MutableGameState.() -> Unit) {
+        if (year - gameData.lastAiSectRecruitYear >= CultivationEventProcessor.AI_SECT_RECRUIT_INTERVAL_YEARS) {
+            recruitment()
+            gameData = gameData.copy(lastAiSectRecruitYear = year)
+        }
+    }
+
+    /**
      * 带状态版本的月度事件处理 — 在已存在的事务内使用。
      * 与 [processMonthlyEvents] 功能相同，但操作在传入的 state 上，
      * 而非打开新的 [stateStore.update]。
@@ -85,9 +101,7 @@ internal fun CultivationEventProcessor.processYearlyEvents(year: Int) {
         // 子服务内部 stateStore.update 通过重入缓冲共享同一副本
         stateStore.update {
             safelyRunInState("yearlyTribute") { vassalService.processYearlyTribute() }
-            safelyRunInState("yearlyVassalTribute") {
-                vassalService.processYearlyVassalTribute(year)
-            }
+            safelyRunInState("yearlyVassalTribute") { vassalService.processYearlyVassalTribute(year) }
             safelyRunInState("discipleAging") {
                 discipleLifecycleProcessor.processDiscipleAging(year)
             }
@@ -95,8 +109,7 @@ internal fun CultivationEventProcessor.processYearlyEvents(year: Int) {
                 caveExplorationProcessor.get().processSectDisciplesAging(year, this)
             }
             safelyRunInState("refreshRecruitList") {
-                // 差值判据（非模运算）：老存档/跨版本相位漂移自愈；
-                // 刷新失败时 lastRecruitYear 不更新，次年自动重试
+                // 差值判据（非模运算）：老档相位漂移自愈；失败时 lastRecruitYear 不更新，次年自动重试
                 if (year - gameData.lastRecruitYear >= CultivationEventProcessor.RECRUIT_REFRESH_INTERVAL_YEARS) {
                     recruitService.refreshRecruitList(year)
                 }
@@ -114,7 +127,8 @@ internal fun CultivationEventProcessor.processYearlyEvents(year: Int) {
                 recruitService.ageRecruitList(year)
             }
             safelyRunInState("sectYearlyRecruitment") {
-                caveExplorationProcessor.get().processSectDisciplesYearlyRecruitment(year, this)
+                val processor = caveExplorationProcessor.get()
+                runSectRecruitmentIfDue(year) { processor.processSectDisciplesYearlyRecruitment(year, this) }
             }
             safelyRunInState("autoBuy") { autoBuyService.executeAutoBuy(year, 1) }
             safelyRunInState("refreshAcquisition") {

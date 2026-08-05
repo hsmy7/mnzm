@@ -60,6 +60,9 @@ class CultivationEventProcessor @Inject constructor(
 
         /** 招募列表刷新间隔（年）— 与启动补刷路径（checkAndRepairMerchantAndRecruit）共用差值判据 */
         internal const val RECRUIT_REFRESH_INTERVAL_YEARS = 3
+
+        /** AI 宗门弟子周期性招募间隔（年）— 差值判据，老档相位漂移自愈/失败次年重试 */
+        internal const val AI_SECT_RECRUIT_INTERVAL_YEARS = 3
     }
     // ── 时间推进 ──────────────────────────────────────────────────────
     fun advanceMonth(state: MutableGameState? = null) {
