@@ -333,10 +333,6 @@ RunState（运行时状态 — 可循环回退）
 
 `discipleAggregates`（sample 200）+ `sectCombatPower`（sample 300）两条独立全量扫描链合并为单一 `DerivedAggregation` 派生链（sample 100 + 专用单线程调度器 + 指纹缓存）。语义保持：aggregates 覆盖全部弟子（含死亡），combatPower 仅累计存活。纯 UI 事务不触发重扫。
 
-### 待完成项（2026-08-02 综合优化对抗性审查遗留）— ✅ 全部完成（2026-08-05）
-
-T1（sequenceId 整体重编号）、T2（restart-load 完整互斥）、T3（组装并发，版本号+单线程调度器方案已闭合）三项已全部处理，详见 CHANGELOG.md 4.00.86 代码质量小节。
-
 ---
 
 ## Architecture Docs
@@ -410,65 +406,23 @@ SaveValidator.validate(SaveData)
 
 20 个测试类覆盖全部规则，位于 `data/src/test/.../integrity/rules/`。每规则独立覆盖通过/修复/损坏三类路径。
 
-## 待完成项（2026-08-04 代码质量优化方案登记）— ✅ 全部完成（2026-08-05）
+## 待完成项登记（2026-08-05 清理：历史完成项已移除，详见 CHANGELOG 4.00.86~4.00.88）
 
-函数级 4 项（executeCombatantTurn/attackSect/encounter/processBattleCasualties）、上帝对象 5 项（P4A 维持现状决策、P4C GameEngine 33→8、P4D 三项）、UI 3 项（P5 OverlayDialogRouter 分组、P6 迁移）已全部处理，详见 CHANGELOG.md 4.00.86 代码质量小节。
+> 2026-08-02 综合优化遗留（T1~T3）、2026-08-04 代码质量优化（函数级 4 项/上帝对象 5 项/UI 3 项）、2026-08-04 战斗系统函数级 11 项 + T-C1~C4、2026-08-05 存档链路 C1~C13 + T1、预存问题 P-01~P-15/P-17 均已实施（详情见 CHANGELOG 4.00.86~4.00.88）。以下为维持现状决策与待验证项。
 
-### P6 已评估不做（记录在案）
-
-- `core/ui` 5 处平台 Dialog：组件库基础设施（UnifiedGameDialog/StandardPromptDialog/SmallScreenDialog 本体），不能自我迁移
-- `clearPendingNotification`：`_pendingNotificationFlow` 仍有 GameOverlayHost UI 消费者，通知系统迁移完成前保留
-- `ui-layout-unification` 分支 4 个超限文件：分支已删除/合并，无合回风险（FileLengthRule 仍是通用门槛）
-
-## 待完成项（2026-08-04 战斗系统全面核查修复遗留）
-
-> 战斗系统全面核查修复（commit 239d13de：9 项正确性 Bug + 双引擎收敛 + 对抗性审查 12 项整改）已完成。
-> 以下为本次未完成项与对抗性审查确认的预存低危项，按优先级排序，完成标准以"≤60 行函数 / 构造依赖 ≤7"等量化指标为准。
-
-### 函数级（God Method 剩余拆分）— ✅ 全部完成（2026-08-05）
-
-11 项已全部拆分（processBattleCasualties/attackSect/attackWorldLevel/scoutSect/executeTeamConflict/distributeRewardItems/EncounterBattleService 四函数/executeAIEncounterBattle/resolveBeastAttackFight/resolveDefendersAndBattle+decidePlayerAttack/executeSupportSkill），每批 1 个方法 + 现有测试回归，RNG 调用序不变，详见 CHANGELOG.md 4.00.86 代码质量小节。
-
-### 架构级（未完成）
+### 维持现状决策（记录在案）
 
 | 项 | 位置 | 现状 | 说明 |
 |---|---|---|---|
-| W4 AISectAttackManager object → class | `core/engine/.../domain/battle/AISectAttackManager.kt` | **维持现状（2026-08-05 决策）** | 登记描述更正：探索确认 EnemyGenerator **同样未被 class 化**（与 AISectAttackManager 同为 object + 文件级 RNG var 注入模式，"它已改造"不实）。两处注入点均在 GameEngine 初始化必然执行、error() 为防御兜底，非缺陷；object→class 构造注入波及 20+ 调用点收益不明确，维持现状并记录在案 |
-| AI 引擎 turnAdvance（拉条）移植 | `core/engine/.../domain/battle/AISectAttackManager.kt` | 无 processTurnAdvance 实现 | 鹰妖"天翔一闪"等拉条技能在宗门战无效（主引擎 BattleSystem 已实现）；为稀有技能特性，移植需完整实现（行动记录/冷却/伤害结算） |
+| W4 AISectAttackManager object → class | `core/engine/.../domain/battle/AISectAttackManager.kt` | **维持现状（2026-08-05 决策）** | 探索确认 EnemyGenerator 同样未被 class 化（同为 object + 文件级 RNG var 注入模式）；两处注入点均在 GameEngine 初始化必然执行、error() 为防御兜底，非缺陷；object→class 构造注入波及 20+ 调用点收益不明确 |
+| AI 引擎 turnAdvance（拉条）移植 | `core/engine/.../domain/battle/AISectAttackManager.kt` | 不纳入（维持记录） | 鹰妖"天翔一闪"等拉条技能在宗门战无效（主引擎 BattleSystem 已实现）；为稀有技能特性，移植需完整实现（行动记录/冷却/伤害结算） |
+| P6 已评估不做 | `core/ui` 5 处平台 Dialog / `clearPendingNotification` / `ui-layout-unification` 分支 | 记录在案 | 组件库基础设施不能自我迁移；`_pendingNotificationFlow` 仍有 GameOverlayHost 消费者；分支已删除/合并无合回风险 |
+| P-11 附带：engine 模块其余 122 条 InvalidPackageDeclaration | engine 全模块旧目录布局 | 维持冻结 | battle 域 13 文件已归位（2026-08-05）；全量归位需机械移动约 122 文件，另行立项 |
 
-### 对抗性审查确认的预存低危（记录在案）— ✅ 已全部处理（2026-08-05）
+### 待真机验证
 
-T-C1~C4 已修复（estimateDamage 注入 damageModifier / 斩杀 maxHp 钳制 / EnemyGenerator 配置退化 / buildDamageZones 单次遍历），T-C5 已确认 InputValidator 强制 10 字符限制（登记过时），详见 CHANGELOG.md 4.00.86 代码质量小节。
+| # | 项 | 位置 | 验证指引 |
+|---|---|---|---|
+| P-16 | UI 迁移真机冒烟 | SettingsTab/DiscipleDetailScreen/OverlayDialogRouter | 发布前检查 4 个迁移弹窗（其他设置/年俸/存档管理/更新日志）逐一打开关闭 + OverlayDialogRouter 34 分支逐项打开一次；判定：无崩溃/白屏/交互完整/叠层路由正常 |
+| P-18 | 排行榜 rank 0/1 起始语义 | `feature/game/.../taptap/TapTapLeaderboardApi.kt` | 已做 0→1 归一化兜底（rank<1 显示 1）。真机观察：首名显示 #1 且次名重复 #1 → 服务端 1 起始，移除归一化；次名 #2 → 保留现状。抓原始 rank 与显示值对照 ≥3 次 |
 
-## 待完成项（2026-08-05 存档链路对抗性审查发现，预存问题）— ✅ 全部完成
-
-C1~C13（云读档自阻塞/loadGameFromSlot 自阻塞/大 id OOM/restart 窗口误杀/双 tap 窗口/备份修复反馈/版本校验/注册表耦合/修炼值封顶/储物袋悬空引用/rename 崩溃窗口/heavyDataLoaded/战报字段校验）+ T1 已全部修复（第一批实施 2026-08-05），详见 CHANGELOG.md 4.00.86 代码质量小节。
-
-
----
-
-## 预存问题登记（2026-08-05 核查，detekt baseline 冻结待拆分）— ✅ P-01~P-15/P-17 已实施（2026-08-05）
-
-> P-01~P-15、P-17 已全量实施（代码质量拆分批次 B1~B9 + flaky 诊断，见 CHANGELOG 4.00.87），engine 模块 detekt 违规清零、feature/game 清零。
-> P-16（UI 真机冒烟）、P-18（排行榜 rank 语义）需真机验证，保持开放。
-
-| # | 待办 | 位置 | 状态 |
-|---|------|------|------|
-| P-01 | 非分区 RNG：`(80..130).random()` | `GameEngineBattleOps.kt`（attackSect 战利品数量，实际 L188） | ✅ 提取 `sectBattleRewardCount` 纯函数 + BATTLE 分区（`80 + rng.nextInt(51)` / `20 + rng.nextInt(41)`）；GameEngineBattleOpsTest 值域/确定性守卫。**登记接受的代价**：该次宗门战胜利后 BATTLE 序列整体后移一位，旧档后续战斗随机序与旧版本不同 |
-| P-02 | executeSkillAction 9 参 / 6 return / 嵌套深 | `BattleSystem.kt` | ✅ `SkillActionContext` 参数打包 + 5 分支提取（ally 支援/团队支援/AOE/单体/普攻），主函数 5 参单 return when 分发 |
-| P-03 | processTurnAdvance 圈复杂度 26 / 4 return | `BattleSystem.kt` | ✅ 6 提取（resolveAdvancedAlly/decideAdvancedAction/executeAdvancedAction/buildAdvancedActionLog/applyAdvancedDamage/updateAdvancedCooldown），RNG 序 selectSkill→selectTarget 保持 |
-| P-04 | executeBattleWithTimeout 106 行 / 复杂度 17 | `BattleSystem.kt` | ✅ 3 提取（buildBattleSnapshots/updateBattleSnapshots/resolveBattleWinner），主函数 ≈45 行 |
-| P-05 | executeUnifiedAIBattle 复杂度 16 | `AISectAttackManager.kt` | ✅ `AiBattleRoundOutcome` + executeAiRound + resolveAiWinner；主循环运行标志 0 break；**保留 isDead 运行时守卫**（executeAiCombatantTurn 内部无守卫，快照构建后被击杀者仍需跳过——修正拆分方案的"冗余"误判） |
-| P-06 | executeSupportAction 复杂度 17 | `AISectAttackManager.kt` | ✅ 5 提取（resolveSupportTargets/applySupportHealing/applySupportTeamBuffs/updateSupportCooldown/buildSupportActionLog），aisRng 抽数位置保留 |
-| P-07 | applyAoeSingleTarget 8 参 | `AISectAttackManager.kt` | ✅ attackerType 由 side 推导删参（调用点已验证等价）+ `AoeWriteBackContext` 打包 → 4 参 |
-| P-08 | selectAITarget 3 return / 长行 / 循环多跳转 | `AISectAttackManager.kt` | ✅ 2 return 链式 + 折行；顺带修复被泛化 baseline 掩盖的 2 个循环违规（decideAttacks/decidePlayerAttack 各 2 jump → 1） |
-| P-09 | calculateCombatantDamage 62 行 | `BattleCalculator.kt` | ✅ tryInstantKill/tryDodge/computeDamagePipeline 提取，主函数 1 return 链式；RNG 序（dodge→crit→variance）由 3 个抽数序对拍测试守卫（0/1/2 抽数） |
-| P-10 | buildDiscipleEnemy 复杂度 23 | `HeavenlyTrialService.kt` | ✅ selectTrialManuals/selectTrialEquipment/buildTrialBaseStats/buildTrialSkills 提取；buildTrialBaseStats 复杂度 19 二次拆分（sumEquipStatBonuses/sumManualStatBonuses）→ 主函数 ~5；7 次 rngVar 抽数序保持 |
-| P-11 | BattleDamageApplier 包声明不匹配 | `battle 域 13 文件` | ✅ battle 域 13 文件 git mv 归位至 `engine/domain/battle/`（包声明不变、import 全不变）；删 12 条 InvalidPackageDeclaration baseline；EncounterBattleService 不动 |
-| P-12 | EnemyGenerator 长行若干 | `EnemyGenerator.kt` | ✅ 6 处折行（enemyRng getter/两个签名/4 条属性行）；L334 LongMethod stale 删除 |
-| P-13 | 测试文件违规（BattleSystemTest/BattleCalculatorCoverageTest 参数超限/长行） | `core/engine/src/test` | ✅ combatant 11→7 参 / 10→7 参（skills/buffs/realm 改 .copy()）；37 处长行折行；29 处 UnusedImports + 8 处额外 MaxLineLength 全清（含未登记项） |
-| P-14 | GameStateStoreLoadRaceTest/RollbackTest 偶发 flaky | `app/src/test` | ✅ 诊断：H1（assemble check-then-act 竞态）300 轮压力实证 0 失败未复现→转 30 轮正式守卫测试；H3（statsProvider 静态污染）枚举排除（全部赋值良性）；**H2 确认为最可能根因**：TestPolling 5s 超时在慢 CI 不足 → 提升至 15s |
-| P-15 | AISectBattleProcessor 迁移无直接单测 | `AISectBattleProcessor.kt` | ✅ 新增 AISectBattleProcessorTest（升级链/玩家不升级/仓库清理/热控分批/入口全链路，@After 防静态污染）；AI-vs-AI 决策应用深度断言依赖完整状态构造，由 CaveExplorationProcessorTest.buildDefenseBattleEnemies + 全量回归兜底 |
-| P-16 | UI 迁移真机冒烟 | SettingsTab/DiscipleDetailScreen/OverlayDialogRouter | ⏳ 待真机：发布前检查 4 个迁移弹窗（其他设置/年俸/存档管理/更新日志）与 34 分支路由 |
-| P-17 | GameViewModel 构造 20 参数超规（LongParameterList baseline 豁免） | `feature/game/.../GameViewModel.kt` | ✅ 删 6 个零使用参数（appContext/productionFacade/inventoryFacade/battleFacade/diplomacyFacade/saveFacade）+ 4 个 @Inject 值对象归组（AudioServices/CoreServices/UiServices/DelegateServices）→ 构造 5 参；18 个 Delegate 零改动；baseline L303 删除；排行榜接入未加重债务（LeaderboardViewModel 独立） |
-| P-18 | 排行榜 rank 0/1 起始语义真机验证 | `feature/game/.../taptap/TapTapLeaderboardApi.kt` | ⏳ 待真机：首名显示 #1 且次名重复 #1 → 服务端 1 起始，移除归一化；次名 #2 → 保留现状。抓原始 rank 与显示值对照 ≥3 次 |
