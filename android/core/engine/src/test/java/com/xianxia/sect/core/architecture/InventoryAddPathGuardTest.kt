@@ -52,6 +52,30 @@ class InventoryAddPathGuardTest {
     )
 
     /**
+     * 反模式 5：向实例表（equipmentInstances/manualInstances）直接追加。
+     *
+     * 历史 bug（2026-08-05）：天道试炼通关奖励把装备/功法发放写成
+     * `equipmentInstances = equipmentInstances + instance`，而仓库 UI 只渲染
+     * 堆叠轨道（equipmentStacks/manualStacks），玩家领取后物品不可见。
+     *
+     * 实例轨道仅允许以下语义（白名单见 [instanceAllowedFileNames]）：
+     * - 弟子装备/功法分配（ownerId 绑定，从仓库堆叠扣减后转实例）
+     * - 俘虏模板 id → 玩家 UUID 实例转换（CaptiveGearUtils）
+     * - 自动装备/学习落库（袋内堆叠 → 实例）
+     * - AI 敌人装备生成（非玩家发放）
+     * - InventorySystem.addEquipmentInstance/addManualInstance 自身
+     *
+     * 玩家物品发放必须委托 InventorySystem.addEquipmentStack/addManualStack
+     * （堆叠轨道，仓库可见 + 来源追踪 + 溢出兜底）。
+     */
+    // 发放误写实例轨道的教训：装备/功法奖励对玩家不可见（仓库只渲染堆叠）
+    private val instanceAppendPattern = Regex(
+        "(equipmentInstances|manualInstances)\\s*(\\+=|=)\\s*\\(?\\s*(?:state|this)?\\s*\\.?" +
+            "\\s*\\1\\s*(?:\\+|\\s*\\.\\s*plus\\s*\\()" +
+            "|(equipmentInstances|manualInstances)\\s*\\.\\s*add\\s*\\("
+    )
+
+    /**
      * 白名单：离线遗留仓库路径（SectWarehouse/WarehouseItem，主流程未使用），
      * 仍保留自己的堆叠实现，不属于统一入口范围。
      * 对抗性审查修复：按相对路径匹配（避免任意包下同名文件被静默豁免），
@@ -140,6 +164,21 @@ class InventoryAddPathGuardTest {
      */
     private val storeAllowedFiles = setOf("InventorySystem.kt", "ProductionProcessor.kt")
 
+    /**
+     * 允许直接写实例表的文件（分配/转换/落库/AI 语义，非玩家仓库发放）。
+     * 2026-08-05 全量扫描确认共 11 处写入点，全部为合法分配路径；
+     * 新增玩家物品发放路径必须走 addEquipmentStack/addManualStack，不得加入此白名单。
+     */
+    private val instanceAllowedFileNames = setOf(
+        "InventorySystem.kt",           // 统一入口 addEquipmentInstance/addManualInstance 自身
+        "CaptiveGearUtils.kt",          // 俘虏模板 id → 玩家 UUID 实例转换（守卫文档已豁免）
+        "DiscipleFacadeImpl.kt",        // 弟子装备/功法分配（ownerId 绑定）
+        "DiscipleEquipmentService.kt",  // 装备实例状态/分配
+        "GameEngineCoordination.kt",    // 弟子学功法/替换功法（ownerId 绑定）
+        "CultivationEventProcessor.kt", // 自动装备/学习袋内堆叠落库
+        "EnemyGenerator.kt"             // AI 敌人装备生成（非玩家发放）
+    )
+
     @Test
     fun `no hand-written StackableItemStore outside unified entry`() {
         val files = sourceFiles().filter { it.name !in storeAllowedFiles }
@@ -148,6 +187,32 @@ class InventoryAddPathGuardTest {
             "发现 ${matches.size} 处手写 StackableItemStore 构造：\n" +
                 matches.joinToString("\n") { it.second } +
                 "\n应改为委托 InventorySystem.addXxx（自动获得合并/溢出转邮件/容量通知能力）",
+            emptyList<Pair<File, String>>(), matches
+        )
+    }
+
+    @Test
+    fun `instance-append whitelist files still exist`() {
+        val files = sourceFiles().map { it.name }.toSet()
+        val missing = instanceAllowedFileNames.filter { it !in files }
+        assertEquals(
+            "白名单文件不存在或已被改名/删除：$missing\n" +
+                "若文件确实已移除，请同时删除对应白名单条目",
+            emptyList<String>(), missing
+        )
+    }
+
+    @Test
+    fun `no instance-table append outside disciple assignment paths`() {
+        val files = sourceFiles().filter { it.name !in instanceAllowedFileNames }
+        val matches = matchesIn(files, instanceAppendPattern)
+        assertEquals(
+            "发现 ${matches.size} 处实例表直接追加：\n" +
+                matches.joinToString("\n") { it.second } +
+                "\n玩家物品发放误写实例轨道（equipmentInstances/manualInstances）时，" +
+                "仓库 UI 不渲染该轨道，奖励对玩家不可见。" +
+                "\n发放必须委托 InventorySystem.addEquipmentStack/addManualStack" +
+                "（堆叠轨道，仓库可见 + 来源追踪 + 溢出兜底）",
             emptyList<Pair<File, String>>(), matches
         )
     }

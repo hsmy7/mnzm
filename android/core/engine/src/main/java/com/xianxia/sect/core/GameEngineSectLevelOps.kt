@@ -140,6 +140,7 @@ suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult = 
         var allSucceeded = true
         stateStore.update {
             inventorySystem.withOverflowMailSuppressed {
+            inventorySystem.withTrackingSource("sect_level") {
             generatedBeastBlood.forEach { (name, pair) ->
                 val template = BeastMaterialDatabase.getMaterialsByRarity(pair.first)
                     .find { it.name == name && it.category == "blood" }
@@ -189,6 +190,7 @@ suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult = 
                 val updatedRecords = gameData.sectLevelClaimRecords
                     .filter { it.level != level } + newRecord
                 gameData = gameData.copy(sectLevelClaimRecords = updatedRecords)
+            }
             }
             }
         }

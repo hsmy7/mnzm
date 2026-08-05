@@ -249,6 +249,14 @@
 - **已完成项段落移除** — 2026-08-02 综合优化遗留（T1~T3）、2026-08-04 代码质量优化（函数级/上帝对象/UI）、2026-08-04 战斗系统函数级 11 项 + T-C1~C4、2026-08-05 存档链路 C1~C13 + T1、预存问题 P-01~P-15/P-17 全量完成段落从 architecture.md 移除（详情见本版本及 4.00.86/4.00.87）
 - **待完成项登记精简** — 保留维持现状决策（W4 object→class、AI 拉条移植不纳入、P6 评估不做、122 条 InvalidPackageDeclaration 冻结）与待真机验证（P-16 UI 迁移冒烟、P-18 排行榜 rank 语义），指引见 architecture.md 登记表
 
+### 修复（2026-08-05 天道试炼奖励发放不进仓库）
+
+- **试炼通关奖励统一走 InventorySystem 入口** — 第六/七/八关 randomEquipment/randomManual 此前直接写 equipmentInstances/manualInstances（实例轨道），仓库 UI 只渲染堆叠轨道（equipmentStacks/manualStacks）导致领取后不可见且无来源统计/溢出兜底；现统一委托 addEquipmentStack/addManualStack，丹药/储物袋从手写 mergeStackable 收敛到 addPill/addStorageBag；凭据类语义（withOverflowMailSuppressed + Partial/Failure 抛异常整体回滚，catch 在 update 外——参照 GameEngineSectLevelOps，区别于 DailySignInService 的 catch 在 update 内导致 Partial 部分入仓的问题模式），容量不足时凭据保留可重试
+- **守卫测试增强** — InventoryAddPathGuardTest 新增"实例表直接追加"反模式（equipmentInstances/manualInstances 的 `+=`/`= list + x`/`.add(`），7 个合法分配点白名单（弟子装备/功法分配、俘虏转换、自动装备落库、AI 敌人、统一入口自身），防止未来发放路径再次误写实例轨道
+- **GameEngineSectLevelOps 补来源追踪** — claimSectLevelReward 发放补 withTrackingSource("sect_level")（映射表内此前为无调用点的死条目，年度报告统计现可正确归因）
+- **测试** — 新增 HeavenlyTrialClaimRewardTest 6 用例（装备/功法落堆叠轨道、年度来源 trial:5、重复领取、未通关、容量满整体回滚凭据保留）+ TrialTestStore（COW 副本 + 重入缓冲模拟 GameStateStoreImpl 事务语义）；验证：compileReleaseKotlin + 试炼/守卫测试通过
+- **途中发现登记** — 调查中发现的 3 项遗留问题（弟子储物袋手写合并路径 P-19 / 守卫不扫描 domain 模块 P-20 / 签到"事务回滚"注释不符 P-21）登记至 architecture.md 待完成项，另行立项处理
+
 ## [4.0.85] - 2026-08-02
 
 ### 新增（2026-08-02 一键拆除建筑）

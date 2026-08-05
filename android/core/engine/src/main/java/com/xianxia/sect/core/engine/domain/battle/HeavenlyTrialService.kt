@@ -11,7 +11,6 @@ import com.xianxia.sect.core.config.HeavenlyTrialConfig
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.model.ClearRewardItem
 import com.xianxia.sect.core.model.CombatSkill
-import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.model.HEAVENLY_TRIAL_CLEAR_REWARDS
@@ -20,18 +19,20 @@ import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.TrialEnemyDef
 import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.state.mergeStackable
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import javax.inject.Inject
 import javax.inject.Singleton
 import com.xianxia.sect.core.util.DeterministicRng
+import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import java.util.Locale
@@ -50,7 +51,8 @@ class HeavenlyTrialService @Inject constructor(
     private val stateStore: GameStateStore,
     private val inventoryConfig: InventoryConfig,
     private val spiritStoneWallet: SpiritStoneWallet,
-    private val rngManager: GameRngManager
+    private val rngManager: GameRngManager,
+    private val inventorySystem: InventorySystem
 ) {
 
     fun buildBeastEnemy(levelIndex: Int, def: TrialEnemyDef, index: Int): Combatant {
@@ -416,9 +418,9 @@ class HeavenlyTrialService @Inject constructor(
         val reward = HEAVENLY_TRIAL_CLEAR_REWARDS.find { it.levelIndex == levelIndex }
             ?: return ClaimClearRewardResult.LevelNotCleared
 
-        // 预校验容量：在 update 事务外做只读检查。
-        // 通过后才进入事务写入 claimedRewardLevels flag，避免"奖励未实际发放但 flag 已写入"
-        // 导致用户无法重领的历史 bug。
+        // 预校验容量（storageBag 快速失败）：在 update 事务外做只读检查。
+        // randomEquipment/randomManual/randomPill 随机物品名未知，无法精确预校验，
+        // 由事务内 addXxx 溢出抛异常整体回滚兜底（凭据保留，清理后可重试）。
         val capacityCheck = checkRewardCapacity(
             reward = reward,
             storageBags = stateStore.storageBagsSnapshot,
@@ -430,17 +432,30 @@ class HeavenlyTrialService @Inject constructor(
 
         val generatedCards = mutableListOf<RewardCardItem>()
 
-        stateStore.update {
-            // 原子内二次检查：防止并发重复领取（外层检查在 mutex 外，快速双击可能绕过）
-            if (levelIndex in gameData.heavenlyTrialState.claimedRewardLevels) {
-                return@update
-            }
-            distributeRewardItems(reward, inventoryConfig, generatedCards)
-            gameData = gameData.copy(
-                heavenlyTrialState = gameData.heavenlyTrialState.copy(
-                    claimedRewardLevels = gameData.heavenlyTrialState.claimedRewardLevels + levelIndex
+        try {
+            stateStore.update {
+                // 原子内二次检查：防止并发重复领取（外层检查在 mutex 外，快速双击可能绕过）
+                if (levelIndex in gameData.heavenlyTrialState.claimedRewardLevels) {
+                    return@update
+                }
+                // 凭据类路径（与宗门等级奖励一致）：溢出抑制转邮件，
+                // addXxx 返回 Partial/Failure 时抛异常 → 异常传播出 update → 事务整体回滚，
+                // claimedRewardLevels 不写入，玩家清理仓库后可重试补齐，不会部分入仓。
+                inventorySystem.withOverflowMailSuppressed {
+                    inventorySystem.withTrackingSource("trial") {
+                        distributeRewardItems(reward, generatedCards)
+                    }
+                }
+                gameData = gameData.copy(
+                    heavenlyTrialState = gameData.heavenlyTrialState.copy(
+                        claimedRewardLevels = gameData.heavenlyTrialState.claimedRewardLevels + levelIndex
+                    )
                 )
-            )
+            }
+        } catch (e: IllegalStateException) {
+            // 容量不足/发放失败 → 事务整体回滚（物品/凭据均未写），凭据保留可重试
+            DomainLog.w(TAG, "claimClearReward: level=$levelIndex 仓库容量不足（事务已回滚）: ${e.message}")
+            return ClaimClearRewardResult.CapacityInsufficient(e.message)
         }
 
         return ClaimClearRewardResult.Success(generatedCards)
@@ -449,17 +464,18 @@ class HeavenlyTrialService @Inject constructor(
     /**
      * 在 [MutableGameState] 上下文中发放通关奖励物品。
      * 从 [claimClearReward] 提取，控制函数在 60 行以内。
+     * 可堆叠物品统一委托 InventorySystem.addXxx（StackableItemStore 合并 +
+     * withTrackingSource 来源追踪 + 溢出邮件兜底），Partial/Failure 抛异常整体回滚。
      */
     private fun MutableGameState.distributeRewardItems(
         reward: HeavenlyTrialClearReward,
-        inventoryConfig: InventoryConfig,
         generatedCards: MutableList<RewardCardItem>
     ) {
         for (item in reward.items) {
             when (item.itemType) {
                 "spiritStones" -> grantSpiritStoneRewardItem(item, generatedCards)
-                "storageBag" -> grantStorageBagRewardItem(item, inventoryConfig, generatedCards)
-                "randomPill" -> grantRandomPillRewards(item, inventoryConfig, generatedCards)
+                "storageBag" -> grantStorageBagRewardItem(item, generatedCards)
+                "randomPill" -> grantRandomPillRewards(item, generatedCards)
                 "randomEquipment" -> grantRandomEquipmentRewards(item, generatedCards)
                 "randomManual" -> grantRandomManualRewards(item, generatedCards)
             }
@@ -481,13 +497,11 @@ class HeavenlyTrialService @Inject constructor(
     /** 储物袋奖励发放（distributeRewardItems 提取） */
     private fun MutableGameState.grantStorageBagRewardItem(
         item: ClearRewardItem,
-        inventoryConfig: InventoryConfig,
         generatedCards: MutableList<RewardCardItem>
     ) {
         val qty = item.quantity.coerceAtLeast(1)
         val rarity = item.rarity.coerceIn(1, 6)
         val bagName = StorageBag.TIER_NAMES.getOrElse(rarity - 1) { "凡品储物袋" }
-        val maxStack = inventoryConfig.getMaxStackSize("storageBag")
         val newBag = StorageBag(
             id = java.util.UUID.randomUUID().toString(),
             name = bagName,
@@ -495,13 +509,15 @@ class HeavenlyTrialService @Inject constructor(
             description = "${bagName}，可开启获得随机物品",
             quantity = qty
         )
-        // 使用 mergeStackable 处理溢出：合并到同类堆叠，超过上限时新建堆叠，
-        // 替代旧的 coerceAtMost 截断模式（避免数量静默丢失）。
-        storageBags = storageBags.mergeStackable(
-            item = newBag,
-            matchPredicate = { it.rarity == rarity },
-            maxStack = maxStack
-        )
+        // 统一委托 addStorageBag（StackableItemStore 合并 + 来源追踪 + 溢出邮件），
+        // 替代手写 mergeStackable（无来源追踪、无仓库容量约束）
+        when (val result = inventorySystem.addStorageBag(newBag)) {
+            is DomainResult.Success -> {}
+            is DomainResult.Partial ->
+                error("储物袋 $bagName 仓库空间不足，溢出 ${result.overflow} 个")
+            is DomainResult.Failure ->
+                error("储物袋 $bagName 发放失败: ${result.error}")
+        }
         generatedCards.add(RewardCardItem(
             itemName = bagName, itemType = "storageBag",
             rarity = rarity, quantity = qty
@@ -511,31 +527,28 @@ class HeavenlyTrialService @Inject constructor(
     /** 随机丹药奖励发放（distributeRewardItems 提取） */
     private fun MutableGameState.grantRandomPillRewards(
         item: ClearRewardItem,
-        inventoryConfig: InventoryConfig,
         generatedCards: MutableList<RewardCardItem>
     ) {
         val qty = item.quantity.coerceAtLeast(1)
         val generated = mutableListOf<RewardCardItem>()
         val minRarity = item.rarity
         val maxRarity = item.rarity
-        val maxStack = inventoryConfig.getMaxStackSize("pill")
         repeat(qty) {
             val pill = ItemDatabase.generateRandomPill(
                 minRarity = minRarity, maxRarity = maxRarity
             ).copy(
                 id = java.util.UUID.randomUUID().toString(), quantity = 1
             )
-            // 使用 mergeStackable 处理溢出，替代旧的"达上限静默丢弃"模式。
-            // 修复历史 bug：原实现仅当 existing.quantity < maxStack 才合并，
+            // 统一委托 addPill（StackableItemStore 合并 + 来源追踪 + 溢出邮件）。
+            // 修复历史 bug：原 mergeStackable 实现仅当 existing.quantity < maxStack 才合并，
             // 否则静默丢弃且未设置 capacityError，导致奖励物品消失。
-            pills = pills.mergeStackable(
-                item = pill,
-                matchPredicate = {
-                    it.name == pill.name && it.rarity == pill.rarity &&
-                        it.category == pill.category
-                },
-                maxStack = maxStack
-            )
+            when (val result = inventorySystem.addPill(pill)) {
+                is DomainResult.Success -> {}
+                is DomainResult.Partial ->
+                    error("丹药 ${pill.name} 仓库空间不足，溢出 ${result.overflow} 个")
+                is DomainResult.Failure ->
+                    error("丹药 ${pill.name} 发放失败: ${result.error}")
+            }
             generated.add(RewardCardItem(
                 itemName = pill.name, itemType = "pill",
                 rarity = pill.rarity, quantity = 1
@@ -557,26 +570,19 @@ class HeavenlyTrialService @Inject constructor(
                 minRarity = targetRarity,
                 maxRarity = targetRarity
             )
-            val instance = EquipmentInstance(
-                id = java.util.UUID.randomUUID().toString(),
-                name = stack.name,
-                rarity = stack.rarity,
-                description = stack.description,
-                slot = stack.slot,
-                physicalAttack = stack.physicalAttack,
-                magicAttack = stack.magicAttack,
-                physicalDefense = stack.physicalDefense,
-                magicDefense = stack.magicDefense,
-                speed = stack.speed,
-                hp = stack.hp,
-                mp = stack.mp,
-                critChance = stack.critChance,
-                minRealm = stack.minRealm
-            )
-            equipmentInstances = equipmentInstances + instance
+            // 统一委托 addEquipmentStack：进仓库堆叠轨道（equipmentStacks，仓库 UI 可见）。
+            // 修复历史 bug：此前手写 EquipmentInstance 直接写 equipmentInstances（实例轨道），
+            // 仓库 UI 只渲染堆叠不渲染实例 → 领取后装备不可见，且无来源追踪/溢出兜底。
+            when (val result = inventorySystem.addEquipmentStack(stack)) {
+                is DomainResult.Success -> {}
+                is DomainResult.Partial ->
+                    error("装备 ${stack.name} 仓库空间不足，溢出 ${result.overflow} 个")
+                is DomainResult.Failure ->
+                    error("装备 ${stack.name} 发放失败: ${result.error}")
+            }
             generated.add(RewardCardItem(
-                itemName = instance.name, itemType = "equipment",
-                rarity = instance.rarity, quantity = 1
+                itemName = stack.name, itemType = "equipment",
+                rarity = stack.rarity, quantity = 1
             ))
         }
         generatedCards.addAll(mergeCardsByName(generated))
@@ -595,14 +601,19 @@ class HeavenlyTrialService @Inject constructor(
                 minRarity = targetRarity,
                 maxRarity = targetRarity
             )
-            val instance = stack.toInstance(
-                id = java.util.UUID.randomUUID().toString(),
-                isLearned = false
-            )
-            manualInstances = manualInstances + instance
+            // 统一委托 addManualStack：进仓库功法堆叠轨道（manualStacks，仓库 UI 可见）。
+            // 修复历史 bug：此前手写 toInstance 直接写 manualInstances（实例轨道），
+            // 仓库 UI 只渲染堆叠不渲染实例 → 领取后功法不可见。
+            when (val result = inventorySystem.addManualStack(stack)) {
+                is DomainResult.Success -> {}
+                is DomainResult.Partial ->
+                    error("功法 ${stack.name} 仓库空间不足，溢出 ${result.overflow} 个")
+                is DomainResult.Failure ->
+                    error("功法 ${stack.name} 发放失败: ${result.error}")
+            }
             generated.add(RewardCardItem(
-                itemName = instance.name, itemType = "manual",
-                rarity = instance.rarity, quantity = 1
+                itemName = stack.name, itemType = "manual",
+                rarity = stack.rarity, quantity = 1
             ))
         }
         generatedCards.addAll(mergeCardsByName(generated))
@@ -636,17 +647,16 @@ class HeavenlyTrialService @Inject constructor(
      * 提取为 companion object 静态方法以便单元测试。
      *
      * 校验项：
-     * - storageBag：现有同类堆叠未达上限（达上限则用户应先清理背包）
+     * - storageBag：现有同类堆叠未达上限（达上限则用户应先清理背包）——快速失败路径
      *
-     * 不校验 randomEquipment/randomManual：使用 EquipmentDatabase/ManualDatabase
-     * 直接生成，不依赖玩家现有库存。
-     *
-     * 不校验 randomPill：丹药生成是随机的，且 mergeStackable 会自动新建堆叠处理溢出，
-     * 不存在"无法发放"的前置失败条件。
+     * 不校验 randomEquipment/randomManual/randomPill：随机生成物品名未知，无法精确预估
+     * 合并结果；由事务内 addXxx 溢出抛异常整体回滚兜底（凭据保留，清理后可重试）。
      *
      * 不校验 spiritStones：Long 类型无上限。
      */
     internal companion object {
+        private const val TAG = "HeavenlyTrialService"
+
         fun checkRewardCapacity(
             reward: HeavenlyTrialClearReward,
             storageBags: List<StorageBag>,
@@ -664,8 +674,7 @@ class HeavenlyTrialService @Inject constructor(
                             )
                         }
                     }
-                    // randomEquipment/randomManual 使用 EquipmentDatabase/ManualDatabase
-                    // 直接生成，不依赖玩家库存，无需预校验
+                    // randomEquipment/randomManual/randomPill：由事务内 addXxx 溢出回滚兜底
                 }
             }
             return RewardCapacityCheck.Ok

@@ -26,7 +26,8 @@ class HeavenlyTrialServiceTest {
             stateStore = mock(GameStateStore::class.java),
             inventoryConfig = mock(InventoryConfig::class.java),
             spiritStoneWallet = mock(SpiritStoneWallet::class.java),
-            rngManager = rngManager
+            rngManager = rngManager,
+            inventorySystem = mock(com.xianxia.sect.core.engine.system.InventorySystem::class.java)
         )
         // 预充功法数据（使用空数据+一个备用功法避免 NPE）
         ManualDatabase.initializeWithManuals(mapOf(

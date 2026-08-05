@@ -426,3 +426,13 @@ SaveValidator.validate(SaveData)
 | P-16 | UI 迁移真机冒烟 | SettingsTab/DiscipleDetailScreen/OverlayDialogRouter | 发布前检查 4 个迁移弹窗（其他设置/年俸/存档管理/更新日志）逐一打开关闭 + OverlayDialogRouter 34 分支逐项打开一次；判定：无崩溃/白屏/交互完整/叠层路由正常 |
 | P-18 | 排行榜 rank 0/1 起始语义 | `feature/game/.../taptap/TapTapLeaderboardApi.kt` | 已做 0→1 归一化兜底（rank<1 显示 1）。真机观察：首名显示 #1 且次名重复 #1 → 服务端 1 起始，移除归一化；次名 #2 → 保留现状。抓原始 rank 与显示值对照 ≥3 次 |
 
+### 途中发现待办（2026-08-05 天道试炼奖励修复时登记，详见 CHANGELOG 4.00.88 修复小节）
+
+> 本次修复（试炼奖励统一 InventorySystem 入口）调查中发现以下遗留问题，均不属同一 bug 类、改动面独立，另行处理。
+
+| # | 项 | 位置 | 现状与处理指引 |
+|---|---|---|---|
+| P-19 | 弟子奖励发放手写合并路径（绕统一入口） | `core/engine/.../domain/disciple/DiscipleFacadeImpl.kt` rewardEquipment/rewardManual（:319-343/:375-383）+ `core/domain/.../util/StorageBagUtils.kt` increaseItemQuantity（:45-55） | 弟子储物袋**转移**语义（仓库扣减→袋内堆叠合并），物品对玩家可见非不可见 bug，但绕过 InventorySystem：无来源追踪、`coerceAtMost` 截断溢出静默丢失。待单独评估是否收编进 InventorySystem |
+| P-20 | 守卫测试不扫描 domain 模块 | `core/engine/src/test/.../InventoryAddPathGuardTest.kt`（扫描范围仅 engine src/main/java） | `StorageBagUtils.mergeEquipmentStackToWarehouse/mergeManualStackToWarehouse`（:95-147）手写 `StackableItemStore(` 在扫描范围外。待评估将 domain 模块纳入扫描或收编 |
+| P-21 | DailySignInService"事务回滚"注释与实际不符 | `core/engine/.../service/DailySignInService.kt` distributeReward（:255-258） | catch 在 `stateStore.update` lambda **内**，异常被捕获后事务正常提交，Partial 部分物品实际入仓（与注释"物品/claimedDays 均未写"不符）；对照 GameEngineSectLevelOps 已验证的"catch 在外"模式，待核查签到溢出行为并统一 |
+
