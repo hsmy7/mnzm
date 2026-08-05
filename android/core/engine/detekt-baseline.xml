@@ -20,14 +20,13 @@
     <ID>CyclomaticComplexMethod:AISectGarrisonManager.kt$AISectGarrisonManager$fun fillEmptyGarrisonSlots(gameData: GameData): GameData</ID>
     <ID>CyclomaticComplexMethod:AISectTeamComposer.kt$internal fun generateWarRewards(sectLevel: Int, itemCount: Int): WarRewards</ID>
     <ID>CyclomaticComplexMethod:AutoBuyService.kt$AutoBuyService$fun executeAutoBuy(year: Int, month: Int, state: MutableGameState)</ID>
-    <ID>CyclomaticComplexMethod:BattleAI.kt$BattleAI$fun decideAction( unit: Combatant, allies: List&lt;Combatant&gt;, enemies: List&lt;Combatant&gt;, rng: DeterministicRng ): AIAction</ID>
+    <ID>CyclomaticComplexMethod:BattleAI.kt$BattleAI$fun decideAction( unit: Combatant, allies: List&lt;Combatant&gt;, enemies: List&lt;Combatant&gt;, rng: DeterministicRng, playerDamageModifier: Double = 1.0 ): AIAction</ID>
     <ID>CyclomaticComplexMethod:BattleAI.kt$BattleAI$private fun findAllySupport( unit: Combatant, allies: List&lt;Combatant&gt;, supportSkills: List&lt;CombatSkill&gt; ): AIAction?</ID>
     <ID>CyclomaticComplexMethod:BattleAI.kt$BattleAI$private fun findSelfPreservation( unit: Combatant, supportSkills: List&lt;CombatSkill&gt; ): AIAction?</ID>
     <ID>CyclomaticComplexMethod:BattleCalculator.kt$BattleCalculator$fun calculateCombatantDamage( attacker: Combatant, defender: Combatant, skill: CombatSkill? = null, damageModifier: Double = 1.0, zones: DamageZones? = null, enableInstantKill: Boolean = false, rng: DeterministicRng ): DamageResult</ID>
     <ID>CyclomaticComplexMethod:BattleCalculator.kt$BattleCalculator$fun executeSupportSkill( caster: Combatant, allies: List&lt;Combatant&gt;, skill: CombatSkill, allCombatants: List&lt;Combatant&gt; = emptyList() ): SupportResult</ID>
     <ID>CyclomaticComplexMethod:BattleCalculator.kt$BattleCalculator$fun selectSkill( combatant: Combatant, enemies: List&lt;Combatant&gt;, allies: List&lt;Combatant&gt;, isSilenced: Boolean, rng: DeterministicRng ): CombatSkill?</ID>
     <ID>CyclomaticComplexMethod:BattleSystem.kt$BattleSystem$fun executeBattleWithTimeout(battle: Battle, timeoutMs: Long = GameConfig.Battle.MAX_BATTLE_DURATION_MS): BattleSystemResult</ID>
-    <ID>CyclomaticComplexMethod:BattleSystem.kt$BattleSystem$private fun executeCombatantTurn(ctx: TurnContext, combatant: Combatant): TurnOutcome</ID>
     <ID>CyclomaticComplexMethod:BattleSystem.kt$BattleSystem$private fun processTurnAdvance( ctx: TurnContext, result: AttackResult, allies: MutableList&lt;Combatant&gt;, currentCombatant: Combatant, isTeamMember: Boolean, enemiesIndexMap: Map&lt;String, Int&gt; )</ID>
     <ID>CyclomaticComplexMethod:BeastAttackDetector.kt$BeastAttackDetector$fun detectAttacks(gd: GameData): List&lt;PendingBeastAttack&gt;</ID>
     <ID>CyclomaticComplexMethod:BootSequenceController.kt$BootSequenceController$@Suppress("LongParameterList") suspend fun boot( slot: Int, onPreloadResources: suspend () -&gt; Unit = {}, onProgress: (Float) -&gt; Unit = {}, onPhase: (String) -&gt; Unit = {}, onMapReady: (MapPreloadData) -&gt; Unit = {}, onSuccess: () -&gt; Unit = {}, onError: (String) -&gt; Unit = {} ): Result&lt;Unit&gt;</ID>
@@ -298,11 +297,10 @@
     <ID>LongMethod:AISectBeastAttackProcessor.kt$AISectBeastAttackProcessor$private fun executeAIEncounterBattle( state: MutableGameState, sectA: WorldSect, sectB: WorldSect, beast: WorldLevel, year: Int )</ID>
     <ID>LongMethod:AISectDiscipleManager.kt$AISectDiscipleManager$fun generateRandomDisciple(sectName: String, maxRealm: Int = 9, existingNames: Set&lt;String&gt; = emptySet()): Disciple</ID>
     <ID>LongMethod:AISectTeamComposer.kt$internal fun generateWarRewards(sectLevel: Int, itemCount: Int): WarRewards</ID>
-    <ID>LongMethod:BattleAI.kt$BattleAI$fun decideAction( unit: Combatant, allies: List&lt;Combatant&gt;, enemies: List&lt;Combatant&gt;, rng: DeterministicRng ): AIAction</ID>
+    <ID>LongMethod:BattleAI.kt$BattleAI$fun decideAction( unit: Combatant, allies: List&lt;Combatant&gt;, enemies: List&lt;Combatant&gt;, rng: DeterministicRng, playerDamageModifier: Double = 1.0 ): AIAction</ID>
     <ID>LongMethod:BattleCalculator.kt$BattleCalculator$fun executeSupportSkill( caster: Combatant, allies: List&lt;Combatant&gt;, skill: CombatSkill, allCombatants: List&lt;Combatant&gt; = emptyList() ): SupportResult</ID>
     <ID>LongMethod:BattleSystem.kt$BattleSystem$fun executeBattleWithTimeout(battle: Battle, timeoutMs: Long = GameConfig.Battle.MAX_BATTLE_DURATION_MS): BattleSystemResult</ID>
     <ID>LongMethod:BattleSystem.kt$BattleSystem$private fun createBeast( beastRealm: Int, index: Int, beastType: String? = null, preGenStats: BeastPreGenStats? = null ): Combatant</ID>
-    <ID>LongMethod:BattleSystem.kt$BattleSystem$private fun executeCombatantTurn(ctx: TurnContext, combatant: Combatant): TurnOutcome</ID>
     <ID>LongMethod:BootSequenceController.kt$BootSequenceController$@Suppress("LongParameterList") suspend fun boot( slot: Int, onPreloadResources: suspend () -&gt; Unit = {}, onProgress: (Float) -&gt; Unit = {}, onPhase: (String) -&gt; Unit = {}, onMapReady: (MapPreloadData) -&gt; Unit = {}, onSuccess: () -&gt; Unit = {}, onError: (String) -&gt; Unit = {} ): Result&lt;Unit&gt;</ID>
     <ID>LongMethod:BuildingConfigService.kt$BuildingConfigService$private fun createDefaultConfig(): BuildingsConfig</ID>
     <ID>LongMethod:BuildingFeatureTestRegistration.kt$fun BuildingFeatureRegistry.registerTestFeatures()</ID>
@@ -1002,7 +1000,6 @@
     <ID>MaxLineLength:WorldMapGenerator.kt$WorldMapGenerator$name = chars[rng.nextInt(chars.size)] + chars[rng.nextInt(chars.size)] + suffixes[rng.nextInt(suffixes.size)]</ID>
     <ID>MayBeConst:RedeemCodeManager.kt$RedeemCodeManager$private val TAG = "RedeemCodeManager"</ID>
     <ID>NestedBlockDepth:AISectAttackManager.kt$AISectAttackManager$private fun executeSupportAction( caster: Combatant, allies: List&lt;Combatant&gt;, skill: CombatSkill, alliesList: MutableList&lt;Combatant&gt;, alliesIndexMap: Map&lt;String, Int&gt;, roundActions: MutableList&lt;BattleLogAction&gt; )</ID>
-    <ID>NestedBlockDepth:BattleSystem.kt$BattleSystem$private fun executeCombatantTurn(ctx: TurnContext, combatant: Combatant): TurnOutcome</ID>
     <ID>NestedBlockDepth:BattleSystem.kt$BattleSystem$private fun executeSkillAction( currentCombatant: Combatant, aliveEnemies: List&lt;Combatant&gt;, allies: MutableList&lt;Combatant&gt;, isTeamMember: Boolean, availableSkill: CombatSkill?, isSupportSkill: Boolean, isAoeSkill: Boolean ): List&lt;AttackResult&gt;</ID>
     <ID>NestedBlockDepth:CultivationCore.kt$CultivationCore$fun processManualProficiencyPerPhase(state: MutableGameState)</ID>
     <ID>NestedBlockDepth:CultivationCore.kt$CultivationCore$fun processManualProficiencySingle( state: MutableGameState, id: Int, manualInstanceMap: Map&lt;String, ManualInstance&gt;? = null, pendingProficiencies: MutableMap&lt;String, List&lt;ManualProficiencyData&gt;?&gt;? = null, libraryDiscipleIds: Set&lt;String&gt;? = null )</ID>
@@ -1047,19 +1044,18 @@
     <ID>ReturnCount:AudioEngine.kt$AudioEngine$fun playBGM()</ID>
     <ID>ReturnCount:AudioEngine.kt$AudioEngine$fun playSound(name: String)</ID>
     <ID>ReturnCount:AudioEngine.kt$AudioEngine$fun preloadSound(name: String, resId: Int)</ID>
-    <ID>ReturnCount:BattleAI.kt$BattleAI$fun decideAction( unit: Combatant, allies: List&lt;Combatant&gt;, enemies: List&lt;Combatant&gt;, rng: DeterministicRng ): AIAction</ID>
+    <ID>ReturnCount:BattleAI.kt$BattleAI$fun decideAction( unit: Combatant, allies: List&lt;Combatant&gt;, enemies: List&lt;Combatant&gt;, rng: DeterministicRng, playerDamageModifier: Double = 1.0 ): AIAction</ID>
     <ID>ReturnCount:BattleAI.kt$BattleAI$fun selectAttackTarget( attacker: Combatant, enemies: List&lt;Combatant&gt;, skill: CombatSkill?, rng: DeterministicRng ): Combatant?</ID>
     <ID>ReturnCount:BattleAI.kt$BattleAI$private fun decideAttackAction( unit: Combatant, enemies: List&lt;Combatant&gt;, attackSkills: List&lt;CombatSkill&gt;, rng: DeterministicRng ): AIAction</ID>
     <ID>ReturnCount:BattleAI.kt$BattleAI$private fun findAllySupport( unit: Combatant, allies: List&lt;Combatant&gt;, supportSkills: List&lt;CombatSkill&gt; ): AIAction?</ID>
     <ID>ReturnCount:BattleAI.kt$BattleAI$private fun findBuffOpportunity( unit: Combatant, allies: List&lt;Combatant&gt;, supportSkills: List&lt;CombatSkill&gt; ): AIAction?</ID>
     <ID>ReturnCount:BattleAI.kt$BattleAI$private fun findControlAction( unit: Combatant, enemies: List&lt;Combatant&gt;, skills: List&lt;CombatSkill&gt; ): AIAction?</ID>
-    <ID>ReturnCount:BattleAI.kt$BattleAI$private fun findExecuteTarget( attacker: Combatant, enemies: List&lt;Combatant&gt;, attackSkills: List&lt;CombatSkill&gt; ): AIAction?</ID>
+    <ID>ReturnCount:BattleAI.kt$BattleAI$private fun findExecuteTarget( attacker: Combatant, enemies: List&lt;Combatant&gt;, attackSkills: List&lt;CombatSkill&gt;, playerDamageModifier: Double ): AIAction?</ID>
     <ID>ReturnCount:BattleAI.kt$BattleAI$private fun findSelfPreservation( unit: Combatant, supportSkills: List&lt;CombatSkill&gt; ): AIAction?</ID>
     <ID>ReturnCount:BattleCalculator.kt$BattleCalculator$fun calculateCombatantDamage( attacker: Combatant, defender: Combatant, skill: CombatSkill? = null, damageModifier: Double = 1.0, zones: DamageZones? = null, enableInstantKill: Boolean = false, rng: DeterministicRng ): DamageResult</ID>
     <ID>ReturnCount:BattleCalculator.kt$BattleCalculator$fun selectSkill( combatant: Combatant, enemies: List&lt;Combatant&gt;, allies: List&lt;Combatant&gt;, isSilenced: Boolean, rng: DeterministicRng ): CombatSkill?</ID>
     <ID>ReturnCount:BattleCalculator.kt$BattleCalculator$fun selectTarget(attacker: Combatant, targets: List&lt;Combatant&gt;, rng: DeterministicRng): Combatant</ID>
     <ID>ReturnCount:BattleSystem.kt$BattleSystem$private fun applyControlEffects( ctx: TurnContext, currentCombatant: Combatant, isTeamMember: Boolean, allies: MutableList&lt;Combatant&gt;, alliesIndexMap: Map&lt;String, Int&gt; ): TurnOutcome?</ID>
-    <ID>ReturnCount:BattleSystem.kt$BattleSystem$private fun executeCombatantTurn(ctx: TurnContext, combatant: Combatant): TurnOutcome</ID>
     <ID>ReturnCount:BattleSystem.kt$BattleSystem$private fun executeSkillAction( currentCombatant: Combatant, aliveEnemies: List&lt;Combatant&gt;, allies: MutableList&lt;Combatant&gt;, isTeamMember: Boolean, availableSkill: CombatSkill?, isSupportSkill: Boolean, isAoeSkill: Boolean ): List&lt;AttackResult&gt;</ID>
     <ID>ReturnCount:BattleSystem.kt$BattleSystem$private fun processTurnAdvance( ctx: TurnContext, result: AttackResult, allies: MutableList&lt;Combatant&gt;, currentCombatant: Combatant, isTeamMember: Boolean, enemiesIndexMap: Map&lt;String, Int&gt; )</ID>
     <ID>ReturnCount:BootSequenceController.kt$BootSequenceController$@Suppress("LongParameterList") suspend fun boot( slot: Int, onPreloadResources: suspend () -&gt; Unit = {}, onProgress: (Float) -&gt; Unit = {}, onPhase: (String) -&gt; Unit = {}, onMapReady: (MapPreloadData) -&gt; Unit = {}, onSuccess: () -&gt; Unit = {}, onError: (String) -&gt; Unit = {} ): Result&lt;Unit&gt;</ID>

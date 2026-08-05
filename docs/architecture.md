@@ -333,15 +333,9 @@ RunState（运行时状态 — 可循环回退）
 
 `discipleAggregates`（sample 200）+ `sectCombatPower`（sample 300）两条独立全量扫描链合并为单一 `DerivedAggregation` 派生链（sample 100 + 专用单线程调度器 + 指纹缓存）。语义保持：aggregates 覆盖全部弟子（含死亡），combatPower 仅累计存活。纯 UI 事务不触发重扫。
 
-### 待完成项（2026-08-02 综合优化对抗性审查遗留，预存问题/设计决策）
+### 待完成项（2026-08-02 综合优化对抗性审查遗留）— ✅ 全部完成（2026-08-05）
 
-本次综合优化（性能批量改造/状态管道重构/代码精简）经 3 个对抗性审查代理（边界狂魔/状态破坏者/数据篡改者）审查，**新增引入的 15 项问题已全部修复**（见提交说明）；以下为**预存问题或设计权衡**，需人工决策后处理：
-
-| # | 待办 | 现状 | 说明 |
-|---|------|------|------|
-| T1 | 混合 0/非 0 sequenceId 回填破坏单调递增 | ✅ 已修复（2026-08-05） | 旧档 `[0,0,5]` 回填为 `[6,7,5]`——靠前 0 序号条目拿到比靠后非零条目更大的序号。修复：存在任一 0 序号时整体重编号 1..N（列表序，一次性 O(N)），`StateRevertRegressionTest` 断言同步更新 |
-| T2 | restart 与 load 无互斥 | ⏸️ 记录（部分闭合） | `restartGame` 不设 isLoading、不查 loadLock；`loadGame` 不查 `_isRestarting`/saveLock。重启期间读档可双 boot 竞态。**C4 配套（2026-08-05）已部分闭合**：`loadGame`/`saveGame` 新增 `_isRestarting` 守卫，restart 窗口内读写被立即拒绝（不再误杀 restart 协程）；`restartGame` 查 `loadLock` 的完整互斥仍待专项 |
-| T3 | 组装任务与 load 原地清表并发 | ⏸️ 记录 | 组装任务 T0 通过 gen 检查后与 load 的 `clear()+insert()` 并发遍历同一 `_discipleTables`（可能产出半截列表瞬时写回）；load 自身任务 T1（FIFO 后置）兜底最终一致。gen 检查为单点入口设计，中间窗口无法完全消除；观察窗口内 UI 闪旧/错数据（丢弟子外观、陈尸闪现） |
+T1（sequenceId 整体重编号）、T2（restart-load 完整互斥）、T3（组装并发，版本号+单线程调度器方案已闭合）三项已全部处理，详见 CHANGELOG.md 4.00.86 代码质量小节。
 
 ---
 
@@ -416,38 +410,9 @@ SaveValidator.validate(SaveData)
 
 20 个测试类覆盖全部规则，位于 `data/src/test/.../integrity/rules/`。每规则独立覆盖通过/修复/损坏三类路径。
 
-## 待完成项（2026-08-04 代码质量优化方案登记）
+## 待完成项（2026-08-04 代码质量优化方案登记）— ✅ 全部完成（2026-08-05）
 
-> 以下为 2026-08-04 代码质量优化 + 冗余清理方案（P0-P7）执行后的待完成项登记。
-> 已完成项见方案提交记录（P0-P2 完整、P3C 完整、P4B/4D 完成、P5 SettingsTab、P6 大部分小项）。
-> 未完成项按优先级排序，完成标准以"≤60 行函数 / 构造依赖 ≤7"等方案量化指标为准。
-
-### 函数级（超限未拆）
-
-| 项 | 位置 | 现状 | 目标 |
-|---|---|---|---|
-| executeCombatantTurn 主函数 | `core/engine/.../domain/battle/BattleSystem.kt` | 130 行 | ≤60 行（补抽 selectCombatantSkill / checkCombatantKill） |
-| attackSect | `core/engine/.../GameEngineBattleOps.kt` | 156 行 | ≤60 行（补抽 selectAttackTarget / execSectBattle / processSectCasualties / updateSectReputation） |
-| encounter | `core/engine/.../domain/battle/EncounterBattleService.kt` | 66 行 | ≤60 行 |
-| processBattleCasualties | `core/engine/.../domain/battle/CombatService.kt` | 122 行 | ≤60 行（阶段 2 update 块再拆） |
-
-### 上帝对象（未拆）
-
-| 项 | 位置 | 现状 | 目标 |
-|---|---|---|---|
-| P4A GameViewModel | `feature/game/.../GameViewModel.kt` | 20 构造依赖（Delegate 化已存在） | 按域拆 Delegate 使构造依赖下降 |
-| P4C GameEngine | `core/engine/.../GameEngine.kt` | 33 构造依赖（Ops 架构已成型） | 新建 Exploration/Cultivation/Economy 3 个 Facade 归组 |
-| P4D CultivationCore | `core/engine/.../service/CultivationCore.kt` | 15 构造依赖（门面委托已存在） | 拆 AutoPillProcessor / BreakthroughProcessor / CultivationCheckpointOps |
-| P4D ExplorationService | `core/engine/.../domain/exploration/ExplorationService.kt` | 12 构造依赖 | 按死亡/队伍两域收尾 |
-| P4D CaveExplorationProcessor | `core/engine/.../service/CaveExplorationProcessor.kt` | 12 构造依赖 | 纯工具（rngManager/thermalMonitor）改参数传入 |
-
-### UI（未拆/未迁）
-
-| 项 | 位置 | 现状 | 目标 |
-|---|---|---|---|
-| P5 OverlayDialogRoute | `feature/game/.../components/OverlayDialogRouter.kt` | 409 行分派表（30 分支） | when 分支按 DialogType 分组到独立文件 |
-| P6 raw Dialog（4 处） | `feature/game/.../tabs/SettingsTab.kt` | 平台 Dialog + 手写守卫 | 迁移 UnifiedGameDialog（已评估：复杂嵌套 + 已含守卫，风险>收益——**执行前需先评估 UnifiedGameDialog 全屏嵌套兼容**） |
-| P6 raw Dialog（1 处） | `feature/game/.../DiscipleDetailScreen.kt` | Material3 AlertDialog | 可选迁移（Material3 标准组件，守卫相对完整） |
+函数级 4 项（executeCombatantTurn/attackSect/encounter/processBattleCasualties）、上帝对象 5 项（P4A 维持现状决策、P4C GameEngine 33→8、P4D 三项）、UI 3 项（P5 OverlayDialogRouter 分组、P6 迁移）已全部处理，详见 CHANGELOG.md 4.00.86 代码质量小节。
 
 ### P6 已评估不做（记录在案）
 
@@ -460,23 +425,9 @@ SaveValidator.validate(SaveData)
 > 战斗系统全面核查修复（commit 239d13de：9 项正确性 Bug + 双引擎收敛 + 对抗性审查 12 项整改）已完成。
 > 以下为本次未完成项与对抗性审查确认的预存低危项，按优先级排序，完成标准以"≤60 行函数 / 构造依赖 ≤7"等量化指标为准。
 
-### 函数级（God Method 剩余拆分，每批 1 个方法 + 现有测试回归，RNG 调用序不变）
+### 函数级（God Method 剩余拆分）— ✅ 全部完成（2026-08-05）
 
-| 项 | 位置 | 现状 | 目标 |
-|---|---|---|---|
-| processBattleCasualties | `core/engine/.../domain/battle/CombatService.kt` L42-178 | 136 行 | ≤60 行（按死亡/复活分支提取） |
-| attackSect | `core/engine/.../GameEngineBattleOps.kt` L35-195 | 160 行 | ≤60 行（提取胜负结算/奖励/关系变更） |
-| attackWorldLevel | 同文件 L301-445 | 144 行 | ≤60 行 |
-| scoutSect | 同文件 L446-540 | 94 行 | ≤60 行（纯提取优先） |
-| executeTeamConflict | `core/engine/.../exploration/PatrolBattleSystem.kt` L279-403 | 124 行 | ≤60 行（提取胜负分支） |
-| distributeRewardItems | `core/engine/.../engine/domain/battle/HeavenlyTrialService.kt` L363-488 | 125 行 | ≤60 行（提取掉落/邮件逻辑） |
-| EncounterBattleService 各函数 | `core/engine/.../domain/battle/EncounterBattleService.kt` | 各 79-109 行 | ≤60 行（提取伤害应用/战报组装） |
-| executeAIEncounterBattle | `core/engine/.../exploration/AISectBeastAttackProcessor.kt` L191-275 | 84 行 | ≤60 行 |
-| resolveBeastAttackFight | `core/engine/.../service/ExplorationService.kt` L169-261 | 92 行 | ≤60 行 |
-| resolveDefendersAndBattle / decidePlayerAttack | `core/engine/.../domain/battle/AISectAttackManager.kt` L160-248/L419-501 | 88/82 行 | ≤60 行（提取防守选择/攻击决策） |
-| executeSupportSkill | `core/engine/.../util/BattleCalculator.kt` L563-654 | 91 行 | ≤60 行（提取治疗/护盾/buff 分发） |
-
-> 注：EnemyGenerator.generateHumanEnemy 已于本次拆分完成（装备/功法生成提取子函数，RNG 调用序不变）。
+11 项已全部拆分（processBattleCasualties/attackSect/attackWorldLevel/scoutSect/executeTeamConflict/distributeRewardItems/EncounterBattleService 四函数/executeAIEncounterBattle/resolveBeastAttackFight/resolveDefendersAndBattle+decidePlayerAttack/executeSupportSkill），每批 1 个方法 + 现有测试回归，RNG 调用序不变，详见 CHANGELOG.md 4.00.86 代码质量小节。
 
 ### 架构级（未完成）
 
@@ -484,38 +435,38 @@ SaveValidator.validate(SaveData)
 |---|---|---|---|
 | W4 AISectAttackManager object → class | `core/engine/.../domain/battle/AISectAttackManager.kt` | **维持现状（2026-08-05 决策）** | 登记描述更正：探索确认 EnemyGenerator **同样未被 class 化**（与 AISectAttackManager 同为 object + 文件级 RNG var 注入模式，"它已改造"不实）。两处注入点均在 GameEngine 初始化必然执行、error() 为防御兜底，非缺陷；object→class 构造注入波及 20+ 调用点收益不明确，维持现状并记录在案 |
 | AI 引擎 turnAdvance（拉条）移植 | `core/engine/.../domain/battle/AISectAttackManager.kt` | 无 processTurnAdvance 实现 | 鹰妖"天翔一闪"等拉条技能在宗门战无效（主引擎 BattleSystem 已实现）；为稀有技能特性，移植需完整实现（行动记录/冷却/伤害结算） |
-| C4 战报保留策略 | `core/data` 战报持久化 | BattleLog rounds/actions 全量入库无保留策略 | 长期 DB 增长问题；当前无性能数据支撑（无 Bugly 反馈/无热点证据），待有数据时设计保留窗口/摘要策略 |
 
-### 对抗性审查确认的预存低危（记录在案）
+### 对抗性审查确认的预存低危（记录在案）— ✅ 已全部处理（2026-08-05）
 
-| # | 待办 | 现状 | 说明 |
-|---|---|---|---|
-| T-C1 | estimateDamage 不含 damageModifier | ⏸️ 记录 | 严苛训练 +5% 时 AI 决策估算略低于实际（预存接口未随 W1 扩展）；轻微一致性偏差 |
-| T-C2 | 斩杀分支 maxHp=0/负边界 | ⏸️ 记录 | 斩杀伤害 = defender.maxHp，maxHp=0 时伤害 0、为负时负伤害；需配合存档篡改才可达（hp≤0 目标战斗前已过滤），低危 |
-| T-C3 | EnemyGenerator nextInt 配置依赖 | ⏸️ 记录 | `nextInt(realmMax + 1 - realmMin)` 依赖配置 `enemyRealmMin ≤ enemyRealmMax`（当前 MissionDifficulty 全部满足）；配置反转即 IllegalArgumentException，预存数据依赖 |
-| T-C4 | 超长 buffs 列表性能 | ⏸️ 记录 | buildDamageZones 每次攻击多次 filter 遍历，buffs 篡改为十万级时游戏线程卡顿（存档篡改场景） |
-| T-C5 | 超长弟子名日志开销 | ⏸️ 记录 | 玩家输入弟子名无长度限制，MB 级名字只带来战报内存/日志开销（非本次引入） |
+T-C1~C4 已修复（estimateDamage 注入 damageModifier / 斩杀 maxHp 钳制 / EnemyGenerator 配置退化 / buildDamageZones 单次遍历），T-C5 已确认 InputValidator 强制 10 字符限制（登记过时），详见 CHANGELOG.md 4.00.86 代码质量小节。
 
-## 待完成项（2026-08-05 存档链路对抗性审查发现，预存问题）
+## 待完成项（2026-08-05 存档链路对抗性审查发现，预存问题）— ✅ 全部完成
 
-> 存档链路修复（T7~T16 + T4）经 3 个对抗性审查代理（边界狂魔/状态破坏者/数据篡改者）审查，
-> **本次引入的 6 项缺陷已全部修复**（见 CHANGELOG.md 4.00.87 对抗性审查整改小节）；
-> 以下为**预存问题或既有设计权衡**，按优先级排序，需人工决策后处理。
-> **第一批实施（2026-08-05）：C1~C13 全部修复**，每行"说明"末尾附修复摘要：
+C1~C13（云读档自阻塞/loadGameFromSlot 自阻塞/大 id OOM/restart 窗口误杀/双 tap 窗口/备份修复反馈/版本校验/注册表耦合/修炼值封顶/储物袋悬空引用/rename 崩溃窗口/heavyDataLoaded/战报字段校验）+ T1 已全部修复（第一批实施 2026-08-05），详见 CHANGELOG.md 4.00.86 代码质量小节。
 
-| # | 严重度 | 待办 | 现状 | 说明 |
-|---|--------|------|------|------|
-| C1 | 严重 | 主菜单云读档自阻塞 | ✅ 已修复 | `loadFromCloudSave` 持有 `cloudDownloadLock` 期间 Success 分支调 `loadGame`（SaveLoadViewModel L766→L1477→L718），被 loadGame 第一道守卫 `cloudDownloadLock.get()`（L532）拒绝——云档已写本地但内存加载永不执行，功能必失败。修复：`loadGame` 拆 `loadGameInternal(saveSlot, fromCloudLoad)`，仅内部 `fromCloudLoad=true`（handleCloudLoadSuccess 透传）绕过该守卫，其余守卫与锁全程持有不变（不用"释放锁"方案——释放后存在新云下载插入窗口） |
-| C2 | 中等 | loadGameFromSlot(0) 自阻塞 | ✅ 已修复 | `loadGameFromSlot(0)`（L691）先 `setSaveLoadState(isLoading=true)`（同步生效）再调 `downloadFromCloudSave`（L1339 isLoading 守卫恒 true 拒绝）——SettingsTab 云槽位读取必失败。修复：isLoading 占位移到下载完成（`first{Success\|Error}` 返回）之后；下载期互斥由 cloudDownloadLock 承担（loadGame/saveGame 入口均查，外部读档中拒绝下载的守卫语义不变） |
-| C3 | 中等 | crafted 大 id 弟子 OOM 崩溃 | ✅ 已修复 | `id=9,999,999`（恰低于 MAX_SAFE_CAPACITY=10M）单弟子触发 ~60 张平铺表扩容至 1000 万容量（≈7GB）→ OutOfMemoryError 崩溃循环。三层修复：(a) MAX_SAFE_CAPACITY 降至 1M；(b) 新规则 `DiscipleIdBoundsRule`（order=1，上限 200K）验证层前置拦截判损坏走备份恢复（根治）；(c) load 链路三层 OOM 捕获（loadFromSnapshot 尽力回滚转 RuntimeException / StorageEngine.load 返回 failure 且不试备份恢复——备份同尺寸必再 OOM / performLoadToSlot showError） |
-| C4 | 中等 | 操作 finally 无主清理（restart 窗口误杀） | ✅ 已修复 | `registerActiveLoadJob` 无条件 cancel 旧 job；被取消操作 finally 无条件 `clearActiveLoadJob`+清标志抹掉在途状态。修复：`clearActiveLoadJob(job): Boolean` 归属判定+清理原子二合一（仅 `=== job` 置 null），四个 perform* finally 按 `owned` 决定是否复位标志；`performRestartGame` 补上归属化清理+复位（原漏调 clearActiveLoadJob 且取消路径 isSaving 泄漏）；`saveGame`/`loadGame` 新增 `_isRestarting` 守卫闭合触发根因 |
-| C5 | 轻微 | saveGame 双 tap 异步窗口 | ✅ 已修复 | isSaving 由协程内异步设置，两次快速 tap 在协程启动前均可通过守卫。修复：`canPerformSaveOperation` 通过后 launch 前同步 `stateStore.setSavingDirect(true)`+pending 占位（协程内 setSaveLoadState 幂等保留），双 tap 第二发被同步占位拒绝 |
-| C6 | 轻微 | 备份修复失败不反馈 | ✅ 已修复 | `readWithFallback` 中 `bakFile.copyTo(savFile)` 失败仅 Log.w 仍返回 RECOVERED。修复：`BackupReadResult` 新增 `repairFailed: Boolean = false`，copyTo 失败置位 + Log.e；StorageEngine 两处调用方（保存失败恢复/restoreFromBackup）感知记录（数据仍可用，下次成功保存自愈） |
-| C7 | 轻微 | 文件格式版本不校验 | ✅ 已修复 | `readAndVerify` 只判 `formatVersion >= 0x0101`。修复：版本白名单 `{0x0100, 0x0101}`（新增 FORMAT_VERSION_LEGACY 常量），未知版本判损坏 |
-| C8 | 轻微 | ensureRegistered 与注册表全局状态耦合 | ✅ 已修复 | `SaveValidator.registered` 首次 validate 后恒 true。修复：删除该标志，`ensureRegistered` 改查 `SaveValidationRuleRegistry.size == 0`（双层检查，CopyOnWriteArrayList.size 原子读），clear 后 validate 自动重注册 |
-| C9 | 轻微 | AI 宗门弟子修炼值量级不封顶 | ✅ 已修复 | `NumericSanitizeRule` 只做 NaN/负值消毒。修复：新增 `MAX_CULTIVATION=1e9`（对齐 CultivationCapRule）与 `MAX_MULTIPLIER=1000`，`sanitize()` 改钳制（非有限/负值重置 0，超上限 coerceAtMost）；`hasInvalidNumericFields` 同步纳入超上限判定 |
-| C10 | 轻微 | 堆叠截断后储物袋悬空引用 | ✅ 已修复 | `EntityCountBoundsRule.clearDanglingStackRefs` 只清 4 槽位+manualIds。修复：追加 `storageBagItems.filter { itemId in 被移除堆叠集合 }` 从 EquipmentSet 重建剔除（DB 路径 StorageBagFixer 先归位→本规则后清理，顺序正确；云路径按 id 过滤同样成立） |
-| C11 | 轻微 | delete-then-rename 崩溃窗口 | ✅ 已修复 | `atomicWrite` 中 delete 与 renameTo 之间进程崩溃 → .sav 缺失。修复：先试无 delete 的 rename 原子覆盖（Linux/Android rename() 原子替换目标），失败回退 delete+rename（兼容 FAT32 等不支持覆盖的存储）；.bak 失败非阻断不动 |
-| C12 | 轻微 | ensureHeavyDataLoaded 空操作标记 | ✅ 已修复 | 实现为 `if (heavyDataLoaded) return; heavyDataLoaded = true` 空操作。修复：短路前置 `worldMapSects.isNotEmpty()` 校验——空时保持未完成（Log.w），后续调用重试，由相邻 ensureGameDataIntegrity 重生；函数保留（BootSequenceControllerTest 有 verify 引用） |
-| C13 | 轻微 | BattleLogRefRule 次要字段未校验 | ✅ 已修复 | 未校验 `beastsDefeated` 等次要字段。修复：`isStructurallyValid` 增加 `beastsDefeated in 0..100`（MAX_BEASTS_DEFEATED，对齐 MAX_TEAM_CASUALTIES），超限/负值条目清理 |
 
+---
+
+## 预存问题登记（2026-08-05 核查，detekt baseline 冻结待拆分）
+
+> 以下为 detekt 预存违规（HEAD 时代即存在，baseline 冻结）与预存技术债，作为**下一轮代码质量拆分任务队列**。
+> 完成标准：≤60 行函数 / 参数 ≤8（detekt functionThreshold）/ baseline 只缩不增；每批 1 个方法 + 现有测试回归，RNG 调用序不变。
+
+| # | 待办 | 位置 | 说明 |
+|---|------|------|------|
+| P-01 | 非分区 RNG：`(80..130).random()` | `GameEngineBattleOps.kt` L105（attackSect 战利品数量） | 走 kotlin.collections `Iterable.random()`（全局 Random.Default），CI grep audit 查不到此模式；改走 BATTLE 分区会改变随机序，需单独批处理 |
+| P-02 | executeSkillAction 9 参 / 6 return / 嵌套深 | `BattleSystem.kt` | baseline 冻结；参数打包 + 分支提取 |
+| P-03 | processTurnAdvance 圈复杂度 26 / 4 return | `BattleSystem.kt` | baseline 冻结 |
+| P-04 | executeBattleWithTimeout 106 行 / 复杂度 17 | `BattleSystem.kt` | baseline 冻结 |
+| P-05 | executeUnifiedAIBattle 复杂度 16 | `AISectAttackManager.kt` | baseline 冻结 |
+| P-06 | executeSupportAction 复杂度 17 | `AISectAttackManager.kt` | baseline 冻结 |
+| P-07 | applyAoeSingleTarget 8 参 | `AISectAttackManager.kt` | baseline 冻结 |
+| P-08 | selectAITarget 3 return / 长行 / 循环多跳转 | `AISectAttackManager.kt` | baseline 冻结 |
+| P-09 | calculateCombatantDamage 62 行 | `BattleCalculator.kt` | baseline 冻结 |
+| P-10 | buildDiscipleEnemy 复杂度 23 | `HeavenlyTrialService.kt` | baseline 冻结 |
+| P-11 | BattleDamageApplier 包声明不匹配 | `BattleDamageApplier.kt` | baseline 冻结 |
+| P-12 | EnemyGenerator 长行若干 | `EnemyGenerator.kt` | baseline 冻结 |
+| P-13 | 测试文件违规（BattleSystemTest/BattleCalculatorCoverageTest 参数超限/长行） | `core/engine/src/test` | baseline 冻结 |
+| P-14 | GameStateStoreLoadRaceTest/RollbackTest 偶发 flaky | `app/src/test` | 非本次引入：全量测试首轮偶发失败，单独重跑通过；建议后续定位共享静态状态跨类污染 |
+| P-15 | AISectBattleProcessor 迁移无直接单测 | `AISectBattleProcessor.kt` | AI 攻防域（processAISectOperations/processPlayerDefenseBattles/processAIVsAIBattles 等）无直接单元测试，迁移完整性靠编译+全量测试间接保障；建议补迁移守卫测试 |
+| P-16 | UI 迁移真机冒烟 | SettingsTab/DiscipleDetailScreen/OverlayDialogRouter | 无设备环境未验证；建议发布前真机检查 4 个迁移弹窗（其他设置/年俸/存档管理/更新日志）与 34 分支路由 |

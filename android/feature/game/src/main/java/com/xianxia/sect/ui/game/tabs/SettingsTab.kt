@@ -4,7 +4,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -28,20 +27,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.delay
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.data.ChangelogData
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.data.model.SaveSlot
-import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.CircularCheckbox
+import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.InlineStandardPromptDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
-import com.xianxia.sect.ui.components.DialogSystemBarGuard
-import com.xianxia.sect.ui.components.DialogFocusGuard
+import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.clickableWithSound
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.dialogs.SalaryRealmCard
@@ -212,6 +208,7 @@ internal fun SettingsTab(
             }
         }
         }
+        }
 
     if (showSaveSlotDialog) {
         SaveSlotDialog(
@@ -275,159 +272,109 @@ internal fun SettingsTab(
     }
 
     if (showOtherSettingsDialog) {
-        Dialog(
+        UnifiedGameDialog(
             onDismissRequest = { showOtherSettingsDialog = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+            title = "其他设置",
+            mode = DialogMode.Half,
+            scrollableContent = true,
+            backgroundRes = com.xianxia.sect.feature.game.R.drawable.bg_horizontal,
+            dismissOnClickOutside = false
         ) {
-            // 隐藏 Dialog Window 的系统状态栏/导航栏
-            DialogSystemBarGuard()
-            DialogFocusGuard()
-
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickableWithSound(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { showOtherSettingsDialog = false }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
+            Column(modifier = Modifier.fillMaxSize().padding(top = 12.dp)) {
+                Row(
                     modifier = Modifier
-                        .fillMaxWidth(0.83f)
-                        .fillMaxHeight(0.78f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickableWithSound(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = {}
-                        ),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(GameColors.PageBackground)
+                        .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Image(
-                        painter = painterResource(id = com.xianxia.sect.feature.game.R.drawable.bg_horizontal),
-                        contentDescription = null,
-                        modifier = Modifier.matchParentSize(),
-                        contentScale = ContentScale.Crop
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "限制广告追踪",
+                            fontSize = 12.sp,
+                            color = Color.Black
+                        )
+                        Text(
+                            text = "阻止TapTap SDK收集OAID广告标识符",
+                            fontSize = 10.sp,
+                            color = Color.Black
+                        )
+                        Text(
+                            text = "更改将在下次启动应用后生效",
+                            fontSize = 9.sp,
+                            color = Color(0xFFCC8800)
+                        )
+                    }
+                    Switch(
+                        checked = limitAdTracking,
+                        onCheckedChange = onLimitAdTrackingChanged,
+                        colors = SwitchDefaults.colors(
+                            checkedTrackColor = GameColors.SpiritBlue,
+                            checkedThumbColor = Color.White
+                        ),
+                        modifier = Modifier.height(24.dp)
                     )
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                            .padding(20.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "其他设置",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black
-                            )
-                            CloseButton(onClick = { showOtherSettingsDialog = false })
-                        }
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(GameColors.PageBackground)
-                                .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "限制广告追踪",
-                                    fontSize = 12.sp,
-                                    color = Color.Black
-                                )
-                                Text(
-                                    text = "阻止TapTap SDK收集OAID广告标识符",
-                                    fontSize = 10.sp,
-                                    color = Color.Black
-                                )
-                                Text(
-                                    text = "更改将在下次启动应用后生效",
-                                    fontSize = 9.sp,
-                                    color = Color(0xFFCC8800)
-                                )
-                            }
-                            Switch(
-                                checked = limitAdTracking,
-                                onCheckedChange = onLimitAdTrackingChanged,
-                                colors = SwitchDefaults.colors(
-                                    checkedTrackColor = GameColors.SpiritBlue,
-                                    checkedThumbColor = Color.White
-                                ),
-                                modifier = Modifier.height(24.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .width(ButtonSizes.StandardWidth)
-                                    .height(ButtonSizes.StandardHeight)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .clickable {
-                                        showOtherSettingsDialog = false
-                                        viewModel.openRedeemCodeDialog()
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.ui_button),
-                                    contentDescription = null,
-                                    modifier = Modifier.matchParentSize(),
-                                    contentScale = ContentScale.FillBounds
-                                )
-                                Text(
-                                    text = "兑换码",
-                                    fontSize = 12.sp,
-                                    color = Color.Black
-                                )
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .width(ButtonSizes.StandardWidth)
-                                    .height(ButtonSizes.StandardHeight)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .clickable {
-                                        showOtherSettingsDialog = false
-                                        showChangelogDialog = true
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.ui_button),
-                                    contentDescription = null,
-                                    modifier = Modifier.matchParentSize(),
-                                    contentScale = ContentScale.FillBounds
-                                )
-                                Text(
-                                    text = "更新日志",
-                                    fontSize = 12.sp,
-                                    color = Color.Black
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
                 }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(ButtonSizes.StandardWidth)
+                            .height(ButtonSizes.StandardHeight)
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable {
+                                showOtherSettingsDialog = false
+                                viewModel.openRedeemCodeDialog()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ui_button),
+                            contentDescription = null,
+                            modifier = Modifier.matchParentSize(),
+                            contentScale = ContentScale.FillBounds
+                        )
+                        Text(
+                            text = "兑换码",
+                            fontSize = 12.sp,
+                            color = Color.Black
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .width(ButtonSizes.StandardWidth)
+                            .height(ButtonSizes.StandardHeight)
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable {
+                                showOtherSettingsDialog = false
+                                showChangelogDialog = true
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ui_button),
+                            contentDescription = null,
+                            modifier = Modifier.matchParentSize(),
+                            contentScale = ContentScale.FillBounds
+                        )
+                        Text(
+                            text = "更新日志",
+                            fontSize = 12.sp,
+                            color = Color.Black
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
             }
-        }
         }
     }
 
@@ -436,84 +383,33 @@ internal fun SettingsTab(
     }
 
     if (showSalaryConfigDialog) {
-        Dialog(
+        UnifiedGameDialog(
             onDismissRequest = { showSalaryConfigDialog = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+            title = "年俸设置",
+            mode = DialogMode.Half,
+            dismissOnClickOutside = false
         ) {
-            // 隐藏 Dialog Window 的系统状态栏/导航栏
-            DialogSystemBarGuard()
-            DialogFocusGuard()
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clickableWithSound(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = { showSalaryConfigDialog = false }
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.83f)
-                    .fillMaxHeight(0.78f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickableWithSound(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = {}
-                    )
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(top = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Image(
-                    painter = painterResource(id = com.xianxia.sect.feature.game.R.drawable.bg_horizontal),
-                    contentDescription = null,
-                    modifier = Modifier.matchParentSize(),
-                    contentScale = ContentScale.Crop
+                val realms = listOf(
+                    0 to "仙人", 1 to "渡劫", 2 to "大乘", 3 to "合体",
+                    4 to "炼虚", 5 to "化神", 6 to "元婴", 7 to "金丹",
+                    8 to "筑基", 9 to "练气"
                 )
-                Column(modifier = Modifier.fillMaxSize()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "年俸设置",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
-                        CloseButton(onClick = { showSalaryConfigDialog = false })
-                    }
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        val realms = listOf(
-                            0 to "仙人", 1 to "渡劫", 2 to "大乘", 3 to "合体",
-                            4 to "炼虚", 5 to "化神", 6 to "元婴", 7 to "金丹",
-                            8 to "筑基", 9 to "练气"
-                        )
-                        items(realms, key = { it.first }, contentType = { "realm" }) { (realm, name) ->
-                            val salary = gameData.yearlySalary[realm] ?: 0
-                            val enabled = gameData.yearlySalaryEnabled[realm] ?: true
-                            SalaryRealmCard(
-                                realmName = name,
-                                salary = salary,
-                                enabled = enabled,
-                                onEnabledChange = { viewModel.setYearlySalaryEnabled(realm, it) }
-                            )
-                        }
-                    }
+                items(realms, key = { it.first }, contentType = { "realm" }) { (realm, name) ->
+                    val salary = gameData.yearlySalary[realm] ?: 0
+                    val enabled = gameData.yearlySalaryEnabled[realm] ?: true
+                    SalaryRealmCard(
+                        realmName = name,
+                        salary = salary,
+                        enabled = enabled,
+                        onEnabledChange = { viewModel.setYearlySalaryEnabled(realm, it) }
+                    )
                 }
             }
         }
-        }
-    }
     }
 }
 
@@ -814,81 +710,28 @@ internal fun SaveSlotDialog(
     val selectedSlotInfo = remember(saveSlots, selectedSlot) {
         saveSlots.find { it.slot == selectedSlot }
     }
-    
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
-    ) {
-        // 隐藏 Dialog Window 的系统状态栏/导航栏
-        DialogSystemBarGuard()
-        DialogFocusGuard()
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .clickableWithSound(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = {
-                    if (isBusy) saveLoadViewModel.cancelSaveLoad()
-                    onDismiss()
-                }
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(0.95f)
-                .fillMaxHeight(0.9f)
-                .clip(RoundedCornerShape(12.dp))
-                .clickableWithSound(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = {}
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Image(
-                painter = painterResource(id = com.xianxia.sect.feature.game.R.drawable.bg_horizontal),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-            Column(modifier = Modifier.fillMaxSize()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color.Transparent)
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "存档信息",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (isBusy) {
-                            GameButton(
-                                text = "取消",
-                                onClick = {
-                                    saveLoadViewModel.cancelSaveLoad()
-                                    onDismiss()
-                                }
-                            )
-                        }
-                        CloseButton(onClick = {
-                            if (isBusy) {
-                                saveLoadViewModel.cancelSaveLoad()
-                            }
-                            onDismiss()
-                        })
+    UnifiedGameDialog(
+        onDismissRequest = {
+            if (isBusy) saveLoadViewModel.cancelSaveLoad()
+            onDismiss()
+        },
+        title = "存档信息",
+        mode = DialogMode.Large,
+        dismissOnClickOutside = false,
+        headerActions = {
+            if (isBusy) {
+                GameButton(
+                    text = "取消",
+                    onClick = {
+                        saveLoadViewModel.cancelSaveLoad()
+                        onDismiss()
                     }
-                }
-                
+                )
+            }
+        }
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
                 // ── 转圈动画（保存/读取中） ──
                 if (showAnimation) {
                     Box(
@@ -1005,8 +848,6 @@ internal fun SaveSlotDialog(
             }  // if (!showAnimation) buttons
             }
         }
-    }
-    }
 }  // SaveSlotDialog
 
 @Composable
@@ -1089,65 +930,21 @@ internal fun SaveSlotCard(
 
 @Composable
 private fun ChangelogDialog(onDismiss: () -> Unit) {
-        Dialog(
-            onDismissRequest = onDismiss,
-            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
-        ) {
-            // 隐藏 Dialog Window 的系统状态栏/导航栏
-            DialogSystemBarGuard()
-            DialogFocusGuard()
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .clickableWithSound(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onDismiss
-            ),
-        contentAlignment = Alignment.Center
+    UnifiedGameDialog(
+        onDismissRequest = onDismiss,
+        title = "更新日志",
+        mode = DialogMode.Auto,
+        backgroundRes = com.xianxia.sect.feature.game.R.drawable.bg_horizontal,
+        dismissOnClickOutside = false
     ) {
-        Box(
+        Column(
             modifier = Modifier
-                .fillMaxWidth(0.83f)
-                .clip(RoundedCornerShape(12.dp))
-                .clickableWithSound(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = {}
-                ),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .heightIn(max = 450.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(top = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Image(
-                painter = painterResource(id = com.xianxia.sect.feature.game.R.drawable.bg_horizontal),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "更新日志",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    CloseButton(onClick = onDismiss)
-                }
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 450.dp)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
                 ChangelogData.entries.forEach { entry ->
                     Column(
                         modifier = Modifier
@@ -1199,7 +996,4 @@ private fun ChangelogDialog(onDismiss: () -> Unit) {
                 Spacer(modifier = Modifier.height(16.dp))
             }
         }
-    }
-    }
-}
 }

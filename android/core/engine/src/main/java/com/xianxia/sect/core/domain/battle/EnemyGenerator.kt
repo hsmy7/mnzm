@@ -44,7 +44,9 @@ object EnemyGenerator {
         realmMin: Int,
         realmMax: Int
     ): HumanEnemyData {
-        val realm = realmMin + enemyRng.nextInt(realmMax + 1 - realmMin)
+        // T-C3（2026-08-05）：配置反转（realmMin > realmMax）时退化为 realmMin 而非抛异常；
+        // 当前 MissionDifficulty 恒 min<max，正常路径逐位相同
+        val realm = realmMin + enemyRng.nextInt((realmMax + 1 - realmMin).coerceAtLeast(1))
         val realmLayer = 1 + enemyRng.nextInt(9)
 
         val minRarity = GameConfig.Realm.getMaxRarity(realm)

@@ -15,6 +15,10 @@ complexity:
   TooManyFunctions:
     active: true
     thresholdInFiles: 15     # 从 30 收紧
+    thresholdInClasses: 20   # 2026-08-05：函数拆分批次后类内函数数基线——EncounterBattleService 14、
+                             # AISectBeastAttackProcessor 14、AISectBattleProcessor 19（AI 攻防域聚合：
+                             # 热控修炼/等级同步/攻打玩家/AI-vs-AI/防守战 5 条子流程均为同一域职责）；
+                             # 默认 11 会阻止继续拆分 God Method
     thresholdInObjects: 12   # Dagger @Module 的 @Provides 函数属于 DI 样板代码
   LongParameterList:
     functionThreshold: 8

@@ -79,14 +79,6 @@ class RealtimeCultivationBatchTest {
         `when`(stateStore.disciples).thenReturn(MutableStateFlow(emptyList()))
 
         val cultivationCore = CultivationCore(
-            stateStore = stateStore,
-            inventoryConfig = mock(),
-            thermalMonitor = mock(),
-            gameClock = mock(),
-            scopeProvider = mock(),
-            pillManager = mock(),
-            equipmentManager = mock(),
-            manualManager = mock(),
             hpMpRecoveryService = HpMpRecoveryService(),
             autoPillService = AutoPillService(mock(), mock()),
             equipmentNurtureService = EquipmentNurtureService(),

@@ -22,7 +22,7 @@ import javax.inject.Singleton
 
 @Singleton
 class BuildingFacadeImpl @Inject constructor(
-    private val buildingService: BuildingService,
+    override val buildingService: BuildingService,
     private val stateStore: GameStateStore,
     private val gameEngineCore: GameEngineCore,
     private val productionCoordinator: ProductionCoordinator,

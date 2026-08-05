@@ -8,8 +8,10 @@ import javax.inject.Singleton
 
 @Singleton
 class BattleFacadeImpl @Inject constructor(
-    private val combatService: CombatService,
-    private val stateStore: GameStateStore
+    override val combatService: CombatService,
+    private val stateStore: GameStateStore,
+    override val battleSystem: BattleSystem,
+    override val assignmentGate: com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
 ) : BattleFacade {
     override val battleLogs: StateFlow<List<BattleLog>> get() = stateStore.battleLogs
     override val pendingBattleResult: StateFlow<BattleResultUIData?> get() = stateStore.pendingBattleResult

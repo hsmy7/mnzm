@@ -1,20 +1,10 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.DiscipleTables
-import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
-import com.xianxia.sect.core.engine.domain.disciple.DiscipleEquipmentManager
-import com.xianxia.sect.core.engine.domain.disciple.DiscipleManualManager
-import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.engine.EquipmentNurtureSystem
-import com.xianxia.sect.core.config.InventoryConfig
-import com.xianxia.sect.core.perf.ThermalMonitor
-import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.engine.annotation.GameService
-import com.xianxia.sect.core.concurrent.DeviceCapabilityProfiler
-import com.xianxia.sect.core.util.CoroutineScopeProvider
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -30,15 +20,9 @@ import javax.inject.Singleton
 @Singleton
 @GameService("CultivationCore")
 class CultivationCore @Inject constructor(
-    private val stateStore: GameStateStore,
-    private val inventoryConfig: InventoryConfig,
-    private val thermalMonitor: ThermalMonitor,
-    private val gameClock: GameTimeClock,
-    private val scopeProvider: CoroutineScopeProvider,
-    private val pillManager: DisciplePillManager,
-    private val equipmentManager: DiscipleEquipmentManager,
-    private val manualManager: DiscipleManualManager,
-    private val profiler: DeviceCapabilityProfiler = DeviceCapabilityProfiler(),
+    // D2（2026-08-05）：删除 10 个方法体内零引用依赖（stateStore/inventoryConfig/
+    // thermalMonitor/gameClock/scopeProvider/pillManager/equipmentManager/manualManager/
+    // profiler），构造依赖 15 → 6；熟练度核心逻辑迁至 ManualProficiencyService
     private val hpMpRecoveryService: HpMpRecoveryService,
     private val autoPillService: AutoPillService,
     private val equipmentNurtureService: EquipmentNurtureService,
@@ -111,76 +95,12 @@ class CultivationCore @Inject constructor(
     // ── 每旬熟练度 + 孕养增长 ────────────────────────────────
 
     /**
-     * 每旬功法熟练度增长。
-     *
-     * 对所有存活且有功法装备的弟子，结算1旬的熟练度增长。
-     * 全部使用列级直读（`manualIds`、`comprehensions`），不调用 `assemble()`。
-     * 同时清理已替换/遗忘功法的残留熟练度条目（防僵尸条目累积）。
+     * 每旬功法熟练度增长（D2 迁移至 [ManualProficiencyService]，此处保留委托）。
      *
      * @param state 可变游戏状态
      */
-    fun processManualProficiencyPerPhase(state: MutableGameState) {
-        val tables = state.discipleTables
-        val manualMap = state.manualInstances.associateBy { it.id }
-        val data = state.gameData
-        val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
-        var updatedProficiencies = data.manualProficiencies.toMutableMap()
-
-        for (id in tables.ids) {
-            if (tables.isAlive[id] != 1) continue
-            val manualIds = tables.manualIds.getOrDefault(id, emptyList())
-            if (manualIds.isEmpty()) continue
-
-            val discipleId = id.toString()
-            val comprehension = tables.comprehensions.getOrDefault(id, 0)
-            val inLibrary = data.librarySlots.any { it.discipleId == discipleId }
-            val libraryBonus = if (inLibrary)
-                ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
-            val profGain = ManualProficiencySystem.calculateProficiencyGainPerPhase(
-                comprehension, libraryBonus
-            )
-            if (profGain <= 0.0) continue
-
-            val profList = updatedProficiencies
-                .getOrDefault(discipleId, emptyList())
-                .toMutableList()
-
-            for (manualId in manualIds) {
-                manualMap[manualId]?.let { manual ->
-                    val idx = profList.indexOfFirst { it.manualId == manualId }
-                    if (idx >= 0) {
-                        val cp = profList[idx]
-                        val newProf = (cp.proficiency + profGain)
-                            .coerceAtMost(maxProf.toDouble())
-                        if (newProf != cp.proficiency) {
-                            profList[idx] = cp.copy(
-                                proficiency = newProf,
-                                masteryLevel = ManualProficiencySystem.MasteryLevel
-                                    .fromProficiency(newProf).level
-                            )
-                        }
-                    } else {
-                        profList.add(ManualProficiencyData(
-                            manualId = manualId, manualName = manual.name,
-                            proficiency = profGain.coerceAtMost(maxProf.toDouble()),
-                            maxProficiency = maxProf,
-                            masteryLevel = ManualProficiencySystem.MasteryLevel
-                                .fromProficiency(profGain).level
-                        ))
-                    }
-                }
-            }
-
-            // ★ 清理已替换/遗忘功法的残留熟练度，防止僵尸条目累积
-            val currentSet = manualIds.toSet()
-            profList.removeAll { it.manualId !in currentSet }
-            updatedProficiencies[discipleId] = profList
-        }
-
-        if (updatedProficiencies != data.manualProficiencies) {
-            state.gameData = data.copy(manualProficiencies = updatedProficiencies)
-        }
-    }
+    fun processManualProficiencyPerPhase(state: MutableGameState) =
+        manualProficiencyService.processManualProficiencyPerPhase(state)
 
     /**
      * 每旬装备孕养经验增长。
@@ -212,117 +132,25 @@ class CultivationCore @Inject constructor(
     }
 
     /**
-     * 单弟子每旬功法熟练度增长。
-     *
-     * 从 [processManualProficiencyPerPhase] 的循环体中提取，
-     * 仅处理指定 ID 的存活弟子。使用列级直读（manualIds、comprehensions），
-     * 不调用 assemble()。
-     *
-     * 批量模式（P-1 优化）：当 [pendingProficiencies] 非空时，本函数只做单弟子
-     * 条目级计算并累积到 pending（O(P)），**不写 state**；调用方循环结束后统一
-     * 调用 [commitManualProficiencies] 单次构建 Map + 单次 copy——将每旬
-     * O(D²) 全量 Map 拷贝（每弟子 toMutableMap + GameData.copy）降为 O(D)。
+     * 单弟子每旬功法熟练度增长（D2 迁移至 [ManualProficiencyService]，此处保留委托）。
      *
      * @param state 可变游戏状态
      * @param id 弟子 ID
      * @param manualInstanceMap 功法实例映射（每旬热点循环共享构建，null 时内部构建）
-     * @param pendingProficiencies 批量累积目标（null 时保持旧的单弟子直写行为）；
-     *   值 null 表示该弟子条目应被移除（等价于单弟子版的 remove）
-     * @param libraryDiscipleIds 藏经阁弟子 ID 预构建集合（消除每弟子 O(L) 扫描，
-     *   null 时内部线性扫描）
+     * @param pendingProficiencies 批量累积目标（null 时保持旧的单弟子直写行为）
+     * @param libraryDiscipleIds 藏经阁弟子 ID 预构建集合
      */
     fun processManualProficiencySingle(
         state: MutableGameState, id: Int,
         manualInstanceMap: Map<String, ManualInstance>? = null,
         pendingProficiencies: MutableMap<String, List<ManualProficiencyData>?>? = null,
         libraryDiscipleIds: Set<String>? = null
-    ) {
-        val tables = state.discipleTables
-        if (tables.isAlive[id] != 1) return
-        val manualIds = tables.manualIds.getOrDefault(id, emptyList())
-        if (manualIds.isEmpty()) return
-
-        val manualMap = manualInstanceMap ?: state.manualInstances.associateBy { it.id }
-        val data = state.gameData
-        val maxProf = ManualProficiencySystem.MAX_PROFICIENCY.toInt()
-        val discipleId = id.toString()
-        val comprehension = tables.comprehensions.getOrDefault(id, 0)
-        val inLibrary = libraryDiscipleIds?.contains(discipleId)
-            ?: data.librarySlots.any { it.discipleId == discipleId }
-        val libraryBonus = if (inLibrary)
-            ManualProficiencySystem.LIBRARY_PROFICIENCY_BONUS_RATE else 0.0
-        val profGain = ManualProficiencySystem.calculateProficiencyGainPerPhase(
-            comprehension, libraryBonus
-        )
-        if (profGain <= 0.0) return
-
-        // S10 修复（对抗性审查）：批量模式下从 pending 读累积视图。
-        // 用 containsKey 区分"pending 显式 null（移除计划）"与"pending 无该条目
-        // （首次处理）"——原实现两者都读旧 data 的残留条目，若同一批量周期内
-        // 弟子被处理两次（或调用方预置 null=移除），残留条目会复活并叠加双倍增长。
-        val hasPending = pendingProficiencies != null &&
-            pendingProficiencies.containsKey(discipleId)
-        val profList = if (hasPending) {
-            (pendingProficiencies?.get(discipleId) ?: emptyList()).toMutableList()
-        } else {
-            data.manualProficiencies.getOrDefault(discipleId, emptyList()).toMutableList()
-        }
-        var changed = false
-
-        for (manualId in manualIds) {
-            manualMap[manualId]?.let { manual ->
-                val idx = profList.indexOfFirst { it.manualId == manualId }
-                if (idx >= 0) {
-                    val cp = profList[idx]
-                    val newProf = (cp.proficiency + profGain)
-                        .coerceAtMost(maxProf.toDouble())
-                    if (newProf != cp.proficiency) {
-                        profList[idx] = cp.copy(
-                            proficiency = newProf,
-                            masteryLevel = ManualProficiencySystem.MasteryLevel
-                                .fromProficiency(newProf).level
-                        )
-                        changed = true
-                    }
-                } else {
-                    profList.add(ManualProficiencyData(
-                        manualId = manualId, manualName = manual.name,
-                        proficiency = profGain.coerceAtMost(maxProf.toDouble()),
-                        maxProficiency = maxProf,
-                        masteryLevel = ManualProficiencySystem.MasteryLevel
-                            .fromProficiency(profGain).level
-                    ))
-                    changed = true
-                }
-            }
-        }
-
-        // ★ 清理已替换/遗忘功法的残留熟练度，防止僵尸条目累积
-        val currentSet = manualIds.toSet()
-        if (profList.removeAll { it.manualId !in currentSet }) changed = true
-
-        if (changed) {
-            if (pendingProficiencies != null) {
-                // 批量模式：累积到 pending，不写 state（空列表=移除条目，与单弟子版 remove 等价）
-                pendingProficiencies[discipleId] = profList.ifEmpty { null }
-            } else {
-                // 单弟子模式（兼容旧调用方与测试）：直接写 state
-                val newProficiencies = data.manualProficiencies.toMutableMap()
-                if (profList.isEmpty()) {
-                    newProficiencies.remove(discipleId)
-                } else {
-                    newProficiencies[discipleId] = profList
-                }
-                state.gameData = data.copy(manualProficiencies = newProficiencies)
-            }
-        }
-    }
+    ) = manualProficiencyService.processManualProficiencySingle(
+        state, id, manualInstanceMap, pendingProficiencies, libraryDiscipleIds
+    )
 
     /**
-     * 批量提交功法熟练度累积结果（P-1：单次 Map 构建 + 单次 copy）。
-     *
-     * 与单弟子模式逐弟子写等价：null/空列表条目移除，其余按 key 覆盖。
-     * pending 为空时不做任何事（无变化则不触发 GameData.copy）。
+     * 批量提交功法熟练度累积结果（D2 迁移至 [ManualProficiencyService]，此处保留委托）。
      *
      * @param state 可变游戏状态
      * @param pending 由 [processManualProficiencySingle] 批量模式累积的变更
@@ -330,16 +158,7 @@ class CultivationCore @Inject constructor(
     fun commitManualProficiencies(
         state: MutableGameState,
         pending: MutableMap<String, List<ManualProficiencyData>?>
-    ) {
-        if (pending.isEmpty()) return
-        val data = state.gameData
-        val merged = data.manualProficiencies.toMutableMap()
-        for ((discipleId, list) in pending) {
-            if (list == null) merged.remove(discipleId)
-            else merged[discipleId] = list
-        }
-        state.gameData = data.copy(manualProficiencies = merged)
-    }
+    ) = manualProficiencyService.commitManualProficiencies(state, pending)
 
     /**
      * 单弟子每旬装备孕养经验增长。

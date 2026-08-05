@@ -447,146 +447,236 @@ class BattleSystem @Inject constructor(
      * @param combatant 当前行动的参战者（按速度排序遍历）
      * @return Continue 继续回合；EndBattle 敌方全灭提前结束
      */
+    @Suppress("ReturnCount") // 卫语句密集的回合控制函数（判死/全灭/控制效果 4 处提前退出）
     private fun executeCombatantTurn(
         ctx: TurnContext,
         combatant: Combatant,
         playerDamageModifier: Double
     ): TurnOutcome {
+        if (combatant.isDead) return TurnOutcome.Continue
 
-            if (combatant.isDead) return TurnOutcome.Continue
+        val isTeamMember = combatant.side == CombatantSide.DEFENDER
+        val sides = resolveTurnSides(ctx, isTeamMember)
+        val allies = sides.allies
+        val enemies = sides.enemies
 
-            val isTeamMember = combatant.side == CombatantSide.DEFENDER
-            val allies = if (isTeamMember) ctx.team else ctx.beasts
-            val enemies = if (isTeamMember) ctx.beasts else ctx.team
-            val alliesIndexMap = if (isTeamMember) ctx.teamIndexMap else ctx.beastsIndexMap
-            val enemiesIndexMap = if (isTeamMember) ctx.beastsIndexMap else ctx.teamIndexMap
+        val aliveEnemies = enemies.filter { !it.isDead }
+        if (aliveEnemies.isEmpty()) return TurnOutcome.EndBattle
 
-            val aliveEnemies = enemies.filter { !it.isDead }
-            if (aliveEnemies.isEmpty()) {
-                return TurnOutcome.EndBattle
-            }
+        // 以 ctx 当前状态判死：回合内被击杀的单位（快照仍存活）不得继续出手
+        val currentCombatant = allies.firstOrNull { it.id == combatant.id } ?: combatant
+        if (currentCombatant.isDead) return TurnOutcome.Continue
 
-            // 以 ctx 当前状态判死：回合内被击杀的单位（快照仍存活）不得继续出手
-            val currentCombatant = allies.firstOrNull { it.id == combatant.id } ?: combatant
-            if (currentCombatant.isDead) return TurnOutcome.Continue
+        // 控制效果（眩晕/冰冻）：跳过行动并结算 BUFF，回合提前结束
+        applyControlEffects(ctx, currentCombatant, isTeamMember, allies, sides.alliesIndexMap)
+            ?.let { return it }
 
-            // 控制效果（眩晕/冰冻）：跳过行动并结算 BUFF，回合提前结束
-            applyControlEffects(ctx, currentCombatant, isTeamMember, allies, alliesIndexMap)
-                ?.let { return it }
+        val silenceBuff = currentCombatant.buffs.find { it.type == BuffType.SILENCE && it.remainingDuration > 0 }
+        val skillDecision = selectSkill(
+            currentCombatant, aliveEnemies, allies, silenceBuff != null, playerDamageModifier
+        )
+        val availableSkill = skillDecision.skill
 
-            val silenceBuff = currentCombatant.buffs.find { it.type == BuffType.SILENCE && it.remainingDuration > 0 }
-            val skillDecision = selectSkill(currentCombatant, aliveEnemies, allies, silenceBuff != null)
-            val availableSkill = skillDecision.skill
+        val isSupportSkill = availableSkill?.skillType == SkillType.SUPPORT
+        val isAoeSkill = availableSkill?.isAoe == true && !isSupportSkill
+        val results = executeSkillAction(
+            currentCombatant, aliveEnemies, allies, isTeamMember, availableSkill, isSupportSkill, isAoeSkill,
+            skillDecision.action, playerDamageModifier
+        )
 
-            val isSupportSkill = availableSkill?.skillType == SkillType.SUPPORT
-            val isAoeSkill = availableSkill?.isAoe == true && !isSupportSkill
+        val result = results.first(); val isInstantKill = results.any { it.isInstantKill }
 
-            val results = executeSkillAction(
-                currentCombatant, aliveEnemies, allies, isTeamMember, availableSkill, isSupportSkill, isAoeSkill,
-                skillDecision.action, playerDamageModifier
+        val turnMessage = buildTurnMessage(
+            isInstantKill = isInstantKill,
+            result = result,
+            availableSkill = availableSkill,
+            isAoeSkill = isAoeSkill,
+            results = results,
+            currentCombatant = currentCombatant
+        )
+
+        recordTurnAction(ctx, ActionRecordData(
+            availableSkill = availableSkill,
+            isSupportSkill = isSupportSkill,
+            isAoeSkill = isAoeSkill,
+            isInstantKill = isInstantKill,
+            isTeamMember = isTeamMember,
+            result = result,
+            turnMessage = turnMessage,
+            currentCombatant = currentCombatant,
+            isCrit = results.any { it.isCrit }
+        ))
+
+        if (!result.isSupport) {
+            applyDamageEffects(
+                ctx, results, sides.enemiesIndexMap, isTeamMember,
+                currentCombatant, availableSkill, isAoeSkill, aliveEnemies
             )
+        }
 
-            val result = results.first()
-            val isInstantKill = results.any { it.isInstantKill }
-
-            val turnMessage = buildTurnMessage(
-                isInstantKill = isInstantKill,
-                result = result,
-                availableSkill = availableSkill,
-                isAoeSkill = isAoeSkill,
-                results = results,
-                currentCombatant = currentCombatant
-            )
-            val isKill = turnMessage.isKill
-            val totalDamage = turnMessage.totalDamage
-            val message = turnMessage.text
-
-            ctx.actions.add(BattleActionData(
-                type = when {
-                    isSupportSkill -> "support"
-                    availableSkill != null -> "skill"
-                    else -> "attack"
-                },
-                attacker = currentCombatant.name,
-                attackerType = if (isTeamMember) "disciple" else if (currentCombatant.isBeast) "beast" else "disciple",
-                target = if (isSupportSkill) "ctx.team" else if (isAoeSkill) "全体敌人" else result.target.name,
-                damage = if (isAoeSkill) totalDamage else result.damage,
-                damageType = if (isInstantKill) "必杀" else if (result.isSupport) "support" else if (result.isDodged) "闪避" else if (result.isPhysical) "物理" else "法术",
-                isCrit = results.any { it.isCrit },
-                isKill = isKill,
-                isInstantKill = isInstantKill,
-                message = message,
-                skillName = result.skillName
-            ))
-
-            if (!result.isSupport) {
-                applyDamageEffects(
-                    ctx, results, enemiesIndexMap, isTeamMember, currentCombatant,
-                    availableSkill, isAoeSkill, aliveEnemies
-                )
+        if (availableSkill != null) {
+            applyCooldownUpdate(ctx, sides.alliesIndexMap, currentCombatant, availableSkill, isTeamMember)
+            if (isSupportSkill) {
+                applySupportEffects(ctx, result, allies, isTeamMember, currentCombatant, playerDamageModifier)
             }
-
-            if (availableSkill != null) {
-                val combatantIndex = alliesIndexMap[currentCombatant.id] ?: -1
-                if (combatantIndex >= 0) {
-                    val updatedCombatant = BattleCalculator.updateCombatantCooldowns(currentCombatant, availableSkill)
-
-                    if (isTeamMember) {
-                        ctx.team[combatantIndex] = updatedCombatant
-                    } else {
-                        ctx.beasts[combatantIndex] = updatedCombatant
-                    }
-                }
-
-                if (isSupportSkill) {
-                    if (result.healedIds.isNotEmpty()) {
-                        // 治疗按 allies 定位、按 isTeamMember 分写（修复：原硬编码 ctx.team 致敌方治疗无效）
-                        result.healedIds.forEach { healedId ->
-                            val healedIndex = allies.indexOfFirst { it.id == healedId }
-                            if (healedIndex >= 0) {
-                                val healed = allies[healedIndex]
-                                val updated = if (result.healType == HealType.MP) {
-                                    healed.copy(mp = minOf(healed.mp + result.healAmount, healed.maxMp))
-                                } else {
-                                    healed.copy(hp = minOf(healed.hp + result.healAmount, healed.maxHp))
-                                }
-                                if (isTeamMember) {
-                                    ctx.team[healedIndex] = updated
-                                } else {
-                                    ctx.beasts[healedIndex] = updated
-                                }
-                            }
-                        }
-                    }
-
-                    if (result.teamBuffs.isNotEmpty()) {
-                        result.teamBuffs.forEach { (memberId, buffs) ->
-                            val memberIndex = allies.indexOfFirst { it.id == memberId }
-                            if (memberIndex >= 0) {
-                                val member = allies[memberIndex]
-                                val existingBuffs = member.buffs.filter { it.remainingDuration > 0 }
-                                val updated = member.copy(buffs = existingBuffs + buffs)
-                                if (isTeamMember) {
-                                    ctx.team[memberIndex] = updated
-                                } else {
-                                    ctx.beasts[memberIndex] = updated
-                                }
-                            }
-                        }
-                    }
-
-                    // Turn advance: target ally acts immediately after current combatant
-                    if (result.turnAdvancePercent > 0) {
-                        processTurnAdvance(
-                            ctx, result, allies, currentCombatant, isTeamMember, enemiesIndexMap,
-                            playerDamageModifier
-                        )
-                    }
-                }
-            } else {
-                updateCombatantBuffs(currentCombatant, allies, alliesIndexMap)
-            }
+        } else {
+            updateCombatantBuffs(currentCombatant, allies, sides.alliesIndexMap)
+        }
         return TurnOutcome.Continue
+    }
+
+    /** 回合双方阵营解析打包（executeCombatantTurn 提取，消除 4 个三元 if） */
+    private data class TurnSides(
+        val allies: MutableList<Combatant>,
+        val enemies: MutableList<Combatant>,
+        val alliesIndexMap: Map<String, Int>,
+        val enemiesIndexMap: Map<String, Int>
+    )
+
+    /** 回合双方阵营解析（executeCombatantTurn 提取） */
+    private fun resolveTurnSides(ctx: TurnContext, isTeamMember: Boolean): TurnSides {
+        return if (isTeamMember) {
+            TurnSides(ctx.team, ctx.beasts, ctx.teamIndexMap, ctx.beastsIndexMap)
+        } else {
+            TurnSides(ctx.beasts, ctx.team, ctx.beastsIndexMap, ctx.teamIndexMap)
+        }
+    }
+
+    /**
+     * 回合行动记录打包（C-6 拆分 executeCombatantTurn 用，8 参超限打包）。
+     */
+    private data class ActionRecordData(
+        val availableSkill: CombatSkill?,
+        val isSupportSkill: Boolean,
+        val isAoeSkill: Boolean,
+        val isInstantKill: Boolean,
+        val isTeamMember: Boolean,
+        val result: AttackResult,
+        val turnMessage: TurnMessage,
+        val currentCombatant: Combatant,
+        val isCrit: Boolean
+    )
+
+    /**
+     * 记录参战者本次行动到战斗动作列表（C-6 从 executeCombatantTurn 提取）。
+     */
+    private fun recordTurnAction(ctx: TurnContext, data: ActionRecordData) {
+        val isKill = data.turnMessage.isKill
+        ctx.actions.add(BattleActionData(
+            type = when {
+                data.isSupportSkill -> "support"
+                data.availableSkill != null -> "skill"
+                else -> "attack"
+            },
+            attacker = data.currentCombatant.name,
+            attackerType = if (data.isTeamMember) "disciple" else
+                if (data.currentCombatant.isBeast) "beast" else "disciple",
+            target = if (data.isSupportSkill) "ctx.team" else
+                if (data.isAoeSkill) "全体敌人" else data.result.target.name,
+            damage = if (data.isAoeSkill) data.turnMessage.totalDamage else data.result.damage,
+            damageType = if (data.isInstantKill) "必杀" else if (data.result.isSupport) "support" else
+                if (data.result.isDodged) "闪避" else if (data.result.isPhysical) "物理" else "法术",
+            isCrit = data.isCrit,
+            isKill = isKill,
+            isInstantKill = data.isInstantKill,
+            message = data.turnMessage.text,
+            skillName = data.result.skillName
+        ))
+    }
+
+    /**
+     * 技能冷却更新写回（C-6 从 executeCombatantTurn 提取）。
+     */
+    private fun applyCooldownUpdate(
+        ctx: TurnContext,
+        alliesIndexMap: Map<String, Int>,
+        currentCombatant: Combatant,
+        availableSkill: CombatSkill,
+        isTeamMember: Boolean
+    ) {
+        val combatantIndex = alliesIndexMap[currentCombatant.id] ?: -1
+        if (combatantIndex >= 0) {
+            val updatedCombatant = BattleCalculator.updateCombatantCooldowns(currentCombatant, availableSkill)
+            if (isTeamMember) {
+                ctx.team[combatantIndex] = updatedCombatant
+            } else {
+                ctx.beasts[combatantIndex] = updatedCombatant
+            }
+        }
+    }
+
+    /**
+     * 支援技能效果应用：治疗写回 + 团队 BUFF + 拉条（C-6 从 executeCombatantTurn 提取）。
+     */
+    private fun applySupportEffects(
+        ctx: TurnContext,
+        result: AttackResult,
+        allies: MutableList<Combatant>,
+        isTeamMember: Boolean,
+        currentCombatant: Combatant,
+        playerDamageModifier: Double
+    ) {
+        applySupportHealing(ctx, result, allies, isTeamMember)
+        applySupportTeamBuffs(ctx, result, allies, isTeamMember)
+
+        // Turn advance: target ally acts immediately after current combatant
+        if (result.turnAdvancePercent > 0) {
+            val enemiesIndexMap = if (isTeamMember) ctx.beastsIndexMap else ctx.teamIndexMap
+            processTurnAdvance(
+                ctx, result, allies, currentCombatant, isTeamMember, enemiesIndexMap,
+                playerDamageModifier
+            )
+        }
+    }
+
+    /** 支援治疗写回（applySupportEffects 提取，按 allies 定位、按 isTeamMember 分写） */
+    private fun applySupportHealing(
+        ctx: TurnContext,
+        result: AttackResult,
+        allies: MutableList<Combatant>,
+        isTeamMember: Boolean
+    ) {
+        if (result.healedIds.isEmpty()) return
+        // 治疗按 allies 定位、按 isTeamMember 分写（修复：原硬编码 ctx.team 致敌方治疗无效）
+        result.healedIds.forEach { healedId ->
+            val healedIndex = allies.indexOfFirst { it.id == healedId }
+            if (healedIndex >= 0) {
+                val healed = allies[healedIndex]
+                val updated = if (result.healType == HealType.MP) {
+                    healed.copy(mp = minOf(healed.mp + result.healAmount, healed.maxMp))
+                } else {
+                    healed.copy(hp = minOf(healed.hp + result.healAmount, healed.maxHp))
+                }
+                if (isTeamMember) {
+                    ctx.team[healedIndex] = updated
+                } else {
+                    ctx.beasts[healedIndex] = updated
+                }
+            }
+        }
+    }
+
+    /** 团队 BUFF 写回（applySupportEffects 提取） */
+    private fun applySupportTeamBuffs(
+        ctx: TurnContext,
+        result: AttackResult,
+        allies: MutableList<Combatant>,
+        isTeamMember: Boolean
+    ) {
+        if (result.teamBuffs.isEmpty()) return
+        result.teamBuffs.forEach { (memberId, buffs) ->
+            val memberIndex = allies.indexOfFirst { it.id == memberId }
+            if (memberIndex >= 0) {
+                val member = allies[memberIndex]
+                val existingBuffs = member.buffs.filter { it.remainingDuration > 0 }
+                val updated = member.copy(buffs = existingBuffs + buffs)
+                if (isTeamMember) {
+                    ctx.team[memberIndex] = updated
+                } else {
+                    ctx.beasts[memberIndex] = updated
+                }
+            }
+        }
     }
 
     /**
@@ -1064,10 +1154,13 @@ class BattleSystem @Inject constructor(
         combatant: Combatant,
         enemies: List<Combatant>,
         allies: List<Combatant>,
-        isSilenced: Boolean
+        isSilenced: Boolean,
+        playerDamageModifier: Double
     ): SkillDecision {
         if (isSilenced) return SkillDecision(null, null)
-        val action = BattleAI.decideAction(combatant, allies, enemies, rng)
+        // T-C1（2026-08-05）：玩家侧 AI 决策透传伤害倍率（严苛训练 +5% 估算一致）
+        val dmgMod = if (combatant.side == CombatantSide.DEFENDER) playerDamageModifier else 1.0
+        val action = BattleAI.decideAction(combatant, allies, enemies, rng, dmgMod)
         return SkillDecision(action.skill, action)
     }
 

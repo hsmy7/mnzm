@@ -63,6 +63,15 @@ class ExplorationService @Inject constructor(
     /** 妖兽防守战斗结果弹窗缓存（resolveBeastFightInternal 写，UI 层读） */
     companion object {
         private const val TAG = "ExplorationService"
+
+        /** 妖兽防守弟子排除状态（selectBeastDefenders 两路径共享） */
+        private val BEAST_DEFENDER_EXCLUDE_STATUSES = setOf(
+            DiscipleStatus.ON_MISSION,
+            DiscipleStatus.IN_TEAM,
+            DiscipleStatus.REFLECTING,
+            DiscipleStatus.GARRISONING,
+            DiscipleStatus.REFINING
+        )
     }
 
     // ── 月度处理（由 ExplorationTickSystem 调用） ───────────────────────────
@@ -180,81 +189,98 @@ class ExplorationService @Inject constructor(
             if (currentLevel == null || currentLevel.defeated) return@update
 
             // 遭遇战检查：妖兽附近有 AI 宗门拦截
-            val aiSectId = gameData.aiBeastEncounterTargets[beastLevelId]
-            if (aiSectId != null) {
-                val aiSect = gameData.worldMapSects.find { it.id == aiSectId }
-                val targetSect = gameData.worldMapSects.find {
-                    it.isPlayerSect || it.isPlayerOccupied
-                }
-                if (aiSect != null && targetSect != null) {
-                    // 使用手动选择的弟子（世界地图进攻）或自动选择（弹窗迎战）
-                    // 手动选择路径在锁内重新查询弟子状态，避免锁外快照的 isAlive 过期
-                    val defenders = if (manualDefenders != null) {
-                        val manualIds = manualDefenders.map { it.id }.toSet()
-                        val excludeStatuses = setOf(
-                            DiscipleStatus.ON_MISSION,
-                            DiscipleStatus.IN_TEAM,
-                            DiscipleStatus.REFLECTING,
-                            DiscipleStatus.GARRISONING,
-                            DiscipleStatus.REFINING
-                        )
-                        discipleTables.assembleAll()
-                            .filter { it.id in manualIds && it.isAlive && it.status !in excludeStatuses }
-                    } else {
-                        val pids = gameData.patrolSlots
-                            .filter { it.discipleId.isNotEmpty() }
-                            .map { it.discipleId }.toSet()
-                        val excludeStatuses = setOf(
-                            DiscipleStatus.ON_MISSION,
-                            DiscipleStatus.IN_TEAM,
-                            DiscipleStatus.REFLECTING,
-                            DiscipleStatus.GARRISONING,
-                            DiscipleStatus.REFINING
-                        )
-                        discipleTables.assembleAll()
-                            .filter { it.id in pids && it.isAlive && it.status !in excludeStatuses }
-                            .take(8)
-                    }
-                    val defenderIds = defenders.map { it.id }.toSet()
-                    prepareBeastDefenders(defenderIds)
-                    if (defenders.isNotEmpty()) {
-                        val aiTeam = gameData.aiSectDisciples[aiSectId]
-                            ?.filter { it.isAlive }
-                            ?.take(GameConfig.AI.TEAM_SIZE) ?: emptyList()
-                        if (aiTeam.isNotEmpty()) {
-                            encounterBattleService.encounter(
-                                state = this,
-                                attackerA = EncounterAttacker(
-                                    sectId = targetSect.id,
-                                    sectName = targetSect.name,
-                                    isPlayer = true,
-                                    teamDisciples = defenders
-                                ),
-                                attackerB = EncounterAttacker(
-                                    sectId = aiSect.id,
-                                    sectName = aiSect.name,
-                                    isPlayer = false,
-                                    teamDisciples = aiTeam
-                                ),
-                                beast = level,
-                                year = gameData.gameYear,
-                                month = gameData.gameMonth
-                            )
-                            gameData = gameData.copy(
-                                aiBeastEncounterTargets =
-                                    gameData.aiBeastEncounterTargets - beastLevelId
-                            )
-                            handled = true
-                            return@update
-                        }
-                    }
-                }
+            if (resolveEncounterPath(this, beastLevelId, level, manualDefenders)) {
+                handled = true
+                return@update
             }
             // 无遭遇战，走正常妖兽战斗路径
             handled = true
             resolveBeastFightInternal(beastLevelId, level)
         }
         return handled
+    }
+
+    /** 遭遇战路径（resolveBeastAttackFight 提取）；返回是否已处理（命中遭遇战且 AI 应战） */
+    private fun resolveEncounterPath(
+        state: MutableGameState,
+        beastLevelId: String,
+        level: WorldLevel,
+        manualDefenders: List<Disciple>?
+    ): Boolean {
+        val aiSectId = state.gameData.aiBeastEncounterTargets[beastLevelId]
+        val aiSect = state.gameData.worldMapSects.find { it.id == aiSectId }
+        val targetSect = state.gameData.worldMapSects.find {
+            it.isPlayerSect || it.isPlayerOccupied
+        }
+        if (aiSectId == null || aiSect == null || targetSect == null) return false
+
+        val defenders = selectBeastDefenders(state, manualDefenders)
+        state.prepareBeastDefenders(defenders.map { it.id }.toSet())
+        val aiTeam = state.gameData.aiSectDisciples[aiSectId]
+            ?.filter { it.isAlive }
+            ?.take(GameConfig.AI.TEAM_SIZE) ?: emptyList()
+
+        // 防守弟子与 AI 应战队伍均非空才执行遭遇战
+        val ready = defenders.isNotEmpty() && aiTeam.isNotEmpty()
+        if (ready && aiSect != null && targetSect != null) {
+            launchEncounterBattle(state, aiSect, targetSect, defenders, aiTeam, level, beastLevelId)
+        }
+        return ready
+    }
+
+    /** 遭遇战执行（resolveEncounterPath 提取） */
+    private fun launchEncounterBattle(
+        state: MutableGameState,
+        aiSect: WorldSect,
+        targetSect: WorldSect,
+        defenders: List<Disciple>,
+        aiTeam: List<Disciple>,
+        level: WorldLevel,
+        beastLevelId: String
+    ) {
+        encounterBattleService.encounter(
+            state = state,
+            attackerA = EncounterAttacker(
+                sectId = targetSect.id,
+                sectName = targetSect.name,
+                isPlayer = true,
+                teamDisciples = defenders
+            ),
+            attackerB = EncounterAttacker(
+                sectId = aiSect.id,
+                sectName = aiSect.name,
+                isPlayer = false,
+                teamDisciples = aiTeam
+            ),
+            beast = level,
+            year = state.gameData.gameYear,
+            month = state.gameData.gameMonth
+        )
+        state.gameData = state.gameData.copy(
+            aiBeastEncounterTargets =
+                state.gameData.aiBeastEncounterTargets - beastLevelId
+        )
+    }
+
+    /** 防守弟子选择（resolveEncounterPath 提取）：手动路径锁内重查，自动路径巡视塔弟子 */
+    private fun selectBeastDefenders(
+        state: MutableGameState,
+        manualDefenders: List<Disciple>?
+    ): List<Disciple> {
+        // 使用手动选择的弟子（世界地图进攻）或自动选择（弹窗迎战）
+        // 手动选择路径在锁内重新查询弟子状态，避免锁外快照的 isAlive 过期
+        return if (manualDefenders != null) {
+            val manualIds = manualDefenders.map { it.id }.toSet()
+            state.discipleTables.assembleAll()
+                .filter { it.id in manualIds && it.isAlive && it.status !in BEAST_DEFENDER_EXCLUDE_STATUSES }
+        } else {
+            val pids = state.gameData.patrolSlots
+                .filter { it.discipleId.isNotEmpty() }
+                .map { it.discipleId }.toSet()
+            state.discipleTables.assembleAll()
+                .filter { it.id in pids && it.isAlive && it.status !in BEAST_DEFENDER_EXCLUDE_STATUSES }
+                .take(8)
+        }
     }
 
     // ── 内部战斗编排（≤60 行，委派各子阶段） ─────────────────────────────

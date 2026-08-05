@@ -1,9 +1,14 @@
 package com.xianxia.sect.core.engine.domain.save
 
 import com.xianxia.sect.core.engine.GameStateSnapshot
+import com.xianxia.sect.core.repository.GameHeavyDataPort
+import com.xianxia.sect.core.repository.HeavyDataDecoder
 import com.xianxia.sect.core.model.*
 
 interface SaveFacade {
+    val saveService: SaveService
+    val heavyDataPort: GameHeavyDataPort
+    val heavyDataDecoder: HeavyDataDecoder
     fun getStateSnapshotSync(): GameStateSnapshot
     suspend fun getStateSnapshot(): GameStateSnapshot
     suspend fun loadFromSave(

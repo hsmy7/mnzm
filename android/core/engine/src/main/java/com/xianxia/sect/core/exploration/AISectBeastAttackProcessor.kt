@@ -204,6 +204,29 @@ class AISectBeastAttackProcessor @Inject constructor(
         if (teamA.isEmpty() || teamB.isEmpty()) return
 
         // Phase 1: AI vs AI PvP
+        val (pvpResult, teamADead, teamBDead) = buildAIEncounterBattle(teamA, teamB)
+        applyEncounterDeaths(state, sectA, sectB, pvpResult, teamBDead, year)
+
+        // Phase 2: 胜者 vs 妖兽
+        val winnerDisciples = selectEncounterWinner(pvpResult, teamA, teamB, teamADead, teamBDead)
+        if (winnerDisciples.isEmpty()) return
+
+        val winnerSect = if (pvpResult.victory) sectA else sectB
+        executePvePhaseForWinner(state, winnerDisciples, beast, winnerSect.id, winnerSect.name, year)
+    }
+
+    /** Phase 1 PvP 战斗构建打包（executeAIEncounterBattle 提取） */
+    private data class AIEncounterPvpResult(
+        val pvpResult: BattleSystemResult,
+        val teamADead: Set<String>,
+        val teamBDead: Set<String>
+    )
+
+    /** Phase 1: AI vs AI PvP 战斗构建 + 执行（executeAIEncounterBattle 提取） */
+    private fun buildAIEncounterBattle(
+        teamA: List<com.xianxia.sect.core.model.Disciple>,
+        teamB: List<com.xianxia.sect.core.model.Disciple>
+    ): AIEncounterPvpResult {
         val preparedA = AISectDiscipleManager.prepareDisciplesForBattle(teamA)
         val preparedB = AISectDiscipleManager.prepareDisciplesForBattle(teamB)
         val teamACombatants = preparedA.disciples.map { disciple ->
@@ -233,9 +256,20 @@ class AISectBeastAttackProcessor @Inject constructor(
         )
         val pvpResult = battleSystem.executeBattle(pvpBattle)
 
-        // 处理双方死亡
         val teamADead = pvpResult.battle.team.filter { it.isDead }.map { it.id }.toSet()
         val teamBDead = pvpResult.battle.beasts.filter { it.isDead }.map { it.id }.toSet()
+        return AIEncounterPvpResult(pvpResult, teamADead, teamBDead)
+    }
+
+    /** Phase 1 双方死亡处理（executeAIEncounterBattle 提取） */
+    private fun applyEncounterDeaths(
+        state: MutableGameState,
+        sectA: WorldSect,
+        sectB: WorldSect,
+        pvpResult: BattleSystemResult,
+        teamBDead: Set<String>,
+        year: Int
+    ) {
         handleAIDeaths(state, sectA.id, pvpResult, year)
         if (teamBDead.isNotEmpty()) {
             val updatedB = state.gameData.aiSectDisciples[sectB.id]?.map { d ->
@@ -245,25 +279,42 @@ class AISectBeastAttackProcessor @Inject constructor(
                 aiSectDisciples = state.gameData.aiSectDisciples + (sectB.id to updatedB)
             )
         }
+    }
 
-        // Phase 2: 胜者 vs 妖兽
-        val winnerDisciples = if (pvpResult.victory) {
+    /** Phase 2 胜方选择（executeAIEncounterBattle 提取） */
+    private fun selectEncounterWinner(
+        pvpResult: BattleSystemResult,
+        teamA: List<com.xianxia.sect.core.model.Disciple>,
+        teamB: List<com.xianxia.sect.core.model.Disciple>,
+        teamADead: Set<String>,
+        teamBDead: Set<String>
+    ): List<com.xianxia.sect.core.model.Disciple> {
+        return if (pvpResult.victory) {
             teamA.filter { it.id !in teamADead }
         } else {
             teamB.filter { it.id !in teamBDead }
         }
-        if (winnerDisciples.isEmpty()) return
+    }
 
+    /** Phase 2: 胜者 vs 妖兽（executeAIEncounterBattle 提取） */
+    private fun executePvePhaseForWinner(
+        state: MutableGameState,
+        winnerDisciples: List<com.xianxia.sect.core.model.Disciple>,
+        beast: WorldLevel,
+        winnerSectId: String,
+        winnerSectName: String,
+        year: Int
+    ) {
         val beastBattle = createAIBattle(winnerDisciples, beast)
         val beastResult = battleSystem.executeBattle(beastBattle)
 
         if (beastResult.victory) {
             markBeastDefeated(state, beast.id)
             state.recordGameEvent(GameEventCategory.WORLD, GameEventType.BEAST_HUNT,
-                "${if (pvpResult.victory) sectA.name else sectB.name}击败了妖兽「${beast.beastName}」"
+                "${winnerSectName}击败了妖兽「${beast.beastName}」"
             )
         }
-        handleAIDeaths(state, if (pvpResult.victory) sectA.id else sectB.id, beastResult, year)
+        handleAIDeaths(state, winnerSectId, beastResult, year)
     }
 
     // ── 内部方法 ───────────────────────────────────────────────

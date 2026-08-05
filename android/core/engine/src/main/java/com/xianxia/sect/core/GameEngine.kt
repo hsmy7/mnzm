@@ -8,6 +8,14 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
+import com.xianxia.sect.core.engine.domain.cultivation.CultivationFacade
+import com.xianxia.sect.core.engine.domain.economy.EconomyFacade
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
+import com.xianxia.sect.core.engine.domain.exploration.ExplorationFacade
+import com.xianxia.sect.core.engine.service.LawEnforcementProcessor
+import com.xianxia.sect.core.engine.service.SecretRealmService
+import com.xianxia.sect.core.repository.GameHeavyDataPort
+import com.xianxia.sect.core.repository.HeavyDataDecoder
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.FormulaService
 import com.xianxia.sect.core.util.GameRngManager
@@ -66,40 +74,50 @@ data class GameStateSnapshot(
 
 @Singleton
 class GameEngine @Inject constructor(
+    // D1（2026-08-05）：33 个构造依赖按域归组为 3 个新 Facade + 既有 Facade 吸收，
+    // 构造 33→7；16 个扩展文件通过下方同名 internal val 访问器零改动访问
     internal val gameEngineCore: GameEngineCore,
+    // 测试注入点（FakeEngineContextDispatcher 绕过 Mockito suspend 泛型限制）；
+    // 生产恒等于 gameEngineCore（D1 归组后第 8 个参数，超出 7 的说明见批次 F）
     internal val engineContextDispatcher: EngineContextDispatcher = gameEngineCore,
     internal val stateStore: GameStateStore,
-    internal val inventorySystem: InventorySystem,
-    internal val inventoryConfig: InventoryConfig,
-    internal val battleSystem: BattleSystem,
-    internal val productionCoordinator: ProductionCoordinator,
-    internal val discipleService: DiscipleService,
-    internal val combatService: CombatService,
-    internal val explorationService: ExplorationService,
-    internal val buildingService: BuildingService,
-    internal val saveService: SaveService,
-    internal val cultivationService: CultivationService,
-    internal val diplomacyService: DiplomacyService,
-    internal val redeemCodeService: RedeemCodeService,
-    internal val formulaService: FormulaService,
-    internal val mailService: MailService,
-    internal val dailySignInService: DailySignInService,
-    internal val autoBuyService: AutoBuyService,
-    internal val heavyDataPort: com.xianxia.sect.core.repository.GameHeavyDataPort,
-    internal val heavyDataDecoder: com.xianxia.sect.core.repository.HeavyDataDecoder,
-    internal val discipleFacade: com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade,
-    internal val battleFacade: BattleFacade,
-    internal val buildingFacade: BuildingFacade,
-    internal val inventoryFacade: InventoryFacade,
-    internal val diplomacyFacade: DiplomacyFacade,
-    internal val productionFacade: ProductionFacade,
-    internal val saveFacade: SaveFacade,
-    internal val spiritStoneWallet: SpiritStoneWallet,
     internal val gameRngManager: GameRngManager,
-    internal val assignmentGate: com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate,
-    internal val lawEnforcementProcessor: com.xianxia.sect.core.engine.service.LawEnforcementProcessor,
-    internal val secretRealmService: com.xianxia.sect.core.engine.service.SecretRealmService,
+    internal val explorationFacade: ExplorationFacade,
+    internal val cultivationFacade: CultivationFacade,
+    internal val economyFacade: EconomyFacade,
+    internal val battleFacade: BattleFacade,
 ) {
+
+    // ── 服务访问器（D1 归组转发，扩展文件零改动） ──
+    internal val inventorySystem: InventorySystem get() = economyFacade.inventoryFacade.inventorySystem
+    internal val inventoryConfig: InventoryConfig get() = economyFacade.inventoryFacade.inventoryConfig
+    internal val battleSystem: BattleSystem get() = battleFacade.battleSystem
+    internal val combatService: CombatService get() = battleFacade.combatService
+    internal val assignmentGate: DiscipleAssignmentGate get() = battleFacade.assignmentGate
+    internal val productionCoordinator: ProductionCoordinator get() = cultivationFacade.productionCoordinator
+    internal val discipleService: DiscipleService get() = cultivationFacade.discipleService
+    internal val explorationService: ExplorationService get() = explorationFacade.explorationService
+    internal val secretRealmService: SecretRealmService get() = explorationFacade.secretRealmService
+    internal val buildingService: BuildingService get() = cultivationFacade.buildingFacade.buildingService
+    internal val saveService: SaveService get() = economyFacade.saveFacade.saveService
+    internal val cultivationService: CultivationService get() = cultivationFacade.cultivationService
+    internal val diplomacyService: DiplomacyService get() = explorationFacade.diplomacyService
+    internal val redeemCodeService: RedeemCodeService get() = economyFacade.redeemCodeService
+    internal val formulaService: FormulaService get() = cultivationFacade.formulaService
+    internal val mailService: MailService get() = economyFacade.mailService
+    internal val dailySignInService: DailySignInService get() = economyFacade.dailySignInService
+    internal val autoBuyService: AutoBuyService get() = economyFacade.autoBuyService
+    internal val heavyDataPort: GameHeavyDataPort get() = economyFacade.saveFacade.heavyDataPort
+    internal val heavyDataDecoder: HeavyDataDecoder get() = economyFacade.saveFacade.heavyDataDecoder
+    internal val discipleFacade: DiscipleFacade get() = cultivationFacade.discipleFacade
+    internal val buildingFacade: BuildingFacade get() = cultivationFacade.buildingFacade
+    internal val inventoryFacade: InventoryFacade get() = economyFacade.inventoryFacade
+    internal val diplomacyFacade: DiplomacyFacade get() = explorationFacade.diplomacyFacade
+    internal val productionFacade: ProductionFacade get() = cultivationFacade.productionFacade
+    internal val saveFacade: SaveFacade get() = economyFacade.saveFacade
+    internal val spiritStoneWallet: SpiritStoneWallet get() = economyFacade.spiritStoneWallet
+    internal val lawEnforcementProcessor: LawEnforcementProcessor get() = cultivationFacade.lawEnforcementProcessor
+
     init {
         // 注入任务完成检测回调到 GameEngineCore，
         // 确保空闲期间任务完成也能被每月结算及时检测

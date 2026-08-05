@@ -94,25 +94,28 @@ object BattleCalculator {
      * @param extraAmplification 外部额外增伤（如政策加成），直接加到 damageAmplification 乘区
      */
     fun buildDamageZones(attacker: Combatant, defender: Combatant? = null, extraAmplification: Double = 0.0): DamageZones {
-        // 物理/魔法攻击 Buff 分桶求和：避免物理加成误加到魔法攻击
-        val physBoost = attacker.buffs
-            .filter { it.type == BuffType.PHYSICAL_ATTACK_BOOST }
-            .sumOf { it.value }
-        val physReduce = attacker.buffs
-            .filter { it.type == BuffType.PHYSICAL_ATTACK_REDUCE }
-            .sumOf { it.value }
-        val magBoost = attacker.buffs
-            .filter { it.type == BuffType.MAGIC_ATTACK_BOOST }
-            .sumOf { it.value }
-        val magReduce = attacker.buffs
-            .filter { it.type == BuffType.MAGIC_ATTACK_REDUCE }
-            .sumOf { it.value }
-        val dmgBoost = attacker.buffs
-            .filter { it.type == BuffType.DAMAGE_BOOST }
-            .sumOf { it.value }
-        val dmgReduce = defender?.buffs
-            ?.filter { it.type == BuffType.DAMAGE_REDUCTION }
-            ?.sumOf { it.value } ?: 0.0
+        // 物理/魔法攻击 Buff 分桶求和：避免物理加成误加到魔法攻击。
+        // T-C4（2026-08-05）：原 6 次 filter+sumOf 各 O(B) 遍历合并为单次 O(B)
+        // when 分桶累加——遍历序与累加序逐位一致，数学等价。
+        var physBoost = 0.0
+        var physReduce = 0.0
+        var magBoost = 0.0
+        var magReduce = 0.0
+        var dmgBoost = 0.0
+        for (buff in attacker.buffs) {
+            when (buff.type) {
+                BuffType.PHYSICAL_ATTACK_BOOST -> physBoost += buff.value
+                BuffType.PHYSICAL_ATTACK_REDUCE -> physReduce += buff.value
+                BuffType.MAGIC_ATTACK_BOOST -> magBoost += buff.value
+                BuffType.MAGIC_ATTACK_REDUCE -> magReduce += buff.value
+                BuffType.DAMAGE_BOOST -> dmgBoost += buff.value
+                else -> {}
+            }
+        }
+        var dmgReduce = 0.0
+        defender?.buffs?.forEach { buff ->
+            if (buff.type == BuffType.DAMAGE_REDUCTION) dmgReduce += buff.value
+        }
 
         return DamageZones(
             // attackBuffs 由调用方（calculateCombatantDamage/estimateDamage）按攻击类型注入对应分桶
@@ -349,7 +352,8 @@ object BattleCalculator {
             val isPhysical = if (skill != null) skill.damageType == DamageType.PHYSICAL
                 else attacker.physicalAttack >= attacker.magicAttack
             return DamageResult(
-                damage = defender.maxHp,
+                // T-C2（2026-08-05）：maxHp 篡改为 0/负时钳制为 0，避免负伤害显示
+                damage = defender.maxHp.coerceAtLeast(0),
                 isCrit = false,
                 isPhysical = isPhysical,
                 isDodged = false,
@@ -428,7 +432,8 @@ object BattleCalculator {
         attacker: Combatant,
         defender: Combatant,
         skill: CombatSkill,
-        zones: DamageZones? = null
+        zones: DamageZones? = null,
+        damageModifier: Double = 1.0
     ): Int {
         val isPhysical = skill.damageType == DamageType.PHYSICAL
         val atk = if (isPhysical)
@@ -444,7 +449,10 @@ object BattleCalculator {
         val baseZones = zones ?: buildDamageZones(attacker, defender)
         val damageZones = baseZones.copy(
             attackBuffs = baseZones.attackBuffs +
-                (if (isPhysical) baseZones.physicalAttackBuffs else baseZones.magicAttackBuffs)
+                (if (isPhysical) baseZones.physicalAttackBuffs else baseZones.magicAttackBuffs),
+            // T-C1（2026-08-05）：damageModifier 注入（与 calculateCombatantDamage 同式），
+            // 严苛训练 +5% 时 AI 决策估算与实际伤害一致
+            damageAmplification = baseZones.damageAmplification + (damageModifier - 1.0)
         )
 
         // 期望暴击：体质暴伤与词条暴伤均为独立乘算因子，仅暴击时生效
@@ -601,9 +609,23 @@ object BattleCalculator {
             else -> listOf(caster)
         }
 
+        val (healAmount, healFixedAmount) = computeHealAmounts(caster, skill)
+        val totalHeal = healAmount + healFixedAmount
+        val teamBuffs = buildSkillBuffs(skill, targets)
+
+        return SupportResult(
+            healAmount = totalHeal,
+            healedIds = if (totalHeal > 0) targets.map { it.id } else emptyList(),
+            teamBuffs = teamBuffs,
+            turnAdvancePercent = skill.turnAdvancePercent,
+            healType = skill.healType
+        )
+    }
+
+    /** 治疗量计算（executeSupportSkill 提取）：百分比 + 固定值 */
+    private fun computeHealAmounts(caster: Combatant, skill: CombatSkill): Pair<Int, Int> {
         var healAmount = 0
         var healFixedAmount = 0
-        val teamBuffs = mutableMapOf<String, List<CombatBuff>>()
 
         // Percentage healing
         if (skill.healPercent > 0) {
@@ -618,6 +640,12 @@ object BattleCalculator {
         if (skill.healFixed > 0) {
             healFixedAmount = skill.healFixed
         }
+        return healAmount to healFixedAmount
+    }
+
+    /** 团队 BUFF 构建（executeSupportSkill 提取）：护盾/伤害分担/旧单 BUFF/多 BUFF 列表 */
+    private fun buildSkillBuffs(skill: CombatSkill, targets: List<Combatant>): Map<String, List<CombatBuff>> {
+        val teamBuffs = mutableMapOf<String, List<CombatBuff>>()
 
         // Shield buff
         if (skill.shieldPercent > 0 && skill.buffDuration > 0) {
@@ -644,9 +672,8 @@ object BattleCalculator {
         }
 
         // Legacy single buffType
-        if (skill.buffType != null && skill.buffDuration > 0) {
-            val skillBuffType = skill.buffType
-            if (skillBuffType != null) {
+        val skillBuffType = skill.buffType
+        if (skillBuffType != null && skill.buffDuration > 0) {
             val buff = CombatBuff(
                 type = skillBuffType,
                 value = skill.buffValue,
@@ -654,7 +681,6 @@ object BattleCalculator {
             )
             for (member in targets) {
                 teamBuffs[member.id] = listOf(buff)
-            }
             }
         }
 
@@ -670,15 +696,7 @@ object BattleCalculator {
                 teamBuffs[member.id] = existing + buff
             }
         }
-
-        val totalHeal = healAmount + healFixedAmount
-        return SupportResult(
-            healAmount = totalHeal,
-            healedIds = if (totalHeal > 0) targets.map { it.id } else emptyList(),
-            teamBuffs = teamBuffs,
-            turnAdvancePercent = skill.turnAdvancePercent,
-            healType = skill.healType
-        )
+        return teamBuffs
     }
 
     fun updateCombatantCooldowns(combatant: Combatant, usedSkill: CombatSkill): Combatant {

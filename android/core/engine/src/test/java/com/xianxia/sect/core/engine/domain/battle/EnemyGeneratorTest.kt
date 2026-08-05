@@ -265,4 +265,37 @@ class EnemyGeneratorTest {
         // 方差 ±30% + 层数 1~9 → 同一境界应有明显波动
         assertTrue("HP should vary with variance (max=$maxHp, min=$minHp)", maxHp > minHp * 1.2)
     }
+
+    // ---- T-C3（2026-08-05）：realmMin/realmMax 配置反转防御 ----
+
+    @Test
+    fun generateHumanEnemies_reversedRealmConfig_degradesToRealmMinNotCrash() {
+        // T-C3 修复前：realmMin > realmMax 时 nextInt(负值) 抛 IllegalArgumentException
+        // 修复后：退化为 realmMin（配置退化而非崩溃）
+        val results = EnemyGenerator.generateHumanEnemies(
+            realmMin = 7,
+            realmMax = 5,
+            count = 5
+        )
+        assertEquals(5, results.size)
+        for (data in results) {
+            assertTrue(
+                "反转配置应退化为 realmMin=7，实际 ${data.combatant.realm}",
+                data.combatant.realm == 7
+            )
+        }
+    }
+
+    @Test
+    fun generateHumanEnemies_equalRealmConfig_returnsThatRealm() {
+        // realmMin == realmMax：区间长度为 1，不应崩溃且返回该境界
+        val results = EnemyGenerator.generateHumanEnemies(
+            realmMin = 4,
+            realmMax = 4,
+            count = 3
+        )
+        for (data in results) {
+            assertEquals(4, data.combatant.realm)
+        }
+    }
 }

@@ -89,7 +89,8 @@ object BattleAI {
         unit: Combatant,
         allies: List<Combatant>,
         enemies: List<Combatant>,
-        rng: DeterministicRng
+        rng: DeterministicRng,
+        playerDamageModifier: Double = 1.0
     ): AIAction {
         // 快速退出：已死亡
         if (unit.isDead) return AIAction.none()
@@ -129,7 +130,7 @@ object BattleAI {
         // ---- Tier 3: 斩杀 (敌 HP < 30%) ----
         if (rng.nextDouble() < PROB_EXECUTE && attackSkills.isNotEmpty()) {
             val executeAction = findExecuteTarget(
-                unit, aliveEnemies, attackSkills
+                unit, aliveEnemies, attackSkills, playerDamageModifier
             )
             if (executeAction != null) return executeAction
         }
@@ -268,10 +269,11 @@ object BattleAI {
     fun estimateDamage(
         attacker: Combatant,
         defender: Combatant,
-        skill: CombatSkill
+        skill: CombatSkill,
+        damageModifier: Double = 1.0
     ): Int {
         return com.xianxia.sect.core.util.BattleCalculator
-            .estimateDamage(attacker, defender, skill)
+            .estimateDamage(attacker, defender, skill, damageModifier = damageModifier)
     }
 
     // === 私有辅助方法 ===
@@ -315,7 +317,8 @@ object BattleAI {
     private fun findExecuteTarget(
         attacker: Combatant,
         enemies: List<Combatant>,
-        attackSkills: List<CombatSkill>
+        attackSkills: List<CombatSkill>,
+        playerDamageModifier: Double
     ): AIAction? {
         val lowHp = enemies.filter {
             !it.isDead && it.hpPercent < EXECUTE_HP
@@ -333,7 +336,7 @@ object BattleAI {
             val bestSkill = nonAoe.maxByOrNull {
                 it.damageMultiplier
             } ?: continue
-            if (estimateDamage(attacker, target, bestSkill)
+            if (estimateDamage(attacker, target, bestSkill, playerDamageModifier)
                 >= target.hp
             ) {
                 return AIAction(

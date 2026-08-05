@@ -42,10 +42,7 @@ import com.xianxia.sect.ui.components.TalentDetailDialog
 import com.xianxia.sect.ui.components.PhysiqueDetailDialog
 import com.xianxia.sect.ui.components.AffixDetailDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
-import com.xianxia.sect.ui.components.DialogSystemBarGuard
-import com.xianxia.sect.ui.components.DialogFocusGuard
 import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.feature.game.R
@@ -605,80 +602,61 @@ private fun ManualReplaceDialog(
     onConfirmReplace: () -> Unit,
     onDismissReplace: () -> Unit
 ) {
-    androidx.compose.material3.AlertDialog(
+    UnifiedGameDialog(
         onDismissRequest = onDismissReplace,
-        containerColor = GameColors.PageBackground,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        title = "选择新功法",
+        mode = DialogMode.Auto,
+        dismissOnClickOutside = false
+    ) {
+        if (availableManualStacks.isEmpty()) {
+            Text(
+                text = "暂无可更换的功法",
+                fontSize = 12.sp,
+                color = Color.Black,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
+            )
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(60.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 400.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text(
-                    text = "选择新功法",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
-                CloseButton(onClick = onDismissReplace)
-            }
-        },
-        text = {
-            DialogSystemBarGuard()
-            DialogFocusGuard()
-
-            if (availableManualStacks.isEmpty()) {
-                Text(
-                    text = "暂无可更换的功法",
-                    fontSize = 12.sp,
-                    color = Color.Black,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp)
-                )
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(60.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 400.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(availableManualStacks, key = { it.id }, contentType = { "manual_stack" }) { stack ->
-                        UnifiedItemCard(
-                            data = ItemCardData(
-                                id = stack.id,
-                                name = stack.name,
-                                rarity = stack.rarity,
-                                quantity = stack.quantity,
-                                isLocked = stack.isLocked,
-                                isManual = true
-                            ),
-                            isSelected = selectedReplaceManualId == stack.id,
-                            isFollowed = stack.watchKey() in watchedKeys,
-                            onClick = { onSelectReplaceManual(stack.id) },
-                            onLongPress = { onViewReplaceDetail(stack) }
-                        )
-                    }
+                items(availableManualStacks, key = { it.id }, contentType = { "manual_stack" }) { stack ->
+                    UnifiedItemCard(
+                        data = ItemCardData(
+                            id = stack.id,
+                            name = stack.name,
+                            rarity = stack.rarity,
+                            quantity = stack.quantity,
+                            isLocked = stack.isLocked,
+                            isManual = true
+                        ),
+                        isSelected = selectedReplaceManualId == stack.id,
+                        isFollowed = stack.watchKey() in watchedKeys,
+                        onClick = { onSelectReplaceManual(stack.id) },
+                        onLongPress = { onViewReplaceDetail(stack) }
+                    )
                 }
             }
-        },
-        confirmButton = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                GameButton(
-                    text = "取消",
-                    onClick = onDismissReplace
-                )
-                GameButton(
-                    text = "确认更换",
-                    onClick = onConfirmReplace,
-                    enabled = selectedReplaceManualId != null
-                )
-            }
         }
-    )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            GameButton(
+                text = "取消",
+                onClick = onDismissReplace
+            )
+            GameButton(
+                text = "确认更换",
+                onClick = onConfirmReplace,
+                enabled = selectedReplaceManualId != null
+            )
+        }
+    }
 }
 
 /**

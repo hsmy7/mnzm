@@ -4,6 +4,7 @@ import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.domain.FavorDomain
 import com.xianxia.sect.core.engine.domain.battle.Battle
+import com.xianxia.sect.core.engine.domain.battle.BattleLogData
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
 import com.xianxia.sect.core.engine.domain.battle.Combatant
@@ -50,16 +51,6 @@ class EncounterBattleService @Inject constructor(
         private const val ENCOUNTER_FAVOR_DELTA = -3
     }
 
-    /**
-     * 执行完整的遭遇战。
-     *
-     * @param state     当前可变游戏状态（调用方确保在 [stateStore.update] 事务内）
-     * @param attackerA 遭遇战攻击方 A
-     * @param attackerB 遭遇战攻击方 B
-     * @param beast     目标妖兽关卡
-     * @param year      当前游戏年份
-     * @param month     当前游戏月份
-     */
     /**
      * 执行遭遇战。
      *
@@ -130,7 +121,7 @@ class EncounterBattleService @Inject constructor(
         )
         // Phase 1（PvP）：胜负判定/死亡/好感度/日志
         val p1 = executePhase1Pvp(
-            state, pvpBattle, preparedSides, attackerA, attackerB, isPlayerVsAI, year, month, favorDedup
+            state, pvpBattle, preparedSides, attackerA, attackerB, EncounterMonth(year, month), favorDedup
         )
         // Phase 1 胜方无幸存者则跳过 Phase 2
         if (p1.winnerSurvivors.isEmpty()) return
@@ -146,6 +137,12 @@ class EncounterBattleService @Inject constructor(
         val winnerSide: PreparedSide
     )
 
+    /** 遭遇战年月打包（executePhase1Pvp 参数收紧用） */
+    private data class EncounterMonth(
+        val year: Int,
+        val month: Int
+    )
+
     /**
      * Phase 1 — 遭遇战（PvP）结算：胜负判定、双方死亡处理、
      * 好感度变更（playerVsAI 每月每宗门去重）、战斗日志。
@@ -156,79 +153,104 @@ class EncounterBattleService @Inject constructor(
         preparedSides: Map<String, PreparedSide>,
         attackerA: EncounterAttacker,
         attackerB: EncounterAttacker,
-        isPlayerVsAI: Boolean,
-        year: Int,
-        month: Int,
+        month: EncounterMonth,
         favorDedup: MutableSet<String>?
     ): Phase1Result {
         val pvpResult = battleSystem.executeBattle(pvpBattle)
-
-        // 判定 Phase 1 胜方/败方
-        val winnerP1: EncounterAttacker
-        val loserP1: EncounterAttacker
-        val winnerCombatantsP1: List<Combatant>
-        val loserCombatantsP1: List<Combatant>
-
-        if (pvpResult.victory) {
-            // team (DEFENDER) = attackerA 获胜
-            winnerP1 = attackerA; loserP1 = attackerB
-            winnerCombatantsP1 = pvpResult.battle.team
-            loserCombatantsP1 = pvpResult.battle.beasts
-        } else {
-            // beasts (ATTACKER) = attackerB 获胜
-            winnerP1 = attackerB; loserP1 = attackerA
-            winnerCombatantsP1 = pvpResult.battle.beasts
-            loserCombatantsP1 = pvpResult.battle.team
-        }
-
-        val winnerAliveIdsP1 = winnerCombatantsP1
-            .filter { !it.isDead }.map { it.id }.toSet()
-        val loserDeadIdsP1 = loserCombatantsP1
-            .filter { it.isDead }.map { it.id }.toSet()
-        val winnerDeadIdsP1 = winnerCombatantsP1
-            .filter { it.isDead }.map { it.id }.toSet()
-
-        DomainLog.i(TAG, "Phase 1 结果: ${winnerP1.sectName} 胜, " +
-            "胜方存活=${winnerAliveIdsP1.size}, 败方阵亡=${loserDeadIdsP1.size}")
+        val outcome = resolvePhase1Outcome(pvpResult, attackerA, attackerB)
+        DomainLog.i(TAG, "Phase 1 结果: ${outcome.winner.sectName} 胜, " +
+            "胜方存活=${outcome.winnerAliveIds.size}, 败方阵亡=${outcome.loserDeadIds.size}")
 
         // ── Phase 1 死亡处理 ──
-        applyDeathsForSect(state, loserP1, loserDeadIdsP1, year)
-        applyDeathsForSect(state, winnerP1, winnerDeadIdsP1, year)
+        applyDeathsForSect(state, outcome.loser, outcome.loserDeadIds, month.year)
+        applyDeathsForSect(state, outcome.winner, outcome.winnerDeadIds, month.year)
 
         // ── 好感度变更（仅 playerVsAI，每月每个 AI 宗门最多扣 1 次） ──
-        if (isPlayerVsAI) {
-            val playerSectId = if (attackerA.isPlayer) attackerA.sectId else attackerB.sectId
-            val aiSectId = if (attackerA.isPlayer) attackerB.sectId else attackerA.sectId
-            val dedupKey = "${aiSectId}_${year * 12 + month}"
-            if (favorDedup == null || dedupKey !in favorDedup) {
-                favorDedup?.add(dedupKey)
-                var relations = FavorDomain.setAcquainted(
-                    state.gameData.sectRelations, playerSectId, aiSectId, year
-                )
-                relations = FavorDomain.modifyFavor(
-                    relations, playerSectId, aiSectId, ENCOUNTER_FAVOR_DELTA, year
-                )
-                state.gameData = state.gameData.copy(sectRelations = relations)
-            }
-        }
+        applyEncounterFavor(state, attackerA, attackerB, month, favorDedup)
 
         // ── 构建 Phase 1 战斗日志 ──
         val p1Log = buildPhase1Log(
             attackerA = attackerA,
             attackerB = attackerB,
             pvpResult = pvpResult,
-            winnerP1 = winnerP1,
-            year = year,
-            month = month,
-            loserDeadIds = loserDeadIdsP1
+            winnerP1 = outcome.winner,
+            year = month.year,
+            month = month.month,
+            loserDeadIds = outcome.loserDeadIds
         )
         state.battleLogs = (state.battleLogs + p1Log)
             .takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
 
-        val winnerSide = preparedSides.getValue(winnerP1.sectId)
+        val winnerSide = preparedSides.getValue(outcome.winner.sectId)
         val winnerSurvivors = winnerSide.disciples
-            .filter { it.id in winnerAliveIdsP1 }
-        return Phase1Result(winnerP1, winnerSurvivors, winnerSide)
+            .filter { it.id in outcome.winnerAliveIds }
+        return Phase1Result(outcome.winner, winnerSurvivors, winnerSide)
+    }
+
+    /** Phase 1 胜负判定打包（executePhase1Pvp 提取） */
+    private data class Phase1Outcome(
+        val winner: EncounterAttacker,
+        val loser: EncounterAttacker,
+        val winnerAliveIds: Set<String>,
+        val loserDeadIds: Set<String>,
+        val winnerDeadIds: Set<String>
+    )
+
+    /** Phase 1 胜负判定 + 存活/阵亡集合（executePhase1Pvp 提取） */
+    private fun resolvePhase1Outcome(
+        pvpResult: BattleSystemResult,
+        attackerA: EncounterAttacker,
+        attackerB: EncounterAttacker
+    ): Phase1Outcome {
+        val winner: EncounterAttacker
+        val loser: EncounterAttacker
+        val winnerCombatants: List<Combatant>
+        val loserCombatants: List<Combatant>
+
+        if (pvpResult.victory) {
+            // team (DEFENDER) = attackerA 获胜
+            winner = attackerA; loser = attackerB
+            winnerCombatants = pvpResult.battle.team
+            loserCombatants = pvpResult.battle.beasts
+        } else {
+            // beasts (ATTACKER) = attackerB 获胜
+            winner = attackerB; loser = attackerA
+            winnerCombatants = pvpResult.battle.beasts
+            loserCombatants = pvpResult.battle.team
+        }
+
+        val winnerAliveIds = winnerCombatants
+            .filter { !it.isDead }.map { it.id }.toSet()
+        val loserDeadIds = loserCombatants
+            .filter { it.isDead }.map { it.id }.toSet()
+        val winnerDeadIds = winnerCombatants
+            .filter { it.isDead }.map { it.id }.toSet()
+        return Phase1Outcome(winner, loser, winnerAliveIds, loserDeadIds, winnerDeadIds)
+    }
+
+    /** 遭遇战好感度变更（executePhase1Pvp 提取；仅 playerVsAI，每月每宗门去重） */
+    private fun applyEncounterFavor(
+        state: MutableGameState,
+        attackerA: EncounterAttacker,
+        attackerB: EncounterAttacker,
+        month: EncounterMonth,
+        favorDedup: MutableSet<String>?
+    ) {
+        val isPlayerVsAI = attackerA.isPlayer != attackerB.isPlayer
+        if (!isPlayerVsAI) return
+        val playerSectId = if (attackerA.isPlayer) attackerA.sectId else attackerB.sectId
+        val aiSectId = if (attackerA.isPlayer) attackerB.sectId else attackerA.sectId
+        val dedupKey = "${aiSectId}_${month.year * 12 + month.month}"
+        if (favorDedup == null || dedupKey !in favorDedup) {
+            favorDedup?.add(dedupKey)
+            var relations = FavorDomain.setAcquainted(
+                state.gameData.sectRelations, playerSectId, aiSectId, month.year
+            )
+            relations = FavorDomain.modifyFavor(
+                relations, playerSectId, aiSectId, ENCOUNTER_FAVOR_DELTA, month.year
+            )
+            state.gameData = state.gameData.copy(sectRelations = relations)
+        }
     }
 
     /**
@@ -243,6 +265,39 @@ class EncounterBattleService @Inject constructor(
         year: Int,
         month: Int
     ) {
+        val pveBattle = buildPhase2Battle(winnerSurvivors, winnerSide, beast)
+        val pveResult = battleSystem.executeBattle(pveBattle)
+
+        DomainLog.i(TAG, "Phase 2 结果: ${winnerP1.sectName} " +
+            if (pveResult.victory) "击败了" else "被" + "妖兽击败")
+
+        // ── Phase 2 死亡处理 ──
+        val p2DeadIds = pveResult.battle.team
+            .filter { it.isDead }.map { it.id }.toSet()
+        applyDeathsForSect(state, winnerP1, p2DeadIds, year)
+
+        // ── 击败标记 ──
+        markBeastDefeated(state, beast, pveResult)
+
+        // ── 构建 Phase 2 战斗日志 ──
+        val p2Log = buildPhase2Log(
+            winner = winnerP1,
+            beast = beast,
+            pveResult = pveResult,
+            year = year,
+            month = month,
+            p2DeadIds = p2DeadIds
+        )
+        state.battleLogs = (state.battleLogs + p2Log)
+            .takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
+    }
+
+    /** Phase 2 PvE 战斗构建（executePhase2Pve 提取） */
+    private fun buildPhase2Battle(
+        winnerSurvivors: List<Disciple>,
+        winnerSide: PreparedSide,
+        beast: WorldLevel
+    ): Battle {
         // 构建妖兽预计算属性
         val beastPreGenStats = if (beast.beastMaxHp > 0) {
             BattleSystem.BeastPreGenStats(
@@ -262,7 +317,7 @@ class EncounterBattleService @Inject constructor(
             GameConfig.Beast.getType(beastTypeIndex.coerceIn(0, GameConfig.Beast.TYPES.size - 1)).name
         } else null
 
-        val pveBattle = battleSystem.createBattle(
+        return battleSystem.createBattle(
             disciples = winnerSurvivors,
             equipmentMap = winnerSide.equipmentMap,
             manualMap = winnerSide.manualMap,
@@ -272,17 +327,10 @@ class EncounterBattleService @Inject constructor(
             manualProficiencies = winnerSide.proficiencies,
             beastPreGenStats = beastPreGenStats
         )
-        val pveResult = battleSystem.executeBattle(pveBattle)
+    }
 
-        DomainLog.i(TAG, "Phase 2 结果: ${winnerP1.sectName} " +
-            if (pveResult.victory) "击败了" else "被" + "妖兽击败")
-
-        // ── Phase 2 死亡处理 ──
-        val p2DeadIds = pveResult.battle.team
-            .filter { it.isDead }.map { it.id }.toSet()
-        applyDeathsForSect(state, winnerP1, p2DeadIds, year)
-
-        // ── 击败标记 ──
+    /** Phase 2 妖兽击败标记（executePhase2Pve 提取） */
+    private fun markBeastDefeated(state: MutableGameState, beast: WorldLevel, pveResult: BattleSystemResult) {
         if (pveResult.victory) {
             state.gameData = state.gameData.copy(
                 worldLevels = state.gameData.worldLevels.map { wl ->
@@ -290,18 +338,6 @@ class EncounterBattleService @Inject constructor(
                 }
             )
         }
-
-        // ── 构建 Phase 2 战斗日志 ──
-        val p2Log = buildPhase2Log(
-            winner = winnerP1,
-            beast = beast,
-            pveResult = pveResult,
-            year = year,
-            month = month,
-            p2DeadIds = p2DeadIds
-        )
-        state.battleLogs = (state.battleLogs + p2Log)
-            .takeLast(GameConfig.Logs.MAX_BATTLE_LOGS)
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -398,54 +434,6 @@ class EncounterBattleService @Inject constructor(
         month: Int,
         loserDeadIds: Set<String>
     ): BattleLog {
-        val teamMembers = pvpResult.battle.team.map { m ->
-            BattleLogMember(
-                id = m.id,
-                name = m.name,
-                realm = m.realm,
-                realmName = m.realmName,
-                realmLayer = m.realmLayer,
-                hp = m.hp,
-                maxHp = m.maxHp,
-                mp = m.mp,
-                maxMp = m.maxMp,
-                isAlive = !m.isDead,
-                portraitRes = m.portraitRes
-            )
-        }
-        val enemies = pvpResult.battle.beasts.map { b ->
-            BattleLogEnemy(
-                id = b.id,
-                name = b.name,
-                realm = b.realm,
-                realmName = b.realmName,
-                realmLayer = b.realmLayer,
-                hp = b.hp,
-                maxHp = b.maxHp,
-                isAlive = !b.isDead,
-                portraitRes = b.portraitRes
-            )
-        }
-        val rounds = pvpResult.log.rounds.map { r ->
-            BattleLogRound(
-                roundNumber = r.roundNumber,
-                actions = r.actions.map { a ->
-                    BattleLogAction(
-                        type = a.type,
-                        attacker = a.attacker,
-                        attackerType = a.attackerType,
-                        target = a.target,
-                        damage = a.damage,
-                        damageType = a.damageType,
-                        isCrit = a.isCrit,
-                        isKill = a.isKill,
-                        message = a.message,
-                        skillName = a.skillName
-                    )
-                }
-            )
-        }
-
         val isWinnerA = winnerP1.sectId == attackerA.sectId
         val result = if (isWinnerA) BattleResult.WIN else BattleResult.LOSE
         val details = "${winnerP1.sectName}在遭遇战中战胜了${
@@ -459,9 +447,9 @@ class EncounterBattleService @Inject constructor(
             attackerName = attackerA.sectName,
             defenderName = attackerB.sectName,
             result = result,
-            teamMembers = teamMembers,
-            enemies = enemies,
-            rounds = rounds,
+            teamMembers = mapBattleMembers(pvpResult.battle.team),
+            enemies = mapBattleEnemies(pvpResult.battle.beasts),
+            rounds = mapBattleRounds(pvpResult.log),
             turns = pvpResult.turnCount,
             teamCasualties = attackerA.teamDisciples.size -
                 pvpResult.battle.team.count { !it.isDead },
@@ -481,7 +469,35 @@ class EncounterBattleService @Inject constructor(
         month: Int,
         p2DeadIds: Set<String>
     ): BattleLog {
-        val teamMembers = pveResult.battle.team.map { m ->
+        val result = if (pveResult.victory) BattleResult.WIN else BattleResult.LOSE
+        val beastName = beast.beastName.ifEmpty { "妖兽" }
+        val details = if (pveResult.victory) {
+            "${winner.sectName}击败了${beastName}"
+        } else {
+            "${winner.sectName}被${beastName}击败"
+        }
+
+        return BattleLog(
+            year = year,
+            month = month,
+            type = BattleType.PVE,
+            attackerName = "${winner.sectName}队伍",
+            defenderName = beastName,
+            result = result,
+            teamMembers = mapBattleMembers(pveResult.battle.team),
+            enemies = mapBattleEnemies(pveResult.battle.beasts),
+            rounds = mapBattleRounds(pveResult.log),
+            turns = pveResult.turnCount,
+            teamCasualties = p2DeadIds.size,
+            beastsDefeated = if (pveResult.victory) beast.count
+                else pveResult.battle.beasts.count { it.isDead },
+            details = details
+        )
+    }
+
+    /** 战斗成员 → 战报成员映射（buildPhase1Log/buildPhase2Log 共享） */
+    private fun mapBattleMembers(team: List<Combatant>): List<BattleLogMember> {
+        return team.map { m ->
             BattleLogMember(
                 id = m.id,
                 name = m.name,
@@ -496,7 +512,11 @@ class EncounterBattleService @Inject constructor(
                 portraitRes = m.portraitRes
             )
         }
-        val enemies = pveResult.battle.beasts.map { b ->
+    }
+
+    /** 战斗敌人 → 战报敌人映射（buildPhase1Log/buildPhase2Log 共享） */
+    private fun mapBattleEnemies(beasts: List<Combatant>): List<BattleLogEnemy> {
+        return beasts.map { b ->
             BattleLogEnemy(
                 id = b.id,
                 name = b.name,
@@ -509,7 +529,11 @@ class EncounterBattleService @Inject constructor(
                 portraitRes = b.portraitRes
             )
         }
-        val rounds = pveResult.log.rounds.map { r ->
+    }
+
+    /** 战斗回合 → 战报回合映射（buildPhase1Log/buildPhase2Log 共享） */
+    private fun mapBattleRounds(log: BattleLogData): List<BattleLogRound> {
+        return log.rounds.map { r ->
             BattleLogRound(
                 roundNumber = r.roundNumber,
                 actions = r.actions.map { a ->
@@ -528,31 +552,6 @@ class EncounterBattleService @Inject constructor(
                 }
             )
         }
-
-        val result = if (pveResult.victory) BattleResult.WIN else BattleResult.LOSE
-        val beastName = beast.beastName.ifEmpty { "妖兽" }
-        val details = if (pveResult.victory) {
-            "${winner.sectName}击败了${beastName}"
-        } else {
-            "${winner.sectName}被${beastName}击败"
-        }
-
-        return BattleLog(
-            year = year,
-            month = month,
-            type = BattleType.PVE,
-            attackerName = "${winner.sectName}队伍",
-            defenderName = beastName,
-            result = result,
-            teamMembers = teamMembers,
-            enemies = enemies,
-            rounds = rounds,
-            turns = pveResult.turnCount,
-            teamCasualties = p2DeadIds.size,
-            beastsDefeated = if (pveResult.victory) beast.count
-                else pveResult.battle.beasts.count { it.isDead },
-            details = details
-        )
     }
 }
 

@@ -125,14 +125,6 @@ class CultivationCoreProficiencyNurtureTest {
         val realHpMpRecoveryService = HpMpRecoveryService()
 
         core = CultivationCore(
-            stateStore = mockStateStore,
-            inventoryConfig = Mockito.mock(InventoryConfig::class.java),
-            thermalMonitor = Mockito.mock(ThermalMonitor::class.java),
-            gameClock = Mockito.mock(GameTimeClock::class.java),
-            scopeProvider = Mockito.mock(CoroutineScopeProvider::class.java),
-            pillManager = mockPillManager,
-            equipmentManager = Mockito.mock(DiscipleEquipmentManager::class.java),
-            manualManager = Mockito.mock(DiscipleManualManager::class.java),
             hpMpRecoveryService = realHpMpRecoveryService,
             autoPillService = AutoPillService(mockPillManager, Mockito.mock()),
             equipmentNurtureService = EquipmentNurtureService(),

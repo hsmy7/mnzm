@@ -1063,8 +1063,20 @@ class SaveLoadViewModel @Inject constructor(
             return
         }
 
-        if (stateStore.isLoading.value || _isRestarting.value) {
-            Log.w(TAG, "Already loading or restarting, ignoring restartGame request")
+        // T2（2026-08-05）：restart 与 load 完整互斥——load 已抢 loadLock 时拒绝，
+        // 防止 load 的 clear+insert 与 restart 的引擎重置/存档并发；取锁序
+        // saveLock→loadLock，loadGame 只取 loadLock、saveGame 只读两锁，无死锁
+        if (!loadLock.compareAndSet(false, true)) {
+            Log.w(TAG, "Load in progress, ignoring restartGame request")
+            saveLock.set(false)
+            showError("正在读档中，请稍后重置")
+            return
+        }
+
+        if (stateStore.isLoading.value) {
+            Log.w(TAG, "Already loading, ignoring restartGame request")
+            _isRestarting.value = false
+            loadLock.set(false)
             saveLock.set(false)
             return
         }
@@ -1072,9 +1084,15 @@ class SaveLoadViewModel @Inject constructor(
         if (!canPerformSaveOperation()) {
             Log.e(TAG, "=== restartGame FAILED === insufficient memory")
             showError("内存不足，无法重置。请关闭其他应用后重试。")
+            _isRestarting.value = false
+            loadLock.set(false)
             saveLock.set(false)
             return
         }
+
+        // T2（2026-08-05）：同步置位（与 C5 setSavingDirect 同模式）——
+        // 关闭 "saveLock 已抢但协程未启动" 窗口内 load/save 的穿入
+        _isRestarting.value = true
 
         // C4（2026-08-05）：lateinit 捕获 job 传入 perform*（归属清理需要身份）
         lateinit var job: Job
@@ -1173,6 +1191,9 @@ class SaveLoadViewModel @Inject constructor(
                 setSaveLoadState(isSaving = false, pendingSlot = null, pendingAction = null)
             } finally {
                 _isRestarting.value = false
+                // T2（2026-08-05）：loadLock 与 saveLock 成对复位（入口同步抢锁，
+                // 协程结束/取消统一释放，防泄漏）
+                loadLock.set(false)
                 // C4 修复（2026-08-05）：restart 补上归属化清理 + 标志复位——
                 // 原实现漏调 clearActiveLoadJob，且取消路径（isSaving=true 后
                 // CancellationException）不复位标志导致 isSaving 泄漏

@@ -1,5 +1,20 @@
 ## [4.00.86] - 2026-08-03
 
+### 代码质量（2026-08-05 架构文档待完成项全量实施）
+
+- **God Method 拆分 14 个函数** — executeCombatantTurn（BattleSystem）、attackSect/attackWorldLevel/scoutSect（GameEngineBattleOps）、executeTeamConflict（PatrolBattleSystem）、distributeRewardItems（HeavenlyTrialService）、EncounterBattleService 四函数（PvP/PvE/日志映射共享）、executeAIEncounterBattle（AISectBeastAttackProcessor）、resolveBeastAttackFight（ExplorationService）、resolveDefendersAndBattle/decidePlayerAttack（AISectAttackManager）、executeSupportSkill（BattleCalculator）；全部 ≤60 行，RNG 调用序与事务边界逐字保持
+- **存档互斥 T2 修复** — restartGame 与 loadGame 完整互斥（loadLock 双向守卫 + _isRestarting 同步置位 + finally 成对释放），新增 3 个互斥回归测试；测试陷阱记录：advanceUntilIdle 推进虚拟时间触发 withTimeoutOrNull 需用 runCurrent
+- **T-C1~C4 防御性修复** — estimateDamage 注入 damageModifier（BattleAI 全链透传，严苛训练下 AI 决策估算一致）；斩杀分支 maxHp 钳制 0；EnemyGenerator 配置反转退化不崩溃；buildDamageZones 六次 filter 合并单次遍历（数学等价 + 对拍守卫测试）
+- **OverlayDialogRouter 按域分组** — 34 个 DialogType 分支提取至 components/dialog/ 6 文件（MainTab/Feature/Production/FunctionalBuilding/System/Common），路由 when 单处穷尽分派
+- **SettingsTab 4 处平台 Dialog 迁移 UnifiedGameDialog** — 新增 DialogMode.Large（0.95w/0.9h 存档管理）；手写三守卫删除（内置继承）；迁移修复原 Box 闭合顺带在旧 Dialog 区域的隐藏依赖
+- **ManualReplaceDialog 迁移 UnifiedGameDialog**（Auto 模式）
+- **GameEngine 构造 33→8** — 3 个新域 Facade（Exploration/Cultivation/Economy）+ 既有 Facade 吸收（Inventory/Save/Building/Battle 接口暴露服务引用）+ 访问器转发（16 扩展文件零改动）+ CoreModule 绑定；engineContextDispatcher 保留为测试注入点（Mockito 无法 stub suspend 泛型，生产恒等于 gameEngineCore）
+- **CultivationCore 15→6 依赖** — 删除 10 个方法体零引用依赖；熟练度核心逻辑迁 ManualProficiencyService（批量循环 + 单次提交，P-1 语义保持）
+- **CaveExplorationProcessor 拆 AISectBattleProcessor** — AI 攻防域（热控修炼/宗门等级同步/攻打玩家/AI-vs-AI/防守战）19 方法迁新类（7 依赖）；洞府域 13→8 依赖；processAISectOperations 委托签名不变
+- **detekt 配置** — TooManyFunctions thresholdInClasses 15→20（AI 攻防域聚合单一职责）；baseline 摘除 executeCombatantTurn 4 条旧签名条目 + 更新 BattleAI 4 条签名（只缩不增合规）
+- **验证** — compileReleaseKotlin + 全量测试（--max-workers=1）0 失败 + detekt 新增违规清零（预存 42 项与 HEAD 基线一致）
+## [4.00.86] - 2026-08-03
+
 ### 新增（2026-08-03 远古秘境玩法）
 
 - **远古秘境** — 世界地图每年有几率现世（五十年一遇），点击秘境可派遣 4 名弟子组成探索队进入；探索以"遭遇妖兽 → 选择探索方向"的文字事件循环推进，体力 20 点每选一项扣 1，耗尽或主动结束即关闭

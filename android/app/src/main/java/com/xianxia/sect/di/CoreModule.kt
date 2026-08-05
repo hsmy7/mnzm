@@ -109,6 +109,18 @@ object CoreModule {
 
     @Provides
     @Singleton
+    fun provideExplorationFacade(impl: com.xianxia.sect.core.engine.domain.exploration.ExplorationFacadeImpl): com.xianxia.sect.core.engine.domain.exploration.ExplorationFacade = impl
+
+    @Provides
+    @Singleton
+    fun provideCultivationFacade(impl: com.xianxia.sect.core.engine.domain.cultivation.CultivationFacadeImpl): com.xianxia.sect.core.engine.domain.cultivation.CultivationFacade = impl
+
+    @Provides
+    @Singleton
+    fun provideEconomyFacade(impl: com.xianxia.sect.core.engine.domain.economy.EconomyFacadeImpl): com.xianxia.sect.core.engine.domain.economy.EconomyFacade = impl
+
+    @Provides
+    @Singleton
     fun provideProductionFacade(impl: com.xianxia.sect.core.engine.domain.production.ProductionFacadeImpl): com.xianxia.sect.core.engine.domain.production.ProductionFacade = impl
 
     @Provides

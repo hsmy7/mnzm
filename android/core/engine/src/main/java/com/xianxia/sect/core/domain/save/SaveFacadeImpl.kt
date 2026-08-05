@@ -12,10 +12,12 @@ import javax.inject.Singleton
 
 @Singleton
 class SaveFacadeImpl @Inject constructor(
-    private val saveService: SaveService,
+    override val saveService: SaveService,
     private val stateStore: GameStateStore,
     private val productionCoordinator: ProductionCoordinator,
-    private val gameRngManager: GameRngManager
+    private val gameRngManager: GameRngManager,
+    override val heavyDataPort: com.xianxia.sect.core.repository.GameHeavyDataPort,
+    override val heavyDataDecoder: com.xianxia.sect.core.repository.HeavyDataDecoder
 ) : SaveFacade {
 
     /**

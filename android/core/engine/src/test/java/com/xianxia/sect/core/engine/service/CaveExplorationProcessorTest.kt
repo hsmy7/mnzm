@@ -37,7 +37,7 @@ class CaveExplorationProcessorTest {
         }
         val deadAttackerIds = sectPool.slice(7 until 10).map { it.id }
 
-        val enemies = CaveExplorationProcessor.buildDefenseBattleEnemies(
+        val enemies = AISectBattleProcessor.buildDefenseBattleEnemies(
             survivingAttackers = survivingAttackers,
             deadAttackerIds = deadAttackerIds,
             sectDisciplePool = sectPool,
@@ -59,7 +59,7 @@ class CaveExplorationProcessorTest {
         )
         val deadIds = listOf("a2")
 
-        val enemies = CaveExplorationProcessor.buildDefenseBattleEnemies(
+        val enemies = AISectBattleProcessor.buildDefenseBattleEnemies(
             survivingAttackers = survivors,
             deadAttackerIds = deadIds,
             sectDisciplePool = sectPool,
@@ -86,7 +86,7 @@ class CaveExplorationProcessorTest {
         }
         val deadIds = emptyList<String>()
 
-        val enemies = CaveExplorationProcessor.buildDefenseBattleEnemies(
+        val enemies = AISectBattleProcessor.buildDefenseBattleEnemies(
             survivingAttackers = survivors,
             deadAttackerIds = deadIds,
             sectDisciplePool = sectPool,
@@ -106,7 +106,7 @@ class CaveExplorationProcessorTest {
         val survivors = emptyList<Disciple>()
         val deadIds = sectPool.take(10).map { it.id }
 
-        val enemies = CaveExplorationProcessor.buildDefenseBattleEnemies(
+        val enemies = AISectBattleProcessor.buildDefenseBattleEnemies(
             survivingAttackers = survivors,
             deadAttackerIds = deadIds,
             sectDisciplePool = sectPool,
@@ -123,7 +123,7 @@ class CaveExplorationProcessorTest {
         val sectPool = listOf(makeDisciple(id = "a1", realm = 3))
         val survivors = listOf(sectPool[0])
 
-        val enemies = CaveExplorationProcessor.buildDefenseBattleEnemies(
+        val enemies = AISectBattleProcessor.buildDefenseBattleEnemies(
             survivingAttackers = survivors,
             deadAttackerIds = emptyList(),
             sectDisciplePool = sectPool,
@@ -135,7 +135,7 @@ class CaveExplorationProcessorTest {
 
     @Test
     fun `buildDefenseBattleEnemies - 空宗门池+空参战者 返回空列表`() {
-        val enemies = CaveExplorationProcessor.buildDefenseBattleEnemies(
+        val enemies = AISectBattleProcessor.buildDefenseBattleEnemies(
             survivingAttackers = emptyList(),
             deadAttackerIds = emptyList(),
             sectDisciplePool = emptyList(),
@@ -156,17 +156,12 @@ class CaveExplorationProcessorTest {
         return CaveExplorationProcessor(
             stateStore = mock(GameStateStore::class.java),
             inventorySystem = mock(InventorySystem::class.java),
-            scopeProvider = mock(CoroutineScopeProvider::class.java),
             battleSystem = mock(BattleSystem::class.java),
             eventProcessor = mock(CultivationEventProcessor::class.java),
             analyticsTracker = mock(AnalyticsTracker::class.java),
-            thermalMonitor = mock(ThermalMonitor::class.java),
-            attackWarningService = mock(AttackWarningService::class.java),
-            sectWarehouseManager = mock(SectWarehouseManager::class.java),
-            cultivationService = mock(CultivationService::class.java),
             spiritStoneWallet = mock(SpiritStoneWallet::class.java),
-            rngManager = mock(GameRngManager::class.java),
-            deathHandler = mock(DiscipleDeathHandler::class.java)
+            deathHandler = mock(DiscipleDeathHandler::class.java),
+            aiSectBattleProcessor = mock(AISectBattleProcessor::class.java)
         )
     }
 

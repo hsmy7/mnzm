@@ -1,10 +1,14 @@
 package com.xianxia.sect.core.engine.domain.battle
 
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.state.BattleResultUIData
 import kotlinx.coroutines.flow.StateFlow
 
 interface BattleFacade {
+    val battleSystem: BattleSystem
+    val combatService: CombatService
+    val assignmentGate: DiscipleAssignmentGate
     val battleLogs: StateFlow<List<BattleLog>>
     val pendingBattleResult: StateFlow<BattleResultUIData?>
 

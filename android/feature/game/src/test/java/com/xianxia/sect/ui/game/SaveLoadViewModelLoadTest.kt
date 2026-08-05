@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -390,6 +391,74 @@ class SaveLoadViewModelLoadTest {
         advanceUntilIdle()
 
         // 仅第一次 tap 通过守卫注册；第二次被同步占位的 isSaving 拒绝
+        coVerify(exactly = 1) { gameEngineCore.registerActiveLoadJob(any()) }
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // T2（2026-08-05）：restart 与 load 完整互斥（loadLock + 同步置位 _isRestarting）
+    // ──────────────────────────────────────────────────────────────────
+
+    @Test
+    fun `restartGame rejected while loadLock held by load`() = runTest(testDispatcher) {
+        // T2 修复前：loadGame 已抢 loadLock（performLoadToSlot 挂起中），
+        // restartGame 不查 loadLock 可穿入，与 load 的 clear+insert 并发重置引擎。
+        // 修复后 restart 入口 loadLock CAS 失败 → 拒绝并释放 saveLock。
+        val gate = CompletableDeferred<Boolean>()
+        coEvery { storageFacade.load(any()) } coAnswers {
+            gate.await()
+            SaveResult.failure(SaveError.SLOT_EMPTY, "gate released")
+        }
+        every { stateStore.isLoading } returns MutableStateFlow(false)
+        every { stateStore.isSaving } returns MutableStateFlow(false)
+        every { stateStore.runState } returns MutableStateFlow(RunState.PLAYING)
+
+        viewModel.loadGame(com.xianxia.sect.data.model.SaveSlot(1, "", 0L, 1, 1, "", 0, 0L))
+        // 注意：不能 advanceUntilIdle——虚拟时间推进会触发 performLoadToSlot 内
+        // withTimeoutOrNull(60s) 超时提前结束 load 协程释放 loadLock；
+        // runCurrent 只执行当前队列任务不推进虚拟时间，load 协程挂起在 gate.await()
+        runCurrent()
+        viewModel.restartGame()
+        runCurrent()
+
+        // 仅 load 注册 1 次；restart 被 loadLock 拒绝（不注册、不并发）
+        coVerify(exactly = 1) { gameEngineCore.registerActiveLoadJob(any()) }
+        gate.complete(true)
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun `restartGame rejects saveGame synchronously before coroutine runs`() = runTest(testDispatcher) {
+        // T2 修复前：_isRestarting 在协程体 performRestartGame 内才置位，
+        // restart 抢到 saveLock 后、协程启动前的窗口内 saveGame 可穿入。
+        // 修复后入口同步置位（与 C5 setSavingDirect 同模式）→ 紧接的 saveGame 被拒。
+        every { stateStore.isLoading } returns MutableStateFlow(false)
+        every { stateStore.isSaving } returns MutableStateFlow(false)
+        every { stateStore.runState } returns MutableStateFlow(RunState.PLAYING)
+
+        viewModel.restartGame()  // 同步路径：saveLock+loadLock 抢到、_isRestarting=true、job 已注册
+        viewModel.saveGame("1")  // 不 advance——同步窗口内调用，修复前会通过守卫
+        advanceUntilIdle()
+
+        // 仅 restart 注册 1 次；saveGame 被同步置位的 _isRestarting 拒绝
+        coVerify(exactly = 1) { gameEngineCore.registerActiveLoadJob(any()) }
+    }
+
+    @Test
+    fun `restartGame rejected when isLoading and recovers after`() = runTest(testDispatcher) {
+        // T2：isLoading 中 restart 拒绝且三锁（_isRestarting/loadLock/saveLock）全部复位，
+        // 不泄漏——读档结束后 restart 可正常执行
+        every { stateStore.isLoading } returns MutableStateFlow(true)
+        every { stateStore.isSaving } returns MutableStateFlow(false)
+        every { stateStore.runState } returns MutableStateFlow(RunState.PLAYING)
+
+        viewModel.restartGame()
+        advanceUntilIdle()
+        coVerify(exactly = 0) { gameEngineCore.registerActiveLoadJob(any()) }
+
+        // 三锁已复位：isLoading 结束后 restart 正常执行（能再次抢到 saveLock/loadLock）
+        every { stateStore.isLoading } returns MutableStateFlow(false)
+        viewModel.restartGame()
+        advanceUntilIdle()
         coVerify(exactly = 1) { gameEngineCore.registerActiveLoadJob(any()) }
     }
 }

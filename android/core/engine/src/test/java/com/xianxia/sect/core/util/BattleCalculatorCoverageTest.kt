@@ -206,4 +206,79 @@ class BattleCalculatorCoverageTest {
         hits = hits,
         targetScope = "enemy"
     )
+
+    // ---- T-C1（2026-08-05）：estimateDamage 注入 damageModifier ----
+
+    @Test
+    fun `estimateDamage - damageModifier injected into amplification zone`() {
+        val attacker = combatant(id = "attacker", physAtk = 300)
+        val defender = combatant(id = "defender", hp = 5000, maxHp = 5000, physDef = 100)
+
+        val base = BattleCalculator.estimateDamage(attacker, defender, skill())
+        val explicit = BattleCalculator.estimateDamage(attacker, defender, skill(), damageModifier = 1.0)
+        val modified = BattleCalculator.estimateDamage(attacker, defender, skill(), damageModifier = 1.05)
+        // 默认 1.0 向后兼容：显式 1.0 与不传时逐位相同
+        assertEquals("默认 damageModifier=1.0 与不传一致", base, explicit)
+        assertTrue("damageModifier=1.05 估算应高于基线", modified > base)
+    }
+
+    // ---- T-C2（2026-08-05）：斩杀分支 maxHp 篡改守卫 ----
+
+    @Test
+    fun `calculateCombatantDamage - instant kill with tampered negative maxHp returns zero damage`() {
+        // 存档篡改：defender.maxHp 为 0/负——斩杀伤害钳制为 0，不得出现负伤害（回血）
+        val attacker = combatant(id = "strong_attacker", realm = 3, realmLayer = 1, physAtk = 500)
+        val defender = combatant(id = "tampered_defender", realm = 1, realmLayer = 1, hp = 0, maxHp = 0, physDef = 500)
+        val negative = combatant(id = "neg_defender", realm = 1, realmLayer = 1, hp = 0, maxHp = -100, physDef = 500)
+
+        val zeroResult = BattleCalculator.calculateCombatantDamage(
+            attacker, defender, null, rng = freshRng(), enableInstantKill = true
+        )
+        val negResult = BattleCalculator.calculateCombatantDamage(
+            attacker, negative, null, rng = freshRng(), enableInstantKill = true
+        )
+        assertTrue("触发斩杀", zeroResult.isInstantKill)
+        assertEquals("maxHp=0 斩杀伤害钳制为 0", 0, zeroResult.damage)
+        assertEquals("maxHp 为负斩杀伤害钳制为 0（不得负伤害回血）", 0, negResult.damage)
+    }
+
+    // ---- T-C4（2026-08-05）：buildDamageZones 单次遍历与过滤式参考实现等价 ----
+
+    @Test
+    fun `buildDamageZones - single pass bucketing equals filtered reference implementation`() {
+        // 混合 Buff 列表（含无关类型）：单次 when 分桶与旧 filter+sumOf 逐位一致
+        val attacker = combatant(
+            id = "attacker",
+            buffs = listOf(
+                CombatBuff(type = BuffType.PHYSICAL_ATTACK_BOOST, value = 0.5, remainingDuration = 3),
+                CombatBuff(type = BuffType.MAGIC_ATTACK_BOOST, value = 0.2, remainingDuration = 3),
+                CombatBuff(type = BuffType.DAMAGE_BOOST, value = 0.1, remainingDuration = 3),
+                CombatBuff(type = BuffType.SHIELD, value = 0.9, remainingDuration = 3),
+                CombatBuff(type = BuffType.PHYSICAL_ATTACK_REDUCE, value = 0.15, remainingDuration = 3),
+                CombatBuff(type = BuffType.MAGIC_ATTACK_REDUCE, value = 0.05, remainingDuration = 3),
+                CombatBuff(type = BuffType.PHYSICAL_ATTACK_BOOST, value = 0.25, remainingDuration = 3)
+            )
+        )
+        val defender = combatant(
+            id = "defender",
+            buffs = listOf(
+                CombatBuff(type = BuffType.DAMAGE_REDUCTION, value = 0.3, remainingDuration = 3),
+                CombatBuff(type = BuffType.SPEED_BOOST, value = 1.0, remainingDuration = 3)
+            )
+        )
+
+        val zones = BattleCalculator.buildDamageZones(attacker, defender)
+        // 与"过滤式参考实现"对拍（保留 filter+sumOf 语义作为参考）
+        val refPhysBoost = attacker.buffs.filter { it.type == BuffType.PHYSICAL_ATTACK_BOOST }.sumOf { it.value }
+        val refPhysReduce = attacker.buffs.filter { it.type == BuffType.PHYSICAL_ATTACK_REDUCE }.sumOf { it.value }
+        val refMagBoost = attacker.buffs.filter { it.type == BuffType.MAGIC_ATTACK_BOOST }.sumOf { it.value }
+        val refMagReduce = attacker.buffs.filter { it.type == BuffType.MAGIC_ATTACK_REDUCE }.sumOf { it.value }
+        val refDmgBoost = attacker.buffs.filter { it.type == BuffType.DAMAGE_BOOST }.sumOf { it.value }
+        val refDmgReduce = defender.buffs.filter { it.type == BuffType.DAMAGE_REDUCTION }.sumOf { it.value }
+
+        assertEquals(refPhysBoost - refPhysReduce, zones.physicalAttackBuffs, 1e-9)
+        assertEquals(refMagBoost - refMagReduce, zones.magicAttackBuffs, 1e-9)
+        assertEquals(refDmgBoost, zones.damageAmplification, 1e-9)
+        assertEquals(refDmgReduce, zones.damageReduction, 1e-9)
+    }
 }

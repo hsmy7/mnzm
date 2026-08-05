@@ -7,6 +7,7 @@ import com.xianxia.sect.core.util.DomainResult
 
 /** 建筑系统门面——UI 层统一入口。所有建筑操作通过此接口调用。 */
 interface BuildingFacade {
+    val buildingService: BuildingService
     suspend fun placeBuilding(building: GridBuildingData)
     suspend fun moveBuildingDirect(instanceId: String, newGridX: Int, newGridY: Int)
     suspend fun assignDiscipleToBuilding(buildingId: String, slotIndex: Int, discipleId: String)

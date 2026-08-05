@@ -1,5 +1,10 @@
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.engine.domain.cultivation.CultivationFacade
+import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
+import com.xianxia.sect.core.engine.domain.economy.EconomyFacade
+import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
+import com.xianxia.sect.core.engine.domain.production.ProductionFacade
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -105,40 +110,34 @@ class GameEngineRenameTest {
 
 private class RenameEnv {
     val store = RenameStore()
+
+    // D1：构造时 highFrequencyData/productionSlots 经 Facade 访问器求值——stub 链防 NPE
+    private val mockCultivationFacade = mock<CultivationFacade>().also {
+        org.mockito.kotlin.whenever(it.cultivationService).thenReturn(mock())
+        org.mockito.kotlin.whenever(it.discipleService).thenReturn(mock())
+        val mockProductionFacade = mock<ProductionFacade>()
+        org.mockito.kotlin.whenever(mockProductionFacade.productionSlots).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(emptyList()))
+        org.mockito.kotlin.whenever(it.productionFacade).thenReturn(mockProductionFacade)
+        val mockPC = mock<ProductionCoordinator>()
+        org.mockito.kotlin.whenever(mockPC.repository).thenReturn(mock())
+        org.mockito.kotlin.whenever(it.productionCoordinator).thenReturn(mockPC)
+    }
+    private val mockEconomyFacade = mock<EconomyFacade>().also {
+        val mockInventoryFacade = mock<InventoryFacade>()
+        org.mockito.kotlin.whenever(mockInventoryFacade.inventorySystem).thenReturn(mock())
+        org.mockito.kotlin.whenever(it.inventoryFacade).thenReturn(mockInventoryFacade)
+        org.mockito.kotlin.whenever(it.mailService).thenReturn(mock())
+    }
+
     val engine = GameEngine(
         gameEngineCore = mock(),
         engineContextDispatcher = FakeEngineContextDispatcher(),
         stateStore = store,
-        inventorySystem = mock(),
-        inventoryConfig = mock(),
-        battleSystem = mock(),
-        productionCoordinator = mock(),
-        discipleService = mock(),
-        combatService = mock(),
-        explorationService = mock(),
-        buildingService = mock(),
-        saveService = mock(),
-        cultivationService = mock(),
-        diplomacyService = mock(),
-        redeemCodeService = mock(),
-        formulaService = mock(),
-        mailService = mock(),
-        dailySignInService = mock(),
-        autoBuyService = mock(),
-        heavyDataPort = mock(),
-        heavyDataDecoder = mock(),
-        discipleFacade = mock(),
-        battleFacade = mock(),
-        buildingFacade = mock(),
-        inventoryFacade = mock(),
-        diplomacyFacade = mock(),
-        productionFacade = mock(),
-        saveFacade = mock(),
-        spiritStoneWallet = mock(),
         gameRngManager = mock(),
-        assignmentGate = mock(),
-        lawEnforcementProcessor = mock(),
-        secretRealmService = mock()
+        explorationFacade = mock(),
+        cultivationFacade = mockCultivationFacade,
+        economyFacade = mockEconomyFacade,
+        battleFacade = mock()
     )
 }
 

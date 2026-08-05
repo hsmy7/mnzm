@@ -37,9 +37,9 @@ import kotlin.math.roundToInt
 
 @Singleton
 class InventoryFacadeImpl @Inject constructor(
-    private val inventorySystem: InventorySystem,
+    override val inventorySystem: InventorySystem,
     private val stateStore: GameStateStore,
-    private val inventoryConfig: InventoryConfig,
+    override val inventoryConfig: InventoryConfig,
     private val gameEngineCore: GameEngineCore,
     private val spiritStoneWallet: SpiritStoneWallet,
     private val gameRngManager: GameRngManager

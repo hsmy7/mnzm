@@ -1,9 +1,13 @@
 package com.xianxia.sect.core.engine.domain.inventory
 
+import com.xianxia.sect.core.config.InventoryConfig
+import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.model.*
 import kotlinx.coroutines.flow.StateFlow
 
 interface InventoryFacade {
+    val inventorySystem: InventorySystem
+    val inventoryConfig: InventoryConfig
     val equipmentStacks: StateFlow<List<EquipmentStack>>
     val equipmentInstances: StateFlow<List<EquipmentInstance>>
     val manualStacks: StateFlow<List<ManualStack>>

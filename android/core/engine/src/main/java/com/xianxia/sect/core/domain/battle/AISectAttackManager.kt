@@ -164,6 +164,43 @@ object AISectAttackManager {
         selectedAttackers: List<Disciple>,
         playerOccupiedDefendersMap: Map<String, PlayerOccupiedDefenseInfo>
     ): AIAttackResult? {
+        val setup = resolveDefenderSetup(
+            gameData, defender, attacker, aiDisciplesMap, playerOccupiedDefendersMap
+        ) ?: return null
+
+        val battleResult = if (setup.isPlayerOccupied &&
+            setup.garrisonDisciples.isNotEmpty()
+        ) {
+            val garrisonCombatants = playerOccupiedDefendersMap[
+                defender.id]?.combatants ?: emptyList()
+            executePlayerSectBattle(
+                selectedAttackers, garrisonCombatants)
+        } else {
+            executeSectBattle(selectedAttackers,
+                setup.defenderSect ?: defender,
+                setup.defenderDisciples, setup.allDefenderPool)
+        }
+
+        return buildAIAttackResult(attacker, defender, battleResult, selectedAttackers)
+    }
+
+    /** 防守者解析打包（resolveDefendersAndBattle 提取） */
+    private data class DefenderSetup(
+        val defenderSect: WorldSect?,
+        val garrisonDisciples: List<Disciple>,
+        val defenderDisciples: List<Disciple>,
+        val allDefenderPool: List<Disciple>,
+        val isPlayerOccupied: Boolean
+    )
+
+    /** 防守者解析（resolveDefendersAndBattle 提取）：占领判定 + 守军构建 + 全守军池；防守者为空返回 null */
+    private fun resolveDefenderSetup(
+        gameData: GameData,
+        defender: WorldSect,
+        attacker: WorldSect,
+        aiDisciplesMap: Map<String, List<Disciple>>,
+        playerOccupiedDefendersMap: Map<String, PlayerOccupiedDefenseInfo>
+    ): DefenderSetup? {
         val defenderSect = gameData.worldMapSects.find {
             it.id == defender.id
         }
@@ -212,19 +249,18 @@ object AISectAttackManager {
             defenderPool
         }
 
-        val battleResult = if (isPlayerOccupied &&
-            garrisonDisciples.isNotEmpty()
-        ) {
-            val garrisonCombatants = playerOccupiedDefendersMap[
-                defender.id]?.combatants ?: emptyList()
-            executePlayerSectBattle(
-                selectedAttackers, garrisonCombatants)
-        } else {
-            executeSectBattle(selectedAttackers,
-                defenderSect ?: defender,
-                defenderDisciples, allDefenderPool)
-        }
+        return DefenderSetup(
+            defenderSect, garrisonDisciples, defenderDisciples, allDefenderPool, isPlayerOccupied
+        )
+    }
 
+    /** 攻击结果组装（resolveDefendersAndBattle 提取） */
+    private fun buildAIAttackResult(
+        attacker: WorldSect,
+        defender: WorldSect,
+        battleResult: AIBattleResult,
+        selectedAttackers: List<Disciple>
+    ): AIAttackResult {
         val survivingAttackers = selectedAttackers.filter {
             it.id !in battleResult.deadAttackerIds
         }
@@ -426,61 +462,11 @@ object AISectAttackManager {
         val aiDisciplesMap = gameData.aiSectDisciples
 
         for (attacker in gameData.worldMapSects.filter { !it.isPlayerSect }) {
-            // ---- 附庸关系：主宗不攻击附庸 ----
-            if (gameData.suzerainSectId == attacker.id) continue
-
-            // ---- 该宗门已有活跃预警 → 跳过 ----
-            if (gameData.activeAttackWarnings.any {
-                it.attackerSectId == attacker.id
-            }) continue
-
-            // ---- 冷却期检查 ----
-            val cooldownUntil = gameData.sectAttackCooldowns[attacker.id]
-            if (cooldownUntil != null && nowMonth < cooldownUntil) continue
-
-            // ---- 个性参数 ----
-            val personality = gameData.aiSectPersonalities[attacker.id]
-                ?: AISectPersonality.BALANCED
-
-            // ---- 最低弟子数 ----
-            val attackerDisciples = aiDisciplesMap[attacker.id] ?: emptyList()
-            val aliveAttackers = attackerDisciples.filter { it.isAlive }
-            if (aliveAttackers.size < MIN_DISCIPLES_FOR_ATTACK) continue
-
-            // ---- 联盟 ----
-            if (attacker.allianceId.isNotEmpty() &&
-                playerSect.allianceId == attacker.allianceId) continue
-
-            // ---- 战力计算 ----
-            val attackerPower = SectCombatPowerCalculator.calculateSectPower(aliveAttackers)
-            val defenderDisciples = aiDisciplesMap[playerSectId] ?: emptyList()
-            val defenderPower = SectCombatPowerCalculator.calculateSectPower(
-                defenderDisciples.filter { it.isAlive }
-            )
-            if (defenderPower <= 0) continue
-            val powerRatio = attackerPower.toDouble() / defenderPower.toDouble()
-
-            // ---- 多因素智能综合评估 ----
-            val favor = FavorDomain.findFavor(gameData.sectRelations, attacker.id, playerSectId)
-            val favorLevel = SectRelationLevel.fromFavor(favor)
-            val recentRecords = gameData.sectBattleRecords.filter {
-                it.year >= gameData.gameYear - 3
-            }
-            val conquestCount = recentRecords.count { it.type == SectBattleType.CONQUEST }
-            val lostSectCount = recentRecords.count { it.type == SectBattleType.LOST_SECT }
-            val battleWinCount = recentRecords.count { it.type == SectBattleType.BATTLE_WIN }
-            val battleLossCount = recentRecords.count { it.type == SectBattleType.BATTLE_LOSS }
-
-            val attackChance = IntelligentSectDecisionEngine.calculateChance(
-                profile = IntelligentSectDecisionEngine.ATTACK_PROFILE,
-                powerRatio = powerRatio,
-                conquestCount = conquestCount,
-                lostSectCount = lostSectCount,
-                battleWinCount = battleWinCount,
-                battleLossCount = battleLossCount,
-                favorLevel = favorLevel,
-                personality = personality
-            )
+            val aliveAttackers = passesAttackerGates(gameData, attacker, nowMonth, aiDisciplesMap)
+                ?: continue
+            val powerRatio = computePowerRatio(aliveAttackers, aiDisciplesMap, playerSectId)
+                ?: continue
+            val attackChance = computeAttackChance(gameData, attacker, playerSectId, powerRatio)
 
             if (aisRng.nextDouble() < attackChance) {
                 return PlayerAttackDecision.GenerateWarning(
@@ -491,6 +477,77 @@ object AISectAttackManager {
         }
 
         return PlayerAttackDecision.Skip
+    }
+
+    /** 攻击前置六道闸（decidePlayerAttack 提取）：附庸/预警/冷却/弟子数/联盟；未通过返回 null */
+    private fun passesAttackerGates(
+        gameData: GameData,
+        attacker: WorldSect,
+        nowMonth: Int,
+        aiDisciplesMap: Map<String, List<Disciple>>
+    ): List<Disciple>? {
+        // ---- 最低弟子数 ----
+        val aliveAttackers = (aiDisciplesMap[attacker.id] ?: emptyList()).filter { it.isAlive }
+        val playerSect = gameData.worldMapSects.find { it.isPlayerSect }
+        val cooldownUntil = gameData.sectAttackCooldowns[attacker.id]
+
+        // ---- 六道闸：附庸 / 活跃预警 / 冷却期 / 最低弟子数 / 联盟 ----
+        val passes = gameData.suzerainSectId != attacker.id &&
+            gameData.activeAttackWarnings.none { it.attackerSectId == attacker.id } &&
+            (cooldownUntil == null || nowMonth >= cooldownUntil) &&
+            aliveAttackers.size >= MIN_DISCIPLES_FOR_ATTACK &&
+            (attacker.allianceId.isEmpty() || playerSect?.allianceId != attacker.allianceId)
+        return if (passes) aliveAttackers else null
+    }
+
+    /** 战力比计算（decidePlayerAttack 提取）；防守战力 <=0 返回 null 跳过 */
+    private fun computePowerRatio(
+        aliveAttackers: List<Disciple>,
+        aiDisciplesMap: Map<String, List<Disciple>>,
+        playerSectId: String
+    ): Double? {
+        // ---- 战力计算 ----
+        val attackerPower = SectCombatPowerCalculator.calculateSectPower(aliveAttackers)
+        val defenderDisciples = aiDisciplesMap[playerSectId] ?: emptyList()
+        val defenderPower = SectCombatPowerCalculator.calculateSectPower(
+            defenderDisciples.filter { it.isAlive }
+        )
+        if (defenderPower <= 0) return null
+        return attackerPower.toDouble() / defenderPower.toDouble()
+    }
+
+    /** 多因素智能综合评估（decidePlayerAttack 提取）：好感/战绩统计 + 个性修正 */
+    private fun computeAttackChance(
+        gameData: GameData,
+        attacker: WorldSect,
+        playerSectId: String,
+        powerRatio: Double
+    ): Double {
+        // ---- 个性参数 ----
+        val personality = gameData.aiSectPersonalities[attacker.id]
+            ?: AISectPersonality.BALANCED
+
+        // ---- 多因素智能综合评估 ----
+        val favor = FavorDomain.findFavor(gameData.sectRelations, attacker.id, playerSectId)
+        val favorLevel = SectRelationLevel.fromFavor(favor)
+        val recentRecords = gameData.sectBattleRecords.filter {
+            it.year >= gameData.gameYear - 3
+        }
+        val conquestCount = recentRecords.count { it.type == SectBattleType.CONQUEST }
+        val lostSectCount = recentRecords.count { it.type == SectBattleType.LOST_SECT }
+        val battleWinCount = recentRecords.count { it.type == SectBattleType.BATTLE_WIN }
+        val battleLossCount = recentRecords.count { it.type == SectBattleType.BATTLE_LOSS }
+
+        return IntelligentSectDecisionEngine.calculateChance(
+            profile = IntelligentSectDecisionEngine.ATTACK_PROFILE,
+            powerRatio = powerRatio,
+            conquestCount = conquestCount,
+            lostSectCount = lostSectCount,
+            battleWinCount = battleWinCount,
+            battleLossCount = battleLossCount,
+            favorLevel = favorLevel,
+            personality = personality
+        )
     }
 
     /**

@@ -39,7 +39,8 @@ import com.xianxia.sect.ui.theme.AppTypography
 import com.xianxia.sect.ui.theme.CornerRadius
 import com.xianxia.sect.ui.theme.Spacing
 
-enum class DialogMode { Half, Full, Auto }
+/** 对话框尺寸模式：Half=0.83w/0.78h，Large=0.95w/0.9h（存档管理），Full=全屏，Auto=0.83w 包高 */
+enum class DialogMode { Half, Large, Full, Auto }
 
 @Composable
 fun UnifiedGameDialog(
@@ -73,6 +74,10 @@ fun UnifiedGameDialog(
         DialogMode.Half -> Pair(
             Modifier.fillMaxWidth(0.83f),
             Modifier.fillMaxHeight(0.78f)
+        )
+        DialogMode.Large -> Pair(
+            Modifier.fillMaxWidth(0.95f),
+            Modifier.fillMaxHeight(0.9f)
         )
         DialogMode.Full -> Pair(
             Modifier.fillMaxSize(),
