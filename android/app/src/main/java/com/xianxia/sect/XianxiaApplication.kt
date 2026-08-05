@@ -203,17 +203,19 @@ class XianxiaApplication : Application() {
                 disciple: com.xianxia.sect.core.model.Disciple,
                 equipments: Map<String, EquipmentInstance>,
                 manuals: Map<String, ManualInstance>,
-                manualProficiencies: Map<String, ManualProficiencyData>
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: com.xianxia.sect.core.model.BloodRefinementPctTotal?
             ) = DiscipleStatCalculator.getFinalStats(
-                disciple, equipments, manuals, manualProficiencies
+                disciple, equipments, manuals, manualProficiencies, bloodRefinementPct
             )
             override fun getFinalStats(
                 aggregate: DiscipleAggregate,
                 equipments: Map<String, EquipmentInstance>,
                 manuals: Map<String, ManualInstance>,
-                manualProficiencies: Map<String, ManualProficiencyData>
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: com.xianxia.sect.core.model.BloodRefinementPctTotal?
             ) = DiscipleStatCalculator.getFinalStats(
-                aggregate, equipments, manuals, manualProficiencies
+                aggregate, equipments, manuals, manualProficiencies, bloodRefinementPct
             )
             override fun calculateCultivationSpeed(
                 disciple: com.xianxia.sect.core.model.Disciple,

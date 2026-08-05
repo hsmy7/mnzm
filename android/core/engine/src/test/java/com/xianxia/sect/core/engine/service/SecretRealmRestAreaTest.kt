@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -86,12 +87,14 @@ class SecretRealmRestAreaTest {
             override fun getFinalStats(
                 disciple: Disciple, equipments: Map<String, EquipmentInstance>,
                 manuals: Map<String, ManualInstance>,
-                manualProficiencies: Map<String, ManualProficiencyData>
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: BloodRefinementPctTotal?
             ): DiscipleStats = DiscipleStats()
             override fun getFinalStats(
                 aggregate: DiscipleAggregate, equipments: Map<String, EquipmentInstance>,
                 manuals: Map<String, ManualInstance>,
-                manualProficiencies: Map<String, ManualProficiencyData>
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: BloodRefinementPctTotal?
             ): DiscipleStats = DiscipleStats()
             override fun calculateCultivationSpeed(
                 disciple: Disciple, manuals: Map<String, ManualInstance>,

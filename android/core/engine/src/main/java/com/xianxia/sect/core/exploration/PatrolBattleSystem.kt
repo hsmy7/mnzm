@@ -3,6 +3,7 @@ import com.xianxia.sect.core.util.ItemNames
 
 import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.domain.battle.Battle
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
@@ -134,7 +135,8 @@ class PatrolBattleSystem @Inject constructor(
         if (normalTargets.isNotEmpty()) {
             val normalTeams = teams.filter { it.towerIndex in normalTargets.keys }
             allResults += executeBattles(
-                normalTeams, normalTargets, equipmentMap, manualMap, allProficiencies
+                normalTeams, normalTargets, equipmentMap, manualMap, allProficiencies,
+                gd.bloodRefinementPctTotals
             )
         }
 
@@ -253,6 +255,7 @@ class PatrolBattleSystem @Inject constructor(
         allProficiencies: Map<String, Map<String, ManualProficiencyData>>,
         state: MutableGameState
     ): List<TowerBattleResult> {
+        val bloodRefinementMap = state.gameData.bloodRefinementPctTotals
         return teams.mapNotNull { team ->
             val target = targets[team.towerIndex] ?: return@mapNotNull null
             // 冲突时只取最近的 1 个 AI（第 2 个直接清理）
@@ -267,7 +270,7 @@ class PatrolBattleSystem @Inject constructor(
 
             executeTeamConflict(
                 team, target, aiSectId, aiDisciples, aiSect,
-                equipmentMap, manualMap, allProficiencies, state
+                equipmentMap, manualMap, allProficiencies, state, bloodRefinementMap
             )
         }
     }
@@ -276,6 +279,7 @@ class PatrolBattleSystem @Inject constructor(
      * 单队冲突战：Phase 1 巡逻队 vs AI（PvP）+ Phase 2 胜者 vs 妖兽（PvE）。
      * 返回 [TowerBattleResult]；双方全灭时返回带死亡信息的空结果。
      */
+    @Suppress("LongParameterList") // 冲突战入参聚合（10 参数，血炼映射 2026-08-06 加入）
     private fun executeTeamConflict(
         team: TowerTeam,
         target: WorldLevel,
@@ -285,10 +289,11 @@ class PatrolBattleSystem @Inject constructor(
         equipmentMap: Map<String, EquipmentInstance>,
         manualMap: Map<String, ManualInstance>,
         allProficiencies: Map<String, Map<String, ManualProficiencyData>>,
-        state: MutableGameState
+        state: MutableGameState,
+        bloodRefinementMap: Map<String, BloodRefinementPctTotal> = emptyMap()
     ): TowerBattleResult? {
         val (pvpResult, patrolDead, aiDead) = buildTeamPhase1Battle(
-            team, aiDisciples, equipmentMap, manualMap, allProficiencies, battleSystem
+            team, aiDisciples, equipmentMap, manualMap, allProficiencies, battleSystem, bloodRefinementMap
         )
         markAiDeaths(state, aiSectId, aiDead)
 
@@ -313,7 +318,7 @@ class PatrolBattleSystem @Inject constructor(
 
         val pveBattle = buildTeamPhase2Battle(
             pvpResult.victory, winnerDisciples, target, equipmentMap, manualMap,
-            allProficiencies, battleSystem
+            allProficiencies, battleSystem, bloodRefinementMap
         )
         val pveResult = battleSystem.executeBattle(pveBattle)
         return resolveTowerBattleResult(team, target, pveResult, patrolDead, winnerDisciples)
@@ -324,7 +329,8 @@ class PatrolBattleSystem @Inject constructor(
         targets: Map<Int, WorldLevel>,
         equipmentMap: Map<String, EquipmentInstance>,
         manualMap: Map<String, ManualInstance>,
-        allProficiencies: Map<String, Map<String, ManualProficiencyData>>
+        allProficiencies: Map<String, Map<String, ManualProficiencyData>>,
+        bloodRefinementMap: Map<String, BloodRefinementPctTotal> = emptyMap()
     ): List<TowerBattleResult> {
         return teams.mapNotNull { team ->
             val target = targets[team.towerIndex] ?: return@mapNotNull null
@@ -349,7 +355,8 @@ class PatrolBattleSystem @Inject constructor(
                 beastCount = target.count,
                 beastType = beastTypeName,
                 manualProficiencies = allProficiencies,
-                beastPreGenStats = beastPreGenStats
+                beastPreGenStats = beastPreGenStats,
+                bloodRefinementMap = bloodRefinementMap
             )
             val result = battleSystem.executeBattle(battle)
 
@@ -386,7 +393,7 @@ class PatrolBattleSystem @Inject constructor(
 
             // 弟子 HP/MP 更新 + 死亡标记
             val resultState = updateDisciplesForBattleResult(
-                result, updatedDisciples
+                result, updatedDisciples, state
             )
             updatedDisciples = resultState.disciples
             allDeadIds.addAll(resultState.deadIds)
@@ -413,7 +420,8 @@ class PatrolBattleSystem @Inject constructor(
     /** 更新单场战斗结果的弟子 HP/MP 和阵亡状态 */
     private fun updateDisciplesForBattleResult(
         result: TowerBattleResult,
-        disciples: List<Disciple>
+        disciples: List<Disciple>,
+        state: MutableGameState
     ): BattleDisciplesUpdate {
         val hpMap = result.result.battle.team.associate {
             it.id to (it.hp to it.mp)
@@ -423,9 +431,11 @@ class PatrolBattleSystem @Inject constructor(
             if (d.id !in result.survivors) {
                 d.copy(isAlive = false, status = DiscipleStatus.DEAD)
             } else {
+                // clamp 上限用含血炼口径（P2 对抗性审查修复），防削血
+                val (finalMaxHp, finalMaxMp) = DiscipleStatCalculator.battleWritebackMaxHpMp(state, d)
                 d.copy(combat = d.combat.copy(
-                    currentHp = hp.coerceIn(0, d.maxHp),
-                    currentMp = mp.coerceIn(0, d.maxMp)
+                    currentHp = hp.coerceIn(0, finalMaxHp),
+                    currentMp = mp.coerceIn(0, finalMaxMp)
                 ))
             }
         }
@@ -689,7 +699,8 @@ private fun buildTeamPhase1Battle(
     equipmentMap: Map<String, EquipmentInstance>,
     manualMap: Map<String, ManualInstance>,
     allProficiencies: Map<String, Map<String, ManualProficiencyData>>,
-    battleSystem: BattleSystem
+    battleSystem: BattleSystem,
+    bloodRefinementMap: Map<String, BloodRefinementPctTotal> = emptyMap()
 ): TeamPhase1BattleResult {
     // 双方分别构建 Combatant → Battle(team=巡逻队, beasts=AI队伍)
     val aiPrepared = AISectDiscipleManager.prepareDisciplesForBattle(aiDisciples)
@@ -700,13 +711,14 @@ private fun buildTeamPhase1Battle(
             manualMap = manualMap,
             manualProficiencies = allProficiencies,
             side = CombatantSide.DEFENDER,
-            fullHeal = true
+            fullHeal = true,
+            bloodRefinementPct = bloodRefinementMap[disciple.id]
         )
     }
     val aiCombatants = aiPrepared.disciples.map { disciple ->
         battleSystem.convertDiscipleToCombatant(
             disciple = disciple,
-            equipmentMap = aiPrepared.equipmentMap,
+            equipmentMap = aiPrepared.equipmentMapByDisciple[disciple.id] ?: emptyMap(),
             manualMap = aiPrepared.manualMap,
             manualProficiencies = aiPrepared.proficiencies,
             side = CombatantSide.ATTACKER,
@@ -739,6 +751,7 @@ private fun markAiDeaths(state: MutableGameState, aiSectId: String, aiDead: Set<
 }
 
 /** Phase 2 (PvE) 战斗构建（executeTeamConflict 提取）：巡逻队胜用原装备，AI 胜生成模拟装备 */
+@Suppress("LongParameterList") // 战斗构建入参聚合（8 参数，血炼映射 2026-08-06 加入）
 private fun buildTeamPhase2Battle(
     isPatrolWon: Boolean,
     winnerDisciples: List<Disciple>,
@@ -746,7 +759,8 @@ private fun buildTeamPhase2Battle(
     equipmentMap: Map<String, EquipmentInstance>,
     manualMap: Map<String, ManualInstance>,
     allProficiencies: Map<String, Map<String, ManualProficiencyData>>,
-    battleSystem: BattleSystem
+    battleSystem: BattleSystem,
+    bloodRefinementMap: Map<String, BloodRefinementPctTotal> = emptyMap()
 ): Battle {
     // 构建妖兽预计算属性
     val beastPreGenStats = if (target.beastMaxHp > 0) BattleSystem.BeastPreGenStats(
@@ -769,7 +783,8 @@ private fun buildTeamPhase2Battle(
             beastCount = target.count,
             beastType = beastTypeName,
             manualProficiencies = allProficiencies,
-            beastPreGenStats = beastPreGenStats
+            beastPreGenStats = beastPreGenStats,
+            bloodRefinementMap = bloodRefinementMap
         )
     } else {
         // AI 胜 → 生成 AI 弟子的模拟装备/功法
@@ -798,7 +813,8 @@ private fun createAIBattle(
     ).name
     return battleSystem.createBattle(
         disciples = prepared.disciples,
-        equipmentMap = prepared.equipmentMap,
+        equipmentMap = emptyMap(),
+        equipmentMapByDisciple = prepared.equipmentMapByDisciple,
         manualMap = prepared.manualMap,
         beastLevel = target.realm,
         beastCount = target.count,

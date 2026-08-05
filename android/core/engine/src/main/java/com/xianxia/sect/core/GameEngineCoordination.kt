@@ -915,7 +915,10 @@ suspend fun GameEngine.checkAndProcessCompletedMissions(): List<String> {
                 val equipMap = stateStore.equipmentInstancesSnapshot.associateBy { it.id }
                 val manualMap = stateStore.manualInstancesSnapshot.associateBy { it.id }
                 val proficiencies = data.manualProficiencies.mapValues { (_, list) -> list.associateBy { it.manualId } }
-                val result = MissionSystem.processMissionCompletion(activeMission, aliveDisciples, equipMap, manualMap, proficiencies, battleSystem)
+                val result = MissionSystem.processMissionCompletion(
+                    activeMission, aliveDisciples, equipMap, manualMap,
+                    proficiencies, battleSystem, data.bloodRefinementPctTotals
+                )
                 applyMissionResult(result, activeMission, data.gameYear, data.gameMonth, aliveDisciples)
             }
             for (did in activeMission.discipleIds) {
@@ -1371,8 +1374,9 @@ private fun MutableGameState.settleSingleRefinement(
     if (discipleTables.isAlive[dId] == 0) return
 
     // 百分比累加：只传增量（addPctToTotal 内部做 total + pct）
+    // 防御篡改/损坏：NaN 无法被 coerceAtLeast 拦下（NaN 比较恒 false），先 isFinite 归零
     val existingTotal = gameData.bloodRefinementPctTotals[progress.discipleId]
-    val safeBonusPct = progress.bonusPercent.coerceAtLeast(0.0)
+    val safeBonusPct = progress.bonusPercent.takeIf { it.isFinite() }?.coerceAtLeast(0.0) ?: 0.0
 
     val updatedTotal = if (existingTotal != null) {
         DiscipleStatCalculator.addPctToTotal(existingTotal, statKey, safeBonusPct)

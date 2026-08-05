@@ -49,7 +49,7 @@ class ResolveBeastAttackFightTest {
         val spiritStoneWallet = mock(SpiritStoneWallet::class.java)
         val explorationTeamManager = mock(com.xianxia.sect.core.exploration.ExplorationTeamManager::class.java)
 
-        `when`(battleSystem.createBattle(any(), any(), any(), any(), any(), any(), any(), any()))
+        `when`(battleSystem.createBattle(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
             .thenReturn(Battle(team = emptyList(), beasts = emptyList()))
         `when`(battleSystem.executeBattle(any(), any())).thenReturn(
             BattleSystemResult(battle = Battle(team = emptyList(), beasts = emptyList()),

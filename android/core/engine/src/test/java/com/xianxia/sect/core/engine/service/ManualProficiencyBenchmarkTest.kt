@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatsProvider
@@ -60,13 +61,19 @@ class ManualProficiencyBenchmarkTest {
             override fun getFinalStats(
                 disciple: Disciple, equipments: Map<String, com.xianxia.sect.core.model.EquipmentInstance>,
                 manuals: Map<String, ManualInstance>,
-                manualProficiencies: Map<String, ManualProficiencyData>
-            ) = DiscipleStatCalculator.getFinalStats(disciple, equipments, manuals, manualProficiencies)
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: BloodRefinementPctTotal?
+            ) = DiscipleStatCalculator.getFinalStats(
+                disciple, equipments, manuals, manualProficiencies, bloodRefinementPct
+            )
             override fun getFinalStats(
                 aggregate: DiscipleAggregate, equipments: Map<String, com.xianxia.sect.core.model.EquipmentInstance>,
                 manuals: Map<String, ManualInstance>,
-                manualProficiencies: Map<String, ManualProficiencyData>
-            ) = DiscipleStatCalculator.getFinalStats(aggregate, equipments, manuals, manualProficiencies)
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: BloodRefinementPctTotal?
+            ) = DiscipleStatCalculator.getFinalStats(
+                aggregate, equipments, manuals, manualProficiencies, bloodRefinementPct
+            )
             override fun calculateCultivationSpeed(
                 disciple: Disciple, manuals: Map<String, ManualInstance>,
                 manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double,

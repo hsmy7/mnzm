@@ -41,7 +41,8 @@ class HpMpColumnCoverageTest {
         "manualIds",      // 功法（stats["hp"/"mp"] × 熟练度）
         "pillEffectDuration",  // 丹药生效判定
         "pillHpBonus",    // 丹药 HP/MP 加成
-        "pillMpBonus"
+        "pillMpBonus",
+        "bloodRefinementPct"  // 血炼百分比（2026-08-06 P2：血炼进战斗后恢复上限须同源）
     )
 
     @Test

@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.PillEffects
@@ -943,5 +944,59 @@ class DiscipleStatCalculatorTest {
         assertEquals(0.0294, bothDetail.total - baseDetail.total, 0.001)
         assertEquals(0.04, bothDetail.innerElderBonus, 0.001)
         assertEquals(0.03, bothDetail.outerElderBonus, 0.001)
+    }
+
+    // ── 血炼加成进入战斗属性（2026-08-06 P2 修复）──
+    // 此前血炼百分比只进战力计算（getPermanentBaseStats），战斗路径
+    // getFinalStats→getBaseStats 不传 bloodRefinementPct → 战斗实际无加成。
+
+    @Test
+    fun `getFinalStats - 血炼加成计入战斗属性`() {
+        val disciple = createDisciple()
+        val bloodRefinement = BloodRefinementPctTotal(
+            discipleId = "1",
+            hpBonusPct = 0.30,
+            physicalAttackBonusPct = 0.50,
+            physicalDefenseBonusPct = 0.40,
+            speedBonusPct = 0.20
+        )
+        val base = DiscipleStatCalculator.getFinalStats(disciple, emptyMap(), emptyMap())
+        val withBr = DiscipleStatCalculator.getFinalStats(
+            disciple, emptyMap(), emptyMap(), bloodRefinementPct = bloodRefinement
+        )
+        // realm 9 基础（无天赋/方差/层数加成）：物攻 16、物防 13、速度 15、气血 203
+        assertEquals(16, base.physicalAttack)
+        assertEquals(24, withBr.physicalAttack) // 16 × (1 + 0.50)
+        assertEquals(13, base.physicalDefense)
+        assertEquals(18, withBr.physicalDefense) // 13 × 1.4 = 18.2 → 18
+        assertEquals(15, base.speed)
+        assertEquals(18, withBr.speed) // 15 × 1.2
+        assertEquals(203, base.maxHp)
+        assertEquals(264, withBr.maxHp) // 203 × 1.3 = 263.9 → 264
+    }
+
+    @Test
+    fun `getFinalStats - 血炼加成与天赋同乘区加算`() {
+        val disciple = createDisciple(talentIds = listOf("r1_bat_hp"))
+        // r1_bat_hp 天赋（体健）提供 maxHp +10%（与血炼 hpBonusPct 同乘区加算）
+        val bloodRefinement = BloodRefinementPctTotal(discipleId = "1", hpBonusPct = 0.30)
+        val withTalent = DiscipleStatCalculator.getFinalStats(disciple, emptyMap(), emptyMap())
+        val withTalentAndBr = DiscipleStatCalculator.getFinalStats(
+            disciple, emptyMap(), emptyMap(), bloodRefinementPct = bloodRefinement
+        )
+        // 203 × (1 + 0.10) = 223.3 → 223（仅天赋）
+        assertEquals(223, withTalent.maxHp)
+        // 203 × (1 + 0.10 + 0.30) = 284.2 → 284（天赋+血炼同乘区加算，而非乘算 203×1.1×1.3=290）
+        assertEquals(284, withTalentAndBr.maxHp)
+    }
+
+    @Test
+    fun `getFinalStats - 无血炼时行为不变`() {
+        val disciple = createDisciple(realm = 7, realmLayer = 3)
+        val withNull = DiscipleStatCalculator.getFinalStats(
+            disciple, emptyMap(), emptyMap(), bloodRefinementPct = null
+        )
+        val withDefault = DiscipleStatCalculator.getFinalStats(disciple, emptyMap(), emptyMap())
+        assertEquals("null 与默认参数应完全一致", withDefault, withNull)
     }
 }

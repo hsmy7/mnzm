@@ -48,9 +48,11 @@ class CultivationCore @Inject constructor(
 
     fun getLifespanGainForRealm(realm: Int): Int = cultivationRateCalculator.getLifespanGainForRealm(realm)
 
-    fun isDiscipleFullHpMp(disciple: Disciple): Boolean = hpMpRecoveryService.isDiscipleFullHpMp(disciple)
+    fun isDiscipleFullHpMp(disciple: Disciple, state: MutableGameState): Boolean =
+        hpMpRecoveryService.isDiscipleFullHpMp(disciple, state)
 
-    fun isDiscipleFullHpMp(id: Int, tables: DiscipleTables): Boolean = hpMpRecoveryService.isDiscipleFullHpMp(id, tables)
+    fun isDiscipleFullHpMp(id: Int, tables: DiscipleTables, state: MutableGameState): Boolean =
+        hpMpRecoveryService.isDiscipleFullHpMp(id, tables, state)
 
     fun recoverHpMpForAllDisciples(state: MutableGameState, phasesToSettle: Int = 3) =
         hpMpRecoveryService.recoverHpMpForAllDisciples(state, phasesToSettle)
@@ -74,10 +76,6 @@ class CultivationCore @Inject constructor(
         equipmentMap = equipmentMap, manualMap = manualMap,
         manualProficiencies = manualProficiencies
     )
-
-    fun recoverMonthlyHpMp(tables: DiscipleTables, id: Int, focusedPhaseCount: Int = 0,
-        zones: RecoveryZones = RecoveryZones()
-    ) = hpMpRecoveryService.recoverMonthlyHpMp(tables, id, focusedPhaseCount, zones)
 
     fun applyMonthlyDurationDecay(tables: DiscipleTables, id: Int, focusedPhaseCount: Int = 0) =
         hpMpRecoveryService.applyMonthlyDurationDecay(tables, id, focusedPhaseCount)

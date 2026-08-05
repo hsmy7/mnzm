@@ -232,7 +232,7 @@ class AISectBeastAttackProcessor @Inject constructor(
         val teamACombatants = preparedA.disciples.map { disciple ->
             battleSystem.convertDiscipleToCombatant(
                 disciple = disciple,
-                equipmentMap = preparedA.equipmentMap,
+                equipmentMap = preparedA.equipmentMapByDisciple[disciple.id] ?: emptyMap(),
                 manualMap = preparedA.manualMap,
                 manualProficiencies = preparedA.proficiencies,
                 side = CombatantSide.DEFENDER,
@@ -242,7 +242,7 @@ class AISectBeastAttackProcessor @Inject constructor(
         val teamBCombatants = preparedB.disciples.map { disciple ->
             battleSystem.convertDiscipleToCombatant(
                 disciple = disciple,
-                equipmentMap = preparedB.equipmentMap,
+                equipmentMap = preparedB.equipmentMapByDisciple[disciple.id] ?: emptyMap(),
                 manualMap = preparedB.manualMap,
                 manualProficiencies = preparedB.proficiencies,
                 side = CombatantSide.ATTACKER,
@@ -420,7 +420,8 @@ class AISectBeastAttackProcessor @Inject constructor(
         val prepared = AISectDiscipleManager.prepareDisciplesForBattle(disciples)
         return battleSystem.createBattle(
             disciples = prepared.disciples,
-            equipmentMap = prepared.equipmentMap,
+            equipmentMap = emptyMap(),
+            equipmentMapByDisciple = prepared.equipmentMapByDisciple,
             manualMap = prepared.manualMap,
             beastLevel = beast.realm,
             beastCount = beast.count,

@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.domain.battle
 
 import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatsProvider
@@ -38,13 +39,19 @@ class AISectAttackManagerTest {
             override fun getFinalStats(
                 disciple: Disciple, equipments: Map<String, EquipmentInstance>,
                 manuals: Map<String, ManualInstance>,
-                manualProficiencies: Map<String, ManualProficiencyData>
-            ) = DiscipleStatCalculator.getFinalStats(disciple, equipments, manuals, manualProficiencies)
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: BloodRefinementPctTotal?
+            ) = DiscipleStatCalculator.getFinalStats(
+                disciple, equipments, manuals, manualProficiencies, bloodRefinementPct
+            )
             override fun getFinalStats(
                 aggregate: DiscipleAggregate, equipments: Map<String, EquipmentInstance>,
                 manuals: Map<String, ManualInstance>,
-                manualProficiencies: Map<String, ManualProficiencyData>
-            ) = DiscipleStatCalculator.getFinalStats(aggregate, equipments, manuals, manualProficiencies)
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: BloodRefinementPctTotal?
+            ) = DiscipleStatCalculator.getFinalStats(
+                aggregate, equipments, manuals, manualProficiencies, bloodRefinementPct
+            )
             override fun calculateCultivationSpeed(
                 disciple: Disciple, manuals: Map<String, ManualInstance>,
                 manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double,

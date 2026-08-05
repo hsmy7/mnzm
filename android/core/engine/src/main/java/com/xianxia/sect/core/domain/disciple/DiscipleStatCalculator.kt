@@ -18,6 +18,7 @@ import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.engine.service.lifespanGainForRealm
+import com.xianxia.sect.core.state.MutableGameState
 import kotlin.math.roundToInt
 
 object DiscipleStatCalculator {
@@ -38,6 +39,46 @@ object DiscipleStatCalculator {
 
     /** 突破失败后气血/法力的剩余比例（修为清零外，HP/MP 打一折，玩家与 AI 共用） */
     const val BREAKTHROUGH_FAILURE_HP_MP_RATIO = 0.1
+
+    /**
+     * 血炼百分比上界（10.0 = 1000%）。防御存档篡改巨大有限值（如 1e9）导致属性
+     * 饱和 Int.MAX 的"改存档即无敌"通道；游戏内单次血炼增量为 0.5%~30% 级，
+     * 1000% 上界远高于合法累计。
+     */
+    private const val MAX_BLOOD_REFINEMENT_PCT = 10.0
+
+    /** 层数乘区防御：篡改 realmLayer 为负/超大时钳制非负（负乘区会产生负属性）。 */
+    private fun safeLayerMult(realmLayer: Int): Double =
+        (1.0 + (realmLayer - 1) * LAYER_MULTIPLIER).coerceAtLeast(0.0)
+
+    /** 方差乘区防御：篡改方差为极端负值时钳制非负（1 + 方差/100 为负会产生负属性）。 */
+    private fun safeVarianceMultiplier(variance: Int): Double =
+        (1.0 + variance / 100.0).coerceAtLeast(0.0)
+
+    /**
+     * 战斗回写 clamp 上限（含血炼口径，2026-08-06 P2 对抗性审查修复）。
+     *
+     * 血炼进战斗后战斗内 maxHp/maxMp 含血炼；各回写路径若仍用基础上限
+     * （disciple.maxHp 或 tables.baseHps）clamp，会把含血炼上限下的血量
+     * 反向压低（削血）。所有战斗回写路径统一走本函数取上限。
+     *
+     * @param state 可变游戏状态（读装备/功法/熟练度/血炼记录）
+     * @param disciple 目标弟子
+     * @return (含血炼最终 maxHp, 含血炼最终 maxMp)
+     */
+    fun battleWritebackMaxHpMp(
+        state: MutableGameState,
+        disciple: Disciple
+    ): Pair<Int, Int> {
+        val stats = getFinalStats(
+            disciple,
+            state.equipmentInstances.associateBy { it.id },
+            state.manualInstances.associateBy { it.id },
+            state.gameData.manualProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap(),
+            state.gameData.bloodRefinementPctTotals[disciple.id]
+        )
+        return Pair(stats.maxHp, stats.maxMp)
+    }
 
     /**
      * 突破大境界成功后的寿命增益（对齐玩家 DiscipleBreakthroughHandler 算法）。
@@ -176,16 +217,16 @@ object DiscipleStatCalculator {
         bloodRefinementPct: BloodRefinementPctTotal? = null
     ): Pair<Int, Int> {
         val realmConfig = GameConfig.Realm.get(realm)
-        val layerMult = 1.0 + (realmLayer - 1) * LAYER_MULTIPLIER
+        val layerMult = safeLayerMult(realmLayer)
 
-        // 血炼百分比乘区与天赋同乘区加算（防御存档篡改的 NaN/Infinity/负数）
+        // 血炼百分比乘区与天赋同乘区加算（防御存档篡改：负数/NaN/Infinity 归零，上界 10.0 防巨大值饱和）
         fun safeBrPct(pct: Double): Double =
-            pct.coerceAtLeast(0.0).takeIf { it.isFinite() } ?: 0.0
+            pct.coerceIn(0.0, MAX_BLOOD_REFINEMENT_PCT).takeIf { it.isFinite() } ?: 0.0
         val hpBonus = (talentEffects["maxHp"] ?: 0.0) + safeBrPct(bloodRefinementPct?.hpBonusPct ?: 0.0)
         val mpBonus = talentEffects["maxMp"] ?: 0.0
 
-        val hpVar = 1.0 + hpVariance / 100.0
-        val mpVar = 1.0 + mpVariance / 100.0
+        val hpVar = safeVarianceMultiplier(hpVariance)
+        val mpVar = safeVarianceMultiplier(mpVariance)
         val maxHp = (realmConfig.baseHp * hpVar * layerMult * (1.0 + hpBonus)).roundToInt()
         val maxMp = (realmConfig.baseMp * mpVar * layerMult * (1.0 + mpBonus)).roundToInt()
         return Pair(maxHp, maxMp)
@@ -212,11 +253,11 @@ object DiscipleStatCalculator {
         mining: Int
     ): DiscipleStats {
         val realmConfig = GameConfig.Realm.get(realm)
-        val layerMult = 1.0 + (realmLayer - 1) * LAYER_MULTIPLIER
+        val layerMult = safeLayerMult(realmLayer)
 
-        // 血炼百分比乘区与天赋同乘区加算（防御存档篡改的 NaN/Infinity/负数）
+        // 血炼百分比乘区与天赋同乘区加算（防御存档篡改：负数/NaN/Infinity 归零，上界 10.0）
         fun safeBrPct(pct: Double): Double =
-            pct.coerceAtLeast(0.0).takeIf { it.isFinite() } ?: 0.0
+            pct.coerceIn(0.0, MAX_BLOOD_REFINEMENT_PCT).takeIf { it.isFinite() } ?: 0.0
         val br = bloodRefinementPct
         val attackBonus = (talentEffects["physicalAttack"] ?: 0.0) + safeBrPct(br?.physicalAttackBonusPct ?: 0.0)
         val magicAttackBonus = (talentEffects["magicAttack"] ?: 0.0) + safeBrPct(br?.magicAttackBonusPct ?: 0.0)
@@ -232,11 +273,11 @@ object DiscipleStatCalculator {
         val moralityFlat = (talentEffects["moralityFlat"] ?: 0.0).toInt()
         val miningFlat = (talentEffects["miningFlat"] ?: 0.0).toInt()
 
-        val paVar = 1.0 + physicalAttackVariance / 100.0
-        val maVar = 1.0 + magicAttackVariance / 100.0
-        val pdVar = 1.0 + physicalDefenseVariance / 100.0
-        val mdVar = 1.0 + magicDefenseVariance / 100.0
-        val spdVar = 1.0 + speedVariance / 100.0
+        val paVar = safeVarianceMultiplier(physicalAttackVariance)
+        val maVar = safeVarianceMultiplier(magicAttackVariance)
+        val pdVar = safeVarianceMultiplier(physicalDefenseVariance)
+        val mdVar = safeVarianceMultiplier(magicDefenseVariance)
+        val spdVar = safeVarianceMultiplier(speedVariance)
 
         // maxHp/maxMp 共用实现（computeBaseHpMp），与列直读版公式单一来源
         val (maxHp, maxMp) = computeBaseHpMp(realm, realmLayer, hpVariance, mpVariance, talentEffects, bloodRefinementPct)
@@ -262,7 +303,10 @@ object DiscipleStatCalculator {
         )
     }
 
-    fun getBaseStats(disciple: Disciple): DiscipleStats {
+    fun getBaseStats(
+        disciple: Disciple,
+        bloodRefinementPct: BloodRefinementPctTotal? = null
+    ): DiscipleStats {
         val c = disciple.combat
         return computeBaseStats(
             realm = disciple.realm,
@@ -275,6 +319,7 @@ object DiscipleStatCalculator {
             magicDefenseVariance = c.magicDefenseVariance,
             speedVariance = c.speedVariance,
             talentEffects = getMergedEffects(disciple),
+            bloodRefinementPct = bloodRefinementPct,
             intelligence = disciple.skills.intelligence,
             charm = disciple.skills.charm,
             loyalty = disciple.skills.loyalty,
@@ -285,7 +330,10 @@ object DiscipleStatCalculator {
         )
     }
 
-    fun getBaseStats(aggregate: DiscipleAggregate): DiscipleStats {
+    fun getBaseStats(
+        aggregate: DiscipleAggregate,
+        bloodRefinementPct: BloodRefinementPctTotal? = null
+    ): DiscipleStats {
         val cs = aggregate.combatStats
         val attr = aggregate.attributes
         return computeBaseStats(
@@ -299,6 +347,7 @@ object DiscipleStatCalculator {
             magicDefenseVariance = cs?.magicDefenseVariance ?: 0,
             speedVariance = cs?.speedVariance ?: 0,
             talentEffects = getMergedEffects(aggregate),
+            bloodRefinementPct = bloodRefinementPct,
             intelligence = attr?.intelligence ?: 50,
             charm = attr?.charm ?: 50,
             loyalty = attr?.loyalty ?: 50,
@@ -472,11 +521,12 @@ object DiscipleStatCalculator {
         disciple: Disciple,
         equipments: Map<String, EquipmentInstance>,
         manuals: Map<String, ManualInstance>,
-        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
+        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
+        bloodRefinementPct: BloodRefinementPctTotal? = null
     ): DiscipleStats {
         val pe = disciple.pillEffects
         return computeFinalStats(
-            baseStats = getBaseStats(disciple),
+            baseStats = getBaseStats(disciple, bloodRefinementPct),
             equipmentIds = listOfNotNull(
                 disciple.equipment.weaponId,
                 disciple.equipment.armorId,
@@ -521,7 +571,8 @@ object DiscipleStatCalculator {
         val manualIds: List<String>,
         val pillEffectDuration: Int,
         val pillHpBonus: Int,
-        val pillMpBonus: Int
+        val pillMpBonus: Int,
+        val bloodRefinementPct: BloodRefinementPctTotal? = null
     )
 
     /**
@@ -547,7 +598,8 @@ object DiscipleStatCalculator {
             AffixDatabase.calculateAffixEffects(input.affixIds)
         )
         val (baseHp, baseMp) = computeBaseHpMp(
-            input.realm, input.realmLayer, input.hpVariance, input.mpVariance, talentEffects
+            input.realm, input.realmLayer, input.hpVariance, input.mpVariance, talentEffects,
+            input.bloodRefinementPct
         )
         var hp = baseHp
         var mp = baseMp
@@ -587,12 +639,13 @@ object DiscipleStatCalculator {
         aggregate: DiscipleAggregate,
         equipments: Map<String, EquipmentInstance>,
         manuals: Map<String, ManualInstance>,
-        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
+        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
+        bloodRefinementPct: BloodRefinementPctTotal? = null
     ): DiscipleStats {
         val eq = aggregate.equipment
         val cs = aggregate.combatStats
         return computeFinalStats(
-            baseStats = getBaseStats(aggregate),
+            baseStats = getBaseStats(aggregate, bloodRefinementPct),
             equipmentIds = listOfNotNull(
                 eq?.weaponId, eq?.armorId, eq?.bootsId, eq?.accessoryId
             ).filter { it.isNotEmpty() },

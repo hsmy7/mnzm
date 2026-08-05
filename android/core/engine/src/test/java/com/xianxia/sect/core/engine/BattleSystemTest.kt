@@ -12,6 +12,7 @@ import com.xianxia.sect.core.engine.domain.battle.BattleWinner
 import com.xianxia.sect.core.engine.domain.battle.CombatBuff
 import com.xianxia.sect.core.engine.domain.battle.Combatant
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -52,13 +53,19 @@ class BattleSystemTest {
             override fun getFinalStats(
                 disciple: Disciple, equipments: Map<String, EquipmentInstance>,
                 manuals: Map<String, ManualInstance>,
-                manualProficiencies: Map<String, ManualProficiencyData>
-            ) = DiscipleStatCalculator.getFinalStats(disciple, equipments, manuals, manualProficiencies)
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: BloodRefinementPctTotal?
+            ) = DiscipleStatCalculator.getFinalStats(
+                disciple, equipments, manuals, manualProficiencies, bloodRefinementPct
+            )
             override fun getFinalStats(
                 aggregate: DiscipleAggregate, equipments: Map<String, EquipmentInstance>,
                 manuals: Map<String, ManualInstance>,
-                manualProficiencies: Map<String, ManualProficiencyData>
-            ) = DiscipleStatCalculator.getFinalStats(aggregate, equipments, manuals, manualProficiencies)
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: BloodRefinementPctTotal?
+            ) = DiscipleStatCalculator.getFinalStats(
+                aggregate, equipments, manuals, manualProficiencies, bloodRefinementPct
+            )
             override fun calculateCultivationSpeed(
                 disciple: Disciple, manuals: Map<String, ManualInstance>,
                 manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double,

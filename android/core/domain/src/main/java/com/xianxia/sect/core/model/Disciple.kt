@@ -269,7 +269,14 @@ data class Disciple(
 
     fun getStatsWithEquipment(equipments: Map<String, EquipmentInstance>): DiscipleStats = DiscipleAggregate.statsProvider.getStatsWithEquipment(this, equipments)
 
-    fun getFinalStats(equipments: Map<String, EquipmentInstance>, manuals: Map<String, ManualInstance>, manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()): DiscipleStats = DiscipleAggregate.statsProvider.getFinalStats(this, equipments, manuals, manualProficiencies)
+    fun getFinalStats(
+        equipments: Map<String, EquipmentInstance>,
+        manuals: Map<String, ManualInstance>,
+        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
+        bloodRefinementPct: BloodRefinementPctTotal? = null
+    ): DiscipleStats = DiscipleAggregate.statsProvider.getFinalStats(
+        this, equipments, manuals, manualProficiencies, bloodRefinementPct
+    )
 
     fun calculateCultivationSpeed(manuals: Map<String, ManualInstance> = emptyMap(), manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(), buildingBonus: Double = 1.0, additionalBonus: Double = 0.0, preachingElderBonus: Double = 0.0, preachingMastersBonus: Double = 0.0, cultivationSubsidyBonus: Double = 0.0, parentCultivationBonus: Double = 0.0, griefCultivationSpeedPenalty: Double = 0.0): Double = DiscipleAggregate.statsProvider.calculateCultivationSpeed(this, manuals, manualProficiencies, buildingBonus, additionalBonus, preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus, parentCultivationBonus, griefCultivationSpeedPenalty)
 

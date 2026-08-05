@@ -11,6 +11,7 @@ import com.xianxia.sect.core.engine.domain.battle.Combatant
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import com.xianxia.sect.core.model.BattleLog
+import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.BattleLogAction
 import com.xianxia.sect.core.model.BattleLogEnemy
 import com.xianxia.sect.core.model.BattleLogMember
@@ -92,24 +93,27 @@ class EncounterBattleService @Inject constructor(
 
         val sideA = preparedSides.getValue(attackerA.sectId)
         val sideB = preparedSides.getValue(attackerB.sectId)
+        val bloodRefinementMap = state.gameData.bloodRefinementPctTotals
         val teamACombatants = sideA.disciples.map { disciple ->
             battleSystem.convertDiscipleToCombatant(
                 disciple = disciple,
-                equipmentMap = sideA.equipmentMap,
+                equipmentMap = sideA.equipmentMapByDisciple[disciple.id] ?: sideA.equipmentMap,
                 manualMap = sideA.manualMap,
                 manualProficiencies = sideA.proficiencies,
                 side = CombatantSide.DEFENDER,
-                fullHeal = true
+                fullHeal = true,
+                bloodRefinementPct = bloodRefinementMap[disciple.id]
             )
         }
         val teamBCombatants = sideB.disciples.map { disciple ->
             battleSystem.convertDiscipleToCombatant(
                 disciple = disciple,
-                equipmentMap = sideB.equipmentMap,
+                equipmentMap = sideB.equipmentMapByDisciple[disciple.id] ?: sideB.equipmentMap,
                 manualMap = sideB.manualMap,
                 manualProficiencies = sideB.proficiencies,
                 side = CombatantSide.ATTACKER,
-                fullHeal = true
+                fullHeal = true,
+                bloodRefinementPct = bloodRefinementMap[disciple.id]
             )
         }
 
@@ -265,7 +269,9 @@ class EncounterBattleService @Inject constructor(
         year: Int,
         month: Int
     ) {
-        val pveBattle = buildPhase2Battle(winnerSurvivors, winnerSide, beast)
+        val pveBattle = buildPhase2Battle(
+            winnerSurvivors, winnerSide, beast, state.gameData.bloodRefinementPctTotals
+        )
         val pveResult = battleSystem.executeBattle(pveBattle)
 
         DomainLog.i(TAG, "Phase 2 结果: ${winnerP1.sectName} " +
@@ -296,7 +302,8 @@ class EncounterBattleService @Inject constructor(
     private fun buildPhase2Battle(
         winnerSurvivors: List<Disciple>,
         winnerSide: PreparedSide,
-        beast: WorldLevel
+        beast: WorldLevel,
+        bloodRefinementMap: Map<String, BloodRefinementPctTotal> = emptyMap()
     ): Battle {
         // 构建妖兽预计算属性
         val beastPreGenStats = if (beast.beastMaxHp > 0) {
@@ -320,12 +327,14 @@ class EncounterBattleService @Inject constructor(
         return battleSystem.createBattle(
             disciples = winnerSurvivors,
             equipmentMap = winnerSide.equipmentMap,
+            equipmentMapByDisciple = winnerSide.equipmentMapByDisciple,
             manualMap = winnerSide.manualMap,
             beastLevel = beast.realm,
             beastCount = beast.count,
             beastType = beastTypeName,
             manualProficiencies = winnerSide.proficiencies,
-            beastPreGenStats = beastPreGenStats
+            beastPreGenStats = beastPreGenStats,
+            bloodRefinementMap = bloodRefinementMap
         )
     }
 
@@ -411,9 +420,10 @@ class EncounterBattleService @Inject constructor(
             val prepared = AISectDiscipleManager.prepareDisciplesForBattle(attacker.teamDisciples)
             PreparedSide(
                 disciples = prepared.disciples,
-                equipmentMap = prepared.equipmentMap,
+                equipmentMap = emptyMap(),
                 manualMap = prepared.manualMap,
-                proficiencies = prepared.proficiencies
+                proficiencies = prepared.proficiencies,
+                equipmentMapByDisciple = prepared.equipmentMapByDisciple
             )
         }
     }
@@ -580,5 +590,7 @@ data class PreparedSide(
     val disciples: List<Disciple>,
     val equipmentMap: Map<String, EquipmentInstance>,
     val manualMap: Map<String, ManualInstance>,
-    val proficiencies: Map<String, Map<String, ManualProficiencyData>>
+    val proficiencies: Map<String, Map<String, ManualProficiencyData>>,
+    // AI 侧按弟子独立装备 map（同模板不同孕养不共享，2026-08-06 途中发现修复）
+    val equipmentMapByDisciple: Map<String, Map<String, EquipmentInstance>> = emptyMap()
 )

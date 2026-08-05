@@ -39,6 +39,7 @@ class BattleSystem @Inject constructor(
         val realmLayer: Int = 1
     )
 
+    @Suppress("LongParameterList") // 战斗组装入参聚合（10 参数，纯组装无逻辑，血炼映射 2026-08-06 加入）
     fun createBattle(
         disciples: List<Disciple>,
         equipmentMap: Map<String, EquipmentInstance>,
@@ -47,10 +48,16 @@ class BattleSystem @Inject constructor(
         beastCount: Int? = null,
         beastType: String? = null,
         manualProficiencies: Map<String, Map<String, ManualProficiencyData>> = emptyMap(),
-        beastPreGenStats: BeastPreGenStats? = null
+        beastPreGenStats: BeastPreGenStats? = null,
+        bloodRefinementMap: Map<String, BloodRefinementPctTotal> = emptyMap(),
+        equipmentMapByDisciple: Map<String, Map<String, EquipmentInstance>> = emptyMap()
     ): Battle {
         val combatants = disciples.map { disciple ->
-            convertDiscipleToCombatant(disciple, equipmentMap, manualMap, manualProficiencies, CombatantSide.DEFENDER)
+            val discipleEquipmentMap = equipmentMapByDisciple[disciple.id] ?: equipmentMap
+            convertDiscipleToCombatant(
+                disciple, discipleEquipmentMap, manualMap, manualProficiencies,
+                CombatantSide.DEFENDER, bloodRefinementPct = bloodRefinementMap[disciple.id]
+            )
         }
 
         val beastRealm = if (beastLevel in 0..9) {
@@ -84,10 +91,11 @@ class BattleSystem @Inject constructor(
         manualMap: Map<String, ManualInstance>,
         manualProficiencies: Map<String, Map<String, ManualProficiencyData>>,
         side: CombatantSide = CombatantSide.DEFENDER,
-        fullHeal: Boolean = false
+        fullHeal: Boolean = false,
+        bloodRefinementPct: BloodRefinementPctTotal? = null
     ): Combatant {
         val discipleProficiencies = manualProficiencies[disciple.id] ?: emptyMap()
-        val stats = disciple.getFinalStats(equipmentMap, manualMap, discipleProficiencies)
+        val stats = disciple.getFinalStats(equipmentMap, manualMap, discipleProficiencies, bloodRefinementPct)
         val skills = disciple.manualIds.mapNotNull { manualId ->
             val manual = manualMap[manualId] ?: return@mapNotNull null
             val proficiencyData = discipleProficiencies[manualId]

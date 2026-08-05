@@ -47,7 +47,8 @@ class DiscipleBreakthroughHandlerTest {
         Mockito.`when`(mockStore.disciples)
             .thenReturn(MutableStateFlow(emptyList()))
         Mockito.`when`(cultivationCore.isDiscipleFullHpMp(
-            any<Disciple>()
+            any<Disciple>(),
+            any<MutableGameState>()
         )).thenReturn(true)
         Mockito.`when`(cultivationCore.getLifespanGainForRealm(
             any<Int>()

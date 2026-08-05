@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine.service
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -75,13 +76,19 @@ class CultivationCoreTest {
             override fun getFinalStats(
                 disciple: Disciple, equipments: Map<String, EquipmentInstance>,
                 manuals: Map<String, ManualInstance>,
-                manualProficiencies: Map<String, ManualProficiencyData>
-            ) = DiscipleStatCalculator.getFinalStats(disciple, equipments, manuals, manualProficiencies)
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: BloodRefinementPctTotal?
+            ) = DiscipleStatCalculator.getFinalStats(
+                disciple, equipments, manuals, manualProficiencies, bloodRefinementPct
+            )
             override fun getFinalStats(
                 aggregate: DiscipleAggregate, equipments: Map<String, EquipmentInstance>,
                 manuals: Map<String, ManualInstance>,
-                manualProficiencies: Map<String, ManualProficiencyData>
-            ) = DiscipleStatCalculator.getFinalStats(aggregate, equipments, manuals, manualProficiencies)
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: BloodRefinementPctTotal?
+            ) = DiscipleStatCalculator.getFinalStats(
+                aggregate, equipments, manuals, manualProficiencies, bloodRefinementPct
+            )
             override fun calculateCultivationSpeed(
                 disciple: Disciple, manuals: Map<String, ManualInstance>,
                 manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double,
@@ -268,95 +275,104 @@ class CultivationCoreTest {
     fun `isDiscipleFullHpMp - 满HP满MP返回true`() {
         val disciple = createDisciple(currentHp = -1, currentMp = -1)
         // currentHp/currentMp 为 -1（负数）时视为满值
-        assertTrue(core.isDiscipleFullHpMp(disciple))
+        assertTrue(core.isDiscipleFullHpMp(disciple, createMutableGameState(listOf(disciple))))
     }
 
     @Test
     fun `isDiscipleFullHpMp - HP和MP均等于maxHp返回true`() {
         val disciple = createDisciple(currentHp = 9999, currentMp = 9999)
         // currentHp/currentMp 均大于等于 maxHp/maxMp
-        assertTrue(core.isDiscipleFullHpMp(disciple))
+        assertTrue(core.isDiscipleFullHpMp(disciple, createMutableGameState(listOf(disciple))))
     }
 
     @Test
     fun `isDiscipleFullHpMp - HP未满返回false`() {
         val maxHp = DiscipleStatCalculator.getBaseStats(createDisciple()).maxHp
         val disciple = createDisciple(currentHp = maxHp / 2, currentMp = -1)
-        assertFalse(core.isDiscipleFullHpMp(disciple))
+        assertFalse(core.isDiscipleFullHpMp(disciple, createMutableGameState(listOf(disciple))))
     }
 
     @Test
     fun `isDiscipleFullHpMp - MP未满返回false`() {
         val maxMp = DiscipleStatCalculator.getBaseStats(createDisciple()).maxMp
         val disciple = createDisciple(currentHp = -1, currentMp = maxMp / 2)
-        assertFalse(core.isDiscipleFullHpMp(disciple))
+        assertFalse(core.isDiscipleFullHpMp(disciple, createMutableGameState(listOf(disciple))))
     }
 
     @Test
     fun `isDiscipleFullHpMp - HP和MP均未满返回false`() {
         val stats = DiscipleStatCalculator.getBaseStats(createDisciple())
         val disciple = createDisciple(currentHp = stats.maxHp / 2, currentMp = stats.maxMp / 2)
-        assertFalse(core.isDiscipleFullHpMp(disciple))
+        assertFalse(core.isDiscipleFullHpMp(disciple, createMutableGameState(listOf(disciple))))
     }
 
     @Test
     fun `isDiscipleFullHpMp - currentHp为负数视为满值`() {
         // currentHp < 0 → hp = maxHp；currentMp 也满 → true
         val disciple = createDisciple(currentHp = -5, currentMp = -1)
-        assertTrue(core.isDiscipleFullHpMp(disciple))
+        assertTrue(core.isDiscipleFullHpMp(disciple, createMutableGameState(listOf(disciple))))
     }
 
     @Test
     fun `isDiscipleFullHpMp - currentMp为负数视为满值`() {
         val maxHp = DiscipleStatCalculator.getBaseStats(createDisciple()).maxHp
         val disciple = createDisciple(currentHp = maxHp, currentMp = -5)
-        assertTrue(core.isDiscipleFullHpMp(disciple))
+        assertTrue(core.isDiscipleFullHpMp(disciple, createMutableGameState(listOf(disciple))))
     }
 
     // ==================== isDiscipleFullHpMp(id, tables) ====================
 
     @Test
     fun `isDiscipleFullHpMp tables - 满HP满MP返回true`() {
-        val tables = DiscipleTables()
-        tables.insert(createDisciple(id = "1", currentHp = -1, currentMp = -1))
-        assertTrue(core.isDiscipleFullHpMp(1, tables))
+        val state = createMutableGameState(
+            listOf(createDisciple(id = "1", currentHp = -1, currentMp = -1))
+        )
+        assertTrue(core.isDiscipleFullHpMp(1, state.discipleTables, state))
     }
 
     @Test
-    fun `isDiscipleFullHpMp tables - HP等于baseHp返回true`() {
-        val tables = DiscipleTables()
-        val disciple = createDisciple(id = "1", currentHp = 120, currentMp = 60)
-        tables.insert(disciple)
-        // currentHp >= baseHp(120) && currentMp >= baseMp(60)
-        assertTrue(core.isDiscipleFullHpMp(1, tables))
+    fun `isDiscipleFullHpMp tables - HP等于maxHp返回true`() {
+        // 含血炼口径下无血炼弟子上限 = getFinalStats maxHp（境界基础值，非 combat.baseHp 快照）；
+        // currentHp 达真实上限判满
+        val disciple = createDisciple(id = "1")
+        val stats = DiscipleStatCalculator.getFinalStats(disciple, emptyMap(), emptyMap())
+        val full = disciple.copy(
+            combat = disciple.combat.copy(currentHp = stats.maxHp, currentMp = stats.maxMp)
+        )
+        val state = createMutableGameState(listOf(full))
+        assertTrue(core.isDiscipleFullHpMp(1, state.discipleTables, state))
     }
 
     @Test
     fun `isDiscipleFullHpMp tables - HP未满返回false`() {
-        val tables = DiscipleTables()
-        tables.insert(createDisciple(id = "1", currentHp = 50, currentMp = -1))
-        assertFalse(core.isDiscipleFullHpMp(1, tables))
+        val state = createMutableGameState(
+            listOf(createDisciple(id = "1", currentHp = 50, currentMp = -1))
+        )
+        assertFalse(core.isDiscipleFullHpMp(1, state.discipleTables, state))
     }
 
     @Test
     fun `isDiscipleFullHpMp tables - MP未满返回false`() {
-        val tables = DiscipleTables()
-        tables.insert(createDisciple(id = "1", currentHp = -1, currentMp = 10))
-        assertFalse(core.isDiscipleFullHpMp(1, tables))
+        val state = createMutableGameState(
+            listOf(createDisciple(id = "1", currentHp = -1, currentMp = 10))
+        )
+        assertFalse(core.isDiscipleFullHpMp(1, state.discipleTables, state))
     }
 
     @Test
     fun `isDiscipleFullHpMp tables - currentHp为负数视为满值`() {
-        val tables = DiscipleTables()
-        tables.insert(createDisciple(id = "1", currentHp = -5, currentMp = -1))
-        assertTrue(core.isDiscipleFullHpMp(1, tables))
+        val state = createMutableGameState(
+            listOf(createDisciple(id = "1", currentHp = -5, currentMp = -1))
+        )
+        assertTrue(core.isDiscipleFullHpMp(1, state.discipleTables, state))
     }
 
     @Test
     fun `isDiscipleFullHpMp tables - currentHp和currentMp均为负数跳过视为满值`() {
-        val tables = DiscipleTables()
-        tables.insert(createDisciple(id = "1", currentHp = -1, currentMp = -1))
-        assertTrue(core.isDiscipleFullHpMp(1, tables))
+        val state = createMutableGameState(
+            listOf(createDisciple(id = "1", currentHp = -1, currentMp = -1))
+        )
+        assertTrue(core.isDiscipleFullHpMp(1, state.discipleTables, state))
     }
 
     // ==================== recoverHpMpForAllDisciples ====================
@@ -626,7 +642,7 @@ class CultivationCoreTest {
         val fullCultivationDisciple = disciple.copy(cultivation = disciple.maxCultivation)
 
         val canBreakthrough = fullCultivationDisciple.cultivation >= fullCultivationDisciple.maxCultivation
-            && core.isDiscipleFullHpMp(fullCultivationDisciple)
+            && core.isDiscipleFullHpMp(fullCultivationDisciple, createMutableGameState(listOf(fullCultivationDisciple)))
 
         assertTrue("修炼满且满血满蓝应可突破", canBreakthrough)
     }
@@ -636,7 +652,7 @@ class CultivationCoreTest {
         val disciple = createDisciple(currentHp = -1, currentMp = -1, cultivation = 0.0)
 
         val canBreakthrough = disciple.cultivation >= disciple.maxCultivation
-            && core.isDiscipleFullHpMp(disciple)
+            && core.isDiscipleFullHpMp(disciple, createMutableGameState(listOf(disciple)))
 
         assertFalse("修炼未满不可突破", canBreakthrough)
     }
@@ -649,7 +665,7 @@ class CultivationCoreTest {
 
         // currentHp=1 < maxHp → HP 未满
         val canBreakthrough = fullCultivationDisciple.cultivation >= fullCultivationDisciple.maxCultivation
-            && core.isDiscipleFullHpMp(fullCultivationDisciple)
+            && core.isDiscipleFullHpMp(fullCultivationDisciple, createMutableGameState(listOf(fullCultivationDisciple)))
 
         assertFalse("修炼满但HP未满不可突破 (currentHp=1, maxHp=$maxHp)", canBreakthrough)
     }
@@ -660,7 +676,7 @@ class CultivationCoreTest {
         val fullCultivationDisciple = disciple.copy(cultivation = disciple.maxCultivation)
 
         val canBreakthrough = fullCultivationDisciple.cultivation >= fullCultivationDisciple.maxCultivation
-            && core.isDiscipleFullHpMp(fullCultivationDisciple)
+            && core.isDiscipleFullHpMp(fullCultivationDisciple, createMutableGameState(listOf(fullCultivationDisciple)))
 
         assertFalse("修炼满但MP未满不可突破", canBreakthrough)
     }
@@ -678,7 +694,7 @@ class CultivationCoreTest {
         )
 
         val canBreakthrough = fullDisciple.cultivation >= fullDisciple.maxCultivation
-            && core.isDiscipleFullHpMp(fullDisciple)
+            && core.isDiscipleFullHpMp(fullDisciple, createMutableGameState(listOf(fullDisciple)))
 
         assertTrue("修炼满且HP/MP恰好等于上限应可突破", canBreakthrough)
     }
@@ -691,7 +707,7 @@ class CultivationCoreTest {
         assertEquals(100.0, immortal.maxCultivation, 0.001)
 
         val canBreakthrough = immortal.cultivation >= immortal.maxCultivation
-            && core.isDiscipleFullHpMp(immortal)
+            && core.isDiscipleFullHpMp(immortal, createMutableGameState(listOf(immortal)))
 
         assertTrue("仙人境界修炼值恒满，满血满蓝即可突破", canBreakthrough)
     }

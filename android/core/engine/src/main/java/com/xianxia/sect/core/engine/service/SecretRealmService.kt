@@ -580,7 +580,8 @@ class SecretRealmService @Inject constructor(
             beastCount = beastCount,
             beastType = eventParams.beastTypeName,
             manualProficiencies = allProficiencies,
-            beastPreGenStats = beastPreGenStats
+            beastPreGenStats = beastPreGenStats,
+            bloodRefinementMap = data.bloodRefinementPctTotals
         )
         return battleSystem.executeBattleWithTimeout(battle)
     }

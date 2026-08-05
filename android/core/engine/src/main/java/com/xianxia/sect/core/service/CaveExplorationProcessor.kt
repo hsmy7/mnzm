@@ -121,7 +121,7 @@ class CaveExplorationProcessor @Inject constructor(
         // 移除 AI 队伍战斗 — 玩家团队直接对战守护兽
         val battleResult = executeBattleForTeam(
             teamMembers, equipmentMap, manualMap, allProficiencies,
-            cave
+            cave, data.bloodRefinementPctTotals
         )
 
         val deadDisciples = processBattleCasualties(team, battleResult)
@@ -159,7 +159,8 @@ class CaveExplorationProcessor @Inject constructor(
         equipmentMap: Map<String, EquipmentInstance>,
         manualMap: Map<String, ManualInstance>,
         allProficiencies: Map<String, Map<String, ManualProficiencyData>>,
-        cave: CultivatorCave
+        cave: CultivatorCave,
+        bloodRefinementMap: Map<String, BloodRefinementPctTotal> = emptyMap()
     ): BattleSystemResult {
         return battleSystem.executeBattle(
             CaveExplorationSystem.createGuardianBattle(
@@ -167,7 +168,8 @@ class CaveExplorationProcessor @Inject constructor(
                 playerEquipmentMap = equipmentMap,
                 playerManualMap = manualMap,
                 playerManualProficiencies = allProficiencies,
-                cave = cave
+                cave = cave,
+                bloodRefinementMap = bloodRefinementMap
             )
         )
     }

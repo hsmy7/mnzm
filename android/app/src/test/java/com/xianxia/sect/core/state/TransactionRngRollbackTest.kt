@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatsProvider
@@ -97,13 +98,15 @@ class TransactionRngRollbackTest {
 
             override fun getFinalStats(
                 d: Disciple, e: Map<String, EquipmentInstance>,
-                m: Map<String, ManualInstance>, p: Map<String, ManualProficiencyData>
-            ) = DiscipleStatCalculator.getFinalStats(d, e, m, p)
+                m: Map<String, ManualInstance>, p: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: BloodRefinementPctTotal?
+            ) = DiscipleStatCalculator.getFinalStats(d, e, m, p, bloodRefinementPct)
 
             override fun getFinalStats(
                 a: DiscipleAggregate, e: Map<String, EquipmentInstance>,
-                m: Map<String, ManualInstance>, p: Map<String, ManualProficiencyData>
-            ) = DiscipleStatCalculator.getFinalStats(a, e, m, p)
+                m: Map<String, ManualInstance>, p: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: BloodRefinementPctTotal?
+            ) = DiscipleStatCalculator.getFinalStats(a, e, m, p, bloodRefinementPct)
 
             override fun calculateCultivationSpeed(
                 d: Disciple, manuals: Map<String, ManualInstance>,

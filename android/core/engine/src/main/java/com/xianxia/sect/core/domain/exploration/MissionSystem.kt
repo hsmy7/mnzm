@@ -360,15 +360,16 @@ object MissionSystem {
         equipmentMap: Map<String, com.xianxia.sect.core.model.EquipmentInstance> = emptyMap(),
         manualMap: Map<String, com.xianxia.sect.core.model.ManualInstance> = emptyMap(),
         manualProficiencies: Map<String, Map<String, com.xianxia.sect.core.model.ManualProficiencyData>> = emptyMap(),
-        battleSystem: BattleSystem? = null
+        battleSystem: BattleSystem? = null,
+        bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap()
     ): MissionResult {
         return when (activeMission.missionType) {
             MissionType.NO_COMBAT -> processNoCombatMission(activeMission)
             MissionType.COMBAT_REQUIRED -> processCombatRequiredMission(
-                activeMission, disciples, equipmentMap, manualMap, manualProficiencies, battleSystem
+                activeMission, disciples, equipmentMap, manualMap, manualProficiencies, battleSystem, bloodRefinementMap
             )
             MissionType.COMBAT_RANDOM -> processCombatRandomMission(
-                activeMission, disciples, equipmentMap, manualMap, manualProficiencies, battleSystem
+                activeMission, disciples, equipmentMap, manualMap, manualProficiencies, battleSystem, bloodRefinementMap
             )
         }
     }
@@ -393,10 +394,11 @@ object MissionSystem {
         equipmentMap: Map<String, com.xianxia.sect.core.model.EquipmentInstance>,
         manualMap: Map<String, com.xianxia.sect.core.model.ManualInstance>,
         manualProficiencies: Map<String, Map<String, com.xianxia.sect.core.model.ManualProficiencyData>>,
-        battleSystem: BattleSystem?
+        battleSystem: BattleSystem?,
+        bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap()
     ): MissionResult {
         val battleResult = executeMissionBattle(
-            activeMission, disciples, equipmentMap, manualMap, manualProficiencies, battleSystem
+            activeMission, disciples, equipmentMap, manualMap, manualProficiencies, battleSystem, bloodRefinementMap
         ) ?: return MissionResult(victory = false)
 
         if (!battleResult.victory) {
@@ -432,7 +434,8 @@ object MissionSystem {
         equipmentMap: Map<String, com.xianxia.sect.core.model.EquipmentInstance>,
         manualMap: Map<String, com.xianxia.sect.core.model.ManualInstance>,
         manualProficiencies: Map<String, Map<String, com.xianxia.sect.core.model.ManualProficiencyData>>,
-        battleSystem: BattleSystem?
+        battleSystem: BattleSystem?,
+        bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap()
     ): MissionResult {
         val triggered = rng.nextDouble() < activeMission.triggerChance
 
@@ -450,7 +453,7 @@ object MissionSystem {
         }
 
         val battleResult = executeMissionBattle(
-            activeMission, disciples, equipmentMap, manualMap, manualProficiencies, battleSystem
+            activeMission, disciples, equipmentMap, manualMap, manualProficiencies, battleSystem, bloodRefinementMap
         ) ?: return MissionResult(combatTriggered = true, victory = false)
 
         if (!battleResult.victory) {
@@ -486,7 +489,8 @@ object MissionSystem {
         equipmentMap: Map<String, com.xianxia.sect.core.model.EquipmentInstance>,
         manualMap: Map<String, com.xianxia.sect.core.model.ManualInstance>,
         manualProficiencies: Map<String, Map<String, com.xianxia.sect.core.model.ManualProficiencyData>>,
-        battleSystem: BattleSystem?
+        battleSystem: BattleSystem?,
+        bloodRefinementMap: Map<String, com.xianxia.sect.core.model.BloodRefinementPctTotal> = emptyMap()
     ): BattleSystemResult? {
         if (battleSystem == null) return null
 
@@ -505,7 +509,8 @@ object MissionSystem {
                     manualMap = manualMap,
                     beastLevel = beastRealm,
                     beastCount = beastCount,
-                    manualProficiencies = manualProficiencies
+                    manualProficiencies = manualProficiencies,
+                    bloodRefinementMap = bloodRefinementMap
                 )
                 battleSystem.executeBattle(battle)
             }
@@ -517,7 +522,8 @@ object MissionSystem {
                 val team = disciples.map { disciple ->
                     battleSystem.convertDiscipleToCombatant(
                         disciple, equipmentMap, manualMap, manualProficiencies,
-                        com.xianxia.sect.core.CombatantSide.DEFENDER
+                        com.xianxia.sect.core.CombatantSide.DEFENDER,
+                        bloodRefinementPct = bloodRefinementMap[disciple.id]
                     )
                 }
                 val battle = Battle(

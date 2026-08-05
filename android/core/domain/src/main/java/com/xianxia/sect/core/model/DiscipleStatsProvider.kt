@@ -17,13 +17,15 @@ interface DiscipleStatsProvider {
         disciple: Disciple,
         equipments: Map<String, EquipmentInstance>,
         manuals: Map<String, ManualInstance>,
-        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
+        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
+        bloodRefinementPct: BloodRefinementPctTotal? = null
     ): DiscipleStats
     fun getFinalStats(
         aggregate: DiscipleAggregate,
         equipments: Map<String, EquipmentInstance>,
         manuals: Map<String, ManualInstance>,
-        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()
+        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
+        bloodRefinementPct: BloodRefinementPctTotal? = null
     ): DiscipleStats
     fun calculateCultivationSpeed(
         disciple: Disciple,

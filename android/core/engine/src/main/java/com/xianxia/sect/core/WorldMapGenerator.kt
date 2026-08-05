@@ -157,7 +157,8 @@ object WorldMapGenerator {
         val levelNames = listOf("小型宗门", "中型宗门", "大型宗门", "顶级宗门")
         val maxRealm = SectLevel.maxRealmForLevel(level)
 
-        // 所有 AI 宗门固定 50 名弟子，境界在允许范围内随机分配
+        // 初始 50 名弟子境界分布显示（与 AISectDiscipleManager.initializeSectDisciples 的
+        // generateRealmDistribution 同权重：炼气3/筑基2/金丹2/其余1；周期性招募新弟子固定炼气）
         val normalCount = 50
 
         val disciples = mutableMapOf<Int, Int>()

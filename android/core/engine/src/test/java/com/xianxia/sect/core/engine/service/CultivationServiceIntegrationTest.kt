@@ -48,8 +48,14 @@ class CultivationServiceIntegrationTest {
             override fun getTalentEffects(aggregate: DiscipleAggregate) = DiscipleStatCalculator.getTalentEffects(aggregate)
             override fun getStatsWithEquipment(d: Disciple, e: Map<String, EquipmentInstance>) = DiscipleStatCalculator.getStatsWithEquipment(d, e)
             override fun getStatsWithEquipment(a: DiscipleAggregate, e: Map<String, EquipmentInstance>) = DiscipleStatCalculator.getStatsWithEquipment(a, e)
-            override fun getFinalStats(d: Disciple, e: Map<String, EquipmentInstance>, m: Map<String, ManualInstance>, p: Map<String, ManualProficiencyData>) = DiscipleStatCalculator.getFinalStats(d, e, m, p)
-            override fun getFinalStats(a: DiscipleAggregate, e: Map<String, EquipmentInstance>, m: Map<String, ManualInstance>, p: Map<String, ManualProficiencyData>) = DiscipleStatCalculator.getFinalStats(a, e, m, p)
+            override fun getFinalStats(
+                d: Disciple, e: Map<String, EquipmentInstance>, m: Map<String, ManualInstance>,
+                p: Map<String, ManualProficiencyData>, bloodRefinementPct: BloodRefinementPctTotal?
+            ) = DiscipleStatCalculator.getFinalStats(d, e, m, p, bloodRefinementPct)
+            override fun getFinalStats(
+                a: DiscipleAggregate, e: Map<String, EquipmentInstance>, m: Map<String, ManualInstance>,
+                p: Map<String, ManualProficiencyData>, bloodRefinementPct: BloodRefinementPctTotal?
+            ) = DiscipleStatCalculator.getFinalStats(a, e, m, p, bloodRefinementPct)
             override fun calculateCultivationSpeed(d: Disciple, manuals: Map<String, ManualInstance>, mps: Map<String, ManualProficiencyData>, bb: Double, ab: Double, peb: Double, pmb: Double, csb: Double, pcb: Double, gcp: Double, mdb: Double) = DiscipleStatCalculator.calculateCultivationPerPhase(d, manuals, mps, bb, peb, pmb, csb, pcb, gcp)
             override fun calculateCultivationSpeed(a: DiscipleAggregate, manuals: Map<String, ManualInstance>, mps: Map<String, ManualProficiencyData>, bb: Double, ab: Double, peb: Double, pmb: Double, csb: Double, pcb: Double, gcp: Double, mdb: Double) = DiscipleStatCalculator.calculateCultivationPerPhase(a, manuals, mps, bb, peb, pmb, csb, pcb, gcp)
             override fun getBreakthroughChance(d: Disciple, iec: Int, oec: Int, pb: Double, ab: Double, gcp: Double, mdb: Double) = DiscipleStatCalculator.getBreakthroughChance(d, iec, oec, pb, ab, gcp, mdb)

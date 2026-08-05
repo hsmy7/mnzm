@@ -425,7 +425,8 @@ class ExplorationService @Inject constructor(
             level.realm, level.count,
             GameConfig.Beast.getType(level.beastType ?: 0).name,
             profMap,
-            beastPreGenStats = beastPreGenStats
+            beastPreGenStats = beastPreGenStats,
+            bloodRefinementMap = gameData.bloodRefinementPctTotals
         )
         return battleSystem.executeBattle(battle)
     }
@@ -456,9 +457,10 @@ class ExplorationService @Inject constructor(
                     isAlive = false, status = DiscipleStatus.DEAD
                 )
             } else {
+                val (finalMaxHp, finalMaxMp) = DiscipleStatCalculator.battleWritebackMaxHpMp(this, d)
                 d.copy(combat = d.combat.copy(
-                    currentHp = hp.coerceIn(0, d.maxHp),
-                    currentMp = mp.coerceIn(0, d.maxMp)
+                    currentHp = hp.coerceIn(0, finalMaxHp),
+                    currentMp = mp.coerceIn(0, finalMaxMp)
                 ))
             }
         }

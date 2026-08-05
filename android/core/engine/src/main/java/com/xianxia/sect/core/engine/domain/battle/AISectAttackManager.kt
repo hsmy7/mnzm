@@ -6,6 +6,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.HealType
 import com.xianxia.sect.core.SkillType
 import com.xianxia.sect.core.registry.ManualDatabase
+import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.CombatSkill
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.AISectPersonality
@@ -288,10 +289,13 @@ object AISectAttackManager {
         attackers: List<Disciple>,
         defenderSect: WorldSect,
         defenderDisciples: List<Disciple>,
-        allSectDisciples: List<Disciple> = defenderDisciples
+        allSectDisciples: List<Disciple> = defenderDisciples,
+        bloodRefinementMap: Map<String, BloodRefinementPctTotal> = emptyMap()
     ): AIBattleResult {
         val defenseTeam = createDefenseTeam(defenderDisciples)
-        val combatAttackers = attackers.map { convertToCombatant(it, CombatantSide.ATTACKER) }
+        val combatAttackers = attackers.map {
+            convertToCombatant(it, CombatantSide.ATTACKER, bloodRefinementMap[it.id])
+        }
         val combatDefenders = defenseTeam.map { convertToCombatant(it, CombatantSide.DEFENDER) }
 
         val result = executeUnifiedAIBattle(combatAttackers, combatDefenders)
@@ -654,7 +658,11 @@ object AISectAttackManager {
         return sectsWithNoTargets
     }
 
-    internal fun convertToCombatant(disciple: Disciple, side: CombatantSide): Combatant {
+    internal fun convertToCombatant(
+        disciple: Disciple,
+        side: CombatantSide,
+        bloodRefinementPct: BloodRefinementPctTotal? = null
+    ): Combatant {
         // 读取持久化的装备/功法字段（模板 id → 临时实例映射），不再战前随机生成。
         // registry 未初始化时降级为裸装战斗（与 AISectDiscipleManager 各路径的降级语义一致）
         val equipmentMap = if (ManualDatabase.isInitialized) {
@@ -668,7 +676,7 @@ object AISectAttackManager {
             emptyMap<String, ManualInstance>() to emptyMap<String, ManualProficiencyData>()
         }
 
-        val stats = disciple.getFinalStats(equipmentMap, manualMap, manualProficiencies)
+        val stats = disciple.getFinalStats(equipmentMap, manualMap, manualProficiencies, bloodRefinementPct)
 
         val skills = buildCombatSkills(manualMap, manualProficiencies)
 

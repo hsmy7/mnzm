@@ -247,14 +247,6 @@ class CultivationService @Inject constructor(
         productionProcessor.recalculateAllCompletionMonths()
     }
 
-    /** 月度 HP/MP 恢复（月结制专用） */
-    fun recoverMonthlyHpMp(
-        tables: com.xianxia.sect.core.state.DiscipleTables, id: Int,
-        focusedPhaseCount: Int = 0
-    ) {
-        cultivationCore.recoverMonthlyHpMp(tables, id, focusedPhaseCount)
-    }
-
     /** 实时轨专用：自动从仓库装备/学习 */
     fun processAutoFromWarehouseRealtime(state: MutableGameState) {
         eventProcessor.processAutoFromWarehouseRealtime(state)
@@ -293,7 +285,7 @@ class CultivationService @Inject constructor(
             val cultivation = tables.cultivations.getOrDefault(id, 0.0)
             val maxCultivation = computeMaxCultivation(realm, realmLayer, cultivation)
             if (cultivation < maxCultivation) continue
-            if (!cultivationCore.isDiscipleFullHpMp(id, tables)) continue
+            if (!cultivationCore.isDiscipleFullHpMp(id, tables, state)) continue
             candidateDiscipleIds.add(id)
         }
 

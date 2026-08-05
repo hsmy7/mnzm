@@ -92,11 +92,13 @@ class HeavenlyTrialViewModel @Inject constructor(
             gameEngine.gameDataSnapshot.manualProficiencies.mapValues { (_, list) ->
                 list.associateBy { it.manualId }
             }
+        val bloodRefinementMap = gameEngine.gameDataSnapshot.bloodRefinementPctTotals
         val playerStats = disciples.map { d ->
             val disciple = d.toDisciple()
             battleSystem.convertDiscipleToCombatant(
                 disciple, equipMap, manualMap, allProficiencies,
-                fullHeal = true
+                fullHeal = true,
+                bloodRefinementPct = bloodRefinementMap[disciple.id]
             )
         }
         playerCombatants = playerStats

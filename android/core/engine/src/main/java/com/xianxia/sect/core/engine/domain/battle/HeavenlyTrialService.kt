@@ -18,6 +18,7 @@ import com.xianxia.sect.core.model.HeavenlyTrialClearReward
 import com.xianxia.sect.core.model.RewardCardItem
 import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.TrialEnemyDef
+import com.xianxia.sect.core.engine.EquipmentNurtureSystem
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.registry.EquipmentDatabase
@@ -53,19 +54,36 @@ class HeavenlyTrialService @Inject constructor(
 ) {
 
     fun buildBeastEnemy(levelIndex: Int, def: TrialEnemyDef, index: Int): Combatant {
-        val realmStats = GameConfig.Beast.getRealmStats(def.realm)
+        // 篡改防御（对抗性审查）：realm/realmLayer 钳制合法范围——非法层数会产生
+        // 0/负属性（Combatant.isDead 开战即亡）或饱和 Int.MAX（打不死）
+        val safeRealm = def.realm.coerceIn(0, 9)
+        val safeLayer = def.realmLayer.coerceIn(
+            1, GameConfig.Realm.get(safeRealm).maxLayers
+        )
+        val realmStats = GameConfig.Beast.getRealmStats(safeRealm)
         val beastType = GameConfig.Beast.TYPES.find { it.name == def.beastType }
             ?: GameConfig.Beast.TYPES.first()
 
-        val layerMult = 1.0 + (def.realmLayer - 1) * 0.1
+        val layerMult = 1.0 + (safeLayer - 1) * 0.1
 
-        val hp = (realmStats.hp * layerMult * beastType.hpMod).toInt()
-        val mp = (realmStats.mp * layerMult * beastType.hpMod).toInt()
-        val physicalAttack = (realmStats.attack * layerMult * beastType.atkMod).toInt()
-        val magicAttack = (realmStats.attack * layerMult * beastType.atkMod).toInt()
-        val physicalDefense = (realmStats.defense * layerMult * beastType.defMod).toInt()
-        val magicDefense = (realmStats.defense * layerMult * beastType.defMod).toInt()
-        val speed = (realmStats.speed * layerMult * beastType.speedMod).toInt()
+        // 2026-08-06 P4 修复：与 LevelGenerator/世界妖兽一致补 ±0.2 方差（加在类型 mod 上）。
+        // 确定性派生种子（同 [buildDiscipleEnemy]），预览 = 战斗属性一致。
+        val enemyRng = DeterministicRng(enemySeed(levelIndex, def, index))
+        fun variance(): Double = -0.2 + enemyRng.nextDouble() * 0.4
+        val hpVariance = variance()
+        val atkVariance = variance()
+        val defVariance = variance()
+        val speedVariance = variance()
+
+        // 属性下界钳制（对抗性审查）：防御未来配置新增低 mod 妖兽类型时出现 0/负属性
+        fun safeStat(value: Double): Int = value.toInt().coerceAtLeast(1)
+        val hp = safeStat(realmStats.hp * layerMult * (beastType.hpMod + hpVariance))
+        val mp = safeStat(realmStats.mp * layerMult * (beastType.hpMod + hpVariance))
+        val physicalAttack = safeStat(realmStats.attack * layerMult * (beastType.atkMod + atkVariance))
+        val magicAttack = safeStat(realmStats.attack * layerMult * (beastType.atkMod + atkVariance))
+        val physicalDefense = safeStat(realmStats.defense * layerMult * (beastType.defMod + defVariance))
+        val magicDefense = safeStat(realmStats.defense * layerMult * (beastType.defMod + defVariance))
+        val speed = safeStat(realmStats.speed * layerMult * (beastType.speedMod + speedVariance))
 
         val beastSkills = beastType.skills.map { skillConfig ->
             CombatSkill(
@@ -108,11 +126,11 @@ class HeavenlyTrialService @Inject constructor(
             physicalDefense = physicalDefense,
             magicDefense = magicDefense,
             speed = speed,
-            critRate = 0.05 + def.realm * 0.01,
+            critRate = (0.05 + safeRealm * 0.01).coerceIn(0.0, 1.0),
             skills = beastSkills,
-            realm = def.realm,
-            realmName = GameConfig.Realm.getName(def.realm),
-            realmLayer = def.realmLayer,
+            realm = safeRealm,
+            realmName = GameConfig.Realm.getName(safeRealm),
+            realmLayer = safeLayer,
             element = beastType.element,
             portraitRes = "beast_$typeIndex",
             isBeast = true
@@ -149,7 +167,7 @@ class HeavenlyTrialService @Inject constructor(
             physicalDefense = stats.physDef,
             magicDefense = stats.magDef,
             speed = stats.speed,
-            critRate = 0.05 + def.realm * 0.02 + stats.critChance,
+            critRate = 0.05 + def.realm * 0.01 + stats.critChance,
             skills = buildTrialSkills(selected),
             realm = def.realm,
             realmName = GameConfig.Realm.getName(def.realm),
@@ -242,7 +260,7 @@ class HeavenlyTrialService @Inject constructor(
         val baseMagDef = (realmConfig.baseMagicDefense * rngVar() * layerMult).toInt()
         val baseSpeed = (realmConfig.baseSpeed * rngVar() * layerMult).toInt()
 
-        val equipBonus = sumEquipStatBonuses(equipment)
+        val equipBonus = sumEquipStatBonuses(equipment, rng)
         val manualBonus = sumManualStatBonuses(selected)
 
         return TrialBaseStats(
@@ -258,7 +276,10 @@ class HeavenlyTrialService @Inject constructor(
     }
 
     /** 装备属性加成汇总（buildTrialBaseStats 提取）：weapon → armor → boots → accessory 顺序保持 */
-    private fun sumEquipStatBonuses(equipment: TrialEquipmentSelection): StatBonus {
+    private fun sumEquipStatBonuses(
+        equipment: TrialEquipmentSelection,
+        rng: DeterministicRng
+    ): StatBonus {
         var hp = 0; var physAtk = 0; var magAtk = 0
         var physDef = 0; var magDef = 0; var speed = 0
         val equipNames = listOfNotNull(
@@ -266,14 +287,18 @@ class HeavenlyTrialService @Inject constructor(
             equipment.boots?.name, equipment.accessory?.name
         )
         // 应用装备属性加成（修复：之前只选取装备名称用于显示，未将属性计入 Combatant）
+        // 2026-08-06 P4 修复：与 EnemyGenerator 一致，装备属性吃孕养倍率
+        // （模板原值 × getNurtureMultiplier，孕养等级确定性 rng 0..maxNurture）
         for (name in equipNames) {
             EquipmentDatabase.getTemplateByName(name)?.let { t ->
-                physAtk += t.physicalAttack
-                magAtk += t.magicAttack
-                physDef += t.physicalDefense
-                magDef += t.magicDefense
-                speed += t.speed
-                hp += t.hp
+                val maxNurture = EquipmentNurtureSystem.getMaxNurtureLevel(t.rarity)
+                val nurtureMult = EquipmentNurtureSystem.getNurtureMultiplier(rng.nextInt(maxNurture + 1))
+                physAtk += (t.physicalAttack * nurtureMult).toInt()
+                magAtk += (t.magicAttack * nurtureMult).toInt()
+                physDef += (t.physicalDefense * nurtureMult).toInt()
+                magDef += (t.magicDefense * nurtureMult).toInt()
+                speed += (t.speed * nurtureMult).toInt()
+                hp += (t.hp * nurtureMult).toInt()
             }
         }
         return StatBonus(hp = hp, physAtk = physAtk, magAtk = magAtk, physDef = physDef, magDef = magDef, speed = speed)

@@ -4,6 +4,7 @@ import com.xianxia.sect.core.util.ItemNames
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.battle.AIBattleResult
 import com.xianxia.sect.core.engine.domain.battle.AIBattleWinner
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
@@ -78,7 +79,8 @@ suspend fun GameEngine.attackSect(sectId: String, attackSlots: List<Pair<Int, Di
         val playerSect = data.worldMapSects.find { it.isPlayerSect }
         val setup = buildSectAttackSetup(data, targetSect, sectId, playerSect)
         val battleResult = AISectAttackManager.executeSectBattle(
-            attackers, targetSect, setup.defenderDisciples, setup.fullDefenderPool
+            attackers, targetSect, setup.defenderDisciples, setup.fullDefenderPool,
+            data.bloodRefinementPctTotals
         )
         val deadPlayerIds = battleResult.deadAttackerIds.toSet()
         combatService.processBattleCasualties(deadMemberIds = deadPlayerIds, survivorHpMap = battleResult.survivorHpMap, survivorMpMap = battleResult.survivorMpMap, isOutsideSect = true)
@@ -560,7 +562,12 @@ private fun GameEngine.buildWorldLevelBattle(
         speed = level.beastSpeed,
         realmLayer = level.realmLayer
     ) else null
-    val battle = battleSystem.createBattle(disciples = combatDisciples, equipmentMap = equipmentMap, manualMap = manualMap, beastLevel = level.realm, beastCount = level.count, beastType = beastTypeName, manualProficiencies = allProficiencies, beastPreGenStats = beastPreGenStats)
+    val battle = battleSystem.createBattle(
+        disciples = combatDisciples, equipmentMap = equipmentMap, manualMap = manualMap,
+        beastLevel = level.realm, beastCount = level.count, beastType = beastTypeName,
+        manualProficiencies = allProficiencies, beastPreGenStats = beastPreGenStats,
+        bloodRefinementMap = data.bloodRefinementPctTotals
+    )
     // 严苛训练政策：玩家弟子伤害+5%（参数透传，替代原 @Volatile 单例字段）
     val playerDamageModifier = if (data.sectPolicies.strictTraining) {
         1.0 + GameConfig.PolicyConfig.STRICT_TRAINING_DAMAGE
@@ -578,10 +585,11 @@ private fun GameEngine.applyWorldLevelCasualties(hpMap: Map<String, Pair<Int, In
             if (idStr !in survivorIds) {
                 discipleTables.markDead(id, gameData.gameYear, "battle")
             } else {
-                val maxHp = discipleTables.baseHps[id]
-                val maxMp = discipleTables.baseMps[id]
-                discipleTables.currentHps[id] = hp.coerceIn(0, maxHp)
-                discipleTables.currentMps[id] = mp.coerceIn(0, maxMp)
+                val (finalMaxHp, finalMaxMp) = DiscipleStatCalculator.battleWritebackMaxHpMp(
+                    this, discipleTables.assemble(id)
+                )
+                discipleTables.currentHps[id] = hp.coerceIn(0, finalMaxHp)
+                discipleTables.currentMps[id] = mp.coerceIn(0, finalMaxMp)
             }
         }
     }
@@ -755,7 +763,10 @@ private fun GameEngine.buildScoutPlayerCombatants(
         val discipleEquipment = buildDiscipleEquipmentMap(disciple, equipmentMap)
         val discipleManuals = disciple.manualIds.mapNotNull { id -> manualMap[id]?.let { id to it } }.toMap()
         val discipleProficiencies = allProficiencies[disciple.id] ?: emptyMap()
-        val stats = disciple.getFinalStats(discipleEquipment, discipleManuals, discipleProficiencies)
+        val stats = disciple.getFinalStats(
+            discipleEquipment, discipleManuals, discipleProficiencies,
+            stateStore.gameData.value.bloodRefinementPctTotals[disciple.id]
+        )
         val effectiveHp = if (disciple.combat.currentHp < 0) stats.maxHp else disciple.combat.currentHp.coerceAtMost(stats.maxHp)
         val effectiveMp = if (disciple.combat.currentMp < 0) stats.maxMp else disciple.combat.currentMp.coerceAtMost(stats.maxMp)
         val skills = buildDiscipleSkills(disciple, discipleManuals, discipleProficiencies)
@@ -801,10 +812,11 @@ private fun GameEngine.applyScoutCasualties(hpMap: Map<String, Pair<Int, Int>>, 
             if (idStr !in survivorIds) {
                 discipleTables.markDead(id, gameData.gameYear, "scout")
             } else {
-                val maxHp = discipleTables.baseHps[id]
-                val maxMp = discipleTables.baseMps[id]
-                discipleTables.currentHps[id] = hp.coerceIn(0, maxHp)
-                discipleTables.currentMps[id] = mp.coerceIn(0, maxMp)
+                val (finalMaxHp, finalMaxMp) = DiscipleStatCalculator.battleWritebackMaxHpMp(
+                    this, discipleTables.assemble(id)
+                )
+                discipleTables.currentHps[id] = hp.coerceIn(0, finalMaxHp)
+                discipleTables.currentMps[id] = mp.coerceIn(0, finalMaxMp)
             }
         }
     }

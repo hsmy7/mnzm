@@ -42,7 +42,7 @@ class DiscipleBreakthroughHandler @Inject constructor(
 
         while (shouldContinue && d.realm > 0) {
             if (d.cultivation < d.maxCultivation) break
-            if (!cultivationCore.isDiscipleFullHpMp(d)) break
+            if (!cultivationCore.isDiscipleFullHpMp(d, state)) break
 
             val pillTargetRealm = if (d.realmLayer >= GameConfig.Realm.get(d.realm).maxLayers) {
                 d.realm - 1
@@ -182,7 +182,7 @@ class DiscipleBreakthroughHandler @Inject constructor(
     ) {
         val candidates = livingDisciples.filter { disciple ->
             disciple.realm > 0 && disciple.cultivation >= disciple.maxCultivation &&
-                cultivationCore.isDiscipleFullHpMp(disciple)
+                cultivationCore.isDiscipleFullHpMp(disciple, state)
         }
         if (candidates.isEmpty()) return
 

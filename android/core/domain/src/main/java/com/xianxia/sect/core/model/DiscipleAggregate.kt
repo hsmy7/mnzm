@@ -180,7 +180,13 @@ data class DiscipleAggregate(
 
     fun getStatsWithEquipment(equipments: Map<String, EquipmentInstance>): DiscipleStats = statsProvider.getStatsWithEquipment(this, equipments)
 
-    fun getFinalStats(equipments: Map<String, EquipmentInstance>, manuals: Map<String, ManualInstance>, manualProficiencies: Map<String, ManualProficiencyData> = emptyMap()): DiscipleStats = statsProvider.getFinalStats(this, equipments, manuals, manualProficiencies)
+    fun getFinalStats(
+        equipments: Map<String, EquipmentInstance>,
+        manuals: Map<String, ManualInstance>,
+        manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(),
+        bloodRefinementPct: BloodRefinementPctTotal? = null
+    ): DiscipleStats =
+        statsProvider.getFinalStats(this, equipments, manuals, manualProficiencies, bloodRefinementPct)
 
     fun calculateCultivationSpeed(manuals: Map<String, ManualInstance> = emptyMap(), manualProficiencies: Map<String, ManualProficiencyData> = emptyMap(), buildingBonus: Double = 1.0, additionalBonus: Double = 0.0, preachingElderBonus: Double = 0.0, preachingMastersBonus: Double = 0.0, cultivationSubsidyBonus: Double = 0.0, parentCultivationBonus: Double = 0.0, griefCultivationSpeedPenalty: Double = 0.0): Double = statsProvider.calculateCultivationSpeed(this, manuals, manualProficiencies, buildingBonus, additionalBonus, preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus, parentCultivationBonus, griefCultivationSpeedPenalty)
     
@@ -325,8 +331,18 @@ data class DiscipleAggregate(
             override fun getTalentEffects(aggregate: DiscipleAggregate): Map<String, Double> = emptyMap()
             override fun getStatsWithEquipment(disciple: Disciple, equipments: Map<String, EquipmentInstance>) = DiscipleStats()
             override fun getStatsWithEquipment(aggregate: DiscipleAggregate, equipments: Map<String, EquipmentInstance>) = DiscipleStats()
-            override fun getFinalStats(disciple: Disciple, equipments: Map<String, EquipmentInstance>, manuals: Map<String, ManualInstance>, manualProficiencies: Map<String, ManualProficiencyData>) = DiscipleStats()
-            override fun getFinalStats(aggregate: DiscipleAggregate, equipments: Map<String, EquipmentInstance>, manuals: Map<String, ManualInstance>, manualProficiencies: Map<String, ManualProficiencyData>) = DiscipleStats()
+            override fun getFinalStats(
+                disciple: Disciple, equipments: Map<String, EquipmentInstance>,
+                manuals: Map<String, ManualInstance>,
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: BloodRefinementPctTotal?
+            ) = DiscipleStats()
+            override fun getFinalStats(
+                aggregate: DiscipleAggregate, equipments: Map<String, EquipmentInstance>,
+                manuals: Map<String, ManualInstance>,
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: BloodRefinementPctTotal?
+            ) = DiscipleStats()
             override fun calculateCultivationSpeed(disciple: Disciple, manuals: Map<String, ManualInstance>, manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double, additionalBonus: Double, preachingElderBonus: Double, preachingMastersBonus: Double, cultivationSubsidyBonus: Double, parentCultivationBonus: Double, griefCultivationSpeedPenalty: Double, masterDiscipleBonus: Double) = 0.0
             override fun calculateCultivationSpeed(aggregate: DiscipleAggregate, manuals: Map<String, ManualInstance>, manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double, additionalBonus: Double, preachingElderBonus: Double, preachingMastersBonus: Double, cultivationSubsidyBonus: Double, parentCultivationBonus: Double, griefCultivationSpeedPenalty: Double, masterDiscipleBonus: Double) = 0.0
             override fun getBreakthroughChance(disciple: Disciple, innerElderComprehension: Int, outerElderComprehension: Int, pillBonus: Double, adBonus: Double, griefBreakthroughPenalty: Double, masterDiscipleBonus: Double) = 0.0

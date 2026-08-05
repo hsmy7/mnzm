@@ -72,12 +72,14 @@ class CombatService @Inject constructor(
                 val liveSurvivorUpdates = survivorHpMap.mapNotNull { (memberId, hp) ->
                     val id = memberId.toIntOrNull() ?: return@mapNotNull null
                     if (!discipleTables.ids.contains(id) || memberId in deadMemberIds) return@mapNotNull null
-                    val maxHp = discipleTables.baseHps[id]
-                    val maxMp = discipleTables.baseMps[id]
+                    // clamp 上限用含血炼口径（P2 对抗性审查修复），防削血
+                    val (finalMaxHp, finalMaxMp) = DiscipleStatCalculator.battleWritebackMaxHpMp(
+                        this, discipleTables.assemble(id)
+                    )
                     val mp = survivorMpMap[memberId] ?: discipleTables.currentMps[id]
                     val currentStatus = discipleTables.statuses[id]
                     val updatedStatus = if (currentStatus in setOf(DiscipleStatus.IN_TEAM, DiscipleStatus.GARRISONING)) DiscipleStatus.IDLE else currentStatus
-                    SurvivorUpdate(id, hp.coerceIn(0, maxHp), mp.coerceIn(0, maxMp), updatedStatus)
+                    SurvivorUpdate(id, hp.coerceIn(0, finalMaxHp), mp.coerceIn(0, finalMaxMp), updatedStatus)
                 }
                 // A. 悲痛期
                 for ((id, griefEndYear) in griefUpdates) {

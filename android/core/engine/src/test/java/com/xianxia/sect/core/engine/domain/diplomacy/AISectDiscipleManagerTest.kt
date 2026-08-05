@@ -7,6 +7,9 @@ import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.PlantSlotData
 import com.xianxia.sect.core.model.ManualType
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.engine.EquipmentNurtureSystem
+import com.xianxia.sect.core.model.EquipmentNurtureData
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import org.junit.After
@@ -100,12 +103,13 @@ class AISectDiscipleManagerTest {
         assertTrue("应保留高战力弟子", maxId >= limit * 3 - 1)
     }
 
-    // ── 境界-年龄匹配（38岁炼虚修复）──
+    // ── 初始弟子按宗门等级分布境界；招募弟子固定炼气一层（2026-08-06 需求确认）──
 
     @Test
-    fun `fillDisciplesToTarget - 高境界弟子 年龄不低于境界最小年龄`() {
+    fun `fillDisciplesToTarget - 新增弟子按宗门等级分布境界且年龄匹配`() {
         AISectDiscipleManager.initForSlot(42L)
-        // 大型宗门（level 2）可出炼虚/合体（realm 4/3）
+        // 大型宗门（level 2）：境界范围 4..9（炼虚~炼气）
+        val maxRealm = SectLevel.maxRealmForLevel(2)
         val result = AISectDiscipleManager.fillDisciplesToTarget(
             sectName = "测试大宗",
             existingDisciples = emptyList(),
@@ -115,43 +119,67 @@ class AISectDiscipleManagerTest {
         assertEquals(50, result.size)
         for (d in result) {
             assertTrue(
-                "境界 ${d.realm} 弟子年龄 ${d.age} 应不低于最小合理年龄 " +
-                    "${GameConfig.Realm.minReasonableAge(d.realm)}",
-                d.age >= GameConfig.Realm.minReasonableAge(d.realm)
+                "境界 ${d.realm} 应在宗门等级允许范围 ${maxRealm + 1}..9",
+                d.realm in (maxRealm + 1)..9
             )
-        }
-    }
-
-    @Test
-    fun `fillDisciplesToTarget - 炼气弟子 年龄保持16到29`() {
-        AISectDiscipleManager.initForSlot(7L)
-        // 小型宗门（level 1，分布 7..9：金丹/筑基/炼气）
-        val result = AISectDiscipleManager.fillDisciplesToTarget(
-            sectName = "测试小宗",
-            existingDisciples = emptyList(),
-            targetCount = 50,
-            sectLevel = 1
-        )
-        val qiRefining = result.filter { it.realm == 9 }
-        assertTrue("应包含炼气弟子", qiRefining.isNotEmpty())
-        for (d in qiRefining) {
-            assertTrue("炼气弟子年龄应在 16..29", d.age in 16..29)
-        }
-    }
-
-    @Test
-    fun `initializeSectDisciples - 全部弟子年龄境界匹配`() {
-        AISectDiscipleManager.initForSlot(99L)
-        val (disciples, _) = AISectDiscipleManager.initializeSectDisciples(
-            sectName = "测试宗门",
-            sectLevel = 2
-        )
-        assertTrue("应生成弟子", disciples.isNotEmpty())
-        for (d in disciples) {
             assertTrue(
                 "境界 ${d.realm} 弟子年龄 ${d.age} 应不低于最小合理年龄",
                 d.age >= GameConfig.Realm.minReasonableAge(d.realm)
             )
+        }
+        // 分布应包含高境界弟子（非全炼气）
+        assertTrue("大型宗门分布应含炼虚/化神等高境界弟子", result.any { it.realm < 9 })
+    }
+
+    @Test
+    fun `fillDisciplesToTarget - 存量高境界弟子 年龄不低于境界最小年龄`() {
+        // 存量老档高境界弟子保留原境界（只补装备/功法），年龄合理性守卫保留
+        AISectDiscipleManager.initForSlot(7L)
+        val old = makeGearDisciple(realm = 4, realmLayer = 5, cultivation = 1000.0, lifespan = 800)
+            .copy(age = 12) // 非法年龄：炼虚最小合理年龄之下
+        val result = AISectDiscipleManager.fillDisciplesToTarget(
+            sectName = "测试宗",
+            existingDisciples = listOf(old),
+            targetCount = 50,
+            sectLevel = 2
+        )
+        val oldResult = requireNotNull(result.find { it.id == old.id })
+        assertEquals("存量弟子境界不应被改写", 4, oldResult.realm)
+        // 新增弟子境界在宗门等级允许范围内（大型 maxRealm=3 → 4..9）
+        for (d in result) {
+            if (d.id == old.id) continue
+            assertTrue(
+                "新增弟子境界应在宗门等级范围内",
+                d.realm in (SectLevel.maxRealmForLevel(2) + 1)..9
+            )
+        }
+    }
+
+    @Test
+    fun `initializeSectDisciples - 境界按宗门等级分布且年龄匹配`() {
+        AISectDiscipleManager.initForSlot(99L)
+        for (level in intArrayOf(SectLevel.SMALL, SectLevel.MEDIUM, SectLevel.LARGE, SectLevel.TOP)) {
+            val (disciples, maxRealm) = AISectDiscipleManager.initializeSectDisciples(
+                sectName = "测试宗门",
+                sectLevel = level
+            )
+            assertEquals("宗门等级 $level 应生成 50 名弟子", 50, disciples.size)
+            assertEquals("返回境界上限应等于宗门等级上限", SectLevel.maxRealmForLevel(level), maxRealm)
+            val allowedRange = (maxRealm + 1)..9
+            for (d in disciples) {
+                assertTrue(
+                    "宗门等级 $level 弟子境界 ${d.realm} 应在 $allowedRange",
+                    d.realm in allowedRange
+                )
+                assertTrue(
+                    "境界 ${d.realm} 弟子年龄 ${d.age} 应不低于最小合理年龄",
+                    d.age >= GameConfig.Realm.minReasonableAge(d.realm)
+                )
+            }
+            // 大型/顶级宗门应有高境界弟子（非全炼气）
+            if (level >= SectLevel.LARGE) {
+                assertTrue("宗门等级 $level 分布应含高境界弟子", disciples.any { it.realm < 9 })
+            }
         }
     }
 
@@ -161,7 +189,7 @@ class AISectDiscipleManagerTest {
     fun `generateRandomDisciple - 生成体质与词条`() {
         AISectDiscipleManager.initForSlot(42L)
         ManualDatabase.initializeWithManuals(testManuals())
-        val disciple = AISectDiscipleManager.generateRandomDisciple("测试宗", 9)
+        val disciple = AISectDiscipleManager.generateRandomDisciple("测试宗")
         assertNotNull("应生成体质列表", disciple.physiqueIds)
         assertNotNull("应生成词条列表", disciple.affixIds)
         // 0-3 个随机生成（可能为 0），但生成器必须可从数据库解析（不产生悬空 id）
@@ -193,6 +221,33 @@ class AISectDiscipleManagerTest {
     }
 
     @Test
+    fun `applyGearToDisciple - 功法必含一本心法`() {
+        // 2026-08-06 需求：AI 弟子必有一本心法（原 50% 概率）
+        AISectDiscipleManager.initForSlot(42L)
+        ManualDatabase.initializeWithManuals(testManuals())
+        for (level in intArrayOf(SectLevel.SMALL, SectLevel.MEDIUM, SectLevel.LARGE, SectLevel.TOP)) {
+            val disciple = AISectDiscipleManager.applyGearToDisciple(makeGearDisciple(realm = 5), level)
+            val mindCount = disciple.manualIds.count { ManualDatabase.getById(it)?.type == ManualType.MIND }
+            assertTrue("宗门等级 $level 功法应含至少 1 本心法，实际 $mindCount 本", mindCount >= 1)
+        }
+    }
+
+    @Test
+    fun `ensureDiscipleGear - 已有心法补全不重复补心法`() {
+        AISectDiscipleManager.initForSlot(42L)
+        ManualDatabase.initializeWithManuals(testManuals())
+        // 老档弟子：只有 1 本心法，需补攻防到大型宗门标准 6 本
+        val old = makeGearDisciple(realm = 5).copy(
+            manualIds = listOf("mind_4"),
+            manualMasteries = mapOf("mind_4" to 100)
+        )
+        val result = AISectDiscipleManager.ensureDiscipleGear(old, SectLevel.LARGE)
+        assertEquals("应补齐至大型宗门 6 本功法", 6, result.manualIds.size)
+        val mindCount = result.manualIds.count { ManualDatabase.getById(it)?.type == ManualType.MIND }
+        assertEquals("已有心法时补全不应再补心法", 1, mindCount)
+    }
+
+    @Test
     fun `applyGearToDisciple - 品阶恒为境界上限`() {
         AISectDiscipleManager.initForSlot(42L)
         ManualDatabase.initializeWithManuals(testManuals())
@@ -218,6 +273,31 @@ class AISectDiscipleManagerTest {
         assertEquals("同种子下装备/功法生成应完全一致", d1.equipment, d2.equipment)
         assertEquals(d1.manualIds, d2.manualIds)
         assertEquals(d1.manualMasteries, d2.manualMasteries)
+    }
+
+    @Test
+    fun `processMonthlyCultivation - 月度修为增量等于每旬速率乘3`() {
+        // 2026-08-06 修复：此前 AI 每月修为 += 速率×6.0（真实秒数），玩家每月（3 旬）
+        // 修为 += 速率×3 —— AI 单位时间修炼速率是玩家 2 倍。修复后按 3 旬对齐。
+        AISectDiscipleManager.initForSlot(42L)
+        ManualDatabase.initializeWithManuals(testManuals())
+        val disciple = makeGearDisciple(realm = 7, cultivation = 0.0)
+            .copy(manualIds = listOf("atk_4_0"), manualMasteries = mapOf("atk_4_0" to 30000))
+        val expectedRate = DiscipleStatCalculator.calculateCultivationPerPhase(
+            disciple,
+            manuals = emptyMap(),
+            manualProficiencies = AISectDiscipleManager.buildProficiencyDataFromMasteries(disciple),
+            buildingBonus = 1.0,
+            preachingElderBonus = 0.0,
+            preachingMastersBonus = 0.0,
+            cultivationSubsidyBonus = 0.0
+        )
+        val result = AISectDiscipleManager.processMonthlyCultivation(listOf(disciple), 1, SectLevel.SMALL)
+            .first()
+        assertEquals(
+            "AI 月度修为增量应 = 每旬速率 × 3（与玩家每月 3 旬对齐，非速率 × 6 秒）",
+            expectedRate * 3, result.cultivation, 0.001
+        )
     }
 
     @Test
@@ -388,6 +468,107 @@ class AISectDiscipleManagerTest {
         assertTrue("新补弟子应带功法", newbie.manualIds.isNotEmpty())
     }
 
+    // ── 功法熟练度 + 装备孕养度正常增长（2026-08-06 需求）──
+
+    @Test
+    fun `applyGearToDisciple - 装备初始孕养从0起步`() {
+        AISectDiscipleManager.initForSlot(42L)
+        ManualDatabase.initializeWithManuals(testManuals())
+        val disciple = AISectDiscipleManager.applyGearToDisciple(makeGearDisciple(realm = 5), SectLevel.MEDIUM)
+        for (nurture in listOf(
+            disciple.equipment.weaponNurture, disciple.equipment.armorNurture,
+            disciple.equipment.bootsNurture, disciple.equipment.accessoryNurture
+        )) {
+            if (nurture.equipmentId.isEmpty()) continue
+            assertEquals("装备 ${nurture.equipmentId} 初始孕养应为 0 级", 0, nurture.nurtureLevel)
+            assertEquals("装备 ${nurture.equipmentId} 初始孕养进度应为 0", 0.0, nurture.nurtureProgress, 0.0)
+        }
+    }
+
+    @Test
+    fun `processMonthlyCultivation - 功法初始熟练度为0且逐月增长`() {
+        AISectDiscipleManager.initForSlot(42L)
+        ManualDatabase.initializeWithManuals(testManuals())
+        val disciple = AISectDiscipleManager.applyGearToDisciple(
+            makeGearDisciple(realm = 5, comprehension = 90), SectLevel.SMALL
+        )
+        assertTrue(
+            "新生成弟子功法熟练度应为 0",
+            disciple.manualMasteries.values.all { it == 0 }
+        )
+        val result = AISectDiscipleManager.processMonthlyCultivation(listOf(disciple), 2, SectLevel.SMALL).first()
+        val perMonthGain = ManualProficiencySystem.calculateProficiencyGainPerPhase(90, 0.0) * 3
+        result.manualMasteries.values.forEach { mastery ->
+            // 实现内逐月 (mastery + perMonthGain).toInt()，两次取整与整月增益一致
+            assertEquals("熟练度应逐月按玩家公式增长（1 月=3 旬）", (perMonthGain * 2).toInt(), mastery)
+        }
+    }
+
+    @Test
+    fun `processMonthlyCultivation - 装备孕养月度增长`() {
+        AISectDiscipleManager.initForSlot(42L)
+        ManualDatabase.initializeWithManuals(testManuals())
+        val disciple = AISectDiscipleManager.applyGearToDisciple(makeGearDisciple(realm = 5), SectLevel.MEDIUM)
+        val result = AISectDiscipleManager.processMonthlyCultivation(listOf(disciple), 1, SectLevel.SMALL).first()
+        val monthlyGain = EquipmentNurtureSystem.NURTURE_GAIN_PER_PHASE * 3
+        for (nurture in listOf(
+            result.equipment.weaponNurture, result.equipment.armorNurture,
+            result.equipment.bootsNurture, result.equipment.accessoryNurture
+        )) {
+            if (nurture.equipmentId.isEmpty()) continue
+            assertEquals(
+                "装备 ${nurture.equipmentId} 孕养进度应增长 ${monthlyGain} exp",
+                monthlyGain, nurture.nurtureProgress, 0.001
+            )
+        }
+    }
+
+    @Test
+    fun `processMonthlyCultivation - 装备孕养经验满升级且进度扣减`() {
+        AISectDiscipleManager.initForSlot(42L)
+        ManualDatabase.initializeWithManuals(testManuals())
+        // 构造距升级差 1 exp 的装备（品阶 1：0 级升 1 级需 100 exp）
+        val gear = AISectDiscipleManager.applyGearToDisciple(makeGearDisciple(realm = 5), SectLevel.SMALL)
+        val weaponId = gear.equipment.weaponId
+        val nearLevelUp = gear.copy(
+            equipment = gear.equipment.copy(
+                weaponNurture = EquipmentNurtureData(
+                    equipmentId = weaponId,
+                    rarity = 1,
+                    nurtureLevel = 0,
+                    nurtureProgress = 99.0
+                )
+            )
+        )
+        val result = AISectDiscipleManager.processMonthlyCultivation(listOf(nearLevelUp), 1, SectLevel.SMALL).first()
+        val monthlyGain = EquipmentNurtureSystem.NURTURE_GAIN_PER_PHASE * 3
+        val weaponNurture = result.equipment.weaponNurture
+        assertEquals("经验满应升级到 1 级", 1, weaponNurture.nurtureLevel)
+        assertEquals("升级后应保留溢出进度", monthlyGain - 1.0, weaponNurture.nurtureProgress, 0.001)
+    }
+
+    @Test
+    fun `processMonthlyCultivation - 满级装备孕养不再增长`() {
+        AISectDiscipleManager.initForSlot(42L)
+        ManualDatabase.initializeWithManuals(testManuals())
+        val gear = AISectDiscipleManager.applyGearToDisciple(makeGearDisciple(realm = 5), SectLevel.SMALL)
+        val weaponId = gear.equipment.weaponId
+        val maxLevel = EquipmentNurtureSystem.getMaxNurtureLevel(1)
+        val maxed = gear.copy(
+            equipment = gear.equipment.copy(
+                weaponNurture = EquipmentNurtureData(
+                    equipmentId = weaponId,
+                    rarity = 1,
+                    nurtureLevel = maxLevel,
+                    nurtureProgress = 0.0
+                )
+            )
+        )
+        val snapshot = maxed.equipment.weaponNurture
+        val result = AISectDiscipleManager.processMonthlyCultivation(listOf(maxed), 2, SectLevel.SMALL).first()
+        assertEquals("满级装备孕养不应再变化", snapshot, result.equipment.weaponNurture)
+    }
+
     @Test
     fun `prepareDisciplesForBattle - 不再随机生成且不改原弟子`() {
         AISectDiscipleManager.initForSlot(42L)
@@ -398,7 +579,7 @@ class AISectDiscipleManagerTest {
         val snapshot = disciple.copy(manualMasteries = disciple.manualMasteries.toMap())
         val r1 = AISectDiscipleManager.prepareDisciplesForBattle(listOf(disciple))
         val r2 = AISectDiscipleManager.prepareDisciplesForBattle(listOf(disciple))
-        assertEquals("两次准备的装备实例应一致（无随机）", r1.equipmentMap.keys, r2.equipmentMap.keys)
+        assertEquals("两次准备的装备实例应一致（无随机）", r1.equipmentMapByDisciple.keys, r2.equipmentMapByDisciple.keys)
         assertEquals("两次准备的功法实例应一致（无随机）", r1.manualMap.keys, r2.manualMap.keys)
         assertEquals("原弟子不应被修改", snapshot, disciple)
         assertEquals("应返回原弟子列表", listOf(disciple), r1.disciples)
@@ -433,7 +614,7 @@ class AISectDiscipleManagerTest {
         val counts = mutableMapOf(1 to 0, 2 to 0, 3 to 0, 4 to 0, 5 to 0)
         val sampleCount = 10000
         repeat(sampleCount) {
-            val disciple = AISectDiscipleManager.generateRandomDisciple("测试宗", 9)
+            val disciple = AISectDiscipleManager.generateRandomDisciple("测试宗")
             val rootCount = disciple.spiritRootType.split(",").size
             assertTrue("灵根数 $rootCount 应在 1..5（实际值=${disciple.spiritRootType}）", rootCount in 1..5)
             counts[rootCount] = (counts[rootCount] ?: 0) + 1

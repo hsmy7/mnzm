@@ -330,7 +330,8 @@ class AISectBattleProcessor @Inject constructor(
                 val combatants = garrisoned.map { d ->
                     battleSystem.convertDiscipleToCombatant(
                         d, equipmentMap, manualMap, profMap,
-                        CombatantSide.DEFENDER
+                        CombatantSide.DEFENDER,
+                        bloodRefinementPct = data.bloodRefinementPctTotals[d.id]
                     )
                 }
                 sect.id to AISectAttackManager.PlayerOccupiedDefenseInfo(
@@ -355,7 +356,7 @@ class AISectBattleProcessor @Inject constructor(
                 // 玩家占领宗门防御：更新驻军弟子状态
                 if (isPlayerOccupied) {
                     updatePlayerGarrisonState(
-                        result, discipleTables, gameYear
+                        this, result, discipleTables, gameYear
                     )
                 }
 
@@ -501,6 +502,7 @@ class AISectBattleProcessor @Inject constructor(
     }
 
     private fun updatePlayerGarrisonState(
+        state: MutableGameState,
         result: AISectAttackManager.AIAttackResult,
         tables: DiscipleTables,
         gameYear: Int
@@ -516,12 +518,16 @@ class AISectBattleProcessor @Inject constructor(
             } else {
                 val hp = result.defenderSurvivorHpMap[d.id]
                 val mp = result.defenderSurvivorMpMap[d.id]
-                if (hp != null && mp != null) d.copy(
-                    combat = d.combat.copy(
-                        currentHp = hp.coerceIn(0, d.maxHp),
-                        currentMp = mp.coerceIn(0, d.maxMp)
+                if (hp != null && mp != null) {
+                    // clamp 上限用含血炼口径（P2 对抗性审查修复），防削血
+                    val (finalMaxHp, finalMaxMp) = DiscipleStatCalculator.battleWritebackMaxHpMp(state, d)
+                    d.copy(
+                        combat = d.combat.copy(
+                            currentHp = hp.coerceIn(0, finalMaxHp),
+                            currentMp = mp.coerceIn(0, finalMaxMp)
+                        )
                     )
-                ) else d
+                } else d
             }
         }
         tables.replaceAll(updated)
@@ -594,7 +600,8 @@ class AISectBattleProcessor @Inject constructor(
         return refreshedDefenders.map { d ->
             battleSystem.convertDiscipleToCombatant(
                 d, preparation.equipmentMap, preparation.manualMap,
-                preparation.profMap, CombatantSide.DEFENDER
+                preparation.profMap, CombatantSide.DEFENDER,
+                bloodRefinementPct = state.gameData.bloodRefinementPctTotals[d.id]
             )
         }
     }
@@ -648,12 +655,16 @@ class AISectBattleProcessor @Inject constructor(
             } else {
                 val hp = result.defenderSurvivorHpMap[d.id]
                 val mp = result.defenderSurvivorMpMap[d.id]
-                if (hp != null && mp != null) d.copy(
-                    combat = d.combat.copy(
-                        currentHp = hp.coerceIn(0, d.maxHp),
-                        currentMp = mp.coerceIn(0, d.maxMp)
+                if (hp != null && mp != null) {
+                    // clamp 上限用含血炼口径（P2 对抗性审查修复），防削血
+                    val (finalMaxHp, finalMaxMp) = DiscipleStatCalculator.battleWritebackMaxHpMp(state, d)
+                    d.copy(
+                        combat = d.combat.copy(
+                            currentHp = hp.coerceIn(0, finalMaxHp),
+                            currentMp = mp.coerceIn(0, finalMaxMp)
+                        )
                     )
-                ) else d
+                } else d
             }
         }
         // 死亡年份由 DiscipleDeathHandler 统一补写（replaceAll 已清空列写入）

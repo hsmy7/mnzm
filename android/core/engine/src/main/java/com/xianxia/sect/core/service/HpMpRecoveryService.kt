@@ -54,34 +54,42 @@ data class RecoveryZones(
 class HpMpRecoveryService @Inject constructor() {
 
     /**
-     * 判断弟子当前 HP 与 MP 是否均已达到上限。
+     * 判断弟子当前 HP 与 MP 是否均已达到上限（含血炼口径，2026-08-06 途中发现修复）。
+     *
+     * 血炼进战斗后弟子常态上限为含血炼 finalStats maxHp/maxMp；若按基础上限
+     * （disciple.maxHp）判满，血炼弟子会少恢复差额血即被判定"满血"（突破门槛/
+     * 战前恢复提前跳过）。
      *
      * 当 currentHp/currentMp 为负数时视为满值（用于标记特殊状态）。
      *
      * @param disciple 待判断的弟子
+     * @param state 可变游戏状态（读装备/功法/熟练度/血炼记录）
      * @return true 表示 HP 与 MP 均已满；false 表示未满
      */
-    fun isDiscipleFullHpMp(disciple: Disciple): Boolean {
-        val hp = if (disciple.combat.currentHp < 0) disciple.maxHp else disciple.combat.currentHp
-        val mp = if (disciple.combat.currentMp < 0) disciple.maxMp else disciple.combat.currentMp
-        return hp >= disciple.maxHp && mp >= disciple.maxMp
+    fun isDiscipleFullHpMp(disciple: Disciple, state: MutableGameState): Boolean {
+        val (maxHp, maxMp) = DiscipleStatCalculator.battleWritebackMaxHpMp(state, disciple)
+        val hp = if (disciple.combat.currentHp < 0) maxHp else disciple.combat.currentHp
+        val mp = if (disciple.combat.currentMp < 0) maxMp else disciple.combat.currentMp
+        return hp >= maxHp && mp >= maxMp
     }
 
     /**
-     * 判断指定 ID 弟子当前 HP 与 MP 是否均已达到上限（基于 Tables 查询）。
+     * 判断指定 ID 弟子当前 HP 与 MP 是否均已达到上限（基于 Tables 查询，含血炼口径）。
      *
      * 当 currentHps/currentMps 为负数时视为满值（用于标记特殊状态）。
      *
      * @param id 弟子 ID
      * @param tables 弟子数据表，提供当前与基础 HP/MP
+     * @param state 可变游戏状态（读装备/功法/熟练度/血炼记录）
      * @return true 表示 HP 与 MP 均已满；false 表示未满
      */
-    fun isDiscipleFullHpMp(id: Int, tables: DiscipleTables): Boolean {
+    fun isDiscipleFullHpMp(id: Int, tables: DiscipleTables, state: MutableGameState): Boolean {
+        val (maxHp, maxMp) = DiscipleStatCalculator.battleWritebackMaxHpMp(state, tables.assemble(id))
         val curHp = tables.currentHps[id]
         val curMp = tables.currentMps[id]
-        val hp = if (curHp < 0) tables.baseHps[id] else curHp
-        val mp = if (curMp < 0) tables.baseMps[id] else curMp
-        return hp >= tables.baseHps[id] && mp >= tables.baseMps[id]
+        val hp = if (curHp < 0) maxHp else curHp
+        val mp = if (curMp < 0) maxMp else curMp
+        return hp >= maxHp && mp >= maxMp
     }
 
     /**
@@ -114,7 +122,10 @@ class HpMpRecoveryService @Inject constructor() {
 
             val disciple = tables.assemble(id)
             val proficiencyMap = allProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap()
-            val finalStats = DiscipleStatCalculator.getFinalStats(disciple, equipmentMap, manualMap, proficiencyMap)
+            val finalStats = DiscipleStatCalculator.getFinalStats(
+                disciple, equipmentMap, manualMap, proficiencyMap,
+                state.gameData.bloodRefinementPctTotals[disciple.id]
+            )
             val maxHp = finalStats.maxHp
             val maxMp = finalStats.maxMp
 
@@ -162,7 +173,8 @@ class HpMpRecoveryService @Inject constructor() {
         val allProficiencies = state.gameData.manualProficiencies
         val proficiencyMap = allProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap()
         val finalStats = DiscipleStatCalculator.getFinalStats(
-            disciple, eqMap, mMap, proficiencyMap
+            disciple, eqMap, mMap, proficiencyMap,
+            state.gameData.bloodRefinementPctTotals[disciple.id]
         )
         val maxHp = finalStats.maxHp
         val maxMp = finalStats.maxMp
@@ -224,7 +236,8 @@ class HpMpRecoveryService @Inject constructor() {
             manualIds = tables.manualIds.getOrNull(id) ?: emptyList(),
             pillEffectDuration = tables.pillEffectDurations[id],
             pillHpBonus = tables.pillHpBonuses[id],
-            pillMpBonus = tables.pillMpBonuses[id]
+            pillMpBonus = tables.pillMpBonuses[id],
+            bloodRefinementPct = state.gameData.bloodRefinementPctTotals[id.toString()]
         )
         val eqMap = equipmentMap ?: state.equipmentInstances.associateBy { it.id }
         val mMap = manualMap ?: state.manualInstances.associateBy { it.id }
@@ -247,39 +260,6 @@ class HpMpRecoveryService @Inject constructor() {
         if (newHp != curHp) { tables.currentHps[id] = newHp; wrote = true }
         if (newMp != curMp) { tables.currentMps[id] = newMp; wrote = true }
         return wrote
-    }
-
-    /**
-     * 月度 HP/MP 恢复（月结制专用）。
-     * 每旬 multiplier=10，每月 3 旬 → 月度 multiplier=30。
-     * @param tables 弟子数据表
-     * @param id 弟子 ID
-     * @param focusedPhaseCount 本月焦点域已处理的旬数，用于扣除已应用的恢复
-     * @param zones 恢复乘区（可选，默认为无额外加成）
-     */
-    fun recoverMonthlyHpMp(
-        tables: DiscipleTables, id: Int,
-        focusedPhaseCount: Int = 0,
-        zones: RecoveryZones = RecoveryZones()
-    ) {
-        val curHp = tables.currentHps[id]
-        val curMp = tables.currentMps[id]
-        if (curHp < 0 && curMp < 0) return
-
-        // 扣除已在焦点域旬结算中应用的部分，避免双计
-        val monthlyMultiplier = (30.0 - focusedPhaseCount * 10).coerceAtLeast(0.0)
-        if (monthlyMultiplier <= 0.0) return
-
-        val maxHp = tables.baseHps[id]
-        val maxMp = tables.baseMps[id]
-
-        val hpRecovery = zones.calculateRecovery(maxHp, monthlyMultiplier)
-        val mpRecovery = zones.calculateRecovery(maxMp, monthlyMultiplier)
-        val newHp = if (curHp < 0) curHp else (curHp + hpRecovery).coerceAtMost(maxHp)
-        val newMp = if (curMp < 0) curMp else (curMp + mpRecovery).coerceAtMost(maxMp)
-
-        if (newHp != curHp) tables.currentHps[id] = newHp
-        if (newMp != curMp) tables.currentMps[id] = newMp
     }
 
     /**
@@ -312,12 +292,17 @@ class HpMpRecoveryService @Inject constructor() {
             val disciple = tables.assemble(id)
             var curHp = tables.currentHps[id]
             var curMp = tables.currentMps[id]
-            if (curHp >= disciple.maxHp && curMp >= disciple.maxMp) continue
 
             val discipleProficiencies = allProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap()
-            val finalStats = DiscipleStatCalculator.getFinalStats(disciple, equipmentMap, manualMap, discipleProficiencies)
+            val finalStats = DiscipleStatCalculator.getFinalStats(
+                disciple, equipmentMap, manualMap, discipleProficiencies,
+                state.gameData.bloodRefinementPctTotals[disciple.id]
+            )
             val maxHp = finalStats.maxHp
             val maxMp = finalStats.maxMp
+            // 满血判定用含血炼口径（P2 对抗性审查修复）——原 disciple.maxHp（基础）会把
+            // 血炼差额血量误判为已满，战前恢复跳过导致少血入场
+            if (curHp >= maxHp && curMp >= maxMp) continue
             val hpRecovery = zones.calculateRecovery(maxHp, multiplier)
             val mpRecovery = zones.calculateRecovery(maxMp, multiplier)
             curHp = if (curHp < 0) curHp else (curHp + hpRecovery).coerceAtMost(maxHp)

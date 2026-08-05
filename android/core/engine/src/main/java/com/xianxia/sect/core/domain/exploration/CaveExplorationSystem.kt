@@ -21,7 +21,8 @@ object CaveExplorationSystem {
         playerEquipmentMap: Map<String, EquipmentInstance>,
         playerManualMap: Map<String, ManualInstance>,
         playerManualProficiencies: Map<String, Map<String, ManualProficiencyData>>,
-        cave: CultivatorCave
+        cave: CultivatorCave,
+        bloodRefinementMap: Map<String, BloodRefinementPctTotal> = emptyMap()
     ): Battle {
         val playerCombatants = playerDisciples.map { disciple ->
             val discipleEquipment = buildMap {
@@ -32,7 +33,10 @@ object CaveExplorationSystem {
             }
             val discipleManuals = disciple.manualIds.mapNotNull { id -> playerManualMap[id]?.let { id to it } }.toMap()
             val discipleProficiencies = playerManualProficiencies[disciple.id] ?: emptyMap()
-            val stats = disciple.getFinalStats(discipleEquipment, discipleManuals, discipleProficiencies)
+            val stats = disciple.getFinalStats(
+                discipleEquipment, discipleManuals, discipleProficiencies,
+                bloodRefinementMap[disciple.id]
+            )
             val effectiveHp = if (disciple.combat.currentHp < 0) stats.maxHp else disciple.combat.currentHp.coerceAtMost(stats.maxHp)
             val effectiveMp = if (disciple.combat.currentMp < 0) stats.maxMp else disciple.combat.currentMp.coerceAtMost(stats.maxMp)
             val skills = disciple.manualIds.mapNotNull { manualId ->
