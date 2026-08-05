@@ -257,6 +257,15 @@
 - **测试** — 新增 HeavenlyTrialClaimRewardTest 6 用例（装备/功法落堆叠轨道、年度来源 trial:5、重复领取、未通关、容量满整体回滚凭据保留）+ TrialTestStore（COW 副本 + 重入缓冲模拟 GameStateStoreImpl 事务语义）；验证：compileReleaseKotlin + 试炼/守卫测试通过
 - **途中发现登记** — 调查中发现的 3 项遗留问题（弟子储物袋手写合并路径 P-19 / 守卫不扫描 domain 模块 P-20 / 签到"事务回滚"注释不符 P-21）登记至 architecture.md 待完成项，另行立项处理
 
+### 修复（2026-08-05 Bugly 崩溃批次 #11021/#14002/#13014/#3107/#11017）
+
+- **读档/保存协程 lateinit job 竞态根治（#11021/#14002，各 11 次）** — SaveLoadViewModel 4 处 `lateinit var job` 捕获模式：launch 入队与调用线程赋值之间的窗口内，空闲 IO worker（LimitedDispatcher）抢跑执行协程体，实参求值读未赋值 lateinit 抛 UninitializedPropertyAccessException（C4 注释"协程体在注册后执行"论断有误）。修复：删除 lateinit 捕获，perform* 内部 `coroutineContext[Job]` 自取身份（与 launch 返回同一实例，clearActiveLoadJob 的 `===` 归属判定语义等价），finally 的 resetOwnedLoadState 同步去参；新增 Dispatchers.Unconfined 竞态回归测试（Unconfined 下协程体同步先于赋值执行，旧代码必崩，确定性复现）
+- **生产槽位 null 元素三层净化（#13014）** — 损坏存档可能向 productionSlots 注入运行时 null：GameEngineCoordination.loadData 入口净化（须在 fixAlchemyForgeSlotCount 访问 buildingType 之前，行 991）+ gameData.productionSlots 副本同步净化（保护 ProductionProcessor/StorageEngine 直读）+ ProductionSlotRepository 三个外部进入点（initialize/loadSlots/restoreSlots）sanitizeSlots（DomainLog 记录净化数）+ SlotCache.updateCache 收口（无 null 保持引用同一性，dirty 快速路径不退化）；经 Repository 读取的全部迭代点（ProductionProcessor:70/83/1054/1080、DiscipleSlotManager、SaveService、CombatService、BuildingService）统一覆盖；新增 RepositoryModelsTest/ProductionSlotRepositorySanitizeTest 用例（unchecked cast 注入运行时 null）
+- **SessionManager 加密存储恢复/降级（#3107）** — 主密钥损坏（ErrorCode -33 Invalid key blob）时 MasterKey.Builder.build() 抛 KeyStoreException，Hilt @Singleton 注入（MainActivity 启动路径）零兜底直接闪退。修复：createSessionPrefs 恢复链——明文 fallback 有降级标记直接返回（防每次启动重复失败流程）→ 加密创建失败删损坏密钥（`_androidx_security_master_key_`）+ deleteSharedPreferences 重建 → 重建仍失败降级明文并持久化标记；15 属性 + 3 方法接口零变化；数据敏感度低（登录态/隐私同意/音效开关）丢失可接受（重新同意隐私）；新增 SessionManagerTest 2 用例（Robolectric + 注入必然失败的 builder）；成功路径分支依赖真实 Keystore 不可单测，代码审查覆盖
+- **ActionMode 拦截窗口前移（#11017，44 次）** — ColorOS/Oplus FloatingActionMode 文本选择工具栏在窗口 token 失效后仍 show PopupWindow 抛 BadTokenException：已创建的 ActionMode 的 reposition/show 由系统消息队列驱动（不经 window callback），现有 onStop 置位与已 post 的 show 消息存在竞态，且未走 onStop 的快速销毁路径不拦截。修复：finishActiveActionMode/resetForResume 挂钩从 onStop/onStart 提前到 onPause/onResume（MainActivity/GameActivity 对称，幂等，onStart/onStop 既有调用保留；游戏全屏沉浸无分屏场景，UX 可接受）；ActionModeSafeCallback 本体零改动
+- **验证** — compileReleaseKotlin + 定点测试（SessionManagerTest/RepositoryModelsTest/ProductionSlotRepositorySanitizeTest/SaveLoadViewModelLoadTest）全绿 + 全量测试串行回归
+- **不可修项如实登记** — #9072（AOSP ClientTransactionListenerController.onContextConfigurationPreChanged 系统组件 NPE，调用链无应用代码，应用层不可修）、#3110（libart SignalCatcher SIGQUIT 线程 dump 痕迹，ANR 上报误报）、#3055（libhwui 无符号崩溃，Vulkan 六层防御 + HWUI 降级已覆盖的旧版本残余）、#9069（TapTap lateinit context，5 层防御 2026-07 已上线——crash guard/反射兜底/双检/按钮门控/manifest provider 移除，崩溃时间在防御上线后，疑似旧版本残余，下版本继续观察）
+
 ## [4.0.85] - 2026-08-02
 
 ### 新增（2026-08-02 一键拆除建筑）

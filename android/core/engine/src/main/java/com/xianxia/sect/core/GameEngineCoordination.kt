@@ -275,6 +275,20 @@ suspend fun GameEngine.loadData(
         com.xianxia.sect.core.engine.service.RecruitService.resetAutoRecruitIdle()
         com.xianxia.sect.core.engine.service.RecruitService.resetAutoRejectIdle()
         val (migratedGameData, migratedDisciples) = migratePatrolSlotsIfNeeded(gameData, disciples)
+        // 防御（Bugly #13014）：损坏存档可能携带 null 生产槽位元素——
+        // 在 fixAlchemyForgeSlotCount（内部访问 buildingType）与
+        // gameData.productionSlots 直读（ProductionProcessor/StorageEngine）之前净化
+        @Suppress("SENSELESS_COMPARISON")
+        val safeGameData = if (migratedGameData.productionSlots.any { it == null }) {
+            val cleaned = migratedGameData.productionSlots.filterNotNull()
+            DomainLog.w(
+                "GameEngine",
+                "loadData: 净化 ${migratedGameData.productionSlots.size - cleaned.size} 个 null 生产槽位"
+            )
+            migratedGameData.copy(productionSlots = cleaned)
+        } else {
+            migratedGameData
+        }
         // 防御性幽灵过滤：读档时清除 name 为空的幽灵弟子（补充 SaveValidator 的保护）
         val cleanedDisciples = migratedDisciples.filter { it.name.isNotBlank() }
         if (cleanedDisciples.size != migratedDisciples.size) {
@@ -285,7 +299,7 @@ suspend fun GameEngine.loadData(
         // （防旧存档 LazyGrid key="" 重复崩溃，Bugly #5079/#3091）
         val idSafeDisciples = normalizeDiscipleIds(cleanedDisciples)
         stateStore.loadFromSnapshot(
-            gameData = migratedGameData, disciples = idSafeDisciples,
+            gameData = safeGameData, disciples = idSafeDisciples,
             equipmentStacks = equipmentStacks, equipmentInstances = equipmentInstances,
             manualStacks = manualStacks, manualInstances = manualInstances, pills = pills,
             materials = materials, herbs = herbs, seeds = seeds, storageBags = storageBags,
@@ -327,7 +341,10 @@ suspend fun GameEngine.loadData(
         DomainLog.d("GameEngine", "loadData: restored game year=${gameData.gameYear}, ${disciples.size} disciples, recruitList=$restoredRecruitCount unrecruited disciples")
         val alchemyCount = BuildingFeatureRegistry.countByType(gameData, BuildingType.ALCHEMY)
         val forgeCount = BuildingFeatureRegistry.countByType(gameData, BuildingType.FORGE)
-        val fixedProductionSlots = fixAlchemyForgeSlotCount(productionSlots, alchemyCount, forgeCount)
+        // 防御（Bugly #13014）：loadData 参数列表可能携带 null（旧调用方/损坏存档），
+        // 净化后再交给 fixAlchemyForgeSlotCount（内部访问 buildingType）
+        val safeProductionSlots = productionSlots.filterNotNull()
+        val fixedProductionSlots = fixAlchemyForgeSlotCount(safeProductionSlots, alchemyCount, forgeCount)
         if (fixedProductionSlots.isNotEmpty()) {
             productionCoordinator.repository.restoreSlots(fixedProductionSlots, gameData.currentSlot)
         } else {

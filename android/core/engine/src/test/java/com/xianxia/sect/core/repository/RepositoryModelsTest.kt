@@ -271,4 +271,22 @@ class RepositoryModelsTest {
     fun worldRepository_defaultSlotId() {
         assertEquals(0, 0)
     }
+
+    // ==================== null 元素净化（Bugly #13014）====================
+
+    @Test
+    fun `slotCache updateCache - 含 null 元素时过滤后建索引`() {
+        val cache = SlotCache()
+        val forgeSlot = ProductionSlot.createIdle(slotIndex = 0, buildingType = BuildingType.FORGE, buildingId = "forge")
+        // 非空类型列表通过 unchecked cast 注入运行时 null（模拟损坏存档反序列化）
+        @Suppress("UNCHECKED_CAST")
+        val dirtySlots = listOf<ProductionSlot?>(null, forgeSlot) as List<ProductionSlot>
+
+        cache.updateCache(dirtySlots)
+
+        assertEquals(1, cache.getAll().size)
+        assertEquals(1, cache.getByBuildingId("forge").size)
+        assertEquals(1, cache.getStatistics().total)
+        assertEquals(0, cache.getByType(BuildingType.ALCHEMY).size)
+    }
 }

@@ -569,6 +569,10 @@ class GameActivity : ComponentActivity() {
         saveLoadViewModel.pauseForBackground()
         backgroundTaskScheduler.pause()
         wakeLockManager.release()
+        // Bugly #11017：finish 置位从 onStop 提前到 onPause——已创建的
+        // FloatingActionMode 的 reposition/show 由系统消息队列驱动（不经 window
+        // callback），onStop 时 finish 与已 post 的 show 存在竞态；onPause 即离场
+        actionModeTracker?.finishActiveActionMode()
         super.onPause()
     }
 
@@ -591,6 +595,8 @@ class GameActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // 回到前台立即恢复文本选择能力（onPause 提前置位后的配套复位）
+        actionModeTracker?.resetForResume()
         hideSystemBars()
         frameMetricsMonitor.startMonitoring(window)
         if (audioConfig.musicEnabled) {

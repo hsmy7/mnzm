@@ -23,8 +23,13 @@ class SlotCache {
 
     fun updateCache(slots: List<ProductionSlot>) {
         synchronized(lock) {
-            if (!dirty && this.slots === slots) return
-            this.slots = slots
+            // 防御（Bugly #13014）：读档/旧实现可能向列表注入 null 元素，
+            // 净化后再建索引（null 元素会在 rebuildIndexes 访问 buildingType 时崩）。
+            // 无 null 时保持引用同一性，dirty 快速路径不退化
+            @Suppress("SENSELESS_COMPARISON") // 非空类型上运行时仍可检测 Java/反序列化注入的 null
+            val sanitized = if (slots.any { it == null }) slots.filterNotNull() else slots
+            if (!dirty && this.slots === sanitized) return
+            this.slots = sanitized
             rebuildIndexes()
             dirty = false
         }

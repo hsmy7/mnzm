@@ -75,7 +75,7 @@ class ProductionSlotRepository @Inject constructor(
 
     fun initialize() {
         globalMutex.withLock {
-            val loaded = dao.getAllSync()
+            val loaded = sanitizeSlots(dao.getAllSync())
             _slots.value = loaded
             cache.updateCache(loaded)
             DomainLog.d(TAG, "Initialized with ${loaded.size} slots")
@@ -83,11 +83,12 @@ class ProductionSlotRepository @Inject constructor(
     }
 
     suspend fun loadSlots(slots: List<ProductionSlot>) {
+        val sanitized = sanitizeSlots(slots)
         globalMutex.withLock {
-            _slots.value = slots
-            cache.updateCache(slots)
+            _slots.value = sanitized
+            cache.updateCache(sanitized)
         }
-        dao.insertAll(slots)
+        dao.insertAll(sanitized)
     }
 
     fun getSlots(): List<ProductionSlot> = _slots.value
@@ -382,13 +383,14 @@ class ProductionSlotRepository @Inject constructor(
     }
 
     suspend fun restoreSlots(slots: List<ProductionSlot>, slotId: Int) {
+        val sanitized = sanitizeSlots(slots)
         globalMutex.withLock {
-            _slots.value = slots
-            cache.updateCache(slots)
+            _slots.value = sanitized
+            cache.updateCache(sanitized)
         }
         dao.deleteBySlot(slotId)
-        dao.insertAll(slots)
-        DomainLog.d(TAG, "Restored ${slots.size} slots from save data for slotId=$slotId")
+        dao.insertAll(sanitized)
+        DomainLog.d(TAG, "Restored ${sanitized.size} slots from save data for slotId=$slotId")
     }
 
     fun getStatistics(): SlotCacheStatistics {
@@ -398,6 +400,20 @@ class ProductionSlotRepository @Inject constructor(
     fun isCacheDirty(): Boolean = cache.isDirty()
     
     fun getLockStatistics() = shardedLock.getLockStatistics()
+
+    /**
+     * 净化外部数据源（读档/DAO）携带的 null 槽位元素（Bugly #13014）。
+     * 非空类型上的 null 比较是编译器警告但运行时正确——null 只可能由
+     * 损坏存档反序列化或旧版本写入产生。
+     */
+    @Suppress("SENSELESS_COMPARISON")
+    private fun sanitizeSlots(slots: List<ProductionSlot>): List<ProductionSlot> {
+        val sanitized = if (slots.any { it == null }) slots.filterNotNull() else slots
+        if (sanitized.size != slots.size) {
+            DomainLog.w(TAG, "净化 ${slots.size - sanitized.size} 个 null 生产槽位")
+        }
+        return sanitized
+    }
 }
 
 data class SlotUpdate(

@@ -27,6 +27,7 @@ import io.mockk.unmockkAll
 import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -460,5 +461,36 @@ class SaveLoadViewModelLoadTest {
         viewModel.restartGame()
         advanceUntilIdle()
         coVerify(exactly = 1) { gameEngineCore.registerActiveLoadJob(any()) }
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // Bugly #11021/#14002：lateinit job 竞态——Unconfined 下协程体先于赋值执行
+    // ──────────────────────────────────────────────────────────────────
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `loadGame - 协程体先于 lateinit job 赋值同步执行不崩溃`() = runTest(testDispatcher) {
+        // Bugly #11021/#14002 回归：Unconfined 下 launch 协程体在 launch() 返回前
+        // 同步执行（模拟空闲 IO worker 抢跑）——旧代码实参求值读 lateinit job 抛
+        // UninitializedPropertyAccessException；修复后协程体不再捕获 job。
+        val unconfinedVm = SaveLoadViewModel(
+            gameEngine = gameEngine,
+            gameEngineCore = gameEngineCore,
+            stateStore = stateStore,
+            coroutineScopeProvider = coroutineScopeProvider,
+            gameClock = gameClock,
+            resourcePreloader = resourcePreloader,
+            persistenceFacade = persistenceFacade,
+            ioDispatcher = IoDispatcher(Dispatchers.Unconfined)
+        )
+        // setSaveLoadState 评估 isSaving.value——relaxed mock 返回 Object 必崩
+        every { stateStore.isSaving } returns MutableStateFlow(false)
+
+        // 旧代码此处同步抛 UninitializedPropertyAccessException → 测试失败即回归复现
+        unconfinedVm.loadGame(com.xianxia.sect.data.model.SaveSlot(1, "", 0L, 1, 1, "", 0, 0L))
+        runCurrent()
+
+        coVerify { gameEngineCore.registerActiveLoadJob(any()) }
+        coVerify { storageFacade.load(1) }
     }
 }

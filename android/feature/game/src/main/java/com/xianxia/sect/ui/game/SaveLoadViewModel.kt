@@ -242,7 +242,11 @@ class SaveLoadViewModel @Inject constructor(
      * 被新操作取代的协程（owned=false）不复位标志、不清理注册，避免旧协程 finally
      * 抹掉新操作的在途状态；S1 语义保留（NonCancellable 保证取消路径复位）。
      */
-    private suspend fun resetOwnedLoadState(job: Job, operation: String) {
+    private suspend fun resetOwnedLoadState(operation: String) {
+        // Bugly #11021/#14002：身份从调用方传入改为协程体自取——
+        // 本函数仅在 perform* 的 finally 内调用（必在 launch 协程体内），
+        // coroutineContext[Job] 与 launch 返回的 job 是同一实例
+        val job = kotlin.coroutines.coroutineContext[Job] ?: return
         val owned = gameEngineCore.clearActiveLoadJob(job)
         if (!owned) return
         try {
@@ -377,12 +381,13 @@ class SaveLoadViewModel @Inject constructor(
         Log.i(TAG, "=== startNewGame BEGIN === sectName=$sectName, slot=$slot")
         val startTime = System.currentTimeMillis()
 
-        // C4（2026-08-05）：lateinit 捕获 job 传入 perform*——finally 归属清理需要身份；
-        // 协程体运行前 lateinit 已赋值（launch 的协程体在注册之后才开始执行），安全
-        lateinit var job: Job
-        job = viewModelScope.launch(ioDispatcher.dispatcher) {
+        // Bugly #11021/#14002：不再用 lateinit 捕获 job 传入协程体——空闲 IO worker
+        // 可能先于调用线程赋值执行协程体，实参求值读 lateinit 即抛
+        // UninitializedPropertyAccessException（Dispatchers.IO 是 LimitedDispatcher，
+        // 与崩溃栈吻合）。身份清理改为 perform* 内部 coroutineContext[Job] 自取
+        val job = viewModelScope.launch(ioDispatcher.dispatcher) {
             // C-8：新游戏主流程提取（行为逐行一致）
-            performStartNewGame(sectName, slot, startTime, job)
+            performStartNewGame(sectName, slot, startTime)
         }
         gameEngineCore.registerActiveLoadJob(job)
     }
@@ -391,7 +396,7 @@ class SaveLoadViewModel @Inject constructor(
      * C-8：新游戏主流程（startNewGame 协程体提取）。
      * 创建新游戏 → RNG 播种 → 首存（失败重试一次）→ BootSequenceController 启动。
      */
-    private suspend fun performStartNewGame(sectName: String, slot: Int, startTime: Long, job: Job) {
+    private suspend fun performStartNewGame(sectName: String, slot: Int, startTime: Long) {
             var needSlotRefresh = false
             var gameStarted = false
             try {
@@ -465,7 +470,7 @@ class SaveLoadViewModel @Inject constructor(
             } finally {
                 // S1 修复：NonCancellable 保证取消路径复位（详见 performLoadToSlot finally 注释）
                 // C4（2026-08-05）：归属化复位（被取代的协程不复位标志/不清理）
-                resetOwnedLoadState(job, "startNewGame")
+                resetOwnedLoadState("startNewGame")
                 if (!gameStarted) {
                     _loadingProgress.value = PROGRESS_START
                 }
@@ -589,11 +594,11 @@ class SaveLoadViewModel @Inject constructor(
             "year=${saveSlot.gameYear}, month=${saveSlot.gameMonth}")
         val startTime = System.currentTimeMillis()
 
-        // C4（2026-08-05）：lateinit 捕获 job 传入 perform*（归属清理需要身份）
-        lateinit var job: Job
-        job = viewModelScope.launch(ioDispatcher.dispatcher) {
+        // Bugly #11021/#14002：job 身份由 perform* 内部 coroutineContext[Job] 自取，
+        // 不再 lateinit 捕获（避免 IO worker 抢跑读未赋值 lateinit）
+        val job = viewModelScope.launch(ioDispatcher.dispatcher) {
             // C-8：读档主流程提取（行为逐行一致）
-            performLoadToSlot(saveSlot, startTime, job)
+            performLoadToSlot(saveSlot, startTime)
         }
         gameEngineCore.registerActiveLoadJob(job)
     }
@@ -602,7 +607,7 @@ class SaveLoadViewModel @Inject constructor(
      * C-8：读档主流程（loadGame 协程体提取）。
      * 读取存档 → 引擎加载 → RNG 恢复 → BootSequenceController 启动。
      */
-    private suspend fun performLoadToSlot(saveSlot: SaveSlot, startTime: Long, job: Job) {
+    private suspend fun performLoadToSlot(saveSlot: SaveSlot, startTime: Long) {
             try {
                 setSaveLoadState(isLoading = true, pendingSlot = saveSlot.slot, pendingAction = "load")
 
@@ -711,7 +716,7 @@ class SaveLoadViewModel @Inject constructor(
                 // 看门狗取消协程后挂起调用立即抛 CancellationException 截断 finally，
                 // 导致 loadLock 泄漏（读档永久拒绝）与 isSaving/isLoading 永不复位。
                 // C4（2026-08-05）：归属化复位（被取代的协程不复位标志）；loadLock 为操作私有无条件释放
-                resetOwnedLoadState(job, "loadGame")
+                resetOwnedLoadState("loadGame")
                 loadLock.set(false)
             }
     }
@@ -887,12 +892,12 @@ class SaveLoadViewModel @Inject constructor(
         Log.i(TAG, "=== saveGame BEGIN === slot=$slot, slotId=$slotId")
         val startTime = System.currentTimeMillis()
 
-        // C4（2026-08-05）：lateinit 捕获 job 传入 perform*（归属清理需要身份）
-        lateinit var job: Job
-        job = viewModelScope.launch(ioDispatcher.dispatcher) {
+        // Bugly #11021/#14002：job 身份由 perform* 内部 coroutineContext[Job] 自取，
+        // 不再 lateinit 捕获（避免 IO worker 抢跑读未赋值 lateinit）
+        val job = viewModelScope.launch(ioDispatcher.dispatcher) {
             // C-8：本地保存流程提取（行为逐行一致）
             val previousSlot = persistenceFacade.storageFacade.getCurrentSlot()
-            performLocalSaveToSlot(slot, previousSlot, startTime, job)
+            performLocalSaveToSlot(slot, previousSlot, startTime)
         }
         gameEngineCore.registerActiveLoadJob(job) // T14（2026-08-05）：保存协程注册，看门狗可取消复位
     }
@@ -901,7 +906,7 @@ class SaveLoadViewModel @Inject constructor(
      * C-8：本地保存主流程（saveGame 协程体提取）。
      * 快照 → 校验 → 保存 → 结果反馈 → 失败回滚 currentSlot。
      */
-    private suspend fun performLocalSaveToSlot(slot: Int, previousSlot: Int, startTime: Long, job: Job) {
+    private suspend fun performLocalSaveToSlot(slot: Int, previousSlot: Int, startTime: Long) {
             setSaveLoadState(isSaving = true, pendingSlot = slot, pendingAction = "save")
 
             try {
@@ -976,7 +981,7 @@ class SaveLoadViewModel @Inject constructor(
             } finally {
                 // S1 修复：NonCancellable 保证取消路径复位（详见 performLoadToSlot finally 注释）
                 // C4（2026-08-05）：归属化复位（被取代的协程不复位标志）
-                resetOwnedLoadState(job, "saveGame")
+                resetOwnedLoadState("saveGame")
             }
     }
 
@@ -1094,11 +1099,11 @@ class SaveLoadViewModel @Inject constructor(
         // 关闭 "saveLock 已抢但协程未启动" 窗口内 load/save 的穿入
         _isRestarting.value = true
 
-        // C4（2026-08-05）：lateinit 捕获 job 传入 perform*（归属清理需要身份）
-        lateinit var job: Job
-        job = viewModelScope.launch(ioDispatcher.dispatcher) {
+        // Bugly #11021/#14002：job 身份由 perform* 内部 coroutineContext[Job] 自取，
+        // 不再 lateinit 捕获（避免 IO worker 抢跑读未赋值 lateinit）
+        val job = viewModelScope.launch(ioDispatcher.dispatcher) {
             // C-8：重启主流程提取（行为逐行一致）
-            performRestartGame(wasRunning = _isTimeRunning.value, job = job)
+            performRestartGame(wasRunning = _isTimeRunning.value)
         }
         gameEngineCore.registerActiveLoadJob(job)
     }
@@ -1107,7 +1112,7 @@ class SaveLoadViewModel @Inject constructor(
      * C-8：重启主流程（restartGame 协程体提取）。
      * 停止循环 → 重置引擎 → RNG 重新播种 → 重启存档 → BootSequenceController 启动。
      */
-    private suspend fun performRestartGame(wasRunning: Boolean, job: Job) {
+    private suspend fun performRestartGame(wasRunning: Boolean) {
             var previousSlot = 1
             try {
                 _isRestarting.value = true
@@ -1197,7 +1202,7 @@ class SaveLoadViewModel @Inject constructor(
                 // C4 修复（2026-08-05）：restart 补上归属化清理 + 标志复位——
                 // 原实现漏调 clearActiveLoadJob，且取消路径（isSaving=true 后
                 // CancellationException）不复位标志导致 isSaving 泄漏
-                resetOwnedLoadState(job, "restartGame")
+                resetOwnedLoadState("restartGame")
                 saveLock.set(false)
                 // 兜底：若 boot() 未执行（提前 return），则仅记录日志
                 // BootSequenceController.boot() 在内部已处理游戏循环恢复
