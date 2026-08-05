@@ -28,20 +28,20 @@ class BattleCalculatorCoverageTest {
 
     @Test
     fun `checkInstantKill - attacker 2 realms higher returns true`() {
-        // 高境界压制低境界（大境界差 2 > 1 触发）
+        // 高境界压制低境界（realm 数值小=境界高：attacker=3 高于 defender=5，大境界差 2 > 1 触发）
         assertTrue(
             BattleCalculator.checkInstantKill(
-                attackerRealm = 2, defenderRealm = 0, attackerLayer = 1, defenderLayer = 1
+                attackerRealm = 3, defenderRealm = 5, attackerLayer = 1, defenderLayer = 1
             )
         )
     }
 
     @Test
     fun `checkInstantKill - defender 2 realms higher returns false`() {
-        // 低境界攻击高境界不得触发斩杀（原公式方向反转守卫）
+        // 低境界攻击高境界不得触发斩杀（attacker=5 低于 defender=3，方向反转守卫）
         assertFalse(
             BattleCalculator.checkInstantKill(
-                attackerRealm = 0, defenderRealm = 2, attackerLayer = 1, defenderLayer = 1
+                attackerRealm = 5, defenderRealm = 3, attackerLayer = 1, defenderLayer = 1
             )
         )
     }
@@ -56,7 +56,7 @@ class BattleCalculatorCoverageTest {
         )
         assertFalse(
             BattleCalculator.checkInstantKill(
-                attackerRealm = 3, defenderRealm = 3, attackerLayer = 9, defenderLayer = 0
+                attackerRealm = 3, defenderRealm = 3, attackerLayer = 1, defenderLayer = 9
             )
         )
     }
@@ -66,14 +66,14 @@ class BattleCalculatorCoverageTest {
         // 攻击方高 2 大境界但层数低：总小层差 = 18 - 8 = 10 > 9
         assertTrue(
             BattleCalculator.checkInstantKill(
-                attackerRealm = 4, defenderRealm = 2, attackerLayer = 1, defenderLayer = 9
+                attackerRealm = 2, defenderRealm = 4, attackerLayer = 1, defenderLayer = 9
             )
         )
     }
 
     @Test
     fun `calculateCombatantDamage - target realm higher than attacker does not instant kill`() {
-        val attacker = combatant(id = "weak_attacker", realm = 0, realmLayer = 1, physAtk = 500)
+        val attacker = combatant(id = "weak_attacker", realm = 5, realmLayer = 1, physAtk = 500)
         val defender = combatant(
             id = "strong_defender", realm = 2, realmLayer = 1, hp = 1000, maxHp = 1000, physDef = 10
         )
@@ -87,8 +87,8 @@ class BattleCalculatorCoverageTest {
 
     @Test
     fun `calculateCombatantDamage - attacker realm higher triggers instant kill with full hp damage`() {
-        val attacker = combatant(id = "strong_attacker", realm = 3, realmLayer = 1, physAtk = 500)
-        val defender = combatant(id = "weak_defender", realm = 1, realmLayer = 1, hp = 800, maxHp = 1000, physDef = 500)
+        val attacker = combatant(id = "strong_attacker", realm = 1, realmLayer = 1, physAtk = 500)
+        val defender = combatant(id = "weak_defender", realm = 3, realmLayer = 1, hp = 800, maxHp = 1000, physDef = 500)
         val result = BattleCalculator.calculateCombatantDamage(
             attacker, defender, null, rng = freshRng(), enableInstantKill = true
         )
@@ -248,9 +248,9 @@ class BattleCalculatorCoverageTest {
     @Test
     fun `calculateCombatantDamage - instant kill with tampered negative maxHp returns zero damage`() {
         // 存档篡改：defender.maxHp 为 0/负——斩杀伤害钳制为 0，不得出现负伤害（回血）
-        val attacker = combatant(id = "strong_attacker", realm = 3, realmLayer = 1, physAtk = 500)
-        val defender = combatant(id = "tampered_defender", realm = 1, realmLayer = 1, hp = 0, maxHp = 0, physDef = 500)
-        val negative = combatant(id = "neg_defender", realm = 1, realmLayer = 1, hp = 0, maxHp = -100, physDef = 500)
+        val attacker = combatant(id = "strong_attacker", realm = 1, realmLayer = 1, physAtk = 500)
+        val defender = combatant(id = "tampered_defender", realm = 3, realmLayer = 1, hp = 0, maxHp = 0, physDef = 500)
+        val negative = combatant(id = "neg_defender", realm = 3, realmLayer = 1, hp = 0, maxHp = -100, physDef = 500)
 
         val zeroResult = BattleCalculator.calculateCombatantDamage(
             attacker, defender, null, rng = freshRng(), enableInstantKill = true
@@ -305,8 +305,8 @@ class BattleCalculatorCoverageTest {
 
     @Test
     fun `calculateCombatantDamage - instant kill path consumes zero rng draws`() {
-        val attacker = combatant(id = "kill_attacker", realm = 3, realmLayer = 1, physAtk = 500)
-        val defender = combatant(id = "kill_defender", realm = 1, realmLayer = 1, hp = 800, maxHp = 1000, physDef = 500)
+        val attacker = combatant(id = "kill_attacker", realm = 1, realmLayer = 1, physAtk = 500)
+        val defender = combatant(id = "kill_defender", realm = 3, realmLayer = 1, hp = 800, maxHp = 1000, physDef = 500)
 
         val rngBeforeKill = DeterministicRng.fromSeed(42L)
         val rngAfterKill = DeterministicRng.fromSeed(42L)

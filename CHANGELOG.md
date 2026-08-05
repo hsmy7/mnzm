@@ -266,6 +266,13 @@
 - **验证** — compileReleaseKotlin + 定点测试（SessionManagerTest/RepositoryModelsTest/ProductionSlotRepositorySanitizeTest/SaveLoadViewModelLoadTest）全绿 + 全量测试串行回归
 - **不可修项如实登记** — #9072（AOSP ClientTransactionListenerController.onContextConfigurationPreChanged 系统组件 NPE，调用链无应用代码，应用层不可修）、#3110（libart SignalCatcher SIGQUIT 线程 dump 痕迹，ANR 上报误报）、#3055（libhwui 无符号崩溃，Vulkan 六层防御 + HWUI 降级已覆盖的旧版本残余）、#9069（TapTap lateinit context，5 层防御 2026-07 已上线——crash guard/反射兜底/双检/按钮门控/manifest provider 移除，崩溃时间在防御上线后，疑似旧版本残余，下版本继续观察）
 
+### 修复（2026-08-05 跨境界斩杀方向反转根治）
+
+- **checkInstantKill 方向反转（8-04 修复引入）** — realm 语义为"数值小=境界高"（0=仙人，9=炼气，全仓一致：REALM_SPEED_PER_PHASE/meetsRealmRequirement/maxLayers/Combatant 直传 disciple.realm 无转换）。8-04 战斗核查修复将公式从 `(defenderRealm - attackerRealm)×9` 反转为 `(attackerRealm - defenderRealm)×9`，在真实语义下变为"低境界打高境界触发斩杀、高境界无法秒杀低境界"，守卫测试 BattleCalculatorCoverageTest 按"数值大=境界高"的错误直觉写传参，把错误行为固化。本次改回 `(defenderRealm - attackerRealm)×LAYERS_PER_REALM + (attackerLayer - defenderLayer) > INSTANT_KILL_GAP×LAYERS_PER_REALM`；INSTANT_KILL_GAP 由编译期常量改为读取 GameConfigData.realmGap.instantKillGap 运行时配置（此前为死配置从未被引用）；局部魔法数字 MAX_MINOR_LAYERS=9 提取为 LAYERS_PER_REALM 常量；checkInstantKill 补 KDoc
+- **守卫测试传参修正** — BattleCalculatorCoverageTest G1 组 6 测试 + T-C2/B4 共 8 处传参按真实语义重写（高境界一方用小 realm 数值），BattleSystemTest 必杀测试弟子 realm 8→2 / 妖兽 2→8，注释统一标注"realm 数值小=境界高"防再反转；realmGapMultiplier 伤害乘区经举一反三核查方向正确（高打低加成/低打高惩罚）未改动
+- **影响面** — 全部战斗路径（BattleSystem/AISectAttackManager/HeavenlyTrialCombatLogic）统一修正：高境界弟子打低境界目标恢复秒杀（无视护盾），低境界敌人不再反向秒杀玩家高境界弟子
+- **验证** — core:engine（BattleCalculatorCoverageTest/BattleSystemTest）+ app（BattleCalculatorTest）定点全绿 + 全量测试串行回归 0 失败 + detekt（core:domain/core:engine）通过
+
 ## [4.0.85] - 2026-08-02
 
 ### 新增（2026-08-02 一键拆除建筑）

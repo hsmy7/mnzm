@@ -209,15 +209,15 @@ class BattleSystemTest {
         val disciple = combatant(
             "d1", CombatantSide.DEFENDER, hp = 5000, maxHp = 5000,
             physAtk = 100000, physDef = 50, speed = 300
-        ).copy(realm = 8)
+        ).copy(realm = 2)
         val beast = combatant(
             "b1", CombatantSide.ATTACKER, hp = 1000, maxHp = 1000,
             physAtk = 10, physDef = 10, speed = 100
         ).copy(
-            realm = 2,
+            realm = 8,
             buffs = listOf(CombatBuff(type = BuffType.SHIELD, value = 0.9, remainingDuration = 3))
         )
-        // 弟子 realm 8（高境界）斩杀 realm 2 妖兽（方向修复后触发）；妖兽带 90% 护盾
+        // 弟子 realm 2（高境界）斩杀 realm 8 妖兽（realm 数值小=境界高）；妖兽带 90% 护盾
         var result: BattleSystemResult? = null
         for (seed in 1L..20L) {
             val battle = Battle(team = listOf(disciple), beasts = listOf(beast))

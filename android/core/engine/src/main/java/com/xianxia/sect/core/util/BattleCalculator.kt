@@ -64,6 +64,10 @@ object BattleCalculator {
     private const val LOW_MP_THRESHOLD = 0.30
     private const val AOE_MIN_ENEMIES = 3
 
+    // ── 境界压制斩杀常量 ──
+    /** 每个大境界包含的小层数（所有境界 maxLayers 均为 9，见 GameConfig.Realm.CONFIGS） */
+    private const val LAYERS_PER_REALM = 9
+
     /**
      * 带 RNG 的便捷入口 — 使用 BATTLE 分区 RNG。
      * 业务逻辑入口（BattleSystem/AISectAttackManager）应通过此参数注入确定 RNG。
@@ -758,13 +762,20 @@ object BattleCalculator {
         return combatant.copy(buffs = newBuffs)
     }
 
+    /**
+     * 跨境界斩杀判定（境界压制必杀）。
+     *
+     * realm 数值越小境界越高（0=仙人，9=炼气）。总小层差距 = 大境界差×每境界层数 + 层数差
+     * （攻击方层数越高越强，差距增大；防御方层数越高越强，差距缩小）。
+     * 攻击方比防御方高 [GameConfig.Battle.RealmGap.INSTANT_KILL_GAP] 个以上大境界（层数微调）时触发斩杀。
+     *
+     * @param attackerRealm 攻击方境界（数值越小境界越高）
+     * @param defenderRealm 防御方境界（数值越小境界越高）
+     */
     fun checkInstantKill(attackerRealm: Int, defenderRealm: Int, attackerLayer: Int, defenderLayer: Int): Boolean {
-        val MAX_MINOR_LAYERS = 9
-        // 总小层差距 = 大境界差×9 + 层数差（攻击方层数越高越强，差距增大；防御方层数越高越强，差距缩小）
-        // 境界压制：攻击方比防御方高 1+ 大境界（层数微调）时触发斩杀
-        val gap = (attackerRealm - defenderRealm) * MAX_MINOR_LAYERS +
+        val gap = (defenderRealm - attackerRealm) * LAYERS_PER_REALM +
             (attackerLayer - defenderLayer)
-        return gap > MAX_MINOR_LAYERS
+        return gap > GameConfig.Battle.RealmGap.INSTANT_KILL_GAP * LAYERS_PER_REALM
     }
 
     /**

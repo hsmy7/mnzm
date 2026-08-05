@@ -616,7 +616,8 @@ object GameConfig {
                 get() = config()?.battle?.realmGap?.damageBonusPerRealm ?: 0.35
             val DAMAGE_PENALTY_PER_REALM: Double
                 get() = config()?.battle?.realmGap?.damagePenaltyPerRealm ?: 0.35
-            const val INSTANT_KILL_GAP = 1
+            val INSTANT_KILL_GAP: Int
+                get() = config()?.battle?.realmGap?.instantKillGap ?: 1
         }
     }
     
