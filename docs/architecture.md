@@ -426,7 +426,7 @@ SaveValidator.validate(SaveData)
 | P-16 | UI 迁移真机冒烟 | SettingsTab/DiscipleDetailScreen/OverlayDialogRouter | 发布前检查 4 个迁移弹窗（其他设置/年俸/存档管理/更新日志）逐一打开关闭 + OverlayDialogRouter 34 分支逐项打开一次；判定：无崩溃/白屏/交互完整/叠层路由正常 |
 | P-18 | 排行榜 rank 0/1 起始语义 | `feature/game/.../taptap/TapTapLeaderboardApi.kt` | 已做 0→1 归一化兜底（rank<1 显示 1）。真机观察：首名显示 #1 且次名重复 #1 → 服务端 1 起始，移除归一化；次名 #2 → 保留现状。抓原始 rank 与显示值对照 ≥3 次 |
 
-### 途中发现待办（2026-08-05 引擎确定性加固时登记，详见 CHANGELOG 4.00.89）
+### 途中发现待办（2026-08-05 引擎确定性加固时登记 D-01~D-06；2026-08-06 三崩溃批次对抗性审查新增 D-07~D-10，详见 CHANGELOG 4.00.89~4.00.90）
 
 > 本次实施（RNG 事务快照/UI RNG 治理/奖励统一入口/事务合并/缓存）后对抗性审查登记的未修项。P-19/P-20/P-21 已随本次实施完成（奖励收编 InventorySystem + 守卫补漏 + 签到 catch 移出事务）。
 
@@ -438,4 +438,8 @@ SaveValidator.validate(SaveData)
 | D-04 | 试炼敌人属性从随机变固定（C1 行为变化） | `core/engine/.../domain/battle/HeavenlyTrialService.kt` enemySeed | 敌人生成改确定性派生种子后：同一关卡敌人属性恒定（预览=战斗一致、零全局 RNG 污染）。产品侧确认可接受（固定挑战）；如需随机化，改为进入战斗时取种子本地生成 |
 | D-05 | `GameEngineDiplomacyOps.interactWithSect` 未实现存根 | `core/engine/.../GameEngineDiplomacyOps.kt:70` | 仅打日志"尚未实现"，全仓库无调用方（detekt-baseline 引用）。死代码，建议删除或实现外交交互 |
 | D-06 | 全库通配符 import 显式化（约 750 处） | main 482 处 + test 271 处，主要分布：`core.model.*` 125 / `foundation.layout.*` 97 / `runtime.*` 81 / `material3.*` 44 / `core.engine.*` 27 / `core.state.*` 16 / `room.*` 14 / 其余约 25 个包 | 2026-08-06 已完成示例：`LevelGenerator`/`CaveGenerator` 显式化（detekt WildcardImport 合规）；detekt 配置 `WildcardImport: active: true` 但全库未拦截（机制待查，或为预期豁免）。Compose 常用包（layout/runtime/material3 共 240+ 处）为生态惯例，`core.model.*`/`core.engine.*` 等自有包可批量显式化；机械改动低风险，另行立项 |
+| D-07 | `stopGameLoop`/`shutdown` 与 `emergencyRestartGameLoop` 无生命周期互斥（孤儿循环/双速） | `core/engine/.../GameEngineCore.kt:562-571`（stopGameLoop）/ `:584-596`（shutdown）/ `:830-866`（emergencyRestartGameLoop） | 2026-08-06 三崩溃批次对抗性审查登记（状态破坏者 F4）：CAS 只防"双 emergency"，不防"stop 与 emergency 并发"——引擎看门狗 / AlarmWatchdogReceiver / 主线程 HealthCheck 三恢复路径可并发，shutdown 与 emergency 交错时产生孤儿循环（shutdown 后新循环无人持有、无人 cancel），引擎重新 start 后可能双速推进游戏时间。修复需生命周期互斥（stopping 标志或 runState/bootPhase 门控），改动涉及生命周期层，另行立项 |
+| D-08 | `ThermalMonitor.start()/stop()` 无调用者——ADPF 热降载实际未接线 | `core/engine/.../perf/ThermalMonitor.kt` start/stop | 2026-08-06 对抗性审查登记：KDoc 声称"由 GameEngineCore 调用"但实际零调用 → monitorJob 从未启动 → `thermalState` 永远 NORMAL → `shouldReduceWorkload`/`shouldEmergencySave` 恒 false（过热降载与紧急保存机制实际未生效）。接线方案：`GameEngineCore.startGameLoop` 调 `thermalMonitor.start(engineScope)`、shutdown 调 stop；改动小、风险低，可随时实施 |
+| D-09 | `ThermalMonitor.createHintSession` 异常分支不可测 | `core/engine/.../perf/ThermalMonitor.kt` hintManager（private lazy） | 2026-08-06 三崩溃批次登记：Robolectric 下 `getSystemService(PerformanceHintManager)` 返回 null 而非抛异常，异常分支（hintManager 抛异常 → 字段复位一致）无测试覆盖。修复：hintManager 改 internal 注入或抽工厂，随后补异常路径用例 |
+| D-10 | 主线程 HWUI 阻塞无看门狗覆盖 | 三层看门狗（`GameTimeProgressMonitor` / `GameLoopDelegate` HealthCheck / `AlarmWatchdogReceiver`）均只监控"游戏时间推进" | 2026-08-06 #2037 ANR 归因时登记：主线程卡 `syncAndDrawFrame`（HWUI 绘制阻塞，非输入阻塞）无检测无恢复；阻塞中任何恢复都无法执行（事后监控价值有限）。可选演进：`FrameMetricsMonitor` 严重 jank（>50ms）接上报/降载信号（降 targetFps），属长期项 |
 
