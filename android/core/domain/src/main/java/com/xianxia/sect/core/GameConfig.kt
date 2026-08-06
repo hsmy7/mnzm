@@ -965,6 +965,29 @@ object GameConfig {
         // 宗门等级(0小型/1中型/2大型/3顶级) → 品阶区间（1凡品 2灵品 3宝品 4玄品 5地品）
         val AI_REWARD_RARITY_RANGES: List<IntRange> =
             listOf(1..2, 2..3, 3..4, 4..5)
+
+        /**
+         * 距秘境关闭的剩余月数（关闭发生在现世第 OPEN_YEARS 年 1 月的首个结算，与
+         * processMonthlyExpiryCheck 的 `year >= spawnYear + OPEN_YEARS` 判定同口径）；
+         * ≤0 表示已到期/已关闭。
+         */
+        fun remainingMonthsUntilClose(currentYear: Int, currentMonth: Int, spawnYear: Int): Int =
+            (spawnYear + OPEN_YEARS) * Time.MONTHS_PER_YEAR + 1 -
+                (currentYear * Time.MONTHS_PER_YEAR + currentMonth)
+
+        /**
+         * 剩余月数格式化为倒计时文案：`剩余 X 年 Y 月` / `剩余 X 年` / `剩余 Y 月`；
+         * 已到期（≤0）返回 null，调用方据此隐藏文本。
+         */
+        fun formatRemainingMonths(remainingMonths: Int): String? = when {
+            remainingMonths <= 0 -> null
+            remainingMonths >= Time.MONTHS_PER_YEAR -> {
+                val years = remainingMonths / Time.MONTHS_PER_YEAR
+                val months = remainingMonths % Time.MONTHS_PER_YEAR
+                if (months == 0) "剩余 $years 年" else "剩余 $years 年 $months 月"
+            }
+            else -> "剩余 $remainingMonths 月"
+        }
     }
 
     /**

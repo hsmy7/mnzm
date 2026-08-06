@@ -182,6 +182,23 @@ fun SecretRealmDetailDialog(
 
             Spacer(modifier = Modifier.height(14.dp))
 
+            // ===== 倒计时：距秘境关闭剩余时间（红色；秘境已关闭/已到期时隐藏） =====
+            val remainingMonths = gameData?.let {
+                GameConfig.SecretRealm.remainingMonthsUntilClose(
+                    it.gameYear, it.gameMonth, realm.spawnYear
+                )
+            } ?: 0
+            val countdownText = GameConfig.SecretRealm.formatRemainingMonths(remainingMonths)
+            if (gameData?.secretRealmState?.exists == true && countdownText != null) {
+                Text(
+                    text = "距离秘境关闭$countdownText",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFD32F2F)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
             // ===== 最下方：出发探索 / 继续探索 =====
             GameButton(
                 text = if (hasSession) "继续探索" else "出发探索",

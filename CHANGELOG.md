@@ -16,6 +16,7 @@
 - **邮件直发通道** — `OverflowMailSender.sendDirectMail(mail)`（非挂起入队 `ConcurrentLinkedQueue` + 防抖 drain 异步落库，失败回队重试，与溢出草稿互不合并），`MailService.distribute*Attachment` 按 `itemId` 优先模板精确发放、未命中回退按品阶随机（旧附件 `itemId=null` 行为不变）
 - **序列化零迁移** — 新内容全部落在既有 protobuf 结构内：`SecretRealmEventParams` 追加 9~12（`aiSectId`/`aiSectName`/`aiSectLevel`(非零默认值 `@EncodeDefault(ALWAYS)`)/`aiMembers`）、`SecretRealmAITeam` 追加 5（`sectLevel` 同上）；无 Room 列、无 Migration、schema 无变化
 - **测试** — `SecretRealmServiceTest` +11（5 年关闭 5 例：到期关闭背包转邮件灵石入钱包/未到期不触发/幂等/空背包无邮件/无双发放守卫；AI 遭遇 6 例：避让×2/胜利品阶件数/战败损失/全灭 WIPEOUT/无力应战直通）、`SecretRealmEventGeneratorTest` +7（四分段落点/AI 事件字段/三选项体力/空池回退 RNG 消费一致/多队伍选择/配置不变量）、`SecretRealmAIProcessorTest` +3（等级固化/未知回退小型/关闭后不再派遣）、`SecretRealmSerializationTest` +2（params/team round-trip 非零默认值守卫）、`OverflowMailSenderTest` +2（sendDirectMail 原样落库/空 id 防御）；修复：`chooseOption` 合并改基于最新 `state.gameData`（此前 `markAiTeamDefeated` 的死亡标记会被旧引用 copy 覆盖回滚——对抗性审查发现）
+- **秘境关闭倒计时** — `GameConfig.SecretRealm.remainingMonthsUntilClose`（纯函数：关闭月 = `(spawnYear + OPEN_YEARS) × 12 + 1`，与 `processMonthlyExpiryCheck` 的 `year >= spawnYear + OPEN_YEARS` 判定同口径，≤0 表示已到期）+ `formatRemainingMonths`（"剩余 X 年 Y 月"/"剩余 X 年"/"剩余 Y 月"，≤0 返回 null）；`SecretRealmDetailDialog` 在出发探索/继续探索按钮上方新增红色倒计时文本"距离秘境关闭…"，`secretRealmState.exists == false` 或已到期时隐藏（秘境关闭后文本不残留）；新增 `SecretRealmCountdownTest` 8 例（跨年 46 月/年底 1 月/关闭年 0 与负值/与月结关闭判定 5..11 年 × 12 月全量同口径/整年省略月份/不足一年仅月/到期 null）
 - 全模块 compileReleaseKotlin + 四模块单测串行（--max-workers=1）+ detekt 全部通过，Room schema 无变化
 
 ## [4.00.90] - 2026-08-06
