@@ -47,7 +47,10 @@ class BootSequenceControllerTest {
         whenever(gameEngine.discipleAggregatesSnapshot).thenReturn(emptyList())
 
         // BuildingConfigService: 原样返回传入列表
-        whenever(buildingConfigService.fixupBuildingSizes(any())).thenAnswer {
+        // 注：fixupBuildingSizes 默认参数编译为 3 参数签名（buildings, worldW, worldH）
+        whenever(buildingConfigService.fixupBuildingSizes(
+            any(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt()
+        )).thenAnswer {
             @Suppress("UNCHECKED_CAST")
             (it.getArgument(0) as List<GridBuildingData>)
         }
@@ -115,8 +118,83 @@ class BootSequenceControllerTest {
         )
 
         verify(gameEngineCore).startGameLoop()
-        verify(buildingConfigService).fixupBuildingSizes(any())
+        verify(buildingConfigService).fixupBuildingSizes(
+            any(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt()
+        )
         verify(discipleSnapshotCache).prewarm(discipleTables)
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // Test 1.5: Step 3 建筑自愈守卫（D-13 孤儿归一化 + D-11 activeSectId 净化）
+    // ──────────────────────────────────────────────────────────────────
+
+    /** 向 FakeGameStateStore 注入初始游戏数据（loadFromSnapshot 是唯一写入入口） */
+    private suspend fun injectTestGameData(gameData: GameData) {
+        stateStore.loadFromSnapshot(
+            gameData,
+            disciples = emptyList(), equipmentStacks = emptyList(), equipmentInstances = emptyList(),
+            manualStacks = emptyList(), manualInstances = emptyList(), pills = emptyList(),
+            materials = emptyList(), herbs = emptyList(), seeds = emptyList(),
+            storageBags = emptyList(), teams = emptyList(), battleLogs = emptyList(),
+            isPaused = false, isLoading = false, isSaving = false
+        )
+        // gameDataSnapshot stub 同步到注入数据（boot Step 3.5 溢出迁移/边界迁移读取）
+        whenever(gameEngine.gameDataSnapshot).thenReturn(gameData)
+    }
+
+    @Test
+    fun `boot - D13 孤儿建筑归一化生效`() = runTest {
+        stateStore.runState.value = RunState.IDLE
+        stateStore.bootPhase.value = BootPhase.UNINITIALIZED
+
+        injectTestGameData(
+            GameData(
+                placedBuildings = listOf(
+                    GridBuildingData(displayName = "灵矿场", gridX = 10, gridY = 10,
+                        width = 4, height = 4, sectId = "sect_dead", instanceId = "m1"),
+                    GridBuildingData(displayName = "炼丹炉", gridX = 20, gridY = 20,
+                        width = 4, height = 3, sectId = "", instanceId = "f1")
+                ),
+                worldMapSects = listOf(
+                    WorldSect(id = "player_sect", name = "玩家宗门", isPlayerSect = true),
+                    WorldSect(id = "sect_1", name = "AI 宗门")
+                )
+            )
+        )
+
+        val result = controller.boot(slot = 1)
+        assertTrue("boot should succeed", result.isSuccess)
+
+        val gd = stateStore.gameData.value
+        assertEquals("孤儿建筑应归入本宗", "",
+            gd.placedBuildings.first { it.instanceId == "m1" }.sectId)
+        assertEquals("本宗建筑不动", "",
+            gd.placedBuildings.first { it.instanceId == "f1" }.sectId)
+    }
+
+    @Test
+    fun `boot - D11 activeSectId 残留净化生效`() = runTest {
+        stateStore.runState.value = RunState.IDLE
+        stateStore.bootPhase.value = BootPhase.UNINITIALIZED
+
+        injectTestGameData(
+            GameData(
+                activeSectId = "sect_dead",  // 指向不存在的宗门 → 应净化回本宗 ""
+                placedBuildings = listOf(
+                    GridBuildingData(displayName = "灵矿场", gridX = 10, gridY = 10,
+                        width = 4, height = 4, sectId = "", instanceId = "m1")
+                ),
+                worldMapSects = listOf(
+                    WorldSect(id = "player_sect", name = "玩家宗门", isPlayerSect = true),
+                    WorldSect(id = "sect_1", name = "AI 宗门")
+                )
+            )
+        )
+
+        val result = controller.boot(slot = 1)
+        assertTrue("boot should succeed", result.isSuccess)
+
+        assertEquals("残留 activeSectId 应净化回本宗", "", stateStore.gameData.value.activeSectId)
     }
 
     // ──────────────────────────────────────────────────────────────────

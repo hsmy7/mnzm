@@ -190,6 +190,13 @@ fun MainGameScreen(
         }
     }
 
+    // D-12（2026-08-06）：movingBuilding 状态单点同步到渲染总线排除通道——
+    // 总线不感知 Compose 局部 movingBuilding，不排除会导致拖拽窗口期该建筑
+    // 仍在旧位置渲染（双渲染）+ 点不中 + 其格子可叠建（绿色）
+    LaunchedEffect(movingBuilding) {
+        viewModel.setMovingBuildingInstanceId(movingBuilding?.instanceId)
+    }
+
     val tileSize = mapPreloadData.tileSize
     val worldPixelWidth = mapPreloadData.worldPixelWidth
     val worldPixelHeight = mapPreloadData.worldPixelHeight

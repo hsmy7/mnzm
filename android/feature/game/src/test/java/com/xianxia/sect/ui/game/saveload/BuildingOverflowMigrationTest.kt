@@ -64,7 +64,7 @@ class BuildingOverflowMigrationTest {
     private fun migrate(
         buildings: List<GridBuildingData>,
         spiritStones: Long = 0
-    ): SaveLoadLoadDelegate.MigrationResult {
+    ): com.xianxia.sect.core.engine.MigrationResult {
         val gd = GameData(placedBuildings = buildings, spiritStones = spiritStones)
         return delegate.computeBuildingOverflowMigration(buildings, gd, buildingConfigService)
     }
@@ -217,7 +217,7 @@ class BuildingOverflowMigrationTest {
     private fun migrateGrouped(
         buildings: List<GridBuildingData>,
         spiritStones: Long = 0
-    ): SaveLoadLoadDelegate.MigrationResult {
+    ): com.xianxia.sect.core.engine.MigrationResult {
         val groups = buildings.groupBy { it.sectId }
         val gd = GameData(placedBuildings = buildings, spiritStones = spiritStones)
         val allKept = mutableListOf<GridBuildingData>()
@@ -231,7 +231,7 @@ class BuildingOverflowMigrationTest {
             totalRefund += r.totalRefund
             allFreed.addAll(r.freedDiscipleIds)
         }
-        return SaveLoadLoadDelegate.MigrationResult(allKept, allDemolished, totalRefund, allFreed)
+        return com.xianxia.sect.core.engine.MigrationResult(allKept, allDemolished, totalRefund, allFreed)
     }
 
     @Test

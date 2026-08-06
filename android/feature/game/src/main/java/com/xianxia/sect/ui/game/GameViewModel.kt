@@ -225,6 +225,19 @@ class GameViewModel @Inject constructor(
         _performanceMode.value = mode
     }
 
+    /** 移动中建筑实例 ID 通道（D-12，2026-08-06）：总线渲染排除与 Compose 交互索引同源。 */
+    private val _movingBuildingInstanceId = MutableStateFlow<String?>(null)
+
+    /**
+     * 设置/清除正在移动（拖拽中或等待确认）的建筑实例 ID。
+     *
+     * MainGameScreen 把该建筑从点击索引/占用检测临时排除（effectivePlacedBuildings），
+     * 总线若不排除会继续渲染旧位置 → 拖拽窗口期双渲染 + 该建筑点不中 + 其格子可叠建。
+     */
+    fun setMovingBuildingInstanceId(instanceId: String?) {
+        _movingBuildingInstanceId.value = instanceId
+    }
+
     init {
         // 启动同步：引擎帧率策略与持久化设置对齐（GameActivity 生命周期顺序不依赖）
         coreServices.gameEngineCore.setPerformanceMode(_performanceMode.value)
@@ -233,14 +246,18 @@ class GameViewModel @Inject constructor(
         // 2026-08-06 修复：总线必须与 MainGameScreen 的点击索引/瓦片标记同源——
         // 只推送 activeSectId 匹配的建筑（placedBuildings 是跨宗门全局列表，enterSect 只改
         // activeSectId），否则非活跃宗门的建筑被渲染出来但不可点击、拆除模式无法选中。
-        // distinctUntilChanged 的键必须是 (activeSectId, placedBuildings) 二元组：
-        // enterSect 切换宗门后 placedBuildings 不变，单键无法触发重推。
+        // distinctUntilChanged 的键必须是 (activeSectId, placedBuildings, movingId) 三元组：
+        // enterSect 切换宗门后 placedBuildings 不变，单键无法触发重推；movingId 变化
+        // （拖拽开始/确认/取消）同样需要重推以保持与 Compose 交互索引同源。
         viewModelScope.launch {
-            gameEngine.gameData
-                .map { it.activeSectId to it.placedBuildings }
+            combine(gameEngine.gameData, _movingBuildingInstanceId) { gd, movingId ->
+                Triple(gd.activeSectId, gd.placedBuildings, movingId)
+            }
                 .distinctUntilChanged()
-                .collect { (activeSectId, allBuildings) ->
-                    val buildings = allBuildings.filter { it.sectId == activeSectId }
+                .collect { (activeSectId, allBuildings, movingId) ->
+                    val buildings = allBuildings.filter {
+                        it.sectId == activeSectId && it.instanceId != movingId
+                    }
                     // 2026-08-06 对抗性审查 F2 修复：空宗门也推空数组而非 null——
                     // 渲染端 `busSnapshot?.data ?: frame.buildingData` 在总线为 null 时
                     // 回退帧率门控的旧 frame，进入无建筑宗门会闪现/残留前宗门建筑

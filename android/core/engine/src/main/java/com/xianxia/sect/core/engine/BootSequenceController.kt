@@ -111,14 +111,38 @@ class BootSequenceController @Inject constructor(
             onProgress(0.10f)
             onPhase("data_load")
 
-            // ── Step 3: 建筑修复 ──
+            // ── Step 3: 建筑自愈（D-13 孤儿归属归一化 → D-11 activeSectId 净化 →
+            //             D-14 fixup 尺寸修正+越界钳制 → 回填 instanceId）──
+            // 2026-08-06：所有读档路径（本地/云端）收敛于 boot，归一化必须在此执行——
+            // 旧档跨宗门建筑 sectId 无对应宗门 → 被 activeSectId 过滤整体排除
+            // （点不中/占用缺失可叠建/不可渲染）。归一化在溢出迁移之前（迁移按 sectId
+            // 分组，孤儿不先归位则重叠检测失效）；世界重生（Step 5）之前，worldMapSects
+            // 为空时归一化自动跳过（防误伤），下次读档收敛。
             gameEngine.updateGameData { data ->
-                val fixed = buildingConfigService.fixupBuildingSizes(data.placedBuildings)
+                val norm = normalizeOrphanBuildingSectIds(
+                    data.placedBuildings, data.spiritMineSlots, data.worldMapSects
+                )
+                val purified = purifyStaleActiveSectId(data.activeSectId, data.worldMapSects)
+                val fixed = buildingConfigService.fixupBuildingSizes(norm.buildings)
                 val withIds = GridBuildingData.ensureAllHaveInstanceId(fixed)
-                if (withIds != data.placedBuildings) data.copy(placedBuildings = withIds) else data
+                if (withIds != data.placedBuildings || purified != data.activeSectId ||
+                    norm.spiritMineSlots != data.spiritMineSlots
+                ) {
+                    data.copy(
+                        placedBuildings = withIds,
+                        activeSectId = purified,
+                        spiritMineSlots = norm.spiritMineSlots
+                    )
+                } else {
+                    data
+                }
             }
 
-            // ── Step 3.5: 迁移 — 移除3格边界树木区域内的旧存档建筑（返还一半造价）──
+            // ── Step 3.5: 溢出迁移（占地×2 后放不下的旧建筑拆除全额退款）──
+            // 2026-08-06 从 SaveLoadLoadDelegate 归位：此前在 loadData 后、fixup 前执行
+            // （SaveLoadViewModel:687），顺序反转导致用旧尺寸判定；云端读档路径此前缺失。
+            migrateOverflowBuildings()
+            // 移除3格边界树木区域内的旧存档建筑（返还一半造价）
             migrateBorderZoneBuildings()
 
             stateStore.advanceBootPhase() // → DATA_READY
@@ -308,6 +332,47 @@ class BootSequenceController @Inject constructor(
      *
      * 在 Step 3 建筑修复后、游戏循环启动前执行，保证迁移是原子且安全的。
      */
+    /**
+     * 溢出迁移：将占地×2 时代（或归一化并入本宗）放不下的建筑拆除，全额返还灵石，弟子恢复空闲。
+     *
+     * 2026-08-06 从 SaveLoadLoadDelegate 迁入 boot 编排：此前在 loadData 后、fixup 前执行
+     * （SaveLoadViewModel:687），顺序反转导致用旧尺寸判定；云端读档路径此前缺失此迁移。
+     * 必须在 Step 3（归一化 + fixup+钳制）之后执行——归一化后并入本宗的孤儿建筑与既有
+     * 建筑重叠时由此拆除退款；按 sectId 分组（不同宗门的建筑使用独立网格，坐标互不干扰）。
+     */
+    private suspend fun migrateOverflowBuildings() {
+        val gd = gameEngine.gameDataSnapshot
+        val allBuildings = gd.placedBuildings
+        if (allBuildings.isEmpty()) return
+
+        val buildingsBySect = allBuildings.groupBy { it.sectId }
+        val allKept = mutableListOf<GridBuildingData>()
+        var totalRefund = 0L
+        val allFreedDiscipleIds = mutableSetOf<String>()
+
+        for ((_, sectBuildings) in buildingsBySect) {
+            val result = computeBuildingOverflowMigration(
+                buildings = sectBuildings,
+                gameData = gd,
+                buildingConfigService = buildingConfigService
+            )
+            allKept.addAll(result.kept)
+            totalRefund += result.totalRefund
+            allFreedDiscipleIds.addAll(result.freedDiscipleIds)
+        }
+
+        if (allKept.size == allBuildings.size) return  // 无建筑被拆除
+
+        DomainLog.i(TAG, "旧存档建筑占地迁移：${allBuildings.size - allKept.size} 座建筑因空间不足被拆除，" +
+            "返还灵石×$totalRefund，解放弟子 ${allFreedDiscipleIds.size} 人")
+
+        gameEngine.applyBuildingMigrationOnEngine(
+            kept = allKept,
+            totalRefund = totalRefund,
+            freedDiscipleIds = allFreedDiscipleIds
+        )
+    }
+
     private suspend fun migrateBorderZoneBuildings() {
         val border = GameConfig.SectMap.BORDER_TREE_RING
         val w = GameConfig.SectMap.WORLD_WIDTH_CELLS

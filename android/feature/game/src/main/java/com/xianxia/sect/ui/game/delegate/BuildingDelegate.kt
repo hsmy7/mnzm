@@ -47,73 +47,118 @@ class BuildingDelegate(
     /** placeBuilding 的引擎线程执行体，供 batchPlaceBuilding 直接复用（避免递归 launchOnEngine）。 */
     private suspend fun doPlaceBuilding(name: String, gridX: Int, gridY: Int, width: Int, height: Int) {
         val feature = BuildingFeatureRegistry.findByDisplayName(name) ?: return
-        // 宗门等级检查（防御层：即使 UI 层已拦截，引擎层也做硬检查）
-        if (feature.requiredSectLevel > 0) {
-            val currentLevel = gameEngine.gameDataSnapshot
-                .worldMapSects.find { it.isPlayerSect }?.level ?: SectLevel.SMALL
-            if (currentLevel < feature.requiredSectLevel) return
-        }
+        if (!hasRequiredSectLevel(feature)) return
         val config = buildingConfigService.getBuildingConfigByDisplayName(name)
         val cost = config?.cost ?: feature.cost
         val (gridW, gridH) = buildingConfigService.getBuildingGridSize(name)
-
-        // 第二层防御：验证网格位置不在边界树木区域内
-        val border = GameConfig.SectMap.BORDER_TREE_RING
-        if (gridX < border || gridY < border ||
-            gridX + gridW > GameConfig.SectMap.WORLD_WIDTH_CELLS - border ||
-            gridY + gridH > GameConfig.SectMap.WORLD_HEIGHT_CELLS - border
-        ) return
+        if (!isInsideBuildableArea(gridX, gridY, gridW, gridH)) return
         val newBuildingInstanceId = java.util.UUID.randomUUID().toString()
         val activeId = gameEngine.currentActiveSectId()
         val newProductionSlots = mutableListOf<ProductionSlot>()
 
+        val newBuilding = GridBuildingData(
+            buildingId = feature.key, displayName = name,
+            gridX = gridX, gridY = gridY,
+            width = gridW, height = gridH,
+            sectId = activeId, instanceId = newBuildingInstanceId
+        )
+
         gameEngine.updateGameData { data ->
-                // 限建检查
-                if (!feature.unlimitedBuild) {
-                    val exists = if (feature.isGloballyUnique) {
-                        val globalCount = data.placedBuildings.count { it.displayName == name }
-                        if (globalCount > 1) {
-                            Log.w(TAG, "全局唯一建筑 '$name' 在旧存档中存在 $globalCount 座，升级后限制为 1 座")
-                        }
-                        globalCount > 0
-                    } else {
-                        data.placedBuildings.any { it.displayName == name && it.sectId == activeId }
-                    }
-                    if (exists) return@updateGameData data
-                }
-                // 灵石检查
-                if (data.spiritStones < cost) return@updateGameData data
-
-                val newBuilding = GridBuildingData(
-                    buildingId = feature.key, displayName = name,
-                    gridX = gridX, gridY = gridY,
-                    width = gridW, height = gridH,
-                    sectId = activeId, instanceId = newBuildingInstanceId
+            if (!isPlacementAllowed(
+                    data = data, feature = feature, cost = cost,
+                    activeId = activeId, target = newBuilding
                 )
-
-                // 通过 slotGroups 自动创建所有槽位
-                val results = feature.slotGroups.map { group ->
-                    group.createSlots(newBuildingInstanceId, data, activeId, feature)
-                }
-
-                newProductionSlots += results.flatMap { it.productionSlots }
-                data.copy(
-                    spiritStones = data.spiritStones - cost,
-                    placedBuildings = data.placedBuildings + newBuilding,
-                    spiritFieldPlants = data.spiritFieldPlants + results.flatMap { it.spiritFieldPlants },
-                    spiritMineSlots = data.spiritMineSlots + results.flatMap { it.spiritMineSlots },
-                    patrolSlots = data.patrolSlots + results.flatMap { it.patrolSlots },
-                    patrolConfigs = data.patrolConfigs + results.flatMap { it.patrolConfigs },
-                    residenceSlots = data.residenceSlots + results.flatMap { it.residenceSlots },
-                    productionSlots = data.productionSlots + newProductionSlots,
-                    warehouseGarrisons = data.warehouseGarrisons + results.flatMap { it.warehouseGarrisons },
-                    librarySlots = data.librarySlots + results.flatMap { it.librarySlots }
-                )
+            ) {
+                return@updateGameData data
             }
 
-            // 生产槽位同步写入 Repository
-            newProductionSlots.forEach { buildingFacade.addProductionSlot(it) }
+            // 通过 slotGroups 自动创建所有槽位
+            val results = feature.slotGroups.map { group ->
+                group.createSlots(newBuildingInstanceId, data, activeId, feature)
+            }
+
+            newProductionSlots += results.flatMap { it.productionSlots }
+            data.copy(
+                spiritStones = data.spiritStones - cost,
+                placedBuildings = data.placedBuildings + newBuilding,
+                spiritFieldPlants = data.spiritFieldPlants + results.flatMap { it.spiritFieldPlants },
+                spiritMineSlots = data.spiritMineSlots + results.flatMap { it.spiritMineSlots },
+                patrolSlots = data.patrolSlots + results.flatMap { it.patrolSlots },
+                patrolConfigs = data.patrolConfigs + results.flatMap { it.patrolConfigs },
+                residenceSlots = data.residenceSlots + results.flatMap { it.residenceSlots },
+                productionSlots = data.productionSlots + newProductionSlots,
+                warehouseGarrisons = data.warehouseGarrisons + results.flatMap { it.warehouseGarrisons },
+                librarySlots = data.librarySlots + results.flatMap { it.librarySlots }
+            )
         }
+
+        // 生产槽位同步写入 Repository
+        newProductionSlots.forEach { buildingFacade.addProductionSlot(it) }
+    }
+
+    /** 宗门等级检查（防御层：即使 UI 层已拦截，引擎层也做硬检查）。 */
+    private fun hasRequiredSectLevel(feature: com.xianxia.sect.core.engine.domain.building.BuildingFeature): Boolean {
+        if (feature.requiredSectLevel <= 0) return true
+        val currentLevel = gameEngine.gameDataSnapshot
+            .worldMapSects.find { it.isPlayerSect }?.level ?: SectLevel.SMALL
+        return currentLevel >= feature.requiredSectLevel
+    }
+
+    /** 第二层防御：验证网格位置不在边界树木区域内。 */
+    private fun isInsideBuildableArea(gridX: Int, gridY: Int, gridW: Int, gridH: Int): Boolean {
+        val border = GameConfig.SectMap.BORDER_TREE_RING
+        return gridX >= border && gridY >= border &&
+            gridX + gridW <= GameConfig.SectMap.WORLD_WIDTH_CELLS - border &&
+            gridY + gridH <= GameConfig.SectMap.WORLD_HEIGHT_CELLS - border
+    }
+
+    /**
+     * 放置前校验（事务内）：限建数量 + 占用重叠复查 + 灵石。
+     *
+     * 第三层防御占用重叠复查（2026-08-06 第一性原理兜底）：UI 已判 Valid，
+     * 引擎兜底防 UI/数据源漂移——旧档 sectId 不匹配建筑从占用检测消失的窗口期内，
+     * 拖放显示绿色也不得真的叠建。
+     */
+    private fun isPlacementAllowed(
+        data: com.xianxia.sect.core.model.GameData,
+        feature: com.xianxia.sect.core.engine.domain.building.BuildingFeature,
+        cost: Long,
+        activeId: String,
+        target: GridBuildingData
+    ): Boolean {
+        if (exceedsBuildLimit(data, feature, target, activeId)) return false
+        val overlap = overlapsExisting(
+            buildings = data.placedBuildings,
+            sectId = activeId,
+            gridX = target.gridX, gridY = target.gridY,
+            width = target.width, height = target.height
+        )
+        if (overlap) {
+            Log.w(TAG, "放置拒绝：${target.displayName} 与已有建筑重叠 " +
+                "(${target.gridX},${target.gridY}) ${target.width}x${target.height}")
+        }
+        return !overlap && data.spiritStones >= cost
+    }
+
+    /** 限建数量检查（全局唯一 / 同宗门限建）。 */
+    private fun exceedsBuildLimit(
+        data: com.xianxia.sect.core.model.GameData,
+        feature: com.xianxia.sect.core.engine.domain.building.BuildingFeature,
+        target: GridBuildingData,
+        activeId: String
+    ): Boolean {
+        if (feature.unlimitedBuild) return false
+        val exists = if (feature.isGloballyUnique) {
+            val globalCount = data.placedBuildings.count { it.displayName == target.displayName }
+            if (globalCount > 1) {
+                Log.w(TAG, "全局唯一建筑 '${target.displayName}' 在旧存档中存在 $globalCount 座，升级后限制为 1 座")
+            }
+            globalCount > 0
+        } else {
+            data.placedBuildings.any { it.displayName == target.displayName && it.sectId == activeId }
+        }
+        return exists
+    }
 
     /** 查询建筑放置所需灵石。 */
     fun getBuildingCost(displayName: String): Long {
@@ -227,5 +272,36 @@ class BuildingDelegate(
         buildingInstanceId: String, slotIndex: Int
     ): DomainResult<Unit> = withContext(dispatcher) {
         gameEngine.removeFromResidenceAtomic(buildingInstanceId, slotIndex)
+    }
+}
+
+/**
+ * 判断目标矩形是否与同一宗门作用域内的已有建筑重叠（引擎层放置防御，2026-08-06）。
+ *
+ * 作用域限定 [sectId]：不同宗门的建筑使用独立网格，坐标互不干扰（与
+ * MainGameScreen effectivePlacedBuildings / GridSystem 判定同源）。
+ *
+ * @param buildings 完整建筑列表（跨宗门全局）
+ * @param sectId 当前作用域（activeSectId）
+ * @param gridX 目标建筑左上角 X（格）
+ * @param gridY 目标建筑左上角 Y（格）
+ * @param width 目标建筑宽度（格）
+ * @param height 目标建筑高度（格）
+ * @return 存在重叠时 true
+ */
+internal fun overlapsExisting(
+    buildings: List<GridBuildingData>,
+    sectId: String,
+    gridX: Int,
+    gridY: Int,
+    width: Int,
+    height: Int
+): Boolean {
+    return buildings.any { other ->
+        other.sectId == sectId &&
+            gridX < other.gridX + other.width &&
+            gridX + width > other.gridX &&
+            gridY < other.gridY + other.height &&
+            gridY + height > other.gridY
     }
 }

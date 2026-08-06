@@ -2,6 +2,7 @@ package com.xianxia.sect.core.config
 
 import android.content.Context
 import android.util.Log
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.production.BuildingType
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.serialization.Serializable
@@ -178,10 +179,34 @@ class BuildingConfigService @Inject constructor(
         }
     }
 
-    fun fixupBuildingSizes(buildings: List<com.xianxia.sect.core.model.GridBuildingData>): List<com.xianxia.sect.core.model.GridBuildingData> {
+    /**
+     * 修正建筑占地尺寸为当前配置值（×2 时代/旧档兼容），并在尺寸变化时把坐标钳回地图界内。
+     *
+     * D-14（2026-08-06）：旧档 2×2 矿场撑大到 4×4 时若位于地图边缘会越界
+     * （如 gridX=126 → 130 > 128），越界部分不可点、占地突出。仅在尺寸变化时
+     * 钳制坐标到完整地图边界；尺寸已正确但坐标越界的损坏数据不动（交由溢出迁移拆除退款）。
+     *
+     * @param buildings 建筑列表
+     * @param worldWidthCells 地图宽度（格），默认当前世界尺寸
+     * @param worldHeightCells 地图高度（格），默认当前世界尺寸
+     * @return 修正后的建筑列表
+     */
+    fun fixupBuildingSizes(
+        buildings: List<com.xianxia.sect.core.model.GridBuildingData>,
+        worldWidthCells: Int = GameConfig.SectMap.WORLD_WIDTH_CELLS,
+        worldHeightCells: Int = GameConfig.SectMap.WORLD_HEIGHT_CELLS
+    ): List<com.xianxia.sect.core.model.GridBuildingData> {
         return buildings.map { b ->
             val (w, h) = getBuildingGridSize(b.displayName)
-            if (b.width != w || b.height != h) b.copy(width = w, height = h) else b
+            if (b.width != w || b.height != h) {
+                val clampedX = if (w >= worldWidthCells) b.gridX
+                else b.gridX.coerceIn(0, worldWidthCells - w)
+                val clampedY = if (h >= worldHeightCells) b.gridY
+                else b.gridY.coerceIn(0, worldHeightCells - h)
+                b.copy(width = w, height = h, gridX = clampedX, gridY = clampedY)
+            } else {
+                b
+            }
         }
     }
 

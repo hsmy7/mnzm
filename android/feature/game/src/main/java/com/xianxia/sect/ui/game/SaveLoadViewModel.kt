@@ -20,7 +20,6 @@ import com.xianxia.sect.data.unified.SaveError
 import com.xianxia.sect.data.unified.SaveResult
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.ui.components.AtlasResult
-import com.xianxia.sect.ui.game.saveload.SaveLoadLoadDelegate
 import com.xianxia.sect.ui.game.saveload.SaveLoadPauseDelegate
 import com.xianxia.sect.ui.game.saveload.SaveLoadSaveDelegate
 import com.xianxia.sect.core.engine.di.IoDispatcher
@@ -45,10 +44,6 @@ class SaveLoadViewModel @Inject constructor(
 
     // 领域委托实例 — 按职责拆分 save/load/restart 等逻辑
     private val saveDelegate by lazy { SaveLoadSaveDelegate(gameEngine, persistenceFacade.storageFacade, stateStore) }
-    private val loadDelegate by lazy {
-        SaveLoadLoadDelegate(gameEngine, gameEngineCore, persistenceFacade.storageFacade, stateStore,
-            persistenceFacade.buildingConfigService, persistenceFacade.spiritStoneWallet)
-    }
     private val pauseDelegate by lazy { SaveLoadPauseDelegate(gameEngineCore, gameClock) }
 
     companion object {
@@ -683,8 +678,8 @@ class SaveLoadViewModel @Inject constructor(
                 // 初始化 AI 宗门 RNG（基于地图种子确保确定性）
                 AISectDiscipleManager.initForSlot(loadedGd.mapSeed.toLong())
 
-                // 建筑占地重叠/越界迁移（旧存档兼容，不在 BootSequenceController 中）
-                loadDelegate.migrateOverflowBuildings()
+                // 建筑占地重叠/越界迁移已归位 BootSequenceController Step 3.5
+                // （2026-08-06：须在 Step 3 归一化+fixup 之后、云端路径同样生效）
 
                 // BootSequenceController 统一处理：建筑修正、BootPhase 推进、资源预加载、
                 // 弟子快照预热、确保重数据加载、游戏循环启动、地图生成、最终状态切换

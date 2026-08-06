@@ -1,5 +1,15 @@
 ## [4.00.90] - 2026-08-06
 
+### 修复（2026-08-06 建筑点击无效批次补全：旧档 sectId 自愈 + 拖拽同步 + 引擎兜底）
+
+- **[严重] 旧档跨宗门建筑完全不可管理（D-13 根治）** — 玩家在占领宗门建造的建筑 sectId 指向已不存在/已失守的宗门（世界重生 id 漂移、失守残留）→ `MainGameScreen` 单一门控 `sectId == activeSectId` 同时排除点击/占用/渲染/拆除（上次批次修复渲染同源后此类建筑彻底隐形，投资无法回收）。**根治：读档自愈归一化** — 新 `BuildingLoadSelfHeal.kt`（core/engine 纯函数）：`normalizeOrphanBuildingSectIds`（sectId 非空且 worldMapSects 无对应宗门 → 归入本宗 ""，同步 `SpiritMineSlot.sectId`；worldMapSects 为空跳过防误伤）+ `purifyStaleActiveSectId`（activeSectId 指向非玩家持有宗门 → 归回本宗 ""）；编排于 `BootSequenceController.boot()` Step 3（本地/云端所有读档路径收敛点）：归一化 → 净化 → fixup+钳制 → 回填 instanceId 单事务
+- **[中等] 溢出迁移编排归位 + 云端路径补全** — `migrateOverflowBuildings` 从 `SaveLoadViewModel:687`（boot 前、fixup 前——旧尺寸判定，且云端路径缺失）迁入 boot Step 3.5（归一化/fixup 之后：归一化后并入本宗的孤儿与既有建筑重叠由此拆除退款）；纯计算迁入 core/engine `computeBuildingOverflowMigration`，delegate 保留薄包装（既有测试零改动）；云端读档首次获得溢出迁移（parity 补全）
+- **[中等] 旧档矿场读档撑大越界（D-14 根治）** — `fixupBuildingSizes` 加世界尺寸默认参数，仅尺寸变化时钳制坐标回地图界内（2×2 矿场 @gridX=126 → 4×4 @124，128-4 边界）；尺寸不变的健康数据零副作用；钳入 3 格边界区由既有边界迁移（50% 退款）兜底
+- **[中等] 拖拽中建筑总线双渲染（D-12 根治）** — 总线不感知 Compose 局部 movingBuilding → 拖拽窗口期旧位置实体残留 + 该建筑点不中 + 其格子可叠建（绿色）。**根治：GameViewModel 新增 movingInstanceId 通道**（`setMovingBuildingInstanceId`），bus 推送键改 `(activeSectId, placedBuildings, movingId)` 三元组并排除移动中建筑；MainGameScreen 单点 `LaunchedEffect(movingBuilding)` 接线覆盖开始/确认/取消/拆除/返回全部路径
+- **[严重] 引擎层放置重叠防御（第一性原理兜底）** — `BuildingDelegate.doPlaceBuilding` 无占用复查（UI 判 Valid 即放行）——UI/数据源漂移窗口期（如本次 sectId 不匹配建筑从占用检测消失）拖放显示绿色即可真实叠建。**根治：事务内按 activeSectId 作用域 rect 相交复查，重叠静默拒绝 + Log.w**（抽出 internal `overlapsExisting` 纯函数）；batchPlaceBuilding 逐格复用（金手指格间距=建筑尺寸，零批量误伤）；跨宗门同坐标放行（独立网格）；新建档初始矿场直写路径不受影响
+- **测试** — `BuildingLoadSelfHealTest` 新建（归一化 8 例 / 净化 6 例 / 归一化→溢出迁移守卫）、`BuildingConfigServiceFixupTest` 新建（钳制 5 例）、`BuildingDelegateOverlapTest` 新建（重叠拒绝 / 跨宗门放行 / 纯函数边界 4 例）、`BootSequenceControllerTest` +2（boot 归一化/净化生效守卫）、`GameViewModelTest` +3（movingId 排除 / 恢复 / enterSect 互不冲突）、`BuildingOverflowMigrationTest` 引用归位；全量串行回归（--max-workers=1）0 失败
+- **对抗性审查批次（三角色：边界狂魔/状态破坏者/数据篡改者）** — ① 边界狂魔：钳制边界 0/128/负坐标/width≥世界宽保持、空 worldMapSects 双函数行为、未知显示名回退 2×2 语义不变；② 状态破坏者：归一化幂等（连续读档零变化）、bus 三元组在 enterSect 重推/空宗门空数组/拖拽三态组合、moveBuilding 确认→清通道时序；③ 数据篡改者：孤儿与玩家建筑同坐标 → 溢出迁移拆除退款（守卫测试）、`SpiritMineSlot.sectId` 同步、直接调 placeBuilding 重叠被拒（引擎兜底）
+
 ### 修复（2026-08-06 建筑点击无效批次：跨宗门渲染/点击不同源 + 初始矿场尺寸 + 精灵命中区域）
 
 - **[严重] 部分建筑"看得见点不中"（跨宗门渲染/点击数据源不一致）** — 渲染命令总线（`GameViewModel.init`）推送**全部宗门**的 `placedBuildings`，而 `NativeSurfaceView` 双渲染路径（Vulkan/Canvas）总线快照优先于 Compose 过滤后的 frame；但点击检测/拆除选中/瓦片标记/空间索引只基于 `sectId == activeSectId` 的过滤列表。占领宗门后（或回到本宗后），非活跃宗门的建筑被渲染出来但完全不可点击、拆除模式无法选中。**根治：推送键改为 `(activeSectId, placedBuildings)` 二元组 + 按 activeSectId 过滤**（`GameViewModel.kt`）——enterSect 只改 activeSectId 不动 placedBuildings（`GameEngineCoordination.kt`），单键 `distinctUntilChanged` 不会重推，二元组保证宗门切换即时重推；过滤谓词与 MainGameScreen 点击索引完全同源
