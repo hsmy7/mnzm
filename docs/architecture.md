@@ -437,4 +437,5 @@ SaveValidator.validate(SaveData)
 | D-03 | 放背包失败转邮件（体验） | `core/engine/.../domain/disciple/DiscipleFacadeImpl.kt` rewardEquipment/rewardManual 放背包路径 | 仓库满时"放背包"→ Failure → 物品转入溢出邮件（数量守恒不丢失），但玩家感知"背包没进、仓库在减"。修复需"失败保留原处"语义（抑制邮件 + 回滚扣减），与全局溢出语义需权衡 |
 | D-04 | 试炼敌人属性从随机变固定（C1 行为变化） | `core/engine/.../domain/battle/HeavenlyTrialService.kt` enemySeed | 敌人生成改确定性派生种子后：同一关卡敌人属性恒定（预览=战斗一致、零全局 RNG 污染）。产品侧确认可接受（固定挑战）；如需随机化，改为进入战斗时取种子本地生成 |
 | D-05 | `GameEngineDiplomacyOps.interactWithSect` 未实现存根 | `core/engine/.../GameEngineDiplomacyOps.kt:70` | 仅打日志"尚未实现"，全仓库无调用方（detekt-baseline 引用）。死代码，建议删除或实现外交交互 |
+| D-06 | 全库通配符 import 显式化（约 750 处） | main 482 处 + test 271 处，主要分布：`core.model.*` 125 / `foundation.layout.*` 97 / `runtime.*` 81 / `material3.*` 44 / `core.engine.*` 27 / `core.state.*` 16 / `room.*` 14 / 其余约 25 个包 | 2026-08-06 已完成示例：`LevelGenerator`/`CaveGenerator` 显式化（detekt WildcardImport 合规）；detekt 配置 `WildcardImport: active: true` 但全库未拦截（机制待查，或为预期豁免）。Compose 常用包（layout/runtime/material3 共 240+ 处）为生态惯例，`core.model.*`/`core.engine.*` 等自有包可批量显式化；机械改动低风险，另行立项 |
 

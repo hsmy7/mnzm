@@ -1,10 +1,19 @@
-## [4.00.89] - 2026-08-05
+## [4.00.90] - 2026-08-06
 
 ### 修复（2026-08-06 世界地图宗门连接线彻底移除）
 
 - **彻底移除宗门连接路径机制** — 世界地图宗门间密集虚线（`WorldMapConnections` Canvas 层）根因：`LevelGenerator.buildConnectionEdges` 实现为完全图（O(n²) 两两全连接，29 宗门 = 406 条边）被 `GameEngine.worldMapRenderData` 直接渲染；多模块重构时旧版 MST+近邻补边稀疏算法（`.worktrees` 旧版 `WorldMapGenerator.generateConnections`）未迁移，`GameConfig.WorldMap` 全套连接常量（TARGET/MAX/MIN_CONNECTIONS_PER_SECT 等）成为死配置。按用户决策彻底移除（含关卡生成路径保护）：删除 `WorldMapConnections.kt`/`MSTEdge.kt`/`GeometryUtils.kt` 三文件；`LevelGenerator`/`CaveGenerator` 的 `connectionEdges` 参数与 `isValidPosition` 路径检查块、`WorldLevelManager` 传参、`GameEngine.kt` 填充、`WorldMapRenderData.connectionEdges` 字段、`WorldMapScreen` Layer 2 与 `WorldMapDialog` 传参、`GameConfig.CAVE_MIN_PATH_DISTANCE` 常量全部移除；`LevelGeneratorTest` 删除 4 个完全图行为固化测试（empty/single/two/three）并修正 2 处位置参数调用、`CaveGeneratorTest` 8 处传参清理
 - **附带消除** — 连接线绘制每帧 `kotlin.random.Random` 控制点抖动（确定性 RNG 违规）与每帧 406 条 Canvas 线绘制开销随删除消失
 - **验证** — compileReleaseKotlin + 全量串行回归（--max-workers=1，0 失败）+ 残留引用 grep 零命中（MSTEdge/buildConnectionEdges/WorldMapConnections/isPointNearCurvedPath/connectionEdges/CAVE_MIN_PATH_DISTANCE）
+
+### refactor（2026-08-06 预存问题清理：CaveGenerator 死代码 + 通配符 import）
+
+- **CaveGenerator.generateCaves 死代码删除** — main 代码零调用者（仅测试锚定），删除 generateCaves 及其私有链（selectRandomRealm/generateCaveName/isValidPosition/rng/MAP 尺寸常量/名称与概率库），保留 getRarityRangeForCave（CaveExplorationSystem 真实使用）与 CaveRealmConfig；CaveGeneratorTest 删除 8 个死测试 + 清理 CaveStatus import
+- **LevelGenerator 通配符 import 显式化** — `com.xianxia.sect.core.model.*` → 显式 3 符号（LevelType/WorldLevel/WorldSect），detekt WildcardImport 合规；全库另有约 750 处通配符 import（main 482 + test 271，Compose 生态惯例为主），已登记 docs/architecture.md D-06 待完成项
+- **detekt 暴露项连带修复** — 删参数后 baseline 签名失配暴露 3 处违规：`LevelGenerator.isValidPosition` ReturnCount 4→2（none 谓词 + isTooClose helper）、`WorldMapScreen` LongParameterList 9→6（focusWorldX/Y 合并为 focusWorld: Offset? + 三个点击回调合并为 onItemClick: (MapItem) -> Unit）、`LevelGeneratorTest` UnusedImports；同步移除 engine/feature:game baseline 共 3 条失效条目（旧签名含已删参数）
+- **验证** — compileReleaseKotlin + 全量串行回归（--max-workers=1，0 失败）+ detekt 全模块清零 + lintRelease（警告不涉及改动文件）
+
+## [4.00.89] - 2026-08-05
 
 ### 调整（2026-08-06 AI 弟子养成体系重构 + 战斗数值修复）
 
