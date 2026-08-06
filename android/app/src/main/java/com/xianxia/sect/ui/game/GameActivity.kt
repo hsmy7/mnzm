@@ -683,11 +683,12 @@ class GameActivity : ComponentActivity() {
      */
     private fun onGameServiceBound() {
         Log.d(TAG, "onGameServiceBound: GameForegroundService bound, gameEngineCore available")
-        // 应用系统 Game Mode（BATTERY→节能 / PERFORMANCE→性能，运行时生效不覆盖用户持久化）
+        // 应用系统 Game Mode（BATTERY→节能 / PERFORMANCE→性能，经 ViewModel 统一状态）
         applySystemGameMode()
-        // 场景状态上报（挂机 MODE_NONE 让系统接管功耗优化 / 游玩 MODE_GAMEPLAY）
+        // 场景状态上报（深闲置 MODE_NONE 让系统接管功耗优化 / 游玩与挂机档 MODE_GAMEPLAY）
+        val core = gameEngineCore ?: return
         lifecycleScope.launch {
-            gameEngineCore?.sceneState?.collect { scene -> notifyGameScene(scene) }
+            core.sceneState.collect { scene -> notifyGameScene(scene) }
         }
     }
 
@@ -702,14 +703,17 @@ class GameActivity : ComponentActivity() {
     }
 
     /**
-     * 读取系统 Game Mode（Android 12+）并映射到性能模式：
-     * - BATTERY → 节能（系统省电模式优先，运行时生效）
+     * 读取系统 Game Mode 并映射到性能模式（经 ViewModel 统一引擎/UI 状态）：
+     * - BATTERY → 节能（系统省电模式优先，运行时生效不写持久化）
      * - PERFORMANCE → 性能
-     * - 其余（STANDARD/未支持）→ 保持用户设置
+     * - 其余（STANDARD/未支持）→ 恢复用户设置
+     *
+     * ⚠️ 守卫必须为 TIRAMISU(33)：`GameManager.getGameMode()` 是 API 33 方法，
+     * API 31/32 上调用抛 NoSuchMethodError（Error 子类，不被 catch Exception 捕获）。
      */
     @Suppress("NewApi")
     private fun applySystemGameMode() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
         try {
             val gameManager = getSystemService(android.app.GameManager::class.java) ?: return
             val mapped = when (gameManager.gameMode) {
@@ -717,35 +721,35 @@ class GameActivity : ComponentActivity() {
                 android.app.GameManager.GAME_MODE_PERFORMANCE -> PerformanceMode.PERFORMANCE
                 else -> null
             }
+            viewModel.setSystemGameModeOverride(mapped)
             if (mapped != null) {
-                gameEngineCore?.setPerformanceMode(mapped)
                 Log.d(TAG, "System GameMode → ${mapped.displayName}")
             }
         } catch (e: Exception) {
-            Log.w(TAG, "applySystemGameMode failed (non-critical): ${e.message}")
+            Log.w(TAG, "applySystemGameMode failed (non-critical): ${e.message}", e)
         }
     }
 
     /**
      * 上报当前游戏场景给系统（Android 13+ GameState API）：
-     * 挂机/后台（IDLE/GAMEPLAY_IDLE）报 MODE_NONE 让系统接管功耗优化，
-     * 游玩/战斗报 MODE_GAMEPLAY_INTERRUPTIBLE 保持正常性能调度。
+     * - IDLE（10fps 深闲置）→ MODE_NONE 让系统接管功耗优化
+     * - 其余（含 GAMEPLAY_IDLE 30fps 挂机档）→ MODE_GAMEPLAY_INTERRUPTIBLE——
+     *   GAMEPLAY_IDLE 仍在渲染（用户可能盯着挂机数字），报 MODE_NONE 会被系统
+     *   激进降压导致恢复抖动与热控误判
      */
     @Suppress("NewApi")
     private fun notifyGameScene(scene: GameEngineCore.GameScene) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
         try {
             val gameManager = getSystemService(android.app.GameManager::class.java) ?: return
-            val isIdle = scene == GameEngineCore.GameScene.IDLE ||
-                scene == GameEngineCore.GameScene.GAMEPLAY_IDLE
-            val mode = if (isIdle) {
+            val mode = if (scene == GameEngineCore.GameScene.IDLE) {
                 android.app.GameState.MODE_NONE
             } else {
                 android.app.GameState.MODE_GAMEPLAY_INTERRUPTIBLE
             }
             gameManager.setGameState(android.app.GameState(false, mode, gameManager.gameMode, 0))
         } catch (e: Exception) {
-            Log.w(TAG, "notifyGameScene failed (non-critical): ${e.message}")
+            Log.w(TAG, "notifyGameScene failed (non-critical): ${e.message}", e)
         }
     }
 

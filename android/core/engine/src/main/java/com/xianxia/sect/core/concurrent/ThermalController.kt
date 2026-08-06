@@ -162,11 +162,12 @@ class ThermalController @Inject constructor(
     /**
      * 设置温度阈值偏移（°C）。负值提前降载（如低电量 -2°C），正值延后。
      * 由接线方（GameEngineCore tick）随电量状态低频更新；reset 时清零。
+     * NaN/Infinity 防御：非法偏移会让降级判定恒 false、热控整链静默失效。
      *
      * @param offset 阈值偏移量（°C）
      */
     fun setThresholdOffsetC(offset: Float) {
-        thresholdOffsetC = offset
+        thresholdOffsetC = if (offset.isNaN() || offset.isInfinite()) 0f else offset
     }
 
     /**

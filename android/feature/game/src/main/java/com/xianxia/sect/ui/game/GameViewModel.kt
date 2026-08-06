@@ -187,13 +187,41 @@ class GameViewModel @Inject constructor(
     )
     val performanceMode: StateFlow<PerformanceMode> = _performanceMode.asStateFlow()
 
+    /** 系统 GameMode 覆盖（BATTERY→节能/PERFORMANCE→性能）；用户手动选择时清除 */
+    @Volatile
+    private var systemModeOverride: PerformanceMode? = null
+
     /**
-     * 设置性能模式：写入引擎（立即生效帧率/画质）+ 设备级持久化。
+     * 用户手动设置性能模式：写入引擎 + 设备级持久化 + UI 状态，并清除系统覆盖。
+     * 无条件同步（幂等写）——覆盖期间 UI 显示的档位可能来自系统，点击需真正生效。
      */
     fun setPerformanceMode(mode: PerformanceMode) {
-        if (_performanceMode.value == mode) return
+        systemModeOverride = null
         coreServices.gameEngineCore.setPerformanceMode(mode)
         delegateServices.sessionManager.performanceMode = mode.name
+        _performanceMode.value = mode
+    }
+
+    /**
+     * 系统 GameMode 覆盖（Android 12+ 省电/性能模式）。
+     * 只改引擎与 UI 显示，**不写持久化**（玩家显式选择优先，重启后恢复用户档）；
+     * 玩家在设置界面手动选择任意档位时自动清除覆盖。
+     *
+     * @param mode 系统映射的模式（null = 系统无覆盖，恢复用户档）
+     */
+    fun setSystemGameModeOverride(mode: PerformanceMode?) {
+        if (mode == null) {
+            if (systemModeOverride != null) {
+                systemModeOverride = null
+                val userMode = PerformanceMode.fromStorage(delegateServices.sessionManager.performanceMode)
+                coreServices.gameEngineCore.setPerformanceMode(userMode)
+                _performanceMode.value = userMode
+            }
+            return
+        }
+        if (systemModeOverride == mode) return
+        systemModeOverride = mode
+        coreServices.gameEngineCore.setPerformanceMode(mode)
         _performanceMode.value = mode
     }
 

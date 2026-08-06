@@ -92,4 +92,39 @@ class AdaptiveFpsTrackerTest {
         // 尖峰被平滑 + 恢复后回 60fps
         assertEquals(60, tracker.recordFrameTime(16_000_000L, now))
     }
+
+    @Test
+    fun `negative frame time is sanitized and does not poison ewma`() {
+        val tracker = AdaptiveFpsTracker()
+        tracker.recordFrameTime(10_000_000L, 1_000L)  // 首帧
+        // 负数帧耗时（时钟异常）按 0 处理，不污染 EWMA 为负
+        var now = 10_000L
+        repeat(5) {
+            tracker.recordFrameTime(-100_000_000L, now)
+            now += 1_000L
+        }
+        // 恢复正常帧时间后应回到 60fps（未被负数污染锁死 MIN_FPS）
+        repeat(5) {
+            tracker.recordFrameTime(16_000_000L, now)
+            now += 1_000L
+        }
+        assertEquals(60, tracker.recordFrameTime(16_000_000L, now))
+    }
+
+    @Test
+    fun `reset clears ewma state and restores first-frame protection`() {
+        val tracker = AdaptiveFpsTracker()
+        // 进入低帧率状态（80ms 帧时间 → MIN_FPS）
+        tracker.recordFrameTime(10_000_000L, 1_000L)
+        var now = 10_000L
+        repeat(10) {
+            tracker.recordFrameTime(80_000_000L, now)
+            now += 1_000L
+        }
+        assertEquals(AdaptiveFpsTracker.MIN_FPS, tracker.recordFrameTime(80_000_000L, now))
+
+        // reset 后：首帧重新走 22ms 上限保护，返回 60 而非沿用旧 EWMA
+        tracker.reset()
+        assertEquals(60, tracker.recordFrameTime(500_000_000L, now))
+    }
 }

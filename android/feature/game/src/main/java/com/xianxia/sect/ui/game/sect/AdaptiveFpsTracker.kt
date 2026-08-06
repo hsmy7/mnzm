@@ -42,10 +42,11 @@ class AdaptiveFpsTracker(
         var result: Int
         if (ewmaFrameTimeNs == 0L) {
             // 首帧使用实际耗时但上限 22ms（45fps 档），防止 JIT 预热等首帧异常
-            ewmaFrameTimeNs = actualNs.coerceAtMost(FIRST_FRAME_CAP_NS)
+            ewmaFrameTimeNs = actualNs.coerceAtLeast(0L).coerceAtMost(FIRST_FRAME_CAP_NS)
             result = 60
         } else {
-            ewmaFrameTimeNs = (alpha * actualNs + (1 - alpha) * ewmaFrameTimeNs).toLong()
+            // 负数帧耗时（时钟异常）按 0 处理，防止 EWMA 被污染为负导致永久锁死 MIN_FPS
+            ewmaFrameTimeNs = (alpha * actualNs.coerceAtLeast(0L) + (1 - alpha) * ewmaFrameTimeNs).toLong()
             result = if (nowMs - lastFpsSwitchMs < hysteresisMs) {
                 currentCalculatedFps
             } else {
@@ -63,5 +64,16 @@ class AdaptiveFpsTracker(
             }
         }
         return result
+    }
+
+    /**
+     * 重置全部状态（surface 重建/渲染线程重建时调用）——
+     * 旧会话的 EWMA 与防抖时间戳残留会导致新渲染线程首帧即被误判低帧率，
+     * 且首帧 22ms 上限保护失效。
+     */
+    fun reset() {
+        ewmaFrameTimeNs = 0L
+        currentCalculatedFps = 60
+        lastFpsSwitchMs = 0L
     }
 }

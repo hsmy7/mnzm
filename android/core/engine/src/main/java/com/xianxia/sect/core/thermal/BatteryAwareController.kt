@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.Build
+import com.xianxia.sect.core.util.DomainLog
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -43,6 +44,10 @@ object NoopBatteryStatus : BatteryStatusProvider {
  * 读取走 sticky 广播缓存，**10s 内不重复 binder 调用**（fpsCap 在游戏循环
  * 每迭代被查询，必须避免每帧 registerReceiver）。
  *
+ * **iOS 对等**：`UIDevice.batteryLevel` + `UIDevice.batteryState`（需
+ * `UIDevice.current.isBatteryMonitoringEnabled = true`）+ `ProcessInfo.isLowPowerModeEnabled`；
+ * 判定策略（≤20% 未充电 → 降载）共用 [evaluateBatteryPolicy] 纯函数，跨平台一致。
+ *
  * @param context Application context
  */
 @Singleton
@@ -51,6 +56,7 @@ class BatteryAwareController @Inject constructor(
 ) : BatteryStatusProvider {
 
     companion object {
+        private const val TAG = "BatteryAwareController"
         /** 低电量判定阈值（%） */
         const val LOW_BATTERY_PERCENT = 20
         /** 低电量帧率上限（未充电时 60→45，防止掉帧式降压同时保留基础流畅） */
@@ -105,7 +111,10 @@ class BatteryAwareController @Inject constructor(
                 @Suppress("UnspecifiedRegisterReceiverFlag", "Deprecation")
                 context.registerReceiver(null, filter)
             }
-        } catch (_: SecurityException) {
+        } catch (e: SecurityException) {
+            // OEM 上读取粘性广播可能被拒；记录后降级为"未知电量"
+            //（非低电量安全回退），不冒泡到游戏循环
+            DomainLog.w(TAG, "read battery intent denied: ${e.message}", e)
             null
         }
     }

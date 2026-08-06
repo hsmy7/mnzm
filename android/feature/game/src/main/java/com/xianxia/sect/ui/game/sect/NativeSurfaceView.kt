@@ -108,9 +108,35 @@ class NativeSurfaceView(
     @Volatile
     var onObservedFps: ((Float) -> Unit)? = null
 
-    /** 已声明给系统的帧率（[maybeDeclareFrameRate]，仅 ≤30fps 声明一次） */
+    /** 已声明给系统的帧率（[maybeDeclareFrameRate]，≤30fps 降频声明 + 回升恢复声明） */
     @Volatile
     private var lastDeclaredFrameRate = 0
+
+    /**
+     * 渲染质量因子转发（MainGameScreen 接线；backend 创建后立即应用，防初始发射丢失）。
+     * Compose 线程写、渲染线程读，@Volatile 保证可见性。
+     */
+    @Volatile
+    var renderQualityFactor: Float = 1.0f
+        set(value) {
+            field = value
+            softwareBackend?.qualityFactor = value
+        }
+
+    /** 装饰层关闭标志转发（语义同上） */
+    @Volatile
+    var renderDecorationsDisabled: Boolean = false
+        set(value) {
+            field = value
+            softwareBackend?.decorationsDisabled = value
+        }
+
+    /** 统一创建软件渲染后端（应用当前质量/装饰值，防 surface 重建后丢失降级状态） */
+    private fun createSoftwareBackend(): SoftwareCanvasBackend =
+        SoftwareCanvasBackend(config).apply {
+            qualityFactor = renderQualityFactor
+            decorationsDisabled = renderDecorationsDisabled
+        }
 
     /** 渲染器是否已初始化 */
     @Volatile
@@ -199,6 +225,13 @@ class NativeSurfaceView(
      * 供 Canvas 回退渲染器使用（不上传 GPU）。
      */
     companion object {
+        /** 每秒纳秒数 */
+        private const val NANOS_PER_SECOND = 1_000_000_000L
+        /** 面板降频声明阈值（fps）：≤30 声明省屏耗，>30 不主动降 */
+        private const val FPS_DECLARE_THRESHOLD = 30
+        /** 帧率下限保护（防除零与非法值） */
+        private const val MIN_FPS_VALUE = 1
+
         fun buildAtlasBitmap(context: android.content.Context): android.graphics.Bitmap {
             val atlas = android.graphics.Bitmap.createBitmap(
                 SpriteAtlasDef.ATLAS_W, SpriteAtlasDef.ATLAS_H,
@@ -439,6 +472,12 @@ class NativeSurfaceView(
             if (initInProgress) return  // 防止重复调用
             initInProgress = true
 
+            // 对抗性审查修复：新 surface 重置帧率声明与 EWMA 状态——
+            // 旋转/重建后 lastDeclaredFrameRate 残留会阻止新 surface 降频声明，
+            // 旧 EWMA 残留会导致新渲染线程首帧即被误判低帧率
+            lastDeclaredFrameRate = 0
+            adaptiveFpsTracker.reset()
+
             // 递增 Surface 版本，所有 post Runnable 通过此检测 stale 回调
             surfaceGeneration++
             val currentGen = surfaceGeneration
@@ -468,7 +507,7 @@ class NativeSurfaceView(
                         // 先设置渲染模式和软件后端，再通知上层上传纹理
                         // 注意：buildAtlas() 依赖 renderMode 判断是否回收 Bitmap，
                         // 必须在 onRendererReady 之前设置，否则图集 Bitmap 被误回收
-                        softwareBackend = SoftwareCanvasBackend(config)
+                        softwareBackend = createSoftwareBackend()
                         renderMode = RenderMode.SOFTWARE
                         // 通知 Compose 层上传纹理（TextureAtlas 已在 surfaceCreated 中 init）
                         onRendererReady?.invoke()
@@ -542,7 +581,7 @@ class NativeSurfaceView(
                             vulkanInitThread = null
                             if (!isReady) {
                                 // 降级到软件渲染
-                                softwareBackend = SoftwareCanvasBackend(config)
+                                softwareBackend = createSoftwareBackend()
                                 renderMode = RenderMode.SOFTWARE
                                 onRendererReady?.invoke()
                                 isReady = true
@@ -569,7 +608,7 @@ class NativeSurfaceView(
                         initInProgress = false
                         vulkanInitThread = null
                         if (!isReady) {
-                            softwareBackend = SoftwareCanvasBackend(config)
+                            softwareBackend = createSoftwareBackend()
                             renderMode = RenderMode.SOFTWARE
                             onRendererReady?.invoke()
                             isReady = true
@@ -665,9 +704,8 @@ class NativeSurfaceView(
         @Volatile
         var running = true
 
-        /** 每秒实际帧数统计窗口（[reportObservedFps]） */
-        private var fpsWindowFrames = 0
-        private var fpsWindowStartNs = 0L
+        /** 能力帧率上报限频时间戳（[reportObservedFps]） */
+        private var lastFpsReportNs = 0L
 
         override fun run() {
             // 首帧快速清除 Surface 缓冲区，防止华为模拟器等设备上
@@ -685,15 +723,17 @@ class NativeSurfaceView(
             }
 
             var lastFrameNs = System.nanoTime()
-            fpsWindowFrames = 0
-            fpsWindowStartNs = System.nanoTime()
+            // 有效帧率 = min(外部目标帧率, EWMA 渲染能力帧率)；
+            // 起始用 targetFps（外部流尚未到达时的默认 10）
+            var effectiveFps = targetFps.coerceAtLeast(MIN_FPS_VALUE)
+            var lastEwmaFps = 60
 
             while (running && isReady) {
                 val now = System.nanoTime()
                 val elapsedNs = now - lastFrameNs
 
                 // 每次迭代重算，支持 targetFps 运行时动态变化
-                val fiNs = 1_000_000_000L / targetFps.coerceAtLeast(1)
+                val fiNs = NANOS_PER_SECOND / effectiveFps.coerceAtLeast(MIN_FPS_VALUE)
 
                 if (elapsedNs < fiNs) {
                     val sleepMs = (fiNs - elapsedNs) / 1_000_000
@@ -711,41 +751,35 @@ class NativeSurfaceView(
                 }
                 val renderElapsedNs = System.nanoTime() - frameStartNs
 
-                applyAdaptiveFrameRate(renderElapsedNs, now)
+                // ★ 统一 EWMA 渲染能力追踪（VULKAN/SOFTWARE 双路径一致）。
+                // 关键设计：**不写回 targetFps**——渲染线程内部维护 effectiveFps =
+                // min(targetFps, ewmaFps)，避免"只降不升 + StateFlow 不重发"钉死竞态；
+                // 外部升帧（场景/模式/热控变化）始终即时生效，EWMA 能力恢复自动回升。
+                val ewmaFps = adaptiveFpsTracker.recordFrameTime(renderElapsedNs, System.currentTimeMillis())
+                lastEwmaFps = ewmaFps
+                effectiveFps = minOf(targetFps.coerceAtLeast(MIN_FPS_VALUE), ewmaFps)
+
+                // 上报渲染能力帧率（供热控帧率驱动降级；能力帧率 ≠ 墙钟帧率，
+                // 主动省电降帧（IDLE 10fps）不误判为渲染能力不足）
+                reportObservedFps(now, ewmaFps)
+
+                // 帧率变化后向系统声明（降频省屏耗 + 回升恢复，防面板粘滞）
+                maybeDeclareFrameRate(effectiveFps)
             }
         }
 
         /**
-         * 统一 EWMA 动态帧率自适应（VULKAN/SOFTWARE 双路径一致，消除策略不对称）。
-         * 仅做降级（绝不提升），升帧由外部场景/热控/性能模式 Flow 控制；
-         * MIN + 严格小于语义避免写写竞争覆盖热控/场景帧率。
+         * 每秒上报渲染能力帧率（EWMA 反推，非墙钟帧率——挂机主动降帧时
+         * 渲染能力仍高，不应触发热控降级）。回调异常吞掉（渲染线程任何异常都会杀死渲染）。
          */
-        private fun applyAdaptiveFrameRate(renderElapsedNs: Long, nowNs: Long) {
-            val ewmaFps = adaptiveFpsTracker.recordFrameTime(renderElapsedNs, System.currentTimeMillis())
-            val capped = ewmaFps.coerceAtMost(targetFps)
-            if (capped < targetFps && running) {
-                targetFps = capped
-            }
-
-            // 每秒统计实际达成帧率 → 回调（供热控帧率驱动降级使用）
-            reportObservedFps(nowNs)
-
-            // 帧率降档后向系统声明（高刷面板降刷新率省屏耗）
-            maybeDeclareFrameRate()
-        }
-
-        /** 每秒统计实际达成帧率并回调（回调异常吞掉，渲染线程任何异常都会杀死渲染） */
-        private fun reportObservedFps(nowNs: Long) {
-            fpsWindowFrames++
-            if (nowNs - fpsWindowStartNs < 1_000_000_000L) {
+        private fun reportObservedFps(nowNs: Long, ewmaFps: Int) {
+            if (nowNs - lastFpsReportNs < NANOS_PER_SECOND) {
                 return
             }
-            val observedFps = fpsWindowFrames * 1_000_000_000f / (nowNs - fpsWindowStartNs)
-            fpsWindowStartNs = nowNs
-            fpsWindowFrames = 0
+            lastFpsReportNs = nowNs
             onObservedFps?.let { listener ->
                 try {
-                    listener(observedFps)
+                    listener(ewmaFps.toFloat())
                 } catch (e: Exception) {
                     android.util.Log.w("NativeSurfaceView", "onObservedFps failed: ${e.message}", e)
                 }
@@ -753,23 +787,29 @@ class NativeSurfaceView(
         }
 
         /**
-         * Surface.setFrameRate（API 30+）：目标帧率降至 ≤30fps 时向系统声明，
-         * 让 90/120Hz 高刷面板降刷新率（屏幕功耗是持续大头，60Hz vs 120Hz 差约 50% 屏耗）。
+         * Surface.setFrameRate（API 30+）：有效帧率变化时向系统声明，让高刷面板
+         * 匹配刷新率（屏幕功耗是持续大头，60Hz vs 120Hz 差约 50% 屏耗）。
          *
-         * 回升至 60fps 不主动声明（让系统自然恢复），规避部分设备切刷新率 ~1s 黑屏。
+         * 降频（≤30fps）声明省屏耗；回升时**恢复声明**防部分 OEM 面板粘滞在低刷新率
+         * 造成 judder（"让系统自然恢复"在华为/小米等 ROM 上不成立）。
          * 渲染线程调用（surface 生命周期有效）；任何异常吞掉不杀死渲染线程。
+         *
+         * **iOS 对等**：`CADisplayLink.preferredFrameRateRange`（ProMotion 屏按
+         * 内容帧率降刷新率）——无黑屏切换问题，直接声明目标帧率即可。
          */
-        private fun maybeDeclareFrameRate() {
+        private fun maybeDeclareFrameRate(effectiveFps: Int) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
                 return
             }
-            val fps = targetFps
-            if (fps != lastDeclaredFrameRate && fps <= 30) {
+            val fps = effectiveFps
+            if (fps != lastDeclaredFrameRate &&
+                (fps <= FPS_DECLARE_THRESHOLD || lastDeclaredFrameRate > 0)
+            ) {
                 lastDeclaredFrameRate = fps
                 try {
                     holder.surface.setFrameRate(fps.toFloat(), Surface.FRAME_RATE_COMPATIBILITY_DEFAULT)
                 } catch (e: Exception) {
-                    android.util.Log.w("NativeSurfaceView", "setFrameRate failed: ${e.message}")
+                    android.util.Log.w("NativeSurfaceView", "setFrameRate failed: ${e.message}", e)
                 }
             }
         }

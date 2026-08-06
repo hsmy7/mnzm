@@ -776,7 +776,9 @@ fun MainGameScreen(
             }
         }
 
-        // 接通渲染质量/装饰降级流（热控 + 节能模式低画质真实生效；值相等时跳过避免 chunk 重建）
+        // 接通渲染质量/装饰降级流（热控 + 节能模式低画质真实生效）。
+        // 经 NativeSurfaceView 转发属性写入——backend 未创建时先存值、
+        // 创建后立即应用，防初始发射丢失。
         LaunchedEffect(nativeSurfaceView) {
             val view = nativeSurfaceView ?: return@LaunchedEffect
             combine(
@@ -785,10 +787,8 @@ fun MainGameScreen(
             ) { quality, decorations -> quality to decorations }
                 .distinctUntilChanged()
                 .collect { (quality, decorations) ->
-                    view.softwareRenderer?.let { backend ->
-                        backend.qualityFactor = quality
-                        backend.decorationsDisabled = decorations
-                    }
+                    view.renderQualityFactor = quality
+                    view.renderDecorationsDisabled = decorations
                 }
         }
 

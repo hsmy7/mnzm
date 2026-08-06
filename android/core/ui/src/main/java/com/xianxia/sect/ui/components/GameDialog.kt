@@ -1,6 +1,9 @@
 package com.xianxia.sect.ui.components
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.background
@@ -42,6 +45,15 @@ import com.xianxia.sect.ui.theme.Spacing
 /** 对话框尺寸模式：Half=0.83w/0.78h，Large=0.95w/0.9h（存档管理），Full=全屏，Auto=0.83w 包高 */
 enum class DialogMode { Half, Large, Full, Auto }
 
+/**
+ * 对话框窗口触摸 → 刷新引擎闲置计时的全局钩子（宿主 CompositionLocalProvider 提供）。
+ *
+ * Dialog 是独立 Window，触摸不触发 Activity.onUserInteraction——若不做此桥接，
+ * 对话框内挂机（炼丹/锻造/弟子详情等）5s 即触发动态帧率降档。
+ * CompositionLocal 经 Dialog 组合子树继承，宿主一处提供即可覆盖全部对话框。
+ */
+val LocalOnUserInteraction = androidx.compose.runtime.staticCompositionLocalOf<(() -> Unit)?> { null }
+
 @Composable
 fun UnifiedGameDialog(
     onDismissRequest: () -> Unit,
@@ -66,6 +78,10 @@ fun UnifiedGameDialog(
         ?: R.drawable.ui_close_button,
     content: @Composable () -> Unit
 ) {
+    // 对话框窗口内任意触摸 → 刷新引擎闲置计时（独立 Window 不触发
+    // Activity.onUserInteraction）。由宿主 CompositionLocal 提供
+    // （GameOverlayHost 统一接线），防对话框内挂机误触发动态帧率降档。
+    val onDialogTouch = LocalOnUserInteraction.current
     if (dismissOnBackPress) {
         BackHandler(onBack = onDismissRequest)
     }
@@ -121,6 +137,17 @@ fun UnifiedGameDialog(
                             indication = null,
                             onClick = onDismissRequest
                         )
+                    } else Modifier
+                )
+                .then(
+                    // 对话框窗口内任意触摸 → 刷新引擎闲置计时（防挂机误降帧）
+                    if (onDialogTouch != null) {
+                        Modifier.pointerInput(onDialogTouch) {
+                            awaitEachGesture {
+                                awaitFirstDown(requireUnconsumed = false)
+                                onDialogTouch()
+                            }
+                        }
                     } else Modifier
                 ),
             contentAlignment = Alignment.Center

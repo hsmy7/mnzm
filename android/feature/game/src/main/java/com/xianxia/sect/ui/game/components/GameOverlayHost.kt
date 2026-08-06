@@ -68,6 +68,13 @@ fun GameOverlayHost(
     vms: OverlayViewModels,
     callbacks: OverlayCallbacks
 ) {
+    // 对话框窗口触摸 → 刷新引擎闲置计时（Dialog 独立 Window 不触发
+    // Activity.onUserInteraction；CompositionLocal 经 Dialog 组合子树继承，
+    // 一处提供覆盖全部对话框，防对话框内挂机误触发动态帧率降档）
+    val dialogTouchReporter = vms.game::onUserInteraction
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.xianxia.sect.ui.components.LocalOnUserInteraction provides dialogTouchReporter
+    ) {
     // 解构聚合参数为局部变量（保持 1000+ 行现有代码不变）
     val viewModel = vms.game
     val saveLoadViewModel = vms.saveLoad
@@ -415,6 +422,8 @@ fun GameOverlayHost(
             }
         }
     }
+
+    } // CompositionLocalProvider(LocalOnUserInteraction)
 
 }
 

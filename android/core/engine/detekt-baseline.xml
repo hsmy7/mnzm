@@ -1320,7 +1320,6 @@
     <ID>UnusedPrivateMember:DiscipleService.kt$DiscipleService$private fun _isInCaveExploration(discipleId: String): Boolean</ID>
     <ID>UnusedPrivateMember:DiscipleService.kt$DiscipleService$private fun _isInExploration(discipleId: String): Boolean</ID>
     <ID>UnusedPrivateMember:FormulaService.kt$FormulaService$private fun calculateReducedDuration(baseDuration: Int, speedBonus: Double): Int</ID>
-    <ID>UnusedPrivateMember:GameEngineCore.kt$GameEngineCore$private fun updateFps(frameTime: Float)</ID>
     <ID>UnusedPrivateMember:InventoryFacadeImpl.kt$InventoryFacadeImpl$private fun MutableGameState.otherSlotsCount(excludeType: String): Int</ID>
     <ID>UnusedPrivateMember:InventorySystem.kt$InventorySystem$private fun getMaxSlots(): Int</ID>
     <ID>UnusedPrivateMember:RedeemCodeManager.kt$RedeemCodeManager$private fun recordUsedCode(code: String, record: UsedCodeRecord)</ID>

@@ -128,8 +128,10 @@ class GameEngineCore @Inject constructor(
         if (currentScene != scene) {
             DomainLog.i(TAG, "Scene changed: ${currentScene.displayName} → ${scene.displayName}")
             currentScene = scene
-            sceneStateFlow.value = scene
+            // 先更新帧率再发布场景流：Game State 上报与帧率生效保持同序，
+            // 避免系统收到新场景时读到旧帧率
             updateRenderFrameRate()
+            sceneStateFlow.value = scene
         }
     }
 
@@ -158,11 +160,11 @@ class GameEngineCore @Inject constructor(
      * 场景 × 性能模式基准帧率（纯函数，测试直接覆盖）。
      */
     internal fun sceneFpsFor(mode: PerformanceMode, scene: GameScene): Int = when (scene) {
-        GameScene.IDLE -> 10
-        GameScene.MAP_SCROLL -> if (mode == PerformanceMode.PERFORMANCE) 60 else 30
-        GameScene.GAMEPLAY -> if (mode == PerformanceMode.ENERGY_SAVING) 30 else 60
-        GameScene.GAMEPLAY_IDLE -> 30
-        GameScene.BATTLE -> if (mode == PerformanceMode.ENERGY_SAVING) 30 else 60
+        GameScene.IDLE -> FPS_IDLE
+        GameScene.MAP_SCROLL -> if (mode == PerformanceMode.PERFORMANCE) FPS_ACTIVE else FPS_STILL
+        GameScene.GAMEPLAY -> if (mode == PerformanceMode.ENERGY_SAVING) FPS_STILL else FPS_ACTIVE
+        GameScene.GAMEPLAY_IDLE -> FPS_STILL
+        GameScene.BATTLE -> if (mode == PerformanceMode.ENERGY_SAVING) FPS_STILL else FPS_ACTIVE
     }
 
     /**
@@ -189,7 +191,7 @@ class GameEngineCore @Inject constructor(
     private val IDLE_TIMEOUT_NS = java.util.concurrent.TimeUnit.SECONDS.toNanos(30)
     private val activityDowngradeTimeoutNs = java.util.concurrent.TimeUnit.SECONDS.toNanos(5)
 
-    /** fps 上报限频锁与时间戳（[setObservedRenderFps]） */
+    /** fps 上报限频锁与时间戳（[setObservedRenderFps]，单调时钟 elapsedRealtime） */
     private val fpsReportLock = Any()
     @Volatile
     private var lastFpsReportMs = 0L
@@ -232,6 +234,9 @@ class GameEngineCore @Inject constructor(
         if (lastUserActivityTimeNs <= 0) return
         val target = evaluateIdleTransition(currentScene, nowNs - lastUserActivityTimeNs, performanceMode)
         if (target != null) {
+            // 二次验证：判定与切换之间若发生触摸（时间戳已刷新、当前评估不再满足
+            // 降档条件），放弃降档——否则"降档瞬间触摸"会被吞，玩家需再触摸一次才恢复
+            if (evaluateIdleTransition(currentScene, nowNs - lastUserActivityTimeNs, performanceMode) == null) return
             onSceneChanged(target)
         }
     }
@@ -262,6 +267,14 @@ class GameEngineCore @Inject constructor(
         // processTickPhases 返回值的 bitmask 标志
         private const val FLAG_MONTH_CHANGED = 1
         private const val FLAG_YEAR_CHANGED = 2
+
+        // 帧率档位（场景 × 性能模式基准，sceneFpsFor 使用）
+        private const val FPS_IDLE = 10
+        private const val FPS_STILL = 30
+        private const val FPS_ACTIVE = 60
+        // 渲染能力帧率上报钳制（setObservedRenderFps）
+        private const val MIN_REPORTED_FPS = 1f
+        private const val MAX_REPORTED_FPS = 240f
 
         // 游戏引擎线程 — 非守护线程 + 最高优先级。
         // 红米K80 (HyperOS 2.0) 实测：守护线程会被电源管理挂起，
@@ -385,8 +398,6 @@ class GameEngineCore @Inject constructor(
     val fps: StateFlow<Float> = _fps.asStateFlow()
     
     private var lastFrameTime = System.currentTimeMillis()
-    private var frameCount = 0
-    private var fpsAccumulator = 0f
     
     val events: Flow<DomainEvent> get() = eventBus.events
 
@@ -477,6 +488,10 @@ class GameEngineCore @Inject constructor(
         gameClock.start()
         gameLoopStoppedSignal = CompletableDeferred()
         unifiedPerformanceMonitor.start()
+
+        // 零触摸会话修复：游戏循环启动即视为活跃起点——否则 lastUserActivityTimeNs
+        // 恒 0 导致 checkIdleTimeout 提前返回，动态帧率在无人值守挂机时永不降档
+        lastUserActivityTimeNs = System.nanoTime()
 
         // F4：无条件置 false 会静默丢掉秘境暂停/用户暂停——按暂停来源保留，
         // 作为 startGameLoop 的通用职责（所有重启路径统一语义，不再只在
@@ -1377,32 +1392,24 @@ class GameEngineCore @Inject constructor(
         loadingStartTime = 0L
     }
     
-    private fun updateFps(frameTime: Float) {
-        frameCount++
-        fpsAccumulator += frameTime
-
-        if (frameCount >= 10) {
-            _fps.value = 1000f / (fpsAccumulator / frameCount)
-            frameCount = 0
-            fpsAccumulator = 0f
-        }
-    }
-
     /**
-     * 渲染线程上报实际达成帧率（1s 限频），激活 [ThermalController] 的帧率驱动降级分支。
+     * 渲染线程上报渲染能力帧率（EWMA 反推，非墙钟帧率——挂机主动降帧时
+     * 能力仍高，不会误触发热控降级），激活 [ThermalController] 的帧率驱动降级分支。
      *
-     * 与引擎 tick 解耦：热控判据基于渲染实际达成帧率（渲染线程实测），
-     * 而非引擎逻辑帧率。渲染线程高频回调必须限频，避免 StateFlow 通知风暴。
+     * 与引擎 tick 解耦：热控判据基于渲染能力帧率而非引擎逻辑帧率。
+     * 渲染线程高频回调必须限频，避免 StateFlow 通知风暴。
      *
-     * @param fps 渲染线程实测帧率（每秒回调一次）
+     * @param fps 渲染线程能力帧率（每秒回调一次）
      */
     fun setObservedRenderFps(fps: Float) {
         if (fps <= 0f || fps.isNaN()) return
-        val now = System.currentTimeMillis()
+        // 限频用单调时钟（SystemClock.elapsedRealtime）：墙钟回拨（NTP 校正/手动改时间）
+        // 会让差值变负导致限频失效，热控 fps 输入被长时间阻塞
+        val now = android.os.SystemClock.elapsedRealtime()
         synchronized(fpsReportLock) {
             if (now - lastFpsReportMs < fpsReportIntervalMs) return
             lastFpsReportMs = now
-            _fps.value = fps.coerceIn(1f, 240f)
+            _fps.value = fps.coerceIn(MIN_REPORTED_FPS, MAX_REPORTED_FPS)
         }
     }
 

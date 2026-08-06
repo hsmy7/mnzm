@@ -397,4 +397,97 @@ class ThermalControllerTest {
         mockReader.simulateThermalStateChange(ThermalState.NOMINAL)
         assertEquals(ThermalState.NOMINAL, thermal.currentThermalState)
     }
+
+    // ============================================================
+    // 阈值偏移（setThresholdOffsetC，低电量提前降载）
+    // ============================================================
+
+    @Test
+    fun `threshold offset -2C triggers YELLOW at 39C instead of GREEN`() {
+        // 无偏移：39°C < 40°C YELLOW 线 → GREEN
+        mockReader.temperatureCelsius = 39f
+        thermal.checkAndAdjust(60f)
+        assertEquals(
+            "无偏移时 39°C 应为 GREEN",
+            ThermalController.DegradationLevel.GREEN,
+            thermal.currentLevel
+        )
+
+        // -2°C 偏移：39°C >= 40-2=38°C → 提前触发 YELLOW
+        thermal.setThresholdOffsetC(-2f)
+        thermal.checkAndAdjust(60f)
+        assertEquals(
+            "-2°C 偏移使 39°C 提前触发 YELLOW",
+            ThermalController.DegradationLevel.YELLOW,
+            thermal.currentLevel
+        )
+    }
+
+    @Test
+    fun `threshold offset -2C escalates ORANGE at 42C`() {
+        thermal.setThresholdOffsetC(-2f)
+        mockReader.temperatureCelsius = 42f
+        thermal.checkAndAdjust(60f)
+        assertEquals(
+            "-2°C 偏移使 42°C 达到 ORANGE（原阈值 42）",
+            ThermalController.DegradationLevel.ORANGE,
+            thermal.currentLevel
+        )
+    }
+
+    @Test
+    fun `threshold offset -2C downgrade chain recovers with offset applied`() {
+        // 降级到 RED 后逐步降温，升档判定应带偏移一致（38°C 以下才回 GREEN）
+        thermal.setThresholdOffsetC(-2f)
+        mockReader.temperatureCelsius = 46f
+        thermal.checkAndAdjust(60f)
+        assertEquals(ThermalController.DegradationLevel.RED, thermal.currentLevel)
+
+        // 40°C：RED 升档线 42-2=40 达标 → 升 ORANGE；ORANGE 升档线 40-2=38 未达 → 停 ORANGE
+        mockReader.temperatureCelsius = 40f
+        repeat(3) { thermal.checkAndAdjust(60f) }
+        assertEquals(ThermalController.DegradationLevel.ORANGE, thermal.currentLevel)
+
+        // 36°C：低于偏移后 GREEN 阈值，逐步升回 GREEN
+        mockReader.temperatureCelsius = 36f
+        repeat(6) { thermal.checkAndAdjust(60f) }
+        assertEquals(ThermalController.DegradationLevel.GREEN, thermal.currentLevel)
+    }
+
+    @Test
+    fun `threshold offset NaN and Infinity are sanitized to zero`() {
+        mockReader.temperatureCelsius = 45f
+        thermal.setThresholdOffsetC(Float.NaN)
+        thermal.checkAndAdjust(60f)
+        assertEquals(
+            "NaN 偏移应被清零（45°C 触发 RED 而非静默失效）",
+            ThermalController.DegradationLevel.RED,
+            thermal.currentLevel
+        )
+
+        thermal.setThresholdOffsetC(Float.POSITIVE_INFINITY)
+        thermal.checkAndAdjust(60f)
+        assertEquals(
+            "Infinity 偏移应被清零",
+            ThermalController.DegradationLevel.RED,
+            thermal.currentLevel
+        )
+    }
+
+    @Test
+    fun `reset clears threshold offset`() {
+        thermal.setThresholdOffsetC(-2f)
+        mockReader.temperatureCelsius = 39f
+        thermal.checkAndAdjust(60f)
+        assertEquals(ThermalController.DegradationLevel.YELLOW, thermal.currentLevel)
+
+        thermal.reset()
+        mockReader.temperatureCelsius = 39f
+        thermal.checkAndAdjust(60f)
+        assertEquals(
+            "reset 后偏移清零，39°C 恢复 GREEN",
+            ThermalController.DegradationLevel.GREEN,
+            thermal.currentLevel
+        )
+    }
 }

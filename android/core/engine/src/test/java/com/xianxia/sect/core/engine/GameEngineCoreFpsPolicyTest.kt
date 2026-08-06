@@ -27,7 +27,11 @@ import org.mockito.Mockito.`when`
 import org.mockito.Mockito.doAnswer
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.spy
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.shadows.ShadowSystemClock
 import kotlin.coroutines.EmptyCoroutineContext
+import java.time.Duration
 import java.util.concurrent.TimeUnit
 
 /**
@@ -39,7 +43,10 @@ import java.util.concurrent.TimeUnit
  * - [GameEngineCore.onUserActivity] 双恢复路径（IDLE/GAMEPLAY_IDLE → GAMEPLAY）
  * - [GameEngineCore.setPerformanceMode] 触发帧率/质量/装饰即时更新
  * - 低电量 fpsCap 与热控降级取 min
+ * - [GameEngineCore.setObservedRenderFps] 值防御与限频（需 Robolectric：
+ *   SystemClock.elapsedRealtime 测试环境恒 0，靠 ShadowSystemClock 推进）
  */
+@RunWith(RobolectricTestRunner::class)
 class GameEngineCoreFpsPolicyTest {
 
     private lateinit var core: GameEngineCore
@@ -208,6 +215,47 @@ class GameEngineCoreFpsPolicyTest {
         assertEquals(10, core.renderFrameRate.value)
         core.setPerformanceMode(PerformanceMode.PERFORMANCE)
         assertEquals(10, core.renderFrameRate.value)
+    }
+
+    // ── setObservedRenderFps（渲染能力帧率上报） ──
+
+    @Test
+    fun `setObservedRenderFps - updates fps and clamps to bounds`() {
+        ShadowSystemClock.advanceBy(Duration.ofMillis(5_000))
+        core.setObservedRenderFps(30f)
+        assertEquals(30f, core.fps.value, 0.001f)
+
+        // 推进时钟越过 1s 限频窗口后，超大值钳制到 240
+        ShadowSystemClock.advanceBy(Duration.ofMillis(2_000))
+        core.setObservedRenderFps(500f)
+        assertEquals(240f, core.fps.value, 0.001f)
+    }
+
+    @Test
+    fun `setObservedRenderFps - rejects NaN zero and negative`() {
+        // 每次尝试前推进时钟，排除限频干扰（验证的是值防御而非限频）
+        ShadowSystemClock.advanceBy(Duration.ofMillis(5_000))
+        core.setObservedRenderFps(Float.NaN)
+        assertEquals(0f, core.fps.value, 0.001f)
+
+        ShadowSystemClock.advanceBy(Duration.ofMillis(2_000))
+        core.setObservedRenderFps(0f)
+        assertEquals(0f, core.fps.value, 0.001f)
+
+        ShadowSystemClock.advanceBy(Duration.ofMillis(2_000))
+        core.setObservedRenderFps(-5f)
+        assertEquals(0f, core.fps.value, 0.001f)
+    }
+
+    @Test
+    fun `setObservedRenderFps - rate limits to 1 per second`() {
+        ShadowSystemClock.advanceBy(Duration.ofMillis(5_000))
+        core.setObservedRenderFps(30f)
+        assertEquals(30f, core.fps.value, 0.001f)
+
+        // 未推进时钟：第二次上报在限频窗口内被丢弃
+        core.setObservedRenderFps(60f)
+        assertEquals(30f, core.fps.value, 0.001f)
     }
 
     // ── 低电量 / 热控取 min ──

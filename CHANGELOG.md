@@ -1,5 +1,22 @@
 ## [4.00.90] - 2026-08-06
 
+### 修复（2026-08-06 对抗性审查批次：发热优化 4 严重 + 7 中等 + 12 轻微问题根治）
+
+- **背景** — 发热与流畅度优化批次（见下节）上线前按规范执行三角色对抗性审查（边界狂魔/状态破坏者/规范回归者），共发现 4 严重 / 7 中等 / 12 轻微问题，本批次全部处理。审查报告要点与修复逐条对应如下。
+- **[严重] 热控误判意向降帧 → 挂机回归 90 秒惩罚** — 渲染实测帧率（被 targetFps 主动封顶的墙钟帧率）喂给热控 fps 驱动分支，IDLE 10fps 被误判为渲染能力不足 → RED 降级（30fps+0.4 画质+串行 tick），触摸回归后约 90 秒才恢复。**根治：渲染线程不再写回 targetFps，内部 `effectiveFps = min(targetFps, ewmaFps)`**；`onObservedFps` 改为上报 **EWMA 渲染能力帧率**（渲染耗时反推，非墙钟帧率）——主动省电降帧不影响热控判据，能力恢复自动回升
+- **[严重] targetFps 钉死竞态（Vulkan 路径新暴露）** — EWMA 只降不升写回 targetFps + StateFlow 不重发 → 帧率永久钉在降档值（瞬时重负载后卡 20fps 直至场景/模式再变化）。同上一个修复消除（effectiveFps 方案：渲染线程内部 min 计算，外部升帧永远即时生效）
+- **[严重] applySystemGameMode API 31-32 崩溃** — `GameManager.getGameMode()` 是 API 33 方法，守卫误写 S(31) → Android 12/12L 上 NoSuchMethodError（Error 不被 catch Exception 捕获）进游戏即崩溃循环。守卫改 TIRAMISU(33)
+- **[严重] updateFps 死代码声明不实（诚实报告更正）** — 上一批次声称"激活 updateFps 死代码修复"，实际仅新增并行 setObservedRenderFps，原函数/字段仍零调用者、baseline 未缩。本批次删除 updateFps + frameCount/fpsAccumulator + 移除 detekt baseline 条目
+- **[中等] 系统 GameMode 覆盖状态漂移（3 审查角色独立发现）** — applySystemGameMode 绕过 ViewModel 直改引擎，UI/持久化长期漂移且用户点当前档被 early-return 拦截无法退出节能。**根治：GameViewModel 新增 `setSystemGameModeOverride`**（引擎+UI 三分一致、不写持久化）+ `setPerformanceMode` 无条件同步（用户手动选择清除覆盖、持久化落盘）
+- **[中等] 对话框触摸盲区** — Dialog 独立 Window 不触发 Activity.onUserInteraction，炼丹/锻造/弟子详情等对话框内挂机 5s 即降帧。**根治：`LocalOnUserInteraction` CompositionLocal + UnifiedGameDialog 内容根 pointerInput（任意触摸回调），GameOverlayHost 宿主一处提供覆盖全部对话框**
+- **[中等] setFrameRate 只降不升粘滞 + 跨 surface 残留** — 回升不声明在 OEM（华为/小米）上面板粘滞低刷新率致 judder；lastDeclaredFrameRate 跨旋转残留使新 surface 省电声明失效。**根治：回升恢复声明（lastDeclaredFrameRate>0 时同步声明回升值）+ surfaceChanged 清零 + adaptiveFpsTracker.reset()（旧 EWMA 残留致新线程首帧误判）**
+- **[中等] setThresholdOffsetC NaN 可废掉热控整链** — NaN 偏移使 6 处降级/升档比较恒 false。NaN/Infinity 消毒为 0 + ThermalControllerTest 新增 5 偏移用例（39°C 边界/升档链/NaN/reset 清零）
+- **[中等] setObservedRenderFps 零测试 + 墙钟回拨限频失效** — 新增 3 用例（值防御/钳制/限频，Robolectric + ShadowSystemClock 推进单调时钟）；限频改 SystemClock.elapsedRealtime（NTP 回拨不再阻塞热控 fps 输入）
+- **[中等] 空 catch / 魔法数字 / catch 缺异常参数（规范回归）** — BatteryAwareController 读取失败补 DomainLog；帧率档位/240f/秒纳秒常量提取（FPS_IDLE/FPS_STILL/FPS_ACTIVE/MIN·MAX_REPORTED_FPS/NANOS_PER_SECOND/FPS_DECLARE_THRESHOLD）；catch 补 e 参数
+- **[轻微] 批量修复** — ① 降档瞬间触摸被吞：checkIdleTimeout 降档前二次验证（时间戳重读）；② 零触摸会话永不降档：startGameLoop 初始化活动时间戳；③ onSceneChanged 时序：先更新帧率再发布 sceneState 流（Game State 上报与帧率同序）；④ GAMEPLAY_IDLE 改报 MODE_GAMEPLAY_INTERRUPTIBLE（30fps 仍在渲染，报 MODE_NONE 引系统激进降压+热控误判）；⑤ quality/decorations 初始发射丢失：NativeSurfaceView 转发属性（backend 创建即应用）；⑥ AdaptiveFpsTracker 负数帧耗时消毒 + reset()；⑦ iOS 对等说明 KDoc（UIDevice.batteryLevel / CADisplayLink.preferredFrameRateRange）；⑧ 注释超长修复
+- **测试** — ThermalControllerTest +5、GameEngineCoreFpsPolicyTest +3、AdaptiveFpsTrackerTest +2（负值消毒/reset）；全量串行回归（--max-workers=1）0 失败 + detekt 全模块清零 + lintRelease 通过
+- **遗留说明** — ① 电量读取每 10s 一次 binder 调用落在游戏循环线程（registerReceiver(null) 现代设备 <1ms，接受并注释）；② 低电量保护首 10s 缓存窗口延迟（设计如此，读取失败按非低电量安全回退）；③ GameEngineCore 构造 14 参超限为预存问题延续（对照 GameVmDelegateServices 归组先例，另行立项）
+
 ### 调整（2026-08-06 发热与流畅度优化：三档性能模式 + 动态帧率 + 系统级省电）
 
 - **三档性能模式（玩家可见，行业标配）** — 新增 `PerformanceMode` 枚举（`core/engine/.../engine/PerformanceMode.kt`）：节能（锁 30fps + 质量 0.8 + 关装饰层）/ 均衡（动态帧率，默认）/ 性能（活跃场景恒 60fps）；设置界面新增"性能模式"三档选择（`SettingsTab.PerformanceModeItem`）；持久化走 `SessionManager`（EncryptedSharedPreferences 设备级，非法值回退均衡）；`GameEngineCore.setPerformanceMode` 即时生效，`updateRenderFrameRate` 重构为「场景 × 性能模式 × 热控/电量」三层取 min（`sceneFpsFor` 纯函数）
