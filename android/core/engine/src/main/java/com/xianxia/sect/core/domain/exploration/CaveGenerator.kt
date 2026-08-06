@@ -1,30 +1,9 @@
 package com.xianxia.sect.core.engine.domain.exploration
 
-import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.util.DeterministicRng
-import kotlin.math.sqrt
-
+/**
+ * 洞府配置：根据洞府主人境界提供奖励品阶范围。
+ */
 object CaveGenerator {
-    private val rng by lazy { DeterministicRng.fromSeed(System.nanoTime()) }
-    
-    private val MAP_WIDTH get() = GameConfig.WorldMap.MAP_WIDTH
-    private val MAP_HEIGHT get() = GameConfig.WorldMap.MAP_HEIGHT
-    private val BORDER_PADDING get() = GameConfig.WorldMap.BORDER_PADDING
-    
-    private val caveNames = listOf(
-        "化神洞府", "炼虚洞府", "合体洞府", "大乘洞府", "渡劫洞府"
-    )
-    
-    private val cavePrefixes = listOf(
-        "玄天", "紫霄", "太虚", "青云", "幽冥",
-        "焚天", "冰魄", "龙吟", "凤鸣", "麒麟"
-    )
-    
-    private val caveSuffixes = listOf(
-        "仙府", "洞天", "秘境", "福地", "仙居"
-    )
-    
     private val realmConfigs = listOf(
         CaveRealmConfig(5, "化神", listOf(3, 4, 5)),
         CaveRealmConfig(4, "炼虚", listOf(3, 4, 5)),
@@ -32,124 +11,17 @@ object CaveGenerator {
         CaveRealmConfig(2, "大乘", listOf(4, 5, 6)),
         CaveRealmConfig(1, "渡劫", listOf(5, 6))
     )
-    
-    private val caveSpawnProbabilities = mapOf(
-        5 to 0.506,
-        4 to 0.25,
-        3 to 0.20,
-        2 to 0.028,
-        1 to 0.016
-    )
-    
-    fun generateCaves(
-        existingSects: List<WorldSect>,
-        currentYear: Int,
-        currentMonth: Int,
-        existingCaves: List<CultivatorCave>,
-        maxNewCaves: Int = 2
-    ): List<CultivatorCave> {
-        val caves = mutableListOf<CultivatorCave>()
-        
-        val usedPositions = mutableSetOf<Pair<Int, Int>>()
-        
-        existingSects.forEach { sect ->
-            usedPositions.add(Pair(sect.x.toInt(), sect.y.toInt()))
-        }
-        
-        existingCaves.forEach { cave ->
-            usedPositions.add(Pair(cave.x.toInt(), cave.y.toInt()))
-        }
-        
-        val newCaveCount = rng.nextInt(maxNewCaves + 1)
-        
-        var attempts = 0
-        while (caves.size < newCaveCount && attempts < 5000) {
-            attempts++
-            
-            val x = BORDER_PADDING + rng.nextInt(MAP_WIDTH - BORDER_PADDING * 2)
-            val y = BORDER_PADDING + rng.nextInt(MAP_HEIGHT - BORDER_PADDING * 2)
-            
-            if (!isValidPosition(x, y, usedPositions, existingSects, existingCaves)) {
-                continue
-            }
-            
-            val realmConfig = selectRandomRealm()
-            
-            val cave = CultivatorCave(
-                id = "cave_${System.currentTimeMillis()}_${caves.size}",
-                name = generateCaveName(realmConfig.realmName),
-                ownerRealm = realmConfig.realm,
-                ownerRealmName = realmConfig.realmName,
-                x = x.toFloat(),
-                y = y.toFloat(),
-                spawnYear = currentYear,
-                spawnMonth = currentMonth,
-                expiryYear = currentYear + 1,
-                expiryMonth = currentMonth,
-                status = CaveStatus.AVAILABLE
-            )
-            
-            caves.add(cave)
-            usedPositions.add(Pair(x, y))
-        }
-        
-        return caves
-    }
-    
-    private fun selectRandomRealm(): CaveRealmConfig {
-        val rand = rng.nextDouble()
-        var cumulative = 0.0
-        
-        for ((realm, prob) in caveSpawnProbabilities.toList().sortedByDescending { it.first }) {
-            cumulative += prob
-            if (rand <= cumulative) {
-                return realmConfigs.find { it.realm == realm } ?: realmConfigs.first()
-            }
-        }
-        
-        return realmConfigs.first()
-    }
-    
-    private fun generateCaveName(realmName: String): String {
-        val prefix = cavePrefixes[rng.nextInt(cavePrefixes.size)]
-        val suffix = caveSuffixes[rng.nextInt(caveSuffixes.size)]
-        return "$prefix${realmName}$suffix"
-    }
-    
-    private fun isValidPosition(
-        x: Int,
-        y: Int,
-        usedPositions: Set<Pair<Int, Int>>,
-        sects: List<WorldSect>,
-        existingCaves: List<CultivatorCave>
-    ): Boolean {
-        if (Pair(x, y) in usedPositions) return false
 
-        val minSectDist = GameConfig.WorldMap.CAVE_MIN_SECT_DISTANCE
-        for (sect in sects) {
-            val dist = sqrt(
-                (x - sect.x).toDouble() * (x - sect.x).toDouble() +
-                (y - sect.y).toDouble() * (y - sect.y).toDouble()
-            )
-            if (dist < minSectDist) return false
-        }
-
-        val minCaveDist = GameConfig.WorldMap.CAVE_MIN_CAVE_DISTANCE
-        for (cave in existingCaves) {
-            val dist = sqrt(
-                (x - cave.x).toDouble() * (x - cave.x).toDouble() +
-                (y - cave.y).toDouble() * (y - cave.y).toDouble()
-            )
-            if (dist < minCaveDist) return false
-        }
-        
-        return true
-    }
-
+    /**
+     * 根据洞府主人境界返回奖励品阶范围。
+     *
+     * @param ownerRealm 洞府主人境界（1~5，1=渡劫…5=化神）
+     * @return 品阶范围 [minRarity, maxRarity]，未知境界返回默认 [1, 2, 3]
+     */
     fun getRarityRangeForCave(ownerRealm: Int): List<Int> {
         return realmConfigs.find { it.realm == ownerRealm }?.rarityRange ?: listOf(1, 2, 3)
     }
-    
+
     data class CaveRealmConfig(
         val realm: Int,
         val realmName: String,

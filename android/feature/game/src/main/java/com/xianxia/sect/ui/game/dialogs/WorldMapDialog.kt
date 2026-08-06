@@ -10,6 +10,7 @@ import com.xianxia.sect.core.model.WorldMapRenderData
 import com.xianxia.sect.core.model.WorldSect
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.WorldMapInteractionViewModel
@@ -76,24 +77,27 @@ internal fun WorldMapDialog(
     Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) {
     WorldMapScreen(
         items = mapItems,
-        focusWorldX = playerSectX,
-        focusWorldY = playerSectY,
+        focusWorld = Offset(playerSectX, playerSectY),
         onBack = onDismiss,
         onUserInteraction = viewModel::onUserInteraction,
-        onSectClick = { sectItem ->
-            val sect = worldSects.find { it.id == sectItem.id }
-            if (sect != null) {
-                selectedSect = sect
-                showSectDetail = true
+        onItemClick = { item ->
+            when (item) {
+                is MapItem.Sect -> {
+                    val sect = worldSects.find { it.id == item.id }
+                    if (sect != null) {
+                        selectedSect = sect
+                        showSectDetail = true
+                    }
+                }
+                is MapItem.Level -> {
+                    selectedLevel = item
+                    showLevelDetail = true
+                }
+                is MapItem.SecretRealm -> {
+                    selectedSecretRealm = item
+                    showSecretRealmDetail = true
+                }
             }
-        },
-        onLevelClick = { levelItem ->
-            selectedLevel = levelItem
-            showLevelDetail = true
-        },
-        onSecretRealmClick = { realmItem ->
-            selectedSecretRealm = realmItem
-            showSecretRealmDetail = true
         }
     )
 

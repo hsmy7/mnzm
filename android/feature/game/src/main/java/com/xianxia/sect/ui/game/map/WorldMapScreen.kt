@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import com.xianxia.sect.core.model.MapCoordinateSystem
@@ -22,17 +23,14 @@ fun WorldMapScreen(
         worldWidth = MapCoordinateSystem.WORLD_WIDTH,
         worldHeight = MapCoordinateSystem.WORLD_HEIGHT
     ),
-    focusWorldX: Float? = null,
-    focusWorldY: Float? = null,
+    focusWorld: Offset? = null,
     onBack: () -> Unit = {},
-    onSectClick: (MapItem.Sect) -> Unit = {},
-    onLevelClick: (MapItem.Level) -> Unit = {},
-    onSecretRealmClick: (MapItem.SecretRealm) -> Unit = {},
+    onItemClick: (MapItem) -> Unit = {},
     onUserInteraction: () -> Unit = {}
 ) {
-    LaunchedEffect(focusWorldX, focusWorldY, cameraState.viewportWidth, cameraState.viewportHeight) {
-        if (focusWorldX != null && focusWorldY != null) {
-            cameraState.tryCenterOn(focusWorldX, focusWorldY)
+    LaunchedEffect(focusWorld, cameraState.viewportWidth, cameraState.viewportHeight) {
+        if (focusWorld != null) {
+            cameraState.tryCenterOn(focusWorld.x, focusWorld.y)
         }
     }
 
@@ -69,19 +67,19 @@ fun WorldMapScreen(
                 is MapItem.Sect -> SectMarker(
                     item = item,
                     cameraState = cameraState,
-                    onClick = { onSectClick(item) }
+                    onClick = { onItemClick(item) }
                 )
 
                 is MapItem.Level -> LevelMarker(
                     item = item,
                     cameraState = cameraState,
-                    onClick = { onLevelClick(item) }
+                    onClick = { onItemClick(item) }
                 )
 
                 is MapItem.SecretRealm -> SecretRealmMarker(
                     item = item,
                     cameraState = cameraState,
-                    onClick = { onSecretRealmClick(item) }
+                    onClick = { onItemClick(item) }
                 )
             }
         }

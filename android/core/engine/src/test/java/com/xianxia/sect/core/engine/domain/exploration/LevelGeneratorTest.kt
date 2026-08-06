@@ -1,6 +1,5 @@
 package com.xianxia.sect.core.engine.domain.exploration
 
-import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.util.GameRngManager
 import org.junit.Assert.*
 import org.junit.Before

@@ -1,7 +1,9 @@
 package com.xianxia.sect.core.engine.domain.exploration
 
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.LevelType
+import com.xianxia.sect.core.model.WorldLevel
+import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import javax.inject.Inject
@@ -270,24 +272,15 @@ class LevelGenerator @Inject constructor(
         if (Pair(x, y) in usedPositions) return false
 
         val minSectDist = GameConfig.WorldMap.CAVE_MIN_SECT_DISTANCE
-        for (sect in sects) {
-            val dist = sqrt(
-                (x - sect.x).toDouble() * (x - sect.x).toDouble() +
-                (y - sect.y).toDouble() * (y - sect.y).toDouble()
-            )
-            if (dist < minSectDist) return false
-        }
-
         val minLevelDist = GameConfig.WorldMap.LEVEL_MIN_DISTANCE
-        for (level in existingLevels) {
-            val dist = sqrt(
-                (x - level.x).toDouble() * (x - level.x).toDouble() +
-                (y - level.y).toDouble() * (y - level.y).toDouble()
-            )
-            if (dist < minLevelDist) return false
-        }
+        return sects.none { isTooClose(x, y, it.x, it.y, minSectDist) } &&
+            existingLevels.none { isTooClose(x, y, it.x, it.y, minLevelDist) }
+    }
 
-        return true
+    private fun isTooClose(x: Int, y: Int, targetX: Float, targetY: Float, minDist: Double): Boolean {
+        val dx = x - targetX
+        val dy = y - targetY
+        return sqrt(dx.toDouble() * dx.toDouble() + dy.toDouble() * dy.toDouble()) < minDist
     }
 
     data class CaveRewardConfig(

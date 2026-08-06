@@ -1103,7 +1103,6 @@
     <ID>ReturnCount:LazyEvaluationDispatcher.kt$LazyEvaluationDispatcher$fun shouldSettle( completionMonth: Int, completionPhase: Int, currentMonth: Int, currentPhase: Int ): Boolean</ID>
     <ID>ReturnCount:LazyEvaluationDispatcher.kt$LazyEvaluationDispatcher$fun shouldSettleWithThermal( completionMonth: Int, completionPhase: Int, currentMonth: Int, currentPhase: Int ): Boolean</ID>
     <ID>ReturnCount:LazyEvaluationDispatcher.kt$LazyEvaluationDispatcher.Companion$fun estimateMonthsToNextBreakthrough( remainingCultivation: Double, ratePerPhase: Double ): Int</ID>
-    <ID>ReturnCount:LevelGenerator.kt$LevelGenerator$private fun isValidPosition( x: Int, y: Int, usedPositions: Set&lt;Pair&lt;Int, Int&gt;&gt;, sects: List&lt;WorldSect&gt;, edges: List&lt;MSTEdge&gt;, existingLevels: List&lt;WorldLevel&gt; ): Boolean</ID>
     <ID>ReturnCount:MailService.kt$MailService$private suspend fun claimAttachmentInternal(mail: MailEntity, slotId: Int, now: Long): ClaimResult</ID>
     <ID>ReturnCount:MailService.kt$MailService$suspend fun claimAttachment(mailId: String, slotId: Int): ClaimResult</ID>
     <ID>ReturnCount:MerchantAndRecruitService.kt$MerchantAndRecruitService$fun selectItemByRarity(itemPoolByRarity: Map&lt;Int, List&lt;PoolEntry&gt;&gt;, rarity: Int): PoolEntry?</ID>
