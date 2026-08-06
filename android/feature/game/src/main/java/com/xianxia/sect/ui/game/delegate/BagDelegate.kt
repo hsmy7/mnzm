@@ -1,7 +1,6 @@
 package com.xianxia.sect.ui.game.delegate
 
 import com.xianxia.sect.core.engine.*
-import com.xianxia.sect.core.engine.service.DailySignInService
 import com.xianxia.sect.core.model.BattleRewardItem
 import com.xianxia.sect.core.model.RewardCardItem
 import kotlinx.coroutines.CoroutineDispatcher
@@ -14,7 +13,6 @@ import kotlinx.coroutines.flow.asStateFlow
 
 class BagDelegate(
     private val gameEngine: GameEngine,
-    private val dailySignInService: DailySignInService,
     private val scope: CoroutineScope,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
@@ -53,7 +51,7 @@ class BagDelegate(
             pendingBagCards = emptyList()
             _bagRewardCards.value = emptyList()
             // 引擎写操作派发到引擎线程（对齐 enqueueBattleRewardCards 模式），先清本地状态再异步入队
-            gameEngine.launchOnEngine { dailySignInService.enqueueSignInCards(cards) }
+            gameEngine.launchOnEngine { gameEngine.enqueueRewardCards(cards) }
         }
     }
 }

@@ -33,7 +33,6 @@ import com.xianxia.sect.core.engine.domain.save.SaveService
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.engine.service.RedeemCodeService
-import com.xianxia.sect.core.engine.service.DailySignInService
 import com.xianxia.sect.core.engine.service.AutoBuyService
 import com.xianxia.sect.core.engine.domain.battle.BattleFacade
 import com.xianxia.sect.core.engine.domain.building.BuildingFacade
@@ -104,7 +103,6 @@ class GameEngine @Inject constructor(
     internal val redeemCodeService: RedeemCodeService get() = economyFacade.redeemCodeService
     internal val formulaService: FormulaService get() = cultivationFacade.formulaService
     internal val mailService: MailService get() = economyFacade.mailService
-    internal val dailySignInService: DailySignInService get() = economyFacade.dailySignInService
     internal val autoBuyService: AutoBuyService get() = economyFacade.autoBuyService
     internal val heavyDataPort: GameHeavyDataPort get() = economyFacade.saveFacade.heavyDataPort
     internal val heavyDataDecoder: HeavyDataDecoder get() = economyFacade.saveFacade.heavyDataDecoder
@@ -143,6 +141,18 @@ class GameEngine @Inject constructor(
      */
     fun launchOnEngine(block: suspend CoroutineScope.() -> Unit): Job {
         return gameEngineCore.launchInScope(block)
+    }
+
+    /**
+     * 通用奖励卡片入队（内部空检查，空列表自动跳过）。
+     *
+     * 引擎线程写操作——UI 层必须经 [launchOnEngine] 包裹调用。
+     * 原 DailySignInService.enqueueSignInCards 在签到功能移除后的通用替代入口。
+     */
+    fun enqueueRewardCards(cards: List<RewardCardItem>) {
+        if (cards.isNotEmpty()) {
+            stateStore.enqueueRewardCards(cards)
+        }
     }
 
     // ── StateFlow delegates ─────────────────────────────────────────────

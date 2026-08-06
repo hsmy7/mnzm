@@ -20,7 +20,6 @@
     <ID>ComplexCondition:SoftwareCanvasBackend.kt$SoftwareCanvasBackend$screenX + scaledW &lt; 0 || screenY + scaledH &lt; 0 || screenX &gt; vpW || screenY &gt; vpH</ID>
     <ID>ComplexCondition:SoftwareCanvasBackend.kt$SoftwareCanvasBackend.Companion$bDstLeft &gt;= vpW || bDstTop &gt;= vpH || bDstRight &lt;= 0 || bDstBottom &lt;= 0</ID>
     <ID>ComplexCondition:WorldCameraState.kt$WorldCameraState$prevW &gt; 0 &amp;&amp; prevH &gt; 0 &amp;&amp; (abs(w - prevW) &gt; CENTER_THRESHOLD || abs(h - prevH) &gt; CENTER_THRESHOLD)</ID>
-    <ID>CyclomaticComplexMethod:ActivityDialog.kt$@Composable fun ActivityDialog( viewModel: ActivityViewModel, gameViewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
     <ID>CyclomaticComplexMethod:AlchemyDialog.kt$@Composable fun AlchemyDialog( buildingInstanceId: String = "", alchemySlots: List&lt;AlchemySlot&gt;, materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, productionViewModel: ProductionViewModel, alchemyViewModel: AlchemyViewModel, colors: com.xianxia.sect.ui.theme.XianxiaColorScheme, onDismiss: () -&gt; Unit )</ID>
     <ID>CyclomaticComplexMethod:AlchemyDialog.kt$@Composable private fun PillDetailDialog( recipes: List&lt;PillRecipeDatabase.PillRecipe&gt;, herbs: List&lt;Herb&gt;, viewModel: GameViewModel? = null, onDismiss: () -&gt; Unit )</ID>
     <ID>CyclomaticComplexMethod:AutoManagementDialog.kt$@Composable fun AutoManagementDialog( gameData: GameData?, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
@@ -32,7 +31,6 @@
     <ID>CyclomaticComplexMethod:BloodRefiningPoolDialog.kt$@Composable fun BloodRefiningPoolDialog( buildingInstanceId: String, viewModel: GameViewModel, bloodRefiningViewModel: BloodRefiningViewModel, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, materials: List&lt;Material&gt;, onDismiss: () -&gt; Unit )</ID>
     <ID>CyclomaticComplexMethod:BuildingDelegate.kt$BuildingDelegate$private suspend fun doPlaceBuilding(name: String, gridX: Int, gridY: Int, width: Int, height: Int)</ID>
     <ID>CyclomaticComplexMethod:BuildingsTab.kt$@Composable internal fun BuildingsTab( viewModel: GameViewModel, productionViewModel: ProductionViewModel, alchemyViewModel: AlchemyViewModel, forgeViewModel: ForgeViewModel, herbGardenViewModel: HerbGardenViewModel, spiritMineViewModel: SpiritMineViewModel, onDismiss: () -&gt; Unit )</ID>
-    <ID>CyclomaticComplexMethod:DailySignInDialog.kt$@OptIn(ExperimentalFoundationApi::class) @Composable private fun SignInDayCard( dayOfMonth: Int, reward: DailySignInReward, state: SignInDayState, cellWidth: Dp, cellHeight: Dp, nameFontSize: TextUnit, watchedKeys: Set&lt;String&gt; = emptySet(), modifier: Modifier = Modifier, onLongPress: (Any) -&gt; Unit = {} )</ID>
     <ID>CyclomaticComplexMethod:DetailActionButtons.kt$@Composable fun RelationsDialog( disciple: DiscipleAggregate, allDisciples: List&lt;DiscipleAggregate&gt;, onDismiss: () -&gt; Unit )</ID>
     <ID>CyclomaticComplexMethod:DetailCultivationSection.kt$@Composable fun BasicInfoSection( disciple: DiscipleAggregate, allEquipment: List&lt;EquipmentInstance&gt; = emptyList(), allManuals: List&lt;ManualInstance&gt; = emptyList(), manualProficiencies: Map&lt;String, List&lt;ManualProficiencyData&gt;&gt; = emptyMap(), elderSlots: ElderSlots? = null, allDisciples: List&lt;DiscipleAggregate&gt; = emptyList(), sectPolicies: SectPolicies? = null, residenceSlots: List&lt;ResidenceSlot&gt; = emptyList(), placedBuildings: List&lt;GridBuildingData&gt; = emptyList(), viewModel: GameViewModel? = null, gameMonth: Int = 1, gameYear: Int = 1, gamePhase: Int = 0, gameSpeed: Int = 1 )</ID>
     <ID>CyclomaticComplexMethod:DetailCultivationSection.kt$@Composable fun BreakthroughDetailDialog( detail: DiscipleStatCalculator.BreakthroughBonusDetail, onDismiss: () -&gt; Unit )</ID>
@@ -125,7 +123,6 @@
     <ID>LargeClass:GameViewModel.kt$GameViewModel : BaseViewModel</ID>
     <ID>LargeClass:SaveLoadViewModel.kt$SaveLoadViewModel : BaseViewModel</ID>
     <ID>LaunchOnEngineRequired:GameLoopDelegate.kt$GameLoopDelegate$launch { val current = _cultivationProgress.value val diff = target - current val steps = 6 for (i in 1..steps) { _cultivationProgress.value = current + diff * i / steps delay(16) } _cultivationProgress.value = target }</ID>
-    <ID>LongMethod:ActivityDialog.kt$@Composable fun ActivityDialog( viewModel: ActivityViewModel, gameViewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:AlchemyDialog.kt$@Composable fun AlchemyDialog( buildingInstanceId: String = "", alchemySlots: List&lt;AlchemySlot&gt;, materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, gameData: GameData?, disciples: List&lt;DiscipleAggregate&gt;, viewModel: GameViewModel, productionViewModel: ProductionViewModel, alchemyViewModel: AlchemyViewModel, colors: com.xianxia.sect.ui.theme.XianxiaColorScheme, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:AlchemyDialog.kt$@Composable private fun PillDetailDialog( recipes: List&lt;PillRecipeDatabase.PillRecipe&gt;, herbs: List&lt;Herb&gt;, viewModel: GameViewModel? = null, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:AlchemyDialog.kt$@Composable private fun PillSelectionDialog( materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, slotIndex: Int, viewModel: GameViewModel, productionViewModel: ProductionViewModel, alchemyViewModel: AlchemyViewModel, onDismiss: () -&gt; Unit, onConfirmOverride: ((PillRecipeDatabase.PillRecipe) -&gt; Unit)? = null )</ID>
@@ -148,9 +145,6 @@
     <ID>LongMethod:BuildingFeatureBoot.kt$fun BuildingFeatureRegistry.registerDefaults()</ID>
     <ID>LongMethod:BuildingsTab.kt$@Composable internal fun BuildingsTab( viewModel: GameViewModel, productionViewModel: ProductionViewModel, alchemyViewModel: AlchemyViewModel, forgeViewModel: ForgeViewModel, herbGardenViewModel: HerbGardenViewModel, spiritMineViewModel: SpiritMineViewModel, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:CloudSaveDialog.kt$@Composable fun CloudSaveDialog( saveLoadViewModel: SaveLoadViewModel, onDismiss: () -&gt; Unit )</ID>
-    <ID>LongMethod:DailySignInDialog.kt$@Composable fun DailySignInPanel( viewModel: GameViewModel )</ID>
-    <ID>LongMethod:DailySignInDialog.kt$@OptIn(ExperimentalFoundationApi::class) @Composable private fun MilestoneRewardRow( milestone: MilestoneReward, isClaimed: Boolean, watchedKeys: Set&lt;String&gt; = emptySet(), isReached: Boolean, cardSize: Dp, cardHeight: Dp, labelSpacing: Dp, dayLabelWidth: Dp, nameFontSize: TextUnit, onLongPress: (Any) -&gt; Unit )</ID>
-    <ID>LongMethod:DailySignInDialog.kt$@OptIn(ExperimentalFoundationApi::class) @Composable private fun SignInDayCard( dayOfMonth: Int, reward: DailySignInReward, state: SignInDayState, cellWidth: Dp, cellHeight: Dp, nameFontSize: TextUnit, watchedKeys: Set&lt;String&gt; = emptySet(), modifier: Modifier = Modifier, onLongPress: (Any) -&gt; Unit = {} )</ID>
     <ID>LongMethod:DaoCompanionManagementDialog.kt$@Composable fun DaoCompanionManagementDialog( gameData: GameData?, viewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:DetailActionButtons.kt$@Composable fun RelationsDialog( disciple: DiscipleAggregate, allDisciples: List&lt;DiscipleAggregate&gt;, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:DetailCultivationSection.kt$@Composable fun BasicInfoSection( disciple: DiscipleAggregate, allEquipment: List&lt;EquipmentInstance&gt; = emptyList(), allManuals: List&lt;ManualInstance&gt; = emptyList(), manualProficiencies: Map&lt;String, List&lt;ManualProficiencyData&gt;&gt; = emptyMap(), elderSlots: ElderSlots? = null, allDisciples: List&lt;DiscipleAggregate&gt; = emptyList(), sectPolicies: SectPolicies? = null, residenceSlots: List&lt;ResidenceSlot&gt; = emptyList(), placedBuildings: List&lt;GridBuildingData&gt; = emptyList(), viewModel: GameViewModel? = null, gameMonth: Int = 1, gameYear: Int = 1, gamePhase: Int = 0, gameSpeed: Int = 1 )</ID>
@@ -281,10 +275,6 @@
     <ID>LongParameterList:AutoAssignDelegate.kt$AutoAssignDelegate$( mineFocused: Boolean, mineRootCounts: List&lt;Int&gt;, mineThreshold: Int, alchemyFocused: Boolean, alchemyRootCounts: List&lt;Int&gt;, alchemyThreshold: Int, forgeFocused: Boolean, forgeRootCounts: List&lt;Int&gt;, forgeThreshold: Int, singleResidenceFocused: Boolean = false, singleResidenceRootCounts: List&lt;Int&gt; = emptyList(), singleResidenceThreshold: Int = 1, multiResidenceFocused: Boolean = false, multiResidenceRootCounts: List&lt;Int&gt; = emptyList(), multiResidenceThreshold: Int = 1, plantFocused: Boolean = false, plantRootCounts: List&lt;Int&gt; = emptyList(), plantThreshold: Int = 1 )</ID>
     <ID>LongParameterList:AutoManagementDialog.kt$( title: String, attrLabel: String, focused: Boolean, rootCounts: List&lt;Int&gt;, threshold: String, onFocusedToggle: () -&gt; Unit, onRootToggle: (Int) -&gt; Unit, onThresholdChange: (String) -&gt; Unit )</ID>
     <ID>LongParameterList:BuildingConstructionBar.kt$( buildingList: List&lt;Pair&lt;String, (GridBuildingData?) -&gt; Unit&gt;&gt;, placedBuildings: List&lt;GridBuildingData&gt;, buildingCosts: Map&lt;String, Long&gt;, spiritStones: Long, onSelectBuilding: (String) -&gt; Unit, modifier: Modifier = Modifier, getBuildingCount: (String) -&gt; Int = { name -&gt; placedBuildings.count { it.displayName == name } }, getBuildingMaxCount: (String) -&gt; Int = { 1 }, /** 当前宗门等级（SectLevel 常量），用于检测中级建筑等级限制 */ currentSectLevel: Int = 0, /** 等级不足时的回调，在中级建筑被点击时触发 */ onSelectBuildingLevelRequirement: ((String) -&gt; Unit)? = null )</ID>
-    <ID>LongParameterList:DailySignInDialog.kt$( dayOfMonth: Int, reward: DailySignInReward, state: SignInDayState, cellWidth: Dp, cellHeight: Dp, nameFontSize: TextUnit, watchedKeys: Set&lt;String&gt; = emptySet(), modifier: Modifier = Modifier, onLongPress: (Any) -&gt; Unit = {} )</ID>
-    <ID>LongParameterList:DailySignInDialog.kt$( milestone: MilestoneReward, isClaimed: Boolean, watchedKeys: Set&lt;String&gt; = emptySet(), isReached: Boolean, cardSize: Dp, cardHeight: Dp, labelSpacing: Dp, dayLabelWidth: Dp, nameFontSize: TextUnit, onLongPress: (Any) -&gt; Unit )</ID>
-    <ID>LongParameterList:DailySignInDialog.kt$( milestones: List&lt;MilestoneReward&gt;, claimedDaysCount: Int, claimedMilestones: List&lt;Int&gt;, cardSize: Dp, cardHeight: Dp, cardSpacing: Dp, labelSpacing: Dp, dayLabelWidth: Dp, nameFontSize: TextUnit, watchedKeys: Set&lt;String&gt; = emptySet(), onLongPress: (Any) -&gt; Unit )</ID>
-    <ID>LongParameterList:DailySignInDialog.kt$( signInState: SignInState, daysInMonth: Int, getRewardForWeekday: (Int) -&gt; DailySignInReward, getDayState: (Int, SignInState) -&gt; SignInDayState, getWeekdayForDay: (Int) -&gt; Int, cellWidth: Dp, cellHeight: Dp, cellSpacing: Dp, nameFontSize: TextUnit, watchedKeys: Set&lt;String&gt; = emptySet(), onLongPress: (Any) -&gt; Unit )</ID>
     <ID>LongParameterList:DetailCultivationSection.kt$( disciple: DiscipleAggregate, allEquipment: List&lt;EquipmentInstance&gt; = emptyList(), allManuals: List&lt;ManualInstance&gt; = emptyList(), manualProficiencies: Map&lt;String, List&lt;ManualProficiencyData&gt;&gt; = emptyMap(), elderSlots: ElderSlots? = null, allDisciples: List&lt;DiscipleAggregate&gt; = emptyList(), sectPolicies: SectPolicies? = null, residenceSlots: List&lt;ResidenceSlot&gt; = emptyList(), placedBuildings: List&lt;GridBuildingData&gt; = emptyList(), viewModel: GameViewModel? = null, gameMonth: Int = 1, gameYear: Int = 1, gamePhase: Int = 0, gameSpeed: Int = 1 )</ID>
     <ID>LongParameterList:DetailEquipmentSection.kt$( slotType: String, allEquipment: List&lt;EquipmentInstance&gt;, equipmentStacks: List&lt;EquipmentStack&gt;, currentEquipmentId: String?, currentDiscipleId: String, discipleRealm: Int, selectedEquipmentId: String?, onSelect: (String) -&gt; Unit, onConfirm: () -&gt; Unit, onDismiss: () -&gt; Unit, viewModel: GameViewModel? = null )</ID>
     <ID>LongParameterList:DetailHeaderSection.kt$( disciple: DiscipleAggregate, allDisciples: List&lt;DiscipleAggregate&gt;, localDiscipleType: String, showDiscipleTypeDropdown: Boolean, onDiscipleTypeDropdownChange: (Boolean) -&gt; Unit, onLocalDiscipleTypeChange: (String) -&gt; Unit, actions: DetailActionCallbacks, viewModel: GameViewModel? )</ID>
@@ -328,7 +318,6 @@
     <ID>MatchingDeclarationName:ProductionComponents.kt$ProductionTheme</ID>
     <ID>MatchingDeclarationName:RenameDialog.kt$RenameDialogConfig</ID>
     <ID>MatchingDeclarationName:RewardDialog.kt$RewardItem</ID>
-    <ID>MaxLineLength:ActivityDialog.kt$val vm = checkNotNull(trialViewModel) { "trialViewModel null in HeavenlyTrialPanel" }</ID>
     <ID>MaxLineLength:AlchemyDialog.kt$if (recipe.cultivationSpeedPercent &gt; 0) add(StatLine("修炼速度", pctRange { it.cultivationSpeedPercent }))</ID>
     <ID>MaxLineLength:AlchemyDialog.kt$modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)</ID>
     <ID>MaxLineLength:AlchemyDialog.kt$onSlotClick = { workerDisciple?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } }</ID>
@@ -416,7 +405,6 @@
     <ID>MaxLineLength:GameViewModel.kt$GameViewModel$singleResidenceFocused: Boolean = false</ID>
     <ID>MaxLineLength:GameViewModel.kt$GameViewModel$suspend fun resolveBeastAttackPayTribute(beastLevelId: String)</ID>
     <ID>MaxLineLength:GameViewModel.kt$GameViewModel$suspend fun rewardItemsToDisciple(discipleId: String, items: List&lt;RewardSelectedItem&gt;)</ID>
-    <ID>MaxLineLength:GameViewModel.kt$GameViewModel$val signIn = SignInDelegate(gameEngine, dailySignInService, viewModelScope, sharingStarted) { showCapacityWarning(it) }</ID>
     <ID>MaxLineLength:GameViewModelTest.kt$GameViewModelTest$coEvery { gameEngine.batchUpdateAutoAssignAndGuide(any(), capture(newPoliciesSlot), any(), any(), any()) } just runs</ID>
     <ID>MaxLineLength:HeavenlyTrialBattleDialog.kt$Text("$buffName +${(buff.second * 100).toInt()}% 持续${buff.third}回合", fontSize = 9.sp, color = Color.Black)</ID>
     <ID>MaxLineLength:HeavenlyTrialBattleDialog.kt$Text("${bt.displayName} +${(skill.buffValue * 100).toInt()}% 持续${skill.buffDuration}回合", fontSize = 9.sp, color = Color.Black)</ID>
@@ -601,7 +589,6 @@
     <ID>MaxLineLength:SectTradeDialog.kt$val canTrade = relationLevel in listOf(SectRelationLevel.NORMAL, SectRelationLevel.FRIENDLY, SectRelationLevel.INTIMATE)</ID>
     <ID>MaxLineLength:SettingsTab.kt$Row</ID>
     <ID>MaxLineLength:SettingsTab.kt$val loadEnabled = selectedSlot != null &amp;&amp; saveSlots.find { it.slot == selectedSlot }?.isEmpty == false &amp;&amp; !isBusy</ID>
-    <ID>MaxLineLength:SignInDelegate.kt$SignInDelegate$fun getDayState(dayOfMonth: Int, signInState: SignInState): SignInDayState</ID>
     <ID>MaxLineLength:SoftwareCanvasBackend.kt$SoftwareCanvasBackend$val buildingHash = if (buildingArray === cachedBuildingData) chunkBuildingHash else (buildingArray?.contentHashCode() ?: 0).also { cachedBuildingData = buildingArray }</ID>
     <ID>MaxLineLength:SoftwareCanvasBackend.kt$SoftwareCanvasBackend.ChunkTile$val bmp = bitmap ?: Bitmap.createBitmap(CHUNK_PIXEL, CHUNK_PIXEL, Bitmap.Config.RGB_565).also { bitmap = it }</ID>
     <ID>MaxLineLength:SpiritMineDialog.kt$onSlotClick = { disciple?.let { viewModel.showDiscipleDetail(DiscipleDetailRequest(it, disciples)) } }</ID>
@@ -884,13 +871,10 @@
     <ID>UnusedPrivateProperty:WorldCameraStateTest.kt$WorldCameraStateTest$/** scale=1.0 时 Y 方向可见高度 = 1920 &gt; 926 → 永远 clamp 到 0 */ private val maxCameraY = 0f</ID>
     <ID>UnusedPrivateProperty:WorldCameraStateTest.kt$WorldCameraStateTest$val worldBeforeY = camera.screenToWorldY(focusSy)</ID>
     <ID>UnusedPrivateProperty:WorldMapSectDetailDialog.kt$val hasGiftedThisYear = (gameData?.sectDetails?.get(sect.id)?.lastGiftYear ?: 0) == currentYear</ID>
-    <ID>VariableNaming:DailySignInDialog.kt$val calGridW_target = cardW * 7f + gap * 6f</ID>
     <ID>VariableNaming:SaveLoadLoadDelegate.kt$SaveLoadLoadDelegate$private val TAG = "SaveLoadLoadDelegate"</ID>
     <ID>VariableNaming:SaveLoadPauseDelegate.kt$SaveLoadPauseDelegate$private val TAG = "SaveLoadPauseDelegate"</ID>
     <ID>VariableNaming:SaveLoadRestartDelegate.kt$SaveLoadRestartDelegate$private val TAG = "SaveLoadRestartDelegate"</ID>
     <ID>VariableNaming:SaveLoadSaveDelegate.kt$SaveLoadSaveDelegate$private val TAG = SaveLoadViewModelConstants.TAG</ID>
-    <ID>WildcardImport:ActivityDialog.kt$import androidx.compose.foundation.layout.*</ID>
-    <ID>WildcardImport:ActivityDialog.kt$import androidx.compose.runtime.*</ID>
     <ID>WildcardImport:AlchemyDialog.kt$import androidx.compose.foundation.layout.*</ID>
     <ID>WildcardImport:AlchemyDialog.kt$import androidx.compose.material3.*</ID>
     <ID>WildcardImport:AlchemyDialog.kt$import androidx.compose.runtime.*</ID>
@@ -930,8 +914,6 @@
     <ID>WildcardImport:BuildingsTab.kt$import androidx.compose.runtime.*</ID>
     <ID>WildcardImport:CloudSaveDialog.kt$import androidx.compose.foundation.layout.*</ID>
     <ID>WildcardImport:CloudSaveDialog.kt$import androidx.compose.runtime.*</ID>
-    <ID>WildcardImport:DailySignInDialog.kt$import androidx.compose.foundation.layout.*</ID>
-    <ID>WildcardImport:DailySignInDialog.kt$import androidx.compose.runtime.*</ID>
     <ID>WildcardImport:DetailActionButtons.kt$import androidx.compose.foundation.layout.*</ID>
     <ID>WildcardImport:DetailActionButtons.kt$import androidx.compose.runtime.*</ID>
     <ID>WildcardImport:DetailCombatSection.kt$import androidx.compose.foundation.layout.*</ID>
@@ -1159,7 +1141,6 @@
     <ID>WildcardImport:SettingsTab.kt$import androidx.compose.material.icons.filled.*</ID>
     <ID>WildcardImport:SettingsTab.kt$import androidx.compose.material3.*</ID>
     <ID>WildcardImport:SettingsTab.kt$import androidx.compose.runtime.*</ID>
-    <ID>WildcardImport:SignInDelegate.kt$import com.xianxia.sect.core.model.*</ID>
     <ID>WildcardImport:SoftwareCanvasBackend.kt$import android.graphics.*</ID>
     <ID>WildcardImport:SoftwareCanvasBackendTest.kt$import org.junit.Assert.*</ID>
     <ID>WildcardImport:SpiritMineDialog.kt$import androidx.compose.foundation.layout.*</ID>

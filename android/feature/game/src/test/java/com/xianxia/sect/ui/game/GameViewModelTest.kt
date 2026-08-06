@@ -17,7 +17,6 @@ import com.xianxia.sect.core.engine.domain.building.BuildingFacade
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
 import com.xianxia.sect.core.engine.di.IoDispatcher
-import com.xianxia.sect.core.engine.service.DailySignInService
 import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.model.Disciple
@@ -91,13 +90,12 @@ import org.junit.Test
  */
 class GameViewModelTest {
 
-    // ── 13 个注入依赖的 MockK mock（GameVmServices 归组后按值对象注入）──
+    // ── 12 个注入依赖的 MockK mock（GameVmServices 归组后按值对象注入）──
     private val gameEngine: GameEngine = mockk(relaxed = true)
     private val gameEngineCore: GameEngineCore = mockk(relaxed = true)
     private val systemManager: SystemManager = mockk(relaxed = true)
     private val buildingConfigService: BuildingConfigService = mockk(relaxed = true)
     private val mailService: MailService = mockk(relaxed = true)
-    private val dailySignInService: DailySignInService = mockk(relaxed = true)
     private val discipleFacade: DiscipleFacade = mockk(relaxed = true)
     private val buildingFacade: BuildingFacade = mockk(relaxed = true)
     private val thermalMonitor: ThermalMonitor = mockk(relaxed = true)
@@ -169,9 +167,6 @@ class GameViewModelTest {
         // ── Stub thermalMonitor.thermalState（属性直接赋值）──
         every { thermalMonitor.thermalState } returns MutableStateFlow(ThermalState.NORMAL)
 
-        // ── Stub dailySignInService.getMilestoneRewards()（属性初始化时调用）──
-        every { dailySignInService.getMilestoneRewards() } returns emptyList()
-
         // ── Stub dialogManager.currentDialog（init 块中收集）──
         every { dialogManager.currentDialog } returns MutableStateFlow(null)
 
@@ -196,7 +191,7 @@ class GameViewModelTest {
             GameVmCoreServices(gameEngineCore, systemManager, thermalMonitor),
             GameVmUiServices(dialogManager, adService),
             GameVmDelegateServices(
-                dailySignInService, mailService, buildingConfigService,
+                mailService, buildingConfigService,
                 buildingFacade, discipleFacade,
                 // 2026-08-01：注入 TestDispatcher 替代真实 Dispatchers.IO
                 //（旧代码用真实 IO 线程，runTest 的 advanceUntilIdle 等待不到）

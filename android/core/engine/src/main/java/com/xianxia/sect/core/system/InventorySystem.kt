@@ -93,7 +93,7 @@ class InventorySystem @Inject constructor(
      *   物品已生成无凭据可重试，不转即丢失）
      * - [DomainResult.Failure]（仓库满 Full）：全部数量转邮件（同上，
      *   零合并且无空槽时物品全部无法入仓，不转即丢失）
-     * - [withOverflowMailSuppressed] 内（凭据类路径——签到/兑换码/宗门等级/
+     * - [withOverflowMailSuppressed] 内（凭据类路径——兑换码/宗门等级/
      *   引导/邮件领取）：不转邮件，由调用方拒绝并保留凭据，玩家清理后可重试补齐
      *
      * @param itemType 与 MailAttachment.type 对齐（equipment/manual/pill/...）

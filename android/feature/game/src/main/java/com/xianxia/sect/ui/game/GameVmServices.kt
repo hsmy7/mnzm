@@ -9,7 +9,6 @@ import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.core.engine.domain.building.BuildingFacade
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
 import com.xianxia.sect.core.engine.service.AdService
-import com.xianxia.sect.core.engine.service.DailySignInService
 import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.perf.ThermalMonitor
@@ -40,7 +39,6 @@ class GameVmUiServices @Inject constructor(
 )
 
 class GameVmDelegateServices @Inject constructor(
-    val dailySignInService: DailySignInService,
     val mailService: MailService,
     val buildingConfigService: BuildingConfigService,
     val buildingFacade: BuildingFacade,

@@ -67,7 +67,6 @@ HSPLcom.xianxia.sect.core.performance.LightweightFrameMonitor
 HSPLcom.xianxia.sect.core.concurrent.ThermalController
 HSPLcom.xianxia.sect.core.service.MailService
 HSPLcom.xianxia.sect.core.service.RedeemCodeService
-HSPLcom.xianxia.sect.core.service.DailySignInService
 HSPLcom.xianxia.sect.core.domain.battle.BattleSystem
 HSPLcom.xianxia.sect.core.domain.battle.CombatService
 HSPLcom.xianxia.sect.core.domain.battle.BattleCalculator

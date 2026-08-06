@@ -1,3 +1,13 @@
+## [4.00.91] - 2026-08-07
+
+### 调整（2026-08-07 活动界面与每日签到整体移除）
+
+- **移除活动界面（ActivityDialog）与每日签到功能全链路** — 主界面"活动"按钮（`GameActionButtons`，含签到红点 badge）、活动对话框（`ActivityDialog`/`ActivityViewModel`/`BuiltinActivityConfig`/`ActivityDef`）、签到服务（`DailySignInService`，含周循环奖励与里程碑奖励）、签到 UI（`DailySignInDialog`/`SignInDelegate`）、`DialogType.Activity`/`GameRoute.Activity` 路由、`SpiritStoneSource.SignIn` 灵石来源、`OverflowMailSender` 与 `BattleLogDialogs` 的 `sign_in`/`SignIn` 来源标签、`ui_activity_button` 精灵注册与两模块 webp 资源全部删除；`GameVmServices`/`GameViewModel`/`MailDelegate`/`BagDelegate`/`EconomyFacade` 的 `dailySignInService` 依赖链同步清理，`DailySignIn.kt` 瘦身并重命名为 `SignInState.kt`（仅保留存档字段模型）
+- **新增通用奖励卡入口** — `GameEngine.enqueueRewardCards(cards)`（原 `DailySignInService.enqueueSignInCards` 空检查包装的通用替代，引擎线程写操作），`MailDelegate`/`BagDelegate`/`GameViewModel.enqueueBattleRewardCards`/`enqueueRewardCards`（LizhanDialog 在用）改走新入口
+- **旧档零迁移策略** — `GameData.signInState`（Proto 154 / `sign_in_state_json` 列）字段保留不解析（KDoc 标注"功能已移除，禁止读写"），Room 转换器、迁移 SQL、schema 快照、`OldSerializableSaveData.SerializableSignInState` 全部原样保留，无 Migration、无 schema 变化
+- **同步清理** — stability_config.conf 删 4 条（保留 SignInState）、baseline.prof 删 1 条、detekt-baseline 删 core/engine 8 条 + feature/game 20 条失效条目；测试：`GameViewModelTest`/`GameViewModelMovingBuildingBusTest` 删签到 mock 桩、`DialogTypeRenderCoverageTest` 删 Activity 条目
+- 全模块 compileReleaseKotlin + 四模块单测串行（--max-workers=1）+ detekt 全部通过，Room schema 无变化
+
 ## [4.00.90] - 2026-08-06
 
 ### 调整（2026-08-07 排行榜入口图标替换）

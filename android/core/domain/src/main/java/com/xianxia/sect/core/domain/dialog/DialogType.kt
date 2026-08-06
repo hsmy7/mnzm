@@ -43,9 +43,6 @@ sealed interface DialogType {
     /** 邮件 */
     data object Mail : DialogType
 
-    /** 活动 */
-    data object Activity : DialogType
-
     /** 历战（活动卡片轮转入口） */
     data object Lizhan : DialogType
 

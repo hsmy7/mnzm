@@ -723,7 +723,7 @@ private fun mergeSellEntries(map: Map<String, Long>): Map<String, Long> {
 /** SpiritStoneSource.key → 中文显示名 */
 private fun sourceDisplayName(key: String): String = when (key) {
     "Mine" -> "灵矿"; "Battle" -> "战斗"; "Quest" -> "任务"
-    "Mail" -> "邮件"; "SignIn" -> "签到"; "MerchantTrade" -> "交易"
+    "Mail" -> "邮件"; "MerchantTrade" -> "交易"
     "Exploration" -> "探索"; "RedeemCode" -> "兑换码"; "Cave" -> "洞府"
     "HeavenlyTrial" -> "天道试炼"; "SectLevelReward" -> "宗门等级奖励"
     "Salary" -> "俸禄"; "StorageBag" -> "储物袋"; "Refund" -> "退款"

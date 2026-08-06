@@ -13,7 +13,7 @@ import com.xianxia.sect.core.model.RewardCardItem
  * 使用方式：
  * ```kotlin
  * RewardDisplayDialog(
- *     title = "签到成功",
+ *     title = "发放成功",
  *     cards = rewardCards,
  *     onConfirm = { /* 入队卡片开始动效 */ }
  * )

@@ -40,14 +40,14 @@
 ## Tech Stack
 
 - **Language**: Kotlin 2.2.20, JVM target 17
-- **UI**: Jetpack Compose with Material3 (BOM 2025.02.00), no XML layouts
+- **UI**: Jetpack Compose with Material3 (BOM 2026.05.01), no XML layouts
 - **DI**: Hilt 2.56 (`@HiltAndroidApp`, `@HiltViewModel`, `@AndroidEntryPoint`)
-- **Database**: Room 2.6.1 with KSP annotation processing; single shared DB file (`xianxia_sect.db`) for all save slots
+- **Database**: Room 2.7.0 with KSP annotation processing; single shared DB file (`xianxia_sect.db`) for all save slots
 - **Serialization**: Kotlinx Serialization (JSON + Protobuf + CBOR)
-- **Storage**: MMKV (fast K-V), DataStore (preferences), LZ4/Zstd (compression)
-- **Network**: Retrofit + OkHttp with Gson
+- **Storage**: MMKV 2.4.0 (fast K-V), DataStore (preferences), LZ4/Zstd (compression)
+- **Network**: Retrofit 2.11.0 + OkHttp with Gson
 - **Auth**: TapTap SDK (login, compliance, analytics)
-- **Build**: AGP 8.8.0, Gradle with Aliyun mirrors for China
+- **Build**: AGP 8.10.0, Gradle with Aliyun mirrors for China（版本以 `android/gradle/libs.versions.toml` 为准）
 
 ---
 
@@ -602,9 +602,9 @@ fun watchAdForNewFeature() {
 
 | 手段 | 现状 | 代码位置 |
 |------|------|---------|
-| 每日签到 | 7 日周循环 + 7/14/21/28 天里程碑奖励（**唯一每日驱动**） | `service/DailySignInService.kt`、`dialogs/DailySignInDialog.kt` |
+| 每日签到 | **已移除（2026-08-07）**——活动界面与每日签到整体移除；存档字段 `sign_in_state_json` 保留兼容旧档，禁止新代码读写 | — |
 | 存档 | 手动存档（5 槽位）+ TapTap 云存档（slot 0 入口）；退出自动保存；**自动存档已移除** | `TapCloudSaveManager.kt`、`SaveLoadSaveDelegate` |
-| 活动入口 | "历战"卡片轮转（`LizhanDialog`：天道试炼/远古秘境已迁入）+ 活动界面（仅剩签到） | `dialogs/LizhanDialog.kt`、`ActivityDialog.kt` |
+| 活动入口 | "历战"卡片轮转（`LizhanDialog`：天道试炼/远古秘境已迁入）；活动界面已移除（2026-08-07） | `dialogs/LizhanDialog.kt` |
 | 新手引导 | `GuideTask` 25 任务（12 种条件类型），计数器 12 处接入点 | `model/guide/`、`GameEngineGuideOps.kt` |
 | 推送通知 | **无** | 无代码 |
 | 离线收益 | **无**（后台纯暂停，无放置产出） | `GameEngineCore.kt`（后台暂停逻辑） |
@@ -621,7 +621,7 @@ fun watchAdForNewFeature() {
 | 产（源） | 战斗掠夺 | 世界地图妖兽/洞府/秘境战利品 | `LootCalculator`、`BattleSystem` |
 | 产（源） | 任务奖励 | 4 难度任务结算 | `CultivationEventMissionOps.kt` |
 | 产（源） | 宗门交易/商人 | 出售物品/灵石商品 | `SectTradeDialog`、`MerchantAndRecruitService.kt` |
-| 产（源） | 运营发放 | 每日签到/兑换码/节日邮件/白名单 1000 万灵石邮件 | `DailySignInService`、`RedeemCodeService`、`BuiltinMailConfig` |
+| 产（源） | 运营发放 | 兑换码/节日邮件/白名单 1000 万灵石邮件（每日签到已移除 2026-08-07） | `RedeemCodeService`、`BuiltinMailConfig` |
 | 产（源） | 市场反馈 | 年度报告（`YearlyReport` 按来源拆分） | `BattleLogDialogs.kt` 的 `YearlyReportList` |
 | **耗（汇）** | 建造/拆除 | 建造扣灵石、一键拆除返还 50% | `PlaceBuildingUseCase.kt`、`GameEngineBuildingOps.kt` |
 | 耗（汇） | 生产投入 | 炼丹/锻造/种植/血炼材料 | `ProductionProcessor`、`AlchemySystem` |
@@ -639,7 +639,7 @@ fun watchAdForNewFeature() {
 | `:core:domain` | 零 Android 依赖（javax.inject + coroutines + kotlinx.serialization + room-common 注解） | ✅ 可移植（KMP 友好） |
 | `:core:engine` | 纯 Kotlin + C++ 渲染（JNI） | ⚠️ C++ 部分可移植（Android 用 Vulkan，iOS 用软件渲染或 Metal）；JNI 需替换 |
 | Compose UI（feature:game/app） | Jetpack Compose（Android 独占） | ⚠️ 需 Compose Multiplatform 或重写 |
-| Room（core:data） | Room 2.6.1 | ⚠️ iOS 需 SQLDelight/原生 SQLite（迁移风险点） |
+| Room（core:data） | Room 2.7.0 | ⚠️ iOS 需 SQLDelight/原生 SQLite（迁移风险点） |
 | Hilt DI | Hilt 2.56 | ⚠️ iOS 需 Koin/手写 DI |
 | 渲染 | Vulkan（C++）+ `SoftwareCanvasBackend` 软件渲染双路径 | ✅ 软件渲染路径可跨平台；Vulkan 为 Android 独占（iOS 用 Metal 或软件渲染） |
 | 序列化 | ProtoBuf + kotlinx.serialization + CBOR | ✅ 跨平台一致 |

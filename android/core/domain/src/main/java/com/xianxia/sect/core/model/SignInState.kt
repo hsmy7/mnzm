@@ -5,14 +5,12 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber
 import kotlinx.serialization.protobuf.ProtoPacked
 
-enum class SignInDayState {
-    FUTURE,
-    TODAY_UNCLAIMED,
-    TODAY_CLAIMED,
-    PAST_CLAIMED,
-    MISSED
-}
-
+/**
+ * 每日签到存档状态（功能已于 2026-08-07 移除）。
+ *
+ * 该字段仅保留用于旧存档兼容——禁止任何新代码读写，
+ * 如需移除须走数据库 Migration 流程。
+ */
 @Keep
 @Serializable
 data class SignInState(
@@ -20,27 +18,4 @@ data class SignInState(
     @ProtoNumber(2) val currentMonth: Int = 0,
     @ProtoNumber(3) val currentYear: Int = 0,
     @ProtoPacked @ProtoNumber(4) val claimedMilestones: List<Int> = emptyList()
-)
-
-@Keep
-@Serializable
-data class DailySignInReward(
-    val weekday: Int,
-    val itemName: String,
-    val quantity: Int,
-    val type: String,
-    val rarity: Int
-)
-
-/**
- * 签到里程碑奖励（累计签到满N天可领取）
- */
-@Keep
-@Serializable
-data class MilestoneReward(
-    val day: Int,
-    val itemName: String,
-    val quantity: Int,
-    val type: String,
-    val rarity: Int
 )

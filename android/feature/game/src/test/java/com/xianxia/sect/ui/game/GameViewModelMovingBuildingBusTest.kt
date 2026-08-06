@@ -9,7 +9,6 @@ import com.xianxia.sect.core.engine.currentActiveSectId
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.core.engine.domain.building.BuildingFacade
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
-import com.xianxia.sect.core.engine.service.DailySignInService
 import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.notifyUserInteraction
@@ -64,7 +63,6 @@ class GameViewModelMovingBuildingBusTest {
     private val systemManager: SystemManager = mockk(relaxed = true)
     private val buildingConfigService: com.xianxia.sect.core.config.BuildingConfigService = mockk(relaxed = true)
     private val mailService: MailService = mockk(relaxed = true)
-    private val dailySignInService: DailySignInService = mockk(relaxed = true)
     private val discipleFacade: DiscipleFacade = mockk(relaxed = true)
     private val buildingFacade: BuildingFacade = mockk(relaxed = true)
     private val thermalMonitor: ThermalMonitor = mockk(relaxed = true)
@@ -107,7 +105,6 @@ class GameViewModelMovingBuildingBusTest {
         GameLoopDelegate.healthCheckEnabled = false
         every { systemManager.errors } returns emptyFlow()
         every { thermalMonitor.thermalState } returns MutableStateFlow(ThermalState.NORMAL)
-        every { dailySignInService.getMilestoneRewards() } returns emptyList()
         every { dialogManager.currentDialog } returns MutableStateFlow(null)
 
         mockkStatic("com.xianxia.sect.core.engine.GameEngineCoordinationKt")
@@ -125,7 +122,7 @@ class GameViewModelMovingBuildingBusTest {
             GameVmCoreServices(gameEngineCore, systemManager, thermalMonitor),
             GameVmUiServices(dialogManager, adService),
             GameVmDelegateServices(
-                dailySignInService, mailService, buildingConfigService,
+                mailService, buildingConfigService,
                 buildingFacade, discipleFacade,
                 IoDispatcher(testDispatcher),
                 sessionManager

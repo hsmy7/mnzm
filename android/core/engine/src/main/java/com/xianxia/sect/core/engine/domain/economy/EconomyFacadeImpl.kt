@@ -3,7 +3,6 @@ package com.xianxia.sect.core.engine.domain.economy
 import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
 import com.xianxia.sect.core.engine.domain.save.SaveFacade
 import com.xianxia.sect.core.engine.service.AutoBuyService
-import com.xianxia.sect.core.engine.service.DailySignInService
 import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.engine.service.RedeemCodeService
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
@@ -18,6 +17,5 @@ class EconomyFacadeImpl @Inject constructor(
     override val autoBuyService: AutoBuyService,
     override val redeemCodeService: RedeemCodeService,
     override val mailService: MailService,
-    override val dailySignInService: DailySignInService,
     override val saveFacade: SaveFacade
 ) : EconomyFacade

@@ -12,10 +12,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.guide.GuideTaskRegistry
-import com.xianxia.sect.ui.game.ActivityViewModel
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.components.OverlayViewModels
-import com.xianxia.sect.ui.game.dialogs.ActivityDialog
 import com.xianxia.sect.ui.game.dialogs.BattleLogListDialog
 import com.xianxia.sect.ui.game.dialogs.DiplomacyDialog
 import com.xianxia.sect.ui.game.dialogs.GuideDialog
@@ -48,7 +46,6 @@ internal fun DialogType.renderFeatureRoutes(
         DialogType.WorldMap -> renderWorldMap(viewModel, gameData, vms, onDismiss)
         DialogType.BattleLog -> renderBattleLog(viewModel, onDismiss)
         DialogType.Mail -> renderMail(viewModel, onDismiss)
-        DialogType.Activity -> renderActivity(viewModel, onDismiss)
         DialogType.Lizhan -> renderLizhan(viewModel, onDismiss)
         DialogType.Leaderboard -> renderLeaderboard(onDismiss)
         else -> Unit
@@ -155,16 +152,6 @@ private fun renderBattleLog(viewModel: GameViewModel, onDismiss: () -> Unit) {
 private fun renderMail(viewModel: GameViewModel, onDismiss: () -> Unit) {
     MailDialog(
         viewModel = viewModel,
-        onDismiss = onDismiss
-    )
-}
-
-@Composable
-private fun renderActivity(viewModel: GameViewModel, onDismiss: () -> Unit) {
-    val activityViewModel = hiltViewModel<ActivityViewModel>()
-    ActivityDialog(
-        viewModel = activityViewModel,
-        gameViewModel = viewModel,
         onDismiss = onDismiss
     )
 }

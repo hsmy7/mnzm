@@ -39,7 +39,6 @@ sealed class GameRoute(val route: String) {
     object WorldMap : GameRoute("world_map")
     object BattleLog : GameRoute("battle_log")
     object Mail : GameRoute("mail")
-    object Activity : GameRoute("activity")
     object Disciples : GameRoute("disciples")
     object Warehouse : GameRoute("warehouse")
     object WarehouseBuilding : GameRoute("warehouse_building/{buildingInstanceId}") {
@@ -65,7 +64,6 @@ fun GameRoute.toDialogType(buildingInstanceId: String = ""): com.xianxia.sect.co
     GameRoute.WorldMap -> com.xianxia.sect.core.domain.dialog.DialogType.WorldMap
     GameRoute.BattleLog -> com.xianxia.sect.core.domain.dialog.DialogType.BattleLog
     GameRoute.Mail -> com.xianxia.sect.core.domain.dialog.DialogType.Mail
-    GameRoute.Activity -> com.xianxia.sect.core.domain.dialog.DialogType.Activity
     GameRoute.SpiritMine -> com.xianxia.sect.core.domain.dialog.DialogType.SpiritMine(buildingInstanceId)
     GameRoute.HerbGarden -> com.xianxia.sect.core.domain.dialog.DialogType.HerbGarden
     GameRoute.Alchemy -> com.xianxia.sect.core.domain.dialog.DialogType.Alchemy(buildingInstanceId)

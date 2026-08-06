@@ -45,7 +45,6 @@ sealed class SpiritStoneSource {
         override val displayName: String get() = "Sell($itemType)"
     }
     object Mail : SpiritStoneSource()
-    object SignIn : SpiritStoneSource()
     object MerchantTrade : SpiritStoneSource()
     object Exploration : SpiritStoneSource()
     object RedeemCode : SpiritStoneSource()

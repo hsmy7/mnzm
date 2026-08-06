@@ -44,9 +44,9 @@
 | feature/game | BuildingFeatureBoot.kt | fun BuildingFeatureRegistry.registerDefaults()
 | feature/game | BuildingsTab.kt | @Composable internal fun BuildingsTab( viewModel: GameViewModel, productionViewModel: ProductionViewModel, alchemyViewModel: AlchemyViewModel, forgeViewModel: ForgeViewModel, herbGardenViewModel: HerbGardenViewModel, spiritMineViewModel: SpiritMineViewModel, onDismiss: () -> Unit )
 | feature/game | CloudSaveDialog.kt | @Composable fun CloudSaveDialog( saveLoadViewModel: SaveLoadViewModel, onDismiss: () -> Unit )
-| feature/game | DailySignInDialog.kt | @Composable fun DailySignInPanel( viewModel: GameViewModel )
-| feature/game | DailySignInDialog.kt | @OptIn(ExperimentalFoundationApi::class) @Composable private fun MilestoneRewardRow( milestone: MilestoneReward, isClaimed: Boolean, watchedKeys: Set<String> = emptySet(), isReached: Boolean, cardSize: Dp, cardHeight: Dp, labelSpacing: Dp, dayLabelWidth: Dp, nameFontSize: TextUnit, onLongPress: (Any) -> Unit )
-| feature/game | DailySignInDialog.kt | @OptIn(ExperimentalFoundationApi::class) @Composable private fun SignInDayCard( dayOfMonth: Int, reward: DailySignInReward, state: SignInDayState, cellWidth: Dp, cellHeight: Dp, nameFontSize: TextUnit, watchedKeys: Set<String> = emptySet(), modifier: Modifier = Modifier, onLongPress: (Any) -> Unit = {} )
+| feature/game | ~~DailySignInDialog.kt~~ | ~~@Composable fun DailySignInPanel( viewModel: GameViewModel )~~（已移除 2026-08-07）
+| feature/game | ~~DailySignInDialog.kt~~ | ~~@OptIn(ExperimentalFoundationApi::class) @Composable private fun MilestoneRewardRow(...)~~（已移除 2026-08-07）
+| feature/game | ~~DailySignInDialog.kt~~ | ~~@OptIn(ExperimentalFoundationApi::class) @Composable private fun SignInDayCard(...)~~（已移除 2026-08-07）
 | feature/game | DaoCompanionManagementDialog.kt | @Composable fun DaoCompanionManagementDialog( gameData: GameData?, viewModel: GameViewModel, onDismiss: () -> Unit )
 | feature/game | DetailActionButtons.kt | @Composable fun RelationsDialog( disciple: DiscipleAggregate, allDisciples: List<DiscipleAggregate>, onDismiss: () -> Unit )
 | feature/game | DetailCultivationSection.kt | @Composable fun BasicInfoSection( disciple: DiscipleAggregate, allEquipment: List<EquipmentInstance> = emptyList(), allManuals: List<ManualInstance> = emptyList(), manualProficiencies: Map<String, List<ManualProficiencyData>> = emptyMap(), elderSlots: ElderSlots? = null, allDisciples: List<DiscipleAggregate> = emptyList(), sectPolicies: SectPolicies? = null, residenceSlots: List<ResidenceSlot> = emptyList(), placedBuildings: List<GridBuildingData> = emptyList(), viewModel: GameViewModel? = null, gameMonth: Int = 1, gameYear: Int = 1, gamePhase: Int = 0, gameSpeed: Int = 1 )
@@ -240,7 +240,7 @@
 | core/engine | CultivationRateCalculator.kt | CultivationRateCalculator
 | core/engine | CultivationRateEquivalenceTest.kt | CultivationRateEquivalenceTest
 | core/engine | CustomVelocityTracker.kt | CustomVelocityTracker
-| core/engine | DailySignInService.kt | DailySignInService
+| core/engine | ~~DailySignInService.kt~~ | ~~DailySignInService~~（已移除 2026-08-07）
 | core/engine | DiplomacyService.kt | DiplomacyService
 | core/engine | DiplomacyService.kt | DiplomacyService
 | core/engine | DiplomacyService.kt | DiplomacyService

@@ -29,8 +29,6 @@ fun GameActionButtons(
     modifier: Modifier = Modifier
 ) {
     val mailUnreadCount by viewModel.mailUnreadCount.collectAsStateWithLifecycle()
-    // 活动界面仅剩每日签到，红点只跟签到可领取状态
-    val activityBadge by viewModel.canClaimToday.collectAsStateWithLifecycle()
 
     Column(
         modifier = modifier
@@ -38,7 +36,7 @@ fun GameActionButtons(
         horizontalAlignment = Alignment.End,
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        // 第一行：引导、外交、商人、建造、仓库、活动（从右往左排列）
+        // 第一行：引导、外交、商人、建造、仓库、历战（从右往左排列）
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             FloatingActionButton(
                 text = "引导",
@@ -60,11 +58,6 @@ fun GameActionButtons(
                 text = "仓库",
                 spriteName = "ui_warehouse_button"
             ) { viewModel.navigateToDialog(DialogType.Warehouse) }
-            FloatingActionButton(
-                text = "活动",
-                spriteName = "ui_activity_button",
-                badge = if (activityBadge) 1 else 0
-            ) { viewModel.navigateToDialog(DialogType.Activity) }
             FloatingActionButton(
                 text = "历战",
                 spriteName = "ui_lizhan_button"

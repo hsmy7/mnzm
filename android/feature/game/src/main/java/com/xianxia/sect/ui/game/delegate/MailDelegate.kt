@@ -2,7 +2,6 @@ package com.xianxia.sect.ui.game.delegate
 
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.engine.service.ClaimResult
-import com.xianxia.sect.core.engine.service.DailySignInService
 import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.model.MailEntity
 import com.xianxia.sect.core.model.RewardCardItem
@@ -17,7 +16,6 @@ import kotlinx.coroutines.withContext
 class MailDelegate(
     private val gameEngine: GameEngine,
     private val mailService: MailService,
-    private val dailySignInService: DailySignInService,
     private val onShowError: (String) -> Unit = {}
 ) {
 
@@ -59,7 +57,7 @@ class MailDelegate(
             mailCardQueueMutex.withLock {
                 val cards = _mailRewardCards.value
                 if (cards.isNotEmpty()) {
-                    dailySignInService.enqueueSignInCards(cards)
+                    gameEngine.enqueueRewardCards(cards)
                     _mailRewardCards.value = emptyList()
                 }
             }

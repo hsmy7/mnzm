@@ -22,7 +22,7 @@ val WATCHABLE_ITEM_TYPES: Set<String> =
 fun watchKey(type: String, name: String): String = "$type:$name"
 
 /**
- * 归一化物品类型别名：邮件/签到等场景的 "beastMaterial"（兽材）即仓库材料 "material"，
+ * 归一化物品类型别名：邮件等场景的 "beastMaterial"（兽材）即仓库材料 "material"，
  * "manual_stack"/"manual_instance" 即功法 "manual"，"equipment_stack"/"equipment_instance"
  * 即装备 "equipment"（弟子储物袋路径使用该别名）。归一化后同一物品在各界面键一致。
  * 未命中别名时 lowercase 兜底，容忍 "Equipment" 等大小写变体。

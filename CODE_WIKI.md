@@ -986,52 +986,16 @@ fun thermalRenderScale(gpuTier: GpuTier, thermalState: ThermalState): Float
 
 ### 概述
 
-活动系统为游戏提供限时活动和常驻玩法入口，通过全屏左右分栏界面展示活动列表与详情。
+活动系统已整体移除（2026-08-07）：活动界面（`ActivityDialog`/`ActivityViewModel`/`BuiltinActivityConfig`/`ActivityDef`）与每日签到（`DailySignInService`/`DailySignInDialog`/`SignInDelegate`）全部删除，"活动"入口按钮一并移除。
 
-### 核心文件
+### 常驻玩法入口（保留）
 
-| 文件 | 职责 |
-|------|------|
-| `core/config/BuiltinActivityConfig.kt` | 内置活动注册表（`getAllActivities()`） |
-| `core/model/ActivityDef.kt` | 活动定义模型（id/name/type/status/rewards） |
-| `ui/game/ActivityViewModel.kt` | 活动列表状态管理 |
-| `ui/game/dialogs/ActivityDialog.kt` | 全屏活动界面（左侧列表 + 右侧详情） |
-| `ui/navigation/GameRoute.kt` | 新增 `Activity` 路由 |
+历战入口（`LizhanDialog`）保留，承载天道试炼与远古秘境两个常驻玩法。
 
-### 数据流
+### 数据库兼容
 
-```
-BuiltinActivityConfig → ActivityViewModel.activities (StateFlow)
-    → ActivityDialog (collectAsStateWithLifecycle)
-        → 左侧 LazyColumn 活动列表
-        → 右侧 活动详情 / DailySignInPanel
-```
-
-### 每日签到子系统
-
-| 文件 | 职责 |
-|------|------|
-| `core/model/DailySignIn.kt` | `SignInState`（claimedDays/currentMonth/currentYear）、`DailySignInReward` |
-| `core/engine/service/DailySignInService.kt` | 签到逻辑（日历计算、奖励发放、容量检测） |
-| `ui/game/dialogs/DailySignInDialog.kt` | 日历网格 UI（7 列 × 可变行数） |
-
-#### 签到流程
-
-```
-用户点击「签到」→ claimDailySignIn()
-    → 检查今天是否已签（claimedDays.contains(today)）
-    → 计算今天星期几 → 查表获取奖励
-    → distributeReward() 发放物品（灵石/丹药/材料/储物袋）
-        → 检查堆叠上限：超限提示"请清理背包"
-    → 更新 SignInState (claimedDays + today)
-    → UI 刷新卡片状态（已领/未领/错过）
-```
-
-#### 数据库
-
-- `game_data` 表新增 `sign_in_state_json` 列（TEXT, ProtoBuf 序列化 `SignInState`）
-- Migration `MIGRATION_1_2`: `ALTER TABLE game_data ADD COLUMN sign_in_state_json`
-- `CollectionConverters` 新增 `fromSignInState`/`toSignInState` TypeConverter
+- `game_data` 表 `sign_in_state_json` 列**保留兼容旧档**（TEXT, ProtoBuf 序列化 `SignInState`），禁止新代码读写
+- `core/model/SignInState.kt`（原 `DailySignIn.kt`）、`CollectionConverters` 的 `fromSignInState`/`toSignInState`、迁移 SQL 均保留原样，零 Migration
 
 ---
 

@@ -7,7 +7,7 @@ import java.io.File
 /**
  * 守卫测试：仓库物品添加路径必须走统一合并入口（StackableItemStore）。
  *
- * 历史问题：多条发放路径（邮件/签到/兑换码/外交/灵田等）手写
+ * 历史问题：多条发放路径（邮件/兑换码/外交/灵田等）手写
  * "find 第一个堆叠 + 列表追加 + coerceAtMost 截断"，导致同种物品
  * 分裂为多个堆叠。2026-08-01 已全部统一委托 InventorySystem.addXxx。
  *

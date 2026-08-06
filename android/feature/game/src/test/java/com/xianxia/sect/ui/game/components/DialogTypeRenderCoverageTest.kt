@@ -35,7 +35,6 @@ class DialogTypeRenderCoverageTest {
         DialogType.WorldMap,
         DialogType.BattleLog,
         DialogType.Mail,
-        DialogType.Activity,
         DialogType.Lizhan,
         DialogType.Leaderboard,
         DialogType.SpiritMine(""),

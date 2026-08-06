@@ -499,7 +499,7 @@ fun `all SlotCategory values are covered by scanAndRegister`() {
 | 🔴 | 新增 `@ProtoNumber` 字段规则：字段默认值如果不是该类型的零值（`0`/`""`/`false`/`emptyList()`），必须标注 `@EncodeDefault(EncodeDefault.Mode.ALWAYS)`，否则 `encodeDefaults = false` 下该字段不会被写入二进制，导致存档数据丢失 |
 | 🔴 | 新增给玩家发放物品（装备/丹药/草药/材料/种子/功法/储物袋）的代码路径**必须通过 `InventorySystem.addXxx` 统一入口**（`StackableItemStore` 自动合并，禁止手写 `find`+追加/`coerceAtMost` 截断/手写 `StackableItemStore(`——守卫测试 `InventoryAddPathGuardTest` 会拦截），并包裹 `withTrackingSource("来源名")`（来源名必须加入 `OverflowMailSender.SOURCE_DISPLAY_NAMES` 映射，否则来源映射守卫测试失败） |
 | 🔴 | 新增广告类型（`AdPurpose` 枚举值）已在 ViewModel 中通过 `adService.watchAd()` 统一入口调用，白名单守卫由 `AdServiceImpl` 自动继承。详见 `docs/knowledge-base.md#免广告特权白名单` |
-| 🔴 | 新增物品发放路径须判定**溢出语义类别**：**凭据类**（玩家可重试的领取/获得——签到/兑换码/宗门等级/引导/邮件领取/没收/卸装）必须包裹 `withOverflowMailSuppressed`（溢出不转邮件，失败保留凭据重试补齐）；**发放类**（自动入库——战斗/探索/灵田/生产/商人/AutoBuy/储物袋开启）不包裹（溢出自动转邮件）——选错类别会导致物品重复发放或丢失（对抗性审查 C1/C2/C3/H1/H2 教训） |
+| 🔴 | 新增物品发放路径须判定**溢出语义类别**：**凭据类**（玩家可重试的领取/获得——兑换码/宗门等级/引导/邮件领取/没收/卸装）必须包裹 `withOverflowMailSuppressed`（溢出不转邮件，失败保留凭据重试补齐）；**发放类**（自动入库——战斗/探索/灵田/生产/商人/AutoBuy/储物袋开启）不包裹（溢出自动转邮件）——选错类别会导致物品重复发放或丢失（对抗性审查 C1/C2/C3/H1/H2 教训） |
 
 **扩展方向（2026-08 新增，为未来扩展做准备）：**
 

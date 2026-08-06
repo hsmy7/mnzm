@@ -47,17 +47,14 @@ class GameViewModel @Inject constructor(
     val ads = AdsDelegate()
     val overlays = OverlayDelegate(gameEngine, viewModelScope)
     val bag = BagDelegate(
-        gameEngine, delegateServices.dailySignInService, viewModelScope,
+        gameEngine, viewModelScope,
         dispatcher = delegateServices.ioDispatcher.dispatcher
     )
     val redeem = RedeemCodeDelegate(
         gameEngine, ::showSuccess, ::showError,
         onCapacityWarning = { msg -> showCapacityWarning(msg) }
     )
-    val mail = MailDelegate(gameEngine, delegateServices.mailService, delegateServices.dailySignInService, ::showError)
-    val signIn = SignInDelegate(
-        gameEngine, delegateServices.dailySignInService, viewModelScope, sharingStarted
-    ) { showCapacityWarning(it) }
+    val mail = MailDelegate(gameEngine, delegateServices.mailService, ::showError)
     val gameLoop = GameLoopDelegate(
         gameEngine, coreServices.gameEngineCore, coreServices.systemManager, viewModelScope, ::showError
     )
@@ -347,7 +344,7 @@ class GameViewModel @Inject constructor(
         gameEngine.launchOnEngine {
             val cards = gameEngine.pendingBattleRewardCards.value
             if (cards.isNotEmpty()) {
-                delegateServices.dailySignInService.enqueueSignInCards(cards)
+                gameEngine.enqueueRewardCards(cards)
                 gameEngine.clearPendingBattleRewardCards()
             }
         }
@@ -833,23 +830,13 @@ class GameViewModel @Inject constructor(
     fun enqueueMailRewardCards() = mail.enqueueMailRewardCards()
     fun deleteAllReadAndClaimedMails() = mail.deleteAllReadAndClaimedMails()
 
-    // SignInDelegate
-    val signInState: StateFlow<SignInState> get() = signIn.signInState
-    val canClaimToday: StateFlow<Boolean> get() = signIn.canClaimToday
-    val heavenlyTrialClaimable: StateFlow<Boolean> get() = signIn.heavenlyTrialClaimable
-    val anyActivityClaimable: StateFlow<Boolean> get() = signIn.anyActivityClaimable
-    val claimedDaysCount: StateFlow<Int> get() = signIn.claimedDaysCount
-    val claimedMilestones: StateFlow<List<Int>> get() = signIn.claimedMilestones
-    val milestoneRewards: List<MilestoneReward> get() = signIn.milestoneRewards
-    fun getRewardForWeekday(weekday: Int): DailySignInReward = signIn.getRewardForWeekday(weekday)
-    fun getDayState(dayOfMonth: Int, signInState: SignInState): SignInDayState = signIn.getDayState(dayOfMonth, signInState)
-    fun getDaysInMonth(): Int = signIn.getDaysInMonth()
-    fun getWeekdayForDay(dayOfMonth: Int): Int = signIn.getWeekdayForDay(dayOfMonth)
-    fun claimDailySignIn() = signIn.claimDailySignIn()
-
     /** 统一仓库容量不足提示框（GameOverlayHost 渲染，未来新增领取按钮直接调用） */
     override fun showCapacityWarning(message: String) = super.showCapacityWarning(message)
-    fun enqueueRewardCards(cards: List<RewardCardItem>) = signIn.enqueueRewardCards(cards)
+
+    /** 奖励卡片入队开始动效（历战/战斗结算等界面调用，引擎线程执行） */
+    fun enqueueRewardCards(cards: List<RewardCardItem>) {
+        gameEngine.launchOnEngine { gameEngine.enqueueRewardCards(cards) }
+    }
 
     // GameLoopDelegate
     val cultivationProgress: StateFlow<Float> get() = gameLoop.cultivationProgress
