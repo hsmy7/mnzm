@@ -3,8 +3,11 @@ package com.xianxia.sect.core.engine.service
 import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.engine.SectWarehouseManager
 import com.xianxia.sect.core.engine.domain.battle.aisRngManager
+import com.xianxia.sect.core.engine.domain.battle.AIBattleWinner
+import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
 import com.xianxia.sect.core.engine.domain.battle.AttackWarningService
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
+import com.xianxia.sect.core.engine.domain.building.BuildingFacade
 import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
@@ -24,6 +27,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.mockito.Mockito
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
 import org.mockito.kotlin.any
@@ -138,7 +142,8 @@ class AISectBattleProcessorTest {
             attackWarningService = attackWarningService,
             cultivationService = mock<CultivationService>(),
             sectWarehouseManager = mock<SectWarehouseManager>(),
-            deathHandler = mock<DiscipleDeathHandler>()
+            deathHandler = mock<DiscipleDeathHandler>(),
+            buildingFacade = mock<BuildingFacade>()
         )
 
         processor.processAISectOperations(2026, 1)
@@ -166,7 +171,8 @@ class AISectBattleProcessorTest {
             attackWarningService = attackWarningService,
             cultivationService = mock<CultivationService>(),
             sectWarehouseManager = mock<SectWarehouseManager>(),
-            deathHandler = mock<DiscipleDeathHandler>()
+            deathHandler = mock<DiscipleDeathHandler>(),
+            buildingFacade = mock<BuildingFacade>()
         )
     }
 
@@ -188,6 +194,68 @@ class AISectBattleProcessorTest {
             battleLogs = emptyList(),
             isPaused = false, isLoading = false, isSaving = false
         )
+    }
+
+    // ── 2026-08-06：玩家占领宗门被 AI 夺回 → 没收该宗门建筑（无返还）──
+
+    private fun makeProcessorWithFacade(buildingFacade: BuildingFacade): AISectBattleProcessor =
+        AISectBattleProcessor(
+            stateStore = mock<GameStateStore>(),
+            thermalMonitor = thermalWith(false, false),
+            battleSystem = mock<BattleSystem>(),
+            attackWarningService = attackWarningService,
+            cultivationService = mock<CultivationService>(),
+            sectWarehouseManager = mock<SectWarehouseManager>(),
+            deathHandler = mock<DiscipleDeathHandler>(),
+            buildingFacade = buildingFacade
+        )
+
+    private fun makeAttackResult(winner: AIBattleWinner, canOccupy: Boolean) =
+        AISectAttackManager.AIAttackResult(
+            attackerSectId = "atk1", defenderSectId = "def1",
+            attackerSectName = "攻击宗", defenderSectName = "被占宗",
+            winner = winner, canOccupy = canOccupy,
+            deadAttackerIds = emptyList(), deadDefenderIds = emptyList(),
+            survivingAttackers = listOf(makeDisciple("a1"))
+        )
+
+    @Test
+    fun `AI夺回玩家占领宗门 - 没收该宗门建筑`() {
+        val buildingFacade = mock<BuildingFacade>()
+        val processor = makeProcessorWithFacade(buildingFacade)
+
+        processor.seizePlayerBuildingsAfterLoss(
+            makeAttackResult(AIBattleWinner.ATTACKER, canOccupy = true),
+            isPlayerOccupied = true
+        )
+
+        verify(buildingFacade).seizeBuildingsOfSect("def1")
+    }
+
+    @Test
+    fun `AI战败玩家防守 - 不触发没收`() {
+        val buildingFacade = mock<BuildingFacade>()
+        val processor = makeProcessorWithFacade(buildingFacade)
+
+        processor.seizePlayerBuildingsAfterLoss(
+            makeAttackResult(AIBattleWinner.DEFENDER, canOccupy = false),
+            isPlayerOccupied = true
+        )
+
+        Mockito.verify(buildingFacade, Mockito.never()).seizeBuildingsOfSect("def1")
+    }
+
+    @Test
+    fun `AI夺回AI占领宗门 - 不触发没收（玩家无建筑）`() {
+        val buildingFacade = mock<BuildingFacade>()
+        val processor = makeProcessorWithFacade(buildingFacade)
+
+        processor.seizePlayerBuildingsAfterLoss(
+            makeAttackResult(AIBattleWinner.ATTACKER, canOccupy = true),
+            isPlayerOccupied = false
+        )
+
+        Mockito.verify(buildingFacade, Mockito.never()).seizeBuildingsOfSect("def1")
     }
 
     private fun makeDisciple(id: String, realm: Int = 9, isAlive: Boolean = true): Disciple =

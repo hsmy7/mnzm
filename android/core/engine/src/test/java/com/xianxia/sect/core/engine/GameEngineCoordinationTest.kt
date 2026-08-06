@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.cultivation.CultivationFacade
 import com.xianxia.sect.core.engine.domain.economy.EconomyFacade
 import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
@@ -136,6 +137,56 @@ class GameEngineCoordinationTest {
         val second = env.store.gameDataValue.mapSeed
 
         assertTrue("两次重启应产生不同地图种子（相同为缺陷）", first != second)
+    }
+
+    // ── 2026-08-06 修复：初始灵矿场 4×4 与配置一致（此前 2×2 致新档首次会话外圈点不中）──
+
+    @Test
+    fun `createNewGame - 初始灵矿场为 4x4 与配置一致`() = runBlocking {
+        val env = EngineTestEnv()
+        whenever(env.engine.productionCoordinator.repository).thenReturn(mock())
+
+        env.engine.createNewGame("青云宗", 1)
+
+        val mine = env.store.gameDataValue.placedBuildings.single()
+        assertEquals("初始灵矿场宽度应为 4（spirit_mine 配置占地）", 4, mine.width)
+        assertEquals("初始灵矿场高度应为 4（spirit_mine 配置占地）", 4, mine.height)
+        assertEquals("本宗建筑 sectId 应为空串", "", mine.sectId)
+        assertEquals("灵矿场应居中放置", GameConfig.SectMap.WORLD_WIDTH_CELLS / 2 - 1, mine.gridX)
+    }
+
+    @Test
+    fun `restartGameSuspend - 初始灵矿场为 4x4 与配置一致`() = runBlocking {
+        val env = EngineTestEnv()
+
+        env.engine.restartGameSuspend("青云宗", 1)
+
+        val mine = env.store.gameDataValue.placedBuildings.single()
+        assertEquals("重启后初始灵矿场宽度应为 4", 4, mine.width)
+        assertEquals("重启后初始灵矿场高度应为 4", 4, mine.height)
+    }
+
+    @Test
+    fun `enterSect - 仅更新 activeSectId 不触碰 placedBuildings`() = runBlocking {
+        // 契约守卫：GameViewModel 命令总线重推依赖 enterSect 只改 activeSectId
+        //（若 enterSect 顺带修改 placedBuildings，总线键 (activeSectId, placedBuildings)
+        // 会同时失效，重推语义被破坏）
+        val env = EngineTestEnv()
+        val mine = GridBuildingData(
+            buildingId = "灵矿场", displayName = "灵矿场",
+            gridX = 10, gridY = 10, width = 4, height = 4,
+            instanceId = "m1", sectId = ""
+        )
+        env.store.gameDataValue = env.store.gameDataValue.copy(
+            placedBuildings = listOf(mine)
+        )
+
+        env.engine.enterSect("ai-1")
+
+        val data = env.store.gameDataValue
+        assertEquals("activeSectId 应切换为 ai-1", "ai-1", data.activeSectId)
+        assertEquals("placedBuildings 不应被 enterSect 修改", 1, data.placedBuildings.size)
+        assertEquals("建筑内容不应变化", mine, data.placedBuildings.single())
     }
 }
 

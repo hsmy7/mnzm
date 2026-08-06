@@ -407,6 +407,27 @@ class BuildingFacadeImpl @Inject constructor(
     }
 
     override suspend fun removeBuildings(refunds: Map<String, Long>) {
+        removeBuildingsInternal(refunds)
+    }
+
+    /**
+     * 没收某宗门全部建筑（无灵石返还，拆除返还额为 0）。
+     *
+     * 玩家占领宗门被 AI 夺回时由引擎月度结算调用——玩家在该宗门建造的建筑
+     * 整体拆除，槽位/弟子完整清理（复用 [removeBuildingsInternal] 全流程），
+     * 灵石不返还（没收语义，与"自动拆除"产品决策一致）。
+     */
+    override fun seizeBuildingsOfSect(sectId: String) {
+        if (sectId.isEmpty()) return  // 本宗（""）不可没收
+        val refunds = stateStore.gameDataSnapshot.placedBuildings
+            .filter { it.sectId == sectId }
+            .associate { it.instanceId to 0L }
+        if (refunds.isEmpty()) return
+        removeBuildingsInternal(refunds)
+    }
+
+    /** 批量拆除主体（无真挂起点，非 suspend 供月度结算链复用） */
+    private fun removeBuildingsInternal(refunds: Map<String, Long>) {
         if (refunds.isEmpty()) return
         val productionIds = mutableSetOf<String>()
         stateStore.update {

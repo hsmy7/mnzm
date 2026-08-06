@@ -413,9 +413,18 @@ suspend fun GameEngine.createNewGame(sectName: String, currentSlot: Int = 1) {
         // 1. 先初始化世界和游戏状态（邮件依赖 gameData 就绪）
         initializeWorldAndServices(sectName, currentSlot)
         val gridCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
-        val centerGrid = gridCells / 2 - 1  // 2x2 building centered on grid
+        val centerGrid = gridCells / 2 - 1  // 4x4 building centered on grid
         stateStore.update {
-            val initialMine = GridBuildingData(buildingId = "灵矿场", displayName = "灵矿场", gridX = centerGrid, gridY = centerGrid, width = 2, height = 2, instanceId = java.util.UUID.randomUUID().toString(), sectId = "")
+            // 2026-08-06 修复：灵矿场占地 4×4（与 BuildingConfigService 默认配置 + BuildingFeatureBoot
+            // spirit_mine + SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX 一致）。此前误用 2×2：渲染按占地
+            // footprint(4×4) 绘制，新档首次会话只有中间 2×2 可点（fixupBuildingSizes 仅在读档执行）。
+            // gridX/gridY 不变：渲染位置由配置 footprint 决定，与数据尺寸无关，无视觉偏移。
+            val initialMine = GridBuildingData(
+                buildingId = "灵矿场", displayName = "灵矿场",
+                gridX = centerGrid, gridY = centerGrid,
+                width = 4, height = 4,
+                instanceId = java.util.UUID.randomUUID().toString(), sectId = ""
+            )
             gameData = gameData.copy(
                 slotId = currentSlot,
                 currentSlot = currentSlot,
@@ -461,7 +470,13 @@ private suspend fun GameEngine.restartGameInternal(sectName: String, currentSlot
             val gridCells = GameConfig.SectMap.WORLD_WIDTH_CELLS
             val centerGrid = gridCells / 2 - 1
             stateStore.update {
-                val initialMine = GridBuildingData(buildingId = "灵矿场", displayName = "灵矿场", gridX = centerGrid, gridY = centerGrid, width = 2, height = 2, instanceId = java.util.UUID.randomUUID().toString(), sectId = "")
+                // 2026-08-06 修复：灵矿场占地 4×4（与配置一致，同 createNewGameInternal）
+                val initialMine = GridBuildingData(
+                    buildingId = "灵矿场", displayName = "灵矿场",
+                    gridX = centerGrid, gridY = centerGrid,
+                    width = 4, height = 4,
+                    instanceId = java.util.UUID.randomUUID().toString(), sectId = ""
+                )
                 gameData = gameData.copy(
                     slotId = currentSlot,
                     currentSlot = currentSlot,

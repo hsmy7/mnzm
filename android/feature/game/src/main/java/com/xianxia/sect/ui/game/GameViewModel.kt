@@ -230,15 +230,21 @@ class GameViewModel @Inject constructor(
         coreServices.gameEngineCore.setPerformanceMode(_performanceMode.value)
 
         // 建筑数据直达推送（绕过 Compose 反应式管线 + 帧率门控）
-        // 建筑数据直达推送（绕过 Compose 反应式管线 + 帧率门控）
+        // 2026-08-06 修复：总线必须与 MainGameScreen 的点击索引/瓦片标记同源——
+        // 只推送 activeSectId 匹配的建筑（placedBuildings 是跨宗门全局列表，enterSect 只改
+        // activeSectId），否则非活跃宗门的建筑被渲染出来但不可点击、拆除模式无法选中。
+        // distinctUntilChanged 的键必须是 (activeSectId, placedBuildings) 二元组：
+        // enterSect 切换宗门后 placedBuildings 不变，单键无法触发重推。
         viewModelScope.launch {
             gameEngine.gameData
-                .map { it.placedBuildings }
+                .map { it.activeSectId to it.placedBuildings }
                 .distinctUntilChanged()
-                .collect { buildings ->
-                    val dataArray = if (buildings.isNotEmpty()) {
-                        buildBuildingDataArray(buildings, _buildingSpriteSizesCache)
-                    } else null
+                .collect { (activeSectId, allBuildings) ->
+                    val buildings = allBuildings.filter { it.sectId == activeSectId }
+                    // 2026-08-06 对抗性审查 F2 修复：空宗门也推空数组而非 null——
+                    // 渲染端 `busSnapshot?.data ?: frame.buildingData` 在总线为 null 时
+                    // 回退帧率门控的旧 frame，进入无建筑宗门会闪现/残留前宗门建筑
+                    val dataArray = buildBuildingDataArray(buildings, _buildingSpriteSizesCache)
                     _renderCommandBus.postBuildingData(dataArray, buildings.size)
                 }
         }

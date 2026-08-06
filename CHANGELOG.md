@@ -1,5 +1,19 @@
 ## [4.00.90] - 2026-08-06
 
+### 修复（2026-08-06 建筑点击无效批次：跨宗门渲染/点击不同源 + 初始矿场尺寸 + 精灵命中区域）
+
+- **[严重] 部分建筑"看得见点不中"（跨宗门渲染/点击数据源不一致）** — 渲染命令总线（`GameViewModel.init`）推送**全部宗门**的 `placedBuildings`，而 `NativeSurfaceView` 双渲染路径（Vulkan/Canvas）总线快照优先于 Compose 过滤后的 frame；但点击检测/拆除选中/瓦片标记/空间索引只基于 `sectId == activeSectId` 的过滤列表。占领宗门后（或回到本宗后），非活跃宗门的建筑被渲染出来但完全不可点击、拆除模式无法选中。**根治：推送键改为 `(activeSectId, placedBuildings)` 二元组 + 按 activeSectId 过滤**（`GameViewModel.kt`）——enterSect 只改 activeSectId 不动 placedBuildings（`GameEngineCoordination.kt`），单键 `distinctUntilChanged` 不会重推，二元组保证宗门切换即时重推；过滤谓词与 MainGameScreen 点击索引完全同源
+- **[中等] 新档初始灵矿场点击区域小于显示区域** — createNewGame/restartGame 初始矿场存 2×2，配置/渲染占地 4×4（`fixupBuildingSizes` 仅在读档执行）→ 新档首次会话矿场外圈一圈点不中。**根治：初始矿场按配置 4×4 创建**（两处），gridX/gridY 不变（渲染位置由配置 footprint 决定，无视觉偏移）；新增守卫测试 `InitialMineSizeGuardTest`（锚点 spirit_mine 配置，列出三处同步维护点）
+- **[中等] 高层建筑上半身点击无效（精灵命中区域）** — 精灵图"水平居中 + 底部对齐"画在占地之上，占地 3-4 格的塔类建筑精灵高 6-8 格（问道塔/青云塔/巡视楼 4×8 等），`BuildingSpatialIndex` 只索引占地格 → 悬空上半身点击无反应。**根治：命中区域 = 占地 ∪ 精灵包围盒**（`BuildingSpatialIndex.rebuild` 新增 `spriteSizes` 参数，floor/ceil 处理水平居中半格偏移；与渲染偏移公式 `offsetX=(fpW-sw)/2`、`offsetY=(fpH-sh)` 对齐），**重叠格按渲染绘制顺序（`gridY+height` 升序，同键后插入者胜）解析最上层**——替代原 `firstOrNull()`，避免"点 A 弹 B"；MainGameScreen 两处调用点（rebuild + 移动建筑同步 add）传入 `buildingSpriteSizes`
+- **测试** — `GameViewModelTest` +4（仅推本宗/enterSect 重推/空宗门/同宗门增删）、`GameEngineCoordinationTest` +3（createNewGame 4×4/restartGame 4×4/enterSect 契约守卫）、`BuildingSpatialIndexTest` +4（塔尖命中/无 spriteSizes 回退占地/重叠绘制顺序/损坏尺寸钳制）、`BuildingBatchRemovalTest` +3（没收拆除/槽位弟子清理/空宗门幂等）、`AISectBattleProcessorTest` +3（夺回没收/战败不没收/AI 间夺回不没收）、新增 `InitialMineSizeGuardTest`、`FootprintTableSyncTest` +1（注册表↔图集占地表全量比对守卫）；全量串行回归（--max-workers=1）0 失败
+- **对抗性审查批次（三角色：边界狂魔/状态破坏者/数据篡改者）** — 共 1 中等（预存架构级）+ 9 轻微发现，2 项本次改动直接相关问题已根治、1 项补守卫测试、其余预存问题登记：
+  - **[已修] 损坏存档巨大建筑尺寸 → 索引主线程亿级循环 ANR**（边界 F2）— 旧代码 `gridX until gridX+width` Int 溢出安全失败，精灵包围盒改用 double 计算后巨大尺寸可迭代约 21 亿次。**根治：命中区域钳制 `MAX_HIT_EXTENT_CELLS=128`**（合法建筑占地 ≤8 格、精灵 ≤6×8）+ 钳制回归测试
+  - **[已修] 空宗门总线空推送 → 渲染回退旧 frame 闪现前宗门建筑**（状态 F2）— `postBuildingData(null,0)` 在旧代码不可达（placedBuildings 恒非空），sectId 过滤后进入无建筑宗门（全部 AI 宗门）必推 null，渲染端 `busSnapshot?.data ?: frame.buildingData` 回退帧率门控的旧宗门数据。**根治：空宗门推空数组（FloatArray(0)）而非 null**，渲染端 null 回退仅发生在 `RenderCommandBus.reset()`（渲染器重建，回退数据同为过滤后 frame，语义正确）
+  - **[守卫] 注册表↔图集占地表缺全量同步守卫**（边界 F1）— `BuildingSpatialIndex` 精灵盒按注册表取占地、渲染按 `FOOTPRINT_BY_NAME_INDEX` 取占地，两表独立维护，不一致即"部分区域点击无效"同类症状。**新增逐项比对守卫**（FootprintTableSyncTest，19 建筑全量，失败消息列同步维护点）
+  - **[已修-产品决策] 孤儿建筑永久隐形，投资无法回收**（数据篡改者发现 1，预存架构级）— 占领宗门 X 建造 → X 被 AI 夺回（`AISectBattleProcessor.applyAIOccupation` 仅置 `isPlayerOccupied=false`，从不重写 placedBuildings 的 sectId）→ 世界地图"进入"按钮消失 → 该宗门建筑本次修复后完全不渲染（此前至少以鬼影可见），灵石投资（拆除返还）不可回收。**产品决策（用户确认）：占领宗门被夺回时，玩家建造的建筑自动拆除且不返还灵石（没收语义）**。**根治：`BuildingFacade` 新增 `seizeBuildingsOfSect(sectId)`**（无返还拆除，复用 `removeBuildings` 完整槽位/弟子清理流程，refund=0）；`AISectBattleProcessor.applyAIAttackResult` 事务提交后捕获 `isPlayerOccupied` 标志，提取 internal `seizePlayerBuildingsAfterLoss`（判定与 applyAIOccupation 夺回分支一致：玩家占领 && 攻击者胜 && 可占领）调用没收；本宗（""）与无建筑宗门幂等跳过
+  - **[登记] 其余轻微预存** — ① 失守宗门 activeSectId 残留致本宗地图整体变空（可恢复，世界地图本宗入口始终可达）；② 灵植阁（唯一 sprite 宽于占地）命中区每侧多 ≤1 格（floor/ceil 亚格精度固有取舍）；③ 进行中会话 2×2 旧矿场排序键错位（下次读档 fixup 即修正）；④ 拖拽中建筑总线双渲染（旧位置残留实体 + 新位置半透明拖影，预存，需总线排除 movingBuilding 另行处理）；⑤ 旧档 sectId 不匹配建筑完全不可管理（数据不一致，建议自愈路径 sectId 归一化，有归属风险需审慎）
+- **途中发现登记** — ① `GameViewModel.init` 存在重复注释行（预存问题，随本次改动顺带清理）；② `restartGameInternal` 与 `createNewGameInternal` 初始矿场注释不一致（同步更新）；③ 旧档 2×2 矿场被移到地图边缘时读档 fixup 撑大后右缘越界（预存，无崩溃，越界部分不可点，建议 fixup 时钳制坐标）
+
 ### 修复（2026-08-06 对抗性审查批次：发热优化 4 严重 + 7 中等 + 12 轻微问题根治）
 
 - **背景** — 发热与流畅度优化批次（见下节）上线前按规范执行三角色对抗性审查（边界狂魔/状态破坏者/规范回归者），共发现 4 严重 / 7 中等 / 12 轻微问题，本批次全部处理。审查报告要点与修复逐条对应如下。

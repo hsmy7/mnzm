@@ -46,4 +46,15 @@ interface BuildingFacade {
      * @param refunds 建筑 instanceId → 返还灵石数映射；未知实例自动跳过
      */
     suspend fun removeBuildings(refunds: Map<String, Long>)
+
+    /**
+     * 没收某宗门的全部建筑（无灵石返还）。
+     *
+     * 2026-08-06 新增：玩家占领的宗门被 AI 夺回时调用——该宗门内玩家建造的
+     * 建筑整体拆除（槽位/弟子完整清理），灵石不返还（没收语义）。
+     * 引擎月度结算链为非挂起路径，故本方法不标 suspend。
+     *
+     * @param sectId 目标宗门 id；本宗（""）与空宗门安全跳过
+     */
+    fun seizeBuildingsOfSect(sectId: String)
 }

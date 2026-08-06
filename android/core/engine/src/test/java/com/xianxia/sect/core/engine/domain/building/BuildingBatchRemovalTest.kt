@@ -419,4 +419,73 @@ class BuildingBatchRemovalTest {
         assertEquals("", state.gameData.elderSlots.preachingElder)
         assertTrue(state.gameData.elderSlots.preachingMasters.none { it.isActive })
     }
+
+    // ── 没收宗门（2026-08-06：占领宗门被夺回时无返还拆除）────────────────
+
+    private fun buildingWithSect(key: String, name: String, instanceId: String, sectId: String) =
+        building(key, name, instanceId).copy(sectId = sectId)
+
+    @Test
+    fun `没收宗门 - 指定宗门建筑全部拆除且无灵石返还，本宗建筑保留`() = runTest {
+        stubLaunchInScope(this)
+        state.gameData = GameData(
+            spiritStones = 0,
+            placedBuildings = listOf(
+                buildingWithSect("spirit_mine", "灵矿场", "sm-x", "ai-x"),
+                buildingWithSect("alchemy", "炼丹炉", "a-x", "ai-x"),
+                buildingWithSect("forge", "锻造坊", "f-home", "")
+            )
+        )
+        facade.seizeBuildingsOfSect("ai-x")
+        advanceUntilIdle()
+
+        assertEquals("没收不应返还灵石", 0L, state.gameData.spiritStones)
+        assertEquals("本宗建筑应保留", listOf("f-home"),
+            state.gameData.placedBuildings.map { it.instanceId })
+        verify(discipleStatusService, times(1)).syncAllDiscipleStatuses()
+    }
+
+    @Test
+    fun `没收宗门 - 关联槽位与弟子 Gate 完整清理`() = runTest {
+        stubLaunchInScope(this)
+        gate.confirmAssign("1", SlotRef(SlotCategory.PRODUCTION_SLOT, "alchemy:0", "p1"))
+        gate.confirmAssign("2", SlotRef(SlotCategory.SPIRIT_MINE, "miner:0", "m1"))
+        state.gameData = GameData(
+            placedBuildings = listOf(
+                buildingWithSect("alchemy", "炼丹炉", "a-x", "ai-x"),
+                buildingWithSect("spirit_mine", "灵矿场", "sm-x", "ai-x")
+            ),
+            productionSlots = listOf(
+                ProductionSlot.createIdle(slotIndex = 0, buildingType = BuildingType.ALCHEMY,
+                    buildingId = "alchemy")
+                    .copy(buildingInstanceId = "a-x", assignedDiscipleId = "1")
+            ),
+            spiritMineSlots = listOf(
+                SpiritMineSlot(index = 0, discipleId = "2", buildingInstanceId = "sm-x")
+            )
+        )
+        facade.seizeBuildingsOfSect("ai-x")
+        advanceUntilIdle()
+
+        assertTrue("生产槽位应清空", state.gameData.productionSlots.isEmpty())
+        assertTrue("矿场槽位应清空", state.gameData.spiritMineSlots.isEmpty())
+        assertFalse("生产弟子 Gate 应释放", gate.isAssigned("1"))
+        assertFalse("采矿弟子 Gate 应释放", gate.isAssigned("2"))
+    }
+
+    @Test
+    fun `没收宗门 - 空宗门与空串 sectId 幂等早退`() = runTest {
+        stubLaunchInScope(this)
+        state.gameData = GameData(
+            spiritStones = 0,
+            placedBuildings = listOf(buildingWithSect("alchemy", "炼丹炉", "a1", ""))
+        )
+        facade.seizeBuildingsOfSect("")   // 本宗不可没收
+        facade.seizeBuildingsOfSect("no-such-sect")
+        advanceUntilIdle()
+
+        assertEquals("本宗建筑不受影响", 1, state.gameData.placedBuildings.size)
+        assertEquals(0L, state.gameData.spiritStones)
+        verify(discipleStatusService, never()).syncAllDiscipleStatuses()
+    }
 }

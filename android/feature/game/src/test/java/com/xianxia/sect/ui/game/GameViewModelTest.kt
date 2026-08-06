@@ -67,6 +67,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -109,6 +110,9 @@ class GameViewModelTest {
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var viewModel: GameViewModel
 
+    /** gameData 流（setUp 中 stub 为 [gameEngine.gameData] 的返回，改 .value 驱动命令总线推送） */
+    private lateinit var gameDataFlow: MutableStateFlow<GameData>
+
     /**
      * launchOnEngine 捕获列表（2026-08-01 根因修复）。
      *
@@ -137,7 +141,10 @@ class GameViewModelTest {
         }
 
         // ── Stub gameEngine StateFlow 属性（构造期间被 Flow 链引用）──
-        every { gameEngine.gameData } returns MutableStateFlow(GameData())
+        // gameData 流由字段持有引用：init 协程的 distinctUntilChanged 依赖同一实例，
+        // 测试通过改 gameDataFlow.value 驱动命令总线推送
+        gameDataFlow = MutableStateFlow(GameData())
+        every { gameEngine.gameData } returns gameDataFlow
         every { gameEngine.discipleAggregates } returns MutableStateFlow(emptyList<DiscipleAggregate>())
         every { gameEngine.disciples } returns MutableStateFlow(emptyList<Disciple>())
         every { gameEngine.equipmentStacks } returns MutableStateFlow(emptyList<EquipmentStack>())
@@ -763,6 +770,74 @@ class GameViewModelTest {
 
         coVerify { gameEngine.updateGameData(any()) }
         verify { gameEngine.setActiveDialog(null) }
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // 场景 4：渲染命令总线过滤（2026-08-06 修复：总线只推送 activeSectId 匹配的建筑）
+    // ════════════════════════════════════════════════════════════════
+
+    @Test
+    fun `init - 命令总线仅推送 activeSectId 匹配的建筑`() = runTest(testDispatcher) {
+        val homeMine = GridBuildingData(displayName = "灵矿场", gridX = 10, gridY = 10,
+            width = 4, height = 4, sectId = "", instanceId = "m1")
+        val aiForge = GridBuildingData(displayName = "锻造坊", gridX = 20, gridY = 20,
+            width = 5, height = 3, sectId = "ai-1", instanceId = "f1")
+        gameDataFlow.value = GameData(activeSectId = "", placedBuildings = listOf(homeMine, aiForge))
+        advanceUntilIdle()
+
+        val bus = viewModel.getRenderCommandBus()
+        assertEquals("应只推送 1 栋本宗建筑（AI 宗门建筑不可渲染）", 1, bus.buildingCount)
+        assertEquals("应推送本宗矿场（gridX=10）", 10f, bus.buildingData!![0])
+    }
+
+    @Test
+    fun `init - enterSect 切换宗门后命令总线重推新宗门建筑`() = runTest(testDispatcher) {
+        val homeMine = GridBuildingData(displayName = "灵矿场", gridX = 10, gridY = 10,
+            width = 4, height = 4, sectId = "", instanceId = "m1")
+        val aiForge = GridBuildingData(displayName = "锻造坊", gridX = 20, gridY = 20,
+            width = 5, height = 3, sectId = "ai-1", instanceId = "f1")
+        gameDataFlow.value = GameData(activeSectId = "", placedBuildings = listOf(homeMine, aiForge))
+        advanceUntilIdle()
+        assertEquals(1, viewModel.getRenderCommandBus().buildingCount)
+
+        // enterSect 只改 activeSectId，placedBuildings 不变 —— 推送键必须包含 activeSectId 才会重推
+        gameDataFlow.value = GameData(activeSectId = "ai-1", placedBuildings = listOf(homeMine, aiForge))
+        advanceUntilIdle()
+
+        val bus = viewModel.getRenderCommandBus()
+        assertEquals("切换宗门后应重推新宗门建筑", 1, bus.buildingCount)
+        assertEquals("应推送 AI 宗门锻造坊（gridX=20）", 20f, bus.buildingData!![0])
+    }
+
+    @Test
+    fun `init - 当前宗门无建筑时总线推送空数组而非 null`() = runTest(testDispatcher) {
+        // 2026-08-06 对抗性审查 F2：空推送必须为非 null 空数组——渲染端
+        // `busSnapshot?.data ?: frame.buildingData` 在总线 null 时回退旧 frame，
+        // 进入无建筑宗门会闪现/残留前宗门建筑
+        val homeMine = GridBuildingData(displayName = "灵矿场", gridX = 0, gridY = 0,
+            width = 4, height = 4, sectId = "", instanceId = "m1")
+        gameDataFlow.value = GameData(activeSectId = "empty-sect", placedBuildings = listOf(homeMine))
+        advanceUntilIdle()
+
+        val bus = viewModel.getRenderCommandBus()
+        assertNotNull("空宗门应推送空数组（非 null），防止渲染回退旧 frame", bus.buildingData)
+        assertEquals("空数组长度为 0", 0, bus.buildingData!!.size)
+        assertEquals(0, bus.buildingCount)
+    }
+
+    @Test
+    fun `init - 同宗门建筑增删仍触发重推`() = runTest(testDispatcher) {
+        val mine = GridBuildingData(displayName = "灵矿场", gridX = 10, gridY = 10,
+            width = 4, height = 4, sectId = "", instanceId = "m1")
+        val forge = GridBuildingData(displayName = "锻造坊", gridX = 20, gridY = 20,
+            width = 5, height = 3, sectId = "", instanceId = "f1")
+        gameDataFlow.value = GameData(activeSectId = "", placedBuildings = listOf(mine))
+        advanceUntilIdle()
+        assertEquals("初始 1 栋建筑", 1, viewModel.getRenderCommandBus().buildingCount)
+
+        gameDataFlow.value = GameData(activeSectId = "", placedBuildings = listOf(mine, forge))
+        advanceUntilIdle()
+        assertEquals("同宗门新增建筑应重推", 2, viewModel.getRenderCommandBus().buildingCount)
     }
 
     // ════════════════════════════════════════════════════════════════

@@ -24,6 +24,7 @@ import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.engine.domain.battle.AIBattleWinner
+import com.xianxia.sect.core.engine.domain.building.BuildingFacade
 import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
 import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager.PlayerAttackDecision
 import com.xianxia.sect.core.engine.domain.battle.AISectGarrisonManager
@@ -57,7 +58,12 @@ private data class DefensePreparation(
  * 职责：AI 非焦点域热控分批修炼、宗门等级同步、AI 攻打玩家（预警生命周期 +
  * 战斗结算）、AI-vs-AI 战斗、玩家占领宗门防守战。
  * 洞府探索域保留在 [CaveExplorationProcessor]。
+ *
+ * @Suppress(LargeClass/TooManyFunctions)：预存债务（2026-08-05 D3 拆分后 795 行
+ * 已超限，CI detekt 未拦截），2026-08-06 新增 seizePlayerBuildingsAfterLoss 后
+ * 21 个函数。拆分计划另行立项，沿用文件内既有 @Suppress 先例。
  */
+@Suppress("LargeClass", "TooManyFunctions")
 @Singleton
 @GameService("AISectBattleProcessor")
 class AISectBattleProcessor @Inject constructor(
@@ -67,7 +73,8 @@ class AISectBattleProcessor @Inject constructor(
     private val attackWarningService: AttackWarningService,
     private val cultivationService: CultivationService,
     private val sectWarehouseManager: SectWarehouseManager,
-    private val deathHandler: DiscipleDeathHandler
+    private val deathHandler: DiscipleDeathHandler,
+    private val buildingFacade: BuildingFacade
 ) {
     // AI 非焦点域热控分批状态
     private var aiNonFocusedLastSettleMonth: Int = 0
@@ -346,12 +353,16 @@ class AISectBattleProcessor @Inject constructor(
         result: AISectAttackManager.AIAttackResult,
         gameYear: Int
     ) {
+        // 2026-08-06：玩家占领宗门被 AI 夺回 → 事务提交后没收玩家在该宗门的建筑
+        //（无灵石返还）。事务内捕获标志：提交后 isPlayerOccupied 已被置 false，无法事后重算。
+        var wasPlayerOccupied = false
         stateStore.update {
                 val currentGameData = gameData
                 val defenderSect = currentGameData.worldMapSects
                     .find { it.id == result.defenderSectId }
                 val isPlayerOccupied = defenderSect
                     ?.isPlayerOccupied == true
+                wasPlayerOccupied = isPlayerOccupied
 
                 // 玩家占领宗门防御：更新驻军弟子状态
                 if (isPlayerOccupied) {
@@ -394,6 +405,26 @@ class AISectBattleProcessor @Inject constructor(
 
                 gameData = updatedData
             }
+        // 事务外执行（建筑拆除独立事务，避免嵌套 update）
+        seizePlayerBuildingsAfterLoss(result, wasPlayerOccupied)
+    }
+
+    /**
+     * 玩家占领宗门被 AI 夺回后，没收该宗门内玩家建造的建筑（无灵石返还）。
+     *
+     * 2026-08-06 产品决策：占领宗门被其他宗门占领后，玩家在其中建造的建筑
+     * 自动拆除且不返还灵石（拆除入口随宗门失守而消失，资源不回笼）。
+     * 判定与 [applyAIOccupation] 的夺回分支一致；事务外调用（拆除独立事务）。
+     */
+    internal fun seizePlayerBuildingsAfterLoss(
+        result: AISectAttackManager.AIAttackResult,
+        isPlayerOccupied: Boolean
+    ) {
+        if (!isPlayerOccupied ||
+            result.winner != AIBattleWinner.ATTACKER ||
+            !result.canOccupy
+        ) return
+        buildingFacade.seizeBuildingsOfSect(result.defenderSectId)
     }
 
     /** AI 攻防双方好感惩罚（-10，夹取在允许范围） */

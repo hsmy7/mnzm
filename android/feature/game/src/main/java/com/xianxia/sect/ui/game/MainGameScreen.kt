@@ -276,8 +276,12 @@ fun MainGameScreen(
     }
 
     // 空间索引 — O(1) 触控检测，替代 O(n) 线性查找
+    // 2026-08-06 修复：传入精灵视觉尺寸，命中区域扩展为占地 ∪ 精灵包围盒，
+    // 高层建筑（塔楼/藏经阁等）悬空上半身可点击
     val buildingIndex = remember { BuildingSpatialIndex() }
-    LaunchedEffect(effectivePlacedBuildings) { buildingIndex.rebuild(effectivePlacedBuildings) }
+    LaunchedEffect(effectivePlacedBuildings) {
+        buildingIndex.rebuild(effectivePlacedBuildings, buildingSpriteSizes)
+    }
 
     // 建筑列表及点击回调
     val buildingList = remember {
@@ -923,10 +927,12 @@ fun MainGameScreen(
                             viewModel.moveBuilding(b.instanceId, movingSnappedGridX, movingSnappedGridY)
                             // 同步更新空间索引，避免 LaunchedEffect 异步重建前
                             // 第二次长按读到旧坐标导致建筑跳回原位置
+                            // 注：add 须传同一 spriteSizes，否则移动中的建筑丢失精灵扩展命中
                             buildingIndex.remove(b.instanceId)
-                            buildingIndex.add(b.copy(
-                                gridX = movingSnappedGridX, gridY = movingSnappedGridY
-                            ))
+                            buildingIndex.add(
+                                b.copy(gridX = movingSnappedGridX, gridY = movingSnappedGridY),
+                                buildingSpriteSizes
+                            )
                             movingBuilding = null
                         }
                     } else {
