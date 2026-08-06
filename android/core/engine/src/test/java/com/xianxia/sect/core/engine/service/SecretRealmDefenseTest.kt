@@ -6,6 +6,7 @@ import com.xianxia.sect.core.engine.domain.battle.BattleLogData
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
 import com.xianxia.sect.core.engine.domain.battle.Combatant
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
 import com.xianxia.sect.core.engine.domain.exploration.SecretRealmChoiceResult
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
@@ -74,7 +75,9 @@ class SecretRealmDefenseTest {
             rngManager = rngManager,
             battleSystem = battleSystem,
             inventorySystem = inventorySystem,
-            spiritStoneWallet = spiritStoneWallet
+            spiritStoneWallet = spiritStoneWallet,
+            overflowMailSender = mock(OverflowMailSender::class.java),
+            assignmentGate = mock(DiscipleAssignmentGate::class.java)
         )
         tables = DiscipleTables()
     }

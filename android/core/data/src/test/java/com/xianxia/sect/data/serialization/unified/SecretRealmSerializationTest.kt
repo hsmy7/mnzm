@@ -259,6 +259,82 @@ class SecretRealmSerializationTest {
     }
 
     @Test
+    fun `ai sect encounter event round-trips params and ai members`() {
+        val session = SecretRealmExplorationSession(
+            secretRealmId = "realm_4",
+            members = listOf(
+                SecretRealmMemberState(discipleId = "1", name = "张三", currentHp = -1)
+            ),
+            stamina = 10,
+            currentEvent = SecretRealmEventRecord(
+                eventType = SecretRealmEventType.AI_SECT_ENCOUNTER.name,
+                title = "遭遇青云宗探索队伍",
+                description = "前方发现青云宗的探索队伍，狭路相逢",
+                options = listOf(
+                    SecretRealmOption("向左避让", ""),
+                    SecretRealmOption("与之交战", ""),
+                    SecretRealmOption("向右避让", "")
+                ),
+                params = SecretRealmEventParams(
+                    aiSectId = "sect1",
+                    aiSectName = "青云宗",
+                    // 非默认值 2 往返保持（@EncodeDefault(ALWAYS) 守卫）
+                    aiSectLevel = 2,
+                    aiMembers = listOf(
+                        com.xianxia.sect.core.model.SecretRealmAIMember(
+                            discipleId = "a1", name = "剑尘",
+                            portraitRes = "male_disciple_1", realm = 3
+                        )
+                    )
+                )
+            )
+        )
+        val restored = roundTrip(session)
+        val event = restored.currentEvent ?: return
+        assertEquals(SecretRealmEventType.AI_SECT_ENCOUNTER.name, event.eventType)
+        assertEquals("遭遇青云宗探索队伍", event.title)
+        assertEquals("sect1", event.params.aiSectId)
+        assertEquals("青云宗", event.params.aiSectName)
+        assertEquals(2, event.params.aiSectLevel)
+        assertEquals(1, event.params.aiMembers.size)
+        assertEquals("剑尘", event.params.aiMembers.first().name)
+        assertEquals(3, event.params.aiMembers.first().realm)
+        // 三选项默认体力 1 往返保持
+        assertTrue(event.options.all { it.staminaCost == 1 })
+    }
+
+    @Test
+    fun `ai team round-trips sectLevel`() {
+        val aiTeams = listOf(
+            SecretRealmAITeam(
+                id = "team_1", sectId = "sect1", sectName = "青云宗",
+                // 非默认值 3（顶级）往返保持（@EncodeDefault(ALWAYS) 守卫）
+                sectLevel = 3,
+                members = listOf(
+                    com.xianxia.sect.core.model.SecretRealmAIMember(
+                        discipleId = "a1", name = "剑尘", realm = 5
+                    )
+                )
+            )
+        )
+        val save = SaveData(
+            gameData = com.xianxia.sect.core.model.GameData(secretRealmAITeams = aiTeams),
+            disciples = emptyList(), pills = emptyList(),
+            materials = emptyList(),
+            herbs = emptyList(), seeds = emptyList(), teams = emptyList()
+        )
+        val bytes = NullSafeProtoBuf.protoBuf.encodeToByteArray(serializer<SaveData>(), save)
+        val restored = NullSafeProtoBuf.protoBuf.decodeFromByteArray(serializer<SaveData>(), bytes)
+        val team = restored.gameData.secretRealmAITeams.first()
+        assertEquals("sect1", team.sectId)
+        assertEquals("青云宗", team.sectName)
+        assertEquals(3, team.sectLevel)
+        assertEquals(1, team.members.size)
+        // 缺省档 sectLevel 默认 0（小型），旧档兼容
+        assertTrue(SecretRealmAITeam(sectId = "sect2", sectName = "万剑宗").sectLevel == 0)
+    }
+
+    @Test
     fun `old save without secret realm fields decodes to empty defaults`() {
         // 旧存档没有秘境字段 → 解码为默认空状态
         val save = SaveData(

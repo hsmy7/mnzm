@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.model.MailAttachment
+import com.xianxia.sect.core.model.MailEntity
 import com.xianxia.sect.core.overflow.OverflowMailDraft
 import com.xianxia.sect.core.repository.MailRepository
 import com.xianxia.sect.core.state.GameStateStore
@@ -107,5 +108,46 @@ class OverflowMailSenderTest {
         assertEquals("battle", draft.source)
         assertEquals("回气丹", draft.itemName)
         assertEquals(5, draft.quantity)
+    }
+
+    // ── 直发邮件（秘境关闭返还等自定义标题/内容邮件） ─────────────────────
+
+    private fun sampleDirectMail(id: String = "mail_1"): MailEntity = MailEntity(
+        id = id,
+        slotId = 1,
+        source = "secret_realm",
+        mailType = "secret_realm_close",
+        title = "远古秘境已关闭",
+        content = "远古秘境已关闭，这些物品是远古秘境中获得的物品：\n\n• 虎骨 ×1\n——天道意志",
+        senderName = "天道意志",
+        sendTime = 1_000L,
+        expireTime = 2_000L,
+        hasAttachment = true,
+        attachments = "[]"
+    )
+
+    @Test
+    fun `sendDirectMail - 自定义邮件经防抖 drain 原样落库`() = kotlinx.coroutines.test.runTest {
+        val mailRepo = Mockito.mock(MailRepository::class.java)
+        val stateStore = Mockito.mock(GameStateStore::class.java)
+        Mockito.`when`(stateStore.warehouseFullEvent).thenReturn(kotlinx.coroutines.flow.MutableSharedFlow())
+        val sender = OverflowMailSender(mailRepo, stateStore, TestScopeProvider())
+        val mail = sampleDirectMail()
+        sender.sendDirectMail(mail)
+        // drain 防抖 300ms 后写入 Room；等真实时间（Default dispatcher，虚拟时间无法推进）
+        Thread.sleep(600)
+        Mockito.verify(mailRepo).insertWithEnforceLimit(mail, 1000)
+    }
+
+    @Test
+    fun `sendDirectMail - 空 id 防御不入队不落库`() = kotlinx.coroutines.test.runTest {
+        val mailRepo = Mockito.mock(MailRepository::class.java)
+        val stateStore = Mockito.mock(GameStateStore::class.java)
+        Mockito.`when`(stateStore.warehouseFullEvent).thenReturn(kotlinx.coroutines.flow.MutableSharedFlow())
+        val sender = OverflowMailSender(mailRepo, stateStore, TestScopeProvider())
+        sender.sendDirectMail(sampleDirectMail(id = ""))
+        Thread.sleep(600)
+        Mockito.verify(mailRepo, org.mockito.kotlin.never())
+            .insertWithEnforceLimit(org.mockito.kotlin.any(), org.mockito.kotlin.any())
     }
 }

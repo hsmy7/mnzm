@@ -60,6 +60,13 @@ internal fun CultivationEventProcessor.processMonthlyEvents(year: Int, month: In
         state.safelyRunInState("monthlyCultivation") { processMonthlyCultivationAndAuto(state) }
         state.safelyRunInState("vassalBreakaway") { vassalService.processMonthlyBreakawayCheck(state) }
         state.safelyRunInState("missionRefresh") { processMissionRefreshIfDue(month, state) }
+        // 秘境到期检查在前（关闭后 AI 队伍清场，后续不再派遣）
+        state.safelyRunInState("secretRealmExpiry") {
+            secretRealmService.processMonthlyExpiryCheck(this, year)
+        }
+        state.safelyRunInState("secretRealmAiTeams") {
+            secretRealmAIProcessor.processMonthlyAiTeams(this)
+        }
     }
 
 internal fun CultivationEventProcessor.processMonthlyEvents(year: Int, month: Int) {
@@ -85,6 +92,13 @@ internal fun CultivationEventProcessor.processMonthlyEvents(year: Int, month: In
             safelyRunInState("monthlyCultivation") { processMonthlyCultivationAndAuto(this) }
             safelyRunInState("vassalBreakaway") { vassalService.processMonthlyBreakawayCheck(this) }
             safelyRunInState("missionRefresh") { processMissionRefreshIfDue(month, this) }
+            // 秘境到期检查在前（关闭后 AI 队伍清场，后续不再派遣）
+            safelyRunInState("secretRealmExpiry") {
+                secretRealmService.processMonthlyExpiryCheck(this, year)
+            }
+            safelyRunInState("secretRealmAiTeams") {
+                secretRealmAIProcessor.processMonthlyAiTeams(this)
+            }
         }
     }
 internal fun CultivationEventProcessor.processMonthlyCultivationAndAuto(state: MutableGameState) {

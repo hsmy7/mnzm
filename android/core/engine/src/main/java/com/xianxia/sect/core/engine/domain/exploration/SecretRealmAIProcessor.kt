@@ -31,11 +31,13 @@ class SecretRealmAIProcessor @Inject constructor() {
         if (pendingSects.isEmpty()) return
 
         val newTeams = pendingSects.map { (sectId, disciples) ->
-            val sectName = data.worldMapSects.find { it.id == sectId }?.name ?: sectId
+            val sect = data.worldMapSects.find { it.id == sectId }
             SecretRealmAITeam(
                 id = UUID.randomUUID().toString(),
                 sectId = sectId,
-                sectName = sectName,
+                sectName = sect?.name ?: sectId,
+                // 固化宗门等级（0小型/1中型/2大型/3顶级），事件生成时据此判定交战奖励品阶
+                sectLevel = sect?.level ?: 0,
                 members = disciples
                     .filter { it.isAlive }
                     .sortedBy { it.realm }

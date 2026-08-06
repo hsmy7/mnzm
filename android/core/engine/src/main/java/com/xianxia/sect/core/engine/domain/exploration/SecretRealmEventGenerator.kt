@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine.domain.exploration
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.battle.BattleLogData
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
+import com.xianxia.sect.core.model.SecretRealmAITeam
 import com.xianxia.sect.core.model.SecretRealmBackpack
 import com.xianxia.sect.core.model.SecretRealmEventParams
 import com.xianxia.sect.core.model.SecretRealmEventRecord
@@ -24,7 +25,9 @@ enum class SecretRealmEndReason {
     /** 体力耗尽 */
     EXHAUSTED,
     /** 队伍全灭 */
-    WIPEOUT
+    WIPEOUT,
+    /** 现世期满自动关闭 */
+    EXPIRED
 }
 
 /**
@@ -165,20 +168,70 @@ object SecretRealmEventGenerator {
     /**
      * 方向选择后的下一事件分派：一次 nextDouble() 分段判定——
      * < REST_AREA_CHANCE 空地事件；[REST_AREA_CHANCE, REST_AREA_CHANCE + RUINS_CHANCE) 发现遗迹；
+     * [RUINS 段, RUINS 段 + AI_ENCOUNTER_CHANCE) 遭遇 AI 探索队伍（队伍池为空则回退妖兽事件）；
      * 其余妖兽事件。仍只消费一次 nextDouble()（RNG 消费次数与旧版一致，读档确定性不变）。
      *
      * @param rng SECRET_REALM 分区 PRNG
      * @param playerAvgRealm 玩家队伍平均境界（数值越小境界越高）
-     * @return 空地事件 / 发现遗迹事件 / 妖兽事件记录
+     * @param aiTeams 已派遣的 AI 宗门探索队伍（空则 AI 段回退妖兽事件）
+     * @return 空地事件 / 发现遗迹事件 / AI 遭遇事件 / 妖兽事件记录
      */
-    fun rollNextEvent(rng: DeterministicRng, playerAvgRealm: Int): SecretRealmEventRecord {
+    fun rollNextEvent(
+        rng: DeterministicRng,
+        playerAvgRealm: Int,
+        aiTeams: List<SecretRealmAITeam> = emptyList()
+    ): SecretRealmEventRecord {
         val roll = rng.nextDouble()
         return when {
             roll < GameConfig.SecretRealm.REST_AREA_CHANCE -> generateRestAreaEvent()
             roll < GameConfig.SecretRealm.REST_AREA_CHANCE +
                 GameConfig.SecretRealm.RUINS_CHANCE -> generateRuinsEvent()
+            roll < GameConfig.SecretRealm.REST_AREA_CHANCE +
+                GameConfig.SecretRealm.RUINS_CHANCE +
+                GameConfig.SecretRealm.AI_ENCOUNTER_CHANCE ->
+                if (aiTeams.isEmpty()) {
+                    // 空池回退妖兽事件（不额外消费 RNG，读档序列不变）
+                    generateBeastEvent(rng, playerAvgRealm)
+                } else {
+                    generateAISectEncounterEvent(rng, aiTeams)
+                }
             else -> generateBeastEvent(rng, playerAvgRealm)
         }
+    }
+
+    // ── AI 宗门遭遇事件 ───────────────────────────────────────────────
+
+    /**
+     * 生成"遭遇 AI 宗门探索队伍"事件。
+     *
+     * 从已派遣队伍中随机选一支；三选项（向左避让/与之交战/向右避让）均扣 1 体力；
+     * 队伍信息（id/名称/等级/成员快照）写入 params，结算时按现况核对存活成员。
+     *
+     * @param rng SECRET_REALM 分区 PRNG
+     * @param teams 已派遣的 AI 宗门探索队伍（非空，调用方保证）
+     * @return AI 遭遇事件记录
+     */
+    fun generateAISectEncounterEvent(
+        rng: DeterministicRng,
+        teams: List<SecretRealmAITeam>
+    ): SecretRealmEventRecord {
+        val team = teams[rng.nextInt(teams.size)]
+        return SecretRealmEventRecord(
+            eventType = SecretRealmEventType.AI_SECT_ENCOUNTER.name,
+            title = "遭遇${team.sectName}探索队伍",
+            description = "前方发现${team.sectName}的探索队伍，狭路相逢",
+            options = listOf(
+                SecretRealmOption("向左避让", "悄然绕行，必能避开对方"),
+                SecretRealmOption("与之交战", "与对方的探索队伍正面交锋"),
+                SecretRealmOption("向右避让", "悄然绕行，必能避开对方")
+            ),
+            params = SecretRealmEventParams(
+                aiSectId = team.sectId,
+                aiSectName = team.sectName,
+                aiSectLevel = team.sectLevel,
+                aiMembers = team.members
+            )
+        )
     }
 
     // ── 发现遗迹事件 ─────────────────────────────────────────────────
@@ -267,7 +320,19 @@ object SecretRealmEventGenerator {
             attempts++
             val type = RUIN_ITEM_TYPES[rng.nextInt(RUIN_ITEM_TYPES.size)]
             val rarity = minRarity + rng.nextInt(maxRarity - minRarity + 1)
-            val template = pickRuinsTemplate(type, rarity, rng) ?: continue
+            // 按类型 + 品阶选取模板（仅取 ID 与名称）；数据空洞/ManualDatabase 未初始化 → null 跳过该件
+            val template = when (type) {
+                "equipment" -> pickTemplate(EquipmentDatabase.getByRarity(rarity).map { it.id to it.name }, rng)
+                "manual" -> if (!ManualDatabase.isInitialized) null
+                    else pickTemplate(ManualDatabase.getByRarity(rarity).map { it.id to it.name }, rng)
+                "pill" -> pickTemplate(ItemDatabase.getPillsByRarity(rarity).map { it.id to it.name }, rng)
+                "material" -> pickTemplate(
+                    ItemDatabase.allMaterials.values.filter { it.rarity == rarity }.map { it.id to it.name }, rng
+                )
+                "herb" -> pickTemplate(HerbDatabase.getByRarity(rarity).map { it.id to it.name }, rng)
+                "seed" -> pickTemplate(HerbDatabase.getSeedsByRarity(rarity).map { it.id to it.name }, rng)
+                else -> null
+            } ?: continue
             rewards.add(
                 SecretRealmRewardItem(
                     type = type,
@@ -283,29 +348,6 @@ object SecretRealmEventGenerator {
 
     /** 单件秘宝的模板选取最大尝试次数（数据空洞补生成上限） */
     private const val RUIN_PICK_MAX_ATTEMPTS = 5
-
-    /**
-     * 按类型 + 品阶选取模板（仅取模板 ID 与名称）。数据空洞（该品阶无模板）或
-     * ManualDatabase 未初始化时返回 null（调用方跳过该件，不抛异常）。
-     */
-    private fun pickRuinsTemplate(
-        type: String,
-        rarity: Int,
-        rng: DeterministicRng
-    ): Pair<String, String>? = when (type) {
-        "equipment" -> pickTemplate(EquipmentDatabase.getByRarity(rarity).map { it.id to it.name }, rng)
-        "manual" -> {
-            if (!ManualDatabase.isInitialized) null
-            else pickTemplate(ManualDatabase.getByRarity(rarity).map { it.id to it.name }, rng)
-        }
-        "pill" -> pickTemplate(ItemDatabase.getPillsByRarity(rarity).map { it.id to it.name }, rng)
-        "material" -> pickTemplate(
-            ItemDatabase.allMaterials.values.filter { it.rarity == rarity }.map { it.id to it.name }, rng
-        )
-        "herb" -> pickTemplate(HerbDatabase.getByRarity(rarity).map { it.id to it.name }, rng)
-        "seed" -> pickTemplate(HerbDatabase.getSeedsByRarity(rarity).map { it.id to it.name }, rng)
-        else -> null
-    }
 
     // ── 妖兽属性预生成 ────────────────────────────────────────────────
 

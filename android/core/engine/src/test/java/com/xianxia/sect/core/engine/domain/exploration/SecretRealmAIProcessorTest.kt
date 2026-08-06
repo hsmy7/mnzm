@@ -108,4 +108,51 @@ class SecretRealmAIProcessorTest {
         processor.processMonthlyAiTeams(state)
         assertTrue(state.gameData.secretRealmAITeams.isEmpty())
     }
+
+    @Test
+    fun `processMonthlyAiTeams - 固化宗门等级到队伍`() {
+        val state = createState()
+        state.gameData = state.gameData.copy(
+            secretRealmState = SecretRealmState(id = "r1"),
+            aiSectDisciples = mapOf(
+                "sect1" to listOf(aiDisciple("a1", realm = 1), aiDisciple("a2", realm = 2))
+            ),
+            worldMapSects = listOf(
+                com.xianxia.sect.core.model.WorldSect(
+                    id = "sect1", name = "青云宗", level = 2
+                )
+            )
+        )
+        processor.processMonthlyAiTeams(state)
+        // 队伍固化 sectLevel=2（中型），事件生成时据此判定交战奖励品阶
+        assertEquals(2, state.gameData.secretRealmAITeams.first().sectLevel)
+    }
+
+    @Test
+    fun `processMonthlyAiTeams - 未知宗门等级回退小型`() {
+        val state = createState()
+        state.gameData = state.gameData.copy(
+            secretRealmState = SecretRealmState(id = "r1"),
+            aiSectDisciples = mapOf(
+                "sect1" to listOf(aiDisciple("a1", realm = 1), aiDisciple("a2", realm = 2))
+            )
+            // worldMapSects 无此宗门 → 等级未知回退 0（小型）
+        )
+        processor.processMonthlyAiTeams(state)
+        assertEquals(0, state.gameData.secretRealmAITeams.first().sectLevel)
+    }
+
+    @Test
+    fun `processMonthlyAiTeams - 秘境关闭后不再派遣`() {
+        val state = createState()
+        state.gameData = state.gameData.copy(
+            aiSectDisciples = mapOf(
+                "sect1" to listOf(aiDisciple("a1", realm = 1), aiDisciple("a2", realm = 2))
+            ),
+            worldMapSects = listOf(com.xianxia.sect.core.model.WorldSect(id = "sect1", name = "青云宗"))
+            // secretRealmState 不存在（5 年关闭后）→ 不派遣
+        )
+        processor.processMonthlyAiTeams(state)
+        assertTrue(state.gameData.secretRealmAITeams.isEmpty())
+    }
 }

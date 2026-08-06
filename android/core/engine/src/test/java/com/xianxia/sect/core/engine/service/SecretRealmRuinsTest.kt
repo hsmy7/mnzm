@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
 import com.xianxia.sect.core.engine.domain.exploration.SecretRealmChoiceResult
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.SecretRealmBackpack
@@ -82,7 +83,9 @@ class SecretRealmRuinsTest {
             rngManager = rngManager,
             battleSystem = mock(com.xianxia.sect.core.engine.domain.battle.BattleSystem::class.java),
             inventorySystem = inventorySystem,
-            spiritStoneWallet = mock(com.xianxia.sect.core.wallet.SpiritStoneWallet::class.java)
+            spiritStoneWallet = mock(com.xianxia.sect.core.wallet.SpiritStoneWallet::class.java),
+            overflowMailSender = mock(OverflowMailSender::class.java),
+            assignmentGate = mock(DiscipleAssignmentGate::class.java)
         )
     }
 
@@ -492,7 +495,9 @@ class SecretRealmRuinsTest {
             rngManager = rngMgr,
             battleSystem = mock(com.xianxia.sect.core.engine.domain.battle.BattleSystem::class.java),
             inventorySystem = inventorySystem,
-            spiritStoneWallet = mock(com.xianxia.sect.core.wallet.SpiritStoneWallet::class.java)
+            spiritStoneWallet = mock(com.xianxia.sect.core.wallet.SpiritStoneWallet::class.java),
+            overflowMailSender = mock(OverflowMailSender::class.java),
+            assignmentGate = mock(DiscipleAssignmentGate::class.java)
         )
         val state = createState()
         setupSession(state, ruinsEvent())

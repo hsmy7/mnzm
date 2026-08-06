@@ -21,12 +21,14 @@ import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.domain.diplomacy.VassalService
+import com.xianxia.sect.core.engine.domain.exploration.SecretRealmAIProcessor
 import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
 import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import javax.inject.Inject
 import javax.inject.Singleton
 @Singleton
 @GameService("CultivationEventProcessor")
+@Suppress("LongParameterList") // 27 个领域服务依赖注入（月度事件编排中枢，分域聚合），detekt 上限 10
 class CultivationEventProcessor @Inject constructor(
     internal val stateStore: GameStateStore,
     internal val spiritStoneWallet: SpiritStoneWallet,
@@ -52,6 +54,7 @@ class CultivationEventProcessor @Inject constructor(
     internal val lawEnforcementProcessor: LawEnforcementProcessor,
     internal val rngManager: GameRngManager,
     internal val secretRealmService: SecretRealmService,
+    internal val secretRealmAIProcessor: SecretRealmAIProcessor,
     internal val deathHandler: DiscipleDeathHandler
 ) {
     private val scope get() = scopeProvider.scope

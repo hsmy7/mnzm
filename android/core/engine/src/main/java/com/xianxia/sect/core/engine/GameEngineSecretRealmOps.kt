@@ -30,6 +30,16 @@ suspend fun GameEngine.startSecretRealmExploration(
 ): DomainResult<Unit> = engineContextDispatcher.withEngineContext {
     val result: DomainResult<Unit> = try {
         stateStore.updateAndReturn {
+            // 入口防御：秘境已现世期满（月结被绕过的极端兜底）→ 关闭并拒绝出发
+            val realm = gameData.secretRealmState
+            if (realm.exists && gameData.gameYear >=
+                realm.spawnYear + GameConfig.SecretRealm.OPEN_YEARS
+            ) {
+                secretRealmService.closeSecretRealmByExpiry(this)
+                return@updateAndReturn DomainResult.Failure(
+                    AppError.Domain.GameState.NotFound("远古秘境已关闭")
+                )
+            }
             // 先校验再清理：startSession 校验失败返回 Failure（不抛异常），若先清理
             // 则事务照常提交——队员岗位已被清空但 gate 未清（回归：C1 失败路径销毁分配）。
             // 校验通过后换岗清理（出发即换岗——防止同一弟子同时出现在岗位与秘境队伍）
@@ -103,6 +113,13 @@ suspend fun GameEngine.continueSecretRealmExploration(): Boolean =
     engineContextDispatcher.withEngineContext {
         val data = stateStore.gameDataSnapshot
         val session = data.secretRealmSession
+        // 入口防御：秘境已现世期满（月结被绕过的极端兜底）→ 关闭会话并拒绝继续
+        if (data.secretRealmState.exists && data.gameYear >=
+            data.secretRealmState.spawnYear + GameConfig.SecretRealm.OPEN_YEARS
+        ) {
+            stateStore.update { secretRealmService.closeSecretRealmByExpiry(this) }
+            return@withEngineContext false
+        }
         if (!session.isActive || !data.secretRealmState.exists ||
             session.secretRealmId != data.secretRealmState.id
         ) {

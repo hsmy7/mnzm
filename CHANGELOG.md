@@ -8,6 +8,16 @@
 - **同步清理** — stability_config.conf 删 4 条（保留 SignInState）、baseline.prof 删 1 条、detekt-baseline 删 core/engine 8 条 + feature/game 20 条失效条目；测试：`GameViewModelTest`/`GameViewModelMovingBuildingBusTest` 删签到 mock 桩、`DialogTypeRenderCoverageTest` 删 Activity 条目
 - 全模块 compileReleaseKotlin + 四模块单测串行（--max-workers=1）+ detekt 全部通过，Room schema 无变化
 
+### 新增（2026-08-07 远古秘境 5 年自动关闭 + AI 宗门探索队伍遭遇事件）
+
+- **[需求 1] 远古秘境现世 5 年自动关闭** — `SecretRealmService` 新增 `processMonthlyExpiryCheck`（月结判定 `gameYear >= spawnYear + OPEN_YEARS`）/`closeSecretRealmByExpiry`（灵石入钱包 → 背包物品构建 `buildExpiryCloseMail` 转邮件 → 清空背包 → `endSession(EXPIRED)` → 事务内释放 gate → 异步落库，先清背包杜绝双发放）/`buildExpiryCloseMail`（六类物品逐类目 `MailAttachment(itemId=按模板名解析)`，标题"远古秘境已关闭"、内容"远古秘境已关闭，这些物品是远古秘境中获得的物品"，3650 天有效期，空背包返回 null）；`SecretRealmEndReason` 追加 `EXPIRED`（文案"远古秘境现世期满，已自动关闭，探索所得已通过邮件送回"）；`GameConfig.SecretRealm.OPEN_YEARS=5`；引擎入口防御：`startSecretRealmExploration`/`continueSecretRealmExploration` 事务内过期检查兜底
+- **[需求 2] 秘境遭遇"xxx 探索队伍"事件** — `SecretRealmEventType` 追加 `AI_SECT_ENCOUNTER`；`rollNextEvent` 三分段改四分段（30% 空地/20% 遗迹/15% AI 遭遇/35% 妖兽，仍单次 `nextDouble` 消费，AI 队伍空池回退妖兽）；`generateAISectEncounterEvent`（随机队伍、标题"遭遇{sectName}探索队伍"、三选项各扣 1 体力：向左避让/与之交战/向右避让）；`SecretRealmService` 新增 `resolveAISectEncounter`/`runAISectBattle`/`recordAISectBattleLog`（BattleType.PVP）/`settleAISectBattleRewards`（胜利复用 `generateRuinsTreasure` + `instantiateRuinsRewards`，件数 1~15 全局统一、品阶按宗门等级分档 `AI_REWARD_RARITY_RANGES`：小型 1~2 / 中型 2~3 / 大型 3~4 / 顶级 4~5；战败复用 `applyLootLoss`）/`markAiTeamDefeated`（战死 AI 弟子写 `isAlive=false` 对齐 `PatrolBattleSystem.markAiDeaths`，队伍从派遣池移除）；战斗前按 `aiSectDisciples` 过滤存活，全灭直通"无力应战"；避让必成功、队伍保留可再遇
+- **AI 队伍月结派遣接线** — `processMonthlyAiTeams` 补 `sectLevel = worldMapSects.find{...}?.level ?: 0` 固化宗门等级；`CultivationEventProcessor` 构造注入 `secretRealmAIProcessor`；`CultivationEventMonthlyOps` 两处月结列表新增 `secretRealmExpiry`（在前）+ `secretRealmAiTeams`（在后）
+- **邮件直发通道** — `OverflowMailSender.sendDirectMail(mail)`（非挂起入队 `ConcurrentLinkedQueue` + 防抖 drain 异步落库，失败回队重试，与溢出草稿互不合并），`MailService.distribute*Attachment` 按 `itemId` 优先模板精确发放、未命中回退按品阶随机（旧附件 `itemId=null` 行为不变）
+- **序列化零迁移** — 新内容全部落在既有 protobuf 结构内：`SecretRealmEventParams` 追加 9~12（`aiSectId`/`aiSectName`/`aiSectLevel`(非零默认值 `@EncodeDefault(ALWAYS)`)/`aiMembers`）、`SecretRealmAITeam` 追加 5（`sectLevel` 同上）；无 Room 列、无 Migration、schema 无变化
+- **测试** — `SecretRealmServiceTest` +11（5 年关闭 5 例：到期关闭背包转邮件灵石入钱包/未到期不触发/幂等/空背包无邮件/无双发放守卫；AI 遭遇 6 例：避让×2/胜利品阶件数/战败损失/全灭 WIPEOUT/无力应战直通）、`SecretRealmEventGeneratorTest` +7（四分段落点/AI 事件字段/三选项体力/空池回退 RNG 消费一致/多队伍选择/配置不变量）、`SecretRealmAIProcessorTest` +3（等级固化/未知回退小型/关闭后不再派遣）、`SecretRealmSerializationTest` +2（params/team round-trip 非零默认值守卫）、`OverflowMailSenderTest` +2（sendDirectMail 原样落库/空 id 防御）；修复：`chooseOption` 合并改基于最新 `state.gameData`（此前 `markAiTeamDefeated` 的死亡标记会被旧引用 copy 覆盖回滚——对抗性审查发现）
+- 全模块 compileReleaseKotlin + 四模块单测串行（--max-workers=1）+ detekt 全部通过，Room schema 无变化
+
 ## [4.00.90] - 2026-08-06
 
 ### 调整（2026-08-07 排行榜入口图标替换）

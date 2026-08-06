@@ -959,6 +959,12 @@ object GameConfig {
         const val LOOT_LOSS_MIN = 0.20                     // 战斗失败丢失物品比例下限
         const val LOOT_LOSS_MAX = 0.45                     // 战斗失败丢失物品比例上限
         const val AI_TEAM_SIZE = 4                         // AI 宗门队伍人数
+        const val OPEN_YEARS = 5                           // 秘境现世后存在年数，满 N 年自动关闭
+        const val AI_ENCOUNTER_CHANCE = 0.15               // 方向事件后遭遇 AI 探索队伍概率（从妖兽份额切出）
+        val AI_REWARD_COUNT_RANGE = 1..15                  // 交战胜利物品件数（全局统一）
+        // 宗门等级(0小型/1中型/2大型/3顶级) → 品阶区间（1凡品 2灵品 3宝品 4玄品 5地品）
+        val AI_REWARD_RARITY_RANGES: List<IntRange> =
+            listOf(1..2, 2..3, 3..4, 4..5)
     }
 
     /**

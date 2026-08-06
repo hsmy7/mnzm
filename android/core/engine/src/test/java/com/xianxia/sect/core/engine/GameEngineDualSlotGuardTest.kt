@@ -138,7 +138,9 @@ class GameEngineDualSlotGuardTest {
             rngManager = mockRngManager,
             battleSystem = mock(),
             inventorySystem = mock(),
-            spiritStoneWallet = mock()
+            spiritStoneWallet = mock(),
+            overflowMailSender = mock(),
+            assignmentGate = mock()
         )
         val mockExplorationFacade = mock<ExplorationFacade>()
         whenever(mockExplorationFacade.secretRealmService).thenReturn(realSecretRealmService)

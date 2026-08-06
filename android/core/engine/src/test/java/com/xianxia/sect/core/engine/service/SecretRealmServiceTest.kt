@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.battle.Battle
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
 import com.xianxia.sect.core.engine.domain.battle.BattleLogData
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
@@ -40,6 +41,8 @@ class SecretRealmServiceTest {
     private lateinit var battleSystem: BattleSystem
     private lateinit var inventorySystem: com.xianxia.sect.core.engine.system.InventorySystem
     private lateinit var spiritStoneWallet: com.xianxia.sect.core.wallet.SpiritStoneWallet
+    private lateinit var overflowMailSender: OverflowMailSender
+    private lateinit var assignmentGate: DiscipleAssignmentGate
     private lateinit var service: SecretRealmService
     private lateinit var tables: DiscipleTables
 
@@ -61,11 +64,15 @@ class SecretRealmServiceTest {
             inv.getArgument<() -> Any>(1).invoke()
         }
         spiritStoneWallet = mock(com.xianxia.sect.core.wallet.SpiritStoneWallet::class.java)
+        overflowMailSender = mock(OverflowMailSender::class.java)
+        assignmentGate = mock(DiscipleAssignmentGate::class.java)
         service = SecretRealmService(
             rngManager = rngManager,
             battleSystem = battleSystem,
             inventorySystem = inventorySystem,
-            spiritStoneWallet = spiritStoneWallet
+            spiritStoneWallet = spiritStoneWallet,
+            overflowMailSender = overflowMailSender,
+            assignmentGate = assignmentGate
         )
         tables = DiscipleTables()
     }
@@ -601,3 +608,4 @@ internal val SecretRealmChoiceResult.isEnteredCombat: Boolean
 
 internal val SecretRealmChoiceResult.isVictory: Boolean
     get() = (this as? SecretRealmChoiceResult.Success)?.victory == true
+

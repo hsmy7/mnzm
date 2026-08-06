@@ -97,6 +97,9 @@ class OverflowMailSender @Inject constructor(
 
     private val pendingDrafts = ConcurrentLinkedQueue<OverflowMailDraft>()
 
+    /** 直发邮件队列（自定义标题/内容的完整邮件实体，如秘境关闭返还邮件） */
+    private val pendingDirectMails = ConcurrentLinkedQueue<MailEntity>()
+
     /** 单飞调度标志——@Volatile 保证跨线程可见（对抗性审查 M1 修复） */
     @Volatile
     private var drainScheduled = false
@@ -105,6 +108,16 @@ class OverflowMailSender @Inject constructor(
     override fun sendOverflowMails(drafts: List<OverflowMailDraft>) {
         if (drafts.isEmpty()) return
         pendingDrafts.addAll(drafts)
+        scheduleDrain()
+    }
+
+    /**
+     * 直发自定义邮件（如秘境关闭返还邮件）：入队 → 与溢出草稿同 drain 异步落库；
+     * 写入失败回队重试（不永久丢失）。非 suspend，stateStore.update 事务内安全。
+     */
+    fun sendDirectMail(mail: MailEntity) {
+        if (mail.id.isBlank()) return
+        pendingDirectMails.add(mail)
         scheduleDrain()
     }
 
@@ -128,16 +141,26 @@ class OverflowMailSender @Inject constructor(
         }
     }
 
-    /** 取出全部草稿，按 (slotId, source) 分组构建邮件并写入 Room */
+    /** 取出全部草稿与直发邮件，分别落库（溢出邮件分组构建；直发邮件原样写入） */
     private suspend fun drain() {
         val drafts = mutableListOf<OverflowMailDraft>()
         while (true) {
             val draft = pendingDrafts.poll() ?: break
             drafts.add(draft)
         }
-        if (drafts.isEmpty()) return
+        val directMails = mutableListOf<MailEntity>()
+        while (true) {
+            val mail = pendingDirectMails.poll() ?: break
+            directMails.add(mail)
+        }
+        if (drafts.isEmpty() && directMails.isEmpty()) return
 
-        val now = System.currentTimeMillis()
+        drainOverflowDrafts(drafts, System.currentTimeMillis())
+        drainDirectMails(directMails)
+    }
+
+    /** 按 (slotId, source) 分组构建溢出邮件并写入 Room；失败草稿回队重试（不永久丢失） */
+    private suspend fun drainOverflowDrafts(drafts: List<OverflowMailDraft>, now: Long) {
         val grouped = drafts.groupBy { it.slotId to it.source }
         var anyWritten = false
         for ((key, group) in grouped) {
@@ -165,6 +188,20 @@ class OverflowMailSender @Inject constructor(
         // 通知玩家（统一容量提示框由 UI 层消费）；仅在有邮件成功写入时提示
         if (anyWritten) {
             stateStore.warehouseFullEvent.tryEmit("仓库容量不足，部分奖励已转入邮件，请到邮件中查收")
+        }
+    }
+
+    /** 直发邮件逐封写入（标题/内容自定义，不与溢出邮件合并）；失败回队重试 */
+    private suspend fun drainDirectMails(directMails: List<MailEntity>) {
+        for (mail in directMails) {
+            try {
+                mailRepo.insertWithEnforceLimit(mail, MAX_MAILS_PER_SLOT)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                DomainLog.e(TAG, "直发邮件写入失败 id=${mail.id} slotId=${mail.slotId}（回队重试）", e)
+                pendingDirectMails.add(mail)
+            }
         }
     }
 

@@ -128,7 +128,16 @@ data class SecretRealmEventParams(
     /** 战斗失败丢失件数（随机选定后写入） */
     @ProtoNumber(5) val lostItemCount: Int = 0,
     @ProtoNumber(6) val spiritStones: Long = 0L,
-    @ProtoNumber(7) val itemRewards: List<SecretRealmRewardItem> = emptyList()
+    @ProtoNumber(7) val itemRewards: List<SecretRealmRewardItem> = emptyList(),
+    /** AI 宗门遭遇事件：对方宗门 ID（旧档缺省为空串） */
+    @ProtoNumber(9) val aiSectId: String = "",
+    /** AI 宗门遭遇事件：对方宗门名称 */
+    @ProtoNumber(10) val aiSectName: String = "",
+    /** AI 宗门遭遇事件：对方宗门等级（0小型/1中型/2大型/3顶级），缺省 0 */
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    @ProtoNumber(11) val aiSectLevel: Int = 0,
+    /** AI 宗门遭遇事件：对方队伍成员快照 */
+    @ProtoNumber(12) val aiMembers: List<SecretRealmAIMember> = emptyList()
 )
 
 /** 探索背包——暂存探索所得，结束统一入宗门仓库 */
@@ -174,7 +183,10 @@ data class SecretRealmAITeam(
     @ProtoNumber(1) val id: String = "",
     @ProtoNumber(2) val sectId: String = "",
     @ProtoNumber(3) val sectName: String = "",
-    @ProtoNumber(4) val members: List<SecretRealmAIMember> = emptyList()
+    @ProtoNumber(4) val members: List<SecretRealmAIMember> = emptyList(),
+    /** 宗门等级（0小型/1中型/2大型/3顶级），事件生成时据此判定奖励品阶 */
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    @ProtoNumber(5) val sectLevel: Int = 0
 )
 
 /** AI 宗门队伍成员（真实弟子快照） */
@@ -212,5 +224,7 @@ enum class SecretRealmEventType {
     /** 仅旧档兼容：历史存档中的遗迹结果子事件，新流程不再生成（结算文本直接进入方向事件） */
     RUIN_RESULT,
     /** 探索方向事件（结束选项）：事件结算后固定弹出（向左走 / 走中间 / 向右走），选择后进入下一真实事件 */
-    DIRECTION_CHOICE
+    DIRECTION_CHOICE,
+    /** 遭遇 AI 宗门探索队伍（选项：向左避让 / 与之交战 / 向右避让，均扣 1 体力） */
+    AI_SECT_ENCOUNTER
 }

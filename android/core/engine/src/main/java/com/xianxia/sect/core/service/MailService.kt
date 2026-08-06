@@ -524,9 +524,15 @@ class MailService @Inject constructor(
         }
     }
 
-    /** 装备附件：逐件随机生成（每件可能不同），委托 addEquipmentStack 合并 */
+    /** 装备附件：itemId 优先精确发放指定模板；未命中回退按品阶逐件随机生成，委托 addEquipmentStack 合并 */
     private fun distributeEquipmentAttachment(attachment: MailAttachment, mailRng: kotlin.random.Random) {
         val qty = attachment.quantity.coerceAtLeast(1)
+        val template = attachment.itemId?.let { EquipmentDatabase.getById(it) }
+        if (template != null) {
+            val stack = EquipmentDatabase.createFromTemplate(template).copy(quantity = qty)
+            handleResult(inventorySystem.addEquipmentStack(stack), "装备 ${stack.name}")
+            return
+        }
         repeat(qty) {
             val newEquipment = EquipmentDatabase.generateRandom(
                 minRarity = attachment.rarity,
@@ -537,9 +543,15 @@ class MailService @Inject constructor(
         }
     }
 
-    /** 功法附件：逐件随机生成（每件可能不同），委托 addManualStack 合并 */
+    /** 功法附件：itemId 优先精确发放指定模板；未命中回退按品阶逐件随机生成，委托 addManualStack 合并 */
     private fun distributeManualAttachment(attachment: MailAttachment, mailRng: kotlin.random.Random) {
         val qty = attachment.quantity.coerceAtLeast(1)
+        val template = attachment.itemId?.let { ManualDatabase.getById(it) }
+        if (template != null) {
+            val stack = ManualDatabase.createFromTemplate(template).copy(quantity = qty)
+            handleResult(inventorySystem.addManualStack(stack), "功法 ${stack.name}")
+            return
+        }
         repeat(qty) {
             val newManual = ManualDatabase.generateRandom(
                 minRarity = attachment.rarity,
@@ -576,9 +588,31 @@ class MailService @Inject constructor(
         handleResult(inventorySystem.addPill(pill), "丹药 ${pill.name}")
     }
 
-    /** 材料附件：随机生成，委托 addMaterial 合并 */
+    /** 材料附件：itemId 优先精确发放（先普通材料再妖兽材料模板）；未命中回退按品阶随机，委托 addMaterial 合并 */
     private fun distributeMaterialAttachment(attachment: MailAttachment, mailRng: kotlin.random.Random) {
         val qty = attachment.quantity.coerceAtLeast(1)
+        val itemId = attachment.itemId
+        if (itemId != null) {
+            val template = ItemDatabase.getMaterialById(itemId)
+            if (template != null) {
+                val material = ItemDatabase.createMaterialFromTemplate(template).copy(quantity = qty)
+                handleResult(inventorySystem.addMaterial(material), "材料 ${material.name}")
+                return
+            }
+            // 秘境妖兽材料（如"凡虎皮"）也走此附件类型
+            val beastMat = BeastMaterialDatabase.getMaterialById(itemId)
+            if (beastMat != null) {
+                val mat = Material(
+                    id = java.util.UUID.randomUUID().toString(),
+                    name = beastMat.name,
+                    rarity = beastMat.rarity,
+                    category = beastMat.materialCategory,
+                    quantity = qty
+                )
+                handleResult(inventorySystem.addMaterial(mat), "材料 ${mat.name}")
+                return
+            }
+        }
         val material = ItemDatabase.generateRandomMaterial(
             minRarity = attachment.rarity,
             maxRarity = attachment.rarity,
@@ -603,9 +637,22 @@ class MailService @Inject constructor(
         }
     }
 
-    /** 草药附件：随机生成，委托 addHerb 合并 */
+    /** 草药附件：itemId 优先精确发放指定模板；未命中回退按品阶随机，委托 addHerb 合并 */
     private fun distributeHerbAttachment(attachment: MailAttachment, mailRng: kotlin.random.Random) {
         val qty = attachment.quantity.coerceAtLeast(1)
+        val template = attachment.itemId?.let { HerbDatabase.getHerbById(it) }
+        if (template != null) {
+            val herb = Herb(
+                id = java.util.UUID.randomUUID().toString(),
+                name = template.name,
+                rarity = template.rarity,
+                description = template.description,
+                category = template.category,
+                quantity = qty
+            )
+            handleResult(inventorySystem.addHerb(herb), "草药 ${herb.name}")
+            return
+        }
         val herbTemplate = HerbDatabase.generateRandomHerb(
             minRarity = attachment.rarity,
             maxRarity = attachment.rarity,
@@ -622,9 +669,23 @@ class MailService @Inject constructor(
         handleResult(inventorySystem.addHerb(herb), "草药 ${herb.name}")
     }
 
-    /** 种子附件：随机生成，委托 addSeed 合并 */
+    /** 种子附件：itemId 优先精确发放指定模板；未命中回退按品阶随机，委托 addSeed 合并 */
     private fun distributeSeedAttachment(attachment: MailAttachment, mailRng: kotlin.random.Random) {
         val qty = attachment.quantity.coerceAtLeast(1)
+        val template = attachment.itemId?.let { HerbDatabase.getSeedById(it) }
+        if (template != null) {
+            val seed = Seed(
+                id = java.util.UUID.randomUUID().toString(),
+                name = template.name,
+                rarity = template.rarity,
+                description = template.description,
+                growTime = template.growTime,
+                yield = template.yield,
+                quantity = qty
+            )
+            handleResult(inventorySystem.addSeed(seed), "种子 ${seed.name}")
+            return
+        }
         val seedTemplate = HerbDatabase.generateRandomSeed(
             minRarity = attachment.rarity,
             maxRarity = attachment.rarity,

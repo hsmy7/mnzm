@@ -1,9 +1,13 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.engine.domain.battle.Battle
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
+import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
 import com.xianxia.sect.core.engine.domain.exploration.SecretRealmBattleHelper
 import com.xianxia.sect.core.engine.domain.exploration.SecretRealmChoiceResult
 import com.xianxia.sect.core.engine.domain.exploration.SecretRealmBattleOutcome
@@ -17,9 +21,12 @@ import com.xianxia.sect.core.model.BattleLogMember
 import com.xianxia.sect.core.model.BattleLogRound
 import com.xianxia.sect.core.model.BattleResult
 import com.xianxia.sect.core.model.BattleType
+import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GameEventCategory
 import com.xianxia.sect.core.model.GameEventType
+import com.xianxia.sect.core.model.MailAttachment
+import com.xianxia.sect.core.model.MailEntity
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.SecretRealmBackpack
 import com.xianxia.sect.core.model.SecretRealmEventParams
@@ -30,6 +37,10 @@ import com.xianxia.sect.core.model.SecretRealmMemberState
 import com.xianxia.sect.core.model.SecretRealmState
 import com.xianxia.sect.core.model.SpiritStoneGrade
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
+import com.xianxia.sect.core.registry.EquipmentDatabase
+import com.xianxia.sect.core.registry.HerbDatabase
+import com.xianxia.sect.core.registry.ItemDatabase
+import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.recordGameEvent
@@ -42,6 +53,9 @@ import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.serializer
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -60,7 +74,9 @@ class SecretRealmService @Inject constructor(
     private val rngManager: GameRngManager,
     private val battleSystem: BattleSystem,
     private val inventorySystem: InventorySystem,
-    private val spiritStoneWallet: SpiritStoneWallet
+    private val spiritStoneWallet: SpiritStoneWallet,
+    private val overflowMailSender: OverflowMailSender,
+    private val assignmentGate: DiscipleAssignmentGate
 ) {
 
     // ── 年变刷新 ──────────────────────────────────────────────────────
@@ -228,7 +244,9 @@ class SecretRealmService @Inject constructor(
             SecretRealmEventType.RUIN_RESULT ->
                 SecretRealmRuinsResolver.resolveRuinsResult(session, activeEvent)
             SecretRealmEventType.DIRECTION_CHOICE ->
-                resolveDirectionChoice(optionIndex, session, rng)
+                resolveDirectionChoice(optionIndex, state, session, rng)
+            SecretRealmEventType.AI_SECT_ENCOUNTER ->
+                resolveAISectEncounter(optionIndex, state, session, activeEvent, rng)
         }
 
         val allDead = resolution.members.isNotEmpty() && resolution.members.all { it.isDead }
@@ -245,7 +263,9 @@ class SecretRealmService @Inject constructor(
             ),
             resultMessage = resolution.resultText
         )
-        state.gameData = data.copy(secretRealmSession = updatedSession)
+        // 基于最新 state.gameData 合并（resolver 可能已就地更新 aiSectDisciples/队伍等字段，
+        // 用旧 data 引用 copy 会把这些修改覆盖回旧值）
+        state.gameData = state.gameData.copy(secretRealmSession = updatedSession)
 
         if (sessionEnded) {
             endSession(state, if (allDead) SecretRealmEndReason.WIPEOUT else SecretRealmEndReason.EXHAUSTED)
@@ -400,11 +420,13 @@ class SecretRealmService @Inject constructor(
     /**
      * 方向事件分支（结束选项）：按选项索引取方向名 → 结算文本 → 消费一次 RNG 生成下一真实事件。
      *
-     * 方向纯过渡：不触碰任何概率配置，rollNextEvent 三分段（30% 空地 / 20% 遗迹 / 妖兽）不变。
-     * RNG 消费时机与旧 BRIDGE 一致（方向选择时才消费 nextDouble），读档重放序列不变。
+     * 方向纯过渡：不触碰任何概率配置，rollNextEvent 四分段（30% 空地 / 20% 遗迹 /
+     * 15% AI 遭遇 / 妖兽）不变。RNG 消费时机与旧 BRIDGE 一致（方向选择时才消费
+     * nextDouble），读档重放序列不变。
      */
     private fun resolveDirectionChoice(
         optionIndex: Int,
+        state: MutableGameState,
         session: SecretRealmExplorationSession,
         rng: DeterministicRng
     ): SecretRealmBeastChoiceResolution {
@@ -421,8 +443,273 @@ class SecretRealmService @Inject constructor(
             // 携带会话背包（方向选择不改变背包，防 chooseOption 空覆盖——对抗性审查发现）
             backpack = session.backpack,
             nextEvent = SecretRealmEventGenerator.rollNextEvent(
-                rng, SecretRealmEventGenerator.playerAvgRealm(session.members)
+                rng,
+                SecretRealmEventGenerator.playerAvgRealm(session.members),
+                state.gameData.secretRealmAITeams
             )
+        )
+    }
+
+    // ── AI 宗门遭遇（事务内） ────────────────────────────────────────
+
+    /**
+     * AI 宗门遭遇事件分支：向左/向右避让必成功（成功远离，不消费 RNG）；
+     * 与之交战进入 PvP 战斗（胜利得 1~15 件品阶按宗门等级判定的物品，战败与妖兽战斗
+     * 一致——损失背包物品、成员可能死亡、全灭 WIPEOUT 结束）。
+     */
+    private fun resolveAISectEncounter(
+        optionIndex: Int,
+        state: MutableGameState,
+        session: SecretRealmExplorationSession,
+        event: SecretRealmEventRecord,
+        rng: DeterministicRng
+    ): SecretRealmBeastChoiceResolution {
+        val sectName = event.params.aiSectName.ifEmpty { "对方" }
+        return when (optionIndex) {
+            // ① 向左避让（必成功）
+            0 -> directionResolution(
+                "你方悄然向左避让，与${sectName}的探索队伍擦肩而过", session
+            )
+            // ② 与之交战
+            1 -> toResolution(runAISectBattle(state, session, event.params, rng))
+            // ③ 向右避让（必成功）；篡改档防御：超出 0/1/2 的选项一律按向右避让处理
+            else -> directionResolution(
+                "你方悄然向右避让，与${sectName}的探索队伍擦肩而过", session
+            )
+        }
+    }
+
+    /**
+     * AI 宗门探索队伍交战（PvP）：战斗前按 [aiSectDisciples] 现况过滤存活成员，
+     * 对方全灭/不存在 → 直通"无力应战"（无战斗无奖励）。
+     */
+    private fun runAISectBattle(
+        state: MutableGameState,
+        session: SecretRealmExplorationSession,
+        eventParams: SecretRealmEventParams,
+        rng: DeterministicRng
+    ): SecretRealmBattleOutcome {
+        val sectDisciples = state.gameData.aiSectDisciples[eventParams.aiSectId]
+        val aiDisciples = eventParams.aiMembers.mapNotNull { m ->
+            sectDisciples?.firstOrNull { it.id == m.discipleId && it.isAlive }
+        }
+        if (aiDisciples.isEmpty()) {
+            return noBattleOutcome(session, eventParams, "对方的探索队伍已无力应战，你方绕过继续前行")
+        }
+        return settleAiEncounterBattle(state, session, eventParams, aiDisciples, rng)
+    }
+
+    /** 无战斗直通结果（对方全灭 / 我方无战力，不扣体力之外的任何代价） */
+    private fun noBattleOutcome(
+        session: SecretRealmExplorationSession,
+        eventParams: SecretRealmEventParams,
+        resultText: String
+    ): SecretRealmBattleOutcome = SecretRealmBattleOutcome(
+        victory = false, log = null, backpack = session.backpack,
+        members = session.members, deadIds = emptySet(), params = eventParams,
+        resultText = resultText
+    )
+
+    /** AI 遭遇战主结算：战斗 → 成员写回 → 战报 → 奖励/损失 → 战死标记（仅 1 处 return） */
+    private fun settleAiEncounterBattle(
+        state: MutableGameState,
+        session: SecretRealmExplorationSession,
+        eventParams: SecretRealmEventParams,
+        aiDisciples: List<com.xianxia.sect.core.model.Disciple>,
+        rng: DeterministicRng
+    ): SecretRealmBattleOutcome {
+        val result = buildAndExecuteAISectBattle(state, session, aiDisciples)
+            ?: return noBattleOutcome(session, eventParams, "队伍已无战力，战斗不战而败")
+
+        val year = state.gameData.gameYear
+        val (newMembers, deadIds) = writeBackBattleMembers(state, session, result, year)
+        recordAISectBattleLog(state, result, eventParams, session, newMembers)
+        val (backpack, params, resultText) = settleAISectBattleRewards(
+            session.backpack, eventParams, result, rng
+        )
+        if (result.victory) {
+            val aiDead = result.battle.beasts.filter { it.isDead }.map { it.id }.toSet()
+            markAiTeamDefeated(state, eventParams.aiSectId, aiDead)
+        }
+        return SecretRealmBattleOutcome(
+            victory = result.victory,
+            log = result.log,
+            backpack = backpack,
+            members = newMembers,
+            deadIds = deadIds,
+            params = params,
+            resultText = resultText
+        )
+    }
+
+    /**
+     * 构建 PvP 战斗并执行：玩家侧（存活成员 + 濒死强制 1 血，沿用妖兽战斗口径）vs
+     * AI 侧（模拟装备/功法，满血）。无战力时返回 null（不战而败）。
+     */
+    private fun buildAndExecuteAISectBattle(
+        state: MutableGameState,
+        session: SecretRealmExplorationSession,
+        aiDisciples: List<com.xianxia.sect.core.model.Disciple>
+    ): BattleSystemResult? {
+        val data = state.gameData
+        val tables = state.discipleTables
+        val allDisciples = tables.assembleAll()
+        val combatDisciples = session.members.filter { !it.isDead }.mapNotNull { ms ->
+            val idInt = ms.discipleId.toIntOrNull()
+            val d = allDisciples.find { it.id == ms.discipleId } ?: return@mapNotNull null
+            if (idInt != null && tables.isAlive[idInt] != 1) return@mapNotNull null
+            if (ms.isDying) d.copy(combat = d.combat.copy(currentHp = 1)) else d
+        }
+        if (combatDisciples.isEmpty()) return null
+
+        val equipmentMap = state.equipmentInstances.all().associateBy { it.id }
+        val manualMap = state.manualInstances.all().associateBy { it.id }
+        val allProficiencies = data.manualProficiencies.mapValues { (_, list) ->
+            list.associateBy { it.manualId }
+        }
+        val aiPrepared = AISectDiscipleManager.prepareDisciplesForBattle(aiDisciples)
+        val team = combatDisciples.map { d ->
+            battleSystem.convertDiscipleToCombatant(
+                disciple = d,
+                equipmentMap = equipmentMap,
+                manualMap = manualMap,
+                manualProficiencies = allProficiencies,
+                side = CombatantSide.DEFENDER,
+                fullHeal = false,
+                bloodRefinementPct = data.bloodRefinementPctTotals[d.id]
+            )
+        }
+        val beasts = aiPrepared.disciples.map { d ->
+            battleSystem.convertDiscipleToCombatant(
+                disciple = d,
+                equipmentMap = aiPrepared.equipmentMapByDisciple[d.id] ?: emptyMap(),
+                manualMap = aiPrepared.manualMap,
+                manualProficiencies = aiPrepared.proficiencies,
+                side = CombatantSide.ATTACKER,
+                fullHeal = true
+            )
+        }
+        val battle = Battle(
+            team = team,
+            beasts = beasts,
+            maxTurns = GameConfig.Battle.MAX_TURNS
+        )
+        return battleSystem.executeBattleWithTimeout(battle)
+    }
+
+    /** AI 遭遇战斗日志（BattleType.PVP），镜像 [recordBattleLog] 的字段口径 */
+    private fun recordAISectBattleLog(
+        state: MutableGameState,
+        result: BattleSystemResult,
+        eventParams: SecretRealmEventParams,
+        session: SecretRealmExplorationSession,
+        newMembers: List<SecretRealmMemberState>
+    ) {
+        val sectName = eventParams.aiSectName.ifEmpty { "对方" }
+        state.recordPlayerBattle(
+            year = state.gameData.gameYear,
+            month = state.gameData.gameMonth,
+            type = BattleType.PVP,
+            attackerName = "玩家探索队伍",
+            defenderName = "${sectName}探索队伍",
+            result = if (result.victory) BattleResult.WIN else BattleResult.LOSE,
+            teamMembers = result.battle.team.map { m ->
+                BattleLogMember(
+                    id = m.id, name = m.name, realm = m.realm, realmName = m.realmName,
+                    hp = m.hp, maxHp = m.maxHp, mp = m.mp, maxMp = m.maxMp,
+                    isAlive = !m.isDead, portraitRes = m.portraitRes
+                )
+            },
+            enemies = result.battle.beasts.map { b ->
+                BattleLogEnemy(
+                    id = b.id, name = b.name, realm = b.realm, realmName = b.realmName,
+                    hp = b.hp, maxHp = b.maxHp, isAlive = !b.isDead, portraitRes = b.portraitRes
+                )
+            },
+            rounds = result.log.rounds.map { r ->
+                BattleLogRound(
+                    roundNumber = r.roundNumber,
+                    actions = r.actions.map { a ->
+                        BattleLogAction(
+                            type = a.type, attacker = a.attacker, attackerType = a.attackerType,
+                            target = a.target, damage = a.damage, damageType = a.damageType,
+                            isCrit = a.isCrit, isKill = a.isKill, message = a.message
+                        )
+                    }
+                )
+            },
+            turns = result.turnCount,
+            details = if (result.victory) "秘境探索：击败了${sectName}的探索队伍"
+                else "秘境探索：被${sectName}的探索队伍击败",
+            beastsDefeated = result.battle.beasts.count { it.isDead },
+            teamCasualties = newMembers.count { it.isDying || it.isDead } -
+                session.members.count { it.isDying }
+        )
+    }
+
+    /**
+     * AI 遭遇战斗奖励/损失结算：
+     * 胜利 → 按宗门等级品阶区间生成 1~15 件奖励（六类随机，无灵石）入背包；
+     * 战败 → 丢失背包 20%~45%（与妖兽战斗一致）。
+     */
+    private fun settleAISectBattleRewards(
+        backpack: SecretRealmBackpack,
+        eventParams: SecretRealmEventParams,
+        result: BattleSystemResult,
+        rng: DeterministicRng
+    ): Triple<SecretRealmBackpack, SecretRealmEventParams, String> {
+        if (result.victory) {
+            val rarityRange = GameConfig.SecretRealm.AI_REWARD_RARITY_RANGES
+                .getOrElse(eventParams.aiSectLevel) {
+                    GameConfig.SecretRealm.AI_REWARD_RARITY_RANGES[0]
+                }
+            val rewards = SecretRealmEventGenerator.generateRuinsTreasure(
+                rng,
+                GameConfig.SecretRealm.AI_REWARD_COUNT_RANGE.first,
+                GameConfig.SecretRealm.AI_REWARD_COUNT_RANGE.last,
+                rarityRange.first,
+                rarityRange.last
+            )
+            val newBackpack = SecretRealmRuinsResolver.instantiateRuinsRewards(rewards, backpack)
+            val newParams = eventParams.copy(itemRewards = rewards)
+            val sectName = eventParams.aiSectName.ifEmpty { "对方" }
+            val text = if (rewards.isEmpty()) {
+                "战斗结束！你方击败了${sectName}的探索队伍"
+            } else {
+                "战斗结束！你方击败了${sectName}的探索队伍，缴获物品 ×${rewards.size}"
+            }
+            return Triple(newBackpack, newParams, text)
+        }
+
+        val loss = SecretRealmBattleHelper.applyLootLoss(backpack, rng)
+        val newParams = eventParams.copy(lostItemCount = loss.lostItemCount)
+        val sectName = eventParams.aiSectName.ifEmpty { "对方" }
+        val lostParts = buildList {
+            if (loss.lostItemCount > 0) add("物品 ×${loss.lostItemCount}")
+            if (loss.lostSpiritStones > 0) add("灵石 ${loss.lostSpiritStones}")
+        }
+        val text = "战斗结束！你方不敌${sectName}的探索队伍，仓促撤退，" +
+            (if (lostParts.isEmpty()) "所幸所得未受损失"
+            else "丢失了${lostParts.joinToString("、")}")
+        return Triple(loss.backpack, newParams, text)
+    }
+
+    /**
+     * 交战击败后处理：战死 AI 弟子写 isAlive=false（对齐 PatrolBattleSystem.markAiDeaths），
+     * 并从 [secretRealmAITeams] 移除该队伍（月结会为仍有存活弟子的宗门重新派遣）。
+     */
+    private fun markAiTeamDefeated(state: MutableGameState, aiSectId: String, aiDead: Set<String>) {
+        val data = state.gameData
+        val updatedAi = if (aiDead.isEmpty()) {
+            data.aiSectDisciples
+        } else {
+            data.aiSectDisciples + (aiSectId to (data.aiSectDisciples[aiSectId]?.map { d ->
+                if (d.id in aiDead) d.copy(isAlive = false, status = DiscipleStatus.DEAD) else d
+            } ?: emptyList()))
+        }
+        state.gameData = data.copy(
+            aiSectDisciples = updatedAi,
+            secretRealmAITeams = data.secretRealmAITeams.filter { it.sectId != aiSectId }
         )
     }
 
@@ -733,10 +1020,128 @@ class SecretRealmService @Inject constructor(
         return Triple(loss.backpack, newParams, text)
     }
 
+    // ── 现世期满自动关闭 ──────────────────────────────────────────────
+
+    /**
+     * 月结到期检查：秘境现世满 [GameConfig.SecretRealm.OPEN_YEARS] 年 → 自动关闭。
+     * 幂等（无秘境/未到期直接返回）。探索界面打开时时间冻结，月结不运行——
+     * 本检查只会在"会话存在但玩家不在探索界面"时触发。
+     */
+    internal fun processMonthlyExpiryCheck(state: MutableGameState, year: Int) {
+        val realm = state.gameData.secretRealmState
+        if (!realm.exists) return
+        if (year < realm.spawnYear + GameConfig.SecretRealm.OPEN_YEARS) return
+        closeSecretRealmByExpiry(state)
+    }
+
+    /**
+     * 到期关闭：灵石入钱包 → 背包物品转邮件 → 清空背包 → endSession(EXPIRED) → 释放 gate。
+     * 幂等：秘境与会话均已不存在时直接返回。
+     * 邮件经 OverflowMailSender.sendDirectMail 异步落库（非 suspend，事务内安全）；
+     * 关闭后进入现有 50 年冷却逻辑。
+     */
+    internal fun closeSecretRealmByExpiry(state: MutableGameState) {
+        val data = state.gameData
+        val session = data.secretRealmSession
+        if (!data.secretRealmState.exists && !session.isActive) return
+        val memberIds = session.members.map { it.discipleId }.toSet()
+        if (session.backpack.spiritStones > 0) {
+            spiritStoneWallet.add(
+                state, session.backpack.spiritStones,
+                grade = SpiritStoneGrade.LOW,
+                source = SpiritStoneSource.SecretRealm
+            )
+        }
+        val mail = buildExpiryCloseMail(data.currentSlot, session.backpack, System.currentTimeMillis())
+        // 先清空背包再 endSession：settleBackpack 对空背包 no-op，杜绝邮件+入仓双发放
+        state.gameData = data.copy(secretRealmSession = session.copy(backpack = SecretRealmBackpack()))
+        endSession(state, SecretRealmEndReason.EXPIRED)
+        // 纯内存 registry 操作，事务内安全
+        memberIds.forEach { assignmentGate.release(it) }
+        mail?.let { overflowMailSender.sendDirectMail(it) }
+    }
+
+    /**
+     * 构造秘境关闭邮件：背包六类物品逐件转为附件（itemId 按名称+品阶解析模板，
+     * 未命中为 null 由 MailService 回退品阶随机）。空背包返回 null（不产生无附件邮件）。
+     */
+    internal fun buildExpiryCloseMail(
+        slotId: Int,
+        backpack: SecretRealmBackpack,
+        now: Long
+    ): MailEntity? {
+        val attachments = buildList {
+            addAll(buildMailAttachments("equipment", backpack.equipment) { Triple(it.name, it.rarity, it.quantity) })
+            addAll(buildMailAttachments("manual", backpack.manuals) { Triple(it.name, it.rarity, it.quantity) })
+            addAll(buildMailAttachments("pill", backpack.pills) { Triple(it.name, it.rarity, it.quantity) })
+            addAll(buildMailAttachments("material", backpack.materials) { Triple(it.name, it.rarity, it.quantity) })
+            addAll(buildMailAttachments("herb", backpack.herbs) { Triple(it.name, it.rarity, it.quantity) })
+            addAll(buildMailAttachments("seed", backpack.seeds) { Triple(it.name, it.rarity, it.quantity) })
+        }
+        if (attachments.isEmpty()) return null
+        val itemLines = attachments.joinToString("\n") { "• ${it.name} ×${it.quantity}" }
+        return MailEntity(
+            id = UUID.randomUUID().toString(),
+            slotId = slotId,
+            source = "secret_realm",
+            mailType = "secret_realm_close",
+            title = "远古秘境已关闭",
+            content = "远古秘境已关闭，这些物品是远古秘境中获得的物品：\n\n$itemLines\n\n" +
+                "（邮件自发送起 ${CLOSE_MAIL_EXPIRE_DAYS} 天内有效，逾期删除）\n——天道意志",
+            senderName = "天道意志",
+            sendTime = now,
+            expireTime = now + CLOSE_MAIL_EXPIRE_MS,
+            hasAttachment = true,
+            attachments = mailJson.encodeToString(serializer<List<MailAttachment>>(), attachments)
+        )
+    }
+
+    /** 按类别将背包条目转为邮件附件（数量 >0 的条目，itemId 按名称+品阶解析模板） */
+    private fun <T> buildMailAttachments(
+        type: String,
+        items: List<T>,
+        fields: (T) -> Triple<String, Int, Int>
+    ): List<MailAttachment> = items.map { fields(it) }
+        .filter { (_, _, quantity) -> quantity > 0 }
+        .map { (name, rarity, quantity) ->
+            MailAttachment(
+                type = type, name = name, quantity = quantity, rarity = rarity,
+                itemId = resolveTemplateIdByName(type, name, rarity)
+            )
+        }
+
+    /**
+     * 按名称 + 品阶解析模板 ID（邮件附件精确发放；未命中返回 null，MailService 回退品阶随机）。
+     * 材料类先查普通材料再查妖兽材料（秘境妖兽掉落材料也入背包）。
+     */
+    private fun resolveTemplateIdByName(type: String, name: String, rarity: Int): String? =
+        when (type) {
+            "equipment" ->
+                EquipmentDatabase.getByRarity(rarity).firstOrNull { it.name == name }?.id
+            "manual" ->
+                if (ManualDatabase.isInitialized) {
+                    ManualDatabase.getByRarity(rarity).firstOrNull { it.name == name }?.id
+                } else {
+                    null
+                }
+            "pill" ->
+                ItemDatabase.getPillsByRarity(rarity).firstOrNull { it.name == name }?.id
+            "material" ->
+                ItemDatabase.allMaterials.values.filter { it.rarity == rarity }
+                    .firstOrNull { it.name == name }?.id
+                    ?: BeastMaterialDatabase.getAllMaterials()
+                        .firstOrNull { it.name == name }?.id
+            "herb" ->
+                HerbDatabase.getByRarity(rarity).firstOrNull { it.name == name }?.id
+            "seed" ->
+                HerbDatabase.getSeedsByRarity(rarity).firstOrNull { it.name == name }?.id
+            else -> null
+        }
+
     // ── 结束 / 结算 ───────────────────────────────────────────────────
 
     /**
-     * 结束探索（主动结束/体力耗尽/全灭统一入口）：结算背包 → 秘境消失 + 冷却年 + AI 队伍清场。
+     * 结束探索（主动结束/体力耗尽/全灭/期满统一入口）：结算背包 → 秘境消失 + 冷却年 + AI 队伍清场。
      * 幂等：会话与秘境均已不存在时直接返回。
      */
     fun endSession(state: MutableGameState, reason: SecretRealmEndReason = SecretRealmEndReason.EXPLORER_END) {
@@ -762,6 +1167,7 @@ class SecretRealmService @Inject constructor(
                 SecretRealmEndReason.EXPLORER_END -> "远古秘境已关闭，探索队伍带着收获返回了宗门"
                 SecretRealmEndReason.EXHAUSTED -> "探索队伍体力耗尽，被传送出了远古秘境"
                 SecretRealmEndReason.WIPEOUT -> "探索队伍全军覆没，远古秘境随之消散"
+                SecretRealmEndReason.EXPIRED -> "远古秘境现世期满，已自动关闭，探索所得已通过邮件送回"
             }
         )
     }
@@ -839,5 +1245,10 @@ class SecretRealmService @Inject constructor(
 
     companion object {
         private const val TAG = "SecretRealmService"
+
+        /** 关闭邮件有效期（天）——与溢出邮件同口径，10 年保障领取窗口 */
+        private const val CLOSE_MAIL_EXPIRE_DAYS = 3650L
+        private const val CLOSE_MAIL_EXPIRE_MS = CLOSE_MAIL_EXPIRE_DAYS * 24 * 60 * 60 * 1000L
+        private val mailJson = Json { ignoreUnknownKeys = true; coerceInputValues = true }
     }
 }

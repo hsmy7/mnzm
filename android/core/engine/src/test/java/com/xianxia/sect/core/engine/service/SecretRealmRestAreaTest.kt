@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
 import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
@@ -67,7 +68,9 @@ class SecretRealmRestAreaTest {
             rngManager = rngManager,
             battleSystem = battleSystem,
             inventorySystem = inventorySystem,
-            spiritStoneWallet = spiritStoneWallet
+            spiritStoneWallet = spiritStoneWallet,
+            overflowMailSender = mock(OverflowMailSender::class.java),
+            assignmentGate = mock(DiscipleAssignmentGate::class.java)
         )
         tables = DiscipleTables()
         // 注册装配 provider（休整恢复按装配 maxHp 计算；固定 maxHp=1000 便于断言）

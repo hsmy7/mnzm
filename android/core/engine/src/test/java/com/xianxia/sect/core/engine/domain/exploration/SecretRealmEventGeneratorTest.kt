@@ -1,6 +1,8 @@
 package com.xianxia.sect.core.engine.domain.exploration
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.model.SecretRealmAIMember
+import com.xianxia.sect.core.model.SecretRealmAITeam
 import com.xianxia.sect.core.model.SecretRealmEventType
 import com.xianxia.sect.core.util.DeterministicRng
 import org.junit.Assert.assertEquals
@@ -8,6 +10,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.Mockito.`when`
 import org.mockito.Mockito.mock
+import org.mockito.Mockito.times
+import org.mockito.Mockito.verify
 
 class SecretRealmEventGeneratorTest {
 
@@ -281,7 +285,7 @@ class SecretRealmEventGeneratorTest {
     }
 
     @Test
-    fun `rollNextEvent - 三分段 mock 分支判定`() {
+    fun `rollNextEvent - 四分段 mock 分支判定`() {
         // 0.2999 < 0.30 → 空地事件
         var mockRng = mock(DeterministicRng::class.java)
         `when`(mockRng.nextDouble()).thenReturn(0.2999)
@@ -296,16 +300,32 @@ class SecretRealmEventGeneratorTest {
             SecretRealmEventType.RUIN_EXPLORE.name,
             SecretRealmEventGenerator.rollNextEvent(mockRng, 5).eventType
         )
-        // 中段 → 发现遗迹
         mockRng = mock(DeterministicRng::class.java)
         `when`(mockRng.nextDouble()).thenReturn(0.4)
         assertEquals(
             SecretRealmEventType.RUIN_EXPLORE.name,
             SecretRealmEventGenerator.rollNextEvent(mockRng, 5).eventType
         )
-        // 0.50 <= roll → 妖兽事件（含恰值 0.50 边界）
+        // 0.50 <= roll < 0.65 → AI 遭遇（有队伍时）
         mockRng = mock(DeterministicRng::class.java)
         `when`(mockRng.nextDouble()).thenReturn(0.50)
+        assertEquals(
+            SecretRealmEventType.AI_SECT_ENCOUNTER.name,
+            SecretRealmEventGenerator.rollNextEvent(
+                mockRng, 5, listOf(sampleTeam())
+            ).eventType
+        )
+        mockRng = mock(DeterministicRng::class.java)
+        `when`(mockRng.nextDouble()).thenReturn(0.64)
+        assertEquals(
+            SecretRealmEventType.AI_SECT_ENCOUNTER.name,
+            SecretRealmEventGenerator.rollNextEvent(
+                mockRng, 5, listOf(sampleTeam())
+            ).eventType
+        )
+        // 0.65 <= roll → 妖兽事件（含恰值 0.65 边界）
+        mockRng = mock(DeterministicRng::class.java)
+        `when`(mockRng.nextDouble()).thenReturn(0.65)
         assertEquals(
             SecretRealmEventType.BEAST_ENCOUNTER.name,
             SecretRealmEventGenerator.rollNextEvent(mockRng, 5).eventType
@@ -317,4 +337,75 @@ class SecretRealmEventGeneratorTest {
             SecretRealmEventGenerator.rollNextEvent(mockRng, 5).eventType
         )
     }
+
+    @Test
+    fun `rollNextEvent - AI 段队伍池为空回退妖兽且不额外消费 RNG`() {
+        val mockRng = mock(DeterministicRng::class.java)
+        `when`(mockRng.nextDouble()).thenReturn(0.55)
+        // 无队伍 → 回退妖兽事件（平滑降级），且 AI 段不额外消费 RNG（仍单次 nextDouble）
+        assertEquals(
+            SecretRealmEventType.BEAST_ENCOUNTER.name,
+            SecretRealmEventGenerator.rollNextEvent(mockRng, 5).eventType
+        )
+        verify(mockRng, times(1)).nextDouble()
+    }
+
+    @Test
+    fun `generateAISectEncounterEvent - 标题选项体力与 params 完整`() {
+        val team = sampleTeam()
+        val event = SecretRealmEventGenerator.generateAISectEncounterEvent(rng, listOf(team))
+        assertEquals(SecretRealmEventType.AI_SECT_ENCOUNTER.name, event.eventType)
+        assertEquals("遭遇青云宗探索队伍", event.title)
+        assertEquals(listOf("向左避让", "与之交战", "向右避让"), event.options.map { it.label })
+        // 三个选项均扣 1 体力
+        assertTrue(event.options.all { it.staminaCost == 1 })
+        // params 记录宗门身份与成员快照（战斗结算与文案展示依赖）
+        assertEquals("sect1", event.params.aiSectId)
+        assertEquals("青云宗", event.params.aiSectName)
+        assertEquals(3, event.params.aiSectLevel)
+        assertEquals(1, event.params.aiMembers.size)
+        assertEquals("剑尘", event.params.aiMembers.first().name)
+    }
+
+    @Test
+    fun `generateAISectEncounterEvent - 多队伍时按 rng 随机选一`() {
+        val other = SecretRealmAITeam(
+            id = "team_2", sectId = "sect2", sectName = "万剑宗",
+            sectLevel = 1, members = emptyList()
+        )
+        val teams = listOf(sampleTeam(), other)
+        // nextInt(2)=0 → 第一队（青云宗）；=1 → 第二队（万剑宗）
+        val pickFirst = mock(DeterministicRng::class.java)
+        `when`(pickFirst.nextInt(org.mockito.ArgumentMatchers.anyInt())).thenReturn(0)
+        assertEquals("遭遇青云宗探索队伍", SecretRealmEventGenerator.generateAISectEncounterEvent(pickFirst, teams).title)
+        val pickSecond = mock(DeterministicRng::class.java)
+        `when`(pickSecond.nextInt(org.mockito.ArgumentMatchers.anyInt())).thenReturn(1)
+        assertEquals("遭遇万剑宗探索队伍", SecretRealmEventGenerator.generateAISectEncounterEvent(pickSecond, teams).title)
+    }
+
+    @Test
+    fun `AI 配置不变量 - 分段概率与奖励品阶区间合法`() {
+        // 四分段概率无重叠且总和不超过 1（nextDouble 单次分段判定依赖）
+        assertTrue(GameConfig.SecretRealm.REST_AREA_CHANCE +
+            GameConfig.SecretRealm.RUINS_CHANCE +
+            GameConfig.SecretRealm.AI_ENCOUNTER_CHANCE <= 1.0)
+        // 四档宗门等级品阶区间（小型/中型/大型/顶级）：每档 min<=max 且在合法 1..6 内
+        assertEquals(4, GameConfig.SecretRealm.AI_REWARD_RARITY_RANGES.size)
+        GameConfig.SecretRealm.AI_REWARD_RARITY_RANGES.forEachIndexed { index, range ->
+            assertTrue("第 $index 档品阶区间非法：$range", range.first in 1..6 && range.last in 1..6)
+            assertTrue("第 $index 档品阶区间 min>max", range.first <= range.last)
+        }
+        // 档位按等级递进（小型最低，顶级最高）
+        assertTrue(GameConfig.SecretRealm.AI_REWARD_RARITY_RANGES[0].last <=
+            GameConfig.SecretRealm.AI_REWARD_RARITY_RANGES[3].first)
+        // 奖励件数范围合法
+        assertTrue(GameConfig.SecretRealm.AI_REWARD_COUNT_RANGE.first >= 1)
+        assertTrue(GameConfig.SecretRealm.AI_REWARD_COUNT_RANGE.last >=
+            GameConfig.SecretRealm.AI_REWARD_COUNT_RANGE.first)
+    }
+
+    private fun sampleTeam(): SecretRealmAITeam = SecretRealmAITeam(
+        id = "team_1", sectId = "sect1", sectName = "青云宗", sectLevel = 3,
+        members = listOf(SecretRealmAIMember(discipleId = "a1", name = "剑尘", realm = 5))
+    )
 }

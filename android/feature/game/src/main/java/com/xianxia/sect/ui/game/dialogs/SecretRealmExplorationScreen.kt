@@ -328,7 +328,10 @@ fun SecretRealmExplorationScreen(
                                 choosing = false
                                 val success = result as? com.xianxia.sect.core.engine.domain.exploration.SecretRealmChoiceResult.Success
                                 if (success != null && success.enteredCombat && success.combatLog != null) {
-                                    combatTitle = combatTitleFor(index, success.ambushSucceeded)
+                                    combatTitle = combatTitleFor(
+                                        index, success.ambushSucceeded,
+                                        event.eventType, event.params.aiSectName
+                                    )
                                     combatLog = success.combatLog
                                     skipCombat = false
                                 }
@@ -448,11 +451,24 @@ private fun BeastEventContent(event: com.xianxia.sect.core.model.SecretRealmEven
 /** 事件信息行数：标题（第 1 行，立即显示）+ 内容块（第 2 行，延迟 1 秒） */
 private const val EVENT_LINE_COUNT = 2
 
-/** 战斗场景标题：选项索引（0=远离 / 1=战斗 / 2=偷袭，与妖兽事件选项顺序一致）→ 触发战斗的具体场景 */
-private fun combatTitleFor(optionIndex: Int, ambushSucceeded: Boolean): String = when (optionIndex) {
-    0 -> "远离妖兽被发现"
-    1 -> "发起战斗"
-    else -> if (ambushSucceeded) "偷袭成功" else "偷袭失败"
+/**
+ * 战斗场景标题：选项索引（0=远离 / 1=战斗 / 2=偷袭，与妖兽事件选项顺序一致）→ 触发战斗的具体场景。
+ * AI 宗门遭遇事件（选项 1 与之交战）显示宗门名；其余沿用妖兽事件语义。
+ */
+private fun combatTitleFor(
+    optionIndex: Int,
+    ambushSucceeded: Boolean,
+    eventType: String = "",
+    aiSectName: String = ""
+): String {
+    if (eventType == com.xianxia.sect.core.model.SecretRealmEventType.AI_SECT_ENCOUNTER.name) {
+        return "与${aiSectName.ifEmpty { "对方" }}探索队伍交战"
+    }
+    return when (optionIndex) {
+        0 -> "远离妖兽被发现"
+        1 -> "发起战斗"
+        else -> if (ambushSucceeded) "偷袭成功" else "偷袭失败"
+    }
 }
 
 /** 战斗播放视图：场景标题 + 战斗消息栏（逐回合日志，与战斗日志弹窗显示一致；

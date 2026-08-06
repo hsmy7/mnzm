@@ -10,6 +10,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.DiscipleSlot
@@ -119,7 +120,8 @@ fun SecretRealmDetailDialog(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "出现于第 ${realm.spawnYear} 年",
+                        text = "出现于第 ${realm.spawnYear} 年，" +
+                            "将于第 ${realm.spawnYear + GameConfig.SecretRealm.OPEN_YEARS} 年关闭",
                         fontSize = 11.sp,
                         color = Color(0xFF757575)
                     )
