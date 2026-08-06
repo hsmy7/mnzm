@@ -1,5 +1,9 @@
 ## [4.00.90] - 2026-08-06
 
+### 调整（2026-08-07 排行榜入口图标替换）
+
+- **两个排行榜入口统一更换为美术素材「排行榜图标.png」** — 主游戏界面"排行"悬浮按钮此前错误复用 `ui_lizhan_button`（历战图标），改为新注册的 `ui_leaderboard_button` 精灵；模式选择界面（主菜单右上角）排行榜入口由纯文字按钮改为 36dp 圆形图标按钮（SpriteImage + 8sp 文字，与主游戏界面按钮视觉语言一致）。素材 1250×1254 透明底圆形图标，按规范无损 WebP（effort 6）转换后置入 `app` 与 `feature/game` 两模块 drawable-nodpi，并在 `SpriteRegistryData.SPRITES_UI` 注册；删除废弃的 `RoundedCornerShape` import。compileReleaseKotlin + lintRelease + detekt 全通过，无新增警告。
+
 ### 修复（2026-08-06 建筑点击无效批次补全：旧档 sectId 自愈 + 拖拽同步 + 引擎兜底）
 
 - **[严重] 旧档跨宗门建筑完全不可管理（D-13 根治）** — 玩家在占领宗门建造的建筑 sectId 指向已不存在/已失守的宗门（世界重生 id 漂移、失守残留）→ `MainGameScreen` 单一门控 `sectId == activeSectId` 同时排除点击/占用/渲染/拆除（上次批次修复渲染同源后此类建筑彻底隐形，投资无法回收）。**根治：读档自愈归一化** — 新 `BuildingLoadSelfHeal.kt`（core/engine 纯函数）：`normalizeOrphanBuildingSectIds`（sectId 非空且 worldMapSects 无对应宗门 → 归入本宗 ""，同步 `SpiritMineSlot.sectId`；worldMapSects 为空跳过防误伤）+ `purifyStaleActiveSectId`（activeSectId 指向非玩家持有宗门 → 归回本宗 ""）；编排于 `BootSequenceController.boot()` Step 3（本地/云端所有读档路径收敛点）：归一化 → 净化 → fixup+钳制 → 回填 instanceId 单事务

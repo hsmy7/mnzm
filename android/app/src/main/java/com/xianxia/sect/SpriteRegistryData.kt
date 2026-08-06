@@ -334,6 +334,8 @@ internal val SPRITES_UI = mapOf(
         "ui_lizhan_button" to R.drawable.ui_lizhan_button,
         "li_zhan_card" to R.drawable.li_zhan_card,
         "heavenly_trial_icon" to R.drawable.heavenly_trial_icon,
+        // 排行榜入口（主游戏界面与主菜单共用）
+        "ui_leaderboard_button" to R.drawable.ui_leaderboard_button,
         // 历战翻页按钮
         "ui_flip_left" to R.drawable.ui_flip_left,
         "ui_flip_right" to R.drawable.ui_flip_right

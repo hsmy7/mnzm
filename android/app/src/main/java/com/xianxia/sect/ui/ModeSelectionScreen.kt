@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -46,6 +45,7 @@ import com.bumptech.glide.Glide
 import com.xianxia.sect.R
 import com.xianxia.sect.ui.components.AudioToggleRow
 import com.xianxia.sect.ui.components.SmallScreenDialog
+import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.ui.components.clickableWithSound
 import com.xianxia.sect.ui.game.dialogs.LeaderboardDialog
 import com.xianxia.sect.ui.game.leaderboard.LeaderboardViewModel
@@ -259,22 +259,28 @@ private fun UserAvatarHeader(
     }
 }
 
-/** 主菜单排行榜入口按钮（浅底圆角小按钮，与右上角信息区协调） */
+/** 主菜单排行榜入口按钮（排行榜图标 + 排行文字，与主游戏界面入口同源图标） */
 @Composable
 private fun LeaderboardEntryButton(onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(0x1A000000))
-            .clickableWithSound { onClick() }
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center
+            .size(36.dp)
+            .clip(CircleShape)
+            .clickableWithSound { onClick() },
+        contentAlignment = Alignment.BottomCenter
     ) {
+        SpriteImage(
+            name = "ui_leaderboard_button",
+            contentDescription = "排行榜",
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.FillBounds
+        )
         Text(
             text = "排行",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color.Black
+            fontSize = 8.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black,
+            modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
         )
     }
 }
