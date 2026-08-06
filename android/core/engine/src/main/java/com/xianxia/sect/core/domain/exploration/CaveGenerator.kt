@@ -43,7 +43,6 @@ object CaveGenerator {
     
     fun generateCaves(
         existingSects: List<WorldSect>,
-        connectionEdges: List<MSTEdge>,
         currentYear: Int,
         currentMonth: Int,
         existingCaves: List<CultivatorCave>,
@@ -70,7 +69,7 @@ object CaveGenerator {
             val x = BORDER_PADDING + rng.nextInt(MAP_WIDTH - BORDER_PADDING * 2)
             val y = BORDER_PADDING + rng.nextInt(MAP_HEIGHT - BORDER_PADDING * 2)
             
-            if (!isValidPosition(x, y, usedPositions, existingSects, connectionEdges, existingCaves)) {
+            if (!isValidPosition(x, y, usedPositions, existingSects, existingCaves)) {
                 continue
             }
             
@@ -122,11 +121,10 @@ object CaveGenerator {
         y: Int,
         usedPositions: Set<Pair<Int, Int>>,
         sects: List<WorldSect>,
-        edges: List<MSTEdge>,
         existingCaves: List<CultivatorCave>
     ): Boolean {
         if (Pair(x, y) in usedPositions) return false
-        
+
         val minSectDist = GameConfig.WorldMap.CAVE_MIN_SECT_DISTANCE
         for (sect in sects) {
             val dist = sqrt(
@@ -135,12 +133,7 @@ object CaveGenerator {
             )
             if (dist < minSectDist) return false
         }
-        
-        val minPathDist = GameConfig.WorldMap.CAVE_MIN_PATH_DISTANCE
-        for (edge in edges) {
-            if (GeometryUtils.isPointNearCurvedPath(x, y, edge, minPathDist)) return false
-        }
-        
+
         val minCaveDist = GameConfig.WorldMap.CAVE_MIN_CAVE_DISTANCE
         for (cave in existingCaves) {
             val dist = sqrt(

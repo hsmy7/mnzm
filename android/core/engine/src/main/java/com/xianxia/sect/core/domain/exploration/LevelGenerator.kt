@@ -60,20 +60,6 @@ class LevelGenerator @Inject constructor(
             )
         )
 
-        fun buildConnectionEdges(sects: List<WorldSect>): List<MSTEdge> {
-            val edges = mutableListOf<MSTEdge>()
-            for (i in sects.indices) {
-                for (j in (i + 1) until sects.size) {
-                    val distance = sqrt(
-                        (sects[i].x - sects[j].x) * (sects[i].x - sects[j].x) +
-                        (sects[i].y - sects[j].y) * (sects[i].y - sects[j].y)
-                    ).toDouble()
-                    edges.add(MSTEdge(sects[i], sects[j], distance))
-                }
-            }
-            return edges
-        }
-
         fun getCaveReward(realm: Int): CaveRewardConfig {
             return when (realm) {
                 5 -> CaveRewardConfig(20000.0, 1 to 2)    // 化神: 灵品~宝品
@@ -133,7 +119,6 @@ class LevelGenerator @Inject constructor(
 
     fun generateWorldLevels(
         existingSects: List<WorldSect>,
-        connectionEdges: List<MSTEdge>,
         currentYear: Int,
         currentMonth: Int,
         existingLevels: List<WorldLevel>,
@@ -161,7 +146,7 @@ class LevelGenerator @Inject constructor(
             val y = rng.nextInt(MAP_HEIGHT - BORDER_PADDING * 2) + BORDER_PADDING
 
             val allLevels = existingLevels + newLevels
-            if (!isValidPosition(x, y, usedPositions, existingSects, connectionEdges, allLevels)) {
+            if (!isValidPosition(x, y, usedPositions, existingSects, allLevels)) {
                 continue
             }
 
@@ -280,7 +265,6 @@ class LevelGenerator @Inject constructor(
         x: Int, y: Int,
         usedPositions: Set<Pair<Int, Int>>,
         sects: List<WorldSect>,
-        edges: List<MSTEdge>,
         existingLevels: List<WorldLevel>
     ): Boolean {
         if (Pair(x, y) in usedPositions) return false
@@ -292,11 +276,6 @@ class LevelGenerator @Inject constructor(
                 (y - sect.y).toDouble() * (y - sect.y).toDouble()
             )
             if (dist < minSectDist) return false
-        }
-
-        val minPathDist = GameConfig.WorldMap.CAVE_MIN_PATH_DISTANCE
-        for (edge in edges) {
-            if (GeometryUtils.isPointNearCurvedPath(x, y, edge, minPathDist)) return false
         }
 
         val minLevelDist = GameConfig.WorldMap.LEVEL_MIN_DISTANCE

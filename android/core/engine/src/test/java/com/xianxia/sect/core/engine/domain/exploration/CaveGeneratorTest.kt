@@ -64,7 +64,6 @@ class CaveGeneratorTest {
     fun generateCaves_returnsListWithinMaxNewCaves() {
         val caves = CaveGenerator.generateCaves(
             existingSects = emptyList(),
-            connectionEdges = emptyList(),
             currentYear = 1,
             currentMonth = 1,
             existingCaves = emptyList(),
@@ -77,7 +76,6 @@ class CaveGeneratorTest {
     fun generateCaves_caveHasCorrectSpawnTime() {
         val caves = CaveGenerator.generateCaves(
             existingSects = emptyList(),
-            connectionEdges = emptyList(),
             currentYear = 10,
             currentMonth = 5,
             existingCaves = emptyList(),
@@ -93,7 +91,6 @@ class CaveGeneratorTest {
     fun generateCaves_caveExpiryIsOneYearLater() {
         val caves = CaveGenerator.generateCaves(
             existingSects = emptyList(),
-            connectionEdges = emptyList(),
             currentYear = 10,
             currentMonth = 5,
             existingCaves = emptyList(),
@@ -109,7 +106,6 @@ class CaveGeneratorTest {
     fun generateCaves_caveStatusIsAvailable() {
         val caves = CaveGenerator.generateCaves(
             existingSects = emptyList(),
-            connectionEdges = emptyList(),
             currentYear = 1,
             currentMonth = 1,
             existingCaves = emptyList(),
@@ -125,7 +121,6 @@ class CaveGeneratorTest {
         val validRealms = setOf(1, 2, 3, 4, 5)
         val caves = CaveGenerator.generateCaves(
             existingSects = emptyList(),
-            connectionEdges = emptyList(),
             currentYear = 1,
             currentMonth = 1,
             existingCaves = emptyList(),
@@ -143,7 +138,6 @@ class CaveGeneratorTest {
     fun generateCaves_caveIdStartsWithPrefix() {
         val caves = CaveGenerator.generateCaves(
             existingSects = emptyList(),
-            connectionEdges = emptyList(),
             currentYear = 1,
             currentMonth = 1,
             existingCaves = emptyList(),
@@ -158,7 +152,6 @@ class CaveGeneratorTest {
     fun generateCaves_caveNameIsNotEmpty() {
         val caves = CaveGenerator.generateCaves(
             existingSects = emptyList(),
-            connectionEdges = emptyList(),
             currentYear = 1,
             currentMonth = 1,
             existingCaves = emptyList(),
@@ -173,7 +166,6 @@ class CaveGeneratorTest {
     fun generateCaves_zeroMaxNewCaves_returnsEmptyOrSmallList() {
         val caves = CaveGenerator.generateCaves(
             existingSects = emptyList(),
-            connectionEdges = emptyList(),
             currentYear = 1,
             currentMonth = 1,
             existingCaves = emptyList(),

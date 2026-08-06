@@ -73,47 +73,12 @@ class LevelGeneratorTest {
         assertEquals(2 to 4, config.rarityRange)
     }
 
-    // ---- buildConnectionEdges ----
-
-    @Test
-    fun buildConnectionEdges_emptySects_returnsEmptyList() {
-        val edges = LevelGenerator.buildConnectionEdges(emptyList())
-        assertEquals(0, edges.size)
-    }
-
-    @Test
-    fun buildConnectionEdges_singleSect_returnsEmptyList() {
-        val sect = WorldSect(id = "s1", x = 0f, y = 0f)
-        val edges = LevelGenerator.buildConnectionEdges(listOf(sect))
-        assertEquals(0, edges.size)
-    }
-
-    @Test
-    fun buildConnectionEdges_twoSects_returnsOneEdge() {
-        val sect1 = WorldSect(id = "s1", x = 0f, y = 0f)
-        val sect2 = WorldSect(id = "s2", x = 30f, y = 40f)
-        val edges = LevelGenerator.buildConnectionEdges(listOf(sect1, sect2))
-        assertEquals(1, edges.size)
-        assertEquals(50.0, edges[0].weight, 0.01)
-    }
-
-    @Test
-    fun buildConnectionEdges_threeSects_returnsThreeEdges() {
-        val sect1 = WorldSect(id = "s1", x = 0f, y = 0f)
-        val sect2 = WorldSect(id = "s2", x = 100f, y = 0f)
-        val sect3 = WorldSect(id = "s3", x = 50f, y = 86f)
-        val edges = LevelGenerator.buildConnectionEdges(listOf(sect1, sect2, sect3))
-        // C(3,2) = 3 edges for all pairs
-        assertEquals(3, edges.size)
-    }
-
     // ---- generateWorldLevels ----
 
     @Test
     fun generateWorldLevels_returnsListWithinMaxNewLevels() {
         val levels = generator.generateWorldLevels(
             existingSects = emptyList(),
-            connectionEdges = emptyList(),
             currentYear = 1,
             currentMonth = 1,
             existingLevels = emptyList(),
@@ -126,7 +91,6 @@ class LevelGeneratorTest {
     fun generateWorldLevels_zeroMaxNewLevels_returnsEmptyList() {
         val levels = generator.generateWorldLevels(
             existingSects = emptyList(),
-            connectionEdges = emptyList(),
             currentYear = 1,
             currentMonth = 1,
             existingLevels = emptyList(),
@@ -139,7 +103,6 @@ class LevelGeneratorTest {
     fun generateWorldLevels_levelHasCorrectSpawnTime() {
         val levels = generator.generateWorldLevels(
             existingSects = emptyList(),
-            connectionEdges = emptyList(),
             currentYear = 5,
             currentMonth = 3,
             existingLevels = emptyList(),
@@ -156,7 +119,6 @@ class LevelGeneratorTest {
         val validTypes = setOf(com.xianxia.sect.core.model.LevelType.BEAST, com.xianxia.sect.core.model.LevelType.CAVE)
         val levels = generator.generateWorldLevels(
             existingSects = emptyList(),
-            connectionEdges = emptyList(),
             currentYear = 1,
             currentMonth = 1,
             existingLevels = emptyList(),
@@ -173,7 +135,6 @@ class LevelGeneratorTest {
     fun beastLevel_hasPrecomputedStats() {
         val levels = generator.generateWorldLevels(
             existingSects = emptyList(),
-            connectionEdges = emptyList(),
             currentYear = 5,
             currentMonth = 1,
             existingLevels = emptyList(),
@@ -198,7 +159,6 @@ class LevelGeneratorTest {
     fun caveLevel_hasNoPrecomputedStats() {
         val levels = generator.generateWorldLevels(
             existingSects = emptyList(),
-            connectionEdges = emptyList(),
             currentYear = 5,
             currentMonth = 1,
             existingLevels = emptyList(),
@@ -217,8 +177,8 @@ class LevelGeneratorTest {
         val rng2 = GameRngManager().also { it.initSystemSeed(42L) }
         val g2 = LevelGenerator(rng2)
 
-        val levels1 = g1.generateWorldLevels(emptyList(), emptyList(), 10, 1, emptyList(), 10)
-        val levels2 = g2.generateWorldLevels(emptyList(), emptyList(), 10, 1, emptyList(), 10)
+        val levels1 = g1.generateWorldLevels(emptyList(), 10, 1, emptyList(), 10)
+        val levels2 = g2.generateWorldLevels(emptyList(), 10, 1, emptyList(), 10)
 
         assertEquals("相同种子生成相同数量", levels1.size, levels2.size)
         for (i in levels1.indices) {

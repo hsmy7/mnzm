@@ -908,7 +908,6 @@ object GameConfig {
         const val PATH_WAYPOINT_MAX = 4
         const val PATH_CURVE_STRENGTH = 0.05
         const val CAVE_MIN_SECT_DISTANCE = 28.0
-        const val CAVE_MIN_PATH_DISTANCE = 20.0
         const val CAVE_MIN_CAVE_DISTANCE = 20.0
         const val LEVEL_MIN_DISTANCE = 20.0
 

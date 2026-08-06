@@ -1,5 +1,11 @@
 ## [4.00.89] - 2026-08-05
 
+### 修复（2026-08-06 世界地图宗门连接线彻底移除）
+
+- **彻底移除宗门连接路径机制** — 世界地图宗门间密集虚线（`WorldMapConnections` Canvas 层）根因：`LevelGenerator.buildConnectionEdges` 实现为完全图（O(n²) 两两全连接，29 宗门 = 406 条边）被 `GameEngine.worldMapRenderData` 直接渲染；多模块重构时旧版 MST+近邻补边稀疏算法（`.worktrees` 旧版 `WorldMapGenerator.generateConnections`）未迁移，`GameConfig.WorldMap` 全套连接常量（TARGET/MAX/MIN_CONNECTIONS_PER_SECT 等）成为死配置。按用户决策彻底移除（含关卡生成路径保护）：删除 `WorldMapConnections.kt`/`MSTEdge.kt`/`GeometryUtils.kt` 三文件；`LevelGenerator`/`CaveGenerator` 的 `connectionEdges` 参数与 `isValidPosition` 路径检查块、`WorldLevelManager` 传参、`GameEngine.kt` 填充、`WorldMapRenderData.connectionEdges` 字段、`WorldMapScreen` Layer 2 与 `WorldMapDialog` 传参、`GameConfig.CAVE_MIN_PATH_DISTANCE` 常量全部移除；`LevelGeneratorTest` 删除 4 个完全图行为固化测试（empty/single/two/three）并修正 2 处位置参数调用、`CaveGeneratorTest` 8 处传参清理
+- **附带消除** — 连接线绘制每帧 `kotlin.random.Random` 控制点抖动（确定性 RNG 违规）与每帧 406 条 Canvas 线绘制开销随删除消失
+- **验证** — compileReleaseKotlin + 全量串行回归（--max-workers=1，0 失败）+ 残留引用 grep 零命中（MSTEdge/buildConnectionEdges/WorldMapConnections/isPointNearCurvedPath/connectionEdges/CAVE_MIN_PATH_DISTANCE）
+
 ### 调整（2026-08-06 AI 弟子养成体系重构 + 战斗数值修复）
 
 - **AI 修炼速率对齐玩家（修复 2 倍速差）** — `AISectDiscipleManager.settleMonthlyCultivation` 月度修为增量从 `速率 × SECONDS_PER_MONTH(6.0)`（真实秒数折算，导致 AI 单位时间修为增速为玩家 2 倍）改为 `速率 × PHASES_PER_MONTH(3)`（3 旬，与玩家每旬结算对齐）；新增精确断言测试 `processMonthlyCultivation - 月度修为增量等于每旬速率乘3`

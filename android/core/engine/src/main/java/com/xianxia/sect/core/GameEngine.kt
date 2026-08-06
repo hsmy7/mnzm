@@ -28,7 +28,6 @@ import com.xianxia.sect.core.engine.domain.battle.CombatService
 import com.xianxia.sect.core.engine.domain.building.BuildingService
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleService
 import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
-import com.xianxia.sect.core.engine.domain.exploration.LevelGenerator
 import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyService
 import com.xianxia.sect.core.engine.domain.save.SaveService
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
@@ -274,7 +273,6 @@ class GameEngine @Inject constructor(
                 worldMapSects = data.worldMapSects,
                 cultivatorCaves = data.cultivatorCaves ?: emptyList(),
                 worldLevels = data.worldLevels ?: emptyList(),
-                connectionEdges = LevelGenerator.buildConnectionEdges(data.worldMapSects),
                 // 远古秘境已改为历战常驻活动（世界地图不再显示入口）
                 secretRealm = null
             )

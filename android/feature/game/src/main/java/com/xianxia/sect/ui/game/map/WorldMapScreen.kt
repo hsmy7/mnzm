@@ -8,7 +8,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
-import com.xianxia.sect.core.model.MSTEdge
 import com.xianxia.sect.core.model.MapCoordinateSystem
 import com.xianxia.sect.ui.game.map.markers.LevelMarker
 import com.xianxia.sect.ui.game.map.markers.SecretRealmMarker
@@ -29,8 +28,7 @@ fun WorldMapScreen(
     onSectClick: (MapItem.Sect) -> Unit = {},
     onLevelClick: (MapItem.Level) -> Unit = {},
     onSecretRealmClick: (MapItem.SecretRealm) -> Unit = {},
-    onUserInteraction: () -> Unit = {},
-    connectionEdges: List<MSTEdge> = emptyList()
+    onUserInteraction: () -> Unit = {}
 ) {
     LaunchedEffect(focusWorldX, focusWorldY, cameraState.viewportWidth, cameraState.viewportHeight) {
         if (focusWorldX != null && focusWorldY != null) {
@@ -63,16 +61,7 @@ fun WorldMapScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // Layer 2: 宗门连接线
-        if (connectionEdges.isNotEmpty()) {
-            WorldMapConnections(
-                edges = connectionEdges,
-                cameraState = cameraState,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
-
-        // Layer 3: 标记（宗门 + 关卡）
+        // Layer 2: 标记（宗门 + 关卡）
         items.forEach { item ->
             if (!cameraState.isVisible(item.worldX, item.worldY)) return@forEach
 

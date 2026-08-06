@@ -57,10 +57,8 @@ class WorldLevelManager @Inject constructor(
                 // 无玩家宗门时不生成新关卡，但已完成的过期清理仍然生效
                 return gd.copy(worldLevels = moveBeasts(year, month, remainingLevels))
             }
-            val edges = LevelGenerator.buildConnectionEdges(gd.worldMapSects)
             val newLevels = levelGenerator.generateWorldLevels(
                 existingSects = gd.worldMapSects,
-                connectionEdges = edges,
                 currentYear = year,
                 currentMonth = month,
                 existingLevels = remainingLevels,

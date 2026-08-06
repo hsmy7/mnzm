@@ -78,7 +78,6 @@ internal fun WorldMapDialog(
         items = mapItems,
         focusWorldX = playerSectX,
         focusWorldY = playerSectY,
-        connectionEdges = mapRenderData.connectionEdges,
         onBack = onDismiss,
         onUserInteraction = viewModel::onUserInteraction,
         onSectClick = { sectItem ->
