@@ -426,7 +426,7 @@ SaveValidator.validate(SaveData)
 | P-16 | UI 迁移真机冒烟 | SettingsTab/DiscipleDetailScreen/OverlayDialogRouter | 发布前检查 4 个迁移弹窗（其他设置/年俸/存档管理/更新日志）逐一打开关闭 + OverlayDialogRouter 34 分支逐项打开一次；判定：无崩溃/白屏/交互完整/叠层路由正常 |
 | P-18 | 排行榜 rank 0/1 起始语义 | `feature/game/.../taptap/TapTapLeaderboardApi.kt` | 已做 0→1 归一化兜底（rank<1 显示 1）。真机观察：首名显示 #1 且次名重复 #1 → 服务端 1 起始，移除归一化；次名 #2 → 保留现状。抓原始 rank 与显示值对照 ≥3 次 |
 
-### 途中发现待办（2026-08-05 引擎确定性加固时登记 D-01~D-06；2026-08-06 三崩溃批次对抗性审查新增 D-07~D-10，详见 CHANGELOG 4.00.89~4.00.90）
+### 途中发现待办（2026-08-05 引擎确定性加固时登记 D-01~D-06；2026-08-06 三崩溃批次对抗性审查新增 D-07~D-10；2026-08-06 建筑点击无效批次对抗性审查新增 D-11~D-15，详见 CHANGELOG 4.00.89~4.00.90）
 
 > 本次实施（RNG 事务快照/UI RNG 治理/奖励统一入口/事务合并/缓存）后对抗性审查登记的未修项。P-19/P-20/P-21 已随本次实施完成（奖励收编 InventorySystem + 守卫补漏 + 签到 catch 移出事务）。
 
@@ -442,4 +442,9 @@ SaveValidator.validate(SaveData)
 | D-08 | `ThermalMonitor.start()/stop()` 无调用者——ADPF 热降载实际未接线 | `core/engine/.../perf/ThermalMonitor.kt` start/stop | 2026-08-06 对抗性审查登记：KDoc 声称"由 GameEngineCore 调用"但实际零调用 → monitorJob 从未启动 → `thermalState` 永远 NORMAL → `shouldReduceWorkload`/`shouldEmergencySave` 恒 false（过热降载与紧急保存机制实际未生效）。接线方案：`GameEngineCore.startGameLoop` 调 `thermalMonitor.start(engineScope)`、shutdown 调 stop；改动小、风险低，可随时实施 |
 | D-09 | `ThermalMonitor.createHintSession` 异常分支不可测 | `core/engine/.../perf/ThermalMonitor.kt` hintManager（private lazy） | 2026-08-06 三崩溃批次登记：Robolectric 下 `getSystemService(PerformanceHintManager)` 返回 null 而非抛异常，异常分支（hintManager 抛异常 → 字段复位一致）无测试覆盖。修复：hintManager 改 internal 注入或抽工厂，随后补异常路径用例 |
 | D-10 | 主线程 HWUI 阻塞无看门狗覆盖 | 三层看门狗（`GameTimeProgressMonitor` / `GameLoopDelegate` HealthCheck / `AlarmWatchdogReceiver`）均只监控"游戏时间推进" | 2026-08-06 #2037 ANR 归因时登记：主线程卡 `syncAndDrawFrame`（HWUI 绘制阻塞，非输入阻塞）无检测无恢复；阻塞中任何恢复都无法执行（事后监控价值有限）。可选演进：`FrameMetricsMonitor` 严重 jank（>50ms）接上报/降载信号（降 targetFps），属长期项 |
+| D-11 | 宗门被夺回时 activeSectId 残留致本宗地图整体变空 | `core/engine/.../GameEngineCoordination.kt` enterSect（无归属/存在性校验）+ `AISectBattleProcessor.applyAIOccupation`（失守不改 activeSectId） | 2026-08-06 建筑点击无效批次对抗性审查登记（数据篡改者发现 2）：玩家停留在被夺回宗门内时界面无提示、本宗建筑（sectId=""）全部不渲染不点（世界地图本宗入口始终可达，可恢复，易误判"存档损坏"）；失守宗门内建造栏仍可用（新建即孤儿——已被 D-11 同批次的 `seizeBuildingsOfSect` 没收覆盖，但建造入口未门控）。修复：enterSect 校验宗门可进入性（isPlayerOccupied 或本宗），失守时强制回本宗并提示 |
+| D-12 | 拖拽中建筑被渲染命令总线双渲染 | `feature/game/.../GameViewModel.kt` 总线推送（只按 sectId 过滤，不排除 movingBuilding）+ `MainGameScreen.kt` 拖拽状态 | 2026-08-06 建筑点击无效批次对抗性审查登记（状态破坏者 F1，预存）：拖拽期间总线在旧位置不透明渲染该建筑（总线快照优先于 Compose frame），同时新位置半透明拖影——"渲染了但不可点"同类问题。修复：ViewModel 增加 movingInstanceId 通道，总线推送排除移动中建筑 |
+| D-13 | 旧档 sectId 不匹配建筑完全不可管理 | `placedBuildings` 数据不一致（sectId 非本宗且无对应占领宗门） | 2026-08-06 建筑点击无效批次对抗性审查登记（数据篡改者 F4/状态破坏者 F4）：修复后此类建筑既不渲染也不可点/拆（此前至少可见）。数据按构造一致（placeBuilding 恒打当前 activeSectId），仅旧档/损坏档受影响。建议在 `fixupBuildingSizesIfNeeded` 同类自愈路径做 sectId 归一化（空/未知归属归入本宗），有归属风险需审慎 |
+| D-14 | 旧档 2×2 矿场移到地图边缘后读档 fixup 撑大越界 | `feature/game/.../saveload/SaveLoadLoadDelegate.kt` fixupBuildingSizes | 2026-08-06 建筑点击无效批次对抗性审查登记（边界狂魔 F3，预存）：2×2 数据矿场可合法移动到 gridX=126，读档 fixup 撑到 4×4 → 130 > 128 右缘越界（无崩溃，越界部分不可点、占地突出）。修复：fixup 时钳制坐标到地图边界 |
+| D-15 | `AISectBattleProcessor` 795 行/21 函数超限 | `core/engine/.../engine/service/AISectBattleProcessor.kt` | 2026-08-06 登记：D3 拆分（2026-08-05）后 795 行已超 LargeClass 600 上限、20 函数已触 TooManyFunctions 阈值（CI detekt 未拦截），本次新增 `seizePlayerBuildingsAfterLoss` 后 21 个；已类级 @Suppress 登记（沿用文件内既有先例）。拆分计划（AI 攻防决策/玩家防守/占领结算三块）另行立项 |
 
