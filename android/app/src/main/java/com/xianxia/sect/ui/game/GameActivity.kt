@@ -39,6 +39,7 @@ import com.xianxia.sect.core.CrashHandler
 import com.xianxia.sect.core.CrashRecoveryEngine
 import com.xianxia.sect.core.VulkanPolicy
 import com.xianxia.sect.core.engine.GameEngineCore
+import com.xianxia.sect.core.engine.PerformanceMode
 import com.xianxia.sect.core.util.GameForegroundService
 import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.state.BootPhase
@@ -638,6 +639,8 @@ class GameActivity : ComponentActivity() {
         }
         // 通知系统退出加载状态 → 恢复正常游戏性能调度
         notifyGameLoadingState(false)
+        // 应用系统 Game Mode（BATTERY/PERFORMANCE 映射，服务绑定前用缓存值）
+        applySystemGameMode()
         // 华为/荣耀设备：首次进入游戏时引导用户关闭电池优化
         showBatteryOptimizationGuideIfNeeded()
         // Android 12+：引导用户授予精确闹钟权限（AlarmWatchdogReceiver 兜底依赖）
@@ -680,6 +683,70 @@ class GameActivity : ComponentActivity() {
      */
     private fun onGameServiceBound() {
         Log.d(TAG, "onGameServiceBound: GameForegroundService bound, gameEngineCore available")
+        // 应用系统 Game Mode（BATTERY→节能 / PERFORMANCE→性能，运行时生效不覆盖用户持久化）
+        applySystemGameMode()
+        // 场景状态上报（挂机 MODE_NONE 让系统接管功耗优化 / 游玩 MODE_GAMEPLAY）
+        lifecycleScope.launch {
+            gameEngineCore?.sceneState?.collect { scene -> notifyGameScene(scene) }
+        }
+    }
+
+    /**
+     * Activity 级全局触摸钩子（点按/按钮/切 Tab 全覆盖）：
+     * 刷新引擎闲置计时，防止动态帧率误降帧。
+     * Dialog 为独立窗口不触发本回调，其内部已有手动调用点。
+     */
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        gameEngineCore?.onUserActivity()
+    }
+
+    /**
+     * 读取系统 Game Mode（Android 12+）并映射到性能模式：
+     * - BATTERY → 节能（系统省电模式优先，运行时生效）
+     * - PERFORMANCE → 性能
+     * - 其余（STANDARD/未支持）→ 保持用户设置
+     */
+    @Suppress("NewApi")
+    private fun applySystemGameMode() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        try {
+            val gameManager = getSystemService(android.app.GameManager::class.java) ?: return
+            val mapped = when (gameManager.gameMode) {
+                android.app.GameManager.GAME_MODE_BATTERY -> PerformanceMode.ENERGY_SAVING
+                android.app.GameManager.GAME_MODE_PERFORMANCE -> PerformanceMode.PERFORMANCE
+                else -> null
+            }
+            if (mapped != null) {
+                gameEngineCore?.setPerformanceMode(mapped)
+                Log.d(TAG, "System GameMode → ${mapped.displayName}")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "applySystemGameMode failed (non-critical): ${e.message}")
+        }
+    }
+
+    /**
+     * 上报当前游戏场景给系统（Android 13+ GameState API）：
+     * 挂机/后台（IDLE/GAMEPLAY_IDLE）报 MODE_NONE 让系统接管功耗优化，
+     * 游玩/战斗报 MODE_GAMEPLAY_INTERRUPTIBLE 保持正常性能调度。
+     */
+    @Suppress("NewApi")
+    private fun notifyGameScene(scene: GameEngineCore.GameScene) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        try {
+            val gameManager = getSystemService(android.app.GameManager::class.java) ?: return
+            val isIdle = scene == GameEngineCore.GameScene.IDLE ||
+                scene == GameEngineCore.GameScene.GAMEPLAY_IDLE
+            val mode = if (isIdle) {
+                android.app.GameState.MODE_NONE
+            } else {
+                android.app.GameState.MODE_GAMEPLAY_INTERRUPTIBLE
+            }
+            gameManager.setGameState(android.app.GameState(false, mode, gameManager.gameMode, 0))
+        } catch (e: Exception) {
+            Log.w(TAG, "notifyGameScene failed (non-critical): ${e.message}")
+        }
     }
 
     // ── ActionMode 安全回调 ──

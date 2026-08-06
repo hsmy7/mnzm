@@ -66,6 +66,14 @@ class SessionManager @Inject constructor(
         get() = prefs.getBoolean(KEY_MUSIC_ENABLED, true)
         set(value) = edit { putBoolean(KEY_MUSIC_ENABLED, value) }
 
+    /**
+     * 性能模式（三档：ENERGY_SAVING/BALANCED/PERFORMANCE，默认 BALANCED）。
+     * 设备级设置，不随存档迁移；非法值由读取方回退默认。
+     */
+    var performanceMode: String
+        get() = prefs.getString(KEY_PERFORMANCE_MODE, "BALANCED") ?: "BALANCED"
+        set(value) = edit { putString(KEY_PERFORMANCE_MODE, value) }
+
     fun saveLoginSession(
         userId: String,
         userName: String,
@@ -128,6 +136,7 @@ class SessionManager @Inject constructor(
         private const val KEY_AVATAR = "avatar"
         private const val KEY_SOUND_ENABLED = "sound_enabled"
         private const val KEY_MUSIC_ENABLED = "music_enabled"
+        private const val KEY_PERFORMANCE_MODE = "performance_mode"
 
         // Bugly #3107：明文降级标记（写入明文 fallback prefs，防止每次启动
         // 重复失败的 Keystore 流程）；MASTER_KEY_ALIAS 必须与 MasterKey.Builder

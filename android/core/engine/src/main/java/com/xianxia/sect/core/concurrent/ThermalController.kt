@@ -108,6 +108,10 @@ class ThermalController @Inject constructor(
     private var consecutiveLowFps = 0
     private var upgradeCounter = 0
 
+    /** 温度阈值偏移（°C，负值提前降载；低电量时由接线方传 -2） */
+    @Volatile
+    private var thresholdOffsetC = 0f
+
     /** 上次记录的温度（°C），-1 表示不可用 */
     @Volatile
     var lastTemperature: Float = -1f
@@ -156,15 +160,25 @@ class ThermalController @Inject constructor(
     }
 
     /**
+     * 设置温度阈值偏移（°C）。负值提前降载（如低电量 -2°C），正值延后。
+     * 由接线方（GameEngineCore tick）随电量状态低频更新；reset 时清零。
+     *
+     * @param offset 阈值偏移量（°C）
+     */
+    fun setThresholdOffsetC(offset: Float) {
+        thresholdOffsetC = offset
+    }
+
+    /**
      * 根据温度和帧率评估降级等级。
      */
     private fun evaluateLevel(temp: Float, recentFps: Float): DegradationLevel {
-        // ── 温度驱动降级 ──
+        // ── 温度驱动降级（阈值带电量偏移） ──
         if (temp > 0) {
             when {
-                temp >= TEMP_RED_THRESHOLD_C -> return DegradationLevel.RED
-                temp >= TEMP_ORANGE_THRESHOLD_C -> return DegradationLevel.ORANGE
-                temp >= TEMP_YELLOW_THRESHOLD_C -> return DegradationLevel.YELLOW
+                temp >= TEMP_RED_THRESHOLD_C + thresholdOffsetC -> return DegradationLevel.RED
+                temp >= TEMP_ORANGE_THRESHOLD_C + thresholdOffsetC -> return DegradationLevel.ORANGE
+                temp >= TEMP_YELLOW_THRESHOLD_C + thresholdOffsetC -> return DegradationLevel.YELLOW
                 temp <= TEMP_GREEN_THRESHOLD_C -> { /* 已冷却，继续检查 */ }
             }
         }
@@ -197,12 +211,12 @@ class ThermalController @Inject constructor(
             }
         }
 
-        // ── 已降级 → 升档检查 ──
+        // ── 已降级 → 升档检查（阈值带电量偏移，与降级判定一致） ──
         if (currentLevel != DegradationLevel.GREEN) {
             val shouldUpgrade = when (currentLevel) {
-                DegradationLevel.RED -> temp <= 0 || temp <= TEMP_ORANGE_THRESHOLD_C
-                DegradationLevel.ORANGE -> temp <= 0 || temp <= TEMP_YELLOW_THRESHOLD_C
-                DegradationLevel.YELLOW -> temp <= 0 || temp <= TEMP_GREEN_THRESHOLD_C
+                DegradationLevel.RED -> temp <= 0 || temp <= TEMP_ORANGE_THRESHOLD_C + thresholdOffsetC
+                DegradationLevel.ORANGE -> temp <= 0 || temp <= TEMP_YELLOW_THRESHOLD_C + thresholdOffsetC
+                DegradationLevel.YELLOW -> temp <= 0 || temp <= TEMP_GREEN_THRESHOLD_C + thresholdOffsetC
                 else -> true
             }
             if (shouldUpgrade && recentFps >= FPS_YELLOW_THRESHOLD) {
@@ -297,6 +311,7 @@ class ThermalController @Inject constructor(
         upgradeCounter = 0
         lastCheckTime = 0L
         lastTemperature = -1f
+        thresholdOffsetC = 0f
         thermalReader.unregisterThermalCallback()
     }
 }

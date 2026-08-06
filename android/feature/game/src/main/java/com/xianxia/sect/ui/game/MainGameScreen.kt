@@ -11,6 +11,8 @@ import com.xianxia.sect.core.util.BuildingSpatialIndex
 import com.xianxia.sect.ui.game.components.messagebar.MessageBarHost
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
@@ -766,11 +768,34 @@ fun MainGameScreen(
             nativeSurfaceView?.touchEngine = touchEngine
         }
 
-        // 将引擎渲染帧率（热控+场景综合）接入 NativeSurfaceView
+        // 将引擎渲染帧率（热控+场景+性能模式综合）接入 NativeSurfaceView
         LaunchedEffect(nativeSurfaceView) {
             val view = nativeSurfaceView ?: return@LaunchedEffect
             viewModel.renderFrameRate.collect { fps ->
                 view.targetFps = fps
+            }
+        }
+
+        // 接通渲染质量/装饰降级流（热控 + 节能模式低画质真实生效；值相等时跳过避免 chunk 重建）
+        LaunchedEffect(nativeSurfaceView) {
+            val view = nativeSurfaceView ?: return@LaunchedEffect
+            combine(
+                viewModel.renderingQualityFactor,
+                viewModel.decorationsDisabled
+            ) { quality, decorations -> quality to decorations }
+                .distinctUntilChanged()
+                .collect { (quality, decorations) ->
+                    view.softwareRenderer?.let { backend ->
+                        backend.qualityFactor = quality
+                        backend.decorationsDisabled = decorations
+                    }
+                }
+        }
+
+        // 渲染线程实际达成帧率 → 引擎热控（激活帧率驱动降级）
+        LaunchedEffect(nativeSurfaceView) {
+            nativeSurfaceView?.onObservedFps = { fps ->
+                viewModel.gameEngineCore.setObservedRenderFps(fps)
             }
         }
 

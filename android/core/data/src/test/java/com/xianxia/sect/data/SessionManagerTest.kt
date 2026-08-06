@@ -59,4 +59,22 @@ class SessionManagerTest {
         prefs.edit().putString("k", "v").apply()
         assertEquals("v", prefs.getString("k", null))
     }
+
+    @Test
+    fun `performanceMode - persists value and defaults to BALANCED`() {
+        // 强制明文降级路径（Robolectric 无真实 AndroidKeyStore）
+        context.getSharedPreferences(SessionManager.PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putBoolean(SessionManager.KEY_ENCRYPTION_DOWNGRADED, true).apply()
+        val session = SessionManager(context)
+
+        // 默认均衡
+        assertEquals("BALANCED", session.performanceMode)
+
+        // 写读回
+        session.performanceMode = "ENERGY_SAVING"
+        assertEquals("ENERGY_SAVING", session.performanceMode)
+
+        session.performanceMode = "PERFORMANCE"
+        assertEquals("PERFORMANCE", session.performanceMode)
+    }
 }

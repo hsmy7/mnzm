@@ -2,8 +2,10 @@ package com.xianxia.sect.ui.game.sect
 
 import android.content.Context
 import android.graphics.PixelFormat
+import android.os.Build
 import kotlin.concurrent.thread
 import android.view.MotionEvent
+import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import com.xianxia.sect.feature.game.R
@@ -60,6 +62,9 @@ class NativeSurfaceView(
     /** 软件渲染后端（仅 [RenderMode.SOFTWARE] 时非空） */
     private var softwareBackend: SoftwareCanvasBackend? = null
 
+    /** 软件渲染后端访问器（质量/装饰降级接线用；仅 SOFTWARE 模式非空） */
+    val softwareRenderer: SoftwareCanvasBackend? get() = softwareBackend
+
     /** 渲染线程 */
     private var renderThread: RenderThread? = null
 
@@ -92,6 +97,20 @@ class NativeSurfaceView(
      */
     @Volatile
     var targetFps: Int = 10
+
+    /** 自适应帧率追踪器（EWMA，VULKAN/SOFTWARE 双路径统一挂载） */
+    private val adaptiveFpsTracker = AdaptiveFpsTracker()
+
+    /**
+     * 实际达成帧率回调（渲染线程每秒回调一次）。
+     * 供引擎热控帧率驱动降级使用；回调异常在渲染线程内吞掉（渲染线程任何异常都会杀死渲染）。
+     */
+    @Volatile
+    var onObservedFps: ((Float) -> Unit)? = null
+
+    /** 已声明给系统的帧率（[maybeDeclareFrameRate]，仅 ≤30fps 声明一次） */
+    @Volatile
+    private var lastDeclaredFrameRate = 0
 
     /** 渲染器是否已初始化 */
     @Volatile
@@ -646,6 +665,10 @@ class NativeSurfaceView(
         @Volatile
         var running = true
 
+        /** 每秒实际帧数统计窗口（[reportObservedFps]） */
+        private var fpsWindowFrames = 0
+        private var fpsWindowStartNs = 0L
+
         override fun run() {
             // 首帧快速清除 Surface 缓冲区，防止华为模拟器等设备上
             // SurfaceFlinger 未正确清除新分配缓冲区导致残留内容显示
@@ -662,6 +685,8 @@ class NativeSurfaceView(
             }
 
             var lastFrameNs = System.nanoTime()
+            fpsWindowFrames = 0
+            fpsWindowStartNs = System.nanoTime()
 
             while (running && isReady) {
                 val now = System.nanoTime()
@@ -679,9 +704,72 @@ class NativeSurfaceView(
                 }
                 lastFrameNs = now
 
+                val frameStartNs = System.nanoTime()
                 when (renderMode) {
                     RenderMode.VULKAN -> renderVulkanFrame()
                     RenderMode.SOFTWARE -> renderSoftwareFrame()
+                }
+                val renderElapsedNs = System.nanoTime() - frameStartNs
+
+                applyAdaptiveFrameRate(renderElapsedNs, now)
+            }
+        }
+
+        /**
+         * 统一 EWMA 动态帧率自适应（VULKAN/SOFTWARE 双路径一致，消除策略不对称）。
+         * 仅做降级（绝不提升），升帧由外部场景/热控/性能模式 Flow 控制；
+         * MIN + 严格小于语义避免写写竞争覆盖热控/场景帧率。
+         */
+        private fun applyAdaptiveFrameRate(renderElapsedNs: Long, nowNs: Long) {
+            val ewmaFps = adaptiveFpsTracker.recordFrameTime(renderElapsedNs, System.currentTimeMillis())
+            val capped = ewmaFps.coerceAtMost(targetFps)
+            if (capped < targetFps && running) {
+                targetFps = capped
+            }
+
+            // 每秒统计实际达成帧率 → 回调（供热控帧率驱动降级使用）
+            reportObservedFps(nowNs)
+
+            // 帧率降档后向系统声明（高刷面板降刷新率省屏耗）
+            maybeDeclareFrameRate()
+        }
+
+        /** 每秒统计实际达成帧率并回调（回调异常吞掉，渲染线程任何异常都会杀死渲染） */
+        private fun reportObservedFps(nowNs: Long) {
+            fpsWindowFrames++
+            if (nowNs - fpsWindowStartNs < 1_000_000_000L) {
+                return
+            }
+            val observedFps = fpsWindowFrames * 1_000_000_000f / (nowNs - fpsWindowStartNs)
+            fpsWindowStartNs = nowNs
+            fpsWindowFrames = 0
+            onObservedFps?.let { listener ->
+                try {
+                    listener(observedFps)
+                } catch (e: Exception) {
+                    android.util.Log.w("NativeSurfaceView", "onObservedFps failed: ${e.message}", e)
+                }
+            }
+        }
+
+        /**
+         * Surface.setFrameRate（API 30+）：目标帧率降至 ≤30fps 时向系统声明，
+         * 让 90/120Hz 高刷面板降刷新率（屏幕功耗是持续大头，60Hz vs 120Hz 差约 50% 屏耗）。
+         *
+         * 回升至 60fps 不主动声明（让系统自然恢复），规避部分设备切刷新率 ~1s 黑屏。
+         * 渲染线程调用（surface 生命周期有效）；任何异常吞掉不杀死渲染线程。
+         */
+        private fun maybeDeclareFrameRate() {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                return
+            }
+            val fps = targetFps
+            if (fps != lastDeclaredFrameRate && fps <= 30) {
+                lastDeclaredFrameRate = fps
+                try {
+                    holder.surface.setFrameRate(fps.toFloat(), Surface.FRAME_RATE_COMPATIBILITY_DEFAULT)
+                } catch (e: Exception) {
+                    android.util.Log.w("NativeSurfaceView", "setFrameRate failed: ${e.message}")
                 }
             }
         }
@@ -749,8 +837,6 @@ class NativeSurfaceView(
             val atlas = atlasBitmap ?: return
             val frame = currentFrame ?: return
 
-            val startNs = System.nanoTime()
-
             // ★ 从命令总线读取建筑数据快照（与 Vulkan 路径一致，消除 TOCTOU 竞态）
             val busSnapshot = commandBus?.consumeBuildingData()
             val effectiveBuildingData = busSnapshot?.data ?: frame.buildingData
@@ -790,17 +876,6 @@ class NativeSurfaceView(
             if (rendered == null) {
                 RenderMetrics.renderFrameNull.incrementAndGet()
                 return
-            }
-
-            // ★ 优化：EWMA 帧时间追踪 + 动态帧率自适应
-            // SOFTWARE 路径根据实际渲染能力动态调整 targetFps。
-            // 注意：仅做降级（绝不提升），升帧由外部场景/热控 Flow 控制。
-            // 使用 MIN + 严格小于语义避免写写竞争覆盖热控/场景帧率。
-            val elapsedNs = System.nanoTime() - startNs
-            val ewmaFps = sb.recordFrameTime(elapsedNs, System.currentTimeMillis())
-            val capped = ewmaFps.coerceAtMost(targetFps)
-            if (capped < targetFps && running) {
-                targetFps = capped
             }
 
             RenderMetrics.softwareFrames.incrementAndGet()

@@ -107,6 +107,12 @@ class GameViewModel @Inject constructor(
         .distinctUntilChanged()
         .stateIn(viewModelScope, sharingStarted, gameData.value.watchedItemIds.toSet())
 
+    /** 灵石三品阶总量（仓库页窄流，替代整份 gameData 收集减少重组） */
+    val spiritStoneTotals: StateFlow<SpiritStoneTotals> = gameData
+        .map { SpiritStoneTotals(it.spiritStones, it.midGradeSpiritStones, it.highGradeSpiritStones) }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, sharingStarted, SpiritStoneTotals(0, 0, 0))
+
     fun claimGuideReward(taskId: Int) {
         gameEngine.launchOnEngine {
             gameEngine.claimGuideReward(taskId)
@@ -118,6 +124,14 @@ class GameViewModel @Inject constructor(
         /** 观看单次广告获得的突破修炼倍率加成 */
         private const val AD_BONUS_PER_AD = 0.05
     }
+
+    /** 灵石三品阶总量（低/中/高），仓库页窄流数据 */
+    @Immutable
+    data class SpiritStoneTotals(
+        val low: Long,
+        val mid: Long,
+        val high: Long
+    )
 
     // ── Dialog 状态管理 ──
 
@@ -141,6 +155,15 @@ class GameViewModel @Inject constructor(
 
     val renderFrameRate: StateFlow<Int> = coreServices.gameEngineCore.renderFrameRate
 
+    /** 渲染质量因子（热控 + 节能模式低画质），供 SoftwareCanvasBackend 消费 */
+    val renderingQualityFactor: StateFlow<Float> = coreServices.gameEngineCore.renderingQualityFactor
+
+    /** 装饰层关闭标志（热控降级 + 节能模式），供 SoftwareCanvasBackend 消费 */
+    val decorationsDisabled: StateFlow<Boolean> = coreServices.gameEngineCore.decorationsDisabled
+
+    /** 引擎核心访问器（渲染线程 fps 反馈等跨层接线用） */
+    val gameEngineCore: GameEngineCore get() = coreServices.gameEngineCore
+
     // ── 渲染命令总线（建筑数据直达推送，绕过 Compose 帧率门控） ──
 
     private val _renderCommandBus = RenderCommandBus()
@@ -157,7 +180,28 @@ class GameViewModel @Inject constructor(
 
     fun setGameScene(scene: GameEngineCore.GameScene) { coreServices.gameEngineCore.onSceneChanged(scene) }
 
+    // ── 性能模式（三档：节能/均衡/性能，设备级持久化） ──
+
+    private val _performanceMode = MutableStateFlow(
+        PerformanceMode.fromStorage(delegateServices.sessionManager.performanceMode)
+    )
+    val performanceMode: StateFlow<PerformanceMode> = _performanceMode.asStateFlow()
+
+    /**
+     * 设置性能模式：写入引擎（立即生效帧率/画质）+ 设备级持久化。
+     */
+    fun setPerformanceMode(mode: PerformanceMode) {
+        if (_performanceMode.value == mode) return
+        coreServices.gameEngineCore.setPerformanceMode(mode)
+        delegateServices.sessionManager.performanceMode = mode.name
+        _performanceMode.value = mode
+    }
+
     init {
+        // 启动同步：引擎帧率策略与持久化设置对齐（GameActivity 生命周期顺序不依赖）
+        coreServices.gameEngineCore.setPerformanceMode(_performanceMode.value)
+
+        // 建筑数据直达推送（绕过 Compose 反应式管线 + 帧率门控）
         // 建筑数据直达推送（绕过 Compose 反应式管线 + 帧率门控）
         viewModelScope.launch {
             gameEngine.gameData

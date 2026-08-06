@@ -31,6 +31,7 @@ import kotlinx.coroutines.delay
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.data.ChangelogData
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.engine.PerformanceMode
 import com.xianxia.sect.data.model.SaveSlot
 import com.xianxia.sect.ui.components.CircularCheckbox
 import com.xianxia.sect.ui.components.DialogMode
@@ -164,6 +165,14 @@ internal fun SettingsTab(
         ) {
             item {
                 TimeSpeedControlItem(saveLoadViewModel, timeSpeed)
+            }
+
+            item {
+                val performanceMode by viewModel.performanceMode.collectAsStateWithLifecycle()
+                PerformanceModeItem(
+                    performanceMode = performanceMode,
+                    onModeSelected = viewModel::setPerformanceMode
+                )
             }
 
             item {
@@ -589,6 +598,56 @@ private fun SettingsActionButton(
             color = Color.Black
         )
     }
+}
+
+/** 性能模式三档（节能/均衡/性能），样式对齐 TimeSpeedControlItem */
+@Composable
+private fun PerformanceModeItem(
+    performanceMode: PerformanceMode,
+    onModeSelected: (PerformanceMode) -> Unit
+) {
+    Text(
+        text = "性能模式",
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Bold,
+        color = Color.Black
+    )
+    Spacer(modifier = Modifier.height(8.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        PerformanceMode.entries.forEach { mode ->
+            val modeAlpha = if (performanceMode == mode) 1f else 0.5f
+            Box(
+                modifier = Modifier
+                    .width(ButtonSizes.StandardWidth)
+                    .height(ButtonSizes.StandardHeight)
+                    .alpha(modeAlpha)
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable { onModeSelected(mode) },
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.ui_button),
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.FillBounds
+                )
+                Text(
+                    text = mode.displayName,
+                    fontSize = 12.sp,
+                    color = Color.Black
+                )
+            }
+        }
+    }
+    Spacer(modifier = Modifier.height(4.dp))
+    Text(
+        text = performanceMode.description,
+        fontSize = 10.sp,
+        color = Color.Black
+    )
 }
 
 /** 时间流速控制（暂停/继续 + 1/2 倍速切换），从 SettingsTab 主体抽出的独立 item */

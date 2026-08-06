@@ -13,6 +13,7 @@ import com.xianxia.sect.core.engine.service.DailySignInService
 import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.perf.ThermalMonitor
+import com.xianxia.sect.data.SessionManager
 import javax.inject.Inject
 
 /**
@@ -44,5 +45,6 @@ class GameVmDelegateServices @Inject constructor(
     val buildingConfigService: BuildingConfigService,
     val buildingFacade: BuildingFacade,
     val discipleFacade: DiscipleFacade,
-    val ioDispatcher: IoDispatcher
+    val ioDispatcher: IoDispatcher,
+    val sessionManager: SessionManager
 )

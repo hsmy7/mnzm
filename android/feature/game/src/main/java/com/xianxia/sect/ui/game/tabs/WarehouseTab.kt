@@ -76,9 +76,9 @@ internal fun WarehouseTab(
     val herbs by viewModel.herbs.collectAsStateWithLifecycle()
     val seeds by viewModel.seeds.collectAsStateWithLifecycle()
     val storageBags by viewModel.storageBags.collectAsStateWithLifecycle()
-    val gameData by viewModel.gameData.collectAsStateWithLifecycle()
+    val spiritStoneTotals by viewModel.spiritStoneTotals.collectAsStateWithLifecycle()
 
-    val spiritStoneCards = remember(gameData) {
+    val spiritStoneCards = remember(spiritStoneTotals) {
         val cards = mutableListOf<Pair<String, SpiritStoneInfo>>()
         fun addCard(grade: SpiritStoneGrade, total: Long) {
             var remaining = total
@@ -90,9 +90,9 @@ internal fun WarehouseTab(
                 index++
             }
         }
-        addCard(SpiritStoneGrade.LOW, gameData.spiritStones)
-        addCard(SpiritStoneGrade.MID, gameData.midGradeSpiritStones)
-        addCard(SpiritStoneGrade.HIGH, gameData.highGradeSpiritStones)
+        addCard(SpiritStoneGrade.LOW, spiritStoneTotals.low)
+        addCard(SpiritStoneGrade.MID, spiritStoneTotals.mid)
+        addCard(SpiritStoneGrade.HIGH, spiritStoneTotals.high)
         cards
     }
 

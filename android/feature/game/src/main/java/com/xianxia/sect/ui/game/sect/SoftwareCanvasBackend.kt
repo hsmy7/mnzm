@@ -30,10 +30,6 @@ class SoftwareCanvasBackend(
         private val NUM_CHUNKS_COL = 128 / CHUNK_SIZE_TILES  // 4
         private val NUM_CHUNKS_ROW = 128 / CHUNK_SIZE_TILES  // 4
 
-        // ── EWMA 帧率自适应常量 ──
-        private const val EWMA_ALPHA = 0.3f
-        private const val FPS_HYSTERESIS_MS = 1000L
-
         // ── 缩放保护常量 ──
         private const val MIN_SCALE = 0.1f
         private const val MAX_SCALE = 3.0f
@@ -268,12 +264,6 @@ class SoftwareCanvasBackend(
     /** 上一次的 qualityFactor 值，变化时重建帧缓冲区 */
     private var lastQualityFactor: Float = 1.0f
 
-    // ── EWMA 帧时间追踪 ──
-
-    private var ewmaFrameTimeNs: Long = 0L
-    private var lastFpsSwitchMs: Long = 0L
-    private var currentCalculatedFps: Int = 60
-
     // ── 精灵绘制 Paint ──
 
     private val paint = Paint(Paint.FILTER_BITMAP_FLAG).apply {
@@ -322,34 +312,6 @@ class SoftwareCanvasBackend(
     // ============================================================
     // 公共 API
     // ============================================================
-
-    /** 记录帧渲染时间，返回建议目标帧率（EWMA 平滑 + 1 秒防抖） */
-    fun recordFrameTime(actualNs: Long, nowMs: Long): Int {
-        if (ewmaFrameTimeNs == 0L) {
-            // ★ 对抗性审查修复：首帧使用实际耗时但上限 22ms（45fps 档），
-            // 防止 JIT 预热/Bitmap 分配等首帧异常耗时导致 ~10 帧低帧率恢复期
-            ewmaFrameTimeNs = actualNs.coerceAtMost(22_000_000L)
-            return 60
-        }
-        ewmaFrameTimeNs = (EWMA_ALPHA * actualNs + (1 - EWMA_ALPHA) * ewmaFrameTimeNs).toLong()
-
-        if (nowMs - lastFpsSwitchMs < FPS_HYSTERESIS_MS) {
-            return currentCalculatedFps
-        }
-
-        val fps = when {
-            ewmaFrameTimeNs <= 22_000_000L -> 60
-            ewmaFrameTimeNs <= 33_000_000L -> 45
-            ewmaFrameTimeNs <= 50_000_000L -> 30
-            else -> 20
-        }
-
-        if (fps != currentCalculatedFps) {
-            currentCalculatedFps = fps
-            lastFpsSwitchMs = nowMs
-        }
-        return fps
-    }
 
     /**
      * 渲染一帧到帧缓冲区。

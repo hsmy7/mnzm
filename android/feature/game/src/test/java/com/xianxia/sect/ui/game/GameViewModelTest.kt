@@ -37,6 +37,7 @@ import com.xianxia.sect.core.perf.ThermalState
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.domain.dialog.DialogManager
 import com.xianxia.sect.core.domain.dialog.DialogType
+import com.xianxia.sect.data.SessionManager
 import com.xianxia.sect.ui.navigation.GameRoute
 import com.xianxia.sect.ui.game.building.registerDefaults
 import io.mockk.MockKAnnotations
@@ -103,6 +104,7 @@ class GameViewModelTest {
     private val adService: AdService = mockk(relaxed = true)
     private val audioConfig: AudioConfig = mockk(relaxed = true)
     private val audioEngine: AudioEngine = mockk(relaxed = true)
+    private val sessionManager: SessionManager = mockk(relaxed = true)
 
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var viewModel: GameViewModel
@@ -191,7 +193,8 @@ class GameViewModelTest {
                 buildingFacade, discipleFacade,
                 // 2026-08-01：注入 TestDispatcher 替代真实 Dispatchers.IO
                 //（旧代码用真实 IO 线程，runTest 的 advanceUntilIdle 等待不到）
-                IoDispatcher(testDispatcher)
+                IoDispatcher(testDispatcher),
+                sessionManager
             )
         )
     }

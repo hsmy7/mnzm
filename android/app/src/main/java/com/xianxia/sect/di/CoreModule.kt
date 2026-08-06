@@ -221,6 +221,10 @@ object CoreModule {
 
     @Provides
     @Singleton
+    fun provideBatteryStatusProvider(impl: com.xianxia.sect.core.thermal.BatteryAwareController): com.xianxia.sect.core.thermal.BatteryStatusProvider = impl
+
+    @Provides
+    @Singleton
     fun provideThermalCheckIntervalMs(): Long = ThermalController.CHECK_INTERVAL_MS
 
     @Provides

@@ -32,8 +32,8 @@ class AndroidThermalReader @Inject constructor(
 
     companion object {
         private const val TAG = "AndroidThermalReader"
-        /** 查询间隔（ms）— 官方建议 ≤ 1Hz */
-        private const val QUERY_INTERVAL_MS = 2_000L
+        /** 查询间隔（ms）— 官方限制 getThermalHeadroom 每次调用间隔 ≥10s，超出返回 NaN */
+        private const val QUERY_INTERVAL_MS = 10_000L
         /** 预测跨度（秒） */
         private const val FORECAST_SECONDS = 10
         /** sysfs 热区文件路径 */

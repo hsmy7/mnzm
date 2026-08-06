@@ -13,6 +13,8 @@ import com.xianxia.sect.core.concurrent.ThermalController
 import com.xianxia.sect.core.event.*
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.state.*
+import com.xianxia.sect.core.thermal.BatteryStatusProvider
+import com.xianxia.sect.core.thermal.NoopBatteryStatus
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.engine.monitor.GameTimeProgressMonitor
@@ -70,7 +72,9 @@ class GameEngineCore @Inject constructor(
     private val thermalMonitor: com.xianxia.sect.core.perf.ThermalMonitor,
     private val spiritStoneWallet: SpiritStoneWallet,
     /** 引擎异常上报端口（app 层提供 Bugly 实现；默认 Noop 供测试/无基建场景） */
-    private val engineCrashReporter: EngineCrashReporter = NoopEngineCrashReporter
+    private val engineCrashReporter: EngineCrashReporter = NoopEngineCrashReporter,
+    /** 电池状态感知（低电量未充电时主动降帧/提前降载；默认 Noop 供测试） */
+    private val batteryStatusProvider: BatteryStatusProvider = NoopBatteryStatus
 ) : EngineContextDispatcher {
 
     /**
@@ -90,8 +94,10 @@ class GameEngineCore @Inject constructor(
         IDLE("后台", 100L),
         /** 地图滚动/惯性滑行 — 30fps 足够 */
         MAP_SCROLL("地图滚动", 33L),
-        /** 正常游戏（Tab、对话框操作）— 60fps */
+        /** 正常游戏（Tab、对话框操作）— 活跃 60fps */
         GAMEPLAY("游戏", 16L),
+        /** 挂机静止（均衡模式动态帧率中间档）— 30fps 保电 */
+        GAMEPLAY_IDLE("游戏挂机", 33L),
         /** 战斗动画 — 60fps 优先 */
         BATTLE("战斗", 16L)
     }
@@ -101,11 +107,28 @@ class GameEngineCore @Inject constructor(
     var currentScene: GameScene = GameScene.GAMEPLAY
         private set
 
+    /** 当前性能模式（设置界面三档；引擎帧率计算的输入之一） */
+    @Volatile
+    var performanceMode: PerformanceMode = PerformanceMode.BALANCED
+        private set
+
+    /**
+     * 设置性能模式（UI 层/启动路径调用），立即重算帧率与质量。
+     */
+    fun setPerformanceMode(mode: PerformanceMode) {
+        if (performanceMode != mode) {
+            DomainLog.i(TAG, "Performance mode: ${performanceMode.displayName} → ${mode.displayName}")
+            performanceMode = mode
+            updateRenderFrameRate()
+        }
+    }
+
     /** 设置游戏场景，引擎据此调整帧率预算和等待时间 */
     fun onSceneChanged(scene: GameScene) {
         if (currentScene != scene) {
             DomainLog.i(TAG, "Scene changed: ${currentScene.displayName} → ${scene.displayName}")
             currentScene = scene
+            sceneStateFlow.value = scene
             updateRenderFrameRate()
         }
     }
@@ -126,43 +149,90 @@ class GameEngineCore @Inject constructor(
     private val _decorationsDisabled = MutableStateFlow(false)
     val decorationsDisabled: StateFlow<Boolean> = _decorationsDisabled.asStateFlow()
 
+    private val sceneStateFlow = MutableStateFlow(GameScene.GAMEPLAY)
+
+    /** 当前场景状态流（Game State API 上报用） */
+    val sceneState: StateFlow<GameScene> = sceneStateFlow
+
+    /**
+     * 场景 × 性能模式基准帧率（纯函数，测试直接覆盖）。
+     */
+    internal fun sceneFpsFor(mode: PerformanceMode, scene: GameScene): Int = when (scene) {
+        GameScene.IDLE -> 10
+        GameScene.MAP_SCROLL -> if (mode == PerformanceMode.PERFORMANCE) 60 else 30
+        GameScene.GAMEPLAY -> if (mode == PerformanceMode.ENERGY_SAVING) 30 else 60
+        GameScene.GAMEPLAY_IDLE -> 30
+        GameScene.BATTLE -> if (mode == PerformanceMode.ENERGY_SAVING) 30 else 60
+    }
+
+    /**
+     * 计算有效渲染帧率：场景 × 性能模式 × 热控/电量 三者取 min（降级优先）。
+     */
     private fun updateRenderFrameRate() {
-        // 热控建议帧率与场景帧率取其小（降级优先）
         val thermalFps = thermalController.recommendedTargetFps
-        val sceneFps = when (currentScene) {
-            GameScene.IDLE -> 10
-            GameScene.MAP_SCROLL -> 30
-            GameScene.GAMEPLAY -> 60
-            GameScene.BATTLE -> 60
-        }
-        val effectiveFps = minOf(thermalFps, sceneFps)
+        val mode = performanceMode
+        val sceneFps = sceneFpsFor(mode, currentScene)
+        val batteryCap = batteryStatusProvider.fpsCap
+        val effectiveFps = minOf(thermalFps, sceneFps, batteryCap)
         _renderFrameRate.value = effectiveFps
-        _renderingQualityFactor.value = thermalController.renderingQualityFactor
-        _decorationsDisabled.value = thermalController.particlesDisabled
+        _renderingQualityFactor.value = minOf(thermalController.renderingQualityFactor, mode.qualityFactor)
+        _decorationsDisabled.value = thermalController.particlesDisabled || mode == PerformanceMode.ENERGY_SAVING
     }
 
     /**
      * UI 层通知引擎：用户活跃（有触摸/操作），自动切换到 GAMEPLAY。
-     * 闲置超过 30s 后自动切回 IDLE。
+     * 均衡模式：闲置 5s 降 GAMEPLAY_IDLE(30fps)，闲置 30s 降 IDLE(10fps)。
+     * 节能/性能模式：闲置 30s 直接降 IDLE(10fps)（深闲置是通用省电层，全模式保留）。
      */
     @Volatile
     private var lastUserActivityTimeNs: Long = 0L
     private val IDLE_TIMEOUT_NS = java.util.concurrent.TimeUnit.SECONDS.toNanos(30)
+    private val activityDowngradeTimeoutNs = java.util.concurrent.TimeUnit.SECONDS.toNanos(5)
+
+    /** fps 上报限频锁与时间戳（[setObservedRenderFps]） */
+    private val fpsReportLock = Any()
+    @Volatile
+    private var lastFpsReportMs = 0L
+    private val fpsReportIntervalMs = 1_000L
 
     /** 通知引擎用户有操作 */
     fun onUserActivity() {
         lastUserActivityTimeNs = System.nanoTime()
-        if (currentScene == GameScene.IDLE) {
+        if (currentScene == GameScene.IDLE || currentScene == GameScene.GAMEPLAY_IDLE) {
             onSceneChanged(GameScene.GAMEPLAY)
         }
     }
 
-    /** 检查是否需要因闲置而降帧 */
+    /**
+     * 闲置降档纯函数：返回应切换的目标场景（null = 不切换）。
+     *
+     * 状态机：
+     * - 均衡模式：GAMEPLAY(60) ──5s──> GAMEPLAY_IDLE(30) ──30s──> IDLE(10)
+     * - 节能/性能：GAMEPLAY ──30s──> IDLE（无中间档）
+     * - GAMEPLAY_IDLE / MAP_SCROLL：无操作 30s 后统一降 IDLE
+     * - BATTLE / IDLE：不因闲置切换
+     */
+    internal fun evaluateIdleTransition(
+        scene: GameScene,
+        idleNs: Long,
+        mode: PerformanceMode
+    ): GameScene? = when (scene) {
+        GameScene.GAMEPLAY -> when {
+            mode.dynamic && idleNs >= activityDowngradeTimeoutNs -> GameScene.GAMEPLAY_IDLE
+            !mode.dynamic && idleNs >= IDLE_TIMEOUT_NS -> GameScene.IDLE
+            else -> null
+        }
+        GameScene.GAMEPLAY_IDLE, GameScene.MAP_SCROLL ->
+            if (idleNs >= IDLE_TIMEOUT_NS) GameScene.IDLE else null
+        else -> null
+    }
+
+    /** 检查是否需要因闲置而降帧（两级降档：5s 静止 → 30fps，30s 深闲置 → 10fps） */
     private fun checkIdleTimeout(nowNs: Long) {
-        if (currentScene == GameScene.GAMEPLAY || currentScene == GameScene.MAP_SCROLL) {
-            if (lastUserActivityTimeNs > 0 && (nowNs - lastUserActivityTimeNs) >= IDLE_TIMEOUT_NS) {
-                onSceneChanged(GameScene.IDLE)
-            }
+        if (lastUserActivityTimeNs <= 0) return
+        val target = evaluateIdleTransition(currentScene, nowNs - lastUserActivityTimeNs, performanceMode)
+        if (target != null) {
+            onSceneChanged(target)
         }
     }
 
@@ -1018,6 +1088,9 @@ class GameEngineCore @Inject constructor(
         // 进度快照采样：看门狗统一判据输入（tickCount + totalPhases + accumulatedGameMs）
         sampleProgressSnapshot()
         val tickResult = gameClock.tick(isSettlementPending = false)
+        // 电量感知热控阈值偏移（低电量未充电提前 2°C 降载）；checkAndAdjust 10s 间隔检查，
+        // 此处仅浮点赋值无锁开销
+        thermalController.setThresholdOffsetC(batteryStatusProvider.thermalThresholdOffsetC)
         thermalController.checkAndAdjust(_fps.value)
         val tickFlags = processTickPhases(tickResult.phasesToAdvance)
         processMonthYearChange(
@@ -1312,6 +1385,24 @@ class GameEngineCore @Inject constructor(
             _fps.value = 1000f / (fpsAccumulator / frameCount)
             frameCount = 0
             fpsAccumulator = 0f
+        }
+    }
+
+    /**
+     * 渲染线程上报实际达成帧率（1s 限频），激活 [ThermalController] 的帧率驱动降级分支。
+     *
+     * 与引擎 tick 解耦：热控判据基于渲染实际达成帧率（渲染线程实测），
+     * 而非引擎逻辑帧率。渲染线程高频回调必须限频，避免 StateFlow 通知风暴。
+     *
+     * @param fps 渲染线程实测帧率（每秒回调一次）
+     */
+    fun setObservedRenderFps(fps: Float) {
+        if (fps <= 0f || fps.isNaN()) return
+        val now = System.currentTimeMillis()
+        synchronized(fpsReportLock) {
+            if (now - lastFpsReportMs < fpsReportIntervalMs) return
+            lastFpsReportMs = now
+            _fps.value = fps.coerceIn(1f, 240f)
         }
     }
 
