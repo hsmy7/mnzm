@@ -22,6 +22,13 @@
 - **文档** — `rules/dialog-soft-input-guard.md` 重写为双机制避让法则（平台 Dialog 窗口 ADJUST_PAN 单一避让禁止 imePadding / Activity 内联层 adjustResize + imePadding）；ADR 更正记录 2133597c 回归与恢复决策
 - **验证** — compileReleaseKotlin + 定点测试（StandardPromptDialogTest 11 用例）+ 全量串行回归（--max-workers=1，0 失败）+ detekt 全模块清零
 
+### 修复（2026-08-06 Bugly 三崩溃批次：#3114 PerformanceHint 跨线程 close / #9076 Ripple 硬件动画 / #2037 ANR 归因）
+
+- **#3114 SIGABRT 根治（PerformanceHintManager.Session 跨线程 close）** — mapping.txt 反混淆实证崩溃栈 `GameEngineCore$startGameLoop$1`（Y0）→ `ThermalMonitor.closeHintSession`（R3.f.a）→ `nativeCloseSession` 原生 abort。根因：`ThermalMonitor`（@Singleton）共享可变 `hintSession` 字段无同步；看门狗 `emergencyRestartGameLoop` 换线程重启游戏循环后，旧线程 finally 关闭新循环刚创建的 Session（跨线程 close，native abort 无法 try/catch）。修复：`ThermalMonitor` 线程绑定守卫——create 记录属主线程，`closeHintSession`/`reportActualWorkDuration` 仅在属主线程执行（非属主跳过 + 日志），字段复位条件化（仅当字段仍指向本次关闭的引用才置空，防并发覆盖误删新 session）；旧线程被 OEM 挂起时孤儿 session 进程级泄漏可接受；顺带清理死代码 `updateTargetDuration`/`lastTargetDurationNanos`、`createHintSession` 魔法数字提取 `TARGET_FRAME_DURATION_60FPS_NS` 常量、空 catch 补 DomainLog（规范 8.2）。新增 `ThermalMonitorTest` 8 用例（属主记录/线程匹配跳过/条件复位/幂等/SDK<31 分支）
+- **#9076 SIGABRT 根治（Compose Ripple 硬件动画）** — 崩溃栈 `RippleAnimationSession.exitHardware → RenderNode.addAnimator` abort（宿主 `androidx.compose.material.ripple.RippleHostView`，framework 级 `RippleDrawable` 硬件动画会话），系统级 AOSP bug（快速点击/组件销毁竞态/特定 ROM），应用侧唯一可靠根治为全局禁用涟漪（用户确认）。修复：`XianxiaTheme` 全局覆盖 `LocalRippleConfiguration provides null`——M3 1.4.0 的 `DelegatingThemeAwareRippleNode` 收到 null 配置时 `removeRipple()` 真正卸载 ripple 节点（字节码实证），`RippleHostView` 不再创建（对抗性审查的探测测试 `RippleHostViewProbeTest` 决定性验证：Robolectric 渲染 M3 Button + performClick 后遍历视图树断言零个 `RippleHostView`）；**坑记录**：初版采用 `RippleConfiguration(rippleAlpha=全零)` 经探测测试实测无效（节点与硬件动画照常运行仅画透明——崩溃点在 `RenderNode.addAnimator` 本身与 alpha 无关），对抗性审查（AOSP android15 源码逐段核对）确认后弃用；全仓库唯一显式 `ripple()` 调用点 CloseButton（GameButton.kt）改 `indication = null`；M3 内建交互组件盘点（TapTap 登录 Button、消息列表 FAB 两处内部 ripple）由 `provides null` 全局卸载；无新增依赖（初版引入的 material-ripple 编译依赖随方案切换撤销）。新增 `ThemeRippleGuardTest`（断言主题内 `LocalRippleConfiguration==null` + 对照用例断言 M3 默认值非 null，防假阳性）
+- **#2037 ANR（33 次）归因** — 主线程卡 HWUI `nSyncAndDrawFrame`，根因为 4.00.89 及以前世界地图每帧 406 条虚线 Path 重建（`WorldMapConnections`，含每帧 Random 抖动 + dashPathEffect），e21c342a（本版本）已移除，用户确认崩溃来自旧版本 → 4.00.90 观察复现，不做代码改动；4.00.90 残余主线程绘制已核查无 5s 级嫌疑（`GoldFingerOverlay.drawFullGrid` 已按视口裁剪）
+- **验证** — compileReleaseKotlin + ThermalMonitorTest（9 用例，含 mock Session 强断言：属主 close 真正关闭/非属主跳过/条件复位/并发交错）+ ThemeRippleGuardTest（2 用例）+ RippleHostViewProbeTest + 全量串行回归（--max-workers=1，0 失败）
+
 ## [4.00.89] - 2026-08-05
 
 ### 调整（2026-08-06 AI 弟子养成体系重构 + 战斗数值修复）

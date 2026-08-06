@@ -183,6 +183,8 @@ class GameEngineCore @Inject constructor(
         // ★ 帧驱动 Accumulator 常量
         private val LOGIC_DT_NS = java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(100)  // 逻辑步长 100ms
         private val MAX_ACCUMULATOR_NS = LOGIC_DT_NS * 5  // 最多累积 5 步
+        // ADPF Performance Hint 目标帧时长：60 FPS
+        private const val TARGET_FRAME_DURATION_60FPS_NS = 16_666_667L
         // 自适应忙等等阈值
         private const val ANTI_FREEZE_TRIGGER_THRESHOLD = 3
         private const val ANTI_FREEZE_NORMAL_THRESHOLD = 20
@@ -443,7 +445,7 @@ class GameEngineCore @Inject constructor(
             var accumulatorNs = 0L
             var lastFrameTimeNs = System.nanoTime()
             // ADPF: 创建 Performance Hint Session（API 31+，低版本自动跳过）
-            thermalMonitor.createHintSession(16_666_667L) // 60 FPS 目标
+            thermalMonitor.createHintSession(TARGET_FRAME_DURATION_60FPS_NS)
             try {
                 while (isActive) {
                     try {

@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -110,8 +109,9 @@ fun CloseButton(
             .size(visualSize + touchPadding * 2)
             .clip(CircleShape)
             .clickable(
+                // indication=null：全局禁用涟漪（Bugly #9076 SIGABRT 根治，见 Theme.kt）
                 interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(),
+                indication = null,
                 enabled = enabled,
                 onClick = {
                     playClickSound?.invoke()
