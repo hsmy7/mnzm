@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game.dialogs.shared
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -15,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -41,28 +43,34 @@ fun RenameDialog(
     config: RenameDialogConfig,
     currentName: String,
     onConfirm: (String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    scrimEnabled: Boolean = true
 ) {
     var input by remember { mutableStateOf(currentName) }
     var error by remember { mutableStateOf<String?>(null) }
     val focusRequester = remember { FocusRequester() }
+    val dialogView = LocalView.current
+    // 确认逻辑供确认按钮与键盘 Done 键共用，杜绝两处逻辑漂移
+    val confirm: () -> Unit = {
+        val name = input.trim()
+        if (name.isNotBlank() && error == null) {
+            onConfirm(name)
+        }
+    }
 
     InlineStandardPromptDialog(
         onDismissRequest = onDismiss,
         title = config.title,
         confirmLabel = "确定",
         dismissLabel = "取消",
-        onConfirm = {
-            val name = input.trim()
-            if (name.isNotBlank() && error == null) {
-                onConfirm(name)
-            }
-        },
+        scrimEnabled = scrimEnabled,
+        onConfirm = confirm,
         onDismiss = onDismiss,
         content = {
             LaunchedEffect(Unit) {
-                kotlinx.coroutines.delay(100) // 等待 Dialog 入场动画完成，兼容 ColorOS/FuntouchOS
-                focusRequester.requestFocus()
+                // 布局完成后再请求焦点（view.post 替代固定 delay(100)，对齐创建宗门方案，
+                // 内联覆盖层无平台 Dialog 入场动画，不再需要固定延迟）
+                dialogView.post { focusRequester.requestFocus() }
             }
             OutlinedTextField(
                 value = input,
@@ -81,6 +89,9 @@ fun RenameDialog(
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Text,
                     imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = { confirm() }
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -104,7 +115,8 @@ fun RenameDialog(
 fun RenameSectDialog(
     currentName: String,
     onConfirm: (String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    scrimEnabled: Boolean = true
 ) {
     RenameDialog(
         config = RenameDialogConfig(
@@ -115,7 +127,8 @@ fun RenameSectDialog(
         ),
         currentName = currentName,
         onConfirm = onConfirm,
-        onDismiss = onDismiss
+        onDismiss = onDismiss,
+        scrimEnabled = scrimEnabled
     )
 }
 

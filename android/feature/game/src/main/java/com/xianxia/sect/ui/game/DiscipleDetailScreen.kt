@@ -535,6 +535,20 @@ fun DiscipleDetailDialog(
                     viewModel = viewModel
                 )
             }
+
+            // 改名弹窗（内联覆盖层）必须渲染在 UnifiedGameDialog 内容 lambda 内——
+            // 渲染在函数体外层会被平台 Dialog 窗口遮挡而不可见；此处为内容区末尾，z 序最高，
+            // 且后组合的 BackHandler 优先响应（先关改名框而非整个详情）
+            if (showRenameDialog) {
+                RenameDiscipleDialog(
+                    currentName = disciple.name,
+                    onConfirm = { newName ->
+                        viewModel?.renameDisciple(disciple.id, newName)
+                        showRenameDialog = false
+                    },
+                    onDismiss = { showRenameDialog = false }
+                )
+            }
         }
     }
 
@@ -562,17 +576,6 @@ fun DiscipleDetailDialog(
                     }
                 )
             }
-        )
-    }
-
-    if (showRenameDialog) {
-        RenameDiscipleDialog(
-            currentName = disciple.name,
-            onConfirm = { newName ->
-                viewModel?.renameDisciple(disciple.id, newName)
-                showRenameDialog = false
-            },
-            onDismiss = { showRenameDialog = false }
         )
     }
 

@@ -45,7 +45,10 @@ internal fun DialogType.renderSystemRoutes(
             RenameSectDialog(
                 currentName = gameData.sectName,
                 onConfirm = onConfirm,
-                onDismiss = onDismiss
+                onDismiss = onDismiss,
+                // 内联覆盖层渲染在 GameOverlayHost 层，单例遮罩已由 anyDialogVisible 绘制，
+                // 不再自画遮罩避免双重遮罩变暗
+                scrimEnabled = false
             )
         }
         DialogType.GameOver -> {

@@ -53,7 +53,11 @@ import androidx.core.view.WindowInsetsControllerCompat
  *
  * 使用 [SOFT_INPUT_ADJUST_PAN] 替代 [SOFT_INPUT_ADJUST_NOTHING] 以兼容
  * 国产 ROM（小米 HyperOS 等）上 [adjustResize] 导致的键盘反复弹出收起频闪问题。
- * [ADJUST_PAN] 不做窗口 resize（切断振荡回路），仅平移内容，配合 [imePadding] 保持输入框可见。
+ * [ADJUST_PAN] 不做窗口 resize（切断振荡回路），仅平移内容。
+ *
+ * 使用本组件的窗口**禁止再叠加 imePadding**——pan + padding 双重位移正是
+ * 历史键盘振荡频闪的根因配方（2026-08 根治，见 [isInsideDialogWindow] 与
+ * rules/dialog-soft-input-guard.md）。
  *
  * 行业调研结论（2026-07）：
  * - Google IssueTracker #229378542: imePadding 在 Dialog 内不可靠
@@ -99,6 +103,19 @@ fun DialogSoftInputGuard(
         }
     }
 }
+
+/**
+ * 判定给定 [View] 是否处于平台 Dialog 窗口（Compose [Dialog] 创建的独立 Window）内。
+ *
+ * 通过遍历 View 父链查找 [DialogWindowProvider] 实现。用于决定键盘避让机制：
+ * - Dialog 窗口内：外层窗口已由 [DialogSoftInputGuard] 应用 ADJUST_PAN 单一避让，
+ *   内层容器必须禁用 imePadding（pan + padding 双重位移 = 国产 ROM 键盘振荡根因）
+ * - Activity 窗口内：保持 manifest adjustResize + imePadding 官方标准组合
+ */
+internal fun isInsideDialogWindow(view: View): Boolean =
+    generateSequence(view) { it.parent as? View }
+        .filterIsInstance<DialogWindowProvider>()
+        .firstOrNull() != null
 
 /**
  * 在 Dialog Window 上应用 hideSystemBars()，使对话框内容全屏无状态栏/导航栏。
@@ -332,10 +349,20 @@ fun StandardPromptDialog(
  *
  * 接口签名与 [StandardPromptDialog] 完全一致，但通过内联 Box overlay 避免
  * 平台 Dialog 窗口与 IME 键盘交互导致的频闪问题（[decorFitsSystemWindows] 与
- * [adjustResize] 组合引起的窗口尺寸震荡）。
+ * [adjustResize] 组合引起的窗口尺寸震荡）。2026-08 恢复覆盖层形态（历史上
+ * 2133597c 曾统一改回平台 Dialog 窗口造成键盘振荡回归，见
+ * docs/adr/dialog-system-refactoring.md）。
  *
  * 屏幕尺寸在 composition 入口处 [remember] 缓存，键盘弹出后不再变化，
  * 从而彻底杜绝重组震荡。
+ *
+ * 键盘避让双上下文机制：
+ * - 渲染于 Activity 层：窗口保持 manifest adjustResize + 本组件 [imePadding]
+ *   = Google 官方标准组合（单一避让）
+ * - 渲染于平台 Dialog 窗口内（嵌套在 [UnifiedGameDialog] 等窗口内部）：外层
+ *   窗口已由 [DialogSoftInputGuard] 应用 ADJUST_PAN 单一避让，本组件自动禁用
+ *   imePadding——pan + padding 双重位移是国产 ROM 键盘振荡频闪的历史根因。
+ * 窗口上下文由 [isInsideDialogWindow] 自动检测，调用方无需关心。
  */
 @Composable
 fun InlineStandardPromptDialog(
@@ -366,42 +393,36 @@ fun InlineStandardPromptDialog(
         BackHandler { onDismissRequest() }
     }
 
-    Dialog(
-        onDismissRequest = onDismissRequest,
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false,
-            dismissOnBackPress = false,
-            dismissOnClickOutside = false
-        )
-    ) {
-        // 切换 softInputMode，切断 OEM 键盘频闪震荡回路（必须放在 Dialog {} 块内，才能获取 Dialog Window 引用）
-        DialogSoftInputGuard()
-        // 隐藏 Dialog Window 的系统状态栏/导航栏
-        DialogSystemBarGuard()
-        // Dialog 窗口销毁前清除焦点并隐藏软键盘，防止文本选择 FloatingActionMode
-        // 在窗口 token 失效后尝试弹出 PopupWindow 导致 BadTokenException（Bugly #3026）
-        DialogFocusGuard()
+    // 覆盖层销毁前清除焦点并隐藏软键盘，防止文本选择 FloatingActionMode
+    // 在窗口 token 失效后尝试弹出 PopupWindow 导致 BadTokenException（Bugly #3026）
+    DialogFocusGuard()
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .imePadding()
-                .then(
-                    if (scrimEnabled) Modifier.background(Color(0x99000000))
-                    else Modifier
-                )
-                .then(
-                    if (dismissOnClickOutside) {
-                        Modifier.clickableWithSound(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onDismissRequest
-                        )
-                    } else Modifier
-                ),
-            contentAlignment = Alignment.Center
-        ) {
+    // 检测是否处于平台 Dialog 窗口内（嵌套在 UnifiedGameDialog 等窗口内部时）：
+    // 外层窗口已由 DialogSoftInputGuard 应用 ADJUST_PAN 单一避让，必须禁用 imePadding，
+    // 避免 pan + padding 双重位移（国产 ROM 键盘振荡根因）；Activity 层保持
+    // manifest adjustResize + imePadding 官方标准组合。
+    val dialogView = LocalView.current
+    val insideDialogWindow = remember { isInsideDialogWindow(dialogView) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .then(if (!insideDialogWindow) Modifier.imePadding() else Modifier)
+            .then(
+                if (scrimEnabled) Modifier.background(Color(0x99000000))
+                else Modifier
+            )
+            .then(
+                if (dismissOnClickOutside) {
+                    Modifier.clickableWithSound(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onDismissRequest
+                    )
+                } else Modifier
+            ),
+        contentAlignment = Alignment.Center
+    ) {
         Box(
             modifier = Modifier
                 .width(dialogWidth)
@@ -514,6 +535,5 @@ fun InlineStandardPromptDialog(
                 }
             }
         }
-    }
     }
 }

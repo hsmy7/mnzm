@@ -13,6 +13,15 @@
 - **detekt 暴露项连带修复** — 删参数后 baseline 签名失配暴露 3 处违规：`LevelGenerator.isValidPosition` ReturnCount 4→2（none 谓词 + isTooClose helper）、`WorldMapScreen` LongParameterList 9→6（focusWorldX/Y 合并为 focusWorld: Offset? + 三个点击回调合并为 onItemClick: (MapItem) -> Unit）、`LevelGeneratorTest` UnusedImports；同步移除 engine/feature:game baseline 共 3 条失效条目（旧签名含已删参数）
 - **验证** — compileReleaseKotlin + 全量串行回归（--max-workers=1，0 失败）+ detekt 全模块清零 + lintRelease（警告不涉及改动文件）
 
+### 修复（2026-08-06 创建宗门输入框键盘频闪根治——InlineStandardPromptDialog 恢复内联覆盖层）
+
+- **根因** — `InlineStandardPromptDialog` 的平台 Dialog 窗口上叠加了多重键盘避让机制：窗口级 `ADJUST_PAN`（DialogSoftInputGuard）+ Compose 级 `imePadding()`（全项目唯一）+ `DialogSystemBarGuard` 瞬态系统栏 + MainActivity/GameActivity `onWindowFocusChanged → hideSystemBars()` 焦点放大器。键盘弹出期间 IME insets 每帧变化 → imePadding 改布局 + ADJUST_PAN 平移 = **双重位移** → 触发国产 ROM（小米 HyperOS/OPPO/Vivo）的 IME 状态误报竞态 → 键盘收起→再弹出→振荡闪屏。历史证据：4.0.37 内联覆盖层形态（无平台 Dialog 窗口）修复过此问题；2133597c（2026-07-04）为"无输入对话框全屏居中"把 InlineStandardPromptDialog 统一改回平台 Dialog 窗口系**回归点**（过度泛化，含输入框对话框被拖下水）；4.0.66/4.0.82 两轮补丁（Guard 移入 Dialog 内部、ADJUST_NOTHING→ADJUST_PAN）换一个 OEM 再爆
+- **根治** — `InlineStandardPromptDialog` 恢复为真正的内联 Box 覆盖层（对齐名称/KDoc/ADR 原始设计），消除平台 Dialog 窗口与 IME 的全部交互：移除 `DialogSoftInputGuard`/`DialogSystemBarGuard`（无新窗口）、保留 `DialogFocusGuard`（#3026 语义）；**条件 `imePadding`**——新增 `isInsideDialogWindow()` 自动检测渲染上下文：Activity 层应用 `imePadding`（manifest adjustResize + imePadding 官方标准组合），嵌套在平台 Dialog 窗口内时自动禁用（外层窗口已有 ADJUST_PAN 单一避让，叠加即重现频闪配方）。含文本输入的对话框统一使用此组件；平台 Dialog 容器（UnifiedGameDialog 等 80+ 处）仅用于无文本输入场景，不动
+- **调用点适配** — ① RenameDialog 聚焦固定 `delay(100)` → `view.post` 布局完成回调（统一创建宗门方案）；② 创建宗门/改名输入框补 `KeyboardActions(onDone = 确认)`（复用按钮确认逻辑含空名→青云宗兜底，Done 键行为完整）；③ RenameSectDialog 加 `scrimEnabled=false`（内联后在 GameOverlayHost 层，单例遮罩已绘制，防双重遮罩变暗）；④ RenameDiscipleDialog 移入 DiscipleDetailDialog 内容 lambda 末尾（否则内联后被平台 Dialog 窗口遮挡不可见）；⑤ SellConfirmDialog（仓库出售数量确认）移入 ItemDetailDialog 新增的 `overlay` 槽位（在 SmallScreenDialog 窗口内容内渲染，否则被其平台窗口遮挡不可见——ItemDetailDialog 签名加默认参数 `overlay`，其余 20+ 调用点零影响）
+- **测试** — 新建 `StandardPromptDialogTest`（core/ui Robolectric + Compose 测试基建：includeAndroidResources + 测试 manifest 声明 ComponentActivity）：`isInsideDialogWindow` 双上下文单测 + 内联渲染不创建平台 Dialog 窗口（rootView 即 Activity decorView）+ 标题/按钮渲染 + confirm/dismiss 回调 + 遮罩点击开关 + BackHandler 开关共 11 用例全通过；IME insets 布局断言无法在 Robolectric 模拟，由真机清单覆盖
+- **文档** — `rules/dialog-soft-input-guard.md` 重写为双机制避让法则（平台 Dialog 窗口 ADJUST_PAN 单一避让禁止 imePadding / Activity 内联层 adjustResize + imePadding）；ADR 更正记录 2133597c 回归与恢复决策
+- **验证** — compileReleaseKotlin + 定点测试（StandardPromptDialogTest 11 用例）+ 全量串行回归（--max-workers=1，0 失败）+ detekt 全模块清零
+
 ## [4.00.89] - 2026-08-05
 
 ### 调整（2026-08-06 AI 弟子养成体系重构 + 战斗数值修复）

@@ -409,6 +409,25 @@ internal fun WarehouseTab(
                     selectedItemId = null
                 },
                 viewModel = viewModel,
+                // 出售数量确认（内联覆盖层）必须渲染在 ItemDetailDialog 窗口内容内，
+                // 否则被其 SmallScreenDialog 平台窗口遮挡而不可见（2026-08 键盘频闪根治）
+                overlay = {
+                    if (showSellDialog) {
+                        SellConfirmDialog(
+                            itemName = itemName,
+                            maxQuantity = itemQuantity,
+                            onConfirm = { quantity ->
+                                viewModel.sellItem(itemId, itemType, quantity)
+                                showSellDialog = false
+                                if (quantity >= itemQuantity) {
+                                    showDetailDialog = false
+                                    selectedItemId = null
+                                }
+                            },
+                            onDismiss = { showSellDialog = false }
+                        )
+                    }
+                },
                 // 灵石详情无任何操作按钮（不可售卖/锁定/赏赐/关注）
                 extraActions = if (item is SpiritStoneInfo) {
                     null
@@ -447,22 +466,6 @@ internal fun WarehouseTab(
                     }
                 }
             )
-
-            if (showSellDialog) {
-                SellConfirmDialog(
-                    itemName = itemName,
-                    maxQuantity = itemQuantity,
-                    onConfirm = { quantity ->
-                        viewModel.sellItem(itemId, itemType, quantity)
-                        showSellDialog = false
-                        if (quantity >= itemQuantity) {
-                            showDetailDialog = false
-                            selectedItemId = null
-                        }
-                    },
-                    onDismiss = { showSellDialog = false }
-                )
-            }
 
             if (showDiscipleSelectDialog) {
                 DiscipleSelectForRewardDialog(

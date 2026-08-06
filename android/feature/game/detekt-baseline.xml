@@ -60,7 +60,7 @@
     <ID>CyclomaticComplexMethod:HeavenlyTrialCombatScreen.kt$@Composable fun HeavenlyTrialCombatScreen( viewModel: HeavenlyTrialViewModel, onFinished: (won: Boolean) -&gt; Unit )</ID>
     <ID>CyclomaticComplexMethod:HeavenlyTrialComponents.kt$@Composable internal fun CombatUnitCell( combatant: Combatant?, isCurrent: Boolean = false, isAllySelected: Boolean = false, isEnemySelected: Boolean = false, isShaking: Boolean = false, flightAnim: FlightAnimState = FlightAnimState(), modifier: Modifier = Modifier, onClick: () -&gt; Unit )</ID>
     <ID>CyclomaticComplexMethod:ItemDetailDialog.kt$@Composable @Suppress("DEPRECATION") private fun ManualStatsContent( manual: ManualInstance, bonusMultiplier: Double, rarityColor: Color )</ID>
-    <ID>CyclomaticComplexMethod:ItemDetailDialog.kt$@Composable fun ItemDetailDialog( item: Any, onDismiss: () -&gt; Unit, viewModel: GameViewModel? = null, extraActions: @Composable (() -&gt; Unit)? = null )</ID>
+    <ID>CyclomaticComplexMethod:ItemDetailDialog.kt$@Composable fun ItemDetailDialog( item: Any, onDismiss: () -&gt; Unit, viewModel: GameViewModel? = null, extraActions: @Composable (() -&gt; Unit)? = null, overlay: @Composable (() -&gt; Unit)? = null )</ID>
     <ID>CyclomaticComplexMethod:ItemDetailDialog.kt$@Composable fun LearnedManualDetailDialog( manual: ManualInstance, proficiencyData: ManualProficiencyData?, onForget: () -&gt; Unit, onDismiss: () -&gt; Unit, extraActions: @Composable (() -&gt; Unit)? = null )</ID>
     <ID>CyclomaticComplexMethod:ItemDetailEffects.kt$@Suppress("DEPRECATION") internal fun getEquipmentEffects(item: EquipmentInstance): List&lt;String&gt;</ID>
     <ID>CyclomaticComplexMethod:ItemDetailEffects.kt$@Suppress("DEPRECATION") internal fun getManualEffects(item: ManualInstance): List&lt;String&gt;</ID>
@@ -191,7 +191,7 @@
     <ID>LongMethod:HeavenlyTrialDiscipleDialog.kt$@Composable fun HeavenlyTrialDiscipleDialog( viewModel: HeavenlyTrialViewModel, gameViewModel: GameViewModel, onDismiss: () -&gt; Unit )</ID>
     <ID>LongMethod:HeavenlyTrialPanel.kt$@Composable fun HeavenlyTrialPanel( viewModel: HeavenlyTrialViewModel, onOpenClearRewards: () -&gt; Unit = {}, /** 是否绘制自带背景图（半屏嵌入时由宿主对话框提供背景，传 false 避免叠加） */ showBackground: Boolean = true )</ID>
     <ID>LongMethod:ItemDetailDialog.kt$@Composable @Suppress("DEPRECATION") private fun ManualStatsContent( manual: ManualInstance, bonusMultiplier: Double, rarityColor: Color )</ID>
-    <ID>LongMethod:ItemDetailDialog.kt$@Composable fun ItemDetailDialog( item: Any, onDismiss: () -&gt; Unit, viewModel: GameViewModel? = null, extraActions: @Composable (() -&gt; Unit)? = null )</ID>
+    <ID>LongMethod:ItemDetailDialog.kt$@Composable fun ItemDetailDialog( item: Any, onDismiss: () -&gt; Unit, viewModel: GameViewModel? = null, extraActions: @Composable (() -&gt; Unit)? = null, overlay: @Composable (() -&gt; Unit)? = null )</ID>
     <ID>LongMethod:ItemDetailDialog.kt$@Composable fun LearnedManualDetailDialog( manual: ManualInstance, proficiencyData: ManualProficiencyData?, onForget: () -&gt; Unit, onDismiss: () -&gt; Unit, extraActions: @Composable (() -&gt; Unit)? = null )</ID>
     <ID>LongMethod:ItemDetailEffects.kt$@Suppress("DEPRECATION") internal fun getManualEffects(item: ManualInstance): List&lt;String&gt;</ID>
     <ID>LongMethod:ItemDetailEffects.kt$@Suppress("DEPRECATION") internal fun getManualStackEffects(item: ManualStack): List&lt;String&gt;</ID>

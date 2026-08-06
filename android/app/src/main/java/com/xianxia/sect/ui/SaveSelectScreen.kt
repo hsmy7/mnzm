@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import com.xianxia.sect.core.util.InputValidator
 import com.xianxia.sect.data.model.SaveSlot
@@ -340,6 +341,13 @@ private fun SectNameInputDialog(
 ) {
     val focusRequester = remember { FocusRequester() }
     val dialogView = LocalView.current  // 在 Composable 上下文中捕获 View 引用
+    // 确认逻辑（含空名→青云宗兜底 + 校验）供确认按钮与键盘 Done 键共用，杜绝两处逻辑漂移
+    val confirm: () -> Unit = {
+        if (sectNameError == null) {
+            val name = sectNameInput.trim().ifEmpty { "青云宗" }
+            onConfirm(name)
+        }
+    }
     InlineStandardPromptDialog(
         onDismissRequest = onDismiss,
         title = "创建宗门",
@@ -347,15 +355,10 @@ private fun SectNameInputDialog(
         dismissLabel = "取消",
         dismissOnClickOutside = false,
         onDismiss = onDismiss,
-        onConfirm = {
-            if (sectNameError == null) {
-                val name = sectNameInput.trim().ifEmpty { "青云宗" }
-                onConfirm(name)
-            }
-        },
+        onConfirm = confirm,
         content = {
             LaunchedEffect(Unit) {
-                // 等待 Dialog 布局完成后再请求焦点，避免在入场动画完成前弹出键盘
+                // 等待布局完成后再请求焦点，避免在入场动画完成前弹出键盘
                 // 使用 view.post 替代固定 delay(100)，适配不同设备动画速度差异
                 dialogView.post { focusRequester.requestFocus() }
             }
@@ -369,6 +372,9 @@ private fun SectNameInputDialog(
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Text,
                     imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = { confirm() }
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
