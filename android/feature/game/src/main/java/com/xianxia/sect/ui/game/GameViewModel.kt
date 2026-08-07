@@ -8,9 +8,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
 import com.xianxia.sect.core.domain.dialog.DialogType
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.engine.*
 import com.xianxia.sect.core.engine.service.AdPurpose
+import com.xianxia.sect.core.engine.service.JadeSymbolRuntimeState
 import com.xianxia.sect.core.engine.service.ClaimResult
 import com.xianxia.sect.core.engine.service.HighFrequencyData
 import com.xianxia.sect.ui.game.sect.RenderCommandBus
@@ -140,6 +142,20 @@ class GameViewModel @Inject constructor(
     val currentDialogType: StateFlow<DialogType> = uiServices.dialogManager.currentDialog
         .map { entry -> entry?.type ?: DialogType.None }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DialogType.None)
+
+    /**
+     * 玉符运行时状态（1Hz 节流流；徽章数量与对话框红色倒计时的订阅源）。
+     * 源已 StateFlow + 1Hz 节流，无需 sample/distinctUntilChanged。
+     */
+    val jadeSymbolState: StateFlow<JadeSymbolRuntimeState> = gameEngine.jadeSymbolState
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            JadeSymbolRuntimeState(
+                total = 0, today = 0,
+                remainingMs = GameConfig.Jade.INTERVAL_MS, capped = false
+            )
+        )
 
     fun navigateToDialog(type: DialogType) {
         if (type is DialogType.None) return

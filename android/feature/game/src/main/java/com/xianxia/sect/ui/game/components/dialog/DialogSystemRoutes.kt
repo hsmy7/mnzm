@@ -11,7 +11,9 @@ import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.ui.game.components.OverlayCallbacks
 import com.xianxia.sect.ui.game.components.OverlayViewModels
+import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.dialogs.CloudSaveDialog
+import com.xianxia.sect.ui.game.dialogs.JadeSymbolDialog
 import com.xianxia.sect.ui.game.dialogs.SectLevelDetailDialog
 import com.xianxia.sect.ui.game.dialogs.shared.RenameSectDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
@@ -81,6 +83,19 @@ internal fun DialogType.renderSystemRoutes(
                 onDismiss = onDismiss
             )
         }
+        DialogType.JadeSymbol -> JadeSymbolDialogRoute(viewModel, onDismiss)
         else -> Unit
     }
+}
+
+/** 玉符信息对话框路由（拆出保持 renderSystemRoutes ≤60 行）。 */
+@Composable
+private fun JadeSymbolDialogRoute(
+    viewModel: GameViewModel,
+    onDismiss: () -> Unit
+) {
+    JadeSymbolDialog(
+        viewModel = viewModel,
+        onDismiss = onDismiss
+    )
 }

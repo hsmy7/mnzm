@@ -18,6 +18,7 @@ import com.xianxia.sect.core.repository.GameHeavyDataPort
 import com.xianxia.sect.core.repository.HeavyDataDecoder
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.FormulaService
+import com.xianxia.sect.core.engine.service.JadeSymbolRuntimeState
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.engine.domain.battle.aisRngManager
 import com.xianxia.sect.core.engine.domain.battle.enemyGenRngManager
@@ -158,6 +159,8 @@ class GameEngine @Inject constructor(
     // ── StateFlow delegates ─────────────────────────────────────────────
     val gameData: StateFlow<GameData> get() = stateStore.gameData
     val gameDataSnapshot: GameData get() = stateStore.gameDataSnapshot
+    /** 玉符运行时状态（1Hz 节流，UI 徽章/倒计时订阅入口） */
+    val jadeSymbolState: StateFlow<JadeSymbolRuntimeState> get() = gameEngineCore.jadeSymbolState
     val discipleAggregatesSnapshot: List<DiscipleAggregate> get() = stateStore.discipleAggregatesSnapshot
     val discipleTables: DiscipleTables get() = stateStore.discipleTables
     val disciples: StateFlow<List<Disciple>> get() = stateStore.disciples

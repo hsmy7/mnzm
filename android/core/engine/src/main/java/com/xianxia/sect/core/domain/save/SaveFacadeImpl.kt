@@ -16,6 +16,7 @@ class SaveFacadeImpl @Inject constructor(
     private val stateStore: GameStateStore,
     private val productionCoordinator: ProductionCoordinator,
     private val gameRngManager: GameRngManager,
+    private val jadeSymbolService: com.xianxia.sect.core.engine.service.JadeSymbolService,
     override val heavyDataPort: com.xianxia.sect.core.repository.GameHeavyDataPort,
     override val heavyDataDecoder: com.xianxia.sect.core.repository.HeavyDataDecoder
 ) : SaveFacade {
@@ -66,6 +67,8 @@ class SaveFacadeImpl @Inject constructor(
 
     override fun getStateSnapshotSync(): GameStateSnapshot {
         validateWorldMapSectsBeforeSave()
+        // 玉符运行时累计 checkpoint 入 GameData（存档/云存档快照含最新玉符值）
+        jadeSymbolService.checkpointNow()
         // 导出 RNG 分区状态到 gameData，确保存档包含当前 PRNG 快照
         val exportedRng = gameRngManager.exportStates()
         val gd = stateStore.gameDataSnapshot
@@ -90,6 +93,8 @@ class SaveFacadeImpl @Inject constructor(
 
     override suspend fun getStateSnapshot(): GameStateSnapshot {
         validateWorldMapSectsBeforeSave()
+        // 玉符运行时累计 checkpoint 入 GameData（存档/云存档快照含最新玉符值）
+        jadeSymbolService.checkpointNow()
         // 导出 RNG 分区状态到 gameData，确保存档包含当前 PRNG 快照
         val exportedRng = gameRngManager.exportStates()
         val gd = stateStore.gameDataSnapshot

@@ -30,6 +30,7 @@ fun SaveValidationRuleRegistry.registerDefaults() {
             RecruitListCleanupRule,    // order=20
             BattleLogRefRule,          // order=21（battleLogs 条目结构校验）
             ManualTalentRefRule,       // order=22（manualIds/talentIds 悬空引用清理）
+            JadeSymbolNonNegativeRule, // order=23（玉符字段负值/超限钳制）
         )
     )
 }

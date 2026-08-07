@@ -264,6 +264,31 @@ data class GameData(
     @SettlementStrategy(Strategy.USE_SHADOW)
     var lastAiSectRecruitYear: Int = 0,
 
+    // ── 玉符（氪金货币，2026-08-07）──
+    // 墙钟货币：按真实前台游玩时长发放（GameConfig.Jade），不占仓库、无品阶、不走 InventorySystem，
+    // 与游戏时间（年/月/旬）完全解耦；单日上限次日凌晨 12 点（墙钟午夜）重置。
+    // 发放/跨天重置/循环停止/存档快照时由 JadeSymbolService 写入（低频），运行时累计在服务内存态。
+    /** 玉符持有数量 */
+    @ProtoNumber(220)
+    @ColumnInfo(name = "jade_symbols", defaultValue = "0")
+    @SettlementStrategy(Strategy.USE_SHADOW)
+    var jadeSymbols: Int = 0,
+    /** 今日（墙钟日）已通过游玩时长获得的玉符数量 */
+    @ProtoNumber(221)
+    @ColumnInfo(name = "jade_symbols_today", defaultValue = "0")
+    @SettlementStrategy(Strategy.USE_SHADOW)
+    var jadeSymbolsToday: Int = 0,
+    /** 今日午夜锚点（epoch ms，AdsDelegate.getTodayStartMs 同款判据）；跨天/回拨防御基准 */
+    @ProtoNumber(222)
+    @ColumnInfo(name = "jade_day_anchor_ms", defaultValue = "0")
+    @SettlementStrategy(Strategy.USE_SHADOW)
+    var jadeDayAnchorMs: Long = 0L,
+    /** 当前 20 分钟周期已累计的游玩毫秒（持久化防闪退，重启后从存档恢复） */
+    @ProtoNumber(223)
+    @ColumnInfo(name = "jade_accum_ms", defaultValue = "0")
+    @SettlementStrategy(Strategy.USE_SHADOW)
+    var jadeAccumMs: Long = 0L,
+
     // 世界关卡（妖兽+洞府统一池子）
     @ProtoNumber(140)
     @SettlementStrategy(Strategy.CUSTOM)

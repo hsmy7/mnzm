@@ -3,6 +3,8 @@ package com.xianxia.sect.core.engine
 import com.xianxia.sect.core.util.DomainLog
 import android.os.Build
 import com.xianxia.sect.core.engine.service.CultivationService
+import com.xianxia.sect.core.engine.service.JadeSymbolRuntimeState
+import com.xianxia.sect.core.engine.service.JadeSymbolService
 import com.xianxia.sect.core.engine.service.PolicyCostResult
 import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
@@ -56,7 +58,7 @@ import javax.inject.Singleton
  * UI 层订阅 unifiedState 即可获得最新状态，无需手动同步。
  */
 @Singleton
-@Suppress("LongParameterList") // 引擎核心 13 个真实依赖（含 EngineCrashReporter 端口），原 12 参数已 baseline 豁免
+@Suppress("LongParameterList") // 引擎核心 14 个真实依赖（含 EngineCrashReporter 端口），原 12 参数已 baseline 豁免
 class GameEngineCore @Inject constructor(
 
     private val stateStore: GameStateStore,
@@ -71,6 +73,8 @@ class GameEngineCore @Inject constructor(
     private val thermalController: ThermalController,
     private val thermalMonitor: com.xianxia.sect.core.perf.ThermalMonitor,
     private val spiritStoneWallet: SpiritStoneWallet,
+    /** 玉符（氪金货币）在线时长结算服务 */
+    private val jadeSymbolService: JadeSymbolService,
     /** 引擎异常上报端口（app 层提供 Bugly 实现；默认 Noop 供测试/无基建场景） */
     private val engineCrashReporter: EngineCrashReporter = NoopEngineCrashReporter,
     /** 电池状态感知（低电量未充电时主动降帧/提前降载；默认 Noop 供测试） */
@@ -134,6 +138,10 @@ class GameEngineCore @Inject constructor(
             sceneStateFlow.value = scene
         }
     }
+
+    /** 玉符运行时状态（1Hz 节流，UI 徽章/倒计时订阅入口） */
+    val jadeSymbolState: StateFlow<JadeSymbolRuntimeState>
+        get() = jadeSymbolService.runtimeState
 
     /** 场景帧时间预算（单位：ns，用于游戏等待自适应） */
     private val sceneFrameBudgetNs: Long
@@ -489,6 +497,11 @@ class GameEngineCore @Inject constructor(
         gameLoopStoppedSignal = CompletableDeferred()
         unifiedPerformanceMonitor.start()
 
+        // 玉符在线时长结算：从 GameData 快照恢复运行时字段（读档/切档/重启天然正确）。
+        // 只读快照零写入——跨天检查/首次锚定的 GameData 写入延迟到引擎线程首帧 tick
+        // （startGameLoop 可能在主线程被调，update 有主线程运行时守卫）
+        jadeSymbolService.onLoopStart()
+
         // 零触摸会话修复：游戏循环启动即视为活跃起点——否则 lastUserActivityTimeNs
         // 恒 0 导致 checkIdleTimeout 提前返回，动态帧率在无人值守挂机时永不降档
         lastUserActivityTimeNs = System.nanoTime()
@@ -537,6 +550,10 @@ class GameEngineCore @Inject constructor(
                         // 循环活动心跳：每次迭代更新（含暂停分支与 skip 路径），
                         // 供看门狗区分"正常慢保存/暂停"与"循环停滞/引擎死亡"
                         lastLoopActivityMs = gameClock.nowMs()
+
+                        // 玉符在线时长累计：循环顶部挂钩（暂停分支 continue 在其后执行 →
+                        // 挂机/暂停照常累计；切后台循环整体停止 → 自然不累计）
+                        jadeSymbolService.onLoopTick()
 
                         // Step 1: 计算 deltaTime
                         val nowNs = System.nanoTime()
@@ -640,6 +657,11 @@ class GameEngineCore @Inject constructor(
                 }
             } finally {
                 thermalMonitor.closeHintSession()
+                // 玉符 checkpoint 放循环协程 finally（引擎线程）：覆盖 cancel/
+                // emergencyRestart/正常退出全部停止路径。不能放在 stopGameLoop
+                // 同步调用——主线程链路（onPause 后台切换）调用时 update 会命中
+                // stateStore 主线程运行时守卫（Debug 崩 / Release 静默丢进度）
+                jadeSymbolService.onLoopStop()
                 gameLoopStoppedSignal.complete(Unit)
                 DomainLog.i(TAG, "Game loop stopped signal sent")
             }

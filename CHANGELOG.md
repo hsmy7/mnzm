@@ -38,6 +38,20 @@
 - **测试** — `GameConfigTest` 10 个 cultivationBase 断言与测试名同步更新（含 65→98 的唯一向上取整项）；其余测试均为相对断言/灌满值触发，不受影响
 - 全模块 compileReleaseKotlin + 四模块单测串行（--max-workers=1）+ detekt + lintRelease 全部通过，Room schema 无变化
 
+### 新增（2026-08-07 玉符——在线时长氪金货币）
+
+- **玉符货币体系** — 墙钟概念货币（对标商业游戏氪金货币/在线时长福利），不占仓库、无品阶、不走 InventorySystem/OverflowMailSender/withTrackingSource；当前仅获取（未来商店消耗源由用户决定后再引钱包与来源字典）。`GameData` 新增 4 字段（Proto 220~223 + Room 列，全默认 0）：`jadeSymbols`（持有）/`jadeSymbolsToday`（今日已获）/`jadeDayAnchorMs`（今日午夜锚点）/`jadeAccumMs`（当前周期累计 ms）；`GameConfig.Jade`（`INTERVAL_MS=20min`/`DAILY_CAP=30`/`MAX_TICK_DELTA_MS=10s`）
+- **JadeSymbolService**（`@GameService`，引擎服务目录）— 游戏循环顶部挂钩 `onLoopTick()`（暂停/挂机照常累计——循环顶部先于暂停分支 continue；切后台循环整体停止 → 自然不累计），`onLoopStart()`（从 GameData 快照恢复，读档/切档天然正确 + 启动即跨天检查），`onLoopStop()`/`checkpointNow()`（幂等 checkpoint，`SaveFacadeImpl` 两快照入口首行调用）；`runtimeState: StateFlow<JadeSymbolRuntimeState>`（1Hz 节流，`total/today/remainingMs/capped`），`GameEngineCore.jadeSymbolState` → `GameEngine.jadeSymbolState` → `GameViewModel.jadeSymbolState`（stateIn WhileSubscribed(5000)，源已 1Hz 无需 sample）
+- **防作弊（第一性设计）** — 发放只由单调时钟（`SystemClock.elapsedRealtime()`，与 GameTimeClock 同 `TimeSource` 注入）驱动：改墙钟无法加速，每枚仍需 20 分钟真实前台时间；墙钟仅用于跨天判定（1s 节流采样，`todayMidnight > anchor` 才重置，回拨 `<=` 防御）；单 tick delta 裁剪 10s（OEM 挂起恢复不补记）；拿满 30 冻结累计，次日 0 点恢复；旧档 anchor=0 首次锚定无追溯发放；跨天优先于发放（同一 update 事务互斥）。已知残余风险（书面接受）：快进-回拨循环可绕日上限，但时间产出率不可作弊
+- **高频写权衡** — 运行时 @Volatile 字段纯算术累计，GameData 写入仅发生在发放/跨天/循环停止/存档时（正常约 1 次/20 分钟）；代价：闪退损失当次周期最多 20 分钟累计
+- **UI** — `JadeSymbolBadge`（宗门信息卡片外部右侧：半透明深底圆角条 `Color(0x80000000)` + 左侧玉符图标 12dp（与卡片内灵石图标同尺寸）+ 白字数量，整体可点击）插入 `MainGameScreen` isUiVisible 组；`JadeSymbolDialog`（复用 `StandardPromptDialog`：说明文案"游戏时长每过20分钟获得1玉符，单日最多获得30玉符" + 红色 Bold 倒计时 mm:ss 由 1Hz 流驱动无本地计时器，拿满显示"今日已达上限"）；`DialogType.JadeSymbol` 注册 → OverlayDialogRouter 系统组 → `DialogSystemRoutes` 分支 → `DialogTypeRenderCoverageTest` 登记
+- **素材** — `玉符.png`（518×767 RGBA）转无损 WebP 置入 app/feature:game 两模块 drawable-nodpi，`SpriteRegistryData.SPRITES_UI` 注册 `jade_symbol`，PNG 源不提交
+- **迁移** — `MIGRATION_41_42`（4 条 `ALTER TABLE game_data ADD COLUMN` 默认 0），`DATABASE_VERSION 41→42`，schema 42.json 提交；`RoomMigrationTest` 新增 v42 双用例（真实 Room schema 校验 + 加列默认值）
+- **存档守卫** — `JadeSymbolNonNegativeRule`（order=23，SaveValidationRuleRegistry.registerDefaults）：jadeSymbols 钳 [0, Int.MAX-DAILY_CAP]、jadeSymbolsToday 钳 [0, DAILY_CAP]、负 anchor 钳 0、jadeAccumMs 钳 [0, INTERVAL_MS-1]（**上限严格小于发放阈值**——"恰等于 20 分钟"的存档会读档首帧免费 +1，配合改档循环可无限刷，防手改存档刷玉符）
+- **测试** — `JadeSymbolServiceTest` 18 例（发放/整除边界/40 分钟 2 枚/10s 裁剪/日上限冻结/跨天重置/墙钟回拨不重置/快进多天只重置一次/旧档锚定/首帧延迟锚定/未启动 checkpoint 守卫/恢复值钳制/存档恢复/checkpoint 幂等/多档隔离/1Hz 节流/delta<=0/跨天优先于发放），`JadeSymbolNonNegativeRuleTest` 11 例，6 个 GameEngineCore 测试文件构造参数同步；全模块 compileReleaseKotlin + 单测串行通过
+- **墙钟豁免论证（expansion-playbook L22）** — 玉符不是进度系统，是墙钟概念货币（在线时长福利），与游戏内进度完全解耦：不参与游戏时间结算、不产生游戏内收益、无离线收益、不进仓库；豁免理由见 docs/knowledge-base.md 经济基线表
+- **对抗性审查（三角色：边界狂魔/状态破坏者/数据篡改者）6 项修复** — ① **[严重] 主线程 update 守卫**：`stateStore.update` 有主线程运行时守卫（Debug `error()` 崩 / Release 静默丢弃），而 `stopGameLoop→onLoopStop→checkpointNow` 挂在主线程链路（onPause 后台切换）、`startGameLoop→onLoopStart→maybeDayReset` 挂在 onResume 链路——每次切后台往返丢 ≤20 分钟进度。**根治**：`onLoopStop()` 移入游戏循环协程 finally（引擎线程，天然覆盖 cancel/emergencyRestart/正常退出全部停止路径）；`onLoopStart` 的跨天检查/首次锚定写入延迟到引擎线程首帧 tick（`pendingDayResetCheck`），启动路径只读快照零写入；② **[中等] settleGrants 增量写→绝对值写**：与 checkpointNow 并发交错时幂等（消除双加竞态）；③ **[中等] accumMs 钳制 off-by-one**：上限从 INTERVAL_MS 收紧到 INTERVAL_MS-1（含服务端 onLoopStart 双重防御 `coerceAtMost`）+ today 钳 DAILY_CAP + jadeSymbols 钳 Int.MAX-DAILY_CAP（防 Int 溢出回绕）；④ **[中等] emergencyRestart 丢累计**：随 finally 方案自动覆盖（看门狗换线程重启也 checkpoint）；⑤ **[轻微] 墙钟回拨后 1s 节流永不触发**：回拨（nowWall < lastWallCheckMs）时跳过节流直接采样；⑥ **[轻微] checkpointNow 未启动守卫**：`lastSampleMs==0` 跳过（防零值覆盖已持久化玉符）。书面接受（设计级）：客户端本地货币可被手改存档持有量——纯客户端无服务器权威校验，未来上商店须服务端校验
+
 ## [4.00.90] - 2026-08-06
 
 ### 调整（2026-08-07 排行榜入口图标替换）

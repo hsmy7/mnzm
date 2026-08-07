@@ -327,6 +327,8 @@ internal val SPRITES_UI = mapOf(
         "spirit_stone_low" to R.drawable.spirit_stone_low,
         "spirit_stone_mid" to R.drawable.spirit_stone_mid,
         "spirit_stone_high" to R.drawable.spirit_stone_high,
+        // 玉符（氪金货币，宗门信息卡片右侧显示）
+        "jade_symbol" to R.drawable.jade_symbol,
         "golden_finger" to R.drawable.golden_finger,
         "secret_realm_option_card" to R.drawable.secret_realm_option_card,
         // 历战入口与活动卡片

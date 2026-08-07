@@ -630,6 +630,21 @@ fun watchAdForNewFeature() {
 | 耗（汇） | 月薪发放 | `SalaryConfig` 可配置 | `SalaryConfigDialog`、`CultivationEventProcessor` |
 | 耗（汇） | 偷盗损失 | 道德<30 弟子偷盗（≤宗门 10%、年上限 3 次） | `GameEngineBattleOps.kt`、`GameConfig.THEFT_*` |
 
+### 玉符（氪金货币）经济登记与墙钟豁免论证（2026-08-07）
+
+> 玉符独立于灵石体系：不占宗门仓库、无品阶、不走 `InventorySystem`/`OverflowMailSender`/`withTrackingSource`。
+
+| 方向 | 入口 | 说明 | 代码位置 |
+|------|------|------|---------|
+| 产（源） | 在线时长 | 真实前台运行每满 20 分钟 1 枚（挂机/暂停累计、后台不累计），单日上限 30，墙钟次日 0 点重置 | `JadeSymbolService.kt`、`GameConfig.Jade` |
+| 耗（汇） | 暂无 | 未来商店消耗源（用户确认当前仅获取；引入消耗时再建 `JadeSymbolWallet` 与来源字典） | — |
+
+**墙钟豁免论证（`rules/expansion-playbook.md` L22"禁止以现实时间为准"）**：玉符**不是进度系统**，是墙钟概念货币（对标商业游戏在线时长福利——原神月卡/星铁每日、放置类游戏挂机收益），与游戏内进度完全解耦：不参与游戏时间结算（不加速修炼/战斗/生产）、不产生任何游戏内收益、无离线收益、不进仓库、不参与排行榜。发放由单调时钟驱动（改墙钟无法加速，每枚仍需 20 分钟真实前台时间），仅跨天重置依赖墙钟。豁免理由：货币获取通道而非进度结算轨道。
+
+**防作弊要点**（详见 `JadeSymbolService.kt` KDoc）：单调时钟差分累计（单 tick 裁剪 10s，OEM 挂起不补记）；墙钟 1s 节流采样 + 午夜锚点（回拨 `todayMidnight <= anchor` 不重置，回拨时跳过节流直接采样）；拿满冻结累计；旧档锚点 0 首次锚定无追溯发放；`SaveValidator` 的 `JadeSymbolNonNegativeRule`（order=23）钳制手改存档：accumMs 上限 `INTERVAL_MS - 1`（**严格小于发放阈值**，防"恰等于 20 分钟"读档首帧免费 +1 循环刷）、today 钳 `DAILY_CAP`、jadeSymbols 钳 `Int.MAX-DAILY_CAP`（防溢出回绕）。已知残余风险（书面接受）：快进-回拨循环可绕日上限，但时间产出率不可作弊；客户端本地货币持有量可被手改（无服务器权威校验，未来上商店须服务端校验）。
+
+**线程模型约束（2026-08-07 对抗性审查根治）**：`stateStore.update` 有主线程运行时守卫（Debug `error()` / Release 静默丢弃）——玉符的 GameData 写入全部只发生在引擎线程：`onLoopStop()` 挂在游戏循环协程 finally（覆盖 cancel/emergencyRestart/正常退出全部停止路径），`onLoopStart()` 只读快照、跨天检查/首次锚定写入延迟到引擎线程首帧 tick；`checkpointNow()` 未启动（`lastSampleMs==0`）时跳过。
+
 ### iOS 跨平台可移植性基线
 
 > 用途：`rules/code-quality.md` 跨平台章节的"现有基线"。游戏未来要做 iOS 端，本表记录当前已跨平台与 Android 独占的技术栈。

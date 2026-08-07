@@ -74,6 +74,7 @@ class RoomMigrationTest {
         private val M38_39 = MIGRATION_38_39
         private val M39_40 = MIGRATION_39_40
         private val M40_41 = MIGRATION_40_41
+        private val M41_42 = MIGRATION_41_42
 
         // v38 种子行（含被删除的 auto 开关列；列清单来自 38.json，仅用于迁移重建测试）
         private val SEED_DISCIPLES_V38 = """
@@ -262,8 +263,8 @@ class RoomMigrationTest {
         try {
             createDatabaseFromSchema(context, dbName, 38).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                // 实体当前版本 41：仅注册 M38_39 时 Room 要求 38→41 迁移路径
-                .addMigrations(M38_39, M39_40, M40_41)
+                // 实体当前版本 42：仅注册 M38_39 时 Room 要求 38→42 迁移路径
+                .addMigrations(M38_39, M39_40, M40_41, M41_42)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -273,7 +274,7 @@ class RoomMigrationTest {
     }
 
     /**
-     * 全链真实 Room 校验：v11 库一次性升级到 v41，触发 onValidateSchema 对全部表
+     * 全链真实 Room 校验：v11 库一次性升级到 v42，触发 onValidateSchema 对全部表
      * 做列/索引/外键全等校验——任何历史迁移的陈旧列/缺索引都会在此暴露。
      *
      * 起点选择 v11 而非 v2：仓库提交的 2.json 是陈旧导出（917416ce 时版本已 11，
@@ -283,9 +284,9 @@ class RoomMigrationTest {
      * game_data ALTER，风险由下方数据保真测试覆盖。
      */
     @Test
-    fun `full migration v11 to v41 passes real Room schema validation`() {
+    fun `full migration v11 to v42 passes real Room schema validation`() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
-        val dbName = "full_migrate_v41_room_validate"
+        val dbName = "full_migrate_v42_room_validate"
         context.deleteDatabase(dbName)
         try {
             createDatabaseFromSchema(context, dbName, 11).close()
@@ -295,7 +296,7 @@ class RoomMigrationTest {
                     M16_17, M17_18, M18_19, M19_20, M20_21, M21_22,
                     M22_23, M23_24, M24_25, M25_26, M26_27, M27_28,
                     M28_29, M29_30, M30_31, M31_32, M32_33, M33_34, M34_35, M35_36,
-                    M36_37, M37_38, M38_39, M39_40, M40_41
+                    M36_37, M37_38, M38_39, M39_40, M40_41, M41_42
                 )
                 .build()
             roomDb.openHelper.writableDatabase
@@ -318,8 +319,8 @@ class RoomMigrationTest {
         try {
             createDatabaseFromSchema(context, dbName, 39).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                // 实体当前版本 41：完整迁移路径 39→41
-                .addMigrations(M39_40, M40_41)
+                // 实体当前版本 42：完整迁移路径 39→42
+                .addMigrations(M39_40, M40_41, M41_42)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -372,9 +373,63 @@ class RoomMigrationTest {
         try {
             createDatabaseFromSchema(context, dbName, 40).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M40_41)
+                .addMigrations(M40_41, M41_42)
                 .build()
             db.openHelper.writableDatabase
+            db.close()
+        } finally {
+            context.deleteDatabase(dbName)
+        }
+    }
+
+    /**
+     * 真实 Room 校验：v41 库升级到 v42（玉符氪金货币四列），
+     * 触发 onValidateSchema——任何列定义与实体注解不一致都会在此崩溃
+     * （对齐 v40→v41 的真实 Room 校验模式）。
+     */
+    @Test
+    fun `MIGRATION_41_TO_42 passes real Room schema validation`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dbName = "m_41_42_room_validate"
+        context.deleteDatabase(dbName)
+        try {
+            createDatabaseFromSchema(context, dbName, 41).close()
+            val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
+                .addMigrations(M41_42)
+                .build()
+            db.openHelper.writableDatabase
+            db.close()
+        } finally {
+            context.deleteDatabase(dbName)
+        }
+    }
+
+    @Test
+    fun `MIGRATION_41_TO_42 adds 4 jade columns with default 0`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dbName = "m_41_42_columns"
+        context.deleteDatabase(dbName)
+        try {
+            val db = createDatabaseFromSchema(context, dbName, 41)
+            // 手动执行迁移 SQL（真实 Room 校验由上一测试覆盖）
+            listOf(M41_42).forEach { it.migrate(db) }
+
+            assertTrue(columnExists(db, "game_data", "jade_symbols"))
+            assertTrue(columnExists(db, "game_data", "jade_symbols_today"))
+            assertTrue(columnExists(db, "game_data", "jade_day_anchor_ms"))
+            assertTrue(columnExists(db, "game_data", "jade_accum_ms"))
+
+            val defaults = db.query("PRAGMA table_info(game_data)").use { cursor ->
+                val map = mutableMapOf<String, String?>()
+                while (cursor.moveToNext()) {
+                    map[cursor.getString(1)] = cursor.getString(4)
+                }
+                map
+            }
+            assertEquals("jade_symbols 默认 0", "0", defaults["jade_symbols"])
+            assertEquals("jade_symbols_today 默认 0", "0", defaults["jade_symbols_today"])
+            assertEquals("jade_day_anchor_ms 默认 0", "0", defaults["jade_day_anchor_ms"])
+            assertEquals("jade_accum_ms 默认 0", "0", defaults["jade_accum_ms"])
             db.close()
         } finally {
             context.deleteDatabase(dbName)

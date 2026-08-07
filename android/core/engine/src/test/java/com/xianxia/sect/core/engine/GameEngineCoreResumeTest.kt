@@ -6,6 +6,8 @@ import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.state.BootPhase
 import com.xianxia.sect.core.state.RunState
 import com.xianxia.sect.core.engine.system.GameTimeClock
+import com.xianxia.sect.core.engine.service.JadeSymbolService
+import com.xianxia.sect.core.engine.service.WallClock
 import com.xianxia.sect.core.engine.system.TimeSource
 import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
@@ -254,7 +256,12 @@ class GameEngineCoreResumeTest {
             gameClock = gameClock,
             thermalController = mock(ThermalController::class.java),
             thermalMonitor = mock(com.xianxia.sect.core.perf.ThermalMonitor::class.java),
-            spiritStoneWallet = mock(SpiritStoneWallet::class.java)
+            spiritStoneWallet = mock(SpiritStoneWallet::class.java),
+            jadeSymbolService = JadeSymbolService(
+                timeSource = TimeSource { 0L },
+                stateStore = stateStore,
+                wallClock = WallClock { 0L }
+            )
         )
     }
 

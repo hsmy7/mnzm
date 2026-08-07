@@ -131,7 +131,20 @@ object GameConfig {
         const val HIGH_FREQUENCY_UPDATE_INTERVAL = 1000L
         const val LOW_FREQUENCY_UPDATE_INTERVAL = 2000L
     }
-    
+
+    /**
+     * 玉符（氪金货币）— 墙钟货币，按真实前台游玩时长发放，与游戏时间（年/月/旬）完全解耦。
+     * 不占仓库、无品阶，不走 InventorySystem；单日上限次日凌晨 12 点重置。
+     */
+    object Jade {
+        /** 每获得 1 枚玉符所需的真实前台游玩时长（20 分钟） */
+        const val INTERVAL_MS = 20 * 60 * 1000L
+        /** 单日（墙钟 0 点起）通过游玩时长最多获得的玉符数量 */
+        const val DAILY_CAP = 30
+        /** 单 tick 累计增量上限（ms）：OEM 挂起恢复不补记，镜像引擎 MAX_PHASES_PER_TICK 语义 */
+        const val MAX_TICK_DELTA_MS = 10_000L
+    }
+
     object Cultivation {
         /** 单灵根每旬修炼速度（按境界查表，realm → 每旬修为值） */
         val REALM_SPEED_PER_PHASE: Map<Int, Double> = mapOf(
