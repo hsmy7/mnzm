@@ -28,6 +28,9 @@ import com.xianxia.sect.ui.components.getTalentRarityColor
 import com.xianxia.sect.ui.game.LocalDismissDropdown
 import com.xianxia.sect.ui.theme.GameColors
 
+/** 特质名称格子目标宽度（dp）：需单行容纳 4 个汉字加粗名称（10sp ≈44dp，含字体缩放余量与内边距） */
+private const val TRAIT_CELL_TARGET_WIDTH_DP = 100
+
 @Composable
 fun TalentsSection(
     talents: List<Talent>,
@@ -51,7 +54,7 @@ fun TalentsSection(
                 color = Color.Black
             )
         } else {
-            val talentColumnCount = maxOf(1, (LocalConfiguration.current.screenWidthDp / 80))
+            val talentColumnCount = maxOf(1, (LocalConfiguration.current.screenWidthDp / TRAIT_CELL_TARGET_WIDTH_DP))
             talents.chunked(talentColumnCount).forEach { rowTalents ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -110,7 +113,7 @@ fun PhysiquesSection(
                 color = Color.Black
             )
         } else {
-            val columnCount = maxOf(1, (LocalConfiguration.current.screenWidthDp / 80))
+            val columnCount = maxOf(1, (LocalConfiguration.current.screenWidthDp / TRAIT_CELL_TARGET_WIDTH_DP))
             physiques.chunked(columnCount).forEach { rowItems ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -169,7 +172,7 @@ fun AffixesSection(
                 color = Color.Black
             )
         } else {
-            val columnCount = maxOf(1, (LocalConfiguration.current.screenWidthDp / 80))
+            val columnCount = maxOf(1, (LocalConfiguration.current.screenWidthDp / TRAIT_CELL_TARGET_WIDTH_DP))
             affixes.chunked(columnCount).forEach { rowItems ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
