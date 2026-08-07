@@ -220,38 +220,38 @@ object GameConfig {
     
     object Realm {
         val CONFIGS = mapOf(
-            9 to RealmConfig(9, "炼气", 65, 10,
+            9 to RealmConfig(9, "炼气", 98, 10,
                 maxAge = 80, maxLayers = 9,
                 baseHp = 203, baseMp = 78, basePhysicalAttack = 16, baseMagicAttack = 16,
                 basePhysicalDefense = 13, baseMagicDefense = 10, baseSpeed = 15),
-            8 to RealmConfig(8, "筑基", 260, 30,
+            8 to RealmConfig(8, "筑基", 390, 30,
                 maxAge = 120, maxLayers = 9,
                 baseHp = 507, baseMp = 195, basePhysicalAttack = 39, baseMagicAttack = 39,
                 basePhysicalDefense = 33, baseMagicDefense = 26, baseSpeed = 38),
-            7 to RealmConfig(7, "金丹", 1040, 50,
+            7 to RealmConfig(7, "金丹", 1560, 50,
                 maxAge = 200, maxLayers = 9,
                 baseHp = 1318, baseMp = 507, basePhysicalAttack = 101, baseMagicAttack = 101,
                 basePhysicalDefense = 85, baseMagicDefense = 68, baseSpeed = 98),
-            6 to RealmConfig(6, "元婴", 3900, 80,
+            6 to RealmConfig(6, "元婴", 5850, 80,
                 maxAge = 300, maxLayers = 9,
                 baseHp = 3448, baseMp = 1326, basePhysicalAttack = 265, baseMagicAttack = 265,
                 basePhysicalDefense = 221, baseMagicDefense = 177, baseSpeed = 255),
-            5 to RealmConfig(5, "化神", 13000, 110,
+            5 to RealmConfig(5, "化神", 19500, 110,
                 maxAge = 500, maxLayers = 9,                baseHp = 9126, baseMp = 3510, basePhysicalAttack = 702, baseMagicAttack = 702,
                 basePhysicalDefense = 585, baseMagicDefense = 468, baseSpeed = 675),
-            4 to RealmConfig(4, "炼虚", 39000, 180,
+            4 to RealmConfig(4, "炼虚", 58500, 180,
                 maxAge = 800, maxLayers = 9,                baseHp = 22308, baseMp = 8580, basePhysicalAttack = 1716, baseMagicAttack = 1716,
                 basePhysicalDefense = 1430, baseMagicDefense = 1144, baseSpeed = 1650),
-            3 to RealmConfig(3, "合体", 130000, 220,
+            3 to RealmConfig(3, "合体", 195000, 220,
                 maxAge = 1500, maxLayers = 9,                baseHp = 52728, baseMp = 20280, basePhysicalAttack = 4056, baseMagicAttack = 4056,
                 basePhysicalDefense = 3380, baseMagicDefense = 2704, baseSpeed = 3900),
-            2 to RealmConfig(2, "大乘", 390000, 280,
+            2 to RealmConfig(2, "大乘", 585000, 280,
                 maxAge = 2500, maxLayers = 9,                baseHp = 117624, baseMp = 45240, basePhysicalAttack = 9048, baseMagicAttack = 9048,
                 basePhysicalDefense = 7540, baseMagicDefense = 6032, baseSpeed = 8700),
-            1 to RealmConfig(1, "渡劫", 1300000, 360,
+            1 to RealmConfig(1, "渡劫", 1950000, 360,
                 maxAge = 4000, maxLayers = 9,                baseHp = 243360, baseMp = 93600, basePhysicalAttack = 18720, baseMagicAttack = 18720,
                 basePhysicalDefense = 15600, baseMagicDefense = 12480, baseSpeed = 18000),
-            0 to RealmConfig(0, "仙人", 3900000, 500,
+            0 to RealmConfig(0, "仙人", 5850000, 500,
                 maxAge = 9999, maxLayers = 9,                baseHp = 507000, baseMp = 195000, basePhysicalAttack = 39000, baseMagicAttack = 39000,
                 basePhysicalDefense = 32500, baseMagicDefense = 26000, baseSpeed = 37500)
         )
@@ -329,11 +329,11 @@ object GameConfig {
         val ELEMENTS = listOf("金", "木", "水", "火", "土")
         
         val TYPES = mapOf(
-            "metal" to SpiritRootConfig("metal", "金", "#f1c40f", 1.0),
-            "wood" to SpiritRootConfig("wood", "木", "#27ae60", 1.0),
-            "water" to SpiritRootConfig("water", "水", "#3498db", 1.0),
-            "fire" to SpiritRootConfig("fire", "火", "#e74c3c", 1.0),
-            "earth" to SpiritRootConfig("earth", "土", "#95a5a6", 1.0)
+            "metal" to SpiritRootConfig("metal", "金", "#f1c40f"),
+            "wood" to SpiritRootConfig("wood", "木", "#27ae60"),
+            "water" to SpiritRootConfig("water", "水", "#3498db"),
+            "fire" to SpiritRootConfig("fire", "火", "#e74c3c"),
+            "earth" to SpiritRootConfig("earth", "土", "#95a5a6")
         )
         
         // 灵根数量权重配置（增量值，非累积值）
@@ -810,8 +810,7 @@ object GameConfig {
     data class SpiritRootConfig(
         val type: String,
         val name: String,
-        val color: String,
-        val cultivationBonus: Double
+        val color: String
     )
     
     data class StartingResources(

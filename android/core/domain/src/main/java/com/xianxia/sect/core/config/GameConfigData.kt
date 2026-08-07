@@ -78,9 +78,6 @@ data class GameConfigData(
 
     @Serializable
     data class CultivationSection(
-        val baseSpeed: Double = 8.0,
-        val realmSpeedBonusThreshold: Int = 3,
-        val realmSpeedBonus: Double = 1.5,
         val dailyHpMpRecoveryRate: Double = 0.05
     )
 

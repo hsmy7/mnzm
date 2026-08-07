@@ -356,10 +356,6 @@ data class SpiritRoot(
         5 -> "#95A5A6"
         else -> "#95A5A6"
     }
-
-    /** 灵根修炼速度系数（1/灵根数）。仅用于 UI 显示兼容。 */
-    val cultivationBonus: Double
-        get() = 1.0 / types.size.coerceAtLeast(1)
 }
 
 @Keep

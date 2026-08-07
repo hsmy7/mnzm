@@ -162,7 +162,8 @@ class CultivationServiceIntegrationTest {
 
     @Test
     fun `accumulateCultivationPerPhase caps at max cultivation`() {
-        insertDisciple(id = 1, cultivation = 45.0, realm = 9)  // maxCultivation=50，加1旬速率后可能超过
+        // maxCultivation=98（炼气 1 层），双灵根速率 9.5/旬：95 + 9.5 > 98，1 旬后触发封顶
+        insertDisciple(id = 1, cultivation = 95.0, realm = 9)
 
         val state = MutableGameState(
             gameData = GameData(gameYear = 1, gameMonth = 1),
@@ -186,8 +187,8 @@ class CultivationServiceIntegrationTest {
             after <= disciple.maxCultivation
         )
         assertTrue(
-            "cultivation $after should have increased above initial 45",
-            after >= 45.0
+            "cultivation $after should have increased above initial 95",
+            after >= 95.0
         )
     }
 }

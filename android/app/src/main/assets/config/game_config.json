@@ -33,9 +33,6 @@
     "lowFrequencyUpdateInterval": 2000
   },
   "cultivation": {
-    "baseSpeed": 8.0,
-    "realmSpeedBonusThreshold": 3,
-    "realmSpeedBonus": 1.5,
     "dailyHpMpRecoveryRate": 0.05
   },
   "production": {

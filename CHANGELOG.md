@@ -29,6 +29,15 @@
 - **测试** — 新增 `RarityTimeProgressionTest` 20 例（分段边界/保底全段含 3000 年后必出天品/用户数据点/天品≤2% 全年份扫描/3000 年后单调性与封顶稳定/归一化/键集/段内线性/确定性/频率校验）；`MerchantAndRecruitServiceTest` 替换守卫 + 新增 selectRarity 年份边界 3 例 + 保底 2 例（stub SYSTEM 分区 RNG）；`DiplomacyServicePureLogicTest` 重写（确定性含 UUID 归一化/年份敏感/灵石门控 5 年无 2000 年有/品阶上限/年度刷新判据满 3 年刷空列表兜底/无宗门详情防御）；`CultivationEventProcessorTest`/`CultivationEventProcessorAutoWarehouseTest` 构造参数同步；detekt-baseline 清理 1 条 stale 条目
 - 全模块 compileReleaseKotlin + 四模块单测串行（--max-workers=1）+ detekt 全部通过，Room schema 无变化
 
+### 调整（2026-08-07 各境界修为值要求提升 50%）
+
+- **修为值要求全量提升 50%** — `GameConfig.Realm.CONFIGS` 10 个境界的 `cultivationBase` 全部 ×1.5 向上取整（宁多不少）：炼气 65→98、筑基 260→390、金丹 1040→1560、元婴 3900→5850、化神 13000→19500、炼虚 39000→58500、合体 130000→195000、大乘 390000→585000、渡劫 1300000→1950000、仙人 3900000→5850000
+- **小层自动跟随** — 小层修为需求由 `maxCultivation` 线性插值公式派生（4 处副本：`Disciple`/`DiscipleCore`/`CultivationService.computeMaxCultivation`/`CultivationCapRule`），相邻基准均向上取整后整条插值线 ≥ 原线 ×1.5，满足"宁多不少"
+- **AI 弟子同步生效** — AI 弟子与玩家共用同一套 `cultivationBase` 配置（`AISectDiscipleManager` 初始修为按 `0~80% × cultivationBase` 相对生成、突破循环用同一 `maxCultivation`），无需单独改动
+- **旧档零迁移** — `maxCultivation` 是派生计算值不落盘，旧档弟子需求自动变高；无 Entity 变更、无 Migration、Room schema 无变化。修炼速率表（`REALM_SPEED_PER_PHASE`）与突破概率表（`BREAKTHROUGH_CHANCES`）均不变，突破耗时自然拉长约 50%
+- **测试** — `GameConfigTest` 10 个 cultivationBase 断言与测试名同步更新（含 65→98 的唯一向上取整项）；其余测试均为相对断言/灌满值触发，不受影响
+- 全模块 compileReleaseKotlin + 四模块单测串行（--max-workers=1）+ detekt + lintRelease 全部通过，Room schema 无变化
+
 ## [4.00.90] - 2026-08-06
 
 ### 调整（2026-08-07 排行榜入口图标替换）
