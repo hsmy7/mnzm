@@ -164,6 +164,9 @@ fun PlantingDialog(
 
     val unplantedCount = fieldGroups.firstOrNull { it.seedId.isEmpty() }?.fields?.size ?: 0
 
+    // Bug B 修复：可种植数量同时受种子数量约束（引擎层有兜底，此处避免按钮误导）
+    val maxPlantable = minOf(unplantedCount, selectedSeed?.quantity ?: 0)
+
     // ── 分页（动态计算每页数量） ─────────────────────────────
     var dynPageSize by remember { mutableIntStateOf(12) }
     val totalPages = maxOf(1, ceil(activeSeeds.size.toDouble() / dynPageSize.coerceAtLeast(1)).toInt())
@@ -521,11 +524,11 @@ fun PlantingDialog(
                                     val filtered = newValue.filter { it.isDigit() }
                                     val num = filtered.toIntOrNull()
                                     qtyInput = if (num != null) {
-                                        num.coerceIn(1, unplantedCount.coerceAtLeast(1)).toString()
+                                        num.coerceIn(1, maxPlantable.coerceAtLeast(1)).toString()
                                     } else {
                                         filtered
                                     }
-                                    if (num != null) plantQuantity = num.coerceIn(1, unplantedCount.coerceAtLeast(1))
+                                    if (num != null) plantQuantity = num.coerceIn(1, maxPlantable.coerceAtLeast(1))
                                 },
                                 modifier = Modifier.width(40.dp)
                                     .background(Color.White, RoundedCornerShape(4.dp))
@@ -544,11 +547,11 @@ fun PlantingDialog(
                                 fontWeight = FontWeight.Bold,
                                 color = Color.Black,
                                 modifier = Modifier
-                                    .alpha(if (plantQuantity < unplantedCount) 1f else 0.3f)
+                                    .alpha(if (plantQuantity < maxPlantable) 1f else 0.3f)
                                     .clickableWithSound(
                                         interactionSource = incInteraction,
                                         indication = null,
-                                        enabled = plantQuantity < unplantedCount
+                                        enabled = plantQuantity < maxPlantable
                                     ) {
                                         plantQuantity++
                                         qtyInput = plantQuantity.toString()
@@ -559,7 +562,7 @@ fun PlantingDialog(
                                 fontSize = 12.sp,
                                 color = Color.Black,
                                 modifier = Modifier.clickableWithSound(interactionSource = maxInteraction, indication = null) {
-                                    plantQuantity = unplantedCount.coerceAtLeast(1)
+                                    plantQuantity = maxPlantable.coerceAtLeast(1)
                                     qtyInput = plantQuantity.toString()
                                 }
                             )
@@ -567,7 +570,7 @@ fun PlantingDialog(
                                 text = "种植",
                                 enabled = selectedSeed != null && unplantedCount > 0,
                                 onClick = {
-                                    val toPlant = plantQuantity.coerceAtMost(unplantedCount)
+                                    val toPlant = plantQuantity.coerceAtMost(maxPlantable)
                                     val unplantedFields =
                                         fieldGroups.firstOrNull { it.seedId.isEmpty() }?.fields
                                             ?: emptyList()

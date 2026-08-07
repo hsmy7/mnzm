@@ -408,7 +408,7 @@ private fun SectPoliciesDialog(
 
                     PolicyItem(
                         title = "灵泉灌溉",
-                        effect = "灵田产量+15%",
+                        effect = "灵田生长速度+15%",
                         cost = "月耗2000灵石",
                         checked = sectPolicies?.spiritSpring ?: false,
                         onCheckedChange = { productionViewModel.toggleSpiritSpring() }

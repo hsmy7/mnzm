@@ -197,58 +197,54 @@ class ProductionProcessor @Inject constructor(
         val data = state.gameData
         val currentYear = data.gameYear
         val currentMonth = data.gameMonth
-        val tables = state.discipleTables
-
-        // 从影子组件表组装存活弟子（仅用于长老加成的属性查询）
-        val allDisciples = tables.ids.filter { tables.isAlive[it] == 1 }
-            .map { tables.assemble(it) }
-
         val plants = data.spiritFieldPlants
         if (plants.isEmpty()) return
 
-        var updatedPlants = plants
+        // 全局加成/光环索引/草药仓库/地块列表副本均只构建一次（O(d+b+h+n) 总量，
+        // 原实现每块地重复 O(d)+O(b)+O(n)+O(h)，地块多时引擎线程持锁阻塞 UI 导致卡死）
+        val context = buildHarvestMaturityContext(data, state.discipleTables)
+        val herbStore = buildHarvestHerbStore(state)
+        val newPlants = plants.toMutableList()
         var hasChanges = false
 
-        plants.forEach { plant ->
-            if (plant.seedId.isEmpty() || plant.growTime <= 0) return@forEach
+        plants.forEachIndexed { index, plant ->
+            if (plant.seedId.isEmpty() || plant.growTime <= 0) return@forEachIndexed
 
             val elapsedMonths = ((currentYear - plant.plantYear) * 12 +
                 (currentMonth - plant.plantMonth)).coerceAtLeast(0)
-            val speedBonus = calculateSpiritFieldMaturityBonus(plant, data, allDisciples)
             val effectiveGrowTime = HerbGardenAuraService.calculateEffectiveGrowTime(
-                plant.growTime, speedBonus)
+                plant.growTime, context.bonusFor(plant.buildingInstanceId))
 
             if (elapsedMonths >= effectiveGrowTime) {
                 val dbHerb = HerbDatabase.getHerbFromSeedName(plant.seedName)
                 if (dbHerb == null) {
                     DomainLog.w(TAG, "processSpiritFieldHarvest: 未找到种子 " +
                         "${plant.seedName} 对应的灵草定义，跳过收获")
-                    return@forEach
+                    return@forEachIndexed
                 }
-                addHarvestedHerbsToState(plant, dbHerb, state)
-                // 引导系统：累计收获灵植（annualHerbBySource 由 addHerb 内部按实际收获量累加）
+                addHarvestedHerb(plant, dbHerb, herbStore, state)
+                // 引导系统：累计收获灵植（annualHerbBySource 由 addHarvestedHerb 内部按实际收获量累加）
                 val prevHerbCount = state.gameData.guideCounters[GuideCounterKeys.HERBS_HARVESTED] ?: 0L
                 state.gameData = state.gameData.copy(
                     guideCounters = state.gameData.guideCounters + (GuideCounterKeys.HERBS_HARVESTED to prevHerbCount + 1),
                     annualHerbCount = state.gameData.annualHerbCount + 1
                 )
-
-                val (newPlants, changed) = updateSlotAfterHarvest(
-                    plant, state, currentYear, currentMonth, updatedPlants)
-                if (changed) {
-                    updatedPlants = newPlants
-                    hasChanges = true
-                }
+                updateSlotAfterHarvest(index, plant, state, currentYear, currentMonth, newPlants)
+                hasChanges = true
             }
         }
 
         if (hasChanges) {
-            state.gameData = data.copy(spiritFieldPlants = updatedPlants)
+            // 整轮只 replaceAll 一次（原每块地一次 O(h) 重建）
+            state.herbs.replaceAll(herbStore.all())
+            // Bug A 修复：基于循环期间最新 gameData（含 guideCounters/annualHerbCount/
+            // annualHerbBySource），原实现用函数开头捕获的旧 data 引用覆盖写回导致统计字段丢失
+            state.gameData = state.gameData.copy(spiritFieldPlants = newPlants)
         }
     }
 
     /**
-     * 将收获的灵草合并到传入的事务缓冲 state 中（自动类：PlantingSystem 月度自动触发）。
+     * 将收获的灵草合并到整轮共享的草药合并仓库（自动类：PlantingSystem 月度自动触发）。
      *
      * 本方法直接操作 state 参数（区别于其他服务的 stateStore.update 模式——
      * 灵田收获由 PlantingSystem.onMonthlyEvent 传入事务缓冲），
@@ -256,11 +252,14 @@ class ProductionProcessor @Inject constructor(
      * 仓库满时溢出部分通过 [InventorySystem.sendOverflowMail] 转为邮件通知玩家
      * （自动类路径物品不丢失），年度报告按实际入库量累加。
      *
+     * @param herbStore 整轮收获共享的草药合并仓库（由 [buildHarvestHerbStore] 构建一次，
+     *        替代原实现每块地重建 O(h)）
      * @return 实际入库数量
      */
-    private fun addHarvestedHerbsToState(
+    private fun addHarvestedHerb(
         plant: SpiritFieldPlant,
         dbHerb: HerbDatabase.Herb,
+        herbStore: StackableItemStore<Herb>,
         state: MutableGameState
     ): Int {
         val finalYield = plant.expectedYield.coerceAtLeast(1)
@@ -270,17 +269,7 @@ class ProductionProcessor @Inject constructor(
             description = dbHerb.description,
             category = dbHerb.category, quantity = finalYield
         )
-        val otherTypes = state.equipmentStacks.size + state.manualStacks.size +
-            state.pills.size + state.materials.size + state.seeds.size
-        val store = StackableItemStore(
-            initialItems = state.herbs.all(),
-            stackKeyOf = StackKeys::herb,
-            maxStack = inventoryConfig.getMaxStackSize("herb"),
-            maxSlots = { state.computeMaxSlots() - otherTypes },
-            notFound = { AppError.Domain.Inventory.NotFound(it) }
-        )
-        val result = store.add(newHerb)
-        state.herbs.replaceAll(store.all())
+        val result = herbStore.add(newHerb)
         val actualAdded = when (result) {
             is DomainResult.Success -> finalYield
             is DomainResult.Partial -> {
@@ -310,22 +299,39 @@ class ProductionProcessor @Inject constructor(
     }
 
     /**
-     * 收获后处理灵田槽位：消耗种子重新种植或清空槽位。
+     * 构建整轮收获共享的草药合并仓库（原实现每块地重建 O(h)，此处一次 O(h)）。
      *
-     * @return Pair(更新后的 plants 列表, 是否有变化)
+     * maxSlots 惰性求值保留"种子消耗释放槽位"的动态语义——轮内只有 seeds.size 会变化
+     * （续种消耗），其余类型槽位（装备/功法/丹药/材料）与 computeMaxSlots
+     * （只依赖 placedBuildings）在轮内固定，故提取为固定值 maxSlotsBase 只计算一次。
+     */
+    private fun buildHarvestHerbStore(state: MutableGameState): StackableItemStore<Herb> {
+        val fixedOtherTypes = state.equipmentStacks.size + state.manualStacks.size +
+            state.pills.size + state.materials.size
+        val maxSlotsBase = state.computeMaxSlots() - fixedOtherTypes
+        return StackableItemStore(
+            initialItems = state.herbs.all(),
+            stackKeyOf = StackKeys::herb,
+            maxStack = inventoryConfig.getMaxStackSize("herb"),
+            maxSlots = { maxSlotsBase - state.seeds.size },
+            notFound = { AppError.Domain.Inventory.NotFound(it) }
+        )
+    }
+
+    /**
+     * 收获后处理灵田槽位：消耗种子重新种植或清空槽位（下标直写，O(1)）。
+     *
+     * @param index 与 newPlants 一一对应的下标（收获循环 forEachIndexed 提供，
+     *        替代原 indexOfFirst + 每块地 toMutableList 的 O(n²) 复制）
      */
     private fun updateSlotAfterHarvest(
+        index: Int,
         plant: SpiritFieldPlant,
         state: MutableGameState,
         currentYear: Int,
         currentMonth: Int,
-        updatedPlants: List<SpiritFieldPlant>
-    ): Pair<List<SpiritFieldPlant>, Boolean> {
-        val idx = updatedPlants.indexOfFirst {
-            it.buildingInstanceId == plant.buildingInstanceId
-        }
-        if (idx < 0) return updatedPlants to false
-
+        newPlants: MutableList<SpiritFieldPlant>
+    ) {
         val matchingSeed = HerbDatabase.getSeedByName(plant.seedName)
         val existingSeed = state.seeds.all().find { s ->
             s.name == plant.seedName &&
@@ -334,29 +340,26 @@ class ProductionProcessor @Inject constructor(
         }
         val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(
             currentYear, currentMonth)
-        val newPlants = updatedPlants.toMutableList().also {
-            if (existingSeed != null) {
-                val newQty = existingSeed.quantity - 1
-                if (newQty <= 0) {
-                    state.seeds.remove(existingSeed.id)
-                } else {
-                    state.seeds.update(existingSeed.id) { it.copy(quantity = newQty) }
-                }
-                it[idx] = it[idx].copy(
-                    plantYear = currentYear, plantMonth = currentMonth,
-                    completionMonth = currentAbsoluteMonth +
-                        plant.growTime.coerceAtLeast(1),
-                    completionPhase = 3
-                )
+        if (existingSeed != null) {
+            val newQty = existingSeed.quantity - 1
+            if (newQty <= 0) {
+                state.seeds.remove(existingSeed.id)
             } else {
-                it[idx] = it[idx].copy(
-                    seedId = "", seedName = "", growTime = 0, expectedYield = 0,
-                    plantYear = 0, plantMonth = 0,
-                    completionMonth = 0, completionPhase = 1
-                )
+                state.seeds.update(existingSeed.id) { it.copy(quantity = newQty) }
             }
+            newPlants[index] = plant.copy(
+                plantYear = currentYear, plantMonth = currentMonth,
+                completionMonth = currentAbsoluteMonth +
+                    plant.growTime.coerceAtLeast(1),
+                completionPhase = 3
+            )
+        } else {
+            newPlants[index] = plant.copy(
+                seedId = "", seedName = "", growTime = 0, expectedYield = 0,
+                plantYear = 0, plantMonth = 0,
+                completionMonth = 0, completionPhase = 1
+            )
         }
-        return newPlants to true
     }
 
     /**
@@ -372,6 +375,50 @@ class ProductionProcessor @Inject constructor(
         /** 计算总加速倍率（纯加成值，如 0.155 = 15.5%） */
         fun totalMultiplier(): Double =
             ZoneCalculator.calculate(1.0, elderZone, auraZone, policyZone) - 1.0
+    }
+
+    /**
+     * 灵田收获全局加成上下文：与地块无关的加成只计算一次（性能优化——
+     * 原实现每块地重算 O(d)+O(b)，地块多时持锁阻塞 UI 线程）。
+     *
+     * @param auraByField 建筑 instanceId → 是否处于灵植阁光环内
+     *        （null 表示光环值为 0，无需构建索引）
+     */
+    private class HarvestMaturityContext(
+        val elderZone: Double,
+        val auraZone: Double,
+        val policyZone: Double,
+        private val auraByField: Map<String, Boolean>?
+    ) {
+        /** 单地块总加速倍率（O(1)，光环判定走预构建索引） */
+        fun bonusFor(buildingInstanceId: String): Double {
+            val aura = if (auraByField?.get(buildingInstanceId) == true) auraZone else 0.0
+            return ZoneCalculator.calculate(1.0, elderZone, aura, policyZone) - 1.0
+        }
+    }
+
+    /** 构建整轮收获的全局加成上下文（无长老且无光环弟子时跳过弟子表组装） */
+    private fun buildHarvestMaturityContext(
+        data: GameData,
+        tables: DiscipleTables
+    ): HarvestMaturityContext {
+        val hasElder = data.elderSlots.herbGardenElder.isNotBlank()
+        val hasAuraDisciple = data.elderSlots.herbGardenDisciples.any { it.isActive }
+        val allDisciples = if (hasElder || hasAuraDisciple) {
+            tables.ids.filter { tables.isAlive[it] == 1 }
+                .map { tables.assemble(it) }
+        } else emptyList()
+        val elderZone = HerbGardenAuraService.calculateElderMaturityBonus(data.elderSlots, allDisciples)
+        val auraZone = HerbGardenAuraService.calculateAuraMaturityBonus(data.elderSlots, allDisciples)
+        val policyZone = (if (data.sectPolicies.herbCultivation)
+            GameConfig.PolicyConfig.HERB_CULTIVATION_EFFECT else 0.0) +
+            (if (data.sectPolicies.spiritSpring)
+                GameConfig.PolicyConfig.SPIRIT_SPRING_YIELD else 0.0)
+        // 光环值为 0 时无需构建光环索引（O(b×灵植阁数) 只在真正有光环时付出）
+        val auraByField = if (auraZone > 0.0) {
+            HerbGardenAuraService.buildSpiritFieldAuraMap(data.placedBuildings)
+        } else null
+        return HarvestMaturityContext(elderZone, auraZone, policyZone, auraByField)
     }
 
     fun calculateSpiritFieldMaturityBonus(

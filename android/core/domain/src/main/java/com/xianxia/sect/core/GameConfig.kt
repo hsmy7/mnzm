@@ -704,7 +704,7 @@ object GameConfig {
         const val OPEN_RECRUITMENT_POOL_BONUS = 0.50         // 招募上限+50%
         const val STRICT_TRAINING_DAMAGE = 0.05              // 战斗伤害+5%
         const val RELAXED_MGMT_CULTIVATION_PENALTY = 0.10    // 修炼速度-10%
-        const val SPIRIT_SPRING_YIELD = 0.15                 // 灵田产量+15%
+        const val SPIRIT_SPRING_YIELD = 0.15                 // 灵草生长速度+15%（与灵药培育同属加速乘区，非产量）
         const val FRUGALITY_SALARY_REDUCTION = 0.30          // 年俸-30%
         // 政策月度忠诚/道德变化值
         const val MORAL_EDUCATION_PER_MONTH = 1              // 每月道德+1

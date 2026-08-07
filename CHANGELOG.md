@@ -8,6 +8,14 @@
 - **同步清理** — stability_config.conf 删 4 条（保留 SignInState）、baseline.prof 删 1 条、detekt-baseline 删 core/engine 8 条 + feature/game 20 条失效条目；测试：`GameViewModelTest`/`GameViewModelMovingBuildingBusTest` 删签到 mock 桩、`DialogTypeRenderCoverageTest` 删 Activity 条目
 - 全模块 compileReleaseKotlin + 四模块单测串行（--max-workers=1）+ detekt 全部通过，Room schema 无变化
 
+### 修复（2026-08-07 灵田收获卡死 + 草药不入库根治）
+
+- **[主因] 月结收获 O(n×(d+b+n+h)) 持锁阻塞 UI → O(n+d+b+h)** — `ProductionProcessor.processSpiritFieldHarvest` 重构：新增 `HarvestMaturityContext`（elderZone/auraZone/policyZone 全局只算一次，`buildHarvestMaturityContext` 无长老且无光环弟子时跳过弟子表组装，光环索引仅在光环值>0 时构建）、`buildHarvestHerbStore`（草药合并仓库整轮构建一次，`maxSlots` 惰性 lambda 保留"续种消耗释放槽位"动态语义）、下标直写（`forEachIndexed` + `newPlants[index]` 替代 `indexOfFirst` + 每块地 `toMutableList()` 的 O(n²)）、`state.herbs.replaceAll` 整轮一次；`batchSpiritFieldHarvest` 复用自动受益；`HerbGardenAuraService` 新增 `buildSpiritFieldAuraMap` 批量光环索引（一次 O(b×灵植阁数)，每块地 O(1) 查询），`isSpiritFieldInAura` 委托复用，原距离判定（含"部分覆盖也算命中"）逐行平移为私有 `isInAura`
+- **[Bug A] 统计字段覆盖丢失** — 旧代码 `state.gameData = data.copy(spiritFieldPlants = updatedPlants)` 用函数开头捕获的旧 `data` 引用覆盖写回，循环内累加的 `guideCounters.HERBS_HARVESTED`/`annualHerbCount`/`annualHerbBySource` 全部丢失；现基于循环期间最新 gameData 写回
+- **[Bug B] 种子不足免费种田** — `BuildingFacadeImpl.plantOnSpiritField(s)` 事务内读最新种子数量/锁定态限种（`maxToPlant = minOf(available, 空地块数)`），**同事务扣种**（扣尽 `seeds.remove` 否则 `seeds.update`），删除事务外返回值被忽略的 `removeSeedSync`，原子提交无竞态窗口；UI 层 `PlantingDialog` 新增 `maxPlantable = minOf(unplantedCount, seed.quantity)` 约束 6 处数量输入/按钮
+- **[Bug C] 文案修正（不做数值变更）** — `GameConfig.SPIRIT_SPRING_YIELD` 注释与天枢阁"灵泉灌溉"政策说明由"灵田产量+15%"更正为"灵草生长速度+15%"（实际为生长加速乘区，非产量）
+- **测试** — `ProductionProcessorTest` +4：T1 Bug A 回归（非零基线断言累计而非覆盖，修复前必红）、T2 300 块灵田单堆叠合并续种统计正确 + `verify(sendOverflowMail, never())`、T3 光环索引门控（灵植阁光环内田 elapsed 28 ≥ eff 25 收获，光环外 eff 30 不收获）、T4 仓库满溢出转邮件且统计按实际入库；新建 `BuildingFacadeImplPlantingTest` +4（种子不足只种上限/数量 0 不种/锁定不种不扣种/充足按空地种满+同事务扣种）；回归 `HerbGardenAuraServiceTest`/`BuildingFacadeImplAssignProductionSlotTest`；全模块 compileReleaseKotlin + 四模块单测串行（--max-workers=1）通过，Room schema 无变化
+
 ### 新增（2026-08-07 远古秘境 5 年自动关闭 + AI 宗门探索队伍遭遇事件）
 
 - **[需求 1] 远古秘境现世 5 年自动关闭** — `SecretRealmService` 新增 `processMonthlyExpiryCheck`（月结判定 `gameYear >= spawnYear + OPEN_YEARS`）/`closeSecretRealmByExpiry`（灵石入钱包 → 背包物品构建 `buildExpiryCloseMail` 转邮件 → 清空背包 → `endSession(EXPIRED)` → 事务内释放 gate → 异步落库，先清背包杜绝双发放）/`buildExpiryCloseMail`（六类物品逐类目 `MailAttachment(itemId=按模板名解析)`，标题"远古秘境已关闭"、内容"远古秘境已关闭，这些物品是远古秘境中获得的物品"，3650 天有效期，空背包返回 null）；`SecretRealmEndReason` 追加 `EXPIRED`（文案"远古秘境现世期满，已自动关闭，探索所得已通过邮件送回"）；`GameConfig.SecretRealm.OPEN_YEARS=5`；引擎入口防御：`startSecretRealmExploration`/`continueSecretRealmExploration` 事务内过期检查兜底

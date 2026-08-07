@@ -1,23 +1,36 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.DirectDiscipleSlot
+import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.model.SpiritFieldPlant
+import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.WriteGuardRule
+import com.xianxia.sect.core.util.ZoneCalculator
 import com.xianxia.sect.core.config.InventoryConfig
+import com.xianxia.sect.core.engine.domain.building.HerbGardenAuraService
 import com.xianxia.sect.core.engine.service.*
+import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
+import org.junit.Rule
 import org.junit.Test
+import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verify
 
 /**
  * ProductionProcessor 自动分配逻辑单元测试。
@@ -26,6 +39,10 @@ import org.mockito.kotlin.mock
  * 和 isDiscipleFollowed 辅助函数。
  */
 class ProductionProcessorTest {
+
+    /** 写守卫规则：测试期间关闭 DiscipleTables 写入守卫（T3 需直接组装弟子表） */
+    @get:Rule
+    val writeGuardRule = WriteGuardRule()
 
     // ═══════════════════════════════════════════════════════════════
     // isDiscipleFollowed — Disciple 字段访问验证
@@ -517,10 +534,12 @@ class ProductionProcessorTest {
     // processSpiritFieldHarvest — 灵田收获 + 自动续种
     // ═══════════════════════════════════════════════════════════════
 
-    private fun createProcessor(): ProductionProcessor {
+    private fun createProcessor(
+        inventorySystem: InventorySystem = mock()
+    ): ProductionProcessor {
         return ProductionProcessor(
             stateStore = mock(),
-            inventorySystem = mock(),
+            inventorySystem = inventorySystem,
             productionCoordinator = mock(),
             productionSlotRepository = mock(),
             formulaService = mock(),
@@ -531,20 +550,30 @@ class ProductionProcessorTest {
         )
     }
 
+    /** 收获/种植测试的可选环境配置（默认空，仅光环/长老场景使用） */
+    private data class HarvestEnv(
+        val placedBuildings: List<GridBuildingData> = emptyList(),
+        val elderSlots: ElderSlots = ElderSlots(),
+        val discipleTables: DiscipleTables = DiscipleTables()
+    )
+
     private fun createState(
         plants: List<SpiritFieldPlant> = emptyList(),
         seeds: List<Seed> = emptyList(),
         herbs: List<Herb> = emptyList(),
         gameYear: Int = 1,
-        gameMonth: Int = 1
+        gameMonth: Int = 1,
+        env: HarvestEnv = HarvestEnv()
     ): MutableGameState {
         return MutableGameState(
             gameData = GameData(
                 gameYear = gameYear,
                 gameMonth = gameMonth,
-                spiritFieldPlants = plants
+                spiritFieldPlants = plants,
+                placedBuildings = env.placedBuildings,
+                elderSlots = env.elderSlots
             ),
-            discipleTables = DiscipleTables(),
+            discipleTables = env.discipleTables,
             equipmentStacks = EntityStore(emptyList()),
             equipmentInstances = EntityStore(emptyList()),
             manualStacks = EntityStore(emptyList()),
@@ -686,6 +715,169 @@ class ProductionProcessorTest {
         assertEquals("总产量 10", 10, state.herbs.all().first().quantity)
         // 2 颗种子都被消耗完
         assertTrue("种子应被消耗完", state.seeds.all().isEmpty())
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 收获路径重构回归（2026-08-07）：O(n×(d+b+n+h)) → O(n+d+b+h)
+    //
+    // T1：Bug A 回归——统计字段（guideCounters/annualHerbCount/annualHerbBySource）
+    //      在循环中被累加后，必须基于最新 gameData 写回，禁止被函数开头捕获的
+    //      旧 data 引用覆盖清零（修复前必红）
+    // T2：300 块灵田批量收获的性能重构行为等价锚点（单堆叠大额种子场景）
+    // T3：光环索引预计算 + 地块门控——光环内田提前成熟收获、光环外田不受影响
+    // T4：仓库满时溢出转邮件且统计按实际入库（重构后单 store 语义保留）
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `processSpiritFieldHarvest - 收获后引导计数与年度统计正确累计不覆盖`() = runTest {
+        val dbSeed = HerbDatabase.getSeedByName("聚灵草种") ?: return@runTest
+        val plants = (1..3).map { i ->
+            SpiritFieldPlant(
+                buildingInstanceId = "field$i", seedId = "p$i",
+                seedName = "聚灵草种", growTime = 36, expectedYield = 5,
+                plantYear = 1, plantMonth = 1
+            )
+        }
+        val seeds = listOf(Seed(id = "s1", slotId = 1, name = "聚灵草种",
+            rarity = dbSeed.rarity, growTime = 36, yield = 5, quantity = 3))
+        val state = createState(plants = plants, seeds = seeds, gameYear = 4, gameMonth = 1)
+        // 非零基线：模拟此前已有收获记录（Bug A 修复前会被函数开头捕获的旧 data 引用覆盖清零）
+        state.gameData = state.gameData.copy(
+            guideCounters = mapOf(GuideCounterKeys.HERBS_HARVESTED to 5L),
+            annualHerbCount = 7,
+            annualHerbBySource = mapOf("spirit_field" to 10)
+        )
+        val processor = createProcessor()
+        processor.processSpiritFieldHarvest(state)
+        assertEquals("引导计数应累计 +3 而非覆盖",
+            8L, state.gameData.guideCounters[GuideCounterKeys.HERBS_HARVESTED])
+        assertEquals("年度收获数应累计 +3 而非覆盖", 10, state.gameData.annualHerbCount)
+        assertEquals("年度来源统计应累计实际入库 15", 25, state.gameData.annualHerbBySource["spirit_field"])
+        assertEquals("3 块田同种灵草合并为 1 条记录", 1, state.herbs.all().size)
+        assertEquals("总产量 15", 15, state.herbs.all().first().quantity)
+        assertTrue("3 颗种子应全部消耗", state.seeds.all().isEmpty())
+        assertEquals("3 块田全部续种", 3,
+            state.gameData.spiritFieldPlants.count { it.plantYear == 4 && it.seedId.isNotEmpty() })
+    }
+
+    @Test
+    fun `processSpiritFieldHarvest - 300块灵田批量收获合并续种统计正确`() = runTest {
+        val dbSeed = HerbDatabase.getSeedByName("聚灵草种") ?: return@runTest
+        val plants = (1..300).map { i ->
+            SpiritFieldPlant(
+                buildingInstanceId = "field$i", seedId = "p$i",
+                seedName = "聚灵草种", growTime = 36, expectedYield = 5,
+                plantYear = 1, plantMonth = 1
+            )
+        }
+        // 单堆叠 quantity=300（真实大额种子场景）：避免 seeds.size 占槽位导致 maxSlots 溢出
+        val seeds = listOf(Seed(id = "s1", slotId = 1, name = "聚灵草种",
+            rarity = dbSeed.rarity, growTime = 36, yield = 5, quantity = 300))
+        val state = createState(plants = plants, seeds = seeds, gameYear = 4, gameMonth = 1)
+        val inventorySystem = mock<InventorySystem>()
+        val processor = createProcessor(inventorySystem = inventorySystem)
+        processor.processSpiritFieldHarvest(state)
+        val herbs = state.herbs.all()
+        assertEquals("300 块田同种灵草合并为 1 条记录", 1, herbs.size)
+        assertEquals("总产量 1500", 1500, herbs.first().quantity)
+        assertTrue("种子应被全部消耗", state.seeds.all().isEmpty())
+        assertEquals("地块数不变", 300, state.gameData.spiritFieldPlants.size)
+        assertEquals("300 块全部续种", 300,
+            state.gameData.spiritFieldPlants.count { it.plantYear == 4 && it.seedId.isNotEmpty() })
+        assertEquals("引导计数累计 +300", 300L,
+            state.gameData.guideCounters[GuideCounterKeys.HERBS_HARVESTED])
+        assertEquals("年度收获数累计 +300", 300, state.gameData.annualHerbCount)
+        assertEquals("年度来源统计累计 1500", 1500, state.gameData.annualHerbBySource["spirit_field"])
+        verify(inventorySystem, never()).sendOverflowMail(any(), any(), any(), any(), any())
+    }
+
+    @Test
+    fun `processSpiritFieldHarvest - 光环内灵田提前成熟收获，光环外不受影响`() = runTest {
+        // 灵植阁(0,0,4x3) 中心(2,1.5)：光环内田(2,1,1x1) 距离 0 ≤ 6 命中；
+        // 光环外田(20,20,1x1) 最近距离约 25.8 > 6 不命中
+        val placedBuildings = listOf(
+            GridBuildingData(displayName = "灵植阁", gridX = 0, gridY = 0,
+                width = 4, height = 3, instanceId = "garden1", sectId = "sectA"),
+            GridBuildingData(displayName = "灵田", gridX = 2, gridY = 1,
+                width = 1, height = 1, instanceId = "field_in", sectId = "sectA"),
+            GridBuildingData(displayName = "灵田", gridX = 20, gridY = 20,
+                width = 1, height = 1, instanceId = "field_out", sectId = "sectA")
+        )
+        // 灵植属性取到加成上限 0.20（sp = base + 20×step，无天赋/词条职务加成）
+        val elderSp = GameConfig.PolicyConfig.HERB_GARDEN_ELDER_SPIRIT_BASE +
+            20 * GameConfig.PolicyConfig.HERB_GARDEN_ELDER_SPIRIT_STEP
+        val auraSp = GameConfig.PolicyConfig.HERB_GARDEN_DISCIPLE_SPIRIT_BASE +
+            20 * GameConfig.PolicyConfig.HERB_GARDEN_DISCIPLE_SPIRIT_STEP
+        val tables = DiscipleTables()
+        tables.addId(100)
+        tables.names[100] = "灵植长老"
+        tables.isAlive[100] = 1
+        tables.spiritPlantings[100] = elderSp
+        tables.addId(101)
+        tables.names[101] = "光环弟子"
+        tables.isAlive[101] = 1
+        tables.spiritPlantings[101] = auraSp
+        val elderSlots = ElderSlots(
+            herbGardenElder = "100",
+            herbGardenDisciples = listOf(DirectDiscipleSlot(index = 0, discipleId = "101"))
+        )
+        val innerPlant = SpiritFieldPlant(buildingInstanceId = "field_in", seedId = "p1",
+            seedName = "聚灵草种", growTime = 36, expectedYield = 5, plantYear = 1, plantMonth = 1)
+        val outerPlant = SpiritFieldPlant(buildingInstanceId = "field_out", seedId = "p2",
+            seedName = "聚灵草种", growTime = 36, expectedYield = 5, plantYear = 1, plantMonth = 1)
+        val state = createState(
+            plants = listOf(innerPlant, outerPlant),
+            gameYear = 3, gameMonth = 5,  // elapsed = 28 月
+            env = HarvestEnv(
+                placedBuildings = placedBuildings,
+                elderSlots = elderSlots,
+                discipleTables = tables
+            )
+        )
+        // 期望有效生长时间（用与生产代码同一 API 推导——测试光环索引+地块门控集成，
+        // 加成公式算术本身由 HerbGardenAuraServiceTest 覆盖）
+        val innerEff = HerbGardenAuraService.calculateEffectiveGrowTime(
+            36, ZoneCalculator.calculate(1.0, 0.2, 0.2, 0.0) - 1.0)
+        val outerEff = HerbGardenAuraService.calculateEffectiveGrowTime(
+            36, ZoneCalculator.calculate(1.0, 0.2, 0.0, 0.0) - 1.0)
+        assertEquals("光环内有效生长时间 25", 25, innerEff)
+        assertEquals("光环外有效生长时间 30", 30, outerEff)
+        val processor = createProcessor()
+        processor.processSpiritFieldHarvest(state)
+        val herbs = state.herbs.all()
+        assertEquals("仅光环内灵田收获", 1, herbs.size)
+        assertEquals("收获聚灵草", "聚灵草", herbs.first().name)
+        assertEquals("产量 5", 5, herbs.first().quantity)
+        val inField = state.gameData.spiritFieldPlants.first { it.buildingInstanceId == "field_in" }
+        val outField = state.gameData.spiritFieldPlants.first { it.buildingInstanceId == "field_out" }
+        assertEquals("光环内田已收获清空（无种子续种）", "", inField.seedId)
+        assertEquals("光环外田未成熟保持不变", "p2", outField.seedId)
+    }
+
+    @Test
+    fun `processSpiritFieldHarvest - 仓库满时溢出转邮件且统计按实际入库`() = runTest {
+        val dbSeed = HerbDatabase.getSeedByName("聚灵草种") ?: return@runTest
+        val dbHerb = HerbDatabase.getHerbFromSeedName("聚灵草种") ?: return@runTest
+        // maxSlots = computeMaxSlots(无仓库=基础容量 50) - 其他类型 0 - 种子 0 = 50；
+        // 50 个满堆叠（herb maxStack=9999）占满全部槽位 → 收获的 5 株零合并且无空槽 → Failure 分支整批转邮件
+        val maxStack = InventoryConfig().getMaxStackSize("herb")
+        val fullStacks = (1..50).map { i ->
+            Herb(id = "h$i", name = dbHerb.name, rarity = dbHerb.rarity,
+                description = dbHerb.description, category = dbHerb.category, quantity = maxStack)
+        }
+        val plant = SpiritFieldPlant(buildingInstanceId = "field1", seedId = "p1",
+            seedName = "聚灵草种", growTime = 36, expectedYield = 5, plantYear = 1, plantMonth = 1)
+        val state = createState(plants = listOf(plant), herbs = fullStacks, gameYear = 4, gameMonth = 1)
+        val inventorySystem = mock<InventorySystem>()
+        val processor = createProcessor(inventorySystem = inventorySystem)
+        processor.processSpiritFieldHarvest(state)
+        // 溢出全量 5 株转邮件（满堆叠零合并且无空槽 → Failure 分支，与 Partial 同为溢出转邮件路径）
+        verify(inventorySystem).sendOverflowMail("spirit_field", "herb", dbHerb.name, dbHerb.rarity, 5)
+        assertEquals("年度来源统计按实际入库 0", 0, state.gameData.annualHerbBySource["spirit_field"])
+        assertEquals("仓库记录数不变（无新堆叠）", 50, state.herbs.all().size)
+        assertEquals("引导计数仍累计（收获行为本身成功）", 1L,
+            state.gameData.guideCounters[GuideCounterKeys.HERBS_HARVESTED])
+        assertEquals("灵田已收获清空", "", state.gameData.spiritFieldPlants.first().seedId)
     }
 
     // ═══════════════════════════════════════════════════════════════

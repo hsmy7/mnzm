@@ -272,11 +272,48 @@ class BuildingFacadeImpl @Inject constructor(
         }
     }
 
+    /** 播种时序快照（一次取值，循环内不变） */
+    private data class PlantingTime(val year: Int, val month: Int, val absoluteMonth: Int)
+
+    /** 批量播种到空地：返回 (新植物列表, 实际种植数)。同事务内调用，条件与单块播种一致 */
+    private fun plantFields(
+        plants: List<SpiritFieldPlant>,
+        emptyFieldIds: Set<String>,
+        seed: Seed,
+        maxToPlant: Int,
+        timing: PlantingTime,
+        sectId: String
+    ): Pair<List<SpiritFieldPlant>, Int> {
+        val updated = plants.toMutableList()
+        var planted = 0
+        for (i in updated.indices) {
+            if (planted >= maxToPlant) break
+            val p = updated[i]
+            if (p.buildingInstanceId in emptyFieldIds && p.seedId.isEmpty()) {
+                updated[i] = p.copy(
+                    seedId = seed.id, seedName = seed.name,
+                    growTime = seed.growTime, expectedYield = seed.yield,
+                    plantYear = timing.year, plantMonth = timing.month, sectId = sectId,
+                    completionMonth = timing.absoluteMonth + seed.growTime.coerceAtLeast(1),
+                    completionPhase = 3  // 种植下旬
+                )
+                planted++
+            }
+        }
+        return updated to planted
+    }
+
     override suspend fun plantOnSpiritField(buildingInstanceId: String, seedId: String, sectId: String) {
         val seed = inventorySystem.getSeedById(seedId) ?: return
         if (seed.quantity <= 0) return
 
         stateStore.update {
+            // 事务内读取最新种子数量/锁定态，同事务扣种——替代事务外 removeSeedSync
+            // （其返回值被忽略是"种子不足也种满、免费种田"根因，Bug B）
+            val seedEntry = seeds.get(seedId)
+            val available = seedEntry?.quantity ?: 0
+            if (seedEntry == null || available <= 0 || seedEntry.isLocked) return@update
+
             val idx = gameData.spiritFieldPlants.indexOfFirst { it.buildingInstanceId == buildingInstanceId && it.seedId.isEmpty() }
             if (idx < 0) return@update
 
@@ -296,9 +333,11 @@ class BuildingFacadeImpl @Inject constructor(
                 completionPhase = 3  // 种植下旬
             )
             gameData = gameData.copy(spiritFieldPlants = updatedPlants)
+            // 同事务扣种（种植与扣种原子提交，无竞态窗口）
+            val newQty = available - 1
+            if (newQty <= 0) seeds.remove(seedId)
+            else seeds.update(seedId) { it.copy(quantity = newQty) }
         }
-
-        inventorySystem.removeSeedSync(seedId, 1)
     }
 
     override suspend fun plantOnSpiritFields(instanceIds: List<String>, seedId: String, sectId: String) {
@@ -306,31 +345,34 @@ class BuildingFacadeImpl @Inject constructor(
         val seed = inventorySystem.getSeedById(seedId) ?: return
         if (seed.quantity <= 0) return
 
-        var planted = 0
         stateStore.update {
-            val currentYear = gameData.gameYear
-            val currentMonth = gameData.gameMonth
-            val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(currentYear, currentMonth)
-            val updatedPlants = gameData.spiritFieldPlants.toMutableList()
-            for (i in updatedPlants.indices) {
-                if (planted >= instanceIds.size) break
-                val p = updatedPlants[i]
-                if (p.buildingInstanceId in instanceIds && p.seedId.isEmpty()) {
-                    updatedPlants[i] = p.copy(
-                        seedId = seedId, seedName = seed.name,
-                        growTime = seed.growTime, expectedYield = seed.yield,
-                        plantYear = currentYear, plantMonth = currentMonth, sectId = sectId,
-                        completionMonth = currentAbsoluteMonth + seed.growTime.coerceAtLeast(1),
-                        completionPhase = 3  // 种植下旬
-                    )
-                    planted++
-                }
-            }
-            gameData = gameData.copy(spiritFieldPlants = updatedPlants)
-        }
+            // 事务内读取最新种子数量/锁定态，同事务扣种（Bug B：种植数受种子数量约束，
+            // 替代事务外 removeSeedSync——其返回值被忽略导致免费种田）
+            val seedEntry = seeds.get(seedId)
+            val available = seedEntry?.quantity ?: 0
+            if (seedEntry == null || available <= 0 || seedEntry.isLocked) return@update
 
-        if (planted > 0) {
-            inventorySystem.removeSeedSync(seedId, planted)
+            val timing = PlantingTime(
+                year = gameData.gameYear,
+                month = gameData.gameMonth,
+                absoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(
+                    gameData.gameYear, gameData.gameMonth)
+            )
+            val (updatedPlants, planted) = plantFields(
+                plants = gameData.spiritFieldPlants,
+                emptyFieldIds = instanceIds.toSet(),
+                seed = seed,
+                maxToPlant = minOf(available, instanceIds.size),
+                timing = timing,
+                sectId = sectId
+            )
+            if (planted > 0) {
+                gameData = gameData.copy(spiritFieldPlants = updatedPlants)
+                // 同事务扣种（种植与扣种原子提交）
+                val newQty = available - planted
+                if (newQty <= 0) seeds.remove(seedId)
+                else seeds.update(seedId) { it.copy(quantity = newQty) }
+            }
         }
     }
 

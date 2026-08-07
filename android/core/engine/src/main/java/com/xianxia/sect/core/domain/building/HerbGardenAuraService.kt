@@ -9,6 +9,25 @@ import kotlin.math.sqrt
 
 object HerbGardenAuraService {
 
+    /** 灵植阁建筑显示名（光环判定用） */
+    private const val HERB_GARDEN_DISPLAY_NAME = "灵植阁"
+
+    /**
+     * 批量构建"建筑 instanceId → 是否处于灵植阁光环内"索引（一次 O(b×灵植阁数) 遍历，
+     * 供收获循环每块地 O(1) 查询；原逐块调用 [isSpiritFieldInAura] 为 O(n×b)）。
+     *
+     * @param placedBuildings 全部已放置建筑（任意 sectId 混合）
+     * @return 建筑 instanceId → 是否命中光环（索引缺失的 id 与"find 失败返回 false"语义一致）
+     */
+    fun buildSpiritFieldAuraMap(placedBuildings: List<GridBuildingData>): Map<String, Boolean> {
+        val herbGardensBySect = placedBuildings
+            .filter { it.displayName == HERB_GARDEN_DISPLAY_NAME }
+            .groupBy { it.sectId }
+        return placedBuildings.associate { building ->
+            building.instanceId to isInAura(building, herbGardensBySect[building.sectId].orEmpty())
+        }
+    }
+
     fun calculateElderMaturityBonus(elderSlots: ElderSlots, allDisciples: List<Disciple>): Double {
         val elderId = elderSlots.herbGardenElder
         if (elderId.isBlank()) return 0.0
@@ -40,10 +59,14 @@ object HerbGardenAuraService {
         val sf = placedBuildings.find { it.instanceId == spiritFieldInstanceId } ?: return false
 
         val herbGardens = placedBuildings.filter {
-            it.displayName == "灵植阁" && it.sectId == sf.sectId
+            it.displayName == HERB_GARDEN_DISPLAY_NAME && it.sectId == sf.sectId
         }
         if (herbGardens.isEmpty()) return false
+        return isInAura(sf, herbGardens)
+    }
 
+    /** 判定灵田是否处于任一灵植阁光环内（距离判定，部分覆盖也算命中） */
+    private fun isInAura(sf: GridBuildingData, herbGardens: List<GridBuildingData>): Boolean {
         for (hg in herbGardens) {
             val hgCenterX = hg.gridX + hg.width / 2.0
             val hgCenterY = hg.gridY + hg.height / 2.0
