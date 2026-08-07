@@ -426,7 +426,7 @@ SaveValidator.validate(SaveData)
 | P-16 | UI 迁移真机冒烟 | SettingsTab/DiscipleDetailScreen/OverlayDialogRouter | 发布前检查 4 个迁移弹窗（其他设置/年俸/存档管理/更新日志）逐一打开关闭 + OverlayDialogRouter 34 分支逐项打开一次；判定：无崩溃/白屏/交互完整/叠层路由正常 |
 | P-18 | 排行榜 rank 0/1 起始语义 | `feature/game/.../taptap/TapTapLeaderboardApi.kt` | 已做 0→1 归一化兜底（rank<1 显示 1）。真机观察：首名显示 #1 且次名重复 #1 → 服务端 1 起始，移除归一化；次名 #2 → 保留现状。抓原始 rank 与显示值对照 ≥3 次 |
 
-### 途中发现待办（2026-08-05 引擎确定性加固时登记 D-01~D-06；2026-08-06 三崩溃批次对抗性审查新增 D-07~D-10；2026-08-06 建筑点击无效批次对抗性审查新增 D-11~D-15，详见 CHANGELOG 4.00.89~4.00.90）
+### 途中发现待办（2026-08-05 引擎确定性加固时登记 D-01~D-06；2026-08-06 三崩溃批次对抗性审查新增 D-07~D-10；2026-08-06 建筑点击无效批次对抗性审查新增 D-11~D-15，详见 CHANGELOG 4.00.89~4.00.90；2026-08-07 商人/宗门交易品阶动态刷新批次新增 D-16）
 
 > 本次实施（RNG 事务快照/UI RNG 治理/奖励统一入口/事务合并/缓存）后对抗性审查登记的未修项。P-19/P-20/P-21 已随本次实施完成（奖励收编 InventorySystem + 守卫补漏 + 签到 catch 移出事务）。
 
@@ -447,4 +447,5 @@ SaveValidator.validate(SaveData)
 | ~~D-13~~ ✅ 已修 | 旧档 sectId 不匹配建筑完全不可管理 | `core/engine/.../engine/BuildingLoadSelfHeal.kt` `normalizeOrphanBuildingSectIds`（boot Step 3 读档归一化） | 2026-08-06 建筑点击无效批次对抗性审查登记（数据篡改者 F4/状态破坏者 F4），2026-08-06 批次补全修复（主修复）：sectId 非空且 worldMapSects 无对应宗门 → 归入本宗 ""（同步 `SpiritMineSlot.sectId`；worldMapSects 为空跳过防误伤；幂等）。归一化在溢出迁移之前执行（boot Step 3.5），孤儿与既有建筑重叠由迁移拆除退款。含 `BuildingLoadSelfHealTest`（归一化 8 例 + 归一化→迁移守卫）、`BootSequenceControllerTest` boot 生效守卫 |
 | ~~D-14~~ ✅ 已修 | 旧档 2×2 矿场移到地图边缘后读档 fixup 撑大越界 | `core/engine/.../config/BuildingConfigService.kt` fixupBuildingSizes（加世界尺寸默认参数，尺寸变化时钳制坐标回地图界内） | 2026-08-06 建筑点击无效批次对抗性审查登记（边界狂魔 F3），2026-08-06 批次补全修复：2×2 矿场 @gridX=126 撑大到 4×4 钳回 124；负坐标钳 0；尺寸不变的健康数据零副作用；钳入 3 格边界区由既有边界迁移（50% 退款）兜底。含 `BuildingConfigServiceFixupTest` 5 例 |
 | D-15 | `AISectBattleProcessor` 795 行/21 函数超限 | `core/engine/.../engine/service/AISectBattleProcessor.kt` | 2026-08-06 登记：D3 拆分（2026-08-05）后 795 行已超 LargeClass 600 上限、20 函数已触 TooManyFunctions 阈值（CI detekt 未拦截），本次新增 `seizePlayerBuildingsAfterLoss` 后 21 个；已类级 @Suppress 登记（沿用文件内既有先例）。拆分计划（AI 攻防决策/玩家防守/占领结算三块）另行立项 |
+| D-16 | `generateSectTradeItems` 无 sectId 回退路径死代码链 | `core/engine/.../GameEngineDiplomacyOps.kt:6` → `DiplomacyFacade.kt:12` → `DiplomacyFacadeImpl.kt:38-39` → `DiplomacyService.kt:211`（sectId 默认 null 分支） | 2026-08-07 商人/宗门交易品阶动态刷新批次对抗性审查登记：`GameEngine.generateSectTradeItems(year)` 全仓库无调用方（detekt-baseline 亦有引用）；链路末端 `sectId == null` 时回退 SYSTEM 分区 RNG（消耗分区 draw 状态，非确定性），与带 sectId 的确定性种子路径并存。`DiplomacyService.generateSectTradeItems` 已加 KDoc 警告"勿新增调用"。处置建议：删除 `GameEngineDiplomacyOps` 该扩展 + Facade 接口/实现的无 sectId 重载，或收编为带 sectId 必传签名；机械改动低风险，另行立项 |
 
