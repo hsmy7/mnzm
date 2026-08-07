@@ -442,10 +442,26 @@ class BuildingService @Inject constructor(
         slot.assignedDiscipleId?.let { discipleId ->
             updateDiscipleStatus(discipleId, DiscipleStatus.IDLE)
         }
+        // 双存储同步：重置 Repository 槽位的同时清镜像槽位——收获后镜像残留
+        // 会让状态推导把弟子重新拉回工作状态（双槽分叉根因）
+        clearMirrorProductionSlot(slot.buildingId, slot.slotIndex)
 
         withContext(ioDispatcher.dispatcher) {
             productionCoordinator.resetSlotByBuildingIdAtomic(
                 slot.buildingId, slot.slotIndex
+            )
+        }
+    }
+
+    /** 清镜像（GameData.productionSlots）中的指定槽位关联（Repository 清理见调用方）。 */
+    private fun clearMirrorProductionSlot(buildingId: String, slotIndex: Int) {
+        stateStore.update {
+            gameData = gameData.copy(
+                productionSlots = gameData.productionSlots.map { s ->
+                    if (s.buildingId == buildingId && s.slotIndex == slotIndex) {
+                        s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                    } else s
+                }
             )
         }
     }
@@ -499,6 +515,10 @@ class BuildingService @Inject constructor(
                 is DomainResult.Failure -> DomainLog.w(TAG, "丹药 ${pill.name} 添加失败: ${r.error}")
             }
         }
+
+        // 双存储同步：重置 Repository 槽位的同时清镜像槽位——收获后镜像残留
+        // 会让状态推导把弟子重新拉回工作状态（双槽分叉根因）
+        clearMirrorProductionSlot(BuildingNames.ALCHEMY, slot.slotIndex)
 
         withContext(ioDispatcher.dispatcher) {
             productionCoordinator.resetSlotByBuildingIdAtomic(

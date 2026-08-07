@@ -578,21 +578,7 @@ suspend fun GameEngine.autoAssignPatrolAtomic(
  * 事务成功后必须同步清 Repository，否则双槽位可经生产槽复活（回归：H2 审查发现）。
  */
 internal fun GameEngine.clearDiscipleFromProductionRepository(discipleId: String) {
-    gameEngineCore.launchInScope {
-        try {
-            productionCoordinator.repository.getSlots()
-                .filter { it.assignedDiscipleId == discipleId }
-                .forEach { slot ->
-                    productionCoordinator.repository.updateSlot(
-                        slot.buildingType, slot.slotIndex
-                    ) { s -> s.copy(assignedDiscipleId = null, assignedDiscipleName = "") }
-                }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            DomainLog.w("GameEngine", "clearDiscipleFromProductionRepository 失败 id=$discipleId", e)
-        }
-    }
+    productionCoordinator.clearDiscipleInRepository(gameEngineCore.scopeForStateIn(), discipleId)
 }
 
 /**

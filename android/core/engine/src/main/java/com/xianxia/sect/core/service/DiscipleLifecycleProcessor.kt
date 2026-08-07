@@ -7,7 +7,7 @@ import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.engine.domain.disciple.*
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.repository.ProductionSlotRepository
+import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
@@ -23,7 +23,7 @@ import javax.inject.Singleton
 class DiscipleLifecycleProcessor @Inject constructor(
     private val stateStore: GameStateStore,
     private val scopeProvider: CoroutineScopeProvider,
-    private val productionSlotRepository: ProductionSlotRepository,
+    private val productionCoordinator: ProductionCoordinator,
     private val eventBus: EventBusPort,
     private val discipleSlotCleanup: DiscipleSlotCleanup,
     private val lawEnforcementProcessor: javax.inject.Provider<LawEnforcementProcessor>,
@@ -82,9 +82,12 @@ class DiscipleLifecycleProcessor @Inject constructor(
 
         discipleStatusService.syncAllDiscipleStatuses()
 
-        // ── 事务外操作：forge 槽位清理 + 事件分发（非原子操作，不影响游戏状态一致性）──
+        // ── 事务外操作：双存储同步清理 + 事件分发（非原子操作，不影响游戏状态一致性）──
+        // clearDiscipleFromAllSlots = 事务内清镜像（幂等，applyAgedDeath 已清）+ 事务外清
+        // Room 生产槽 Repository（原 clearForgeSlotsIfNeeded 只清锻造槽，炼丹/灵田槽残留
+        // 导致死亡弟子继续显示在生产界面——双槽分叉根因）
         for ((id, agedDisciple) in deadDiscipleData) {
-            clearForgeSlotsIfNeeded(agedDisciple.id)
+            clearDiscipleFromAllSlots(agedDisciple.id)
             eventBus.emitSync(DeathEvent(
                 discipleId = agedDisciple.id,
                 discipleName = agedDisciple.name,
@@ -386,22 +389,11 @@ class DiscipleLifecycleProcessor @Inject constructor(
             gameData = discipleSlotCleanup.clearAllSlots(gameData, discipleId, includeResidence = true)
         }
 
-        // 清理生产槽位（DAO 操作不能放入 stateStore.update，异常时无法回滚内存已写入的清理）
-        // 此处异常不会导致数据不一致：内存中 residence/slots 已清理，DB 残留引用由下次 validate 修复
-        clearForgeSlotsIfNeeded(discipleId)
-    }
-
-    private fun clearForgeSlotsIfNeeded(discipleId: String) {
-        val forgeSlots = productionSlotRepository.getSlotsByBuildingId(BUILDING_FORGE)
-        for (slot in forgeSlots) {
-            if (slot.assignedDiscipleId == discipleId) {
-                // 同步阻塞执行 DAO 写，消除 scope.launch 跨线程竞态
-                kotlinx.coroutines.runBlocking(ioDispatcher.dispatcher) {
-                    productionSlotRepository.updateSlotByBuildingId(BUILDING_FORGE, slot.slotIndex) { s ->
-                        s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
-                    }
-                }
-            }
+        // 双存储同步：清全部生产槽 Repository（DAO 操作不能放入 stateStore.update，异常时无法回滚内存已写入的清理）
+        // 原实现仅清 forge 槽位，炼丹/灵田槽残留导致死亡弟子继续显示在生产界面（双槽分叉根因）。
+        // 同步阻塞执行 DAO 写，消除 scope.launch 跨线程竞态
+        kotlinx.coroutines.runBlocking(ioDispatcher.dispatcher) {
+            productionCoordinator.clearDiscipleFromRepository(discipleId)
         }
     }
 

@@ -12,6 +12,10 @@ import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.transaction.ProductionTransactionManager
 import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainResult
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -384,6 +388,43 @@ class ProductionCoordinator @Inject constructor(
     
     fun getFinishedSlots(currentYear: Int, currentMonth: Int): List<ProductionSlot> =
         repository.getFinishedSlots(currentYear, currentMonth)
+
+    /**
+     * 清理弟子在 Room 生产槽 Repository 中的占用（同步挂起版，供死亡/叛逃等
+     * 必须立即生效的关键路径使用，在 IO 线程执行）。
+     *
+     * GameData.productionSlots 只是镜像——存档序列化/生产结算/gate 重建均以 Repository
+     * 为准（SaveFacadeImpl/BootSequenceController/自愈）。各分配入口事务内只清镜像，
+     * 事务成功后必须同步清 Repository，否则残留占用会经月度自动重启/读档自愈复活
+     * （双槽分叉根因：弟子自动脱离槽位 + 被自动任命其他槽位）。
+     *
+     * @param discipleId 要清除的弟子 ID
+     */
+    suspend fun clearDiscipleFromRepository(discipleId: String) {
+        repository.getSlots()
+            .filter { it.assignedDiscipleId == discipleId }
+            .forEach { slot ->
+                repository.updateSlot(slot.buildingType, slot.slotIndex) { s ->
+                    s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                }
+            }
+    }
+
+    /**
+     * 清理弟子在 Room 生产槽 Repository 中的占用（fire-and-forget 版，引擎线程串行安全）。
+     *
+     * @param scope 执行清理的协程作用域（引擎 scope，保证串行安全）
+     * @param discipleId 要清除的弟子 ID
+     */
+    fun clearDiscipleInRepository(scope: CoroutineScope, discipleId: String): Job = scope.launch {
+        try {
+            clearDiscipleFromRepository(discipleId)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            DomainLog.w(TAG, "clearDiscipleInRepository 失败 id=$discipleId", e)
+        }
+    }
 }
 
 object ProductionCoordinatorFactory {

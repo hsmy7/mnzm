@@ -14,11 +14,13 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentRegistry
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
 import com.xianxia.sect.core.engine.service.SecretRealmService
 import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.*
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
@@ -28,6 +30,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.any
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
@@ -51,6 +54,7 @@ class GameEngineDualSlotGuardTest {
     private lateinit var engine: GameEngine
     private lateinit var discipleFacade: DiscipleFacade
     private lateinit var mockCore: GameEngineCore
+    private lateinit var mockPC: ProductionCoordinator
 
     companion object {
         private const val DISCIPLE_A = "1"
@@ -110,6 +114,9 @@ class GameEngineDualSlotGuardTest {
             runBlocking { block(CoroutineScope(Dispatchers.Unconfined)) }
             mock<kotlinx.coroutines.Job>()
         }
+        // scopeForStateIn 供 clearDiscipleFromProductionRepository 传 scope；
+        // mock 默认返回 null 会与 verify(any()) 不匹配（any() 不含 null）
+        whenever(mockCore.scopeForStateIn()).thenReturn(CoroutineScope(Dispatchers.Unconfined))
         val mockBattleFacade = mock<BattleFacade>()
         whenever(mockBattleFacade.assignmentGate).thenReturn(gate)
         val mockProductionFacade = mock<ProductionFacade>()
@@ -120,7 +127,7 @@ class GameEngineDualSlotGuardTest {
         whenever(mockCultivationFacade.discipleService).thenReturn(mock())
         whenever(mockCultivationFacade.discipleFacade).thenReturn(discipleFacade)
         whenever(mockCultivationFacade.productionFacade).thenReturn(mockProductionFacade)
-        val mockPC = mock<ProductionCoordinator>()
+        mockPC = mock<ProductionCoordinator>()
         // getSlots() 函数与属性 slots 的 JVM getter 同名，Mockito 无法安全 stub（见
         // BootSequenceControllerTest T15 注释）；heal 侧对 null 有 ?: emptyList() 兜底，
         // 此处保持裸 mock（getSlots 返回 null 走兜底）
@@ -448,5 +455,89 @@ class GameEngineDualSlotGuardTest {
         assertEquals("巡逻槽位应为 A", DISCIPLE_A, patrolDiscipleAt(0))
         val assignment = gate.getAssignment(DISCIPLE_A)
         assertEquals("gate 应唯一登记巡逻", SlotCategory.PATROL_SLOT, assignment?.slotRef?.category)
+    }
+
+    // ── 双存储双写（镜像 + Room 生产槽 Repository） ──
+
+    @Test
+    fun `释放所有槽位后同步清 Room 生产槽 Repository`() = runTest {
+        placeInPatrol(DISCIPLE_A)
+
+        engine.releaseDiscipleFromAllSlotsAtomic(DISCIPLE_A)
+
+        assertEquals("巡逻槽位应清空", "", patrolDiscipleAt(0))
+        // 双存储同步：事务内只清镜像，事务后必须清 Room 生产槽 Repository，
+        // 否则 repo 残留占用经月度自动重启复活（双槽分叉根因）
+        verify(mockPC).clearDiscipleInRepository(any(), eq(DISCIPLE_A))
+    }
+
+    @Test
+    fun `自愈生产槽双槽后同步清 Room 生产槽 Repository`() = runTest {
+        // A 同时出现在巡逻槽位与生产槽（历史分叉存档）。
+        // 生产槽双份一致占用（镜像 + Room Repository 真源都有 A），
+        // 自愈扫描发现双槽后镜像清空 + Repository 同步清理。
+        val realRepo = ProductionSlotRepository(
+            dao = mock<com.xianxia.sect.core.repository.ProductionSlotDataPort>(),
+            configService = mock<com.xianxia.sect.core.config.BuildingConfigService>(),
+            scopeProvider = mock<com.xianxia.sect.core.util.CoroutineScopeProvider>().also {
+                whenever(it.scope).thenReturn(CoroutineScope(SupervisorJob() + Dispatchers.Unconfined))
+            }
+        )
+        realRepo.restoreSlots(
+            listOf(
+                com.xianxia.sect.core.model.production.ProductionSlot.createIdle(
+                    slotIndex = 0,
+                    buildingType = com.xianxia.sect.core.model.production.BuildingType.ALCHEMY,
+                    buildingId = "alchemy"
+                ).copy(
+                    assignedDiscipleId = DISCIPLE_A, assignedDiscipleName = "弟子A",
+                    status = com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE
+                )
+            ),
+            slotId = 1
+        )
+        whenever(mockPC.repository).thenReturn(realRepo)
+        // 让 mock 上的 suspend 清理真实执行到 realRepo：端到端验证
+        // "自愈调用清理 → Repository 真源确实清空"（纯 mock 会静默不做事）
+        val realCoordinator = ProductionCoordinator(
+            repository = realRepo,
+            transactionManager = mock<com.xianxia.sect.core.transaction.ProductionTransactionManager>()
+        )
+        whenever(mockPC.clearDiscipleFromRepository(any())).thenAnswer { invocation ->
+            runBlocking {
+                realCoordinator.clearDiscipleFromRepository(invocation.getArgument<String>(0))
+            }
+            null
+        }
+        store.update {
+            gameData = gameData.copy(
+                patrolSlots = listOf(
+                    PatrolSlot(index = 0, discipleId = DISCIPLE_A, discipleName = "弟子A"),
+                    PatrolSlot(index = 1)
+                ),
+                productionSlots = listOf(
+                    com.xianxia.sect.core.model.production.ProductionSlot(
+                        slotIndex = 0,
+                        buildingType = com.xianxia.sect.core.model.production.BuildingType.ALCHEMY,
+                        buildingId = "alchemy",
+                        status = com.xianxia.sect.core.model.production.ProductionSlotStatus.IDLE,
+                        assignedDiscipleId = DISCIPLE_A, assignedDiscipleName = "弟子A"
+                    )
+                )
+            )
+        }
+
+        engine.healDuplicateSlotAssignments()
+
+        // 赢家为巡逻槽位 → 镜像生产槽被清空
+        val prodSlots = store.latestGameData.productionSlots
+        assertTrue("镜像生产槽应被清空", prodSlots.none { it.assignedDiscipleId == DISCIPLE_A })
+        // 双存储同步：自愈清镜像后必须同步清 Room 生产槽 Repository
+        verify(mockPC).clearDiscipleFromRepository(eq(DISCIPLE_A))
+        // Repository 真源同步清空（真实 repo 上的 updateSlot 执行）
+        assertTrue(
+            "Repository 生产槽应同步清空",
+            realRepo.getSlots().none { it.assignedDiscipleId == DISCIPLE_A }
+        )
     }
 }

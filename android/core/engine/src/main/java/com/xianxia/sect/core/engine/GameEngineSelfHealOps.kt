@@ -32,9 +32,20 @@ fun GameEngine.healDuplicateSlotAssignments(): kotlinx.coroutines.Job? {
     try {
         return gameEngineCore.launchInScope {
             try {
+                // 双存储对齐（自愈前）：以 Repository 为真源取槽位快照（suspend 必须在事务外），
+                // 事务内写回镜像，保证双槽位扫描基于真源——
+                // 历史分叉存档镜像残留/缺失会导致扫描误判（漏清或错杀）
+                val repoSlots = try {
+                    productionCoordinator.repository.getSlots() ?: emptyList()
+                } catch (e: Exception) {
+                    DomainLog.w("GameEngine", "healDuplicateSlots: 读取生产槽失败，按空处理", e)
+                    emptyList()
+                }
                 val winners = mutableMapOf<String, SlotWinner>()
                 val counts = mutableMapOf<String, Int>()
                 stateStore.update {
+                    // 对齐镜像生产槽（Repository 为真源）
+                    gameData = gameData.copy(productionSlots = repoSlots)
                     collectSlotWinners(gameData, winners, counts)
                     val duplicates = counts.filterValues { it > 1 }.keys
                     if (duplicates.isEmpty()) return@update
@@ -56,12 +67,28 @@ fun GameEngine.healDuplicateSlotAssignments(): kotlinx.coroutines.Job? {
                         gameData = rewriteWinnerInGameData(gameData, winner, bloodProgress)
                     }
                 }
+                // 双存储同步（事务后）：Repository 生产槽同步清理 + 重写赢家，
+                // 否则自愈只清镜像，repo 残留占用经月度自动重启/下次读档复活（双槽分叉根因）
+                val duplicates = counts.filterValues { it > 1 }.keys
+                val disciples = stateStore.disciplesSnapshot
+                for (discipleId in duplicates) {
+                    productionCoordinator.clearDiscipleFromRepository(discipleId)
+                    val winner = winners[discipleId] ?: continue
+                    if (winner.category == SlotCategory.PRODUCTION_SLOT) {
+                        val buildingType = com.xianxia.sect.core.model.production.BuildingType.entries
+                            .find { it.name == winner.slotType } ?: continue
+                        val name = disciples.find { it.id == discipleId }?.name ?: ""
+                        productionCoordinator.repository.updateSlot(
+                            buildingType, winner.slotIndex
+                        ) { s -> s.copy(assignedDiscipleId = discipleId, assignedDiscipleName = name) }
+                    }
+                }
                 // 清理涉及 gate 注册表：二次重建使注册表与自愈后数据一致
-                // （生产槽走 Room Repository，与 BootSequenceController Step 6 同口径）
+                // （生产槽走 Room Repository，与 BootSequenceController Step 6 同口径；
+                // 事务后 repo 已同步自愈结果，实时读取保证 gate 基于最终一致数据重建）
                 assignmentGate.rebuildFromGameData(
                     gameData = stateStore.gameDataSnapshot,
                     productionSlots = try {
-                        // ?: 防御测试/异常路径下 getSlots 返回 null（真实实现永远非空）
                         productionCoordinator.repository.getSlots() ?: emptyList()
                     } catch (e: Exception) {
                         DomainLog.w("GameEngine", "healDuplicateSlots: 读取生产槽失败，按空处理", e)

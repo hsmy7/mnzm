@@ -75,5 +75,8 @@ suspend fun GameEngine.releaseDiscipleFromAllSlotsAtomic(discipleId: String) {
         }
         syncSingleDiscipleStatus(discipleId)
         // clearAllSlots 内部已调用 gate.release()，无需重复调用
+        // 双存储同步：事务内只清了镜像，必须同步清 Room 生产槽 Repository，
+        // 否则 repo 残留占用会经月度自动重启/读档自愈复活（回归：双槽分叉审查发现）
+        clearDiscipleFromProductionRepository(discipleId)
     }
 }

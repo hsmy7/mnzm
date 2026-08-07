@@ -365,6 +365,15 @@ suspend fun GameEngine.loadData(
             productionCoordinator.repository.initializeAllSlots(gameData.currentSlot)
         }
         checkAndCollectCompletedSlots()
+        // 双存储对齐（读档自愈）：以 Repository 为真源（restoreSlots 刚写入），
+        // 写回镜像 gameData.productionSlots，消除历史分叉存档——镜像残留/缺失会导致
+        // 状态推导与 UI 展示不一致（弟子自动脱离槽位/被自动任命其他槽位根因）
+        stateStore.update {
+            val repoSlots = productionCoordinator.repository.getSlots()
+            if (repoSlots.isNotEmpty()) {
+                this.gameData = this.gameData.copy(productionSlots = repoSlots)
+            }
+        }
         val currentData = stateStore.gameDataSnapshot
         // 旧存档兼容：merchantRefreshChances=0（该字段加入前的存档）初始化为1
         // 同时设置 lastGrantYear 防止下一年度事件双倍发放

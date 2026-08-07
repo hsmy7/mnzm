@@ -153,6 +153,7 @@ class DiscipleReflectionReleaseTest {
             assignmentGate = mock(),
             discipleSlotCleanup = mock(),
             lawEnforcementProcessor = mock(),
+            productionCoordinator = mock<com.xianxia.sect.core.engine.domain.production.ProductionCoordinator>(),
         )
     }
 

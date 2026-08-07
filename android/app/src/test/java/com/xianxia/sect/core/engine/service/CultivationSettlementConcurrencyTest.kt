@@ -5,7 +5,6 @@ import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.GameStateStoreImpl
 import com.xianxia.sect.core.wallet.SpiritStoneLedger
@@ -78,7 +77,7 @@ class CultivationSettlementConcurrencyTest {
         lifecycleProcessor = DiscipleLifecycleProcessor(
             stateStore,
             scopeProvider,
-            mock(ProductionSlotRepository::class.java),
+            mock(com.xianxia.sect.core.engine.domain.production.ProductionCoordinator::class.java),
             mock(com.xianxia.sect.core.event.EventBusPort::class.java),
             mock(com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup::class.java),
             object : javax.inject.Provider<com.xianxia.sect.core.engine.service.LawEnforcementProcessor> {

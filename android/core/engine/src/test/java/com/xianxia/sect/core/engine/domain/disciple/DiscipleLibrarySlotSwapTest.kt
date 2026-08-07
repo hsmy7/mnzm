@@ -195,6 +195,7 @@ class DiscipleLibrarySlotSwapTest {
             assignmentGate = gate,
             discipleSlotCleanup = DiscipleSlotCleanup(gate),
             lawEnforcementProcessor = mock(),
+            productionCoordinator = mock<com.xianxia.sect.core.engine.domain.production.ProductionCoordinator>(),
         )
     }
 

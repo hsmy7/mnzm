@@ -3,6 +3,7 @@ package com.xianxia.sect.core.engine.domain.disciple
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.GameEngineCore
+import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.LawEnforcementProcessor
 import com.xianxia.sect.core.engine.service.HighFrequencyData
@@ -29,6 +30,7 @@ class DiscipleFacadeImpl @Inject constructor(
     private val assignmentGate: DiscipleAssignmentGate,
     private val discipleSlotCleanup: DiscipleSlotCleanup,
     private val lawEnforcementProcessor: LawEnforcementProcessor,
+    private val productionCoordinator: ProductionCoordinator,
 ) : DiscipleFacade {
 
     companion object {
@@ -696,6 +698,9 @@ class DiscipleFacadeImpl @Inject constructor(
                 discipleService.syncSingleDiscipleStatus(oldOccupantId)
             }
             discipleService.syncSingleDiscipleStatus(discipleId)
+            // 双存储同步：事务内 clearAllSlots 清了镜像（含生产槽），
+            // 必须同步清 Room 生产槽 Repository，否则残留占用经月度自动重启复活（双槽分叉根因）
+            productionCoordinator.clearDiscipleInRepository(gameEngineCore.scopeForStateIn(), discipleId)
         }
     }
 
@@ -803,6 +808,9 @@ class DiscipleFacadeImpl @Inject constructor(
                 discipleService.syncSingleDiscipleStatus(oldOccupantId)
             }
             discipleService.syncSingleDiscipleStatus(discipleId)
+            // 双存储同步：事务内 clearAllSlots 清了镜像（含生产槽），
+            // 必须同步清 Room 生产槽 Repository（双槽分叉根因）
+            productionCoordinator.clearDiscipleInRepository(gameEngineCore.scopeForStateIn(), discipleId)
         }
     }
 

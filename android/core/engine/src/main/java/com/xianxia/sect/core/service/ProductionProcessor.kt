@@ -443,12 +443,36 @@ class ProductionProcessor @Inject constructor(
         val currentHerbs = stateStore.getCurrentHerbs()
         val slotIndex = slot.slotIndex
 
+        // 镜像一致性检查：Repository 槽位有弟子但镜像槽位已无此弟子
+        // → 视为玩家已释放（历史只清镜像的入口曾产生此分叉），清 Repository 残留并跳过重启，
+        //   否则自动重启会把已释放弟子拉回槽位（双槽分叉根因：弟子"被自动任命"回原槽）
+        val mirrorStillAssigned = data.productionSlots
+            .any { it.buildingId == BuildingNames.ALCHEMY && it.slotIndex == slotIndex
+                && it.assignedDiscipleId == slot.assignedDiscipleId }
+        if (!mirrorStillAssigned) {
+            scopeProvider.scope.launch(ioDispatcher.dispatcher) {
+                productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slotIndex) { s ->
+                    s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                }
+            }
+            return
+        }
+
         // 验证弟子仍存活且空闲（防止自动重启窗口期内弟子被调走）
         val disciple = slot.assignedDiscipleId?.let { id ->
             allDisciples.find { it.id == id }
         }
         if (disciple == null || !disciple.isAlive || (disciple.status != DiscipleStatus.IDLE && disciple.status != DiscipleStatus.ALCHEMY)) {
-            // 弟子不可用 → 清除槽位关联，等待玩家手动处理
+            // 弟子不可用 → 双存储同时清除槽位关联（镜像在事务内，Repository 在 IO 线程）
+            stateStore.update {
+                gameData = gameData.copy(
+                    productionSlots = gameData.productionSlots.map { s ->
+                        if (s.buildingId == BuildingNames.ALCHEMY && s.slotIndex == slotIndex) {
+                            s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                        } else s
+                    }
+                )
+            }
             scopeProvider.scope.launch(ioDispatcher.dispatcher) {
                 productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slotIndex) { s ->
                     s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
@@ -542,11 +566,35 @@ class ProductionProcessor @Inject constructor(
             .mapValues { (_, list) -> list.sumOf { it.quantity } }
         val slotIndex = slot.slotIndex
 
+        // 镜像一致性检查：Repository 槽位有弟子但镜像槽位已无此弟子
+        // → 视为玩家已释放（历史只清镜像的入口曾产生此分叉），清 Repository 残留并跳过重启
+        val mirrorStillAssigned = data.productionSlots
+            .any { it.buildingId == BuildingNames.FORGE && it.slotIndex == slotIndex
+                && it.assignedDiscipleId == slot.assignedDiscipleId }
+        if (!mirrorStillAssigned) {
+            scopeProvider.scope.launch(ioDispatcher.dispatcher) {
+                productionSlotRepository.updateSlotByBuildingId(BuildingNames.FORGE, slotIndex) { s ->
+                    s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                }
+            }
+            return true
+        }
+
         // 验证弟子仍存活且空闲
         val disciple = slot.assignedDiscipleId?.let { id ->
             allDisciples.find { it.id == id }
         }
         if (disciple == null || !disciple.isAlive || (disciple.status != DiscipleStatus.IDLE && disciple.status != DiscipleStatus.FORGE)) {
+            // 弟子不可用 → 双存储同时清除槽位关联（镜像在事务内，Repository 在 IO 线程）
+            stateStore.update {
+                gameData = gameData.copy(
+                    productionSlots = gameData.productionSlots.map { s ->
+                        if (s.buildingId == BuildingNames.FORGE && s.slotIndex == slotIndex) {
+                            s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                        } else s
+                    }
+                )
+            }
             scopeProvider.scope.launch(ioDispatcher.dispatcher) {
                 productionSlotRepository.updateSlotByBuildingId(BuildingNames.FORGE, slotIndex) { s ->
                     s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
@@ -599,8 +647,15 @@ class ProductionProcessor @Inject constructor(
     fun processAutoAssign(state: MutableGameState) {
         val data = state.gameData
         val policies = data.sectPolicies
+        // 双槽分叉防线：已占用镜像生产槽/灵矿槽的弟子排除在自动排班候选之外。
+        // 只清镜像的入口曾让弟子状态推导为 IDLE 但槽位仍被占用，
+        // 若此处重复分配会造成同一弟子同时占多个生产槽（玩家反馈"弟子被自动任命其他工作槽位"根因）
+        val occupiedProductionIds = data.productionSlots
+            .filter { !it.assignedDiscipleId.isNullOrEmpty() }
+            .mapNotNull { it.assignedDiscipleId }.toSet() +
+            data.spiritMineSlots.filter { it.discipleId.isNotEmpty() }.map { it.discipleId }.toSet()
         val idleDisciples = state.discipleTables.assembleAll()
-            .filter { d -> d.status == DiscipleStatus.IDLE && d.isAlive }
+            .filter { d -> d.status == DiscipleStatus.IDLE && d.isAlive && d.id !in occupiedProductionIds }
             .toMutableList()
 
 

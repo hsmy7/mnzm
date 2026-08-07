@@ -64,6 +64,17 @@
 - **UI 换行根治（根因：列数按全屏宽度计算）** — "格子加宽"（上轮 80→100）后 4 字名称仍换行：三节列数 = `screenWidthDp / TRAIT_CELL_TARGET_WIDTH_DP` 按**全屏宽度**计算，但天赋区实际容器仅约 40% 屏宽（`DiscipleDetailScreen` 右侧 `DetailRightPanel` 占 40% + 44dp Tab 栏 + 24dp padding），主流机型（360~432dp 竖屏）每格实际仅 32~46dp < 10sp 加粗 4 字所需 ~44dp（随字体缩放放大），`maxLines=2` 兜底触发完整换行；根治：`BoxWithConstraints` 按**实际容器宽度**动态计算列数（私有扩展 `traitCellColumnCount()`，1~5 列自适应，容器宽则列多、窄则列少），`TRAIT_CELL_TARGET_WIDTH_DP` 100→64（=单行容纳 4 字的最小舒适格宽：10sp×4≈40dp + 8dp 内边距 + 字体缩放 1.3 余量），任何列数下每格 ≥64dp 单行容纳 4 字，`maxLines=2` 保留为极端字体缩放（>1.3）兜底；360dp 竖屏 2 列每格 ~72dp / 480dp 3 列 / 横屏 4 列，三节同构一并修复，移除 `LocalConfiguration` 依赖
 - **测试** — 新增 `WeightedRollTest`（数量/品阶大样本统计 ±0.01 容差/权重和/确定性）、`PhysiqueDatabaseTest`/`AffixDatabaseTest`（0-5 与模板去重/负面真实出现/品阶分布统计/确定性）、`TalentDatabaseTest` 追加 4 例、`RedeemCodeManagerTalentTest` 范围断言 0..3→0..5 + 负面出现/确定性 2 例、`DiscipleFactoryTest` seed 适配 + 全一致性断言；`AISectDiscipleManagerTest` 两处注释同步（L465 老档补全断言 seed 42 下通过无需调整）；全模块 compileReleaseKotlin + 单测串行（--max-workers=1）+ detekt 通过
 
+### 修复（2026-08-07 弟子自动脱离槽位 + 被自动任命其他岗位——生产槽双存储分叉根治）
+
+- **根因（证据链）** — 生产槽存在双份数据：`GameData.productionSlots`（镜像，状态推导/自愈/槽位清理读取）与 Room `ProductionSlotRepository`（真源，UI 展示/存档快照）。各清槽入口只清一端：自动重启"弟子不可用"分支只清 repo → 镜像残留（UI 槽位空但弟子状态仍占位，玩家症状 1"自动脱离槽位"）；长老任命/释放入口只清镜像 → repo 残留 + 状态推导为 IDLE → 月度 `processAutoAssign` 候选过滤仅 `status==IDLE && isAlive`（不检查槽位占用）把残留弟子捕获到其他空槽（玩家症状 2"自动任命其他岗位"），且 repo 残留经自动重启拉回原槽
+- **修复 1（清槽入口双写统一）** — 新增统一工具 `ProductionCoordinator.clearDiscipleFromRepository(discipleId)`（suspend 清该弟子全部 repo 槽位）+ `clearDiscipleInRepository(scope, id)`（fire-and-forget wrapper，CancellationException 重抛）；引擎层封装 `GameEngine.clearDiscipleFromProductionRepository` 委托 `scopeForStateIn`；四入口接线：`GameEngineDiscipleOps.releaseDiscipleFromAllSlotsAtomic`（事务后补 repo 清理）、`DiscipleFacadeImpl.assignDirectDisciple`/`assignDiscipleToLibrarySlot`（同）、`DiscipleLifecycleProcessor.clearDiscipleFromAllSlots`（删除只清锻造槽的 `clearForgeSlotsIfNeeded`，死亡/叛逃/老化统一清全部槽位，`runBlocking(ioDispatcher)` 同步阻塞 DAO 写入消除跨线程竞态）、`ProductionProcessor.processAutoAlchemySlot/processAutoForgeSlot`"弟子不可用"分支补镜像清理（原只清 repo 是症状 1 直接根因）
+- **修复 2（自动排班防线）** — `processAutoAssign` 候选过滤增强：排除已占用镜像生产槽/灵矿槽的弟子（`occupiedProductionIds` 集合），分叉残留的 IDLE 弟子不再被重复分配
+- **修复 3（读档对齐）** — `GameEngineCoordination.loadData` 在 restoreSlots 后以 Repository 为真源写回镜像 `productionSlots`（`repoSlots.isNotEmpty()` 守卫），历史分叉存档读档即自愈
+- **修复 4（自愈加固）** — `healDuplicateSlotAssignments` 扫描前事务内先以 repo 快照对齐镜像；事务后对重复弟子 `clearDiscipleFromRepository` + PRODUCTION_SLOT 赢家 `updateSlot` 重写回 repo；`rebuildFromGameData` 改读实时 `getSlots()`（gate 注册基于自愈后一致数据）
+- **修复 5（收获路径核查补漏）** — `BuildingService.autoCollectSlotResult`/`autoCollectAlchemyResult` 原本只重置 repo（镜像残留会让状态推导把弟子拉回工作态），新增 `clearMirrorProductionSlot` 在 repo 重置前清镜像，双写闭环
+- **兼容性** — 纯运行时一致性修复，无 Entity/Migration 变更，Room schema 无变化；老存档由修复 3 读档自动对齐
+- **测试** — 新增 `ProductionSlotDualWriteGuardTest` 4 例（clearDiscipleFromRepository 清该弟子保他人/processAutoAssign 镜像残留生产槽与灵矿槽不重复分配/processAutoAlchemy repo 残留清空且不重启，IoDispatcher 用 Unconfined 使 launch 同步执行）；`GameEngineDualSlotGuardTest` +2 例（释放所有槽位后 verify repo 清理、自愈后真实 repo 端到端清空——mock 的 suspend 清理以 doAnswer 委托真实 `ProductionCoordinator`）；4 个既有测试构造参数适配（`DiscipleFacadeImpl` 新增 `productionCoordinator` 注入、`DiscipleLifecycleProcessorTest` 参数名更新）；全模块 compileReleaseKotlin + 单测串行（--max-workers=1）通过
+
 ## [4.00.90] - 2026-08-06
 
 ### 调整（2026-08-07 排行榜入口图标替换）

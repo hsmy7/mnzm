@@ -95,7 +95,9 @@ class DiscipleLifecycleProcessorTest {
         processor = DiscipleLifecycleProcessor(
             stateStore = mockStore,
             scopeProvider = mock(CoroutineScopeProvider::class.java),
-            productionSlotRepository = mock(ProductionSlotRepository::class.java),
+            productionCoordinator = mock(
+                com.xianxia.sect.core.engine.domain.production.ProductionCoordinator::class.java
+            ),
             eventBus = mock(EventBusPort::class.java),
             discipleSlotCleanup = DiscipleSlotCleanup(
                 DiscipleAssignmentGate(DiscipleAssignmentRegistry())
