@@ -99,6 +99,7 @@ class CultivationEventProcessorTest {
             caveExplorationProcessor = mock(),
             discipleLifecycleProcessor = mock(),
             diplomacyEventProcessor = mock(),
+            diplomacyService = mock(),
             equipmentManager = mock(),
             manualManager = mock(),
             autoBuyService = mock(),

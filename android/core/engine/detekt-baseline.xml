@@ -1421,7 +1421,6 @@
     <ID>VariableNaming:AISectAttackManagerTest.kt$AISectAttackManagerTest$private val SECT_DEFENSE_EXCLUDED = setOf( DiscipleStatus.ON_MISSION, DiscipleStatus.IN_TEAM, DiscipleStatus.REFLECTING, DiscipleStatus.GARRISONING, DiscipleStatus.REFINING )</ID>
     <ID>VariableNaming:CultivationRateLookupBenchmarkTest.kt$CultivationRateLookupBenchmarkTest$private val BUILDING_COUNT = 50</ID>
     <ID>VariableNaming:CultivationRateLookupBenchmarkTest.kt$CultivationRateLookupBenchmarkTest$private val DISCIPLE_COUNT = 300</ID>
-    <ID>VariableNaming:DiplomacyService.kt$DiplomacyService$private val SECT_TRADE_RARITY_PROBABILITIES = mapOf( 6 to 0.003, 5 to 0.027, 4 to 0.05, 3 to 0.12, 2 to 0.40, 1 to 0.40 )</ID>
     <ID>VariableNaming:EquipmentNurtureBatchBenchmarkTest.kt$EquipmentNurtureBatchBenchmarkTest$private val DISCIPLE_COUNT = 300</ID>
     <ID>VariableNaming:GameEngineAtomicAssignTest.kt$GameEngineAtomicAssignTest$private val BUILDING_ID = "residence_b1"</ID>
     <ID>VariableNaming:GameEngineAtomicAssignTest.kt$GameEngineAtomicAssignTest$private val DISCIPLE_A = "1"</ID>

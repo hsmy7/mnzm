@@ -22,6 +22,7 @@ import com.xianxia.sect.core.wallet.DeductResult
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RarityTimeProgression
 import com.xianxia.sect.core.util.asKotlinRandom
 import com.xianxia.sect.core.util.RngPartition
 import javax.inject.Inject
@@ -49,6 +50,9 @@ class DiplomacyService @Inject constructor(
 
     companion object {
         private const val TAG = "DiplomacyService"
+
+        /** 宗门交易列表强制刷新间隔（年）：年度事件按此差值判据刷新所有宗门 */
+        private const val SECT_TRADE_REFRESH_INTERVAL_YEARS = 3
     }
 
     // ==================== 联盟系统 ====================
@@ -197,15 +201,13 @@ class DiplomacyService @Inject constructor(
         val updatedSectDetails: Map<String, SectDetail>
     )
 
-    private val SECT_TRADE_RARITY_PROBABILITIES = mapOf(
-        6 to 0.003,
-        5 to 0.027,
-        4 to 0.05,
-        3 to 0.12,
-        2 to 0.40,
-        1 to 0.40
-    )
-
+    /**
+     * 生成宗门交易商品列表。传 [sectId] 时使用确定性种子
+     * `sectId.hashCode() + year`——同 (sectId, year) 生成结果完全可复现
+     * （仅 `id`/`itemId` 为 UUID 实例标识，不可复现）。
+     * 注意：不传 sectId 时回退 SYSTEM 分区 RNG（消耗分区 draw 状态），
+     * 当前仅 [DiplomacyFacadeImpl] 死代码链可达，勿新增调用。
+     */
     fun generateSectTradeItems(year: Int, sectId: String? = null): List<MerchantItem> {
         val items = mutableListOf<MerchantItem>()
         val rngLocal = if (sectId != null) {
@@ -223,7 +225,7 @@ class DiplomacyService @Inject constructor(
             attempts++
             val types = listOf("equipment", "manual", "pill", "material", "herb", "seed", "spiritStone")
             val type = types[rngLocal.nextInt(types.size)]
-            val rarity = selectRarityByMerchantProbabilities(rngLocal)
+            val rarity = selectRarityByMerchantProbabilities(rngLocal, year)
 
             fun calcStock(t: String, r: Int): Int {
                 val isConsumable = t in listOf("herb", "seed", "material")
@@ -250,7 +252,8 @@ class DiplomacyService @Inject constructor(
 
             val item = when (type) {
                 "equipment" -> {
-                    val equipment = EquipmentDatabase.generateRandom(rarity, rarity)
+                    // 传入 rngLocal：装备名选择与类型/品阶同源，保证同 (sectId, year) 完全可复现
+                    val equipment = EquipmentDatabase.generateRandom(rarity, rarity, rngLocal.asKotlinRandom())
                     val template = EquipmentDatabase.getTemplateByName(equipment.name)
                     val basePrice = (template?.price ?: GameConfig.Rarity.get(rarity).basePrice).toLong()
                     MerchantItem(
@@ -266,7 +269,10 @@ class DiplomacyService @Inject constructor(
                     )
                 }
                 "manual" -> {
-                    val manual = ManualDatabase.generateRandom(rarity, rarity)
+                    // 同 equipment：传入 rngLocal 保证确定性复现。
+                    // 初始化守卫：数据库未初始化时跳过（避免年度单事务内抛异常被吞导致全量刷新丢失）
+                    if (!ManualDatabase.isInitialized) continue
+                    val manual = ManualDatabase.generateRandom(rarity, rarity, null, rngLocal.asKotlinRandom())
                     val template = ManualDatabase.getByName(manual.name)
                     val basePrice = (template?.price ?: GameConfig.Rarity.get(rarity).basePrice).toLong()
                     MerchantItem(
@@ -352,6 +358,9 @@ class DiplomacyService @Inject constructor(
                     )
                 }
                 "spiritStone" -> {
+                    // 灵石受年份品阶上限约束：映射品阶（上品=4/中品=3）超过当年可出上限时跳过
+                    val spiritStoneRarity = if (rarity >= 4) 4 else 3
+                    if (spiritStoneRarity > RarityTimeProgression.maxRarityForYear(year)) continue
                     val isHigh = rarity >= 4
                     val name = if (isHigh) "上品灵石" else "中品灵石"
                     val itemRarity = if (isHigh) 4 else 3
@@ -391,9 +400,7 @@ class DiplomacyService @Inject constructor(
         val sectDetail = data.sectDetails[sectId] ?: SectDetail(sectId = sectId)
 
         val currentYear = data.gameYear
-        val shouldRefresh = currentYear - sectDetail.tradeLastRefreshYear >= 3 || sectDetail.tradeItems.isEmpty()
-
-        if (shouldRefresh) {
+        if (shouldRefreshSectTrade(currentYear, sectDetail)) {
             val newItems = generateSectTradeItems(currentYear, sectId)
             stateStore.modifyState {
                 val updatedSectDetails = gameData.sectDetails.toMutableMap()
@@ -407,6 +414,49 @@ class DiplomacyService @Inject constructor(
         }
 
         return sectDetail.tradeItems
+    }
+
+    /**
+     * 宗门交易刷新判据（年度 [refreshAllSectTrades] 与懒刷新 [getOrRefreshSectTradeItems] 共用单一来源）：
+     * 距上次刷新满 [SECT_TRADE_REFRESH_INTERVAL_YEARS] 年，或列表为空兜底刷新。
+     * 自愈：`tradeLastRefreshYear` 为未来值（时钟回拨/存档篡改）时按 0 处理——
+     * 差值恒满足 → 立即刷新并写回当前年份，避免商品列表永久停滞。
+     */
+    private fun shouldRefreshSectTrade(year: Int, detail: SectDetail): Boolean {
+        val lastRefresh = if (detail.tradeLastRefreshYear > year) 0 else detail.tradeLastRefreshYear
+        return year - lastRefresh >= SECT_TRADE_REFRESH_INTERVAL_YEARS || detail.tradeItems.isEmpty()
+    }
+
+    /**
+     * 年度强制刷新所有 AI 宗门交易列表（每 [SECT_TRADE_REFRESH_INTERVAL_YEARS] 年一次）。
+     * 由年度事件处理器调用；与 [getOrRefreshSectTradeItems] 同差值判据、同确定性种子
+     * （`sectId.hashCode() + year`）——同一年份下年度刷新与懒刷新结果幂等。
+     * 读写在同一次 [GameStateStore.modifyState] 内完成：事务内 `gameData` 为重入缓冲
+     * 副本，判据与写入基于同一快照（对齐 runGarrisonAndReport 的事务 buffer 模式）。
+     */
+    fun refreshAllSectTrades(year: Int) {
+        stateStore.modifyState {
+            if (gameData.sectDetails.isEmpty()) return@modifyState
+
+            val refreshed = mutableMapOf<String, List<MerchantItem>>()
+            for (sect in gameData.worldMapSects) {
+                // 玩家宗门跳过 + 无详情跳过：合并为 null 传播，避免循环内多个 continue
+                val detail = if (sect.isPlayerSect) null else gameData.sectDetails[sect.id]
+                if (detail != null && shouldRefreshSectTrade(year, detail)) {
+                    refreshed[sect.id] = generateSectTradeItems(year, sect.id)
+                }
+            }
+            if (refreshed.isEmpty()) return@modifyState
+
+            val updatedSectDetails = gameData.sectDetails.toMutableMap()
+            for ((sectId, items) in refreshed) {
+                updatedSectDetails[sectId] = (updatedSectDetails[sectId] ?: SectDetail(sectId = sectId)).copy(
+                    tradeItems = items,
+                    tradeLastRefreshYear = year
+                )
+            }
+            gameData = gameData.copy(sectDetails = updatedSectDetails)
+        }
     }
 
     private fun validateSectTrade(data: GameData, sectId: String, itemId: String, quantity: Int): SectTradeValidation? {
@@ -563,13 +613,10 @@ suspend fun buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int =
         }
     }
 
-    private fun selectRarityByMerchantProbabilities(rngLocal: DeterministicRng): Int {
-        val rand = rngLocal.nextDouble()
-        var cumulative = 0.0
-        for ((rarity, prob) in SECT_TRADE_RARITY_PROBABILITIES.entries.sortedByDescending { it.key }) {
-            cumulative += prob
-            if (rand < cumulative) return rarity
-        }
-        return 1
-    }
+    /**
+     * 按年份品阶权重曲线抽样商品品阶（[RarityTimeProgression.rollRarity]）。
+     * 恰好消费 1 次 RNG draw；带 sectId 时使用确定性种子 RNG，同宗门同年份结果恒定。
+     */
+    private fun selectRarityByMerchantProbabilities(rngLocal: DeterministicRng, year: Int): Int =
+        RarityTimeProgression.rollRarity(rngLocal, year)
 }

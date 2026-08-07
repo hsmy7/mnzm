@@ -148,6 +148,8 @@ internal fun CultivationEventProcessor.processYearlyEvents(year: Int) {
             safelyRunInState("refreshAcquisition") {
                 merchantAndRecruitService.refreshMerchantAcquisition(year, 1)
             }
+            // 每 3 年强制刷新所有 AI 宗门交易列表（差值判据与懒刷新统一）
+            safelyRunInState("sectTradeRefresh") { diplomacyService.refreshAllSectTrades(year) }
             safelyRunInState("partnerMatching") {
                 diplomacyEventProcessor.processCrossSectPartnerMatching(year, 1)
             }

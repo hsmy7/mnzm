@@ -8,6 +8,7 @@ import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.GameRngManager
+import com.xianxia.sect.core.util.RarityTimeProgression
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
@@ -41,15 +42,8 @@ class MerchantAndRecruitService @Inject constructor(
         private const val MERCHANT_REFRESH_CHANCE_INTERVAL_YEARS = 30
         /** 手动刷新次数上限 */
         private const val MAX_MERCHANT_REFRESH_CHANCES = 999
-
-        internal val RARITY_PROBABILITIES = mapOf(
-            6 to 0.003,
-            5 to 0.027,
-            4 to 0.05,
-            3 to 0.12,
-            2 to 0.40,
-            1 to 0.40
-        )
+        /** 灵石单次库存上限（与宗门交易 calcStock 的 coerceAtMost(3) 对齐） */
+        private const val MAX_SPIRIT_STONE_STOCK = 3
     }
 
     // ── 商人 ──────────────────────────────────────────────────────────
@@ -71,12 +65,12 @@ class MerchantAndRecruitService @Inject constructor(
             val isPityRefresh = newRefreshCount % MERCHANT_PITY_THRESHOLD == 0
 
             if (isPityRefresh) {
-                addGuaranteedMythicItem(newItems, pools, year, month, newRefreshCount)
+                addGuaranteedTopRarityItem(newItems, pools, year, month, newRefreshCount)
             }
 
             val remainingCount = TRAVELING_MERCHANT_ITEM_COUNT - newItems.size
             repeat(remainingCount) {
-                val selectedRarity = selectRarity()
+                val selectedRarity = selectRarity(year)
                 val selectedItem = selectItemByRarity(pools.poolByRarity, selectedRarity)
                     ?: selectFirstAvailableItem(pools.poolByRarity)
 
@@ -156,15 +150,11 @@ class MerchantAndRecruitService @Inject constructor(
         return pools
     }
 
-    fun selectRarity(): Int {
-        val rand = rng.nextDouble()
-        var cumulative = 0.0
-        for ((rarity, prob) in RARITY_PROBABILITIES.entries.sortedByDescending { it.key }) {
-            cumulative += prob
-            if (rand < cumulative) return rarity
-        }
-        return 1
-    }
+    /**
+     * 按年份品阶权重曲线抽样商品品阶（[RarityTimeProgression.rollRarity]）。
+     * 恰好消费 1 次分区 PRNG draw，保证随机流结构稳定。
+     */
+    fun selectRarity(year: Int): Int = RarityTimeProgression.rollRarity(rng, year)
 
     fun selectItemByRarity(itemPoolByRarity: Map<Int, List<PoolEntry>>, rarity: Int): PoolEntry? {
         val pool = itemPoolByRarity[rarity] ?: return null
@@ -179,7 +169,7 @@ class MerchantAndRecruitService @Inject constructor(
 
     fun calculateMerchantStock(type: String, rarity: Int): Int {
         val isConsumable = type in listOf("herb", "seed", "material")
-        return if (isConsumable) {
+        val stock = if (isConsumable) {
             when (rarity) {
                 6 -> 3 + rng.nextInt(5)
                 5 -> 3 + rng.nextInt(5)
@@ -198,7 +188,12 @@ class MerchantAndRecruitService @Inject constructor(
                 else -> 1 + rng.nextInt(5)
             }
         }
+        return capSpiritStoneStock(type, stock)
     }
+
+    /** 灵石库存上限与宗门交易一致（中品/上品灵石每次最多 [MAX_SPIRIT_STONE_STOCK] 个） */
+    private fun capSpiritStoneStock(type: String, stock: Int): Int =
+        if (type == "spiritStone") stock.coerceAtMost(MAX_SPIRIT_STONE_STOCK) else stock
 
     fun selectMerchantPillGrade(): PillGrade {
         val roll = rng.nextDouble()
@@ -257,25 +252,39 @@ class MerchantAndRecruitService @Inject constructor(
         return merged.values.toList()
     }
 
-    fun addGuaranteedMythicItem(
+    /**
+     * 保底：每 [MERCHANT_PITY_THRESHOLD] 次刷新必出 1 件**下一阶段最高品阶**物品
+     * （[RarityTimeProgression.pityRarityForYear]，如 60 年属凡~灵段 → 必出宝品）。
+     * 保底品阶池为空时回退当前段最高品阶池，再空则跳过（不崩溃）。
+     */
+    fun addGuaranteedTopRarityItem(
         newItems: MutableList<MerchantItem>,
         pools: MerchantItemPools,
         year: Int,
         month: Int,
         refreshCount: Int
     ) {
-        val mythicPool = pools.poolByRarity[6]
-        if (mythicPool == null || mythicPool.isEmpty()) {
-            DomainLog.w(TAG, "商人保底触发但天品物品池为空，跳过保底")
+        val pityRarity = RarityTimeProgression.pityRarityForYear(year)
+        val fallbackRarity = RarityTimeProgression.maxRarityForYear(year)
+        val rarity = if (pools.poolByRarity[pityRarity].isNullOrEmpty() &&
+            pools.poolByRarity[fallbackRarity].isNullOrEmpty()
+        ) {
+            DomainLog.w(TAG, "商人保底触发但品阶 $pityRarity/$fallbackRarity 物品池均为空，跳过保底")
             return
+        } else if (pools.poolByRarity[pityRarity].isNullOrEmpty()) {
+            fallbackRarity
+        } else {
+            pityRarity
         }
 
-        val mythicItem = mythicPool[rng.nextInt(mythicPool.size)]
-        val guaranteedMythicItem = createMerchantItem(mythicItem, pools, year, month, forcedRarity = 6)
+        val pityPool = pools.poolByRarity[rarity] ?: return
+        val pityItem = pityPool[rng.nextInt(pityPool.size)]
+        val guaranteedItem = createMerchantItem(pityItem, pools, year, month, forcedRarity = rarity)
 
-        newItems.add(guaranteedMythicItem)
+        newItems.add(guaranteedItem)
 
-        DomainLog.i(TAG, "商人第${refreshCount}次刷新触发保底，优先添加天品物品：${mythicItem.name}")
+        val rarityName = GameConfig.Rarity.getName(rarity)
+        DomainLog.i(TAG, "商人第${refreshCount}次刷新触发保底，优先添加${rarityName}物品：${pityItem.name}")
     }
 
     // ── 手动刷新 ──────────────────────────────────────────────────────
@@ -331,7 +340,7 @@ class MerchantAndRecruitService @Inject constructor(
         val newItems = mutableListOf<MerchantItem>()
 
         repeat(acquisitionCount) {
-            val selectedRarity = selectRarity()
+            val selectedRarity = selectRarity(year)
             val selectedItem = selectItemByRarity(pools.poolByRarity, selectedRarity)
                 ?: selectFirstAvailableItem(pools.poolByRarity)
 

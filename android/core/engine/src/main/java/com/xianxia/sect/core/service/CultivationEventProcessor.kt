@@ -20,6 +20,7 @@ import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyService
 import com.xianxia.sect.core.engine.domain.diplomacy.VassalService
 import com.xianxia.sect.core.engine.domain.exploration.SecretRealmAIProcessor
 import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
@@ -45,6 +46,7 @@ class CultivationEventProcessor @Inject constructor(
     internal val caveExplorationProcessor: javax.inject.Provider<CaveExplorationProcessor>,
     internal val discipleLifecycleProcessor: DiscipleLifecycleProcessor,
     internal val diplomacyEventProcessor: DiplomacyEventProcessor,
+    internal val diplomacyService: DiplomacyService,
     internal val equipmentManager: DiscipleEquipmentManager,
     internal val manualManager: DiscipleManualManager,
     internal val autoBuyService: AutoBuyService,

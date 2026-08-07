@@ -69,6 +69,7 @@ class CultivationEventProcessorAutoWarehouseTest {
             caveExplorationProcessor = mock(),
             discipleLifecycleProcessor = mock(),
             diplomacyEventProcessor = mock(),
+            diplomacyService = mock(),
             equipmentManager = DiscipleEquipmentManager(),
             manualManager = DiscipleManualManager(),
             autoBuyService = mock(),
