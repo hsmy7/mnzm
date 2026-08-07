@@ -139,4 +139,28 @@ class BuildingFacadeImplPlantingTest {
         assertEquals("种子充足时应种满 5 块空地", 5, planted)
         assertEquals("同事务扣种：剩余 5 颗", 5, store.seeds.value.first().quantity)
     }
+
+    @Test
+    fun `plantOnSpiritFields - 非本宗地块不种植不扣种`() = runTest {
+        // 对抗性审查 F3：目标田 sectId 非本宗时不可播种（越权调用/数据损坏防御）
+        val seed = seedEntity(id = "seed1", quantity = 2)
+        store.update {
+            seeds = EntityStore(listOf(seed))
+            gameData = gameData.copy(
+                spiritFieldPlants = (1..5).map { i ->
+                    SpiritFieldPlant(buildingInstanceId = "field$i", sectId = "sectB")
+                }
+            )
+        }
+        whenever(inventorySystem.getSeedById("seed1")).thenReturn(seed)
+
+        facade.plantOnSpiritFields(
+            listOf("field1", "field2", "field3", "field4", "field5"),
+            "seed1", "sectA"
+        )
+
+        val planted = store.latestGameData.spiritFieldPlants.count { it.seedId == "seed1" }
+        assertEquals("跨宗门地块不应被种植", 0, planted)
+        assertEquals("种子不被消耗", 2, store.seeds.value.first().quantity)
+    }
 }

@@ -31,6 +31,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 
 /**
  * ProductionProcessor 自动分配逻辑单元测试。
@@ -550,11 +551,12 @@ class ProductionProcessorTest {
         )
     }
 
-    /** 收获/种植测试的可选环境配置（默认空，仅光环/长老场景使用） */
+    /** 收获/种植测试的可选环境配置（默认空，仅光环/长老/跨宗门场景使用） */
     private data class HarvestEnv(
         val placedBuildings: List<GridBuildingData> = emptyList(),
         val elderSlots: ElderSlots = ElderSlots(),
-        val discipleTables: DiscipleTables = DiscipleTables()
+        val discipleTables: DiscipleTables = DiscipleTables(),
+        val activeSectId: String = ""
     )
 
     private fun createState(
@@ -571,7 +573,8 @@ class ProductionProcessorTest {
                 gameMonth = gameMonth,
                 spiritFieldPlants = plants,
                 placedBuildings = env.placedBuildings,
-                elderSlots = env.elderSlots
+                elderSlots = env.elderSlots,
+                activeSectId = env.activeSectId
             ),
             discipleTables = env.discipleTables,
             equipmentStacks = EntityStore(emptyList()),
@@ -878,6 +881,87 @@ class ProductionProcessorTest {
         assertEquals("引导计数仍累计（收获行为本身成功）", 1L,
             state.gameData.guideCounters[GuideCounterKeys.HERBS_HARVESTED])
         assertEquals("灵田已收获清空", "", state.gameData.spiritFieldPlants.first().seedId)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 对抗性审查修复（2026-08-07）— 锁定种子续种豁免 + 邮件异常防御
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `processSpiritFieldHarvest - 锁定种子不用于自动续种，田收获后清空且种子数量不变`() = runTest {
+        // 对抗性审查发现 1：全系统"锁定=不可消耗"语义，自动续种不得绕过锁定保护
+        val lockedSeed = Seed(
+            id = "s1", slotId = 1, name = "聚灵草种", rarity = 1,
+            growTime = 36, yield = 5, quantity = 3, isLocked = true
+        )
+        val plant = SpiritFieldPlant(buildingInstanceId = "field1", seedId = "p1",
+            seedName = "聚灵草种", growTime = 36, expectedYield = 5, plantYear = 1, plantMonth = 1)
+        val state = createState(plants = listOf(plant), seeds = listOf(lockedSeed), gameYear = 4, gameMonth = 1)
+        createProcessor().processSpiritFieldHarvest(state)
+
+        assertEquals("草药正常收获", 1, state.herbs.all().size)
+        assertEquals("锁定种子不被消耗", 3, state.seeds.all().first().quantity)
+        assertEquals("田收获后清空（无种子可续种）", "", state.gameData.spiritFieldPlants.first().seedId)
+    }
+
+    @Test
+    fun `processSpiritFieldHarvest - 溢出邮件异常时收获不丢草药`() = runTest {
+        // 对抗性审查发现 2：循环中途异常时已完成地块的草药仍随事务提交、
+        // 未处理地块保持成熟待下月再收（防御 try-catch，替代旧"整轮丢失"语义退化）
+        val dbSeed = HerbDatabase.getSeedByName("聚灵草种") ?: return@runTest
+        val dbHerb = HerbDatabase.getHerbFromSeedName("聚灵草种") ?: return@runTest
+        val maxStack = InventoryConfig().getMaxStackSize("herb")
+        val fullStacks = (1..50).map { i ->
+            Herb(id = "h$i", name = dbHerb.name, rarity = dbHerb.rarity,
+                description = dbHerb.description, category = dbHerb.category, quantity = maxStack)
+        }
+        val plant = SpiritFieldPlant(buildingInstanceId = "field1", seedId = "p1",
+            seedName = "聚灵草种", growTime = 36, expectedYield = 5, plantYear = 1, plantMonth = 1)
+        val state = createState(plants = listOf(plant), herbs = fullStacks, gameYear = 4, gameMonth = 1)
+        val inventorySystem = mock<InventorySystem>()
+        // 仓库满 → 溢出转邮件 → 邮件系统异常（模拟故障）
+        whenever(inventorySystem.sendOverflowMail(any(), any(), any(), any(), any()))
+            .thenThrow(RuntimeException("邮件系统故障"))
+        createProcessor(inventorySystem = inventorySystem).processSpiritFieldHarvest(state)
+
+        assertEquals("草药未丢失（堆叠数不变）", 50, state.herbs.all().size)
+        assertEquals("田保持成熟未清空（异常地块下月再收）", "p1",
+            state.gameData.spiritFieldPlants.first().seedId)
+        assertEquals("统计未虚增（add 未完成）", 0,
+            state.gameData.annualHerbBySource["spirit_field"] ?: 0)
+    }
+
+    @Test
+    fun `processSpiritFieldHarvest - 续种后 seedId 更新为实际消耗的种子堆叠`() = runTest {
+        // 对抗性审查 F2：原实现保留悬空 seedId（其堆叠已被扣尽移除），
+        // UI 按 seedId 查库存失败误显示存量 0、同种种子分组分裂
+        val seed = Seed(id = "s2", slotId = 1, name = "聚灵草种", rarity = 1,
+            growTime = 36, yield = 5, quantity = 2, isLocked = false)
+        val plant = SpiritFieldPlant(buildingInstanceId = "field1", seedId = "stale1",
+            seedName = "聚灵草种", growTime = 36, expectedYield = 5, plantYear = 1, plantMonth = 1)
+        val state = createState(plants = listOf(plant), seeds = listOf(seed), gameYear = 4, gameMonth = 1)
+        createProcessor().processSpiritFieldHarvest(state)
+
+        assertEquals("续种消耗新堆叠 1 颗", 1, state.seeds.all().first().quantity)
+        assertEquals("田 seedId 指向实际消耗的堆叠", "s2",
+            state.gameData.spiritFieldPlants.first().seedId)
+    }
+
+    @Test
+    fun `processSpiritFieldHarvest - 跨宗门地块不收获不扣种子`() = runTest {
+        // 对抗性审查 F3：sectId 非本宗的田不收获（防扣本宗种子续种到异常田）
+        val seed = Seed(id = "s1", slotId = 1, name = "聚灵草种", rarity = 1,
+            growTime = 36, yield = 5, quantity = 3, isLocked = false)
+        val foreignPlant = SpiritFieldPlant(buildingInstanceId = "field_foreign", seedId = "p1",
+            seedName = "聚灵草种", growTime = 36, expectedYield = 5, plantYear = 1, plantMonth = 1,
+            sectId = "sectB")
+        val state = createState(plants = listOf(foreignPlant), seeds = listOf(seed),
+            gameYear = 4, gameMonth = 1, env = HarvestEnv(activeSectId = "sectA"))
+        createProcessor().processSpiritFieldHarvest(state)
+
+        assertEquals("跨宗门田不收获", 0, state.herbs.all().size)
+        assertEquals("种子不被消耗", 3, state.seeds.all().first().quantity)
+        assertEquals("田保持原样", "p1", state.gameData.spiritFieldPlants.first().seedId)
     }
 
     // ═══════════════════════════════════════════════════════════════

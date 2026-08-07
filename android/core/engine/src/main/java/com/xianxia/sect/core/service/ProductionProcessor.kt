@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.service
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import kotlin.math.roundToInt
@@ -207,31 +208,44 @@ class ProductionProcessor @Inject constructor(
         val newPlants = plants.toMutableList()
         var hasChanges = false
 
-        plants.forEachIndexed { index, plant ->
-            if (plant.seedId.isEmpty() || plant.growTime <= 0) return@forEachIndexed
-
-            val elapsedMonths = ((currentYear - plant.plantYear) * 12 +
-                (currentMonth - plant.plantMonth)).coerceAtLeast(0)
-            val effectiveGrowTime = HerbGardenAuraService.calculateEffectiveGrowTime(
-                plant.growTime, context.bonusFor(plant.buildingInstanceId))
-
-            if (elapsedMonths >= effectiveGrowTime) {
-                val dbHerb = HerbDatabase.getHerbFromSeedName(plant.seedName)
-                if (dbHerb == null) {
-                    DomainLog.w(TAG, "processSpiritFieldHarvest: 未找到种子 " +
-                        "${plant.seedName} 对应的灵草定义，跳过收获")
+        // 防御（对抗性审查发现 2）：循环中途异常时已完成地块的草药仍随事务提交
+        // （replaceAll 在循环后统一执行），未处理地块保持成熟待下月再收，
+        // 避免"田已清空但草药整轮丢失"的语义退化；CancellationException/Error 照常抛出
+        runCatching {
+            plants.forEachIndexed { index, plant ->
+                if (plant.seedId.isEmpty() || plant.growTime <= 0) return@forEachIndexed
+                // 跨宗门地块隔离：sectId 非空且不属于当前宗门的田不收获
+                // （正常数据仅损坏/越权可达，防止扣本宗种子续种到异常田——对抗性审查 F3）
+                if (plant.sectId.isNotEmpty() && plant.sectId != data.activeSectId) {
                     return@forEachIndexed
                 }
-                addHarvestedHerb(plant, dbHerb, herbStore, state)
-                // 引导系统：累计收获灵植（annualHerbBySource 由 addHarvestedHerb 内部按实际收获量累加）
-                val prevHerbCount = state.gameData.guideCounters[GuideCounterKeys.HERBS_HARVESTED] ?: 0L
-                state.gameData = state.gameData.copy(
-                    guideCounters = state.gameData.guideCounters + (GuideCounterKeys.HERBS_HARVESTED to prevHerbCount + 1),
-                    annualHerbCount = state.gameData.annualHerbCount + 1
-                )
-                updateSlotAfterHarvest(index, plant, state, currentYear, currentMonth, newPlants)
-                hasChanges = true
+
+                val elapsedMonths = ((currentYear - plant.plantYear) * 12 +
+                    (currentMonth - plant.plantMonth)).coerceAtLeast(0)
+                val effectiveGrowTime = HerbGardenAuraService.calculateEffectiveGrowTime(
+                    plant.growTime, context.bonusFor(plant.buildingInstanceId))
+
+                if (elapsedMonths >= effectiveGrowTime) {
+                    val dbHerb = HerbDatabase.getHerbFromSeedName(plant.seedName)
+                    if (dbHerb == null) {
+                        DomainLog.w(TAG, "processSpiritFieldHarvest: 未找到种子 " +
+                            "${plant.seedName} 对应的灵草定义，跳过收获")
+                        return@forEachIndexed
+                    }
+                    addHarvestedHerb(plant, dbHerb, herbStore, state)
+                    // 引导系统：累计收获灵植（annualHerbBySource 由 addHarvestedHerb 内部按实际收获量累加）
+                    val prevHerbCount = state.gameData.guideCounters[GuideCounterKeys.HERBS_HARVESTED] ?: 0L
+                    state.gameData = state.gameData.copy(
+                        guideCounters = state.gameData.guideCounters + (GuideCounterKeys.HERBS_HARVESTED to prevHerbCount + 1),
+                        annualHerbCount = state.gameData.annualHerbCount + 1
+                    )
+                    updateSlotAfterHarvest(index, plant, state, currentYear, currentMonth, newPlants)
+                    hasChanges = true
+                }
             }
+        }.onFailure { e ->
+            if (e is CancellationException || e is Error) throw e
+            DomainLog.w(TAG, "灵田收获中途异常，已完成地块的草药仍入库: ${e.message}", e)
         }
 
         if (hasChanges) {
@@ -333,10 +347,12 @@ class ProductionProcessor @Inject constructor(
         newPlants: MutableList<SpiritFieldPlant>
     ) {
         val matchingSeed = HerbDatabase.getSeedByName(plant.seedName)
+        // isLocked 排除：全系统"锁定=不可消耗"语义（种植/丢弃/卖出/炼丹均检查），
+        // 自动续种不可绕过锁定保护（对抗性审查发现 1）
         val existingSeed = state.seeds.all().find { s ->
             s.name == plant.seedName &&
                 s.rarity == (matchingSeed?.rarity ?: 1) &&
-                s.growTime == plant.growTime && s.quantity > 0
+                s.growTime == plant.growTime && s.quantity > 0 && !s.isLocked
         }
         val currentAbsoluteMonth = LazyEvaluationDispatcher.toAbsoluteMonth(
             currentYear, currentMonth)
@@ -348,6 +364,9 @@ class ProductionProcessor @Inject constructor(
                 state.seeds.update(existingSeed.id) { it.copy(quantity = newQty) }
             }
             newPlants[index] = plant.copy(
+                // seedId 指向实际消耗的种子堆叠：原实现保留旧 seedId，
+                // 其堆叠已被扣尽移除后悬空导致 UI 误显示存量 0（对抗性审查 F2）
+                seedId = existingSeed.id,
                 plantYear = currentYear, plantMonth = currentMonth,
                 completionMonth = currentAbsoluteMonth +
                     plant.growTime.coerceAtLeast(1),

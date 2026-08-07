@@ -15,6 +15,7 @@
 - **[Bug B] 种子不足免费种田** — `BuildingFacadeImpl.plantOnSpiritField(s)` 事务内读最新种子数量/锁定态限种（`maxToPlant = minOf(available, 空地块数)`），**同事务扣种**（扣尽 `seeds.remove` 否则 `seeds.update`），删除事务外返回值被忽略的 `removeSeedSync`，原子提交无竞态窗口；UI 层 `PlantingDialog` 新增 `maxPlantable = minOf(unplantedCount, seed.quantity)` 约束 6 处数量输入/按钮
 - **[Bug C] 文案修正（不做数值变更）** — `GameConfig.SPIRIT_SPRING_YIELD` 注释与天枢阁"灵泉灌溉"政策说明由"灵田产量+15%"更正为"灵草生长速度+15%"（实际为生长加速乘区，非产量）
 - **测试** — `ProductionProcessorTest` +4：T1 Bug A 回归（非零基线断言累计而非覆盖，修复前必红）、T2 300 块灵田单堆叠合并续种统计正确 + `verify(sendOverflowMail, never())`、T3 光环索引门控（灵植阁光环内田 elapsed 28 ≥ eff 25 收获，光环外 eff 30 不收获）、T4 仓库满溢出转邮件且统计按实际入库；新建 `BuildingFacadeImplPlantingTest` +4（种子不足只种上限/数量 0 不种/锁定不种不扣种/充足按空地种满+同事务扣种）；回归 `HerbGardenAuraServiceTest`/`BuildingFacadeImplAssignProductionSlotTest`；全模块 compileReleaseKotlin + 四模块单测串行（--max-workers=1）通过，Room schema 无变化
+- **对抗性审查批次（4 Agent 三视角）** — 修复 3 类：**F1 锁定种子续种绕过**（`updateSlotAfterHarvest` 的 `existingSeed` find 补 `isLocked` 检查——全系统"锁定=不可消耗"语义在续种路径的唯一缺口，3 个 agent 一致确认）、**F2 续种 seedId 悬空**（旧实现续种后 `seedId` 保留为已消耗种子 id，UI 显示误导，现更新为实际堆叠 id）、**F3 跨宗门地块隔离**（收获循环 + 种植两处补 sectId 校验，抽为 `isPlantable` helper——sectId 非空且非本宗的地块不收获/不播种）；收获循环防御改为 `runCatching` + `onFailure`（CancellationException/Error 重抛，普通异常记日志，规避 TooGenericExceptionCaught）。新增测试 T7-T11（锁定种子不续种/邮件异常不丢草药/seedId 更新为实际堆叠/跨宗门不收获/跨宗门不种植不扣种）。确认安全 5 项（连续点击种植不超种/收获与种植并发安全/Bug A 真根治/溢出语义正确/11 项边界防御有效）。不修 5 项及理由（aura 索引 find 一致性仅损坏数据可达/completionMonth 无消费者/续种不刷新 growTime 无危害/计数语义既有设计 T4 锚定/try-catch Partial 边界真实邮件系统不抛）
 
 ### 新增（2026-08-07 远古秘境 5 年自动关闭 + AI 宗门探索队伍遭遇事件）
 

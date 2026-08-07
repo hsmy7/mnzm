@@ -275,6 +275,10 @@ class BuildingFacadeImpl @Inject constructor(
     /** 播种时序快照（一次取值，循环内不变） */
     private data class PlantingTime(val year: Int, val month: Int, val absoluteMonth: Int)
 
+    /** 目标地块是否可播种：空地且属于本宗（空 sectId 为旧数据兼容） */
+    private fun SpiritFieldPlant.isPlantable(sectId: String): Boolean =
+        seedId.isEmpty() && (this.sectId.isEmpty() || this.sectId == sectId)
+
     /** 批量播种到空地：返回 (新植物列表, 实际种植数)。同事务内调用，条件与单块播种一致 */
     private fun plantFields(
         plants: List<SpiritFieldPlant>,
@@ -289,7 +293,8 @@ class BuildingFacadeImpl @Inject constructor(
         for (i in updated.indices) {
             if (planted >= maxToPlant) break
             val p = updated[i]
-            if (p.buildingInstanceId in emptyFieldIds && p.seedId.isEmpty()) {
+            // sectId 校验：非本宗地块不可播种（对抗性审查 F3；空 sectId 为旧数据兼容）
+            if (p.buildingInstanceId in emptyFieldIds && p.isPlantable(sectId)) {
                 updated[i] = p.copy(
                     seedId = seed.id, seedName = seed.name,
                     growTime = seed.growTime, expectedYield = seed.yield,
@@ -314,7 +319,9 @@ class BuildingFacadeImpl @Inject constructor(
             val available = seedEntry?.quantity ?: 0
             if (seedEntry == null || available <= 0 || seedEntry.isLocked) return@update
 
-            val idx = gameData.spiritFieldPlants.indexOfFirst { it.buildingInstanceId == buildingInstanceId && it.seedId.isEmpty() }
+            val idx = gameData.spiritFieldPlants.indexOfFirst {
+                it.buildingInstanceId == buildingInstanceId && it.isPlantable(sectId)
+            }
             if (idx < 0) return@update
 
             val currentYear = gameData.gameYear
