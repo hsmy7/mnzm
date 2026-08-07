@@ -16,7 +16,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalConfiguration
 import com.xianxia.sect.core.model.Affix
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.Physique
@@ -28,8 +27,15 @@ import com.xianxia.sect.ui.components.getTalentRarityColor
 import com.xianxia.sect.ui.game.LocalDismissDropdown
 import com.xianxia.sect.ui.theme.GameColors
 
-/** 特质名称格子目标宽度（dp）：需单行容纳 4 个汉字加粗名称（10sp ≈44dp，含字体缩放余量与内边距） */
-private const val TRAIT_CELL_TARGET_WIDTH_DP = 100
+/** 特质名称格子目标宽度（dp）：单行容纳 4 个汉字加粗名称（10sp×4≈40dp，字体缩放 1.3 时约 52dp，含 8dp 内边距与余量） */
+private const val TRAIT_CELL_TARGET_WIDTH_DP = 64
+
+/**
+ * 按实际容器宽度动态计算特质格子列数（1~5 列自适应）：
+ * 每格宽度 ≥ TRAIT_CELL_TARGET_WIDTH_DP，保证 4 字名称单行容纳；容器宽则列多、窄则列少。
+ */
+private fun BoxWithConstraintsScope.traitCellColumnCount(): Int =
+    maxOf(1, (maxWidth / TRAIT_CELL_TARGET_WIDTH_DP.dp).toInt())
 
 @Composable
 fun TalentsSection(
@@ -54,36 +60,38 @@ fun TalentsSection(
                 color = Color.Black
             )
         } else {
-            val talentColumnCount = maxOf(1, (LocalConfiguration.current.screenWidthDp / TRAIT_CELL_TARGET_WIDTH_DP))
-            talents.chunked(talentColumnCount).forEach { rowTalents ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    rowTalents.forEach { talent ->
-                        val rarityColor = getTalentRarityColor(talent.rarity)
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val columnCount = traitCellColumnCount()
+                talents.chunked(columnCount).forEach { rowTalents ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        rowTalents.forEach { talent ->
+                            val rarityColor = getTalentRarityColor(talent.rarity)
 
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(4.dp))
-                                .border(1.dp, rarityColor, RoundedCornerShape(4.dp))
-                                .clickable { dismissDropdown(); onTalentClick(talent) }
-                                .padding(vertical = 3.dp, horizontal = 4.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = talent.name,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = rarityColor,
-                                maxLines = 2,
-                                textAlign = TextAlign.Center
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .border(1.dp, rarityColor, RoundedCornerShape(4.dp))
+                                    .clickable { dismissDropdown(); onTalentClick(talent) }
+                                    .padding(vertical = 3.dp, horizontal = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = talent.name,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = rarityColor,
+                                    maxLines = 2,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
                         }
-                    }
-                    repeat(talentColumnCount - rowTalents.size) {
-                        Spacer(modifier = Modifier.weight(1f))
+                        repeat(columnCount - rowTalents.size) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                     }
                 }
             }
@@ -113,36 +121,38 @@ fun PhysiquesSection(
                 color = Color.Black
             )
         } else {
-            val columnCount = maxOf(1, (LocalConfiguration.current.screenWidthDp / TRAIT_CELL_TARGET_WIDTH_DP))
-            physiques.chunked(columnCount).forEach { rowItems ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    rowItems.forEach { physique ->
-                        val rarityColor = getTalentRarityColor(physique.rarity)
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val columnCount = traitCellColumnCount()
+                physiques.chunked(columnCount).forEach { rowItems ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        rowItems.forEach { physique ->
+                            val rarityColor = getTalentRarityColor(physique.rarity)
 
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(4.dp))
-                                .border(1.dp, rarityColor, RoundedCornerShape(4.dp))
-                                .clickable { dismissDropdown(); onPhysiqueClick(physique) }
-                                .padding(vertical = 3.dp, horizontal = 4.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = physique.name,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = rarityColor,
-                                maxLines = 2,
-                                textAlign = TextAlign.Center
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .border(1.dp, rarityColor, RoundedCornerShape(4.dp))
+                                    .clickable { dismissDropdown(); onPhysiqueClick(physique) }
+                                    .padding(vertical = 3.dp, horizontal = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = physique.name,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = rarityColor,
+                                    maxLines = 2,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
                         }
-                    }
-                    repeat(columnCount - rowItems.size) {
-                        Spacer(modifier = Modifier.weight(1f))
+                        repeat(columnCount - rowItems.size) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                     }
                 }
             }
@@ -172,36 +182,38 @@ fun AffixesSection(
                 color = Color.Black
             )
         } else {
-            val columnCount = maxOf(1, (LocalConfiguration.current.screenWidthDp / TRAIT_CELL_TARGET_WIDTH_DP))
-            affixes.chunked(columnCount).forEach { rowItems ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    rowItems.forEach { affix ->
-                        val rarityColor = getTalentRarityColor(affix.rarity)
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                val columnCount = traitCellColumnCount()
+                affixes.chunked(columnCount).forEach { rowItems ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        rowItems.forEach { affix ->
+                            val rarityColor = getTalentRarityColor(affix.rarity)
 
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(4.dp))
-                                .border(1.dp, rarityColor, RoundedCornerShape(4.dp))
-                                .clickable { dismissDropdown(); onAffixClick(affix) }
-                                .padding(vertical = 3.dp, horizontal = 4.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = affix.name,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = rarityColor,
-                                maxLines = 2,
-                                textAlign = TextAlign.Center
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .border(1.dp, rarityColor, RoundedCornerShape(4.dp))
+                                    .clickable { dismissDropdown(); onAffixClick(affix) }
+                                    .padding(vertical = 3.dp, horizontal = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = affix.name,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = rarityColor,
+                                    maxLines = 2,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
                         }
-                    }
-                    repeat(columnCount - rowItems.size) {
-                        Spacer(modifier = Modifier.weight(1f))
+                        repeat(columnCount - rowItems.size) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                     }
                 }
             }

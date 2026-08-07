@@ -1000,11 +1000,6 @@ fun MainGameScreen(
                         onSectNameClick = { viewModel.navigateToDialog(DialogType.RenameSect) }
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    // 玉符货币栏（半透明胶囊条 + 图标 + 数量，点击弹说明对话框）
-                    JadeSymbolBadge(
-                        jadeSymbols = gameData?.jadeSymbols ?: 0,
-                        onClick = { viewModel.navigateToDialog(DialogType.JadeSymbol) }
-                    )
                 }
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -1031,6 +1026,14 @@ fun MainGameScreen(
                             contentScale = ContentScale.FillBounds
                         )
                     }
+                }
+                if (isUiVisible) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    // 玉符货币栏（半透明胶囊条 + 图标 + 数量，点击弹说明对话框）
+                    JadeSymbolBadge(
+                        jadeSymbols = gameData?.jadeSymbols ?: 0,
+                        onClick = { viewModel.navigateToDialog(DialogType.JadeSymbol) }
+                    )
                 }
             }
 
