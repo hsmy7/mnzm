@@ -7,6 +7,8 @@ import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
+import com.xianxia.sect.core.registry.PhysiqueDatabase
+import com.xianxia.sect.core.registry.AffixDatabase
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.model.*
 import com.xianxia.sect.core.util.NameService
@@ -641,6 +643,9 @@ object RedeemCodeManager {
         val spiritRootType = resolveSpiritRoot(cfg, random)
         val (age, lifespan) = resolveAgeAndLifespan(cfg, random)
         val talentIds = resolveTalentIds(cfg, random)
+        // 与玩家招募（DiscipleFactory）对齐：兑换码弟子同样生成体质/词条（此前缺失，见 generateRandomTalents 统一）
+        val physiqueIds = PhysiqueDatabase.generateForDisciple(random).map { it.id }
+        val affixIds = AffixDatabase.generateForDisciple(random).map { it.id }
 
         val talents = TalentDatabase.getTalentsByIds(talentIds)
         val lifespanBonus = talents.sumOf { it.effects["lifespan"] ?: 0.0 }
@@ -665,6 +670,8 @@ object RedeemCodeManager {
             portraitRes = PortraitPool.getRandomPortrait(gender) { random.nextInt(it) },
             discipleType = "outer",
             talentIds = talentIds,
+            physiqueIds = physiqueIds,
+            affixIds = affixIds,
             combat = CombatAttributes(
                 hpVariance = hpVariance,
                 mpVariance = mpVariance,
@@ -763,46 +770,9 @@ object RedeemCodeManager {
     /** P-2：属性方差生成（-50..50，替代原逐行重复的 nextInt 表达式）。 */
     private fun generateVariance(random: kotlin.random.Random): Int = -50 + random.nextInt(101)
 
-    /** 生成随机天赋（internal 供测试验证模板级去重） */
-    internal fun generateRandomTalents(random: kotlin.random.Random = kotlin.random.Random): List<String> {
-        val talents = mutableListOf<String>()
-        val selectedTemplates = mutableSetOf<String>()
-
-        // 使用 TalentData（有 template 字段）做模板级去重，
-        // 防止不同稀有度但同模板的天赋被同时选中（如 r1_cult_speed + r2_cult_speed）
-        val allPositiveData = TalentDatabase.getPositiveTalents()
-            .mapNotNull { TalentDatabase.getTalentDataById(it.id) }
-            .toMutableList()
-
-        val positiveCount = when {
-            random.nextDouble() < 0.3 -> 2
-            random.nextDouble() < 0.6 -> 1
-            else -> 0
-        }
-
-        repeat(positiveCount) {
-            val filtered = allPositiveData.filter { it.template !in selectedTemplates }
-            if (filtered.isEmpty()) return@repeat
-            val selected = filtered[random.nextInt(filtered.size)]
-            talents.add(selected.id)
-            selectedTemplates.add(selected.template)
-            allPositiveData.removeAll { it.template == selected.template }
-        }
-
-        // 负面天赋检查（14%概率）
-        if (random.nextDouble() < 0.14) {
-            val allNegativeData = TalentDatabase.getNegativeTalents()
-                .mapNotNull { TalentDatabase.getTalentDataById(it.id) }
-            if (allNegativeData.isNotEmpty()) {
-                val talent = allNegativeData[random.nextInt(allNegativeData.size)]
-                if (talent.id !in talents) {
-                    talents.add(talent.id)
-                }
-            }
-        }
-
-        return talents
-    }
+    /** 生成随机天赋（internal 供测试验证；统一走 TalentDatabase 的弟子分布，与玩家招募一致） */
+    internal fun generateRandomTalents(random: kotlin.random.Random = kotlin.random.Random): List<String> =
+        TalentDatabase.generateTalentsForDisciple(random).map { it.id }
 
     // ══════════════════════════════════
     // 内存管理：定期清理和容量限制

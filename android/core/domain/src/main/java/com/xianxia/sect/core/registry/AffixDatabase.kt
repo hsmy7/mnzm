@@ -21,7 +21,7 @@ import kotlin.random.Random
  * - 战斗成长加成
  *
  * 稀有度：1-3 阶（下品/中品/上品），负面 rarity=0 统一灰色。
- * 生成数量：0-3 个。
+ * 生成数量：0-5 个（35/35/20/6/3/1 加权，见 [DISCIPLE_TRAIT_COUNT_DISTRIBUTION]）。
  *
  * 战斗伤害特殊加成（damageAmplification/damageReduction/critDamageBonus/defenseBonus）
  * 通过 effects map 传递，由 DiscipleStatCalculator 聚合后注入 BattleCalculator 作为独立乘算因子。
@@ -29,14 +29,6 @@ import kotlin.random.Random
 object AffixDatabase {
 
     val isInitialized: Boolean = true
-
-    private const val NEGATIVE_AFFIX_CHANCE = 0.14
-
-    private val POSITIVE_RARITY_DISTRIBUTION = listOf(
-        1 to 0.69,
-        2 to 0.25,
-        3 to 0.06
-    )
 
     enum class AffixType {
         BASE_FLAT,           // 基础属性扁平加成
@@ -433,12 +425,10 @@ object AffixDatabase {
 
     fun generateForDisciple(random: kotlin.random.Random = kotlin.random.Random): List<Affix> {
         val result = mutableListOf<Affix>()
-        val available = allAffixesData.values
-            .filter { !it.isNegative }
-            .toMutableList()
+        val available = allAffixesData.values.toMutableList()   // 负面经品阶概率抽取，不在此无条件滤除
         val selectedTemplates = mutableSetOf<String>()
 
-        val count = random.nextInt(0, 4)  // 0-3 个
+        val count = rollTraitCount(random)  // 0-5 个（35/35/20/6/3/1）
 
         repeat(count) {
             if (available.isEmpty()) return@repeat
@@ -463,39 +453,37 @@ object AffixDatabase {
             throw IllegalArgumentException("candidates cannot be empty")
         }
 
-        val negativeCandidates = candidates.filter { it.isNegative }
-        if (negativeCandidates.isNotEmpty() && random.nextDouble() < NEGATIVE_AFFIX_CHANCE) {
-            return negativeCandidates.random(random)
+        // 单次 nextDouble 消费四档：负面30% / 下品50% / 中品18% / 上品2%
+        val quality = rollTraitQuality(random)
+
+        if (quality == 0) {
+            val negativeCandidates = candidates.filter { it.isNegative }
+            if (negativeCandidates.isNotEmpty()) {
+                return negativeCandidates.random(random)
+            }
+            // 负面池耗尽 → 品阶1兜底（不做重滚，保持固定 nextDouble 消费次数）
+            return pickPositiveByRarity(candidates, 1, random)
         }
-
-        val positiveCandidates = candidates.filter { !it.isNegative }
-        if (positiveCandidates.isEmpty()) {
-            return candidates.random(random)
-        }
-
-        val targetRarity = pickRarityByDistribution(random)
-        val exactCandidates = positiveCandidates.filter { it.rarity == targetRarity }
-        if (exactCandidates.isNotEmpty()) {
-            return exactCandidates.random(random)
-        }
-
-        val fallbackRarity = positiveCandidates.map { it.rarity }.distinct()
-            .minWithOrNull(compareBy<Int> { abs(it - targetRarity) }.thenByDescending { it })
-            ?: positiveCandidates.first().rarity
-
-        return positiveCandidates.filter { it.rarity == fallbackRarity }.random(random)
+        return pickPositiveByRarity(candidates, quality, random)
     }
 
-    private fun pickRarityByDistribution(random: kotlin.random.Random): Int {
-        val roll = random.nextDouble()
-        var cumulative = 0.0
-        for ((rarity, probability) in POSITIVE_RARITY_DISTRIBUTION) {
-            cumulative += probability
-            if (roll <= cumulative) {
-                return rarity
+    private fun pickPositiveByRarity(
+        candidates: List<AffixData>,
+        targetRarity: Int,
+        random: kotlin.random.Random
+    ): AffixData {
+        val positiveCandidates = candidates.filter { !it.isNegative }
+        if (positiveCandidates.isEmpty()) return candidates.random(random)
+
+        // 精确匹配优先；无精确匹配时取差值最小档（平局取较高档）
+        return positiveCandidates.filter { it.rarity == targetRarity }
+            .ifEmpty {
+                val fallbackRarity = positiveCandidates.map { it.rarity }.distinct()
+                    .minWithOrNull(compareBy<Int> { abs(it - targetRarity) }.thenByDescending { it })
+                    ?: positiveCandidates.first().rarity
+                positiveCandidates.filter { it.rarity == fallbackRarity }
             }
-        }
-        return POSITIVE_RARITY_DISTRIBUTION.last().first
+            .random(random)
     }
 }
 

@@ -52,6 +52,16 @@
 - **墙钟豁免论证（expansion-playbook L22）** — 玉符不是进度系统，是墙钟概念货币（在线时长福利），与游戏内进度完全解耦：不参与游戏时间结算、不产生游戏内收益、无离线收益、不进仓库；豁免理由见 docs/knowledge-base.md 经济基线表
 - **对抗性审查（三角色：边界狂魔/状态破坏者/数据篡改者）6 项修复** — ① **[严重] 主线程 update 守卫**：`stateStore.update` 有主线程运行时守卫（Debug `error()` 崩 / Release 静默丢弃），而 `stopGameLoop→onLoopStop→checkpointNow` 挂在主线程链路（onPause 后台切换）、`startGameLoop→onLoopStart→maybeDayReset` 挂在 onResume 链路——每次切后台往返丢 ≤20 分钟进度。**根治**：`onLoopStop()` 移入游戏循环协程 finally（引擎线程，天然覆盖 cancel/emergencyRestart/正常退出全部停止路径）；`onLoopStart` 的跨天检查/首次锚定写入延迟到引擎线程首帧 tick（`pendingDayResetCheck`），启动路径只读快照零写入；② **[中等] settleGrants 增量写→绝对值写**：与 checkpointNow 并发交错时幂等（消除双加竞态）；③ **[中等] accumMs 钳制 off-by-one**：上限从 INTERVAL_MS 收紧到 INTERVAL_MS-1（含服务端 onLoopStart 双重防御 `coerceAtMost`）+ today 钳 DAILY_CAP + jadeSymbols 钳 Int.MAX-DAILY_CAP（防 Int 溢出回绕）；④ **[中等] emergencyRestart 丢累计**：随 finally 方案自动覆盖（看门狗换线程重启也 checkpoint）；⑤ **[轻微] 墙钟回拨后 1s 节流永不触发**：回拨（nowWall < lastWallCheckMs）时跳过节流直接采样；⑥ **[轻微] checkpointNow 未启动守卫**：`lastSampleMs==0` 跳过（防零值覆盖已持久化玉符）。书面接受（设计级）：客户端本地货币可被手改存档持有量——纯客户端无服务器权威校验，未来上商店须服务端校验
 
+### 调整（2026-08-07 弟子特质数量与品阶分布调整）
+
+- **数量分布统一** — 体质/天赋/词条三分类各自独立生成 0-5 个（原 0-3 均匀随机），加权 0个35%/1个35%/2个20%/3个6%/4个3%/5个1%；新增 `WeightedRoll.kt`（core/domain registry 包）公共抽取工具：`DISCIPLE_TRAIT_COUNT_DISTRIBUTION`/`DISCIPLE_TRAIT_QUALITY_DISTRIBUTION`/`rollTraitCount`/`rollTraitQuality`，每次调用恰消费 1 次 `nextDouble`（确定性 RNG 固定消费次数）；三库（`TalentDatabase`/`PhysiqueDatabase`/`AffixDatabase`）删除各自的 `NEGATIVE_*_CHANCE`（0.14 死代码）与 `POSITIVE_RARITY_DISTRIBUTION`（69/25/6）
+- **品阶重构** — 单次 nextDouble 消费四档：负面30%/下品50%/中品18%/上品2%；候选池不再无条件滤除负面（原负面分支因 `filter { !isNegative }` 永不命中，14% 负面常量实为死代码——本次让负面真实生效）；负面池耗尽回退品阶 1（不做重滚，保持固定 nextDouble 消费次数），正面保留"最近 rarity"回退；`TalentDatabase` 的 `DEPRECATED_TALENT_TYPES` 过滤保留；`generateRandomTalents(count, maxRarity)`（指定数量正面天赋语义）候选池过滤不变
+- **RNG 铁律修复（举一反三）** — `DiscipleFactory.DiscipleSeed` 新增 `random: kotlin.random.Random` 字段（**无默认值**，编译器强制全部调用方显式传参），三个构造站点（`DiscipleService.recruitDisciple`/`RecruitService.refreshRecruitList`/`ChildBirthSystem.createChild`）传 `rng.asKotlinRandom()`——此前 `DiscipleFactory.create` L118-123 未传随机源，三库回落 `kotlin.random.Random.Default`（系统熵、读档不可复现），违反确定性铁律；`AISectDiscipleManager` 已正确传分区 RNG 自动生效
+- **兑换码弟子统一（预存问题修复）** — `RedeemCodeManager.generateRandomTalents` 删除独立实现（正面 30/30/40 + 负面 14% 手写逻辑），委托 `TalentDatabase.generateTalentsForDisciple`（与玩家招募完全一致）；`generateDisciple` 补齐 `physiqueIds`/`affixIds` 生成——兑换码弟子此前永远无体质/词条，与玩家招募不一致
+- **存档零迁移** — `DiscipleTables` `ComponentTable<List<String>>` 无长度上限，旧档弟子 0-3 个特质保持原样（分布只影响新生成）；无 Entity 变更、无 Migration、Room schema 无变化
+- **UI 零改动（验证结论）** — "弟子信息界面体质只显示前三个"经排查为生成上限 3 所致（`DiscipleDetailScreen` 全量渲染 + 可滚动，无任何 take/截断代码），数量上限提升后显示自然完整
+- **测试** — 新增 `WeightedRollTest`（数量/品阶大样本统计 ±0.01 容差/权重和/确定性）、`PhysiqueDatabaseTest`/`AffixDatabaseTest`（0-5 与模板去重/负面真实出现/品阶分布统计/确定性）、`TalentDatabaseTest` 追加 4 例、`RedeemCodeManagerTalentTest` 范围断言 0..3→0..5 + 负面出现/确定性 2 例、`DiscipleFactoryTest` seed 适配 + 全一致性断言；`AISectDiscipleManagerTest` 两处注释同步（L465 老档补全断言 seed 42 下通过无需调整）；全模块 compileReleaseKotlin + 单测串行（--max-workers=1）+ detekt 通过
+
 ## [4.00.90] - 2026-08-06
 
 ### 调整（2026-08-07 排行榜入口图标替换）

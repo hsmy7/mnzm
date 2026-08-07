@@ -11,14 +11,6 @@ object TalentDatabase {
 
     val isInitialized: Boolean = true
 
-    private const val NEGATIVE_TALENT_CHANCE = 0.14
-
-    private val POSITIVE_RARITY_DISTRIBUTION = listOf(
-        1 to 0.69,
-        2 to 0.25,
-        3 to 0.06
-    )
-
     /** 将旧版 rarity 序号(1-6)映射为品级(1-3) */
     private fun talentGrade(indexRarity: Int): Int = when (indexRarity) {
         1, 2 -> 1
@@ -591,11 +583,11 @@ object TalentDatabase {
     fun generateTalentsForDisciple(random: kotlin.random.Random = kotlin.random.Random): List<Talent> {
         val result = mutableListOf<Talent>()
         val availableTalents = allTalentsData.values
-            .filter { !it.isNegative && it.type !in DEPRECATED_TALENT_TYPES }
+            .filter { it.type !in DEPRECATED_TALENT_TYPES }   // 负面经品阶概率抽取，不在此无条件滤除
             .toMutableList()
         val selectedTemplates = mutableSetOf<String>()
 
-        val talentCount = random.nextInt(0, 4)  // 0-3 个
+        val talentCount = rollTraitCount(random)  // 0-5 个（35/35/20/6/3/1）
 
         repeat(talentCount) {
             if (availableTalents.isEmpty()) return@repeat
@@ -620,39 +612,37 @@ object TalentDatabase {
             throw IllegalArgumentException("candidates cannot be empty")
         }
 
-        val negativeCandidates = candidates.filter { it.isNegative }
-        if (negativeCandidates.isNotEmpty() && random.nextDouble() < NEGATIVE_TALENT_CHANCE) {
-            return negativeCandidates.random(random)
+        // 单次 nextDouble 消费四档：负面30% / 下品50% / 中品18% / 上品2%
+        val quality = rollTraitQuality(random)
+
+        if (quality == 0) {
+            val negativeCandidates = candidates.filter { it.isNegative }
+            if (negativeCandidates.isNotEmpty()) {
+                return negativeCandidates.random(random)
+            }
+            // 负面池耗尽 → 品阶1兜底（不做重滚，保持固定 nextDouble 消费次数）
+            return pickPositiveByRarity(candidates, 1, random)
         }
-
-        val positiveCandidates = candidates.filter { !it.isNegative }
-        if (positiveCandidates.isEmpty()) {
-            return candidates.random(random)
-        }
-
-        val targetRarity = pickRarityByDistribution(random)
-        val exactCandidates = positiveCandidates.filter { it.rarity == targetRarity }
-        if (exactCandidates.isNotEmpty()) {
-            return exactCandidates.random(random)
-        }
-
-        val fallbackRarity = positiveCandidates.map { it.rarity }.distinct()
-            .minWithOrNull(compareBy<Int> { abs(it - targetRarity) }.thenByDescending { it })
-            ?: positiveCandidates.first().rarity
-
-        return positiveCandidates.filter { it.rarity == fallbackRarity }.random(random)
+        return pickPositiveByRarity(candidates, quality, random)
     }
 
-    private fun pickRarityByDistribution(random: kotlin.random.Random): Int {
-        val roll = random.nextDouble()
-        var cumulative = 0.0
-        for ((rarity, probability) in POSITIVE_RARITY_DISTRIBUTION) {
-            cumulative += probability
-            if (roll <= cumulative) {
-                return rarity
+    private fun pickPositiveByRarity(
+        candidates: List<TalentData>,
+        targetRarity: Int,
+        random: kotlin.random.Random
+    ): TalentData {
+        val positiveCandidates = candidates.filter { !it.isNegative }
+        if (positiveCandidates.isEmpty()) return candidates.random(random)
+
+        // 精确匹配优先；无精确匹配时取差值最小档（平局取较高档）
+        return positiveCandidates.filter { it.rarity == targetRarity }
+            .ifEmpty {
+                val fallbackRarity = positiveCandidates.map { it.rarity }.distinct()
+                    .minWithOrNull(compareBy<Int> { abs(it - targetRarity) }.thenByDescending { it })
+                    ?: positiveCandidates.first().rarity
+                positiveCandidates.filter { it.rarity == fallbackRarity }
             }
-        }
-        return POSITIVE_RARITY_DISTRIBUTION.last().first
+            .random(random)
     }
 
     fun getTalentsByIds(talentIds: List<String>): List<Talent> {

@@ -88,7 +88,9 @@ class DiscipleFactory @Inject constructor() {
         val realm: Int = 9,
         val realmLayer: Int,
         val social: SocialData,
-        val nextInt: (Int, Int) -> Int
+        val nextInt: (Int, Int) -> Int,
+        /** 特质生成随机源。无默认值：强制调用方传入分区 PRNG 适配器（`rng.asKotlinRandom()`），杜绝 Random.Default 回漏 */
+        val random: kotlin.random.Random
     )
 
     /** 统一构造入口。消除约 300 行重复代码。 */
@@ -114,12 +116,12 @@ class DiscipleFactory @Inject constructor() {
             else -> r(COMPREHENSION_5_ROOT_MIN, COMPREHENSION_5_ROOT_MAX)
         }
 
-        // 3. 天赋 / 体质 / 词条（三分类，各 0-3 个）
-        val talentIds = TalentDatabase.generateTalentsForDisciple()
+        // 3. 天赋 / 体质 / 词条（三分类，各 0-5 个；走 seed.random 分区 PRNG，保证读档可复现）
+        val talentIds = TalentDatabase.generateTalentsForDisciple(seed.random)
             .map { it.id }
-        val physiqueIds = PhysiqueDatabase.generateForDisciple()
+        val physiqueIds = PhysiqueDatabase.generateForDisciple(seed.random)
             .map { it.id }
-        val affixIds = AffixDatabase.generateForDisciple()
+        val affixIds = AffixDatabase.generateForDisciple(seed.random)
             .map { it.id }
 
         val disciple = Disciple(

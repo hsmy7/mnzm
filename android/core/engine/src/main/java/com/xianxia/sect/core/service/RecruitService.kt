@@ -339,7 +339,8 @@ class RecruitService @Inject constructor(
                         realm = 9,
                         realmLayer = 1,
                         social = SocialData(),
-                        nextInt = { from, until -> from + rng.nextInt(until - from) }
+                        nextInt = { from, until -> from + rng.nextInt(until - from) },
+                        random = kotlinRng
                     )
                 )
                 newRecruitDisciples.add(disciple)

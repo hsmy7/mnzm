@@ -155,7 +155,8 @@ class ChildBirthSystem @Inject constructor(
                     parentId1 = mother.id,
                     parentId2 = father.id
                 ),
-                nextInt = { from, until -> from + rng.nextInt(until - from) }
+                nextInt = { from, until -> from + rng.nextInt(until - from) },
+                random = rng.asKotlinRandom()
             )
         )
     }

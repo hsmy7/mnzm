@@ -867,11 +867,12 @@ class GameConfigTest {
     @Test
     fun `随机生成灵根数量多次调用应覆盖所有可能值`() {
         val results = mutableSetOf<Int>()
-        repeat(500) {
+        // 灵根数量 1 权重仅 1%（时间种子 GameRandom），500 次采样未覆盖失败率 ≈0.66%（预存 flaky），加至 5000 次
+        repeat(5000) {
             results.add(GameConfig.SpiritRoot.generateRandomSpiritRootCount())
         }
         for (expected in 1..5) {
-            assertTrue("未覆盖灵根数量 $expected (500次采样)", results.contains(expected))
+            assertTrue("未覆盖灵根数量 $expected (5000次采样)", results.contains(expected))
         }
     }
 

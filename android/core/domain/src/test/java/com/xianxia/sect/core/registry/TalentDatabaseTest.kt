@@ -158,4 +158,60 @@ class TalentDatabaseTest {
             assertEquals("负面", talent.rarityName)
         }
     }
+
+    // 14. 生成数量 0-5 且模板不重复
+    @Test
+    fun `generateTalentsForDisciple - count within 0 to 5 and no template duplicate`() {
+        val rng = kotlin.random.Random(42)
+        repeat(1000) {
+            val talents = TalentDatabase.generateTalentsForDisciple(rng)
+            assertTrue("数量应在 0-5, 实际: ${talents.size}", talents.size in 0..5)
+            val templates = talents.mapNotNull { TalentDatabase.getTalentDataById(it.id)?.template }
+            assertEquals("模板不应重复（同模板不同品阶不可共存）", templates.size, templates.toSet().size)
+        }
+    }
+
+    // 15. 负面天赋真实出现（新分布 30%/特质）
+    @Test
+    fun `generateTalentsForDisciple - negative talent can appear`() {
+        val rng = kotlin.random.Random(42)
+        repeat(5000) {
+            val talents = TalentDatabase.generateTalentsForDisciple(rng)
+            if (talents.any { it.isNegative }) return
+        }
+        fail("5000 次调用后仍未出现负面天赋")
+    }
+
+    // 16. 品阶分布符合配置（负面30/下品50/中品18/上品2）
+    @Test
+    fun `generateTalentsForDisciple - rarity distribution matches config`() {
+        val rng = kotlin.random.Random(42)
+        val counts = intArrayOf(0, 0, 0, 0)
+        var total = 0
+        repeat(20_000) {
+            for (talent in TalentDatabase.generateTalentsForDisciple(rng)) {
+                counts[talent.rarity.coerceIn(0, 3)]++
+                total++
+            }
+        }
+        val expected = listOf(0.30, 0.50, 0.18, 0.02)
+        for (rarity in 0..3) {
+            val actual = counts[rarity].toDouble() / total
+            assertTrue(
+                "rarity=$rarity actual=$actual expected≈${expected[rarity]}",
+                kotlin.math.abs(actual - expected[rarity]) <= 0.01
+            )
+        }
+    }
+
+    // 17. 同 seed 生成结果完全一致（确定性）
+    @Test
+    fun `generateTalentsForDisciple - same seed produces identical result`() {
+        val r1 = kotlin.random.Random(42)
+        val r2 = kotlin.random.Random(42)
+        assertEquals(
+            TalentDatabase.generateTalentsForDisciple(r1).map { it.id },
+            TalentDatabase.generateTalentsForDisciple(r2).map { it.id }
+        )
+    }
 }

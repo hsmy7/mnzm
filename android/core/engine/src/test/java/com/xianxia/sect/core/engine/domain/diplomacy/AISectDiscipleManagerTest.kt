@@ -192,7 +192,7 @@ class AISectDiscipleManagerTest {
         val disciple = AISectDiscipleManager.generateRandomDisciple("测试宗")
         assertNotNull("应生成体质列表", disciple.physiqueIds)
         assertNotNull("应生成词条列表", disciple.affixIds)
-        // 0-3 个随机生成（可能为 0），但生成器必须可从数据库解析（不产生悬空 id）
+        // 0-5 个随机生成（可能为 0），但生成器必须可从数据库解析（不产生悬空 id）
         disciple.physiqueIds.forEach { id ->
             assertNotNull(
                 "体质 id=$id 应存在于 PhysiqueDatabase",
@@ -393,7 +393,7 @@ class AISectDiscipleManagerTest {
 
     @Test
     fun `ensureDiscipleGear - 空分类补全写入roll标记防止重复消耗RNG`() {
-        // 对抗审查修复：体质/词条/天赋为 0-3 随机，roll 出 0 时若每次读档重 roll
+        // 对抗审查修复：体质/词条/天赋为 0-5 随机，roll 出 0 时若每次读档重 roll
         // 会消耗 AI 分区 RNG 导致同档两次读档演化序列漂移——补全后须持久化标记收敛
         AISectDiscipleManager.initForSlot(42L)
         ManualDatabase.initializeWithManuals(testManuals())

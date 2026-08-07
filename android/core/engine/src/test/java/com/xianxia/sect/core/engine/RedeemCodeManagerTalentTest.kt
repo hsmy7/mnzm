@@ -24,12 +24,12 @@ class RedeemCodeManagerTalentTest {
     }
 
     @Test
-    fun `generateRandomTalents - returns between 0 and 2 positive talents`() {
-        // 验证数量范围：0-2 个正面天赋 + 0-1 个负面天赋
+    fun `generateRandomTalents - returns between 0 and 5 talents`() {
+        // 验证数量范围：0-5 个（35/35/20/6/3/1 加权，含负面）
         repeat(200) {
             val talentIds = RedeemCodeManager.generateRandomTalents()
-            assertTrue("天赋数量应在 0-3 之间 (0-2正面+0-1负面), 实际: ${talentIds.size}",
-                talentIds.size in 0..3)
+            assertTrue("天赋数量应在 0-5 之间, 实际: ${talentIds.size}",
+                talentIds.size in 0..5)
         }
     }
 
@@ -50,7 +50,7 @@ class RedeemCodeManagerTalentTest {
         repeat(500) {
             counts += RedeemCodeManager.generateRandomTalents().size
         }
-        assertTrue("经过500次调用应至少出现过 0,1 两种数量（2为30%概率也可能出现）",
+        assertTrue("经过500次调用应至少出现过 0,1 两种数量（2为20%概率也可能出现）",
             counts.contains(0) && counts.contains(1))
     }
 
@@ -61,5 +61,28 @@ class RedeemCodeManagerTalentTest {
             assertEquals("不应有精确 ID 重复",
                 talentIds.size, talentIds.toSet().size)
         }
+    }
+
+    @Test
+    fun `generateRandomTalents - negative talents can appear`() {
+        // 新分布负面 30%/个，5000 次调用下负面天赋几乎必然出现
+        val kotlinRng = kotlin.random.Random(42)
+        repeat(5000) {
+            val talentIds = RedeemCodeManager.generateRandomTalents(kotlinRng)
+            if (talentIds.any { TalentDatabase.getById(it)?.isNegative == true }) {
+                return
+            }
+        }
+        fail("5000 次调用后仍未出现负面天赋")
+    }
+
+    @Test
+    fun `generateRandomTalents - same seed produces identical result`() {
+        val r1 = kotlin.random.Random(42)
+        val r2 = kotlin.random.Random(42)
+        assertEquals(
+            RedeemCodeManager.generateRandomTalents(r1),
+            RedeemCodeManager.generateRandomTalents(r2)
+        )
     }
 }

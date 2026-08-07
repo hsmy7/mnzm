@@ -22,7 +22,8 @@ class DiscipleFactoryTest {
         gender: String = "男",
         spiritRootType: String = "火",
         age: Int = 18,
-        realmLayer: Int = 1
+        realmLayer: Int = 1,
+        random: kotlin.random.Random = kotlin.random.Random(42)
     ): DiscipleFactory.DiscipleSeed {
         return DiscipleFactory.DiscipleSeed(
             id = id,
@@ -32,7 +33,8 @@ class DiscipleFactoryTest {
             age = age,
             realmLayer = realmLayer,
             social = SocialData(),
-            nextInt = { from, _ -> from } // 确定性：总是取最小值
+            nextInt = { from, _ -> from }, // 确定性：总是取最小值
+            random = random
         )
     }
 
@@ -149,6 +151,17 @@ class DiscipleFactoryTest {
     }
 
     @Test
+    fun `create - same seed produces identical disciple including traits`() {
+        // 两个独立构造的相同 seed（各持 Random(42)）→ 序列一致 → 结果完全一致
+        val d1 = factory.create(newSeed())
+        val d2 = factory.create(newSeed())
+        assertEquals(d1.talentIds, d2.talentIds)
+        assertEquals(d1.physiqueIds, d2.physiqueIds)
+        assertEquals(d1.affixIds, d2.affixIds)
+        assertEquals(d1.name, d2.name)
+    }
+
+    @Test
     fun `create - different seeds produce different disciples`() {
         val d1 = factory.create(newSeed(id = "a", spiritRootType = "火"))
         val d2 = factory.create(newSeed(id = "b", spiritRootType = "火,水"))
@@ -190,7 +203,8 @@ class DiscipleFactoryTest {
                 age = 18,
                 realmLayer = 1,
                 social = SocialData(),
-                nextInt = { from, until -> from + kotlinRng.nextInt(until - from) }
+                nextInt = { from, until -> from + kotlinRng.nextInt(until - from) },
+                random = kotlinRng
             )
             values.add(factory.create(seed).combat.hpVariance)
         }
