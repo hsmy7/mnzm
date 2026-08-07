@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalConfiguration
@@ -73,7 +74,8 @@ fun TalentsSection(
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = rarityColor,
-                                maxLines = 1
+                                maxLines = 2,
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
@@ -131,7 +133,8 @@ fun PhysiquesSection(
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = rarityColor,
-                                maxLines = 1
+                                maxLines = 2,
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
@@ -189,7 +192,8 @@ fun AffixesSection(
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = rarityColor,
-                                maxLines = 1
+                                maxLines = 2,
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
