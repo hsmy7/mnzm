@@ -519,8 +519,7 @@ class MainActivity : ComponentActivity() {
                     this@MainActivity,
                     BuildConfig.TAPTAP_CLIENT_ID,
                     BuildConfig.TAPTAP_CLIENT_TOKEN,
-                    BuildConfig.TAPTAP_IS_CN,
-                    sessionManager.limitAdTracking
+                    BuildConfig.TAPTAP_IS_CN
                 )
                 // 反射验证 context 并通过 isReady() 双重确认
                 tapTapReady.value = TapTapAuthManager.isReady()

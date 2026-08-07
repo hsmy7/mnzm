@@ -115,7 +115,7 @@
 <div class="container">
 
 <h1>模拟宗门 隐私政策</h1>
-<p class="update-date">更新日期：2026年6月4日 &nbsp;|&nbsp; 生效日期：2026年6月4日</p>
+<p class="update-date">更新日期：2026年8月8日 &nbsp;|&nbsp; 生效日期：2026年8月8日</p>
 
 <div class="intro">
     欢迎使用模拟宗门！【静书工作室】（以下简称"我们"）系移动应用程序"模拟宗门"（以下简称"本游戏"）的运营者。我们深知个人信息对您的重要性，并将按照法律法规要求，采取相应安全保护措施来保护您的个人信息。在使用本应用前，请您仔细阅读并充分理解本隐私政策的全部内容。一旦您同意本隐私政策，即表示您已充分理解并同意我们按照本隐私政策处理您的相关信息。
@@ -201,7 +201,7 @@
     上述设备标识符仅用于本地加密密钥派生，以哈希形式参与加密运算，原始值不会传输到我们的服务器。在网络请求中，仅发送设备指纹的前8位字符（SHA-256摘要前缀），用于防止请求伪造，不足以还原原始设备信息。
 </div>
 <div class="note" style="background:#e3f2fd; border-left:4px solid #1976d2;">
-    <strong>关于 Android ID、OAID 与第三方 SDK：</strong>除本应用自身读取 Android ID 用于本地加密密钥派生外，TapTap SDK（包括 tap-core、tap-login、tap-compliance 模块）也会独立收集 Android ID 和 OAID，用于确保设备系统兼容性、定位解决问题和广告效果分析。Dirichlet Ad SDK（TapADN SDK）也会收集 Android ID 和 OAID，用于广告投放和效果归因。上述 SDK 对 Android ID 和 OAID 的收集和处理受各自隐私政策约束，详见下方第二节。
+    <strong>关于 Android ID、OAID、GAID 与第三方 SDK：</strong>除本应用自身读取 Android ID 用于本地加密密钥派生外，TapTap SDK（包括 tap-core、tap-login、tap-compliance 模块）也会独立收集 Android ID 和广告标识符（OAID、GAID），用于确保设备系统兼容性、定位解决问题和广告效果分析。Dirichlet Ad SDK（TapADN SDK）也会收集 Android ID 和广告标识符（OAID、GAID），用于广告投放和效果归因。其中 GAID（Google 广告标识符）在支持 Google Play 服务的设备上由 SDK 读取，用于广告投放与效果归因。上述 SDK 对上述标识符的收集和处理受各自隐私政策约束，详见下方第二节。
 </div>
 
 <h3>1.4 网络状态信息</h3>
@@ -247,10 +247,10 @@
     <p><strong>初始化时机：</strong>TapTap SDK 仅在您同意本隐私政策后进行初始化，不会在您同意前调用任何系统隐私敏感接口。</p>
     <table>
         <tr><th>SDK 模块</th><th>功能</th><th>可能收集的信息</th></tr>
-        <tr><td>tap-core（4.10.0）</td><td>SDK 核心功能</td><td>设备信息（设备型号、操作系统版本、<strong>Android ID</strong>、<strong>OAID</strong>、设备 CPU 信息、设备内存信息）、网络信息（网络类型）</td></tr>
-        <tr><td>tap-login（4.10.0）</td><td>TapTap 账户登录</td><td>TapTap 账户标识（OpenID、UnionID）、昵称、头像、<strong>电话号码</strong>（TapTap 账户注册信息）、<strong>邮箱</strong>（TapTap 账户注册信息）、<strong>Android ID</strong>、<strong>OAID</strong>、设备信息、网络信息</td></tr>
-        <tr><td>tap-common（4.10.0）</td><td>SDK 公共组件</td><td>设备基础信息</td></tr>
-        <tr><td>tap-compliance（4.10.0）</td><td>防沉迷和实名认证</td><td>实名认证数据、年龄信息、<strong>Android ID</strong>、<strong>OAID</strong>、设备信息、网络信息</td></tr>
+        <tr><td>tap-core（4.10.0）</td><td>SDK 核心功能</td><td>设备信息（设备型号、操作系统版本、<strong>Android ID</strong>、<strong>OAID</strong>、<strong>GAID</strong>、设备 CPU 信息、设备内存信息）、网络信息（网络类型）</td></tr>
+        <tr><td>tap-login（4.10.0）</td><td>TapTap 账户登录</td><td>TapTap 账户标识（OpenID、UnionID）、昵称、头像、<strong>电话号码</strong>（TapTap 账户注册信息）、<strong>邮箱</strong>（TapTap 账户注册信息）、<strong>Android ID</strong>、<strong>OAID</strong>、<strong>GAID</strong>、设备信息、网络信息</td></tr>
+        <tr><td>tap-common（4.10.0）</td><td>SDK 公共组件</td><td>设备基础信息、<strong>GAID</strong>（Google 广告标识符）</td></tr>
+        <tr><td>tap-compliance（4.10.0）</td><td>防沉迷和实名认证</td><td>实名认证数据、年龄信息、<strong>Android ID</strong>、<strong>OAID</strong>、<strong>GAID</strong>、设备信息、网络信息</td></tr>
         <tr><td>tap-leaderboard-androidx（4.10.5）</td><td>玩家间宗门战斗力排行榜</td><td>TapTap 账户标识（OpenID、UnionID）、游戏成绩（宗门战斗力）、设备信息、网络信息</td></tr>
     </table>
     <p>TapTap SDK 隐私政策：<a href="https://developer.taptap.cn/docs/sdk/start/agreement/" target="_blank">https://developer.taptap.cn/docs/sdk/start/agreement/</a></p>
@@ -267,7 +267,7 @@
     <p><strong>初始化时机：</strong>仅在您同意本隐私政策后初始化，用于提供激励视频广告功能。</p>
     <table>
         <tr><th>SDK 模块</th><th>功能</th><th>可能收集的信息</th></tr>
-        <tr><td>TapADN SDK（v4.2.5.0）</td><td>激励视频广告</td><td>设备信息（设备型号、操作系统版本、<strong>Android ID</strong>、<strong>OAID</strong>、IMEI/Device ID、MAC 地址）、网络信息（网络类型、IP 地址）、位置信息（粗略位置）、应用安装列表、广告交互数据（广告展示、点击、转化）</td></tr>
+        <tr><td>TapADN SDK（v4.2.5.0）</td><td>激励视频广告</td><td>设备信息（设备型号、操作系统版本、<strong>Android ID</strong>、<strong>OAID</strong>、<strong>GAID</strong>（Google 广告标识符）、IMEI/Device ID、MAC 地址）、网络信息（网络类型、IP 地址）、位置信息（粗略位置）、应用安装列表、广告交互数据（广告展示、点击、转化）</td></tr>
     </table>
     <p>Dirichlet Ad SDK 隐私政策：<a href="https://ssp.dirichlet.cn/docs/agreement/" target="_blank">https://ssp.dirichlet.cn/docs/agreement/</a></p>
 </div>
@@ -340,6 +340,7 @@
     <li><strong>查询和更正</strong>：您可以在游戏内查看您的登录信息。如需更正 TapTap 账户信息，请在 TapTap 平台操作。</li>
     <li><strong>删除</strong>：您可以删除游戏存档来清除本地存储的游戏数据；退出 TapTap 登录来清除登录信息；卸载应用来清除所有本地数据（包括加密密钥、存档和登录信息）。</li>
     <li><strong>撤回同意</strong>：您可以随时退出 TapTap 登录来撤回对账户信息收集的同意。撤回同意不影响此前基于同意已进行的信息处理活动的效力。</li>
+    <li><strong>广告标识符</strong>：您可以卸载应用停止广告标识符收集；GAID（Google 广告标识符）可在设备系统设置 → Google → 广告中重置或停用个性化广告。</li>
     <li><strong>注销账户</strong>：如需注销 TapTap 账户，请在 TapTap 平台操作。</li>
 </ul>
 

@@ -133,9 +133,7 @@ internal fun SettingsTab(
     viewModel: GameViewModel,
     saveLoadViewModel: SaveLoadViewModel,
     onLogout: () -> Unit,
-    onDismiss: () -> Unit,
-    limitAdTracking: Boolean = true,
-    onLimitAdTrackingChanged: (Boolean) -> Unit = {}
+    onDismiss: () -> Unit
 ) {
     val timeSpeed by saveLoadViewModel.timeSpeed.collectAsStateWithLifecycle()
     val gameData by viewModel.gameData.collectAsStateWithLifecycle()
@@ -290,44 +288,6 @@ internal fun SettingsTab(
             dismissOnClickOutside = false
         ) {
             Column(modifier = Modifier.fillMaxSize().padding(top = 12.dp)) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(GameColors.PageBackground)
-                        .border(1.dp, GameColors.Border, RoundedCornerShape(4.dp))
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "限制广告追踪",
-                            fontSize = 12.sp,
-                            color = Color.Black
-                        )
-                        Text(
-                            text = "阻止TapTap SDK收集OAID广告标识符",
-                            fontSize = 10.sp,
-                            color = Color.Black
-                        )
-                        Text(
-                            text = "更改将在下次启动应用后生效",
-                            fontSize = 9.sp,
-                            color = Color(0xFFCC8800)
-                        )
-                    }
-                    Switch(
-                        checked = limitAdTracking,
-                        onCheckedChange = onLimitAdTrackingChanged,
-                        colors = SwitchDefaults.colors(
-                            checkedTrackColor = GameColors.SpiritBlue,
-                            checkedThumbColor = Color.White
-                        ),
-                        modifier = Modifier.height(24.dp)
-                    )
-                }
-
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Row(

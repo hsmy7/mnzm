@@ -124,8 +124,6 @@ fun MainGameScreen(
     battleViewModel: BattleViewModel,
     onLogout: () -> Unit,
     onRestartGame: () -> Unit,
-    limitAdTracking: Boolean = true,
-    onLimitAdTrackingChanged: (Boolean) -> Unit = {},
     /** 是否强制使用 Canvas 软件渲染（模拟器/Vulkan 不可用设备） */
     forceSoftwareRendering: Boolean = false,
     /** Vulkan 初始化生命周期监听器（由 GameActivity 注入，驱动 CrashRecoveryEngine） */
@@ -1192,9 +1190,7 @@ fun MainGameScreen(
             ),
             callbacks = OverlayCallbacks(
                 onLogout = onLogout,
-                onRestartGame = onRestartGame,
-                limitAdTracking = limitAdTracking,
-                onLimitAdTrackingChanged = onLimitAdTrackingChanged
+                onRestartGame = onRestartGame
             )
         )
 

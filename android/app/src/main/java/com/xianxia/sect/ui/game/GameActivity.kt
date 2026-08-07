@@ -220,7 +220,6 @@ class GameActivity : ComponentActivity() {
                     val isRestarting by saveLoadViewModel.isRestarting.collectAsStateWithLifecycle()
                     
                     val gameData by viewModel.gameData.collectAsStateWithLifecycle()
-                    val limitAdTrackingState = remember { mutableStateOf(sessionManager.limitAdTracking) }
 
                     // 贴图加载在 LaunchedEffect 中完成，但 MainGameScreen 只在加载完成后才进入组合树
                     // 从根本上杜绝 "LoadingScreen 消失但贴图未就绪" 的中间帧
@@ -356,16 +355,6 @@ class GameActivity : ComponentActivity() {
                                 },
                                 onRestartGame = {
                                     saveLoadViewModel.restartGame()
-                                },
-                                limitAdTracking = limitAdTrackingState.value,
-                                onLimitAdTrackingChanged = { enabled ->
-                                    sessionManager.limitAdTracking = enabled
-                                    limitAdTrackingState.value = enabled
-                                    android.widget.Toast.makeText(
-                                        this@GameActivity,
-                                        if (enabled) "已开启限制广告追踪，下次启动后生效" else "已关闭限制广告追踪，下次启动后生效",
-                                        android.widget.Toast.LENGTH_SHORT
-                                    ).show()
                                 },
                                 forceSoftwareRendering = isSoftwareRendering,
                                 vulkanInitListener = object : NativeSurfaceView.VulkanInitListener {

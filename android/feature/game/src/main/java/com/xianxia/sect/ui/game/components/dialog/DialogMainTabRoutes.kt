@@ -42,9 +42,7 @@ internal fun DialogType.renderMainTabRoutes(
                         viewModel = viewModel,
                         saveLoadViewModel = vms.saveLoad,
                         onLogout = callbacks.onLogout,
-                        onDismiss = onDismiss,
-                        limitAdTracking = callbacks.limitAdTracking,
-                        onLimitAdTrackingChanged = callbacks.onLimitAdTrackingChanged
+                        onDismiss = onDismiss
                     )
                 }
             }

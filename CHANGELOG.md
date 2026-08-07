@@ -1,5 +1,12 @@
 ## [4.00.91] - 2026-08-07
 
+### 合规（2026-08-08 GAID 明示告知 + 移除无效"限制广告追踪"开关）
+
+- **GAID 收集明示（审核整改）** — 审核反馈"存在收集读取 GAID 的行为，未清晰明示告知用户同意"。经反编译验证：Dirichlet Ad SDK（TapADN v4.2.5.0）`com.tapsdk.tapad.oaid.impl.GmsImpl` 绑定 `com.google.android.gms.ads.identifier.service.START` 服务、TapTap SDK（tap-common 4.10.5）`com.taptap.sdk.common.gaid.provider.ReflectionGAIDProvider` 反射调用 `AdvertisingIdClient.getAdvertisingIdInfo()`，两 SDK 在用户同意后初始化时均可能读取 GAID（Google 广告标识符）。游戏内隐私政策（`PrivacyConsentScreen.kt` 摘要版特别提示卡片 + 完整版 1.3/2.1/2.3/七节）与网站版（`docs/index.html` 1.3 段 + SDK 表格 + 七节）全部补充 GAID 明示（收集主体/目的/方式/范围/同意前置/用户控制途径），更新日期改为 2026-08-08
+- **移除无效"限制广告追踪"开关** — 经字节码验证 TapTap SDK 4.10.5（`TapTapSdkOptions`/`TapTapSdk`/`TapTapEventOptions`/tap-db）与 `TapAdConfig.Builder` 均无限制广告追踪 API，原开关仅写 `SessionManager` 静态标志、从未生效，且隐私政策"默认开启限制广告追踪，阻止 TapTap SDK 收集 OAID"属无法兑现的承诺。移除：`SettingsTab` 开关 UI、`OverlayCallbacks.limitAdTracking`/`onLimitAdTrackingChanged` 回调链（`MainGameScreen`/`GameOverlayHost`/`DialogMainTabRoutes`/`GameActivity`/`MainActivity`）、`SessionManager.limitAdTracking`/`KEY_LIMIT_AD_TRACKING`、`TapTapAuthManager` 静态标志与 `isLimitAdTrackingEnabled()` 死代码；同步删除 5 个 detekt-baseline 中的失效 `MaxLineLength` 条目（旧文本行已不存在）
+- **同意机制核查（无需改动）** — 两个 SDK 的 ContentProvider 自动初始化早已在 `AndroidManifest.xml` 禁用，`TapAdSdk.init`/`TapTapSdk.init` 仅在 `onPrivacyAgreed` 后调用，不同意即退出——同意前置已满足
+- 全模块 compileReleaseKotlin + lintRelease 通过
+
 ### 调整（2026-08-07 活动界面与每日签到整体移除）
 
 - **移除活动界面（ActivityDialog）与每日签到功能全链路** — 主界面"活动"按钮（`GameActionButtons`，含签到红点 badge）、活动对话框（`ActivityDialog`/`ActivityViewModel`/`BuiltinActivityConfig`/`ActivityDef`）、签到服务（`DailySignInService`，含周循环奖励与里程碑奖励）、签到 UI（`DailySignInDialog`/`SignInDelegate`）、`DialogType.Activity`/`GameRoute.Activity` 路由、`SpiritStoneSource.SignIn` 灵石来源、`OverflowMailSender` 与 `BattleLogDialogs` 的 `sign_in`/`SignIn` 来源标签、`ui_activity_button` 精灵注册与两模块 webp 资源全部删除；`GameVmServices`/`GameViewModel`/`MailDelegate`/`BagDelegate`/`EconomyFacade` 的 `dailySignInService` 依赖链同步清理，`DailySignIn.kt` 瘦身并重命名为 `SignInState.kt`（仅保留存档字段模型）

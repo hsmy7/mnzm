@@ -58,9 +58,7 @@ data class OverlayViewModels(
 /** GameOverlayHost 所需的回调参数 */
 data class OverlayCallbacks(
     val onLogout: () -> Unit,
-    val onRestartGame: () -> Unit,
-    val limitAdTracking: Boolean,
-    val onLimitAdTrackingChanged: (Boolean) -> Unit
+    val onRestartGame: () -> Unit
 )
 
 @Composable
@@ -90,8 +88,6 @@ fun GameOverlayHost(
     val battleViewModel = vms.battle
     val onLogout = callbacks.onLogout
     val onRestartGame = callbacks.onRestartGame
-    val limitAdTracking = callbacks.limitAdTracking
-    val onLimitAdTrackingChanged = callbacks.onLimitAdTrackingChanged
 
     var tipDialogMessage by remember { mutableStateOf<String?>(null) }
     var tipDialogIsError by remember { mutableStateOf(false) }

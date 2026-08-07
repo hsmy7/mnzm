@@ -30,7 +30,6 @@ public class TapTapAuthManager {
     private static boolean isInitialized = false;
     /** SDK 真正就绪（init 成功 + context 可访问），登录按钮此标记为 true 才可点击 */
     private static boolean isSdkReady = false;
-    private static boolean limitAdTrackingEnabled = true;
 
     private static final ExecutorService initExecutor = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "TapTap-Init");
@@ -39,14 +38,7 @@ public class TapTapAuthManager {
     });
 
     public static void init(Activity activity, String clientId, String clientToken, boolean isCN) {
-        init(activity, clientId, clientToken, isCN, true);
-    }
-
-    public static void init(Activity activity, String clientId, String clientToken, boolean isCN, boolean limitAdTracking) {
-        limitAdTrackingEnabled = limitAdTracking;
-
         if (isInitialized) {
-            Log.d(TAG, "TapTap SDK 已初始化，更新限制广告追踪状态: " + limitAdTracking);
             if (!isSdkReady) {
                 // 上次初始化可能超时，重新尝试验证 context
                 ensureTapTapKitContext(activity.getApplicationContext());
@@ -87,7 +79,7 @@ public class TapTapAuthManager {
             isInitialized = true;
             ensureTapTapKitContext(activity.getApplicationContext());
             isSdkReady = true;
-            Log.d(TAG, "TapTap SDK 初始化完成，区域: " + (isCN ? "CN" : "GLOBAL") + "，限制广告追踪: " + limitAdTracking);
+            Log.d(TAG, "TapTap SDK 初始化完成，区域: " + (isCN ? "CN" : "GLOBAL"));
         } catch (TimeoutException e) {
             // 超时不标记 isInitialized/isSdkReady，避免进入未就绪状态
             Log.e(TAG, "TapTap SDK 初始化超时（模拟器环境），跳过登录功能", e);
@@ -100,10 +92,6 @@ public class TapTapAuthManager {
                 Log.w(TAG, "兜底设置 context 也失败: " + ctxEx.getMessage());
             }
         }
-    }
-
-    public static boolean isLimitAdTrackingEnabled() {
-        return limitAdTrackingEnabled;
     }
 
     /** SDK 是否已就绪，可安全调用登录等 UI 操作 */
