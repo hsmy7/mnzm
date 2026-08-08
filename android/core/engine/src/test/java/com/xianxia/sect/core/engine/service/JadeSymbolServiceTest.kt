@@ -256,6 +256,61 @@ class JadeSymbolServiceTest {
         assertEquals(1, store.gameDataSnapshot.jadeSymbols)
     }
 
+    // ── 扣减（洗炼灵根消耗入口）──
+
+    @Test
+    fun `deduct - 充足时同步递减 totalCount 与 GameData`() {
+        store.update { gameData = gameData.copy(jadeSymbols = 5) }
+        service.onLoopStart()
+
+        val ok = store.updateAndReturn { service.deduct(this, 1) }
+
+        assertTrue(ok)
+        assertEquals(4, store.gameDataSnapshot.jadeSymbols)
+        // checkpoint 用运行时 totalCount 绝对值覆盖写——totalCount 未同步则玉符回涨
+        service.checkpointNow()
+        assertEquals(4, store.gameDataSnapshot.jadeSymbols)
+    }
+
+    @Test
+    fun `deduct - 余额不足返回 false 且状态不变`() {
+        store.update { gameData = gameData.copy(jadeSymbols = 0) }
+        service.onLoopStart()
+
+        val ok = store.updateAndReturn { service.deduct(this, 1) }
+
+        assertTrue(!ok)
+        assertEquals(0, store.gameDataSnapshot.jadeSymbols)
+        service.checkpointNow()
+        assertEquals(0, store.gameDataSnapshot.jadeSymbols)
+    }
+
+    @Test
+    fun `deduct - 非正金额返回 false 且状态不变`() {
+        store.update { gameData = gameData.copy(jadeSymbols = 5) }
+        service.onLoopStart()
+
+        assertTrue(!store.updateAndReturn { service.deduct(this, 0) })
+        assertTrue(!store.updateAndReturn { service.deduct(this, -3) })
+        assertEquals(5, store.gameDataSnapshot.jadeSymbols)
+        service.checkpointNow()
+        assertEquals(5, store.gameDataSnapshot.jadeSymbols)
+    }
+
+    @Test
+    fun `publishJadeSymbolStateNow - 清 1Hz 节流立即发布最新余额`() {
+        service.onLoopStart()
+        fakeTime.nowMs += 500L
+        service.onLoopTick() // 距上次发布 500ms：节流内不发布
+        assertEquals("节流内保持旧状态", INTERVAL, service.runtimeState.value.remainingMs)
+
+        service.publishJadeSymbolStateNow()
+
+        // 清节流标记后立即发布：剩余时间应反映刚累计的 500ms
+        assertEquals("强制发布应反映最新累计", INTERVAL - 500L,
+            service.runtimeState.value.remainingMs)
+    }
+
     // ── UI 节流 ──
 
     @Test

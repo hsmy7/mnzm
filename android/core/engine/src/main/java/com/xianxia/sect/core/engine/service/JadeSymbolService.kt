@@ -4,6 +4,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.system.TimeSource
 import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.MutableGameState
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -219,6 +220,31 @@ class JadeSymbolService @Inject constructor(
                 jadeDayAnchorMs = dayAnchorMs
             )
         }
+        publishUi()
+    }
+
+    /**
+     * 在已有事务内扣除玉符（洗炼灵根等消耗路径）。必须在引擎线程、
+     * 调用方 `stateStore.update` 事务闭包内调用（仿灵石 Wallet 的 deduct 模式）。
+     *
+     * 必须同步递减运行时 [totalCount]——否则后续 [checkpointNow]/[settleGrants]
+     * 用未扣减的绝对值覆盖写 GameData.jadeSymbols，导致玉符回涨。
+     *
+     * @return 是否成功（余额不足或金额非正返回 false，状态不变）
+     */
+    fun deduct(state: MutableGameState, amount: Int): Boolean {
+        if (amount <= 0 || totalCount < amount) return false
+        totalCount -= amount
+        state.gameData = state.gameData.copy(jadeSymbols = totalCount)
+        return true
+    }
+
+    /**
+     * 立即发布玉符 UI 状态（清 1Hz 节流标记强制刷新）——玉符消耗后调用，
+     * 徽章/详情对话框即时反映最新余额，无需等下一 tick。
+     */
+    fun publishJadeSymbolStateNow() {
+        lastUiPublishMs = 0L
         publishUi()
     }
 

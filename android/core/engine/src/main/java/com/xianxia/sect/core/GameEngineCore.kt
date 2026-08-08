@@ -188,6 +188,10 @@ class GameEngineCore @Inject constructor(
     val jadeSymbolState: StateFlow<JadeSymbolRuntimeState>
         get() = jadeSymbolService.runtimeState
 
+    /** 玉符服务访问器（引擎扩展方法事务内扣减/刷新用；构造参数不动，测试命名参数构造兼容） */
+    internal val jadeSymbolServiceRef: JadeSymbolService
+        get() = jadeSymbolService
+
     /** 场景帧时间预算（单位：ns，用于游戏等待自适应） */
     private val sceneFrameBudgetNs: Long
         get() = java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(currentScene.targetFrameTimeMs)

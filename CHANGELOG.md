@@ -44,6 +44,16 @@
 - **同意机制核查（无需改动）** — 两个 SDK 的 ContentProvider 自动初始化早已在 `AndroidManifest.xml` 禁用，`TapAdSdk.init`/`TapTapSdk.init` 仅在 `onPrivacyAgreed` 后调用，不同意即退出——同意前置已满足
 - 全模块 compileReleaseKotlin + lintRelease 通过
 
+### 新增（2026-08-08 洗炼灵根——玉符首个消耗玩法）
+
+- **功能** — 弟子详情信息 tab 灵根右侧新增 + 号入口（`SpriteImage("ui_add_button")`，18dp、间距 4dp，与突破率按钮一致；`BasicInfoSection` 新增 `onWashSpiritRootClick` 回调）；洗炼弹窗 `SpiritRootWashDialog`（内联覆盖层，渲染在 DiscipleDetailScreen 内容 lambda 末尾——4.00.92 兑换码 0 高度事故同源约束，必须位于平台 Dialog 内容区内）；流程：点"洗炼灵根" → 扣 1 玉符 → 右侧显示产物（"单灵根(金)"格式）→ 按钮切换"确认替换/继续洗炼"；确认替换事务内 remove+insert 改 `spiritRootType`（灵根加成全部读取时现场推导、无缓存字段，即刻生效无需 checkpointDisciple）；点屏外/返回键关闭（关闭即丢弃当前产物，已扣玉符不退，保底计数会话持有）
+- **洗炼算法（固定 draw 次数确定性 RNG）** — `GameEngineSpiritRootOps.rollSpiritRootWash(rng, pityCount)`：pityCount ≥ `WASH_PITY_THRESHOLD`(2)（连续第 3 次）强制单灵根（仅 5 次 nextInt 元素洗牌，不消耗概率 draw）；普通路径 1 次 nextDouble（`WASH_DOUBLE_WEIGHT` 0.60 双灵根 / 0.40 单灵根）+ 5 次 nextInt 洗牌；`WASH_ELEMENT_KEYS`（与 `SpiritRootGenerator.ELEMENTS` 同序，交叉注释防漂移）洗牌取 1-2 个不重复元素；`confirmSpiritRootWash` 校验产物 1-2 元素且均在元素表内（防外部篡改写入），弟子不存在返回 Error（本次修复：原实现静默 Success，已改为 updateAndReturn 语义）
+- **玉符扣减（最高风险：防回涨）** — `JadeSymbolService.deduct(state, amount)` 事务内校验 totalCount ≥ amount → 同步递减运行时 `@Volatile totalCount` + 写 `gameData.jadeSymbols`——绝对值覆盖写模型下若不同步 totalCount，`checkpointNow`/`settleGrants` 会把玉符写回扣减前值（回涨）；不足/非正金额返回 false 状态不变；成功后事务外 `publishJadeSymbolStateNow()`（清 1Hz 节流立即刷新徽章）；接入点：`GameEngineCore.jadeSymbolServiceRef` + `GameEngine.jadeSymbolService` 内部访问器、`GameViewModel`/`DiscipleDelegate` suspend 转发
+- **消耗提示** — 按钮上方白字"消耗1玉符"（12sp + 玉符图标 12dp，与宗门信息卡片小字/灵石图标一致），玉符不足变红，点击弹"玉符不足，无法洗炼"提示框（引擎权威校验返回 `InsufficientJadeSymbols`，红字仅视觉提示）；`WASH_JADE_COST = 1` 等常量集中 `GameConfig.SpiritRoot`
+- **资源** — + 号按钮按 static-resources 规则转无损 webp 双模块 drawable-nodpi，`SPRITES_UI` 注册 `"ui_add_button"`，SpriteImage 显示（PNG 源不入库）
+- **测试** — 新增 `SpiritRootWashRollTest`（7 用例：保底强制单且 draw 固定 5 次、60/40 权重、计数归零与递增、元素合法不重复、固定种子确定性、10000 样本统计 0.50-0.70）、`GameEngineSpiritRootWashTest`（10 用例：扣减与 gameData/runtimeState 同步、不足余额不变 + 不消耗随机序列、弟子不存在/非法参数不扣玉符、确认替换生效与非法产物拦截、checkpoint 不回涨关键回归；`@RunWith(RobolectricTestRunner::class)`——DiscipleTables String 列基于 `android.util.SparseArray`，纯 JVM `returnDefaultValues=true` 下 put 静默无效、数据凭空丢失，Robolectric 提供真实实现）、`JadeSymbolServiceTest` +4 用例（deduct 同步/不足/非正金额、publishJadeSymbolStateNow 清节流立即发布）
+- 全模块 compileReleaseKotlin + 四模块单测串行（--max-workers=1）+ detekt + lintRelease 全部通过，Room schema 无变化（无 Entity 变更）
+
 ### 调整（2026-08-07 活动界面与每日签到整体移除）
 
 - **移除活动界面（ActivityDialog）与每日签到功能全链路** — 主界面"活动"按钮（`GameActionButtons`，含签到红点 badge）、活动对话框（`ActivityDialog`/`ActivityViewModel`/`BuiltinActivityConfig`/`ActivityDef`）、签到服务（`DailySignInService`，含周循环奖励与里程碑奖励）、签到 UI（`DailySignInDialog`/`SignInDelegate`）、`DialogType.Activity`/`GameRoute.Activity` 路由、`SpiritStoneSource.SignIn` 灵石来源、`OverflowMailSender` 与 `BattleLogDialogs` 的 `sign_in`/`SignIn` 来源标签、`ui_activity_button` 精灵注册与两模块 webp 资源全部删除；`GameVmServices`/`GameViewModel`/`MailDelegate`/`BagDelegate`/`EconomyFacade` 的 `dailySignInService` 依赖链同步清理，`DailySignIn.kt` 瘦身并重命名为 `SignInState.kt`（仅保留存档字段模型）

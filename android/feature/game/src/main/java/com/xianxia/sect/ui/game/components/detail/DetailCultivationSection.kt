@@ -50,6 +50,7 @@ import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.util.GameUtils
 
 import com.xianxia.sect.ui.components.CloseButton
+import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.theme.GameColors
@@ -142,7 +143,8 @@ fun BasicInfoSection(
     gameMonth: Int = 1,
     gameYear: Int = 1,
     gamePhase: Int = 0,
-    gameSpeed: Int = 1
+    gameSpeed: Int = 1,
+    onWashSpiritRootClick: (() -> Unit)? = null
 ) {
     val discipleMap = allDisciples.associateBy { it.id }
     val griefBreakthroughPenalty = if (
@@ -196,6 +198,19 @@ fun BasicInfoSection(
                 color = spiritRootCountColor,
                 maxLines = 1
             )
+            // 洗炼灵根入口（+ 号按钮，间距 4dp，大小与突破率右侧按钮一致）
+            if (onWashSpiritRootClick != null) {
+                Spacer(modifier = Modifier.width(4.dp))
+                SpriteImage(
+                    name = "ui_add_button",
+                    contentDescription = "洗炼灵根",
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clip(CircleShape)
+                        .clickable(onClick = onWashSpiritRootClick),
+                    contentScale = ContentScale.FillBounds
+                )
+            }
         }
 
         Row(

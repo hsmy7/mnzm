@@ -79,6 +79,7 @@ import com.xianxia.sect.ui.game.components.detail.RelationsDialog
 import com.xianxia.sect.ui.game.components.detail.StorageBagDialog
 import com.xianxia.sect.ui.game.components.detail.TalentsSection
 import com.xianxia.sect.ui.game.dialogs.DiscipleChatDialog
+import com.xianxia.sect.ui.game.dialogs.SpiritRootWashDialog
 import com.xianxia.sect.ui.game.dialogs.shared.RenameDiscipleDialog
 import com.xianxia.sect.ui.theme.GameColors
 
@@ -147,6 +148,7 @@ fun DiscipleDetailDialog(
     var showApprenticeSelectDialog by remember { mutableStateOf(false) }
     var showLifeLogDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
+    var showWashDialog by remember { mutableStateOf(false) }
     var showChatDialog by remember { mutableStateOf(false) }
     var selectedMaster by remember { mutableStateOf<DiscipleAggregate?>(null) }
     var showApprenticeConfirmDialog by remember { mutableStateOf(false) }
@@ -273,7 +275,8 @@ fun DiscipleDetailDialog(
                                         gameMonth = gameMonth,
                                         gameYear = gameYear,
                                         gamePhase = gamePhase,
-                                        gameSpeed = 1
+                                        gameSpeed = 1,
+                                        onWashSpiritRootClick = { showWashDialog = true }
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
                                     TalentsSection(talents, disciple.statusData, onTalentClick = { selectedTalent = it })
@@ -580,6 +583,16 @@ fun DiscipleDetailDialog(
                         showRenameDialog = false
                     },
                     onDismiss = { showRenameDialog = false }
+                )
+            }
+            // 洗炼灵根弹窗（内联覆盖层）——同一原则：渲染在内容 lambda 内、
+            // 后组合者 z 序最高，BackHandler 优先响应（先关洗炼框再关整个详情）
+            if (showWashDialog) {
+                SpiritRootWashDialog(
+                    disciple = disciple,
+                    jadeSymbols = gameData?.jadeSymbols ?: 0,
+                    viewModel = viewModel,
+                    onDismiss = { showWashDialog = false }
                 )
             }
         }

@@ -13,6 +13,8 @@ import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
+import com.xianxia.sect.core.engine.SpiritRootWashConfirmResult
+import com.xianxia.sect.core.engine.SpiritRootWashResult
 import com.xianxia.sect.core.engine.PerformanceMode
 import com.xianxia.sect.core.engine.apprenticeToMaster
 import com.xianxia.sect.core.engine.assignDiscipleToBuilding
@@ -696,6 +698,10 @@ class GameViewModel @Inject constructor(
     fun releaseReflectionDisciple(discipleId: String) = disciple.releaseReflectionDisciple(discipleId)
     fun apprenticeToMaster(discipleId: String, masterId: String) = disciple.apprenticeToMaster(discipleId, masterId)
     fun renameDisciple(discipleId: String, newName: String) = disciple.renameDisciple(discipleId, newName)
+    suspend fun washSpiritRoot(discipleId: String, pityCount: Int): SpiritRootWashResult =
+        disciple.washSpiritRoot(discipleId, pityCount)
+    suspend fun confirmSpiritRootWash(discipleId: String, newRootType: String): SpiritRootWashConfirmResult =
+        disciple.confirmSpiritRootWash(discipleId, newRootType)
     fun getLifeEvents(discipleId: String): List<String> = delegateServices.discipleFacade.getLifeEvents(discipleId)
     fun initializeLifeEvents(discipleId: String) {
         // 写操作必须派发到引擎线程（对齐 enterSect 模式），否则主线程直调 stateStore.update 触发架构违规守卫

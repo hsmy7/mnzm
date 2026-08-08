@@ -2,9 +2,12 @@ package com.xianxia.sect.ui.game.delegate
 
 import android.util.Log
 import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.engine.SpiritRootWashConfirmResult
+import com.xianxia.sect.core.engine.SpiritRootWashResult
 import com.xianxia.sect.core.engine.apprenticeToMaster
 import com.xianxia.sect.core.engine.assignDiscipleToBuilding
 import com.xianxia.sect.core.engine.changeDiscipleTypeAtomic
+import com.xianxia.sect.core.engine.confirmSpiritRootWash
 import com.xianxia.sect.core.engine.confiscateStorageBagItem
 import com.xianxia.sect.core.engine.equipItem
 import com.xianxia.sect.core.engine.expelDisciple
@@ -22,6 +25,7 @@ import com.xianxia.sect.core.engine.unequipItem
 import com.xianxia.sect.core.engine.unequipItemById
 import com.xianxia.sect.core.engine.updateDisciple
 import com.xianxia.sect.core.engine.updateGameData
+import com.xianxia.sect.core.engine.washSpiritRoot
 import com.xianxia.sect.core.engine.usePill
 import com.xianxia.sect.core.engine.service.RecruitService
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -241,6 +245,14 @@ class DiscipleDelegate(
             }
         }
     }
+
+    /** 洗炼灵根：扣 1 玉符 + 保底判定抽取，返回产物（UI 会话持有结果，未确认不写弟子） */
+    suspend fun washSpiritRoot(discipleId: String, pityCount: Int): SpiritRootWashResult =
+        gameEngine.washSpiritRoot(discipleId, pityCount)
+
+    /** 确认替换：把弟子灵根替换为洗炼产物 */
+    suspend fun confirmSpiritRootWash(discipleId: String, newRootType: String): SpiritRootWashConfirmResult =
+        gameEngine.confirmSpiritRootWash(discipleId, newRootType)
 
     fun recruitDiscipleFromList(discipleId: String) {
         if (discipleId.isBlank()) {

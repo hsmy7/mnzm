@@ -43,6 +43,7 @@ import com.xianxia.sect.core.repository.HeavyDataDecoder
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.FormulaService
 import com.xianxia.sect.core.engine.service.JadeSymbolRuntimeState
+import com.xianxia.sect.core.engine.service.JadeSymbolService
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.engine.domain.battle.aisRngManager
 import com.xianxia.sect.core.engine.domain.battle.enemyGenRngManager
@@ -141,6 +142,7 @@ class GameEngine @Inject constructor(
     internal val saveFacade: SaveFacade get() = economyFacade.saveFacade
     internal val spiritStoneWallet: SpiritStoneWallet get() = economyFacade.spiritStoneWallet
     internal val lawEnforcementProcessor: LawEnforcementProcessor get() = cultivationFacade.lawEnforcementProcessor
+    internal val jadeSymbolService: JadeSymbolService get() = gameEngineCore.jadeSymbolServiceRef
 
     init {
         // 注入任务完成检测回调到 GameEngineCore，

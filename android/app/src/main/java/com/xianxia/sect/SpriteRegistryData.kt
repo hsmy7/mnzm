@@ -301,6 +301,7 @@ internal val SPRITES_UI = mapOf(
         "ui_button" to R.drawable.ui_button,
         "ui_close_button" to R.drawable.ui_close_button,
         "ui_detail_button" to R.drawable.ui_detail_button,
+        "ui_add_button" to R.drawable.ui_add_button,
         "ui_diplomacy_button" to R.drawable.ui_diplomacy_button,
         "ui_guide_button" to R.drawable.ui_guide_button,
         "ui_merchant_button" to R.drawable.ui_merchant_button,

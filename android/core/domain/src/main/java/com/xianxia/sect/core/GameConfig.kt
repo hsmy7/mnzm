@@ -357,7 +357,30 @@ object GameConfig {
             4 to 0.30,  // 30% 四灵根
             5 to 0.40   // 40% 五灵根
         )
-        
+
+        // ── 洗炼灵根（2026-08-08 新增，玉符消耗玩法）──
+
+        /** 单次洗炼消耗玉符数。 */
+        const val WASH_JADE_COST = 1
+
+        /**
+         * 保底阈值：连续未出单灵根次数达到该值后本次必出单灵根
+         * （即连续洗炼第 3 次必出单灵根，出单后计数归零）。
+         */
+        const val WASH_PITY_THRESHOLD = 2
+
+        /** 洗炼结果为双灵根的权重（单灵根权重 = 1 - 该值）。 */
+        const val WASH_DOUBLE_WEIGHT = 0.60
+
+        /** 洗炼结果为单灵根的权重。 */
+        const val WASH_SINGLE_WEIGHT = 0.40
+
+        /**
+         * 洗炼元素候选 key（与 SpiritRootGenerator.ELEMENTS 保持同序，改动需同步两边）。
+         * 洗炼仅产出 1~2 个元素（单灵根/双灵根）。
+         */
+        val WASH_ELEMENT_KEYS = listOf("metal", "wood", "water", "fire", "earth")
+
         fun get(type: String): SpiritRootConfig = TYPES[type] ?: TYPES.getValue("metal")
         
         fun getAll(): List<SpiritRootConfig> = TYPES.values.toList()
