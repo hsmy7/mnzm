@@ -428,7 +428,7 @@ SaveValidator.validate(SaveData)
 | P-16 | UI 迁移真机冒烟 | SettingsTab/DiscipleDetailScreen/OverlayDialogRouter | 发布前检查 4 个迁移弹窗（其他设置/年俸/存档管理/更新日志）逐一打开关闭 + OverlayDialogRouter 34 分支逐项打开一次；判定：无崩溃/白屏/交互完整/叠层路由正常 |
 | P-18 | 排行榜 rank 0/1 起始语义 | `feature/game/.../taptap/TapTapLeaderboardApi.kt` | 已做 0→1 归一化兜底（rank<1 显示 1）。真机观察：首名显示 #1 且次名重复 #1 → 服务端 1 起始，移除归一化；次名 #2 → 保留现状。抓原始 rank 与显示值对照 ≥3 次 |
 
-### 途中发现待办（2026-08-05 引擎确定性加固时登记 D-01~D-06；2026-08-06 三崩溃批次对抗性审查新增 D-07~D-10；2026-08-06 建筑点击无效批次对抗性审查新增 D-11~D-15，详见 CHANGELOG 4.00.89~4.00.90；2026-08-07 商人/宗门交易品阶动态刷新批次新增 D-16；2026-08-07 灵田收获卡死+草药不入库批次对抗性审查新增 D-17~D-20）
+### 途中发现待办（2026-08-05 引擎确定性加固时登记 D-01~D-06；2026-08-06 三崩溃批次对抗性审查新增 D-07~D-10；2026-08-06 建筑点击无效批次对抗性审查新增 D-11~D-15，详见 CHANGELOG 4.00.89~4.00.90；2026-08-07 商人/宗门交易品阶动态刷新批次新增 D-16；2026-08-07 灵田收获卡死+草药不入库批次对抗性审查新增 D-17~D-20；2026-08-08 数量器升级批次对抗性审查新增 D-21~D-23）
 
 > 本次实施（RNG 事务快照/UI RNG 治理/奖励统一入口/事务合并/缓存）后对抗性审查登记的未修项。P-19/P-20/P-21 已随本次实施完成（奖励收编 InventorySystem + 守卫补漏 + 签到 catch 移出事务）。
 
@@ -454,6 +454,9 @@ SaveValidator.validate(SaveData)
 | D-18 | 灵田收获对抗性审查不修 5 项（记录在案） | `ProductionProcessor.kt` 收获路径（`buildHarvestMaturityContext`/`buildHarvestHerbStore`/`updateSlotAfterHarvest`） | 2026-08-07 灵田收获批次对抗性审查（4 Agent）确认不修：① aura 索引 `associate` vs 原 `find` 查找一致性问题（仅损坏数据可达）；② 续种不刷新 growTime/expectedYield（无消费者，种植时固定）；③ completionMonth 不含加速（无消费者）；④ F5 计数语义（guideCounters HERBS_HARVESTED 与 annualHerbCount 计数口径，既有设计 T4 锚定）；⑤ add 对锁定堆叠合并（store 通用被动入账语义，全系统一致）。如后续需求变化（如续种刷新产量）单独评估 |
 | D-19 | 灵泉灌溉政策真实产量 +15% 数值变更（本次仅改文案） | `core/domain/.../GameConfig.kt:707`（SPIRIT_SPRING_YIELD）+ `feature/game/.../TianshuHallDialog.kt:411` | 2026-08-07 灵田收获批次明确不做数值变更：政策实际为生长加速乘区（非产量），文案已更正为"灵草生长速度+15%"消除误导。改真实产量属平衡性决策（政策永久生效、expectedYield 种植时固定、影响中后期草药经济），需产品定夺后单独立项 |
 | D-20 | 收获是否移出月结事务（性能进一步保障） | `core/engine/.../service/ProductionProcessor.kt` processSpiritFieldHarvest（月结 `systemManager.onMonthlyEvent` 事务内调用） | 2026-08-07 灵田收获批次主因修复：复杂度 O(n×(d+b+n+h)) → O(n+d+b+h)（n=300 时 <1ms 量级），已不再构成 UI 阻塞，事务结构本次不动（外科手术式）。若极端存档（数千地块）仍有卡顿疑虑，可单独立项把收获移出月结事务（涉及惰性结算引擎架构调整） |
+| D-21 | 商人负价格商品反向获取灵石（先加后扣无价格校验） | `core/engine/.../domain/inventory/InventoryFacadeImpl.kt:357` buyMerchantItem（361 行 cost = price×quantity；362 行校验 `spiritStones < cost`——负 cost 恒 false 放行） | 2026-08-08 数量器升级批次对抗性审查登记（数据篡改者视角预存问题）：篡改存档构造负价格商品 → 购买免费且灵石反增（扣款 `spiritStones - cost` 变加法）。修复方向：入口校验 `price >= 0`（非法价格拒绝购买 + DomainLog.w）；商人商品价格本应恒正，属存档完整性防御 |
+| D-22 | 商人刷新后 selectedItem 失效购买静默失败 | `feature/game/.../dialogs/MerchantDialog.kt:63/132/231`（selectedItem 状态 / refreshTravelingMerchantManual 刷新按钮 / onConfirm buyFromMerchant） | 2026-08-08 数量器升级批次对抗性审查登记（状态破坏者视角预存问题）：刷新商品后选中商品可能已被替换，确认购买时 buyMerchantItem 内 `find { it.id == itemId } ?: return@update` 静默返回，无任何反馈。修复方向：刷新时清空 selectedItem（对齐 168 行切 Tab / 189 行切筛选先例）+ 引擎侧失败给提示 |
+| D-23 | MerchantDialog.kt:140 预存死条件判断 | `feature/game/.../dialogs/MerchantDialog.kt:140`（`if (viewModel != null)` 恒 true） | 2026-08-08 数量器升级批次编译告警登记（预存，非本次引入）：组合作用域内 viewModel 恒非空，编译告警 "Condition is always 'true'"。修复方向：去除判断直接调用 viewModel（Image 块内容不变） |
 
 ## 实施记录（2026-08-08：D-01 / D-03 / D-05~D-09 / D-15~D-17 十项）——已完成
 
