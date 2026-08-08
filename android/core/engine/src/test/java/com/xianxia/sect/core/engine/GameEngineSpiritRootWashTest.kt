@@ -204,6 +204,29 @@ class GameEngineSpiritRootWashTest {
         assertEquals("不扣玉符", 5, store.gameDataSnapshot.jadeSymbols)
     }
 
+    @Test
+    fun `washSpiritRoot - 死亡弟子拒绝洗炼且不扣玉符`() = runBlocking {
+        seedDisciple()
+        seedJade(5)
+        store.update { discipleTables.markDead(1, 1) }
+
+        val result = engine.washSpiritRoot("1", 0)
+
+        assertTrue("死亡弟子应被拒绝，实际 $result", result is SpiritRootWashResult.Error)
+        assertEquals("不扣玉符", 5, store.gameDataSnapshot.jadeSymbols)
+    }
+
+    @Test
+    fun `washSpiritRoot - 余额恰为1枚时洗炼成功扣至0`() = runBlocking {
+        seedDisciple()
+        seedJade(1)
+
+        isSuccess(engine.washSpiritRoot("1", 0))
+
+        assertEquals("余额 1 时应可洗炼并扣至 0", 0, store.gameDataSnapshot.jadeSymbols)
+        assertEquals(0, jadeService.runtimeState.value.total)
+    }
+
     // ── 确认替换 ──
 
     @Test
@@ -220,7 +243,8 @@ class GameEngineSpiritRootWashTest {
     @Test
     fun `confirmSpiritRootWash - 非法产物串返回Error且弟子不变`() = runBlocking {
         seedDisciple()
-        val invalidTypes = listOf("metal,wood,water", "metal,xyz", "", "fire,fire,fire")
+        // fire,fire 为重复元素——单灵根语义不允许重复，去重校验必须拦截
+        val invalidTypes = listOf("metal,wood,water", "metal,xyz", "", "fire,fire,fire", "fire,fire")
 
         for (invalid in invalidTypes) {
             val result = engine.confirmSpiritRootWash("1", invalid)
@@ -234,6 +258,17 @@ class GameEngineSpiritRootWashTest {
         val result = engine.confirmSpiritRootWash("999", "metal")
 
         assertTrue("期望 Error，实际 $result", result is SpiritRootWashConfirmResult.Error)
+    }
+
+    @Test
+    fun `confirmSpiritRootWash - 死亡弟子拒绝替换且灵根不变`() = runBlocking {
+        seedDisciple()
+        store.update { discipleTables.markDead(1, 1) }
+
+        val result = engine.confirmSpiritRootWash("1", "metal,water")
+
+        assertTrue("死亡弟子应被拒绝，实际 $result", result is SpiritRootWashConfirmResult.Error)
+        assertEquals("死亡弟子灵根不得被替换", "fire", assembleDisciple().spiritRootType)
     }
 
     // ── 关键回归：checkpoint 不回涨 ──

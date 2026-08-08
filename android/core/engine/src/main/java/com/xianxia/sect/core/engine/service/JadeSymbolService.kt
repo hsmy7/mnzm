@@ -230,6 +230,13 @@ class JadeSymbolService @Inject constructor(
      * 必须同步递减运行时 [totalCount]——否则后续 [checkpointNow]/[settleGrants]
      * 用未扣减的绝对值覆盖写 GameData.jadeSymbols，导致玉符回涨。
      *
+     * ⚠️ 事务回滚契约：totalCount 递减是立即生效的外部可变状态，不随事务回滚。
+     * 若同事务内 deduct 之后的代码抛出异常导致 update 回滚（GameData 恢复），
+     * totalCount 不会自动回滚，余额将与 GameData 不一致（少扣的部分会在
+     * checkpoint 时被绝对值覆盖，玩家实际损失该枚玉符）。
+     * 调用方必须保证 deduct 之后的事务代码无异常路径（洗炼在 deduct 后仅执行
+     * 纯函数抽卡 rollSpiritRootWash，不抛异常，满足契约）。
+     *
      * @return 是否成功（余额不足或金额非正返回 false，状态不变）
      */
     fun deduct(state: MutableGameState, amount: Int): Boolean {

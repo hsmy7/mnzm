@@ -97,4 +97,35 @@ class SpiritRootWashRollTest {
         val ratio = doubleCount.toDouble() / samples
         assertTrue("双灵根比例 $ratio 偏离 0.6", ratio in 0.50..0.70)
     }
+
+    @Test
+    fun `rollSpiritRootWash - 未达阈值时draw次数固定6次`() {
+        // draw 次数守卫：普通路径 = 1 次 nextDouble（内部 1 次 nextInt）+ 5 次洗牌 nextInt
+        // = 6 次状态推进。无论产物单双，draw 次数必须恒定（确定性 RNG 要求，
+        // 同种子同输入序列完全一致）；多种子覆盖单/双灵根两种分支路径
+        repeat(20) { seedIdx ->
+            val seed = 20260808L + seedIdx
+            val rng = DeterministicRng.fromSeed(seed)
+            val roll = rollSpiritRootWash(rng, 0)
+            val reference = DeterministicRng.fromSeed(seed)
+            repeat(6) { reference.nextInt() }
+            assertEquals(
+                "种子 $seed 产物=${roll.rootType} draw 次数应固定为 6",
+                reference.snapshot(), rng.snapshot()
+            )
+        }
+    }
+
+    @Test
+    fun `洗炼元素表与游戏真实元素表保持一致`() {
+        // 守卫：WASH_ELEMENT_KEYS 是洗炼产物的候选元素集合，必须与游戏真实灵根元素
+        // （SpiritRootGenerator.ELEMENTS，private 不可跨模块引用，此处硬编码镜像）一致。
+        // 游戏元素集合变化（新增/删除/改名）时此测试失败，提示同步
+        // GameConfig.SpiritRoot.WASH_ELEMENT_KEYS（新增元素还需同步 TYPES 配色表）。
+        assertEquals(
+            "WASH_ELEMENT_KEYS 与 SpiritRootGenerator.ELEMENTS 漂移——请同步 GameConfig.SpiritRoot.WASH_ELEMENT_KEYS",
+            listOf("metal", "wood", "water", "fire", "earth"),
+            GameConfig.SpiritRoot.WASH_ELEMENT_KEYS
+        )
+    }
 }

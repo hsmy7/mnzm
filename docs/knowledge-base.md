@@ -637,7 +637,12 @@ fun watchAdForNewFeature() {
 | 方向 | 入口 | 说明 | 代码位置 |
 |------|------|------|---------|
 | 产（源） | 在线时长 | 真实前台运行每满 20 分钟 1 枚（挂机/暂停累计、后台不累计），单日上限 30，墙钟次日 0 点重置 | `JadeSymbolService.kt`、`GameConfig.Jade` |
-| 耗（汇） | 暂无 | 未来商店消耗源（用户确认当前仅获取；引入消耗时再建 `JadeSymbolWallet` 与来源字典） | — |
+| 耗（汇） | 洗炼灵根 | 每次 1 枚（`GameConfig.SpiritRoot.WASH_JADE_COST`），事务内 `deduct` 扣减，3 连保底 | `GameEngineSpiritRootOps.kt`、`GameConfig.SpiritRoot` |
+
+**玉符消耗统一通道（2026-08-08 洗炼灵根建立，未来新增消耗/发放玩法必须走此通道）**：
+1. **唯一写入入口 = `JadeSymbolService`**——玉符是**绝对值覆盖写模型**（运行时 `@Volatile totalCount` 以绝对值覆盖写 `GameData.jadeSymbols`，`checkpointNow`/`settleGrants` 内部写）。消耗必须事务内调 `jadeSymbolService.deduct(state, cost)`（同步递减 totalCount，否则 checkpoint 把余额写回扣减前值——**玉符回涨**）；禁止在任何 Service/GameEngine 直接 `copy(jadeSymbols = ...)`，守卫测试 `JadeSymbolConsumptionGuardTest`（扫描 engine 主源码 copy/赋值反模式 + 白名单 `JadeSymbolService.kt`）自动拦截
+2. **消耗模式**（参照 `GameEngineSpiritRootOps.washSpiritRoot`）：`stateStore.updateAndReturn { 校验目标 → deduct 失败 return Insufficient → 玩法逻辑（扣减成功后抽） }` → 成功后事务外 `publishJadeSymbolStateNow()`（清 1Hz 节流立即刷新徽章）；sealed 三态结果（Success/InsufficientJadeSymbols(current, required)/Error）；扣减失败不消耗 RNG 序列
+3. **存档自愈例外**：`core/data` 的 `JadeSymbolNonNegativeRule`（启动时越界修正）不经过服务——语义为数据修复而非玩家可触发的消耗/发放，不在守卫范围
 
 **墙钟豁免论证（`rules/expansion-playbook.md` L22"禁止以现实时间为准"）**：玉符**不是进度系统**，是墙钟概念货币（对标商业游戏在线时长福利——原神月卡/星铁每日、放置类游戏挂机收益），与游戏内进度完全解耦：不参与游戏时间结算（不加速修炼/战斗/生产）、不产生任何游戏内收益、无离线收益、不进仓库、不参与排行榜。发放由单调时钟驱动（改墙钟无法加速，每枚仍需 20 分钟真实前台时间），仅跨天重置依赖墙钟。豁免理由：货币获取通道而非进度结算轨道。
 

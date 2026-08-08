@@ -369,11 +369,8 @@ object GameConfig {
          */
         const val WASH_PITY_THRESHOLD = 2
 
-        /** 洗炼结果为双灵根的权重（单灵根权重 = 1 - 该值）。 */
+        /** 洗炼结果为双灵根的权重（单灵根概率 = 1 - 该值）。 */
         const val WASH_DOUBLE_WEIGHT = 0.60
-
-        /** 洗炼结果为单灵根的权重。 */
-        const val WASH_SINGLE_WEIGHT = 0.40
 
         /**
          * 洗炼元素候选 key（与 SpiritRootGenerator.ELEMENTS 保持同序，改动需同步两边）。

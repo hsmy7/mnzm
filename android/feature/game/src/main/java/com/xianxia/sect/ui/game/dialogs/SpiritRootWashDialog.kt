@@ -36,6 +36,12 @@ import kotlinx.coroutines.launch
 /** 玉符不足提示文案（需求：点洗炼/继续洗炼且玉符不足时弹提示框） */
 private const val INSUFFICIENT_JADE_TEXT = "玉符不足，无法洗炼"
 
+/** 洗炼其他失败文案（与玉符不足区分，避免误导） */
+private const val WASH_ERROR_TEXT = "洗炼失败，请重试"
+
+/** 确认替换失败文案 */
+private const val CONFIRM_ERROR_TEXT = "替换失败，请重试"
+
 /** 洗炼结果未产出时的占位显示 */
 private const val EMPTY_RESULT_TEXT = "——"
 
@@ -46,23 +52,46 @@ private fun parseRootColor(hex: String): Color = remember(hex) {
 }
 
 /**
+ * 洗炼会话控制参数组（Composable 参数上限 6 个，聚合防连点与保底回传通道）。
+ *
+ * [washing] 由 [SpiritRootWashDialog] 主函数 remember 持有：一方面供弹窗
+ * onDismissRequest 在引擎操作进行中拦截关闭（防"玉符已扣、结果丢失"），
+ * 另一方面下传内容区用于按钮 enabled/防连点。
+ */
+private data class WashSessionControl(
+    val initialPityCount: Int,
+    val onPityCountChanged: (Int) -> Unit,
+    val washing: Boolean,
+    val onWashingChange: (Boolean) -> Unit
+)
+
+/**
  * 洗炼灵根弹窗（内联覆盖层，渲染在弟子详情内容 lambda 末尾）。
  *
  * 布局：标题"洗炼灵根" + 右上角关闭（[InlineStandardPromptDialog] showCloseButton）、
  * 左侧当前灵根 → 右箭头 → 右侧洗炼结果、按钮上方"消耗1玉符"小字（12sp + 玉符图标 12dp，
  * 与宗门信息卡片小字/灵石图标一致；玉符不足变红）、按钮区动态切换。
  *
- * 保底计数由本弹窗会话持有（remember，关闭即重置）；洗炼产物未确认替换前不写弟子。
+ * 保底计数：弹窗会话持有，初始化自 [WashSessionControl.initialPityCount]（DiscipleDetailScreen
+ * 层常驻计数），洗炼成功时经 [WashSessionControl.onPityCountChanged] 回传——弹窗关闭再打开
+ * 保底不重置，连续 3 次保底语义不被弹窗开关破坏。
+ *
+ * 防丢失：洗炼/确认替换进行中（washing）拦截 onDismissRequest，防止引擎操作
+ * 中途关闭导致"玉符已扣、产物丢失"。
  */
 @Composable
 fun SpiritRootWashDialog(
     disciple: DiscipleAggregate,
     jadeSymbols: Int,
     viewModel: GameViewModel?,
+    initialPityCount: Int,
+    onPityCountChanged: (Int) -> Unit,
     onDismiss: () -> Unit
 ) {
+    // 防连点/防中途关闭：洗炼与确认替换共用的引擎操作进行中标记（弹窗会话持有）
+    var washing by remember { mutableStateOf(false) }
     InlineStandardPromptDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!washing) onDismiss() },
         title = "洗炼灵根",
         showCloseButton = true,
         dismissOnClickOutside = true,
@@ -72,27 +101,33 @@ fun SpiritRootWashDialog(
                 disciple = disciple,
                 jadeSymbols = jadeSymbols,
                 viewModel = viewModel,
+                washSession = WashSessionControl(
+                    initialPityCount = initialPityCount,
+                    onPityCountChanged = onPityCountChanged,
+                    washing = washing,
+                    onWashingChange = { washing = it }
+                ),
                 onDismiss = onDismiss
             )
         }
     )
 }
 
-/** 洗炼弹窗内容：会话状态（产物/保底计数/防连点）+ 布局 + 玉符不足提示框 */
+/** 洗炼弹窗内容：会话状态（产物/保底计数/错误提示）+ 布局 + 动态按钮区 */
 @Composable
 private fun SpiritRootWashContent(
     disciple: DiscipleAggregate,
     jadeSymbols: Int,
     viewModel: GameViewModel?,
+    washSession: WashSessionControl,
     onDismiss: () -> Unit
 ) {
     // 洗炼产物（英文元素 key 逗号串），未洗炼为 null
     var washResult by remember { mutableStateOf<String?>(null) }
-    // 保底计数（连续未出单灵根次数，UI 会话持有）
-    var pityCount by remember { mutableIntStateOf(0) }
-    // 防连点：引擎操作串行化但快速连点会排队消耗多次玉符
-    var washing by remember { mutableStateOf(false) }
-    var showInsufficientDialog by remember { mutableStateOf(false) }
+    // 保底计数：以弹窗打开时的上层计数初始化，成功后回传上层（跨会话保持）
+    var pityCount by remember { mutableIntStateOf(washSession.initialPityCount) }
+    // 错误提示文案（null = 不显示）：玉符不足/洗炼失败/替换失败共用，文案区分
+    var errorText by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     val currentRootColor = parseRootColor(disciple.spiritRoot.countColor)
@@ -101,9 +136,9 @@ private fun SpiritRootWashContent(
     val jadeInsufficient = jadeSymbols < GameConfig.SpiritRoot.WASH_JADE_COST
 
     fun onWashClick() {
-        if (washing) return
+        if (washSession.washing) return
         val vm = viewModel ?: return
-        washing = true
+        washSession.onWashingChange(true)
         scope.launch {
             try {
                 handleWashResult(
@@ -111,11 +146,13 @@ private fun SpiritRootWashContent(
                     onSuccess = { root, pity ->
                         washResult = root
                         pityCount = pity
+                        washSession.onPityCountChanged(pity)
                     },
-                    onFailure = { showInsufficientDialog = true }
+                    onInsufficient = { errorText = INSUFFICIENT_JADE_TEXT },
+                    onError = { errorText = WASH_ERROR_TEXT }
                 )
             } finally {
-                washing = false
+                washSession.onWashingChange(false)
             }
         }
     }
@@ -123,12 +160,19 @@ private fun SpiritRootWashContent(
     fun onConfirmReplaceClick() {
         val current = washResult ?: return
         val vm = viewModel ?: return
-        scope.launch {
-            handleConfirmResult(
-                result = vm.confirmSpiritRootWash(disciple.id, current),
-                onSuccess = onDismiss,
-                onFailure = { showInsufficientDialog = true }
-            )
+        if (!washSession.washing) {
+            washSession.onWashingChange(true)
+            scope.launch {
+                try {
+                    handleConfirmResult(
+                        result = vm.confirmSpiritRootWash(disciple.id, current),
+                        onSuccess = onDismiss,
+                        onError = { errorText = CONFIRM_ERROR_TEXT }
+                    )
+                } finally {
+                    washSession.onWashingChange(false)
+                }
+            }
         }
     }
 
@@ -147,13 +191,15 @@ private fun SpiritRootWashContent(
         Spacer(modifier = Modifier.height(8.dp))
         WashActionButtons(
             hasResult = washResult != null,
-            washing = washing,
+            washing = washSession.washing,
             onWashClick = ::onWashClick,
             onConfirmReplaceClick = ::onConfirmReplaceClick
         )
     }
 
-    InsufficientJadeDialog(showInsufficientDialog) { showInsufficientDialog = false }
+    errorText?.let { text ->
+        ErrorDialog(text = text, onDismiss = { errorText = null })
+    }
 }
 
 /** ① 当前灵根 → 洗炼结果（未洗炼显示占位符） */
@@ -218,7 +264,7 @@ private fun CostHintRow(jadeInsufficient: Boolean) {
     }
 }
 
-/** ③ 按钮区：未洗炼单个"洗炼灵根"按钮；洗炼后"确认替换"+"继续洗炼" */
+/** ③ 按钮区：未洗炼单个"洗炼灵根"按钮；洗炼后"确认替换"+"继续洗炼"（引擎操作中全部禁用） */
 @Composable
 private fun WashActionButtons(
     hasResult: Boolean,
@@ -234,7 +280,11 @@ private fun WashActionButtons(
         )
     } else {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            GameButton(text = "确认替换", onClick = onConfirmReplaceClick)
+            GameButton(
+                text = "确认替换",
+                onClick = onConfirmReplaceClick,
+                enabled = !washing
+            )
             GameButton(
                 text = "继续洗炼",
                 onClick = onWashClick,
@@ -244,42 +294,41 @@ private fun WashActionButtons(
     }
 }
 
-/** 洗炼结果分发：Success 回传产物与保底计数，失败（不足/其他错误）统一走 onFailure */
+/** 洗炼结果分发：Success 回传产物与保底计数；不足与错误文案区分（不足=余额问题，Error=其他） */
 private fun handleWashResult(
     result: SpiritRootWashResult,
     onSuccess: (newRootType: String, newPityCount: Int) -> Unit,
-    onFailure: () -> Unit
+    onInsufficient: () -> Unit,
+    onError: () -> Unit
 ) {
     when (result) {
         is SpiritRootWashResult.Success -> onSuccess(result.newRootType, result.newPityCount)
-        is SpiritRootWashResult.InsufficientJadeSymbols -> onFailure()
-        is SpiritRootWashResult.Error -> onFailure()
+        is SpiritRootWashResult.InsufficientJadeSymbols -> onInsufficient()
+        is SpiritRootWashResult.Error -> onError()
     }
 }
 
-/** 确认替换结果分发：成功关弹窗，失败弹提示 */
+/** 确认替换结果分发：成功关弹窗，失败弹"替换失败"提示 */
 private fun handleConfirmResult(
     result: SpiritRootWashConfirmResult,
     onSuccess: () -> Unit,
-    onFailure: () -> Unit
+    onError: () -> Unit
 ) {
     when (result) {
         is SpiritRootWashConfirmResult.Success -> onSuccess()
-        is SpiritRootWashConfirmResult.Error -> onFailure()
+        is SpiritRootWashConfirmResult.Error -> onError()
     }
 }
 
-/** 玉符不足提示框（嵌套内联覆盖层，z 序高于洗炼弹窗） */
+/** 错误提示框（嵌套内联覆盖层，z 序高于洗炼弹窗） */
 @Composable
-private fun InsufficientJadeDialog(show: Boolean, onDismiss: () -> Unit) {
-    if (show) {
-        InlineStandardPromptDialog(
-            onDismissRequest = onDismiss,
-            title = "提示",
-            text = INSUFFICIENT_JADE_TEXT,
-            confirmLabel = "知道了",
-            onConfirm = onDismiss,
-            dismissOnClickOutside = true
-        )
-    }
+private fun ErrorDialog(text: String, onDismiss: () -> Unit) {
+    InlineStandardPromptDialog(
+        onDismissRequest = onDismiss,
+        title = "提示",
+        text = text,
+        confirmLabel = "知道了",
+        onConfirm = onDismiss,
+        dismissOnClickOutside = true
+    )
 }

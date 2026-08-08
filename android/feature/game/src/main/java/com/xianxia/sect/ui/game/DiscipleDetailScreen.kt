@@ -149,6 +149,9 @@ fun DiscipleDetailDialog(
     var showLifeLogDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var showWashDialog by remember { mutableStateOf(false) }
+    // 洗炼保底计数（连续未出单灵根次数）：详情层常驻——弹窗关闭再打开不重置，
+    // 保证"连续 3 次保底"语义跨洗炼会话成立（弹窗会话持有的计数在关闭时丢失）
+    var washPityCount by remember { mutableIntStateOf(0) }
     var showChatDialog by remember { mutableStateOf(false) }
     var selectedMaster by remember { mutableStateOf<DiscipleAggregate?>(null) }
     var showApprenticeConfirmDialog by remember { mutableStateOf(false) }
@@ -347,6 +350,30 @@ fun DiscipleDetailDialog(
                     onClick = onDismiss,
                     modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
                 )
+                // 改名/洗炼弹窗（内联覆盖层）必须渲染在根 Box 内、CloseButton 之后——
+                // 渲染在 UnifiedGameDialog 内容 lambda 之外会被平台 Dialog 窗口遮挡而不可见
+                // （4.00.92 兑换码事故同源教训）；此处为根 Box 最末，z 序最高，且后组合的
+                // BackHandler 优先响应（先关改名框/洗炼框再关整个详情）
+                if (showRenameDialog) {
+                    RenameDiscipleDialog(
+                        currentName = disciple.name,
+                        onConfirm = { newName ->
+                            viewModel?.renameDisciple(disciple.id, newName)
+                            showRenameDialog = false
+                        },
+                        onDismiss = { showRenameDialog = false }
+                    )
+                }
+                if (showWashDialog) {
+                    SpiritRootWashDialog(
+                        disciple = disciple,
+                        jadeSymbols = gameData?.jadeSymbols ?: 0,
+                        viewModel = viewModel,
+                        initialPityCount = washPityCount,
+                        onPityCountChanged = { washPityCount = it },
+                        onDismiss = { showWashDialog = false }
+                    )
+                }
             }
         }
     } // CompositionLocalProvider
@@ -569,30 +596,6 @@ fun DiscipleDetailDialog(
                     item = stack,
                     onDismiss = { showReplaceDetailStack = null },
                     viewModel = viewModel
-                )
-            }
-
-            // 改名弹窗（内联覆盖层）必须渲染在 UnifiedGameDialog 内容 lambda 内——
-            // 渲染在函数体外层会被平台 Dialog 窗口遮挡而不可见；此处为内容区末尾，z 序最高，
-            // 且后组合的 BackHandler 优先响应（先关改名框而非整个详情）
-            if (showRenameDialog) {
-                RenameDiscipleDialog(
-                    currentName = disciple.name,
-                    onConfirm = { newName ->
-                        viewModel?.renameDisciple(disciple.id, newName)
-                        showRenameDialog = false
-                    },
-                    onDismiss = { showRenameDialog = false }
-                )
-            }
-            // 洗炼灵根弹窗（内联覆盖层）——同一原则：渲染在内容 lambda 内、
-            // 后组合者 z 序最高，BackHandler 优先响应（先关洗炼框再关整个详情）
-            if (showWashDialog) {
-                SpiritRootWashDialog(
-                    disciple = disciple,
-                    jadeSymbols = gameData?.jadeSymbols ?: 0,
-                    viewModel = viewModel,
-                    onDismiss = { showWashDialog = false }
                 )
             }
         }

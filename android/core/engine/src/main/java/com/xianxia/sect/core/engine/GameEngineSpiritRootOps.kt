@@ -55,10 +55,14 @@ internal fun rollSpiritRootWash(rng: DeterministicRng, pityCount: Int): SpiritRo
 }
 
 /**
- * 洗炼灵根：校验弟子存在 → 事务内扣 1 玉符 → 按 [pityCount] 保底判定抽取。
+ * 洗炼灵根：校验弟子存在且存活 → 事务内扣 1 玉符 → 按 [pityCount] 保底判定抽取。
  *
  * 玉符不足时提前返回且**不消耗随机序列**（随机序列确定性保持）。
  * 洗炼只返回产物不写弟子；"确认替换"由 [confirmSpiritRootWash] 负责。
+ *
+ * 本地信任模型：pityCount 由 UI 洗炼会话持有，引擎仅拒绝负值、不做完整性校验
+ * （单机游戏本地数据可被玩家自行修改，保底计数不作公平性凭据）；
+ * 若未来联网化必须将保底计数持久化到服务端并校验。
  */
 @Suppress("TooGenericExceptionCaught") // 兜底转 Error（项目范式，同 GameEngineSelfHealOps）
 suspend fun GameEngine.washSpiritRoot(
@@ -77,6 +81,10 @@ suspend fun GameEngine.washSpiritRoot(
         val result = stateStore.updateAndReturn {
             if (id !in discipleTables.ids) {
                 return@updateAndReturn SpiritRootWashResult.Error("弟子不存在")
+            }
+            // 死亡弟子拒绝洗炼（洗炼对死人无意义，防止误操作扣玉符）
+            if (discipleTables.isAlive[id] != 1) {
+                return@updateAndReturn SpiritRootWashResult.Error("弟子已死亡")
             }
             if (!jadeSymbolService.deduct(this, required)) {
                 return@updateAndReturn SpiritRootWashResult.InsufficientJadeSymbols(
@@ -106,8 +114,12 @@ suspend fun GameEngine.washSpiritRoot(
 /**
  * 确认替换：把弟子灵根替换为洗炼产物（同事务 remove + insert，仿 renameDisciple 形态）。
  *
- * 灵根加成（修炼速度/突破率/父母灵根加成）全部读取时现场推导、无缓存字段，
- * 替换后即刻生效，无需 checkpointDisciple。
+ * 灵根加成（修炼速度/突破率/父母灵根加成）读取时现场推导、无缓存字段；
+ * 但速率投影基于"checkpoint 值 + 新速率推导"，替换瞬间必须 checkpointDisciple
+ * 重新记账，否则 realtimeCultivation 会用旧 checkpoint 混算新速率导致跳变。
+ *
+ * 本地信任模型：不校验产物是否由本会话洗炼产生（任何合法灵根串均可替换），
+ * 单机游戏本地数据可被玩家自行修改；联网化需会话令牌绑定产物。
  */
 @Suppress("TooGenericExceptionCaught") // 兜底转 Error（项目范式，同 GameEngineSelfHealOps）
 suspend fun GameEngine.confirmSpiritRootWash(
@@ -124,9 +136,12 @@ suspend fun GameEngine.confirmSpiritRootWash(
     try {
         val replaced = stateStore.updateAndReturn<Boolean> {
             if (id !in discipleTables.ids) return@updateAndReturn false
+            if (discipleTables.isAlive[id] != 1) return@updateAndReturn false
             val current: Disciple = discipleTables.assemble(id)
             discipleTables.remove(id)
             discipleTables.insert(current.copy(spiritRootType = newRootType))
+            // 灵根影响修炼速率——替换瞬间重新记账（速率投影基于 checkpoint + 新速率推导）
+            discipleTables.checkpointDisciple(id, gameData.gameYear * 12 + gameData.gameMonth)
             true
         }
         if (replaced) {
@@ -142,8 +157,10 @@ suspend fun GameEngine.confirmSpiritRootWash(
     }
 }
 
-/** 洗炼产物合法性校验：1~2 个元素且全部在洗炼元素表内（防外部篡改写入；空串/空白拆出空元素自然被拒） */
+/** 洗炼产物合法性校验：1~2 个元素、无重复且全部在洗炼元素表内（防外部篡改写入；空串/空白拆出空元素自然被拒） */
 private fun isValidWashedRootType(newRootType: String): Boolean {
     val types = newRootType.split(",")
-    return types.size in 1..2 && types.all { it in GameConfig.SpiritRoot.WASH_ELEMENT_KEYS }
+    return types.size in 1..2 &&
+        types.distinct().size == types.size &&
+        types.all { it in GameConfig.SpiritRoot.WASH_ELEMENT_KEYS }
 }

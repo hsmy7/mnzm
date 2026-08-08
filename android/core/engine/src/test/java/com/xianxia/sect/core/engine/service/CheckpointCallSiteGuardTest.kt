@@ -34,6 +34,12 @@ class CheckpointCallSiteGuardTest {
         Entry(
             "domain/disciple/DiscipleFacadeImpl.kt",
             "discipleTables.checkpointDisciple(id, gameData.gameYear * 12 + gameData.gameMonth)"
+        ),
+        // 洗炼灵根确认替换：灵根影响修炼速率，替换瞬间必须重新记账
+        // （GameEngineSpiritRootOps.confirmSpiritRootWash 事务内 remove+insert 后调用）
+        Entry(
+            "engine/GameEngineSpiritRootOps.kt",
+            "discipleTables.checkpointDisciple(id, gameData.gameYear * 12 + gameData.gameMonth)"
         )
     )
 
