@@ -72,6 +72,8 @@ fun UnifiedGameDialog(
     showCloseButton: Boolean = true,
     /** 是否渲染标题栏（false 时隐藏 header 且内容区零 padding，供全屏内容覆盖使用） */
     showHeader: Boolean = true,
+    /** 窗口级覆盖层槽位（如内联兑换码弹窗）：frame 内容之后渲染（z 序最高），fillMaxSize 覆盖整个窗口 */
+    overlay: @Composable (() -> Unit)? = null,
     @DrawableRes backgroundRes: Int = SpriteResRegistry.resolve("bg_horizontal")
         ?: R.drawable.bg_horizontal,
     @DrawableRes closeButtonRes: Int = SpriteResRegistry.resolve("ui_close_button")
@@ -229,6 +231,9 @@ fun UnifiedGameDialog(
                     }
                 }
             }
+            // 窗口级覆盖层槽位：frame 之后渲染（外层 BoxScope 内 z 序最高），
+            // 内联覆盖层 fillMaxSize 覆盖整个窗口（含 header 与内容区 padding）
+            overlay?.invoke()
         }
     }
 }

@@ -33,6 +33,17 @@
 - **对抗性审查（4 Agent：边界狂魔/状态破坏者/数据篡改者/逆向工程师）** — 修复：coerceIn 空范围抛 IllegalArgumentException（上限 0 库存商品可复现崩溃）→ `coerceAtLeast(QUANTITY_MIN)` 兜底 + 购买卡片 quantity>0 门卫（三方交叉确认）；编辑态跨商品残留 → `key(item.id)` 重建组件；KDoc 契约措辞如实化（maxQuantity<1 时产出恒 1）；编辑行中屏边缘裁切（168dp 行宽 > 165dp 内容宽）→ 默认数字框 80→72dp（逆向工程师字节码验证 M3 OutlinedTextField `defaultMinSize` 与 `UnspecifiedConstraintsNode.measure` 后给出）；评估不修：非数字字符过滤重组（"3.5"→35，与既有模式一致、引擎守卫完整）、键盘导航模式失焦提交（移动端不可达）、出售静默失败（边缘 UX）、编辑态行高跳 56dp（M3 输入框标准最小高度，压缩会裁切文本；编辑态放大输入框为 Android 标准交互、与全项目输入对话框一致）、编辑态键盘遮挡底部按钮（项目固有模式，全库无键盘隐藏先例，Done/返回标准收键盘）、无障碍 contentDescription（与全项目按钮一致无先例）；字节码级验证安全：280dp 最小宽度被 `widthIn` 非零约束短路、FocusRequester 未附加节点时 requestFocus 静默返回、GameButton 纯 clickable 无焦点抢占、Back 键双层语义（IME 先收、再关对话框）
 - 全模块 compileReleaseKotlin + 串行全量测试（--max-workers=1，470 tests 通过）+ detekt 通过
 
+### 修复（2026-08-09 五项 UI 修复：兑换码遮罩全屏 / 暂停按钮对齐 / 售卖弹窗不可见 / 数量器键盘自动收起 / 灵根按钮间距）
+
+- **P1 兑换码遮罩全屏（窗口级 overlay 槽位惯用法）** — 根因：RedeemCodeDialog（内联覆盖层）渲染在 SettingsTab 根 Box 内，`fillMaxSize` 遮罩被约束在设置对话框内容区（左右 32dp 内缩 + header 之下），左右上三边露出无遮罩背景。修复：`UnifiedGameDialog` 签名新增窗口级 `overlay` 槽位（frame 内容之后渲染，z 序最高），`FullScreenOverlay` 透传，`DialogMainTabRoutes` Settings 分支接线 `overlay = { if (showRedeem) RedeemCodeDialog(...) }`，SettingsTab 删除内联渲染块与死变量。`scrimEnabled` 不可行（`bg_horizontal` 完全不透明，窗口级 scrim 画在背景之下无视觉效果——方案已否决）
+- **P2 暂停按钮对齐** — MainGameScreen L1045 `CenterHorizontally` → `Alignment.Start`：暂停按钮（28dp）与隐藏按钮（28dp）左缘对齐恰在正下方（isUiVisible=false 时 Row 宽=28dp，Start/Center 等效无回归）
+- **P3 售卖弹窗不可见（同一惯用法）** — 根因：SellConfirmDialog 经 ItemDetailDialog 的 overlay 槽位渲染进 SmallScreenDialog 的**可滚动 Column**，无限高度约束使弹窗落到可见视口外（组合正常、肉眼不可见）。修复：`SmallScreenDialog` 新增同签名 overlay 槽位（Column 后、Box 闭合前），ItemDetailDialog 内容区 `overlay?.invoke()` 上移至窗口层；overlay 内 `isInsideDialogWindow` 正确返回 true（键盘避让由 DialogSoftInputGuard 负责）
+- **P4 数量器键盘自动收起（常驻输入框重构）** — 根因：旧实现"点击 Box 后条件渲染输入框 + LaunchedEffect 编程式 requestFocus"在平台 Dialog 窗口内与 IME 入场竞争，国产 ROM 键盘弹出即被系统误报收起。修复：常驻 `BasicTextField`（对齐 AutoManagementDialog 已验证模式——用户点击聚焦、平台原子管理焦点/IME），`onFocusChanged` 驱动编辑态 + `commit()`（isEditing 守卫吞 attach 初始回调与 clearFocus 二次回调）、`onDone` commit + `clearFocus`（常驻框不销毁，必须显式清焦点键盘才收起）；顺带修复两个测试暴露的真实缺陷：① decorationBox 内 `fillMaxSize` + `widthIn(min)` 使输入框撑满整行、右侧 +10 按钮零尺寸挤出布局 → 改固定 `width(numberBoxWidth)`；② `LaunchedEffect(quantity)` 首次执行覆盖钳制写入的输入串（初始超限显示 15 而非 10）→ 合并为单一 `LaunchedEffect(quantity, maxQuantity)` effect
+- **P5 灵根按钮间距 4dp** — DetailCultivationSection 灵根 Text 与 + 按钮包进嵌套 Row `spacedBy(4.dp)`（原外层 16dp + 显式 Spacer(4dp) 叠加实际 36dp），顺带修正按钮垂直居中
+- **测试** — 新建 `QuantitySelectorFlowTest` 11 条（Robolectric compose：初始四向步进显示/禁用态、点击进入编辑态隐藏大步进、超上限实时截断、非法字符过滤、Done 提交、失焦先提交再步进、外部数量同步、初始超限钳制；IntBox 捕获不触发重组需 external State 驱动——`点击步进按钮`/`Done 提交` 用例的坑）、`SmallScreenDialogTest` 3 条（overlay 可见/可滚动 Column 内不可见回归文档/默认 null）、`StandardPromptDialogTest` +1（UnifiedGameDialog overlay 内内联覆盖层可见）；`feature/game` 测试基建：`src/test/AndroidManifest.xml` 声明 ComponentActivity（Robolectric PR #4736）+ `includeAndroidResources` + `robolectric.properties sdk=34`（includeAndroidResources 后 Robolectric 读取合并 manifest targetSdk35 超 maxSdk34，3 个既有测试类初始化失败，全局默认修复）
+- **detekt 合规** — baseline 签名失配修复（overlay 参数改变 4 条条目签名，条目数不变只缩不增）；`LongParameterList ignoreDefaultParameters: true`（带默认值参数不计数——UnifiedGameDialog 19 参 18 默认，调用方仅传 1~2 个，实际负担远低于阈值）；QuantityInputField 9 参数 → 尺寸收进 `sizes` 对象（7 参数）；QuantitySelector 73 行 → 拆 `DecrementButtons`/`IncrementButtons` 私有 composable（53 行）
+- 全模块 compileReleaseKotlin + 串行全量测试（--max-workers=1）+ lintRelease + detekt 通过
+
 ## [4.00.91] - 2026-08-07
 
 ### 架构债务清理（2026-08-08 D-01~D-17 十项全量实施）

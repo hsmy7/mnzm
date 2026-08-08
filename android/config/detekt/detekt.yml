@@ -55,6 +55,9 @@ complexity:
   LongParameterList:
     functionThreshold: 8
     constructorThreshold: 10
+    ignoreDefaultParameters: true   # 带默认值的参数不计数：UnifiedGameDialog 19 参
+                                    # 数中 18 个有默认值，调用方仅传 1~2 个，实际
+                                    # 负担远低于阈值（2026-08-08 overlay 槽位）
   LongMethod:
     active: true
     threshold: 60            # 单函数体最大 60 行（CLAUDE.md 3.3）

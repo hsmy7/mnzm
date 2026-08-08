@@ -191,25 +191,32 @@ fun BasicInfoSection(
                     Color.Black
                 }
             }
-            Text(
-                text = disciple.spiritRootName,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = spiritRootCountColor,
-                maxLines = 1
-            )
-            // 洗炼灵根入口（+ 号按钮，间距 4dp，大小与突破率右侧按钮一致）
-            if (onWashSpiritRootClick != null) {
-                Spacer(modifier = Modifier.width(4.dp))
-                SpriteImage(
-                    name = "ui_add_button",
-                    contentDescription = "洗炼灵根",
-                    modifier = Modifier
-                        .size(18.dp)
-                        .clip(CircleShape)
-                        .clickable(onClick = onWashSpiritRootClick),
-                    contentScale = ContentScale.FillBounds
+            // 灵根与洗炼入口（+ 号）嵌套 Row：spacedBy(4.dp) 保证按钮与灵根间距
+            // 恰好 4dp（外层 Row 的 spacedBy(16.dp) 会对每个相邻子项加间距，
+            // 若平铺会导致 16+4+16=36dp 的实际间距）
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = disciple.spiritRootName,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = spiritRootCountColor,
+                    maxLines = 1
                 )
+                // 洗炼灵根入口（+ 号按钮，间距 4dp，大小与突破率右侧按钮一致）
+                if (onWashSpiritRootClick != null) {
+                    SpriteImage(
+                        name = "ui_add_button",
+                        contentDescription = "洗炼灵根",
+                        modifier = Modifier
+                            .size(18.dp)
+                            .clip(CircleShape)
+                            .clickable(onClick = onWashSpiritRootClick),
+                        contentScale = ContentScale.FillBounds
+                    )
+                }
             }
         }
 

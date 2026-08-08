@@ -1042,7 +1042,7 @@ fun MainGameScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                 }
                 Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                    horizontalAlignment = Alignment.Start,
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     // 隐藏 UI 按钮与玉符货币栏同行（玉符栏位于隐藏按钮正右侧，

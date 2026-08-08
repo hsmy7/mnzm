@@ -194,7 +194,8 @@ fun ItemDetailDialog(
     SmallScreenDialog(
         onDismissRequest = onDismiss,
         title = name,
-        titleColor = getRarityColor(rarity)
+        titleColor = getRarityColor(rarity),
+        overlay = overlay
     ) {
         Text(
             text = getRarityName(rarity),
@@ -310,10 +311,6 @@ fun ItemDetailDialog(
                 extraActions?.invoke()
             }
         }
-
-        // 覆盖层槽位：内联覆盖层对话框（如出售数量确认）必须渲染在本窗口内容内，
-        // 否则被本 SmallScreenDialog 平台窗口遮挡而不可见（2026-08 键盘频闪根治）
-        overlay?.invoke()
     }
 }
 

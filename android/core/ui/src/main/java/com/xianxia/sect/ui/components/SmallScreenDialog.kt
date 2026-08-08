@@ -46,6 +46,8 @@ fun SmallScreenDialog(
     dismissOnBackPress: Boolean = true,
     dismissOnClickOutside: Boolean = true,
     footer: @Composable ColumnScope.() -> Unit = {},
+    /** 窗口级覆盖层槽位（如内联售卖确认弹窗）：frame 内容之后渲染（z 序最高），fillMaxSize 覆盖整个窗口框 */
+    overlay: @Composable (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val config = LocalConfiguration.current
@@ -117,6 +119,9 @@ fun SmallScreenDialog(
                 // Footer area — outside scroll, pinned at bottom
                 footer()
             }
+            // 窗口级覆盖层槽位：Column 之后渲染（BoxScope 内 z 序最高），
+            // 内联覆盖层 fillMaxSize 覆盖整个窗口框
+            overlay?.invoke()
         }
     }
 }

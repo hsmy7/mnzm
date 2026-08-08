@@ -91,6 +91,8 @@ internal fun FullScreenOverlay(
     actions: @Composable (() -> Unit)? = null,
     deferContent: Boolean = true,
     scrimEnabled: Boolean = true,
+    /** 窗口级覆盖层槽位（如内联兑换码弹窗），透传给 UnifiedGameDialog */
+    overlay: @Composable (() -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
     UnifiedGameDialog(
@@ -102,7 +104,8 @@ internal fun FullScreenOverlay(
         dismissOnClickOutside = false,
         headerActions = actions,
         scrollableContent = false,
-        scrimEnabled = scrimEnabled
+        scrimEnabled = scrimEnabled,
+        overlay = overlay
     ) {
         if (deferContent) {
             DeferredContent { content() }

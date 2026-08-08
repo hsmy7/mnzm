@@ -291,4 +291,36 @@ class StandardPromptDialogTest {
         //   SettingsTab.RedeemCodeDialog 的根因机制，v4.00.92 兑换码不弹窗）
         composeRule.onNodeWithText("兑换码").assertIsNotDisplayed()
     }
+
+    // ── UnifiedGameDialog 窗口级 overlay 槽位（2026-08-08 兑换码遮罩全屏根治）──
+    // 兑换码弹窗从 SettingsTab 内容区内联渲染迁移至窗口级 overlay 槽位：
+    // overlay 在 frame 之后渲染（外层 BoxScope 内 z 序最高），
+    // 内联覆盖层 fillMaxSize 覆盖整个窗口（含 header 与内容区 padding）
+
+    @Test
+    fun `UnifiedGameDialog overlay 槽位内内联覆盖层可见 - 窗口级遮罩全屏守卫`() {
+        composeRule.setContent {
+            UnifiedGameDialog(
+                onDismissRequest = {},
+                title = "设置",
+                mode = DialogMode.Full,
+                scrimEnabled = false,
+                overlay = {
+                    InlineStandardPromptDialog(
+                        onDismissRequest = {},
+                        title = "兑换码",
+                        confirmLabel = "兑换",
+                        dismissLabel = "取消"
+                    ) {
+                        Text("请输入兑换码")
+                    }
+                }
+            ) {
+                Text("设置内容")
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("兑换码").assertIsDisplayed()
+        composeRule.onNodeWithText("请输入兑换码").assertIsDisplayed()
+    }
 }

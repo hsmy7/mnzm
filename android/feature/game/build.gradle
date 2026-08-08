@@ -30,6 +30,15 @@ android {
         buildConfig = true
     }
 
+    testOptions {
+        unitTests {
+            // Robolectric 渲染组件测试必需：打包测试 manifest（ComponentActivity 声明）
+            // 与 drawable 资源（Robolectric PR #4736 activity 解析要求）
+            includeAndroidResources = true
+            returnDefaultValues = true
+        }
+    }
+
     composeCompiler {
         enableStrongSkippingMode = true
         stabilityConfigurationFile = rootProject.file("stability_config.conf")
