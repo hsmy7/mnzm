@@ -9,7 +9,6 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -19,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.layout.ContentScale
@@ -29,6 +29,9 @@ import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.core.util.sortedByWatchedThenRarity
 import com.xianxia.sect.ui.game.components.watchKeyOf
+import com.xianxia.sect.ui.game.components.QuantitySelector
+import com.xianxia.sect.ui.game.components.QuantitySelectorSizes
+import com.xianxia.sect.ui.game.components.QUANTITY_MIN
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.ItemCardData
 import com.xianxia.sect.ui.components.UnifiedItemCard
@@ -40,6 +43,15 @@ import com.xianxia.sect.ui.components.StandardPromptDialog
 import androidx.compose.foundation.shape.CircleShape
 
 // 提取的子文件：MerchantListingDialog.kt, MerchantInventoryDialog.kt
+
+/** 商人紧凑布局尺寸（28dp 按钮，匹配既有视觉） */
+private val merchantQuantitySizes = QuantitySelectorSizes(
+    buttonSize = 28.dp,
+    numberBoxWidth = 56.dp,
+    numberBoxHeight = 28.dp,
+    buttonCornerRadius = 4.dp,
+    buttonFontSize = 14.sp,
+)
 
 @Composable
 fun MerchantDialog(
@@ -193,7 +205,18 @@ fun MerchantDialog(
                                             isHerb = item.type == "herb", isSeed = item.type == "seed", isMaterial = item.type == "material"),
                                             isSelected = selectedItem?.id == item.id,
                                             isFollowed = watchKeyOf(item)?.let { it in watchedKeys } ?: false,
-                                            onClick = { if (selectedItem?.id == item.id) { selectedItem = null; buyQuantity = 1 } else { selectedItem = item; buyQuantity = 1 } },
+                                            onClick = {
+                                                // 0 库存商品不可选购（对齐收购页门卫，防损坏存档 0 库存商品进入购买面板）
+                                                if (item.quantity > 0) {
+                                                    if (selectedItem?.id == item.id) {
+                                                        selectedItem = null
+                                                        buyQuantity = 1
+                                                    } else {
+                                                        selectedItem = item
+                                                        buyQuantity = 1
+                                                    }
+                                                }
+                                            },
                                             onLongPress = { selectedItem = item; showDetailDialog = true })
                                     }
                                 }
@@ -202,7 +225,9 @@ fun MerchantDialog(
                     }
                     PurchasePanel(item = selectedItem, quantity = buyQuantity, maxQuantity = selectedItem?.quantity ?: 1,
                         spiritStones = gameData?.spiritStones ?: 0,
-                        onQuantityChange = { qty -> selectedItem?.let { buyQuantity = qty.coerceIn(1, it.quantity) } },
+                        onQuantityChange = { qty ->
+                            selectedItem?.let { buyQuantity = qty.coerceAtLeast(QUANTITY_MIN) }
+                        },
                         onConfirm = { selectedItem?.let { viewModel.buyFromMerchant(it.id, buyQuantity); selectedItem = null; buyQuantity = 1 } },
                         onCancel = { selectedItem = null; buyQuantity = 1 })
                 }
@@ -345,17 +370,23 @@ private fun PurchasePanel(
     Surface(modifier = Modifier.fillMaxWidth(), color = GameColors.PageBackground, tonalElevation = 4.dp) {
         Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column {
-                    Text(item.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = GameColors.TextPrimary)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(item.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = GameColors.TextPrimary,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("单价: ${GameUtils.formatNumber(item.price)} 灵石", fontSize = 10.sp, color = GameColors.TextSecondary)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("购买数量:", fontSize = 11.sp, color = GameColors.TextSecondary)
-                    Box(Modifier.size(28.dp).clip(RoundedCornerShape(4.dp)).background(GameColors.Background).clickable { onQuantityChange(quantity - 1) },
-                        contentAlignment = Alignment.Center) { Text("-", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GameColors.TextPrimary) }
-                    Text("$quantity", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = GameColors.TextPrimary, modifier = Modifier.widthIn(min = 24.dp), textAlign = TextAlign.Center)
-                    Box(Modifier.size(28.dp).clip(RoundedCornerShape(4.dp)).background(GameColors.Background).clickable { onQuantityChange(quantity + 1) },
-                        contentAlignment = Alignment.Center) { Text("+", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GameColors.TextPrimary) }
+                    // key(item.id)：切换商品时重建组件，清空编辑态残留的输入串与焦点
+                    // （对抗性审查漏洞：编辑态输入中点选其他商品 → 输入框显示与提交数量脱节）
+                    key(item.id) {
+                        QuantitySelector(
+                            quantity = quantity,
+                            maxQuantity = maxQuantity,
+                            onQuantityChange = onQuantityChange,
+                            sizes = merchantQuantitySizes
+                        )
+                    }
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -388,11 +419,12 @@ private fun AcquisitionSellConfirmDialog(
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("出售数量:", color = Color.Black, fontSize = 12.sp)
-                Box(Modifier.size(28.dp).clip(RoundedCornerShape(4.dp)).background(GameColors.Background).clickable { sellQuantity = (sellQuantity - 1).coerceAtLeast(1) },
-                    contentAlignment = Alignment.Center) { Text("-", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GameColors.TextPrimary) }
-                Text("$sellQuantity", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = GameColors.TextPrimary, modifier = Modifier.widthIn(min = 24.dp), textAlign = TextAlign.Center)
-                Box(Modifier.size(28.dp).clip(RoundedCornerShape(4.dp)).background(GameColors.Background).clickable { sellQuantity = (sellQuantity + 1).coerceAtMost(maxSellable) },
-                    contentAlignment = Alignment.Center) { Text("+", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = GameColors.TextPrimary) }
+                QuantitySelector(
+                    quantity = sellQuantity,
+                    maxQuantity = maxSellable,
+                    onQuantityChange = { sellQuantity = it },
+                    sizes = merchantQuantitySizes
+                )
             }
             Spacer(Modifier.height(8.dp))
             Text("总价: ${GameUtils.formatNumber(totalPrice)} 灵石", color = GameColors.GoldDark, fontWeight = FontWeight.Bold, fontSize = 13.sp)

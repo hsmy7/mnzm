@@ -23,6 +23,16 @@
 - **玉符栏位置** — 从外层 Row（与整个"隐藏UI+暂停"按钮列垂直居中）移入按钮 Column 内部、与隐藏 UI 按钮同行（`Row` 包裹 `HideUiToggleButton` + 玉符栏，暂停按钮独立下一行居中）——玉符栏位于隐藏 UI 按钮正右侧，不再与暂停按钮同列中部（v4.00.91 曾声明"显示位置移动到隐藏界面按钮旁"但实际布局未到位，本次落实）
 - 全模块 compileReleaseKotlin + 串行全量测试（--max-workers=1）+ lintRelease 通过
 
+### 新增（2026-08-08 售卖/购买数量器统一升级：点击输入 + -10/+10 步进）
+
+- **共享组件** — 新建 `QuantitySelector`（feature/game/components）+ `QuantitySelectorLogic.kt` 纯函数（`applyStep` 步进钳制 Long 中间量防溢出 / `sanitizeQuantityInput` 输入净化：过滤非数字、空串全零归 1、超上限或 Int 溢出截断为上限——需求"输入超出上限自动按上限计算"）；尺寸参数化 `QuantitySelectorSizes`（仓库 36dp 按钮/80dp 数字框，商人紧凑 28dp/56dp/14sp，窄屏不溢出交互形态统一）
+- **三处接入** — 仓库单物品售卖 `SellConfirmDialog`（删原 `SellQuantitySelector` 138 行，容器 InlineStandardPromptDialog 保持不动）、商人收购出售确认 `AcquisitionSellConfirmDialog`、商人购买面板 `PurchasePanel`（物品名列 `weight(1f)` + 物品名 ellipsis 防挤压）；`PurchasePanel` 购买卡片补 `quantity > 0` 门卫（对齐收购页，防损坏存档 0 库存商品进入购买面板）
+- **交互** — 非编辑态 `[-10][−][数字][+][+10]` 四向步进（-10/+10 与 ± 同钳制语义，`-10` enabled=quantity>1、`+10` enabled=quantity<max）；点击数字框进入编辑态弹键盘（FocusRequester + LaunchedEffect 既有模式），编辑态隐藏 -10/+10 只留 `[−][输入框][+]`（键盘空间有限 + 避免步进作用于未提交文本）；失焦/Done 提交退出；`key(item.id)` 重建组件清编辑态残留（跨商品切换）
+- **键盘防频闪结构性保证** — 组件零平台窗口、零 imePadding，避让由外层容器统一负责（InlineStandardPromptDialog 双上下文 / UnifiedGameDialog ADJUST_PAN）
+- **测试** — `QuantitySelectorLogicTest` 23 条（applyStep 12：±1/±10 正常、上下限钳制、边界不动、max<min 兜底、Int.MAX_VALUE 不溢出；sanitize 11：空串、过滤、前导零、全零、超上限截断、溢出截断、上限=1/Int.MAX_VALUE 边界）
+- **对抗性审查（4 Agent：边界狂魔/状态破坏者/数据篡改者/逆向工程师）** — 修复：coerceIn 空范围抛 IllegalArgumentException（上限 0 库存商品可复现崩溃）→ `coerceAtLeast(QUANTITY_MIN)` 兜底 + 购买卡片 quantity>0 门卫（三方交叉确认）；编辑态跨商品残留 → `key(item.id)` 重建组件；KDoc 契约措辞如实化（maxQuantity<1 时产出恒 1）；编辑行中屏边缘裁切（168dp 行宽 > 165dp 内容宽）→ 默认数字框 80→72dp（逆向工程师字节码验证 M3 OutlinedTextField `defaultMinSize` 与 `UnspecifiedConstraintsNode.measure` 后给出）；评估不修：非数字字符过滤重组（"3.5"→35，与既有模式一致、引擎守卫完整）、键盘导航模式失焦提交（移动端不可达）、出售静默失败（边缘 UX）、编辑态行高跳 56dp（M3 输入框标准最小高度，压缩会裁切文本；编辑态放大输入框为 Android 标准交互、与全项目输入对话框一致）、编辑态键盘遮挡底部按钮（项目固有模式，全库无键盘隐藏先例，Done/返回标准收键盘）、无障碍 contentDescription（与全项目按钮一致无先例）；字节码级验证安全：280dp 最小宽度被 `widthIn` 非零约束短路、FocusRequester 未附加节点时 requestFocus 静默返回、GameButton 纯 clickable 无焦点抢占、Back 键双层语义（IME 先收、再关对话框）
+- 全模块 compileReleaseKotlin + 串行全量测试（--max-workers=1，470 tests 通过）+ detekt 通过
+
 ## [4.00.91] - 2026-08-07
 
 ### 架构债务清理（2026-08-08 D-01~D-17 十项全量实施）
