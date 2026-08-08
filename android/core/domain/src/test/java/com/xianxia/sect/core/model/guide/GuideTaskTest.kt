@@ -1,11 +1,16 @@
 package com.xianxia.sect.core.model.guide
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.DirectDiscipleSlot
+import com.xianxia.sect.core.model.ElderSlots
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.WriteGuardRule
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
+
+
 
 /**
  * 引导任务定义 & 条件检查 测试。

@@ -10,11 +10,9 @@ import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.DomainLog
 import kotlin.coroutines.cancellation.CancellationException
 
-// GameEngineSelfHealOps.kt — 旧档双槽位数据自愈
-// （SlotWinner 见 SlotWinner.kt）
 
-/** 秘境队伍占用的 gate 槽位类型名（与 GameEngineSecretRealmOps 一致，非持久化） */
-private const val SECRET_REALM_SLOT_TYPE = "secret_realm"
+// GameEngineSelfHealOps.kt — 旧档双槽位数据自愈
+// （SlotWinner + 槽位扫描见 SlotWinner.kt）
 
 /**
  * 读档自愈：清理旧存档中"同一弟子出现在多个槽位"的残留数据。
@@ -30,77 +28,7 @@ private const val SECRET_REALM_SLOT_TYPE = "secret_realm"
 @Suppress("TooGenericExceptionCaught")
 fun GameEngine.healDuplicateSlotAssignments(): kotlinx.coroutines.Job? {
     try {
-        return gameEngineCore.launchInScope {
-            try {
-                // 双存储对齐（自愈前）：以 Repository 为真源取槽位快照（suspend 必须在事务外），
-                // 事务内写回镜像，保证双槽位扫描基于真源——
-                // 历史分叉存档镜像残留/缺失会导致扫描误判（漏清或错杀）
-                val repoSlots = try {
-                    productionCoordinator.repository.getSlots() ?: emptyList()
-                } catch (e: Exception) {
-                    DomainLog.w("GameEngine", "healDuplicateSlots: 读取生产槽失败，按空处理", e)
-                    emptyList()
-                }
-                val winners = mutableMapOf<String, SlotWinner>()
-                val counts = mutableMapOf<String, Int>()
-                stateStore.update {
-                    // 对齐镜像生产槽（Repository 为真源）
-                    gameData = gameData.copy(productionSlots = repoSlots)
-                    collectSlotWinners(gameData, winners, counts)
-                    val duplicates = counts.filterValues { it > 1 }.keys
-                    if (duplicates.isEmpty()) return@update
-                    DomainLog.d(
-                        "GameEngine",
-                        "healDuplicateSlots: 发现双槽位弟子 ${duplicates.size} 名，清理中"
-                    )
-                    for (discipleId in duplicates) {
-                        val winner = winners[discipleId] ?: continue
-                        // 血炼赢家：清理前缓存进度（clearAllSlots 会移除
-                        // activeBloodRefinements 条目，进度含已消耗灵石/材料，重写时恢复）
-                        val bloodProgress = if (winner.category == SlotCategory.BLOOD_REFINEMENT) {
-                            gameData.activeBloodRefinements[winner.slotType]
-                        } else null
-                        // 住所与工作共存是有意设计：自愈只清工作槽位，保留住所
-                        // （回归：includeResidence=true 会静默清掉玩家的住所分配）
-                        gameData = DiscipleSlotCleanup(assignmentGate)
-                            .clearAllSlotsDataOnly(gameData, discipleId)
-                        gameData = rewriteWinnerInGameData(gameData, winner, bloodProgress)
-                    }
-                }
-                // 双存储同步（事务后）：Repository 生产槽同步清理 + 重写赢家，
-                // 否则自愈只清镜像，repo 残留占用经月度自动重启/下次读档复活（双槽分叉根因）
-                val duplicates = counts.filterValues { it > 1 }.keys
-                val disciples = stateStore.disciplesSnapshot
-                for (discipleId in duplicates) {
-                    productionCoordinator.clearDiscipleFromRepository(discipleId)
-                    val winner = winners[discipleId] ?: continue
-                    if (winner.category == SlotCategory.PRODUCTION_SLOT) {
-                        val buildingType = com.xianxia.sect.core.model.production.BuildingType.entries
-                            .find { it.name == winner.slotType } ?: continue
-                        val name = disciples.find { it.id == discipleId }?.name ?: ""
-                        productionCoordinator.repository.updateSlot(
-                            buildingType, winner.slotIndex
-                        ) { s -> s.copy(assignedDiscipleId = discipleId, assignedDiscipleName = name) }
-                    }
-                }
-                // 清理涉及 gate 注册表：二次重建使注册表与自愈后数据一致
-                // （生产槽走 Room Repository，与 BootSequenceController Step 6 同口径；
-                // 事务后 repo 已同步自愈结果，实时读取保证 gate 基于最终一致数据重建）
-                assignmentGate.rebuildFromGameData(
-                    gameData = stateStore.gameDataSnapshot,
-                    productionSlots = try {
-                        productionCoordinator.repository.getSlots() ?: emptyList()
-                    } catch (e: Exception) {
-                        DomainLog.w("GameEngine", "healDuplicateSlots: 读取生产槽失败，按空处理", e)
-                        emptyList()
-                    }
-                )
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                DomainLog.e("GameEngine", "healDuplicateSlotAssignments 失败", e)
-            }
-        }
+        return gameEngineCore.launchInScope { healDuplicateSlotAssignmentsInScope() }
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
@@ -111,116 +39,84 @@ fun GameEngine.healDuplicateSlotAssignments(): kotlinx.coroutines.Job? {
     }
 }
 
-/** 扫描全部槽位（排除住所），记录每名弟子首次出现的槽位（赢家）与出现次数。 */
-private fun MutableGameState.collectSlotWinners(
-    data: GameData,
-    winners: MutableMap<String, SlotWinner>,
-    counts: MutableMap<String, Int>
-) {
-    fun register(discipleId: String?, winner: SlotWinner) {
-        if (discipleId.isNullOrEmpty()) return
-        winners.putIfAbsent(discipleId, winner)
-        counts[discipleId] = (counts[discipleId] ?: 0) + 1
-    }
-
-    // 秘境成员优先：最先扫描 = 赢家（探索中弟子不应有岗位——原 Bug 场景
-    // "秘境成员 + 岗位槽并存"旧档，保留秘境、清理岗位槽）
-    registerSecretRealmMembers(data, ::register)
-
-    val slots = data.elderSlots
-    registerElderField(slots.viceSectMaster, "viceSectMaster", ::register)
-    registerElderField(slots.herbGardenElder, "herbGardenElder", ::register)
-    registerElderField(slots.alchemyElder, "alchemyElder", ::register)
-    registerElderField(slots.forgeElder, "forgeElder", ::register)
-    registerElderField(slots.outerElder, "outerElder", ::register)
-    registerElderField(slots.preachingElder, "preachingElder", ::register)
-    registerElderField(slots.lawEnforcementElder, "lawEnforcementElder", ::register)
-    registerElderField(slots.innerElder, "innerElder", ::register)
-    registerElderField(slots.recruitingElder, "recruitingElder", ::register)
-    registerElderField(slots.qingyunPreachingElder, "qingyunPreachingElder", ::register)
-    registerDirectList(slots.herbGardenDisciples, "herbGardenDisciple", ::register)
-    registerDirectList(slots.alchemyDisciples, "alchemyDisciple", ::register)
-    registerDirectList(slots.forgeDisciples, "forgeDisciple", ::register)
-    registerDirectList(slots.preachingMasters, "preachingMaster", ::register)
-    registerDirectList(slots.lawEnforcementDisciples, "lawEnforcementDisciple", ::register)
-    registerDirectList(slots.qingyunPreachingMasters, "qingyunPreachingMaster", ::register)
-    registerDirectList(slots.spiritMineDeaconDisciples, "spiritMineDeacon", ::register)
-
-    data.spiritMineSlots.forEachIndexed { i, slot ->
-        register(slot.discipleId, SlotWinner(slot.discipleId, SlotCategory.SPIRIT_MINE, "miner", i))
-    }
-    data.librarySlots.forEachIndexed { i, slot ->
-        register(slot.discipleId, SlotWinner(slot.discipleId, SlotCategory.LIBRARY_SLOT, "library", i))
-    }
-    data.warehouseGarrisons.forEach { slot ->
-        register(slot.discipleId, SlotWinner(slot.discipleId, SlotCategory.WAREHOUSE_GARRISON, slot.buildingInstanceId))
-    }
-    data.patrolSlots.forEachIndexed { i, slot ->
-        register(slot.discipleId, SlotWinner(slot.discipleId, SlotCategory.PATROL_SLOT, "patrol", i))
-    }
-    data.activeBloodRefinements.forEach { (buildingId, refinement) ->
-        register(refinement.discipleId, SlotWinner(refinement.discipleId, SlotCategory.BLOOD_REFINEMENT, buildingId))
-    }
-    data.worldMapSects.filter { it.isPlayerSect }.forEach { sect ->
-        sect.garrisonSlots.forEach { slot ->
-            register(slot.discipleId, SlotWinner(slot.discipleId, SlotCategory.GARRISON_SLOT, sect.id, slot.index))
+/** 自愈主流程（launchInScope 内）——事务内清理 + 事务后 Repository 同步 + gate 重建。 */
+@Suppress("TooGenericExceptionCaught")
+private suspend fun GameEngine.healDuplicateSlotAssignmentsInScope() {
+    try {
+        // 双存储对齐（自愈前）：以 Repository 为真源取槽位快照（suspend 必须在事务外），
+        // 事务内写回镜像，保证双槽位扫描基于真源——
+        // 历史分叉存档镜像残留/缺失会导致扫描误判（漏清或错杀）
+        val repoSlots = readProductionSlotsSafe()
+        val winners = mutableMapOf<String, SlotWinner>()
+        val counts = mutableMapOf<String, Int>()
+        stateStore.update {
+            // 对齐镜像生产槽（Repository 为真源）
+            gameData = gameData.copy(productionSlots = repoSlots)
+            collectSlotWinners(gameData, winners, counts)
+            val duplicates = counts.filterValues { it > 1 }.keys
+            if (duplicates.isEmpty()) return@update
+            DomainLog.d(
+                "GameEngine",
+                "healDuplicateSlots: 发现双槽位弟子 ${duplicates.size} 名，清理中"
+            )
+            for (discipleId in duplicates) {
+                val winner = winners[discipleId] ?: continue
+                // 血炼赢家：清理前缓存进度（clearAllSlots 会移除
+                // activeBloodRefinements 条目，进度含已消耗灵石/材料，重写时恢复）
+                val bloodProgress = if (winner.category == SlotCategory.BLOOD_REFINEMENT) {
+                    gameData.activeBloodRefinements[winner.slotType]
+                } else null
+                // 住所与工作共存是有意设计：自愈只清工作槽位，保留住所
+                // （回归：includeResidence=true 会静默清掉玩家的住所分配）
+                gameData = DiscipleSlotCleanup(assignmentGate)
+                    .clearAllSlotsDataOnly(gameData, discipleId)
+                gameData = rewriteWinnerInGameData(gameData, winner, bloodProgress)
+            }
         }
-    }
-    data.battleTeams.forEach { team ->
-        team.slots.forEach { slot ->
-            register(
-                slot.discipleId,
-                SlotWinner(slot.discipleId, SlotCategory.BATTLE_TEAM, team.id, slot.index)
-            )
-        }
-    }
-    data.productionSlots.forEach { slot ->
-        register(
-            slot.assignedDiscipleId,
-            SlotWinner(
-                slot.assignedDiscipleId.orEmpty(),
-                SlotCategory.PRODUCTION_SLOT, slot.buildingType.name, slot.slotIndex
-            )
+        // 双存储同步（事务后）：Repository 生产槽同步清理 + 重写赢家，
+        // 否则自愈只清镜像，repo 残留占用经月度自动重启/下次读档复活（双槽分叉根因）
+        syncProductionRepositoryForDuplicates(counts, winners)
+        // 清理涉及 gate 注册表：二次重建使注册表与自愈后数据一致
+        // （生产槽走 Room Repository，与 BootSequenceController Step 6 同口径；
+        // 事务后 repo 已同步自愈结果，实时读取保证 gate 基于最终一致数据重建）
+        assignmentGate.rebuildFromGameData(
+            gameData = stateStore.gameDataSnapshot,
+            productionSlots = readProductionSlotsSafe()
         )
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        DomainLog.e("GameEngine", "healDuplicateSlotAssignments 失败", e)
     }
 }
 
-private fun registerDirectList(
-    list: List<DirectDiscipleSlot>,
-    prefix: String,
-    register: (String?, SlotWinner) -> Unit
-) {
-    list.forEachIndexed { i, slot ->
-        register(
-            slot.discipleId,
-            SlotWinner(slot.discipleId.orEmpty(), SlotCategory.ELDER_POSITION, prefix, i)
-        )
+/** 读取生产槽 Repository（失败按空处理——自愈不因瞬时 DB 故障阻断）。 */
+@Suppress("TooGenericExceptionCaught")
+private suspend fun GameEngine.readProductionSlotsSafe():
+    List<com.xianxia.sect.core.model.production.ProductionSlot> =
+    try {
+        productionCoordinator.repository.getSlots() ?: emptyList()
+    } catch (e: Exception) {
+        DomainLog.w("GameEngine", "healDuplicateSlots: 读取生产槽失败，按空处理", e)
+        emptyList()
     }
-}
 
-/** 登记单个长老字段槽位（slotType 即字段名，供重写时定位）。 */
-private fun registerElderField(
-    id: String?,
-    type: String,
-    register: (String?, SlotWinner) -> Unit
+/** 事务后 Repository 同步：清残留占用 + 重写生产槽赢家（防双槽分叉复活）。 */
+private suspend fun GameEngine.syncProductionRepositoryForDuplicates(
+    counts: Map<String, Int>,
+    winners: Map<String, SlotWinner>
 ) {
-    register(id, SlotWinner(id.orEmpty(), SlotCategory.ELDER_POSITION, type))
-}
-
-/** 登记秘境活跃成员（赢家=秘境时成员保留在会话中，清理只清岗位槽）。 */
-private fun registerSecretRealmMembers(
-    data: GameData,
-    register: (String?, SlotWinner) -> Unit
-) {
-    if (!data.secretRealmSession.isActive) return
-    data.secretRealmSession.members.forEach { member ->
-        register(
-            member.discipleId,
-            SlotWinner(
-                member.discipleId, SlotCategory.EXPLORATION_TEAM,
-                SECRET_REALM_SLOT_TYPE, -1
-            )
-        )
+    val disciples = stateStore.disciplesSnapshot
+    counts.filterValues { it > 1 }.keys.forEach { discipleId ->
+        productionCoordinator.clearDiscipleFromRepository(discipleId)
+        val winner = winners[discipleId] ?: return@forEach
+        if (winner.category != SlotCategory.PRODUCTION_SLOT) return@forEach
+        val buildingType = com.xianxia.sect.core.model.production.BuildingType.entries
+            .find { it.name == winner.slotType } ?: return@forEach
+        val name = disciples.find { it.id == discipleId }?.name ?: ""
+        productionCoordinator.repository.updateSlot(
+            buildingType, winner.slotIndex
+        ) { s -> s.copy(assignedDiscipleId = discipleId, assignedDiscipleName = name) }
     }
 }
 

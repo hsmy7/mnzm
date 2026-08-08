@@ -3,12 +3,18 @@ package com.xianxia.sect.data.integrity.rules
 import com.xianxia.sect.data.integrity.IntegrityResult
 import com.xianxia.sect.data.integrity.SaveValidator
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.EquipmentSet
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.data.model.SaveData
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+
+
 
 
 

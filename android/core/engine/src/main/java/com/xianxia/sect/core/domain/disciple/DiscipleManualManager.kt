@@ -1,9 +1,21 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.engine.system.StackUpdate
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.ManualType
+import com.xianxia.sect.core.model.baseMagicAttack
+import com.xianxia.sect.core.model.basePhysicalAttack
+import com.xianxia.sect.core.model.currentHp
+import com.xianxia.sect.core.model.currentMp
 import javax.inject.Inject
 import javax.inject.Singleton
+
+
+
+
+
 
 @Singleton
 class DiscipleManualManager @Inject constructor() {

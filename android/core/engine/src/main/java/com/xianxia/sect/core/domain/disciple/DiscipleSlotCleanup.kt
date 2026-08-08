@@ -1,8 +1,13 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.DirectDiscipleSlot
+import com.xianxia.sect.core.model.ElderSlots
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GarrisonSlot
 import javax.inject.Inject
 import javax.inject.Singleton
+
+
 
 /**
  * 弟子死亡/脱离时从所有槽位清理。

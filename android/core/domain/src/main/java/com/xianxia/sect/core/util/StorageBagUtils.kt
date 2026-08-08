@@ -2,6 +2,7 @@ package com.xianxia.sect.core.util
 
 import com.xianxia.sect.core.model.StorageBagItem
 
+
 /**
  * 弟子储物袋（storageBagItems）纯列表工具。
  *
@@ -46,21 +47,31 @@ object StorageBagUtils {
     }
 
     /**
-     * 向背包引用列表追加引用（同 itemId 合并数量）。
+     * 向储物袋列表追加条目（同 itemId 合并数量）。
      *
-     * P-20：引用是显示记录（指向仓库堆叠），数量由仓库堆叠约束；
-     * 旧实现的截断语义会静默丢弃溢出引用，玩家物品在仓库却从背包 UI
-     * 消失——故引用列表不设截断（守卫测试扫描截断反模式，注释不含其字样）。
+     * D-03 独立存储：袋条目**持有数据**（equipmentInstance / stackedData /
+     * manualInstance 非空即已物化）。合并时若新条目带 payload 而旧条目是
+     * 引用式（payload 空），以新 payload 升级旧条目——同一 id 的物化条目
+     * 不会重复产生，此分支仅覆盖迁移期边界。
+     *
+     * 容量无上限：列表不设截断（旧 P-20 语义保留——守卫测试扫描截断反模式）。
      */
     fun increaseItemQuantity(
         items: List<StorageBagItem>,
         item: StorageBagItem
     ): List<StorageBagItem> {
         val mutableItems = items.toMutableList()
-        val existingIndex = mutableItems.indexOfFirst { it.itemId == item.itemId && it.itemType == item.itemType }
+        // 匹配键与 decreaseItemQuantity 统一为 itemId（itemId 是堆叠 id/实例 id，袋内唯一；
+        // 原 itemId+itemType 双键不对称——同 id 不同 type 的条目无法合并、减多增少）
+        val existingIndex = mutableItems.indexOfFirst { it.itemId == item.itemId }
         if (existingIndex >= 0) {
             val existing = mutableItems[existingIndex]
-            mutableItems[existingIndex] = existing.copy(quantity = existing.quantity + item.quantity)
+            mutableItems[existingIndex] = existing.copy(
+                quantity = existing.quantity + item.quantity,
+                equipmentInstance = item.equipmentInstance ?: existing.equipmentInstance,
+                stackedData = item.stackedData ?: existing.stackedData,
+                manualInstance = item.manualInstance ?: existing.manualInstance
+            )
         } else {
             mutableItems.add(item.copy(quantity = item.quantity))
         }

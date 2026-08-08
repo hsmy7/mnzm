@@ -15,7 +15,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.DirectDiscipleSlot
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.ElderSlotType
+import com.xianxia.sect.core.model.ElderSlots
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.intelligence
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.ProductionViewModel
@@ -28,6 +33,8 @@ import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.DiscipleSlot
+
+
 
 @Composable
 fun LawEnforcementHallDialog(

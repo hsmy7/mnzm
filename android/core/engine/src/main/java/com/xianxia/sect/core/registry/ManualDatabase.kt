@@ -13,6 +13,11 @@ import kotlinx.serialization.decodeFromString
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
+
+
+
+
+
 object ManualDatabase {
     private const val TAG = "ManualDatabase"
     

@@ -12,9 +12,12 @@ import org.mockito.ArgumentMatchers.anyLong
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
+import org.mockito.Mockito.`when`
+import org.mockito.kotlin.any
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+
 
 /**
  * ThermalMonitor PerformanceHint Session 线程绑定守卫单元测试。
@@ -108,6 +111,36 @@ class ThermalMonitorTest {
         monitor.reportActualWorkDuration(10_000L)
 
         verify(session, never()).reportActualWorkDuration(anyLong())
+    }
+
+    @Config(sdk = [30])
+    // ── D-09 接缝注入：hintManager 异常/null 分支（Robolectric 系统服务不可控）──
+
+    @Test
+    fun `createHintSession - hintManager 抛异常时复位字段并继续（catch 分支）`() {
+        // 模拟 OEM 驱动/沙盒环境 createHintSession 抛异常（ADPF 不可用）
+        val manager = mock(PerformanceHintManager::class.java)
+        `when`(manager.createHintSession(any(), anyLong()))
+            .thenThrow(RuntimeException("adpf unavailable"))
+
+        monitor.hintManager = manager
+        monitor.createHintSession(TARGET_DURATION_NS)
+
+        // catch 分支：字段复位为空，不残留过期属主/会话
+        assertNull(monitor.hintSession)
+        assertNull(monitor.sessionOwnerThread)
+    }
+
+    @Test
+    fun `createHintSession - hintManager 不可用时静默跳过（空分支）`() {
+        // 服务缺失：hintManager 为 null → ?. 空分支，session 不创建、无异常。
+        // 不断言 sessionOwnerThread——"创建尝试即记录属主"是既有语义
+        //（Robolectric 下 session 恒 null 时同样记录，见"成功后记录属主线程"用例）
+        monitor.hintManager = null
+
+        monitor.createHintSession(TARGET_DURATION_NS)
+
+        assertNull(monitor.hintSession)
     }
 
     @Config(sdk = [30])

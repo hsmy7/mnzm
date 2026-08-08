@@ -1,8 +1,23 @@
 package com.xianxia.sect.core.util
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.DiscipleAttributes
+import com.xianxia.sect.core.model.DiscipleCore
+import com.xianxia.sect.core.model.DiscipleExtended
+import com.xianxia.sect.core.model.artifactRefining
+import com.xianxia.sect.core.model.charm
+import com.xianxia.sect.core.model.comprehension
+import com.xianxia.sect.core.model.intelligence
+import com.xianxia.sect.core.model.loyalty
+import com.xianxia.sect.core.model.mining
+import com.xianxia.sect.core.model.morality
+import com.xianxia.sect.core.model.pillRefining
+import com.xianxia.sect.core.model.spiritPlanting
+import com.xianxia.sect.core.model.teaching
 import org.junit.Assert.*
 import org.junit.Test
+
+
 
 class DiscipleUtilsTest {
 

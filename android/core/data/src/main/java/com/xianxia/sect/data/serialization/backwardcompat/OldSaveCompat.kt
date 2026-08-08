@@ -2,14 +2,20 @@ package com.xianxia.sect.data.serialization.backwardcompat
 
 import android.util.Log
 import com.xianxia.sect.data.model.SaveData
-import com.xianxia.sect.data.serialization.unified.*
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.data.serialization.unified.CompressionType
+import com.xianxia.sect.data.serialization.unified.SerializationContext
+import com.xianxia.sect.data.serialization.unified.SerializationFormat
+import com.xianxia.sect.data.serialization.unified.UnifiedSerializationEngine
+import com.xianxia.sect.core.model.EquipmentSlot
+import com.xianxia.sect.core.model.ManualType
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import javax.inject.Inject
 import javax.inject.Singleton
+
+
 
 @Singleton
 class OldSaveFormatDeserializer @Inject constructor(

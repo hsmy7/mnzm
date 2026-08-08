@@ -60,6 +60,7 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
+
 /**
  * 远古秘境玩法主服务——刷新/出发/选择/结束/结算。
  *
@@ -898,7 +899,8 @@ class SecretRealmService @Inject constructor(
                 ms.copy(currentHp = if (clamped >= maxHp) -1 else clamped, maxHp = maxHp)
             } else {
                 if (ms.isDying) {
-                    idInt?.let { tables.markDead(it, year, "battle") }
+                    // D-03：死亡统一入口——袋物品物化回仓库（玩家保留）+ 清袋 + markDead
+                    idInt?.let { inventorySystem.materializeDiscipleBagAndMarkDead(state, it, year, "battle") }
                     deadIds.add(ms.discipleId)
                     ms.copy(isDead = true)
                 } else {

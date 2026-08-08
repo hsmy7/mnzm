@@ -5,11 +5,29 @@ import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.system.MerchantItemConverter
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentSlot
+import com.xianxia.sect.core.model.HasId
+import com.xianxia.sect.core.model.ItemEffect
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.MerchantItem
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.StorageBagItem
+import com.xianxia.sect.core.model.accessoryId
+import com.xianxia.sect.core.model.armorId
+import com.xianxia.sect.core.model.bootsId
+import com.xianxia.sect.core.model.spiritStones
+import com.xianxia.sect.core.model.storageBagItems
+import com.xianxia.sect.core.model.storageBagSpiritStones
+import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.engine.domain.disciple.*
+import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_EQUIPMENT
+import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_EQUIPMENT_STACK
+import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_MANUAL
+import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_MANUAL_STACK
+import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_PILL
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DeterministicRng
@@ -20,6 +38,9 @@ import com.xianxia.sect.core.util.shuffled
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.xianxia.sect.core.model.BagStackedData
+
+
 
 /**
  * ## 弟子智能购买服务
@@ -480,98 +501,122 @@ class DisciplePurchaseService @Inject constructor(
         month: Int
     ): Boolean {
         return when (item.type.lowercase(Locale.ROOT)) {
-            ITEM_TYPE_EQUIPMENT -> {
-                val stackId = deductWarehouseStack(equipmentStacks, item.itemId, item.name, item.rarity)
-                    ?: return@addToWarehouseAndBag false
-                val bagItems = discipleTables.storageBagItems[discipleId]
-                discipleTables.storageBagItems[discipleId] = bagItems +
-                    StorageBagItem(
-                        itemId = stackId,
-                        itemType = ITEM_TYPE_EQUIPMENT_STACK,
-                        name = item.name,
-                        rarity = item.rarity,
-                        quantity = 1,
-                        obtainedYear = year,
-                        obtainedMonth = month
-                    )
-                true
-            }
-            ITEM_TYPE_MANUAL -> {
-                val stackId = deductWarehouseStack(manualStacks, item.itemId, item.name, item.rarity)
-                    ?: return@addToWarehouseAndBag false
-                val bagItems = discipleTables.storageBagItems[discipleId]
-                discipleTables.storageBagItems[discipleId] = bagItems +
-                    StorageBagItem(
-                        itemId = stackId,
-                        itemType = ITEM_TYPE_MANUAL_STACK,
-                        name = item.name,
-                        rarity = item.rarity,
-                        quantity = 1,
-                        obtainedYear = year,
-                        obtainedMonth = month
-                    )
-                true
-            }
-            ITEM_TYPE_PILL -> {
-                val pillId = deductWarehouseStack(pills, item.itemId, item.name, item.rarity)
-                    ?: return@addToWarehouseAndBag false
-                val bagItems = discipleTables.storageBagItems[discipleId]
-                discipleTables.storageBagItems[discipleId] = bagItems +
-                    StorageBagItem(
-                        itemId = pillId,
-                        itemType = ITEM_TYPE_PILL,
-                        name = item.name,
-                        rarity = item.rarity,
-                        quantity = 1,
-                        effect = pillToItemEffect(
-                            MerchantItemConverter.toPill(item).copy(quantity = 1)
-                        ),
-                        grade = item.grade ?: "中品",
-                        obtainedYear = year,
-                        obtainedMonth = month
-                    )
-                true
-            }
+            ITEM_TYPE_EQUIPMENT -> appendDeductedBagItem(
+                equipmentStacks, item, discipleId, year, month, ITEM_TYPE_EQUIPMENT_STACK
+            ) { stack -> BagStackedData(minRealm = stack.minRealm, slot = stack.slot.name) }
+            ITEM_TYPE_MANUAL -> appendDeductedBagItem(
+                manualStacks, item, discipleId, year, month, ITEM_TYPE_MANUAL_STACK
+            ) { stack -> BagStackedData(minRealm = stack.minRealm, manualType = stack.type.name) }
+            ITEM_TYPE_PILL -> appendPillBagItem(item, discipleId, year, month)
             else -> false
         }
     }
 
     /**
-     * 从仓库堆叠中扣减 1 个数量。
-     * 1) 精确匹配 [itemId]（上架时记录的仓库堆叠 ID）
-     * 2) 回退匹配：第一个未锁定的 name+rarity 匹配堆叠
-     * 返回被扣减的仓库堆叠 ID，若均找不到返回 null。
+     * D-17 从仓库堆叠扣减 1 个并铸造袋条目（addToWarehouseAndBag 拆分）。
+     *
+     * @param stackedDataBuilder 由被扣减的仓库堆叠构建袋条目元数据（供取回重建）
+     * @return 是否成功入袋（仓库无货 → false）
+     */
+    private fun <T> MutableGameState.appendDeductedBagItem(
+        store: EntityStore<T>,
+        item: MerchantItem,
+        discipleId: Int,
+        year: Int,
+        month: Int,
+        bagItemType: String,
+        stackedDataBuilder: (T) -> BagStackedData
+    ): Boolean where T : HasId, T : StackableItem {
+        val stack = deductWarehouseStack(store, item.itemId, item.name, item.rarity)
+            ?: return false
+        val bagItems = discipleTables.storageBagItems[discipleId]
+        discipleTables.storageBagItems[discipleId] = bagItems +
+            StorageBagItem(
+                itemId = stack.id,
+                itemType = bagItemType,
+                name = item.name,
+                rarity = item.rarity,
+                quantity = 1,
+                obtainedYear = year,
+                obtainedMonth = month,
+                // D-03：袋条目持有数据（minRealm/slot/manualType 供取回重建）
+                stackedData = stackedDataBuilder(stack)
+            )
+        return true
+    }
+
+    /**
+     * D-17 丹药入袋（addToWarehouseAndBag 拆分）：扣仓库丹药堆叠 + 内嵌效果/品质。
+     * 丹药字段特殊（effect/grade），不适用 [appendDeductedBagItem]。
+     */
+    private fun MutableGameState.appendPillBagItem(
+        item: MerchantItem,
+        discipleId: Int,
+        year: Int,
+        month: Int
+    ): Boolean {
+        val pill = deductWarehouseStack(pills, item.itemId, item.name, item.rarity)
+            ?: return false
+        val bagItems = discipleTables.storageBagItems[discipleId]
+        discipleTables.storageBagItems[discipleId] = bagItems +
+            StorageBagItem(
+                itemId = pill.id,
+                itemType = ITEM_TYPE_PILL,
+                name = item.name,
+                rarity = item.rarity,
+                quantity = 1,
+                effect = pillToItemEffect(
+                    MerchantItemConverter.toPill(item).copy(quantity = 1)
+                ),
+                grade = item.grade ?: "中品",
+                obtainedYear = year,
+                obtainedMonth = month,
+                // D-03：已物化标记（数据全在顶层字段）
+                stackedData = BagStackedData()
+            )
+        return true
+    }
+
+    /**
+     * 从仓库堆叠中扣减 1 个数量（匹配策略见 [findDeductibleStack]）。
+     * 返回被扣减的仓库堆叠（调用方用其元数据铸造袋条目），若均找不到返回 null。
      */
     private fun <T> MutableGameState.deductWarehouseStack(
         store: EntityStore<T>,
         itemId: String,
         name: String,
         rarity: Int
-    ): String? where T : HasId, T : StackableItem {
-        val exact = store.get(itemId)
-        if (exact != null && !exact.isLocked && exact.quantity >= 1) {
-            val newQty = exact.quantity - 1
-            if (newQty <= 0) {
-                store.remove(itemId)
-            } else {
-                @Suppress("UNCHECKED_CAST")
-                store.update(itemId) { (it as StackableItem).withQuantity(newQty) as T }
-            }
-            return itemId
+    ): T? where T : HasId, T : StackableItem {
+        val candidate = store.findDeductibleStack(itemId, name, rarity)
+        if (candidate == null) {
+            DomainLog.w(TAG, "deductWarehouseStack failed: itemId=$itemId name=$name")
+            return null
         }
-        val fallback = store.all().firstOrNull { !it.isLocked && it.name == name && it.rarity == rarity && it.quantity >= 1 }
-        if (fallback != null) {
-            val newQty = fallback.quantity - 1
-            if (newQty <= 0) {
-                store.remove(fallback.id)
-            } else {
-                @Suppress("UNCHECKED_CAST")
-                store.update(fallback.id) { (it as StackableItem).withQuantity(newQty) as T }
-            }
-            return fallback.id
+        val newQty = candidate.quantity - 1
+        if (newQty <= 0) {
+            store.remove(candidate.id)
+        } else {
+            @Suppress("UNCHECKED_CAST")
+            store.update(candidate.id) { (it as StackableItem).withQuantity(newQty) as T }
         }
-        DomainLog.w(TAG, "deductWarehouseStack failed: itemId=$itemId name=$name")
-        return null
+        return candidate
+    }
+
+    /**
+     * D-17 查找可扣减的仓库堆叠（deductWarehouseStack 拆分）。
+     * 1) 精确匹配 [itemId]（上架时记录的仓库堆叠 ID）
+     * 2) 回退匹配：第一个未锁定的 name+rarity 匹配堆叠
+     */
+    private fun <T> EntityStore<T>.findDeductibleStack(
+        itemId: String,
+        name: String,
+        rarity: Int
+    ): T? where T : HasId, T : StackableItem {
+        val exact = get(itemId)
+        if (exact != null && !exact.isLocked && exact.quantity >= 1) return exact
+        return all().firstOrNull {
+            !it.isLocked && it.name == name && it.rarity == rarity && it.quantity >= 1
+        }
     }
 
     /**

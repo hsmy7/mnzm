@@ -25,7 +25,23 @@ import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.registry.PhysiqueDatabase
 import com.xianxia.sect.core.registry.AffixDatabase
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualProficiencyData
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.ManualType
+import com.xianxia.sect.core.model.ResidenceSlot
+import com.xianxia.sect.core.model.SectPolicies
+import com.xianxia.sect.core.model.accessoryId
+import com.xianxia.sect.core.model.armorId
+import com.xianxia.sect.core.model.bootsId
+import com.xianxia.sect.core.model.spiritStones
+import com.xianxia.sect.core.model.storageBagItems
+import com.xianxia.sect.core.model.storageBagSpiritStones
+import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.model.Talent
 import com.xianxia.sect.core.model.Physique
 import com.xianxia.sect.core.model.Affix
@@ -46,10 +62,27 @@ import androidx.compose.ui.window.Dialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.feature.game.R
-import com.xianxia.sect.ui.game.components.detail.*
+import com.xianxia.sect.ui.game.components.detail.AffixesSection
+import com.xianxia.sect.ui.game.components.detail.AttributesSection
+import com.xianxia.sect.ui.game.components.detail.BasicInfoSection
+import com.xianxia.sect.ui.game.components.detail.CombatStatsSection
+import com.xianxia.sect.ui.game.components.detail.DetailActionCallbacks
+import com.xianxia.sect.ui.game.components.detail.DetailRightPanel
+import com.xianxia.sect.ui.game.components.detail.EquipmentSection
+import com.xianxia.sect.ui.game.components.detail.EquipmentSelectionDialog
+import com.xianxia.sect.ui.game.components.detail.LifeLogDialog
+import com.xianxia.sect.ui.game.components.detail.ManualSelectionDialog
+import com.xianxia.sect.ui.game.components.detail.ManualsSection
+import com.xianxia.sect.ui.game.components.detail.MasterApprenticeSelectDialog
+import com.xianxia.sect.ui.game.components.detail.PhysiquesSection
+import com.xianxia.sect.ui.game.components.detail.RelationsDialog
+import com.xianxia.sect.ui.game.components.detail.StorageBagDialog
+import com.xianxia.sect.ui.game.components.detail.TalentsSection
 import com.xianxia.sect.ui.game.dialogs.DiscipleChatDialog
 import com.xianxia.sect.ui.game.dialogs.shared.RenameDiscipleDialog
 import com.xianxia.sect.ui.theme.GameColors
+
+
 
 val LocalDismissDropdown = compositionLocalOf { {} }
 

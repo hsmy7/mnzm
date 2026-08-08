@@ -1,8 +1,15 @@
 package com.xianxia.sect.ui.game.delegate
 
 import com.xianxia.sect.core.audio.AudioConfig
-import com.xianxia.sect.core.engine.*
+import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.engine.consumeMaterialByName
+import com.xianxia.sect.core.engine.setActiveTab
+import com.xianxia.sect.core.engine.updateGameData
+import com.xianxia.sect.core.engine.updateYearlySalary
+import com.xianxia.sect.core.engine.updateYearlySalaryEnabled
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
+
+
 
 class SettingsDelegate(
     private val gameEngine: GameEngine,

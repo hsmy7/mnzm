@@ -8,8 +8,11 @@ import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.domain.production.ProductionFacade
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentRegistry
-import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.state.*
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.model.PatrolSlot
+import com.xianxia.sect.core.model.ResidenceSlot
+import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.util.DomainResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
@@ -22,6 +25,8 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.robolectric.RobolectricTestRunner
+
+
 
 /**
  * GameEngineAtomicAssign 原子扩展方法的单元测试。

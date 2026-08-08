@@ -2,13 +2,23 @@ package com.xianxia.sect.ui.game
 
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.config.BuildingConfigService
-import com.xianxia.sect.core.engine.*
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.engine.assignPatrolAtomic
+import com.xianxia.sect.core.engine.autoAssignPatrolAtomic
+import com.xianxia.sect.core.engine.removeDisciple
+import com.xianxia.sect.core.engine.removePatrolAtomic
+import com.xianxia.sect.core.engine.updatePatrolConfig
+import com.xianxia.sect.core.engine.updatePatrolConfigs
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.PatrolConfig
 import com.xianxia.sect.core.util.DomainResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+
 
 @HiltViewModel
 class PatrolTowerViewModel @Inject constructor(

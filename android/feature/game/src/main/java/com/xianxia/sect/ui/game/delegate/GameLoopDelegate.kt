@@ -2,7 +2,8 @@ package com.xianxia.sect.ui.game.delegate
 
 import android.content.ComponentCallbacks2
 import android.util.Log
-import com.xianxia.sect.core.engine.*
+import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.engine.releaseMemory
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.monitor.StallVerdict
 import com.xianxia.sect.core.engine.system.SystemManager
@@ -17,6 +18,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+
+
 
 class GameLoopDelegate(
     private val gameEngine: GameEngine,

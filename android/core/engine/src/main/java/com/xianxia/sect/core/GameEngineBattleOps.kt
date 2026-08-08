@@ -1,8 +1,46 @@
 package com.xianxia.sect.core.engine
+
 import com.xianxia.sect.core.util.ItemNames
 
-import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.state.*
+import com.xianxia.sect.core.model.BattleLog
+import com.xianxia.sect.core.model.BattleLogAction
+import com.xianxia.sect.core.model.BattleLogEnemy
+import com.xianxia.sect.core.model.BattleLogMember
+import com.xianxia.sect.core.model.BattleLogRound
+import com.xianxia.sect.core.model.BattleResult
+import com.xianxia.sect.core.model.BattleRewardItem
+import com.xianxia.sect.core.model.BattleType
+import com.xianxia.sect.core.model.CombatSkill
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GameEventCategory
+import com.xianxia.sect.core.model.GameEventType
+import com.xianxia.sect.core.model.GarrisonSlot
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualProficiencyData
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.RewardCardItem
+import com.xianxia.sect.core.model.SectBattleRecord
+import com.xianxia.sect.core.model.SectBattleType
+import com.xianxia.sect.core.model.SectDetail
+import com.xianxia.sect.core.model.SectScoutInfo
+import com.xianxia.sect.core.model.SlotCategory
+import com.xianxia.sect.core.model.SlotRef
+import com.xianxia.sect.core.model.SpiritStoneGrade
+import com.xianxia.sect.core.model.WorldLevel
+import com.xianxia.sect.core.model.WorldSect
+import com.xianxia.sect.core.model.accessoryId
+import com.xianxia.sect.core.model.armorId
+import com.xianxia.sect.core.model.bootsId
+import com.xianxia.sect.core.model.currentHp
+import com.xianxia.sect.core.model.currentMp
+import com.xianxia.sect.core.model.spiritStones
+import com.xianxia.sect.core.model.weaponId
+import com.xianxia.sect.core.state.BattleResultUIData
+import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.recordGameEvent
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.battle.AIBattleResult
@@ -24,6 +62,9 @@ import kotlin.coroutines.cancellation.CancellationException
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.wallet.SpiritStoneSource
+import com.xianxia.sect.core.model.Rarity
+
+
 
 // ── 宗门战战利品数量（P-01 分区 RNG 迁移，原 kotlin.random Iterable.random）──
 
@@ -583,7 +624,8 @@ private fun GameEngine.applyWorldLevelCasualties(hpMap: Map<String, Pair<Int, In
             val idStr = id.toString()
             val (hp, mp) = hpMap[idStr] ?: continue
             if (idStr !in survivorIds) {
-                discipleTables.markDead(id, gameData.gameYear, "battle")
+                // D-03：死亡统一入口——袋物品物化回仓库（玩家保留）+ 清袋 + 标记死亡
+                inventorySystem.materializeDiscipleBagAndMarkDead(this, id, gameData.gameYear, "battle")
             } else {
                 val (finalMaxHp, finalMaxMp) = DiscipleStatCalculator.battleWritebackMaxHpMp(
                     this, discipleTables.assemble(id)
@@ -810,7 +852,8 @@ private fun GameEngine.applyScoutCasualties(hpMap: Map<String, Pair<Int, Int>>, 
             val idStr = id.toString()
             val (hp, mp) = hpMap[idStr] ?: continue
             if (idStr !in survivorIds) {
-                discipleTables.markDead(id, gameData.gameYear, "scout")
+                // D-03：死亡统一入口——袋物品物化回仓库（玩家保留）+ 清袋 + 标记死亡
+                inventorySystem.materializeDiscipleBagAndMarkDead(this, id, gameData.gameYear, "scout")
             } else {
                 val (finalMaxHp, finalMaxMp) = DiscipleStatCalculator.battleWritebackMaxHpMp(
                     this, discipleTables.assemble(id)

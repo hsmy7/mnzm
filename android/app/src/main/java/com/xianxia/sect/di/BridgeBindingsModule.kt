@@ -1,8 +1,22 @@
 package com.xianxia.sect.di
 
 import com.xianxia.sect.core.engine.service.AdService
-import com.xianxia.sect.core.repository.*
-import com.xianxia.sect.data.local.*
+import com.xianxia.sect.core.repository.DiscipleRepository
+import com.xianxia.sect.core.repository.DiscipleRepositoryImpl
+import com.xianxia.sect.core.repository.EquipmentRepository
+import com.xianxia.sect.core.repository.EquipmentRepositoryImpl
+import com.xianxia.sect.core.repository.GameDataRepository
+import com.xianxia.sect.core.repository.GameDataRepositoryImpl
+import com.xianxia.sect.core.repository.GameHeavyDataPort
+import com.xianxia.sect.core.repository.HeavyDataDecoder
+import com.xianxia.sect.core.repository.InventoryRepository
+import com.xianxia.sect.core.repository.InventoryRepositoryImpl
+import com.xianxia.sect.core.repository.ProductionSlotDataPort
+import com.xianxia.sect.core.repository.WorldRepository
+import com.xianxia.sect.core.repository.WorldRepositoryImpl
+import com.xianxia.sect.data.local.GameHeavyDataPortImpl
+import com.xianxia.sect.data.local.HeavyDataDecoderImpl
+import com.xianxia.sect.data.local.ProductionSlotDataPortImpl
 import com.xianxia.sect.taptap.AdServiceImpl
 import com.xianxia.sect.taptap.LeaderboardCloudApi
 import com.xianxia.sect.taptap.TapTapLeaderboardApi
@@ -13,6 +27,8 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+
+
 
 @Module
 @InstallIn(SingletonComponent::class)

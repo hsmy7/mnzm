@@ -1,9 +1,26 @@
 package com.xianxia.sect.core.engine.service
-import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.state.*
+
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.ExplorationTeam
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.SpiritStoneGrade
+import com.xianxia.sect.core.model.accessoryId
+import com.xianxia.sect.core.model.armorId
+import com.xianxia.sect.core.model.bootsId
+import com.xianxia.sect.core.model.currentHp
+import com.xianxia.sect.core.model.currentMp
+import com.xianxia.sect.core.model.secretRealmMemberIds
+import com.xianxia.sect.core.model.spiritStones
+import com.xianxia.sect.core.model.storageBagItems
+import com.xianxia.sect.core.model.weaponId
+import com.xianxia.sect.core.state.DiscipleTables
+import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.registry.*
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleMemberData
@@ -27,6 +44,11 @@ import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
 import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import javax.inject.Inject
 import javax.inject.Singleton
+
+
+
+
+
 @Singleton
 @GameService("CultivationEventProcessor")
 @Suppress("LongParameterList") // 27 个领域服务依赖注入（月度事件编排中枢，分域聚合），detekt 上限 10
@@ -142,20 +164,7 @@ class CultivationEventProcessor @Inject constructor(
         if (!hasAutoEquip && !hasAutoLearn) return
         val tables = state.discipleTables
 
-        // Phase 1: 列级直读收集所有储物袋中的物品ID（无需 assemble）
-        val bagEqIds = mutableSetOf<String>()
-        val bagMnIds = mutableSetOf<String>()
-        for (id in tables.ids) {
-            if (tables.isAlive[id] != 1) continue
-            for (item in tables.storageBagItems.getOrDefault(id, emptyList())) {
-                when (item.itemType) {
-                    "equipment_stack" -> bagEqIds.add(item.itemId)
-                    "manual_stack" -> bagMnIds.add(item.itemId)
-                }
-            }
-        }
-
-        // Phase 2: 列级直读资格预判后只 assemble 合格弟子（性能优化意图保留）
+        // 列级直读资格预判后只 assemble 合格弟子（性能优化意图保留）
         // 注意：候选物品来自宗门仓库而非弟子背包——按背包内容过滤会误删全部
         // 空背包弟子（860bd2a4 引入的回归，天枢殿自动学习/装备因此失效）。
         // 远古秘境：探索中弟子不自动装备/学习（状态冻结语义，与修炼/服药跳过一致）
@@ -171,8 +180,8 @@ class CultivationEventProcessor @Inject constructor(
             }
             .mapNotNull { tables.assemble(it)?.takeIf { d -> d.isAlive } }
             .toMutableList()
-        var eqStacks = state.equipmentStacks.all().filter { it.id !in bagEqIds }
-        var mnStacks = state.manualStacks.all().filter { it.id !in bagMnIds }
+        var eqStacks = state.equipmentStacks.all()
+        var mnStacks = state.manualStacks.all()
         val eqInstancesById = state.equipmentInstances.associateById()
         val mnInstancesById = state.manualInstances.associateById()
         val newEqInstances = mutableListOf<EquipmentInstance>()
@@ -198,7 +207,7 @@ class CultivationEventProcessor @Inject constructor(
                 updatedDisciples[idx] = d
             }
         }
-        writeAutoWarehouseResults(state, tables, updatedDisciples, bagEqIds, bagMnIds, eqStacks, mnStacks, newEqInstances, newMnInstances)
+        writeAutoWarehouseResults(state, tables, updatedDisciples, eqStacks, mnStacks, newEqInstances, newMnInstances)
     }
 
     /**
@@ -292,7 +301,7 @@ class CultivationEventProcessor @Inject constructor(
      */
     private fun writeAutoWarehouseResults(
         state: MutableGameState, tables: DiscipleTables,
-        updatedDisciples: List<Disciple>, bagEqIds: Set<String>, bagMnIds: Set<String>,
+        updatedDisciples: List<Disciple>,
         eqStacks: List<EquipmentStack>, mnStacks: List<ManualStack>,
         newEqInstances: List<EquipmentInstance>, newMnInstances: List<ManualInstance>
     ) {
@@ -307,25 +316,31 @@ class CultivationEventProcessor @Inject constructor(
             // 清理被替换功法的残留熟练度
             val oldManualIds = tables.manualIds.getOrDefault(id, emptyList())
             tables.manualIds[id] = disciple.manualIds
-            val removedIds = oldManualIds - disciple.manualIds.toSet()
-            if (removedIds.isNotEmpty()) {
-                val profMap = state.gameData.manualProficiencies.toMutableMap()
-                profMap[disciple.id]?.let { list ->
-                    val filtered = list.filter { it.manualId !in removedIds }
-                    if (filtered.isEmpty()) profMap.remove(disciple.id)
-                    else profMap[disciple.id] = filtered
-                }
-                state.gameData = state.gameData.copy(manualProficiencies = profMap)
-            }
+            clearRemovedManualProficiencies(state, disciple, oldManualIds.toSet() - disciple.manualIds.toSet())
         }
-        state.equipmentStacks.setItems(
-            state.equipmentStacks.all().filter { it.id in bagEqIds } + eqStacks
-        )
-        state.manualStacks.setItems(
-            state.manualStacks.all().filter { it.id in bagMnIds } + mnStacks
-        )
+        state.equipmentStacks.setItems(eqStacks)
+        state.manualStacks.setItems(mnStacks)
         newEqInstances.forEach { state.equipmentInstances.add(it) }
         newMnInstances.forEach { state.manualInstances.add(it) }
+    }
+
+    /**
+     * D-17 清理被替换功法的残留熟练度（writeAutoWarehouseResults 拆分）——
+     * removedIds 为空零成本早退（不构建 profMap、不 copy state）。
+     */
+    private fun clearRemovedManualProficiencies(
+        state: MutableGameState,
+        disciple: Disciple,
+        removedIds: Set<String>
+    ) {
+        if (removedIds.isEmpty()) return
+        val profMap = state.gameData.manualProficiencies.toMutableMap()
+        profMap[disciple.id]?.let { list ->
+            val filtered = list.filter { it.manualId !in removedIds }
+            if (filtered.isEmpty()) profMap.remove(disciple.id)
+            else profMap[disciple.id] = filtered
+        }
+        state.gameData = state.gameData.copy(manualProficiencies = profMap)
     }
     // ── 战斗/探索辅助 ──────────────────────────────────────────────────
     internal fun MutableGameState.applyMissionRewards(rewards: List<MissionReward>) {

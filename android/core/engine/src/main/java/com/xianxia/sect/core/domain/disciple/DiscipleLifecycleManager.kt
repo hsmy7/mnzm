@@ -1,7 +1,13 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
 import kotlinx.coroutines.flow.StateFlow
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.CaveExplorationStatus
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.ExplorationStatus
+import com.xianxia.sect.core.model.partnerId
+import com.xianxia.sect.core.model.recruitedMonth
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.AppError
@@ -12,15 +18,17 @@ import com.xianxia.sect.core.util.RngPartition
 import javax.inject.Inject
 import javax.inject.Singleton
 
+
+
 /**
  * 弟子生命周期管理服务。
  *
  * ## 职责
  * 1. **弟子 CRUD** — 新增/移除/更新/查询弟子
  * 2. **弟子日志** — 记录和查询生命周期事件
- * 3. **招募与逐出** — 招募新弟子、驱逐弟子出宗门
- * 4. **状态查询** — 查询弟子当前状态、按状态筛选
- * 5. **聚合查询** — [DiscipleAggregate] 多表迁移支持
+ * 3. **状态查询** — 查询弟子当前状态、按状态筛选
+ * 4. **聚合查询** — [DiscipleAggregate] 多表迁移支持
+ * 5. **槽位清理** — 清除弟子全部槽位分配（逐出/死亡路径委托）
  */
 @Singleton
 class DiscipleLifecycleManager @Inject constructor(
@@ -217,59 +225,6 @@ class DiscipleLifecycleManager @Inject constructor(
      */
     fun getIdleDisciples(): List<Disciple> {
         return getDisciplesByStatus(DiscipleStatus.IDLE)
-    }
-
-    // ==================== 招募与逐出 ====================
-
-    /**
-     * Expel disciple from sect
-     */
-    fun expelDisciple(discipleId: String): DomainResult<Unit> {
-        var error: AppError.Domain.Disciple? = AppError.Domain.Disciple.NotFound(discipleId)
-        stateStore.update {
-            val id = discipleId.toIntOrNull()
-            if (id == null || !discipleTables.ids.contains(id)) {
-                error = AppError.Domain.Disciple.NotFound(discipleId)
-                return@update
-            }
-
-            val isAlive = discipleTables.isAlive[id] == 1
-            if (!isAlive) {
-                error = AppError.Domain.Disciple.NotAlive(discipleId)
-                return@update
-            }
-
-            if (discipleTables.statuses[id] == DiscipleStatus.REFINING) {
-                error = AppError.Domain.Disciple.SlotInvalid("弟子正在血炼中，无法驱逐")
-                return@update
-            }
-
-            slotManager.clearDiscipleFromAllSlots(discipleId)
-
-            // 仅清除装备/功法所有权，不返还仓库
-            val expelEquipIds = mutableListOf<String>()
-            discipleTables.weaponIds[id].takeIf { it.isNotEmpty() }?.let { expelEquipIds.add(it) }
-            discipleTables.armorIds[id].takeIf { it.isNotEmpty() }?.let { expelEquipIds.add(it) }
-            discipleTables.bootsIds[id].takeIf { it.isNotEmpty() }?.let { expelEquipIds.add(it) }
-            discipleTables.accessoryIds[id].takeIf { it.isNotEmpty() }?.let { expelEquipIds.add(it) }
-            discipleTables.storageBagItems[id].filter { it.itemType == ITEM_TYPE_EQUIPMENT_STACK || it.itemType == ITEM_TYPE_EQUIPMENT_INSTANCE }.map { it.itemId }.forEach { expelEquipIds.add(it) }
-            val expelManualIds = discipleTables.storageBagItems[id].filter { it.itemType == ITEM_TYPE_MANUAL_STACK || it.itemType == ITEM_TYPE_MANUAL_INSTANCE }.map { it.itemId }.toSet() + discipleTables.manualIds[id].toSet()
-
-            equipmentInstances = equipmentInstances.filter { it.id !in expelEquipIds }
-            manualInstances = manualInstances.filter { it.id !in expelManualIds }
-
-            val updatedProficiencies = gameData.manualProficiencies.toMutableMap()
-            updatedProficiencies.remove(discipleId)
-            if (updatedProficiencies != gameData.manualProficiencies) {
-                gameData = gameData.copy(manualProficiencies = updatedProficiencies)
-            }
-
-            discipleTables.remove(id)
-
-            error = null
-        }
-        val finalError = error
-        return if (finalError == null) DomainResult.Success(Unit) else DomainResult.Failure(finalError)
     }
 
     // ==================== DiscipleAggregate 查询接口（渐进式迁移支持）====================

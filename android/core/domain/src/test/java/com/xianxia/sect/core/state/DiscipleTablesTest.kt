@@ -1,11 +1,15 @@
 package com.xianxia.sect.core.state
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.SkillStats
+import com.xianxia.sect.core.model.loyalty
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+
+
 
 @RunWith(RobolectricTestRunner::class)
 class DiscipleTablesTest {

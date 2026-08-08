@@ -1,6 +1,12 @@
-﻿package com.xianxia.sect.ui.game.delegate
+package com.xianxia.sect.ui.game.delegate
 
-import com.xianxia.sect.core.engine.*
+import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.engine.plantOnSpiritField
+import com.xianxia.sect.core.engine.plantOnSpiritFields
+import com.xianxia.sect.core.engine.removePlantFromSpiritField
+import com.xianxia.sect.core.engine.removePlantsFromSpiritFields
+
+
 
 class PlantingDelegate(
     private val gameEngine: GameEngine

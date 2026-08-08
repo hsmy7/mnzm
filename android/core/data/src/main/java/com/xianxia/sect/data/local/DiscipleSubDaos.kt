@@ -1,8 +1,15 @@
 package com.xianxia.sect.data.local
 
 import androidx.room.*
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.DiscipleAttributes
+import com.xianxia.sect.core.model.DiscipleCombatStats
+import com.xianxia.sect.core.model.DiscipleCompact
+import com.xianxia.sect.core.model.DiscipleCore
+import com.xianxia.sect.core.model.DiscipleEquipment
+import com.xianxia.sect.core.model.DiscipleExtended
 import kotlinx.coroutines.flow.Flow
+
+
 
 @Dao
 interface DiscipleCoreDao {

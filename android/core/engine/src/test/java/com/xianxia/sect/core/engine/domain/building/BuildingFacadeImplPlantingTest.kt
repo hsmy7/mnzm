@@ -1,5 +1,3 @@
-@file:Suppress("WildcardImport")
-
 package com.xianxia.sect.core.engine.domain.building
 
 import com.xianxia.sect.core.engine.FakeAtomicStateStore
@@ -8,7 +6,8 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentRegistry
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService
 import com.xianxia.sect.core.engine.system.InventorySystem
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.SpiritFieldPlant
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.WriteGuardRule
@@ -24,6 +23,8 @@ import org.junit.runner.RunWith
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
+
+
 
 /**
  * 灵田种植（BuildingFacadeImpl.plantOnSpiritField(s)）Bug B 回归测试。

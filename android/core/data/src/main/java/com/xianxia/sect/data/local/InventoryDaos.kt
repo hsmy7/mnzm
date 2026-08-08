@@ -1,8 +1,16 @@
 package com.xianxia.sect.data.local
 
 import androidx.room.*
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.MaterialCategory
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.PillCategory
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.StorageBag
 import kotlinx.coroutines.flow.Flow
+
+
 
 @Dao
 interface PillDao {

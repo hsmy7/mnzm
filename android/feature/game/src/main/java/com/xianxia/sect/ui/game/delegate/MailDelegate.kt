@@ -1,6 +1,6 @@
 package com.xianxia.sect.ui.game.delegate
 
-import com.xianxia.sect.core.engine.*
+import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.service.ClaimResult
 import com.xianxia.sect.core.engine.service.MailService
 import com.xianxia.sect.core.model.MailEntity
@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+
+
 
 class MailDelegate(
     private val gameEngine: GameEngine,

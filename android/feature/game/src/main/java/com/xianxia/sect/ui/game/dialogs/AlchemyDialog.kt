@@ -22,7 +22,16 @@ import androidx.compose.foundation.verticalScroll
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.watchKey
 import com.xianxia.sect.core.registry.PillRecipeDatabase
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.AlchemySlot
+import com.xianxia.sect.core.model.AlchemySlotStatus
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.ElderSlots
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.PillGrade
+import com.xianxia.sect.core.model.pillRefining
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.components.WatchItemButton
 import com.xianxia.sect.ui.components.ElderBonusInfo
@@ -44,6 +53,8 @@ import com.xianxia.sect.ui.game.ProductionCommonDialog
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import kotlinx.coroutines.launch
 import java.util.Locale
+
+
 
 @Composable
 fun AlchemyDialog(

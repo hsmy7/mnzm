@@ -1,6 +1,9 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.RecruitIntegrity
+import com.xianxia.sect.core.model.recruitedMonth
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.MutableGameState
@@ -11,6 +14,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.util.UUID
+
+
 
 /**
  * 手动招募流程测试（模拟 [DiscipleFacadeImpl.recruitDiscipleFromList] 的核心逻辑）。

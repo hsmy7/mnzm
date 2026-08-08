@@ -3,8 +3,12 @@ package com.xianxia.sect.core.engine.service
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.registry.*
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.ElderSlotType
+import com.xianxia.sect.core.model.artifactRefining
+import com.xianxia.sect.core.model.pillRefining
+import com.xianxia.sect.core.model.spiritPlanting
+import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.BuildingNames
@@ -12,6 +16,8 @@ import com.xianxia.sect.core.util.ZoneCalculator
 import kotlin.math.roundToInt
 import javax.inject.Inject
 import javax.inject.Singleton
+
+
 
 @GameService("FormulaService")
 @Singleton

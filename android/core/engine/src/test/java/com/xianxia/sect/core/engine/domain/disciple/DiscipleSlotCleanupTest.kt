@@ -1,11 +1,25 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.BattleTeam
+import com.xianxia.sect.core.model.BattleTeamSlot
+import com.xianxia.sect.core.model.BloodRefinementProgress
+import com.xianxia.sect.core.model.DirectDiscipleSlot
+import com.xianxia.sect.core.model.ElderSlots
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GarrisonSlot
+import com.xianxia.sect.core.model.LibrarySlot
+import com.xianxia.sect.core.model.PatrolSlot
+import com.xianxia.sect.core.model.ResidenceSlot
+import com.xianxia.sect.core.model.SpiritMineSlot
+import com.xianxia.sect.core.model.WarehouseGarrisonSlot
+import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+
+
 
 class DiscipleSlotCleanupTest {
 

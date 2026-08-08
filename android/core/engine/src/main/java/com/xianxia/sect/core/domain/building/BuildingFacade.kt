@@ -1,9 +1,13 @@
 package com.xianxia.sect.core.engine.domain.building
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.AlchemyResult
+import com.xianxia.sect.core.model.BuildingSlot
+import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.util.DomainResult
+
+
 
 /** 建筑系统门面——UI 层统一入口。所有建筑操作通过此接口调用。 */
 interface BuildingFacade {

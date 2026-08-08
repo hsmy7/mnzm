@@ -1,12 +1,17 @@
 package com.xianxia.sect.core.engine
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.PatrolSlot
+import com.xianxia.sect.core.model.SlotCategory
+import com.xianxia.sect.core.model.SlotRef
 import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.state.MutableGameState
 import kotlinx.coroutines.CancellationException
+
+
 
 /**
  * GameEngine 扩展 — 住所/巡视楼原子分配操作。

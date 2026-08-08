@@ -1,7 +1,8 @@
 package com.xianxia.sect.core.usecase
 
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.engine.*
+import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.engine.checkpointAllDisciples
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -15,6 +16,8 @@ import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.wallet.DeductResult
 import javax.inject.Inject
 import javax.inject.Singleton
+
+
 
 /**
  * 宗门政策开关 UseCase。

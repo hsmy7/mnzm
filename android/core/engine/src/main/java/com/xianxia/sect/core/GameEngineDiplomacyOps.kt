@@ -1,9 +1,9 @@
 package com.xianxia.sect.core.engine
 
-import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.model.MerchantItem
 
-fun GameEngine.generateSectTradeItems(year: Int): List<MerchantItem> = diplomacyFacade.generateSectTradeItems(year)
+
+
 suspend fun GameEngine.getOrRefreshSectTradeItems(sectId: String): List<MerchantItem> = diplomacyFacade.getOrRefreshSectTradeItems(sectId)
 suspend fun GameEngine.buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int = 1) = diplomacyFacade.buyFromSectTradeSync(sectId, itemId, quantity)
 suspend fun GameEngine.giftSpiritStones(sectId: String, tier: Int, bypassYearLimit: Boolean = false): GiftResult =
@@ -67,7 +67,6 @@ fun GameEngine.getFirstPlayerDisciplePortrait(): String {
 
 fun GameEngine.isAlly(sectId: String): Boolean = diplomacyFacade.isAlly(sectId)
 fun GameEngine.getPlayerAllies(): List<String> = diplomacyFacade.getPlayerAllies()
-fun GameEngine.interactWithSect(sectId: String, action: String) { DomainLog.w("GameEngine", "interactWithSect 尚未实现: sectId=$sectId, action=$action") }
 
 // ═══ 附属宗门 ═══
 suspend fun GameEngine.requestVassalContract(sectId: String): Boolean =

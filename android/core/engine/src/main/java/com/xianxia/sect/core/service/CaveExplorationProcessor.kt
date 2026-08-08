@@ -1,10 +1,40 @@
 package com.xianxia.sect.core.engine.service
 
 import kotlinx.coroutines.CancellationException
-import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.state.*
+import com.xianxia.sect.core.model.AICaveTeam
+import com.xianxia.sect.core.model.BattleLog
+import com.xianxia.sect.core.model.BattleLogAction
+import com.xianxia.sect.core.model.BattleLogEnemy
+import com.xianxia.sect.core.model.BattleLogMember
+import com.xianxia.sect.core.model.BattleLogResult
+import com.xianxia.sect.core.model.BattleLogRound
+import com.xianxia.sect.core.model.BattleResult
+import com.xianxia.sect.core.model.BattleRewardItem
+import com.xianxia.sect.core.model.BattleType
+import com.xianxia.sect.core.model.BloodRefinementPctTotal
+import com.xianxia.sect.core.model.CaveExplorationStatus
+import com.xianxia.sect.core.model.CaveExplorationTeam
+import com.xianxia.sect.core.model.CaveStatus
+import com.xianxia.sect.core.model.CultivatorCave
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualProficiencyData
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.PillEffect
+import com.xianxia.sect.core.model.SpiritStoneGrade
+import com.xianxia.sect.core.model.WorldSect
+import com.xianxia.sect.core.model.currentHp
+import com.xianxia.sect.core.model.currentMp
+import com.xianxia.sect.core.state.BattleResultUIData
+import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.registry.*
+import com.xianxia.sect.core.registry.EquipmentDatabase
+import com.xianxia.sect.core.registry.ManualDatabase
+import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
@@ -20,6 +50,8 @@ import com.xianxia.sect.core.wallet.SpiritStoneSource
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import javax.inject.Inject
 import javax.inject.Singleton
+
+
 
 /**
  * 洞府探索 completion loop 中 mutable 累加器的容器。

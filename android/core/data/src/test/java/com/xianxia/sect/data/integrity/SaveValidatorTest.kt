@@ -1,9 +1,21 @@
 package com.xianxia.sect.data.integrity
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentSet
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.model.ResidenceSlot
+import com.xianxia.sect.core.model.accessoryId
+import com.xianxia.sect.core.model.armorId
+import com.xianxia.sect.core.model.bootsId
+import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.data.model.SaveData
 import org.junit.Assert.*
 import org.junit.Test
+
+
 
 /**
  * 存档完整性校验器的单元测试。

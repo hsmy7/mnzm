@@ -14,6 +14,7 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import java.io.File
 
+
 /**
  * Room 数据库迁移测试。
  *
@@ -75,6 +76,7 @@ class RoomMigrationTest {
         private val M39_40 = MIGRATION_39_40
         private val M40_41 = MIGRATION_40_41
         private val M41_42 = MIGRATION_41_42
+        private val M42_43 = MIGRATION_42_43
 
         // v38 种子行（含被删除的 auto 开关列；列清单来自 38.json，仅用于迁移重建测试）
         private val SEED_DISCIPLES_V38 = """
@@ -264,7 +266,7 @@ class RoomMigrationTest {
             createDatabaseFromSchema(context, dbName, 38).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
                 // 实体当前版本 42：仅注册 M38_39 时 Room 要求 38→42 迁移路径
-                .addMigrations(M38_39, M39_40, M40_41, M41_42)
+                .addMigrations(M38_39, M39_40, M40_41, M41_42, M42_43)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -296,7 +298,7 @@ class RoomMigrationTest {
                     M16_17, M17_18, M18_19, M19_20, M20_21, M21_22,
                     M22_23, M23_24, M24_25, M25_26, M26_27, M27_28,
                     M28_29, M29_30, M30_31, M31_32, M32_33, M33_34, M34_35, M35_36,
-                    M36_37, M37_38, M38_39, M39_40, M40_41, M41_42
+                    M36_37, M37_38, M38_39, M39_40, M40_41, M41_42, M42_43
                 )
                 .build()
             roomDb.openHelper.writableDatabase
@@ -320,7 +322,7 @@ class RoomMigrationTest {
             createDatabaseFromSchema(context, dbName, 39).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
                 // 实体当前版本 42：完整迁移路径 39→42
-                .addMigrations(M39_40, M40_41, M41_42)
+                .addMigrations(M39_40, M40_41, M41_42, M42_43)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -373,7 +375,7 @@ class RoomMigrationTest {
         try {
             createDatabaseFromSchema(context, dbName, 40).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M40_41, M41_42)
+                .addMigrations(M40_41, M41_42, M42_43)
                 .build()
             db.openHelper.writableDatabase
             db.close()
@@ -395,9 +397,69 @@ class RoomMigrationTest {
         try {
             createDatabaseFromSchema(context, dbName, 41).close()
             val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
-                .addMigrations(M41_42)
+                .addMigrations(M41_42, M42_43)
                 .build()
             db.openHelper.writableDatabase
+            db.close()
+        } finally {
+            context.deleteDatabase(dbName)
+        }
+    }
+
+    @Test
+    fun `MIGRATION_42_TO_43 passes real Room schema validation`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dbName = "m_42_43_room_validate"
+        context.deleteDatabase(dbName)
+        try {
+            createDatabaseFromSchema(context, dbName, 42).close()
+            val db = Room.databaseBuilder(context, GameDatabase::class.java, dbName)
+                .addMigrations(M42_43)
+                .build()
+            db.openHelper.writableDatabase
+            db.close()
+        } finally {
+            context.deleteDatabase(dbName)
+        }
+    }
+
+    @Test
+    fun `MIGRATION_42_TO_43 creates overflow and direct mail draft tables`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dbName = "m_42_43_tables"
+        context.deleteDatabase(dbName)
+        try {
+            val db = createDatabaseFromSchema(context, dbName, 42)
+            // 手动执行迁移 SQL（真实 Room 校验由上一测试覆盖）
+            listOf(M42_43).forEach { it.migrate(db) }
+
+            // 溢出草稿表：8 列全量
+            val overflowCols = tableColumns(db, "overflow_mail_drafts")
+            assertEquals(
+                listOf("id", "slotId", "source", "itemType", "itemName", "rarity", "quantity", "createdAt"),
+                overflowCols
+            )
+
+            // 直发草稿表：4 列全量
+            val directCols = tableColumns(db, "direct_mail_drafts")
+            assertEquals(
+                listOf("id", "slotId", "payload", "createdAt"),
+                directCols
+            )
+
+            // 迁移后草稿表可插入/读取（Room 列类型正确性）
+            db.execSQL(
+                "INSERT INTO overflow_mail_drafts VALUES ('x1', 1, 'battle', 'material', '玄铁精', 2, 3, 100)"
+            )
+            db.execSQL("INSERT INTO direct_mail_drafts VALUES ('m1', 1, '{\"id\":\"m1\"}', 100)")
+            val overflowCount = db.query("SELECT COUNT(*) FROM overflow_mail_drafts").use { c ->
+                c.moveToFirst(); c.getInt(0)
+            }
+            val directCount = db.query("SELECT COUNT(*) FROM direct_mail_drafts").use { c ->
+                c.moveToFirst(); c.getInt(0)
+            }
+            assertEquals("迁移后溢出草稿行可插入", 1, overflowCount)
+            assertEquals("迁移后直发草稿行可插入", 1, directCount)
             db.close()
         } finally {
             context.deleteDatabase(dbName)
@@ -1311,6 +1373,18 @@ class RoomMigrationTest {
     ): Boolean {
         val cursor = db.query("PRAGMA table_info($table)", emptyArray())
         return cursor.use { it.moveToFirst() }
+    }
+
+    /** 查询 PRAGMA table_info 返回列名有序列表 */
+    private fun tableColumns(db: SupportSQLiteDatabase, table: String): List<String> {
+        val cursor = db.query("PRAGMA table_info($table)", emptyArray())
+        return cursor.use {
+            val cols = mutableListOf<String>()
+            while (it.moveToNext()) {
+                cols.add(it.getString(it.getColumnIndexOrThrow("name")))
+            }
+            cols
+        }
     }
 
     /** 查询 PRAGMA table_info 检查列是否存在 */

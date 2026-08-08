@@ -31,8 +31,29 @@ import com.xianxia.sect.ui.game.HeavenlyTrialViewModel
 import com.xianxia.sect.ui.theme.GameColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import com.xianxia.sect.ui.game.dialogs.heavenlytrial.*
+import com.xianxia.sect.ui.game.dialogs.heavenlytrial.AnimEvent
+import com.xianxia.sect.ui.game.dialogs.heavenlytrial.AnimPhase
+import com.xianxia.sect.ui.game.dialogs.heavenlytrial.AoeAnimationEvent
+import com.xianxia.sect.ui.game.dialogs.heavenlytrial.AttackAnimState
+import com.xianxia.sect.ui.game.dialogs.heavenlytrial.AttackAnimationEvent
+import com.xianxia.sect.ui.game.dialogs.heavenlytrial.BattlePhase
+import com.xianxia.sect.ui.game.dialogs.heavenlytrial.CombatUnitCell
+import com.xianxia.sect.ui.game.dialogs.heavenlytrial.DamageNumberState
+import com.xianxia.sect.ui.game.dialogs.heavenlytrial.FlightAnimState
+import com.xianxia.sect.ui.game.dialogs.heavenlytrial.FloatingDamageNumber
+import com.xianxia.sect.ui.game.dialogs.heavenlytrial.advanceTurn
+import com.xianxia.sect.ui.game.dialogs.heavenlytrial.applyBuffToTarget
+import com.xianxia.sect.ui.game.dialogs.heavenlytrial.computeNormalAttackDamage
+import com.xianxia.sect.ui.game.dialogs.heavenlytrial.computeSkillDamage
+import com.xianxia.sect.ui.game.dialogs.heavenlytrial.currentCombatRng
+import com.xianxia.sect.ui.game.dialogs.heavenlytrial.executePlayerSkill
+import com.xianxia.sect.ui.game.dialogs.heavenlytrial.playAoeAttackSequence
+import com.xianxia.sect.ui.game.dialogs.heavenlytrial.playAttackSequence
+import com.xianxia.sect.ui.game.dialogs.heavenlytrial.randomOrNull
+import com.xianxia.sect.ui.game.dialogs.heavenlytrial.simulateInstantResolve
 import com.xianxia.sect.ui.components.clickableWithSound
+
+
 
 @Composable
 fun HeavenlyTrialCombatScreen(

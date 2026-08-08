@@ -1,8 +1,12 @@
 package com.xianxia.sect.data.local
 
 import androidx.room.*
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.ManualType
 import kotlinx.coroutines.flow.Flow
+
+
 
 @Dao
 interface ManualStackDao {

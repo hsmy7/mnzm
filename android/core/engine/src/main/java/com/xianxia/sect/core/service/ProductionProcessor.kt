@@ -4,14 +4,35 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import kotlin.math.roundToInt
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.ForgeRecipe
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.PillCategory
+import com.xianxia.sect.core.model.PillGrade
+import com.xianxia.sect.core.model.SectPolicies
+import com.xianxia.sect.core.model.SpiritFieldPlant
+import com.xianxia.sect.core.model.artifactRefining
+import com.xianxia.sect.core.model.comprehension
+import com.xianxia.sect.core.model.mining
+import com.xianxia.sect.core.model.pillRefining
+import com.xianxia.sect.core.model.spiritPlanting
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.engine.system.InventoryFactories
-import com.xianxia.sect.core.state.*
+import com.xianxia.sect.core.state.DiscipleTables
+import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.StackKeys
+import com.xianxia.sect.core.state.StackableItemStore
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.registry.*
+import com.xianxia.sect.core.registry.BeastMaterialDatabase
+import com.xianxia.sect.core.registry.ForgeRecipeDatabase
+import com.xianxia.sect.core.registry.ItemDatabase
+import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.domain.building.HerbGardenAuraService
@@ -35,6 +56,11 @@ import com.xianxia.sect.core.engine.LazyEvaluationDispatcher
 import com.xianxia.sect.core.model.production.BuildingType
 import javax.inject.Inject
 import javax.inject.Singleton
+
+
+
+
+
 
 @Singleton
 @GameService("ProductionProcessor")
@@ -508,42 +534,7 @@ class ProductionProcessor @Inject constructor(
     ) {
         val currentHerbs = stateStore.getCurrentHerbs()
         val slotIndex = slot.slotIndex
-
-        // 镜像一致性检查：Repository 槽位有弟子但镜像槽位已无此弟子
-        // → 视为玩家已释放（历史只清镜像的入口曾产生此分叉），清 Repository 残留并跳过重启，
-        //   否则自动重启会把已释放弟子拉回槽位（双槽分叉根因：弟子"被自动任命"回原槽）
-        val mirrorStillAssigned = data.productionSlots
-            .any { it.buildingId == BuildingNames.ALCHEMY && it.slotIndex == slotIndex
-                && it.assignedDiscipleId == slot.assignedDiscipleId }
-        if (!mirrorStillAssigned) {
-            scopeProvider.scope.launch(ioDispatcher.dispatcher) {
-                productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slotIndex) { s ->
-                    s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
-                }
-            }
-            return
-        }
-
-        // 验证弟子仍存活且空闲（防止自动重启窗口期内弟子被调走）
-        val disciple = slot.assignedDiscipleId?.let { id ->
-            allDisciples.find { it.id == id }
-        }
-        if (disciple == null || !disciple.isAlive || (disciple.status != DiscipleStatus.IDLE && disciple.status != DiscipleStatus.ALCHEMY)) {
-            // 弟子不可用 → 双存储同时清除槽位关联（镜像在事务内，Repository 在 IO 线程）
-            stateStore.update {
-                gameData = gameData.copy(
-                    productionSlots = gameData.productionSlots.map { s ->
-                        if (s.buildingId == BuildingNames.ALCHEMY && s.slotIndex == slotIndex) {
-                            s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
-                        } else s
-                    }
-                )
-            }
-            scopeProvider.scope.launch(ioDispatcher.dispatcher) {
-                productionSlotRepository.updateSlotByBuildingId(BuildingNames.ALCHEMY, slotIndex) { s ->
-                    s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
-                }
-            }
+        if (!validateAutoSlot(slot, data, allDisciples, BuildingNames.ALCHEMY, DiscipleStatus.ALCHEMY)) {
             return
         }
 
@@ -631,41 +622,7 @@ class ProductionProcessor @Inject constructor(
         val materialIndex = currentMaterials.groupBy { it.name to it.rarity }
             .mapValues { (_, list) -> list.sumOf { it.quantity } }
         val slotIndex = slot.slotIndex
-
-        // 镜像一致性检查：Repository 槽位有弟子但镜像槽位已无此弟子
-        // → 视为玩家已释放（历史只清镜像的入口曾产生此分叉），清 Repository 残留并跳过重启
-        val mirrorStillAssigned = data.productionSlots
-            .any { it.buildingId == BuildingNames.FORGE && it.slotIndex == slotIndex
-                && it.assignedDiscipleId == slot.assignedDiscipleId }
-        if (!mirrorStillAssigned) {
-            scopeProvider.scope.launch(ioDispatcher.dispatcher) {
-                productionSlotRepository.updateSlotByBuildingId(BuildingNames.FORGE, slotIndex) { s ->
-                    s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
-                }
-            }
-            return true
-        }
-
-        // 验证弟子仍存活且空闲
-        val disciple = slot.assignedDiscipleId?.let { id ->
-            allDisciples.find { it.id == id }
-        }
-        if (disciple == null || !disciple.isAlive || (disciple.status != DiscipleStatus.IDLE && disciple.status != DiscipleStatus.FORGE)) {
-            // 弟子不可用 → 双存储同时清除槽位关联（镜像在事务内，Repository 在 IO 线程）
-            stateStore.update {
-                gameData = gameData.copy(
-                    productionSlots = gameData.productionSlots.map { s ->
-                        if (s.buildingId == BuildingNames.FORGE && s.slotIndex == slotIndex) {
-                            s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
-                        } else s
-                    }
-                )
-            }
-            scopeProvider.scope.launch(ioDispatcher.dispatcher) {
-                productionSlotRepository.updateSlotByBuildingId(BuildingNames.FORGE, slotIndex) { s ->
-                    s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
-                }
-            }
+        if (!validateAutoSlot(slot, data, allDisciples, BuildingNames.FORGE, DiscipleStatus.FORGE)) {
             return true
         }
 
@@ -708,6 +665,61 @@ class ProductionProcessor @Inject constructor(
             return true
         }
         return false
+    }
+
+    /**
+     * D-17 自动重启槽位共用守卫（processAutoAlchemySlot/processAutoForgeSlot 拆分）。
+     *
+     * 镜像一致性检查：Repository 槽位有弟子但镜像槽位已无此弟子
+     * → 视为玩家已释放（历史只清镜像的入口曾产生此分叉），清 Repository 残留并跳过重启，
+     *   否则自动重启会把已释放弟子拉回槽位（双槽分叉根因：弟子"被自动任命"回原槽）。
+     * 弟子验证：仍存活且空闲（防止自动重启窗口期内弟子被调走）。
+     *
+     * @param expectedStatus 槽位对应的工作状态（ALCHEMY/FORGE）
+     * @return true 可继续自动重启；false 槽位已清除（调用方中断本槽位处理）
+     */
+    private suspend fun validateAutoSlot(
+        slot: ProductionSlot,
+        data: GameData,
+        allDisciples: List<Disciple>,
+        buildingName: String,
+        expectedStatus: DiscipleStatus
+    ): Boolean {
+        val slotIndex = slot.slotIndex
+        val mirrorStillAssigned = data.productionSlots
+            .any { it.buildingId == buildingName && it.slotIndex == slotIndex
+                && it.assignedDiscipleId == slot.assignedDiscipleId }
+        if (!mirrorStillAssigned) {
+            clearSlotAssignment(buildingName, slotIndex)
+            return false
+        }
+        // 验证弟子仍存活且空闲（防止自动重启窗口期内弟子被调走）
+        val disciple = slot.assignedDiscipleId?.let { id -> allDisciples.find { it.id == id } }
+        val discipleUsable = disciple != null && disciple.isAlive &&
+            (disciple.status == DiscipleStatus.IDLE || disciple.status == expectedStatus)
+        if (!discipleUsable) {
+            // 弟子不可用 → 双存储同时清除槽位关联（镜像在事务内，Repository 在 IO 线程）
+            stateStore.update {
+                gameData = gameData.copy(
+                    productionSlots = gameData.productionSlots.map { s ->
+                        if (s.buildingId == buildingName && s.slotIndex == slotIndex) {
+                            s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                        } else s
+                    }
+                )
+            }
+            clearSlotAssignment(buildingName, slotIndex)
+        }
+        return discipleUsable
+    }
+
+    /** D-17 清 Repository 槽位占用（validateAutoSlot 拆分；镜像不一致场景 Repository 为真源，仅清 repo） */
+    private fun clearSlotAssignment(buildingName: String, slotIndex: Int) {
+        scopeProvider.scope.launch(ioDispatcher.dispatcher) {
+            productionSlotRepository.updateSlotByBuildingId(buildingName, slotIndex) { s ->
+                s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+            }
+        }
     }
 
     fun processAutoAssign(state: MutableGameState) {

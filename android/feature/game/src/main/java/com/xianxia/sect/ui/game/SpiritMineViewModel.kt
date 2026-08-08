@@ -1,13 +1,34 @@
 package com.xianxia.sect.ui.game
 
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.engine.*
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.engine.assignDirectDisciple
+import com.xianxia.sect.core.engine.cancelBloodRefinement
+import com.xianxia.sect.core.engine.confirmAssignDisciple
+import com.xianxia.sect.core.engine.getDiscipleAggregate
+import com.xianxia.sect.core.engine.isDiscipleAssigned
+import com.xianxia.sect.core.engine.releaseDiscipleAssignment
+import com.xianxia.sect.core.engine.releaseDiscipleFromAllSlotsAtomic
+import com.xianxia.sect.core.engine.releaseReflectionDisciple
+import com.xianxia.sect.core.engine.syncSingleDiscipleStatus
+import com.xianxia.sect.core.engine.updateDiscipleStatus
+import com.xianxia.sect.core.engine.updateGameData
+import com.xianxia.sect.core.engine.validateAndFixSpiritMineData
+import com.xianxia.sect.core.model.DirectDiscipleSlot
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.SlotCategory
+import com.xianxia.sect.core.model.SlotRef
+import com.xianxia.sect.core.model.SpiritMineSlot
+import com.xianxia.sect.core.model.mining
 import com.xianxia.sect.core.usecase.ElderManagementUseCase
 import com.xianxia.sect.core.util.DomainLog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import javax.inject.Inject
+
+
 
 @HiltViewModel
 class SpiritMineViewModel @Inject constructor(

@@ -23,7 +23,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalConfiguration
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.ManualProficiencySystem
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualProficiencyData
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.ManualType
 import com.xianxia.sect.core.util.sortedByWatchedThenRarity
 import com.xianxia.sect.core.util.watchKey
 import com.xianxia.sect.ui.game.GameViewModel
@@ -35,6 +38,8 @@ import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.game.LocalDismissDropdown
 import com.xianxia.sect.ui.theme.GameColors
+
+
 
 @Composable
 fun ManualsSection(

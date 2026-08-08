@@ -1,5 +1,3 @@
-@file:Suppress("WildcardImport")
-
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.engine.domain.battle.BattleFacade
@@ -13,9 +11,27 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentRegistry
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleFacade
 import com.xianxia.sect.core.engine.service.SecretRealmService
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.BloodRefinementProgress
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.ElderSlots
+import com.xianxia.sect.core.model.GarrisonSlot
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.Mission
+import com.xianxia.sect.core.model.MissionDifficulty
+import com.xianxia.sect.core.model.MissionRewardConfig
+import com.xianxia.sect.core.model.MissionTemplate
+import com.xianxia.sect.core.model.PatrolSlot
+import com.xianxia.sect.core.model.ResidenceSlot
+import com.xianxia.sect.core.model.SecretRealmExplorationSession
+import com.xianxia.sect.core.model.SecretRealmMemberState
+import com.xianxia.sect.core.model.SecretRealmState
+import com.xianxia.sect.core.model.SlotCategory
+import com.xianxia.sect.core.model.SlotRef
+import com.xianxia.sect.core.model.WarehouseGarrisonSlot
+import com.xianxia.sect.core.model.WorldSect
+import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.repository.ProductionSlotRepository
-import com.xianxia.sect.core.state.*
+import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import kotlinx.coroutines.CoroutineScope
@@ -35,6 +51,8 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
+
+
 
 /**
  * 跨系统双槽位守卫测试：验证所有分配入口在"弟子已在其他槽位"时

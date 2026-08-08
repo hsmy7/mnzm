@@ -56,12 +56,29 @@ import com.xianxia.sect.ui.game.components.OverlayViewModels
 import com.xianxia.sect.ui.game.components.OverlayCallbacks
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.ui.game.building.BuildingConstructionBar
-import com.xianxia.sect.ui.game.sect.*
-import com.xianxia.sect.ui.game.main.*
-import com.xianxia.sect.core.touch.*
+import com.xianxia.sect.ui.game.sect.GoldFingerState
+import com.xianxia.sect.ui.game.main.DemolishButton
+import com.xianxia.sect.ui.game.main.DemolishSelectionOverlay
+import com.xianxia.sect.ui.game.main.GoldFingerIcon
+import com.xianxia.sect.ui.game.main.GoldFingerSelectionOverlay
+import com.xianxia.sect.ui.game.main.GridOverlay
+import com.xianxia.sect.ui.game.main.GridPlacement
+import com.xianxia.sect.ui.game.main.HerbGardenAuraOverlay
+import com.xianxia.sect.ui.game.main.HideUiToggleButton
+import com.xianxia.sect.ui.game.main.JadeSymbolBadge
+import com.xianxia.sect.ui.game.main.PlacementConfirmButtons
+import com.xianxia.sect.ui.game.main.SectInfoCard
+import com.xianxia.sect.ui.game.main.SectMapEdgeOverlay
+import com.xianxia.sect.ui.game.main.computeGoldFingerCellValidities
+import com.xianxia.sect.core.touch.LongPressResult
+import com.xianxia.sect.core.touch.SectMapTouchEngine
+import com.xianxia.sect.core.touch.TouchEngineCallbacks
+import com.xianxia.sect.core.touch.TouchEngineConfig
 import com.xianxia.sect.core.render.SpriteAtlasDef
 import com.xianxia.sect.core.animation.CameraAnimator
 import androidx.compose.runtime.mutableIntStateOf
+
+
 
 
 /**

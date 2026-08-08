@@ -44,8 +44,6 @@
     <ID>LongParameterList:ProductionParams.kt$ProductionParams.Companion$( buildingType: BuildingType, slotIndex: Int, recipeId: String, recipeName: String, duration: Int, currentYear: Int, currentMonth: Int, discipleId: String?, discipleName: String, successRate: Double, materials: Map&lt;String, Int&gt;, availableMaterials: Map&lt;String, Int&gt;, outputItemId: String?, outputItemName: String, outputItemRarity: Int, outputItemSlot: String = "" )</ID>
     <ID>LongParameterList:ProductionSlot.kt$ProductionSlot.Companion$( id: String = java.util.UUID.randomUUID().toString(), slotIndex: Int, buildingType: BuildingType, buildingId: String = "", autoRestartEnabled: Boolean = false, assignedDiscipleId: String? = null, assignedDiscipleName: String = "", recipeId: String? = null )</ID>
     <ID>LongParameterList:SlotStateMachine.kt$SlotStateMachine$( slot: ProductionSlot, recipeId: String, recipeName: String, duration: Int, currentYear: Int, currentMonth: Int, discipleId: String?, discipleName: String, successRate: Double, materials: Map&lt;String, Int&gt;, outputItemId: String?, outputItemName: String, outputItemRarity: Int )</ID>
-    <ID>LongParameterList:StorageBagUtils.kt$( disciple: Disciple, instance: EquipmentInstance, bagStackIds: Set&lt;String&gt;, excludeStackId: String? = null, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStackSize: Int )</ID>
-    <ID>LongParameterList:StorageBagUtils.kt$( disciple: Disciple, instance: ManualInstance, bagStackIds: Set&lt;String&gt;, excludeStackId: String? = null, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStackSize: Int )</ID>
     <ID>LoopWithTooManyJumpStatements:DiscipleSnapshot.kt$DiscipleSnapshot.Companion$for</ID>
     <ID>LoopWithTooManyJumpStatements:DiscipleTables.kt$DiscipleTables$while</ID>
     <ID>LoopWithTooManyJumpStatements:EntityStore.kt$for</ID>
@@ -530,61 +528,5 @@
     <ID>VariableNaming:ComponentTable.kt$IntFlatArray$@PublishedApi internal var size_ = 0</ID>
     <ID>VariableNaming:DiscipleTablesAssembleBenchmarkTest.kt$DiscipleTablesAssembleBenchmarkTest$private val DISCIPLE_COUNT = 300</ID>
     <ID>VariableNaming:EntityStore.kt$EntityStore$// ★ 内部可变列表 — 写操作原地修改，零分配 private val items_ = initialItems.toMutableList()</ID>
-    <ID>WildcardImport:AlchemySystemTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:BackgroundTaskScheduler.kt$import kotlinx.coroutines.*</ID>
-    <ID>WildcardImport:BannedWordsTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:BaseTemplateRegistryTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:BeastMaterialDatabaseTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:BuildingStateTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:BuiltinMailConfigTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:ComponentTableTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DiplomacyState.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DiscipleModelsTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DiscipleStatusCoverageTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DiscipleTables.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DiscipleTablesCowTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DiscipleTablesRecruitTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DiscipleTablesRecruitTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DiscipleTablesTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DiscipleTablesTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:EnumsTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:EquipmentDatabaseTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:EventBusAuditTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:FavorDomainTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:ForgeRecipeDatabaseTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:GameConfigTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:GameDataTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:GameEventsTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:GamePhaseTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:GameRandomTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:GameStateSnapshotProvider.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:GameStateStore.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:GiftConfigTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:GuideTaskTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:GuideTaskTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:HerbDatabaseTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:InputValidatorTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:InventoryConfigTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:ItemDatabaseTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:ItemsTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:MailEntityTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:MapModelsTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:MissionTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:MutableGameState.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:PatrolState.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:PillRecipeDatabaseTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:ProductionState.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:RarityTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:RedeemCodeTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:RepoInterfaces.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:SectLevelTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:SectPolicyState.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:SectResponseTextsTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:StackableItemStoreTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:StateEntitiesTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:TalentDatabaseTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:UnifiedGameState.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:WorldLevelTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:WorldMapState.kt$import com.xianxia.sect.core.model.*</ID>
-  </CurrentIssues>
+                                                                                                                                                                                                                                  </CurrentIssues>
 </SmellBaseline>

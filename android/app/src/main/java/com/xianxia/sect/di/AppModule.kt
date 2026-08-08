@@ -1,10 +1,32 @@
-﻿package com.xianxia.sect.di
+package com.xianxia.sect.di
 
 import android.app.ActivityManager
 import android.content.Context
 import android.util.Log
-import com.xianxia.sect.core.engine.*
-import com.xianxia.sect.data.local.*
+import com.xianxia.sect.data.local.BattleLogDao
+import com.xianxia.sect.data.local.BuildingSlotDao
+import com.xianxia.sect.data.local.DiscipleAttributesDao
+import com.xianxia.sect.data.local.DiscipleCombatStatsDao
+import com.xianxia.sect.data.local.DiscipleCompactDao
+import com.xianxia.sect.data.local.DiscipleCoreDao
+import com.xianxia.sect.data.local.DiscipleDao
+import com.xianxia.sect.data.local.DiscipleEquipmentDao
+import com.xianxia.sect.data.local.DiscipleExtendedDao
+import com.xianxia.sect.data.local.EquipmentInstanceDao
+import com.xianxia.sect.data.local.EquipmentStackDao
+import com.xianxia.sect.data.local.ExplorationTeamDao
+import com.xianxia.sect.data.local.GameDataDao
+import com.xianxia.sect.data.local.GameDatabase
+import com.xianxia.sect.data.local.HerbDao
+import com.xianxia.sect.data.local.MailDao
+import com.xianxia.sect.data.local.MailDraftDao
+import com.xianxia.sect.data.local.ManualInstanceDao
+import com.xianxia.sect.data.local.ManualStackDao
+import com.xianxia.sect.data.local.MaterialDao
+import com.xianxia.sect.data.local.PillDao
+import com.xianxia.sect.data.local.RecipeDao
+import com.xianxia.sect.data.local.SeedDao
+import com.xianxia.sect.data.local.StorageBagDao
 import com.xianxia.sect.data.DiscipleDaos
 import com.xianxia.sect.data.ItemDaos
 import com.xianxia.sect.data.SessionManager
@@ -25,6 +47,8 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+
+
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -129,6 +153,9 @@ object AppModule {
 
     @Provides
     fun provideMailDao(database: GameDatabase): MailDao = database.mailDao()
+
+    @Provides
+    fun provideMailDraftDao(database: GameDatabase): MailDraftDao = database.mailDraftDao()
 
     @Provides
     fun provideExplorationTeamDao(database: GameDatabase): ExplorationTeamDao = 

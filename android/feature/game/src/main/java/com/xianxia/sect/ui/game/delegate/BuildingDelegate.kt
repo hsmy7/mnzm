@@ -8,7 +8,13 @@ import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.currentActiveSectId
 import com.xianxia.sect.core.engine.domain.building.BuildingFacade
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
-import com.xianxia.sect.core.engine.*
+import com.xianxia.sect.core.engine.addProductionSlot
+import com.xianxia.sect.core.engine.assignToResidenceAtomic
+import com.xianxia.sect.core.engine.moveBuildingDirect
+import com.xianxia.sect.core.engine.removeBuilding
+import com.xianxia.sect.core.engine.removeBuildings
+import com.xianxia.sect.core.engine.removeFromResidenceAtomic
+import com.xianxia.sect.core.engine.updateGameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.util.DomainResult
@@ -16,6 +22,8 @@ import com.xianxia.sect.ui.game.sect.GoldFingerState
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
+
 
 /**
  * 建筑建造/拆除/搬迁/住宅管理委托。

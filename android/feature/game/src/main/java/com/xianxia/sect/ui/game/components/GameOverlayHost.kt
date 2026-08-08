@@ -1,6 +1,5 @@
 package com.xianxia.sect.ui.game.components
 
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -30,12 +29,18 @@ import com.xianxia.sect.ui.game.SpiritMineViewModel
 import com.xianxia.sect.ui.game.TopOverlay
 import com.xianxia.sect.ui.game.WorldMapInteractionViewModel
 import com.xianxia.sect.ui.game.WorldMapGarrisonViewModel
-import com.xianxia.sect.ui.game.dialogs.*
+import com.xianxia.sect.ui.game.dialogs.AttackWarningDialogs
+import com.xianxia.sect.ui.game.dialogs.BattleLogDetailDialog
+import com.xianxia.sect.ui.game.dialogs.BattleResultDialog
+import com.xianxia.sect.ui.game.dialogs.BeastAttackWarningDialog
+import com.xianxia.sect.ui.game.dialogs.MarriageApprovalDialog
 import com.xianxia.sect.ui.theme.XianxiaColorScheme
 import com.xianxia.sect.ui.components.RewardDisplayDialog
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.canRenderDialogs
 import com.xianxia.sect.core.domain.dialog.DialogType
+
+
 
 private val CachedColorScheme = XianxiaColorScheme()
 

@@ -1,5 +1,3 @@
-@file:Suppress("WildcardImport")
-
 package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.engine.GameEngineCore
@@ -7,7 +5,12 @@ import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.service.LawEnforcementProcessor
 import com.xianxia.sect.core.engine.system.InventorySystem
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.DirectDiscipleSlot
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.ElderSlots
+import com.xianxia.sect.core.model.PatrolSlot
+import com.xianxia.sect.core.model.SlotCategory
+import com.xianxia.sect.core.model.SlotRef
 import com.xianxia.sect.core.state.WriteGuardRule
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +28,8 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
+
+
 
 /**
  * 亲传弟子分配（DiscipleFacadeImpl.assignDirectDisciple）互斥守卫测试。

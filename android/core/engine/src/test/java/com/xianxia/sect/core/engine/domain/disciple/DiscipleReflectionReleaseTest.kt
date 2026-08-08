@@ -21,6 +21,7 @@ import org.mockito.Mockito
 import org.mockito.Mockito.mock
 import org.robolectric.RobolectricTestRunner
 
+
 /**
  * 验证监牢（思过崖）释放按钮的完整路径：
  * `DiscipleFacadeImpl.releaseReflectionDisciple` 清除 reflection 标记 + 置 IDLE，
@@ -105,9 +106,7 @@ class DiscipleReflectionReleaseTest {
             ioDispatcher = IoDispatcher()
         )
         val equipmentService = DiscipleEquipmentService(
-            stateStore = mockStore,
-            inventoryConfig = mock(com.xianxia.sect.core.config.InventoryConfig::class.java),
-            inventorySystem = mock(com.xianxia.sect.core.engine.system.InventorySystem::class.java)
+            stateStore = mockStore
         )
         val masterService = DiscipleMasterApprenticeService(
             stateStore = mockStore
@@ -134,7 +133,8 @@ class DiscipleReflectionReleaseTest {
             discipleLifecycleManager = lifecycleManager,
             discipleMasterApprenticeService = masterService,
             discipleSlotManager = slotManager,
-            discipleStatusService = statusService
+            discipleStatusService = statusService,
+            inventorySystem = mock(com.xianxia.sect.core.engine.system.InventorySystem::class.java)
         )
     }
 

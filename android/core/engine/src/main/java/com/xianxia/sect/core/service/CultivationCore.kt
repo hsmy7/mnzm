@@ -1,12 +1,20 @@
 package com.xianxia.sect.core.engine.service
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualProficiencyData
+import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.engine.EquipmentNurtureSystem
 import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
 import javax.inject.Singleton
+
+
 
 /**
  * 单旬 tick 时间与倍率参数。

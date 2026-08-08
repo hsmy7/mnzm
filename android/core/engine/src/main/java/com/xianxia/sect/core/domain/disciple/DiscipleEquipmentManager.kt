@@ -1,9 +1,23 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.engine.system.StackUpdate
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentSlot
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.accessoryId
+import com.xianxia.sect.core.model.armorId
+import com.xianxia.sect.core.model.baseMagicAttack
+import com.xianxia.sect.core.model.basePhysicalAttack
+import com.xianxia.sect.core.model.bootsId
+import com.xianxia.sect.core.model.weaponId
 import javax.inject.Inject
 import javax.inject.Singleton
+
+
+
+
+
 
 @Singleton
 class DiscipleEquipmentManager @Inject constructor() {

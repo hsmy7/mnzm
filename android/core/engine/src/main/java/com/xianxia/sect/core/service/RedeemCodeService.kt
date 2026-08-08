@@ -1,4 +1,3 @@
-@file:Suppress("DEPRECATION")
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.engine.annotation.GameService
@@ -7,8 +6,18 @@ import android.content.pm.PackageManager
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.engine.BuildConfig
-import com.xianxia.sect.core.registry.*
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.registry.EquipmentDatabase
+import com.xianxia.sect.core.registry.HerbDatabase
+import com.xianxia.sect.core.registry.ItemDatabase
+import com.xianxia.sect.core.registry.ManualDatabase
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.RedeemCode
+import com.xianxia.sect.core.model.RedeemResult
+import com.xianxia.sect.core.model.RewardCardItem
+import com.xianxia.sect.core.model.RewardSelectedItem
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.recruitedMonth
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.engine.RedeemCodeManager
@@ -25,6 +34,11 @@ import kotlinx.serialization.json.Json
 import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
+
+
+
+
+
 
 @Serializable
 data class RedeemApiResponse(

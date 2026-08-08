@@ -2,8 +2,23 @@ package com.xianxia.sect.data.engine
 
 import android.util.Log
 import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.util.fixStorageBagReferences
+import com.xianxia.sect.core.model.DiplomacyState
+import com.xianxia.sect.core.model.DiscipleAttributes
+import com.xianxia.sect.core.model.DiscipleCombatStats
+import com.xianxia.sect.core.model.DiscipleCompact
+import com.xianxia.sect.core.model.DiscipleCore
+import com.xianxia.sect.core.model.DiscipleEquipment
+import com.xianxia.sect.core.model.DiscipleExtended
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GameHeavyData
+import com.xianxia.sect.core.model.PatrolStateEntity
+import com.xianxia.sect.core.model.ProductionState
+import com.xianxia.sect.core.model.Recipe
+import com.xianxia.sect.core.model.SectPolicyState
+import com.xianxia.sect.core.model.WorldMapStateEntity
+import com.xianxia.sect.core.model.spiritStones
+import com.xianxia.sect.core.util.BagMaterializeInput
+import com.xianxia.sect.core.util.StorageBagMaterializer
 import com.xianxia.sect.data.GameStateRepository
 import com.xianxia.sect.data.integrity.IntegrityResult
 import com.xianxia.sect.data.integrity.SaveValidator
@@ -41,6 +56,8 @@ import androidx.room.withTransaction
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
+
+
 
 data class EngineProgress(
     val stage: Stage,
@@ -400,8 +417,40 @@ class StorageEngine @Inject constructor(
         infra.storageMetrics.recordCacheHit()
         infra.storageMetrics.recordLoad()
         Log.d(TAG, "Cache hit for slot $slot")
+        // D-03：缓存路径物化兜底——D-03 前版本写入的旧缓存含引用式袋条目（payload 空），
+        // 取回（没收）等路径会复制/丢失物品；物化幂等（payload 非空跳过，扣减仅首次）
+        val materialized = StorageBagMaterializer.materializeDiscipleBagItems(
+            BagMaterializeInput(
+                disciples = data.disciples,
+                equipmentStacks = data.equipmentStacks,
+                equipmentInstances = data.equipmentInstances,
+                manualStacks = data.manualStacks,
+                manualInstances = data.manualInstances,
+                pills = data.pills,
+                materials = data.materials,
+                herbs = data.herbs,
+                seeds = data.seeds
+            )
+        )
+        if (materialized.materializedCount > 0) {
+            Log.i(TAG, "缓存储物袋物化迁移 ${materialized.materializedCount} 条（D-03 独立存储）")
+        }
+        if (materialized.droppedCount > 0) {
+            Log.w(TAG, "缓存储物袋悬空条目清理 ${materialized.droppedCount} 条（引用不存在，防复制删除）")
+        }
+        val materializedData = data.copy(
+            disciples = materialized.disciples,
+            equipmentStacks = materialized.equipmentStacks,
+            equipmentInstances = materialized.equipmentInstances,
+            manualStacks = materialized.manualStacks,
+            manualInstances = materialized.manualInstances,
+            pills = materialized.pills,
+            materials = materialized.materials,
+            herbs = materialized.herbs,
+            seeds = materialized.seeds
+        )
         _progress.value = EngineProgress(EngineProgress.Stage.COMPLETED, 1.0f, "Load completed (cache)")
-        return data
+        return materializedData
     }
 
     /**
@@ -501,6 +550,8 @@ class StorageEngine @Inject constructor(
             infra.storageMetrics.recordBackupRestore()
             // 旧格式备份无堆叠数据：从实例重建兜底（2026-08-01 堆叠序列化缺陷修复）
             restoredData = SaveDataReconciler.reconcileStacks(restoredData)
+            // D-03：备份路径物化兜底（老备份引用式袋条目 → 持有数据，防复制）
+            restoredData = restoredData.materializeRestoredBag()
             // C14（2026-08-05）：恢复前隔离当前数据库——.sav 整体覆写 DB 不可逆，
             // 校验器误判（规则 bug 曾真实发生）时较新的 DB 数据被旧备份覆盖无保留；
             // 隔离快照供排查/手动恢复，维护任务按保留期清理
@@ -526,6 +577,45 @@ class StorageEngine @Inject constructor(
             Log.e(TAG, "备份读取/反序列化失败 slot=$slot", e)
             return null
         }
+    }
+
+    /**
+     * D-03：备份路径物化兜底——D-03 前版本备份含引用式袋条目（payload 空），
+     * 恢复后未物化会在取回（没收）等路径复制/丢失物品；物化幂等，写库前执行。
+     *
+     * @return 物化后的数据（引用式条目已铸造 payload，悬空条目已删除）
+     */
+    private fun SaveData.materializeRestoredBag(): SaveData {
+        val bagMaterialized = StorageBagMaterializer.materializeDiscipleBagItems(
+            BagMaterializeInput(
+                disciples = disciples,
+                equipmentStacks = equipmentStacks,
+                equipmentInstances = equipmentInstances,
+                manualStacks = manualStacks,
+                manualInstances = manualInstances,
+                pills = pills,
+                materials = materials,
+                herbs = herbs,
+                seeds = seeds
+            )
+        )
+        if (bagMaterialized.materializedCount > 0) {
+            Log.i(TAG, "备份储物袋物化迁移 ${bagMaterialized.materializedCount} 条（D-03 独立存储）")
+        }
+        if (bagMaterialized.droppedCount > 0) {
+            Log.w(TAG, "备份储物袋悬空条目清理 ${bagMaterialized.droppedCount} 条（引用不存在，防复制删除）")
+        }
+        return copy(
+            disciples = bagMaterialized.disciples,
+            equipmentStacks = bagMaterialized.equipmentStacks,
+            equipmentInstances = bagMaterialized.equipmentInstances,
+            manualStacks = bagMaterialized.manualStacks,
+            manualInstances = bagMaterialized.manualInstances,
+            pills = bagMaterialized.pills,
+            materials = bagMaterialized.materials,
+            herbs = bagMaterialized.herbs,
+            seeds = bagMaterialized.seeds
+        )
     }
 
     suspend fun delete(slot: Int): StorageResult<Unit> {
@@ -1315,25 +1405,39 @@ class StorageEngine @Inject constructor(
             }
         }
 
-        val fixedDisciples = fixStorageBagReferences(
-            equipmentStacks = equipmentStacks,
-            equipmentInstances = equipmentInstances,
-            manualStacks = manualStacks,
-            manualInstances = manualInstances,
-            disciples = disciples
+        // D-03 储物袋独立存储：老存档引用式袋条目（payload==null）物化为持有数据，
+        // 并从仓库扣减对应数量（防复制）；悬空条目直接删除。物化幂等。
+        val materialized = StorageBagMaterializer.materializeDiscipleBagItems(
+            BagMaterializeInput(
+                disciples = disciples,
+                equipmentStacks = equipmentStacks,
+                equipmentInstances = equipmentInstances,
+                manualStacks = manualStacks,
+                manualInstances = manualInstances,
+                pills = pills,
+                materials = materials,
+                herbs = herbs,
+                seeds = seeds
+            )
         )
+        if (materialized.materializedCount > 0) {
+            Log.i(TAG, "储物袋物化迁移 ${materialized.materializedCount} 条（D-03 独立存储）")
+        }
+        if (materialized.droppedCount > 0) {
+            Log.w(TAG, "储物袋悬空条目清理 ${materialized.droppedCount} 条（引用不存在，防复制删除）")
+        }
 
         SaveData(
             gameData = gameData,
-            disciples = fixedDisciples,
-            equipmentStacks = equipmentStacks,
-            equipmentInstances = equipmentInstances,
-            manualStacks = manualStacks,
-            manualInstances = manualInstances,
-            pills = pills,
-            materials = materials,
-            herbs = herbs,
-            seeds = seeds,
+            disciples = materialized.disciples,
+            equipmentStacks = materialized.equipmentStacks,
+            equipmentInstances = materialized.equipmentInstances,
+            manualStacks = materialized.manualStacks,
+            manualInstances = materialized.manualInstances,
+            pills = materialized.pills,
+            materials = materialized.materials,
+            herbs = materialized.herbs,
+            seeds = materialized.seeds,
             storageBags = storageBags,
             teams = teams,
             battleLogs = battleLogs,

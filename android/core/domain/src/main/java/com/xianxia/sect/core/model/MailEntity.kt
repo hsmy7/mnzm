@@ -7,6 +7,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import kotlinx.serialization.Serializable
 
+
 @Keep
 @Serializable
 data class MailAttachment(
@@ -26,6 +27,7 @@ data class MailAttachment(
         Index(value = ["slotId", "expireTime"])
     ]
 )
+@Serializable
 data class MailEntity(
     @PrimaryKey
     val id: String = java.util.UUID.randomUUID().toString(),

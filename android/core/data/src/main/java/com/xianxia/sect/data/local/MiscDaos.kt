@@ -1,8 +1,11 @@
 package com.xianxia.sect.data.local
 
 import androidx.room.*
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.ExplorationTeam
+import com.xianxia.sect.core.model.GameHeavyData
 import kotlinx.coroutines.flow.Flow
+
+
 
 @Dao
 interface ExplorationTeamDao {

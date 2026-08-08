@@ -1,7 +1,12 @@
 package com.xianxia.sect.core.engine.service
 
 import kotlin.math.roundToInt
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.ElderSlotType
+import com.xianxia.sect.core.model.RecruitIntegrity
+import com.xianxia.sect.core.model.SocialData
+import com.xianxia.sect.core.model.charm
+import com.xianxia.sect.core.model.recruitedMonth
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.materializeCaptiveGear
@@ -19,6 +24,8 @@ import com.xianxia.sect.core.util.asKotlinRandom
 import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
 import javax.inject.Singleton
+
+
 
 /**
  * 弟子招募服务 — 负责招募列表刷新、自动招募、招募数量计算。

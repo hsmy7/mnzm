@@ -5,7 +5,15 @@ import com.xianxia.sect.core.CombatantSide
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.HealType
 import com.xianxia.sect.core.SkillType
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.BloodRefinementPctTotal
+import com.xianxia.sect.core.model.CombatSkill
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualProficiencyData
+import com.xianxia.sect.core.model.currentHp
+import com.xianxia.sect.core.model.currentMp
+import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.util.BattleCalculator
@@ -16,6 +24,8 @@ import com.xianxia.sect.core.util.RngPartition
 
 import javax.inject.Inject
 import javax.inject.Singleton
+
+
 
 @Singleton
 class BattleSystem @Inject constructor(

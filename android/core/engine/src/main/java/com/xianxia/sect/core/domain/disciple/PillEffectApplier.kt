@@ -1,9 +1,39 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.ItemEffect
+import com.xianxia.sect.core.model.PillEffects
+import com.xianxia.sect.core.model.StorageBagItem
+import com.xianxia.sect.core.model.artifactRefining
+import com.xianxia.sect.core.model.charm
+import com.xianxia.sect.core.model.comprehension
+import com.xianxia.sect.core.model.currentHp
+import com.xianxia.sect.core.model.currentMp
+import com.xianxia.sect.core.model.intelligence
+import com.xianxia.sect.core.model.loyalty
+import com.xianxia.sect.core.model.mining
+import com.xianxia.sect.core.model.morality
+import com.xianxia.sect.core.model.pillCritEffectBonus
+import com.xianxia.sect.core.model.pillCritRateBonus
+import com.xianxia.sect.core.model.pillCultivationSpeedBonus
+import com.xianxia.sect.core.model.pillEffectDuration
+import com.xianxia.sect.core.model.pillHpBonus
+import com.xianxia.sect.core.model.pillMagicAttackBonus
+import com.xianxia.sect.core.model.pillMagicDefenseBonus
+import com.xianxia.sect.core.model.pillMpBonus
+import com.xianxia.sect.core.model.pillNurtureSpeedBonus
+import com.xianxia.sect.core.model.pillPhysicalAttackBonus
+import com.xianxia.sect.core.model.pillPhysicalDefenseBonus
+import com.xianxia.sect.core.model.pillRefining
+import com.xianxia.sect.core.model.pillSkillExpSpeedBonus
+import com.xianxia.sect.core.model.pillSpeedBonus
+import com.xianxia.sect.core.model.spiritPlanting
+import com.xianxia.sect.core.model.teaching
 import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
 import javax.inject.Singleton
+
+
 
 /**
  * 统一的丹药效果应用层。

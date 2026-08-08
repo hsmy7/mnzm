@@ -15,7 +15,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.morality
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.components.UnifiedGameDialog
@@ -23,6 +26,8 @@ import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.dialogs.shared.ScrollableInfoDialog
+
+
 
 @Composable
 fun ReflectionCliffDialog(

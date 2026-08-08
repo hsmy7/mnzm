@@ -5,7 +5,6 @@ import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.HighFrequencyData
 import com.xianxia.sect.core.engine.system.InventorySystem
-import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
@@ -33,6 +32,7 @@ import org.mockito.Mockito.mock
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
+
 
 /**
  * 藏经阁换人路径测试：`assignDiscipleToLibrarySlot` 顶替旧 occupant 后，
@@ -148,9 +148,7 @@ class DiscipleLibrarySlotSwapTest {
             ioDispatcher = IoDispatcher()
         )
         val equipmentService = DiscipleEquipmentService(
-            stateStore = mockStore,
-            inventoryConfig = mock(InventoryConfig::class.java),
-            inventorySystem = mock(InventorySystem::class.java)
+            stateStore = mockStore
         )
         val masterService = DiscipleMasterApprenticeService(
             stateStore = mockStore
@@ -176,7 +174,8 @@ class DiscipleLibrarySlotSwapTest {
             discipleLifecycleManager = lifecycleManager,
             discipleMasterApprenticeService = masterService,
             discipleSlotManager = slotManager,
-            discipleStatusService = statusService
+            discipleStatusService = statusService,
+            inventorySystem = mock(InventorySystem::class.java)
         )
     }
 

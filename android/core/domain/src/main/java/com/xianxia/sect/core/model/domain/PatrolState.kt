@@ -1,6 +1,10 @@
 package com.xianxia.sect.core.model.domain
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.PatrolConfig
+import com.xianxia.sect.core.model.PatrolSlot
+
+
 
 /**
  * 巡视领域状态 — 从 GameData 中提取的巡视相关字段聚合。

@@ -1,8 +1,17 @@
-﻿package com.xianxia.sect.ui.game
+package com.xianxia.sect.ui.game
 
-import com.xianxia.sect.core.engine.*
+import com.xianxia.sect.core.engine.BloodRefinementStartResult
+import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.engine.cancelBloodRefinement
+import com.xianxia.sect.core.engine.confirmAssignDisciple
+import com.xianxia.sect.core.engine.releaseDiscipleAssignment
+import com.xianxia.sect.core.engine.startBloodRefinementAtomic
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.BloodRefinementProgress
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.SlotCategory
+import com.xianxia.sect.core.model.SlotRef
+import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.util.GameRngManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -11,6 +20,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import javax.inject.Inject
+
+
 
 data class BloodRefiningUiState(
     val selectedMaterial: BeastMaterialDatabase.BeastMaterial? = null,

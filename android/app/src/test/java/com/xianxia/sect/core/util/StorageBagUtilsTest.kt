@@ -131,11 +131,14 @@ class StorageBagUtilsTest {
     }
 
     @Test
-    fun increaseItemQuantity_differentItemType_doesNotStack() {
+    fun increaseItemQuantity_differentItemType_sameIdMergesByItemId() {
+        // D-03：合并键统一 itemId（与 decreaseItemQuantity 对称）——itemId 是堆叠/实例 id，
+        // 袋内唯一，同 id 不同 type 不可达；此用例守卫"单键合并"语义
         val items = listOf(createItem(itemId = "i1", itemType = "pill", quantity = 3))
         val newItem = createItem(itemId = "i1", itemType = "herb", quantity = 2)
         val result = StorageBagUtils.increaseItemQuantity(items, newItem)
-        assertEquals(2, result.size)
+        assertEquals(1, result.size)
+        assertEquals(5, result[0].quantity)
     }
 
     // ---- decreaseMultipleItems ----

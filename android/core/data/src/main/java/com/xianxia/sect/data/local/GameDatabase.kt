@@ -1,6 +1,5 @@
 package com.xianxia.sect.data.local
 
-
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
@@ -10,7 +9,34 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.BattleLog
+import com.xianxia.sect.core.model.BuildingSlot
+import com.xianxia.sect.core.model.DiplomacyState
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAttributes
+import com.xianxia.sect.core.model.DiscipleCombatStats
+import com.xianxia.sect.core.model.DiscipleCompact
+import com.xianxia.sect.core.model.DiscipleCore
+import com.xianxia.sect.core.model.DiscipleEquipment
+import com.xianxia.sect.core.model.DiscipleExtended
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.ExplorationTeam
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GameHeavyData
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.MailEntity
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.PatrolStateEntity
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.ProductionState
+import com.xianxia.sect.core.model.Recipe
+import com.xianxia.sect.core.model.SectPolicyState
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.StorageBag
+import com.xianxia.sect.core.model.WorldMapStateEntity
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.data.incremental.ChangeLogEntity
 import com.xianxia.sect.data.incremental.ChangeLogDao
@@ -23,6 +49,8 @@ import java.io.FileOutputStream
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
+
+
 
 /** 文件级日志 TAG（迁移前备份恢复顶层辅助函数共用，2026-08-04 拆分） */
 private const val TAG = "GameDatabase"
@@ -45,7 +73,7 @@ object GameDatabaseConfig {
      * 硬编码 38 与 v39 脱节，导致 v38 用户升级 v39 不触发迁移前备份）。
      * 升级数据库版本时必须同步递增此常量并注册 MIGRATION_(N-1)_N。
      */
-    const val DATABASE_VERSION = 42
+    const val DATABASE_VERSION = 43
 
     /**
      * 判定是否应从迁移前备份恢复（纯逻辑，无 I/O——独立测试覆盖）。
@@ -125,7 +153,9 @@ object GameDatabaseConfig {
         PatrolStateEntity::class,
         WorldMapStateEntity::class,
         SectPolicyState::class,
-        DiscipleCompact::class
+        DiscipleCompact::class,
+        OverflowMailDraftEntity::class,
+        DirectMailDraftEntity::class
     ],
     // v40: MIGRATION_39_40 game_data 新增战斗队伍持久化三列
     //（battle_teams/used_team_numbers/battle_teams_initialized）
@@ -133,6 +163,8 @@ object GameDatabaseConfig {
     //（AI 宗门弟子三年一度招募差值判据）
     // v42: MIGRATION_41_42 game_data 新增玉符（氪金货币）四列
     //（jade_symbols/jade_symbols_today/jade_day_anchor_ms/jade_accum_ms）
+    // v43: MIGRATION_42_43 新增溢出/直发邮件草稿持久化两表
+    //（overflow_mail_drafts/direct_mail_drafts，D-01 事务化根治）
     version = GameDatabaseConfig.DATABASE_VERSION
 )
 
@@ -169,6 +201,8 @@ abstract class GameDatabase : RoomDatabase() {
     abstract fun gameHeavyDataDao(): GameHeavyDataDao
 
     abstract fun mailDao(): MailDao
+
+    abstract fun mailDraftDao(): MailDraftDao
 
     abstract fun diplomacyStateDao(): DiplomacyStateDao
     abstract fun productionStateDao(): ProductionStateDao
@@ -416,7 +450,7 @@ abstract class GameDatabase : RoomDatabase() {
                         Thread(r, "GameDB-Txn")
                     }
                 )
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42, MIGRATION_42_43)
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         Log.i(TAG, "Unified database created")

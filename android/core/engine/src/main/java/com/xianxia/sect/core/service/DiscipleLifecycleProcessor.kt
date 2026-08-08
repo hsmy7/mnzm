@@ -1,10 +1,27 @@
 package com.xianxia.sect.core.engine.service
 
-import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.state.*
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.GameEventCategory
+import com.xianxia.sect.core.model.GameEventType
+import com.xianxia.sect.core.model.accessoryId
+import com.xianxia.sect.core.model.armorId
+import com.xianxia.sect.core.model.bootsId
+import com.xianxia.sect.core.model.griefEndYear
+import com.xianxia.sect.core.model.loyalty
+import com.xianxia.sect.core.model.morality
+import com.xianxia.sect.core.model.parentId1
+import com.xianxia.sect.core.model.parentId2
+import com.xianxia.sect.core.model.partnerId
+import com.xianxia.sect.core.model.weaponId
+import com.xianxia.sect.core.state.DeathRecord
+import com.xianxia.sect.core.state.DiscipleTables
+import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.recordGameEvent
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.registry.*
-import com.xianxia.sect.core.engine.domain.disciple.*
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService
+import com.xianxia.sect.core.engine.domain.disciple.computeMaxAge
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
@@ -15,8 +32,15 @@ import com.xianxia.sect.core.event.DomainEvent
 import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.di.IoDispatcher
+import com.xianxia.sect.core.util.AppError
 import javax.inject.Inject
 import javax.inject.Singleton
+
+
+
+
+
+
 
 @Singleton
 @GameService("DiscipleLifecycleProcessor")
@@ -164,6 +188,14 @@ class DiscipleLifecycleProcessor @Inject constructor(
             bloodRefinements = gameData.bloodRefinements - agedDisciple.id
         )
 
+        // ── D-03：袋物品物化回仓库（玩家保留，溢出自动转邮件）──
+        val agedBagItems = agedDisciple.equipment.storageBagItems
+        if (agedBagItems.isNotEmpty()) {
+            inventorySystem.withTrackingSource("disciple_death") {
+                inventorySystem.materializeBagItemsToWarehouse(agedBagItems)
+            }
+        }
+
         // ── 装备/功法清除 ──
         val deleteEquipIds = mutableSetOf<String>()
         agedDisciple.equipment.weaponId?.let { deleteEquipIds.add(it) }
@@ -225,22 +257,26 @@ class DiscipleLifecycleProcessor @Inject constructor(
         val lifeEventsToWrite = computeBereavementLifeEvents(griefUpdated, originalList, disciple, tables)
 
         // 收集要删除的装备/功法 ID（不论内外都是直接删除）
-        val deleteEquipIds = mutableSetOf<String>()
-        disciple.equipment.weaponId?.let { deleteEquipIds.add(it) }
-        disciple.equipment.armorId?.let { deleteEquipIds.add(it) }
-        disciple.equipment.bootsId?.let { deleteEquipIds.add(it) }
-        disciple.equipment.accessoryId?.let { deleteEquipIds.add(it) }
-        val deleteManualIds = disciple.manualIds.toSet()
+        val (deleteEquipIds, deleteManualIds) = collectDeleteIds(disciple)
 
-        // 单事务写入：弟子表 + 血炼清理 + 装备/功法清除
+        // D-03：死弟子的袋条目从 replaceAll 快照中剥离——replaceAll 全量重建组件表，
+        // 若快照携带旧袋条目，会把物化后的清袋覆盖回旧值（重复死亡处理 → 重复物化 → 物品复制）
+        val griefUpdatedWithoutBag = stripBagFromSnapshot(griefUpdated, disciple)
+
+        // 单事务写入：弟子表 + 血炼清理 + 装备/功法清除 + 袋物化回仓库
         stateStore.update {
-            discipleTables.replaceAll(griefUpdated)
             val idInt = disciple.id.toInt()
-            discipleTables.deathYears[idInt] = currentYear
-            lifeEventsToWrite.forEach { (grievingId, event) ->
-                val prevEvents = discipleTables.lifeEvents.getOrDefault(grievingId, emptyList())
-                discipleTables.lifeEvents[grievingId] = prevEvents + event
+            // D-03：袋物品物化回仓库（玩家保留，溢出自动转邮件）。
+            // 事务内重读组件表袋状态——幂等：重复死亡处理时袋已空 → 不重复物化（防复制）
+            val currentBag = discipleTables.storageBagItems.getOrNull(idInt) ?: emptyList()
+            if (currentBag.isNotEmpty()) {
+                inventorySystem.withTrackingSource("disciple_death") {
+                    inventorySystem.materializeBagItemsToWarehouse(currentBag)
+                }
             }
+            // 幂等清袋：无条件执行（袋空无害）；在 replaceAll 之前执行（replaceAll 用剥离
+            // 快照，不会把旧袋条目恢复，清袋持久）
+            discipleTables.writeDeathRecords(idInt, currentYear, griefUpdatedWithoutBag, lifeEventsToWrite)
             gameData = gameData.copy(
                 bloodRefinementBonusTotals = gameData.bloodRefinementBonusTotals - disciple.id,
                 bloodRefinements = gameData.bloodRefinements - disciple.id
@@ -268,6 +304,40 @@ class DiscipleLifecycleProcessor @Inject constructor(
     }
 
     // ── 以下为 handleDiscipleDeath 的拆分子函数 ────────────────────────────
+
+    /** D-17 收集死亡弟子的装备/功法实例 ID（handleDiscipleDeath 拆分） */
+    private fun collectDeleteIds(disciple: Disciple): Pair<Set<String>, Set<String>> {
+        val deleteEquipIds = mutableSetOf<String>()
+        disciple.equipment.weaponId?.let { deleteEquipIds.add(it) }
+        disciple.equipment.armorId?.let { deleteEquipIds.add(it) }
+        disciple.equipment.bootsId?.let { deleteEquipIds.add(it) }
+        disciple.equipment.accessoryId?.let { deleteEquipIds.add(it) }
+        return deleteEquipIds to disciple.manualIds.toSet()
+    }
+
+    /** D-17 死弟子的袋条目从快照剥离（防重复物化复制） */
+    private fun stripBagFromSnapshot(list: List<Disciple>, disciple: Disciple): List<Disciple> =
+        if (disciple.equipment.storageBagItems.isEmpty()) list
+        else list.map { d ->
+            if (d.id == disciple.id) d.copy(equipment = d.equipment.copy(storageBagItems = emptyList()))
+            else d
+        }
+
+    /** D-17 事务内写入弟子表死亡记录（handleDiscipleDeath 拆分）：清袋 + 全量重建 + 死亡年份 + 丧事事件 */
+    private fun DiscipleTables.writeDeathRecords(
+        idInt: Int,
+        currentYear: Int,
+        griefUpdatedWithoutBag: List<Disciple>,
+        lifeEventsToWrite: Map<Int, String>
+    ) {
+        storageBagItems[idInt] = emptyList()
+        replaceAll(griefUpdatedWithoutBag)
+        deathYears[idInt] = currentYear
+        lifeEventsToWrite.forEach { (grievingId, event) ->
+            val prevEvents = lifeEvents.getOrDefault(grievingId, emptyList())
+            lifeEvents[grievingId] = prevEvents + event
+        }
+    }
 
     private fun propagateGriefToRelatives(
         currentList: List<Disciple>, disciple: Disciple, year: Int
@@ -404,7 +474,11 @@ class DiscipleLifecycleProcessor @Inject constructor(
             // 统一委托 returnEquipmentToStack（走 StackableItemStore 合并），
             // 消除手写"找第一个堆叠 + 追加"导致同种装备分裂为多个堆叠的问题
             val result = inventorySystem.returnEquipmentToStack(eq)
-            if (result is DomainResult.Success || result is DomainResult.Partial) {
+            // Failure(Full)：handleOverflowResult 已把物品转邮件，实例删除防复制（对齐
+            // materializeBagItemsToWarehouse 语义）；其他失败保留实例（装备不丢失）
+            val completed = result is DomainResult.Success || result is DomainResult.Partial ||
+                (result is DomainResult.Failure && result.error is AppError.Domain.Inventory.Full)
+            if (completed) {
                 equipmentInstances = equipmentInstances.filter { it.id != equipmentId }
             } else {
                 // 对抗性审查修复：仓库满时保留装备实例（否则装备永久丢失）

@@ -7,6 +7,7 @@ import com.xianxia.sect.core.state.GameStateStore
 import javax.inject.Inject
 import javax.inject.Singleton
 
+
 @Singleton
 class DiplomacyFacadeImpl @Inject constructor(
     private val giftService: GiftService,
@@ -34,9 +35,6 @@ class DiplomacyFacadeImpl @Inject constructor(
         val playerAlliance = data.alliances.find { it.sectIds.contains("player") } ?: return emptyList()
         return playerAlliance.sectIds.filter { it != "player" }
     }
-
-    override fun generateSectTradeItems(year: Int): List<MerchantItem> =
-        diplomacyService.generateSectTradeItems(year)
 
     override suspend fun getOrRefreshSectTradeItems(sectId: String): List<MerchantItem> =
         diplomacyService.getOrRefreshSectTradeItems(sectId)

@@ -1,5 +1,17 @@
 ## [4.00.91] - 2026-08-07
 
+### 架构债务清理（2026-08-08 D-01~D-17 十项全量实施）
+
+- **D-03 储物袋独立存储重构（容量无上限）** — `StorageBagItem` 追加 `@ProtoNumber(13) payload: BagItemPayload?`（sealed：EquipmentPayload 实例 / StackedPayload 堆叠数据），旧 12 字段保留（老字节流可解码，字段只增不改），DATABASE_VERSION 42 不变无 Room Migration；删除 `BAG_CAPACITY`/`BagAddResult.Full`/袋满失败语义，所有写入路径（赏赐/购买/偷盗/赠礼/卸装/忘功法）永不因袋满失败；卸装/忘功法的实例直接铸造 EquipmentPayload 入袋不占仓库槽位；赠礼 payload 袋间转移不经仓库；`StorageBagMaterializer`（新）读档物化老引用式条目（6 类堆叠按 itemId 铸造 + 仓库扣减防复制，实例 remove 入袋，悬空条目删除，幂等），入口 `BagMaterializeInput` 单参数数据类；`BagItemReconstructor`（engine/system 新）死亡/逐出物化回仓库；删除 `excludeStackId`/`addEquipmentInstanceToBag`/`addManualInstanceToBag`/`StorageBagFixer`/C10 悬空清理/仓库过滤窄流
+- **D-01 溢出邮件事务化根治** — 两支柱：草稿入队即持久化（`overflow_mail_drafts`/`direct_mail_drafts` 新表，DATABASE_VERSION 42→43 + `GameDatabaseMigrationsV43.kt`，非挂起阻塞 DAO 供事务提交钩子）+ 事务世代号（`GameStateStoreImpl.update` 分配 `committedGeneration`，`TransactionObserver` 接口，提交钩子落盘/回滚钩子丢弃，嵌套事务归外层）；drain 按 (slotId, source) 分组构建邮件、每组 mails 写入+草稿删除单事务原子化、确定性 `UUID.nameUUIDFromBytes` 防重放重复；崩溃恢复在 `startGameLoop` 经 `OverflowMailHandler.drainPersistedDrafts()`（默认 NoOp）覆盖
+- **D-07 生命周期互斥** — `GameEngineCore` 新增 `LoopPhase`（RUNNING/RESTARTING/STOPPING/STOPPED）+ CAS 状态机：emergencyRestart 入口 RUNNING→RESTARTING 失败即返回，stopGameLoop 仅 RUNNING|RESTARTING→STOPPING 执行，shutdown CAS→STOPPED 幂等，恢复成功 RESTARTING→RUNNING；新增 `GameEngineCoreLifecycleInterleavingTest`
+- **D-15 AISectBattleProcessor 拆分** — 826 行/21 函数拆为三：新文件 `AISectOccupationResolver`（占领结算块 C）与 `PlayerDefenseProcessor`（玩家防守块 B），原类保留 @GameService + 编排函数，构造注入两解析器；行为零变化，三测试文件全量回归
+- **D-08+D-09 ThermalMonitor 接线 + 接缝** — `startGameLoop` 接线 `thermalMonitor.start(engineScope)`（stopGameLoop 对称 stop），补"新 scope 重建轮询 job"语义；`hintManager` `private` → `internal var`（internal 测试接缝，同 hintSession 先例）
+- **D-05+D-16 死代码删除** — `interactWithSect`（GameEngineDiplomacyOps L70）与 `generateSectTradeItems` 扩展 → 接口 → 实现 → 误导 KDoc 全链删除，baseline 同步摘除
+- **D-17 预存 detekt 违规修复** — DiscipleFacadeImpl 构造参数 baseline 签名更新、GameEngineSelfHealOps `healDuplicateSlotAssignments` 拆 2-3 私有函数 + 循环改 filter/map、ProductionProcessor 两个自动槽函数抽共用私有守卫（isMirrorStillAssigned/validateAutoSlotDisciple）、ProductionCoordinator catch 改具体异常类型
+- **D-06 通配符 import 显式化 + 白名单** — detekt.yml WildcardImport 增 21 条 `excludeImports` 白名单（Compose 生态/JUnit/Mockito/协程/序列化/标准库 + `com.xianxia.sect.proto.templates.*` KSP 生成包）；自有包 `com.xianxia.sect.*` 全量显式化（脚本 `scripts/expand-wildcard-imports.mjs`，207 文件约 1977 行）；6 个 detekt-baseline 摘除 WildcardImport 共 748 条（baseline 只缩不增）；114 条 UnusedImports 清理、`TooGenericExceptionCaught` 参数级 @Suppress 先例（`catch (@Suppress(...) e: Exception)`）、engine 模块不可见 `com.xianxia.sect.data.*` 修正（OverflowMailSender → `kotlinx.serialization.SerializationException`）、typealias/错包冲突清理（GiftResult/MigrationResult）
+- 全模块 compileReleaseKotlin + 串行全量测试（--max-workers=1）+ detekt 全部通过，Room schema 43.json 随构建导出提交
+
 ### 合规（2026-08-08 GAID 明示告知 + 移除无效"限制广告追踪"开关）
 
 - **GAID 收集明示（审核整改）** — 审核反馈"存在收集读取 GAID 的行为，未清晰明示告知用户同意"。经反编译验证：Dirichlet Ad SDK（TapADN v4.2.5.0）`com.tapsdk.tapad.oaid.impl.GmsImpl` 绑定 `com.google.android.gms.ads.identifier.service.START` 服务、TapTap SDK（tap-common 4.10.5）`com.taptap.sdk.common.gaid.provider.ReflectionGAIDProvider` 反射调用 `AdvertisingIdClient.getAdvertisingIdInfo()`，两 SDK 在用户同意后初始化时均可能读取 GAID（Google 广告标识符）。游戏内隐私政策（`PrivacyConsentScreen.kt` 摘要版特别提示卡片 + 完整版 1.3/2.1/2.3/七节）与网站版（`docs/index.html` 1.3 段 + SDK 表格 + 七节）全部补充 GAID 明示（收集主体/目的/方式/范围/同意前置/用户控制途径），更新日期改为 2026-08-08

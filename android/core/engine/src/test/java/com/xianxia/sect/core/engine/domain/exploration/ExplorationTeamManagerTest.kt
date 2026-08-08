@@ -1,8 +1,33 @@
 package com.xianxia.sect.core.engine.domain.exploration
 
 import com.xianxia.sect.core.exploration.ExplorationTeamManager
-import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.state.*
+import com.xianxia.sect.core.model.BattleLog
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.ExplorationStatus
+import com.xianxia.sect.core.model.ExplorationTeam
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.RewardCardItem
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.StorageBag
+import com.xianxia.sect.core.state.BattleResultUIData
+import com.xianxia.sect.core.state.BootPhase
+import com.xianxia.sect.core.state.DiscipleTables
+import com.xianxia.sect.core.state.EntityStore
+import com.xianxia.sect.core.state.GameNotification
+import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.PendingBeastAttack
+import com.xianxia.sect.core.state.PendingMarriageProposal
+import com.xianxia.sect.core.state.RunState
+import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
@@ -11,6 +36,8 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.Rule
 import org.mockito.Mockito.mock
+
+
 
 class ExplorationTeamManagerTest {
 
@@ -21,7 +48,8 @@ class ExplorationTeamManagerTest {
     @Before
     fun setUp() {
         stateStore = FakeStore()
-        manager = ExplorationTeamManager(stateStore, mock(), mock(DiscipleStatusService::class.java))
+        manager = ExplorationTeamManager(stateStore, mock(), mock(DiscipleStatusService::class.java),
+            mock(com.xianxia.sect.core.engine.system.InventorySystem::class.java))
     }
 
     @Test fun `recallDiscipleFromTeam false for empty teams`() = runTest {

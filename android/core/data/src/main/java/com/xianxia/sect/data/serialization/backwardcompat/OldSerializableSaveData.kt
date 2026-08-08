@@ -1,9 +1,11 @@
 package com.xianxia.sect.data.serialization.backwardcompat
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.GridBuildingData
 import kotlinx.serialization.*
 import kotlinx.serialization.protobuf.ProtoNumber
 import kotlinx.serialization.protobuf.ProtoPacked
+
+
 
 @Serializable
 data class SerializableSaveSlot(

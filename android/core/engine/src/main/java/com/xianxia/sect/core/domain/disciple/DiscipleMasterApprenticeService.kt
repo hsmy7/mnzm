@@ -1,11 +1,13 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainResult
 import javax.inject.Inject
 import javax.inject.Singleton
+
+
 
 /**
  * 弟子师徒关系管理服务。

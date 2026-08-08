@@ -2,9 +2,11 @@ package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.battle.AISectGarrisonManager
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.YearlyReport
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.DomainLog
+
+
 
 /**
  * CultivationEventProcessor 月度/年度事件域 Ops 扩展（P4D）。

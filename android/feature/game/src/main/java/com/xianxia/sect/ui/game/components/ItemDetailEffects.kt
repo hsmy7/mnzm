@@ -2,13 +2,20 @@ package com.xianxia.sect.ui.game.components
 
 import com.xianxia.sect.ui.components.getRarityName
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.PillCategory
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.util.GameUtils
 import java.util.Locale
+
+
 
 // ===== 共享工具函数 =====
 

@@ -3,9 +3,61 @@ package com.xianxia.sect.core.engine
 import com.xianxia.sect.core.util.TimeProgressUtil
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.map
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.ActiveMission
+import com.xianxia.sect.core.model.Alliance
+import com.xianxia.sect.core.model.BattleLog
+import com.xianxia.sect.core.model.BattleLogAction
+import com.xianxia.sect.core.model.BattleLogEnemy
+import com.xianxia.sect.core.model.BattleLogMember
+import com.xianxia.sect.core.model.BattleLogRound
+import com.xianxia.sect.core.model.BattleResult
+import com.xianxia.sect.core.model.BattleType
+import com.xianxia.sect.core.model.BloodRefinementPctTotal
+import com.xianxia.sect.core.model.BloodRefinementProgress
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentSlot
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.ExplorationTeam
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GameEventCategory
+import com.xianxia.sect.core.model.GameEventType
+import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.ManualType
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.Mission
+import com.xianxia.sect.core.model.PatrolConfig
+import com.xianxia.sect.core.model.PatrolSlot
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.RecruitIntegrity
+import com.xianxia.sect.core.model.RedeemResult
+import com.xianxia.sect.core.model.SaveVersion
+import com.xianxia.sect.core.model.SectDetail
+import com.xianxia.sect.core.model.SectRelation
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.SpiritMineSlot
+import com.xianxia.sect.core.model.SpiritStoneGrade
+import com.xianxia.sect.core.model.StorageBag
+import com.xianxia.sect.core.model.accessoryId
+import com.xianxia.sect.core.model.armorId
+import com.xianxia.sect.core.model.bootsId
+import com.xianxia.sect.core.model.currentHp
+import com.xianxia.sect.core.model.currentMp
+import com.xianxia.sect.core.model.recruitedMonth
+import com.xianxia.sect.core.model.spiritStones
+import com.xianxia.sect.core.model.usedExtendLifePillIds
+import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
-import com.xianxia.sect.core.state.*
+import com.xianxia.sect.core.state.DiscipleTables
+import com.xianxia.sect.core.state.GameNotification
+import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.materializeCaptiveGear
+import com.xianxia.sect.core.state.recordGameEvent
+import com.xianxia.sect.core.state.recordPlayerBattle
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
@@ -19,6 +71,11 @@ import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.GameRandom
 import java.util.UUID
+import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_MANUAL_INSTANCE
+import com.xianxia.sect.core.model.StorageBagItem
+import com.xianxia.sect.core.util.StorageBagUtils
+
+
 
 /** AI 宗门每个宗门的标准弟子数 */
 private const val MAX_AI_SECT_DISCIPLES = 50
@@ -700,14 +757,27 @@ suspend fun GameEngine.forgetManual(discipleId: String, instanceId: String) {
             val id = discipleId.toInt()
             if (id !in discipleTables.ids) return@update
             val currentDisciple = discipleTables.assemble(id)
-            // P-20：卸功法实例→堆叠统一走 InventorySystem（真实容量 + 溢出转邮件）
-            inventorySystem.withTrackingSource("disciple_unequip") {
-                inventorySystem.addManualInstanceToBag(instance = instance)
-            }
+            // D-03：遗忘的功法实例直接铸造入袋（容量无上限，永不失败），
+            // 不再转仓库堆叠（不占仓库槽位、无溢出邮件路径）
             val updatedManualIds = currentDisciple.manualIds.filter { mid -> mid != instanceId }
-            val updatedDisciple = currentDisciple.copy(manualIds = updatedManualIds)
+            val updatedDisciple = currentDisciple.copy(
+                manualIds = updatedManualIds,
+                equipment = currentDisciple.equipment.copy(
+                    storageBagItems = StorageBagUtils.increaseItemQuantity(
+                        currentDisciple.equipment.storageBagItems,
+                        StorageBagItem(
+                            itemId = instanceId, itemType = ITEM_TYPE_MANUAL_INSTANCE,
+                            name = instance.name, rarity = instance.rarity, quantity = 1,
+                            obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
+                            manualInstance = instance
+                        )
+                    )
+                )
+            )
             discipleTables.remove(id)
             discipleTables.insert(updatedDisciple)
+            // 实例入袋后从实例表删除，防止双持有
+            manualInstances.remove(instanceId)
             val updatedProficiencies = gameData.manualProficiencies.toMutableMap()
             updatedProficiencies[discipleId]?.let { profList ->
                 val filtered = profList.filter { it.manualId != instanceId }
@@ -732,10 +802,8 @@ suspend fun GameEngine.replaceManual(discipleId: String, oldInstanceId: String, 
             if (blocked) return@update
             val hasSameName = disciple.manualIds.filter { it != oldInstanceId }.any { mid -> manualInstances.get(mid)?.name == newStack.name }
             if (hasSameName) return@update
-            // P-20：替换功法时旧实例→堆叠统一走 InventorySystem（真实容量 + 溢出转邮件）
-            inventorySystem.withTrackingSource("disciple_unequip") {
-                inventorySystem.addManualInstanceToBag(instance = oldInstance)
-            }
+            // D-03：替换功法时旧实例直接铸造入袋（容量无上限，永不失败），
+            // 不再转仓库堆叠（不占仓库槽位、无溢出邮件路径）
             val currentNewStack = manualStacks.get(newStackId) ?: return@update
             val newQty = currentNewStack.quantity - 1
             if (newQty <= 0) manualStacks.remove(newStackId) else manualStacks.update(newStackId) { it.copy(quantity = newQty) }
@@ -747,9 +815,24 @@ suspend fun GameEngine.replaceManual(discipleId: String, oldInstanceId: String, 
                 if (filtered.isEmpty()) updatedProficiencies.remove(discipleId) else updatedProficiencies[discipleId] = filtered
             }
             val updatedManualIds = (disciple.manualIds.filter { mid -> mid != oldInstanceId }) + newInstance.id
-            val updatedDisciple = disciple.copy(manualIds = updatedManualIds)
+            val updatedDisciple = disciple.copy(
+                manualIds = updatedManualIds,
+                equipment = disciple.equipment.copy(
+                    storageBagItems = StorageBagUtils.increaseItemQuantity(
+                        disciple.equipment.storageBagItems,
+                        StorageBagItem(
+                            itemId = oldInstanceId, itemType = ITEM_TYPE_MANUAL_INSTANCE,
+                            name = oldInstance.name, rarity = oldInstance.rarity, quantity = 1,
+                            obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
+                            manualInstance = oldInstance
+                        )
+                    )
+                )
+            )
             discipleTables.remove(id)
             discipleTables.insert(updatedDisciple)
+            // 旧实例入袋后从实例表删除，防止双持有（新实例已 add）
+            manualInstances = manualInstances.filter { it.id != oldInstanceId }
 
             // 记录功法替换日志
             val replaceAge = discipleTables.ages[id]

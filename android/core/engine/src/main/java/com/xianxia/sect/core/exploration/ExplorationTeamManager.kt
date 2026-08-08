@@ -11,6 +11,7 @@ import com.xianxia.sect.core.util.DomainLog
 import javax.inject.Inject
 import javax.inject.Singleton
 
+
 /**
  * 探索队伍管理器 — 从 [ExplorationService] 提取的队伍管理操作。
  *
@@ -31,7 +32,9 @@ import javax.inject.Singleton
 class ExplorationTeamManager @Inject constructor(
     private val stateStore: GameStateStore,
     private val eventBus: EventBusPort,
-    private val discipleStatusService: DiscipleStatusService
+    private val discipleStatusService: DiscipleStatusService,
+    // D-03：死亡统一入口（袋物品物化回仓库 + markDead）
+    private val inventorySystem: com.xianxia.sect.core.engine.system.InventorySystem
 ) {
     companion object {
         private const val TAG = "ExplorationTeamManager"
@@ -125,7 +128,8 @@ class ExplorationTeamManager @Inject constructor(
                     } else memberId
                     deadEvents.add(DeathEvent(memberId, name, "探索阵亡"))
                     if (idInt != null) {
-                        discipleTables.markDead(idInt, team.startYear, "exploration")
+                        // D-03：死亡统一入口——袋物品物化回仓库（玩家保留）+ 清袋 + markDead
+                        inventorySystem.materializeDiscipleBagAndMarkDead(this, idInt, team.startYear, "exploration")
                     }
                 }
             }

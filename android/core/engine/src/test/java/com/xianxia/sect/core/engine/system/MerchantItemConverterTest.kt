@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.system
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.ManualType
+import com.xianxia.sect.core.model.MerchantItem
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
@@ -9,6 +10,8 @@ import com.xianxia.sect.core.registry.PillRecipeDatabase
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+
+
 
 class MerchantItemConverterTest {
 

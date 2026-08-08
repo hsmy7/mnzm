@@ -1,12 +1,33 @@
 package com.xianxia.sect.core.state
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.CombatAttributes
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.SkillStats
+import com.xianxia.sect.core.model.SocialData
+import com.xianxia.sect.core.model.UsageTracking
+import com.xianxia.sect.core.model.baseHp
+import com.xianxia.sect.core.model.baseMagicAttack
+import com.xianxia.sect.core.model.baseMagicDefense
+import com.xianxia.sect.core.model.baseMp
+import com.xianxia.sect.core.model.basePhysicalAttack
+import com.xianxia.sect.core.model.basePhysicalDefense
+import com.xianxia.sect.core.model.baseSpeed
+import com.xianxia.sect.core.model.charm
+import com.xianxia.sect.core.model.currentHp
+import com.xianxia.sect.core.model.currentMp
+import com.xianxia.sect.core.model.intelligence
+import com.xianxia.sect.core.model.loyalty
+import com.xianxia.sect.core.model.recruitedMonth
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.util.UUID
+
+
 
 /**
  * 针对招募流程中核心数据操作的专项测试。

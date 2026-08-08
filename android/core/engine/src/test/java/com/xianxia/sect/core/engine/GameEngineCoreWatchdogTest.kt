@@ -11,6 +11,7 @@ import com.xianxia.sect.core.engine.system.TimeSource
 import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
 import com.xianxia.sect.core.state.BootPhase
 import com.xianxia.sect.core.state.GameStateStore
@@ -33,7 +34,9 @@ import org.mockito.Mockito.spy
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
+import org.mockito.kotlin.any
 import kotlin.coroutines.EmptyCoroutineContext
+
 
 /**
  * 看门狗指数退避算法 + 自愈判据动作单元测试。
@@ -55,6 +58,8 @@ class GameEngineCoreWatchdogTest {
     private lateinit var gameClock: GameTimeClock
     private lateinit var pausedFlow: MutableStateFlow<Boolean>
     private lateinit var fakeTime: FakeTimeSource
+    /** D-08 接线验证：start/stop 时机（startGameLoop → start，stopGameLoop → stop） */
+    private lateinit var thermalMonitor: ThermalMonitor
 
     @Before
     fun setUp() {
@@ -63,6 +68,11 @@ class GameEngineCoreWatchdogTest {
         fakeTime = FakeTimeSource(now = 1_000_000L)
         gameClock = GameTimeClock(fakeTime)
         core = spy(createCore(createStateStore(), gameClock))
+        // 2026-08-08：performWatchdogRecovery 对被拒的恢复回滚 60s 限频预算。
+        // 本测试 core 未 start（phase=STOPPED），真实 emergency 会因 CAS 被拒
+        // 返回 false 并回滚预算 → 限频测试失效。stub 为"恢复成功"语义
+        //（performWatchdogRecovery 的调用次数验证不受 stub 影响）
+        org.mockito.Mockito.doReturn(true).`when`(core).emergencyRestartGameLoop()
     }
 
     @After
@@ -139,6 +149,31 @@ class GameEngineCoreWatchdogTest {
         verify(core, never()).emergencyRestartGameLoop()
     }
 
+    // ── D-08 热监控接线 ──
+
+    @Test
+    fun `startGameLoop starts thermal monitor and stopGameLoop stops it（D-08 接线）`() {
+        core.startGameLoop()
+        // mockito-kotlin any()：标准 Mockito matcher 返回 null，对 Kotlin 非空
+        // 参数触发 NullResultGuardian NPE（Mockito 5 已知坑，项目先例见
+        // AISectBattleProcessorTest）；mockito-kotlin any() 返回非 null 哨兵
+        verify(thermalMonitor).start(any())
+
+        core.stopGameLoop()
+        verify(thermalMonitor).stop()
+    }
+
+    @Test
+    fun `startGameLoop twice rebuilds thermal monitor job on new scope（D-08 重建语义）`() {
+        // emergencyRestart 场景等价：start 无条件重建轮询 job——二次 start
+        // 不因旧 job active 而跳过（否则旧 scope 轮询残留 + 新 scope 无监控）
+        core.startGameLoop()
+        core.stopGameLoop()
+        core.startGameLoop()
+        verify(thermalMonitor, times(2)).start(any())
+        core.stopGameLoop()
+    }
+
     // ── 工具 ──
 
     private fun createStateStore(): GameStateStore {
@@ -159,6 +194,7 @@ class GameEngineCoreWatchdogTest {
         `when`(scope.coroutineContext).thenReturn(EmptyCoroutineContext)
         val scopeProvider = mock(CoroutineScopeProvider::class.java)
         `when`(scopeProvider.scope).thenReturn(scope)
+        thermalMonitor = mock(ThermalMonitor::class.java)
         return GameEngineCore(
             stateStore = stateStore,
             eventBus = mock(EventBusPort::class.java),
@@ -170,7 +206,7 @@ class GameEngineCoreWatchdogTest {
             aiSectBeastAttackProcessor = mock(AISectBeastAttackProcessor::class.java),
             gameClock = gameClock,
             thermalController = mock(ThermalController::class.java),
-            thermalMonitor = mock(com.xianxia.sect.core.perf.ThermalMonitor::class.java),
+            thermalMonitor = thermalMonitor,
             spiritStoneWallet = mock(SpiritStoneWallet::class.java),
             jadeSymbolService = JadeSymbolService(
                 timeSource = TimeSource { 0L },

@@ -20,7 +20,18 @@ import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualProficiencyData
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.MerchantItem
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.StorageBag
+import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.components.GameButton
@@ -30,6 +41,8 @@ import com.xianxia.sect.ui.game.tabs.SpiritStoneInfo
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.theme.getRarityColor
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
+
 
 @Composable
 fun ItemDetailDialog(

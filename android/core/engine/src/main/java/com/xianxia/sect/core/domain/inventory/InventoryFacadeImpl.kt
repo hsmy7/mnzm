@@ -1,4 +1,5 @@
 package com.xianxia.sect.core.engine.domain.inventory
+
 import com.xianxia.sect.core.util.ItemNames
 
 import com.xianxia.sect.core.util.DomainLog
@@ -11,8 +12,27 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.system.InventorySystem
+import com.xianxia.sect.core.engine.system.BagItemReconstructor
+import com.xianxia.sect.core.engine.system.ReconstructedBagStack
 import com.xianxia.sect.core.engine.system.MerchantItemConverter
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.BattleRewardItem
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.ForgeRecipe
+import com.xianxia.sect.core.model.HasId
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.MerchantItem
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.RewardCardItem
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.SpiritStoneGrade
+import com.xianxia.sect.core.model.StorageBag
+import com.xianxia.sect.core.model.StorageBagItem
+import com.xianxia.sect.core.model.spiritStones
+import com.xianxia.sect.core.model.storageBagItems
 import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.HerbDatabase
@@ -22,10 +42,6 @@ import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 
-import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_EQUIPMENT_INSTANCE
-import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_EQUIPMENT_STACK
-import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_MANUAL_INSTANCE
-import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_MANUAL_STACK
 import com.xianxia.sect.core.engine.system.computeSlotCount
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
@@ -34,6 +50,9 @@ import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.roundToInt
+import com.xianxia.sect.core.util.StorageBagUtils
+
+
 
 @Singleton
 class InventoryFacadeImpl @Inject constructor(
@@ -92,151 +111,82 @@ class InventoryFacadeImpl @Inject constructor(
             if (!discipleTables.ids.contains(id)) return@update
             val disciple = discipleTables.assemble(id)
 
-            // 统一委托 addXxx（重入事务同一缓冲）；凭据类路径：抑制溢出转邮件——
-            // 仅全部入仓成功（Success）才从弟子袋移除物品；
+            // [严重-幂等] 以袋内当前条目为准：调用方传入的 item 可能是 UI 旧快照
+            //（双击/重复调用）——袋内已无匹配条目即已没收，直接返回防物品复制
+            val currentItem = disciple.equipment.storageBagItems.firstOrNull { it.itemId == item.itemId }
+                ?: return@update
+
+            // 凭据类路径：抑制溢出转邮件——仅全部入仓成功（Success）才从弟子袋移除物品；
             // Partial/Failure 保留袋内物品，玩家清理后重试补齐（已入仓部分合并不重复），
             // 避免"邮件已发 + 袋内保留"造成物品复制（对抗性审查 C1 修复）
             inventorySystem.withOverflowMailSuppressed {
-            inventorySystem.withTrackingSource("confiscate") {
-            when (item.itemType.lowercase()) {
-                "equipment", ITEM_TYPE_EQUIPMENT_STACK, ITEM_TYPE_EQUIPMENT_INSTANCE -> {
-                    val template = EquipmentDatabase.getTemplateByName(item.name)
-                    if (template != null) {
-                        val stack = EquipmentStack(
-                            name = template.name, slot = template.slot, rarity = template.rarity,
-                            physicalAttack = template.physicalAttack, magicAttack = template.magicAttack,
-                            physicalDefense = template.physicalDefense, magicDefense = template.magicDefense,
-                            speed = template.speed, hp = template.hp, mp = template.mp,
-                            description = template.description,
-                            minRealm = GameConfig.Realm.getMinRealmForRarity(template.rarity)
-                        )
-                        val result = inventorySystem.addEquipmentStack(stack.copy(quantity = 1))
-                        if (result is DomainResult.Success) {
-                            // 仓库已入仓（含溢出转邮件），从弟子储物袋移除物品
-                            val updatedItems = com.xianxia.sect.core.util.StorageBagUtils.decreaseItemQuantity(
-                                disciple.equipment.storageBagItems, item.itemId, 1
-                            )
+                inventorySystem.withTrackingSource("confiscate") {
+                    val eqInstance = currentItem.equipmentInstance
+                    val mnInstance = currentItem.manualInstance
+                    // 堆叠条目篡改防御：数量 <=0 拒绝物化（防 0 数量白得物品）
+                    if (eqInstance == null && mnInstance == null && currentItem.quantity <= 0) {
+                        DomainLog.w(TAG, "没收物品失败：数量非法（quantity=${currentItem.quantity}）${currentItem.name}")
+                        return@withTrackingSource
+                    }
+                    // null = 模板不存在（堆叠类条目无法重建，丢弃处理）
+                    val result: DomainResult<*>? = when {
+                        // 实例条目（卸装/忘功法入袋）：持完整实例，保真物化回仓库堆叠——
+                        // 不走模板重建（equipment_instance/manual_instance 不在重建分支，
+                        // 且模板重建丢实例数据）；仓库满（Failure）保留袋内实例待重试
+                        eqInstance != null -> inventorySystem.returnEquipmentToStack(eqInstance)
+                        mnInstance != null -> inventorySystem.returnManualToStack(mnInstance)
+                        // 堆叠类条目：经 BagItemReconstructor 按数据库模板重建
+                        // 完整堆叠（minRealm 用条目 stackedData 保真）
+                        else -> {
+                            val reconstructed = BagItemReconstructor.reconstruct(currentItem)
+                            if (reconstructed == null) {
+                                null
+                            } else {
+                                when (reconstructed) {
+                                    is ReconstructedBagStack.Equipment ->
+                                        inventorySystem.addEquipmentStack(reconstructed.stack.copy(quantity = 1))
+                                    is ReconstructedBagStack.Manual ->
+                                        inventorySystem.addManualStack(reconstructed.stack.copy(quantity = 1))
+                                    is ReconstructedBagStack.Pill ->
+                                        inventorySystem.addPill(reconstructed.stack.copy(quantity = 1))
+                                    is ReconstructedBagStack.Herb ->
+                                        inventorySystem.addHerb(reconstructed.stack.copy(quantity = 1))
+                                    is ReconstructedBagStack.Seed ->
+                                        inventorySystem.addSeed(reconstructed.stack.copy(quantity = 1))
+                                    is ReconstructedBagStack.Material ->
+                                        inventorySystem.addMaterial(reconstructed.stack.copy(quantity = 1))
+                                }
+                            }
+                        }
+                    }
+                    when (result) {
+                        // 模板不存在：仅引用无法重建，物品丢弃（袋条目保留，玩家可再次尝试）
+                        null -> DomainLog.w(TAG, "没收物品失败：找不到 ${currentItem.name} 的模板")
+                        // 仓库已入仓，从弟子储物袋移除（实例整条删除，堆叠减 1）
+                        is DomainResult.Success -> {
+                            val updatedItems = if (eqInstance != null || mnInstance != null) {
+                                // 实例条目：整条移除（实例不可分，防 quantity>1 实例重复没收复制）
+                                disciple.equipment.storageBagItems.filterNot { it.itemId == currentItem.itemId }
+                            } else {
+                                // 堆叠条目：每次没收 1 个，袋内剩余数量保留
+                                StorageBagUtils.decreaseItemQuantity(
+                                    disciple.equipment.storageBagItems, currentItem.itemId, 1
+                                )
+                            }
                             discipleTables.update(disciple.copy(
                                 equipment = disciple.equipment.copy(storageBagItems = updatedItems)
                             ))
                         }
-                        if (result is DomainResult.Partial) {
-                            DomainLog.w(TAG, "没收装备溢出：${stack.name} 溢出 ${result.overflow} 个，保留袋内物品待重试")
-                        }
-                    } else {
-                        DomainLog.w(TAG, "没收物品失败：找不到 ${item.name} 的模板")
+                        // 溢出：保留袋内物品，玩家清理后重试补齐（已入仓部分合并不重复）
+                        is DomainResult.Partial ->
+                            DomainLog.w(TAG, "没收物品溢出：${currentItem.name} 溢出 ${result.overflow} 个，保留袋内物品待重试")
+                        // 仓库满：保留袋内物品待重试（C1 防复制）
+                        is DomainResult.Failure -> {}
                     }
                 }
-                "manual", ITEM_TYPE_MANUAL_STACK, ITEM_TYPE_MANUAL_INSTANCE -> {
-                    val template = ManualDatabase.getByName(item.name)
-                    if (template != null) {
-                        val mStack = ManualDatabase.createFromTemplate(template).copy(quantity = 1)
-                        val result = inventorySystem.addManualStack(mStack)
-                        if (result is DomainResult.Success) {
-                            val updatedItems = com.xianxia.sect.core.util.StorageBagUtils.decreaseItemQuantity(
-                                disciple.equipment.storageBagItems, item.itemId, 1
-                            )
-                            discipleTables.update(disciple.copy(
-                                equipment = disciple.equipment.copy(storageBagItems = updatedItems)
-                            ))
-                        }
-                        if (result is DomainResult.Partial) {
-                            DomainLog.w(TAG, "没收功法溢出：${template.name} 溢出 ${result.overflow} 个，保留袋内物品待重试")
-                        }
-                    } else {
-                        DomainLog.w(TAG, "没收物品失败：找不到 ${item.name} 的模板")
-                    }
-                }
-                "pill" -> {
-                    val template = com.xianxia.sect.core.registry.ItemDatabase.getPillById(item.itemId)
-                        ?: com.xianxia.sect.core.registry.ItemDatabase.getPillByName(item.name)
-                    if (template != null) {
-                        val pill = com.xianxia.sect.core.registry.ItemDatabase.createPillFromTemplate(template, quantity = 1)
-                        val result = inventorySystem.addPill(pill)
-                        if (result is DomainResult.Success) {
-                            val updatedItems = com.xianxia.sect.core.util.StorageBagUtils.decreaseItemQuantity(
-                                disciple.equipment.storageBagItems, item.itemId, 1
-                            )
-                            discipleTables.update(disciple.copy(
-                                equipment = disciple.equipment.copy(storageBagItems = updatedItems)
-                            ))
-                        }
-                        if (result is DomainResult.Partial) {
-                            DomainLog.w(TAG, "没收丹药溢出：${template.name} 溢出 ${result.overflow} 个，保留袋内物品待重试")
-                        }
-                    } else {
-                        DomainLog.w(TAG, "没收物品失败：找不到 ${item.name} 的模板")
-                    }
-                }
-                "herb" -> {
-                    val herbTemplate = com.xianxia.sect.core.registry.HerbDatabase.getHerbByName(item.name)
-                    val herbCategory = herbTemplate?.category ?: ""
-                    val herb = Herb(
-                        name = item.name, rarity = item.rarity,
-                        description = herbTemplate?.description ?: "", category = herbCategory, quantity = 1
-                    )
-                    val result = inventorySystem.addHerb(herb)
-                    if (result is DomainResult.Success) {
-                        val updatedItems = com.xianxia.sect.core.util.StorageBagUtils.decreaseItemQuantity(
-                            disciple.equipment.storageBagItems, item.itemId, 1
-                        )
-                        discipleTables.update(disciple.copy(
-                            equipment = disciple.equipment.copy(storageBagItems = updatedItems)
-                        ))
-                    }
-                    if (result is DomainResult.Partial) {
-                        DomainLog.w(TAG, "没收草药溢出：${item.name} 溢出 ${result.overflow} 个，保留袋内物品待重试")
-                    }
-                }
-                "seed" -> {
-                    val seedTemplate = com.xianxia.sect.core.registry.HerbDatabase.getSeedByName(item.name)
-                    val seed = Seed(
-                        name = item.name, rarity = item.rarity,
-                        description = seedTemplate?.description ?: "",
-                        growTime = seedTemplate?.growTime ?: 0, quantity = 1
-                    )
-                    val result = inventorySystem.addSeed(seed)
-                    if (result is DomainResult.Success) {
-                        val updatedItems = com.xianxia.sect.core.util.StorageBagUtils.decreaseItemQuantity(
-                            disciple.equipment.storageBagItems, item.itemId, 1
-                        )
-                        discipleTables.update(disciple.copy(
-                            equipment = disciple.equipment.copy(storageBagItems = updatedItems)
-                        ))
-                    }
-                    if (result is DomainResult.Partial) {
-                        DomainLog.w(TAG, "没收种子溢出：${item.name} 溢出 ${result.overflow} 个，保留袋内物品待重试")
-                    }
-                }
-                "material" -> {
-                    val matTemplate = com.xianxia.sect.core.registry.BeastMaterialDatabase.getMaterialByName(item.name)
-                    val matCategory = try {
-                        MaterialCategory.valueOf(matTemplate?.category ?: "BEAST_HIDE")
-                    } catch (_: IllegalArgumentException) {
-                        MaterialCategory.BEAST_HIDE
-                    }
-                    val material = Material(
-                        name = item.name, rarity = item.rarity,
-                        description = matTemplate?.description ?: "", category = matCategory, quantity = 1
-                    )
-                    val result = inventorySystem.addMaterial(material)
-                    if (result is DomainResult.Success) {
-                        val updatedItems = com.xianxia.sect.core.util.StorageBagUtils.decreaseItemQuantity(
-                            disciple.equipment.storageBagItems, item.itemId, 1
-                        )
-                        discipleTables.update(disciple.copy(
-                            equipment = disciple.equipment.copy(storageBagItems = updatedItems)
-                        ))
-                    }
-                    if (result is DomainResult.Partial) {
-                        DomainLog.w(TAG, "没收材料溢出：${item.name} 溢出 ${result.overflow} 个，保留袋内物品待重试")
-                    }
-                }
-            }
             }
         }
     }
-}
 
     override fun createEquipmentStackFromRecipe(recipe: com.xianxia.sect.core.registry.ForgeRecipeDatabase.ForgeRecipe): EquipmentStack =
         inventorySystem.createEquipmentFromRecipe(recipe)

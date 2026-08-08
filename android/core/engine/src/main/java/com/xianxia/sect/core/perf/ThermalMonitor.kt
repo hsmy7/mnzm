@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
+
 /**
  * 热状态枚举 — 对应 Android PowerManager 热状态级别
  */
@@ -34,11 +35,14 @@ class ThermalMonitor @Inject constructor(
 ) : ThermalStatusProvider {
     private val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
 
-    private val hintManager by lazy {
+    // D-09 internal 测试接缝（2026-08-08）：Robolectric 下无法通过系统服务
+    // 注入异常/null 场景，测试直接覆写本字段（先例：hintSession/sessionOwnerThread）。
+    // 原 by lazy 与构造期初始化语义等价（属性在 Hilt 单例构造时一并求值）；
+    // lazy 不能作为 var 委托，故直接初始化
+    internal var hintManager: PerformanceHintManager? =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             context.getSystemService(PerformanceHintManager::class.java)
         } else null
-    }
 
     // PerformanceHintManager.Session on API 31+
     // internal 供同模块单测直接观测守卫行为
@@ -68,9 +72,14 @@ class ThermalMonitor @Inject constructor(
     /**
      * 启动热状态监控。绑定到引擎作用域，引擎关闭时自动取消。
      * 由 GameEngineCore.startGameLoop() 调用。
+     *
+     * D-08 重建语义（2026-08-08）：emergencyRestartGameLoop 重建 engineScope 后
+     * 再次调用 start——旧 job 若仍 active（旧 scope 子树未被 cancel，仅失去引用）
+     * 而直接 return，热监控将永久绑定旧 scope（轮询残留 + 新 scope 无监控）。
+     * 无条件重建：先取消旧 job 再绑定新 scope，幂等安全。
      */
     fun start(engineScope: CoroutineScope) {
-        if (monitorJob?.isActive == true) return
+        monitorJob?.cancel()
         monitorJob = engineScope.launch {
             // 立即读取一次初始状态
             _thermalState.value = mapStatusToState(currentThermalStatus)

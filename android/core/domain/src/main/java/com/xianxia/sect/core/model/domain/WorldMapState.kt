@@ -1,6 +1,14 @@
 package com.xianxia.sect.core.model.domain
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.AICaveTeam
+import com.xianxia.sect.core.model.CaveExplorationTeam
+import com.xianxia.sect.core.model.CultivatorCave
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.WorldLevel
+import com.xianxia.sect.core.model.WorldSect
+
+
 
 /**
  * 世界地图领域状态 — 从 GameData 中提取的世界地图相关字段聚合。

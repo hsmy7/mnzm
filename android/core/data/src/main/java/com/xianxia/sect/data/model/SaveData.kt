@@ -2,11 +2,26 @@ package com.xianxia.sect.data.model
 
 import androidx.annotation.Keep
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.Alliance
+import com.xianxia.sect.core.model.BattleLog
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.ExplorationTeam
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.production.ProductionSlot
 import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber
+
+
 
 data class SaveSlot(
     val slot: Int,

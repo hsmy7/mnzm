@@ -25,6 +25,7 @@ import org.mockito.kotlin.any
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
+
 /**
  * loadFromSnapshot 回滚完整性专项测试。
  *
@@ -148,7 +149,7 @@ class GameStateStoreRollbackTest {
 
         // 触发加载异常：repository.setActiveSlot 在弟子写入后执行
         Mockito.`when`(repository.setActiveSlot(any())).thenThrow(
-            RuntimeException("模拟存档槽设置失败")
+            IllegalStateException("模拟存档槽设置失败")
         )
 
         val args = snapshotArgs(disciples = listOf(makeDisciple(9, cultivation = 999.0)))
@@ -173,7 +174,7 @@ class GameStateStoreRollbackTest {
                 isSaving = args[15] as Boolean
             )
             fail("loadFromSnapshot 应抛出模拟异常")
-        } catch (e: RuntimeException) {
+        } catch (e: IllegalStateException) {
             // 预期异常：repository.setActiveSlot 模拟失败
             assertTrue("异常应为模拟的存档槽设置失败", e.message?.contains("模拟") == true)
         }
@@ -188,6 +189,95 @@ class GameStateStoreRollbackTest {
         // _disciplesFlow 同步恢复
         assertEquals("回滚后 _disciplesFlow 应恢复", 2, stateStore.disciples.value.size)
         assertEquals(150.0, stateStore.disciples.value.find { it.id == "1" }?.cultivation ?: -1.0, 0.001)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // D-01 事务世代号：提交钩子恰一次、回滚钩子丢弃、嵌套单世代、observer 不破坏提交
+    // ═══════════════════════════════════════════════════════════════
+
+    private class RecordingObserver : GameStateStore.TransactionObserver {
+        val committedGenerations = mutableListOf<Long>()
+        val rolledBackGenerations = mutableListOf<Long>()
+
+        override fun onTransactionCommitted(transactionGeneration: Long) {
+            committedGenerations.add(transactionGeneration)
+        }
+
+        override fun onTransactionRolledBack(transactionGeneration: Long) {
+            rolledBackGenerations.add(transactionGeneration)
+        }
+    }
+
+    @Test
+    fun `generation increases monotonically across commits`() = runTest {
+        val observer = RecordingObserver()
+        stateStore.registerTransactionObserver(observer)
+
+        stateStore.update { discipleTables.insert(makeDisciple(1, cultivation = 1.0)) }
+        stateStore.update { discipleTables.insert(makeDisciple(2, cultivation = 2.0)) }
+
+        assertEquals("两次提交世代号单调递增 1、2", listOf(1L, 2L), observer.committedGenerations)
+        assertEquals("无回滚事件", 0, observer.rolledBackGenerations.size)
+    }
+
+    @Test
+    fun `update throwing exception fires rollback observer and next commit continues`() = runTest {
+        val observer = RecordingObserver()
+        stateStore.registerTransactionObserver(observer)
+
+        try {
+            stateStore.update {
+                discipleTables.insert(makeDisciple(1, cultivation = 1.0))
+                error("模拟事务失败")
+            }
+            fail("update 应抛出模拟异常")
+        } catch (e: IllegalStateException) {
+            assertTrue("异常应为模拟事务失败", e.message?.contains("模拟") == true)
+        }
+
+        assertEquals("异常事务触发回滚钩子", listOf(1L), observer.rolledBackGenerations)
+        assertEquals("回滚事务不发提交钩子", 0, observer.committedGenerations.size)
+        assertEquals("状态已回滚", 0, stateStore.discipleTables.count)
+
+        // 世代号不因回滚重置——下次提交继续递增
+        stateStore.update { discipleTables.insert(makeDisciple(2, cultivation = 2.0)) }
+        assertEquals(listOf(2L), observer.committedGenerations)
+    }
+
+    @Test
+    fun `nested update uses single generation of outer transaction`() = runTest {
+        val observer = RecordingObserver()
+        stateStore.registerTransactionObserver(observer)
+
+        stateStore.update {
+            assertEquals("外层事务世代号", 1L, stateStore.currentTransactionGeneration)
+            stateStore.update {
+                // 重入路径不分配新世代号——嵌套草稿归外层事务
+                assertEquals("嵌套事务沿用外层世代号", 1L, stateStore.currentTransactionGeneration)
+            }
+        }
+
+        assertEquals("嵌套只产生一个提交世代", listOf(1L), observer.committedGenerations)
+        assertEquals(0, observer.rolledBackGenerations.size)
+    }
+
+    @Test
+    fun `observer exception does not break state commit`() = runTest {
+        // 恶意/故障 observer：不得破坏状态提交、不得吞掉其他 observer 通知
+        stateStore.registerTransactionObserver(object : GameStateStore.TransactionObserver {
+            override fun onTransactionCommitted(transactionGeneration: Long) {
+                error("observer 故障")
+            }
+
+            override fun onTransactionRolledBack(transactionGeneration: Long) = Unit
+        })
+        val second = RecordingObserver()
+        stateStore.registerTransactionObserver(second)
+
+        stateStore.update { discipleTables.insert(makeDisciple(1, cultivation = 1.0)) }
+
+        assertEquals("observer 抛异常后状态仍提交", 1, stateStore.discipleTables.count)
+        assertEquals("其他 observer 仍收到通知", listOf(1L), second.committedGenerations)
     }
 
     @Test

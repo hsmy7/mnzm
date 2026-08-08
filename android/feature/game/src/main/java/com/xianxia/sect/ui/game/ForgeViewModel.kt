@@ -3,8 +3,17 @@ package com.xianxia.sect.ui.game
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
-import com.xianxia.sect.core.engine.*
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.engine.assignDiscipleToProductionSlot
+import com.xianxia.sect.core.engine.clearForgeSlot
+import com.xianxia.sect.core.engine.removeDiscipleFromProductionSlot
+import com.xianxia.sect.core.engine.startForging
+import com.xianxia.sect.core.engine.toggleAutoRestart
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.ForgeRecipe
+import com.xianxia.sect.core.model.ForgeSlot
+import com.xianxia.sect.core.model.ForgeSlotStatus
+import com.xianxia.sect.core.model.artifactRefining
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
@@ -15,6 +24,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
 import javax.inject.Inject
+
+
 
 @HiltViewModel
 class ForgeViewModel @Inject constructor(

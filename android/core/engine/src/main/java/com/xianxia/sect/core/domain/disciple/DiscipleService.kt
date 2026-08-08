@@ -2,10 +2,18 @@ package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.engine.annotation.GameService
 import kotlinx.coroutines.flow.StateFlow
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.CaveExplorationStatus
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.ExplorationStatus
+import com.xianxia.sect.core.model.SocialData
+import com.xianxia.sect.core.model.recruitedMonth
+import com.xianxia.sect.core.model.storageBagItems
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.DiscipleTables
+import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.util.NameService
 import com.xianxia.sect.core.util.SpiritRootGenerator
 import com.xianxia.sect.core.util.AppError
@@ -15,6 +23,8 @@ import javax.inject.Singleton
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.asKotlinRandom
+
+
 @GameService("DiscipleService")
 @Singleton
 class DiscipleService @Inject constructor(
@@ -26,7 +36,8 @@ class DiscipleService @Inject constructor(
     private val discipleLifecycleManager: DiscipleLifecycleManager,
     private val discipleMasterApprenticeService: DiscipleMasterApprenticeService,
     private val discipleSlotManager: DiscipleSlotManager,
-    private val discipleStatusService: DiscipleStatusService
+    private val discipleStatusService: DiscipleStatusService,
+    private val inventorySystem: InventorySystem
 ) {
     private val rng get() = rngManager.getRng(RngPartition.SYSTEM)
     private val currentDiscipleTables: DiscipleTables
@@ -183,14 +194,22 @@ class DiscipleService @Inject constructor(
 
             clearDiscipleFromAllSlots(discipleId)
 
-            // 仅清除装备/功法所有权，不返还仓库
+            // D-03：逐出前袋物品物化回仓库（玩家保留，溢出自动转邮件）——
+            // 独立存储后袋条目持有数据且随弟子删除，不物化即物品消失
+            val expelBagItems = discipleTables.storageBagItems[id]
+            if (expelBagItems.isNotEmpty()) {
+                inventorySystem.withTrackingSource("disciple_expel") {
+                    inventorySystem.materializeBagItemsToWarehouse(expelBagItems)
+                }
+            }
+
+            // 仅清除穿着的装备/功法所有权，不返还仓库（实例销毁）
             val expelEquipIds = mutableListOf<String>()
             discipleTables.weaponIds[id].takeIf { it.isNotEmpty() }?.let { expelEquipIds.add(it) }
             discipleTables.armorIds[id].takeIf { it.isNotEmpty() }?.let { expelEquipIds.add(it) }
             discipleTables.bootsIds[id].takeIf { it.isNotEmpty() }?.let { expelEquipIds.add(it) }
             discipleTables.accessoryIds[id].takeIf { it.isNotEmpty() }?.let { expelEquipIds.add(it) }
-            discipleTables.storageBagItems[id].filter { it.itemType == ITEM_TYPE_EQUIPMENT_STACK || it.itemType == ITEM_TYPE_EQUIPMENT_INSTANCE }.map { it.itemId }.forEach { expelEquipIds.add(it) }
-            val expelManualIds = discipleTables.storageBagItems[id].filter { it.itemType == ITEM_TYPE_MANUAL_STACK || it.itemType == ITEM_TYPE_MANUAL_INSTANCE }.map { it.itemId }.toSet() + discipleTables.manualIds[id].toSet()
+            val expelManualIds = discipleTables.manualIds[id].toSet()
 
             equipmentInstances = equipmentInstances.filter { it.id !in expelEquipIds }
             manualInstances = manualInstances.filter { it.id !in expelManualIds }

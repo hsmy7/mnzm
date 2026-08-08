@@ -1,6 +1,10 @@
 package com.xianxia.sect.core.model.domain
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.ManualProficiencyData
+import com.xianxia.sect.core.model.SpiritFieldPlant
+
+
 
 /**
  * 生产领域状态 — 从 GameData 中提取的生产相关字段聚合。

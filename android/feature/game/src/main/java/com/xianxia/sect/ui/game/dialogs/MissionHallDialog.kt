@@ -21,7 +21,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.ActiveMission
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.Mission
+import com.xianxia.sect.core.model.MissionDifficulty
+import com.xianxia.sect.core.model.MissionRewardConfig
+import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.DiscipleSlot
@@ -36,6 +42,8 @@ import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.game.filterByDiscipleStatus
 import com.xianxia.sect.ui.game.dialogs.shared.ScrollableInfoDialog
+
+
 
 @Composable
 fun MissionHallDialog(

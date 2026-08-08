@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.xianxia.sect.core.model
 
 import androidx.annotation.Keep
@@ -13,6 +11,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.util.GameRandom
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.protobuf.ProtoNumber
+
 
 /**
  * 弟子数据模型（Room Entity）
@@ -524,11 +523,38 @@ data class StorageBagItem(
     @ProtoNumber(9) val grade: String? = null,
     @ProtoNumber(10) val forgetYear: Int? = null,
     @ProtoNumber(11) val forgetMonth: Int? = null,
-    @ProtoNumber(12) val forgetPhase: Int? = null
+    @ProtoNumber(12) val forgetPhase: Int? = null,
+    // 2026-08-08 D-03 储物袋独立存储重构：袋条目自带数据，不再引用仓库堆叠。
+    // equipmentInstance = 卸装装备实例（完整保真，含 nurtureLevel/Progress）；
+    // manualInstance = 忘功法实例（完整保真）；stackedData = 堆叠类物品的
+    // 取回/物化重建补充字段（minRealm/slot/manualType）。
+    // 三者任一非空 = 已物化（老存档条目经 materializeDiscipleBagItems 迁移）。
+    // 容量无上限：袋不设容量检查，所有写入路径（赏赐/购买/偷盗/赠礼/卸装）永不因袋满失败。
+    @ProtoNumber(13) val equipmentInstance: EquipmentInstance? = null,
+    @ProtoNumber(14) val stackedData: BagStackedData? = null,
+    @ProtoNumber(15) val manualInstance: ManualInstance? = null
 ) {
     val color: String get() = GameConfig.Rarity.getColor(rarity)
     val rarityName: String get() = GameConfig.Rarity.getName(rarity)
+
+    /** 是否已物化（独立存储）；false = 老存档引用式条目，等待物化迁移 */
+    val isMaterialized: Boolean get() = equipmentInstance != null || stackedData != null || manualInstance != null
 }
+
+/**
+ * 储物袋堆叠类物品的取回/物化重建补充数据（名称/品级/数量/效果均在 [StorageBagItem] 顶层）。
+ * 独立存储后仅补装备/功法的重建属性——取回（没收）与死亡/逐出物化时无需依赖物品模板。
+ */
+@Keep
+@Serializable
+data class BagStackedData(
+    /** 装备/功法境界要求（取回重建 EquipmentStack/ManualStack 用） */
+    @ProtoNumber(1) val minRealm: Int = 0,
+    /** 装备槽位名（EquipmentSlot.name，取回重建用） */
+    @ProtoNumber(2) val slot: String = "",
+    /** 功法类型（ManualType.name，取回重建用） */
+    @ProtoNumber(3) val manualType: String = ""
+)
 
 @Keep
 @Serializable

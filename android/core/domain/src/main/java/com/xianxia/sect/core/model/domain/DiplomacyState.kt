@@ -1,6 +1,13 @@
 package com.xianxia.sect.core.model.domain
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.Alliance
+import com.xianxia.sect.core.model.ExploredSectInfo
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.SectDetail
+import com.xianxia.sect.core.model.SectRelation
+import com.xianxia.sect.core.model.SectScoutInfo
+
+
 
 /**
  * 外交领域状态 — 从 GameData 中提取的外交相关字段聚合。

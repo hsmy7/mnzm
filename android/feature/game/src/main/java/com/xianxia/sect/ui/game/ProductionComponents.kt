@@ -20,7 +20,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.DirectDiscipleSlot
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.ElderSlots
+import com.xianxia.sect.core.model.artifactRefining
+import com.xianxia.sect.core.model.mining
+import com.xianxia.sect.core.model.morality
+import com.xianxia.sect.core.model.pillRefining
+import com.xianxia.sect.core.model.spiritPlanting
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.DiscipleSlot
 import com.xianxia.sect.ui.components.ElderBonusInfo
@@ -34,6 +43,8 @@ import com.xianxia.sect.ui.components.UnifiedItemCard
 import com.xianxia.sect.ui.components.rememberChasingProgress
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.theme.GameColors
+
+
 
 data class ProductionTheme(
     val buildingId: String,

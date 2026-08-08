@@ -7,7 +7,9 @@ import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.Material
-import com.xianxia.sect.core.model.production.*
+import com.xianxia.sect.core.model.production.BuildingType
+import com.xianxia.sect.core.model.production.MaterialConsumptionLog
+import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.transaction.ProductionTransactionManager
 import com.xianxia.sect.core.util.AppError
@@ -21,6 +23,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
+
+
 
 data class MaterialSource(
     val herbs: List<Herb>,
@@ -416,6 +420,8 @@ class ProductionCoordinator @Inject constructor(
      * @param scope 执行清理的协程作用域（引擎 scope，保证串行安全）
      * @param discipleId 要清除的弟子 ID
      */
+    // catch Exception：fire-and-forget 清理防御——Room 瞬时故障不应中断调用方流程
+    @Suppress("TooGenericExceptionCaught")
     fun clearDiscipleInRepository(scope: CoroutineScope, discipleId: String): Job = scope.launch {
         try {
             clearDiscipleFromRepository(discipleId)

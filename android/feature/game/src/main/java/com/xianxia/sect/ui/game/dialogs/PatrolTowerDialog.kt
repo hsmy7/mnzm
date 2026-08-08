@@ -25,7 +25,11 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.PatrolConfig
 import com.xianxia.sect.core.model.PatrolSlot
-import com.xianxia.sect.ui.components.*
+import com.xianxia.sect.ui.components.DialogMode
+import com.xianxia.sect.ui.components.DiscipleSlot
+import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.StandardPromptDialog
+import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.PatrolTowerViewModel
@@ -33,6 +37,8 @@ import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.theme.ButtonSizes
 import kotlinx.coroutines.launch
+
+
 
 @Composable
 fun PatrolTowerDialog(

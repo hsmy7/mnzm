@@ -1,9 +1,28 @@
 package com.xianxia.sect.core.state
 
 import androidx.compose.runtime.Immutable
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.BattleLog
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.ElderSlots
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.ExplorationTeam
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.RewardCardItem
+import com.xianxia.sect.core.model.SectPolicies
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.StorageBag
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.StateFlow
+
+
 
 /**
  * 游戏状态存储接口
@@ -184,6 +203,39 @@ interface GameStateStore : GameStateSnapshotProvider {
     /** 设置运行状态为 LOADING（启动任务开始）。 */
     fun setLoading() {}
 
+
+    // === 事务观察者（D-01：溢出草稿按事务世代号落盘） ===
+
+    /**
+     * 事务生命周期观察者。
+     *
+     * [update]/[updateAndReturn] 每成功提交一个**顶层**事务时回调
+     * [onTransactionCommitted]，失败（异常/取消）时回调 [onTransactionRolledBack]。
+     * 回调在事务锁外、事务线程上执行，允许做同步 I/O（如草稿落盘）；
+     * 实现方不得在回调中再次调用 [update]（会重入等待死锁），
+     * 回调抛出的异常由实现捕获，不得破坏状态提交。
+     *
+     * @param transactionGeneration 该事务分配的事务世代号（单调递增；
+     *   提交与回滚回调携带同一世代号；嵌套事务不分配新世代号，归外层事务）
+     */
+    interface TransactionObserver {
+        fun onTransactionCommitted(transactionGeneration: Long)
+
+        fun onTransactionRolledBack(transactionGeneration: Long)
+    }
+
+    /**
+     * 当前（进行中）顶层事务的世代号；无进行中事务时为 0。
+     * 事务内入队的副作用（如溢出草稿）按此世代号打标，
+     * 提交钩子/回滚钩子据此决定落盘或丢弃。
+     */
+    val currentTransactionGeneration: Long
+        get() = 0L
+
+    /**
+     * 注册事务观察者。实现方在构造时注册；重复注册同一实例为幂等。
+     */
+    fun registerTransactionObserver(observer: TransactionObserver) {}
 
     // === 核心写入 API ===
     fun update(block: MutableGameState.() -> Unit)

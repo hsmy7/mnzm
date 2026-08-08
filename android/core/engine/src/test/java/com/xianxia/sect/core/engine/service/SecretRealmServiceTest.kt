@@ -34,6 +34,7 @@ import org.mockito.Mockito.mock
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
 
+
 @RunWith(RobolectricTestRunner::class)
 class SecretRealmServiceTest {
 
@@ -63,6 +64,14 @@ class SecretRealmServiceTest {
         ).thenAnswer { inv ->
             inv.getArgument<() -> Any>(1).invoke()
         }
+        // D-03 死亡统一入口透传：mock 需模拟真实 markDead 语义（否则死亡标记被吞）
+        whenever(inventorySystem.materializeDiscipleBagAndMarkDead(any(), any(), any(), any()))
+            .thenAnswer { inv ->
+                val id = inv.getArgument<Int>(1)
+                val year = inv.getArgument<Int>(2)
+                val cause = inv.getArgument<String>(3)
+                tables.markDead(id, year, cause)
+            }
         spiritStoneWallet = mock(com.xianxia.sect.core.wallet.SpiritStoneWallet::class.java)
         overflowMailSender = mock(OverflowMailSender::class.java)
         assignmentGate = mock(DiscipleAssignmentGate::class.java)

@@ -22,7 +22,14 @@ import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
-import com.xianxia.sect.ui.components.*
+import com.xianxia.sect.ui.components.DialogMode
+import com.xianxia.sect.ui.components.DiscipleSlot
+import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.ItemCardData
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.UnifiedItemCard
+import com.xianxia.sect.ui.components.getRarityColor
+import com.xianxia.sect.ui.components.materialSpriteRes
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.game.BloodRefiningViewModel
@@ -34,6 +41,8 @@ import com.xianxia.sect.ui.components.rememberChasingProgress
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
 import kotlinx.coroutines.launch
 import com.xianxia.sect.ui.components.clickableWithSound
+
+
 
 @Composable
 fun BloodRefiningPoolDialog(

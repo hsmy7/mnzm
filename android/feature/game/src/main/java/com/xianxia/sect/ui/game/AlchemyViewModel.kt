@@ -3,8 +3,16 @@ package com.xianxia.sect.ui.game
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.registry.HerbDatabase
 import com.xianxia.sect.core.registry.PillRecipeDatabase
-import com.xianxia.sect.core.engine.*
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.engine.assignDiscipleToProductionSlot
+import com.xianxia.sect.core.engine.clearAlchemySlot
+import com.xianxia.sect.core.engine.removeDiscipleFromProductionSlot
+import com.xianxia.sect.core.engine.startAlchemy
+import com.xianxia.sect.core.engine.toggleAutoRestart
+import com.xianxia.sect.core.model.AlchemySlot
+import com.xianxia.sect.core.model.AlchemySlotStatus
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.pillRefining
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
@@ -15,6 +23,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
 import javax.inject.Inject
+
+
 
 @HiltViewModel
 class AlchemyViewModel @Inject constructor(

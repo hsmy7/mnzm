@@ -110,7 +110,6 @@
     <ID>CyclomaticComplexMethod:ProductionCoordinator.kt$ProductionCoordinator$suspend fun startForgingAtomic( slotIndex: Int, recipeId: String, currentYear: Int, currentMonth: Int, materials: List&lt;Material&gt;, buildingId: String = "forge", forgePolicyBonus: Double = 0.0 ): DomainResult&lt;ProductionStartData&gt;</ID>
     <ID>CyclomaticComplexMethod:ProductionProcessor.kt$ProductionProcessor$private fun batchAlchemyCompletion( slots: MutableList&lt;ProductionSlot&gt;, state: MutableGameState )</ID>
     <ID>CyclomaticComplexMethod:ProductionProcessor.kt$ProductionProcessor$private fun computeResidenceAssignments( state: MutableGameState, data: GameData, policies: SectPolicies, occupiedResidentIds: Set&lt;String&gt; ): Map&lt;String, Pair&lt;String, String&gt;&gt;</ID>
-    <ID>CyclomaticComplexMethod:ProductionProcessor.kt$ProductionProcessor$private suspend fun processAutoForgeSlot( slot: ProductionSlot, data: GameData, allDisciples: List&lt;Disciple&gt;, forgePolicyBonus: Double, allRecipes: List&lt;ForgeRecipeDatabase.ForgeRecipe&gt; ): Boolean</ID>
     <ID>CyclomaticComplexMethod:RedeemCodeManager.kt$RedeemCodeManager$fun generateDisciple(config: DiscipleRewardConfig?, existingNames: Set&lt;String&gt; = emptySet(), random: kotlin.random.Random = kotlin.random.Random): Disciple</ID>
     <ID>CyclomaticComplexMethod:RelativeGiftHandler.kt$RelativeGiftHandler$internal fun selectBestGift( bagItems: List&lt;StorageBagItem&gt;, receiverId: Int, receiverRealm: Int, tables: DiscipleTables, state: MutableGameState ): StorageBagItem?</ID>
     <ID>CyclomaticComplexMethod:RelativeGiftHandler.kt$RelativeGiftHandler$private fun collectReverseRelatives( discipleId: Int, myIdStr: String, tables: DiscipleTables, seen: MutableSet&lt;Int&gt; )</ID>
@@ -376,7 +375,7 @@
     <ID>LongParameterList:DiscipleBreakthroughHandlerTest.kt$DiscipleBreakthroughHandlerTest$( id: Int = 1, realm: Int = 9, realmLayer: Int = 9, comprehension: Int = 100, cultivation: Double = 999999.0, currentHp: Int = -1, currentMp: Int = -1, statusData: Map&lt;String, String&gt; = emptyMap() )</ID>
     <ID>LongParameterList:DiscipleEquipmentManager.kt$DiscipleEquipmentManager$( disciple: Disciple, config: SlotConfig, equipmentStacks: List&lt;EquipmentStack&gt;, equipmentInstances: Map&lt;String, EquipmentInstance&gt;, bagStackRefs: List&lt;StorageBagItem&gt;, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStack: Int, instantMessage: Boolean )</ID>
     <ID>LongParameterList:DiscipleEquipmentManager.kt$DiscipleEquipmentManager$( disciple: Disciple, equipmentStacks: List&lt;EquipmentStack&gt;, equipmentInstances: Map&lt;String, EquipmentInstance&gt;, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStack: Int = MAX_EQUIPMENT_STACK, instantMessage: Boolean = false )</ID>
-    <ID>LongParameterList:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$( private val discipleService: DiscipleService, private val stateStore: GameStateStore, private val cultivationService: CultivationService, private val gameEngineCore: GameEngineCore, private val inventorySystem: InventorySystem, private val inventoryConfig: InventoryConfig, private val pillManager: DisciplePillManager, private val assignmentGate: DiscipleAssignmentGate, private val discipleSlotCleanup: DiscipleSlotCleanup, private val lawEnforcementProcessor: LawEnforcementProcessor, )</ID>
+    <ID>LongParameterList:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$( private val discipleService: DiscipleService, private val stateStore: GameStateStore, private val cultivationService: CultivationService, private val gameEngineCore: GameEngineCore, private val inventorySystem: InventorySystem, private val pillManager: DisciplePillManager, private val assignmentGate: DiscipleAssignmentGate, private val discipleSlotCleanup: DiscipleSlotCleanup, private val lawEnforcementProcessor: LawEnforcementProcessor, private val productionCoordinator: ProductionCoordinator, )</ID>
     <ID>LongParameterList:DiscipleLifecycleProcessorTest.kt$DiscipleLifecycleProcessorTest$( id: Int, name: String = "弟子$id", realm: Int = 9, realmLayer: Int = 3, age: Int = 20, lifespan: Int = 80, status: DiscipleStatus = DiscipleStatus.IDLE, statusData: Map&lt;String, String&gt; = emptyMap(), social: SocialData = SocialData(), skills: SkillStats = SkillStats(), skipTablesIsAlive: Boolean = false )</ID>
     <ID>LongParameterList:DiscipleManualManager.kt$DiscipleManualManager$( disciple: Disciple, manualStacks: List&lt;ManualStack&gt;, manualInstances: Map&lt;String, ManualInstance&gt;, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStack: Int = MAX_MANUAL_STACK, instantMessage: Boolean = false )</ID>
     <ID>LongParameterList:DiscipleManualManager.kt$DiscipleManualManager$( disciple: Disciple, stack: ManualStack, existingInstanceId: String, manualInstances: Map&lt;String, ManualInstance&gt;, manualStacks: List&lt;ManualStack&gt;, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStack: Int, instantMessage: Boolean )</ID>
@@ -745,7 +744,6 @@
     <ID>MaxLineLength:GameEngineCoordination.kt$val result = addManualInstanceToDiscipleBag(disciple = currentDisciple, instance = instance, bagStackIds = bagStackIds, gameYear = gameData.gameYear, gameMonth = gameData.gameMonth, gamePhase = gameData.gamePhase, maxStackSize = inventoryConfig.getMaxStackSize("manual_stack"))</ID>
     <ID>MaxLineLength:GameEngineCoordination.kt$val result = addManualInstanceToDiscipleBag(disciple = disciple, instance = oldInstance, bagStackIds = bagStackIds, gameYear = gameData.gameYear, gameMonth = gameData.gameMonth, gamePhase = gameData.gamePhase, maxStackSize = inventoryConfig.getMaxStackSize("manual_stack"))</ID>
     <ID>MaxLineLength:GameEngineCoordination.kt$val updatedDisciple = disciple.copy(manualIds = disciple.manualIds + instanceId, combat = disciple.combat.copy(currentHp = if (rawHp &gt;= 0 &amp;&amp; hpDelta &gt; 0) rawHp + hpDelta else rawHp, currentMp = if (rawMp &gt;= 0 &amp;&amp; mpDelta &gt; 0) rawMp + mpDelta else rawMp))</ID>
-    <ID>MaxLineLength:GameEngineDiplomacyOps.kt$fun GameEngine.interactWithSect(sectId: String, action: String)</ID>
     <ID>MaxLineLength:GameEngineDiplomacyOps.kt$suspend fun GameEngine.buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int = 1)</ID>
     <ID>MaxLineLength:GameEngineDiplomacyOps.kt$suspend fun GameEngine.getOrRefreshSectTradeItems(sectId: String): List&lt;MerchantItem&gt;</ID>
     <ID>MaxLineLength:GameEngineDiplomacyOps.kt$suspend fun GameEngine.giftSpiritStones(sectId: String, tier: Int, bypassYearLimit: Boolean = false): GiftResult</ID>
@@ -968,7 +966,6 @@
     <ID>MayBeConst:RedeemCodeManager.kt$RedeemCodeManager$private val TAG = "RedeemCodeManager"</ID>
     <ID>NestedBlockDepth:CultivationCore.kt$CultivationCore$fun processManualProficiencyPerPhase(state: MutableGameState)</ID>
     <ID>NestedBlockDepth:CultivationCore.kt$CultivationCore$fun processManualProficiencySingle( state: MutableGameState, id: Int, manualInstanceMap: Map&lt;String, ManualInstance&gt;? = null, pendingProficiencies: MutableMap&lt;String, List&lt;ManualProficiencyData&gt;?&gt;? = null, libraryDiscipleIds: Set&lt;String&gt;? = null )</ID>
-    <ID>NestedBlockDepth:CultivationEventProcessor.kt$CultivationEventProcessor$private fun writeAutoWarehouseResults( state: MutableGameState, tables: DiscipleTables, updatedDisciples: List&lt;Disciple&gt;, bagEqIds: Set&lt;String&gt;, bagMnIds: Set&lt;String&gt;, eqStacks: List&lt;EquipmentStack&gt;, mnStacks: List&lt;ManualStack&gt;, newEqInstances: List&lt;EquipmentInstance&gt;, newMnInstances: List&lt;ManualInstance&gt; )</ID>
     <ID>NestedBlockDepth:CultivationService.kt$CultivationService$fun recoverHpMpForCombatDisciples(state: MutableGameState)</ID>
     <ID>NestedBlockDepth:CultivationSettlement.kt$CultivationSettlement$fun processPolicyMonthlyEffects(state: MutableGameState)</ID>
     <ID>NestedBlockDepth:CultivationSettlement.kt$CultivationSettlement$private fun buildSpiritMineZones(data: GameData, tables: DiscipleTables): SpiritMineZones</ID>
@@ -1051,8 +1048,6 @@
     <ID>ReturnCount:DisciplePillManager.kt$DisciplePillManager$fun canUsePill(disciple: Disciple, pillItem: StorageBagItem): PillUseCheck</ID>
     <ID>ReturnCount:DisciplePillManager.kt$DisciplePillManager$fun processAutoUsePills( disciple: Disciple, gameYear: Int, gameMonth: Int, gamePhase: Int, instantMessage: Boolean = false ): PillUseResult</ID>
     <ID>ReturnCount:DisciplePurchaseService.kt$DisciplePurchaseService$fun executePurchase(year: Int, month: Int, state: MutableGameState)</ID>
-    <ID>ReturnCount:DisciplePurchaseService.kt$DisciplePurchaseService$private fun &lt;T&gt; MutableGameState.deductWarehouseStack( store: EntityStore&lt;T&gt;, itemId: String, name: String, rarity: Int ): String?</ID>
-    <ID>ReturnCount:DisciplePurchaseService.kt$DisciplePurchaseService$private fun MutableGameState.addToWarehouseAndBag( item: MerchantItem, discipleId: Int, year: Int, month: Int ): Boolean</ID>
     <ID>ReturnCount:DisciplePurchaseService.kt$DisciplePurchaseService.Companion$fun needsManual( learnedNames: Set&lt;String&gt;, manualName: String, candidateRarity: Int, bestLearnedRarity: Int ): Boolean</ID>
     <ID>ReturnCount:DiscipleStatCalculator.kt$DiscipleStatCalculator$fun areRelatives(a: Disciple, b: Disciple): Boolean</ID>
     <ID>ReturnCount:ElderManagementUseCase.kt$ElderManagementUseCase$suspend fun assignDirectDisciple( elderSlotType: String, slotIndex: Int, discipleId: String ): ElderResult</ID>
@@ -1440,232 +1435,5 @@
     <ID>VariableNaming:SpiritMineMonthlySettlementTest.kt$SpiritMineMonthlySettlementTest$private val BASE_PER_MINER_LONG = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER.toLong()</ID>
     <ID>VariableNaming:StatusDerivationCoverageTest.kt$StatusDerivationCoverageTest$/** * 每个可推导状态 → 对应的 [SlotFlags] 字段名。 * 枚举值名转换为驼峰 field 名（首字母小写）。 */ private val STATUS_TO_SLOT_FLAG: Map&lt;DiscipleStatus, String&gt; = mapOf( DiscipleStatus.IDLE to "", // IDLE 是 else 分支，无对应 flag DiscipleStatus.GARRISONING to "inGarrison", DiscipleStatus.IN_TEAM to "inTeam", DiscipleStatus.LAW_ENFORCING to "lawEnforcing", DiscipleStatus.PREACHING to "preaching", DiscipleStatus.DEACONING to "deaconing", DiscipleStatus.MANAGING to "managing", DiscipleStatus.STUDYING to "studying", DiscipleStatus.MINING to "mining", DiscipleStatus.PATROLLING to "patrolling", DiscipleStatus.ALCHEMY to "alchemy", DiscipleStatus.FORGE to "forge", DiscipleStatus.SPIRIT_PLANTING to "spiritPlanting" )</ID>
     <ID>VariableNaming:StatusDerivationCoverageTest.kt$StatusDerivationCoverageTest$/** * 非推导状态：不通过 SlotFlags/deriveDiscipleStatus 设置。 * - DEAD：通过 markDead 设置，非槽位推导 * - REFLECTING：受保护状态，直接写入 * - ON_MISSION：受保护状态，直接写入 * - REFINING：受保护状态，直接写入 */ private val NON_DERIVED_STATUSES = setOf( DiscipleStatus.DEAD, DiscipleStatus.REFLECTING, DiscipleStatus.ON_MISSION, DiscipleStatus.REFINING )</ID>
-    <ID>WildcardImport:AISectAttackManagerTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:AISectDiscipleManager.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:AISectDiscipleManagerTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:AndroidThermalReaderTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:AutoBuyService.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:AutoBuyService.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:AutoBuyServiceTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:AutoBuyServiceTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:BattleAITest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:BattleFacadeImpl.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:BattleSystem.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:BattleSystemTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:BeastAttackDetectorTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:BeastAttackDetectorTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:BootSequenceControllerTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:BootSequenceControllerTest.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:BootSequenceControllerTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:BootSequenceControllerTest.kt$import org.mockito.kotlin.*</ID>
-    <ID>WildcardImport:BuildingConfigServiceTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:BuildingFacade.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:BuildingFacadeImpl.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:BuildingFacadeImpl.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:BuildingFeature.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:BuildingFeatureRegistryTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:BuildingService.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:BuildingService.kt$import com.xianxia.sect.core.registry.*</ID>
-    <ID>WildcardImport:BuildingServiceDomainResultTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:BuildingTypeCoverageTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:CaveExplorationProcessor.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:CaveExplorationProcessor.kt$import com.xianxia.sect.core.registry.*</ID>
-    <ID>WildcardImport:CaveExplorationProcessor.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:CaveExplorationProcessorTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:CaveExplorationSystem.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:CaveGenerator.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:CaveGeneratorTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:ChildBirthSystem.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:ChildBirthSystemTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:CombatService.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:CultivationCore.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:CultivationCoreProficiencyNurtureTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:CultivationCoreRealtimeAutoPillsTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:CultivationCoreRealtimeAutoPillsTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:CultivationCoreTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:CultivationEventDiplomacyOps.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:CultivationEventMissionOps.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:CultivationEventMonthlyOps.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:CultivationEventProcessor.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:CultivationEventProcessor.kt$import com.xianxia.sect.core.registry.*</ID>
-    <ID>WildcardImport:CultivationEventProcessor.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:CultivationEventProcessorTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:CultivationRateEquivalenceTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:CultivationService.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:CultivationServiceIntegrationTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:CultivationServiceIntegrationTest.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:CultivationServiceIntegrationTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:CultivationSettlement.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:CultivationSettlement.kt$import com.xianxia.sect.core.registry.*</ID>
-    <ID>WildcardImport:CultivationSettlement.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:DeterministicRngTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DeviceCapabilityProfilerTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DiplomacyEventProcessor.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DiplomacyEventProcessor.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:DiplomacyService.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DiplomacyService.kt$import com.xianxia.sect.core.registry.*</ID>
-    <ID>WildcardImport:DiplomacyServicePureLogicTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DiscipleAgeCalculatorTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DiscipleAssignmentGateTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DiscipleAssignmentRegistryTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DiscipleBreakthroughHandler.kt$import com.xianxia.sect.core.engine.domain.disciple.*</ID>
-    <ID>WildcardImport:DiscipleBreakthroughHandler.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DiscipleBreakthroughHandlerTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DiscipleBreakthroughHandlerTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DiscipleDeathHandlerTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DiscipleEquipmentManager.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DiscipleEquipmentService.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DiscipleFacade.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DiscipleFacadeImpl.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DiscipleFacadeImpl.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:DiscipleFacadeImplRecruitTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DiscipleFacadeImplRecruitTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DiscipleFactoryTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DiscipleLifecycleManager.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DiscipleLifecycleProcessor.kt$import com.xianxia.sect.core.engine.domain.disciple.*</ID>
-    <ID>WildcardImport:DiscipleLifecycleProcessor.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DiscipleLifecycleProcessor.kt$import com.xianxia.sect.core.registry.*</ID>
-    <ID>WildcardImport:DiscipleLifecycleProcessor.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:DiscipleLifecycleProcessorTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DiscipleLifecycleProcessorTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DiscipleManualManager.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DiscipleMasterApprenticeService.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DisciplePillManager.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DisciplePillManagerExecutionOrderTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DisciplePillManagerTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DisciplePurchaseService.kt$import com.xianxia.sect.core.engine.domain.disciple.*</ID>
-    <ID>WildcardImport:DisciplePurchaseService.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DisciplePurchaseServiceTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DisciplePurchaseServiceTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DiscipleService.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DiscipleServiceApprenticeTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DiscipleServiceApprenticeTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DiscipleServiceCrudTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DiscipleServiceCrudTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DiscipleSlotCleanup.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DiscipleSlotCleanupTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DiscipleSlotCleanupTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DiscipleSlotManager.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:DiscipleStatCalculatorTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:DiscipleStatusService.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:ElderManagementUseCase.kt$import com.xianxia.sect.core.engine.*</ID>
-    <ID>WildcardImport:ElderSlotTypeCoverageTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:EnemyGeneratorTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:EquipmentNurtureSystemTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:ExplorationService.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:ExplorationTeamManagerTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:ExplorationTeamManagerTest.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:ExplorationTeamManagerTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:FormulaService.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:FormulaService.kt$import com.xianxia.sect.core.registry.*</ID>
-    <ID>WildcardImport:FormulaServicePureLogicTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:GameAnnotationsTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:GameEngine.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:GameEngine.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:GameEngineAtomicAssign.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:GameEngineAtomicAssignTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:GameEngineAtomicAssignTest.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:GameEngineAtomicAssignTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:GameEngineBattleOps.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:GameEngineBattleOps.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:GameEngineBuildingOps.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:GameEngineCoordination.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:GameEngineCoordination.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:GameEngineCoordinationTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:GameEngineCoordinationTest.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:GameEngineCore.kt$import com.xianxia.sect.core.event.*</ID>
-    <ID>WildcardImport:GameEngineCore.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:GameEngineCore.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:GameEngineCore.kt$import kotlinx.coroutines.*</ID>
-    <ID>WildcardImport:GameEngineCore.kt$import kotlinx.coroutines.flow.*</ID>
-    <ID>WildcardImport:GameEngineDiplomacyOps.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:GameEngineDiscipleOps.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:GameEngineExtensions.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:GameEngineInventoryOps.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:GameEngineMarriageProposalTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:GameEngineMarriageProposalTest.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:GameEngineMarriageProposalTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:GameEngineProductionOps.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:GameEngineRecruitTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:GameEngineRenameTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:GameEngineRenameTest.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:GameEngineSaveOps.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:GameEngineSectLevelOps.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:GameEngineWatchItemTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:GameEngineWatchItemTest.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:GameRngManagerTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:GiftServiceTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:GridSystemTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:HeavenlyTrialServiceTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:HerbGardenAuraService.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:HerbGardenAuraServiceTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:InventoryFacade.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:InventoryFacadeImpl.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:LawEnforcementProcessor.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:LawEnforcementProcessorTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:LawEnforcementProcessorTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:LevelGenerator.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:LevelGeneratorTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:LifespanGainOnBreakthroughTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:LootCalculatorTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:LootCalculatorTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:MailService.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:ManualDatabase.kt$import com.xianxia.sect.proto.templates.*</ID>
-    <ID>WildcardImport:ManualDatabaseTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:ManualProficiencySystemTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:MerchantAndRecruitService.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:MerchantAndRecruitService.kt$import com.xianxia.sect.core.registry.*</ID>
-    <ID>WildcardImport:MerchantAndRecruitServiceTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:MerchantItemConverterTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:MerchantItemConverterTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:MissionSystemTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:PartnerSystemTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:PatrolBattleSystemTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:PatrolBattleSystemTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:PillEffectApplier.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:ProductionCoordinator.kt$import com.xianxia.sect.core.model.production.*</ID>
-    <ID>WildcardImport:ProductionProcessor.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:ProductionProcessor.kt$import com.xianxia.sect.core.registry.*</ID>
-    <ID>WildcardImport:ProductionProcessor.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:ProductionProcessorAlchemyTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:ProductionProcessorAutoAlchemyTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:ProductionProcessorTest.kt$import com.xianxia.sect.core.engine.service.*</ID>
-    <ID>WildcardImport:ProductionProcessorTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:ProductionSlotRepository.kt$import kotlinx.coroutines.flow.*</ID>
-    <ID>WildcardImport:RecruitService.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:RecruitServiceTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:RedeemCodeManager.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:RedeemCodeManagerTalentTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:RedeemCodeManagerTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:RedeemCodeService.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:RedeemCodeService.kt$import com.xianxia.sect.core.registry.*</ID>
-    <ID>WildcardImport:RelativeGiftHandlerTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:RelativeGiftHandlerTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:RepositoryModelsTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:ResolveBeastAttackFightTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:ResolveBeastAttackFightTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:SaveFacade.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:SaveFacadeImpl.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:SaveFacadeImpl.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:SaveService.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:SectMapTileGeneratorTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:SectMapTouchEngineTest.kt$import kotlinx.coroutines.test.*</ID>
-    <ID>WildcardImport:SectMapTouchEngineTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:SectPolicyPureLogicTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:SectPolicyToggleUseCase.kt$import com.xianxia.sect.core.engine.*</ID>
-    <ID>WildcardImport:SlotCategoryCoverageTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:SpiritMineMonthlySettlementTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:SpiritMineMonthlySettlementTest.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:SpiritMineMonthlySettlementTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:StateAccessor.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:StateAccessor.kt$import com.xianxia.sect.core.state.*</ID>
-    <ID>WildcardImport:StorageKeyUtilTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:ThermalControllerTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:TimeSystemPureLogicTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:WarehouseModelsTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:WorldLevelManagerTest.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:WorldLevelManagerTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:WorldMapGenerator.kt$import com.xianxia.sect.core.model.*</ID>
-    <ID>WildcardImport:WorldMapGeneratorTest.kt$import org.junit.Assert.*</ID>
-  </CurrentIssues>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              </CurrentIssues>
 </SmellBaseline>

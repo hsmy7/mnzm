@@ -31,12 +31,5 @@
     <ID>UnusedParameter:DialogState.kt$modifier: Modifier = Modifier</ID>
     <ID>UnusedParameter:DialogState.kt$onDismiss: () -&gt; Unit</ID>
     <ID>UnusedParameter:ItemCard.kt$showPrice: Boolean = false</ID>
-    <ID>WildcardImport:DialogState.kt$import androidx.compose.runtime.*</ID>
-    <ID>WildcardImport:ElderBonusInfoButton.kt$import androidx.compose.foundation.layout.*</ID>
-    <ID>WildcardImport:ElderBonusInfoButton.kt$import androidx.compose.material3.*</ID>
-    <ID>WildcardImport:ElderBonusInfoButton.kt$import androidx.compose.runtime.*</ID>
-    <ID>WildcardImport:ItemCard.kt$import androidx.compose.foundation.layout.*</ID>
-    <ID>WildcardImport:ItemCard.kt$import androidx.compose.material3.*</ID>
-    <ID>WildcardImport:ItemCard.kt$import androidx.compose.runtime.*</ID>
-  </CurrentIssues>
+                              </CurrentIssues>
 </SmellBaseline>

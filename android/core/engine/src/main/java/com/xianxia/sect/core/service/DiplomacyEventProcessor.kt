@@ -1,11 +1,12 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.domain.favor.FavorEventProcessor
-import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.state.*
+import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.engine.annotation.GameService
 import javax.inject.Inject
 import javax.inject.Singleton
+
+
 
 /**
  * 外交事件处理器。

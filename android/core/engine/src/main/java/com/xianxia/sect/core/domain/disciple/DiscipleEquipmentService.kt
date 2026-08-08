@@ -1,8 +1,12 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.config.InventoryConfig
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.EquipmentSlot
+import com.xianxia.sect.core.model.accessoryId
+import com.xianxia.sect.core.model.armorId
+import com.xianxia.sect.core.model.bootsId
+import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.AppError
@@ -11,6 +15,10 @@ import com.xianxia.sect.core.util.DomainResult
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.xianxia.sect.core.model.StorageBagItem
+import com.xianxia.sect.core.util.StorageBagUtils
+
+
 
 /**
  * 弟子装备穿卸服务。
@@ -22,8 +30,6 @@ import javax.inject.Singleton
 @Singleton
 class DiscipleEquipmentService @Inject constructor(
     private val stateStore: GameStateStore,
-    private val inventoryConfig: InventoryConfig,
-    private val inventorySystem: com.xianxia.sect.core.engine.system.InventorySystem,
 ) {
     companion object {
         private const val TAG = "DiscipleEquipmentService"
@@ -201,19 +207,22 @@ class DiscipleEquipmentService @Inject constructor(
             val eq = equipmentInstances.get(equipmentId)
 
             if (eq != null) {
-                // 凭据类路径：抑制溢出转邮件——仅全部入仓成功才清槽位+删实例；
-                // Partial/Failure 保留槽位与实例，玩家清理后重试补齐，
-                // 避免"邮件已发 + 槽位悬空/实例孤儿"（对抗性审查 H1 修复）
-                val result = inventorySystem.withOverflowMailSuppressed {
-                    inventorySystem.addEquipmentStack(eq.toStack(quantity = 1))
-                }
-                if (result is DomainResult.Success) {
-                    clearEquipmentSlot(id, slotToClear)
-                    equipmentInstances = equipmentInstances.filter { it.id != equipmentId }
-                } else {
-                    DomainLog.w(TAG, "卸下装备失败：${eq.name} 仓库空间不足，槽位与装备保留，清理后可重试")
-                    return false
-                }
+                // D-03：卸下装备实例直接铸造入袋（容量无上限，永不失败），
+                // 不再转仓库堆叠（不占仓库槽位、无溢出邮件路径，防复制逻辑不再需要）
+                val currentDisciple = discipleTables.assemble(id)
+                discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
+                    currentDisciple.equipment.storageBagItems,
+                    StorageBagItem(
+                        itemId = equipmentId, itemType = ITEM_TYPE_EQUIPMENT_INSTANCE,
+                        name = eq.name, rarity = eq.rarity, quantity = 1,
+                        obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
+                        equipmentInstance = eq
+                    )
+                )
+                discipleTables.storageBagSpiritStones[id] = currentDisciple.equipment.storageBagSpiritStones
+                discipleTables.discipleSpiritStones[id] = currentDisciple.equipment.spiritStones
+                equipmentInstances = equipmentInstances.filter { it.id != equipmentId }
+                clearEquipmentSlot(id, slotToClear)
             } else {
                 DomainLog.w(TAG, "unequipEquipmentLogic: equipment instance $equipmentId not found for disciple $discipleId, clearing slot only")
                 clearEquipmentSlot(id, slotToClear)

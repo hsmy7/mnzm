@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameStateStore
@@ -17,6 +18,8 @@ import org.junit.Rule
 import org.mockito.Mockito
 import org.mockito.Mockito.mock
 import org.robolectric.RobolectricTestRunner
+
+
 
 /**
  * 师徒拜师功能测试。
@@ -71,9 +74,7 @@ class DiscipleServiceApprenticeTest {
             ioDispatcher = IoDispatcher()
         )
         val equipmentService = DiscipleEquipmentService(
-            stateStore = mockStore,
-            inventoryConfig = mock(),
-            inventorySystem = mock(com.xianxia.sect.core.engine.system.InventorySystem::class.java)
+            stateStore = mockStore
         )
         val masterService = DiscipleMasterApprenticeService(
             stateStore = mockStore
@@ -93,7 +94,8 @@ class DiscipleServiceApprenticeTest {
             discipleLifecycleManager = lifecycleManager,
             discipleMasterApprenticeService = masterService,
             discipleSlotManager = slotManager,
-            discipleStatusService = mock()
+            discipleStatusService = mock(),
+            inventorySystem = mock(com.xianxia.sect.core.engine.system.InventorySystem::class.java)
         )
     }
 

@@ -1,9 +1,33 @@
 package com.xianxia.sect.core.repository
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.BattleLog
+import com.xianxia.sect.core.model.BuildingSlot
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.ExplorationTeam
+import com.xianxia.sect.core.model.ExploredSectInfo
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GameHeavyData
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualProficiencyData
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.MaterialCategory
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.Recipe
+import com.xianxia.sect.core.model.RecipeType
+import com.xianxia.sect.core.model.SectDetail
+import com.xianxia.sect.core.model.SectScoutInfo
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import kotlinx.coroutines.flow.Flow
+
+
 
 // Domain-level repository interfaces — engine depends on these, not on data module DAOs.
 

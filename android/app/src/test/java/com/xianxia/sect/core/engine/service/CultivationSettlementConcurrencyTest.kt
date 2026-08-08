@@ -4,7 +4,15 @@ import android.app.Application
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.event.EventBus
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.ResidenceSlot
+import com.xianxia.sect.core.model.SkillStats
+import com.xianxia.sect.core.model.griefEndYear
+import com.xianxia.sect.core.model.loyalty
+import com.xianxia.sect.core.model.salaryPaidCount
+import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.GameStateStoreImpl
 import com.xianxia.sect.core.wallet.SpiritStoneLedger
@@ -25,6 +33,8 @@ import org.junit.runner.RunWith
 import org.mockito.Mockito.mock
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+
+
 
 /**
  * 修复回归测试：弟子批量消失 bug（异步 clear+insert 覆盖竞态）。

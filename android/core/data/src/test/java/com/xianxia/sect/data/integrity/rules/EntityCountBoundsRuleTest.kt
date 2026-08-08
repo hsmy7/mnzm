@@ -16,6 +16,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
+
 class EntityCountBoundsRuleTest {
 
     @Before
@@ -105,10 +106,12 @@ class EntityCountBoundsRuleTest {
     }
 
     // ── C10（2026-08-05）：截断后储物袋悬空引用清理 ──
+    // D-03（2026-08-08）独立存储：袋条目持有自身数据（payload/stackedData），
+    // 不再引用仓库堆叠——堆叠截断不影响袋条目，全部保留（清理反而误删玩家袋内物品）
 
     @Test
-    fun `truncated stacks removed from storageBagItems`() {
-        // C10 根因：截断堆叠后 storageBagItems 中指向已删除堆叠的 itemId 原样保留
+    fun `storageBagItems kept when stacks truncated - D03 independent storage`() {
+        // 袋条目物理上独立于仓库堆叠：堆叠被截断时袋条目原样保留
         val stacks = (0 until 50_001).map { EquipmentStack(id = "eq-$it", name = "剑") }
         val d = makeDisciple(
             equipment = EquipmentSet(
@@ -124,12 +127,12 @@ class EntityCountBoundsRuleTest {
         assertTrue(result is IntegrityResult.Repaired)
         val keptItems = (result as IntegrityResult.Repaired).data.disciples.first().equipment.storageBagItems
         val keptIds = keptItems.map { it.itemId }
-        // 被截断堆叠 eq-50000 的条目被移除；存活堆叠 eq-1 与实例 inst-keep 保留
-        assertEquals(listOf("eq-1", "inst-keep"), keptIds)
+        // 三条袋条目全部保留（含指向被截断堆叠的 eq-50000）
+        assertEquals(listOf("eq-50000", "eq-1", "inst-keep"), keptIds)
     }
 
     @Test
-    fun `truncated manual stacks removed from storageBagItems`() {
+    fun `storageBagItems kept when manual stacks truncated - D03 independent storage`() {
         val stacks = (0 until 50_001).map { ManualStack(id = "manual-$it", name = "心法") }
         val d = makeDisciple(
             equipment = EquipmentSet(
@@ -144,7 +147,7 @@ class EntityCountBoundsRuleTest {
         assertTrue(result is IntegrityResult.Repaired)
         val keptIds = (result as IntegrityResult.Repaired).data.disciples.first()
             .equipment.storageBagItems.map { it.itemId }
-        assertEquals(listOf("manual-3"), keptIds)
+        assertEquals(listOf("manual-50000", "manual-3"), keptIds)
     }
 
     private fun makeDisciple(

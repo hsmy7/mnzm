@@ -1,9 +1,23 @@
-@file:Suppress("DEPRECATION") // 实现 GameStateStore 旧 API 兼容层
-
 package com.xianxia.sect.core.state
 
 import com.xianxia.sect.core.engine.SectCombatPowerCalculator
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.BattleLog
+import com.xianxia.sect.core.model.BloodRefinementPctTotal
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.ExplorationTeam
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.RewardCardItem
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.StorageBag
+import com.xianxia.sect.core.model.spiritStones
 import android.os.Looper
 import com.xianxia.sect.BuildConfig
 import com.xianxia.sect.core.util.DomainLog
@@ -28,9 +42,13 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.CopyOnWriteArrayList
 import javax.inject.Inject
 import javax.inject.Singleton
+
+
 
 @OptIn(FlowPreview::class)
 @Singleton
@@ -129,6 +147,56 @@ class GameStateStoreImpl @Inject constructor(
     override val discipleTables: DiscipleTables get() = _discipleTables
 
     private val transactionLock = ReentrantLock()
+
+    // ── D-01 事务世代号与观察者（溢出草稿按事务提交/回滚落盘/丢弃） ──
+
+    /**
+     * 已提交顶层事务计数——新顶层事务的世代号 = committed + 1（单调递增）。
+     * 嵌套事务不分配新世代号（归外层事务）。loadFromSnapshot/reset 不经过
+     * [update] 钩子，不递增。
+     */
+    private val committedGeneration = AtomicLong(0)
+
+    /**
+     * 进行中顶层事务的世代号；无事务 = 0。
+     * 事务内入队的副作用（如溢出草稿）按此值打标，提交/回滚钩子据此
+     * 决定落盘或丢弃。
+     */
+    @Volatile
+    private var pendingGeneration = 0L
+
+    /** 事务观察者列表（构造注册后常驻，写多读少场景） */
+    private val transactionObservers = CopyOnWriteArrayList<GameStateStore.TransactionObserver>()
+
+    override val currentTransactionGeneration: Long
+        get() = pendingGeneration
+
+    override fun registerTransactionObserver(observer: GameStateStore.TransactionObserver) {
+        if (transactionObservers.contains(observer)) return
+        transactionObservers.add(observer)
+    }
+
+    /** 提交钩子：锁外、事务线程上逐个回调；observer 异常不得破坏状态提交 */
+    private fun fireCommitted(txGen: Long) {
+        for (observer in transactionObservers) {
+            try {
+                observer.onTransactionCommitted(txGen)
+            } catch (@Suppress("TooGenericExceptionCaught") t: Throwable) {
+                DomainLog.e(TAG, "TransactionObserver.onTransactionCommitted 异常", t)
+            }
+        }
+    }
+
+    /** 回滚钩子：锁外、事务线程上逐个回调；observer 异常不得吞掉原始异常（调用方负责） */
+    private fun fireRollback(txGen: Long) {
+        for (observer in transactionObservers) {
+            try {
+                observer.onTransactionRolledBack(txGen)
+            } catch (@Suppress("TooGenericExceptionCaught") t: Throwable) {
+                DomainLog.e(TAG, "TransactionObserver.onTransactionRolledBack 异常", t)
+            }
+        }
+    }
 
     /**
      * 显式重入计数，替代原 thread identity 检测。
@@ -788,19 +856,28 @@ class GameStateStoreImpl @Inject constructor(
         }
 
         var disciplesNeedReassemble = false
+        // D-01 事务世代号：本次顶层事务的世代号（0 = 无事务/重入路径）。
+        // committed 标记事务是否成功提交——异常/取消传播到锁外时 finally 据此
+        // fireRollback（草稿丢弃，防复制）；成功则在锁外 fireCommitted（草稿落盘）。
+        var txGen = 0L
+        var committed = false
 
-        transactionLock.withLock {
-            val lockStartNs = System.nanoTime()
-            // ★ 显式重入检测（在锁内，跨线程安全）
-            if (reentrantCount.get() > 0) {
-                val buffer = reentrantBuffer.get() ?: return@withLock
-                buffer.block()
-                // 重入路径：buffer 即最外层 update 的 reusableMutableState，
-                // 各字段变化由外层 update 在提交阶段统一检测并写回 StateFlow，无需在此重复处理。
-                return@withLock
-            }
-            try {
-                reentrantCount.set(1)
+        try {
+            transactionLock.withLock {
+                val lockStartNs = System.nanoTime()
+                // ★ 显式重入检测（在锁内，跨线程安全）
+                if (reentrantCount.get() > 0) {
+                    val buffer = reentrantBuffer.get() ?: return@withLock
+                    buffer.block()
+                    // 重入路径：buffer 即最外层 update 的 reusableMutableState，
+                    // 各字段变化由外层 update 在提交阶段统一检测并写回 StateFlow，无需在此重复处理。
+                    return@withLock
+                }
+                try {
+                    reentrantCount.set(1)
+                    // D-01：分配本事务世代号（嵌套事务重入路径不达此处，归外层事务）
+                    txGen = committedGeneration.incrementAndGet()
+                    pendingGeneration = txGen
                 reentrantBuffer.set(reusableMutableState)
                 val baseline = captureBaseline()
                 initReusableState(baseline)
@@ -863,12 +940,25 @@ class GameStateStoreImpl @Inject constructor(
                         TAG, "update() 锁内耗时 ${lockElapsedMs}ms（阈值=${UPDATE_WARN_THRESHOLD_MS}ms）"
                     )
                 }
-            } finally {
-                reusableMutableState.discipleTables.writeAllowed = false
-                reentrantCount.set(0)
-                reentrantBuffer.set(null)
+                } finally {
+                    reusableMutableState.discipleTables.writeAllowed = false
+                    reentrantCount.set(0)
+                    reentrantBuffer.set(null)
+                }
             }
+            committed = true
+        } finally {
+            // D-01：世代号复位 + 回滚钩子（异常/取消传播路径；草稿丢弃防复制）。
+            // fireRollback 在 pendingGeneration 复位后执行（观察者读到 0）。
+            // ★ 嵌套（重入）update 不分配世代号（txGen=0），不得清零 pendingGeneration——
+            // 否则外层事务尚未提交，草稿入队读 gen=0 走立即落盘路径，回滚时草稿已持久化
+            // （复制）；嵌套事务归外层，世代号由外层事务统一提交/回滚。
+            if (txGen > 0L) pendingGeneration = 0
+            if (!committed && txGen > 0L) fireRollback(txGen)
         }
+        // D-01：提交成功（锁外、事务线程）——提交钩子同步落盘（草稿持久化；
+        // 观察者异常由 fireCommitted 内部捕获，不得破坏状态提交）
+        if (committed && txGen > 0L) fireCommitted(txGen)
 
         // 在锁外执行增量 assemble，减少 transactionMutex 持有时间。
         // 使用 changedIdTracker 追踪本次事务中修改过的弟子 ID，
@@ -1474,13 +1564,3 @@ class GameStateStoreImpl @Inject constructor(
 
     // ==================== GameData 策略表驱动合并 ====================
 }
-
-fun fixStorageBagReferences(
-    equipmentStacks: List<EquipmentStack>,
-    equipmentInstances: List<EquipmentInstance>,
-    manualStacks: List<ManualStack>,
-    manualInstances: List<ManualInstance>,
-    disciples: List<Disciple>
-): List<Disciple> = com.xianxia.sect.core.util.fixStorageBagReferences(
-    equipmentStacks, equipmentInstances, manualStacks, manualInstances, disciples
-)

@@ -2,12 +2,63 @@ package com.xianxia.sect.data.local
 
 import android.util.Log
 import androidx.room.TypeConverter
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.AIBattleTeam
+import com.xianxia.sect.core.model.AICaveTeam
+import com.xianxia.sect.core.model.ActiveMission
+import com.xianxia.sect.core.model.AlchemySlot
+import com.xianxia.sect.core.model.Alliance
+import com.xianxia.sect.core.model.AutoBuyEntry
+import com.xianxia.sect.core.model.BattleLogAction
+import com.xianxia.sect.core.model.BattleLogEnemy
+import com.xianxia.sect.core.model.BattleLogMember
+import com.xianxia.sect.core.model.BattleLogRound
+import com.xianxia.sect.core.model.BattleTeam
+import com.xianxia.sect.core.model.BloodRefinementBonusTotal
+import com.xianxia.sect.core.model.BloodRefinementPctTotal
+import com.xianxia.sect.core.model.BloodRefinementProgress
+import com.xianxia.sect.core.model.BuildingSlot
+import com.xianxia.sect.core.model.CaveExplorationTeam
+import com.xianxia.sect.core.model.CultivatorCave
+import com.xianxia.sect.core.model.DirectDiscipleSlot
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.ExploredSectInfo
+import com.xianxia.sect.core.model.GameEventRecord
+import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.model.HeavenlyTrialSaveData
+import com.xianxia.sect.core.model.LibrarySlot
+import com.xianxia.sect.core.model.MailClaimRecord
+import com.xianxia.sect.core.model.ManualProficiencyData
+import com.xianxia.sect.core.model.MerchantItem
+import com.xianxia.sect.core.model.MineSlot
+import com.xianxia.sect.core.model.Mission
+import com.xianxia.sect.core.model.PatrolConfig
+import com.xianxia.sect.core.model.PatrolSlot
+import com.xianxia.sect.core.model.PlantSlotData
+import com.xianxia.sect.core.model.ResidenceSlot
+import com.xianxia.sect.core.model.SecretRealmAITeam
+import com.xianxia.sect.core.model.SecretRealmExplorationSession
+import com.xianxia.sect.core.model.SecretRealmState
+import com.xianxia.sect.core.model.SectBattleRecord
+import com.xianxia.sect.core.model.SectDetail
+import com.xianxia.sect.core.model.SectLevelClaimRecord
+import com.xianxia.sect.core.model.SectRelation
+import com.xianxia.sect.core.model.SectScoutInfo
+import com.xianxia.sect.core.model.SignInState
+import com.xianxia.sect.core.model.SpiritFieldPlant
+import com.xianxia.sect.core.model.SpiritMineSlot
+import com.xianxia.sect.core.model.StorageBagItem
+import com.xianxia.sect.core.model.VassalContract
+import com.xianxia.sect.core.model.WarehouseGarrisonSlot
+import com.xianxia.sect.core.model.WorldLevel
+import com.xianxia.sect.core.model.WorldSect
+import com.xianxia.sect.core.model.YearlyReport
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.state.BattleResultUIData
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
+
+
 
 /**
  * ## CollectionConverters - 集合类型的 Room TypeConverter

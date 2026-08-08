@@ -1,25 +1,53 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.ElderSlotType
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GameEventCategory
+import com.xianxia.sect.core.model.GameEventType
+import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.StorageBagItem
+import com.xianxia.sect.core.model.WarehouseGarrisonSlot
+import com.xianxia.sect.core.model.accessoryId
+import com.xianxia.sect.core.model.armorId
+import com.xianxia.sect.core.model.bootsId
+import com.xianxia.sect.core.model.intelligence
+import com.xianxia.sect.core.model.loyalty
+import com.xianxia.sect.core.model.morality
+import com.xianxia.sect.core.model.nextEventSequenceId
+import com.xianxia.sect.core.model.spiritStones
+import com.xianxia.sect.core.model.storageBagItems
+import com.xianxia.sect.core.model.storageBagSpiritStones
+import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.recordGameEvent
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_EQUIPMENT_INSTANCE
-import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_EQUIPMENT_STACK
-import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_MANUAL_INSTANCE
-import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_MANUAL_STACK
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.model.GameEventRecord
 import com.xianxia.sect.core.exploration.LootCalculator
+import com.xianxia.sect.core.model.BagStackedData
 import javax.inject.Inject
 import javax.inject.Singleton
+
+
+
+
+
+
 
 /**
  * 执法/偷窃处理器 — 处理叛逃/偷窃检测及处罚。
@@ -402,13 +430,14 @@ class LawEnforcementProcessor @Inject constructor(
             lootCalculator.applyLoot(state, lootData)
         }
 
-        // 更新弟子储物袋（无容量上限）
+        // 更新弟子储物袋（容量无上限；D-03：条目自带 stackedData 标记已物化）
         val existing = tables.assembleAll().firstOrNull { it.id == disciple.id } ?: return
         val itemEntries = stolenItems.map { item ->
             StorageBagItem(
                 itemId = item.id, itemType = item.type, name = item.name,
                 rarity = item.rarity, quantity = item.count,
-                obtainedYear = state.gameData.gameYear, obtainedMonth = state.gameData.gameMonth
+                obtainedYear = state.gameData.gameYear, obtainedMonth = state.gameData.gameMonth,
+                stackedData = BagStackedData()
             )
         }
         tables.update(existing.copy(
@@ -481,13 +510,14 @@ class LawEnforcementProcessor @Inject constructor(
                 lootCalculator.applyLoot(this, lootData)
             }
 
-            // 更新弟子储物袋
+            // 更新弟子储物袋（容量无上限；D-03：条目自带 stackedData 标记已物化）
             val existing = discipleTables.assembleAll().firstOrNull { it.id == disciple.id } ?: return@update
             val itemEntries = stolenItems.map { item ->
                 StorageBagItem(
                     itemId = item.id, itemType = item.type, name = item.name,
                     rarity = item.rarity, quantity = item.count,
-                    obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth
+                    obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
+                    stackedData = BagStackedData()
                 )
             }
             discipleTables.update(existing.copy(
@@ -737,8 +767,9 @@ class LawEnforcementProcessor @Inject constructor(
         snapshot.equipment.armorId?.let { desertEquipIds.add(it) }
         snapshot.equipment.bootsId?.let { desertEquipIds.add(it) }
         snapshot.equipment.accessoryId?.let { desertEquipIds.add(it) }
-        snapshot.equipment.storageBagItems.filter { it.itemType == ITEM_TYPE_EQUIPMENT_STACK || it.itemType == ITEM_TYPE_EQUIPMENT_INSTANCE }.map { it.itemId }.forEach { desertEquipIds.add(it) }
-        val desertManualIds = snapshot.manualIds.toSet() + snapshot.equipment.storageBagItems.filter { it.itemType == ITEM_TYPE_MANUAL_STACK || it.itemType == ITEM_TYPE_MANUAL_INSTANCE }.map { it.itemId }
+        // D-03：储物袋独立存储后袋条目持有数据且随弟子删除（叛逃带走），
+        // 不再收集袋条目 itemId——itemId 可能撞仓库堆叠 id，收集会误删玩家仓库物品
+        val desertManualIds = snapshot.manualIds.toSet()
         val desertProfId = id.toString()
         discipleLifecycleProcessor.clearDiscipleFromAllSlots(id.toString())
         stateStore.update {

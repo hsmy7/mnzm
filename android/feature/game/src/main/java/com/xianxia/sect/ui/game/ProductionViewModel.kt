@@ -2,8 +2,20 @@ package com.xianxia.sect.ui.game
 
 import androidx.lifecycle.viewModelScope
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.engine.*
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.engine.assignDirectDisciple
+import com.xianxia.sect.core.engine.assignDiscipleToLibrarySlot
+import com.xianxia.sect.core.engine.assignWarehouseGarrisonAtomic
+import com.xianxia.sect.core.engine.getDiscipleAggregate
+import com.xianxia.sect.core.engine.releaseDiscipleAssignment
+import com.xianxia.sect.core.engine.removeDirectDisciple
+import com.xianxia.sect.core.engine.removeDiscipleFromLibrarySlot
+import com.xianxia.sect.core.engine.updateGameDataAndSync
+import com.xianxia.sect.core.model.DirectDiscipleSlot
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.ElderSlotType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.usecase.ElderManagementUseCase
 import com.xianxia.sect.core.usecase.SectPolicyToggleUseCase
@@ -12,6 +24,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+
 
 @HiltViewModel
 class ProductionViewModel @Inject constructor(

@@ -12,9 +12,14 @@ import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.TimeSystem
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.concurrent.ThermalController
-import com.xianxia.sect.core.event.*
-import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.state.*
+import com.xianxia.sect.core.event.DomainEvent
+import com.xianxia.sect.core.event.EventBusPort
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.ManualProficiencyData
+import com.xianxia.sect.core.model.ResidenceSlot
+import com.xianxia.sect.core.model.secretRealmMemberIds
+import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.thermal.BatteryStatusProvider
 import com.xianxia.sect.core.thermal.NoopBatteryStatus
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
@@ -23,14 +28,46 @@ import com.xianxia.sect.core.engine.monitor.GameTimeProgressMonitor
 import com.xianxia.sect.core.engine.monitor.GameTimeProgressSnapshot
 import com.xianxia.sect.core.engine.monitor.StallVerdict
 import kotlinx.coroutines.*
+import com.xianxia.sect.core.overflow.OverflowMailHandler
+import kotlin.concurrent.withLock
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.*
 import java.util.concurrent.ExecutorService
+import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.Executors
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.xianxia.sect.core.overflow.NoOpOverflowMailHandler
+
+
+
+/**
+ * D-07 游戏循环生命周期状态机——stop/shutdown/emergencyRestart 并发交错的唯一真相源。
+ *
+ * 转换规则（全部经 [transitionLoopPhase] CAS，单赢家语义）：
+ * - 正常启动：STOPPED → RUNNING（startGameLoop）
+ * - 紧急重启：RUNNING → RESTARTING（emergencyRestartGameLoop 独占）
+ *   → 重启完成 → RUNNING；中途被 stop/shutdown 抢占则放弃启动（不复活）
+ * - 停止：RUNNING | RESTARTING → STOPPING → STOPPED（stopGameLoop）
+ * - 关闭：RUNNING | RESTARTING | STOPPING → STOPPED（shutdown，幂等）
+ *
+ * 对抗性审查加固（2026-08-08）：phase 与启动世代 epoch 原子绑定为单一
+ * [LoopState]——emergency 每次抢占 RUNNING 时递增 epoch；startGameLoop 从
+ * CAS 结果原子取得 epoch，启动前/后校验世代未变，闭合"emergency 在 start
+ * 启动窗口内完整跑完仍被 start 追加第二循环"的 ABA 窗口（孤儿循环/双循环
+ * 根除，见 GameEngineCoreLifecycleInterleavingTest）。
+ */
+private enum class LoopPhase {
+    RUNNING,
+    RESTARTING,
+    STOPPING,
+    STOPPED
+}
+
+/** D-07 状态机原子载体：phase + epoch（紧急重启世代）单一 CAS 目标。 */
+private data class LoopState(val phase: LoopPhase, val epoch: Int)
 
 /**
  * ## GameEngineCore - 游戏循环控制器
@@ -57,6 +94,12 @@ import javax.inject.Singleton
  * GameStateStore.unifiedState 通过 combine 自动派生，
  * UI 层订阅 unifiedState 即可获得最新状态，无需手动同步。
  */
+/** D-17 帧循环跨帧累计状态（gameLoopIteration 参数/返回值，替代多参数漂移） */
+private data class LoopIterationState(
+    val accumulatorNs: Long,
+    val lastFrameTimeNs: Long
+)
+
 @Singleton
 @Suppress("LongParameterList") // 引擎核心 14 个真实依赖（含 EngineCrashReporter 端口），原 12 参数已 baseline 豁免
 class GameEngineCore @Inject constructor(
@@ -78,7 +121,9 @@ class GameEngineCore @Inject constructor(
     /** 引擎异常上报端口（app 层提供 Bugly 实现；默认 Noop 供测试/无基建场景） */
     private val engineCrashReporter: EngineCrashReporter = NoopEngineCrashReporter,
     /** 电池状态感知（低电量未充电时主动降帧/提前降载；默认 Noop 供测试） */
-    private val batteryStatusProvider: BatteryStatusProvider = NoopBatteryStatus
+    private val batteryStatusProvider: BatteryStatusProvider = NoopBatteryStatus,
+    /** 溢出邮件处理器（D-01 崩溃恢复：启动时排空持久化草稿；默认 Noop 供测试） */
+    private val overflowMailHandler: OverflowMailHandler = NoOpOverflowMailHandler
 ) : EngineContextDispatcher {
 
     /**
@@ -362,6 +407,25 @@ class GameEngineCore @Inject constructor(
      *  否则三个看门狗线程并发通过检查 → 双循环双倍速） */
     private val isEmergencyRestarting = AtomicBoolean(false)
 
+    /**
+     * D-07 生命周期状态机（初始 STOPPED：构造后未启动）。
+     * phase 与 epoch 原子绑定（对抗性审查 2026-08-08）：emergency 每次抢占
+     * RUNNING 递增 epoch，start 从 CAS 结果原子取得并校验世代未变——闭合
+     * "emergency 在 start 启动窗口内完整跑完仍被追加第二循环"的 ABA 窗口。
+     */
+    private val engineLoopState = AtomicReference(LoopState(LoopPhase.STOPPED, 0))
+
+    private val engineLoopPhase: LoopPhase get() = engineLoopState.get().phase
+
+    /**
+     * D-07 工作体互斥锁（对抗性审查 2026-08-08）：CAS 状态机只门控"转换意图"，
+     * 不门控 CAS 之后的破坏性/启动性工作体（stop 的拆除、shutdown 的 releaseAll/
+     * engineJob.cancel、emergency 的重建+launch、start 的 launch）。stop 的过期
+     * 拆除体误杀新循环、shutdown 拆除体与并发 start 交错毒化态等窗口由本锁
+     * 串行化根除——锁内全部为非挂起同步操作（无挂起点，无死锁风险）。
+     */
+    private val loopOpLock = java.util.concurrent.locks.ReentrantLock()
+
     // ★ 插值因子（供 UI 平滑渲染，由 frame-driven 循环维护）
     @Volatile
     var currentAlpha: Float = 0f
@@ -479,16 +543,98 @@ class GameEngineCore @Inject constructor(
         DomainLog.i(TAG, "GameEngineCore initialized successfully")
     }
     
-    @Suppress("LongMethod", "CyclomaticComplexMethod") // 帧循环启动（原 baseline 豁免，签名变化后重新标注）
+    // catch Throwable 为 D-07 phase 中毒回滚语义必需（任何异常都须回滚状态机）
+    @Suppress("LongMethod", "CyclomaticComplexMethod", "TooGenericExceptionCaught")
     fun startGameLoop(resetWatchdogAttempts: Boolean = true) {
         if (gameLoopJob?.isActive == true) {
             DomainLog.w(TAG, "Game loop already running")
             return
         }
+        // D-07 状态机：仅 STOPPED → RUNNING。RESTARTING（emergency 独占）/
+        // STOPPING/重复 RUNNING 一律拒绝——防止 emergency 与正常启动交错出双循环
+        val won = transitionLoopPhase(setOf(LoopPhase.STOPPED), LoopPhase.RUNNING)
+        if (won == null) {
+            DomainLog.w(TAG, "startGameLoop rejected (phase=${engineLoopPhase})")
+            return
+        }
+        // 对抗性审查（孤儿循环）：CAS 只赢下转换意图，启动体必须在锁内执行——
+        // stop/shutdown/emergency 的工作体与 start 的启动体串行化，过期拆除体
+        // 不误杀新循环；epoch 取自 CAS 结果（原子），启动前/后校验世代未变
+        val epoch = won.epoch
+        loopOpLock.withLock {
+            try {
+                startGameLoopInternal(resetWatchdogAttempts, LoopPhase.RUNNING, epoch)
+            } catch (t: Throwable) {
+                // 对抗性审查（phase 中毒）：启动体异常（drain/onLoopStart/
+                // startWatchdog/launch 拒绝）→ 回滚 RUNNING → STOPPED，避免
+                // phase 停 RUNNING 无 job 导致后续 start 永久被拒（原实现
+                // 无状态残留可自然重试，属行为退化，此处恢复该语义）
+                engineLoopState.compareAndSet(
+                    LoopState(LoopPhase.RUNNING, epoch),
+                    LoopState(LoopPhase.STOPPED, epoch)
+                )
+                throw t
+            }
+        }
+    }
 
+    /**
+     * D-07 启动体——公共 [startGameLoop]（expectedPhase=RUNNING）与
+     * emergencyRestartGameLoop（expectedPhase=RESTARTING，由 emergency 自行
+     * 收尾转 RUNNING）经 CAS + 锁后直调。launch 前/后双重校验 phase 与 epoch
+     * 未变（对抗性审查 2026-08-08 根治孤儿循环/双循环）：
+     * - launch 前：CAS 与锁之间被抢占（stop 已移走 phase / emergency 已递增
+     *   epoch / emergency 的循环已启动）→ 放弃启动，不复活
+     * - launch 后：防御性二次校验（锁纪律破坏时兜底）→ 撤销自身 job
+     */
+    private fun startGameLoopInternal(
+        resetWatchdogAttempts: Boolean,
+        expectedPhase: LoopPhase,
+        expectedEpoch: Int
+    ) {
+        val preLaunchState = engineLoopState.get()
+        if (preLaunchState.phase != expectedPhase || preLaunchState.epoch != expectedEpoch) {
+            DomainLog.w(TAG, "startGameLoopInternal aborted (phase=${preLaunchState.phase}, " +
+                "epoch=${preLaunchState.epoch}, expected=$expectedPhase/$expectedEpoch)")
+            return
+        }
+        // 防御：emergency 的循环已在 CAS 与锁之间启动（仅理论 ABA 残留窗口）
+        if (gameLoopJob?.isActive == true) {
+            DomainLog.w(TAG, "startGameLoopInternal aborted (loop already active)")
+            return
+        }
+        prepareLoopStart(resetWatchdogAttempts)
+
+        // 对抗性审查（signal 跨代完成）：捕获局部变量——旧循环 finally 完成的是
+        // 捕获时点的 signal，而非字段。字段在每次启动时重建，旧 job 若读字段
+        // 会完成新一代 signal：等待方挂满超时（重启中断）或提前放行（与运行中
+        // 循环并发写状态）。捕获局部变量使跨代引用不可能发生
+        val signal = gameLoopStoppedSignal
+        val job = engineScope.launch { gameLoopMainLoop(signal) }
+        gameLoopJob = job
+        // 对抗性审查（孤儿循环）launch 后二次校验：CAS 与 launch 之间被抢占
+        // （stop/shutdown 移走 phase / emergency 递增 epoch）→ 撤销自身 job，
+        // 循环不复活。锁内串行化下恒真，保留为锁纪律的防御性兜底
+        if (engineLoopState.get().phase != expectedPhase ||
+            engineLoopState.get().epoch != expectedEpoch
+        ) {
+            job.cancel()
+            if (gameLoopJob === job) gameLoopJob = null
+            DomainLog.w(TAG, "startGameLoopInternal cancelled after launch " +
+                "(phase=${engineLoopPhase})")
+        }
+    }
+
+    /**
+     * D-17 启动前置初始化（startGameLoopInternal 拆分）：时钟/停止信号/监控/
+     * 草稿排空/玉符锚定/暂停保留/看门狗启动。
+     *
+     * @param resetWatchdogAttempts 全新启动 true；emergencyRestart 传 false
+     * （F6：保留降级计数，否则降级模式永不生效）
+     */
+    private fun prepareLoopStart(resetWatchdogAttempts: Boolean) {
         // 全新启动时重置看门狗累计失败计数，防止跨 session 残留
-        // 导致第二次进入游戏时看门狗以降级模式（30s 间隔）启动。
-        // emergencyRestart 传 false（F6：保留降级计数，否则降级模式永不生效）
+        // 导致第二次进入游戏时看门狗以降级模式（30s 间隔）启动
         if (resetWatchdogAttempts) {
             watchdogRecoveryAttempts = 0
         }
@@ -496,6 +642,14 @@ class GameEngineCore @Inject constructor(
         gameClock.start()
         gameLoopStoppedSignal = CompletableDeferred()
         unifiedPerformanceMonitor.start()
+        // D-08 接线（2026-08-08）：热状态监控绑定当前 engineScope——start 与
+        // emergencyRestart 均经本函数（emergency 锁内已重建 scope，ThermalMonitor
+        // start 无条件重建轮询 job 绑定新 scope）。stop 侧对称见
+        // stopGameLoopUnchecked（stopGameLoop/shutdown/pauseForBackground 全经此）
+        thermalMonitor.start(engineScope)
+        // D-01 崩溃恢复：启动/重启（含 emergencyRestart）必经路径——排空上次
+        // 崩溃遗留的持久化草稿（幂等，无草稿即空转；非挂起异步调度不阻塞启动）
+        overflowMailHandler.drainPersistedDrafts()
 
         // 玉符在线时长结算：从 GameData 快照恢复运行时字段（读档/切档/重启天然正确）。
         // 只读快照零写入——跨天检查/首次锚定的 GameData 写入延迟到引擎线程首帧 tick
@@ -521,164 +675,236 @@ class GameEngineCore @Inject constructor(
 
         // 启动独立看门狗，监控游戏线程是否被 PowerGenie 等 OEM 挂起
         startWatchdog()
+    }
 
-        gameLoopJob = engineScope.launch {
-            DomainLog.i(TAG, "Starting game loop")
+    /**
+     * D-17 循环主循环（startGameLoopInternal 拆分）——launch 块内容：线程优先级、
+     * ADPF session 创建、帧循环、finally 收尾（玉符 checkpoint + 停止信号完成）。
+     * 单帧迭代提取 [gameLoopIteration]（跨帧累计状态经 [LoopIterationState] 传递）。
+     *
+     * @param signal 捕获于启动时点的停止信号（防跨代完成，见 startGameLoopInternal）
+     */
+    private suspend fun CoroutineScope.gameLoopMainLoop(signal: CompletableDeferred<Unit>) {
+        DomainLog.i(TAG, "Starting game loop")
 
-            // 双重保险：线程工厂已设 MAX_PRIORITY，但部分 OEM 覆盖线程优先级。
-            // Process.setThreadPriority(THREAD_PRIORITY_URGENT_DISPLAY) 是 Linux
-            // nice 值 -8，低于音频线程 THREAD_PRIORITY_AUDIO (-16)，
-            // 防止游戏线程优先级高于音频混音线程导致 buffer underrun（红米/小米等设备上音频断续）
-            try {
-                android.os.Process.setThreadPriority(
-                    android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY
-                )
-                DomainLog.d(TAG, "Game thread priority: URGENT_DISPLAY (-8)")
-            } catch (e: CancellationException) { throw e }
-              catch (e: Exception) {
-                DomainLog.w(TAG, "Cannot set thread priority: ${e.message}")
+        // 双重保险：线程工厂已设 MAX_PRIORITY，但部分 OEM 覆盖线程优先级。
+        // Process.setThreadPriority(THREAD_PRIORITY_URGENT_DISPLAY) 是 Linux
+        // nice 值 -8，低于音频线程 THREAD_PRIORITY_AUDIO (-16)，
+        // 防止游戏线程优先级高于音频混音线程导致 buffer underrun（红米/小米等设备上音频断续）
+        try {
+            android.os.Process.setThreadPriority(
+                android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY
+            )
+            DomainLog.d(TAG, "Game thread priority: URGENT_DISPLAY (-8)")
+        } catch (e: CancellationException) { throw e }
+          catch (e: Exception) {
+            DomainLog.w(TAG, "Cannot set thread priority: ${e.message}")
+        }
+
+        // ★ 帧驱动 Accumulator 循环
+        var state = LoopIterationState(accumulatorNs = 0L, lastFrameTimeNs = System.nanoTime())
+        // ADPF: 创建 Performance Hint Session（API 31+，低版本自动跳过）
+        thermalMonitor.createHintSession(TARGET_FRAME_DURATION_60FPS_NS)
+        try {
+            while (isActive) {
+                state = gameLoopIteration(state)
+            }
+        } finally {
+            thermalMonitor.closeHintSession()
+            // 玉符 checkpoint 放循环协程 finally（引擎线程）：覆盖 cancel/
+            // emergencyRestart/正常退出全部停止路径。不能放在 stopGameLoop
+            // 同步调用——主线程链路（onPause 后台切换）调用时 update 会命中
+            // stateStore 主线程运行时守卫（Debug 崩 / Release 静默丢进度）
+            jadeSymbolService.onLoopStop()
+            signal.complete(Unit)
+            DomainLog.i(TAG, "Game loop stopped signal sent")
+        }
+    }
+
+    /**
+     * D-17 单帧迭代（gameLoopMainLoop 拆分）——原 while 体内逻辑：心跳/玉符 tick/
+     * delta 累计/暂停分支/固定步长 tick/插值因子/闲置超时/场景感知自适应等待。
+     *
+     * @param state 跨帧累计状态（accumulatorNs/lastFrameTimeNs）
+     * @return 更新后的累计状态（暂停分支与异常路径会清零 accumulatorNs，语义同原 continue）
+     */
+    private suspend fun gameLoopIteration(state: LoopIterationState): LoopIterationState {
+        var accumulatorNs = state.accumulatorNs
+        var lastFrameTimeNs = state.lastFrameTimeNs
+        try {
+            // 循环活动心跳：每次迭代更新（含暂停分支与 skip 路径），
+            // 供看门狗区分"正常慢保存/暂停"与"循环停滞/引擎死亡"
+            lastLoopActivityMs = gameClock.nowMs()
+
+            // 玉符在线时长累计：循环顶部挂钩（暂停分支 continue 在其后执行 →
+            // 挂机/暂停照常累计；切后台循环整体停止 → 自然不累计）
+            jadeSymbolService.onLoopTick()
+
+            // Step 1: 计算 deltaTime
+            val nowNs = System.nanoTime()
+            var deltaNs = nowNs - lastFrameTimeNs
+            lastFrameTimeNs = nowNs
+            deltaNs = deltaNs.coerceAtMost(MAX_ACCUMULATOR_NS)
+
+            // Step 2: 暂停/加载时不积累
+            if (stateStore.isPaused.value || stateStore.isLoading.value) {
+                return handlePausedIteration(lastFrameTimeNs)
             }
 
-            // ★ 帧驱动 Accumulator 循环
-            var accumulatorNs = 0L
-            var lastFrameTimeNs = System.nanoTime()
-            // ADPF: 创建 Performance Hint Session（API 31+，低版本自动跳过）
-            thermalMonitor.createHintSession(TARGET_FRAME_DURATION_60FPS_NS)
-            try {
-                while (isActive) {
-                    try {
-                        // 循环活动心跳：每次迭代更新（含暂停分支与 skip 路径），
-                        // 供看门狗区分"正常慢保存/暂停"与"循环停滞/引擎死亡"
-                        lastLoopActivityMs = gameClock.nowMs()
+            // Step 3: Accumulate + FixedUpdate
+            accumulatorNs += deltaNs
+            var stepsExecuted = 0
+            while (accumulatorNs >= LOGIC_DT_NS && stepsExecuted < 5) {
+                tickInternal()
+                accumulatorNs -= LOGIC_DT_NS
+                stepsExecuted++
+            }
 
-                        // 玉符在线时长累计：循环顶部挂钩（暂停分支 continue 在其后执行 →
-                        // 挂机/暂停照常累计；切后台循环整体停止 → 自然不累计）
-                        jadeSymbolService.onLoopTick()
+            // Step 4: 插值因子
+            currentAlpha = (accumulatorNs.toFloat() / LOGIC_DT_NS.toFloat()).coerceIn(0f, 1f)
 
-                        // Step 1: 计算 deltaTime
-                        val nowNs = System.nanoTime()
-                        var deltaNs = nowNs - lastFrameTimeNs
-                        lastFrameTimeNs = nowNs
-                        deltaNs = deltaNs.coerceAtMost(MAX_ACCUMULATOR_NS)
+            // Step 5: 闲置超时检测
+            checkIdleTimeout(nowNs)
 
-                        // Step 2: 暂停/加载时不积累
-                        if (stateStore.isPaused.value || stateStore.isLoading.value) {
-                            // 暂停期间也刷新进度快照（flags 实时化）——
-                            // 否则快照过期，看门狗无法判定秘境锁残留/用户暂停豁免
-                            sampleProgressSnapshot()
-                            // 激活 60s 病理兜底（2026-08-04 修复）：原实现 continue 绕过
-                            // skipTickIfNeeded → checkAndResetStuckStates 从未执行。
-                            // isLoading 卡死时看门狗对其豁免且循环心跳持续跳动 →
-                            // 时间永久冻结、tick 驱动按钮全部无效且永不自愈。
-                            // checkAndResetStuckStates 为非挂起纯函数，仅复位
-                            // isSaving/isLoading 标志 + 取消加载 Job，不触碰 isPaused。
-                            checkAndResetStuckStates(
-                                isSaving = stateStore.isSaving.value,
-                                isLoading = stateStore.isLoading.value
-                            )
-                            gameClock.consumeDeadTime()
-                            delay(50)
-                            accumulatorNs = 0L
-                            continue
-                        }
+            // Step 6: 场景感知自适应等待（P1.3）
+            adaptiveWait(stepsExecuted, deltaNs, nowNs)
+            updateRenderFrameRate()
+            // ADPF: 报告帧实际耗时（deltaNs 为帧间实际间隔）
+            thermalMonitor.reportActualWorkDuration(deltaNs)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleTickCrash(e)
+            gameClock.consumeDeadTime()
+            accumulatorNs = 0L
+        }
+        return LoopIterationState(accumulatorNs = accumulatorNs, lastFrameTimeNs = lastFrameTimeNs)
+    }
 
-                        // Step 3: Accumulate + FixedUpdate
-                        accumulatorNs += deltaNs
-                        var stepsExecuted = 0
-                        while (accumulatorNs >= LOGIC_DT_NS && stepsExecuted < 5) {
-                            tickInternal()
-                            accumulatorNs -= LOGIC_DT_NS
-                            stepsExecuted++
-                        }
+    /** D-17 单帧崩溃兜底（gameLoopIteration 拆分）：归因上下文采集 + 日志 + 异常上报，自身永不抛异常 */
+    private fun handleTickCrash(e: Exception) {
+        // 第一性原理：catch 块自身必须永不抛异常——任何状态读取失败
+        // 都不能杀死游戏循环（测试曾复现：catch 内读 isPaused 抛异常 → 协程死亡）
+        @Suppress("TooGenericExceptionCaught") // 防御性兜底：状态读取异常类型不可预期
+        val crashContext = try {
+            val gd = stateStore.gameDataSnapshot
+            mapOf(
+                "year" to gd.gameYear.toString(),
+                "month" to gd.gameMonth.toString(),
+                "phase" to gd.gamePhase.toString(),
+                "tickCount" to _tickCount.value.toString(),
+                "scene" to currentScene.name,
+                "isPaused" to stateStore.isPaused.value.toString(),
+                "isSaving" to stateStore.isSaving.value.toString(),
+                "isLoading" to stateStore.isLoading.value.toString(),
+                "speed" to gameClock.speed.toString(),
+                "lastTickMs" to lastTickDurationMs.toString(),
+                "watchdogAttempts" to watchdogRecoveryAttempts.toString(),
+                "oem" to OemPowerProfileProvider.currentManufacturer.name
+            )
+        } catch (contextFailure: Exception) {
+            mapOf("contextError" to (contextFailure.message ?: "unknown"))
+        }
+        DomainLog.e(TAG,
+            "Game loop tick crashed: year=${crashContext["year"] ?: "?"} " +
+            "tickCount=${_tickCount.value} scene=${currentScene}", e)
+        // 异常归因上报：让下次回归有证据可循（历史多次"吞异常+重启"修复无归因）
+        // 上报失败必须被吞——上报通道异常不得杀死游戏循环
+        @Suppress("TooGenericExceptionCaught") // 上报通道失败类型不可预期，必须全吞
+        try {
+            engineCrashReporter.postCatchedException(e, crashContext)
+        } catch (reportFailure: Exception) {
+            DomainLog.w(TAG, "Crash reporter failed", reportFailure)
+        }
+    }
 
-                        // Step 4: 插值因子
-                        currentAlpha = (accumulatorNs.toFloat() / LOGIC_DT_NS.toFloat()).coerceIn(0f, 1f)
+    /**
+     * D-17 暂停/加载迭代（gameLoopIteration 拆分）：暂停期间也刷新进度快照
+     * （flags 实时化）——否则快照过期，看门狗无法判定秘境锁残留/用户暂停豁免。
+     */
+    private suspend fun handlePausedIteration(lastFrameTimeNs: Long): LoopIterationState {
+        sampleProgressSnapshot()
+        // 激活 60s 病理兜底（2026-08-04 修复）：原实现 continue 绕过
+        // skipTickIfNeeded → checkAndResetStuckStates 从未执行。
+        // isLoading 卡死时看门狗对其豁免且循环心跳持续跳动 →
+        // 时间永久冻结、tick 驱动按钮全部无效且永不自愈。
+        // checkAndResetStuckStates 为非挂起纯函数，仅复位
+        // isSaving/isLoading 标志 + 取消加载 Job，不触碰 isPaused。
+        checkAndResetStuckStates(
+            isSaving = stateStore.isSaving.value,
+            isLoading = stateStore.isLoading.value
+        )
+        gameClock.consumeDeadTime()
+        delay(50)
+        return LoopIterationState(accumulatorNs = 0L, lastFrameTimeNs = lastFrameTimeNs)
+    }
 
-                        // Step 5: 闲置超时检测
-                        checkIdleTimeout(nowNs)
-
-                        // Step 6: 场景感知自适应等待（P1.3）
-                        if (stepsExecuted == 0 && deltaNs < LOGIC_DT_NS) {
-                            // 无 tick 执行 → 按场景帧预算等待
-                            val budgetMs = currentScene.targetFrameTimeMs
-                            val consumedMs = (System.nanoTime() - nowNs) / 1_000_000
-                            val waitMs = (budgetMs - consumedMs).coerceIn(1L, budgetMs)
-                            delay(waitMs)
-                        } else {
-                            // 有 tick 执行 → 确保不超过场景帧预算
-                            val frameElapsedMs = (System.nanoTime() - nowNs) / 1_000_000
-                            val budgetMs = currentScene.targetFrameTimeMs
-                            if (frameElapsedMs < budgetMs) {
-                                antiFreezeDelay(budgetMs - frameElapsedMs, deltaNs / 1_000_000)
-                            }
-                        }
-                        updateRenderFrameRate()
-                        // ADPF: 报告帧实际耗时（deltaNs 为帧间实际间隔）
-                        thermalMonitor.reportActualWorkDuration(deltaNs)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        // 第一性原理：catch 块自身必须永不抛异常——任何状态读取失败
-                        // 都不能杀死游戏循环（测试曾复现：catch 内读 isPaused 抛异常 → 协程死亡）
-                        @Suppress("TooGenericExceptionCaught") // 防御性兜底：状态读取异常类型不可预期
-                        val crashContext = try {
-                            val gd = stateStore.gameDataSnapshot
-                            mapOf(
-                                "year" to gd.gameYear.toString(),
-                                "month" to gd.gameMonth.toString(),
-                                "phase" to gd.gamePhase.toString(),
-                                "tickCount" to _tickCount.value.toString(),
-                                "scene" to currentScene.name,
-                                "isPaused" to stateStore.isPaused.value.toString(),
-                                "isSaving" to stateStore.isSaving.value.toString(),
-                                "isLoading" to stateStore.isLoading.value.toString(),
-                                "speed" to gameClock.speed.toString(),
-                                "lastTickMs" to lastTickDurationMs.toString(),
-                                "watchdogAttempts" to watchdogRecoveryAttempts.toString(),
-                                "oem" to OemPowerProfileProvider.currentManufacturer.name
-                            )
-                        } catch (contextFailure: Exception) {
-                            mapOf("contextError" to (contextFailure.message ?: "unknown"))
-                        }
-                        DomainLog.e(TAG,
-                            "Game loop tick crashed: year=${crashContext["year"] ?: "?"} " +
-                            "tickCount=${_tickCount.value} scene=${currentScene}", e)
-                        // 异常归因上报：让下次回归有证据可循（历史多次"吞异常+重启"修复无归因）
-                        // 上报失败必须被吞——上报通道异常不得杀死游戏循环
-                        @Suppress("TooGenericExceptionCaught") // 上报通道失败类型不可预期，必须全吞
-                        try {
-                            engineCrashReporter.postCatchedException(e, crashContext)
-                        } catch (reportFailure: Exception) {
-                            DomainLog.w(TAG, "Crash reporter failed", reportFailure)
-                        }
-                        gameClock.consumeDeadTime()
-                        accumulatorNs = 0L
-                    }
-                }
-            } finally {
-                thermalMonitor.closeHintSession()
-                // 玉符 checkpoint 放循环协程 finally（引擎线程）：覆盖 cancel/
-                // emergencyRestart/正常退出全部停止路径。不能放在 stopGameLoop
-                // 同步调用——主线程链路（onPause 后台切换）调用时 update 会命中
-                // stateStore 主线程运行时守卫（Debug 崩 / Release 静默丢进度）
-                jadeSymbolService.onLoopStop()
-                gameLoopStoppedSignal.complete(Unit)
-                DomainLog.i(TAG, "Game loop stopped signal sent")
+    /** D-17 场景感知自适应等待（gameLoopIteration 拆分，P1.3）：无 tick 按帧预算等待，有 tick 防超预算 */
+    private suspend fun adaptiveWait(stepsExecuted: Int, deltaNs: Long, nowNs: Long) {
+        if (stepsExecuted == 0 && deltaNs < LOGIC_DT_NS) {
+            // 无 tick 执行 → 按场景帧预算等待
+            val budgetMs = currentScene.targetFrameTimeMs
+            val consumedMs = (System.nanoTime() - nowNs) / 1_000_000
+            val waitMs = (budgetMs - consumedMs).coerceIn(1L, budgetMs)
+            delay(waitMs)
+        } else {
+            // 有 tick 执行 → 确保不超过场景帧预算
+            val frameElapsedMs = (System.nanoTime() - nowNs) / 1_000_000
+            val budgetMs = currentScene.targetFrameTimeMs
+            if (frameElapsedMs < budgetMs) {
+                antiFreezeDelay(budgetMs - frameElapsedMs, deltaNs / 1_000_000)
             }
         }
     }
-    
+
     fun stopGameLoop() {
+        // D-07 状态机：RUNNING/RESTARTING → STOPPING 单赢家；已 STOPPING/STOPPED
+        // 幂等返回（重复调用不重复执行）。emergency 重启中调 stop → 抢占成功，
+        // emergency 的启动前检查（phase 已离开 RESTARTING）将放弃启动（不复活）
+        if (transitionLoopPhase(setOf(LoopPhase.RUNNING, LoopPhase.RESTARTING), LoopPhase.STOPPING) == null) {
+            DomainLog.d(TAG, "stopGameLoop: already stopping/stopped (phase=${engineLoopPhase})")
+            return
+        }
+        // 对抗性审查（过期拆除体误杀新循环）：拆除体在锁内执行——stop 的 CAS 与
+        // 拆除体之间若 shutdown+start 完成，stop 恢复后的取消会杀掉新循环且
+        // CAS2 失败静默返回（永久冻结）。锁串行化后拆除体只作用于"自己赢下
+        // STOPPING 时的循环"，新循环在 stop 释放锁后启动，不受影响
+        loopOpLock.withLock {
+            stopGameLoopUnchecked()
+            transitionLoopPhase(setOf(LoopPhase.STOPPING), LoopPhase.STOPPED)
+            DomainLog.i(TAG, "Game loop stop requested, isPaused=true")
+        }
+    }
+
+    /** D-07 停止体——调用方（stopGameLoop/shutdown）已完成状态机 CAS 且持锁后执行 */
+    private fun stopGameLoopUnchecked() {
         unifiedPerformanceMonitor.stop()
+        // D-08 接线：与 startGameLoopInternal 的 thermalMonitor.start(engineScope)
+        // 对称——stopGameLoop/shutdown/pauseForBackground（后台切换走 stopGameLoop）
+        // 全经本函数，热监控轮询不残留
+        thermalMonitor.stop()
         stopWatchdog()
         stateStore.setPausedDirect(true)
         gameLoopJob?.cancel()
         gameLoopJob = null
-        DomainLog.i(TAG, "Game loop stop requested, isPaused=true")
     }
-    
+
     suspend fun stopGameLoopAndWait(timeoutMs: Long = 5000): Boolean {
+        // 对抗性审查（边界语义）：循环未运行即已停止——空态立即返回 true，
+        // 避免挂满超时返回 false 误导调用方（signal 无循环永不完成）
+        if (!isGameLoopRunning) return true
         stopGameLoop()
+        return waitForLoopStopped(timeoutMs)
+    }
+
+    /**
+     * D-17 等待循环停止（stopGameLoopAndWait 拆分）。
+     * 对抗性审查（边界语义）：kotlinx-coroutines 1.9.0 的 withTimeoutOrNull
+     * 在 timeMillis<=0 时直接返回 null 不执行 block——停止实际已完成却报
+     * false 误导调用方。显式处理：0/负超时视为"不等待，返回当前停止状态"
+     */
+    private suspend fun waitForLoopStopped(timeoutMs: Long): Boolean {
+        if (timeoutMs <= 0) return !isGameLoopRunning
         return withTimeoutOrNull(timeoutMs) {
             gameLoopStoppedSignal.await()
             true
@@ -687,19 +913,34 @@ class GameEngineCore @Inject constructor(
             false
         }
     }
-    
+
     fun shutdown() {
-        stopGameLoop()
-        stopWatchdog()
-        systemManager.releaseAll()
-        engineJob.cancel()
-        // 不关闭 GAME_DISPATCHER：shutdown 后可能重新 start，需保持线程池可用
-        // 若必须关闭，需同时重建 GAME_DISPATCHER（静态 val 无法替换，故此处仅 cancel job）
-        // WATCHDOG_DISPATCHER 同理：shutdown 后可能重新 startGameLoop → startWatchdog
-        engineJob = SupervisorJob(scopeProvider.scope.coroutineContext[Job])
-        engineScope = CoroutineScope(engineJob + gameDispatcher + engineExceptionHandler)
-        isInitialized = false
-        DomainLog.i(TAG, "GameEngineCore shutdown complete")
+        // D-07 状态机：RUNNING/RESTARTING/STOPPING → STOPPED 单赢家；已 STOPPED
+        // 幂等返回。抢占 emergency 的重启意图——emergency 启动前 phase 检查 abort
+        if (transitionLoopPhase(
+                setOf(LoopPhase.RUNNING, LoopPhase.RESTARTING, LoopPhase.STOPPING),
+                LoopPhase.STOPPED
+            ) == null
+        ) {
+            DomainLog.i(TAG, "shutdown: already stopped, idempotent")
+            return
+        }
+        // 对抗性审查（毒化态）：拆除体（releaseAll/engineJob.cancel/重建 scope）
+        // 在锁内执行——并发 start 的启动体等待锁，launch 必发生在拆除完成后
+        // 的新 scope 上，不再出现"start 启动在旧 engineJob 上被迟到的 cancel
+        // 连带取消 → phase=RUNNING 但循环死"的毒化态
+        loopOpLock.withLock {
+            stopGameLoopUnchecked()
+            systemManager.releaseAll()
+            engineJob.cancel()
+            // 不关闭 GAME_DISPATCHER：shutdown 后可能重新 start，需保持线程池可用
+            // 若必须关闭，需同时重建 GAME_DISPATCHER（静态 val 无法替换，故此处仅 cancel job）
+            // WATCHDOG_DISPATCHER 同理：shutdown 后可能重新 startGameLoop → startWatchdog
+            engineJob = SupervisorJob(scopeProvider.scope.coroutineContext[Job])
+            engineScope = CoroutineScope(engineJob + gameDispatcher + engineExceptionHandler)
+            isInitialized = false
+            DomainLog.i(TAG, "GameEngineCore shutdown complete")
+        }
     }
 
     // ── 独立看门狗 — 监控游戏线程是否被 PowerGenie 等 OEM 机制挂起 ──
@@ -888,8 +1129,14 @@ class GameEngineCore @Inject constructor(
                 "Watchdog recovery throttled (interval=${MIN_WATCHDOG_RECOVERY_INTERVAL_MS}ms)")
             return
         }
+        val previous = lastWatchdogRecoveryMs
         lastWatchdogRecoveryMs = now
-        emergencyRestartGameLoop()
+        // 对抗性审查（数据篡改者 F5）：被拒的恢复（stop/shutdown 已抢占，phase
+        // 非 RUNNING）也消耗 60s 限频预算 → 后续真实停滞恢复被限频拖延。
+        // 拒绝时回滚预算——恢复动作未执行，不应计为一次有效恢复
+        if (!emergencyRestartGameLoop()) {
+            lastWatchdogRecoveryMs = previous
+        }
     }
 
     /**
@@ -936,14 +1183,70 @@ class GameEngineCore @Inject constructor(
      * 取消，重启流程可完整执行；看门狗触发路径经 [performWatchdogRecovery]
      * 60s 限频）。
      */
-    fun emergencyRestartGameLoop() {
+    /**
+     * 紧急重启游戏循环——创建全新调度器线程，绕过 OEM 线程挂起。
+     *
+     * 全恢复路径统一入口（引擎看门狗/主线程 HealthCheck/Alarm 兜底均调用）：
+     * 创建一个全新的 GAME_DISPATCHER（新线程），确保不被 HyperOS 等
+     * OEM 电源管理挂起的旧线程影响。可从任意线程调用（内部经协程协作式
+     * 取消，重启流程可完整执行；看门狗触发路径经 [performWatchdogRecovery]
+     * 60s 限频）。
+     *
+     * @return true=重启完成（RESTARTING→RUNNING 成功）；false=被拒绝
+     * （stop/shutdown 已抢占/重入中/abort）——调用方据此回滚限频预算。
+     */
+    // catch Throwable 为 D-07 phase 中毒回滚语义必需（任何异常都须回滚 RESTARTING）
+    @Suppress("TooGenericExceptionCaught")
+    fun emergencyRestartGameLoop(): Boolean {
         // S2：CAS 原子防重入——三个看门狗线程可能并发触发，非原子 check-then-act
         // 会让两个线程同时进入 → 双循环双倍速
         if (!isEmergencyRestarting.compareAndSet(false, true)) {
             DomainLog.w(TAG, "EMERGENCY restart already in progress, skipping")
-            return
+            return false
         }
-        try {
+        return try {
+            performEmergencyRestart()
+        } catch (t: Throwable) {
+            // 对抗性审查（phase 中毒）：启动体异常（recreate/snapshot/forceReset）
+            // → 回滚 RESTARTING → STOPPED，避免 phase 永久停在 RESTARTING
+            //（emergency 的后续 CAS 也被拒，恢复链路死透）。stop/shutdown 已
+            // 抢占时 CAS 失败，由抢占方自行收尾
+            engineLoopState.compareAndSet(
+                LoopState(LoopPhase.RESTARTING, engineLoopState.get().epoch),
+                LoopState(LoopPhase.STOPPED, engineLoopState.get().epoch)
+            )
+            throw t
+        } finally {
+            isEmergencyRestarting.set(false)
+        }
+    }
+
+    /**
+     * D-17 紧急重启工作体（emergencyRestartGameLoop 拆分）：CAS 状态机闸 + 锁内
+     * 拆除/重建/重启 + RESTARTING→RUNNING 收尾。
+     *
+     * @return true=重启完成（RESTARTING→RUNNING 成功）；false=被 stop/shutdown
+     * 抢占（循环保持停止）——调用方据此回滚限频预算。
+     */
+    private fun performEmergencyRestart(): Boolean {
+        // D-07 状态机闸：仅 RUNNING → RESTARTING，且递增启动世代 epoch
+        //（对抗性审查 2026-08-08：与 phase 原子绑定——start 从自身 CAS 结果
+        // 取得的 epoch 一旦落后即放弃启动，闭合双循环 ABA 窗口）。
+        // stop/shutdown 已抢占（STOPPING/STOPPED）时拒绝——否则 shutdown
+        // 完成后 emergency 又重建循环（孤儿循环）。拒绝路径零副作用：
+        // 未取消循环、未重建 dispatcher（不泄漏线程）
+        val won = transitionLoopPhase(
+            setOf(LoopPhase.RUNNING), LoopPhase.RESTARTING, bumpEpoch = true
+        )
+        if (won == null) {
+            DomainLog.w(TAG, "EMERGENCY restart rejected (phase=${engineLoopPhase})")
+            return false
+        }
+        val epoch = won.epoch
+        // 对抗性审查（孤儿循环/双循环/毒化态）：紧急重启工作体在锁内执行，
+        // 与 start/stop/shutdown 工作体串行化——重建的 dispatcher/launch 的
+        // 循环不会与并发启动体交错；被 stop 抢占的拆除体等锁，不误杀新循环
+        return loopOpLock.withLock {
             val gd = stateStore.gameDataSnapshot
             DomainLog.e(TAG, "EMERGENCY restart: year=${gd.gameYear}, " +
                 "month=${gd.gameMonth}, recruitList.size=" +
@@ -966,17 +1269,58 @@ class GameEngineCore @Inject constructor(
 
             // 5. 重启循环——保留降级计数（F6：startGameLoop 不清零，
             //    否则每次紧急重启后的新看门狗都从激进模式起步，降级模式永不生效）
-            startGameLoop(resetWatchdogAttempts = false)
+            //    launch 前/后双重校验由 startGameLoopInternal 承担（phase/epoch
+            //    未变才启动；被抢占即 abort，循环不复活）
+            startGameLoopInternal(
+                resetWatchdogAttempts = false,
+                expectedPhase = LoopPhase.RESTARTING,
+                expectedEpoch = epoch
+            )
 
-            DomainLog.i(TAG, "EMERGENCY restart complete")
-        } finally {
-            isEmergencyRestarting.set(false)
+            // 6. 重启完成收尾：RESTARTING → RUNNING；被 stop 抢占（STOPPING/STOPPED）
+            //    则保持——循环已由 stop 停止，不强行复位
+            val restarted = transitionLoopPhase(
+                setOf(LoopPhase.RESTARTING), LoopPhase.RUNNING
+            )
+            if (restarted == null) {
+                DomainLog.w(TAG, "EMERGENCY restart: phase moved away " +
+                    "(${engineLoopPhase}), loop stays stopped")
+            } else {
+                DomainLog.i(TAG, "EMERGENCY restart complete")
+            }
+            restarted != null
         }
     }
 
     private fun stopWatchdog() {
         watchdogJob?.cancel()
         watchdogJob = null
+    }
+
+    /**
+     * D-07 状态机 CAS 迁移：当前 phase ∈ [expected] → 迁移到 [new]。
+     * 并发抢占方（stop/shutdown/emergency）先完成迁移时返回 null。
+     * [bumpEpoch] 仅在 emergency 抢占 RUNNING 时置 true——递增启动世代，
+     * 使并发 start 的 epoch 校验失败（放弃启动），闭合双循环 ABA 窗口。
+     * 成功时返回新状态（原子）：startGameLoop/emergency 从中读取 epoch，
+     * 避免"CAS 后另读 epoch"的读取窗口。
+     * 循环重试处理 compareAndSet 的瞬时失败（期望态未被抢占时必然成功）。
+     */
+    private fun transitionLoopPhase(
+        expected: Collection<LoopPhase>,
+        new: LoopPhase,
+        bumpEpoch: Boolean = false
+    ): LoopState? {
+        while (true) {
+            val current = engineLoopState.get()
+            if (current.phase !in expected) return null
+            val next = if (bumpEpoch) {
+                current.copy(phase = new, epoch = current.epoch + 1)
+            } else {
+                current.copy(phase = new)
+            }
+            if (engineLoopState.compareAndSet(current, next)) return next
+        }
     }
 
     val isGameLoopRunning: Boolean get() = gameLoopJob?.isActive == true

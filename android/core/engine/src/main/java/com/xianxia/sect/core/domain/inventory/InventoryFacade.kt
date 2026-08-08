@@ -2,8 +2,23 @@ package com.xianxia.sect.core.engine.domain.inventory
 
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.system.InventorySystem
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.BattleRewardItem
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.ForgeRecipe
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.MerchantItem
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.RewardCardItem
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.StorageBag
+import com.xianxia.sect.core.model.StorageBagItem
 import kotlinx.coroutines.flow.StateFlow
+
+
 
 interface InventoryFacade {
     val inventorySystem: InventorySystem

@@ -1,8 +1,12 @@
 package com.xianxia.sect.core.engine.service
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.AutoBuyEntry
+import com.xianxia.sect.core.model.MerchantItem
+import com.xianxia.sect.core.model.spiritStones
 import org.junit.Assert.*
 import org.junit.Test
+
+
 
 class AutoBuyServiceTest {
 

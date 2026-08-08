@@ -37,6 +37,8 @@ import com.xianxia.sect.core.util.AppError
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.xianxia.sect.core.model.StorageBagItem
+
 
 // TickSystem: "InventorySystem"
 @com.xianxia.sect.core.engine.annotation.GameService("InventorySystem")
@@ -58,6 +60,9 @@ class InventorySystem @Inject constructor(
         /** 储物袋槽位预算：储物袋不占仓库建筑容量（computeSlotCount 不含 storageBags），
          *  此值仅防止极端情况下堆叠无限增长（6 种稀有度各若干堆）。 */
         private const val STORAGE_BAG_SLOT_BUDGET = 64
+
+        /** 死亡物化年度报告来源（materializeDiscipleBagAndMarkDead 用） */
+        const val SOURCE_DISCIPLE_DEATH = "disciple_death"
     }
 
     /** 年度报告物品来源上下文——引擎单线程安全。在调用 add* 前设置来源 */
@@ -312,34 +317,22 @@ class InventorySystem @Inject constructor(
      * 添加装备堆叠（合并 + 溢出转邮件 + 年度来源追踪）。
      *
      * @param item 待添加的装备堆叠
-     * @param excludeStackId 排除的堆叠 id（F1 对抗性审查修复：放背包路径刚扣减
-     *   源堆叠 1 份后调用本方法，若合并回源堆叠则数量净 0 但背包引用 +1，
-     *   可无限刷引用并经储物袋回收洗白为真实堆叠——排除后合并到其他同键
-     *   堆叠或新建，与旧手写实现的有界语义一致）
      */
-    override fun addEquipmentStack(
-        item: EquipmentStack,
-        excludeStackId: String?
-    ): DomainResult<EquipmentStack> {
+    override fun addEquipmentStack(item: EquipmentStack): DomainResult<EquipmentStack> {
         val validation = validateStackableItem(item.name, item.rarity, item.quantity)
         if (validation is DomainResult.Failure) return validation
 
         return stateStore.updateAndReturn {
             val otherTypes = manualStacks.size + pills.size + materials.size + herbs.size + seeds.size
-            val allStacks = equipmentStacks.all()
-            val excluded = excludeStackId?.let { id -> allStacks.find { it.id == id } }
-            val candidates = if (excluded != null) allStacks - excluded else allStacks
             val store = StackableItemStore(
-                initialItems = candidates,
+                initialItems = equipmentStacks.all(),
                 stackKeyOf = StackKeys::equipment,
                 maxStack = getMaxStackForType("equipment_stack"),
                 maxSlots = { computeMaxSlots() - otherTypes },
                 notFound = { AppError.Domain.Inventory.NotFound(it) }
             )
             val result = store.add(item)
-            // 排除的堆叠放回列表尾部（放背包路径：源堆叠保持扣减后的状态）
-            val finalStacks = if (excluded != null) store.all() + excluded else store.all()
-            equipmentStacks.replaceAll(finalStacks)
+            equipmentStacks.replaceAll(store.all())
             when (result) {
                 is DomainResult.Success -> {
                     val srcKey = "$trackingSource:${item.rarity}"
@@ -380,32 +373,25 @@ class InventorySystem @Inject constructor(
      *
      * @param item 待添加的功法堆叠
      * @param merge 是否尝试合并（默认 true）
-     * @param excludeStackId 排除的堆叠 id（F1 对抗性审查修复，语义同
-     *   [addEquipmentStack]——放背包路径须排除刚扣减的源堆叠，防刷引用）
      */
     override fun addManualStack(
         item: ManualStack,
-        merge: Boolean,
-        excludeStackId: String?
+        merge: Boolean
     ): DomainResult<ManualStack> {
         val validation = validateStackableItem(item.name, item.rarity, item.quantity)
         if (validation is DomainResult.Failure) return validation
 
         return stateStore.updateAndReturn {
             val otherTypes = equipmentStacks.size + pills.size + materials.size + herbs.size + seeds.size
-            val allStacks = manualStacks.all()
-            val excluded = excludeStackId?.let { id -> allStacks.find { it.id == id } }
-            val candidates = if (excluded != null) allStacks - excluded else allStacks
             val store = StackableItemStore(
-                initialItems = candidates,
+                initialItems = manualStacks.all(),
                 stackKeyOf = StackKeys::manual,
                 maxStack = getMaxStackForType("manual_stack"),
                 maxSlots = { computeMaxSlots() - otherTypes },
                 notFound = { AppError.Domain.Inventory.NotFound(it) }
             )
             val result = store.add(item, merge = merge)
-            val finalStacks = if (excluded != null) store.all() + excluded else store.all()
-            manualStacks.replaceAll(finalStacks)
+            manualStacks.replaceAll(store.all())
             handleOverflowResult(result, "manual", item)
             result
         }
@@ -444,77 +430,135 @@ class InventorySystem @Inject constructor(
     }
 
     /**
-     * 卸装/换装路径：装备实例转回仓库堆叠并移除实例（P-20 从 domain StorageBagUtils 迁入）。
+     * D-03：袋条目物化回仓库（发放类——溢出自动转邮件，物品不丢）。
      *
-     * 修复了原 domain 实现的三个缺陷：
-     * 1. `maxSlots = { candidates.size + 1 }` 绕过仓库总容量 → 改为真实容量
-     *    `computeMaxSlots() - otherTypes`（卸装也受仓库容量约束，溢出转邮件）
-     * 2. Partial 被当作成功 → 溢出经 [handleOverflowResult] 转邮件（不丢玩家物品）
-     * 3. 无来源追踪 → 年度报告可归因（调用方自行包裹 [withTrackingSource]）
+     * 调用时机：弟子死亡/逐出时，袋物品物化回仓库（玩家保留物品，不随弟子消失）。
+     * 调用方在 [stateStore.update] 事务内调用（本方法经 updateAndReturn 重入同一缓冲）。
+     * 调用方包裹 [withTrackingSource] 归因年度报告。
      *
-     * @param instance 待转回堆叠的装备实例
-     * @param excludeStackId 排除的堆叠 id（背包引用指向的堆叠，防合并到自身后引用错位）
+     * - 实例条目（equipment_instance/manual_instance）：[returnEquipmentToStack]/
+     *   [returnManualToStack] 完整保真（含 nurture）
+     * - 堆叠条目（equipment_stack/manual_stack/pill/material/herb/seed）：模板重建
+     *   （[BagItemReconstructor]，minRealm/quantity 条目保真）
+     * - 模板缺失：丢弃 + 日志（无法重建，不阻塞删除流程）
+     * - 未物化条目（payload 空）：忽略（读档物化器已处理，运行期不应出现）
+     *
+     * @return 物化成功的条目数（供日志）
      */
-    fun addEquipmentInstanceToBag(
-        instance: EquipmentInstance,
-        excludeStackId: String? = null
-    ): DomainResult<EquipmentStack> {
-        return stateStore.updateAndReturn {
-            val allStacks = equipmentStacks.all()
-            val excluded = excludeStackId?.let { id -> allStacks.find { it.id == id } }
-            val candidates = if (excluded != null) allStacks - excluded else allStacks
-            val store = StackableItemStore(
-                initialItems = candidates,
-                stackKeyOf = StackKeys::equipment,
-                maxStack = getMaxStackForType("equipment_stack"),
-                maxSlots = {
-                    computeMaxSlots() - (manualStacks.size + pills.size + materials.size + herbs.size + seeds.size)
-                },
-                notFound = { AppError.Domain.Inventory.NotFound(it) }
-            )
-            val item = instance.toStack(quantity = 1)
-            val result = store.add(item)
-            // 排除的堆叠放回列表尾部（保持背包引用指向的源堆叠不被扣减）
-            val finalStacks = if (excluded != null) store.all() + excluded else store.all()
-            equipmentStacks.replaceAll(finalStacks)
-            equipmentInstances = equipmentInstances.filter { it.id != instance.id }
-            handleOverflowResult(result, "equipment", item)
-            result
+    fun materializeBagItemsToWarehouse(items: List<StorageBagItem>): Int =
+        items.count { materializeSingleBagItem(it) }
+
+    /** D-17 单个袋条目物化（materializeBagItemsToWarehouse 拆分）。@return 是否物化成功 */
+    private fun materializeSingleBagItem(item: StorageBagItem): Boolean {
+        // 跨模块 public API 属性不能 smart cast，先取局部变量
+        val eqInstance = item.equipmentInstance
+        val mnInstance = item.manualInstance
+        return when {
+            eqInstance != null -> materializeEquipmentInstance(eqInstance, item)
+            mnInstance != null -> materializeManualInstance(mnInstance, item)
+            item.stackedData != null -> materializeStackedItem(item)
+            // 未物化条目（payload 空）：忽略
+            else -> false
         }
     }
 
-    /**
-     * 卸功法路径：功法实例转回仓库堆叠并移除实例（P-20 从 domain StorageBagUtils 迁入）。
-     * 语义与 [addEquipmentInstanceToBag] 一致。
-     *
-     * @param instance 待转回堆叠的功法实例
-     * @param excludeStackId 排除的堆叠 id（背包引用指向的堆叠）
-     */
-    fun addManualInstanceToBag(
-        instance: ManualInstance,
-        excludeStackId: String? = null
-    ): DomainResult<ManualStack> {
-        return stateStore.updateAndReturn {
-            val allStacks = manualStacks.all()
-            val excluded = excludeStackId?.let { id -> allStacks.find { it.id == id } }
-            val candidates = if (excluded != null) allStacks - excluded else allStacks
-            val store = StackableItemStore(
-                initialItems = candidates,
-                stackKeyOf = StackKeys::manual,
-                maxStack = getMaxStackForType("manual_stack"),
-                maxSlots = {
-                    computeMaxSlots() - (equipmentStacks.size + pills.size + materials.size + herbs.size + seeds.size)
-                },
-                notFound = { AppError.Domain.Inventory.NotFound(it) }
-            )
-            val item = instance.toStack(quantity = 1)
-            val result = store.add(item)
-            val finalStacks = if (excluded != null) store.all() + excluded else store.all()
-            manualStacks.replaceAll(finalStacks)
-            manualInstances = manualInstances.filter { it.id != instance.id }
-            handleOverflowResult(result, "manual", item)
-            result
+    /** D-17 装备实例物化（materializeBagItemsToWarehouse 拆分）：入仓成功或溢出转邮件即完成 */
+    private fun materializeEquipmentInstance(
+        eqInstance: EquipmentInstance,
+        item: StorageBagItem
+    ): Boolean {
+        val result = returnEquipmentToStack(eqInstance)
+        // 物化完成判据：入仓成功（Success/Partial）或仓库满已转邮件（Failure Full——
+        // handleOverflowResult 已把物品转邮件，实例删除防复制）；其他失败保留实例
+        val completed = result is DomainResult.Success || result is DomainResult.Partial ||
+            (result is DomainResult.Failure && result.error is AppError.Domain.Inventory.Full)
+        if (completed) {
+            // 防双持有：实例已物化入栈（或溢出转邮件），从实例表删除——
+            // 外层（死亡/逐出）大事务包裹本方法，回滚时删除一并回滚，原子性由外层保证
+            stateStore.update { equipmentInstances = equipmentInstances.filter { it.id != eqInstance.id } }
+        } else {
+            DomainLog.w(TAG, "物化装备失败 ${item.name}: ${(result as? DomainResult.Failure)?.error}")
         }
+        return completed
+    }
+
+    /** D-17 功法实例物化（materializeBagItemsToWarehouse 拆分）：入仓成功或溢出转邮件即完成 */
+    private fun materializeManualInstance(
+        mnInstance: ManualInstance,
+        item: StorageBagItem
+    ): Boolean {
+        val result = returnManualToStack(mnInstance)
+        val completed = result is DomainResult.Success || result is DomainResult.Partial ||
+            (result is DomainResult.Failure && result.error is AppError.Domain.Inventory.Full)
+        if (completed) {
+            // 防双持有：同装备分支
+            stateStore.update { manualInstances = manualInstances.filter { it.id != mnInstance.id } }
+        } else {
+            DomainLog.w(TAG, "物化功法失败 ${item.name}: ${(result as? DomainResult.Failure)?.error}")
+        }
+        return completed
+    }
+
+    /** D-17 堆叠条目物化前置（materializeStackedItem 拆分）：数量合法性检查 + 模板重建 */
+    private fun reconstructStackedItem(item: StorageBagItem): ReconstructedBagStack? {
+        // 篡改防御：堆叠条目数量非法（<=0）拒绝物化——防 0/负数量白得物品
+        if (item.quantity <= 0) {
+            DomainLog.w(TAG, "物化失败（数量非法 quantity=${item.quantity}，跳过）：${item.name}")
+            return null
+        }
+        val reconstructed = BagItemReconstructor.reconstruct(item)
+        if (reconstructed == null) {
+            DomainLog.w(TAG, "物化失败（无模板，随弟子删除）：${item.name}")
+        }
+        return reconstructed
+    }
+
+    /** D-17 堆叠条目模板重建物化（materializeBagItemsToWarehouse 拆分） */
+    private fun materializeStackedItem(item: StorageBagItem): Boolean {
+        val reconstructed = reconstructStackedItem(item) ?: return false
+        val result = when (reconstructed) {
+            is ReconstructedBagStack.Equipment -> addEquipmentStack(reconstructed.stack)
+            is ReconstructedBagStack.Manual -> addManualStack(reconstructed.stack)
+            is ReconstructedBagStack.Pill -> addPill(reconstructed.stack)
+            is ReconstructedBagStack.Herb -> addHerb(reconstructed.stack)
+            is ReconstructedBagStack.Seed -> addSeed(reconstructed.stack)
+            is ReconstructedBagStack.Material -> addMaterial(reconstructed.stack)
+        }
+        val completed = result is DomainResult.Success || result is DomainResult.Partial
+        if (!completed) {
+            DomainLog.w(TAG, "物化失败 ${item.name}: ${(result as? DomainResult.Failure)?.error}")
+        }
+        return completed
+    }
+
+    /**
+     * D-03 死亡统一入口：袋物品物化回仓库（玩家保留，溢出自动转邮件）→ 清空袋条目
+     * （幂等）→ 标记死亡。必须在 [stateStore.update] 事务内调用（与 markDead 同事务，
+     * 防"死亡已标记但袋物品未物化"窗口导致物品随死弟子记录 cull 永久丢失）。
+     *
+     * 所有死亡标记路径（宗门战/世界战斗/侦查/探索队/秘境/寿元）统一经此入口。
+     * 物化后清空袋条目：重复死亡处理不重复物化（防物品复制）。
+     *
+     * @param state 事务内 MutableGameState（调用方在 stateStore.update 中传入 this）
+     * @param discipleId 死弟子 id
+     * @param deathYear 死亡年份
+     * @param cause 死亡原因（与 DiscipleTables.markDead 的 cause 对齐：battle/scout/exploration/...）
+     */
+    fun materializeDiscipleBagAndMarkDead(
+        state: MutableGameState,
+        discipleId: Int,
+        deathYear: Int,
+        cause: String
+    ) {
+        val bagItems = state.discipleTables.storageBagItems.getOrNull(discipleId)
+        if (!bagItems.isNullOrEmpty()) {
+            withTrackingSource(SOURCE_DISCIPLE_DEATH) {
+                materializeBagItemsToWarehouse(bagItems)
+            }
+            // 幂等：清空袋条目——重复死亡处理不重复物化
+            state.discipleTables.storageBagItems[discipleId] = emptyList()
+        }
+        state.discipleTables.markDead(discipleId, deathYear, cause)
     }
 
     fun returnManualToStack(instance: ManualInstance): DomainResult<ManualStack> {

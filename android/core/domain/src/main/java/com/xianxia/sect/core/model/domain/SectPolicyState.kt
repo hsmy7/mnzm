@@ -1,6 +1,9 @@
 package com.xianxia.sect.core.model.domain
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.SectPolicies
+
+
 
 /**
  * 宗门政策领域状态 — 从 GameData 中提取的政策相关字段聚合。

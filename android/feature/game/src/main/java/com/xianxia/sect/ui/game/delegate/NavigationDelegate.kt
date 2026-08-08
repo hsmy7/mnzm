@@ -1,10 +1,15 @@
 package com.xianxia.sect.ui.game.delegate
 
 import android.util.Log
-import com.xianxia.sect.core.engine.*
+import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.engine.GameEngineCore
+import com.xianxia.sect.core.engine.attackWorldLevel
+import com.xianxia.sect.core.engine.clearPendingBattleResult
 import com.xianxia.sect.ui.navigation.GameRoute
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
+
 
 class NavigationDelegate(
     private val gameEngine: GameEngine,

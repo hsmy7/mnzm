@@ -1,11 +1,16 @@
 package com.xianxia.sect.di
 
 import android.content.Context
-import com.xianxia.sect.core.engine.system.*
+import com.xianxia.sect.core.engine.system.ChildBirthSystem
+import com.xianxia.sect.core.engine.system.ExplorationTickSystem
+import com.xianxia.sect.core.engine.system.InventorySystem
+import com.xianxia.sect.core.engine.system.MailSystem
+import com.xianxia.sect.core.engine.system.PartnerSystem
+import com.xianxia.sect.core.engine.system.SystemManager
+import com.xianxia.sect.core.engine.system.TimeSystem
 import com.xianxia.sect.core.engine.system.building.AlchemySystem
 import com.xianxia.sect.core.engine.system.building.ForgeSystem
 import com.xianxia.sect.core.engine.system.building.PlantingSystem
-import com.xianxia.sect.core.engine.service.*
 import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.util.AnalyticsTracker
@@ -33,6 +38,8 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+
+
 
 @Module
 @InstallIn(SingletonComponent::class)

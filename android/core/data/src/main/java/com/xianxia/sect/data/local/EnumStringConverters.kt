@@ -1,7 +1,18 @@
 package com.xianxia.sect.data.local
 
 import androidx.room.TypeConverter
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.BattleResult
+import com.xianxia.sect.core.model.BattleType
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.EquipmentSlot
+import com.xianxia.sect.core.model.ManualType
+import com.xianxia.sect.core.model.MaterialCategory
+import com.xianxia.sect.core.model.PillCategory
+import com.xianxia.sect.core.model.RecipeType
+import com.xianxia.sect.core.model.SlotStatus
+import com.xianxia.sect.core.model.TeamStatus
+
+
 
 /**
  * EnumStringConverters - 枚举类型的 Room TypeConverter（存储为枚举字符串名）

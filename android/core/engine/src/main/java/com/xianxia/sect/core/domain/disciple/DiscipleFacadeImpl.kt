@@ -8,8 +8,29 @@ import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.LawEnforcementProcessor
 import com.xianxia.sect.core.engine.service.HighFrequencyData
 import com.xianxia.sect.core.engine.system.InventorySystem
-import com.xianxia.sect.core.model.*
-import com.xianxia.sect.core.state.*
+import com.xianxia.sect.core.model.DirectDiscipleSlot
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.ElderSlots
+import com.xianxia.sect.core.model.EquipmentSlot
+import com.xianxia.sect.core.model.LibrarySlot
+import com.xianxia.sect.core.model.ManualType
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.RecruitIntegrity
+import com.xianxia.sect.core.model.RewardSelectedItem
+import com.xianxia.sect.core.model.SlotCategory
+import com.xianxia.sect.core.model.SlotRef
+import com.xianxia.sect.core.model.StorageBagItem
+import com.xianxia.sect.core.model.currentHp
+import com.xianxia.sect.core.model.recruitedMonth
+import com.xianxia.sect.core.model.spiritStones
+import com.xianxia.sect.core.model.storageBagItems
+import com.xianxia.sect.core.model.storageBagSpiritStones
+import com.xianxia.sect.core.state.GameNotification
+import com.xianxia.sect.core.state.GameStateStore
+import com.xianxia.sect.core.state.MutableGameState
+import com.xianxia.sect.core.state.materializeCaptiveGear
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.StorageBagUtils
 import kotlinx.coroutines.flow.SharingStarted
@@ -18,6 +39,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.xianxia.sect.core.model.BagStackedData
+
+
 
 @Singleton
 class DiscipleFacadeImpl @Inject constructor(
@@ -36,12 +60,6 @@ class DiscipleFacadeImpl @Inject constructor(
     companion object {
         private const val TAG = "DiscipleFacadeImpl"
         private const val MAX_NAME_DISPLAY_LEN = 30
-
-        /** 弟子奖励发放来源（P-19 收编入 InventorySystem 后用于年度报告/溢出邮件） */
-        private const val SOURCE_DISCIPLE_REWARD = "disciple_reward"
-
-        /** 卸装/卸功法来源（P-20 迁移后用于溢出邮件归因） */
-        private const val SOURCE_DISCIPLE_UNEQUIP = "disciple_unequip"
     }
 
     override val disciples: StateFlow<List<Disciple>> get() = stateStore.disciples
@@ -277,15 +295,21 @@ class DiscipleFacadeImpl @Inject constructor(
                     val oldInstance = equipmentInstances.get(oldEquipId)
                     if (oldInstance != null) {
                         val updatedDisciple = discipleTables.assemble(id)
-                        // P-20：卸装实例→堆叠统一走 InventorySystem（真实容量 + 溢出转邮件）
-                        inventorySystem.withTrackingSource(SOURCE_DISCIPLE_UNEQUIP) {
-                            inventorySystem.addEquipmentInstanceToBag(
-                                instance = oldInstance, excludeStackId = stack.id
+                        // D-03：卸下的装备实例直接铸造入袋（容量无上限，永不失败），
+                        // 不再转仓库堆叠（不占仓库槽位、无溢出邮件路径）
+                        discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
+                            updatedDisciple.equipment.storageBagItems,
+                            StorageBagItem(
+                                itemId = oldEquipId, itemType = ITEM_TYPE_EQUIPMENT_INSTANCE,
+                                name = oldInstance.name, rarity = oldInstance.rarity, quantity = 1,
+                                obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
+                                equipmentInstance = oldInstance
                             )
-                        }
-                        discipleTables.storageBagItems[id] = updatedDisciple.equipment.storageBagItems
+                        )
                         discipleTables.storageBagSpiritStones[id] = updatedDisciple.equipment.storageBagSpiritStones
                         discipleTables.discipleSpiritStones[id] = updatedDisciple.equipment.spiritStones
+                        // 实例入袋后从实例表删除，防止双持有
+                        equipmentInstances = equipmentInstances.filter { it.id != oldEquipId }
                     }
                     when (slot) {
                         EquipmentSlot.WEAPON -> discipleTables.weaponIds[id] = ""
@@ -315,26 +339,16 @@ class DiscipleFacadeImpl @Inject constructor(
                 } else {
                     equipmentStacks.remove(item.id)
                 }
-                // P-19 收编：放背包统一走 InventorySystem.addEquipmentStack——
-                // StackableItemStore 自动合并同键堆叠 + 来源追踪 + 溢出转邮件（自动发放类）。
-                // F1 对抗性审查修复：排除刚扣减的源堆叠（excludeStackId），
-                // 否则合并回源堆叠 → 数量净 0 但背包引用 +1 → 可无限刷引用并经回收洗白。
-                val newStack = stack.copy(id = java.util.UUID.randomUUID().toString(), quantity = 1)
-                val addResult = inventorySystem.withTrackingSource(SOURCE_DISCIPLE_REWARD) {
-                    inventorySystem.addEquipmentStack(newStack, excludeStackId = item.id)
-                }
-                val bagStackId: String = when (addResult) {
-                    is DomainResult.Success -> addResult.data.id
-                    is DomainResult.Partial -> addResult.data.id // 溢出已转邮件，部分入仓
-                    is DomainResult.Failure -> return@update       // 仓库满：溢出已转邮件
-                }
+                // D-03：赏赐装备铸造袋条目（容量无上限，永不失败）——扣仓库数量后
+                // 袋条目自带 stackedData（minRealm/slot 供取回重建），不再经仓库中转
                 discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
                     discipleTables.storageBagItems[id],
-                    StorageBagItem(itemId = bagStackId, itemType = ITEM_TYPE_EQUIPMENT_STACK,
+                    StorageBagItem(itemId = item.id, itemType = ITEM_TYPE_EQUIPMENT_STACK,
                         name = stack.name, rarity = stack.rarity, quantity = 1,
                         obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
                         forgetYear = gameData.gameYear, forgetMonth = gameData.gameMonth,
-                        forgetPhase = gameData.gamePhase)
+                        forgetPhase = gameData.gamePhase,
+                        stackedData = BagStackedData(minRealm = stack.minRealm, slot = stack.slot.name))
                 )
             }
         }
@@ -361,24 +375,16 @@ class DiscipleFacadeImpl @Inject constructor(
             } else {
                 if (stack.quantity <= 1) manualStacks.remove(item.id)
                 else manualStacks.update(item.id) { it.copy(quantity = stack.quantity - 1) }
-                // P-19 收编：放背包统一走 InventorySystem.addManualStack（同 rewardEquipment）
-                // F1 对抗性审查修复：排除刚扣减的源堆叠（excludeStackId），防刷引用
-                val newStack = stack.copy(id = java.util.UUID.randomUUID().toString(), quantity = 1)
-                val addResult = inventorySystem.withTrackingSource(SOURCE_DISCIPLE_REWARD) {
-                    inventorySystem.addManualStack(newStack, merge = true, excludeStackId = item.id)
-                }
-                val storageItemId: String = when (addResult) {
-                    is DomainResult.Success -> addResult.data.id
-                    is DomainResult.Partial -> addResult.data.id // 溢出已转邮件，部分入仓
-                    is DomainResult.Failure -> return@update       // 仓库满：溢出已转邮件
-                }
+                // D-03：赏赐功法铸造袋条目（容量无上限，永不失败）——扣仓库数量后
+                // 袋条目自带 stackedData（minRealm/manualType 供取回重建）
                 discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
                     discipleTables.storageBagItems[id],
-                    StorageBagItem(itemId = storageItemId, itemType = ITEM_TYPE_MANUAL_STACK,
+                    StorageBagItem(itemId = item.id, itemType = ITEM_TYPE_MANUAL_STACK,
                         name = stack.name, rarity = stack.rarity, quantity = 1,
                         obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
                         forgetYear = gameData.gameYear, forgetMonth = gameData.gameMonth,
-                        forgetPhase = gameData.gamePhase)
+                        forgetPhase = gameData.gamePhase,
+                        stackedData = BagStackedData(minRealm = stack.minRealm, manualType = stack.type.name))
                 )
             }
         }
@@ -517,7 +523,9 @@ class DiscipleFacadeImpl @Inject constructor(
                 name = pill.name, rarity = pill.rarity, quantity = quantity,
                 obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
                 effect = pillManager.pillToItemEffect(pill),
-                grade = pill.grade.displayName)
+                grade = pill.grade.displayName,
+                // D-03：已物化标记（数据全在顶层字段，无需堆叠查找）
+                stackedData = BagStackedData())
             val disciple = discipleTables.assemble(id)
             val canUse = pillManager.canUsePill(disciple, pillItem).canUse
             if (pill.quantity == quantity) pills.remove(item.id)
@@ -533,55 +541,58 @@ class DiscipleFacadeImpl @Inject constructor(
 
     private fun rewardMaterial(discipleId: String, item: RewardSelectedItem, quantity: Int) {
         stateStore.update {
+            // [对抗性审查-边界 5] 先校验弟子存在再扣仓库：无效 id 时仓库不被扣减（物品不消失）
+            val id = discipleId.toIntOrNull() ?: return@update
+            if (!discipleTables.ids.contains(id)) return@update
             val material = materials.get(item.id)
             if (material == null || material.isLocked || quantity !in 1..material.quantity) return@update
             if (material.quantity == quantity) materials.remove(item.id)
             else materials.update(item.id) { it.copy(quantity = material.quantity - quantity) }
-            val id = discipleId.toIntOrNull()
-            if (id != null && discipleTables.ids.contains(id)) {
-                discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
-                    discipleTables.storageBagItems[id],
-                    StorageBagItem(itemId = item.id, itemType = ITEM_TYPE_MATERIAL, name = item.name,
-                        rarity = item.rarity, quantity = quantity,
-                        obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth)
-                )
-            }
+            discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
+                discipleTables.storageBagItems[id],
+                StorageBagItem(itemId = item.id, itemType = ITEM_TYPE_MATERIAL, name = item.name,
+                    rarity = item.rarity, quantity = quantity,
+                    obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
+                    stackedData = BagStackedData())
+            )
         }
     }
 
     private fun rewardHerb(discipleId: String, item: RewardSelectedItem, quantity: Int) {
         stateStore.update {
+            // [对抗性审查-边界 5] 先校验弟子存在再扣仓库：无效 id 时仓库不被扣减（物品不消失）
+            val id = discipleId.toIntOrNull() ?: return@update
+            if (!discipleTables.ids.contains(id)) return@update
             val herb = herbs.get(item.id)
             if (herb == null || herb.isLocked || quantity !in 1..herb.quantity) return@update
             if (herb.quantity == quantity) herbs.remove(item.id)
             else herbs.update(item.id) { it.copy(quantity = herb.quantity - quantity) }
-            val id = discipleId.toIntOrNull()
-            if (id != null && discipleTables.ids.contains(id)) {
-                discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
-                    discipleTables.storageBagItems[id],
-                    StorageBagItem(itemId = item.id, itemType = ITEM_TYPE_HERB, name = item.name,
-                        rarity = item.rarity, quantity = quantity,
-                        obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth)
-                )
-            }
+            discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
+                discipleTables.storageBagItems[id],
+                StorageBagItem(itemId = item.id, itemType = ITEM_TYPE_HERB, name = item.name,
+                    rarity = item.rarity, quantity = quantity,
+                    obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
+                    stackedData = BagStackedData())
+            )
         }
     }
 
     private fun rewardSeed(discipleId: String, item: RewardSelectedItem, quantity: Int) {
         stateStore.update {
+            // [对抗性审查-边界 5] 先校验弟子存在再扣仓库：无效 id 时仓库不被扣减（物品不消失）
+            val id = discipleId.toIntOrNull() ?: return@update
+            if (!discipleTables.ids.contains(id)) return@update
             val seed = seeds.get(item.id)
             if (seed == null || seed.isLocked || quantity !in 1..seed.quantity) return@update
             if (seed.quantity == quantity) seeds.remove(item.id)
             else seeds.update(item.id) { it.copy(quantity = seed.quantity - quantity) }
-            val id = discipleId.toIntOrNull()
-            if (id != null && discipleTables.ids.contains(id)) {
-                discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
-                    discipleTables.storageBagItems[id],
-                    StorageBagItem(itemId = item.id, itemType = ITEM_TYPE_SEED, name = item.name,
-                        rarity = item.rarity, quantity = quantity,
-                        obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth)
-                )
-            }
+            discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
+                discipleTables.storageBagItems[id],
+                StorageBagItem(itemId = item.id, itemType = ITEM_TYPE_SEED, name = item.name,
+                    rarity = item.rarity, quantity = quantity,
+                    obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
+                    stackedData = BagStackedData())
+            )
         }
     }
 
@@ -933,13 +944,17 @@ class DiscipleFacadeImpl @Inject constructor(
             if (!discipleTables.ids.contains(id)) return@update
             val currentDisciple = discipleTables.assemble(id)
 
-            // P-20：卸功法实例→堆叠统一走 InventorySystem（真实容量 + 溢出转邮件）
-            inventorySystem.withTrackingSource(SOURCE_DISCIPLE_UNEQUIP) {
-                inventorySystem.addManualInstanceToBag(instance = instance)
-            }
-
-            // Write back updated fields（迁移后返回原样 disciple，保持原写回语义）
-            discipleTables.storageBagItems[id] = currentDisciple.equipment.storageBagItems
+            // D-03：遗忘的功法实例直接铸造入袋（容量无上限，永不失败），
+            // 不再转仓库堆叠（不占仓库槽位、无溢出邮件路径）
+            discipleTables.storageBagItems[id] = StorageBagUtils.increaseItemQuantity(
+                currentDisciple.equipment.storageBagItems,
+                StorageBagItem(
+                    itemId = instanceId, itemType = ITEM_TYPE_MANUAL_INSTANCE,
+                    name = instance.name, rarity = instance.rarity, quantity = 1,
+                    obtainedYear = gameData.gameYear, obtainedMonth = gameData.gameMonth,
+                    manualInstance = instance
+                )
+            )
             discipleTables.storageBagSpiritStones[id] = currentDisciple.equipment.storageBagSpiritStones
             discipleTables.discipleSpiritStones[id] = currentDisciple.equipment.spiritStones
             discipleTables.manualIds[id] = currentDisciple.manualIds

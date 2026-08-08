@@ -22,7 +22,15 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.watchKey
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.ElderSlots
+import com.xianxia.sect.core.model.ForgeRecipe
+import com.xianxia.sect.core.model.ForgeSlot
+import com.xianxia.sect.core.model.ForgeSlotStatus
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.artifactRefining
 import com.xianxia.sect.ui.components.ElderBonusInfo
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.SmallScreenDialog
@@ -44,6 +52,8 @@ import com.xianxia.sect.ui.game.ProductionCommonDialog
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalLocale
+
+
 
 @Composable
 fun ForgeDialog(

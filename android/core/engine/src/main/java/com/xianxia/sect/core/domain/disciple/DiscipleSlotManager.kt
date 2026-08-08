@@ -1,6 +1,10 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.CaveExplorationStatus
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.ElderSlots
+import com.xianxia.sect.core.model.ExplorationStatus
+import com.xianxia.sect.core.model.GarrisonSlot
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.CoroutineScopeProvider
@@ -9,6 +13,8 @@ import com.xianxia.sect.core.engine.di.IoDispatcher
 import javax.inject.Inject
 import javax.inject.Provider
 import javax.inject.Singleton
+
+
 
 /**
  * 弟子槽位管理服务。

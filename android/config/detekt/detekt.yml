@@ -3,6 +3,30 @@ style:
     maxLineLength: 120       # Compose UI 链式调用需要
   WildcardImport:
     active: true
+    # D-06 白名单：第三方/平台库通配放行（Compose 生态惯例、JUnit 断言惯例、
+    # Room/协程/序列化/标准库），仅自有包 com.xianxia.sect.* 要求显式化
+    excludeImports:
+      - 'android.graphics.*'
+      - 'androidx.compose.animation.*'
+      - 'androidx.compose.foundation.*'
+      - 'androidx.compose.foundation.layout.*'
+      - 'androidx.compose.material.icons.filled.*'
+      - 'androidx.compose.material3.*'
+      - 'androidx.compose.runtime.*'
+      - 'androidx.room.*'
+      - 'java.io.*'
+      - 'java.security.*'
+      - 'java.util.*'
+      - 'javax.crypto.*'
+      - 'javax.crypto.spec.*'
+      - 'kotlinx.coroutines.*'
+      - 'kotlinx.coroutines.flow.*'
+      - 'kotlinx.coroutines.test.*'
+      - 'kotlinx.serialization.*'
+      - 'com.xianxia.sect.proto.templates.*'   # KSP 生成代码包（proto 模板），符号表不可得，无法显式化
+      - 'org.junit.Assert.*'
+      - 'org.mockito.Mockito.*'
+      - 'org.mockito.kotlin.*'
   UnusedImports:
     active: true              # 未使用 import 必须清理
   MagicNumber:

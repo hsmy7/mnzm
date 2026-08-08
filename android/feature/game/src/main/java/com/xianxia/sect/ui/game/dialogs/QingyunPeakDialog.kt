@@ -8,7 +8,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.*
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.ElderSlotType
+import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
@@ -22,6 +24,8 @@ import com.xianxia.sect.ui.game.PeakPreachingMasterConfig
 
 import com.xianxia.sect.ui.game.PeakDiscipleSelectionDialog
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
+
+
 
 @Composable
 fun QingyunPeakDialog(

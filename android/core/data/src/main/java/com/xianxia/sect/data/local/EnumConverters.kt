@@ -1,9 +1,19 @@
 package com.xianxia.sect.data.local
 
 import androidx.room.TypeConverter
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.BattleLogResult
+import com.xianxia.sect.core.model.BattleTeam
+import com.xianxia.sect.core.model.BloodRefinementProgress
+import com.xianxia.sect.core.model.ElderSlots
+import com.xianxia.sect.core.model.EquipmentNurtureData
+import com.xianxia.sect.core.model.GameSettingsData
+import com.xianxia.sect.core.model.PatrolConfig
+import com.xianxia.sect.core.model.SectPolicies
+import com.xianxia.sect.core.model.SectScoutInfo
 import com.xianxia.sect.data.serialization.NullSafeProtoBuf
 import kotlinx.serialization.builtins.nullable
+
+
 
 /**
  * ## EnumConverters - 枚举/简单值类型的 Room TypeConverter

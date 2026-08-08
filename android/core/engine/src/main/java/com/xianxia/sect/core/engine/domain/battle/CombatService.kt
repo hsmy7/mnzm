@@ -1,7 +1,19 @@
 package com.xianxia.sect.core.engine.domain.battle
 
 import kotlinx.coroutines.flow.StateFlow
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.BattleLog
+import com.xianxia.sect.core.model.BattleResult
+import com.xianxia.sect.core.model.DirectDiscipleSlot
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.ElderSlots
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.accessoryId
+import com.xianxia.sect.core.model.armorId
+import com.xianxia.sect.core.model.bootsId
+import com.xianxia.sect.core.model.griefEndYear
+import com.xianxia.sect.core.model.storageBagItems
+import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.event.DeathEvent
 import com.xianxia.sect.core.event.EventBusPort
@@ -11,13 +23,17 @@ import com.xianxia.sect.core.state.GameStateStore
 import javax.inject.Inject
 import javax.inject.Singleton
 
+
+
 @Singleton
 class CombatService @Inject constructor(
     private val stateStore: GameStateStore,
     private val battleSystem: BattleSystem,
     private val productionSlotRepository: ProductionSlotRepository,
     private val eventBus: EventBusPort,
-    private val cultivationService: com.xianxia.sect.core.engine.service.CultivationService
+    private val cultivationService: com.xianxia.sect.core.engine.service.CultivationService,
+    // D-03：死亡统一入口（袋物品物化回仓库 + markDead）
+    private val inventorySystem: com.xianxia.sect.core.engine.system.InventorySystem
 ) {
 
     companion object {
@@ -119,9 +135,9 @@ class CombatService @Inject constructor(
                     }
                 }
 
-                // B. 标记死亡
+                // B. 标记死亡（D-03：统一入口——袋物品物化回仓库 + 清袋 + markDead）
                 for ((id, _) in disciplesToKill) {
-                    discipleTables.markDead(id, battleCurrentYear, "battle")
+                    inventorySystem.materializeDiscipleBagAndMarkDead(this, id, battleCurrentYear, "battle")
                 }
 
                 // C. 装备/功法/熟练度

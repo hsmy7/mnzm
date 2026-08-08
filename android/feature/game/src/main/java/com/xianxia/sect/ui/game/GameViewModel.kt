@@ -10,14 +10,102 @@ import kotlinx.coroutines.launch
 import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.SectLevel
-import com.xianxia.sect.core.engine.*
+import com.xianxia.sect.core.engine.GameEngine
+import com.xianxia.sect.core.engine.GameEngineCore
+import com.xianxia.sect.core.engine.PerformanceMode
+import com.xianxia.sect.core.engine.apprenticeToMaster
+import com.xianxia.sect.core.engine.assignDiscipleToBuilding
+import com.xianxia.sect.core.engine.attackWorldLevel
+import com.xianxia.sect.core.engine.bulkSellItems
+import com.xianxia.sect.core.engine.cancelBloodRefinement
+import com.xianxia.sect.core.engine.claimGuideReward
+import com.xianxia.sect.core.engine.claimSectLevelReward
+import com.xianxia.sect.core.engine.clearPendingNotification
+import com.xianxia.sect.core.engine.confiscateStorageBagItem
+import com.xianxia.sect.core.engine.enterSect
+import com.xianxia.sect.core.engine.equipItem
+import com.xianxia.sect.core.engine.expelDisciple
+import com.xianxia.sect.core.engine.forgetManual
+import com.xianxia.sect.core.engine.getAllAutoBuyableItems
+import com.xianxia.sect.core.engine.getDiscipleAggregate
+import com.xianxia.sect.core.engine.getDiscipleById
+import com.xianxia.sect.core.engine.grantMerchantRefreshChanceFromAd
+import com.xianxia.sect.core.engine.learnManual
+import com.xianxia.sect.core.engine.listItemsToMerchant
+import com.xianxia.sect.core.engine.markWarningStageShown
+import com.xianxia.sect.core.engine.notifyUserInteraction
+import com.xianxia.sect.core.engine.openStorageBag
+import com.xianxia.sect.core.engine.placeBuilding
+import com.xianxia.sect.core.engine.plantOnSpiritField
+import com.xianxia.sect.core.engine.plantOnSpiritFields
+import com.xianxia.sect.core.engine.popSubDialogDomain
+import com.xianxia.sect.core.engine.pushSubDialogDomain
+import com.xianxia.sect.core.engine.recruitDisciple
+import com.xianxia.sect.core.engine.recruitDiscipleFromList
+import com.xianxia.sect.core.engine.redeemCode
+import com.xianxia.sect.core.engine.refreshTravelingMerchantManual
+import com.xianxia.sect.core.engine.releaseDiscipleFromAllSlotsAtomic
+import com.xianxia.sect.core.engine.releaseReflectionDisciple
+import com.xianxia.sect.core.engine.removePlantFromSpiritField
+import com.xianxia.sect.core.engine.removePlayerListedItem
+import com.xianxia.sect.core.engine.renameDisciple
+import com.xianxia.sect.core.engine.replaceManual
+import com.xianxia.sect.core.engine.rewardItemsToDisciple
+import com.xianxia.sect.core.engine.sellToMerchant
+import com.xianxia.sect.core.engine.setActiveDialog
+import com.xianxia.sect.core.engine.setActiveTab
+import com.xianxia.sect.core.engine.startMission
+import com.xianxia.sect.core.engine.toggleItemLock
+import com.xianxia.sect.core.engine.toggleWatchItem
+import com.xianxia.sect.core.engine.unequipItem
+import com.xianxia.sect.core.engine.upgradeSectLevel
+import com.xianxia.sect.core.engine.usePill
 import com.xianxia.sect.core.engine.service.AdPurpose
 import com.xianxia.sect.core.engine.service.JadeSymbolRuntimeState
 import com.xianxia.sect.core.engine.service.ClaimResult
 import com.xianxia.sect.core.engine.service.HighFrequencyData
 import com.xianxia.sect.ui.game.sect.RenderCommandBus
 import com.xianxia.sect.core.util.GridSnapHelper
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.AlchemySlot
+import com.xianxia.sect.core.model.AlchemySlotStatus
+import com.xianxia.sect.core.model.Alliance
+import com.xianxia.sect.core.model.AttackWarning
+import com.xianxia.sect.core.model.AutoBuyCatalogItem
+import com.xianxia.sect.core.model.AutoBuyEntry
+import com.xianxia.sect.core.model.BattleLog
+import com.xianxia.sect.core.model.BattleRewardItem
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.ElderSlots
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentSlot
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.ExplorationTeam
+import com.xianxia.sect.core.model.ForgeRecipe
+import com.xianxia.sect.core.model.ForgeSlot
+import com.xianxia.sect.core.model.ForgeSlotStatus
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GameEventRecord
+import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.MailEntity
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualProficiencyData
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.Mission
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.RedeemResult
+import com.xianxia.sect.core.model.ResidenceSlot
+import com.xianxia.sect.core.model.RewardCardItem
+import com.xianxia.sect.core.model.RewardSelectedItem
+import com.xianxia.sect.core.model.SectPolicies
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.StorageBag
+import com.xianxia.sect.core.model.StorageBagItem
+import com.xianxia.sect.core.model.WorldMapRenderData
+import com.xianxia.sect.core.model.YearlyReport
+import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
@@ -28,12 +116,30 @@ import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.PendingBeastAttack
 import com.xianxia.sect.core.state.PendingMarriageProposal
-import com.xianxia.sect.ui.game.delegate.*
+import com.xianxia.sect.ui.game.delegate.AdsDelegate
+import com.xianxia.sect.ui.game.delegate.PlantingDelegate
+import com.xianxia.sect.ui.game.delegate.AutoAssignDelegate
+import com.xianxia.sect.ui.game.delegate.BagDelegate
+import com.xianxia.sect.ui.game.delegate.BeastAttackDelegate
+import com.xianxia.sect.ui.game.delegate.BuildingDelegate
+import com.xianxia.sect.ui.game.delegate.DiscipleDelegate
+import com.xianxia.sect.ui.game.delegate.GameLoopDelegate
+import com.xianxia.sect.ui.game.delegate.GuideDelegate
+import com.xianxia.sect.ui.game.delegate.InventoryDelegate
+import com.xianxia.sect.ui.game.delegate.MailDelegate
+import com.xianxia.sect.ui.game.delegate.NavigationDelegate
+import com.xianxia.sect.ui.game.delegate.OverlayDelegate
+import com.xianxia.sect.ui.game.delegate.RedeemCodeDelegate
+import com.xianxia.sect.ui.game.delegate.SectDelegate
+import com.xianxia.sect.ui.game.delegate.SettingsDelegate
+import com.xianxia.sect.ui.game.delegate.WarningDelegate
 import com.xianxia.sect.ui.navigation.GameRoute
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import javax.inject.Inject
+
+
 
 @HiltViewModel
 class GameViewModel @Inject constructor(
@@ -470,53 +576,12 @@ class GameViewModel @Inject constructor(
         .map { data -> data.recruitList.distinctBy { it.id }.map { it.toAggregate() } }
         .stateIn(viewModelScope, sharingStarted, emptyList())
 
-    /**
-     * P-10：储物袋装备栈 ID 窄流（distinctUntilChanged——集合相等时不发射）。
-     *
-     * 原实现 combine(equipmentStacks, disciples)：disciples 每旬发射新引用 → combine
-     * 每旬重算 filter + 发射新列表 → UI 每旬重组。窄流化后 bagStackIds 无变化时
-     * combine 不发射，UI 零重组；计算量（O(D×bags) 平铺）仍在每旬 map 内执行。
-     */
-    private val equipmentBagStackIds: StateFlow<Set<String>> = gameEngine.disciples
-        .map { disciples ->
-            disciples.filter { it.isAlive }
-                .flatMap { it.equipment.storageBagItems }
-                .filter { it.itemType == "equipment_stack" }.map { it.itemId }.toSet()
-        }
-        .distinctUntilChanged()
-        .stateIn(viewModelScope, sharingStarted, emptySet())
-
-    val equipmentStacks: StateFlow<List<EquipmentStack>> = combine(
-        gameEngine.equipmentStacks, equipmentBagStackIds
-    ) { stacks, bagStackIds ->
-        stacks.filter { it.id !in bagStackIds }
-    }.stateIn(viewModelScope, sharingStarted, emptyList())
+    // D-03 独立存储：袋物品物理不在仓库堆叠中，无需 P-10 过滤窄流（原 filter 无意义）
+    val equipmentStacks: StateFlow<List<EquipmentStack>> get() = gameEngine.equipmentStacks
 
     val equipmentInstances: StateFlow<List<EquipmentInstance>> get() = gameEngine.equipmentInstances
 
-    /** P-10：储物袋功法栈 ID 窄流（同 [equipmentBagStackIds]） */
-    private val manualBagStackIds: StateFlow<Set<String>> = gameEngine.disciples
-        .map { disciples ->
-            disciples.filter { it.isAlive }
-                .flatMap { it.equipment.storageBagItems }
-                .filter { it.itemType == "manual_stack" }
-                .map { it.itemId }.toSet()
-        }
-        .distinctUntilChanged()
-        // S8 修复（对抗性审查）：初始值用当前弟子储物袋计算（同 equipmentBagStackIds）
-        .stateIn(
-            viewModelScope, sharingStarted,
-            gameEngine.disciples.value.filter { it.isAlive }
-                .flatMap { it.equipment.storageBagItems }
-                .filter { it.itemType == "manual_stack" }
-                .map { it.itemId }.toSet()
-        )
-
-    val manualStacks: StateFlow<List<ManualStack>> = combine(
-        gameEngine.manualStacks, manualBagStackIds
-    ) { stacks, bagStackIds ->
-        stacks.filter { it.id !in bagStackIds }
-    }.stateIn(viewModelScope, sharingStarted, emptyList())
+    val manualStacks: StateFlow<List<ManualStack>> get() = gameEngine.manualStacks
     val manualInstances: StateFlow<List<ManualInstance>> get() = gameEngine.manualInstances
     val pills: StateFlow<List<Pill>> get() = gameEngine.pills
     val materials: StateFlow<List<Material>> get() = gameEngine.materials

@@ -6,7 +6,28 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentRegistry
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService
 import com.xianxia.sect.core.event.EventBusPort
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.BattleLog
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentSlot
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.ExplorationTeam
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.SkillStats
+import com.xianxia.sect.core.model.SocialData
+import com.xianxia.sect.core.model.StorageBag
+import com.xianxia.sect.core.model.StorageBagItem
+import com.xianxia.sect.core.model.griefEndYear
+import com.xianxia.sect.core.model.loyalty
+import com.xianxia.sect.core.model.morality
+import com.xianxia.sect.core.model.partnerId
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameStateStore
@@ -25,6 +46,8 @@ import org.junit.Rule
 import org.mockito.Mockito.mock
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+
+
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], manifest = Config.NONE)
@@ -108,7 +131,9 @@ class DiscipleLifecycleProcessorTest {
             ioDispatcher = IoDispatcher(),
             inventorySystem = com.xianxia.sect.core.engine.system.InventorySystem(
                 stateStore = mockStore,
-                inventoryConfig = mock(InventoryConfig::class.java),
+                // 必须用真实配置：mock 的 getMaxStackSize 返回 0 → StackableItemStore 拒绝
+                // 任何入仓（maxStack<=0 守卫）→ 物化永远失败，测试失去意义
+                inventoryConfig = InventoryConfig(),
                 spiritStoneWallet = mock(com.xianxia.sect.core.wallet.SpiritStoneWallet::class.java),
                 gameConfigProvider = mock(com.xianxia.sect.core.engine.config.GameConfigProvider::class.java)
             )
@@ -327,6 +352,35 @@ class DiscipleLifecycleProcessorTest {
         processor.handleDiscipleDeath(deadDisciple, isOutsideSect = false)
 
         assertEquals("death year should be 10", 10, tables.deathYears[1])
+    }
+
+    @Test
+    fun `handleDiscipleDeath - bag materialized and cleared - repeated death idempotent`() = runTest {
+        // D-03 对抗性审查：死亡物化袋物品（玩家保留）+ 清空袋条目（幂等防复制）
+        insertDisciple(1, age = 80)
+        tables.storageBagItems[1] = listOf(
+            StorageBagItem(
+                itemId = "i1", itemType = "equipment_instance", name = "精铁剑", rarity = 1,
+                equipmentInstance = EquipmentInstance(id = "i1", name = "精铁剑", rarity = 1,
+                    slot = EquipmentSlot.WEAPON)
+            )
+        )
+        disciplesFlow.value = tables.assembleAll()
+        val deadDisciple = tables.assemble(1)
+
+        // 重复死亡处理（幂等性验证：第二次不重复物化）
+        repeat(2) {
+            processor.handleDiscipleDeath(deadDisciple, isOutsideSect = false)
+        }
+
+        // 物化：仓库新增实例堆叠恰 1 条（重复处理不重复物化；toStack 随机堆叠 id）；
+        // 实例表已移除防双持有
+        assertEquals("实例堆叠入仓恰 1 条", 1, mutableState.equipmentStacks.all().size)
+        // 幂等关键守卫：重复死亡处理不复制——数量仍为 1（若二次物化会 merge 成 2）
+        assertEquals("重复死亡不复制（数量仍 1）", 1, mutableState.equipmentStacks.all().first().quantity)
+        assertEquals("实例表已移除防双持有", 0, mutableState.equipmentInstances.all().count { it.id == "i1" })
+        // 袋清空（幂等）
+        assertTrue("袋条目已清空", tables.storageBagItems[1].isNullOrEmpty())
     }
 
     @Test

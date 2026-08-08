@@ -1,8 +1,12 @@
 package com.xianxia.sect.data.local
 
 import androidx.room.*
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.BuildingSlot
+import com.xianxia.sect.core.model.Recipe
+import com.xianxia.sect.core.model.RecipeType
 import kotlinx.coroutines.flow.Flow
+
+
 
 @Dao
 interface BuildingSlotDao {

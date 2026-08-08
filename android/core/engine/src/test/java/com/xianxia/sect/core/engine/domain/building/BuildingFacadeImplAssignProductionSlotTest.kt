@@ -1,5 +1,3 @@
-@file:Suppress("WildcardImport")
-
 package com.xianxia.sect.core.engine.domain.building
 
 import com.xianxia.sect.core.engine.GameEngineCore
@@ -10,7 +8,10 @@ import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.core.engine.system.InventorySystem
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.PatrolSlot
+import com.xianxia.sect.core.model.SlotCategory
+import com.xianxia.sect.core.model.SlotRef
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
@@ -33,6 +34,8 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
+
+
 
 /**
  * 生产槽分配（BuildingFacadeImpl.assignDiscipleToProductionSlot）互斥守卫测试。

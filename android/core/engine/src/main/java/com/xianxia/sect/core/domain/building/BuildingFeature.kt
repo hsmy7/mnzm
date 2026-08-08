@@ -1,9 +1,20 @@
 package com.xianxia.sect.core.engine.domain.building
 
 import com.xianxia.sect.core.SectLevel
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.DirectDiscipleSlot
+import com.xianxia.sect.core.model.ElderSlots
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.LibrarySlot
+import com.xianxia.sect.core.model.PatrolConfig
+import com.xianxia.sect.core.model.PatrolSlot
+import com.xianxia.sect.core.model.ResidenceSlot
+import com.xianxia.sect.core.model.SpiritFieldPlant
+import com.xianxia.sect.core.model.SpiritMineSlot
+import com.xianxia.sect.core.model.WarehouseGarrisonSlot
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
+
+
 
 /**
  * 建筑特征定义：涵盖建筑类型、槽位组、建造限制、外观描述等所有属性。

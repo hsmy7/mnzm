@@ -7,7 +7,51 @@ import com.xianxia.sect.core.registry.EquipmentDatabase
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.registry.PhysiqueDatabase
 import com.xianxia.sect.core.registry.TalentDatabase
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.CombatAttributes
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentNurtureData
+import com.xianxia.sect.core.model.EquipmentSet
+import com.xianxia.sect.core.model.EquipmentSlot
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualProficiencyData
+import com.xianxia.sect.core.model.ManualType
+import com.xianxia.sect.core.model.PlantSlotData
+import com.xianxia.sect.core.model.SkillStats
+import com.xianxia.sect.core.model.accessoryId
+import com.xianxia.sect.core.model.accessoryNurture
+import com.xianxia.sect.core.model.armorId
+import com.xianxia.sect.core.model.armorNurture
+import com.xianxia.sect.core.model.artifactRefining
+import com.xianxia.sect.core.model.baseHp
+import com.xianxia.sect.core.model.baseMagicAttack
+import com.xianxia.sect.core.model.baseMagicDefense
+import com.xianxia.sect.core.model.baseMp
+import com.xianxia.sect.core.model.basePhysicalAttack
+import com.xianxia.sect.core.model.basePhysicalDefense
+import com.xianxia.sect.core.model.baseSpeed
+import com.xianxia.sect.core.model.bootsId
+import com.xianxia.sect.core.model.bootsNurture
+import com.xianxia.sect.core.model.charm
+import com.xianxia.sect.core.model.comprehension
+import com.xianxia.sect.core.model.currentHp
+import com.xianxia.sect.core.model.currentMp
+import com.xianxia.sect.core.model.hpVariance
+import com.xianxia.sect.core.model.intelligence
+import com.xianxia.sect.core.model.loyalty
+import com.xianxia.sect.core.model.magicAttackVariance
+import com.xianxia.sect.core.model.magicDefenseVariance
+import com.xianxia.sect.core.model.mining
+import com.xianxia.sect.core.model.morality
+import com.xianxia.sect.core.model.mpVariance
+import com.xianxia.sect.core.model.physicalAttackVariance
+import com.xianxia.sect.core.model.physicalDefenseVariance
+import com.xianxia.sect.core.model.pillRefining
+import com.xianxia.sect.core.model.speedVariance
+import com.xianxia.sect.core.model.spiritPlanting
+import com.xianxia.sect.core.model.teaching
+import com.xianxia.sect.core.model.weaponId
+import com.xianxia.sect.core.model.weaponNurture
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.disciple.computeMaxAge
 import com.xianxia.sect.core.engine.EquipmentNurtureSystem
@@ -19,6 +63,8 @@ import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.util.asKotlinRandom
 import kotlin.math.roundToInt
+
+
 
 /** AI 宗门周期性招募每周期人数下限（含） */
 private const val SECT_RECRUIT_MIN_COUNT = 1

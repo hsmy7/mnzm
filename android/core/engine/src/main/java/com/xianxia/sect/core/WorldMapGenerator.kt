@@ -4,8 +4,12 @@ import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.config.FixedSectPositions
 import com.xianxia.sect.core.config.SectAlignment
 import com.xianxia.sect.core.engine.domain.diplomacy.AISectDiscipleManager
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.SectRelation
+import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.util.DeterministicRng
+
+
 
 object WorldMapGenerator {
     private val rng by lazy { DeterministicRng.fromSeed(System.nanoTime()) }

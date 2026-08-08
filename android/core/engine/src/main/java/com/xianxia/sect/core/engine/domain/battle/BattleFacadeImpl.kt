@@ -1,10 +1,13 @@
 package com.xianxia.sect.core.engine.domain.battle
 
 import com.xianxia.sect.core.model.BattleLog
-import com.xianxia.sect.core.state.*
+import com.xianxia.sect.core.state.BattleResultUIData
+import com.xianxia.sect.core.state.GameStateStore
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
+
+
 
 @Singleton
 class BattleFacadeImpl @Inject constructor(

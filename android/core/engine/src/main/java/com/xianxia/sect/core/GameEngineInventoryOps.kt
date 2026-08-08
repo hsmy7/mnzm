@@ -1,7 +1,20 @@
 package com.xianxia.sect.core.engine
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.AutoBuyCatalogItem
+import com.xianxia.sect.core.model.BattleRewardItem
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.ForgeRecipe
+import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.ManualStack
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.MerchantItem
+import com.xianxia.sect.core.model.Pill
+import com.xianxia.sect.core.model.RewardCardItem
+import com.xianxia.sect.core.model.Seed
+import com.xianxia.sect.core.model.StorageBagItem
 import com.xianxia.sect.core.engine.domain.inventory.InventoryFacade
+
+
 
 suspend fun GameEngine.addEquipmentStack(stack: EquipmentStack) = inventoryFacade.addEquipmentStack(stack)
 suspend fun GameEngine.removeEquipment(equipmentId: String): Boolean = inventoryFacade.removeEquipment(equipmentId)

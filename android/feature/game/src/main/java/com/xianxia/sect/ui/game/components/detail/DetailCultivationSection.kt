@@ -30,13 +30,31 @@ import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.ElderSlots
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualProficiencyData
+import com.xianxia.sect.core.model.ResidenceSlot
+import com.xianxia.sect.core.model.SectPolicies
+import com.xianxia.sect.core.model.accessoryId
+import com.xianxia.sect.core.model.armorId
+import com.xianxia.sect.core.model.bootsId
+import com.xianxia.sect.core.model.comprehension
+import com.xianxia.sect.core.model.currentHp
+import com.xianxia.sect.core.model.currentMp
+import com.xianxia.sect.core.model.griefEndYear
+import com.xianxia.sect.core.model.teaching
+import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.util.GameUtils
 
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.theme.GameColors
+
+
 
 internal fun calculatePreachingBonusesForDisplay(
     disciple: DiscipleAggregate,

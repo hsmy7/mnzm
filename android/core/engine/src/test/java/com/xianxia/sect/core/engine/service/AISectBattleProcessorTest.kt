@@ -33,6 +33,7 @@ import org.mockito.Mockito.verify
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
 
+
 /**
  * P-15 迁移守卫：AISectBattleProcessor（CaveExplorationProcessor 拆出）核心行为防漂移。
  *
@@ -135,15 +136,21 @@ class AISectBattleProcessorTest {
         whenever(store.update(any())).thenAnswer { inv ->
             inv.getArgument<MutableGameState.() -> Unit>(0).invoke(makeState(data))
         }
-        val processor = AISectBattleProcessor(
+        // 全链路验证：真实 PlayerDefenseProcessor（预警推进真实执行）
+        val playerDefense = PlayerDefenseProcessor(
             stateStore = store,
-            thermalMonitor = thermalWith(false, false),
             battleSystem = mock<BattleSystem>(),
             attackWarningService = attackWarningService,
             cultivationService = mock<CultivationService>(),
             sectWarehouseManager = mock<SectWarehouseManager>(),
-            deathHandler = mock<DiscipleDeathHandler>(),
-            buildingFacade = mock<BuildingFacade>()
+            deathHandler = mock<DiscipleDeathHandler>()
+        )
+        val processor = AISectBattleProcessor(
+            stateStore = store,
+            thermalMonitor = thermalWith(false, false),
+            battleSystem = mock<BattleSystem>(),
+            playerDefenseProcessor = playerDefense,
+            occupationResolver = mock<AISectOccupationResolver>()
         )
 
         processor.processAISectOperations(2026, 1)
@@ -168,11 +175,8 @@ class AISectBattleProcessorTest {
             stateStore = store,
             thermalMonitor = thermal,
             battleSystem = mock<BattleSystem>(),
-            attackWarningService = attackWarningService,
-            cultivationService = mock<CultivationService>(),
-            sectWarehouseManager = mock<SectWarehouseManager>(),
-            deathHandler = mock<DiscipleDeathHandler>(),
-            buildingFacade = mock<BuildingFacade>()
+            playerDefenseProcessor = mock<PlayerDefenseProcessor>(),
+            occupationResolver = mock<AISectOccupationResolver>()
         )
     }
 
@@ -198,14 +202,9 @@ class AISectBattleProcessorTest {
 
     // ── 2026-08-06：玩家占领宗门被 AI 夺回 → 没收该宗门建筑（无返还）──
 
-    private fun makeProcessorWithFacade(buildingFacade: BuildingFacade): AISectBattleProcessor =
-        AISectBattleProcessor(
+    private fun makeResolverWithFacade(buildingFacade: BuildingFacade): AISectOccupationResolver =
+        AISectOccupationResolver(
             stateStore = mock<GameStateStore>(),
-            thermalMonitor = thermalWith(false, false),
-            battleSystem = mock<BattleSystem>(),
-            attackWarningService = attackWarningService,
-            cultivationService = mock<CultivationService>(),
-            sectWarehouseManager = mock<SectWarehouseManager>(),
             deathHandler = mock<DiscipleDeathHandler>(),
             buildingFacade = buildingFacade
         )
@@ -222,9 +221,9 @@ class AISectBattleProcessorTest {
     @Test
     fun `AI夺回玩家占领宗门 - 没收该宗门建筑`() {
         val buildingFacade = mock<BuildingFacade>()
-        val processor = makeProcessorWithFacade(buildingFacade)
+        val resolver = makeResolverWithFacade(buildingFacade)
 
-        processor.seizePlayerBuildingsAfterLoss(
+        resolver.seizePlayerBuildingsAfterLoss(
             makeAttackResult(AIBattleWinner.ATTACKER, canOccupy = true),
             isPlayerOccupied = true
         )
@@ -235,9 +234,9 @@ class AISectBattleProcessorTest {
     @Test
     fun `AI战败玩家防守 - 不触发没收`() {
         val buildingFacade = mock<BuildingFacade>()
-        val processor = makeProcessorWithFacade(buildingFacade)
+        val resolver = makeResolverWithFacade(buildingFacade)
 
-        processor.seizePlayerBuildingsAfterLoss(
+        resolver.seizePlayerBuildingsAfterLoss(
             makeAttackResult(AIBattleWinner.DEFENDER, canOccupy = false),
             isPlayerOccupied = true
         )
@@ -248,9 +247,9 @@ class AISectBattleProcessorTest {
     @Test
     fun `AI夺回AI占领宗门 - 不触发没收（玩家无建筑）`() {
         val buildingFacade = mock<BuildingFacade>()
-        val processor = makeProcessorWithFacade(buildingFacade)
+        val resolver = makeResolverWithFacade(buildingFacade)
 
-        processor.seizePlayerBuildingsAfterLoss(
+        resolver.seizePlayerBuildingsAfterLoss(
             makeAttackResult(AIBattleWinner.ATTACKER, canOccupy = true),
             isPlayerOccupied = false
         )

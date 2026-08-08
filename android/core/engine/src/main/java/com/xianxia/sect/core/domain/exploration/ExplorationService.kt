@@ -1,4 +1,5 @@
 package com.xianxia.sect.core.engine.domain.exploration
+
 import com.xianxia.sect.core.util.ItemNames
 
 import com.xianxia.sect.core.GameConfig
@@ -15,7 +16,42 @@ import com.xianxia.sect.core.exploration.ExplorationTeamManager
 import com.xianxia.sect.core.exploration.LootCalculator
 import com.xianxia.sect.core.exploration.PatrolBattleSystem
 import com.xianxia.sect.core.exploration.WorldLevelManager
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.BattleLog
+import com.xianxia.sect.core.model.BattleLogAction
+import com.xianxia.sect.core.model.BattleLogEnemy
+import com.xianxia.sect.core.model.BattleLogMember
+import com.xianxia.sect.core.model.BattleLogRound
+import com.xianxia.sect.core.model.BattleResult
+import com.xianxia.sect.core.model.BattleRewardItem
+import com.xianxia.sect.core.model.BattleType
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.ExplorationTeam
+import com.xianxia.sect.core.model.GarrisonSlot
+import com.xianxia.sect.core.model.Material
+import com.xianxia.sect.core.model.SpiritStoneGrade
+import com.xianxia.sect.core.model.WorldLevel
+import com.xianxia.sect.core.model.WorldSect
+import com.xianxia.sect.core.model.artifactRefining
+import com.xianxia.sect.core.model.baseHp
+import com.xianxia.sect.core.model.baseMagicAttack
+import com.xianxia.sect.core.model.baseMagicDefense
+import com.xianxia.sect.core.model.baseMp
+import com.xianxia.sect.core.model.basePhysicalAttack
+import com.xianxia.sect.core.model.basePhysicalDefense
+import com.xianxia.sect.core.model.baseSpeed
+import com.xianxia.sect.core.model.charm
+import com.xianxia.sect.core.model.comprehension
+import com.xianxia.sect.core.model.currentHp
+import com.xianxia.sect.core.model.currentMp
+import com.xianxia.sect.core.model.intelligence
+import com.xianxia.sect.core.model.loyalty
+import com.xianxia.sect.core.model.mining
+import com.xianxia.sect.core.model.morality
+import com.xianxia.sect.core.model.pillRefining
+import com.xianxia.sect.core.model.spiritPlanting
+import com.xianxia.sect.core.model.spiritStones
+import com.xianxia.sect.core.model.teaching
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.state.BattleResultUIData
@@ -33,6 +69,8 @@ import kotlinx.coroutines.flow.StateFlow
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+
+
 
 /**
  * 探索系统 Facade — 委派具体职责到各子领域系统。

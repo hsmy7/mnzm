@@ -1,10 +1,15 @@
 package com.xianxia.sect.data.integrity.rules
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.EquipmentStack
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.data.model.SaveData
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Test
+
+
 
 class RuleContextTest {
 

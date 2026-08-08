@@ -4,7 +4,23 @@ import com.xianxia.sect.core.domain.FavorDomain
 import com.xianxia.sect.core.domain.favor.FavorService
 import com.xianxia.sect.core.engine.SectCombatPowerCalculator
 import com.xianxia.sect.core.event.EventBusPort
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.AISectPersonality
+import com.xianxia.sect.core.model.Alliance
+import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.GameEventCategory
+import com.xianxia.sect.core.model.GameEventType
+import com.xianxia.sect.core.model.ManualType
+import com.xianxia.sect.core.model.MaterialCategory
+import com.xianxia.sect.core.model.MerchantItem
+import com.xianxia.sect.core.model.PillCategory
+import com.xianxia.sect.core.model.PillGrade
+import com.xianxia.sect.core.model.SectBattleType
+import com.xianxia.sect.core.model.SectDetail
+import com.xianxia.sect.core.model.SectRelationLevel
+import com.xianxia.sect.core.model.SpiritStoneExchange
+import com.xianxia.sect.core.model.SpiritStoneGrade
+import com.xianxia.sect.core.model.WorldSect
+import com.xianxia.sect.core.model.spiritStones
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
@@ -12,7 +28,12 @@ import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.recordGameEvent
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.system.MerchantItemConverter
-import com.xianxia.sect.core.registry.*
+import com.xianxia.sect.core.registry.BeastMaterialDatabase
+import com.xianxia.sect.core.registry.EquipmentDatabase
+import com.xianxia.sect.core.registry.HerbDatabase
+import com.xianxia.sect.core.registry.ItemDatabase
+import com.xianxia.sect.core.registry.ManualDatabase
+import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
@@ -28,6 +49,8 @@ import com.xianxia.sect.core.util.RngPartition
 import javax.inject.Inject
 import javax.inject.Singleton
 import java.util.UUID
+
+
 
 /**
  * 外交服务 — 管理宗门之间的联盟、交易。
@@ -205,8 +228,9 @@ class DiplomacyService @Inject constructor(
      * 生成宗门交易商品列表。传 [sectId] 时使用确定性种子
      * `sectId.hashCode() + year`——同 (sectId, year) 生成结果完全可复现
      * （仅 `id`/`itemId` 为 UUID 实例标识，不可复现）。
-     * 注意：不传 sectId 时回退 SYSTEM 分区 RNG（消耗分区 draw 状态），
-     * 当前仅 [DiplomacyFacadeImpl] 死代码链可达，勿新增调用。
+     * 注意：不传 sectId 时回退 SYSTEM 分区 RNG（消耗分区 draw 状态）——
+     * D-16 删除死代码链后该回退路径无调用方，保留签名供内部确定性调用
+     * （getOrRefreshSectTradeItems 的批量刷新 L446 / 单宗刷新 L404）。
      */
     fun generateSectTradeItems(year: Int, sectId: String? = null): List<MerchantItem> {
         val items = mutableListOf<MerchantItem>()

@@ -1,10 +1,13 @@
 package com.xianxia.sect.core.engine.service
 
-import com.xianxia.sect.core.model.*
+import com.xianxia.sect.core.model.SectDetail
+import com.xianxia.sect.core.model.SectScoutInfo
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
+
+
 
 /**
  * CultivationEventProcessor 侦察/外交域 Ops 扩展（P4D）。
