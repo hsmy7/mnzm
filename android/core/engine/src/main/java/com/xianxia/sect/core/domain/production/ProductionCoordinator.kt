@@ -11,6 +11,7 @@ import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.MaterialConsumptionLog
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.repository.ProductionSlotRepository
+import com.xianxia.sect.core.repository.SlotUpdate
 import com.xianxia.sect.core.transaction.ProductionTransactionManager
 import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.DomainResult
@@ -412,6 +413,30 @@ class ProductionCoordinator @Inject constructor(
                     s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
                 }
             }
+    }
+
+    /**
+     * 批量清理多个弟子在 Room 生产槽 Repository 中的占用（同步挂起版）。
+     *
+     * 批量死亡年（K 个死者）聚合为单次 [ProductionSlotRepository.batchUpdate]
+     *（内部单次 `dao.updateAll`），替代 K 次 [clearDiscipleFromRepository] 的
+     * K×M 次 `dao.update`（M = 每死者占用槽位数）。语义与单弟子版一致：
+     * 仅清空 assignedDiscipleId/assignedDiscipleName，不改槽位状态。
+     *
+     * @param discipleIds 要清除的弟子 ID 列表（自动去重后过滤槽位）
+     */
+    suspend fun clearDisciplesFromRepository(discipleIds: List<String>) {
+        if (discipleIds.isEmpty()) return
+        val idSet = discipleIds.toSet()
+        val updates = repository.getSlots()
+            .filter { it.assignedDiscipleId in idSet }
+            .map { slot ->
+                SlotUpdate(slot.buildingType, slot.slotIndex) { s ->
+                    s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                }
+            }
+        if (updates.isEmpty()) return
+        repository.batchUpdate(updates)
     }
 
     /**

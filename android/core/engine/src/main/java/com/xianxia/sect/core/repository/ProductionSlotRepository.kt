@@ -7,6 +7,7 @@ import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.SlotStateMachine
 import com.xianxia.sect.core.util.CoroutineScopeProvider
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
 import kotlin.concurrent.withLock
 import java.util.concurrent.locks.ReentrantLock
@@ -230,9 +231,14 @@ class ProductionSlotRepository @Inject constructor(
         return result
     }
 
+    @Suppress("TooGenericExceptionCaught") // DAO 写入失败需全类兜底回滚（参照 ProductionCoordinator 先例），CancellationException 已先行重抛
     suspend fun batchUpdate(updates: List<SlotUpdate>): Result<List<ProductionSlot>> {
         if (updates.isEmpty()) return Result.success(emptyList())
 
+        // 回滚基准：DAO 写失败时恢复内存（对抗性审查发现 2 修复）。
+        // 批量版是"全有或全无"语义（单次 updateAll），失败必须整体回滚内存，
+        // 否则内存已清/DB 未清分叉（读档后槽位复活或残留占用）。
+        val oldSlots = _slots.value
         val updatedSlots = shardedLock.withBatchLock(updates.map { Pair(it.buildingType.name, it.slotIndex) }) {
             val currentSlots = _slots.value.toMutableList()
             val result = mutableListOf<ProductionSlot>()
@@ -251,6 +257,9 @@ class ProductionSlotRepository @Inject constructor(
                     if (validation.isFailure) continue
                 }
 
+                // 内存写回必须与 DAO 同步（此前漏写：仅 result 入 DAO，_slots 仍为旧值，
+                // 内存与数据库分叉——本方法首次启用（死亡清理批处理）时暴露）
+                currentSlots[index] = newSlot
                 result.add(newSlot)
             }
 
@@ -260,7 +269,21 @@ class ProductionSlotRepository @Inject constructor(
         }
 
         if (updatedSlots.isNotEmpty()) {
-            dao.updateAll(updatedSlots)
+            try {
+                dao.updateAll(updatedSlots)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // 回滚内存（旧值快照来自锁前，仅覆盖 DAO 失败瞬间的批量写入；
+                // 并发逐槽 updateSlot 不在回滚范围——DAO 失败是异常路径，且
+                // 回滚比"内存与 DB 分叉"（读档后幽灵占用）危害小得多）
+                DomainLog.w(TAG, "batchUpdate DAO 写入失败，回滚内存", e)
+                globalMutex.withLock {
+                    _slots.value = oldSlots
+                    cache.updateCache(oldSlots)
+                }
+                throw e
+            }
         }
 
         DomainLog.d(TAG, "Batch updated ${updatedSlots.size} slots")

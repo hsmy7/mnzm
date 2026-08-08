@@ -342,6 +342,10 @@ suspend fun GameEngine.loadData(
 ) {
     return engineContextDispatcher.withEngineContext {
         heavyDataLoaded = false
+        // 丢弃年变延迟队列残留（对抗性审查 F1 修复）：旧档未保存的 T2 延迟组
+        // 若不清除会作用于新档（跨存档污染——旧年 op 改新档数据）。
+        // 存档时已 flush（"快照 ⇒ 队列已空"），此残留只可能是进程内未保存的脏 op。
+        cultivationService.clearYearlyOpsQueue()
         // 重置招募惰性状态（纯运行时，不持久化）
         com.xianxia.sect.core.engine.service.RecruitService.resetAutoRecruitIdle()
         com.xianxia.sect.core.engine.service.RecruitService.resetAutoRejectIdle()

@@ -90,6 +90,52 @@ class CultivationEventProcessor @Inject constructor(
 
         /** AI 宗门弟子周期性招募间隔（年）— 差值判据，老档相位漂移自愈/失败次年重试 */
         internal const val AI_SECT_RECRUIT_INTERVAL_YEARS = 3
+
+        /** L3a 年变延迟队列 drain 时间预算（ms）：逐 tick 分摊延迟组的最大耗时 */
+        internal const val YEARLY_OPS_DRAIN_BUDGET_MS = 30L
+    }
+
+    // ── L3a 年变延迟队列（延迟组操作由 tick 预算 drain 分摊执行）─────────
+    // 注意：不能 private —— CultivationEventMonthlyOps 的 extension 函数
+    //（processYearlyEvents 拆分）经 internal 可见性访问同一实例
+    internal val yearlyOpsQueue = YearlyOpsQueue()
+
+    /**
+     * 逐 tick 预算 drain 年变延迟队列（L3a）。
+     *
+     * 由 [GameEngineCore.tickInternal] 每 tick 调用：
+     * - 1 月（年变月）：按 [YEARLY_OPS_DRAIN_BUDGET_MS] 预算分摊，剩余留到下个 tick
+     * - 非 1 月：不允许延迟组跨月残留，无预算全量清空（兜底）
+     *
+     * 每个 op 独立事务（[stateStore.update]），FIFO 保序 = 年变原相对序。
+     */
+    fun drainYearlyOpsQueue(timeBudgetMs: Long = YEARLY_OPS_DRAIN_BUDGET_MS) {
+        val month = stateStore.gameData.value.gameMonth
+        val runOp: (MutableGameState.() -> Unit) -> Unit = { op -> stateStore.update { op() } }
+        val cleared = if (month == 1) {
+            yearlyOpsQueue.drain(timeBudgetMs, runOp)
+        } else {
+            yearlyOpsQueue.forceDrain(runOp)
+        }
+        if (!cleared) {
+            DomainLog.w(TAG, "yearly ops queue not drained in budget: ${yearlyOpsQueue.size} ops pending")
+        }
+    }
+
+    /** 存档前全量清空年变延迟队列（保证"快照 ⇒ 队列已空"不变量）。 */
+    fun flushYearlyOpsQueue() {
+        // 与在途年变 T1 串行（对抗性审查"快照竞态窗口"修复）：T1 事务内最后一步
+        // enqueueYearlyOps 入队（见 CultivationEventMonthlyOps.processYearlyEvents），
+        // 此处空事务拿 transactionLock 确保"T1 提交（含全部 T2 入队）已完成"，
+        // 再 forceDrain 全清——闭合"快照 ⇒ 队列已空"不变量（forceDrain 与
+        // 引擎线程 drain 的 FIFO 互斥见 YearlyOpsQueue.inFlight）
+        stateStore.update { }
+        yearlyOpsQueue.forceDrain { op -> stateStore.update { op() } }
+    }
+
+    /** 丢弃队列中所有未执行延迟组（读档/切档入口调用，防旧档残留污染新档）。 */
+    fun clearYearlyOpsQueue() {
+        yearlyOpsQueue.clear()
     }
     // ── 时间推进 ──────────────────────────────────────────────────────
     fun advanceMonth(state: MutableGameState? = null) {

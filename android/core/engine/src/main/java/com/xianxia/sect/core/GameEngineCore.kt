@@ -1482,6 +1482,9 @@ class GameEngineCore @Inject constructor(
             monthChanged = (tickFlags and FLAG_MONTH_CHANGED) != 0,
             yearChanged = (tickFlags and FLAG_YEAR_CHANGED) != 0
         )
+        // L3a 年变分帧：延迟组按 30ms 预算逐 tick drain（1 月重活分摊到后续 tick；
+        // 非 1 月残留由 forceDrain 兜底不跨月）
+        cultivationService.drainYearlyOpsQueue()
         val patrolResults = explorationService.consumePendingPatrolResults()
         for (result in patrolResults) {
             stateStore.setPendingBattleResult(result)

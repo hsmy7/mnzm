@@ -4,16 +4,6 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameEventCategory
 import com.xianxia.sect.core.model.GameEventType
-import com.xianxia.sect.core.model.accessoryId
-import com.xianxia.sect.core.model.armorId
-import com.xianxia.sect.core.model.bootsId
-import com.xianxia.sect.core.model.griefEndYear
-import com.xianxia.sect.core.model.loyalty
-import com.xianxia.sect.core.model.morality
-import com.xianxia.sect.core.model.parentId1
-import com.xianxia.sect.core.model.parentId2
-import com.xianxia.sect.core.model.partnerId
-import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.state.DeathRecord
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.GameStateStore
@@ -68,15 +58,13 @@ class DiscipleLifecycleProcessor @Inject constructor(
 
     fun processGriefExpiry(currentYear: Int) {
         stateStore.update {
-            val updated = discipleTables.assembleAll().map { disciple ->
-                val griefEnd = disciple.social.griefEndYear
-                if (griefEnd != null && currentYear >= griefEnd) {
-                    disciple.copy(social = disciple.social.copy(griefEndYear = null))
-                } else {
-                    disciple
-                }
+            // 列直写（L1b）：替代 assembleAll + map + replaceAll 全表重建。
+            // 哨兵 -1 表示无哀悼（assembleAll 时映射回 null，读取端等价）
+            val expiredIds = discipleTables.ids.filter { id ->
+                val griefEnd = discipleTables.griefEndYears.getOrDefault(id, DiscipleTables.GRIEF_YEAR_NULL_SENTINEL)
+                griefEnd != DiscipleTables.GRIEF_YEAR_NULL_SENTINEL && currentYear >= griefEnd
             }
-            discipleTables.replaceAll(updated)
+            expiredIds.forEach { discipleTables.griefEndYears[it] = DiscipleTables.GRIEF_YEAR_NULL_SENTINEL }
         }
     }
 
@@ -106,12 +94,22 @@ class DiscipleLifecycleProcessor @Inject constructor(
 
         discipleStatusService.syncAllDiscipleStatuses()
 
-        // ── 事务外操作：双存储同步清理 + 事件分发（非原子操作，不影响游戏状态一致性）──
-        // clearDiscipleFromAllSlots = 事务内清镜像（幂等，applyAgedDeath 已清）+ 事务外清
-        // Room 生产槽 Repository（原 clearForgeSlotsIfNeeded 只清锻造槽，炼丹/灵田槽残留
-        // 导致死亡弟子继续显示在生产界面——双槽分叉根因）
+        // ── 双存储同步清理 + 事件分发（非状态事务；注意：本方法在年变 T1
+        //（processYearlyEvents 外层 update）内被调用，此处实际仍持 transactionLock，
+        // 仅在 T1 外层的"内层事务"之外——DAO 批量清理毫秒级，DeathEvent 无消费方，
+        // 实害为零；非 1 月路径（单独调用）则为真事务外）──
+        // 镜像清理已在 applyAgedDeath 事务内完成（幂等）；此处仅清 Room 生产槽 Repository
+        //（原 clearForgeSlotsIfNeeded 只清锻造槽，炼丹/灵田槽残留导致死亡弟子继续显示在
+        // 生产界面——双槽分叉根因）。
+        // L3 批处理：N 次 runBlocking + N×M 次 dao.update → 1 次 runBlocking + 1 次
+        // dao.updateAll。保留同步语义（TOCTOU/竞态为刻意设计——必须立即生效，注释见
+        // clearDiscipleFromAllSlots）。
+        kotlinx.coroutines.runBlocking(ioDispatcher.dispatcher) {
+            productionCoordinator.clearDisciplesFromRepository(
+                deadDiscipleData.keys.map { it.toString() }
+            )
+        }
         for ((id, agedDisciple) in deadDiscipleData) {
-            clearDiscipleFromAllSlots(agedDisciple.id)
             eventBus.emitSync(DeathEvent(
                 discipleId = agedDisciple.id,
                 discipleName = agedDisciple.name,
@@ -165,21 +163,25 @@ class DiscipleLifecycleProcessor @Inject constructor(
         // ── 槽位清理（事务内版本，替换 handleDiscipleDeath 的独立 update）──
         gameData = discipleSlotCleanup.clearAllSlots(gameData, agedDisciple.id, includeResidence = true)
 
-        // ── 哀悼期传播 + 伴侣/师徒解绑 ──
-        val griefUpdated = propagateGriefToRelatives(currentList, agedDisciple, currentYear)
-        unbindPartnerRelationship(griefUpdated, agedDisciple)
-        unbindMasterRelationships(griefUpdated, agedDisciple)
-
-        val lifeEventsToWrite = computeBereavementLifeEvents(
-            griefUpdated, currentList, agedDisciple, discipleTables
+        // ── 哀悼期批量写（L1b 列直写：替代 propagateGriefToRelatives 全列表 map + replaceAll 全表重建）──
+        // computeBereavementRecords 必须在写列之前列读（事件判定需要传播前的 griefEndYears 列值）
+        val griefMap = DiscipleStatCalculator.computeGriefEndYearMap(
+            currentList, listOf(agedDisciple), currentYear
         )
+        val bereavements = computeBereavementRecords(griefMap, agedDisciple)
+        for ((grievingId, endYear) in griefMap) {
+            discipleTables.griefEndYears[grievingId] = endYear
+        }
 
-        discipleTables.replaceAll(griefUpdated)
-        discipleTables.deathYears[id] = currentYear
+        // ── 伴侣/师徒解绑（列直写，替代 griefUpdated 列表改动）──
+        unbindPartnerColumns(agedDisciple)
+        unbindMasterColumns(agedDisciple.id)
 
-        lifeEventsToWrite.forEach { (grievingId, event) ->
-            val prevEvents = discipleTables.lifeEvents.getOrDefault(grievingId, emptyList())
-            discipleTables.lifeEvents[grievingId] = prevEvents + event
+        // ── 丧亲生命事件（列直读判定，替代 originalList.find O(D)/人）──
+        bereavements.forEach { (grievingId, record) ->
+            val event = buildBereavementEvent(record, agedDisciple)
+            discipleTables.lifeEvents[grievingId] =
+                discipleTables.lifeEvents.getOrDefault(grievingId, emptyList()) + event
         }
 
         // ── 血炼清理 ──
@@ -250,18 +252,12 @@ class DiscipleLifecycleProcessor @Inject constructor(
         val originalList = stateStore.discipleTables.assembleAll()
         val currentYear = stateStore.gameData.value.gameYear
 
-        val griefUpdated = propagateGriefToRelatives(originalList, disciple, currentYear)
-        unbindPartnerRelationship(griefUpdated, disciple)
-        unbindMasterRelationships(griefUpdated, disciple)
-        val tables = stateStore.discipleTables
-        val lifeEventsToWrite = computeBereavementLifeEvents(griefUpdated, originalList, disciple, tables)
+        val griefMap = DiscipleStatCalculator.computeGriefEndYearMap(
+            originalList, listOf(disciple), currentYear
+        )
 
         // 收集要删除的装备/功法 ID（不论内外都是直接删除）
         val (deleteEquipIds, deleteManualIds) = collectDeleteIds(disciple)
-
-        // D-03：死弟子的袋条目从 replaceAll 快照中剥离——replaceAll 全量重建组件表，
-        // 若快照携带旧袋条目，会把物化后的清袋覆盖回旧值（重复死亡处理 → 重复物化 → 物品复制）
-        val griefUpdatedWithoutBag = stripBagFromSnapshot(griefUpdated, disciple)
 
         // 单事务写入：弟子表 + 血炼清理 + 装备/功法清除 + 袋物化回仓库
         stateStore.update {
@@ -274,9 +270,25 @@ class DiscipleLifecycleProcessor @Inject constructor(
                     inventorySystem.materializeBagItemsToWarehouse(currentBag)
                 }
             }
-            // 幂等清袋：无条件执行（袋空无害）；在 replaceAll 之前执行（replaceAll 用剥离
-            // 快照，不会把旧袋条目恢复，清袋持久）
-            discipleTables.writeDeathRecords(idInt, currentYear, griefUpdatedWithoutBag, lifeEventsToWrite)
+            // 幂等清袋：无条件执行（袋空无害）
+            discipleTables.storageBagItems[idInt] = emptyList()
+
+            // L1b 列直写：哀悼批量写 + 解绑 + 丧亲事件 + 死亡年份
+            //（替代 propagateGriefToRelatives + stripBagFromSnapshot + writeDeathRecords 的
+            //  全列表 map + replaceAll 全表重建；computeBereavementRecords 须在写列前列读）
+            val bereavements = computeBereavementRecords(griefMap, disciple)
+            for ((grievingId, endYear) in griefMap) {
+                discipleTables.griefEndYears[grievingId] = endYear
+            }
+            unbindPartnerColumns(disciple)
+            unbindMasterColumns(disciple.id)
+            bereavements.forEach { (grievingId, record) ->
+                val event = buildBereavementEvent(record, disciple)
+                discipleTables.lifeEvents[grievingId] =
+                    discipleTables.lifeEvents.getOrDefault(grievingId, emptyList()) + event
+            }
+            discipleTables.deathYears[idInt] = currentYear
+
             gameData = gameData.copy(
                 bloodRefinementBonusTotals = gameData.bloodRefinementBonusTotals - disciple.id,
                 bloodRefinements = gameData.bloodRefinements - disciple.id
@@ -315,85 +327,58 @@ class DiscipleLifecycleProcessor @Inject constructor(
         return deleteEquipIds to disciple.manualIds.toSet()
     }
 
-    /** D-17 死弟子的袋条目从快照剥离（防重复物化复制） */
-    private fun stripBagFromSnapshot(list: List<Disciple>, disciple: Disciple): List<Disciple> =
-        if (disciple.equipment.storageBagItems.isEmpty()) list
-        else list.map { d ->
-            if (d.id == disciple.id) d.copy(equipment = d.equipment.copy(storageBagItems = emptyList()))
-            else d
-        }
+    // ── L1b 列直写辅助（替代 propagateGriefToRelatives/解绑/事件判定的全列表 map + replaceAll）──
 
-    /** D-17 事务内写入弟子表死亡记录（handleDiscipleDeath 拆分）：清袋 + 全量重建 + 死亡年份 + 丧事事件 */
-    private fun DiscipleTables.writeDeathRecords(
-        idInt: Int,
-        currentYear: Int,
-        griefUpdatedWithoutBag: List<Disciple>,
-        lifeEventsToWrite: Map<Int, String>
-    ) {
-        storageBagItems[idInt] = emptyList()
-        replaceAll(griefUpdatedWithoutBag)
-        deathYears[idInt] = currentYear
-        lifeEventsToWrite.forEach { (grievingId, event) ->
-            val prevEvents = lifeEvents.getOrDefault(grievingId, emptyList())
-            lifeEvents[grievingId] = prevEvents + event
+    /** 丧亲事件记录（L1b）：关系文本 + 事件年龄（列直读判定结果） */
+    private data class BereavementRecord(val relationship: String, val age: Int)
+
+    /**
+     * 列直读判定丧亲事件（替代 originalList.find O(D)/人）：
+     * 仅对 [griefMap] 中"新进入哀悼"者生成（原列值为哨兵 -1 判定 wasGrieving），
+     * 关系文本按列直读（partnerIds/parentId1s/parentId2s），与旧版
+     * `deduceRelationship` 逐分支等价（第 4 分支"子女"因 `==` 对称不可达，实际输出"亲属"）。
+     * 必须在写 griefEndYears 列之前调用（需要传播前列值）。
+     */
+    private fun MutableGameState.computeBereavementRecords(
+        griefMap: Map<Int, Int>,
+        deceased: Disciple
+    ): Map<Int, BereavementRecord> {
+        val records = mutableMapOf<Int, BereavementRecord>()
+        val deadId = deceased.id
+        for ((grievingId, _) in griefMap) {
+            val sentinel = DiscipleTables.GRIEF_YEAR_NULL_SENTINEL
+            val wasGrieving =
+                discipleTables.griefEndYears.getOrDefault(grievingId, sentinel) != sentinel
+            if (wasGrieving) continue
+            val relationship = when {
+                discipleTables.partnerIds.getOrNull(grievingId) == deadId -> "道侣"
+                discipleTables.parentId1s.getOrNull(grievingId) == deadId -> "父/母"
+                discipleTables.parentId2s.getOrNull(grievingId) == deadId -> "父/母"
+                else -> "亲属"
+            }
+            records[grievingId] = BereavementRecord(relationship, discipleTables.ages[grievingId])
+        }
+        return records
+    }
+
+    private fun buildBereavementEvent(record: BereavementRecord, deceased: Disciple): String =
+        "${record.age}岁：因${record.relationship}${deceased.name}离世陷入悲痛，修炼速度降低50%"
+
+    /** 道侣解绑（列直写）：仅清空死者侧记录指向的伴侣行，与旧版 indexOfFirst 语义一致 */
+    private fun MutableGameState.unbindPartnerColumns(deceased: Disciple) {
+        val partnerInt = deceased.social.partnerId?.toIntOrNull() ?: return
+        if (discipleTables.partnerIds.getOrNull(partnerInt) != null) {
+            discipleTables.partnerIds[partnerInt] = null
         }
     }
 
-    private fun propagateGriefToRelatives(
-        currentList: List<Disciple>, disciple: Disciple, year: Int
-    ): MutableList<Disciple> = DiscipleStatCalculator.applyGriefToRelatives(
-        currentList, listOf(disciple), year
-    ).toMutableList()
-
-    private fun unbindPartnerRelationship(griefUpdated: MutableList<Disciple>, disciple: Disciple) {
-        val partnerId = disciple.social.partnerId ?: return
-        val partnerIndex = griefUpdated.indexOfFirst { it.id == partnerId }
-        if (partnerIndex >= 0) {
-            griefUpdated[partnerIndex] = griefUpdated[partnerIndex].copy(
-                social = griefUpdated[partnerIndex].social.copy(partnerId = null)
-            )
-        }
-    }
-
-    private fun unbindMasterRelationships(griefUpdated: MutableList<Disciple>, disciple: Disciple) {
-        val deadId = disciple.id
-        griefUpdated.indices.forEach { i ->
-            if (griefUpdated[i].social.masterId == deadId) {
-                griefUpdated[i] = griefUpdated[i].copy(
-                    social = griefUpdated[i].social.copy(masterId = null)
-                )
+    /** 师徒解绑（列直写）：扫描 masterIds 列清空指向死者的徒弟行（O(D) 列读，替代列表遍历） */
+    private fun MutableGameState.unbindMasterColumns(deadId: String) {
+        for (discipleId in discipleTables.ids) {
+            if (discipleTables.masterIds.getOrNull(discipleId) == deadId) {
+                discipleTables.masterIds[discipleId] = null
             }
         }
-    }
-
-    private fun computeBereavementLifeEvents(
-        griefUpdated: List<Disciple>,
-        originalList: List<Disciple>,
-        deceased: Disciple,
-        tables: DiscipleTables
-    ): Map<Int, String> {
-        val events = mutableMapOf<Int, String>()
-        val deadId = deceased.id
-        for (grievingD in griefUpdated) {
-            val originalD = originalList.find { it.id == grievingD.id } ?: continue
-            val wasGrieving = originalD.social.griefEndYear != null
-            val isNowGrieving = grievingD.social.griefEndYear != null
-            if (wasGrieving || !isNowGrieving) continue
-
-            val relationship = deduceRelationship(originalD, deadId)
-            val grievingId = grievingD.id.toIntOrNull() ?: continue
-            val grievingAge = tables.ages[grievingId]
-            events[grievingId] = "${grievingAge}岁：因${relationship}${deceased.name}离世陷入悲痛，修炼速度降低50%"
-        }
-        return events
-    }
-
-    private fun deduceRelationship(disciple: Disciple, deadId: String): String = when {
-        disciple.social.partnerId == deadId -> "道侣"
-        deadId == disciple.social.partnerId -> "道侣"
-        disciple.social.parentId1 == deadId || disciple.social.parentId2 == deadId -> "父/母"
-        deadId == disciple.social.parentId1 || deadId == disciple.social.parentId2 -> "子女"
-        else -> "亲属"
     }
 
     private fun removeProficiencies(discipleId: String) {

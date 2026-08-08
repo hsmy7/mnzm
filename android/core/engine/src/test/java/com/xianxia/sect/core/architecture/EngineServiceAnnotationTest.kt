@@ -43,6 +43,9 @@ class EngineServiceAnnotationTest {
                 !name.endsWith("Summary") && !name.endsWith("Snapshot") &&
                 !name.endsWith("Context") && !name.endsWith("Params") &&
                 !name.endsWith("Zones") &&
+                // Record/Queue 后缀：data class 数据载体（BereavementRecord）、
+                // 内部队列基建（YearlyOpsQueue）——非服务类，同上方后缀排除
+                !name.endsWith("Record") && !name.endsWith("Queue") &&
                 name != "Success" && name != "CapacityInsufficient" &&
                 name != "DistributeFailed" &&
                 name != "SuccessWithMilestones" &&

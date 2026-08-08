@@ -97,11 +97,23 @@ object RecruitIntegrity {
             val normalized = d.copy(id = NORMALIZED_ID, slotId = 0)
             if (contentSeen.add(normalized)) contentDeduped.add(d)
         }
-        // 按"同人"签名去重（年龄容差内的克隆，如跨年漂移的双胞胎）
-        val personDeduped = mutableListOf<Disciple>()
-        for (d in contentDeduped) {
-            if (personDeduped.none { isSamePerson(it, d) }) personDeduped.add(d)
-        }
+        // 按"同人"签名去重（年龄容差内的克隆，如跨年漂移的双胞胎）。
+        // O(R²)→O(N)：isSamePerson 先比签名（不同签名必 false），旧算法的
+        // "kept 内 none 判定"只可能命中同签名者 ⇒ 按签名分组、组内保序去重，
+        // 最后按原始位置全局排序恢复全局保序（组间交错时组内后续保留元素
+        // 与异组元素的相对顺序不能被组间拼接破坏）。
+        // 等价性由 RecruitDedupeEquivalenceTest 守卫（fuzz 覆盖交错顺序）。
+        val personDeduped = contentDeduped
+            .mapIndexed { index, d -> index to d }
+            .groupBy({ (_, d) -> samePersonSignature(d) }, { it })
+            .values
+            .flatMap { group ->
+                group.fold(emptyList<Pair<Int, Disciple>>()) { kept, pair ->
+                    if (kept.none { isSamePerson(it.second, pair.second) }) kept + pair else kept
+                }
+            }
+            .sortedBy { it.first }
+            .map { it.second }
         return personDeduped
     }
 

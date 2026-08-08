@@ -44,6 +44,19 @@
 - **detekt 合规** — baseline 签名失配修复（overlay 参数改变 4 条条目签名，条目数不变只缩不增）；`LongParameterList ignoreDefaultParameters: true`（带默认值参数不计数——UnifiedGameDialog 19 参 18 默认，调用方仅传 1~2 个，实际负担远低于阈值）；QuantityInputField 9 参数 → 尺寸收进 `sizes` 对象（7 参数）；QuantitySelector 73 行 → 拆 `DecrementButtons`/`IncrementButtons` 私有 composable（53 行）
 - 全模块 compileReleaseKotlin + 串行全量测试（--max-workers=1）+ lintRelease + detekt 通过
 
+### 优化（2026-08-09 每年一月卡顿数秒根治——算法减量 + AI 降频 + 年变分帧）
+
+- **根因** — 引擎单线程在每年一月同一 tick 无预算串行执行 22 项年变处理器（单事务）+ 年俸 + 17 项月度事件；热点：AI 弟子月度修炼（30 宗门 × ≤1000 弟子全量乘区计算，每月都跑且 1 月叠加）、AI 弟子年度老化、招募去重 O(R²)（攻占宗门全池 1000+ 涌入）、玩家死亡路径 O(K×D²)（replaceAll 全表重建 + originalList.find）、年俸 assembleAll 独立事务、死亡清理逐弟子 runBlocking DAO 写——总工作量随存档规模无界增长，引擎线程被占期间世界静止（玩家感知"卡住好几秒"）
+- **L1 算法减量（行为逐位等价）** — 招募去重第三级 O(R²)→O(N) 签名分组（samePersonSignature 不含 age 的等价性论证 + RecruitDedupeEquivalenceTest fuzz 对比）；死亡/哀悼流水线列直写（griefEndYears/partnerIds/masterIds 列批量写、删除 replaceAll 全表重建、生命事件判定改 O(1) 列读，DeathPipelineEquivalenceTest 回归夹具）；年俸计划列直读（SalaryPlanColumnEquivalenceTest 逐位相等）；grief expiry 列循环
+- **L2 AI 降频（年均修炼总量不变）** — THERMAL_NORMAL_BATCH 1→3（季度批量），首次相位对齐基准 = (当前月-1) 向下取 3 的倍数 → settle 月恒为 3/6/9/12，**每个 1 月跳过 AI 修炼**（与首次调用月份无关，2/5/8/11 月读档不破坏相位）；monthsSince<=0（时钟回退/同月重复调用）跳过而非补修炼（修复重复叠加）
+- **L3 年变分帧（结构性根治）** — 新增引擎内存态延迟队列 YearlyOpsQueue：年变 22 项拆 T1 立即组 11 项（单事务保原相对序——年龄不变量/招募三件套/驻军报告 buffer 依赖闭环）+ T2 延迟组 11 项（入队，tick 预算 30ms drain 逐 tick 分摊；全部有差值判据自愈：丢失/跳过次年自动补跑）；存档前 flush 保证"快照 ⇒ 队列已空"（T1 事务内入队 + 空事务屏障 + consumerLock 互斥闭合并发窗口）；读档入口清队列防跨存档污染；非 1 月 forceDrain 跨月兜底
+- **死亡清理批处理** — N 次 runBlocking + N×M 次 dao.update → 1 次 runBlocking + 1 次 dao.updateAll（保留同步语义）；修复 batchUpdate 首次启用暴露的内存写回缺失 + DAO 写失败整体回滚内存（全有或全无语义，防内存/DB 分叉）
+- **对抗性审查（3 Agent：边界狂魔/状态破坏者/数据篡改者）** — 0 严重；修复 4 项中等：读档不清队列跨存档污染（loadData 入口 clear）、computeAIBatch 时钟回退叠加修炼 + 2/5/8/11 月读档 1 月 settle 缺口（mod 3 对齐）、drain/flush 双消费者 FIFO 倒置 + 快照竞态窗口（consumerLock 互斥 + T1 内入队 + 空事务屏障）、batchUpdate 失败内存/DB 分叉（回滚）；其余中等/轻微项评估接受并文档化：forceDrain 尖峰回归为计划内最坏回退（现状同款）、T1 锁内 DAO 清理毫秒级且 DeathEvent 无消费方（注释名实相符化）、ShardedSlotLock 锁粒度沿用单写线程设计假设、驻军轮换延迟一年无感（差值自愈）、死亡批次幽灵列条目内存驻留（无功能影响）
+- **测试** — 新增 YearlyOpsQueueTest 并发守卫（drain/forceDrain 双消费者 FIFO 不倒置）、AISectBattleProcessorTest +2（2 月读档相位对齐、时钟回退跳过）；等价性测试（RecruitDedupeEquivalenceTest/DeathPipelineEquivalenceTest/SalaryPlanColumnEquivalenceTest）保障 L1 行为逐位等价；T1/T2 拆分顺序守卫 + batch 清理聚合守卫回归通过
+- **性能目标** — 1 月 tick 从数秒收敛至单帧级：T1 11 项（L1b/L1c 后玩家侧 O(D) 有界）+ 年俸 + 月度事件；重活（AI 老化/招募/外交/秘境）全部移出 1 月单事务由 tick 预算分摊
+- **兼容性** — 纯运行时优化，无 Entity/Migration/Room schema 变更；T2 延迟组崩溃窗口丢失由差值判据自愈且 flush-on-save 保证存档时已执行（现状该窗口丢失全部 22 项，改造后严格更优）
+- 全模块 compileReleaseKotlin + 串行全量测试（--max-workers=1）+ detekt 通过
+
 ## [4.00.91] - 2026-08-07
 
 ### 架构债务清理（2026-08-08 D-01~D-17 十项全量实施）

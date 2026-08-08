@@ -38,13 +38,17 @@ class AISectBattleProcessor @Inject constructor(
     private val occupationResolver: AISectOccupationResolver
 ) {
     // AI 非焦点域热控分批状态
-    private var aiNonFocusedLastSettleMonth: Int = 0
+    // 哨兵 -1 = 未初始化（0 不能作哨兵：首次对齐基准可为 0，见 computeAIBatch）
+    private var aiNonFocusedLastSettleMonth: Int = -1
     private var aiNonFocusedBatchMonths: Int = 1
 
     companion object {
         private const val THERMAL_EMERGENCY_BATCH = 12
         private const val THERMAL_REDUCE_BATCH = 6
-        private const val THERMAL_NORMAL_BATCH = 1
+        // L2 AI 降频：1→3（季度批量）。settle 月 = 3/6/9/12，每个 1 月
+        // monthsSince = 1 < 3 跳过 —— 年变叠加月不再触发 AI 修炼。
+        // 年均修炼总量不变（processMonthlyCultivation 内部 repeat(batchMonths)）。
+        private const val THERMAL_NORMAL_BATCH = 3
 
         /**
          * 从实际参战弟子构建防守战日志的敌人快照列表（纯函数，D3 迁移自 CaveExplorationProcessor）。
@@ -76,15 +80,30 @@ class AISectBattleProcessor @Inject constructor(
             }
         }
     }
+    /**
+     * 当前批次月数（0 = 本月跳过 AI 修炼）。供测试断言热控相位。
+     */
+    internal fun currentAIBatchMonths(): Int = aiNonFocusedBatchMonths
+
     private fun computeAIBatch(currentAbsoluteMonth: Int) {
-        if (aiNonFocusedLastSettleMonth == 0) {
-            aiNonFocusedLastSettleMonth = currentAbsoluteMonth
-            aiNonFocusedBatchMonths = 1
+        if (aiNonFocusedLastSettleMonth < 0) {
+            // L2 首次相位对齐：基准 = (当前月 - 1) 向下取 3 的倍数。
+            // 基准 ≡ 0 (mod 3) ⇒ settle 月 = 基准 + 3k ≡ 0 (mod 3) = 3/6/9/12 ——
+            // 1 月（mod 3 = 1）永不 settle，与首次调用月份无关。
+            // 修复两个缺口：(a) 旧逻辑首次调用在 1 月时基准 = 1（mod 3 = 1），
+            // settle 月 1/4/7/10 → 1 月成本 x3；(b) 2/5/8/11 月读档后基准 mod 3 ≠ 0，
+            // 1 月成为 settle 月（对抗性审查 F4）。基准可为 0（abs ≤ 2 时），
+            // 哨兵 -1 区分"未初始化"。
+            aiNonFocusedLastSettleMonth =
+                (currentAbsoluteMonth - 1) - ((currentAbsoluteMonth - 1) % 3)
+            aiNonFocusedBatchMonths = 0
             return
         }
         val monthsSince = currentAbsoluteMonth - aiNonFocusedLastSettleMonth
         if (monthsSince <= 0) {
-            aiNonFocusedBatchMonths = 1
+            // 时钟回退（读档到更早月份）/同月重复调用：跳过而非补修炼。
+            // 旧逻辑 batchMonths=1 会在回退场景重复执行一个月修炼（对抗性审查 F1）。
+            aiNonFocusedBatchMonths = 0
             return
         }
         val batchSize = when {

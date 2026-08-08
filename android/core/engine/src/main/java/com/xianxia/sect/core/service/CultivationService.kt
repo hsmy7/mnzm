@@ -420,6 +420,29 @@ class CultivationService @Inject constructor(
         eventProcessor.processMonthlyEvents(data.gameYear, data.gameMonth, state)
     }
 
+    /**
+     * L3a：逐 tick 预算 drain 年变延迟队列（GameEngineCore.tickInternal 每 tick 调用）。
+     * 必须在 shadow transaction 外部调用（内部使用 [GameStateStore.update]）。
+     */
+    fun drainYearlyOpsQueue() {
+        eventProcessor.drainYearlyOpsQueue()
+    }
+
+    /**
+     * L3a：存档前全量清空年变延迟队列（保证"快照 ⇒ 队列已空"不变量）。
+     */
+    fun flushYearlyOpsQueue() {
+        eventProcessor.flushYearlyOpsQueue()
+    }
+
+    /**
+     * L3a：丢弃队列中所有未执行延迟组（读档/切档入口调用，
+     * 防旧档残留 op 作用于新档——对抗性审查 F1 修复）。
+     */
+    fun clearYearlyOpsQueue() {
+        eventProcessor.clearYearlyOpsQueue()
+    }
+
     fun getHighFrequencyData(): StateFlow<HighFrequencyData> = _highFrequencyData
 
     fun resetHighFrequencyData() {

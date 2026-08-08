@@ -259,4 +259,114 @@ class AISectBattleProcessorTest {
 
     private fun makeDisciple(id: String, realm: Int = 9, isAlive: Boolean = true): Disciple =
         Disciple(id = id, realm = realm, isAlive = isAlive)
+
+    // ── L2 AI 降频：热控相位测试（settle 月 = 3/6/9/12，1 月跳过）──
+
+    @Test
+    fun `L2 NORMAL相位 - 首次对齐后 1月跳过 季度节奏 3-6-9-12`() {
+        val processor = createProcessorWith(thermalWith(false, false))
+        val state = makeState(GameData())
+
+        // 首次调用（2026-1）：基准 = 2025-12，batch=0（旧逻辑 batch=1 在此月修炼）
+        processor.processAISectOperations(2026, 1, state)
+        assertEquals("首次调用 1 月跳过", 0, processor.currentAIBatchMonths())
+
+        processor.processAISectOperations(2026, 2, state)
+        assertEquals("2 月距基准 2 个月 < 3", 0, processor.currentAIBatchMonths())
+
+        // 2026-3：距基准 3 个月 → 首个 settle 月，batch=3
+        processor.processAISectOperations(2026, 3, state)
+        assertEquals("2026-3 settle", 3, processor.currentAIBatchMonths())
+
+        // 季度节奏：6/9/12 各距上次 settle 3 个月
+        processor.processAISectOperations(2026, 6, state)
+        assertEquals("2026-6 settle", 3, processor.currentAIBatchMonths())
+        processor.processAISectOperations(2026, 9, state)
+        assertEquals("2026-9 settle", 3, processor.currentAIBatchMonths())
+        processor.processAISectOperations(2026, 12, state)
+        assertEquals("2026-12 settle", 3, processor.currentAIBatchMonths())
+
+        // 2027-1：距 2026-12 仅 1 个月 < 3 → 跳过（年变叠加月不再触发 AI 修炼）
+        processor.processAISectOperations(2027, 1, state)
+        assertEquals("2027-1 跳过", 0, processor.currentAIBatchMonths())
+    }
+
+    @Test
+    fun `L2 REDUCE相位 - 6月节奏 1月仍跳过`() {
+        val processor = createProcessorWith(thermalWith(emergency = false, reduce = true))
+        val state = makeState(GameData())
+
+        processor.processAISectOperations(2026, 1, state)
+        assertEquals("首次 1 月跳过", 0, processor.currentAIBatchMonths())
+
+        // 2026-6：距基准 6 个月 → settle（batch=6，6 月修炼一次性结算）
+        processor.processAISectOperations(2026, 6, state)
+        assertEquals("2026-6 settle", 6, processor.currentAIBatchMonths())
+
+        // 2026-12：距 6 月 6 个月 → settle
+        processor.processAISectOperations(2026, 12, state)
+        assertEquals("2026-12 settle", 6, processor.currentAIBatchMonths())
+
+        // 2027-1：距 2026-12 仅 1 个月 < 6 → 跳过
+        processor.processAISectOperations(2027, 1, state)
+        assertEquals("2027-1 跳过", 0, processor.currentAIBatchMonths())
+    }
+
+    @Test
+    fun `L2 EMERGENCY相位 - 跨年批量一次性结算`() {
+        val processor = createProcessorWith(thermalWith(emergency = true, reduce = false))
+        val state = makeState(GameData())
+
+        processor.processAISectOperations(2026, 1, state)
+        assertEquals("首次 1 月跳过", 0, processor.currentAIBatchMonths())
+
+        // 2027-1：距基准 13 个月 ≥ 12 → 跨年批量一次性 settle（batch=13，13 个月修炼一次结算）
+        processor.processAISectOperations(2027, 1, state)
+        assertEquals("2027-1 跨年批量", 13, processor.currentAIBatchMonths())
+    }
+
+    @Test
+    fun `L2 相位 - 2月读档首次对齐 基准取3的倍数 settle月仍为3-6-9-12 1月跳过`() {
+        // 对抗性审查 F4：首次调用在 2/5/8/11 月时，旧基准 (currentMonth-1) mod 3 ≠ 0，
+        // settle 月会包含 1 月（年变叠加月触发 AI 修炼，降频目标失效）。
+        // 修复后基准 = (当前月-1) 向下取 3 的倍数，settle 月恒为 3/6/9/12。
+        val processor = createProcessorWith(thermalWith(false, false))
+        val state = makeState(GameData())
+
+        // 模拟 2 月读档后首次调用：基准对齐到 2025-12（mod 3 = 0）
+        processor.processAISectOperations(2026, 2, state)
+        assertEquals("2 月首次调用距基准 2 个月 < 3", 0, processor.currentAIBatchMonths())
+
+        // 2026-3：首个 settle 月（3 mod 3 = 0）
+        processor.processAISectOperations(2026, 3, state)
+        assertEquals("2026-3 settle", 3, processor.currentAIBatchMonths())
+
+        // 2026-12（mod 3 = 0，仍是 settle 月）：距 2026-3 九个月 → batch=9（一次结算）
+        processor.processAISectOperations(2026, 12, state)
+        assertEquals("2026-12 settle（距上次 9 个月）", 9, processor.currentAIBatchMonths())
+        // 2027-1 距 2026-12 仅 1 个月 → 跳过（1 月永不 settle）
+        processor.processAISectOperations(2027, 1, state)
+        assertEquals("2027-1 跳过（1 月永不 settle）", 0, processor.currentAIBatchMonths())
+    }
+
+    @Test
+    fun `L2 相位 - 时钟回退同月重复调用 跳过而非叠加修炼`() {
+        // 对抗性审查 F1：monthsSince <= 0（读档到更早月份/同月重复调用）时
+        // 旧逻辑 batchMonths=1 会重复执行一个月修炼；修复后跳过（0）。
+        val processor = createProcessorWith(thermalWith(false, false))
+        val state = makeState(GameData())
+
+        processor.processAISectOperations(2026, 1, state)
+        assertEquals("首次 1 月跳过", 0, processor.currentAIBatchMonths())
+        processor.processAISectOperations(2026, 3, state)
+        assertEquals("2026-3 settle 后 lastSettle=24315", 3, processor.currentAIBatchMonths())
+
+        // 模拟读档回 2026-1（时钟回退）：monthsSince = -2 <= 0 → 跳过（不得叠加修炼）
+        processor.processAISectOperations(2026, 1, state)
+        assertEquals("时钟回退跳过", 0, processor.currentAIBatchMonths())
+
+        // 同月重复调用：monthsSince = 1 > 0 但未达批次阈值 → 同样跳过
+        processor.processAISectOperations(2026, 1, state)
+        assertEquals("同月重复调用跳过", 0, processor.currentAIBatchMonths())
+    }
 }

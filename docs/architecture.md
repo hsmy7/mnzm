@@ -100,8 +100,39 @@ tickInternal():
     └─ 伴侣配对 + 忠诚度衰减
 
   Level 4 — 年变事件 (年变时)
-    └─ 老化/招募/盟约
+    ├─ T1 立即组 (11 项, 单事务)    ← 年龄不变量/招募三件套/驻军报告
+    └─ T2 延迟组 (11 项, 入队)      ← YearlyOpsQueue 逐 tick 预算 drain (30ms)
 ```
+
+### 年变分帧（2026-08-09 引入）
+
+年变 22 项处理器 + 年俸 + 月度事件原先在同一 tick 无预算串行执行，总工作量随存档规模无界增长
+（AI 弟子池最多 30,000、招募池 1000+），引擎线程被占期间世界静止 → 玩家感知"每年一月卡住数秒"。
+
+**拆分策略**（`CultivationEventMonthlyOps.processYearlyEvents`）：
+
+- **T1 立即组（11 项，单事务保原相对序）** — 必须当月立即：玩家老化+死亡（年龄不变量）、
+  招募三件套（刷新年新弟子被当年 recruitAging +1）、garrisonAndReport（与纳贡同事务，
+  annual* 字段必须计入年报）
+- **T2 延迟组（11 项，入队延迟执行）** — 全部有自愈语义：差值判据（lastRecruitYear/
+  lastAiSectRecruitYear/lastTradeYear ≥ N，跳过次年自动补跑）或延迟无感（AI 老化晚 1 tick、
+  外交/秘境明年可补）
+- **drain 预算** — `YearlyOpsQueue.drain(30ms)` 每 tick 调用（GameEngineCore.tickInternal），
+  至少执行 1 个 op；非 1 月 forceDrain 跨月兜底；存档前 flush 保证"快照 ⇒ 队列已空"
+
+**并发与一致性不变量**（对抗性审查闭环）：
+
+- 入队发生在 T1 事务**内**（最后一步）→ 事务提交与全部入队原子，快照窗口闭合
+- `flushYearlyOpsQueue` 先空事务拿 transactionLock（与在途 T1 串行）→ forceDrain 全清
+- `YearlyOpsQueue.consumerLock` — drain（引擎 tick）与 forceDrain（存档线程）同刻至多
+  一个消费者，FIFO 顺序恒成立（不存在 op2 先于 op1 的交错）
+- 读档入口 `clearYearlyOpsQueue` — 丢弃旧档残留延迟组，防跨存档污染
+- 崩溃语义 — 队列为进程内态崩溃即丢，但差值判据自愈 + flush-on-save 保证存档时已执行
+
+**AI 修炼季度降频（L2）** — `AISectBattleProcessor.THERMAL_NORMAL_BATCH` 1→3：首次相位
+基准 = (当前月-1) 向下取 3 的倍数（mod 3 = 0）→ settle 月恒为 3/6/9/12，每个 1 月跳过
+AI 修炼，年均总量不变（`repeat(batchMonths)` 语义）；热控降级链 REDUCE=6 / EMERGENCY=12
+保持单调（1 月可能 settle，仅热控时，文档化接受）。
 
 ### 核心原则
 

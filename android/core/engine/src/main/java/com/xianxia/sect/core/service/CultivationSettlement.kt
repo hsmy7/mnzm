@@ -115,28 +115,45 @@ class CultivationSettlement @Inject constructor(
         }
     }
 
-    private data class SalaryPlan(
+    internal data class SalaryPlan(
         val eligibleSalaries: Map<String, Long>,
         val totalRequired: Long
     )
 
+    /** 幽灵防御判定：三表（isAlive/names/realms）齐全且名非空白，与 assembleAll 的 isCompleteId 等价。 */
+    private fun isGhostEntry(tables: DiscipleTables, id: Int): Boolean =
+        !tables.isAlive.contains(id) || !tables.names.contains(id) ||
+            !tables.realms.contains(id) || tables.names.getOrNull(id)?.isBlank() != false
+
     /**
      * 计算应得俸禄弟子清单及总需求。
      * 不检查 [spiritStoneWallet.canAfford]（由 [processAnnualSalary] 处理）。
+     *
+     * L1c 列直读：assembleAll 组装全部 67 列字段（含字符串分配），而年俸计划只需
+     * isAlive/realms 两列 ⇒ 改为列直读 O(D) 常数列访问、零对象分配。
+     * 等价性：assembleAll 的 Disciple 字段即列数据（isAlive = getOrDefault(id,1)==1、
+     * realm = getOrDefault(id,9)），过滤谓词逐字段一致；幽灵防御（三表齐全 +
+     * 空名跳过，assembleAll 的 isCompleteId/isBlank 逻辑）原样保留。
+     * 由 SalaryPlanColumnEquivalenceTest 逐位守卫。
      */
-    private fun calculateSalaryPlan(): SalaryPlan? {
+    internal fun calculateSalaryPlan(): SalaryPlan? {
         val data = stateStore.gameData.value
         val salaryConfig = data.yearlySalary
         val enabledConfig = data.yearlySalaryEnabled
         val tables = stateStore.discipleTables
-        val eligible = tables.assembleAll()
-            .filter { it.isAlive && enabledConfig[it.realm] == true }
-            .map { it to (salaryConfig[it.realm]?.toLong() ?: 0L) }
-            .filter { it.second > 0L }
+        val eligible = tables.ids.distinct().mapNotNull { id ->
+            // 幽灵防御等价（assembleAll 的 isCompleteId + 空名跳过）
+            if (isGhostEntry(tables, id)) return@mapNotNull null
+            val realm = tables.realms.getOrDefault(id, 9)
+            val alive = tables.isAlive.getOrDefault(id, 1) == 1
+            if (!alive || enabledConfig[realm] != true) return@mapNotNull null
+            val salary = salaryConfig[realm]?.toLong() ?: 0L
+            if (salary <= 0L) null else (id to salary)
+        }
         val totalRequired = eligible.sumOf { it.second }
         if (totalRequired <= 0L) return null
         return SalaryPlan(
-            eligibleSalaries = eligible.associate { it.first.id to it.second },
+            eligibleSalaries = eligible.associate { it.first.toString() to it.second },
             totalRequired = totalRequired
         )
     }
