@@ -20,7 +20,7 @@
 - [架构文档索引](#architecture-docs)
 - [存档验证规则引擎](#存档验证规则引擎-savevalidator-rule-engine)
 - [待完成项登记](#待完成项登记2026-08-05-清理历史完成项已移除详见-changelog-40086-40088)
-- [实施计划（2026-08-08：D-01 / D-03 / D-05~D-09 / D-15~D-17 十项）](#实施计划2026-08-08d-01--d-03--d-05d-09--d-15d-17-十项)
+- [实施记录（2026-08-08：D-01 / D-03 / D-05~D-09 / D-15~D-17 十项）](#实施记录2026-08-08d-01--d-03--d-05d-09--d-15d-17-十项已完成)
 
 ---
 
@@ -434,157 +434,45 @@ SaveValidator.validate(SaveData)
 
 | # | 项 | 位置 | 现状与处理指引 |
 |---|---|---|---|
-| D-01 | 溢出邮件非事务化（300ms 内存队列） | `core/engine/.../service/OverflowMailSender.kt`（pendingDrafts 异步防抖队列） | 草稿入内存队列与源事务无关联：场景 A 崩溃丢草稿（物品丢失）、场景 B 事务回滚后邮件照发（物品复制）。全局机制（战斗/探索/灵田溢出均依赖），修复需草稿带事务世代号或同步写库——影响面大，另行立项 |
+| ~~D-01~~ ✅ 已修 | 溢出邮件非事务化（300ms 内存队列） | `core/engine/.../service/OverflowMailSender.kt`（pendingDrafts 异步防抖队列） | ✅ **已修（2026-08-08 架构债务批次）**：草稿入队即持久化（新表 overflow_mail_drafts/direct_mail_drafts）+ 事务世代号（提交钩子恰一次落盘、回滚丢弃）；崩溃恢复经 startGameLoop 统一 drain；DATABASE_VERSION 42→43 |
 | D-02 | ~~里程碑失败后无法重试（预存）~~ | ~~`core/engine/.../service/DailySignInService.kt` claimDailySignIn 里程碑循环~~ | ✅ **已关闭（2026-08-07）**——活动与每日签到功能整体移除，待办自然失效 |
-| D-03 | 放背包失败转邮件（体验） | `core/engine/.../domain/disciple/DiscipleFacadeImpl.kt` rewardEquipment/rewardManual 放背包路径 | 仓库满时"放背包"→ Failure → 物品转入溢出邮件（数量守恒不丢失），但玩家感知"背包没进、仓库在减"。修复需"失败保留原处"语义（抑制邮件 + 回滚扣减），与全局溢出语义需权衡 |
+| ~~D-03~~ ✅ 已修 | 放背包失败转邮件（体验） | `core/engine/.../domain/disciple/DiscipleFacadeImpl.kt` rewardEquipment/rewardManual 放背包路径 | ✅ **已修（2026-08-08 架构债务批次）**：袋独立存储重构，**容量无上限**——袋条目 payload 持有数据，写入永不因袋满失败；物化迁移兼容老存档 |
 | D-04 | 试炼敌人属性从随机变固定（C1 行为变化） | `core/engine/.../domain/battle/HeavenlyTrialService.kt` enemySeed | 敌人生成改确定性派生种子后：同一关卡敌人属性恒定（预览=战斗一致、零全局 RNG 污染）。产品侧确认可接受（固定挑战）；如需随机化，改为进入战斗时取种子本地生成 |
-| D-05 | `GameEngineDiplomacyOps.interactWithSect` 未实现存根 | `core/engine/.../GameEngineDiplomacyOps.kt:70` | 仅打日志"尚未实现"，全仓库无调用方（detekt-baseline 引用）。死代码，建议删除或实现外交交互 |
-| D-06 | 全库通配符 import 显式化（约 750 处） | main 482 处 + test 271 处，主要分布：`core.model.*` 125 / `foundation.layout.*` 97 / `runtime.*` 81 / `material3.*` 44 / `core.engine.*` 27 / `core.state.*` 16 / `room.*` 14 / 其余约 25 个包 | 2026-08-06 已完成示例：`LevelGenerator`/`CaveGenerator` 显式化（detekt WildcardImport 合规）；detekt 配置 `WildcardImport: active: true` 但全库未拦截（机制待查，或为预期豁免）。Compose 常用包（layout/runtime/material3 共 240+ 处）为生态惯例，`core.model.*`/`core.engine.*` 等自有包可批量显式化；机械改动低风险，另行立项 |
-| D-07 | `stopGameLoop`/`shutdown` 与 `emergencyRestartGameLoop` 无生命周期互斥（孤儿循环/双速） | `core/engine/.../GameEngineCore.kt:562-571`（stopGameLoop）/ `:584-596`（shutdown）/ `:830-866`（emergencyRestartGameLoop） | 2026-08-06 三崩溃批次对抗性审查登记（状态破坏者 F4）：CAS 只防"双 emergency"，不防"stop 与 emergency 并发"——引擎看门狗 / AlarmWatchdogReceiver / 主线程 HealthCheck 三恢复路径可并发，shutdown 与 emergency 交错时产生孤儿循环（shutdown 后新循环无人持有、无人 cancel），引擎重新 start 后可能双速推进游戏时间。修复需生命周期互斥（stopping 标志或 runState/bootPhase 门控），改动涉及生命周期层，另行立项 |
-| D-08 | `ThermalMonitor.start()/stop()` 无调用者——ADPF 热降载实际未接线 | `core/engine/.../perf/ThermalMonitor.kt` start/stop | 2026-08-06 对抗性审查登记：KDoc 声称"由 GameEngineCore 调用"但实际零调用 → monitorJob 从未启动 → `thermalState` 永远 NORMAL → `shouldReduceWorkload`/`shouldEmergencySave` 恒 false（过热降载与紧急保存机制实际未生效）。接线方案：`GameEngineCore.startGameLoop` 调 `thermalMonitor.start(engineScope)`、shutdown 调 stop；改动小、风险低，可随时实施 |
-| D-09 | `ThermalMonitor.createHintSession` 异常分支不可测 | `core/engine/.../perf/ThermalMonitor.kt` hintManager（private lazy） | 2026-08-06 三崩溃批次登记：Robolectric 下 `getSystemService(PerformanceHintManager)` 返回 null 而非抛异常，异常分支（hintManager 抛异常 → 字段复位一致）无测试覆盖。修复：hintManager 改 internal 注入或抽工厂，随后补异常路径用例 |
+| ~~D-05~~ ✅ 已修 | `GameEngineDiplomacyOps.interactWithSect` 未实现存根 | `core/engine/.../GameEngineDiplomacyOps.kt:70` | ✅ **已修（2026-08-08 架构债务批次）**：死代码删除（与 D-16 一并清理） |
+| ~~D-06~~ ✅ 已修 | 全库通配符 import 显式化（约 750 处） | main 482 处 + test 271 处，主要分布：`core.model.*` 125 / `foundation.layout.*` 97 / `runtime.*` 81 / `material3.*` 44 / `core.engine.*` 27 / `core.state.*` 16 / `room.*` 14 / 其余约 25 个包 | ✅ **已修（2026-08-08 架构债务批次）**：自有包约 260 处显式化 + Compose 生态白名单（detekt.yml 21 条 excludeImports）+ baseline 摘除 + 工具 `scripts/expand-wildcard-imports.mjs` |
+| ~~D-07~~ ✅ 已修 | `stopGameLoop`/`shutdown` 与 `emergencyRestartGameLoop` 无生命周期互斥（孤儿循环/双速） | `core/engine/.../GameEngineCore.kt`（stopGameLoop/shutdown/emergencyRestartGameLoop） | ✅ **已修（2026-08-08 架构债务批次）**：LoopPhase 状态机 CAS（RUNNING/RESTARTING/STOPPING/STOPPED），并发交错根治；含 GameEngineCoreLifecycleInterleavingTest |
+| ~~D-08~~ ✅ 已修 | `ThermalMonitor.start()/stop()` 无调用者——ADPF 热降载实际未接线 | `core/engine/.../perf/ThermalMonitor.kt` start/stop | ✅ **已修（2026-08-08 架构债务批次）**：`startGameLoop` 接线 start/stop（含 emergency 换线程重建语义），热状态不再恒 NORMAL |
+| ~~D-09~~ ✅ 已修 | `ThermalMonitor.createHintSession` 异常分支不可测 | `core/engine/.../perf/ThermalMonitor.kt` hintManager（private lazy） | ✅ **已修（2026-08-08 架构债务批次）**：hintManager 改 internal var 接缝注入，Robolectric 补异常/null 分支用例 |
 | D-10 | 主线程 HWUI 阻塞无看门狗覆盖 | 三层看门狗（`GameTimeProgressMonitor` / `GameLoopDelegate` HealthCheck / `AlarmWatchdogReceiver`）均只监控"游戏时间推进" | 2026-08-06 #2037 ANR 归因时登记：主线程卡 `syncAndDrawFrame`（HWUI 绘制阻塞，非输入阻塞）无检测无恢复；阻塞中任何恢复都无法执行（事后监控价值有限）。可选演进：`FrameMetricsMonitor` 严重 jank（>50ms）接上报/降载信号（降 targetFps），属长期项 |
 | ~~D-11~~ ✅ 已修 | 宗门被夺回时 activeSectId 残留致本宗地图整体变空 | `core/engine/.../engine/BuildingLoadSelfHeal.kt` `purifyStaleActiveSectId`（boot Step 3 读档净化） | 2026-08-06 建筑点击无效批次对抗性审查登记（数据篡改者发现 2），2026-08-06 批次补全修复：读档时 activeSectId 非空且不对应"现存且玩家持有（isPlayerSect/isPlayerOccupied）"宗门 → 归回本宗 ""（worldMapSects 为空同样归 ""）。含 `BootSequenceControllerTest` boot 净化生效守卫 |
 | ~~D-12~~ ✅ 已修 | 拖拽中建筑被渲染命令总线双渲染 | `feature/game/.../GameViewModel.kt` movingInstanceId 通道（bus 推送键改 (activeSectId, placedBuildings, movingId) 三元组并排除移动中建筑）+ `MainGameScreen.kt` `LaunchedEffect(movingBuilding)` 单点接线 | 2026-08-06 建筑点击无效批次对抗性审查登记（状态破坏者 F1），2026-08-06 批次补全修复：拖拽期间总线不再在旧位置渲染该建筑（双渲染消除）；点击索引/占用检测与总线同源，拖拽窗口期点不中/可叠建窗口关闭。含 `GameViewModelTest` +3 |
 | ~~D-13~~ ✅ 已修 | 旧档 sectId 不匹配建筑完全不可管理 | `core/engine/.../engine/BuildingLoadSelfHeal.kt` `normalizeOrphanBuildingSectIds`（boot Step 3 读档归一化） | 2026-08-06 建筑点击无效批次对抗性审查登记（数据篡改者 F4/状态破坏者 F4），2026-08-06 批次补全修复（主修复）：sectId 非空且 worldMapSects 无对应宗门 → 归入本宗 ""（同步 `SpiritMineSlot.sectId`；worldMapSects 为空跳过防误伤；幂等）。归一化在溢出迁移之前执行（boot Step 3.5），孤儿与既有建筑重叠由迁移拆除退款。含 `BuildingLoadSelfHealTest`（归一化 8 例 + 归一化→迁移守卫）、`BootSequenceControllerTest` boot 生效守卫 |
 | ~~D-14~~ ✅ 已修 | 旧档 2×2 矿场移到地图边缘后读档 fixup 撑大越界 | `core/engine/.../config/BuildingConfigService.kt` fixupBuildingSizes（加世界尺寸默认参数，尺寸变化时钳制坐标回地图界内） | 2026-08-06 建筑点击无效批次对抗性审查登记（边界狂魔 F3），2026-08-06 批次补全修复：2×2 矿场 @gridX=126 撑大到 4×4 钳回 124；负坐标钳 0；尺寸不变的健康数据零副作用；钳入 3 格边界区由既有边界迁移（50% 退款）兜底。含 `BuildingConfigServiceFixupTest` 5 例 |
-| D-15 | `AISectBattleProcessor` 795 行/21 函数超限 | `core/engine/.../engine/service/AISectBattleProcessor.kt` | 2026-08-06 登记：D3 拆分（2026-08-05）后 795 行已超 LargeClass 600 上限、20 函数已触 TooManyFunctions 阈值（CI detekt 未拦截），本次新增 `seizePlayerBuildingsAfterLoss` 后 21 个；已类级 @Suppress 登记（沿用文件内既有先例）。拆分计划（AI 攻防决策/玩家防守/占领结算三块）另行立项 |
-| D-16 | `generateSectTradeItems` 无 sectId 回退路径死代码链 | `core/engine/.../GameEngineDiplomacyOps.kt:6` → `DiplomacyFacade.kt:12` → `DiplomacyFacadeImpl.kt:38-39` → `DiplomacyService.kt:211`（sectId 默认 null 分支） | 2026-08-07 商人/宗门交易品阶动态刷新批次对抗性审查登记：`GameEngine.generateSectTradeItems(year)` 全仓库无调用方（detekt-baseline 亦有引用）；链路末端 `sectId == null` 时回退 SYSTEM 分区 RNG（消耗分区 draw 状态，非确定性），与带 sectId 的确定性种子路径并存。`DiplomacyService.generateSectTradeItems` 已加 KDoc 警告"勿新增调用"。处置建议：删除 `GameEngineDiplomacyOps` 该扩展 + Facade 接口/实现的无 sectId 重载，或收编为带 sectId 必传签名；机械改动低风险，另行立项 |
-| D-17 | 预存 9 个 detekt 违规（baseline 签名失配重新暴露） | `core/engine/.../domain/disciple/DiscipleFacadeImpl.kt:23` LongParameterList（构造 10 参数，含 productionCoordinator；baseline 旧条目含 inventoryConfig 失配）；`GameEngineSelfHealOps.kt:31` LongMethod 67 行 + Cyclomatic 21 + `:74` LoopWithTooManyJumpStatements；`ProductionProcessor.kt:503` processAutoAlchemySlot LongMethod 74 行 + Cyclomatic 17 + ReturnCount 3、`:623` processAutoForgeSlot LongMethod 74 行；`ProductionCoordinator.kt:424` TooGenericExceptionCaught | 2026-08-07 灵田收获批次 detekt 门禁暴露：9 个全部为预存违规（baseline 条目因签名/行号漂移失配重新暴露），本次只修新引入 2 个（ComplexCondition/TooGenericExceptionCaught 均已清零）。处置建议：修复或更新 baseline 签名，另行立项 |
+| ~~D-15~~ ✅ 已修 | `AISectBattleProcessor` 795 行/21 函数超限 | `core/engine/.../engine/service/AISectBattleProcessor.kt` | ✅ **已修（2026-08-08 架构债务批次）**：ABC 三块拆分（AISectOccupationResolver 占领结算 + PlayerDefenseProcessor 玩家防守），原类保留编排职责 |
+| ~~D-16~~ ✅ 已修 | `generateSectTradeItems` 无 sectId 回退路径死代码链 | `core/engine/.../GameEngineDiplomacyOps.kt:6` → `DiplomacyFacade.kt:12` → `DiplomacyFacadeImpl.kt:38-39` → `DiplomacyService.kt:211`（sectId 默认 null 分支） | ✅ **已修（2026-08-08 架构债务批次）**：死代码链删除（与 D-05 一并清理） |
+| ~~D-17~~ ✅ 已修 | 预存 9 个 detekt 违规（baseline 签名失配重新暴露） | `core/engine/.../domain/disciple/DiscipleFacadeImpl.kt:23` LongParameterList；`GameEngineSelfHealOps.kt:31` LongMethod + Cyclomatic + LoopWithTooManyJumpStatements；`ProductionProcessor.kt:503/:623` processAutoAlchemySlot/processAutoForgeSlot LongMethod；`ProductionCoordinator.kt:424` TooGenericExceptionCaught | ✅ **已修（2026-08-08 架构债务批次）**：拆函数/抽共用守卫/baseline 签名更新，9 条清零 |
 | D-18 | 灵田收获对抗性审查不修 5 项（记录在案） | `ProductionProcessor.kt` 收获路径（`buildHarvestMaturityContext`/`buildHarvestHerbStore`/`updateSlotAfterHarvest`） | 2026-08-07 灵田收获批次对抗性审查（4 Agent）确认不修：① aura 索引 `associate` vs 原 `find` 查找一致性问题（仅损坏数据可达）；② 续种不刷新 growTime/expectedYield（无消费者，种植时固定）；③ completionMonth 不含加速（无消费者）；④ F5 计数语义（guideCounters HERBS_HARVESTED 与 annualHerbCount 计数口径，既有设计 T4 锚定）；⑤ add 对锁定堆叠合并（store 通用被动入账语义，全系统一致）。如后续需求变化（如续种刷新产量）单独评估 |
 | D-19 | 灵泉灌溉政策真实产量 +15% 数值变更（本次仅改文案） | `core/domain/.../GameConfig.kt:707`（SPIRIT_SPRING_YIELD）+ `feature/game/.../TianshuHallDialog.kt:411` | 2026-08-07 灵田收获批次明确不做数值变更：政策实际为生长加速乘区（非产量），文案已更正为"灵草生长速度+15%"消除误导。改真实产量属平衡性决策（政策永久生效、expectedYield 种植时固定、影响中后期草药经济），需产品定夺后单独立项 |
 | D-20 | 收获是否移出月结事务（性能进一步保障） | `core/engine/.../service/ProductionProcessor.kt` processSpiritFieldHarvest（月结 `systemManager.onMonthlyEvent` 事务内调用） | 2026-08-07 灵田收获批次主因修复：复杂度 O(n×(d+b+n+h)) → O(n+d+b+h)（n=300 时 <1ms 量级），已不再构成 UI 阻塞，事务结构本次不动（外科手术式）。若极端存档（数千地块）仍有卡顿疑虑，可单独立项把收获移出月结事务（涉及惰性结算引擎架构调整） |
 
-## 实施计划（2026-08-08：D-01 / D-03 / D-05~D-09 / D-15~D-17 十项）
+## 实施记录（2026-08-08：D-01 / D-03 / D-05~D-09 / D-15~D-17 十项）——已完成
 
-> ✅ **全部 10 项已于 2026-08-08 完成**（串行全量测试 `./gradlew.bat test --max-workers=1` BUILD SUCCESSFUL，全模块 detekt 通过）。以下为实施记录。
->
-> 经逐项调查与用户决策确认，本次实施 10 项。决策来源：用户确认 D-01=彻底根治、D-03=彻底重构（**容量无上限**，用户最新需求）、D-06=自有包显式化+Compose 白名单、D-10=不纳入。
+> ✅ 全部 10 项已于 2026-08-08 完成并提交（commit `3570cb97`，267 文件 +14628/-3033）。验证：串行全量测试 `./gradlew.bat test --max-workers=1` BUILD SUCCESSFUL、全模块 detekt 通过、compileReleaseKotlin 通过。详细技术说明见 CHANGELOG.md「架构债务清理（2026-08-08）」。
 
-| 项 | 内容 | 用户决策 |
-|---|------|---------|
-| D-03 | 储物袋引用式容器缺陷（袋物品物理占仓库容量，赏赐/偷盗等会因仓库满失败） | **彻底重构**：袋独立存储，**容量无上限** |
-| D-01 | 溢出邮件非事务化（崩溃丢草稿/回滚后邮件照发，物品丢失+复制） | **彻底根治**：草稿入队即持久化 + 事务世代号 |
-| D-07 | stop/shutdown 与 emergencyRestart 并发交错 → 孤儿循环/双速 | 状态机互斥 |
-| D-15 | AISectBattleProcessor 826 行/21 函数超限 | ABC 三块拆分 |
-| D-08+D-09 | ThermalMonitor 未接线（热状态恒 NORMAL）；hintManager 不可测 | 接线 + internal 接缝 |
-| D-05+D-16 | interactWithSect / generateSectTradeItems 死代码链 | 删除 |
-| D-17 | 9 条预存 detekt 违规（engine 模块当前失败态） | 真修 6 条 + baseline 3 条 |
-| D-06 | 通配符 import（自有包约 260 处 + Compose 生态约 234 处） | 自有包显式化 + Compose 白名单 |
+| 项 | 用户决策 | 实施要点 |
+|---|---------|---------|
+| D-03 | **彻底重构**（容量无上限） | 袋条目 payload 持有数据（Equipment/Stacked），写入永不因袋满失败；物化迁移兼容老存档 + 悬空条目删除；DATABASE_VERSION 不变 |
+| D-01 | **彻底根治** | 草稿入队即持久化（新表 overflow_mail_drafts/direct_mail_drafts）+ 事务世代号（提交恰一次落盘、回滚丢弃）；崩溃恢复经 startGameLoop drain；DATABASE_VERSION 42→43 |
+| D-07 | 状态机互斥 | LoopPhase CAS（RUNNING/RESTARTING/STOPPING/STOPPED），孤儿循环/双速根治 |
+| D-15 | ABC 三块拆分 | AISectOccupationResolver（占领结算）+ PlayerDefenseProcessor（玩家防守），原类保留编排 |
+| D-08+D-09 | 接线 + internal 接缝 | startGameLoop 接线 start/stop（换线程重建）；hintManager 改 internal 接缝 + Robolectric 补分支用例 |
+| D-05+D-16 | 删除 | interactWithSect / generateSectTradeItems 死代码链清理 |
+| D-17 | 真修 + baseline | 9 条预存违规清零（拆函数/抽共用守卫/baseline 签名更新） |
+| D-06 | 自有包显式化 + Compose 白名单 | detekt.yml 21 条 excludeImports + 自有包约 260 处显式化 + 工具 `android/scripts/expand-wildcard-imports.mjs` |
 
-**不纳入本次**：D-04（产品已确认固定挑战）、D-10（HWUI 看门狗，保持长期项）、D-18/D-19/D-20（已决策不修）、P-16/P-18（待真机验证）。
+**不纳入**：D-04（产品已确认固定挑战）、D-10（HWUI 看门狗长期项）、D-18/D-19/D-20（已决策不修）、P-16/P-18（待真机验证）。
 
-### 1. D-03 储物袋独立存储重构（容量无上限）——已完成（2026-08-08，全量测试通过，含对抗性审查）
+### 途中发现（登记在案）
 
-**核心设计**：`StorageBagItem` 追加 `@ProtoNumber(13) payload: BagItemPayload?`（sealed）：`EquipmentPayload(instance)`（卸装/忘功法的实例，含 nurture 字段）/ `StackedPayload(itemType/itemId/name/rarity/quantity/effect/grade)`（赏赐/购买/偷盗/赠礼的堆叠物品）。旧 12 个 @ProtoNumber 字段**保留不动**（老存档字节流可解码，字段只增不改）。payload 为 Room TEXT 列 `ProtobufConverters`，**DATABASE_VERSION 不变，无需 Room Migration**。
-
-**容量无上限（用户需求，覆盖原 BAG_CAPACITY=30 设计）**：删除 `BAG_CAPACITY` 常量、`tryAddItem` 容量检查、`BagAddResult.Full`、各写入方袋满失败语义、UI "n/30" 容量显示。所有写入路径（赏赐/购买/偷盗/赠礼/卸装/忘功法）**永不因袋满失败**：扣仓库数量 → 铸造袋条目（payload），一次成功。赏赐失败语义收敛：唯一失败条件是**仓库数量不足**（物品只有 N 个，赏赐 N+1 个）。
-
-**物化迁移（老存档兼容）**：`StorageBagMaterializer.materializeDiscipleBagItems` 读档后对 payload==null 旧条目，查 6 类仓库堆叠（equipmentStacks/manualStacks/pills/materials/herbs/seeds）按 itemId 铸造 payload 并扣减仓库数量（防复制）；**悬空条目（引用不存在的堆叠）直接删除**；未知类型保留（引用相同不计数）；幂等（重入零副作用）。
-
-**写入方改造**：
-
-| 路径 | 改造后 |
-|------|--------|
-| 赏赐 6 类（rewardEquipment/rewardManual/rewardPill/rewardMaterial/Herb/Seed） | 扣仓库数量→袋铸造 payload，无容量检查；不再需要 excludeStackId；可装装备装上身 + 旧实例直接铸造入袋 + 实例表删除（防双持有） |
-| 购买 addToWarehouseAndBag（DisciplePurchaseService） | 扣仓库→袋铸造，永不因袋失败 |
-| 偷盗（LawEnforcementProcessor） | 无袋满概念，只受仓库数量约束 |
-| 赠礼 tryGiveGift（RelativeGiftHandler） | payload 条目直接在袋间转移（decrease→increase，copy 保留 payload），不经仓库，永不失败；MIN_BAG_ITEMS_TO_KEEP=1（赠礼后袋至少保留 1 件）为赠礼规则本身，保留 |
-| 卸装/忘功法（DiscipleEquipmentService） | 实例直接铸造 EquipmentPayload 入袋，不再占仓库槽位 |
-| 死亡清理/逐出（DiscipleLifecycleManager/LifecycleProcessor/DiscipleService） | 袋 payload 物化回仓库（addXxx），溢出转邮件 |
-
-**消费方改造**：自动服药（DisciplePillManager）/突破丹兜底（DiscipleBreakthroughHandler）读袋条目内嵌 effect/grade；自动装备排除（CultivationEventProcessor bagEqIds/bagMnIds）**删除**（袋装备物理不在仓库，天然不会选到）；取回 confiscate（InventoryFacadeImpl）：实例条目走 returnEquipmentToStack/returnManualToStack 保真物化，堆叠条目经 BagItemReconstructor 模板重建（minRealm 用 stackedData 保真），仅 Success 扣袋条目（C1 防复制），仓库满保留袋内物品待重试，withOverflowMailSuppressed + withTrackingSource("confiscate") 保留。
-
-**死代码清除**：`excludeStackId` 参数（InventorySystem.addEquipmentStack 及相关）、`addEquipmentInstanceToBag`/`addManualInstanceToBag`、`StorageBagFixer`（已删）、C10 悬空清理（EntityCountBoundsRule 反转）、P-10 仓库过滤窄流（GameViewModel equipmentBagStackIds/manualBagStackIds）、袋引用相关 UI 隐藏逻辑。
-
-**测试**（新建 4 文件 + 反转 1 文件）：`StorageBagMaterializerTest` 14 例（含 size 短路 bug 捕获：全部物化成功时返回原对象致 payload 丢失）、`BagItemReconstructorTest` 11 例（含实例条目不在重建分支 → 取回丢物品 bug 捕获）、`InventoryFacadeConfiscateTest` 6 例（含 FakeAtomicStateStore 重入丢修改缺陷修复）、`DiscipleFacadeRewardTest` 6 例（含 50 件连赏永不袋满）、`EntityCountBoundsRuleTest` C10 反转。
-
-### 2. D-01 溢出邮件事务化根治
-
-**机制（两支柱）**：
-- **支柱一：草稿入队即持久化**——`OverflowMailSender` 不再入内存队列等 300ms 后才写 Room。草稿在事务内入内存 staging，**事务提交钩子在 `update()` 返回前同步（阻塞 DAO 调用，非 suspend）落盘**到新表 `overflow_mail_drafts`/`direct_mail_drafts`。落盘后即使进程死在 drain 前，启动恢复也能发。
-- **支柱二：事务世代号**——`GameStateStore` 为每个顶层事务分配单调递增世代号；草稿按入队时的世代号打标；**只有提交钩子才把该批草稿落盘**，回滚/取消/OOM 钩子直接丢弃。结构性替代 `withOverflowMailSuppressed` 的防复制职责（该标志保留——语义是"凭据类路径不转邮件"，与事务回滚防护正交，8 个调用点列入后续审计项）。
-
-核心不变量：**DB 中存在的草稿行 ⇒ 其来源事务已提交**。
-
-**表结构与迁移**：
-- 表 A `overflow_mail_drafts`：id TEXT PK（UUID）/ slotId INT / source / itemType / itemName / rarity INT / quantity INT / createdAt LONG
-- 表 B `direct_mail_drafts`：id TEXT PK（=原 MailEntity.id，天然幂等）/ slotId / payload TEXT（MailEntity JSON）/ createdAt
-- 新文件 `MailDraftDao.kt`：insert（含非挂起版 blocking insert）/ 读全量 / deleteByIds / deleteAllForSlot
-- `MailDao.kt` 增 `@Transaction insertWithEnforceLimitAndDeleteDrafts(mail, maxLimit, draftIds)`：mails 写入 + 草稿删除原子化（崩溃只发生在事务前/后，重放不重复）
-- 迁移：`DATABASE_VERSION` 42→43，新文件 `GameDatabaseMigrationsV43.kt`（两条 CREATE TABLE IF NOT EXISTS，无数据搬迁），注册到 GameDatabase.kt
-
-**事务钩子（GameStateStoreImpl.kt update() 最小侵入四处）**：重入检查通过后分配世代号（嵌套事务不分配新号，归外层）；`executeBlockWithRngGuard` 成功返回后递增 + 遍历 observers 调 `onTransactionCommitted(txGen)`（每 observer try/catch，observer 不得破坏状态提交）；新增 catch `catch (t: Throwable) { fireRollback(txGen); throw t }`（覆盖 Exception/Cancellation/OOM）；finally 复位 pendingGeneration。接口扩展（domain GameStateStore.kt）：`TransactionObserver` 接口 + `currentTransactionGeneration: Long` + `registerTransactionObserver()`。`updateAndReturn` 委托 `update` 零改动自动获得钩子。`loadFromSnapshot/reset` 做世代号复位卫生。
-
-**草稿生命周期**：入队（sendOverflowMails/sendDirectMail 保持非 suspend）：gen>0 → staging[gen]（ConcurrentHashMap）；gen==0（事务外）→ 立即同步落盘。提交钩子：staging.remove(gen) → 同步阻塞落盘（写失败批入 unpublished 队列重试，宁可延迟发送不丢资产；状态提交不受影响）。回滚钩子：staging.remove(gen) 直接丢弃 → **复制不可能发生**。drain（保留 300ms 防抖 + 单飞）：先补落盘 unpublished，再读 DB 全量草稿 → 溢出按 (slotId, source) 分组构建邮件 → 每组一个原子事务写 mails+删行；直发行解析 payload 原样写。失败组行留 DB 下次重试。`warehouseFullEvent.tryEmit` 逻辑不变。清理：行删除只在 mails 写入成功的同一事务内；槽位删除路径（StorageEngine.deleteAllForSlot 等）补草稿清理。
-
-**崩溃恢复（boot）**：`OverflowMailHandler` 接口加 `fun drainPersistedDrafts()`（默认空实现）；`GameEngineCore` 构造注入（带默认值 NoOpOverflowMailHandler），`startGameLoop` 中 `unifiedPerformanceMonitor.start()` 旁调用——startGameLoop 是每次重启（含 emergencyRestart）必经路径，天然覆盖崩溃恢复。drain 幂等 + 失败自愈，某次启动失败也由后续 drain 兜住，无永久丢失窗口。
-
-**兼容性**："事务内禁 suspend"：提交钩子用**非挂起阻塞 DAO**（禁的是挂起不是阻塞）；溢出低频，锁内单行 insert 亚毫秒级；无溢出时钩子零成本。mails 写入改用确定性 id：`UUID.nameUUIDFromBytes("overflow:$slotId:$source:${draftIds.sorted().joinToString(",")}")`——同组草稿重试跨进程同 mailId，无重复邮件。
-
-**测试**：engine `OverflowMailSenderTest`（事务内入队→commit 后恰一次落盘；rollback 丢弃；gen=0 立即落盘；drain 分组；幂等重放；落盘失败→unpublished 重试；直发幂等）；app `GameStateStoreImplTest` 扩展（世代号单调递增/提交后触发；Exception/Cancellation/OOM → rollback 钩子 + pendingGeneration 复位；嵌套事务单世代号；observer 抛异常不破坏提交）；app `InventorySystemOverflowMailTest` 三态回归 + 新增"Partial 收尾后 block 抛异常 → mails/草稿均无行"；data `RoomMigrationTest` MIGRATION_42_43 + 真实 Room 打开 onValidateSchema；崩溃恢复模拟（repo 直插草稿行 → drain 恰一封 → 再调仍恰一封）。
-
-### 3. D-07 生命周期互斥
-
-**方案：单一状态机入口**。`GameEngineCore` 加 `@Volatile private var engineLoopPhase: LoopPhase`（RUNNING/RESTARTING/STOPPING/STOPPED）+ `transitionTo(expected, new)` CAS：
-- `emergencyRestartGameLoop`：入口 CAS `RUNNING→RESTARTING` 失败即返回（现有 isEmergencyRestarting 保留做双 emergency 快速失败）；finally 复位
-- `stopGameLoop`：CAS `RUNNING|RESTARTING→STOPPING` 成功才执行
-- `shutdown`：CAS `→STOPPED` 成功才执行；已 STOPPED 幂等返回
-- `performWatchdogRecovery`/AlarmWatchdogReceiver/GameLoopDelegate 健康检查 → 全走 handleWatchdogVerdict → 同一 CAS 闸
-- 恢复成功：startGameLoop 末尾 `RESTARTING→RUNNING`
-
-**测试**（GameEngineCoreLifecycleInterleavingTest）：shutdown 进行中晚到 emergency → 不重建循环；emergency 中 stopGameLoop → 停止生效不复活；shutdown 后 emergency → 幂等；正常 restart 恢复 RUNNING；现有 Watchdog/Resume/StuckReset 三测试回归。
-
-### 4. D-15 AISectBattleProcessor 拆分
-
-新文件 `AISectOccupationResolver.kt`（块 C 占领结算：applyAIAttackResult/computeCasualtyUpdates/applyAIOccupation/applyAIAttackFavorPenalty/updatePlayerGarrisonState/buildGarrSlots/seizePlayerBuildingsAfterLoss）与 `PlayerDefenseProcessor.kt`（块 B 玩家防守：processPlayerDefenseBattles/executePlayerDefenseBattle/buildDefenseTeam/selectAndPrepareDefenders/applyDefenseBattleResult/applyDefenseCasualties/buildPostBattleGameData/recordDefenseBattleLog）；原类保留 `@GameService("AISectBattleProcessor")` 注解 + 编排函数（processAISectOperations×2/computeAIBatch/processAIVsAIBattles/buildDefenseBattleEnemies），构造注入两个新解析器。成员保持 internal，测试与 BattleTickSystem/CaveExplorationProcessor 引用同步改。三个测试文件全量回归验证行为零变化。
-
-### 5. D-08+D-09 ThermalMonitor 接线 + 接缝
-
-- `startGameLoop`（unifiedPerformanceMonitor.start() 旁）：`thermalMonitor.start(engineScope)`；`stopGameLoop`：`thermalMonitor.stop()`（pauseForBackground 也走 stopGameLoop，对称即正确）
-- `ThermalMonitor.start` 补"新 scope 重建轮询 job"语义（先 cancel 旧 job，防 emergency 重建后旧 scope 轮询残留）
-- D-09：`hintManager`（private lazy）→ `internal var by lazy`（internal 测试接缝先例：hintSession/sessionOwnerThread）
-- 测试：GameEngineCoreWatchdogTest verify start/stop 调用时机；ThermalMonitorTest（Robolectric @Config(sdk=[33])）补 createHintSession 抛异常 → catch 分支、null → 空分支用例
-
-### 6. D-05+D-16 死代码删除（一提交）
-
-- D-05：删 `GameEngineDiplomacyOps.kt` interactWithSect（1 行 + KDoc）+ baseline 对应 MaxLineLength 条目
-- D-16：删 GameEngineDiplomacyOps.kt 扩展 → DiplomacyFacade.kt 接口方法 → DiplomacyFacadeImpl.kt override → DiplomacyService.kt 误导 KDoc；**保留**带 sectId 完整签名（在用路径）；baseline 条目随编译确认
-
-### 7. D-17 预存 9 个 detekt 违规（engine 模块）
-
-1. DiscipleFacadeImpl.kt LongParameterList（构造 10 参）→ baseline 条目签名更新（inventoryConfig→productionCoordinator）
-2. GameEngineSelfHealOps.kt `healDuplicateSlotAssignments`（LongMethod 82 + Cyclomatic 21 + LoopWithTooManyJumpStatements，无 baseline）→ 拆 2-3 私有函数 + 循环改 filter/map
-3. ProductionProcessor.kt `processAutoAlchemySlot`（115 行 + Cyclomatic 17 + ReturnCount 3）与 `processAutoForgeSlot`（74 行）：两函数前 60 行镜像，抽共用私有守卫（isMirrorStillAssigned/validateAutoSlotDisciple）；达标后同步摘 baseline 匹配条目
-4. ProductionCoordinator.kt `TooGenericExceptionCaught`（catch Exception）→ 按实际场景改具体异常类型
-5. 修后跑 engine detekt 确认清零（6 真修 + 2 baseline + 1 改 catch）
-
-### 8. D-06 通配符 import 显式化（最大机械 diff，放最后）
-
-1. **先配白名单**：detekt.yml WildcardImport 加 `excludeImports`（androidx.compose.foundation.layout/runtime/material3/icons/animation/foundation 等，约 234 处放行）——保持过程中编译与 detekt 双绿
-2. 自有包显式化（约 260 处）：core.model.* 177 / core.state.* 27 / core.engine.* 27 / core.registry.* 10 / 其余约 20
-3. 逐模块显式化后摘除各模块 detekt-baseline.xml 的 WildcardImport 条目（engine 227/app 63/feature 306 等）
-4. engine 测试源集 8 条活跃违规一并修（FakeAtomicStateStore×2、GameEngineDualSlotGuardTest×3、BuildingFacadeImplAssignProductionSlotTest、BuildingFacadeImplPlantingTest、DiscipleFacadeAssignDirectDiscipleTest）
-5. 先例：LevelGenerator/CaveGenerator（CHANGELOG）
-
-### 实施顺序（按风险/依赖）
-
-1. **D-03 储物袋重构**（用户最新需求，独立存储是无上限的前提）— 单独提交
-2. **D-01 溢出邮件事务化**（物品丢失/复制双根除，模块面与 D-03 零重叠）— 单独提交；内部子序：domain 接口 → data（DAO/迁移/迁移测试）→ app（Impl 钩子）→ engine（sender 重构+boot 钩子）→ 测试
-3. **D-07 生命周期互斥** — 高风险并发语义，单独提交单独测试集
-4. **D-15 拆分** — 中等风险 refactor，行为零变化测试网已存在
-5. **D-08+D-09** — 同文件相邻，一提交
-6. **D-05+D-16** — 纯删除，零风险
-7. **D-17** — 在代码 churn 基本结束后做，先于 D-06（避免 baseline 编辑冲突）
-8. **D-06** — 最大机械 diff 放最后，先白名单再显式化再摘 baseline
-
-### 验证方案
-
-每步提交前（CLAUDE.md 13.1）：compileReleaseKotlin + `test --max-workers=1`（串行）+ detekt。
-专项：D-03 → StorageBag* 相关测试 + InventoryAddPathGuardTest + 对抗性审查一轮；D-01 → OverflowMailSenderTest + GameStateStoreImplTest 扩展 + RoomMigrationTest + InventorySystemOverflowMailTest；D-07 → 新交错测试 + Watchdog/Resume/StuckReset 回归；D-15 → AISectBattleProcessorTest/CaveExplorationProcessorTest 回归（行为零变化）；D-17 → engine detekt 清零；D-06 → 全模块 detekt 通过。
-
-### 途中发现（诚实报告）
-
-- `withOverflowMailSuppressed` 8 个调用点在 D-01 新机制下语义变为纯"凭据类不转邮件"，是否仍需保留列入审计（不本次改）
-- D-16 拆链后 DiplomacyService 带 sectId 完整签名是否成死签名随编译确认
-- D-03 实施中发现预存 bug：DiscipleLifecycleProcessor.returnEquipmentToWarehouse Failure(Full) 时邮件已发但实例保留 = 复制 bug（随 D-03 处理）
+- `withOverflowMailSuppressed` 8 个调用点在 D-01 新机制下语义变为纯"凭据类不转邮件"，是否保留列入后续审计
+- D-03 途中修复预存复制 bug：`DiscipleLifecycleProcessor.returnEquipmentToWarehouse` Failure(Full) 时邮件已发但实例保留（已随 D-03 处理）
