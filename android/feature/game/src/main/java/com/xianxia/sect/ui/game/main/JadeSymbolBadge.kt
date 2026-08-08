@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -50,7 +51,15 @@ internal fun JadeSymbolBadge(
         Text(
             text = "$jadeSymbols",
             fontSize = 12.sp,
-            color = Color.White
+            color = Color.White,
+            // 单行 + 最小宽度保证 4 位数字完整显示（12sp 数字 ≈7dp/位，外层 Row 空间不足时
+            // 无约束 Text 会换行截断；玉符累计无上限，4 位长期可达）
+            minLines = 1,
+            maxLines = 1,
+            modifier = Modifier.widthIn(min = FOUR_DIGITS_MIN_WIDTH)
         )
     }
 }
+
+/** 玉符数量栏数字区最小宽度（容纳 4 位 12sp 数字） */
+private val FOUR_DIGITS_MIN_WIDTH = 30.dp

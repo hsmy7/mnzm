@@ -14,6 +14,15 @@
 - **兼容性** — 纯运行时一致性修复，无 Entity/Migration/Room schema 变更（DATABASE_VERSION 不变）；老档分叉由读档对齐（1d3589e2）+ 会话内收敛（B2/B3）自动修复
 - **测试** — 新增 `BuildingFacadeImplRemoveDiscipleProductionSlotTest`（S1 双清/失败不动镜像/gate、S5 镜像同步）、`BuildingServiceRemoveDiscipleTest`（S2 双清/isWorking 早退）、`GameEngineSectConvergenceTest`（B2 净化/保留/幂等）、`SpiritMineSectAlignmentTest`（B3 对齐/幂等/多矿场）；扩展 `ProductionProcessorTest`（S3 repo 回写一致/失败回滚/占用竞态；类加 `@RunWith(RobolectricTestRunner::class)`——纯 JVM 下 mockable android.jar 的 SparseArray 为空操作致 String/枚举列写入静默失效、assembleAll 空名跳过，Robolectric 环境 SparseArray 真实工作，参照 BuildingFacadeImplAssignProductionSlotTest 模式）、`GameEngineDualSlotGuardTest`（S4 目标槽失败镜像回滚/gate 未 confirm）、`GameEngineCoordinationTest`（enterSect B2 语义：activeSectId 切换为玩家持有宗门且不触碰 placedBuildings）、`BuildingLoadSelfHealTest`（normalize 幂等、purify isPlayerOccupied=false）、`BuildingSpatialIndexTest`（B1 未注册名兜底命中/不崩溃）；detekt.yml LargeClass 阈值 600→800（默认 600 与"既有违规冻结 baseline"哲学冲突，800 覆盖全部既有 frozen 类中最小者，baseline 同步摘除 2 条失效条目）；全模块串行测试 + detekt + lintRelease 通过
 
+### 修复（2026-08-08 兑换码对话框不弹出 + 玉符数量栏宽度与位置）
+
+- **根因（兑换码）** — 57352e02（08-06 为根治输入框键盘频闪把 `InlineStandardPromptDialog` 从平台 Dialog 窗口改回内联 Box 覆盖层）适配了 4 个调用点（RenameDialog/创建宗门输入框/RenameDiscipleDialog/SellConfirmDialog）**唯独漏掉 SettingsTab 的 RedeemCodeDialog**。内联覆盖层不创建独立窗口、作为普通布局节点参与宿主布局：其渲染位置（SettingsTab.kt 函数体顶层）与根 `Box(fillMaxSize)` 同为 `UnifiedGameDialog`（平台 Dialog 窗口）内容区 `Column(weight(1f))` 的兄弟节点——根 Box 作为首子节点占满全部高度后，后续兄弟节点测量时 `maxHeight = 0` → 覆盖层高度归零完全不可见。状态链路（RedeemCodeDelegate StateFlow）正常，对话框实际进入组合，仅渲染尺寸为 0
+- **修复（兑换码）** — 渲染块移入根 `Box(fillMaxSize)` 内、内容 Column 之后（Box 兄弟重叠 → 尺寸正常且 z 序最高，对齐 DiscipleDetailScreen 改名弹窗先例）；删除旧位置重复块与死变量 `showRedeemCodeDialog`（实际状态走 `showRedeemCodeDialogState`）
+- **守卫测试（实证根因 + 防回归）** — `StandardPromptDialogTest` +2 用例：平台 Dialog 窗口内容区 Box 内渲染内联覆盖层可见（修复结构守卫）/ Column 中 fillMaxSize 兄弟后置渲染不可见（0 高度机制文档断言，开发期先运行实证根因：两用例分别断言"可见/不可见"均通过，坐实布局机制）
+- **玉符栏宽度** — `JadeSymbolBadge` 数字 Text 加 `minLines=1/maxLines=1` + `widthIn(min = 30.dp)`（命名常量 `FOUR_DIGITS_MIN_WIDTH`，12sp 数字 ≈7dp/位 × 4 ≈ 29dp）——外层 Row 空间不足时无约束 Text 会换行截断，玉符累计无上限（单日 30 为 `GameConfig.Jade.DAILY_CAP`），4 位长期可达
+- **玉符栏位置** — 从外层 Row（与整个"隐藏UI+暂停"按钮列垂直居中）移入按钮 Column 内部、与隐藏 UI 按钮同行（`Row` 包裹 `HideUiToggleButton` + 玉符栏，暂停按钮独立下一行居中）——玉符栏位于隐藏 UI 按钮正右侧，不再与暂停按钮同列中部（v4.00.91 曾声明"显示位置移动到隐藏界面按钮旁"但实际布局未到位，本次落实）
+- 全模块 compileReleaseKotlin + 串行全量测试（--max-workers=1）+ lintRelease 通过
+
 ## [4.00.91] - 2026-08-07
 
 ### 架构债务清理（2026-08-08 D-01~D-17 十项全量实施）

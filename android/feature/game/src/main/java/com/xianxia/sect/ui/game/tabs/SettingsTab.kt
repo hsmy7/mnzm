@@ -142,7 +142,6 @@ internal fun SettingsTab(
     var showRestartConfirmDialog by remember { mutableStateOf(false) }
     var showResetDisciplesConfirmDialog by remember { mutableStateOf(false) }
     var showExitConfirmDialog by remember { mutableStateOf(false) }
-    var showRedeemCodeDialog by remember { mutableStateOf(false) }
     var showChangelogDialog by remember { mutableStateOf(false) }
     var showOtherSettingsDialog by remember { mutableStateOf(false) }
     var showSalaryConfigDialog by remember { mutableStateOf(false) }
@@ -215,6 +214,16 @@ internal fun SettingsTab(
             }
         }
         }
+        // 兑换码弹窗（内联覆盖层）必须渲染在 Box 内与内容列重叠——渲染在函数体外层
+        // （UnifiedGameDialog 内容区 Column 兄弟节点）会被前序 fillMaxSize 兄弟压缩至
+        // 0 高度不可见（57352e02 将 InlineStandardPromptDialog 改回内联覆盖层时漏适配，
+        // v4.00.92 兑换码不弹窗；对齐 DiscipleDetailScreen 改名弹窗先例：内容区末尾 z 序最高）
+        if (showRedeemCodeDialogState) {
+            RedeemCodeDialog(
+                viewModel = viewModel,
+                onDismiss = { viewModel.closeRedeemCodeDialog() }
+            )
+        }
         }
 
     if (showSaveSlotDialog) {
@@ -268,13 +277,6 @@ internal fun SettingsTab(
             },
             dismissLabel = "取消",
             onDismiss = { showExitConfirmDialog = false }
-        )
-    }
-
-    if (showRedeemCodeDialogState) {
-        RedeemCodeDialog(
-            viewModel = viewModel,
-            onDismiss = { viewModel.closeRedeemCodeDialog() }
         )
     }
 

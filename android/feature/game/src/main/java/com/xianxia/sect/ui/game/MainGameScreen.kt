@@ -1045,11 +1045,25 @@ fun MainGameScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    HideUiToggleButton(
-                        isUiVisible = isUiVisible,
-                        onToggle = { isUiVisible = !isUiVisible },
-                        modifier = Modifier.size(28.dp)
-                    )
+                    // 隐藏 UI 按钮与玉符货币栏同行（玉符栏位于隐藏按钮正右侧，
+                    // 不再与外层 Row 垂直居中、与暂停按钮同列中部）
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        HideUiToggleButton(
+                            isUiVisible = isUiVisible,
+                            onToggle = { isUiVisible = !isUiVisible },
+                            modifier = Modifier.size(28.dp)
+                        )
+                        if (isUiVisible) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            // 玉符货币栏（半透明胶囊条 + 图标 + 数量，点击弹说明对话框）
+                            JadeSymbolBadge(
+                                jadeSymbols = gameData?.jadeSymbols ?: 0,
+                                onClick = { viewModel.navigateToDialog(DialogType.JadeSymbol) }
+                            )
+                        }
+                    }
                     // 暂停/继续按钮（根据 isPaused 切换精灵图）
                     val isPaused by saveLoadViewModel.isPaused.collectAsStateWithLifecycle()
                     Box(
@@ -1066,14 +1080,6 @@ fun MainGameScreen(
                             contentScale = ContentScale.FillBounds
                         )
                     }
-                }
-                if (isUiVisible) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    // 玉符货币栏（半透明胶囊条 + 图标 + 数量，点击弹说明对话框）
-                    JadeSymbolBadge(
-                        jadeSymbols = gameData?.jadeSymbols ?: 0,
-                        onClick = { viewModel.navigateToDialog(DialogType.JadeSymbol) }
-                    )
                 }
             }
 

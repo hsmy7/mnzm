@@ -7,16 +7,22 @@ import android.view.Window
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogWindowProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -234,5 +240,55 @@ class StandardPromptDialogTest {
         composeRule.activity.onBackPressedDispatcher.onBackPressed()
         composeRule.waitForIdle()
         assertEquals(0, dismissCount)
+    }
+
+    // ── 平台 Dialog 窗口内嵌套渲染（57352e02 回归教训：SettingsTab 兑换码 0 高度不可见）──
+    // 内联覆盖层不创建独立窗口，作为普通布局节点参与宿主布局：
+    // - 渲染在 Box 内与内容重叠 → 可见（修复后结构，用例 A 守卫）
+    // - 渲染在 Column 中 fillMaxSize 兄弟节点之后 → 剩余高度 0 → 不可见（回归机制，用例 B 文档）
+
+    @Test
+    fun `平台Dialog窗口内容区Box内渲染内联覆盖层可见 - 修复结构守卫`() {
+        composeRule.setContent {
+            Dialog(onDismissRequest = {}) {
+                Box(Modifier.fillMaxSize()) {
+                    InlineStandardPromptDialog(
+                        onDismissRequest = {},
+                        title = "兑换码",
+                        confirmLabel = "兑换",
+                        dismissLabel = "取消"
+                    ) {
+                        Text("请输入兑换码")
+                    }
+                }
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("兑换码").assertIsDisplayed()
+    }
+
+    @Test
+    fun `平台Dialog窗口内容区Column兄弟节点渲染内联覆盖层不可见 - 0高度回归文档`() {
+        composeRule.setContent {
+            Dialog(onDismissRequest = {}) {
+                Column(Modifier.fillMaxSize()) {
+                    // 模拟修复前 SettingsTab 结构：根 Box(fillMaxSize) 作为首子节点占满全部高度
+                    Box(Modifier.fillMaxSize()) {}
+                    InlineStandardPromptDialog(
+                        onDismissRequest = {},
+                        title = "兑换码",
+                        confirmLabel = "兑换",
+                        dismissLabel = "取消"
+                    ) {
+                        Text("请输入兑换码")
+                    }
+                }
+            }
+        }
+        composeRule.waitForIdle()
+        // 后续兄弟节点测量时 maxHeight = 0 → 覆盖层高度归零不可见
+        // （57352e02 将 InlineStandardPromptDialog 改回内联覆盖层时漏适配
+        //   SettingsTab.RedeemCodeDialog 的根因机制，v4.00.92 兑换码不弹窗）
+        composeRule.onNodeWithText("兑换码").assertIsNotDisplayed()
     }
 }
