@@ -144,16 +144,36 @@ class BuildingService @Inject constructor(
 
         val oldDiscipleId = existingSlot.assignedDiscipleId
 
-        withContext(ioDispatcher.dispatcher) {
+        // repo 先写、成功才清镜像（失败两端皆未变）——镜像残留会让状态推导仍 WORKING、
+        // 自动重启按镜像判定继续生产（与 removeDiscipleFromProductionSlot 同链路）
+        val result = withContext(ioDispatcher.dispatcher) {
             productionSlotRepository.updateSlotByBuildingId(
                 buildingId, slotIndex
             ) { slot ->
                 slot.copy(assignedDiscipleId = null, assignedDiscipleName = "")
             }
         }
+        if (result.isFailure) {
+            DomainLog.e(
+                TAG,
+                "卸任失败: $buildingId[$slotIndex] disciple=$oldDiscipleId, " +
+                    (result.exceptionOrNull()?.message ?: "unknown")
+            )
+        } else {
+            // repo 写成功 → 同步清镜像，双端一致
+            stateStore.update {
+                gameData = gameData.copy(
+                    productionSlots = gameData.productionSlots.map { slot ->
+                        if (slot.buildingId == buildingId && slot.slotIndex == slotIndex) {
+                            slot.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                        } else slot
+                    }
+                )
+            }
 
-        if (!oldDiscipleId.isNullOrEmpty()) {
-            assignmentGate.release(oldDiscipleId)
+            if (!oldDiscipleId.isNullOrEmpty()) {
+                assignmentGate.release(oldDiscipleId)
+            }
         }
     }
 
@@ -357,6 +377,10 @@ class BuildingService @Inject constructor(
         ).calculate()
     }
 
+    /**
+     * B5 已知偏差（不修）：仅写 Repository 状态、镜像 productionSlots 的 status 保持旧值。
+     * 状态推导（DiscipleStatusService）不读镜像 status，暂不致病；勿依赖镜像 status 为真源。
+     */
     private suspend fun updateSlotToWorkingStateAlchemy(
         slotIndex: Int,
         data: GameData,
@@ -409,6 +433,7 @@ class BuildingService @Inject constructor(
         ).calculate()
     }
 
+    /** B5 已知偏差（不修）：同 [updateSlotToWorkingStateAlchemy]，仅写 Repository 不写镜像 status。 */
     private suspend fun updateSlotToWorkingStateForging(
         slotIndex: Int,
         data: GameData,

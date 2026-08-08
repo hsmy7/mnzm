@@ -29,8 +29,9 @@ class BuildingSpatialIndex @Inject constructor() {
     }
 
     fun add(building: GridBuildingData, spriteSizes: Map<String, GridSnapHelper.BuildingSize> = emptyMap()) {
-        val fpW = BuildingFeatureRegistry.findByDisplayName(building.displayName)?.gridWidth ?: building.width
-        val fpH = BuildingFeatureRegistry.findByDisplayName(building.displayName)?.gridHeight ?: building.height
+        val feature = BuildingFeatureRegistry.findByDisplayName(building.displayName)
+        val fpW = feature?.gridWidth ?: building.width
+        val fpH = feature?.gridHeight ?: building.height
         val sprite = spriteSizes[building.displayName]
         val sw = sprite?.width ?: building.width
         val sh = sprite?.height ?: building.height

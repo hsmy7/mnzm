@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.core.util.BuildingSpatialIndex
+import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.ui.game.components.messagebar.MessageBarHost
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Collections
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -580,8 +582,31 @@ fun MainGameScreen(
                                     viewModel.navigateToDialog(DialogType.Residence(clicked.instanceId))
                                 }
                                 else -> {
+                                    // R1 诊断（B1）：displayName 未注册 / 无回调 → 点击被静默吞掉。
+                                    // 渲染端会用索引 0 兜底画出该建筑，点击却无任何分支处理——唯一"可见但点不中"确定性路径。
+                                    if (def == null) {
+                                        DomainLog.w(
+                                            BUILDING_TAP_TAG,
+                                            "点击建筑 displayName 未注册: name=${clicked.displayName} " +
+                                                "sectId=${clicked.sectId} instanceId=${clicked.instanceId} " +
+                                                "grid=(${clicked.gridX},${clicked.gridY}) " +
+                                                "activeSectId=${gameData.activeSectId} " +
+                                                "sectBuildings=${activeSectBuildings.size}"
+                                        )
+                                    }
                                     val b = buildingList.find { it.first == clicked.displayName }
-                                    b?.second?.invoke(clicked)
+                                    if (b != null) {
+                                        b.second?.invoke(clicked)
+                                    } else {
+                                        DomainLog.w(
+                                            BUILDING_TAP_TAG,
+                                            "点击建筑无回调处理: name=${clicked.displayName} " +
+                                                "sectId=${clicked.sectId} instanceId=${clicked.instanceId} " +
+                                                "grid=(${clicked.gridX},${clicked.gridY}) " +
+                                                "activeSectId=${gameData.activeSectId} " +
+                                                "sectBuildings=${activeSectBuildings.size}"
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1237,6 +1262,12 @@ fun MainGameScreen(
  * 渲染器如需占地尺寸（如地砖选择），通过 SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX 查找。
  * 调用方须传入已排除移动中建筑的建筑列表，避免原位残留精灵图。
  */
+
+/** B1 渲染端未注册建筑名告警去重集合（仅首次警告，防日志刷屏） */
+private val warnedUnregisteredBuildingNames = Collections.synchronizedSet(mutableSetOf<String>())
+
+private const val BUILDING_TAP_TAG = "MainGameScreen"
+
 internal fun buildBuildingDataArray(
     buildings: List<GridBuildingData>,
     spriteSizeMap: Map<String, GridSnapHelper.BuildingSize>
@@ -1253,7 +1284,14 @@ internal fun buildBuildingDataArray(
         result[idx + 1] = b.gridY.toFloat()
         result[idx + 2] = sw.toFloat()
         result[idx + 3] = sh.toFloat()
-        result[idx + 4] = (BUILDING_NAME_INDEX[b.displayName] ?: 0).toFloat()
+        val nameIndex = BUILDING_NAME_INDEX[b.displayName]
+        if (nameIndex == null && warnedUnregisteredBuildingNames.add(b.displayName)) {
+            // B1 诊断：displayName 未注册 → 用索引 0 精灵兜底画出（可见），但点击端 findBuildingAt
+            // 命中后无任何分支处理（静默吞掉）——与 onTap 日志配套定位"可见但点不中"建筑
+            DomainLog.w(BUILDING_TAP_TAG, "渲染建筑 displayName 未注册（索引0兜底）: name=${b.displayName} " +
+                "sectId=${b.sectId} instanceId=${b.instanceId} grid=(${b.gridX},${b.gridY})")
+        }
+        result[idx + 4] = (nameIndex ?: 0).toFloat()
     }
     return result
 }

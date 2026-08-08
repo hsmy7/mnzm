@@ -20,6 +20,7 @@ import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.util.AppError
 import com.xianxia.sect.core.util.BuildingNames
+import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.state.GameStateStore
@@ -47,6 +48,10 @@ class BuildingFacadeImpl @Inject constructor(
     private val discipleStatusService: DiscipleStatusService,
     private val ioDispatcher: IoDispatcher,
 ) : BuildingFacade {
+
+    private companion object {
+        const val TAG = "BuildingFacadeImpl"
+    }
 
     override suspend fun placeBuilding(building: GridBuildingData) {
         val sectId = stateStore.gameDataSnapshot.activeSectId
@@ -188,11 +193,7 @@ class BuildingFacadeImpl @Inject constructor(
             // 若目标槽位已有弟子，先释放其 gate 注册（状态 sync 在事务完成后执行，
             // 此处 GameData 仍含旧槽位，sync 会推导出旧状态造成残留）
             val existingSlot = productionCoordinator.repository.getSlotByIndex(buildingType, slotIndex)
-            existingSlot?.assignedDiscipleId?.let { oldDiscipleId ->
-                if (oldDiscipleId.isNotEmpty() && oldDiscipleId != discipleId) {
-                    assignmentGate.release(oldDiscipleId)
-                }
-            }
+            releaseGateIfOccupantChanged(existingSlot, discipleId)
 
             // 事务内清理 GameData 全部槽位（回归：此前只清 Repository 生产槽，
             // 巡逻/长老/藏经阁等槽位残留导致同一弟子多槽位），并同步 GameData.productionSlots 镜像
@@ -212,33 +213,110 @@ class BuildingFacadeImpl @Inject constructor(
                 )
             }
 
-            // Repository 路径：无条件清该弟子在其他生产槽的占用（不依赖 gate 判定），再写目标槽
-            withContext(ioDispatcher.dispatcher) {
-                productionCoordinator.repository.getSlots()
-                    .filter { it.assignedDiscipleId == discipleId }
-                    .forEach { slot ->
-                        productionCoordinator.repository.updateSlot(slot.buildingType, slot.slotIndex) { s ->
-                            s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
-                        }
-                    }
-                productionCoordinator.repository.updateSlot(buildingType, slotIndex) { slot ->
-                    slot.copy(
-                        assignedDiscipleId = discipleId,
-                        assignedDiscipleName = discipleName
-                    )
-                }
+            // Repository 路径：repo 为真源（UI 展示/存档快照），目标槽写失败必须回滚镜像并
+            // 跳过 gate 登记——否则镜像已写而 repo 未写，UI 显示空闲（4.00.91 玩家主症状路径）
+            if (writeRepoAssignment(buildingType, slotIndex, discipleId, discipleName)) {
+                // 镜像回滚为分配前快照，双端一致；gate 不登记（玩家可重试任命）
+                rollbackMirrorSlot(buildingType, slotIndex, existingSlot)
+                return@launchInScope
             }
 
             // 清旧注册再登记新分配（未注册时 release 为空操作，安全）
             assignmentGate.release(discipleId)
             assignmentGate.confirmAssign(discipleId, targetSlot)
             // 旧 occupant 状态在事务完成后同步（推导式，此时 GameData 已清旧槽位）
-            existingSlot?.assignedDiscipleId?.let { oldDiscipleId ->
-                if (oldDiscipleId.isNotEmpty() && oldDiscipleId != discipleId) {
-                    discipleStatusService.syncSingleDiscipleStatus(oldDiscipleId)
-                }
+            syncOldOccupantStatus(existingSlot, discipleId)
+        }
+    }
+
+    /**
+     * 目标槽位 occupant 变更时释放其 gate 注册（事务前执行——GameData 仍含旧槽位，
+     * sync 在事务后执行，此处仅 release 防双槽位注册残留）。
+     */
+    private fun releaseGateIfOccupantChanged(existingSlot: ProductionSlot?, discipleId: String) {
+        existingSlot?.assignedDiscipleId?.let { oldDiscipleId ->
+            if (oldDiscipleId.isNotEmpty() && oldDiscipleId != discipleId) {
+                assignmentGate.release(oldDiscipleId)
             }
         }
+    }
+
+    /**
+     * S4（2026-08-08）：目标槽 repo 写失败时回滚镜像为分配前快照——双端一致，
+     * gate 不登记，玩家可重试任命。
+     */
+    private fun rollbackMirrorSlot(
+        buildingType: BuildingType,
+        slotIndex: Int,
+        existingSlot: ProductionSlot?
+    ) {
+        stateStore.update {
+            val oldId = existingSlot?.assignedDiscipleId
+            val oldName = existingSlot?.assignedDiscipleName ?: ""
+            gameData = gameData.copy(
+                productionSlots = gameData.productionSlots.map { slot ->
+                    if (slot.buildingType == buildingType && slot.slotIndex == slotIndex) {
+                        slot.copy(assignedDiscipleId = oldId, assignedDiscipleName = oldName)
+                    } else slot
+                }
+            )
+        }
+    }
+
+    /** 旧 occupant 状态在事务完成后同步（推导式，此时 GameData 已清旧槽位）。 */
+    private fun syncOldOccupantStatus(existingSlot: ProductionSlot?, discipleId: String) {
+        existingSlot?.assignedDiscipleId?.let { oldDiscipleId ->
+            if (oldDiscipleId.isNotEmpty() && oldDiscipleId != discipleId) {
+                discipleStatusService.syncSingleDiscipleStatus(oldDiscipleId)
+            }
+        }
+    }
+
+    /**
+     * S4（2026-08-08）：repo 写入目标槽并清该弟子他处占用。
+     * @return true 表示目标槽写入失败——调用方须回滚镜像且不登记 gate
+     *（否则镜像已写而 repo 未写，UI 显示空闲——4.00.91 玩家"任命不生效"主症状路径）
+     */
+    private suspend fun writeRepoAssignment(
+        buildingType: BuildingType,
+        slotIndex: Int,
+        discipleId: String,
+        discipleName: String
+    ): Boolean {
+        var targetWriteFailed = false
+        withContext(ioDispatcher.dispatcher) {
+            productionCoordinator.repository.getSlots()
+                .filter { it.assignedDiscipleId == discipleId }
+                .forEach { slot ->
+                    val cleared = productionCoordinator.repository.updateSlot(
+                        slot.buildingType, slot.slotIndex
+                    ) { s ->
+                        s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                    }
+                    if (cleared.isFailure) {
+                        DomainLog.w(
+                            TAG,
+                            "清他处占用失败: ${slot.buildingType}[${slot.slotIndex}] disciple=$discipleId, " +
+                                (cleared.exceptionOrNull()?.message ?: "unknown")
+                        )
+                    }
+                }
+            val targetResult = productionCoordinator.repository.updateSlot(buildingType, slotIndex) { slot ->
+                slot.copy(
+                    assignedDiscipleId = discipleId,
+                    assignedDiscipleName = discipleName
+                )
+            }
+            if (targetResult.isFailure) {
+                targetWriteFailed = true
+                DomainLog.e(
+                    TAG,
+                    "任命失败: ${buildingType}[$slotIndex] disciple=$discipleId, " +
+                        (targetResult.exceptionOrNull()?.message ?: "unknown")
+                )
+            }
+        }
+        return targetWriteFailed
     }
 
     override fun removeDiscipleFromProductionSlot(buildingType: BuildingType, slotIndex: Int) {
@@ -249,7 +327,9 @@ class BuildingFacadeImpl @Inject constructor(
             val slot = productionCoordinator.repository.getSlotByIndex(buildingType, slotIndex)
             val discipleId = slot?.assignedDiscipleId
 
-            withContext(ioDispatcher.dispatcher) {
+            // repo 先写、成功才清镜像（失败两端皆未变，无补偿需求）——镜像残留会让状态推导
+            // 仍 WORKING、自动重启按镜像判定继续生产（玩家"卸不掉/槽位仍占用"链路）
+            val result = withContext(ioDispatcher.dispatcher) {
                 productionCoordinator.repository.updateSlot(buildingType, slotIndex) { s ->
                     if (s.isWorking && !s.assignedDiscipleId.isNullOrEmpty()) {
                         val remaining = s.remainingTime(currentYear, currentMonth)
@@ -265,6 +345,24 @@ class BuildingFacadeImpl @Inject constructor(
                     }
                 }
             }
+            if (result.isFailure) {
+                DomainLog.e(
+                    TAG,
+                    "卸任失败: ${buildingType}[$slotIndex] disciple=$discipleId, " +
+                        (result.exceptionOrNull()?.message ?: "unknown")
+                )
+                return@launchInScope
+            }
+            // repo 写成功 → 同步清镜像，双端一致
+            stateStore.update {
+                gameData = gameData.copy(
+                    productionSlots = gameData.productionSlots.map { s ->
+                        if (s.buildingType == buildingType && s.slotIndex == slotIndex) {
+                            s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                        } else s
+                    }
+                )
+            }
             if (discipleId != null) {
                 assignmentGate.release(discipleId)
                 discipleStatusService.syncSingleDiscipleStatus(discipleId)
@@ -273,10 +371,29 @@ class BuildingFacadeImpl @Inject constructor(
     }
 
     override suspend fun toggleAutoRestart(buildingType: BuildingType, slotIndex: Int) {
-        withContext(ioDispatcher.dispatcher) {
+        val result = withContext(ioDispatcher.dispatcher) {
             productionCoordinator.repository.updateSlot(buildingType, slotIndex) { slot ->
                 slot.copy(autoRestartEnabled = !slot.autoRestartEnabled)
             }
+        }
+        if (result.isFailure) {
+            DomainLog.e(
+                TAG,
+                "切换自动重启失败: ${buildingType}[$slotIndex], " +
+                    (result.exceptionOrNull()?.message ?: "unknown")
+            )
+            return
+        }
+        // repo 更新成功 → 同步镜像字段（防镜像过期；行为以 repo 为准）
+        val newValue = result.getOrNull()?.autoRestartEnabled ?: return
+        stateStore.update {
+            gameData = gameData.copy(
+                productionSlots = gameData.productionSlots.map { s ->
+                    if (s.buildingType == buildingType && s.slotIndex == slotIndex) {
+                        s.copy(autoRestartEnabled = newValue)
+                    } else s
+                }
+            )
         }
     }
 

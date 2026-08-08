@@ -18,6 +18,7 @@ import com.xianxia.sect.core.model.DirectDiscipleSlot
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.SpiritMineSlot
 import com.xianxia.sect.ui.theme.GameColors
+import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.ui.components.ElderBonusInfoButton
 import com.xianxia.sect.ui.components.ElderBonusInfoProvider
 import com.xianxia.sect.ui.components.GameButton
@@ -63,6 +64,23 @@ fun SpiritMineDialog(
         val slot = mineSlots.getOrNull(index)
         if (slot != null && slot.sectId == mineSectId) slot
         else SpiritMineSlot(index = index, sectId = mineSectId)
+    }
+
+    // B3 兜底诊断（只读）：真实槽位因 sectId 失配被虚构空槽替代——玩家看到空闲但数据中
+    // 已被占用（任命不生效）。validateAndFixSpiritMineData 已在对话框打开时对齐，此处
+    // 仅观测对齐是否生效（若持续出现说明对齐时机/覆盖不足）
+    LaunchedEffect(buildingInstanceId, mineSectId) {
+        val hiddenMismatched = (mineStartIndex until mineStartIndex + 3).count { index ->
+            val real = mineSlots.getOrNull(index)
+            real != null && real.sectId != mineSectId
+        }
+        if (hiddenMismatched > 0) {
+            DomainLog.w(
+                "SpiritMineDialog",
+                "矿场槽位 sectId 失配: buildingId=$buildingInstanceId mineSectId=\"$mineSectId\" " +
+                    "隐藏槽位数=$hiddenMismatched"
+            )
+        }
     }
 
     val emptySlotCount = slots.count { !it.isActive }

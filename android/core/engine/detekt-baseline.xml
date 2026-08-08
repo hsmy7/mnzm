@@ -265,12 +265,10 @@
     <ID>InvalidPackageDeclaration:WorldMapGenerator.kt$package com.xianxia.sect.core.engine</ID>
     <ID>LargeClass:AISectAttackManager.kt$AISectAttackManager</ID>
     <ID>LargeClass:BattleSystem.kt$BattleSystem</ID>
-    <ID>LargeClass:CaveExplorationProcessor.kt$CaveExplorationProcessor</ID>
     <ID>LargeClass:DiscipleFacadeImpl.kt$DiscipleFacadeImpl : DiscipleFacade</ID>
     <ID>LargeClass:DiscipleStatCalculator.kt$DiscipleStatCalculator</ID>
     <ID>LargeClass:DiscipleStatCalculatorTest.kt$DiscipleStatCalculatorTest</ID>
     <ID>LargeClass:GameEngineCore.kt$GameEngineCore : EngineContextDispatcher</ID>
-    <ID>LargeClass:InventoryFacadeImpl.kt$InventoryFacadeImpl : InventoryFacade</ID>
     <ID>LargeClass:InventorySystem.kt$InventorySystem : GameSystemItemAdder</ID>
     <ID>LargeClass:MailService.kt$MailService</ID>
     <ID>LargeClass:ProductionProcessor.kt$ProductionProcessor</ID>

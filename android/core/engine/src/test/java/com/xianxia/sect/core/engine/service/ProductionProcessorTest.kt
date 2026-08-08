@@ -1,6 +1,8 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.engine.FakeAtomicStateStore
+import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.DirectDiscipleSlot
@@ -8,29 +10,41 @@ import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.SectPolicies
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.model.SpiritFieldPlant
 import com.xianxia.sect.core.model.guide.GuideCounterKeys
+import com.xianxia.sect.core.model.production.BuildingType
+import com.xianxia.sect.core.model.production.ProductionSlot
+import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.registry.HerbDatabase
+import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.WriteGuardRule
+import com.xianxia.sect.core.util.CoroutineScopeProvider
+import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.ZoneCalculator
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.domain.building.HerbGardenAuraService
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.di.IoDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
+import org.junit.runner.RunWith
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.robolectric.RobolectricTestRunner
 
 
 
@@ -39,7 +53,14 @@ import org.mockito.kotlin.whenever
  *
  * 覆盖 processAutoAssign 中的候选弟子筛选逻辑（takeCandidate）
  * 和 isDiscipleFollowed 辅助函数。
+ *
+ * Robolectric 环境必需（2026-08-08 S3）：component 表中 String/枚举列
+ * （names/statuses 等）存储于 Android SparseArray——纯 JVM 下 mockable
+ * android.jar 的 SparseArray 为空操作，列写入静默失效 → assembleAll
+ * 组装出空名弟子被跳过，自动排班永不匹配候选（S3 测试失败根因）。
+ * 参照 BuildingFacadeImplAssignProductionSlotTest 的 Robolectric 模式。
  */
+@RunWith(RobolectricTestRunner::class)
 class ProductionProcessorTest {
 
     /** 写守卫规则：测试期间关闭 DiscipleTables 写入守卫（T3 需直接组装弟子表） */
@@ -1307,5 +1328,118 @@ class ProductionProcessorTest {
 
         // 排除d1,d2后剩余d3,d4 → 多人仅已关注 → d3通过, d4不通过
         assertEquals("多人槽应只分配给已关注的d3", listOf("d3"), multiIds)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // S3（2026-08-08）：batchAssignToProductionSlots Repository 回写
+    // 真实 ProductionProcessor + 真实 ProductionSlotRepository（dao mock）。
+    // 4.00.91 背景：自动排班只写镜像 → repo 不写 → UI（repo）显示空闲但弟子被占用
+    // ═══════════════════════════════════════════════════════════════
+
+    private lateinit var procStore: FakeAtomicStateStore
+    private lateinit var procRepo: ProductionSlotRepository
+    private lateinit var processor: ProductionProcessor
+
+    /**
+     * 构造真实 ProductionProcessor + 真实 repo。镜像槽强制清空（自动排班针对空闲槽）。
+     * 弟子 1 号：单灵根（默认 metal）→ 匹配 autoAlchemyRootCounts=[1]；
+     * pillRefining 种 50 ≥ autoAlchemyThreshold 默认 1（assembleSkills 默认 0 会筛选失败）。
+     */
+    private fun setupProcessor(repoSlots: List<ProductionSlot>) {
+        procStore = FakeAtomicStateStore()
+        procStore.update {
+            discipleTables.writeAllowed = true
+            discipleTables.addId(1)
+            discipleTables.names[1] = "弟子1"
+            discipleTables.statuses[1] = DiscipleStatus.IDLE
+            discipleTables.isAlive[1] = 1
+            discipleTables.realms[1] = 9
+            discipleTables.realmLayers[1] = 1
+            discipleTables.portraitRes[1] = "portrait_1"
+            // pillRefining 必须 ≥ autoAlchemyThreshold(1)，否则 takeCandidates 属性筛选不匹配
+            discipleTables.pillRefinings[1] = 50
+            discipleTables.writeAllowed = false
+            gameData = gameData.copy(
+                sectPolicies = SectPolicies(autoAlchemyRootCounts = listOf(1)),
+                productionSlots = repoSlots.map { it.copy(assignedDiscipleId = null, assignedDiscipleName = "") }
+            )
+        }
+        val scopeProvider = mock<CoroutineScopeProvider>()
+        whenever(scopeProvider.scope).thenReturn(CoroutineScope(Dispatchers.Unconfined))
+        procRepo = ProductionSlotRepository(dao = mock(), configService = mock(), scopeProvider = scopeProvider)
+        runBlocking { procRepo.loadSlots(repoSlots) }
+        val coordinator = mock<ProductionCoordinator>()
+        whenever(coordinator.repository).thenReturn(procRepo)
+        processor = ProductionProcessor(
+            stateStore = procStore,
+            inventorySystem = mock<InventorySystem>(),
+            productionCoordinator = coordinator,
+            productionSlotRepository = procRepo,
+            formulaService = mock<FormulaService>(),
+            rngManager = mock<GameRngManager>(),
+            scopeProvider = scopeProvider,
+            ioDispatcher = IoDispatcher(Dispatchers.Unconfined),
+            inventoryConfig = mock<com.xianxia.sect.core.config.InventoryConfig>()
+        )
+    }
+
+    @Test
+    fun `S3 自动排班后 repo 槽位被回写与镜像一致`() = runTest {
+        val alchemySlot = ProductionSlot(
+            id = "alchemy_0", buildingType = BuildingType.ALCHEMY, buildingId = "alchemy",
+            slotIndex = 0, status = ProductionSlotStatus.IDLE
+        )
+        setupProcessor(listOf(alchemySlot))
+
+        procStore.update { processor.processAutoAssign(this) }
+
+        val repoSlot = procRepo.getSlotByIndex(BuildingType.ALCHEMY, 0)
+        assertEquals("repo 应回写弟子1", "1", repoSlot?.assignedDiscipleId)
+        val gdSlot = procStore.latestGameData.productionSlots
+            .find { it.buildingType == BuildingType.ALCHEMY && it.slotIndex == 0 }
+        assertEquals("镜像与 repo 一致", "1", gdSlot?.assignedDiscipleId)
+    }
+
+    @Test
+    fun `S3 repo 槽已被玩家任命时自动排班镜像回滚`() = runTest {
+        // repo 槽已由玩家任命 "99"（镜像为空）→ 自动排班不应覆盖玩家任命，镜像回滚
+        val alchemySlot = ProductionSlot(
+            id = "alchemy_0", buildingType = BuildingType.ALCHEMY, buildingId = "alchemy",
+            slotIndex = 0, status = ProductionSlotStatus.IDLE,
+            assignedDiscipleId = "99", assignedDiscipleName = "玩家任命"
+        )
+        setupProcessor(listOf(alchemySlot))
+
+        procStore.update { processor.processAutoAssign(this) }
+
+        val repoSlot = procRepo.getSlotByIndex(BuildingType.ALCHEMY, 0)
+        assertEquals("repo 应保持玩家任命", "99", repoSlot?.assignedDiscipleId)
+        val gdSlot = procStore.latestGameData.productionSlots
+            .find { it.buildingType == BuildingType.ALCHEMY && it.slotIndex == 0 }
+        assertEquals("镜像应回滚为空（防双槽位/覆盖玩家任命）", null, gdSlot?.assignedDiscipleId)
+    }
+
+    @Test
+    fun `S3 repo 无对应槽时自动排班回写失败镜像回滚`() = runTest {
+        // 镜像有 ALCHEMY 槽但 repo 没有（双存储分叉）→ 回写必然 Failure → 镜像回滚为空
+        setupProcessor(emptyList())
+        procStore.update {
+            gameData = gameData.copy(
+                productionSlots = listOf(
+                    ProductionSlot(
+                        id = "alchemy_0", buildingType = BuildingType.ALCHEMY, buildingId = "alchemy",
+                        slotIndex = 0, status = ProductionSlotStatus.IDLE
+                    )
+                )
+            )
+        }
+
+        procStore.update { processor.processAutoAssign(this) }
+
+        val gdSlot = procStore.latestGameData.productionSlots
+            .find { it.buildingType == BuildingType.ALCHEMY && it.slotIndex == 0 }
+        assertEquals("repo 回写失败 → 镜像应回滚为空", null, gdSlot?.assignedDiscipleId)
+        val repoSlot = procRepo.getSlotByIndex(BuildingType.ALCHEMY, 0)
+        assertEquals("repo 不应有该槽", null, repoSlot)
     }
 }

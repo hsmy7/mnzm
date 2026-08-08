@@ -10,6 +10,7 @@ import kotlinx.coroutines.launch
 import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.SectLevel
+import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.PerformanceMode
@@ -347,6 +348,9 @@ class GameViewModel @Inject constructor(
     /** 移动中建筑实例 ID 通道（D-12，2026-08-06）：总线渲染排除与 Compose 交互索引同源。 */
     private val _movingBuildingInstanceId = MutableStateFlow<String?>(null)
 
+    /** B2 一次性诊断标记：activeSectId 失配已记录（防日志刷屏） */
+    private var sectMismatchWarned = false
+
     /**
      * 设置/清除正在移动（拖拽中或等待确认）的建筑实例 ID。
      *
@@ -376,6 +380,19 @@ class GameViewModel @Inject constructor(
                 .collect { (activeSectId, allBuildings, movingId) ->
                     val buildings = allBuildings.filter {
                         it.sectId == activeSectId && it.instanceId != movingId
+                    }
+                    // B2 一次性诊断：activeSectId 非空但该宗门建筑 0 且存在本宗(sectId="")建筑 →
+                    // R2 会话内 sectId 失配（boot 归一化曾在 worldSects 为空时跳过）
+                    if (!sectMismatchWarned && activeSectId.isNotEmpty() && buildings.isEmpty()) {
+                        val homeCount = allBuildings.count { it.sectId.isEmpty() }
+                        if (homeCount > 0) {
+                            sectMismatchWarned = true
+                            DomainLog.w(
+                                TAG,
+                                "R2 疑似 sectId 失配: activeSectId=\"$activeSectId\" 该宗门建筑=${buildings.size} " +
+                                    "本宗建筑=$homeCount 全局建筑=${allBuildings.size}"
+                            )
+                        }
                     }
                     // 2026-08-06 对抗性审查 F2 修复：空宗门也推空数组而非 null——
                     // 渲染端 `busSnapshot?.data ?: frame.buildingData` 在总线为 null 时

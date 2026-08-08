@@ -218,4 +218,30 @@ class BuildingFacadeImplAssignProductionSlotTest {
         assertEquals("GameData 炼丹槽名字应正确", "弟子A", gdSlot?.assignedDiscipleName)
         assertTrue("gate 应注册", gate.isAssigned(DISCIPLE_A))
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // S4（2026-08-08）：repo 写失败防静默——镜像回滚 + 跳过 gate 登记
+    // 4.00.91 玩家"任命不生效"主症状路径：镜像已写、repo 未写 → UI（repo）显示空闲
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `目标槽 repo 写失败时镜像回滚且 gate 不登记`() = runTest {
+        // 镜像存在 HERB_GARDEN[0] 但 repo 无该槽（分叉场景）→ 目标槽 updateSlot 必然 Failure
+        store.update {
+            gameData = gameData.copy(
+                productionSlots = gameData.productionSlots + ProductionSlot(
+                    id = "herb_0", buildingType = BuildingType.HERB_GARDEN, buildingId = "herbGarden",
+                    slotIndex = 0, status = ProductionSlotStatus.IDLE
+                )
+            )
+        }
+
+        facade.assignDiscipleToProductionSlot(BuildingType.HERB_GARDEN, 0, DISCIPLE_A, "弟子A")
+
+        val gdSlot = store.latestGameData.productionSlots
+            .find { it.buildingType == BuildingType.HERB_GARDEN && it.slotIndex == 0 }
+        assertEquals("repo 写失败 → 镜像应回滚为空（repo 真源为准）", null, gdSlot?.assignedDiscipleId)
+        assertEquals("镜像名字应回滚为空串", "", gdSlot?.assignedDiscipleName.orEmpty())
+        assertFalse("gate 不应登记 A", gate.isAssigned(DISCIPLE_A))
+    }
 }

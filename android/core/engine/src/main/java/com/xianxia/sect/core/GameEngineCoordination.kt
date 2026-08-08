@@ -719,7 +719,33 @@ suspend fun GameEngine.updateGameDataAndSync(update: (GameData) -> GameData) {
 
 suspend fun GameEngine.enterSect(sectId: String) {
     return engineContextDispatcher.withEngineContext {
-        stateStore.update { gameData = gameData.copy(activeSectId = sectId) }
+        stateStore.update {
+            // B2（R2 会话内收敛）：boot 自愈只在读档时跑一次，世界重生后（worldSects 曾为空，
+            // 归一化整体跳过）进入宗门时旧 sectId 建筑永不匹配 → 不可见不可点。
+            // 复用读档自愈纯函数（幂等）在每次进入宗门时收敛，与 boot 语义一致。
+            // B4（R3 已知瞬态不修）：enterSect 后 UI 侧建筑索引（LaunchedEffect）异步重建，
+            // 切换瞬间可能有单次点击落在旧索引上——无累积损坏，由 onTap 诊断日志观测。
+            val worldSects = gameData.worldMapSects
+            val norm = normalizeOrphanBuildingSectIds(
+                gameData.placedBuildings, gameData.spiritMineSlots, worldSects
+            )
+            val purified = purifyStaleActiveSectId(sectId, worldSects)
+            if (norm.buildings != gameData.placedBuildings ||
+                norm.spiritMineSlots != gameData.spiritMineSlots ||
+                purified != sectId
+            ) {
+                DomainLog.w(
+                    "GameEngine",
+                    "enterSect 收敛：activeSectId=$sectId→\"$purified\"，" +
+                        "孤儿建筑/矿场槽位归入本宗"
+                )
+            }
+            gameData = gameData.copy(
+                activeSectId = purified,
+                placedBuildings = norm.buildings,
+                spiritMineSlots = norm.spiritMineSlots
+            )
+        }
     }
 }
 
@@ -958,17 +984,36 @@ fun GameEngine.validateAndFixSpiritMineData() {
     }
     val rebuiltSlots = mutableListOf<SpiritMineSlot>()
     var slotIdx = 0
+    var sectAlignedCount = 0
     for (mine in globalMines) {
         for (offset in 0 until 3) {
             val existing = data.spiritMineSlots.getOrNull(slotIdx + offset)
             val slot = if (existing != null) {
-                if (existing.discipleId.isNotEmpty() && existing.discipleId !in discipleMap) existing.copy(discipleId = "", discipleName = "", index = rebuiltSlots.size, buildingInstanceId = mine.instanceId) else existing.copy(index = rebuiltSlots.size, buildingInstanceId = mine.instanceId)
+                val base = if (
+                    existing.discipleId.isNotEmpty() && existing.discipleId !in discipleMap
+                ) {
+                    existing.copy(
+                        discipleId = "", discipleName = "",
+                        index = rebuiltSlots.size, buildingInstanceId = mine.instanceId
+                    )
+                } else {
+                    existing.copy(index = rebuiltSlots.size, buildingInstanceId = mine.instanceId)
+                }
+                // B3：槽位 sectId 与矿场建筑对齐——失配时 SpiritMineDialog 按建筑 sectId 过滤
+                // 显示虚构空槽，玩家任命后 UI 不刷新（矿场版"点击不生效"）
+                if (base.sectId != mine.sectId) {
+                    sectAlignedCount++
+                    base.copy(sectId = mine.sectId)
+                } else base
             } else SpiritMineSlot(index = rebuiltSlots.size, sectId = mine.sectId, buildingInstanceId = mine.instanceId)
             rebuiltSlots.add(slot)
         }
         slotIdx += 3
     }
     val finalSlots = rebuiltSlots.toList()
+    if (sectAlignedCount > 0) {
+        DomainLog.w("GameEngine", "validateAndFixSpiritMineData: $sectAlignedCount 个矿场槽位 sectId 对齐至建筑")
+    }
     if (finalSlots != data.spiritMineSlots) {
         updateGameDataSync { it.copy(spiritMineSlots = finalSlots) }
     }

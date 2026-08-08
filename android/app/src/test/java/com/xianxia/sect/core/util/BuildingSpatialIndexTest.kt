@@ -192,4 +192,41 @@ class BuildingSpatialIndexTest {
         assertEquals("b1 独占的塔尖格命中 b1", b1, index.findBuildingAt(0, -1))
         assertEquals("b2 独占的占地格命中 b2", b2, index.findBuildingAt(1, 5))
     }
+
+    @Test
+    fun rebuild_unregisteredName_withSpriteSizes_hitsSpriteAreaWithoutCrash() {
+        // B1（2026-08-08）：displayName 不在 BuildingFeatureRegistry（损坏/改档可达）时，
+        // fpW/fpH 回退 building.width/height，但精灵包围盒仍按 spriteSizes 计算——
+        // 渲染端仍用索引 0 精灵画出，命中区域不因 feature 缺失而缩小（点击端不可静默吞）
+        val unregistered = GridBuildingData(
+            buildingId = "u1", displayName = "未知损坏建筑",
+            gridX = 10, gridY = 10, width = 4, height = 3,
+            instanceId = "u1", sectId = ""
+        )
+        val spriteSizes = mapOf("未知损坏建筑" to GridSnapHelper.BuildingSize(4, 8))
+        index.rebuild(listOf(unregistered), spriteSizes)
+
+        // 占地格命中
+        assertEquals(unregistered, index.findBuildingAt(10, 10))
+        assertEquals(unregistered, index.findBuildingAt(13, 12))
+        // 精灵悬空上半身命中（未注册名不阻断精灵包围盒扩展）
+        assertEquals("未注册名+精灵尺寸 → 塔尖应可点", unregistered, index.findBuildingAt(10, 5))
+        // 包围盒外不命中
+        assertNull(index.findBuildingAt(10, 4))
+    }
+
+    @Test
+    fun rebuild_unregisteredName_withoutSpriteEntry_hitsFootprintOnly() {
+        // B1：未注册名且 spriteSizes 无该条目 → sw/sh 回退 building 尺寸，
+        // 命中区域收敛为占地，不崩溃（与旧调用方/未知建筑回退语义一致）
+        val unregistered = GridBuildingData(
+            buildingId = "u1", displayName = "未知损坏建筑",
+            gridX = 10, gridY = 10, width = 4, height = 3,
+            instanceId = "u1", sectId = ""
+        )
+        index.rebuild(listOf(unregistered), mapOf("问道塔" to GridSnapHelper.BuildingSize(4, 8)))
+
+        assertEquals(unregistered, index.findBuildingAt(10, 10))
+        assertNull("无精灵条目 → 塔尖不应命中", index.findBuildingAt(10, 5))
+    }
 }

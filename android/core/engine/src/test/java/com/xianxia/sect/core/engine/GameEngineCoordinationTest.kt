@@ -198,6 +198,10 @@ class GameEngineCoordinationTest {
         // 契约守卫：GameViewModel 命令总线重推依赖 enterSect 只改 activeSectId
         //（若 enterSect 顺带修改 placedBuildings，总线键 (activeSectId, placedBuildings)
         // 会同时失效，重推语义被破坏）
+        // B2（2026-08-08）：enterSect 增加会话内收敛——activeSectId 必须是 worldMapSects
+        // 中玩家持有（isPlayerSect/isPlayerOccupied）的宗门，否则被净化归 ""。
+        // 种子先声明 ai-1 为玩家持有宗门；无孤儿建筑时 placedBuildings 仍不被触碰
+        //（收敛只动失配数据，幂等）。
         val env = EngineTestEnv()
         val mine = GridBuildingData(
             buildingId = "灵矿场", displayName = "灵矿场",
@@ -205,6 +209,7 @@ class GameEngineCoordinationTest {
             instanceId = "m1", sectId = ""
         )
         env.store.gameDataValue = env.store.gameDataValue.copy(
+            worldMapSects = listOf(WorldSect(id = "ai-1", isPlayerSect = true)),
             placedBuildings = listOf(mine)
         )
 

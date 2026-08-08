@@ -880,14 +880,63 @@ class ProductionProcessor @Inject constructor(
                 DomainLog.w(TAG, "batchAssignToProductionSlots: invalid disciple id ${candidate.id}")
             }
         }
-        if (updates.isNotEmpty()) {
-            state.gameData = state.gameData.copy(
-                productionSlots = state.gameData.productionSlots.map { slot ->
-                    val update = updates[slot.slotIndex]
-                    if (update != null) slot.copy(
-                        assignedDiscipleId = update.first,
-                        assignedDiscipleName = update.second
-                    ) else slot
+        if (updates.isEmpty()) return
+
+        // 镜像先行（与 stateStore 同一事务，保证本帧状态推导一致）
+        state.gameData = state.gameData.copy(
+            productionSlots = state.gameData.productionSlots.map { slot ->
+                val update = updates[slot.slotIndex]
+                if (update != null) slot.copy(
+                    assignedDiscipleId = update.first,
+                    assignedDiscipleName = update.second
+                ) else slot
+            }
+        )
+
+        // Repository 回写（双存储对齐）：UI 读 repo 真源，仅写镜像会导致
+        // UI 显示空闲但弟子已被占用（4.00.91 玩家反馈症状）
+        scopeProvider.scope.launch(ioDispatcher.dispatcher) {
+            for ((slotIndex, assignment) in updates) {
+                writeBatchAssignmentToRepo(buildingId, slotIndex, assignment)
+            }
+        }
+    }
+
+    /**
+     * S3 repo 回写单个自动排班槽位。
+     * transform 内条件覆盖（锁内原子）防止与玩家手动任命竞态；
+     * 回写失败或竞态被跳过时回滚镜像，保持双端一致。
+     */
+    private suspend fun writeBatchAssignmentToRepo(
+        buildingId: String,
+        slotIndex: Int,
+        assignment: Pair<String, String>
+    ) {
+        val result = productionSlotRepository.updateSlotByBuildingId(buildingId, slotIndex) { s ->
+            if (!s.assignedDiscipleId.isNullOrEmpty()) s
+            else s.copy(assignedDiscipleId = assignment.first, assignedDiscipleName = assignment.second)
+        }
+        val written = result.getOrNull()
+        if (result.isFailure || written == null || written.assignedDiscipleId != assignment.first) {
+            DomainLog.w(
+                TAG,
+                "batchAssignToProductionSlots: repo 回写被跳过/失败 $buildingId[$slotIndex] " +
+                    "disciple=${assignment.first} current=${written?.assignedDiscipleId}",
+                result.exceptionOrNull()
+            )
+            rollbackMirrorBatchAssignment(buildingId, slotIndex, assignment.first)
+        }
+    }
+
+    /** S3 回滚镜像中自动排班写入的槽位（仅当仍是该弟子，防覆盖玩家后续任命） */
+    private fun rollbackMirrorBatchAssignment(buildingId: String, slotIndex: Int, discipleId: String) {
+        stateStore.update {
+            gameData = gameData.copy(
+                productionSlots = gameData.productionSlots.map { s ->
+                    if (s.buildingId == buildingId && s.slotIndex == slotIndex &&
+                        s.assignedDiscipleId == discipleId
+                    ) s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                    else s
                 }
             )
         }

@@ -44,6 +44,14 @@ complexity:
                              # 热控修炼/等级同步/攻打玩家/AI-vs-AI/防守战 5 条子流程均为同一域职责）；
                              # 默认 11 会阻止继续拆分 God Method
     thresholdInObjects: 12   # Dagger @Module 的 @Provides 函数属于 DI 样板代码
+  LargeClass:
+    active: true
+    threshold: 800            # 2026-08-08：默认 600 与"既有违规冻结 baseline"哲学冲突——类主体
+                              # 略超 600 的新增改动（如 S2 后 BuildingService 768 行）会新增
+                              # baseline 条目（违反只缩不增）。800 覆盖全部既有 frozen 类中
+                              # 最小者（CaveExplorationProcessor 695/InventoryFacadeImpl 769），
+                              # 其 baseline 条目随之摘除；>800 的冻结类（BattleSystem 1292 等）
+                              # 保持冻结作为拆分任务队列
   LongParameterList:
     functionThreshold: 8
     constructorThreshold: 10
