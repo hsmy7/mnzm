@@ -44,6 +44,8 @@
 - **detekt 合规** — baseline 签名失配修复（overlay 参数改变 4 条条目签名，条目数不变只缩不增）；`LongParameterList ignoreDefaultParameters: true`（带默认值参数不计数——UnifiedGameDialog 19 参 18 默认，调用方仅传 1~2 个，实际负担远低于阈值）；QuantityInputField 9 参数 → 尺寸收进 `sizes` 对象（7 参数）；QuantitySelector 73 行 → 拆 `DecrementButtons`/`IncrementButtons` 私有 composable（53 行）
 - 全模块 compileReleaseKotlin + 串行全量测试（--max-workers=1）+ lintRelease + detekt 通过
 
+## [4.00.93] - 2026-08-09
+
 ### 优化（2026-08-09 每年一月卡顿数秒根治——算法减量 + AI 降频 + 年变分帧）
 
 - **根因** — 引擎单线程在每年一月同一 tick 无预算串行执行 22 项年变处理器（单事务）+ 年俸 + 17 项月度事件；热点：AI 弟子月度修炼（30 宗门 × ≤1000 弟子全量乘区计算，每月都跑且 1 月叠加）、AI 弟子年度老化、招募去重 O(R²)（攻占宗门全池 1000+ 涌入）、玩家死亡路径 O(K×D²)（replaceAll 全表重建 + originalList.find）、年俸 assembleAll 独立事务、死亡清理逐弟子 runBlocking DAO 写——总工作量随存档规模无界增长，引擎线程被占期间世界静止（玩家感知"卡住好几秒"）

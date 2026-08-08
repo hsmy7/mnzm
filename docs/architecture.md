@@ -458,8 +458,9 @@ SaveValidator.validate(SaveData)
 |---|---|---|---|
 | P-16 | UI 迁移真机冒烟 | SettingsTab/DiscipleDetailScreen/OverlayDialogRouter | 发布前检查 4 个迁移弹窗（其他设置/年俸/存档管理/更新日志）逐一打开关闭 + OverlayDialogRouter 34 分支逐项打开一次；判定：无崩溃/白屏/交互完整/叠层路由正常 |
 | P-18 | 排行榜 rank 0/1 起始语义 | `feature/game/.../taptap/TapTapLeaderboardApi.kt` | 已做 0→1 归一化兜底（rank<1 显示 1）。真机观察：首名显示 #1 且次名重复 #1 → 服务端 1 起始，移除归一化；次名 #2 → 保留现状。抓原始 rank 与显示值对照 ≥3 次 |
+| P-19 | 一月卡顿根治性能量化（2026-08-09 批次登记，代码已提交 commit `7dae538b`） | `core/engine/.../service/CultivationEventMonthlyOps.kt` safelyRunInState 耗时日志（SLOW_OP_THRESHOLD_MS=25）+ `GameEngineCore.kt` "Tick over budget" 日志 | 真机装 4.00.93 包，游戏内跨过至少 1 个游戏年（1 月），抓 logcat：① 1 月前后 `op[...] took Nms` 各处理器耗时；② "Tick over budget" 是否出现。判定：1 月 tick 从旧版数秒收敛至单帧级（目标 <100ms）；AI 修炼日志仅出现在 3/6/9/12 月（1 月不再触发）。**目前仅算法复杂度论证，无实测数据** |
 
-### 途中发现待办（2026-08-05 引擎确定性加固时登记 D-01~D-06；2026-08-06 三崩溃批次对抗性审查新增 D-07~D-10；2026-08-06 建筑点击无效批次对抗性审查新增 D-11~D-15，详见 CHANGELOG 4.00.89~4.00.90；2026-08-07 商人/宗门交易品阶动态刷新批次新增 D-16；2026-08-07 灵田收获卡死+草药不入库批次对抗性审查新增 D-17~D-20；2026-08-08 数量器升级批次对抗性审查新增 D-21~D-23）
+### 途中发现待办（2026-08-05 引擎确定性加固时登记 D-01~D-06；2026-08-06 三崩溃批次对抗性审查新增 D-07~D-10；2026-08-06 建筑点击无效批次对抗性审查新增 D-11~D-15，详见 CHANGELOG 4.00.89~4.00.90；2026-08-07 商人/宗门交易品阶动态刷新批次新增 D-16；2026-08-07 灵田收获卡死+草药不入库批次对抗性审查新增 D-17~D-20；2026-08-08 数量器升级批次对抗性审查新增 D-21~D-23；2026-08-09 一月卡顿根治批次登记 D-24~D-25，详见 CHANGELOG 4.00.93）
 
 > 本次实施（RNG 事务快照/UI RNG 治理/奖励统一入口/事务合并/缓存）后对抗性审查登记的未修项。P-19/P-20/P-21 已随本次实施完成（奖励收编 InventorySystem + 守卫补漏 + 签到 catch 移出事务）。
 
@@ -488,6 +489,8 @@ SaveValidator.validate(SaveData)
 | D-21 | 商人负价格商品反向获取灵石（先加后扣无价格校验） | `core/engine/.../domain/inventory/InventoryFacadeImpl.kt:357` buyMerchantItem（361 行 cost = price×quantity；362 行校验 `spiritStones < cost`——负 cost 恒 false 放行） | 2026-08-08 数量器升级批次对抗性审查登记（数据篡改者视角预存问题）：篡改存档构造负价格商品 → 购买免费且灵石反增（扣款 `spiritStones - cost` 变加法）。修复方向：入口校验 `price >= 0`（非法价格拒绝购买 + DomainLog.w）；商人商品价格本应恒正，属存档完整性防御 |
 | D-22 | 商人刷新后 selectedItem 失效购买静默失败 | `feature/game/.../dialogs/MerchantDialog.kt:63/132/231`（selectedItem 状态 / refreshTravelingMerchantManual 刷新按钮 / onConfirm buyFromMerchant） | 2026-08-08 数量器升级批次对抗性审查登记（状态破坏者视角预存问题）：刷新商品后选中商品可能已被替换，确认购买时 buyMerchantItem 内 `find { it.id == itemId } ?: return@update` 静默返回，无任何反馈。修复方向：刷新时清空 selectedItem（对齐 168 行切 Tab / 189 行切筛选先例）+ 引擎侧失败给提示 |
 | D-23 | MerchantDialog.kt:140 预存死条件判断 | `feature/game/.../dialogs/MerchantDialog.kt:140`（`if (viewModel != null)` 恒 true） | 2026-08-08 数量器升级批次编译告警登记（预存，非本次引入）：组合作用域内 viewModel 恒非空，编译告警 "Condition is always 'true'"。修复方向：去除判断直接调用 viewModel（Image 块内容不变） |
+| D-24 | 最终 CI 变体完整验证未跑（testReleaseUnitTest + kover 覆盖率） | 2026-08-09 一月卡顿批次验证只跑了 `test`（debug 变体）+ detekt + lintRelease + compileReleaseKotlin | 2026-08-09 批次交付时如实承认的尾巴：① CI 链精确变体 `testReleaseUnitTest` 未单独跑（测试代码与 debug 变体相同，结果基本等价）；② `koverHtmlReport` 覆盖率未跑——新增代码（YearlyOpsQueue/列直写/列直读/签名分组/AI 相位）的引擎 80%+ 行覆盖要求未验证；③ "2258 tests" 计数来自修复守卫测试前那次运行，最终跑的通过但未打印精确计数。修复方向：`./gradlew.bat testReleaseUnitTest --max-workers=1 koverHtmlReport` 全绿后关闭 |
+| D-25 | ShardedSlotLock 锁粒度（对抗性审查接受不修，记录在案） | `core/engine/.../repository/ProductionSlotRepository.kt` ShardedSlotLock（按 buildingType+slotIndex 分片） | 2026-08-09 一月卡顿批次对抗性审查（状态破坏者视角）确认不修：理论上有并发逐槽更新与 batchUpdate 回滚的交错窗口，但引擎为单写线程模型（stateStore.update ReentrantLock 串行化），不触发；回滚覆盖窗口比"内存/DB 分叉"危害小得多。防御性设计债，如未来多写者架构立项时评估 |
 
 ## 实施记录（2026-08-08：D-01 / D-03 / D-05~D-09 / D-15~D-17 十项）——已完成
 
@@ -504,7 +507,7 @@ SaveValidator.validate(SaveData)
 | D-17 | 真修 + baseline | 9 条预存违规清零（拆函数/抽共用守卫/baseline 签名更新） |
 | D-06 | 自有包显式化 + Compose 白名单 | detekt.yml 21 条 excludeImports + 自有包约 260 处显式化 + 工具 `android/scripts/expand-wildcard-imports.mjs` |
 
-**不纳入**：D-04（产品已确认固定挑战）、D-10（HWUI 看门狗长期项）、D-18/D-19/D-20（已决策不修）、P-16/P-18（待真机验证）。
+**不纳入**：D-04（产品已确认固定挑战）、D-10（HWUI 看门狗长期项）、D-18/D-19/D-20（已决策不修）、P-16/P-18/P-19（待真机验证）。
 
 ### 途中发现（登记在案）
 
