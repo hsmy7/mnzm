@@ -97,9 +97,10 @@ class ProductionProcessor @Inject constructor(
         forgeSlots.forEach { slot ->
             if (slot.isWorking && slot.assignedDiscipleId.isNullOrEmpty()) return@forEach
             if (slot.isWorking && isSlotCompleteDynamic(slot, year, month)) {
-                completeForgeSlot(slot)
+                // B3：弟子死亡时 complete 返回 false → 槽位重置同时清空弟子关联
+                val discipleAlive = completeForgeSlot(slot)
                 resetSlotToIdle(slot, BuildingNames.FORGE,
-                    BuildingType.FORGE)
+                    BuildingType.FORGE, keepDisciple = discipleAlive)
             }
         }
     }
@@ -110,9 +111,9 @@ class ProductionProcessor @Inject constructor(
         alchemySlots.forEach { slot ->
             if (slot.isWorking && slot.assignedDiscipleId.isNullOrEmpty()) return@forEach
             if (slot.isWorking && isSlotCompleteDynamic(slot, year, month)) {
-                completeAlchemySlot(slot)
+                val discipleAlive = completeAlchemySlot(slot)
                 resetSlotToIdle(slot, BuildingNames.ALCHEMY,
-                    BuildingType.ALCHEMY)
+                    BuildingType.ALCHEMY, keepDisciple = discipleAlive)
             }
         }
     }
@@ -120,14 +121,21 @@ class ProductionProcessor @Inject constructor(
     /**
      * 炼制成功判定：真实成功率（RngPartition.SYSTEM 分区 RNG，手动/影子路径同源）。
      * successRate 先钳制到 [0,1]（对抗性审查：存档篡改/旧数据可能越界）。
+     * L7（对抗性审查）：NaN 不被 coerceIn 钳制（NaN 比较恒 false）——显式归零，
+     * 防损坏存档 successRate=NaN 时每次结算都失败但无明确语义。
      */
-    private fun rollProductionSuccess(slot: ProductionSlot): Boolean =
-        rngManager.getRng(RngPartition.SYSTEM).nextDouble() <= slot.successRate.coerceIn(0.0, 1.0)
+    private fun rollProductionSuccess(slot: ProductionSlot): Boolean {
+        val rate = if (slot.successRate.isNaN()) 0.0 else slot.successRate.coerceIn(0.0, 1.0)
+        return rngManager.getRng(RngPartition.SYSTEM).nextDouble() <= rate
+    }
 
     /**
      * 炼丹产出：品阶 roll + 丹药入库（withTrackingSource 统一入口，来源 "alchemy"）。
+     *
+     * @return true=产出成功（溢出自动转邮件也算成功）；false=入库失败/配方无效
+     *         （B4：产出失败视为炼制失败，不结算晋升）
      */
-    private fun producePill(slot: ProductionSlot) {
+    private fun producePill(slot: ProductionSlot): Boolean {
         val alchemyRng = rngManager.getRng(RngPartition.SYSTEM)
         val roll = alchemyRng.nextDouble()
         val grade = when {
@@ -135,85 +143,147 @@ class ProductionProcessor @Inject constructor(
             roll < PILL_GRADE_MEDIUM_THRESHOLD -> PillGrade.MEDIUM
             else -> PillGrade.LOW
         }
-        val template = slot.recipeId?.let { rid ->
-            val baseId = rid.substringBeforeLast("_")
-            ItemDatabase.getPillById("${baseId}_${grade.name.lowercase()}")
-        }
-        val pill = if (template != null) {
-            ItemDatabase.createPillFromTemplate(template)
-        } else {
-            Pill(
-                name = slot.outputItemName,
-                rarity = slot.outputItemRarity,
-                grade = grade,
-                category = PillCategory.CULTIVATION,
-                description = "通过炼丹炉炼制而成",
-                minRealm = GameConfig.Realm.getMinRealmForRarity(slot.outputItemRarity),
-                quantity = 1
-            )
-        }
+        // M3（对抗性审查）：无配方（recipeId null/模板查不到）→ 炼制失败，
+        // 与读档路径 producePillWithRecipe 语义一致——旧存档无配方槽位不再
+        // "回退 outputItemName 丹药算成功"（三路径行为随机，B4 意图未落地）
+        val template = slot.recipeId?.let { it.substringBeforeLast("_") }
+            ?.let { baseId -> ItemDatabase.getPillById("${baseId}_${grade.name.lowercase()}") }
+            ?: return false
+        val pill = ItemDatabase.createPillFromTemplate(template)
         val r = inventorySystem.withTrackingSource("alchemy") {
             inventorySystem.addPill(pill)
         }
-        when (r) {
-            is DomainResult.Success -> { /* 添加成功 */ }
-            is DomainResult.Partial -> DomainLog.w(TAG, "丹药 ${pill.name} 溢出 ${r.overflow} 个")
-            is DomainResult.Failure -> DomainLog.w(TAG, "丹药 ${pill.name} 添加失败: ${r.error}")
+        return when (r) {
+            is DomainResult.Success -> true
+            is DomainResult.Partial -> {
+                DomainLog.w(TAG, "丹药 ${pill.name} 溢出 ${r.overflow} 个")
+                true
+            }
+            is DomainResult.Failure -> {
+                DomainLog.e(TAG, "丹药 ${pill.name} 入库失败: ${r.error}")
+                false
+            }
         }
     }
 
     /**
      * 锻造产出：装备入库（withTrackingSource 统一入口，来源 "forge"）。
+     *
+     * @return true=产出成功（溢出自动转邮件也算成功）；false=入库失败/配方无效
+     *         （B4：产出失败视为炼制失败，不结算晋升）
      */
-    private fun produceForgeEquipment(slot: ProductionSlot) {
-        val recipeId = slot.recipeId ?: return
-        val recipe = ForgeRecipeDatabase.getRecipeById(recipeId) ?: return
+    private fun produceForgeEquipment(slot: ProductionSlot): Boolean {
+        val recipe = slot.recipeId?.let { ForgeRecipeDatabase.getRecipeById(it) } ?: return false
         val equipment = inventorySystem.createEquipmentFromRecipe(recipe)
         val r = inventorySystem.withTrackingSource("forge") {
             inventorySystem.addEquipmentStack(equipment)
         }
-        when (r) {
-            is DomainResult.Success -> { /* 添加成功 */ }
-            is DomainResult.Partial -> DomainLog.w(TAG, "装备 ${equipment.name} 溢出 ${r.overflow} 个")
-            is DomainResult.Failure -> DomainLog.w(TAG, "装备 ${equipment.name} 添加失败: ${r.error}")
+        return when (r) {
+            is DomainResult.Success -> true
+            is DomainResult.Partial -> {
+                DomainLog.w(TAG, "装备 ${equipment.name} 溢出 ${r.overflow} 个")
+                true
+            }
+            is DomainResult.Failure -> {
+                DomainLog.e(TAG, "装备 ${equipment.name} 入库失败: ${r.error}")
+                false
+            }
         }
     }
 
-    private fun completeForgeSlot(slot: ProductionSlot) {
+    /**
+     * 完成锻造槽结算。
+     *
+     * @return 弟子是否存在且存活（供槽位重置决定是否保留弟子关联，B3）
+     */
+    private fun completeForgeSlot(slot: ProductionSlot): Boolean {
         // 锻造真实成功率判定（2026-08-09 职业系统：锻造从 100% 产出改为概率判定，
         // 失败不产出装备、材料不退还，成功才计入职业晋升进度）
-        val success = rollProductionSuccess(slot)
+        // B4：产出失败（入库失败/配方无效）同样视为炼制失败，不结算晋升
+        var success = rollProductionSuccess(slot)
         if (success) {
-            produceForgeEquipment(slot)
+            success = produceForgeEquipment(slot)
         }
-        slot.assignedDiscipleId?.let { discipleId ->
+        return slot.assignedDiscipleId?.let { discipleId ->
             stateStore.settleProductionCompletion(slot, discipleId, success, isAlchemy = false)
-        }
+        } ?: false
     }
 
-    private fun completeAlchemySlot(slot: ProductionSlot) {
-        val success = rollProductionSuccess(slot)
+    /**
+     * 完成炼丹槽结算。
+     *
+     * @return 弟子是否存在且存活（供槽位重置决定是否保留弟子关联，B3）
+     */
+    private fun completeAlchemySlot(slot: ProductionSlot): Boolean {
+        var success = rollProductionSuccess(slot)
         if (success) {
-            producePill(slot)
+            success = producePill(slot)
         }
-        slot.assignedDiscipleId?.let { discipleId ->
+        return slot.assignedDiscipleId?.let { discipleId ->
             stateStore.settleProductionCompletion(slot, discipleId, success, isAlchemy = true)
-        }
+        } ?: false
     }
 
+    /**
+     * 重置槽位为 IDLE（异步 IO）。保留 autoRestart/配方用于续炼。
+     *
+     * @param keepDisciple true=保留弟子关联（auto-restart 续炼）；false=弟子死亡/
+     *                     查无此人 → 清空关联（B3：防槽位被死弟子永久占用）
+     */
     private fun resetSlotToIdle(slot: ProductionSlot, buildingId: String,
-                                 buildingType: BuildingType) {
+                                 buildingType: BuildingType, keepDisciple: Boolean) {
+        if (!keepDisciple) {
+            // L2（对抗性审查）：死弟子场景同步清镜像（gameData.productionSlots），
+            // Repository 关联由下方异步重置清空——镜像残留死弟子会让状态推导/
+            // 自动排班长期空置该槽位（镜像非真源，但按"双存储同步"惯例一并清理）
+            stateStore.update {
+                gameData = gameData.copy(
+                    productionSlots = gameData.productionSlots.map { s ->
+                        if (s.buildingId == buildingId && s.slotIndex == slot.slotIndex) {
+                            s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                        } else s
+                    }
+                )
+            }
+        }
         scopeProvider.scope.launch(ioDispatcher.dispatcher) {
-            productionSlotRepository.updateSlotByBuildingId(buildingId, slot.slotIndex) { s ->
-                ProductionSlot.createIdle(
-                    id = s.id,
-                    slotIndex = slot.slotIndex,
-                    buildingType = buildingType,
-                    buildingId = buildingId,
-                    autoRestartEnabled = slot.autoRestartEnabled,
-                    assignedDiscipleId = slot.assignedDiscipleId,
-                    assignedDiscipleName = slot.assignedDiscipleName,
-                    recipeId = slot.recipeId
+            try {
+                productionSlotRepository.updateSlotByBuildingId(
+                    buildingId, slot.slotIndex
+                ) { s ->
+                    // B5 守卫（2026-08-09 对抗性审查加固）：仅当缓存槽仍处于
+                    // "本次结算的炼制"才重置——其余一律不动：
+                    //  - IDLE：玩家已取消/其他入口已重置 → 快照重建会复活旧配置
+                    //  - COMPLETED：玩家已手动收获 → 快照重建会覆盖收获结果
+                    //  - WORKING 但身份不同：排班已启动新炼制 → 打回 IDLE 造成材料双扣
+                    // 不能仅按状态 WORKING 拦截：月变结算后槽位仍为 WORKING
+                    // （settle 不改槽位状态），只看状态会把正常结算的槽位也拦死
+                    // （槽位永不重置、下月重复结算——回归）。
+                    if (!shouldResetSlotForCompletion(s, slot)) {
+                        s
+                    } else {
+                        ProductionSlot.createIdle(
+                            id = s.id,
+                            slotIndex = slot.slotIndex,
+                            buildingType = buildingType,
+                            buildingId = buildingId,
+                            // 字段取当前缓存 s 而非结算快照：玩家在窗口内翻转的
+                            // autoRestart 不被覆盖；身份一致时 recipeId/弟子必然相同
+                            autoRestartEnabled = s.autoRestartEnabled,
+                            assignedDiscipleId = if (keepDisciple) s.assignedDiscipleId else null,
+                            assignedDiscipleName = if (keepDisciple) s.assignedDiscipleName else "",
+                            recipeId = s.recipeId
+                        )
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+                // DAO 写失败（基础设施故障）：内存缓存已置 IDLE（锁内先更新缓存
+                // 再 DAO 写），本会话正常；DB 残留 WORKING+到期由读档补结算恢复，
+                // 产出语义一致不会双份。记录日志防静默失败（发现 3）。
+                DomainLog.e(
+                    TAG, "resetSlotToIdle 槽位重置失败: $buildingId[${slot.slotIndex}]", e
                 )
             }
         }
@@ -1142,16 +1212,17 @@ class ProductionProcessor @Inject constructor(
                 produceForgeEquipmentShadow(slot, state)
             }
             // 职业晋升进度（影子版直接操作 state.discipleTables）
-            slot.assignedDiscipleId?.let { discipleId ->
+            // B3：弟子死亡/查无此人 → 槽位清空弟子关联（防死弟子占用槽位）
+            val discipleAlive = slot.assignedDiscipleId?.let { discipleId ->
                 settleForgeCompletionShadow(state, slot, discipleId, success)
-            }
+            } ?: false
             slots[i] = ProductionSlot.createIdle(
                 id = slot.id, slotIndex = slot.slotIndex,
                 buildingType = BuildingType.FORGE,
                 buildingId = slot.buildingId,
                 autoRestartEnabled = slot.autoRestartEnabled,
-                assignedDiscipleId = slot.assignedDiscipleId,
-                assignedDiscipleName = slot.assignedDiscipleName ?: "",
+                assignedDiscipleId = if (discipleAlive) slot.assignedDiscipleId else null,
+                assignedDiscipleName = if (discipleAlive) slot.assignedDiscipleName ?: "" else "",
                 recipeId = slot.recipeId
             )
         }
@@ -1170,22 +1241,29 @@ class ProductionProcessor @Inject constructor(
         state.equipmentStacks.add(InventoryFactories.createEquipmentFromRecipe(recipe))
     }
 
-    /** 影子版锻造结算：弟子回 IDLE + 职业晋升（MutableGameState 直接操作） */
+    /**
+     * 影子版锻造结算：弟子回 IDLE + 职业晋升（MutableGameState 直接操作）。
+     *
+     * @return 弟子是否存在且存活（false → 槽位应清空弟子关联，B3）
+     */
     private fun settleForgeCompletionShadow(
         state: MutableGameState,
         slot: ProductionSlot,
         discipleId: String,
         success: Boolean
-    ) {
+    ): Boolean {
         // 配方无效（数据损坏）时 recipeTier=0：低阶不充数规则下不结算晋升（对抗性审查 A2）
         val recipeTier = slot.recipeId?.let { ForgeRecipeDatabase.getRecipeById(it)?.tier } ?: 0
         val currentList = state.discipleTables.assembleAll()
+        var discipleAlive = false
         val updated = currentList.map {
             if (it.id == discipleId && it.isAlive) {
+                discipleAlive = true
                 state.settleDiscipleProduction(it, recipeTier, success, isAlchemy = false)
             } else it
         }
         state.discipleTables.replaceAll(updated)
+        return discipleAlive
     }
 
     private fun batchAlchemyCompletion(
@@ -1224,26 +1302,45 @@ class ProductionProcessor @Inject constructor(
             }
             // 职业晋升进度（影子版直接操作 state.discipleTables，与锻造影子路径共用
             // settleDiscipleProduction——统一"弟子回 IDLE + 晋升"语义）
-            slot.assignedDiscipleId?.let { discipleId ->
-                val recipeTier = slot.recipeId?.let { PillRecipeDatabase.getRecipeById(it)?.tier } ?: 0
-                val currentList = state.discipleTables.assembleAll()
-                val updated = currentList.map {
-                    if (it.id == discipleId && it.isAlive) {
-                        state.settleDiscipleProduction(it, recipeTier, success, isAlchemy = true)
-                    } else it
-                }
-                state.discipleTables.replaceAll(updated)
-            }
+            // B3：弟子死亡/查无此人 → 槽位清空弟子关联（防死弟子占用槽位）
+            val discipleAlive = slot.assignedDiscipleId?.let { discipleId ->
+                settleAlchemyCompletionShadow(state, slot, discipleId, success)
+            } ?: false
             slots[i] = ProductionSlot.createIdle(
                 id = slot.id, slotIndex = slot.slotIndex,
                 buildingType = BuildingType.ALCHEMY,
                 buildingId = slot.buildingId,
                 autoRestartEnabled = slot.autoRestartEnabled,
-                assignedDiscipleId = slot.assignedDiscipleId,
-                assignedDiscipleName = slot.assignedDiscipleName ?: "",
+                assignedDiscipleId = if (discipleAlive) slot.assignedDiscipleId else null,
+                assignedDiscipleName = if (discipleAlive) slot.assignedDiscipleName ?: "" else "",
                 recipeId = slot.recipeId
             )
         }
+    }
+
+    /**
+     * 影子版炼丹结算：弟子回 IDLE + 职业晋升（MutableGameState 直接操作，
+     * 与锻造影子路径共用 settleDiscipleProduction——统一"弟子回 IDLE + 晋升"语义）。
+     *
+     * @return 弟子是否存在且存活（false → 槽位应清空弟子关联，B3）
+     */
+    private fun settleAlchemyCompletionShadow(
+        state: MutableGameState,
+        slot: ProductionSlot,
+        discipleId: String,
+        success: Boolean
+    ): Boolean {
+        val recipeTier = slot.recipeId?.let { PillRecipeDatabase.getRecipeById(it)?.tier } ?: 0
+        val currentList = state.discipleTables.assembleAll()
+        var discipleAlive = false
+        val updated = currentList.map {
+            if (it.id == discipleId && it.isAlive) {
+                discipleAlive = true
+                state.settleDiscipleProduction(it, recipeTier, success, isAlchemy = true)
+            } else it
+        }
+        state.discipleTables.replaceAll(updated)
+        return discipleAlive
     }
 
     /** 影子版灵田收获（已用 state，直接复用） */
@@ -1547,3 +1644,23 @@ class ProductionProcessor @Inject constructor(
             )
     }
 }
+
+/**
+ * B5 重置守卫（2026-08-09 对抗性审查提取为顶层 internal 供测试调用真身）：
+ * 结算时刻的异步槽位重置，仅当缓存槽仍处于"本次结算的炼制"才允许重置。
+ *
+ * 身份判别 = 状态 WORKING + completionMonth/recipeId 与结算快照一致。
+ * 其余（IDLE 已取消/收获、COMPLETED 已手动收集、WORKING 但身份不同的新炼制）
+ * 一律不动——防结算快照重建覆盖窗口内的玩家操作或排班启动的新炼制。
+ *
+ * 注意：completionMonth/recipeId 属可被存档篡改的字段（对抗性审查 M2 边界）——
+ * 篡改使身份判别失效时，最坏情况是"重置被跳过 + 槽位保持 WORKING"，下月由
+ * isSlotCompleteDynamic 重算再次结算。该字段对结算判定本身无影响（结算判定
+ * 完全动态重算），守卫只承担防乱序覆盖职责，不承担防篡改职责。
+ */
+internal fun shouldResetSlotForCompletion(
+    current: ProductionSlot,
+    settled: ProductionSlot
+): Boolean = current.status == ProductionSlotStatus.WORKING &&
+    current.completionMonth == settled.completionMonth &&
+    current.recipeId == settled.recipeId

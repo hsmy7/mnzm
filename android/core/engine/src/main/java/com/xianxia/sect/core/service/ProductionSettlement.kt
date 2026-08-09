@@ -32,13 +32,16 @@ import com.xianxia.sect.core.state.recordGameEvent
  * @param discipleId 工作弟子（槽位可能已无弟子，此时仅统计计数）
  * @param success 本次炼制是否成功（成功才结算职业晋升进度）
  * @param isAlchemy true=炼丹，false=锻造（炼器）
+ * @return 弟子是否存在且存活（true → 槽位可保留弟子关联继续 auto-restart；
+ *         false → 弟子死亡/查无此人，调用方应清空槽位弟子关联，防槽位被死弟子永久占用）
  */
 internal fun GameStateStore.settleProductionCompletion(
     slot: ProductionSlot,
     discipleId: String,
     success: Boolean,
     isAlchemy: Boolean
-) {
+): Boolean {
+    var discipleAlive = false
     update {
         val counterKey = if (isAlchemy) GuideCounterKeys.ALCHEMY_COMPLETED
         else GuideCounterKeys.FORGE_COMPLETED
@@ -62,13 +65,23 @@ internal fun GameStateStore.settleProductionCompletion(
             else ForgeRecipeDatabase.getRecipeById(rid)?.tier
         } ?: 0
         val currentList = discipleTables.assembleAll()
-        val updated = currentList.map {
-            if (it.id == discipleId && it.isAlive) {
-                settleDiscipleProduction(it, recipeTier, success, isAlchemy)
-            } else it
+        if (currentList.isEmpty()) {
+            // L3（对抗性审查）：弟子表为空（读档加载时序异常/存档损坏）——
+            // 保守视为弟子存在、不清槽位关联。清关联会让活弟子槽位续炼中断；
+            // 死弟子残留由后续结算自愈（死弟子在产 → 判死不晋升 → 重置清关联），
+            // 与"空列表 ≠ 弟子死亡"的语义一致。
+            discipleAlive = true
+        } else {
+            val updated = currentList.map {
+                if (it.id == discipleId && it.isAlive) {
+                    discipleAlive = true
+                    settleDiscipleProduction(it, recipeTier, success, isAlchemy)
+                } else it
+            }
+            discipleTables.replaceAll(updated)
         }
-        discipleTables.replaceAll(updated)
     }
+    return discipleAlive
 }
 
 /**

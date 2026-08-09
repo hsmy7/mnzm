@@ -110,6 +110,24 @@
 - **读档回滚完整性修复（途中发现）** — `GameStateStoreImpl.loadFromSnapshot` 的 LoadBaseline.disciples 改用 `_discipleTables.assembleAll()` 同步组装替代 `_disciplesFlow.value`（flow 由 assembleDispatcher 异步发布、滞后于 update{} 提交，立即读档时 baseline 可能捕获空列表 → 读档失败回滚重建出空弟子列表 = **读档失败即丢全部弟子**；GameStateStoreRollbackTest 全量偶发失败根因）
 - **测试** — 新增 ProfessionRulesTest（晋升表/门禁/溢出）、FormulaServicePureLogicTest +6 极值（Int.MIN/MAX、null 弟子、默认 50、五品炼凡品 100%、锻造侧）、BuildingServiceLoadPathTest 6 条（读档炼丹成功晋升/失败不晋升计数照常/无效配方/锻造成功产出/失败不产出/双结算单次化）、BuildingServiceProfessionGateTest（越阶拒绝/材料未扣）、DiscipleSerializerProfessionTest（round-trip/旧档缺省）、AlchemyViewModelProfessionHintTest（提示框三态）、RoomMigrationTest +43_44；全模块串行测试（--max-workers=1）+ detekt + compileReleaseKotlin 通过
 
+### 修复（2026-08-09 生产槽位三预存问题：死弟子槽位卡死 + 产出入库失败静默丢失 + 重置/排班竞态）
+
+- **B3 死弟子槽位卡死** — 炼制中弟子死亡：月变结算 `settleProductionCompletion` 跳过死弟子（isAlive 守卫）但槽位重置保留 `assignedDiscipleId`（`SlotStateMachine.resetSlot` 字段清单不含弟子），死弟子永久占用槽位需手动清理。修复：`settleProductionCompletion` 改为返回弟子是否存在且存活（Boolean），月变（`resetSlotToIdle` keepDisciple）、影子（batch createIdle）、读档（BuildingService `resetSlotByBuildingIdAtomic` 后条件补清 repo 槽位）三路径统一按返回值条件保留/清空弟子关联；`validateAutoSlot` 原有 discipleUsable 仅覆盖 auto-restart 路径
+- **B4 锁内吞失败（产出静默丢失）** — 产出入库失败（`addPill`/`addEquipmentStack` Failure/配方无效）仅记日志不中断结算 → 装备/丹药静默丢失但晋升/计数照常。修复：产出统一返回 Boolean 合成 `success`（`producePill`/`produceForgeEquipment`/`completeBuildingTaskFromProductionSlot`/`autoCollectAlchemyResult` 四处；Partial=溢出转邮件算成功；配方无效归失败——同时修复月变路径配方无效假成功）；失败 → 不晋升、计数照常、弟子回 IDLE、材料不退还（材料在开始炼制时已扣）；`autoCollectAlchemyResult` 提取 `producePillFromSlot`、`completeBuildingTaskFromProductionSlot` 拆 `produceForgeEquipmentFromSlot`/`producePillWithRecipe`（detekt LongMethod/Cyclomatic 合规，品阶阈值常量提取与月变路径对齐）
+- **B5 重置与排班竞态（缓存/DAO 分叉）** — `updateSlotByBuildingId` 的 transform 在 shardedLock（JVM 锁）内做缓存 RMW，但 DAO 写入在锁外（JVM 锁无法包 suspend DAO）→ reset 与排班并发时 DAO 乱序 → 缓存与 DB 分叉（排班结果丢失/材料双扣/读档丢进度）。修复：repository 新增协程写锁 `writeMutex`（kotlinx.coroutines.sync.Mutex）包住"缓存 RMW + DAO 写"整段（`updateSlot`/`updateSlotByBuildingId`/`updateSlotAtomic`/`batchUpdate` 四入口统一）；`resetSlotToIdle` 守卫改为"炼制身份判别"（`completionMonth`+`recipeId` 与结算槽位一致才重置）——仅按状态 WORKING 拦截会把正常结算槽位也拦死（settle 不改槽位状态 → 槽位永不重置、下月重复结算，对抗性审查回归）；排班只从 IDLE 槽启动（`processAutoAlchemy` 过滤 `status == IDLE`），结算中 WORKING/COMPLETED 槽排班不碰，身份判别兜底极端跨月时序
+- **测试** — 新增 `ProductionSlotSettlementRobustnessTest` 6 条（月变死/活弟子重置清空/保留、锻造/炼丹入库失败不晋升计数照常、守卫身份判别、并发双写缓存与 DAO 最终一致——argumentCaptor 断言 DAO 最后写入 == 缓存终值）、`BuildingServiceDeathDiscipleTest` 4 条（读档收获死弟子 repo 补清/活弟子不补清、读档炼丹/锻造入库失败不晋升计数照常）；全模块串行测试 + detekt + compileReleaseKotlin 通过
+
+### 修复（2026-08-09 生产槽位三预存问题对抗性审查整改——写锁全覆盖 + 守卫收窄 + 事务合并 + 测试真实化）
+
+- **M1 writeMutex 覆盖范围扩展（三方交叉发现）** — 协程写锁从 4 个更新入口扩展到全部"改缓存 + 写 DAO"挂起入口（update 族 + addSlot/removeSlot/loadSlots/restoreSlots/initialize 族/syncToDatabase/clear；仅 initialize 例外：同步方法 + 同步 DAO，只启动单线程调用）；addSlot/removeSlot 修正为单次 withLock 包住"RMW + DAO 写"整段（初版两次 withLock 之间存在 DAO 写插队分叉窗口）；锁序恒为 writeMutex →（globalMutex/shardedLock），无反向获取
+- **M2 过期快照重建防护（守卫收窄）** — `resetSlotToIdle` 守卫提取为顶层内部函数 `shouldResetSlotForCompletion(current, settled)`：仅当缓存槽仍处于"本次结算的炼制"（WORKING + 同 completionMonth + 同 recipeId）才重置；IDLE（玩家窗口内取消/关自动）与身份不符的新炼制（排班已启动）均跳过——结算快照迟到重建不再覆盖玩家操作；createIdle 字段全取当前缓存槽（窗口内翻转的 autoRestartEnabled 不被快照值覆盖）
+- **发现2/L5 B3 补清合并单事务** — 读档收获路径 reset 与死弟子补清合并为单次 `updateSlotByBuildingId` 事务（原两次调用存在"IDLE+死弟子"中间态被并发排班占用窗口）；B5 式身份守卫防收获窗口内排班新炼制被 reset 打回（材料双扣防线）
+- **M3 无配方三路径语义统一** — `producePill` 删除 Pill fallback 改 `recipeId.substringBeforeLast("_")` 查模板（三路径无配方统一失败、不再有药名魔改兜底）；`producePillFromSlot` 无配方 `?: return null`；L7 `rollProductionSuccess` 对 NaN successRate 兜底 0（防损坏存档满加成）
+- **L3 空列表保守处理** — `settleProductionCompletion` 弟子表为空（读档加载时序异常/存档损坏）时保守视为弟子存在不清槽位关联——清关联会让活弟子槽位续炼中断；死弟子残留由后续结算自愈
+- **T1/T2 测试真实化（假阳性根治）** — 并发双写测试改 GatedDao 挂起桥（首个 DAO update 在 CompletableDeferred 上挂起制造 reset 与排班真实交错：无 writeMutex 时 DAO 乱序断言失败——判别性成立）；守卫测试改调真身 `shouldResetSlotForCompletion`（原测试复制守卫表达式，生产代码改守卫测试仍绿）；补 IDLE 缓存槽不被快照重建覆盖的集成用例
+- **T3/T4 读档路径测试对齐合并事务** — 死/活弟子断言单事务 transform（死：IDLE+清关联；活：IDLE+保留关联）；新增 DomainResult.Partial（溢出转邮件）视为成功晋升用例（B4 语义：Partial 是成功路径）
+- 全模块串行测试（--max-workers=1）+ detekt + compileReleaseKotlin 通过
+
 ## [4.00.91] - 2026-08-07
 
 ### 架构债务清理（2026-08-08 D-01~D-17 十项全量实施）

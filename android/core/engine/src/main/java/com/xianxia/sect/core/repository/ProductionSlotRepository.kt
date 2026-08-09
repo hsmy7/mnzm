@@ -9,6 +9,8 @@ import com.xianxia.sect.core.model.production.SlotStateMachine
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.concurrent.withLock
 import java.util.concurrent.locks.ReentrantLock
 import javax.inject.Inject
@@ -44,6 +46,20 @@ class ProductionSlotRepository @Inject constructor(
 
     private val shardedLock = ShardedSlotLock()
     private val globalMutex = ReentrantLock()
+    /**
+     * 进程级协程写锁（2026-08-09 B5 根治 + 2026-08-09 对抗性审查 M1 扩展）：
+     * 串行化"缓存 RMW + DAO 写"整段。分片锁是 JVM 锁无法包 suspend 的 DAO 写，
+     * 原实现 DAO 写在锁外——月变 resetSlotToIdle 与 auto-restart 排班并发时
+     * DAO 乱序，缓存与数据库分叉（排班结果丢失/材料双扣）。
+     *
+     * 覆盖范围：全部"改缓存 + 写 DAO"的挂起入口（update 族 + addSlot/removeSlot/
+     * loadSlots/restoreSlots/initialize 族/syncToDatabase/clear）。仅 [initialize]
+     * 例外：同步方法 + 同步 DAO（getAllSync），只在启动单线程调用，无需协程锁。
+     *
+     * 锁序恒为 writeMutex →（globalMutex/shardedLock/JVM 锁），无反向获取，
+     * 不存在死锁；锁内 transform 均为纯 copy 表达式（无锁内二次获取）。
+     */
+    private val writeMutex = Mutex()
     private val cache = SlotCache()
     private val scope get() = scopeProvider.scope
 
@@ -85,11 +101,13 @@ class ProductionSlotRepository @Inject constructor(
 
     suspend fun loadSlots(slots: List<ProductionSlot>) {
         val sanitized = sanitizeSlots(slots)
-        globalMutex.withLock {
-            _slots.value = sanitized
-            cache.updateCache(sanitized)
+        writeMutex.withLock {
+            globalMutex.withLock {
+                _slots.value = sanitized
+                cache.updateCache(sanitized)
+            }
+            dao.insertAll(sanitized)
         }
-        dao.insertAll(sanitized)
     }
 
     fun getSlots(): List<ProductionSlot> = _slots.value
@@ -132,12 +150,12 @@ class ProductionSlotRepository @Inject constructor(
         buildingType: BuildingType,
         slotIndex: Int,
         transform: (ProductionSlot) -> ProductionSlot
-    ): Result<ProductionSlot> {
+    ): Result<ProductionSlot> = writeMutex.withLock {
         val (newSlot, result) = updateSlotInternal(buildingType, slotIndex, transform)
         if (result.isSuccess && newSlot != null) {
             dao.update(newSlot)
         }
-        return result
+        result
     }
 
     /**
@@ -183,9 +201,9 @@ class ProductionSlotRepository @Inject constructor(
         buildingId: String,
         slotIndex: Int,
         transform: (ProductionSlot) -> ProductionSlot
-    ): Result<ProductionSlot> {
+    ): Result<ProductionSlot> = writeMutex.withLock {
         val slot = getSlotByBuildingId(buildingId, slotIndex)
-            ?: return Result.failure(IllegalArgumentException("Slot not found: $buildingId[$slotIndex]"))
+            ?: return@withLock Result.failure(IllegalArgumentException("Slot not found: $buildingId[$slotIndex]"))
 
         val result = shardedLock.withLock(slot.buildingType, slotIndex) {
             val currentSlots = _slots.value.toMutableList()
@@ -216,24 +234,24 @@ class ProductionSlotRepository @Inject constructor(
         if (result.isSuccess) {
             dao.update(result.getOrThrow())
         }
-        return result
+        result
     }
 
     suspend fun updateSlotAtomic(
         buildingType: BuildingType,
         slotIndex: Int,
         transform: (ProductionSlot) -> ProductionSlot
-    ): Result<ProductionSlot> {
+    ): Result<ProductionSlot> = writeMutex.withLock {
         val (newSlot, result) = updateSlotInternal(buildingType, slotIndex, transform)
         if (result.isSuccess && newSlot != null) {
             dao.update(newSlot)
         }
-        return result
+        result
     }
 
     @Suppress("TooGenericExceptionCaught") // DAO 写入失败需全类兜底回滚（参照 ProductionCoordinator 先例），CancellationException 已先行重抛
-    suspend fun batchUpdate(updates: List<SlotUpdate>): Result<List<ProductionSlot>> {
-        if (updates.isEmpty()) return Result.success(emptyList())
+    suspend fun batchUpdate(updates: List<SlotUpdate>): Result<List<ProductionSlot>> = writeMutex.withLock {
+        if (updates.isEmpty()) return@withLock Result.success(emptyList())
 
         // 回滚基准：DAO 写失败时恢复内存（对抗性审查发现 2 修复）。
         // 批量版是"全有或全无"语义（单次 updateAll），失败必须整体回滚内存，
@@ -287,10 +305,10 @@ class ProductionSlotRepository @Inject constructor(
         }
 
         DomainLog.d(TAG, "Batch updated ${updatedSlots.size} slots")
-        return Result.success(updatedSlots)
+        Result.success(updatedSlots)
     }
 
-    suspend fun addSlot(slot: ProductionSlot): Result<ProductionSlot> {
+    suspend fun addSlot(slot: ProductionSlot): Result<ProductionSlot> = writeMutex.withLock {
         val result = globalMutex.withLock {
             val currentSlots = _slots.value.toMutableList()
 
@@ -308,16 +326,15 @@ class ProductionSlotRepository @Inject constructor(
             DomainLog.d(TAG, "Added slot: ${slot.buildingType.name}[${slot.slotIndex}]")
             Result.success(slot)
         }
-
         if (result.isSuccess) {
             dao.insert(slot)
         }
-        return result
+        result
     }
 
-    suspend fun removeSlot(slotId: String): Result<Boolean> {
+    suspend fun removeSlot(slotId: String): Result<Boolean> = writeMutex.withLock {
         val slot = getSlotById(slotId)
-            ?: return Result.failure(IllegalArgumentException("Slot not found: $slotId"))
+            ?: return@withLock Result.failure(IllegalArgumentException("Slot not found: $slotId"))
 
         val removed = globalMutex.withLock {
             val currentSlots = _slots.value.toMutableList()
@@ -332,88 +349,96 @@ class ProductionSlotRepository @Inject constructor(
         }
 
         if (removed == null) {
-            return Result.failure(IllegalArgumentException("Slot not found: $slotId"))
+            return@withLock Result.failure(IllegalArgumentException("Slot not found: $slotId"))
         }
 
         dao.deleteById(slotId)
 
         DomainLog.d(TAG, "Removed slot: ${removed.buildingType.name}[${removed.slotIndex}]")
-        return Result.success(true)
+        Result.success(true)
     }
 
     suspend fun initializeAllSlots(slotId: Int) {
-        val allSlots = globalMutex.withLock {
-            val slots = mutableListOf<ProductionSlot>()
-            BuildingType.entries.forEach { buildingType ->
-                if (buildingType == BuildingType.ALCHEMY || buildingType == BuildingType.FORGE) return@forEach
-                val slotCount = configService.getSlotCountByType(buildingType)
-                (0 until slotCount).forEach { idx ->
-                    slots.add(ProductionSlot.createIdle(
-                        slotIndex = idx,
-                        buildingType = buildingType,
-                        buildingId = getBuildingIdForType(buildingType)
-                    ).copy(slotId = slotId))
+        writeMutex.withLock {
+            val allSlots = globalMutex.withLock {
+                val slots = mutableListOf<ProductionSlot>()
+                BuildingType.entries.forEach { buildingType ->
+                    if (buildingType == BuildingType.ALCHEMY || buildingType == BuildingType.FORGE) return@forEach
+                    val slotCount = configService.getSlotCountByType(buildingType)
+                    (0 until slotCount).forEach { idx ->
+                        slots.add(ProductionSlot.createIdle(
+                            slotIndex = idx,
+                            buildingType = buildingType,
+                            buildingId = getBuildingIdForType(buildingType)
+                        ).copy(slotId = slotId))
+                    }
                 }
-            }
 
-            _slots.value = slots
-            cache.updateCache(slots)
-            DomainLog.d(TAG, "Initialized ${slots.size} slots for all buildings")
-            slots
+                _slots.value = slots
+                cache.updateCache(slots)
+                DomainLog.d(TAG, "Initialized ${slots.size} slots for all buildings")
+                slots
+            }
+            dao.deleteBySlot(slotId)
+            dao.insertAll(allSlots)
         }
-        dao.deleteBySlot(slotId)
-        dao.insertAll(allSlots)
     }
 
     suspend fun initializeSlotsForType(buildingType: BuildingType, slotId: Int) {
         if (buildingType == BuildingType.ALCHEMY || buildingType == BuildingType.FORGE) return
-        val newSlots = globalMutex.withLock {
-            val slotCount = configService.getSlotCountByType(buildingType)
-            val slots = (0 until slotCount).map { idx ->
-                ProductionSlot.createIdle(
-                    slotIndex = idx,
-                    buildingType = buildingType,
-                    buildingId = getBuildingIdForType(buildingType)
-                ).copy(slotId = slotId)
+        writeMutex.withLock {
+            val newSlots = globalMutex.withLock {
+                val slotCount = configService.getSlotCountByType(buildingType)
+                val slots = (0 until slotCount).map { idx ->
+                    ProductionSlot.createIdle(
+                        slotIndex = idx,
+                        buildingType = buildingType,
+                        buildingId = getBuildingIdForType(buildingType)
+                    ).copy(slotId = slotId)
+                }
+
+                val currentSlots = _slots.value.filter { it.buildingType != buildingType }
+                val allSlots = currentSlots + slots
+
+                _slots.value = allSlots
+                cache.updateCache(allSlots)
+                DomainLog.d(TAG, "Initialized $slotCount slots for ${buildingType.name} in slotId=$slotId")
+                slots
             }
-
-            val currentSlots = _slots.value.filter { it.buildingType != buildingType }
-            val allSlots = currentSlots + slots
-
-            _slots.value = allSlots
-            cache.updateCache(allSlots)
-            DomainLog.d(TAG, "Initialized $slotCount slots for ${buildingType.name} in slotId=$slotId")
-            slots
+            dao.deleteBySlotAndBuildingType(slotId, buildingType)
+            dao.insertAll(newSlots)
         }
-        dao.deleteBySlotAndBuildingType(slotId, buildingType)
-        dao.insertAll(newSlots)
     }
 
     suspend fun syncToDatabase() {
         val currentSlots = globalMutex.withLock {
             _slots.value.also { DomainLog.d(TAG, "Syncing ${it.size} slots to database") }
         }
-        dao.updateAll(currentSlots)
+        writeMutex.withLock { dao.updateAll(currentSlots) }
     }
 
     suspend fun clear(slotId: Int) {
-        globalMutex.withLock {
-            _slots.value = emptyList()
-            cache.invalidate()
+        writeMutex.withLock {
+            globalMutex.withLock {
+                _slots.value = emptyList()
+                cache.invalidate()
+            }
+            dao.deleteBySlot(slotId)
+            DomainLog.d(TAG, "Cleared all slots for slotId=$slotId")
         }
-        dao.deleteBySlot(slotId)
-        DomainLog.d(TAG, "Cleared all slots for slotId=$slotId")
     }
 
     suspend fun restoreSlots(slots: List<ProductionSlot>, slotId: Int) {
         val sanitized = sanitizeSlots(slots)
-        globalMutex.withLock {
-            _slots.value = sanitized
-            cache.updateCache(sanitized)
+        writeMutex.withLock {
+            globalMutex.withLock {
+                _slots.value = sanitized
+                cache.updateCache(sanitized)
+            }
+            dao.deleteBySlot(slotId)
+            dao.insertAll(sanitized)
+            DomainLog.d(TAG, "Restored ${sanitized.size} slots from save data for slotId=$slotId")
         }
-        dao.deleteBySlot(slotId)
-        dao.insertAll(sanitized)
-        DomainLog.d(TAG, "Restored ${sanitized.size} slots from save data for slotId=$slotId")
     }
 
     fun getStatistics(): SlotCacheStatistics {
