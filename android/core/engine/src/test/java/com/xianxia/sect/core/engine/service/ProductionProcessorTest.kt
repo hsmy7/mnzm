@@ -7,9 +7,11 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.DirectDiscipleSlot
 import com.xianxia.sect.core.model.ElderSlots
+import com.xianxia.sect.core.model.EquipmentStack
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.Herb
+import com.xianxia.sect.core.model.Pill
 import com.xianxia.sect.core.model.SectPolicies
 import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.SkillStats
@@ -19,6 +21,7 @@ import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
 import com.xianxia.sect.core.registry.HerbDatabase
+import com.xianxia.sect.core.registry.PillRecipeDatabase
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
@@ -31,6 +34,8 @@ import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.domain.building.HerbGardenAuraService
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.engine.di.IoDispatcher
+import com.xianxia.sect.core.util.BuildingNames
+import com.xianxia.sect.core.util.DomainResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
@@ -1441,5 +1446,197 @@ class ProductionProcessorTest {
         assertEquals("repo 回写失败 → 镜像应回滚为空", null, gdSlot?.assignedDiscipleId)
         val repoSlot = procRepo.getSlotByIndex(BuildingType.ALCHEMY, 0)
         assertEquals("repo 不应有该槽", null, repoSlot)
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // completeForgeSlot / completeAlchemySlot — 真实成功率判定 + 职业晋升
+    // （2026-08-09 职业系统；RNG 用真实 GameRngManager + 固定种子：
+    //  successRate=1.0 必然成功（nextDouble∈[0,1) ≤ 1.0），0.0 必然失败）
+    // ═══════════════════════════════════════════════════════════════
+
+    private fun newCompletionProcessor(
+        store: FakeAtomicStateStore,
+        repo: ProductionSlotRepository,
+        inventorySystem: InventorySystem = mock()
+    ): ProductionProcessor {
+        val scopeProvider = mock<CoroutineScopeProvider>()
+        whenever(scopeProvider.scope).thenReturn(CoroutineScope(Dispatchers.Unconfined))
+        val rngManager = GameRngManager()
+        rngManager.initSystemSeed(20260809L)
+        return ProductionProcessor(
+            stateStore = store,
+            inventorySystem = inventorySystem,
+            productionCoordinator = mock(),
+            productionSlotRepository = repo,
+            formulaService = mock(),
+            rngManager = rngManager,
+            scopeProvider = scopeProvider,
+            ioDispatcher = IoDispatcher(Dispatchers.Unconfined),
+            inventoryConfig = mock<com.xianxia.sect.core.config.InventoryConfig>()
+        )
+    }
+
+    /** 构造带一个弟子的 Fake store（列式写入 DiscipleTables） */
+    private fun newStoreWithDisciple(
+        forgeLevel: Int = 0,
+        forgePromotionCount: Int = 0,
+        alchemyLevel: Int = 0,
+        alchemyPromotionCount: Int = 0,
+        isAlive: Int = 1
+    ): FakeAtomicStateStore {
+        val store = FakeAtomicStateStore()
+        store.update {
+            discipleTables.writeAllowed = true
+            discipleTables.addId(1)
+            discipleTables.names[1] = "弟子一"
+            discipleTables.statuses[1] = DiscipleStatus.IDLE
+            discipleTables.isAlive[1] = isAlive
+            discipleTables.realms[1] = 9
+            discipleTables.realmLayers[1] = 1
+            discipleTables.portraitRes[1] = "portrait_1"
+            discipleTables.pillRefinings[1] = 50
+            discipleTables.artifactRefinings[1] = 50
+            discipleTables.forgeLevels[1] = forgeLevel
+            discipleTables.forgePromotionCounts[1] = forgePromotionCount
+            discipleTables.alchemyLevels[1] = alchemyLevel
+            discipleTables.alchemyPromotionCounts[1] = alchemyPromotionCount
+            discipleTables.writeAllowed = false
+        }
+        return store
+    }
+
+    /** 构造已到完成期的锻造槽位（duration=0 → isSlotCompleteDynamic 立即完成） */
+    private fun forgeCompletedSlot(
+        recipeId: String = "ironSword",
+        successRate: Double = 1.0,
+        discipleId: String? = "1"
+    ) = ProductionSlot(
+        id = "forge_0", slotIndex = 0, buildingType = BuildingType.FORGE,
+        buildingId = BuildingNames.FORGE, status = ProductionSlotStatus.WORKING,
+        recipeId = recipeId, assignedDiscipleId = discipleId, assignedDiscipleName = "弟子一",
+        duration = 0, successRate = successRate
+    )
+
+    @Test
+    fun `completeForgeSlot - 满成功率成功产出装备并晋升一级`() = runTest {
+        val store = newStoreWithDisciple()
+        val inv = mock<InventorySystem>()
+        val equipment = EquipmentStack(name = "精铁剑", rarity = 1)
+        whenever(inv.createEquipmentFromRecipe(any())).thenReturn(equipment)
+        whenever(inv.addEquipmentStack(any())).thenReturn(DomainResult.Success(equipment))
+        // mock 的 withTrackingSource 默认不执行块内 lambda 且返回 null → 需 stub 透传执行
+        whenever(inv.withTrackingSource<Any>(any(), any())).thenAnswer { invocation ->
+            @Suppress("UNCHECKED_CAST")
+            (invocation.getArgument(1) as () -> Any)()
+        }
+        val repo = mock<ProductionSlotRepository>()
+        whenever(repo.getSlotsByBuildingId(BuildingNames.FORGE)).thenReturn(listOf(forgeCompletedSlot()))
+        val processor = newCompletionProcessor(store, repo, inv)
+
+        processor.processBuildingProduction(1, 1)
+
+        val disciple = store.persistentDiscipleTables.assembleAll().first()
+        assertEquals("成功锻造一次应晋升一级", 1, disciple.skills.forgeLevel)
+        assertEquals("晋升后计数清零", 0, disciple.skills.forgePromotionCount)
+        assertEquals("弟子应回到空闲", DiscipleStatus.IDLE, disciple.status)
+        verify(inv).addEquipmentStack(any())
+        assertEquals("计数器照常+1", 1L, store.latestGameData.guideCounters[GuideCounterKeys.FORGE_COMPLETED])
+    }
+
+    @Test
+    fun `completeForgeSlot - 零成功率失败不产出不晋升但计数照常`() = runTest {
+        val store = newStoreWithDisciple()
+        val inv = mock<InventorySystem>()
+        val repo = mock<ProductionSlotRepository>()
+        whenever(repo.getSlotsByBuildingId(BuildingNames.FORGE))
+            .thenReturn(listOf(forgeCompletedSlot(successRate = 0.0)))
+        val processor = newCompletionProcessor(store, repo, inv)
+
+        processor.processBuildingProduction(1, 1)
+
+        val disciple = store.persistentDiscipleTables.assembleAll().first()
+        assertEquals("失败不应晋升", 0, disciple.skills.forgeLevel)
+        assertEquals("失败不累计晋升次数", 0, disciple.skills.forgePromotionCount)
+        assertEquals("弟子仍回空闲", DiscipleStatus.IDLE, disciple.status)
+        verify(inv, never()).addEquipmentStack(any())
+        assertEquals("失败也计入完成次数", 1L, store.latestGameData.guideCounters[GuideCounterKeys.FORGE_COMPLETED])
+    }
+
+    @Test
+    fun `completeForgeSlot - 炼制中死亡弟子不结算晋升`() = runTest {
+        val store = newStoreWithDisciple(isAlive = 0)
+        val inv = mock<InventorySystem>()
+        whenever(inv.createEquipmentFromRecipe(any()))
+            .thenReturn(EquipmentStack(name = "精铁剑", rarity = 1))
+        whenever(inv.addEquipmentStack(any()))
+            .thenReturn(DomainResult.Success(EquipmentStack(name = "精铁剑", rarity = 1)))
+        whenever(inv.withTrackingSource<Any>(any(), any())).thenAnswer { invocation ->
+            @Suppress("UNCHECKED_CAST")
+            (invocation.getArgument(1) as () -> Any)()
+        }
+        val repo = mock<ProductionSlotRepository>()
+        whenever(repo.getSlotsByBuildingId(BuildingNames.FORGE)).thenReturn(listOf(forgeCompletedSlot()))
+        val processor = newCompletionProcessor(store, repo, inv)
+
+        processor.processBuildingProduction(1, 1)
+
+        val disciple = store.persistentDiscipleTables.assembleAll().first()
+        assertEquals("死亡弟子不晋升", 0, disciple.skills.forgeLevel)
+    }
+
+    @Test
+    fun `completeAlchemySlot - 炼丹成功晋升炼丹师`() = runTest {
+        val store = newStoreWithDisciple()
+        val inv = mock<InventorySystem>()
+        whenever(inv.addPill(any())).thenReturn(DomainResult.Success(mock<Pill>()))
+        whenever(inv.withTrackingSource<Any>(any(), any())).thenAnswer { invocation ->
+            @Suppress("UNCHECKED_CAST")
+            (invocation.getArgument(1) as () -> Any)()
+        }
+        val tier1Pill = PillRecipeDatabase.getAllRecipes().first { it.tier == 1 }
+        val repo = mock<ProductionSlotRepository>()
+        val slot = ProductionSlot(
+            id = "alchemy_0", slotIndex = 0, buildingType = BuildingType.ALCHEMY,
+            buildingId = BuildingNames.ALCHEMY, status = ProductionSlotStatus.WORKING,
+            recipeId = tier1Pill.id, assignedDiscipleId = "1", assignedDiscipleName = "弟子一",
+            duration = 0, successRate = 1.0
+        )
+        whenever(repo.getSlotsByType(BuildingType.ALCHEMY)).thenReturn(listOf(slot))
+        val processor = newCompletionProcessor(store, repo, inv)
+
+        processor.processBuildingProduction(1, 1)
+
+        val disciple = store.persistentDiscipleTables.assembleAll().first()
+        assertEquals("成功炼丹一次应晋升一级", 1, disciple.skills.alchemyLevel)
+        assertEquals("炼丹职业不影响锻造职业", 0, disciple.skills.forgeLevel)
+        verify(inv).addPill(any())
+    }
+
+    @Test
+    fun `completeAlchemySlot - 高等级弟子炼低阶丹药不重复晋升`() = runTest {
+        // level 1 弟子炼 tier 1 凡品（低于当前解锁最高阶 tier 2）→ 不计数不晋升
+        val store = newStoreWithDisciple(alchemyLevel = 1, alchemyPromotionCount = 199)
+        val inv = mock<InventorySystem>()
+        whenever(inv.addPill(any())).thenReturn(DomainResult.Success(mock<Pill>()))
+        whenever(inv.withTrackingSource<Any>(any(), any())).thenAnswer { invocation ->
+            @Suppress("UNCHECKED_CAST")
+            (invocation.getArgument(1) as () -> Any)()
+        }
+        val tier1Pill = PillRecipeDatabase.getAllRecipes().first { it.tier == 1 }
+        val repo = mock<ProductionSlotRepository>()
+        val slot = ProductionSlot(
+            id = "alchemy_0", slotIndex = 0, buildingType = BuildingType.ALCHEMY,
+            buildingId = BuildingNames.ALCHEMY, status = ProductionSlotStatus.WORKING,
+            recipeId = tier1Pill.id, assignedDiscipleId = "1", assignedDiscipleName = "弟子一",
+            duration = 0, successRate = 1.0
+        )
+        whenever(repo.getSlotsByType(BuildingType.ALCHEMY)).thenReturn(listOf(slot))
+        val processor = newCompletionProcessor(store, repo, inv)
+
+        processor.processBuildingProduction(1, 1)
+
+        val disciple = store.persistentDiscipleTables.assembleAll().first()
+        assertEquals("低阶不充数不晋升", 1, disciple.skills.alchemyLevel)
+        assertEquals("低阶不计入晋升次数", 199, disciple.skills.alchemyPromotionCount)
     }
 }

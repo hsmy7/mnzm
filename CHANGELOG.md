@@ -98,6 +98,18 @@
 - **兼容性** — 纯引擎手势层修复，无 Entity/Migration/Room schema 变更（DATABASE_VERSION 不变），存档完全兼容
 - 全模块 compileReleaseKotlin + 串行全量测试（--max-workers=1）+ detekt 通过
 
+### 新增（2026-08-09 炼丹师/炼器师职业系统——成功炼制晋升 + 品阶门禁 + 真实成功率）
+
+- **职业与晋升** — 弟子在炼丹/锻造槽位成功炼制后晋升职业（成功一次 0→1 级）；职业等级决定可炼制品阶上限（level N → tier ≤ N+1，无职业可炼凡品）；晋升三重门槛 = 境界 `[9,7,6,5,3]`（4→5 顶级要求合体 realm 3）+ 成功次数 `[1,200,500,800,800]`（仅计当前解锁最高阶、低阶不充数，level 5 封顶不再计数）+ 炼丹/锻造属性 `[40,55,70,90,110]`（上限 110）；晋升计数防 Int 溢出（`coerceAtMost(Int.MAX_VALUE-1)+1`，对抗性审查）；职业随弟子死亡自动消失（组件表清除）
+- **成功率重构（乘区法，初始 0）** — 配方不再提供基础成功率：`baseProb = clamp01(baseRate + skillZone + professionZone)`，`final = baseProb × (1 + realmZone + talentZone + policyZone + elderZone)`；skillZone = `(skill-30).coerceAtLeast(0)×0.006` clamp ≤0.50（**Long 运算防 Int.MIN_VALUE 减法溢出为满加成**），professionZone = `(maxCraftableTier(level)-recipeTier).coerceAtLeast(0)×0.20`（五品炼凡品光职业即 100%）；锻造从原 100% 改为真实 RNG 判定（成功才产出，失败材料不退还、计数照常）；保留既有政策 +10%/天赋/长老乘区
+- **结算收敛（读档路径补齐）** — 新建共享结算扩展 `ProductionSettlement.kt`（`settleProductionCompletion`/`settleDiscipleProduction`/`recordPromotionEvent`）：手动月变路径（ProductionProcessor）与读档/惰性收获路径（BuildingService autoCollect）统一入口——此前读档收获只回 IDLE 不晋升不计数（正常玩家读档即丢一次晋升计数）；配方无效（数据损坏）recipeTier 兜底 0 不结算晋升（防无职业弟子白得晋升）
+- **双结算修复（对抗性审查发现）** — ForgeSystem 移除 `processBuildingProduction` 调用（原 AlchemySystem/ForgeSystem 每月各结算一次 → 双 RNG 消耗/双产出/双晋升计数），锻造排班仅走 `processAutoForge`，结算统一由 AlchemySystem 触发
+- **职业门禁（引擎层反绕过）** — `startAlchemy`/`startForging` 配方查表后按槽位弟子职业拦截越阶（`RecipeTierLocked`，材料未扣）；自动路径（processAuto/影子 batch/续炼）配方选取按弟子 maxTier 过滤（查不到弟子按无职业兜底 tier 1，禁止放开到最高阶）
+- **UI** — 炼丹/锻造槽位外部上方显示职业名（12dp，颜色 0白/1绿/2蓝/3紫/4橙/5红）；配方点击校验：槽位无弟子 → "需要有弟子才可炼制/锻造"、职业不够 → "弟子职业等级不够无法炼制/锻造"（BaseViewModel 提示事件，不开始炼制）；toggleAuto 立即开始失败补 `Log.w`（等待月变重试）
+- **数据层** — SkillStats +4 字段（alchemyLevel/alchemyPromotionCount/forgeLevel/forgePromotionCount）；DiscipleSerializer `@ProtoNumber(106-109)`（旧档缺省 0 = 无职业，云存档经同一 Serializer 自动兼容）；Room `MIGRATION_43_44` 两表各 +4 列 DEFAULT 0；DiscipleTables 5 处同步（组件表/columnGroupByIndex/buildCopyableRefs/writeAllFields/assembleSkills）；DiscipleAggregate/DiscipleAttributes 往返同步防职业丢失
+- **读档回滚完整性修复（途中发现）** — `GameStateStoreImpl.loadFromSnapshot` 的 LoadBaseline.disciples 改用 `_discipleTables.assembleAll()` 同步组装替代 `_disciplesFlow.value`（flow 由 assembleDispatcher 异步发布、滞后于 update{} 提交，立即读档时 baseline 可能捕获空列表 → 读档失败回滚重建出空弟子列表 = **读档失败即丢全部弟子**；GameStateStoreRollbackTest 全量偶发失败根因）
+- **测试** — 新增 ProfessionRulesTest（晋升表/门禁/溢出）、FormulaServicePureLogicTest +6 极值（Int.MIN/MAX、null 弟子、默认 50、五品炼凡品 100%、锻造侧）、BuildingServiceLoadPathTest 6 条（读档炼丹成功晋升/失败不晋升计数照常/无效配方/锻造成功产出/失败不产出/双结算单次化）、BuildingServiceProfessionGateTest（越阶拒绝/材料未扣）、DiscipleSerializerProfessionTest（round-trip/旧档缺省）、AlchemyViewModelProfessionHintTest（提示框三态）、RoomMigrationTest +43_44；全模块串行测试（--max-workers=1）+ detekt + compileReleaseKotlin 通过
+
 ## [4.00.91] - 2026-08-07
 
 ### 架构债务清理（2026-08-08 D-01~D-17 十项全量实施）

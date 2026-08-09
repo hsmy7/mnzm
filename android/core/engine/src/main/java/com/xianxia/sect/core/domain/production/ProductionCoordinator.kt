@@ -146,7 +146,7 @@ class ProductionCoordinator @Inject constructor(
         currentMonth: Int,
         herbs: List<Herb>,
         buildingId: String = "alchemy",
-        alchemyPolicyBonus: Double = 0.0
+        successRate: Double = 0.0
     ): DomainResult<ProductionStartData> {
         DomainLog.d(TAG, "Starting alchemy: $buildingId[$slotIndex] recipe=$recipeId")
 
@@ -181,7 +181,7 @@ class ProductionCoordinator @Inject constructor(
             currentMonth = currentMonth,
             discipleId = currentSlot?.assignedDiscipleId,
             discipleName = currentSlot?.assignedDiscipleName ?: "",
-            successRate = recipe.successRate + alchemyPolicyBonus,
+            successRate = successRate,
             materials = recipe.materials,
             availableMaterials = availableMaterials,
             outputItemId = recipe.id,
@@ -249,7 +249,7 @@ class ProductionCoordinator @Inject constructor(
         currentMonth: Int,
         materials: List<Material>,
         buildingId: String = "forge",
-        forgePolicyBonus: Double = 0.0
+        successRate: Double = 0.0
     ): DomainResult<ProductionStartData> {
         DomainLog.d(TAG, "Starting forging: $buildingId[$slotIndex] recipe=$recipeId")
 
@@ -281,7 +281,7 @@ class ProductionCoordinator @Inject constructor(
             currentMonth = currentMonth,
             discipleId = currentSlot?.assignedDiscipleId,
             discipleName = currentSlot?.assignedDiscipleName ?: "",
-            successRate = recipe.successRate + forgePolicyBonus,
+            successRate = successRate,
             materials = recipe.materials,
             availableMaterials = availableMaterials,
             outputItemId = recipe.id,

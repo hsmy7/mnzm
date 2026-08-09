@@ -298,6 +298,10 @@ class DiscipleTables {
     val moralities = IntComponentTable()
     val salaryPaidCounts = IntComponentTable()
     val salaryMissedCounts = IntComponentTable()
+    val alchemyLevels = IntComponentTable()              // id → 炼丹师职业等级（0=无职业）
+    val alchemyPromotionCounts = IntComponentTable()     // id → 当前解锁最高阶成功炼制次数
+    val forgeLevels = IntComponentTable()                // id → 炼器师职业等级（0=无职业）
+    val forgePromotionCounts = IntComponentTable()       // id → 当前解锁最高阶成功锻造次数
 
     // === 使用追踪 ===
     val usedFunctionalPillTypes = ComponentTable<List<String>>()
@@ -571,6 +575,10 @@ class DiscipleTables {
             "moralities" to AssembleGroup.SKILLS,
             "salaryPaidCounts" to AssembleGroup.SKILLS,
             "salaryMissedCounts" to AssembleGroup.SKILLS,
+            "alchemyLevels" to AssembleGroup.SKILLS,
+            "alchemyPromotionCounts" to AssembleGroup.SKILLS,
+            "forgeLevels" to AssembleGroup.SKILLS,
+            "forgePromotionCounts" to AssembleGroup.SKILLS,
             // assembleUsage 读取列
             "usedFunctionalPillTypes" to AssembleGroup.USAGE,
             "usedExtendLifePillIds" to AssembleGroup.USAGE,
@@ -652,6 +660,10 @@ class DiscipleTables {
         IntTableRef(moralities, DiscipleTables::moralities, "moralities"),
         IntTableRef(salaryPaidCounts, DiscipleTables::salaryPaidCounts, "salaryPaidCounts"),
         IntTableRef(salaryMissedCounts, DiscipleTables::salaryMissedCounts, "salaryMissedCounts"),
+        IntTableRef(alchemyLevels, DiscipleTables::alchemyLevels, "alchemyLevels"),
+        IntTableRef(alchemyPromotionCounts, DiscipleTables::alchemyPromotionCounts, "alchemyPromotionCounts"),
+        IntTableRef(forgeLevels, DiscipleTables::forgeLevels, "forgeLevels"),
+        IntTableRef(forgePromotionCounts, DiscipleTables::forgePromotionCounts, "forgePromotionCounts"),
         IntTableRef(recruitedMonths, DiscipleTables::recruitedMonths, "recruitedMonths"),
         IntTableRef(lastTheftJudgementYears, DiscipleTables::lastTheftJudgementYears, "lastTheftJudgementYears"),
         IntTableRef(hasReviveEffects, DiscipleTables::hasReviveEffects, "hasReviveEffects"),
@@ -944,6 +956,8 @@ class DiscipleTables {
         spiritPlantings[id] = sk.spiritPlanting; minings[id] = sk.mining
         teachings[id] = sk.teaching; moralities[id] = sk.morality
         salaryPaidCounts[id] = sk.salaryPaidCount; salaryMissedCounts[id] = sk.salaryMissedCount
+        alchemyLevels[id] = sk.alchemyLevel; alchemyPromotionCounts[id] = sk.alchemyPromotionCount
+        forgeLevels[id] = sk.forgeLevel; forgePromotionCounts[id] = sk.forgePromotionCount
 
         // 使用追踪
         val u = disciple.usage
@@ -1110,7 +1124,11 @@ class DiscipleTables {
         mining = minings.getOrDefault(id, 0), teaching = teachings.getOrDefault(id, 0),
         morality = moralities.getOrDefault(id, 0),
         salaryPaidCount = salaryPaidCounts.getOrDefault(id, 0),
-        salaryMissedCount = salaryMissedCounts.getOrDefault(id, 0)
+        salaryMissedCount = salaryMissedCounts.getOrDefault(id, 0),
+        alchemyLevel = alchemyLevels.getOrDefault(id, 0),
+        alchemyPromotionCount = alchemyPromotionCounts.getOrDefault(id, 0),
+        forgeLevel = forgeLevels.getOrDefault(id, 0),
+        forgePromotionCount = forgePromotionCounts.getOrDefault(id, 0)
     )
 
     private fun assembleUsage(id: Int) = UsageTracking(

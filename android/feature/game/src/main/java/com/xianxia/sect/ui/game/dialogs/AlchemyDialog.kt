@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.watchKey
 import com.xianxia.sect.core.registry.PillRecipeDatabase
+import com.xianxia.sect.core.profession.ProfessionRules
 import com.xianxia.sect.core.model.AlchemySlot
 import com.xianxia.sect.core.model.AlchemySlotStatus
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -123,6 +124,8 @@ fun AlchemyDialog(
                         )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
+                    ProfessionLabel(level = workerDisciple?.alchemyLevel ?: 0, isAlchemy = true)
+                    Spacer(modifier = Modifier.height(2.dp))
                     DiscipleSlot(
                         disciple = workerDisciple,
                         showActions = true,
@@ -261,8 +264,8 @@ fun AlchemyDialog(
                 materials = materials,
                 herbs = herbs,
                 slotIndex = slotIdx,
+                workerDisciple = workerDisciple,
                 viewModel = viewModel,
-                productionViewModel = productionViewModel,
                 alchemyViewModel = alchemyViewModel,
                 onDismiss = {
                     showPillSelection = false
@@ -279,13 +282,30 @@ fun AlchemyDialog(
 
 }
 
+/** 点击炼丹配方：无弟子/职业等级不够弹提示，否则切换选中状态 */
+private fun handlePillRecipeClick(
+    recipe: PillRecipeDatabase.PillRecipe,
+    workerDisciple: DiscipleAggregate?,
+    alchemyViewModel: AlchemyViewModel,
+    isSelected: Boolean,
+    onSelectionChange: (PillRecipeDatabase.PillRecipe?) -> Unit
+) {
+    val workerLevel = workerDisciple?.alchemyLevel ?: 0
+    when {
+        workerDisciple == null -> alchemyViewModel.showNoWorkerHint()
+        !ProfessionRules.canCraftTier(workerLevel, recipe.tier) -> alchemyViewModel.showTierLockedHint()
+        isSelected -> onSelectionChange(null)
+        else -> onSelectionChange(recipe)
+    }
+}
+
 @Composable
 private fun PillSelectionDialog(
     materials: List<Material>,
     herbs: List<Herb>,
     slotIndex: Int,
+    workerDisciple: DiscipleAggregate?,
     viewModel: GameViewModel,
-    productionViewModel: ProductionViewModel,
     alchemyViewModel: AlchemyViewModel,
     onDismiss: () -> Unit,
     onConfirmOverride: ((PillRecipeDatabase.PillRecipe) -> Unit)? = null
@@ -369,13 +389,17 @@ private fun PillSelectionDialog(
                             craftable = hasEnoughMaterials,
                             showQuantity = false,
                             onClick = {
-                                if (selectedRecipe?.id == recipe.id) {
-                                    selectedRecipe = null
-                                    clickedRecipe = null
-                                } else {
-                                    selectedRecipe = recipe
-                                    clickedRecipe = recipe
-                                }
+                                // 职业门禁提示框：无弟子/职业等级不够时点击配方不选中，弹提示
+                                handlePillRecipeClick(
+                                    recipe = recipe,
+                                    workerDisciple = workerDisciple,
+                                    alchemyViewModel = alchemyViewModel,
+                                    isSelected = selectedRecipe?.id == recipe.id,
+                                    onSelectionChange = {
+                                        selectedRecipe = it
+                                        clickedRecipe = it
+                                    }
+                                )
                             },
                             onLongPress = { clickedRecipe = recipe; showDetail = true }
                         )

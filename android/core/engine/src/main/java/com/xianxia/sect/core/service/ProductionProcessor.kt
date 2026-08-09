@@ -29,6 +29,7 @@ import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.StackKeys
 import com.xianxia.sect.core.state.StackableItemStore
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.profession.ProfessionRules
 import com.xianxia.sect.core.registry.BeastMaterialDatabase
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
@@ -116,89 +117,87 @@ class ProductionProcessor @Inject constructor(
         }
     }
 
+    /**
+     * 炼制成功判定：真实成功率（RngPartition.SYSTEM 分区 RNG，手动/影子路径同源）。
+     * successRate 先钳制到 [0,1]（对抗性审查：存档篡改/旧数据可能越界）。
+     */
+    private fun rollProductionSuccess(slot: ProductionSlot): Boolean =
+        rngManager.getRng(RngPartition.SYSTEM).nextDouble() <= slot.successRate.coerceIn(0.0, 1.0)
+
+    /**
+     * 炼丹产出：品阶 roll + 丹药入库（withTrackingSource 统一入口，来源 "alchemy"）。
+     */
+    private fun producePill(slot: ProductionSlot) {
+        val alchemyRng = rngManager.getRng(RngPartition.SYSTEM)
+        val roll = alchemyRng.nextDouble()
+        val grade = when {
+            roll < PILL_GRADE_HIGH_THRESHOLD -> PillGrade.HIGH
+            roll < PILL_GRADE_MEDIUM_THRESHOLD -> PillGrade.MEDIUM
+            else -> PillGrade.LOW
+        }
+        val template = slot.recipeId?.let { rid ->
+            val baseId = rid.substringBeforeLast("_")
+            ItemDatabase.getPillById("${baseId}_${grade.name.lowercase()}")
+        }
+        val pill = if (template != null) {
+            ItemDatabase.createPillFromTemplate(template)
+        } else {
+            Pill(
+                name = slot.outputItemName,
+                rarity = slot.outputItemRarity,
+                grade = grade,
+                category = PillCategory.CULTIVATION,
+                description = "通过炼丹炉炼制而成",
+                minRealm = GameConfig.Realm.getMinRealmForRarity(slot.outputItemRarity),
+                quantity = 1
+            )
+        }
+        val r = inventorySystem.withTrackingSource("alchemy") {
+            inventorySystem.addPill(pill)
+        }
+        when (r) {
+            is DomainResult.Success -> { /* 添加成功 */ }
+            is DomainResult.Partial -> DomainLog.w(TAG, "丹药 ${pill.name} 溢出 ${r.overflow} 个")
+            is DomainResult.Failure -> DomainLog.w(TAG, "丹药 ${pill.name} 添加失败: ${r.error}")
+        }
+    }
+
+    /**
+     * 锻造产出：装备入库（withTrackingSource 统一入口，来源 "forge"）。
+     */
+    private fun produceForgeEquipment(slot: ProductionSlot) {
+        val recipeId = slot.recipeId ?: return
+        val recipe = ForgeRecipeDatabase.getRecipeById(recipeId) ?: return
+        val equipment = inventorySystem.createEquipmentFromRecipe(recipe)
+        val r = inventorySystem.withTrackingSource("forge") {
+            inventorySystem.addEquipmentStack(equipment)
+        }
+        when (r) {
+            is DomainResult.Success -> { /* 添加成功 */ }
+            is DomainResult.Partial -> DomainLog.w(TAG, "装备 ${equipment.name} 溢出 ${r.overflow} 个")
+            is DomainResult.Failure -> DomainLog.w(TAG, "装备 ${equipment.name} 添加失败: ${r.error}")
+        }
+    }
+
     private fun completeForgeSlot(slot: ProductionSlot) {
-        val recipeId = slot.recipeId
-        if (recipeId != null) {
-            val recipe = ForgeRecipeDatabase.getRecipeById(recipeId)
-            if (recipe != null) {
-                val equipment = inventorySystem.createEquipmentFromRecipe(recipe)
-                val r = inventorySystem.withTrackingSource("forge") {
-                    inventorySystem.addEquipmentStack(equipment)
-                }
-                when (r) {
-                    is DomainResult.Success -> { /* 添加成功 */ }
-                    is DomainResult.Partial -> DomainLog.w(TAG, "装备 ${equipment.name} 溢出 ${r.overflow} 个")
-                    is DomainResult.Failure -> DomainLog.w(TAG, "装备 ${equipment.name} 添加失败: ${r.error}")
-                }
-            }
+        // 锻造真实成功率判定（2026-08-09 职业系统：锻造从 100% 产出改为概率判定，
+        // 失败不产出装备、材料不退还，成功才计入职业晋升进度）
+        val success = rollProductionSuccess(slot)
+        if (success) {
+            produceForgeEquipment(slot)
         }
         slot.assignedDiscipleId?.let { discipleId ->
-            stateStore.update {
-                val currentCount = gameData.guideCounters[GuideCounterKeys.FORGE_COMPLETED] ?: 0L
-                gameData = gameData.copy(
-                    guideCounters = gameData.guideCounters + (GuideCounterKeys.FORGE_COMPLETED to currentCount + 1),
-                    annualForgeCount = gameData.annualForgeCount + 1
-                )
-                val currentList = discipleTables.assembleAll()
-                val updated = currentList.map {
-                    if (it.id == discipleId) it.copy(status = DiscipleStatus.IDLE) else it
-                }
-                discipleTables.replaceAll(updated)
-            }
+            stateStore.settleProductionCompletion(slot, discipleId, success, isAlchemy = false)
         }
     }
 
     private fun completeAlchemySlot(slot: ProductionSlot) {
-        val alchemyRng = rngManager.getRng(RngPartition.SYSTEM)
-        val success = alchemyRng.nextDouble() <= slot.successRate
+        val success = rollProductionSuccess(slot)
         if (success) {
-            val roll = alchemyRng.nextDouble()
-            val grade = when {
-                roll < PILL_GRADE_HIGH_THRESHOLD -> PillGrade.HIGH
-                roll < PILL_GRADE_MEDIUM_THRESHOLD -> PillGrade.MEDIUM
-                else -> PillGrade.LOW
-            }
-            val template = slot.recipeId?.let { rid ->
-                val baseId = rid.substringBeforeLast("_")
-                ItemDatabase.getPillById("${baseId}_${grade.name.lowercase()}")
-            }
-            val pill = if (template != null) {
-                ItemDatabase.createPillFromTemplate(template)
-            } else {
-                Pill(
-                    name = slot.outputItemName,
-                    rarity = slot.outputItemRarity,
-                    grade = grade,
-                    category = PillCategory.CULTIVATION,
-                    description = "通过炼丹炉炼制而成",
-                    minRealm = GameConfig.Realm.getMinRealmForRarity(slot.outputItemRarity),
-                    quantity = 1
-                )
-            }
-            val r = inventorySystem.withTrackingSource("alchemy") {
-                inventorySystem.addPill(pill)
-            }
-            when (r) {
-                is DomainResult.Success -> { /* 添加成功 */ }
-                is DomainResult.Partial -> DomainLog.w(TAG, "丹药 ${pill.name} 溢出 ${r.overflow} 个")
-                is DomainResult.Failure -> DomainLog.w(TAG, "丹药 ${pill.name} 添加失败: ${r.error}")
-            }
+            producePill(slot)
         }
         slot.assignedDiscipleId?.let { discipleId ->
-            stateStore.update {
-                val currentCount = gameData.guideCounters[GuideCounterKeys.ALCHEMY_COMPLETED] ?: 0L
-                gameData = gameData.copy(
-                    guideCounters = gameData.guideCounters + (GuideCounterKeys.ALCHEMY_COMPLETED to currentCount + 1),
-                    annualAlchemyCount = gameData.annualAlchemyCount + 1
-                )
-                val currentList = discipleTables.assembleAll()
-                val updated = currentList.map {
-                    if (it.id == discipleId && it.isAlive) {
-                        it.copy(status = DiscipleStatus.IDLE)
-                    } else it
-                }
-                discipleTables.replaceAll(updated)
-            }
+            stateStore.settleProductionCompletion(slot, discipleId, success, isAlchemy = true)
         }
     }
 
@@ -538,10 +537,15 @@ class ProductionProcessor @Inject constructor(
             return
         }
 
+        // 职业门禁：按槽位弟子炼丹师职业等级限制可炼品阶（无职业只能炼凡品）
+        val worker = slot.assignedDiscipleId?.let { id -> allDisciples.find { it.id == id } }
+        val maxTier = worker?.let { ProfessionRules.maxCraftableTier(it.skills.alchemyLevel) }
+            ?: 1
+
         val recipeToStart = slot.recipeId
             ?.let { prevRecipeId ->
                 PillRecipeDatabase.getRecipeById(prevRecipeId)?.takeIf { recipe ->
-                    recipe.materials.all { (materialId, requiredQuantity) ->
+                    recipe.tier <= maxTier && recipe.materials.all { (materialId, requiredQuantity) ->
                         val herbData = HerbDatabase.getHerbById(materialId)
                             ?: return@all false
                         currentHerbs.filter {
@@ -550,7 +554,15 @@ class ProductionProcessor @Inject constructor(
                     }
                 }
             }
-            ?: PillRecipeDatabase.findBestCraftableRecipe(currentHerbs) ?: return
+            ?: PillRecipeDatabase.findBestCraftableRecipe(currentHerbs, maxTier) ?: return
+
+        // 公式化成功率（属性+职业合成基础率 × 乘区），不再用配方 successRate
+        val effectiveSuccessRate = formulaService.buildSuccessRateZones(
+            disciple = worker,
+            buildingId = BuildingNames.ALCHEMY,
+            recipeTier = recipeToStart.tier,
+            policyBonus = alchemyPolicyBonus
+        ).calculate()
 
         val result = productionCoordinator.startAlchemyAtomic(
             slotIndex = slotIndex,
@@ -559,7 +571,7 @@ class ProductionProcessor @Inject constructor(
             currentMonth = data.gameMonth,
             herbs = currentHerbs,
             buildingId = BuildingNames.ALCHEMY,
-            alchemyPolicyBonus = alchemyPolicyBonus
+            successRate = effectiveSuccessRate
         )
 
         if (result is DomainResult.Success) {
@@ -626,27 +638,21 @@ class ProductionProcessor @Inject constructor(
             return true
         }
 
-        val recipeToStart = slot.recipeId
-            ?.let { prevRecipeId ->
-                allRecipes.find { it.id == prevRecipeId }?.takeIf { recipe ->
-                    recipe.materials.all { (materialId, requiredQuantity) ->
-                        val materialData = BeastMaterialDatabase.getMaterialById(materialId)
-                        materialData != null && run {
-                            val available = materialIndex[materialData.name to materialData.rarity] ?: 0
-                            available >= requiredQuantity
-                        }
-                    }
-                }
-            }
-            ?: allRecipes.firstOrNull { recipe ->
-                recipe.materials.all { (materialId, requiredQuantity) ->
-                    val materialData = BeastMaterialDatabase.getMaterialById(materialId)
-                    materialData != null && run {
-                        val available = materialIndex[materialData.name to materialData.rarity] ?: 0
-                        available >= requiredQuantity
-                    }
-                }
-            } ?: return true
+        // 职业门禁：按槽位弟子炼器师职业等级限制可锻品阶（无职业只能锻凡品）
+        val worker = slot.assignedDiscipleId?.let { id -> allDisciples.find { it.id == id } }
+        val maxTier = worker?.let { ProfessionRules.maxCraftableTier(it.skills.forgeLevel) }
+            ?: 1
+        val craftableRecipes = allRecipes.filter { it.tier <= maxTier }
+
+        val recipeToStart = findCraftableForgeRecipe(slot, craftableRecipes, materialIndex) ?: return true
+
+        // 公式化成功率（属性+职业合成基础率 × 乘区），不再用配方 successRate
+        val effectiveSuccessRate = formulaService.buildSuccessRateZones(
+            disciple = worker,
+            buildingId = BuildingNames.FORGE,
+            recipeTier = recipeToStart.tier,
+            policyBonus = forgePolicyBonus
+        ).calculate()
 
         val result = productionCoordinator.startForgingAtomic(
             slotIndex = slotIndex,
@@ -655,7 +661,7 @@ class ProductionProcessor @Inject constructor(
             currentMonth = data.gameMonth,
             materials = currentMaterials,
             buildingId = BuildingNames.FORGE,
-            forgePolicyBonus = forgePolicyBonus
+            successRate = effectiveSuccessRate
         )
 
         if (result is DomainResult.Success) {
@@ -665,6 +671,27 @@ class ProductionProcessor @Inject constructor(
             return true
         }
         return false
+    }
+
+    /** 自动锻造配方选取：优先续炼原配方，否则取材料充足的最高阶配方（null 表示无配方） */
+    private fun findCraftableForgeRecipe(
+        slot: ProductionSlot,
+        craftableRecipes: List<ForgeRecipeDatabase.ForgeRecipe>,
+        materialIndex: Map<Pair<String, Int>, Int>
+    ): ForgeRecipeDatabase.ForgeRecipe? {
+        val prevRecipe = slot.recipeId?.let { rid ->
+            craftableRecipes.find { it.id == rid }?.takeIf { recipe -> hasMaterials(recipe, materialIndex) }
+        }
+        return prevRecipe ?: craftableRecipes.firstOrNull { recipe -> hasMaterials(recipe, materialIndex) }
+    }
+
+    /** 配方材料是否充足（按 name to rarity 聚合索引查余量） */
+    private fun hasMaterials(
+        recipe: ForgeRecipeDatabase.ForgeRecipe,
+        materialIndex: Map<Pair<String, Int>, Int>
+    ): Boolean = recipe.materials.all { (materialId, requiredQuantity) ->
+        val materialData = BeastMaterialDatabase.getMaterialById(materialId)
+        materialData != null && (materialIndex[materialData.name to materialData.rarity] ?: 0) >= requiredQuantity
     }
 
     /**
@@ -988,11 +1015,17 @@ class ProductionProcessor @Inject constructor(
 
         for (slotIndex in idleSlotIndices) {
             val currentHerbs = state.herbs.all()
-            val recipeToStart = findRecipe(currentHerbs) ?: break
             val slotIdx = slots.indexOfFirst {
                 it.buildingType == BuildingType.ALCHEMY && it.slotIndex == slotIndex
             }
             if (slotIdx < 0) continue
+
+            // 职业门禁：按槽位弟子炼丹师职业等级限制可炼品阶（无职业只能炼凡品）
+            val worker = slots[slotIdx].assignedDiscipleId
+                ?.let { id -> state.discipleTables.assembleAll().find { it.id == id } }
+            val maxTier = worker?.let { ProfessionRules.maxCraftableTier(it.skills.alchemyLevel) }
+                ?: 1
+            val recipeToStart = findRecipe(currentHerbs, maxTier) ?: break
 
             // 消耗材料
             consumeHerbsForRecipeLocal(recipeToStart.materials, currentHerbs, state)
@@ -1000,6 +1033,13 @@ class ProductionProcessor @Inject constructor(
 
             val assignedId = slots[slotIdx].assignedDiscipleId
             val assignedName = slots[slotIdx].assignedDiscipleName
+            // 公式化成功率（属性+职业合成基础率 × 乘区），不再用配方 successRate
+            val effectiveSuccessRate = formulaService.buildSuccessRateZones(
+                disciple = worker,
+                buildingId = BuildingNames.ALCHEMY,
+                recipeTier = recipeToStart.tier,
+                policyBonus = policyBonus
+            ).calculate()
             slots[slotIdx] = slots[slotIdx].copy(
                 status = ProductionSlotStatus.WORKING,
                 recipeId = recipeToStart.id,
@@ -1008,7 +1048,7 @@ class ProductionProcessor @Inject constructor(
                 startMonth = gd.gameMonth,
                 duration = recipeToStart.duration,
                 baseDuration = recipeToStart.duration,
-                successRate = (recipeToStart.successRate + policyBonus).coerceIn(0.0, 1.0),
+                successRate = effectiveSuccessRate,
                 completionMonth = absoluteMonth + recipeToStart.duration.coerceAtLeast(1),
                 completionPhase = 3,
                 outputItemId = recipeToStart.id,
@@ -1037,16 +1077,29 @@ class ProductionProcessor @Inject constructor(
             .map { it.slotIndex }
 
         for (slotIndex in idleSlotIndices) {
-            val recipeToStart = findForgeRecipe(allRecipes, materialIndex) ?: break
             val slotIdx = slots.indexOfFirst {
                 it.buildingType == BuildingType.FORGE && it.slotIndex == slotIndex
             }
             if (slotIdx < 0) continue
 
+            // 职业门禁：按槽位弟子炼器师职业等级限制可锻品阶（无职业只能锻凡品）
+            val worker = slots[slotIdx].assignedDiscipleId
+                ?.let { id -> state.discipleTables.assembleAll().find { it.id == id } }
+            val maxTier = worker?.let { ProfessionRules.maxCraftableTier(it.skills.forgeLevel) }
+                ?: 1
+            val recipeToStart = findForgeRecipe(allRecipes, materialIndex, maxTier) ?: break
+
             consumeMaterialsForRecipeLocal(recipeToStart.materials, state)
             val absoluteMonth = gd.gameYear * 12 + gd.gameMonth
             val duration = ForgeRecipeDatabase.getDurationByTier(recipeToStart.tier)
 
+            // 公式化成功率（属性+职业合成基础率 × 乘区），不再用配方 successRate
+            val effectiveSuccessRate = formulaService.buildSuccessRateZones(
+                disciple = worker,
+                buildingId = BuildingNames.FORGE,
+                recipeTier = recipeToStart.tier,
+                policyBonus = policyBonus
+            ).calculate()
             slots[slotIdx] = slots[slotIdx].copy(
                 status = ProductionSlotStatus.WORKING,
                 recipeId = recipeToStart.id,
@@ -1054,7 +1107,7 @@ class ProductionProcessor @Inject constructor(
                 startYear = gd.gameYear,
                 startMonth = gd.gameMonth,
                 duration = duration,
-                successRate = (recipeToStart.successRate + policyBonus).coerceIn(0.0, 1.0),
+                successRate = effectiveSuccessRate,
                 completionMonth = absoluteMonth + duration.coerceAtLeast(1),
                 completionPhase = 3,
                 outputItemId = recipeToStart.id,
@@ -1081,16 +1134,16 @@ class ProductionProcessor @Inject constructor(
         val month = state.gameData.gameMonth
         for (i in slots.indices) {
             val slot = slots[i]
-            if (slot.buildingType != BuildingType.FORGE) continue
-            if (slot.status != ProductionSlotStatus.WORKING) continue
-            if (!isSlotCompleteDynamic(slot, year, month)) continue
+            if (!isCompleteForgeSlot(slot, year, month)) continue
 
-            slot.recipeId?.let { rid ->
-                val recipe = ForgeRecipeDatabase.getRecipeById(rid)
-                if (recipe != null) {
-                    val equipment = InventoryFactories.createEquipmentFromRecipe(recipe)
-                    state.equipmentStacks.add(equipment)
-                }
+            // 锻造真实成功率判定（与手动路径 completeForgeSlot 一致）
+            val success = rollProductionSuccess(slot)
+            if (success) {
+                produceForgeEquipmentShadow(slot, state)
+            }
+            // 职业晋升进度（影子版直接操作 state.discipleTables）
+            slot.assignedDiscipleId?.let { discipleId ->
+                settleForgeCompletionShadow(state, slot, discipleId, success)
             }
             slots[i] = ProductionSlot.createIdle(
                 id = slot.id, slotIndex = slot.slotIndex,
@@ -1102,6 +1155,37 @@ class ProductionProcessor @Inject constructor(
                 recipeId = slot.recipeId
             )
         }
+    }
+
+    /** 完成判定：锻造槽 + WORKING + 到期待结算 */
+    private fun isCompleteForgeSlot(slot: ProductionSlot, year: Int, month: Int): Boolean =
+        slot.buildingType == BuildingType.FORGE &&
+            slot.status == ProductionSlotStatus.WORKING &&
+            isSlotCompleteDynamic(slot, year, month)
+
+    /** 影子版锻造产出（直接入 state.equipmentStacks，与手动版 withTrackingSource 路径分开） */
+    private fun produceForgeEquipmentShadow(slot: ProductionSlot, state: MutableGameState) {
+        val recipeId = slot.recipeId ?: return
+        val recipe = ForgeRecipeDatabase.getRecipeById(recipeId) ?: return
+        state.equipmentStacks.add(InventoryFactories.createEquipmentFromRecipe(recipe))
+    }
+
+    /** 影子版锻造结算：弟子回 IDLE + 职业晋升（MutableGameState 直接操作） */
+    private fun settleForgeCompletionShadow(
+        state: MutableGameState,
+        slot: ProductionSlot,
+        discipleId: String,
+        success: Boolean
+    ) {
+        // 配方无效（数据损坏）时 recipeTier=0：低阶不充数规则下不结算晋升（对抗性审查 A2）
+        val recipeTier = slot.recipeId?.let { ForgeRecipeDatabase.getRecipeById(it)?.tier } ?: 0
+        val currentList = state.discipleTables.assembleAll()
+        val updated = currentList.map {
+            if (it.id == discipleId && it.isAlive) {
+                state.settleDiscipleProduction(it, recipeTier, success, isAlchemy = false)
+            } else it
+        }
+        state.discipleTables.replaceAll(updated)
     }
 
     private fun batchAlchemyCompletion(
@@ -1117,7 +1201,7 @@ class ProductionProcessor @Inject constructor(
             if (!isSlotCompleteDynamic(slot, year, month)) continue
 
             val alchemyRng = rngManager.getRng(RngPartition.SYSTEM)
-            val success = alchemyRng.nextDouble() <= slot.successRate
+            val success = alchemyRng.nextDouble() <= slot.successRate.coerceIn(0.0, 1.0)
             if (success) {
                 val roll = alchemyRng.nextDouble()
                 val grade = when {
@@ -1137,6 +1221,18 @@ class ProductionProcessor @Inject constructor(
                     quantity = 1
                 )
                 state.pills.add(pill)
+            }
+            // 职业晋升进度（影子版直接操作 state.discipleTables，与锻造影子路径共用
+            // settleDiscipleProduction——统一"弟子回 IDLE + 晋升"语义）
+            slot.assignedDiscipleId?.let { discipleId ->
+                val recipeTier = slot.recipeId?.let { PillRecipeDatabase.getRecipeById(it)?.tier } ?: 0
+                val currentList = state.discipleTables.assembleAll()
+                val updated = currentList.map {
+                    if (it.id == discipleId && it.isAlive) {
+                        state.settleDiscipleProduction(it, recipeTier, success, isAlchemy = true)
+                    } else it
+                }
+                state.discipleTables.replaceAll(updated)
             }
             slots[i] = ProductionSlot.createIdle(
                 id = slot.id, slotIndex = slot.slotIndex,
@@ -1166,17 +1262,19 @@ class ProductionProcessor @Inject constructor(
     // ═══════════════════════════════════════════════════════════════
 
     private fun findRecipe(
-        herbs: List<Herb>
+        herbs: List<Herb>,
+        maxTier: Int = 1
     ): PillRecipeDatabase.PillRecipe? {
-        return PillRecipeDatabase.findBestCraftableRecipe(herbs)
+        return PillRecipeDatabase.findBestCraftableRecipe(herbs, maxTier)
     }
 
     private fun findForgeRecipe(
         recipes: List<ForgeRecipeDatabase.ForgeRecipe>,
-        materialIndex: Map<Pair<String, Int>, Int>
+        materialIndex: Map<Pair<String, Int>, Int>,
+        maxTier: Int = 1
     ): ForgeRecipeDatabase.ForgeRecipe? {
         return recipes.firstOrNull { recipe ->
-            recipe.materials.all { (materialId, requiredQty) ->
+            recipe.tier <= maxTier && recipe.materials.all { (materialId, requiredQty) ->
                 val matData = BeastMaterialDatabase.getMaterialById(materialId)
                 matData != null && (materialIndex[matData.name to matData.rarity] ?: 0) >= requiredQty
             }
@@ -1295,13 +1393,19 @@ class ProductionProcessor @Inject constructor(
         }
     }
 
-    /** 根据当前政策重算槽位的 successRate。从配方数据库读取基础值 + 当前政策加成。 */
+    /**
+     * 按当前政策/长老/槽位弟子状态重算槽位的 successRate。
+     *
+     * 职业系统重构后（2026-08-09）：配方 successRate 不再参与（恒 0），
+     * 基础率由工作弟子属性 + 职业等级合成，走乘区法
+     * （buildSuccessRateZones.calculate()）。
+     */
     private fun recalculateSuccessRate(data: GameData, slot: ProductionSlot): Double {
-        val baseRate = when (slot.buildingType) {
+        val recipeTier = when (slot.buildingType) {
             BuildingType.ALCHEMY ->
-                PillRecipeDatabase.getRecipeById(slot.recipeId ?: "")?.successRate
+                PillRecipeDatabase.getRecipeById(slot.recipeId ?: "")?.tier
             BuildingType.FORGE ->
-                ForgeRecipeDatabase.getRecipeById(slot.recipeId ?: "")?.successRate
+                ForgeRecipeDatabase.getRecipeById(slot.recipeId ?: "")?.tier
             else -> null
         } ?: return slot.successRate
 
@@ -1314,7 +1418,14 @@ class ProductionProcessor @Inject constructor(
                     GameConfig.PolicyConfig.FORGE_INCENTIVE_EFFECT else 0.0
             else -> 0.0
         }
-        return (baseRate + policyBonus).coerceIn(0.0, 1.0)
+        val disciple = slot.assignedDiscipleId
+            ?.let { id -> stateStore.disciples.value.find { it.id == id } }
+        return formulaService.buildSuccessRateZones(
+            disciple = disciple,
+            buildingId = slot.buildingId,
+            recipeTier = recipeTier,
+            policyBonus = policyBonus
+        ).calculate()
     }
 
     /**

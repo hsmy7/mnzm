@@ -160,7 +160,15 @@ data class SkillStats(
 
     // 年俸累计次数
     var salaryPaidCount: Int = 0,
-    var salaryMissedCount: Int = 0
+    var salaryMissedCount: Int = 0,
+
+    // 炼丹师/锻造师职业（0=无职业，1~5=炼丹师~丹圣 / 炼器师~器圣）
+    var alchemyLevel: Int = 0,
+    // 当前解锁最高阶的成功炼制次数（晋升炼丹师等级用，低阶不计数）
+    var alchemyPromotionCount: Int = 0,
+    var forgeLevel: Int = 0,
+    // 当前解锁最高阶的成功锻造次数（晋升炼器师等级用，低阶不计数）
+    var forgePromotionCount: Int = 0
 ) {
     val comprehensionSpeedBonus: Double get() = 1.0 + (comprehension - 50) * 0.02
 }

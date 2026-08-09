@@ -112,6 +112,13 @@ object ForgeRecipeDatabase {
 
     fun getAllRecipes(): List<ForgeRecipe> = allRecipes
 
+    /**
+     * 获取可炼制的配方（按品阶上限过滤，由工作弟子职业等级决定）。
+     *
+     * @param maxTier 可锻造的最高品阶上限
+     */
+    fun getCraftableRecipes(maxTier: Int): List<ForgeRecipe> = allRecipes.filter { it.tier <= maxTier }
+
     fun getRecipeById(id: String): ForgeRecipe? = allRecipes.find { it.id == id }
 
     fun getRecipesByMaterial(materialId: String): List<ForgeRecipe> = allRecipes.filter { it.materials.containsKey(materialId) }

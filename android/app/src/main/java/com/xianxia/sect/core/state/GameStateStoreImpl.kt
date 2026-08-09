@@ -1288,7 +1288,11 @@ class GameStateStoreImpl @Inject constructor(
             // 保存旧值用于失败回滚（C-8 拆分：LoadBaseline 聚合）
             val baseline = LoadBaseline(
                 gameData = _gameDataFlow.value,
-                disciples = _disciplesFlow.value,
+                // ★ 2026-08-09 修复：disciples 必须用同步组装而非 _disciplesFlow.value——
+                // flow 由 assembleDispatcher 异步发布，update{} 刚提交后立即读档时
+                // flow 可能仍是旧值/空（GameStateStoreRollbackTest 偶发失败根因），
+                // 回滚会重建出空弟子列表 → 读档失败即丢全部弟子。表状态同步可读。
+                disciples = _discipleTables.assembleAll(),
                 equipmentStacks = _equipmentStacksFlow.value,
                 equipmentInstances = _equipmentInstancesFlow.value,
                 manualStacks = _manualStacksFlow.value,

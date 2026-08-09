@@ -10,8 +10,11 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 锻造系统 — 月变时检查进度完成 + 自动锻造。
- * 打开 ForgeDialog 时由 ViewModel 额外触发惰性结算。
+ * 锻造系统 — 月变时自动锻造。
+ *
+ * 生产完成结算统一由 [AlchemySystem] 触发（双系统各自调用 processBuildingProduction
+ * 会导致每月每槽位完整结算两次——双 RNG 消耗、双产出、双晋升计数，2026-08-09 对抗性审查修复），
+ * 本系统仅负责自动锻造排班。
  */
 @Singleton
 @SystemPriority(order = 211)
@@ -25,8 +28,5 @@ class ForgeSystem @Inject constructor(
         scopeProvider.scope.launch {
             cultivationService.processAutoForge()
         }
-        cultivationService.processBuildingProduction(
-            state.gameData.gameYear, state.gameData.gameMonth
-        )
     }
 }

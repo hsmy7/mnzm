@@ -11,6 +11,7 @@ import com.xianxia.sect.core.engine.startForging
 import com.xianxia.sect.core.engine.toggleAutoRestart
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.ForgeRecipe
+import com.xianxia.sect.core.profession.ProfessionRules
 import com.xianxia.sect.core.model.ForgeSlot
 import com.xianxia.sect.core.model.ForgeSlotStatus
 import com.xianxia.sect.core.model.artifactRefining
@@ -107,9 +108,17 @@ class ForgeViewModel @Inject constructor(
             it.buildingType == BuildingType.FORGE && it.slotIndex == slotIndex
         }
 
+        // 职业门禁：按槽位弟子炼器师职业等级限制可锻品阶（无职业只能锻凡品；
+        // 弟子查不到时按无职业兜底，禁止放开到最高阶——对抗性审查）
+        val maxTier = slot?.assignedDiscipleId
+            ?.let { id -> gameEngine.discipleAggregatesSnapshot.find { it.id == id }?.forgeLevel }
+            ?.let { ProfessionRules.maxCraftableTier(it) }
+            ?: 1
+        val craftableRecipes = allRecipes.filter { it.tier <= maxTier }
+
         val recipeToStart = slot?.recipeId
             ?.let { prevRecipeId ->
-                allRecipes.find { it.id == prevRecipeId }?.takeIf { recipe ->
+                craftableRecipes.find { it.id == prevRecipeId }?.takeIf { recipe ->
                     recipe.materials.all { (materialId, requiredQuantity) ->
                         val materialData = BeastMaterialDatabase.getMaterialById(materialId)
                         materialData != null && run {
@@ -119,7 +128,7 @@ class ForgeViewModel @Inject constructor(
                     }
                 }
             }
-            ?: allRecipes.firstOrNull { recipe ->
+            ?: craftableRecipes.firstOrNull { recipe ->
                 recipe.materials.all { (materialId, requiredQuantity) ->
                     val materialData = BeastMaterialDatabase.getMaterialById(materialId)
                     materialData != null && run {
@@ -131,6 +140,16 @@ class ForgeViewModel @Inject constructor(
             ?: return DomainResult.Failure(AppError.Domain.Production.InsufficientMaterials())
 
         return gameEngine.startForging(slotIndex, recipeToStart.id)
+    }
+
+    /** 槽位无弟子时点击配方的提示框（"需要有弟子才可锻造"） */
+    fun showNoWorkerHint() {
+        showError("需要有弟子才可锻造")
+    }
+
+    /** 弟子职业等级不够时点击配方的提示框（"弟子职业等级不够无法锻造"） */
+    fun showTierLockedHint() {
+        showError("弟子职业等级不够无法锻造")
     }
 
     fun toggleAuto(buildingIndex: Int) {
@@ -149,8 +168,9 @@ class ForgeViewModel @Inject constructor(
                     }
                 } catch (e: CancellationException) {
                     throw e
-                } catch (_: Exception) {
+                } catch (e: Exception) {
                     // Best-effort immediate start; monthly tick will retry
+                    android.util.Log.w("ForgeViewModel", "自动锻造立即开始失败，等待月变重试", e)
                 }
             }
         }

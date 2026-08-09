@@ -40,6 +40,16 @@ sealed class AppError {
                 override val code = "PROD_004"
             }
 
+            data class RecipeTierLocked(
+                override val message: String = "弟子职业等级不足，无法炼制该品阶",
+                val recipeId: String = "",
+                val requiredTier: Int = 1,
+                val maxCraftableTier: Int = 1,
+                override val cause: Throwable? = null
+            ) : Production() {
+                override val code = "PROD_009"
+            }
+
             data class DiscipleNotAvailable(
                 override val message: String = "弟子不可用",
                 val discipleId: String = "",

@@ -1,7 +1,13 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.engine.FakeAtomicStateStore
+import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.SkillStats
+import com.xianxia.sect.core.repository.ProductionSlotRepository
+import com.xianxia.sect.core.util.BuildingNames
 import org.junit.Assert.*
 import org.junit.Test
+import org.mockito.kotlin.mock
 
 class FormulaServicePureLogicTest {
 
@@ -55,5 +61,147 @@ class FormulaServicePureLogicTest {
     @Test fun elderBonusData_defaultYieldZero() {
         val data = FormulaService.ElderBonusData(0.5, 0.3, 0.0)
         assertEquals(0.0, data.yieldBonus, 0.001)
+    }
+
+    // ==================== SuccessRateZones.calculate() 乘区法合成（职业系统重构后真实实现） ====================
+
+    @Test fun successRateZones_noBonus_initialZero() {
+        // 无属性/职业/乘区加成 → 初始成功率 0
+        val zones = FormulaService.SuccessRateZones()
+        assertEquals(0.0, zones.calculate(), 0.001)
+    }
+
+    @Test fun successRateZones_skillZoneOnly_defaultSkill50() {
+        // 默认属性 50：skillZone = (50-30)×0.006 = 0.12 → 12%
+        val zones = FormulaService.SuccessRateZones(skillZone = 0.12)
+        assertEquals(0.12, zones.calculate(), 0.001)
+    }
+
+    @Test fun successRateZones_skillZoneOverHalfPassesThrough() {
+        // skillZone 的 0.5 上限由 buildSuccessRateZones 计算侧 clamp，calculate() 仅 clamp 合成值到 [0,1]
+        val zones = FormulaService.SuccessRateZones(skillZone = 0.55)
+        assertEquals(0.55, zones.calculate(), 0.001)
+    }
+
+    @Test fun successRateZones_professionZoneOnly_grandMasterCraftsTier1() {
+        // 五品（可炼 tier 6）炼凡品：professionZone = 5×0.20 = 1.0 → clamp 1.0 → 100%
+        val zones = FormulaService.SuccessRateZones(professionZone = 1.0)
+        assertEquals(1.0, zones.calculate(), 0.001)
+    }
+
+    @Test fun successRateZones_baseProbIsSumOfZones() {
+        // baseProb = baseRate + skillZone + professionZone = 0 + 0.12 + 0.40 = 0.52
+        val zones = FormulaService.SuccessRateZones(skillZone = 0.12, professionZone = 0.40)
+        assertEquals(0.52, zones.calculate(), 0.001)
+    }
+
+    @Test fun successRateZones_multiplicativeAmplification() {
+        // baseProb 0.5 × (1 + 境界 0.13 + 天赋 0.1 + 政策 0.1) = 0.5 × 1.33 = 0.665
+        val zones = FormulaService.SuccessRateZones(
+            skillZone = 0.5,
+            realmZone = 0.13,
+            talentZone = 0.1,
+            policyZone = 0.1
+        )
+        assertEquals(0.665, zones.calculate(), 0.001)
+    }
+
+    @Test fun successRateZones_clampedTo1() {
+        // 光职业即接近 100%：0.8 × (1 + 0.3) = 1.04 → clamp 1.0
+        val zones = FormulaService.SuccessRateZones(
+            professionZone = 0.8,
+            realmZone = 0.3
+        )
+        assertEquals(1.0, zones.calculate(), 0.001)
+    }
+
+    @Test fun successRateZones_negativeBaseClampedTo0() {
+        val zones = FormulaService.SuccessRateZones(baseRate = -0.5, skillZone = -0.1)
+        assertEquals(0.0, zones.calculate(), 0.001)
+    }
+
+    @Test fun successRateZones_highSkillNoRealmSameTier() {
+        // 一品炼同阶（灵品，无职业加成）、技能 80、金丹、长老 80 技能：
+        // baseProb = 0.30，乘区 = (1 + 0.07 + 0 + 0 + 0) = 1.07 → 0.321
+        val zones = FormulaService.SuccessRateZones(
+            skillZone = 0.30,
+            realmZone = 0.07
+        )
+        assertEquals(0.321, zones.calculate(), 0.001)
+    }
+
+    // ==================== buildSuccessRateZones() 真实实现极值测试（对抗性审查回归） ====================
+
+    private fun newFormulaService(): FormulaService =
+        FormulaService(FakeAtomicStateStore(), mock<ProductionSlotRepository>())
+
+    private fun disciple(
+        pillRefining: Int = 50,
+        artifactRefining: Int = 50,
+        alchemyLevel: Int = 0,
+        forgeLevel: Int = 0,
+        realm: Int = 9
+    ) = Disciple(
+        name = "测试弟子",
+        realm = realm,
+        skills = SkillStats(
+            pillRefining = pillRefining,
+            artifactRefining = artifactRefining,
+            alchemyLevel = alchemyLevel,
+            forgeLevel = forgeLevel
+        )
+    )
+
+    @Test fun buildSuccessRateZones_intMinSkill_yieldsZeroZone() {
+        // 对抗性审查：Int 减法溢出——skill=Int.MIN_VALUE 时 (skill-30) Int 运算溢出为正，
+        // 修复前会错误获得满属性加成；Long 运算修复后应为 0
+        val zones = newFormulaService().buildSuccessRateZones(
+            disciple(pillRefining = Int.MIN_VALUE), BuildingNames.ALCHEMY, recipeTier = 1
+        )
+        assertEquals(0.0, zones.skillZone, 0.001)
+        assertEquals(0.0, zones.calculate(), 0.001)
+    }
+
+    @Test fun buildSuccessRateZones_intMaxSkill_clampsToHalf() {
+        val zones = newFormulaService().buildSuccessRateZones(
+            disciple(pillRefining = Int.MAX_VALUE), BuildingNames.ALCHEMY, recipeTier = 1
+        )
+        assertEquals(0.50, zones.skillZone, 0.001)
+    }
+
+    @Test fun buildSuccessRateZones_nullDisciple_noSkillOrProfessionZone() {
+        val zones = newFormulaService().buildSuccessRateZones(
+            null, BuildingNames.ALCHEMY, recipeTier = 1
+        )
+        assertEquals(0.0, zones.skillZone, 0.001)
+        assertEquals(0.0, zones.professionZone, 0.001)
+        assertEquals(0.0, zones.calculate(), 0.001)
+    }
+
+    @Test fun buildSuccessRateZones_defaultSkill50_yields12Percent() {
+        val zones = newFormulaService().buildSuccessRateZones(
+            disciple(), BuildingNames.ALCHEMY, recipeTier = 1
+        )
+        assertEquals(0.12, zones.skillZone, 0.001)
+        assertEquals(0.12, zones.calculate(), 0.001)
+    }
+
+    @Test fun buildSuccessRateZones_grandMasterCraftsTier1_professionAlone100Percent() {
+        // 五品（level 5 可炼 tier 6）炼凡品：职业加成 = (6-1)×0.20 = 1.0 → clamp 1.0 → 100%
+        val zones = newFormulaService().buildSuccessRateZones(
+            disciple(pillRefining = 30, alchemyLevel = 5), BuildingNames.ALCHEMY, recipeTier = 1
+        )
+        assertEquals(1.0, zones.professionZone, 0.001)
+        assertEquals(1.0, zones.calculate(), 0.001)
+    }
+
+    @Test fun buildSuccessRateZones_forgeBuilding_usesArtifactRefiningAndForgeLevel() {
+        val zones = newFormulaService().buildSuccessRateZones(
+            disciple(artifactRefining = 80, forgeLevel = 2), BuildingNames.FORGE, recipeTier = 2
+        )
+        // 属性 80 → (80-30)×0.006 = 0.30；level 2 可炼 tier 3，炼 tier 2 → 1×0.20 = 0.20
+        assertEquals(0.30, zones.skillZone, 0.001)
+        assertEquals(0.20, zones.professionZone, 0.001)
+        assertEquals(0.50, zones.calculate(), 0.001)
     }
 }

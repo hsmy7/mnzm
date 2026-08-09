@@ -67,6 +67,8 @@ object GameEventType {
     const val ENCOUNTER_FAIL = "ai_encounter_fail"
     const val SECT_OCCUPY = "sect_occupy"
     const val SECRET_REALM = "secret_realm"
+    const val ALCHEMIST_PROMOTED = "alchemist_promoted"
+    const val FORGEMASTER_PROMOTED = "forgemaster_promoted"
 }
 
 /**

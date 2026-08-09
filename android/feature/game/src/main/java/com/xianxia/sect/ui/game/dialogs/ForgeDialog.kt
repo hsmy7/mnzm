@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.watchKey
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
+import com.xianxia.sect.core.profession.ProfessionRules
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.ElderSlots
@@ -121,6 +122,8 @@ fun ForgeDialog(
                         )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
+                    ProfessionLabel(level = workerDisciple?.forgeLevel ?: 0, isAlchemy = false)
+                    Spacer(modifier = Modifier.height(2.dp))
                     DiscipleSlot(
                         disciple = workerDisciple,
                         showActions = true,
@@ -257,8 +260,8 @@ fun ForgeDialog(
             EquipmentSelectionDialog(
                 materials = materials,
                 slotIndex = slotIdx,
+                workerDisciple = workerDisciple,
                 viewModel = viewModel,
-                productionViewModel = productionViewModel,
                 forgeViewModel = forgeViewModel,
                 onDismiss = {
                     showEquipmentSelection = false
@@ -279,8 +282,8 @@ fun ForgeDialog(
 private fun EquipmentSelectionDialog(
     materials: List<Material>,
     slotIndex: Int,
+    workerDisciple: DiscipleAggregate?,
     viewModel: GameViewModel,
-    productionViewModel: ProductionViewModel,
     forgeViewModel: ForgeViewModel,
     onDismiss: () -> Unit,
     onConfirmOverride: ((ForgeRecipeDatabase.ForgeRecipe) -> Unit)? = null
@@ -355,7 +358,13 @@ private fun EquipmentSelectionDialog(
                             craftable = hasEnoughMaterials,
                             showQuantity = false,
                             onClick = {
-                                if (selectedRecipe?.id == recipe.id) {
+                                // 职业门禁提示框：无弟子/职业等级不够时点击配方不选中，弹提示
+                                val workerLevel = workerDisciple?.forgeLevel ?: 0
+                                if (workerDisciple == null) {
+                                    forgeViewModel.showNoWorkerHint()
+                                } else if (!ProfessionRules.canCraftTier(workerLevel, recipe.tier)) {
+                                    forgeViewModel.showTierLockedHint()
+                                } else if (selectedRecipe?.id == recipe.id) {
                                     selectedRecipe = null
                                     clickedRecipe = null
                                 } else {

@@ -13,6 +13,7 @@ import com.xianxia.sect.core.model.AlchemySlot
 import com.xianxia.sect.core.model.AlchemySlotStatus
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.pillRefining
+import com.xianxia.sect.core.profession.ProfessionRules
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.model.production.ProductionSlotStatus
@@ -94,10 +95,16 @@ class AlchemyViewModel @Inject constructor(
         val slot = gameEngine.productionSlots.value.find {
             it.buildingType == BuildingType.ALCHEMY && it.slotIndex == slotIndex
         }
+        // 职业门禁：按槽位弟子炼丹师职业等级限制可炼品阶（无职业只能炼凡品；
+        // 弟子查不到时按无职业兜底，禁止放开到最高阶——对抗性审查）
+        val maxTier = slot?.assignedDiscipleId
+            ?.let { id -> gameEngine.discipleAggregatesSnapshot.find { it.id == id }?.alchemyLevel }
+            ?.let { ProfessionRules.maxCraftableTier(it) }
+            ?: 1
         val recipe = slot?.recipeId
             ?.let { prevRecipeId ->
                 PillRecipeDatabase.getRecipeById(prevRecipeId)?.takeIf { recipe ->
-                    recipe.materials.all { (materialId, requiredQuantity) ->
+                    recipe.tier <= maxTier && recipe.materials.all { (materialId, requiredQuantity) ->
                         val herbData = HerbDatabase.getHerbById(materialId) ?: return@all false
                         currentHerbs.filter {
                             it.name == herbData.name && it.rarity == herbData.rarity
@@ -105,9 +112,19 @@ class AlchemyViewModel @Inject constructor(
                     }
                 }
             }
-            ?: PillRecipeDatabase.findBestCraftableRecipe(currentHerbs)
+            ?: PillRecipeDatabase.findBestCraftableRecipe(currentHerbs, maxTier)
             ?: return DomainResult.Failure(AppError.Domain.Production.InsufficientMaterials())
         return gameEngine.startAlchemy(slotIndex, recipe.id)
+    }
+
+    /** 槽位无弟子时点击配方的提示框（"需要有弟子才可炼制"） */
+    fun showNoWorkerHint() {
+        showError("需要有弟子才可炼制")
+    }
+
+    /** 弟子职业等级不够时点击配方的提示框（"弟子职业等级不够无法炼制"） */
+    fun showTierLockedHint() {
+        showError("弟子职业等级不够无法炼制")
     }
 
     fun toggleAuto(buildingIndex: Int) {
@@ -126,8 +143,9 @@ class AlchemyViewModel @Inject constructor(
                     }
                 } catch (e: CancellationException) {
                     throw e
-                } catch (_: Exception) {
+                } catch (e: Exception) {
                     // Best-effort immediate start; monthly tick will retry
+                    android.util.Log.w("AlchemyViewModel", "自动炼丹立即开始失败，等待月变重试", e)
                 }
             }
         }

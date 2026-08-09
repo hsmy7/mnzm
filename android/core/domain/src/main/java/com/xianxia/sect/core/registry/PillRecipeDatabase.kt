@@ -3,8 +3,12 @@ package com.xianxia.sect.core.registry
 import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.PillCategory
 import com.xianxia.sect.core.model.PillGrade
+import com.xianxia.sect.core.profession.ProfessionRules
 
 object PillRecipeDatabase {
+
+    /** 最高配方品阶（天品），默认不过滤 */
+    private const val MAX_TIER = ProfessionRules.MAX_TIER
 
     data class PillRecipe(
         val id: String,
@@ -333,12 +337,15 @@ object PillRecipeDatabase {
     /**
      * 在所有配方中查找材料满足条件且品阶最高的可合成配方。
      * 用于自动炼丹/UI 配方选择等场景，消除四处重复的遍历逻辑。
+     *
+     * @param herbs 持有草药列表
+     * @param maxTier 可炼制的最高品阶上限（默认 6 不过滤，由工作弟子职业等级决定）
      */
-    fun findBestCraftableRecipe(herbs: List<Herb>): PillRecipe? {
+    fun findBestCraftableRecipe(herbs: List<Herb>, maxTier: Int = MAX_TIER): PillRecipe? {
         return getAllRecipes()
             .sortedWith(compareByDescending<PillRecipe> { it.tier }.thenByDescending { it.rarity })
             .firstOrNull { recipe ->
-                recipe.materials.all { (herbId, requiredQty) ->
+                recipe.tier <= maxTier && recipe.materials.all { (herbId, requiredQty) ->
                     val herbData = HerbDatabase.getHerbById(herbId) ?: return@all false
                     herbs.filter { it.name == herbData.name && it.rarity == herbData.rarity }
                         .sumOf { it.quantity } >= requiredQty

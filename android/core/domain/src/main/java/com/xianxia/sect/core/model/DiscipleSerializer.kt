@@ -141,6 +141,10 @@ object DiscipleSerializer : KSerializer<Disciple> {
             morality = value.skills.morality,
             salaryPaidCount = value.skills.salaryPaidCount,
             salaryMissedCount = value.skills.salaryMissedCount,
+            alchemyLevel = value.skills.alchemyLevel,
+            alchemyPromotionCount = value.skills.alchemyPromotionCount,
+            forgeLevel = value.skills.forgeLevel,
+            forgePromotionCount = value.skills.forgePromotionCount,
 
             // ===== UsageTracking @Embedded =====
             usedFunctionalPillTypes = value.usage.usedFunctionalPillTypes,
@@ -274,6 +278,10 @@ object DiscipleSerializer : KSerializer<Disciple> {
                 morality = surrogate.morality,
                 salaryPaidCount = surrogate.salaryPaidCount,
                 salaryMissedCount = surrogate.salaryMissedCount,
+                alchemyLevel = surrogate.alchemyLevel,
+                alchemyPromotionCount = surrogate.alchemyPromotionCount,
+                forgeLevel = surrogate.forgeLevel,
+                forgePromotionCount = surrogate.forgePromotionCount,
             ),
 
             // ===== UsageTracking @Embedded =====
@@ -408,6 +416,10 @@ object DiscipleSerializer : KSerializer<Disciple> {
         @ProtoNumber(56) val morality: Int = 50,
         @ProtoNumber(57) val salaryPaidCount: Int = 0,
         @ProtoNumber(58) val salaryMissedCount: Int = 0,
+        @ProtoNumber(106) val alchemyLevel: Int = 0,
+        @ProtoNumber(107) val alchemyPromotionCount: Int = 0,
+        @ProtoNumber(108) val forgeLevel: Int = 0,
+        @ProtoNumber(109) val forgePromotionCount: Int = 0,
 
         // ===== UsageTracking @Embedded =====
         @ProtoNumber(75) val usedFunctionalPillTypes: List<String> = emptyList(),

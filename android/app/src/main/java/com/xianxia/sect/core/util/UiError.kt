@@ -41,6 +41,8 @@ data class UiError(
                 is AppError.Domain.Production.InsufficientMaterials -> Triple("材料不足", UiErrorSeverity.INFO, false)
                 is AppError.Domain.Production.InvalidSlot -> Triple("无效的槽位", UiErrorSeverity.INFO, false)
                 is AppError.Domain.Production.RecipeNotFound -> Triple("配方不存在", UiErrorSeverity.INFO, false)
+                is AppError.Domain.Production.RecipeTierLocked ->
+                    Triple("弟子职业等级不足，无法炼制该品阶", UiErrorSeverity.WARNING, false)
                 is AppError.Domain.Production.DiscipleNotAvailable -> Triple("弟子不可用", UiErrorSeverity.INFO, false)
                 is AppError.Domain.Production.InvalidStateTransition -> Triple("操作状态不正确", UiErrorSeverity.INFO, false)
                 is AppError.Domain.Production.ProductionFailed -> Triple("生产失败", UiErrorSeverity.ERROR, false)

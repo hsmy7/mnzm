@@ -130,6 +130,10 @@ data class DiscipleAggregate(
     val morality: Int get() = attributes?.morality ?: DEFAULT_SKILL
     val salaryPaidCount: Int get() = attributes?.salaryPaidCount ?: 0
     val salaryMissedCount: Int get() = attributes?.salaryMissedCount ?: 0
+    val alchemyLevel: Int get() = attributes?.alchemyLevel ?: 0
+    val alchemyPromotionCount: Int get() = attributes?.alchemyPromotionCount ?: 0
+    val forgeLevel: Int get() = attributes?.forgeLevel ?: 0
+    val forgePromotionCount: Int get() = attributes?.forgePromotionCount ?: 0
     
     // ==================== 从 DiscipleCore 委托的便捷属性 ====================
     val canCultivate: Boolean get() = core.canCultivate
@@ -304,7 +308,11 @@ data class DiscipleAggregate(
                 teaching = teaching,
                 morality = morality,
                 salaryPaidCount = salaryPaidCount,
-                salaryMissedCount = salaryMissedCount
+                salaryMissedCount = salaryMissedCount,
+                alchemyLevel = alchemyLevel,
+                alchemyPromotionCount = alchemyPromotionCount,
+                forgeLevel = forgeLevel,
+                forgePromotionCount = forgePromotionCount
             )
         )
     }

@@ -142,4 +142,48 @@ class ForgeRecipeDatabaseTest {
         val result = ForgeRecipeDatabase.getRecipeById("nonExistentRecipeId12345")
         assertNull("getRecipeById should return null for unknown id", result)
     }
+
+    // ============================================================
+    // getCraftableRecipes maxTier 过滤（职业系统，2026-08-09）
+    // ============================================================
+
+    @Test
+    fun getCraftableRecipes_maxTier1_returnsOnlyTier1() {
+        val result = ForgeRecipeDatabase.getCraftableRecipes(1)
+
+        assertTrue("无职业可锻配方不应为空", result.isNotEmpty())
+        assertTrue("全部应为一品凡品", result.all { it.tier == 1 })
+    }
+
+    @Test
+    fun getCraftableRecipes_maxTierFiltersStrictly() {
+        for (maxTier in 1..6) {
+            val result = ForgeRecipeDatabase.getCraftableRecipes(maxTier)
+            assertTrue("品阶不应超限: $maxTier", result.all { it.tier <= maxTier })
+            if (maxTier < 6) {
+                val containsHigher = ForgeRecipeDatabase.getAllRecipes().any { it.tier > maxTier }
+                assertTrue("应过滤掉高阶配方: $maxTier", containsHigher)
+                assertTrue(
+                    "应包含当前阶配方: $maxTier",
+                    result.any { it.tier == maxTier }
+                )
+            }
+        }
+    }
+
+    @Test
+    fun getCraftableRecipes_maxTier6_returnsAll() {
+        val result = ForgeRecipeDatabase.getCraftableRecipes(6)
+        assertEquals(
+            "maxTier6 应返回全部配方",
+            ForgeRecipeDatabase.getAllRecipes().size,
+            result.size
+        )
+    }
+
+    @Test
+    fun getCraftableRecipes_maxTier0_returnsEmpty() {
+        val result = ForgeRecipeDatabase.getCraftableRecipes(0)
+        assertTrue("maxTier0 应无配方", result.isEmpty())
+    }
 }

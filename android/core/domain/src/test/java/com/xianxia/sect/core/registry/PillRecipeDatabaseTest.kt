@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.registry
 
+import com.xianxia.sect.core.model.Herb
 import com.xianxia.sect.core.model.PillCategory
 import com.xianxia.sect.core.model.PillGrade
 import org.junit.Assert.*
@@ -346,5 +347,51 @@ class PillRecipeDatabaseTest {
     fun `getTierName无效tier返回未知`() {
         assertEquals("未知", PillRecipeDatabase.getTierName(0))
         assertEquals("未知", PillRecipeDatabase.getTierName(99))
+    }
+
+    // ============================================================
+    // findBestCraftableRecipe maxTier 过滤（职业系统，2026-08-09）
+    // ============================================================
+
+    /** 构造满足某丹方全部材料的草药列表（tier N 丹方只消耗 tier N 草药，跨阶材料互斥） */
+    private fun herbsFor(recipe: PillRecipeDatabase.PillRecipe): List<Herb> = recipe.materials.map { (herbId, qty) ->
+        val data = HerbDatabase.getHerbById(herbId) ?: error("未知草药: $herbId")
+        Herb(name = data.name, rarity = data.rarity, quantity = qty)
+    }
+
+    @Test
+    fun `findBestCraftableRecipe - maxTier1 凡品材料可炼凡品`() {
+        val tier1 = PillRecipeDatabase.getAllRecipes().first { it.tier == 1 }
+
+        val result = PillRecipeDatabase.findBestCraftableRecipe(herbsFor(tier1), maxTier = 1)
+
+        assertNotNull("凡品材料 + maxTier1 应返回凡品丹方", result)
+        assertTrue("返回丹方品阶不应超限", result!!.tier <= 1)
+    }
+
+    @Test
+    fun `findBestCraftableRecipe - 品阶过滤先于材料检查`() {
+        // 材料只够 tier2 丹方，但 maxTier=1（无职业/一级炼丹师上限）：材料充足也不放行
+        val tier2 = PillRecipeDatabase.getAllRecipes().first { it.tier == 2 }
+
+        val result = PillRecipeDatabase.findBestCraftableRecipe(herbsFor(tier2), maxTier = 1)
+
+        assertNull("超品阶丹方材料即使满足也不应返回", result)
+    }
+
+    @Test
+    fun `findBestCraftableRecipe - maxTier2 同批材料可炼灵品`() {
+        val tier2 = PillRecipeDatabase.getAllRecipes().first { it.tier == 2 }
+
+        val result = PillRecipeDatabase.findBestCraftableRecipe(herbsFor(tier2), maxTier = 2)
+
+        assertNotNull("maxTier2 应可炼灵品", result)
+        assertEquals("应返回灵品丹方", tier2.id, result!!.id)
+    }
+
+    @Test
+    fun `findBestCraftableRecipe - 材料不足返回null`() {
+        val result = PillRecipeDatabase.findBestCraftableRecipe(emptyList(), maxTier = 6)
+        assertNull("无材料应返回null", result)
     }
 }

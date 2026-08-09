@@ -4,6 +4,7 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.LazyEvaluationDispatcher
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.service.FormulaService
+import com.xianxia.sect.core.engine.service.settleProductionCompletion
 import com.xianxia.sect.core.model.AlchemyResult
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.ForgeRecipe
@@ -14,6 +15,7 @@ import com.xianxia.sect.core.model.PillGrade
 import com.xianxia.sect.core.model.artifactRefining
 import com.xianxia.sect.core.model.pillRefining
 import com.xianxia.sect.core.model.spiritPlanting
+import com.xianxia.sect.core.profession.ProfessionRules
 import com.xianxia.sect.core.registry.ForgeRecipeDatabase
 import com.xianxia.sect.core.registry.ItemDatabase
 import com.xianxia.sect.core.registry.PillRecipeDatabase
@@ -207,38 +209,19 @@ class BuildingService @Inject constructor(
                 AppError.Domain.Production.RecipeNotFound(recipeId = recipeId)
             )
 
+        // 职业品阶门禁（反绕过拦截）：无职业/职业等级不足不可炼该品阶
+        val workerLevel = alchemySlot?.assignedDiscipleId
+            ?.let { id -> stateStore.disciples.value.find { it.id == id }?.skills?.alchemyLevel }
+            ?: 0
+        checkProfessionGate(workerLevel, recipe.tier, recipeId)?.let { return it }
+
         val alchemyPolicyBonus = if (data.sectPolicies.alchemyIncentive)
             GameConfig.PolicyConfig.ALCHEMY_INCENTIVE_EFFECT else 0.0
         val effectiveSuccessRate = buildAlchemySuccessRate(
             alchemySlot, recipe, alchemyPolicyBonus
         )
 
-        val result = productionCoordinator.startAlchemyAtomic(
-            slotIndex = slotIndex,
-            recipeId = recipeId,
-            currentYear = data.gameYear,
-            currentMonth = data.gameMonth,
-            herbs = stateStore.getCurrentHerbs(),
-            buildingId = BuildingNames.ALCHEMY,
-            alchemyPolicyBonus = alchemyPolicyBonus
-        )
-
-        val startData = when (result) {
-            is DomainResult.Failure -> return result
-            is DomainResult.Partial -> result.data
-            is DomainResult.Success -> result.data
-        }
-        stateStore.update { herbs.replaceAll(startData.materialUpdate.herbs) }
-
-        val actualDuration = calculateWorkDurationWithAllDisciples(
-            recipe.duration, BuildingNames.ALCHEMY
-        )
-        updateSlotToWorkingStateAlchemy(
-            slotIndex, data, recipe, recipeId,
-            actualDuration, effectiveSuccessRate
-        )
-
-        return DomainResult.Success(startData.slot)
+        return executeAlchemyStart(slotIndex, recipe, recipeId, data, effectiveSuccessRate)
     }
 
     suspend fun startForging(
@@ -270,12 +253,81 @@ class BuildingService @Inject constructor(
                 AppError.Domain.Production.RecipeNotFound(recipeId = recipeId)
             )
 
+        // 职业品阶门禁（反绕过拦截）：无职业/职业等级不足不可锻该品阶
+        val workerLevel = forgeSlot?.assignedDiscipleId
+            ?.let { id -> stateStore.disciples.value.find { it.id == id }?.skills?.forgeLevel }
+            ?: 0
+        checkProfessionGate(workerLevel, recipe.tier, recipeId)?.let { return it }
+
         val forgePolicyBonus = if (data.sectPolicies.forgeIncentive)
             GameConfig.PolicyConfig.FORGE_INCENTIVE_EFFECT else 0.0
         val effectiveSuccessRate = buildForgingSuccessRate(
             forgeSlot, recipe, forgePolicyBonus
         )
 
+        return executeForgingStart(slotIndex, recipe, recipeId, data, effectiveSuccessRate)
+    }
+
+    /**
+     * 职业品阶门禁（反绕过拦截）：职业等级不足时返回 [AppError.Domain.Production.RecipeTierLocked]，
+     * 放行返回 null。手动/自动路径共用同一入口，杜绝绕过。
+     */
+    private fun checkProfessionGate(
+        workerLevel: Int,
+        recipeTier: Int,
+        recipeId: String
+    ): DomainResult.Failure? {
+        if (ProfessionRules.canCraftTier(workerLevel, recipeTier)) return null
+        return DomainResult.Failure(
+            AppError.Domain.Production.RecipeTierLocked(
+                recipeId = recipeId,
+                requiredTier = recipeTier,
+                maxCraftableTier = ProfessionRules.maxCraftableTier(workerLevel)
+            )
+        )
+    }
+
+    /** 炼丹启动事务尾段：扣材料、写槽位 WORKING，返回更新后槽位 */
+    private suspend fun executeAlchemyStart(
+        slotIndex: Int,
+        recipe: PillRecipeDatabase.PillRecipe,
+        recipeId: String,
+        data: GameData,
+        effectiveSuccessRate: Double
+    ): DomainResult<ProductionSlot> {
+        val result = productionCoordinator.startAlchemyAtomic(
+            slotIndex = slotIndex,
+            recipeId = recipeId,
+            currentYear = data.gameYear,
+            currentMonth = data.gameMonth,
+            herbs = stateStore.getCurrentHerbs(),
+            buildingId = BuildingNames.ALCHEMY,
+            successRate = effectiveSuccessRate
+        )
+        val startData = when (result) {
+            is DomainResult.Failure -> return result
+            is DomainResult.Partial -> result.data
+            is DomainResult.Success -> result.data
+        }
+        stateStore.update { herbs.replaceAll(startData.materialUpdate.herbs) }
+        val actualDuration = calculateWorkDurationWithAllDisciples(
+            recipe.duration, BuildingNames.ALCHEMY
+        )
+        updateSlotToWorkingStateAlchemy(
+            slotIndex, data, recipe, recipeId,
+            actualDuration, effectiveSuccessRate
+        )
+        return DomainResult.Success(startData.slot)
+    }
+
+    /** 锻造启动事务尾段：扣材料、写槽位 WORKING，返回更新后槽位 */
+    private suspend fun executeForgingStart(
+        slotIndex: Int,
+        recipe: ForgeRecipeDatabase.ForgeRecipe,
+        recipeId: String,
+        data: GameData,
+        effectiveSuccessRate: Double
+    ): DomainResult<ProductionSlot> {
         val result = productionCoordinator.startForgingAtomic(
             slotIndex = slotIndex,
             recipeId = recipeId,
@@ -283,9 +335,8 @@ class BuildingService @Inject constructor(
             currentMonth = data.gameMonth,
             materials = stateStore.getCurrentMaterials(),
             buildingId = BuildingNames.FORGE,
-            forgePolicyBonus = forgePolicyBonus
+            successRate = effectiveSuccessRate
         )
-
         val startData = when (result) {
             is DomainResult.Failure -> return result
             is DomainResult.Partial -> result.data
@@ -294,7 +345,6 @@ class BuildingService @Inject constructor(
         stateStore.update {
             materials.replaceAll(startData.materialUpdate.materials)
         }
-
         val baseDuration = ForgeRecipeDatabase.getDurationByTier(recipe.tier)
         val actualDuration = calculateWorkDurationWithAllDisciples(
             baseDuration, BuildingNames.FORGE
@@ -303,7 +353,6 @@ class BuildingService @Inject constructor(
             slotIndex, data, recipe, recipeId,
             baseDuration, actualDuration, effectiveSuccessRate
         )
-
         return DomainResult.Success(startData.slot)
     }
 
@@ -372,7 +421,7 @@ class BuildingService @Inject constructor(
         return formulaService.buildSuccessRateZones(
             disciple = disciple,
             buildingId = BuildingNames.ALCHEMY,
-            baseRate = recipe.successRate,
+            recipeTier = recipe.tier,
             policyBonus = alchemyPolicyBonus
         ).calculate()
     }
@@ -428,7 +477,7 @@ class BuildingService @Inject constructor(
         return formulaService.buildSuccessRateZones(
             disciple = disciple,
             buildingId = BuildingNames.FORGE,
-            baseRate = recipe.successRate,
+            recipeTier = recipe.tier,
             policyBonus = forgePolicyBonus
         ).calculate()
     }
@@ -478,10 +527,19 @@ class BuildingService @Inject constructor(
      * Called internally by the auto-harvest system during month advancement.
      */
     private suspend fun autoCollectSlotResult(slot: ProductionSlot) {
-        completeBuildingTaskFromProductionSlot(slot)
+        // 锻造真实成功率判定（2026-08-09 职业系统）：读档/惰性收获路径与月变路径
+        // 一致——失败不产出装备、材料不退还，成功才计入职业晋升进度。
+        // 此前锻造读档 100% 产出，绕过概率设计（对抗性审查发现）
+        val success = rngManager.getRng(
+            com.xianxia.sect.core.util.RngPartition.SYSTEM
+        ).nextDouble() <= slot.successRate.coerceIn(0.0, 1.0)
+        if (success) {
+            completeBuildingTaskFromProductionSlot(slot)
+        }
 
+        // 统一结算（与月变路径共用扩展）：引导计数 + 年度计数 + 弟子回 IDLE + 职业晋升
         slot.assignedDiscipleId?.let { discipleId ->
-            updateDiscipleStatus(discipleId, DiscipleStatus.IDLE)
+            stateStore.settleProductionCompletion(slot, discipleId, success, isAlchemy = false)
         }
         // 双存储同步：重置 Repository 槽位的同时清镜像槽位——收获后镜像残留
         // 会让状态推导把弟子重新拉回工作状态（双槽分叉根因）
@@ -517,7 +575,8 @@ class BuildingService @Inject constructor(
         val rng = rngManager.getRng(
             com.xianxia.sect.core.util.RngPartition.SYSTEM
         )
-        val success = rng.nextDouble() <= slot.successRate
+        // successRate 先钳制到 [0,1]（对抗性审查：存档篡改/旧数据可能越界）
+        val success = rng.nextDouble() <= slot.successRate.coerceIn(0.0, 1.0)
 
         var pill: Pill? = null
         if (success) {
@@ -567,8 +626,11 @@ class BuildingService @Inject constructor(
             )
         }
 
+        // 统一结算（2026-08-09 职业系统）：引导计数 + 年度计数 + 弟子回 IDLE +
+        // 职业晋升，与月变路径 ProductionProcessor 共用同一扩展——
+        // 此前读档/惰性收获路径缺晋升与统计（对抗性审查：正常玩家读档即丢一次晋升计数）
         slot.assignedDiscipleId?.let { discipleId ->
-            updateDiscipleStatus(discipleId, DiscipleStatus.IDLE)
+            stateStore.settleProductionCompletion(slot, discipleId, success, isAlchemy = true)
         }
 
         return AlchemyResult(

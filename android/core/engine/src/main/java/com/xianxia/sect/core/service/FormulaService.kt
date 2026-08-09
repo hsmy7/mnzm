@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.profession.ProfessionRules
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.ElderSlotType
@@ -34,21 +35,35 @@ class FormulaService @Inject constructor(
     /**
      * 生产成功率乘区（Success Rate Zone）。
      *
-     * 公式：baseRate × (1 + realmZone + talentZone) × (1 + policyZone) × (1 + elderZone)
+     * 职业系统重构后（2026-08-09）：配方不再提供基础成功率（统一为 0），
+     * 基础率由**工作弟子属性 + 职业等级**合成：
+     *
+     * ```
+     * baseProb = clamp01( baseRate + skillZone + professionZone )
+     * final    = clamp01( baseProb × (1 + realmZone + talentZone + policyZone + elderZone) )
+     * ```
+     *
+     * - [baseRate]：外部传入的基础率（当前恒为 0，保留字段兼容调用方）
+     * - [skillZone]：炼丹/锻造属性加成 `(skill-30)×0.006`，clamp ≤ 0.50
+     * - [professionZone]：职业加成，每低一阶 +0.20（五品炼凡品光职业即 100%）
      */
     data class SuccessRateZones(
-        val baseRate: Double = 0.0,        // 配方基础成功率
+        val baseRate: Double = 0.0,        // 外部基础率（配方值不再参与，恒 0）
+        val skillZone: Double = 0.0,       // 工作弟子炼丹/锻造属性加成（基础率组成）
+        val professionZone: Double = 0.0,  // 职业等级加成（基础率组成，每低一阶 +0.20）
         val realmZone: Double = 0.0,       // 境界乘区
         val talentZone: Double = 0.0,      // 天赋乘区
         val policyZone: Double = 0.0,      // 政策乘区
         val elderZone: Double = 0.0,       // 长老职位乘区
     ) {
         /** 使用乘区法计算最终成功率，clamp 到 [0, 1] */
-        fun calculate(): Double =
-            ZoneCalculator.calculateProbability(
-                baseProb = baseRate,
+        fun calculate(): Double {
+            val baseProb = (baseRate + skillZone + professionZone).coerceIn(0.0, 1.0)
+            return ZoneCalculator.calculateProbability(
+                baseProb = baseProb,
                 positiveSum = realmZone + talentZone + policyZone + elderZone
             )
+        }
     }
 
     /**
@@ -83,18 +98,43 @@ class FormulaService @Inject constructor(
 
     /**
      * 构建生产成功率乘区。
+     *
+     * 职业系统重构后（2026-08-09）：按 [buildingId] 分拣炼丹/锻造，读取工作弟子的
+     * 对应技能（pillRefining/artifactRefining）与职业等级（alchemyLevel/forgeLevel），
+     * 计算 [SuccessRateZones.skillZone] 与 [SuccessRateZones.professionZone]；
+     * 配方 successRate 不再传入（[baseRate] 恒 0）。
+     *
+     * @param disciple 工作弟子（槽位无弟子时 null，无属性/职业加成）
+     * @param buildingId 建筑 ID（仅炼丹/锻造建筑有属性与职业加成）
+     * @param recipeTier 配方品阶（职业加成 = 可炼最高阶 - 配方品阶，每低一阶 +0.20）
+     * @param baseRate 外部基础率（默认 0，配方值不参与成功率）
+     * @param policyBonus 政策加成（丹道/锻造激励 +10%）
      */
     fun buildSuccessRateZones(
         disciple: Disciple?,
         buildingId: String,
+        recipeTier: Int = 1,
         baseRate: Double = 0.0,
         policyBonus: Double = 0.0
     ): SuccessRateZones {
         if (disciple == null) {
             return SuccessRateZones(baseRate = baseRate, policyZone = policyBonus)
         }
+        val (skill, level) = when (buildingId) {
+            BuildingNames.ALCHEMY -> disciple.skills.pillRefining to disciple.skills.alchemyLevel
+            BuildingNames.FORGE -> disciple.skills.artifactRefining to disciple.skills.forgeLevel
+            else -> 0 to 0
+        }
+        // Long 运算防溢出（对抗性审查）：skill=Int.MIN_VALUE 时 Int 减法溢出为正，
+        // 会错误获得满属性加成
+        val skillZone = ((skill.toLong() - ProfessionRules.SKILL_ZONE_BASELINE).coerceAtLeast(0L) *
+            ProfessionRules.SKILL_ZONE_RATE).coerceAtMost(ProfessionRules.SKILL_ZONE_MAX)
+        val professionZone = (ProfessionRules.maxCraftableTier(level) - recipeTier).coerceAtLeast(0) *
+            ProfessionRules.PROFESSION_ZONE_PER_TIER
         return SuccessRateZones(
             baseRate = baseRate,
+            skillZone = skillZone,
+            professionZone = professionZone,
             realmZone = getRealmSuccessRateBonus(disciple.realm),
             talentZone = getSuccessRateTalentBonus(disciple, buildingId),
             policyZone = policyBonus,
