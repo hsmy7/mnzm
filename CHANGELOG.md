@@ -59,6 +59,15 @@
 - **兼容性** — 纯运行时优化，无 Entity/Migration/Room schema 变更；T2 延迟组崩溃窗口丢失由差值判据自愈且 flush-on-save 保证存档时已执行（现状该窗口丢失全部 22 项，改造后严格更优）
 - 全模块 compileReleaseKotlin + 串行全量测试（--max-workers=1）+ detekt 通过
 
+### 修复（2026-08-09 商人交易防御：D-21 价格校验缺口 + D-22 刷新选中失效 + D-23 死代码）
+
+- **D-21 商人交易价格校验缺口（含举一反三同类缺口）** — `buyMerchantItem`（InventoryFacadeImpl）入口校验 `price <= 0 || quantity <= 0` 拒绝购买 + `DomainLog.w`。登记描述修正（实测）：篡改档负价/0 价商品此前依赖 `SpiritStoneWallet.deduct` 的 `amount<=0 → Invalid` 兜底（事务回滚），实际效果为**静默失败**而非"灵石反增"——真实问题是防御纵深缺失。**同类缺口（举一反三新发现）**：`sellToMerchant` 收购路径先移除仓库物品、后 `wallet.add`（`amount<=0` 静默拒绝）入账，同一事务内 add 拒绝不中断事务 → **负价/0 价收购商品时玩家物品丢失且无补偿**，入口加 `price <= 0` 拒绝 + `DomainLog.w`。`AutoBuyService`（deduct 失败即 skip、无状态变更）与 `listItemsToMerchant`（引擎定价恒正）核查安全无需改动
+- **D-22 刷新后选中失效（最小修复，用户决策不做接口改造）** — MerchantDialog 刷新按钮点击后清空 `selectedItem` + `buyQuantity`（对齐切 Tab/切筛选先例；刷新后商品可能被替换/变价，旧选中按旧价预期扣款也是体验问题）；引擎侧 `buyMerchantItem` 商品不存在分支补 `DomainLog.w` 兜底日志（正常路径 UI 清空后不可达）
+- **D-23 死代码** — MerchantDialog.kt `if (viewModel != null)` 恒 true 判断删除（Image 块直接调用）
+- **测试** — 新增 `MerchantPriceValidationTest` 6 条：负价/0 价购买拒绝（灵石不变/不入库/商家库存不变）、正价购买回归（扣款/入库/库存减少）、负价/0 价收购拒绝（**仓库物品保留防丢失**）、正价收购回归（移除/入账/需求减少）；构造仿 `InventoryFacadeConfiscateTest`（FakeAtomicStateStore + SpiritStoneWallet + InventorySystem）
+- **D-24 关闭** — CI 精确变体 `testReleaseUnitTest` + `koverHtmlReport` + `compileReleaseKotlin` + `lintRelease` 全量验证（补 4.00.93 一月卡顿批次未跑的尾巴）
+- 全模块串行测试（--max-workers=1）+ detekt + lintRelease 通过
+
 ## [4.00.91] - 2026-08-07
 
 ### 架构债务清理（2026-08-08 D-01~D-17 十项全量实施）

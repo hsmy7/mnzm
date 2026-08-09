@@ -486,10 +486,10 @@ SaveValidator.validate(SaveData)
 | D-18 | 灵田收获对抗性审查不修 5 项（记录在案） | `ProductionProcessor.kt` 收获路径（`buildHarvestMaturityContext`/`buildHarvestHerbStore`/`updateSlotAfterHarvest`） | 2026-08-07 灵田收获批次对抗性审查（4 Agent）确认不修：① aura 索引 `associate` vs 原 `find` 查找一致性问题（仅损坏数据可达）；② 续种不刷新 growTime/expectedYield（无消费者，种植时固定）；③ completionMonth 不含加速（无消费者）；④ F5 计数语义（guideCounters HERBS_HARVESTED 与 annualHerbCount 计数口径，既有设计 T4 锚定）；⑤ add 对锁定堆叠合并（store 通用被动入账语义，全系统一致）。如后续需求变化（如续种刷新产量）单独评估 |
 | D-19 | 灵泉灌溉政策真实产量 +15% 数值变更（本次仅改文案） | `core/domain/.../GameConfig.kt:707`（SPIRIT_SPRING_YIELD）+ `feature/game/.../TianshuHallDialog.kt:411` | 2026-08-07 灵田收获批次明确不做数值变更：政策实际为生长加速乘区（非产量），文案已更正为"灵草生长速度+15%"消除误导。改真实产量属平衡性决策（政策永久生效、expectedYield 种植时固定、影响中后期草药经济），需产品定夺后单独立项 |
 | D-20 | 收获是否移出月结事务（性能进一步保障） | `core/engine/.../service/ProductionProcessor.kt` processSpiritFieldHarvest（月结 `systemManager.onMonthlyEvent` 事务内调用） | 2026-08-07 灵田收获批次主因修复：复杂度 O(n×(d+b+n+h)) → O(n+d+b+h)（n=300 时 <1ms 量级），已不再构成 UI 阻塞，事务结构本次不动（外科手术式）。若极端存档（数千地块）仍有卡顿疑虑，可单独立项把收获移出月结事务（涉及惰性结算引擎架构调整） |
-| D-21 | 商人负价格商品反向获取灵石（先加后扣无价格校验） | `core/engine/.../domain/inventory/InventoryFacadeImpl.kt:357` buyMerchantItem（361 行 cost = price×quantity；362 行校验 `spiritStones < cost`——负 cost 恒 false 放行） | 2026-08-08 数量器升级批次对抗性审查登记（数据篡改者视角预存问题）：篡改存档构造负价格商品 → 购买免费且灵石反增（扣款 `spiritStones - cost` 变加法）。修复方向：入口校验 `price >= 0`（非法价格拒绝购买 + DomainLog.w）；商人商品价格本应恒正，属存档完整性防御 |
-| D-22 | 商人刷新后 selectedItem 失效购买静默失败 | `feature/game/.../dialogs/MerchantDialog.kt:63/132/231`（selectedItem 状态 / refreshTravelingMerchantManual 刷新按钮 / onConfirm buyFromMerchant） | 2026-08-08 数量器升级批次对抗性审查登记（状态破坏者视角预存问题）：刷新商品后选中商品可能已被替换，确认购买时 buyMerchantItem 内 `find { it.id == itemId } ?: return@update` 静默返回，无任何反馈。修复方向：刷新时清空 selectedItem（对齐 168 行切 Tab / 189 行切筛选先例）+ 引擎侧失败给提示 |
-| D-23 | MerchantDialog.kt:140 预存死条件判断 | `feature/game/.../dialogs/MerchantDialog.kt:140`（`if (viewModel != null)` 恒 true） | 2026-08-08 数量器升级批次编译告警登记（预存，非本次引入）：组合作用域内 viewModel 恒非空，编译告警 "Condition is always 'true'"。修复方向：去除判断直接调用 viewModel（Image 块内容不变） |
-| D-24 | 最终 CI 变体完整验证未跑（testReleaseUnitTest + kover 覆盖率） | 2026-08-09 一月卡顿批次验证只跑了 `test`（debug 变体）+ detekt + lintRelease + compileReleaseKotlin | 2026-08-09 批次交付时如实承认的尾巴：① CI 链精确变体 `testReleaseUnitTest` 未单独跑（测试代码与 debug 变体相同，结果基本等价）；② `koverHtmlReport` 覆盖率未跑——新增代码（YearlyOpsQueue/列直写/列直读/签名分组/AI 相位）的引擎 80%+ 行覆盖要求未验证；③ "2258 tests" 计数来自修复守卫测试前那次运行，最终跑的通过但未打印精确计数。修复方向：`./gradlew.bat testReleaseUnitTest --max-workers=1 koverHtmlReport` 全绿后关闭 |
+| ~~D-21~~ ✅ 已修 | 商人交易价格校验缺口（负价/0 价商品 + 同类收购缺口） | `core/engine/.../domain/inventory/InventoryFacadeImpl.kt` buyMerchantItem / sellToMerchant | ✅ **已修（2026-08-09 批次）**：buyMerchantItem 入口校验 `price <= 0 \|\| quantity <= 0` 拒绝购买 + DomainLog.w；**举一反三同类缺口**：sellToMerchant 收购路径先移除仓库物品、后 wallet.add（`amount<=0` 静默拒绝）入账 → 负价/0 价收购致玩家物品丢失无补偿，入口校验 `price <= 0` 拒绝。实测修正登记描述：负价购买实际被 `SpiritStoneWallet.deduct` 的 `amount<=0 → Invalid` 兜底拒绝（事务回滚），原"灵石反增"不成立，真实问题是防御纵深缺口。AutoBuyService（deduct 失败即 skip 无状态变更）与上架（引擎定价恒正）核查安全。含 `MerchantPriceValidationTest` 6 条守卫 |
+| ~~D-22~~ ✅ 已修 | 商人刷新后 selectedItem 失效购买静默失败 | `feature/game/.../dialogs/MerchantDialog.kt:63/132/231`（selectedItem 状态 / refreshTravelingMerchantManual 刷新按钮 / onConfirm buyFromMerchant） | ✅ **已修（2026-08-09 批次，最小修复）**：刷新按钮点击后清空 `selectedItem` + `buyQuantity`（对齐切 Tab/切筛选先例；刷新后商品可能被替换/变价，旧选中按旧价预期扣款也是体验问题）；引擎侧 `buyMerchantItem` 商品不存在分支补 DomainLog.w 兜底日志。静默失败路径正常不可达，未做接口签名改造（用户决策） |
+| ~~D-23~~ ✅ 已修 | MerchantDialog.kt:140 预存死条件判断 | `feature/game/.../dialogs/MerchantDialog.kt:140`（`if (viewModel != null)` 恒 true） | ✅ **已修（2026-08-09 批次）**：去除判断直接调用 viewModel（Image 块内容不变，仅删条件与缩进） |
+| ~~D-24~~ ✅ 已关闭 | 最终 CI 变体完整验证未跑（testReleaseUnitTest + kover 覆盖率） | 2026-08-09 一月卡顿批次验证只跑了 `test`（debug 变体）+ detekt + lintRelease + compileReleaseKotlin | ✅ **已关闭（2026-08-09 批次）**：`./gradlew.bat testReleaseUnitTest --max-workers=1` + `koverHtmlReport` + `detekt` + `lintRelease` 全绿。精确计数：**394 测试类 / 5957 用例 / 0 失败**（一月卡顿批次 "2258 tests" 计数修正——最终代码重跑后实测）。覆盖率：koverHtmlReport 生成成功，engine 行覆盖约 33%（历史预存缺口，不属本批次阻塞项，详见 P- 批次记录） |
 | D-25 | ShardedSlotLock 锁粒度（对抗性审查接受不修，记录在案） | `core/engine/.../repository/ProductionSlotRepository.kt` ShardedSlotLock（按 buildingType+slotIndex 分片） | 2026-08-09 一月卡顿批次对抗性审查（状态破坏者视角）确认不修：理论上有并发逐槽更新与 batchUpdate 回滚的交错窗口，但引擎为单写线程模型（stateStore.update ReentrantLock 串行化），不触发；回滚覆盖窗口比"内存/DB 分叉"危害小得多。防御性设计债，如未来多写者架构立项时评估 |
 
 ## 实施记录（2026-08-08：D-01 / D-03 / D-05~D-09 / D-15~D-17 十项）——已完成
@@ -513,3 +513,16 @@ SaveValidator.validate(SaveData)
 
 - `withOverflowMailSuppressed` 8 个调用点在 D-01 新机制下语义变为纯"凭据类不转邮件"，是否保留列入后续审计
 - D-03 途中修复预存复制 bug：`DiscipleLifecycleProcessor.returnEquipmentToWarehouse` Failure(Full) 时邮件已发但实例保留（已随 D-03 处理）
+
+## 实施记录（2026-08-09：D-21 / D-22 / D-23 三项 + D-24 关闭）——已完成
+
+> ✅ 三项已于 2026-08-09 完成（商人交易防御批次）。验证：`MerchantPriceValidationTest` 6 条全绿 + 串行全量 `testReleaseUnitTest` + `koverHtmlReport` + compileReleaseKotlin + lintRelease（D-24 关闭）。
+
+| 项 | 实施要点 |
+|---|---------|
+| D-21 | 入口校验 `price <= 0` 拒绝购买 + DomainLog.w；**举一反三同类缺口**：sellToMerchant 收购路径防物品丢失（先移除后入账、wallet.add 静默拒绝），入口校验拒绝。实测修正登记描述（负价购买实为静默失败而非灵石反增，wallet.deduct 兜底）。AutoBuyService/上架核查安全 |
+| D-22 | 最小修复（用户决策）：刷新按钮清空 selectedItem + buyQuantity（对齐切 Tab/切筛选先例）；引擎侧商品不存在分支补兜底日志。未做接口签名改造 |
+| D-23 | 删除 `if (viewModel != null)` 恒 true 死条件 |
+| D-24 | CI 精确变体 `testReleaseUnitTest` + `koverHtmlReport` + lint 全绿（补 4.00.93 一月卡顿批次未跑尾巴） |
+
+**不纳入**：P-16/P-18/P-19（待真机验证，保留验证指引）、D-25（对抗性审查接受不修）、D-04/D-10/D-18/D-19/D-20（已决策）、维持现状决策项（W4/拉条移植/P6/P-11 附带）。

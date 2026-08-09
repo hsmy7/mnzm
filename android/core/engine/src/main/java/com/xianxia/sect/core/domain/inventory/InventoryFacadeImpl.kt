@@ -357,7 +357,15 @@ class InventoryFacadeImpl @Inject constructor(
     override suspend fun buyMerchantItem(itemId: String, quantity: Int) {
         var itemName = ""; var itemType = ""; var itemRarity = 0
         stateStore.update {
-            val merchantItem = gameData.travelingMerchantItems.find { it.id == itemId } ?: return@update
+            val merchantItem = gameData.travelingMerchantItems.find { it.id == itemId } ?: run {
+                DomainLog.w(TAG, "购买失败:商品不存在 itemId=$itemId")
+                return@update
+            }
+            // D-21 存档完整性防御:商人商品价格本应恒正,篡改档负价/0 价拒绝购买
+            if (merchantItem.price <= 0 || quantity <= 0) {
+                DomainLog.w(TAG, "购买被拒:非法价格或数量 itemId=$itemId price=${merchantItem.price} qty=$quantity")
+                return@update
+            }
             val cost = merchantItem.price * quantity
             if (gameData.spiritStones < cost || quantity > merchantItem.quantity) return@update
 
@@ -497,7 +505,7 @@ class InventoryFacadeImpl @Inject constructor(
 
     override suspend fun sellToMerchant(acquisitionItemId: String, quantity: Int) {
         val acquisitionItem = stateStore.gameData.value.merchantAcquisitionItems.find { it.id == acquisitionItemId } ?: return
-        if (quantity <= 0 || quantity > acquisitionItem.quantity) return
+        if (isInvalidTradeRequest(acquisitionItemId, quantity, acquisitionItem.price, acquisitionItem.quantity)) return
 
 stateStore.update {
             val warehouseQty = warehouseCount(acquisitionItem)
@@ -557,6 +565,21 @@ stateStore.update {
                 }
             )
         }
+    }
+
+    /**
+     * D-21 存档完整性防御:数量越界或价格非正(篡改档)拒绝收购——
+     * 防"先移除仓库物品、后 wallet.add 拒绝入账"致物品丢失。
+     * @return true 表示交易请求非法,应拒绝
+     */
+    private fun isInvalidTradeRequest(
+        acquisitionItemId: String, quantity: Int, price: Long, maxQuantity: Int
+    ): Boolean {
+        if (quantity <= 0 || quantity > maxQuantity || price <= 0) {
+            DomainLog.w(TAG, "收购被拒:非法参数 id=$acquisitionItemId price=$price qty=$quantity")
+            return true
+        }
+        return false
     }
 
     private fun warehouseCount(item: MerchantItem): Int = when (item.type.lowercase(java.util.Locale.getDefault())) {

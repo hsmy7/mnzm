@@ -130,6 +130,8 @@ fun MerchantDialog(
                 onClick = {
                     if (refreshChances > 0) {
                         viewModel.refreshTravelingMerchantManual()
+                        // D-22:刷新后商品可能被替换/变价,清空失效选中(对齐切 Tab/切筛选先例)
+                        selectedItem = null; buyQuantity = 1
                     } else {
                         showNoChancesDialog = true
                     }
@@ -137,25 +139,23 @@ fun MerchantDialog(
             )
             Text("${refreshChances}次", fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 color = Color.White, modifier = Modifier.padding(start = 4.dp))
-            if (viewModel != null) {
-                Image(
-                    painter = painterResource(id = SpriteResRegistry.resolve("ui_play_button") ?: 0),
-                    contentDescription = "播放广告获得刷新次数",
-                    modifier = Modifier
-                        .size(18.dp)
-                        .clip(CircleShape)
-                        .clickable {
-                            if (viewModel.isDailyAdLimitReached()) {
-                                showAdLimitDialog = true
-                            } else if (viewModel.isAdOnCooldown()) {
-                                showAdCooldownDialog = true
-                            } else {
-                                showAdConfirmDialog = true
-                            }
-                        },
-                    contentScale = ContentScale.FillBounds
-                )
-            }
+            Image(
+                painter = painterResource(id = SpriteResRegistry.resolve("ui_play_button") ?: 0),
+                contentDescription = "播放广告获得刷新次数",
+                modifier = Modifier
+                    .size(18.dp)
+                    .clip(CircleShape)
+                    .clickable {
+                        if (viewModel.isDailyAdLimitReached()) {
+                            showAdLimitDialog = true
+                        } else if (viewModel.isAdOnCooldown()) {
+                            showAdCooldownDialog = true
+                        } else {
+                            showAdConfirmDialog = true
+                        }
+                    },
+                contentScale = ContentScale.FillBounds
+            )
         }
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
