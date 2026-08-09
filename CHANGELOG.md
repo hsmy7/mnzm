@@ -87,6 +87,17 @@
 - **旧档兼容** — 复用 `WAR_DECLARATION` 枚举值零模型变更（无 Room Migration/序列化变更）；旧档残留预警（DENUNCIATION/未来 attackMonth）由 `normalizeImminentWarningsSync` 幂等收敛为战书+下月进攻；**已到期预警保持原值本批立即结算**（不推迟该打的仗）；`GameConfig.AIAttack` 移除 `DENUNCIATION_BEFORE_ATTACK_MONTHS`/`WAR_WARNING_BEFORE_ATTACK_MONTHS`/`APPEASE_GIFT_SPIRIT_STONES`，新增 `WARNING_BEFORE_ATTACK_MONTHS = 1`
 - **测试** — `AttackWarningServiceTest` 重写（生成结构/attackMonth 下月/收敛 5 例[旧档谴责收敛/战书提前收敛/已到期保持/幂等/空表]/addWarningSync 追加）+ `AISectBattleProcessorTest` 新增旧档 DENUNCIATION 传入收敛入口用例（ArgumentCaptor）
 
+### 修复（2026-08-09 宗门地图拖动视角误触建筑根治——统一 slop 判决 + tap 位移复核 + 常量提取）
+
+- **根因** — `SectMapTouchEngine.handleMove` 的 `if (hasBuildingTarget) return`（建筑上按下时无条件吞掉全部 MOVE 事件：不做 slop 位移检查、不取消长按 Job）→ 快速拖动（<200ms）UP 时状态仍为 Down 触发 `onTap` 误开建筑对话框；慢速拖动（≥200ms）触发 200ms 长按定时器直接进入 BuildingDrag 误进建筑移动模式。该分支是 2026-07-06 手势引擎重构时为给长按留时间的刻意设计（MainGameScreen findBuildingAt 注释 + 测试固化），但缺失配套规则"位移超 slop 应取消长按转平移"
+- **修复（核心）** — 删除吞位移分支，建筑分支与普通分支统一 touchSlop（16px）判决：累计位移超 slop → 取消长按 Job + 清除 hasBuildingTarget + 转 Scrolling 平移，UP 走 onDragEnd/fling 分支不再触发 tap。功能保留：位移 ≤16px 保持 Down，200ms 长按仍可进入 BuildingDrag（有意移动建筑）、短点仍 tap（开建筑对话框）
+- **tap 位移复核防御 + 坐标锚定** — `handleUp` Down 分支补位移复核（DOWN→UP 间无 MOVE 事件[事件合并/极快 flick]时位移超 slop 不视为 tap）；`onTap` 改用按下时刻坐标（消除 ≤16px 微移导致抬起点跨格命中相邻建筑——"点 A 弹 B"，命中判定以按下点为基准符合 Android GestureDetector 惯例）
+- **可改进项** — overSlop 进入 GoldFingerDrag 补 `onDragStart()`（与 Scrolling 语义一致，帧率提升入口；此前该分支仅 Scrolling 调用）；硬编码 `delay(200L)` 两处提取为 `TouchEngineConfig.buildingLongPressTimeoutMs = 200L`（建筑上长按超时，与空地 800ms `longPressTimeoutMs` 职责分离，统一调参入口）
+- **注释同步** — `hasBuildingTarget` 字段语义更新（仅用于选择长按超时 200ms vs 800ms，slop 判决与标志无关）；`TouchEngineCallbacks.onTap`/`findBuildingAt` KDoc 改写；MainGameScreen `findBuildingAt` 注释改写（防维护者误以为仍有抑制逻辑）
+- **测试** — 反转 1 个固化错误行为的测试（`suppresses Slop to Scrolling` → `does not suppress`，断言建筑起手超 slop 拖动 pan + 长按被取消）+ 新增 7 个：建筑起手超 slop 拖动 UP 不 tap、建筑起手小位移 + 200ms 长按仍进 BuildingDrag（功能保留）、小位移快速 UP 仍 tap（功能保留）、无 MOVE 事件超 slop 不 tap、tap 锚定按下坐标、GoldFingerDrag overSlop 调 onDragStart、buildingLongPressTimeoutMs 配置生效；Fake 增强（lastTapX/lastTapY/longPressCallCount/goldFingerActive）
+- **兼容性** — 纯引擎手势层修复，无 Entity/Migration/Room schema 变更（DATABASE_VERSION 不变），存档完全兼容
+- 全模块 compileReleaseKotlin + 串行全量测试（--max-workers=1）+ detekt 通过
+
 ## [4.00.91] - 2026-08-07
 
 ### 架构债务清理（2026-08-08 D-01~D-17 十项全量实施）

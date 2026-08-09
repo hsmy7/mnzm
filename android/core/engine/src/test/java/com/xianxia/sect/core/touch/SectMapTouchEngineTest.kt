@@ -257,30 +257,33 @@ class SectMapTouchEngineTest {
     }
 
     // ========================
-    // hasBuildingTarget 路径（建筑上按下，抑制 slop）
+    // hasBuildingTarget 路径（建筑上按下，slop 判决统一由 touchSlop 决定）
     // ========================
 
     @Test
-    fun `building target at DOWN suppresses Slop to Scrolling during long press window`() = runTest {
+    fun `building target at DOWN does not suppress Slop to Scrolling`() = runTest {
         callbacks.longPressResult = LongPressResult.BuildingDrag
         callbacks.buildingTargetAtDown = true // 模拟在建筑上按下
         val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
         engine.updateViewport(800f, 600f)
         engine.onTouch(touchDown(100f, 200f))
 
-        // 移动远超 slop，但因为有 buildingTarget，不会切到 Scrolling
+        // 移动远超 slop：即使建筑上起手也应切到 Scrolling（拖动视角不被建筑吞掉）
         engine.onTouch(touchMove(300f, 200f, 300_000_000L))
-        assertFalse(
-            "Should NOT scroll when touch started on building",
+        assertTrue(
+            "Should scroll when touch started on building",
             callbacks.panCalled
         )
+        assertTrue("State should be Scrolling", engine.state is GestureState.Scrolling)
 
-        // 长按触发后，状态应为 BuildingDrag
+        // 长按 Job 已被取消，advanceUntilIdle 后不应进入 BuildingDrag
         advanceUntilIdle()
-        assertEquals(
-            "Should transition to BuildingDrag after long press",
-            GestureState.BuildingDrag::class, engine.state::class
+        assertTrue(
+            "Long press must be cancelled after slop exceeded",
+            engine.state is GestureState.Scrolling
         )
+        assertFalse("Must NOT enter BuildingDrag", engine.state is GestureState.BuildingDrag)
+        assertFalse("Building drag update must not be called", callbacks.buildingDragUpdateCalled)
     }
 
     @Test
@@ -294,6 +297,107 @@ class SectMapTouchEngineTest {
         engine.onTouch(touchUp(100f, 200f, 100_000_000L))
         assertEquals(GestureState.Idle::class, engine.state::class)
         assertTrue("Quick UP on building should trigger Tap", callbacks.tapCalled)
+    }
+
+    // ========================
+    // 建筑上起手拖动 → pan（不误触 tap / 长按）回归
+    // ========================
+
+    @Test
+    fun `building target then MOVE past slop then UP does not trigger Tap`() = runTest {
+        callbacks.buildingTargetAtDown = true
+        val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
+        engine.updateViewport(800f, 600f)
+        engine.onTouch(touchDown(100f, 200f))
+        engine.onTouch(touchMove(150f, 200f, 300_000_000L)) // 50px > 16px slop
+        assertTrue(engine.state is GestureState.Scrolling)
+        engine.onTouch(touchUp(150f, 200f, 600_000_000L))
+        // 50px/0.3s ≈ 167px/s < 200 minFlingVelocity → Idle（避免进入 Flinging）
+        assertEquals(GestureState.Idle::class, engine.state::class)
+        assertFalse("Moved past slop must not tap", callbacks.tapCalled)
+        assertTrue("Drag end should fire after scrolling", callbacks.dragEndCalled)
+    }
+
+    @Test
+    fun `building target small movement then long press enters BuildingDrag`() = runTest {
+        callbacks.longPressResult = LongPressResult.BuildingDrag
+        callbacks.buildingTargetAtDown = true
+        val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
+        engine.updateViewport(800f, 600f)
+        engine.onTouch(touchDown(100f, 200f))
+        engine.onTouch(touchMove(108f, 203f, 50_000_000L)) // 位移 (8,3) ≈ 8.5px ≤ 16px slop
+        engine.onTouch(touchMove(108f, 203f, 250_000_000L)) // 250ms > 200ms，Job 未被取消
+        advanceUntilIdle() // 200ms 长按触发
+        assertEquals(GestureState.BuildingDrag::class, engine.state::class)
+        assertTrue("Long press on building should enter BuildingDrag", callbacks.dragStartCalled)
+        assertFalse("Small movement must not scroll", callbacks.panCalled)
+    }
+
+    @Test
+    fun `building target small movement then quick UP triggers Tap`() = runTest {
+        callbacks.buildingTargetAtDown = true
+        val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
+        engine.updateViewport(800f, 600f)
+        engine.onTouch(touchDown(100f, 200f))
+        engine.onTouch(touchMove(108f, 203f, 50_000_000L)) // 位移 (8,3) ≤ 16px slop
+        engine.onTouch(touchUp(108f, 203f, 100_000_000L)) // 100ms < 200ms 长按窗口
+        assertEquals(GestureState.Idle::class, engine.state::class)
+        assertTrue("Small movement quick UP on building should Tap", callbacks.tapCalled)
+    }
+
+    @Test
+    fun `DOWN then UP past slop without MOVE events does not trigger Tap`() = runTest {
+        val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
+        engine.updateViewport(800f, 600f)
+        engine.onTouch(touchDown(100f, 200f))
+        engine.onTouch(touchUp(150f, 200f, 100_000_000L)) // 50px 位移但无 MOVE 事件
+        assertEquals(GestureState.Idle::class, engine.state::class)
+        assertFalse("UP past slop without MOVE must not tap", callbacks.tapCalled)
+    }
+
+    @Test
+    fun `tap on building reports DOWN coordinates for hit test`() = runTest {
+        callbacks.buildingTargetAtDown = true
+        val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
+        engine.updateViewport(800f, 600f)
+        engine.onTouch(touchDown(100f, 200f))
+        engine.onTouch(touchMove(108f, 203f, 50_000_000L)) // ≤ slop 微移
+        engine.onTouch(touchUp(108f, 203f, 100_000_000L))
+        assertTrue(callbacks.tapCalled)
+        assertEquals(100f, callbacks.lastTapX, 0.001f)
+        assertEquals(200f, callbacks.lastTapY, 0.001f)
+    }
+
+    @Test
+    fun `MOVE past slop with gold finger active calls onDragStart and enters GoldFingerDrag`() = runTest {
+        callbacks.goldFingerActive = true
+        val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
+        engine.updateViewport(800f, 600f)
+        engine.onTouch(touchDown(100f, 200f))
+        engine.onTouch(touchMove(150f, 200f, 300_000_000L)) // 50px > 16px slop
+        assertTrue(
+            "State should be GoldFingerDrag",
+            engine.state is GestureState.GoldFingerDrag
+        )
+        assertTrue(
+            "GoldFingerDrag entry via slop must call onDragStart",
+            callbacks.dragStartCalled
+        )
+        assertFalse("Pan must not fire for GoldFingerDrag", callbacks.panCalled)
+    }
+
+    @Test
+    fun `building long press timeout respects config value`() = runTest {
+        callbacks.longPressResult = LongPressResult.BuildingDrag
+        callbacks.buildingTargetAtDown = true
+        val config = TouchEngineConfig(buildingLongPressTimeoutMs = 1000L)
+        val engine = SectMapTouchEngine(callbacks, this, config)
+        engine.updateViewport(800f, 600f)
+        engine.onTouch(touchDown(100f, 200f))
+        engine.onTouch(touchMove(108f, 203f, 50_000_000L)) // 位移 ≤ slop，长按 Job 保持
+        assertTrue("Long press must not fire before configured timeout", engine.state is GestureState.Down)
+        advanceUntilIdle() // 1000ms 到达，长按触发
+        assertEquals(GestureState.BuildingDrag::class, engine.state::class)
     }
 
     companion object {
@@ -310,8 +414,11 @@ class FakeTouchEngineCallbacks : TouchEngineCallbacks {
     var longPressResult: LongPressResult = LongPressResult.NotHandled
     var buildingTargetAtDown = false // 模拟 findBuildingAt 返回非 null
     var inEditMode = false // 模拟 isInEditMode()
+    var goldFingerActive = false // 模拟 isGoldFingerActive()
 
     var tapCalled = false
+    var lastTapX = -1f
+    var lastTapY = -1f
     var panCalled = false
     var buildingDragUpdateCalled = false
     var buildingDragEndCalled = false
@@ -320,21 +427,29 @@ class FakeTouchEngineCallbacks : TouchEngineCallbacks {
     var flingEndCalled = false
     var dragStartCalled = false
     var dragEndCalled = false
+    var longPressCallCount = 0
 
     override fun onTap(screenX: Float, screenY: Float) {
         tapCalled = true
+        lastTapX = screenX
+        lastTapY = screenY
     }
 
     override fun onPanCamera(dx: Float, dy: Float) {
         panCalled = true
     }
 
-    override fun onLongPress(screenX: Float, screenY: Float): LongPressResult = longPressResult
+    override fun onLongPress(screenX: Float, screenY: Float): LongPressResult {
+        longPressCallCount++
+        return longPressResult
+    }
 
     override fun findBuildingAt(screenX: Float, screenY: Float): Any? =
         if (buildingTargetAtDown) Any() else null
 
     override fun isInEditMode(): Boolean = inEditMode
+
+    override fun isGoldFingerActive(): Boolean = goldFingerActive
 
     override fun onBuildingDragUpdate(worldDx: Float, worldDy: Float) {
         buildingDragUpdateCalled = true
@@ -368,6 +483,8 @@ class FakeTouchEngineCallbacks : TouchEngineCallbacks {
 
     fun reset() {
         tapCalled = false
+        lastTapX = -1f
+        lastTapY = -1f
         panCalled = false
         buildingDragUpdateCalled = false
         buildingDragEndCalled = false
@@ -376,8 +493,10 @@ class FakeTouchEngineCallbacks : TouchEngineCallbacks {
         flingEndCalled = false
         dragStartCalled = false
         dragEndCalled = false
+        longPressCallCount = 0
         longPressResult = LongPressResult.NotHandled
         buildingTargetAtDown = false
         inEditMode = false
+        goldFingerActive = false
     }
 }

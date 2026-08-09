@@ -742,7 +742,8 @@ fun MainGameScreen(
 
                     /**
                      * [关键] DOWN 时刻检测是否在建筑上。
-                     * 引擎据此抑制 Slop→Scrolling 转换，让长按有足够时间触发 BuildingDrag。
+                     * 引擎据此选择长按超时：建筑上 → 200ms 长按进 BuildingDrag；空地 → 800ms（金手指）。
+                     * Slop→Scrolling 判决统一由 touchSlop 决定，与返回值无关；拖动视角不再被建筑吞掉。
                      * 复用 buildingIndex 的 O(1) 空间索引查询。
                      */
                     override fun findBuildingAt(screenX: Float, screenY: Float): Any? {

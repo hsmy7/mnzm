@@ -13,7 +13,7 @@ interface TouchEngineCallbacks {
     /** 相机平移（SCROLLING / FLINGING）。dx/dy 为屏幕像素偏移。 */
     fun onPanCamera(dx: Float, dy: Float) = Unit
 
-    /** 短触点击。screenX/screenY 为屏幕坐标。 */
+    /** 短触点击。screenX/screenY 为按下时刻坐标（tap 仅在位移 ≤ touchSlop 时触发，命中以按下点为准）。 */
     fun onTap(screenX: Float, screenY: Float) = Unit
 
     /**
@@ -26,7 +26,9 @@ interface TouchEngineCallbacks {
 
     /**
      * 查找屏幕坐标处的建筑（用于 DOWN 时刻快速判断）。
-     * 引擎在 handleDown 中调用，如果返回非 null，则抑制 Down→Scrolling 转换。
+     * 返回非 null → 长按超时缩短为 200ms（可进入 BuildingDrag）；null → 使用
+     * config.longPressTimeoutMs（默认 800ms，仅金手指）。Down→Scrolling 判决
+     * 统一由 touchSlop 决定，与返回值无关。
      */
     fun findBuildingAt(screenX: Float, screenY: Float): Any? = null
 

@@ -54,8 +54,8 @@ class SectMapTouchEngine(
 
     /**
      * DOWN 时刻是否触摸在建筑/预览上。
-     * 若为 true，则 ANY 移动直接进入 BuildingDrag（无需长按），
-     * 无移动则视为 Tap（打开建筑对话框）。
+     * 仅用于选择长按超时：true → 200ms（可进入 BuildingDrag）；false → config.longPressTimeoutMs。
+     * Slop→Scrolling 判决统一由 touchSlop 决定，与本标志无关；超 slop 移动时本标志被清除。
      */
     private var hasBuildingTarget = false
 
@@ -152,7 +152,7 @@ class SectMapTouchEngine(
             if (state is GestureState.Down) {
                 longPressJob = scope.launch {
                     try {
-                        delay(200L)
+                        delay(config.buildingLongPressTimeoutMs)
                         if (state is GestureState.Down) {
                             state = GestureState.BuildingDrag
                             callbacks.onDragStart()
@@ -167,10 +167,10 @@ class SectMapTouchEngine(
         hasBuildingTarget = callbacks.findBuildingAt(data.x, data.y) != null
 
         if (hasBuildingTarget) {
-            // 首次触摸建筑：200ms 长按后进入 BuildingDrag
+            // 首次触摸建筑：config.buildingLongPressTimeoutMs 长按后进入 BuildingDrag
             longPressJob = scope.launch {
                 try {
-                    delay(200L)
+                    delay(config.buildingLongPressTimeoutMs)
                     if (state is GestureState.Down) {
                         when (callbacks.onLongPress(data.x, data.y)) {
                             LongPressResult.BuildingDrag -> {
@@ -223,19 +223,19 @@ class SectMapTouchEngine(
                     return
                 }
 
-                // 首次触摸建筑中（等待 200ms 长按）→ 移动不做任何事
-                if (hasBuildingTarget) return
-
                 val overSlop = dx * dx + dy * dy > config.touchSlopSq
                 if (overSlop) {
                     longPressJob?.cancel(); longPressJob = null
+                    // Down 时刻的建筑目标随 slop 判决失效（拖动意图优先于长按）
+                    hasBuildingTarget = false
                     state = if (callbacks.isGoldFingerActive()) {
                         GestureState.GoldFingerDrag
                     } else {
                         GestureState.Scrolling
                     }
+                    // GoldFingerDrag / Scrolling 均以 onDragStart 开始（帧率提升语义），Scrolling 额外平移
+                    callbacks.onDragStart()
                     if (state is GestureState.Scrolling) {
-                        callbacks.onDragStart()
                         callbacks.onPanCamera(dx, dy)
                     }
                 }
@@ -272,8 +272,15 @@ class SectMapTouchEngine(
 
         when (state) {
             is GestureState.Down -> {
+                val dx = data.x - downX
+                val dy = data.y - downY
+                val movedPastSlop = dx * dx + dy * dy > config.touchSlopSq
                 state = GestureState.Idle
-                callbacks.onTap(data.x, data.y)
+                // 防御：DOWN→UP 间无 MOVE 事件（事件合并/极快 flick）时，
+                // 位移超 slop 不视为 tap；tap 命中一律锚定按下点
+                if (!movedPastSlop) {
+                    callbacks.onTap(downX, downY)
+                }
             }
 
             is GestureState.Scrolling -> {
