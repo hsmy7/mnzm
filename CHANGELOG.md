@@ -67,6 +67,7 @@
 - **测试** — 新增 `MerchantPriceValidationTest` 6 条：负价/0 价购买拒绝（灵石不变/不入库/商家库存不变）、正价购买回归（扣款/入库/库存减少）、负价/0 价收购拒绝（**仓库物品保留防丢失**）、正价收购回归（移除/入账/需求减少）；构造仿 `InventoryFacadeConfiscateTest`（FakeAtomicStateStore + SpiritStoneWallet + InventorySystem）
 - **D-24 关闭** — CI 精确变体 `testReleaseUnitTest` + `koverHtmlReport` + `compileReleaseKotlin` + `lintRelease` 全量验证（补 4.00.93 一月卡顿批次未跑的尾巴）
 - 全模块串行测试（--max-workers=1）+ detekt + lintRelease 通过
+- **待完成项登记归档（2026-08-09）** — `docs/architecture.md` 待完成项登记章节全部条目（T/P/D 系列）已处置完毕并清空：已完成/已关闭项（D-01/D-03/D-05~D-09/D-11~D-17/D-21~D-24）实施要点见该章节实施记录段落；决策不修项（D-02/D-04/D-10/D-18~D-20/D-25、W4/拉条/P6/P-11）理由见各批次"不纳入"说明；仅保留 P-16/P-18/P-19 待真机验证指引（真机验证时查阅）。历史详情见本文件 4.00.86~4.00.93 各版本段落
 
 ## [4.00.91] - 2026-08-07
 

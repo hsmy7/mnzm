@@ -19,7 +19,7 @@
 - [关键源码目录](#key-source-directories)
 - [架构文档索引](#architecture-docs)
 - [存档验证规则引擎](#存档验证规则引擎-savevalidator-rule-engine)
-- [待完成项登记](#待完成项登记2026-08-05-清理历史完成项已移除详见-changelog-40086-40088)
+- [待完成项登记（2026-08-09 清理归档）](#待完成项登记2026-08-09-清理归档全部条目已处置完毕待办表清空)
 - [实施记录（2026-08-08：D-01 / D-03 / D-05~D-09 / D-15~D-17 十项）](#实施记录2026-08-08d-01--d-03--d-05d-09--d-15d-17-十项已完成)
 
 ---
@@ -439,58 +439,22 @@ SaveValidator.validate(SaveData)
 
 20 个测试类覆盖全部规则，位于 `data/src/test/.../integrity/rules/`。每规则独立覆盖通过/修复/损坏三类路径。
 
-## 待完成项登记（2026-08-05 清理：历史完成项已移除，详见 CHANGELOG 4.00.86~4.00.88）
+## 待完成项登记（2026-08-09 清理归档：全部条目已处置完毕，待办表清空）
 
-> 2026-08-02 综合优化遗留（T1~T3）、2026-08-04 代码质量优化（函数级 4 项/上帝对象 5 项/UI 3 项）、2026-08-04 战斗系统函数级 11 项 + T-C1~C4、2026-08-05 存档链路 C1~C13 + T1、预存问题 P-01~P-15/P-17 均已实施（详情见 CHANGELOG 4.00.86~4.00.88）。以下为维持现状决策与待验证项。
+> 2026-08-02~2026-08-09 登记的全部待办项（T/P/D 系列）已于 2026-08-09 全部处置完毕，登记表清空归档：
+> - **已完成**：D-01 / D-03 / D-05~D-09 / D-11~D-17 / D-21~D-24（实施要点见下方"实施记录"段落，详见 CHANGELOG 4.00.86~4.00.93）
+> - **决策不修 / 维持现状**：D-02（功能移除自然失效）/ D-04 / D-10 / D-18~D-20 / D-25、W4 / AI 拉条移植 / P6 / P-11 附带（决策理由记录于各批次实施记录"不纳入"说明与 CHANGELOG）
+> - **待真机验证（非待办，指引保留）**：P-16 / P-18 / P-19 —— 验证指引见下
 
-### 维持现状决策（记录在案）
+### 待真机验证指引（2026-08-09 归档保留，真机验证时查阅）
 
-| 项 | 位置 | 现状 | 说明 |
-|---|---|---|---|
-| W4 AISectAttackManager object → class | `core/engine/.../domain/battle/AISectAttackManager.kt` | **维持现状（2026-08-05 决策）** | 探索确认 EnemyGenerator 同样未被 class 化（同为 object + 文件级 RNG var 注入模式）；两处注入点均在 GameEngine 初始化必然执行、error() 为防御兜底，非缺陷；object→class 构造注入波及 20+ 调用点收益不明确 |
-| AI 引擎 turnAdvance（拉条）移植 | `core/engine/.../domain/battle/AISectAttackManager.kt` | 不纳入（维持记录） | 鹰妖"天翔一闪"等拉条技能在宗门战无效（主引擎 BattleSystem 已实现）；为稀有技能特性，移植需完整实现（行动记录/冷却/伤害结算） |
-| P6 已评估不做 | `core/ui` 5 处平台 Dialog / `clearPendingNotification` / `ui-layout-unification` 分支 | 记录在案 | 组件库基础设施不能自我迁移；`_pendingNotificationFlow` 仍有 GameOverlayHost 消费者；分支已删除/合并无合回风险 |
-| P-11 附带：engine 模块其余 122 条 InvalidPackageDeclaration | engine 全模块旧目录布局 | 维持冻结 | battle 域 13 文件已归位（2026-08-05）；全量归位需机械移动约 122 文件，另行立项 |
+| # | 项 | 验证指引 |
+|---|---|---|
+| P-16 | UI 迁移真机冒烟 | SettingsTab/DiscipleDetailScreen/OverlayDialogRouter：4 个迁移弹窗（其他设置/年俸/存档管理/更新日志）逐一打开关闭 + OverlayDialogRouter 34 分支逐项打开一次；判定：无崩溃/白屏/交互完整/叠层路由正常 |
+| P-18 | 排行榜 rank 0/1 起始语义 | `TapTapLeaderboardApi.kt`：首名显示 #1 且次名重复 #1 → 服务端 1 起始，移除归一化；次名 #2 → 保留现状。抓原始 rank 与显示值对照 ≥3 次 |
+| P-19 | 一月卡顿根治性能量化（代码已提交 commit `7dae538b`） | 真机装 4.00.93 包跨过至少 1 个游戏年，抓 logcat：`CultivationEventMonthlyOps.kt` 各处理器 `op[...] took Nms` 耗时 + `GameEngineCore.kt` "Tick over budget" 是否出现。判定：1 月 tick 收敛至单帧级（目标 <100ms）；AI 修炼日志仅出现在 3/6/9/12 月。**目前仅算法复杂度论证，无实测数据** |
 
-### 待真机验证
-
-| # | 项 | 位置 | 验证指引 |
-|---|---|---|---|
-| P-16 | UI 迁移真机冒烟 | SettingsTab/DiscipleDetailScreen/OverlayDialogRouter | 发布前检查 4 个迁移弹窗（其他设置/年俸/存档管理/更新日志）逐一打开关闭 + OverlayDialogRouter 34 分支逐项打开一次；判定：无崩溃/白屏/交互完整/叠层路由正常 |
-| P-18 | 排行榜 rank 0/1 起始语义 | `feature/game/.../taptap/TapTapLeaderboardApi.kt` | 已做 0→1 归一化兜底（rank<1 显示 1）。真机观察：首名显示 #1 且次名重复 #1 → 服务端 1 起始，移除归一化；次名 #2 → 保留现状。抓原始 rank 与显示值对照 ≥3 次 |
-| P-19 | 一月卡顿根治性能量化（2026-08-09 批次登记，代码已提交 commit `7dae538b`） | `core/engine/.../service/CultivationEventMonthlyOps.kt` safelyRunInState 耗时日志（SLOW_OP_THRESHOLD_MS=25）+ `GameEngineCore.kt` "Tick over budget" 日志 | 真机装 4.00.93 包，游戏内跨过至少 1 个游戏年（1 月），抓 logcat：① 1 月前后 `op[...] took Nms` 各处理器耗时；② "Tick over budget" 是否出现。判定：1 月 tick 从旧版数秒收敛至单帧级（目标 <100ms）；AI 修炼日志仅出现在 3/6/9/12 月（1 月不再触发）。**目前仅算法复杂度论证，无实测数据** |
-
-### 途中发现待办（2026-08-05 引擎确定性加固时登记 D-01~D-06；2026-08-06 三崩溃批次对抗性审查新增 D-07~D-10；2026-08-06 建筑点击无效批次对抗性审查新增 D-11~D-15，详见 CHANGELOG 4.00.89~4.00.90；2026-08-07 商人/宗门交易品阶动态刷新批次新增 D-16；2026-08-07 灵田收获卡死+草药不入库批次对抗性审查新增 D-17~D-20；2026-08-08 数量器升级批次对抗性审查新增 D-21~D-23；2026-08-09 一月卡顿根治批次登记 D-24~D-25，详见 CHANGELOG 4.00.93）
-
-> 本次实施（RNG 事务快照/UI RNG 治理/奖励统一入口/事务合并/缓存）后对抗性审查登记的未修项。P-19/P-20/P-21 已随本次实施完成（奖励收编 InventorySystem + 守卫补漏 + 签到 catch 移出事务）。
-
-| # | 项 | 位置 | 现状与处理指引 |
-|---|---|---|---|
-| ~~D-01~~ ✅ 已修 | 溢出邮件非事务化（300ms 内存队列） | `core/engine/.../service/OverflowMailSender.kt`（pendingDrafts 异步防抖队列） | ✅ **已修（2026-08-08 架构债务批次）**：草稿入队即持久化（新表 overflow_mail_drafts/direct_mail_drafts）+ 事务世代号（提交钩子恰一次落盘、回滚丢弃）；崩溃恢复经 startGameLoop 统一 drain；DATABASE_VERSION 42→43 |
-| D-02 | ~~里程碑失败后无法重试（预存）~~ | ~~`core/engine/.../service/DailySignInService.kt` claimDailySignIn 里程碑循环~~ | ✅ **已关闭（2026-08-07）**——活动与每日签到功能整体移除，待办自然失效 |
-| ~~D-03~~ ✅ 已修 | 放背包失败转邮件（体验） | `core/engine/.../domain/disciple/DiscipleFacadeImpl.kt` rewardEquipment/rewardManual 放背包路径 | ✅ **已修（2026-08-08 架构债务批次）**：袋独立存储重构，**容量无上限**——袋条目 payload 持有数据，写入永不因袋满失败；物化迁移兼容老存档 |
-| D-04 | 试炼敌人属性从随机变固定（C1 行为变化） | `core/engine/.../domain/battle/HeavenlyTrialService.kt` enemySeed | 敌人生成改确定性派生种子后：同一关卡敌人属性恒定（预览=战斗一致、零全局 RNG 污染）。产品侧确认可接受（固定挑战）；如需随机化，改为进入战斗时取种子本地生成 |
-| ~~D-05~~ ✅ 已修 | `GameEngineDiplomacyOps.interactWithSect` 未实现存根 | `core/engine/.../GameEngineDiplomacyOps.kt:70` | ✅ **已修（2026-08-08 架构债务批次）**：死代码删除（与 D-16 一并清理） |
-| ~~D-06~~ ✅ 已修 | 全库通配符 import 显式化（约 750 处） | main 482 处 + test 271 处，主要分布：`core.model.*` 125 / `foundation.layout.*` 97 / `runtime.*` 81 / `material3.*` 44 / `core.engine.*` 27 / `core.state.*` 16 / `room.*` 14 / 其余约 25 个包 | ✅ **已修（2026-08-08 架构债务批次）**：自有包约 260 处显式化 + Compose 生态白名单（detekt.yml 21 条 excludeImports）+ baseline 摘除 + 工具 `scripts/expand-wildcard-imports.mjs` |
-| ~~D-07~~ ✅ 已修 | `stopGameLoop`/`shutdown` 与 `emergencyRestartGameLoop` 无生命周期互斥（孤儿循环/双速） | `core/engine/.../GameEngineCore.kt`（stopGameLoop/shutdown/emergencyRestartGameLoop） | ✅ **已修（2026-08-08 架构债务批次）**：LoopPhase 状态机 CAS（RUNNING/RESTARTING/STOPPING/STOPPED），并发交错根治；含 GameEngineCoreLifecycleInterleavingTest |
-| ~~D-08~~ ✅ 已修 | `ThermalMonitor.start()/stop()` 无调用者——ADPF 热降载实际未接线 | `core/engine/.../perf/ThermalMonitor.kt` start/stop | ✅ **已修（2026-08-08 架构债务批次）**：`startGameLoop` 接线 start/stop（含 emergency 换线程重建语义），热状态不再恒 NORMAL |
-| ~~D-09~~ ✅ 已修 | `ThermalMonitor.createHintSession` 异常分支不可测 | `core/engine/.../perf/ThermalMonitor.kt` hintManager（private lazy） | ✅ **已修（2026-08-08 架构债务批次）**：hintManager 改 internal var 接缝注入，Robolectric 补异常/null 分支用例 |
-| D-10 | 主线程 HWUI 阻塞无看门狗覆盖 | 三层看门狗（`GameTimeProgressMonitor` / `GameLoopDelegate` HealthCheck / `AlarmWatchdogReceiver`）均只监控"游戏时间推进" | 2026-08-06 #2037 ANR 归因时登记：主线程卡 `syncAndDrawFrame`（HWUI 绘制阻塞，非输入阻塞）无检测无恢复；阻塞中任何恢复都无法执行（事后监控价值有限）。可选演进：`FrameMetricsMonitor` 严重 jank（>50ms）接上报/降载信号（降 targetFps），属长期项 |
-| ~~D-11~~ ✅ 已修 | 宗门被夺回时 activeSectId 残留致本宗地图整体变空 | `core/engine/.../engine/BuildingLoadSelfHeal.kt` `purifyStaleActiveSectId`（boot Step 3 读档净化） | 2026-08-06 建筑点击无效批次对抗性审查登记（数据篡改者发现 2），2026-08-06 批次补全修复：读档时 activeSectId 非空且不对应"现存且玩家持有（isPlayerSect/isPlayerOccupied）"宗门 → 归回本宗 ""（worldMapSects 为空同样归 ""）。含 `BootSequenceControllerTest` boot 净化生效守卫 |
-| ~~D-12~~ ✅ 已修 | 拖拽中建筑被渲染命令总线双渲染 | `feature/game/.../GameViewModel.kt` movingInstanceId 通道（bus 推送键改 (activeSectId, placedBuildings, movingId) 三元组并排除移动中建筑）+ `MainGameScreen.kt` `LaunchedEffect(movingBuilding)` 单点接线 | 2026-08-06 建筑点击无效批次对抗性审查登记（状态破坏者 F1），2026-08-06 批次补全修复：拖拽期间总线不再在旧位置渲染该建筑（双渲染消除）；点击索引/占用检测与总线同源，拖拽窗口期点不中/可叠建窗口关闭。含 `GameViewModelTest` +3 |
-| ~~D-13~~ ✅ 已修 | 旧档 sectId 不匹配建筑完全不可管理 | `core/engine/.../engine/BuildingLoadSelfHeal.kt` `normalizeOrphanBuildingSectIds`（boot Step 3 读档归一化） | 2026-08-06 建筑点击无效批次对抗性审查登记（数据篡改者 F4/状态破坏者 F4），2026-08-06 批次补全修复（主修复）：sectId 非空且 worldMapSects 无对应宗门 → 归入本宗 ""（同步 `SpiritMineSlot.sectId`；worldMapSects 为空跳过防误伤；幂等）。归一化在溢出迁移之前执行（boot Step 3.5），孤儿与既有建筑重叠由迁移拆除退款。含 `BuildingLoadSelfHealTest`（归一化 8 例 + 归一化→迁移守卫）、`BootSequenceControllerTest` boot 生效守卫 |
-| ~~D-14~~ ✅ 已修 | 旧档 2×2 矿场移到地图边缘后读档 fixup 撑大越界 | `core/engine/.../config/BuildingConfigService.kt` fixupBuildingSizes（加世界尺寸默认参数，尺寸变化时钳制坐标回地图界内） | 2026-08-06 建筑点击无效批次对抗性审查登记（边界狂魔 F3），2026-08-06 批次补全修复：2×2 矿场 @gridX=126 撑大到 4×4 钳回 124；负坐标钳 0；尺寸不变的健康数据零副作用；钳入 3 格边界区由既有边界迁移（50% 退款）兜底。含 `BuildingConfigServiceFixupTest` 5 例 |
-| ~~D-15~~ ✅ 已修 | `AISectBattleProcessor` 795 行/21 函数超限 | `core/engine/.../engine/service/AISectBattleProcessor.kt` | ✅ **已修（2026-08-08 架构债务批次）**：ABC 三块拆分（AISectOccupationResolver 占领结算 + PlayerDefenseProcessor 玩家防守），原类保留编排职责 |
-| ~~D-16~~ ✅ 已修 | `generateSectTradeItems` 无 sectId 回退路径死代码链 | `core/engine/.../GameEngineDiplomacyOps.kt:6` → `DiplomacyFacade.kt:12` → `DiplomacyFacadeImpl.kt:38-39` → `DiplomacyService.kt:211`（sectId 默认 null 分支） | ✅ **已修（2026-08-08 架构债务批次）**：死代码链删除（与 D-05 一并清理） |
-| ~~D-17~~ ✅ 已修 | 预存 9 个 detekt 违规（baseline 签名失配重新暴露） | `core/engine/.../domain/disciple/DiscipleFacadeImpl.kt:23` LongParameterList；`GameEngineSelfHealOps.kt:31` LongMethod + Cyclomatic + LoopWithTooManyJumpStatements；`ProductionProcessor.kt:503/:623` processAutoAlchemySlot/processAutoForgeSlot LongMethod；`ProductionCoordinator.kt:424` TooGenericExceptionCaught | ✅ **已修（2026-08-08 架构债务批次）**：拆函数/抽共用守卫/baseline 签名更新，9 条清零 |
-| D-18 | 灵田收获对抗性审查不修 5 项（记录在案） | `ProductionProcessor.kt` 收获路径（`buildHarvestMaturityContext`/`buildHarvestHerbStore`/`updateSlotAfterHarvest`） | 2026-08-07 灵田收获批次对抗性审查（4 Agent）确认不修：① aura 索引 `associate` vs 原 `find` 查找一致性问题（仅损坏数据可达）；② 续种不刷新 growTime/expectedYield（无消费者，种植时固定）；③ completionMonth 不含加速（无消费者）；④ F5 计数语义（guideCounters HERBS_HARVESTED 与 annualHerbCount 计数口径，既有设计 T4 锚定）；⑤ add 对锁定堆叠合并（store 通用被动入账语义，全系统一致）。如后续需求变化（如续种刷新产量）单独评估 |
-| D-19 | 灵泉灌溉政策真实产量 +15% 数值变更（本次仅改文案） | `core/domain/.../GameConfig.kt:707`（SPIRIT_SPRING_YIELD）+ `feature/game/.../TianshuHallDialog.kt:411` | 2026-08-07 灵田收获批次明确不做数值变更：政策实际为生长加速乘区（非产量），文案已更正为"灵草生长速度+15%"消除误导。改真实产量属平衡性决策（政策永久生效、expectedYield 种植时固定、影响中后期草药经济），需产品定夺后单独立项 |
-| D-20 | 收获是否移出月结事务（性能进一步保障） | `core/engine/.../service/ProductionProcessor.kt` processSpiritFieldHarvest（月结 `systemManager.onMonthlyEvent` 事务内调用） | 2026-08-07 灵田收获批次主因修复：复杂度 O(n×(d+b+n+h)) → O(n+d+b+h)（n=300 时 <1ms 量级），已不再构成 UI 阻塞，事务结构本次不动（外科手术式）。若极端存档（数千地块）仍有卡顿疑虑，可单独立项把收获移出月结事务（涉及惰性结算引擎架构调整） |
-| ~~D-21~~ ✅ 已修 | 商人交易价格校验缺口（负价/0 价商品 + 同类收购缺口） | `core/engine/.../domain/inventory/InventoryFacadeImpl.kt` buyMerchantItem / sellToMerchant | ✅ **已修（2026-08-09 批次）**：buyMerchantItem 入口校验 `price <= 0 \|\| quantity <= 0` 拒绝购买 + DomainLog.w；**举一反三同类缺口**：sellToMerchant 收购路径先移除仓库物品、后 wallet.add（`amount<=0` 静默拒绝）入账 → 负价/0 价收购致玩家物品丢失无补偿，入口校验 `price <= 0` 拒绝。实测修正登记描述：负价购买实际被 `SpiritStoneWallet.deduct` 的 `amount<=0 → Invalid` 兜底拒绝（事务回滚），原"灵石反增"不成立，真实问题是防御纵深缺口。AutoBuyService（deduct 失败即 skip 无状态变更）与上架（引擎定价恒正）核查安全。含 `MerchantPriceValidationTest` 6 条守卫 |
-| ~~D-22~~ ✅ 已修 | 商人刷新后 selectedItem 失效购买静默失败 | `feature/game/.../dialogs/MerchantDialog.kt:63/132/231`（selectedItem 状态 / refreshTravelingMerchantManual 刷新按钮 / onConfirm buyFromMerchant） | ✅ **已修（2026-08-09 批次，最小修复）**：刷新按钮点击后清空 `selectedItem` + `buyQuantity`（对齐切 Tab/切筛选先例；刷新后商品可能被替换/变价，旧选中按旧价预期扣款也是体验问题）；引擎侧 `buyMerchantItem` 商品不存在分支补 DomainLog.w 兜底日志。静默失败路径正常不可达，未做接口签名改造（用户决策） |
-| ~~D-23~~ ✅ 已修 | MerchantDialog.kt:140 预存死条件判断 | `feature/game/.../dialogs/MerchantDialog.kt:140`（`if (viewModel != null)` 恒 true） | ✅ **已修（2026-08-09 批次）**：去除判断直接调用 viewModel（Image 块内容不变，仅删条件与缩进） |
-| ~~D-24~~ ✅ 已关闭 | 最终 CI 变体完整验证未跑（testReleaseUnitTest + kover 覆盖率） | 2026-08-09 一月卡顿批次验证只跑了 `test`（debug 变体）+ detekt + lintRelease + compileReleaseKotlin | ✅ **已关闭（2026-08-09 批次）**：`./gradlew.bat testReleaseUnitTest --max-workers=1` + `koverHtmlReport` + `detekt` + `lintRelease` 全绿。精确计数：**394 测试类 / 5957 用例 / 0 失败**（一月卡顿批次 "2258 tests" 计数修正——最终代码重跑后实测）。覆盖率：koverHtmlReport 生成成功，engine 行覆盖约 33%（历史预存缺口，不属本批次阻塞项，详见 P- 批次记录） |
-| D-25 | ShardedSlotLock 锁粒度（对抗性审查接受不修，记录在案） | `core/engine/.../repository/ProductionSlotRepository.kt` ShardedSlotLock（按 buildingType+slotIndex 分片） | 2026-08-09 一月卡顿批次对抗性审查（状态破坏者视角）确认不修：理论上有并发逐槽更新与 batchUpdate 回滚的交错窗口，但引擎为单写线程模型（stateStore.update ReentrantLock 串行化），不触发；回滚覆盖窗口比"内存/DB 分叉"危害小得多。防御性设计债，如未来多写者架构立项时评估 |
+> ~~途中发现待办 D 系列登记表（D-01~D-25）已于 2026-08-09 全部处置完毕并归档清空：已完成/已关闭项的实施要点见下方"实施记录"段落与 CHANGELOG 4.00.86~4.00.93；决策不修项（D-04 / D-10 / D-18~D-20 / D-25）的决策理由见各批次实施记录"不纳入"说明。~~
 
 ## 实施记录（2026-08-08：D-01 / D-03 / D-05~D-09 / D-15~D-17 十项）——已完成
 
@@ -525,4 +489,6 @@ SaveValidator.validate(SaveData)
 | D-23 | 删除 `if (viewModel != null)` 恒 true 死条件 |
 | D-24 | CI 精确变体 `testReleaseUnitTest` + `koverHtmlReport` + lint 全绿（补 4.00.93 一月卡顿批次未跑尾巴） |
 
-**不纳入**：P-16/P-18/P-19（待真机验证，保留验证指引）、D-25（对抗性审查接受不修）、D-04/D-10/D-18/D-19/D-20（已决策）、维持现状决策项（W4/拉条移植/P6/P-11 附带）。
+**不纳入**：P-16/P-18/P-19（待真机验证，指引保留于上方"待真机验证指引"小节）、D-25（对抗性审查接受不修）、D-04/D-10/D-18/D-19/D-20（已决策）、维持现状决策项（W4/拉条移植/P6/P-11 附带）。
+
+> **2026-08-09 归档**：待完成项登记章节全部条目（T/P/D 系列）已处置完毕并清空，维持现状决策表 / 途中发现待办 D 系列表 / 待真机验证表均已清理，仅保留待真机验证指引（P-16/P-18/P-19）。历史记录见 CHANGELOG 4.00.86~4.00.93 与上方各实施记录段落。
