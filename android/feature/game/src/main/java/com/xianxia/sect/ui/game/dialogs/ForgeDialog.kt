@@ -122,7 +122,7 @@ fun ForgeDialog(
                         )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
-                    ProfessionLabel(level = workerDisciple?.forgeLevel ?: 0, isAlchemy = false)
+                    ProfessionLabel(level = workerDisciple?.forgeLevel, isAlchemy = false)
                     Spacer(modifier = Modifier.height(2.dp))
                     DiscipleSlot(
                         disciple = workerDisciple,

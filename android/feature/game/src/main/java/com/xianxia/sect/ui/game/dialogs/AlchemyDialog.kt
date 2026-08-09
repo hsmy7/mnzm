@@ -124,7 +124,7 @@ fun AlchemyDialog(
                         )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
-                    ProfessionLabel(level = workerDisciple?.alchemyLevel ?: 0, isAlchemy = true)
+                    ProfessionLabel(level = workerDisciple?.alchemyLevel, isAlchemy = true)
                     Spacer(modifier = Modifier.height(2.dp))
                     DiscipleSlot(
                         disciple = workerDisciple,

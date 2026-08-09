@@ -25,15 +25,17 @@ fun professionLabelColor(level: Int): Color = when (level.coerceIn(0, Profession
  * 炼丹/锻造槽位外部上方的弟子职业标签。
  * 字体大小 12dp，颜色随职业等级变化（无职业=白色）。
  *
- * @param level 弟子职业等级（无弟子时传 0 显示"无职业"）
+ * @param level 弟子职业等级（null=无弟子，不显示标签；0=已任命但无职业，仍显示"无职业"）
  * @param isAlchemy true=炼丹职业名（炼丹师…丹圣），false=炼器职业名（炼器师…器圣）
  */
 @Composable
-fun ProfessionLabel(level: Int, isAlchemy: Boolean) {
-    Text(
-        text = ProfessionRules.displayName(level, isAlchemy),
-        fontSize = 12.sp,
-        fontWeight = FontWeight.Bold,
-        color = professionLabelColor(level)
-    )
+fun ProfessionLabel(level: Int?, isAlchemy: Boolean) {
+    if (level != null) {
+        Text(
+            text = ProfessionRules.displayName(level, isAlchemy),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = professionLabelColor(level)
+        )
+    }
 }

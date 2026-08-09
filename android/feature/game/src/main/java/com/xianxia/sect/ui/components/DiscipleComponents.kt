@@ -573,62 +573,76 @@ fun getTalentRarityColor(rarity: Int): Color = when (rarity) {
 }
 
 @Composable
-fun TalentDetailDialog(talent: Talent, onDismiss: () -> Unit) {
+fun TalentDetailDialog(
+    talent: Talent,
+    onDismiss: () -> Unit,
+    onWashClick: (() -> Unit)? = null,
+    washOverlay: (@Composable () -> Unit)? = null
+) {
     val rarityColor = getTalentRarityColor(talent.rarity)
 
     SmallScreenDialog(
         onDismissRequest = onDismiss,
         title = talent.name,
-        titleColor = rarityColor
+        titleColor = rarityColor,
+        footer = {
+            onWashClick?.let { GameButton(text = "洗炼天赋", onClick = it) }
+        },
+        overlay = washOverlay
     ) {
+        TalentDetailContent(talent)
+    }
+}
+
+@Composable
+private fun TalentDetailContent(talent: Talent) {
+    Text(
+        text = "天赋效果",
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Bold,
+        color = Color.Black
+    )
+
+    if (talent.effects.isEmpty() && talent.positionBonus == null) {
         Text(
-            text = "天赋效果",
+            text = talent.description,
             fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
             color = Color.Black
         )
+    } else {
+        talent.effects.forEach { (key, value) ->
+            val effectText = formatTalentEffectText(key, value)
 
-        if (talent.effects.isEmpty() && talent.positionBonus == null) {
-            Text(
-                text = talent.description,
-                fontSize = 12.sp,
-                color = Color.Black
-            )
-        } else {
-            talent.effects.forEach { (key, value) ->
-                val effectText = formatTalentEffectText(key, value)
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "•",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                    Text(
-                        text = effectText,
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "•",
+                    fontSize = 12.sp,
+                    color = Color.Black
+                )
+                Text(
+                    text = effectText,
+                    fontSize = 12.sp,
+                    color = Color.Black
+                )
             }
-            talent.positionBonus?.let { bonus ->
-                val slotName = formatSlotTypeName(bonus.slotType)
-                val percent = formatPercentValue(bonus.effectBonus)
-                val sign = if (bonus.effectBonus >= 0) "+" else "-"
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(text = "•", fontSize = 12.sp, color = Color.Black)
-                    Text(
-                        text = "担任职务($slotName)时职能效果 $sign$percent",
-                        fontSize = 12.sp,
-                        color = Color.Black
-                    )
-                }
+        }
+        talent.positionBonus?.let { bonus ->
+            val slotName = formatSlotTypeName(bonus.slotType)
+            val percent = formatPercentValue(bonus.effectBonus)
+            val sign = if (bonus.effectBonus >= 0) "+" else "-"
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(text = "•", fontSize = 12.sp, color = Color.Black)
+                Text(
+                    text = "担任职务($slotName)时职能效果 $sign$percent",
+                    fontSize = 12.sp,
+                    color = Color.Black
+                )
             }
         }
     }
@@ -737,13 +751,22 @@ fun formatPercentValue(value: Double): String {
 }
 
 @Composable
-fun PhysiqueDetailDialog(physique: Physique, onDismiss: () -> Unit) {
+fun PhysiqueDetailDialog(
+    physique: Physique,
+    onDismiss: () -> Unit,
+    onWashClick: (() -> Unit)? = null,
+    washOverlay: (@Composable () -> Unit)? = null
+) {
     val rarityColor = getTalentRarityColor(physique.rarity)
 
     SmallScreenDialog(
         onDismissRequest = onDismiss,
         title = physique.name,
-        titleColor = rarityColor
+        titleColor = rarityColor,
+        footer = {
+            onWashClick?.let { GameButton(text = "洗炼体质", onClick = it) }
+        },
+        overlay = washOverlay
     ) {
         Text(
             text = "体质效果",
@@ -785,13 +808,22 @@ fun PhysiqueDetailDialog(physique: Physique, onDismiss: () -> Unit) {
 }
 
 @Composable
-fun AffixDetailDialog(affix: Affix, onDismiss: () -> Unit) {
+fun AffixDetailDialog(
+    affix: Affix,
+    onDismiss: () -> Unit,
+    onWashClick: (() -> Unit)? = null,
+    washOverlay: (@Composable () -> Unit)? = null
+) {
     val rarityColor = getTalentRarityColor(affix.rarity)
 
     SmallScreenDialog(
         onDismissRequest = onDismiss,
         title = affix.name,
-        titleColor = rarityColor
+        titleColor = rarityColor,
+        footer = {
+            onWashClick?.let { GameButton(text = "洗炼词条", onClick = it) }
+        },
+        overlay = washOverlay
     ) {
         Text(
             text = "词条效果",
