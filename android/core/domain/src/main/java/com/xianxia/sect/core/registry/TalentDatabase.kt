@@ -548,6 +548,14 @@ object TalentDatabase {
 
     fun getByRarity(rarity: Int): List<Talent> = talents.values.filter { it.rarity == rarity }
 
+    /**
+     * 按品阶返回正向（非负面）天赋列表，过滤退役天赋类型（[DEPRECATED_TALENT_TYPES]）。
+     * 与 [generateTalentsForDisciple] 的生成池对齐——洗炼保底池（3 阶）经此取池，
+     * 退役超模条目（如 r5/r6 寿命加成）不会经保底路径重新流入。
+     */
+    fun getPositiveByRarity(rarity: Int): List<Talent> = getByRarity(rarity)
+        .filter { !it.isNegative && getTalentDataById(it.id)?.type !in DEPRECATED_TALENT_TYPES }
+
     fun getPositiveTalents(): List<Talent> = talents.values
         .filter { !it.isNegative }
         .filter { getTalentDataById(it.id)?.type !in DEPRECATED_TALENT_TYPES }

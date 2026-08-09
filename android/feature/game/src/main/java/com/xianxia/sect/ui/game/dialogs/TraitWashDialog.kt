@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,68 +24,84 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.engine.SpiritRootWashConfirmResult
-import com.xianxia.sect.core.engine.SpiritRootWashResult
+import com.xianxia.sect.core.GameConfig.TraitWashType
+import com.xianxia.sect.core.engine.TraitWashConfirmResult
+import com.xianxia.sect.core.engine.TraitWashResult
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.model.SpiritRoot
+import com.xianxia.sect.core.registry.AffixDatabase
+import com.xianxia.sect.core.registry.PhysiqueDatabase
+import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.InlineStandardPromptDialog
 import com.xianxia.sect.ui.components.SpriteImage
+import com.xianxia.sect.ui.components.getTalentRarityColor
 import com.xianxia.sect.ui.game.GameViewModel
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.launch
 
-/** 玉符不足提示文案（需求：点洗炼/继续洗炼且玉符不足时弹提示框） */
+/** 玉符不足提示文案（与洗炼灵根一致） */
 private const val INSUFFICIENT_JADE_TEXT = "玉符不足，无法洗炼"
 
 /** 洗炼结果未产出时的占位显示 */
 private const val EMPTY_RESULT_TEXT = "——"
 
-/** 解析灵根数量色（仿 BasicInfoSection 的 countColor 解析，兜底黑色；runCatching 避 detekt） */
-@Composable
-private fun parseRootColor(hex: String): Color = remember(hex) {
-    runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrDefault(Color.Black)
+/** 空特质列表显示 */
+private const val NONE_TEXT = "无"
+
+/** 按洗炼类型分发洗炼请求（提取自 TraitWashContent，控 Cyclomatic 复杂度） */
+private suspend fun GameViewModel.washByType(
+    id: String,
+    type: TraitWashType,
+    pityCount: Int
+): TraitWashResult = when (type) {
+    TraitWashType.TALENT -> washTalent(id, pityCount)
+    TraitWashType.PHYSIQUE -> washPhysique(id, pityCount)
+    TraitWashType.AFFIX -> washAffix(id, pityCount)
+}
+
+/** 按洗炼类型分发确认替换请求 */
+private suspend fun GameViewModel.confirmByType(
+    id: String,
+    type: TraitWashType,
+    newIds: List<String>
+): TraitWashConfirmResult = when (type) {
+    TraitWashType.TALENT -> confirmTalent(id, newIds)
+    TraitWashType.PHYSIQUE -> confirmPhysique(id, newIds)
+    TraitWashType.AFFIX -> confirmAffix(id, newIds)
 }
 
 /**
- * 洗炼灵根弹窗（内联覆盖层，渲染在弟子详情内容 lambda 末尾）。
+ * 洗炼天赋/体质/词条弹窗（内联覆盖层，渲染在弟子详情内容 lambda 末尾）。
  *
- * 布局：标题"洗炼灵根" + 右上角关闭（[InlineStandardPromptDialog] showCloseButton）、
- * 左侧当前灵根 → 右箭头 → 右侧洗炼结果、按钮上方"消耗1玉符"小字（12sp + 玉符图标 12dp，
- * 与宗门信息卡片小字/灵石图标一致；玉符不足变红）、按钮区动态切换。
- *
- * 保底计数：弹窗会话持有，初始化自 [WashSessionControl.initialPityCount]（DiscipleDetailScreen
- * 层常驻计数），洗炼成功时经 [WashSessionControl.onPityCountChanged] 回传——弹窗关闭再打开
- * 保底不重置，连续 3 次保底语义不被弹窗开关破坏。
- *
- * 防丢失：洗炼/确认替换进行中（washing）拦截 onDismissRequest，防止引擎操作
- * 中途关闭导致"玉符已扣、产物丢失"。
+ * 结构与流程完全镜像洗炼灵根：两段式（洗炼出产物 → 确认替换）、品质保底计数回传
+ * （[WashSessionControl.onPityCountChanged]，弹窗关闭再打开不重置）、防连点/防中途关闭
+ * （washing 拦截 onDismissRequest，防"玉符已扣、结果丢失"）、错误原因直接展示
+ * （Error/Confirm Error 透传引擎 message，如"弟子已死亡"，不吞掉具体失败原因）。
  */
 @Composable
-fun SpiritRootWashDialog(
+internal fun TraitWashDialog(
     disciple: DiscipleAggregate,
+    type: TraitWashType,
     jadeSymbols: Int,
     viewModel: GameViewModel?,
-    initialPityCount: Int,
-    onPityCountChanged: (Int) -> Unit,
+    washSession: WashSessionControl,
     onDismiss: () -> Unit
 ) {
     // 防连点/防中途关闭：洗炼与确认替换共用的引擎操作进行中标记（弹窗会话持有）
     var washing by remember { mutableStateOf(false) }
     InlineStandardPromptDialog(
         onDismissRequest = { if (!washing) onDismiss() },
-        title = "洗炼灵根",
+        title = "洗炼${type.displayName}",
         showCloseButton = true,
         dismissOnClickOutside = true,
         dismissOnBackPress = true,
         content = {
-            SpiritRootWashContent(
+            TraitWashContent(
                 disciple = disciple,
+                type = type,
                 jadeSymbols = jadeSymbols,
                 viewModel = viewModel,
-                washSession = WashSessionControl(
-                    initialPityCount = initialPityCount,
-                    onPityCountChanged = onPityCountChanged,
+                washSession = washSession.copy(
                     washing = washing,
                     onWashingChange = { washing = it }
                 ),
@@ -96,40 +113,44 @@ fun SpiritRootWashDialog(
 
 /** 洗炼弹窗内容：会话状态（产物/保底计数/错误提示）+ 布局 + 动态按钮区 */
 @Composable
-private fun SpiritRootWashContent(
+private fun TraitWashContent(
     disciple: DiscipleAggregate,
+    type: TraitWashType,
     jadeSymbols: Int,
     viewModel: GameViewModel?,
     washSession: WashSessionControl,
     onDismiss: () -> Unit
 ) {
-    // 洗炼产物（英文元素 key 逗号串），未洗炼为 null
-    var washResult by remember { mutableStateOf<String?>(null) }
+    // 洗炼产物（特质 id 列表），未洗炼为 null
+    var washResult by remember { mutableStateOf<List<String>?>(null) }
     // 保底计数：以弹窗打开时的上层计数初始化，成功后回传上层（跨会话保持）
     var pityCount by remember { mutableIntStateOf(washSession.initialPityCount) }
     // 错误提示文案（null = 不显示）：玉符不足/洗炼失败/替换失败共用，文案区分
     var errorText by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
-    val currentRootColor = parseRootColor(disciple.spiritRoot.countColor)
-    val newRoot = washResult?.let { SpiritRoot(it) }
-    val newRootColor = newRoot?.let { parseRootColor(it.countColor) } ?: Color.Black
-    val jadeInsufficient = jadeSymbols < GameConfig.SpiritRoot.WASH_JADE_COST
+    val currentTraits: List<Pair<String, Int>> = when (type) {
+        TraitWashType.TALENT -> TalentDatabase.getTalentsByIds(disciple.talentIds).map { it.name to it.rarity }
+        TraitWashType.PHYSIQUE -> PhysiqueDatabase.getPhysiquesByIds(disciple.physiqueIds).map { it.name to it.rarity }
+        TraitWashType.AFFIX -> AffixDatabase.getAffixesByIds(disciple.affixIds).map { it.name to it.rarity }
+    }
+    val jadeInsufficient = jadeSymbols < GameConfig.TraitWash.WASH_JADE_COST
 
     // 同帧连点防重入：washing 是 Compose 状态，同帧内第二次点击读旧值 false → 双扣玉符；
     // AtomicBoolean compareAndSet 立即生效不等重组（对抗性审查 2026-08-09 状态破坏者发现）
     val washInFlight = remember { AtomicBoolean(false) }
 
     fun onWashClick() {
-        if (washSession.washing || !washInFlight.compareAndSet(false, true)) return
-        val vm = viewModel ?: return
+        val vm = viewModel
+        if (vm == null || washSession.washing || !washInFlight.compareAndSet(false, true)) return
         washSession.onWashingChange(true)
         scope.launch {
             try {
+                val result = vm.washByType(disciple.id, type, pityCount)
                 handleWashResult(
-                    result = vm.washSpiritRoot(disciple.id, pityCount),
-                    onSuccess = { root, pity ->
-                        washResult = root
+                    result = result,
+                    onSuccess = { newIds, pity ->
+                        washResult = newIds
                         pityCount = pity
                         washSession.onPityCountChanged(pity)
                     },
@@ -151,8 +172,9 @@ private fun SpiritRootWashContent(
         washSession.onWashingChange(true)
         scope.launch {
             try {
+                val result = vm.confirmByType(disciple.id, type, current)
                 handleConfirmResult(
-                    result = vm.confirmSpiritRootWash(disciple.id, current),
+                    result = result,
                     onSuccess = onDismiss,
                     onError = { message -> errorText = message }
                 )
@@ -167,16 +189,16 @@ private fun SpiritRootWashContent(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        WashResultRow(
-            currentRootName = disciple.spiritRootName,
-            currentRootColor = currentRootColor,
-            newRoot = newRoot,
-            newRootColor = newRootColor
+        TraitResultRow(
+            type = type,
+            currentTraits = currentTraits,
+            newIds = washResult
         )
         Spacer(modifier = Modifier.weight(1f))
         CostHintRow(jadeInsufficient)
         Spacer(modifier = Modifier.height(8.dp))
         WashActionButtons(
+            type = type,
             hasResult = washResult != null,
             washing = washSession.washing,
             onWashClick = ::onWashClick,
@@ -189,44 +211,63 @@ private fun SpiritRootWashContent(
     }
 }
 
-/** ① 当前灵根 → 洗炼结果（未洗炼显示占位符） */
+/** ① 当前特质列表 → 洗炼结果列表（未洗炼显示占位符，空列表显示"无"） */
 @Composable
-private fun WashResultRow(
-    currentRootName: String,
-    currentRootColor: Color,
-    newRoot: SpiritRoot?,
-    newRootColor: Color
+private fun TraitResultRow(
+    type: TraitWashType,
+    currentTraits: List<Pair<String, Int>>,
+    newIds: List<String>?
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = "当前灵根", fontSize = 12.sp, color = Color.Black)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = currentRootName,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = currentRootColor
-            )
+    val newTraits: List<Pair<String, Int>>? = newIds?.let { ids ->
+        when (type) {
+            TraitWashType.TALENT -> TalentDatabase.getTalentsByIds(ids).map { it.name to it.rarity }
+            TraitWashType.PHYSIQUE -> PhysiqueDatabase.getPhysiquesByIds(ids).map { it.name to it.rarity }
+            TraitWashType.AFFIX -> AffixDatabase.getAffixesByIds(ids).map { it.name to it.rarity }
         }
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        TraitColumn(
+            title = "当前${type.displayName}",
+            traits = currentTraits,
+            modifier = Modifier.weight(1f)
+        )
         Text(text = "→", fontSize = 20.sp, color = Color.Black)
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = "洗炼结果", fontSize = 12.sp, color = Color.Black)
-            Spacer(modifier = Modifier.height(4.dp))
-            if (newRoot != null) {
+        TraitColumn(
+            title = "洗炼结果",
+            traits = newTraits,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+/** 特质列：标题 + 条目列表（名称按品阶着色，仿详情页特质格子配色） */
+@Composable
+private fun TraitColumn(
+    title: String,
+    traits: List<Pair<String, Int>>?,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(text = title, fontSize = 12.sp, color = Color.Black)
+        Spacer(modifier = Modifier.height(4.dp))
+        if (traits == null) {
+            Text(text = EMPTY_RESULT_TEXT, fontSize = 14.sp, color = Color(0xFFAAAAAA))
+        } else if (traits.isEmpty()) {
+            Text(text = NONE_TEXT, fontSize = 14.sp, color = Color(0xFFAAAAAA))
+        } else {
+            traits.forEach { (name, rarity) ->
                 Text(
-                    text = newRoot.name,
-                    fontSize = 14.sp,
+                    text = name,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = newRootColor
-                )
-            } else {
-                Text(
-                    text = EMPTY_RESULT_TEXT,
-                    fontSize = 14.sp,
-                    color = Color(0xFFAAAAAA)
+                    color = getTalentRarityColor(rarity)
                 )
             }
         }
@@ -244,16 +285,17 @@ private fun CostHintRow(jadeInsufficient: Boolean) {
         )
         Spacer(modifier = Modifier.width(4.dp))
         Text(
-            text = "消耗${GameConfig.SpiritRoot.WASH_JADE_COST}玉符",
+            text = "消耗${GameConfig.TraitWash.WASH_JADE_COST}玉符",
             fontSize = 12.sp,
             color = if (jadeInsufficient) Color.Red else Color.White
         )
     }
 }
 
-/** ③ 按钮区：未洗炼单个"洗炼灵根"按钮；洗炼后"确认替换"+"继续洗炼"（引擎操作中全部禁用） */
+/** ③ 按钮区：未洗炼单个"洗炼XX"按钮；洗炼后"确认替换"+"继续洗炼"（引擎操作中全部禁用） */
 @Composable
 private fun WashActionButtons(
+    type: TraitWashType,
     hasResult: Boolean,
     washing: Boolean,
     onWashClick: () -> Unit,
@@ -261,7 +303,7 @@ private fun WashActionButtons(
 ) {
     if (!hasResult) {
         GameButton(
-            text = "洗炼灵根",
+            text = "洗炼${type.displayName}",
             onClick = onWashClick,
             enabled = !washing
         )
@@ -286,27 +328,27 @@ private fun WashActionButtons(
  * Error 直接透传引擎 message（玩家可读中文，如"弟子已死亡"，不吞掉具体失败原因）。
  */
 private fun handleWashResult(
-    result: SpiritRootWashResult,
-    onSuccess: (newRootType: String, newPityCount: Int) -> Unit,
+    result: TraitWashResult,
+    onSuccess: (newIds: List<String>, newPityCount: Int) -> Unit,
     onInsufficient: () -> Unit,
     onError: (message: String) -> Unit
 ) {
     when (result) {
-        is SpiritRootWashResult.Success -> onSuccess(result.newRootType, result.newPityCount)
-        is SpiritRootWashResult.InsufficientJadeSymbols -> onInsufficient()
-        is SpiritRootWashResult.Error -> onError(result.message)
+        is TraitWashResult.Success -> onSuccess(result.newIds, result.newPityCount)
+        is TraitWashResult.InsufficientJadeSymbols -> onInsufficient()
+        is TraitWashResult.Error -> onError(result.message)
     }
 }
 
 /** 确认替换结果分发：成功关弹窗，失败透传引擎 message 展示具体原因 */
 private fun handleConfirmResult(
-    result: SpiritRootWashConfirmResult,
+    result: TraitWashConfirmResult,
     onSuccess: () -> Unit,
     onError: (message: String) -> Unit
 ) {
     when (result) {
-        is SpiritRootWashConfirmResult.Success -> onSuccess()
-        is SpiritRootWashConfirmResult.Error -> onError(result.message)
+        is TraitWashConfirmResult.Success -> onSuccess()
+        is TraitWashConfirmResult.Error -> onError(result.message)
     }
 }
 

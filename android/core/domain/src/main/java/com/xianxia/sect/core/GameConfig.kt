@@ -394,9 +394,36 @@ object GameConfig {
             DomainLog.w("SpiritRoot", "灵根权重和<1.0（累积=$cumulative），回退到5灵根，请检查COUNT_WEIGHTS配置")
             return 5
         }
-        
+
     }
-    
+
+    /** 天赋/体质/词条洗炼类型（三分类共用同构流程，displayName 用于 UI 标题与按钮文案）。 */
+    enum class TraitWashType(val displayName: String) {
+        TALENT("天赋"), PHYSIQUE("体质"), AFFIX("词条")
+    }
+
+    /** 洗炼天赋/体质/词条（2026-08-09 新增，玉符消耗玩法，流程对齐洗炼灵根）。 */
+    object TraitWash {
+
+        /** 单次洗炼消耗玉符数。 */
+        const val WASH_JADE_COST = 1
+
+        /**
+         * 保底阈值：连续洗炼结果中无任何上品（3 阶）的次数达到该值后，
+         * 下一次洗炼必出至少 1 个上品（出上品后计数归零）。
+         */
+        const val WASH_PITY_THRESHOLD = 2
+
+        /** 上品品阶（保底目标：Talent/Physique/Affix 的 rarity 达到该值即视为上品）。 */
+        const val TOP_RARITY = 3
+
+        /**
+         * 单次洗炼产物数量上限（与 WeightedRoll.DISCIPLE_TRAIT_COUNT_DISTRIBUTION
+         * 数量分布上限一致，改动需同步守卫测试 TraitWashRollTest）。
+         */
+        const val MAX_TRAIT_COUNT = 5
+    }
+
     object Beast {
         data class RealmStats(
             val hp: Int,

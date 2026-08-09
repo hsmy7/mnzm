@@ -69,6 +69,16 @@
 - 全模块串行测试（--max-workers=1）+ detekt + lintRelease 通过
 - **待完成项登记归档（2026-08-09）** — `docs/architecture.md` 待完成项登记章节全部条目（T/P/D 系列）已处置完毕并清空：已完成/已关闭项（D-01/D-03/D-05~D-09/D-11~D-17/D-21~D-24）实施要点见该章节实施记录段落；决策不修项（D-02/D-04/D-10/D-18~D-20/D-25、W4/拉条/P6/P-11）理由见各批次"不纳入"说明；仅保留 P-16/P-18/P-19 待真机验证指引（真机验证时查阅）。历史详情见本文件 4.00.86~4.00.93 各版本段落
 
+### 新增（2026-08-09 洗炼天赋/体质/词条——洗炼玩法扩展至三项特质）
+
+- **功能** — 弟子详情信息 tab 天赋/体质/词条区域下方新增三个入口按钮（洗炼天赋/洗炼体质/洗炼词条，`GameButton` 标准尺寸 72×38dp）；各弹窗 `TraitWashDialog`（内联覆盖层，渲染在 DiscipleDetailScreen 根 Box 内 CloseButton 之后，与洗炼灵根同源约束）流程完全对齐洗炼灵根：两段式（洗炼出产物 → 确认替换）、每次消耗 1 玉符、防连点/防中途关闭（washing 拦截 onDismissRequest 防"玉符已扣、产物丢失"）
+- **品质保底（用户确认设计）** — 三类型各自独立保底计数（详情层常驻，跨弹窗会话保持）：连续 2 次洗炼结果无任何 3 阶 → 下次保底至少出 1 个 3 阶（替换第一个非 3 阶槽位，空结果直接出 1 个 3 阶）；结果含 3 阶计数归零。纯函数 `rollTraitWash`（DeterministicRng + `RngPartition.SYSTEM`，确定性满足存档要求；`asKotlinRandom` 适配三个 Database 既有 `generateXForDisciple` 分布，产物 template 去重语义与生成逻辑一致）
+- **引擎** — `GameEngineTraitWashOps.kt`（镜像 GameEngineSpiritRootOps 模式）：`washTrait`（校验弟子存在/存活 → 事务内 `jadeSymbolService.deduct` 扣 1 玉符 → 保底判定抽取，玉符不足提前返回**不消耗随机序列**；事务外 `publishJadeSymbolStateNow`）+ `confirmTraitWash`（事务外预检数量≤5/全部可解析/template 无重复 → 事务内 remove+insert 替换对应字段 + `checkpointDisciple` 重新记账——体质 cultivationSpeedBonus/词条 CULT_SPEED 影响修炼速率，不重记会跳变）。Error message 全部玩家可读中文（"弟子不存在"/"弟子已死亡"等），弹窗直接透传展示具体失败原因（用户决策：不显示笼统"替换失败"文案）
+- **共享重构** — `WashSessionControl` 私有类迁出为 `dialogs/WashSessionControl.kt` internal（洗炼灵根与新弹窗共用会话控制）；灵根弹窗同步改进：Error/Confirm Error 从固定笼统文案改为直接展示引擎 message（两个同类弹窗错误提示策略统一）
+- **测试** — `GameEngineTraitWashTest` 16 条（扣减同步/不足不变+不耗 RNG/弟子不存在/死亡拒绝/保底必出上品/计数归零/confirm 合法替换+非法产物拦截/checkpointNow 玉符不回涨回归）+ `TraitWashRollTest` 6 条（纯函数保底任意种子必出上品/固定种子确定性/计数语义/产物合法性 + 池守卫[三类型 3 阶正向池非空] + 配置守卫[产物数量永不超 MAX_TRAIT_COUNT]）
+- **兼容性** — 无 Entity/Migration/序列化变更（talentIds/physiqueIds/affixIds 字段已存在，仅运行时值替换）→ 存档完全兼容；经济影响：新增 3 个玉符消耗汇（各 1/次），玉符已有日上限与免费获取源，无通胀风险
+- 全模块 compileReleaseKotlin + 串行全量测试（--max-workers=1）+ detekt + lintRelease 通过
+
 ## [4.00.91] - 2026-08-07
 
 ### 架构债务清理（2026-08-08 D-01~D-17 十项全量实施）

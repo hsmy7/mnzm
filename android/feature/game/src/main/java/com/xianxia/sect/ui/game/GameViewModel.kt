@@ -15,6 +15,8 @@ import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.engine.SpiritRootWashConfirmResult
 import com.xianxia.sect.core.engine.SpiritRootWashResult
+import com.xianxia.sect.core.engine.TraitWashConfirmResult
+import com.xianxia.sect.core.engine.TraitWashResult
 import com.xianxia.sect.core.engine.PerformanceMode
 import com.xianxia.sect.core.engine.apprenticeToMaster
 import com.xianxia.sect.core.engine.assignDiscipleToBuilding
@@ -702,6 +704,21 @@ class GameViewModel @Inject constructor(
         disciple.washSpiritRoot(discipleId, pityCount)
     suspend fun confirmSpiritRootWash(discipleId: String, newRootType: String): SpiritRootWashConfirmResult =
         disciple.confirmSpiritRootWash(discipleId, newRootType)
+
+    // ── 洗炼天赋/体质/词条（玉符消耗玩法，流程对齐洗炼灵根）──
+
+    suspend fun washTalent(discipleId: String, pityCount: Int): TraitWashResult =
+        disciple.washTalent(discipleId, pityCount)
+    suspend fun washPhysique(discipleId: String, pityCount: Int): TraitWashResult =
+        disciple.washPhysique(discipleId, pityCount)
+    suspend fun washAffix(discipleId: String, pityCount: Int): TraitWashResult =
+        disciple.washAffix(discipleId, pityCount)
+    suspend fun confirmTalent(discipleId: String, newIds: List<String>): TraitWashConfirmResult =
+        disciple.confirmTalent(discipleId, newIds)
+    suspend fun confirmPhysique(discipleId: String, newIds: List<String>): TraitWashConfirmResult =
+        disciple.confirmPhysique(discipleId, newIds)
+    suspend fun confirmAffix(discipleId: String, newIds: List<String>): TraitWashConfirmResult =
+        disciple.confirmAffix(discipleId, newIds)
     fun getLifeEvents(discipleId: String): List<String> = delegateServices.discipleFacade.getLifeEvents(discipleId)
     fun initializeLifeEvents(discipleId: String) {
         // 写操作必须派发到引擎线程（对齐 enterSect 模式），否则主线程直调 stateStore.update 触发架构违规守卫

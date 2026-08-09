@@ -46,6 +46,7 @@ import com.xianxia.sect.core.model.Talent
 import com.xianxia.sect.core.model.Physique
 import com.xianxia.sect.core.model.Affix
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.GameConfig.TraitWashType
 import com.xianxia.sect.core.util.sortedByWatchedThenRarity
 import com.xianxia.sect.core.util.watchKey
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
@@ -80,6 +81,8 @@ import com.xianxia.sect.ui.game.components.detail.StorageBagDialog
 import com.xianxia.sect.ui.game.components.detail.TalentsSection
 import com.xianxia.sect.ui.game.dialogs.DiscipleChatDialog
 import com.xianxia.sect.ui.game.dialogs.SpiritRootWashDialog
+import com.xianxia.sect.ui.game.dialogs.TraitWashDialog
+import com.xianxia.sect.ui.game.dialogs.WashSessionControl
 import com.xianxia.sect.ui.game.dialogs.shared.RenameDiscipleDialog
 import com.xianxia.sect.ui.theme.GameColors
 
@@ -152,6 +155,42 @@ fun DiscipleDetailDialog(
     // 洗炼保底计数（连续未出单灵根次数）：详情层常驻——弹窗关闭再打开不重置，
     // 保证"连续 3 次保底"语义跨洗炼会话成立（弹窗会话持有的计数在关闭时丢失）
     var washPityCount by remember { mutableIntStateOf(0) }
+    // 洗炼天赋/体质/词条弹窗开关（三个独立 bool；互斥见下方 open*Wash 闭包，
+    // 各入口打开自己并关闭其它三个——防止快速点击叠加两个覆盖层）
+    var showTalentWashDialog by remember { mutableStateOf(false) }
+    var showPhysiqueWashDialog by remember { mutableStateOf(false) }
+    var showAffixWashDialog by remember { mutableStateOf(false) }
+    // 三个洗炼类型各自独立保底计数（同洗炼灵根：详情层常驻，弹窗关闭再打开不重置）
+    var talentWashPityCount by remember { mutableIntStateOf(0) }
+    var physiqueWashPityCount by remember { mutableIntStateOf(0) }
+    var affixWashPityCount by remember { mutableIntStateOf(0) }
+
+    // 洗炼弹窗互斥入口（对抗性审查 2026-08-09 状态破坏者：四个洗炼入口若只置位自己的
+    // bool，快速连点可在同帧叠加两个内联覆盖层，下层弹窗的洗炼按钮仍可被点到造成双扣玉符）
+    val openSpiritRootWash: () -> Unit = {
+        showWashDialog = true
+        showTalentWashDialog = false
+        showPhysiqueWashDialog = false
+        showAffixWashDialog = false
+    }
+    val openTalentWash: () -> Unit = {
+        showTalentWashDialog = true
+        showWashDialog = false
+        showPhysiqueWashDialog = false
+        showAffixWashDialog = false
+    }
+    val openPhysiqueWash: () -> Unit = {
+        showPhysiqueWashDialog = true
+        showWashDialog = false
+        showTalentWashDialog = false
+        showAffixWashDialog = false
+    }
+    val openAffixWash: () -> Unit = {
+        showAffixWashDialog = true
+        showWashDialog = false
+        showTalentWashDialog = false
+        showPhysiqueWashDialog = false
+    }
     var showChatDialog by remember { mutableStateOf(false) }
     var selectedMaster by remember { mutableStateOf<DiscipleAggregate?>(null) }
     var showApprenticeConfirmDialog by remember { mutableStateOf(false) }
@@ -279,7 +318,7 @@ fun DiscipleDetailDialog(
                                         gameYear = gameYear,
                                         gamePhase = gamePhase,
                                         gameSpeed = 1,
-                                        onWashSpiritRootClick = { showWashDialog = true }
+                                        onWashSpiritRootClick = openSpiritRootWash
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
                                     TalentsSection(talents, disciple.statusData, onTalentClick = { selectedTalent = it })
@@ -287,6 +326,22 @@ fun DiscipleDetailDialog(
                                     PhysiquesSection(physiques, onPhysiqueClick = { selectedPhysique = it })
                                     Spacer(modifier = Modifier.height(12.dp))
                                     AffixesSection(affixes, onAffixClick = { selectedAffix = it })
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    // 洗炼天赋/体质/词条入口（洗炼玩法对齐洗炼灵根：两段式 + 玉符消耗 + 品质保底）
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        GameButton(
+                                            text = "洗炼天赋",
+                                            onClick = openTalentWash
+                                        )
+                                        GameButton(
+                                            text = "洗炼体质",
+                                            onClick = openPhysiqueWash
+                                        )
+                                        GameButton(
+                                            text = "洗炼词条",
+                                            onClick = openAffixWash
+                                        )
+                                    }
                                 }
                                 1 -> {
                                     AttributesSection(disciple)
@@ -372,6 +427,51 @@ fun DiscipleDetailDialog(
                         initialPityCount = washPityCount,
                         onPityCountChanged = { washPityCount = it },
                         onDismiss = { showWashDialog = false }
+                    )
+                }
+                if (showTalentWashDialog) {
+                    TraitWashDialog(
+                        disciple = disciple,
+                        type = TraitWashType.TALENT,
+                        jadeSymbols = gameData?.jadeSymbols ?: 0,
+                        viewModel = viewModel,
+                        washSession = WashSessionControl(
+                            initialPityCount = talentWashPityCount,
+                            onPityCountChanged = { talentWashPityCount = it },
+                            washing = false,
+                            onWashingChange = {}
+                        ),
+                        onDismiss = { showTalentWashDialog = false }
+                    )
+                }
+                if (showPhysiqueWashDialog) {
+                    TraitWashDialog(
+                        disciple = disciple,
+                        type = TraitWashType.PHYSIQUE,
+                        jadeSymbols = gameData?.jadeSymbols ?: 0,
+                        viewModel = viewModel,
+                        washSession = WashSessionControl(
+                            initialPityCount = physiqueWashPityCount,
+                            onPityCountChanged = { physiqueWashPityCount = it },
+                            washing = false,
+                            onWashingChange = {}
+                        ),
+                        onDismiss = { showPhysiqueWashDialog = false }
+                    )
+                }
+                if (showAffixWashDialog) {
+                    TraitWashDialog(
+                        disciple = disciple,
+                        type = TraitWashType.AFFIX,
+                        jadeSymbols = gameData?.jadeSymbols ?: 0,
+                        viewModel = viewModel,
+                        washSession = WashSessionControl(
+                            initialPityCount = affixWashPityCount,
+                            onPityCountChanged = { affixWashPityCount = it },
+                            washing = false,
+                            onWashingChange = {}
+                        ),
+                        onDismiss = { showAffixWashDialog = false }
                     )
                 }
             }
