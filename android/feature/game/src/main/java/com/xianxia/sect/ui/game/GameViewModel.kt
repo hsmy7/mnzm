@@ -479,8 +479,6 @@ class GameViewModel @Inject constructor(
 
     val attackWarnings: StateFlow<List<AttackWarning>> get() = warnings.attackWarnings
     val shownWarningStageIds: StateFlow<List<String>> get() = warnings.shownWarningStageIds
-    fun resolveAttackWarningAppease(sectId: String) = warnings.resolveAttackWarningAppease(sectId)
-    fun resolveAttackWarningVassal(sectId: String) = warnings.resolveAttackWarningVassal(sectId)
     fun markWarningStageShown(stageKey: String) = warnings.markWarningStageShown(stageKey)
 
     fun enqueueBattleRewardCards() {

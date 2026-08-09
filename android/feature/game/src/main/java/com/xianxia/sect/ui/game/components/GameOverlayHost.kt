@@ -13,7 +13,6 @@ import androidx.compose.ui.graphics.Color
 
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.util.sortedByFollowAttributeAndRealm
-import com.xianxia.sect.core.model.WarningStage
 import com.xianxia.sect.core.state.GameNotification
 import com.xianxia.sect.ui.game.AlchemyViewModel
 import com.xianxia.sect.ui.game.BattleViewModel
@@ -188,9 +187,7 @@ fun GameOverlayHost(
     val attackWarnings by viewModel.attackWarnings.collectAsStateWithLifecycle()
     val shownWarningStageIds by viewModel.shownWarningStageIds.collectAsStateWithLifecycle()
     val attackWarningVisible = attackWarnings.any { warning ->
-        val shownIds = shownWarningStageIds
-        (warning.stage == WarningStage.DENUNCIATION && "${warning.warningId}:DENUNCIATION" !in shownIds) ||
-            (warning.stage == WarningStage.WAR_DECLARATION && "${warning.warningId}:WAR_DECLARATION" !in shownIds)
+        "${warning.warningId}:${warning.stage.name}" !in shownWarningStageIds
     }
     val anyDialogVisible = currentDialogType != DialogType.None ||
         tipDialogMessage != null ||
@@ -255,26 +252,17 @@ fun GameOverlayHost(
     }
 
     // AI宗门进攻预警弹窗
-    val gdForWarning by viewModel.gameDataUi.collectAsStateWithLifecycle()
-
     if (dialogRenderable) {
         AttackWarningDialogs(
-        warnings = attackWarnings,
-        shownStageIds = shownWarningStageIds,
-        currentSpiritStones = gdForWarning.spiritStones,
-        scrimEnabled = false,
-        onAppease = { warning ->
-            viewModel.resolveAttackWarningAppease(warning.attackerSectId)
-        },
-        onBecomeVassal = { warning ->
-            viewModel.resolveAttackWarningVassal(warning.attackerSectId)
-        },
-        onDismissWarning = { warning ->
-            viewModel.markWarningStageShown(
-                "${warning.warningId}:${warning.stage.name}"
-            )
-        }
-    )
+            warnings = attackWarnings,
+            shownStageIds = shownWarningStageIds,
+            scrimEnabled = false,
+            onDismissWarning = { warning ->
+                viewModel.markWarningStageShown(
+                    "${warning.warningId}:${warning.stage.name}"
+                )
+            }
+        )
     }
 
     val onDismiss: () -> Unit = { viewModel.dismissDialog() }

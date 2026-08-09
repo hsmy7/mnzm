@@ -427,13 +427,13 @@ object AISectAttackManager {
      * AI决定攻击玩家的结果——不再是立即执行战斗，
      * 而是返回【是否应生成预警】或【是否应跳过】。
      *
-     * 预警生成后进入谴责→战书二级生命周期，
+     * 预警生成后进入单级"即将进攻"生命周期（下月直接进攻），
      * 到期后才执行实际战斗。
      */
     sealed interface PlayerAttackDecision {
         /** 不攻击（保护期/附庸/冷却/好感度>0 等） */
         data object Skip : PlayerAttackDecision
-        /** 生成预警，进入谴责阶段 */
+        /** 生成"即将进攻"预警 */
         data class GenerateWarning(
             val attackerSectId: String,
             val attackerSectName: String

@@ -9,11 +9,13 @@ import com.xianxia.sect.core.engine.domain.battle.AttackWarningService
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.building.BuildingFacade
 import com.xianxia.sect.core.exploration.DiscipleDeathHandler
+import com.xianxia.sect.core.model.AttackWarning
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.SectDetail
 import com.xianxia.sect.core.model.SectWarehouse
 import com.xianxia.sect.core.model.WarehouseItem
+import com.xianxia.sect.core.model.WarningStage
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.state.DiscipleTables
@@ -31,6 +33,7 @@ import org.mockito.Mockito
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.whenever
 
 
@@ -49,6 +52,8 @@ class AISectBattleProcessorTest {
     fun setUp() {
         // decidePlayerAttack/decideAttacks 真实执行依赖分区 RNG 注入
         aisRngManager = GameRngManager()
+        // 共享 mock：每个测试重置计数（verify(mock).method() 为 times(1) 精确匹配）
+        Mockito.reset(attackWarningService)
     }
 
     @After
@@ -155,8 +160,57 @@ class AISectBattleProcessorTest {
 
         processor.processAISectOperations(2026, 1)
 
-        // 预警生命周期已推进；无预警/无 AI 宗门时不产生任何攻击行为
-        verify(attackWarningService).advanceWarningsIfNeededSync(any())
+        // 预警收敛入口已调用；无预警/无 AI 宗门时不产生任何攻击行为
+        verify(attackWarningService).normalizeImminentWarningsSync(any())
+    }
+
+    @Test
+    fun `processPlayerDefenseBattles - 旧档DENUNCIATION预警传入收敛入口`() {
+        val store = mock<GameStateStore>()
+        val data = GameData(
+            worldMapSects = listOf(WorldSect(id = "player", isPlayerSect = true)),
+            activeAttackWarnings = listOf(
+                AttackWarning(
+                    warningId = "w1", attackerSectId = "ai1", attackerSectName = "AI宗",
+                    stage = WarningStage.DENUNCIATION,
+                    attackMonth = 2026 * 12 + 7, createdAtMonth = 2026 * 12 + 1
+                )
+            )
+        )
+        val tables = DiscipleTables().apply { writeAllowed = true }
+        whenever(store.gameData).thenReturn(MutableStateFlow(data))
+        whenever(store.discipleTables).thenReturn(tables)
+        whenever(store.update(any())).thenAnswer { inv ->
+            inv.getArgument<MutableGameState.() -> Unit>(0).invoke(makeState(data))
+        }
+        // 全链路验证：真实 PlayerDefenseProcessor 装配，旧档残留预警必须进入收敛入口
+        val playerDefense = PlayerDefenseProcessor(
+            stateStore = store,
+            battleSystem = mock<BattleSystem>(),
+            attackWarningService = attackWarningService,
+            cultivationService = mock<CultivationService>(),
+            sectWarehouseManager = mock<SectWarehouseManager>(),
+            deathHandler = mock<DiscipleDeathHandler>()
+        )
+        val processor = AISectBattleProcessor(
+            stateStore = store,
+            thermalMonitor = thermalWith(false, false),
+            battleSystem = mock<BattleSystem>(),
+            playerDefenseProcessor = playerDefense,
+            occupationResolver = mock<AISectOccupationResolver>()
+        )
+
+        processor.processAISectOperations(2026, 1)
+
+        // 捕获传入收敛入口的状态：旧档 DENUNCIATION 预警确实被递交给收敛逻辑
+        val captor = argumentCaptor<MutableGameState>()
+        verify(attackWarningService).normalizeImminentWarningsSync(captor.capture())
+        val capturedState = captor.firstValue
+        assertEquals(1, capturedState.gameData.activeAttackWarnings.size)
+        assertEquals(
+            WarningStage.DENUNCIATION,
+            capturedState.gameData.activeAttackWarnings[0].stage
+        )
     }
 
     private fun thermalWith(emergency: Boolean, reduce: Boolean): ThermalMonitor {

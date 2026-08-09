@@ -79,6 +79,14 @@
 - **兼容性** — 无 Entity/Migration/序列化变更（talentIds/physiqueIds/affixIds 字段已存在，仅运行时值替换）→ 存档完全兼容；经济影响：新增 3 个玉符消耗汇（各 1/次），玉符已有日上限与免费获取源，无通胀风险
 - 全模块 compileReleaseKotlin + 串行全量测试（--max-workers=1）+ detekt + lintRelease 通过
 
+### 简化（2026-08-09 AI宗门进攻预警单级化——"即将进攻"弹窗 + 下月直接进攻）
+
+- **预警流程收敛为单级** — 原两级生命周期（谴责 6 个月 → 战书 3 个月 → 到期进攻）收敛为一级："生成当月弹「xxx即将进攻宗门」→ 下月直接进攻"。`AttackWarningService` 重写只保留 3 个函数（createImminentAttackWarning/normalizeImminentWarningsSync/addWarningSync），清除无生产调用方死代码（advanceToWarDeclaration/cancelWarningsForAttacker/checkExpiredWarnings/advanceWarningsIfNeeded/getActiveWarnings 等）
+- **UI 只留"知道了"** — 弹窗移除"缓和关系（2 万灵石）"与"附庸宗门"选项，仅保留「xxx即将进攻宗门」+ "知道了"按钮；`DenunciationDialog`/`WarDeclarationDialog` 合并为单 `AttackWarningDialog`；`GameEngineDiplomacyOps` 删除 `appeaseAttackingSect`/`becomeVassalOfAttacker`（外交界面主动送礼/附庸玩法不受影响）
+- **纯通知不阻塞** — 玩家无论是否点击"知道了"，下月进攻照常发生（放置游戏不阻塞时间推进）；点击仅标记已展示防重弹
+- **旧档兼容** — 复用 `WAR_DECLARATION` 枚举值零模型变更（无 Room Migration/序列化变更）；旧档残留预警（DENUNCIATION/未来 attackMonth）由 `normalizeImminentWarningsSync` 幂等收敛为战书+下月进攻；**已到期预警保持原值本批立即结算**（不推迟该打的仗）；`GameConfig.AIAttack` 移除 `DENUNCIATION_BEFORE_ATTACK_MONTHS`/`WAR_WARNING_BEFORE_ATTACK_MONTHS`/`APPEASE_GIFT_SPIRIT_STONES`，新增 `WARNING_BEFORE_ATTACK_MONTHS = 1`
+- **测试** — `AttackWarningServiceTest` 重写（生成结构/attackMonth 下月/收敛 5 例[旧档谴责收敛/战书提前收敛/已到期保持/幂等/空表]/addWarningSync 追加）+ `AISectBattleProcessorTest` 新增旧档 DENUNCIATION 传入收敛入口用例（ArgumentCaptor）
+
 ## [4.00.91] - 2026-08-07
 
 ### 架构债务清理（2026-08-08 D-01~D-17 十项全量实施）

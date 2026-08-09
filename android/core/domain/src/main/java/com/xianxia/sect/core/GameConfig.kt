@@ -620,12 +620,8 @@ object GameConfig {
 
     /** AI宗门智能进攻配置 */
     object AIAttack {
-        /** 谴责→正式进攻间隔（月） */
-        const val DENUNCIATION_BEFORE_ATTACK_MONTHS = 6
-        /** 战书→正式进攻间隔（月） */
-        const val WAR_WARNING_BEFORE_ATTACK_MONTHS = 3
-        /** 缓和关系薄礼灵石数量 */
-        const val APPEASE_GIFT_SPIRIT_STONES = 20_000L
+        /** 预警→正式进攻间隔（月）：生成预警后下月直接进攻 */
+        const val WARNING_BEFORE_ATTACK_MONTHS = 1
         /** 附庸年贡比例（上年灵石收入的百分比） */
         const val VASSAL_TRIBUTE_RATIO = 0.5
         /** 附庸年贡最低灵石 */

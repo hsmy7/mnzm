@@ -1312,7 +1312,6 @@
     <ID>UnusedPrivateProperty:AISectAttackManager.kt$AISectAttackManager$private const val TAG = "AISectAttackManager"</ID>
     <ID>UnusedPrivateProperty:AISectBeastAttackProcessor.kt$AISectBeastAttackProcessor$private val encounterBattleService: EncounterBattleService</ID>
     <ID>UnusedPrivateProperty:AISectBeastAttackProcessor.kt$AISectBeastAttackProcessor$private val stateStore: GameStateStore</ID>
-    <ID>UnusedPrivateProperty:AttackWarningService.kt$AttackWarningService.Companion$private const val TAG = "AttackWarningService"</ID>
     <ID>UnusedPrivateProperty:AutoBuyService.kt$AutoBuyService$private val inventoryConfig: InventoryConfig</ID>
     <ID>UnusedPrivateProperty:AutoPillService.kt$AutoPillService.Companion$private const val TAG = "AutoPillService"</ID>
     <ID>UnusedPrivateProperty:BattleSettlementService.kt$BattleSettlementService.Companion$private const val TAG = "BattleSettlementService"</ID>

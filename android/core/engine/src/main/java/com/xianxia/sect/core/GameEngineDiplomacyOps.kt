@@ -11,31 +11,6 @@ suspend fun GameEngine.giftSpiritStones(sectId: String, tier: Int, bypassYearLim
         diplomacyFacade.giftSpiritStones(sectId, tier, bypassYearLimit)
     }
 
-/** 攻击预警 — 缓和关系：自动薄礼并取消此宗门的所有攻击预警 */
-suspend fun GameEngine.appeaseAttackingSect(sectId: String): GiftResult {
-    val result = diplomacyFacade.giftSpiritStones(sectId, 1, bypassYearLimit = true)
-    if (result.success && result.newFavor > 0) {
-        updateGameData { data ->
-            data.copy(activeAttackWarnings = data.activeAttackWarnings.filter {
-                it.attackerSectId != sectId
-            })
-        }
-    }
-    return result
-}
-
-/** 攻击预警 — 附庸宗门：成为该宗门的附庸并取消攻击预警 */
-suspend fun GameEngine.becomeVassalOfAttacker(sectId: String) {
-    updateGameData { data ->
-        data.copy(
-            suzerainSectId = sectId,
-            activeAttackWarnings = data.activeAttackWarnings.filter {
-                it.attackerSectId != sectId
-            }
-        )
-    }
-}
-
 /** 标记预警阶段已展示（避免重复弹窗） */
 suspend fun GameEngine.markWarningStageShown(stageKey: String) {
     updateGameData { data ->

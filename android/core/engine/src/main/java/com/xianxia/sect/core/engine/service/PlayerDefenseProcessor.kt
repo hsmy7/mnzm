@@ -61,19 +61,19 @@ class PlayerDefenseProcessor @Inject constructor(
 ) {
 
     /**
-     * AI 攻打玩家：预警生命周期 + 战斗结算。
+     * AI 攻打玩家：预警收敛 + 到期结算 + 新预警生成。
      * 由 [AISectBattleProcessor.processAISectOperations] 编排调用。
      */
     internal fun processPlayerDefenseBattles() {
-        // 1. 推进预警阶段（谴责 → 战书）
+        // 1. 旧档收敛：历史预警统一为"战书阶段、下月进攻"（幂等；新档无变化）
         stateStore.update {
-            attackWarningService.advanceWarningsIfNeededSync(this)
+            attackWarningService.normalizeImminentWarningsSync(this)
         }
 
         // 2. 推进预警可能已修改 activeAttackWarnings / gameMonth，重新读取最新状态
         val data = stateStore.gameData.value
 
-        // 3. 检查到期战书 → 执行内联结算（战斗前结算 + 战斗 + 结果）
+        // 3. 检查到期预警 → 执行内联结算（战斗前结算 + 战斗 + 结果）
         val expiredWarnings = data.activeAttackWarnings.filter {
             it.stage == WarningStage.WAR_DECLARATION &&
                 data.gameYear * 12 + data.gameMonth >= it.attackMonth
@@ -82,13 +82,13 @@ class PlayerDefenseProcessor @Inject constructor(
             executePlayerDefenseBattle(expired)
         }
 
-        // 4. 新攻击决策 → 生成谴责
+        // 4. 新攻击决策 → 生成"即将进攻"预警（下月直接进攻）
         val decision = AISectAttackManager.decidePlayerAttack(data)
         if (decision is AISectAttackManager.PlayerAttackDecision.GenerateWarning) {
             stateStore.update {
                 attackWarningService.addWarningSync(
                     this,
-                    attackWarningService.createDenunciationWarning(
+                    attackWarningService.createImminentAttackWarning(
                         decision.attackerSectId, decision.attackerSectName
                     )
                 )

@@ -706,7 +706,7 @@ data class GameData(
     @SettlementStrategy(Strategy.USE_SHADOW)
     var activeAttackWarnings: List<AttackWarning> = emptyList(),
 
-    // 已向玩家展示过的预警阶段（"warningId:DENUNCIATION" / "warningId:WAR_DECLARATION"）
+    // 已向玩家展示过的预警阶段（"warningId:WAR_DECLARATION"）
     @ProtoNumber(118)
     @SettlementStrategy(Strategy.USE_SHADOW)
     var shownWarningStageIds: List<String> = emptyList(),
