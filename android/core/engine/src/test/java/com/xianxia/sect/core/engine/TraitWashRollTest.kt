@@ -8,6 +8,7 @@ import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.asKotlinRandom
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -15,9 +16,10 @@ import org.junit.Test
 /**
  * 洗炼天赋/体质/词条纯随机函数测试（不落盘，纯 JVM 可跑）。
  *
- * 覆盖：保底路径必出上品、固定种子确定性、保底计数语义、产物合法性
- * （全部可解析/template 无重复/数量不超上限）、以及两个守卫——
- * 三类型 3 阶正向池非空（保底不变量前提）、产物数量永不超配置上限（防配置漂移）。
+ * 单槽语义（2026-08-09 需求变更）：一次只洗炼一个目标特质。覆盖：保底路径目标槽必出上品、
+ * 固定种子确定性、保底计数语义、排除模板过滤（新条目不与保留槽位 template 冲突）、
+ * 池全排除 → 无候选（预检/抽取双兜底）、以及守卫——三类型 3 阶正向池非空（保底不变量前提）、
+ * 单条抽取品阶分布有效（两种品阶情形均出现）。
  */
 class TraitWashRollTest {
 
@@ -35,20 +37,36 @@ class TraitWashRollTest {
             .map { AffixDatabase.getAffixDataById(it.id)?.template ?: it.id }.toSet()
     }
 
+    /** 三类型全量候选池的 template（用于"全排除 → 无候选"用例） */
+    private fun TraitWashType.allPoolTemplates(): Set<String> = when (this) {
+        // 候选池 = 正向 + 负面（退役天赋已被正向查询过滤，与 washCandidatePool 口径一致）
+        TraitWashType.TALENT -> (TalentDatabase.getPositiveTalents() + TalentDatabase.getNegativeTalents())
+            .map { TalentDatabase.getTalentDataById(it.id)?.template ?: it.id }.toSet()
+        TraitWashType.PHYSIQUE -> (PhysiqueDatabase.getPositivePhysiques() + PhysiqueDatabase.getNegativePhysiques())
+            .map { PhysiqueDatabase.getPhysiqueDataById(it.id)?.template ?: it.id }.toSet()
+        TraitWashType.AFFIX -> (AffixDatabase.getPositiveAffixes() + AffixDatabase.getNegativeAffixes())
+            .map { AffixDatabase.getAffixDataById(it.id)?.template ?: it.id }.toSet()
+    }
+
+    /** 抽取结果的 template（resolve 解析 id） */
+    private fun TraitWashType.templateOf(id: String): String =
+        resolve(listOf(id)).firstOrNull()?.template ?: id
+
     @Test
-    fun `rollTraitWash - 保底计数达阈值时任意种子必出至少1个上品且计数归零`() {
+    fun `rollSingleTraitWash - 保底计数达阈值时任意种子目标必出上品且计数归零`() {
         for (type in washTypes) {
             repeat(50) { seed ->
-                val roll = rollTraitWash(
+                val roll = rollSingleTraitWash(
                     DeterministicRng.fromSeed(1000L + seed),
                     type,
-                    GameConfig.TraitWash.WASH_PITY_THRESHOLD
+                    excludedTemplates = emptySet(),
+                    pityCount = GameConfig.TraitWash.WASH_PITY_THRESHOLD
                 )
-                val resolved = type.resolve(roll.ids)
+                val resolved = type.resolve(listOfNotNull(roll.newId))
 
-                assertTrue(
-                    "保底结果必须含 3 阶 (${type.displayName}, seed=$seed): $roll",
-                    resolved.any { it.rarity == GameConfig.TraitWash.TOP_RARITY }
+                assertEquals(
+                    "保底目标槽必须是 3 阶 (${type.displayName}, seed=$seed): $roll",
+                    GameConfig.TraitWash.TOP_RARITY, resolved.first().rarity
                 )
                 assertEquals("保底后计数应归零 (${type.displayName})", 0, roll.newPityCount)
             }
@@ -56,15 +74,16 @@ class TraitWashRollTest {
     }
 
     @Test
-    fun `rollTraitWash - 固定种子相同输入结果确定`() {
+    fun `rollSingleTraitWash - 固定种子相同输入结果确定`() {
         for (type in washTypes) {
             repeat(20) { i ->
                 val rng1 = DeterministicRng.fromSeed(20260809L)
                 val rng2 = DeterministicRng.fromSeed(20260809L)
                 val pity = i % 3
+                val excluded = type.allPoolTemplates().take(i).toSet()
 
-                val roll1 = rollTraitWash(rng1, type, pity)
-                val roll2 = rollTraitWash(rng2, type, pity)
+                val roll1 = rollSingleTraitWash(rng1, type, excluded, pity)
+                val roll2 = rollSingleTraitWash(rng2, type, excluded, pity)
 
                 assertEquals("同种子同输入必须同产物 (${type.displayName})", roll1, roll2)
             }
@@ -72,14 +91,15 @@ class TraitWashRollTest {
     }
 
     @Test
-    fun `rollTraitWash - 保底计数语义：含上品归零、无上品递增`() {
+    fun `rollSingleTraitWash - 保底计数语义：含上品归零、无上品递增`() {
         // 大量种子扫描：两种情形都必须出现，且计数语义与结果严格一致
         for (type in washTypes) {
             var sawHasTop = false
             var sawNoTop = false
             repeat(200) { seed ->
-                val roll = rollTraitWash(DeterministicRng.fromSeed(seed.toLong()), type, 0)
-                val hasTop = type.resolve(roll.ids).any { it.rarity == GameConfig.TraitWash.TOP_RARITY }
+                val roll = rollSingleTraitWash(DeterministicRng.fromSeed(seed.toLong()), type, emptySet(), 0)
+                val hasTop = roll.newId?.let { type.resolve(listOf(it)).first().rarity } ==
+                    GameConfig.TraitWash.TOP_RARITY
 
                 if (hasTop) {
                     sawHasTop = true
@@ -94,21 +114,90 @@ class TraitWashRollTest {
     }
 
     @Test
-    fun `rollTraitWash - 产物合法：全部可解析且template无重复且不超上限`() {
+    fun `rollSingleTraitWash - 排除模板不得出现在结果中（与保留槽位不冲突）`() {
         for (type in washTypes) {
-            repeat(200) { seed ->
-                val roll = rollTraitWash(DeterministicRng.fromSeed(seed.toLong() + 5000), type, seed % 3)
-                val resolved = type.resolve(roll.ids)
+            repeat(50) { seed ->
+                // 用全部 3 阶正向池模板作排除（覆盖保底池，但普通池仍有大量非 3 阶候选）
+                val excluded = type.topPoolTemplates()
+                val roll = rollSingleTraitWash(
+                    DeterministicRng.fromSeed(seed.toLong() + 30_000),
+                    type,
+                    excluded,
+                    pityCount = 0
+                )
+                val newTemplate = roll.newId?.let { type.templateOf(it) }
+                if (newTemplate != null) {
+                    assertTrue(
+                        "新条目不得使用被排除的 template (${type.displayName}, seed=$seed): " +
+                            "$newTemplate in $excluded",
+                        newTemplate !in excluded
+                    )
+                }
+            }
+        }
+    }
 
-                assertEquals("产物 id 必须全部可解析 (${type.displayName}, seed=$seed)",
-                    roll.ids.size, resolved.size)
-                assertEquals("产物 template 不得重复 (${type.displayName}, seed=$seed)",
-                    resolved.size, resolved.map { it.template }.distinct().size)
+    @Test
+    fun `rollSingleTraitWash - 保底路径排除模板覆盖全保底池时返回null（放弃本次保底）`() {
+        // 对抗性审查 2026-08-09 边界狂魔：usedTemplates 过滤后无候选时不得回退全池
+        // （会选出与保留槽位 template 重复的条目 → confirm 校验拒绝 → 白洗玉符死胡同），
+        // 也不得对空列表 .random() 抛异常（deduct 后事务内异常 = 玉符永久损失）——返回 null
+        for (type in washTypes) {
+            val nullResult = rollSingleTraitWash(
+                DeterministicRng.fromSeed(1L),
+                type,
+                excludedTemplates = type.topPoolTemplates(),
+                pityCount = GameConfig.TraitWash.WASH_PITY_THRESHOLD
+            )
+            assertNull(
+                "保底池模板全被占用时必须返回 null，不得回退全池 (${type.displayName})",
+                nullResult.newId
+            )
+        }
+    }
+
+    // ── Database 单条抽取（rollSingleXxx / hasXxxCandidates） ──
+
+    @Test
+    fun `Database单条抽取 - 普通路径恒产出可解析条目且不确定抽取不干扰候选预检`() {
+        for (type in washTypes) {
+            repeat(50) { seed ->
+                val random = DeterministicRng.fromSeed(seed.toLong() + 50_000).asKotlinRandom()
+                val entry = type.rollSingle(random, excludedTemplates = emptySet())
+                assertTrue("单条抽取必须产出条目 (${type.displayName}, seed=$seed)", entry != null)
                 assertTrue(
-                    "产物数量不得超上限 (${type.displayName}, seed=$seed): ${roll.ids.size}",
-                    roll.ids.size <= GameConfig.TraitWash.MAX_TRAIT_COUNT
+                    "单条抽取条目必须可解析 (${type.displayName}, seed=$seed)",
+                    type.resolve(listOf(entry!!.id)).size == 1
                 )
             }
+        }
+    }
+
+    @Test
+    fun `Database单条抽取 - 候选池全被排除时返回null且预检为false`() {
+        for (type in washTypes) {
+            val excluded = type.allPoolTemplates()
+
+            assertFalse("全池被排除时预检必须为 false (${type.displayName})", type.hasRollCandidate(excluded))
+            assertNull(
+                "全池被排除时抽取必须返回 null (${type.displayName})",
+                type.rollSingle(DeterministicRng.fromSeed(1L).asKotlinRandom(), excluded)
+            )
+        }
+    }
+
+    @Test
+    fun `Database单条抽取 - 固定种子结果确定`() {
+        for (type in washTypes) {
+            val rng1 = DeterministicRng.fromSeed(20260809L).asKotlinRandom()
+            val rng2 = DeterministicRng.fromSeed(20260809L).asKotlinRandom()
+            val excluded = setOf("not-a-real-template")
+
+            assertEquals(
+                "同种子同输入必须同产物 (${type.displayName})",
+                type.rollSingle(rng1, excluded),
+                type.rollSingle(rng2, excluded)
+            )
         }
     }
 
@@ -169,24 +258,30 @@ class TraitWashRollTest {
     }
 
     @Test
-    fun `guard - 产物数量分布永不超配置上限（防配置漂移）`() {
-        // MAX_TRAIT_COUNT 必须 ≥ 生成分布的实际最大数量；若生成分布上限上调而配置未同步，
-        // 此处大样本扫描会捕获（WeightedRoll 分布为 domain internal，引擎测试无法直接引用，
-        // 用扫描代替——见 Guard 说明）
-        for (type in washTypes) {
-            var maxSeen = 0
-            repeat(500) { seed ->
-                val roll = rollTraitWash(DeterministicRng.fromSeed(seed.toLong() + 100_000), type, 0)
-                maxSeen = maxOf(maxSeen, roll.ids.size)
-                assertTrue(
-                    "产物数量超上限 (${type.displayName}, seed=$seed): " +
-                        "${roll.ids.size} > ${GameConfig.TraitWash.MAX_TRAIT_COUNT}",
-                    roll.ids.size <= GameConfig.TraitWash.MAX_TRAIT_COUNT
-                )
+    fun `guard - 洗炼单条候选池不含退役天赋类型（普通路径与保底口径一致）`() {
+        // 单条抽取（rollSingleTalent）的候选池必须与生成池同口径过滤 DEPRECATED——
+        // 否则退役超模条目可经普通洗炼路径重新流入
+        for (type in listOf(TraitWashType.TALENT)) {
+            repeat(200) { seed ->
+                val roll = rollSingleTraitWash(DeterministicRng.fromSeed(seed.toLong() + 100_000), type, emptySet(), 0)
+                roll.newId?.let { id ->
+                    val data = TalentDatabase.getTalentDataById(id)
+                    if (data != null) {
+                        assertFalse(
+                            "单条洗炼不得产出退役天赋 (seed=$seed): ${data.name}(${data.type})",
+                            data.type in deprecatedTalentTypes()
+                        )
+                    }
+                }
             }
-            // 统计上 500 种子应覆盖到 5 个（1% 概率），若从未出现说明分布已漂移
-            assertEquals("生成分布应能达到上限值（分布漂移报警）(${type.displayName})",
-                GameConfig.TraitWash.MAX_TRAIT_COUNT, maxSeen)
         }
     }
+
+    private fun deprecatedTalentTypes(): Set<TalentDatabase.TalentType> = setOf(
+        TalentDatabase.TalentType.CULT_SPEED,
+        TalentDatabase.TalentType.BREAK_CHANCE,
+        TalentDatabase.TalentType.LIFESPAN,
+        TalentDatabase.TalentType.MANUAL_SLOT,
+        TalentDatabase.TalentType.WIN_GROWTH
+    )
 }

@@ -106,6 +106,7 @@ class TalentDetailDialogWashTest {
                         TraitWashDialog(
                             disciple = testDisciple(),
                             type = TraitWashType.TALENT,
+                            targetId = "t1",
                             jadeSymbols = 0,
                             viewModel = null,
                             washSession = WashSessionControl(
@@ -159,6 +160,7 @@ class TalentDetailDialogWashTest {
                         TraitWashDialog(
                             disciple = testDisciple(),
                             type = TraitWashType.PHYSIQUE,
+                            targetId = "p1",
                             jadeSymbols = 0,
                             viewModel = null,
                             washSession = WashSessionControl(0, {}, false, {}),
@@ -206,6 +208,7 @@ class TalentDetailDialogWashTest {
                         TraitWashDialog(
                             disciple = testDisciple(),
                             type = TraitWashType.AFFIX,
+                            targetId = "a1",
                             jadeSymbols = 0,
                             viewModel = null,
                             washSession = WashSessionControl(0, {}, false, {}),

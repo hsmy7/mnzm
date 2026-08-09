@@ -48,40 +48,48 @@ private const val EMPTY_RESULT_TEXT = "——"
 /** 空特质列表显示 */
 private const val NONE_TEXT = "无"
 
-/** 按洗炼类型分发洗炼请求（提取自 TraitWashContent，控 Cyclomatic 复杂度） */
+/** 按洗炼类型分发洗炼请求（提取自 TraitWashContent，控 Cyclomatic 复杂度；单槽语义） */
 private suspend fun GameViewModel.washByType(
     id: String,
     type: TraitWashType,
+    targetId: String,
     pityCount: Int
 ): TraitWashResult = when (type) {
-    TraitWashType.TALENT -> washTalent(id, pityCount)
-    TraitWashType.PHYSIQUE -> washPhysique(id, pityCount)
-    TraitWashType.AFFIX -> washAffix(id, pityCount)
+    TraitWashType.TALENT -> washTalent(id, targetId, pityCount)
+    TraitWashType.PHYSIQUE -> washPhysique(id, targetId, pityCount)
+    TraitWashType.AFFIX -> washAffix(id, targetId, pityCount)
 }
 
-/** 按洗炼类型分发确认替换请求 */
+/** 按洗炼类型分发确认替换请求（单槽语义） */
 private suspend fun GameViewModel.confirmByType(
     id: String,
     type: TraitWashType,
-    newIds: List<String>
+    targetId: String,
+    newId: String
 ): TraitWashConfirmResult = when (type) {
-    TraitWashType.TALENT -> confirmTalent(id, newIds)
-    TraitWashType.PHYSIQUE -> confirmPhysique(id, newIds)
-    TraitWashType.AFFIX -> confirmAffix(id, newIds)
+    TraitWashType.TALENT -> confirmTalent(id, targetId, newId)
+    TraitWashType.PHYSIQUE -> confirmPhysique(id, targetId, newId)
+    TraitWashType.AFFIX -> confirmAffix(id, targetId, newId)
 }
 
 /**
  * 洗炼天赋/体质/词条弹窗（内联覆盖层，渲染在弟子详情内容 lambda 末尾）。
  *
+ * 单槽语义（2026-08-09 需求变更）：只洗炼 [targetId] 指定的那一个特质，其余同类特质
+ * 保留不动——从哪个详情界面点入，就洗炼哪一个（详情界面 ↔ 洗炼目标一一对应）。
+ *
  * 结构与流程完全镜像洗炼灵根：两段式（洗炼出产物 → 确认替换）、品质保底计数回传
  * （[WashSessionControl.onPityCountChanged]，弹窗关闭再打开不重置）、防连点/防中途关闭
  * （washing 拦截 onDismissRequest，防"玉符已扣、结果丢失"）、错误原因直接展示
  * （Error/Confirm Error 透传引擎 message，如"弟子已死亡"，不吞掉具体失败原因）。
+ *
+ * @param targetId 详情界面点入的目标特质 id（必须存在于弟子当前特质中）
  */
 @Composable
 internal fun TraitWashDialog(
     disciple: DiscipleAggregate,
     type: TraitWashType,
+    targetId: String,
     jadeSymbols: Int,
     viewModel: GameViewModel?,
     washSession: WashSessionControl,
@@ -99,6 +107,7 @@ internal fun TraitWashDialog(
             TraitWashContent(
                 disciple = disciple,
                 type = type,
+                targetId = targetId,
                 jadeSymbols = jadeSymbols,
                 viewModel = viewModel,
                 washSession = washSession.copy(
@@ -116,23 +125,25 @@ internal fun TraitWashDialog(
 private fun TraitWashContent(
     disciple: DiscipleAggregate,
     type: TraitWashType,
+    targetId: String,
     jadeSymbols: Int,
     viewModel: GameViewModel?,
     washSession: WashSessionControl,
     onDismiss: () -> Unit
 ) {
-    // 洗炼产物（特质 id 列表），未洗炼为 null
-    var washResult by remember { mutableStateOf<List<String>?>(null) }
+    // 洗炼产物（目标槽位的新特质 id），未洗炼为 null
+    var washResult by remember { mutableStateOf<String?>(null) }
     // 保底计数：以弹窗打开时的上层计数初始化，成功后回传上层（跨会话保持）
     var pityCount by remember { mutableIntStateOf(washSession.initialPityCount) }
     // 错误提示文案（null = 不显示）：玉符不足/洗炼失败/替换失败共用，文案区分
     var errorText by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
+    // 当前目标特质（只展示详情界面点入的那一个；解析失败显示"无"——旧快照防御）
     val currentTraits: List<Pair<String, Int>> = when (type) {
-        TraitWashType.TALENT -> TalentDatabase.getTalentsByIds(disciple.talentIds).map { it.name to it.rarity }
-        TraitWashType.PHYSIQUE -> PhysiqueDatabase.getPhysiquesByIds(disciple.physiqueIds).map { it.name to it.rarity }
-        TraitWashType.AFFIX -> AffixDatabase.getAffixesByIds(disciple.affixIds).map { it.name to it.rarity }
+        TraitWashType.TALENT -> TalentDatabase.getTalentsByIds(listOf(targetId)).map { it.name to it.rarity }
+        TraitWashType.PHYSIQUE -> PhysiqueDatabase.getPhysiquesByIds(listOf(targetId)).map { it.name to it.rarity }
+        TraitWashType.AFFIX -> AffixDatabase.getAffixesByIds(listOf(targetId)).map { it.name to it.rarity }
     }
     val jadeInsufficient = jadeSymbols < GameConfig.TraitWash.WASH_JADE_COST
 
@@ -146,11 +157,11 @@ private fun TraitWashContent(
         washSession.onWashingChange(true)
         scope.launch {
             try {
-                val result = vm.washByType(disciple.id, type, pityCount)
+                val result = vm.washByType(disciple.id, type, targetId, pityCount)
                 handleWashResult(
                     result = result,
-                    onSuccess = { newIds, pity ->
-                        washResult = newIds
+                    onSuccess = { newId, pity ->
+                        washResult = newId
                         pityCount = pity
                         washSession.onPityCountChanged(pity)
                     },
@@ -172,7 +183,7 @@ private fun TraitWashContent(
         washSession.onWashingChange(true)
         scope.launch {
             try {
-                val result = vm.confirmByType(disciple.id, type, current)
+                val result = vm.confirmByType(disciple.id, type, targetId, current)
                 handleConfirmResult(
                     result = result,
                     onSuccess = onDismiss,
@@ -192,7 +203,7 @@ private fun TraitWashContent(
         TraitResultRow(
             type = type,
             currentTraits = currentTraits,
-            newIds = washResult
+            newId = washResult
         )
         Spacer(modifier = Modifier.weight(1f))
         CostHintRow(jadeInsufficient)
@@ -211,18 +222,18 @@ private fun TraitWashContent(
     }
 }
 
-/** ① 当前特质列表 → 洗炼结果列表（未洗炼显示占位符，空列表显示"无"） */
+/** ① 当前目标特质 → 洗炼结果（单槽一对一对照；未洗炼显示占位符，解析失败显示"无"） */
 @Composable
 private fun TraitResultRow(
     type: TraitWashType,
     currentTraits: List<Pair<String, Int>>,
-    newIds: List<String>?
+    newId: String?
 ) {
-    val newTraits: List<Pair<String, Int>>? = newIds?.let { ids ->
+    val newTraits: List<Pair<String, Int>>? = newId?.let { id ->
         when (type) {
-            TraitWashType.TALENT -> TalentDatabase.getTalentsByIds(ids).map { it.name to it.rarity }
-            TraitWashType.PHYSIQUE -> PhysiqueDatabase.getPhysiquesByIds(ids).map { it.name to it.rarity }
-            TraitWashType.AFFIX -> AffixDatabase.getAffixesByIds(ids).map { it.name to it.rarity }
+            TraitWashType.TALENT -> TalentDatabase.getTalentsByIds(listOf(id)).map { it.name to it.rarity }
+            TraitWashType.PHYSIQUE -> PhysiqueDatabase.getPhysiquesByIds(listOf(id)).map { it.name to it.rarity }
+            TraitWashType.AFFIX -> AffixDatabase.getAffixesByIds(listOf(id)).map { it.name to it.rarity }
         }
     }
     Row(
@@ -329,12 +340,12 @@ private fun WashActionButtons(
  */
 private fun handleWashResult(
     result: TraitWashResult,
-    onSuccess: (newIds: List<String>, newPityCount: Int) -> Unit,
+    onSuccess: (newId: String, newPityCount: Int) -> Unit,
     onInsufficient: () -> Unit,
     onError: (message: String) -> Unit
 ) {
     when (result) {
-        is TraitWashResult.Success -> onSuccess(result.newIds, result.newPityCount)
+        is TraitWashResult.Success -> onSuccess(result.newId, result.newPityCount)
         is TraitWashResult.InsufficientJadeSymbols -> onInsufficient()
         is TraitWashResult.Error -> onError(result.message)
     }

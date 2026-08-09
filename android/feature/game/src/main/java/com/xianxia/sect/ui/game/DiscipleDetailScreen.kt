@@ -557,20 +557,22 @@ fun DiscipleDetailDialog(
             },
             onWashClick = openTalentWash,
             washOverlay = {
-                TraitWashOverlay(
-                    show = showTalentWashDialog,
-                    type = TraitWashType.TALENT,
-                    disciple = disciple,
-                    jadeSymbols = gameData?.jadeSymbols ?: 0,
-                    viewModel = viewModel,
-                    session = WashSessionControl(
-                        initialPityCount = talentWashPityCount,
-                        onPityCountChanged = { talentWashPityCount = it },
-                        washing = false,
-                        onWashingChange = {}
-                    ),
-                    onDismiss = { showTalentWashDialog = false }
-                )
+                if (showTalentWashDialog) {
+                    TraitWashOverlay(
+                        type = TraitWashType.TALENT,
+                        targetId = talent.id,
+                        disciple = disciple,
+                        jadeSymbols = gameData?.jadeSymbols ?: 0,
+                        viewModel = viewModel,
+                        session = WashSessionControl(
+                            initialPityCount = talentWashPityCount,
+                            onPityCountChanged = { talentWashPityCount = it },
+                            washing = false,
+                            onWashingChange = {}
+                        ),
+                        onDismiss = { showTalentWashDialog = false }
+                    )
+                }
             }
         )
     }
@@ -584,20 +586,22 @@ fun DiscipleDetailDialog(
             },
             onWashClick = openPhysiqueWash,
             washOverlay = {
-                TraitWashOverlay(
-                    show = showPhysiqueWashDialog,
-                    type = TraitWashType.PHYSIQUE,
-                    disciple = disciple,
-                    jadeSymbols = gameData?.jadeSymbols ?: 0,
-                    viewModel = viewModel,
-                    session = WashSessionControl(
-                        initialPityCount = physiqueWashPityCount,
-                        onPityCountChanged = { physiqueWashPityCount = it },
-                        washing = false,
-                        onWashingChange = {}
-                    ),
-                    onDismiss = { showPhysiqueWashDialog = false }
-                )
+                if (showPhysiqueWashDialog) {
+                    TraitWashOverlay(
+                        type = TraitWashType.PHYSIQUE,
+                        targetId = physique.id,
+                        disciple = disciple,
+                        jadeSymbols = gameData?.jadeSymbols ?: 0,
+                        viewModel = viewModel,
+                        session = WashSessionControl(
+                            initialPityCount = physiqueWashPityCount,
+                            onPityCountChanged = { physiqueWashPityCount = it },
+                            washing = false,
+                            onWashingChange = {}
+                        ),
+                        onDismiss = { showPhysiqueWashDialog = false }
+                    )
+                }
             }
         )
     }
@@ -611,20 +615,22 @@ fun DiscipleDetailDialog(
             },
             onWashClick = openAffixWash,
             washOverlay = {
-                TraitWashOverlay(
-                    show = showAffixWashDialog,
-                    type = TraitWashType.AFFIX,
-                    disciple = disciple,
-                    jadeSymbols = gameData?.jadeSymbols ?: 0,
-                    viewModel = viewModel,
-                    session = WashSessionControl(
-                        initialPityCount = affixWashPityCount,
-                        onPityCountChanged = { affixWashPityCount = it },
-                        washing = false,
-                        onWashingChange = {}
-                    ),
-                    onDismiss = { showAffixWashDialog = false }
-                )
+                if (showAffixWashDialog) {
+                    TraitWashOverlay(
+                        type = TraitWashType.AFFIX,
+                        targetId = affix.id,
+                        disciple = disciple,
+                        jadeSymbols = gameData?.jadeSymbols ?: 0,
+                        viewModel = viewModel,
+                        session = WashSessionControl(
+                            initialPityCount = affixWashPityCount,
+                            onPityCountChanged = { affixWashPityCount = it },
+                            washing = false,
+                            onWashingChange = {}
+                        ),
+                        onDismiss = { showAffixWashDialog = false }
+                    )
+                }
             }
         )
     }
@@ -851,25 +857,25 @@ fun DiscipleDetailDialog(
  * 同窗口渲染（经 [SmallScreenDialog] overlay 槽位）——渲染在下层弟子详情窗口内
  * 会被上层详情窗口整体遮挡而不可见不可点（4.00.92 兑换码事故同源教训）。
  * 洗炼状态（弹窗开关/保底计数/互斥闭包）由 DiscipleDetailDialog 持有，此处仅透传。
+ * 单槽语义：targetId 为详情界面点入的目标特质——从哪个详情进入，就洗炼哪一个。
  */
 @Composable
 private fun TraitWashOverlay(
-    show: Boolean,
     type: TraitWashType,
+    targetId: String,
     disciple: DiscipleAggregate,
     jadeSymbols: Int,
     viewModel: GameViewModel?,
     session: WashSessionControl,
     onDismiss: () -> Unit
 ) {
-    if (show) {
-        TraitWashDialog(
-            disciple = disciple,
-            type = type,
-            jadeSymbols = jadeSymbols,
-            viewModel = viewModel,
-            washSession = session,
-            onDismiss = onDismiss
-        )
-    }
+    TraitWashDialog(
+        disciple = disciple,
+        type = type,
+        targetId = targetId,
+        jadeSymbols = jadeSymbols,
+        viewModel = viewModel,
+        washSession = session,
+        onDismiss = onDismiss
+    )
 }

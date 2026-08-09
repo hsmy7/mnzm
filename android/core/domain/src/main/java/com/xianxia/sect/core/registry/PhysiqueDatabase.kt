@@ -310,6 +310,25 @@ object PhysiqueDatabase {
         )
     }
 
+    /** 洗炼候选是否至少存在一条（无随机消耗，供引擎扣费前预检，防"扣费后无可抽条目"） */
+    fun hasPhysiqueCandidates(excludedTemplates: Set<String> = emptySet()): Boolean =
+        allPhysiquesData.values.any { it.template !in excludedTemplates }
+
+    /**
+     * 单次洗炼抽取一个体质（品阶分布与生成一致：[rollTraitQuality] 四档）。
+     *
+     * [excludedTemplates] 过滤避免与保留槽位 template 冲突；池空（含全被排除）返回 null，
+     * 调用方应先用 [hasPhysiqueCandidates] 预检（扣费前），这里返回 null 仅是防御兜底。
+     */
+    fun rollSinglePhysique(
+        random: kotlin.random.Random = kotlin.random.Random,
+        excludedTemplates: Set<String> = emptySet()
+    ): PhysiqueData? {
+        val candidates = allPhysiquesData.values.filter { it.template !in excludedTemplates }
+        if (candidates.isEmpty()) return null
+        return pickByDistribution(candidates, random)
+    }
+
     fun generateForDisciple(random: kotlin.random.Random = kotlin.random.Random): List<Physique> {
         val result = mutableListOf<Physique>()
         val available = allPhysiquesData.values.toMutableList()   // 负面经品阶概率抽取，不在此无条件滤除
@@ -332,46 +351,53 @@ object PhysiqueDatabase {
         return result
     }
 
-    private fun pickByDistribution(
-        candidates: List<PhysiqueData>,
-        random: kotlin.random.Random
-    ): PhysiqueData {
-        if (candidates.isEmpty()) {
-            throw IllegalArgumentException("candidates cannot be empty")
+}
+
+/**
+ * 从候选池按品阶分布抽取（单次 nextDouble 消费四档：负面30% / 下品50% / 中品18% / 上品2%）。
+ *
+ * 文件级私有而非 object 成员：PhysiqueDatabase 函数数已到 detekt 对象阈值 12
+ * （TooManyFunctions thresholdInObjects=12，判定 >=），抽取工具函数与
+ * [rollTraitQuality]/[rollTraitCount]（WeightedRoll.kt）同模式放文件级，不占 object 配额。
+ */
+private fun pickByDistribution(
+    candidates: List<PhysiqueDatabase.PhysiqueData>,
+    random: Random
+): PhysiqueDatabase.PhysiqueData {
+    require(candidates.isNotEmpty()) { "candidates cannot be empty" }
+
+    // 单次 nextDouble 消费四档：负面30% / 下品50% / 中品18% / 上品2%
+    val quality = rollTraitQuality(random)
+
+    if (quality == 0) {
+        val negativeCandidates = candidates.filter { it.isNegative }
+        // 负面池耗尽 → 品阶1兜底（不做重滚，保持固定 nextDouble 消费次数）
+        return if (negativeCandidates.isEmpty()) {
+            pickPositiveByRarity(candidates, 1, random)
+        } else {
+            negativeCandidates.random(random)
         }
+    }
+    return pickPositiveByRarity(candidates, quality, random)
+}
 
-        // 单次 nextDouble 消费四档：负面30% / 下品50% / 中品18% / 上品2%
-        val quality = rollTraitQuality(random)
+/** 品阶抽取：精确匹配优先；无精确匹配时取差值最小档（平局取较高档） */
+private fun pickPositiveByRarity(
+    candidates: List<PhysiqueDatabase.PhysiqueData>,
+    targetRarity: Int,
+    random: Random
+): PhysiqueDatabase.PhysiqueData {
+    val positiveCandidates = candidates.filter { !it.isNegative }
+    if (positiveCandidates.isEmpty()) return candidates.random(random)
 
-        if (quality == 0) {
-            val negativeCandidates = candidates.filter { it.isNegative }
-            if (negativeCandidates.isNotEmpty()) {
-                return negativeCandidates.random(random)
-            }
-            // 负面池耗尽 → 品阶1兜底（不做重滚，保持固定 nextDouble 消费次数）
-            return pickPositiveByRarity(candidates, 1, random)
+    return positiveCandidates.filter { it.rarity == targetRarity }
+        .ifEmpty {
+            val fallbackRarity = positiveCandidates.map { it.rarity }.distinct()
+                .minWithOrNull(compareBy<Int> { abs(it - targetRarity) }.thenByDescending { it })
+                ?: positiveCandidates.first().rarity
+            positiveCandidates.filter { it.rarity == fallbackRarity }
         }
-        return pickPositiveByRarity(candidates, quality, random)
-    }
-
-    private fun pickPositiveByRarity(
-        candidates: List<PhysiqueData>,
-        targetRarity: Int,
-        random: kotlin.random.Random
-    ): PhysiqueData {
-        val positiveCandidates = candidates.filter { !it.isNegative }
-        if (positiveCandidates.isEmpty()) return candidates.random(random)
-
-        // 精确匹配优先；无精确匹配时取差值最小档（平局取较高档）
-        return positiveCandidates.filter { it.rarity == targetRarity }
-            .ifEmpty {
-                val fallbackRarity = positiveCandidates.map { it.rarity }.distinct()
-                    .minWithOrNull(compareBy<Int> { abs(it - targetRarity) }.thenByDescending { it })
-                    ?: positiveCandidates.first().rarity
-                positiveCandidates.filter { it.rarity == fallbackRarity }
-            }
-            .random(random)
-    }
+        .random(random)
 }
 
 /** 体质聚合效果：各独立乘算因子的总和 */

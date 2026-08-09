@@ -703,20 +703,20 @@ class GameViewModel @Inject constructor(
     suspend fun confirmSpiritRootWash(discipleId: String, newRootType: String): SpiritRootWashConfirmResult =
         disciple.confirmSpiritRootWash(discipleId, newRootType)
 
-    // ── 洗炼天赋/体质/词条（玉符消耗玩法，流程对齐洗炼灵根）──
+    // ── 洗炼天赋/体质/词条（玉符消耗玩法，流程对齐洗炼灵根；单槽语义：只洗炼目标特质）──
 
-    suspend fun washTalent(discipleId: String, pityCount: Int): TraitWashResult =
-        disciple.washTalent(discipleId, pityCount)
-    suspend fun washPhysique(discipleId: String, pityCount: Int): TraitWashResult =
-        disciple.washPhysique(discipleId, pityCount)
-    suspend fun washAffix(discipleId: String, pityCount: Int): TraitWashResult =
-        disciple.washAffix(discipleId, pityCount)
-    suspend fun confirmTalent(discipleId: String, newIds: List<String>): TraitWashConfirmResult =
-        disciple.confirmTalent(discipleId, newIds)
-    suspend fun confirmPhysique(discipleId: String, newIds: List<String>): TraitWashConfirmResult =
-        disciple.confirmPhysique(discipleId, newIds)
-    suspend fun confirmAffix(discipleId: String, newIds: List<String>): TraitWashConfirmResult =
-        disciple.confirmAffix(discipleId, newIds)
+    suspend fun washTalent(discipleId: String, targetId: String, pityCount: Int): TraitWashResult =
+        disciple.washTalent(discipleId, targetId, pityCount)
+    suspend fun washPhysique(discipleId: String, targetId: String, pityCount: Int): TraitWashResult =
+        disciple.washPhysique(discipleId, targetId, pityCount)
+    suspend fun washAffix(discipleId: String, targetId: String, pityCount: Int): TraitWashResult =
+        disciple.washAffix(discipleId, targetId, pityCount)
+    suspend fun confirmTalent(discipleId: String, targetId: String, newId: String): TraitWashConfirmResult =
+        disciple.confirmTalent(discipleId, targetId, newId)
+    suspend fun confirmPhysique(discipleId: String, targetId: String, newId: String): TraitWashConfirmResult =
+        disciple.confirmPhysique(discipleId, targetId, newId)
+    suspend fun confirmAffix(discipleId: String, targetId: String, newId: String): TraitWashConfirmResult =
+        disciple.confirmAffix(discipleId, targetId, newId)
     fun getLifeEvents(discipleId: String): List<String> = delegateServices.discipleFacade.getLifeEvents(discipleId)
     fun initializeLifeEvents(discipleId: String) {
         // 写操作必须派发到引擎线程（对齐 enterSect 模式），否则主线程直调 stateStore.update 触发架构违规守卫

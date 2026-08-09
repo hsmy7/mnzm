@@ -423,6 +423,25 @@ object AffixDatabase {
             .sumOf { it.positionBonus?.effectBonus ?: 0.0 }
     }
 
+    /** 洗炼候选是否至少存在一条（无随机消耗，供引擎扣费前预检，防"扣费后无可抽条目"） */
+    fun hasAffixCandidates(excludedTemplates: Set<String> = emptySet()): Boolean =
+        allAffixesData.values.any { it.template !in excludedTemplates }
+
+    /**
+     * 单次洗炼抽取一个词条（品阶分布与生成一致：[rollTraitQuality] 四档）。
+     *
+     * [excludedTemplates] 过滤避免与保留槽位 template 冲突；池空（含全被排除）返回 null，
+     * 调用方应先用 [hasAffixCandidates] 预检（扣费前），这里返回 null 仅是防御兜底。
+     */
+    fun rollSingleAffix(
+        random: kotlin.random.Random = kotlin.random.Random,
+        excludedTemplates: Set<String> = emptySet()
+    ): AffixData? {
+        val candidates = allAffixesData.values.filter { it.template !in excludedTemplates }
+        if (candidates.isEmpty()) return null
+        return pickByDistribution(candidates, random)
+    }
+
     fun generateForDisciple(random: kotlin.random.Random = kotlin.random.Random): List<Affix> {
         val result = mutableListOf<Affix>()
         val available = allAffixesData.values.toMutableList()   // 负面经品阶概率抽取，不在此无条件滤除

@@ -31,9 +31,11 @@ import org.robolectric.RobolectricTestRunner
 /**
  * 洗炼天赋/体质/词条引擎入口测试（真实 JadeSymbolService + 固定种子 RNG + 真实 stateStore）。
  *
- * 覆盖：扣减与 gameData/runtimeState 同步、玉符不足（余额不变 + 不消耗随机序列）、
- * 非法参数/弟子不存在/死亡拒绝、保底必出上品、确认替换生效与非法产物拦截、
- * 以及最高风险回归——扣减后 [JadeSymbolService.checkpointNow] 玉符不回涨。
+ * 单槽语义（2026-08-09 需求变更）：洗炼只针对详情界面指定的那一个特质（targetId），
+ * 其余同类特质保留不动。覆盖：扣减与 gameData/runtimeState 同步、玉符不足（余额不变 +
+ * 不消耗随机序列）、非法参数/弟子不存在/死亡拒绝/targetId 不存在拒绝、保底目标槽必出上品、
+ * 确认替换只改目标槽位、非法产物拦截、以及最高风险回归——扣减后
+ * [JadeSymbolService.checkpointNow] 玉符不回涨。
  *
  * 注意：必须 Robolectric 运行——DiscipleTables 的 String 列基于
  * android.util.SparseArray，纯 JVM 下（returnDefaultValues=true）put 静默无效。
@@ -99,6 +101,38 @@ class GameEngineTraitWashTest {
         whenever(it.mailService).thenReturn(mock())
     }
 
+    /** 构造真实存在的特质 id 列表（品阶 1，template 去重——生成语义要求 trait 内 template 互异） */
+    private fun realTraitIds(type: TraitWashType, count: Int): List<String> = when (type) {
+        TraitWashType.TALENT -> TalentDatabase.getByRarity(1)
+            .distinctBy { TalentDatabase.getTalentDataById(it.id)?.template ?: it.id }
+            .take(count).map { it.id }
+        TraitWashType.PHYSIQUE -> PhysiqueDatabase.getByRarity(1)
+            .distinctBy { PhysiqueDatabase.getPhysiqueDataById(it.id)?.template ?: it.id }
+            .take(count).map { it.id }
+        TraitWashType.AFFIX -> AffixDatabase.getByRarity(1)
+            .distinctBy { AffixDatabase.getAffixDataById(it.id)?.template ?: it.id }
+            .take(count).map { it.id }
+    }
+
+    /** 标准弟子：三类型各 2 个特质（1 号弟子） */
+    private fun seedStandardDisciple(id: Int = 1) {
+        store.update {
+            discipleTables.insert(
+                Disciple(
+                    id = id.toString(),
+                    name = "测试弟子$id",
+                    realm = 9,
+                    cultivation = 100.0,
+                    spiritRootType = "fire",
+                    talentIds = realTraitIds(TraitWashType.TALENT, 2),
+                    physiqueIds = realTraitIds(TraitWashType.PHYSIQUE, 2),
+                    affixIds = realTraitIds(TraitWashType.AFFIX, 2),
+                    combat = CombatAttributes(hpVariance = 0, mpVariance = 0)
+                )
+            )
+        }
+    }
+
     private fun seedDisciple(
         id: Int = 1,
         talentIds: List<String> = emptyList(),
@@ -122,6 +156,9 @@ class GameEngineTraitWashTest {
         }
     }
 
+    /** 目标槽位 id（标准弟子第 1 个特质） */
+    private fun targetIdOf(type: TraitWashType): String = realTraitIds(type, 1).first()
+
     /** 播种玉符余额并从快照恢复运行时 totalCount（对齐生产 onLoopStart 语义）。 */
     private fun seedJade(count: Int) {
         store.update { gameData = gameData.copy(jadeSymbols = count) }
@@ -143,21 +180,16 @@ class GameEngineTraitWashTest {
     // ── 洗炼：玉符扣减 ──
 
     @Test
-    fun `washTrait - 玉符充足扣1枚并返回合法产物`() = runBlocking {
-        seedDisciple()
+    fun `washTraitSlot - 玉符充足扣1枚并返回合法产物`() = runBlocking {
+        seedStandardDisciple()
         seedJade(5)
 
         for (type in washTypes) {
-            val success = isSuccess(engine.washTrait("1", type, 0))
+            val success = isSuccess(engine.washTraitSlot("1", type, targetIdOf(type), 0))
 
             assertTrue(
-                "产物数量应在 0~MAX 之间 (${type.displayName}): ${success.newIds.size}",
-                success.newIds.size in 0..GameConfig.TraitWash.MAX_TRAIT_COUNT
-            )
-            assertEquals(
-                "产物 id 必须全部可解析 (${type.displayName})",
-                success.newIds.size,
-                type.resolve(success.newIds).size
+                "产物必须可解析 (${type.displayName}): ${success.newId}",
+                type.resolve(listOf(success.newId)).size == 1
             )
             assertTrue(
                 "保底计数应为 0 或 1 (${type.displayName}): ${success.newPityCount}",
@@ -167,13 +199,13 @@ class GameEngineTraitWashTest {
     }
 
     @Test
-    fun `washTrait - 扣减后 gameData 与 runtimeState 同步`() = runBlocking {
-        seedDisciple()
+    fun `washTraitSlot - 扣减后 gameData 与 runtimeState 同步`() = runBlocking {
+        seedStandardDisciple()
         seedJade(5)
 
-        isSuccess(engine.washTrait("1", TraitWashType.TALENT, 0))
-        isSuccess(engine.washTrait("1", TraitWashType.PHYSIQUE, 0))
-        isSuccess(engine.washTrait("1", TraitWashType.AFFIX, 0))
+        for (type in washTypes) {
+            isSuccess(engine.washTraitSlot("1", type, targetIdOf(type), 0))
+        }
 
         assertEquals("三次洗炼应各扣 1 枚", 2, store.gameDataSnapshot.jadeSymbols)
         assertEquals("运行时 totalCount 应同步（防止 checkpoint 覆盖回涨）",
@@ -181,12 +213,12 @@ class GameEngineTraitWashTest {
     }
 
     @Test
-    fun `washTrait - 玉符不足返回Insufficient且余额不变`() = runBlocking {
-        seedDisciple()
+    fun `washTraitSlot - 玉符不足返回Insufficient且余额不变`() = runBlocking {
+        seedStandardDisciple()
         seedJade(0)
 
         for (type in washTypes) {
-            val insufficient = isInsufficient(engine.washTrait("1", type, 0))
+            val insufficient = isInsufficient(engine.washTraitSlot("1", type, targetIdOf(type), 0))
 
             assertEquals(0, insufficient.current)
             assertEquals(GameConfig.TraitWash.WASH_JADE_COST, insufficient.required)
@@ -196,13 +228,13 @@ class GameEngineTraitWashTest {
     }
 
     @Test
-    fun `washTrait - 玉符不足不消耗随机序列`() = runBlocking {
-        seedDisciple()
+    fun `washTraitSlot - 玉符不足不消耗随机序列`() = runBlocking {
+        seedStandardDisciple()
         seedJade(0)
         val snapshotBefore = rng.snapshot()
 
         for (type in washTypes) {
-            isInsufficient(engine.washTrait("1", type, 0))
+            isInsufficient(engine.washTraitSlot("1", type, targetIdOf(type), 0))
         }
 
         assertEquals("扣减失败时不得消耗 RNG draw（随机序列确定性保持）",
@@ -210,11 +242,11 @@ class GameEngineTraitWashTest {
     }
 
     @Test
-    fun `washTrait - 弟子不存在返回Error且不扣玉符`() = runBlocking {
+    fun `washTraitSlot - 弟子不存在返回Error且不扣玉符`() = runBlocking {
         seedJade(5)
 
         for (type in washTypes) {
-            val result = engine.washTrait("999", type, 0)
+            val result = engine.washTraitSlot("999", type, targetIdOf(type), 0)
 
             assertTrue("期望 Error，实际 $result", result is TraitWashResult.Error)
             assertEquals("不扣玉符", 5, store.gameDataSnapshot.jadeSymbols)
@@ -222,24 +254,24 @@ class GameEngineTraitWashTest {
     }
 
     @Test
-    fun `washTrait - 非法保底计数返回Error且不扣玉符`() = runBlocking {
-        seedDisciple()
+    fun `washTraitSlot - 非法保底计数返回Error且不扣玉符`() = runBlocking {
+        seedStandardDisciple()
         seedJade(5)
 
-        val result = engine.washTrait("1", TraitWashType.TALENT, -1)
+        val result = engine.washTraitSlot("1", TraitWashType.TALENT, targetIdOf(TraitWashType.TALENT), -1)
 
         assertTrue("期望 Error，实际 $result", result is TraitWashResult.Error)
         assertEquals("不扣玉符", 5, store.gameDataSnapshot.jadeSymbols)
     }
 
     @Test
-    fun `washTrait - 死亡弟子拒绝洗炼且不扣玉符`() = runBlocking {
-        seedDisciple()
+    fun `washTraitSlot - 死亡弟子拒绝洗炼且不扣玉符`() = runBlocking {
+        seedStandardDisciple()
         seedJade(5)
         store.update { discipleTables.markDead(1, 1) }
 
         for (type in washTypes) {
-            val result = engine.washTrait("1", type, 0)
+            val result = engine.washTraitSlot("1", type, targetIdOf(type), 0)
 
             assertTrue("死亡弟子应被拒绝，实际 $result", result is TraitWashResult.Error)
             assertEquals("不扣玉符", 5, store.gameDataSnapshot.jadeSymbols)
@@ -247,11 +279,36 @@ class GameEngineTraitWashTest {
     }
 
     @Test
-    fun `washTrait - 余额恰为1枚时洗炼成功扣至0`() = runBlocking {
-        seedDisciple()
+    fun `washTraitSlot - 目标特质不在弟子身上返回Error且不扣玉符`() = runBlocking {
+        seedStandardDisciple()
+        seedJade(5)
+
+        // 弟子只拥有 targetIdOf(TALENT) 列表中的 id，未持有列表外的合法 id
+        val notOwned = realTraitIds(TraitWashType.TALENT, 3).last()
+        val result = engine.washTraitSlot("1", TraitWashType.TALENT, notOwned, 0)
+
+        assertTrue("目标特质不存在应被拒绝，实际 $result", result is TraitWashResult.Error)
+        assertEquals("该特质已不存在", (result as TraitWashResult.Error).message)
+        assertEquals("不扣玉符", 5, store.gameDataSnapshot.jadeSymbols)
+    }
+
+    @Test
+    fun `washTraitSlot - 空目标id返回Error且不扣玉符`() = runBlocking {
+        seedStandardDisciple()
+        seedJade(5)
+
+        val result = engine.washTraitSlot("1", TraitWashType.TALENT, "", 0)
+
+        assertTrue("空目标应被拒绝，实际 $result", result is TraitWashResult.Error)
+        assertEquals("不扣玉符", 5, store.gameDataSnapshot.jadeSymbols)
+    }
+
+    @Test
+    fun `washTraitSlot - 余额恰为1枚时洗炼成功扣至0`() = runBlocking {
+        seedStandardDisciple()
         seedJade(1)
 
-        isSuccess(engine.washTrait("1", TraitWashType.AFFIX, 0))
+        isSuccess(engine.washTraitSlot("1", TraitWashType.AFFIX, targetIdOf(TraitWashType.AFFIX), 0))
 
         assertEquals("余额 1 时应可洗炼并扣至 0", 0, store.gameDataSnapshot.jadeSymbols)
         assertEquals(0, jadeService.runtimeState.value.total)
@@ -260,34 +317,37 @@ class GameEngineTraitWashTest {
     // ── 洗炼：保底 ──
 
     @Test
-    fun `washTrait - 保底计数达阈值时必出至少1个上品且计数归零`() = runBlocking {
-        seedDisciple()
+    fun `washTraitSlot - 保底计数达阈值时目标槽必出上品且计数归零`() = runBlocking {
+        seedStandardDisciple()
         seedJade(5)
 
         for (type in washTypes) {
-            val success = isSuccess(engine.washTrait("1", type, GameConfig.TraitWash.WASH_PITY_THRESHOLD))
-            val resolved = type.resolve(success.newIds)
+            val success = isSuccess(
+                engine.washTraitSlot("1", type, targetIdOf(type), GameConfig.TraitWash.WASH_PITY_THRESHOLD)
+            )
+            val resolved = type.resolve(listOf(success.newId))
 
-            assertTrue(
-                "保底结果必须含至少 1 个 3 阶 (${type.displayName})",
-                resolved.any { it.rarity == GameConfig.TraitWash.TOP_RARITY }
+            assertEquals(
+                "保底目标槽必须是 3 阶 (${type.displayName})",
+                GameConfig.TraitWash.TOP_RARITY, resolved.first().rarity
             )
             assertEquals("保底后计数应归零 (${type.displayName})", 0, success.newPityCount)
         }
     }
 
     @Test
-    fun `washTrait - 结果含上品时保底计数归零`() = runBlocking {
-        seedDisciple()
+    fun `washTraitSlot - 结果含上品时保底计数归零`() = runBlocking {
+        seedStandardDisciple()
         seedJade(5)
 
-        // 多种子/多类型扫描：凡结果含 3 阶，newPityCount 必须为 0（pity<阈值时语义）。
+        // 多种子/多类型扫描：凡产物含 3 阶，newPityCount 必须为 0（pity<阈值时语义）。
         // 每次洗炼前重新播种 1 枚玉符——3 类型 × 10 次 = 30 次洗炼，一次播种不够
         for (type in washTypes) {
             repeat(10) {
                 seedJade(1)
-                val success = isSuccess(engine.washTrait("1", type, 0))
-                val hasTop = type.resolve(success.newIds).any { it.rarity == GameConfig.TraitWash.TOP_RARITY }
+                val success = isSuccess(engine.washTraitSlot("1", type, targetIdOf(type), 0))
+                val hasTop = type.resolve(listOf(success.newId)).firstOrNull()?.rarity ==
+                GameConfig.TraitWash.TOP_RARITY
                 if (hasTop) {
                     assertEquals("含上品时计数应归零 (${type.displayName})", 0, success.newPityCount)
                 }
@@ -298,85 +358,111 @@ class GameEngineTraitWashTest {
     // ── 确认替换 ──
 
     @Test
-    fun `confirmTraitWash - 合法产物替换对应字段且其余字段不变`() = runBlocking {
-        seedDisciple(
-            talentIds = listOf("initial_talent"),
-            physiqueIds = listOf("initial_physique"),
-            affixIds = listOf("initial_affix")
-        )
-        // 生成语义 template 去重：同一 template 可能有多条目（如 r1_cult_speed/r2_cult_speed 同 template 同 rarity），
-        // 合法产物必须 template 互异（引擎校验与生成逻辑一致），这里按 template 去重构造
-        val newTalents = TalentDatabase.getByRarity(1)
-            .distinctBy { TalentDatabase.getTalentDataById(it.id)?.template ?: it.id }
-            .take(2).map { it.id }
-        val newPhysiques = PhysiqueDatabase.getByRarity(1)
-            .distinctBy { PhysiqueDatabase.getPhysiqueDataById(it.id)?.template ?: it.id }
-            .take(1).map { it.id }
-        val newAffixes = AffixDatabase.getByRarity(1)
-            .distinctBy { AffixDatabase.getAffixDataById(it.id)?.template ?: it.id }
-            .take(2).map { it.id }
+    fun `confirmTraitWash - 只替换目标槽位且其余类型与同类型其他槽位不变`() = runBlocking {
+        seedStandardDisciple()
+        val before = assembleDisciple()
+        val type = TraitWashType.TALENT
+        val targetId = before.talentIds.first()
+        val newId = realTraitIds(type, 3).last() // 弟子未持有（第 1、2 个已在身上）
 
-        val r1 = engine.confirmTraitWash("1", TraitWashType.TALENT, newTalents)
-        val r2 = engine.confirmTraitWash("1", TraitWashType.PHYSIQUE, newPhysiques)
-        val r3 = engine.confirmTraitWash("1", TraitWashType.AFFIX, newAffixes)
+        val result = engine.confirmTraitWash("1", type, targetId, newId)
 
-        assertTrue("期望 Success，实际 $r1", r1 is TraitWashConfirmResult.Success)
-        assertTrue("期望 Success，实际 $r2", r2 is TraitWashConfirmResult.Success)
-        assertTrue("期望 Success，实际 $r3", r3 is TraitWashConfirmResult.Success)
-        val disciple = assembleDisciple()
-        assertEquals("天赋应被替换", newTalents, disciple.talentIds)
-        assertEquals("体质应被替换", newPhysiques, disciple.physiqueIds)
-        assertEquals("词条应被替换", newAffixes, disciple.affixIds)
-        assertEquals("灵根不得被触碰", "fire", disciple.spiritRootType)
-        assertEquals("姓名不得被触碰", "测试弟子1", disciple.name)
+        assertTrue("期望 Success，实际 $result", result is TraitWashConfirmResult.Success)
+        val after = assembleDisciple()
+        assertEquals("目标天赋槽位应被替换", listOf(newId, before.talentIds[1]), after.talentIds)
+        assertEquals("其余天赋槽位保留", before.talentIds[1], after.talentIds[1])
+        assertEquals("体质不得被触碰", before.physiqueIds, after.physiqueIds)
+        assertEquals("词条不得被触碰", before.affixIds, after.affixIds)
+        assertEquals("灵根不得被触碰", "fire", after.spiritRootType)
+        assertEquals("姓名不得被触碰", "测试弟子1", after.name)
     }
 
     @Test
-    fun `confirmTraitWash - 空产物可确认替换（洗炼掷出0个特质）`() = runBlocking {
-        seedDisciple(talentIds = listOf("initial_talent"))
+    fun `confirmTraitWash - 体质与词条单槽替换互不影响`() = runBlocking {
+        seedStandardDisciple()
+        val before = assembleDisciple()
+        val physiqueTarget = before.physiqueIds.first()
+        val newPhysique = realTraitIds(TraitWashType.PHYSIQUE, 3).last()
+        val affixTarget = before.affixIds.first()
+        val newAffix = realTraitIds(TraitWashType.AFFIX, 3).last()
 
-        val result = engine.confirmTraitWash("1", TraitWashType.TALENT, emptyList())
+        val r1 = engine.confirmTraitWash("1", TraitWashType.PHYSIQUE, physiqueTarget, newPhysique)
+        val r2 = engine.confirmTraitWash("1", TraitWashType.AFFIX, affixTarget, newAffix)
 
-        assertTrue("空产物应可确认，实际 $result", result is TraitWashConfirmResult.Success)
-        assertEquals("天赋应清空", emptyList<String>(), assembleDisciple().talentIds)
+        assertTrue("体质替换应成功，实际 $r1", r1 is TraitWashConfirmResult.Success)
+        assertTrue("词条替换应成功，实际 $r2", r2 is TraitWashConfirmResult.Success)
+        val after = assembleDisciple()
+        assertEquals(listOf(newPhysique, before.physiqueIds[1]), after.physiqueIds)
+        assertEquals(listOf(newAffix, before.affixIds[1]), after.affixIds)
+        assertEquals("天赋不得被触碰", before.talentIds, after.talentIds)
     }
 
     @Test
-    fun `confirmTraitWash - 非法产物返回Error且弟子不变`() = runBlocking {
-        seedDisciple(talentIds = listOf("initial_talent"))
+    fun `confirmTraitWash - 目标不存在返回Error且弟子不变`() = runBlocking {
+        seedStandardDisciple()
+        val before = assembleDisciple()
+        val newId = realTraitIds(TraitWashType.TALENT, 3).last()
 
-        val validId = TalentDatabase.getByRarity(1).first().id
-        // 超上限（6 个）、未知 id、重复 id（template 重复）
-        val invalidList = listOf(
-            listOf("unknown_1", "unknown_2", "unknown_3", "unknown_4", "unknown_5", "unknown_6"),
-            listOf("unknown_trait"),
-            listOf(validId, validId)
-        )
+        val result = engine.confirmTraitWash("1", TraitWashType.TALENT, "not_owned_trait", newId)
 
-        for (invalid in invalidList) {
-            val result = engine.confirmTraitWash("1", TraitWashType.TALENT, invalid)
-            assertTrue("产物 $invalid 应被拒绝，实际 $result", result is TraitWashConfirmResult.Error)
-            assertEquals("弟子天赋不得被非法产物修改", listOf("initial_talent"), assembleDisciple().talentIds)
-        }
+        assertTrue("目标不存在应被拒绝，实际 $result", result is TraitWashConfirmResult.Error)
+        assertEquals("弟子特质不得被非法产物修改", before.talentIds, assembleDisciple().talentIds)
+    }
+
+    @Test
+    fun `confirmTraitWash - 未知产物id返回Error且弟子不变`() = runBlocking {
+        seedStandardDisciple()
+        val targetId = assembleDisciple().talentIds.first()
+
+        val result = engine.confirmTraitWash("1", TraitWashType.TALENT, targetId, "unknown_trait")
+
+        assertTrue("未知产物应被拒绝，实际 $result", result is TraitWashConfirmResult.Error)
+        assertEquals("弟子天赋不得被非法产物修改", assembleDisciple().talentIds, assembleDisciple().talentIds)
+    }
+
+    @Test
+    fun `confirmTraitWash - 产物与保留槽位template冲突返回Error且弟子不变`() = runBlocking {
+        seedStandardDisciple()
+        val before = assembleDisciple()
+        val targetId = before.talentIds.first()
+        // 产物 id 与保留槽位相同 → 替换后列表 template 重复 → 校验拒绝
+        val conflictingId = before.talentIds[1]
+
+        val result = engine.confirmTraitWash("1", TraitWashType.TALENT, targetId, conflictingId)
+
+        assertTrue("template 冲突应被拒绝，实际 $result", result is TraitWashConfirmResult.Error)
+        assertEquals("弟子天赋不得被非法产物修改", before.talentIds, assembleDisciple().talentIds)
+    }
+
+    @Test
+    fun `confirmTraitWash - 空产物id返回Error且弟子不变`() = runBlocking {
+        seedStandardDisciple()
+        val before = assembleDisciple()
+
+        val result = engine.confirmTraitWash("1", TraitWashType.TALENT, before.talentIds.first(), "")
+
+        assertTrue("空产物应被拒绝，实际 $result", result is TraitWashConfirmResult.Error)
+        assertEquals("弟子天赋不得被非法产物修改", before.talentIds, assembleDisciple().talentIds)
     }
 
     @Test
     fun `confirmTraitWash - 弟子不存在返回Error`() = runBlocking {
-        val result = engine.confirmTraitWash("999", TraitWashType.TALENT, emptyList())
+        val result = engine.confirmTraitWash("999", TraitWashType.TALENT, "x", "y")
 
         assertTrue("期望 Error，实际 $result", result is TraitWashConfirmResult.Error)
     }
 
     @Test
     fun `confirmTraitWash - 死亡弟子拒绝替换且字段不变`() = runBlocking {
-        seedDisciple(talentIds = listOf("initial_talent"))
+        seedStandardDisciple()
         store.update { discipleTables.markDead(1, 1) }
-        val newTalents = TalentDatabase.getByRarity(1).take(1).map { it.id }
+        val before = assembleDisciple()
+        val newId = realTraitIds(TraitWashType.TALENT, 3).last()
 
-        val result = engine.confirmTraitWash("1", TraitWashType.TALENT, newTalents)
+        val result = engine.confirmTraitWash("1", TraitWashType.TALENT, before.talentIds.first(), newId)
 
         assertTrue("死亡弟子应被拒绝，实际 $result", result is TraitWashConfirmResult.Error)
-        assertEquals("死亡弟子天赋不得被替换", listOf("initial_talent"), assembleDisciple().talentIds)
+        assertEquals("死亡弟子天赋不得被替换", before.talentIds, assembleDisciple().talentIds)
     }
 
     // ── lifespan 同步（对抗性审查 2026-08-09 数据篡改者：洗炼前后寿命必须与新特质一致） ──
@@ -386,11 +472,14 @@ class GameEngineTraitWashTest {
         val lifespanAffix = AffixDatabase.affixes.values.firstOrNull {
             it.effects.containsKey("lifespan") && !it.isNegative
         } ?: error("测试前提：需要正向 lifespan 词条")
-        seedDisciple()
+        val otherAffix = AffixDatabase.getPositiveAffixes().firstOrNull {
+            it.id != lifespanAffix.id && !it.effects.containsKey("lifespan")
+        } ?: error("测试前提：需要无 lifespan 正向词条")
+        seedDisciple(affixIds = listOf(otherAffix.id))
         val before = assembleDisciple().lifespan
         val bonus = lifespanAffix.effects["lifespan"] ?: 0.0
 
-        val result = engine.confirmTraitWash("1", TraitWashType.AFFIX, listOf(lifespanAffix.id))
+        val result = engine.confirmTraitWash("1", TraitWashType.AFFIX, otherAffix.id, lifespanAffix.id)
 
         assertTrue("期望 Success，实际 $result", result is TraitWashConfirmResult.Success)
         val expected = before + (GameConfig.Realm.get(9).maxAge * bonus).toInt()
@@ -409,7 +498,7 @@ class GameEngineTraitWashTest {
         val before = assembleDisciple().lifespan
         val bonus = lifespanAffix.effects["lifespan"] ?: 0.0
 
-        val result = engine.confirmTraitWash("1", TraitWashType.AFFIX, listOf(otherAffix.id))
+        val result = engine.confirmTraitWash("1", TraitWashType.AFFIX, lifespanAffix.id, otherAffix.id)
 
         assertTrue("期望 Success，实际 $result", result is TraitWashConfirmResult.Success)
         val expected = (before + (GameConfig.Realm.get(9).maxAge * -bonus).toInt()).coerceAtLeast(1)
@@ -418,10 +507,13 @@ class GameEngineTraitWashTest {
 
     @Test
     fun `confirmTraitWash - 死亡弟子返回已死亡文案`() = runBlocking {
-        seedDisciple(talentIds = listOf("initial_talent"))
+        seedStandardDisciple()
         store.update { discipleTables.markDead(1, 1) }
+        val before = assembleDisciple()
 
-        val result = engine.confirmTraitWash("1", TraitWashType.TALENT, emptyList())
+        val result = engine.confirmTraitWash(
+            "1", TraitWashType.TALENT, before.talentIds.first(), realTraitIds(TraitWashType.TALENT, 3).last()
+        )
 
         assertTrue("期望 Error，实际 $result", result is TraitWashConfirmResult.Error)
         assertEquals("失败原因要写明", "弟子已死亡", (result as TraitWashConfirmResult.Error).message)
@@ -430,15 +522,15 @@ class GameEngineTraitWashTest {
     // ── 关键回归：checkpoint 不回涨 ──
 
     @Test
-    fun `washTrait - 扣减后 checkpointNow 玉符不回涨`() = runBlocking {
+    fun `washTraitSlot - 扣减后 checkpointNow 玉符不回涨`() = runBlocking {
         // 最高风险：JadeSymbolService 运行时 totalCount 以绝对值覆盖写 GameData.jadeSymbols，
         // 若扣减未同步 totalCount，checkpoint 会把余额写回扣减前值（玉符回涨）
-        seedDisciple()
+        seedStandardDisciple()
         seedJade(5)
 
-        isSuccess(engine.washTrait("1", TraitWashType.TALENT, 0))
-        isSuccess(engine.washTrait("1", TraitWashType.PHYSIQUE, 0))
-        isSuccess(engine.washTrait("1", TraitWashType.AFFIX, 0))
+        for (type in washTypes) {
+            isSuccess(engine.washTraitSlot("1", type, targetIdOf(type), 0))
+        }
         assertEquals(2, store.gameDataSnapshot.jadeSymbols)
 
         jadeService.checkpointNow()

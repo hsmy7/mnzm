@@ -588,6 +588,27 @@ object TalentDatabase {
         return result
     }
 
+    /** 洗炼候选是否至少存在一条（无随机消耗，供引擎扣费前预检，防"扣费后无可抽条目"） */
+    fun hasTalentCandidates(excludedTemplates: Set<String> = emptySet()): Boolean =
+        allTalentsData.values
+            .any { it.type !in DEPRECATED_TALENT_TYPES && it.template !in excludedTemplates }
+
+    /**
+     * 单次洗炼抽取一个天赋（品阶分布与生成一致：[rollTraitQuality] 四档）。
+     *
+     * [excludedTemplates] 过滤避免与保留槽位 template 冲突；池空（含全被排除）返回 null，
+     * 调用方应先用 [hasTalentCandidates] 预检（扣费前），这里返回 null 仅是防御兜底。
+     */
+    fun rollSingleTalent(
+        random: kotlin.random.Random = kotlin.random.Random,
+        excludedTemplates: Set<String> = emptySet()
+    ): TalentData? {
+        val candidates = allTalentsData.values
+            .filter { it.type !in DEPRECATED_TALENT_TYPES && it.template !in excludedTemplates }
+        if (candidates.isEmpty()) return null
+        return pickTalentByDistribution(candidates, random)
+    }
+
     fun generateTalentsForDisciple(random: kotlin.random.Random = kotlin.random.Random): List<Talent> {
         val result = mutableListOf<Talent>()
         val availableTalents = allTalentsData.values

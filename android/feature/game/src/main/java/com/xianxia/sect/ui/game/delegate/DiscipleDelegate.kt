@@ -31,7 +31,7 @@ import com.xianxia.sect.core.engine.updateDisciple
 import com.xianxia.sect.core.engine.updateGameData
 import com.xianxia.sect.core.engine.usePill
 import com.xianxia.sect.core.engine.washSpiritRoot
-import com.xianxia.sect.core.engine.washTrait
+import com.xianxia.sect.core.engine.washTraitSlot
 import com.xianxia.sect.core.engine.service.RecruitService
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.util.DomainResult
@@ -259,31 +259,34 @@ class DiscipleDelegate(
     suspend fun confirmSpiritRootWash(discipleId: String, newRootType: String): SpiritRootWashConfirmResult =
         gameEngine.confirmSpiritRootWash(discipleId, newRootType)
 
-    // ── 洗炼天赋/体质/词条（玉符消耗玩法，流程对齐洗炼灵根）──
+    // ── 洗炼天赋/体质/词条（玉符消耗玩法，流程对齐洗炼灵根；单槽语义：只洗炼目标特质）──
 
-    /** 洗炼天赋：扣 1 玉符 + 保底判定抽取，返回产物（UI 会话持有结果，未确认不写弟子） */
-    suspend fun washTalent(discipleId: String, pityCount: Int): TraitWashResult =
-        gameEngine.washTrait(discipleId, TraitWashType.TALENT, pityCount)
+    /**
+     * 洗炼天赋的单个目标槽位：扣 1 玉符 + 保底判定抽取，返回产物
+     * （UI 会话持有结果，未确认不写弟子；其余天赋保留不动）。
+     */
+    suspend fun washTalent(discipleId: String, targetId: String, pityCount: Int): TraitWashResult =
+        gameEngine.washTraitSlot(discipleId, TraitWashType.TALENT, targetId, pityCount)
 
-    /** 洗炼体质：扣 1 玉符 + 保底判定抽取，返回产物 */
-    suspend fun washPhysique(discipleId: String, pityCount: Int): TraitWashResult =
-        gameEngine.washTrait(discipleId, TraitWashType.PHYSIQUE, pityCount)
+    /** 洗炼体质的单个目标槽位：扣 1 玉符 + 保底判定抽取，返回产物 */
+    suspend fun washPhysique(discipleId: String, targetId: String, pityCount: Int): TraitWashResult =
+        gameEngine.washTraitSlot(discipleId, TraitWashType.PHYSIQUE, targetId, pityCount)
 
-    /** 洗炼词条：扣 1 玉符 + 保底判定抽取，返回产物 */
-    suspend fun washAffix(discipleId: String, pityCount: Int): TraitWashResult =
-        gameEngine.washTrait(discipleId, TraitWashType.AFFIX, pityCount)
+    /** 洗炼词条的单个目标槽位：扣 1 玉符 + 保底判定抽取，返回产物 */
+    suspend fun washAffix(discipleId: String, targetId: String, pityCount: Int): TraitWashResult =
+        gameEngine.washTraitSlot(discipleId, TraitWashType.AFFIX, targetId, pityCount)
 
-    /** 确认替换天赋：把弟子天赋替换为洗炼产物 */
-    suspend fun confirmTalent(discipleId: String, newIds: List<String>): TraitWashConfirmResult =
-        gameEngine.confirmTraitWash(discipleId, TraitWashType.TALENT, newIds)
+    /** 确认替换天赋：把目标天赋槽位替换为洗炼产物（其余天赋保留） */
+    suspend fun confirmTalent(discipleId: String, targetId: String, newId: String): TraitWashConfirmResult =
+        gameEngine.confirmTraitWash(discipleId, TraitWashType.TALENT, targetId, newId)
 
-    /** 确认替换体质：把弟子体质替换为洗炼产物 */
-    suspend fun confirmPhysique(discipleId: String, newIds: List<String>): TraitWashConfirmResult =
-        gameEngine.confirmTraitWash(discipleId, TraitWashType.PHYSIQUE, newIds)
+    /** 确认替换体质：把目标体质槽位替换为洗炼产物（其余体质保留） */
+    suspend fun confirmPhysique(discipleId: String, targetId: String, newId: String): TraitWashConfirmResult =
+        gameEngine.confirmTraitWash(discipleId, TraitWashType.PHYSIQUE, targetId, newId)
 
-    /** 确认替换词条：把弟子词条替换为洗炼产物 */
-    suspend fun confirmAffix(discipleId: String, newIds: List<String>): TraitWashConfirmResult =
-        gameEngine.confirmTraitWash(discipleId, TraitWashType.AFFIX, newIds)
+    /** 确认替换词条：把目标词条槽位替换为洗炼产物（其余词条保留） */
+    suspend fun confirmAffix(discipleId: String, targetId: String, newId: String): TraitWashConfirmResult =
+        gameEngine.confirmTraitWash(discipleId, TraitWashType.AFFIX, targetId, newId)
 
     fun recruitDiscipleFromList(discipleId: String) {
         if (discipleId.isBlank()) {
