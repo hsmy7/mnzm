@@ -763,45 +763,48 @@ private fun reasonDisplayName(key: String): String = when (key) {
     else -> key
 }
 
+private val EQUIP_SOURCE_NAMES: Map<String, String> = mapOf(
+    "forge" to "锻造", "battle" to "战斗", "exploration" to "探索",
+    "quest" to "任务", "mail" to "邮件", "cave" to "洞府",
+    "trial" to "天道试炼", "merchant" to "商人",
+    "sect_level" to "宗门等级", "storage_bag" to "储物袋",
+    "building" to "建筑", "unknown" to "未知",
+    "redeem" to "兑换码", "disciple_death" to "弟子死亡",
+    "cave_world" to "洞府世界", "secret_realm" to "秘境",
+    "sect_trade" to "宗门交易", "confiscate" to "没收",
+    "disciple_expel" to "逐出弟子"
+)
+
+private val PILL_SOURCE_NAMES: Map<String, String> = mapOf(
+    "alchemy" to "炼丹", "battle" to "战斗", "exploration" to "探索",
+    "quest" to "任务", "mail" to "邮件", "cave" to "洞府",
+    "trial" to "天道试炼", "merchant" to "商人",
+    "sect_level" to "宗门等级", "storage_bag" to "储物袋",
+    "building" to "建筑", "unknown" to "未知",
+    "redeem" to "兑换码", "disciple_death" to "弟子死亡",
+    "cave_world" to "洞府世界", "secret_realm" to "秘境",
+    "sect_trade" to "宗门交易", "confiscate" to "没收",
+    "disciple_expel" to "逐出弟子"
+)
+
+private val HERB_SOURCE_NAMES: Map<String, String> = mapOf(
+    "spirit_field" to "灵田", "exploration" to "探索", "battle" to "战斗",
+    "quest" to "任务", "mail" to "邮件", "storage_bag" to "储物袋",
+    "cave" to "洞府", "trial" to "天道试炼", "merchant" to "商人",
+    "unknown" to "未知",
+    "redeem" to "兑换码", "disciple_death" to "弟子死亡",
+    "secret_realm" to "秘境", "sect_trade" to "宗门交易",
+    "confiscate" to "没收", "disciple_expel" to "逐出弟子"
+)
+
 /** 装备来源名（exploration/sect_level 保留映射：历史存档可能残留旧键） */
-private fun equipSourceName(key: String): String = when (key) {
-    "forge" -> "锻造"; "battle" -> "战斗"; "exploration" -> "探索"
-    "quest" -> "任务"; "mail" -> "邮件"; "cave" -> "洞府"
-    "trial" -> "天道试炼"; "merchant" -> "商人"
-    "sect_level" -> "宗门等级"; "storage_bag" -> "储物袋"
-    "building" -> "建筑"; "unknown" -> "未知"
-    "redeem" -> "兑换码"; "disciple_death" -> "弟子死亡"
-    "cave_world" -> "洞府世界"; "secret_realm" -> "秘境"
-    "sect_trade" -> "宗门交易"; "confiscate" -> "没收"
-    "disciple_expel" -> "逐出弟子"
-    else -> key
-}
+private fun equipSourceName(key: String): String = EQUIP_SOURCE_NAMES[key] ?: key
 
 /** 丹药来源名（exploration/sect_level 保留映射：历史存档可能残留旧键） */
-private fun pillSourceName(key: String): String = when (key) {
-    "alchemy" -> "炼丹"; "battle" -> "战斗"; "exploration" -> "探索"
-    "quest" -> "任务"; "mail" -> "邮件"; "cave" -> "洞府"
-    "trial" -> "天道试炼"; "merchant" -> "商人"
-    "sect_level" -> "宗门等级"; "storage_bag" -> "储物袋"
-    "building" -> "建筑"; "unknown" -> "未知"
-    "redeem" -> "兑换码"; "disciple_death" -> "弟子死亡"
-    "cave_world" -> "洞府世界"; "secret_realm" -> "秘境"
-    "sect_trade" -> "宗门交易"; "confiscate" -> "没收"
-    "disciple_expel" -> "逐出弟子"
-    else -> key
-}
+private fun pillSourceName(key: String): String = PILL_SOURCE_NAMES[key] ?: key
 
 /** 草药来源名（exploration 保留映射：历史存档可能残留旧键） */
-private fun herbSourceName(key: String): String = when (key) {
-    "spirit_field" -> "灵田"; "exploration" -> "探索"; "battle" -> "战斗"
-    "quest" -> "任务"; "mail" -> "邮件"; "storage_bag" -> "储物袋"
-    "cave" -> "洞府"; "trial" -> "天道试炼"; "merchant" -> "商人"
-    "unknown" -> "未知"
-    "redeem" -> "兑换码"; "disciple_death" -> "弟子死亡"
-    "secret_realm" -> "秘境"; "sect_trade" -> "宗门交易"
-    "confiscate" -> "没收"; "disciple_expel" -> "逐出弟子"
-    else -> key
-}
+private fun herbSourceName(key: String): String = HERB_SOURCE_NAMES[key] ?: key
 
 /** 带符号格式化：正数加 "+"，负数保留 "-" */
 private fun formatSigned(value: Long): String = if (value > 0) "+$value" else "$value"

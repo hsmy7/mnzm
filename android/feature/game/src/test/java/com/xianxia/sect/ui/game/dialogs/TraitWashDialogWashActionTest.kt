@@ -52,7 +52,12 @@ class TraitWashDialogWashActionTest {
                 targetId = target.id,
                 jadeSymbols = 10,
                 viewModel = vm,
-                washSession = WashSessionControl(initialPityCount = 0, onPityCountChanged = {}, washing = false, onWashingChange = {}),
+                washSession = WashSessionControl(
+                    initialPityCount = 0,
+                    onPityCountChanged = {},
+                    washing = false,
+                    onWashingChange = {}
+                ),
                 onDismiss = {}
             )
         }

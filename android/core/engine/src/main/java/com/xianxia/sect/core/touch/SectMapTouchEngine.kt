@@ -53,9 +53,10 @@ class SectMapTouchEngine(
     private var lastY = 0f
 
     /**
-     * DOWN 时刻是否触摸在建筑/预览上。
-     * 仅用于选择长按超时：true → 200ms（可进入 BuildingDrag）；false → config.longPressTimeoutMs。
-     * Slop→Scrolling 判决统一由 touchSlop 决定，与本标志无关；超 slop 移动时本标志被清除。
+     * DOWN 时刻是否触摸在建筑/预览上（编辑模式仅预览框/建筑命中，空地返回 false）。
+     * 编辑模式：门控快路径（目标上任意移动立即 BuildingDrag）与 200ms 自动进入；
+     * 非编辑模式：选择长按超时（true → buildingLongPressTimeoutMs；false → longPressTimeoutMs）。
+     * 超 slop 移动时本标志被清除（拖动视角意图优先于长按）。
      */
     private var hasBuildingTarget = false
 
@@ -132,24 +133,23 @@ class SectMapTouchEngine(
         val alreadyEditing = callbacks.isInEditMode()
 
         if (alreadyEditing) {
-            // [编辑模式] 放置/移动中：任意触摸立即进入拖拽预览
-            // 行业标准做法（CoC、Rise of Kingdoms、Unity RTS Engine）
+            // [编辑模式] 放置/移动中：
+            //  - 触摸在建筑/预览上 → 等待 MOVE 或 200ms 超时进入 BuildingDrag
+            //  - 触摸在金手指图标 → 立即进入 GoldFingerDrag（激活 / 已激活时重新框选）
+            //  - 触摸在空地 → 保持 Down：slop → Scrolling（平移视角），短触 → onTap
+            hasBuildingTarget = callbacks.findBuildingAt(data.x, data.y) != null
             when (callbacks.onLongPress(data.x, data.y)) {
-                LongPressResult.BuildingDrag -> {
-                    // UI 已设置，等待 MOVE 或 200ms 超时进入 BuildingDrag
-                }
                 LongPressResult.GoldFingerDrag -> {
                     state = GestureState.GoldFingerDrag
                     callbacks.onDragStart()
                 }
+                LongPressResult.BuildingDrag,
                 LongPressResult.NotHandled -> {
-                    // 放置模式下非金手指区域 → 立即进入 BuildingDrag
-                    state = GestureState.BuildingDrag
-                    callbacks.onDragStart()
+                    // 保持 Down：目标上 MOVE → BuildingDrag；空地上 slop → Scrolling
                 }
             }
-            // 还未进入 BuildingDrag → 200ms 自动进入
-            if (state is GestureState.Down) {
+            // 触摸在目标上 → 200ms 自动进入 BuildingDrag（空地不进入）
+            if (state is GestureState.Down && hasBuildingTarget) {
                 longPressJob = scope.launch {
                     try {
                         delay(config.buildingLongPressTimeoutMs)
@@ -213,8 +213,9 @@ class SectMapTouchEngine(
                 val dx = data.x - downX
                 val dy = data.y - downY
 
-                // [编辑模式] 任意移动即进入 BuildingDrag，直接预览跟随手指
-                if (callbacks.isInEditMode() && (dx != 0f || dy != 0f)) {
+                // [编辑模式] 触摸在目标上：任意移动即进入 BuildingDrag，直接预览跟随手指
+                val targetMoveIntent = hasBuildingTarget && (dx != 0f || dy != 0f)
+                if (callbacks.isInEditMode() && targetMoveIntent) {
                     longPressJob?.cancel(); longPressJob = null
                     state = GestureState.BuildingDrag
                     callbacks.onDragStart()
@@ -228,16 +229,10 @@ class SectMapTouchEngine(
                     longPressJob?.cancel(); longPressJob = null
                     // Down 时刻的建筑目标随 slop 判决失效（拖动意图优先于长按）
                     hasBuildingTarget = false
-                    state = if (callbacks.isGoldFingerActive()) {
-                        GestureState.GoldFingerDrag
-                    } else {
-                        GestureState.Scrolling
-                    }
-                    // GoldFingerDrag / Scrolling 均以 onDragStart 开始（帧率提升语义），Scrolling 额外平移
+                    // 编辑模式空地拖动 → 一律 Scrolling（平移视角，不再重进金手指框选）
+                    state = GestureState.Scrolling
                     callbacks.onDragStart()
-                    if (state is GestureState.Scrolling) {
-                        callbacks.onPanCamera(dx, dy)
-                    }
+                    callbacks.onPanCamera(dx, dy)
                 }
             }
 
@@ -314,6 +309,7 @@ class SectMapTouchEngine(
     private fun handleCancel() {
         longPressJob?.cancel(); longPressJob = null
         flingJob?.cancel(); flingJob = null
+        hasBuildingTarget = false
         when (state) {
             is GestureState.Scrolling -> callbacks.onDragEnd()
             is GestureState.BuildingDrag -> callbacks.onBuildingDragEnd()

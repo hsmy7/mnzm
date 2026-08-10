@@ -218,12 +218,7 @@ class DiscipleFacadeImpl @Inject constructor(
             // ── 完整性校验：损坏条目同事务移除（幽灵立即消失，不再永久残留）──
             if (!RecruitIntegrity.isValidRecruit(disciple)) {
                 DomainLog.w(TAG, "recruitDiscipleFromList: skipping corrupted disciple $discipleId: name='${disciple.name}' age=${disciple.age} realm=${disciple.realm}")
-                gameData = gameData.copy(
-                    recruitList = gameData.recruitList.filter { it.id != discipleId }
-                )
-                pendingNotification = GameNotification.RecruitFailed(
-                    "招募失败：「${disciple.name.take(MAX_NAME_DISPLAY_LEN)}」数据异常"
-                )
+                purgeCorruptedRecruit(discipleId, disciple.name)
                 return@update
             }
             val currentMonthValue = gameData.gameYear * 12 + gameData.gameMonth
@@ -260,6 +255,16 @@ class DiscipleFacadeImpl @Inject constructor(
             DomainLog.w(TAG, "recruitDiscipleFromList: FAILED for $discipleId")
         }
         return newId
+    }
+
+    /** 完整性校验失败时同事务移除损坏条目并通知（防幽灵残留；扩展保持 update 事务作用域） */
+    private fun MutableGameState.purgeCorruptedRecruit(discipleId: String, name: String) {
+        gameData = gameData.copy(
+            recruitList = gameData.recruitList.filter { it.id != discipleId }
+        )
+        pendingNotification = GameNotification.RecruitFailed(
+            "招募失败：「${name.take(MAX_NAME_DISPLAY_LEN)}」数据异常"
+        )
     }
 
     override fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>): DomainResult<Unit> {

@@ -86,8 +86,10 @@ internal fun GoldFingerSelectionOverlay(
 
     val selLeft = ((gMinX * ts).toFloat() - cameraState.cameraX) * scale
     val selTop = ((gMinY * ts).toFloat() - cameraState.cameraY) * scale
-    val selW = ((gMaxX - gMinX + bW) * ts).toFloat() * scale
-    val selH = ((gMaxY - gMinY + bH) * ts).toFloat() * scale
+    // 边框覆盖 [gMinX, gMaxX] 与建造循环（gx + bW - 1 <= gMaxX）一致，
+    // 不能用 +bW/+bH（会在右/下多出 bW-1/bH-1 格，视觉范围大于实际建造范围）
+    val selW = ((gMaxX - gMinX + 1) * ts).toFloat() * scale
+    val selH = ((gMaxY - gMinY + 1) * ts).toFloat() * scale
     val cellW = (bW * ts).toFloat() * scale
     val cellH = (bH * ts).toFloat() * scale
 
@@ -131,8 +133,9 @@ internal fun GoldFingerSelectionOverlay(
             val bmp = goldenFingerBmp ?: return@Canvas
             val iw = (ts * scale).toInt()
             val ih = (ts * scale).toInt()
-            val ix = ((g.endGridX - gMinX) * ts).toInt() * scale.toInt()
-            val iy = ((g.endGridY - gMinY) * ts).toInt() * scale.toInt()
+            // 先乘 scale 再取整（与 iw/ih 取整时机一致），避免先取整丢失亚格精度
+            val ix = ((g.endGridX - gMinX) * ts * scale).toInt()
+            val iy = ((g.endGridY - gMinY) * ts * scale).toInt()
             drawImage(bmp,
                 dstOffset = IntOffset(
                     ix.coerceIn(0, (selW.toInt() - iw).coerceAtLeast(0)),

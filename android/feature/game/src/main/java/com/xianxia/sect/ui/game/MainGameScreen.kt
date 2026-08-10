@@ -68,7 +68,10 @@ import com.xianxia.sect.ui.game.main.JadeSymbolBadge
 import com.xianxia.sect.ui.game.main.PlacementConfirmButtons
 import com.xianxia.sect.ui.game.main.SectInfoCard
 import com.xianxia.sect.ui.game.main.SectMapEdgeOverlay
-import com.xianxia.sect.ui.game.main.computeGoldFingerCellValidities
+import com.xianxia.sect.ui.game.main.GoldFingerSelection
+import com.xianxia.sect.ui.game.main.clampGoldFingerSelection
+import com.xianxia.sect.ui.game.main.recomputeGoldFingerState
+import com.xianxia.sect.ui.game.main.translateGoldFingerSelection
 import com.xianxia.sect.core.touch.LongPressResult
 import com.xianxia.sect.core.touch.SectMapTouchEngine
 import com.xianxia.sect.core.touch.TouchEngineCallbacks
@@ -343,6 +346,8 @@ fun MainGameScreen(
                 buildingBarExpanded = false
                 isDemolishMode = false
                 demolishSelectedIds = emptySet()
+                // 防金手指覆盖层悬浮在非放置模式（预存缺陷：开对话框时漏重置）
+                goldFingerState = GoldFingerState()
             }
         }
     }
@@ -607,40 +612,39 @@ fun MainGameScreen(
                         val gx = (wx / tileSize).toInt()
                         val gy = (wy / tileSize).toInt()
 
-                        // 放置模式 → 金手指激活检测
-                        if (isPlacingBuilding && !goldFingerState.isActive) {
+                        // 放置模式 → 金手指图标检测（激活 / 已激活时继续框选）
+                        if (isPlacingBuilding) {
                             val gfWx = (placingSnappedGridX + placingBuildingSize.width) * tileSize
                             val gfWy = (placingSnappedGridY + placingBuildingSize.height) * tileSize
                             if (wx >= gfWx && wx < gfWx + tileSize &&
                                 wy >= gfWy && wy < gfWy + tileSize
                             ) {
-                                // 激活金手指模式
-                                val cost = viewModel.getBuildingCost(placingBuildingName)
-                                val v = computeGoldFingerCellValidities(
-                                    startGridX = placingSnappedGridX, startGridY = placingSnappedGridY,
-                                    endGridX = placingSnappedGridX, endGridY = placingSnappedGridY,
-                                    buildingW = placingBuildingSize.width,
-                                    buildingH = placingBuildingSize.height,
-                                    existingBuildings = effectivePlacedBuildings,
-                                    worldWidthCells = worldWidthCells,
-                                    worldHeightCells = worldHeightCells,
-                                    buildableBorder = GameConfig.SectMap.BORDER_TREE_RING
-                                )
-                                val canBuild = v.count { it.value }
-                                goldFingerState = GoldFingerState(
-                                    isActive = true,
-                                    startGridX = placingSnappedGridX,
-                                    startGridY = placingSnappedGridY,
-                                    endGridX = placingSnappedGridX,
-                                    endGridY = placingSnappedGridY,
-                                    buildingName = placingBuildingName,
-                                    buildingSize = placingBuildingSize,
-                                    buildingCost = cost,
-                                    totalCost = canBuild * cost,
-                                    canAfford = (gameData?.spiritStones ?: 0L) >= canBuild * cost,
-                                    canBuildCount = canBuild,
-                                    cellValidity = v
-                                )
+                                if (!goldFingerState.isActive) {
+                                    // 首次激活：起点锚定预览位置，钳制到可建区后重算状态
+                                    val sel = clampGoldFingerSelection(
+                                        GoldFingerSelection(
+                                            placingSnappedGridX, placingSnappedGridY,
+                                            placingSnappedGridX, placingSnappedGridY
+                                        ),
+                                        worldWidthCells, worldHeightCells,
+                                        GameConfig.SectMap.BORDER_TREE_RING
+                                    )
+                                    goldFingerState = recomputeGoldFingerState(
+                                        f = GoldFingerState(
+                                            isActive = true,
+                                            buildingName = placingBuildingName,
+                                            buildingSize = placingBuildingSize,
+                                            buildingCost = viewModel.getBuildingCost(placingBuildingName)
+                                        ),
+                                        sel = sel,
+                                        existingBuildings = effectivePlacedBuildings,
+                                        worldWidthCells = worldWidthCells,
+                                        worldHeightCells = worldHeightCells,
+                                        buildableBorder = GameConfig.SectMap.BORDER_TREE_RING,
+                                        spiritStones = gameData?.spiritStones ?: 0L
+                                    )
+                                }
+                                // 已激活：不改动选区（等待 MOVE 重新框定，可扩大可缩小），直接重入框选
                                 return LongPressResult.GoldFingerDrag
                             }
                             return LongPressResult.NotHandled
@@ -675,8 +679,29 @@ fun MainGameScreen(
                             // 放置模式：更新预览位置
                             placingWorldX += worldDx
                             placingWorldY += worldDy
+                            val oldSnappedX = placingSnappedGridX
+                            val oldSnappedY = placingSnappedGridY
                             placingSnappedGridX = GridSnapHelper.worldToGrid(placingWorldX, tileSize)
                             placingSnappedGridY = GridSnapHelper.worldToGrid(placingWorldY, tileSize)
+                            val dgx = placingSnappedGridX - oldSnappedX
+                            val dgy = placingSnappedGridY - oldSnappedY
+                            // 金手指激活时选区随预览同增量平移（Bug 2 修复），钳制到可建区后重算
+                            if (goldFingerState.isActive && (dgx != 0 || dgy != 0)) {
+                                val f = goldFingerState
+                                val sel = translateGoldFingerSelection(
+                                    GoldFingerSelection(f.startGridX, f.startGridY, f.endGridX, f.endGridY),
+                                    dgx, dgy, worldWidthCells, worldHeightCells,
+                                    GameConfig.SectMap.BORDER_TREE_RING
+                                )
+                                goldFingerState = recomputeGoldFingerState(
+                                    f = f, sel = sel,
+                                    existingBuildings = effectivePlacedBuildings,
+                                    worldWidthCells = worldWidthCells,
+                                    worldHeightCells = worldHeightCells,
+                                    buildableBorder = GameConfig.SectMap.BORDER_TREE_RING,
+                                    spiritStones = gameData?.spiritStones ?: 0L
+                                )
+                            }
                             placementValidity = gridSystem.validatePlacement(
                                 placingSnappedGridX, placingSnappedGridY,
                                 placingBuildingSize.width, placingBuildingSize.height
@@ -703,26 +728,23 @@ fun MainGameScreen(
                         if (!goldFingerState.isActive) return
                         val newWx = cameraState.screenToWorldX(screenX)
                         val newWy = cameraState.screenToWorldY(screenY)
-                        val newGridX = (newWx / tileSize).toInt()
-                        val newGridY = (newWy / tileSize).toInt()
+                        // 终点格用 GridSnapHelper.worldToGrid（roundToInt，与预览吸附一致），
+                        // 并整体钳制到可建区，保证视觉框 == 实际建造区
+                        val newGridX = GridSnapHelper.worldToGrid(newWx, tileSize)
+                        val newGridY = GridSnapHelper.worldToGrid(newWy, tileSize)
                         val f = goldFingerState
-                        val newValidity = computeGoldFingerCellValidities(
-                            startGridX = f.startGridX, startGridY = f.startGridY,
-                            endGridX = newGridX, endGridY = newGridY,
-                            buildingW = f.buildingSize.width, buildingH = f.buildingSize.height,
+                        val sel = clampGoldFingerSelection(
+                            GoldFingerSelection(f.startGridX, f.startGridY, newGridX, newGridY),
+                            worldWidthCells, worldHeightCells,
+                            GameConfig.SectMap.BORDER_TREE_RING
+                        )
+                        goldFingerState = recomputeGoldFingerState(
+                            f = f, sel = sel,
                             existingBuildings = effectivePlacedBuildings,
                             worldWidthCells = worldWidthCells,
                             worldHeightCells = worldHeightCells,
-                            buildableBorder = GameConfig.SectMap.BORDER_TREE_RING
-                        )
-                        val canBuildCount = newValidity.count { it.value }
-                        val totalCost = canBuildCount * f.buildingCost
-                        goldFingerState = f.copy(
-                            endGridX = newGridX, endGridY = newGridY,
-                            totalCost = totalCost,
-                            canAfford = (gameData?.spiritStones ?: 0L) >= totalCost,
-                            canBuildCount = canBuildCount,
-                            cellValidity = newValidity
+                            buildableBorder = GameConfig.SectMap.BORDER_TREE_RING,
+                            spiritStones = gameData?.spiritStones ?: 0L
                         )
                     }
 
@@ -856,8 +878,8 @@ fun MainGameScreen(
             worldHeightCells = worldHeightCells
         )
 
-        // 金手指图标（建筑预览框右下角）— 放置模式且未激活金手指时显示
-        if (isPlacingBuilding && !goldFingerState.isActive && goldenFingerBmp != null) {
+        // 金手指图标（建筑预览框右下角）— 放置模式始终显示（激活后作为继续框选的可见入口）
+        if (isPlacingBuilding && goldenFingerBmp != null) {
             GoldFingerIcon(
                 goldenFingerBmp = goldenFingerBmp,
                 gridX = placingSnappedGridX + placingBuildingSize.width,
@@ -1106,6 +1128,8 @@ fun MainGameScreen(
                         movingBuilding = null
                         isDemolishMode = false
                         demolishSelectedIds = emptySet()
+                        // 防御性补齐：退出放置时清金手指（toggle 已重置，此处兜底）
+                        goldFingerState = GoldFingerState()
                     },
                     modifier = Modifier.align(Alignment.TopEnd)
                 )

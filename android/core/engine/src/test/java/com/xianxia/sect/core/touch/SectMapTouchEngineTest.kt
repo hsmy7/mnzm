@@ -106,10 +106,11 @@ class SectMapTouchEngineTest {
     @Test
     fun `BuildingDrag in edit mode calls onDragStart`() = runTest {
         callbacks.inEditMode = true
+        callbacks.buildingTargetAtDown = true // 触摸在预览/建筑上
         val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
         engine.updateViewport(800f, 600f)
         engine.onTouch(touchDown(100f, 200f))
-        // 编辑模式下任意移动进入 BuildingDrag
+        // 编辑模式下目标上任意移动进入 BuildingDrag
         engine.onTouch(touchMove(101f, 200f, 50_000_000L))
         assertEquals(GestureState.BuildingDrag::class, engine.state::class)
         assertTrue("BuildingDrag entry should call onDragStart",
@@ -119,6 +120,7 @@ class SectMapTouchEngineTest {
     @Test
     fun `BuildingDrag then UP calls onDragEnd`() = runTest {
         callbacks.inEditMode = true
+        callbacks.buildingTargetAtDown = true // 触摸在预览/建筑上
         val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
         engine.updateViewport(800f, 600f)
         engine.onTouch(touchDown(100f, 200f))
@@ -369,21 +371,97 @@ class SectMapTouchEngineTest {
     }
 
     @Test
-    fun `MOVE past slop with gold finger active calls onDragStart and enters GoldFingerDrag`() = runTest {
+    fun `MOVE past slop with gold finger active enters Scrolling not GoldFingerDrag`() = runTest {
+        // 金手指激活臂已删除：slop 拖动一律平移视角（编辑模式空地拖动不再重进框选）
         callbacks.goldFingerActive = true
         val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
         engine.updateViewport(800f, 600f)
         engine.onTouch(touchDown(100f, 200f))
         engine.onTouch(touchMove(150f, 200f, 300_000_000L)) // 50px > 16px slop
         assertTrue(
-            "State should be GoldFingerDrag",
-            engine.state is GestureState.GoldFingerDrag
+            "State should be Scrolling",
+            engine.state is GestureState.Scrolling
         )
         assertTrue(
-            "GoldFingerDrag entry via slop must call onDragStart",
+            "Scrolling entry must call onDragStart",
             callbacks.dragStartCalled
         )
-        assertFalse("Pan must not fire for GoldFingerDrag", callbacks.panCalled)
+        assertTrue("Scrolling must pan the camera", callbacks.panCalled)
+        assertFalse(
+            "GoldFingerDrag must not be entered via slop",
+            engine.state is GestureState.GoldFingerDrag
+        )
+    }
+
+    // ========================
+    // 编辑模式触摸分类（Bug 4 重构回归）
+    // ========================
+
+    @Test
+    fun `edit mode empty ground slop move pans camera not drags building`() = runTest {
+        // 空地：slop 后一律 Scrolling（平移视角），不进入 BuildingDrag
+        callbacks.inEditMode = true
+        val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
+        engine.updateViewport(800f, 600f)
+        engine.onTouch(touchDown(100f, 200f))
+        engine.onTouch(touchMove(150f, 200f, 300_000_000L)) // 50px > 16px slop
+        assertTrue("空地上 slop 移动必须进入 Scrolling", engine.state is GestureState.Scrolling)
+        assertTrue("空地拖动必须平移视角", callbacks.panCalled)
+        assertFalse("空地拖动不得进入 BuildingDrag", engine.state is GestureState.BuildingDrag)
+        assertFalse("空地拖动不得触发建筑拖拽更新", callbacks.buildingDragUpdateCalled)
+    }
+
+    @Test
+    fun `edit mode empty ground quick UP triggers Tap`() = runTest {
+        // 空地：短触保持 Tap（详情弹窗等用途）
+        callbacks.inEditMode = true
+        val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
+        engine.onTouch(touchDown(100f, 200f))
+        engine.onTouch(touchUp(100f, 200f))
+        assertEquals(GestureState.Idle::class, engine.state::class)
+        assertTrue("空地上短触必须触发 onTap", callbacks.tapCalled)
+    }
+
+    @Test
+    fun `edit mode target stationary hold enters BuildingDrag after timeout`() = runTest {
+        // 目标上静止按住：200ms 超时自动进入 BuildingDrag（不动手指也可拖动建筑）
+        callbacks.inEditMode = true
+        callbacks.buildingTargetAtDown = true
+        val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
+        engine.updateViewport(800f, 600f)
+        engine.onTouch(touchDown(100f, 200f))
+        assertTrue("超时前保持 Down", engine.state is GestureState.Down)
+        advanceUntilIdle() // buildingLongPressTimeoutMs (200ms) 到达
+        assertEquals(GestureState.BuildingDrag::class, engine.state::class)
+        assertTrue("超时进入 BuildingDrag 必须调用 onDragStart", callbacks.dragStartCalled)
+    }
+
+    @Test
+    fun `edit mode DOWN on gold finger icon enters GoldFingerDrag immediately`() = runTest {
+        // Bug 1 重入路径：编辑模式按下金手指图标立即重进框选（无需长按等待）
+        callbacks.inEditMode = true
+        callbacks.longPressResult = LongPressResult.GoldFingerDrag
+        val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
+        engine.onTouch(touchDown(100f, 200f))
+        assertTrue("图标按下必须立即进入 GoldFingerDrag", engine.state is GestureState.GoldFingerDrag)
+        assertTrue("GoldFingerDrag 进入必须调用 onDragStart", callbacks.dragStartCalled)
+        engine.onTouch(touchMove(300f, 400f, 300_000_000L))
+        assertTrue("重入框选后拖动必须更新选区", callbacks.goldFingerUpdateCalled)
+    }
+
+    @Test
+    fun `edit mode target drag wins over gold finger re-entry`() = runTest {
+        // 目标拖动优先于金手指重入：已激活时按住预览拖动，不得误入框选
+        callbacks.inEditMode = true
+        callbacks.goldFingerActive = true
+        callbacks.buildingTargetAtDown = true
+        val engine = SectMapTouchEngine(callbacks, this, defaultConfig)
+        engine.updateViewport(800f, 600f)
+        engine.onTouch(touchDown(100f, 200f))
+        engine.onTouch(touchMove(101f, 200f, 300_000_000L)) // 1px 位移
+        assertEquals(GestureState.BuildingDrag::class, engine.state::class)
+        assertFalse("目标拖动不得误入金手指框选", engine.state is GestureState.GoldFingerDrag)
+        assertTrue("目标拖动必须更新建筑位置", callbacks.buildingDragUpdateCalled)
     }
 
     @Test

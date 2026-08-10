@@ -178,7 +178,11 @@ suspend fun GameEngine.confirmTraitWash(
             val current: Disciple = discipleTables.assemble(id)
             val currentIds = type.idsOf(current)
             if (!isValidSlotWash(type, currentIds, targetId, newId)) {
-                DomainLog.w(LOG_TAG, "确认洗炼${type.displayName}拒绝: 替换校验失败 id=$id target=$targetId new=$newId 当前=$currentIds")
+                DomainLog.w(
+                    LOG_TAG,
+                    "确认洗炼${type.displayName}拒绝: 替换校验失败 id=$id target=$targetId " +
+                        "new=$newId 当前=$currentIds"
+                )
                 return@updateAndReturn ConfirmOutcome.INVALID
             }
             val updated = type.replaceSlot(current, targetId, newId)

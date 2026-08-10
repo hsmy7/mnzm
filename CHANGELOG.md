@@ -1,5 +1,15 @@
 ## [4.00.94] - 2026-08-10
 
+### 修复（2026-08-11 金手指一键建造四项 Bug 根治——重入框选 + 选区跟随 + 边框对齐 + 空地拖动视角）
+
+- **Bug 1 松手后无法继续框选** — `MainGameScreen.onLongPress` 的 `!goldFingerState.isActive` 门控拦截重入。移除门控：已激活时重入不改动选区（等待 MOVE 重新框定，包围盒语义可扩大可缩小，含拖过锚点翻转）；`onDragEnd` 保持不复位（用户要求"金手指不该复位"）。预览角入口图标门控同步移除（激活后仍显示，提示可继续框选）
+- **Bug 2 框选不跟随建筑拖动** — `onBuildingDragUpdate` 只更新 placingSnappedGrid：新增 `translateGoldFingerSelection`（选区与预览同格增量平移 + 树环钳制）+ `recomputeGoldFingerState`（validity/count/cost/canAfford 统一重算，激活/拖动/平移三路径 DRY 收敛）
+- **Bug 3 框选范围 > 实际建造范围** — ① `GoldFingerOverlay` 边框 `+bW/+bH` 改为 `+1`（与建造循环 `gx+bW-1<=gMaxX` 对齐，右/下多画 bW-1/bH-1 格消除）；② 选区端点统一 `clampToBuildableRange` 钳制到树环可建区（覆盖层与 computeGoldFingerCellValidities 同公式，视觉框==实际建造区恒成立）；③ 终点取整 `(worldX/tileSize).toInt()` 改 `GridSnapHelper.worldToGrid`（roundToInt，与预览吸附一致）
+- **Bug 4 放置模式空地触摸被当拖建筑** — `SectMapTouchEngine` 编辑模式 handleDown 重构：空地保持 Down（slop → Scrolling 平移视角 / 短触 → onTap），目标上任意移动或 200ms 静止自动进入 BuildingDrag，金手指图标按下立即重进 GoldFingerDrag；删除 handleMove overSlop 的 GoldFingerDrag 臂（`isGoldFingerActive` 成引擎死调用，接口保留不动）；handleCancel 补 hasBuildingTarget 清位
+- **举一反三** — 对话框打开/取消放置两处补 `goldFingerState = GoldFingerState()` 防御性重置（预存缺陷：对话框打开时 GF overlay 悬浮在非放置模式）；detekt 顺带根治预存违规：`BattleLogDialogs` 装备/丹药/草药来源名映射 when → 数据驱动 Map×3（CyclomaticComplexMethod 21/21/18→1）、`DiscipleFacadeImpl.recruitDiscipleFromList` 60 行超限拆 `purgeCorruptedRecruit`（MutableGameState 扩展保持 update 事务作用域）、`GameEngineTraitWashOps` 超长日志行换行、`TraitWashDialogWashActionTest` 超长行换行
+- **测试** — `SectMapTouchEngineTest` 3 处改造（编辑模式用例补 buildingTargetAtDown、slop 金手指臂改断言 Scrolling+pan）+ 5 新增（空地 slop→Scrolling+pan / 空地 tap→onTap / 目标静止 200ms→BuildingDrag / 图标 Down→立即 GoldFingerDrag / 目标拖动优先于金手指重入）；`GoldFingerBuildTest` +8 纯函数用例（clampToBuildableRange 区间内/下钳/上钳/border0/无效 border 原值、clampGoldFingerSelection 双角独立钳制、translate 正常/边界钳制/完全越界退化不崩溃、recompute 单格 count=0/多格成本与 canAfford/平移后 key 偏移）；全模块串行测试（--max-workers=1）+ compileReleaseKotlin + lintRelease + detekt 通过（baseline 只缩不增）
+- **兼容性** — 纯交互逻辑变更，无 Entity/Migration/存档格式变更（DATABASE_VERSION 不变）
+
 ### 优化（2026-08-10 渲染设计全面优化——双端一致闭环 + 视觉/性能/架构四大工作包）
 
 - **WP1 双端一致性修复** — Vulkan 路径消费热控降级（`NativeBridge.setRenderQuality` 独立 JNI 通道 + `std::atomic` 全局量，装饰跳过条件 `decorationsDisabled || qualityFactor < 0.6f` 与 Canvas 侧同常量对齐）；C++ 图集缺口修复（MAP_SPRITES 补"中级多人住所"）；删除 `getAtlasUV` JNI 死代码；新增 `AtlasLayoutSyncTest` 守卫（TextureAtlas.h ↔ SpriteAtlasDef 双向比对，防双端图集漂移）
