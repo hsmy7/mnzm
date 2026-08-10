@@ -44,6 +44,21 @@
 - **detekt 合规** — baseline 签名失配修复（overlay 参数改变 4 条条目签名，条目数不变只缩不增）；`LongParameterList ignoreDefaultParameters: true`（带默认值参数不计数——UnifiedGameDialog 19 参 18 默认，调用方仅传 1~2 个，实际负担远低于阈值）；QuantityInputField 9 参数 → 尺寸收进 `sizes` 对象（7 参数）；QuantitySelector 73 行 → 拆 `DecrementButtons`/`IncrementButtons` 私有 composable（53 行）
 - 全模块 compileReleaseKotlin + 串行全量测试（--max-workers=1）+ lintRelease + detekt 通过
 
+## [4.00.94] - 2026-08-10
+
+### 优化（2026-08-10 渲染设计全面优化——双端一致闭环 + 视觉/性能/架构四大工作包）
+
+- **WP1 双端一致性修复** — Vulkan 路径消费热控降级（`NativeBridge.setRenderQuality` 独立 JNI 通道 + `std::atomic` 全局量，装饰跳过条件 `decorationsDisabled || qualityFactor < 0.6f` 与 Canvas 侧同常量对齐）；C++ 图集缺口修复（MAP_SPRITES 补"中级多人住所"）；删除 `getAtlasUV` JNI 死代码；新增 `AtlasLayoutSyncTest` 守卫（TextureAtlas.h ↔ SpriteAtlasDef 双向比对，防双端图集漂移）
+- **WP2 Kotlin RenderBackend 抽象（iOS Metal 迁移入口）** — `RenderBackend` 接口（resize/setCamera/renderFrame/release）+ `VulkanRenderBackend`/`SoftwareRenderBackend` 适配器；RenderFrame/NativeRenderConfig/RenderFlags 迁入 `:core:engine`（零 Android 依赖）；`TimeSource` 抽象（CameraAnimator 注入，测试确定性 + iOS 未来 CADisplayLink 时间源）；渲染循环统一 `backend.renderFrame(...)`
+- **WP3 建筑阴影 + 普通选中高亮** — 共享几何纯函数 `BuildingRenderGeometry`（双端同一数学来源：spriteRectFromEntry/shadowRect/worldToScreen/findBuildingIndex）；阴影 = 半透明黑 quad + 右下偏移 0.25 格（Vulkan 白纹×顶点色、Canvas 烘焙进 ChunkTile，硬边 0.2 alpha 已知取舍）；金色 #FFD700 选中描边动态叠加（不烘焙，selectedBuildingIndex 数据驱动 + 越界双端跳过防御）
+- **WP4 fade_transition 双端淡入** — 300ms EaseOutCubic（`FadeTransition.alphaAt` 纯函数），Vulkan `g_fadeAlpha` atomic + Canvas 合成 paint.alpha；surfaceCreated 重置完成态防重建残留
+- **WP5 vsync 帧节奏 + Canvas 缩放 LOD** — `VsyncGate`（Choreographer 对齐，失败全路径回退 sleep 节拍）+ `FrameDropPolicy.tickStep` 帧跳过纯函数（双端统一）；`RenderLodPolicy.decorationsEnabled` 离散档位防抖动（scale<0.6 装饰跳过双端同阈值）；`DisplayFpsProvider` 注入可测
+- **WP6 灵田作物三阶段生长动画** — `SpiritCropRender.computeStage/crossfade` 纯函数（stage 边界 1/3、2/3）；数据通道 `RenderFrame.spiritCropData` 生成侧防御（仅灵田建筑发数据）；Vulkan 批内追加 / Canvas 不烘焙逐帧叠加；删除 cropBitmaps 死代码
+- **WP7 Vulkan 图集 ASTC 压缩（16MB→4MB）** — `scripts/build-atlas.mjs` 生成管线（sharp 拼装 → astcenc -cl 4x4 -medium → KTX1 单 mip 封装）+ gradle task `generateAstcAtlas`（astcenc 缺失跳过不阻塞，产物入库兜底）；C++ `KtxLoader`（KTX1 头全字段校验：magic/endianness/glType/glFormat/内部格式 ASTC_4x4_LDR/容器维度/dataSize 几何推导/精确总尺寸）；`VulkanBackend.uploadCompressedTexture`（ASTC_LDR 特性查询 + staging 上传）；全链回退 RGBA 视觉零差异；`AtlasManifestSyncTest` 三向守卫（manifest↔SpriteAtlasDef↔文件）
+- **对抗性审查（4 Agent：边界狂魔/状态破坏者/数据篡改者/逆向工程师，31 项发现全量验证）** — C++ 内存安全：SpriteBatcher 堆越界写（grow 封顶后丢弃后添加者，地面层永远完整）、KtxLoader 截断文件越界读（fileSize∈{65,66,67}）/32 位 size_t 几何回绕/尾随字节注入三防线、vkMapMemory 返回值检查两处；黑屏路径：updateRenderState 校验顺序颠倒（校验前置防坏帧污染）、timeoutRunnable 超时降级完整初始化（防永久黑屏）、surfaceDestroyed join 超时跳过 release（防 use-after-free）、resize m_ready 置位竞态（submitFrame 防已销毁 swapchain）、submitFrame 错误路径未初始化 imageIndex、setCamera scale sanitize（NaN/0 → 1.0 防 NaN 投影矩阵全屏黑）；JNI 资源：ftuvs 循环外一次性 pin + buvIdx 负索引守卫 + 建筑 effectiveCount 取小；CameraAnimator 负时长死循环修复；渲染线程零分配（SpriteBatcher 跨帧堆缓冲复用）
+- **测试** — 新增/扩展 30+ 用例：AtlasLayoutSyncTest/AtlasManifestSyncTest（图集双端+manifest 守卫）、RenderBackendContractTest（FakeBackend 调用序列）、BuildingRenderGeometryTest/findBuildingIndexTest、FadeTransitionTest、FrameDropPolicyTest/RenderLodPolicyTest/VsyncGateTest、SpiritCropRenderTest、CameraAnimatorTest（假 TimeSource + 负时长）、SoftwareCanvasBackendTest（阴影/高亮/作物/淡入像素断言）、NativeSurfaceViewTest（quality 转发序列/尺寸校验/回退链）；全模块串行测试（--max-workers=1）+ detekt 通过（baseline 只缩不增）
+- **兼容性** — 无存档/无 DB/无协议变更；Vulkan API 仍 ≥1.1（ASTC LDR 广泛支持 + 回退链兜底）；低端设备软件渲染路径全部能力可用（vsync 失败回退 sleep）；渲染特性清单 renderer-feature-checklist.md 已同步（texture_compression 行标记 Canvas ➖ 仅 Vulkan 路径）
+
 ## [4.00.93] - 2026-08-09
 
 ### 优化（2026-08-09 每年一月卡顿数秒根治——算法减量 + AI 降频 + 年变分帧）
@@ -139,19 +154,6 @@
 - **测试（18 新增/修改）** — `GameEngineCoreJadeReloadInterleavingTest`（新增 3：非等待 stop 复现旧值覆盖新档 / wait 后加载安全且重新锚定 / 启动前加载幂等）、`GameEngineCoreLifecycleInterleavingTest` 契约扩展（wait 含 finally 语义 latch）、`ElderSlotsStatusCoverageTest`（新增守卫：反射全部 17 字段 × 2 个收集函数覆盖断言——未来新增字段漏注册立即失败；端到端 syncAllDiscipleStatuses 收敛 MANAGING）、`ProductionSlotDualWriteGuardTest` 扩展（+12：11 类槽位占用场景逐槽位断言"存储 IDLE 弟子不被排班" + 健康空闲对照组仍可分配；**Robolectric 化**——纯 JVM mockable android.jar 的 SparseArray 是 stub，原测试 2/3 假阳性，spiritRootTypes 写入读回全失效导致弟子根本不进候选；对照组修复暴露的测试 fixture 坑：mock repo 的 `updateSlotByBuildingId` 无内存态可写 → 回写失败触发 `rollbackMirrorBatchAssignment` 清镜像，改用真实 repo + restoreSlots 预置灵田槽）、`SaveLoadViewModelLoadTest`（顺序守卫：wait 挂起期间 loadData 零调用 + 超时中止）
 - **兼容性** — 纯运行时一致性修复，无 Entity/Migration/Room schema 变更（DATABASE_VERSION 不变），存档完全兼容；经济影响：玉符读写路径修复不改变任何源/汇数量，仅修正读档时序下的值一致性
 - 全模块串行测试（--max-workers=1）+ compileReleaseKotlin + lintRelease 通过
-
-### 优化（2026-08-10 渲染设计全面优化——双端一致闭环 + 视觉/性能/架构四大工作包）
-
-- **WP1 双端一致性修复** — Vulkan 路径消费热控降级（`NativeBridge.setRenderQuality` 独立 JNI 通道 + `std::atomic` 全局量，装饰跳过条件 `decorationsDisabled || qualityFactor < 0.6f` 与 Canvas 侧同常量对齐）；C++ 图集缺口修复（MAP_SPRITES 补"中级多人住所"）；删除 `getAtlasUV` JNI 死代码；新增 `AtlasLayoutSyncTest` 守卫（TextureAtlas.h ↔ SpriteAtlasDef 双向比对，防双端图集漂移）
-- **WP2 Kotlin RenderBackend 抽象（iOS Metal 迁移入口）** — `RenderBackend` 接口（resize/setCamera/renderFrame/release）+ `VulkanRenderBackend`/`SoftwareRenderBackend` 适配器；RenderFrame/NativeRenderConfig/RenderFlags 迁入 `:core:engine`（零 Android 依赖）；`TimeSource` 抽象（CameraAnimator 注入，测试确定性 + iOS 未来 CADisplayLink 时间源）；渲染循环统一 `backend.renderFrame(...)`
-- **WP3 建筑阴影 + 普通选中高亮** — 共享几何纯函数 `BuildingRenderGeometry`（双端同一数学来源：spriteRectFromEntry/shadowRect/worldToScreen/findBuildingIndex）；阴影 = 半透明黑 quad + 右下偏移 0.25 格（Vulkan 白纹×顶点色、Canvas 烘焙进 ChunkTile，硬边 0.2 alpha 已知取舍）；金色 #FFD700 选中描边动态叠加（不烘焙，selectedBuildingIndex 数据驱动 + 越界双端跳过防御）
-- **WP4 fade_transition 双端淡入** — 300ms EaseOutCubic（`FadeTransition.alphaAt` 纯函数），Vulkan `g_fadeAlpha` atomic + Canvas 合成 paint.alpha；surfaceCreated 重置完成态防重建残留
-- **WP5 vsync 帧节奏 + Canvas 缩放 LOD** — `VsyncGate`（Choreographer 对齐，失败全路径回退 sleep 节拍）+ `FrameDropPolicy.tickStep` 帧跳过纯函数（双端统一）；`RenderLodPolicy.decorationsEnabled` 离散档位防抖动（scale<0.6 装饰跳过双端同阈值）；`DisplayFpsProvider` 注入可测
-- **WP6 灵田作物三阶段生长动画** — `SpiritCropRender.computeStage/crossfade` 纯函数（stage 边界 1/3、2/3）；数据通道 `RenderFrame.spiritCropData` 生成侧防御（仅灵田建筑发数据）；Vulkan 批内追加 / Canvas 不烘焙逐帧叠加；删除 cropBitmaps 死代码
-- **WP7 Vulkan 图集 ASTC 压缩（16MB→4MB）** — `scripts/build-atlas.mjs` 生成管线（sharp 拼装 → astcenc -cl 4x4 -medium → KTX1 单 mip 封装）+ gradle task `generateAstcAtlas`（astcenc 缺失跳过不阻塞，产物入库兜底）；C++ `KtxLoader`（KTX1 头全字段校验：magic/endianness/glType/glFormat/内部格式 ASTC_4x4_LDR/容器维度/dataSize 几何推导/精确总尺寸）；`VulkanBackend.uploadCompressedTexture`（ASTC_LDR 特性查询 + staging 上传）；全链回退 RGBA 视觉零差异；`AtlasManifestSyncTest` 三向守卫（manifest↔SpriteAtlasDef↔文件）
-- **对抗性审查（4 Agent：边界狂魔/状态破坏者/数据篡改者/逆向工程师，31 项发现全量验证）** — C++ 内存安全：SpriteBatcher 堆越界写（grow 封顶后丢弃后添加者，地面层永远完整）、KtxLoader 截断文件越界读（fileSize∈{65,66,67}）/32 位 size_t 几何回绕/尾随字节注入三防线、vkMapMemory 返回值检查两处；黑屏路径：updateRenderState 校验顺序颠倒（校验前置防坏帧污染）、timeoutRunnable 超时降级完整初始化（防永久黑屏）、surfaceDestroyed join 超时跳过 release（防 use-after-free）、resize m_ready 置位竞态（submitFrame 防已销毁 swapchain）、submitFrame 错误路径未初始化 imageIndex、setCamera scale sanitize（NaN/0 → 1.0 防 NaN 投影矩阵全屏黑）；JNI 资源：ftuvs 循环外一次性 pin + buvIdx 负索引守卫 + 建筑 effectiveCount 取小；CameraAnimator 负时长死循环修复；渲染线程零分配（SpriteBatcher 跨帧堆缓冲复用）
-- **测试** — 新增/扩展 30+ 用例：AtlasLayoutSyncTest/AtlasManifestSyncTest（图集双端+manifest 守卫）、RenderBackendContractTest（FakeBackend 调用序列）、BuildingRenderGeometryTest/findBuildingIndexTest、FadeTransitionTest、FrameDropPolicyTest/RenderLodPolicyTest/VsyncGateTest、SpiritCropRenderTest、CameraAnimatorTest（假 TimeSource + 负时长）、SoftwareCanvasBackendTest（阴影/高亮/作物/淡入像素断言）、NativeSurfaceViewTest（quality 转发序列/尺寸校验/回退链）；全模块串行测试（--max-workers=1）+ detekt 通过（baseline 只缩不增）
-- **兼容性** — 无存档/无 DB/无协议变更；Vulkan API 仍 ≥1.1（ASTC LDR 广泛支持 + 回退链兜底）；低端设备软件渲染路径全部能力可用（vsync 失败回退 sleep）；渲染特性清单 renderer-feature-checklist.md 已同步（texture_compression 行标记 Canvas ➖ 仅 Vulkan 路径）
 
 ## [4.00.91] - 2026-08-07
 
