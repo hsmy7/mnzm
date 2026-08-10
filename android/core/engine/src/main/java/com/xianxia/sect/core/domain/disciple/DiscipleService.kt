@@ -222,6 +222,11 @@ class DiscipleService @Inject constructor(
 
             discipleTables.remove(id)
 
+            // 年报脱离弟子计数（2026-08-11 修复：玩家逐出漏计）
+            gameData = gameData.copy(
+                annualDesertedDisciples = gameData.annualDesertedDisciples + 1
+            )
+
             error = null
         }
         val finalError = error

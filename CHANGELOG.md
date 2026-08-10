@@ -85,6 +85,18 @@
 - **验证** — feature:game 全模块串行测试 BUILD SUCCESSFUL（修复前 Error 用例失败、修复后全绿）；临时诊断测试 TraitWashRangeCheckTest 结论已验证（洗炼结果范围完整、产出全部可解析）后按规则清理
 - **兼容性** — 纯 UI + 日志变更，无 Entity/Migration/存档格式变更（DATABASE_VERSION 不变）
 
+### 修复（2026-08-11 年报系统缺陷修复——死亡/招募/逐出计数补齐 + 1 月自动购买归属 + UI 显示名映射）
+
+- **死亡计数统一（战斗/探索/秘境/宗门战大面积漏计根治）** — `DiscipleDeathHandler.markDead` 改签名为 `markDead(state: MutableGameState, discipleId, deathYear)` 并内部递增 `annualDeceasedDisciples`（**无条件计数**：洞府探索路径先经 processBattleCasualties.replaceAll 预标记 isAlive=0 再走 handleDiscipleDeath→markDead，加 wasAlive 守卫会导致洞府漏计——注释固化此结论）；`markAllDead` 同步改签名并委托 markDead 逐人计数；5 个调用方机械更新（DiscipleLifecycleProcessor L298 / EncounterBattleService L372 / PatrolBattleSystem L494 / AISectOccupationResolver L250 / CultivationEventProcessor L469，均已在事务内）；`handleDiscipleDeath` 删除自有递增（改由 markDead 计）；`applyAgedDeath` **保留**本地递增（绕过 markDead 的自定义路径）+ 注释说明勿迁入
+- **双计防线（materialize wasAlive 守卫）** — `InventorySystem.materializeDiscipleBagAndMarkDead` 开头读 `wasAlive = isAlive.getOrNull(id) == 1`、末尾 `if (wasAlive) 递增`：世界关卡/侦查/秘境对同一死者**二次调用**本方法（GameEngineBattleOps L555→L628 首次标记 + L558→CombatService L140 二次调用），守卫保证恰计 1 次；探索队/宗门战单次调用正常计数
+- **举一反三（2 条额外死亡漏计路径）** — `PlayerDefenseProcessor.applyDefenseCasualties`（防守战死亡只 map 标记无计数 → deadDefenders 非空时递增 size）；`ExplorationService.finalizeBeastDisciples`（妖兽防守战死亡无计数 → 按 `!isAlive` 数递增）。修复后计数覆盖矩阵：寿元老化=applyAgedDeath 1 次；洞府/旧探索=markDead 1 次；世界/侦查/秘境=materialize 守卫 1 次；探索队/宗门战=materialize 1 次；遭遇战/巡视/AI攻占/旧战斗=markAllDead 逐人；防守战/妖兽防守战=守卫计数——全路径恰好 1 次无双计
+- **招募计数（主路径漏计修复，多数年份"新增弟子"显示 0）** — `allocateAndInsert` 是唯一合法招募用途但不低层计数（分层约束），5 个调用点各自递增 `annualNewDisciples`：`RecruitService.processAutoRecruit`（循环内成功数）/ `DiscipleFacadeImpl.recruitDiscipleFromList`（+1）/ `GameEngineCoordination.recruitAllFromList`（+ successCount）/ `RedeemCodeService.applyDiscipleRedeemReward`（quantity）+ localRedeem（result.disciples.size）；开档年初始 3 弟子经 recruitDisciple 已计数，属现有语义不特判
+- **逐出计数** — `DiscipleService.expelDisciple` 成功路径（discipleTables.remove 之后、error=null 之前）递增 `annualDesertedDisciples`；失败路径（NotFound/NotAlive/REFINING）提前 return 不误计
+- **1 月自动购买错年归属** — `processYearlyEvents` 把 `safelyRunInState("autoBuy")` 移到 `runGarrisonAndReport` 快照**之后**（12 月 autoBuy 不动本就属旧年）：1 月自动购买与年俸（快照后执行）都计入新年，归属一致
+- **UI 显示名映射补齐（英文原文修复）** — BattleLogDialogs.kt：`sourceDisplayName` 加 `SecretRealm→秘境`；`equipSourceName`/`pillSourceName` 各加 7 项（redeem/disciple_death/cave_world/secret_realm/sect_trade/confiscate/disciple_expel）；`herbSourceName` 加 6 项；**保留** exploration/sect_level 映射（历史存档残留键防英文）；收入/支出明细加 `.filterValues { it > 0 }` 空判过滤；年报列表卡片年份 Text `weight(1f, fill=false)` + 数字 maxLines/ellipsis（窄屏防横向溢出）
+- **测试** — `DiscipleDeathHandlerTest` 重写 createState（完整 MutableGameState）+ 6 计数用例（单次/逐次/String 重载/不可解析 id/markAllDead 3 人/只计可解析）；`CultivationEventProcessorTest` L79 markAllDead 签名匹配；`CultivationEventMonthlyOpsTest` T1 inOrder 重排（autoBuy 后移，注释 `#1→#2→#3→#5→#6→#7→#8→#9→#11→#20→#18`）；`InventorySystemDeathMaterializeTest` +3 断言（单次 1/重复幂等 1——守卫防双计直接验证/未知 id 0）；`DiscipleServiceCrudTest` expel 成功 1、NotAlive 0、NotFound 0；`RecruitServiceTest` 成功 1 失败 0；`DiscipleFacadeImplRecruitTest` 模拟逻辑同步真实实现（+1）+ 成功断言；回归：受影响服务 27 个测试类三批串行全绿 + 全模块串行全量测试（--max-workers=1，11m14s BUILD SUCCESSFUL）+ compileReleaseKotlin 通过
+- **兼容性** — annual* 字段为 `@SettlementStrategy(PRESERVE_OLD)`，无 Migration/序列化变更（DATABASE_VERSION 不变）；旧档下一年按新逻辑统计
+
 ## [4.00.93] - 2026-08-09
 
 ### 优化（2026-08-09 每年一月卡顿数秒根治——算法减量 + AI 降频 + 年变分帧）

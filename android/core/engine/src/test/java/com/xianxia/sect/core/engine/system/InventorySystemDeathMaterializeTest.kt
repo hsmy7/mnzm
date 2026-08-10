@@ -100,6 +100,8 @@ class InventorySystemDeathMaterializeTest {
         // 标记死亡（统一入口：isAlive=0 + deathYears）
         assertEquals("isAlive=0", 0, store.persistentDiscipleTables.isAlive[1])
         assertEquals("deathYears 记录", 5, store.persistentDiscipleTables.deathYears[1])
+        // 年报死亡计数（wasAlive 守卫：首次调用计 1）
+        assertEquals("年报死亡计数 1", 1, store.gameData.value.annualDeceasedDisciples)
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -123,6 +125,8 @@ class InventorySystemDeathMaterializeTest {
 
         assertEquals("第一次物化后仓库恰 1 堆叠，第二次不重复", 1, store.equipmentStacks.value.size)
         assertEquals("isAlive 保持 0", 0, store.persistentDiscipleTables.isAlive[1])
+        // 年报死亡计数守卫：二次调用（世界关卡双标记模式）只计 1 次
+        assertEquals("守卫防双计：年报死亡计数恰 1", 1, store.gameData.value.annualDeceasedDisciples)
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -162,6 +166,7 @@ class InventorySystemDeathMaterializeTest {
         }
 
         assertEquals("袋空直接标记死亡", 0, store.persistentDiscipleTables.isAlive[1])
+        assertEquals("袋空路径年报死亡计数 1", 1, store.gameData.value.annualDeceasedDisciples)
     }
 
     @Test
@@ -180,5 +185,7 @@ class InventorySystemDeathMaterializeTest {
         assertEquals("其他弟子袋不受影响", 1, store.persistentDiscipleTables.storageBagItems[1].size)
         assertEquals("其他弟子仍存活", 1, store.persistentDiscipleTables.isAlive[1])
         assertEquals("无物化", 0, store.equipmentStacks.value.size)
+        // 守卫：未知 id（isAlive 无槽位）不计数
+        assertEquals("未知 id 不计入年报死亡", 0, store.gameData.value.annualDeceasedDisciples)
     }
 }

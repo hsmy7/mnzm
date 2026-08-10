@@ -76,7 +76,7 @@ class CultivationEventProcessorTest {
         )
 
         // 阵亡者由 DiscipleDeathHandler 统一标记（死亡 + deathYear 一并写入）
-        verify(deathHandler).markAllDead(eq(tables), eq(setOf("2")), eq(30))
+        verify(deathHandler).markAllDead(eq(state), eq(setOf("2")), eq(30))
         // 幸存者不受 markAllDead 影响
         assertEquals(1, tables.isAlive[1])
     }

@@ -147,7 +147,9 @@ class RecruitService @Inject constructor(
             val newRecruitCount = state.gameData.recruitCountThisMonth + recruited
             state.gameData = state.gameData.copy(
                 recruitList = keepManual + overflowKeep + corruptedKeep,
-                recruitCountThisMonth = newRecruitCount
+                recruitCountThisMonth = newRecruitCount,
+                // 年报新增弟子计数（2026-08-11 修复：自动招募主路径漏计）
+                annualNewDisciples = state.gameData.annualNewDisciples + recruited
             )
 
             // 若本轮实际招募 0 人（全部损坏），进入惰性

@@ -3,6 +3,7 @@ package com.xianxia.sect.core.exploration
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.state.DiscipleTables
+import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.DomainLog
 import javax.inject.Inject
 
@@ -20,31 +21,42 @@ class DiscipleDeathHandler @Inject constructor() {
     /**
      * 标记单个弟子死亡（Int ID）。
      * 写入 isAlive=0 + status=DEAD + deathYear，并执行装备断言守卫。
+     *
+     * 年报死亡计数统一入口：每次标记递增 annualDeceasedDisciples。
+     * 必须在 stateStore.update 事务内调用（[MutableGameState] 由事务传入）。
+     *
+     * ⚠ 无条件计数，禁止加 isAlive 守卫：洞府探索路径先经
+     * processBattleCasualties.replaceAll 预标记（isAlive=0）再走
+     * handleDiscipleDeath → 本方法，加守卫会导致洞府阵亡漏计。
      */
-    fun markDead(tables: DiscipleTables, discipleId: Int, deathYear: Int) {
+    fun markDead(state: MutableGameState, discipleId: Int, deathYear: Int) {
+        val tables = state.discipleTables
         tables.isAlive[discipleId] = 0
         tables.statuses[discipleId] = DiscipleStatus.DEAD
         tables.deathYears[discipleId] = deathYear
         assertNoEquipmentHeld(tables, discipleId)
+        state.gameData = state.gameData.copy(
+            annualDeceasedDisciples = state.gameData.annualDeceasedDisciples + 1
+        )
     }
 
     /**
      * 标记单个弟子死亡（String ID，自动解析为 Int）。
      * 若 [discipleId] 无法解析为 Int，静默跳过。
      */
-    fun markDead(tables: DiscipleTables, discipleId: String, deathYear: Int) {
+    fun markDead(state: MutableGameState, discipleId: String, deathYear: Int) {
         val idInt = discipleId.toIntOrNull() ?: return
-        markDead(tables, idInt, deathYear)
+        markDead(state, idInt, deathYear)
     }
 
     /**
      * 批量标记阵亡弟子（String ID 集合）。
      * 无法解析为 Int 的 ID 静默跳过。
      */
-    fun markAllDead(tables: DiscipleTables, deadIds: Set<String>, deathYear: Int) {
+    fun markAllDead(state: MutableGameState, deadIds: Set<String>, deathYear: Int) {
         for (id in deadIds) {
             val idInt = id.toIntOrNull() ?: continue
-            markDead(tables, idInt, deathYear)
+            markDead(state, idInt, deathYear)
         }
     }
 

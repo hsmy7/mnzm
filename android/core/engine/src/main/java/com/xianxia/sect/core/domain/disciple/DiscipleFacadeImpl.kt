@@ -251,7 +251,9 @@ class DiscipleFacadeImpl @Inject constructor(
                 recruitList = gameData.recruitList.filter {
                     it.id != discipleId && !RecruitIntegrity.isSamePerson(it, recruitedDisciple)
                 },
-                recruitCountThisMonth = gameData.recruitCountThisMonth + 1
+                recruitCountThisMonth = gameData.recruitCountThisMonth + 1,
+                // 年报新增弟子计数（2026-08-11 修复：手动招募主路径漏计）
+                annualNewDisciples = gameData.annualNewDisciples + 1
             )
         }
         if (newId.isEmpty()) {

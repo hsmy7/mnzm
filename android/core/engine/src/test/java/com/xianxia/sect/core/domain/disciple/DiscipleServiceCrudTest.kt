@@ -218,6 +218,8 @@ class DiscipleServiceCrudTest {
         assertTrue("expel should return Success", result is DomainResult.Success)
         // Disciple should be removed from tables
         assertFalse("expelled disciple should be removed", tables.ids.contains(1))
+        // 年报脱离弟子计数（2026-08-11 修复：玩家逐出漏计）
+        assertEquals("逐出计入年报脱离", 1, (mockStore as FakeAtomicStateStore).gameData.value.annualDesertedDisciples)
     }
 
     @Test
@@ -228,6 +230,7 @@ class DiscipleServiceCrudTest {
         val result = service.expelDisciple("1")
 
         assertTrue("expel dead disciple should return Failure", result is DomainResult.Failure)
+        assertEquals("失败路径不计数", 0, (mockStore as FakeAtomicStateStore).gameData.value.annualDesertedDisciples)
     }
 
     @Test
@@ -235,5 +238,6 @@ class DiscipleServiceCrudTest {
         val result = service.expelDisciple("999")
 
         assertTrue("expel non-existent should return Failure", result is DomainResult.Failure)
+        assertEquals("失败路径不计数", 0, (mockStore as FakeAtomicStateStore).gameData.value.annualDesertedDisciples)
     }
 }

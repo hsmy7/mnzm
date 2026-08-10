@@ -539,6 +539,11 @@ class InventorySystem @Inject constructor(
      * 所有死亡标记路径（宗门战/世界战斗/侦查/探索队/秘境/寿元）统一经此入口。
      * 物化后清空袋条目：重复死亡处理不重复物化（防物品复制）。
      *
+     * 年报死亡计数（annualDeceasedDisciples）：以 wasAlive 守卫防双计——
+     * 世界关卡/侦查/秘境路径会经 CombatService.processBattleCasualties
+     * 对同一弟子二次调用本方法（首次 isAlive=1 计、二次 isAlive=0 跳过）；
+     * 探索队/宗门战为单次调用正常计数。全部 5 条路径恰好计 1 次。
+     *
      * @param state 事务内 MutableGameState（调用方在 stateStore.update 中传入 this）
      * @param discipleId 死弟子 id
      * @param deathYear 死亡年份
@@ -550,6 +555,8 @@ class InventorySystem @Inject constructor(
         deathYear: Int,
         cause: String
     ) {
+        // 双计防线：世界/侦查/秘境二次调用时 isAlive 已为 0，跳过计数
+        val wasAlive = state.discipleTables.isAlive.getOrNull(discipleId) == 1
         val bagItems = state.discipleTables.storageBagItems.getOrNull(discipleId)
         if (!bagItems.isNullOrEmpty()) {
             withTrackingSource(SOURCE_DISCIPLE_DEATH) {
@@ -559,6 +566,11 @@ class InventorySystem @Inject constructor(
             state.discipleTables.storageBagItems[discipleId] = emptyList()
         }
         state.discipleTables.markDead(discipleId, deathYear, cause)
+        if (wasAlive) {
+            state.gameData = state.gameData.copy(
+                annualDeceasedDisciples = state.gameData.annualDeceasedDisciples + 1
+            )
+        }
     }
 
     fun returnManualToStack(instance: ManualInstance): DomainResult<ManualStack> {

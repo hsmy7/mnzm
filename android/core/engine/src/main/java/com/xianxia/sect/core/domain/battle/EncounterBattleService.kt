@@ -369,7 +369,7 @@ class EncounterBattleService @Inject constructor(
 
         if (attacker.isPlayer) {
             // 玩家弟子死亡 — 死战到底，装备不归还
-            deathHandler.markAllDead(state.discipleTables, deadIds, year)
+            deathHandler.markAllDead(state, deadIds, year)
         } else {
             // AI 弟子死亡 — 标记死亡但保留在列表中
             state.gameData = state.gameData.copy(

@@ -308,6 +308,10 @@ class RedeemCodeService @Inject constructor(
             discipleTables.allocateAndInsert(disciple)
             usedNames.add(disciple.name)
         }
+        // 年报新增弟子计数（2026-08-11 修复：兑换码赠弟子漏计）
+        gameData = gameData.copy(
+            annualNewDisciples = gameData.annualNewDisciples + quantity.coerceAtLeast(1)
+        )
         return true
     }
 
@@ -417,7 +421,9 @@ class RedeemCodeService @Inject constructor(
             gameData = gameData.copy(
                 usedRedeemCodes = (gameData.usedRedeemCodes + code.uppercase(java.util.Locale.getDefault()))
                     .distinct()
-                    .takeLast(GameData.MAX_REDEEM_CODES)
+                    .takeLast(GameData.MAX_REDEEM_CODES),
+                // 年报新增弟子计数（2026-08-11 修复：本地兑换码赠弟子漏计）
+                annualNewDisciples = gameData.annualNewDisciples + result.disciples.size
             )
         }
 

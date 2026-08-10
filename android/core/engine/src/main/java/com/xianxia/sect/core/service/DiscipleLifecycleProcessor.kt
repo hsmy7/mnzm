@@ -228,6 +228,9 @@ class DiscipleLifecycleProcessor @Inject constructor(
             "${agedDisciple.name}陨落（寿元耗尽）",
             agedDisciple.id, agedDisciple.name
         )
+        // 年报死亡计数：本路径绕过 DiscipleDeathHandler.markDead（自定义
+        // remove + deathYears 重写 + 自有 DeathRecord），计数保留在本地；
+        // 勿迁入 markDead——洞窟预标记路径依赖其无条件计数，迁入会破坏覆盖
         gameData = gameData.copy(
             annualDeceasedDisciples = gameData.annualDeceasedDisciples + 1
         )
@@ -295,7 +298,8 @@ class DiscipleLifecycleProcessor @Inject constructor(
             //（原实现只写 deathYears，isAlive/status 依赖调用方补偿——洞窟/战斗事件
             //  两个调用点已补偿标记，本改动为统一入口防御，防止未来调用点遗漏；
             //  对已补偿路径幂等无害）
-            deathHandler.markDead(discipleTables, idInt, currentYear)
+            // 年报死亡计数由 markDead 统一递增（2026-08-11），本函数不再自行计数
+            deathHandler.markDead(this, idInt, currentYear)
 
             gameData = gameData.copy(
                 bloodRefinementBonusTotals = gameData.bloodRefinementBonusTotals - disciple.id,
@@ -307,9 +311,6 @@ class DiscipleLifecycleProcessor @Inject constructor(
                 GameEventCategory.SECT, GameEventType.DEATH,
                 "${disciple.name}陨落（${if (isOutsideSect) "战斗" else "寿元耗尽"}）",
                 disciple.id, disciple.name
-            )
-            gameData = gameData.copy(
-                annualDeceasedDisciples = gameData.annualDeceasedDisciples + 1
             )
         }
 

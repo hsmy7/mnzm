@@ -724,6 +724,14 @@ class ExplorationService @Inject constructor(
         discipleTables.replaceAll(disciples)
         // 死亡年份由 DiscipleDeathHandler 统一补写（replaceAll 已清空列写入）
         deathHandler.backfillDeathYears(discipleTables, disciples, gameData.gameYear)
+        // 年报死亡计数：妖兽防守战死亡仅 map 标记（无统一入口），
+        // 本函数每场战斗恰好调用一次，按 isAlive=false 人数直接计数
+        val deadCount = disciples.count { !it.isAlive }
+        if (deadCount > 0) {
+            gameData = gameData.copy(
+                annualDeceasedDisciples = gameData.annualDeceasedDisciples + deadCount
+            )
+        }
     }
 
     // ── 掠夺计算已迁移到 LootCalculator ─────────────────────────────────────

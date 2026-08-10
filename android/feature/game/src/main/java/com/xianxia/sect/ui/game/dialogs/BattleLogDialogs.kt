@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.ui.components.beastSpriteRes
@@ -510,8 +511,17 @@ private fun YearlyReportList(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("第${report.year}年", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    // weight + ellipsis 防窄屏横向溢出（年份行占满剩余空间）
+                    Text(
+                        "第${report.year}年", fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold, color = Color.Black,
+                        modifier = Modifier.weight(1f, fill = false),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                    Row(
+                        Modifier.weight(1f, fill = false),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
                         // 弟子净变化 = 新增 - 死亡 - 脱离
                         val discipleDelta = report.newDisciples - report.deceasedDisciples - report.desertedDisciples
                         val discipleColor = when {
@@ -519,7 +529,10 @@ private fun YearlyReportList(
                             discipleDelta < 0 -> GameColors.Error
                             else -> Color.Black
                         }
-                        Text("弟子: ${formatSigned(discipleDelta)}", fontSize = 11.sp, color = discipleColor)
+                        Text(
+                            "弟子: ${formatSigned(discipleDelta)}", fontSize = 11.sp,
+                            color = discipleColor, maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
                         // 灵石净变化 = 收入 - 支出
                         val stoneDelta = report.totalIncome - report.totalExpenditure
                         val stoneColor = when {
@@ -527,7 +540,10 @@ private fun YearlyReportList(
                             stoneDelta < 0 -> GameColors.Error
                             else -> Color.Black
                         }
-                        Text("灵石: ${formatSigned(stoneDelta)}", fontSize = 11.sp, color = stoneColor)
+                        Text(
+                            "灵石: ${formatSigned(stoneDelta)}", fontSize = 11.sp,
+                            color = stoneColor, maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }
@@ -581,7 +597,10 @@ private fun YearlyReportDetailDialog(
 
             // ── Row 2: 灵石收入来源 ──
             SectionTitle("【灵石收入来源】")
-            val mergedIncome = remember(report) { mergeSellEntries(report.incomeBySource) }
+            // 过滤 0 值条目（读档/历史存档可能残留 0 值键），空判以过滤后集合为准
+            val mergedIncome = remember(report) {
+                mergeSellEntries(report.incomeBySource).filterValues { it > 0 }
+            }
             if (mergedIncome.isEmpty()) {
                 EmptyDataText("无")
             } else {
@@ -594,10 +613,13 @@ private fun YearlyReportDetailDialog(
 
             // ── Row 3: 灵石支出来源 ──
             SectionTitle("【灵石支出来源】")
-            if (report.expenditureByReason.isEmpty()) {
+            val filteredExpenditure = remember(report) {
+                report.expenditureByReason.filterValues { it > 0 }
+            }
+            if (filteredExpenditure.isEmpty()) {
                 EmptyDataText("无")
             } else {
-                report.expenditureByReason.entries.sortedByDescending { it.value }.forEach { (key, value) ->
+                filteredExpenditure.entries.sortedByDescending { it.value }.forEach { (key, value) ->
                     DataText("  ${reasonDisplayName(key)}: -$value")
                 }
             }
@@ -727,7 +749,7 @@ private fun sourceDisplayName(key: String): String = when (key) {
     "Exploration" -> "探索"; "RedeemCode" -> "兑换码"; "Cave" -> "洞府"
     "HeavenlyTrial" -> "天道试炼"; "SectLevelReward" -> "宗门等级奖励"
     "Salary" -> "俸禄"; "StorageBag" -> "储物袋"; "Refund" -> "退款"
-    "Sell" -> "售卖"; "Internal" -> "内部"
+    "Sell" -> "售卖"; "SecretRealm" -> "秘境"; "Internal" -> "内部"
     else -> key
 }
 
@@ -741,32 +763,43 @@ private fun reasonDisplayName(key: String): String = when (key) {
     else -> key
 }
 
-/** 装备来源名 */
+/** 装备来源名（exploration/sect_level 保留映射：历史存档可能残留旧键） */
 private fun equipSourceName(key: String): String = when (key) {
     "forge" -> "锻造"; "battle" -> "战斗"; "exploration" -> "探索"
     "quest" -> "任务"; "mail" -> "邮件"; "cave" -> "洞府"
     "trial" -> "天道试炼"; "merchant" -> "商人"
     "sect_level" -> "宗门等级"; "storage_bag" -> "储物袋"
     "building" -> "建筑"; "unknown" -> "未知"
+    "redeem" -> "兑换码"; "disciple_death" -> "弟子死亡"
+    "cave_world" -> "洞府世界"; "secret_realm" -> "秘境"
+    "sect_trade" -> "宗门交易"; "confiscate" -> "没收"
+    "disciple_expel" -> "逐出弟子"
     else -> key
 }
 
-/** 丹药来源名 */
+/** 丹药来源名（exploration/sect_level 保留映射：历史存档可能残留旧键） */
 private fun pillSourceName(key: String): String = when (key) {
     "alchemy" -> "炼丹"; "battle" -> "战斗"; "exploration" -> "探索"
     "quest" -> "任务"; "mail" -> "邮件"; "cave" -> "洞府"
     "trial" -> "天道试炼"; "merchant" -> "商人"
     "sect_level" -> "宗门等级"; "storage_bag" -> "储物袋"
     "building" -> "建筑"; "unknown" -> "未知"
+    "redeem" -> "兑换码"; "disciple_death" -> "弟子死亡"
+    "cave_world" -> "洞府世界"; "secret_realm" -> "秘境"
+    "sect_trade" -> "宗门交易"; "confiscate" -> "没收"
+    "disciple_expel" -> "逐出弟子"
     else -> key
 }
 
-/** 草药来源名 */
+/** 草药来源名（exploration 保留映射：历史存档可能残留旧键） */
 private fun herbSourceName(key: String): String = when (key) {
     "spirit_field" -> "灵田"; "exploration" -> "探索"; "battle" -> "战斗"
     "quest" -> "任务"; "mail" -> "邮件"; "storage_bag" -> "储物袋"
     "cave" -> "洞府"; "trial" -> "天道试炼"; "merchant" -> "商人"
     "unknown" -> "未知"
+    "redeem" -> "兑换码"; "disciple_death" -> "弟子死亡"
+    "secret_realm" -> "秘境"; "sect_trade" -> "宗门交易"
+    "confiscate" -> "没收"; "disciple_expel" -> "逐出弟子"
     else -> key
 }
 

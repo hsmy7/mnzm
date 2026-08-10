@@ -59,7 +59,9 @@ class DiscipleFacadeImplRecruitTest {
         state.gameData = state.gameData.copy(
             recruitList = state.gameData.recruitList.filter {
                 it.id != recruitId && !RecruitIntegrity.isSamePerson(it, recruited)
-            }
+            },
+            // 与真实实现对齐（2026-08-11 年报修复：招募成功递增 annualNewDisciples）
+            annualNewDisciples = state.gameData.annualNewDisciples + 1
         )
         return newId
     }
@@ -112,6 +114,8 @@ class DiscipleFacadeImplRecruitTest {
         assertEquals("recruitList 清空", 0, state.gameData.recruitList.size)
         assertEquals("DiscipleTables 新增 1 人", 1, state.discipleTables.ids.size)
         assertEquals("姓名一致", "新弟子", state.discipleTables.assemble(newId.toInt()).name)
+        // 年报新增弟子计数（2026-08-11 修复：手动招募主路径漏计）
+        assertEquals("年报新增弟子计数 1", 1, state.gameData.annualNewDisciples)
     }
 
     @Test
@@ -123,6 +127,7 @@ class DiscipleFacadeImplRecruitTest {
         assertEquals("空 ID", "", newId)
         assertEquals("DiscipleTables 不变", 0, state.discipleTables.ids.size)
         assertEquals("recruitList 不变", 1, state.gameData.recruitList.size)
+        assertEquals("失败不计数", 0, state.gameData.annualNewDisciples)
     }
 
     @Test

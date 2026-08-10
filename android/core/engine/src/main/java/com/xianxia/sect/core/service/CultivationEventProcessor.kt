@@ -466,7 +466,7 @@ class CultivationEventProcessor @Inject constructor(
             stateStore.update {
                 discipleTables.replaceAll(disciples)
                 // 死亡标记 + deathYears 统一由 DiscipleDeathHandler 写入列
-                deathHandler.markAllDead(discipleTables, deadIds, stateStore.gameData.value.gameYear)
+                deathHandler.markAllDead(this, deadIds, stateStore.gameData.value.gameYear)
             }
         }
     }

@@ -230,6 +230,13 @@ class PlayerDefenseProcessor @Inject constructor(
     ): List<Disciple> {
         val currentDisciples = state.discipleTables.assembleAll()
         val deadDefenders = currentDisciples.filter { it.id in result.deadDefenderIds }
+        // 年报死亡计数：防守战死亡仅 map 标记 + backfillDeathYears（无统一入口），
+        // 本函数每场战斗恰好调用一次，按阵亡数直接计数
+        if (deadDefenders.isNotEmpty()) {
+            state.gameData = state.gameData.copy(
+                annualDeceasedDisciples = state.gameData.annualDeceasedDisciples + deadDefenders.size
+            )
+        }
         var newDisciples = currentDisciples
         if (deadDefenders.isNotEmpty()) {
             newDisciples = DiscipleStatCalculator.applyGriefToRelatives(

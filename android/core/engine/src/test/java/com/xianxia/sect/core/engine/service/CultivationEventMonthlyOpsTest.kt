@@ -225,7 +225,8 @@ class CultivationEventMonthlyOpsTest {
             h.merchantAndRecruitService, h.autoBuyService
         )
         // 原相对序（autoReject 为 object 静态方法，跳过 verify）：
-        // #1 → #2 → #3 → #5 → #6(autoReject) → #7 → #8 → #9 → #11 → #18 → #20
+        // #1 → #2 → #3 → #5 → #6(autoReject) → #7 → #8 → #9 → #11 → #20 → #18
+        //（2026-08-11 归属修复：autoBuy #18 移至年报快照 #20 之后，新年 1 月购买计入新年）
         inOrder.verify(h.vassalService).processYearlyTribute()
         inOrder.verify(h.vassalService).processYearlyVassalTribute(2026)
         inOrder.verify(h.discipleLifecycleProcessor).processDiscipleAging(2026)
@@ -233,8 +234,8 @@ class CultivationEventMonthlyOpsTest {
         inOrder.verify(h.merchantAndRecruitService).giveMerchantRefreshChanceIfDue(2026)
         inOrder.verify(h.discipleLifecycleProcessor).processYearlyAging(2026)
         inOrder.verify(h.recruitService).ageRecruitList(2026)
-        inOrder.verify(h.autoBuyService).executeAutoBuy(2026, 1)
         inOrder.verify(h.discipleLifecycleProcessor).processReflectionRelease(2026)
+        inOrder.verify(h.autoBuyService).executeAutoBuy(2026, 1)
 
         // T2 成员不得在 T1 阶段执行
         verify(h.caveProcessor, never()).processSectDisciplesAging(any(), any())

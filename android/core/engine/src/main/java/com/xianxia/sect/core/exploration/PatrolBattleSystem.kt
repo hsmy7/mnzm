@@ -492,7 +492,7 @@ class PatrolBattleSystem @Inject constructor(
         state.gameData = finalGd
         state.discipleTables.replaceAll(finalDisciples)
         deathHandler.markAllDead(
-            state.discipleTables, allDeadIds, updatedGd.gameYear
+            state, allDeadIds, updatedGd.gameYear
         )
     }
 

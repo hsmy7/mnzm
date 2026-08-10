@@ -1,7 +1,9 @@
 package com.xianxia.sect.core.engine.domain.exploration
 
 import com.xianxia.sect.core.exploration.DiscipleDeathHandler
+import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.state.DiscipleTables
+import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.WriteGuardRule
 import org.junit.Assert.*
 import org.junit.Before
@@ -20,6 +22,26 @@ class DiscipleDeathHandlerTest {
         tables = DiscipleTables()
     }
 
+    /** 构造事务内 MutableGameState（markDead 需在 stateStore.update 事务内调用） */
+    private fun createState(): MutableGameState = MutableGameState(
+        gameData = GameData(),
+        discipleTables = tables,
+        equipmentStacks = com.xianxia.sect.core.state.EntityStore(emptyList()),
+        equipmentInstances = com.xianxia.sect.core.state.EntityStore(emptyList()),
+        manualStacks = com.xianxia.sect.core.state.EntityStore(emptyList()),
+        manualInstances = com.xianxia.sect.core.state.EntityStore(emptyList()),
+        pills = com.xianxia.sect.core.state.EntityStore(emptyList()),
+        materials = com.xianxia.sect.core.state.EntityStore(emptyList()),
+        herbs = com.xianxia.sect.core.state.EntityStore(emptyList()),
+        seeds = com.xianxia.sect.core.state.EntityStore(emptyList()),
+        storageBags = com.xianxia.sect.core.state.EntityStore(emptyList()),
+        teams = emptyList(),
+        battleLogs = emptyList(),
+        isPaused = false,
+        isLoading = false,
+        isSaving = false
+    )
+
     /** 确保 ID 在组件表中有槽位 */
     private fun ensureId(id: Int) {
         tables.isAlive[id] = 1
@@ -28,14 +50,14 @@ class DiscipleDeathHandlerTest {
     @Test
     fun `markDead sets isAlive to 0`() {
         ensureId(1)
-        handler.markDead(tables, 1, 10)
+        handler.markDead(createState(), 1, 10)
         assertEquals(0, tables.isAlive[1])
     }
 
     @Test
     fun `markDead sets deathYear`() {
         ensureId(1)
-        handler.markDead(tables, 1, 10)
+        handler.markDead(createState(), 1, 10)
         assertEquals(10, tables.deathYears[1])
     }
 
@@ -43,17 +65,17 @@ class DiscipleDeathHandlerTest {
     fun `markDead overwrites existing deathYear`() {
         ensureId(1)
         tables.deathYears[1] = 5
-        handler.markDead(tables, 1, 10)
+        handler.markDead(createState(), 1, 10)
         assertEquals(10, tables.deathYears[1])
     }
 
     @Test
     fun `markDead multiple disciples independently`() {
         ensureId(1); ensureId(2); ensureId(3)
-        handler.markDead(tables, 1, 10)
+        handler.markDead(createState(), 1, 10)
         ensureId(3) // re-ensure since markDead sets isAlive=0
         tables.isAlive[2] = 1 // re-ensure
-        handler.markDead(tables, 3, 10)
+        handler.markDead(createState(), 3, 10)
 
         assertEquals(0, tables.isAlive[1])
         assertEquals(1, tables.isAlive[2])
@@ -63,23 +85,78 @@ class DiscipleDeathHandlerTest {
     @Test
     fun `markDead with new ID allocates slot`() {
         // For ComponentTable, setting value for a new ID creates the slot automatically
-        handler.markDead(tables, 99, 10)
+        handler.markDead(createState(), 99, 10)
     }
 
     @Test
     fun `markDead does not affect other disciples`() {
         ensureId(1); ensureId(2)
-        handler.markDead(tables, 1, 10)
+        handler.markDead(createState(), 1, 10)
         assertEquals(1, tables.isAlive[2])
     }
 
     @Test
     fun `deathYears correctly stores different years`() {
         ensureId(1); ensureId(2)
-        handler.markDead(tables, 1, 5)
-        handler.markDead(tables, 2, 10)
+        handler.markDead(createState(), 1, 5)
+        handler.markDead(createState(), 2, 10)
         assertEquals(5, tables.deathYears[1])
         assertEquals(10, tables.deathYears[2])
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // 年报死亡计数（annualDeceasedDisciples 统一递增入口）
+    // ══════════════════════════════════════════════════════════════════
+
+    @Test
+    fun `markDead increments annualDeceasedDisciples once`() {
+        ensureId(1)
+        val state = createState()
+        handler.markDead(state, 1, 10)
+        assertEquals(1, state.gameData.annualDeceasedDisciples)
+    }
+
+    @Test
+    fun `markDead counts every call`() {
+        ensureId(1); ensureId(2)
+        val state = createState()
+        handler.markDead(state, 1, 10)
+        handler.markDead(state, 2, 10)
+        assertEquals(2, state.gameData.annualDeceasedDisciples)
+    }
+
+    @Test
+    fun `markDead string overload counts after successful parse`() {
+        ensureId(7)
+        val state = createState()
+        handler.markDead(state, "7", 10)
+        assertEquals(1, state.gameData.annualDeceasedDisciples)
+    }
+
+    @Test
+    fun `markDead string overload skips unparseable id without counting`() {
+        val state = createState()
+        handler.markDead(state, "not_a_number", 10)
+        assertEquals(0, state.gameData.annualDeceasedDisciples)
+    }
+
+    @Test
+    fun `markAllDead counts each dead disciple`() {
+        ensureId(1); ensureId(2); ensureId(3)
+        val state = createState()
+        handler.markAllDead(state, setOf("1", "2", "3"), 10)
+        assertEquals(3, state.gameData.annualDeceasedDisciples)
+        assertEquals(0, tables.isAlive[1])
+        assertEquals(0, tables.isAlive[2])
+        assertEquals(0, tables.isAlive[3])
+    }
+
+    @Test
+    fun `markAllDead counts only parseable ids`() {
+        ensureId(1)
+        val state = createState()
+        handler.markAllDead(state, setOf("1", "bad"), 10)
+        assertEquals(1, state.gameData.annualDeceasedDisciples)
     }
 
     // ══════════════════════════════════════════════════════════════════

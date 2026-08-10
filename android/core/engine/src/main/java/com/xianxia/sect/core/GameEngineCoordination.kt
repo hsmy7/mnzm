@@ -968,7 +968,9 @@ suspend fun GameEngine.recruitAllFromList(): Int {
             recruited = successCount
             gameData = gameData.copy(
                 recruitList = keepInList,
-                recruitCountThisMonth = gameData.recruitCountThisMonth + successCount
+                recruitCountThisMonth = gameData.recruitCountThisMonth + successCount,
+                // 年报新增弟子计数（2026-08-11 修复：一键全招漏计）
+                annualNewDisciples = gameData.annualNewDisciples + successCount
             )
             if (droppedCount > 0 || takeCount < validRecruits.size) {
                 DomainLog.w("GameEngine", "recruitAllFromList: dropped $droppedCount corrupted, recruited $recruited, ${keepInList.size} remain (monthly limit)")

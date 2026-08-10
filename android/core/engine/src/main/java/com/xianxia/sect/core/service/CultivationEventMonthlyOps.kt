@@ -152,12 +152,15 @@ internal fun CultivationEventProcessor.processYearlyEvents(year: Int) {
             safelyRunInState("recruitAging") {
                 recruitService.ageRecruitList(year)
             }
-            safelyRunInState("autoBuy") { autoBuyService.executeAutoBuy(year, 1) }
             safelyRunInState("reflectionRelease") {
                 discipleLifecycleProcessor.processReflectionRelease(year)
             }
             // 年度报告 + 驻军轮换（与纳贡同事务：annual* 字段必须计入年报）
             safelyRunInState("garrisonAndReport") { runGarrisonAndReport(year, this) }
+            // 1 月自动购买置于年报快照后（2026-08-11 归属修复：新年 1 月购买计入
+            // 新年年报——与年俸 processAnnualSalary 快照后执行的归属一致；
+            // 12 月 autoBuy 不受影响，本就属旧年）
+            safelyRunInState("autoBuy") { autoBuyService.executeAutoBuy(year, 1) }
             // T2 延迟组（11 项）入队：FIFO = 年变原相对序（#4→#10→#12→#13→#14→#15→#16→#17→#19→#21→#22）
             // 必须与 T1 同事务提交：若在事务外入队，存档线程 flush 可能在
             // "T1 提交 → 入队"之间排空队列并取快照，快照缺失全部 T2（竞态窗口，对抗性审查修复）。

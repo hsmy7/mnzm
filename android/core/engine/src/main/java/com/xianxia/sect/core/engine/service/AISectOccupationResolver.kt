@@ -247,7 +247,7 @@ class AISectOccupationResolver @Inject constructor(
         }
         tables.replaceAll(updated)
         // 死亡标记 + deathYears 统一由 DiscipleDeathHandler 写入列
-        deathHandler.markAllDead(tables, result.deadDefenderIds.toSet(), gameYear)
+        deathHandler.markAllDead(state, result.deadDefenderIds.toSet(), gameYear)
     }
 
     private fun buildGarrSlots(
