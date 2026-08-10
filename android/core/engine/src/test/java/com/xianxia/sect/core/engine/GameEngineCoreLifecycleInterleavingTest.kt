@@ -19,6 +19,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -30,6 +31,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.EmptyCoroutineContext
 
 /**
@@ -55,6 +57,7 @@ class GameEngineCoreLifecycleInterleavingTest {
     private lateinit var core: GameEngineCore
     private lateinit var stateStore: GameStateStore
     private lateinit var systemManager: SystemManager
+    private lateinit var jadeSymbolService: JadeSymbolService
     private val pausedWrites = mutableListOf<Boolean>()
 
     /**
@@ -105,10 +108,11 @@ class GameEngineCoreLifecycleInterleavingTest {
 
     @Test
     fun `shutdown in progress then late emergency rejected and loop stays stopped`() {
-        core.startGameLoop()
-        assertTrue(core.isGameLoopRunning)
-
-        // shutdown 阻塞在 systemManager.releaseAll——模拟 shutdown 进行中
+        // 阻塞 stub 必须在 startGameLoop 之前注册（Mockito 非线程安全：循环
+        // 线程每 50ms 触碰 stateStore mock 的 getter，注册窗口内并发调用会
+        // 劫持 stubbing → UnfinishedStubbingException，残留 in-progress 还会
+        // 污染下一测试的 setUp——全量回归实测复现，2026-08-10 对齐
+        // `stop during emergency` 的预注册纪律）
         val entered = CountDownLatch(1)
         val gate = CountDownLatch(1)
         doAnswer {
@@ -117,6 +121,10 @@ class GameEngineCoreLifecycleInterleavingTest {
             Unit
         }.`when`(systemManager).releaseAll()
 
+        core.startGameLoop()
+        assertTrue(core.isGameLoopRunning)
+
+        // shutdown 阻塞在 systemManager.releaseAll——模拟 shutdown 进行中
         val shutdownThread = Thread { core.shutdown() }.apply { start() }
         try {
             assertTrue("shutdown 必须进入 releaseAll 阻塞点", entered.await(5, TimeUnit.SECONDS))
@@ -263,6 +271,54 @@ class GameEngineCoreLifecycleInterleavingTest {
     }
 
     @Test
+    fun `stopGameLoopAndWait returns only after loop finally onLoopStop executed`() {
+        // 玉符防回退契约（2026-08-10）：读档/云下载在 loadData 前依赖
+        // stopGameLoopAndWait 返回 ⟺ 循环 finally 的 onLoopStop（checkpointNow）
+        // 已执行完毕——此后引擎线程无任何玉符写，快照替换才安全。
+        // 验证：onLoopStop 阻塞期间 wait 不得返回；释放后 wait 返回 true。
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        doAnswer {
+            entered.countDown()
+            release.await(5, TimeUnit.SECONDS)
+            Unit
+        }.`when`(jadeSymbolService).onLoopStop()
+
+        core.startGameLoop()
+        assertTrue("循环必须运行", core.isGameLoopRunning)
+        // 等循环进入稳定运行态（协程启动与 cancel 的竞态：startGameLoop 返回后
+        // 循环协程可能尚未真正启动，立即 stop 会丢弃协程体 → finally 永不执行
+        // → onLoopStop 不被调用，测试 flaky——JadeReload 测试实测复现，2026-08-10）
+        Thread.sleep(200)
+
+        val waitResult = AtomicReference<Boolean?>()
+        val waitThread = Thread {
+            waitResult.set(kotlinx.coroutines.runBlocking {
+                core.stopGameLoopAndWait(5000)
+            })
+        }.apply { start() }
+
+        try {
+            // onLoopStop 已进入 = 循环 finally 开始执行；此时 wait 必须仍挂起
+            assertTrue("onLoopStop 必须被循环 finally 调用", entered.await(5, TimeUnit.SECONDS))
+            // 短暂窗口确认 wait 未提前返回（onLoopStop 尚未完成）
+            Thread.sleep(100)
+            assertNull("onLoopStop 完成前 stopGameLoopAndWait 不得返回", waitResult.get())
+        } finally {
+            release.countDown()
+            waitThread.join(5_000)
+        }
+        assertTrue("onLoopStop 完成后 wait 必须返回 true", waitResult.get() == true)
+    }
+
+    @Test
+    fun `stopGameLoopAndWait returns true immediately when loop never started`() {
+        // 主菜单读档场景：循环未运行 → 立即返回 true（零开销，无副作用）
+        val result = kotlinx.coroutines.runBlocking { core.stopGameLoopAndWait(5000) }
+        assertTrue("未启动时 stopGameLoopAndWait 必须立即返回 true", result)
+    }
+
+    @Test
     fun `concurrent storm of restart stop shutdown converges and engine recoverable`() {
         core.startGameLoop()
         assertTrue(core.isGameLoopRunning)
@@ -347,6 +403,12 @@ class GameEngineCoreLifecycleInterleavingTest {
         val scopeProvider = mock(CoroutineScopeProvider::class.java)
         `when`(scopeProvider.scope).thenReturn(scope)
         systemManager = mock(SystemManager::class.java)
+        // mock 玉符服务（2026-08-08）：真实实例的 onLoopTick 每帧读
+        // gameDataSnapshot（跨天检查），与测试注册 doAnswer 阻塞 stub 并发
+        // → Mockito setMethodForStubbing 竞态（全量跑时暴露）。生命周期
+        // 互斥测试不涉及玉符逻辑，mock 根除循环线程对 mock store 的访问；
+        // 字段持有供契约测试（stopGameLoopAndWait 含 finally）断言
+        jadeSymbolService = mock(JadeSymbolService::class.java)
         return GameEngineCore(
             stateStore = stateStore,
             eventBus = mock(EventBusPort::class.java),
@@ -360,11 +422,7 @@ class GameEngineCoreLifecycleInterleavingTest {
             thermalController = mock(ThermalController::class.java),
             thermalMonitor = mock(com.xianxia.sect.core.perf.ThermalMonitor::class.java),
             spiritStoneWallet = mock(SpiritStoneWallet::class.java),
-            // mock 玉符服务（2026-08-08）：真实实例的 onLoopTick 每帧读
-            // gameDataSnapshot（跨天检查），与测试注册 doAnswer 阻塞 stub 并发
-            // → Mockito setMethodForStubbing 竞态（全量跑时暴露）。生命周期
-            // 互斥测试不涉及玉符逻辑，mock 根除循环线程对 mock store 的访问
-            jadeSymbolService = mock(JadeSymbolService::class.java),
+            jadeSymbolService = jadeSymbolService,
             engineCrashReporter = mock(EngineCrashReporter::class.java)
         )
     }

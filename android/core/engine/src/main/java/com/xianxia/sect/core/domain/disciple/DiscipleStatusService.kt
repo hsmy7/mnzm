@@ -32,11 +32,13 @@ class DiscipleStatusService @Inject constructor(
     private val secretRealmService: SecretRealmService
 ) {
     companion object {
-        private val explorationStatuses = setOf(
+        /** 活跃探索队伍状态集合（internal 供 ProductionProcessor.buildOccupiedSlotDiscipleIds 复用，单一来源防集合漂移） */
+        internal val explorationStatuses = setOf(
             ExplorationStatus.TRAVELING, ExplorationStatus.EXPLORING,
             ExplorationStatus.SCOUTING, ExplorationStatus.DANGER
         )
-        private val caveExplorationStatuses = setOf(
+        /** 活跃洞穴探索队伍状态集合（复用说明同上） */
+        internal val caveExplorationStatuses = setOf(
             CaveExplorationStatus.TRAVELING, CaveExplorationStatus.EXPLORING
         )
 
@@ -138,6 +140,9 @@ class DiscipleStatusService @Inject constructor(
                 || elderSlots.forgeElder == discipleId
                 || elderSlots.alchemyElder == discipleId
                 || elderSlots.herbGardenElder == discipleId
+                // 回归（2026-08-10）：纳徒长老此前漏推——被推导为 IDLE 后
+                // 从"可用弟子"列表可见，月度自动排班等入口将其当作空闲调动
+                || elderSlots.recruitingElder == discipleId
                 || elderSlots.herbGardenDisciples
                     .any { it.discipleId == discipleId }
                 || elderSlots.alchemyDisciples
@@ -228,6 +233,8 @@ class DiscipleStatusService @Inject constructor(
         elderSlots.forgeElder?.let { ids.add(it) }
         elderSlots.alchemyElder?.let { ids.add(it) }
         elderSlots.herbGardenElder?.let { ids.add(it) }
+        // 回归（2026-08-10）：纳徒长老与 buildSlotFlagsFor 的 managing 分支对称补齐
+        elderSlots.recruitingElder?.let { ids.add(it) }
         elderSlots.herbGardenDisciples.forEach { if (it.discipleId.isNotEmpty()) ids.add(it.discipleId) }
         elderSlots.alchemyDisciples.forEach { if (it.discipleId.isNotEmpty()) ids.add(it.discipleId) }
         elderSlots.forgeDisciples.forEach { if (it.discipleId.isNotEmpty()) ids.add(it.discipleId) }

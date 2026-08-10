@@ -101,6 +101,10 @@ class SaveLoadViewModelLoadTest {
         // T12（2026-08-05）：init 会收集 stuckResetEvents——stub 为真实 SharedFlow
         // （collect 是扩展函数，relaxed mock 的 SharedFlow 会抛 KotlinNothingValueException）
         every { gameEngineCore.stuckResetEvents } returns MutableSharedFlow()
+        // 玉符防回退（2026-08-10）：performLoadToSlot/applyCloudSaveToEngine 新增
+        // stopGameLoopAndWait——relaxed mock 默认返回 false 会中止读档流程，
+        // 现有用例全部需要默认成功；各用例自己的 coEvery stub 后注册覆盖此处
+        coEvery { gameEngineCore.stopGameLoopAndWait(any()) } returns true
 
         viewModel = SaveLoadViewModel(
             gameEngine = gameEngine,
@@ -609,5 +613,50 @@ class SaveLoadViewModelLoadTest {
 
         coVerify { gameEngineCore.registerActiveLoadJob(any()) }
         coVerify { storageFacade.load(1) }
+    }
+
+    // ──────────────────────────────────────────────────────────────────
+    // 玉符防回退（2026-08-10）：读档/云下载前等待旧循环停止（stopGameLoopAndWait）
+    // ──────────────────────────────────────────────────────────────────
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `loadGame - stopGameLoopAndWait 挂起期间读档零推进`() = runTest(testDispatcher) {
+        // 顺序守卫：stopGameLoopAndWait 返回前不得执行任何读档实质步骤——
+        // 玉符 checkpointNow 的 finally 写必须在 loadData 之前完成（非等待 stop
+        // 时旧运行时值晚于快照替换、覆盖新档玉符四字段的机理由引擎交错测试锁死）
+        val gate = CompletableDeferred<Boolean>()
+        coEvery { gameEngineCore.stopGameLoopAndWait(any()) } coAnswers { gate.await() }
+        every { stateStore.isLoading } returns MutableStateFlow(false)
+        every { stateStore.isSaving } returns MutableStateFlow(false)
+        every { stateStore.runState } returns MutableStateFlow(RunState.PLAYING)
+
+        viewModel.loadGame(com.xianxia.sect.data.model.SaveSlot(1, "", 0L, 1, 1, "", 0, 0L))
+        runCurrent()  // 协程执行到 stopGameLoopAndWait 挂起（不推进虚拟时间）
+
+        // wait 挂起期间读档零推进（storageFacade.load 是 stop 之后的第一个实质步骤）
+        coVerify(exactly = 0) { storageFacade.load(any()) }
+
+        gate.complete(true)
+        advanceUntilIdle()
+        // wait 完成后读档继续走完
+        coVerify(exactly = 1) { storageFacade.load(1) }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `loadGame - stopGameLoopAndWait 超时中止读档`() = runTest(testDispatcher) {
+        // 超时保护：循环停不下来时不得继续读档——旧循环 finally 仍在写玉符，
+        // loadData 后 onLoopStart 锚定/下一次 checkpointNow 会覆盖或错乱
+        coEvery { gameEngineCore.stopGameLoopAndWait(any()) } returns false
+        every { stateStore.isLoading } returns MutableStateFlow(false)
+        every { stateStore.isSaving } returns MutableStateFlow(false)
+        every { stateStore.runState } returns MutableStateFlow(RunState.PLAYING)
+
+        viewModel.loadGame(com.xianxia.sect.data.model.SaveSlot(1, "", 0L, 1, 1, "", 0, 0L))
+        advanceUntilIdle()
+
+        // 中止：不读档（showError 为 protected 无法直接断言，行为间接验证）
+        coVerify(exactly = 0) { storageFacade.load(any()) }
     }
 }

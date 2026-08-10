@@ -128,6 +128,18 @@
 - **T3/T4 读档路径测试对齐合并事务** — 死/活弟子断言单事务 transform（死：IDLE+清关联；活：IDLE+保留关联）；新增 DomainResult.Partial（溢出转邮件）视为成功晋升用例（B4 语义：Partial 是成功路径）
 - 全模块串行测试（--max-workers=1）+ detekt + compileReleaseKotlin 通过
 
+### 修复（2026-08-10 玉符读档/云下载重置 + 在岗弟子被自动排班调动双根治）
+
+- **根因 1（玉符，绝对值覆盖写模型时序洞）** — `JadeSymbolService` 运行时 `@Volatile totalCount` 与 GameData 4 字段分离，循环协程 `finally` 执行 `onLoopStop() → checkpointNow()` **绝对值覆盖写**；游戏内读档 `performLoadToSlot`/云下载 `applyCloudSaveToEngine` 先 `loadData`（快照替换）再 `boot`，而 `boot` Step 1 的 `stopGameLoop()` 是**非等待取消**——旧循环 finally 在引擎线程异步执行、晚于快照替换，用读档前旧运行时值覆盖新档玉符 4 字段；`onLoopStart` 从被污染值重新锚定 → "玉符重置为旧值"。云下载路径同构受感染
+- **修复 1** — 两处 loadData 调用前插入 `stopGameLoopAndWait(5000)`（与 restartGame 既有先例同参）：wait 返回 ⟺ 旧循环 finally 已完成（`onLoopStop` 先于 `signal.complete`）⟺ 之后引擎线程无任何玉符写 → 快照替换安全、`onLoopStart` 从新档锚定；超时 false → 记日志 + `showError` + 中止读档（isLoading 已复位可重试）；stop 成功后同步 `_isTimeRunning = false`；死代码 `SaveLoadLoadDelegate.loadGame` 同步改 wait 版（防未来复活）。全库生产代码仅 3 处 `loadData` 调用点，其余 2 处已安全（restartGame 已有保护/createNewGame 主菜单循环未运行）
+- **根因 2（在岗弟子被调动，状态推导缺口 + 自动排班不互斥）** — (a) `DiscipleAssignmentGate.scanElderSlots` 已登记纳徒长老 `recruitingElder`，但状态推导 `buildSlotFlagsFor` 的 managing 分支与 `buildManagingIds` 均不含该字段 → 纳徒长老被推导为 IDLE 写回存储，所有 `status == IDLE` 判定的自动分配入口将其当作空闲弟子捕获；(b) `processAutoAssign` 候选过滤只排除生产镜像 + 灵矿槽，其余槽位仅靠 status 兜底，`batchAssignToProductionSlots` 只写镜像 + repo 回写不走统一互斥入口 → 在岗弟子被"追加"到新槽位制造双槽位；双槽位触发 `validateAutoSlot` 双端清槽 + 读档自愈 `SlotWinner` 按扫描序保留长老清生产槽 → 玩家感知"自动离职/原岗位被清空"
+- **修复 2a（纳徒长老推导补缺口）** — `buildSlotFlagsFor` managing 分支 + `buildManagingIds` 各补 `recruitingElder` 判定（`deriveDiscipleStatus` 的 managing → MANAGING 分支已有，无需变动）；纳徒长老与其余 9 类长老行为完全对齐（可用列表消失/叛逃缉拿豁免），读档后 `syncAllDiscipleStatuses` 自动纠正老档
+- **修复 2b（自动排班候选互斥化）** — 新增 top-level 纯函数 `buildOccupiedSlotDiscipleIds(data, teams)`：扫描全部 13 类工作槽位（长老 17 字段 `collectElderSlotDiscipleIds`/灵矿/藏经阁/仓库驻守/巡视/宗门驻守/战斗队伍/活跃任务/秘境存活成员/洞穴探索/探索队伍[同 `explorationStatuses` 状态条件，常量 internal 化供单一来源复用]/血炼/生产镜像）；`processAutoAssign` 候选过滤改为 `status == IDLE && isAlive && id !in occupiedIds`——status 为第一层（存储权威），occupied 集合为第二层（防御"分配后尚未 syncAllDiscipleStatuses"的陈旧状态窗口与推导缺口）；住所分配与 `confirmAssign` gate 注册**不改**（`filterAvailableDisciples` 无生产调用方、`validateAutoSlot` 清槽不 release 会留 gate 陈旧条目、gate 一致性由读档 rebuildFromGameData 兜底——决策理由记录于类注释）
+- **保留不改（评估结论）** — `validateAutoSlot` 双端清槽与读档自愈 `healDuplicateSlotAssignments`/`SlotWinner` 仅处理真实事件与老档残留，健康存档零副作用，保留为自愈防线
+- **测试（18 新增/修改）** — `GameEngineCoreJadeReloadInterleavingTest`（新增 3：非等待 stop 复现旧值覆盖新档 / wait 后加载安全且重新锚定 / 启动前加载幂等）、`GameEngineCoreLifecycleInterleavingTest` 契约扩展（wait 含 finally 语义 latch）、`ElderSlotsStatusCoverageTest`（新增守卫：反射全部 17 字段 × 2 个收集函数覆盖断言——未来新增字段漏注册立即失败；端到端 syncAllDiscipleStatuses 收敛 MANAGING）、`ProductionSlotDualWriteGuardTest` 扩展（+12：11 类槽位占用场景逐槽位断言"存储 IDLE 弟子不被排班" + 健康空闲对照组仍可分配；**Robolectric 化**——纯 JVM mockable android.jar 的 SparseArray 是 stub，原测试 2/3 假阳性，spiritRootTypes 写入读回全失效导致弟子根本不进候选；对照组修复暴露的测试 fixture 坑：mock repo 的 `updateSlotByBuildingId` 无内存态可写 → 回写失败触发 `rollbackMirrorBatchAssignment` 清镜像，改用真实 repo + restoreSlots 预置灵田槽）、`SaveLoadViewModelLoadTest`（顺序守卫：wait 挂起期间 loadData 零调用 + 超时中止）
+- **兼容性** — 纯运行时一致性修复，无 Entity/Migration/Room schema 变更（DATABASE_VERSION 不变），存档完全兼容；经济影响：玉符读写路径修复不改变任何源/汇数量，仅修正读档时序下的值一致性
+- 全模块串行测试（--max-workers=1）+ compileReleaseKotlin + lintRelease 通过
+
 ## [4.00.91] - 2026-08-07
 
 ### 架构债务清理（2026-08-08 D-01~D-17 十项全量实施）

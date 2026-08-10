@@ -78,6 +78,7 @@ class SaveLoadViewModel @Inject constructor(
         private const val PROGRESS_GAME_LOOP_START = SaveLoadViewModelConstants.PROGRESS_GAME_LOOP_START
         const val PROGRESS_MAP_PRELOAD = SaveLoadViewModelConstants.PROGRESS_MAP_PRELOAD
         private const val PROGRESS_COMPLETE = SaveLoadViewModelConstants.PROGRESS_COMPLETE
+        private const val GAME_LOOP_STOP_TIMEOUT_MS = SaveLoadViewModelConstants.GAME_LOOP_STOP_TIMEOUT_MS
     }
 
     private suspend fun preloadGameResources() {
@@ -647,6 +648,23 @@ class SaveLoadViewModel @Inject constructor(
     private suspend fun performLoadToSlot(saveSlot: SaveSlot, startTime: Long) {
             try {
                 setSaveLoadState(isLoading = true, pendingSlot = saveSlot.slot, pendingAction = "load")
+
+                // 玉符防回退（2026-08-10）：loadData 前必须等待旧循环彻底停止——
+                // boot Step 1 的 stopGameLoop 为非等待取消，旧循环 finally 的
+                // JadeSymbolService.onLoopStop()（checkpointNow 绝对值覆盖写）在引擎线程
+                // 异步执行，晚于 loadFromSnapshot 替换 gameData → 读档前的旧运行时值
+                // 覆盖新档玉符四字段（玩家反馈"玉符读档后重置"）。
+                // stopGameLoopAndWait 返回时 finally 已执行完毕（signal 完成于
+                // onLoopStop 之后），此后引擎线程无任何玉符写，onLoopStart 从新档锚定。
+                // 主菜单读档（循环未运行）立即返回，零开销。
+                val stopped = gameEngineCore.stopGameLoopAndWait(GAME_LOOP_STOP_TIMEOUT_MS)
+                if (!stopped) {
+                    Log.e(TAG, "=== loadGame FAILED === cannot stop game loop within timeout")
+                    showError("无法停止游戏循环，请重试")
+                    return
+                }
+                _isTimeRunning.value = false
+                Log.d(TAG, "Game loop stopped for load operation")
 
                 performGarbageCollection()
 
@@ -1737,6 +1755,17 @@ class SaveLoadViewModel @Inject constructor(
         // 会让 loadFromSnapshot 内 repository.setActiveSlot(gameData.slotId) 拿到 0，
         // 后续 repository 脏写指向错误槽位；slotId/currentSlot 必须同时修正
         val resolvedGameData = reconcileCloudSlot(reconciled, effectiveSlot)
+        // 玉符防回退（2026-08-10）：与 performLoadToSlot 同因——云下载替换快照前
+        // 必须等待旧循环 finally 的玉符 checkpointNow 彻底完成，否则旧运行时值
+        // 覆盖新档玉符四字段（cloudDownloadLock 已互斥 save/load，此处无并发洞）
+        val stopped = gameEngineCore.stopGameLoopAndWait(GAME_LOOP_STOP_TIMEOUT_MS)
+        if (!stopped) {
+            Log.e(TAG, "=== cloud download FAILED === cannot stop game loop within timeout")
+            _cloudSaveOperationState.value = CloudSaveOperationState.Error("无法停止游戏循环，请重试")
+            return
+        }
+        _isTimeRunning.value = false
+        Log.d(TAG, "Game loop stopped for cloud download")
         gameEngine.loadData(
             gameData = resolvedGameData,
             disciples = reconciled.disciples,

@@ -14,6 +14,7 @@ import com.xianxia.sect.core.state.RunState
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.data.facade.StorageFacade
 import com.xianxia.sect.data.model.SaveSlot
+import com.xianxia.sect.ui.game.SaveLoadViewModelConstants
 import kotlinx.coroutines.*
 
 /**
@@ -52,7 +53,16 @@ class SaveLoadLoadDelegate(
         return try {
             if (stateStore.runState.value == RunState.PLAYING) {
                 Log.i(TAG, "Game already loaded, will reload from slot ${saveSlot.slot}")
-                gameEngineCore.stopGameLoop()
+                // 玉符防回退（2026-08-10）：等待旧循环 finally 彻底完成（与
+                // SaveLoadViewModel.performLoadToSlot 同因），非等待 stop 会让
+                // checkpointNow 晚于快照替换、用旧运行时值覆盖新档玉符
+                val stopped = gameEngineCore.stopGameLoopAndWait(
+                    SaveLoadViewModelConstants.GAME_LOOP_STOP_TIMEOUT_MS
+                )
+                if (!stopped) {
+                    uiCallbacks?.showError("无法停止游戏循环，请重试")
+                    return false
+                }
             }
 
             val saveData = withTimeoutOrNull(60_000L) {

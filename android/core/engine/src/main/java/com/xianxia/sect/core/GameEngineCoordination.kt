@@ -331,6 +331,13 @@ internal fun normalizeDiscipleIds(disciples: List<Disciple>): List<Disciple> {
     }.filterNotNull()
 }
 
+/**
+ * ⚠️ 调用方必须保证游戏循环已停止（stopGameLoopAndWait）后再调用本函数：
+ * 循环 finally 的 JadeSymbolService.onLoopStop()（checkpointNow 绝对值覆盖写）
+ * 晚于本函数替换 gameData 执行时，会用旧运行时值覆盖新档玉符四字段
+ * （参照 SaveLoadViewModel.performLoadToSlot / applyCloudSaveToEngine 的
+ * stopGameLoopAndWait 前置模式，2026-08-10）。
+ */
 suspend fun GameEngine.loadData(
     gameData: GameData, disciples: List<Disciple>, equipmentStacks: List<EquipmentStack>,
     equipmentInstances: List<EquipmentInstance>, manualStacks: List<ManualStack>,

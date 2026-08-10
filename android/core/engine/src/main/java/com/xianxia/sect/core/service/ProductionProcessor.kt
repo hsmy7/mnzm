@@ -6,6 +6,8 @@ import com.xianxia.sect.core.engine.di.IoDispatcher
 import kotlin.math.roundToInt
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.ElderSlots
+import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.ForgeRecipe
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.Herb
@@ -51,6 +53,7 @@ import com.xianxia.sect.core.util.DomainResult
 import com.xianxia.sect.core.util.ZoneCalculator
 import com.xianxia.sect.core.util.TimeProgressUtil
 import com.xianxia.sect.core.engine.annotation.GameService
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
 import com.xianxia.sect.core.engine.LazyEvaluationDispatcher
@@ -63,6 +66,14 @@ import javax.inject.Singleton
 
 
 
+/**
+ * 自动排班互斥决策（2026-08-10，详见 buildOccupiedSlotDiscipleIds）：
+ * 候选过滤走"status==IDLE（存储权威）+ 全槽位占用集合（第二层防御）"，
+ * **不**注册 DiscipleAssignmentGate（confirmAssign 不会调用
+ * gate.filterAvailableDisciples——注册会造成 gate 陈旧条目，validateAutoSlot
+ * 清槽路径不 release；gate 一致性由读档 rebuildFromGameData 兜底，
+ * UI 全走 status 过滤）。
+ */
 @Singleton
 @GameService("ProductionProcessor")
 class ProductionProcessor @Inject constructor(
@@ -822,15 +833,15 @@ class ProductionProcessor @Inject constructor(
     fun processAutoAssign(state: MutableGameState) {
         val data = state.gameData
         val policies = data.sectPolicies
-        // 双槽分叉防线：已占用镜像生产槽/灵矿槽的弟子排除在自动排班候选之外。
-        // 只清镜像的入口曾让弟子状态推导为 IDLE 但槽位仍被占用，
-        // 若此处重复分配会造成同一弟子同时占多个生产槽（玩家反馈"弟子被自动任命其他工作槽位"根因）
-        val occupiedProductionIds = data.productionSlots
-            .filter { !it.assignedDiscipleId.isNullOrEmpty() }
-            .mapNotNull { it.assignedDiscipleId }.toSet() +
-            data.spiritMineSlots.filter { it.discipleId.isNotEmpty() }.map { it.discipleId }.toSet()
+        // 双槽分叉防线（2026-08-10 互斥化）：全槽位占用弟子排除在自动排班候选之外。
+        // - status==IDLE 为第一层（存储权威）
+        // - occupiedIds 为第二层：扫描全部工作槽位（长老/生产/灵矿/藏经阁/仓库驻守/
+        //   巡视/宗门驻守/战斗队伍/活跃任务/秘境/洞穴/探索队伍/血炼）——防御"分配后
+        //   尚未 syncAllDiscipleStatuses"的陈旧状态窗口与推导缺口（如纳徒长老被推导
+        //   为 IDLE 后从"可用弟子"可见），杜绝占用弟子被捕获制造双槽位
+        val occupiedIds = buildOccupiedSlotDiscipleIds(data, state.teams)
         val idleDisciples = state.discipleTables.assembleAll()
-            .filter { d -> d.status == DiscipleStatus.IDLE && d.isAlive && d.id !in occupiedProductionIds }
+            .filter { d -> d.status == DiscipleStatus.IDLE && d.isAlive && d.id !in occupiedIds }
             .toMutableList()
 
 
@@ -1664,3 +1675,64 @@ internal fun shouldResetSlotForCompletion(
 ): Boolean = current.status == ProductionSlotStatus.WORKING &&
     current.completionMonth == settled.completionMonth &&
     current.recipeId == settled.recipeId
+
+/**
+ * 全槽位占用弟子 ID 收集（2026-08-10 月度自动排班互斥化）。
+ *
+ * 扫描全部工作槽位：长老全槽位（含纳徒长老 recruitingElder）、生产镜像槽、
+ * 灵矿/藏经阁/仓库驻守/巡视/玩家宗门驻守、战斗队伍、活跃任务、远古秘境
+ * 探索成员（secretRealmState.exists 时）、洞穴探索队伍（仅活跃状态）、
+ * 玩家探索队伍（仅活跃状态，与 [DiscipleStatusService.buildInTeamIds]
+ * 同状态条件）、血炼进度。
+ *
+ * 调用方 [ProductionProcessor.processAutoAssign] 以 status==IDLE 为第一层
+ * 过滤（存储权威），本函数为第二层防御——覆盖同一事务内"分配后尚未
+ * syncAllDiscipleStatuses"的陈旧状态窗口与推导缺口（如纳徒长老被推导为
+ * IDLE），杜绝占用弟子被当作空闲捕获制造双槽位。
+ *
+ * @param data 当前游戏数据（含全部槽位字段）
+ * @param teams 玩家探索队伍（仅活跃状态参与，与状态推导判定一致）
+ */
+internal fun buildOccupiedSlotDiscipleIds(data: GameData, teams: List<ExplorationTeam>): Set<String> = buildSet {
+    addAll(collectElderSlotDiscipleIds(data.elderSlots))
+    data.spiritMineSlots.filter { it.discipleId.isNotEmpty() }.forEach { add(it.discipleId) }
+    data.librarySlots.filter { it.discipleId.isNotEmpty() }.forEach { add(it.discipleId) }
+    data.warehouseGarrisons.filter { it.discipleId.isNotEmpty() }.forEach { add(it.discipleId) }
+    data.patrolSlots.filter { it.discipleId.isNotEmpty() }.forEach { add(it.discipleId) }
+    data.worldMapSects.find { it.isPlayerSect }?.garrisonSlots
+        ?.filter { it.discipleId.isNotEmpty() }?.forEach { add(it.discipleId) }
+    data.battleTeams.flatMap { it.slots }
+        .filter { it.discipleId.isNotEmpty() }.forEach { add(it.discipleId) }
+    data.activeMissions.forEach { addAll(it.discipleIds) }
+    if (data.secretRealmState.exists) {
+        data.secretRealmSession.members.filter { !it.isDead }.forEach { add(it.discipleId) }
+    }
+    data.caveExplorationTeams.filter { it.status in DiscipleStatusService.caveExplorationStatuses }
+        .forEach { addAll(it.memberIds) }
+    teams.filter { it.status in DiscipleStatusService.explorationStatuses }
+        .forEach { addAll(it.memberIds) }
+    data.activeBloodRefinements.values.filter { it.discipleId.isNotEmpty() }.forEach { add(it.discipleId) }
+    data.productionSlots
+        .mapNotNull { it.assignedDiscipleId?.takeIf { id -> id.isNotEmpty() } }
+        .forEach { add(it) }
+}
+
+/**
+ * 长老槽位全部占用弟子 ID 收集（10 个单槽字段 + 7 个亲传弟子列表字段）。
+ * 显式清单 + 守卫测试（ElderSlotsStatusCoverageTest 反射双向校验）保证新增
+ * 字段不遗漏——遗漏会导致该槽位弟子被自动排班当作空闲调动（双槽位根因）。
+ */
+internal fun collectElderSlotDiscipleIds(elderSlots: ElderSlots): Set<String> = buildSet {
+    listOf(
+        elderSlots.viceSectMaster, elderSlots.herbGardenElder, elderSlots.alchemyElder,
+        elderSlots.forgeElder, elderSlots.outerElder, elderSlots.preachingElder,
+        elderSlots.lawEnforcementElder, elderSlots.innerElder,
+        elderSlots.qingyunPreachingElder, elderSlots.recruitingElder
+    ).filter { it.isNotEmpty() }.forEach { add(it) }
+    listOf(
+        elderSlots.preachingMasters, elderSlots.lawEnforcementDisciples,
+        elderSlots.qingyunPreachingMasters, elderSlots.herbGardenDisciples,
+        elderSlots.alchemyDisciples, elderSlots.forgeDisciples,
+        elderSlots.spiritMineDeaconDisciples
+    ).flatten().filter { it.discipleId.isNotEmpty() }.forEach { add(it.discipleId) }
+}

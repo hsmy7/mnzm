@@ -39,6 +39,10 @@ object SaveLoadViewModelConstants {
     const val MAX_CONSECUTIVE_SAVE_FAILURES = 3
     const val SAVE_LOCK_TIMEOUT_MS = 60_000L
 
+    /** 游戏循环停止等待超时（读档/重启前必须等待旧循环 finally 彻底完成，
+     *  玉符 checkpointNow 绝对值覆盖写晚于快照替换会污染新档，见 performLoadToSlot） */
+    const val GAME_LOOP_STOP_TIMEOUT_MS = 5_000L
+
     const val PROGRESS_START = 0f
     const val PROGRESS_ENGINE_INIT = 0.15f
     const val PROGRESS_DATA_LOAD = 0.25f
