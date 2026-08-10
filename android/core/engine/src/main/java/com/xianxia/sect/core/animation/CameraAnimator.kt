@@ -22,14 +22,17 @@ import kotlin.coroutines.cancellation.CancellationException
  *
  * ## 跨平台
  * - 纯 Kotlin + kotlinx.coroutines，零平台依赖
- * - 时间源: 目前使用 System.nanoTime()，iOS 移植需替换为 CrossPlatformTimeSource
+ * - 时间源: [TimeSource] 抽象（默认 System.nanoTime()），iOS 移植可注入
+ *   CADisplayLink 时间源（见 [TimeSource]）
  *
  * @param cameraState 要驱动的相机状态（通过 [CameraState.setPosition]/[CameraState.applyScale] 写入）
  * @param scope 协程作用域（通常为 viewModelScope 或 engineScope）
+ * @param timeSource 单调时间源（默认 [TimeSource.SYSTEM]；测试注入假时间源确定性验证时长）
  */
 class CameraAnimator(
     private val cameraState: CameraState,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val timeSource: TimeSource = TimeSource.SYSTEM
 ) {
     private var job: Job? = null
 
@@ -46,16 +49,23 @@ class CameraAnimator(
      * @param durationMs 动画时长(ms)，默认 400ms
      */
     fun animateTo(target: CameraTarget, durationMs: Long = 400L) {
+        // 对抗性审查修复：非正时长直接瞬时完成——负时长下 progress 恒负 → t 恒 0 →
+        // `if (t >= 1f) break` 永不触发 → 死循环占用主线程（ANR）
+        if (durationMs <= 0L) {
+            cameraState.setPosition(target.x, target.y)
+            target.scale?.let { cameraState.applyScale(it) }
+            return
+        }
         job?.cancel()
         job = scope.launch {
             try {
                 val startX = cameraState.cameraX
                 val startY = cameraState.cameraY
                 val startScale = cameraState.scale
-                val startTime = System.nanoTime()
+                val startTime = timeSource.nanoTime()
 
                 while (isActive) {
-                    val elapsed = (System.nanoTime() - startTime) / 1_000_000f
+                    val elapsed = (timeSource.nanoTime() - startTime) / 1_000_000f
                     val progress = elapsed / durationMs.toFloat()
                     val t = when {
                         progress < 0f -> 0f

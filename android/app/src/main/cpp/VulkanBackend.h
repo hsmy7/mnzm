@@ -38,6 +38,16 @@ public:
     bool isReady() const override { return m_ready; }
     uint32_t uploadTexture(const void* pixels, int width, int height) override;
     void destroyTexture(uint32_t id) override;
+
+    // === WP7 ASTC 压缩纹理（非虚——仅 Vulkan 路径使用，NativeBridge 经 dynamic_cast 调用） ===
+
+    /**
+     * 上传 ASTC 4x4 LDR 压缩纹理（KTX 数据段，已由 KtxLoader 校验）。
+     * 设备不支持 textureCompressionASTC_LDR、数据尺寸与块数不符、宽高非 4 倍数
+     * 均返回 0（调用方回退 RGBA 路径）。staging 上传模式与 uploadTexture 相同。
+     */
+    uint32_t uploadCompressedTexture(const uint8_t* data, size_t dataSize,
+                                     int width, int height);
     void setProjection(const float mat[16]) override;
     void draw(const SpriteVertex* vertices, int count, uint32_t textureId) override;
     void submitFrame() override;
@@ -155,6 +165,9 @@ private:
     // 渲染配置
     RenderConfig m_config{};
     float m_projMatrix[16]{};
+
+    /** 设备是否支持 ASTC LDR 压缩纹理（createLogicalDevice 记录，WP7） */
+    bool m_astcSupported = false;
 
     // 帧绘制状态
     struct DrawCommand {

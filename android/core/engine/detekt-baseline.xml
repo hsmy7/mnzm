@@ -9,12 +9,8 @@
     <ID>ComplexCondition:GridSystem.kt$GridSystem$gridX &lt; buildableBorder || gridY &lt; buildableBorder || gridX + width &gt; gridWidthCells - buildableBorder || gridY + height &gt; gridHeightCells - buildableBorder</ID>
     <ID>ComplexCondition:PillEffectApplier.kt$PillEffectApplier$!DisciplePillManager.hasAnyBattleAttrAdd(effect) &amp;&amp; effect.cultivationSpeedPercent &lt;= 0 &amp;&amp; effect.skillExpSpeedPercent &lt;= 0 &amp;&amp; effect.nurtureSpeedPercent &lt;= 0</ID>
     <ID>ComplexCondition:ProductionProcessor.kt$ProductionProcessor$allAssignments.isEmpty() &amp;&amp; herbCandidates.isEmpty() &amp;&amp; mineCandidates.isEmpty() &amp;&amp; alchemyCandidates.isEmpty() &amp;&amp; forgeCandidates.isEmpty()</ID>
-    <ID>ComplexCondition:ProductionProcessor.kt$ProductionProcessor$disciple == null || !disciple.isAlive || (disciple.status != DiscipleStatus.IDLE &amp;&amp; disciple.status != DiscipleStatus.ALCHEMY)</ID>
-    <ID>ComplexCondition:ProductionProcessor.kt$ProductionProcessor$disciple == null || !disciple.isAlive || (disciple.status != DiscipleStatus.IDLE &amp;&amp; disciple.status != DiscipleStatus.FORGE)</ID>
     <ID>ComplexCondition:SectMapTileGenerator.kt$SectMapTileGenerator$x &lt; ring || x &gt;= w - ring || y &lt; ring || y &gt;= h - ring</ID>
-    <ID>CyclomaticComplexMethod:AISectAttackManager.kt$AISectAttackManager$fun decidePlayerAttack(gameData: GameData): PlayerAttackDecision</ID>
     <ID>CyclomaticComplexMethod:AISectAttackManager.kt$AISectAttackManager$fun findSectsWithNoTargets(gameData: GameData): Set&lt;String&gt;</ID>
-    <ID>CyclomaticComplexMethod:AISectAttackManager.kt$AISectAttackManager$private fun resolveDefendersAndBattle( attacker: WorldSect, defender: WorldSect, gameData: GameData, aiDisciplesMap: Map&lt;String, List&lt;Disciple&gt;&gt;, selectedAttackers: List&lt;Disciple&gt;, playerOccupiedDefendersMap: Map&lt;String, PlayerOccupiedDefenseInfo&gt; ): AIAttackResult?</ID>
     <ID>CyclomaticComplexMethod:AISectBeastAttackProcessor.kt$AISectBeastAttackProcessor$fun processRemainingTargets(state: MutableGameState)</ID>
     <ID>CyclomaticComplexMethod:AISectBeastAttackProcessor.kt$AISectBeastAttackProcessor$private fun collectQualifiedAiForBeast( state: MutableGameState, gd: com.xianxia.sect.core.model.GameData, beast: WorldLevel, rng: com.xianxia.sect.core.util.DeterministicRng, absoluteMonth: Int ): List&lt;String&gt;</ID>
     <ID>CyclomaticComplexMethod:AISectGarrisonManager.kt$AISectGarrisonManager$fun fillEmptyGarrisonSlots(gameData: GameData): GameData</ID>
@@ -23,21 +19,15 @@
     <ID>CyclomaticComplexMethod:BattleAI.kt$BattleAI$fun decideAction( unit: Combatant, allies: List&lt;Combatant&gt;, enemies: List&lt;Combatant&gt;, rng: DeterministicRng, playerDamageModifier: Double = 1.0 ): AIAction</ID>
     <ID>CyclomaticComplexMethod:BattleAI.kt$BattleAI$private fun findAllySupport( unit: Combatant, allies: List&lt;Combatant&gt;, supportSkills: List&lt;CombatSkill&gt; ): AIAction?</ID>
     <ID>CyclomaticComplexMethod:BattleAI.kt$BattleAI$private fun findSelfPreservation( unit: Combatant, supportSkills: List&lt;CombatSkill&gt; ): AIAction?</ID>
-    <ID>CyclomaticComplexMethod:BattleCalculator.kt$BattleCalculator$fun executeSupportSkill( caster: Combatant, allies: List&lt;Combatant&gt;, skill: CombatSkill, allCombatants: List&lt;Combatant&gt; = emptyList() ): SupportResult</ID>
     <ID>CyclomaticComplexMethod:BattleCalculator.kt$BattleCalculator$fun selectSkill( combatant: Combatant, enemies: List&lt;Combatant&gt;, allies: List&lt;Combatant&gt;, isSilenced: Boolean, rng: DeterministicRng ): CombatSkill?</ID>
     <ID>CyclomaticComplexMethod:BeastAttackDetector.kt$BeastAttackDetector$fun detectAttacks(gd: GameData): List&lt;PendingBeastAttack&gt;</ID>
-    <ID>CyclomaticComplexMethod:BootSequenceController.kt$BootSequenceController$@Suppress("LongParameterList") suspend fun boot( slot: Int, onPreloadResources: suspend () -&gt; Unit = {}, onProgress: (Float) -&gt; Unit = {}, onPhase: (String) -&gt; Unit = {}, onMapReady: (MapPreloadData) -&gt; Unit = {}, onSuccess: () -&gt; Unit = {}, onError: (String) -&gt; Unit = {} ): Result&lt;Unit&gt;</ID>
-    <ID>CyclomaticComplexMethod:BuildingService.kt$BuildingService$private suspend fun completeBuildingTaskFromProductionSlot( slot: ProductionSlot )</ID>
-    <ID>CyclomaticComplexMethod:CaveExplorationProcessor.kt$CaveExplorationProcessor$fun processAISectOperations(year: Int, month: Int, state: MutableGameState)</ID>
     <ID>CyclomaticComplexMethod:CaveExplorationSystem.kt$CaveExplorationSystem$fun createGuardianBattle( playerDisciples: List&lt;Disciple&gt;, playerEquipmentMap: Map&lt;String, EquipmentInstance&gt;, playerManualMap: Map&lt;String, ManualInstance&gt;, playerManualProficiencies: Map&lt;String, Map&lt;String, ManualProficiencyData&gt;&gt;, cave: CultivatorCave, bloodRefinementMap: Map&lt;String, BloodRefinementPctTotal&gt; = emptyMap() ): Battle</ID>
     <ID>CyclomaticComplexMethod:ChildBirthSystem.kt$ChildBirthSystem$private fun processYearlyConception(state: MutableGameState)</ID>
     <ID>CyclomaticComplexMethod:CombatService.kt$CombatService$private fun collectCasualtyData( deadMemberIds: Set&lt;String&gt;, isOutsideSect: Boolean ): CasualtyData</ID>
     <ID>CyclomaticComplexMethod:CombatService.kt$CombatService$private fun computeElderSlotUpdates( data: GameData, deadMemberIds: Set&lt;String&gt; ): ElderSlots</ID>
     <ID>CyclomaticComplexMethod:CombatService.kt$CombatService$suspend fun processBattleCasualties( deadMemberIds: Set&lt;String&gt;, survivorHpMap: Map&lt;String, Int&gt;, survivorMpMap: Map&lt;String, Int&gt; = emptyMap(), isOutsideSect: Boolean = true )</ID>
-    <ID>CyclomaticComplexMethod:CultivationCore.kt$CultivationCore$fun processManualProficiencySingle( state: MutableGameState, id: Int, manualInstanceMap: Map&lt;String, ManualInstance&gt;? = null, pendingProficiencies: MutableMap&lt;String, List&lt;ManualProficiencyData&gt;?&gt;? = null, libraryDiscipleIds: Set&lt;String&gt;? = null )</ID>
     <ID>CyclomaticComplexMethod:CultivationCoreRealtimeAutoPillsTest.kt$PillsRealtime$fun process( state: MutableGameState, pillManager: DisciplePillManager, year: Int, month: Int, phase: Int )</ID>
     <ID>CyclomaticComplexMethod:CultivationEventProcessor.kt$CultivationEventProcessor$internal fun MutableGameState.applyMissionRewards(rewards: List&lt;MissionReward&gt;)</ID>
-    <ID>CyclomaticComplexMethod:CultivationEventProcessor.kt$CultivationEventProcessor$private fun processAutoFromWarehouse( year: Int, month: Int, phase: Int, state: MutableGameState )</ID>
     <ID>CyclomaticComplexMethod:CultivationRateCalculator.kt$CultivationRateCalculator$private fun calculatePreachingBonusesColumn( discipleRealm: Int, discipleType: String, data: GameData, tables: DiscipleTables, targetDiscipleType: String ): Pair&lt;Double, Double&gt;</ID>
     <ID>CyclomaticComplexMethod:CultivationService.kt$CultivationService$fun recoverHpMpForCombatDisciples(state: MutableGameState)</ID>
     <ID>CyclomaticComplexMethod:CultivationSettlement.kt$CultivationSettlement$fun processAnnualSalary(year: Int)</ID>
@@ -53,7 +43,6 @@
     <ID>CyclomaticComplexMethod:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$private fun MutableGameState.applyPillEffectsToDisciple(id: Int, pill: Pill)</ID>
     <ID>CyclomaticComplexMethod:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$private fun learnManual(discipleId: String, stackId: String)</ID>
     <ID>CyclomaticComplexMethod:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$private fun rewardEquipment(discipleId: String, item: RewardSelectedItem)</ID>
-    <ID>CyclomaticComplexMethod:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$private fun rewardManual(discipleId: String, item: RewardSelectedItem)</ID>
     <ID>CyclomaticComplexMethod:DiscipleManualManager.kt$DiscipleManualManager$fun processAutoLearnFromWarehouse( disciple: Disciple, warehouseStacks: List&lt;ManualStack&gt;, manualInstances: Map&lt;String, ManualInstance&gt;, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStack: Int = MAX_MANUAL_STACK ): ManualLearnResult</ID>
     <ID>CyclomaticComplexMethod:DiscipleMasterApprenticeService.kt$DiscipleMasterApprenticeService$fun apprenticeToMaster(discipleId: String, masterId: String): DomainResult&lt;Unit&gt;</ID>
     <ID>CyclomaticComplexMethod:DisciplePurchaseService.kt$DisciplePurchaseService$private fun MutableGameState.hasWarehouseStock(item: MerchantItem): Boolean</ID>
@@ -71,21 +60,15 @@
     <ID>CyclomaticComplexMethod:ElderManagementUseCase.kt$ElderManagementUseCase$suspend fun assignElder(slotType: ElderSlotType, discipleId: String): ElderResult</ID>
     <ID>CyclomaticComplexMethod:EngineServiceAnnotationTest.kt$EngineServiceAnnotationTest$@Test fun `new service classes must have GameService annotation`()</ID>
     <ID>CyclomaticComplexMethod:ExplorationService.kt$ExplorationService$private fun MutableGameState.applyBeastVictoryBonuses( disciples: List&lt;Disciple&gt; ): List&lt;Disciple&gt;</ID>
-    <ID>CyclomaticComplexMethod:ExplorationService.kt$ExplorationService$suspend fun resolveBeastAttackFight( beastLevelId: String, manualDefenders: List&lt;Disciple&gt;? = null ): Boolean</ID>
     <ID>CyclomaticComplexMethod:FormulaService.kt$FormulaService$fun calculateElderAndDisciplesBonus(buildingType: String): ElderBonusData</ID>
     <ID>CyclomaticComplexMethod:GameEngineAtomicAssign.kt$suspend fun GameEngine.assignToResidenceAtomic( buildingInstanceId: String, slotIndex: Int, discipleId: String ): DomainResult&lt;Unit&gt;</ID>
     <ID>CyclomaticComplexMethod:GameEngineAtomicAssign.kt$suspend fun GameEngine.autoAssignPatrolAtomic( assignments: List&lt;Pair&lt;Int, String&gt;&gt; ): DomainResult&lt;Unit&gt;</ID>
     <ID>CyclomaticComplexMethod:GameEngineAtomicAssign.kt$suspend fun GameEngine.swapPatrolAtomic( fromGlobalIndex: Int, toGlobalIndex: Int ): DomainResult&lt;Unit&gt;</ID>
     <ID>CyclomaticComplexMethod:GameEngineBattleOps.kt$private suspend fun GameEngine.handleCaveLevelVictory(level: WorldLevel): List&lt;BattleRewardItem&gt;</ID>
-    <ID>CyclomaticComplexMethod:GameEngineBattleOps.kt$suspend fun GameEngine.attackSect(sectId: String, attackSlots: List&lt;Pair&lt;Int, DiscipleAggregate&gt;&gt;)</ID>
-    <ID>CyclomaticComplexMethod:GameEngineBattleOps.kt$suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List&lt;String?&gt;)</ID>
-    <ID>CyclomaticComplexMethod:GameEngineBattleOps.kt$suspend fun GameEngine.scoutSect(sectId: String, memberIds: List&lt;String&gt;)</ID>
     <ID>CyclomaticComplexMethod:GameEngineCoordination.kt$private fun migratePatrolSlotsIfNeeded(gameData: GameData, disciples: List&lt;Disciple&gt;): Pair&lt;GameData, List&lt;Disciple&gt;&gt;</ID>
     <ID>CyclomaticComplexMethod:GameEngineCoordination.kt$private suspend fun GameEngine.applyMissionResult( result: MissionSystem.MissionResult, activeMission: ActiveMission, year: Int, month: Int, aliveDisciples: List&lt;Disciple&gt; )</ID>
     <ID>CyclomaticComplexMethod:GameEngineCoordination.kt$suspend fun GameEngine.learnManual(discipleId: String, stackId: String)</ID>
     <ID>CyclomaticComplexMethod:GameEngineCoordination.kt$suspend fun GameEngine.loadData( gameData: GameData, disciples: List&lt;Disciple&gt;, equipmentStacks: List&lt;EquipmentStack&gt;, equipmentInstances: List&lt;EquipmentInstance&gt;, manualStacks: List&lt;ManualStack&gt;, manualInstances: List&lt;ManualInstance&gt;, pills: List&lt;Pill&gt;, materials: List&lt;Material&gt; = emptyList(), herbs: List&lt;Herb&gt; = emptyList(), seeds: List&lt;Seed&gt; = emptyList(), teams: List&lt;ExplorationTeam&gt;, battleLogs: List&lt;BattleLog&gt; = emptyList(), alliances: List&lt;Alliance&gt; = emptyList(), productionSlots: List&lt;ProductionSlot&gt; = emptyList(), storageBags: List&lt;StorageBag&gt; = emptyList() )</ID>
-    <ID>CyclomaticComplexMethod:GameEngineCore.kt$GameEngineCore$fun startGameLoop()</ID>
-    <ID>CyclomaticComplexMethod:GameEngineCore.kt$GameEngineCore$private fun startWatchdog()</ID>
     <ID>CyclomaticComplexMethod:GameEngineSectLevelOps.kt$suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult</ID>
     <ID>CyclomaticComplexMethod:GiftService.kt$GiftService$suspend fun giftSpiritStones( sectId: String, tier: Int, bypassYearLimit: Boolean = false ): GiftResult</ID>
     <ID>CyclomaticComplexMethod:GpuTierDetector.kt$GpuTierDetector$internal fun classifyRenderer(renderer: String): GpuTier</ID>
@@ -115,7 +98,6 @@
     <ID>CyclomaticComplexMethod:RelativeGiftHandler.kt$RelativeGiftHandler$private fun collectReverseRelatives( discipleId: Int, myIdStr: String, tables: DiscipleTables, seen: MutableSet&lt;Int&gt; )</ID>
     <ID>CyclomaticComplexMethod:SectMapTileGenerator.kt$SectMapTileGenerator$fun computeAutotileBitmask(tileData: Array&lt;IntArray&gt;): Array&lt;ByteArray&gt;</ID>
     <ID>CyclomaticComplexMethod:SectMapTouchEngine.kt$SectMapTouchEngine$private fun handleDown(data: TouchData)</ID>
-    <ID>CyclomaticComplexMethod:SectMapTouchEngine.kt$SectMapTouchEngine$private fun handleMove(data: TouchData)</ID>
     <ID>CyclomaticComplexMethod:SpiritStoneWallet.kt$SpiritStoneWallet$fun batch( state: MutableGameState, operations: List&lt;SpiritStoneOperation&gt;, autoConvert: Boolean = false ): BatchResult</ID>
     <ID>CyclomaticComplexMethod:SpriteAtlasDef.kt$SpriteAtlasDef$fun floorTileIndex(gw: Int, gh: Int): Int</ID>
     <ID>CyclomaticComplexMethod:ThermalController.kt$ThermalController$private fun evaluateLevel(temp: Float, recentFps: Float): DegradationLevel</ID>
@@ -127,7 +109,6 @@
     <ID>EmptyFunctionBlock:BootSequenceControllerTest.kt$FakeGameStateStore${}</ID>
     <ID>EmptyFunctionBlock:ChildBirthSystem.kt$ChildBirthSystem${}</ID>
     <ID>EmptyFunctionBlock:ExplorationTeamManagerTest.kt$FakeStore${}</ID>
-    <ID>EmptyFunctionBlock:GameEngineAtomicAssignTest.kt$FakeAtomicStateStore${}</ID>
     <ID>EmptyFunctionBlock:GameEngineCoordinationTest.kt$SimpleStore${}</ID>
     <ID>EmptyFunctionBlock:GameEngineMarriageProposalTest.kt$MarriageProposalTestStore${}</ID>
     <ID>EmptyFunctionBlock:GameEngineRenameTest.kt$RenameStore${}</ID>
@@ -219,7 +200,6 @@
     <ID>InvalidPackageDeclaration:GameSystem.kt$package com.xianxia.sect.core.engine.annotation</ID>
     <ID>InvalidPackageDeclaration:GameSystem.kt$package com.xianxia.sect.core.engine.system</ID>
     <ID>InvalidPackageDeclaration:GameTimeClock.kt$package com.xianxia.sect.core.engine.system</ID>
-    <ID>InvalidPackageDeclaration:GeometryUtils.kt$package com.xianxia.sect.core.engine.domain.exploration</ID>
     <ID>InvalidPackageDeclaration:HerbGardenAuraService.kt$package com.xianxia.sect.core.engine.domain.building</ID>
     <ID>InvalidPackageDeclaration:HpMpRecoveryService.kt$package com.xianxia.sect.core.engine.service</ID>
     <ID>InvalidPackageDeclaration:IntelligentSectDecisionEngine.kt$package com.xianxia.sect.core.engine.domain.diplomacy</ID>
@@ -258,7 +238,6 @@
     <ID>InvalidPackageDeclaration:SaveService.kt$package com.xianxia.sect.core.engine.domain.save</ID>
     <ID>InvalidPackageDeclaration:SectCombatPowerCalculator.kt$package com.xianxia.sect.core.engine</ID>
     <ID>InvalidPackageDeclaration:SectWarehouseManager.kt$package com.xianxia.sect.core.engine</ID>
-    <ID>InvalidPackageDeclaration:StateAccessor.kt$package com.xianxia.sect.core.engine.system</ID>
     <ID>InvalidPackageDeclaration:SystemManager.kt$package com.xianxia.sect.core.engine.system</ID>
     <ID>InvalidPackageDeclaration:SystemPriority.kt$package com.xianxia.sect.core.engine.system</ID>
     <ID>InvalidPackageDeclaration:TimeSystem.kt$package com.xianxia.sect.core.engine.system</ID>
@@ -266,33 +245,22 @@
     <ID>InvalidPackageDeclaration:WorldMapGenerator.kt$package com.xianxia.sect.core.engine</ID>
     <ID>LargeClass:AISectAttackManager.kt$AISectAttackManager</ID>
     <ID>LargeClass:BattleSystem.kt$BattleSystem</ID>
-    <ID>LargeClass:DiscipleFacadeImpl.kt$DiscipleFacadeImpl : DiscipleFacade</ID>
     <ID>LargeClass:DiscipleStatCalculator.kt$DiscipleStatCalculator</ID>
     <ID>LargeClass:DiscipleStatCalculatorTest.kt$DiscipleStatCalculatorTest</ID>
     <ID>LargeClass:GameEngineCore.kt$GameEngineCore : EngineContextDispatcher</ID>
     <ID>LargeClass:InventorySystem.kt$InventorySystem : GameSystemItemAdder</ID>
-    <ID>LargeClass:MailService.kt$MailService</ID>
     <ID>LargeClass:ProductionProcessor.kt$ProductionProcessor</ID>
     <ID>LargeClass:ProductionProcessorTest.kt$ProductionProcessorTest</ID>
-    <ID>LargeClass:RedeemCodeManager.kt$RedeemCodeManager</ID>
-    <ID>LongMethod:AISectAttackManager.kt$AISectAttackManager$private fun resolveDefendersAndBattle( attacker: WorldSect, defender: WorldSect, gameData: GameData, aiDisciplesMap: Map&lt;String, List&lt;Disciple&gt;&gt;, selectedAttackers: List&lt;Disciple&gt;, playerOccupiedDefendersMap: Map&lt;String, PlayerOccupiedDefenseInfo&gt; ): AIAttackResult?</ID>
-    <ID>LongMethod:AISectBeastAttackProcessor.kt$AISectBeastAttackProcessor$private fun executeAIEncounterBattle( state: MutableGameState, sectA: WorldSect, sectB: WorldSect, beast: WorldLevel, year: Int )</ID>
-    <ID>LongMethod:AISectDiscipleManager.kt$AISectDiscipleManager$fun generateRandomDisciple( sectName: String, existingNames: Set&lt;String&gt; = emptySet() ): Disciple</ID>
     <ID>LongMethod:AISectTeamComposer.kt$internal fun generateWarRewards(sectLevel: Int, itemCount: Int): WarRewards</ID>
     <ID>LongMethod:BattleAI.kt$BattleAI$fun decideAction( unit: Combatant, allies: List&lt;Combatant&gt;, enemies: List&lt;Combatant&gt;, rng: DeterministicRng, playerDamageModifier: Double = 1.0 ): AIAction</ID>
-    <ID>LongMethod:BattleCalculator.kt$BattleCalculator$fun executeSupportSkill( caster: Combatant, allies: List&lt;Combatant&gt;, skill: CombatSkill, allCombatants: List&lt;Combatant&gt; = emptyList() ): SupportResult</ID>
     <ID>LongMethod:BattleSystem.kt$BattleSystem$private fun createBeast( beastRealm: Int, index: Int, beastType: String? = null, preGenStats: BeastPreGenStats? = null ): Combatant</ID>
-    <ID>LongMethod:BootSequenceController.kt$BootSequenceController$@Suppress("LongParameterList") suspend fun boot( slot: Int, onPreloadResources: suspend () -&gt; Unit = {}, onProgress: (Float) -&gt; Unit = {}, onPhase: (String) -&gt; Unit = {}, onMapReady: (MapPreloadData) -&gt; Unit = {}, onSuccess: () -&gt; Unit = {}, onError: (String) -&gt; Unit = {} ): Result&lt;Unit&gt;</ID>
     <ID>LongMethod:BuildingConfigService.kt$BuildingConfigService$private fun createDefaultConfig(): BuildingsConfig</ID>
     <ID>LongMethod:BuildingFeatureTestRegistration.kt$fun BuildingFeatureRegistry.registerTestFeatures()</ID>
-    <ID>LongMethod:BuildingService.kt$BuildingService$private suspend fun completeBuildingTaskFromProductionSlot( slot: ProductionSlot )</ID>
     <ID>LongMethod:CaveExplorationProcessor.kt$CaveExplorationProcessor$private fun grantPillReward( reward: CaveRewardItem, battleRewardItems: MutableList&lt;BattleRewardItem&gt; )</ID>
     <ID>LongMethod:CaveExplorationSystem.kt$CaveExplorationSystem$fun createGuardianBattle( playerDisciples: List&lt;Disciple&gt;, playerEquipmentMap: Map&lt;String, EquipmentInstance&gt;, playerManualMap: Map&lt;String, ManualInstance&gt;, playerManualProficiencies: Map&lt;String, Map&lt;String, ManualProficiencyData&gt;&gt;, cave: CultivatorCave, bloodRefinementMap: Map&lt;String, BloodRefinementPctTotal&gt; = emptyMap() ): Battle</ID>
     <ID>LongMethod:CaveExplorationSystem.kt$CaveExplorationSystem$private fun createGuardian(realm: Int, index: Int, isBoss: Boolean = false): Combatant</ID>
     <ID>LongMethod:CombatService.kt$CombatService$suspend fun processBattleCasualties( deadMemberIds: Set&lt;String&gt;, survivorHpMap: Map&lt;String, Int&gt;, survivorMpMap: Map&lt;String, Int&gt; = emptyMap(), isOutsideSect: Boolean = true )</ID>
-    <ID>LongMethod:CultivationCore.kt$CultivationCore$fun processManualProficiencySingle( state: MutableGameState, id: Int, manualInstanceMap: Map&lt;String, ManualInstance&gt;? = null, pendingProficiencies: MutableMap&lt;String, List&lt;ManualProficiencyData&gt;?&gt;? = null, libraryDiscipleIds: Set&lt;String&gt;? = null )</ID>
     <ID>LongMethod:CultivationCoreRealtimeAutoPillsTest.kt$PillsRealtime$fun process( state: MutableGameState, pillManager: DisciplePillManager, year: Int, month: Int, phase: Int )</ID>
-    <ID>LongMethod:CultivationEventProcessor.kt$CultivationEventProcessor$private fun processAutoFromWarehouse( year: Int, month: Int, phase: Int, state: MutableGameState )</ID>
     <ID>LongMethod:CultivationRateCalculator.kt$CultivationRateCalculator$fun calculateCultivationPerPhaseById( id: Int, data: GameData, tables: DiscipleTables, residenceByDiscipleId: Map&lt;Int, ResidenceSlot&gt; = emptyMap(), buildingByInstanceId: Map&lt;String, GridBuildingData&gt; = emptyMap() ): Double</ID>
     <ID>LongMethod:CultivationRateEquivalenceTest.kt$CultivationRateEquivalenceTest$private fun fixtures(): List&lt;Fixture&gt;</ID>
     <ID>LongMethod:CustomVelocityTracker.kt$CustomVelocityTracker$private fun leastSquaresVelocity(data: List&lt;Sample&gt;, n: Int): Velocity2D</ID>
@@ -309,27 +277,17 @@
     <ID>LongMethod:DiscipleStatusService.kt$DiscipleStatusService$private fun MutableGameState.clearSlotsForReset(): Set&lt;String&gt;</ID>
     <ID>LongMethod:DiscipleStatusService.kt$DiscipleStatusService.Companion$fun buildSlotFlagsFor( discipleId: String, data: GameData, activeTeams: List&lt;ExplorationTeam&gt; = emptyList() ): SlotFlags</ID>
     <ID>LongMethod:ElderManagementUseCase.kt$ElderManagementUseCase$suspend fun assignElder(slotType: ElderSlotType, discipleId: String): ElderResult</ID>
-    <ID>LongMethod:EncounterBattleService.kt$EncounterBattleService$private fun buildPhase1Log( attackerA: EncounterAttacker, attackerB: EncounterAttacker, pvpResult: BattleSystemResult, winnerP1: EncounterAttacker, year: Int, month: Int, loserDeadIds: Set&lt;String&gt; ): BattleLog</ID>
-    <ID>LongMethod:EncounterBattleService.kt$EncounterBattleService$private fun buildPhase2Log( winner: EncounterAttacker, beast: WorldLevel, pveResult: BattleSystemResult, year: Int, month: Int, p2DeadIds: Set&lt;String&gt; ): BattleLog</ID>
-    <ID>LongMethod:ExplorationService.kt$ExplorationService$suspend fun resolveBeastAttackFight( beastLevelId: String, manualDefenders: List&lt;Disciple&gt;? = null ): Boolean</ID>
     <ID>LongMethod:GameEngineAtomicAssign.kt$suspend fun GameEngine.assignPatrolAtomic( discipleId: String, globalIndex: Int ): DomainResult&lt;Unit&gt;</ID>
     <ID>LongMethod:GameEngineAtomicAssign.kt$suspend fun GameEngine.assignToResidenceAtomic( buildingInstanceId: String, slotIndex: Int, discipleId: String ): DomainResult&lt;Unit&gt;</ID>
     <ID>LongMethod:GameEngineAtomicAssign.kt$suspend fun GameEngine.autoAssignPatrolAtomic( assignments: List&lt;Pair&lt;Int, String&gt;&gt; ): DomainResult&lt;Unit&gt;</ID>
     <ID>LongMethod:GameEngineAtomicAssign.kt$suspend fun GameEngine.swapPatrolAtomic( fromGlobalIndex: Int, toGlobalIndex: Int ): DomainResult&lt;Unit&gt;</ID>
     <ID>LongMethod:GameEngineAtomicAssignTest.kt$GameEngineAtomicAssignTest$@Before fun setUp()</ID>
     <ID>LongMethod:GameEngineBattleOps.kt$private suspend fun GameEngine.handleCaveLevelVictory(level: WorldLevel): List&lt;BattleRewardItem&gt;</ID>
-    <ID>LongMethod:GameEngineBattleOps.kt$suspend fun GameEngine.attackSect(sectId: String, attackSlots: List&lt;Pair&lt;Int, DiscipleAggregate&gt;&gt;)</ID>
-    <ID>LongMethod:GameEngineBattleOps.kt$suspend fun GameEngine.attackWorldLevel(levelId: String, discipleIds: List&lt;String?&gt;)</ID>
-    <ID>LongMethod:GameEngineBattleOps.kt$suspend fun GameEngine.scoutSect(sectId: String, memberIds: List&lt;String&gt;)</ID>
     <ID>LongMethod:GameEngineCoordination.kt$private suspend fun GameEngine.applyMissionResult( result: MissionSystem.MissionResult, activeMission: ActiveMission, year: Int, month: Int, aliveDisciples: List&lt;Disciple&gt; )</ID>
     <ID>LongMethod:GameEngineCoordination.kt$suspend fun GameEngine.loadData( gameData: GameData, disciples: List&lt;Disciple&gt;, equipmentStacks: List&lt;EquipmentStack&gt;, equipmentInstances: List&lt;EquipmentInstance&gt;, manualStacks: List&lt;ManualStack&gt;, manualInstances: List&lt;ManualInstance&gt;, pills: List&lt;Pill&gt;, materials: List&lt;Material&gt; = emptyList(), herbs: List&lt;Herb&gt; = emptyList(), seeds: List&lt;Seed&gt; = emptyList(), teams: List&lt;ExplorationTeam&gt;, battleLogs: List&lt;BattleLog&gt; = emptyList(), alliances: List&lt;Alliance&gt; = emptyList(), productionSlots: List&lt;ProductionSlot&gt; = emptyList(), storageBags: List&lt;StorageBag&gt; = emptyList() )</ID>
-    <ID>LongMethod:GameEngineCore.kt$GameEngineCore$fun startGameLoop()</ID>
-    <ID>LongMethod:GameEngineCore.kt$GameEngineCore$private fun startWatchdog()</ID>
-    <ID>LongMethod:GameEngineMarriageProposalTest.kt$GameEngineMarriageProposalTest$@Before fun setUp()</ID>
     <ID>LongMethod:GameEngineSectLevelOps.kt$suspend fun GameEngine.claimSectLevelReward(level: Int): SectLevelClaimResult</ID>
     <ID>LongMethod:GiftService.kt$GiftService$suspend fun giftSpiritStones( sectId: String, tier: Int, bypassYearLimit: Boolean = false ): GiftResult</ID>
     <ID>LongMethod:HeavenlyTrialService.kt$HeavenlyTrialService$fun buildBeastEnemy(levelIndex: Int, def: TrialEnemyDef, index: Int): Combatant</ID>
-    <ID>LongMethod:HeavenlyTrialService.kt$HeavenlyTrialService$private fun MutableGameState.distributeRewardItems( reward: HeavenlyTrialClearReward, inventoryConfig: InventoryConfig, generatedCards: MutableList&lt;RewardCardItem&gt; )</ID>
     <ID>LongMethod:InventoryFacadeImpl.kt$InventoryFacadeImpl$override suspend fun buyMerchantItem(itemId: String, quantity: Int)</ID>
     <ID>LongMethod:InventoryFacadeImpl.kt$InventoryFacadeImpl$override suspend fun confiscateStorageBagItem(discipleId: String, item: StorageBagItem)</ID>
     <ID>LongMethod:InventoryFacadeImpl.kt$InventoryFacadeImpl$override suspend fun openStorageBag(bagId: String): Pair&lt;List&lt;BattleRewardItem&gt;, List&lt;RewardCardItem&gt;&gt;</ID>
@@ -338,7 +296,6 @@
     <ID>LongMethod:ManualDatabase.kt$ManualDatabase$private fun validateWithProto(manuals: Map&lt;String, ManualTemplate&gt;): ValidationResult</ID>
     <ID>LongMethod:ManualDatabaseTest.kt$ManualDatabaseTest$private fun buildTestManuals(): Map&lt;String, ManualTemplate&gt;</ID>
     <ID>LongMethod:MissionSystem.kt$MissionSystem$private fun createRewardConfig(template: MissionTemplate): MissionRewardConfig</ID>
-    <ID>LongMethod:PatrolBattleSystem.kt$PatrolBattleSystem$private fun executeTeamConflict( team: TowerTeam, target: WorldLevel, aiSectId: String, aiDisciples: List&lt;com.xianxia.sect.core.model.Disciple&gt;, aiSect: WorldSect, equipmentMap: Map&lt;String, EquipmentInstance&gt;, manualMap: Map&lt;String, ManualInstance&gt;, allProficiencies: Map&lt;String, Map&lt;String, ManualProficiencyData&gt;&gt;, state: MutableGameState ): TowerBattleResult?</ID>
     <ID>LongMethod:ProductionCoordinator.kt$ProductionCoordinator$suspend fun startAlchemyAtomic( slotIndex: Int, recipeId: String, currentYear: Int, currentMonth: Int, herbs: List&lt;Herb&gt;, buildingId: String = "alchemy", successRate: Double = 0.0 ): DomainResult&lt;ProductionStartData&gt;</ID>
     <ID>LongMethod:ProductionCoordinator.kt$ProductionCoordinator$suspend fun startForgingAtomic( slotIndex: Int, recipeId: String, currentYear: Int, currentMonth: Int, materials: List&lt;Material&gt;, buildingId: String = "forge", successRate: Double = 0.0 ): DomainResult&lt;ProductionStartData&gt;</ID>
     <ID>LongMethod:ProductionProcessor.kt$ProductionProcessor$private fun computeResidenceAssignments( state: MutableGameState, data: GameData, policies: SectPolicies, occupiedResidentIds: Set&lt;String&gt; ): Map&lt;String, Pair&lt;String, String&gt;&gt;</ID>
@@ -357,50 +314,21 @@
     <ID>LongParameterList:AISectAttackManager.kt$AISectAttackManager$( attacker: Combatant, target: Combatant, skill: CombatSkill, allies: MutableList&lt;Combatant&gt;, enemies: MutableList&lt;Combatant&gt;, alliesIndexMap: Map&lt;String, Int&gt;, enemiesIndexMap: Map&lt;String, Int&gt;, roundActions: MutableList&lt;BattleLogAction&gt; )</ID>
     <ID>LongParameterList:AISectAttackManager.kt$AISectAttackManager$( attacker: Combatant, target: Combatant, skill: CombatSkill, result: BattleCalculator.DamageResult, allies: MutableList&lt;Combatant&gt;, enemies: MutableList&lt;Combatant&gt;, alliesIndexMap: Map&lt;String, Int&gt;, enemiesIndexMap: Map&lt;String, Int&gt;, roundActions: MutableList&lt;BattleLogAction&gt; )</ID>
     <ID>LongParameterList:AISectAttackManager.kt$AISectAttackManager$( attacker: Combatant, targets: List&lt;Combatant&gt;, skill: CombatSkill, allies: MutableList&lt;Combatant&gt;, enemies: MutableList&lt;Combatant&gt;, alliesIndexMap: Map&lt;String, Int&gt;, enemiesIndexMap: Map&lt;String, Int&gt;, roundActions: MutableList&lt;BattleLogAction&gt; )</ID>
-    <ID>LongParameterList:BattleAITest.kt$BattleAITest$( id: String = "u1", hp: Int = 800, maxHp: Int = 1000, mp: Int = 500, maxMp: Int = 500, physAtk: Int = 100, magAtk: Int = 80, physDef: Int = 60, magDef: Int = 50, speed: Int = 100, skills: List&lt;CombatSkill&gt; = emptyList(), buffs: List&lt;CombatBuff&gt; = emptyList(), side: CombatantSide = CombatantSide.DEFENDER )</ID>
-    <ID>LongParameterList:BattleCalculator.kt$BattleCalculator$( attacker: CombatantStats, defender: CombatantStats, skillDamageMultiplier: Double = 1.0, isPhysicalAttack: Boolean? = null, skillName: String? = null, skillHits: Int = 1, dodgeChanceModifier: Double = 0.5, zones: DamageZones = DamageZones(), rng: DeterministicRng )</ID>
-    <ID>LongParameterList:BattleCalculator.kt$BattleCalculator.BattleCalculatorWithRng$(attacker: CombatantStats, defender: CombatantStats, skillDamageMultiplier: Double = 1.0, isPhysicalAttack: Boolean? = null, skillName: String? = null, skillHits: Int = 1, dodgeChanceModifier: Double = 0.5, zones: DamageZones = DamageZones())</ID>
     <ID>LongParameterList:BattleSystem.kt$BattleSystem$( ctx: TurnContext, results: List&lt;AttackResult&gt;, enemiesIndexMap: Map&lt;String, Int&gt;, isTeamMember: Boolean, currentCombatant: Combatant, availableSkill: CombatSkill?, isAoeSkill: Boolean, aliveEnemies: List&lt;Combatant&gt; )</ID>
-    <ID>LongParameterList:BattleSystem.kt$BattleSystem$( disciples: List&lt;Disciple&gt;, equipmentMap: Map&lt;String, EquipmentInstance&gt;, manualMap: Map&lt;String, ManualInstance&gt;, beastLevel: Int, beastCount: Int? = null, beastType: String? = null, manualProficiencies: Map&lt;String, Map&lt;String, ManualProficiencyData&gt;&gt; = emptyMap(), beastPreGenStats: BeastPreGenStats? = null )</ID>
-    <ID>LongParameterList:CaveExplorationProcessor.kt$CaveExplorationProcessor$( private val stateStore: GameStateStore, private val inventorySystem: InventorySystem, private val scopeProvider: CoroutineScopeProvider, private val battleSystem: BattleSystem, private val eventProcessor: CultivationEventProcessor, private val analyticsTracker: AnalyticsTracker, private val thermalMonitor: ThermalMonitor, private val attackWarningService: AttackWarningService, private val sectWarehouseManager: SectWarehouseManager, private val cultivationService: CultivationService, private val spiritStoneWallet: SpiritStoneWallet, private val rngManager: GameRngManager, private val deathHandler: DiscipleDeathHandler )</ID>
-    <ID>LongParameterList:CultivationCore.kt$CultivationCore$( private val stateStore: GameStateStore, private val inventoryConfig: InventoryConfig, private val thermalMonitor: ThermalMonitor, private val gameClock: GameTimeClock, private val scopeProvider: CoroutineScopeProvider, private val pillManager: DisciplePillManager, private val equipmentManager: DiscipleEquipmentManager, private val manualManager: DiscipleManualManager, private val profiler: DeviceCapabilityProfiler = DeviceCapabilityProfiler(), private val hpMpRecoveryService: HpMpRecoveryService, private val autoPillService: AutoPillService, private val equipmentNurtureService: EquipmentNurtureService, private val manualProficiencyService: ManualProficiencyService, private val cultivationRateCalculator: CultivationRateCalculator, private val battleSettlementService: BattleSettlementService )</ID>
-    <ID>LongParameterList:CultivationCoreProficiencyNurtureTest.kt$CultivationCoreProficiencyNurtureTest$( id: String = "1", realm: Int = 9, realmLayer: Int = 1, currentHp: Int = -1, currentMp: Int = -1, cultivation: Double = 0.0, spiritRootType: String = "metal", discipleType: String = "outer", comprehension: Int = 50 )</ID>
-    <ID>LongParameterList:CultivationCoreTest.kt$CultivationCoreTest$( id: String = "1", realm: Int = 9, realmLayer: Int = 1, currentHp: Int = -1, currentMp: Int = -1, cultivation: Double = 0.0, spiritRootType: String = "metal", discipleType: String = "outer", comprehension: Int = 50 )</ID>
-    <ID>LongParameterList:CultivationEventProcessor.kt$CultivationEventProcessor$( d: Disciple, year: Int, month: Int, phase: Int, tables: DiscipleTables, eqStacks: List&lt;EquipmentStack&gt;, eqInstancesById: Map&lt;String, EquipmentInstance&gt;, newEqInstances: MutableList&lt;EquipmentInstance&gt; )</ID>
-    <ID>LongParameterList:CultivationEventProcessor.kt$CultivationEventProcessor$( d: Disciple, year: Int, month: Int, phase: Int, tables: DiscipleTables, mnStacks: List&lt;ManualStack&gt;, mnInstancesById: Map&lt;String, ManualInstance&gt;, newMnInstances: MutableList&lt;ManualInstance&gt; )</ID>
-    <ID>LongParameterList:CultivationEventProcessor.kt$CultivationEventProcessor$( state: MutableGameState, tables: DiscipleTables, updatedDisciples: List&lt;Disciple&gt;, bagEqIds: Set&lt;String&gt;, bagMnIds: Set&lt;String&gt;, eqStacks: List&lt;EquipmentStack&gt;, mnStacks: List&lt;ManualStack&gt;, newEqInstances: List&lt;EquipmentInstance&gt;, newMnInstances: List&lt;ManualInstance&gt; )</ID>
-    <ID>LongParameterList:CultivationRateEquivalenceTest.kt$CultivationRateEquivalenceTest$( id: String = "1", name: String = "弟子$id", realm: Int = 9, discipleType: String = "outer", spiritRootType: String = "metal", social: SocialData = SocialData(), cultivationSpeedBonus: Double = 0.0, cultivationSpeedDuration: Int = 0, pillEffects: PillEffects = PillEffects(), manualIds: List&lt;String&gt; = emptyList(), talentIds: List&lt;String&gt; = emptyList(), physiqueIds: List&lt;String&gt; = emptyList(), affixIds: List&lt;String&gt; = emptyList(), age: Int = 30, lifespan: Int = 80, cultivation: Double = 100.0, skills: SkillStats = SkillStats() )</ID>
     <ID>LongParameterList:CultivationService.kt$CultivationService$( private val stateStore: GameStateStore, private val cultivationCore: CultivationCore, internal val breakthroughHandler: DiscipleBreakthroughHandler, private val cultivationSettlement: CultivationSettlement, private val eventProcessor: CultivationEventProcessor, private val productionProcessor: ProductionProcessor, private val recruitService: RecruitService, private val merchantAndRecruitService: MerchantAndRecruitService, private val caveExplorationProcessor: Provider&lt;CaveExplorationProcessor&gt;, private val sharedState: CultivationSharedState, private val discipleService: DiscipleService )</ID>
-    <ID>LongParameterList:DiscipleBreakthroughHandlerTest.kt$DiscipleBreakthroughHandlerTest$( id: Int = 1, realm: Int = 9, realmLayer: Int = 9, comprehension: Int = 100, cultivation: Double = 999999.0, currentHp: Int = -1, currentMp: Int = -1, statusData: Map&lt;String, String&gt; = emptyMap() )</ID>
-    <ID>LongParameterList:DiscipleEquipmentManager.kt$DiscipleEquipmentManager$( disciple: Disciple, config: SlotConfig, equipmentStacks: List&lt;EquipmentStack&gt;, equipmentInstances: Map&lt;String, EquipmentInstance&gt;, bagStackRefs: List&lt;StorageBagItem&gt;, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStack: Int, instantMessage: Boolean )</ID>
-    <ID>LongParameterList:DiscipleEquipmentManager.kt$DiscipleEquipmentManager$( disciple: Disciple, equipmentStacks: List&lt;EquipmentStack&gt;, equipmentInstances: Map&lt;String, EquipmentInstance&gt;, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStack: Int = MAX_EQUIPMENT_STACK, instantMessage: Boolean = false )</ID>
     <ID>LongParameterList:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$( private val discipleService: DiscipleService, private val stateStore: GameStateStore, private val cultivationService: CultivationService, private val gameEngineCore: GameEngineCore, private val inventorySystem: InventorySystem, private val pillManager: DisciplePillManager, private val assignmentGate: DiscipleAssignmentGate, private val discipleSlotCleanup: DiscipleSlotCleanup, private val lawEnforcementProcessor: LawEnforcementProcessor, private val productionCoordinator: ProductionCoordinator, )</ID>
-    <ID>LongParameterList:DiscipleLifecycleProcessorTest.kt$DiscipleLifecycleProcessorTest$( id: Int, name: String = "弟子$id", realm: Int = 9, realmLayer: Int = 3, age: Int = 20, lifespan: Int = 80, status: DiscipleStatus = DiscipleStatus.IDLE, statusData: Map&lt;String, String&gt; = emptyMap(), social: SocialData = SocialData(), skills: SkillStats = SkillStats(), skipTablesIsAlive: Boolean = false )</ID>
-    <ID>LongParameterList:DiscipleManualManager.kt$DiscipleManualManager$( disciple: Disciple, manualStacks: List&lt;ManualStack&gt;, manualInstances: Map&lt;String, ManualInstance&gt;, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStack: Int = MAX_MANUAL_STACK, instantMessage: Boolean = false )</ID>
-    <ID>LongParameterList:DiscipleManualManager.kt$DiscipleManualManager$( disciple: Disciple, stack: ManualStack, existingInstanceId: String, manualInstances: Map&lt;String, ManualInstance&gt;, manualStacks: List&lt;ManualStack&gt;, gameYear: Int, gameMonth: Int, gamePhase: Int, maxStack: Int, instantMessage: Boolean )</ID>
-    <ID>LongParameterList:DiscipleStatCalculator.kt$DiscipleStatCalculator$( aggregate: DiscipleAggregate, innerElderComprehension: Int = 0, outerElderComprehension: Int = 0, pillBonus: Double = 0.0, adBonus: Double = 0.0, griefBreakthroughPenalty: Double = 0.0, masterDiscipleBonus: Double = 0.0, innerElderPositionBonus: Double = 0.0, outerElderPositionBonus: Double = 0.0 )</ID>
-    <ID>LongParameterList:DiscipleStatCalculator.kt$DiscipleStatCalculator$( aggregate: DiscipleAggregate, manuals: Map&lt;String, ManualInstance&gt; = emptyMap(), manualProficiencies: Map&lt;String, ManualProficiencyData&gt; = emptyMap(), buildingBonus: Double = 1.0, preachingElderBonus: Double = 0.0, preachingMastersBonus: Double = 0.0, cultivationSubsidyBonus: Double = 0.0, parentCultivationBonus: Double = 0.0, griefCultivationSpeedPenalty: Double = 0.0, masterDiscipleBonus: Double = 0.0 )</ID>
     <ID>LongParameterList:DiscipleStatCalculator.kt$DiscipleStatCalculator$( baseStats: DiscipleStats, equipmentIds: List&lt;String&gt;, manualIds: List&lt;String&gt;, equipments: Map&lt;String, EquipmentInstance&gt;, manuals: Map&lt;String, ManualInstance&gt;, manualProficiencies: Map&lt;String, ManualProficiencyData&gt;, hasPillEffect: Boolean, pillHpBonus: Int, pillMpBonus: Int, pillPhysicalAttackBonus: Int, pillMagicAttackBonus: Int, pillPhysicalDefenseBonus: Int, pillMagicDefenseBonus: Int, pillSpeedBonus: Int, pillCritRateBonus: Double )</ID>
-    <ID>LongParameterList:DiscipleStatCalculator.kt$DiscipleStatCalculator$( disciple: Disciple, innerElderComprehension: Int = 0, outerElderComprehension: Int = 0, pillBonus: Double = 0.0, adBonus: Double = 0.0, griefBreakthroughPenalty: Double = 0.0, masterDiscipleBonus: Double = 0.0, innerElderPositionBonus: Double = 0.0, outerElderPositionBonus: Double = 0.0 )</ID>
-    <ID>LongParameterList:DiscipleStatCalculator.kt$DiscipleStatCalculator$( disciple: Disciple, manuals: Map&lt;String, ManualInstance&gt; = emptyMap(), manualProficiencies: Map&lt;String, ManualProficiencyData&gt; = emptyMap(), buildingBonus: Double = 1.0, preachingElderBonus: Double = 0.0, preachingMastersBonus: Double = 0.0, cultivationSubsidyBonus: Double = 0.0, parentCultivationBonus: Double = 0.0, griefCultivationSpeedPenalty: Double = 0.0, masterDiscipleBonus: Double = 0.0 )</ID>
-    <ID>LongParameterList:DiscipleStatCalculator.kt$DiscipleStatCalculator$( input: CultivationRateColumnInput, manuals: Map&lt;String, ManualInstance&gt; = emptyMap(), manualProficiencies: Map&lt;String, ManualProficiencyData&gt; = emptyMap(), buildingBonus: Double = 1.0, preachingElderBonus: Double = 0.0, preachingMastersBonus: Double = 0.0, cultivationSubsidyBonus: Double = 0.0, parentCultivationBonus: Double = 0.0, griefCultivationSpeedPenalty: Double = 0.0, masterDiscipleBonus: Double = 0.0 )</ID>
     <ID>LongParameterList:DiscipleStatCalculator.kt$DiscipleStatCalculator$( mergedEffects: Map&lt;String, Double&gt;, physiqueEffects: PhysiqueEffects, manualIds: List&lt;String&gt;, manuals: Map&lt;String, ManualInstance&gt;, manualProficiencies: Map&lt;String, ManualProficiencyData&gt;, buildingBonus: Double, preachingElderBonus: Double, preachingMastersBonus: Double, parentCultivationBonus: Double, masterDiscipleBonus: Double, cultivationSubsidyBonus: Double, griefCultivationSpeedPenalty: Double, age: Int, lifespan: Int, temporaryBonus: Double )</ID>
     <ID>LongParameterList:DiscipleStatCalculator.kt$DiscipleStatCalculator$( realm: Int, realmLayer: Int, hpVariance: Int, mpVariance: Int, physicalAttackVariance: Int, magicAttackVariance: Int, physicalDefenseVariance: Int, magicDefenseVariance: Int, speedVariance: Int, talentEffects: Map&lt;String, Double&gt;, bloodRefinementPct: BloodRefinementPctTotal? = null, intelligence: Int, charm: Int, loyalty: Int, comprehension: Int, teaching: Int, morality: Int, mining: Int )</ID>
     <ID>LongParameterList:DiscipleStatCalculator.kt$DiscipleStatCalculator$( realm: Int, realmLayer: Int, spiritRootCount: Int, soulPower: Int, age: Int, lifespan: Int, innerElderComprehension: Int, outerElderComprehension: Int, pillBonus: Double, adBonus: Double, griefBreakthroughPenalty: Double, masterDiscipleBonus: Double, innerElderPositionBonus: Double = 0.0, outerElderPositionBonus: Double = 0.0 )</ID>
-    <ID>LongParameterList:DiscipleStatCalculatorTest.kt$DiscipleStatCalculatorTest$( realm: Int = 9, realmLayer: Int = 1, baseHp: Int = 100, baseMp: Int = 50, basePhysicalAttack: Int = 20, baseMagicAttack: Int = 15, basePhysicalDefense: Int = 10, baseMagicDefense: Int = 8, baseSpeed: Int = 30, intelligence: Int = 50, charm: Int = 50, loyalty: Int = 50, comprehension: Int = 50, teaching: Int = 50, morality: Int = 50, talentIds: List&lt;String&gt; = emptyList(), manualIds: List&lt;String&gt; = emptyList(), weaponId: String = "", armorId: String = "", bootsId: String = "", accessoryId: String = "", pillEffectDuration: Int = 0, pillHpBonus: Int = 0, pillMpBonus: Int = 0, pillPhysicalAttackBonus: Int = 0, pillMagicAttackBonus: Int = 0, pillPhysicalDefenseBonus: Int = 0, pillMagicDefenseBonus: Int = 0, pillSpeedBonus: Int = 0, discipleType: String = "inner", statusData: Map&lt;String, String&gt; = emptyMap(), spiritRootType: String = "metal" )</ID>
-    <ID>LongParameterList:EncounterBattleService.kt$EncounterBattleService$( state: MutableGameState, pvpBattle: Battle, preparedSides: Map&lt;String, PreparedSide&gt;, attackerA: EncounterAttacker, attackerB: EncounterAttacker, isPlayerVsAI: Boolean, year: Int, month: Int, favorDedup: MutableSet&lt;String&gt;? )</ID>
     <ID>LongParameterList:ExplorationService.kt$ExplorationService$( private val stateStore: GameStateStore, private val battleSystem: BattleSystem, private val inventorySystem: InventorySystem, private val cultivationService: CultivationService, private val spiritStoneWallet: SpiritStoneWallet, // 子领域系统 private val worldLevelManager: WorldLevelManager, private val beastAttackDetector: BeastAttackDetector, private val patrolBattleSystem: PatrolBattleSystem, private val lootCalculator: LootCalculator, private val explorationTeamManager: ExplorationTeamManager, private val rngManager: GameRngManager, private val encounterBattleService: EncounterBattleService, private val deathHandler: DiscipleDeathHandler )</ID>
     <ID>LongParameterList:GameEngineCoordination.kt$( gameData: GameData, disciples: List&lt;Disciple&gt;, equipmentStacks: List&lt;EquipmentStack&gt;, equipmentInstances: List&lt;EquipmentInstance&gt;, manualStacks: List&lt;ManualStack&gt;, manualInstances: List&lt;ManualInstance&gt;, pills: List&lt;Pill&gt;, materials: List&lt;Material&gt; = emptyList(), herbs: List&lt;Herb&gt; = emptyList(), seeds: List&lt;Seed&gt; = emptyList(), teams: List&lt;ExplorationTeam&gt;, battleLogs: List&lt;BattleLog&gt; = emptyList(), alliances: List&lt;Alliance&gt; = emptyList(), productionSlots: List&lt;ProductionSlot&gt; = emptyList(), storageBags: List&lt;StorageBag&gt; = emptyList() )</ID>
-    <ID>LongParameterList:GameEngineCore.kt$GameEngineCore$( private val stateStore: GameStateStore, private val eventBus: EventBusPort, private val unifiedPerformanceMonitor: UnifiedPerformanceMonitor, private val systemManager: SystemManager, private val scopeProvider: CoroutineScopeProvider, private val cultivationService: CultivationService, private val explorationService: ExplorationService, private val aiSectBeastAttackProcessor: com.xianxia.sect.core.exploration.AISectBeastAttackProcessor, private val gameClock: GameTimeClock, private val thermalController: ThermalController, private val thermalMonitor: com.xianxia.sect.core.perf.ThermalMonitor, private val spiritStoneWallet: SpiritStoneWallet )</ID>
     <ID>LongParameterList:GameEngineSaveOps.kt$( loadedGameData: GameData, disciples: List&lt;Disciple&gt;, equipmentStacks: List&lt;EquipmentStack&gt;, equipmentInstances: List&lt;EquipmentInstance&gt;, manualStacks: List&lt;ManualStack&gt;, manualInstances: List&lt;ManualInstance&gt;, pills: List&lt;Pill&gt;, materials: List&lt;Material&gt;, herbs: List&lt;Herb&gt;, seeds: List&lt;Seed&gt;, battleLogs: List&lt;BattleLog&gt;, teams: List&lt;ExplorationTeam&gt; )</ID>
-    <ID>LongParameterList:GridSnapHelper.kt$GridSnapHelper$( gridX: Int, gridY: Int, width: Int, height: Int, maxGridX: Int, maxGridY: Int, borderPadding: Int = 0, occupiedRects: List&lt;GridRect&gt; = emptyList() )</ID>
-    <ID>LongParameterList:IntelligentSectDecisionEngine.kt$IntelligentSectDecisionEngine$( profile: DecisionProfile, powerRatio: Double, conquestCount: Int, lostSectCount: Int, battleWinCount: Int, battleLossCount: Int, favorLevel: SectRelationLevel, personality: AISectPersonality? = null )</ID>
     <ID>LongParameterList:InventorySystem.kt$InventorySystem$( equipmentStacksList: List&lt;EquipmentStack&gt;, equipmentInstancesList: List&lt;EquipmentInstance&gt;, manualStacksList: List&lt;ManualStack&gt;, manualInstancesList: List&lt;ManualInstance&gt;, pillsList: List&lt;Pill&gt;, materialsList: List&lt;Material&gt;, herbsList: List&lt;Herb&gt;, seedsList: List&lt;Seed&gt; )</ID>
     <ID>LongParameterList:LawEnforcementProcessor.kt$LawEnforcementProcessor$( disciple: Disciple, gd: GameData, warehouses: List&lt;GridBuildingData&gt;, garrisons: List&lt;WarehouseGarrisonSlot&gt;, materials: List&lt;Material&gt;, pills: List&lt;Pill&gt;, herbs: List&lt;Herb&gt;, seeds: List&lt;Seed&gt;, equipmentStacks: List&lt;EquipmentStack&gt;, manualStacks: List&lt;ManualStack&gt; )</ID>
-    <ID>LongParameterList:NativeBridge.kt$NativeBridge$( tileData: IntArray, // 展平瓦片类型数组 [0..N] cols: Int, rows: Int, // 地图网格尺寸 buildingData: FloatArray?, // 建筑数据 [x,y,w,h,nameIdx] × count buildingCount: Int, // 建筑数量 buildingVisible: Boolean, // 是否显示建筑 tileSize: Int, atlasTexId: Int, uvMap: FloatArray, // UV 映射 [u0,v0,u1,v1] 按 tile 类型索引 buildingUVMap: FloatArray?, // 建筑 UV 映射 floorTileUVMap: FloatArray? // 地砖 UV 映射 [u0,v0,u1,v1] × 4 )</ID>
+    <ID>LongParameterList:NativeBridge.kt$NativeBridge$( tileData: IntArray, // 展平瓦片类型数组 [0..N] cols: Int, rows: Int, // 地图网格尺寸 buildingData: FloatArray?, // 建筑数据 [x,y,w,h,nameIdx] × count buildingCount: Int, // 建筑数量 buildingVisible: Boolean, // 是否显示建筑 tileSize: Int, atlasTexId: Int, uvMap: FloatArray, // UV 映射 [u0,v0,u1,v1] 按 tile 类型索引 buildingUVMap: FloatArray?, // 建筑 UV 映射 floorTileUVMap: FloatArray?, // 地砖 UV 映射 [u0,v0,u1,v1] × 4 cropData: FloatArray? = null, // 灵田作物数据 [gx, gy, progress01] × N（WP6，可为 null） cropUVMap: FloatArray? = null // 作物 UV 映射 [u0,v0,u1,v1] × 3 阶段（WP6） )</ID>
     <ID>LongParameterList:NativeBridge.kt$NativeBridge$( x: Float, y: Float, w: Float, h: Float, atlasTexId: Int, u0: Float, v0: Float, u1: Float, v1: Float, r: Float, g: Float, b: Float, a: Float )</ID>
     <ID>LongParameterList:NativeBridge.kt$NativeBridge$( x: Float, y: Float, w: Float, h: Float, r: Float, g: Float, b: Float, a: Float )</ID>
-    <ID>LongParameterList:PatrolBattleSystem.kt$PatrolBattleSystem$( team: TowerTeam, target: WorldLevel, aiSectId: String, aiDisciples: List&lt;com.xianxia.sect.core.model.Disciple&gt;, aiSect: WorldSect, equipmentMap: Map&lt;String, EquipmentInstance&gt;, manualMap: Map&lt;String, ManualInstance&gt;, allProficiencies: Map&lt;String, Map&lt;String, ManualProficiencyData&gt;&gt;, state: MutableGameState )</ID>
     <ID>LongParameterList:ProductionProcessorTest.kt$ProductionProcessorTest$( disciples: List&lt;Disciple&gt;, singleFocused: Boolean, singleRootCounts: List&lt;Int&gt;, singleThreshold: Int, multiFocused: Boolean, multiRootCounts: List&lt;Int&gt;, multiThreshold: Int, singleSlotCount: Int, multiSlotCount: Int )</ID>
     <ID>LongParameterList:ProductionTransactionManager.kt$ProductionTransactionManager$( buildingId: String, slotIndex: Int, recipeId: String, recipeName: String, duration: Int, currentYear: Int, currentMonth: Int, discipleId: String?, discipleName: String, successRate: Double, materials: Map&lt;String, Int&gt;, availableMaterials: Map&lt;String, Int&gt;, outputItemId: String?, outputItemName: String, outputItemRarity: Int )</ID>
     <ID>LongParameterList:ProductionTransactionManager.kt$ProductionTransactionManager$( buildingType: BuildingType, slotIndex: Int, recipeId: String, recipeName: String, duration: Int, currentYear: Int, currentMonth: Int, discipleId: String?, discipleName: String, successRate: Double, materials: Map&lt;String, Int&gt;, availableMaterials: Map&lt;String, Int&gt;, outputItemId: String?, outputItemName: String, outputItemRarity: Int )</ID>
@@ -418,7 +346,6 @@
     <ID>LoopWithTooManyJumpStatements:BeastAttackDetector.kt$BeastAttackDetector$for</ID>
     <ID>LoopWithTooManyJumpStatements:CaveExplorationProcessor.kt$CaveExplorationProcessor$for</ID>
     <ID>LoopWithTooManyJumpStatements:ChildBirthSystem.kt$ChildBirthSystem$for</ID>
-    <ID>LoopWithTooManyJumpStatements:CultivationCore.kt$CultivationCore$for</ID>
     <ID>LoopWithTooManyJumpStatements:CultivationCoreRealtimeAutoPillsTest.kt$PillsRealtime$for</ID>
     <ID>LoopWithTooManyJumpStatements:CultivationEventMissionOps.kt$for</ID>
     <ID>LoopWithTooManyJumpStatements:CultivationEventProcessor.kt$CultivationEventProcessor$for</ID>
@@ -428,7 +355,6 @@
     <ID>LoopWithTooManyJumpStatements:DiplomacyService.kt$DiplomacyService$while</ID>
     <ID>LoopWithTooManyJumpStatements:DiscipleBreakthroughHandler.kt$DiscipleBreakthroughHandler$while</ID>
     <ID>LoopWithTooManyJumpStatements:DiscipleLifecycleProcessor.kt$DiscipleLifecycleProcessor$for</ID>
-    <ID>LoopWithTooManyJumpStatements:DiscipleManualManager.kt$DiscipleManualManager$for</ID>
     <ID>LoopWithTooManyJumpStatements:DisciplePurchaseService.kt$DisciplePurchaseService$for</ID>
     <ID>LoopWithTooManyJumpStatements:DiscipleSlotManager.kt$DiscipleSlotManager$for</ID>
     <ID>LoopWithTooManyJumpStatements:DiscipleStatCalculator.kt$DiscipleStatCalculator$for</ID>
@@ -454,11 +380,8 @@
     <ID>MaxLineLength:AISectAttackManager.kt$AISectAttackManager$executeNormalAttackAction(currentCombatant, target, allies, enemies, alliesIndexMap, enemiesIndexMap, roundActions)</ID>
     <ID>MaxLineLength:AISectAttackManager.kt$AISectAttackManager$executeSingleAttackAction(currentCombatant, target, availableSkill, allies, enemies, alliesIndexMap, enemiesIndexMap, roundActions)</ID>
     <ID>MaxLineLength:AISectAttackManager.kt$AISectAttackManager$executeSupportAction(currentCombatant, allies.filter { !it.isDead }, availableSkill, allies, alliesIndexMap, roundActions)</ID>
-    <ID>MaxLineLength:AISectAttackManager.kt$AISectAttackManager$val availableSkill = selectAISkill(currentCombatant, aliveEnemies, allies.filter { !it.isDead }, silenceBuff != null)</ID>
     <ID>MaxLineLength:AISectAttackManager.kt$AISectAttackManager$val debuff = CombatBuff(type = localBuffType, value = skill.buffValue, remainingDuration = skill.buffDuration, sourceRealm = attacker.realm)</ID>
     <ID>MaxLineLength:AISectAttackManager.kt$private val aisRng get() = (aisRngManager ?: error("AISectAttackManager RNG not initialized")).getRng(RngPartition.BATTLE)</ID>
-    <ID>MaxLineLength:AISectDiscipleManager.kt$AISectDiscipleManager$disciples.sortedByDescending { it.combat.basePhysicalAttack + it.combat.baseMagicAttack + it.combat.baseHp }.take(PlantSlotData.MAX_AI_DISCIPLES_PER_SECT)</ID>
-    <ID>MaxLineLength:AISectDiscipleManager.kt$AISectDiscipleManager$nurtureProgress = if (nurtureLevel &gt;= maxLevel) 0.0 else rng.nextDouble() * EquipmentNurtureSystem.getExpRequiredForLevelUp(nurtureLevel, template.rarity)</ID>
     <ID>MaxLineLength:AISectTeamComposer.kt$com.xianxia.sect.core.registry.EquipmentDatabase.generateRandom(config.minRarity, config.maxRarity)</ID>
     <ID>MaxLineLength:AISectTeamComposer.kt$com.xianxia.sect.core.registry.ManualDatabase.generateRandom(config.minRarity, config.maxRarity)</ID>
     <ID>MaxLineLength:AISectTeamComposer.kt$materials.add(com.xianxia.sect.core.registry.ItemDatabase.generateRandomMaterial(config.minRarity, config.maxRarity))</ID>
@@ -474,15 +397,9 @@
     <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator.BattleCalculatorWithRng$fun</ID>
     <ID>MaxLineLength:BattleFacadeImpl.kt$BattleFacadeImpl$override suspend</ID>
     <ID>MaxLineLength:BattleSystem.kt$BattleSystem$DomainLog.w("BattleSystem", "Battle taking long: ${elapsed}ms, turn ${currentBattle.turn}/${currentBattle.maxTurns}")</ID>
-    <ID>MaxLineLength:BattleSystem.kt$BattleSystem$b.copy(value = shieldResult.remainingShield.toDouble() / ctx.beasts[targetIndex].maxHp.coerceAtLeast(1))</ID>
-    <ID>MaxLineLength:BattleSystem.kt$BattleSystem$b.copy(value = shieldResult.remainingShield.toDouble() / ctx.team[targetIndex].maxHp.coerceAtLeast(1))</ID>
-    <ID>MaxLineLength:BattleSystem.kt$BattleSystem$damageType = if (isInstantKill) "必杀" else if (result.isSupport) "support" else if (result.isDodged) "闪避" else if (result.isPhysical) "物理" else "法术"</ID>
-    <ID>MaxLineLength:BattleSystem.kt$BattleSystem$fun</ID>
-    <ID>MaxLineLength:BattleSystem.kt$BattleSystem$if (aliveTeam &gt; aliveBeasts) BattleWinner.TEAM else if (aliveBeasts &gt; aliveTeam) BattleWinner.BEASTS else BattleWinner.DRAW</ID>
     <ID>MaxLineLength:BattleSystem.kt$BattleSystem$private</ID>
     <ID>MaxLineLength:BootSequenceControllerTest.kt$BootSequenceControllerTest$assertEquals("bootPhase should be BOOT_COMPLETE after reload", BootPhase.BOOT_COMPLETE, stateStore.bootPhase.value)</ID>
     <ID>MaxLineLength:BootSequenceControllerTest.kt$FakeGameStateStore$override fun removePendingBeastAttack(beastLevelId: String)</ID>
-    <ID>MaxLineLength:BuildingConfigService.kt$BuildingConfigService$fun</ID>
     <ID>MaxLineLength:BuildingConfigService.kt$BuildingConfigService$return getBuildingConfig(buildingId)?.displayName ?: com.xianxia.sect.core.util.BuildingNames.getDisplayName(buildingId)</ID>
     <ID>MaxLineLength:BuildingConfigServiceTest.kt$BuildingConfigServiceTest$"alchemy" to BuildingConfigModel(id = "alchemy", displayName = "炼丹炉", buildingType = "ALCHEMY", slotCount = 1, baseSuccessRate = 0.7)</ID>
     <ID>MaxLineLength:BuildingConfigServiceTest.kt$BuildingConfigServiceTest$"forge" to BuildingConfigModel(id = "forge", displayName = "锻造坊", buildingType = "FORGE", slotCount = 1, baseSuccessRate = 0.7)</ID>
@@ -492,7 +409,6 @@
     <ID>MaxLineLength:BuildingConfigServiceTest.kt$BuildingConfigServiceTest$"test2" to BuildingConfigModel(id = "test2", displayName = "T2", buildingType = "FORGE", baseSuccessRate = 1.0)</ID>
     <ID>MaxLineLength:BuildingFacadeImpl.kt$BuildingFacadeImpl$stateStore.update { gameData = gameData.copy(placedBuildings = gameData.placedBuildings + building.copy(sectId = sectId)) }</ID>
     <ID>MaxLineLength:BuildingFacadeImpl.kt$BuildingFacadeImpl$val currentAbsoluteMonth = com.xianxia.sect.core.engine.LazyEvaluationDispatcher.toAbsoluteMonth(currentYear, currentMonth)</ID>
-    <ID>MaxLineLength:BuildingFacadeImpl.kt$BuildingFacadeImpl$val idx = gameData.spiritFieldPlants.indexOfFirst { it.buildingInstanceId == buildingInstanceId &amp;&amp; it.seedId.isEmpty() }</ID>
     <ID>MaxLineLength:BuildingFeature.kt$SlotGroup.Library$override</ID>
     <ID>MaxLineLength:BuildingFeature.kt$SlotGroup.PatrolTower$override</ID>
     <ID>MaxLineLength:BuildingFeature.kt$SlotGroup.ProductionSlotGroup$.</ID>
@@ -507,15 +423,11 @@
     <ID>MaxLineLength:BuildingRemovalSlotCleanupTest.kt$BuildingRemovalSlotCleanupTest.Companion$BuildingFeature("blood_refining_pool", "血炼池", BuildingType.BLOOD_REFINING_POOL, listOf(SlotGroup.BloodRefining()))</ID>
     <ID>MaxLineLength:BuildingRemovalSlotCleanupTest.kt$BuildingRemovalSlotCleanupTest.Companion$BuildingFeature("multi_residence", "多人住所", BuildingType.MULTI_RESIDENCE, listOf(SlotGroup.Residence(4)))</ID>
     <ID>MaxLineLength:BuildingRemovalSlotCleanupTest.kt$BuildingRemovalSlotCleanupTest.Companion$BuildingFeature("single_residence", "单人住所", BuildingType.SINGLE_RESIDENCE, listOf(SlotGroup.Residence(1)))</ID>
-    <ID>MaxLineLength:BuildingService.kt$BuildingService$val r = inventorySystem.withTrackingSource("building") { inventorySystem.addEquipmentStack(equipment) }</ID>
-    <ID>MaxLineLength:CaveExplorationProcessor.kt$CaveExplorationProcessor$SectLevel.MEDIUM -&gt; if (disciples.any { it.isAlive &amp;&amp; it.realm &lt;= 4 }) SectLevel.LARGE else sect.level</ID>
-    <ID>MaxLineLength:CaveExplorationProcessor.kt$CaveExplorationProcessor$SectLevel.SMALL -&gt; if (disciples.any { it.isAlive &amp;&amp; it.realm &lt;= 5 }) SectLevel.MEDIUM else sect.level</ID>
     <ID>MaxLineLength:CaveExplorationSystem.kt$CaveExplorationSystem$val effectiveHp = if (disciple.combat.currentHp &lt; 0) stats.maxHp else disciple.combat.currentHp.coerceAtMost(stats.maxHp)</ID>
     <ID>MaxLineLength:CaveExplorationSystem.kt$CaveExplorationSystem$val effectiveMp = if (disciple.combat.currentMp &lt; 0) stats.maxMp else disciple.combat.currentMp.coerceAtMost(stats.maxMp)</ID>
     <ID>MaxLineLength:CaveExplorationSystem.kt$CaveExplorationSystem$val guardianName = if (isBoss) "【首领】${beastType.prefix}${beastType.name}" else "守护兽·${beastType.prefix}${beastType.name}"</ID>
     <ID>MaxLineLength:CombatService.kt$CombatService$val updatedStatus = if (currentStatus in setOf(DiscipleStatus.IN_TEAM, DiscipleStatus.GARRISONING)) DiscipleStatus.IDLE else currentStatus</ID>
     <ID>MaxLineLength:CultivationCore.kt$CultivationCore$)</ID>
-    <ID>MaxLineLength:CultivationCore.kt$CultivationCore$fun isDiscipleFullHpMp(id: Int, tables: DiscipleTables): Boolean</ID>
     <ID>MaxLineLength:CultivationEventDiplomacyOps.kt$state.gameData = state.gameData.copy(scoutInfo = updatedScoutInfo, worldMapSects = updatedWorldMapSects, sectDetails = updatedDetails)</ID>
     <ID>MaxLineLength:CultivationEventDiplomacyOps.kt$updatedDetails[sectId] = (updatedDetails[sectId] ?: SectDetail(sectId = sectId)).copy(scoutInfo = updatedScoutInfo[sectId] ?: SectScoutInfo())</ID>
     <ID>MaxLineLength:CultivationEventMonthlyOps.kt$safelyRunInState("aiSectOperations") { caveExplorationProcessor.get().processAISectOperations(year, month, this) }</ID>
@@ -525,14 +437,11 @@
     <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$fun</ID>
     <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$val result = processSingleAutoEquip(d, year, month, phase, tables, eqStacks, eqInstancesById, newEqInstances)</ID>
     <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$val result = processSingleAutoLearn(d, year, month, phase, tables, mnStacks, mnInstancesById, newMnInstances)</ID>
-    <ID>MaxLineLength:CultivationEventProcessor.kt$CultivationEventProcessor$writeAutoWarehouseResults(state, tables, updatedDisciples, bagEqIds, bagMnIds, eqStacks, mnStacks, newEqInstances, newMnInstances)</ID>
     <ID>MaxLineLength:CultivationService.kt$CultivationService$suspend</ID>
     <ID>MaxLineLength:CultivationServiceIntegrationTest.kt$CultivationServiceIntegrationTest.&lt;no name provided&gt;$override fun calculateCultivationSpeed(a: DiscipleAggregate, manuals: Map&lt;String, ManualInstance&gt;, mps: Map&lt;String, ManualProficiencyData&gt;, bb: Double, ab: Double, peb: Double, pmb: Double, csb: Double, pcb: Double, gcp: Double, mdb: Double)</ID>
     <ID>MaxLineLength:CultivationServiceIntegrationTest.kt$CultivationServiceIntegrationTest.&lt;no name provided&gt;$override fun calculateCultivationSpeed(d: Disciple, manuals: Map&lt;String, ManualInstance&gt;, mps: Map&lt;String, ManualProficiencyData&gt;, bb: Double, ab: Double, peb: Double, pmb: Double, csb: Double, pcb: Double, gcp: Double, mdb: Double)</ID>
     <ID>MaxLineLength:CultivationServiceIntegrationTest.kt$CultivationServiceIntegrationTest.&lt;no name provided&gt;$override fun getBreakthroughChance(a: DiscipleAggregate, iec: Int, oec: Int, pb: Double, ab: Double, gcp: Double, mdb: Double)</ID>
     <ID>MaxLineLength:CultivationServiceIntegrationTest.kt$CultivationServiceIntegrationTest.&lt;no name provided&gt;$override fun getBreakthroughChance(d: Disciple, iec: Int, oec: Int, pb: Double, ab: Double, gcp: Double, mdb: Double)</ID>
-    <ID>MaxLineLength:CultivationServiceIntegrationTest.kt$CultivationServiceIntegrationTest.&lt;no name provided&gt;$override fun getFinalStats(a: DiscipleAggregate, e: Map&lt;String, EquipmentInstance&gt;, m: Map&lt;String, ManualInstance&gt;, p: Map&lt;String, ManualProficiencyData&gt;)</ID>
-    <ID>MaxLineLength:CultivationServiceIntegrationTest.kt$CultivationServiceIntegrationTest.&lt;no name provided&gt;$override fun getFinalStats(d: Disciple, e: Map&lt;String, EquipmentInstance&gt;, m: Map&lt;String, ManualInstance&gt;, p: Map&lt;String, ManualProficiencyData&gt;)</ID>
     <ID>MaxLineLength:CultivationServiceIntegrationTest.kt$CultivationServiceIntegrationTest.&lt;no name provided&gt;$override fun getStatsWithEquipment(a: DiscipleAggregate, e: Map&lt;String, EquipmentInstance&gt;)</ID>
     <ID>MaxLineLength:CultivationServiceIntegrationTest.kt$CultivationServiceIntegrationTest.&lt;no name provided&gt;$override fun getStatsWithEquipment(d: Disciple, e: Map&lt;String, EquipmentInstance&gt;)</ID>
     <ID>MaxLineLength:CultivationServiceIntegrationTest.kt$CultivationServiceIntegrationTest.&lt;no name provided&gt;$override fun getTalentEffects(aggregate: DiscipleAggregate)</ID>
@@ -560,36 +469,20 @@
     <ID>MaxLineLength:DiscipleBreakthroughHandler.kt$DiscipleBreakthroughHandler$.</ID>
     <ID>MaxLineLength:DiscipleBreakthroughHandler.kt$DiscipleBreakthroughHandler$private</ID>
     <ID>MaxLineLength:DiscipleBreakthroughHandler.kt$DiscipleBreakthroughHandler$val</ID>
-    <ID>MaxLineLength:DiscipleEquipmentManager.kt$DiscipleEquipmentManager$.</ID>
-    <ID>MaxLineLength:DiscipleEquipmentManager.kt$DiscipleEquipmentManager$return EquipmentProcessResult(updatedDisciple, allNewInstances, allReplacedInstances, allStackUpdates, allReplacedStacks, events)</ID>
-    <ID>MaxLineLength:DiscipleEquipmentManager.kt$DiscipleEquipmentManager$return EquipmentProcessResult(updatedDisciple, listOf(newInstance), replacedInstances, listOf(stackUpdate), replacedStacks, events)</ID>
-    <ID>MaxLineLength:DiscipleEquipmentManager.kt$DiscipleEquipmentManager$storageBagItems = StorageBagUtils.decreaseItemQuantity(updatedDisciple.equipment.storageBagItems, bestStack.id)</ID>
     <ID>MaxLineLength:DiscipleEquipmentService.kt$DiscipleEquipmentService$DomainLog.w(TAG, "unequipEquipmentLogic: equipment instance $equipmentId not found for disciple $discipleId, clearing slot only")</ID>
     <ID>MaxLineLength:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$!(stack.type == ManualType.MIND &amp;&amp; currentManualIds.any { manualInstances.get(it)?.type == ManualType.MIND })</ID>
     <ID>MaxLineLength:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$DomainLog.w(TAG, "recruitDiscipleFromList: disciple $discipleId not in recruitList, size=${gameData.recruitList.size}")</ID>
     <ID>MaxLineLength:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$DomainLog.w(TAG, "recruitDiscipleFromList: monthly limit reached (${gameData.recruitCountThisMonth}/${GameConfig.RECRUIT_MONTHLY_LIMIT})")</ID>
     <ID>MaxLineLength:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$DomainLog.w(TAG, "recruitDiscipleFromList: recruit ${disciple.name} age=${disciple.age} realm=${disciple.realm} 低于境界最小合理年龄")</ID>
     <ID>MaxLineLength:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$DomainLog.w(TAG, "recruitDiscipleFromList: skipping corrupted disciple $discipleId: name='${disciple.name}' age=${disciple.age} realm=${disciple.realm}")</ID>
-    <ID>MaxLineLength:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$discipleTables.storageBagSpiritStones[id] = result.updatedDisciple.equipment.storageBagSpiritStones</ID>
     <ID>MaxLineLength:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$override fun apprenticeToMaster(discipleId: String, masterId: String): DomainResult&lt;Unit&gt;</ID>
     <ID>MaxLineLength:DiscipleLifecycleManager.kt$DiscipleLifecycleManager$(team.status == ExplorationStatus.TRAVELING || team.status == ExplorationStatus.EXPLORING || team.status == ExplorationStatus.SCOUTING || team.status == ExplorationStatus.DANGER)</ID>
-    <ID>MaxLineLength:DiscipleLifecycleManager.kt$DiscipleLifecycleManager$discipleTables.storageBagItems[id].filter { it.itemType == ITEM_TYPE_EQUIPMENT_STACK || it.itemType == ITEM_TYPE_EQUIPMENT_INSTANCE }.map { it.itemId }.forEach { expelEquipIds.add(it) }</ID>
     <ID>MaxLineLength:DiscipleLifecycleManager.kt$DiscipleLifecycleManager$fun isDiscipleAssignedToSpiritMine(discipleId: String): Boolean</ID>
-    <ID>MaxLineLength:DiscipleLifecycleManager.kt$DiscipleLifecycleManager$val expelManualIds = discipleTables.storageBagItems[id].filter { it.itemType == ITEM_TYPE_MANUAL_STACK || it.itemType == ITEM_TYPE_MANUAL_INSTANCE }.map { it.itemId }.toSet() + discipleTables.manualIds[id].toSet()</ID>
     <ID>MaxLineLength:DiscipleLifecycleManager.kt$DiscipleLifecycleManager$val partnerName = if (partnerIdInt != null) discipleTables.names.getOrNull(partnerIdInt) ?: "未知" else "未知"</ID>
-    <ID>MaxLineLength:DiscipleManualManager.kt$DiscipleManualManager$.</ID>
     <ID>MaxLineLength:DiscipleManualManager.kt$DiscipleManualManager$if (instance.type == ManualType.MIND &amp;&amp; disciple.manualIds.any { mid -&gt; manualInstances[mid]?.type == ManualType.MIND }) return false</ID>
     <ID>MaxLineLength:DiscipleManualManager.kt$DiscipleManualManager$if (stack.type == ManualType.MIND &amp;&amp; disciple.manualIds.any { mid -&gt; manualInstances[mid]?.type == ManualType.MIND }) return false</ID>
-    <ID>MaxLineLength:DiscipleManualManager.kt$DiscipleManualManager$return ManualLearnResult(updatedDisciple, lastNewInstance, lastReplacedInstance, lastStackUpdate, lastReplacedManualStack, events)</ID>
-    <ID>MaxLineLength:DiscipleManualManager.kt$DiscipleManualManager$return ManualLearnResult(updatedDisciple, newInstance, existingInstance, stackUpdate, replacedManualStack, events)</ID>
-    <ID>MaxLineLength:DiscipleManualManager.kt$DiscipleManualManager$storageBagItems = StorageBagUtils.decreaseItemQuantity(updatedDisciple.equipment.storageBagItems, stack.id)</ID>
-    <ID>MaxLineLength:DiscipleManualManager.kt$DiscipleManualManager$val newHp = if (rawCurrentHp &gt;= 0 &amp;&amp; netHpDelta != 0) (rawCurrentHp + netHpDelta).coerceAtLeast(0) else rawCurrentHp</ID>
-    <ID>MaxLineLength:DiscipleManualManager.kt$DiscipleManualManager$val newMp = if (rawCurrentMp &gt;= 0 &amp;&amp; netMpDelta != 0) (rawCurrentMp + netMpDelta).coerceAtLeast(0) else rawCurrentMp</ID>
-    <ID>MaxLineLength:DisciplePurchaseService.kt$DisciplePurchaseService$val fallback = store.all().firstOrNull { !it.isLocked &amp;&amp; it.name == name &amp;&amp; it.rarity == rarity &amp;&amp; it.quantity &gt;= 1 }</ID>
     <ID>MaxLineLength:DiscipleService.kt$DiscipleService$(team.status == ExplorationStatus.TRAVELING || team.status == ExplorationStatus.EXPLORING || team.status == ExplorationStatus.SCOUTING || team.status == ExplorationStatus.DANGER)</ID>
-    <ID>MaxLineLength:DiscipleService.kt$DiscipleService$discipleTables.storageBagItems[id].filter { it.itemType == ITEM_TYPE_EQUIPMENT_STACK || it.itemType == ITEM_TYPE_EQUIPMENT_INSTANCE }.map { it.itemId }.forEach { expelEquipIds.add(it) }</ID>
     <ID>MaxLineLength:DiscipleService.kt$DiscipleService$fun</ID>
-    <ID>MaxLineLength:DiscipleService.kt$DiscipleService$val expelManualIds = discipleTables.storageBagItems[id].filter { it.itemType == ITEM_TYPE_MANUAL_STACK || it.itemType == ITEM_TYPE_MANUAL_INSTANCE }.map { it.itemId }.toSet() + discipleTables.manualIds[id].toSet()</ID>
     <ID>MaxLineLength:DiscipleSlotManager.kt$DiscipleSlotManager$/** 使用 Provider 打破 Hilt 循环依赖：DiscipleStatusService → DiscipleLifecycleManager → DiscipleSlotManager → DiscipleStatusService */</ID>
     <ID>MaxLineLength:DiscipleSlotManager.kt$DiscipleSlotManager$stateStore.update { gameData = discipleSlotCleanup.clearAllSlots(gameData, discipleId, includeResidence = true) }</ID>
     <ID>MaxLineLength:DiscipleStatCalculator.kt$DiscipleStatCalculator$val (maxHp, maxMp) = computeBaseHpMp(realm, realmLayer, hpVariance, mpVariance, talentEffects, bloodRefinementPct)</ID>
@@ -619,12 +512,6 @@
     <ID>MaxLineLength:GameEngineAtomicAssign.kt$DomainLog.d("GameEngine", "assignToResidence: 重复分配，跳过 canonicalId=$canonicalId slot=$buildingInstanceId/$slotIndex")</ID>
     <ID>MaxLineLength:GameEngineAtomicAssign.kt$it.discipleId == canonicalId &amp;&amp; !(it.buildingInstanceId == buildingInstanceId &amp;&amp; it.slotIndex == slotIndex)</ID>
     <ID>MaxLineLength:GameEngineAtomicAssign.kt$pendingConfirms.add(discipleId to SlotRef(SlotCategory.PATROL_SLOT, "patrol", "patrol_$globalIndex"))</ID>
-    <ID>MaxLineLength:GameEngineAtomicAssignTest.kt$FakeAtomicStateStore$override fun removePendingBeastAttack(beastLevelId: String)</ID>
-    <ID>MaxLineLength:GameEngineAtomicAssignTest.kt$FakeAtomicStateStore$override suspend</ID>
-    <ID>MaxLineLength:GameEngineAtomicAssignTest.kt$FakeAtomicStateStore$override suspend fun reset()</ID>
-    <ID>MaxLineLength:GameEngineAtomicAssignTest.kt$FakeAtomicStateStore$this._gameData.value = gameData</ID>
-    <ID>MaxLineLength:GameEngineBattleOps.kt$12 -&gt; discipleTables.basePhysicalAttacks[id] = discipleTables.basePhysicalAttacks[id] + 1</ID>
-    <ID>MaxLineLength:GameEngineBattleOps.kt$14 -&gt; discipleTables.basePhysicalDefenses[id] = discipleTables.basePhysicalDefenses[id] + 1</ID>
     <ID>MaxLineLength:GameEngineBattleOps.kt$AIBattleWinner.ATTACKER -&gt; if (battleResult.canOccupy) SectBattleType.CONQUEST else SectBattleType.BATTLE_WIN</ID>
     <ID>MaxLineLength:GameEngineBattleOps.kt$Combatant(id = disciple.id, name = disciple.name, side = CombatantSide.DEFENDER, hp = effectiveHp, maxHp = stats.maxHp, mp = effectiveMp, maxMp = stats.maxMp, physicalAttack = stats.physicalAttack, magicAttack = stats.magicAttack, physicalDefense = stats.physicalDefense, magicDefense = stats.magicDefense, speed = stats.speed, critRate = stats.critRate, skills = skills, realm = disciple.realm, realmName = disciple.realmName, element = disciple.spiritRoot.types.firstOrNull()?.trim() ?: "metal", portraitRes = disciple.portraitRes)</ID>
     <ID>MaxLineLength:GameEngineBattleOps.kt$aiSectDisciples = gameData.aiSectDisciples.mapValues { (sId, d) -&gt; if (sId == defenderPoolSectId) d.filter { it.id !in deadDefenderIds } else d }</ID>
@@ -638,7 +525,6 @@
     <ID>MaxLineLength:GameEngineBattleOps.kt$if (scoutDeadIds.isNotEmpty()) combatService.processBattleCasualties(scoutDeadIds, emptyMap(), emptyMap(), isOutsideSect = true)</ID>
     <ID>MaxLineLength:GameEngineBattleOps.kt$if (sect.id == sectId) sect.copy(garrisonSlots = sect.garrisonSlots.map { slot -&gt; if (slot.discipleId in deadDefenderIds) GarrisonSlot(index = slot.index) else slot }) else sect</ID>
     <ID>MaxLineLength:GameEngineBattleOps.kt$if (sect.id == sectId) sect.copy(garrisonSlots = sect.garrisonSlots.map { slot -&gt; if (slot.index == slotIndex) GarrisonSlot(index = slotIndex) else slot }) else sect</ID>
-    <ID>MaxLineLength:GameEngineBattleOps.kt$if (slot.index == slotIndex) GarrisonSlot(index = slotIndex, discipleId = disciple.id, discipleName = disciple.name, discipleRealm = disciple.realmName, discipleSpiritRootColor = disciple.spiritRoot.countColor, portraitRes = disciple.portraitRes) else slot</ID>
     <ID>MaxLineLength:GameEngineBattleOps.kt$if (spiritStones &gt; 0) rewards.add(BattleRewardItem(name = ItemNames.SPIRIT_STONE, quantity = spiritStones.toInt(), rarity = Rarity.COMMON.toInt(), type = "spiritStones"))</ID>
     <ID>MaxLineLength:GameEngineBattleOps.kt$is DomainResult.Success -&gt; rewards.add(BattleRewardItem(itemId = equip.id, name = equip.name, quantity = 1, rarity = equip.rarity, type = "equipment"))</ID>
     <ID>MaxLineLength:GameEngineBattleOps.kt$is DomainResult.Success -&gt; rewards.add(BattleRewardItem(itemId = manual.id, name = manual.name, quantity = 1, rarity = manual.rarity, type = "manual"))</ID>
@@ -670,17 +556,12 @@
     <ID>MaxLineLength:GameEngineBattleOps.kt$updateGameDataSync { val existingDetail = it.sectDetails[sectId] ?: SectDetail(sectId = sectId); it.copy(sectDetails = it.sectDetails + (sectId to existingDetail.copy(scoutInfo = scoutInfo))) }</ID>
     <ID>MaxLineLength:GameEngineBattleOps.kt$val aiDefenders = (data.aiSectDisciples[sectId] ?: emptyList()).filter { it.isAlive &amp;&amp; it.realm in 7..9 }.take(8)</ID>
     <ID>MaxLineLength:GameEngineBattleOps.kt$val battle = Battle(team = playerCombatants, beasts = aiCombatants, turn = 0, isFinished = false, winner = null, maxTurns = Int.MAX_VALUE)</ID>
-    <ID>MaxLineLength:GameEngineBattleOps.kt$val battle = battleSystem.createBattle(disciples = combatDisciples, equipmentMap = equipmentMap, manualMap = manualMap, beastLevel = level.realm, beastCount = level.count, beastType = beastTypeName, manualProficiencies = allProficiencies, beastPreGenStats = beastPreGenStats)</ID>
-    <ID>MaxLineLength:GameEngineBattleOps.kt$val battleResult = AISectAttackManager.executeSectBattle(attackers, targetSect, defenderDisciples, fullDefenderPool)</ID>
     <ID>MaxLineLength:GameEngineBattleOps.kt$val beastMaterial = com.xianxia.sect.core.registry.BeastMaterialDatabase.getRandomMaterialByBeastType(beastConfig.name, tier)</ID>
     <ID>MaxLineLength:GameEngineBattleOps.kt$val deadIds = stateStore.discipleTables.ids.filter { it.toString() in combatDiscipleIds &amp;&amp; stateStore.discipleTables.isAlive[it] == 0 }.map { it.toString() }.toSet()</ID>
-    <ID>MaxLineLength:GameEngineBattleOps.kt$val disciple = stateStore.discipleTables.assemble(discipleId.toInt()).takeIf { it.isAlive } ?: return@withEngineContext</ID>
-    <ID>MaxLineLength:GameEngineBattleOps.kt$val discipleEquipment = buildMap { disciple.equipment.weaponId?.let { id -&gt; equipmentMap[id]?.let { put(id, it) } }; disciple.equipment.armorId?.let { id -&gt; equipmentMap[id]?.let { put(id, it) } }; disciple.equipment.bootsId?.let { id -&gt; equipmentMap[id]?.let { put(id, it) } }; disciple.equipment.accessoryId?.let { id -&gt; equipmentMap[id]?.let { put(id, it) } } }</ID>
     <ID>MaxLineLength:GameEngineBattleOps.kt$val effectiveHp = if (disciple.combat.currentHp &lt; 0) stats.maxHp else disciple.combat.currentHp.coerceAtMost(stats.maxHp)</ID>
     <ID>MaxLineLength:GameEngineBattleOps.kt$val effectiveMp = if (disciple.combat.currentMp &lt; 0) stats.maxMp else disciple.combat.currentMp.coerceAtMost(stats.maxMp)</ID>
     <ID>MaxLineLength:GameEngineBattleOps.kt$val log = BattleLog(year = data.gameYear, month = data.gameMonth, type = BattleType.PVE, attackerName = "玩家队伍", defenderName = if (level.isBeast) level.beastName else level.guardianName, result = if (result.victory) BattleResult.WIN else BattleResult.LOSE, teamMembers = teamMembers, enemies = enemies, rounds = rounds, turns = result.turnCount, teamCasualties = teamMembers.count { !survivorIds.contains(it.name) }, beastsDefeated = if (result.victory) level.count else result.battle.beasts.count { it.isDead }, details = if (result.victory) "击败了${if (level.isBeast) level.beastName else level.guardianName}" else "被${if (level.isBeast) level.beastName else level.guardianName}击败")</ID>
     <ID>MaxLineLength:GameEngineBattleOps.kt$val log = BattleLog(year = data.gameYear, month = data.gameMonth, type = BattleType.SCOUT, attackerName = "探查队伍", defenderName = targetSect.name, result = if (victory) BattleResult.WIN else BattleResult.LOSE, teamMembers = teamMembers, enemies = enemies, rounds = rounds, turns = result.turnCount, teamCasualties = teamMembers.size - survivorIds.size, beastsDefeated = if (victory) aiCombatants.count { result.battle.beasts.any { b -&gt; b.id == it.id &amp;&amp; b.isDead } } else 0, details = if (victory) "成功探查了${targetSect.name}" else "探查${targetSect.name}失败")</ID>
-    <ID>MaxLineLength:GameEngineBattleOps.kt$val log = BattleLog(year = data.gameYear, month = data.gameMonth, type = BattleType.SECT_WAR, attackerName = "玩家队伍", defenderName = targetSect.name, result = winResult, teamMembers = teamMembers, enemies = enemyMembers, rounds = battleResult.rounds, turns = battleResult.turns, teamCasualties = deadPlayerIds.size, drops = drops, details = when (battleResult.winner) { AIBattleWinner.ATTACKER -&gt; if (battleResult.canOccupy) "攻占了${targetSect.name}" else "击溃了${targetSect.name}的守军"; AIBattleWinner.DEFENDER -&gt; "进攻${targetSect.name}失败"; AIBattleWinner.DRAW -&gt; "与${targetSect.name}打成平手" })</ID>
     <ID>MaxLineLength:GameEngineBattleOps.kt$val material = Material(id = java.util.UUID.randomUUID().toString(), name = beastMaterial.name, rarity = beastMaterial.rarity, description = beastMaterial.description, category = beastMaterial.materialCategory, quantity = 1)</ID>
     <ID>MaxLineLength:GameEngineBattleOps.kt$val multiplier = ManualProficiencySystem.calculateSkillDamageMultiplier(baseSkill.damageMultiplier, masteryLevel)</ID>
     <ID>MaxLineLength:GameEngineBattleOps.kt$val result = inventorySystem.withTrackingSource("cave_world") { inventorySystem.addEquipmentStack(equip) }</ID>
@@ -712,7 +593,6 @@
     <ID>MaxLineLength:GameEngineCoordination.kt$if (battleLogs.size &gt; logsToKeep) { battleLogs = battleLogs.take(logsToKeep); DomainLog.d("GameEngine", "内存释放($levelName): 战斗日志已清理，保留最近$logsToKeep 条") }</ID>
     <ID>MaxLineLength:GameEngineCoordination.kt$if (discardGlobalIdx &lt; oldSlots.size) { val discardedSlot = oldSlots[discardGlobalIdx]; if (discardedSlot.discipleId.isNotEmpty()) updatedDisciples = updatedDisciples.map { if (it.id == discardedSlot.discipleId) it.copy(status = DiscipleStatus.IDLE) else it }.toMutableList() }</ID>
     <ID>MaxLineLength:GameEngineCoordination.kt$if (disciple != null &amp;&amp; disciple.isAlive) gameEngineCore.launchInScope { updateDiscipleStatus(did, DiscipleStatus.IDLE) }</ID>
-    <ID>MaxLineLength:GameEngineCoordination.kt$if (existing.discipleId.isNotEmpty() &amp;&amp; existing.discipleId !in discipleMap) existing.copy(discipleId = "", discipleName = "", index = rebuiltSlots.size, buildingInstanceId = mine.instanceId) else existing.copy(index = rebuiltSlots.size, buildingInstanceId = mine.instanceId)</ID>
     <ID>MaxLineLength:GameEngineCoordination.kt$if (filtered.isEmpty()) updatedProficiencies.remove(discipleId) else updatedProficiencies[discipleId] = filtered</ID>
     <ID>MaxLineLength:GameEngineCoordination.kt$if (fixedAlchemy.size &lt; alchemyCount) { val existingIndices = fixedAlchemy.map { it.slotIndex }.toSet(); var nextIdx = 0; while (fixedAlchemy.size &lt; alchemyCount) { if (nextIdx !in existingIndices) fixedAlchemy.add(ProductionSlot.createIdle(slotIndex = nextIdx, buildingType = BuildingType.ALCHEMY, buildingId = "alchemy")); nextIdx++ } }</ID>
     <ID>MaxLineLength:GameEngineCoordination.kt$if (fixedForge.size &lt; forgeCount) { val existingIndices = fixedForge.map { it.slotIndex }.toSet(); var nextIdx = 0; while (fixedForge.size &lt; forgeCount) { if (nextIdx !in existingIndices) fixedForge.add(ProductionSlot.createIdle(slotIndex = nextIdx, buildingType = BuildingType.FORGE, buildingId = "forge")); nextIdx++ } }</ID>
@@ -724,7 +604,6 @@
     <ID>MaxLineLength:GameEngineCoordination.kt$sb.appendLine("功法实例数量: ${stateStore.manualInstances.value.size}")</ID>
     <ID>MaxLineLength:GameEngineCoordination.kt$sb.appendLine("弟子数量: ${stateStore.discipleTables.count}")</ID>
     <ID>MaxLineLength:GameEngineCoordination.kt$sb.appendLine("装备实例数量: ${stateStore.equipmentInstances.value.size}")</ID>
-    <ID>MaxLineLength:GameEngineCoordination.kt$selectedDisciples.forEach { disciple -&gt; gameEngineCore.launchInScope { updateDiscipleStatus(disciple.id, DiscipleStatus.ON_MISSION) } }</ID>
     <ID>MaxLineLength:GameEngineCoordination.kt$suspend fun GameEngine.completeExploration(teamId: String, success: Boolean, survivorIds: List&lt;String&gt;)</ID>
     <ID>MaxLineLength:GameEngineCoordination.kt$suspend fun GameEngine.redeemCode(code: String, usedCodes: List&lt;String&gt;, currentYear: Int, currentMonth: Int): RedeemResult</ID>
     <ID>MaxLineLength:GameEngineCoordination.kt$suspend fun GameEngine.restartGameSuspend(sectName: String = "", currentSlot: Int = 1)</ID>
@@ -737,15 +616,10 @@
     <ID>MaxLineLength:GameEngineCoordination.kt$val equipId = when (slot) { EquipmentSlot.WEAPON -&gt; disciple.equipment.weaponId; EquipmentSlot.ARMOR -&gt; disciple.equipment.armorId; EquipmentSlot.BOOTS -&gt; disciple.equipment.bootsId; EquipmentSlot.ACCESSORY -&gt; disciple.equipment.accessoryId }</ID>
     <ID>MaxLineLength:GameEngineCoordination.kt$val forgeSlots = result.filter { it.buildingType == BuildingType.FORGE }</ID>
     <ID>MaxLineLength:GameEngineCoordination.kt$val hasSameName = disciple.manualIds.filter { it != oldInstanceId }.any { mid -&gt; manualInstances.get(mid)?.name == newStack.name }</ID>
-    <ID>MaxLineLength:GameEngineCoordination.kt$val initialMine = GridBuildingData(buildingId = "灵矿场", displayName = "灵矿场", gridX = centerGrid, gridY = centerGrid, width = 2, height = 2, instanceId = java.util.UUID.randomUUID().toString(), sectId = "")</ID>
     <ID>MaxLineLength:GameEngineCoordination.kt$val newInstance = newStack.toInstance(id = java.util.UUID.randomUUID().toString(), ownerId = discipleId, isLearned = true)</ID>
-    <ID>MaxLineLength:GameEngineCoordination.kt$val result = MissionSystem.processMissionCompletion(activeMission, aliveDisciples, equipMap, manualMap, proficiencies, battleSystem)</ID>
-    <ID>MaxLineLength:GameEngineCoordination.kt$val result = addManualInstanceToDiscipleBag(disciple = currentDisciple, instance = instance, bagStackIds = bagStackIds, gameYear = gameData.gameYear, gameMonth = gameData.gameMonth, gamePhase = gameData.gamePhase, maxStackSize = inventoryConfig.getMaxStackSize("manual_stack"))</ID>
-    <ID>MaxLineLength:GameEngineCoordination.kt$val result = addManualInstanceToDiscipleBag(disciple = disciple, instance = oldInstance, bagStackIds = bagStackIds, gameYear = gameData.gameYear, gameMonth = gameData.gameMonth, gamePhase = gameData.gamePhase, maxStackSize = inventoryConfig.getMaxStackSize("manual_stack"))</ID>
     <ID>MaxLineLength:GameEngineCoordination.kt$val updatedDisciple = disciple.copy(manualIds = disciple.manualIds + instanceId, combat = disciple.combat.copy(currentHp = if (rawHp &gt;= 0 &amp;&amp; hpDelta &gt; 0) rawHp + hpDelta else rawHp, currentMp = if (rawMp &gt;= 0 &amp;&amp; mpDelta &gt; 0) rawMp + mpDelta else rawMp))</ID>
     <ID>MaxLineLength:GameEngineDiplomacyOps.kt$suspend fun GameEngine.buyFromSectTradeSync(sectId: String, itemId: String, quantity: Int = 1)</ID>
     <ID>MaxLineLength:GameEngineDiplomacyOps.kt$suspend fun GameEngine.getOrRefreshSectTradeItems(sectId: String): List&lt;MerchantItem&gt;</ID>
-    <ID>MaxLineLength:GameEngineDiplomacyOps.kt$suspend fun GameEngine.giftSpiritStones(sectId: String, tier: Int, bypassYearLimit: Boolean = false): GiftResult</ID>
     <ID>MaxLineLength:GameEngineDiscipleOps.kt$fun GameEngine.assignDirectDisciple(elderSlotType: String, slotIndex: Int, discipleId: String, discipleName: String, discipleRealm: String, discipleSpiritRootColor: String)</ID>
     <ID>MaxLineLength:GameEngineDiscipleOps.kt$fun GameEngine.assignDiscipleToLibrarySlot(slotIndex: Int, discipleId: String, discipleName: String)</ID>
     <ID>MaxLineLength:GameEngineDiscipleOps.kt$fun GameEngine.getDiscipleAggregate(discipleId: String): DiscipleAggregate?</ID>
@@ -795,9 +669,7 @@
     <ID>MaxLineLength:GpuTierDetector.kt$GpuTierDetector$r.contains("adreno 6") || r.contains("adreno 5") || r.contains("adreno 4") || r.contains("adreno 3") -&gt; return GpuTier.LOW</ID>
     <ID>MaxLineLength:GpuTierDetector.kt$GpuTierDetector$r.contains("mali-g57") || r.contains("mali-g52") || r.contains("mali-g51") || r.contains("mali-g68") -&gt; return GpuTier.LOW</ID>
     <ID>MaxLineLength:GpuTierDetector.kt$GpuTierDetector$try { android.opengl.EGL14.eglMakeCurrent(display ?: android.opengl.EGL14.EGL_NO_DISPLAY, android.opengl.EGL14.EGL_NO_SURFACE, android.opengl.EGL14.EGL_NO_SURFACE, android.opengl.EGL14.EGL_NO_CONTEXT) } catch (_: Exception) { DomainLog.w("GpuTierDetector", "EGL eglMakeCurrent cleanup failed (non-fatal)") }</ID>
-    <ID>MaxLineLength:HeavenlyTrialService.kt$HeavenlyTrialService$spiritStoneWallet.add(this, item.quantity.toLong(), SpiritStoneGrade.LOW, SpiritStoneSource.HeavenlyTrial)</ID>
     <ID>MaxLineLength:HpMpRecoveryEquivalenceTest.kt$HpMpRecoveryEquivalenceTest$val prof = ManualProficiencyData(manualId = "m1", proficiency = mastery.toDouble(), masteryLevel = mastery / 20)</ID>
-    <ID>MaxLineLength:HpMpRecoveryService.kt$HpMpRecoveryService$val finalStats = DiscipleStatCalculator.getFinalStats(disciple, equipmentMap, manualMap, discipleProficiencies)</ID>
     <ID>MaxLineLength:InventoryFacade.kt$InventoryFacade$BulkSellResult</ID>
     <ID>MaxLineLength:InventoryFacade.kt$InventoryFacade$fun createEquipmentStackFromRecipe(recipe: com.xianxia.sect.core.registry.ForgeRecipeDatabase.ForgeRecipe): EquipmentStack</ID>
     <ID>MaxLineLength:InventoryFacadeImpl.kt$InventoryFacadeImpl$"equipment" -&gt; equipmentStacks.value.filter { it.name == item.name &amp;&amp; it.rarity == item.rarity }.sumOf { it.quantity }</ID>
@@ -819,7 +691,6 @@
     <ID>MaxLineLength:InventoryFacadeImpl.kt$InventoryFacadeImpl$val deductResult = spiritStoneWallet.deduct(this, cost, SpiritStoneGrade.LOW, SpiritStoneReason.Purchase, SpiritStoneSource.MerchantTrade)</ID>
     <ID>MaxLineLength:InventoryFacadeImpl.kt$InventoryFacadeImpl$val eqPrice = (eqOriginal.toDouble() * GameConfig.Rarity.SELL_PRICE_MULTIPLIER).roundToInt().toLong()</ID>
     <ID>MaxLineLength:InventoryFacadeImpl.kt$InventoryFacadeImpl$val herb = Herb(id = UUID.randomUUID().toString(), name = h.name, rarity = h.rarity, description = h.description, category = h.category, quantity = 1)</ID>
-    <ID>MaxLineLength:InventoryFacadeImpl.kt$InventoryFacadeImpl$val pill = com.xianxia.sect.core.registry.ItemDatabase.createPillFromTemplate(template, quantity = 1)</ID>
     <ID>MaxLineLength:InventoryFacadeImpl.kt$InventoryFacadeImpl$val seed = Seed(id = UUID.randomUUID().toString(), name = s.name, rarity = s.rarity, description = s.description, growTime = s.growTime, yield = s.yield, quantity = 1)</ID>
     <ID>MaxLineLength:InventoryFacadeImpl.kt$InventoryFacadeImpl${ it.name == acquisitionItem.name &amp;&amp; it.rarity == acquisitionItem.rarity &amp;&amp; it.grade.displayName == (acquisitionItem.grade ?: "") &amp;&amp; !it.isLocked }</ID>
     <ID>MaxLineLength:InventorySystem.kt$InventorySystem$annualEquipmentBySource = gameData.annualEquipmentBySource + (srcKey to (gameData.annualEquipmentBySource[srcKey] ?: 0) + actualAdded)</ID>
@@ -853,12 +724,10 @@
     <ID>MaxLineLength:LawEnforcementProcessor.kt$LawEnforcementProcessor$repeat(qtyFn(item).coerceAtLeast(0)) { entries.add(Entry(type, idFn(item), nameFn(item), rarityFn(item))) }</ID>
     <ID>MaxLineLength:LawEnforcementProcessor.kt$LawEnforcementProcessor$return ((threshold - loyal) * GameConfig.LawEnforcementConfig.PROB_PER_POINT).coerceIn(0.0, GameConfig.LawEnforcementConfig.MAX_PROB)</ID>
     <ID>MaxLineLength:LawEnforcementProcessor.kt$LawEnforcementProcessor$return picked.groupBy { it.id to it.type }.map { (_, list) -&gt; val f = list.first(); LootedItemEntry(f.id, f.name, f.type, f.rarity, list.size) }</ID>
-    <ID>MaxLineLength:LawEnforcementProcessor.kt$LawEnforcementProcessor$snapshot.equipment.storageBagItems.filter { it.itemType == ITEM_TYPE_EQUIPMENT_STACK || it.itemType == ITEM_TYPE_EQUIPMENT_INSTANCE }.map { it.itemId }.forEach { desertEquipIds.add(it) }</ID>
     <ID>MaxLineLength:LawEnforcementProcessor.kt$LawEnforcementProcessor$state.gameData = state.gameData.copy(gameEventRecords = if (records.size &gt; 200) records.takeLast(200) else records)</ID>
     <ID>MaxLineLength:LawEnforcementProcessor.kt$LawEnforcementProcessor$state.gameData = state.gameData.copy(spiritStones = (state.gameData.spiritStones - stolenAmount).coerceAtLeast(0))</ID>
     <ID>MaxLineLength:LawEnforcementProcessor.kt$LawEnforcementProcessor$statusData = d.statusData + mapOf("reflectionStartYear" to currentYear.toString(), "reflectionEndYear" to endYear.toString())</ID>
     <ID>MaxLineLength:LawEnforcementProcessor.kt$LawEnforcementProcessor$stolenItems = stolenItems.map { LootCalculator.LootedItem(it.id, it.name, it.type, it.rarity, it.count) }</ID>
-    <ID>MaxLineLength:LawEnforcementProcessor.kt$LawEnforcementProcessor$val desertManualIds = snapshot.manualIds.toSet() + snapshot.equipment.storageBagItems.filter { it.itemType == ITEM_TYPE_MANUAL_STACK || it.itemType == ITEM_TYPE_MANUAL_INSTANCE }.map { it.itemId }</ID>
     <ID>MaxLineLength:LawEnforcementProcessor.kt$LawEnforcementProcessor$val intelBonus = (stats.intelligence - cfg.THEFT_INTELLIGENCE_BASE).coerceAtLeast(0) * cfg.THEFT_INTELLIGENCE_BONUS_PER_POINT</ID>
     <ID>MaxLineLength:LawEnforcementProcessor.kt$LawEnforcementProcessor$val intelUnits = ((stats.intelligence - cfg.THEFT_INTELLIGENCE_BASE).coerceAtLeast(0) * cfg.THEFT_INTELLIGENCE_BONUS_PER_POINT * cfg.THEFT_ITEM_UNIT_INTEL_FACTOR).toInt()</ID>
     <ID>MaxLineLength:LawEnforcementProcessor.kt$LawEnforcementProcessor$val intelligenceAboveBase = (DiscipleStatCalculator.getBaseStats(disciple).intelligence - GameConfig.LawEnforcementConfig.INTELLIGENCE_BASE).coerceAtLeast(0)</ID>
@@ -896,7 +765,6 @@
     <ID>MaxLineLength:PatrolBattleSystemTest.kt$PatrolBattleSystemTest$val s = emptyState().apply { gameData = gameData.copy(patrolSlots = listOf(PatrolSlot(index = 0, discipleId = "1", buildingInstanceId = "b1"))) }</ID>
     <ID>MaxLineLength:PerformanceMetrics.kt$MetricStats$return "count=$count, avg=${String.format(Locale.ROOT, "%.2f", avg)}, min=$min, max=$max, p50=$p50, p95=$p95, p99=$p99"</ID>
     <ID>MaxLineLength:ProductionProcessor.kt$ProductionProcessor$guideCounters = state.gameData.guideCounters + (GuideCounterKeys.HERBS_HARVESTED to prevHerbCount + 1)</ID>
-    <ID>MaxLineLength:ProductionProcessor.kt$ProductionProcessor$if</ID>
     <ID>MaxLineLength:ProductionProcessor.kt$ProductionProcessor$val singleResEnabled = policies.autoSingleResidenceFocused || policies.autoSingleResidenceRootCounts.isNotEmpty()</ID>
     <ID>MaxLineLength:ProductionProcessorTest.kt$ProductionProcessorTest$Disciple(id = "d1", statusData = mapOf("followed" to "false"), spiritRootType = "fire,water", skills = SkillStats(comprehension = 10))</ID>
     <ID>MaxLineLength:ProductionProcessorTest.kt$ProductionProcessorTest$Disciple(id = "d1", statusData = mapOf("followed" to "true"), spiritRootType = "fire,water", skills = SkillStats(comprehension = 10))</ID>
@@ -916,8 +784,6 @@
     <ID>MaxLineLength:RealtimeCultivationBatchTest.kt$RealtimeCultivationBatchTest.&lt;no name provided&gt;$override fun calculateCultivationSpeed(d: Disciple, manuals: Map&lt;String, ManualInstance&gt;, mps: Map&lt;String, ManualProficiencyData&gt;, bb: Double, ab: Double, peb: Double, pmb: Double, csb: Double, pcb: Double, gcp: Double, mdb: Double)</ID>
     <ID>MaxLineLength:RealtimeCultivationBatchTest.kt$RealtimeCultivationBatchTest.&lt;no name provided&gt;$override fun getBreakthroughChance(a: DiscipleAggregate, iec: Int, oec: Int, pb: Double, ab: Double, gcp: Double, mdb: Double)</ID>
     <ID>MaxLineLength:RealtimeCultivationBatchTest.kt$RealtimeCultivationBatchTest.&lt;no name provided&gt;$override fun getBreakthroughChance(d: Disciple, iec: Int, oec: Int, pb: Double, ab: Double, gcp: Double, mdb: Double)</ID>
-    <ID>MaxLineLength:RealtimeCultivationBatchTest.kt$RealtimeCultivationBatchTest.&lt;no name provided&gt;$override fun getFinalStats(a: DiscipleAggregate, e: Map&lt;String, EquipmentInstance&gt;, m: Map&lt;String, ManualInstance&gt;, p: Map&lt;String, ManualProficiencyData&gt;)</ID>
-    <ID>MaxLineLength:RealtimeCultivationBatchTest.kt$RealtimeCultivationBatchTest.&lt;no name provided&gt;$override fun getFinalStats(d: Disciple, e: Map&lt;String, EquipmentInstance&gt;, m: Map&lt;String, ManualInstance&gt;, p: Map&lt;String, ManualProficiencyData&gt;)</ID>
     <ID>MaxLineLength:RealtimeCultivationBatchTest.kt$RealtimeCultivationBatchTest.&lt;no name provided&gt;$override fun getStatsWithEquipment(a: DiscipleAggregate, e: Map&lt;String, EquipmentInstance&gt;)</ID>
     <ID>MaxLineLength:RealtimeCultivationBatchTest.kt$RealtimeCultivationBatchTest.&lt;no name provided&gt;$override fun getStatsWithEquipment(d: Disciple, e: Map&lt;String, EquipmentInstance&gt;)</ID>
     <ID>MaxLineLength:RealtimeCultivationBatchTest.kt$RealtimeCultivationBatchTest.&lt;no name provided&gt;$override fun getTalentEffects(aggregate: DiscipleAggregate)</ID>
@@ -963,8 +829,6 @@
     <ID>MaxLineLength:WarehouseModelsTest.kt$WarehouseModelsTest$val second = WarehousePage(items = emptyList(), pageIndex = 1, pageSize = 10, totalItems = 0, totalPages = 1, hasMore = false)</ID>
     <ID>MaxLineLength:WorldMapGenerator.kt$WorldMapGenerator$name = chars[rng.nextInt(chars.size)] + chars[rng.nextInt(chars.size)] + suffixes[rng.nextInt(suffixes.size)]</ID>
     <ID>MayBeConst:RedeemCodeManager.kt$RedeemCodeManager$private val TAG = "RedeemCodeManager"</ID>
-    <ID>NestedBlockDepth:CultivationCore.kt$CultivationCore$fun processManualProficiencyPerPhase(state: MutableGameState)</ID>
-    <ID>NestedBlockDepth:CultivationCore.kt$CultivationCore$fun processManualProficiencySingle( state: MutableGameState, id: Int, manualInstanceMap: Map&lt;String, ManualInstance&gt;? = null, pendingProficiencies: MutableMap&lt;String, List&lt;ManualProficiencyData&gt;?&gt;? = null, libraryDiscipleIds: Set&lt;String&gt;? = null )</ID>
     <ID>NestedBlockDepth:CultivationService.kt$CultivationService$fun recoverHpMpForCombatDisciples(state: MutableGameState)</ID>
     <ID>NestedBlockDepth:CultivationSettlement.kt$CultivationSettlement$fun processPolicyMonthlyEffects(state: MutableGameState)</ID>
     <ID>NestedBlockDepth:CultivationSettlement.kt$CultivationSettlement$private fun buildSpiritMineZones(data: GameData, tables: DiscipleTables): SpiritMineZones</ID>
@@ -1015,7 +879,6 @@
     <ID>ReturnCount:BattleCalculator.kt$BattleCalculator$fun selectSkill( combatant: Combatant, enemies: List&lt;Combatant&gt;, allies: List&lt;Combatant&gt;, isSilenced: Boolean, rng: DeterministicRng ): CombatSkill?</ID>
     <ID>ReturnCount:BattleCalculator.kt$BattleCalculator$fun selectTarget(attacker: Combatant, targets: List&lt;Combatant&gt;, rng: DeterministicRng): Combatant</ID>
     <ID>ReturnCount:BattleSystem.kt$BattleSystem$private fun applyControlEffects( ctx: TurnContext, currentCombatant: Combatant, isTeamMember: Boolean, allies: MutableList&lt;Combatant&gt;, alliesIndexMap: Map&lt;String, Int&gt; ): TurnOutcome?</ID>
-    <ID>ReturnCount:BootSequenceController.kt$BootSequenceController$@Suppress("LongParameterList") suspend fun boot( slot: Int, onPreloadResources: suspend () -&gt; Unit = {}, onProgress: (Float) -&gt; Unit = {}, onPhase: (String) -&gt; Unit = {}, onMapReady: (MapPreloadData) -&gt; Unit = {}, onSuccess: () -&gt; Unit = {}, onError: (String) -&gt; Unit = {} ): Result&lt;Unit&gt;</ID>
     <ID>ReturnCount:BuildingFacadeImpl.kt$BuildingFacadeImpl$override suspend fun plantOnSpiritFields(instanceIds: List&lt;String&gt;, seedId: String, sectId: String)</ID>
     <ID>ReturnCount:BuildingFeatureRegistry.kt$BuildingFeatureRegistry$fun residenceSpeedMultiplier(name: String): Double</ID>
     <ID>ReturnCount:BuildingService.kt$BuildingService$private fun getElderPositionBonusLocal(buildingId: String): Double</ID>
@@ -1023,8 +886,6 @@
     <ID>ReturnCount:BuildingService.kt$BuildingService$suspend fun startAlchemy( slotIndex: Int, recipeId: String ): DomainResult&lt;ProductionSlot&gt;</ID>
     <ID>ReturnCount:BuildingService.kt$BuildingService$suspend fun startForging( slotIndex: Int, recipeId: String ): DomainResult&lt;ProductionSlot&gt;</ID>
     <ID>ReturnCount:CaveExplorationProcessor.kt$CaveExplorationProcessor$private fun executeCaveExploration( team: CaveExplorationTeam, cave: CultivatorCave, currentAITeams: List&lt;AICaveTeam&gt; ): Triple&lt;List&lt;CultivatorCave&gt;, List&lt;AICaveTeam&gt;, Boolean&gt;</ID>
-    <ID>ReturnCount:CaveGenerator.kt$CaveGenerator$private fun isValidPosition( x: Int, y: Int, usedPositions: Set&lt;Pair&lt;Int, Int&gt;&gt;, sects: List&lt;WorldSect&gt;, edges: List&lt;MSTEdge&gt;, existingCaves: List&lt;CultivatorCave&gt; ): Boolean</ID>
-    <ID>ReturnCount:CultivationCore.kt$CultivationCore$fun processManualProficiencySingle( state: MutableGameState, id: Int, manualInstanceMap: Map&lt;String, ManualInstance&gt;? = null, pendingProficiencies: MutableMap&lt;String, List&lt;ManualProficiencyData&gt;?&gt;? = null, libraryDiscipleIds: Set&lt;String&gt;? = null )</ID>
     <ID>ReturnCount:CultivationEventProcessor.kt$CultivationEventProcessor$fun qualifiesForSectAutoPublic(disciple: Disciple, focused: Boolean, rootCounts: Set&lt;Int&gt;): Boolean</ID>
     <ID>ReturnCount:CultivationEventProcessorTest.kt$CultivationEventProcessorTest$private fun qualifiesForSectAutoPublic( disciple: Disciple, focused: Boolean, rootCounts: Set&lt;Int&gt; ): Boolean</ID>
     <ID>ReturnCount:CultivationRateCalculator.kt$CultivationRateCalculator$fun bonusFor(pid: String?): Double</ID>
@@ -1104,7 +965,6 @@
     <ID>ReturnCount:ProductionCoordinator.kt$ProductionCoordinator$suspend fun startForgingAtomic( slotIndex: Int, recipeId: String, currentYear: Int, currentMonth: Int, materials: List&lt;Material&gt;, buildingId: String = "forge", successRate: Double = 0.0 ): DomainResult&lt;ProductionStartData&gt;</ID>
     <ID>ReturnCount:ProductionProcessor.kt$ProductionProcessor$private fun isSlotCompleteDynamic(slot: ProductionSlot, year: Int, month: Int): Boolean</ID>
     <ID>ReturnCount:ProductionProcessor.kt$ProductionProcessor$private suspend fun processAutoForgeSlot( slot: ProductionSlot, data: GameData, allDisciples: List&lt;Disciple&gt;, forgePolicyBonus: Double, allRecipes: List&lt;ForgeRecipeDatabase.ForgeRecipe&gt; ): Boolean</ID>
-    <ID>ReturnCount:ProductionSlotRepository.kt$ProductionSlotRepository$suspend fun removeSlot(slotId: String): Result&lt;Boolean&gt;</ID>
     <ID>ReturnCount:ProductionTransactionManager.kt$ProductionTransactionManager$suspend fun executeCompleteProduction( buildingType: BuildingType, slotIndex: Int, currentYear: Int, currentMonth: Int ): ProductionTransactionResult</ID>
     <ID>ReturnCount:ProductionTransactionManager.kt$ProductionTransactionManager$suspend fun executeCompleteProductionByBuildingId( buildingId: String, slotIndex: Int, currentYear: Int, currentMonth: Int ): ProductionTransactionResult</ID>
     <ID>ReturnCount:ProductionTransactionManager.kt$ProductionTransactionManager$suspend fun executeStartProduction( buildingType: BuildingType, slotIndex: Int, recipeId: String, recipeName: String, duration: Int, currentYear: Int, currentMonth: Int, discipleId: String?, discipleName: String, successRate: Double, materials: Map&lt;String, Int&gt;, availableMaterials: Map&lt;String, Int&gt;, outputItemId: String?, outputItemName: String, outputItemRarity: Int ): ProductionTransactionResult</ID>
@@ -1139,7 +999,6 @@
     <ID>SwallowedException:GameDataManager.kt$GameDataManager$e: UninitializedPropertyAccessException</ID>
     <ID>SwallowedException:MailService.kt$MailService$e: Exception</ID>
     <ID>SwallowedException:MerchantItemConverter.kt$MerchantItemConverter$e: IllegalArgumentException</ID>
-    <ID>SwallowedException:ThermalMonitor.kt$ThermalMonitor$e: Exception</ID>
     <ID>ThrowsCount:ExplorationService.kt$ExplorationService$fun processMonthlyWorldLevels(state: MutableGameState)</ID>
     <ID>ThrowsCount:SectMapTouchEngine.kt$SectMapTouchEngine$private fun handleDown(data: TouchData)</ID>
     <ID>TooGenericExceptionCaught:AISectTeamComposer.kt$e: Exception</ID>
@@ -1185,27 +1044,18 @@
     <ID>TooManyFunctions:BuildingService.kt$BuildingService</ID>
     <ID>TooManyFunctions:CameraState.kt$CameraState</ID>
     <ID>TooManyFunctions:CaveExplorationProcessor.kt$CaveExplorationProcessor</ID>
-    <ID>TooManyFunctions:CultivationCore.kt$CultivationCore</ID>
     <ID>TooManyFunctions:CultivationEventProcessor.kt$CultivationEventProcessor</ID>
-    <ID>TooManyFunctions:CultivationRateCalculator.kt$CultivationRateCalculator</ID>
     <ID>TooManyFunctions:CultivationService.kt$CultivationService</ID>
     <ID>TooManyFunctions:DiplomacyFacade.kt$DiplomacyFacade</ID>
-    <ID>TooManyFunctions:DiplomacyFacadeImpl.kt$DiplomacyFacadeImpl : DiplomacyFacade</ID>
-    <ID>TooManyFunctions:DiscipleAssignmentGate.kt$DiscipleAssignmentGate</ID>
     <ID>TooManyFunctions:DiscipleFacade.kt$DiscipleFacade</ID>
     <ID>TooManyFunctions:DiscipleFacadeImpl.kt$DiscipleFacadeImpl : DiscipleFacade</ID>
     <ID>TooManyFunctions:DiscipleLifecycleManager.kt$DiscipleLifecycleManager</ID>
-    <ID>TooManyFunctions:DiscipleLifecycleProcessor.kt$DiscipleLifecycleProcessor</ID>
-    <ID>TooManyFunctions:DisciplePurchaseService.kt$DisciplePurchaseService</ID>
     <ID>TooManyFunctions:DiscipleService.kt$DiscipleService</ID>
     <ID>TooManyFunctions:DiscipleStatCalculator.kt$DiscipleStatCalculator</ID>
-    <ID>TooManyFunctions:DiscipleStatusService.kt$DiscipleStatusService</ID>
     <ID>TooManyFunctions:ExplorationService.kt$ExplorationService</ID>
-    <ID>TooManyFunctions:GameEngine.kt$GameEngine</ID>
     <ID>TooManyFunctions:GameEngineBattleOps.kt$com.xianxia.sect.core.engine.GameEngineBattleOps.kt</ID>
     <ID>TooManyFunctions:GameEngineCoordination.kt$com.xianxia.sect.core.engine.GameEngineCoordination.kt</ID>
     <ID>TooManyFunctions:GameEngineCore.kt$GameEngineCore : EngineContextDispatcher</ID>
-    <ID>TooManyFunctions:GameEngineDiplomacyOps.kt$com.xianxia.sect.core.engine.GameEngineDiplomacyOps.kt</ID>
     <ID>TooManyFunctions:GameEngineDiscipleOps.kt$com.xianxia.sect.core.engine.GameEngineDiscipleOps.kt</ID>
     <ID>TooManyFunctions:GameEngineInventoryOps.kt$com.xianxia.sect.core.engine.GameEngineInventoryOps.kt</ID>
     <ID>TooManyFunctions:GameEngineProductionOps.kt$com.xianxia.sect.core.engine.GameEngineProductionOps.kt</ID>
@@ -1216,25 +1066,14 @@
     <ID>TooManyFunctions:LawEnforcementProcessor.kt$LawEnforcementProcessor</ID>
     <ID>TooManyFunctions:MailService.kt$MailService</ID>
     <ID>TooManyFunctions:ManualDatabase.kt$ManualDatabase</ID>
-    <ID>TooManyFunctions:ManualRegistry.kt$ManualRegistry : BaseTemplateRegistry</ID>
-    <ID>TooManyFunctions:MerchantAndRecruitService.kt$MerchantAndRecruitService</ID>
     <ID>TooManyFunctions:MissionSystem.kt$MissionSystem</ID>
     <ID>TooManyFunctions:NativeBridge.kt$NativeBridge</ID>
-    <ID>TooManyFunctions:PatrolBattleSystem.kt$PatrolBattleSystem</ID>
-    <ID>TooManyFunctions:ProductionCoordinator.kt$ProductionCoordinator</ID>
     <ID>TooManyFunctions:ProductionProcessor.kt$ProductionProcessor</ID>
     <ID>TooManyFunctions:ProductionSlotRepository.kt$ProductionSlotRepository</ID>
     <ID>TooManyFunctions:RedeemCodeManager.kt$RedeemCodeManager</ID>
-    <ID>TooManyFunctions:RedeemCodeService.kt$RedeemCodeService</ID>
-    <ID>TooManyFunctions:RelativeGiftHandler.kt$RelativeGiftHandler</ID>
     <ID>TooManyFunctions:SectPolicyToggleUseCase.kt$SectPolicyToggleUseCase</ID>
-    <ID>TooManyFunctions:SlotCache.kt$SlotCache</ID>
-    <ID>TooManyFunctions:SpiritStoneWallet.kt$SpiritStoneWallet</ID>
-    <ID>TooManyFunctions:StateAccessor.kt$StateAccessorFactory</ID>
-    <ID>TooManyFunctions:TimeSystem.kt$TimeSystem : GameSystem</ID>
     <ID>TooManyFunctions:TouchEngineCallbacks.kt$TouchEngineCallbacks</ID>
     <ID>TooManyFunctions:UnifiedPerformanceMonitor.kt$UnifiedPerformanceMonitor</ID>
-    <ID>TooManyFunctions:VassalService.kt$VassalService</ID>
     <ID>UnusedImports:CultivationEventDiplomacyOps.kt$import com.xianxia.sect.core.engine.system.InventorySystem</ID>
     <ID>UnusedImports:CultivationEventDiplomacyOps.kt$import com.xianxia.sect.core.util.DomainLog</ID>
     <ID>UnusedImports:CultivationEventDiplomacyOps.kt$import com.xianxia.sect.core.util.DomainResult</ID>
@@ -1247,15 +1086,12 @@
     <ID>UnusedImports:CultivationEventProcessor.kt$import com.xianxia.sect.core.engine.domain.exploration.MissionSystem</ID>
     <ID>UnusedParameter:AISectAttackManager.kt$AISectAttackManager$defenderSect: WorldSect</ID>
     <ID>UnusedParameter:AISectBeastAttackProcessor.kt$AISectBeastAttackProcessor$year: Int</ID>
-    <ID>UnusedParameter:AISectDiscipleManager.kt$AISectDiscipleManager$maxRealm: Int = 9</ID>
     <ID>UnusedParameter:AISectDiscipleManager.kt$AISectDiscipleManager$sectName: String</ID>
     <ID>UnusedParameter:BattleAI.kt$BattleAI$attacker: Combatant</ID>
     <ID>UnusedParameter:BattleAI.kt$BattleAI$unit: Combatant</ID>
     <ID>UnusedParameter:BattleCalculator.kt$BattleCalculator$allCombatants: List&lt;Combatant&gt; = emptyList()</ID>
     <ID>UnusedParameter:BuildingFacadeImpl.kt$BuildingFacadeImpl$status: DiscipleStatus</ID>
     <ID>UnusedParameter:CaveExplorationProcessor.kt$CaveExplorationProcessor$battleRewardItems: List&lt;BattleRewardItem&gt;</ID>
-    <ID>UnusedParameter:CaveExplorationProcessor.kt$CaveExplorationProcessor$expired: AttackWarning</ID>
-    <ID>UnusedParameter:CaveExplorationProcessor.kt$CaveExplorationProcessor$playerSectId: String</ID>
     <ID>UnusedParameter:CaveExplorationProcessor.kt$CaveExplorationProcessor$year: Int</ID>
     <ID>UnusedParameter:ChildBirthSystem.kt$ChildBirthSystem$currentYear: Int</ID>
     <ID>UnusedParameter:CultivationEventMonthlyOps.kt$year: Int</ID>
@@ -1273,7 +1109,6 @@
     <ID>UnusedParameter:DiscipleManualManager.kt$DiscipleManualManager$gameMonth: Int</ID>
     <ID>UnusedParameter:DiscipleManualManager.kt$DiscipleManualManager$gamePhase: Int</ID>
     <ID>UnusedParameter:DiscipleManualManager.kt$DiscipleManualManager$gameYear: Int</ID>
-    <ID>UnusedParameter:DiscipleManualManager.kt$DiscipleManualManager$manualInstances: Map&lt;String, ManualInstance&gt;</ID>
     <ID>UnusedParameter:DiscipleManualManager.kt$DiscipleManualManager$maxStack: Int = MAX_MANUAL_STACK</ID>
     <ID>UnusedParameter:DisciplePillManager.kt$DisciplePillManager$gameMonth: Int</ID>
     <ID>UnusedParameter:DisciplePillManager.kt$DisciplePillManager$gamePhase: Int</ID>
@@ -1294,7 +1129,6 @@
     <ID>UnusedParameter:LifespanGainOnBreakthroughTest.kt$LifespanGainOnBreakthroughTest$currentLifespan: Int</ID>
     <ID>UnusedParameter:PatrolBattleSystem.kt$PatrolBattleSystem$aiSect: WorldSect</ID>
     <ID>UnusedParameter:PatrolBattleSystem.kt$PatrolBattleSystem$target: WorldLevel</ID>
-    <ID>UnusedParameter:ProductionProcessor.kt$ProductionProcessor$buildingId: String</ID>
     <ID>UnusedParameter:ProductionProcessor.kt$ProductionProcessor$slots: MutableList&lt;ProductionSlot&gt;</ID>
     <ID>UnusedParameter:RedeemCodeService.kt$RedeemCodeService$mailRng: kotlin.random.Random</ID>
     <ID>UnusedParameter:RelativeGiftHandler.kt$RelativeGiftHandler$myIdStr: String</ID>
@@ -1316,23 +1150,11 @@
     <ID>UnusedPrivateProperty:AutoBuyService.kt$AutoBuyService$private val inventoryConfig: InventoryConfig</ID>
     <ID>UnusedPrivateProperty:AutoPillService.kt$AutoPillService.Companion$private const val TAG = "AutoPillService"</ID>
     <ID>UnusedPrivateProperty:BattleSettlementService.kt$BattleSettlementService.Companion$private const val TAG = "BattleSettlementService"</ID>
-    <ID>UnusedPrivateProperty:CaveExplorationProcessor.kt$CaveExplorationProcessor$private val rng get() = rngManager.getRng(RngPartition.EXPLORATION)</ID>
-    <ID>UnusedPrivateProperty:CaveGenerator.kt$CaveGenerator$private val caveNames = listOf( "化神洞府", "炼虚洞府", "合体洞府", "大乘洞府", "渡劫洞府" )</ID>
     <ID>UnusedPrivateProperty:ChildBirthSystem.kt$ChildBirthSystem$private val stateStore: GameStateStore</ID>
     <ID>UnusedPrivateProperty:CombatService.kt$CombatService$private val battleSystem: BattleSystem</ID>
     <ID>UnusedPrivateProperty:CombatService.kt$CombatService$private val cultivationService: com.xianxia.sect.core.engine.service.CultivationService</ID>
     <ID>UnusedPrivateProperty:CombatService.kt$CombatService$val deadId = dead.id.toIntOrNull() ?: return@firstOrNull false</ID>
     <ID>UnusedPrivateProperty:CombatService.kt$CombatService.Companion$private const val TAG = "CombatService"</ID>
-    <ID>UnusedPrivateProperty:CultivationCore.kt$CultivationCore$private val equipmentManager: DiscipleEquipmentManager</ID>
-    <ID>UnusedPrivateProperty:CultivationCore.kt$CultivationCore$private val gameClock: GameTimeClock</ID>
-    <ID>UnusedPrivateProperty:CultivationCore.kt$CultivationCore$private val inventoryConfig: InventoryConfig</ID>
-    <ID>UnusedPrivateProperty:CultivationCore.kt$CultivationCore$private val manualManager: DiscipleManualManager</ID>
-    <ID>UnusedPrivateProperty:CultivationCore.kt$CultivationCore$private val manualProficiencyService: ManualProficiencyService</ID>
-    <ID>UnusedPrivateProperty:CultivationCore.kt$CultivationCore$private val pillManager: DisciplePillManager</ID>
-    <ID>UnusedPrivateProperty:CultivationCore.kt$CultivationCore$private val profiler: DeviceCapabilityProfiler = DeviceCapabilityProfiler()</ID>
-    <ID>UnusedPrivateProperty:CultivationCore.kt$CultivationCore$private val scopeProvider: CoroutineScopeProvider</ID>
-    <ID>UnusedPrivateProperty:CultivationCore.kt$CultivationCore$private val stateStore: GameStateStore</ID>
-    <ID>UnusedPrivateProperty:CultivationCore.kt$CultivationCore$private val thermalMonitor: ThermalMonitor</ID>
     <ID>UnusedPrivateProperty:CultivationEventMonthlyOps.kt$val data = state.gameData</ID>
     <ID>UnusedPrivateProperty:CultivationRateCalculator.kt$CultivationRateCalculator.Companion$private const val TAG = "CultivationRateCalculator"</ID>
     <ID>UnusedPrivateProperty:CultivationService.kt$CultivationService$private val discipleService: DiscipleService</ID>
@@ -1342,7 +1164,6 @@
     <ID>UnusedPrivateProperty:DiscipleAssignmentGateTest.kt$DiscipleAssignmentGateTest$private val mineSlot = SlotRef(SlotCategory.SPIRIT_MINE, "miner:0", "spiritMine_miner_0")</ID>
     <ID>UnusedPrivateProperty:DiscipleAssignmentRegistryTest.kt$DiscipleAssignmentRegistryTest$private val spiritMineSlotRef = SlotRef( category = SlotCategory.SPIRIT_MINE, slotType = "miner:0", slotId = "spiritMine_miner_0" )</ID>
     <ID>UnusedPrivateProperty:DiscipleBreakthroughHandler.kt$DiscipleBreakthroughHandler.Companion$private const val TAG = "DiscipleBreakthroughHandler"</ID>
-    <ID>UnusedPrivateProperty:DiscipleEquipmentService.kt$DiscipleEquipmentService$private val inventoryConfig: InventoryConfig</ID>
     <ID>UnusedPrivateProperty:DiscipleFacadeImpl.kt$DiscipleFacadeImpl$private val inventorySystem: InventorySystem</ID>
     <ID>UnusedPrivateProperty:DiscipleFactory.kt$// ---- 魔法数字命名常量 ---- private const val VARIANCE_MIN = -50</ID>
     <ID>UnusedPrivateProperty:DiscipleFactory.kt$private const val VARIANCE_MAX = 51</ID>
@@ -1378,19 +1199,15 @@
     <ID>UnusedPrivateProperty:GameEngineCore.kt$GameEngineCore.Companion$private const val MIN_TICK_DELAY_MS = 16L</ID>
     <ID>UnusedPrivateProperty:GameEngineRecruitTest.kt$GameEngineRecruitTest$val sanitized = RecruitService.sanitizeRecruitList(state)</ID>
     <ID>UnusedPrivateProperty:HpMpRecoveryService.kt$HpMpRecoveryService.Companion$private const val TAG = "HpMpRecoveryService"</ID>
-    <ID>UnusedPrivateProperty:InventoryFacadeImpl.kt$InventoryFacadeImpl$private val inventoryConfig: InventoryConfig</ID>
     <ID>UnusedPrivateProperty:InventorySystem.kt$InventorySystem$private val spiritStoneWallet: SpiritStoneWallet</ID>
     <ID>UnusedPrivateProperty:LazyEvaluationDispatcher.kt$LazyEvaluationDispatcher$private val stateStore: GameStateStore</ID>
     <ID>UnusedPrivateProperty:ManualProficiencyService.kt$ManualProficiencyService.Companion$private const val TAG = "ManualProficiencyService"</ID>
     <ID>UnusedPrivateProperty:PatrolBattleSystem.kt$PatrolBattleSystem$i</ID>
     <ID>UnusedPrivateProperty:PatrolBattleSystem.kt$PatrolBattleSystem$private val encounterBattleService: com.xianxia.sect.core.domain.battle.EncounterBattleService</ID>
-    <ID>UnusedPrivateProperty:PatrolBattleSystem.kt$PatrolBattleSystem$val aiSurvivors = pvpResult.battle.beasts.filter { !it.isDead }</ID>
-    <ID>UnusedPrivateProperty:PatrolBattleSystem.kt$PatrolBattleSystem$val patrolSurvivors = pvpResult.battle.team.filter { !it.isDead }</ID>
     <ID>UnusedPrivateProperty:ProductionProcessor.kt$ProductionProcessor$val assignedId = slots[slotIdx].assignedDiscipleId</ID>
     <ID>UnusedPrivateProperty:ProductionProcessor.kt$ProductionProcessor$val assignedName = slots[slotIdx].assignedDiscipleName</ID>
     <ID>UnusedPrivateProperty:ProductionProcessor.kt$ProductionProcessor$val assignedStatus = when (type) { BuildingType.ALCHEMY -&gt; DiscipleStatus.ALCHEMY BuildingType.FORGE -&gt; DiscipleStatus.FORGE BuildingType.HERB_GARDEN -&gt; DiscipleStatus.SPIRIT_PLANTING else -&gt; DiscipleStatus.IDLE }</ID>
     <ID>UnusedPrivateProperty:ProductionProcessor.kt$ProductionProcessor$val mineIter = mineCandidates.iterator()</ID>
-    <ID>UnusedPrivateProperty:ProductionProcessorTest.kt$ProductionProcessorTest$i</ID>
     <ID>UnusedPrivateProperty:ProductionProcessorTest.kt$ProductionProcessorTest$val herbsBefore = emptyList&lt;Herb&gt;()</ID>
     <ID>UnusedPrivateProperty:RedeemCodeService.kt$RedeemCodeService$val data = stateStore.gameData.value</ID>
     <ID>UnusedPrivateProperty:SaveLoadCoordinator.kt$SaveLoadCoordinator.Companion$private const val LOAD_TIMEOUT_MS = 10000L</ID>
@@ -1433,5 +1250,5 @@
     <ID>VariableNaming:SpiritMineMonthlySettlementTest.kt$SpiritMineMonthlySettlementTest$private val BASE_PER_MINER_LONG = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER.toLong()</ID>
     <ID>VariableNaming:StatusDerivationCoverageTest.kt$StatusDerivationCoverageTest$/** * 每个可推导状态 → 对应的 [SlotFlags] 字段名。 * 枚举值名转换为驼峰 field 名（首字母小写）。 */ private val STATUS_TO_SLOT_FLAG: Map&lt;DiscipleStatus, String&gt; = mapOf( DiscipleStatus.IDLE to "", // IDLE 是 else 分支，无对应 flag DiscipleStatus.GARRISONING to "inGarrison", DiscipleStatus.IN_TEAM to "inTeam", DiscipleStatus.LAW_ENFORCING to "lawEnforcing", DiscipleStatus.PREACHING to "preaching", DiscipleStatus.DEACONING to "deaconing", DiscipleStatus.MANAGING to "managing", DiscipleStatus.STUDYING to "studying", DiscipleStatus.MINING to "mining", DiscipleStatus.PATROLLING to "patrolling", DiscipleStatus.ALCHEMY to "alchemy", DiscipleStatus.FORGE to "forge", DiscipleStatus.SPIRIT_PLANTING to "spiritPlanting" )</ID>
     <ID>VariableNaming:StatusDerivationCoverageTest.kt$StatusDerivationCoverageTest$/** * 非推导状态：不通过 SlotFlags/deriveDiscipleStatus 设置。 * - DEAD：通过 markDead 设置，非槽位推导 * - REFLECTING：受保护状态，直接写入 * - ON_MISSION：受保护状态，直接写入 * - REFINING：受保护状态，直接写入 */ private val NON_DERIVED_STATUSES = setOf( DiscipleStatus.DEAD, DiscipleStatus.REFLECTING, DiscipleStatus.ON_MISSION, DiscipleStatus.REFINING )</ID>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              </CurrentIssues>
+  </CurrentIssues>
 </SmellBaseline>

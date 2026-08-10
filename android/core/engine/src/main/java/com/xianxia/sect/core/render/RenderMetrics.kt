@@ -33,6 +33,9 @@ object RenderMetrics {
     /** Canvas 软件路径帧数 */
     val softwareFrames = AtomicLong(0)
 
+    /** Vulkan 路径装饰层被热控跳过（decorationsDisabled || qualityFactor < 0.6）的帧数 */
+    val vulkanDecorSkippedFrames = AtomicLong(0)
+
     // ── 丢帧与异常 ──
 
     /** renderFrame 返回 null 次数（软件路径无有效帧输出） */
@@ -105,6 +108,7 @@ object RenderMetrics {
         totalFrames.set(0)
         vulkanFrames.set(0)
         softwareFrames.set(0)
+        vulkanDecorSkippedFrames.set(0)
         renderFrameNull.set(0)
         lockCanvasRetries.set(0)
         lockCanvasFailed.set(0)

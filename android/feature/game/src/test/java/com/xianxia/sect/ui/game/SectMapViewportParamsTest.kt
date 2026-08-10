@@ -29,7 +29,7 @@ class SectMapViewportParamsTest {
         cameraState: com.xianxia.sect.ui.game.map.sect.SectCameraState =
             com.xianxia.sect.ui.game.map.sect.SectCameraState(768f, 768f)
     ) = SectMapViewportParams(
-        nativeConfig = com.xianxia.sect.ui.game.sect.NativeRenderConfig(
+        nativeConfig = com.xianxia.sect.core.render.NativeRenderConfig(
             tileSize = 32,
             worldWidthCells = 24,
             worldHeightCells = 24,

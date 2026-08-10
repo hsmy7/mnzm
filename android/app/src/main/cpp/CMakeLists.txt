@@ -19,6 +19,7 @@ add_library(native-renderer SHARED
     VulkanBackend.cpp
     SpriteBatcher.cpp
     TextureAtlas.cpp
+    KtxLoader.cpp
     NativeBridge.cpp
 )
 

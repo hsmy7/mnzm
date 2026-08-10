@@ -1,25 +1,40 @@
 package com.xianxia.sect.ui.game.sect
 
 import android.graphics.Bitmap
-import com.xianxia.sect.core.render.SpriteAtlasDef
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import com.xianxia.sect.core.render.RenderFrame
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.GraphicsMode
 
 /**
- * SoftwareCanvasBackend 单元测试。
+ * SoftwareCanvasBackend 单元测试（核心渲染路径）。
  *
  * 覆盖维度：
  * - 相机偏移（camX/camY）→ 屏幕坐标正确性
  * - 缩放（scale）→ 瓦片大小和可见区域
  * - 建筑位置 → 网格坐标→屏幕坐标
  * - 视锥剔除 → 视口外不绘制
- * - 预览精灵 → 位置随相机偏移
+ * - 预览精灵 → 位置随相机偏移 + tint 乘法 + alpha 混合像素断言
  * - 空安全 → tileData/buildingData 为 null 时不抛异常
  * - resize → 视口大小变化时帧缓冲区重建
+ *
+ * 专项测试已拆分至同包文件（LargeClass 收敛）：
+ * - [SoftwareCanvasBackendHighlightTest] — 建筑阴影 + 选中高亮（WP3）
+ * - [SoftwareCanvasBackendLodFadeTest] — 地图淡入 + 装饰 LOD（WP4/WP5）
+ * - [SoftwareCanvasBackendCropTest] — 灵田作物层（WP6）
+ * - [SoftwareCanvasBackendAtlasTest] — SpriteAtlasDef 一致性与地砖
+ * - [SoftwareCanvasBackendTestFixtures] — 共享 fixtures
+ *
+ * @GraphicsMode(NATIVE)：默认 LEGACY 模式下 Canvas 操作记录式不写像素，
+ * getPixel 恒返回 0——像素断言测试（preview_tint）需要真实 skia 渲染。
  */
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 @RunWith(RobolectricTestRunner::class)
 class SoftwareCanvasBackendTest {
 
@@ -28,14 +43,7 @@ class SoftwareCanvasBackendTest {
 
     @Before
     fun setup() {
-        val config = NativeRenderConfig(
-            tileSize = 64,
-            worldWidthCells = 10,
-            worldHeightCells = 10,
-            worldPixelWidth = 640,
-            worldPixelHeight = 640
-        )
-        backend = SoftwareCanvasBackend(config)
+        backend = SoftwareCanvasBackend(testRenderConfig())
         // 迷你图集（128x128，不含实际精灵，只验证坐标和帧缓冲区尺寸）
         atlas = Bitmap.createBitmap(128, 128, Bitmap.Config.ARGB_8888)
     }
@@ -130,7 +138,7 @@ class SoftwareCanvasBackendTest {
             tileData = createFlatTileData(10, 10),
             cols = 10, rows = 10
         )
-        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
+        val result = backend.renderFrame(frame, atlas, vpW = 400, vpH = 400)
         assertNotNull(result)
     }
 
@@ -319,69 +327,6 @@ class SoftwareCanvasBackendTest {
     }
 
     // ============================================================
-    // SpriteAtlasDef 一致性
-    // ============================================================
-
-    @Test
-    fun `spriteAtlasDef - BUILDING_NAMES map matches index`() {
-        SpriteAtlasDef.BUILDING_NAMES.forEachIndexed { idx, name ->
-            val mapIdx = SpriteAtlasDef.BUILDING_NAME_INDEX[name]
-            assertEquals("$name 索引不一致", idx, mapIdx)
-        }
-    }
-
-    @Test
-    fun `spriteAtlasDef - buildingRect matches BUILDING_NAMES size`() {
-        for (i in SpriteAtlasDef.BUILDING_NAMES.indices) {
-            val rect = SpriteAtlasDef.buildingRect(i)
-            assertTrue("buildingRect $i: w=${rect.w}", rect.w > 0)
-            assertTrue("buildingRect $i: h=${rect.h}", rect.h > 0)
-            assertEquals(SpriteAtlasDef.BUILDING_SIZE, rect.w)
-            assertEquals(SpriteAtlasDef.BUILDING_SIZE, rect.h)
-        }
-    }
-
-    @Test
-    fun `spriteAtlasDef - TILE_UV_MAP has correct size`() {
-        val expectedEntries = SpriteAtlasDef.TileType.values().size
-        assertEquals(expectedEntries * 4, SpriteAtlasDef.TILE_UV_MAP.size)
-    }
-
-    @Test
-    fun `spriteAtlasDef - BUILDING_UV_MAP has correct size`() {
-        assertEquals(SpriteAtlasDef.BUILDING_NAMES.size * 4, SpriteAtlasDef.BUILDING_UV_MAP.size)
-    }
-
-    // ============================================================
-    // 辅助方法
-    // ============================================================
-
-    /** 创建纯地面瓦片数据（所有格为 TILE_GROUND） */
-    private fun createFlatTileData(cols: Int, rows: Int): IntArray {
-        return IntArray(cols * rows) { SpriteAtlasDef.TileType.GROUND.index }
-    }
-
-    /** 创建单个建筑数据 FloatArray */
-    private fun createBuildingDataArray(
-        gridX: Int, gridY: Int, width: Int, height: Int, nameIdx: Int,
-        gridX2: Int = 0, gridY2: Int = 0, width2: Int = 0, height2: Int = 0, nameIdx2: Int = 0
-    ): FloatArray {
-        return if (gridX2 == 0 && gridY2 == 0 && width2 == 0) {
-            floatArrayOf(
-                gridX.toFloat(), gridY.toFloat(),
-                width.toFloat(), height.toFloat(), nameIdx.toFloat()
-            )
-        } else {
-            floatArrayOf(
-                gridX.toFloat(), gridY.toFloat(),
-                width.toFloat(), height.toFloat(), nameIdx.toFloat(),
-                gridX2.toFloat(), gridY2.toFloat(),
-                width2.toFloat(), height2.toFloat(), nameIdx2.toFloat()
-            )
-        }
-    }
-
-    // ============================================================
     // 热控质量因子（P1.4/P2.2）
     // ============================================================
 
@@ -491,139 +436,6 @@ class SoftwareCanvasBackendTest {
             )
             val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
             assertNotNull("相机移动第 $frame 帧不应 crash", result)
-        }
-    }
-
-    // ============================================================
-    // 地砖（Floor Tile）
-    // ============================================================
-
-    @Test
-    fun `renderFrame - 2x2 building draws floor tile without crash`() {
-        val frame = RenderFrame(
-            camX = 0f, camY = 0f, scale = 1f,
-            tileData = createFlatTileData(10, 10),
-            cols = 10, rows = 10,
-            buildingData = createBuildingDataArray(
-                gridX = 2, gridY = 2, width = 2, height = 2, nameIdx = 0
-            ),
-            buildingCount = 1,
-            buildingVisible = true
-        )
-        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
-        assertNotNull("2x2 建筑 + 地砖不应 crash", result)
-    }
-
-    @Test
-    fun `renderFrame - spirit field does not draw floor tile`() {
-        // 灵田 nameIdx=2，应跳过地砖绘制
-        val frame = RenderFrame(
-            camX = 0f, camY = 0f, scale = 1f,
-            tileData = createFlatTileData(10, 10),
-            cols = 10, rows = 10,
-            buildingData = createBuildingDataArray(
-                gridX = 2, gridY = 2, width = 1, height = 1, nameIdx = 2
-            ),
-            buildingCount = 1,
-            buildingVisible = true
-        )
-        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
-        assertNotNull("灵田跳过地砖不应 crash", result)
-    }
-
-    @Test
-    fun `renderFrame - spirit mine uses custom ground cover`() {
-        // 灵矿场 nameIdx=0，应使用专属地皮覆盖（ftIdx=4）而非通用地砖
-        val frame = RenderFrame(
-            camX = 0f, camY = 0f, scale = 1f,
-            tileData = createFlatTileData(10, 10),
-            cols = 10, rows = 10,
-            buildingData = createBuildingDataArray(
-                gridX = 2, gridY = 2, width = 4, height = 4, nameIdx = 0
-            ),
-            buildingCount = 1,
-            buildingVisible = true
-        )
-        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
-        assertNotNull("灵矿场地皮覆盖不应 crash", result)
-    }
-
-    @Test
-    fun `renderFrame - 3x2 building uses floor tile index 2 without crash`() {
-        val frame = RenderFrame(
-            camX = 0f, camY = 0f, scale = 1f,
-            tileData = createFlatTileData(10, 10),
-            cols = 10, rows = 10,
-            buildingData = createBuildingDataArray(
-                gridX = 1, gridY = 1, width = 3, height = 2, nameIdx = 5
-            ),
-            buildingCount = 1,
-            buildingVisible = true
-        )
-        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
-        assertNotNull("3x2 建筑 + 地砖不应 crash", result)
-    }
-
-    @Test
-    fun `renderFrame - 2x3 building uses floor tile index 1 without crash`() {
-        val frame = RenderFrame(
-            camX = 0f, camY = 0f, scale = 1f,
-            tileData = createFlatTileData(10, 10),
-            cols = 10, rows = 10,
-            buildingData = createBuildingDataArray(
-                gridX = 1, gridY = 1, width = 2, height = 3, nameIdx = 7
-            ),
-            buildingCount = 1,
-            buildingVisible = true
-        )
-        val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
-        assertNotNull("2x3 建筑 + 地砖不应 crash", result)
-    }
-
-    @Test
-    fun `floorTileIndex - returns correct index for each size`() {
-        assertEquals(0, SpriteAtlasDef.floorTileIndex(2, 2))
-        assertEquals(1, SpriteAtlasDef.floorTileIndex(2, 3))
-        assertEquals(2, SpriteAtlasDef.floorTileIndex(3, 2))
-        assertEquals(3, SpriteAtlasDef.floorTileIndex(3, 3))
-    }
-
-    @Test
-    fun `floorTileIndex - spirit field 1x1 returns -1`() {
-        assertEquals(-1, SpriteAtlasDef.floorTileIndex(1, 1))
-    }
-
-    @Test
-    fun `floorTileIndex - new footprint sizes map to closest tile`() {
-        assertEquals(3, SpriteAtlasDef.floorTileIndex(4, 4))  // 方形 → 3x3
-        assertEquals(2, SpriteAtlasDef.floorTileIndex(6, 4))  // 宽扁 → 3x2
-        assertEquals(1, SpriteAtlasDef.floorTileIndex(4, 6))  // 窄高 → 2x3
-        assertEquals(3, SpriteAtlasDef.floorTileIndex(6, 6))  // 大方 → 3x3
-        assertEquals(1, SpriteAtlasDef.floorTileIndex(4, 8))  // 瘦高 → 2x3
-        assertEquals(1, SpriteAtlasDef.floorTileIndex(2, 4))  // 窄高 → 2x3
-        assertEquals(2, SpriteAtlasDef.floorTileIndex(4, 3))  // 宽扁 → 3x2
-        assertEquals(2, SpriteAtlasDef.floorTileIndex(6, 5))  // 宽扁 → 3x2
-    }
-
-    @Test
-    fun `spriteAtlasDef - FOOTPRINT_BY_NAME_INDEX matches BUILDING_NAMES size`() {
-        assertEquals(
-            SpriteAtlasDef.BUILDING_NAMES.size,
-            SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX.size
-        )
-    }
-
-    @Test
-    fun `spriteAtlasDef - FLOOR_TILE_UV_MAP has correct size`() {
-        assertEquals(5 * 4, SpriteAtlasDef.FLOOR_TILE_UV_MAP.size)
-    }
-
-    @Test
-    fun `spriteAtlasDef - floorTileRect returns valid rect for all indices`() {
-        for (i in 0 until 5) {
-            val rect = SpriteAtlasDef.floorTileRect(i)
-            assertTrue("floorTileRect $i: w=${rect.w}", rect.w > 0)
-            assertTrue("floorTileRect $i: h=${rect.h}", rect.h > 0)
         }
     }
 
@@ -761,5 +573,70 @@ class SoftwareCanvasBackendTest {
         )
         val result = backend.renderFrame(frame, atlas, vpW = 200, vpH = 200)
         assertNotNull(result)
+    }
+
+    // ============================================================
+    // preview_tint（预览精灵调色，与 C++ drawSprite 顶点色乘算双端对齐）
+    // ============================================================
+
+    @Test
+    fun `renderFrame - preview tint multiplies pixel color`() {
+        val whiteAtlas = createWhiteTileAtlas()
+        val frame = RenderFrame(
+            camX = 0f, camY = 0f, scale = 1f,
+            tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10,
+            showPreview = true,
+            previewX = 0f, previewY = 0f,
+            previewW = 64f, previewH = 64f,
+            previewU0 = 0f, previewV0 = 0f,
+            previewU1 = 0.5f, previewV1 = 0.5f,
+            previewTintRed = 0.5f, previewTintGreen = 0.25f, previewTintBlue = 0.75f,
+            previewAlpha = 1f
+        )
+        val result = backend.renderFrame(frame, whiteAtlas, vpW = 200, vpH = 200)
+        assertNotNull(result)
+
+        // 白色源 × tint (0.5, 0.25, 0.75) → (128, 64, 191)
+        val pixel = result!!.getPixel(32, 32)
+        assertNear(128, Color.red(pixel))
+        assertNear(64, Color.green(pixel))
+        assertNear(191, Color.blue(pixel))
+    }
+
+    @Test
+    fun `renderFrame - preview alpha blends with background`() {
+        // 双区域图集：tile 源 (0,0,64,64)=灰 100（chunk 底），preview 源
+        // (64,0,128,64)=白 255。白源 alpha 0.5 覆盖灰底后 RGB = 255×0.5 + 100×0.5
+        // ≈ 178——介于纯源与纯底之间，半透明混合的可观测证据。
+        // （单一灰区域不可行：源与底同色，混合后仍为 100，无法区分）
+        val dualAtlas = Bitmap.createBitmap(128, 128, Bitmap.Config.ARGB_8888)
+        val atlasCanvas = Canvas(dualAtlas)
+        atlasCanvas.drawRect(0f, 0f, 64f, 64f, Paint().apply { color = Color.rgb(100, 100, 100) })
+        atlasCanvas.drawRect(64f, 0f, 128f, 64f, Paint().apply { color = Color.WHITE })
+        val frame = RenderFrame(
+            camX = 0f, camY = 0f, scale = 1f,
+            tileData = createFlatTileData(10, 10),
+            cols = 10, rows = 10,
+            showPreview = true,
+            previewX = 0f, previewY = 0f,
+            previewW = 64f, previewH = 64f,
+            previewU0 = 0.5f, previewV0 = 0f,
+            previewU1 = 1f, previewV1 = 0.5f,
+            // 显式 tint(1,1,1)：RenderFrame 默认 (0.25,1,0.25) 会污染断言
+            previewTintRed = 1f, previewTintGreen = 1f, previewTintBlue = 1f,
+            previewAlpha = 0.5f
+        )
+        val result = backend.renderFrame(frame, dualAtlas, vpW = 200, vpH = 200)
+        assertNotNull(result)
+
+        val pixel = result!!.getPixel(32, 32)
+        // 帧缓冲底图完全不透明（chunk 灰），src-over 半透明源覆盖后输出
+        // alpha 恒为 255——正确混合行为；可观测差异在 RGB
+        assertEquals("帧缓冲 src-over 后 alpha 应恒 255", 255, Color.alpha(pixel))
+        // 白 255 × alpha 0.5 混合灰底 100 → ≈178，介于 100（纯底）与 255（纯源）之间
+        assertNear(178, Color.red(pixel), tolerance = 8)
+        assertNear(178, Color.green(pixel), tolerance = 8)
+        assertNear(178, Color.blue(pixel), tolerance = 8)
     }
 }

@@ -10,12 +10,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.core.util.BuildingSpatialIndex
 import com.xianxia.sect.core.util.DomainLog
 import com.xianxia.sect.ui.game.components.messagebar.MessageBarHost
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.Collections
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,9 +22,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.xianxia.sect.ui.game.leaderboard.LeaderboardViewModel
 import androidx.compose.ui.graphics.Color
-import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import com.xianxia.sect.ui.components.LocalAtlasCache
 import com.xianxia.sect.ui.components.LocalItemSpriteCache
@@ -45,12 +40,14 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.GameEngineCore
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.MapPreloadData
+import com.xianxia.sect.core.model.SpiritFieldPlant
 import com.xianxia.sect.core.util.GridSnapHelper
+import com.xianxia.sect.core.util.TimeProgressUtil
 import com.xianxia.sect.ui.game.map.sect.rememberSectCamera
 import com.xianxia.sect.core.util.GridSystem
 
+import com.xianxia.sect.core.render.NativeRenderConfig
 import com.xianxia.sect.ui.game.sect.NativeSurfaceView
-import com.xianxia.sect.ui.game.sect.NativeRenderConfig
 import com.xianxia.sect.ui.game.components.GameActionButtons
 import com.xianxia.sect.ui.game.components.LeftSideButtons
 import com.xianxia.sect.ui.game.components.GameOverlayHost
@@ -146,9 +143,7 @@ fun MainGameScreen(
     /** 是否强制使用 Canvas 软件渲染（模拟器/Vulkan 不可用设备） */
     forceSoftwareRendering: Boolean = false,
     /** Vulkan 初始化生命周期监听器（由 GameActivity 注入，驱动 CrashRecoveryEngine） */
-    vulkanInitListener: NativeSurfaceView.VulkanInitListener? = null,
-    /** 用于后台 I/O 操作的协程调度器 */
-    dispatcher: CoroutineDispatcher = Dispatchers.IO
+    vulkanInitListener: NativeSurfaceView.VulkanInitListener? = null
 ) {
     // [M7-OPT-1] 高频核心数据收集 - 使用 derivedStateOf 限制重组范围
     // gameData 包含资源、日期等，每 tick (100ms) 都可能变化
@@ -419,41 +414,6 @@ fun MainGameScreen(
             } else null
         }
 
-        // 灵田作物图片预加载 — 以 "stage_herbId" 为 key 缓存三种生长阶段位图
-        // 异步加载避免首次 composition 阻塞主线程（BitmapFactory.decodeResource 是阻塞 I/O）
-        var cropBitmaps by remember { mutableStateOf<Map<String, ImageBitmap>>(emptyMap()) }
-        LaunchedEffect(Unit) {
-            cropBitmaps = withContext(dispatcher) {
-                val map = mutableMapOf<String, ImageBitmap>()
-                val resources = context.resources
-                for (herb in com.xianxia.sect.core.registry.HerbDatabase.getAllHerbs()) {
-                    // 种子图 — 查 ITEM 分类中的种子中文名
-                    com.xianxia.sect.core.registry.HerbDatabase.getSeedById(
-                        "${herb.id}Seed"
-                    )?.let { seed ->
-                        SpriteResRegistry.resolve(seed.name)?.let { resId ->
-                            BitmapFactory.decodeResource(resources, resId)?.let {
-                                map["seed_${herb.id}"] = it.asImageBitmap()
-                            }
-                        }
-                    }
-                    // 成长期图 — 查 ITEM 分类中的 growing_{herbId}
-                    SpriteResRegistry.resolve("growing_${herb.id}")?.let { resId ->
-                        BitmapFactory.decodeResource(resources, resId)?.let {
-                            map["growing_${herb.id}"] = it.asImageBitmap()
-                        }
-                    }
-                    // 草药图 — 查 ITEM 分类中的中文名
-                    SpriteResRegistry.resolve(herb.name)?.let { resId ->
-                        BitmapFactory.decodeResource(resources, resId)?.let {
-                            map["herb_${herb.id}"] = it.asImageBitmap()
-                        }
-                    }
-                }
-                map
-            }
-        }
-
         // 宗门大地图层（Vulkan 原生渲染）
         // v4.0.43+ 架构：替换 Compose Canvas 为 Vulkan 原生渲染管线，
         // 实现 GPU 批处理（3 draw calls/帧）、独立渲染线程、VSYNC 对齐。
@@ -469,6 +429,10 @@ fun MainGameScreen(
         }
         var nativeSurfaceView by remember { mutableStateOf<NativeSurfaceView?>(null) }
 
+        // 普通点击选中格（WP3 选中高亮）：点击建筑时记录其格坐标，点击空地清除。
+        // 渲染端经 findBuildingIndex 转换为建筑索引（双后端共用同一命中几何）
+        var selectedBuildingGrid by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+
         // flatTileData — 由 tileData 派生，建筑占位变化时自动重算
         val flatTileData = remember(tileData) {
             tileData.flatMap { it.toList() }.toIntArray()
@@ -483,6 +447,23 @@ fun MainGameScreen(
             if (effectivePlacedBuildings.isNotEmpty()) {
                 buildBuildingDataArray(effectivePlacedBuildings, buildingSpriteSizes)
             } else null
+        }
+
+        // ★ 灵田作物数据（WP6）：灵田建筑 ↔ 种植记录按 buildingInstanceId 映射，
+        // progress01 = 游戏时间进度（TimeProgressUtil，与生产结算同源）。
+        // 低频变化（种植/收获/逐月生长）走帧率门控 RenderFrame——不新增命令总线槽位。
+        // derivedStateOf：游戏时间/种植记录不变时不重建数组（gameData 每 tick 变化
+        // 触发的是 recomposition 而非本派生重算）
+        val spiritCropData = remember {
+            derivedStateOf {
+                buildSpiritCropData(
+                    buildings = effectivePlacedBuildings,
+                    plants = gameData.spiritFieldPlants,
+                    currentYear = gameData.gameYear,
+                    currentMonth = gameData.gameMonth,
+                    sectId = gameData.activeSectId
+                )
+            }
         }
 
         // ★ 优化：RenderFrame 推送帧率门控
@@ -505,7 +486,9 @@ fun MainGameScreen(
                     worldHeightCells = worldHeightCells,
                     forceSoftwareRendering = forceSoftwareRendering,
                     vulkanInitListener = vulkanInitListener,
-                    buildingSpriteSizes = buildingSpriteSizes
+                    buildingSpriteSizes = buildingSpriteSizes,
+                    selectedGrid = selectedBuildingGrid,
+                    spiritCropData = spiritCropData.value
                 )
             }
         }
@@ -572,7 +555,13 @@ fun MainGameScreen(
                             return
                         }
                         val clicked = buildingIndex.findBuildingAt(gx, gy)
+                        // 点击空地 → 清除选中高亮（任意模式）
+                        if (clicked == null) {
+                            selectedBuildingGrid = null
+                        }
                         if (clicked != null && !isPlacingBuilding && movingBuilding == null) {
+                            // 点击建筑 → 记录选中格（渲染端金色高亮描边），并打开详情
+                            selectedBuildingGrid = gx to gy
                             val def = BuildingFeatureRegistry.findByDisplayName(clicked.displayName)
                             when (def?.key) {
                                 "spirit_mine" -> viewModel.navigateToDialog(DialogType.SpiritMine(clicked.instanceId))
@@ -1304,6 +1293,70 @@ internal fun buildBuildingDataArray(
 }
 
 // BUILDING_NAME_INDEX / BUILDING_UV_MAP 已移入 SectMapViewport.kt（P-7，同包 internal）
+
+/** 灵田建筑显示名（与 buildBuildingDataArray 的灵田判定同源） */
+private const val SPIRIT_FIELD_NAME = "灵田"
+
+/** 灵田作物数据单条步长（[gx, gy, progress01]） */
+private const val CROP_DATA_STRIDE = 3
+
+/**
+ * 构建灵田作物渲染数据（WP6）。
+ *
+ * 输入为已按 sectId 过滤的放置建筑列表与种植记录。仅灵田建筑
+ * （displayName == [SPIRIT_FIELD_NAME]）且该田存在种植记录（seedId 非空、同宗门）时
+ * 输出 [gx, gy, progress01] 三元组；progress01 = 游戏时间进度
+ * （[TimeProgressUtil.calculateProgressFraction]，与生产结算同源）。
+ * 无作物时返回 null（后端跳过作物层——渲染零开销）。
+ *
+ * 注意：与 [buildBuildingDataArray] 不同，本函数不做 Y 排序——作物与灵田建筑同格
+ * 绘制（作物绘制在建筑层之后，灵田之间互相遮挡无意义），且数组索引与建筑数组
+ * 无关联（后端按三元组独立解析、双端同数学）。
+ *
+ * @param buildings 已按 sectId 过滤的放置建筑列表
+ * @param plants 全部种植记录（内部按 sectId 过滤）
+ * @param currentYear 当前游戏年
+ * @param currentMonth 当前游戏月
+ * @param sectId 当前宗门 ID（跨宗门记录防御性跳过）
+ */
+internal fun buildSpiritCropData(
+    buildings: List<GridBuildingData>,
+    plants: List<SpiritFieldPlant>,
+    currentYear: Int,
+    currentMonth: Int,
+    sectId: String
+): FloatArray? {
+    val plantByBuilding = HashMap<String, SpiritFieldPlant>()
+    for (plant in plants) {
+        // 跨宗门记录防御性跳过 + 未种植的田无作物（if 包裹避免 continue）
+        if (plant.sectId == sectId && plant.seedId.isNotEmpty()) {
+            plantByBuilding[plant.buildingInstanceId] = plant
+        }
+    }
+
+    var count = 0
+    val buffer = FloatArray(buildings.size * CROP_DATA_STRIDE)
+    for (b in buildings) {
+        val plant = plantByBuilding[b.instanceId]
+        if (b.displayName == SPIRIT_FIELD_NAME && plant != null) {
+            val progress = TimeProgressUtil.calculateProgressFraction(
+                startYear = plant.plantYear,
+                startMonth = plant.plantMonth,
+                duration = plant.growTime,
+                currentYear = currentYear,
+                currentMonth = currentMonth
+            )
+            val idx = count * CROP_DATA_STRIDE
+            buffer[idx] = b.gridX.toFloat()
+            buffer[idx + 1] = b.gridY.toFloat()
+            buffer[idx + 2] = progress
+            count++
+        }
+    }
+    // 单 return：无种植 → null；全部命中 → 原数组；部分命中 → 截断
+    if (count == 0) return null
+    return if (count == buildings.size) buffer else buffer.copyOf(count * CROP_DATA_STRIDE)
+}
 
 
 

@@ -1,4 +1,5 @@
 #include "VulkanBackend.h"
+#include "KtxLoader.h"
 #include <android/native_window_jni.h>
 #include <android/asset_manager.h>
 #include <android/asset_manager_jni.h>
@@ -501,6 +502,9 @@ bool VulkanBackend::createLogicalDevice() {
     features.textureCompressionETC2 = supportedFeatures.textureCompressionETC2
         ? VK_TRUE : VK_FALSE;
 
+    // 记录 ASTC LDR 支持状态（WP7：压缩图集上传前置条件，不支持时 Kotlin 回退 RGBA）
+    m_astcSupported = supportedFeatures.textureCompressionASTC_LDR == VK_TRUE;
+
     VkDeviceCreateInfo devInfo{};
     devInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     devInfo.queueCreateInfoCount = 1;
@@ -701,6 +705,12 @@ bool VulkanBackend::createFramebuffers() {
 
 bool VulkanBackend::resize(int width, int height) {
     if (m_device == VK_NULL_HANDLE) return false;
+
+    // 对抗性审查 S2：置 false 挡住渲染线程 submitFrame——vkDeviceWaitIdle 只等
+    // GPU 空闲、不等渲染线程；不置位时渲染线程可在 swapchain 销毁后
+    // vkAcquireNextImageKHR 命中已销毁句柄（DEVICE_LOST/SIGSEGV）。
+    // 重建成功恢复 true；失败保持 false（渲染停止提交，安全黑屏而非崩溃）
+    m_ready = false;
     vkDeviceWaitIdle(m_device);
 
     destroySwapchain();
@@ -734,6 +744,7 @@ bool VulkanBackend::resize(int width, int height) {
     }
 
     orthoProj(m_projMatrix, 0.0f, (float)width, (float)height, 0.0f);
+    m_ready = true;  // 重建完成恢复渲染（见 resize 开头注释）
     LOGI("Resized to %dx%d", width, height);
     return true;
 }
@@ -1464,8 +1475,13 @@ uint32_t VulkanBackend::uploadTexture(const void* pixels, int width, int height)
         size_t pixelDataSize = (size_t)width * height * 4;
         if (!ensureStagingBuffer(pixelDataSize)) goto fail;
 
-        void* mapped;
-        vkMapMemory(m_device, m_stagingMemory, 0, pixelDataSize, 0, &mapped);
+        void* mapped = nullptr;
+        if (vkMapMemory(m_device, m_stagingMemory, 0, pixelDataSize, 0, &mapped) != VK_SUCCESS ||
+            !mapped) {
+            // 对抗性审查 L4：映射失败 → memcpy 到空指针 SIGSEGV（device lost 等罕见路径）
+            LOGE("uploadTexture: staging map failed");
+            goto fail;
+        }
         memcpy(mapped, pixels, pixelDataSize);
         vkUnmapMemory(m_device, m_stagingMemory);
     }
@@ -1586,6 +1602,233 @@ fail:
     return 0;
 }
 
+// ============================================================
+// WP7：ASTC 压缩纹理上传（KTX 数据段，已由 KtxLoader 校验头）
+// 与 uploadTexture 同 staging 上传模式，仅图像格式/数据布局不同：
+//   - 格式 VK_FORMAT_ASTC_4x4_UNORM_BLOCK（压缩块，非 RGBA 线性）
+//   - staging 数据 = 块数 × 16 字节（非 w*h*4）
+//   - 设备无 textureCompressionASTC_LDR 特性时返回 0（Kotlin 回退 RGBA 图集）
+// ============================================================
+uint32_t VulkanBackend::uploadCompressedTexture(const uint8_t* data, size_t dataSize,
+                                                int width, int height) {
+    if (!m_device || !data || !m_astcSupported) return 0;
+    if (width <= 0 || height <= 0 ||
+        width % ktx1::ASTC_BLOCK != 0 || height % ktx1::ASTC_BLOCK != 0) {
+        LOGE("uploadCompressedTexture: 尺寸非法 %dx%d（需 4 的倍数）", width, height);
+        return 0;
+    }
+    // 尺寸上限（与 KtxLoader 同约束，防御纵深——本方法可被独立调用）
+    if ((uint32_t)width > ktx1::MAX_TEXTURE_DIMENSION ||
+        (uint32_t)height > ktx1::MAX_TEXTURE_DIMENSION) {
+        LOGE("uploadCompressedTexture: 尺寸超上限 %dx%d", width, height);
+        return 0;
+    }
+    // 数据尺寸几何校验（与 KtxLoader/build-atlas.mjs 同式）——防越界/截断。
+    // 64 位算术防 32 位 size_t 回绕（对抗性审查 M2）
+    const uint64_t expected =
+        (uint64_t)(width / ktx1::ASTC_BLOCK) * (uint64_t)(height / ktx1::ASTC_BLOCK) *
+        ktx1::ASTC_BLOCK_BYTES;
+    if ((uint64_t)dataSize != expected) {
+        LOGE("uploadCompressedTexture: 数据尺寸不符 %zu != %llu",
+             dataSize, (unsigned long long)expected);
+        return 0;
+    }
+
+    Texture tex;
+    tex.width = width;
+    tex.height = height;
+
+    VkPhysicalDeviceMemoryProperties memProps;
+    vkGetPhysicalDeviceMemoryProperties(m_physDevice, &memProps);
+
+    // ---- Step 1: 创建 OPTIMAL tiling 压缩图像 ----
+    VkImageCreateInfo imgInfo{};
+    imgInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imgInfo.imageType = VK_IMAGE_TYPE_2D;
+    imgInfo.format = VK_FORMAT_ASTC_4x4_UNORM_BLOCK;
+    imgInfo.extent = { (uint32_t)width, (uint32_t)height, 1 };
+    imgInfo.mipLevels = 1;
+    imgInfo.arrayLayers = 1;
+    imgInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imgInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imgInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                    VK_IMAGE_USAGE_SAMPLED_BIT;
+    imgInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    if (vkCreateImage(m_device, &imgInfo, nullptr, &tex.image) != VK_SUCCESS) {
+        LOGE("Failed to create ASTC texture image");
+        tex.image = VK_NULL_HANDLE;
+        goto fail;
+    }
+
+    // 分配 DEVICE_LOCAL 内存
+    {
+        VkMemoryRequirements memReq;
+        vkGetImageMemoryRequirements(m_device, tex.image, &memReq);
+
+        uint32_t memType = UINT32_MAX;
+        for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
+            if ((memReq.memoryTypeBits & (1 << i)) &&
+                (memProps.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) {
+                memType = i;
+                break;
+            }
+        }
+        if (memType == UINT32_MAX) {
+            // 回退到 HOST_VISIBLE（部分 Mali GPU 无纯 DEVICE_LOCAL 可选）
+            for (uint32_t i = 0; i < memProps.memoryTypeCount; i++) {
+                if (memReq.memoryTypeBits & (1 << i)) {
+                    memType = i;
+                    break;
+                }
+            }
+        }
+        if (memType == UINT32_MAX) { LOGE("No memory type for ASTC texture"); goto fail; }
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memReq.size;
+        allocInfo.memoryTypeIndex = memType;
+
+        if (vkAllocateMemory(m_device, &allocInfo, nullptr, &tex.memory) != VK_SUCCESS) {
+            LOGE("Failed to allocate ASTC texture memory"); goto fail;
+        }
+        vkBindImageMemory(m_device, tex.image, tex.memory, 0);
+    }
+
+    // ---- Step 2: 通过 staging buffer 上传压缩块 ----
+    {
+        if (!ensureStagingBuffer(dataSize)) goto fail;
+
+        void* mapped = nullptr;
+        if (vkMapMemory(m_device, m_stagingMemory, 0, dataSize, 0, &mapped) != VK_SUCCESS ||
+            !mapped) {
+            // 对抗性审查 L4：映射失败 → memcpy 到空指针 SIGSEGV
+            LOGE("uploadCompressedTexture: staging map failed");
+            goto fail;
+        }
+        memcpy(mapped, data, dataSize);
+        vkUnmapMemory(m_device, m_stagingMemory);
+    }
+
+    // ---- Step 3: 提交 vkCmdCopyBufferToImage + Layout Transition ----
+    {
+        VkCommandBufferAllocateInfo cmdAlloc{};
+        cmdAlloc.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        cmdAlloc.commandPool = m_commandPool;
+        cmdAlloc.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        cmdAlloc.commandBufferCount = 1;
+
+        VkCommandBuffer cmd;
+        if (vkAllocateCommandBuffers(m_device, &cmdAlloc, &cmd) != VK_SUCCESS) {
+            LOGE("Failed to alloc command buffer for ASTC upload"); goto fail;
+        }
+
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        vkBeginCommandBuffer(cmd, &beginInfo);
+
+        // UNDEFINED → TRANSFER_DST_OPTIMAL
+        VkImageMemoryBarrier preBarrier{};
+        preBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        preBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        preBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        preBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        preBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        preBarrier.image = tex.image;
+        preBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        preBarrier.subresourceRange.levelCount = 1;
+        preBarrier.subresourceRange.layerCount = 1;
+        preBarrier.srcAccessMask = 0;
+        preBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             0, 0, nullptr, 0, nullptr, 1, &preBarrier);
+
+        // Copy: staging buffer → image（压缩纹理按块拷贝，extent 为像素尺寸）
+        VkBufferImageCopy copyRegion{};
+        copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        copyRegion.imageSubresource.layerCount = 1;
+        copyRegion.imageExtent = { (uint32_t)width, (uint32_t)height, 1 };
+        vkCmdCopyBufferToImage(cmd, m_stagingBuffer, tex.image,
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                               1, &copyRegion);
+
+        // TRANSFER_DST → SHADER_READ_ONLY_OPTIMAL
+        VkImageMemoryBarrier postBarrier{};
+        postBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        postBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        postBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        postBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        postBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        postBarrier.image = tex.image;
+        postBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        postBarrier.subresourceRange.levelCount = 1;
+        postBarrier.subresourceRange.layerCount = 1;
+        postBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        postBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                             0, 0, nullptr, 0, nullptr, 1, &postBarrier);
+
+        if (!submitOneTimeCommands(m_device, m_commandPool, m_graphicsQueue, cmd)) {
+            LOGE("Failed to submit ASTC upload commands"); goto fail;
+        }
+    }
+
+    // ---- Step 4: ImageView（压缩格式） ----
+    {
+        VkImageViewCreateInfo viewInfo{};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = tex.image;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = VK_FORMAT_ASTC_4x4_UNORM_BLOCK;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.layerCount = 1;
+
+        if (vkCreateImageView(m_device, &viewInfo, nullptr, &tex.view) != VK_SUCCESS) {
+            LOGE("Failed to create ASTC texture view"); goto fail;
+        }
+    }
+
+    // ---- Step 5: Sampler（与 RGBA 路径同参数） ----
+    {
+        VkSamplerCreateInfo sampInfo{};
+        sampInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        sampInfo.magFilter = VK_FILTER_NEAREST;
+        sampInfo.minFilter = VK_FILTER_NEAREST;
+        sampInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        sampInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        sampInfo.anisotropyEnable = VK_FALSE;
+        sampInfo.maxLod = 1.0f;
+
+        if (vkCreateSampler(m_device, &sampInfo, nullptr, &tex.sampler) != VK_SUCCESS) {
+            LOGE("Failed to create sampler"); goto fail;
+        }
+    }
+
+    {
+        uint32_t id = s_nextTextureId++;
+        tex.id = id;
+        m_textures.push_back(tex);
+        LOGI("ASTC texture %dx%d uploaded (id=%u, %zu bytes)",
+             width, height, id, dataSize);
+        return id;
+    }
+
+fail:
+    // 失败时清理已创建的资源
+    if (tex.view) vkDestroyImageView(m_device, tex.view, nullptr);
+    if (tex.image) vkDestroyImage(m_device, tex.image, nullptr);
+    if (tex.memory) vkFreeMemory(m_device, tex.memory, nullptr);
+    if (tex.sampler) vkDestroySampler(m_device, tex.sampler, nullptr);
+    tex = {};
+    return 0;
+}
+
 void VulkanBackend::destroyTexture(uint32_t id) {
     // 纹理在 shutdown 时统一清理
 }
@@ -1655,6 +1898,13 @@ void VulkanBackend::submitFrame() {
         // ★ 守卫：out-of-date 发生在 shutdown 竞态中时，fence 可能已被销毁
         if (!m_ready) return;
         // 不重置 fence — fence 保持 signaled 状态，下一帧可正常等待。
+        return;
+    }
+    // 对抗性审查 L7：其他错误（SURFACE_LOST/DEVICE_LOST 等）时 imageIndex 未定义，
+    // 继续 vkResetFences + 用垃圾 imageIndex 索引 framebuffers 会二次损坏——
+    // 直接放弃本帧（fence 保持 signaled，渲染由外层生命周期重建）
+    if (result != VK_SUCCESS) {
+        LOGE("submitFrame: vkAcquireNextImageKHR failed (%d) — skipping frame", result);
         return;
     }
 

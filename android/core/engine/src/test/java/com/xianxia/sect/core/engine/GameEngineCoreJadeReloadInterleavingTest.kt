@@ -9,7 +9,6 @@ import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.TimeSource
 import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
-import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
 import com.xianxia.sect.core.state.GameStateStore

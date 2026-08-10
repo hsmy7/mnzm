@@ -2,11 +2,13 @@
 #include <android/native_window.h>
 #include <android/native_window_jni.h>
 #include <cstring>
+#include <atomic>
 #include <android/log.h>
 #include "Renderer2D.h"
 #include "VulkanBackend.h"
 #include "TextureAtlas.h"
 #include "SpriteBatcher.h"
+#include "KtxLoader.h"
 // 建筑占地尺寸查找表（2026-08-01：由 SpriteAtlasDef.kt 生成，禁止手改——
 // 运行 ./gradlew generateFootprintHeader 重新生成）
 #include "footprint_table.h"
@@ -21,6 +23,7 @@ static constexpr float UV_EPSILON = 0.5f / static_cast<float>(ATLAS_W);
 
 #define LOG_TAG "NativeBridge"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+#define LOGW(...) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 // ============================================================
@@ -44,6 +47,58 @@ static float g_scale = 1.0f;
 // 世界像素尺寸（由 initRenderer 设置）
 static int g_worldPixelsW = 0;
 static int g_worldPixelsH = 0;
+
+// ============================================================
+// 渲染质量热控状态（由 setRenderQuality 更新，渲染线程单消费者读）
+// std::atomic 保证 Compose 线程写 / 渲染线程读的可见性（仿 setCamera 独立通道）。
+// 装饰层跳过条件与 Canvas 侧 SoftwareCanvasBackend 对齐：
+//   decorationsDisabled || qualityFactor < 0.6f（同 Canvas 帧缓冲 RGB_565 阈值 0.6）
+// ============================================================
+
+/** 热控质量因子（0-1，1 = 全质量） */
+static std::atomic<float> g_qualityFactor{1.0f};
+
+/** 装饰层关闭标志（热控/省电） */
+static std::atomic<bool> g_decorationsDisabled{false};
+
+/** 装饰层跳过阈值（与 Canvas SoftwareCanvasBackend.qualityFactor < 0.6f 对齐） */
+static constexpr float DECOR_QUALITY_THRESHOLD = 0.6f;
+
+// ============================================================
+// 渲染特性开关（由 setRenderFlags 更新，渲染线程单消费者读）
+// 与 Kotlin 侧 RenderFlags 数据类（core:engine）保持一致：
+//   buildingShadows  ↔ RenderFlags.buildingShadows
+//   selectionHighlight ↔ RenderFlags.selectionHighlight
+// 阴影常量与 BuildingRenderGeometry.kt 同值——修改任一侧必须同步另一侧
+// ============================================================
+
+/** 建筑投影阴影开关（WP3） */
+static std::atomic<bool> g_buildingShadows{true};
+
+/** 选中高亮开关（WP3；当前由 Kotlin 侧 VulkanRenderBackend 消费 host.renderConfig，
+ *  此处仅存储以保持双端通道对称，未来 C++ 侧绘制高亮时直接消费） */
+static std::atomic<bool> g_selectionHighlight{true};
+
+/** 装饰层缩放 LOD 开关（WP5；与 RenderFlags.decorLod 对应——关闭时 skipDecor
+ *  不含 g_scale 条件，行为 = 特性未实现前现状，用于低端设备兜底） */
+static std::atomic<bool> g_decorLod{true};
+
+/** 阴影偏移量（格数）：建筑右下偏移 0.25 格（与 BuildingRenderGeometry.SHADOW_OFFSET_TILES 同值） */
+static constexpr float SHADOW_OFFSET_TILES = 0.25f;
+
+/** 阴影不透明度（0-1）：半透明黑（与 BuildingRenderGeometry.SHADOW_ALPHA 同值） */
+static constexpr float SHADOW_ALPHA = 0.2f;
+
+// ============================================================
+// 地图淡入过渡状态（由 setFadeAlpha 更新，渲染线程单消费者读）
+// 与 Kotlin 侧 FadeTransition（core:engine）同一数学来源：
+//   触发：RenderThread 启动时 NativeSurfaceView.fadeIn()（首次/重入/降级统一）
+//   计算：渲染线程每帧 alphaAt(elapsedNs, durationNs)（EaseOutCubic，纯时钟驱动）
+//   应用：drawAllTiles 所有 add 的 alpha 乘算；drawRect/drawSprite（预览/高亮）不受影响
+// ============================================================
+
+/** 地图淡入 alpha（0-1，1 = 完全不透明） */
+static std::atomic<float> g_fadeAlpha{1.0f};
 
 /** 检查世界坐标矩形是否与视口相交（可见性检测） */
 static inline bool isRectVisible(float x, float y, float w, float h) {
@@ -70,22 +125,6 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_initAtlas(
                              MAP_SPRITES, MAP_SPRITE_COUNT);
     }
     return JNI_TRUE;
-}
-
-extern "C" JNIEXPORT jfloatArray JNICALL
-Java_com_xianxia_sect_core_nativebridge_NativeBridge_getAtlasUV(
-    JNIEnv* env, jobject /*thiz*/, jstring name) {
-
-    const char* nameStr = env->GetStringUTFChars(name, nullptr);
-    auto* reg = g_atlas ? g_atlas->getRegion(nameStr) : nullptr;
-    env->ReleaseStringUTFChars(name, nameStr);
-
-    if (!reg) return nullptr;
-
-    jfloat uv[4] = { reg->u0, reg->v0, reg->u1, reg->v1 };
-    jfloatArray result = env->NewFloatArray(4);
-    env->SetFloatArrayRegion(result, 0, 4, uv);
-    return result;
 }
 
 // ============================================================
@@ -185,6 +224,16 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_shutdownRenderer(
     memset(g_projMatrix, 0, sizeof(g_projMatrix));
     g_viewLeft = g_viewTop = g_viewRight = g_viewBottom = 0.0f;
     g_worldPixelsW = g_worldPixelsH = 0;
+    // 重置热控状态为默认全质量——新 surface 初始化后由 NativeSurfaceView
+    // pushRenderQuality 重放当前值，此处仅防旧 surface 残留状态泄漏
+    g_qualityFactor.store(1.0f);
+    g_decorationsDisabled.store(false);
+    // 渲染特性开关同理：新 surface 初始化后由 VulkanRenderBackend 构造时重放
+    g_buildingShadows.store(true);
+    g_selectionHighlight.store(true);
+    g_decorLod.store(true);
+    // 淡入同理：新 RenderThread 启动时 fadeIn() 重置 startNs 并推送新 alpha
+    g_fadeAlpha.store(1.0f);
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
@@ -214,6 +263,43 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_uploadTexture(
 }
 
 // ============================================================
+// WP7：压缩图集上传（KTX1 容器 → KtxLoader 全字段校验 → Vulkan ASTC 上传）
+// 失败返回 0（Kotlin 侧回退 RGBA 图集路径，视觉零差异仅内存差异）。
+// dynamic_cast 防御：g_renderer 非 VulkanBackend（未来其他后端）时同样回退。
+// ============================================================
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_uploadCompressedAtlas(
+    JNIEnv* env, jobject /*thiz*/,
+    jbyteArray ktxData) {
+
+    if (!g_renderer || !ktxData) return 0;
+
+    const jsize len = env->GetArrayLength(ktxData);
+    if (len <= 0) return 0;
+
+    jbyte* bytes = env->GetByteArrayElements(ktxData, nullptr);
+    if (!bytes) return 0;
+
+    KtxInfo info;
+    uint32_t id = 0;
+    if (loadKtx1(reinterpret_cast<const uint8_t*>(bytes), static_cast<size_t>(len), info)) {
+        if (auto* vk = dynamic_cast<VulkanBackend*>(g_renderer)) {
+            id = vk->uploadCompressedTexture(
+                info.data, info.dataSize,
+                static_cast<int>(info.width), static_cast<int>(info.height));
+        } else {
+            LOGE("uploadCompressedAtlas: 后端不支持压缩上传（非 VulkanBackend），回退 RGBA");
+        }
+    } else {
+        LOGW("uploadCompressedAtlas: KTX 校验失败，回退 RGBA 图集");
+    }
+
+    env->ReleaseByteArrayElements(ktxData, bytes, JNI_ABORT);
+    return static_cast<jint>(id);
+}
+
+// ============================================================
 // 帧渲染
 // ============================================================
 
@@ -229,15 +315,61 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_setCamera(
     jfloat camX, jfloat camY, jfloat scale,
     jint vpW, jint vpH) {
 
-    g_scale = scale;
-    cameraProjMatrix(g_projMatrix, camX, camY, scale, (float)vpW, (float)vpH);
+    // 对抗性审查 M2：scale=0/NaN → 除零产生 NaN 投影矩阵 → 全屏黑无法恢复。
+    // 统一 sanitize 后所有下游（投影矩阵/视口范围/LOD 门控）使用同一安全值
+    // （与 Canvas 侧 SoftwareCanvasBackend.sanitizeScale 语义对齐：非法 → 1.0）
+    float safeScale = scale;
+    if (!(safeScale > 0.001f)) safeScale = 1.0f;  // NaN 比较恒 false 一并拦截
+
+    g_scale = safeScale;
+    cameraProjMatrix(g_projMatrix, camX, camY, safeScale, (float)vpW, (float)vpH);
     if (g_renderer) g_renderer->setProjection(g_projMatrix);
 
     // 记录视口世界坐标范围（供 drawAllTiles 可见性检测使用）
     g_viewLeft   = camX;
     g_viewTop    = camY;
-    g_viewRight  = camX + (float)vpW / (scale > 0.001f ? scale : 1.0f);
-    g_viewBottom = camY + (float)vpH / (scale > 0.001f ? scale : 1.0f);
+    g_viewRight  = camX + (float)vpW / safeScale;
+    g_viewBottom = camY + (float)vpH / safeScale;
+}
+
+/** 渲染质量热控状态推送（仿 setCamera 独立通道：Compose 线程写、渲染线程单消费者读） */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_setRenderQuality(
+    JNIEnv* /*env*/, jobject /*thiz*/,
+    jfloat qualityFactor, jboolean decorationsDisabled) {
+
+    float q = qualityFactor;
+    if (q < 0.0f) q = 0.0f;
+    if (q > 1.0f) q = 1.0f;
+    g_qualityFactor.store(q);
+    g_decorationsDisabled.store(decorationsDisabled == JNI_TRUE);
+}
+
+/** 渲染特性开关推送（仿 setRenderQuality：Compose 线程写、渲染线程单消费者读） */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_setRenderFlags(
+    JNIEnv* /*env*/, jobject /*thiz*/,
+    jboolean buildingShadows, jboolean selectionHighlight, jboolean decorLod) {
+
+    g_buildingShadows.store(buildingShadows == JNI_TRUE);
+    g_selectionHighlight.store(selectionHighlight == JNI_TRUE);
+    g_decorLod.store(decorLod == JNI_TRUE);
+}
+
+/**
+ * 地图淡入 alpha 推送（渲染线程每帧调用，Compose 线程不写）。
+ * 只影响 drawAllTiles 的地图层 quad alpha；drawRect/drawSprite（预览/高亮）
+ * 不受影响——与 Canvas 侧（预览/高亮用独立 Paint）行为双端一致。
+ */
+extern "C" JNIEXPORT void JNICALL
+Java_com_xianxia_sect_core_nativebridge_NativeBridge_setFadeAlpha(
+    JNIEnv* /*env*/, jobject /*thiz*/,
+    jfloat fadeAlpha) {
+
+    float a = fadeAlpha;
+    if (a < 0.0f) a = 0.0f;
+    if (a > 1.0f) a = 1.0f;
+    g_fadeAlpha.store(a);
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -252,9 +384,14 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     jint atlasTexId,             // 图集纹理 ID
     jfloatArray uvMap,           // UV 映射 [u0,v0,u1,v1] × tileTypeCount
     jfloatArray buildingUVMap,
-    jfloatArray floorTileUVMap) { // 建筑 UV 映射 + 地砖 UV 映射
+    jfloatArray floorTileUVMap,  // 建筑 UV 映射 + 地砖 UV 映射
+    jfloatArray cropData,        // 灵田作物数据 [gx, gy, progress01] × N（WP6，可 null）
+    jfloatArray cropUVMap) {     // 作物 UV 映射 [u0,v0,u1,v1] × 3 阶段（WP6，可 null）
 
     if (!g_renderer || !tileData || !uvMap) return;
+
+    // ★ 地图淡入 alpha（本帧单次读取——所有 add 共用同一值，避免逐次 atomic load）
+    const float fadeAlpha = g_fadeAlpha.load();
 
     // ★ 瓦片几何扩展因子：每个瓦片扩展 0.5 屏幕像素，消除相邻瓦片间 1px 裂缝。
     // 当 scale 极小（<0.001）时用 scale=1 防止除零。
@@ -303,11 +440,17 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
                     uvs[gIdx * 4] + UV_EPSILON,
                     uvs[gIdx * 4 + 1] + UV_EPSILON,
                     uvs[gIdx * 4 + 2] - UV_EPSILON,
-                    uvs[gIdx * 4 + 3] - UV_EPSILON);
+                    uvs[gIdx * 4 + 3] - UV_EPSILON,
+                    1.0f, 1.0f, 1.0f, fadeAlpha);
             }
 
             // (B) 装饰叠加层（草/树）
-            if (tile >= 1 && tile <= 5) {
+            // 热控降质/装饰关闭/缩放 LOD 时跳过（WP5 加 g_scale 条件，g_decorLod 门控；
+            // 与 Canvas RenderLodPolicy 同阈值 0.6 双端对齐）
+            const bool skipDecor = g_decorationsDisabled.load() ||
+                                   g_qualityFactor.load() < DECOR_QUALITY_THRESHOLD ||
+                                   (g_decorLod.load() && g_scale < DECOR_QUALITY_THRESHOLD);
+            if (!skipDecor && tile >= 1 && tile <= 5) {
                 int uvIdx = tile;
                 if (uvIdx < (int)uvCount) {
                     float u0 = uvs[uvIdx * 4] + UV_EPSILON;
@@ -324,14 +467,16 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
                             wy - (float)tileSize - GAP_EPSILON,
                             treeW + 2.0f * GAP_EPSILON,
                             treeH + 2.0f * GAP_EPSILON,
-                            u0, v0, u1, v1);
+                            u0, v0, u1, v1,
+                            1.0f, 1.0f, 1.0f, fadeAlpha);
                     } else {
                         // 草（1×1 格）
                         batcher.add(atlasTexId,
                             wx - GAP_EPSILON, wy - GAP_EPSILON,
                             (float)tileSize + 2.0f * GAP_EPSILON,
                             (float)tileSize + 2.0f * GAP_EPSILON,
-                            u0, v0, u1, v1);
+                            u0, v0, u1, v1,
+                            1.0f, 1.0f, 1.0f, fadeAlpha);
                     }
                 }
             }
@@ -343,15 +488,25 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     jfloat* buildings = nullptr;
     jfloat* buvs = nullptr;
     jsize buvCount = 0;
+    jfloat* ftuvs = nullptr;  // 地砖 UV（循环外一次性 pin，防每建筑 2 次 JNI——对抗性审查 L3）
+    jsize ftuvCount = 0;
 
     if (buildingVisible && buildingData && buildingUVMap && buildingCount > 0) {
         buildings = env->GetFloatArrayElements(buildingData, nullptr);
         buvs = env->GetFloatArrayElements(buildingUVMap, nullptr);
         buvCount = env->GetArrayLength(buildingUVMap) / 4;
+        if (floorTileUVMap != nullptr) {
+            ftuvs = env->GetFloatArrayElements(floorTileUVMap, nullptr);
+            ftuvCount = env->GetArrayLength(floorTileUVMap) / 4;
+        }
+
+        // 对抗性审查 M1：buildingCount 与数组长度取小（防御上游不一致的越界读）
+        const jsize buildingArrCount = env->GetArrayLength(buildingData) / 5;
+        const int effectiveCount = (int)std::min((jsize)buildingCount, buildingArrCount);
 
         static const int FP_COUNT = sizeof(FP_W) / sizeof(FP_W[0]);
 
-        for (int i = 0; i < buildingCount; i++) {
+        for (int i = 0; i < effectiveCount; i++) {
             int idx = i * 5;
             float gx = buildings[idx];
             float gy = buildings[idx + 1];
@@ -380,14 +535,12 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
             if (!isRectVisible(px, py, pw, ph)) continue;
 
             int buvIdx = nameIdx;
-            if (buvIdx >= (int)buvCount) buvIdx = 0;
+            // 对抗性审查 M3/M4：负 nameIdx 直接负索引越界读（原条件只防上界）
+            if (buvIdx < 0 || buvIdx >= (int)buvCount) buvIdx = 0;
 
             // (A) 地砖底座（灵田除外），按占地尺寸绘制。
             //    灵矿场使用专属地皮覆盖纹理，其他建筑使用通用地砖。
-            if (floorTileUVMap != nullptr) {
-                jfloat* ftuvs = env->GetFloatArrayElements(floorTileUVMap, nullptr);
-                jsize ftuvCount = env->GetArrayLength(floorTileUVMap) / 4;
-
+            if (ftuvs != nullptr) {
                 int ftIdx = -1;
                 if (nameIdx == SPIRIT_MINE_NAME_INDEX) {
                     ftIdx = SPIRIT_MINE_GROUND_UV_INDEX;
@@ -416,9 +569,20 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
                         ftuvs[ftIdx * 4] + UV_EPSILON,
                         ftuvs[ftIdx * 4 + 1] + UV_EPSILON,
                         ftuvs[ftIdx * 4 + 2] - UV_EPSILON,
-                        ftuvs[ftIdx * 4 + 3] - UV_EPSILON);
+                        ftuvs[ftIdx * 4 + 3] - UV_EPSILON,
+                        1.0f, 1.0f, 1.0f, fadeAlpha);
                 }
-                env->ReleaseFloatArrayElements(floorTileUVMap, ftuvs, JNI_ABORT);
+            }
+
+            // (A2) 建筑投影阴影（地砖之上、精灵之下，绘制顺序保证阴影被精灵覆盖）
+            // 半透明黑 quad + 右下偏移 0.25 格（textureId=0 = 白色纹理 × 顶点色）
+            // 坐标/常量与 BuildingRenderGeometry.shadowRect 同数学（双端一致）
+            if (g_buildingShadows.load()) {
+                float shx = ftPx + tileSize * SHADOW_OFFSET_TILES;
+                float shy = ftPy + tileSize * SHADOW_OFFSET_TILES;
+                batcher.add(0, shx, shy, ftPw, ftPh,
+                    0.0f, 0.0f, 0.0f, 0.0f,
+                    0.0f, 0.0f, 0.0f, SHADOW_ALPHA * fadeAlpha);
             }
 
             // (B) 建筑精灵
@@ -426,11 +590,63 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
                 buvs[buvIdx * 4] + UV_EPSILON,
                 buvs[buvIdx * 4 + 1] + UV_EPSILON,
                 buvs[buvIdx * 4 + 2] - UV_EPSILON,
-                buvs[buvIdx * 4 + 3] - UV_EPSILON);
+                buvs[buvIdx * 4 + 3] - UV_EPSILON,
+                1.0f, 1.0f, 1.0f, fadeAlpha);
         }
     }
 
-    // ---- 3. 提交合并后的图集绘制 ----
+    // ---- 3. 灵田作物层（WP6，建筑精灵之上——作物浮在灵田建筑上） ----
+    // 数据 [gx, gy, progress01] × N；阶段索引 + 阶段内淡化 alpha 与
+    // Kotlin SpiritCropRender 同数学（阶段边界 1/3、2/3，crossfade=(p-stage/3)×3）
+    if (cropData && cropUVMap) {
+        jfloat* crops = env->GetFloatArrayElements(cropData, nullptr);
+        jfloat* cuvs = env->GetFloatArrayElements(cropUVMap, nullptr);
+        jsize cuvCount = env->GetArrayLength(cropUVMap) / 4;
+        jsize cropCount = env->GetArrayLength(cropData) / 3;
+
+        for (int i = 0; i < cropCount; i++) {
+            int idx = i * 3;
+            float gx = crops[idx];
+            float gy = crops[idx + 1];
+            float progress = crops[idx + 2];
+
+            // NaN/越界防御：非法进度 → 跳过（Kotlin 侧 clamp 后必为合法值，
+            // 此处为数据篡改防御层——不画任何像素）
+            if (progress != progress || progress < 0.0f || progress > 1.0f) continue;
+            // 对抗性审查 L1：gx/gy NaN → NaN 顶点进入绘制（isRectVisible 对 NaN
+            // 恒返回可见，GPU 对 NaN 顶点行为未定义）——与 Canvas 侧同式防御
+            if (gx != gx || gy != gy) continue;
+
+            int stage;
+            float alpha;
+            if (progress < 1.0f / 3.0f) {
+                stage = 0;
+                alpha = progress * 3.0f;
+            } else if (progress < 2.0f / 3.0f) {
+                stage = 1;
+                alpha = (progress - 1.0f / 3.0f) * 3.0f;
+            } else {
+                stage = 2;
+                alpha = (progress - 2.0f / 3.0f) * 3.0f;
+            }
+            if (stage >= (int)cuvCount) continue;
+
+            float px = gx * tileSize;
+            float py = gy * tileSize;
+            if (!isRectVisible(px, py, (float)tileSize, (float)tileSize)) continue;
+
+            batcher.add(atlasTexId, px, py, (float)tileSize, (float)tileSize,
+                cuvs[stage * 4] + UV_EPSILON,
+                cuvs[stage * 4 + 1] + UV_EPSILON,
+                cuvs[stage * 4 + 2] - UV_EPSILON,
+                cuvs[stage * 4 + 3] - UV_EPSILON,
+                1.0f, 1.0f, 1.0f, alpha * fadeAlpha);
+        }
+        env->ReleaseFloatArrayElements(cropData, crops, JNI_ABORT);
+        env->ReleaseFloatArrayElements(cropUVMap, cuvs, JNI_ABORT);
+    }
+
+    // ---- 4. 提交合并后的图集绘制 ----
     int vertCount = batcher.end();
     if (vertCount > 0) {
         g_renderer->draw(batcher.vertices, vertCount,
@@ -442,6 +658,7 @@ Java_com_xianxia_sect_core_nativebridge_NativeBridge_drawAllTiles(
     env->ReleaseFloatArrayElements(uvMap, uvs, JNI_ABORT);
     if (buildings) env->ReleaseFloatArrayElements(buildingData, buildings, JNI_ABORT);
     if (buvs) env->ReleaseFloatArrayElements(buildingUVMap, buvs, JNI_ABORT);
+    if (ftuvs) env->ReleaseFloatArrayElements(floorTileUVMap, ftuvs, JNI_ABORT);
 }
 
 extern "C" JNIEXPORT void JNICALL

@@ -488,3 +488,33 @@ static const int FP_COUNT = ${pairs.size};
 }
 // preBuild 前生成——确保 native 编译时头文件最新
 tasks.named('preBuild').configure { dependsOn('generateFootprintHeader') }
+
+// ============================================================
+// 2026-08-10（WP7）：图集 ASTC 压缩产物生成任务
+// 权威源：SpriteAtlasDef.kt + BuildingFeatureBoot.kt + drawable-nodpi/*.webp
+// 产物：assets/atlas/atlas_astc.ktx（KTX1 封装 ASTC 4×4）+ atlas-manifest.json
+// 产物已提交入库兜底；astcenc 缺失时跳过告警不阻塞构建（运行时回退 RGBA 图集）。
+// 守卫测试 AtlasManifestSyncTest 锁住 manifest↔SpriteAtlasDef↔KTX 三向一致性，
+// 权威源变更后该测试变红，提示运行此任务重新生成。
+// ============================================================
+tasks.register('generateAstcAtlas') {
+    group = 'build'
+    description = '从权威源生成 ASTC 压缩图集（KTX1 + manifest）'
+    doLast {
+        def astcencDir = file('scripts/tools/astcenc/bin')
+        def hasAstcenc = astcencDir.exists() && [
+            'astcenc-avx2.exe', 'astcenc-sse4.1.exe', 'astcenc-sse2.exe'
+        ].any { file("${astcencDir}/${it}").exists() }
+        if (!hasAstcenc) {
+            logger.warn('generateAstcAtlas: astcenc 未找到（scripts/tools/astcenc/bin/），跳过生成——产物已入库兜底，运行时回退 RGBA 图集。')
+            return
+        }
+        def proc = ['node', 'scripts/build-atlas.mjs'].execute(null, projectDir)
+        proc.consumeProcessOutput(System.out, System.err)
+        def exit = proc.waitFor()
+        if (exit != 0) {
+            throw new GradleException("generateAstcAtlas: build-atlas.mjs 退出码 ${exit}")
+        }
+        logger.lifecycle('generateAstcAtlas: 完成')
+    }
+}

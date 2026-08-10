@@ -9,7 +9,12 @@ import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import com.xianxia.sect.feature.game.R
+import com.xianxia.sect.core.animation.FadeTransition
 import com.xianxia.sect.core.nativebridge.NativeBridge
+import com.xianxia.sect.core.render.FrameDropPolicy
+import com.xianxia.sect.core.render.NativeRenderConfig
+import com.xianxia.sect.core.render.RenderBackend
+import com.xianxia.sect.core.render.RenderFrame
 import com.xianxia.sect.core.render.RenderMetrics
 import com.xianxia.sect.core.render.SpriteAtlasDef
 import com.xianxia.sect.core.touch.SectMapTouchEngine
@@ -65,6 +70,16 @@ class NativeSurfaceView(
     /** 软件渲染后端访问器（质量/装饰降级接线用；仅 SOFTWARE 模式非空） */
     val softwareRenderer: SoftwareCanvasBackend? get() = softwareBackend
 
+    /**
+     * 当前激活的渲染后端（[RenderBackend] 统一入口，iOS Metal 迁移点）。
+     * 由 [surfaceChanged] 按渲染模式创建，渲染线程每帧调用；
+     * [surfaceDestroyed] 中 release 并置空。
+     */
+    private var activeBackend: RenderBackend? = null
+
+    /** 渲染配置访问器（供同包渲染后端适配器读取世界尺寸） */
+    internal val renderConfig: NativeRenderConfig get() = config
+
     /** 渲染线程 */
     private var renderThread: RenderThread? = null
 
@@ -98,6 +113,12 @@ class NativeSurfaceView(
     @Volatile
     var targetFps: Int = 10
 
+    /**
+     * 显示刷新率提供器（WP5 vsync 帧节奏；测试可注入固定值）。
+     * iOS 对等：CADisplayLink.maximumFramesPerSecond。
+     */
+    var displayFpsProvider: DisplayFpsProvider = SystemDisplayFpsProvider(context)
+
     /** 自适应帧率追踪器（EWMA，VULKAN/SOFTWARE 双路径统一挂载） */
     private val adaptiveFpsTracker = AdaptiveFpsTracker()
 
@@ -113,23 +134,61 @@ class NativeSurfaceView(
     private var lastDeclaredFrameRate = 0
 
     /**
+     * 渲染质量转发目标（测试可注入 Fake 断言转发序列）。
+     * 默认推送到 C++ 热控全局量（NativeBridge.setRenderQuality）；
+     * nativeReady 守卫：仅 Vulkan 渲染器就绪后转发（native 库已加载）。
+     * 就绪前触发的转发由 [pushRenderQuality] 在 surfaceChanged 初始化完成后补发，
+     * 防止 surface 重建（shutdownRenderer 重置 C++ 全局量）后热控状态丢失。
+     */
+    var renderQualitySink: (qualityFactor: Float, decorationsDisabled: Boolean) -> Unit =
+        { qualityFactor, decorationsDisabled ->
+            if (isReady && renderMode == RenderMode.VULKAN) {
+                NativeBridge.setRenderQuality(qualityFactor, decorationsDisabled)
+            }
+        }
+
+    /**
+     * ASTC 压缩图集加载+上传目标（WP7，测试可注入 Fake 断言回退链）。
+     * 默认：assets 读 KTX 字节 → [NativeBridge.uploadCompressedAtlas]（KtxLoader
+     * 全字段校验 + Vulkan ASTC 上传，单次 readBytes 无二次拷贝）；
+     * 返回 0 = 资产缺失/IO 异常/校验失败/设备不支持 → 回退 RGBA 图集。
+     */
+    var compressedAtlasLoader: (android.content.Context) -> Int = { ctx ->
+        try {
+            val bytes = ctx.assets.open(ASTC_ATLAS_ASSET_PATH).use { it.readBytes() }
+            NativeBridge.uploadCompressedAtlas(bytes)
+        } catch (t: Throwable) {
+            android.util.Log.e("NativeSurfaceView", "ASTC atlas load failed, fallback to RGBA", t)
+            0
+        }
+    }
+
+    /**
      * 渲染质量因子转发（MainGameScreen 接线；backend 创建后立即应用，防初始发射丢失）。
      * Compose 线程写、渲染线程读，@Volatile 保证可见性。
+     * 转发时携带当前装饰标志（单边 setter 触发时 C++ 状态保持完整）。
      */
     @Volatile
     var renderQualityFactor: Float = 1.0f
         set(value) {
             field = value
             softwareBackend?.qualityFactor = value
+            renderQualitySink(value, renderDecorationsDisabled)
         }
 
-    /** 装饰层关闭标志转发（语义同上） */
+    /** 装饰层关闭标志转发（语义同上，转发时携带当前质量因子） */
     @Volatile
     var renderDecorationsDisabled: Boolean = false
         set(value) {
             field = value
             softwareBackend?.decorationsDisabled = value
+            renderQualitySink(renderQualityFactor, value)
         }
+
+    /** surface 重建（shutdownRenderer 重置 C++ 全局量）后重放当前热控状态 */
+    private fun pushRenderQuality() {
+        renderQualitySink(renderQualityFactor, renderDecorationsDisabled)
+    }
 
     /** 统一创建软件渲染后端（应用当前质量/装饰值，防 surface 重建后丢失降级状态） */
     private fun createSoftwareBackend(): SoftwareCanvasBackend =
@@ -182,7 +241,34 @@ class NativeSurfaceView(
      * - Vulkan 路径：上传到 GPU 并返回纹理 ID
      * - Canvas 路径：保存 Bitmap 引用供软件渲染使用
      */
+    /**
+     * 是否应尝试 ASTC 压缩图集（WP7 分支决策：Vulkan 路径且开关开启）。
+     * 独立纯函数供守卫测试锁定分支逻辑（完整 buildAtlas 的 RGBA 上传为 native 调用，
+     * JVM 测试无法覆盖——由真机验证）。
+     */
+    internal fun shouldTryCompressedAtlas(): Boolean =
+        renderMode != RenderMode.SOFTWARE && config.renderFlags.textureCompression
+
+    /**
+     * ASTC 压缩图集尝试入口：分支决策 + 加载上传（返回 0 = 回退 RGBA 信号）。
+     * 独立供守卫测试注入 loader 断言调用与返回值语义。
+     */
+    internal fun tryCompressedAtlas(context: android.content.Context): Int =
+        if (shouldTryCompressedAtlas()) compressedAtlasLoader(context) else 0
+
     fun buildAtlas(context: android.content.Context): Int {
+        // Vulkan 路径优先 ASTC 压缩图集（WP7，16MB RGBA → 4MB ASTC）——成功则跳过
+        // 运行时逐精灵解码+拼装（启动更快）。开关关闭/设备不支持/资产损坏 → 回退
+        // RGBA 路径，视觉零差异仅 GPU 显存差异。
+        val compressedId = tryCompressedAtlas(context)
+        if (compressedId != 0) {
+            android.util.Log.i(
+                "NativeSurfaceView",
+                "buildAtlas: ASTC compressed atlas uploaded (id=$compressedId)"
+            )
+            return compressedId
+        }
+
         val atlas: android.graphics.Bitmap
         try {
             atlas = buildAtlasBitmap(context)
@@ -199,7 +285,7 @@ class NativeSurfaceView(
             return 0
         }
 
-        // Vulkan 路径：上传到 GPU
+        // Vulkan 回退路径：上传到 GPU
         val pixels = IntArray(atlas.width * atlas.height)
         atlas.getPixels(pixels, 0, atlas.width, 0, 0, atlas.width, atlas.height)
         val buffer = ByteArray(pixels.size * 4)
@@ -231,6 +317,10 @@ class NativeSurfaceView(
         private const val FPS_DECLARE_THRESHOLD = 30
         /** 帧率下限保护（防除零与非法值） */
         private const val MIN_FPS_VALUE = 1
+        /** 显示刷新率兜底（provider 未知/异常返回 0 时按 60Hz 兜底，防 1Hz 慢渲染） */
+        private const val DEFAULT_DISPLAY_FPS = 60
+        /** ASTC 压缩图集资产路径（WP7，scripts/build-atlas.mjs 产物） */
+        private const val ASTC_ATLAS_ASSET_PATH = "atlas/atlas_astc.ktx"
 
         fun buildAtlasBitmap(context: android.content.Context): android.graphics.Bitmap {
             val atlas = android.graphics.Bitmap.createBitmap(
@@ -312,7 +402,23 @@ class NativeSurfaceView(
                     floorTileDrawableMap[ft.key] ?: 0))
             }
 
-            val slots = tileSlots + buildingSlots + floorTileSlots
+            // 灵田作物精灵：来自 SpriteAtlasDef.CropStage（WP6 生长动画——
+            // 图集 y=0 行 832/896/960 空槽，与 C++ crop_seedling/growing/mature 同步）
+            val cropDrawableMap = listOf(
+                R.drawable.growing_spiritgrass7,
+                R.drawable.growing_spiritgrass8,
+                R.drawable.growing_spiritgrass9,
+            )
+            val cropSlots = mutableListOf<SpriteSlot>()
+            for (stage in SpriteAtlasDef.CropStage.values()) {
+                val r = stage.rect
+                cropSlots.add(SpriteSlot(
+                    stage.name, r.x, r.y, r.w, r.h,
+                    cropDrawableMap.getOrNull(stage.ordinal) ?: 0
+                ))
+            }
+
+            val slots = tileSlots + buildingSlots + floorTileSlots + cropSlots
 
             // 绘制每个精灵到图集
             var loadedCount = 0
@@ -398,8 +504,48 @@ class NativeSurfaceView(
         cameraDirty.set(true)
     }
 
+    // ── 地图淡入过渡（WP4，仿独立相机通道：渲染线程每帧计算） ──
+
+    /** 淡入开始时间戳（System.nanoTime；由 [fadeIn] 重置） */
+    @Volatile
+    private var renderFadeStartNs: Long = 0L
+
+    /** 淡入总时长（纳秒，[fadeIn] 设置） */
+    @Volatile
+    private var renderFadeDurationNs: Long = FadeTransition.DEFAULT_DURATION_MS * 1_000_000L
+
+    /**
+     * 触发地图淡入（幂等——仅重置起始时间戳，重复调用无害）。
+     * 由 RenderThread 每次启动时调用：覆盖首次进入 / surface 重建重入 /
+     * Vulkan 降级三条初始化路径，渲染线程每帧经 [fadeAlpha] 计算当前 alpha。
+     */
+    fun fadeIn(durationMs: Long = FadeTransition.DEFAULT_DURATION_MS) {
+        renderFadeStartNs = System.nanoTime()
+        renderFadeDurationNs = durationMs * 1_000_000L
+    }
+
+    /**
+     * 当前淡入 alpha（0-1，EaseOutCubic）。
+     * 纯时钟驱动纯函数（[FadeTransition.alphaAt]）——每帧独立计算，无累积误差，
+     * 热控降帧（10fps 挂机档）下淡入时长按墙钟精确。
+     * 渲染线程每帧读取并推送到双端（Vulkan=setFadeAlpha / Canvas=合成 paint.alpha）。
+     */
+    val fadeAlpha: Float
+        get() = FadeTransition.alphaAt(
+            System.nanoTime() - renderFadeStartNs, renderFadeDurationNs)
+
     /** 从 Compose 层原子更新渲染帧数据 */
     fun updateRenderState(frame: RenderFrame) {
+        // 尺寸不匹配时不更新 currentFrame（先校验后赋值——校验前置防坏帧污染：
+        // 渲染线程读取 currentFrame 后 SoftwareCanvasBackend ChunkTile.rebuild
+        // 会 ArrayIndexOutOfBoundsException，被渲染循环 catch 吞掉后永久黑屏）
+        if (frame.tileData.size != config.worldWidthCells * config.worldHeightCells) {
+            android.util.Log.e("NativeSurfaceView",
+                "RenderFrame tileData size mismatch: ${frame.tileData.size} " +
+                "vs expected ${config.worldWidthCells * config.worldHeightCells}")
+            return
+        }
+
         // 仅当 tileData/buildingData 引用变化时拷贝（防止 Compose 线程后续修改）。
         // flatTileData 使用 remember() 缓存同一引用直至数据变化，稳态帧无需重复复制。
         val prevTileData = currentFrame?.tileData
@@ -411,17 +557,6 @@ class NativeSurfaceView(
             buildingData = safeBuildingData
         )
         cameraDirty.set(true)
-
-        // 断言：debug build 时验证 tileData 完整性
-        if (frame.tileData.size != config.worldWidthCells * config.worldHeightCells) {
-            android.util.Log.e("NativeSurfaceView",
-                "RenderFrame tileData size mismatch: ${frame.tileData.size} " +
-                "vs expected ${config.worldWidthCells * config.worldHeightCells}")
-
-            // ★ 修复：尺寸不匹配时不更新 currentFrame，防止 SoftwareCanvasBackend
-            // ChunkTile.rebuild 中 ArrayIndexOutOfBoundsException 被 catch 吞掉后永久黑屏
-            return
-        }
     }
 
     /** 跨平台手势引擎 */
@@ -508,6 +643,7 @@ class NativeSurfaceView(
                         // 注意：buildAtlas() 依赖 renderMode 判断是否回收 Bitmap，
                         // 必须在 onRendererReady 之前设置，否则图集 Bitmap 被误回收
                         softwareBackend = createSoftwareBackend()
+                        activeBackend = SoftwareRenderBackend(this)
                         renderMode = RenderMode.SOFTWARE
                         // 通知 Compose 层上传纹理（TextureAtlas 已在 surfaceCreated 中 init）
                         onRendererReady?.invoke()
@@ -521,13 +657,24 @@ class NativeSurfaceView(
 
             val surface = holder.surface ?: return
 
-            // 初始化超时安全网（10 秒）
+            // 初始化超时安全网（10 秒）：超时降级完整初始化软件后端（而非只置
+            // isReady——否则 698 行 `if (isReady) return@post` 拦截后续 Vulkan init
+            // 成功回调，渲染线程永不启动 → 永久黑屏）。generation 守卫拦截
+            // surfaceDestroyed 后残留的 stale 超时回调（防跨 surface 误置状态）。
             val timeoutRunnable = Runnable {
+                if (currentGen != surfaceGeneration) return@Runnable
                 if (!isReady) {
                     android.util.Log.w("NativeSurfaceView",
-                        "Vulkan init timed out (10s), forcing ready")
+                        "Vulkan init timed out (10s) — falling back to software renderer")
                     initInProgress = false
+                    // 完整初始化（对齐降级路径语义）：后端 + 渲染线程 + isReady，
+                    // 后续 Vulkan init 成功/失败回调均被 isReady 守卫拦截
+                    softwareBackend = createSoftwareBackend()
+                    activeBackend = SoftwareRenderBackend(this)
+                    renderMode = RenderMode.SOFTWARE
+                    onRendererReady?.invoke()
                     isReady = true
+                    renderThread = RenderThread().also { it.start() }
                 }
             }
             postDelayed(timeoutRunnable, 10_000L)
@@ -564,6 +711,10 @@ class NativeSurfaceView(
                             onRendererReady?.invoke()
 
                             isReady = true
+                            // ★ 热控状态补发：shutdownRenderer 重置了 C++ 全局量，
+                            //   此处把 Kotlin 侧当前值（可能已热控降级）重放到 C++
+                            pushRenderQuality()
+                            activeBackend = VulkanRenderBackend(this)
                             renderThread = RenderThread().also { it.start() }
                         }
                     } else {
@@ -582,6 +733,7 @@ class NativeSurfaceView(
                             if (!isReady) {
                                 // 降级到软件渲染
                                 softwareBackend = createSoftwareBackend()
+                                activeBackend = SoftwareRenderBackend(this)
                                 renderMode = RenderMode.SOFTWARE
                                 onRendererReady?.invoke()
                                 isReady = true
@@ -609,6 +761,7 @@ class NativeSurfaceView(
                         vulkanInitThread = null
                         if (!isReady) {
                             softwareBackend = createSoftwareBackend()
+                            activeBackend = SoftwareRenderBackend(this)
                             renderMode = RenderMode.SOFTWARE
                             onRendererReady?.invoke()
                             isReady = true
@@ -618,12 +771,8 @@ class NativeSurfaceView(
                 }
             }
         } else {
-            if (renderMode == RenderMode.SOFTWARE) {
-                // 软件模式窗口变化：重建 SoftwareCanvasBackend 视口
-                softwareBackend?.resize(w, h)
-            } else {
-                NativeBridge.resizeRenderer(w, h)
-            }
+            // 窗口变化：统一由后端适配器处理（Vulkan=resizeRenderer / Canvas=视口重建）
+            activeBackend?.resize(w, h)
         }
     }
 
@@ -655,16 +804,25 @@ class NativeSurfaceView(
             }
             if (!joined) {
                 android.util.Log.w("NativeSurfaceView",
-                    "RenderThread did not stop after 2s deadline — proceeding with release")
+                    "RenderThread did not stop after 2s deadline — " +
+                    "skipping backend release (thread may be blocked in vk call; " +
+                    "releasing now would delete g_renderer under it → use-after-free). " +
+                    "Resources are rebuilt by next initRenderer (device-ready → initSurface)")
+            } else {
+                // ★ 修复：仅在渲染线程确认停止后释放 backend 资源。
+                //   统一经 RenderBackend 适配器释放（Vulkan=shutdownRenderer / Canvas=canvas release）
+                activeBackend?.release()
             }
         }
         renderThread = null
-        // ★ 修复：在 RenderThread 停止后显式释放 backend 资源
-        softwareBackend?.release()
+        activeBackend = null
         softwareBackend = null
-        if (renderMode == RenderMode.VULKAN) {
-            NativeBridge.shutdownRenderer()
-        }
+        // 对抗性审查修复：surface 销毁后清纹理引用——重建后 buildAtlas 若失败
+        // （OOM/资产损坏）残留旧 GPU 纹理 ID 会提交已销毁纹理（C++ 查表未命中
+        // 回退白纹 → 地图全白）；清零后 Vulkan 侧 atlasTextureId==0 守卫跳过瓦片层
+        atlasTextureId = 0
+        // 注：atlasBitmap 禁止 recycle()（国产 ROM double-free 教训），置 null 让 GC
+        atlasBitmap = null
     }
 
     // ============================================================
@@ -708,6 +866,12 @@ class NativeSurfaceView(
         private var lastFpsReportNs = 0L
 
         override fun run() {
+            // ★ 地图淡入：渲染线程每次启动（= 每次 surface 初始化：首次进入/
+            // 重入/降级路径）触发——覆盖所有初始化路径，天然幂等。
+            // surfaceCreated 后 C++ g_fadeAlpha 已由 shutdownRenderer 重置为 1，
+            // 此处 fadeIn 重置起始时间戳，本帧起 alpha 从 0 淡入
+            fadeIn()
+
             // 首帧快速清除 Surface 缓冲区，防止华为模拟器等设备上
             // SurfaceFlinger 未正确清除新分配缓冲区导致残留内容显示
             if (renderMode == RenderMode.SOFTWARE) {
@@ -722,41 +886,66 @@ class NativeSurfaceView(
                 }
             }
 
+            // ★ WP5 vsync 帧节奏：Canvas 路径用 VsyncGate 对齐显示刷新率；
+            // 初始化失败时 awaitTick 恒超时 → 循环回退 sleep 节拍（行为 = 现状）。
+            // vsyncPacing=false（RenderFlags 开关）→ 完全旧路径
+            val vsyncPacing = config.renderFlags.vsyncPacing
+            val vsyncGate = if (vsyncPacing && renderMode == RenderMode.SOFTWARE) {
+                VsyncGate()
+            } else {
+                null
+            }
+            try {
+                renderLoop(vsyncPacing, vsyncGate)
+            } finally {
+                vsyncGate?.release()
+            }
+        }
+
+        /**
+         * 渲染主循环（WP5 重构）。
+         *
+         * ## 帧节奏
+         * - vsyncPacing=true：以显示刷新率为节拍 + [FrameDropPolicy] 帧跳过——
+         *   全速档（step=1）Canvas 走 VsyncGate vsync 对齐 / Vulkan 走节拍 sleep
+         *   （FIFO 交换链天然 vsync 对齐提交）；降帧档（step>1）整体 sleep 到
+         *   渲染间隔（省电：低帧率时 vsync 对齐收益小，减少唤醒次数）
+         * - vsyncPacing=false：旧 sleep 限速路径（行为与改造前逐字节一致）
+         *
+         * 每次迭代重算 step/interval——热控升降帧即时生效，无状态累积。
+         */
+        private fun renderLoop(vsyncPacing: Boolean, vsyncGate: VsyncGate?) {
             var lastFrameNs = System.nanoTime()
             // 有效帧率 = min(外部目标帧率, EWMA 渲染能力帧率)；
             // 起始用 targetFps（外部流尚未到达时的默认 10）
             var effectiveFps = targetFps.coerceAtLeast(MIN_FPS_VALUE)
-            var lastEwmaFps = 60
+
+            var tick = 0L
 
             while (running && isReady) {
                 val now = System.nanoTime()
                 val elapsedNs = now - lastFrameNs
+                // 每次迭代重算帧节奏——热控升降帧即时生效，无状态累积
+                val pacing = computeFramePacing(vsyncPacing, effectiveFps)
 
-                // 每次迭代重算，支持 targetFps 运行时动态变化
-                val fiNs = NANOS_PER_SECOND / effectiveFps.coerceAtLeast(MIN_FPS_VALUE)
-
-                if (elapsedNs < fiNs) {
-                    val sleepMs = (fiNs - elapsedNs) / 1_000_000
-                    if (sleepMs > 1) {
-                        try { Thread.sleep(sleepMs) } catch (_: InterruptedException) { break }
-                    }
+                if (elapsedNs < pacing.intervalNs) {
+                    if (!waitForNextTick(pacing.intervalNs - elapsedNs, pacing.step, vsyncGate)) return
                     continue
                 }
                 lastFrameNs = now
+                tick++
+                if (tick % pacing.step.toLong() != 0L) continue
 
-                val frameStartNs = System.nanoTime()
-                when (renderMode) {
-                    RenderMode.VULKAN -> renderVulkanFrame()
-                    RenderMode.SOFTWARE -> renderSoftwareFrame()
-                }
-                val renderElapsedNs = System.nanoTime() - frameStartNs
+                // ★ 统一渲染入口：RenderBackend 抽象（VULKAN/SOFTWARE 分支已收敛到
+                //   surfaceChanged 创建处），渲染循环只面向接口——iOS Metal 后端
+                //   实现同一接口即可接入，循环零改动
+                val renderElapsedNs = renderTick()
 
                 // ★ 统一 EWMA 渲染能力追踪（VULKAN/SOFTWARE 双路径一致）。
                 // 关键设计：**不写回 targetFps**——渲染线程内部维护 effectiveFps =
                 // min(targetFps, ewmaFps)，避免"只降不升 + StateFlow 不重发"钉死竞态；
                 // 外部升帧（场景/模式/热控变化）始终即时生效，EWMA 能力恢复自动回升。
                 val ewmaFps = adaptiveFpsTracker.recordFrameTime(renderElapsedNs, System.currentTimeMillis())
-                lastEwmaFps = ewmaFps
                 effectiveFps = minOf(targetFps.coerceAtLeast(MIN_FPS_VALUE), ewmaFps)
 
                 // 上报渲染能力帧率（供热控帧率驱动降级；能力帧率 ≠ 墙钟帧率，
@@ -766,6 +955,94 @@ class NativeSurfaceView(
                 // 帧率变化后向系统声明（降频省屏耗 + 回升恢复，防面板粘滞）
                 maybeDeclareFrameRate(effectiveFps)
             }
+        }
+
+        /**
+         * 本迭代帧节奏参数（WP5 重构提取）。
+         *
+         * - vsyncPacing=true：以显示刷新率为节拍 + [FrameDropPolicy] 帧跳过——
+         *   全速档（step=1）Canvas 走 VsyncGate vsync 对齐 / Vulkan 走节拍 sleep
+         *   （FIFO 交换链天然 vsync 对齐提交）；降帧档（step>1）整体 sleep 到
+         *   渲染间隔（省电：低帧率时 vsync 对齐收益小，减少唤醒次数）
+         * - vsyncPacing=false：旧 sleep 限速路径（行为与改造前逐字节一致）
+         */
+        private fun computeFramePacing(vsyncPacing: Boolean, effectiveFps: Int): FramePacing {
+            val displayFps = if (vsyncPacing) {
+                // 未知/异常（provider 返回 0）→ 60Hz 兜底，防节拍稀化为 1Hz
+                displayFpsProvider.displayFps().takeIf { it > 0 } ?: DEFAULT_DISPLAY_FPS
+            } else {
+                MIN_FPS_VALUE
+            }
+            val step = if (vsyncPacing) {
+                FrameDropPolicy.tickStep(displayFps, effectiveFps)
+            } else {
+                1
+            }
+            // 全速档（step≤1）按显示节拍；降帧档按有效帧率间隔（省唤醒）
+            val intervalNs = if (!vsyncPacing || step > 1) {
+                NANOS_PER_SECOND / effectiveFps.coerceAtLeast(MIN_FPS_VALUE)
+            } else {
+                NANOS_PER_SECOND / displayFps
+            }
+            return FramePacing(displayFps = displayFps, step = step, intervalNs = intervalNs)
+        }
+
+        /**
+         * 节拍等待（vsync 对齐 / sleep 兜底）。
+         *
+         * @return false = 线程中断（调用方退出循环；行为与改造前 catch 返回一致）
+         */
+        private fun waitForNextTick(waitNs: Long, step: Int, vsyncGate: VsyncGate?): Boolean {
+            if (step <= 1 && vsyncGate != null) {
+                // Canvas 全速档：vsync 对齐等待（超时 = 节拍 sleep 兜底，
+                // 不会忙循环——awaitTick 内部阻塞 timeoutMs）
+                vsyncGate.awaitTick(waitNs / 1_000_000 + 1)
+                return true
+            }
+            return sleepSafely(waitNs / 1_000_000)
+        }
+
+        /** sleep 节拍兜底（vsync 不可用/降帧档）。@return false = 线程中断（调用方退出循环） */
+        private fun sleepSafely(sleepMs: Long): Boolean {
+            if (sleepMs <= 1) return true
+            return try {
+                Thread.sleep(sleepMs)
+                true
+            } catch (_: InterruptedException) {
+                false
+            }
+        }
+
+        /**
+         * 单帧渲染：相机脏标记推送 + 后端渲染 + 异常统一捕获。
+         *
+         * @return 渲染耗时（纳秒，EWMA 能力帧率追踪用）
+         */
+        private fun renderTick(): Long {
+            val frameStartNs = System.nanoTime()
+            val backend = activeBackend
+            val frame = currentFrame
+            if (backend != null && frame != null) {
+                if (cameraDirty.compareAndSet(true, false)) {
+                    // 独立相机通道（不经过 RenderFrame 帧率门控）
+                    backend.setCamera(
+                        renderCamX, renderCamY, renderScale, width, height)
+                }
+                try {
+                    backend.renderFrame(
+                        frame, width.coerceAtLeast(1), height.coerceAtLeast(1))
+                } catch (e: OutOfMemoryError) {
+                    android.util.Log.e("NativeSurfaceView",
+                        "renderFrame OOM: ${e.message}", e)
+                    RenderMetrics.renderFrameNull.incrementAndGet()
+                    Runtime.getRuntime().gc()
+                } catch (e: Exception) {
+                    android.util.Log.e("NativeSurfaceView",
+                        "renderFrame failed: ${e.message}", e)
+                    RenderMetrics.renderFrameNull.incrementAndGet()
+                }
+            }
+            return System.nanoTime() - frameStartNs
         }
 
         /**
@@ -814,203 +1091,17 @@ class NativeSurfaceView(
             }
         }
 
-        /** Vulkan GPU 渲染路径 */
-        private fun renderVulkanFrame() {
-            val frame = currentFrame ?: return
-
-            if (cameraDirty.compareAndSet(true, false)) {
-                // ★ 使用独立相机通道，不依赖 frame.camX/Y（可能被帧率门控延迟）
-                NativeBridge.setCamera(
-                    renderCamX, renderCamY, renderScale, width, height)
-            }
-
-            NativeBridge.beginFrame()
-
-            // ★ 从命令总线读取建筑数据快照（一次性读取，消除 TOCTOU 竞态）
-            // 对标 UE ENQUEUE_RENDER_COMMAND：建筑变更即时送达，不依赖 Compose 重组时序
-            val busSnapshot = commandBus?.consumeBuildingData()
-            val effectiveBuildingData = busSnapshot?.data ?: frame.buildingData
-            val effectiveBuildingCount = if (busSnapshot != null) {
-                busSnapshot.count.coerceAtMost((busSnapshot.data?.size ?: 0) / 5)
-            } else {
-                frame.buildingCount
-            }
-
-            // 从 RenderFrame 读取瓦片数据 + SpriteAtlasDef 编译时常量
-            if (atlasTextureId != 0) {
-                NativeBridge.drawAllTiles(
-                    tileData = frame.tileData,
-                    cols = config.worldWidthCells,
-                    rows = config.worldHeightCells,
-                    buildingData = effectiveBuildingData,
-                    buildingCount = effectiveBuildingCount,
-                    buildingVisible = frame.buildingVisible,
-                    tileSize = config.tileSize,
-                    atlasTexId = atlasTextureId,
-                    uvMap = SpriteAtlasDef.TILE_UV_MAP,
-                    buildingUVMap = SpriteAtlasDef.BUILDING_UV_MAP,
-                    floorTileUVMap = SpriteAtlasDef.FLOOR_TILE_UV_MAP
-                )
-            }
-
-            if (frame.showPreview && atlasTextureId != 0) {
-                NativeBridge.drawSprite(
-                    frame.previewX, frame.previewY,
-                    frame.previewW, frame.previewH,
-                    atlasTextureId,
-                    frame.previewU0, frame.previewV0,
-                    frame.previewU1, frame.previewV1,
-                    frame.previewTintRed, frame.previewTintGreen,
-                    frame.previewTintBlue, frame.previewAlpha
-                )
-            }
-
-            RenderMetrics.vulkanFrames.incrementAndGet()
-            RenderMetrics.totalFrames.incrementAndGet()
-            RenderMetrics.recordFrame()
-            NativeBridge.submitFrame()
-        }
-
-        /** Canvas 软件渲染路径 */
-        private fun renderSoftwareFrame() {
-            val sb = softwareBackend ?: return
-            val atlas = atlasBitmap ?: return
-            val frame = currentFrame ?: return
-
-            // ★ 从命令总线读取建筑数据快照（与 Vulkan 路径一致，消除 TOCTOU 竞态）
-            val busSnapshot = commandBus?.consumeBuildingData()
-            val effectiveBuildingData = busSnapshot?.data ?: frame.buildingData
-            val effectiveBuildingCount = if (busSnapshot != null) {
-                busSnapshot.count.coerceAtMost((busSnapshot.data?.size ?: 0) / 5)
-            } else {
-                frame.buildingCount
-            }
-
-            // ★ 使用独立相机通道 + 建筑数据总线，合并覆盖 frame 中的值
-            val mergedFrame = frame.copy(
-                camX = renderCamX, camY = renderCamY, scale = renderScale,
-                buildingData = effectiveBuildingData,
-                buildingCount = effectiveBuildingCount
-            )
-
-            val rendered = try {
-                sb.renderFrame(
-                    frame = mergedFrame,
-                    atlas = atlas,
-                    vpW = this@NativeSurfaceView.width.coerceAtLeast(1),
-                    vpH = this@NativeSurfaceView.height.coerceAtLeast(1)
-                )
-            } catch (e: Exception) {
-                android.util.Log.e("NativeSurfaceView",
-                    "renderSoftwareFrame failed: ${e.message}", e)
-                RenderMetrics.renderFrameNull.incrementAndGet()
-                null
-            } catch (e: OutOfMemoryError) {
-                android.util.Log.e("NativeSurfaceView",
-                    "renderSoftwareFrame OOM: ${e.message}", e)
-                RenderMetrics.renderFrameNull.incrementAndGet()
-                Runtime.getRuntime().gc()
-                null
-            }
-
-            if (rendered == null) {
-                RenderMetrics.renderFrameNull.incrementAndGet()
-                return
-            }
-
-            RenderMetrics.softwareFrames.incrementAndGet()
-            RenderMetrics.totalFrames.incrementAndGet()
-            RenderMetrics.recordFrame()
-
-            var retries = 3
-            while (retries > 0) {
-                if (!running || !isReady) break
-                if (Thread.interrupted()) break
-                try {
-                    val surfaceCanvas = holder.lockCanvas() ?: run {
-                        RenderMetrics.lockCanvasRetries.incrementAndGet()
-                        retries--
-                        // ★ 对抗性审查修复：continue 前检查退出标志，防止中断检测时序竞争
-                        if (!running || !isReady || Thread.interrupted()) break
-                        continue
-                    }
-                    surfaceCanvas.drawBitmap(rendered, 0f, 0f, null)
-                    holder.unlockCanvasAndPost(surfaceCanvas)
-                    break
-                } catch (e: Exception) {
-                    if (!running || !isReady) break
-                    retries--
-                    if (retries == 0) {
-                        RenderMetrics.lockCanvasFailed.incrementAndGet()
-                        android.util.Log.w("NativeSurfaceView",
-                            "Software render: lockCanvas failed " +
-                            "after 3 retries: ${e.message}")
-                    } else {
-                        android.util.Log.d("NativeSurfaceView",
-                            "Software render: lockCanvas retry " +
-                            "$retries: ${e.message}")
-                        try { Thread.sleep(5) } catch (_: InterruptedException) { break }
-                    }
-                }
-            }
-        }
     }
 }
 
 /**
- * 原生渲染器配置（由 Compose 层创建，渲染线程只读）
- */
-data class NativeRenderConfig(
-    val tileSize: Int,
-    val worldWidthCells: Int,
-    val worldHeightCells: Int,
-    val worldPixelWidth: Int,
-    val worldPixelHeight: Int
-)
-
-/**
- * RenderFrame — 渲染管线唯一数据契约。
+ * 帧节奏参数（displayFps/step/intervalNs——一次迭代的调度数据）。
  *
- * 由 Compose 层通过 [NativeSurfaceView.updateRenderState] 批量写入，
- * Vulkan 和 Canvas 两路径均消费同一份 [RenderFrame]，杜绝数据不同步。
- *
- * ## 设计原则
- * - [tileData] 非 null：编译期强制调用方传入，NullPointerException 将
- *   在 [updateRenderState] 入口尽早抛出，而非等到渲染线程静默画 DKGRAY
- * - [cols]/[rows]：瓦片矩阵尺寸，用于 [tileData] 完整性验证
- * - uvMap/buildingUVMap 不在此处传递：Vulkan 和 Canvas 两后端均从
- *   [SpriteAtlasDef] 编译时常量读取，无需帧级数据传递
+ * 注意：必须为顶层声明——K2 编译器禁止在 `inner class` 内声明 `data class`
+ * （"Class is prohibited here"），[RenderThread] 为 inner class。
  */
-data class RenderFrame(
-    /** 瓦片类型数据（展平一维，index = row * cols + col）非 null */
-    val tileData: IntArray,
-    /** 地图列数（世界格数） */
-    val cols: Int,
-    /** 地图行数（世界格数） */
-    val rows: Int,
-
-    /** 建筑数据 [gx, gy, w, h, nameIdx] × N（可选，无建筑时为 null） */
-    val buildingData: FloatArray? = null,
-    val buildingCount: Int = 0,
-    val buildingVisible: Boolean = true,
-
-    // 相机
-    val camX: Float = 0f,
-    val camY: Float = 0f,
-    val scale: Float = 1f,
-
-    // 预览覆盖层（建造/移动模式）
-    val showPreview: Boolean = false,
-    val previewX: Float = 0f,
-    val previewY: Float = 0f,
-    val previewW: Float = 0f,
-    val previewH: Float = 0f,
-    val previewU0: Float = 0f,
-    val previewV0: Float = 0f,
-    val previewU1: Float = 0f,
-    val previewV1: Float = 0f,
-    val previewTintRed: Float = 0.25f,
-    val previewTintGreen: Float = 1.0f,
-    val previewTintBlue: Float = 0.25f,
-    val previewAlpha: Float = 0.5f
+private data class FramePacing(
+    val displayFps: Int,
+    val step: Int,
+    val intervalNs: Long
 )

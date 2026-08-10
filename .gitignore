@@ -31,6 +31,8 @@ credentials.properties
 .env.*.local
 
 node_modules/
+# 构建工具（本地下载，不入库；generateAstcAtlas 检测缺失时跳过生成任务）
+android/scripts/tools/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

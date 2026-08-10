@@ -8,6 +8,12 @@ import java.util.concurrent.atomic.AtomicBoolean
  * 提供一条从 ViewModel/GameEngine 直达渲染线程的建筑数据通道，
  * 绕过 Compose 反应式管线和帧率门控。
  *
+ * ## KMP 化备注（iOS 迁移）
+ * 本类暂留 :feature:game（使用 java.util.concurrent.atomic.AtomicBoolean）。
+ * iOS 侧等价物：kotlinx.atomicfu（KMP 官方原子库），迁移时仅替换
+ * AtomicBoolean → atomicfu，类结构零改动。渲染契约（RenderFrame 等）
+ * 已在 :core:engine，双平台共用。
+ *
  * ## 设计对标
  *
  * - **UE ENQUEUE_RENDER_COMMAND**：游戏线程将参数化的命令推入线程安全队列，

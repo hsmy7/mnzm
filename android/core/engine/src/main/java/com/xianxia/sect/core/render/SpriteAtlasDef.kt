@@ -198,6 +198,35 @@ object SpriteAtlasDef {
     }
 
     // ============================================================
+    // 灵田作物生长阶段（WP6，图集 y=0 行空闲区——与 C++ TextureAtlas.h
+    // MAP_SPRITES crop_seedling/crop_growing/crop_mature 同步）
+    // ============================================================
+
+    /** 灵田作物三阶段精灵（64×64，y=0 行 x=832/896/960 空槽） */
+    enum class CropStage(val rect: SpriteRect) {
+        SEEDLING(SpriteRect(832, 0, 64, 64)),
+        GROWING(SpriteRect(896, 0, 64, 64)),
+        MATURE(SpriteRect(960, 0, 64, 64))
+    }
+
+    /**
+     * 作物 UV 映射（归一化 0-1，按阶段索引，供 Vulkan 纹理采样）。
+     * 与 C++ TextureAtlas.h UV 计算一致。
+     */
+    val CROP_UV_MAP: FloatArray by lazy {
+        val uv = FloatArray(CropStage.values().size * 4)
+        for (stage in CropStage.values()) {
+            val r = stage.rect
+            val i = stage.ordinal * 4
+            uv[i] = r.x.toFloat() / ATLAS_W
+            uv[i + 1] = r.y.toFloat() / ATLAS_H
+            uv[i + 2] = (r.x + r.w).toFloat() / ATLAS_W
+            uv[i + 3] = (r.y + r.h).toFloat() / ATLAS_H
+        }
+        uv
+    }
+
+    // ============================================================
     // 地砖类型定义
     // ============================================================
 

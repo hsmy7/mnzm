@@ -9,13 +9,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 
 import com.xianxia.sect.core.model.GridBuildingData
+import com.xianxia.sect.core.render.BuildingRenderGeometry
+import com.xianxia.sect.core.render.NativeRenderConfig
+import com.xianxia.sect.core.render.RenderFrame
+import com.xianxia.sect.core.render.SpriteAtlasDef
 import com.xianxia.sect.core.util.GridSnapHelper
 import com.xianxia.sect.ui.game.map.sect.SectCameraState
-import com.xianxia.sect.ui.game.sect.NativeRenderConfig
 import com.xianxia.sect.ui.game.sect.NativeSurfaceView
 import com.xianxia.sect.ui.game.sect.RenderCommandBus
-import com.xianxia.sect.ui.game.sect.RenderFrame
-import com.xianxia.sect.core.render.SpriteAtlasDef
 
 /** 建筑名称 → 精灵图集索引（P-7 从 MainGameScreen 移入——SectMapViewport 与 buildBuildingDataArray 共用） */
 internal val BUILDING_NAME_INDEX: Map<String, Int> = SpriteAtlasDef.BUILDING_NAME_INDEX
@@ -78,7 +79,8 @@ internal fun SectMapViewport(
                         rows = params.worldHeightCells,
                         camX = params.cameraState.cameraX,
                         camY = params.cameraState.cameraY,
-                        scale = params.cameraState.scale
+                        scale = params.cameraState.scale,
+                        spiritCropData = params.spiritCropData
                     )
                 )
             }
@@ -147,6 +149,16 @@ internal fun SectMapViewport(
             val buildingData = params.buildingDataArray
             val effectiveCount = params.buildingCount
 
+            // ★ 选中建筑索引（WP3 高亮）：由点击格坐标经 findBuildingIndex 转换——
+            // 与双后端命中判定同一几何来源（占地 footprint），精灵超出部分不计入
+            val selectedGrid = params.selectedGrid
+            val selectedBuildingIndex = if (selectedGrid != null && buildingData != null) {
+                BuildingRenderGeometry.findBuildingIndex(
+                    selectedGrid.first, selectedGrid.second,
+                    buildingData, effectiveCount
+                )
+            } else -1
+
             // 帧率门控：低于间隔直接跳过 RenderFrame 推送（不影响 RenderCommandBus 直达通道）
             // buildingData 已通过命令总线独立推送，此处仅用于 tileData + preview
             if (now - lastRenderDataSyncNs >= minIntervalNs) {
@@ -165,6 +177,7 @@ internal fun SectMapViewport(
                         buildingVisible = true,
                         buildingData = buildingData,
                         buildingCount = effectiveCount,
+                        selectedBuildingIndex = selectedBuildingIndex,
                         showPreview = hasPreview,
                         previewX = px + previewOffsetX,
                         previewY = py + previewOffsetY,
@@ -177,7 +190,9 @@ internal fun SectMapViewport(
                         previewTintRed = 1.0f,
                         previewTintGreen = 1.0f,
                         previewTintBlue = 1.0f,
-                        previewAlpha = 0.5f
+                        previewAlpha = 0.5f,
+                        // ★ 灵田作物数据（WP6）：低频变化走帧率门控 RenderFrame（不新增命令总线）
+                        spiritCropData = params.spiritCropData
                     )
                 )   // view.updateRenderState()
             }   // if (now - lastRenderDataSyncNs >= minIntervalNs)
@@ -203,7 +218,11 @@ internal data class SectMapViewportParams(
     val worldHeightCells: Int,
     val forceSoftwareRendering: Boolean,
     val vulkanInitListener: NativeSurfaceView.VulkanInitListener?,
-    val buildingSpriteSizes: Map<String, GridSnapHelper.BuildingSize>
+    val buildingSpriteSizes: Map<String, GridSnapHelper.BuildingSize>,
+    /** 点击选中格坐标（null=无选中，渲染端经 findBuildingIndex 转换为建筑索引） */
+    val selectedGrid: Pair<Int, Int>? = null,
+    /** 灵田作物数据 [gx, gy, progress01] × N（WP6；null=无作物，双后端跳过作物层） */
+    val spiritCropData: FloatArray? = null
 )
 
 /**
