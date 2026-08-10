@@ -76,6 +76,15 @@
 - **接入** — AlchemyDialog"炼丹弟子"标题行、ForgeDialog"锻造弟子"标题行右侧各加按钮（`ProfessionInfoButton(isAlchemy = true/false)`），同包零新增 import
 - **测试** — `ProfessionRulesTest` +4 用例（炼丹系 6 级名称品阶 / 炼器系名称 / 晋升要求三重门槛文本 / 顶级已满级 null）；新增 `ProfessionInfoButtonTest`（Robolectric，点击详情按钮弹出炼丹/锻造等级弹窗断言）；全模块 compileReleaseKotlin + lintRelease + detekt 通过
 
+### 修复（2026-08-11 洗炼错误提示不可见根治——嵌套内联弹窗裁剪 + 引擎拒绝日志 + 集成段测试盲区补全）
+
+- **根因（错误提示被外层弹窗裁剪）** — 洗炼天赋/体质/词条/灵根的 ErrorDialog 用嵌套 `InlineStandardPromptDialog`（内联覆盖层）渲染在洗炼弹窗（同为 InlineStandardPromptDialog）的 content 区内：内联层 fillMaxSize 填满 content 区（weight(1f) Column）后，内部 50%W×55%H 弹窗相对已扣除标题行与 padding 的内容区溢出，被外层弹窗 `clip(12dp)` 裁剪——错误文案（玉符不足/该特质已不存在/弟子已死亡）完全不可见。玩家点击洗炼后"无任何反馈"、结果列保持"——"，误判为洗炼无效。Success 路径正常（结果列回显不受影响），仅 Error/不足路径失效——与"三类型全部无效"症状吻合（玩家玉符不足时三类型洗炼全部静默失败）
+- **修复（平台 Dialog 独立窗口）** — 两个洗炼弹窗（TraitWashDialog/SpiritRootWashDialog）的 ErrorDialog 改为 `StandardPromptDialog`（平台 Dialog，创建独立 Window 全屏覆盖，不受父级布局约束）；`dismissOnClickOutside = true` 交互不变；无输入框不受 DialogSoftInputGuard 键盘频闪影响。举一反三排查全库：其余 InlineStandardPromptDialog 使用处（SellConfirmDialog/RenameDialog/SettingsTab）均为顶层弹窗非嵌套，无此缺陷
+- **可观测性（引擎拒绝日志）** — `GameEngineTraitWashOps` 全部拒绝分支补 `DomainLog.w`（非法参数/弟子不存在/已死亡/目标特质不存在/候选池全排除/玉符不足含余额与需求/confirm 三态），LOG_TAG 常量提取统一字面量；下次复现可经 logcat 精确定位运行时拒绝原因
+- **测试（集成段盲区补全）** — 新增 `TraitWashDialogWashActionTest`（4 用例，mock viewModel 驱动）：Success 点击后结果列显示新特质 + 出现"确认替换"按钮（主流程）；Error 显示引擎 message（平台 Dialog 可见性守卫，防嵌套裁剪回归——修复前此用例失败坐实根因）；玉符不足显示固定文案；灵根 Error 同源回归（SpiritRootWashDialog 首个测试）。此前 TalentDetailDialogWashTest 全部 viewModel=null，从未覆盖"点击洗炼 → 引擎返回 → 结果回显"集成段
+- **验证** — feature:game 全模块串行测试 BUILD SUCCESSFUL（修复前 Error 用例失败、修复后全绿）；临时诊断测试 TraitWashRangeCheckTest 结论已验证（洗炼结果范围完整、产出全部可解析）后按规则清理
+- **兼容性** — 纯 UI + 日志变更，无 Entity/Migration/存档格式变更（DATABASE_VERSION 不变）
+
 ## [4.00.93] - 2026-08-09
 
 ### 优化（2026-08-09 每年一月卡顿数秒根治——算法减量 + AI 降频 + 年变分帧）

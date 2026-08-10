@@ -16,6 +16,9 @@ import kotlin.coroutines.cancellation.CancellationException
 // （targetId），其余同类特质保留不动——一次只洗炼一个，不再整套重掷替换。
 // 纯随机抽取函数（候选池/品阶分布/保底计数）在 GameEngineTraitWashRoll.kt。
 
+/** 日志 TAG（与其他 GameEngine 扩展文件一致） */
+private const val LOG_TAG = "GameEngine"
+
 /** 洗炼天赋/体质/词条结果 */
 sealed interface TraitWashResult {
     /** 洗炼成功：newId 为目标槽位的洗炼产物，newPityCount 为下次保底计数 */
@@ -52,13 +55,16 @@ suspend fun GameEngine.washTraitSlot(
     pityCount: Int
 ): TraitWashResult = engineContextDispatcher.withEngineContext {
     if (pityCount < 0) {
+        DomainLog.w(LOG_TAG, "洗炼${type.displayName}拒绝: 非法保底计数 pity=$pityCount")
         return@withEngineContext TraitWashResult.Error("非法保底计数")
     }
     val id = discipleId.toIntOrNull()
     if (id == null) {
+        DomainLog.w(LOG_TAG, "洗炼${type.displayName}拒绝: 非法弟子ID=$discipleId")
         return@withEngineContext TraitWashResult.Error("非法弟子ID")
     }
     if (targetId.isBlank()) {
+        DomainLog.w(LOG_TAG, "洗炼${type.displayName}拒绝: 非法洗炼目标 id=$id")
         return@withEngineContext TraitWashResult.Error("非法洗炼目标")
     }
     try {
@@ -71,7 +77,7 @@ suspend fun GameEngine.washTraitSlot(
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        DomainLog.e("GameEngine", "洗炼${type.displayName}失败: id=$discipleId", e)
+        DomainLog.e(LOG_TAG, "洗炼${type.displayName}失败: id=$discipleId", e)
         TraitWashResult.Error("未知错误")
     }
 }
@@ -87,16 +93,19 @@ private fun GameEngine.washSlotInner(
     pityCount: Int
 ): TraitWashResult = stateStore.updateAndReturn {
     if (id !in discipleTables.ids) {
+        DomainLog.w(LOG_TAG, "洗炼${type.displayName}拒绝: 弟子不存在 id=$id")
         return@updateAndReturn TraitWashResult.Error("弟子不存在")
     }
     // 死亡弟子拒绝洗炼（洗炼对死人无意义，防止误操作扣玉符）
     if (discipleTables.isAlive[id] != 1) {
+        DomainLog.w(LOG_TAG, "洗炼${type.displayName}拒绝: 弟子已死亡 id=$id")
         return@updateAndReturn TraitWashResult.Error("弟子已死亡")
     }
     val current: Disciple = discipleTables.assemble(id)
     val currentIds = type.idsOf(current)
     // 目标特质已不存在（旧快照/已被其他操作替换）——拒绝且不扣玉符
     if (targetId !in currentIds) {
+        DomainLog.w(LOG_TAG, "洗炼${type.displayName}拒绝: 目标特质已不存在 id=$id target=$targetId 当前=$currentIds")
         return@updateAndReturn TraitWashResult.Error("该特质已不存在")
     }
     // 保留槽位 template 集合：新条目不得与保留槽位冲突（否则 confirm 校验拒绝）
@@ -108,10 +117,12 @@ private fun GameEngine.washSlotInner(
     }
     // 扣费前预检候选池（无随机消耗）：池全被排除 → 不扣费直接拒绝
     if (!type.hasRollCandidate(excludedTemplates)) {
+        DomainLog.w(LOG_TAG, "洗炼${type.displayName}拒绝: 候选池全被排除 id=$id")
         return@updateAndReturn TraitWashResult.Error("暂无可用洗炼结果")
     }
     val required = GameConfig.TraitWash.WASH_JADE_COST
     if (!jadeSymbolService.deduct(this, required)) {
+        DomainLog.w(LOG_TAG, "洗炼${type.displayName}拒绝: 玉符不足 id=$id 余额=${gameData.jadeSymbols} 需要=$required")
         return@updateAndReturn TraitWashResult.InsufficientJadeSymbols(
             current = gameData.jadeSymbols,
             required = required
@@ -149,17 +160,25 @@ suspend fun GameEngine.confirmTraitWash(
 ): TraitWashConfirmResult = engineContextDispatcher.withEngineContext {
     val id = discipleId.toIntOrNull()
     if (id == null) {
+        DomainLog.w(LOG_TAG, "确认洗炼${type.displayName}拒绝: 非法弟子ID=$discipleId")
         return@withEngineContext TraitWashConfirmResult.Error("非法弟子ID")
     }
     try {
         // 三态区分失败原因：NOT_FOUND/DEAD 给玩家明确文案（对抗性审查 2026-08-09：
         // 原实现死亡弟子确认替换只报"弟子不存在"，玩家无法判断是误点还是异常）
         val outcome = stateStore.updateAndReturn<ConfirmOutcome> {
-            if (id !in discipleTables.ids) return@updateAndReturn ConfirmOutcome.NOT_FOUND
-            if (discipleTables.isAlive[id] != 1) return@updateAndReturn ConfirmOutcome.DEAD
+            if (id !in discipleTables.ids) {
+                DomainLog.w(LOG_TAG, "确认洗炼${type.displayName}拒绝: 弟子不存在 id=$id")
+                return@updateAndReturn ConfirmOutcome.NOT_FOUND
+            }
+            if (discipleTables.isAlive[id] != 1) {
+                DomainLog.w(LOG_TAG, "确认洗炼${type.displayName}拒绝: 弟子已死亡 id=$id")
+                return@updateAndReturn ConfirmOutcome.DEAD
+            }
             val current: Disciple = discipleTables.assemble(id)
             val currentIds = type.idsOf(current)
             if (!isValidSlotWash(type, currentIds, targetId, newId)) {
+                DomainLog.w(LOG_TAG, "确认洗炼${type.displayName}拒绝: 替换校验失败 id=$id target=$targetId new=$newId 当前=$currentIds")
                 return@updateAndReturn ConfirmOutcome.INVALID
             }
             val updated = type.replaceSlot(current, targetId, newId)
@@ -178,7 +197,7 @@ suspend fun GameEngine.confirmTraitWash(
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        DomainLog.e("GameEngine", "确认洗炼${type.displayName}失败: id=$discipleId", e)
+        DomainLog.e(LOG_TAG, "确认洗炼${type.displayName}失败: id=$discipleId", e)
         TraitWashConfirmResult.Error("未知错误")
     }
 }

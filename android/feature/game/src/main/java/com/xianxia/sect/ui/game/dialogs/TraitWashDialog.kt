@@ -34,6 +34,7 @@ import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.InlineStandardPromptDialog
 import com.xianxia.sect.ui.components.SpriteImage
+import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.components.getTalentRarityColor
 import com.xianxia.sect.ui.game.GameViewModel
 import java.util.concurrent.atomic.AtomicBoolean
@@ -363,10 +364,17 @@ private fun handleConfirmResult(
     }
 }
 
-/** 错误提示框（嵌套内联覆盖层，z 序高于洗炼弹窗） */
+/**
+ * 错误提示框（平台 Dialog 独立窗口）。
+ *
+ * 原实现用嵌套 InlineStandardPromptDialog：其 fillMaxSize 填满洗炼弹窗内容区后，
+ * 内部 50%W×55%H 弹窗超出内容区，被外层弹窗 clip 裁剪——错误文案（玉符不足/洗炼失败）
+ * 完全不可见，玩家点击洗炼后"无任何反馈"误判为洗炼无效（2026-08-11 修复）。
+ * 平台 Dialog 创建独立 Window 全屏覆盖，不受父级布局约束，必定可见。
+ */
 @Composable
 private fun ErrorDialog(text: String, onDismiss: () -> Unit) {
-    InlineStandardPromptDialog(
+    StandardPromptDialog(
         onDismissRequest = onDismiss,
         title = "提示",
         text = text,
