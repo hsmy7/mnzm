@@ -1,49 +1,3 @@
-## [4.00.92] - 2026-08-08
-
-### 修复（2026-08-08 部分槽位任命不生效 + 部分建筑无法点击——4.00.91 双问题补全根治）
-
-- **根因 1（槽位，分叉入口遗留）** — 4.00.91 发布 commit f2506262（08-07 05:25）早于根治 commit 1d3589e2（08-07 19:31）14 小时，玩家反馈的"部分槽位无法任命弟子"正是该修复目标（git merge-base 验证）。HEAD 已含 1d3589e2 的四入口双写统一，但仍有 4 个分叉入口遗留：`BuildingFacadeImpl.removeDiscipleFromProductionSlot` 只清镜像、`BuildingService.removeDiscipleFromBuildingInternal` 只清镜像、`ProductionProcessor.batchAssignToProductionSlots` 只写镜像不回写 repo（UI 读 repo 显示空闲但弟子被占用）、`assignDiscipleToProductionSlot` 目标槽 repo `updateSlot` 返回 Failure 被静默忽略（镜像已写 repo 未写 → UI 显示空闲——玩家主症状路径）
-- **S1/S2（清槽入口双写补全）** — 两个 remove 入口改为 repo 先写、成功才动镜像（失败两端皆未变，无补偿需求）：repo `updateSlot` 结果接住 → 成功：事务内清镜像对应槽 + `assignmentGate.release` + `syncSingleDiscipleStatus`；失败：`DomainLog.e`（含 buildingType/slotIndex/discipleId）+ 不动镜像/gate；`isWorking` 早退保留（双端皆不动）
-- **S3（自动排班 repo 回写）** — `batchAssignToProductionSlots` 镜像写完后经 `scopeProvider.scope.launch(ioDispatcher.dispatcher)` 逐个回写 repo（仿 `clearSlotAssignment` 717-723）；回写前校验 repo 槽仍空闲（防与玩家手动任命竞态），非空闲/失败 → 日志 + 事务内回滚镜像该槽（下月 `occupiedProductionIds` 防线自然重算）
-- **S4（repo 写失败防静默）** — `assignDiscipleToProductionSlot` 目标槽 `updateSlot` Failure → `DomainLog.e` + 镜像回滚（用既有 `existingSlot` 快照还原）+ 跳过 `confirmAssign`；"清他处占用"循环中单槽 Failure → 仅日志不阻断主写；repo 写逻辑拆为 `writeRepoAssignment`/`releaseGateIfOccupantChanged`/`rollbackMirrorSlot`/`syncOldOccupantStatus` 四 helper（detekt LongMethod/Cyclomatic 合规）
-- **S5（toggleAutoRestart 镜像同步）** — repo 更新成功后事务内同步镜像 `autoRestartEnabled`；失败仅日志（行为以 repo 为准）
-- **根因 2（建筑）** — R1：displayName 不在 `BuildingFeatureRegistry` 的建筑渲染端 `BUILDING_NAME_INDEX[displayName] ?: 0` 用索引 0 精灵画出（MainGameScreen.kt:1256），点击端 `findByDisplayName` 返回 null 走 else 分支失败（MainGameScreen.kt:574-583）→ 点击被静默吞掉无日志（唯一"渲染可见但点击必死"路径，损坏/改档可达）；R2：自愈只在读档 boot 跑一次，`normalizeOrphanBuildingSectIds` 在 worldMapSects 为空时整体跳过（BuildingLoadSelfHeal.kt:54），世界重生后建筑旧 sectId 永不匹配 → 该宗门建筑永久不可见不可点
-- **B1（R1 诊断）** — 点击端 else 分支 `b == null` 时记诊断日志（displayName/sectId/instanceId/坐标/宗门建筑数）；渲染端 `BUILDING_NAME_INDEX ?: 0` 兜底分支文件级 Set 去重记一次警告（防刷屏）；不做"猜最近建筑"类误导性兜底；顺手优化 `BuildingSpatialIndex.add` 两次 `findByDisplayName` 合并（行为不变）；诊断日志统一用 `DomainLog`（纯 JVM 测试下 android.util.Log 抛 not-mocked，4 个既有 feature:game 测试回归已修复）
-- **B2（R2 会话内收敛）** — `enterSect`（GameEngineCoordination.kt:720-724）事务内复用既有纯函数：`purifyStaleActiveSectId`（无效 id 归 ""，含 worldSects 空时归 "" 防失配窗口；保留判定 `isPlayerSect || isPlayerOccupied`）+ `normalizeOrphanBuildingSectIds`（幂等，与 boot 同语义）；有变更写回并 `DomainLog.w`。UI 侧 `GameViewModel` 渲染过滤处加一次性警告日志（activeSectId 非空但该宗门建筑 0 且存在他 sectId 建筑）——只读诊断确认 R2 出现路径；R3（enterSect 后索引重建异步瞬态）评估不修，注释标注
-- **B3（矿场槽位 sectId 运行时对齐）** — `validateAndFixSpiritMineData`（GameEngineCoordination.kt:963-977，对话框打开必触发零新增调用点）追加：每座灵矿场 3 个槽位 `slot.sectId != 建筑.sectId` → 对齐为建筑 sectId（空槽一并补齐），写回 stateStore，变更记 `DomainLog.w`；UI 失配分支（SpiritMineDialog.kt:62-66）补兜底诊断日志（只读仅日志）——一次对齐同时收敛"矿场建筑点不中 + 矿场槽位任命不生效"
-- **兼容性** — 纯运行时一致性修复，无 Entity/Migration/Room schema 变更（DATABASE_VERSION 不变）；老档分叉由读档对齐（1d3589e2）+ 会话内收敛（B2/B3）自动修复
-- **测试** — 新增 `BuildingFacadeImplRemoveDiscipleProductionSlotTest`（S1 双清/失败不动镜像/gate、S5 镜像同步）、`BuildingServiceRemoveDiscipleTest`（S2 双清/isWorking 早退）、`GameEngineSectConvergenceTest`（B2 净化/保留/幂等）、`SpiritMineSectAlignmentTest`（B3 对齐/幂等/多矿场）；扩展 `ProductionProcessorTest`（S3 repo 回写一致/失败回滚/占用竞态；类加 `@RunWith(RobolectricTestRunner::class)`——纯 JVM 下 mockable android.jar 的 SparseArray 为空操作致 String/枚举列写入静默失效、assembleAll 空名跳过，Robolectric 环境 SparseArray 真实工作，参照 BuildingFacadeImplAssignProductionSlotTest 模式）、`GameEngineDualSlotGuardTest`（S4 目标槽失败镜像回滚/gate 未 confirm）、`GameEngineCoordinationTest`（enterSect B2 语义：activeSectId 切换为玩家持有宗门且不触碰 placedBuildings）、`BuildingLoadSelfHealTest`（normalize 幂等、purify isPlayerOccupied=false）、`BuildingSpatialIndexTest`（B1 未注册名兜底命中/不崩溃）；detekt.yml LargeClass 阈值 600→800（默认 600 与"既有违规冻结 baseline"哲学冲突，800 覆盖全部既有 frozen 类中最小者，baseline 同步摘除 2 条失效条目）；全模块串行测试 + detekt + lintRelease 通过
-
-### 修复（2026-08-08 兑换码对话框不弹出 + 玉符数量栏宽度与位置）
-
-- **根因（兑换码）** — 57352e02（08-06 为根治输入框键盘频闪把 `InlineStandardPromptDialog` 从平台 Dialog 窗口改回内联 Box 覆盖层）适配了 4 个调用点（RenameDialog/创建宗门输入框/RenameDiscipleDialog/SellConfirmDialog）**唯独漏掉 SettingsTab 的 RedeemCodeDialog**。内联覆盖层不创建独立窗口、作为普通布局节点参与宿主布局：其渲染位置（SettingsTab.kt 函数体顶层）与根 `Box(fillMaxSize)` 同为 `UnifiedGameDialog`（平台 Dialog 窗口）内容区 `Column(weight(1f))` 的兄弟节点——根 Box 作为首子节点占满全部高度后，后续兄弟节点测量时 `maxHeight = 0` → 覆盖层高度归零完全不可见。状态链路（RedeemCodeDelegate StateFlow）正常，对话框实际进入组合，仅渲染尺寸为 0
-- **修复（兑换码）** — 渲染块移入根 `Box(fillMaxSize)` 内、内容 Column 之后（Box 兄弟重叠 → 尺寸正常且 z 序最高，对齐 DiscipleDetailScreen 改名弹窗先例）；删除旧位置重复块与死变量 `showRedeemCodeDialog`（实际状态走 `showRedeemCodeDialogState`）
-- **守卫测试（实证根因 + 防回归）** — `StandardPromptDialogTest` +2 用例：平台 Dialog 窗口内容区 Box 内渲染内联覆盖层可见（修复结构守卫）/ Column 中 fillMaxSize 兄弟后置渲染不可见（0 高度机制文档断言，开发期先运行实证根因：两用例分别断言"可见/不可见"均通过，坐实布局机制）
-- **玉符栏宽度** — `JadeSymbolBadge` 数字 Text 加 `minLines=1/maxLines=1` + `widthIn(min = 30.dp)`（命名常量 `FOUR_DIGITS_MIN_WIDTH`，12sp 数字 ≈7dp/位 × 4 ≈ 29dp）——外层 Row 空间不足时无约束 Text 会换行截断，玉符累计无上限（单日 30 为 `GameConfig.Jade.DAILY_CAP`），4 位长期可达
-- **玉符栏位置** — 从外层 Row（与整个"隐藏UI+暂停"按钮列垂直居中）移入按钮 Column 内部、与隐藏 UI 按钮同行（`Row` 包裹 `HideUiToggleButton` + 玉符栏，暂停按钮独立下一行居中）——玉符栏位于隐藏 UI 按钮正右侧，不再与暂停按钮同列中部（v4.00.91 曾声明"显示位置移动到隐藏界面按钮旁"但实际布局未到位，本次落实）
-- 全模块 compileReleaseKotlin + 串行全量测试（--max-workers=1）+ lintRelease 通过
-
-### 新增（2026-08-08 售卖/购买数量器统一升级：点击输入 + -10/+10 步进）
-
-- **共享组件** — 新建 `QuantitySelector`（feature/game/components）+ `QuantitySelectorLogic.kt` 纯函数（`applyStep` 步进钳制 Long 中间量防溢出 / `sanitizeQuantityInput` 输入净化：过滤非数字、空串全零归 1、超上限或 Int 溢出截断为上限——需求"输入超出上限自动按上限计算"）；尺寸参数化 `QuantitySelectorSizes`（仓库 36dp 按钮/80dp 数字框，商人紧凑 28dp/56dp/14sp，窄屏不溢出交互形态统一）
-- **三处接入** — 仓库单物品售卖 `SellConfirmDialog`（删原 `SellQuantitySelector` 138 行，容器 InlineStandardPromptDialog 保持不动）、商人收购出售确认 `AcquisitionSellConfirmDialog`、商人购买面板 `PurchasePanel`（物品名列 `weight(1f)` + 物品名 ellipsis 防挤压）；`PurchasePanel` 购买卡片补 `quantity > 0` 门卫（对齐收购页，防损坏存档 0 库存商品进入购买面板）
-- **交互** — 非编辑态 `[-10][−][数字][+][+10]` 四向步进（-10/+10 与 ± 同钳制语义，`-10` enabled=quantity>1、`+10` enabled=quantity<max）；点击数字框进入编辑态弹键盘（FocusRequester + LaunchedEffect 既有模式），编辑态隐藏 -10/+10 只留 `[−][输入框][+]`（键盘空间有限 + 避免步进作用于未提交文本）；失焦/Done 提交退出；`key(item.id)` 重建组件清编辑态残留（跨商品切换）
-- **键盘防频闪结构性保证** — 组件零平台窗口、零 imePadding，避让由外层容器统一负责（InlineStandardPromptDialog 双上下文 / UnifiedGameDialog ADJUST_PAN）
-- **测试** — `QuantitySelectorLogicTest` 23 条（applyStep 12：±1/±10 正常、上下限钳制、边界不动、max<min 兜底、Int.MAX_VALUE 不溢出；sanitize 11：空串、过滤、前导零、全零、超上限截断、溢出截断、上限=1/Int.MAX_VALUE 边界）
-- **对抗性审查（4 Agent：边界狂魔/状态破坏者/数据篡改者/逆向工程师）** — 修复：coerceIn 空范围抛 IllegalArgumentException（上限 0 库存商品可复现崩溃）→ `coerceAtLeast(QUANTITY_MIN)` 兜底 + 购买卡片 quantity>0 门卫（三方交叉确认）；编辑态跨商品残留 → `key(item.id)` 重建组件；KDoc 契约措辞如实化（maxQuantity<1 时产出恒 1）；编辑行中屏边缘裁切（168dp 行宽 > 165dp 内容宽）→ 默认数字框 80→72dp（逆向工程师字节码验证 M3 OutlinedTextField `defaultMinSize` 与 `UnspecifiedConstraintsNode.measure` 后给出）；评估不修：非数字字符过滤重组（"3.5"→35，与既有模式一致、引擎守卫完整）、键盘导航模式失焦提交（移动端不可达）、出售静默失败（边缘 UX）、编辑态行高跳 56dp（M3 输入框标准最小高度，压缩会裁切文本；编辑态放大输入框为 Android 标准交互、与全项目输入对话框一致）、编辑态键盘遮挡底部按钮（项目固有模式，全库无键盘隐藏先例，Done/返回标准收键盘）、无障碍 contentDescription（与全项目按钮一致无先例）；字节码级验证安全：280dp 最小宽度被 `widthIn` 非零约束短路、FocusRequester 未附加节点时 requestFocus 静默返回、GameButton 纯 clickable 无焦点抢占、Back 键双层语义（IME 先收、再关对话框）
-- 全模块 compileReleaseKotlin + 串行全量测试（--max-workers=1，470 tests 通过）+ detekt 通过
-
-### 修复（2026-08-09 五项 UI 修复：兑换码遮罩全屏 / 暂停按钮对齐 / 售卖弹窗不可见 / 数量器键盘自动收起 / 灵根按钮间距）
-
-- **P1 兑换码遮罩全屏（窗口级 overlay 槽位惯用法）** — 根因：RedeemCodeDialog（内联覆盖层）渲染在 SettingsTab 根 Box 内，`fillMaxSize` 遮罩被约束在设置对话框内容区（左右 32dp 内缩 + header 之下），左右上三边露出无遮罩背景。修复：`UnifiedGameDialog` 签名新增窗口级 `overlay` 槽位（frame 内容之后渲染，z 序最高），`FullScreenOverlay` 透传，`DialogMainTabRoutes` Settings 分支接线 `overlay = { if (showRedeem) RedeemCodeDialog(...) }`，SettingsTab 删除内联渲染块与死变量。`scrimEnabled` 不可行（`bg_horizontal` 完全不透明，窗口级 scrim 画在背景之下无视觉效果——方案已否决）
-- **P2 暂停按钮对齐** — MainGameScreen L1045 `CenterHorizontally` → `Alignment.Start`：暂停按钮（28dp）与隐藏按钮（28dp）左缘对齐恰在正下方（isUiVisible=false 时 Row 宽=28dp，Start/Center 等效无回归）
-- **P3 售卖弹窗不可见（同一惯用法）** — 根因：SellConfirmDialog 经 ItemDetailDialog 的 overlay 槽位渲染进 SmallScreenDialog 的**可滚动 Column**，无限高度约束使弹窗落到可见视口外（组合正常、肉眼不可见）。修复：`SmallScreenDialog` 新增同签名 overlay 槽位（Column 后、Box 闭合前），ItemDetailDialog 内容区 `overlay?.invoke()` 上移至窗口层；overlay 内 `isInsideDialogWindow` 正确返回 true（键盘避让由 DialogSoftInputGuard 负责）
-- **P4 数量器键盘自动收起（常驻输入框重构）** — 根因：旧实现"点击 Box 后条件渲染输入框 + LaunchedEffect 编程式 requestFocus"在平台 Dialog 窗口内与 IME 入场竞争，国产 ROM 键盘弹出即被系统误报收起。修复：常驻 `BasicTextField`（对齐 AutoManagementDialog 已验证模式——用户点击聚焦、平台原子管理焦点/IME），`onFocusChanged` 驱动编辑态 + `commit()`（isEditing 守卫吞 attach 初始回调与 clearFocus 二次回调）、`onDone` commit + `clearFocus`（常驻框不销毁，必须显式清焦点键盘才收起）；顺带修复两个测试暴露的真实缺陷：① decorationBox 内 `fillMaxSize` + `widthIn(min)` 使输入框撑满整行、右侧 +10 按钮零尺寸挤出布局 → 改固定 `width(numberBoxWidth)`；② `LaunchedEffect(quantity)` 首次执行覆盖钳制写入的输入串（初始超限显示 15 而非 10）→ 合并为单一 `LaunchedEffect(quantity, maxQuantity)` effect
-- **P5 灵根按钮间距 4dp** — DetailCultivationSection 灵根 Text 与 + 按钮包进嵌套 Row `spacedBy(4.dp)`（原外层 16dp + 显式 Spacer(4dp) 叠加实际 36dp），顺带修正按钮垂直居中
-- **测试** — 新建 `QuantitySelectorFlowTest` 11 条（Robolectric compose：初始四向步进显示/禁用态、点击进入编辑态隐藏大步进、超上限实时截断、非法字符过滤、Done 提交、失焦先提交再步进、外部数量同步、初始超限钳制；IntBox 捕获不触发重组需 external State 驱动——`点击步进按钮`/`Done 提交` 用例的坑）、`SmallScreenDialogTest` 3 条（overlay 可见/可滚动 Column 内不可见回归文档/默认 null）、`StandardPromptDialogTest` +1（UnifiedGameDialog overlay 内内联覆盖层可见）；`feature/game` 测试基建：`src/test/AndroidManifest.xml` 声明 ComponentActivity（Robolectric PR #4736）+ `includeAndroidResources` + `robolectric.properties sdk=34`（includeAndroidResources 后 Robolectric 读取合并 manifest targetSdk35 超 maxSdk34，3 个既有测试类初始化失败，全局默认修复）
-- **detekt 合规** — baseline 签名失配修复（overlay 参数改变 4 条条目签名，条目数不变只缩不增）；`LongParameterList ignoreDefaultParameters: true`（带默认值参数不计数——UnifiedGameDialog 19 参 18 默认，调用方仅传 1~2 个，实际负担远低于阈值）；QuantityInputField 9 参数 → 尺寸收进 `sizes` 对象（7 参数）；QuantitySelector 73 行 → 拆 `DecrementButtons`/`IncrementButtons` 私有 composable（53 行）
-- 全模块 compileReleaseKotlin + 串行全量测试（--max-workers=1）+ lintRelease + detekt 通过
-
 ## [4.00.94] - 2026-08-10
 
 ### 优化（2026-08-10 渲染设计全面优化——双端一致闭环 + 视觉/性能/架构四大工作包）
@@ -192,6 +146,52 @@
 - **测试（18 新增/修改）** — `GameEngineCoreJadeReloadInterleavingTest`（新增 3：非等待 stop 复现旧值覆盖新档 / wait 后加载安全且重新锚定 / 启动前加载幂等）、`GameEngineCoreLifecycleInterleavingTest` 契约扩展（wait 含 finally 语义 latch）、`ElderSlotsStatusCoverageTest`（新增守卫：反射全部 17 字段 × 2 个收集函数覆盖断言——未来新增字段漏注册立即失败；端到端 syncAllDiscipleStatuses 收敛 MANAGING）、`ProductionSlotDualWriteGuardTest` 扩展（+12：11 类槽位占用场景逐槽位断言"存储 IDLE 弟子不被排班" + 健康空闲对照组仍可分配；**Robolectric 化**——纯 JVM mockable android.jar 的 SparseArray 是 stub，原测试 2/3 假阳性，spiritRootTypes 写入读回全失效导致弟子根本不进候选；对照组修复暴露的测试 fixture 坑：mock repo 的 `updateSlotByBuildingId` 无内存态可写 → 回写失败触发 `rollbackMirrorBatchAssignment` 清镜像，改用真实 repo + restoreSlots 预置灵田槽）、`SaveLoadViewModelLoadTest`（顺序守卫：wait 挂起期间 loadData 零调用 + 超时中止）
 - **兼容性** — 纯运行时一致性修复，无 Entity/Migration/Room schema 变更（DATABASE_VERSION 不变），存档完全兼容；经济影响：玉符读写路径修复不改变任何源/汇数量，仅修正读档时序下的值一致性
 - 全模块串行测试（--max-workers=1）+ compileReleaseKotlin + lintRelease 通过
+
+## [4.00.92] - 2026-08-08
+
+### 修复（2026-08-08 部分槽位任命不生效 + 部分建筑无法点击——4.00.91 双问题补全根治）
+
+- **根因 1（槽位，分叉入口遗留）** — 4.00.91 发布 commit f2506262（08-07 05:25）早于根治 commit 1d3589e2（08-07 19:31）14 小时，玩家反馈的"部分槽位无法任命弟子"正是该修复目标（git merge-base 验证）。HEAD 已含 1d3589e2 的四入口双写统一，但仍有 4 个分叉入口遗留：`BuildingFacadeImpl.removeDiscipleFromProductionSlot` 只清镜像、`BuildingService.removeDiscipleFromBuildingInternal` 只清镜像、`ProductionProcessor.batchAssignToProductionSlots` 只写镜像不回写 repo（UI 读 repo 显示空闲但弟子被占用）、`assignDiscipleToProductionSlot` 目标槽 repo `updateSlot` 返回 Failure 被静默忽略（镜像已写 repo 未写 → UI 显示空闲——玩家主症状路径）
+- **S1/S2（清槽入口双写补全）** — 两个 remove 入口改为 repo 先写、成功才动镜像（失败两端皆未变，无补偿需求）：repo `updateSlot` 结果接住 → 成功：事务内清镜像对应槽 + `assignmentGate.release` + `syncSingleDiscipleStatus`；失败：`DomainLog.e`（含 buildingType/slotIndex/discipleId）+ 不动镜像/gate；`isWorking` 早退保留（双端皆不动）
+- **S3（自动排班 repo 回写）** — `batchAssignToProductionSlots` 镜像写完后经 `scopeProvider.scope.launch(ioDispatcher.dispatcher)` 逐个回写 repo（仿 `clearSlotAssignment` 717-723）；回写前校验 repo 槽仍空闲（防与玩家手动任命竞态），非空闲/失败 → 日志 + 事务内回滚镜像该槽（下月 `occupiedProductionIds` 防线自然重算）
+- **S4（repo 写失败防静默）** — `assignDiscipleToProductionSlot` 目标槽 `updateSlot` Failure → `DomainLog.e` + 镜像回滚（用既有 `existingSlot` 快照还原）+ 跳过 `confirmAssign`；"清他处占用"循环中单槽 Failure → 仅日志不阻断主写；repo 写逻辑拆为 `writeRepoAssignment`/`releaseGateIfOccupantChanged`/`rollbackMirrorSlot`/`syncOldOccupantStatus` 四 helper（detekt LongMethod/Cyclomatic 合规）
+- **S5（toggleAutoRestart 镜像同步）** — repo 更新成功后事务内同步镜像 `autoRestartEnabled`；失败仅日志（行为以 repo 为准）
+- **根因 2（建筑）** — R1：displayName 不在 `BuildingFeatureRegistry` 的建筑渲染端 `BUILDING_NAME_INDEX[displayName] ?: 0` 用索引 0 精灵画出（MainGameScreen.kt:1256），点击端 `findByDisplayName` 返回 null 走 else 分支失败（MainGameScreen.kt:574-583）→ 点击被静默吞掉无日志（唯一"渲染可见但点击必死"路径，损坏/改档可达）；R2：自愈只在读档 boot 跑一次，`normalizeOrphanBuildingSectIds` 在 worldMapSects 为空时整体跳过（BuildingLoadSelfHeal.kt:54），世界重生后建筑旧 sectId 永不匹配 → 该宗门建筑永久不可见不可点
+- **B1（R1 诊断）** — 点击端 else 分支 `b == null` 时记诊断日志（displayName/sectId/instanceId/坐标/宗门建筑数）；渲染端 `BUILDING_NAME_INDEX ?: 0` 兜底分支文件级 Set 去重记一次警告（防刷屏）；不做"猜最近建筑"类误导性兜底；顺手优化 `BuildingSpatialIndex.add` 两次 `findByDisplayName` 合并（行为不变）；诊断日志统一用 `DomainLog`（纯 JVM 测试下 android.util.Log 抛 not-mocked，4 个既有 feature:game 测试回归已修复）
+- **B2（R2 会话内收敛）** — `enterSect`（GameEngineCoordination.kt:720-724）事务内复用既有纯函数：`purifyStaleActiveSectId`（无效 id 归 ""，含 worldSects 空时归 "" 防失配窗口；保留判定 `isPlayerSect || isPlayerOccupied`）+ `normalizeOrphanBuildingSectIds`（幂等，与 boot 同语义）；有变更写回并 `DomainLog.w`。UI 侧 `GameViewModel` 渲染过滤处加一次性警告日志（activeSectId 非空但该宗门建筑 0 且存在他 sectId 建筑）——只读诊断确认 R2 出现路径；R3（enterSect 后索引重建异步瞬态）评估不修，注释标注
+- **B3（矿场槽位 sectId 运行时对齐）** — `validateAndFixSpiritMineData`（GameEngineCoordination.kt:963-977，对话框打开必触发零新增调用点）追加：每座灵矿场 3 个槽位 `slot.sectId != 建筑.sectId` → 对齐为建筑 sectId（空槽一并补齐），写回 stateStore，变更记 `DomainLog.w`；UI 失配分支（SpiritMineDialog.kt:62-66）补兜底诊断日志（只读仅日志）——一次对齐同时收敛"矿场建筑点不中 + 矿场槽位任命不生效"
+- **兼容性** — 纯运行时一致性修复，无 Entity/Migration/Room schema 变更（DATABASE_VERSION 不变）；老档分叉由读档对齐（1d3589e2）+ 会话内收敛（B2/B3）自动修复
+- **测试** — 新增 `BuildingFacadeImplRemoveDiscipleProductionSlotTest`（S1 双清/失败不动镜像/gate、S5 镜像同步）、`BuildingServiceRemoveDiscipleTest`（S2 双清/isWorking 早退）、`GameEngineSectConvergenceTest`（B2 净化/保留/幂等）、`SpiritMineSectAlignmentTest`（B3 对齐/幂等/多矿场）；扩展 `ProductionProcessorTest`（S3 repo 回写一致/失败回滚/占用竞态；类加 `@RunWith(RobolectricTestRunner::class)`——纯 JVM 下 mockable android.jar 的 SparseArray 为空操作致 String/枚举列写入静默失效、assembleAll 空名跳过，Robolectric 环境 SparseArray 真实工作，参照 BuildingFacadeImplAssignProductionSlotTest 模式）、`GameEngineDualSlotGuardTest`（S4 目标槽失败镜像回滚/gate 未 confirm）、`GameEngineCoordinationTest`（enterSect B2 语义：activeSectId 切换为玩家持有宗门且不触碰 placedBuildings）、`BuildingLoadSelfHealTest`（normalize 幂等、purify isPlayerOccupied=false）、`BuildingSpatialIndexTest`（B1 未注册名兜底命中/不崩溃）；detekt.yml LargeClass 阈值 600→800（默认 600 与"既有违规冻结 baseline"哲学冲突，800 覆盖全部既有 frozen 类中最小者，baseline 同步摘除 2 条失效条目）；全模块串行测试 + detekt + lintRelease 通过
+
+### 修复（2026-08-08 兑换码对话框不弹出 + 玉符数量栏宽度与位置）
+
+- **根因（兑换码）** — 57352e02（08-06 为根治输入框键盘频闪把 `InlineStandardPromptDialog` 从平台 Dialog 窗口改回内联 Box 覆盖层）适配了 4 个调用点（RenameDialog/创建宗门输入框/RenameDiscipleDialog/SellConfirmDialog）**唯独漏掉 SettingsTab 的 RedeemCodeDialog**。内联覆盖层不创建独立窗口、作为普通布局节点参与宿主布局：其渲染位置（SettingsTab.kt 函数体顶层）与根 `Box(fillMaxSize)` 同为 `UnifiedGameDialog`（平台 Dialog 窗口）内容区 `Column(weight(1f))` 的兄弟节点——根 Box 作为首子节点占满全部高度后，后续兄弟节点测量时 `maxHeight = 0` → 覆盖层高度归零完全不可见。状态链路（RedeemCodeDelegate StateFlow）正常，对话框实际进入组合，仅渲染尺寸为 0
+- **修复（兑换码）** — 渲染块移入根 `Box(fillMaxSize)` 内、内容 Column 之后（Box 兄弟重叠 → 尺寸正常且 z 序最高，对齐 DiscipleDetailScreen 改名弹窗先例）；删除旧位置重复块与死变量 `showRedeemCodeDialog`（实际状态走 `showRedeemCodeDialogState`）
+- **守卫测试（实证根因 + 防回归）** — `StandardPromptDialogTest` +2 用例：平台 Dialog 窗口内容区 Box 内渲染内联覆盖层可见（修复结构守卫）/ Column 中 fillMaxSize 兄弟后置渲染不可见（0 高度机制文档断言，开发期先运行实证根因：两用例分别断言"可见/不可见"均通过，坐实布局机制）
+- **玉符栏宽度** — `JadeSymbolBadge` 数字 Text 加 `minLines=1/maxLines=1` + `widthIn(min = 30.dp)`（命名常量 `FOUR_DIGITS_MIN_WIDTH`，12sp 数字 ≈7dp/位 × 4 ≈ 29dp）——外层 Row 空间不足时无约束 Text 会换行截断，玉符累计无上限（单日 30 为 `GameConfig.Jade.DAILY_CAP`），4 位长期可达
+- **玉符栏位置** — 从外层 Row（与整个"隐藏UI+暂停"按钮列垂直居中）移入按钮 Column 内部、与隐藏 UI 按钮同行（`Row` 包裹 `HideUiToggleButton` + 玉符栏，暂停按钮独立下一行居中）——玉符栏位于隐藏 UI 按钮正右侧，不再与暂停按钮同列中部（v4.00.91 曾声明"显示位置移动到隐藏界面按钮旁"但实际布局未到位，本次落实）
+- 全模块 compileReleaseKotlin + 串行全量测试（--max-workers=1）+ lintRelease 通过
+
+### 新增（2026-08-08 售卖/购买数量器统一升级：点击输入 + -10/+10 步进）
+
+- **共享组件** — 新建 `QuantitySelector`（feature/game/components）+ `QuantitySelectorLogic.kt` 纯函数（`applyStep` 步进钳制 Long 中间量防溢出 / `sanitizeQuantityInput` 输入净化：过滤非数字、空串全零归 1、超上限或 Int 溢出截断为上限——需求"输入超出上限自动按上限计算"）；尺寸参数化 `QuantitySelectorSizes`（仓库 36dp 按钮/80dp 数字框，商人紧凑 28dp/56dp/14sp，窄屏不溢出交互形态统一）
+- **三处接入** — 仓库单物品售卖 `SellConfirmDialog`（删原 `SellQuantitySelector` 138 行，容器 InlineStandardPromptDialog 保持不动）、商人收购出售确认 `AcquisitionSellConfirmDialog`、商人购买面板 `PurchasePanel`（物品名列 `weight(1f)` + 物品名 ellipsis 防挤压）；`PurchasePanel` 购买卡片补 `quantity > 0` 门卫（对齐收购页，防损坏存档 0 库存商品进入购买面板）
+- **交互** — 非编辑态 `[-10][−][数字][+][+10]` 四向步进（-10/+10 与 ± 同钳制语义，`-10` enabled=quantity>1、`+10` enabled=quantity<max）；点击数字框进入编辑态弹键盘（FocusRequester + LaunchedEffect 既有模式），编辑态隐藏 -10/+10 只留 `[−][输入框][+]`（键盘空间有限 + 避免步进作用于未提交文本）；失焦/Done 提交退出；`key(item.id)` 重建组件清编辑态残留（跨商品切换）
+- **键盘防频闪结构性保证** — 组件零平台窗口、零 imePadding，避让由外层容器统一负责（InlineStandardPromptDialog 双上下文 / UnifiedGameDialog ADJUST_PAN）
+- **测试** — `QuantitySelectorLogicTest` 23 条（applyStep 12：±1/±10 正常、上下限钳制、边界不动、max<min 兜底、Int.MAX_VALUE 不溢出；sanitize 11：空串、过滤、前导零、全零、超上限截断、溢出截断、上限=1/Int.MAX_VALUE 边界）
+- **对抗性审查（4 Agent：边界狂魔/状态破坏者/数据篡改者/逆向工程师）** — 修复：coerceIn 空范围抛 IllegalArgumentException（上限 0 库存商品可复现崩溃）→ `coerceAtLeast(QUANTITY_MIN)` 兜底 + 购买卡片 quantity>0 门卫（三方交叉确认）；编辑态跨商品残留 → `key(item.id)` 重建组件；KDoc 契约措辞如实化（maxQuantity<1 时产出恒 1）；编辑行中屏边缘裁切（168dp 行宽 > 165dp 内容宽）→ 默认数字框 80→72dp（逆向工程师字节码验证 M3 OutlinedTextField `defaultMinSize` 与 `UnspecifiedConstraintsNode.measure` 后给出）；评估不修：非数字字符过滤重组（"3.5"→35，与既有模式一致、引擎守卫完整）、键盘导航模式失焦提交（移动端不可达）、出售静默失败（边缘 UX）、编辑态行高跳 56dp（M3 输入框标准最小高度，压缩会裁切文本；编辑态放大输入框为 Android 标准交互、与全项目输入对话框一致）、编辑态键盘遮挡底部按钮（项目固有模式，全库无键盘隐藏先例，Done/返回标准收键盘）、无障碍 contentDescription（与全项目按钮一致无先例）；字节码级验证安全：280dp 最小宽度被 `widthIn` 非零约束短路、FocusRequester 未附加节点时 requestFocus 静默返回、GameButton 纯 clickable 无焦点抢占、Back 键双层语义（IME 先收、再关对话框）
+- 全模块 compileReleaseKotlin + 串行全量测试（--max-workers=1，470 tests 通过）+ detekt 通过
+
+### 修复（2026-08-09 五项 UI 修复：兑换码遮罩全屏 / 暂停按钮对齐 / 售卖弹窗不可见 / 数量器键盘自动收起 / 灵根按钮间距）
+
+- **P1 兑换码遮罩全屏（窗口级 overlay 槽位惯用法）** — 根因：RedeemCodeDialog（内联覆盖层）渲染在 SettingsTab 根 Box 内，`fillMaxSize` 遮罩被约束在设置对话框内容区（左右 32dp 内缩 + header 之下），左右上三边露出无遮罩背景。修复：`UnifiedGameDialog` 签名新增窗口级 `overlay` 槽位（frame 内容之后渲染，z 序最高），`FullScreenOverlay` 透传，`DialogMainTabRoutes` Settings 分支接线 `overlay = { if (showRedeem) RedeemCodeDialog(...) }`，SettingsTab 删除内联渲染块与死变量。`scrimEnabled` 不可行（`bg_horizontal` 完全不透明，窗口级 scrim 画在背景之下无视觉效果——方案已否决）
+- **P2 暂停按钮对齐** — MainGameScreen L1045 `CenterHorizontally` → `Alignment.Start`：暂停按钮（28dp）与隐藏按钮（28dp）左缘对齐恰在正下方（isUiVisible=false 时 Row 宽=28dp，Start/Center 等效无回归）
+- **P3 售卖弹窗不可见（同一惯用法）** — 根因：SellConfirmDialog 经 ItemDetailDialog 的 overlay 槽位渲染进 SmallScreenDialog 的**可滚动 Column**，无限高度约束使弹窗落到可见视口外（组合正常、肉眼不可见）。修复：`SmallScreenDialog` 新增同签名 overlay 槽位（Column 后、Box 闭合前），ItemDetailDialog 内容区 `overlay?.invoke()` 上移至窗口层；overlay 内 `isInsideDialogWindow` 正确返回 true（键盘避让由 DialogSoftInputGuard 负责）
+- **P4 数量器键盘自动收起（常驻输入框重构）** — 根因：旧实现"点击 Box 后条件渲染输入框 + LaunchedEffect 编程式 requestFocus"在平台 Dialog 窗口内与 IME 入场竞争，国产 ROM 键盘弹出即被系统误报收起。修复：常驻 `BasicTextField`（对齐 AutoManagementDialog 已验证模式——用户点击聚焦、平台原子管理焦点/IME），`onFocusChanged` 驱动编辑态 + `commit()`（isEditing 守卫吞 attach 初始回调与 clearFocus 二次回调）、`onDone` commit + `clearFocus`（常驻框不销毁，必须显式清焦点键盘才收起）；顺带修复两个测试暴露的真实缺陷：① decorationBox 内 `fillMaxSize` + `widthIn(min)` 使输入框撑满整行、右侧 +10 按钮零尺寸挤出布局 → 改固定 `width(numberBoxWidth)`；② `LaunchedEffect(quantity)` 首次执行覆盖钳制写入的输入串（初始超限显示 15 而非 10）→ 合并为单一 `LaunchedEffect(quantity, maxQuantity)` effect
+- **P5 灵根按钮间距 4dp** — DetailCultivationSection 灵根 Text 与 + 按钮包进嵌套 Row `spacedBy(4.dp)`（原外层 16dp + 显式 Spacer(4dp) 叠加实际 36dp），顺带修正按钮垂直居中
+- **测试** — 新建 `QuantitySelectorFlowTest` 11 条（Robolectric compose：初始四向步进显示/禁用态、点击进入编辑态隐藏大步进、超上限实时截断、非法字符过滤、Done 提交、失焦先提交再步进、外部数量同步、初始超限钳制；IntBox 捕获不触发重组需 external State 驱动——`点击步进按钮`/`Done 提交` 用例的坑）、`SmallScreenDialogTest` 3 条（overlay 可见/可滚动 Column 内不可见回归文档/默认 null）、`StandardPromptDialogTest` +1（UnifiedGameDialog overlay 内内联覆盖层可见）；`feature/game` 测试基建：`src/test/AndroidManifest.xml` 声明 ComponentActivity（Robolectric PR #4736）+ `includeAndroidResources` + `robolectric.properties sdk=34`（includeAndroidResources 后 Robolectric 读取合并 manifest targetSdk35 超 maxSdk34，3 个既有测试类初始化失败，全局默认修复）
+- **detekt 合规** — baseline 签名失配修复（overlay 参数改变 4 条条目签名，条目数不变只缩不增）；`LongParameterList ignoreDefaultParameters: true`（带默认值参数不计数——UnifiedGameDialog 19 参 18 默认，调用方仅传 1~2 个，实际负担远低于阈值）；QuantityInputField 9 参数 → 尺寸收进 `sizes` 对象（7 参数）；QuantitySelector 73 行 → 拆 `DecrementButtons`/`IncrementButtons` 私有 composable（53 行）
+- 全模块 compileReleaseKotlin + 串行全量测试（--max-workers=1）+ lintRelease + detekt 通过
 
 ## [4.00.91] - 2026-08-07
 
@@ -584,6 +584,62 @@
   - **新增玩法 UI 组件复用规范** — 新玩法界面必须优先复用游戏内已有组件（GameButton/UnifiedGameDialog/ItemCard/SpriteImage 等 18 项清单写入 `rules/expansion-playbook.md`），禁止自建重复组件；CLAUDE.md 审查清单同步新增检查项
 
 
+## [4.00.88] - 2026-08-05
+
+### 代码质量（2026-08-05 架构文档预存问题登记 P-01~P-15/P-17 全量实施）
+
+- **P-01 战利品数量分区 RNG** — attackSect 战利品数量 `(80..130).random()`（kotlin Random.Default，CI 查不到）改走 BATTLE 分区 PRNG：提取 `sectBattleRewardCount` 纯函数（`80 + rng.nextInt(51)` / `20 + rng.nextInt(41)`）+ GameEngineBattleOpsTest 值域/确定性守卫；**登记接受的代价**：该次宗门战胜利后 BATTLE 随机序列后移一位，旧存档后续战斗随机序与旧版本不同
+- **战斗系统 10 个 God Method 拆分（P-02~P-10）** — BattleSystem 3（executeSkillAction 参数打包+5 分支/processTurnAdvance 6 提取/executeBattleWithTimeout 3 提取）、AISectAttackManager 4（executeUnifiedAIBattle 回合提取+运行标志/executeSupportAction 5 提取/applyAoeSingleTarget 8→4 参/selectAITarget 2 return）、BattleCalculator.calculateCombatantDamage（斩杀/闪避/伤害管线三提取，主函数 1 return 链式）、HeavenlyTrialService.buildDiscipleEnemy（功法/装备/属性/技能四提取，复杂度 23→5）；全部 RNG 抽数序保持，新增 3 个抽数序对拍守卫测试（instantKill 0 抽/dodge 1 抽/正常路径 3 抽——dodge 判定恒消耗 1 抽）
+- **battle 域目录归位（P-11）** — 13 个文件 git mv 至 `engine/domain/battle/`（包声明与目录对齐，import 全不变），删 12 条 InvalidPackageDeclaration baseline；engine 模块其余 122 条旧目录布局维持冻结（全量归位另行立项）
+- **测试文件违规全清（P-13 + 未登记项）** — BattleSystemTest/BattleCalculatorCoverageTest combatant 11/10→7 参（skills/buffs/realm 改 .copy()）、37 处长行折行、29 处 UnusedImports + 8 处额外 MaxLineLength 清理
+- **AISectBattleProcessor 迁移守卫测试（P-15）** — 新增 4 测试（AI 升级链/玩家宗门不升级/非玩家仓库清理/热控分批/入口全链路），@After 恢复静态注入防跨类污染
+- **GameViewModel 构造 20→5 参数（P-17）** — 删 6 个零使用参数（appContext/productionFacade/inventoryFacade/battleFacade/diplomacyFacade/saveFacade）+ 4 个 @Inject 值对象归组（AudioServices/CoreServices/UiServices/DelegateServices），18 个 Delegate 零改动，baseline LongParameterList 条目删除
+- **flaky 测试诊断（P-14）** — H1（assemble 竞态）300 轮压力实证 0 失败未复现，转 30 轮正式守卫测试（GameStateStoreAssembleRaceGuardTest）；H3（statsProvider 静态污染）枚举排除；最可能根因为 TestPolling 5s 轮询超时在慢 CI 不足 → 提升至 15s
+- **H1 竞态加固（P-14 后续）** — dispatchAssemble 增量/全量分支 + loadFromSnapshot 尾部投递 3 处 publish 前二次版本检查：首次检查通过后、assemble 执行期间 load/reset 递增版本则丢弃陈旧结果，消除理论竞态窗口（二次检查无法时序注入单测，由 30 轮压力守卫 + 全量回归兜底）
+- **验证** — compileReleaseKotlin + lintRelease + detekt 全模块违规清零（engine 63→0、feature/game 22→0，含 test 变体）+ 全量测试串行回归 0 失败；kover 实测引擎行覆盖 33.0%（未达 80% 目标，覆盖率提升另行立项，如实登记）
+
+### 文档（2026-08-05 架构文档待完成项清理）
+
+- **已完成项段落移除** — 2026-08-02 综合优化遗留（T1~T3）、2026-08-04 代码质量优化（函数级/上帝对象/UI）、2026-08-04 战斗系统函数级 11 项 + T-C1~C4、2026-08-05 存档链路 C1~C13 + T1、预存问题 P-01~P-15/P-17 全量完成段落从 architecture.md 移除（详情见本版本及 4.00.86/4.00.87）
+- **待完成项登记精简** — 保留维持现状决策（W4 object→class、AI 拉条移植不纳入、P6 评估不做、122 条 InvalidPackageDeclaration 冻结）与待真机验证（P-16 UI 迁移冒烟、P-18 排行榜 rank 语义），指引见 architecture.md 登记表
+
+### 修复（2026-08-05 天道试炼奖励发放不进仓库）
+
+- **试炼通关奖励统一走 InventorySystem 入口** — 第六/七/八关 randomEquipment/randomManual 此前直接写 equipmentInstances/manualInstances（实例轨道），仓库 UI 只渲染堆叠轨道（equipmentStacks/manualStacks）导致领取后不可见且无来源统计/溢出兜底；现统一委托 addEquipmentStack/addManualStack，丹药/储物袋从手写 mergeStackable 收敛到 addPill/addStorageBag；凭据类语义（withOverflowMailSuppressed + Partial/Failure 抛异常整体回滚，catch 在 update 外——参照 GameEngineSectLevelOps，区别于 DailySignInService 的 catch 在 update 内导致 Partial 部分入仓的问题模式），容量不足时凭据保留可重试
+- **守卫测试增强** — InventoryAddPathGuardTest 新增"实例表直接追加"反模式（equipmentInstances/manualInstances 的 `+=`/`= list + x`/`.add(`），7 个合法分配点白名单（弟子装备/功法分配、俘虏转换、自动装备落库、AI 敌人、统一入口自身），防止未来发放路径再次误写实例轨道
+- **GameEngineSectLevelOps 补来源追踪** — claimSectLevelReward 发放补 withTrackingSource("sect_level")（映射表内此前为无调用点的死条目，年度报告统计现可正确归因）
+- **测试** — 新增 HeavenlyTrialClaimRewardTest 6 用例（装备/功法落堆叠轨道、年度来源 trial:5、重复领取、未通关、容量满整体回滚凭据保留）+ TrialTestStore（COW 副本 + 重入缓冲模拟 GameStateStoreImpl 事务语义）；验证：compileReleaseKotlin + 试炼/守卫测试通过
+- **途中发现登记** — 调查中发现的 3 项遗留问题（弟子储物袋手写合并路径 P-19 / 守卫不扫描 domain 模块 P-20 / 签到"事务回滚"注释不符 P-21）登记至 architecture.md 待完成项，另行立项处理
+
+### 修复（2026-08-05 Bugly 崩溃批次 #11021/#14002/#13014/#3107/#11017）
+
+- **读档/保存协程 lateinit job 竞态根治（#11021/#14002，各 11 次）** — SaveLoadViewModel 4 处 `lateinit var job` 捕获模式：launch 入队与调用线程赋值之间的窗口内，空闲 IO worker（LimitedDispatcher）抢跑执行协程体，实参求值读未赋值 lateinit 抛 UninitializedPropertyAccessException（C4 注释"协程体在注册后执行"论断有误）。修复：删除 lateinit 捕获，perform* 内部 `coroutineContext[Job]` 自取身份（与 launch 返回同一实例，clearActiveLoadJob 的 `===` 归属判定语义等价），finally 的 resetOwnedLoadState 同步去参；新增 Dispatchers.Unconfined 竞态回归测试（Unconfined 下协程体同步先于赋值执行，旧代码必崩，确定性复现）
+- **生产槽位 null 元素三层净化（#13014）** — 损坏存档可能向 productionSlots 注入运行时 null：GameEngineCoordination.loadData 入口净化（须在 fixAlchemyForgeSlotCount 访问 buildingType 之前，行 991）+ gameData.productionSlots 副本同步净化（保护 ProductionProcessor/StorageEngine 直读）+ ProductionSlotRepository 三个外部进入点（initialize/loadSlots/restoreSlots）sanitizeSlots（DomainLog 记录净化数）+ SlotCache.updateCache 收口（无 null 保持引用同一性，dirty 快速路径不退化）；经 Repository 读取的全部迭代点（ProductionProcessor:70/83/1054/1080、DiscipleSlotManager、SaveService、CombatService、BuildingService）统一覆盖；新增 RepositoryModelsTest/ProductionSlotRepositorySanitizeTest 用例（unchecked cast 注入运行时 null）
+- **SessionManager 加密存储恢复/降级（#3107）** — 主密钥损坏（ErrorCode -33 Invalid key blob）时 MasterKey.Builder.build() 抛 KeyStoreException，Hilt @Singleton 注入（MainActivity 启动路径）零兜底直接闪退。修复：createSessionPrefs 恢复链——明文 fallback 有降级标记直接返回（防每次启动重复失败流程）→ 加密创建失败删损坏密钥（`_androidx_security_master_key_`）+ deleteSharedPreferences 重建 → 重建仍失败降级明文并持久化标记；15 属性 + 3 方法接口零变化；数据敏感度低（登录态/隐私同意/音效开关）丢失可接受（重新同意隐私）；新增 SessionManagerTest 2 用例（Robolectric + 注入必然失败的 builder）；成功路径分支依赖真实 Keystore 不可单测，代码审查覆盖
+- **ActionMode 拦截窗口前移（#11017，44 次）** — ColorOS/Oplus FloatingActionMode 文本选择工具栏在窗口 token 失效后仍 show PopupWindow 抛 BadTokenException：已创建的 ActionMode 的 reposition/show 由系统消息队列驱动（不经 window callback），现有 onStop 置位与已 post 的 show 消息存在竞态，且未走 onStop 的快速销毁路径不拦截。修复：finishActiveActionMode/resetForResume 挂钩从 onStop/onStart 提前到 onPause/onResume（MainActivity/GameActivity 对称，幂等，onStart/onStop 既有调用保留；游戏全屏沉浸无分屏场景，UX 可接受）；ActionModeSafeCallback 本体零改动
+- **验证** — compileReleaseKotlin + 定点测试（SessionManagerTest/RepositoryModelsTest/ProductionSlotRepositorySanitizeTest/SaveLoadViewModelLoadTest）全绿 + 全量测试串行回归
+- **不可修项如实登记** — #9072（AOSP ClientTransactionListenerController.onContextConfigurationPreChanged 系统组件 NPE，调用链无应用代码，应用层不可修）、#3110（libart SignalCatcher SIGQUIT 线程 dump 痕迹，ANR 上报误报）、#3055（libhwui 无符号崩溃，Vulkan 六层防御 + HWUI 降级已覆盖的旧版本残余）、#9069（TapTap lateinit context，5 层防御 2026-07 已上线——crash guard/反射兜底/双检/按钮门控/manifest provider 移除，崩溃时间在防御上线后，疑似旧版本残余，下版本继续观察）
+
+### 修复（2026-08-05 跨境界斩杀方向反转根治）
+
+- **checkInstantKill 方向反转（8-04 修复引入）** — realm 语义为"数值小=境界高"（0=仙人，9=炼气，全仓一致：REALM_SPEED_PER_PHASE/meetsRealmRequirement/maxLayers/Combatant 直传 disciple.realm 无转换）。8-04 战斗核查修复将公式从 `(defenderRealm - attackerRealm)×9` 反转为 `(attackerRealm - defenderRealm)×9`，在真实语义下变为"低境界打高境界触发斩杀、高境界无法秒杀低境界"，守卫测试 BattleCalculatorCoverageTest 按"数值大=境界高"的错误直觉写传参，把错误行为固化。本次改回 `(defenderRealm - attackerRealm)×LAYERS_PER_REALM + (attackerLayer - defenderLayer) > INSTANT_KILL_GAP×LAYERS_PER_REALM`；INSTANT_KILL_GAP 由编译期常量改为读取 GameConfigData.realmGap.instantKillGap 运行时配置（此前为死配置从未被引用）；局部魔法数字 MAX_MINOR_LAYERS=9 提取为 LAYERS_PER_REALM 常量；checkInstantKill 补 KDoc
+- **守卫测试传参修正** — BattleCalculatorCoverageTest G1 组 6 测试 + T-C2/B4 共 8 处传参按真实语义重写（高境界一方用小 realm 数值），BattleSystemTest 必杀测试弟子 realm 8→2 / 妖兽 2→8，注释统一标注"realm 数值小=境界高"防再反转；realmGapMultiplier 伤害乘区经举一反三核查方向正确（高打低加成/低打高惩罚）未改动
+- **影响面** — 全部战斗路径（BattleSystem/AISectAttackManager/HeavenlyTrialCombatLogic）统一修正：高境界弟子打低境界目标恢复秒杀（无视护盾），低境界敌人不再反向秒杀玩家高境界弟子
+- **验证** — core:engine（BattleCalculatorCoverageTest/BattleSystemTest）+ app（BattleCalculatorTest）定点全绿 + 全量测试串行回归 0 失败 + detekt（core:domain/core:engine）通过
+
+### 修复（2026-08-05 弟子多槽位互斥根治）
+
+- **根因** — `DiscipleAssignmentGate` 只是"弟子→槽位"登记表（`registerOrUpdate` 无条件覆盖，文档明确"Gate 不阻止分配"），互斥完全依赖各分配入口写槽位前清理旧槽位；但 **8 个分配入口缺失/不完整**，勾选"显示所有弟子"（`filterByDiscipleStatus` showAll 模式露出全部在岗弟子）后可将在岗弟子直接任命到新岗位，旧槽位残留 → 同一弟子同时出现在多个槽位
+- **8 入口全量修复** — ① 亲传弟子七类槽 `assignDirectDisciple`（DiscipleFacadeImpl，事务内 `clearAllSlots` + 旧 occupant release/sync）；② 任务派遣 `startMission`（事务内 `releaseDiscipleToIdleInside` 全员换岗 + gate 清理，删除 fire-and-forget 状态硬写；任务完成不再产生状态/槽位不一致——**用户确认换岗语义**，未接通 IDLE 校验，与"显示所有弟子"自动换岗设计一致）；③ 秘境出发 `startSecretRealmExploration`（事务内释放 4 成员 + 事务外 gate 先清后登记）；④ 世界驻守 `assignGarrisonDisciple`（事务内清理 + 旧 occupant release/sync + 补 syncSingleDiscipleStatus——此前从不 sync）；⑤ 仓库驻守新增 `GameEngineWarehouseOps.assignWarehouseGarrisonAtomic`（ProductionViewModel 删除直写 GameData 路径，委托引擎原子方法）；⑥ 血炼 `startBloodRefinementAtomic`（事务内清理 + Success 后 gate 防御 release，失败整体回滚不残留）；⑦ 生产槽新 API `assignDiscipleToProductionSlot`（事务内清 GameData 全部槽位 + GameData.productionSlots 镜像同步——闭合两套存储分歧 + repo 无条件清旧生产槽 + 硬写状态改推导式）；⑧ 生产槽旧 API `assignDiscipleToBuilding`（事务内清理 + 旧 occupant gate.release + 镜像同步）
+- **共享 helper** — `GameEngine.releaseDiscipleToIdleInside(state, discipleId)`（事务内：clearAllSlotsDataOnly + 按状态重置，REFINING 视为放弃血炼不返还材料，与 UI `releaseDiscipleForReassignment` 契约一致）
+- **stale entry 修复** — 被顶替者 gate 残留 5 处：`assignDirectDisciple` 同槽顶替、`assignGarrisonDisciple`/`assignWarehouseGarrisonAtomic` 旧驻守、`BuildingService` 旧工人、`ElderManagementUseCase.assignElder` 被顶替长老 + 被清空亲传列表、`SpiritMineViewModel.swapSpiritMineDisciple` 旧矿工（release + sync，防从可用列表"消失"）
+- **状态推导缺口修复** — `DiscipleStatusService.buildSlotFlagsFor` inGarrison 补 `warehouseGarrisons`（与 `buildGarrisonIds` 对齐，此前仓库驻守弟子推导为 IDLE 被 UI 显示可用）；`clearSlotsForReset` 补清 patrolSlots/warehouseGarrisons/battleTeams/productionSlots 4 组（重置语义与推导对齐）
+- **读档自愈（用户确认）** — 新增 `GameEngine.healDuplicateSlotAssignments`（GameEngineSelfHealOps）：按 scanAndRegister 顺序扫描双槽位弟子 → 清全部槽位（含住所）→ 按赢家重写回 GameData（血炼赢家缓存进度防灵石/材料损失）→ gate 二次 rebuild；BootSequenceController Step 6.3 挂接，健康存档零副作用；mock 场景入口 try-catch 防御不影响启动
+- **守卫测试 6 件套** — `GameEngineDualSlotGuardTest` 9 用例（驻守/任务/秘境/血炼/仓库/自愈 + 血炼失败回滚不残留 + occupySectRewards 决策留痕注释）、`DiscipleFacadeAssignDirectDiscipleTest` 3 用例、`BuildingFacadeImplAssignProductionSlotTest` 4 用例（真实 ProductionSlotRepository 绕开 Mockito getSlots 同名坑）、`DiscipleStatusServiceTest` 增补 2 用例（仓库驻守推导 GARRISONING）、`SlotCategoryCoverageTest` 新增清单式守卫（全部已知分配入口文件必须引用清理调用）；`FakeAtomicStateStore` 抽取共享（原 GameEngineAtomicAssignTest 私有副本）
+- **途中发现** — `MissionSystem.validateDisciplesForMission`（要求全员 IDLE）全项目无调用方，因换岗语义不接线（引擎清理后冗余）；生产槽 GameData/Repository 两套存储既存分歧已顺带闭合
+- **对抗性审查整改（审查 agent 发现 C1/H1/H2/H3/M1/M2/M4 全修复）** — ① 秘境出发失败路径销毁岗位分配（startSession 返回 Failure 不抛异常、事务照常提交——先校验后清理，移除已成死代码的 IDLE 校验，改存活校验）；② 自愈误清住所（includeResidence 改 false，住所共存设计）；③ 生产槽 Repository 双存储同步（8 个引擎入口事务外 `clearDiscipleFromProductionRepository`——存档/结算/gate 重建以 Repository 为准，防双槽位经生产槽复活）；④ `clearElderSlots`/`clearAllDisciplesFromElderSlots` 补 `recruitingElder`（预存缺口——双槽位可经纳徒长老槽残留）；⑤ `assignElder` 只释放实际清空的那类亲传列表（此前误释全部 7 类仍在岗弟子）；⑥ 生产槽旧 occupant sync 移事务后（消除状态残留）；⑦ 自愈扫描秘境成员（秘境优先为赢家，保留秘境清岗位）
+- **验证** — compileReleaseKotlin + 全量测试串行（1941 engine 用例 0 失败，含新增 C1 失败回滚/住所保留/秘境并存/recruitingElder 4 个守卫用例）+ detekt 全绿
+
 ## [4.00.87] - 2026-08-04
 
 ### 修复（2026-08-04 战斗系统全面核查修复——第一手源码验证 9 项正确性 Bug + 对抗性审查整改）
@@ -688,62 +744,6 @@
 - **LeaderboardDialog 支持 initialTab** — 对话框新增初始标签参数（默认 LOCAL，游戏内行为不变；主菜单传 CLOUD）
 - **测试** — LeaderboardViewModelTest 新增 isWorldLoaded 派生跟随变化用例；全量测试 + lintRelease + detekt（新代码违规清零）全绿
 - **文档** — 架构文档预存问题登记表补充 P-17（GameViewModel 构造 20 参数超规，baseline 豁免技术债）与 P-18（排行榜 rank 起始语义真机验证）；本次确认的 core:engine detekt 预存违规经核对全部已在 P-02~P-13 登记，无需重复
-
-## [4.00.88] - 2026-08-05
-
-### 代码质量（2026-08-05 架构文档预存问题登记 P-01~P-15/P-17 全量实施）
-
-- **P-01 战利品数量分区 RNG** — attackSect 战利品数量 `(80..130).random()`（kotlin Random.Default，CI 查不到）改走 BATTLE 分区 PRNG：提取 `sectBattleRewardCount` 纯函数（`80 + rng.nextInt(51)` / `20 + rng.nextInt(41)`）+ GameEngineBattleOpsTest 值域/确定性守卫；**登记接受的代价**：该次宗门战胜利后 BATTLE 随机序列后移一位，旧存档后续战斗随机序与旧版本不同
-- **战斗系统 10 个 God Method 拆分（P-02~P-10）** — BattleSystem 3（executeSkillAction 参数打包+5 分支/processTurnAdvance 6 提取/executeBattleWithTimeout 3 提取）、AISectAttackManager 4（executeUnifiedAIBattle 回合提取+运行标志/executeSupportAction 5 提取/applyAoeSingleTarget 8→4 参/selectAITarget 2 return）、BattleCalculator.calculateCombatantDamage（斩杀/闪避/伤害管线三提取，主函数 1 return 链式）、HeavenlyTrialService.buildDiscipleEnemy（功法/装备/属性/技能四提取，复杂度 23→5）；全部 RNG 抽数序保持，新增 3 个抽数序对拍守卫测试（instantKill 0 抽/dodge 1 抽/正常路径 3 抽——dodge 判定恒消耗 1 抽）
-- **battle 域目录归位（P-11）** — 13 个文件 git mv 至 `engine/domain/battle/`（包声明与目录对齐，import 全不变），删 12 条 InvalidPackageDeclaration baseline；engine 模块其余 122 条旧目录布局维持冻结（全量归位另行立项）
-- **测试文件违规全清（P-13 + 未登记项）** — BattleSystemTest/BattleCalculatorCoverageTest combatant 11/10→7 参（skills/buffs/realm 改 .copy()）、37 处长行折行、29 处 UnusedImports + 8 处额外 MaxLineLength 清理
-- **AISectBattleProcessor 迁移守卫测试（P-15）** — 新增 4 测试（AI 升级链/玩家宗门不升级/非玩家仓库清理/热控分批/入口全链路），@After 恢复静态注入防跨类污染
-- **GameViewModel 构造 20→5 参数（P-17）** — 删 6 个零使用参数（appContext/productionFacade/inventoryFacade/battleFacade/diplomacyFacade/saveFacade）+ 4 个 @Inject 值对象归组（AudioServices/CoreServices/UiServices/DelegateServices），18 个 Delegate 零改动，baseline LongParameterList 条目删除
-- **flaky 测试诊断（P-14）** — H1（assemble 竞态）300 轮压力实证 0 失败未复现，转 30 轮正式守卫测试（GameStateStoreAssembleRaceGuardTest）；H3（statsProvider 静态污染）枚举排除；最可能根因为 TestPolling 5s 轮询超时在慢 CI 不足 → 提升至 15s
-- **H1 竞态加固（P-14 后续）** — dispatchAssemble 增量/全量分支 + loadFromSnapshot 尾部投递 3 处 publish 前二次版本检查：首次检查通过后、assemble 执行期间 load/reset 递增版本则丢弃陈旧结果，消除理论竞态窗口（二次检查无法时序注入单测，由 30 轮压力守卫 + 全量回归兜底）
-- **验证** — compileReleaseKotlin + lintRelease + detekt 全模块违规清零（engine 63→0、feature/game 22→0，含 test 变体）+ 全量测试串行回归 0 失败；kover 实测引擎行覆盖 33.0%（未达 80% 目标，覆盖率提升另行立项，如实登记）
-
-### 文档（2026-08-05 架构文档待完成项清理）
-
-- **已完成项段落移除** — 2026-08-02 综合优化遗留（T1~T3）、2026-08-04 代码质量优化（函数级/上帝对象/UI）、2026-08-04 战斗系统函数级 11 项 + T-C1~C4、2026-08-05 存档链路 C1~C13 + T1、预存问题 P-01~P-15/P-17 全量完成段落从 architecture.md 移除（详情见本版本及 4.00.86/4.00.87）
-- **待完成项登记精简** — 保留维持现状决策（W4 object→class、AI 拉条移植不纳入、P6 评估不做、122 条 InvalidPackageDeclaration 冻结）与待真机验证（P-16 UI 迁移冒烟、P-18 排行榜 rank 语义），指引见 architecture.md 登记表
-
-### 修复（2026-08-05 天道试炼奖励发放不进仓库）
-
-- **试炼通关奖励统一走 InventorySystem 入口** — 第六/七/八关 randomEquipment/randomManual 此前直接写 equipmentInstances/manualInstances（实例轨道），仓库 UI 只渲染堆叠轨道（equipmentStacks/manualStacks）导致领取后不可见且无来源统计/溢出兜底；现统一委托 addEquipmentStack/addManualStack，丹药/储物袋从手写 mergeStackable 收敛到 addPill/addStorageBag；凭据类语义（withOverflowMailSuppressed + Partial/Failure 抛异常整体回滚，catch 在 update 外——参照 GameEngineSectLevelOps，区别于 DailySignInService 的 catch 在 update 内导致 Partial 部分入仓的问题模式），容量不足时凭据保留可重试
-- **守卫测试增强** — InventoryAddPathGuardTest 新增"实例表直接追加"反模式（equipmentInstances/manualInstances 的 `+=`/`= list + x`/`.add(`），7 个合法分配点白名单（弟子装备/功法分配、俘虏转换、自动装备落库、AI 敌人、统一入口自身），防止未来发放路径再次误写实例轨道
-- **GameEngineSectLevelOps 补来源追踪** — claimSectLevelReward 发放补 withTrackingSource("sect_level")（映射表内此前为无调用点的死条目，年度报告统计现可正确归因）
-- **测试** — 新增 HeavenlyTrialClaimRewardTest 6 用例（装备/功法落堆叠轨道、年度来源 trial:5、重复领取、未通关、容量满整体回滚凭据保留）+ TrialTestStore（COW 副本 + 重入缓冲模拟 GameStateStoreImpl 事务语义）；验证：compileReleaseKotlin + 试炼/守卫测试通过
-- **途中发现登记** — 调查中发现的 3 项遗留问题（弟子储物袋手写合并路径 P-19 / 守卫不扫描 domain 模块 P-20 / 签到"事务回滚"注释不符 P-21）登记至 architecture.md 待完成项，另行立项处理
-
-### 修复（2026-08-05 Bugly 崩溃批次 #11021/#14002/#13014/#3107/#11017）
-
-- **读档/保存协程 lateinit job 竞态根治（#11021/#14002，各 11 次）** — SaveLoadViewModel 4 处 `lateinit var job` 捕获模式：launch 入队与调用线程赋值之间的窗口内，空闲 IO worker（LimitedDispatcher）抢跑执行协程体，实参求值读未赋值 lateinit 抛 UninitializedPropertyAccessException（C4 注释"协程体在注册后执行"论断有误）。修复：删除 lateinit 捕获，perform* 内部 `coroutineContext[Job]` 自取身份（与 launch 返回同一实例，clearActiveLoadJob 的 `===` 归属判定语义等价），finally 的 resetOwnedLoadState 同步去参；新增 Dispatchers.Unconfined 竞态回归测试（Unconfined 下协程体同步先于赋值执行，旧代码必崩，确定性复现）
-- **生产槽位 null 元素三层净化（#13014）** — 损坏存档可能向 productionSlots 注入运行时 null：GameEngineCoordination.loadData 入口净化（须在 fixAlchemyForgeSlotCount 访问 buildingType 之前，行 991）+ gameData.productionSlots 副本同步净化（保护 ProductionProcessor/StorageEngine 直读）+ ProductionSlotRepository 三个外部进入点（initialize/loadSlots/restoreSlots）sanitizeSlots（DomainLog 记录净化数）+ SlotCache.updateCache 收口（无 null 保持引用同一性，dirty 快速路径不退化）；经 Repository 读取的全部迭代点（ProductionProcessor:70/83/1054/1080、DiscipleSlotManager、SaveService、CombatService、BuildingService）统一覆盖；新增 RepositoryModelsTest/ProductionSlotRepositorySanitizeTest 用例（unchecked cast 注入运行时 null）
-- **SessionManager 加密存储恢复/降级（#3107）** — 主密钥损坏（ErrorCode -33 Invalid key blob）时 MasterKey.Builder.build() 抛 KeyStoreException，Hilt @Singleton 注入（MainActivity 启动路径）零兜底直接闪退。修复：createSessionPrefs 恢复链——明文 fallback 有降级标记直接返回（防每次启动重复失败流程）→ 加密创建失败删损坏密钥（`_androidx_security_master_key_`）+ deleteSharedPreferences 重建 → 重建仍失败降级明文并持久化标记；15 属性 + 3 方法接口零变化；数据敏感度低（登录态/隐私同意/音效开关）丢失可接受（重新同意隐私）；新增 SessionManagerTest 2 用例（Robolectric + 注入必然失败的 builder）；成功路径分支依赖真实 Keystore 不可单测，代码审查覆盖
-- **ActionMode 拦截窗口前移（#11017，44 次）** — ColorOS/Oplus FloatingActionMode 文本选择工具栏在窗口 token 失效后仍 show PopupWindow 抛 BadTokenException：已创建的 ActionMode 的 reposition/show 由系统消息队列驱动（不经 window callback），现有 onStop 置位与已 post 的 show 消息存在竞态，且未走 onStop 的快速销毁路径不拦截。修复：finishActiveActionMode/resetForResume 挂钩从 onStop/onStart 提前到 onPause/onResume（MainActivity/GameActivity 对称，幂等，onStart/onStop 既有调用保留；游戏全屏沉浸无分屏场景，UX 可接受）；ActionModeSafeCallback 本体零改动
-- **验证** — compileReleaseKotlin + 定点测试（SessionManagerTest/RepositoryModelsTest/ProductionSlotRepositorySanitizeTest/SaveLoadViewModelLoadTest）全绿 + 全量测试串行回归
-- **不可修项如实登记** — #9072（AOSP ClientTransactionListenerController.onContextConfigurationPreChanged 系统组件 NPE，调用链无应用代码，应用层不可修）、#3110（libart SignalCatcher SIGQUIT 线程 dump 痕迹，ANR 上报误报）、#3055（libhwui 无符号崩溃，Vulkan 六层防御 + HWUI 降级已覆盖的旧版本残余）、#9069（TapTap lateinit context，5 层防御 2026-07 已上线——crash guard/反射兜底/双检/按钮门控/manifest provider 移除，崩溃时间在防御上线后，疑似旧版本残余，下版本继续观察）
-
-### 修复（2026-08-05 跨境界斩杀方向反转根治）
-
-- **checkInstantKill 方向反转（8-04 修复引入）** — realm 语义为"数值小=境界高"（0=仙人，9=炼气，全仓一致：REALM_SPEED_PER_PHASE/meetsRealmRequirement/maxLayers/Combatant 直传 disciple.realm 无转换）。8-04 战斗核查修复将公式从 `(defenderRealm - attackerRealm)×9` 反转为 `(attackerRealm - defenderRealm)×9`，在真实语义下变为"低境界打高境界触发斩杀、高境界无法秒杀低境界"，守卫测试 BattleCalculatorCoverageTest 按"数值大=境界高"的错误直觉写传参，把错误行为固化。本次改回 `(defenderRealm - attackerRealm)×LAYERS_PER_REALM + (attackerLayer - defenderLayer) > INSTANT_KILL_GAP×LAYERS_PER_REALM`；INSTANT_KILL_GAP 由编译期常量改为读取 GameConfigData.realmGap.instantKillGap 运行时配置（此前为死配置从未被引用）；局部魔法数字 MAX_MINOR_LAYERS=9 提取为 LAYERS_PER_REALM 常量；checkInstantKill 补 KDoc
-- **守卫测试传参修正** — BattleCalculatorCoverageTest G1 组 6 测试 + T-C2/B4 共 8 处传参按真实语义重写（高境界一方用小 realm 数值），BattleSystemTest 必杀测试弟子 realm 8→2 / 妖兽 2→8，注释统一标注"realm 数值小=境界高"防再反转；realmGapMultiplier 伤害乘区经举一反三核查方向正确（高打低加成/低打高惩罚）未改动
-- **影响面** — 全部战斗路径（BattleSystem/AISectAttackManager/HeavenlyTrialCombatLogic）统一修正：高境界弟子打低境界目标恢复秒杀（无视护盾），低境界敌人不再反向秒杀玩家高境界弟子
-- **验证** — core:engine（BattleCalculatorCoverageTest/BattleSystemTest）+ app（BattleCalculatorTest）定点全绿 + 全量测试串行回归 0 失败 + detekt（core:domain/core:engine）通过
-
-### 修复（2026-08-05 弟子多槽位互斥根治）
-
-- **根因** — `DiscipleAssignmentGate` 只是"弟子→槽位"登记表（`registerOrUpdate` 无条件覆盖，文档明确"Gate 不阻止分配"），互斥完全依赖各分配入口写槽位前清理旧槽位；但 **8 个分配入口缺失/不完整**，勾选"显示所有弟子"（`filterByDiscipleStatus` showAll 模式露出全部在岗弟子）后可将在岗弟子直接任命到新岗位，旧槽位残留 → 同一弟子同时出现在多个槽位
-- **8 入口全量修复** — ① 亲传弟子七类槽 `assignDirectDisciple`（DiscipleFacadeImpl，事务内 `clearAllSlots` + 旧 occupant release/sync）；② 任务派遣 `startMission`（事务内 `releaseDiscipleToIdleInside` 全员换岗 + gate 清理，删除 fire-and-forget 状态硬写；任务完成不再产生状态/槽位不一致——**用户确认换岗语义**，未接通 IDLE 校验，与"显示所有弟子"自动换岗设计一致）；③ 秘境出发 `startSecretRealmExploration`（事务内释放 4 成员 + 事务外 gate 先清后登记）；④ 世界驻守 `assignGarrisonDisciple`（事务内清理 + 旧 occupant release/sync + 补 syncSingleDiscipleStatus——此前从不 sync）；⑤ 仓库驻守新增 `GameEngineWarehouseOps.assignWarehouseGarrisonAtomic`（ProductionViewModel 删除直写 GameData 路径，委托引擎原子方法）；⑥ 血炼 `startBloodRefinementAtomic`（事务内清理 + Success 后 gate 防御 release，失败整体回滚不残留）；⑦ 生产槽新 API `assignDiscipleToProductionSlot`（事务内清 GameData 全部槽位 + GameData.productionSlots 镜像同步——闭合两套存储分歧 + repo 无条件清旧生产槽 + 硬写状态改推导式）；⑧ 生产槽旧 API `assignDiscipleToBuilding`（事务内清理 + 旧 occupant gate.release + 镜像同步）
-- **共享 helper** — `GameEngine.releaseDiscipleToIdleInside(state, discipleId)`（事务内：clearAllSlotsDataOnly + 按状态重置，REFINING 视为放弃血炼不返还材料，与 UI `releaseDiscipleForReassignment` 契约一致）
-- **stale entry 修复** — 被顶替者 gate 残留 5 处：`assignDirectDisciple` 同槽顶替、`assignGarrisonDisciple`/`assignWarehouseGarrisonAtomic` 旧驻守、`BuildingService` 旧工人、`ElderManagementUseCase.assignElder` 被顶替长老 + 被清空亲传列表、`SpiritMineViewModel.swapSpiritMineDisciple` 旧矿工（release + sync，防从可用列表"消失"）
-- **状态推导缺口修复** — `DiscipleStatusService.buildSlotFlagsFor` inGarrison 补 `warehouseGarrisons`（与 `buildGarrisonIds` 对齐，此前仓库驻守弟子推导为 IDLE 被 UI 显示可用）；`clearSlotsForReset` 补清 patrolSlots/warehouseGarrisons/battleTeams/productionSlots 4 组（重置语义与推导对齐）
-- **读档自愈（用户确认）** — 新增 `GameEngine.healDuplicateSlotAssignments`（GameEngineSelfHealOps）：按 scanAndRegister 顺序扫描双槽位弟子 → 清全部槽位（含住所）→ 按赢家重写回 GameData（血炼赢家缓存进度防灵石/材料损失）→ gate 二次 rebuild；BootSequenceController Step 6.3 挂接，健康存档零副作用；mock 场景入口 try-catch 防御不影响启动
-- **守卫测试 6 件套** — `GameEngineDualSlotGuardTest` 9 用例（驻守/任务/秘境/血炼/仓库/自愈 + 血炼失败回滚不残留 + occupySectRewards 决策留痕注释）、`DiscipleFacadeAssignDirectDiscipleTest` 3 用例、`BuildingFacadeImplAssignProductionSlotTest` 4 用例（真实 ProductionSlotRepository 绕开 Mockito getSlots 同名坑）、`DiscipleStatusServiceTest` 增补 2 用例（仓库驻守推导 GARRISONING）、`SlotCategoryCoverageTest` 新增清单式守卫（全部已知分配入口文件必须引用清理调用）；`FakeAtomicStateStore` 抽取共享（原 GameEngineAtomicAssignTest 私有副本）
-- **途中发现** — `MissionSystem.validateDisciplesForMission`（要求全员 IDLE）全项目无调用方，因换岗语义不接线（引擎清理后冗余）；生产槽 GameData/Repository 两套存储既存分歧已顺带闭合
-- **对抗性审查整改（审查 agent 发现 C1/H1/H2/H3/M1/M2/M4 全修复）** — ① 秘境出发失败路径销毁岗位分配（startSession 返回 Failure 不抛异常、事务照常提交——先校验后清理，移除已成死代码的 IDLE 校验，改存活校验）；② 自愈误清住所（includeResidence 改 false，住所共存设计）；③ 生产槽 Repository 双存储同步（8 个引擎入口事务外 `clearDiscipleFromProductionRepository`——存档/结算/gate 重建以 Repository 为准，防双槽位经生产槽复活）；④ `clearElderSlots`/`clearAllDisciplesFromElderSlots` 补 `recruitingElder`（预存缺口——双槽位可经纳徒长老槽残留）；⑤ `assignElder` 只释放实际清空的那类亲传列表（此前误释全部 7 类仍在岗弟子）；⑥ 生产槽旧 occupant sync 移事务后（消除状态残留）；⑦ 自愈扫描秘境成员（秘境优先为赢家，保留秘境清岗位）
-- **验证** — compileReleaseKotlin + 全量测试串行（1941 engine 用例 0 失败，含新增 C1 失败回滚/住所保留/秘境并存/recruitingElder 4 个守卫用例）+ detekt 全绿
 
 ## [4.0.85] - 2026-08-02
 
@@ -2932,6 +2932,22 @@
 - **修复：AI 宗门进攻玩家宗门时玩家弟子无法出战** — `AISectAttackManager.executePlayerAttack` 原先从 `aiSectDisciples[playerSectId]` 读取玩家弟子，但该 Map 只保存 AI 宗门弟子，导致玩家方实际无人参战、战斗被跳过。修复：在 `CaveExplorationProcessor` 中直接从 `discipleTables` 选取玩家高境界存活弟子，排除 `ON_MISSION`（外出任务）和 `IN_TEAM`（探索洞府/妖兽/世界节点）状态，按境界降序取前 10 名作为防守方参战。
 - **修复：AI 攻玩家战斗使用玩家真实装备/功法** — 原先复用 AI 弟子转换逻辑会随机生成装备/功法覆盖玩家配置。修复：使用 `BattleSystem.convertDiscipleToCombatant` 基于 `stateStore` 中的真实装备、功法实例及熟练度生成战斗单位，战后回写存活弟子的当前 HP/MP，并清理阵亡弟子的驻军槽位。
 
+## [4.0.20] - 2026-06-23（versionCode=4020）
+
+### 优化
+
+- **优化：更新18种基础草药及种子精灵图** — 聚灵草、清心草、凝气草、寒霜草、烈焰草、金灵草、云雾花、白莲、晨露花、紫霄花、双生花、冰魄莲、精气果、赤心果、灵韵果、通灵果、玄灵果、五行果拥有各自专属的草药/种子/成长期图片。高阶草药（Tier 3-6）暂未开放，将显示"敬请期待"而非错误回退图片
+
+### 修复
+
+- **修复：商人、宗门交易、邮件附件、天道试炼奖励中草药和种子卡片不显示图片** — 这些界面的道具卡片构造缺少 isHerb/isSeed 类型标志，导致图片查找路径错误，换了新图也无法显示
+- **修复：邮件领取按钮无反应** — Room 的 `attachmentClaimed` 与 `GameData.mailRecords` 不一致时，按钮可见但领取被 `mailRecords` 二次保护拦截返回 `AlreadyClaimed`，UI 不处理此结果导致按钮无反应。修复：`claimAttachment` 检测到不一致时自愈 Room 状态并刷新 UI；`claimAttachmentInternal` 补齐 `mailRecords` 防护防止"一键已读"重复发物；`fetchOnlineMails` 重插已领取邮件时直接标记为已领；UI 穷举处理所有 `ClaimResult` 类型
+- **修复：突破率详情弹窗信息不完整** — 弹窗仅展示正面加成项（如神魂加成+5%），不显示基础突破率和负面天赋（如灵脉紊乱-5%），丧亲惩罚（亲属逝世-20%）也未传入主显示值和弹窗，导致玩家无法理解总额计算逻辑。修复：弹窗始终显示基础突破率、天赋加成改为显示非零值（负数红色）、底部新增最终突破率汇总行、丧亲惩罚正确传入 UI 层两处计算
+- **修复：弟子寿命异常增加** — 同境界内升阶（如炼气八层→九层）错误触发了寿命增长，弟子每次小境界突破都获得额外寿命，叠加后寿命远超设计值。修复：寿命增长仅在跨大境界突破时触发（如炼气→筑基），同境界内升阶不再增加寿命
+- **修复：OPPO/Realme/OnePlus 游戏时间不动** — ColorOS 14/15 空闲检测窗口 ~15-30ms，当前 OPPO 防挂起参数（busyInterval=32、busyDuration=3ms，占空比仅 4.7%）不足以保持游戏线程 RUNNABLE，线程被系统挂起后时间停止。修复：OPPO 忙等参数收紧至 busyInterval=16、busyDuration=4ms（占空比 12.5%），看门狗检测间隔 4s→3s，每 32ms 做一次 4ms 忙等可突破 ColorOS 空闲检测窗口。同时覆盖 Realme、OnePlus 设备（共用 ColorOS 电源管理栈）
+- **修复：弟子详情界面血量条和灵力条不自动恢复** — 打开弟子详情界面时血量条和灵力条的视觉进度条不随时间增长。根因为进度条动画仅在旬切换时（每~30秒）更新动画目标，旬内即使HP已恢复进度条仍冻结。修复：进度条动画改为直接响应HP/MP数值变化，每次恢复都平滑过渡
+- **修复：TapTap SDK 初始化兼容性崩溃（#4018）** — TapTap SDK v4.10.0 内部 sandbox hook 机制在华为 HarmonyOS / x86 模拟器等设备上触发 `SIGILL(ILL_ILLOPC)` 非法指令。升级至 v4.10.1 并在初始化外层增加兜底 `catch(Throwable)`，SDK 内部异常不再导致应用崩溃
+
 ## [4.0.19] - 2026-06-23（versionCode=4019）
 
 ### 新增
@@ -2952,22 +2968,6 @@
 
 - **修复：iQOO 15 游戏时间不动** — 防冻结延迟（antiFreezeDelay）中 API 33+ 分支的 `else if` 导致 OEM 忙等循环永不执行。iQOO 15 的 OriginOS 5 空闲检测窗口更窄（~10-20ms），游戏线程被判定为空闲并挂起，看门狗 3 次恢复后永久放弃。修复：统一忙等循环在全 API 级别生效，vivo/iQOO 忙等参数收紧（busyInterval 16→12），看门狗恢复次数 3→5，游戏线程忙等占空比控制在 16.7% 不会明显发热
 - **修复：招募弟子不修炼（根治）** — 月度结算缓存（SettlementCache）跨月复用时指纹未包含弟子增删信息，新招募弟子因不在旧缓存的 clean/dirty 集合中被月度修炼结算跳过，修为永不增长。修复：指纹新增存活弟子 ID 哈希字段，弟子增删时指纹必然变化触发缓存重建，确保所有弟子均获得月度修炼结算
-
-## [4.0.20] - 2026-06-23（versionCode=4020）
-
-### 优化
-
-- **优化：更新18种基础草药及种子精灵图** — 聚灵草、清心草、凝气草、寒霜草、烈焰草、金灵草、云雾花、白莲、晨露花、紫霄花、双生花、冰魄莲、精气果、赤心果、灵韵果、通灵果、玄灵果、五行果拥有各自专属的草药/种子/成长期图片。高阶草药（Tier 3-6）暂未开放，将显示"敬请期待"而非错误回退图片
-
-### 修复
-
-- **修复：商人、宗门交易、邮件附件、天道试炼奖励中草药和种子卡片不显示图片** — 这些界面的道具卡片构造缺少 isHerb/isSeed 类型标志，导致图片查找路径错误，换了新图也无法显示
-- **修复：邮件领取按钮无反应** — Room 的 `attachmentClaimed` 与 `GameData.mailRecords` 不一致时，按钮可见但领取被 `mailRecords` 二次保护拦截返回 `AlreadyClaimed`，UI 不处理此结果导致按钮无反应。修复：`claimAttachment` 检测到不一致时自愈 Room 状态并刷新 UI；`claimAttachmentInternal` 补齐 `mailRecords` 防护防止"一键已读"重复发物；`fetchOnlineMails` 重插已领取邮件时直接标记为已领；UI 穷举处理所有 `ClaimResult` 类型
-- **修复：突破率详情弹窗信息不完整** — 弹窗仅展示正面加成项（如神魂加成+5%），不显示基础突破率和负面天赋（如灵脉紊乱-5%），丧亲惩罚（亲属逝世-20%）也未传入主显示值和弹窗，导致玩家无法理解总额计算逻辑。修复：弹窗始终显示基础突破率、天赋加成改为显示非零值（负数红色）、底部新增最终突破率汇总行、丧亲惩罚正确传入 UI 层两处计算
-- **修复：弟子寿命异常增加** — 同境界内升阶（如炼气八层→九层）错误触发了寿命增长，弟子每次小境界突破都获得额外寿命，叠加后寿命远超设计值。修复：寿命增长仅在跨大境界突破时触发（如炼气→筑基），同境界内升阶不再增加寿命
-- **修复：OPPO/Realme/OnePlus 游戏时间不动** — ColorOS 14/15 空闲检测窗口 ~15-30ms，当前 OPPO 防挂起参数（busyInterval=32、busyDuration=3ms，占空比仅 4.7%）不足以保持游戏线程 RUNNABLE，线程被系统挂起后时间停止。修复：OPPO 忙等参数收紧至 busyInterval=16、busyDuration=4ms（占空比 12.5%），看门狗检测间隔 4s→3s，每 32ms 做一次 4ms 忙等可突破 ColorOS 空闲检测窗口。同时覆盖 Realme、OnePlus 设备（共用 ColorOS 电源管理栈）
-- **修复：弟子详情界面血量条和灵力条不自动恢复** — 打开弟子详情界面时血量条和灵力条的视觉进度条不随时间增长。根因为进度条动画仅在旬切换时（每~30秒）更新动画目标，旬内即使HP已恢复进度条仍冻结。修复：进度条动画改为直接响应HP/MP数值变化，每次恢复都平滑过渡
-- **修复：TapTap SDK 初始化兼容性崩溃（#4018）** — TapTap SDK v4.10.0 内部 sandbox hook 机制在华为 HarmonyOS / x86 模拟器等设备上触发 `SIGILL(ILL_ILLOPC)` 非法指令。升级至 v4.10.1 并在初始化外层增加兜底 `catch(Throwable)`，SDK 内部异常不再导致应用崩溃
 
 ## [4.0.18] - 2026-06-22（versionCode=4018）
 
