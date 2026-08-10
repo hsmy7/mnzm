@@ -83,16 +83,26 @@ object DiscipleStatCalculator {
     /**
      * 突破大境界成功后的寿命增益（对齐玩家 DiscipleBreakthroughHandler 算法）。
      *
-     * 境界基准增益 + 天赋寿命加成（加成的整数部分），供玩家与 AI 突破共用。
+     * 境界基准增益 + （天赋 + 词条）寿命加成（加成的整数部分），供玩家与 AI 突破共用。
+     *
+     * 2026-08-10 修复：原实现漏词条加成——出生口径（DiscipleFactory）含词条、突破口径
+     * 不含，带"延年"词条弟子每次突破后 lifespan 恒落后于特质加成水平，最终被
+     * AgeLifespanRule 截断死循环导致永生（"工作槽弟子不老不死"根因之一）。
      *
      * @param newRealm 突破后的新境界
      * @param talentIds 弟子天赋 ID 列表
+     * @param affixIds 弟子词条 ID 列表
      * @return 寿命增益值
      */
-    fun calculateBreakthroughLifespanGain(newRealm: Int, talentIds: List<String>): Int {
+    fun calculateBreakthroughLifespanGain(
+        newRealm: Int,
+        talentIds: List<String>,
+        affixIds: List<String>
+    ): Int {
         val baseGain = lifespanGainForRealm(newRealm)
         val lifespanTalentBonus =
-            TalentDatabase.calculateTalentEffects(talentIds)["lifespan"] ?: 0.0
+            (TalentDatabase.calculateTalentEffects(talentIds)["lifespan"] ?: 0.0) +
+                (AffixDatabase.calculateAffixEffects(affixIds)["lifespan"] ?: 0.0)
         return if (lifespanTalentBonus != 0.0) {
             baseGain + (baseGain * lifespanTalentBonus).toInt()
         } else {

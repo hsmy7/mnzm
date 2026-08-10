@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.config.InventoryConfig
+import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentRegistry
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
@@ -136,7 +137,9 @@ class DiscipleLifecycleProcessorTest {
                 inventoryConfig = InventoryConfig(),
                 spiritStoneWallet = mock(com.xianxia.sect.core.wallet.SpiritStoneWallet::class.java),
                 gameConfigProvider = mock(com.xianxia.sect.core.engine.config.GameConfigProvider::class.java)
-            )
+            ),
+            // 2026-08-10 统一死亡入口：真实实例（markDead 写 isAlive=0 + status=DEAD + deathYear）
+            deathHandler = DiscipleDeathHandler()
         )
     }
 
@@ -153,6 +156,7 @@ class DiscipleLifecycleProcessorTest {
         statusData: Map<String, String> = emptyMap(),
         social: SocialData = SocialData(),
         skills: SkillStats = SkillStats(),
+        affixIds: List<String> = emptyList(),
         skipTablesIsAlive: Boolean = false
     ) {
         val disciple = Disciple(
@@ -165,7 +169,8 @@ class DiscipleLifecycleProcessorTest {
             status = status,
             statusData = statusData,
             social = social,
-            skills = skills
+            skills = skills,
+            affixIds = affixIds
         )
         tables.insert(disciple)
         if (!skipTablesIsAlive) {
@@ -271,6 +276,49 @@ class DiscipleLifecycleProcessorTest {
     }
 
     // ══════════════════════════════════════
+    // 2026-08-10：延年词条寿元上限 E2E（AgeLifespanRule 回滚循环根治验证）
+    // 炼气（realm=9）maxAge=80；r3_aff_lifespan +28% → computeMaxAge = 80×1.28 = 102
+    // ══════════════════════════════════════
+
+    @Test
+    fun `processDiscipleAging - 延年词条弟子寿元上限内不死亡`() = runTest {
+        // age=99 → 老化后 100 < 102（computeMaxAge）→ 存活
+        insertDisciple(1, age = 99, lifespan = 80, affixIds = listOf("r3_aff_lifespan"))
+        disciplesFlow.value = tables.assembleAll()
+
+        processor.processDiscipleAging(currentYear = 10)
+
+        assertTrue("延年弟子在 lifespan 之上 computeMaxAge 之下应存活",
+            tables.ids.contains(1))
+        assertEquals("年龄应正常 +1 而非被回滚", 100, tables.ages[1])
+        assertEquals("活弟子不应被标记死亡", 1, tables.isAlive[1])
+    }
+
+    @Test
+    fun `processDiscipleAging - 延年词条弟子到 computeMaxAge 才死亡`() = runTest {
+        // age=101 → 老化后 102 >= 102（computeMaxAge）→ 死亡，死亡年龄 102
+        insertDisciple(1, age = 101, lifespan = 80, affixIds = listOf("r3_aff_lifespan"))
+        disciplesFlow.value = tables.assembleAll()
+
+        processor.processDiscipleAging(currentYear = 10)
+
+        val idPresent = tables.ids.contains(1)
+        assertFalse("延年弟子在 computeMaxAge 时死亡", idPresent)
+        assertEquals("死亡年份已记录", 10, tables.deathYears.getOrDefault(1, -1))
+    }
+
+    @Test
+    fun `processDiscipleAging - 无词条弟子 lifespan 即上限照常死亡`() = runTest {
+        // 对照：无词条 age=80 → 老化后 81 >= 80 → 死亡（对照组验证修复未改变无词条行为）
+        insertDisciple(1, age = 80, lifespan = 80)
+        disciplesFlow.value = tables.assembleAll()
+
+        processor.processDiscipleAging(currentYear = 10)
+
+        assertFalse("无词条弟子照常死亡", tables.ids.contains(1))
+    }
+
+    // ══════════════════════════════════════
     // processReflectionRelease
     // ══════════════════════════════════════
 
@@ -352,6 +400,20 @@ class DiscipleLifecycleProcessorTest {
         processor.handleDiscipleDeath(deadDisciple, isOutsideSect = false)
 
         assertEquals("death year should be 10", 10, tables.deathYears[1])
+    }
+
+    @Test
+    fun `handleDiscipleDeath - 统一入口写 isAlive=0 status=DEAD`() = runTest {
+        // 2026-08-10：markDead 统一死亡标记（isAlive + status + deathYear 三字段）
+        insertDisciple(1, age = 80)
+        disciplesFlow.value = tables.assembleAll()
+        val deadDisciple = tables.assemble(1)
+
+        processor.handleDiscipleDeath(deadDisciple, isOutsideSect = false)
+
+        assertEquals("isAlive 应为 0", 0, tables.isAlive[1])
+        assertEquals("status 应为 DEAD", DiscipleStatus.DEAD, tables.statuses[1])
+        assertEquals("deathYear 已写", 10, tables.deathYears[1])
     }
 
     @Test

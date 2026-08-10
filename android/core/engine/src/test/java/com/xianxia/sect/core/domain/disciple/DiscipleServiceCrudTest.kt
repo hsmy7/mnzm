@@ -83,10 +83,13 @@ class DiscipleServiceCrudTest {
             }
         }
 
+        // getSlots 必须 stub：clearDiscipleFromAllSlots（2026-08-10 重构为全建筑同步清理）
+        // 会遍历 Repository 槽位，mock 默认 null 会 NPE
+        val productionRepo = mock<com.xianxia.sect.core.repository.ProductionSlotRepository>()
+        Mockito.`when`(productionRepo.getSlots()).thenReturn(emptyList())
         val slotManager = DiscipleSlotManager(
             stateStore = mockStore,
-            productionSlotRepository = mock(),
-            scopeProvider = mock(),
+            productionSlotRepository = productionRepo,
             discipleSlotCleanup = DiscipleSlotCleanup(
                 DiscipleAssignmentGate(DiscipleAssignmentRegistry())
             ),

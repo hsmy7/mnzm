@@ -135,7 +135,7 @@ class DiscipleBreakthroughHandler @Inject constructor(
             disciple = disciple.copy(
                 lifespan = disciple.lifespan +
                     DiscipleStatCalculator.calculateBreakthroughLifespanGain(
-                        disciple.realm, disciple.talentIds
+                        disciple.realm, disciple.talentIds, disciple.affixIds
                     )
             )
         }

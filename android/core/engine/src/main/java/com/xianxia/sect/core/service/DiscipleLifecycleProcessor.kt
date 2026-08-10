@@ -11,7 +11,7 @@ import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.recordGameEvent
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService
-import com.xianxia.sect.core.engine.domain.disciple.computeMaxAge
+import com.xianxia.sect.core.domain.disciple.computeMaxAge
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
@@ -22,6 +22,7 @@ import com.xianxia.sect.core.event.DomainEvent
 import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.engine.annotation.GameService
 import com.xianxia.sect.core.engine.di.IoDispatcher
+import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import com.xianxia.sect.core.util.AppError
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -34,6 +35,7 @@ import javax.inject.Singleton
 
 @Singleton
 @GameService("DiscipleLifecycleProcessor")
+@Suppress("LongParameterList") // 10 个领域服务依赖注入（老化/死亡编排中枢，detekt 上限 10），2026-08-10 加入 deathHandler
 class DiscipleLifecycleProcessor @Inject constructor(
     private val stateStore: GameStateStore,
     private val scopeProvider: CoroutineScopeProvider,
@@ -44,6 +46,7 @@ class DiscipleLifecycleProcessor @Inject constructor(
     private val discipleStatusService: DiscipleStatusService,
     private val ioDispatcher: IoDispatcher,
     private val inventorySystem: com.xianxia.sect.core.engine.system.InventorySystem,
+    private val deathHandler: DiscipleDeathHandler,
 ) {
     private val scope get() = scopeProvider.scope
 
@@ -161,7 +164,8 @@ class DiscipleLifecycleProcessor @Inject constructor(
     ) {
         val id = agedDisciple.id.toIntOrNull() ?: return
         // ── 槽位清理（事务内版本，替换 handleDiscipleDeath 的独立 update）──
-        gameData = discipleSlotCleanup.clearAllSlots(gameData, agedDisciple.id, includeResidence = true)
+        // state 级：Gate + GameData 槽位 + 世界地图探索队（teams）一次清完
+        discipleSlotCleanup.clearAllSlotsState(this, agedDisciple.id, includeResidence = true)
 
         // ── 哀悼期批量写（L1b 列直写：替代 propagateGriefToRelatives 全列表 map + replaceAll 全表重建）──
         // computeBereavementRecords 必须在写列之前列读（事件判定需要传播前的 griefEndYears 列值）
@@ -287,7 +291,11 @@ class DiscipleLifecycleProcessor @Inject constructor(
                 discipleTables.lifeEvents[grievingId] =
                     discipleTables.lifeEvents.getOrDefault(grievingId, emptyList()) + event
             }
-            discipleTables.deathYears[idInt] = currentYear
+            // 2026-08-10 统一死亡入口：markDead 写 isAlive=0 + status=DEAD + deathYear
+            //（原实现只写 deathYears，isAlive/status 依赖调用方补偿——洞窟/战斗事件
+            //  两个调用点已补偿标记，本改动为统一入口防御，防止未来调用点遗漏；
+            //  对已补偿路径幂等无害）
+            deathHandler.markDead(discipleTables, idInt, currentYear)
 
             gameData = gameData.copy(
                 bloodRefinementBonusTotals = gameData.bloodRefinementBonusTotals - disciple.id,
@@ -440,8 +448,9 @@ class DiscipleLifecycleProcessor @Inject constructor(
 
     fun clearDiscipleFromAllSlots(discipleId: String) {
         // 在 update 锁内完成清理，避免 TOCTOU（锁外读取 gameData 再用整块覆写会丢其他并发写入）
+        // state 级：Gate + GameData 槽位 + 世界地图探索队（teams）一次清完
         stateStore.update {
-            gameData = discipleSlotCleanup.clearAllSlots(gameData, discipleId, includeResidence = true)
+            discipleSlotCleanup.clearAllSlotsState(this, discipleId, includeResidence = true)
         }
 
         // 双存储同步：清全部生产槽 Repository（DAO 操作不能放入 stateStore.update，异常时无法回滚内存已写入的清理）

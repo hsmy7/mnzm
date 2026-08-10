@@ -13,8 +13,18 @@ import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.model.SpiritMineSlot
 import com.xianxia.sect.core.model.WarehouseGarrisonSlot
 import com.xianxia.sect.core.model.WorldSect
+import com.xianxia.sect.core.model.ActiveMission
+import com.xianxia.sect.core.model.CaveExplorationStatus
+import com.xianxia.sect.core.model.CaveExplorationTeam
+import com.xianxia.sect.core.model.ExplorationTeam
+import com.xianxia.sect.core.model.MissionDifficulty
+import com.xianxia.sect.core.model.MissionRewardConfig
+import com.xianxia.sect.core.model.MissionTemplate
 import com.xianxia.sect.core.model.production.BuildingType
 import com.xianxia.sect.core.model.production.ProductionSlot
+import com.xianxia.sect.core.state.DiscipleTables
+import com.xianxia.sect.core.state.EntityStore
+import com.xianxia.sect.core.state.MutableGameState
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -291,5 +301,122 @@ class DiscipleSlotCleanupTest {
         val otherSlot = result.productionSlots.find { it.id == "p2" }
         assertNotNull(otherSlot)
         assertEquals(otherId, otherSlot!!.assignedDiscipleId)
+    }
+
+    // ---- 2026-08-10：洞府探索队 / 悬赏任务（clearAllSlotsDataOnly 补齐）----
+
+    @Test
+    fun clearAllSlots_caveTeamSingleMember_setsCompleted() {
+        val data = GameData(
+            caveExplorationTeams = listOf(
+                CaveExplorationTeam(
+                    id = "c1",
+                    memberIds = listOf(testDiscipleId),
+                    memberNames = listOf("Test")
+                )
+            )
+        )
+        val result = cleanup.clearAllSlots(data, testDiscipleId)
+        val team = result.caveExplorationTeams[0]
+        assertTrue("仅剩死者成员的队伍应清空", team.memberIds.isEmpty())
+        assertTrue("成员名同步清空", team.memberNames.isEmpty())
+        assertEquals("空队应标记 COMPLETED", CaveExplorationStatus.COMPLETED, team.status)
+    }
+
+    @Test
+    fun clearAllSlots_caveTeamMultipleMembers_removesDeadKeepsSurvivors() {
+        val survivor = "survivor_1"
+        val data = GameData(
+            caveExplorationTeams = listOf(
+                CaveExplorationTeam(
+                    id = "c1",
+                    memberIds = listOf(testDiscipleId, survivor),
+                    memberNames = listOf("Test", "Survivor")
+                )
+            )
+        )
+        val result = cleanup.clearAllSlots(data, testDiscipleId)
+        val team = result.caveExplorationTeams[0]
+        assertEquals("剩余成员继续探索", listOf(survivor), team.memberIds)
+        assertEquals("成员名同步过滤", listOf("Survivor"), team.memberNames)
+        assertEquals("未清空保持原状态", CaveExplorationStatus.TRAVELING, team.status)
+    }
+
+    @Test
+    fun clearAllSlots_activeMission_removesDeadMember() {
+        val survivor = "survivor_1"
+        val data = GameData(
+            activeMissions = listOf(
+                ActiveMission(
+                    missionId = "m1",
+                    template = MissionTemplate.ESCORT_CARAVAN,
+                    difficulty = MissionDifficulty.SIMPLE,
+                    rewards = MissionRewardConfig(),
+                    discipleIds = listOf(testDiscipleId, survivor),
+                    discipleNames = listOf("Test", "Survivor")
+                )
+            )
+        )
+        val result = cleanup.clearAllSlots(data, testDiscipleId)
+        val mission = result.activeMissions[0]
+        assertEquals("死者成员从悬赏任务移除", listOf(survivor), mission.discipleIds)
+        assertEquals("成员名同步过滤", listOf("Survivor"), mission.discipleNames)
+    }
+
+    // ---- 2026-08-10：state 级方法（Gate + GameData + 世界地图探索队 teams）----
+
+    @Test
+    fun clearAllSlotsState_teamSingleMember_deletesEmptyTeam() {
+        val state = mutableStateWithTeams(listOf(testDiscipleId))
+        cleanup.clearAllSlotsState(state, testDiscipleId, includeResidence = true)
+        assertTrue("空探索队应整体删除", state.teams.isEmpty())
+    }
+
+    @Test
+    fun clearAllSlotsState_teamMultipleMembers_removesDeadKeepsSurvivors() {
+        val survivor = "survivor_1"
+        val state = mutableStateWithTeams(listOf(testDiscipleId, survivor))
+        cleanup.clearAllSlotsState(state, testDiscipleId, includeResidence = true)
+        assertEquals("剩余成员保留在队中", listOf(survivor), state.teams[0].memberIds)
+        assertEquals("成员名同步过滤", listOf("Survivor"), state.teams[0].memberNames)
+    }
+
+    @Test
+    fun clearAllSlotsState_releasesAssignmentGate() {
+        val state = mutableStateWithTeams(emptyList())
+        val gate = DiscipleAssignmentGate(DiscipleAssignmentRegistry())
+        gate.manualRegister(
+            testDiscipleId,
+            com.xianxia.sect.core.model.SlotRef(
+                category = com.xianxia.sect.core.model.SlotCategory.SPIRIT_MINE,
+                slotType = "spiritMine",
+                slotId = "spiritMine_0"
+            )
+        )
+        val gatedCleanup = DiscipleSlotCleanup(gate)
+        gatedCleanup.clearAllSlotsState(state, testDiscipleId, includeResidence = true)
+        assertFalse("Gate 注册表应释放", gate.isAssigned(testDiscipleId))
+    }
+
+    private fun mutableStateWithTeams(memberIds: List<String>): MutableGameState {
+        val memberNames = memberIds.mapIndexed { i, _ -> if (i == 0) "Test" else "Survivor" }
+        return MutableGameState(
+            gameData = GameData(),
+            discipleTables = DiscipleTables(),
+            equipmentStacks = EntityStore(),
+            equipmentInstances = EntityStore(),
+            manualStacks = EntityStore(),
+            manualInstances = EntityStore(),
+            pills = EntityStore(),
+            materials = EntityStore(),
+            herbs = EntityStore(),
+            seeds = EntityStore(),
+            storageBags = EntityStore(),
+            teams = listOf(ExplorationTeam(id = "t1", memberIds = memberIds, memberNames = memberNames)),
+            battleLogs = emptyList(),
+            isPaused = false,
+            isLoading = false,
+            isSaving = false
+        )
     }
 }

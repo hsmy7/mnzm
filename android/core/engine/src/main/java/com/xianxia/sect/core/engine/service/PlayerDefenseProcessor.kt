@@ -9,6 +9,7 @@ import com.xianxia.sect.core.engine.domain.battle.AISectGarrisonManager
 import com.xianxia.sect.core.engine.domain.battle.AttackWarningService
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.Combatant
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import com.xianxia.sect.core.model.AttackWarning
@@ -57,7 +58,8 @@ class PlayerDefenseProcessor @Inject constructor(
     private val attackWarningService: AttackWarningService,
     private val cultivationService: CultivationService,
     private val sectWarehouseManager: SectWarehouseManager,
-    private val deathHandler: DiscipleDeathHandler
+    private val deathHandler: DiscipleDeathHandler,
+    private val discipleSlotCleanup: DiscipleSlotCleanup
 ) {
 
     /**
@@ -109,7 +111,9 @@ class PlayerDefenseProcessor @Inject constructor(
         stateStore.update {
             // 1. 防守方选择和准备（从锁内最新数据读取）
             val preparation = selectAndPrepareDefenders(this, expired)
-            if (preparation == null) return@update
+            if (preparation == null) {
+                return@update
+            }
             val defenderIds = preparation.defenderIds
 
             // 2. 战斗前结算 + 刷新防守方状态
@@ -198,6 +202,12 @@ class PlayerDefenseProcessor @Inject constructor(
         // 2. 伤亡结算
         val newDisciples = applyDefenseCasualties(state, result)
         state.discipleTables.replaceAll(newDisciples)
+        // 2b. 阵亡弟子从所有槽位清理（2026-08-10：原实现补偿式死亡标记但不清槽——
+        // 被征召的巡逻弟子阵亡后永久残留巡逻槽/生产槽，界面继续显示"在岗"；
+        // replaceAll 只影响 disciple 列，与 GameData 槽位清理互不冲突）
+        result.deadDefenderIds.forEach { id ->
+            discipleSlotCleanup.clearAllSlotsState(state, id, includeResidence = true)
+        }
 
         // 3. 查找玩家宗门信息
         val playerSectId = state.gameData.worldMapSects

@@ -1,15 +1,15 @@
-package com.xianxia.sect.core.engine.domain.disciple
+package com.xianxia.sect.core.domain.disciple
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.registry.TalentDatabase
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
  * 验证 [Disciple.computeMaxAge] 扩展函数的正确性。
  *
- * 寿元计算规则：maxOf(lifespan, realmMaxAge, talentLifespan)
+ * 寿元计算规则：maxOf(lifespan, realmMaxAge, traitLifespan)
  * 硬上限 [ABSOLUTE_MAX_AGE_CEILING] = 20000
  */
 class DiscipleAgeCalculatorTest {
@@ -76,6 +76,36 @@ class DiscipleAgeCalculatorTest {
     @Test
     fun `lifespan99999因硬上限20000使 maxAge 为20000`() {
         val d = Disciple(id = "9", realm = 9, age = 50, lifespan = 99999, talentIds = emptyList())
-        assertEquals(20000, d.computeMaxAge())
+        assertEquals(ABSOLUTE_MAX_AGE_CEILING, d.computeMaxAge())
+    }
+
+    // ── 2026-08-10 新增：词条（延年/夭折）参与寿元派生 ─────────────────────
+
+    @Test
+    fun `词条延年28pc使炼气弟子 maxAge 从80提升至102`() {
+        val affixIds = listOf("r3_aff_lifespan")
+        val d = Disciple(id = "10", realm = 9, age = 50, lifespan = 80, affixIds = affixIds)
+        // 80 × (1 + 0.28) = 102.4 → 102
+        assertEquals(102, d.computeMaxAge())
+    }
+
+    @Test
+    fun `天赋45pc与词条28pc叠加使炼气弟子 maxAge 提升至138`() {
+        val talentIds = listOf("r5_lifespan")
+        val affixIds = listOf("r3_aff_lifespan")
+        val d = Disciple(
+            id = "11", realm = 9, age = 50, lifespan = 80,
+            talentIds = talentIds, affixIds = affixIds
+        )
+        // 80 × (1 + 0.45 + 0.28) = 138.4 → 138
+        assertEquals(138, d.computeMaxAge())
+    }
+
+    @Test
+    fun `词条夭折15pc压低特质寿元但不低于 realmMaxAge`() {
+        val affixIds = listOf("neg_aff_lifespan")
+        val d = Disciple(id = "12", realm = 9, age = 50, lifespan = 80, affixIds = affixIds)
+        // 特质寿元 80 × (1 - 0.15) = 68，仍取 max(lifespan=80, realmMaxAge=80) = 80
+        assertEquals(80, d.computeMaxAge())
     }
 }

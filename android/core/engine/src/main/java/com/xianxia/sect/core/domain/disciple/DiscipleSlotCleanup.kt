@@ -1,9 +1,15 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
+import com.xianxia.sect.core.model.ActiveMission
+import com.xianxia.sect.core.model.BloodRefinementProgress
+import com.xianxia.sect.core.model.CaveExplorationStatus
+import com.xianxia.sect.core.model.CaveExplorationTeam
 import com.xianxia.sect.core.model.DirectDiscipleSlot
+import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GarrisonSlot
+import com.xianxia.sect.core.state.MutableGameState
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -59,16 +65,13 @@ class DiscipleSlotCleanup @Inject constructor(
 
         val updatedElderSlots = clearElderSlots(data.elderSlots, discipleId)
 
-        val updatedResidenceSlots = if (includeResidence) {
-            data.residenceSlots.map {
-                if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
-            }
-        } else {
-            data.residenceSlots
-        }
+        val updatedResidenceSlots = clearResidenceSlots(
+            data.residenceSlots, discipleId, includeResidence
+        )
 
-        val updatedActiveBloodRefinements = data.activeBloodRefinements.toMutableMap()
-        updatedActiveBloodRefinements.entries.removeAll { it.value.discipleId == discipleId }
+        val updatedActiveBloodRefinements = clearActiveBloodRefinements(
+            data.activeBloodRefinements, discipleId
+        )
 
         val updatedPatrolSlots = data.patrolSlots.map {
             if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
@@ -101,6 +104,11 @@ class DiscipleSlotCleanup @Inject constructor(
             else it
         }
 
+        val updatedCaveExplorationTeams = clearCaveExplorationTeams(
+            data.caveExplorationTeams, discipleId
+        )
+        val updatedActiveMissions = clearActiveMissions(data.activeMissions, discipleId)
+
         return data.copy(
             spiritMineSlots = updatedSpiritMineSlots,
             librarySlots = updatedLibrarySlots,
@@ -111,8 +119,119 @@ class DiscipleSlotCleanup @Inject constructor(
             warehouseGarrisons = updatedWarehouseGarrisons,
             battleTeams = updatedBattleTeams,
             worldMapSects = updatedWorldMapSects,
-            productionSlots = updatedProductionSlots
+            productionSlots = updatedProductionSlots,
+            caveExplorationTeams = updatedCaveExplorationTeams,
+            activeMissions = updatedActiveMissions
         )
+    }
+
+    /**
+     * 事务内全量槽位清理（state 级）：Gate 注册表 + GameData 槽位（含洞府探索队/悬赏任务）
+     * + 世界地图探索队（teams，GameData 外独立字段）。
+     *
+     * 专供 [stateStore.update] 事务内部使用——assignmentGate.release 为纯内存操作，
+     * 事务内调用安全；teams 是事务 buffer 可写字段。
+     *
+     * 不清理 [MutableGameState.secretRealmSession] 的 members——秘境队伍已有
+     * 恢复净化（读档自愈）覆盖，避免此处与秘境生命周期竞态。
+     *
+     * @param state 事务内的可变游戏状态
+     * @param discipleId 要清除的弟子 ID
+     * @param includeResidence 是否清理住所槽位，同 [clearAllSlots]
+     */
+    fun clearAllSlotsState(
+        state: MutableGameState,
+        discipleId: String,
+        includeResidence: Boolean = false
+    ) {
+        assignmentGate.release(discipleId)
+        state.gameData = clearAllSlotsDataOnly(state.gameData, discipleId, includeResidence)
+        // 世界地图探索队：移除死者成员；空队删除整队（对齐 ExplorationTeamManager.recallDiscipleFromTeam）
+        if (state.teams.any { discipleId in it.memberIds }) {
+            state.teams = state.teams.mapNotNull { team ->
+                if (discipleId !in team.memberIds) {
+                    team
+                } else {
+                    val remainingIds = team.memberIds.filter { it != discipleId }
+                    val remainingNames = team.memberNames.filterIndexed { i, _ ->
+                        team.memberIds[i] != discipleId
+                    }
+                    if (remainingIds.isEmpty()) null
+                    else team.copy(memberIds = remainingIds, memberNames = remainingNames)
+                }
+            }
+        }
+    }
+
+    /**
+     * 住所槽位清理：includeResidence 为 true 时清空，否则原样返回（工作分配保留住所语义）。
+     */
+    private fun clearResidenceSlots(
+        slots: List<ResidenceSlot>,
+        discipleId: String,
+        includeResidence: Boolean
+    ): List<ResidenceSlot> = if (includeResidence) {
+        slots.map {
+            if (it.discipleId == discipleId) it.copy(discipleId = "", discipleName = "") else it
+        }
+    } else {
+        slots
+    }
+
+    /**
+     * 血炼进度清理：移除指定弟子的进行中血炼记录（原地修改语义保留）。
+     */
+    private fun clearActiveBloodRefinements(
+        refinements: Map<String, BloodRefinementProgress>,
+        discipleId: String
+    ): Map<String, BloodRefinementProgress> {
+        val updated = refinements.toMutableMap()
+        updated.entries.removeAll { it.value.discipleId == discipleId }
+        return updated
+    }
+
+    /**
+     * 洞府探索队清理：移除死者成员，剩余成员继续探索；
+     * 整队仅剩死者则标记 COMPLETED（与洞窟探索"空队终止"语义一致）。
+     */
+    private fun clearCaveExplorationTeams(
+        teams: List<CaveExplorationTeam>,
+        discipleId: String
+    ): List<CaveExplorationTeam> = teams.map { team ->
+        if (discipleId !in team.memberIds) {
+            team
+        } else {
+            val remainingIds = team.memberIds.filter { it != discipleId }
+            val remainingNames = team.memberNames.filterIndexed { i, _ ->
+                team.memberIds[i] != discipleId
+            }
+            if (remainingIds.isEmpty()) {
+                team.copy(
+                    memberIds = emptyList(), memberNames = emptyList(),
+                    status = CaveExplorationStatus.COMPLETED
+                )
+            } else {
+                team.copy(memberIds = remainingIds, memberNames = remainingNames)
+            }
+        }
+    }
+
+    /**
+     * 悬赏任务清理：移除死者成员，其余成员继续执行。
+     */
+    private fun clearActiveMissions(
+        missions: List<ActiveMission>,
+        discipleId: String
+    ): List<ActiveMission> = missions.map { mission ->
+        if (discipleId !in mission.discipleIds) {
+            mission
+        } else {
+            val remainingIds = mission.discipleIds.filter { it != discipleId }
+            val remainingNames = mission.discipleNames.filterIndexed { i, _ ->
+                mission.discipleIds[i] != discipleId
+            }
+            mission.copy(discipleIds = remainingIds, discipleNames = remainingNames)
+        }
     }
 
     private fun clearElderSlots(slots: ElderSlots, discipleId: String): ElderSlots {

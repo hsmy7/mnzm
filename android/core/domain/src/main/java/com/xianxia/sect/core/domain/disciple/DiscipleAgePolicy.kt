@@ -1,4 +1,4 @@
-package com.xianxia.sect.core.engine.domain.disciple
+package com.xianxia.sect.core.domain.disciple
 
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Disciple
@@ -16,6 +16,11 @@ import com.xianxia.sect.core.registry.TalentDatabase
  * 第 3 项含词条（"延年" aff_lifespan）——洗炼天赋/词条（洗入/洗掉寿命加成词条）后，
  * 寿元派生与当前特质保持一致（对抗性审查 2026-08-09：原实现只派生天赋，
  * 洗入"延年"后寿元不涨；配合洗炼 confirm 的 lifespan 字段同步，双保险）。
+ *
+ * **寿元上限计算唯一来源**（2026-08-10 下沉 domain）：引擎死亡判定（DiscipleLifecycleProcessor）、
+ * AI 老化（AISectDiscipleManager）、招募老化（RecruitService）、存档校验（AgeLifespanRule）
+ * 均以此为准。禁止在其他模块复制/改写本公式——引擎与存档校验口径分歧曾导致
+ * "工作槽弟子永生"Bug（规则截断回 lifespan 而引擎允许活到本函数上限）。
  */
 fun Disciple.computeMaxAge(): Int {
     val realmMaxAge = GameConfig.Realm.get(realm).maxAge
@@ -30,4 +35,4 @@ fun Disciple.computeMaxAge(): Int {
 }
 
 /** 寿元计算绝对硬上限（防止数据损坏导致弟子永生） */
-private const val ABSOLUTE_MAX_AGE_CEILING = 20000
+const val ABSOLUTE_MAX_AGE_CEILING = 20000

@@ -53,7 +53,7 @@ import com.xianxia.sect.core.model.teaching
 import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.model.weaponNurture
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
-import com.xianxia.sect.core.engine.domain.disciple.computeMaxAge
+import com.xianxia.sect.core.domain.disciple.computeMaxAge
 import com.xianxia.sect.core.engine.EquipmentNurtureSystem
 import com.xianxia.sect.core.engine.ManualProficiencySystem
 import com.xianxia.sect.core.util.NameService
@@ -690,7 +690,7 @@ object AISectDiscipleManager {
             working.copy(
                 lifespan = working.lifespan +
                     DiscipleStatCalculator.calculateBreakthroughLifespanGain(
-                        working.realm, working.talentIds
+                        working.realm, working.talentIds, working.affixIds
                     )
             )
         } else {

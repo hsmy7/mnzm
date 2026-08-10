@@ -142,7 +142,6 @@ class DiscipleLibrarySlotSwapTest {
         val slotManager = DiscipleSlotManager(
             stateStore = mockStore,
             productionSlotRepository = mock(),
-            scopeProvider = mock(),
             discipleSlotCleanup = DiscipleSlotCleanup(gate),
             discipleStatusServiceProvider = javax.inject.Provider { mock() },
             ioDispatcher = IoDispatcher()

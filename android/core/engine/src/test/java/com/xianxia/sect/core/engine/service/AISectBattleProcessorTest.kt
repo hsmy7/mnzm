@@ -2,21 +2,44 @@ package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.engine.SectWarehouseManager
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.battle.aisRngManager
 import com.xianxia.sect.core.engine.domain.battle.AIBattleWinner
 import com.xianxia.sect.core.engine.domain.battle.AISectAttackManager
 import com.xianxia.sect.core.engine.domain.battle.AttackWarningService
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
+import com.xianxia.sect.core.engine.domain.battle.PlayerLootLossResult
 import com.xianxia.sect.core.engine.domain.building.BuildingFacade
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentRegistry
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.exploration.DiscipleDeathHandler
+import com.xianxia.sect.core.model.ActiveMission
 import com.xianxia.sect.core.model.AttackWarning
+import com.xianxia.sect.core.model.BloodRefinementPctTotal
+import com.xianxia.sect.core.model.CaveExplorationStatus
+import com.xianxia.sect.core.model.CaveExplorationTeam
+import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.model.DiscipleAggregate
+import com.xianxia.sect.core.model.DiscipleStatsProvider
+import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.EquipmentInstance
+import com.xianxia.sect.core.model.ExplorationTeam
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.MissionDifficulty
+import com.xianxia.sect.core.model.MissionRewardConfig
+import com.xianxia.sect.core.model.MissionTemplate
 import com.xianxia.sect.core.model.SectDetail
 import com.xianxia.sect.core.model.SectWarehouse
+import com.xianxia.sect.core.model.SpiritMineSlot
 import com.xianxia.sect.core.model.WarehouseItem
 import com.xianxia.sect.core.model.WarningStage
 import com.xianxia.sect.core.model.WorldSect
+import com.xianxia.sect.core.model.production.BuildingType
+import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
@@ -29,12 +52,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
 import org.mockito.Mockito
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.whenever
+import org.robolectric.RobolectricTestRunner
 
 
 /**
@@ -44,14 +69,88 @@ import org.mockito.kotlin.whenever
  * 说明：AI-vs-AI 决策应用与玩家占领防御构建的深度断言依赖完整游戏状态构造，
  * 由 CaveExplorationProcessorTest.buildDefenseBattleEnemies + 全量集成回归兜底。
  */
+@RunWith(RobolectricTestRunner::class)
 class AISectBattleProcessorTest {
 
     private val attackWarningService = mock<AttackWarningService>()
+    private var previousStatsProvider: DiscipleStatsProvider = DiscipleAggregate.statsProvider
 
     @Before
     fun setUp() {
         // decidePlayerAttack/decideAttacks 真实执行依赖分区 RNG 注入
         aisRngManager = GameRngManager()
+        // 2026-08-10 防守阵亡集成用例：AI 弟子转战斗者依赖 statsProvider
+        // （domain 默认 no-op 全 0 → AI 战斗者 hp=0 开局全灭，防守永无阵亡）
+        previousStatsProvider = DiscipleAggregate.statsProvider
+        DiscipleAggregate.statsProvider = object : DiscipleStatsProvider {
+            override fun getBaseStats(disciple: Disciple) = DiscipleStatCalculator.getBaseStats(disciple)
+            override fun getBaseStats(aggregate: DiscipleAggregate) = DiscipleStatCalculator.getBaseStats(aggregate)
+            override fun getTalentEffects(disciple: Disciple) = DiscipleStatCalculator.getTalentEffects(disciple)
+            override fun getTalentEffects(aggregate: DiscipleAggregate) =
+                DiscipleStatCalculator.getTalentEffects(aggregate)
+            override fun getStatsWithEquipment(
+                disciple: Disciple, equipments: Map<String, EquipmentInstance>
+            ) = DiscipleStatCalculator.getStatsWithEquipment(disciple, equipments)
+            override fun getStatsWithEquipment(
+                aggregate: DiscipleAggregate, equipments: Map<String, EquipmentInstance>
+            ) = DiscipleStatCalculator.getStatsWithEquipment(aggregate, equipments)
+            override fun getFinalStats(
+                disciple: Disciple, equipments: Map<String, EquipmentInstance>,
+                manuals: Map<String, ManualInstance>,
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: BloodRefinementPctTotal?
+            ) = DiscipleStatCalculator.getFinalStats(
+                disciple, equipments, manuals, manualProficiencies, bloodRefinementPct
+            )
+            override fun getFinalStats(
+                aggregate: DiscipleAggregate, equipments: Map<String, EquipmentInstance>,
+                manuals: Map<String, ManualInstance>,
+                manualProficiencies: Map<String, ManualProficiencyData>,
+                bloodRefinementPct: BloodRefinementPctTotal?
+            ) = DiscipleStatCalculator.getFinalStats(
+                aggregate, equipments, manuals, manualProficiencies, bloodRefinementPct
+            )
+            override fun calculateCultivationSpeed(
+                disciple: Disciple, manuals: Map<String, ManualInstance>,
+                manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double,
+                additionalBonus: Double, preachingElderBonus: Double, preachingMastersBonus: Double,
+                cultivationSubsidyBonus: Double, parentCultivationBonus: Double,
+                griefCultivationSpeedPenalty: Double, masterDiscipleBonus: Double
+            ) = DiscipleStatCalculator.calculateCultivationPerPhase(
+                disciple, manuals, manualProficiencies, buildingBonus,
+                preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus,
+                parentCultivationBonus, griefCultivationSpeedPenalty
+            )
+            override fun calculateCultivationSpeed(
+                aggregate: DiscipleAggregate, manuals: Map<String, ManualInstance>,
+                manualProficiencies: Map<String, ManualProficiencyData>, buildingBonus: Double,
+                additionalBonus: Double, preachingElderBonus: Double, preachingMastersBonus: Double,
+                cultivationSubsidyBonus: Double, parentCultivationBonus: Double,
+                griefCultivationSpeedPenalty: Double, masterDiscipleBonus: Double
+            ) = DiscipleStatCalculator.calculateCultivationPerPhase(
+                aggregate, manuals, manualProficiencies, buildingBonus,
+                preachingElderBonus, preachingMastersBonus, cultivationSubsidyBonus,
+                parentCultivationBonus, griefCultivationSpeedPenalty
+            )
+            override fun getBreakthroughChance(
+                disciple: Disciple, innerElderComprehension: Int,
+                outerElderComprehension: Int, pillBonus: Double,
+                adBonus: Double, griefBreakthroughPenalty: Double,
+                masterDiscipleBonus: Double
+            ) = DiscipleStatCalculator.getBreakthroughChance(
+                disciple, innerElderComprehension, outerElderComprehension,
+                pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus
+            )
+            override fun getBreakthroughChance(
+                aggregate: DiscipleAggregate, innerElderComprehension: Int,
+                outerElderComprehension: Int, pillBonus: Double,
+                adBonus: Double, griefBreakthroughPenalty: Double,
+                masterDiscipleBonus: Double
+            ) = DiscipleStatCalculator.getBreakthroughChance(
+                aggregate, innerElderComprehension, outerElderComprehension,
+                pillBonus, adBonus, griefBreakthroughPenalty, masterDiscipleBonus
+            )
+        }
         // 共享 mock：每个测试重置计数（verify(mock).method() 为 times(1) 精确匹配）
         Mockito.reset(attackWarningService)
     }
@@ -60,6 +159,7 @@ class AISectBattleProcessorTest {
     fun tearDown() {
         // 恢复默认值防跨类静态污染（P-14 H3 同类问题）
         aisRngManager = null
+        DiscipleAggregate.statsProvider = previousStatsProvider
     }
 
     @Test
@@ -148,7 +248,10 @@ class AISectBattleProcessorTest {
             attackWarningService = attackWarningService,
             cultivationService = mock<CultivationService>(),
             sectWarehouseManager = mock<SectWarehouseManager>(),
-            deathHandler = mock<DiscipleDeathHandler>()
+            deathHandler = mock<DiscipleDeathHandler>(),
+            discipleSlotCleanup = DiscipleSlotCleanup(
+                DiscipleAssignmentGate(DiscipleAssignmentRegistry())
+            )
         )
         val processor = AISectBattleProcessor(
             stateStore = store,
@@ -190,7 +293,10 @@ class AISectBattleProcessorTest {
             attackWarningService = attackWarningService,
             cultivationService = mock<CultivationService>(),
             sectWarehouseManager = mock<SectWarehouseManager>(),
-            deathHandler = mock<DiscipleDeathHandler>()
+            deathHandler = mock<DiscipleDeathHandler>(),
+            discipleSlotCleanup = DiscipleSlotCleanup(
+                DiscipleAssignmentGate(DiscipleAssignmentRegistry())
+            )
         )
         val processor = AISectBattleProcessor(
             stateStore = store,
@@ -234,8 +340,10 @@ class AISectBattleProcessorTest {
         )
     }
 
-    private fun makeState(data: GameData = GameData()): MutableGameState {
-        val tables = DiscipleTables().apply { writeAllowed = true }
+    private fun makeState(
+        data: GameData = GameData(),
+        tables: DiscipleTables = DiscipleTables().apply { writeAllowed = true }
+    ): MutableGameState {
         return MutableGameState(
             gameData = data,
             discipleTables = tables,
@@ -423,4 +531,151 @@ class AISectBattleProcessorTest {
         processor.processAISectOperations(2026, 1, state)
         assertEquals("同月重复调用跳过", 0, processor.currentAIBatchMonths())
     }
+
+    // ── 2026-08-10：玩家防守阵亡 → 从全部槽位清除（PlayerDefenseProcessor 清槽）──
+    // 集成链路：到期预警 → 真实防御战斗（AI 强弟子全灭玩家）→ deadDefenderIds 清槽
+
+    @Test
+    fun `玩家防守阵亡 - 生产槽矿洞槽世界地图探索队清除`() {
+        val playerId = "1"
+        val tables = DiscipleTables().apply { writeAllowed = true }
+        tables.insert(makeWeakDefender(playerId))
+        tables.isAlive[1] = 1
+
+        val aiDisciples = (2..11).map { i -> makeStrongAIDisciple(i.toString()) }
+        val data = GameData(
+            gameYear = 2026, gameMonth = 1,
+            worldMapSects = listOf(
+                WorldSect(id = "player", isPlayerSect = true),
+                WorldSect(id = "ai1", name = "AI宗", isPlayerSect = false)
+            ),
+            aiSectDisciples = mapOf("ai1" to aiDisciples),
+            activeAttackWarnings = listOf(
+                AttackWarning(
+                    warningId = "w1", attackerSectId = "ai1", attackerSectName = "AI宗",
+                    stage = WarningStage.WAR_DECLARATION,
+                    attackMonth = 2026 * 12, createdAtMonth = 2026 * 12 - 6
+                )
+            ),
+            productionSlots = listOf(
+                ProductionSlot(
+                    id = "p1", slotIndex = 0, buildingType = BuildingType.ALCHEMY,
+                    assignedDiscipleId = playerId, assignedDiscipleName = "防守弟子"
+                )
+            ),
+            spiritMineSlots = listOf(
+                SpiritMineSlot(index = 0, discipleId = playerId, discipleName = "防守弟子")
+            )
+        )
+        val state = makeState(data, tables)
+        state.teams = listOf(
+            ExplorationTeam(id = "t1", memberIds = listOf(playerId), memberNames = listOf("防守弟子"))
+        )
+
+        val processor = makeDefenseProcessor(state)
+        processor.processPlayerDefenseBattles()
+
+        // 死亡标记（applyDefenseCasualties 补偿式标记）
+        assertEquals("防守弟子标记 DEAD", DiscipleStatus.DEAD, tables.statuses[1])
+        // 槽位清理（2026-08-10 修复：此前只清锻造 Repository 且跳过 isWorking）
+        assertTrue("生产槽镜像清空", state.gameData.productionSlots.all { it.assignedDiscipleId == null })
+        assertEquals("矿洞槽清空", "", state.gameData.spiritMineSlots[0].discipleId)
+        // 世界地图探索队：空队整体删除
+        assertTrue("空探索队删除", state.teams.isEmpty())
+        // 到期预警已删除
+        assertTrue("到期预警已删除", state.gameData.activeAttackWarnings.isEmpty())
+    }
+
+    @Test
+    fun `玩家防守阵亡 - 洞穴探索队和悬赏任务清除`() {
+        val playerId = "1"
+        val tables = DiscipleTables().apply { writeAllowed = true }
+        tables.insert(makeWeakDefender(playerId))
+        tables.isAlive[1] = 1
+
+        val aiDisciples = (2..11).map { i -> makeStrongAIDisciple(i.toString()) }
+        val data = GameData(
+            gameYear = 2026, gameMonth = 1,
+            worldMapSects = listOf(
+                WorldSect(id = "player", isPlayerSect = true),
+                WorldSect(id = "ai1", name = "AI宗", isPlayerSect = false)
+            ),
+            aiSectDisciples = mapOf("ai1" to aiDisciples),
+            activeAttackWarnings = listOf(
+                AttackWarning(
+                    warningId = "w1", attackerSectId = "ai1", attackerSectName = "AI宗",
+                    stage = WarningStage.WAR_DECLARATION,
+                    attackMonth = 2026 * 12, createdAtMonth = 2026 * 12 - 6
+                )
+            ),
+            caveExplorationTeams = listOf(
+                CaveExplorationTeam(
+                    id = "c1", memberIds = listOf(playerId), memberNames = listOf("防守弟子")
+                )
+            ),
+            activeMissions = listOf(
+                ActiveMission(
+                    missionId = "m1", template = MissionTemplate.ESCORT_CARAVAN,
+                    difficulty = MissionDifficulty.SIMPLE, rewards = MissionRewardConfig(),
+                    discipleIds = listOf(playerId), discipleNames = listOf("防守弟子")
+                )
+            )
+        )
+        val state = makeState(data, tables)
+
+        val processor = makeDefenseProcessor(state)
+        processor.processPlayerDefenseBattles()
+
+        val caveTeam = state.gameData.caveExplorationTeams[0]
+        assertEquals("洞穴探索队空队标记 COMPLETED", CaveExplorationStatus.COMPLETED, caveTeam.status)
+        assertTrue("洞穴探索队成员已清空", caveTeam.memberIds.isEmpty())
+        assertTrue("悬赏任务成员已移除", state.gameData.activeMissions[0].discipleIds.isEmpty())
+        assertTrue("悬赏任务成员名已移除", state.gameData.activeMissions[0].discipleNames.isEmpty())
+    }
+
+    private fun makeDefenseProcessor(state: MutableGameState): PlayerDefenseProcessor {
+        val store = mock<GameStateStore>()
+        whenever(store.gameData).thenReturn(MutableStateFlow(state.gameData))
+        whenever(store.discipleTables).thenReturn(state.discipleTables)
+        whenever(store.update(any())).thenAnswer { inv ->
+            inv.getArgument<MutableGameState.() -> Unit>(0).invoke(state)
+        }
+        // BattleSystem 是 final class，Mockito 无法 stub 其 final 方法（静默返回 null）；
+        // 用真实实例 + 已注册的真实 statsProvider（@Before），转换走真实属性
+        val battleSystem = BattleSystem(checkNotNull(aisRngManager))
+        val sectWarehouseManager = mock<SectWarehouseManager>()
+        whenever(sectWarehouseManager.calculateWarehouseLootLoss(any()))
+            .thenReturn(PlayerLootLossResult(lostSpiritStones = 0, lostMaterials = emptyMap()))
+        whenever(sectWarehouseManager.applyLootLossToWarehouse(any(), any())).thenReturn(SectWarehouse())
+        return PlayerDefenseProcessor(
+            stateStore = store,
+            battleSystem = battleSystem,
+            attackWarningService = attackWarningService,
+            cultivationService = mock<CultivationService>(),
+            sectWarehouseManager = sectWarehouseManager,
+            deathHandler = mock<DiscipleDeathHandler>(),
+            discipleSlotCleanup = DiscipleSlotCleanup(
+                DiscipleAssignmentGate(DiscipleAssignmentRegistry())
+            )
+        )
+    }
+
+    private fun makeWeakDefender(id: String): Disciple = Disciple(
+        id = id, name = "防守弟子", realm = 9, realmLayer = 1, age = 30, lifespan = 80,
+        status = DiscipleStatus.IDLE, isAlive = true,
+        combat = CombatAttributes(
+            baseHp = 50, baseMp = 10, basePhysicalAttack = 1, baseMagicAttack = 1,
+            basePhysicalDefense = 1, baseMagicDefense = 1, baseSpeed = 1
+        )
+    )
+
+    private fun makeStrongAIDisciple(id: String): Disciple = Disciple(
+        id = id, name = "AI弟子", realm = 9, realmLayer = 5, age = 30, lifespan = 80,
+        status = DiscipleStatus.IDLE, isAlive = true,
+        combat = CombatAttributes(
+            baseHp = 10000, baseMp = 5000, basePhysicalAttack = 800, baseMagicAttack = 800,
+            basePhysicalDefense = 500, baseMagicDefense = 500, baseSpeed = 100
+        )
+    )
+
 }

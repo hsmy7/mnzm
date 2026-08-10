@@ -4,6 +4,7 @@ import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentRegistry
+import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService
 import com.xianxia.sect.core.event.EventBusPort
@@ -139,7 +140,9 @@ class DeathPipelineEquivalenceTest {
                 inventoryConfig = InventoryConfig(),
                 spiritStoneWallet = mock(com.xianxia.sect.core.wallet.SpiritStoneWallet::class.java),
                 gameConfigProvider = mock(com.xianxia.sect.core.engine.config.GameConfigProvider::class.java)
-            )
+            ),
+            // 2026-08-10 统一死亡入口：真实实例（markDead 写 isAlive=0 + status=DEAD + deathYear）
+            deathHandler = DiscipleDeathHandler()
         )
     }
 

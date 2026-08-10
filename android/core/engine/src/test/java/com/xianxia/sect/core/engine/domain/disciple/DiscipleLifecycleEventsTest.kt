@@ -85,7 +85,6 @@ class DiscipleLifecycleEventsTest {
         val slotManager = DiscipleSlotManager(
             stateStore = mockStore,
             productionSlotRepository = mock(),
-            scopeProvider = mock(),
             discipleSlotCleanup = DiscipleSlotCleanup(
                 DiscipleAssignmentGate(DiscipleAssignmentRegistry())
             ),

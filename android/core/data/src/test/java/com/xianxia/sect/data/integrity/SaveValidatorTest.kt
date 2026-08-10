@@ -414,11 +414,12 @@ class SaveValidatorTest {
         assertEquals(98.0, disciples[0].cultivation, 0.001)
         assertEquals("", disciples[0].equipment.weaponId)
         assertEquals(80, disciples[0].age)
-        // d2: cultivation capped, armor cleared, age clamped to 100
+        // d2: cultivation capped, armor cleared, age clamped to computeMaxAge
+        // （2026-08-10 口径对齐：截断目标由 lifespan 改为 computeMaxAge——realm 8 寿元上限 120 > lifespan 100）
         val expectedMaxD2 = 390.0 + 4.0 * (1560.0 - 390.0) / 9.0
         assertEquals(expectedMaxD2, disciples[1].cultivation, 0.001)
         assertEquals("", disciples[1].equipment.armorId)
-        assertEquals(100, disciples[1].age)
+        assertEquals(120, disciples[1].age)
     }
 
     @Test

@@ -7,8 +7,6 @@ import com.xianxia.sect.core.model.ExplorationStatus
 import com.xianxia.sect.core.model.GarrisonSlot
 import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.util.CoroutineScopeProvider
-import kotlinx.coroutines.launch
 import com.xianxia.sect.core.engine.di.IoDispatcher
 import javax.inject.Inject
 import javax.inject.Provider
@@ -28,7 +26,6 @@ import javax.inject.Singleton
 class DiscipleSlotManager @Inject constructor(
     private val stateStore: GameStateStore,
     private val productionSlotRepository: ProductionSlotRepository,
-    private val scopeProvider: CoroutineScopeProvider,
     private val discipleSlotCleanup: DiscipleSlotCleanup,
     /** 使用 Provider 打破 Hilt 循环依赖：DiscipleStatusService → DiscipleLifecycleManager → DiscipleSlotManager → DiscipleStatusService */
     private val discipleStatusServiceProvider: Provider<DiscipleStatusService>,
@@ -61,19 +58,26 @@ class DiscipleSlotManager @Inject constructor(
 
     /**
      * Clear disciple from all slots and assignments
+     *
+     * 2026-08-10 对齐 DiscipleLifecycleProcessor.clearDiscipleFromAllSlots 完整范式：
+     * 旧版只清锻造槽且跳过 isWorking（炼丹/灵田槽残留导致被逐弟子继续显示在生产界面——
+     * 双槽分叉根因），且 Repository 清理为异步 fire-and-forget（跨线程竞态）。
+     * 现统一为：事务内 state 级清理（Gate + GameData + teams）+ 同步阻塞清全部建筑
+     * Repository 槽位（含进行中工作槽——弟子已被逐出，工作中断）。
      */
     fun clearDiscipleFromAllSlots(discipleId: String) {
-        stateStore.update { gameData = discipleSlotCleanup.clearAllSlots(gameData, discipleId, includeResidence = true) }
+        stateStore.update {
+            discipleSlotCleanup.clearAllSlotsState(this, discipleId, includeResidence = true)
+        }
 
-        val forgeSlots = productionSlotRepository.getSlotsByBuildingId(BUILDING_FORGE)
-        for (slot in forgeSlots) {
-            if (slot.assignedDiscipleId == discipleId && !slot.isWorking) {
-                scopeProvider.scope.launch(ioDispatcher.dispatcher) {
-                    productionSlotRepository.updateSlotByBuildingId(BUILDING_FORGE, slot.slotIndex) { s ->
+        kotlinx.coroutines.runBlocking(ioDispatcher.dispatcher) {
+            productionSlotRepository.getSlots()
+                .filter { it.assignedDiscipleId == discipleId }
+                .forEach { slot ->
+                    productionSlotRepository.updateSlotByBuildingId(slot.buildingId, slot.slotIndex) { s ->
                         s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
                     }
                 }
-            }
         }
     }
 

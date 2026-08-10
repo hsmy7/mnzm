@@ -683,7 +683,10 @@ object RedeemCodeManager {
         val affixIds = AffixDatabase.generateForDisciple(random).map { it.id }
 
         val talents = TalentDatabase.getTalentsByIds(talentIds)
-        val lifespanBonus = talents.sumOf { it.effects["lifespan"] ?: 0.0 }
+        // 2026-08-10 修复：兑换路径并入词条寿命加成（此前只算天赋——
+        // 带"延年"词条兑换弟子 lifespan 低于特质加成水平，同出生/突破口径对齐）
+        val lifespanBonus = talents.sumOf { it.effects["lifespan"] ?: 0.0 } +
+            (AffixDatabase.calculateAffixEffects(affixIds)["lifespan"] ?: 0.0)
         // 属性方差（7 次 random 调用，顺序与原一致：hp/mp/pa/ma/pd/md/spd）
         val hpVariance = generateVariance(random)
         val mpVariance = generateVariance(random)
@@ -788,7 +791,10 @@ object RedeemCodeManager {
             cfg.minAge + random.nextInt(cfg.maxAge - cfg.minAge + 1)
         }
         val realmConfig = GameConfig.Realm.get(cfg.realm)
-        val lifespan = (realmConfig.maxAge * (1.0 + (-0.1 + random.nextDouble() * 0.2))).toInt()
+        // 2026-08-10 修复：±10% 波动下限侧（×0.9）出生即低于境界基准寿元——
+        // 与出生/突破口径（不低于 realmMaxAge）对齐，防 lifespan 恒落后触发截断死循环
+        val lifespan = (realmConfig.maxAge * (1.0 + (-0.1 + random.nextDouble() * 0.2)))
+            .toInt().coerceAtLeast(realmConfig.maxAge)
         return age to lifespan
     }
 

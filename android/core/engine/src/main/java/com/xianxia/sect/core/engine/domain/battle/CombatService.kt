@@ -157,7 +157,16 @@ class CombatService @Inject constructor(
                 gameData = gameData.copy(
                     elderSlots = liveElderSlots,
                     spiritMineSlots = liveSpiritMineSlots,
-                    librarySlots = liveLibrarySlots
+                    librarySlots = liveLibrarySlots,
+                    // 2026-08-10：生产槽镜像清理（原实现漏 productionSlots 镜像——
+                    // 阶段 3 只清 Repository，镜像残留会在读档重建/自愈时把死弟子
+                    // 重新挂回生产界面；WORKING 槽无工人后 ProductionProcessor
+                    // 跳过结算，不产出不崩溃——"战斗死亡中断生产"语义）
+                    productionSlots = gameData.productionSlots.map {
+                        if (it.assignedDiscipleId in deadMemberIds)
+                            it.copy(assignedDiscipleId = null, assignedDiscipleName = "")
+                        else it
+                    }
                 )
 
                 // E. 幸存者HP/MP
@@ -171,10 +180,13 @@ class CombatService @Inject constructor(
         }
 
         // ── 阶段 3：跨 Repository 写入（无法纳入 stateStore 事务） ──
-        val forgeSlots = productionSlotRepository.getSlotsByBuildingId("forge")
-        for (slot in forgeSlots) {
-            if (slot.assignedDiscipleId in deadMemberIds && !slot.isWorking) {
-                productionSlotRepository.updateSlotByBuildingId("forge", slot.slotIndex) { s ->
+        // 2026-08-10：原实现只清锻造槽且跳过 isWorking——isWorking 跳过 = 战斗阵亡
+        // 弟子继续占位生产（死亡中断不了生产），forge-only = 炼丹/灵田槽残留（双槽
+        // 分叉根因）。改为全建筑清理（含进行中工作槽：弟子已阵亡，生产中段）。
+        val allSlots = productionSlotRepository.getSlots()
+        for (slot in allSlots) {
+            if (slot.assignedDiscipleId in deadMemberIds) {
+                productionSlotRepository.updateSlotByBuildingId(slot.buildingId, slot.slotIndex) { s ->
                     s.copy(assignedDiscipleId = null, assignedDiscipleName = "")
                 }
             }
