@@ -1,5 +1,12 @@
 ## [4.00.94] - 2026-08-10
 
+### 修复（2026-08-11 建筑虚影 + 地砖覆盖建筑精灵根治——共享 Paint alpha 泄漏）
+
+- **根因（渲染优化 WP3 建筑阴影引入）** — `SoftwareCanvasBackend` 的 `drawShadowRect` 把半透明黑（alpha=0.2×255=51）写入共享的 ChunkTile `rebuildPaint` 且不恢复：`Paint.setColor` 会更新 alpha，同一 chunk 内阴影之后的建筑精灵 drawBitmap 以 20% alpha 烘焙（建筑虚影），后续建筑地砖与下一轮 rebuild 的地面/装饰同样被污染（"地砖覆盖建筑"实为精灵半透明后下层透出）。症状仅在 Canvas 软件渲染回退路径出现（Vulkan 黑名单/初始化失败真机）；Vulkan 侧排查闭合：`sprite.frag` 为 texture×vertexColor 乘算语义阴影 quad 无视觉污染，KTX 图集 alpha 解码验证正常，无需修改
+- **修复（独立 shadowPaint）** — ChunkTile 新增独立 `shadowPaint` 实例（一次性构造，与 highlight/crop/preview 独立 Paint 惯例一致），阴影绘制改传 shadowPaint——共享 rebuildPaint 永不再被阴影修改，结构性免疫
+- **测试（回归双用例，先红后绿）** — `SoftwareCanvasBackendHighlightTest` +2：精灵不被阴影污染（阴影 on/off 帧精灵内像素差 ≤8，修复前 on≈131 vs off≈255）、跨 rebuild 残留（含阴影重建后地面恢复不透明灰 100，修复前 ≈214）；fixtures 新增 `createSpriteAtlas()`（1024×1024 含真实源矩形坐标，解决迷你图集源矩形越界导致建筑精灵不绘制的旧测试盲区）
+- **兼容性** — 纯渲染实现变更，无 Entity/Migration/存档格式变更（DATABASE_VERSION 不变）
+
 ### 修复（2026-08-11 金手指一键建造四项 Bug 根治——重入框选 + 选区跟随 + 边框对齐 + 空地拖动视角）
 
 - **Bug 1 松手后无法继续框选** — `MainGameScreen.onLongPress` 的 `!goldFingerState.isActive` 门控拦截重入。移除门控：已激活时重入不改动选区（等待 MOVE 重新框定，包围盒语义可扩大可缩小，含拖过锚点翻转）；`onDragEnd` 保持不复位（用户要求"金手指不该复位"）。预览角入口图标门控同步移除（激活后仍显示，提示可继续框选）

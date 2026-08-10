@@ -170,6 +170,16 @@ class SoftwareCanvasBackend(
         }
 
         /**
+         * 建筑阴影 Paint（WP7 独立实例——drawShadowRect 会写入半透明黑 color
+         * 且不恢复；Paint.setColor 更新 alpha，共用 rebuildPaint 会把 20% alpha
+         * 泄漏给后续地砖/精灵/地面绘制 → 建筑虚影 + 地砖透出。与 highlight/
+         * crop/preview 独立 Paint 惯例一致）
+         */
+        private val shadowPaint = Paint().apply {
+            color = shadowPaintColor
+        }
+
+        /**
          * 重建 chunk 位图。
          *
          * @param decorSkip 装饰层跳过判定（WP5：由 RenderLodPolicy 在 renderFrame
@@ -351,7 +361,7 @@ class SoftwareCanvasBackend(
                 // ★ 建筑投影阴影（地砖之上、精灵之下；与 C++ drawAllTiles (A2) 段同数学）
                 if (buildingShadows) {
                     val offset = tileSize * BuildingRenderGeometry.SHADOW_OFFSET_TILES
-                    drawShadowRect(canvas, rebuildPaint,
+                    drawShadowRect(canvas, shadowPaint,
                         ((gx * tileSize + offset - view.camX) * view.scale).roundToInt(),
                         ((gy * tileSize + offset - view.camY) * view.scale).roundToInt(),
                         (((gx + fpW) * tileSize + offset - view.camX) * view.scale).roundToInt(),

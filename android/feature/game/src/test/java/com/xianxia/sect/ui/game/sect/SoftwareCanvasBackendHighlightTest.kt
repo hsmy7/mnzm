@@ -96,6 +96,68 @@ class SoftwareCanvasBackendHighlightTest {
         )
     }
 
+    /**
+     * 阴影污染回归（WP7）：drawShadowRect 曾把 alpha=51 的半透明黑写入共享
+     * rebuildPaint 且不恢复（Paint.setColor 更新 alpha），导致同一 chunk 内
+     * 阴影之后的建筑精灵以 20% alpha 烘焙 → 建筑虚影 + 地砖透出。
+     *
+     * 采样 (8,8)：灵田精灵 (0,0)-(64,64) 内、阴影矩形 (16,16)-(80,80) 外——
+     * 纯精灵区，阴影开关不应改变该像素（精灵最后绘制覆盖阴影）。
+     */
+    @Test
+    fun `renderFrame - building sprite is not dimmed by shadow paint leakage`() {
+        val td = createFlatTileData(10, 10)
+        val spriteAtlas = createSpriteAtlas()
+
+        // 阴影开启（真实绘制路径）：精灵应为纯白 255（RGB_565 → 248）
+        val onPx = backend.renderFrame(spiritFieldFrame(td), spriteAtlas, 200, 200)!!
+            .getPixel(8, 8)
+
+        // 阴影关闭：精灵应一致（阴影在 (16,16) 起，不覆盖 (8,8)）
+        val offBackend = SoftwareCanvasBackend(
+            testRenderConfig(renderFlags = RenderFlags(buildingShadows = false))
+        )
+        val offPx = offBackend.renderFrame(spiritFieldFrame(td), spriteAtlas, 200, 200)!!
+            .getPixel(8, 8)
+
+        // 修复前红：on≈128（白×0.2 叠灰底）vs off≈248 → 差 120
+        assertTrue(
+            "建筑精灵被阴影污染变暗: on=#%06X off=#%06X".format(onPx and 0xFFFFFF, offPx and 0xFFFFFF),
+            kotlin.math.abs(Color.red(onPx) - Color.red(offPx)) <= 8
+        )
+        // 精灵必须真实上屏且不透明（防测试假阳性：若精灵未绘制，on/off 都是地面灰）
+        assertNear(248, Color.red(onPx), 8)
+    }
+
+    /**
+     * 跨 rebuild 残留回归（WP7）：同一 chunk 的 rebuildPaint 被阴影污染后，
+     * 下一轮 rebuild 的地面层 drawBitmap 也以 20% alpha 绘制 → 地面半透明、
+     * 米色底透出。修复后每次 rebuild 地面应恢复不透明灰 100（RGB_565 → 96）。
+     */
+    @Test
+    fun `renderFrame - ground stays opaque after shadowed rebuild`() {
+        val td = createFlatTileData(10, 10)
+        val spriteAtlas = createSpriteAtlas()
+
+        // 帧1：含阴影建筑 → chunk rebuild 时 rebuildPaint 被阴影 alpha 污染
+        backend.renderFrame(spiritFieldFrame(td), spriteAtlas, 200, 200)
+
+        // 帧2：建筑移除（buildingData=null → invalidateAllChunks）→ 地面层重建
+        val frame2 = RenderFrame(
+            camX = 0f, camY = 0f, scale = 1f,
+            tileData = td,
+            cols = 10, rows = 10,
+            buildingData = null,
+            buildingCount = 0,
+            buildingVisible = false
+        )
+        val px = backend.renderFrame(frame2, spriteAtlas, 200, 200)!!
+            .getPixel(32, 32)
+
+        // 修复前红：地面灰 100 ×0.2 叠米色底 ≈ 205（R 通道）
+        assertNear(96, Color.red(px), 8)
+    }
+
     // ============================================================
     // 选中高亮（WP3，金色描边——动态叠加不烘焙 chunk）
     // ============================================================

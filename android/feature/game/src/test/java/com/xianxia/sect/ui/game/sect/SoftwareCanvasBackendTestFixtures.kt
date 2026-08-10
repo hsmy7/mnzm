@@ -94,6 +94,20 @@ internal fun createDecorTileData(cols: Int, rows: Int): IntArray {
 }
 
 /**
+ * 精灵测试图集：1024×1024，含与 SpriteAtlasDef 一致的真实源矩形——
+ * GROUND 源 (0,0,64,64)=灰 100（chunk 底），灵田建筑精灵源
+ * (256,128,384,256)=白 255。解决迷你图集（128×128）源矩形越界导致
+ * 建筑精灵不绘制的盲区——阴影污染回归测试必须让精灵真实上屏。
+ */
+internal fun createSpriteAtlas(): Bitmap {
+    val bmp = Bitmap.createBitmap(1024, 1024, Bitmap.Config.ARGB_8888)
+    val c = Canvas(bmp)
+    c.drawRect(0f, 0f, 64f, 64f, Paint().apply { color = Color.rgb(100, 100, 100) })
+    c.drawRect(256f, 128f, 384f, 256f, Paint().apply { color = Color.WHITE })
+    return bmp
+}
+
+/**
  * 作物测试图集：tile 源 (0,0,64,64)=灰 100（chunk 底），作物三阶段源
  * (832/896/960, 0, 64, 64)=白 255（与 SpriteAtlasDef.CropStage rect 同坐标）。
  * 灵田建筑精灵源 (256,128) 在 64 高图集范围外 → 建筑不可见，不影响断言。
