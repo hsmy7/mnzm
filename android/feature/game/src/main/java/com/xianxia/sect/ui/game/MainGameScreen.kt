@@ -612,10 +612,13 @@ fun MainGameScreen(
                         val gx = (wx / tileSize).toInt()
                         val gy = (wy / tileSize).toInt()
 
-                        // 放置模式 → 金手指图标检测（激活 / 已激活时继续框选）
+                        // 放置模式 → 金手指图标检测：唯一图标随激活状态移动
+                        // （未激活在预览角作入口；激活后跟随 endGrid，按住它即可重入框选）
                         if (isPlacingBuilding) {
-                            val gfWx = (placingSnappedGridX + placingBuildingSize.width) * tileSize
-                            val gfWy = (placingSnappedGridY + placingBuildingSize.height) * tileSize
+                            val gfWx = (if (goldFingerState.isActive) goldFingerState.endGridX
+                                else placingSnappedGridX + placingBuildingSize.width) * tileSize
+                            val gfWy = (if (goldFingerState.isActive) goldFingerState.endGridY
+                                else placingSnappedGridY + placingBuildingSize.height) * tileSize
                             if (wx >= gfWx && wx < gfWx + tileSize &&
                                 wy >= gfWy && wy < gfWy + tileSize
                             ) {
@@ -878,8 +881,9 @@ fun MainGameScreen(
             worldHeightCells = worldHeightCells
         )
 
-        // 金手指图标（建筑预览框右下角）— 放置模式始终显示（激活后作为继续框选的可见入口）
-        if (isPlacingBuilding && goldenFingerBmp != null) {
+        // 金手指图标（建筑预览框右下角）— 仅未激活时显示作入口；
+        // 激活后唯一图标由覆盖层承担（跟随 endGrid，即手指位置）
+        if (isPlacingBuilding && !goldFingerState.isActive && goldenFingerBmp != null) {
             GoldFingerIcon(
                 goldenFingerBmp = goldenFingerBmp,
                 gridX = placingSnappedGridX + placingBuildingSize.width,

@@ -68,6 +68,13 @@
 - **测试** — `DiscipleDeathHandlerTest` 重写 createState（完整 MutableGameState）+ 6 计数用例（单次/逐次/String 重载/不可解析 id/markAllDead 3 人/只计可解析）；`CultivationEventProcessorTest` L79 markAllDead 签名匹配；`CultivationEventMonthlyOpsTest` T1 inOrder 重排（autoBuy 后移，注释 `#1→#2→#3→#5→#6→#7→#8→#9→#11→#20→#18`）；`InventorySystemDeathMaterializeTest` +3 断言（单次 1/重复幂等 1——守卫防双计直接验证/未知 id 0）；`DiscipleServiceCrudTest` expel 成功 1、NotAlive 0、NotFound 0；`RecruitServiceTest` 成功 1 失败 0；`DiscipleFacadeImplRecruitTest` 模拟逻辑同步真实实现（+1）+ 成功断言；回归：受影响服务 27 个测试类三批串行全绿 + 全模块串行全量测试（--max-workers=1，11m14s BUILD SUCCESSFUL）+ compileReleaseKotlin 通过
 - **兼容性** — annual* 字段为 `@SettlementStrategy(PRESERVE_OLD)`，无 Migration/序列化变更（DATABASE_VERSION 不变）；旧档下一年按新逻辑统计
 
+### 修复（2026-08-11 金手指双图标合并——唯一图标跟随手指 + 重入手柄随图标移动）
+
+- **根因** — 两处独立渲染叠加：`GoldFingerIcon` 放置模式始终显示在预览角（入口图标），`GoldFingerSelectionOverlay` 激活后在拖拽末端再画一个（覆盖层图标）；且重入手柄（`onLongPress` 金手指区域检测）固定在预览角，与激活后的图标位置脱节
+- **修复** — ① `GoldFingerIcon` 渲染条件补 `!goldFingerState.isActive`：激活后入口图标隐藏，覆盖层拖拽末端图标成为唯一图标；② `onLongPress` 金手指区域检测坐标随激活状态动态取（未激活预览角 / 激活后 `endGrid`），图标所在格即重入手柄格——编辑模式 DOWN 立即进入 `GoldFingerDrag`，拖动时 `onGoldFingerUpdate` 更新 endGrid，图标跟随手指；激活瞬间入口图标与覆盖层图标同位衔接，全程仅一个图标，二次框选直接按住当前图标即可
+- **测试** — `SectMapTouchEngineTest` / `GoldFingerBuildTest` 全绿（引擎层模拟 callbacks 不涉及区域坐标、纯状态函数均不受影响）+ compileReleaseKotlin + detekt 通过（onLongPress 61 行超限压缩为紧凑写法，baseline 不增）
+- **兼容性** — 纯交互/渲染逻辑变更，无 Entity/Migration/存档格式变更（DATABASE_VERSION 不变）
+
 ## [4.00.93] - 2026-08-09
 
 ### 优化（2026-08-09 每年一月卡顿数秒根治——算法减量 + AI 降频 + 年变分帧）
