@@ -122,6 +122,7 @@ fun AlchemyDialog(
                             fontWeight = FontWeight.Bold,
                             color = Color.Black
                         )
+                        ProfessionInfoButton(isAlchemy = true)
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     ProfessionLabel(level = workerDisciple?.alchemyLevel, isAlchemy = true)

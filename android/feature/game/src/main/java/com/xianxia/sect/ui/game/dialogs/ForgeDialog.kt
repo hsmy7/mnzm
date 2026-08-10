@@ -120,6 +120,7 @@ fun ForgeDialog(
                             fontWeight = FontWeight.Bold,
                             color = Color.Black
                         )
+                        ProfessionInfoButton(isAlchemy = false)
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     ProfessionLabel(level = workerDisciple?.forgeLevel, isAlchemy = false)

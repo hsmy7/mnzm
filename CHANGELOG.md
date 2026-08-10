@@ -69,6 +69,13 @@
 - **回归** — 全模块串行测试（--max-workers=1）+ compileReleaseKotlin + lintRelease + detekt 通过（baseline 只缩不增）；DiscipleSlotCleanup 拆 4 个私有辅助（clearResidenceSlots/clearActiveBloodRefinements/clearCaveExplorationTeams/clearActiveMissions 防 LongMethod），DiscipleLifecycleProcessor 构造 10 依赖加 @Suppress（同 BattleSystem/CultivationEventProcessor 惯例注释）
 - **兼容性** — 无 Entity/Migration/序列化变更（DATABASE_VERSION 不变）；存量已被回滚的弟子年龄修复后单调递增，仍会到达 computeMaxAge 正常死亡，无需数据回填
 
+### 新增（2026-08-10 炼丹/锻造职业等级详情弹窗——炼丹弟子/锻造弟子标题右侧说明按钮）
+
+- **数据层（core:domain）** — `ProfessionRules.kt` 新增 `ProfessionLevelInfo` 数据类 + `professionLevelInfos(isAlchemy)` 纯函数：0~5 级共 6 个条目（等级名 / 可炼最高品阶名 / 晋升要求文本），境界名复用 `GameConfig.Realm.getName`、品阶名复用 `PillRecipeDatabase.getTierName`（不新造映射表，防双份维护）；顶级（丹圣/器圣）`promotionRequirement = null` 表示已满级
+- **UI 层（feature:game）** — `ProfessionUi.kt` 新增 `ProfessionInfoButton`（20dp 圆形 `ui_detail_button` 图标，与执法长老等职务详情按钮样式一致）+ `ProfessionInfoDialog`（复刻 `ElderBonusInfoDialog` 视觉：bg_horizontal 背景 / 12dp 圆角 / DialogSystemBarGuard + DialogFocusGuard / 16sp 标题 + CloseButton / Border 分隔线 / 高度限制 280dp 可滚动）/ `ProfessionLevelEntry`（每级一个半透明白圆角框：等级名 + 可炼最高品阶 + 晋升要求文本）
+- **接入** — AlchemyDialog"炼丹弟子"标题行、ForgeDialog"锻造弟子"标题行右侧各加按钮（`ProfessionInfoButton(isAlchemy = true/false)`），同包零新增 import
+- **测试** — `ProfessionRulesTest` +4 用例（炼丹系 6 级名称品阶 / 炼器系名称 / 晋升要求三重门槛文本 / 顶级已满级 null）；新增 `ProfessionInfoButtonTest`（Robolectric，点击详情按钮弹出炼丹/锻造等级弹窗断言）；全模块 compileReleaseKotlin + lintRelease + detekt 通过
+
 ## [4.00.93] - 2026-08-09
 
 ### 优化（2026-08-09 每年一月卡顿数秒根治——算法减量 + AI 降频 + 年变分帧）

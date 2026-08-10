@@ -1,6 +1,8 @@
 package com.xianxia.sect.core.profession
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.Disciple
+import com.xianxia.sect.core.registry.PillRecipeDatabase
 
 /**
  * 炼丹师/锻造师职业规则（纯逻辑单例，无引擎依赖，engine/feature/test 全链路复用）。
@@ -160,4 +162,38 @@ object ProfessionRules {
         4 -> if (isAlchemy) "炼丹大宗师" else "炼器大宗师"
         else -> if (isAlchemy) "丹圣" else "器圣"
     }
+}
+
+/** 职业等级详情条目（等级详情弹窗展示用，纯文本无 Compose 依赖） */
+data class ProfessionLevelInfo(
+    val level: Int,
+    val name: String,
+    /** 可炼制最高品阶名（凡品/灵品/宝品/玄品/地品/天品） */
+    val maxTierName: String,
+    /** 晋升到下一级的要求文本；顶级（丹圣/器圣）为 null 表示已满级 */
+    val promotionRequirement: String?
+)
+
+/**
+ * 生成 0~5 级职业详情列表（炼丹/锻造等级弹窗数据源）。
+ *
+ * @param isAlchemy true=炼丹职业，false=锻造（炼器）职业
+ */
+fun professionLevelInfos(isAlchemy: Boolean): List<ProfessionLevelInfo> =
+    (0..ProfessionRules.MAX_LEVEL).map { level ->
+        ProfessionLevelInfo(
+            level = level,
+            name = ProfessionRules.displayName(level, isAlchemy),
+            maxTierName = PillRecipeDatabase.getTierName(ProfessionRules.maxCraftableTier(level)),
+            promotionRequirement = if (level >= ProfessionRules.MAX_LEVEL) null
+            else buildPromotionRequirementText(level, isAlchemy)
+        )
+    }
+
+/** 晋升要求描述：成功次数（仅计当前解锁最高阶）/ 境界 / 炼丹（炼器）属性 三重门槛 */
+private fun buildPromotionRequirementText(level: Int, isAlchemy: Boolean): String {
+    val attrName = if (isAlchemy) "炼丹" else "炼器"
+    val realmName = GameConfig.Realm.getName(ProfessionRules.promotionRealmRequirement(level))
+    return "成功炼制 ${ProfessionRules.promotionSuccessRequirement(level)} 次（最高阶）；" +
+        "境界不低于$realmName；$attrName 不低于 ${ProfessionRules.promotionSkillRequirement(level)}"
 }

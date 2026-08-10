@@ -4,6 +4,7 @@ import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.SkillStats
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -259,5 +260,50 @@ class ProfessionRulesTest {
         assertFalse(result.promoted)
         assertEquals(Int.MAX_VALUE, result.disciple.skills.alchemyPromotionCount)
         assertEquals(1, result.disciple.skills.alchemyLevel)
+    }
+
+    // ---- 职业等级详情列表（等级详情弹窗数据源）----
+
+    @Test
+    fun `professionLevelInfos - 炼丹系 6 级名称与可炼品阶正确`() {
+        val infos = professionLevelInfos(isAlchemy = true)
+        assertEquals(6, infos.size)
+        assertEquals(
+            listOf("无职业", "炼丹师", "炼丹大师", "炼丹宗师", "炼丹大宗师", "丹圣"),
+            infos.map { it.name }
+        )
+        assertEquals(
+            listOf("凡品", "灵品", "宝品", "玄品", "地品", "天品"),
+            infos.map { it.maxTierName }
+        )
+    }
+
+    @Test
+    fun `professionLevelInfos - 炼器系名称正确`() {
+        assertEquals(
+            listOf("无职业", "炼器师", "炼器大师", "炼器宗师", "炼器大宗师", "器圣"),
+            professionLevelInfos(isAlchemy = false).map { it.name }
+        )
+    }
+
+    @Test
+    fun `professionLevelInfos - 晋升要求含次数境界属性三重门槛`() {
+        val infos = professionLevelInfos(isAlchemy = true)
+        // 等级 0→1：凡品成功 1 次、境界不低于炼气（realm 9）、炼丹不低于 40
+        assertEquals(
+            "成功炼制 1 次（最高阶）；境界不低于炼气；炼丹 不低于 40",
+            infos[0].promotionRequirement
+        )
+        // 等级 1→2：200 次、金丹（realm 7）、炼丹 55
+        val lvl1 = infos[1].promotionRequirement!!
+        assertTrue(lvl1.contains("200"))
+        assertTrue(lvl1.contains("金丹"))
+        assertTrue(lvl1.contains("55"))
+    }
+
+    @Test
+    fun `professionLevelInfos - 顶级已满级不显示晋升要求`() {
+        assertNull(professionLevelInfos(isAlchemy = true)[5].promotionRequirement)
+        assertNull(professionLevelInfos(isAlchemy = false)[5].promotionRequirement)
     }
 }
