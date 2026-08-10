@@ -1,7 +1,9 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -11,14 +13,11 @@ import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
-import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
-import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito
 import org.robolectric.RobolectricTestRunner
 
 /**
@@ -116,19 +115,16 @@ class ManualProficiencyBenchmarkTest {
             )
         }
 
-        val mockStateStore = Mockito.mock(GameStateStore::class.java)
-        Mockito.`when`(mockStateStore.manualInstances)
-            .thenReturn(MutableStateFlow(emptyList()))
-        Mockito.`when`(mockStateStore.disciples)
-            .thenReturn(MutableStateFlow(emptyList()))
+        // Fake 默认 manualInstances/disciples flow 即空列表——等价 mock 时代 stub
+        val stateStore = FakeAtomicStateStore()
 
         val realHpMpRecoveryService = HpMpRecoveryService()
         core = CultivationCore(
             hpMpRecoveryService = realHpMpRecoveryService,
-            autoPillService = AutoPillService(Mockito.mock(DisciplePillManager::class.java), Mockito.mock()),
+            autoPillService = AutoPillService(mockSmart(DisciplePillManager::class.java), mockSmart()),
             equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
-            cultivationRateCalculator = CultivationRateCalculator(mockStateStore),
+            cultivationRateCalculator = CultivationRateCalculator(stateStore),
             battleSettlementService = BattleSettlementService(realHpMpRecoveryService)
         )
     }

@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.engine.domain.battle.BattleMemberData
 import com.xianxia.sect.core.engine.domain.exploration.MissionSystem
+import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.state.DiscipleTables
@@ -11,7 +12,6 @@ import org.junit.Assert.*
 import org.junit.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
-import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
@@ -33,8 +33,10 @@ class CultivationEventProcessorTest {
 
     @Test
     fun `updateDiscipleHpMpAfterBattle - 幸存者更新HP MP 阵亡者走markAllDead`() {
-        val stateStore = mock<GameStateStore>()
-        val deathHandler = mock<DiscipleDeathHandler>()
+        // mockSmart + 显式 stub：update 被 stub 路由到外部 state（断言基于 state.tables），
+        // 换 Fake 会写内部状态破坏断言语义，故保留 stub 语义仅提升未 stub 调用的兜底
+        val stateStore = mockSmart(GameStateStore::class.java)
+        val deathHandler = mockSmart(DiscipleDeathHandler::class.java)
         val processor = createProcessorWith(stateStore, deathHandler)
 
         val survivor = Disciple(id = "1", name = "幸存", isAlive = true)
@@ -85,31 +87,31 @@ class CultivationEventProcessorTest {
     ): CultivationEventProcessor {
         return CultivationEventProcessor(
             stateStore = stateStore,
-            spiritStoneWallet = mock(),
-            inventorySystem = mock(),
-            inventoryConfig = mock(),
-            scopeProvider = mock(),
-            discipleService = mock(),
-            cultivationCore = mock(),
-            breakthroughHandler = mock(),
-            cultivationSettlement = mock(),
-            battleSystem = mock(),
-            recruitService = mock(),
-            merchantAndRecruitService = mock(),
-            caveExplorationProcessor = mock(),
-            discipleLifecycleProcessor = mock(),
-            diplomacyEventProcessor = mock(),
-            diplomacyService = mock(),
-            equipmentManager = mock(),
-            manualManager = mock(),
-            autoBuyService = mock(),
-            vassalService = mock(),
-            disciplePurchaseService = mock(),
-            aiSectBeastAttackProcessor = mock(),
-            lawEnforcementProcessor = mock(),
-            rngManager = mock(),
-            secretRealmService = mock(),
-            secretRealmAIProcessor = mock(),
+            spiritStoneWallet = mockSmart(),
+            inventorySystem = mockSmart(),
+            inventoryConfig = mockSmart(),
+            scopeProvider = mockSmart(),
+            discipleService = mockSmart(),
+            cultivationCore = mockSmart(),
+            breakthroughHandler = mockSmart(),
+            cultivationSettlement = mockSmart(),
+            battleSystem = mockSmart(),
+            recruitService = mockSmart(),
+            merchantAndRecruitService = mockSmart(),
+            caveExplorationProcessor = mockSmart(),
+            discipleLifecycleProcessor = mockSmart(),
+            diplomacyEventProcessor = mockSmart(),
+            diplomacyService = mockSmart(),
+            equipmentManager = mockSmart(),
+            manualManager = mockSmart(),
+            autoBuyService = mockSmart(),
+            vassalService = mockSmart(),
+            disciplePurchaseService = mockSmart(),
+            aiSectBeastAttackProcessor = mockSmart(),
+            lawEnforcementProcessor = mockSmart(),
+            rngManager = mockSmart(),
+            secretRealmService = mockSmart(),
+            secretRealmAIProcessor = mockSmart(),
             deathHandler = deathHandler
         )
     }

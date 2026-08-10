@@ -3,11 +3,9 @@ package com.xianxia.sect.core.engine.service
 import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.SkillStats
-import com.xianxia.sect.core.repository.ProductionSlotRepository
 import com.xianxia.sect.core.util.BuildingNames
 import org.junit.Assert.*
 import org.junit.Test
-import org.mockito.kotlin.mock
 
 class FormulaServicePureLogicTest {
 
@@ -133,7 +131,7 @@ class FormulaServicePureLogicTest {
     // ==================== buildSuccessRateZones() 真实实现极值测试（对抗性审查回归） ====================
 
     private fun newFormulaService(): FormulaService =
-        FormulaService(FakeAtomicStateStore(), mock<ProductionSlotRepository>())
+        FormulaService(FakeAtomicStateStore(), com.xianxia.sect.core.engine.testProductionSlotRepository())
 
     private fun disciple(
         pillRefining: Int = 50,

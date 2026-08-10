@@ -1,23 +1,19 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.state.DiscipleTables
-import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.util.DomainResult
+import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.di.IoDispatcher
-import kotlinx.coroutines.flow.MutableStateFlow
+import com.xianxia.sect.core.engine.mockSmart
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.Rule
-import org.mockito.Mockito
-import org.mockito.Mockito.mock
 import org.robolectric.RobolectricTestRunner
 
 
@@ -32,68 +28,26 @@ class DiscipleServiceCrudTest {
 
     @get:Rule val writeGuardRule = WriteGuardRule()
     private lateinit var tables: DiscipleTables
-    private lateinit var mutableState: MutableGameState
     private lateinit var mockStore: GameStateStore
     private lateinit var service: DiscipleService
 
     @Before
     fun setUp() {
-        tables = DiscipleTables()
-        mutableState = createMutableState(tables)
+        val store = FakeAtomicStateStore()
+        mockStore = store
+        tables = store.discipleTables
 
-        val delegate = mock(GameStateStore::class.java)
-        Mockito.`when`(delegate.discipleTables).thenReturn(tables)
-        Mockito.`when`(delegate.gameData)
-            .thenReturn(MutableStateFlow(GameData()))
-        Mockito.`when`(delegate.equipmentStacks)
-            .thenReturn(MutableStateFlow(emptyList()))
-        Mockito.`when`(delegate.equipmentInstances)
-            .thenReturn(MutableStateFlow(emptyList()))
-        Mockito.`when`(delegate.manualStacks)
-            .thenReturn(MutableStateFlow(emptyList()))
-        Mockito.`when`(delegate.manualInstances)
-            .thenReturn(MutableStateFlow(emptyList()))
-        Mockito.`when`(delegate.pills)
-            .thenReturn(MutableStateFlow(emptyList()))
-        Mockito.`when`(delegate.materials)
-            .thenReturn(MutableStateFlow(emptyList()))
-        Mockito.`when`(delegate.herbs)
-            .thenReturn(MutableStateFlow(emptyList()))
-        Mockito.`when`(delegate.seeds)
-            .thenReturn(MutableStateFlow(emptyList()))
-        Mockito.`when`(delegate.teams)
-            .thenReturn(MutableStateFlow(emptyList()))
-        Mockito.`when`(delegate.battleLogs)
-            .thenReturn(MutableStateFlow(emptyList()))
-
-        mockStore = object : GameStateStore by delegate {
-            override val discipleTables: DiscipleTables
-                get() = tables
-
-            override fun update(
-        block: MutableGameState.() -> Unit
-            ) {
-                block.invoke(mutableState)
-            }
-
-            override fun <R> updateAndReturn(
-        block: MutableGameState.() -> R
-            ): R {
-                return block.invoke(mutableState)
-            }
-        }
-
-        // getSlots 必须 stub：clearDiscipleFromAllSlots（2026-08-10 重构为全建筑同步清理）
-        // 会遍历 Repository 槽位，mock 默认 null 会 NPE
-        val productionRepo = mock<com.xianxia.sect.core.repository.ProductionSlotRepository>()
-        Mockito.`when`(productionRepo.getSlots()).thenReturn(emptyList())
+        // ProductionSlotRepository 是 final 类：mock 拦截依赖类加载时机（顺序敏感 flaky），
+        // 用真实实例 + mockSmart 端口（getSlots() 真实返回空列表，语义与 mock 时代一致；
+        // clearDiscipleFromAllSlots 遍历该列表）
+        val productionRepo = com.xianxia.sect.core.engine.testProductionSlotRepository()
         val slotManager = DiscipleSlotManager(
             stateStore = mockStore,
             productionSlotRepository = productionRepo,
             discipleSlotCleanup = DiscipleSlotCleanup(
                 DiscipleAssignmentGate(DiscipleAssignmentRegistry())
             ),
-            discipleStatusServiceProvider = javax.inject.Provider { mock() },
+            discipleStatusServiceProvider = javax.inject.Provider { mockSmart() },
             ioDispatcher = IoDispatcher()
         )
         val equipmentService = DiscipleEquipmentService(
@@ -104,21 +58,21 @@ class DiscipleServiceCrudTest {
         )
         val lifecycleManager = DiscipleLifecycleManager(
             stateStore = mockStore,
-            discipleFactory = mock(),
-            rngManager = mock(),
+            discipleFactory = mockSmart(),
+            rngManager = mockSmart(),
             slotManager = slotManager,
-            productionSlotRepository = mock(),
+            productionSlotRepository = mockSmart(),
         )
         service = DiscipleService(
             stateStore = mockStore,
-            discipleFactory = mock(),
-            rngManager = mock(),
+            discipleFactory = mockSmart(),
+            rngManager = mockSmart(),
             discipleEquipmentService = equipmentService,
             discipleLifecycleManager = lifecycleManager,
             discipleMasterApprenticeService = masterService,
             discipleSlotManager = slotManager,
-            discipleStatusService = mock(),
-            inventorySystem = mock(com.xianxia.sect.core.engine.system.InventorySystem::class.java)
+            discipleStatusService = mockSmart(),
+            inventorySystem = mockSmart(com.xianxia.sect.core.engine.system.InventorySystem::class.java)
         )
     }
 
@@ -143,6 +97,8 @@ class DiscipleServiceCrudTest {
         tables.insert(disciple)
         tables.isAlive[id] = 1
     }
+
+
 
     // ═══════════════════════════════════════════════════════════════
     // addDisciple — 成功插入
@@ -280,27 +236,4 @@ class DiscipleServiceCrudTest {
 
         assertTrue("expel non-existent should return Failure", result is DomainResult.Failure)
     }
-
-    // ═══════════════════════════════════════════════════════════════
-    // 辅助
-    // ═══════════════════════════════════════════════════════════════
-
-    private fun createMutableState(tables: DiscipleTables) = MutableGameState(
-        gameData = GameData(),
-        discipleTables = tables,
-        equipmentStacks = EntityStore(emptyList()),
-        equipmentInstances = EntityStore(emptyList()),
-        manualStacks = EntityStore(emptyList()),
-        manualInstances = EntityStore(emptyList()),
-        pills = EntityStore(emptyList()),
-        materials = EntityStore(emptyList()),
-        herbs = EntityStore(emptyList()),
-        seeds = EntityStore(emptyList()),
-        storageBags = EntityStore(emptyList()),
-        teams = emptyList(),
-        battleLogs = emptyList(),
-        isPaused = false,
-        isLoading = false,
-        isSaving = false
-    )
 }

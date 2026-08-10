@@ -1,20 +1,19 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
+import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
-import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
-import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito
 import org.robolectric.RobolectricTestRunner
 
 /**
@@ -36,19 +35,17 @@ class EquipmentNurtureBatchBenchmarkTest {
 
     @Before
     fun setUp() {
-        val mockStateStore = Mockito.mock(GameStateStore::class.java)
-        Mockito.`when`(mockStateStore.manualInstances)
-            .thenReturn(MutableStateFlow(emptyList()))
-        Mockito.`when`(mockStateStore.disciples)
-            .thenReturn(MutableStateFlow(emptyList()))
+        // Fake 默认 manualInstances/disciples flow 即空列表——等价 mock 时代逐条 stub，
+        // 且后续服务扩展读其他 store 状态不会静默 null
+        val stateStore = FakeAtomicStateStore()
 
         val realHpMpRecoveryService = HpMpRecoveryService()
         core = CultivationCore(
             hpMpRecoveryService = realHpMpRecoveryService,
-            autoPillService = AutoPillService(Mockito.mock(DisciplePillManager::class.java), Mockito.mock()),
+            autoPillService = AutoPillService(mockSmart(DisciplePillManager::class.java), mockSmart()),
             equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
-            cultivationRateCalculator = CultivationRateCalculator(mockStateStore),
+            cultivationRateCalculator = CultivationRateCalculator(stateStore),
             battleSettlementService = BattleSettlementService(realHpMpRecoveryService)
         )
     }

@@ -101,7 +101,8 @@ class CultivationSettlementConcurrencyTest {
                 InventoryConfig(),
                 mock(com.xianxia.sect.core.wallet.SpiritStoneWallet::class.java),
                 mock(com.xianxia.sect.core.engine.config.GameConfigProvider::class.java)
-            )
+            ),
+            deathHandler = mock(com.xianxia.sect.core.exploration.DiscipleDeathHandler::class.java)
         )
     }
 

@@ -1,6 +1,8 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
@@ -17,14 +19,11 @@ import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.WriteGuardRule
-import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.Rule
-import org.mockito.Mockito
-import org.mockito.Mockito.mock
 import org.robolectric.RobolectricTestRunner
 
 
@@ -46,15 +45,13 @@ class CultivationServiceIntegrationTest {
 
     @Before
     fun setUp() {
-        tables = DiscipleTables()
-        stateStore = mock(GameStateStore::class.java)
-        Mockito.`when`(stateStore.discipleTables).thenReturn(tables)
-        Mockito.`when`(stateStore.gameData).thenReturn(MutableStateFlow(GameData(gameYear = 1, gameMonth = 6)))
-        Mockito.`when`(stateStore.manualInstances).thenReturn(MutableStateFlow(emptyList()))
-        Mockito.`when`(stateStore.manualStacks).thenReturn(MutableStateFlow(emptyList()))
-        Mockito.`when`(stateStore.equipmentInstances).thenReturn(MutableStateFlow(emptyList()))
-        Mockito.`when`(stateStore.equipmentStacks).thenReturn(MutableStateFlow(emptyList()))
-        Mockito.`when`(stateStore.disciples).thenReturn(MutableStateFlow(emptyList()))
+        // Fake 提供真实语义：discipleTables 为持久实例（insertDisciple 直写、跨事务保留），
+        // 各 flow 默认空列表 + gameData 同步——等价 mock 时代逐条 stub，且后续
+        // 服务扩展读其他 store 状态不会静默 null
+        stateStore = FakeAtomicStateStore().also {
+            it.setGameData(GameData(gameYear = 1, gameMonth = 6))
+        }
+        tables = stateStore.discipleTables
 
         // 初始化 statsProvider（CultivationCore 依赖它计算 disciple.maxCultivation）
         DiscipleAggregate.statsProvider = object : DiscipleStatsProvider {
@@ -80,7 +77,7 @@ class CultivationServiceIntegrationTest {
 
         cultivationCore = CultivationCore(
             hpMpRecoveryService = HpMpRecoveryService(),
-            autoPillService = AutoPillService(mock(), mock()),
+            autoPillService = AutoPillService(mockSmart(), mockSmart()),
             equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
             cultivationRateCalculator = CultivationRateCalculator(stateStore),
@@ -90,15 +87,15 @@ class CultivationServiceIntegrationTest {
         service = CultivationService(
             stateStore = stateStore,
             cultivationCore = cultivationCore,
-            breakthroughHandler = mock(),
-            cultivationSettlement = mock(),
-            eventProcessor = mock(),
-            productionProcessor = mock(),
-            recruitService = mock(),
-            merchantAndRecruitService = mock(),
-            caveExplorationProcessor = mock(),
+            breakthroughHandler = mockSmart(),
+            cultivationSettlement = mockSmart(),
+            eventProcessor = mockSmart(),
+            productionProcessor = mockSmart(),
+            recruitService = mockSmart(),
+            merchantAndRecruitService = mockSmart(),
+            caveExplorationProcessor = mockSmart(),
             sharedState = CultivationSharedState(),
-            discipleService = mock()
+            discipleService = mockSmart()
         )
     }
 

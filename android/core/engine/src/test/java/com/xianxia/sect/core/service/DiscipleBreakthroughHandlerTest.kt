@@ -1,7 +1,9 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_PILL
 import com.xianxia.sect.core.engine.domain.disciple.TYPE_INNER
+import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.ElderSlots
@@ -17,18 +19,15 @@ import com.xianxia.sect.core.model.currentMp
 import com.xianxia.sect.core.model.storageBagItems
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
-import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.util.GameRngManager
-import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.Rule
 import org.mockito.Mockito
-import org.mockito.Mockito.mock
 import org.mockito.kotlin.any
 import org.robolectric.RobolectricTestRunner
 
@@ -40,26 +39,20 @@ class DiscipleBreakthroughHandlerTest {
     @get:Rule val writeGuardRule = WriteGuardRule()
     private lateinit var tables: DiscipleTables
     private lateinit var state: MutableGameState
-    private lateinit var mockStore: GameStateStore
+    private lateinit var stateStore: FakeAtomicStateStore
     private lateinit var cultivationCore: CultivationCore
     private lateinit var handler: DiscipleBreakthroughHandler
 
     @Before
     fun setUp() {
-        tables = DiscipleTables()
+        // Fake 提供真实语义：discipleTables 持久实例（insertDiscipleForBreakthrough 直写、
+        // 跨事务保留）+ gameData 同步 + flows 默认空列表——等价 mock 时代逐条 stub
+        stateStore = FakeAtomicStateStore().also {
+            it.setGameData(GameData(gameYear = 5, gameMonth = 1))
+        }
+        tables = stateStore.discipleTables
         state = createMutableState(tables)
-        cultivationCore = mock(CultivationCore::class.java)
-        mockStore = mock(GameStateStore::class.java)
-
-        Mockito.`when`(mockStore.discipleTables).thenReturn(tables)
-        Mockito.`when`(mockStore.gameData)
-            .thenReturn(MutableStateFlow(GameData(gameYear = 5, gameMonth = 1)))
-        Mockito.`when`(mockStore.manualInstances)
-            .thenReturn(MutableStateFlow(emptyList()))
-        Mockito.`when`(mockStore.manualStacks)
-            .thenReturn(MutableStateFlow(emptyList()))
-        Mockito.`when`(mockStore.disciples)
-            .thenReturn(MutableStateFlow(emptyList()))
+        cultivationCore = mockSmart(CultivationCore::class.java)
         Mockito.`when`(cultivationCore.isDiscipleFullHpMp(
             any<Disciple>(),
             any<MutableGameState>()
@@ -76,10 +69,10 @@ class DiscipleBreakthroughHandlerTest {
         val rngManager = GameRngManager()
         rngManager.initSystemSeed(12345L)
         handler = DiscipleBreakthroughHandler(
-            stateStore = mockStore,
+            stateStore = stateStore,
             cultivationCore = cultivationCore,
-            scopeProvider = mock(),
-            relativeGiftHandler = mock(),
+            scopeProvider = mockSmart(),
+            relativeGiftHandler = mockSmart(),
             rngManager = rngManager
         )
     }

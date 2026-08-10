@@ -1,6 +1,8 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
@@ -12,13 +14,11 @@ import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
-import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.WriteGuardRule
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.onEach
@@ -29,8 +29,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito.mock
-import org.mockito.Mockito.`when`
 import org.robolectric.RobolectricTestRunner
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -49,10 +47,16 @@ class RealtimeCultivationBatchTest {
 
     @get:Rule val writeGuardRule = WriteGuardRule()
     private lateinit var tables: DiscipleTables
+    private lateinit var stateStore: FakeAtomicStateStore
 
     @Before
     fun setUp() {
-        tables = DiscipleTables()
+        // Fake 提供真实语义：discipleTables 持久实例（insertDisciple 直写、跨事务保留），
+        // 各 flow 默认空列表 + gameData 同步——等价 mock 时代的逐条 stub
+        stateStore = FakeAtomicStateStore().also {
+            it.setGameData(GameData(gameYear = 1, gameMonth = 6))
+        }
+        tables = stateStore.discipleTables
         DiscipleAggregate.statsProvider = object : DiscipleStatsProvider {
             override fun getBaseStats(disciple: Disciple) = DiscipleStatCalculator.getBaseStats(disciple)
             override fun getBaseStats(aggregate: DiscipleAggregate) = DiscipleStatCalculator.getBaseStats(aggregate)
@@ -76,18 +80,11 @@ class RealtimeCultivationBatchTest {
     }
 
     private fun buildService(sharedState: CultivationSharedState): CultivationService {
-        val stateStore = mock(GameStateStore::class.java)
-        `when`(stateStore.discipleTables).thenReturn(tables)
-        `when`(stateStore.gameData).thenReturn(MutableStateFlow(GameData(gameYear = 1, gameMonth = 6)))
-        `when`(stateStore.manualInstances).thenReturn(MutableStateFlow(emptyList()))
-        `when`(stateStore.manualStacks).thenReturn(MutableStateFlow(emptyList()))
-        `when`(stateStore.equipmentInstances).thenReturn(MutableStateFlow(emptyList()))
-        `when`(stateStore.equipmentStacks).thenReturn(MutableStateFlow(emptyList()))
-        `when`(stateStore.disciples).thenReturn(MutableStateFlow(emptyList()))
+        // stateStore 为字段 Fake（setUp 创建），服务直读其持久表与默认空 flow
 
         val cultivationCore = CultivationCore(
             hpMpRecoveryService = HpMpRecoveryService(),
-            autoPillService = AutoPillService(mock(), mock()),
+            autoPillService = AutoPillService(mockSmart(), mockSmart()),
             equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
             cultivationRateCalculator = CultivationRateCalculator(stateStore),
@@ -96,15 +93,15 @@ class RealtimeCultivationBatchTest {
         return CultivationService(
             stateStore = stateStore,
             cultivationCore = cultivationCore,
-            breakthroughHandler = mock(),
-            cultivationSettlement = mock(),
-            eventProcessor = mock(),
-            productionProcessor = mock(),
-            recruitService = mock(),
-            merchantAndRecruitService = mock(),
-            caveExplorationProcessor = mock(),
+            breakthroughHandler = mockSmart(),
+            cultivationSettlement = mockSmart(),
+            eventProcessor = mockSmart(),
+            productionProcessor = mockSmart(),
+            recruitService = mockSmart(),
+            merchantAndRecruitService = mockSmart(),
+            caveExplorationProcessor = mockSmart(),
             sharedState = sharedState,
-            discipleService = mock()
+            discipleService = mockSmart()
         )
     }
 

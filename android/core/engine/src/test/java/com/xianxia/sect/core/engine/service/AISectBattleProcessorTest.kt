@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.SectLevel
+import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.SectWarehouseManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.battle.aisRngManager
@@ -13,6 +14,7 @@ import com.xianxia.sect.core.engine.domain.building.BuildingFacade
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentRegistry
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
+import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import com.xianxia.sect.core.model.ActiveMission
 import com.xianxia.sect.core.model.AttackWarning
@@ -54,7 +56,6 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito
-import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
@@ -72,7 +73,7 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class AISectBattleProcessorTest {
 
-    private val attackWarningService = mock<AttackWarningService>()
+    private val attackWarningService = mockSmart<AttackWarningService>()
     private var previousStatsProvider: DiscipleStatsProvider = DiscipleAggregate.statsProvider
 
     @Before
@@ -233,22 +234,18 @@ class AISectBattleProcessorTest {
 
     @Test
     fun `processAISectOperations 入口 - 无预警无AI宗门时全流程安全执行`() {
-        val store = mock<GameStateStore>()
+        // Fake 提供真实语义：update 写内部状态、gameData/discipleTables 全真实——
+        // 等价 mock 时代逐条 stub，且后续服务扩展读其他 store 状态不会静默 null
         val data = GameData(worldMapSects = listOf(WorldSect(id = "player", isPlayerSect = true)))
-        val tables = DiscipleTables().apply { writeAllowed = true }
-        whenever(store.gameData).thenReturn(MutableStateFlow(data))
-        whenever(store.discipleTables).thenReturn(tables)
-        whenever(store.update(any())).thenAnswer { inv ->
-            inv.getArgument<MutableGameState.() -> Unit>(0).invoke(makeState(data))
-        }
+        val store = FakeAtomicStateStore().also { it.setGameData(data) }
         // 全链路验证：真实 PlayerDefenseProcessor（预警推进真实执行）
         val playerDefense = PlayerDefenseProcessor(
             stateStore = store,
-            battleSystem = mock<BattleSystem>(),
+            battleSystem = mockSmart<BattleSystem>(),
             attackWarningService = attackWarningService,
-            cultivationService = mock<CultivationService>(),
-            sectWarehouseManager = mock<SectWarehouseManager>(),
-            deathHandler = mock<DiscipleDeathHandler>(),
+            cultivationService = mockSmart<CultivationService>(),
+            sectWarehouseManager = mockSmart<SectWarehouseManager>(),
+            deathHandler = mockSmart<DiscipleDeathHandler>(),
             discipleSlotCleanup = DiscipleSlotCleanup(
                 DiscipleAssignmentGate(DiscipleAssignmentRegistry())
             )
@@ -256,9 +253,9 @@ class AISectBattleProcessorTest {
         val processor = AISectBattleProcessor(
             stateStore = store,
             thermalMonitor = thermalWith(false, false),
-            battleSystem = mock<BattleSystem>(),
+            battleSystem = mockSmart<BattleSystem>(),
             playerDefenseProcessor = playerDefense,
-            occupationResolver = mock<AISectOccupationResolver>()
+            occupationResolver = mockSmart<AISectOccupationResolver>()
         )
 
         processor.processAISectOperations(2026, 1)
@@ -269,7 +266,8 @@ class AISectBattleProcessorTest {
 
     @Test
     fun `processPlayerDefenseBattles - 旧档DENUNCIATION预警传入收敛入口`() {
-        val store = mock<GameStateStore>()
+        // Fake 提供真实语义：update 写内部状态、gameData/discipleTables 全真实——
+        // 等价 mock 时代逐条 stub，且后续服务扩展读其他 store 状态不会静默 null
         val data = GameData(
             worldMapSects = listOf(WorldSect(id = "player", isPlayerSect = true)),
             activeAttackWarnings = listOf(
@@ -280,20 +278,15 @@ class AISectBattleProcessorTest {
                 )
             )
         )
-        val tables = DiscipleTables().apply { writeAllowed = true }
-        whenever(store.gameData).thenReturn(MutableStateFlow(data))
-        whenever(store.discipleTables).thenReturn(tables)
-        whenever(store.update(any())).thenAnswer { inv ->
-            inv.getArgument<MutableGameState.() -> Unit>(0).invoke(makeState(data))
-        }
+        val store = FakeAtomicStateStore().also { it.setGameData(data) }
         // 全链路验证：真实 PlayerDefenseProcessor 装配，旧档残留预警必须进入收敛入口
         val playerDefense = PlayerDefenseProcessor(
             stateStore = store,
-            battleSystem = mock<BattleSystem>(),
+            battleSystem = mockSmart<BattleSystem>(),
             attackWarningService = attackWarningService,
-            cultivationService = mock<CultivationService>(),
-            sectWarehouseManager = mock<SectWarehouseManager>(),
-            deathHandler = mock<DiscipleDeathHandler>(),
+            cultivationService = mockSmart<CultivationService>(),
+            sectWarehouseManager = mockSmart<SectWarehouseManager>(),
+            deathHandler = mockSmart<DiscipleDeathHandler>(),
             discipleSlotCleanup = DiscipleSlotCleanup(
                 DiscipleAssignmentGate(DiscipleAssignmentRegistry())
             )
@@ -301,9 +294,9 @@ class AISectBattleProcessorTest {
         val processor = AISectBattleProcessor(
             stateStore = store,
             thermalMonitor = thermalWith(false, false),
-            battleSystem = mock<BattleSystem>(),
+            battleSystem = mockSmart<BattleSystem>(),
             playerDefenseProcessor = playerDefense,
-            occupationResolver = mock<AISectOccupationResolver>()
+            occupationResolver = mockSmart<AISectOccupationResolver>()
         )
 
         processor.processAISectOperations(2026, 1)
@@ -320,23 +313,21 @@ class AISectBattleProcessorTest {
     }
 
     private fun thermalWith(emergency: Boolean, reduce: Boolean): ThermalMonitor {
-        val thermal = mock<ThermalMonitor>()
+        val thermal = mockSmart<ThermalMonitor>()
         whenever(thermal.shouldEmergencySave()).thenReturn(emergency)
         whenever(thermal.shouldReduceWorkload()).thenReturn(reduce)
         return thermal
     }
 
     private fun createProcessorWith(thermal: ThermalMonitor): AISectBattleProcessor {
-        val store = mock<GameStateStore>()
-        whenever(store.update(any())).thenAnswer { inv ->
-            inv.getArgument<MutableGameState.() -> Unit>(0).invoke(makeState())
-        }
+        // Fake 提供真实语义：update 写内部状态——等价 mock 时代路由 stub
+        val store = FakeAtomicStateStore()
         return AISectBattleProcessor(
             stateStore = store,
             thermalMonitor = thermal,
-            battleSystem = mock<BattleSystem>(),
-            playerDefenseProcessor = mock<PlayerDefenseProcessor>(),
-            occupationResolver = mock<AISectOccupationResolver>()
+            battleSystem = mockSmart<BattleSystem>(),
+            playerDefenseProcessor = mockSmart<PlayerDefenseProcessor>(),
+            occupationResolver = mockSmart<AISectOccupationResolver>()
         )
     }
 
@@ -366,8 +357,8 @@ class AISectBattleProcessorTest {
 
     private fun makeResolverWithFacade(buildingFacade: BuildingFacade): AISectOccupationResolver =
         AISectOccupationResolver(
-            stateStore = mock<GameStateStore>(),
-            deathHandler = mock<DiscipleDeathHandler>(),
+            stateStore = mockSmart<GameStateStore>(),
+            deathHandler = mockSmart<DiscipleDeathHandler>(),
             buildingFacade = buildingFacade
         )
 
@@ -382,7 +373,7 @@ class AISectBattleProcessorTest {
 
     @Test
     fun `AI夺回玩家占领宗门 - 没收该宗门建筑`() {
-        val buildingFacade = mock<BuildingFacade>()
+        val buildingFacade = mockSmart<BuildingFacade>()
         val resolver = makeResolverWithFacade(buildingFacade)
 
         resolver.seizePlayerBuildingsAfterLoss(
@@ -395,7 +386,7 @@ class AISectBattleProcessorTest {
 
     @Test
     fun `AI战败玩家防守 - 不触发没收`() {
-        val buildingFacade = mock<BuildingFacade>()
+        val buildingFacade = mockSmart<BuildingFacade>()
         val resolver = makeResolverWithFacade(buildingFacade)
 
         resolver.seizePlayerBuildingsAfterLoss(
@@ -408,7 +399,7 @@ class AISectBattleProcessorTest {
 
     @Test
     fun `AI夺回AI占领宗门 - 不触发没收（玩家无建筑）`() {
-        val buildingFacade = mock<BuildingFacade>()
+        val buildingFacade = mockSmart<BuildingFacade>()
         val resolver = makeResolverWithFacade(buildingFacade)
 
         resolver.seizePlayerBuildingsAfterLoss(
@@ -634,7 +625,9 @@ class AISectBattleProcessorTest {
     }
 
     private fun makeDefenseProcessor(state: MutableGameState): PlayerDefenseProcessor {
-        val store = mock<GameStateStore>()
+        // mockSmart + 显式 stub：update 被 stub 路由到外部 state（断言基于 state 各槽位），
+        // 换 Fake 会写内部状态破坏断言语义，故保留 stub 语义仅提升未 stub 调用的兜底
+        val store = mockSmart<GameStateStore>()
         whenever(store.gameData).thenReturn(MutableStateFlow(state.gameData))
         whenever(store.discipleTables).thenReturn(state.discipleTables)
         whenever(store.update(any())).thenAnswer { inv ->
@@ -643,7 +636,7 @@ class AISectBattleProcessorTest {
         // BattleSystem 是 final class，Mockito 无法 stub 其 final 方法（静默返回 null）；
         // 用真实实例 + 已注册的真实 statsProvider（@Before），转换走真实属性
         val battleSystem = BattleSystem(checkNotNull(aisRngManager))
-        val sectWarehouseManager = mock<SectWarehouseManager>()
+        val sectWarehouseManager = mockSmart<SectWarehouseManager>()
         whenever(sectWarehouseManager.calculateWarehouseLootLoss(any()))
             .thenReturn(PlayerLootLossResult(lostSpiritStones = 0, lostMaterials = emptyMap()))
         whenever(sectWarehouseManager.applyLootLossToWarehouse(any(), any())).thenReturn(SectWarehouse())
@@ -651,9 +644,9 @@ class AISectBattleProcessorTest {
             stateStore = store,
             battleSystem = battleSystem,
             attackWarningService = attackWarningService,
-            cultivationService = mock<CultivationService>(),
+            cultivationService = mockSmart<CultivationService>(),
             sectWarehouseManager = sectWarehouseManager,
-            deathHandler = mock<DiscipleDeathHandler>(),
+            deathHandler = mockSmart<DiscipleDeathHandler>(),
             discipleSlotCleanup = DiscipleSlotCleanup(
                 DiscipleAssignmentGate(DiscipleAssignmentRegistry())
             )

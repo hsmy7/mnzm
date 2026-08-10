@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.concurrent.ThermalController
+import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.JadeSymbolService
 import com.xianxia.sect.core.engine.system.GameTimeClock
@@ -8,29 +9,22 @@ import com.xianxia.sect.core.engine.system.SystemManager
 import com.xianxia.sect.core.engine.system.TimeSource
 import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
-import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
-import com.xianxia.sect.core.state.BootPhase
 import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.state.RunState
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import org.mockito.Mockito.anyBoolean
 import org.mockito.Mockito.doAnswer
-import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.EmptyCoroutineContext
 
@@ -55,10 +49,9 @@ import kotlin.coroutines.EmptyCoroutineContext
 class GameEngineCoreLifecycleInterleavingTest {
 
     private lateinit var core: GameEngineCore
-    private lateinit var stateStore: GameStateStore
+    private lateinit var stateStore: FakeAtomicStateStore
     private lateinit var systemManager: SystemManager
     private lateinit var jadeSymbolService: JadeSymbolService
-    private val pausedWrites = mutableListOf<Boolean>()
 
     /**
      * 当前测试的 emergency 线程（registerEmergencySnapshotGate 用线程身份判定
@@ -108,11 +101,10 @@ class GameEngineCoreLifecycleInterleavingTest {
 
     @Test
     fun `shutdown in progress then late emergency rejected and loop stays stopped`() {
-        // 阻塞 stub 必须在 startGameLoop 之前注册（Mockito 非线程安全：循环
-        // 线程每 50ms 触碰 stateStore mock 的 getter，注册窗口内并发调用会
-        // 劫持 stubbing → UnfinishedStubbingException，残留 in-progress 还会
-        // 污染下一测试的 setUp——全量回归实测复现，2026-08-10 对齐
-        // `stop during emergency` 的预注册纪律）
+        // systemManager 是 Mockito mockSmart，阻塞 stub 必须在 startGameLoop
+        // 之前注册（Mockito stubbing 注册窗口与循环线程并发会劫持 →
+        // UnfinishedStubbingException，残留 in-progress 还会污染下一测试的
+        // setUp——全量回归实测复现，2026-08-10 保持预注册纪律）
         val entered = CountDownLatch(1)
         val gate = CountDownLatch(1)
         doAnswer {
@@ -143,13 +135,10 @@ class GameEngineCoreLifecycleInterleavingTest {
 
     @Test
     fun `stop during emergency restart aborts restart and loop stays stopped`() {
-        // 阻塞 stub 必须在 startGameLoop 之前注册（Mockito 非线程安全：循环
-        // 线程每 50ms 触碰 stateStore mock 的 isPaused/isLoading/isSaving，
-        // 注册窗口内并发调用会劫持 stubbing → UnfinishedStubbingException，
-        // 全量回归实测复现）。预注册 + 线程身份判定只阻塞 emergency 线程
-        val entered = CountDownLatch(1)
-        val release = CountDownLatch(1)
-        registerEmergencySnapshotGate(entered, release)
+        // 快照门控在 startGameLoop 之前注册（Fake 无 Mockito stubbing 竞态，
+        // 门控注册后仅 emergency 线程读取被阻塞——循环线程 isPaused=true 走
+        // 暂停分支不读 snapshot，主线程身份不匹配也不阻塞）
+        registerEmergencySnapshotGate()
         core.startGameLoop()
         assertTrue(core.isGameLoopRunning)
 
@@ -158,13 +147,14 @@ class GameEngineCoreLifecycleInterleavingTest {
         emergencyThread = Thread { core.emergencyRestartGameLoop() }.apply { start() }
         val stopThread = Thread { core.stopGameLoop() }.apply { start() }
         try {
-            assertTrue("emergency 必须进入 snapshot 阻塞点", entered.await(5, TimeUnit.SECONDS))
+            assertTrue("emergency 必须进入 snapshot 阻塞点",
+                stateStore.snapshotEnteredLatch.await(5, TimeUnit.SECONDS))
             // stop 的 CAS（RESTARTING→STOPPING，锁外意图门）立即抢占成功；
             // 拆除体等 emergency 释放锁（对抗性审查加固：工作体锁内串行化）。
             // 主线程不得在此调 stop——拆除体锁内等待会阻塞主线程
             Thread.sleep(200)
         } finally {
-            release.countDown()
+            stateStore.snapshotReleaseLatch.countDown()
             emergencyThread?.join(5_000)
             stopThread.join(5_000)
         }
@@ -175,24 +165,22 @@ class GameEngineCoreLifecycleInterleavingTest {
 
     @Test
     fun `start during emergency rejected then engine recoverable after restart`() {
-        // 阻塞 stub 预注册（startGameLoop 之前）——循环线程注册窗口竞态见
-        // `stop during emergency` 注释；本测试只需 emergency 阻塞语义
-        val entered = CountDownLatch(1)
-        val release = CountDownLatch(1)
-        registerEmergencySnapshotGate(entered, release)
+        // 快照门控预注册（startGameLoop 之前）——本测试只需 emergency 阻塞语义
+        registerEmergencySnapshotGate()
         core.startGameLoop()
         assertTrue(core.isGameLoopRunning)
 
         // emergency 锁内阻塞
         emergencyThread = Thread { core.emergencyRestartGameLoop() }.apply { start() }
         try {
-            assertTrue("emergency 必须进入 snapshot 阻塞点", entered.await(5, TimeUnit.SECONDS))
+            assertTrue("emergency 必须进入 snapshot 阻塞点",
+                stateStore.snapshotEnteredLatch.await(5, TimeUnit.SECONDS))
 
             // emergency 进行中 start：预检（旧循环仍 active）或 CAS（phase=
             // RESTARTING）被拒，立即返回不阻塞主线程——不追加第二循环
             core.startGameLoop()
         } finally {
-            release.countDown()
+            stateStore.snapshotReleaseLatch.countDown()
             emergencyThread?.join(5_000)
         }
 
@@ -205,11 +193,8 @@ class GameEngineCoreLifecycleInterleavingTest {
 
     @Test
     fun `shutdown during emergency aborts restart and engine remains recoverable`() {
-        // 阻塞 stub 预注册（startGameLoop 之前）——循环线程注册窗口竞态见
-        // `stop during emergency` 注释
-        val entered = CountDownLatch(1)
-        val release = CountDownLatch(1)
-        registerEmergencySnapshotGate(entered, release)
+        // 快照门控预注册（startGameLoop 之前）——本测试只需 emergency 阻塞语义
+        registerEmergencySnapshotGate()
         core.startGameLoop()
         assertTrue(core.isGameLoopRunning)
 
@@ -217,10 +202,11 @@ class GameEngineCoreLifecycleInterleavingTest {
         emergencyThread = Thread { core.emergencyRestartGameLoop() }.apply { start() }
         val shutdownThread = Thread { core.shutdown() }.apply { start() }
         try {
-            assertTrue("emergency 必须进入 snapshot 阻塞点", entered.await(5, TimeUnit.SECONDS))
+            assertTrue("emergency 必须进入 snapshot 阻塞点",
+                stateStore.snapshotEnteredLatch.await(5, TimeUnit.SECONDS))
             Thread.sleep(200)
         } finally {
-            release.countDown()
+            stateStore.snapshotReleaseLatch.countDown()
             emergencyThread?.join(5_000)
             shutdownThread.join(5_000)
         }
@@ -267,7 +253,7 @@ class GameEngineCoreLifecycleInterleavingTest {
     @Test
     fun `stop without start is idempotent and does not touch pause state`() {
         core.stopGameLoop()
-        assertTrue("STOPPED 时 stop 幂等且不写暂停状态", pausedWrites.isEmpty())
+        assertTrue("STOPPED 时 stop 幂等且不写暂停状态", stateStore.setPausedDirectCalls.isEmpty())
     }
 
     @Test
@@ -351,79 +337,55 @@ class GameEngineCoreLifecycleInterleavingTest {
     /**
      * 注册 emergency 线程专用快照阻塞点（模拟 emergency 重启进行中）。
      *
-     * 必须在 [GameEngineCore.startGameLoop] **之前**调用——Mockito 非线程安全：
-     * 循环线程每 50ms 触碰 stateStore mock（isPaused/isLoading/isSaving
-     * getter），若在循环运行中注册 doAnswer，注册窗口（when() 与 getter
-     * 之间）内循环线程的调用会劫持 stubbing → UnfinishedStubbingException
-     * （全量回归在 `stop during emergency` 实测复现，L137-141）。
+     * 在 [GameEngineCore.startGameLoop] **之前**调用（emergency 启动前门控
+     * 必须已生效；Fake 无 Mockito stubbing 竞态，循环线程 isPaused=true 走
+     * 暂停分支不读 snapshot，无注册窗口问题）。
      *
-     * 预注册 + 线程身份判定：startGameLoopInternal 的启动快照读取（L622，
-     * 调用线程）与循环线程调用立即返回 GameData()；仅 [emergencyThread]
-     * 锁内读取（L1147）进入阻塞（entered 上报 + release 放行）。
-     * blockOnce 防止 emergency 内部第二次快照读取（startGameLoopInternal
-     * 启动体 L622）再阻塞 5s 超时。
+     * 线程身份判定：startGameLoopInternal 的启动快照读取（调用线程）与循环
+     * 线程调用立即返回；仅 [emergencyThread] 锁内读取（L1254）进入阻塞
+     * （snapshotEnteredLatch 上报 + snapshotReleaseLatch 放行）。releaseLatch
+     * 归零后 emergency 内部第二次快照读取（startGameLoopInternal 启动体）
+     * 不再阻塞（CountDownLatch 归零即放行，等价 mock 时代 blockOnce）。
      */
-    private fun registerEmergencySnapshotGate(entered: CountDownLatch, release: CountDownLatch) {
-        val blockOnce = AtomicBoolean(true)
-        `when`(stateStore.gameDataSnapshot).thenAnswer {
-            val t = emergencyThread
-            if (t != null && Thread.currentThread() === t) {
-                entered.countDown()
-                if (blockOnce.getAndSet(false)) {
-                    release.await(5, TimeUnit.SECONDS)
-                }
-            }
-            GameData()
-        }
+    private fun registerEmergencySnapshotGate() {
+        stateStore.snapshotGate = { it === emergencyThread }
     }
 
-    private fun createStateStore(): GameStateStore {
-        val store = mock(GameStateStore::class.java)
+    private fun createStateStore(): FakeAtomicStateStore {
+        val store = FakeAtomicStateStore()
         // isPaused 恒 true → 循环永远停暂停分支（sampleProgressSnapshot 只读
         // systemManager/flows，不读 gameDataSnapshot）——循环线程不读 snapshot；
-        // 循环线程仍每 50ms 触碰 mock（isPaused 等 getter），故阻塞类 stub
-        // 一律在 startGameLoop 之前经 registerEmergencySnapshotGate 预注册
-        //（否则 Mockito stubbing 注册窗口竞态崩溃，全量跑时暴露）
-        `when`(store.isPaused).thenReturn(MutableStateFlow(true))
-        `when`(store.isLoading).thenReturn(MutableStateFlow(false))
-        `when`(store.isSaving).thenReturn(MutableStateFlow(false))
-        doAnswer {
-            pausedWrites.add(it.getArgument(0))
-            Unit
-        }.`when`(store).setPausedDirect(anyBoolean())
-        `when`(store.gameDataSnapshot).thenReturn(GameData())
-        `when`(store.bootPhase).thenReturn(MutableStateFlow(BootPhase.UNINITIALIZED))
-        `when`(store.runState).thenReturn(MutableStateFlow(RunState.IDLE))
+        // 快照门控（snapshotGate）因此只会被 emergency 线程触达
+        store.isPaused.value = true
         return store
     }
 
     private fun createCore(stateStore: GameStateStore): GameEngineCore {
-        val scope = mock(CoroutineScope::class.java)
+        val scope = mockSmart(CoroutineScope::class.java)
         `when`(scope.coroutineContext).thenReturn(EmptyCoroutineContext)
-        val scopeProvider = mock(CoroutineScopeProvider::class.java)
+        val scopeProvider = mockSmart(CoroutineScopeProvider::class.java)
         `when`(scopeProvider.scope).thenReturn(scope)
-        systemManager = mock(SystemManager::class.java)
+        systemManager = mockSmart(SystemManager::class.java)
         // mock 玉符服务（2026-08-08）：真实实例的 onLoopTick 每帧读
-        // gameDataSnapshot（跨天检查），与测试注册 doAnswer 阻塞 stub 并发
-        // → Mockito setMethodForStubbing 竞态（全量跑时暴露）。生命周期
-        // 互斥测试不涉及玉符逻辑，mock 根除循环线程对 mock store 的访问；
-        // 字段持有供契约测试（stopGameLoopAndWait 含 finally）断言
-        jadeSymbolService = mock(JadeSymbolService::class.java)
+        // gameDataSnapshot（跨天检查），与测试注册的阻塞门控并发无冲突；
+        // 生命周期互斥测试不涉及玉符逻辑，mockSmart 根除循环线程对 store
+        // 的访问；字段持有供契约测试（stopGameLoopAndWait 含 finally）断言
+        jadeSymbolService = mockSmart(JadeSymbolService::class.java)
         return GameEngineCore(
             stateStore = stateStore,
-            eventBus = mock(EventBusPort::class.java),
-            unifiedPerformanceMonitor = mock(UnifiedPerformanceMonitor::class.java),
+            eventBus = mockSmart(EventBusPort::class.java),
+            unifiedPerformanceMonitor = mockSmart(UnifiedPerformanceMonitor::class.java),
             systemManager = systemManager,
             scopeProvider = scopeProvider,
-            cultivationService = mock(CultivationService::class.java),
-            explorationService = mock(com.xianxia.sect.core.engine.domain.exploration.ExplorationService::class.java),
-            aiSectBeastAttackProcessor = mock(AISectBeastAttackProcessor::class.java),
+            cultivationService = mockSmart(CultivationService::class.java),
+            explorationService = mockSmart(ExplorationService::class.java),
+            aiSectBeastAttackProcessor = mockSmart(AISectBeastAttackProcessor::class.java),
             gameClock = GameTimeClock(StaticTimeSource()),
-            thermalController = mock(ThermalController::class.java),
-            thermalMonitor = mock(com.xianxia.sect.core.perf.ThermalMonitor::class.java),
-            spiritStoneWallet = mock(SpiritStoneWallet::class.java),
+            thermalController = mockSmart(ThermalController::class.java),
+            thermalMonitor = mockSmart(com.xianxia.sect.core.perf.ThermalMonitor::class.java),
+            spiritStoneWallet = mockSmart(SpiritStoneWallet::class.java),
             jadeSymbolService = jadeSymbolService,
-            engineCrashReporter = mock(EngineCrashReporter::class.java)
+            engineCrashReporter = mockSmart(EngineCrashReporter::class.java)
         )
     }
 

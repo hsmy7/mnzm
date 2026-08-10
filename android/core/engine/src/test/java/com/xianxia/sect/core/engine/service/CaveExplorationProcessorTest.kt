@@ -1,20 +1,20 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
-import com.xianxia.sect.core.exploration.DiscipleDeathHandler
+import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.engine.system.InventorySystem
+import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
-import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.util.AnalyticsTracker
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import org.junit.Assert.*
 import org.junit.Test
-import org.mockito.Mockito.mock
 
 class CaveExplorationProcessorTest {
 
@@ -149,14 +149,14 @@ class CaveExplorationProcessorTest {
 
     private fun createProcessor(): CaveExplorationProcessor {
         return CaveExplorationProcessor(
-            stateStore = mock(GameStateStore::class.java),
-            inventorySystem = mock(InventorySystem::class.java),
-            battleSystem = mock(BattleSystem::class.java),
-            eventProcessor = mock(CultivationEventProcessor::class.java),
-            analyticsTracker = mock(AnalyticsTracker::class.java),
-            spiritStoneWallet = mock(SpiritStoneWallet::class.java),
-            deathHandler = mock(DiscipleDeathHandler::class.java),
-            aiSectBattleProcessor = mock(AISectBattleProcessor::class.java)
+            stateStore = FakeAtomicStateStore(),
+            inventorySystem = mockSmart(InventorySystem::class.java),
+            battleSystem = mockSmart(BattleSystem::class.java),
+            eventProcessor = mockSmart(CultivationEventProcessor::class.java),
+            analyticsTracker = mockSmart(AnalyticsTracker::class.java),
+            spiritStoneWallet = mockSmart(SpiritStoneWallet::class.java),
+            deathHandler = mockSmart(DiscipleDeathHandler::class.java),
+            aiSectBattleProcessor = mockSmart(AISectBattleProcessor::class.java)
         )
     }
 

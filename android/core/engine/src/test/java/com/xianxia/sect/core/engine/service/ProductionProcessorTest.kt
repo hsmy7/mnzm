@@ -1529,8 +1529,8 @@ class ProductionProcessorTest {
             @Suppress("UNCHECKED_CAST")
             (invocation.getArgument(1) as () -> Any)()
         }
-        val repo = mock<ProductionSlotRepository>()
-        whenever(repo.getSlotsByBuildingId(BuildingNames.FORGE)).thenReturn(listOf(forgeCompletedSlot()))
+        val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
+        repo.loadSlots(listOf(forgeCompletedSlot()))
         val processor = newCompletionProcessor(store, repo, inv)
 
         processor.processBuildingProduction(1, 1)
@@ -1547,9 +1547,8 @@ class ProductionProcessorTest {
     fun `completeForgeSlot - 零成功率失败不产出不晋升但计数照常`() = runTest {
         val store = newStoreWithDisciple()
         val inv = mock<InventorySystem>()
-        val repo = mock<ProductionSlotRepository>()
-        whenever(repo.getSlotsByBuildingId(BuildingNames.FORGE))
-            .thenReturn(listOf(forgeCompletedSlot(successRate = 0.0)))
+        val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
+        repo.loadSlots(listOf(forgeCompletedSlot(successRate = 0.0)))
         val processor = newCompletionProcessor(store, repo, inv)
 
         processor.processBuildingProduction(1, 1)
@@ -1574,8 +1573,8 @@ class ProductionProcessorTest {
             @Suppress("UNCHECKED_CAST")
             (invocation.getArgument(1) as () -> Any)()
         }
-        val repo = mock<ProductionSlotRepository>()
-        whenever(repo.getSlotsByBuildingId(BuildingNames.FORGE)).thenReturn(listOf(forgeCompletedSlot()))
+        val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
+        repo.loadSlots(listOf(forgeCompletedSlot()))
         val processor = newCompletionProcessor(store, repo, inv)
 
         processor.processBuildingProduction(1, 1)
@@ -1594,14 +1593,14 @@ class ProductionProcessorTest {
             (invocation.getArgument(1) as () -> Any)()
         }
         val tier1Pill = PillRecipeDatabase.getAllRecipes().first { it.tier == 1 }
-        val repo = mock<ProductionSlotRepository>()
+        val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
         val slot = ProductionSlot(
             id = "alchemy_0", slotIndex = 0, buildingType = BuildingType.ALCHEMY,
             buildingId = BuildingNames.ALCHEMY, status = ProductionSlotStatus.WORKING,
             recipeId = tier1Pill.id, assignedDiscipleId = "1", assignedDiscipleName = "弟子一",
             duration = 0, successRate = 1.0
         )
-        whenever(repo.getSlotsByType(BuildingType.ALCHEMY)).thenReturn(listOf(slot))
+        repo.loadSlots(listOf(slot))
         val processor = newCompletionProcessor(store, repo, inv)
 
         processor.processBuildingProduction(1, 1)
@@ -1623,14 +1622,14 @@ class ProductionProcessorTest {
             (invocation.getArgument(1) as () -> Any)()
         }
         val tier1Pill = PillRecipeDatabase.getAllRecipes().first { it.tier == 1 }
-        val repo = mock<ProductionSlotRepository>()
+        val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
         val slot = ProductionSlot(
             id = "alchemy_0", slotIndex = 0, buildingType = BuildingType.ALCHEMY,
             buildingId = BuildingNames.ALCHEMY, status = ProductionSlotStatus.WORKING,
             recipeId = tier1Pill.id, assignedDiscipleId = "1", assignedDiscipleName = "弟子一",
             duration = 0, successRate = 1.0
         )
-        whenever(repo.getSlotsByType(BuildingType.ALCHEMY)).thenReturn(listOf(slot))
+        repo.loadSlots(listOf(slot))
         val processor = newCompletionProcessor(store, repo, inv)
 
         processor.processBuildingProduction(1, 1)

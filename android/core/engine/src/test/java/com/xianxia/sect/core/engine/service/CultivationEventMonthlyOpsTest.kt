@@ -1,19 +1,19 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.engine.FakeAtomicStateStore
+import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyService
+import com.xianxia.sect.core.engine.domain.diplomacy.VassalService
+import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
-import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
-import com.xianxia.sect.core.engine.domain.diplomacy.DiplomacyService
-import com.xianxia.sect.core.engine.domain.diplomacy.VassalService
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.mockito.InOrder
 import org.mockito.Mockito
-import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.kotlin.any
@@ -162,69 +162,50 @@ class CultivationEventMonthlyOpsTest {
     // 测试夹具组装：状态桩 + 26 依赖 mock + processor 构造，逐行声明不可再拆
     @Suppress("LongMethod")
     private fun createHarness(): ProcessorHarness {
-        val stateStore = mock<GameStateStore>()
-        val tables = DiscipleTables().apply { writeAllowed = true }
-        val state = MutableGameState(
-            gameData = GameData(),
-            discipleTables = tables,
-            equipmentStacks = EntityStore(),
-            equipmentInstances = EntityStore(),
-            manualStacks = EntityStore(),
-            manualInstances = EntityStore(),
-            pills = EntityStore(),
-            materials = EntityStore(),
-            herbs = EntityStore(),
-            seeds = EntityStore(),
-            storageBags = EntityStore(),
-            teams = emptyList(),
-            battleLogs = emptyList(),
-            isPaused = false, isLoading = false, isSaving = false
-        )
-        whenever(stateStore.gameData).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(GameData()))
-        whenever(stateStore.update(any())).thenAnswer { inv ->
-            inv.getArgument<MutableGameState.() -> Unit>(0).invoke(state)
-        }
+        // Fake 提供真实语义：update 写内部状态、gameData 等 flow 全真实——
+        // 等价 mock 时代 gameData stub + update 路由 stub；测试仅 verify 调用序
+        val stateStore = FakeAtomicStateStore()
 
-        val vassalService = mock<VassalService>()
-        val recruitService = mock<RecruitService>()
-        val merchantAndRecruitService = mock<MerchantAndRecruitService>()
-        val discipleLifecycleProcessor = mock<DiscipleLifecycleProcessor>()
-        val autoBuyService = mock<AutoBuyService>()
-        val caveProcessor = mock<CaveExplorationProcessor>()
-        val caveProvider = mock<Provider<CaveExplorationProcessor>>()
+        val vassalService = mockSmart<VassalService>()
+        val recruitService = mockSmart<RecruitService>()
+        val merchantAndRecruitService = mockSmart<MerchantAndRecruitService>()
+        val discipleLifecycleProcessor = mockSmart<DiscipleLifecycleProcessor>()
+        val autoBuyService = mockSmart<AutoBuyService>()
+        val caveProcessor = mockSmart<CaveExplorationProcessor>()
+        val caveProvider = mockSmart<Provider<CaveExplorationProcessor>>()
         whenever(caveProvider.get()).thenReturn(caveProcessor)
-        val diplomacyService = mock<DiplomacyService>()
-        val diplomacyEventProcessor = mock<DiplomacyEventProcessor>()
-        val secretRealmService = mock<SecretRealmService>()
+        val diplomacyService = mockSmart<DiplomacyService>()
+        val diplomacyEventProcessor = mockSmart<DiplomacyEventProcessor>()
+        val secretRealmService = mockSmart<SecretRealmService>()
 
         val processor = CultivationEventProcessor(
             stateStore = stateStore,
-            spiritStoneWallet = mock(),
-            inventorySystem = mock(),
-            inventoryConfig = mock(),
-            scopeProvider = mock(),
-            discipleService = mock(),
-            cultivationCore = mock(),
-            breakthroughHandler = mock(),
-            cultivationSettlement = mock(),
-            battleSystem = mock(),
+            spiritStoneWallet = mockSmart(),
+            inventorySystem = mockSmart(),
+            inventoryConfig = mockSmart(),
+            scopeProvider = mockSmart(),
+            discipleService = mockSmart(),
+            cultivationCore = mockSmart(),
+            breakthroughHandler = mockSmart(),
+            cultivationSettlement = mockSmart(),
+            battleSystem = mockSmart(),
             recruitService = recruitService,
             merchantAndRecruitService = merchantAndRecruitService,
             caveExplorationProcessor = caveProvider,
             discipleLifecycleProcessor = discipleLifecycleProcessor,
             diplomacyEventProcessor = diplomacyEventProcessor,
             diplomacyService = diplomacyService,
-            equipmentManager = mock(),
-            manualManager = mock(),
+            equipmentManager = mockSmart(),
+            manualManager = mockSmart(),
             autoBuyService = autoBuyService,
             vassalService = vassalService,
-            disciplePurchaseService = mock(),
-            aiSectBeastAttackProcessor = mock(),
-            lawEnforcementProcessor = mock(),
-            rngManager = mock(),
+            disciplePurchaseService = mockSmart(),
+            aiSectBeastAttackProcessor = mockSmart(),
+            lawEnforcementProcessor = mockSmart(),
+            rngManager = mockSmart(),
             secretRealmService = secretRealmService,
-            secretRealmAIProcessor = mock(),
-            deathHandler = mock()
+            secretRealmAIProcessor = mockSmart(),
+            deathHandler = mockSmart()
         )
         return ProcessorHarness(
             processor, vassalService, recruitService, merchantAndRecruitService,

@@ -1,5 +1,7 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.engine.FakeAtomicStateStore
+import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.MerchantItem
@@ -7,7 +9,6 @@ import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.model.SpiritStoneExchange
-import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.DeterministicRng
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.RngPartition
@@ -15,7 +16,6 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.`when`
-import org.mockito.Mockito.mock
 import java.util.UUID
 
 class MerchantAndRecruitServiceTest {
@@ -70,8 +70,8 @@ class MerchantAndRecruitServiceTest {
     @Test
     fun `buildMerchantItemPools - contains mid and high grade spirit stones`() {
         val service = MerchantAndRecruitService(
-            mock(GameStateStore::class.java),
-            mock(GameRngManager::class.java)
+            FakeAtomicStateStore(),
+            mockSmart(GameRngManager::class.java)
         )
         val pools = service.buildMerchantItemPools()
 
@@ -91,9 +91,9 @@ class MerchantAndRecruitServiceTest {
 
     /** 构造服务并 stub SYSTEM 分区 RNG 为固定种子（现有 mock 未 stub getRng，新测试必须 stub） */
     private fun createServiceWithRng(seed: Long): MerchantAndRecruitService {
-        val rngManager = mock(GameRngManager::class.java)
+        val rngManager = mockSmart(GameRngManager::class.java)
         `when`(rngManager.getRng(RngPartition.SYSTEM)).thenReturn(DeterministicRng.fromSeed(seed))
-        return MerchantAndRecruitService(mock(GameStateStore::class.java), rngManager)
+        return MerchantAndRecruitService(FakeAtomicStateStore(), rngManager)
     }
 
     @Test

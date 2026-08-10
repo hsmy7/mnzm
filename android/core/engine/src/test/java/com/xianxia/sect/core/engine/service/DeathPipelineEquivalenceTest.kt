@@ -8,30 +8,16 @@ import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService
 import com.xianxia.sect.core.event.EventBusPort
-import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.EquipmentInstance
-import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ExplorationTeam
-import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.Herb
-import com.xianxia.sect.core.model.ManualInstance
-import com.xianxia.sect.core.model.ManualStack
-import com.xianxia.sect.core.model.Material
-import com.xianxia.sect.core.model.Pill
-import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.model.SocialData
-import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.state.DiscipleTables
-import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.util.CoroutineScopeProvider
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import com.xianxia.sect.core.engine.FakeAtomicStateStore
+import com.xianxia.sect.core.engine.mockSmart
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -40,7 +26,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito.mock
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -63,83 +48,35 @@ class DeathPipelineEquivalenceTest {
 
     @get:Rule val writeGuardRule = WriteGuardRule()
     private lateinit var tables: DiscipleTables
-    private lateinit var mutableState: MutableGameState
     private lateinit var mockStore: GameStateStore
     private lateinit var processor: DiscipleLifecycleProcessor
-    private lateinit var gameDataFlow: MutableStateFlow<GameData>
-    private lateinit var disciplesFlow: MutableStateFlow<List<Disciple>>
 
     @Before
     fun setUp() {
-        tables = DiscipleTables()
-        mutableState = createMutableState(tables)
-        gameDataFlow = MutableStateFlow(GameData(gameYear = 10))
-        disciplesFlow = MutableStateFlow(emptyList())
-
-        // 创建 delegate mock 但不做任何 property stub。
-        // 所有属性在匿名类中直接 override 以避免 Mockito property 状态污染。
-        val delegate = mock(GameStateStore::class.java)
-
-        mockStore = object : GameStateStore by delegate {
-            override val discipleTables: DiscipleTables get() = tables
-            override val gameData: StateFlow<GameData> get() = gameDataFlow
-            override val disciples: StateFlow<List<Disciple>> get() = disciplesFlow
-            override val equipmentStacks: StateFlow<List<EquipmentStack>>
-                get() = MutableStateFlow(emptyList())
-            override val equipmentInstances: StateFlow<List<EquipmentInstance>>
-                get() = MutableStateFlow(emptyList())
-            override val manualStacks: StateFlow<List<ManualStack>>
-                get() = MutableStateFlow(emptyList())
-            override val manualInstances: StateFlow<List<ManualInstance>>
-                get() = MutableStateFlow(emptyList())
-            override val pills: StateFlow<List<Pill>>
-                get() = MutableStateFlow(emptyList())
-            override val materials: StateFlow<List<Material>>
-                get() = MutableStateFlow(emptyList())
-            override val herbs: StateFlow<List<Herb>>
-                get() = MutableStateFlow(emptyList())
-            override val seeds: StateFlow<List<Seed>>
-                get() = MutableStateFlow(emptyList())
-            override val storageBags: StateFlow<List<StorageBag>>
-                get() = MutableStateFlow(emptyList())
-            override val teams: StateFlow<List<ExplorationTeam>>
-                get() = MutableStateFlow(emptyList())
-            override val battleLogs: StateFlow<List<BattleLog>>
-                get() = MutableStateFlow(emptyList())
-
-            override fun update(
-                block: MutableGameState.() -> Unit
-            ) {
-                block.invoke(mutableState)
-            }
-
-            override fun <R> updateAndReturn(
-                block: MutableGameState.() -> R
-            ): R {
-                return block.invoke(mutableState)
-            }
-        }
+        val store = FakeAtomicStateStore()
+        mockStore = store
+        tables = store.discipleTables
 
         processor = DiscipleLifecycleProcessor(
             stateStore = mockStore,
-            scopeProvider = mock(CoroutineScopeProvider::class.java),
-            productionCoordinator = mock(
+            scopeProvider = mockSmart(CoroutineScopeProvider::class.java),
+            productionCoordinator = mockSmart(
                 com.xianxia.sect.core.engine.domain.production.ProductionCoordinator::class.java
             ),
-            eventBus = mock(EventBusPort::class.java),
+            eventBus = mockSmart(EventBusPort::class.java),
             discipleSlotCleanup = DiscipleSlotCleanup(
                 DiscipleAssignmentGate(DiscipleAssignmentRegistry())
             ),
             lawEnforcementProcessor = object : javax.inject.Provider<LawEnforcementProcessor> {
-                override fun get(): LawEnforcementProcessor = mock(LawEnforcementProcessor::class.java)
+                override fun get(): LawEnforcementProcessor = mockSmart(LawEnforcementProcessor::class.java)
             },
-            discipleStatusService = mock(DiscipleStatusService::class.java),
+            discipleStatusService = mockSmart(DiscipleStatusService::class.java),
             ioDispatcher = IoDispatcher(),
             inventorySystem = com.xianxia.sect.core.engine.system.InventorySystem(
                 stateStore = mockStore,
                 inventoryConfig = InventoryConfig(),
-                spiritStoneWallet = mock(com.xianxia.sect.core.wallet.SpiritStoneWallet::class.java),
-                gameConfigProvider = mock(com.xianxia.sect.core.engine.config.GameConfigProvider::class.java)
+                spiritStoneWallet = mockSmart(com.xianxia.sect.core.wallet.SpiritStoneWallet::class.java),
+                gameConfigProvider = mockSmart(com.xianxia.sect.core.engine.config.GameConfigProvider::class.java)
             ),
             // 2026-08-10 统一死亡入口：真实实例（markDead 写 isAlive=0 + status=DEAD + deathYear）
             deathHandler = DiscipleDeathHandler()
@@ -179,25 +116,6 @@ class DeathPipelineEquivalenceTest {
         }
     }
 
-    private fun createMutableState(tables: DiscipleTables) = MutableGameState(
-        gameData = GameData(),
-        discipleTables = tables,
-        equipmentStacks = EntityStore(emptyList()),
-        equipmentInstances = EntityStore(emptyList()),
-        manualStacks = EntityStore(emptyList()),
-        manualInstances = EntityStore(emptyList()),
-        pills = EntityStore(emptyList()),
-        materials = EntityStore(emptyList()),
-        herbs = EntityStore(emptyList()),
-        seeds = EntityStore(emptyList()),
-        storageBags = EntityStore(emptyList()),
-        teams = emptyList(),
-        battleLogs = emptyList(),
-        isPaused = false,
-        isLoading = false,
-        isSaving = false
-    )
-
     // ==================== 用例 ====================
 
     @Test
@@ -217,14 +135,13 @@ class DeathPipelineEquivalenceTest {
         insertDisciple(6, name = "手足", age = 40, social = SocialData(parentId1 = "99"))
         insertDisciple(7, name = "路人", age = 20)
         insertDisciple(8, name = "已哀悼者", age = 35, social = SocialData(griefEndYear = 12))
-        disciplesFlow.value = tables.assembleAll()
 
         processor.processDiscipleAging(currentYear = 10)
 
         // ── 死亡标记 ──
         assertFalse("死者应从表移除", tables.ids.contains(1))
         assertEquals("死亡年份", 10, tables.deathYears[1])
-        assertEquals("年度死亡计数", 1, mutableState.gameData.annualDeceasedDisciples)
+        assertEquals("年度死亡计数", 1, mockStore.gameData.value.annualDeceasedDisciples)
         assertEquals("死者自身无哀悼条目（remove 清列）", -1, tables.griefEndYears.getOrDefault(1, -1))
 
         // ── griefEndYears：哀悼期 = 11；无关者哨兵 -1；已哀悼者保持 12 ──
@@ -258,7 +175,6 @@ class DeathPipelineEquivalenceTest {
     fun `aged death - existing longer grief kept and no new event`() = runTest {
         insertDisciple(1, name = "寿终老人", age = 79, lifespan = 80)
         insertDisciple(9, name = "丧亲者", age = 40, social = SocialData(parentId1 = "1", griefEndYear = 15))
-        disciplesFlow.value = tables.assembleAll()
 
         processor.processDiscipleAging(currentYear = 10)
 
@@ -271,7 +187,6 @@ class DeathPipelineEquivalenceTest {
         insertDisciple(1, name = "寿终老人", age = 79, lifespan = 80)
         insertDisciple(10, name = "亡者之灵", age = 60, social = SocialData(parentId1 = "1"))
         tables.isAlive[10] = 0 // 已死弟子不哀悼
-        disciplesFlow.value = tables.assembleAll()
 
         processor.processDiscipleAging(currentYear = 10)
 

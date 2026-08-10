@@ -15,18 +15,16 @@ import com.xianxia.sect.core.model.parentId2
 import com.xianxia.sect.core.model.pillCultivationSpeedBonus
 import com.xianxia.sect.core.model.pillEffectDuration
 import com.xianxia.sect.core.model.teaching
+import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.registry.ManualDatabase
 import com.xianxia.sect.core.state.DiscipleTables
-import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.WriteGuardRule
-import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito
 import org.robolectric.RobolectricTestRunner
 
 
@@ -55,10 +53,9 @@ class CultivationRateEquivalenceTest {
                 stats = mapOf("cultivationSpeedPercent" to 10)
             )
         ))
-        val stateStore = Mockito.mock(GameStateStore::class.java)
-        Mockito.`when`(stateStore.manualInstances).thenReturn(MutableStateFlow(emptyList()))
-        Mockito.`when`(stateStore.disciples).thenReturn(MutableStateFlow(emptyList()))
-        calculator = CultivationRateCalculator(stateStore)
+        // Fake 默认 manualInstances/disciples flow 即空列表——等价 mock 时代 stub，
+        // 且后续服务扩展读其他 store 状态不会静默 null
+        calculator = CultivationRateCalculator(FakeAtomicStateStore())
     }
 
     private data class Fixture(

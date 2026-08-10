@@ -5,14 +5,13 @@ import com.xianxia.sect.core.engine.di.IoDispatcher
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.service.HighFrequencyData
 import com.xianxia.sect.core.engine.system.InventorySystem
+import com.xianxia.sect.core.engine.FakeAtomicStateStore
+import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.SpiritMineSlot
 import com.xianxia.sect.core.state.DiscipleTables
-import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.WriteGuardRule
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +27,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito
-import org.mockito.Mockito.mock
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
 import org.robolectric.RobolectricTestRunner
@@ -48,7 +46,6 @@ class DiscipleLibrarySlotSwapTest {
 
     @get:Rule val writeGuardRule = WriteGuardRule()
     private lateinit var tables: DiscipleTables
-    private lateinit var mutableState: MutableGameState
     private lateinit var mockStore: GameStateStore
     private lateinit var gate: DiscipleAssignmentGate
     private lateinit var facade: DiscipleFacadeImpl
@@ -56,9 +53,9 @@ class DiscipleLibrarySlotSwapTest {
 
     @Before
     fun setUp() {
-        tables = DiscipleTables()
-        mutableState = createMutableState(tables)
-        mockStore = createDelegateMockStore()
+        val store = FakeAtomicStateStore()
+        mockStore = store
+        tables = store.discipleTables
         gate = DiscipleAssignmentGate(DiscipleAssignmentRegistry())
         val service = buildDiscipleService()
         facade = buildFacade(service)
@@ -79,7 +76,7 @@ class DiscipleLibrarySlotSwapTest {
         facade.assignDiscipleToLibrarySlot(0, "2", "弟子2")
         advanceUntilIdle()
 
-        assertEquals("槽位应为弟子 B", "2", mutableState.gameData.librarySlots[0].discipleId)
+        assertEquals("槽位应为弟子 B", "2", mockStore.gameData.value.librarySlots[0].discipleId)
         assertEquals("旧 occupant 状态应回 IDLE", DiscipleStatus.IDLE, tables.statuses[1])
         assertEquals("新弟子状态应 STUDYING", DiscipleStatus.STUDYING, tables.statuses[2])
         assertFalse("旧 occupant gate 应释放", gate.isAssigned("1"))
@@ -96,11 +93,13 @@ class DiscipleLibrarySlotSwapTest {
         assertEquals(DiscipleStatus.STUDYING, tables.statuses[1])
 
         // A 同时是灵矿工（换人后应推导回 MINING 而非 IDLE）
-        mutableState.gameData = mutableState.gameData.copy(
-            spiritMineSlots = listOf(
-                SpiritMineSlot(index = 0, discipleId = "1", discipleName = "弟子1")
+        mockStore.update {
+            gameData = gameData.copy(
+                spiritMineSlots = listOf(
+                    SpiritMineSlot(index = 0, discipleId = "1", discipleName = "弟子1")
+                )
             )
-        )
+        }
 
         facade.assignDiscipleToLibrarySlot(0, "2", "弟子2")
         advanceUntilIdle()
@@ -112,38 +111,15 @@ class DiscipleLibrarySlotSwapTest {
 
     // ── 辅助 ─────────────────────────────────────────────────────────────
 
-    private fun createDelegateMockStore(): GameStateStore {
-        val delegate = mock(GameStateStore::class.java)
-        Mockito.`when`(delegate.discipleTables).thenReturn(tables)
-        Mockito.`when`(delegate.gameData)
-            .thenReturn(MutableStateFlow(GameData()))
-        Mockito.`when`(delegate.teams)
-            .thenReturn(MutableStateFlow(emptyList()))
-        val store = object : GameStateStore by delegate {
-            override val discipleTables: DiscipleTables
-                get() = tables
-
-            override fun update(
-                block: MutableGameState.() -> Unit
-            ) {
-                block.invoke(mutableState)
-            }
-
-            override fun <R> updateAndReturn(
-                block: MutableGameState.() -> R
-            ): R {
-                return block.invoke(mutableState)
-            }
-        }
-        return store
-    }
-
     private fun buildDiscipleService(): DiscipleService {
+        // ProductionSlotRepository 是 final 类：mock 拦截依赖类加载时机（顺序敏感 flaky），
+        // 用真实实例 + mockSmart 端口（getSlots() 真实返回空列表，语义与 mock 时代一致）
+        val productionRepo = com.xianxia.sect.core.engine.testProductionSlotRepository()
         val slotManager = DiscipleSlotManager(
             stateStore = mockStore,
-            productionSlotRepository = mock(),
+            productionSlotRepository = productionRepo,
             discipleSlotCleanup = DiscipleSlotCleanup(gate),
-            discipleStatusServiceProvider = javax.inject.Provider { mock() },
+            discipleStatusServiceProvider = javax.inject.Provider { mockSmart() },
             ioDispatcher = IoDispatcher()
         )
         val equipmentService = DiscipleEquipmentService(
@@ -154,33 +130,33 @@ class DiscipleLibrarySlotSwapTest {
         )
         val lifecycleManager = DiscipleLifecycleManager(
             stateStore = mockStore,
-            discipleFactory = mock(),
-            rngManager = mock(),
+            discipleFactory = mockSmart(),
+            rngManager = mockSmart(),
             slotManager = slotManager,
-            productionSlotRepository = mock(),
+            productionSlotRepository = mockSmart(),
         )
         // 真实状态推导服务：syncSingleDiscipleStatus 必须真实执行才能验证状态回归
         val statusService = DiscipleStatusService(
             stateStore = mockStore,
             discipleLifecycleManager = lifecycleManager,
-            secretRealmService = mock()
+            secretRealmService = mockSmart()
         )
         return DiscipleService(
             stateStore = mockStore,
-            discipleFactory = mock(),
-            rngManager = mock(),
+            discipleFactory = mockSmart(),
+            rngManager = mockSmart(),
             discipleEquipmentService = equipmentService,
             discipleLifecycleManager = lifecycleManager,
             discipleMasterApprenticeService = masterService,
             discipleSlotManager = slotManager,
             discipleStatusService = statusService,
-            inventorySystem = mock(InventorySystem::class.java)
+            inventorySystem = mockSmart(InventorySystem::class.java)
         )
     }
 
     private fun buildFacade(service: DiscipleService): DiscipleFacadeImpl {
-        gameEngineCore = mock(GameEngineCore::class.java)
-        val cultivationService = mock(CultivationService::class.java)
+        gameEngineCore = mockSmart(GameEngineCore::class.java)
+        val cultivationService = mockSmart(CultivationService::class.java)
         Mockito.`when`(cultivationService.getHighFrequencyData())
             .thenReturn(MutableStateFlow(HighFrequencyData()))
         return DiscipleFacadeImpl(
@@ -188,12 +164,12 @@ class DiscipleLibrarySlotSwapTest {
             stateStore = mockStore,
             cultivationService = cultivationService,
             gameEngineCore = gameEngineCore,
-            inventorySystem = mock(),
-            pillManager = mock(),
+            inventorySystem = mockSmart(),
+            pillManager = mockSmart(),
             assignmentGate = gate,
             discipleSlotCleanup = DiscipleSlotCleanup(gate),
-            lawEnforcementProcessor = mock(),
-            productionCoordinator = mock<com.xianxia.sect.core.engine.domain.production.ProductionCoordinator>(),
+            lawEnforcementProcessor = mockSmart(),
+            productionCoordinator = mockSmart<com.xianxia.sect.core.engine.domain.production.ProductionCoordinator>(),
         )
     }
 
@@ -210,23 +186,4 @@ class DiscipleLibrarySlotSwapTest {
         tables.isAlive[id] = 1
         tables.statuses[id] = DiscipleStatus.IDLE
     }
-
-    private fun createMutableState(tables: DiscipleTables) = MutableGameState(
-        gameData = GameData(),
-        discipleTables = tables,
-        equipmentStacks = EntityStore(emptyList()),
-        equipmentInstances = EntityStore(emptyList()),
-        manualStacks = EntityStore(emptyList()),
-        manualInstances = EntityStore(emptyList()),
-        pills = EntityStore(emptyList()),
-        materials = EntityStore(emptyList()),
-        herbs = EntityStore(emptyList()),
-        seeds = EntityStore(emptyList()),
-        storageBags = EntityStore(emptyList()),
-        teams = emptyList(),
-        battleLogs = emptyList(),
-        isPaused = false,
-        isLoading = false,
-        isSaving = false
-    )
 }

@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.concurrent.ThermalController
+import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.engine.system.SystemManager
@@ -11,23 +12,18 @@ import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
-import com.xianxia.sect.core.state.BootPhase
 import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.state.RunState
 import com.xianxia.sect.core.thermal.BatteryStatusProvider
 import com.xianxia.sect.core.thermal.NoopBatteryStatus
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.`when`
-import org.mockito.Mockito.doAnswer
-import org.mockito.Mockito.mock
 import org.mockito.Mockito.spy
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -53,7 +49,6 @@ class GameEngineCoreFpsPolicyTest {
 
     private lateinit var core: GameEngineCore
     private lateinit var gameClock: GameTimeClock
-    private lateinit var pausedFlow: MutableStateFlow<Boolean>
     private lateinit var fakeTime: FakeTimeSource
 
     /** 可配置的电池状态提供者（测试注入） */
@@ -66,7 +61,6 @@ class GameEngineCoreFpsPolicyTest {
     @Before
     fun setUp() {
         OemPowerProfileProvider.manufacturerOverride = OemManufacturer.OTHER
-        pausedFlow = MutableStateFlow(false)
         fakeTime = FakeTimeSource(now = 1_000_000L)
         gameClock = GameTimeClock(fakeTime)
         core = spy(createCore(createStateStore(), gameClock, NoopBatteryStatus))
@@ -276,23 +270,23 @@ class GameEngineCoreFpsPolicyTest {
     @Test
     fun `thermal degradation takes min with scene and mode`() {
         // 热控建议 30fps（ORANGE 档）时，即使性能模式也只能 30
-        val thermal = mock(ThermalController::class.java)
+        val thermal = mockSmart(ThermalController::class.java)
         `when`(thermal.recommendedTargetFps).thenReturn(30)
         `when`(thermal.renderingQualityFactor).thenReturn(0.6f)
         `when`(thermal.particlesDisabled).thenReturn(true)
         val core2 = spy(GameEngineCore(
             stateStore = createStateStore(),
-            eventBus = mock(EventBusPort::class.java),
-            unifiedPerformanceMonitor = mock(UnifiedPerformanceMonitor::class.java),
-            systemManager = mock(SystemManager::class.java),
+            eventBus = mockSmart(EventBusPort::class.java),
+            unifiedPerformanceMonitor = mockSmart(UnifiedPerformanceMonitor::class.java),
+            systemManager = mockSmart(SystemManager::class.java),
             scopeProvider = scopeProvider(),
-            cultivationService = mock(CultivationService::class.java),
-            explorationService = mock(com.xianxia.sect.core.engine.domain.exploration.ExplorationService::class.java),
-            aiSectBeastAttackProcessor = mock(AISectBeastAttackProcessor::class.java),
+            cultivationService = mockSmart(CultivationService::class.java),
+            explorationService = mockSmart(ExplorationService::class.java),
+            aiSectBeastAttackProcessor = mockSmart(AISectBeastAttackProcessor::class.java),
             gameClock = gameClock,
             thermalController = thermal,
-            thermalMonitor = mock(com.xianxia.sect.core.perf.ThermalMonitor::class.java),
-            spiritStoneWallet = mock(SpiritStoneWallet::class.java),
+            thermalMonitor = mockSmart(com.xianxia.sect.core.perf.ThermalMonitor::class.java),
+            spiritStoneWallet = mockSmart(SpiritStoneWallet::class.java),
             jadeSymbolService = JadeSymbolService(
                 timeSource = TimeSource { 0L },
                 stateStore = createStateStore(),
@@ -310,9 +304,9 @@ class GameEngineCoreFpsPolicyTest {
     // ── 工具 ──
 
     private fun scopeProvider(): CoroutineScopeProvider {
-        val scope = mock(CoroutineScope::class.java)
+        val scope = mockSmart(CoroutineScope::class.java)
         `when`(scope.coroutineContext).thenReturn(EmptyCoroutineContext)
-        val provider = mock(CoroutineScopeProvider::class.java)
+        val provider = mockSmart(CoroutineScopeProvider::class.java)
         `when`(provider.scope).thenReturn(scope)
         return provider
     }
@@ -323,22 +317,22 @@ class GameEngineCoreFpsPolicyTest {
         battery: BatteryStatusProvider
     ): GameEngineCore = GameEngineCore(
         stateStore = stateStore,
-        eventBus = mock(EventBusPort::class.java),
-        unifiedPerformanceMonitor = mock(UnifiedPerformanceMonitor::class.java),
-        systemManager = mock(SystemManager::class.java),
+        eventBus = mockSmart(EventBusPort::class.java),
+        unifiedPerformanceMonitor = mockSmart(UnifiedPerformanceMonitor::class.java),
+        systemManager = mockSmart(SystemManager::class.java),
         scopeProvider = scopeProvider(),
-        cultivationService = mock(CultivationService::class.java),
-        explorationService = mock(com.xianxia.sect.core.engine.domain.exploration.ExplorationService::class.java),
-        aiSectBeastAttackProcessor = mock(AISectBeastAttackProcessor::class.java),
+        cultivationService = mockSmart(CultivationService::class.java),
+        explorationService = mockSmart(ExplorationService::class.java),
+        aiSectBeastAttackProcessor = mockSmart(AISectBeastAttackProcessor::class.java),
         gameClock = gameClock,
-        thermalController = mock(ThermalController::class.java).apply {
+        thermalController = mockSmart(ThermalController::class.java).apply {
             // mock 默认返回 0——热控未降级时必须返回全性能档，否则 minOf 恒 0
             `when`(recommendedTargetFps).thenReturn(60)
             `when`(renderingQualityFactor).thenReturn(1.0f)
             `when`(particlesDisabled).thenReturn(false)
         },
-        thermalMonitor = mock(com.xianxia.sect.core.perf.ThermalMonitor::class.java),
-        spiritStoneWallet = mock(SpiritStoneWallet::class.java),
+        thermalMonitor = mockSmart(com.xianxia.sect.core.perf.ThermalMonitor::class.java),
+        spiritStoneWallet = mockSmart(SpiritStoneWallet::class.java),
         jadeSymbolService = JadeSymbolService(
             timeSource = TimeSource { 0L },
             stateStore = stateStore,
@@ -347,16 +341,10 @@ class GameEngineCoreFpsPolicyTest {
         batteryStatusProvider = battery
     )
 
-    private fun createStateStore(): GameStateStore {
-        val store = mock(GameStateStore::class.java)
-        `when`(store.isPaused).thenReturn(pausedFlow)
-        `when`(store.isLoading).thenReturn(MutableStateFlow(false))
-        `when`(store.isSaving).thenReturn(MutableStateFlow(false))
-        doAnswer { pausedFlow.value = it.getArgument(0) }
-            .`when`(store).setPausedDirect(org.mockito.Mockito.anyBoolean())
-        `when`(store.gameDataSnapshot).thenReturn(GameData())
-        `when`(store.bootPhase).thenReturn(MutableStateFlow(BootPhase.UNINITIALIZED))
-        `when`(store.runState).thenReturn(MutableStateFlow(RunState.IDLE))
+    /** Fake 提供真实语义（setPausedDirect/isPaused/gameDataSnapshot/bootPhase/runState 全真实） */
+    private fun createStateStore(): FakeAtomicStateStore {
+        val store = FakeAtomicStateStore()
+        store.setGameData(GameData())
         return store
     }
 

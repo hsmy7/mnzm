@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.concurrent.ThermalController
+import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.engine.system.SystemManager
@@ -22,7 +23,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.`when`
-import org.mockito.Mockito.mock
 import kotlin.coroutines.EmptyCoroutineContext
 
 /**
@@ -41,7 +41,7 @@ class GameEngineCoreActiveLoadJobTest {
 
     @Before
     fun setUp() {
-        core = createCore(mock(GameStateStore::class.java))
+        core = createCore(FakeAtomicStateStore())
     }
 
     @After
@@ -124,29 +124,29 @@ class GameEngineCoreActiveLoadJobTest {
     // ============================================================
 
     private fun createCore(stateStore: GameStateStore): GameEngineCore {
-        val scope = mock(CoroutineScope::class.java)
+        val scope = mockSmart(CoroutineScope::class.java)
         `when`(scope.coroutineContext).thenReturn(EmptyCoroutineContext)
-        val scopeProvider = mock(CoroutineScopeProvider::class.java)
+        val scopeProvider = mockSmart(CoroutineScopeProvider::class.java)
         `when`(scopeProvider.scope).thenReturn(scope)
         return GameEngineCore(
             stateStore = stateStore,
-            eventBus = mock(EventBusPort::class.java),
-            unifiedPerformanceMonitor = mock(UnifiedPerformanceMonitor::class.java),
-            systemManager = mock(SystemManager::class.java),
+            eventBus = mockSmart(EventBusPort::class.java),
+            unifiedPerformanceMonitor = mockSmart(UnifiedPerformanceMonitor::class.java),
+            systemManager = mockSmart(SystemManager::class.java),
             scopeProvider = scopeProvider,
-            cultivationService = mock(CultivationService::class.java),
-            explorationService = mock(com.xianxia.sect.core.engine.domain.exploration.ExplorationService::class.java),
-            aiSectBeastAttackProcessor = mock(AISectBeastAttackProcessor::class.java),
+            cultivationService = mockSmart(CultivationService::class.java),
+            explorationService = mockSmart(ExplorationService::class.java),
+            aiSectBeastAttackProcessor = mockSmart(AISectBeastAttackProcessor::class.java),
             gameClock = GameTimeClock(StaticTimeSource()),
-            thermalController = mock(ThermalController::class.java),
-            thermalMonitor = mock(com.xianxia.sect.core.perf.ThermalMonitor::class.java),
-            spiritStoneWallet = mock(SpiritStoneWallet::class.java),
+            thermalController = mockSmart(ThermalController::class.java),
+            thermalMonitor = mockSmart(com.xianxia.sect.core.perf.ThermalMonitor::class.java),
+            spiritStoneWallet = mockSmart(SpiritStoneWallet::class.java),
             jadeSymbolService = JadeSymbolService(
                 timeSource = TimeSource { 0L },
                 stateStore = stateStore,
                 wallClock = WallClock { 0L }
             ),
-            engineCrashReporter = mock(EngineCrashReporter::class.java)
+            engineCrashReporter = mockSmart(EngineCrashReporter::class.java)
         )
     }
 

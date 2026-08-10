@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine.domain.diplomacy
 
 import com.xianxia.sect.core.domain.favor.FavorService
 import com.xianxia.sect.core.event.EventBusPort
+import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.ManualType
@@ -19,7 +20,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
-import org.mockito.Mockito.mock
 import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
 
@@ -117,7 +117,7 @@ class DiplomacyServicePureLogicTest {
 
     @Test
     fun `refreshAllSectTrades - 满3年刷新 不满不刷 空列表兜底刷`() {
-        val stateStore = mock(GameStateStore::class.java)
+        val stateStore = mockSmart(GameStateStore::class.java)
         val gameData = GameData(
             worldMapSects = listOf(
                 WorldSect(id = "player", isPlayerSect = true),
@@ -158,7 +158,7 @@ class DiplomacyServicePureLogicTest {
 
     @Test
     fun `refreshAllSectTrades - tradeLastRefreshYear未来值按0自愈立即刷新`() {
-        val stateStore = mock(GameStateStore::class.java)
+        val stateStore = mockSmart(GameStateStore::class.java)
         val gameData = GameData(
             worldMapSects = listOf(
                 WorldSect(id = "player", isPlayerSect = true),
@@ -189,7 +189,7 @@ class DiplomacyServicePureLogicTest {
 
     @Test
     fun `refreshAllSectTrades - 无宗门详情时直接返回`() {
-        val stateStore = mock(GameStateStore::class.java)
+        val stateStore = mockSmart(GameStateStore::class.java)
         whenever(stateStore.gameData).thenReturn(MutableStateFlow(GameData()))
         val service = createService(stateStore)
         service.refreshAllSectTrades(100) // 不应抛异常
@@ -226,14 +226,14 @@ class DiplomacyServicePureLogicTest {
 
     // ==================== 工具 ====================
 
-    private fun createService(stateStore: GameStateStore = mock(GameStateStore::class.java)): DiplomacyService {
+    private fun createService(stateStore: GameStateStore = mockSmart(GameStateStore::class.java)): DiplomacyService {
         return DiplomacyService(
             stateStore = stateStore,
-            inventorySystem = mock(InventorySystem::class.java),
-            eventBus = mock(EventBusPort::class.java),
-            favorService = mock(FavorService::class.java),
-            spiritStoneWallet = mock(SpiritStoneWallet::class.java),
-            rngManager = mock(com.xianxia.sect.core.util.GameRngManager::class.java)
+            inventorySystem = mockSmart(InventorySystem::class.java),
+            eventBus = mockSmart(EventBusPort::class.java),
+            favorService = mockSmart(FavorService::class.java),
+            spiritStoneWallet = mockSmart(SpiritStoneWallet::class.java),
+            rngManager = mockSmart(com.xianxia.sect.core.util.GameRngManager::class.java)
         )
     }
 

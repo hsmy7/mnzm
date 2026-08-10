@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.domain.battle
 
+import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.config.InventoryConfig
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
@@ -11,7 +12,6 @@ import com.xianxia.sect.core.util.GameRngManager
 import org.junit.Before
 import org.junit.Assert.*
 import org.junit.Test
-import org.mockito.Mockito.mock
 
 class HeavenlyTrialServiceTest {
 
@@ -22,11 +22,13 @@ class HeavenlyTrialServiceTest {
     fun setUp() {
         rngManager = GameRngManager()
         rngManager.initSystemSeed(12345L)
+        // mockSmart：未被 stub 的方法返回智能兜底（空集合/抛 SmartNullPointerException），
+        // 服务后续扩展读其他依赖不会静默 null 导致难排查 NPE
         service = HeavenlyTrialService(
-            stateStore = mock(GameStateStore::class.java),
-            inventoryConfig = mock(InventoryConfig::class.java),
-            spiritStoneWallet = mock(SpiritStoneWallet::class.java),
-            inventorySystem = mock(com.xianxia.sect.core.engine.system.InventorySystem::class.java)
+            stateStore = mockSmart(GameStateStore::class.java),
+            inventoryConfig = mockSmart(InventoryConfig::class.java),
+            spiritStoneWallet = mockSmart(SpiritStoneWallet::class.java),
+            inventorySystem = mockSmart(com.xianxia.sect.core.engine.system.InventorySystem::class.java)
         )
         // 预充功法数据（使用空数据+一个备用功法避免 NPE）
         ManualDatabase.initializeWithManuals(mapOf(

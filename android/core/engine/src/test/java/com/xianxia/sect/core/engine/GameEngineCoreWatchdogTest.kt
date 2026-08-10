@@ -2,6 +2,7 @@ package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.concurrent.ThermalController
 import com.xianxia.sect.core.engine.monitor.StallVerdict
+import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.engine.system.SystemManager
@@ -13,22 +14,16 @@ import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.perf.ThermalMonitor
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
-import com.xianxia.sect.core.state.BootPhase
 import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.state.RunState
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import org.mockito.Mockito.anyBoolean
-import org.mockito.Mockito.doAnswer
-import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.spy
 import org.mockito.Mockito.times
@@ -56,7 +51,7 @@ class GameEngineCoreWatchdogTest {
 
     private lateinit var core: GameEngineCore
     private lateinit var gameClock: GameTimeClock
-    private lateinit var pausedFlow: MutableStateFlow<Boolean>
+    private lateinit var store: FakeAtomicStateStore
     private lateinit var fakeTime: FakeTimeSource
     /** D-08 接线验证：start/stop 时机（startGameLoop → start，stopGameLoop → stop） */
     private lateinit var thermalMonitor: ThermalMonitor
@@ -64,10 +59,10 @@ class GameEngineCoreWatchdogTest {
     @Before
     fun setUp() {
         OemPowerProfileProvider.manufacturerOverride = OemManufacturer.OTHER
-        pausedFlow = MutableStateFlow(false)
+        store = createStateStore()
         fakeTime = FakeTimeSource(now = 1_000_000L)
         gameClock = GameTimeClock(fakeTime)
-        core = spy(createCore(createStateStore(), gameClock))
+        core = spy(createCore(store, gameClock))
         // 2026-08-08：performWatchdogRecovery 对被拒的恢复回滚 60s 限频预算。
         // 本测试 core 未 start（phase=STOPPED），真实 emergency 会因 CAS 被拒
         // 返回 false 并回滚预算 → 限频测试失效。stub 为"恢复成功"语义
@@ -132,7 +127,7 @@ class GameEngineCoreWatchdogTest {
         core.handleWatchdogVerdict(StallVerdict.StalePauseDetected)
 
         assertFalse("lock must be cleared", core.secretRealmPauseLock)
-        assertFalse("pause must be released", pausedFlow.value)
+        assertFalse("pause must be released", store.isPaused.value)
         // V5：不主动启动循环——后台场景避免后台推进时间；回前台 resumeFromBackground 重启
         assertFalse("self-heal must not start loop (background-safe)", core.isGameLoopRunning)
         verify(core, never()).emergencyRestartGameLoop()
@@ -140,12 +135,12 @@ class GameEngineCoreWatchdogTest {
 
     @Test
     fun `handleWatchdogVerdict - paused by owner no-op (user pause never auto-recovered)`() {
-        pausedFlow.value = true
+        store.isPaused.value = true
 
         core.handleWatchdogVerdict(StallVerdict.PausedByOwner)
         core.handleWatchdogVerdict(StallVerdict.Healthy)
 
-        assertTrue("user pause must survive", pausedFlow.value)
+        assertTrue("user pause must survive", store.isPaused.value)
         verify(core, never()).emergencyRestartGameLoop()
     }
 
@@ -176,38 +171,32 @@ class GameEngineCoreWatchdogTest {
 
     // ── 工具 ──
 
-    private fun createStateStore(): GameStateStore {
-        val store = mock(GameStateStore::class.java)
-        `when`(store.isPaused).thenReturn(pausedFlow)
-        `when`(store.isLoading).thenReturn(MutableStateFlow(false))
-        `when`(store.isSaving).thenReturn(MutableStateFlow(false))
-        doAnswer { pausedFlow.value = it.getArgument(0) }
-            .`when`(store).setPausedDirect(anyBoolean())
-        `when`(store.gameDataSnapshot).thenReturn(GameData())
-        `when`(store.bootPhase).thenReturn(MutableStateFlow(BootPhase.UNINITIALIZED))
-        `when`(store.runState).thenReturn(MutableStateFlow(RunState.IDLE))
+    /** Fake 提供真实语义（setPausedDirect/isPaused/gameDataSnapshot/bootPhase/runState 全真实） */
+    private fun createStateStore(): FakeAtomicStateStore {
+        val store = FakeAtomicStateStore()
+        store.setGameData(GameData())
         return store
     }
 
     private fun createCore(stateStore: GameStateStore, gameClock: GameTimeClock): GameEngineCore {
-        val scope = mock(CoroutineScope::class.java)
+        val scope = mockSmart(CoroutineScope::class.java)
         `when`(scope.coroutineContext).thenReturn(EmptyCoroutineContext)
-        val scopeProvider = mock(CoroutineScopeProvider::class.java)
+        val scopeProvider = mockSmart(CoroutineScopeProvider::class.java)
         `when`(scopeProvider.scope).thenReturn(scope)
-        thermalMonitor = mock(ThermalMonitor::class.java)
+        thermalMonitor = mockSmart(ThermalMonitor::class.java)
         return GameEngineCore(
             stateStore = stateStore,
-            eventBus = mock(EventBusPort::class.java),
-            unifiedPerformanceMonitor = mock(UnifiedPerformanceMonitor::class.java),
-            systemManager = mock(SystemManager::class.java),
+            eventBus = mockSmart(EventBusPort::class.java),
+            unifiedPerformanceMonitor = mockSmart(UnifiedPerformanceMonitor::class.java),
+            systemManager = mockSmart(SystemManager::class.java),
             scopeProvider = scopeProvider,
-            cultivationService = mock(CultivationService::class.java),
-            explorationService = mock(com.xianxia.sect.core.engine.domain.exploration.ExplorationService::class.java),
-            aiSectBeastAttackProcessor = mock(AISectBeastAttackProcessor::class.java),
+            cultivationService = mockSmart(CultivationService::class.java),
+            explorationService = mockSmart(ExplorationService::class.java),
+            aiSectBeastAttackProcessor = mockSmart(AISectBeastAttackProcessor::class.java),
             gameClock = gameClock,
-            thermalController = mock(ThermalController::class.java),
+            thermalController = mockSmart(ThermalController::class.java),
             thermalMonitor = thermalMonitor,
-            spiritStoneWallet = mock(SpiritStoneWallet::class.java),
+            spiritStoneWallet = mockSmart(SpiritStoneWallet::class.java),
             jadeSymbolService = JadeSymbolService(
                 timeSource = TimeSource { 0L },
                 stateStore = stateStore,

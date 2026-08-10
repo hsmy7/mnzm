@@ -1,17 +1,15 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.state.DiscipleTables
-import com.xianxia.sect.core.state.GameStateStore
-import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito
 import org.robolectric.RobolectricTestRunner
 
 /**
@@ -36,12 +34,8 @@ class CultivationRateLookupBenchmarkTest {
 
     @Before
     fun setUp() {
-        val mockStateStore = Mockito.mock(GameStateStore::class.java)
-        Mockito.`when`(mockStateStore.manualInstances)
-            .thenReturn(MutableStateFlow(emptyList()))
-        Mockito.`when`(mockStateStore.disciples)
-            .thenReturn(MutableStateFlow(emptyList()))
-        calculator = CultivationRateCalculator(mockStateStore)
+        // Fake 默认 manualInstances/disciples flow 即空列表——等价 mock 时代逐条 stub
+        calculator = CultivationRateCalculator(FakeAtomicStateStore())
     }
 
     /** 构建 300 弟子 + 300 住所（每人 1 间）+ 50 建筑的状态（每次独立副本） */

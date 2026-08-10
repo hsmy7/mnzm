@@ -7,44 +7,27 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentRegistry
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleSlotCleanup
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService
 import com.xianxia.sect.core.event.EventBusPort
-import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.EquipmentSlot
-import com.xianxia.sect.core.model.EquipmentStack
-import com.xianxia.sect.core.model.ExplorationTeam
 import com.xianxia.sect.core.model.GameData
-import com.xianxia.sect.core.model.Herb
-import com.xianxia.sect.core.model.ManualInstance
-import com.xianxia.sect.core.model.ManualStack
-import com.xianxia.sect.core.model.Material
-import com.xianxia.sect.core.model.Pill
-import com.xianxia.sect.core.model.Seed
 import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.model.SocialData
-import com.xianxia.sect.core.model.StorageBag
 import com.xianxia.sect.core.model.StorageBagItem
-import com.xianxia.sect.core.model.griefEndYear
-import com.xianxia.sect.core.model.loyalty
-import com.xianxia.sect.core.model.morality
-import com.xianxia.sect.core.model.partnerId
 import com.xianxia.sect.core.state.DiscipleTables
-import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.engine.di.IoDispatcher
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import com.xianxia.sect.core.engine.FakeAtomicStateStore
+import com.xianxia.sect.core.engine.mockSmart
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.Rule
-import org.mockito.Mockito.mock
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -56,87 +39,40 @@ class DiscipleLifecycleProcessorTest {
 
     @get:Rule val writeGuardRule = WriteGuardRule()
     private lateinit var tables: DiscipleTables
-    private lateinit var mutableState: MutableGameState
     private lateinit var mockStore: GameStateStore
     private lateinit var processor: DiscipleLifecycleProcessor
-    private lateinit var gameDataFlow: MutableStateFlow<GameData>
-    private lateinit var disciplesFlow: MutableStateFlow<List<Disciple>>
 
     @Before
     fun setUp() {
-        tables = DiscipleTables()
-        mutableState = createMutableState(tables)
-        gameDataFlow = MutableStateFlow(GameData(gameYear = 10))
-        disciplesFlow = MutableStateFlow(emptyList())
+        val store = FakeAtomicStateStore()
+        mockStore = store
+        tables = store.discipleTables
+        store.setGameData(GameData(gameYear = 10))
 
-        // 创建 delegate mock 但不做任何 property stub。
-        // 所有属性在匿名类中直接 override 以避免 Mockito property 状态污染。
-        val delegate = mock(GameStateStore::class.java)
-
-        mockStore = object : GameStateStore by delegate {
-            override val discipleTables: DiscipleTables get() = tables
-            override val gameData: StateFlow<GameData> get() = gameDataFlow
-            override val disciples: StateFlow<List<Disciple>> get() = disciplesFlow
-            override val equipmentStacks: StateFlow<List<EquipmentStack>>
-                get() = MutableStateFlow(emptyList())
-            override val equipmentInstances: StateFlow<List<EquipmentInstance>>
-                get() = MutableStateFlow(emptyList())
-            override val manualStacks: StateFlow<List<ManualStack>>
-                get() = MutableStateFlow(emptyList())
-            override val manualInstances: StateFlow<List<ManualInstance>>
-                get() = MutableStateFlow(emptyList())
-            override val pills: StateFlow<List<Pill>>
-                get() = MutableStateFlow(emptyList())
-            override val materials: StateFlow<List<Material>>
-                get() = MutableStateFlow(emptyList())
-            override val herbs: StateFlow<List<Herb>>
-                get() = MutableStateFlow(emptyList())
-            override val seeds: StateFlow<List<Seed>>
-                get() = MutableStateFlow(emptyList())
-            override val storageBags: StateFlow<List<StorageBag>>
-                get() = MutableStateFlow(emptyList())
-            override val teams: StateFlow<List<ExplorationTeam>>
-                get() = MutableStateFlow(emptyList())
-            override val battleLogs: StateFlow<List<BattleLog>>
-                get() = MutableStateFlow(emptyList())
-
-            override fun update(
-        block: MutableGameState.() -> Unit
-            ) {
-                block.invoke(mutableState)
-            }
-
-            override fun <R> updateAndReturn(
-        block: MutableGameState.() -> R
-            ): R {
-                return block.invoke(mutableState)
-            }
-        }
-
-        // 对所有非 GameStateStore 的依赖使用 Mockito.mock。
+        // 对所有非 GameStateStore 的依赖使用 mockSmart（RETURNS_SMART_NULLS）。
         // 这些 mock 在测试方法中不会被 verify，只用作哑对象。
         processor = DiscipleLifecycleProcessor(
             stateStore = mockStore,
-            scopeProvider = mock(CoroutineScopeProvider::class.java),
-            productionCoordinator = mock(
+            scopeProvider = mockSmart(CoroutineScopeProvider::class.java),
+            productionCoordinator = mockSmart(
                 com.xianxia.sect.core.engine.domain.production.ProductionCoordinator::class.java
             ),
-            eventBus = mock(EventBusPort::class.java),
+            eventBus = mockSmart(EventBusPort::class.java),
             discipleSlotCleanup = DiscipleSlotCleanup(
                 DiscipleAssignmentGate(DiscipleAssignmentRegistry())
             ),
             lawEnforcementProcessor = object : javax.inject.Provider<LawEnforcementProcessor> {
-                override fun get(): LawEnforcementProcessor = mock(LawEnforcementProcessor::class.java)
+                override fun get(): LawEnforcementProcessor = mockSmart(LawEnforcementProcessor::class.java)
             },
-            discipleStatusService = mock(DiscipleStatusService::class.java),
+            discipleStatusService = mockSmart(DiscipleStatusService::class.java),
             ioDispatcher = IoDispatcher(),
             inventorySystem = com.xianxia.sect.core.engine.system.InventorySystem(
                 stateStore = mockStore,
                 // 必须用真实配置：mock 的 getMaxStackSize 返回 0 → StackableItemStore 拒绝
                 // 任何入仓（maxStack<=0 守卫）→ 物化永远失败，测试失去意义
                 inventoryConfig = InventoryConfig(),
-                spiritStoneWallet = mock(com.xianxia.sect.core.wallet.SpiritStoneWallet::class.java),
-                gameConfigProvider = mock(com.xianxia.sect.core.engine.config.GameConfigProvider::class.java)
+                spiritStoneWallet = mockSmart(com.xianxia.sect.core.wallet.SpiritStoneWallet::class.java),
+                gameConfigProvider = mockSmart(com.xianxia.sect.core.engine.config.GameConfigProvider::class.java)
             ),
             // 2026-08-10 统一死亡入口：真实实例（markDead 写 isAlive=0 + status=DEAD + deathYear）
             deathHandler = DiscipleDeathHandler()
@@ -178,25 +114,6 @@ class DiscipleLifecycleProcessorTest {
         }
     }
 
-    private fun createMutableState(tables: DiscipleTables) = MutableGameState(
-        gameData = GameData(),
-        discipleTables = tables,
-        equipmentStacks = EntityStore(emptyList()),
-        equipmentInstances = EntityStore(emptyList()),
-        manualStacks = EntityStore(emptyList()),
-        manualInstances = EntityStore(emptyList()),
-        pills = EntityStore(emptyList()),
-        materials = EntityStore(emptyList()),
-        herbs = EntityStore(emptyList()),
-        seeds = EntityStore(emptyList()),
-        storageBags = EntityStore(emptyList()),
-        teams = emptyList(),
-        battleLogs = emptyList(),
-        isPaused = false,
-        isLoading = false,
-        isSaving = false
-    )
-
     // ══════════════════════════════════════
     // processGriefExpiry
     // ══════════════════════════════════════
@@ -204,7 +121,6 @@ class DiscipleLifecycleProcessorTest {
     @Test
     fun `processGriefExpiry - griefEndYear less than currentYear clears grief`() = runTest {
         insertDisciple(1, social = SocialData(griefEndYear = 8))
-        disciplesFlow.value = tables.assembleAll()
 
         processor.processGriefExpiry(currentYear = 10)
 
@@ -215,7 +131,6 @@ class DiscipleLifecycleProcessorTest {
     @Test
     fun `processGriefExpiry - griefEndYear equals currentYear clears grief`() = runTest {
         insertDisciple(1, social = SocialData(griefEndYear = 10))
-        disciplesFlow.value = tables.assembleAll()
 
         processor.processGriefExpiry(currentYear = 10)
 
@@ -226,7 +141,6 @@ class DiscipleLifecycleProcessorTest {
     @Test
     fun `processGriefExpiry - griefEndYear greater than currentYear keeps grief`() = runTest {
         insertDisciple(1, social = SocialData(griefEndYear = 15))
-        disciplesFlow.value = tables.assembleAll()
 
         processor.processGriefExpiry(currentYear = 10)
 
@@ -242,7 +156,6 @@ class DiscipleLifecycleProcessorTest {
     @Test
     fun `processDiscipleAging - age increases by 1 for living disciples`() = runTest {
         insertDisciple(1, age = 25)
-        disciplesFlow.value = tables.assembleAll()
 
         processor.processDiscipleAging(currentYear = 10)
 
@@ -252,7 +165,6 @@ class DiscipleLifecycleProcessorTest {
     @Test
     fun `processDiscipleAging - 5-year-old with realmLayer 0 gets fixed`() = runTest {
         insertDisciple(1, age = 4, realmLayer = 0)
-        disciplesFlow.value = tables.assembleAll()
 
         processor.processDiscipleAging(currentYear = 10)
 
@@ -265,7 +177,6 @@ class DiscipleLifecycleProcessorTest {
     @Test
     fun `processDiscipleAging - disciple with age beyond maxAge triggers death`() = runTest {
         insertDisciple(1, age = 79, lifespan = 80)
-        disciplesFlow.value = tables.assembleAll()
 
         processor.processDiscipleAging(currentYear = 10)
 
@@ -284,7 +195,6 @@ class DiscipleLifecycleProcessorTest {
     fun `processDiscipleAging - 延年词条弟子寿元上限内不死亡`() = runTest {
         // age=99 → 老化后 100 < 102（computeMaxAge）→ 存活
         insertDisciple(1, age = 99, lifespan = 80, affixIds = listOf("r3_aff_lifespan"))
-        disciplesFlow.value = tables.assembleAll()
 
         processor.processDiscipleAging(currentYear = 10)
 
@@ -298,7 +208,6 @@ class DiscipleLifecycleProcessorTest {
     fun `processDiscipleAging - 延年词条弟子到 computeMaxAge 才死亡`() = runTest {
         // age=101 → 老化后 102 >= 102（computeMaxAge）→ 死亡，死亡年龄 102
         insertDisciple(1, age = 101, lifespan = 80, affixIds = listOf("r3_aff_lifespan"))
-        disciplesFlow.value = tables.assembleAll()
 
         processor.processDiscipleAging(currentYear = 10)
 
@@ -311,7 +220,6 @@ class DiscipleLifecycleProcessorTest {
     fun `processDiscipleAging - 无词条弟子 lifespan 即上限照常死亡`() = runTest {
         // 对照：无词条 age=80 → 老化后 81 >= 80 → 死亡（对照组验证修复未改变无词条行为）
         insertDisciple(1, age = 80, lifespan = 80)
-        disciplesFlow.value = tables.assembleAll()
 
         processor.processDiscipleAging(currentYear = 10)
 
@@ -394,7 +302,6 @@ class DiscipleLifecycleProcessorTest {
     @Test
     fun `handleDiscipleDeath - death year is written`() = runTest {
         insertDisciple(1, age = 80)
-        disciplesFlow.value = tables.assembleAll()
         val deadDisciple = tables.assemble(1)
 
         processor.handleDiscipleDeath(deadDisciple, isOutsideSect = false)
@@ -406,7 +313,6 @@ class DiscipleLifecycleProcessorTest {
     fun `handleDiscipleDeath - 统一入口写 isAlive=0 status=DEAD`() = runTest {
         // 2026-08-10：markDead 统一死亡标记（isAlive + status + deathYear 三字段）
         insertDisciple(1, age = 80)
-        disciplesFlow.value = tables.assembleAll()
         val deadDisciple = tables.assemble(1)
 
         processor.handleDiscipleDeath(deadDisciple, isOutsideSect = false)
@@ -427,7 +333,6 @@ class DiscipleLifecycleProcessorTest {
                     slot = EquipmentSlot.WEAPON)
             )
         )
-        disciplesFlow.value = tables.assembleAll()
         val deadDisciple = tables.assemble(1)
 
         // 重复死亡处理（幂等性验证：第二次不重复物化）
@@ -437,10 +342,10 @@ class DiscipleLifecycleProcessorTest {
 
         // 物化：仓库新增实例堆叠恰 1 条（重复处理不重复物化；toStack 随机堆叠 id）；
         // 实例表已移除防双持有
-        assertEquals("实例堆叠入仓恰 1 条", 1, mutableState.equipmentStacks.all().size)
+        assertEquals("实例堆叠入仓恰 1 条", 1, mockStore.equipmentStacks.value.size)
         // 幂等关键守卫：重复死亡处理不复制——数量仍为 1（若二次物化会 merge 成 2）
-        assertEquals("重复死亡不复制（数量仍 1）", 1, mutableState.equipmentStacks.all().first().quantity)
-        assertEquals("实例表已移除防双持有", 0, mutableState.equipmentInstances.all().count { it.id == "i1" })
+        assertEquals("重复死亡不复制（数量仍 1）", 1, mockStore.equipmentStacks.value.first().quantity)
+        assertEquals("实例表已移除防双持有", 0, mockStore.equipmentInstances.value.count { it.id == "i1" })
         // 袋清空（幂等）
         assertTrue("袋条目已清空", tables.storageBagItems[1].isNullOrEmpty())
     }
@@ -449,7 +354,6 @@ class DiscipleLifecycleProcessorTest {
     fun `handleDiscipleDeath - partner relationship is unbound`() = runTest {
         insertDisciple(1, age = 80, social = SocialData(partnerId = "2"))
         insertDisciple(2, age = 75, social = SocialData(partnerId = "1"))
-        disciplesFlow.value = tables.assembleAll()
         val deadDisciple = tables.assemble(1)
 
         processor.handleDiscipleDeath(deadDisciple, isOutsideSect = false)
@@ -463,7 +367,6 @@ class DiscipleLifecycleProcessorTest {
         insertDisciple(1, age = 80)
         insertDisciple(2, age = 30)
         tables.masterIds[2] = "1"
-        disciplesFlow.value = tables.assembleAll()
         val deadDisciple = tables.assemble(1)
 
         processor.handleDiscipleDeath(deadDisciple, isOutsideSect = false)
@@ -480,7 +383,6 @@ class DiscipleLifecycleProcessorTest {
     fun `processDiscipleAging - dead disciples are not aged`() = runTest {
         insertDisciple(1, age = 50)
         tables.isAlive[1] = 0
-        disciplesFlow.value = tables.assembleAll()
 
         processor.processDiscipleAging(currentYear = 10)
 

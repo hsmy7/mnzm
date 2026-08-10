@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.concurrent.ThermalController
+import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.engine.system.SystemManager
@@ -24,12 +25,11 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.TimeoutCancellationException
 import org.junit.After
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.`when`
-import org.mockito.Mockito.mock
-import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import kotlin.coroutines.EmptyCoroutineContext
 
@@ -46,7 +46,7 @@ import kotlin.coroutines.EmptyCoroutineContext
 class GameEngineCoreStuckResetTest {
 
     private lateinit var core: GameEngineCore
-    private lateinit var stateStore: GameStateStore
+    private lateinit var stateStore: FakeAtomicStateStore
 
     private val initialTimeMs = 1_000_000L
     private val stuckTimeoutMs = 90_000L
@@ -54,7 +54,7 @@ class GameEngineCoreStuckResetTest {
     @Before
     fun setUp() {
         OemPowerProfileProvider.manufacturerOverride = OemManufacturer.OTHER
-        stateStore = mock(GameStateStore::class.java)
+        stateStore = FakeAtomicStateStore()
         core = createCore(stateStore)
     }
 
@@ -72,8 +72,8 @@ class GameEngineCoreStuckResetTest {
         core.checkAndResetStuckStates(isSaving = true, isLoading = false, nowMs = initialTimeMs + stuckTimeoutMs + 1)
 
         assertTrue("事件应说明保存超时，实际: ${event.await()}", event.await().contains("保存操作超时"))
-        verify(stateStore).setSavingDirect(false)
-        verify(stateStore).setLoadingDirect(false)
+        assertTrue("保存标志必须复位", stateStore.setSavingDirectCalls.contains(false))
+        assertTrue("读档标志必须复位", stateStore.setLoadingDirectCalls.contains(false))
     }
 
     @Test
@@ -111,7 +111,7 @@ class GameEngineCoreStuckResetTest {
 
     @Test
     fun `registered active job cancelled on watchdog reset`() = runTest {
-        val job = mock(kotlinx.coroutines.Job::class.java)
+        val job = mockSmart(kotlinx.coroutines.Job::class.java)
         core.registerActiveLoadJob(job)
 
         core.checkAndResetStuckStates(isSaving = true, isLoading = false, nowMs = initialTimeMs)
@@ -125,7 +125,7 @@ class GameEngineCoreStuckResetTest {
         core.checkAndResetStuckStates(isSaving = true, isLoading = false, nowMs = initialTimeMs)
         core.checkAndResetStuckStates(isSaving = true, isLoading = false, nowMs = initialTimeMs + stuckTimeoutMs - 1)
 
-        verify(stateStore, never()).setSavingDirect(false)
+        assertFalse("未超时不得复位保存标志", stateStore.setSavingDirectCalls.contains(false))
     }
 
     // ============================================================
@@ -161,29 +161,29 @@ class GameEngineCoreStuckResetTest {
     }
 
     private fun createCore(stateStore: GameStateStore): GameEngineCore {
-        val scope = mock(CoroutineScope::class.java)
+        val scope = mockSmart(CoroutineScope::class.java)
         `when`(scope.coroutineContext).thenReturn(EmptyCoroutineContext)
-        val scopeProvider = mock(CoroutineScopeProvider::class.java)
+        val scopeProvider = mockSmart(CoroutineScopeProvider::class.java)
         `when`(scopeProvider.scope).thenReturn(scope)
         return GameEngineCore(
             stateStore = stateStore,
-            eventBus = mock(EventBusPort::class.java),
-            unifiedPerformanceMonitor = mock(UnifiedPerformanceMonitor::class.java),
-            systemManager = mock(SystemManager::class.java),
+            eventBus = mockSmart(EventBusPort::class.java),
+            unifiedPerformanceMonitor = mockSmart(UnifiedPerformanceMonitor::class.java),
+            systemManager = mockSmart(SystemManager::class.java),
             scopeProvider = scopeProvider,
-            cultivationService = mock(CultivationService::class.java),
-            explorationService = mock(com.xianxia.sect.core.engine.domain.exploration.ExplorationService::class.java),
-            aiSectBeastAttackProcessor = mock(AISectBeastAttackProcessor::class.java),
+            cultivationService = mockSmart(CultivationService::class.java),
+            explorationService = mockSmart(ExplorationService::class.java),
+            aiSectBeastAttackProcessor = mockSmart(AISectBeastAttackProcessor::class.java),
             gameClock = GameTimeClock(StaticTimeSource()),
-            thermalController = mock(ThermalController::class.java),
-            thermalMonitor = mock(com.xianxia.sect.core.perf.ThermalMonitor::class.java),
-            spiritStoneWallet = mock(SpiritStoneWallet::class.java),
+            thermalController = mockSmart(ThermalController::class.java),
+            thermalMonitor = mockSmart(com.xianxia.sect.core.perf.ThermalMonitor::class.java),
+            spiritStoneWallet = mockSmart(SpiritStoneWallet::class.java),
             jadeSymbolService = JadeSymbolService(
                 timeSource = TimeSource { 0L },
                 stateStore = stateStore,
                 wallClock = WallClock { 0L }
             ),
-            engineCrashReporter = mock(EngineCrashReporter::class.java)
+            engineCrashReporter = mockSmart(EngineCrashReporter::class.java)
         )
     }
 

@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.domain.exploration
 
+import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.exploration.BeastAttackDetector
 import com.xianxia.sect.core.exploration.DiscipleDeathHandler
 import com.xianxia.sect.core.exploration.LootCalculator
@@ -13,15 +14,15 @@ import com.xianxia.sect.core.model.Material
 import com.xianxia.sect.core.model.WorldLevel
 import com.xianxia.sect.core.model.WorldSect
 import com.xianxia.sect.core.model.spiritStones
-import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.engine.domain.battle.BattleSystem
 import com.xianxia.sect.core.engine.domain.battle.BattleSystemResult
 import com.xianxia.sect.core.engine.domain.battle.Battle
+import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.domain.battle.EncounterBattleService
+import com.xianxia.sect.core.wallet.DeductResult
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.util.DomainResult
@@ -30,7 +31,7 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.Rule
-import org.mockito.Mockito.mock
+import org.mockito.Mockito
 import org.mockito.Mockito.`when`
 import org.mockito.kotlin.any
 
@@ -40,23 +41,28 @@ class ResolveBeastAttackFightTest {
 
     @get:Rule val writeGuardRule = WriteGuardRule()
     private lateinit var service: ExplorationService
-    private lateinit var stateStore: GameStateStore
-    private val gameDataFlow = kotlinx.coroutines.flow.MutableStateFlow(GameData())
+    private lateinit var stateStore: FakeAtomicStateStore
 
     @Before
     fun setUp() {
-        stateStore = mock(GameStateStore::class.java)
-        val battleSystem = mock(BattleSystem::class.java)
+        // Fake 提供真实语义：gameData/disciples 等 flow 全真实，测试直接 setGameData 推进
+        stateStore = FakeAtomicStateStore()
+        val battleSystem = mockSmart(BattleSystem::class.java)
         val rngManager = GameRngManager().also { it.initSystemSeed(42) }
-        val inventorySystem = mock(InventorySystem::class.java)
-        val worldLevelManager = mock(WorldLevelManager::class.java)
-        val patrolBattleSystem = mock(PatrolBattleSystem::class.java)
-        val beastAttackDetector = mock(BeastAttackDetector::class.java)
-        val lootCalculator = mock(LootCalculator::class.java)
-        val encounterBattleService = mock(EncounterBattleService::class.java)
-        val cultivationService = mock(CultivationService::class.java)
-        val spiritStoneWallet = mock(SpiritStoneWallet::class.java)
-        val explorationTeamManager = mock(com.xianxia.sect.core.exploration.ExplorationTeamManager::class.java)
+        val inventorySystem = mockSmart(InventorySystem::class.java)
+        val worldLevelManager = mockSmart(WorldLevelManager::class.java)
+        val patrolBattleSystem = mockSmart(PatrolBattleSystem::class.java)
+        val beastAttackDetector = mockSmart(BeastAttackDetector::class.java)
+        val lootCalculator = mockSmart(LootCalculator::class.java)
+        val encounterBattleService = mockSmart(EncounterBattleService::class.java)
+        val cultivationService = mockSmart(CultivationService::class.java)
+        val spiritStoneWallet = mockSmart(SpiritStoneWallet::class.java)
+        // deduct 返回 sealed class DeductResult（ByteBuddy 无法代理 sealed）→ doReturn 风格。
+        // 本文件用例全为失败路径：not found/defeated 在 deduct 前提前返回，
+        // 灵石不足用例正需要 Insufficient（非 Success → paid=false）
+        Mockito.doReturn(DeductResult.Insufficient(balance = 0, required = 0))
+            .`when`(spiritStoneWallet).deduct(any(), any(), any(), any(), any(), any(), any())
+        val explorationTeamManager = mockSmart(com.xianxia.sect.core.exploration.ExplorationTeamManager::class.java)
 
         `when`(battleSystem.createBattle(any(), any(), any(), any(), any(), any(), any(), any(), any(), any()))
             .thenReturn(Battle(team = emptyList(), beasts = emptyList()))
@@ -64,28 +70,10 @@ class ResolveBeastAttackFightTest {
             BattleSystemResult(battle = Battle(team = emptyList(), beasts = emptyList()),
                 victory = true, rewards = emptyMap(), turnCount = 1)
         )
-        `when`(stateStore.gameData).thenReturn(gameDataFlow)
-        `when`(stateStore.gameDataSnapshot).thenAnswer { gameDataFlow.value }
-        `when`(stateStore.disciples).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(emptyList()))
-        `when`(stateStore.discipleTables).thenReturn(DiscipleTables())
-        `when`(stateStore.equipmentStacks).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(emptyList()))
-        `when`(stateStore.equipmentInstances).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(emptyList()))
-        `when`(stateStore.manualStacks).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(emptyList()))
-        `when`(stateStore.manualInstances).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(emptyList()))
-        `when`(stateStore.pills).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(emptyList()))
-        `when`(stateStore.materials).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(emptyList()))
-        `when`(stateStore.herbs).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(emptyList()))
-        `when`(stateStore.seeds).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(emptyList()))
-        `when`(stateStore.battleLogs).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(emptyList()))
-        `when`(stateStore.storageBags).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(emptyList()))
-        `when`(stateStore.pendingBeastAttacks).thenReturn(kotlinx.coroutines.flow.MutableStateFlow(emptyList()))
-        `when`(stateStore.equipmentStacksSnapshot).thenReturn(emptyList())
-        `when`(stateStore.equipmentInstancesSnapshot).thenReturn(emptyList())
-        `when`(stateStore.manualStacksSnapshot).thenReturn(emptyList())
-        `when`(stateStore.manualInstancesSnapshot).thenReturn(emptyList())
-        `when`(stateStore.battleLogsSnapshot).thenReturn(emptyList())
-        `when`(stateStore.discipleAggregatesSnapshot).thenReturn(emptyList())
-        `when`(inventorySystem.addMaterial(any())).thenReturn(DomainResult.Success(Material()))
+        // doReturn 风格：addMaterial 返回 sealed interface DomainResult（ByteBuddy 无法代理），
+        // when 风格的第一次调用会触发 smart nulls 创建而抛 MockitoException；
+        // doReturn 先注册 stub，调用直接返回，不触发默认 answer
+        Mockito.doReturn(DomainResult.Success(Material())).`when`(inventorySystem).addMaterial(any())
 
         service = ExplorationService(
             stateStore = stateStore,
@@ -100,7 +88,7 @@ class ResolveBeastAttackFightTest {
             cultivationService = cultivationService,
             spiritStoneWallet = spiritStoneWallet,
             explorationTeamManager = explorationTeamManager,
-            deathHandler = mock(DiscipleDeathHandler::class.java)
+            deathHandler = mockSmart(DiscipleDeathHandler::class.java)
         )
     }
 
@@ -108,7 +96,7 @@ class ResolveBeastAttackFightTest {
 
     @Test
     fun `resolveBeastAttackFight returns false when beast not found`() = runBlocking {
-        gameDataFlow.value = GameData(worldLevels = emptyList())
+        stateStore.setGameData(GameData(worldLevels = emptyList()))
         val result = service.resolveBeastAttackFight("nonexistent")
         assertFalse(result)
     }
@@ -116,14 +104,14 @@ class ResolveBeastAttackFightTest {
     @Test
     fun `resolveBeastAttackFight returns false when beast already defeated`() = runBlocking {
         val beast = WorldLevel(id = "b1", type = LevelType.BEAST, defeated = true)
-        gameDataFlow.value = GameData(worldLevels = listOf(beast))
+        stateStore.setGameData(GameData(worldLevels = listOf(beast)))
         val result = service.resolveBeastAttackFight("b1")
         assertFalse(result)
     }
 
     @Test
     fun `resolveBeastAttackPayTribute returns false when beast not found`() = runBlocking {
-        gameDataFlow.value = GameData(worldLevels = emptyList())
+        stateStore.setGameData(GameData(worldLevels = emptyList()))
         val result = service.resolveBeastAttackPayTribute("nonexistent")
         assertFalse(result)
     }
@@ -131,7 +119,7 @@ class ResolveBeastAttackFightTest {
     @Test
     fun `resolveBeastAttackPayTribute returns false when beast already defeated`() = runBlocking {
         val beast = WorldLevel(id = "b1", type = LevelType.BEAST, defeated = true)
-        gameDataFlow.value = GameData(worldLevels = listOf(beast))
+        stateStore.setGameData(GameData(worldLevels = listOf(beast)))
         val result = service.resolveBeastAttackPayTribute("b1")
         assertFalse(result)
     }
@@ -140,11 +128,11 @@ class ResolveBeastAttackFightTest {
     fun `resolveBeastAttackPayTribute returns false when spirit stones insufficient`() = runBlocking {
         // 灵石不足时 deduct 失败，DeductResult 非 Success → return@update → paid=false
         val beast = WorldLevel(id = "b1", type = LevelType.BEAST, defeated = false, x = 500f, y = 500f)
-        gameDataFlow.value = GameData(
+        stateStore.setGameData(GameData(
             worldLevels = listOf(beast),
             worldMapSects = listOf(WorldSect(isPlayerSect = true, x = 500f, y = 500f, name = "玩家宗门")),
             spiritStones = 0  // 无灵石
-        )
+        ))
         val result = service.resolveBeastAttackPayTribute("b1")
         assertFalse("灵石不足时应返回 false", result)
     }

@@ -7,6 +7,7 @@ import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentRegistry
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatusService
 import com.xianxia.sect.core.engine.domain.production.ProductionCoordinator
+import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.engine.system.InventorySystem
 import com.xianxia.sect.core.event.EventBus
 import com.xianxia.sect.core.model.ActiveMission
@@ -54,7 +55,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito
-import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
@@ -97,7 +97,9 @@ class BuildingBatchRemovalTest {
     fun setUp() {
         tables = DiscipleTables()
         state = createMutableState(tables)
-        mockStore = mock(GameStateStore::class.java)
+        // mockSmart + 显式 stub：update/gameDataSnapshot 被 stub 路由到外部 state
+        // （断言基于 state），换 Fake 会写内部状态破坏断言语义，故保留 stub 语义
+        mockStore = mockSmart(GameStateStore::class.java)
         Mockito.doAnswer { state.gameData }.`when`(mockStore).gameDataSnapshot
         Mockito.doAnswer { inv ->
             val block = inv.getArgument<MutableGameState.() -> Unit>(0)
@@ -105,32 +107,32 @@ class BuildingBatchRemovalTest {
             null
         }.`when`(mockStore).update(any())
 
-        gameEngineCore = mock(GameEngineCore::class.java)
+        gameEngineCore = mockSmart(GameEngineCore::class.java)
         // 真实 repository（Robolectric 下 final 类 mock 拦截不可靠，且该类
         // 属性 slots 与函数 getSlots 同名存在 JVM 重载，mock 易匹配错签名）
-        val scopeProvider = mock(CoroutineScopeProvider::class.java)
+        val scopeProvider = mockSmart(CoroutineScopeProvider::class.java)
         whenever(scopeProvider.scope).thenReturn(CoroutineScope(SupervisorJob() + Dispatchers.Unconfined))
         repository = ProductionSlotRepository(
-            dao = mock(ProductionSlotDataPort::class.java),
-            configService = mock(BuildingConfigService::class.java),
+            dao = mockSmart(ProductionSlotDataPort::class.java),
+            configService = mockSmart(BuildingConfigService::class.java),
             scopeProvider = scopeProvider
         )
-        productionCoordinator = mock(ProductionCoordinator::class.java)
+        productionCoordinator = mockSmart(ProductionCoordinator::class.java)
         Mockito.doReturn(repository).`when`(productionCoordinator).repository
 
         gate = DiscipleAssignmentGate(DiscipleAssignmentRegistry())
-        discipleStatusService = mock(DiscipleStatusService::class.java)
+        discipleStatusService = mockSmart(DiscipleStatusService::class.java)
         val wallet = SpiritStoneWallet(
             stateStore = mockStore,
             ledger = SpiritStoneLedger(),
-            eventBus = mock(EventBus::class.java)
+            eventBus = mockSmart(EventBus::class.java)
         )
         facade = BuildingFacadeImpl(
-            buildingService = mock(BuildingService::class.java),
+            buildingService = mockSmart(BuildingService::class.java),
             stateStore = mockStore,
             gameEngineCore = gameEngineCore,
             productionCoordinator = productionCoordinator,
-            inventorySystem = mock(InventorySystem::class.java),
+            inventorySystem = mockSmart(InventorySystem::class.java),
             spiritStoneWallet = wallet,
             assignmentGate = gate,
             discipleStatusService = discipleStatusService,

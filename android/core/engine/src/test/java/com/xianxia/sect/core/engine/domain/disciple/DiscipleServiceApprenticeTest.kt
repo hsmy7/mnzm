@@ -1,22 +1,19 @@
 package com.xianxia.sect.core.engine.domain.disciple
 
 import com.xianxia.sect.core.model.Disciple
-import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.state.DiscipleTables
-import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.util.DomainResult
+import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.di.IoDispatcher
+import com.xianxia.sect.core.engine.mockSmart
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.Rule
-import org.mockito.Mockito
-import org.mockito.Mockito.mock
 import org.robolectric.RobolectricTestRunner
 
 
@@ -32,44 +29,25 @@ class DiscipleServiceApprenticeTest {
 
     @get:Rule val writeGuardRule = WriteGuardRule()
     private lateinit var tables: DiscipleTables
-    private lateinit var mutableState: MutableGameState
     private lateinit var mockStore: GameStateStore
     private lateinit var service: DiscipleService
 
     @Before
     fun setUp() {
-        tables = DiscipleTables()
-        mutableState = createMutableState(tables)
+        val store = FakeAtomicStateStore()
+        mockStore = store
+        tables = store.discipleTables
 
-        // 构造委托 mock：除 update/discipleTables
-        // 外全部 stub 为默认值
-        val delegate = mock(GameStateStore::class.java)
-        Mockito.`when`(delegate.discipleTables).thenReturn(tables)
-
-        mockStore = object : GameStateStore by delegate {
-            override val discipleTables: DiscipleTables
-                get() = tables
-
-            override fun update(
-        block: MutableGameState.() -> Unit
-            ) {
-                block.invoke(mutableState)
-            }
-
-            override fun <R> updateAndReturn(
-        block: MutableGameState.() -> R
-            ): R {
-                return block.invoke(mutableState)
-            }
-        }
-
+        // ProductionSlotRepository 是 final 类：mock 拦截依赖类加载时机（顺序敏感 flaky），
+        // 用真实实例 + mockSmart 端口（getSlots() 真实返回空列表，语义与 mock 时代一致）
+        val productionRepo = com.xianxia.sect.core.engine.testProductionSlotRepository()
         val slotManager = DiscipleSlotManager(
             stateStore = mockStore,
-            productionSlotRepository = mock(),
+            productionSlotRepository = productionRepo,
             discipleSlotCleanup = DiscipleSlotCleanup(
                 DiscipleAssignmentGate(DiscipleAssignmentRegistry())
             ),
-            discipleStatusServiceProvider = javax.inject.Provider { mock() },
+            discipleStatusServiceProvider = javax.inject.Provider { mockSmart() },
             ioDispatcher = IoDispatcher()
         )
         val equipmentService = DiscipleEquipmentService(
@@ -80,21 +58,21 @@ class DiscipleServiceApprenticeTest {
         )
         val lifecycleManager = DiscipleLifecycleManager(
             stateStore = mockStore,
-            discipleFactory = mock(),
-            rngManager = mock(),
+            discipleFactory = mockSmart(),
+            rngManager = mockSmart(),
             slotManager = slotManager,
-            productionSlotRepository = mock(),
+            productionSlotRepository = mockSmart(),
         )
         service = DiscipleService(
             stateStore = mockStore,
-            discipleFactory = mock(),
-            rngManager = mock(),
+            discipleFactory = mockSmart(),
+            rngManager = mockSmart(),
             discipleEquipmentService = equipmentService,
             discipleLifecycleManager = lifecycleManager,
             discipleMasterApprenticeService = masterService,
             discipleSlotManager = slotManager,
-            discipleStatusService = mock(),
-            inventorySystem = mock(com.xianxia.sect.core.engine.system.InventorySystem::class.java)
+            discipleStatusService = mockSmart(),
+            inventorySystem = mockSmart(com.xianxia.sect.core.engine.system.InventorySystem::class.java)
         )
     }
 
@@ -275,23 +253,4 @@ class DiscipleServiceApprenticeTest {
         tables.insert(d)
         tables.isAlive[id] = 1
     }
-
-    private fun createMutableState(tables: DiscipleTables) = MutableGameState(
-        gameData = GameData(),
-        discipleTables = tables,
-        equipmentStacks = EntityStore(emptyList()),
-        equipmentInstances = EntityStore(emptyList()),
-        manualStacks = EntityStore(emptyList()),
-        manualInstances = EntityStore(emptyList()),
-        pills = EntityStore(emptyList()),
-        materials = EntityStore(emptyList()),
-        herbs = EntityStore(emptyList()),
-        seeds = EntityStore(emptyList()),
-        storageBags = EntityStore(emptyList()),
-        teams = emptyList(),
-        battleLogs = emptyList(),
-        isPaused = false,
-        isLoading = false,
-        isSaving = false
-    )
 }

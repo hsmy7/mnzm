@@ -2,9 +2,8 @@ package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.concurrent.ThermalController
 import com.xianxia.sect.core.engine.monitor.StallVerdict
+import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
 import com.xianxia.sect.core.engine.service.CultivationService
-import com.xianxia.sect.core.state.BootPhase
-import com.xianxia.sect.core.state.RunState
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.engine.service.JadeSymbolService
 import com.xianxia.sect.core.engine.service.WallClock
@@ -17,7 +16,6 @@ import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -25,14 +23,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import org.mockito.Mockito.anyBoolean
-import org.mockito.Mockito.doAnswer
-import org.mockito.Mockito.atLeastOnce
-import org.mockito.Mockito.mock
-import org.mockito.Mockito.never
-import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
-import org.mockito.kotlin.mock
 import kotlin.coroutines.EmptyCoroutineContext
 
 /**
@@ -46,8 +37,7 @@ import kotlin.coroutines.EmptyCoroutineContext
 class GameEngineCoreResumeTest {
 
     private lateinit var core: GameEngineCore
-    private lateinit var stateStore: GameStateStore
-    private lateinit var pausedFlow: MutableStateFlow<Boolean>
+    private lateinit var stateStore: FakeAtomicStateStore
     private lateinit var fakeTime: FakeTimeSource
     private lateinit var gameClock: GameTimeClock
 
@@ -74,7 +64,7 @@ class GameEngineCoreResumeTest {
     fun `resumeFromBackground - secret realm lock held restarts loop and preserves pause`() = runTest {
         // 前置：进入秘境（置锁）→ 切后台（停循环）
         core.pauseForSecretRealm()
-        assertTrue("pauseForSecretRealm should pause", pausedFlow.value)
+        assertTrue("pauseForSecretRealm should pause", stateStore.isPaused.value)
         assertTrue("pause lock should be held", core.secretRealmPauseLock)
         core.pauseForBackground()
         assertFalse("loop should be stopped after background", core.isGameLoopRunning)
@@ -84,10 +74,10 @@ class GameEngineCoreResumeTest {
 
         // 修复前：直接 return，循环永不重启。修复后：循环重启 + 暂停保持
         assertTrue("loop must restart despite pause lock", core.isGameLoopRunning)
-        assertTrue("pause must be preserved (S4: no month/year change during exploration)", pausedFlow.value)
+        assertTrue("pause must be preserved (S4: no month/year change during exploration)", stateStore.isPaused.value)
 
         // F4：startGameLoop 内按暂停来源保留（pauseForSecretRealm/stopGameLoop/startGameLoop 均置 true）
-        verify(stateStore, atLeastOnce()).setPausedDirect(true)
+        assertTrue("F4：暂停来源必须经 setPausedDirect(true) 保留", stateStore.setPausedDirectCalls.any { it })
     }
 
     @Test
@@ -98,7 +88,7 @@ class GameEngineCoreResumeTest {
         core.resumeFromBackground()
 
         assertTrue("loop must restart", core.isGameLoopRunning)
-        assertFalse("no lock: pause must be released", pausedFlow.value)
+        assertFalse("no lock: pause must be released", stateStore.isPaused.value)
     }
 
     @Test
@@ -114,20 +104,20 @@ class GameEngineCoreResumeTest {
         core.resumeFromBackground()
 
         // 锁已清且用户从未暂停 → 恢复后时间正常推进（无粘滞暂停）
-        assertFalse("no sticky pause after background round-trip", pausedFlow.value)
+        assertFalse("no sticky pause after background round-trip", stateStore.isPaused.value)
         assertTrue(core.isGameLoopRunning)
     }
 
     @Test
     fun `resumeFromBackground - user paused before background keeps pause released by manual resume`() = runTest {
         // 用户主动暂停 → 切后台 → 回前台：循环重启但 isPaused 保持 true（用户暂停语义）
-        pausedFlow.value = true
+        stateStore.isPaused.value = true
         core.pauseForBackground()
 
         core.resumeFromBackground()
 
         assertTrue(core.isGameLoopRunning)
-        assertTrue("user pause must survive background resume", pausedFlow.value)
+        assertTrue("user pause must survive background resume", stateStore.isPaused.value)
     }
 
     @Test
@@ -136,7 +126,7 @@ class GameEngineCoreResumeTest {
         core.resumeFromBackground()
 
         assertFalse("loop must not start", core.isGameLoopRunning)
-        verify(stateStore, never()).setPausedDirect(anyBoolean())
+        assertTrue("未暂停不得触碰 setPausedDirect", stateStore.setPausedDirectCalls.isEmpty())
     }
 
     @Test
@@ -151,7 +141,7 @@ class GameEngineCoreResumeTest {
         // 循环在跑：不重复启动（startGameLoop 幂等守卫 + resumeFromBackground 的 !isGameLoopRunning 条件）
         assertTrue(core.isGameLoopRunning)
         // 无秘境锁：不被重复置暂停
-        assertFalse(pausedFlow.value)
+        assertFalse(stateStore.isPaused.value)
     }
 
     // ── 修复点 B：租约自愈链路 ──
@@ -182,7 +172,7 @@ class GameEngineCoreResumeTest {
         core.handleWatchdogVerdict(StallVerdict.StalePauseDetected)
 
         assertFalse("lock must be cleared", core.secretRealmPauseLock)
-        assertFalse("pause must be released", pausedFlow.value)
+        assertFalse("pause must be released", stateStore.isPaused.value)
         // V5：不主动启动循环——后台场景避免后台推进时间；回前台 resumeFromBackground 重启
         assertFalse("self-heal must not force-start loop", core.isGameLoopRunning)
     }
@@ -190,9 +180,9 @@ class GameEngineCoreResumeTest {
     @Test
     fun `handleWatchdogVerdict - user pause never recovered (a63338f3 regression)`() {
         // 用户主动暂停：PausedByOwner 永不自动恢复
-        pausedFlow.value = true
+        stateStore.isPaused.value = true
         core.handleWatchdogVerdict(StallVerdict.PausedByOwner)
-        assertTrue("user pause must survive watchdog", pausedFlow.value)
+        assertTrue("user pause must survive watchdog", stateStore.isPaused.value)
     }
 
     @Test
@@ -213,50 +203,43 @@ class GameEngineCoreResumeTest {
     @Test
     fun `secretRealm lifecycle - enter pause resume exit restore`() = runTest {
         core.pauseForSecretRealm()
-        assertTrue(pausedFlow.value)
+        assertTrue(stateStore.isPaused.value)
         core.pauseForBackground()
         core.resumeFromBackground()
-        assertTrue("still paused inside exploration", pausedFlow.value)
+        assertTrue("still paused inside exploration", stateStore.isPaused.value)
 
         core.resumeFromSecretRealm()
-        assertFalse("exit exploration restores time", pausedFlow.value)
+        assertFalse("exit exploration restores time", stateStore.isPaused.value)
         assertFalse("lock cleared", core.secretRealmPauseLock)
     }
 
     // ── 工具 ──
 
-    private fun createStateStore(): GameStateStore {
-        val store = mock(GameStateStore::class.java)
-        pausedFlow = MutableStateFlow(false)
-        `when`(store.isPaused).thenReturn(pausedFlow)
-        `when`(store.isLoading).thenReturn(MutableStateFlow(false))
-        `when`(store.isSaving).thenReturn(MutableStateFlow(false))
-        doAnswer { pausedFlow.value = it.getArgument(0) }
-            .`when`(store).setPausedDirect(anyBoolean())
-        `when`(store.gameDataSnapshot).thenReturn(GameData())
-        `when`(store.bootPhase).thenReturn(MutableStateFlow(BootPhase.UNINITIALIZED))
-        `when`(store.runState).thenReturn(MutableStateFlow(RunState.IDLE))
+    /** Fake 提供真实语义（isPaused/setPausedDirect/gameDataSnapshot 全真实） */
+    private fun createStateStore(): FakeAtomicStateStore {
+        val store = FakeAtomicStateStore()
+        store.setGameData(GameData())
         return store
     }
 
     private fun createCore(stateStore: GameStateStore, gameClock: GameTimeClock): GameEngineCore {
-        val scope = mock(CoroutineScope::class.java)
+        val scope = mockSmart(CoroutineScope::class.java)
         `when`(scope.coroutineContext).thenReturn(EmptyCoroutineContext)
-        val scopeProvider = mock(CoroutineScopeProvider::class.java)
+        val scopeProvider = mockSmart(CoroutineScopeProvider::class.java)
         `when`(scopeProvider.scope).thenReturn(scope)
         return GameEngineCore(
             stateStore = stateStore,
-            eventBus = mock(EventBusPort::class.java),
-            unifiedPerformanceMonitor = mock(UnifiedPerformanceMonitor::class.java),
-            systemManager = mock(com.xianxia.sect.core.engine.system.SystemManager::class.java),
+            eventBus = mockSmart(EventBusPort::class.java),
+            unifiedPerformanceMonitor = mockSmart(UnifiedPerformanceMonitor::class.java),
+            systemManager = mockSmart(com.xianxia.sect.core.engine.system.SystemManager::class.java),
             scopeProvider = scopeProvider,
-            cultivationService = mock(CultivationService::class.java),
-            explorationService = mock(com.xianxia.sect.core.engine.domain.exploration.ExplorationService::class.java),
-            aiSectBeastAttackProcessor = mock(AISectBeastAttackProcessor::class.java),
+            cultivationService = mockSmart(CultivationService::class.java),
+            explorationService = mockSmart(ExplorationService::class.java),
+            aiSectBeastAttackProcessor = mockSmart(AISectBeastAttackProcessor::class.java),
             gameClock = gameClock,
-            thermalController = mock(ThermalController::class.java),
-            thermalMonitor = mock(com.xianxia.sect.core.perf.ThermalMonitor::class.java),
-            spiritStoneWallet = mock(SpiritStoneWallet::class.java),
+            thermalController = mockSmart(ThermalController::class.java),
+            thermalMonitor = mockSmart(com.xianxia.sect.core.perf.ThermalMonitor::class.java),
+            spiritStoneWallet = mockSmart(SpiritStoneWallet::class.java),
             jadeSymbolService = JadeSymbolService(
                 timeSource = TimeSource { 0L },
                 stateStore = stateStore,

@@ -26,8 +26,6 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.kotlin.any
-import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
@@ -122,18 +120,16 @@ class BuildingServiceDeathDiscipleTest {
     @Test
     fun `读档收获 - 死弟子槽位单事务重置并清空弟子关联`() = runTest {
         val store = newStoreWithDisciple(alive = false)
-        val repo = mock<ProductionSlotRepository>()
+        val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
         val tier1 = ForgeRecipeDatabase.getAllRecipes().first { it.tier == 1 }
+        repo.loadSlots(listOf(forgeCompletedSlot(tier1.id)))
         val service = newService(store, repo, inventorySystem = stubInventory())
 
         service.autoHarvestForgeSlot(forgeCompletedSlot(tier1.id))
 
         // 合并事务（发现2/L5）：reset 与 B3 补清在单次 updateSlotByBuildingId 内完成，
         // 死弟子 → 重置回 IDLE 且清空弟子关联（无"IDLE+死弟子"中间态被并发排班占用）
-        val captor = argumentCaptor<(ProductionSlot) -> ProductionSlot>()
-        verify(repo).updateSlotByBuildingId(
-            eq(BuildingNames.FORGE), eq(0), captor.capture())
-        val transformed = captor.firstValue(forgeCompletedSlot(tier1.id))
+        val transformed = repo.getSlots().first()
         assertEquals("死弟子槽位应重置回 IDLE",
             ProductionSlotStatus.IDLE, transformed.status)
         assertNull("死弟子槽位应清空关联", transformed.assignedDiscipleId)
@@ -143,18 +139,16 @@ class BuildingServiceDeathDiscipleTest {
     @Test
     fun `读档收获 - 存活弟子单事务重置且保留弟子关联（供自动续炼）`() = runTest {
         val store = newStoreWithDisciple(alive = true)
-        val repo = mock<ProductionSlotRepository>()
+        val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
         val tier1 = ForgeRecipeDatabase.getAllRecipes().first { it.tier == 1 }
+        repo.loadSlots(listOf(forgeCompletedSlot(tier1.id)))
         val service = newService(store, repo, inventorySystem = stubInventory())
 
         service.autoHarvestForgeSlot(forgeCompletedSlot(tier1.id))
 
         // 合并事务后无论生死都走单次 updateSlotByBuildingId：
         // 存活 → 重置回 IDLE 但保留弟子关联（auto-restart 排班从 IDLE 槽续炼）
-        val captor = argumentCaptor<(ProductionSlot) -> ProductionSlot>()
-        verify(repo).updateSlotByBuildingId(
-            eq(BuildingNames.FORGE), eq(0), captor.capture())
-        val transformed = captor.firstValue(forgeCompletedSlot(tier1.id))
+        val transformed = repo.getSlots().first()
         assertEquals("存活弟子槽位应重置回 IDLE",
             ProductionSlotStatus.IDLE, transformed.status)
         assertEquals("存活弟子关联保留（供自动续炼）", "1", transformed.assignedDiscipleId)
@@ -171,9 +165,8 @@ class BuildingServiceDeathDiscipleTest {
         whenever(inv.addPill(any()))
             .thenReturn(DomainResult.Failure(AppError.Domain.Production.InvalidSlot(slotIndex = 0)))
         val tier1 = com.xianxia.sect.core.registry.PillRecipeDatabase.getAllRecipes().first { it.tier == 1 }
-        val repo = mock<ProductionSlotRepository>()
-        whenever(repo.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.ALCHEMY))
-            .thenReturn(listOf(alchemyCompletedSlot(tier1.id)))
+        val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
+        repo.loadSlots(listOf(alchemyCompletedSlot(tier1.id)))
         val service = newService(store, repo, inventorySystem = inv)
 
         service.autoHarvestCompletedAlchemySlots()
@@ -213,9 +206,8 @@ class BuildingServiceDeathDiscipleTest {
         }
         val tier1 = com.xianxia.sect.core.registry.PillRecipeDatabase.getAllRecipes()
             .first { it.tier == 1 }
-        val repo = mock<ProductionSlotRepository>()
-        whenever(repo.getSlotsByType(com.xianxia.sect.core.model.production.BuildingType.ALCHEMY))
-            .thenReturn(listOf(alchemyCompletedSlot(tier1.id)))
+        val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
+        repo.loadSlots(listOf(alchemyCompletedSlot(tier1.id)))
         val service = newService(store, repo, inventorySystem = inv)
 
         service.autoHarvestCompletedAlchemySlots()

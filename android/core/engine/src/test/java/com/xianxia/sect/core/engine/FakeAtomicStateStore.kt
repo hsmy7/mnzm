@@ -32,10 +32,29 @@ import kotlinx.coroutines.flow.StateFlow
 
 
 /**
- * 测试用 [GameStateStore] 假实现（共享）。
+ * 测试用 [GameStateStore] 假实现（共享）——引擎测试的**唯一官方** [GameStateStore] 替身。
  *
  * 使用持久化 [DiscipleTables] 实例，确保跨 update 调用持久化。
  * 原为 GameEngineAtomicAssignTest 私有副本，抽取为共享供多测试文件复用。
+ *
+ * ## 为什么用 Fake 而不是 mock(GameStateStore)
+ *
+ * Mockito mock 对未 stub 成员默认返回 null/空——服务重构新增依赖访问路径时
+ * 静默 NPE（堆栈不指向 mock 调用点，定位困难）。本 Fake 所有成员都是真实
+ * 语义（StateFlow/EntityStore/COW 事务），不存在"未 stub"概念。
+ *
+ * ## 用法
+ *
+ * ```kotlin
+ * val store = FakeAtomicStateStore()
+ * store.setGameData(GameData(gameYear = 10))   // 可选：设置初值
+ * val service = SomeService(stateStore = store, ...)
+ * store.update { it.gameData = it.gameData.copy(...) }  // 直接改状态
+ * // 断言：store.latestGameData / store.gameData.value / store.discipleTables
+ * ```
+ *
+ * 禁止在测试中 mock(GameStateStore::class.java)；非 store 依赖（Repository/Service）
+ * 需要 mock 时使用 [mockSmart]（RETURNS_SMART_NULLS，未 stub 调用显式失败）。
  */
 internal class FakeAtomicStateStore : GameStateStore {
 
@@ -84,7 +103,15 @@ internal class FakeAtomicStateStore : GameStateStore {
 
     // ── 快照 ──
     override val discipleAggregatesSnapshot: List<DiscipleAggregate> get() = discipleAggregates.value
-    override val gameDataSnapshot: GameData get() = _gameData.value
+    override val gameDataSnapshot: GameData
+        get() {
+            val gate = snapshotGate
+            if (gate != null && gate(Thread.currentThread())) {
+                snapshotEnteredLatch.countDown()
+                snapshotReleaseLatch.await(5, java.util.concurrent.TimeUnit.SECONDS)
+            }
+            return _gameData.value
+        }
     override val disciplesSnapshot: List<Disciple> get() = disciples.value
     override val equipmentStacksSnapshot: List<EquipmentStack> get() = equipmentStacks.value
     override val equipmentInstancesSnapshot: List<EquipmentInstance> get() = equipmentInstances.value
@@ -131,9 +158,18 @@ internal class FakeAtomicStateStore : GameStateStore {
     override fun clearPendingBattleRewardCards() { pendingBattleRewardCards.value = emptyList() }
     override fun enqueueRewardCards(items: List<RewardCardItem>) { /* Fake：战斗奖励直接入队，无需队列 */ }
     override fun clearRewardCardQueue(count: Int) { /* Fake：无队列可清 */ }
-    override fun setPausedDirect(paused: Boolean) { isPaused.value = paused }
-    override fun setLoadingDirect(loading: Boolean) { isLoading.value = loading }
-    override fun setSavingDirect(saving: Boolean) { isSaving.value = saving }
+    override fun setPausedDirect(paused: Boolean) {
+        setPausedDirectCalls.add(paused)
+        isPaused.value = paused
+    }
+    override fun setLoadingDirect(loading: Boolean) {
+        setLoadingDirectCalls.add(loading)
+        isLoading.value = loading
+    }
+    override fun setSavingDirect(saving: Boolean) {
+        setSavingDirectCalls.add(saving)
+        isSaving.value = saving
+    }
     override suspend fun loadFromSnapshot(
         gameData: GameData,
         disciples: List<Disciple>,
@@ -175,9 +211,38 @@ internal class FakeAtomicStateStore : GameStateStore {
     override fun setLoading() { runState.value = RunState.LOADING }
     override fun setIdle() { runState.value = RunState.IDLE }
 
+    /**
+     * 测试专用：gameDataSnapshot 读取阻塞门控（GameEngineCoreLifecycleInterleavingTest
+     * 模拟 emergency 锁内读取阻塞，替代 mock 时代 `when(store.gameDataSnapshot)
+     * .thenAnswer { ... }`）。为 null 不门控；非 null 时 predicate 返回 true 的线程
+     * 读取 gameDataSnapshot 会：上报 snapshotEnteredLatch → 阻塞在 snapshotReleaseLatch
+     * （最多 5s）。releaseLatch 计数归零后后续读取立即通过——天然等价 mock 时代的
+     * blockOnce（emergency 内部第二次快照读取不再阻塞）。线程身份判定由测试传入
+     * （仅 emergency 线程阻塞，循环线程/主线程不阻塞）。
+     */
+    var snapshotGate: ((Thread) -> Boolean)? = null
+    val snapshotEnteredLatch = java.util.concurrent.CountDownLatch(1)
+    val snapshotReleaseLatch = java.util.concurrent.CountDownLatch(1)
+
+    /** setPausedDirect 调用记录（生命周期测试断言"stop 不触碰暂停状态"） */
+    val setPausedDirectCalls = mutableListOf<Boolean>()
+
+    /** setSavingDirect/setLoadingDirect 调用记录（看门狗卡死复位测试断言标志复位） */
+    val setSavingDirectCalls = mutableListOf<Boolean>()
+    val setLoadingDirectCalls = mutableListOf<Boolean>()
+
     /** 最后一次 update 后的 GameData 快照 */
     var latestGameData: GameData = GameData()
         private set
+
+    /**
+     * 便捷设置初始 GameData（update 事务外直接覆盖）。
+     * 替代 mock 时代的 `when(store.gameData).thenReturn(MutableStateFlow(...))` stub。
+     */
+    fun setGameData(data: GameData) {
+        _gameData.value = data
+        latestGameData = data
+    }
 
     /** 嵌套事务深度——模拟真实 store 的 writeAllowed 生命周期（重入安全） */
     private var writeDepth = 0

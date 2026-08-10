@@ -93,9 +93,8 @@ class BuildingServiceProfessionGateTest {
     @Test
     fun `startAlchemy - 无职业炼灵品被拦截`() = runTest {
         val store = storeWithDisciple(alchemyLevel = 0)
-        val repo = mock<ProductionSlotRepository>()
-        whenever(repo.getSlotByBuildingId(BuildingNames.ALCHEMY, 0))
-            .thenReturn(idleSlot(BuildingNames.ALCHEMY, BuildingType.ALCHEMY))
+        val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
+        repo.loadSlots(listOf(idleSlot(BuildingNames.ALCHEMY, BuildingType.ALCHEMY)))
         val service = newService(store, repo)
 
         val tier2Pill = PillRecipeDatabase.getAllRecipes().first { it.tier == 2 }
@@ -114,9 +113,8 @@ class BuildingServiceProfessionGateTest {
     @Test
     fun `startAlchemy - 一级炼丹师炼灵品放行且成功率含职业加成`() = runTest {
         val store = storeWithDisciple(alchemyLevel = 1)
-        val repo = mock<ProductionSlotRepository>()
-        whenever(repo.getSlotByBuildingId(BuildingNames.ALCHEMY, 0))
-            .thenReturn(idleSlot(BuildingNames.ALCHEMY, BuildingType.ALCHEMY))
+        val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
+        repo.loadSlots(listOf(idleSlot(BuildingNames.ALCHEMY, BuildingType.ALCHEMY)))
         val coordinator = mock<ProductionCoordinator>()
         val startData = ProductionSlot(
             slotIndex = 0, buildingType = BuildingType.ALCHEMY,
@@ -141,9 +139,8 @@ class BuildingServiceProfessionGateTest {
     @Test
     fun `startForging - 无职业锻宝品被拦截`() = runTest {
         val store = storeWithDisciple(forgeLevel = 0)
-        val repo = mock<ProductionSlotRepository>()
-        whenever(repo.getSlotByBuildingId(BuildingNames.FORGE, 0))
-            .thenReturn(idleSlot(BuildingNames.FORGE, BuildingType.FORGE))
+        val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
+        repo.loadSlots(listOf(idleSlot(BuildingNames.FORGE, BuildingType.FORGE)))
         val service = newService(store, repo)
 
         val tier3Forge = ForgeRecipeDatabase.getAllRecipes().first { it.tier == 3 }
@@ -160,9 +157,8 @@ class BuildingServiceProfessionGateTest {
     @Test
     fun `startForging - 无职业锻凡品放行`() = runTest {
         val store = storeWithDisciple(forgeLevel = 0)
-        val repo = mock<ProductionSlotRepository>()
-        whenever(repo.getSlotByBuildingId(BuildingNames.FORGE, 0))
-            .thenReturn(idleSlot(BuildingNames.FORGE, BuildingType.FORGE))
+        val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
+        repo.loadSlots(listOf(idleSlot(BuildingNames.FORGE, BuildingType.FORGE)))
         val coordinator = mock<ProductionCoordinator>()
         val startData = ProductionSlot(
             slotIndex = 0, buildingType = BuildingType.FORGE,
@@ -186,9 +182,8 @@ class BuildingServiceProfessionGateTest {
     @Test
     fun `startAlchemy - 槽位无弟子返回 DiscipleNotAvailable`() = runTest {
         val store = storeWithDisciple(alchemyLevel = 1)
-        val repo = mock<ProductionSlotRepository>()
-        whenever(repo.getSlotByBuildingId(BuildingNames.ALCHEMY, 0))
-            .thenReturn(idleSlot(BuildingNames.ALCHEMY, BuildingType.ALCHEMY, discipleId = null))
+        val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
+        repo.loadSlots(listOf(idleSlot(BuildingNames.ALCHEMY, BuildingType.ALCHEMY, discipleId = null)))
         val service = newService(store, repo)
 
         val tier1Pill = PillRecipeDatabase.getAllRecipes().first { it.tier == 1 }

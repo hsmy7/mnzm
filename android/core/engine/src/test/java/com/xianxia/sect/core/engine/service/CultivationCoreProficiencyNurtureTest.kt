@@ -1,8 +1,10 @@
 package com.xianxia.sect.core.engine.service
 
-import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
+import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.ManualProficiencySystem
+import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
@@ -15,16 +17,13 @@ import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
-import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.WriteGuardRule
-import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito
 import org.robolectric.RobolectricTestRunner
 
 /**
@@ -40,7 +39,7 @@ class CultivationCoreProficiencyNurtureTest {
 
     @get:Rule val writeGuardRule = WriteGuardRule()
     private lateinit var core: CultivationCore
-    private lateinit var mockStateStore: GameStateStore
+    private lateinit var stateStore: FakeAtomicStateStore
 
     @Before
     fun setUp() {
@@ -118,19 +117,18 @@ class CultivationCoreProficiencyNurtureTest {
             )
         }
 
-        mockStateStore = Mockito.mock(GameStateStore::class.java)
-        Mockito.`when`(mockStateStore.manualInstances)
-            .thenReturn(MutableStateFlow(emptyList()))
+        // Fake 默认 manualInstances flow 即空列表——等价 mock 时代 stub
+        stateStore = FakeAtomicStateStore()
 
-        val mockPillManager = Mockito.mock(DisciplePillManager::class.java)
+        val mockPillManager = mockSmart(DisciplePillManager::class.java)
         val realHpMpRecoveryService = HpMpRecoveryService()
 
         core = CultivationCore(
             hpMpRecoveryService = realHpMpRecoveryService,
-            autoPillService = AutoPillService(mockPillManager, Mockito.mock()),
+            autoPillService = AutoPillService(mockPillManager, mockSmart()),
             equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
-            cultivationRateCalculator = CultivationRateCalculator(mockStateStore),
+            cultivationRateCalculator = CultivationRateCalculator(stateStore),
             battleSettlementService = BattleSettlementService(realHpMpRecoveryService)
         )
     }

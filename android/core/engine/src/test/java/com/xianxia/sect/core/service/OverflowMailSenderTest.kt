@@ -1,5 +1,6 @@
 package com.xianxia.sect.core.engine.service
 
+import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.model.MailAttachment
 import com.xianxia.sect.core.model.MailEntity
 import com.xianxia.sect.core.overflow.OverflowMailDraft
@@ -21,7 +22,6 @@ import org.junit.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.eq
-import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
@@ -51,8 +51,10 @@ class OverflowMailSenderTest {
 
     @Before
     fun setUp() {
-        mailRepo = mock<MailRepository>()
-        stateStore = mock<GameStateStore>()
+        // mockSmart + 显式 stub：currentTransactionGeneration 需在用例内切换世代号
+        // （Fake 继承接口默认实现不可改），warehouseFullEvent/落盘桩语义依赖 stub
+        mailRepo = mockSmart<MailRepository>()
+        stateStore = mockSmart<GameStateStore>()
         whenever(stateStore.warehouseFullEvent).thenReturn(MutableSharedFlow())
         // 默认：无进行中事务（gen=0）→ 立即落盘路径；drain 读 DB 返回空
         whenever(stateStore.currentTransactionGeneration).thenReturn(0L)

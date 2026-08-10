@@ -135,10 +135,9 @@ class BuildingServiceLoadPathTest {
     @Test
     fun `autoHarvestCompletedAlchemySlots - 读档成功收获补职业晋升与统计`() = runTest {
         val store = newStoreWithDisciple(alchemyLevel = 0)
-        val repo = mock<ProductionSlotRepository>()
+        val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
         val tier1 = PillRecipeDatabase.getAllRecipes().first { it.tier == 1 }
-        whenever(repo.getSlotsByType(BuildingType.ALCHEMY))
-            .thenReturn(listOf(alchemyCompletedSlot(tier1.id, successRate = 1.0)))
+        repo.loadSlots(listOf(alchemyCompletedSlot(tier1.id, successRate = 1.0)))
         val service = newService(store, repo, inventorySystem = stubInventory())
 
         service.autoHarvestCompletedAlchemySlots()
@@ -154,10 +153,9 @@ class BuildingServiceLoadPathTest {
     @Test
     fun `autoHarvestCompletedAlchemySlots - 读档失败不晋升但计数照常`() = runTest {
         val store = newStoreWithDisciple(alchemyLevel = 0)
-        val repo = mock<ProductionSlotRepository>()
+        val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
         val tier1 = PillRecipeDatabase.getAllRecipes().first { it.tier == 1 }
-        whenever(repo.getSlotsByType(BuildingType.ALCHEMY))
-            .thenReturn(listOf(alchemyCompletedSlot(tier1.id, successRate = 0.0)))
+        repo.loadSlots(listOf(alchemyCompletedSlot(tier1.id, successRate = 0.0)))
         val service = newService(store, repo, inventorySystem = stubInventory())
 
         service.autoHarvestCompletedAlchemySlots()
@@ -172,9 +170,8 @@ class BuildingServiceLoadPathTest {
     @Test
     fun `autoHarvestCompletedAlchemySlots - 配方无效不结算晋升但计数照常`() = runTest {
         val store = newStoreWithDisciple(alchemyLevel = 0)
-        val repo = mock<ProductionSlotRepository>()
-        whenever(repo.getSlotsByType(BuildingType.ALCHEMY))
-            .thenReturn(listOf(alchemyCompletedSlot("invalid_recipe_xyz", successRate = 1.0)))
+        val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
+        repo.loadSlots(listOf(alchemyCompletedSlot("invalid_recipe_xyz", successRate = 1.0)))
         val service = newService(store, repo, inventorySystem = stubInventory())
 
         service.autoHarvestCompletedAlchemySlots()
@@ -193,7 +190,9 @@ class BuildingServiceLoadPathTest {
         whenever(inv.createEquipmentFromRecipe(any()))
             .thenReturn(EquipmentStack(name = "精铁剑", rarity = 1))
         val tier1 = ForgeRecipeDatabase.getAllRecipes().first { it.tier == 1 }
-        val service = newService(store, inventorySystem = inv)
+        val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
+        repo.loadSlots(listOf(forgeCompletedSlot(tier1.id, successRate = 1.0)))
+        val service = newService(store, repo, inventorySystem = inv)
 
         service.autoHarvestForgeSlot(forgeCompletedSlot(tier1.id, successRate = 1.0))
 
@@ -211,7 +210,9 @@ class BuildingServiceLoadPathTest {
         whenever(inv.createEquipmentFromRecipe(any()))
             .thenReturn(EquipmentStack(name = "精铁剑", rarity = 1))
         val tier1 = ForgeRecipeDatabase.getAllRecipes().first { it.tier == 1 }
-        val service = newService(store, inventorySystem = inv)
+        val repo = com.xianxia.sect.core.engine.testProductionSlotRepository()
+        repo.loadSlots(listOf(forgeCompletedSlot(tier1.id, successRate = 0.0)))
+        val service = newService(store, repo, inventorySystem = inv)
 
         service.autoHarvestForgeSlot(forgeCompletedSlot(tier1.id, successRate = 0.0))
 

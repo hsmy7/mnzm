@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.concurrent.ThermalController
+import com.xianxia.sect.core.engine.domain.exploration.ExplorationService
 import com.xianxia.sect.core.engine.service.CultivationService
 import com.xianxia.sect.core.engine.system.GameTimeClock
 import com.xianxia.sect.core.engine.system.SystemManager
@@ -9,21 +10,16 @@ import com.xianxia.sect.core.engine.service.WallClock
 import com.xianxia.sect.core.engine.system.TimeSource
 import com.xianxia.sect.core.event.EventBusPort
 import com.xianxia.sect.core.exploration.AISectBeastAttackProcessor
-import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.performance.UnifiedPerformanceMonitor
-import com.xianxia.sect.core.state.BootPhase
 import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.state.RunState
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.atLeastOnce
-import org.mockito.Mockito.mock
 import org.mockito.Mockito.timeout
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
@@ -47,7 +43,7 @@ class GameEngineCoreCrashReportTest {
     fun setUp() {
         // 纯 JVM 下 Build.MANUFACTURER 为 null，注入确定厂商（startWatchdog 依赖）
         OemPowerProfileProvider.manufacturerOverride = OemManufacturer.OTHER
-        reporter = mock(EngineCrashReporter::class.java)
+        reporter = mockSmart(EngineCrashReporter::class.java)
     }
 
     @After
@@ -57,11 +53,11 @@ class GameEngineCoreCrashReportTest {
     }
 
     @Test
-    fun `game loop exception - reporter receives exception with full context`() {
+    fun `game loop exception - reporter receives exception with full context`() = kotlinx.coroutines.test.runTest {
         // 触发路径：循环第一轮 deltaNs 大 → tickInternal → explorationService
-        // 返回 null（mock 默认）→ for 迭代 NPE → 循环 catch → 上报
+        // 返回 null（显式 stub）→ for 迭代 NPE → 循环 catch → 上报
         val stateStore = createCrashingStateStore()
-        core = createCore(stateStore, reporter)
+        core = createCore(stateStore, reporter, crashingExplorationService())
 
         core.startGameLoop()
 
@@ -80,14 +76,14 @@ class GameEngineCoreCrashReportTest {
     }
 
     @Test
-    fun `game loop exception - crash reporter failure does not kill loop`() {
+    fun `game loop exception - crash reporter failure does not kill loop`() = kotlinx.coroutines.test.runTest {
         val stateStore = createCrashingStateStore()
         val throwingReporter = object : EngineCrashReporter {
             override fun postCatchedException(throwable: Throwable, context: Map<String, String>) {
                 error("reporter failed")
             }
         }
-        core = createCore(stateStore, throwingReporter)
+        core = createCore(stateStore, throwingReporter, crashingExplorationService())
 
         core.startGameLoop()
 
@@ -96,36 +92,49 @@ class GameEngineCoreCrashReportTest {
         assertTrue("loop must survive reporter failure", core.isGameLoopRunning)
     }
 
-    /** 构造循环必崩的 stateStore：状态读取正常（真实 StateFlow），explorationService 空结果触发 NPE */
-    private fun createCrashingStateStore(): GameStateStore {
-        val store = mock(GameStateStore::class.java)
-        `when`(store.isPaused).thenReturn(MutableStateFlow(false))
-        `when`(store.isLoading).thenReturn(MutableStateFlow(false))
-        `when`(store.isSaving).thenReturn(MutableStateFlow(false))
-        `when`(store.gameDataSnapshot).thenReturn(GameData())
-        `when`(store.bootPhase).thenReturn(MutableStateFlow(BootPhase.UNINITIALIZED))
-        `when`(store.runState).thenReturn(MutableStateFlow(RunState.IDLE))
-        return store
+    /**
+     * 构造循环必崩的 store：Fake 状态读取全真实（循环能启动推进），崩溃点由
+     * 显式 stub 的 explorationService 制造——consumePendingPatrolResults 返回
+     * null → for 迭代 NPE → 循环 catch → 上报。（mockSmart 对 List 返回空集合
+     * 不崩，须显式 stub 恢复原 mock 默认 null 语义）
+     */
+    private fun createCrashingStateStore(): GameStateStore = FakeAtomicStateStore()
+
+    /**
+     * 构造循环必崩的探索服务。consumePendingPatrolResults 是 suspend 函数，
+     * 须在协程上下文注册 stub（runTest 内调用本 helper）；thenAnswer 允许返回
+     * null → 循环内 for 迭代 NPE。
+     */
+    private suspend fun crashingExplorationService(): ExplorationService {
+        val svc = mockSmart(
+            ExplorationService::class.java
+        )
+        `when`(svc.consumePendingPatrolResults()).thenAnswer { null }
+        return svc
     }
 
-    private fun createCore(stateStore: GameStateStore, reporter: EngineCrashReporter): GameEngineCore {
-        val scope = mock(CoroutineScope::class.java)
+    private fun createCore(
+        stateStore: GameStateStore,
+        reporter: EngineCrashReporter,
+        explorationService: ExplorationService
+    ): GameEngineCore {
+        val scope = mockSmart(CoroutineScope::class.java)
         `when`(scope.coroutineContext).thenReturn(EmptyCoroutineContext)
-        val scopeProvider = mock(CoroutineScopeProvider::class.java)
+        val scopeProvider = mockSmart(CoroutineScopeProvider::class.java)
         `when`(scopeProvider.scope).thenReturn(scope)
         return GameEngineCore(
             stateStore = stateStore,
-            eventBus = mock(EventBusPort::class.java),
-            unifiedPerformanceMonitor = mock(UnifiedPerformanceMonitor::class.java),
-            systemManager = mock(SystemManager::class.java),
+            eventBus = mockSmart(EventBusPort::class.java),
+            unifiedPerformanceMonitor = mockSmart(UnifiedPerformanceMonitor::class.java),
+            systemManager = mockSmart(SystemManager::class.java),
             scopeProvider = scopeProvider,
-            cultivationService = mock(CultivationService::class.java),
-            explorationService = mock(com.xianxia.sect.core.engine.domain.exploration.ExplorationService::class.java),
-            aiSectBeastAttackProcessor = mock(AISectBeastAttackProcessor::class.java),
+            cultivationService = mockSmart(CultivationService::class.java),
+            explorationService = explorationService,
+            aiSectBeastAttackProcessor = mockSmart(AISectBeastAttackProcessor::class.java),
             gameClock = GameTimeClock(StaticTimeSource()),
-            thermalController = mock(ThermalController::class.java),
-            thermalMonitor = mock(com.xianxia.sect.core.perf.ThermalMonitor::class.java),
-            spiritStoneWallet = mock(SpiritStoneWallet::class.java),
+            thermalController = mockSmart(ThermalController::class.java),
+            thermalMonitor = mockSmart(com.xianxia.sect.core.perf.ThermalMonitor::class.java),
+            spiritStoneWallet = mockSmart(SpiritStoneWallet::class.java),
             jadeSymbolService = JadeSymbolService(
                 timeSource = TimeSource { 0L },
                 stateStore = stateStore,

@@ -3,23 +3,19 @@ package com.xianxia.sect.core.engine.service
 import com.xianxia.sect.core.engine.config.GameConfigProvider
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleStatus
-import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.SocialData
 import com.xianxia.sect.core.state.DiscipleTables
-import com.xianxia.sect.core.state.EntityStore
 import com.xianxia.sect.core.state.GameStateStore
-import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.WriteGuardRule
 import com.xianxia.sect.core.util.CoroutineScopeProvider
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import com.xianxia.sect.core.engine.FakeAtomicStateStore
+import com.xianxia.sect.core.engine.mockSmart
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito.mock
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -40,60 +36,28 @@ class SalaryPlanColumnEquivalenceTest {
 
     @get:Rule val writeGuardRule = WriteGuardRule()
     private lateinit var tables: DiscipleTables
-    private lateinit var mutableState: MutableGameState
     private lateinit var mockStore: GameStateStore
-    private lateinit var gameDataFlow: MutableStateFlow<GameData>
     private lateinit var settlement: CultivationSettlement
 
     @Before
     fun setUp() {
-        tables = DiscipleTables()
-        mutableState = MutableGameState(
-            gameData = GameData(),
-            discipleTables = tables,
-            equipmentStacks = EntityStore(emptyList()),
-            equipmentInstances = EntityStore(emptyList()),
-            manualStacks = EntityStore(emptyList()),
-            manualInstances = EntityStore(emptyList()),
-            pills = EntityStore(emptyList()),
-            materials = EntityStore(emptyList()),
-            herbs = EntityStore(emptyList()),
-            seeds = EntityStore(emptyList()),
-            storageBags = EntityStore(emptyList()),
-            teams = emptyList(),
-            battleLogs = emptyList(),
-            isPaused = false,
-            isLoading = false,
-            isSaving = false
-        )
-        gameDataFlow = MutableStateFlow(GameData())
-
-        // 创建 delegate mock 但不做任何 property stub。
-        // 所有属性在匿名类中直接 override 以避免 Mockito property 状态污染。
-        val delegate = mock(GameStateStore::class.java)
-
-        mockStore = object : GameStateStore by delegate {
-            override val discipleTables: DiscipleTables get() = tables
-            override val gameData: StateFlow<GameData> get() = gameDataFlow
-
-            override fun update(block: MutableGameState.() -> Unit) {
-                block.invoke(mutableState)
-            }
-        }
+        val store = FakeAtomicStateStore()
+        mockStore = store
+        tables = store.discipleTables
 
         settlement = CultivationSettlement(
             stateStore = mockStore,
-            scopeProvider = mock(CoroutineScopeProvider::class.java),
-            spiritStoneWallet = mock(SpiritStoneWallet::class.java),
-            lawEnforcementProcessor = mock(LawEnforcementProcessor::class.java),
-            gameConfigProvider = mock(GameConfigProvider::class.java)
+            scopeProvider = mockSmart(CoroutineScopeProvider::class.java),
+            spiritStoneWallet = mockSmart(SpiritStoneWallet::class.java),
+            lawEnforcementProcessor = mockSmart(LawEnforcementProcessor::class.java),
+            gameConfigProvider = mockSmart(GameConfigProvider::class.java)
         )
     }
 
     // ==================== 参照实现：旧 assembleAll 算法（与重构前逐行一致） ====================
 
     private fun referenceCalculateSalaryPlan(): CultivationSettlement.SalaryPlan? {
-        val data = gameDataFlow.value
+        val data = mockStore.gameData.value
         val salaryConfig = data.yearlySalary
         val enabledConfig = data.yearlySalaryEnabled
         val eligible = tables.assembleAll()
@@ -133,10 +97,12 @@ class SalaryPlanColumnEquivalenceTest {
     }
 
     private fun setSalaryConfig(config: Map<Int, Int>, enabled: Map<Int, Boolean>) {
-        gameDataFlow.value = gameDataFlow.value.copy(
-            yearlySalary = config,
-            yearlySalaryEnabled = enabled
-        )
+        mockStore.update {
+            gameData = gameData.copy(
+                yearlySalary = config,
+                yearlySalaryEnabled = enabled
+            )
+        }
     }
 
     // ==================== 用例 ====================

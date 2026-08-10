@@ -1,8 +1,10 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.engine.FakeAtomicStateStore
 import com.xianxia.sect.core.engine.domain.disciple.DisciplePillManager
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.engine.mockSmart
 import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.CombatAttributes
 import com.xianxia.sect.core.model.Disciple
@@ -17,16 +19,13 @@ import com.xianxia.sect.core.model.ResidenceSlot
 import com.xianxia.sect.core.model.SkillStats
 import com.xianxia.sect.core.state.DiscipleTables
 import com.xianxia.sect.core.state.EntityStore
-import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.state.MutableGameState
 import com.xianxia.sect.core.state.WriteGuardRule
-import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.Rule
-import org.mockito.Mockito
 import org.robolectric.RobolectricTestRunner
 
 /**
@@ -52,7 +51,7 @@ class CultivationCoreTest {
 
     @get:Rule val writeGuardRule = WriteGuardRule()
     private lateinit var core: CultivationCore
-    private lateinit var mockStateStore: GameStateStore
+    private lateinit var stateStore: FakeAtomicStateStore
 
     @Before
     fun setUp() {
@@ -131,23 +130,19 @@ class CultivationCoreTest {
             )
         }
 
-        mockStateStore = Mockito.mock(GameStateStore::class.java)
-        // calculateDiscipleCultivationPerPhase 访问 stateStore.manualInstances.value 和
-        // stateStore.disciples.value，需 stub 为空 StateFlow 避免空指针。
-        Mockito.`when`(mockStateStore.manualInstances)
-            .thenReturn(MutableStateFlow(emptyList()))
-        Mockito.`when`(mockStateStore.disciples)
-            .thenReturn(MutableStateFlow(emptyList()))
+        // Fake 默认 manualInstances/disciples flow 即空列表——等价 mock 时代 stub，
+        // 且后续服务扩展读其他 store 状态不会静默 null
+        stateStore = FakeAtomicStateStore()
 
-        val mockPillManager = Mockito.mock(DisciplePillManager::class.java)
+        val mockPillManager = mockSmart(DisciplePillManager::class.java)
         val realHpMpRecoveryService = HpMpRecoveryService()
 
         core = CultivationCore(
             hpMpRecoveryService = realHpMpRecoveryService,
-            autoPillService = AutoPillService(mockPillManager, Mockito.mock()),
+            autoPillService = AutoPillService(mockPillManager, mockSmart()),
             equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
-            cultivationRateCalculator = CultivationRateCalculator(mockStateStore),
+            cultivationRateCalculator = CultivationRateCalculator(stateStore),
             battleSettlementService = BattleSettlementService(realHpMpRecoveryService)
         )
     }
