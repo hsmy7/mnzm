@@ -439,12 +439,21 @@ SaveValidator.validate(SaveData)
 
 20 个测试类覆盖全部规则，位于 `data/src/test/.../integrity/rules/`。每规则独立覆盖通过/修复/损坏三类路径。
 
-## 待完成项登记（2026-08-09 清理归档：全部条目已处置完毕，待办表清空）
+## 待完成项登记
 
-> 2026-08-02~2026-08-09 登记的全部待办项（T/P/D 系列）已于 2026-08-09 全部处置完毕，登记表清空归档：
-> - **已完成**：D-01 / D-03 / D-05~D-09 / D-11~D-17 / D-21~D-24（实施要点见下方"实施记录"段落，详见 CHANGELOG 4.00.86~4.00.93）
-> - **决策不修 / 维持现状**：D-02（功能移除自然失效）/ D-04 / D-10 / D-18~D-20 / D-25、W4 / AI 拉条移植 / P6 / P-11 附带（决策理由记录于各批次实施记录"不纳入"说明与 CHANGELOG）
-> - **待真机验证（非待办，指引保留）**：P-16 / P-18 / P-19 —— 验证指引见下
+> 2026-08-09 归档：2026-08-02~2026-08-09 登记的全部待办项（T/P/D 系列）已于当日处置完毕，登记表清空。
+> 2026-08-10 复启：测试 mock 模式根治批次（commit `1e563548`）途中发现 2 项待办（D-26 / D-27），登记见下。
+> 处置惯例：已完成项的实施要点记入对应批次"实施记录"段落 + CHANGELOG；决策不修项记录决策理由；待真机验证项（非待办）归入"待真机验证指引"。
+> 历史归档：D-01~D-25 处置记录见 CHANGELOG 4.00.86~4.00.93 与下方各"实施记录"段落。
+
+### 途中发现待办 D 系列登记表（2026-08-10 复启）
+
+| # | 来源 | 待办内容 | 决策 | 状态 |
+|---|---|---|---|---|
+| D-26 | 测试 mock 批次（commit `1e563548`） | `GameStateRepository`（app 模块 **final 具体类**）被 `GameStateStoreImpl` 相关测试裸 `mock(GameStateRepository::class.java)` 注入——与本次根治的 `ProductionSlotRepository` 同款风险：final 类 mock 拦截依赖类加载时机，顺序敏感 flaky（显式 stub 也救不了，stub 注册后的第一次调用可能真实执行方法体）。**治理方向**：改用真实实例（参考 engine 测试 `TestMockSupport.testProductionSlotRepository()` 工厂模式）或 `mockSmart` + doReturn 风格 | 待定 | 待办 |
+| D-27 | 测试 mock 批次（commit `1e563548`） | 测试规范固化：新 Service 测试若需 `ProductionSlotRepository` 必须走共享工厂 `com.xianxia.sect.core.engine.testProductionSlotRepository()`（真实实例 + mockSmart 端口 + `loadSlots` 预填充），禁止自行 `ProductionSlotRepository(dao = mock(), ...)` 内联构造；返回 sealed 类型（`DomainResult` / `DeductResult`）的 stub 统一 doReturn 风格（ByteBuddy 无法代理 sealed）。可作为 `rules/testing.md` 或代码审查清单条目固化 | 待定 | 待办 |
+
+### 待真机验证指引（2026-08-09 归档保留，真机验证时查阅）
 
 ### 待真机验证指引（2026-08-09 归档保留，真机验证时查阅）
 
