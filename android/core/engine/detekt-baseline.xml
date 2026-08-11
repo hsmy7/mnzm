@@ -1240,7 +1240,6 @@
     <ID>VariableNaming:GameEngineMarriageProposalTest.kt$GameEngineMarriageProposalTest$private val FEMALE_ID = "2"</ID>
     <ID>VariableNaming:GameEngineMarriageProposalTest.kt$GameEngineMarriageProposalTest$private val MALE_ID = "1"</ID>
     <ID>VariableNaming:GameEngineMarriageProposalTest.kt$MarriageProposalTestStore$// 持久化 DiscipleTables（跨 update 持久化） val _discipleTables = DiscipleTables()</ID>
-    <ID>VariableNaming:HpMpRecoveryBenchmarkTest.kt$HpMpRecoveryBenchmarkTest$private val DISCIPLE_COUNT = 300</ID>
     <ID>VariableNaming:LevelGenerator.kt$LevelGenerator$val def_ = (stats.defense * layerMult * (beastConfig.defMod + defVariance)).toInt()</ID>
     <ID>VariableNaming:ManualProficiencyBenchmarkTest.kt$ManualProficiencyBenchmarkTest$private val DISCIPLE_COUNT = 300</ID>
     <ID>VariableNaming:ManualProficiencyBenchmarkTest.kt$ManualProficiencyBenchmarkTest$private val MANUALS_PER_DISCIPLE = 5</ID>
