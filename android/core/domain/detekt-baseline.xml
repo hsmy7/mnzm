@@ -526,7 +526,6 @@
     <ID>VariableNaming:BaseTemplateRegistry.kt$BaseTemplateRegistry$val __templates = _templates</ID>
     <ID>VariableNaming:ComponentTable.kt$DoubleFlatArray$@PublishedApi internal var size_ = 0</ID>
     <ID>VariableNaming:ComponentTable.kt$IntFlatArray$@PublishedApi internal var size_ = 0</ID>
-    <ID>VariableNaming:DiscipleTablesAssembleBenchmarkTest.kt$DiscipleTablesAssembleBenchmarkTest$private val DISCIPLE_COUNT = 300</ID>
     <ID>VariableNaming:EntityStore.kt$EntityStore$// ★ 内部可变列表 — 写操作原地修改，零分配 private val items_ = initialItems.toMutableList()</ID>
                                                                                                                                                                                                                                   </CurrentIssues>
 </SmellBaseline>

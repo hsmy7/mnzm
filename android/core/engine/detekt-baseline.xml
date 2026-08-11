@@ -1228,8 +1228,6 @@
     <ID>UseCheckOrError:ManualDatabase.kt$ManualDatabase$throw IllegalStateException("ManualDatabase: _allManuals is null after loading")</ID>
     <ID>UseCheckOrError:ManualDatabase.kt$ManualDatabase$throw IllegalStateException("ManualDatabase: validation produced null result")</ID>
     <ID>VariableNaming:AISectAttackManagerTest.kt$AISectAttackManagerTest$private val SECT_DEFENSE_EXCLUDED = setOf( DiscipleStatus.ON_MISSION, DiscipleStatus.IN_TEAM, DiscipleStatus.REFLECTING, DiscipleStatus.GARRISONING, DiscipleStatus.REFINING )</ID>
-    <ID>VariableNaming:CultivationRateLookupBenchmarkTest.kt$CultivationRateLookupBenchmarkTest$private val BUILDING_COUNT = 50</ID>
-    <ID>VariableNaming:CultivationRateLookupBenchmarkTest.kt$CultivationRateLookupBenchmarkTest$private val DISCIPLE_COUNT = 300</ID>
     <ID>VariableNaming:GameEngineAtomicAssignTest.kt$GameEngineAtomicAssignTest$private val BUILDING_ID = "residence_b1"</ID>
     <ID>VariableNaming:GameEngineAtomicAssignTest.kt$GameEngineAtomicAssignTest$private val DISCIPLE_A = "1"</ID>
     <ID>VariableNaming:GameEngineAtomicAssignTest.kt$GameEngineAtomicAssignTest$private val DISCIPLE_B = "2"</ID>
