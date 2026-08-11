@@ -164,7 +164,8 @@ object GameConfig {
         fun getRealmPerPhase(realm: Int): Double =
             REALM_SPEED_PER_PHASE[realm] ?: REALM_SPEED_PER_PHASE.getValue(9)
 
-        const val DAILY_HP_MP_RECOVERY_RATE = 0.05
+        /** 每旬 HP/MP 恢复率（2026-08-11 起以旬为单位，原为每日 5% × 10 天 = 每旬 50%） */
+        const val PHASE_HP_MP_RECOVERY_RATE = 0.2
 
         /** 住所建筑修炼速度加成系数（按建筑 displayName 查表） */
         val BUILDING_BONUSES: Map<String, Double> = mapOf(

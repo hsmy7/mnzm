@@ -318,6 +318,7 @@ fun DiscipleDetailDialog(
                                         gameYear = gameYear,
                                         gamePhase = gamePhase,
                                         gameSpeed = 1,
+                                        bloodRefinementPct = gameData?.bloodRefinementPctTotals?.get(disciple.id),
                                         onWashSpiritRootClick = openSpiritRootWash
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
@@ -339,7 +340,8 @@ fun DiscipleDetailDialog(
                                         boots = boots,
                                         accessory = accessory,
                                         learnedManuals = learnedManuals,
-                                        manualProficiencies = manualProficiencies
+                                        manualProficiencies = manualProficiencies,
+                                        bloodRefinementPct = gameData?.bloodRefinementPctTotals?.get(disciple.id)
                                     )
                                 }
                                 2 -> EquipmentSection(

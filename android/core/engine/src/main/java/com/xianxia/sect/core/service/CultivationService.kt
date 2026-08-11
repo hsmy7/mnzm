@@ -75,10 +75,6 @@ class CultivationService @Inject constructor(
         cultivationCore.recoverHpMpForBattleParticipants(state, discipleIds)
     }
 
-    fun recoverHpMpForAllDisciples(state: MutableGameState, phasesToSettle: Int = 1) {
-        cultivationCore.recoverHpMpForAllDisciples(state, phasesToSettle)
-    }
-
     /** 单弟子旬级 HP/MP 恢复（委托 CultivationCore） */
     fun recoverHpMpSingle(
         state: MutableGameState, id: Int, phasesToSettle: Int = 1,
@@ -460,55 +456,6 @@ class CultivationService @Inject constructor(
      * @param focusedId 焦点弟子 ID
      * @param state 可变游戏状态
      */
-
-    /**
-     * 空闲期间战斗中弟子 HP/MP 轻量恢复。
-     *
-     * 仅恢复正在战斗中的弟子的 HP/MP（通过 DiscipleTables 直接操作），
-     * 不组装完整 Disciple 对象，适用于空闲期间高频调用。
-     *
-     * @param state 可变游戏状态
-     */
-    fun recoverHpMpForCombatDisciples(state: MutableGameState) {
-        val tables = state.discipleTables
-        val data = state.gameData
-        // 收集所有在战斗队或驻防中的弟子 ID
-        val combatIds = mutableSetOf<Int>()
-        for (team in data.battleTeams) {
-            for (slot in team.slots) {
-                if (slot.discipleId.isNotEmpty()) {
-                    slot.discipleId.toIntOrNull()?.let { combatIds.add(it) }
-                }
-            }
-        }
-        // 驻防弟子
-        for (garrison in data.warehouseGarrisons) {
-            garrison.discipleId.toIntOrNull()?.let { combatIds.add(it) }
-        }
-        if (combatIds.isEmpty()) return
-
-        val multiplier = 10.0  // phaseMultiplier
-        val recoveryRate = GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE
-        for (id in combatIds) {
-            if (tables.isAlive[id] != 1) continue
-            val curHp = tables.currentHps[id]
-            val curMp = tables.currentMps[id]
-            if (curHp < 0 && curMp < 0) continue
-
-            val baseHp = tables.baseHps[id]
-            val baseMp = tables.baseMps[id]
-            val hpRecovery = (baseHp * recoveryRate * multiplier).toInt().coerceAtLeast(1)
-            val mpRecovery = (baseMp * recoveryRate * multiplier).toInt().coerceAtLeast(1)
-
-            val newHp = if (curHp < 0) curHp
-                else (curHp + hpRecovery).coerceAtMost(baseHp)
-            val newMp = if (curMp < 0) curMp
-                else (curMp + mpRecovery).coerceAtMost(baseMp)
-
-            if (newHp != curHp) tables.currentHps[id] = newHp
-            if (newMp != curMp) tables.currentMps[id] = newMp
-        }
-    }
 
     suspend fun updateDiscipleHpMpAfterBattle(battleMembers: List<BattleMemberData>) {
         eventProcessor.updateDiscipleHpMpAfterBattle(battleMembers)

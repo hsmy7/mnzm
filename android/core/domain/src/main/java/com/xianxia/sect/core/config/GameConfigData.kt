@@ -78,7 +78,8 @@ data class GameConfigData(
 
     @Serializable
     data class CultivationSection(
-        val dailyHpMpRecoveryRate: Double = 0.05
+        // 字段名不可改（ignoreUnknownKeys=false，旧 JSON 需可解析）；语义为每旬恢复率
+        val dailyHpMpRecoveryRate: Double = 0.2
     )
 
     @Serializable

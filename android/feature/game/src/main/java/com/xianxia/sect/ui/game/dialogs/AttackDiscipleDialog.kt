@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.GameData
@@ -22,8 +23,10 @@ import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.DiscipleSlot
+import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.hasLowHpDisciple
 import com.xianxia.sect.ui.game.applyFilters
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.filterByDiscipleStatus
@@ -44,6 +47,14 @@ internal fun AttackDiscipleDialog(
     val slots = remember { mutableStateListOf<DiscipleAggregate?>().apply { repeat(10) { add(null) } } }
     var selectedSlotIndex by remember { mutableStateOf<Int?>(null) }
     var showDiscipleSelection by remember { mutableStateOf(false) }
+    // 低血量二次确认（会话级状态：点"我知道了"后仅当前界面不再弹，关闭重开重新检查）
+    var lowHpAcknowledged by remember { mutableStateOf(false) }
+    var showLowHpWarning by remember { mutableStateOf(false) }
+
+    val equipmentInstances by viewModel.equipmentInstances.collectAsStateWithLifecycle()
+    val manualInstances by viewModel.manualInstances.collectAsStateWithLifecycle()
+    val equipmentMap = remember(equipmentInstances) { equipmentInstances.associateBy { it.id } }
+    val manualMap = remember(manualInstances) { manualInstances.associateBy { it.id } }
 
     val filledCount = slots.count { it != null }
 
@@ -112,17 +123,47 @@ internal fun AttackDiscipleDialog(
                 GameButton(
                     text = "进攻",
                     onClick = {
-                        val selected = slots.mapIndexedNotNull { index, disciple ->
-                            if (disciple != null) index to disciple else null
-                        }
-                        if (selected.isNotEmpty()) {
-                            onAttack(selected)
+                        val needWarning = !lowHpAcknowledged && hasLowHpDisciple(
+                            slots.filterNotNull(), equipmentMap, manualMap,
+                            gameData?.manualProficiencies ?: emptyMap(),
+                            gameData?.bloodRefinementPctTotals ?: emptyMap()
+                        )
+                        if (needWarning) {
+                            showLowHpWarning = true
+                        } else {
+                            val selected = slots.mapIndexedNotNull { index, disciple ->
+                                if (disciple != null) index to disciple else null
+                            }
+                            if (selected.isNotEmpty()) {
+                                onAttack(selected)
+                            }
                         }
                     },
                     enabled = filledCount > 0
                 )
             }
         }
+    }
+
+    // ========== 低血量二次确认弹窗（点"我知道了"后本界面不再弹，关闭重开重新检查） ==========
+    if (showLowHpWarning) {
+        StandardPromptDialog(
+            onDismissRequest = { showLowHpWarning = false },
+            title = "弟子血量未满",
+            text = "队伍中有弟子血量未满，是否仍要发起进攻？",
+            confirmLabel = "我知道了",
+            onConfirm = {
+                showLowHpWarning = false
+                lowHpAcknowledged = true
+                val selected = slots.mapIndexedNotNull { index, disciple ->
+                    if (disciple != null) index to disciple else null
+                }
+                if (selected.isNotEmpty()) {
+                    onAttack(selected)
+                }
+            },
+            dismissLabel = null
+        )
     }
 
     // Disciple selection sub-dialog

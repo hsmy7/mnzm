@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.ManualInstance
@@ -70,7 +71,8 @@ fun CombatStatsSection(
     boots: EquipmentInstance?,
     accessory: EquipmentInstance?,
     learnedManuals: List<ManualInstance>,
-    manualProficiencies: Map<String, List<ManualProficiencyData>>
+    manualProficiencies: Map<String, List<ManualProficiencyData>>,
+    bloodRefinementPct: BloodRefinementPctTotal? = null
 ) {
     val equipmentMap = remember(weapon, armor, boots, accessory) {
         mutableMapOf<String, EquipmentInstance>().apply {
@@ -89,8 +91,8 @@ fun CombatStatsSection(
         manualProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap()
     }
 
-    val finalStats = remember(disciple, equipmentMap, manualMap, discipleProficiencies) {
-        disciple.getFinalStats(equipmentMap, manualMap, discipleProficiencies)
+    val finalStats = remember(disciple, equipmentMap, manualMap, discipleProficiencies, bloodRefinementPct) {
+        disciple.getFinalStats(equipmentMap, manualMap, discipleProficiencies, bloodRefinementPct)
     }
 
     val baseStats = remember(disciple) {

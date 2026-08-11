@@ -33,7 +33,7 @@
     "lowFrequencyUpdateInterval": 2000
   },
   "cultivation": {
-    "dailyHpMpRecoveryRate": 0.05
+    "dailyHpMpRecoveryRate": 0.2
   },
   "production": {
     "spiritMineBaseOutputPerMiner": 160,

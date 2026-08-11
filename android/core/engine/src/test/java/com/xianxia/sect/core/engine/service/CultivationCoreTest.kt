@@ -34,7 +34,7 @@ import org.robolectric.RobolectricTestRunner
  * 覆盖范围：
  * - [CultivationCore.getLifespanGainForRealm]：不同境界寿命增益
  * - [CultivationCore.isDiscipleFullHpMp]：满 HP/MP 判定（Disciple 与 Tables 两个重载）
- * - [CultivationCore.recoverHpMpForAllDisciples]：HP/MP 恢复逻辑
+ * - [CultivationCore.recoverHpMpSingle]：HP/MP 恢复逻辑（每旬 20%）
  * - [CultivationCore.calculateDiscipleCultivationPerPhase]：修炼计算（含建筑加成间接验证）
  * - 突破条件：cultivation >= maxCultivation && full health/mana
  *
@@ -370,15 +370,18 @@ class CultivationCoreTest {
         assertTrue(core.isDiscipleFullHpMp(1, state.discipleTables, state))
     }
 
-    // ==================== recoverHpMpForAllDisciples ====================
+    // ==================== recoverHpMpSingle ====================
+    // 每旬 20% 恢复（PHASE_HP_MP_RECOVERY_RATE），恢复量 = maxValue × rate × phasesToSettle，
+    // 至少 1 且不超过上限。存活过滤由调用方 GameEngineCore.checkBreakthroughsAndPills 负责，
+    // 本方法不检查 isAlive（见反转契约测试）。
 
     @Test
-    fun `recoverHpMpForAllDisciples - 恢复HP且不超过上限`() {
+    fun `recoverHpMpSingle - 恢复HP且不超过上限`() {
         val disciple = createDisciple(id = "1", currentHp = 10, currentMp = -1)
         val state = createMutableGameState(listOf(disciple))
 
         val maxHp = DiscipleStatCalculator.getFinalStats(disciple, emptyMap(), emptyMap()).maxHp
-        core.recoverHpMpForAllDisciples(state)
+        core.recoverHpMpSingle(state, 1)
 
         val recoveredHp = state.discipleTables.currentHps[1]
         assertTrue("恢复后HP应大于初始值10", recoveredHp > 10)
@@ -386,12 +389,12 @@ class CultivationCoreTest {
     }
 
     @Test
-    fun `recoverHpMpForAllDisciples - 恢复MP且不超过上限`() {
+    fun `recoverHpMpSingle - 恢复MP且不超过上限`() {
         val disciple = createDisciple(id = "1", currentHp = -1, currentMp = 5)
         val state = createMutableGameState(listOf(disciple))
 
         val maxMp = DiscipleStatCalculator.getFinalStats(disciple, emptyMap(), emptyMap()).maxMp
-        core.recoverHpMpForAllDisciples(state)
+        core.recoverHpMpSingle(state, 1)
 
         val recoveredMp = state.discipleTables.currentMps[1]
         assertTrue("恢复后MP应大于初始值5", recoveredMp > 5)
@@ -399,11 +402,11 @@ class CultivationCoreTest {
     }
 
     @Test
-    fun `recoverHpMpForAllDisciples - 已满HP和MP不恢复`() {
+    fun `recoverHpMpSingle - 负数哨兵跳过恢复`() {
         val disciple = createDisciple(id = "1", currentHp = -1, currentMp = -1)
         val state = createMutableGameState(listOf(disciple))
 
-        core.recoverHpMpForAllDisciples(state)
+        core.recoverHpMpSingle(state, 1)
 
         // currentHp/currentMp 均为负数 → 特殊状态跳过恢复
         assertEquals(-1, state.discipleTables.currentHps[1])
@@ -411,36 +414,26 @@ class CultivationCoreTest {
     }
 
     @Test
-    fun `recoverHpMpForAllDisciples - 死亡弟子不恢复`() {
+    fun `recoverHpMpSingle - 不检查存活（存活过滤由调用方负责）`() {
         val disciple = createDisciple(id = "1", currentHp = 10, currentMp = 10)
         disciple.isAlive = false
         val state = createMutableGameState(listOf(disciple))
 
-        core.recoverHpMpForAllDisciples(state)
+        core.recoverHpMpSingle(state, 1)
 
-        // isAlive != 1 → 跳过
-        assertEquals(10, state.discipleTables.currentHps[1])
-        assertEquals(10, state.discipleTables.currentMps[1])
+        // 反转契约（替换旧 recoverHpMpForAllDisciples 的"死亡不恢复"）：本方法只负责
+        // 恢复计算，不检查 isAlive——存活过滤在调用方 GameEngineCore.checkBreakthroughsAndPills
+        // （isAlive[id] != 1 跳过），职责边界由调用方测试锁定
+        assertTrue("recoverHpMpSingle 不含存活过滤（职责边界），死亡弟子也应恢复", state.discipleTables.currentHps[1] > 10)
     }
 
     @Test
-    fun `recoverHpMpForAllDisciples - HP和MP均为负数跳过恢复`() {
-        val disciple = createDisciple(id = "1", currentHp = -1, currentMp = -1)
-        val state = createMutableGameState(listOf(disciple))
-
-        core.recoverHpMpForAllDisciples(state)
-
-        assertEquals(-1, state.discipleTables.currentHps[1])
-        assertEquals(-1, state.discipleTables.currentMps[1])
-    }
-
-    @Test
-    fun `recoverHpMpForAllDisciples - 恢复量至少为1`() {
+    fun `recoverHpMpSingle - 恢复量至少为1`() {
         // 使用极低 maxHp 的弟子验证恢复量至少为 1
         val disciple = createDisciple(id = "1", currentHp = 0, currentMp = 0)
         val state = createMutableGameState(listOf(disciple))
 
-        core.recoverHpMpForAllDisciples(state)
+        core.recoverHpMpSingle(state, 1)
 
         val recoveredHp = state.discipleTables.currentHps[1]
         val recoveredMp = state.discipleTables.currentMps[1]
@@ -449,30 +442,32 @@ class CultivationCoreTest {
     }
 
     @Test
-    fun `recoverHpMpForAllDisciples - 多弟子同时恢复`() {
+    fun `recoverHpMpSingle - 多弟子同时恢复`() {
         val d1 = createDisciple(id = "1", currentHp = 10, currentMp = 10)
         val d2 = createDisciple(id = "2", currentHp = 20, currentMp = 20)
         val state = createMutableGameState(listOf(d1, d2))
 
-        core.recoverHpMpForAllDisciples(state)
+        core.recoverHpMpSingle(state, 1)
+        core.recoverHpMpSingle(state, 2)
 
         assertTrue("弟子1 HP应恢复", state.discipleTables.currentHps[1] > 10)
         assertTrue("弟子2 HP应恢复", state.discipleTables.currentHps[2] > 20)
     }
 
     @Test
-    fun `recoverHpMpForAllDisciples - 恢复量等于maxHp乘以0点05乘以10`() {
+    fun `recoverHpMpSingle - 恢复量等于maxHp乘以0点2乘以phasesToSettle`() {
         val disciple = createDisciple(id = "1", currentHp = 0, currentMp = 0)
         val state = createMutableGameState(listOf(disciple))
 
         val maxHp = DiscipleStatCalculator.getFinalStats(disciple, emptyMap(), emptyMap()).maxHp
         val maxMp = DiscipleStatCalculator.getFinalStats(disciple, emptyMap(), emptyMap()).maxMp
-        val expectedHpRecovery = (maxHp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * 10)
+        val phasesToSettle = 1
+        val expectedHpRecovery = (maxHp * GameConfig.Cultivation.PHASE_HP_MP_RECOVERY_RATE * phasesToSettle)
             .toInt().coerceAtLeast(1)
-        val expectedMpRecovery = (maxMp * GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE * 10)
+        val expectedMpRecovery = (maxMp * GameConfig.Cultivation.PHASE_HP_MP_RECOVERY_RATE * phasesToSettle)
             .toInt().coerceAtLeast(1)
 
-        core.recoverHpMpForAllDisciples(state, phasesToSettle = 1)
+        core.recoverHpMpSingle(state, 1, phasesToSettle = phasesToSettle)
 
         assertEquals(expectedHpRecovery, state.discipleTables.currentHps[1])
         assertEquals(expectedMpRecovery, state.discipleTables.currentMps[1])

@@ -29,7 +29,6 @@
     <ID>CyclomaticComplexMethod:CultivationCoreRealtimeAutoPillsTest.kt$PillsRealtime$fun process( state: MutableGameState, pillManager: DisciplePillManager, year: Int, month: Int, phase: Int )</ID>
     <ID>CyclomaticComplexMethod:CultivationEventProcessor.kt$CultivationEventProcessor$internal fun MutableGameState.applyMissionRewards(rewards: List&lt;MissionReward&gt;)</ID>
     <ID>CyclomaticComplexMethod:CultivationRateCalculator.kt$CultivationRateCalculator$private fun calculatePreachingBonusesColumn( discipleRealm: Int, discipleType: String, data: GameData, tables: DiscipleTables, targetDiscipleType: String ): Pair&lt;Double, Double&gt;</ID>
-    <ID>CyclomaticComplexMethod:CultivationService.kt$CultivationService$fun recoverHpMpForCombatDisciples(state: MutableGameState)</ID>
     <ID>CyclomaticComplexMethod:CultivationSettlement.kt$CultivationSettlement$fun processAnnualSalary(year: Int)</ID>
     <ID>CyclomaticComplexMethod:CultivationSettlement.kt$CultivationSettlement$fun processPolicyCosts(state: MutableGameState): PolicyCostResult</ID>
     <ID>CyclomaticComplexMethod:CultivationSettlement.kt$CultivationSettlement$fun processPolicyMonthlyEffects(state: MutableGameState)</ID>
@@ -828,7 +827,6 @@
     <ID>MaxLineLength:WarehouseModelsTest.kt$WarehouseModelsTest$val second = WarehousePage(items = emptyList(), pageIndex = 1, pageSize = 10, totalItems = 0, totalPages = 1, hasMore = false)</ID>
     <ID>MaxLineLength:WorldMapGenerator.kt$WorldMapGenerator$name = chars[rng.nextInt(chars.size)] + chars[rng.nextInt(chars.size)] + suffixes[rng.nextInt(suffixes.size)]</ID>
     <ID>MayBeConst:RedeemCodeManager.kt$RedeemCodeManager$private val TAG = "RedeemCodeManager"</ID>
-    <ID>NestedBlockDepth:CultivationService.kt$CultivationService$fun recoverHpMpForCombatDisciples(state: MutableGameState)</ID>
     <ID>NestedBlockDepth:CultivationSettlement.kt$CultivationSettlement$fun processPolicyMonthlyEffects(state: MutableGameState)</ID>
     <ID>NestedBlockDepth:CultivationSettlement.kt$CultivationSettlement$private fun buildSpiritMineZones(data: GameData, tables: DiscipleTables): SpiritMineZones</ID>
     <ID>NestedBlockDepth:DiscipleStatCalculator.kt$DiscipleStatCalculator$fun computeGriefEndYearMap( disciples: List&lt;Disciple&gt;, deceasedList: List&lt;Disciple&gt;, currentYear: Int ): Map&lt;Int, Int&gt;</ID>

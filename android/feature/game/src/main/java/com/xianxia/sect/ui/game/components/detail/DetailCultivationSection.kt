@@ -30,6 +30,7 @@ import com.xianxia.sect.ui.components.UnifiedGameDialog
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
+import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.EquipmentInstance
@@ -144,6 +145,7 @@ fun BasicInfoSection(
     gameYear: Int = 1,
     gamePhase: Int = 0,
     gameSpeed: Int = 1,
+    bloodRefinementPct: BloodRefinementPctTotal? = null,
     onWashSpiritRootClick: (() -> Unit)? = null
 ) {
     val discipleMap = allDisciples.associateBy { it.id }
@@ -432,8 +434,8 @@ fun BasicInfoSection(
         val discipleProficiencies = remember(disciple.id, manualProficiencies) {
             manualProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap()
         }
-        val finalStats = remember(disciple, equipmentMap, manualMap, discipleProficiencies) {
-            disciple.getFinalStats(equipmentMap, manualMap, discipleProficiencies)
+        val finalStats = remember(disciple, equipmentMap, manualMap, discipleProficiencies, bloodRefinementPct) {
+            disciple.getFinalStats(equipmentMap, manualMap, discipleProficiencies, bloodRefinementPct)
         }
 
         HpMpBars(disciple, finalStats.maxHp, finalStats.maxMp, gameSpeed = gameSpeed)

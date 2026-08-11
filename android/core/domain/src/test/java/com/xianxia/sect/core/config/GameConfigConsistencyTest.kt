@@ -226,9 +226,9 @@ class GameConfigConsistencyTest {
 
     // ── Cultivation ──
     @Test
-    fun `每日HPMP恢复率两源一致`() {
+    fun `每旬HPMP恢复率两源一致`() {
         val data = GameConfigData().cultivation
-        assertEquals(GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE, data.dailyHpMpRecoveryRate, 0.001)
+        assertEquals(GameConfig.Cultivation.PHASE_HP_MP_RECOVERY_RATE, data.dailyHpMpRecoveryRate, 0.001)
     }
 
     // ── LawEnforcement (更多字段) ──

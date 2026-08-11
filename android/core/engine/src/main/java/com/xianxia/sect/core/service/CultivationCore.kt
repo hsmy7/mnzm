@@ -39,8 +39,6 @@ class CultivationCore @Inject constructor(
     private val battleSettlementService: BattleSettlementService
 ) {
 
-    val phaseMultiplier: Int get() = 10
-
     // ── 委托到子服务的方法 ────────────────────────────────────
     fun calculateDiscipleCultivationPerPhase(disciple: Disciple, data: GameData, tables: DiscipleTables): Double =
         cultivationRateCalculator.calculateDiscipleCultivationPerPhase(disciple, data, tables)
@@ -61,9 +59,6 @@ class CultivationCore @Inject constructor(
 
     fun isDiscipleFullHpMp(id: Int, tables: DiscipleTables, state: MutableGameState): Boolean =
         hpMpRecoveryService.isDiscipleFullHpMp(id, tables, state)
-
-    fun recoverHpMpForAllDisciples(state: MutableGameState, phasesToSettle: Int = 3) =
-        hpMpRecoveryService.recoverHpMpForAllDisciples(state, phasesToSettle)
 
     fun recoverHpMpSingle(
         state: MutableGameState, id: Int, phasesToSettle: Int = 1,

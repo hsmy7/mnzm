@@ -67,7 +67,6 @@ internal fun CultivationEventProcessor.processMonthlyEvents(year: Int, month: In
         }
         state.safelyRunInState("spiritMineProduction") { cultivationSettlement.processSpiritMineProductionMonthly(state) }
         state.safelyRunInState("disciplePurchase") { disciplePurchaseService.executePurchase(year, month, state) }
-        state.safelyRunInState("monthlyCultivation") { processMonthlyCultivationAndAuto(state) }
         state.safelyRunInState("vassalBreakaway") { vassalService.processMonthlyBreakawayCheck(state) }
         state.safelyRunInState("missionRefresh") { processMissionRefreshIfDue(month, state) }
         // 秘境到期检查在前（关闭后 AI 队伍清场，后续不再派遣）
@@ -99,7 +98,6 @@ internal fun CultivationEventProcessor.processMonthlyEvents(year: Int, month: In
             }
             safelyRunInState("spiritMineProduction") { cultivationSettlement.processSpiritMineProductionMonthly(this) }
             safelyRunInState("disciplePurchase") { disciplePurchaseService.executePurchase(year, month, this) }
-            safelyRunInState("monthlyCultivation") { processMonthlyCultivationAndAuto(this) }
             safelyRunInState("vassalBreakaway") { vassalService.processMonthlyBreakawayCheck(this) }
             safelyRunInState("missionRefresh") { processMissionRefreshIfDue(month, this) }
             // 秘境到期检查在前（关闭后 AI 队伍清场，后续不再派遣）
@@ -110,15 +108,6 @@ internal fun CultivationEventProcessor.processMonthlyEvents(year: Int, month: In
                 secretRealmAIProcessor.processMonthlyAiTeams(this)
             }
         }
-    }
-internal fun CultivationEventProcessor.processMonthlyCultivationAndAuto(state: MutableGameState) {
-        val data = state.gameData
-        val tables = state.discipleTables
-        val aliveIds = tables.ids.filter { tables.isAlive[it] == 1 }
-        if (aliveIds.isEmpty()) return
-        // HP/MP 恢复（兜底，已由每旬检查补充）。
-        // 使用 recoverHpMpForAllDisciples（非逐弟子循环）— 此方法遍历时 equipmentMap/manualMap
-        // 只构建一次，比 N 次 recoverHpMpSingle 调用更高效。
     }
 internal fun CultivationEventProcessor.processYearlyEvents(year: Int) {
         // L3b 年变分帧：拆为 T1 立即组（单事务，保原相对序）+ T2 延迟组（入队，

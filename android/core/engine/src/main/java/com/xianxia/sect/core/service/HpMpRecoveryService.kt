@@ -12,17 +12,15 @@ import com.xianxia.sect.core.state.MutableGameState
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** 每旬倍率：1 旬 = 10 倍基础值（恒等于 10）。 */
-private const val PHASE_MULTIPLIER = 10
-
 /**
  * HP/MP 恢复乘区（Recovery Zone）。
  *
  * 公式：恢复量 = maxValue × baseRate × (1 + buildingZone + pillZone + realmZone) × multiplier
  * 各乘区内加算，乘区间乘算（当前只有 baseRate × multiplier 活跃，其余乘区预留）。
+ * baseRate 为每旬恢复率（[GameConfig.Cultivation.PHASE_HP_MP_RECOVERY_RATE]）。
  */
 data class RecoveryZones(
-    val baseRate: Double = GameConfig.Cultivation.DAILY_HP_MP_RECOVERY_RATE,
+    val baseRate: Double = GameConfig.Cultivation.PHASE_HP_MP_RECOVERY_RATE,
     val buildingZone: Double = 0.0,   // 建筑恢复乘区（如丹药房，预留）
     val pillZone: Double = 0.0,       // 丹药恢复乘区（预留）
     val realmZone: Double = 0.0,      // 境界恢复乘区（预留）
@@ -30,7 +28,7 @@ data class RecoveryZones(
     /**
      * 计算恢复量。
      * @param maxValue 最大值（maxHp 或 maxMp）
-     * @param multiplier 时间倍率（phaseMultiplier × phasesToSettle）
+     * @param multiplier 结算旬数（恢复率为每旬基准，跨旬结算按旬数倍增）
      * @return 恢复量，至少 1
      */
     fun calculateRecovery(maxValue: Int, multiplier: Double): Int {
@@ -93,58 +91,11 @@ class HpMpRecoveryService @Inject constructor() {
     }
 
     /**
-     * 为所有存活弟子恢复 HP 与 MP。
-     *
-     * 恢复量 = maxHp/maxMp × DAILY_HP_MP_RECOVERY_RATE × PHASE_MULTIPLIER × phasesToSettle，
-     * 至少恢复 1 点，且不超过上限。currentHp/currentMp 均为负数的弟子被视为特殊状态跳过恢复。
-     *
-     * @param state 可变游戏状态
-     * @param phasesToSettle 需结算的旬数（焦点域=1，批量轨=跳过旬数）
-     * @param zones 恢复乘区（可选，默认为无额外加成）
-     */
-    fun recoverHpMpForAllDisciples(
-        state: MutableGameState,
-        phasesToSettle: Int = 1,
-        zones: RecoveryZones = RecoveryZones()
-    ) {
-        if (phasesToSettle <= 0) return
-        val tables = state.discipleTables
-        val equipmentMap = state.equipmentInstances.associateBy { it.id }
-        val manualMap = state.manualInstances.associateBy { it.id }
-        val allProficiencies = state.gameData.manualProficiencies
-        val multiplier = PHASE_MULTIPLIER.toDouble() * phasesToSettle
-
-        for (id in tables.ids) {
-            if (tables.isAlive[id] != 1) continue
-            val curHp = tables.currentHps[id]
-            val curMp = tables.currentMps[id]
-            if (curHp < 0 && curMp < 0) continue
-
-            val disciple = tables.assemble(id)
-            val proficiencyMap = allProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap()
-            val finalStats = DiscipleStatCalculator.getFinalStats(
-                disciple, equipmentMap, manualMap, proficiencyMap,
-                state.gameData.bloodRefinementPctTotals[disciple.id]
-            )
-            val maxHp = finalStats.maxHp
-            val maxMp = finalStats.maxMp
-
-            val hpRecovery = zones.calculateRecovery(maxHp, multiplier)
-            val mpRecovery = zones.calculateRecovery(maxMp, multiplier)
-            val newHp = if (curHp < 0) curHp else (curHp + hpRecovery).coerceAtMost(maxHp)
-            val newMp = if (curMp < 0) curMp else (curMp + mpRecovery).coerceAtMost(maxMp)
-
-            if (newHp != curHp) tables.currentHps[id] = newHp
-            if (newMp != curMp) tables.currentMps[id] = newMp
-        }
-    }
-
-    /**
      * 单弟子旬级 HP/MP 恢复。
      *
-     * 从 [recoverHpMpForAllDisciples] 的循环体中提取。恢复量 =
-     * maxHp/maxMp × DAILY_HP_MP_RECOVERY_RATE × PHASE_MULTIPLIER × phasesToSettle，
-     * 至少恢复 1 点，且不超过上限。
+     * 恢复量 = maxHp/maxMp × PHASE_HP_MP_RECOVERY_RATE × phasesToSettle，
+     * 至少恢复 1 点，且不超过上限。currentHp/currentMp 为负数的弟子视为特殊状态跳过恢复
+     * （存活过滤由调用方负责，本方法不检查 isAlive）。
      *
      * @param state 可变游戏状态
      * @param id 弟子 ID
@@ -179,7 +130,7 @@ class HpMpRecoveryService @Inject constructor() {
         val maxHp = finalStats.maxHp
         val maxMp = finalStats.maxMp
 
-        val multiplier = PHASE_MULTIPLIER.toDouble() * phasesToSettle
+        val multiplier = phasesToSettle.toDouble()
         val hpRecovery = zones.calculateRecovery(maxHp, multiplier)
         val mpRecovery = zones.calculateRecovery(maxMp, multiplier)
         val newHp = if (curHp < 0) curHp else (curHp + hpRecovery).coerceAtMost(maxHp)
@@ -250,7 +201,7 @@ class HpMpRecoveryService @Inject constructor() {
         val effMp = if (curMp < 0) maxMp else curMp
         if (effHp >= maxHp && effMp >= maxMp) return false
 
-        val multiplier = PHASE_MULTIPLIER.toDouble() * phasesToSettle
+        val multiplier = phasesToSettle.toDouble()
         val hpRecovery = zones.calculateRecovery(maxHp, multiplier)
         val mpRecovery = zones.calculateRecovery(maxMp, multiplier)
         val newHp = if (curHp < 0) curHp else (curHp + hpRecovery).coerceAtMost(maxHp)
@@ -263,11 +214,10 @@ class HpMpRecoveryService @Inject constructor() {
     }
 
     /**
-     * 为参与战斗的指定弟子恢复 HP 与 MP。
+     * 为参与战斗的指定弟子恢复 HP 与 MP（战前恢复，确保血量最新状态）。
      *
      * 仅处理 discipleIds 列表中存活的弟子，已满 HP/MP 的弟子跳过。
-     * 恢复量 = maxHp/maxMp × DAILY_HP_MP_RECOVERY_RATE × PHASE_MULTIPLIER（每旬 ×10），
-     * 至少恢复 1 点，且不超过上限。
+     * 恢复量 = maxHp/maxMp × PHASE_HP_MP_RECOVERY_RATE（1 旬量），至少恢复 1 点，且不超过上限。
      *
      * @param state 可变游戏状态
      * @param discipleIds 参与战斗的弟子 ID 字符串列表
@@ -282,7 +232,7 @@ class HpMpRecoveryService @Inject constructor() {
         val equipmentMap = state.equipmentInstances.associateBy { it.id }
         val manualMap = state.manualInstances.associateBy { it.id }
         val allProficiencies = state.gameData.manualProficiencies
-        val multiplier = PHASE_MULTIPLIER.toDouble()
+        val multiplier = 1.0
         val idSet = discipleIds.toSet()
 
         for (id in tables.ids) {

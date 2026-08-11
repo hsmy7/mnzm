@@ -37,11 +37,13 @@ import com.xianxia.sect.ui.theme.GameColors
 import com.xianxia.sect.ui.theme.ButtonSizes
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
+import com.xianxia.sect.ui.game.discipleHpFraction
 import com.xianxia.sect.ui.components.rememberChasingProgress
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorConfig
 import com.xianxia.sect.ui.game.dialogs.shared.DiscipleSelectorDialog
 import com.xianxia.sect.ui.game.filterByDiscipleStatus
 import com.xianxia.sect.ui.game.dialogs.shared.ScrollableInfoDialog
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 
 
@@ -61,6 +63,23 @@ fun MissionHallDialog(
     val availableMissions = gameData?.availableMissions ?: emptyList()
     val currentYear = gameData?.gameYear ?: 1
     val currentMonth = gameData?.gameMonth ?: 1
+
+    // 执行弟子血条真实血量（含血炼口径，与详情页/引擎一致）：装备/功法实例走 viewModel 订阅
+    val equipmentInstances by viewModel.equipmentInstances.collectAsStateWithLifecycle()
+    val manualInstances by viewModel.manualInstances.collectAsStateWithLifecycle()
+    val equipmentMap = remember(equipmentInstances) { equipmentInstances.associateBy { it.id } }
+    val manualMap = remember(manualInstances) { manualInstances.associateBy { it.id } }
+    val hpRatioById = remember(disciples, equipmentMap, manualMap, gameData) {
+        disciples.associate { d ->
+            val discipleProficiencies =
+                gameData?.manualProficiencies?.get(d.id)?.associateBy { it.manualId } ?: emptyMap()
+            d.id to discipleHpFraction(
+                d, equipmentMap, manualMap,
+                discipleProficiencies,
+                gameData?.bloodRefinementPctTotals?.get(d.id)
+            )
+        }
+    }
 
     val busyDiscipleIds = remember(activeMissions) {
         activeMissions.flatMap { it.discipleIds }.toSet()
@@ -134,10 +153,9 @@ fun MissionHallDialog(
     if (showActiveMissionDetail) {
         selectedActiveMission?.let { mission ->
             ActiveMissionDetailDialog(
-                mission = mission,
+                data = ActiveMissionDisplayData(mission, currentYear, currentMonth),
                 disciples = disciples,
-                currentYear = currentYear,
-                currentMonth = currentMonth,
+                hpRatioById = hpRatioById,
                 onDiscipleClick = { it?.let { d -> viewModel.showDiscipleDetail(DiscipleDetailRequest(d, disciples)) } },
                 onDismiss = {
                     showActiveMissionDetail = false
@@ -308,17 +326,23 @@ private fun AvailableMissionCard(
     }
 }
 
+/** ActiveMissionDetailDialog 展示数据（打包参数，保持 Composable 参数 ≤6 个） */
+private data class ActiveMissionDisplayData(
+    val mission: ActiveMission,
+    val currentYear: Int,
+    val currentMonth: Int
+)
+
 @Composable
 private fun ActiveMissionDetailDialog(
-    mission: ActiveMission,
+    data: ActiveMissionDisplayData,
     disciples: List<DiscipleAggregate>,
-    currentYear: Int,
-    currentMonth: Int,
+    hpRatioById: Map<String, Float>,
     onDiscipleClick: (DiscipleAggregate?) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val progress = mission.getProgressPercent(currentYear, currentMonth)
-    val remainingMonths = mission.getRemainingMonths(currentYear, currentMonth)
+    val progress = data.mission.getProgressPercent(data.currentYear, data.currentMonth)
+    val remainingMonths = data.mission.getRemainingMonths(data.currentYear, data.currentMonth)
     val animMissionState = rememberChasingProgress(target = progress / 100f)
 
     val discipleMap = remember(disciples) {
@@ -327,14 +351,14 @@ private fun ActiveMissionDetailDialog(
 
     UnifiedGameDialog(
         onDismissRequest = onDismiss,
-        title = mission.missionName,
+        title = data.mission.missionName,
         mode = DialogMode.Half,
         scrollableContent = false,
         headerActions = {
             Text(
-                text = mission.difficulty.displayName,
+                text = data.mission.difficulty.displayName,
                 fontSize = 12.sp,
-                color = getDifficultyColor(mission.difficulty)
+                color = getDifficultyColor(data.mission.difficulty)
             )
         }
     ) {
@@ -350,9 +374,9 @@ private fun ActiveMissionDetailDialog(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "难度：${mission.difficulty.displayName}",
+                            text = "难度：${data.mission.difficulty.displayName}",
                             fontSize = 11.sp,
-                            color = getDifficultyColor(mission.difficulty)
+                            color = getDifficultyColor(data.mission.difficulty)
                         )
                     }
 
@@ -409,7 +433,7 @@ private fun ActiveMissionDetailDialog(
                     )
 
                     Text(
-                        text = formatSpiritStoneReward(mission.rewards),
+                        text = formatSpiritStoneReward(data.mission.rewards),
                         fontSize = 11.sp,
                         color = Color(0xFFD4A017)
                     )
@@ -421,16 +445,16 @@ private fun ActiveMissionDetailDialog(
                     )
 
                     Text(
-                        text = "执行弟子 (${mission.memberCount}人)",
+                        text = "执行弟子 (${data.mission.memberCount}人)",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.Black
                     )
 
-                    val gridDiscipleIds = remember(mission.discipleIds) {
+                    val gridDiscipleIds = remember(data.mission.discipleIds) {
                         // 防御旧存档重复/空 id（MissionSystem 已加引擎侧校验），
                         // 防 LazyVerticalGrid key="" 重复崩溃（Bugly #5079/#3091）
-                        mission.discipleIds.distinct()
+                        data.mission.discipleIds.distinct()
                             .mapIndexed { index, id -> id.ifBlank { "blank_$index" } }
                     }
                     LazyVerticalGrid(
@@ -441,13 +465,13 @@ private fun ActiveMissionDetailDialog(
                     ) {
                         items(gridDiscipleIds, key = { it }, contentType = { "disciple_id" }) { discipleId ->
                             val index = gridDiscipleIds.indexOf(discipleId)
-                            val name = if (index < mission.discipleNames.size) mission.discipleNames[index] else "未知"
-                            val realm = if (index < mission.discipleRealms.size) mission.discipleRealms[index] else ""
+                            val name = if (index < data.mission.discipleNames.size) data.mission.discipleNames[index] else "未知"
+                            val realm = if (index < data.mission.discipleRealms.size) data.mission.discipleRealms[index] else ""
                             val disciple = discipleMap[discipleId]
 
                             MissionDiscipleSlot(
                                 disciple = disciple,
-                                hpRatio = 1f,
+                                hpRatio = hpRatioById[discipleId] ?: 1f,
                                 onClick = { onDiscipleClick(disciple) }
                             )
                         }

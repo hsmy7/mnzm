@@ -84,6 +84,16 @@
 - **测试** — `SectMapTouchEngineTest` / `GoldFingerBuildTest` 全绿（引擎层模拟 callbacks 不涉及区域坐标、纯状态函数均不受影响）+ compileReleaseKotlin + detekt 通过（onLongPress 61 行超限压缩为紧凑写法，baseline 不增）
 - **兼容性** — 纯交互/渲染逻辑变更，无 Entity/Migration/存档格式变更（DATABASE_VERSION 不变）
 
+### 修复（2026-08-11 每旬恢复 20% + 进攻前低血量二次确认 + 血条真实血量/死代码清理）
+
+- **恢复率语义变更（每日 5% → 每旬 20%）** — 三源同步：`GameConfig.Cultivation.PHASE_HP_MP_RECOVERY_RATE = 0.2`（原 `DAILY_HP_MP_RECOVERY_RATE = 0.05` 改名，语义从"每日"改"每旬"）、`GameConfigData.dailyHpMpRecoveryRate` 默认值 0.2（**字段名保留**——ignoreUnknownKeys=false 下改名破坏旧 JSON 解析）、`assets/config/game_config.json` 0.2；`HpMpRecoveryService` 删 `PHASE_MULTIPLIER=10`，`multiplier = phasesToSettle`（恢复量 = maxValue × 0.2 × (1+zones) × 旬数，0 血→满约 5 旬）；战前恢复 `recoverHpMpForBattleParticipants` multiplier=1.0（1 旬量），跟随 20% 不设独立常量——战前补血是恢复计算的组成部分（确保血量最新状态）
+- **死代码清理** — `CultivationEventMonthlyOps.processMonthlyCultivationAndAuto` 空壳（仅局部变量无逻辑）+ 2 调用点；`recoverHpMpForAllDisciples` 三层死转发链（HpMpRecoveryService/CultivationService/CultivationCore）；`CultivationService.recoverHpMpForCombatDisciples`（魔法数字 10.0 + baseHp 口径错误，功能由 recoverHpMpForBattleParticipants 取代）；`CultivationCore.phaseMultiplier` 死属性；detekt-baseline 删 2 行
+- **任务大厅血条真实血量** — `MissionHallDialog` 执行弟子血条 `hpRatio = 1f` 硬编码 → 含血炼 finalStats 真实比例（equipmentInstances/manualInstances 走 viewModel 订阅 + gameData.manualProficiencies/bloodRefinementPctTotals）；`ActiveMissionDetailDialog` 参数超 6 限用 `ActiveMissionDisplayData` 数据类打包
+- **详情页血炼口径统一** — `DetailCultivationSection.BasicInfoSection` / `DetailCombatSection.CombatStatsSection` 的 `getFinalStats` 补第 5 参 bloodRefinementPct（`DiscipleDetailScreen` 调用点传 gameData.bloodRefinementPctTotals）——详情页/任务大厅/引擎恢复满血判定三处口径统一
+- **新功能：进攻前低血量二次确认** — `AttackHpGuard.kt` 纯函数（`discipleHpFraction`/`hasLowHpDisciple`：含血炼 finalStats 口径、currentHp<0 满血哨兵、maxHp<=0 视为满血与 HpMpBars 对齐）；`LevelDetailDialog`（妖兽/洞府 8 槽）与 `AttackDiscipleDialog`（宗门 10 槽）进攻按钮接入——队伍任一弟子血量未满（<100%）弹 `StandardPromptDialog`（"弟子血量未满" + "我知道了"，dismissLabel=null，点我知道了=确认并执行本次进攻）；`lowHpAcknowledged` 会话级 `remember` 状态——仅当前界面实例生效，关闭重开（攻击其他目标）重新检查
+- **测试** — `CultivationCoreTest` 9 个 recoverHpMpForAllDisciples 用例迁移到 recoverHpMpSingle（合并 2 个重复"负数跳过"，新增反转契约测试：recoverHpMpSingle **不**检查 isAlive——存活过滤在调用方 GameEngineCore.checkBreakthroughsAndPills，职责边界文档化），"0点05乘以10"断言改 "0点2乘以phasesToSettle"；`GameConfigConsistencyTest` 常量名更新；新增 `AttackHpGuardTest` 9 用例（未满→true / 全满→false / 负哨兵→false / maxHp=0→1f / 血炼提升 maxHp 后原血量判未满 / 空队伍→false / 任一未满→true / 血炼口径精确断言）；全模块串行测试（--max-workers=1）BUILD SUCCESSFUL + compileReleaseKotlin 通过
+- **兼容性** — 无 Entity/Migration/序列化变更（DATABASE_VERSION 不变）；GameConfigData 字段名保留旧 JSON 可解析；血炼/恢复口径变更对存档无影响
+
 ## [4.00.93] - 2026-08-09
 
 ### 优化（2026-08-09 每年一月卡顿数秒根治——算法减量 + AI 降频 + 年变分帧）

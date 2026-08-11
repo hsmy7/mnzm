@@ -27,8 +27,10 @@ import com.xianxia.sect.ui.components.DialogMode
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.PortraitDiscipleCard
 import com.xianxia.sect.ui.components.DiscipleSlot
+import com.xianxia.sect.ui.components.StandardPromptDialog
 import com.xianxia.sect.ui.game.DiscipleDetailRequest
 import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.hasLowHpDisciple
 import com.xianxia.sect.ui.game.applyFilters
 import com.xianxia.sect.ui.game.components.SpiritRootAttributeFilterBar
 import com.xianxia.sect.ui.game.filterByDiscipleStatus
@@ -52,9 +54,16 @@ fun LevelDetailDialog(
     val slots = remember { mutableStateListOf(*arrayOfNulls<String?>(8)) }
     var targetSlotIndex by remember { mutableIntStateOf(-1) }
     var showDiscipleSelection by remember { mutableStateOf(false) }
+    // 低血量二次确认（会话级状态：点"我知道了"后仅当前界面不再弹，关闭重开重新检查）
+    var lowHpAcknowledged by remember { mutableStateOf(false) }
+    var showLowHpWarning by remember { mutableStateOf(false) }
 
     val gameData by viewModel.gameData.collectAsStateWithLifecycle()
+    val equipmentInstances by viewModel.equipmentInstances.collectAsStateWithLifecycle()
+    val manualInstances by viewModel.manualInstances.collectAsStateWithLifecycle()
     val discipleMap = disciples.associateBy { it.id }
+    val equipmentMap = remember(equipmentInstances) { equipmentInstances.associateBy { it.id } }
+    val manualMap = remember(manualInstances) { manualInstances.associateBy { it.id } }
 
     val spriteName = remember(level) {
         when (level.levelType) {
@@ -234,7 +243,15 @@ fun LevelDetailDialog(
             ) {
                 GameButton(
                     text = "进攻",
-                    onClick = { onAttack(slots.toList()) },
+                    onClick = {
+                        val team = slots.mapNotNull { it?.let { id -> discipleMap[id] } }
+                        val needWarning = !lowHpAcknowledged && hasLowHpDisciple(
+                            team, equipmentMap, manualMap,
+                            gameData?.manualProficiencies ?: emptyMap(),
+                            gameData?.bloodRefinementPctTotals ?: emptyMap()
+                        )
+                        if (needWarning) showLowHpWarning = true else onAttack(slots.toList())
+                    },
                     enabled = occupiedCount > 0,
                     width = ButtonSizes.StandardWidth,
                     height = ButtonSizes.StandardHeight,
@@ -249,6 +266,22 @@ fun LevelDetailDialog(
                 )
             }
         }
+    }
+
+    // ========== 低血量二次确认弹窗（点"我知道了"后本界面不再弹，关闭重开重新检查） ==========
+    if (showLowHpWarning) {
+        StandardPromptDialog(
+            onDismissRequest = { showLowHpWarning = false },
+            title = "弟子血量未满",
+            text = "队伍中有弟子血量未满，是否仍要发起进攻？",
+            confirmLabel = "我知道了",
+            onConfirm = {
+                showLowHpWarning = false
+                lowHpAcknowledged = true
+                onAttack(slots.toList())
+            },
+            dismissLabel = null
+        )
     }
 
     // ========== Disciple selection dialog ==========
