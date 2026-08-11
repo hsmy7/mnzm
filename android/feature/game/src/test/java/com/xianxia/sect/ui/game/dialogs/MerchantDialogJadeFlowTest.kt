@@ -9,11 +9,13 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performSemanticsAction
+import com.xianxia.sect.core.engine.MerchantRefreshResult
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.ui.components.SpriteCategory
 import com.xianxia.sect.ui.components.SpriteResRegistry
 import com.xianxia.sect.ui.game.GameViewModel
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -73,6 +75,39 @@ class MerchantDialogJadeFlowTest {
         // 弹窗标题与按钮 contentDescription 文本重复——JadePurchaseDialog 为合并语义节点，
         // 标题/描述/小字/按钮文本聚合在一个节点内（MergeDescendants），逐项断言可见
         composeRule.onAllNodesWithText("获取刷新次数").assertCountEquals(1)
+        composeRule.onNodeWithText("消耗1玉符获取3次刷新次数").assertIsDisplayed()
+        composeRule.onNodeWithText("消耗玉符").assertIsDisplayed()
+    }
+
+    @Test
+    fun `玉符不足时点击消耗玉符弹出不足提示框且小屏弹窗保留`() {
+        val vm = mockk<GameViewModel>(relaxed = true)
+        every { vm.watchedItemIds } returns MutableStateFlow(emptySet())
+        every { vm.equipmentStacks } returns MutableStateFlow(emptyList())
+        every { vm.manualStacks } returns MutableStateFlow(emptyList())
+        every { vm.pills } returns MutableStateFlow(emptyList())
+        every { vm.materials } returns MutableStateFlow(emptyList())
+        every { vm.herbs } returns MutableStateFlow(emptyList())
+        every { vm.seeds } returns MutableStateFlow(emptyList())
+        // 真实引擎链路：玉符 0 时 deduct 失败返回 InsufficientJadeSymbols
+        coEvery { vm.purchaseMerchantRefresh() } returns MerchantRefreshResult.InsufficientJadeSymbols(0, 1)
+        composeRule.setContent {
+            MerchantDialog(
+                gameData = GameData(merchantRefreshChances = 0, jadeSymbols = 0),
+                viewModel = vm,
+                onDismiss = {}
+            )
+        }
+        composeRule.waitForIdle()
+        // 打开玉符购买小屏弹窗
+        composeRule.onNodeWithContentDescription("获取刷新次数")
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("消耗1玉符获取3次刷新次数").assertIsDisplayed()
+        // 点击「消耗玉符」→ 引擎返回不足 → 平台提示框出现，小屏弹窗保留
+        composeRule.onNodeWithText("消耗玉符").performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("玉符不足，无法获取刷新次数").assertIsDisplayed()
         composeRule.onNodeWithText("消耗1玉符获取3次刷新次数").assertIsDisplayed()
         composeRule.onNodeWithText("消耗玉符").assertIsDisplayed()
     }

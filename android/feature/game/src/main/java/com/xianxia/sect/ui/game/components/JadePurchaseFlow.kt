@@ -37,8 +37,12 @@ import kotlinx.coroutines.launch
  * 禁用嵌套 InlineStandardPromptDialog（2026-08-11 clip 事故教训）。
  * 防连点 AtomicBoolean compareAndSet 立即生效不等重组（对抗性审查教训，同洗炼弹窗）。
  *
+ * 关闭语义：**仅成功调用 [onDismiss]**；不足/失败不关闭小屏弹窗，提示框
+ * 以平台 Dialog 覆盖其上（2026-08-11 真机实测修复：先 onDismiss 再置提示
+ * 状态会随组件销毁而永不渲染）。
+ *
  * @param purchase 引擎购买调用（suspend），返回统一三态结果
- * @param onDismiss 弹窗关闭（成功/上限/不足/失败均由本组件触发关闭后回调）
+ * @param onDismiss 弹窗关闭（成功/上限时由本组件触发回调）
  */
 @Composable
 internal fun JadePurchaseFlow(
@@ -63,15 +67,14 @@ internal fun JadePurchaseFlow(
             scope.launch {
                 try {
                     when (val outcome = purchase()) {
+                        // 仅成功关闭小屏弹窗；不足/失败**不调 onDismiss**——
+                        // onDismiss 由父级移除本组件（showJadeDialog=false），
+                        // 先 onDismiss 再置 showInsufficientDialog/errorText 时
+                        // 状态随组件销毁，提示框永不渲染（2026-08-11 真机实测：
+                        // 玉符不足点「消耗玉符」弹窗关闭但无任何提示）
                         JadePurchaseOutcome.Success -> onDismiss()
-                        JadePurchaseOutcome.Insufficient -> {
-                            onDismiss()
-                            showInsufficientDialog = true
-                        }
-                        is JadePurchaseOutcome.Failed -> {
-                            onDismiss()
-                            errorText = outcome.message
-                        }
+                        JadePurchaseOutcome.Insufficient -> showInsufficientDialog = true
+                        is JadePurchaseOutcome.Failed -> errorText = outcome.message
                     }
                 } finally {
                     purchaseInFlight.set(false)

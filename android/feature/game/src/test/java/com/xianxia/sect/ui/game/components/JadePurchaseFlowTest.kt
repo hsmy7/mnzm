@@ -65,7 +65,8 @@ class JadePurchaseFlowTest {
     }
 
     @Test
-    fun `玉符不足时点击显示不足提示框`() {
+    fun `玉符不足时点击显示不足提示框且不触发 onDismiss 不关闭小屏`() {
+        var dismissed = false
         composeRule.setContent {
             JadePurchaseFlow(
                 title = "获取刷新次数",
@@ -73,12 +74,38 @@ class JadePurchaseFlowTest {
                 jadeSymbols = 0,
                 insufficientText = "玉符不足，无法获取刷新次数",
                 purchase = { JadePurchaseOutcome.Insufficient },
-                onDismiss = {}
+                onDismiss = { dismissed = true }
             )
         }
         composeRule.waitForIdle()
         composeRule.onNodeWithText("消耗玉符").performClick()
         composeRule.waitForIdle()
+        // 真实父级语义守卫：onDismiss 由父级移除本组件（showJadeDialog=false），
+        // 不足时若先 onDismiss 则提示状态随组件销毁永不渲染（2026-08-11 真机实测根因）；
+        // 修复后不足仅弹提示框，不触发 onDismiss，小屏弹窗保留
+        assertTrue("玉符不足时不应触发 onDismiss 关闭弹窗", !dismissed)
         composeRule.onNodeWithText("玉符不足，无法获取刷新次数").assertIsDisplayed()
+        composeRule.onNodeWithText("消耗玉符").assertIsDisplayed()
+        composeRule.onNodeWithText("获取刷新次数").assertIsDisplayed()
+    }
+
+    @Test
+    fun `购买失败时点击显示错误提示框且不触发 onDismiss`() {
+        var dismissed = false
+        composeRule.setContent {
+            JadePurchaseFlow(
+                title = "提高突破率",
+                description = "描述",
+                jadeSymbols = 5,
+                insufficientText = "玉符不足，无法提高突破率",
+                purchase = { JadePurchaseOutcome.Failed("购买失败，请重试") },
+                onDismiss = { dismissed = true }
+            )
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithText("消耗玉符").performClick()
+        composeRule.waitForIdle()
+        assertTrue("失败时不应触发 onDismiss 关闭弹窗", !dismissed)
+        composeRule.onNodeWithText("购买失败，请重试").assertIsDisplayed()
     }
 }
