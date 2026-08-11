@@ -1103,6 +1103,6 @@ cd android && ./gradlew.bat testDebugUnitTest --max-workers=1 \
 - `GameEngineCore` 专用游戏线程（`GAME_DISPATCHER`）、空闲检测保留 tick 改降域
 - 月度结算精简：薪水年度化、盗窃提前退出、执法被动触发、洞府移除、侦察/任务惰性化、外交限制 2 次/月、任务刷新每 3 月
 - 自动装备/自动学习脏标记：仅储物袋有物品或装备/功法变更时检测（`ConcurrentHashMap.newKeySet`）
-- **战斗前 HP/MP 恢复**：`recoverHpMpForBattleParticipants` 仅对非满状态弟子做正常恢复结算（`rate × multiplier`），满 HP+MP 跳过
+- **战斗前 HP/MP 恢复已删除（2026-08-11）**：每旬恢复（20%/旬）已保证血量最新状态，战前补血 = 每次进攻白送血量且可反复触发；`recoverHpMpForBattleParticipants`/`BattleSettlementService` 整链移除，`forceSettleDisciplesBeforeBattle` 仅保留突破检测职责
 
 

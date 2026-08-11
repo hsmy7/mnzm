@@ -10,8 +10,6 @@ import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.ManualInstance
 import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.model.ResidenceSlot
-import com.xianxia.sect.core.model.baseHp
-import com.xianxia.sect.core.model.baseMp
 import com.xianxia.sect.core.model.secretRealmMemberIds
 import com.xianxia.sect.core.state.GameStateStore
 import com.xianxia.sect.core.model.production.ProductionSlot
@@ -70,10 +68,6 @@ class CultivationService @Inject constructor(
         set(value) { sharedState.cachedProficiencyRates = value }
 
     // ── 委托方法：CultivationCore ──────────────────────────────────────
-
-    fun recoverHpMpForBattleParticipants(state: MutableGameState, discipleIds: List<String>) {
-        cultivationCore.recoverHpMpForBattleParticipants(state, discipleIds)
-    }
 
     /** 单弟子旬级 HP/MP 恢复（委托 CultivationCore） */
     fun recoverHpMpSingle(
@@ -305,13 +299,11 @@ class CultivationService @Inject constructor(
     }
 
     /**
-     * 战斗前对指定出战弟子执行全量数据追赶结算。
+     * 战斗前对指定出战弟子执行突破检测。
      *
      * 在 [MutableGameState] 事务内调用，仅处理目标弟子（≤10人）。
-     * 编排步骤：
-     * 1. [CultivationCore.forceSettleDisciplesBeforeBattle] —
-     *    HP/MP 恢复、装备孕养、功法熟练度
-     * 2. 突破检测 — 复用 [DiscipleBreakthroughHandler] 核心逻辑
+     * HP/MP 恢复由每旬结算统一处理（每旬 20%），战斗前不再额外补血
+     * （2026-08-11 决策：血量随时为最新值，战前补血=白送血量且可反复触发）。
      *
      * @param state 可变游戏状态
      * @param discipleIds 出战弟子 ID 字符串列表
@@ -322,9 +314,6 @@ class CultivationService @Inject constructor(
     ) {
         if (discipleIds.isEmpty()) return
 
-        cultivationCore.forceSettleDisciplesBeforeBattle(
-            state, discipleIds
-        )
         processBreakthroughsForDisciples(state, discipleIds)
     }
 

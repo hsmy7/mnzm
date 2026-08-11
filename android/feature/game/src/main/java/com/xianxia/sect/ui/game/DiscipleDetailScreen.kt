@@ -233,9 +233,7 @@ fun DiscipleDetailDialog(
     }
     val vmPlacedBuildings by viewModel?.placedBuildings?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(emptyList<GridBuildingData>()) }
     val gameData by viewModel?.gameData?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(null) }
-    val gameMonth = gameData?.gameMonth ?: 1
     val gameYear = gameData?.gameYear ?: 1
-    val gamePhase = gameData?.gamePhase ?: 0
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("信息", "属性", "装备", "功法")
 
@@ -314,9 +312,7 @@ fun DiscipleDetailDialog(
                                         residenceSlots = vmResidenceSlots,
                                         placedBuildings = vmPlacedBuildings,
                                         viewModel = viewModel,
-                                        gameMonth = gameMonth,
                                         gameYear = gameYear,
-                                        gamePhase = gamePhase,
                                         gameSpeed = 1,
                                         bloodRefinementPct = gameData?.bloodRefinementPctTotals?.get(disciple.id),
                                         onWashSpiritRootClick = openSpiritRootWash

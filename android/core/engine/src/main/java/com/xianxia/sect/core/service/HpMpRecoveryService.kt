@@ -214,55 +214,6 @@ class HpMpRecoveryService @Inject constructor() {
     }
 
     /**
-     * 为参与战斗的指定弟子恢复 HP 与 MP（战前恢复，确保血量最新状态）。
-     *
-     * 仅处理 discipleIds 列表中存活的弟子，已满 HP/MP 的弟子跳过。
-     * 恢复量 = maxHp/maxMp × PHASE_HP_MP_RECOVERY_RATE（1 旬量），至少恢复 1 点，且不超过上限。
-     *
-     * @param state 可变游戏状态
-     * @param discipleIds 参与战斗的弟子 ID 字符串列表
-     * @param zones 恢复乘区（可选，默认为无额外加成）
-     */
-    fun recoverHpMpForBattleParticipants(
-        state: MutableGameState,
-        discipleIds: List<String>,
-        zones: RecoveryZones = RecoveryZones()
-    ) {
-        val tables = state.discipleTables
-        val equipmentMap = state.equipmentInstances.associateBy { it.id }
-        val manualMap = state.manualInstances.associateBy { it.id }
-        val allProficiencies = state.gameData.manualProficiencies
-        val multiplier = 1.0
-        val idSet = discipleIds.toSet()
-
-        for (id in tables.ids) {
-            val strId = id.toString()
-            if (strId !in idSet || tables.isAlive[id] != 1) continue
-
-            val disciple = tables.assemble(id)
-            var curHp = tables.currentHps[id]
-            var curMp = tables.currentMps[id]
-
-            val discipleProficiencies = allProficiencies[disciple.id]?.associateBy { it.manualId } ?: emptyMap()
-            val finalStats = DiscipleStatCalculator.getFinalStats(
-                disciple, equipmentMap, manualMap, discipleProficiencies,
-                state.gameData.bloodRefinementPctTotals[disciple.id]
-            )
-            val maxHp = finalStats.maxHp
-            val maxMp = finalStats.maxMp
-            // 满血判定用含血炼口径（P2 对抗性审查修复）——原 disciple.maxHp（基础）会把
-            // 血炼差额血量误判为已满，战前恢复跳过导致少血入场
-            if (curHp >= maxHp && curMp >= maxMp) continue
-            val hpRecovery = zones.calculateRecovery(maxHp, multiplier)
-            val mpRecovery = zones.calculateRecovery(maxMp, multiplier)
-            curHp = if (curHp < 0) curHp else (curHp + hpRecovery).coerceAtMost(maxHp)
-            curMp = if (curMp < 0) curMp else (curMp + mpRecovery).coerceAtMost(maxMp)
-            if (curHp != tables.currentHps[id]) tables.currentHps[id] = curHp
-            if (curMp != tables.currentMps[id]) tables.currentMps[id] = curMp
-        }
-    }
-
-    /**
      * 月度持续效果衰减（月结制专用）。
      * 修炼速度加成和丹药效果每旬衰减 10，每月衰减 30。
      * @param tables 弟子数据表

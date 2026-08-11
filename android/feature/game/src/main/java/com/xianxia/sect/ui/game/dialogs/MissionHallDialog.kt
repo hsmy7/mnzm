@@ -362,122 +362,177 @@ private fun ActiveMissionDetailDialog(
             )
         }
     ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "难度：${data.mission.difficulty.displayName}",
-                            fontSize = 11.sp,
-                            color = getDifficultyColor(data.mission.difficulty)
-                        )
-                    }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            ActiveMissionProgressBlock(data, animMissionState.value)
 
-                    HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 4.dp),
-                        color = GameColors.Border,
-                        thickness = 1.dp
-                    )
-
-                    Text(
-                        text = "执行进度",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-
-                    LinearProgressIndicator(
-                        progress = { animMissionState.value },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(4.dp)),
-                        color = GameColors.Success,
-                        trackColor = GameColors.SurfaceLightGray
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = "进度：$progress%",
-                            fontSize = 11.sp,
-                            color = Color.Black
-                        )
-                        Text(
-                            text = "剩余：$remainingMonths 月",
-                            fontSize = 11.sp,
-                            color = Color.Black
-                        )
-                    }
-
-                    HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 4.dp),
-                        color = GameColors.Border,
-                        thickness = 1.dp
-                    )
-
-                    Text(
-                        text = "任务奖励",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-
-                    Text(
-                        text = formatSpiritStoneReward(data.mission.rewards),
-                        fontSize = 11.sp,
-                        color = Color(0xFFD4A017)
-                    )
-
-                    HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 4.dp),
-                        color = GameColors.Border,
-                        thickness = 1.dp
-                    )
-
-                    Text(
-                        text = "执行弟子 (${data.mission.memberCount}人)",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-
-                    val gridDiscipleIds = remember(data.mission.discipleIds) {
-                        // 防御旧存档重复/空 id（MissionSystem 已加引擎侧校验），
-                        // 防 LazyVerticalGrid key="" 重复崩溃（Bugly #5079/#3091）
-                        data.mission.discipleIds.distinct()
-                            .mapIndexed { index, id -> id.ifBlank { "blank_$index" } }
-                    }
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(3),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.heightIn(max = 240.dp)
-                    ) {
-                        items(gridDiscipleIds, key = { it }, contentType = { "disciple_id" }) { discipleId ->
-                            val index = gridDiscipleIds.indexOf(discipleId)
-                            val name = if (index < data.mission.discipleNames.size) data.mission.discipleNames[index] else "未知"
-                            val realm = if (index < data.mission.discipleRealms.size) data.mission.discipleRealms[index] else ""
-                            val disciple = discipleMap[discipleId]
-
-                            MissionDiscipleSlot(
-                                disciple = disciple,
-                                hpRatio = hpRatioById[discipleId] ?: 1f,
-                                onClick = { onDiscipleClick(disciple) }
-                            )
-                        }
-                    }
+            ActiveMissionMemberSection(data, discipleMap, hpRatioById, onDiscipleClick)
+        }
     }
 }
+
+// ── ActiveMissionDetailDialog 子组件（2026-08-11 拆分，LongMethod 124 行 → 2 个小组件）──
+
+@Composable
+private fun ActiveMissionProgressBlock(
+    data: ActiveMissionDisplayData,
+    animMissionState: Float
+) {
+    val progress = data.mission.getProgressPercent(data.currentYear, data.currentMonth)
+    val remainingMonths = data.mission.getRemainingMonths(data.currentYear, data.currentMonth)
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        MissionDifficultyRow(data)
+        MissionProgressSection(progress, remainingMonths, animMissionState)
+        MissionRewardSection(data)
+    }
+}
+
+@Composable
+private fun MissionDifficultyRow(data: ActiveMissionDisplayData) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = "难度：${data.mission.difficulty.displayName}",
+            fontSize = 11.sp,
+            color = getDifficultyColor(data.mission.difficulty)
+        )
+    }
+}
+
+@Composable
+private fun MissionProgressSection(
+    progress: Int,
+    remainingMonths: Int,
+    animMissionState: Float
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        HorizontalDivider(
+            modifier = Modifier.padding(vertical = 4.dp),
+            color = GameColors.Border,
+            thickness = 1.dp
+        )
+
+        Text(
+            text = "执行进度",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+
+        LinearProgressIndicator(
+            progress = { animMissionState },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(RoundedCornerShape(4.dp)),
+            color = GameColors.Success,
+            trackColor = GameColors.SurfaceLightGray
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "进度：$progress%",
+                fontSize = 11.sp,
+                color = Color.Black
+            )
+            Text(
+                text = "剩余：$remainingMonths 月",
+                fontSize = 11.sp,
+                color = Color.Black
+            )
+        }
+    }
+}
+
+@Composable
+private fun MissionRewardSection(data: ActiveMissionDisplayData) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        HorizontalDivider(
+            modifier = Modifier.padding(vertical = 4.dp),
+            color = GameColors.Border,
+            thickness = 1.dp
+        )
+
+        Text(
+            text = "任务奖励",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+
+        Text(
+            text = formatSpiritStoneReward(data.mission.rewards),
+            fontSize = 11.sp,
+            color = Color(0xFFD4A017)
+        )
+
+        HorizontalDivider(
+            modifier = Modifier.padding(vertical = 4.dp),
+            color = GameColors.Border,
+            thickness = 1.dp
+        )
+    }
+}
+
+@Composable
+private fun ActiveMissionMemberSection(
+    data: ActiveMissionDisplayData,
+    discipleMap: Map<String, DiscipleAggregate>,
+    hpRatioById: Map<String, Float>,
+    onDiscipleClick: (DiscipleAggregate?) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            text = "执行弟子 (${data.mission.memberCount}人)",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+
+        val gridDiscipleIds = remember(data.mission.discipleIds) {
+            // 防御旧存档重复/空 id（MissionSystem 已加引擎侧校验），
+            // 防 LazyVerticalGrid key="" 重复崩溃（Bugly #5079/#3091）
+            data.mission.discipleIds.distinct()
+                .mapIndexed { index, id -> id.ifBlank { "blank_$index" } }
+        }
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(3),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.heightIn(max = 240.dp)
+        ) {
+            items(gridDiscipleIds, key = { it }, contentType = { "disciple_id" }) { discipleId ->
+                val index = gridDiscipleIds.indexOf(discipleId)
+                val name = if (index < data.mission.discipleNames.size) {
+                    data.mission.discipleNames[index]
+                } else {
+                    "未知"
+                }
+                val realm = if (index < data.mission.discipleRealms.size) {
+                    data.mission.discipleRealms[index]
+                } else {
+                    ""
+                }
+                val disciple = discipleMap[discipleId]
+
+                MissionDiscipleSlot(
+                    disciple = disciple,
+                    hpRatio = hpRatioById[discipleId] ?: 1f,
+                    onClick = { onDiscipleClick(disciple) }
+                )
+            }
+        }
+    }
 }
 
 @Composable

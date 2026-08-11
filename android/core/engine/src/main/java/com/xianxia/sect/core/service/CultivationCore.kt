@@ -31,12 +31,12 @@ class CultivationCore @Inject constructor(
     // D2（2026-08-05）：删除 10 个方法体内零引用依赖（stateStore/inventoryConfig/
     // thermalMonitor/gameClock/scopeProvider/pillManager/equipmentManager/manualManager/
     // profiler），构造依赖 15 → 6；熟练度核心逻辑迁至 ManualProficiencyService
+    // 2026-08-11：战前补血删除（每旬恢复已保证血量最新），battleSettlementService 依赖移除，15 → 5
     private val hpMpRecoveryService: HpMpRecoveryService,
     private val autoPillService: AutoPillService,
     private val equipmentNurtureService: EquipmentNurtureService,
     private val manualProficiencyService: ManualProficiencyService,
-    private val cultivationRateCalculator: CultivationRateCalculator,
-    private val battleSettlementService: BattleSettlementService
+    private val cultivationRateCalculator: CultivationRateCalculator
 ) {
 
     // ── 委托到子服务的方法 ────────────────────────────────────
@@ -83,15 +83,8 @@ class CultivationCore @Inject constructor(
     fun applyMonthlyDurationDecay(tables: DiscipleTables, id: Int, focusedPhaseCount: Int = 0) =
         hpMpRecoveryService.applyMonthlyDurationDecay(tables, id, focusedPhaseCount)
 
-    fun recoverHpMpForBattleParticipants(state: MutableGameState, discipleIds: List<String>,
-        zones: RecoveryZones = RecoveryZones()
-    ) = hpMpRecoveryService.recoverHpMpForBattleParticipants(state, discipleIds, zones)
-
     fun processRealtimeAutoPills(state: MutableGameState, year: Int, month: Int, phase: Int) =
         autoPillService.processRealtimeAutoPills(state, year, month, phase)
-
-    fun forceSettleDisciplesBeforeBattle(state: MutableGameState, discipleIds: List<String>) =
-        battleSettlementService.forceSettleDisciplesBeforeBattle(state, discipleIds)
 
     // ── 每旬熟练度 + 孕养增长 ────────────────────────────────
 

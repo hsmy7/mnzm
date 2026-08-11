@@ -14,9 +14,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.xianxia.sect.core.model.BloodRefinementPctTotal
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleStatus
+import com.xianxia.sect.core.model.EquipmentInstance
 import com.xianxia.sect.core.model.GameData
+import com.xianxia.sect.core.model.ManualInstance
+import com.xianxia.sect.core.model.ManualProficiencyData
 import com.xianxia.sect.core.util.sortedByFollowAndRealm
 import com.xianxia.sect.ui.components.GameButton
 import com.xianxia.sect.ui.components.UnifiedGameDialog
@@ -123,17 +127,15 @@ internal fun AttackDiscipleDialog(
                 GameButton(
                     text = "进攻",
                     onClick = {
-                        val needWarning = !lowHpAcknowledged && hasLowHpDisciple(
-                            slots.filterNotNull(), equipmentMap, manualMap,
-                            gameData?.manualProficiencies ?: emptyMap(),
-                            gameData?.bloodRefinementPctTotals ?: emptyMap()
-                        )
-                        if (needWarning) {
+                        if (shouldWarnLowHp(
+                                slots.toList(), lowHpAcknowledged, equipmentMap, manualMap,
+                                gameData?.manualProficiencies ?: emptyMap(),
+                                gameData?.bloodRefinementPctTotals ?: emptyMap()
+                            )
+                        ) {
                             showLowHpWarning = true
                         } else {
-                            val selected = slots.mapIndexedNotNull { index, disciple ->
-                                if (disciple != null) index to disciple else null
-                            }
+                            val selected = buildAttackParty(slots.toList())
                             if (selected.isNotEmpty()) {
                                 onAttack(selected)
                             }
@@ -146,25 +148,18 @@ internal fun AttackDiscipleDialog(
     }
 
     // ========== 低血量二次确认弹窗（点"我知道了"后本界面不再弹，关闭重开重新检查） ==========
-    if (showLowHpWarning) {
-        StandardPromptDialog(
-            onDismissRequest = { showLowHpWarning = false },
-            title = "弟子血量未满",
-            text = "队伍中有弟子血量未满，是否仍要发起进攻？",
-            confirmLabel = "我知道了",
-            onConfirm = {
-                showLowHpWarning = false
-                lowHpAcknowledged = true
-                val selected = slots.mapIndexedNotNull { index, disciple ->
-                    if (disciple != null) index to disciple else null
-                }
-                if (selected.isNotEmpty()) {
-                    onAttack(selected)
-                }
-            },
-            dismissLabel = null
-        )
-    }
+    LowHpConfirmDialog(
+        show = showLowHpWarning,
+        onDismiss = { showLowHpWarning = false },
+        onConfirm = {
+            showLowHpWarning = false
+            lowHpAcknowledged = true
+            val selected = buildAttackParty(slots.toList())
+            if (selected.isNotEmpty()) {
+                onAttack(selected)
+            }
+        }
+    )
 
     // Disciple selection sub-dialog
     if (showDiscipleSelection && selectedSlotIndex != null) {
@@ -326,5 +321,46 @@ private fun AttackDiscipleSelectionDialog(
                 }
             }
         }
+    }
+}
+
+// ── 低血量二次确认辅助（2026-08-11 提取，CyclomaticComplexMethod 修复）──
+
+/** 判定是否需弹低血量确认（未确认过且队伍中存在血量未满弟子） */
+private fun shouldWarnLowHp(
+    slots: List<DiscipleAggregate?>,
+    lowHpAcknowledged: Boolean,
+    equipmentMap: Map<String, EquipmentInstance>,
+    manualMap: Map<String, ManualInstance>,
+    manualProficiencies: Map<String, List<ManualProficiencyData>>,
+    bloodRefinementPctTotals: Map<String, BloodRefinementPctTotal>
+): Boolean = !lowHpAcknowledged && hasLowHpDisciple(
+    slots.filterNotNull(), equipmentMap, manualMap,
+    manualProficiencies, bloodRefinementPctTotals
+)
+
+/** 从 10 槽位构建出战队伍（槽位索引 → 弟子），供进攻按钮与确认弹窗共用 */
+private fun buildAttackParty(
+    slots: List<DiscipleAggregate?>
+): List<Pair<Int, DiscipleAggregate>> =
+    slots.mapIndexedNotNull { index, disciple ->
+        if (disciple != null) index to disciple else null
+    }
+
+@Composable
+private fun LowHpConfirmDialog(
+    show: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    if (show) {
+        StandardPromptDialog(
+            onDismissRequest = onDismiss,
+            title = "弟子血量未满",
+            text = "队伍中有弟子血量未满，是否仍要发起进攻？",
+            confirmLabel = "我知道了",
+            onConfirm = onConfirm,
+            dismissLabel = null
+        )
     }
 }

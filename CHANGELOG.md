@@ -94,6 +94,14 @@
 - **测试** — `CultivationCoreTest` 9 个 recoverHpMpForAllDisciples 用例迁移到 recoverHpMpSingle（合并 2 个重复"负数跳过"，新增反转契约测试：recoverHpMpSingle **不**检查 isAlive——存活过滤在调用方 GameEngineCore.checkBreakthroughsAndPills，职责边界文档化），"0点05乘以10"断言改 "0点2乘以phasesToSettle"；`GameConfigConsistencyTest` 常量名更新；新增 `AttackHpGuardTest` 9 用例（未满→true / 全满→false / 负哨兵→false / maxHp=0→1f / 血炼提升 maxHp 后原血量判未满 / 空队伍→false / 任一未满→true / 血炼口径精确断言）；全模块串行测试（--max-workers=1）BUILD SUCCESSFUL + compileReleaseKotlin 通过
 - **兼容性** — 无 Entity/Migration/序列化变更（DATABASE_VERSION 不变）；GameConfigData 字段名保留旧 JSON 可解析；血炼/恢复口径变更对存档无影响
 
+### 修复（2026-08-11 战前补血整链删除——每旬恢复已保证血量最新）
+
+- **决策背景** — 确认血量每旬自动结算（1x 速度每旬 = 2 秒现实时间，每旬 20%）后，用户判定战前补血多余：每次进攻白送 1 旬恢复量（20%），可反复触发进攻刷血 = 免费回血漏洞；且与进攻前低血量二次确认机制语义一致（血量管理有意义）
+- **删除范围** — `HpMpRecoveryService.recoverHpMpForBattleParticipants`；`CultivationService`/`CultivationCore` 对应转发；`BattleSettlementService.kt` 整文件（仅含转发空壳，rm 删除）；`CultivationCore` 构造依赖 6 → 5（构造注释同步）；`forceSettleDisciplesBeforeBattle` **保留**但职责收窄为仅突破检测（`processBreakthroughsForDisciples`）——5 个战斗入口调用点（GameEngineBattleOps ×3 / PlayerDefenseProcessor / ExplorationService）零改动
+- **测试** — `CultivationCoreTest` 删 7 个 forceSettleDisciplesBeforeBattle 用例（含 HP 恢复/装备孕养/功法熟练度；"由每旬方法处理"语义已被 CultivationCoreProficiencyNurtureTest 覆盖）；3 个测试文件 setUp 删 battleSettlementService 构造参数（CultivationCoreProficiencyNurtureTest / CultivationServiceIntegrationTest / RealtimeCultivationBatchTest）；detekt-baseline 删 2 行（只缩不增）
+- **文档** — CODE_WIKI 战斗前恢复条目更新为已删除现状；EquipmentNurtureSystem KDoc 已删类引用修正
+- **兼容性** — 纯逻辑删除，无 Entity/Migration/序列化变更（DATABASE_VERSION 不变）
+
 ## [4.00.93] - 2026-08-09
 
 ### 优化（2026-08-09 每年一月卡顿数秒根治——算法减量 + AI 降频 + 年变分帧）

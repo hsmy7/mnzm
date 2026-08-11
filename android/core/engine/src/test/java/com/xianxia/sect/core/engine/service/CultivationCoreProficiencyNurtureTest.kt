@@ -128,8 +128,7 @@ class CultivationCoreProficiencyNurtureTest {
             autoPillService = AutoPillService(mockPillManager, mockSmart()),
             equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
-            cultivationRateCalculator = CultivationRateCalculator(stateStore),
-            battleSettlementService = BattleSettlementService(realHpMpRecoveryService)
+            cultivationRateCalculator = CultivationRateCalculator(stateStore)
         )
     }
 

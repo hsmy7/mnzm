@@ -125,7 +125,6 @@
     <ID>InvalidPackageDeclaration:AlchemySystem.kt$package com.xianxia.sect.core.engine.system.building</ID>
     <ID>InvalidPackageDeclaration:AutoBuyService.kt$package com.xianxia.sect.core.engine.service</ID>
     <ID>InvalidPackageDeclaration:AutoPillService.kt$package com.xianxia.sect.core.engine.service</ID>
-    <ID>InvalidPackageDeclaration:BattleSettlementService.kt$package com.xianxia.sect.core.engine.service</ID>
     <ID>InvalidPackageDeclaration:BuildingFacade.kt$package com.xianxia.sect.core.engine.domain.building</ID>
     <ID>InvalidPackageDeclaration:BuildingFacadeImpl.kt$package com.xianxia.sect.core.engine.domain.building</ID>
     <ID>InvalidPackageDeclaration:BuildingFeature.kt$package com.xianxia.sect.core.engine.domain.building</ID>
@@ -1146,7 +1145,6 @@
     <ID>UnusedPrivateProperty:AISectBeastAttackProcessor.kt$AISectBeastAttackProcessor$private val stateStore: GameStateStore</ID>
     <ID>UnusedPrivateProperty:AutoBuyService.kt$AutoBuyService$private val inventoryConfig: InventoryConfig</ID>
     <ID>UnusedPrivateProperty:AutoPillService.kt$AutoPillService.Companion$private const val TAG = "AutoPillService"</ID>
-    <ID>UnusedPrivateProperty:BattleSettlementService.kt$BattleSettlementService.Companion$private const val TAG = "BattleSettlementService"</ID>
     <ID>UnusedPrivateProperty:ChildBirthSystem.kt$ChildBirthSystem$private val stateStore: GameStateStore</ID>
     <ID>UnusedPrivateProperty:CombatService.kt$CombatService$private val battleSystem: BattleSystem</ID>
     <ID>UnusedPrivateProperty:CombatService.kt$CombatService$private val cultivationService: com.xianxia.sect.core.engine.service.CultivationService</ID>

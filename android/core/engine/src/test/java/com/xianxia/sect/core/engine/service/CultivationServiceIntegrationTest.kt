@@ -80,8 +80,7 @@ class CultivationServiceIntegrationTest {
             autoPillService = AutoPillService(mockSmart(), mockSmart()),
             equipmentNurtureService = EquipmentNurtureService(),
             manualProficiencyService = ManualProficiencyService(),
-            cultivationRateCalculator = CultivationRateCalculator(stateStore),
-            battleSettlementService = BattleSettlementService(HpMpRecoveryService())
+            cultivationRateCalculator = CultivationRateCalculator(stateStore)
         )
 
         service = CultivationService(
