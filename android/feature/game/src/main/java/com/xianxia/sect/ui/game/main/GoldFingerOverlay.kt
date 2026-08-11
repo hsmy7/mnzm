@@ -3,7 +3,6 @@ package com.xianxia.sect.ui.game.main
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -20,14 +19,6 @@ import com.xianxia.sect.core.util.GridSystem
 import com.xianxia.sect.ui.game.map.sect.SectCameraState
 import com.xianxia.sect.ui.game.sect.GoldFingerState
 import com.xianxia.sect.ui.theme.GameColors
-
-/** 网格线覆盖层所需放置参数 */
-internal data class GridPlacement(
-    val snappedGridX: Int,
-    val snappedGridY: Int,
-    val buildingW: Int,
-    val buildingH: Int
-)
 
 /**
  * 金手指图标 — 建筑预览框右下角单格内显示，
@@ -145,95 +136,6 @@ internal fun GoldFingerSelectionOverlay(
     }
 }
 
-/**
- * 网格线覆盖层 — 放置/移动模式时在地图上显示方格线。
- *
- * 两种模式：
- * - "border"：仅当前放置建筑外框（4 条线）
- * - "full"：视口内所有网格线
- */
-@Composable
-internal fun GridOverlay(
-    placement: GridPlacement?,
-    cameraState: SectCameraState,
-    tileSize: Int,
-    worldWidthCells: Int,
-    worldHeightCells: Int,
-    mode: String = "full"
-) {
-    if (placement == null) return
-
-    val density = LocalDensity.current.density
-    val scale = cameraState.scale
-    val ts = tileSize
-    val gridColor = Color(0xFFE4DDD0)
-
-    if (mode == "border") {
-        drawBorderGrid(placement, cameraState, ts, scale, density, gridColor)
-    } else {
-        drawFullGrid(cameraState, ts, scale, worldWidthCells, worldHeightCells,
-            gridColor)
-    }
-}
-
-@Composable
-private fun drawBorderGrid(
-    p: GridPlacement,
-    cam: SectCameraState,
-    ts: Int,
-    scale: Float,
-    density: Float,
-    gridColor: Color
-) {
-    val bx1 = ((p.snappedGridX * ts).toFloat() - cam.cameraX) * scale
-    val by1 = ((p.snappedGridY * ts).toFloat() - cam.cameraY) * scale
-    val bx2 = (((p.snappedGridX + p.buildingW) * ts).toFloat() - cam.cameraX) * scale
-    val by2 = (((p.snappedGridY + p.buildingH) * ts).toFloat() - cam.cameraY) * scale
-
-    Box(
-        modifier = Modifier
-            .offset(x = (bx1 / density).dp, y = (by1 / density).dp)
-            .size(width = ((bx2 - bx1) / density).dp,
-                height = ((by2 - by1) / density).dp)
-    ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width; val h = size.height
-            drawLine(gridColor, Offset(0f, 0f), Offset(w, 0f), 1f)
-            drawLine(gridColor, Offset(w, 0f), Offset(w, h), 1f)
-            drawLine(gridColor, Offset(w, h), Offset(0f, h), 1f)
-            drawLine(gridColor, Offset(0f, h), Offset(0f, 0f), 1f)
-        }
-    }
-}
-
-@Composable
-private fun drawFullGrid(
-    cam: SectCameraState,
-    ts: Int,
-    scale: Float,
-    worldWidthCells: Int,
-    worldHeightCells: Int,
-    gridColor: Color
-) {
-    val vpWF = cam.viewportWidth.toFloat()
-    val vpHF = cam.viewportHeight.toFloat()
-    if (vpWF <= 0f || vpHF <= 0f) return
-
-    val firstCol = (cam.cameraX / ts).toInt().coerceAtLeast(0)
-    val lastCol = ((cam.cameraX + vpWF / scale) / ts).toInt()
-        .coerceAtMost(worldWidthCells)
-    val firstRow = (cam.cameraY / ts).toInt().coerceAtLeast(0)
-    val lastRow = ((cam.cameraY + vpHF / scale) / ts).toInt()
-        .coerceAtMost(worldHeightCells)
-
-    Canvas(modifier = Modifier.fillMaxSize()) {
-        for (col in firstCol..lastCol) {
-            val sx = (col * ts - cam.cameraX) * scale
-            drawLine(gridColor, Offset(sx, 0f), Offset(sx, vpHF), 1f)
-        }
-        for (row in firstRow..lastRow) {
-            val sy = (row * ts - cam.cameraY) * scale
-            drawLine(gridColor, Offset(0f, sy), Offset(vpWF, sy), 1f)
-        }
-    }
-}
+// 网格线（GridOverlay/GridPlacement）已迁移至 native 渲染层
+// （RenderFrame.gridOverlayVisible + 双后端 drawGridOverlay，2026-08-11）——
+// Compose 覆盖层锚定 cameraState 与渲染线程异步消费存在相位差，拖拽视角时 1 帧错位。

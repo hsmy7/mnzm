@@ -47,6 +47,16 @@ data class NativeRenderConfig(
  * @property selectedBuildingIndex 选中建筑索引（-1=无选中；越界时双后端自动跳过绘制）
  * @property spiritCropData 灵田作物数据 [gx, gy, progress01] × N（可选，无作物时为 null；
  * 低频变化走帧率门控 RenderFrame——不新增命令总线槽位）
+ * @property demolishHighlightData 拆除模式高亮标记（每建筑 1 字节，与 [buildingData]
+ * **同序同长**：[DemolishHighlightMark.NONE]=无高亮（未注册建筑等）、
+ * [DemolishHighlightMark.GREEN]=绿色未选中、[DemolishHighlightMark.SELECTED]=红色选中；
+ * null = 非拆除模式，双后端跳过整层绘制。位置几何不重复携带——渲染端从 buildingData
+ * 经 SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX 复用占地尺寸，标记只表达状态。
+ * 低频变化（模式进出/选中切换）走帧率门控 RenderFrame；命令总线脏帧（busWasDirty）
+ * 时双后端跳过本层一帧，防与新 buildingData 索引错位（仿 [selectedBuildingIndex] 防御）
+ * @property gridOverlayVisible 放置/移动模式全视口网格线开关（true 时双后端在视口内
+ * 画网格线，范围按合并后最新相机计算——与地图同帧同相机，消除 Compose 覆盖层相位差；
+ * 网格数据与建筑索引无对齐关系，无需 busWasDirty 跳帧）
  * @property camX 相机 X（世界像素，视口左上角）
  * @property camY 相机 Y（世界像素，视口左上角）
  * @property scale 相机缩放
@@ -83,6 +93,12 @@ data class RenderFrame(
     /** 灵田作物数据 [gx, gy, progress01] × N（可选，无作物时为 null） */
     val spiritCropData: FloatArray? = null,
 
+    /** 拆除模式高亮标记（每建筑 1 字节，与 [buildingData] 同序；null = 非拆除模式） */
+    val demolishHighlightData: ByteArray? = null,
+
+    /** 放置/移动模式全视口网格线开关（true = 双后端画视口内网格线） */
+    val gridOverlayVisible: Boolean = false,
+
     // 相机
     val camX: Float = 0f,
     val camY: Float = 0f,
@@ -103,3 +119,21 @@ data class RenderFrame(
     val previewTintBlue: Float = 0.25f,
     val previewAlpha: Float = 0.5f
 )
+
+/**
+ * 拆除模式高亮标记值（[RenderFrame.demolishHighlightData] 每元素取值）。
+ *
+ * 双后端（Vulkan/Canvas）与 Compose 生成侧共用，消除魔法数字。
+ * 未注册建筑（BuildingFeatureRegistry 查无）标记 [NONE]——
+ * 与旧 Compose 覆盖层 filter 行为一致（不可选中不可拆）。
+ */
+object DemolishHighlightMark {
+    /** 无高亮（未注册建筑/防御兜底） */
+    const val NONE = 0
+
+    /** 未选中：绿色半透明填充 */
+    const val GREEN = 1
+
+    /** 选中：红色半透明填充 + 红色描边 */
+    const val SELECTED = 2
+}

@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game.sect
 
 import android.graphics.*
 import com.xianxia.sect.core.render.BuildingRenderGeometry
+import com.xianxia.sect.core.render.DemolishHighlightMark
 import com.xianxia.sect.core.render.NativeRenderConfig
 import com.xianxia.sect.core.render.RenderFrame
 import com.xianxia.sect.core.render.RenderLodPolicy
@@ -79,6 +80,17 @@ class SoftwareCanvasBackend(
         private val HIGHLIGHT_EDGE_COLOR = android.graphics.Color.argb(
             (0.9f * 255).toInt(), 0xFF, 0xD7, 0x00
         )
+
+        // ── 拆除模式占地高亮（与旧 Compose 覆盖层同色：0x66 = 40% 半透明） ──
+        /** 未选中占地填充：半透明绿 #4CAF50 */
+        private val DEMOLISH_GREEN_FILL_COLOR = android.graphics.Color.argb(0x66, 0x4C, 0xAF, 0x50)
+        /** 选中占地填充：半透明红 #F44336 */
+        private val DEMOLISH_RED_FILL_COLOR = android.graphics.Color.argb(0x66, 0xF4, 0x43, 0x36)
+        /** 选中建筑描边：不透明红 #F44336 */
+        private val DEMOLISH_RED_EDGE_COLOR = android.graphics.Color.argb(0xFF, 0xF4, 0x43, 0x36)
+
+        /** 放置/移动模式网格线色（与旧 Compose GridOverlay 同色 #E4DDD0） */
+        private val GRID_OVERLAY_COLOR = android.graphics.Color.argb(0xFF, 0xE4, 0xDD, 0xD0)
 
         // ── 图集索引常量 ──
         private const val SPIRIT_FIELD_ATLAS_INDEX = 2
@@ -424,6 +436,17 @@ class SoftwareCanvasBackend(
         isAntiAlias = true
     }
 
+    /** 拆除模式占地高亮 Paint（独立实例——逐帧 setColor 不得污染共享 paint） */
+    private val demolishPaint = Paint().apply {
+        isAntiAlias = true
+    }
+
+    /** 放置/移动模式网格线 Paint（独立实例；逐帧绘制复用同色） */
+    private val gridPaint = Paint().apply {
+        isAntiAlias = true
+        strokeWidth = 1f
+    }
+
     /** 灵田作物 Paint（WP6 独立实例——逐帧改 alpha 不得污染共享 paint） */
     private val cropPaint = Paint(Paint.FILTER_BITMAP_FLAG).apply {
         isFilterBitmap = false
@@ -525,15 +548,17 @@ class SoftwareCanvasBackend(
             rebuildInvalidChunks(atlas, frame, decorSkip)
         }
 
-        // 合成可见 chunk → 灵田作物层 → 选中高亮 → 预览精灵
+        // 合成可见 chunk → 灵田作物层 → 选中高亮 → 拆除高亮 → 预览精灵 → 网格线
         composeVisibleChunks(canvas, frame, tileSize, scale, vpW, vpH, fadeAlpha)
         drawCrops(canvas, atlas, frame, fadeAlpha)
         if (config.renderFlags.selectionHighlight) {
             drawSelectionHighlight(canvas, frame)
         }
+        drawDemolishHighlight(canvas, frame)
         if (frame.showPreview) {
             drawPreview(canvas, atlas, frame)
         }
+        drawGridOverlay(canvas, frame, vpW, vpH)
 
         return fb
     }
@@ -769,6 +794,108 @@ class SoftwareCanvasBackend(
         canvas.drawRect(left.toFloat(), bottom - lineWidth, right.toFloat(), bottom.toFloat(), highlightPaint)
         canvas.drawRect(left.toFloat(), top.toFloat(), left + lineWidth, bottom.toFloat(), highlightPaint)
         canvas.drawRect(right - lineWidth, top.toFloat(), right.toFloat(), bottom.toFloat(), highlightPaint)
+    }
+
+    /**
+     * 绘制一键拆除模式占地高亮（逐帧动态叠加，与精灵同帧同相机）。
+     *
+     * 数据驱动：markers 与 frame.buildingData **同序同长**（Compose 侧
+     * [buildDemolishHighlightData] 按与 buildBuildingDataArray 同一排序构建），
+     * 每建筑 1 字节：[DemolishHighlightMark.NONE] 跳过、GREEN 绿填充、
+     * SELECTED 红填充 + 红描边。footprint 复用
+     * [SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX]（与选中高亮同一几何来源）。
+     * 总线脏帧时 markers 已被 SoftwareRenderBackend 置 null（下帧随重组恢复），
+     * 此处只需防御性 clamp。
+     */
+    private fun drawDemolishHighlight(canvas: Canvas, frame: RenderFrame) {
+        val markers = frame.demolishHighlightData
+        val buildingData = frame.buildingData
+        if (markers == null || buildingData == null) return
+        val count = minOf(frame.buildingCount, markers.size)
+            .coerceAtMost(buildingData.size / SELECTED_DATA_STRIDE)
+
+        for (i in 0 until count) {
+            val base = i * SELECTED_DATA_STRIDE
+            if (base + SELECTED_DATA_STRIDE - 1 >= buildingData.size) return // 截断防御
+            drawDemolishMarker(canvas, frame, buildingData, base, markers[i])
+        }
+    }
+
+    /**
+     * 绘制单个建筑的高亮矩形（NONE 跳过 / GREEN 绿填充 / SELECTED 红填充 + 红描边）。
+     * footprint 复用 [SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX]（与选中高亮同一几何来源）。
+     */
+    private fun drawDemolishMarker(
+        canvas: Canvas,
+        frame: RenderFrame,
+        buildingData: FloatArray,
+        base: Int,
+        marker: Byte
+    ) {
+        if (marker == DemolishHighlightMark.NONE.toByte()) return
+        val tileSize = config.tileSize
+        val scale = frame.scale
+        val gx = buildingData[base].toInt()
+        val gy = buildingData[base + 1].toInt()
+        val nameIdx = buildingData[base + 4].toInt()
+        val (fpW, fpH) = SpriteAtlasDef.FOOTPRINT_BY_NAME_INDEX
+            .getOrElse(nameIdx) { 2 to 2 }
+
+        val left = ((gx * tileSize - frame.camX) * scale).roundToInt()
+        val top = ((gy * tileSize - frame.camY) * scale).roundToInt()
+        val right = (((gx + fpW) * tileSize - frame.camX) * scale).roundToInt()
+        val bottom = (((gy + fpH) * tileSize - frame.camY) * scale).roundToInt()
+        val offScreenX = right <= 0 || left >= canvas.width
+        val offScreenY = bottom <= 0 || top >= canvas.height
+        val degenerate = right - left <= 0 || bottom - top <= 0
+        if (offScreenX || offScreenY || degenerate) return
+
+        val lineWidth = maxOf(2f, tileSize * HIGHLIGHT_LINE_WIDTH_TILES * scale)
+        demolishPaint.color = if (marker == DemolishHighlightMark.SELECTED.toByte()) {
+            DEMOLISH_RED_FILL_COLOR
+        } else {
+            DEMOLISH_GREEN_FILL_COLOR
+        }
+        canvas.drawRect(left.toFloat(), top.toFloat(), right.toFloat(), bottom.toFloat(), demolishPaint)
+        if (marker == DemolishHighlightMark.SELECTED.toByte()) {
+            // 填充 → 上边 → 下边 → 左边 → 右边（描边盖住填充边缘）
+            demolishPaint.color = DEMOLISH_RED_EDGE_COLOR
+            canvas.drawRect(left.toFloat(), top.toFloat(), right.toFloat(), top + lineWidth, demolishPaint)
+            canvas.drawRect(left.toFloat(), bottom - lineWidth, right.toFloat(), bottom.toFloat(), demolishPaint)
+            canvas.drawRect(left.toFloat(), top.toFloat(), left + lineWidth, bottom.toFloat(), demolishPaint)
+            canvas.drawRect(right - lineWidth, top.toFloat(), right.toFloat(), bottom.toFloat(), demolishPaint)
+        }
+    }
+
+    /**
+     * 绘制放置/移动模式全视口网格线（逐帧动态叠加，与地图同帧同相机）。
+     *
+     * 范围数学与旧 Compose GridOverlay.drawFullGrid 同式：按 frame.camX/Y 计算
+     * 视口内行列区间并钳制到世界边界（frame.camX 来自 mergeCameraAndBuildingData
+     * 合并后的最新相机，与 chunk 同帧同相机——消除 Compose 覆盖层相位差）。
+     */
+    private fun drawGridOverlay(canvas: Canvas, frame: RenderFrame, vpW: Int, vpH: Int) {
+        if (!frame.gridOverlayVisible) return
+        val tileSize = config.tileSize
+        val scale = frame.scale
+        if (vpW <= 0 || vpH <= 0) return
+
+        val firstCol = (frame.camX / tileSize).toInt().coerceAtLeast(0)
+        val lastCol = ((frame.camX + vpW / scale) / tileSize).toInt()
+            .coerceAtMost(frame.cols)
+        val firstRow = (frame.camY / tileSize).toInt().coerceAtLeast(0)
+        val lastRow = ((frame.camY + vpH / scale) / tileSize).toInt()
+            .coerceAtMost(frame.rows)
+
+        gridPaint.color = GRID_OVERLAY_COLOR
+        for (col in firstCol..lastCol) {
+            val sx = (col * tileSize - frame.camX) * scale
+            canvas.drawLine(sx, 0f, sx, vpH.toFloat(), gridPaint)
+        }
+        for (row in firstRow..lastRow) {
+            val sy = (row * tileSize - frame.camY) * scale
+            canvas.drawLine(0f, sy, vpW.toFloat(), sy, gridPaint)
+        }
     }
 
     // ============================================================

@@ -30,6 +30,8 @@
 | vsync_pacing | 渲染线程 vsync 帧节奏（Canvas Choreographer 对齐 + FrameDropPolicy 帧跳过；Vulkan FIFO 交换链天然对齐；失败回退 sleep 节拍） | ✅ | ✅ | ✅ | 2026-08-10 WP5 |
 | building_shadow | 建筑投影阴影（半透明黑 quad + 右下偏移 0.25 格） | ✅ | ✅ | ✅ | 2026-08-10 WP3（硬边无高斯模糊，0.2 alpha 视觉补偿，已知取舍） |
 | selection_highlight | 普通点击选中金色描边（动态叠加，不烘焙 chunk） | ✅ | ✅ | ✅ | 2026-08-10 WP3（RenderFlags 双端开关 + 总线脏帧防错位） |
+| demolish_highlight | 一键拆除模式绿/红占地高亮（数据通道 RenderFrame.demolishHighlightData，与 buildingData 同序；总线脏帧跳帧防索引错位；null=跳过） | ✅ | ✅ | ✅ | 2026-08-11（从 Compose 覆盖层迁移至 native——同帧同相机，消除拖拽相位差） |
+| grid_overlay | 放置/移动模式全视口网格线（RenderFrame.gridOverlayVisible 标志驱动，范围钳制到世界边界；Canvas drawLine / Vulkan 薄 quad） | ✅ | ✅ | ✅ | 2026-08-11（从 Compose GridOverlay 迁移至 native——同帧同相机，消除拖拽相位差） |
 | spirit_crop | 灵田作物三阶段生长动画（stage 边界 1/3、2/3 + crossfade × 全局 fade 乘算；Vulkan 瓦片层后批内追加，Canvas 不烘焙逐帧叠加；数据通道 RenderFrame.spiritCropData，null=跳过） | ✅ | ✅ | ✅ | 2026-08-10 WP6（NaN/越界双端防御；无专属 flag，数据驱动；cropBitmaps 死代码已删） |
 | texture_compression | Vulkan GPU 图集 ASTC 4x4 LDR 压缩（KTX1 容器全字段校验，16MB→4MB；设备不支持/资产损坏全链回退 RGBA 视觉零差异；Canvas 保持运行时 RGBA 拼装不变） | ✅ | ➖（仅 Vulkan 路径） | ✅ | 2026-08-10 WP7（KtxLoader 校验 + AtlasManifestSyncTest 守卫 + 构建管线 build-atlas.mjs） |
 | gesture_pan | 拖拽平移 | ✅ | ✅ | ✅ | 手势引擎共用 |

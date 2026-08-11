@@ -62,7 +62,11 @@ class SoftwareRenderBackend(private val host: NativeSurfaceView) : RenderBackend
             camX = camX, camY = camY, scale = scale,
             buildingData = snapshot.data,
             buildingCount = snapshot.count,
-            selectedBuildingIndex = if (snapshot.busWasDirty) -1 else frame.selectedBuildingIndex
+            selectedBuildingIndex = if (snapshot.busWasDirty) -1 else frame.selectedBuildingIndex,
+            // 拆除高亮 markers 与 buildingData 同序——总线脏帧时 markers 是旧列表
+            // 的值，与新数据索引错位，本帧置 null 跳过高亮（下帧随 Compose 重组恢复；
+            // 网格线与建筑索引无对齐关系，无需跳帧）
+            demolishHighlightData = if (snapshot.busWasDirty) null else frame.demolishHighlightData
         )
     }
 

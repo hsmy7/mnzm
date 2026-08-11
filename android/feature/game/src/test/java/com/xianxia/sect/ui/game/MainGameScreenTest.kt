@@ -1,17 +1,31 @@
 package com.xianxia.sect.ui.game
 
+import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.SpiritFieldPlant
+import com.xianxia.sect.core.render.DemolishHighlightMark
 import com.xianxia.sect.core.util.GridSnapHelper
+import com.xianxia.sect.ui.game.building.registerDefaults
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Before
 import org.junit.Test
 
 /**
  * 主游戏界面相关逻辑单元测试。
  */
 class MainGameScreenTest {
+
+    /**
+     * 注册 BuildingFeature 默认表（Application 启动时由 registerDefaults 填充，
+     * 单元测试无 Application——需手动调用；ConcurrentHashMap put 幂等，重复调用安全）。
+     * R.drawable 常量编译期内联，纯 JVM 测试不触发资源加载。
+     */
+    @Before
+    fun registerFeatures() {
+        BuildingFeatureRegistry.registerDefaults()
+    }
 
     // ============================================================
     // buildBuildingDataArray — Y-sorting 验证
@@ -256,5 +270,82 @@ class MainGameScreenTest {
             currentYear = 5, currentMonth = 1, sectId = "s1"
         )
         assertEquals("超期进度应 clamp 到 1.0", 1f, overdue!![2], 0.001f)
+    }
+
+    // ============================================================
+    // buildDemolishHighlightData（2026-08-11）— 拆除高亮标记装配
+    // ============================================================
+
+    /**
+     * 排序对齐不变量（最易错点）：markers 必须与 buildBuildingDataArray **同一排序**
+     * （sortedBy { gridY + height }）——渲染端从 buildingData[i] 复用占地几何，
+     * marker[i] 错位会把高亮画到别的建筑上。用例以不同 gridY+height 的建筑验证
+     * 两数组逐索引对齐，且选中映射（SELECTED）同时生效。
+     */
+    @Test
+    fun `buildDemolishHighlightData 与buildBuildingDataArray同序对齐且选中映射正确`() {
+        // 仓库(gridY=0, h=5)→底部5；问道塔(gridY=1, h=3)→底部4
+        // sortedBy 后：[问道塔(4), 仓库(5)]——输入顺序必须被打乱
+        val buildings = listOf(
+            GridBuildingData(gridX = 0, gridY = 0, width = 6, height = 5,
+                displayName = "仓库", instanceId = "warehouse1"),
+            GridBuildingData(gridX = 0, gridY = 1, width = 4, height = 3,
+                displayName = "问道塔", instanceId = "tower1")
+        )
+        val spriteSizes = mapOf(
+            "仓库" to GridSnapHelper.BuildingSize(6, 6),
+            "问道塔" to GridSnapHelper.BuildingSize(4, 8)
+        )
+
+        val markers = buildDemolishHighlightData(buildings, selectedIds = setOf("warehouse1"))
+        val buildingData = buildBuildingDataArray(buildings, spriteSizes)
+
+        // 排序对齐不变量：marker[i] 必须与 buildingData[i] 是同一建筑——
+        // 排序后 [问道塔(gridY=1), 仓库(gridY=0)]，逐位验证两个数组同一索引同建筑
+        assertEquals("markers 长度应等于建筑数", 2, markers.size)
+        assertEquals("第1个建筑应为问道塔(gridY=1)", 1f, buildingData[1], 0.001f)
+        assertEquals("第2个建筑应为仓库(gridY=0)", 0f, buildingData[6], 0.001f)
+        assertEquals("第1个(问道塔)未选中应标记 GREEN",
+            DemolishHighlightMark.GREEN.toByte(), markers[0])
+        assertEquals("第2个(仓库)选中应标记 SELECTED",
+            DemolishHighlightMark.SELECTED.toByte(), markers[1])
+    }
+
+    /** 未选中建筑 → GREEN；注册表外的 displayName（不可拆除）→ NONE */
+    @Test
+    fun `buildDemolishHighlightData 未注册建筑标记NONE`() {
+        val buildings = listOf(
+            GridBuildingData(gridX = 0, gridY = 0, displayName = "灵田", instanceId = "f1"),
+            GridBuildingData(gridX = 1, gridY = 0, displayName = "不存在的建筑", instanceId = "x1")
+        )
+        val markers = buildDemolishHighlightData(buildings, selectedIds = emptySet())
+
+        assertEquals(2, markers.size)
+        assertEquals("注册建筑未选中应标记 GREEN",
+            DemolishHighlightMark.GREEN.toByte(), markers[0])
+        assertEquals("注册表外建筑应标记 NONE",
+            DemolishHighlightMark.NONE.toByte(), markers[1])
+    }
+
+    /** 全部选中 → 全部 SELECTED（排序后逐位映射） */
+    @Test
+    fun `buildDemolishHighlightData 全部选中返回SELECTED`() {
+        val buildings = listOf(
+            GridBuildingData(gridX = 0, gridY = 5, displayName = "灵田", instanceId = "a"),
+            GridBuildingData(gridX = 0, gridY = 2, displayName = "灵矿场", instanceId = "b")
+        )
+        val markers = buildDemolishHighlightData(buildings, selectedIds = setOf("a", "b"))
+
+        assertEquals(2, markers.size)
+        assertEquals(DemolishHighlightMark.SELECTED.toByte(), markers[0])
+        assertEquals(DemolishHighlightMark.SELECTED.toByte(), markers[1])
+    }
+
+    /** 空列表 → 空 ByteArray（非 null——null 语义由 isDemolishMode 表达） */
+    @Test
+    fun `buildDemolishHighlightData 空列表返回空数组`() {
+        val markers = buildDemolishHighlightData(emptyList(), emptySet())
+        assertNotNull("结果不应为null", markers)
+        assertEquals("空列表应返回长度0的数组", 0, markers.size)
     }
 }

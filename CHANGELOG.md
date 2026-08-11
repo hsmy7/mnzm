@@ -1,5 +1,14 @@
 ## [4.00.94] - 2026-08-10
 
+### 修复（2026-08-11 一键拆除高亮 + 放置/移动网格线迁移 native 渲染层——拖拽视角错位根治）
+
+- **根因（双时钟渲染错位）** — 建筑精灵由 NativeSurfaceView 独立渲染线程绘制（异步消费 `@Volatile` 相机快照，30~60fps）；拆除高亮（DemolishSelectionOverlay）与网格线（GridOverlay）是 Compose 覆盖层，在 UI 线程 Compose 绘制阶段即时读取最新 `SectCameraState`。两条管线读同一相机但消费时机不同步（0~1+ 帧相位差，EWMA 自适应帧率拖拽开始时约 20fps 放大到 ~50ms）→ 拖拽中高亮/网格与精灵相对位移。精灵底部对齐 + 尺寸大于占地 footprint → 垂直错位时上沿与下沿同时露出占地框（用户所见"上半和下半不被覆盖，很快补回"）。金色选中高亮（drawSelectionHighlight）与精灵共用合并后帧相机从未错位——正例
+- **修复（迁移到 native 渲染层，同帧同相机）** — 新增数据通道 `RenderFrame.demolishHighlightData`（每建筑 1 字节：NONE/GREEN/SELECTED，与 buildingData **同一排序**——sortedBy { gridY + height }，索引对齐是核心不变量）+ `gridOverlayVisible`（布尔标志）；双后端各新增 `drawDemolishHighlight`（绿/红半透明填充 + 选中红边，色值与旧覆盖层一致）与 `drawGridOverlay`（范围钳制到世界边界）；Vulkan 走世界坐标直传 `NativeBridge.drawRect`（C++ 投影矩阵零改动），Canvas 走合并后最新相机；总线脏帧（buildingData 变化）跳帧防御（markers 与新数据索引错位风险）；网格线与建筑索引无对齐关系无需跳帧
+- **删除死代码** — 删除 `DemolishSelectionOverlay.kt` 整文件；GoldFingerOverlay.kt 删除 GridOverlay/drawBorderGrid/drawFullGrid/GridPlacement（"border" 模式全库无调用点，不可达死代码）；金手指框选覆盖层与图标保留 Compose（激活期间相机不动，无错位窗口）
+- **取舍（明确接受）** — ① 旧覆盖层 180ms 绿→红过渡动画丢失（选中即变红，与金色选中高亮一致）；② 高层建筑（藏经阁/问道塔）静态时上部露头属设计使然（占地框 = 可拆除范围语义），本次消除的是拖拽动态错位；③ 网格线迁移后仍盖在预览精灵之上（保持原 Z 序）
+- **测试** — 新增 `SoftwareCanvasBackendDemolishTest`（7 用例：绿填充 g-r>20 / 红填充+不透明红边 g 通道差 / null 零侵入逐像素 / NONE 不绘制 / markers 短于 buildingCount 双重 clamp / 视口外剔除 / 越界截断）+ `SoftwareCanvasBackendGridTest`（4 用例：full 模式竖横线位置像素断言 / 关闭零侵入 / 相机越出世界边界不崩溃 / 与拆除高亮共存零干扰）+ `MainGameScreenTest` +4 纯函数用例（**与 buildBuildingDataArray 同序对齐**最易错不变量 / 选中映射 / 未注册 NONE / 空列表）+ fixtures `demolishFrame`/`twoBuildingFrame`；renderer-feature-checklist.md +demolish_highlight、grid_overlay 两行
+- **兼容性** — 纯渲染实现变更，无 Entity/Migration/存档格式变更（DATABASE_VERSION 不变），NativeBridge/VulkanBackend C++ 零改动
+
 ### 修复（2026-08-11 建筑虚影 + 地砖覆盖建筑精灵根治——共享 Paint alpha 泄漏）
 
 - **根因（渲染优化 WP3 建筑阴影引入）** — `SoftwareCanvasBackend` 的 `drawShadowRect` 把半透明黑（alpha=0.2×255=51）写入共享的 ChunkTile `rebuildPaint` 且不恢复：`Paint.setColor` 会更新 alpha，同一 chunk 内阴影之后的建筑精灵 drawBitmap 以 20% alpha 烘焙（建筑虚影），后续建筑地砖与下一轮 rebuild 的地面/装饰同样被污染（"地砖覆盖建筑"实为精灵半透明后下层透出）。症状仅在 Canvas 软件渲染回退路径出现（Vulkan 黑名单/初始化失败真机）；Vulkan 侧排查闭合：`sprite.frag` 为 texture×vertexColor 乘算语义阴影 quad 无视觉污染，KTX 图集 alpha 解码验证正常，无需修改

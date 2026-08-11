@@ -192,7 +192,11 @@ internal fun SectMapViewport(
                         previewTintBlue = 1.0f,
                         previewAlpha = 0.5f,
                         // ★ 灵田作物数据（WP6）：低频变化走帧率门控 RenderFrame（不新增命令总线）
-                        spiritCropData = params.spiritCropData
+                        spiritCropData = params.spiritCropData,
+                        // ★ 拆除模式高亮 + 网格线：低频变化（模式进出/选中切换）走帧率
+                        // 门控 RenderFrame——与精灵同帧同相机快照，消除 Compose 覆盖层相位差
+                        demolishHighlightData = params.demolishHighlightData,
+                        gridOverlayVisible = params.gridOverlayVisible
                     )
                 )   // view.updateRenderState()
             }   // if (now - lastRenderDataSyncNs >= minIntervalNs)
@@ -222,7 +226,11 @@ internal data class SectMapViewportParams(
     /** 点击选中格坐标（null=无选中，渲染端经 findBuildingIndex 转换为建筑索引） */
     val selectedGrid: Pair<Int, Int>? = null,
     /** 灵田作物数据 [gx, gy, progress01] × N（WP6；null=无作物，双后端跳过作物层） */
-    val spiritCropData: FloatArray? = null
+    val spiritCropData: FloatArray? = null,
+    /** 拆除模式高亮标记（与 buildingDataArray 同序；null=非拆除模式，双后端跳过整层） */
+    val demolishHighlightData: ByteArray? = null,
+    /** 放置/移动模式全视口网格线开关（true=双后端画视口内网格线） */
+    val gridOverlayVisible: Boolean = false
 )
 
 /**

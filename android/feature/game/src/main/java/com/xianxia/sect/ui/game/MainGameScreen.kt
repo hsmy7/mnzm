@@ -46,6 +46,7 @@ import com.xianxia.sect.core.util.TimeProgressUtil
 import com.xianxia.sect.ui.game.map.sect.rememberSectCamera
 import com.xianxia.sect.core.util.GridSystem
 
+import com.xianxia.sect.core.render.DemolishHighlightMark
 import com.xianxia.sect.core.render.NativeRenderConfig
 import com.xianxia.sect.ui.game.sect.NativeSurfaceView
 import com.xianxia.sect.ui.game.components.GameActionButtons
@@ -57,11 +58,8 @@ import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.ui.game.building.BuildingConstructionBar
 import com.xianxia.sect.ui.game.sect.GoldFingerState
 import com.xianxia.sect.ui.game.main.DemolishButton
-import com.xianxia.sect.ui.game.main.DemolishSelectionOverlay
 import com.xianxia.sect.ui.game.main.GoldFingerIcon
 import com.xianxia.sect.ui.game.main.GoldFingerSelectionOverlay
-import com.xianxia.sect.ui.game.main.GridOverlay
-import com.xianxia.sect.ui.game.main.GridPlacement
 import com.xianxia.sect.ui.game.main.HerbGardenAuraOverlay
 import com.xianxia.sect.ui.game.main.HideUiToggleButton
 import com.xianxia.sect.ui.game.main.JadeSymbolBadge
@@ -471,6 +469,17 @@ fun MainGameScreen(
             }
         }
 
+        // ★ 拆除模式高亮标记：与 buildingDataArray 同源同序（effectivePlacedBuildings，
+        // 拆除模式下 movingBuilding=null 两者内容一致）——低频变化（模式进出/选中切换）
+        // 走帧率门控 RenderFrame，渲染端与精灵同帧同相机快照绘制（消除 Compose 覆盖层
+        // 相位差错位）；null = 非拆除模式，双后端跳过整层
+        val demolishHighlightData = remember {
+            derivedStateOf {
+                if (!isDemolishMode) null
+                else buildDemolishHighlightData(effectivePlacedBuildings, demolishSelectedIds)
+            }
+        }
+
         // ★ 优化：RenderFrame 推送帧率门控
         // SOFTWARE 路径下限制推送频率（RenderThread 自行读取 currentFrame 原子快照）
         var lastRenderDataSyncNs by remember { mutableLongStateOf(0L) }
@@ -493,7 +502,9 @@ fun MainGameScreen(
                     vulkanInitListener = vulkanInitListener,
                     buildingSpriteSizes = buildingSpriteSizes,
                     selectedGrid = selectedBuildingGrid,
-                    spiritCropData = spiritCropData.value
+                    spiritCropData = spiritCropData.value,
+                    demolishHighlightData = demolishHighlightData.value,
+                    gridOverlayVisible = isPlacingBuilding || movingBuilding != null
                 )
             }
         }
@@ -865,21 +876,8 @@ fun MainGameScreen(
             }
         }
 
-        // 网格线（放置/移动模式时显示）
-        val gridPlace = if (isPlacingBuilding) {
-            GridPlacement(placingSnappedGridX, placingSnappedGridY,
-                placingBuildingSize.width, placingBuildingSize.height)
-        } else if (movingBuilding != null) {
-            GridPlacement(movingSnappedGridX, movingSnappedGridY,
-                movingBuildingSize.width, movingBuildingSize.height)
-        } else null
-        GridOverlay(
-            placement = gridPlace,
-            cameraState = cameraState,
-            tileSize = tileSize,
-            worldWidthCells = worldWidthCells,
-            worldHeightCells = worldHeightCells
-        )
+        // 网格线已迁移至 native 渲染层（viewportParams.gridOverlayVisible，
+        // 放置/移动模式时与地图同帧同相机绘制——消除 Compose 覆盖层相位差错位）
 
         // 金手指图标（建筑预览框右下角）— 仅未激活时显示作入口；
         // 激活后唯一图标由覆盖层承担（跟随 endGrid，即手指位置）
@@ -903,15 +901,8 @@ fun MainGameScreen(
             )
         }
 
-        // 一键拆除覆盖层 — 所有可拆建筑显示绿色占地框，选中变红
-        if (isDemolishMode) {
-            DemolishSelectionOverlay(
-                buildings = activeSectBuildings,
-                selectedIds = demolishSelectedIds,
-                cameraState = cameraState,
-                tileSize = tileSize
-            )
-        }
+        // 一键拆除占地高亮已迁移至 native 渲染层（viewportParams.demolishHighlightData，
+        // 与建筑精灵同帧同相机快照绘制——消除拖动视角时的相位差错位）
 
         // 灵植阁光环范围 — 放置/移动灵植阁时显示光环范围圈 + 范围内灵田高亮
         val herbGardenDisplayName = "灵植阁"
@@ -1318,6 +1309,37 @@ internal fun buildBuildingDataArray(
         result[idx + 4] = (nameIndex ?: 0).toFloat()
     }
     return result
+}
+
+/**
+ * 构建一键拆除模式高亮标记数组（每建筑 1 字节，与 [buildBuildingDataArray] **同一排序**：
+ * sortedBy { gridY + height } 升序，保证 marker[i] 与 buildingData[i] 是同一建筑——
+ * 渲染端从 buildingData 复用占地几何，索引错位会导致高亮画到别的建筑上）。
+ *
+ * 未注册建筑（[BuildingFeatureRegistry] 查无）标记 [DemolishHighlightMark.NONE]
+ * （与旧 DemolishSelectionOverlay 的 filter 行为一致——不可选中不可拆）。
+ *
+ * @param buildings 已按 sectId 过滤的放置建筑列表（与 buildBuildingDataArray 同一输入）
+ * @param selectedIds 当前选中拆除的建筑 instanceId 集合
+ * @return 标记数组（空列表返回空数组；null 语义由调用方 isDemolishMode 表达）
+ */
+internal fun buildDemolishHighlightData(
+    buildings: List<GridBuildingData>,
+    selectedIds: Set<String>
+): ByteArray {
+    // 按地面接触点(gridY + height)升序排列：与 buildBuildingDataArray 同一排序不变量
+    val sorted = buildings.sortedBy { it.gridY + it.height }
+    return ByteArray(sorted.size) { i ->
+        val b = sorted[i]
+        when {
+            BuildingFeatureRegistry.findByDisplayName(b.displayName) == null ->
+                DemolishHighlightMark.NONE.toByte()
+            b.instanceId in selectedIds ->
+                DemolishHighlightMark.SELECTED.toByte()
+            else ->
+                DemolishHighlightMark.GREEN.toByte()
+        }
+    }
 }
 
 // BUILDING_NAME_INDEX / BUILDING_UV_MAP 已移入 SectMapViewport.kt（P-7，同包 internal）

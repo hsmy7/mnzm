@@ -127,6 +127,27 @@ internal fun cropFrame(td: IntArray, cropData: FloatArray?): RenderFrame {
     return spiritFieldFrame(td).copy(spiritCropData = cropData)
 }
 
+/** 拆除高亮帧：spiritFieldFrame + 拆除标记数组（null = 非拆除模式） */
+internal fun demolishFrame(td: IntArray, markers: ByteArray?, selectedIndex: Int = -1): RenderFrame {
+    return spiritFieldFrame(td, selectedIndex = selectedIndex).copy(demolishHighlightData = markers)
+}
+
+/** 双建筑帧：(0,0) 与 (2,0) 各 1×1 占地、nameIdx=2（与 spiritFieldFrame 同几何） */
+internal fun twoBuildingFrame(td: IntArray, markers: ByteArray? = null): RenderFrame {
+    return RenderFrame(
+        camX = 0f, camY = 0f, scale = 1f,
+        tileData = td,
+        cols = 10, rows = 10,
+        buildingData = createBuildingDataArray(
+            gridX = 0, gridY = 0, width = 1, height = 1, nameIdx = 2,
+            gridX2 = 2, gridY2 = 0, width2 = 1, height2 = 1, nameIdx2 = 2
+        ),
+        buildingCount = 2,
+        buildingVisible = true,
+        demolishHighlightData = markers
+    )
+}
+
 /**
  * 作物采样点 (8,8)：作物 (0,0)-(64,64) 内、灵田建筑阴影矩形 (16,16)-(80,80) 外
  * ——排除 WP3 阴影干扰，纯测作物层
