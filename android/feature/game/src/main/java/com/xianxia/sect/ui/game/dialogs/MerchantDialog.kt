@@ -113,6 +113,28 @@ fun MerchantDialog(
         titleAlignment = Alignment.CenterStart,
         mode = DialogMode.Full,
         scrollableContent = false,
+        // 玉符购买弹窗（InlineStandardPromptDialog 覆盖层）渲染在窗口级 overlay 槽位：
+        // content 列内渲染会作为第二个 fillMaxSize 兄弟子项被挤压为 0 高度而不可见
+        // （57352e02 兑换码事故同源回归机制，见 StandardPromptDialogTest 0 高度用例）
+        overlay = {
+            if (showJadeDialog) {
+                JadePurchaseFlow(
+                    title = "获取刷新次数",
+                    description = "消耗1玉符获取3次刷新次数",
+                    jadeSymbols = gameData?.jadeSymbols ?: 0,
+                    insufficientText = "玉符不足，无法获取刷新次数",
+                    purchase = {
+                        when (viewModel.purchaseMerchantRefresh()) {
+                            is MerchantRefreshResult.Success -> JadePurchaseOutcome.Success
+                            is MerchantRefreshResult.InsufficientJadeSymbols -> JadePurchaseOutcome.Insufficient
+                            is MerchantRefreshResult.LimitReached -> JadePurchaseOutcome.Success
+                            is MerchantRefreshResult.Error -> JadePurchaseOutcome.Failed("获取失败，请重试")
+                        }
+                    },
+                    onDismiss = { showJadeDialog = false }
+                )
+            }
+        },
         headerActions = {
             val data = gameData
             val low = GameUtils.formatNumber(data?.spiritStones ?: 0)
@@ -276,26 +298,6 @@ fun MerchantDialog(
                     }
                 }
             }
-        }
-
-        // 玉符购买弹窗（InlineStandardPromptDialog 覆盖层）必须渲染在内容 lambda 内最末
-        // ——lambda 之外会被平台 Dialog 窗口整体遮挡而不可见（4.00.92 兑换码事故同源教训）
-        if (showJadeDialog) {
-            JadePurchaseFlow(
-                title = "获取刷新次数",
-                description = "消耗1玉符获取3次刷新次数",
-                jadeSymbols = gameData?.jadeSymbols ?: 0,
-                insufficientText = "玉符不足，无法获取刷新次数",
-                purchase = {
-                    when (viewModel.purchaseMerchantRefresh()) {
-                        is MerchantRefreshResult.Success -> JadePurchaseOutcome.Success
-                        is MerchantRefreshResult.InsufficientJadeSymbols -> JadePurchaseOutcome.Insufficient
-                        is MerchantRefreshResult.LimitReached -> JadePurchaseOutcome.Success
-                        is MerchantRefreshResult.Error -> JadePurchaseOutcome.Failed("获取失败，请重试")
-                    }
-                },
-                onDismiss = { showJadeDialog = false }
-            )
         }
     }
 
