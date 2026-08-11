@@ -738,7 +738,6 @@
     <ID>MaxLineLength:MailService.kt$MailService$DomainLog.i(TAG, "Builtin mail ${builtinMail.id} deadline passed, skipping (now=$now, deadline=${builtinMail.deadlineMs})")</ID>
     <ID>MaxLineLength:ManualDatabase.kt$ManualDatabase$fun</ID>
     <ID>MaxLineLength:ManualDatabase.kt$ManualDatabase$private</ID>
-    <ID>MaxLineLength:ManualProficiencyBenchmarkTest.kt$ManualProficiencyBenchmarkTest$core.processManualProficiencySingle(singleState, id, singleState.manualInstances.items.associateBy { it.id })</ID>
     <ID>MaxLineLength:ManualProficiencySystem.kt$ManualProficiencySystem.ManualProficiency$MasteryLevel.GREAT_SUCCESS -&gt; ((proficiency - thresholds.getValue(MasteryLevel.GREAT_SUCCESS)) / (thresholds.getValue(MasteryLevel.PERFECTION) - thresholds.getValue(MasteryLevel.GREAT_SUCCESS))).coerceIn(0.0, 1.0)</ID>
     <ID>MaxLineLength:ManualProficiencySystem.kt$ManualProficiencySystem.ManualProficiency$MasteryLevel.NOVICE -&gt; (proficiency / thresholds.getValue(MasteryLevel.SMALL_SUCCESS)).coerceIn(0.0, 1.0)</ID>
     <ID>MaxLineLength:ManualProficiencySystem.kt$ManualProficiencySystem.ManualProficiency$MasteryLevel.SMALL_SUCCESS -&gt; ((proficiency - thresholds.getValue(MasteryLevel.SMALL_SUCCESS)) / (thresholds.getValue(MasteryLevel.GREAT_SUCCESS) - thresholds.getValue(MasteryLevel.SMALL_SUCCESS))).coerceIn(0.0, 1.0)</ID>
@@ -1231,7 +1230,6 @@
     <ID>VariableNaming:AISectAttackManagerTest.kt$AISectAttackManagerTest$private val SECT_DEFENSE_EXCLUDED = setOf( DiscipleStatus.ON_MISSION, DiscipleStatus.IN_TEAM, DiscipleStatus.REFLECTING, DiscipleStatus.GARRISONING, DiscipleStatus.REFINING )</ID>
     <ID>VariableNaming:CultivationRateLookupBenchmarkTest.kt$CultivationRateLookupBenchmarkTest$private val BUILDING_COUNT = 50</ID>
     <ID>VariableNaming:CultivationRateLookupBenchmarkTest.kt$CultivationRateLookupBenchmarkTest$private val DISCIPLE_COUNT = 300</ID>
-    <ID>VariableNaming:EquipmentNurtureBatchBenchmarkTest.kt$EquipmentNurtureBatchBenchmarkTest$private val DISCIPLE_COUNT = 300</ID>
     <ID>VariableNaming:GameEngineAtomicAssignTest.kt$GameEngineAtomicAssignTest$private val BUILDING_ID = "residence_b1"</ID>
     <ID>VariableNaming:GameEngineAtomicAssignTest.kt$GameEngineAtomicAssignTest$private val DISCIPLE_A = "1"</ID>
     <ID>VariableNaming:GameEngineAtomicAssignTest.kt$GameEngineAtomicAssignTest$private val DISCIPLE_B = "2"</ID>
@@ -1241,8 +1239,6 @@
     <ID>VariableNaming:GameEngineMarriageProposalTest.kt$GameEngineMarriageProposalTest$private val MALE_ID = "1"</ID>
     <ID>VariableNaming:GameEngineMarriageProposalTest.kt$MarriageProposalTestStore$// 持久化 DiscipleTables（跨 update 持久化） val _discipleTables = DiscipleTables()</ID>
     <ID>VariableNaming:LevelGenerator.kt$LevelGenerator$val def_ = (stats.defense * layerMult * (beastConfig.defMod + defVariance)).toInt()</ID>
-    <ID>VariableNaming:ManualProficiencyBenchmarkTest.kt$ManualProficiencyBenchmarkTest$private val DISCIPLE_COUNT = 300</ID>
-    <ID>VariableNaming:ManualProficiencyBenchmarkTest.kt$ManualProficiencyBenchmarkTest$private val MANUALS_PER_DISCIPLE = 5</ID>
     <ID>VariableNaming:ManualRegistry.kt$ManualRegistry$private val TAG = "ManualRegistry"</ID>
     <ID>VariableNaming:ProductionCoordinator.kt$ProductionCoordinator$val MAX_LOG_ENTRIES = 1000</ID>
     <ID>VariableNaming:SpiritMineMonthlySettlementTest.kt$SpiritMineMonthlySettlementTest$/** 从 GameConfig 常量引用，确保测试与常量定义同步 */ private val BASE_PER_MINER = GameConfig.Production.SPIRIT_MINE_BASE_OUTPUT_PER_MINER.toDouble()</ID>
