@@ -87,6 +87,7 @@ class DiscipleBreakthroughHandlerTest {
         cultivation: Double = 999999.0,
         currentHp: Int = -1,
         currentMp: Int = -1,
+        spiritRootType: String = "metal",
         statusData: Map<String, String> = emptyMap()
     ) {
         val disciple = Disciple(
@@ -94,6 +95,7 @@ class DiscipleBreakthroughHandlerTest {
             name = "突破弟子$id",
             realm = realm,
             realmLayer = realmLayer,
+            spiritRootType = spiritRootType,
             age = 20,
             lifespan = 80,
             skills = SkillStats(comprehension = comprehension),
@@ -281,6 +283,36 @@ class DiscipleBreakthroughHandlerTest {
 
         assertFalse(
             "adBreakthroughBonus should be removed from statusData",
+            result.statusData.containsKey("adBreakthroughBonus")
+        )
+        assertEquals("other fields in statusData should be preserved",
+            "value", result.statusData["someOther"])
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // performBreakthrough — 玉符加成失败路径清除（2026-08-11 玉符化：
+    // 加成只对下一次突破尝试有效，失败也清除；原逻辑失败保留）
+    // ═══════════════════════════════════════════════════════════════
+
+    @Test
+    fun `performBreakthrough - adBreakthroughBonus is cleared on failure`() {
+        // 必败构造：境界7层5 + 五灵根 → BREAKTHROUGH_CHANCES[7][5]=0.00 → chance=0 必然失败
+        // （悟性与突破率无关，仅长老加成需要；无长老时 elderBonus=0）
+        insertDiscipleForBreakthrough(
+            id = 1, realm = 7, realmLayer = 5,
+            spiritRootType = "metal,wood,water,fire,earth",
+            currentHp = 1000, currentMp = 500,
+            statusData = mapOf("adBreakthroughBonus" to "0.30", "someOther" to "value")
+        )
+
+        val original = tables.assemble(1)
+        val gameData = GameData()
+        val result = handler.performBreakthrough(original, state, gameData)
+
+        val failCount = tables.breakthroughFailCounts[1] ?: 0
+        assertTrue("必败构造下 failCount 应 > 0，实际 $failCount", failCount > 0)
+        assertFalse(
+            "突破失败后玉符加成也应清除（只对下一次突破尝试有效）",
             result.statusData.containsKey("adBreakthroughBonus")
         )
         assertEquals("other fields in statusData should be preserved",

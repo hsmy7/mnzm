@@ -315,7 +315,8 @@ fun DiscipleDetailDialog(
                                         gameYear = gameYear,
                                         gameSpeed = 1,
                                         bloodRefinementPct = gameData?.bloodRefinementPctTotals?.get(disciple.id),
-                                        onWashSpiritRootClick = openSpiritRootWash
+                                        onWashSpiritRootClick = openSpiritRootWash,
+                                        jadeSymbols = gameData?.jadeSymbols ?: 0
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
                                     TalentsSection(talents, disciple.statusData, onTalentClick = { selectedTalent = it })

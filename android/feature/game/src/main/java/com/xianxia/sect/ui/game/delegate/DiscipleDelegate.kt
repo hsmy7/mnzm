@@ -2,6 +2,7 @@ package com.xianxia.sect.ui.game.delegate
 
 import android.util.Log
 import com.xianxia.sect.core.GameConfig.TraitWashType
+import com.xianxia.sect.core.engine.BreakthroughBonusResult
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.SpiritRootWashConfirmResult
 import com.xianxia.sect.core.engine.SpiritRootWashResult
@@ -22,6 +23,7 @@ import com.xianxia.sect.core.engine.recruitAllFromList
 import com.xianxia.sect.core.engine.recruitDiscipleFromList
 import com.xianxia.sect.core.engine.releaseReflectionDisciple
 import com.xianxia.sect.core.engine.removeFromRecruitList
+import com.xianxia.sect.core.engine.purchaseBreakthroughBonus
 import com.xianxia.sect.core.engine.renameDisciple
 import com.xianxia.sect.core.engine.replaceManual
 import com.xianxia.sect.core.engine.rewardItemsToDisciple
@@ -74,19 +76,6 @@ class DiscipleDelegate(
                 val currentFollowed = disciple.statusData["followed"] == "true"
                 val newStatusData = disciple.statusData.toMutableMap().apply {
                     if (currentFollowed) remove("followed") else this["followed"] = "true"
-                }
-                disciple.copy(statusData = newStatusData)
-            }
-        }
-    }
-
-    /** 观看广告后为弟子添加一次性突破率加成 */
-    fun applyAdBreakthroughBonus(discipleId: String, bonus: Double) {
-        gameEngine.launchOnEngine {
-            gameEngine.updateDisciple(discipleId) { disciple ->
-                val currentBonus = disciple.statusData["adBreakthroughBonus"]?.toDoubleOrNull() ?: 0.0
-                val newStatusData = disciple.statusData.toMutableMap().apply {
-                    this["adBreakthroughBonus"] = (currentBonus + bonus).toString()
                 }
                 disciple.copy(statusData = newStatusData)
             }
@@ -258,6 +247,10 @@ class DiscipleDelegate(
     /** 确认替换：把弟子灵根替换为洗炼产物 */
     suspend fun confirmSpiritRootWash(discipleId: String, newRootType: String): SpiritRootWashConfirmResult =
         gameEngine.confirmSpiritRootWash(discipleId, newRootType)
+
+    /** 消耗 1 玉符提高弟子突破率（上限 0.30 即最多 2 次；突破尝试后自动清除重置） */
+    suspend fun purchaseBreakthroughBonus(discipleId: String): BreakthroughBonusResult =
+        gameEngine.purchaseBreakthroughBonus(discipleId)
 
     // ── 洗炼天赋/体质/词条（玉符消耗玩法，流程对齐洗炼灵根；单槽语义：只洗炼目标特质）──
 

@@ -51,16 +51,7 @@ suspend fun GameEngine.sellToMerchant(acquisitionItemId: String, quantity: Int) 
 suspend fun GameEngine.buyMerchantItem(itemId: String, quantity: Int) = inventoryFacade.buyMerchantItem(itemId, quantity)
 fun GameEngine.refreshTravelingMerchantManual(): Boolean = cultivationService.refreshTravelingMerchantManual()
 
-/** 观看广告后获得3次手动刷新次数（上限999） */
-fun GameEngine.grantMerchantRefreshChanceFromAd() {
-    stateStore.update {
-        val newChances = (gameData.merchantRefreshChances + 3).coerceAtMost(999)
-        gameData = gameData.copy(merchantRefreshChances = newChances)
-    }
-}
-
-/**
- * 观看广告后发放玉符（必须在引擎线程调用，调用方负责 launchOnEngine 派发）。
+/** 观看广告后发放玉符（必须在引擎线程调用，调用方负责 launchOnEngine 派发）。
  *
  * 玉符绝对值覆盖写模型受守卫测试约束，发放必须收敛于 [JadeSymbolService.grantFromAd]，
  * 禁止在此直接 stateStore.update 写 jadeSymbols。

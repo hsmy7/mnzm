@@ -11,13 +11,15 @@ import com.xianxia.sect.core.domain.dialog.DialogType
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.SectLevel
 import com.xianxia.sect.core.util.DomainLog
+import com.xianxia.sect.core.engine.BreakthroughBonusResult
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
+import com.xianxia.sect.core.engine.MerchantRefreshResult
+import com.xianxia.sect.core.engine.PerformanceMode
 import com.xianxia.sect.core.engine.SpiritRootWashConfirmResult
 import com.xianxia.sect.core.engine.SpiritRootWashResult
 import com.xianxia.sect.core.engine.TraitWashConfirmResult
 import com.xianxia.sect.core.engine.TraitWashResult
-import com.xianxia.sect.core.engine.PerformanceMode
 import com.xianxia.sect.core.engine.apprenticeToMaster
 import com.xianxia.sect.core.engine.assignDiscipleToBuilding
 import com.xianxia.sect.core.engine.attackWorldLevel
@@ -35,7 +37,6 @@ import com.xianxia.sect.core.engine.getAllAutoBuyableItems
 import com.xianxia.sect.core.engine.getDiscipleAggregate
 import com.xianxia.sect.core.engine.getDiscipleById
 import com.xianxia.sect.core.engine.grantJadeSymbolsFromAd
-import com.xianxia.sect.core.engine.grantMerchantRefreshChanceFromAd
 import com.xianxia.sect.core.engine.learnManual
 import com.xianxia.sect.core.engine.listItemsToMerchant
 import com.xianxia.sect.core.engine.markWarningStageShown
@@ -45,6 +46,8 @@ import com.xianxia.sect.core.engine.placeBuilding
 import com.xianxia.sect.core.engine.plantOnSpiritField
 import com.xianxia.sect.core.engine.plantOnSpiritFields
 import com.xianxia.sect.core.engine.popSubDialogDomain
+import com.xianxia.sect.core.engine.purchaseBreakthroughBonus
+import com.xianxia.sect.core.engine.purchaseMerchantRefresh
 import com.xianxia.sect.core.engine.pushSubDialogDomain
 import com.xianxia.sect.core.engine.recruitDisciple
 import com.xianxia.sect.core.engine.recruitDiscipleFromList
@@ -232,8 +235,6 @@ class GameViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "GameViewModel"
-        /** 观看单次广告获得的突破修炼倍率加成 */
-        private const val AD_BONUS_PER_AD = 0.05
         /** 观看单次广告获得的玉符数量 */
         private const val JADE_AD_REWARD = 3
     }
@@ -706,6 +707,16 @@ class GameViewModel @Inject constructor(
     suspend fun confirmSpiritRootWash(discipleId: String, newRootType: String): SpiritRootWashConfirmResult =
         disciple.confirmSpiritRootWash(discipleId, newRootType)
 
+    // ── 玉符购买玩法（2026-08-11 新增，替代原广告加成路径；消耗走引擎三态）──
+
+    /** 消耗 1 玉符提高弟子突破率（上限 0.30 即最多 2 次；突破尝试后自动清除重置） */
+    suspend fun purchaseBreakthroughBonus(discipleId: String): BreakthroughBonusResult =
+        disciple.purchaseBreakthroughBonus(discipleId)
+
+    /** 消耗 1 玉符获取 3 次商人刷新次数（上限 999） */
+    suspend fun purchaseMerchantRefresh(): MerchantRefreshResult =
+        gameEngine.purchaseMerchantRefresh()
+
     // ── 洗炼天赋/体质/词条（玉符消耗玩法，流程对齐洗炼灵根；单槽语义：只洗炼目标特质）──
 
     suspend fun washTalent(discipleId: String, targetId: String, pityCount: Int): TraitWashResult =
@@ -736,7 +747,6 @@ class GameViewModel @Inject constructor(
     fun enterSect(sectId: String) { gameEngine.launchOnEngine { gameEngine.enterSect(sectId) } }
 
     fun toggleFollowDisciple(discipleId: String) = disciple.toggleFollowDisciple(discipleId)
-    fun applyAdBreakthroughBonus(discipleId: String, bonus: Double) = disciple.applyAdBreakthroughBonus(discipleId, bonus)
     fun changeDiscipleType(discipleId: String, newType: String) = disciple.changeDiscipleType(discipleId, newType)
     suspend fun rewardItemsToDisciple(discipleId: String, items: List<RewardSelectedItem>) = disciple.rewardItemsToDisciple(discipleId, items)
     fun recruitAllDisciples() = disciple.recruitAllDisciples()
@@ -779,7 +789,6 @@ class GameViewModel @Inject constructor(
 
     fun buyFromMerchant(itemId: String, quantity: Int = 1) = inventory.buyFromMerchant(itemId, quantity)
     fun refreshTravelingMerchantManual() { gameEngine.launchOnEngine { gameEngine.refreshTravelingMerchantManual() } }
-    fun grantMerchantRefreshChanceFromAd() { gameEngine.launchOnEngine { gameEngine.grantMerchantRefreshChanceFromAd() } }
     fun listItemsToMerchant(items: List<Pair<String, Int>>) = inventory.listItemsToMerchant(items)
     fun removePlayerListedItem(itemId: String) = inventory.removePlayerListedItem(itemId)
 
@@ -904,32 +913,6 @@ class GameViewModel @Inject constructor(
     fun setPersonalizedAdsEnabled(enabled: Boolean) {
         _personalizedAdsEnabled.value = enabled
         uiServices.adService.setPersonalizedAdsEnabled(enabled)
-    }
-
-    /**
-     * 播放突破修炼奖励广告。
-     * 免广告特权用户在 [AdService] 实现层直接发放奖励。
-     */
-    fun watchAdForBreakthroughBonus(discipleId: String) {
-        if (isDailyAdLimitReached()) return
-        uiServices.adService.watchAd(AdPurpose.BREAKTHROUGH_BONUS) {
-            if (tryMarkAdWatched()) {
-                applyAdBreakthroughBonus(discipleId, AD_BONUS_PER_AD)
-            }
-        }
-    }
-
-    /**
-     * 播放商人刷新次数广告。
-     * 免广告特权用户在 [AdService] 实现层直接发放奖励。
-     */
-    fun watchAdForMerchantRefresh() {
-        if (isDailyAdLimitReached()) return
-        uiServices.adService.watchAd(AdPurpose.MERCHANT_REFRESH) {
-            if (tryMarkAdWatched()) {
-                grantMerchantRefreshChanceFromAd()
-            }
-        }
     }
 
     /**

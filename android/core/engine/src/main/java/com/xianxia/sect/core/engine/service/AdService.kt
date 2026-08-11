@@ -48,10 +48,6 @@ interface AdService {
  * 新增广告类型在此追加枚举值，无需改 ViewModel 或创建新回调字段。
  */
 enum class AdPurpose {
-    /** 突破修炼奖励广告 */
-    BREAKTHROUGH_BONUS,
-    /** 商人手动刷新次数广告 */
-    MERCHANT_REFRESH,
     /** 观看广告获得玉符 */
     JADE_SYMBOL_BONUS
 }

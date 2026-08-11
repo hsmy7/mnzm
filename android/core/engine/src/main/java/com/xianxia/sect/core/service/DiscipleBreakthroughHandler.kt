@@ -87,7 +87,9 @@ class DiscipleBreakthroughHandler @Inject constructor(
         val currentMonth = data.gameYear * 12 + data.gameMonth
         d.id.toIntOrNull()?.let { tables.checkpointDisciple(it, currentMonth) }
 
-        if (breakthroughCount > 0) d = clearAdBonus(d)
+        // 玉符加成只对下一次突破尝试有效：无论成功或失败，突破后均清除
+        // （2026-08-11 玉符化改造；循环前置 break 路径两计数均为 0，未发生突破尝试时加成保留）
+        if (breakthroughCount + failCount > 0) d = clearAdBonus(d)
         writeBreakthroughCounts(d.id, tables, breakthroughCount, failCount)
         d = updateCompletionEstimate(d, data)
 

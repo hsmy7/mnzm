@@ -72,8 +72,6 @@ class AdServiceImpl @Inject constructor(
         isLoadingAd = true
 
         val (rewardName, rewardAmount, spaceId) = when (purpose) {
-            AdPurpose.BREAKTHROUGH_BONUS -> Triple("奖励", 1, 1056479L)
-            AdPurpose.MERCHANT_REFRESH -> Triple("商人刷新次数", 3, 1059500L)
             AdPurpose.JADE_SYMBOL_BONUS -> Triple("玉符", 3, 1061442L)
         }
 

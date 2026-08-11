@@ -425,6 +425,27 @@ object GameConfig {
         const val MAX_TRAIT_COUNT = 5
     }
 
+    /**
+     * 玉符购买玩法（2026-08-11 新增，替代原广告加成路径；与洗炼灵根共用 1 玉符消耗）。
+     */
+    object JadePurchase {
+
+        /** 玉符购买类玩法单次消耗数量。 */
+        const val COST = 1
+
+        /** 每消耗 1 玉符提高弟子突破率（上限 2 次 × 0.15 = 0.30）。 */
+        const val BREAKTHROUGH_BONUS_PER_JADE = 0.15
+
+        /** 突破率玉符加成上限（语义为 2 次玉符；数值巧合等于原广告 6×0.05 上限，勿混淆）。 */
+        const val BREAKTHROUGH_BONUS_MAX = 0.30
+
+        /** 每消耗 1 玉符获得的商人刷新次数。 */
+        const val MERCHANT_REFRESH_PER_JADE = 3
+
+        /** 商人刷新次数上限（语义迁移自 MerchantAndRecruitService.MAX_MERCHANT_REFRESH_CHANCES=999）。 */
+        const val MERCHANT_REFRESH_MAX = 999
+    }
+
     object Beast {
         data class RealmStats(
             val hp: Int,

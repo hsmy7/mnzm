@@ -113,6 +113,15 @@
 - **文档** — CODE_WIKI 战斗前恢复条目更新为已删除现状；EquipmentNurtureSystem KDoc 已删类引用修正
 - **兼容性** — 纯逻辑删除，无 Entity/Migration/序列化变更（DATABASE_VERSION 不变）
 
+### 调整（2026-08-11 突破率加成/商人刷新广告链路玉符化）
+
+- **引擎新入口** — `GameEngineJadePurchaseOps.kt` 新增 `purchaseBreakthroughBonus(discipleId)` / `purchaseMerchantRefresh()`（GameEngine top-level suspend 扩展，照抄 `washSpiritRoot` 原子消耗范式：`engineContextDispatcher.withEngineContext` + `stateStore.updateAndReturn` 事务内「校验 → `jadeSymbolService.deduct` → 写入」+ 事务外 `publishJadeSymbolStateNow`）；sealed 三态 `Success` / `InsufficientJadeSymbols(current, required)` / `LimitReached` / `Error(message)`，`CancellationException` 重抛；上限校验先于扣款（达上限不扣玉符）；新常量 `GameConfig.JadePurchase`（COST=1 / BREAKTHROUGH_BONUS_PER_JADE=0.15 / BREAKTHROUGH_BONUS_MAX=0.30 / MERCHANT_REFRESH_PER_JADE=3 / MERCHANT_REFRESH_MAX=999）
+- **清除语义变更** — `DiscipleBreakthroughHandler.performBreakthrough` 清除条件 `breakthroughCount > 0` → `breakthroughCount + failCount > 0`：玉符加成只对下一次突破尝试有效，**无论成功或失败均清除**（原逻辑失败保留）；statusData key 保留 `"adBreakthroughBonus"` 原名（旧档兼容，语义变更为玉符加成）；旧档残留旧广告值（如 0.05）购买时在残留值上累加
+- **UI** — 突破率旁（`DetailBasicInfoSection`）与商人刷新旁（`MerchantDialog`）播放三角按钮 → `SpriteImage("ui_add_button")`「+」号按钮（复用既有精灵，零资源新增）；点击弹小屏弹窗（标题"提高突破率"/"获取刷新次数" + 底部"消耗1玉符"小字——玉符充足白色/不足红色 + 「消耗玉符」按钮，`AtomicBoolean` 防连点）；两处弹窗收敛为共用组件 `JadePurchaseFlow`（`JadePurchaseOutcome` 统一三态：Success/Insufficient/Failed，突破率侧透传引擎 Error message，商人侧固定文案）；玉符不足走平台 `StandardPromptDialog` 独立 Window 提示；`BreakthroughDetailDialog` 标签"广告加成"→"玉符加成"；突破率「+」按钮显示条件 `adBonusValue < BREAKTHROUGH_BONUS_MAX`（达上限隐藏）
+- **广告链路删除** — `AdPurpose.BREAKTHROUGH_BONUS` / `MERCHANT_REFRESH` 枚举值删除（仅留 `JADE_SYMBOL_BONUS`）；`AdServiceImpl` 广告位 when 两分支删除（1056479/1059500）；`GameEngineInventoryOps.grantMerchantRefreshChanceFromAd` 删除；`GameViewModel` / `DiscipleDelegate` 对应 watchAd/apply/grant 方法删除，新增透传
+- **测试** — 新增 `GameEngineJadePurchaseTest` 14 用例（扣减同步 gameData/runtimeState、二次累加至 0.30、上限不扣款、不足无写入、**checkpointNow 不回涨**、弟子不存在/死亡/非法 ID 拒绝、旧档残留累加、商人 1→4/998→999 钳制/999 上限/不足不变/checkpoint 不回涨）；`DiscipleBreakthroughHandlerTest` 新增失败路径清除用例（必败构造：境界 7 层 5 + 五灵根 → `BREAKTHROUGH_CHANCES[7][5]=0.00` → chance=0 必然失败）；全模块串行测试（--max-workers=1）+ compileReleaseKotlin 通过
+- **兼容性** — 无 Entity/Migration/序列化变更（DATABASE_VERSION 不变）；`JadeSymbolConsumptionGuardTest` 白名单无需改（新代码走 deduct 统一入口）
+
 ## [4.00.93] - 2026-08-09
 
 ### 优化（2026-08-09 每年一月卡顿数秒根治——算法减量 + AI 降频 + 年变分帧）

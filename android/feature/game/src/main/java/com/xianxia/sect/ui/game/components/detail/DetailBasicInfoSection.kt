@@ -21,6 +21,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.xianxia.sect.core.GameConfig
+import com.xianxia.sect.core.engine.BreakthroughBonusResult
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.BloodRefinementPctTotal
@@ -40,10 +42,11 @@ import com.xianxia.sect.core.model.griefEndYear
 import com.xianxia.sect.core.model.weaponId
 import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.feature.game.R
-import com.xianxia.sect.ui.components.rememberChasingProgress
 import com.xianxia.sect.ui.components.SpriteImage
-import com.xianxia.sect.ui.components.StandardPromptDialog
+import com.xianxia.sect.ui.components.rememberChasingProgress
 import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.components.JadePurchaseFlow
+import com.xianxia.sect.ui.game.components.JadePurchaseOutcome
 import com.xianxia.sect.ui.theme.GameColors
 
 /**
@@ -67,7 +70,8 @@ fun BasicInfoSection(
     gameYear: Int = 1,
     gameSpeed: Int = 1,
     bloodRefinementPct: BloodRefinementPctTotal? = null,
-    onWashSpiritRootClick: (() -> Unit)? = null
+    onWashSpiritRootClick: (() -> Unit)? = null,
+    jadeSymbols: Int = 0
 ) {
     val discipleMap = allDisciples.associateBy { it.id }
     val griefBreakthroughPenalty = discipleGriefPenalty(disciple, gameYear)
@@ -88,7 +92,8 @@ fun BasicInfoSection(
             elderSlots = elderSlots,
             masterDiscipleBonus = masterDiscipleBonus,
             griefBreakthroughPenalty = griefBreakthroughPenalty,
-            viewModel = viewModel
+            viewModel = viewModel,
+            jadeSymbols = jadeSymbols
         )
 
         BasicInfoRealmRow(
@@ -187,7 +192,8 @@ private fun BasicInfoBreakthroughRow(
     elderSlots: ElderSlots?,
     masterDiscipleBonus: Double,
     griefBreakthroughPenalty: Double,
-    viewModel: GameViewModel?
+    viewModel: GameViewModel?,
+    jadeSymbols: Int
 ) {
     val detail = DiscipleStatCalculator.getBreakthroughBonusDetail(
         disciple,
@@ -218,8 +224,9 @@ private fun BasicInfoBreakthroughRow(
                 color = Color.Black
             )
             BreakthroughDetailButton(detail)
-            if (adBonusValue < 0.30) {
-                AdBreakthroughButton(viewModel, disciple.id)
+            // 玉符加成上限 0.30（2 次 × 0.15），达到后隐藏入口
+            if (adBonusValue < GameConfig.JadePurchase.BREAKTHROUGH_BONUS_MAX) {
+                JadeBreakthroughButton(viewModel, disciple.id, jadeSymbols)
             }
         }
     }
@@ -263,62 +270,46 @@ private fun BreakthroughDetailButton(
     }
 }
 
+/**
+ * 突破率玉符购买入口（+ 号按钮）：点击弹小屏确认弹窗，消耗 1 玉符提高突破率 15%。
+ *
+ * 玉符不足时引擎返回三态结果 → 关闭弹窗 + 平台 StandardPromptDialog 提示（流程见 [JadePurchaseFlow]）。
+ * 达到上限（0.30）后入口由调用方隐藏，此处兜底 LimitReached 静默关闭。
+ */
 @Composable
-private fun AdBreakthroughButton(
+private fun JadeBreakthroughButton(
     viewModel: GameViewModel?,
-    discipleId: String
+    discipleId: String,
+    jadeSymbols: Int
 ) {
-    var showAdConfirmDialog by remember { mutableStateOf(false) }
-    var showAdCooldownDialog by remember { mutableStateOf(false) }
-    var showAdLimitDialog by remember { mutableStateOf(false) }
-    Image(
-        painter = painterResource(
-            id = com.xianxia.sect.ui.components.SpriteResRegistry.resolve("ui_play_button") ?: 0
-        ),
-        contentDescription = "播放广告获取突破加成",
+    var showJadeDialog by remember { mutableStateOf(false) }
+
+    SpriteImage(
+        name = "ui_add_button",
+        contentDescription = "提高突破率",
         modifier = Modifier
             .size(18.dp)
             .clip(CircleShape)
-            .clickable {
-                if (viewModel?.isDailyAdLimitReached() == true) {
-                    showAdLimitDialog = true
-                } else if (viewModel?.isAdOnCooldown() == true) {
-                    showAdCooldownDialog = true
-                } else {
-                    showAdConfirmDialog = true
-                }
-            },
+            .clickable { showJadeDialog = true },
         contentScale = ContentScale.FillBounds
     )
-    if (showAdConfirmDialog) {
-        StandardPromptDialog(
-            onDismissRequest = { showAdConfirmDialog = false },
-            title = "广告",
-            text = "观看广告后弟子获得突破加成，最多观看20次广告。",
-            dismissLabel = "取消",
-            confirmLabel = "观看",
-            onConfirm = {
-                showAdConfirmDialog = false
-                viewModel?.watchAdForBreakthroughBonus(discipleId)
-            }
-        )
-    }
-    if (showAdCooldownDialog) {
-        StandardPromptDialog(
-            onDismissRequest = { showAdCooldownDialog = false },
-            title = "不可播放广告",
-            text = "一分钟内只可观看一次广告",
-            confirmLabel = "确认",
-            onConfirm = { showAdCooldownDialog = false }
-        )
-    }
-    if (showAdLimitDialog) {
-        StandardPromptDialog(
-            onDismissRequest = { showAdLimitDialog = false },
-            title = "提示",
-            text = "观看次数已达上限",
-            confirmLabel = "知道了",
-            onConfirm = { showAdLimitDialog = false }
+
+    if (showJadeDialog) {
+        JadePurchaseFlow(
+            title = "提高突破率",
+            description = "消耗1玉符提高弟子突破率15%，最多提高两次",
+            jadeSymbols = jadeSymbols,
+            insufficientText = "玉符不足，无法提高突破率",
+            purchase = {
+                when (val result = viewModel?.purchaseBreakthroughBonus(discipleId)) {
+                    is BreakthroughBonusResult.Success -> JadePurchaseOutcome.Success
+                    is BreakthroughBonusResult.InsufficientJadeSymbols -> JadePurchaseOutcome.Insufficient
+                    is BreakthroughBonusResult.LimitReached -> JadePurchaseOutcome.Success
+                    is BreakthroughBonusResult.Error -> JadePurchaseOutcome.Failed(result.message)
+                    null -> JadePurchaseOutcome.Success
+                }
+            },
+            onDismiss = { showJadeDialog = false }
         )
     }
 }

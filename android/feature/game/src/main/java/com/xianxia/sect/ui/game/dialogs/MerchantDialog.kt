@@ -1,6 +1,5 @@
 package com.xianxia.sect.ui.game.dialogs
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -9,38 +8,40 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
-import com.xianxia.sect.core.util.GameUtils
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.xianxia.sect.core.engine.MerchantRefreshResult
 import com.xianxia.sect.core.model.GameData
 import com.xianxia.sect.core.model.MerchantItem
-import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.core.util.sortedByWatchedThenRarity
-import com.xianxia.sect.ui.game.components.watchKeyOf
+import com.xianxia.sect.ui.components.GameButton
+import com.xianxia.sect.ui.components.ItemCardData
+import com.xianxia.sect.ui.components.SpriteImage
+import com.xianxia.sect.ui.components.StandardPromptDialog
+import com.xianxia.sect.ui.components.UnifiedGameDialog
+import com.xianxia.sect.ui.components.UnifiedItemCard
+import com.xianxia.sect.ui.components.DialogMode
+import com.xianxia.sect.ui.game.GameViewModel
+import com.xianxia.sect.ui.game.components.JadePurchaseFlow
+import com.xianxia.sect.ui.game.components.JadePurchaseOutcome
 import com.xianxia.sect.ui.game.components.QuantitySelector
 import com.xianxia.sect.ui.game.components.QuantitySelectorSizes
 import com.xianxia.sect.ui.game.components.QUANTITY_MIN
-import com.xianxia.sect.ui.components.GameButton
-import com.xianxia.sect.ui.components.ItemCardData
-import com.xianxia.sect.ui.components.UnifiedItemCard
-import com.xianxia.sect.ui.components.UnifiedGameDialog
-import com.xianxia.sect.ui.components.DialogMode
+import com.xianxia.sect.ui.game.components.watchKeyOf
 import com.xianxia.sect.ui.theme.GameColors
-import com.xianxia.sect.ui.components.SpriteResRegistry
-import com.xianxia.sect.ui.components.StandardPromptDialog
-import androidx.compose.foundation.shape.CircleShape
 
 // 提取的子文件：MerchantListingDialog.kt, MerchantInventoryDialog.kt
 
@@ -69,10 +70,8 @@ fun MerchantDialog(
     var merchantMode by remember { mutableStateOf(MerchantMode.BUY) }
     var showSellConfirmDialog by remember { mutableStateOf(false) }
     var selectedAcquisitionItem by remember { mutableStateOf<MerchantItem?>(null) }
-    var showAdConfirmDialog by remember { mutableStateOf(false) }
+    var showJadeDialog by remember { mutableStateOf(false) }
     var showNoChancesDialog by remember { mutableStateOf(false) }
-    var showAdCooldownDialog by remember { mutableStateOf(false) }
-    var showAdLimitDialog by remember { mutableStateOf(false) }
 
     val equipment by viewModel.equipmentStacks.collectAsStateWithLifecycle()
     val manuals by viewModel.manualStacks.collectAsStateWithLifecycle()
@@ -139,21 +138,13 @@ fun MerchantDialog(
             )
             Text("${refreshChances}次", fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 color = Color.White, modifier = Modifier.padding(start = 4.dp))
-            Image(
-                painter = painterResource(id = SpriteResRegistry.resolve("ui_play_button") ?: 0),
-                contentDescription = "播放广告获得刷新次数",
+            SpriteImage(
+                name = "ui_add_button",
+                contentDescription = "获取刷新次数",
                 modifier = Modifier
                     .size(18.dp)
                     .clip(CircleShape)
-                    .clickable {
-                        if (viewModel.isDailyAdLimitReached()) {
-                            showAdLimitDialog = true
-                        } else if (viewModel.isAdOnCooldown()) {
-                            showAdCooldownDialog = true
-                        } else {
-                            showAdConfirmDialog = true
-                        }
-                    },
+                    .clickable { showJadeDialog = true },
                 contentScale = ContentScale.FillBounds
             )
         }
@@ -312,19 +303,23 @@ fun MerchantDialog(
         AutoBuyDialog(gameData = gameData, viewModel = viewModel, onDismiss = { showAutoBuyDialog = false })
     }
 
-    // ── 广告相关对话框（StandardPromptDialog） ─────────────────────────
+    // ── 玉符购买弹窗（2026-08-11 替代广告：消耗 1 玉符获取 3 次刷新次数） ──
 
-    if (showAdConfirmDialog) {
-        StandardPromptDialog(
-            onDismissRequest = { showAdConfirmDialog = false },
-            title = "获得刷新次数",
-            text = "观看广告获得刷新次数，最多观看20次广告。",
-            dismissLabel = "取消",
-            confirmLabel = "观看",
-            onConfirm = {
-                showAdConfirmDialog = false
-                viewModel.watchAdForMerchantRefresh()
-            }
+    if (showJadeDialog) {
+        JadePurchaseFlow(
+            title = "获取刷新次数",
+            description = "消耗1玉符获取3次刷新次数",
+            jadeSymbols = gameData?.jadeSymbols ?: 0,
+            insufficientText = "玉符不足，无法获取刷新次数",
+            purchase = {
+                when (viewModel.purchaseMerchantRefresh()) {
+                    is MerchantRefreshResult.Success -> JadePurchaseOutcome.Success
+                    is MerchantRefreshResult.InsufficientJadeSymbols -> JadePurchaseOutcome.Insufficient
+                    is MerchantRefreshResult.LimitReached -> JadePurchaseOutcome.Success
+                    is MerchantRefreshResult.Error -> JadePurchaseOutcome.Failed("获取失败，请重试")
+                }
+            },
+            onDismiss = { showJadeDialog = false }
         )
     }
 
@@ -332,29 +327,9 @@ fun MerchantDialog(
         StandardPromptDialog(
             onDismissRequest = { showNoChancesDialog = false },
             title = "无刷新次数",
-            text = "已无刷新次数可通过观看广告获得",
+            text = "已无刷新次数，消耗1玉符可获取3次刷新次数",
             confirmLabel = "知道了",
             onConfirm = { showNoChancesDialog = false }
-        )
-    }
-
-    if (showAdCooldownDialog) {
-        StandardPromptDialog(
-            onDismissRequest = { showAdCooldownDialog = false },
-            title = "不可播放广告",
-            text = "一分钟内只可观看一次广告",
-            confirmLabel = "确认",
-            onConfirm = { showAdCooldownDialog = false }
-        )
-    }
-
-    if (showAdLimitDialog) {
-        StandardPromptDialog(
-            onDismissRequest = { showAdLimitDialog = false },
-            title = "提示",
-            text = "观看次数已达上限",
-            confirmLabel = "知道了",
-            onConfirm = { showAdLimitDialog = false }
         )
     }
 }
