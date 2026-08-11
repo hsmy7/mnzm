@@ -47,8 +47,6 @@ class MerchantAndRecruitService @Inject constructor(
         private const val ACQUISITION_ITEM_COUNT_MIN = 1
         private const val ACQUISITION_ITEM_COUNT_MAX = 9
         private const val MERCHANT_REFRESH_CHANCE_INTERVAL_YEARS = 30
-        /** 手动刷新次数上限 */
-        private const val MAX_MERCHANT_REFRESH_CHANCES = 999
         /** 灵石单次库存上限（与宗门交易 calcStock 的 coerceAtMost(3) 对齐） */
         private const val MAX_SPIRIT_STONE_STOCK = 3
     }
@@ -325,12 +323,12 @@ class MerchantAndRecruitService @Inject constructor(
         if (year <= 0) return  // 防御：无效年份跳过
         stateStore.update {
             val lastGrant = gameData.merchantLastRefreshChanceGrantYear
-            if (gameData.merchantRefreshChances >= MAX_MERCHANT_REFRESH_CHANCES) return@update
+            if (gameData.merchantRefreshChances >= GameConfig.JadePurchase.MERCHANT_REFRESH_MAX) return@update
             // lastGrant==0：首次（旧存档兼容代码已设 lastGrant=currentYear，不会误判）
             if (lastGrant == 0 || year - lastGrant >= MERCHANT_REFRESH_CHANCE_INTERVAL_YEARS) {
                 gameData = gameData.copy(
                     merchantRefreshChances = (gameData.merchantRefreshChances + 1)
-                        .coerceAtMost(MAX_MERCHANT_REFRESH_CHANCES),
+                        .coerceAtMost(GameConfig.JadePurchase.MERCHANT_REFRESH_MAX),
                     merchantLastRefreshChanceGrantYear = year
                 )
             }

@@ -1,6 +1,7 @@
 package com.xianxia.sect.core.engine.service
 
 import com.xianxia.sect.core.engine.FakeAtomicStateStore
+import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.engine.domain.disciple.ITEM_TYPE_PILL
 import com.xianxia.sect.core.engine.domain.disciple.TYPE_INNER
 import com.xianxia.sect.core.engine.mockSmart
@@ -157,20 +158,27 @@ class DiscipleBreakthroughHandlerTest {
 
     @Test
     fun `performBreakthrough - failure reduces HP and MP`() {
+        // 必败构造：境界7层5 + 五灵根 → BREAKTHROUGH_CHANCES[7][5]=0.00 → chance=0 必然失败
+        // （2026-08-11 修复预存假阳性：原 comprehension=1 构造实为大概率成功路径，断言 || 宽松从未验证失败）
         insertDiscipleForBreakthrough(
-            id = 1, comprehension = 1, currentHp = 1000, currentMp = 500
+            id = 1, realm = 7, realmLayer = 5,
+            spiritRootType = "metal,wood,water,fire,earth",
+            currentHp = 1000, currentMp = 500
         )
 
         val original = tables.assemble(1)
         val gameData = GameData()
         val result = handler.performBreakthrough(original, state, gameData)
 
-        val hpUpper = (1000 * 0.1).toInt().coerceAtLeast(1)
-        val mpUpper = (500 * 0.1).toInt().coerceAtLeast(1)
+        val failCount = tables.breakthroughFailCounts[1] ?: 0
+        assertTrue("必败构造下 failCount 应 > 0，实际 $failCount", failCount > 0)
+        val hpUpper = (1000 * DiscipleStatCalculator.BREAKTHROUGH_FAILURE_HP_MP_RATIO).toInt().coerceAtLeast(1)
+        val mpUpper = (500 * DiscipleStatCalculator.BREAKTHROUGH_FAILURE_HP_MP_RATIO).toInt().coerceAtLeast(1)
         assertTrue("HP should be at most 10% of original on failure",
-            result.combat.currentHp <= hpUpper || result.realm < original.realm)
+            result.combat.currentHp <= hpUpper)
         assertTrue("MP should be at most 10% of original on failure",
-            result.combat.currentMp <= mpUpper || result.realm < original.realm)
+            result.combat.currentMp <= mpUpper)
+        assertEquals("realm should not change on failure", original.realm, result.realm)
     }
 
     // ═══════════════════════════════════════════════════════════════

@@ -442,7 +442,7 @@ object GameConfig {
         /** 每消耗 1 玉符获得的商人刷新次数。 */
         const val MERCHANT_REFRESH_PER_JADE = 3
 
-        /** 商人刷新次数上限（语义迁移自 MerchantAndRecruitService.MAX_MERCHANT_REFRESH_CHANCES=999）。 */
+        /** 商人刷新次数上限（唯一入口：MerchantAndRecruitService 每 30 年自动刷新与玉符购买共用，2026-08-11 收敛）。 */
         const val MERCHANT_REFRESH_MAX = 999
     }
 
