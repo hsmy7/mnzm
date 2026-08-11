@@ -24,6 +24,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.xianxia.sect.core.registry.TalentDatabase
 import com.xianxia.sect.core.registry.PhysiqueDatabase
 import com.xianxia.sect.core.registry.AffixDatabase
+import com.xianxia.sect.core.engine.BreakthroughBonusResult
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.EquipmentInstance
@@ -50,6 +51,8 @@ import com.xianxia.sect.core.GameConfig.TraitWashType
 import com.xianxia.sect.core.util.sortedByWatchedThenRarity
 import com.xianxia.sect.core.util.watchKey
 import com.xianxia.sect.ui.game.components.ItemDetailDialog
+import com.xianxia.sect.ui.game.components.JadePurchaseFlow
+import com.xianxia.sect.ui.game.components.JadePurchaseOutcome
 import com.xianxia.sect.ui.game.components.LearnedManualDetailDialog
 import com.xianxia.sect.ui.components.CloseButton
 import com.xianxia.sect.ui.components.GameButton
@@ -152,6 +155,8 @@ fun DiscipleDetailDialog(
     var showLifeLogDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var showWashDialog by remember { mutableStateOf(false) }
+    // 突破率玉符加成弹窗开关（内联覆盖层必须渲染在根 Box 最末，见 :391 注释；弹窗内容见根 Box 尾部）
+    var showBreakthroughJadeDialog by remember { mutableStateOf(false) }
     // 洗炼保底计数（连续未出单灵根次数）：详情层常驻——弹窗关闭再打开不重置，
     // 保证"连续 3 次保底"语义跨洗炼会话成立（弹窗会话持有的计数在关闭时丢失）
     var washPityCount by remember { mutableIntStateOf(0) }
@@ -311,12 +316,11 @@ fun DiscipleDetailDialog(
                                         sectPolicies = sectPolicies,
                                         residenceSlots = vmResidenceSlots,
                                         placedBuildings = vmPlacedBuildings,
-                                        viewModel = viewModel,
                                         gameYear = gameYear,
                                         gameSpeed = 1,
                                         bloodRefinementPct = gameData?.bloodRefinementPctTotals?.get(disciple.id),
                                         onWashSpiritRootClick = openSpiritRootWash,
-                                        jadeSymbols = gameData?.jadeSymbols ?: 0
+                                        onBreakthroughJadeClick = { showBreakthroughJadeDialog = true }
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
                                     TalentsSection(talents, disciple.statusData, onTalentClick = { selectedTalent = it })
@@ -410,6 +414,26 @@ fun DiscipleDetailDialog(
                         initialPityCount = washPityCount,
                         onPityCountChanged = { washPityCount = it },
                         onDismiss = { showWashDialog = false }
+                    )
+                }
+                // 突破率玉符加成弹窗（同洗炼弹窗：渲染在根 Box 最末，z 序最高，
+                // 在滚动内容流内直接渲染会被后续内容覆盖/随滚动错位）
+                if (showBreakthroughJadeDialog) {
+                    JadePurchaseFlow(
+                        title = "提高突破率",
+                        description = "消耗1玉符提高弟子突破率15%，最多提高两次",
+                        jadeSymbols = gameData?.jadeSymbols ?: 0,
+                        insufficientText = "玉符不足，无法提高突破率",
+                        purchase = {
+                            when (val result = viewModel?.purchaseBreakthroughBonus(disciple.id)) {
+                                is BreakthroughBonusResult.Success -> JadePurchaseOutcome.Success
+                                is BreakthroughBonusResult.InsufficientJadeSymbols -> JadePurchaseOutcome.Insufficient
+                                is BreakthroughBonusResult.LimitReached -> JadePurchaseOutcome.Success
+                                is BreakthroughBonusResult.Error -> JadePurchaseOutcome.Failed(result.message)
+                                null -> JadePurchaseOutcome.Success
+                            }
+                        },
+                        onDismiss = { showBreakthroughJadeDialog = false }
                     )
                 }
             }

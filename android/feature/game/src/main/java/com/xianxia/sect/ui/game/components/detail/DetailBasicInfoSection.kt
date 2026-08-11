@@ -22,7 +22,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.xianxia.sect.core.GameConfig
-import com.xianxia.sect.core.engine.BreakthroughBonusResult
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
 import com.xianxia.sect.core.engine.domain.disciple.DiscipleStatCalculator
 import com.xianxia.sect.core.model.BloodRefinementPctTotal
@@ -44,9 +43,6 @@ import com.xianxia.sect.core.util.GameUtils
 import com.xianxia.sect.feature.game.R
 import com.xianxia.sect.ui.components.SpriteImage
 import com.xianxia.sect.ui.components.rememberChasingProgress
-import com.xianxia.sect.ui.game.GameViewModel
-import com.xianxia.sect.ui.game.components.JadePurchaseFlow
-import com.xianxia.sect.ui.game.components.JadePurchaseOutcome
 import com.xianxia.sect.ui.theme.GameColors
 
 /**
@@ -66,12 +62,11 @@ fun BasicInfoSection(
     sectPolicies: SectPolicies? = null,
     residenceSlots: List<ResidenceSlot> = emptyList(),
     placedBuildings: List<GridBuildingData> = emptyList(),
-    viewModel: GameViewModel? = null,
     gameYear: Int = 1,
     gameSpeed: Int = 1,
     bloodRefinementPct: BloodRefinementPctTotal? = null,
     onWashSpiritRootClick: (() -> Unit)? = null,
-    jadeSymbols: Int = 0
+    onBreakthroughJadeClick: (() -> Unit)? = null
 ) {
     val discipleMap = allDisciples.associateBy { it.id }
     val griefBreakthroughPenalty = discipleGriefPenalty(disciple, gameYear)
@@ -92,8 +87,7 @@ fun BasicInfoSection(
             elderSlots = elderSlots,
             masterDiscipleBonus = masterDiscipleBonus,
             griefBreakthroughPenalty = griefBreakthroughPenalty,
-            viewModel = viewModel,
-            jadeSymbols = jadeSymbols
+            onBreakthroughJadeClick = onBreakthroughJadeClick
         )
 
         BasicInfoRealmRow(
@@ -192,8 +186,7 @@ private fun BasicInfoBreakthroughRow(
     elderSlots: ElderSlots?,
     masterDiscipleBonus: Double,
     griefBreakthroughPenalty: Double,
-    viewModel: GameViewModel?,
-    jadeSymbols: Int
+    onBreakthroughJadeClick: (() -> Unit)?
 ) {
     val detail = DiscipleStatCalculator.getBreakthroughBonusDetail(
         disciple,
@@ -224,9 +217,9 @@ private fun BasicInfoBreakthroughRow(
                 color = Color.Black
             )
             BreakthroughDetailButton(detail)
-            // 玉符加成上限 0.30（2 次 × 0.15），达到后隐藏入口
-            if (adBonusValue < GameConfig.JadePurchase.BREAKTHROUGH_BONUS_MAX) {
-                JadeBreakthroughButton(viewModel, disciple.id, jadeSymbols)
+            // 玉符加成上限 0.30（2 次 × 0.15），达到后隐藏入口；无上层回调（viewModel 为空）也隐藏
+            if (adBonusValue < GameConfig.JadePurchase.BREAKTHROUGH_BONUS_MAX && onBreakthroughJadeClick != null) {
+                JadeBreakthroughButton(onClick = onBreakthroughJadeClick)
             }
         }
     }
@@ -271,47 +264,21 @@ private fun BreakthroughDetailButton(
 }
 
 /**
- * 突破率玉符购买入口（+ 号按钮）：点击弹小屏确认弹窗，消耗 1 玉符提高突破率 15%。
- *
- * 玉符不足时引擎返回三态结果 → 关闭弹窗 + 平台 StandardPromptDialog 提示（流程见 [JadePurchaseFlow]）。
- * 达到上限（0.30）后入口由调用方隐藏，此处兜底 LimitReached 静默关闭。
+ * 突破率玉符购买入口（+ 号按钮）：点击回调上抛，由上层（DiscipleDetailDialog 根 Box 最末）
+ * 渲染 [JadePurchaseFlow]——本组件位于滚动内容流内，直接渲染覆盖层会随内容滚动错位
+ * 且被后续内容 Z 序覆盖（4.00.92 兑换码事故同源教训）。
  */
 @Composable
-private fun JadeBreakthroughButton(
-    viewModel: GameViewModel?,
-    discipleId: String,
-    jadeSymbols: Int
-) {
-    var showJadeDialog by remember { mutableStateOf(false) }
-
+private fun JadeBreakthroughButton(onClick: () -> Unit) {
     SpriteImage(
         name = "ui_add_button",
         contentDescription = "提高突破率",
         modifier = Modifier
             .size(18.dp)
             .clip(CircleShape)
-            .clickable { showJadeDialog = true },
+            .clickable(onClick = onClick),
         contentScale = ContentScale.FillBounds
     )
-
-    if (showJadeDialog) {
-        JadePurchaseFlow(
-            title = "提高突破率",
-            description = "消耗1玉符提高弟子突破率15%，最多提高两次",
-            jadeSymbols = jadeSymbols,
-            insufficientText = "玉符不足，无法提高突破率",
-            purchase = {
-                when (val result = viewModel?.purchaseBreakthroughBonus(discipleId)) {
-                    is BreakthroughBonusResult.Success -> JadePurchaseOutcome.Success
-                    is BreakthroughBonusResult.InsufficientJadeSymbols -> JadePurchaseOutcome.Insufficient
-                    is BreakthroughBonusResult.LimitReached -> JadePurchaseOutcome.Success
-                    is BreakthroughBonusResult.Error -> JadePurchaseOutcome.Failed(result.message)
-                    null -> JadePurchaseOutcome.Success
-                }
-            },
-            onDismiss = { showJadeDialog = false }
-        )
-    }
 }
 
 @Composable
