@@ -34,6 +34,7 @@ import com.xianxia.sect.core.engine.forgetManual
 import com.xianxia.sect.core.engine.getAllAutoBuyableItems
 import com.xianxia.sect.core.engine.getDiscipleAggregate
 import com.xianxia.sect.core.engine.getDiscipleById
+import com.xianxia.sect.core.engine.grantJadeSymbolsFromAd
 import com.xianxia.sect.core.engine.grantMerchantRefreshChanceFromAd
 import com.xianxia.sect.core.engine.learnManual
 import com.xianxia.sect.core.engine.listItemsToMerchant
@@ -233,6 +234,8 @@ class GameViewModel @Inject constructor(
         private const val TAG = "GameViewModel"
         /** 观看单次广告获得的突破修炼倍率加成 */
         private const val AD_BONUS_PER_AD = 0.05
+        /** 观看单次广告获得的玉符数量 */
+        private const val JADE_AD_REWARD = 3
     }
 
     /** 灵石三品阶总量（低/中/高），仓库页窄流数据 */
@@ -891,6 +894,19 @@ class GameViewModel @Inject constructor(
     fun tryMarkAdWatched(): Boolean = ads.tryMarkAdWatched()
 
     /**
+     * 个性化广告开关状态（设置界面订阅）。
+     * 合规要求（TapADN SDK 合规使用说明）：App 内提供退出个性化广告能力。
+     */
+    private val _personalizedAdsEnabled = MutableStateFlow(uiServices.adService.isPersonalizedAdsEnabled())
+    val personalizedAdsEnabled: StateFlow<Boolean> = _personalizedAdsEnabled.asStateFlow()
+
+    /** 切换个性化广告开关（持久化 + 同步 SDK）。 */
+    fun setPersonalizedAdsEnabled(enabled: Boolean) {
+        _personalizedAdsEnabled.value = enabled
+        uiServices.adService.setPersonalizedAdsEnabled(enabled)
+    }
+
+    /**
      * 播放突破修炼奖励广告。
      * 免广告特权用户在 [AdService] 实现层直接发放奖励。
      */
@@ -912,6 +928,22 @@ class GameViewModel @Inject constructor(
         uiServices.adService.watchAd(AdPurpose.MERCHANT_REFRESH) {
             if (tryMarkAdWatched()) {
                 grantMerchantRefreshChanceFromAd()
+            }
+        }
+    }
+
+    /**
+     * 播放玉符奖励广告（观看完成发放 [JADE_AD_REWARD] 玉符）。
+     * 免广告特权用户在 [AdService] 实现层直接发放奖励。
+     *
+     * 发放经 launchOnEngine 派发到引擎线程：SDK 回调线程不保证主线程，
+     * 而 JadeSymbolService.grantFromAd 内含 stateStore.update（主线程运行时守卫）。
+     */
+    fun watchAdForJadeSymbols() {
+        if (isDailyAdLimitReached()) return
+        uiServices.adService.watchAd(AdPurpose.JADE_SYMBOL_BONUS) {
+            if (tryMarkAdWatched()) {
+                gameEngine.launchOnEngine { gameEngine.grantJadeSymbolsFromAd(JADE_AD_REWARD) }
             }
         }
     }

@@ -1064,10 +1064,12 @@ fun MainGameScreen(
                         )
                         if (isUiVisible) {
                             Spacer(modifier = Modifier.width(8.dp))
-                            // 玉符货币栏（半透明胶囊条 + 图标 + 数量，点击弹说明对话框）
+                            // 玉符货币栏（半透明胶囊条 + 图标 + 数量，点击弹说明对话框，
+                            // "+"按钮弹玉符广告确认对话框）
                             JadeSymbolBadge(
                                 jadeSymbols = gameData?.jadeSymbols ?: 0,
-                                onClick = { viewModel.navigateToDialog(DialogType.JadeSymbol) }
+                                onClick = { viewModel.navigateToDialog(DialogType.JadeSymbol) },
+                                onAddClick = { viewModel.navigateToDialog(DialogType.JadeSymbolAd) }
                             )
                         }
                     }

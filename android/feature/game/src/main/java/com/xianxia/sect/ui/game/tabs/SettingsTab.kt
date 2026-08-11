@@ -268,6 +268,7 @@ internal fun SettingsTab(
     }
 
     if (showOtherSettingsDialog) {
+        val personalizedAdsEnabled by viewModel.personalizedAdsEnabled.collectAsStateWithLifecycle()
         UnifiedGameDialog(
             onDismissRequest = { showOtherSettingsDialog = false },
             title = "其他设置",
@@ -329,6 +330,30 @@ internal fun SettingsTab(
                             color = Color.Black
                         )
                     }
+                }
+
+                // 个性化广告开关（TapADN 合规要求：App 内必须提供退出个性化广告的能力）
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "个性化广告",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    CircularCheckbox(
+                        checked = personalizedAdsEnabled,
+                        onToggle = { viewModel.setPersonalizedAdsEnabled(!personalizedAdsEnabled) }
+                    )
+                    Text(
+                        text = "关闭后广告将不再基于您的兴趣推送",
+                        fontSize = 10.sp,
+                        color = Color.Black
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))

@@ -108,6 +108,9 @@ sealed interface DialogType {
     /** 玉符（氪金货币）说明与倒计时对话框 */
     data object JadeSymbol : DialogType
 
+    /** 玉符广告确认对话框（观看激励视频获得 3 玉符，含冷却/上限提示） */
+    data object JadeSymbolAd : DialogType
+
     /** 建筑宗门等级要求提示（建造栏点击等级不足时的提示） */
     data class BuildingSectLevelRequirement(val buildingName: String) : DialogType
 

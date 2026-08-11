@@ -1,5 +1,16 @@
 ## [4.00.94] - 2026-08-10
 
+### 新增（2026-08-11 聚合广告 SDK 升级 + 玉符广告按钮 + 个性化广告开关）
+
+- **广告 SDK 升级（Dirichlet 单 SDK 4.2.5.0 → TapADN 聚合 SDK 5.1.1.1）** — 聚合 Dirichlet 自有广告 + 穿山甲 CSJ（`com.pangle.cn:ads-sdk-pro:7.6.1.2`，Pangle 仓库）+ 优量汇 GDT（`com.qq.e.union:union:4.690.1560`，mavenCentral）三个广告网络；旧 `dirichlet_ad_4.2.5.0.aar` 删除（聚合 AAR 含旧包类，共存类冲突）；`RewardVideoAdManager` 重写为 `com.tapsdk.tapad.group.*` API（`showRewardVideoAutoAd` 自动加载展示合一 + `preLoad` 预热）；`MainActivity.initAdSdk` 换 `DirichletSdk.init`（InitListener + init 后按持久化偏好 `putMediaGlobalSettings` 退出个性化广告）；聚合 AAR 无自动初始化 Provider → 隐私同意门控天然成立
+- **媒体/广告位配置** — 媒体 ID 1105785 / 名称「模拟宗门」/ 密钥（用户提供，仅存 MainActivity）；新激励视频测试位 spaceId 1061442（玉符广告专用）；旧广告位 1056479（突破加成）/1059500（商人刷新）保留，真机验证聚合媒体下有效性
+- **玉符广告按钮（主界面玉符栏「+」）** — `JadeSymbolBadge` 追加 `SpriteImage("jade_add_button")`（新精灵注册 SPRITES_UI）；点击 → `JadeSymbolAdDialog` 三态确认框（每日 20 次上限 / 60s 冷却 / 正常确认，与 MerchantDialog 判定序一致）→ `watchAdForJadeSymbols()`（`isDailyAdLimitReached` 预检 → `watchAd(AdPurpose.JADE_SYMBOL_BONUS)` → `tryMarkAdWatched` 后经 `launchOnEngine` 派发 `grantJadeSymbolsFromAd(3)`）；新 DialogType 同步点：DialogType + OverlayDialogRouter 外层分派 + renderSystemRoutes 内层分支 + DialogTypeRenderCoverageTest 集合（守卫测试四同步）
+- **JadeSymbolService.grantFromAd（绝对值覆盖写模型）** — 先更新运行时 `totalCount += amount` 再 `stateStore.update { copy(jadeSymbols = totalCount) }` 绝对值写（幂等防 checkpointNow 回涨）；**不写 `todayCount`**（用户决策：广告玉符不计入每日 30 上限）；发放经 `GameEngine.grantJadeSymbolsFromAd` 转发（feature 模块不可见 `jadeSymbolService`）；守卫测试 `JadeSymbolConsumptionGuardTest` 白名单无需改（grant 收敛于服务内部）
+- **个性化广告开关（TapADN 合规强制）** — `AdService` 接口扩展 `isPersonalizedAdsEnabled/setPersonalizedAdsEnabled`（core:engine）→ `AdServiceImpl` SharedPreferences 持久化（默认开启）+ `putMediaGlobalSettings(Constants.Personalization.PERSONAL_ADS_TYPE, ALLOW/LIMIT)` 切换（runCatching 降级）；SettingsTab「其他设置」新增「个性化广告」CircularCheckbox + 说明（关闭后广告不再基于兴趣推送）；PrivacyConsentScreen + docs/index.html 双入口披露更新（聚合版 v5.1.1.1 + 穿山甲「北京巨量引擎」/优量汇「深圳市腾讯」参与方 + 隐私链接，穿山甲 https://www.pangle.cn/privacy/partner 、优量汇 https://e.qq.com/dev/help_detail.html?cid=2005&pid=5983 均验证 200 可访问；更新日期 2026-08-11）
+- **对抗性审查（AdPurpose 映射 / 回调线程 launchOnEngine / rewardClaimed AtomicBoolean 单次守卫 / onError+onAdClose 双复位 isLoadingAd / 跨天边界 / 白名单直发）** — 全部按既有防线落实；Manifest 合并新增 `tools:replace="android:allowBackup"`（优量汇声明 false 与 app true 冲突）；3 个 FileProvider authority（TapAD/GDT/TT）各不同共存
+- **测试** — 见测试层专项（JadeSymbolServiceTest grantFromAd 用例 / AdsDelegateTest 新建 / GameViewModelTest 扩展）；compileReleaseKotlin 通过；changelog 双入口已同步（本条目 + changelog_entries.json v4.00.94 changes 末尾追加 3 条玩家视角描述）；版本号不递增
+- **兼容性** — 无 Entity/Migration/存档格式变更（DATABASE_VERSION 不变）；隐私同意前无 SDK 初始化（聚合 AAR 无自动初始化 Provider）；需真机验证：3 广告位填充、玉符发放、白名单、个性化开关、测试推广位绑定测试工具规避限流（用户后台操作）
+
 ### 修复（2026-08-11 一键拆除高亮 + 放置/移动网格线迁移 native 渲染层——拖拽视角错位根治）
 
 - **根因（双时钟渲染错位）** — 建筑精灵由 NativeSurfaceView 独立渲染线程绘制（异步消费 `@Volatile` 相机快照，30~60fps）；拆除高亮（DemolishSelectionOverlay）与网格线（GridOverlay）是 Compose 覆盖层，在 UI 线程 Compose 绘制阶段即时读取最新 `SectCameraState`。两条管线读同一相机但消费时机不同步（0~1+ 帧相位差，EWMA 自适应帧率拖拽开始时约 20fps 放大到 ~50ms）→ 拖拽中高亮/网格与精灵相对位移。精灵底部对齐 + 尺寸大于占地 footprint → 垂直错位时上沿与下沿同时露出占地框（用户所见"上半和下半不被覆盖，很快补回"）。金色选中高亮（drawSelectionHighlight）与精灵共用合并后帧相机从未错位——正例

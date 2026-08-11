@@ -13,6 +13,27 @@
 -keeppackagenames com.tapsdk.tapad.**
 -dontwarn com.tapsdk.tapad.**
 
+# 穿山甲广告 SDK（Pangle / CSJ，Maven com.pangle.cn:ads-sdk-pro）
+# keep 核心公开包；可选组件（注解类/keva 存储/sdkmonitor 监控/embed_dr OAID）
+# 缺失时 SDK 功能降级不崩溃，按官方文档 dontwarn 豁免
+-keep class com.bytedance.sdk.openadsdk.** { *; }
+-keep class com.pangle.** { *; }
+-keep class com.bytedance.embedapplog.** { *; }
+-keep class com.bytedance.embed_dr.** { *; }
+-dontwarn com.bytedance.sdk.openadsdk.**
+-dontwarn com.pangle.**
+-dontwarn com.bytedance.embedapplog.**
+-dontwarn com.bytedance.embed_dr.**
+-dontwarn com.bytedance.component.sdk.annotation.**
+-dontwarn com.bytedance.framwork.core.sdkmonitor.**
+-dontwarn com.bytedance.keva.**
+-dontwarn android.app.Activity$TranslucentConversionListener
+-dontwarn android.os.SystemProperties
+
+# 优量汇广告 SDK（GDT / 腾讯广告，Maven com.qq.e.union:union）
+-keep class com.qq.e.** { *; }
+-dontwarn com.qq.e.**
+
 # TapTap SDK annotations
 -keep class com.taptap.sdk.servicemanager.annotation.** { *; }
 -keep class com.taptap.sdk.startup.annotation.** { *; }

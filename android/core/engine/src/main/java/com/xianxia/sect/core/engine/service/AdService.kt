@@ -24,6 +24,23 @@ interface AdService {
         purpose: AdPurpose,
         onReward: () -> Unit
     )
+
+    /**
+     * 个性化广告是否开启。
+     *
+     * 合规要求（TapADN SDK 合规使用说明）：App 内必须提供退出个性化广告能力，
+     * 退出后广告数量不变、相关度降低。
+     *
+     * @return true 表示接收个性化广告推荐（默认）
+     */
+    fun isPersonalizedAdsEnabled(): Boolean
+
+    /**
+     * 设置个性化广告开关。
+     *
+     * @param enabled true 允许个性化广告，false 退出个性化广告
+     */
+    fun setPersonalizedAdsEnabled(enabled: Boolean)
 }
 
 /**
@@ -34,5 +51,7 @@ enum class AdPurpose {
     /** 突破修炼奖励广告 */
     BREAKTHROUGH_BONUS,
     /** 商人手动刷新次数广告 */
-    MERCHANT_REFRESH
+    MERCHANT_REFRESH,
+    /** 观看广告获得玉符 */
+    JADE_SYMBOL_BONUS
 }

@@ -13,8 +13,12 @@ import java.util.concurrent.atomic.AtomicInteger
  * 线程安全设计：
  * - [dailyCount] 使用 AtomicInteger 避免 TOCTOU 竞争（检查与标记原子化）
  * - [lastResetDay] 使用双重检查锁定（double-checked locking）确保跨天重置安全
+ *
+ * @param clock 时钟注入（测试确定性）；默认取系统墙钟
  */
-class AdsDelegate {
+class AdsDelegate(
+    private val clock: () -> Long = System::currentTimeMillis
+) {
 
     companion object {
         private const val TAG = "AdsDelegate"
@@ -26,6 +30,12 @@ class AdsDelegate {
         private val dailyCount = AtomicInteger(0)
         /** 上次重置的天（getTodayStartMs 的值，跨实例共享） */
         @Volatile private var lastResetDay: Long = 0L
+
+        /** 测试专用：重置跨实例共享计数（避免测试间相互污染） */
+        internal fun resetForTest() {
+            dailyCount.set(0)
+            lastResetDay = 0L
+        }
     }
 
     @Volatile private var adCooldownUntilMs: Long = 0L
@@ -34,7 +44,7 @@ class AdsDelegate {
 
     fun isAdOnCooldown(): Boolean {
         if (AdFreeWhitelist.isCurrentUserPrivileged()) return false
-        return System.currentTimeMillis() < adCooldownUntilMs
+        return clock() < adCooldownUntilMs
     }
 
     // ── 每日次数检查 ──
@@ -67,7 +77,7 @@ class AdsDelegate {
     fun tryMarkAdWatched(): Boolean {
         if (AdFreeWhitelist.isCurrentUserPrivileged()) return true
 
-        val now = System.currentTimeMillis()
+        val now = clock()
         adCooldownUntilMs = now + AD_COOLDOWN_MS
 
         ensureDayReset()
@@ -105,7 +115,7 @@ class AdsDelegate {
     }
 
     private fun getTodayStartMs(): Long {
-        val calendar = Calendar.getInstance()
+        val calendar = Calendar.getInstance().apply { timeInMillis = clock() }
         calendar.set(Calendar.HOUR_OF_DAY, 0)
         calendar.set(Calendar.MINUTE, 0)
         calendar.set(Calendar.SECOND, 0)

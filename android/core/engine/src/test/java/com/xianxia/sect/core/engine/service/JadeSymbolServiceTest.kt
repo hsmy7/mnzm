@@ -311,6 +311,63 @@ class JadeSymbolServiceTest {
             service.runtimeState.value.remainingMs)
     }
 
+    // ── 广告发放（玉符栏"+"按钮路径，2026-08-11 新增）──
+
+    @Test
+    fun `grantFromAd - 正常发放 3 枚并同步 GameData 与运行时`() {
+        service.onLoopStart()
+
+        val ok = service.grantFromAd(3)
+
+        assertTrue(ok)
+        assertEquals(3, service.runtimeState.value.total)
+        assertEquals(3, store.gameDataSnapshot.jadeSymbols)
+        // 用户决策：广告玉符不计入每日 30 上限
+        assertEquals(0, store.gameDataSnapshot.jadeSymbolsToday)
+        // checkpoint 绝对值覆盖写幂等：不回涨不丢失
+        service.checkpointNow()
+        assertEquals(3, store.gameDataSnapshot.jadeSymbols)
+        assertEquals(3, service.runtimeState.value.total)
+    }
+
+    @Test
+    fun `grantFromAd - 多次发放累计`() {
+        service.onLoopStart()
+
+        service.grantFromAd(3)
+        service.grantFromAd(3)
+
+        assertEquals(6, store.gameDataSnapshot.jadeSymbols)
+        assertEquals(6, service.runtimeState.value.total)
+        service.checkpointNow()
+        assertEquals(6, store.gameDataSnapshot.jadeSymbols)
+    }
+
+    @Test
+    fun `grantFromAd - 负值或零返回 false 且无副作用`() {
+        service.onLoopStart()
+
+        assertTrue(!service.grantFromAd(0))
+        assertTrue(!service.grantFromAd(-3))
+        assertEquals(0, store.gameDataSnapshot.jadeSymbols)
+        assertEquals(0, service.runtimeState.value.total)
+        service.checkpointNow()
+        assertEquals(0, store.gameDataSnapshot.jadeSymbols)
+    }
+
+    @Test
+    fun `grantFromAd - 发放立即发布状态清 1Hz 节流`() {
+        service.onLoopStart()
+        fakeTime.nowMs += 500L
+        service.onLoopTick() // 节流内不发布（remainingMs 保持满值）
+
+        service.grantFromAd(3)
+
+        // publishJadeSymbolStateNow 清节流：剩余时间反映刚累计的 500ms
+        assertEquals(INTERVAL - 500L, service.runtimeState.value.remainingMs)
+        assertEquals(3, service.runtimeState.value.total)
+    }
+
     // ── UI 节流 ──
 
     @Test

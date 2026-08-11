@@ -248,8 +248,12 @@ dependencies {
     // implementation libs.firebase.config
     // implementation libs.firebase.analytics
 
-    // Dirichlet Ad SDK
-    implementation(name: "dirichlet_ad_4.2.5.0", ext: "aar")
+    // Dirichlet 聚合 SDK 5.1.1.1（Mediation 聚合 + CSJ 穿山甲 + GDT 优量汇）
+    implementation(name: "DirichletAD_Mediation_5.1.1.1", ext: "aar")
+    implementation(name: "DirichletAD_CSJ_Adapter_5.1.1.1", ext: "aar")
+    implementation(name: "DirichletAD_GDT_Adapter_5.1.1.1", ext: "aar")
+    implementation("com.pangle.cn:ads-sdk-pro:7.6.1.2")
+    implementation("com.qq.e.union:union:4.690.1560")
     implementation(libs.glide) {
         exclude group: "com.android.support"
     }

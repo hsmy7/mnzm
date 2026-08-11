@@ -13,6 +13,7 @@ import com.xianxia.sect.ui.game.components.OverlayCallbacks
 import com.xianxia.sect.ui.game.components.OverlayViewModels
 import com.xianxia.sect.ui.game.GameViewModel
 import com.xianxia.sect.ui.game.dialogs.CloudSaveDialog
+import com.xianxia.sect.ui.game.dialogs.JadeSymbolAdDialog
 import com.xianxia.sect.ui.game.dialogs.JadeSymbolDialog
 import com.xianxia.sect.ui.game.dialogs.SectLevelDetailDialog
 import com.xianxia.sect.ui.game.dialogs.shared.RenameSectDialog
@@ -84,6 +85,7 @@ internal fun DialogType.renderSystemRoutes(
             )
         }
         DialogType.JadeSymbol -> JadeSymbolDialogRoute(viewModel, onDismiss)
+        DialogType.JadeSymbolAd -> JadeSymbolAdDialogRoute(viewModel, onDismiss)
         else -> Unit
     }
 }
@@ -95,6 +97,18 @@ private fun JadeSymbolDialogRoute(
     onDismiss: () -> Unit
 ) {
     JadeSymbolDialog(
+        viewModel = viewModel,
+        onDismiss = onDismiss
+    )
+}
+
+/** 玉符广告确认对话框路由（拆出保持 renderSystemRoutes ≤60 行）。 */
+@Composable
+private fun JadeSymbolAdDialogRoute(
+    viewModel: GameViewModel,
+    onDismiss: () -> Unit
+) {
+    JadeSymbolAdDialog(
         viewModel = viewModel,
         onDismiss = onDismiss
     )

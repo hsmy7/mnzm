@@ -1,16 +1,21 @@
 package com.xianxia.sect.taptap
 
 import android.app.Activity
+import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
+import com.tapsdk.tapad.constants.Constants
+import com.tapsdk.tapad.group.DirichletSdk
 import com.xianxia.sect.core.AdFreeWhitelist
 import com.xianxia.sect.core.engine.service.AdPurpose
 import com.xianxia.sect.core.engine.service.AdService
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 激励视频广告服务实现。
+ * 激励视频广告服务实现（Dirichlet 聚合 SDK）。
  *
  * 委托给 [RewardVideoAdManager] 执行实际的广告加载和展示。
  * Activity 引用由 [attachActivity] 注入（GameActivity 在 onCreate 时调用）。
@@ -21,10 +26,14 @@ import javax.inject.Singleton
  * 幂等守卫通过 [AtomicBoolean] 实现（防止 onRewardVerify 多次回调）。
  */
 @Singleton
-class AdServiceImpl @Inject constructor() : AdService {
+class AdServiceImpl @Inject constructor(
+    @ApplicationContext private val context: Context
+) : AdService {
 
     companion object {
         private const val TAG = "AdServiceImpl"
+        private const val PREFS_NAME = "ad_settings"
+        private const val KEY_PERSONALIZED_ADS = "personalized_ads_enabled"
     }
 
     @Volatile private var activityRef: Activity? = null
@@ -48,12 +57,10 @@ class AdServiceImpl @Inject constructor() : AdService {
         }
 
         val activity = activityRef
-        if (activity == null) {
-            Log.w(TAG, "watchAd skipped: activityRef is null")
-        } else if (isLoadingAd) {
-            Log.d(TAG, "watchAd skipped: previous ad still loading")
-        } else {
-            startAdLoading(activity, purpose, onReward)
+        when {
+            activity == null -> Log.w(TAG, "watchAd skipped: activityRef is null")
+            isLoadingAd -> Log.d(TAG, "watchAd skipped: previous ad still loading")
+            else -> startAdLoading(activity, purpose, onReward)
         }
     }
 
@@ -67,6 +74,7 @@ class AdServiceImpl @Inject constructor() : AdService {
         val (rewardName, rewardAmount, spaceId) = when (purpose) {
             AdPurpose.BREAKTHROUGH_BONUS -> Triple("奖励", 1, 1056479L)
             AdPurpose.MERCHANT_REFRESH -> Triple("商人刷新次数", 3, 1059500L)
+            AdPurpose.JADE_SYMBOL_BONUS -> Triple("玉符", 3, 1061442L)
         }
 
         val rewardClaimed = AtomicBoolean(false)
@@ -85,38 +93,63 @@ class AdServiceImpl @Inject constructor() : AdService {
                     onReward()
                 }
 
-                override fun onAdCached() {
-                    RewardVideoAdManager.showAd(activity)
+                override fun onAdError(code: Int, message: String) {
+                    isLoadingAd = false
+                    Log.e(TAG, "Ad error: code=$code, message=$message")
+                    RewardVideoAdManager.removeCallback()
                 }
 
                 override fun onAdClose() {
                     isLoadingAd = false
                     RewardVideoAdManager.removeCallback()
                 }
-
-                override fun onAdLoadError(code: Int, message: String) {
-                    isLoadingAd = false
-                    Log.e(TAG, "Ad load failed: code=$code, message=$message")
-                }
-
-                override fun onVideoError() {
-                    isLoadingAd = false
-                    Log.e(TAG, "Ad video playback error")
-                }
             }
         )
 
         try {
-            RewardVideoAdManager.loadAd(
+            RewardVideoAdManager.showAd(
                 activity = activity,
+                spaceId = spaceId,
                 rewardName = rewardName,
-                rewardAmount = rewardAmount,
-                spaceId = spaceId
+                rewardAmount = rewardAmount
             )
         } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
             isLoadingAd = false
-            Log.e(TAG, "loadAd threw exception", e)
+            Log.e(TAG, "showAd threw exception", e)
             RewardVideoAdManager.removeCallback()
         }
     }
+
+    override fun isPersonalizedAdsEnabled(): Boolean =
+        prefs().getBoolean(KEY_PERSONALIZED_ADS, true)
+
+    override fun setPersonalizedAdsEnabled(enabled: Boolean) {
+        prefs().edit().putBoolean(KEY_PERSONALIZED_ADS, enabled).apply()
+        applyPersonalizationSetting()
+    }
+
+    /**
+     * 将持久化的个性化广告偏好同步到 SDK。
+     *
+     * 需在 [DirichletSdk.init] 完成后调用（SDK 未初始化时静默失败，不崩溃）。
+     * 开关切换时由 [setPersonalizedAdsEnabled] 内部再次调用。
+     */
+    fun applyPersonalizationSetting() {
+        val enabled = isPersonalizedAdsEnabled()
+        runCatching {
+            DirichletSdk.putMediaGlobalSettings(
+                Constants.Personalization.PERSONAL_ADS_TYPE,
+                if (enabled) {
+                    Constants.Personalization.PERSONAL_ADS_TYPE_ALLOW
+                } else {
+                    Constants.Personalization.PERSONAL_ADS_TYPE_LIMIT
+                }
+            )
+        }.onFailure {
+            Log.e(TAG, "putMediaGlobalSettings failed", it)
+        }
+    }
+
+    private fun prefs(): SharedPreferences =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 }

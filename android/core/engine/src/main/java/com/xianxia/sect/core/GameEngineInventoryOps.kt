@@ -59,6 +59,15 @@ fun GameEngine.grantMerchantRefreshChanceFromAd() {
     }
 }
 
+/**
+ * 观看广告后发放玉符（必须在引擎线程调用，调用方负责 launchOnEngine 派发）。
+ *
+ * 玉符绝对值覆盖写模型受守卫测试约束，发放必须收敛于 [JadeSymbolService.grantFromAd]，
+ * 禁止在此直接 stateStore.update 写 jadeSymbols。
+ */
+fun GameEngine.grantJadeSymbolsFromAd(amount: Int): Boolean =
+    jadeSymbolService.grantFromAd(amount)
+
 suspend fun GameEngine.listItemsToMerchant(items: List<Pair<String, Int>>) = inventoryFacade.listItemsToMerchant(items)
 suspend fun GameEngine.removePlayerListedItem(itemId: String) = inventoryFacade.removePlayerListedItem(itemId)
 suspend fun GameEngine.openStorageBag(bagId: String): Pair<List<BattleRewardItem>, List<RewardCardItem>> = inventoryFacade.openStorageBag(bagId)

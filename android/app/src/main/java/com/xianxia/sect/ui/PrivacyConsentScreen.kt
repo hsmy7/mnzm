@@ -34,6 +34,10 @@ import com.xianxia.sect.ui.theme.GameColors
 private const val TAPTAP_SDK_PRIVACY_URL = "https://developer.taptap.cn/docs/sdk/start/agreement/"
 private const val MMKV_URL = "https://github.com/Tencent/MMKV"
 private const val DIRICHLET_AD_SDK_PRIVACY_URL = "https://ssp.dirichlet.cn/docs/agreement/"
+// 穿山甲（Pangle）广告 SDK 隐私政策（聚合 SDK 接入网络之一，2026-08-11 验证可访问）
+private const val PANGLE_SDK_PRIVACY_URL = "https://www.pangle.cn/privacy/partner"
+// 优量汇（GDT，腾讯广告联盟）SDK 个人信息保护规则（聚合 SDK 接入网络之一，2026-08-11 验证可访问）
+private const val GDT_SDK_PRIVACY_URL = "https://e.qq.com/dev/help_detail.html?cid=2005&pid=5983"
 private const val PRIVACY_POLICY_URL = "https://hsmy7.github.io/mnzm/"
 
 // UseKtx 保留 Uri.parse：隐私政策 URL 来自固定常量，显式构造 Uri 表达明确意图
@@ -98,7 +102,9 @@ fun PrivacyConsentScreen(
                         onPrivacyLinkClick = { showFullPolicy = true },
                         onTapTapSdkLinkClick = { openUrlInBrowser(context, TAPTAP_SDK_PRIVACY_URL) },
                         onMmkvLinkClick = { openUrlInBrowser(context, MMKV_URL) },
-                        onDirichletAdSdkLinkClick = { openUrlInBrowser(context, DIRICHLET_AD_SDK_PRIVACY_URL) }
+                        onDirichletAdSdkLinkClick = { openUrlInBrowser(context, DIRICHLET_AD_SDK_PRIVACY_URL) },
+                        onPangleSdkLinkClick = { openUrlInBrowser(context, PANGLE_SDK_PRIVACY_URL) },
+                        onGdtSdkLinkClick = { openUrlInBrowser(context, GDT_SDK_PRIVACY_URL) }
                     )
                 }
             }
@@ -180,7 +186,9 @@ private fun PrivacySummaryContent(
     onPrivacyLinkClick: () -> Unit = {},
     onTapTapSdkLinkClick: () -> Unit = {},
     onMmkvLinkClick: () -> Unit = {},
-    onDirichletAdSdkLinkClick: () -> Unit = {}
+    onDirichletAdSdkLinkClick: () -> Unit = {},
+    onPangleSdkLinkClick: () -> Unit = {},
+    onGdtSdkLinkClick: () -> Unit = {}
 ) {
     val sectionTitleStyle = SpanStyle(fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.Black)
     val bodyStyle = SpanStyle(fontSize = 13.sp, color = Color.Black)
@@ -251,17 +259,17 @@ private fun PrivacySummaryContent(
     ) {
         Text(
             text = "【广告标识符（OAID / GAID）收集特别提示】\n\n" +
-                "TapTap SDK 和 Dirichlet Ad SDK（TapADN SDK）在初始化后可能收集您的广告标识符，" +
-                "包括：\n\n" +
+                "TapTap SDK 和 TapADN 聚合广告 SDK（Dirichlet 自有广告、穿山甲、优量汇）在初始化后" +
+                "可能收集您的广告标识符，包括：\n\n" +
                 "• OAID（开放匿名设备标识符）：中国广告协会推出的广告场景设备标识符\n" +
                 "• GAID（Google 广告标识符）：在支持 Google Play 服务的设备上，SDK 会读取 " +
                 "GAID 作为广告标识符\n\n" +
                 "• 收集目的：广告效果分析、广告投放与效果归因\n" +
-                "• 收集方式：两个 SDK 初始化时自动获取\n" +
+                "• 收集方式：各 SDK 初始化时自动获取\n" +
                 "• 收集范围：仅用于广告相关场景，不用于游戏存档、登录等功能\n" +
-                "• 同意前置：两个 SDK 仅在您点击\"同意\"本隐私政策后才初始化并读取" +
+                "• 同意前置：各 SDK 仅在您点击\"同意\"本隐私政策后才初始化并读取" +
                 "上述标识符；若您不同意，本应用将退出，不会进行任何收集\n\n" +
-                "两个 SDK 对广告标识符的收集和处理受各自隐私政策约束（见下方链接）。",
+                "各 SDK 对广告标识符的收集和处理受各自隐私政策约束（见下方链接）。",
             fontSize = 12.sp,
             color = Color(0xFFC62828),
             modifier = Modifier.padding(10.dp),
@@ -396,11 +404,15 @@ private fun PrivacySummaryContent(
 
     val dirichletAnnotatedString = buildAnnotatedString {
         withStyle(ParagraphStyle(lineHeight = 19.sp)) {
-            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)) { append("Dirichlet Ad SDK / TapADN SDK（v4.2.5.0）") }
+            withStyle(SpanStyle(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color.Black)) {
+                append("TapADN 聚合广告 SDK（Dirichlet 聚合广告 SDK，v5.1.1.1）")
+            }
             append("\n")
             withStyle(bodyStyle) {
                 append(
-                    "仅在您同意本隐私政策后初始化，用于提供激励视频广告功能。可能收集：设备信息（型号、系统版本、Android ID、" +
+                    "仅在您同意本隐私政策后初始化，用于提供激励视频广告功能。本 SDK 为聚合广告 SDK，" +
+                        "聚合了 Dirichlet 自有广告、穿山甲广告（北京巨量引擎网络技术有限公司）和优量汇广告（深圳市腾讯计算机系统有限公司）" +
+                        "三个广告网络。可能收集：设备信息（型号、系统版本、Android ID、" +
                         "OAID、GAID（Google广告标识符，在支持Google Play服务的设备上收集）、IMEI/Device ID、MAC地址）、网络信息（网络类型、IP地址）、" +
                         "位置信息（粗略位置）、应用安装列表、广告交互数据（展示、点击、转化）。"
                 )
@@ -408,6 +420,14 @@ private fun PrivacySummaryContent(
             append("\n")
             pushStringAnnotation(tag = "URL", annotation = DIRICHLET_AD_SDK_PRIVACY_URL)
             withStyle(linkStyle) { append("Dirichlet Ad SDK隐私政策 >") }
+            pop()
+            append("\n")
+            pushStringAnnotation(tag = "URL", annotation = PANGLE_SDK_PRIVACY_URL)
+            withStyle(linkStyle) { append("穿山甲广告SDK隐私政策 >") }
+            pop()
+            append("\n")
+            pushStringAnnotation(tag = "URL", annotation = GDT_SDK_PRIVACY_URL)
+            withStyle(linkStyle) { append("优量汇SDK个人信息保护规则 >") }
             pop()
         }
     }
@@ -417,8 +437,15 @@ private fun PrivacySummaryContent(
             .padding(bottom = 12.dp, start = 8.dp)
             .pointerInput(dirichletAnnotatedString) {
                 detectTapGestures { offset ->
-                    dirichletAnnotatedString.getStringAnnotations(tag = "URL", start = offset.x.toInt(), end = offset.x.toInt())
-                        .firstOrNull()?.let { onDirichletAdSdkLinkClick() }
+                    val url = dirichletAnnotatedString
+                        .getStringAnnotations(tag = "URL", start = offset.x.toInt(), end = offset.x.toInt())
+                        .firstOrNull()
+                    when (url?.item) {
+                        DIRICHLET_AD_SDK_PRIVACY_URL -> onDirichletAdSdkLinkClick()
+                        PANGLE_SDK_PRIVACY_URL -> onPangleSdkLinkClick()
+                        GDT_SDK_PRIVACY_URL -> onGdtSdkLinkClick()
+                        else -> Unit
+                    }
                 }
             }
     )
@@ -525,7 +552,7 @@ fun FullPrivacyPolicyScreen(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "更新日期：2026年8月8日 | 生效日期：2026年8月8日",
+                    text = "更新日期：2026年8月11日 | 生效日期：2026年8月11日",
                     fontSize = 12.sp,
                     color = GameColors.TextTertiary,
                     modifier = Modifier.fillMaxWidth(),
@@ -647,7 +674,11 @@ fun FullPrivacyPolicyScreen(
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                text = "关于 Android ID 与第三方 SDK：除本应用自身读取 Android ID 用于本地加密密钥派生外，TapTap SDK（包括 tap-core、tap-login、tap-compliance 模块）也会独立收集 Android ID，用于确保设备系统兼容性和定位解决问题。Dirichlet Ad SDK（TapADN SDK）也会收集 Android ID，用于广告投放和效果归因。上述 SDK 对 Android ID 的收集和处理受各自隐私政策约束，详见下方第二节。",
+                                text = "关于 Android ID 与第三方 SDK：除本应用自身读取 Android ID 用于本地加密密钥派生外，" +
+                                    "TapTap SDK（包括 tap-core、tap-login、tap-compliance 模块）也会独立收集" +
+                                    "Android ID，用于确保设备系统兼容性和定位解决问题。" +
+                                    "TapADN 聚合广告 SDK（Dirichlet 自有广告、穿山甲、优量汇）也会收集 Android ID，用于广告投放和效果归因。" +
+                                    "上述 SDK 对 Android ID 的收集和处理受各自隐私政策约束，详见下方第二节。",
                                 fontSize = 12.sp, color = Color(0xFF1565C0), lineHeight = 18.sp,
                                 modifier = Modifier.padding(10.dp)
                             )
@@ -660,18 +691,19 @@ fun FullPrivacyPolicyScreen(
                         ) {
                             Text(
                                 text = "【广告标识符（OAID / GAID）收集特别提示】\n\n" +
-                                    "TapTap SDK 和 Dirichlet Ad SDK（TapADN SDK）在初始化后可能收集您的广告标识符。" +
+                                    "TapTap SDK 和 TapADN 聚合广告 SDK（Dirichlet 自有广告、穿山甲、优量汇）在初始化后可能收集您的广告标识符。" +
                                     "广告标识符是专门用于广告场景的设备标识符，与普通的设备信息有本质区别。\n\n" +
                                     "• OAID（开放匿名设备标识符）：中国广告协会推出的广告场景设备标识符\n" +
                                     "• GAID（Google 广告标识符）：在支持 Google Play 服务的设备上，SDK 会读取 GAID 作为广告标识符。" +
                                     "GAID 由 Google 提供，您可在设备系统设置 → Google → 广告中重置或停用个性化广告\n\n" +
                                     "• 收集目的：TapTap 使用广告标识符进行广告效果分析；" +
-                                    "Dirichlet Ad SDK 使用广告标识符进行广告投放和效果归因\n" +
+                                    "TapADN 聚合广告 SDK 使用广告标识符进行广告投放和效果归因\n" +
                                     "• 收集方式：由各 SDK 在初始化时自动获取\n" +
                                     "• 收集范围：仅用于广告相关场景，不用于游戏存档、登录等功能\n" +
-                                    "• 同意前置：两个 SDK 仅在您同意本隐私政策后才初始化并读取上述标识符；" +
+                                    "• 同意前置：各 SDK 仅在您同意本隐私政策后才初始化并读取上述标识符；" +
                                     "若您不同意，本应用将退出，不会进行任何收集\n" +
-                                    "• 功能影响：广告标识符仅服务于广告场景，不影响游戏的正常使用和 TapTap 登录功能",
+                                    "• 功能影响：广告标识符仅服务于广告场景，不影响游戏的正常使用和 TapTap 登录功能\n" +
+                                    "• 个性化广告开关：您可在游戏内\"设置 → 其他设置\"中关闭个性化广告，关闭后广告将不再基于您的兴趣推送",
                                 fontSize = 12.sp, color = Color(0xFFC62828), lineHeight = 18.sp,
                                 modifier = Modifier.padding(10.dp), fontWeight = FontWeight.Medium
                             )
@@ -753,12 +785,16 @@ fun FullPrivacyPolicyScreen(
                         )
                     }
 
-                    FullPolicySubSection("2.3 Dirichlet Ad SDK / TapADN SDK（v4.2.5.0）") {
+                    FullPolicySubSection("2.3 TapADN 聚合广告 SDK（v5.1.1.1）") {
                         Text(
                             text = "由上海艾得蒽数字科技有限公司提供。仅在您同意本隐私政策后初始化，用于提供激励视频广告功能。\n\n" +
+                                "• 聚合模式：本 SDK 为聚合广告 SDK，除 Dirichlet 自有广告外，还聚合了" +
+                                "穿山甲广告（北京巨量引擎网络技术有限公司）和优量汇广告（深圳市腾讯计算机系统有限公司）两个广告网络\n" +
                                 "• TapADN SDK：激励视频广告 — 可能收集设备信息（设备型号、操作系统版本、Android ID、OAID、" +
                                 "GAID（Google广告标识符，在支持Google Play服务的设备上收集）、IMEI/Device ID、MAC地址）、" +
-                                "网络信息（网络类型、IP地址）、位置信息（粗略位置）、应用安装列表、广告交互数据（广告展示、点击、转化）",
+                                "网络信息（网络类型、IP地址）、位置信息（粗略位置）、应用安装列表、广告交互数据（广告展示、点击、转化）\n" +
+                                "• 个性化广告：您可在游戏内\"设置 → 其他设置\"中关闭个性化广告，关闭后广告将不再基于您的兴趣推送" +
+                                "（穿山甲/优量汇的个性化广告能力也一并关闭）",
                             fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
                         )
                         Spacer(modifier = Modifier.height(6.dp))
@@ -769,6 +805,46 @@ fun FullPrivacyPolicyScreen(
                             fontWeight = FontWeight.Medium,
                             textDecoration = TextDecoration.Underline,
                             modifier = Modifier.clickable { openUrlInBrowser(context, DIRICHLET_AD_SDK_PRIVACY_URL) }
+                        )
+                    }
+
+                    FullPolicySubSection("2.4 穿山甲广告 SDK（Pangle）") {
+                        Text(
+                            text = "由北京巨量引擎网络技术有限公司及其关联方提供，经 TapADN 聚合广告 SDK 集成，" +
+                                "仅在您同意本隐私政策后初始化，用于广告投放及效果优化。\n\n" +
+                                "• 可能收集：设备信息（品牌、型号、系统版本、Android ID、OAID、可选：IMEI、GAID、" +
+                                "硬件序列号）、网络信息（运营商、Wi-Fi 状态、IP 地址）、应用信息（包名、版本号、软件列表）、" +
+                                "位置信息（可选，精确/粗略位置）、传感器信息、广告交互数据（展示、点击、转化）、崩溃与性能数据",
+                            fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "穿山甲广告SDK隐私政策",
+                            fontSize = 13.sp,
+                            color = GameColors.SpiritBlue,
+                            fontWeight = FontWeight.Medium,
+                            textDecoration = TextDecoration.Underline,
+                            modifier = Modifier.clickable { openUrlInBrowser(context, PANGLE_SDK_PRIVACY_URL) }
+                        )
+                    }
+
+                    FullPolicySubSection("2.5 优量汇广告 SDK（GDT）") {
+                        Text(
+                            text = "由深圳市腾讯计算机系统有限公司提供，经 TapADN 聚合广告 SDK 集成，" +
+                                "仅在您同意本隐私政策后初始化，用于广告投放及效果优化。\n\n" +
+                                "• 可能收集：设备信息（设备型号、操作系统版本、Android ID、OAID、GAID、" +
+                                "IMEI/Device ID、MAC 地址）、网络信息（网络类型、IP 地址）、位置信息（粗略位置）、" +
+                                "应用安装列表、广告交互数据（展示、点击、转化）",
+                            fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "优量汇SDK个人信息保护规则",
+                            fontSize = 13.sp,
+                            color = GameColors.SpiritBlue,
+                            fontWeight = FontWeight.Medium,
+                            textDecoration = TextDecoration.Underline,
+                            modifier = Modifier.clickable { openUrlInBrowser(context, GDT_SDK_PRIVACY_URL) }
                         )
                     }
                 }
@@ -789,7 +865,11 @@ fun FullPrivacyPolicyScreen(
 
                 FullPolicySection("五、信息共享") {
                     Text(
-                        text = "我们不会与任何第三方共享您的个人信息，以下情况除外：\n\n• TapTap SDK：当您使用 TapTap 登录时，您的 TapTap 账户标识会与 TapTap 平台交互\n• Dirichlet Ad SDK：当您观看激励视频广告时，您的设备信息和广告交互数据会与上海艾得蒽数字科技有限公司交互\n• 法律要求：在法律法规要求或政府主管部门依法要求的情况下",
+                        text = "我们不会与任何第三方共享您的个人信息，以下情况除外：\n\n" +
+                            "• TapTap SDK：当您使用 TapTap 登录时，您的 TapTap 账户标识会与 TapTap 平台交互\n" +
+                            "• TapADN 聚合广告 SDK：当您观看激励视频广告时，您的设备信息和广告交互数据会与上海艾得蒽数字科技有限公司（Dirichlet 自有广告）交互，" +
+                            "并经聚合 SDK 与北京巨量引擎网络技术有限公司（穿山甲广告）和深圳市腾讯计算机系统有限公司（优量汇广告）交互\n" +
+                            "• 法律要求：在法律法规要求或政府主管部门依法要求的情况下",
                         fontSize = 13.sp, color = Color.Black, lineHeight = 20.sp
                     )
                 }

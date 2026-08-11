@@ -23,7 +23,9 @@ dependencyResolutionManagement {
             content { includeGroupByRegex("com\\.taptap.*") }
         }
         maven { url = 'https://developer.huawei.com/repo/' }
-        // Dirichlet Ad SDK AAR 本地仓库
+        // Dirichlet 聚合 SDK 穿山甲（Pangle）核心依赖仓库
+        maven { url = 'https://artifact.bytedance.com/repository/pangle' }
+        // Dirichlet 聚合 SDK AAR 本地仓库
         flatDir { dirs 'app/src/main/libs' }
     }
 }

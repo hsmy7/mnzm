@@ -58,6 +58,7 @@ class DialogTypeRenderCoverageTest {
         DialogType.SectLevelDetail,
         DialogType.CloudSave,
         DialogType.JadeSymbol,
+        DialogType.JadeSymbolAd,
         DialogType.BuildingSectLevelRequirement("")
     )
 

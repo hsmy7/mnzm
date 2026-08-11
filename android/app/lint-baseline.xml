@@ -26,11 +26,4 @@
             column="22"/>
     </issue>
 
-    <issue
-        id="TrustAllX509TrustManager"
-        message="`checkClientTrusted` is empty, which could cause insecure network traffic due to trusting arbitrary TLS/SSL certificates presented by peers">
-        <location
-            file="$GRADLE_USER_HOME/caches/8.14.5/transforms/6a6290bc6868696f4c00d2541730357a/transformed/jetified-dirichlet_ad_4.2.5.0/jars/classes.jar"/>
-    </issue>
-
 </issues>

@@ -154,6 +154,9 @@ class MainActivity : ComponentActivity() {
 
     @Inject
     lateinit var ioDispatcher: IoDispatcher
+
+    @Inject
+    lateinit var adServiceImpl: com.xianxia.sect.taptap.AdServiceImpl
     
     public var complianceDialogState = mutableStateOf<ComplianceDialogState?>(null)
     /** TapTap SDK 初始化就绪状态，登录按钮需此标记为 true 才可点击 */
@@ -545,20 +548,33 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** 初始化 Dirichlet Ad SDK（在 TapTapAuthManager.init() 后调用） */
+    /** 初始化 Dirichlet 聚合 Ad SDK（在 TapTapAuthManager.init() 后调用） */
     private fun initAdSdk() {
         try {
-            val config = com.tapsdk.tapad.TapAdConfig.Builder()
-                .withMediaId(1102528)
+            val config = com.tapsdk.tapad.group.DirichletAdConfig.Builder()
+                .withMediaId(1105785)
                 .withMediaName("模拟宗门")
-                .withMediaKey("mVqNo2pNuostrqythQ9HXeLOMF4flzBA71skS5P9vNqChyIWIhbj1Qotmutf0Dbn")
+                .withMediaKey("eO9LxSkT1NqmQnzUA3Ldx7Q7c8vv54HdRSOsLrH7oy0pFsknnHSrn66xuceULxga")
                 .enableDebug(BuildConfig.DEBUG)
                 .shakeEnabled(true)
                 .build()
-            com.tapsdk.tapad.TapAdSdk.init(application, config)
-            Log.i(TAG, "Dirichlet Ad SDK 初始化完成（用户已同意隐私政策）")
-        } catch (e: Exception) {
-            Log.e(TAG, "Dirichlet Ad SDK 初始化失败: ${e.message}", e)
+            com.tapsdk.tapad.group.DirichletSdk.init(
+                application,
+                config,
+                object : com.tapsdk.tapad.group.DirichletSdk.InitListener {
+                    override fun onInitSuccess() {
+                        Log.i(TAG, "Dirichlet 聚合 SDK 初始化完成（用户已同意隐私政策）")
+                        // 初始化成功后同步个性化广告偏好（合规：退出个性化广告能力）
+                        adServiceImpl.applyPersonalizationSetting()
+                    }
+
+                    override fun onInitFail(code: Int, message: String) {
+                        Log.e(TAG, "Dirichlet 聚合 SDK 初始化失败: code=$code, message=$message")
+                    }
+                }
+            )
+        } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
+            Log.e(TAG, "Dirichlet 聚合 SDK 初始化失败: ${e.message}", e)
         }
     }
     

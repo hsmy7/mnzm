@@ -2,53 +2,46 @@ package com.xianxia.sect.taptap
 
 import android.app.Activity
 import android.util.Log
-import com.tapsdk.tapad.AdRequest
-import com.tapsdk.tapad.TapAdManager
-import com.tapsdk.tapad.TapAdNative
-import com.tapsdk.tapad.TapRewardVideoAd
+import com.tapsdk.tapad.group.DirichletAdManager
+import com.tapsdk.tapad.group.DirichletAdNative
+import com.tapsdk.tapad.group.DirichletAdRequest
 
 /**
- * Dirichlet Ad SDK 激励视频广告管理器
+ * Dirichlet 聚合 SDK 激励视频广告管理器（com.tapsdk.tapad.group API）
  *
  * 负责激励视频广告的加载、展示、回调和资源释放。
+ * 使用 [DirichletAdNative.showRewardVideoAutoAd] 自动加载展示合一 API（官方推荐），
+ * 替代旧 SDK 的 loadAd → onAdCached → showAd 两段式链路。
  */
 object RewardVideoAdManager {
 
     private const val TAG = "RewardVideoAdManager"
 
-    // 广告位 ID（Dirichlet Ad 后台获取）
-    private const val SPACE_ID: Long = 1056479
+    /** 预热默认数量：提前加载 1 条广告素材 */
+    private const val PRELOAD_COUNT = 1
 
-    private var tapAdNative: TapAdNative? = null
-    private var rewardVideoAd: TapRewardVideoAd? = null
-    private var isAdLoading = false
+    private var adNative: DirichletAdNative? = null
 
     // 回调接口
     private var callback: RewardVideoCallback? = null
 
     interface RewardVideoCallback {
-        /** 广告加载失败 */
-        fun onAdLoadError(code: Int, message: String) {}
-        /** 广告加载成功 */
-        fun onAdLoaded() {}
-        /** 广告素材缓存完成（建议在此回调后展示广告，体验更好） */
-        fun onAdCached() {}
+        /** 广告错误（加载失败/展示失败统一入口） */
+        fun onAdError(code: Int, message: String) {}
         /** 广告已展示 */
         fun onAdShow() {}
         /** 广告已关闭 */
         fun onAdClose() {}
-        /** 视频播放完成 */
-        fun onVideoComplete() {}
-        /** 视频播放出错 */
-        fun onVideoError() {}
         /** 激励验证回调 - 在此决定是否发放奖励 */
-        fun onRewardVerify(rewardVerify: Boolean, rewardAmount: Int, rewardName: String, code: Int, msg: String) {}
-        /** 用户跳过了视频 */
-        fun onSkippedVideo() {}
+        fun onRewardVerify(
+            rewardVerify: Boolean,
+            rewardAmount: Int,
+            rewardName: String,
+            code: Int,
+            msg: String
+        ) {}
         /** 广告被点击 */
         fun onAdClick() {}
-        /** 广告有效曝光 */
-        fun onAdValidShow() {}
     }
 
     fun setCallback(callback: RewardVideoCallback) {
@@ -60,147 +53,89 @@ object RewardVideoAdManager {
     }
 
     /**
-     * 加载激励视频广告
+     * 展示激励视频广告（自动加载，展示合一）
      *
      * @param activity Activity 上下文
-     * @param userId 用户 ID（用于 S2S 验证，如不需要可传空）
+     * @param spaceId 广告位 ID（聚合后台获取）
      * @param rewardName 奖品名称
      * @param rewardAmount 奖品数量
-     * @param spaceId 广告位 ID，默认使用 [SPACE_ID]
-     * @param extraInfo 附加信息（用于 S2S 验证，如不需要可传空）
      */
-    fun loadAd(
+    fun showAd(
         activity: Activity,
-        userId: String = "",
-        rewardName: String = "奖励",
-        rewardAmount: Int = 1,
-        spaceId: Long = SPACE_ID,
-        extraInfo: String = ""
+        spaceId: Long,
+        rewardName: String,
+        rewardAmount: Int
     ) {
-        if (isAdLoading) {
-            Log.d(TAG, "广告正在加载中，请勿重复请求")
-            return
-        }
-
-        // 释放上一次的广告资源
-        destroyAd()
-
-        isAdLoading = true
-
-        // 创建广告加载器（一个 Activity 中只需创建一个 TapAdNative 对象）
-        tapAdNative = TapAdManager.get().createAdNative(activity)
-
-        // 构建广告请求
-        val adRequestBuilder = AdRequest.Builder()
+        val request = DirichletAdRequest.Builder()
             .withSpaceId(spaceId)
             .withRewardName(rewardName)
             .withRewardAmount(rewardAmount)
+            .build()
 
-        if (userId.isNotEmpty()) {
-            adRequestBuilder.withUserId(userId)
-        }
-        if (extraInfo.isNotEmpty()) {
-            adRequestBuilder.withExtra1(extraInfo)
-        }
+        createAdNative(activity).showRewardVideoAutoAd(
+            request,
+            activity,
+            object : DirichletAdNative.RewardVideoAutoAdListener {
+                override fun onError(code: Int, message: String) {
+                    Log.e(TAG, "激励视频广告错误: spaceId=$spaceId, code=$code, message=$message")
+                    callback?.onAdError(code, message)
+                }
 
-        val adRequest = adRequestBuilder.build()
+                override fun onAdShow() {
+                    Log.d(TAG, "激励广告已展示: spaceId=$spaceId")
+                    callback?.onAdShow()
+                }
 
-        tapAdNative?.loadRewardVideoAd(adRequest, object : TapAdNative.RewardVideoAdListener {
-            override fun onError(code: Int, message: String) {
-                isAdLoading = false
-                Log.e(TAG, "激励视频广告加载失败: code=$code, message=$message")
-                callback?.onAdLoadError(code, message)
+                override fun onAdClose() {
+                    Log.d(TAG, "激励广告已关闭: spaceId=$spaceId")
+                    callback?.onAdClose()
+                }
+
+                override fun onRewardVerify(
+                    rewardVerify: Boolean,
+                    rewardAmount: Int,
+                    rewardName: String,
+                    code: Int,
+                    msg: String
+                ) {
+                    Log.d(
+                        TAG,
+                        "激励验证: verify=$rewardVerify, amount=$rewardAmount, name=$rewardName, code=$code, msg=$msg"
+                    )
+                    callback?.onRewardVerify(rewardVerify, rewardAmount, rewardName, code, msg)
+                }
+
+                override fun onAdClick() {
+                    Log.d(TAG, "激励广告被点击: spaceId=$spaceId")
+                    callback?.onAdClick()
+                }
             }
-
-            override fun onRewardVideoAdLoad(ad: TapRewardVideoAd) {
-                isAdLoading = false
-                this@RewardVideoAdManager.rewardVideoAd = ad
-                Log.d(TAG, "激励视频广告加载成功")
-                callback?.onAdLoaded()
-            }
-
-            override fun onRewardVideoCached(ad: TapRewardVideoAd) {
-                this@RewardVideoAdManager.rewardVideoAd = ad
-                Log.d(TAG, "激励视频广告素材缓存完成")
-                callback?.onAdCached()
-            }
-        })
+        )
     }
 
     /**
-     * 展示激励视频广告
+     * 预热广告：提前加载广告素材，减少后续展示等待时间
      *
      * @param activity Activity 上下文
-     * @return 是否成功展示（广告未加载或已失效时返回 false）
+     * @param spaceId 广告位 ID
      */
-    fun showAd(activity: Activity): Boolean {
-        val ad = rewardVideoAd
-        if (ad == null) {
-            Log.w(TAG, "广告未加载，无法展示")
-            return false
-        }
-
-        // 注册交互事件监听
-        ad.setRewardAdInteractionListener(object : TapRewardVideoAd.RewardAdInteractionListener {
-            override fun onAdShow(ad: TapRewardVideoAd) {
-                Log.d(TAG, "激励广告已展示")
-                callback?.onAdShow()
-            }
-
-            override fun onAdClose(ad: TapRewardVideoAd) {
-                Log.d(TAG, "激励广告已关闭")
-                callback?.onAdClose()
-            }
-
-            override fun onVideoComplete(ad: TapRewardVideoAd) {
-                Log.d(TAG, "视频播放结束")
-                callback?.onVideoComplete()
-            }
-
-            override fun onVideoError(ad: TapRewardVideoAd) {
-                Log.e(TAG, "视频播放出错")
-                callback?.onVideoError()
-            }
-
-            override fun onRewardVerify(
-                ad: TapRewardVideoAd,
-                rewardVerify: Boolean,
-                rewardAmount: Int,
-                rewardName: String,
-                code: Int,
-                msg: String
-            ) {
-                Log.d(TAG, "激励验证: verify=$rewardVerify, amount=$rewardAmount, name=$rewardName, code=$code, msg=$msg")
-                callback?.onRewardVerify(rewardVerify, rewardAmount, rewardName, code, msg)
-            }
-
-            override fun onSkippedVideo(ad: TapRewardVideoAd) {
-                Log.d(TAG, "用户跳过了视频")
-                callback?.onSkippedVideo()
-            }
-
-            override fun onAdClick(ad: TapRewardVideoAd) {
-                Log.d(TAG, "激励广告被点击")
-                callback?.onAdClick()
-            }
-
-            override fun onAdValidShow(ad: TapRewardVideoAd) {
-                Log.d(TAG, "激励广告有效曝光")
-                callback?.onAdValidShow()
-            }
-        })
-
-        ad.showRewardVideoAd(activity)
-        return true
+    fun preLoad(activity: Activity, spaceId: Long) {
+        val request = DirichletAdRequest.Builder()
+            .withSpaceId(spaceId)
+            .build()
+        createAdNative(activity).preLoad(request, PRELOAD_COUNT)
+        Log.d(TAG, "广告预热: spaceId=$spaceId")
     }
 
-    /** 广告是否已加载且可用 */
-    fun isAdReady(): Boolean = rewardVideoAd != null
-
-    /** 释放广告资源，在 Activity 销毁时调用 */
+    /** 释放广告加载器，在 Activity 销毁时调用 */
     fun destroyAd() {
-        rewardVideoAd = null
-        tapAdNative = null
-        isAdLoading = false
+        adNative = null
+        callback = null
+    }
+
+    private fun createAdNative(activity: Activity): DirichletAdNative {
+        val existing = adNative
+        if (existing != null) return existing
+        return DirichletAdManager.get().createAdNative(activity).also { adNative = it }
     }
 }

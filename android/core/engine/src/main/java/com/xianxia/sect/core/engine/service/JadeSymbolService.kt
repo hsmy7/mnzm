@@ -247,6 +247,30 @@ class JadeSymbolService @Inject constructor(
     }
 
     /**
+     * 广告玉符发放（观看激励视频奖励，用户决策：不计入每日 30 上限）。
+     *
+     * 必须在引擎线程调用（调用方负责 launchOnEngine 派发，stateStore.update
+     * 有主线程运行时守卫）。
+     *
+     * 与 [settleGrants] 同款幂等语义：先更新运行时 [totalCount] 再绝对值写
+     * GameData——否则 checkpointNow/settleGrants 用旧绝对值写回导致玉符回涨。
+     * **不写入 [todayCount]**：广告玉符独立于时间渠道的每日上限（单日时间 30 +
+     * 广告 60 合计上限）。
+     *
+     * @param amount 发放数量（必须为正）
+     * @return 是否成功（amount 非正返回 false，状态不变）
+     */
+    fun grantFromAd(amount: Int): Boolean {
+        if (amount <= 0) return false
+        totalCount += amount
+        stateStore.update {
+            gameData = gameData.copy(jadeSymbols = totalCount)
+        }
+        publishJadeSymbolStateNow()
+        return true
+    }
+
+    /**
      * 立即发布玉符 UI 状态（清 1Hz 节流标记强制刷新）——玉符消耗后调用，
      * 徽章/详情对话框即时反映最新余额，无需等下一 tick。
      */

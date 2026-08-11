@@ -50,10 +50,10 @@ internal fun OverlayDialogRoute(
         is DialogType.MissionHall, is DialogType.ReflectionCliff -> {
             type.renderFunctionalBuildingRoutes(vms, gameData, onDismiss)
         }
-        // 系统级（SectLevelDetail/RenameSect/GameOver/BuildingSectLevelRequirement/CloudSave/JadeSymbol）
+        // 系统级（SectLevelDetail/RenameSect/GameOver/BuildingSectLevelRequirement/CloudSave/JadeSymbol/JadeSymbolAd）
         is DialogType.SectLevelDetail, is DialogType.RenameSect, is DialogType.GameOver,
         is DialogType.BuildingSectLevelRequirement, is DialogType.CloudSave,
-        is DialogType.JadeSymbol -> {
+        is DialogType.JadeSymbol, is DialogType.JadeSymbolAd -> {
             type.renderSystemRoutes(vms, callbacks, gameData, onDismiss)
         }
     }

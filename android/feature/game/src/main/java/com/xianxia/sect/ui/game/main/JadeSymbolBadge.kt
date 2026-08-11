@@ -19,18 +19,22 @@ import com.xianxia.sect.ui.components.SpriteImage
 
 /**
  * 玉符货币栏（宗门信息卡片外部右侧）：
- * 半透明胶囊条 + 左侧玉符图标（12dp，与卡片内灵石图标同尺寸）+ 栏内持有数量。
+ * 半透明胶囊条 + 左侧玉符图标（12dp，与卡片内灵石图标同尺寸）+ 栏内持有数量
+ * + 右侧"+"广告按钮（观看激励视频获得 3 玉符）。
  *
- * 整体可点击，弹出玉符说明/倒计时对话框。半透明深底 + 白字为商业游戏
- * 货币栏通用做法（参考货币计数常驻可见 + 可点击直达的行业惯例）。
+ * 整体可点击，弹出玉符说明/倒计时对话框；"+"按钮为内层独立点击区
+ * （Compose 内层 clickable 优先于外层），弹出玉符广告确认对话框。
+ * 半透明深底 + 白字为商业游戏货币栏通用做法。
  *
  * @param jadeSymbols 当前持有玉符数量（发放时自动 +1 实时刷新）
  * @param onClick 点击回调（打开玉符对话框）
+ * @param onAddClick 点击"+"回调（打开玉符广告对话框）
  */
 @Composable
 internal fun JadeSymbolBadge(
     jadeSymbols: Int,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onAddClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -58,8 +62,18 @@ internal fun JadeSymbolBadge(
             maxLines = 1,
             modifier = Modifier.widthIn(min = FOUR_DIGITS_MIN_WIDTH)
         )
+        SpriteImage(
+            name = "jade_add_button",
+            contentDescription = "观看广告获得玉符",
+            modifier = Modifier
+                .size(ADD_BUTTON_SIZE)
+                .clickable(onClick = onAddClick)
+        )
     }
 }
 
 /** 玉符数量栏数字区最小宽度（容纳 4 位 12sp 数字） */
 private val FOUR_DIGITS_MIN_WIDTH = 30.dp
+
+/** "+"广告按钮尺寸（与货币栏高度协调的小按钮） */
+private val ADD_BUTTON_SIZE = 14.dp

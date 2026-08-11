@@ -1,10 +1,14 @@
 package com.xianxia.sect.ui.game
 
 import com.xianxia.sect.core.SectLevel
+import com.xianxia.sect.core.AdFreeWhitelist
 import com.xianxia.sect.core.config.BuildingConfigModel
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.GameEngineCore
+import com.xianxia.sect.core.engine.grantJadeSymbolsFromAd
+import com.xianxia.sect.core.engine.service.AdPurpose
+import com.xianxia.sect.ui.game.delegate.AdsDelegate
 import com.xianxia.sect.ui.game.delegate.GameLoopDelegate
 import com.xianxia.sect.core.engine.currentActiveSectId
 import com.xianxia.sect.core.engine.notifyUserInteraction
@@ -177,6 +181,8 @@ class GameViewModelTest {
         // ── Mock GameEngine 扩展函数（定义在 GameEngineCoordination.kt / GameEngineGuideOps.kt）──
         mockkStatic("com.xianxia.sect.core.engine.GameEngineCoordinationKt")
         mockkStatic("com.xianxia.sect.core.engine.GameEngineGuideOpsKt")
+        // grantJadeSymbolsFromAd 定义在 GameEngineInventoryOps.kt（玉符广告发放路径）
+        mockkStatic("com.xianxia.sect.core.engine.GameEngineInventoryOpsKt")
         every { gameEngine.setFocusedDiscipleId(any()) } just runs
         every { gameEngine.currentActiveSectId() } returns "test-sect"
         every { gameEngine.notifyUserInteraction() } just runs
@@ -833,6 +839,57 @@ class GameViewModelTest {
         gameDataFlow.value = GameData(activeSectId = "", placedBuildings = listOf(mine, forge))
         advanceUntilIdle()
         assertEquals("同宗门新增建筑应重推", 2, viewModel.getRenderCommandBus().buildingCount)
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    // 玉符广告 + 个性化广告开关（2026-08-11 聚合 SDK 接入）
+    // ════════════════════════════════════════════════════════════════
+
+    @Test
+    fun `watchAdForJadeSymbols - 播放广告回调后发放 3 玉符`() = runTest(testDispatcher) {
+        AdsDelegate.resetForTest()
+        AdFreeWhitelist.initialize(null)
+        var grantedAmount: Int? = null
+        // mockkStatic 拦截顶层扩展函数时 args[0] 是 receiver（GameEngine），amount 在 args[1]
+        coEvery { gameEngine.grantJadeSymbolsFromAd(any()) } answers {
+            grantedAmount = args[1] as Int
+            true
+        }
+        // 模拟广告回调（免广告白名单直发语义：watchAd 内同步回调）
+        every { adService.watchAd(any(), any()) } answers {
+            (args[1] as () -> Unit)()
+        }
+
+        viewModel.watchAdForJadeSymbols()
+        runEngineBlocks()
+
+        assertEquals("发放 3 玉符", 3, grantedAmount)
+        verify { adService.watchAd(AdPurpose.JADE_SYMBOL_BONUS, any()) }
+    }
+
+    @Test
+    fun `watchAdForJadeSymbols - 每日上限时拦截不调广告`() = runTest(testDispatcher) {
+        AdsDelegate.resetForTest()
+        AdFreeWhitelist.initialize(null)
+        repeat(20) { viewModel.tryMarkAdWatched() }
+
+        viewModel.watchAdForJadeSymbols()
+
+        verify(exactly = 0) { adService.watchAd(any(), any()) }
+    }
+
+    @Test
+    fun `个性化广告开关 - 切换转发 SDK 并更新 StateFlow`() = runTest(testDispatcher) {
+        val initial = viewModel.personalizedAdsEnabled.value
+
+        viewModel.setPersonalizedAdsEnabled(!initial)
+
+        assertEquals(!initial, viewModel.personalizedAdsEnabled.value)
+        verify { adService.setPersonalizedAdsEnabled(!initial) }
+
+        viewModel.setPersonalizedAdsEnabled(initial)
+        assertEquals(initial, viewModel.personalizedAdsEnabled.value)
+        verify { adService.setPersonalizedAdsEnabled(initial) }
     }
 
     // ════════════════════════════════════════════════════════════════
