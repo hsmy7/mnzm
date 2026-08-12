@@ -636,7 +636,7 @@ fun watchAdForNewFeature() {
 
 | 方向 | 入口 | 说明 | 代码位置 |
 |------|------|------|---------|
-| 产（源） | 在线时长 | 真实前台运行每满 20 分钟 1 枚（挂机/暂停累计、后台不累计），单日上限 30，墙钟次日 0 点重置 | `JadeSymbolService.kt`、`GameConfig.Jade` |
+| 产（源） | 在线时长 | 真实前台运行每满 10 分钟 1 枚（挂机/暂停累计、后台不累计），单日上限 20，墙钟次日 0 点重置（今日计数与周期累计时长均清零） | `JadeSymbolService.kt`、`GameConfig.Jade` |
 | 耗（汇） | 洗炼灵根 | 每次 1 枚（`GameConfig.SpiritRoot.WASH_JADE_COST`），事务内 `deduct` 扣减，3 连保底 | `GameEngineSpiritRootOps.kt`、`GameConfig.SpiritRoot` |
 
 **玉符消耗统一通道（2026-08-08 洗炼灵根建立，未来新增消耗/发放玩法必须走此通道）**：
@@ -644,9 +644,9 @@ fun watchAdForNewFeature() {
 2. **消耗模式**（参照 `GameEngineSpiritRootOps.washSpiritRoot`）：`stateStore.updateAndReturn { 校验目标 → deduct 失败 return Insufficient → 玩法逻辑（扣减成功后抽） }` → 成功后事务外 `publishJadeSymbolStateNow()`（清 1Hz 节流立即刷新徽章）；sealed 三态结果（Success/InsufficientJadeSymbols(current, required)/Error）；扣减失败不消耗 RNG 序列
 3. **存档自愈例外**：`core/data` 的 `JadeSymbolNonNegativeRule`（启动时越界修正）不经过服务——语义为数据修复而非玩家可触发的消耗/发放，不在守卫范围
 
-**墙钟豁免论证（`rules/expansion-playbook.md` L22"禁止以现实时间为准"）**：玉符**不是进度系统**，是墙钟概念货币（对标商业游戏在线时长福利——原神月卡/星铁每日、放置类游戏挂机收益），与游戏内进度完全解耦：不参与游戏时间结算（不加速修炼/战斗/生产）、不产生任何游戏内收益、无离线收益、不进仓库、不参与排行榜。发放由单调时钟驱动（改墙钟无法加速，每枚仍需 20 分钟真实前台时间），仅跨天重置依赖墙钟。豁免理由：货币获取通道而非进度结算轨道。
+**墙钟豁免论证（`rules/expansion-playbook.md` L22"禁止以现实时间为准"）**：玉符**不是进度系统**，是墙钟概念货币（对标商业游戏在线时长福利——原神月卡/星铁每日、放置类游戏挂机收益），与游戏内进度完全解耦：不参与游戏时间结算（不加速修炼/战斗/生产）、不产生任何游戏内收益、无离线收益、不进仓库、不参与排行榜。发放由单调时钟驱动（改墙钟无法加速，每枚仍需 10 分钟真实前台时间），仅跨天重置依赖墙钟。豁免理由：货币获取通道而非进度结算轨道。
 
-**防作弊要点**（详见 `JadeSymbolService.kt` KDoc）：单调时钟差分累计（单 tick 裁剪 10s，OEM 挂起不补记）；墙钟 1s 节流采样 + 午夜锚点（回拨 `todayMidnight <= anchor` 不重置，回拨时跳过节流直接采样）；拿满冻结累计；旧档锚点 0 首次锚定无追溯发放；`SaveValidator` 的 `JadeSymbolNonNegativeRule`（order=23）钳制手改存档：accumMs 上限 `INTERVAL_MS - 1`（**严格小于发放阈值**，防"恰等于 20 分钟"读档首帧免费 +1 循环刷）、today 钳 `DAILY_CAP`、jadeSymbols 钳 `Int.MAX-DAILY_CAP`（防溢出回绕）。已知残余风险（书面接受）：快进-回拨循环可绕日上限，但时间产出率不可作弊；客户端本地货币持有量可被手改（无服务器权威校验，未来上商店须服务端校验）。
+**防作弊要点**（详见 `JadeSymbolService.kt` KDoc）：单调时钟差分累计（单 tick 裁剪 10s，OEM 挂起不补记）；墙钟 1s 节流采样 + 午夜锚点（回拨 `todayMidnight <= anchor` 不重置，回拨时跳过节流直接采样）；拿满冻结累计；旧档锚点 0 首次锚定无追溯发放；`SaveValidator` 的 `JadeSymbolNonNegativeRule`（order=23）钳制手改存档：accumMs 上限 `INTERVAL_MS - 1`（**严格小于发放阈值**，防"恰等于 10 分钟"读档首帧免费 +1 循环刷）、today 钳 `DAILY_CAP`、jadeSymbols 钳 `Int.MAX-DAILY_CAP`（防溢出回绕）。已知残余风险（书面接受）：快进-回拨循环可绕日上限，但时间产出率不可作弊；客户端本地货币持有量可被手改（无服务器权威校验，未来上商店须服务端校验）。
 
 **线程模型约束（2026-08-07 对抗性审查根治）**：`stateStore.update` 有主线程运行时守卫（Debug `error()` / Release 静默丢弃）——玉符的 GameData 写入全部只发生在引擎线程：`onLoopStop()` 挂在游戏循环协程 finally（覆盖 cancel/emergencyRestart/正常退出全部停止路径），`onLoopStart()` 只读快照、跨天检查/首次锚定写入延迟到引擎线程首帧 tick；`checkpointNow()` 未启动（`lastSampleMs==0`）时跳过。
 

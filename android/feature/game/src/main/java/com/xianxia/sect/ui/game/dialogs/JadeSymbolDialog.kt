@@ -1,6 +1,7 @@
 package com.xianxia.sect.ui.game.dialogs
 
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -8,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -30,7 +32,7 @@ internal fun JadeSymbolDialog(
     StandardPromptDialog(
         onDismissRequest = onDismiss,
         title = "玉符",
-        text = "游戏时长每过20分钟获得1玉符，单日最多获得30玉符",
+        text = "游戏时长每过10分钟获得1玉符，单日最多获得20玉符",
         confirmLabel = "知道了",
         scrimEnabled = false,
         dismissOnClickOutside = true
@@ -39,18 +41,22 @@ internal fun JadeSymbolDialog(
         if (jadeState.capped) {
             Text(
                 text = "今日已达上限",
+                modifier = Modifier.fillMaxWidth(),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.Red
+                color = Color.Red,
+                textAlign = TextAlign.Center
             )
         } else {
             val minutes = jadeState.remainingMs / 60_000L
             val seconds = (jadeState.remainingMs % 60_000L) / 1_000L
             Text(
                 text = String.format(Locale.US, "距离下次获得玉符 %02d:%02d", minutes, seconds),
+                modifier = Modifier.fillMaxWidth(),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.Red
+                color = Color.Red,
+                textAlign = TextAlign.Center
             )
         }
     }

@@ -12,7 +12,7 @@ import com.xianxia.sect.ui.game.GameViewModel
  * 2. Cooldown — 距上次观看不足 60 秒
  * 3. Confirm — 正常确认框（观看广告获得 3 玉符）
  *
- * 广告玉符**不计入**每日 30 枚上限（用户决策），但广告观看次数仍受
+ * 广告玉符**不计入**每日 20 枚上限（用户决策），但广告观看次数仍受
  * 每日 20 次与 60 秒冷却限制（AdsDelegate 统一控制，与突破/商人广告一致）。
  */
 @Composable

@@ -283,7 +283,7 @@ data class GameData(
     @ColumnInfo(name = "jade_day_anchor_ms", defaultValue = "0")
     @SettlementStrategy(Strategy.USE_SHADOW)
     var jadeDayAnchorMs: Long = 0L,
-    /** 当前 20 分钟周期已累计的游玩毫秒（持久化防闪退，重启后从存档恢复） */
+    /** 当前 10 分钟周期已累计的游玩毫秒（持久化防闪退，重启后从存档恢复） */
     @ProtoNumber(223)
     @ColumnInfo(name = "jade_accum_ms", defaultValue = "0")
     @SettlementStrategy(Strategy.USE_SHADOW)

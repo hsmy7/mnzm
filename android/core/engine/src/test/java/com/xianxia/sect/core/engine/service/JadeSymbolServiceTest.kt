@@ -46,7 +46,7 @@ class JadeSymbolServiceTest {
     // ── 发放 ──
 
     @Test
-    fun `20 minutes of front-time ticks grant 1 jade`() {
+    fun `10 minutes of front-time ticks grant 1 jade`() {
         service.onLoopStart()
         advance(INTERVAL)
         assertEquals(1, store.gameDataSnapshot.jadeSymbols)
@@ -56,7 +56,7 @@ class JadeSymbolServiceTest {
     }
 
     @Test
-    fun `40 minutes grant 2 jades`() {
+    fun `20 minutes grant 2 jades`() {
         service.onLoopStart()
         advance(INTERVAL * 2)
         assertEquals(2, store.gameDataSnapshot.jadeSymbols)
@@ -76,7 +76,7 @@ class JadeSymbolServiceTest {
     }
 
     @Test
-    fun `exact 20 minute boundary grants and keeps remainder`() {
+    fun `exact 10 minute boundary grants and keeps remainder`() {
         service.onLoopStart()
         advance(INTERVAL)
         assertEquals(1, store.gameDataSnapshot.jadeSymbols)
@@ -105,31 +105,47 @@ class JadeSymbolServiceTest {
     @Test
     fun `daily cap freezes further grants`() {
         service.onLoopStart()
-        advance(INTERVAL * 30)
-        assertEquals(30, store.gameDataSnapshot.jadeSymbols)
-        assertEquals(30, store.gameDataSnapshot.jadeSymbolsToday)
+        advance(INTERVAL * 20)
+        assertEquals(20, store.gameDataSnapshot.jadeSymbols)
+        assertEquals(20, store.gameDataSnapshot.jadeSymbolsToday)
         assertTrue(service.runtimeState.value.capped)
         advance(INTERVAL)
-        assertEquals(30, store.gameDataSnapshot.jadeSymbols)
+        assertEquals(20, store.gameDataSnapshot.jadeSymbols)
         assertEquals(0L, store.gameDataSnapshot.jadeAccumMs)
     }
 
     @Test
     fun `day rollover after cap resets today and resumes`() {
         service.onLoopStart()
-        advance(INTERVAL * 30)
+        advance(INTERVAL * 20)
         val oldAnchor = store.gameDataSnapshot.jadeDayAnchorMs
         fakeWallMs += DAY_MS + 1_000L
         advance(2_000L)
         assertEquals(0, store.gameDataSnapshot.jadeSymbolsToday)
         assertNotEquals(oldAnchor, store.gameDataSnapshot.jadeDayAnchorMs)
         advance(INTERVAL)
-        assertEquals(31, store.gameDataSnapshot.jadeSymbols)
+        assertEquals(21, store.gameDataSnapshot.jadeSymbols)
         assertEquals(1, store.gameDataSnapshot.jadeSymbolsToday)
         assertTrue(!service.runtimeState.value.capped)
     }
 
     // ── 跨天 / 回拨 ──
+
+    @Test
+    fun `day rollover clears accum and today restarts from zero`() {
+        service.onLoopStart()
+        advance(5 * 60 * 1000L) // 昨日累计 5 分钟未发放
+        assertEquals(0, store.gameDataSnapshot.jadeSymbols)
+        fakeWallMs += DAY_MS + 1_000L // 跨天
+        advance(2_000L)
+        assertEquals(0L, store.gameDataSnapshot.jadeAccumMs) // 昨日累计清零
+        assertEquals(0, store.gameDataSnapshot.jadeSymbolsToday)
+        advance(5 * 60 * 1000L) // 新一天累计 5 分钟：不足 10 分钟不发
+        assertEquals(0, store.gameDataSnapshot.jadeSymbols)
+        advance(5 * 60 * 1000L) // 新一天满 10 分钟 → 第 1 枚
+        assertEquals(1, store.gameDataSnapshot.jadeSymbols)
+        assertEquals(1, store.gameDataSnapshot.jadeSymbolsToday)
+    }
 
     @Test
     fun `wall clock rollback does not reset today`() {
@@ -199,10 +215,10 @@ class JadeSymbolServiceTest {
     @Test
     fun `day rollover is processed before grant in same frame sequence`() {
         service.onLoopStart()
-        advance(INTERVAL * 30) // 今天拿满 30
+        advance(INTERVAL * 20) // 今天拿满 20
         fakeWallMs += DAY_MS + 1_000L // 跨天
-        advance(INTERVAL) // 跨天后第一天累计 20 分钟
-        assertEquals(31, store.gameDataSnapshot.jadeSymbols)
+        advance(INTERVAL) // 跨天后第一天累计 10 分钟
+        assertEquals(21, store.gameDataSnapshot.jadeSymbols)
         assertEquals(1, store.gameDataSnapshot.jadeSymbolsToday)
     }
 
@@ -215,14 +231,14 @@ class JadeSymbolServiceTest {
             gameData = gameData.copy(
                 jadeSymbols = 7,
                 jadeSymbolsToday = 3,
-                jadeAccumMs = 600_000L,
+                jadeAccumMs = 300_000L,
                 jadeDayAnchorMs = anchor
             )
         }
         service.onLoopStart()
-        advance(5 * 60 * 1000L) // 600_000 + 300_000 = 900_000 < INTERVAL
+        advance(4 * 60 * 1000L) // 300_000 + 240_000 = 540_000 < INTERVAL
         assertEquals(7, store.gameDataSnapshot.jadeSymbols)
-        advance(15 * 60 * 1000L) // 累计满 20 分钟 → 第 8 枚
+        advance(2 * 60 * 1000L) // 累计满 10 分钟 → 第 8 枚
         assertEquals(8, store.gameDataSnapshot.jadeSymbols)
         assertEquals(4, store.gameDataSnapshot.jadeSymbolsToday)
     }
@@ -242,17 +258,17 @@ class JadeSymbolServiceTest {
 
     @Test
     fun `slot switch restores independent jade state`() {
-        // 档 A：累计 10 分钟
+        // 档 A：累计 5 分钟
         service.onLoopStart()
-        advance(10 * 60 * 1000L)
+        advance(5 * 60 * 1000L)
         service.checkpointNow()
-        assertEquals(600_000L, store.gameDataSnapshot.jadeAccumMs)
+        assertEquals(300_000L, store.gameDataSnapshot.jadeAccumMs)
         // 切档 B：全新数据，A 的累计不追溯
         store.update { gameData = GameData() }
         service.onLoopStart()
-        advance(10 * 60 * 1000L)
+        advance(5 * 60 * 1000L)
         assertEquals(0, store.gameDataSnapshot.jadeSymbols)
-        advance(10 * 60 * 1000L)
+        advance(5 * 60 * 1000L)
         assertEquals(1, store.gameDataSnapshot.jadeSymbols)
     }
 
@@ -322,7 +338,7 @@ class JadeSymbolServiceTest {
         assertTrue(ok)
         assertEquals(3, service.runtimeState.value.total)
         assertEquals(3, store.gameDataSnapshot.jadeSymbols)
-        // 用户决策：广告玉符不计入每日 30 上限
+        // 用户决策：广告玉符不计入每日 20 上限
         assertEquals(0, store.gameDataSnapshot.jadeSymbolsToday)
         // checkpoint 绝对值覆盖写幂等：不回涨不丢失
         service.checkpointNow()
@@ -433,7 +449,7 @@ class JadeSymbolServiceTest {
 
     private companion object {
         const val TICK_STEP_MS = 1_000L
-        const val INTERVAL = 20 * 60 * 1000L
+        const val INTERVAL = 10 * 60 * 1000L
         const val DAY_MS = 24 * 60 * 60 * 1000L
     }
 }

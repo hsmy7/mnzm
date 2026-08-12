@@ -81,7 +81,7 @@ class JadeSymbolNonNegativeRuleTest {
 
     @Test
     fun `accum ms exactly at interval clamped below threshold`() {
-        // 钳制上限必须严格小于发放阈值：恰等于 20 分钟的存档读档首帧即免费 +1 玉符
+        // 钳制上限必须严格小于发放阈值：恰等于 10 分钟的存档读档首帧即免费 +1 玉符
         val gd = GameData(
             sectName = "宗", gameYear = 1, gameMonth = 1,
             jadeAccumMs = GameConfig.Jade.INTERVAL_MS
@@ -114,7 +114,22 @@ class JadeSymbolNonNegativeRuleTest {
         val result = SaveValidator.validate(saveData(gd))
         assertTrue(result is IntegrityResult.Repaired)
         val r = result as IntegrityResult.Repaired
-        assertEquals(Int.MAX_VALUE - GameConfig.Jade.DAILY_CAP, r.data.gameData.jadeSymbols)
+        assertEquals(GameConfig.Jade.MAX_HOLDING, r.data.gameData.jadeSymbols)
+    }
+
+    @Test
+    fun `legacy today between 21 and 30 clamps to cap without touching holding`() {
+        // 旧版本（DAILY_CAP=30 时代）合法存档的今日计数 21~30，升级后钳至新上限 20；
+        // 钳制只影响今日计数，已持有的 jadeSymbols 分文不动
+        val gd = GameData(
+            sectName = "宗", gameYear = 1, gameMonth = 1,
+            jadeSymbolsToday = 27, jadeSymbols = 45
+        )
+        val result = SaveValidator.validate(saveData(gd))
+        assertTrue(result is IntegrityResult.Repaired)
+        val r = result as IntegrityResult.Repaired
+        assertEquals(GameConfig.Jade.DAILY_CAP, r.data.gameData.jadeSymbolsToday)
+        assertEquals(45, r.data.gameData.jadeSymbols)
     }
 
     @Test

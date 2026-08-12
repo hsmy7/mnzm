@@ -46,7 +46,7 @@ object WallClockModule {
  * @param total 累计持有数量
  * @param today 今日已获得数量
  * @param remainingMs 距离下次获得玉符的剩余 ms（拿满后为 0）
- * @param capped 今日是否已达上限（30 枚）
+ * @param capped 今日是否已达上限（20 枚）
  */
 data class JadeSymbolRuntimeState(
     val total: Int,
@@ -60,23 +60,24 @@ data class JadeSymbolRuntimeState(
  *
  * 玉符与游戏内进度完全解耦：不占仓库、无品阶、不走 InventorySystem、
  * 不参与游戏时间结算。获取通道仅为"真实前台运行时长"：
- * 每满 [GameConfig.Jade.INTERVAL_MS]（20 分钟）得 1 枚，
- * 单日最多 [GameConfig.Jade.DAILY_CAP]（30 枚），墙钟午夜重置。
+ * 每满 [GameConfig.Jade.INTERVAL_MS]（10 分钟）得 1 枚，
+ * 单日最多 [GameConfig.Jade.DAILY_CAP]（20 枚），墙钟午夜重置。
  *
  * ## 时钟语义（防作弊第一性基础）
  * - **发放只由单调时钟**（[TimeSource]，SystemClock.elapsedRealtime()）驱动——
- *   修改墙钟无法加速获得，每枚仍需 20 分钟真实前台时间；
+ *   修改墙钟无法加速获得，每枚仍需 10 分钟真实前台时间；
  * - 墙钟（[wallClock]）仅用于跨天重置判定，1s 节流采样；
  * - 单 tick 差分上限 [GameConfig.Jade.MAX_TICK_DELTA_MS]（10s）：
  *   OEM 挂起恢复不补记（镜像引擎 MAX_PHASES_PER_TICK 语义）；
  * - 跨天重置判据 `todayMidnight > [jadeDayAnchorMs]`；回拨（`<=`）不重置；
- * - 拿满 [GameConfig.Jade.DAILY_CAP] 冻结累计，次日 0 点恢复。
+ * - 拿满 [GameConfig.Jade.DAILY_CAP] 冻结累计；次日 0 点重置（今日计数与
+ *   周期累计时长均清零，新的一天从 0 重新累计——用户需求 2026-08-12）。
  *
  * ## 高频写权衡
  * 不采用每 tick 写 GameData（全量 COW 不可行）：运行时 [@Volatile] 字段
  * 纯算术累计 + 1Hz 节流 UI 流 + 事件/存档 checkpoint——
- * GameData 写入仅发生在发放/跨天/循环停止/存档时（正常约 1 次/20 分钟）。
- * 代价：闪退损失当次周期最多 20 分钟累计，checkpointNow 已把窗口
+ * GameData 写入仅发生在发放/跨天/循环停止/存档时（正常约 1 次/10 分钟）。
+ * 代价：闪退损失当次周期最多 10 分钟累计，checkpointNow 已把窗口
  * 压到"上次存档后"。
  *
  * @param timeSource 单调时钟（与 GameTimeClock 同源，Hilt 注入）
@@ -95,7 +96,7 @@ class JadeSymbolService @Inject constructor(
     @Volatile
     private var lastSampleMs = 0L
 
-    /** 当前 20 分钟周期已累计前台时长 ms（发放后保留余量）。 */
+    /** 当前 10 分钟周期已累计前台时长 ms（发放后保留余量）。 */
     @Volatile
     private var accumMs = 0L
 
@@ -165,7 +166,7 @@ class JadeSymbolService @Inject constructor(
      * 切后台循环整体停止 → 自然不累计）。
      *
      * 流程：单调时钟差分（10s 裁剪）→ 跨天检查（优先于发放，同一事务互斥）→
-     * 满上限冻结 → 满足 20 分钟发放 → 1Hz 发布 UI 状态。
+     * 满上限冻结 → 满足 10 分钟发放 → 1Hz 发布 UI 状态。
      */
     fun onLoopTick() {
         val now = timeSource.elapsedRealtime()
@@ -256,14 +257,14 @@ class JadeSymbolService @Inject constructor(
     }
 
     /**
-     * 广告玉符发放（观看激励视频奖励，用户决策：不计入每日 30 上限）。
+     * 广告玉符发放（观看激励视频奖励，用户决策：不计入每日 20 上限）。
      *
      * 必须在引擎线程调用（调用方负责 launchOnEngine 派发，stateStore.update
      * 有主线程运行时守卫）。
      *
      * 与 [settleGrants] 同款幂等语义：先更新运行时 [totalCount] 再绝对值写
      * GameData——否则 checkpointNow/settleGrants 用旧绝对值写回导致玉符回涨。
-     * **不写入 [todayCount]**：广告玉符独立于时间渠道的每日上限（单日时间 30 +
+     * **不写入 [todayCount]**：广告玉符独立于时间渠道的每日上限（单日时间 20 +
      * 广告 60 合计上限）。
      *
      * @param amount 发放数量（必须为正）
@@ -329,7 +330,9 @@ class JadeSymbolService @Inject constructor(
      * 跨天重置检查：墙钟 1s 节流采样 → 计算"nowWall 所在日"午夜；
      * `午夜 <= 锚点`（同一天或墙钟回拨）→ 不重置；`午夜 > 锚点` →
      * 跨天（含快进 N 天）只重置一次并锚定目标日午夜。
-     * 旧档锚点 0（未初始化）→ 首次直接锚定，无追溯发放。
+     * 真实跨天：今日计数归零，**周期累计时长清零**（昨日未领完的进度作废，
+     * 新的一天从 0 重新累计，用户需求 2026-08-12）；
+     * 旧档锚点 0（未初始化）→ 首次直接锚定，无追溯发放、不清累计。
      *
      * @param force 跳过节流（onLoopStart 时调用）
      */
@@ -347,11 +350,13 @@ class JadeSymbolService @Inject constructor(
         val crossedDay = dayAnchorMs != 0L
         dayAnchorMs = todayMidnight
         if (crossedDay) {
-            // 真实跨天：今日计数归零
+            // 真实跨天：今日计数归零，周期累计时长清零（新的一天重新累计）
             todayCount = 0
+            accumMs = 0
             stateStore.update {
                 gameData = gameData.copy(
                     jadeSymbolsToday = 0,
+                    jadeAccumMs = 0L,
                     jadeDayAnchorMs = todayMidnight
                 )
             }

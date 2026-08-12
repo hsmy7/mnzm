@@ -137,10 +137,14 @@ object GameConfig {
      * 不占仓库、无品阶，不走 InventorySystem；单日上限次日凌晨 12 点重置。
      */
     object Jade {
-        /** 每获得 1 枚玉符所需的真实前台游玩时长（20 分钟） */
-        const val INTERVAL_MS = 20 * 60 * 1000L
+        /** 每获得 1 枚玉符所需的真实前台游玩时长（10 分钟） */
+        const val INTERVAL_MS = 10 * 60 * 1000L
         /** 单日（墙钟 0 点起）通过游玩时长最多获得的玉符数量 */
-        const val DAILY_CAP = 30
+        const val DAILY_CAP = 20
+        /** 广告渠道单日最多获得的玉符数（20 次广告 × 3 枚，AdsDelegate/GameViewModel 值镜像） */
+        const val AD_JADE_PER_DAY_MAX = 60
+        /** 持有量防溢出上限：余量须覆盖单日最大增量（计时 + 广告），防手改 MAX 后当日发放回绕为负 */
+        const val MAX_HOLDING = Int.MAX_VALUE - DAILY_CAP - AD_JADE_PER_DAY_MAX
         /** 单 tick 累计增量上限（ms）：OEM 挂起恢复不补记，镜像引擎 MAX_PHASES_PER_TICK 语义 */
         const val MAX_TICK_DELTA_MS = 10_000L
     }

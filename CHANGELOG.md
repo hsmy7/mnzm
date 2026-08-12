@@ -1,5 +1,11 @@
 ## [4.00.96] - 2026-08-12
 
+### 修复 + 调整（2026-08-12 玉符倒计时居中 + 发放节奏）
+
+- **倒计时居中** — `JadeSymbolDialog` 内容槽位倒计时文本与"今日已达上限"缺 `textAlign = TextAlign.Center`（`StandardPromptDialog` content 槽位 Column 默认左对齐，同一对话框 title/text 均有 textAlign 而 content 漏网），两处 Text 补 `fillMaxWidth()` + `textAlign = TextAlign.Center`
+- **发放节奏调整** — 玉符计时发放 `GameConfig.Jade.INTERVAL_MS` 20 分钟 → 10 分钟（每枚）；`DAILY_CAP` 30 → 20（单日上限，墙钟午夜重置）。机制不变（单调时钟差分累计 + 跨天锚点 + 10s 裁剪），无字段/Migration/存档格式变更（DATABASE_VERSION 不动）；广告渠道（3 枚/次、每日 20 次广告、不计入日上限）保持不变
+- **测试** — `JadeSymbolServiceTest`：`INTERVAL` 常量改 10 分钟、日上限断言 30→20、跨天用例 31→21、2 处步进重构（`onLoopStart restores accum` 初始累计改 5 分钟、`slot switch` 步进 10 分钟→5 分钟×3）；`JadeSymbolNonNegativeRuleTest` 引用常量自动适配；全通过
+
 ### 新增（2026-08-12 一键拆除·区域选择）
 
 - **区域选择模式** — 一键拆除模式下「区域选择」按钮（使用美术素材「区域选择按钮」，文本叠加在按钮内部正下方——未激活显示「区域」/ 激活显示「关闭」）进入区域选中模式：点击地图任意格即以该格为中心、正方形直径 N 格（默认 3，可调 3~20）范围内与区域矩形重叠的所有可拆除建筑一次性加入选中（并集累积 + Set 幂等——新区域内已选中的建筑保持选中，重复框选不取消）；再次点击按钮退出区域模式，进度条消失，已选中建筑保留（拆除模式本身也保持）
