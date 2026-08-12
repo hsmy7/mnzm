@@ -25,23 +25,27 @@ import kotlin.math.sqrt
 private const val VARIANCE_MIN = -50
 private const val VARIANCE_MAX = 51
 private const val COMPREHENSION_1_ROOT_MIN = 80
-private const val COMPREHENSION_1_ROOT_MAX = 201
+private const val COMPREHENSION_1_ROOT_MAX = 101
 private const val COMPREHENSION_2_ROOT_MIN = 60
-private const val COMPREHENSION_2_ROOT_MAX = 201
+private const val COMPREHENSION_2_ROOT_MAX = 81
 private const val COMPREHENSION_3_ROOT_MIN = 40
-private const val COMPREHENSION_3_ROOT_MAX = 201
+private const val COMPREHENSION_3_ROOT_MAX = 61
 private const val COMPREHENSION_4_ROOT_MIN = 20
-private const val COMPREHENSION_4_ROOT_MAX = 201
+private const val COMPREHENSION_4_ROOT_MAX = 41
 private const val COMPREHENSION_5_ROOT_MIN = 1
-private const val COMPREHENSION_5_ROOT_MAX = 201
+private const val COMPREHENSION_5_ROOT_MAX = 21
 
-// 资质阶梯（与悟性一致的按灵根数决定基础数值，上界统一 200）
+// 资质阶梯（与悟性一致的按灵根数决定基础数值：1根80~100 … 5根1~20）
 private const val APTITUDE_1_ROOT_MIN = 80
+private const val APTITUDE_1_ROOT_MAX = 101
 private const val APTITUDE_2_ROOT_MIN = 60
+private const val APTITUDE_2_ROOT_MAX = 81
 private const val APTITUDE_3_ROOT_MIN = 40
+private const val APTITUDE_3_ROOT_MAX = 61
 private const val APTITUDE_4_ROOT_MIN = 20
+private const val APTITUDE_4_ROOT_MAX = 41
 private const val APTITUDE_5_ROOT_MIN = 1
-private const val APTITUDE_MAX = 201
+private const val APTITUDE_5_ROOT_MAX = 21
 
 /** 正态分布参数 */
 private const val SKILL_MEAN = 50.5       // 技能属性均值
@@ -133,11 +137,11 @@ class DiscipleFactory @Inject constructor() {
         }
         val aptitude = avoidSentinel50(
             when (spiritRootCount) {
-                1 -> r(APTITUDE_1_ROOT_MIN, APTITUDE_MAX)
-                2 -> r(APTITUDE_2_ROOT_MIN, APTITUDE_MAX)
-                3 -> r(APTITUDE_3_ROOT_MIN, APTITUDE_MAX)
-                4 -> r(APTITUDE_4_ROOT_MIN, APTITUDE_MAX)
-                else -> r(APTITUDE_5_ROOT_MIN, APTITUDE_MAX)
+                1 -> r(APTITUDE_1_ROOT_MIN, APTITUDE_1_ROOT_MAX)
+                2 -> r(APTITUDE_2_ROOT_MIN, APTITUDE_2_ROOT_MAX)
+                3 -> r(APTITUDE_3_ROOT_MIN, APTITUDE_3_ROOT_MAX)
+                4 -> r(APTITUDE_4_ROOT_MIN, APTITUDE_4_ROOT_MAX)
+                else -> r(APTITUDE_5_ROOT_MIN, APTITUDE_5_ROOT_MAX)
             }
         )
 

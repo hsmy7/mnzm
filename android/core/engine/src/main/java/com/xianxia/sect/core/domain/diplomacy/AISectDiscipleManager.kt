@@ -147,11 +147,11 @@ object AISectDiscipleManager {
         val spiritRoot = generateSpiritRoot()
         val spiritRootCount = spiritRoot.split(",").size
         val comprehension = when (spiritRootCount) {
-            1 -> 80 + rng.nextInt(121)
-            2 -> 60 + rng.nextInt(141)
-            3 -> 40 + rng.nextInt(161)
-            4 -> 20 + rng.nextInt(181)
-            else -> 1 + rng.nextInt(200)
+            1 -> 80 + rng.nextInt(21)
+            2 -> 60 + rng.nextInt(21)
+            3 -> 40 + rng.nextInt(21)
+            4 -> 20 + rng.nextInt(21)
+            else -> 1 + rng.nextInt(20)
         }
         // 资质：与悟性一致的按灵根阶梯生成（上界统一 200，防 AI 对抗不对称；避开哨兵 50）
         val aptitude = rollAptitudeByRootCount(spiritRootCount)
@@ -238,11 +238,11 @@ object AISectDiscipleManager {
     private fun rollAptitudeByRootCount(spiritRootCount: Int): Int =
         avoidSentinel50(
             when (spiritRootCount) {
-                1 -> 80 + rng.nextInt(121)
-                2 -> 60 + rng.nextInt(141)
-                3 -> 40 + rng.nextInt(161)
-                4 -> 20 + rng.nextInt(181)
-                else -> 1 + rng.nextInt(200)
+                1 -> 80 + rng.nextInt(21)
+                2 -> 60 + rng.nextInt(21)
+                3 -> 40 + rng.nextInt(21)
+                4 -> 20 + rng.nextInt(21)
+                else -> 1 + rng.nextInt(20)
             }
         )
 

@@ -3,7 +3,6 @@ package com.xianxia.sect.ui.game.saveload
 import android.content.Context
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.BootSequenceController
-import com.xianxia.sect.core.engine.domain.disciple.DiscipleSnapshotCache
 import com.xianxia.sect.core.util.GameRngManager
 import com.xianxia.sect.core.wallet.SpiritStoneWallet
 import com.xianxia.sect.data.SessionManager
@@ -25,7 +24,6 @@ class PersistenceFacade @Inject constructor(
     val bootSequenceController: BootSequenceController,
     val spiritStoneWallet: SpiritStoneWallet,
     val buildingConfigService: BuildingConfigService,
-    val discipleSnapshotCache: DiscipleSnapshotCache,
     val gameRngManager: GameRngManager,
     val tapCloudSaveManager: TapCloudSaveManager,
     val sessionManager: SessionManager,

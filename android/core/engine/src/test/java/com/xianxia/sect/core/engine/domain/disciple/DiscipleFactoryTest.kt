@@ -116,11 +116,11 @@ class DiscipleFactoryTest {
 
     @Test
     fun `create - aptitude generation avoids sentinel 50`() {
-        // nextInt 在资质 5 根段（from=1, until=201）命中哨兵 50 → 生成强制 +1 收敛为 51，
-        // 否则资质==50 会被读档自愈误判为"未生成"重复重算（资质跳变）。
+        // nextInt 在资质 3 根段（from=40, until=61，区间 [40,60] 含 50）命中哨兵 50
+        // → 生成强制 +1 收敛为 51，否则资质==50 会被读档自愈误判为"未生成"重复重算（资质跳变）。
         // 其他段（数组索引如 PortraitPool）返回 from 保持安全。
-        val seed = newSeed(spiritRootType = "火,水,木,金,土").copy(
-            nextInt = { from, until -> if (from == 1 && until == 201) 50 else from }
+        val seed = newSeed(spiritRootType = "火,水,木").copy(
+            nextInt = { from, until -> if (from == 40 && until == 61) 50 else from }
         )
         assertEquals(51, factory.create(seed).skills.aptitude)
     }

@@ -3,7 +3,6 @@ package com.xianxia.sect.core.engine
 import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.config.BuildingConfigService
 import com.xianxia.sect.core.engine.domain.building.BuildingFeatureRegistry
-import com.xianxia.sect.core.engine.domain.disciple.DiscipleSnapshotCache
 import com.xianxia.sect.core.model.GridBuildingData
 import com.xianxia.sect.core.model.MapPreloadData
 import com.xianxia.sect.core.state.BootPhase
@@ -42,8 +41,7 @@ class BootSequenceController @Inject constructor(
     private val stateStore: GameStateStore,
     private val gameEngineCore: GameEngineCore,
     private val gameEngine: GameEngine,
-    private val buildingConfigService: BuildingConfigService,
-    private val discipleSnapshotCache: DiscipleSnapshotCache
+    private val buildingConfigService: BuildingConfigService
 ) {
     companion object {
         private const val TAG = "BootSequence"
@@ -154,8 +152,7 @@ class BootSequenceController @Inject constructor(
             onPhase("ready")
             onProgress(0.40f)
 
-            // ── Step 5: 弟子快照预热 + 重型数据 + 数据完整性守卫 ──
-            discipleSnapshotCache.prewarm(gameEngine.discipleTables)
+            // ── Step 5: 重型数据 + 数据完整性守卫 ──
             gameEngine.ensureHeavyDataLoaded()
             gameEngine.ensureGameDataIntegrity()
 
@@ -489,7 +486,6 @@ class BootSequenceController @Inject constructor(
         // 半初始化状态（重数据未加载/Gate 未重建）禁止进入 PLAYING。
         // 守卫失败则放弃恢复，走既有 onError 流程（比半初始化进游戏安全）。
         try {
-            discipleSnapshotCache.prewarm(gameEngine.discipleTables)
             gameEngine.ensureHeavyDataLoaded()
             gameEngine.ensureGameDataIntegrity()
             gameEngine.assignmentGate.rebuildFromGameData(

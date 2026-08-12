@@ -723,11 +723,11 @@ object RedeemCodeManager {
             skills = SkillStats(
                 intelligence = cfg.intelligence ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
                 comprehension = cfg.comprehension ?: when (spiritRootType.split(",").size) {
-                    1 -> 80 + random.nextInt(121)
-                    2 -> 60 + random.nextInt(141)
-                    3 -> 40 + random.nextInt(161)
-                    4 -> 20 + random.nextInt(181)
-                    else -> 1 + random.nextInt(200)
+                    1 -> 80 + random.nextInt(21)
+                    2 -> 60 + random.nextInt(21)
+                    3 -> 40 + random.nextInt(21)
+                    4 -> 20 + random.nextInt(21)
+                    else -> 1 + random.nextInt(20)
                 },
                 charm = cfg.charm ?: 1 + random.nextInt(GameConfig.Disciple.SKILL_MAX),
                 loyalty = cfg.loyalty ?: 1 + random.nextInt(GameConfig.Disciple.MAX_LOYALTY),
@@ -740,11 +740,11 @@ object RedeemCodeManager {
                 // 资质：按灵根阶梯生成（固定属性，配置不覆盖，最小改动；避开哨兵 50 防自愈误判）
                 aptitude = avoidSentinel50(
                     when (spiritRootType.split(",").size) {
-                        1 -> 80 + random.nextInt(121)
-                        2 -> 60 + random.nextInt(141)
-                        3 -> 40 + random.nextInt(161)
-                        4 -> 20 + random.nextInt(181)
-                        else -> 1 + random.nextInt(200)
+                        1 -> 80 + random.nextInt(21)
+                        2 -> 60 + random.nextInt(21)
+                        3 -> 40 + random.nextInt(21)
+                        4 -> 20 + random.nextInt(21)
+                        else -> 1 + random.nextInt(20)
                     }
                 )
             )

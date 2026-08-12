@@ -1,7 +1,6 @@
 package com.xianxia.sect.core.engine
 
 import com.xianxia.sect.core.config.BuildingConfigService
-import com.xianxia.sect.core.engine.domain.disciple.DiscipleSnapshotCache
 import com.xianxia.sect.core.model.BattleLog
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
@@ -46,7 +45,6 @@ class BootSequenceControllerTest {
     private lateinit var gameEngineCore: GameEngineCore
     private lateinit var gameEngine: GameEngine
     private lateinit var buildingConfigService: BuildingConfigService
-    private lateinit var discipleSnapshotCache: DiscipleSnapshotCache
     private lateinit var controller: BootSequenceController
 
     private val gameDataFlow = MutableStateFlow(GameData())
@@ -59,7 +57,6 @@ class BootSequenceControllerTest {
         gameEngineCore = mock()
         gameEngine = mock()
         buildingConfigService = mock()
-        discipleSnapshotCache = mock()
 
         // EngineContextDispatcher: 使用 Fake 确保 extension 函数内部 withEngineContext 正常执行
         whenever(gameEngine.engineContextDispatcher).thenReturn(FakeEngineContextDispatcher())
@@ -97,9 +94,6 @@ class BootSequenceControllerTest {
         // mock 默认 null 会被 catch 转为 emptyList，无需 stub。
         whenever(gameEngine.productionCoordinator).thenReturn(mock())
 
-        // DiscipleSnapshotCache
-        doNothing().whenever(discipleSnapshotCache).prewarm(any())
-
         // assignmentGate: 创建真实 Gate 用于注册表重建
         val realGate = com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentGate(
             com.xianxia.sect.core.engine.domain.disciple.DiscipleAssignmentRegistry()
@@ -110,8 +104,7 @@ class BootSequenceControllerTest {
             stateStore = stateStore,
             gameEngineCore = gameEngineCore,
             gameEngine = gameEngine,
-            buildingConfigService = buildingConfigService,
-            discipleSnapshotCache = discipleSnapshotCache
+            buildingConfigService = buildingConfigService
         )
     }
 
@@ -148,7 +141,6 @@ class BootSequenceControllerTest {
         verify(buildingConfigService).fixupBuildingSizes(
             any(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt()
         )
-        verify(discipleSnapshotCache).prewarm(discipleTables)
     }
 
     // ──────────────────────────────────────────────────────────────────
@@ -416,10 +408,6 @@ class BootSequenceControllerTest {
             onError = {}
         )
         assertTrue("recover 应成功", result.isSuccess)
-
-        // 守卫第一环 prewarm 必须执行（成员方法可验证；ensureHeavyDataLoaded 等为
-        // 顶层扩展函数无法 Mockito verify——守卫失败会 abort recovery，成功即守卫链通过）
-        verify(discipleSnapshotCache).prewarm(any())
     }
 
     @Test
@@ -429,15 +417,17 @@ class BootSequenceControllerTest {
         gameDataFlow.value = GameData(sectName = "青云宗")
         disciplesFlow.value = listOf(Disciple())
 
-        // 守卫第一环 prewarm 抛异常 → 守卫 catch → 放弃恢复走 onError
-        doThrow(RuntimeException("guard failure")).whenever(discipleSnapshotCache).prewarm(any())
+        // 恢复路径的完整性守卫（recoverWithPartialData 内的 ensureHeavyDataLoaded）
+        // 抛异常 → 放弃恢复走 onError（原注入点 discipleSnapshotCache.prewarm
+        // 已随死代码清理删除，恢复守卫块内重型数据加载为等价注入点）
         // 失败清理会检查循环状态
         whenever(gameEngineCore.isGameLoopRunning).thenReturn(true)
+        whenever(gameEngine.ensureHeavyDataLoaded()).thenThrow(RuntimeException("guard failure"))
 
         var onErrorCalled = false
         val result = controller.boot(
             slot = 1,
-            onPreloadResources = { throw RuntimeException("preload failure") },
+            onPreloadResources = {},
             onSuccess = {},
             onError = { onErrorCalled = true }
         )

@@ -44,7 +44,6 @@
     <ID>LongParameterList:ProductionParams.kt$ProductionParams.Companion$( buildingType: BuildingType, slotIndex: Int, recipeId: String, recipeName: String, duration: Int, currentYear: Int, currentMonth: Int, discipleId: String?, discipleName: String, successRate: Double, materials: Map&lt;String, Int&gt;, availableMaterials: Map&lt;String, Int&gt;, outputItemId: String?, outputItemName: String, outputItemRarity: Int, outputItemSlot: String = "" )</ID>
     <ID>LongParameterList:ProductionSlot.kt$ProductionSlot.Companion$( id: String = java.util.UUID.randomUUID().toString(), slotIndex: Int, buildingType: BuildingType, buildingId: String = "", autoRestartEnabled: Boolean = false, assignedDiscipleId: String? = null, assignedDiscipleName: String = "", recipeId: String? = null )</ID>
     <ID>LongParameterList:SlotStateMachine.kt$SlotStateMachine$( slot: ProductionSlot, recipeId: String, recipeName: String, duration: Int, currentYear: Int, currentMonth: Int, discipleId: String?, discipleName: String, successRate: Double, materials: Map&lt;String, Int&gt;, outputItemId: String?, outputItemName: String, outputItemRarity: Int )</ID>
-    <ID>LoopWithTooManyJumpStatements:DiscipleSnapshot.kt$DiscipleSnapshot.Companion$for</ID>
     <ID>LoopWithTooManyJumpStatements:DiscipleTables.kt$DiscipleTables$while</ID>
     <ID>LoopWithTooManyJumpStatements:EntityStore.kt$for</ID>
     <ID>LoopWithTooManyJumpStatements:StackableItemStore.kt$StackableItemStore$for</ID>
@@ -442,7 +441,6 @@
     <ID>ReturnCount:BeastMaterialDatabase.kt$BeastMaterialDatabase$fun getRandomMaterialByRealm(realm: Int, luck: Double = 1.0): BeastMaterial?</ID>
     <ID>ReturnCount:ConfigLoader.kt$ConfigLoader$suspend fun loadAsync(): GameConfigData</ID>
     <ID>ReturnCount:CultivatorCave.kt$CultivatorCave$fun isExpired(currentYear: Int, currentMonth: Int): Boolean</ID>
-    <ID>ReturnCount:DiscipleSnapshot.kt$DiscipleSnapshot.Companion$private fun buildRealmName(realm: Int, realmLayer: Int, age: Int): String</ID>
     <ID>ReturnCount:DiscipleTables.kt$DiscipleTables$fun assembleAllIncremental(prevSnapshot: List&lt;Disciple&gt;, changedIds: Set&lt;Int&gt;): List&lt;Disciple&gt;</ID>
     <ID>ReturnCount:DiscipleTables.kt$DiscipleTables$fun assembleAllPatched( prevSnapshot: List&lt;Disciple&gt;, changedIds: Set&lt;Int&gt;, dirtyColumnIndices: Set&lt;Int&gt; ): List&lt;Disciple&gt;</ID>
     <ID>ReturnCount:DiscipleTables.kt$DiscipleTables$fun getEffectiveCultivation(id: Int, currentMonth: Int, rate: Double): Double</ID>

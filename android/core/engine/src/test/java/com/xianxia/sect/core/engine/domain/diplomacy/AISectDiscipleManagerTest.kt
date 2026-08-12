@@ -446,7 +446,9 @@ class AISectDiscipleManagerTest {
 
     @Test
     fun `fillDisciplesToTarget - 老档弟子补全装备`() {
-        AISectDiscipleManager.initForSlot(42L)
+        // 种子 43：资质生成（2026-08-12 新增）消耗分区 RNG 后序列偏移，
+        // 原 42 下老档弟子体质/词条 roll 恰为 0（0-3 随机合法空）→ 改 43 保持断言强度
+        AISectDiscipleManager.initForSlot(43L)
         ManualDatabase.initializeWithManuals(testManuals())
         // 老档弟子：无体质/词条/装备/功法（generateRandomDisciple 旧版产物）
         val old = makeGearDisciple(realm = 5).copy(

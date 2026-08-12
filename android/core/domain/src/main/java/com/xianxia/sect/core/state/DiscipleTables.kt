@@ -1188,19 +1188,19 @@ class DiscipleTables {
      */
     private fun rollHealedAptitude(id: Int, rootCount: Int): Int {
         val (min, span) = when (rootCount) {
-            1 -> 80 to 121
-            2 -> 60 to 141
-            3 -> 40 to 161
-            4 -> 20 to 181
-            else -> 1 to 200 // 5 灵根；异常灵根数兜底到最宽区间 [1,200]
+            1 -> 80 to 21 // [80,100]
+            2 -> 60 to 21 // [60,80]
+            3 -> 40 to 21 // [40,60]
+            4 -> 20 to 21 // [20,40]
+            else -> 1 to 20 // 5 灵根 [1,20]；异常灵根数兜底
         }
-        // 确定性散列（Long 运算防 Int 溢出，floorMod 保证非负），span 恰好覆盖 [min, 200]
+        // 确定性散列（Long 运算防 Int 溢出，floorMod 保证非负），span 恰好覆盖 [min, 100]
         val roll = Math.floorMod(
             id.toLong() * APTITUDE_HASH_MULTIPLIER + APTITUDE_HASH_OFFSET,
             span.toLong()
         ).toInt()
         val aptitude = min + roll
-        // 收敛：重算命中哨兵值时强制 +1，保证幂等稳定（3/4/5 根区间均含 50）
+        // 收敛：重算命中哨兵值时强制 +1，保证幂等稳定（3 根区间 [40,60] 含 50）
         return if (aptitude == DEFAULT_APTITUDE) DEFAULT_APTITUDE + 1 else aptitude
     }
 

@@ -166,7 +166,6 @@
     <ID>InvalidPackageDeclaration:DiscipleServiceCrudTest.kt$package com.xianxia.sect.core.engine.domain.disciple</ID>
     <ID>InvalidPackageDeclaration:DiscipleSlotCleanup.kt$package com.xianxia.sect.core.engine.domain.disciple</ID>
     <ID>InvalidPackageDeclaration:DiscipleSlotManager.kt$package com.xianxia.sect.core.engine.domain.disciple</ID>
-    <ID>InvalidPackageDeclaration:DiscipleSnapshotCache.kt$package com.xianxia.sect.core.engine.domain.disciple</ID>
     <ID>InvalidPackageDeclaration:DiscipleStatCalculator.kt$package com.xianxia.sect.core.engine.domain.disciple</ID>
     <ID>InvalidPackageDeclaration:DiscipleStatusService.kt$package com.xianxia.sect.core.engine.domain.disciple</ID>
     <ID>InvalidPackageDeclaration:DiscipleStatusServiceTest.kt$package com.xianxia.sect.core.engine.domain.disciple</ID>
