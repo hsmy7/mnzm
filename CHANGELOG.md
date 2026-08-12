@@ -8,6 +8,14 @@
 - **测试** — `BuildingsInSquareTest` 新建 11 用例：直径 3/4/5/20 几何、部分重叠/紧贴边界/大建筑宽高参与判定、不可拆除排除、空列表、直径越界钳制、重复框选并集累积幂等守卫；对抗性审查要点自查通过（连点 toggle/拖动与 tap 隔离/进度条边界/退出路径全量/圆点不越轨）
 - **兼容性** — 纯 UI + 纯函数改动，无 Entity/Migration/存档格式变更（DATABASE_VERSION 不变）；版本号 4.00.95 → 4.00.96（changelog 双入口已同步，4.00.96 changes 追加 1 条玩家视角描述）
 
+### 修复（2026-08-12 长老/传道师选择界面"显示所有弟子"失效 4 处）
+
+- **根因（同源模式）** — `PeakDiscipleSelectionDialog`（问道塔/青云峰长老、传道长老、传道师选择）与 `DiscipleSelectorDialog`/`AttackDiscipleDialog`/`ScoutDialog` 内部均已委托 `filterByDiscipleStatus(showAllEnabled, ...)` 处理"显示所有弟子"勾选，但 4 处**数据源在 ViewModel/调用方硬编码预过滤 `status == DiscipleStatus.IDLE`**，把在岗弟子提前剔除 → 勾选框有 UI 无候选，始终只显示空闲弟子。与 CHANGELOG 4.00.94 仓库驻守同款 bug（预过滤 IDLE 导致勾选失效）漏网的 4 处
+- **修复（统一原则：数据源只做硬性条件过滤，状态过滤统一委托对话框层）** — ① `DiscipleFilterUtils.kt` 新增 `internal fun List<DiscipleAggregate>.eligibleElderCandidates()`（存活 + 达最小年龄 + realmLayer>0，KDoc 注明禁止加 status 预过滤）；② `ProductionViewModel` 6 个在用 `getAvailableDisciplesFor*`（问道塔外门长老/传道长老/传道师、青云峰内门长老/传道长老/传道师）改委托 `eligibleElderCandidates()`，保留各自排序，删除失效 `GameConfig`/`DiscipleStatus` import；③ `WorldMapSectDetailDialog` 攻击弟子选择传全量 `disciples`；④ `WorldMapDialog` 探查弟子选择传全量 `disciples`；⑤ `PatrolTowerViewModel.getAvailableDisciples` 移除 IDLE 预过滤（保留 `assignedIds` 槽位排除）。行为：未勾选 showAll 与现状一致（仅 IDLE）；勾选后显示在岗弟子（巡逻/长老/生产岗，排除任务中/队伍中/战斗探索中），选中在岗弟子走既有 `releaseDiscipleForReassignment` + 分配事务清旧槽位，无双槽位风险
+- **测试** — `ProductionViewModelEligibleDisciplesTest` 新建 3 用例（6 数据源守卫遍历：包含空闲与在岗、排除死者/未成年/无境界、空列表）；`DiscipleFilterUtilsTest` +2（`eligibleElderCandidates` 含在岗不含状态过滤 / 排除死者未成年无境界）；全通过
+- **途中发现（已删除，用户指示一并解决）** — ① `ProductionViewModel.getAvailableDisciplesForLawEnforcementElder/Disciple` 无调用点（死代码），已删除方法本体 + `sortedByFollowAndRealm` import；② `ProductionComponents.kt` `ProductionTheme.directDiscipleEligibility` 字段无读取点（死字段），已删除字段定义 + `HERB_GARDEN_THEME` 覆写 + `DiscipleStatus` import
+- **兼容性** — 纯 UI 数据源变更，无 Entity/Migration/存档格式变更（DATABASE_VERSION 不变）；版本号不递增（changelog 双入口已同步，4.00.96 changes 追加 1 条玩家视角描述）
+
 ## [4.00.95] - 2026-08-12
 
 ### 新增（2026-08-12 聚合广告接入爱奇艺 / 百青藤两个广告网络）

@@ -1,9 +1,11 @@
 package com.xianxia.sect.ui.game
 
+import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.DiscipleAggregate
 import com.xianxia.sect.core.model.DiscipleAttributes
 import com.xianxia.sect.core.model.DiscipleCore
 import com.xianxia.sect.core.model.DiscipleExtended
+import com.xianxia.sect.core.model.DiscipleStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -16,6 +18,9 @@ class DiscipleFilterUtilsTest {
         id: String = "d1",
         realm: Int = 9,
         realmLayer: Int = 1,
+        status: DiscipleStatus = DiscipleStatus.IDLE,
+        isAlive: Boolean = true,
+        age: Int = 20,
         isFollowed: Boolean = false,
         spiritRootType: String = "metal",
         comprehension: Int = 50,
@@ -29,7 +34,10 @@ class DiscipleFilterUtilsTest {
                 id = id,
                 realm = realm,
                 realmLayer = realmLayer,
-                spiritRootType = spiritRootType
+                spiritRootType = spiritRootType,
+                status = status.name,
+                isAlive = isAlive,
+                age = age
             ),
             combatStats = null,
             equipment = null,
@@ -313,5 +321,41 @@ class DiscipleFilterUtilsTest {
     fun getAttributeValue_unknownKey_returnsZero() {
         val d = createAggregate(id = "d1", comprehension = 80)
         assertEquals(0, d.getAttributeValue("nonexistent"))
+    }
+
+    // -- eligibleElderCandidates：长老/执事岗位候选（不含状态过滤）------------
+
+    @Test
+    fun eligibleElderCandidates_containsIdleAndOnDuty() {
+        // 回归：数据源预过滤 status == IDLE 会导致"显示所有弟子"勾选失效，
+        // 候选必须包含在岗（非任务/非队伍）弟子，状态过滤由对话框 filterByDiscipleStatus 负责
+        val idle = createAggregate(id = "idle", status = DiscipleStatus.IDLE)
+        val patrolling = createAggregate(id = "patrolling", status = DiscipleStatus.PATROLLING)
+        val refining = createAggregate(id = "refining", status = DiscipleStatus.REFINING)
+        val onMission = createAggregate(id = "mission", status = DiscipleStatus.ON_MISSION)
+        val inTeam = createAggregate(id = "team", status = DiscipleStatus.IN_TEAM)
+
+        val result = listOf(idle, patrolling, refining, onMission, inTeam).eligibleElderCandidates()
+
+        val ids = result.map { it.id }.toSet()
+        assertTrue("空闲中弟子应包含", "idle" in ids)
+        assertTrue("巡视中在岗弟子应包含（showAll 可选中）", "patrolling" in ids)
+        assertTrue("血炼中在岗弟子应包含（showAll 可选中）", "refining" in ids)
+        assertTrue("任务中弟子应包含（状态过滤由 filterByDiscipleStatus 排除）", "mission" in ids)
+        assertTrue("队伍中弟子应包含（状态过滤由 filterByDiscipleStatus 排除）", "team" in ids)
+    }
+
+    @Test
+    fun eligibleElderCandidates_excludesDeadUnderageAndNoRealm() {
+        val normal = createAggregate(id = "ok", age = 20, realmLayer = 1)
+        val dead = createAggregate(id = "dead", age = 20, realmLayer = 1, isAlive = false)
+        val underage = createAggregate(id = "young", age = GameConfig.Disciple.MIN_AGE - 1, realmLayer = 1)
+        val noRealm = createAggregate(id = "noRealm", age = 20, realmLayer = 0)
+
+        val result = listOf(normal, dead, underage, noRealm).eligibleElderCandidates()
+
+        val ids = result.map { it.id }.toSet()
+        assertEquals(1, result.size)
+        assertEquals("ok", ids.single())
     }
 }

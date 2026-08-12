@@ -99,6 +99,16 @@ internal fun List<DiscipleAggregate>.applyFilters(
 }
 
 /**
+ * 长老/执事等岗位候选弟子的硬性条件过滤（不含状态过滤）：
+ * 存活 + 达最小年龄 + 已入修炼（realmLayer > 0）。
+ * 状态过滤（空闲中/显示所有弟子）由调用方对话框统一委托 [filterByDiscipleStatus]，
+ * 此处不做 status 过滤——预过滤 status == IDLE 会导致对话框"显示所有弟子"勾选失效
+ * （回归：问道塔/青云峰传道长老选择界面）。
+ */
+internal fun List<DiscipleAggregate>.eligibleElderCandidates(): List<DiscipleAggregate> =
+    filter { it.isAlive && it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0 }
+
+/**
  * 根据"显示所有可用弟子"开关过滤弟子列表：
  * - 勾选时：排除 [ON_MISSION]（任务中）及 [battleAndExplorationIds]
  *   中的弟子（探索/战斗中），其余状态均显示（含血炼中、思过中等）

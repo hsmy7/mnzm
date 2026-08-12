@@ -10,7 +10,6 @@ import com.xianxia.sect.core.engine.removePatrolAtomic
 import com.xianxia.sect.core.engine.updatePatrolConfig
 import com.xianxia.sect.core.engine.updatePatrolConfigs
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.PatrolConfig
 import com.xianxia.sect.core.util.DomainResult
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -43,7 +42,9 @@ class PatrolTowerViewModel @Inject constructor(
             .map { it.discipleId }.toSet()
 
         return gameEngine.discipleAggregatesSnapshot
-            .filter { it.isAlive && it.status == DiscipleStatus.IDLE && it.id !in assignedIds }
+            // 状态过滤（空闲/显示所有）委托 DiscipleSelectorDialog 内部 filterByDiscipleStatus，
+            // 此处不得预过滤 IDLE（回归：预过滤会导致"显示所有弟子"勾选失效）
+            .filter { it.isAlive && it.id !in assignedIds }
             .sortedWith(compareBy<DiscipleAggregate> { it.realm }
                 .thenByDescending { it.realmLayer })
     }

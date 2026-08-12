@@ -23,7 +23,6 @@ import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.model.DirectDiscipleSlot
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.ElderSlots
 import com.xianxia.sect.core.model.artifactRefining
 import com.xianxia.sect.core.model.mining
@@ -65,8 +64,7 @@ data class ProductionTheme(
     val getElderId: (ElderSlots) -> String?,
     val getDirectDisciples: (ElderSlots) -> List<DirectDiscipleSlot>,
     val elderSortComparator: Comparator<DiscipleAggregate>,
-    val directDiscipleSortComparator: Comparator<DiscipleAggregate>,
-    val directDiscipleEligibility: (DiscipleAggregate) -> Boolean = { it.isAlive && it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0 && it.status == DiscipleStatus.IDLE }
+    val directDiscipleSortComparator: Comparator<DiscipleAggregate>
 )
 
 val ALCHEMY_THEME = ProductionTheme(
@@ -144,8 +142,7 @@ val HERB_GARDEN_THEME = ProductionTheme(
         .thenByDescending { it.realmLayer },
     directDiscipleSortComparator = compareBy<DiscipleAggregate> { it.realm }
         .thenByDescending { it.realmLayer }
-        .thenByDescending { it.spiritPlanting },
-    directDiscipleEligibility = { it.isAlive && it.status == DiscipleStatus.IDLE }
+        .thenByDescending { it.spiritPlanting }
 )
 
 val SPIRIT_MINE_THEME = ProductionTheme(

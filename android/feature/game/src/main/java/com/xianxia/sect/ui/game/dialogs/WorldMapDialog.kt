@@ -201,12 +201,11 @@ internal fun WorldMapDialog(
 
     if (showScoutDialog) {
         val sect = gameData?.worldMapSects?.find { it.id == selectedScoutSectId }
-        val eligible = remember(disciples) {
-            disciples.filter { it.isAlive && it.status == com.xianxia.sect.core.model.DiscipleStatus.IDLE }
-        }
+        // 状态过滤（空闲/显示所有）委托 ScoutDialog 内部 DiscipleSelectorDialog，
+        // 此处不得预过滤 IDLE（回归：预过滤会导致"显示所有弟子"勾选失效）
         ScoutDialog(
             sectName = sect?.name ?: "未知",
-            disciples = eligible,
+            disciples = disciples,
             viewModel = viewModel,
             onScout = { memberIds ->
                 interactionViewModel.startScoutMission(memberIds, selectedScoutSectId ?: "")

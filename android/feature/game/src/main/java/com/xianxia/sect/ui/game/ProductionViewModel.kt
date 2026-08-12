@@ -1,7 +1,6 @@
 package com.xianxia.sect.ui.game
 
 import androidx.lifecycle.viewModelScope
-import com.xianxia.sect.core.GameConfig
 import com.xianxia.sect.core.engine.GameEngine
 import com.xianxia.sect.core.engine.assignDirectDisciple
 import com.xianxia.sect.core.engine.assignDiscipleToLibrarySlot
@@ -14,12 +13,10 @@ import com.xianxia.sect.core.engine.updateGameDataAndSync
 import com.xianxia.sect.core.model.DirectDiscipleSlot
 import com.xianxia.sect.core.model.Disciple
 import com.xianxia.sect.core.model.DiscipleAggregate
-import com.xianxia.sect.core.model.DiscipleStatus
 import com.xianxia.sect.core.model.ElderSlotType
 import com.xianxia.sect.core.model.production.ProductionSlot
 import com.xianxia.sect.core.usecase.ElderManagementUseCase
 import com.xianxia.sect.core.usecase.SectPolicyToggleUseCase
-import com.xianxia.sect.core.util.sortedByFollowAndRealm
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -317,33 +314,21 @@ class ProductionViewModel @Inject constructor(
         return gameEngine.gameDataSnapshot?.elderSlots?.lawEnforcementDisciples ?: emptyList()
     }
 
-    fun getAvailableDisciplesForLawEnforcementElder(): List<DiscipleAggregate> {
-        return gameEngine.discipleAggregatesSnapshot
-            .filter { it.isAlive && it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0 && it.status == DiscipleStatus.IDLE }
-            .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
-    }
-
-    fun getAvailableDisciplesForLawEnforcementDisciple(): List<DiscipleAggregate> {
-        return gameEngine.discipleAggregatesSnapshot
-            .filter { it.isAlive && it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0 && it.status == DiscipleStatus.IDLE }
-            .sortedByFollowAndRealm()
-    }
-
     fun getAvailableDisciplesForOuterElder(): List<DiscipleAggregate> {
         return gameEngine.discipleAggregatesSnapshot
-            .filter { it.isAlive && it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0 && it.status == DiscipleStatus.IDLE }
+            .eligibleElderCandidates()
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
     fun getAvailableDisciplesForPreachingElder(): List<DiscipleAggregate> {
         return gameEngine.discipleAggregatesSnapshot
-            .filter { it.isAlive && it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0 && it.status == DiscipleStatus.IDLE }
+            .eligibleElderCandidates()
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
     fun getAvailableDisciplesForPreachingMaster(): List<DiscipleAggregate> {
         return gameEngine.discipleAggregatesSnapshot
-            .filter { it.isAlive && it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0 && it.status == DiscipleStatus.IDLE }
+            .eligibleElderCandidates()
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
@@ -363,19 +348,19 @@ class ProductionViewModel @Inject constructor(
 
     fun getAvailableDisciplesForInnerElder(): List<DiscipleAggregate> {
         return gameEngine.discipleAggregatesSnapshot
-            .filter { it.isAlive && it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0 && it.status == DiscipleStatus.IDLE }
+            .eligibleElderCandidates()
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
     fun getAvailableDisciplesForQingyunPreachingElder(): List<DiscipleAggregate> {
         return gameEngine.discipleAggregatesSnapshot
-            .filter { it.isAlive && it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0 && it.status == DiscipleStatus.IDLE }
+            .eligibleElderCandidates()
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 
     fun getAvailableDisciplesForQingyunPreachingMaster(): List<DiscipleAggregate> {
         return gameEngine.discipleAggregatesSnapshot
-            .filter { it.isAlive && it.age >= GameConfig.Disciple.MIN_AGE && it.realmLayer > 0 && it.status == DiscipleStatus.IDLE }
+            .eligibleElderCandidates()
             .sortedWith(compareBy({ it.realm }, { -it.realmLayer }))
     }
 }

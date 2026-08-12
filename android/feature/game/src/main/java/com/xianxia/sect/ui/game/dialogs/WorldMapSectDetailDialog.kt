@@ -367,12 +367,11 @@ internal fun WorldMapSectDetailDialog(
     }
 
     if (showAttackDialog) {
-        val idleDisciples = disciples.filter {
-            it.isAlive && it.status == com.xianxia.sect.core.model.DiscipleStatus.IDLE
-        }
+        // 状态过滤（空闲/显示所有）委托 AttackDiscipleDialog 内部 filterByDiscipleStatus，
+        // 此处不得预过滤 IDLE（回归：预过滤会导致"显示所有弟子"勾选失效）
         AttackDiscipleDialog(
             sectName = sect.name,
-            disciples = idleDisciples,
+            disciples = disciples,
             gameData = gameData,
             viewModel = viewModel,
             onAttack = { attackSlots ->
