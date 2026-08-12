@@ -53,21 +53,21 @@ class GameConfigConsistencyTest {
 
     // ── Battle.RealmGap ──
     @Test
-    fun `damageBonusPerRealm 两源一致`() {
+    fun `damageBonusPerLayer 两源一致`() {
         val data = GameConfigData().battle.realmGap
         assertEquals(
-            GameConfig.Battle.RealmGap.DAMAGE_BONUS_PER_REALM,
-            data.damageBonusPerRealm,
+            GameConfig.Battle.RealmGap.DAMAGE_BONUS_PER_LAYER,
+            data.damageBonusPerLayer,
             0.001
         )
     }
 
     @Test
-    fun `damagePenaltyPerRealm 两源一致`() {
+    fun `damageReductionPerLayer 两源一致`() {
         val data = GameConfigData().battle.realmGap
         assertEquals(
-            GameConfig.Battle.RealmGap.DAMAGE_PENALTY_PER_REALM,
-            data.damagePenaltyPerRealm,
+            GameConfig.Battle.RealmGap.DAMAGE_REDUCTION_PER_LAYER,
+            data.damageReductionPerLayer,
             0.001
         )
     }

@@ -25,7 +25,9 @@ data class CombatBuff(
     val type: BuffType,
     val value: Double,
     var remainingDuration: Int,
-    val sourceRealm: Int = 9
+    val sourceRealm: Int = 9,
+    /** 施放者的小层境界（1~9，0 表示未知/未记录，按初层 1 回退） */
+    val sourceRealmLayer: Int = 0
 )
 
 data class Combatant(

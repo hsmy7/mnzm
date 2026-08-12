@@ -90,8 +90,8 @@
     "discipleSlots": 8,
     "minFormationSize": 10,
     "realmGap": {
-      "damageBonusPerRealm": 0.35,
-      "damagePenaltyPerRealm": 0.35,
+      "damageBonusPerLayer": 0.3,
+      "damageReductionPerLayer": 0.3,
       "instantKillGap": 1
     }
   },

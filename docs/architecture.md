@@ -212,7 +212,7 @@ interface GameSystem {
 | 系统 | 乘区结构 | 所在文件 |
 |------|---------|---------|
 | 修炼速度 | `CultivationSpeedZones`（5乘区：资质/资源/社交/状态/临时） | `DiscipleStatCalculator.kt` |
-| 战斗伤害 | `DamageZones`（攻击Buff/防御穿透/暴伤/增伤/减伤） | `BattleCalculator.kt` |
+| 战斗伤害 | `DamageZones`（攻击Buff/防御穿透/暴伤/增伤/减伤）+ 境界压制独立因子（每小层 ±30%，不并入任何乘区，独立乘算） | `BattleCalculator.kt` |
 | 突破概率 | `BreakthroughZones`（长老指导/自身加成/状态惩罚） | `DiscipleStatCalculator.kt` |
 | 灵矿产出 | `SpiritMineZones`（采矿技能/执事道德/政策） | `CultivationSettlement.kt` |
 | 生产成功率 | `SuccessRateZones`（境界/天赋/政策/长老） | `FormulaService.kt` |

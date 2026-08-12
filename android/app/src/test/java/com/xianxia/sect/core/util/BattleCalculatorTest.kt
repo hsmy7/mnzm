@@ -276,38 +276,70 @@ class BattleCalculatorTest {
     }
 
     @Test
-    fun `calculateRealmGapMultiplier - same realm returns 1`() {
-        assertEquals(1.0, BattleCalculator.calculateRealmGapMultiplier(5, 5), 0.001)
+    fun `calculateRealmGapFactors - 同境界同层双因子为零`() {
+        val factors = BattleCalculator.calculateRealmGapFactors(5, 3, 5, 3)
+        assertEquals(0.0, factors.damageAmplification, 0.001)
+        assertEquals(0.0, factors.damageReduction, 0.001)
     }
 
     @Test
-    fun `calculateRealmGapMultiplier - 高境界攻击低境界获得加成`() {
-        val multiplier = BattleCalculator.calculateRealmGapMultiplier(0, 3)
-        assertEquals(2.05, multiplier, 0.001)
+    fun `calculateRealmGapFactors - 同境界高 4 层增伤`() {
+        // 炼气五层(9,5) vs 炼气一层(9,1)：gap = (9-9)×9 + (5-1) = 4
+        val factors = BattleCalculator.calculateRealmGapFactors(9, 5, 9, 1)
+        assertEquals(1.2, factors.damageAmplification, 0.001) // 0.30 × 4
+        assertEquals(0.0, factors.damageReduction, 0.001)
     }
 
     @Test
-    fun `calculateRealmGapMultiplier - 低境界攻击高境界受到惩罚`() {
-        val multiplier = BattleCalculator.calculateRealmGapMultiplier(5, 1)
-        assertEquals(0.0, multiplier, 0.001)
+    fun `calculateRealmGapFactors - 同境界低 4 层减伤封顶`() {
+        // 炼气一层(9,1) 打 炼气五层(9,5)：防守方高 4 层 → 减伤 min(1.0, 1.2) 封顶
+        val factors = BattleCalculator.calculateRealmGapFactors(9, 1, 9, 5)
+        assertEquals(0.0, factors.damageAmplification, 0.001)
+        assertEquals(1.0, factors.damageReduction, 0.001)
     }
 
     @Test
-    fun `calculateRealmGapMultiplier - 全十境界差距加成不再被钳制`() {
-        val multiplier = BattleCalculator.calculateRealmGapMultiplier(0, 9)
-        assertEquals(4.15, multiplier, 0.001)
+    fun `calculateRealmGapFactors - 跨境界加层数差增伤`() {
+        // 筑基三层(8,3) vs 炼气五层(9,5)：gap = (9-8)×9 + (3-5) = 7
+        val factors = BattleCalculator.calculateRealmGapFactors(8, 3, 9, 5)
+        assertEquals(2.1, factors.damageAmplification, 0.001) // 0.30 × 7
+        assertEquals(0.0, factors.damageReduction, 0.001)
     }
 
     @Test
-    fun `calculateRealmGapMultiplier - 全十境界差距惩罚触底为零`() {
-        val multiplier = BattleCalculator.calculateRealmGapMultiplier(9, 0)
-        assertEquals(0.0, multiplier, 0.001)
+    fun `calculateRealmGapFactors - 跨境界反向减伤封顶`() {
+        // 炼气五层(9,5) 打 筑基三层(8,3)：防守方（筑基）高 7 层 → 减伤封顶
+        val factors = BattleCalculator.calculateRealmGapFactors(9, 5, 8, 3)
+        assertEquals(0.0, factors.damageAmplification, 0.001)
+        assertEquals(1.0, factors.damageReduction, 0.001)
     }
 
     @Test
-    fun `calculateRealmGapMultiplier - 惩罚下限不为负数`() {
-        val multiplier = BattleCalculator.calculateRealmGapMultiplier(8, 0)
-        assertEquals(0.0, multiplier, 0.001)
+    fun `calculateRealmGapFactors - 减伤未封顶用例`() {
+        // 炼气一层(9,1) 打 炼气三层(9,3)：防守方高 2 层 → 减伤 0.6（未封顶）
+        val factors = BattleCalculator.calculateRealmGapFactors(9, 1, 9, 3)
+        assertEquals(0.0, factors.damageAmplification, 0.001)
+        assertEquals(0.6, factors.damageReduction, 0.001)
+    }
+
+    @Test
+    fun `calculateRealmGapFactors - layer 为 0 回退初层`() {
+        // (9,0) 视为 (9,1)：vs 炼气五层(9,5) → 防守方高 4 层 → 减伤封顶
+        val factors = BattleCalculator.calculateRealmGapFactors(9, 0, 9, 5)
+        assertEquals(0.0, factors.damageAmplification, 0.001)
+        assertEquals(1.0, factors.damageReduction, 0.001)
+        // 双方 layer 均为 0（未知）→ 中性
+        val neutral = BattleCalculator.calculateRealmGapFactors(9, 0, 9, 0)
+        assertEquals(0.0, neutral.damageAmplification, 0.001)
+        assertEquals(0.0, neutral.damageReduction, 0.001)
+    }
+
+    @Test
+    fun `calculateRealmGapFactors - 越界层数钳制`() {
+        // (9,20) 钳制为 9 层，(9,-3) 钳制为 1 层 → gap = 9-1 = 8
+        val factors = BattleCalculator.calculateRealmGapFactors(9, 20, 9, -3)
+        assertEquals(2.4, factors.damageAmplification, 0.001) // 0.30 × 8
+        assertEquals(0.0, factors.damageReduction, 0.001)
     }
 
     @Test
@@ -396,7 +428,6 @@ class BattleCalculatorTest {
         rawAttack: Int = 1000,
         defense: Int = 200,
         skillMultiplier: Double = 1.0,
-        realmGapMultiplier: Double = 1.0,
         zones: DamageZones = baseZones(),
         isCrit: Boolean = false,
         variance: Double = 1.0
@@ -404,7 +435,6 @@ class BattleCalculatorTest {
         rawAttack = rawAttack,
         defense = defense,
         skillMultiplier = skillMultiplier,
-        realmGapMultiplier = realmGapMultiplier,
         zones = zones,
         isCrit = isCrit,
         variance = variance
@@ -415,7 +445,6 @@ class BattleCalculatorTest {
         rawAttack: Int = 1000,
         defense: Int = 200,
         skillMultiplier: Double = 1.0,
-        realmGapMultiplier: Double = 1.0,
         zones: DamageZones = baseZones(),
         isCrit: Boolean = false,
         variance: Double = 1.0
@@ -425,7 +454,7 @@ class BattleCalculatorTest {
             (1.0 - zones.physiqueDefenseBonus).coerceAtLeast(0.0) *
             (1.0 - zones.affixDefenseBonus).coerceAtLeast(0.0)
         val reduction = effectiveDefense / (effectiveDefense + GameConfig.Battle.DEFENSE_CONSTANT)
-        val preCritDamage = effectiveAttack * skillMultiplier * (1.0 - reduction) * realmGapMultiplier
+        val preCritDamage = effectiveAttack * skillMultiplier * (1.0 - reduction)
         val critMult = if (isCrit) 1.0 + GameConfig.Battle.CRIT_BASE_MULTIPLIER else 1.0
         val physiqueCritMult = if (isCrit) (1.0 + zones.physiqueCritDamageBonus) else 1.0
         val affixCritMult = if (isCrit) (1.0 + zones.affixCritDamageBonus) else 1.0
@@ -433,9 +462,11 @@ class BattleCalculatorTest {
             (1.0 + zones.damageAmplification) *
             (1.0 + zones.physiqueDamageAmplification) *
             (1.0 + zones.affixDamageAmplification) *
+            (1.0 + zones.realmGapDamageAmplification) *
             (1.0 - zones.damageReduction) *
             (1.0 - zones.physiqueDamageReduction) *
             (1.0 - zones.affixDamageReduction) *
+            (1.0 - zones.realmGapDamageReduction) *
             variance
     }
 
@@ -603,13 +634,13 @@ class BattleCalculatorTest {
             affixDamageAmplification = 0.10,
             affixCritDamageBonus = 0.25,
             affixDamageReduction = 0.10,
-            affixDefenseBonus = 0.25
+            affixDefenseBonus = 0.25,
+            realmGapDamageAmplification = 0.50 // 境界压制增伤，独立乘算（等价 ×1.5）
         )
         val expected = expectedFinalDamage(
             rawAttack = 1000,
             defense = 200,
             skillMultiplier = 2.0,
-            realmGapMultiplier = 1.5,
             zones = allZones,
             isCrit = true,
             variance = 1.0
@@ -618,12 +649,53 @@ class BattleCalculatorTest {
             rawAttack = 1000,
             defense = 200,
             skillMultiplier = 2.0,
-            realmGapMultiplier = 1.5,
             zones = allZones,
             isCrit = true,
             variance = 1.0
         )
         assertEquals(expected, actual)
+    }
+
+    // ==================== 境界压制独立乘算因子测试 ====================
+
+    @Test
+    fun `realmGapDamageAmplification - 境界压制增伤独立乘算`() {
+        val zones = baseZones().copy(realmGapDamageAmplification = 0.50)
+        val expected = expectedFinalDamage(zones = zones).toInt().toClampedMin()
+        val actual = baseFinal(zones = zones)
+        assertEquals(expected, actual)
+    }
+
+    @Test
+    fun `realmGapDamageAmplification - 境界压制增伤与 buff 增伤独立乘算`() {
+        // 独立乘算：base × (1+buff) × (1+realmGap)，而非 base × (1+buff+realmGap)
+        val both = baseFinal(zones = baseZones().copy(
+            damageAmplification = 0.10, realmGapDamageAmplification = 0.20
+        ))
+        val additive = baseFinal(zones = baseZones().copy(
+            damageAmplification = 0.30 // 0.10 + 0.20，加算
+        ))
+        assertTrue("境界压制增伤应独立乘算不被乘区稀释: both=$both, additive=$additive", both > additive)
+    }
+
+    @Test
+    fun `realmGapDamageReduction - 境界压制减伤独立乘算`() {
+        val zones = baseZones().copy(realmGapDamageReduction = 0.30)
+        val expected = expectedFinalDamage(zones = zones).toInt().toClampedMin()
+        val actual = baseFinal(zones = zones)
+        assertEquals(expected, actual)
+    }
+
+    @Test
+    fun `realmGapDamageReduction - 境界压制减伤与 buff 减伤独立乘算`() {
+        // 独立乘算：base × (1-buff) × (1-realmGap)，而非 base × (1-buff-realmGap)
+        val both = baseFinal(zones = baseZones().copy(
+            damageReduction = 0.10, realmGapDamageReduction = 0.20
+        ))
+        val additive = baseFinal(zones = baseZones().copy(
+            damageReduction = 0.30 // 0.10 + 0.20，加算
+        ))
+        assertTrue("境界压制减伤应独立乘算: both=$both, additive=$additive", both > additive)
     }
 
     @Test

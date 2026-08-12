@@ -127,7 +127,6 @@
     <ID>MaxLineLength:AssignDiscipleWorkUseCase.kt$AssignDiscipleWorkUseCase$suspend operator</ID>
     <ID>MaxLineLength:AtomicStateFlowUpdates.kt$)</ID>
     <ID>MaxLineLength:AtomicStateFlowUpdates.kt$AtomicStateFlowUpdates$*</ID>
-    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$(1.0 - absGap * GameConfig.Battle.RealmGap.DAMAGE_PENALTY_PER_REALM).coerceAtLeast(0.0)</ID>
     <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$.</ID>
     <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$dotDamage += (combatant.maxHp * buff.value * realmMultiplier).toInt()</ID>
     <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$fun</ID>
@@ -146,8 +145,6 @@
     <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val attack = if (usePhysical) attacker.physicalAttack else attacker.magicAttack</ID>
     <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val attackSkills = availableSkills.filter { it.skillType == SkillType.ATTACK }</ID>
     <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val avgDefense = (target.effectivePhysicalDefense + target.effectiveMagicDefense) / 2.0</ID>
-    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val baseDamage = (attack * skillDamageMultiplier * (1.0 - reduction) * critMultiplier * realmGapMultiplier).toInt()</ID>
-    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val baseDamage = (attack.toDouble() * skillMultiplier * (1.0 - reduction) * critMultiplier * realmGapMultiplier).toInt()</ID>
     <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val burnBuffs = combatant.buffs.filter { it.type == BuffType.BURN &amp;&amp; it.remainingDuration &gt; 0 }</ID>
     <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val critMultiplier = if (isCrit) GameConfig.Battle.CRIT_MULTIPLIER else 1.0</ID>
     <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val defense = if (isPhysical) defender.effectivePhysicalDefense else defender.effectiveMagicDefense</ID>
@@ -158,8 +155,6 @@
     <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val isPhysical = if (isSkillAttack) skill?.damageType == DamageType.PHYSICAL ?: true else attacker.physicalAttack &gt;= attacker.magicAttack</ID>
     <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val maxDodgeChance = if (isSkillAttack) GameConfig.Battle.MAX_SKILL_DODGE_CHANCE else GameConfig.Battle.MAX_DODGE_CHANCE</ID>
     <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val poisonBuffs = combatant.buffs.filter { it.type == BuffType.POISON &amp;&amp; it.remainingDuration &gt; 0 }</ID>
-    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val realmGapMultiplier = calculateRealmGapMultiplier(attacker.realm, defender.realm)</ID>
-    <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val realmMultiplier = calculateRealmGapMultiplier(buff.sourceRealm, combatant.realm)</ID>
     <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val reduction = defense.toDouble() / (defense.toDouble() + GameConfig.Battle.DEFENSE_CONSTANT)</ID>
     <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val supportSkills = availableSkills.filter { it.skillType == SkillType.SUPPORT }</ID>
     <ID>MaxLineLength:BattleCalculator.kt$BattleCalculator$val targets = if (skill.targetScope == "team") allies else listOf(caster)</ID>

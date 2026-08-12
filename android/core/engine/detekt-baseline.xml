@@ -377,7 +377,6 @@
     <ID>MaxLineLength:AISectAttackManager.kt$AISectAttackManager$executeNormalAttackAction(currentCombatant, target, allies, enemies, alliesIndexMap, enemiesIndexMap, roundActions)</ID>
     <ID>MaxLineLength:AISectAttackManager.kt$AISectAttackManager$executeSingleAttackAction(currentCombatant, target, availableSkill, allies, enemies, alliesIndexMap, enemiesIndexMap, roundActions)</ID>
     <ID>MaxLineLength:AISectAttackManager.kt$AISectAttackManager$executeSupportAction(currentCombatant, allies.filter { !it.isDead }, availableSkill, allies, alliesIndexMap, roundActions)</ID>
-    <ID>MaxLineLength:AISectAttackManager.kt$AISectAttackManager$val debuff = CombatBuff(type = localBuffType, value = skill.buffValue, remainingDuration = skill.buffDuration, sourceRealm = attacker.realm)</ID>
     <ID>MaxLineLength:AISectAttackManager.kt$private val aisRng get() = (aisRngManager ?: error("AISectAttackManager RNG not initialized")).getRng(RngPartition.BATTLE)</ID>
     <ID>MaxLineLength:AISectTeamComposer.kt$com.xianxia.sect.core.registry.EquipmentDatabase.generateRandom(config.minRarity, config.maxRarity)</ID>
     <ID>MaxLineLength:AISectTeamComposer.kt$com.xianxia.sect.core.registry.ManualDatabase.generateRandom(config.minRarity, config.maxRarity)</ID>

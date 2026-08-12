@@ -32,6 +32,10 @@ import com.xianxia.sect.core.engine.domain.battle.Combatant
  * - affixCritDamageBonus：进攻方词条暴击伤害加成
  * - affixDamageReduction：防守方词条减伤
  * - affixDefenseBonus：防守方词条防御加成
+ *
+ * 境界压制独立乘算因子（与 buff/体质/词条分开，独立乘算，不进任何加算乘区被稀释）：
+ * - realmGapDamageAmplification：进攻方境界压制伤害加成（每高 1 小层 +30%）
+ * - realmGapDamageReduction：防守方境界压制减伤（每高 1 小层 +30%，封顶 100%）
  */
 data class DamageZones(
     val attackBuffs: Double = 0.0,
@@ -50,6 +54,9 @@ data class DamageZones(
     val affixCritDamageBonus: Double = 0.0,
     val affixDamageReduction: Double = 0.0,
     val affixDefenseBonus: Double = 0.0,
+    // 境界压制独立乘算因子（buildDamageZones 按层差填充；与 buff 乘区分开，独立乘算不衰减）
+    val realmGapDamageAmplification: Double = 0.0,
+    val realmGapDamageReduction: Double = 0.0,
 )
 
 object BattleCalculator {
@@ -120,6 +127,8 @@ object BattleCalculator {
         defender?.buffs?.forEach { buff ->
             if (buff.type == BuffType.DAMAGE_REDUCTION) dmgReduce += buff.value
         }
+        // 境界压制因子：按攻击方/防守方小层差距计算（独立乘算，不进乘区）
+        val realmGap = realmGapFactorsOf(attacker, defender)
 
         return DamageZones(
             // attackBuffs 由调用方（calculateCombatantDamage/estimateDamage）按攻击类型注入对应分桶
@@ -138,6 +147,8 @@ object BattleCalculator {
             affixCritDamageBonus = attacker.affix.critDamageBonus,
             affixDamageReduction = defender?.affix?.damageReduction ?: 0.0,
             affixDefenseBonus = defender?.affix?.defenseBonus ?: 0.0,
+            realmGapDamageAmplification = realmGap.damageAmplification,
+            realmGapDamageReduction = realmGap.damageReduction,
         )
     }
 
@@ -145,10 +156,10 @@ object BattleCalculator {
      * 乘区法核心伤害计算。
      *
      * 公式：
-     *   effectiveAtk × skillMult × (1 - 防御减伤率) × realmGap
+     *   effectiveAtk × skillMult × (1 - 防御减伤率)
      *   × critMult × physiqueCritMult × affixCritMult
-     *   × (1 + 增伤) × (1 + 体质增伤) × (1 + 词条增伤)
-     *   × (1 - 减伤) × (1 - 体质减伤) × (1 - 词条减伤)
+     *   × (1 + 增伤) × (1 + 体质增伤) × (1 + 词条增伤) × (1 + 境界压制增伤)
+     *   × (1 - 减伤) × (1 - 体质减伤) × (1 - 词条减伤) × (1 - 境界压制减伤)
      *   × 波动
      *
      * 其中：
@@ -158,12 +169,13 @@ object BattleCalculator {
      * - critMult = 暴击时 (1 + 基础暴伤)，非暴击时 1.0
      * - physiqueCritMult = 暴击时 (1 + 体质暴伤加成)，非暴击时 1.0（独立乘算，仅暴击生效）
      * - affixCritMult = 暴击时 (1 + 词条暴伤加成)，非暴击时 1.0（独立乘算，仅暴击生效）
+     * - 境界压制增伤/减伤：独立乘算因子（不进任何加算乘区被稀释），
+     *   由 buildDamageZones 按双方小层差距填充，至多一个因子生效
      */
     fun calculateFinalDamage(
         rawAttack: Int,
         defense: Int,
         skillMultiplier: Double,
-        realmGapMultiplier: Double,
         zones: DamageZones,
         isCrit: Boolean,
         variance: Double
@@ -174,7 +186,7 @@ object BattleCalculator {
             (1.0 - zones.physiqueDefenseBonus).coerceAtLeast(0.0) *
             (1.0 - zones.affixDefenseBonus).coerceAtLeast(0.0)
         val reduction = effectiveDefense / (effectiveDefense + GameConfig.Battle.DEFENSE_CONSTANT)
-        val preCritDamage = effectiveAttack * skillMultiplier * (1.0 - reduction) * realmGapMultiplier
+        val preCritDamage = effectiveAttack * skillMultiplier * (1.0 - reduction)
         val critMult = if (isCrit) {
             1.0 + GameConfig.Battle.CRIT_BASE_MULTIPLIER
         } else {
@@ -188,12 +200,22 @@ object BattleCalculator {
             * (1.0 + zones.damageAmplification)
             * (1.0 + zones.physiqueDamageAmplification)
             * (1.0 + zones.affixDamageAmplification)
+            * (1.0 + zones.realmGapDamageAmplification)
             * (1.0 - zones.damageReduction)
             * (1.0 - zones.physiqueDamageReduction)
             * (1.0 - zones.affixDamageReduction)
+            * (1.0 - zones.realmGapDamageReduction)
             * variance
         ).toInt().coerceAtLeast(GameConfig.Battle.MIN_DAMAGE)
     }
+
+    /**
+     * 计算攻击方与防守方之间的境界压制因子（无防守方时返回中性因子）。
+     */
+    private fun realmGapFactorsOf(attacker: Combatant, defender: Combatant?): RealmGapFactors =
+        defender?.let {
+            calculateRealmGapFactors(attacker.realm, attacker.realmLayer, it.realm, it.realmLayer)
+        } ?: RealmGapFactors()
 
     fun calculateDamageVariance(rng: DeterministicRng): Double {
         val variancePercent = rng.nextDouble() * GameConfig.Battle.DAMAGE_VARIANCE_PERCENT * 2 - GameConfig.Battle.DAMAGE_VARIANCE_PERCENT
@@ -236,6 +258,8 @@ object BattleCalculator {
         val element: String
         /** 含 buff 的有效暴击率，默认实现返回基础暴击率 */
         val effectiveCritRate: Double get() = critRate
+        /** 小层境界（1~9），默认 0 表示未知（按初层 1 回退）；Combatant 版实现为 realmLayer */
+        val realmLayer: Int get() = 0
     }
 
     /**
@@ -273,15 +297,21 @@ object BattleCalculator {
         val defense = if (usePhysical) defender.physicalDefense else defender.magicDefense
 
         val isCrit = rng.nextDouble() < attacker.effectiveCritRate
-        val realmGapMultiplier = calculateRealmGapMultiplier(attacker.realm, defender.realm)
+        // 境界压制因子独立乘算（不进乘区），注入 zones 的独立因子槽位
+        val realmGap = calculateRealmGapFactors(
+            attacker.realm, attacker.realmLayer, defender.realm, defender.realmLayer
+        )
+        val zonesWithRealmGap = zones.copy(
+            realmGapDamageAmplification = zones.realmGapDamageAmplification + realmGap.damageAmplification,
+            realmGapDamageReduction = zones.realmGapDamageReduction + realmGap.damageReduction
+        )
         val variance = calculateDamageVariance(rng)
 
         val finalDamage = calculateFinalDamage(
             rawAttack = attack,
             defense = defense,
             skillMultiplier = skillDamageMultiplier,
-            realmGapMultiplier = realmGapMultiplier,
-            zones = zones,
+            zones = zonesWithRealmGap,
             isCrit = isCrit,
             variance = variance
         )
@@ -306,22 +336,50 @@ object BattleCalculator {
         return (speedDiff.toDouble() / totalSpeed * modifier).coerceIn(0.0, GameConfig.Battle.MAX_DODGE_CHANCE)
     }
 
-    fun calculateRealmGapMultiplier(
-        attackerRealm: Int, defenderRealm: Int,
-        damageBonusPerRealm: Double = GameConfig.Battle.RealmGap.DAMAGE_BONUS_PER_REALM,
-        damagePenaltyPerRealm: Double = GameConfig.Battle.RealmGap.DAMAGE_PENALTY_PER_REALM
-    ): Double {
-        val gap = attackerRealm - defenderRealm
-        if (gap == 0) return 1.0
-
-        val absGap = kotlin.math.abs(gap)
-
-        return if (gap < 0) {
-            1.0 + absGap * damageBonusPerRealm
+    /**
+     * 跨境界压制因子（独立乘算，不进乘区，不会被同一乘区加算稀释）。
+     *
+     * realm 数值越小境界越高（0=仙人，9=炼气），realmLayer 1~9（1=初层）。
+     * 小层差距沿用 [checkInstantKill] 的归一化公式：
+     *   gap = (defenderRealm - attackerRealm) × LAYERS_PER_REALM + (attackerLayer - defenderLayer)
+     * gap > 0 表示攻击方境界更高：增伤因子 = 每层加成 × gap（不封顶）
+     * gap < 0 表示防守方境界更高：减伤 = min(1.0, 每层减伤 × (-gap))（封顶 100%）
+     * gap == 0 同境界同层：双因子均为 0，伤害倍率 1.0。
+     *
+     * @param attackerRealm 攻击方境界（数值越小境界越高）
+     * @param attackerLayer 攻击方小层（1~9，0/越界按初层 1 回退）
+     * @param defenderRealm 防守方境界
+     * @param defenderLayer 防守方小层
+     */
+    fun calculateRealmGapFactors(
+        attackerRealm: Int,
+        attackerLayer: Int,
+        defenderRealm: Int,
+        defenderLayer: Int,
+        damageBonusPerLayer: Double = GameConfig.Battle.RealmGap.DAMAGE_BONUS_PER_LAYER,
+        damageReductionPerLayer: Double = GameConfig.Battle.RealmGap.DAMAGE_REDUCTION_PER_LAYER
+    ): RealmGapFactors {
+        // Long 中间运算防存档篡改后 Int 溢出回绕
+        val gap = (defenderRealm.toLong() - attackerRealm.toLong()) * LAYERS_PER_REALM +
+            (safeLayer(attackerLayer) - safeLayer(defenderLayer))
+        if (gap == 0L) return RealmGapFactors()
+        return if (gap > 0L) {
+            // 攻击方境界更高：每高 1 小层 +30% 伤害（不封顶）
+            RealmGapFactors(damageAmplification = damageBonusPerLayer * gap)
         } else {
-            (1.0 - absGap * damagePenaltyPerRealm).coerceAtLeast(0.0)
+            // 防守方境界更高：每高 1 小层 +30% 减伤（封顶 100%）
+            RealmGapFactors(damageReduction = minOf(1.0, damageReductionPerLayer * (-gap)))
         }
     }
+
+    /** 小层境界安全钳制（1~9）：0/越界（未知、存档篡改）回退合法层数 */
+    private fun safeLayer(layer: Int): Int = layer.coerceIn(1, LAYERS_PER_REALM)
+
+    /** 境界压制双因子（增伤 + 减伤），与 buff/体质/词条乘区独立乘算 */
+    data class RealmGapFactors(
+        val damageAmplification: Double = 0.0,
+        val damageReduction: Double = 0.0
+    )
 
     fun generateBattleMessage(
         attackerName: String,
@@ -423,7 +481,6 @@ object BattleCalculator {
 
         val isCrit = rng.nextDouble() < attacker.effectiveCritRate
         val skillMultiplier = skill?.damageMultiplier ?: 1.0
-        val realmGapMultiplier = calculateRealmGapMultiplier(attacker.realm, defender.realm)
         val variance = calculateDamageVariance(rng)
 
         val baseZones = zones ?: buildDamageZones(attacker, defender)
@@ -443,7 +500,6 @@ object BattleCalculator {
             rawAttack = attack,
             defense = defense,
             skillMultiplier = skillMultiplier,
-            realmGapMultiplier = realmGapMultiplier,
             zones = damageZones,
             isCrit = isCrit,
             variance = variance
@@ -480,9 +536,6 @@ object BattleCalculator {
         val def = if (isPhysical)
             defender.effectivePhysicalDefense
         else defender.effectiveMagicDefense
-        val realmGap = calculateRealmGapMultiplier(
-            attacker.realm, defender.realm
-        )
         // 攻击 Buff 按攻击类型注入分桶（与 calculateCombatantDamage 实际伤害一致）
         val baseZones = zones ?: buildDamageZones(attacker, defender)
         val damageZones = baseZones.copy(
@@ -508,14 +561,16 @@ object BattleCalculator {
             (effectiveDef + GameConfig.Battle.DEFENSE_CONSTANT)
 
         val preCritDmg = atk.toDouble() * (1.0 + damageZones.attackBuffs) *
-            skill.damageMultiplier * (1.0 - reduction) * realmGap
+            skill.damageMultiplier * (1.0 - reduction)
         val rawDmg = preCritDmg * avgCritMult *
             (1.0 + damageZones.damageAmplification) *
             (1.0 + damageZones.physiqueDamageAmplification) *
             (1.0 + damageZones.affixDamageAmplification) *
+            (1.0 + damageZones.realmGapDamageAmplification) *
             (1.0 - damageZones.damageReduction) *
             (1.0 - damageZones.physiqueDamageReduction) *
-            (1.0 - damageZones.affixDamageReduction) * skill.hits
+            (1.0 - damageZones.affixDamageReduction) *
+            (1.0 - damageZones.realmGapDamageReduction) * skill.hits
         return rawDmg.toInt()
             .coerceAtLeast(GameConfig.Battle.MIN_DAMAGE)
     }
@@ -617,12 +672,10 @@ object BattleCalculator {
 
             var dotDamage = 0
             poisonBuffs.forEach { buff ->
-                val realmMultiplier = calculateRealmGapMultiplier(buff.sourceRealm, combatant.realm)
-                dotDamage += (combatant.maxHp * buff.value * realmMultiplier).toInt()
+                dotDamage += (combatant.maxHp * buff.value * dotRealmFactor(buff, combatant)).toInt()
             }
             burnBuffs.forEach { buff ->
-                val realmMultiplier = calculateRealmGapMultiplier(buff.sourceRealm, combatant.realm)
-                dotDamage += (combatant.maxHp * buff.value * realmMultiplier).toInt()
+                dotDamage += (combatant.maxHp * buff.value * dotRealmFactor(buff, combatant)).toInt()
             }
             dotDamage = dotDamage.coerceAtLeast(1)
 
@@ -633,6 +686,14 @@ object BattleCalculator {
         }
 
         return results
+    }
+
+    /** DoT 境界压制倍率 = 增伤因子 × (1 - 减伤因子)（与普攻/技能伤害同公式，独立乘算不进乘区） */
+    private fun dotRealmFactor(buff: CombatBuff, defender: Combatant): Double {
+        val factors = calculateRealmGapFactors(
+            buff.sourceRealm, buff.sourceRealmLayer, defender.realm, defender.realmLayer
+        )
+        return (1.0 + factors.damageAmplification) * (1.0 - factors.damageReduction)
     }
 
     fun executeSupportSkill(
@@ -649,7 +710,7 @@ object BattleCalculator {
 
         val (healAmount, healFixedAmount) = computeHealAmounts(caster, skill)
         val totalHeal = healAmount + healFixedAmount
-        val teamBuffs = buildSkillBuffs(skill, targets)
+        val teamBuffs = buildSkillBuffs(skill, targets, caster.realm, caster.realmLayer)
 
         return SupportResult(
             healAmount = totalHeal,
@@ -682,7 +743,12 @@ object BattleCalculator {
     }
 
     /** 团队 BUFF 构建（executeSupportSkill 提取）：护盾/伤害分担/旧单 BUFF/多 BUFF 列表 */
-    private fun buildSkillBuffs(skill: CombatSkill, targets: List<Combatant>): Map<String, List<CombatBuff>> {
+    private fun buildSkillBuffs(
+        skill: CombatSkill,
+        targets: List<Combatant>,
+        sourceRealm: Int,
+        sourceRealmLayer: Int
+    ): Map<String, List<CombatBuff>> {
         val teamBuffs = mutableMapOf<String, List<CombatBuff>>()
 
         // Shield buff
@@ -690,7 +756,9 @@ object BattleCalculator {
             val shieldBuff = CombatBuff(
                 type = BuffType.SHIELD,
                 value = skill.shieldPercent,
-                remainingDuration = skill.buffDuration
+                remainingDuration = skill.buffDuration,
+                sourceRealm = sourceRealm,
+                sourceRealmLayer = sourceRealmLayer
             )
             for (member in targets) {
                 teamBuffs[member.id] = listOf(shieldBuff)
@@ -702,7 +770,9 @@ object BattleCalculator {
             val shareBuff = CombatBuff(
                 type = BuffType.DAMAGE_SHARE,
                 value = skill.damageSharePercent,
-                remainingDuration = skill.buffDuration
+                remainingDuration = skill.buffDuration,
+                sourceRealm = sourceRealm,
+                sourceRealmLayer = sourceRealmLayer
             )
             for (member in targets) {
                 teamBuffs[member.id] = listOf(shareBuff)
@@ -715,7 +785,9 @@ object BattleCalculator {
             val buff = CombatBuff(
                 type = skillBuffType,
                 value = skill.buffValue,
-                remainingDuration = skill.buffDuration
+                remainingDuration = skill.buffDuration,
+                sourceRealm = sourceRealm,
+                sourceRealmLayer = sourceRealmLayer
             )
             for (member in targets) {
                 teamBuffs[member.id] = listOf(buff)
@@ -727,7 +799,9 @@ object BattleCalculator {
             val buff = CombatBuff(
                 type = buffType,
                 value = buffValue,
-                remainingDuration = buffDuration
+                remainingDuration = buffDuration,
+                sourceRealm = sourceRealm,
+                sourceRealmLayer = sourceRealmLayer
             )
             for (member in targets) {
                 val existing = teamBuffs[member.id] ?: emptyList()

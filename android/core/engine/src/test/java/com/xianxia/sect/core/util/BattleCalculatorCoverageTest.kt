@@ -364,4 +364,59 @@ class BattleCalculatorCoverageTest {
         assertTrue(result.damage > 0)
         assertEquals("正常路径应恰好消耗 3 个抽数（闪避判定 → 暴击 → 波动）", drawRef4, drawAfterDamage, 0.0)
     }
+
+    // ---- 境界压制（每小层 +30% 增伤/减伤，独立乘算）----
+
+    @Test
+    fun `buildDamageZones - 境界压制因子按层差填充`() {
+        // 筑基三层(8,3) 攻击 炼气五层(9,5)：gap = (9-8)×9 + (3-5) = 7 → 增伤 2.1
+        val attacker = combatant(id = "attacker", realm = 8, realmLayer = 3)
+        val defender = combatant(id = "defender", realm = 9, realmLayer = 5)
+        val zones = BattleCalculator.buildDamageZones(attacker, defender)
+        assertEquals(2.1, zones.realmGapDamageAmplification, 1e-9)
+        assertEquals(0.0, zones.realmGapDamageReduction, 1e-9)
+
+        // 同境界同层 → 双因子 0
+        val neutral = BattleCalculator.buildDamageZones(combatant(id = "a"), combatant(id = "d"))
+        assertEquals(0.0, neutral.realmGapDamageAmplification, 1e-9)
+        assertEquals(0.0, neutral.realmGapDamageReduction, 1e-9)
+    }
+
+    @Test
+    fun `processDotEffects - 施放者高境界 DoT 增伤`() {
+        // 筑基三层 buff 施放到 炼气五层：dotFactor = 1 + 0.30×7 = 3.1
+        val poisoned = combatant(id = "victim", realm = 9, realmLayer = 5, hp = 1000, maxHp = 1000).copy(
+            buffs = listOf(CombatBuff(
+                type = BuffType.POISON, value = 0.05, remainingDuration = 3,
+                sourceRealm = 8, sourceRealmLayer = 3
+            ))
+        )
+        val results = BattleCalculator.processDotEffects(listOf(poisoned))
+        assertEquals(155, results.single().damage) // 1000 × 0.05 × 3.1
+    }
+
+    @Test
+    fun `processDotEffects - 防守方高境界 DoT 减伤封顶`() {
+        // 炼气五层 buff 施放到 筑基一层：gap = (8-9)×9 + (5-1) = -5 → 减伤封顶 → 保底 1
+        val poisoned = combatant(id = "victim", realm = 8, realmLayer = 1, hp = 1000, maxHp = 1000).copy(
+            buffs = listOf(CombatBuff(
+                type = BuffType.BURN, value = 0.05, remainingDuration = 3,
+                sourceRealm = 9, sourceRealmLayer = 5
+            ))
+        )
+        val results = BattleCalculator.processDotEffects(listOf(poisoned))
+        assertEquals(1, results.single().damage)
+    }
+
+    @Test
+    fun `processDotEffects - sourceRealmLayer 默认 0 与同层目标中性`() {
+        // sourceRealmLayer=0 回退初层 1：source(9,1) 挂 (9,1) → 层差 0 → 中性 ×1.0
+        val poisoned = combatant(id = "victim", realm = 9, realmLayer = 1, hp = 1000, maxHp = 1000).copy(
+            buffs = listOf(CombatBuff(
+                type = BuffType.POISON, value = 0.05, remainingDuration = 3, sourceRealm = 9
+            ))
+        )
+        val results = BattleCalculator.processDotEffects(listOf(poisoned))
+        assertEquals(50, results.single().damage) // 1000 × 0.05 × 1.0
+    }
 }

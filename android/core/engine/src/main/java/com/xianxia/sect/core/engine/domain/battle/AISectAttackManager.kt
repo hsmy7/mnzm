@@ -1108,7 +1108,13 @@ object AISectAttackManager {
 
             val localBuffType = skill.buffType
             if (localBuffType != null && skill.buffDuration > 0) {
-                val debuff = CombatBuff(type = localBuffType, value = skill.buffValue, remainingDuration = skill.buffDuration, sourceRealm = attacker.realm)
+                val debuff = CombatBuff(
+                    type = localBuffType,
+                    value = skill.buffValue,
+                    remainingDuration = skill.buffDuration,
+                    sourceRealm = attacker.realm,
+                    sourceRealmLayer = attacker.realmLayer
+                )
                 updatedTarget = updatedTarget.copy(buffs = updatedTarget.buffs + debuff)
             }
             // 伤害链接 debuff（对抗性审查：G4 全字段保留后 AI 战需与主引擎一致——
@@ -1210,7 +1216,13 @@ object AISectAttackManager {
 
                 val localBuffType = skill.buffType
                 if (localBuffType != null && skill.buffDuration > 0) {
-                    val debuff = CombatBuff(type = localBuffType, value = skill.buffValue, remainingDuration = skill.buffDuration, sourceRealm = attacker.realm)
+                    val debuff = CombatBuff(
+                        type = localBuffType,
+                        value = skill.buffValue,
+                        remainingDuration = skill.buffDuration,
+                        sourceRealm = attacker.realm,
+                        sourceRealmLayer = attacker.realmLayer
+                    )
                     updatedTarget = updatedTarget.copy(buffs = updatedTarget.buffs + debuff)
                 }
                 // 伤害链接 debuff（与主引擎一致）
@@ -1334,7 +1346,8 @@ object AISectAttackManager {
                     type = BuffType.DAMAGE_LINK,
                     value = linkPercent,
                     remainingDuration = skill.buffDuration,
-                    sourceRealm = attacker.realm
+                    sourceRealm = attacker.realm,
+                    sourceRealmLayer = attacker.realmLayer
                 )
             )
         }

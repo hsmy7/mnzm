@@ -471,20 +471,24 @@ class BattleSystemTest {
     }
 
     @Test
-    fun `calculateRealmGapMultiplier - same realm returns 1`() {
-        assertEquals(1.0, battleSystem.calculateRealmGapMultiplier(5, 5), 0.001)
+    fun `calculateRealmGapFactors - same realm same layer 双因子为零`() {
+        val factors = battleSystem.calculateRealmGapFactors(5, 1, 5, 1)
+        assertEquals(0.0, factors.damageAmplification, 0.001)
+        assertEquals(0.0, factors.damageReduction, 0.001)
     }
 
     @Test
-    fun `calculateRealmGapMultiplier - 全十境界差距加成不再被钳制`() {
-        val multiplier = battleSystem.calculateRealmGapMultiplier(0, 9)
-        assertEquals(4.15, multiplier, 0.001)
+    fun `calculateRealmGapFactors - 全十境界差距增伤不封顶`() {
+        val factors = battleSystem.calculateRealmGapFactors(0, 1, 9, 1)
+        assertEquals(24.3, factors.damageAmplification, 0.001) // 0.30 × 81
+        assertEquals(0.0, factors.damageReduction, 0.001)
     }
 
     @Test
-    fun `calculateRealmGapMultiplier - 全十境界差距惩罚触底为零`() {
-        val multiplier = battleSystem.calculateRealmGapMultiplier(9, 0)
-        assertEquals(0.0, multiplier, 0.001)
+    fun `calculateRealmGapFactors - 全十境界差距反向减伤触顶`() {
+        val factors = battleSystem.calculateRealmGapFactors(9, 1, 0, 1)
+        assertEquals(0.0, factors.damageAmplification, 0.001)
+        assertEquals(1.0, factors.damageReduction, 0.001)
     }
 
     @Test

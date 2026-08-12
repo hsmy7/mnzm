@@ -17,6 +17,15 @@
 - **测试** — `DiscipleStatCalculatorTest` +6（3 生产 Flat +18 / 负面 flat -6 / 三 flat 互不覆盖 / plus 叠加不清零回归守卫）；`GameEngineTraitWashTest` +1 端到端（confirmTraitWash 确认"青帝 r3"→ talentIds 落库 → getBaseStats 灵植 = 原始+18）；`HerbGardenAuraServiceTest` +2 跨门槛（75+10=85 长老 0.01、45+10=55 光环弟子 0.01，Int 除法截断语义）；`FormulaServicePureLogicTest` +3（带天丹天赋长老 successBonus=0.16 / 无天赋长老 0.0 / buildSuccessRateZones elderZone=0.16）；Bug 1 的 4 个竞态回归测试（JadeSymbolServiceTest + GameEngineCoreJadeReloadInterleavingTest）原样通过；全模块串行测试（--max-workers=1）+ compileReleaseKotlin + lintRelease + detekt 通过
 - **兼容性** — 无 Entity/Migration/存档格式变更（DATABASE_VERSION 不变）；`DiscipleStats` 新字段带默认值序列化兼容；版本号不递增（changelog 双入口已同步，4.00.95 changes 末尾追加 2 条玩家视角描述）
 
+### 调整（2026-08-12 跨境界压制改为按小层计算 + 独立乘算）
+
+- **机制替换（非叠加）** — 旧的跨境界压制（每大境界差 ±35% 单一伤害倍率，`calculateRealmGapMultiplier`）整体删除，替换为按**小层境界**（realmLayer，每大境界 9 层）计算的新机制：每高 1 小层，高境界方获得 +30% 伤害加成 / +30% 伤害减免（`calculateRealmGapFactors`）；同境界同层中性
+- **独立乘算（不进乘区）** — 境界压制作为 `DamageZones.realmGapDamageAmplification` / `realmGapDamageReduction` 两个独立因子乘在最终伤害链上（仿体质/词条独立因子先例），不并入 `damageAmplification`/`damageReduction` 加算乘区被稀释；减伤封顶 100%（`MIN_DAMAGE=1` 兜底），增伤不封顶
+- **DoT 统一** — 持续伤害（中毒/灼烧）结算统一走新机制，`CombatBuff` 新增 `sourceRealm`/`sourceRealmLayer` 记录施放者境界（layer=0 未知按初层 1 回退）；顺带修正 `buildSkillBuffs` 支持技能 DoT 的 `sourceRealm` 恒为 9（炼气）的问题，改为实际施放者境界
+- **配置** — `game_config.json` realmGap 键改为 `damageBonusPerLayer`/`damageReductionPerLayer`（默认 0.30），`GameConfigData`/`GameConfig`/`GameConfigProvider` 同步；远程 config 旧键名被序列化器忽略，走默认值安全
+- **测试** — `BattleCalculatorTest` 8 个新因子用例（含层差方向/钳制/独立乘算语义）+ 4 个独立乘算断言；`BattleCalculatorCoverageTest` +4（buildDamageZones 填充 + 3 DoT 用例：增伤 155 / 减伤封顶保底 1 / 默认回退中性）；`BattleSystemTest` 3 转发 + `GameConfigConsistencyTest`/`ConfigLoaderTest` 双源一致 0.30；detekt baseline 清理 1（core/engine）+ 4×4（app 各 baseline 的失效 `realmGapMultiplier` 行条目），`buildDamageZones` 复杂度 16→14（抽 `realmGapFactorsOf` helper）
+- **兼容性** — 无 Entity/Migration/存档格式变更（DATABASE_VERSION 不变）；战斗数值巨变属需求本身（同境界内层差 ≥4 时低方减伤封顶仅 1 点保底；全境界差增伤 ×25.3）；版本号不递增（changelog 双入口已同步，4.00.95 changes 末尾追加 1 条玩家视角描述）
+
 ## [4.00.94] - 2026-08-10
 
 ### 新增（2026-08-11 聚合广告 SDK 升级 + 玉符广告按钮 + 个性化广告开关）

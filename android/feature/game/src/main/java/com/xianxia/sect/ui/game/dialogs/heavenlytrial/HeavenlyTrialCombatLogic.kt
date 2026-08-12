@@ -130,7 +130,7 @@ internal fun executePlayerSkill(
             }.toMutableList()
         } else {
             updatedPlayers = updatedPlayers.map { a ->
-                if (!a.isDead) applyBuffToTarget(a, skill) else a
+                if (!a.isDead) applyBuffToTarget(a, skill, attacker.realm, attacker.realmLayer) else a
             }.toMutableList()
         }
     } else {
@@ -146,14 +146,14 @@ internal fun executePlayerSkill(
             }
         } else {
             if (skill.targetScope == "self") {
-                val updated = applyBuffToTarget(attacker, skill)
+                val updated = applyBuffToTarget(attacker, skill, attacker.realm, attacker.realmLayer)
                 if (attackerIdx >= 0) updatedPlayers[attackerIdx] = updated
             } else {
                 val target = if (selectedIsAlly && selectedTargetId != null)
                     updatedPlayers.find { it.id == selectedTargetId }
                 else updatedPlayers.filter { !it.isDead }.randomOrNull(rng)
                 if (target != null) {
-                    val updated = applyBuffToTarget(target, skill)
+                    val updated = applyBuffToTarget(target, skill, attacker.realm, attacker.realmLayer)
                     updatedPlayers = updatedPlayers.map {
                         if (it.id == target.id) updated else it
                     }.toMutableList()
@@ -174,7 +174,10 @@ internal fun executePlayerSkill(
  * 死亡目标直接返回不变。
  */
 internal fun applyBuffToTarget(
-    target: Combatant, skill: CombatSkill
+    target: Combatant,
+    skill: CombatSkill,
+    sourceRealm: Int = 9,
+    sourceRealmLayer: Int = 0
 ): Combatant {
     if (target.isDead) return target
     var hpHeal = 0; var mpHeal = 0
@@ -200,7 +203,7 @@ internal fun applyBuffToTarget(
     val allBuffs = target.buffs.toMutableList()
     val addOrReplace = { type: BuffType, value: Double, dur: Int ->
         val idx = allBuffs.indexOfFirst { it.type == type }
-        val buff = CombatBuff(type, value, dur)
+        val buff = CombatBuff(type, value, dur, sourceRealm, sourceRealmLayer)
         if (idx >= 0) allBuffs[idx] = buff else allBuffs.add(buff)
     }
     skill.buffType?.let { addOrReplace(it, skill.buffValue, skill.buffDuration) }
@@ -344,21 +347,23 @@ internal fun resolveAIAction(
         }
         BattleAI.AIActionType.SKILL_HEAL_SELF, BattleAI.AIActionType.SKILL_BUFF_SELF -> {
             if (skill != null) {
-                val buffed = applyBuffToTarget(actor, skill)
+                val buffed = applyBuffToTarget(actor, skill, actor.realm, actor.realmLayer)
                 if (actorIsPlayer) updatedPlayers = updatedPlayers.map { if (it.id == actor.id) buffed else it }
                 else updatedEnemies = updatedEnemies.map { if (it.id == actor.id) buffed else it }
             }
         }
         BattleAI.AIActionType.SKILL_HEAL_ALLY, BattleAI.AIActionType.SKILL_BUFF_ALLY -> {
             if (skill != null && target != null) {
-                val buffed = applyBuffToTarget(target, skill)
+                val buffed = applyBuffToTarget(target, skill, actor.realm, actor.realmLayer)
                 if (actorIsPlayer) updatedPlayers = updatedPlayers.map { if (it.id == target.id) buffed else it }
                 else updatedEnemies = updatedEnemies.map { if (it.id == target.id) buffed else it }
             }
         }
         BattleAI.AIActionType.SKILL_HEAL_TEAM, BattleAI.AIActionType.SKILL_BUFF_TEAM -> {
             if (skill != null) {
-                val applyBuffs: (Combatant) -> Combatant = { if (!it.isDead) applyBuffToTarget(it, skill) else it }
+                val applyBuffs: (Combatant) -> Combatant = {
+                    if (!it.isDead) applyBuffToTarget(it, skill, actor.realm, actor.realmLayer) else it
+                }
                 if (actorIsPlayer) updatedPlayers = updatedPlayers.map(applyBuffs)
                 else updatedEnemies = updatedEnemies.map(applyBuffs)
             }

@@ -690,10 +690,10 @@ object GameConfig {
         const val MIN_FORMATION_SIZE = ELDER_SLOTS + DISCIPLE_SLOTS
 
         object RealmGap {
-            val DAMAGE_BONUS_PER_REALM: Double
-                get() = config()?.battle?.realmGap?.damageBonusPerRealm ?: 0.35
-            val DAMAGE_PENALTY_PER_REALM: Double
-                get() = config()?.battle?.realmGap?.damagePenaltyPerRealm ?: 0.35
+            val DAMAGE_BONUS_PER_LAYER: Double
+                get() = config()?.battle?.realmGap?.damageBonusPerLayer ?: 0.30
+            val DAMAGE_REDUCTION_PER_LAYER: Double
+                get() = config()?.battle?.realmGap?.damageReductionPerLayer ?: 0.30
             val INSTANT_KILL_GAP: Int
                 get() = config()?.battle?.realmGap?.instantKillGap ?: 1
         }

@@ -58,8 +58,8 @@ class GameConfigProvider @Inject constructor(
     val battle: BattleConfig get() = BattleConfig(config.battle)
 
     class BattleConfig(private val s: GameConfigData.BattleSection) {
-        val damageBonusPerRealm: Double get() = s.realmGap.damageBonusPerRealm
-        val damagePenaltyPerRealm: Double get() = s.realmGap.damagePenaltyPerRealm
+        val damageBonusPerLayer: Double get() = s.realmGap.damageBonusPerLayer
+        val damageReductionPerLayer: Double get() = s.realmGap.damageReductionPerLayer
         val maxTeamSize: Int get() = s.maxTeamSize
         val maxTurns: Int get() = s.maxTurns
     }

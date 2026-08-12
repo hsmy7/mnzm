@@ -66,7 +66,8 @@ class ConfigLoaderTest {
         assertTrue(config.battle.minBeastCount > 0)
         assertTrue(config.battle.maxBeastCount > 0)
         assertTrue(config.battle.critMultiplier > 0.0)
-        assertEquals(0.35, config.battle.realmGap.damageBonusPerRealm, 0.001)
+        assertEquals(0.30, config.battle.realmGap.damageBonusPerLayer, 0.001)
+        assertEquals(0.30, config.battle.realmGap.damageReductionPerLayer, 0.001)
         assertEquals(1, config.battle.realmGap.instantKillGap)
     }
 

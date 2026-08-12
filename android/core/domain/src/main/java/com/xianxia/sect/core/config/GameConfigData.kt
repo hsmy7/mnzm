@@ -157,8 +157,8 @@ data class GameConfigData(
     ) {
         @Serializable
         data class RealmGapSection(
-            val damageBonusPerRealm: Double = 0.35,
-            val damagePenaltyPerRealm: Double = 0.35,
+            val damageBonusPerLayer: Double = 0.30,
+            val damageReductionPerLayer: Double = 0.30,
             val instantKillGap: Int = 1
         )
     }

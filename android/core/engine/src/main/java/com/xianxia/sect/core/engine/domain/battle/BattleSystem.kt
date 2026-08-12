@@ -868,7 +868,8 @@ class BattleSystem @Inject constructor(
             type = localBuffType,
             value = availableSkill.buffValue,
             remainingDuration = availableSkill.buffDuration,
-            sourceRealm = currentCombatant.realm
+            sourceRealm = currentCombatant.realm,
+            sourceRealmLayer = currentCombatant.realmLayer
         )
         if (isTeamMember && targetIndex < ctx.beasts.size) {
             ctx.beasts[targetIndex] = ctx.beasts[targetIndex].copy(
@@ -896,7 +897,8 @@ class BattleSystem @Inject constructor(
             type = BuffType.DAMAGE_LINK,
             value = availableSkill.damageLinkPercent,
             remainingDuration = availableSkill.buffDuration,
-            sourceRealm = currentCombatant.realm
+            sourceRealm = currentCombatant.realm,
+            sourceRealmLayer = currentCombatant.realmLayer
         )
         val enemies = if (isTeamMember) ctx.beasts else ctx.team
         enemies.forEachIndexed { idx, enemy ->
@@ -934,7 +936,8 @@ class BattleSystem @Inject constructor(
             type = aoeBuffType,
             value = availableSkill.buffValue,
             remainingDuration = availableSkill.buffDuration,
-            sourceRealm = currentCombatant.realm
+            sourceRealm = currentCombatant.realm,
+            sourceRealmLayer = currentCombatant.realmLayer
         )
         aliveEnemies.filter { !it.isDead }.forEach { enemy ->
             val idx = enemiesIndexMap[enemy.id] ?: return@forEach
@@ -1253,8 +1256,15 @@ class BattleSystem @Inject constructor(
         )
     }
 
-    fun calculateRealmGapMultiplier(attackerRealm: Int, defenderRealm: Int): Double {
-        return BattleCalculator.calculateRealmGapMultiplier(attackerRealm, defenderRealm)
+    fun calculateRealmGapFactors(
+        attackerRealm: Int,
+        attackerLayer: Int,
+        defenderRealm: Int,
+        defenderLayer: Int
+    ): BattleCalculator.RealmGapFactors {
+        return BattleCalculator.calculateRealmGapFactors(
+            attackerRealm, attackerLayer, defenderRealm, defenderLayer
+        )
     }
 
     /** 技能决策结果：技能 + 配对的 AI 目标（局部传递，替代原类级 pendingAiAction） */
